@@ -20,6 +20,7 @@ use crate::ui::theme::{DEFAULT_ASPECT, ElementId};
 use crate::ui::{Catalog, UiAssets};
 
 mod command;
+mod geometry;
 mod layers;
 mod load;
 mod pose;
@@ -30,6 +31,7 @@ mod start;
 mod text;
 mod vertical;
 
+pub use geometry::ListGeometry;
 pub use layers::MenuLayers;
 pub use shown::Presented;
 
@@ -62,6 +64,8 @@ pub struct Screens {
     world_map: Option<WorldMapFrame>,
     /// The window's width over its height (`set_aspect`): where the left screen edge lies for the vertical menus.
     aspect: f32,
+    /// Whose places a click on a list is tested against (`set_list_geometry`).
+    geometry: ListGeometry,
     /// Where the pointer was last frame, so a hover follows its movement and not its rest (`hover_row`).
     pointer: Option<Vec2>,
     /// The last frame's pad mask, for `ScreenLogic::pad_pressed`.
@@ -89,6 +93,7 @@ impl Screens {
             key_texts: Vec::new(),
             world_map: None,
             aspect: DEFAULT_ASPECT,
+            geometry: ListGeometry::default(),
             pointer: None,
             last_pad: 0,
             start_press: None,

@@ -207,6 +207,8 @@ impl WorldScene {
         self.lift_region_gates();
         let walls = self.raise_race_walls(&race.barriers);
         let route = self.build_race_route(&prepared.course, player_spawn);
+        let kind = race.race_type.unwrap_or(RaceType::Sprint);
+        let map_route = route.as_deref().and_then(|route| self.map_race_route(route, &prepared.course, kind));
         // A race a mod registered has no finish trigger in the install's data, so no flares.
         match given_course {
             Some(_) => self.finish_flares.clear(),
@@ -224,7 +226,7 @@ impl WorldScene {
                 race.region.as_deref(),
             ),
             name: race.name.clone(),
-            kind: race.race_type.unwrap_or(RaceType::Sprint),
+            kind,
             options,
             stage: Stage::Loading { waited: 0.0 },
             engine: None,
@@ -253,6 +255,7 @@ impl WorldScene {
             collisions: 0,
             origin: Origin { race: race.clone(), course: given_course },
             route,
+            map_route,
             shortcuts: Vec::new(),
             restarted: false,
         });

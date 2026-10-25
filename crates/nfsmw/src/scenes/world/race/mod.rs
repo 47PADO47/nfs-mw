@@ -20,6 +20,7 @@ mod flow;
 mod grid;
 mod heat;
 mod hold;
+mod hud_info;
 mod intro;
 mod load;
 pub(super) mod mods;
@@ -205,6 +206,8 @@ pub(super) struct RaceSession {
     pub origin: Origin,
     /// The road the opponents follow through every gate of every lap (`route.rs`); `None` without a road network.
     pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
+    /// One lap of `route` for the Custom map, built with it (`route.rs`); `None` without a route.
+    pub map_route: Option<crate::hud::RaceRouteHandle>,
     /// The route's shortcuts, found when the racers go on the grid (`shortcuts.rs`).
     pub shortcuts: Vec<shortcuts::Shortcut>,
     /// The session is a restart of a race that ran: the race goes back to its grid and counts down, without its intro
@@ -220,6 +223,11 @@ impl RaceSession {
         let police = heat::police_of(self.options.heat, params.pursuit_race || params.cops_in_race);
         self.challenge.is_some() || police != heat::Police::CallOff
     }
+}
+
+/// The race's route the HUD's map draws: the running session's, none outside a race.
+pub(in crate::scenes::world) fn map_route_of(session: Option<&RaceSession>) -> Option<crate::hud::RaceRouteHandle> {
+    session.and_then(|session| session.map_route.clone())
 }
 
 impl crate::scenes::world::WorldScene {

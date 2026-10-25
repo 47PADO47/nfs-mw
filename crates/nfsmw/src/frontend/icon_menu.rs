@@ -168,7 +168,7 @@ impl ScreenLogic for IconMenu {
     }
 
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.list_look();
         // Pause's glow INIT retains its idle colour; the event handler starts its entrance fade later.
         // Keep it transparent until that fade takes over, just like the incoming icons and brackets.
         if self.pause()
@@ -282,7 +282,7 @@ impl ScreenLogic for IconMenu {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.list_look();
         if self.strip.is_empty() {
             return;
         }

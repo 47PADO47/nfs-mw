@@ -17,7 +17,7 @@ use glam::{Vec2, Vec3};
 use nfsmw_data::music::Song;
 
 use super::ids::{SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
-use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic, wheel_as_rows};
+use super::logic::{Args, Category, Command, Cx, ListScreen, Pick, ScreenLogic, wheel_as_rows};
 use crate::i18n::t;
 use crate::settings::eatrax::{Jukebox, Mode};
 use crate::ui::theme::remastered::menu::layout::window_start;
@@ -209,7 +209,7 @@ pub fn order_word(random: bool) -> Text {
 pub struct JukeboxLogic {
     songs: &'static [Song],
     state: State,
-    /// Whether the Remastered look draws the playlist (`Cx::vertical_look`), and the song its window starts at.
+    /// Whether a list look draws the playlist (`Cx::screen_list_look`), and the song its window starts at.
     vertical: bool,
     top: usize,
 }
@@ -276,12 +276,12 @@ fn script(cx: &mut Cx, name: u32, which: u32) {
 
 impl ScreenLogic for JukeboxLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.screen_list_look(ListScreen::Jukebox);
         self.fill(cx);
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.screen_list_look(ListScreen::Jukebox);
         self.top = window_start(self.top, self.state.selected, self.state.jukebox.len());
     }
 

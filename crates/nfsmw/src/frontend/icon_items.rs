@@ -120,6 +120,9 @@ pub fn icons(kind: Kind) -> Vec<Icon> {
                 icon(Id::Category(Category::Video), 0x8A00_6328, 0xE8E2_4508, true),
                 icon(Id::Category(Category::Gameplay), 0x4DF9_8FB2, 0xD0CF_6EE1, true),
                 icon(Id::Category(Category::Player), 0xD708_EFEF, 0xF760_EABE, true),
+                // The HUD page has no picture of its own in the install: it borrows Gameplay's, and its name is the
+                // rewrite's (`vertical.rs`, `special_text`).
+                icon(Id::Category(Category::Hud), 0x4DF9_8FB2, 0, true),
             ];
             list.push(icon(Id::Controls, 0xA04A_7B26, 0x04DC_6DB5, true));
             list.push(icon(Id::ControlOptions, crate::ui::input_icons::ATLAS, 0, true));
@@ -280,8 +283,8 @@ mod tests {
         let categories = icons(Kind::Categories { pause: false, mods: false });
         assert_eq!(
             categories.len(),
-            9,
-            "the offline option list, Control Options and Discord, which the windowed row scrolls over"
+            10,
+            "the offline option list, HUD, Control Options and Discord, which the windowed row scrolls over"
         );
         let controls = categories.iter().find(|i| i.id == Id::Controls).expect("the Controls icon");
         assert_eq!(controls.texture, 0xA04A_7B26, "OMController's picture (docs/specs/frontend-menus.md, 2.2)");
@@ -291,8 +294,9 @@ mod tests {
         assert_eq!((player.texture, player.name), (0xD708_EFEF, 0xF760_EABE), "the original's Player icon");
         assert!(player.enabled);
         let pause = icons(Kind::Categories { pause: true, mods: false });
-        assert_eq!(pause.len(), 7, "Player is available; EA Trax and Credits remain absent in pause");
+        assert_eq!(pause.len(), 8, "Player and HUD are available; EA Trax and Credits remain absent in pause");
         assert_eq!(pause[3].id, Id::Category(Category::Player));
+        assert_eq!(pause[4].id, Id::Category(Category::Hud), "the HUD page follows Player");
         assert!(pause[3].enabled);
         assert_eq!(icons(Kind::Pause)[0].name, 0x01BD_185C, "Resume Free Roam");
     }

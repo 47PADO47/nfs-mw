@@ -219,6 +219,7 @@ impl WorldScene {
         for event in events {
             log::debug!("race: {event:?}");
             note_gate(session, &event);
+            self.hud_feed.race_event(&event, total_checkpoints, laps);
             match event {
                 RaceEvent::Count(n) => match Count::from_number(n) {
                     Some(step) => flash_count(&mut session.banner, step, 1.0),

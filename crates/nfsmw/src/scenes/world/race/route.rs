@@ -6,6 +6,7 @@ use std::sync::Arc;
 use blackbox_race::{Course, Gate, Progress};
 use blackbox_roads::{Goal, Route};
 use glam::Vec3;
+use nfsmw_data::gameplay::RaceType;
 
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{WorldScene, space};
@@ -42,6 +43,24 @@ impl WorldScene {
         let heading = Vec3::new(spawn.heading.cos(), spawn.heading.sin(), 0.0);
         let start = Goal { position: course.start, forward: Vec3::from(space::to_physics(heading)) };
         Some(Arc::new(traffic.build_race_route(start, &gates, &lines)))
+    }
+
+    /// One lap of the race's `route` for the Custom map, closed for a lap race (circuit, knockout). `None` without a
+    /// road network or a route to draw. Built once, when the race starts.
+    pub(super) fn map_race_route(
+        &self,
+        route: &Route,
+        course: &Course,
+        kind: RaceType,
+    ) -> Option<crate::hud::RaceRouteHandle> {
+        let (net, _) = self.traffic.as_ref()?.road_graph();
+        let per_lap = course.checkpoints.len() + usize::from(course.finish.is_some());
+        let closed = matches!(kind, RaceType::Circuit | RaceType::Knockout);
+        let lap = crate::hud::RaceRoute::build(net, route, (per_lap, closed), |p| {
+            let at = space::to_render(p.to_array());
+            [at.x, at.y]
+        })?;
+        Some(crate::hud::RaceRouteHandle::new(lap))
     }
 }
 

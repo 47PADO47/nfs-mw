@@ -45,12 +45,16 @@ impl Panels {
 
 impl WorldScene {
     /// The panels `ui` would draw now.
+    ///
+    /// The cards the Custom HUD draws itself (`hud/cards.rs`) do not count then; a mod's line still does, as the pass
+    /// counts its time down.
     pub(super) fn panels(&self) -> Panels {
+        let egui_cards = !crate::hud::cards_routed();
         Panels {
-            interact_prompt: self.entry.popup.visible(),
+            interact_prompt: egui_cards && self.entry.popup.visible(),
             mod_message: crate::hud::mod_message_up(),
-            pursuit_end: self.pursuit_end().is_some(),
-            race_card: self.race_card().is_some(),
+            pursuit_end: egui_cards && self.pursuit_end().is_some(),
+            race_card: egui_cards && self.race_card().is_some(),
             race_message_card: self.race_card_text().is_some(),
             nis_bars: self.nis_bars_up(),
             subtitles: self.subtitles_up(),

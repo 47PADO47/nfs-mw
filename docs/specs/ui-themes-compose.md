@@ -19,7 +19,7 @@ each call's meshes go over the earlier calls':
 | # | Layer | Slot(s) | Source of the nodes |
 |---|---|---|---|
 | 1 | radio | `RadioCard` | chyron package (Original) or the Custom card (feed) |
-| 2 | HUD | the nine HUD slots, then unclaimed HUD nodes | `HUD_SLOTS` in catalogue order, then `emit_unclaimed` |
+| 2 | HUD | the HUD slots (1 to 9, 12, 13 to 19), then unclaimed HUD nodes | `HUD_SLOTS` in catalogue order, then `emit_unclaimed` |
 | 3 | busted overlay | `BustedOverlay` | `BUSTED_OVERLAY.fng` (no viewport: full screen) |
 | 4 | one per menu screen | its menu slot, or the screen's own tree | menu cell (Original) or the theme's component |
 
@@ -43,7 +43,7 @@ Nothing else changes: `ScreenLogic`, `Cx`, `Command`, the stack, the input path 
 
 ## 3. The HUD layer
 
-- **Slot order and object order.** The composer builds the nine slots in catalogue order, then sorts the list by the
+- **Slot order and object order.** The composer builds the HUD slots in catalogue order, then sorts the list by the
   FEng object index (`DrawList::sort_by_index`, stable). The sort is what matters: `z` ties are common in the HUD, and
   `into_tree` breaks them by list order. The tachometer nests the gear, so slot order alone could not reproduce the
   package's order. Sorting by index does.
@@ -57,8 +57,11 @@ Nothing else changes: `ScreenLogic`, `Cx`, `Command`, the stack, the input path 
   depth must raise its `z`.
 - **Claims are disjoint.** The tests check each node is claimed at most once, with the gear inside the tachometer.
   On the real package the check is owed (no game data here).
-- **Radar cool-down and the bounty row.** Unchanged from `ui-themes.md` section 8. The bounty row is still in no slot
-  unless it sits under the pursuit board, which is not confirmed.
+- **Radar cool-down and the bounty row.** The cool-down is unchanged from `ui-themes.md` section 8. The bounty row sits
+  under the pursuit board and is its own slot (`BountyRow`, 15). A slot nested in another's objects goes with its host
+  (`original::HOSTS`): when the theme replaces the host and leaves the nested slot to Original, the composer skips the
+  nested slot, so a theme with its own pursuit display draws no FEng bounty row, as before
+  ([ui-themes-slots.md](ui-themes-slots.md)).
 
 ## 4. The menu layers
 

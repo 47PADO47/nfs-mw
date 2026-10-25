@@ -11,6 +11,7 @@ use glam::Vec3;
 use nfsmw_career::regions::MapVariant;
 use nfsmw_data::minimap::{GRID, MAX_SPEED};
 
+use super::MapPicture;
 use super::state::{HudState, MapPosition};
 use crate::ui::UiAssets;
 
@@ -144,6 +145,16 @@ impl MinimapBinding {
         self.header = stem.to_ascii_uppercase();
         *self.tile_keys.get_mut().unwrap_or_else(|e| e.into_inner()) = [None; 4];
         true
+    }
+
+    /// The picture of the map file shown now: its tiles and where it lies in the world.
+    pub fn picture(&self) -> MapPicture {
+        MapPicture::new(&self.header, self.calibration)
+    }
+
+    /// The stem of the map file shown now.
+    pub fn stem(&self) -> &str {
+        &self.header
     }
 
     /// Resource validation is separate from install discovery, so incomplete hosts can fail closed.

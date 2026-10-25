@@ -312,7 +312,8 @@ through its mask by composing the picture with the rotated mask into one texture
 with `Scene::hud_state`; nothing else knows FEng.
 
 - `--hud` shows it in any viewer (idle numbers; `--hud-demo SPEED,RPM,MAX_RPM,GEAR[,NOS_PERCENT[,BOOST_PSI]]` for
-  reference shots), and it is on while driving unless the `hud` setting is off (`hud = false` in the config file,
+  reference shots, or `--hud-scenario <name>` for a labelled, deterministic fixture:
+  [custom-hud-scenarios](specs/custom-hud-scenarios.md)), and it is on while driving unless the `hud` setting is off (`hud = false` in the config file,
   `NFSMW_HUD=off`, `--no-hud`, console `set hud off`). The free camera never shows it. `--screenshot` captures it.
 - **Shown, from game state:** the speedometer (whole units, cut off; km/h); the tachometer (the face and the end of the
   needle's sweep from `MAX_RPM`, the red zone mask turned by the original's table, the gear digit that dims while a gear
@@ -334,6 +335,11 @@ with `Scene::hud_state`; nothing else knows FEng.
 - **Theme composition (T12).** The plugin stores each source's tree in the frame cell, and the composer
   (`ui/theme/compose.rs`) draws the radio layer, the HUD and the busted overlay, each as one presenter call. Under
   Original the composed HUD equals the stored tree; the chyron plays only where `RadioCard` is Original ([spec](specs/ui-themes-compose.md)).
+- **Looks.** `ui_style` picks Original (the packages above), Remastered (its own components, `ui/theme/remastered/`) or
+  Custom. Custom is being rewritten from scratch as the rewrite's own modern HUD and menus: a horizontal telemetry
+  cluster, a centred translucent map (on by default), contextual race and pursuit layouts, a notification queue and
+  world markers, with OS fonts and a `[custom_hud]` settings table ([ADR 0013](decisions/0013-custom-hud.md),
+  [spec](specs/custom-hud/README.md)). Original and Remastered do not change.
 
 ## The front end
 

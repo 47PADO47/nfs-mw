@@ -21,8 +21,8 @@ in the live game (T12). A player picks a mod theme on the Mods page (see [Select
 - **Tokens.** `set_tokens(theme, tokens)` (`bb.ui` 1.1) declares the theme's `primary`, `secondary`, `background`,
   `border` and `muted` colours (`[r, g, b, a]`), and its `radius` and `padding` in FEng units (never negative). While the
   theme is active the game merges them into the skin its components read (`theme.*` keys). A theme that declares tokens
-  also gets the game's token-driven components (radio card, speedometer, tachometer, gear, meters) for each slot it does
-  not name. A theme without tokens keeps the Original look for those slots.
+  also gets the game's token-driven components (the radio card today; the Custom HUD's components as they land) for each
+  slot it does not name. A theme without tokens keeps the Original look for those slots.
 
 ## Primitives
 
@@ -58,7 +58,14 @@ never reused.
 | 9 | `Speedbreaker` | 42 | `RapSheet` |
 | 10 | `RadioCard` | 43 | `RegionUnlock` |
 | 11 | `BustedOverlay` | 44 | `MemoryCard` |
-|  |  | 45 | `Sms` |
+| 12 | `PoliceRadar` | 45 | `Sms` |
+| 13 | `RaceStatus` |  |  |
+| 14 | `Leaderboard` |  |  |
+| 15 | `BountyRow` |  |  |
+| 16 | `Banner` |  |  |
+| 17 | `Notifications` |  |  |
+| 18 | `WorldMarkers` |  |  |
+| 19 | `VehicleCondition` |  |  |
 
 ## SDK
 

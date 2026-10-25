@@ -35,16 +35,38 @@ impl Pulse {
     }
 }
 
-#[derive(Default)]
 pub(in crate::viewer::camera) struct Shake {
     time: f64,
     step: f64,
     pending: Vec3,
     current: Option<Pulse>,
     previous: Option<Pulse>,
+    /// The player's shake multiplier (`[custom_hud] camera_shake`): 1 keeps the original amplitude, 0 removes the shake.
+    intensity: f32,
+}
+
+impl Default for Shake {
+    fn default() -> Self {
+        Self { time: 0.0, step: 0.0, pending: Vec3::ZERO, current: None, previous: None, intensity: 1.0 }
+    }
 }
 
 impl Shake {
+    /// Scales the shake's amplitude by `intensity`, 0 to 1. A value that is not a number keeps the original amplitude.
+    pub fn set_intensity(&mut self, intensity: f32) {
+        self.intensity = scaled_intensity(intensity);
+    }
+
+    /// The multiplier in force, 0 to 1.
+    pub fn intensity(&self) -> f32 {
+        self.intensity
+    }
+
+    /// Drops every pulse, as after a teleport, keeping the intensity.
+    pub fn clear(&mut self) {
+        *self = Self { intensity: self.intensity, ..Self::default() };
+    }
+
     pub fn request(&mut self, acceleration: Vec3) {
         let biased = acceleration * Vec3::new(0.7, 0.7, 1.0);
         if biased.is_finite() && biased.length_squared() > self.pending.length_squared() {
@@ -90,7 +112,15 @@ impl Shake {
     pub fn sample(&self, alpha: f32) -> Vec3 {
         let time = self.time - self.step * f64::from(1.0 - alpha.clamp(0.0, 1.0));
         let pulse = self.current.filter(|p| p.start <= time).or(self.previous);
-        pulse.map_or(Vec3::ZERO, |p| p.sample(time))
+        pulse.map_or(Vec3::ZERO, |p| p.sample(time)) * self.intensity
+    }
+}
+
+/// The shake multiplier the camera uses for a setting: clamped to 0 to 1, and 1 for a value that is not a number.
+pub(in crate::viewer::camera) fn scaled_intensity(intensity: f32) -> f32 {
+    match intensity.is_finite() {
+        true => intensity.clamp(0.0, 1.0),
+        false => 1.0,
     }
 }
 

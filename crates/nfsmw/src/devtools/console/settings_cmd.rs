@@ -9,6 +9,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 use crate::settings::custom_fonts;
 use crate::settings::fe_shadows;
 use crate::settings::hd_content;
+use crate::settings::hud;
 use crate::settings::net;
 use crate::settings::{
     CameraMode, HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
@@ -79,6 +80,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         key if custom_fonts::is_key(key) => custom_fonts::get(&settings.custom_fonts, key),
         key if fe_shadows::is_key(key) => fe_shadows::get(&settings.fe_shadows, key),
         key if net::is_key(key) => net::get(&settings.net, key),
+        key if hud::is_key(key) => hud::get(&settings.hud_options, key),
         "motion_blur" => on_off(settings.motion_blur).to_owned(),
         "motion_blur_strength" => settings.motion_blur_strength.to_string(),
         "post_tonemap" => settings.post_tonemap.to_string(),
@@ -212,6 +214,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         key if custom_fonts::is_key(key) => custom_fonts::set(&mut settings.custom_fonts, key, value)?,
         key if fe_shadows::is_key(key) => fe_shadows::set(&mut settings.fe_shadows, key, value)?,
         key if net::is_key(key) => net::set(&mut settings.net, key, value)?,
+        key if hud::is_key(key) => hud::set(&mut settings.hud_options, key, value)?,
         "backend" => return Err("the graphics backend cannot change while running; restart with --backend".into()),
         other => return Err(unknown(other)),
     }
@@ -250,6 +253,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         key if custom_fonts::is_key(key) => custom_fonts::flag(&mut settings.custom_fonts, key),
         key if fe_shadows::is_key(key) => fe_shadows::flag(&mut settings.fe_shadows, key),
         key if net::is_key(key) => net::flag(&mut settings.net, key),
+        key if hud::is_key(key) => hud::flag(&mut settings.hud_options, key),
         _ => hd_content::flag(&mut settings.hd_content, key),
     }
 }
@@ -312,6 +316,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "cop_share" => "<0-100>",
         "motion_blur_strength" => "<0-2>",
         key if net::is_key(key) => return net::syntax(key),
+        key if hud::is_key(key) => return hud::syntax(key),
         _ => return None,
     })
 }

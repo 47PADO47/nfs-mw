@@ -56,9 +56,11 @@ impl super::super::TrafficWorld {
         }
     }
 
-    /// Publishes the chase to the mods: the snapshot the notices of this frame come from.
-    pub(super) fn publish_to_mods(&self) {
-        outbox::publish(self.mod_view());
+    /// Publishes the chase to the mods: the snapshot the notices of this frame come from. The HUD takes the same notices
+    /// (`take_pursuit_notices`).
+    pub(super) fn publish_to_mods(&mut self) {
+        let notices = outbox::publish(self.mod_view());
+        self.hud_notices.extend(notices);
     }
 
     /// The chase as the mods read it this frame.

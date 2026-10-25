@@ -18,7 +18,7 @@ pub use compose::ModSlot;
 use blackbox_modding::host::UiPrim;
 use blackbox_ui::{BuildCx, Component, SlotId, Theme, ThemeId, Tokens};
 
-use crate::ui::theme::custom::{DriveFeedCell, RadioFeedCell, hud_component};
+use crate::ui::theme::custom::{CustomFeedCell, RadioFeedCell, hud_component};
 
 /// A theme a mod registered: its id in the registry, its name and display text, and the draw spec of each slot it
 /// overrides. A later [`ModTheme::set_slot`] for a slot replaces its spec.
@@ -88,13 +88,13 @@ impl Theme for ModTheme {
 pub struct ModHud {
     theme: ModTheme,
     radio: RadioFeedCell,
-    drive: DriveFeedCell,
+    custom: CustomFeedCell,
 }
 
 impl ModHud {
     /// The registry's entry for `theme`, reading the feeds the game fills each frame.
-    pub fn new(theme: ModTheme, radio: RadioFeedCell, drive: DriveFeedCell) -> Self {
-        Self { theme, radio, drive }
+    pub fn new(theme: ModTheme, radio: RadioFeedCell, custom: CustomFeedCell) -> Self {
+        Self { theme, radio, custom }
     }
 }
 
@@ -108,7 +108,7 @@ impl Theme for ModHud {
             return Some(component);
         }
         match self.theme.declares_tokens() {
-            true => hud_component(slot, &self.radio, &self.drive),
+            true => hud_component(slot, &self.radio, &self.custom, None),
             false => None,
         }
     }

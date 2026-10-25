@@ -28,6 +28,7 @@ use crate::gui::UiOutput;
 use crate::input::{Action, ActionState, Bindings, InputDevice, InputPresentation, MouseCapture};
 use crate::settings::Settings;
 use crate::ui::present::{FENG_HEIGHT, Screen};
+use crate::ui::theme::custom::FullMapSnapshot;
 use crate::ui::theme::remastered::MapSnapshot;
 use crate::ui::theme::{ElementId, UiThemes, slot_layer};
 use crate::ui::{Presenter, SharedAssets};
@@ -143,6 +144,7 @@ fn update(
     }
     let (fe, host) = (&mut *fe, &mut *host);
     fe.screens.set_aspect(window.width() / window.height());
+    fe.screens.set_list_geometry(super::screens::ListGeometry::of(&settings));
     let Some(caps) = host.renderer.as_ref().map(|r| *r.capabilities()) else { return };
     let mut changed = std::mem::take(&mut fe.changed);
     // The screens work on a copy so the resource is only marked as changed when a setting really changed.
@@ -293,7 +295,7 @@ fn update(
             // The GPS dialog's Yes resumes the game; the map overlay it left open is cleared here.
             if map.overlay.open {
                 map.overlay.close(fe.screens.assets());
-                map.themes.world_map_legend().clear();
+                map.themes.custom_world_map().clear();
                 map.themes.world_map_view().clear();
             }
             fe.poll_race_cover(host, &mut env);
@@ -329,8 +331,8 @@ fn update(
             fe.apply(commands, host, &mut env);
         }
         Stage::Map => {
-            // How the active theme dresses the map: Custom recolours the FEng screen dark in place (and draws a legend
-            // over it), Remastered draws the whole map itself and the FEng screen only runs underneath.
+            // How the active theme dresses the map: Remastered and Custom draw the whole map themselves and the FEng
+            // screen only runs underneath.
             let chrome = map.themes.world_map_chrome();
             fe.map_chrome = chrome;
             let picture = chrome.picture();
@@ -338,20 +340,19 @@ fn update(
             let cursor = pointer.map(|point| picture.view_of(point));
             let map_input = control::input(&actions, &keys, script_key, &map.mouse, cursor, side, chrome);
             control::step(fe, &mut map.overlay, map_input, dt, chrome, host, &mut env);
-            let (legend, view) = (map.themes.world_map_legend(), map.themes.world_map_view());
+            let (custom, view) = (map.themes.custom_world_map(), map.themes.world_map_view());
             match (chrome, map.overlay.open) {
-                (Chrome::Recoloured, true) => legend.set(&map.overlay.frame(chrome)),
                 (Chrome::Drawn, true) => {
+                    // Each theme reads its own cell; the one not active is never drawn, so both carry the same frame.
                     let (hints, aspect) = (control::hints(&bindings, device), window.width() / window.height());
-                    view.set(MapSnapshot { frame: map.overlay.frame(chrome), hints, aspect });
+                    let frame = map.overlay.frame(chrome);
+                    custom.set(FullMapSnapshot { frame: frame.clone(), hints: hints.clone(), aspect });
+                    view.set(MapSnapshot { frame, hints, aspect });
                 }
-                _ => {}
-            }
-            if chrome != Chrome::Recoloured || !map.overlay.open {
-                legend.clear();
-            }
-            if chrome != Chrome::Drawn || !map.overlay.open {
-                view.clear();
+                _ => {
+                    custom.clear();
+                    view.clear();
+                }
             }
         }
         Stage::Boot(Boot::Splash) | Stage::Menus | Stage::Paused => {
@@ -419,10 +420,11 @@ fn present(
     let lists = themes.menu_lists();
     lists.clear();
     let time_s = time.elapsed_secs();
-    // The Remastered map legend draws over the recoloured FEng map. The presenter puts each call below the calls before
-    // it (`movie` inserts its backdrop at the front for the same reason), so the legend is presented FIRST to sit on top
+    // A theme that recolours the FEng map draws its chrome over it. The presenter puts each call below the calls before
+    // it (`movie` inserts its backdrop at the front for the same reason), so the chrome is presented FIRST to sit on top
     // of the map screen, which the loop presents after it. A screen stacked over the map (the GPS Yes/No `Dialog.fng`)
-    // must stay on top, so the legend is skipped while the map is not the top screen; the frozen map shows behind it.
+    // must stay on top, so the chrome is skipped while the map is not the top screen; the frozen map shows behind it.
+    // No built-in theme recolours the map today: Remastered and Custom draw it whole (below).
     let map_on_top = fe.screens.top() == Some(super::ids::screen::WORLD_MAP);
     let chrome = themes.world_map_chrome();
     if chrome == Chrome::Recoloured && matches!(fe.stage, Stage::Map) && map_on_top {

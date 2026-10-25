@@ -1,6 +1,7 @@
-//! The Remastered theme: its own cluster for the drive readouts. It fills the tachometer, the speedometer, the gear and the
-//! nitrous bar, and it hides the speed breaker's bar, so the original ones do not draw. Its icon menus are vertical lists. Every other slot falls back to
-//! Original.
+//! The Remastered theme: its own cluster for the drive readouts. It fills the tachometer, the speedometer (with the
+//! gear), and the nitrous, speed breaker and boost bars, so the original ones do not draw. It also draws the minimap,
+//! the police radar, the radio card, the pursuit timer and the world map. Its icon menus are vertical lists. Every other
+//! slot falls back to Original.
 //!
 //! - [`layout`]: where the cluster sits, from points of the reference picture.
 //! - [`dial`]: the tachometer, a quarter-ellipse arc with the rpm numbered on it. The accent colour past the red line.
@@ -12,7 +13,7 @@
 //! - [`menu`]: the vertical menus (main menu, option categories, pause menu, safe house), read from the menu list cell.
 //! - [`skin`]: the colours and fonts the components read, by key.
 //!
-//! State comes from the same drive feed the Custom theme reads (`custom::DriveFeedCell`), filled once per frame by the HUD.
+//! State comes from the drive feed (`custom::DriveFeedCell`), filled once per frame by the HUD.
 
 mod arc;
 mod bar;

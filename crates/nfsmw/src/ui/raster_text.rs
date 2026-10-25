@@ -1,6 +1,9 @@
 //! Text drawn in a TrueType font: the one the egui overlay (the FPS counter) draws in. The game's own text is bitmap FEng
 //! fonts, which blur when scaled up, so the Remastered theme names this font key on its text instead. The presenter
 //! rasterises the string once and draws it as a texture (`ui/present/blackbox.rs`).
+//!
+//! The Custom HUD's own keys draw in fonts read from the operating system (`ui/system_fonts`), and in the bundled font,
+//! narrowed, where the system has none (`docs/specs/custom-hud-fonts.md`).
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock, PoisonError};
@@ -8,6 +11,7 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use ab_glyph::{Font, FontArc, PxScale, ScaleFont};
 
 use super::assets::Image;
+use super::system_fonts::{self, Role};
 
 /// The skin font key the Remastered theme gives its text. Not a FEng font hash: the presenter checks for it first.
 pub const RASTER_FONT_KEY: u32 = 0x5241_5354;
@@ -26,6 +30,12 @@ pub const RASTER_MENU_WIDE_FONT_KEY: u32 = 0x5241_5359;
 pub const RASTER_MENU_TITLE_FONT_KEY: u32 = 0x5241_535A;
 /// The pursuit timer's digits: upright and semi-bold.
 pub const RASTER_TIMER_FONT_KEY: u32 = 0x5241_535B;
+/// The Custom HUD's numbers: the system's condensed face, with tabular digits.
+pub const CUSTOM_NUMERIC_FONT_KEY: u32 = 0x5241_535C;
+/// The Custom HUD's labels: the system's neutral face.
+pub const CUSTOM_LABEL_FONT_KEY: u32 = 0x5241_535D;
+/// The Custom HUD's spaced captions: the system's neutral face at its full width.
+pub const CUSTOM_LABEL_WIDE_FONT_KEY: u32 = 0x5241_535E;
 /// A canvas unit is 2 pixels across and 1.5 down: a string's width in units is its height in units times the aspect times
 /// this (`ui/present/blackbox`).
 pub const UNITS_ASPECT: f32 = 1.5 / 2.0;
@@ -63,48 +73,119 @@ pub const TIMER: Look = Look { widen: 1.2, weight: 0.45, tracking: 0.02, bold: 2
 /// The menus' title: spaced, and bold.
 pub const MENU_TITLE: Look = Look { widen: 1.14, weight: 0.4, tracking: 0.2, bold: 4 };
 
+/// The Custom HUD's numbers in a system font: as the font draws them.
+pub const CUSTOM_NUMERIC: Look = PLAIN;
+/// The Custom HUD's labels in a system font: as the font draws them.
+pub const CUSTOM_LABEL: Look = PLAIN;
+/// The Custom HUD's captions in a system font: a little spaced.
+pub const CUSTOM_LABEL_WIDE: Look = Look { tracking: 0.06, ..PLAIN };
+/// The Custom HUD's numbers in the bundled font, when the system has none: narrowed to imitate a condensed face, and
+/// heavier, since the bundled face is a light weight.
+pub const CONDENSED_NUMERIC: Look = Look { widen: 0.82, weight: 0.5, tracking: 0.0, bold: 0 };
+/// The Custom HUD's labels in the bundled font: a little narrowed and heavier.
+pub const CONDENSED_LABEL: Look = Look { widen: 0.88, weight: 0.75, tracking: 0.0, bold: 0 };
+/// The Custom HUD's captions in the bundled font: nearly its own width, a little heavier, spaced.
+pub const CONDENSED_LABEL_WIDE: Look = Look { widen: 0.95, weight: 0.8, tracking: 0.06, bold: 0 };
+
+/// The font a face draws in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Source {
+    /// The egui proportional font.
+    Egui,
+    /// The egui monospace font, the one the FPS overlay draws in.
+    EguiMono,
+    /// The operating system's font for the role, or the egui proportional font when the system has none.
+    System(Role),
+}
+
 /// How a font key is drawn.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Face {
     pub look: Look,
-    /// The egui monospace font instead of the proportional one.
-    pub mono: bool,
+    pub source: Source,
     /// Drawn upright; the Remastered cluster's text leans.
     pub upright: bool,
 }
 
+impl Face {
+    /// Every digit takes the advance of the `0`, so a number does not shift as its digits change. The Custom numbers.
+    pub fn tabular(&self) -> bool {
+        self.source == Source::System(Role::Numeric)
+    }
+}
+
 /// The face a skin font key names, or `None` for a key that is not rasterised text (a FEng font hash).
 pub fn face(key: u32) -> Option<Face> {
-    let (look, mono, upright) = match key {
-        RASTER_FONT_KEY => (REMASTERED, false, false),
-        RASTER_NUMBER_FONT_KEY => (NUMBERS, false, false),
-        RASTER_UPRIGHT_FONT_KEY => (PLAIN, false, true),
-        RASTER_MONO_FONT_KEY => (PLAIN, true, true),
-        RASTER_MENU_FONT_KEY => (MENU, false, true),
-        RASTER_MENU_WIDE_FONT_KEY => (MENU_WIDE, false, true),
-        RASTER_MENU_TITLE_FONT_KEY => (MENU_TITLE, false, true),
-        RASTER_TIMER_FONT_KEY => (TIMER, false, true),
+    let (look, source, upright) = match key {
+        RASTER_FONT_KEY => (REMASTERED, Source::Egui, false),
+        RASTER_NUMBER_FONT_KEY => (NUMBERS, Source::Egui, false),
+        RASTER_UPRIGHT_FONT_KEY => (PLAIN, Source::Egui, true),
+        RASTER_MONO_FONT_KEY => (PLAIN, Source::EguiMono, true),
+        RASTER_MENU_FONT_KEY => (MENU, Source::Egui, true),
+        RASTER_MENU_WIDE_FONT_KEY => (MENU_WIDE, Source::Egui, true),
+        RASTER_MENU_TITLE_FONT_KEY => (MENU_TITLE, Source::Egui, true),
+        RASTER_TIMER_FONT_KEY => (TIMER, Source::Egui, true),
+        CUSTOM_NUMERIC_FONT_KEY => (system_look(Role::Numeric), Source::System(Role::Numeric), true),
+        CUSTOM_LABEL_FONT_KEY => (system_look(Role::Label), Source::System(Role::Label), true),
+        CUSTOM_LABEL_WIDE_FONT_KEY => (system_look(Role::LabelWide), Source::System(Role::LabelWide), true),
         _ => return None,
     };
-    Some(Face { look, mono, upright })
+    Some(Face { look, source, upright })
+}
+
+/// The look of a system role: the font's own proportions when the system has a font for it, the bundled font narrowed
+/// when it has not.
+fn system_look(role: Role) -> Look {
+    role_look(role, system_fonts::font(role).is_some())
+}
+
+/// The look of `role` in a system font (`system`) or in the bundled one.
+fn role_look(role: Role, system: bool) -> Look {
+    match (role, system) {
+        (Role::Numeric, true) => CUSTOM_NUMERIC,
+        (Role::Label, true) => CUSTOM_LABEL,
+        (Role::LabelWide, true) => CUSTOM_LABEL_WIDE,
+        (Role::Numeric, false) => CONDENSED_NUMERIC,
+        (Role::Label, false) => CONDENSED_LABEL,
+        (Role::LabelWide, false) => CONDENSED_LABEL_WIDE,
+    }
+}
+
+/// The font `source` names, or `None` when it does not load. A system role the system has no font for draws in the
+/// egui proportional font.
+fn source_font(source: Source) -> Option<&'static FontArc> {
+    match source {
+        Source::Egui => font(),
+        Source::EguiMono => mono_font(),
+        Source::System(role) => system_fonts::font(role).or_else(font),
+    }
 }
 
 /// The width of a string drawn in the face `key` at text scale `scale`, in FEng units, as the presenter draws it. `None`
 /// for a key that is not rasterised text, or when the font does not load.
 pub fn width_units(key: u32, text: &str, scale: f32) -> Option<f32> {
     let face = face(key)?;
-    let font = if face.mono { mono_font()? } else { font()? };
+    let font = source_font(face.source)?;
     let scaled = font.as_scaled(PxScale::from(RASTER_HEIGHT_PX));
     let height = (scaled.ascent() - scaled.descent()).ceil().max(1.0);
-    let width = advance(font, text, face.look).ceil().max(1.0) * face.look.widen;
+    let width = advance(font, text, face.look, face.tabular()).ceil().max(1.0) * face.look.widen;
     Some(scale * UNITS_PER_SCALE * width.ceil() / height * UNITS_ASPECT)
 }
 
 /// The pen position after `text`: the sum of the glyph advances, each but the last followed by the look's tracking.
-fn advance(font: &FontArc, text: &str, look: Look) -> f32 {
-    let scaled = font.as_scaled(PxScale::from(RASTER_HEIGHT_PX));
+fn advance(font: &FontArc, text: &str, look: Look, tabular: bool) -> f32 {
     let last = text.chars().count().saturating_sub(1);
-    text.chars().enumerate().map(|(k, ch)| scaled.h_advance(font.glyph_id(ch)) + gap(look, k, last)).sum()
+    text.chars().enumerate().map(|(k, ch)| cell(font, ch, tabular) + gap(look, k, last)).sum()
+}
+
+/// The advance of `ch` at the raster height: its own, or the `0`'s for a digit when the digits are `tabular`.
+fn cell(font: &FontArc, ch: char, tabular: bool) -> f32 {
+    let scaled = font.as_scaled(PxScale::from(RASTER_HEIGHT_PX));
+    let sized = match tabular && ch.is_ascii_digit() {
+        true => '0',
+        false => ch,
+    };
+    scaled.h_advance(font.glyph_id(sized))
 }
 
 /// The space after the glyph `k` of a string whose last glyph is `last`: the tracking, and none after the last one, so a
@@ -200,20 +281,15 @@ pub fn render_fallback(text: &str) -> Option<Image> {
     Some(Image { width, height, rgba, blend: 1 })
 }
 
-/// The string as a white image, in the proportional font. See [`render_with`].
-pub fn render(text: &str, look: Look) -> Option<Image> {
-    render_with(text, look, false)
+/// The string as a white image, in the font and look of `face`, or `None` when the font does not load. See
+/// [`render_with`].
+pub fn render(text: &str, face: Face) -> Option<Image> {
+    Some(render_with(text, face.look, source_font(face.source)?, face.tabular()))
 }
 
-/// The string as a white image, in the monospace font the FPS overlay uses.
-pub fn render_mono(text: &str, look: Look) -> Option<Image> {
-    render_with(text, look, true)
-}
-
-/// The string as a white image with its coverage in the alpha channel, `RASTER_HEIGHT_PX` tall, drawn as `look` says.
-/// `None` when the font does not load or the string is empty.
-fn render_with(text: &str, look: Look, mono: bool) -> Option<Image> {
-    let font = if mono { mono_font()? } else { font()? };
+/// The string as a white image with its coverage in the alpha channel, `RASTER_HEIGHT_PX` tall, drawn in `font` as
+/// `look` says. With `tabular` digits, each digit is centred in a cell as wide as the `0`.
+fn render_with(text: &str, look: Look, font: &FontArc, tabular: bool) -> Image {
     let scaled = font.as_scaled(PxScale::from(RASTER_HEIGHT_PX));
     let ascent = scaled.ascent();
     let height = (scaled.ascent() - scaled.descent()).ceil().max(1.0) as u32;
@@ -222,8 +298,10 @@ fn render_with(text: &str, look: Look, mono: bool) -> Option<Image> {
     let last = text.chars().count().saturating_sub(1);
     for (k, ch) in text.chars().enumerate() {
         let id = font.glyph_id(ch);
-        glyphs.push(id.with_scale_and_position(scaled.scale(), ab_glyph::point(pen, ascent)));
-        pen += scaled.h_advance(id) + gap(look, k, last);
+        let step = cell(font, ch, tabular);
+        let x = pen + (step - scaled.h_advance(id)) / 2.0;
+        glyphs.push(id.with_scale_and_position(scaled.scale(), ab_glyph::point(x, ascent)));
+        pen += step + gap(look, k, last);
     }
     let width = pen.ceil().max(1.0) as u32;
     let mut rgba = vec![0u8; (width * height * 4) as usize];
@@ -243,7 +321,7 @@ fn render_with(text: &str, look: Look, mono: bool) -> Option<Image> {
         });
     }
     embolden(&mut rgba, width as usize, height as usize, look.bold as usize);
-    Some(stretch(Image { width, height, rgba, blend: 1 }, look.widen))
+    stretch(Image { width, height, rgba, blend: 1 }, look.widen)
 }
 
 /// Thickens every stroke by `radius` pixels in all directions: each pixel takes the largest coverage within the radius.
@@ -293,64 +371,5 @@ fn stretch(image: Image, factor: f32) -> Image {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{RASTER_FONT_KEY, RASTER_MENU_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY};
-
-    #[test]
-    fn a_string_rasterises_with_coverage() {
-        let image = super::render("186", super::PLAIN).expect("the bundled font loads");
-        assert!(image.width > 0 && image.height > 0);
-        assert!(image.rgba.as_chunks::<4>().0.iter().any(|px| px[3] > 200), "some glyph pixel is solid");
-    }
-
-    #[test]
-    fn tracking_spaces_the_glyphs_but_not_the_end() {
-        let plain = super::render("MENU", super::PLAIN).expect("the bundled font loads");
-        let spaced = super::render("MENU", super::Look { tracking: 0.25, ..super::PLAIN }).expect("the font loads");
-        let extra = (0.25 * super::RASTER_HEIGHT_PX * 3.0) as u32;
-        assert!(spaced.width.abs_diff(plain.width + extra) <= 1, "three gaps in four glyphs");
-    }
-
-    #[test]
-    fn the_measured_width_matches_the_rendered_image() {
-        for key in [RASTER_MENU_FONT_KEY, RASTER_MENU_WIDE_FONT_KEY, RASTER_FONT_KEY] {
-            let face = super::face(key).expect("a raster key");
-            let image = super::render("QUICK RACE", face.look).expect("the bundled font loads");
-            let from_image =
-                1.0 * super::UNITS_PER_SCALE * image.width as f32 / image.height as f32 * super::UNITS_ASPECT;
-            let measured = super::width_units(key, "QUICK RACE", 1.0).expect("a measurable key");
-            assert!((measured - from_image).abs() < 1e-3, "{key:#x}: {measured} against {from_image}");
-        }
-    }
-
-    #[test]
-    fn bold_thickens_the_strokes_and_keeps_the_size() {
-        let plain = super::render("I", super::PLAIN).expect("the bundled font loads");
-        let bold = super::render("I", super::Look { bold: 3, ..super::PLAIN }).expect("the bundled font loads");
-        assert_eq!((bold.width, bold.height), (plain.width, plain.height));
-        let covered = |image: &super::Image| image.rgba.as_chunks::<4>().0.iter().filter(|px| px[3] > 128).count();
-        assert!(covered(&bold) > covered(&plain) * 3 / 2, "a bold stroke covers clearly more");
-    }
-
-    #[test]
-    fn fallback_text_draws_letters_the_game_fonts_lack() {
-        let image = super::render_fallback("Привет").expect("the bundled font has Cyrillic");
-        assert!(image.width > image.height, "six letters side by side");
-        assert!(image.rgba.as_chunks::<4>().0.iter().any(|px| px[3] > 200));
-    }
-
-    #[test]
-    fn a_fengs_font_hash_is_not_rasterised_text() {
-        assert!(super::face(0x5455_70c6).is_none());
-        assert!(super::width_units(0x5455_70c6, "x", 1.0).is_none());
-    }
-
-    #[test]
-    fn widening_stretches_the_string_and_keeps_its_height() {
-        let plain = super::render("186", super::PLAIN).expect("the bundled font loads");
-        let look = super::Look { tracking: 0.0, ..super::REMASTERED };
-        let wide = super::render("186", look).expect("the bundled font loads");
-        assert_eq!(wide.height, plain.height);
-        assert_eq!(wide.width, (plain.width as f32 * look.widen).ceil() as u32);
-    }
-}
+#[path = "raster_text_tests.rs"]
+mod tests;

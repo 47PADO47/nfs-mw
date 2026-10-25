@@ -10,7 +10,7 @@ use nfsmw_career::safehouse::BlacklistStepper;
 use super::confirm::{Alert, Confirm};
 use super::world_map::WorldMapFrame;
 use crate::input::Control;
-use crate::settings::{Partial, Settings, UiStyle};
+use crate::settings::{Partial, Settings};
 use crate::ui::UiAssets;
 use crate::ui::theme::MenuList;
 
@@ -21,6 +21,8 @@ pub enum Category {
     Video,
     Gameplay,
     Player,
+    /// The Custom HUD's options (`hud_options.rs`), shown in every style.
+    Hud,
     Controls,
     /// Discord Rich Presence: its own icon and sub-screen (the toggles are `options_rows.rs`'s rows).
     Discord,
@@ -77,9 +79,11 @@ pub use super::footer::Footer;
 
 mod args;
 mod feedback;
+mod look;
 mod pointer;
 mod wheel;
 pub use args::Args;
+pub use look::ListScreen;
 pub use wheel::wheel_as_rows;
 /// Something a screen asks the front end to do.
 #[derive(Clone, Debug, PartialEq)]
@@ -258,11 +262,6 @@ pub struct Cx<'a> {
 }
 
 impl Cx<'_> {
-    /// Whether the Remastered look draws the menus as vertical lists: the setting names it and no mod theme took over.
-    pub fn vertical_look(&self) -> bool {
-        self.settings.ui_style == UiStyle::Remastered && self.mods.is_none_or(|mods| mods.ui_theme_choice().is_none())
-    }
-
     /// Sets host-authored text on every string directly inside a group, including its shadow.
     pub fn text_group(&mut self, group_hash: u32, text: &str) {
         let Some(group) = self.object(group_hash) else { return };

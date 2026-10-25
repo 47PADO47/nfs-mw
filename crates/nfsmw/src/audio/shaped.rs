@@ -98,6 +98,7 @@ impl Audio {
             Group::Sfx => &mut out.sfx,
             Group::Music => &mut out.music,
             Group::Engine => &mut out.engine,
+            Group::Hud => &mut out.hud,
         };
         track.play(ShapedData { data, wet, params }).map_err(|e| e.to_string())
     }

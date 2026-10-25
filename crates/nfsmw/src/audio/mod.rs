@@ -1,6 +1,6 @@
 //! Sound output: `kira` plays what the decoders (`ea-audio`) and the synthesiser (`blackbox-ginsu`) produce.
 //!
-//! [`Audio`] owns the output device, three mixer groups (effects, music, engine) under a master volume and a
+//! [`Audio`] owns the output device, four mixer groups (effects, music, engine, HUD) under a master volume and a
 //! cache of the sounds read from the install's banks. Without a usable device it still exists and every
 //! call fails with a message, so the game runs silent instead of stopping.
 
@@ -87,6 +87,8 @@ struct Output {
     music: TrackHandle,
     music_filter: filter::CutoffHandle,
     engine: TrackHandle,
+    /// The HUD's cues (`Group::Hud`).
+    hud: TrackHandle,
     wet: wet::Bus,
 }
 
@@ -292,6 +294,7 @@ impl Audio {
         out.sfx.set_volume(volume::decibels(volumes.sfx), tween);
         out.music.set_volume(volume::decibels(volumes.music), tween);
         out.engine.set_volume(volume::decibels(volumes.engine), tween);
+        out.hud.set_volume(volume::decibels(volumes.hud), tween);
     }
 
     fn output(&mut self) -> Result<&mut Output, String> {
@@ -338,6 +341,7 @@ impl Audio {
             Group::Sfx => &mut out.sfx,
             Group::Music => &mut out.music,
             Group::Engine => &mut out.engine,
+            Group::Hud => &mut out.hud,
         };
         track.play(data).map_err(|e| e.to_string())
     }
@@ -400,7 +404,8 @@ impl Output {
         let music_filter = music_builder.add_effect(filter::MusicFilterBuilder);
         let music = manager.add_sub_track(music_builder).map_err(|e| e.to_string())?;
         let engine = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
-        Ok(Self { manager: OutputManager::Device(Box::new(manager)), sfx, music, music_filter, engine, wet })
+        let hud = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
+        Ok(Self { manager: OutputManager::Device(Box::new(manager)), sfx, music, music_filter, engine, hud, wet })
     }
 }
 

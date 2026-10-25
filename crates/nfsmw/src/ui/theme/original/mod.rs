@@ -33,7 +33,7 @@ mod tests;
 pub use frame::{FengSource, FrameCell};
 #[cfg(test)]
 pub(crate) use hud_slots::claim_counts;
-pub(crate) use hud_slots::{HUD_SLOTS, emit_unclaimed};
+pub(crate) use hud_slots::{HUD_SLOTS, emit_unclaimed, host_of};
 pub(crate) use subtree::FengSubtree;
 
 use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId};
@@ -65,6 +65,10 @@ impl Theme for OriginalTheme {
         // The world map's chrome is an overlay only alternative themes draw. Original leaves it empty, so the FEng map
         // screen keeps drawing its own list, card, tab and zoom.
         if element == ElementId::WorldMapChrome {
+            return Some(Box::new(Empty));
+        }
+        // The Custom HUD's notifications, world markers and condition chip have no FEng source: Original draws nothing.
+        if hud_slots::is_new_only(element) {
             return Some(Box::new(Empty));
         }
         // The LAN screens have no FEng package: the Original look of them is drawn with the toolkit (`lan.rs`).
