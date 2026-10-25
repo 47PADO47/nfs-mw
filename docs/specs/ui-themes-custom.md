@@ -215,9 +215,12 @@ The design is `docs/specs/custom-hud/menus.md` section 3; this records what was 
   and fall back to Original for the menus and the LAN screens.
 - **Key list.** A settings list whose value column holds the two bindings as two key caps (`keys.rs`), the primary on
   the left; the selected row's focused cap is raised with an accent line; an unbound key (`---`) is faint. The caps
-  split the column at its middle, where the frontend's `along` press picks the binding. The new map actions are not on
-  the list: the package draws eight rows, and the input labels the map PR adds (`input/hud_labels.rs`) are not on this
-  branch.
+  split the column at its middle, where the frontend's `along` press picks the binding. After the package's eight rows
+  the list has a row for each HUD action (`HUD_ROWS` in `frontend/controls_screen.rs`): Map mode, Expand the map, Map
+  zoom in and out, Map north-up / heading-up, Show or hide the HUD and Dismiss a notification, named by
+  `input/hud_labels.rs`. They rebind as the other rows do (a press waits for the next key, Escape cancels), and the
+  list keeps its own focus and scrolls its eight-row window to them. Remastered lists them too; the Original look draws
+  the package's eight rows only.
 - **Playlist.** The songs as settings rows with the mode right-aligned; the order of play beside the title's rule
   (`Parts::subtitle`), not on the description line.
 - **Credits.** A scrim over the window, the title, and the roll centred in the content box between the title and the
@@ -243,14 +246,16 @@ The design is `docs/specs/custom-hud/menus.md` section 3; this records what was 
   `fade_in`, slides in from the left over `slide` (not with motion reduction), fades out over the last `fade_out` of its
   six seconds, and takes `[custom_hud] opacity`. `hud_component` still returns it for `RadioCard`, so a mod theme with
   tokens draws it in its own accent. The old `radio.font` skin key and the card's faded skin went with the old card.
-- **Not built.** The crossfade between screens; the new map actions in the key list (above); a column
-  header for the Blacklist's bounty.
+- **Not built.** The crossfade between screens; a column header for the Blacklist's bounty; the screen's Defaults and
+  Clear keys (`docs/specs/controls-remap.md` section 3), so a key is unbound or reset through `[bindings]` or the
+  console.
 - **Tests.** `frontend/logic/look.rs` (the per-screen truth table, and Remastered unchanged),
   `custom/menu/screens_tests.rs` (the key caps and focus, the pause scrim, the playlist's order line, the roll's fades and
   headings, the Blacklist's rows, card, narrow window and hit test, the bio), `custom/menu/keys.rs`, `credits.rs`,
   `lan.rs`, `custom/lan_tests.rs` (the LAN page and HUD), `custom/tests.rs` (the slots, the radio card's rows, fades,
   opacity, place and slide), `radio_placement.rs`, `frontend/screens/geometry.rs` and `frontend/lan/present/tests.rs`
-  (the clicks).
+  (the clicks), `frontend/controls_screen_tests.rs` (the HUD rows in the list looks and not in Original, the scroll to
+  them, and a rebinding).
 ## 12. The Custom world map (Custom HUD 2026, PR 11c)
 
 The design is `docs/specs/custom-hud/menus.md` section 3 (the `WorldMapChrome` row); this records what was built. Code:

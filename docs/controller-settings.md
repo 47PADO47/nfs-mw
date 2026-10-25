@@ -26,6 +26,10 @@ centered, expanded; `map_mode`), **T** opens the expanded map and goes back (`ma
 the HUD (`toggle_hud`). The keys change the live settings for the session only; the saved values stay those of
 the `[custom_hud]` table and the `minimap` and `hud` keys.
 
+In the Remastered and Custom looks, the Controls list shows these keys and Dismiss notification as rows after the
+original eight. Select a key, press accept (or click it), then press the new key; Escape cancels. The change is saved
+to the `[bindings]` table. The Original look draws the original package, which has only its eight rows.
+
 ## Default gamepad layout
 
 The defaults follow the Xbox 360 layout of [NFS-XtendedInput](mods/nfs-xtendedinput.md)'s Most Wanted
