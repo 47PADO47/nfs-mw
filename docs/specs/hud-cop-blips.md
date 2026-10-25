@@ -50,9 +50,17 @@ shown = (HUD_flag_word & 4) != 0     # FUN_0056d540(base + 0x38, 4); base = DAT_
 When `shown` is true the object stores `+0x34 = 0` and clears the element's hidden bit (`FUN_00514cc0`). When it is
 false it stores `+0x34 = 1` and sets the hidden bit (`FUN_00514c70`). **[binary]**
 
-What bit `0x4` of the HUD flag word means is not yet confirmed. The name *pursuit* fits, because the colour cycle
-below runs only while `+0x34 == 0`. But the polarity is odd: with that reading, a car that is not pursuing would be
-hidden, and the user sees a white icon in normal driving. **[inferred, open: section 7]**
+`param_1` is a **category mask**, not a pursuit flag: the same constructor takes `4` for cops (`FUN_00531060`), `8` for
+racers and helicopters (`FUN_0052f660`), `0x20` for roadblocks (`FUN_00531350`) and `1` for the player's own arrow
+(`FUN_00530f40`). `FUN_0056d540(flags, mask)` is `(flags[+8] & mask) != 0`, and `FUN_00530df0` builds the matching
+`OPTION_ICON_` / `ICON_VIS_GROUP_` objects from the same table (`DAT_008f3ab8`, 0x14 bytes an entry, the mask in the
+second word). So bit `0x4` is the HUD's "cop icons on" category setting: a cop icon is shown while its category is
+enabled, whether or not the car is pursuing. **[binary]** (resolves old open questions 1 and 2.)
+
+Cop icons are only built when the minimap is in mode 3 (`FUN_0055b8c0` sets the mode at `+0x164`; mode 3 calls
+`FUN_00548810`, the only caller of `FUN_00531060`). Mode 1 builds the table-driven world icons and mode 0 other ones, with
+no vehicle-list icons. What selects mode 3 (a query on the player's vehicle, else a settings byte) is not yet read.
+**[binary]**, **[open]**
 
 ## 4. The colour cycle
 
@@ -62,13 +70,19 @@ element's colour from a counter `+0x38` that runs 1..8 and wraps to 1. **[binary
 | Counter | Colour (as stored) | Shade |
 |---|---|---|
 | 1, 2 | `0xff0000ff` | blue |
-| 3, 4 | `0xffa00000` | red |
-| 5, 6 | `0xff0000ff` | blue |
-| 7, 8 | `0xffa00000` | red |
+| 3, 4 | `0xffcccccc` | grey |
+| 5, 6 | `0xffa00000` | dark red |
+| 7, 8 | `0xffcccccc` | grey |
 
-The values are read as ARGB, so `0xff0000ff` is pure blue and `0xffa00000` is a dark red. The byte order is
-**[inferred]** (the colour object is built by `FUN_005b2d50`, not yet read). The pattern is blue, grey, red, grey:
-the two light bars of a police car. **[user]** says the flash is blue and red.
+The decompile is `if (n < 3) blue; else if (4 < n && n < 7) red; else grey` (`0xffcccccc` is the default). An earlier
+version of this table read steps 3 and 4 as red and 5 and 6 as blue, which does not match the code. The constructor
+stores `-1` in the counter, so the first updates are blue before the cycle settles to 1..8. The values are ARGB:
+`0xff0000ff` is pure blue, `0xffa00000` a dark red, and `0xffcccccc` a light grey. The pattern is blue, grey, red,
+grey: the two light bars of a police car. **[binary]**
+
+This update runs for every visible cop icon (the class has no pursuit condition), so the original flashes whether or not
+the car pursues. The rewrite keeps a plain white icon for a car that is not pursuing, which is the [user] report of the
+normal colour and is not confirmed by the code. **[open]**
 
 The user reports the normal colour as blank white. **[user]** The code never writes white for a non-pursuing car:
 the element keeps its own colour from the package, which is white. **[inferred]**
@@ -89,11 +103,11 @@ choice, not a measured value. **[open]**
 
 ## 7. Open questions
 
-1. **Polarity of flag `4`.** Is it "in a pursuit" (and normal cars are hidden) or some other per-car state that
-   also shows normal cops? The bit's writer is `DAT_0091cf90 + 0x10 + 0x38 + 8`; tracing it answers this.
+1. ~~Polarity of flag `4`.~~ It is the cop-icon category mask (section 3). What sets the category word, and what selects
+   minimap mode 3, are still unread.
 2. **Hidden-bit meaning.** `FUN_00514c70` sets bit 0 of the element's flags word at `+0x1c` and `FUN_00514cc0`
    clears it. Which of show or hide that makes needs the FEng flag table.
-3. **Colour byte order** (ARGB or BGRA) for the `0xff...` constants.
+3. ~~Colour byte order~~ ARGB, from the blue and red stored values (section 4).
 4. **Update rate** of the colour cycle (section 6).
 5. **Slots `0x88` and `0x8c`** (which cars are eligible).
 6. **The pulse sub-element** (section 5).

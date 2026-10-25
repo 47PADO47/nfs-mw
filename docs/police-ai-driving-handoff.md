@@ -110,6 +110,11 @@ were not observed in live higher-heat testing.
 - Reproduce cooldown/radio gaps followed by unexpected roadblocks. Check sight,
   last-known position and phase restrictions on search deployments.
 - Check initial high-heat spawn bursts, backup triggering/countdown and its HUD.
+- Cop minimap icons: the light bar's real cycle is blue, grey, red, grey (verified in
+  the PC binary; the code had blue/red). The original cycles every visible cop icon,
+  pursuing or not, and builds them only in minimap mode 3. What selects that mode
+  and the cop-icon category setting is unread, so the remake's white non-pursuit
+  icon and its visibility rule remain unconfirmed.
 - Correct minimap visibility and white/wreck icons; add destroyed-cop text and
   the matching escaped-pursuit statistics presentation.
 
