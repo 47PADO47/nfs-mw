@@ -10,6 +10,7 @@ pub(super) struct Prepass {
     opaque: [wgpu::RenderPipeline; 3],
     cutout: wgpu::RenderPipeline,
     glossy_cutout: wgpu::RenderPipeline,
+    world_cutout: wgpu::RenderPipeline,
     tree_cutout: wgpu::RenderPipeline,
     prelit_cutout: wgpu::RenderPipeline,
     matrix: wgpu::Buffer,
@@ -105,6 +106,7 @@ impl Prepass {
             opaque: FACES.map(|face| make("fs_opaque", face)),
             cutout: make("fs_cutout", Face::Both),
             glossy_cutout: make("fs_glossy_cutout", Face::Both),
+            world_cutout: make("fs_world_cutout", Face::Both),
             tree_cutout: make("fs_tree_cutout", Face::Both),
             prelit_cutout: make("fs_prelit_cutout", Face::Both),
             matrix,
@@ -201,6 +203,11 @@ impl Prepass {
                                 && draw.shading == Shading::WorldPrelit =>
                         {
                             &self.prelit_cutout
+                        }
+                        BlendMode::AlphaTest
+                            if matches!(draw.shading, Shading::World | Shading::WorldNoFog | Shading::WorldPrelit) =>
+                        {
+                            &self.world_cutout
                         }
                         BlendMode::AlphaTest => &self.cutout,
                         _ => &self.opaque[Face::of(draw, mirrored).seen(frame.mirrored_view()).index()],

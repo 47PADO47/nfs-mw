@@ -175,9 +175,46 @@ fn original_alpha_distinguishes_tree_world_and_doubled_prelit() {
         let image = capture(&mut renderer, &frame, shading, BlendMode::AlphaTest, invisible_vertex, [0.0, 0.0, 1.0]);
         assert_rgb(&image, (32, 32), expected, "tree cutout ignores vertex alpha");
     }
-    let partial_vertex = [COLOR[0], COLOR[1], COLOR[2], 191];
+    let partial_vertex = [COLOR[0], COLOR[1], COLOR[2], 127];
     for (shading, expected) in [(Shading::WorldNoFog, [0, 0, 0]), (Shading::WorldPrelit, [32, 128, 255])] {
         let image = capture(&mut renderer, &frame, shading, BlendMode::AlphaTest, partial_vertex, [0.0, 0.0, 1.0]);
         assert_rgb(&image, (32, 32), expected, "doubled prelit alpha changes cutout coverage");
+    }
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn half_alpha_world_walls_survive_cutout_while_transparent_texels_still_disappear() {
+    let _gpu = test_support::serial();
+    let mut r = renderer();
+    let mut graphics = *r.graphics();
+    graphics.ao.quality = blackbox_gfx::AoQuality::High;
+    r.apply_graphics(&graphics);
+    let mut view = frame();
+    let eye = Vec3::new(0.0, -3.0, 3.0);
+    view.view = glam::camera::rh::view::look_at_mat4(eye, Vec3::Z, Vec3::Z);
+    view.projection = Projection::PerspectiveInfiniteReverse { fov_y: 0.9, aspect: 1.0, near: 0.1 };
+    view.camera_position = eye;
+    view.camera_cut = true;
+    for original_world_materials in [false, true] {
+        r.set_render_experiments(RenderExperiments { original_world_materials, ..Default::default() });
+        let color = [COLOR[0], COLOR[1], COLOR[2], 253];
+        // The fixture's 128/255 texel times 253/255 is approximately the installed wall's 127/255.
+        let opaque = capture(&mut r, &view, Shading::World, BlendMode::Opaque, color, [0.0, 0.0, 1.0]);
+        let cutout = capture(&mut r, &view, Shading::World, BlendMode::AlphaTest, color, [0.0, 0.0, 1.0]);
+        assert_eq!(opaque.pixel(32, 32), cutout.pixel(32, 32), "solid coverage must survive authored half alpha");
+        let normals = &r.surfaces.as_ref().expect("surface prepass").targets.normals;
+        let pixels = r.read_raw_texture(normals.texture(), (64, 64), 8).unwrap();
+        let at = (32 * 64 + 32) * 8;
+        assert_eq!(&pixels[at + 6..at + 8], &[0, 60], "the normal prepass retains the visible wall too");
+        let empty = capture(
+            &mut r,
+            &view,
+            Shading::World,
+            BlendMode::AlphaTest,
+            [COLOR[0], COLOR[1], COLOR[2], 0],
+            [0.0, 0.0, 1.0],
+        );
+        assert_eq!(empty.pixel(32, 32).unwrap()[..3], [0; 3], "transparent coverage stays empty");
     }
 }

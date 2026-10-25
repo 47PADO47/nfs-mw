@@ -8,6 +8,40 @@ use super::minimap::MinimapBinding;
 use crate::ui::{Catalog, UiAssets};
 
 #[test]
+#[ignore = "needs installed mirror artwork and HUD package"]
+fn installed_mirror_picture_uses_glass_instead_of_the_detector_and_texture_padding() {
+    use crate::gui::UiOutput;
+    use crate::ui::present::{BlackboxPresenter, Screen, blackbox::MIRROR_TEXTURE};
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR")).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let assets = UiAssets::load(&dir).unwrap();
+    let mut rt = crate::ui::runtime();
+    let id = rt.load(catalog.find("HUD_SingleRace.fng").unwrap().clone());
+    let mut binding = HudBinding::new(&mut rt, id);
+    binding.advance_mirror_fade(1.0);
+    binding.apply(&mut rt, &super::state::HudState::default());
+    rt.update(1.0);
+    binding.finish_frame(&mut rt, &super::state::HudState::default());
+    let mut presenter = BlackboxPresenter::default();
+    let mut out = UiOutput::default();
+    presenter.present(&rt.tree(id), &assets, Screen { width: 1920.0, height: 1080.0, pixels_per_point: 1.0 }, &mut out);
+    let mesh = out.layer.unwrap().meshes.into_iter().find(|m| m.texture == MIRROR_TEXTURE).expect("mirror glass");
+    let mut lo = glam::Vec2::splat(f32::MAX);
+    let mut hi = glam::Vec2::splat(f32::MIN);
+    for v in &mesh.vertices {
+        let p = glam::Vec2::from_array(v.position);
+        lo = lo.min(p);
+        hi = hi.max(p);
+        assert!((0.0..=1.0).contains(&v.uv[0]) && (0.0..=1.0).contains(&v.uv[1]));
+    }
+    let size = hi - lo;
+    assert!(mesh.vertices.len() > 100, "the curved outline uses the artwork's rows");
+    assert!(size.x / size.y > 3.0 && size.x / size.y < 5.0, "glass aspect: {size:?}");
+    assert!((lo.x + hi.x - 1920.0).abs() < 3.0, "mirror stays centered: {lo:?} {hi:?}");
+    eprintln!("installed mirror glass: {lo:?} to {hi:?}, {} vertices", mesh.vertices.len());
+}
+
+#[test]
 #[ignore = "needs the game; validates Speedbreaker presenter meshes and screen placement"]
 fn installed_speedbreaker_presenter_draws_bottom_central_pulse_and_hides_normal_gauges() {
     use super::state::{HudState, MapPosition};

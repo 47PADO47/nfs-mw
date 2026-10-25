@@ -8,7 +8,7 @@ pub(in crate::gpu) struct Maps {
     pub layer_count: u32,
     pub buffer: wgpu::Buffer,
     pub view: wgpu::TextureView,
-    pub(super) detail: wgpu::TextureView,
+    pub(in crate::gpu) detail: wgpu::TextureView,
     pub layers: Vec<wgpu::TextureView>,
     pub sampler: wgpu::Sampler,
     pub fallback: wgpu::BindGroup,

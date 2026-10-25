@@ -383,3 +383,25 @@ https://github.com/gfx-rs/wgpu/tree/v30.0.0/examples/features/src/ray_scene
 https://github.com/gfx-rs/wgpu/tree/v30.0.0/examples/features/src/ray_shadows
 Read as references for BLAS/TLAS descriptors and WGSL intersection queries.
 Native reflection material adaptation is independently implemented.
+
+Hybrid sun-shadow architecture reference
+---------------------------------------
+AMD FidelityFX Hybrid Shadows documentation:
+https://gpuopen.com/fidelityfx-hybrid-shadows/
+Reference for combining cascaded and ray-traced visibility; no sample code copied.
+
+Finite-light shadow sampling reference
+---------------------------------------
+Khronos Vulkan Documentation: Shadows, Ray Query Integration.
+https://docs.vulkan.org/tutorial/latest/Building_a_Simple_Engine/Lighting_Materials/07_shadows.html
+Documentation reference only; finite-sun sampling and spatial filtering independently implemented.
+
+Rear-view presentation references (GPL-3.0, read only)
+----------------------------------------------------
+AeroWidescreen/NFSHDReflections:
+https://github.com/AeroWidescreen/NFSHDReflections/tree/main/SOURCE/NFSMW
+SpeedBreakerProject/speedbreaker (Xbox 360 mirror/ultrawide architecture notes):
+https://github.com/SpeedBreakerProject/speedbreaker/blob/main/runtime/game/ultrawide.cpp
+madelrandel-blip/NFSMW-Recompiled (Xbox 360 port identification):
+https://github.com/madelrandel-blip/NFSMW-Recompiled
+No code copied. PC bezel contour and bilinear-footprint coverage independently implemented.

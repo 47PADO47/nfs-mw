@@ -66,3 +66,22 @@ impl SkyState {
         }
     }
 }
+
+/// Caller-owned optical artwork. The native pass is main-view only, before display mapping.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SunGlare {
+    pub layers: Vec<SunGlareLayer>,
+    pub colour: [f32; 3],
+    pub strength: f32,
+    /// Used when no procedural-cloud transmittance map is available.
+    pub weather_visibility: f32,
+    pub angular_radius: f32,
+}
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SunGlareLayer {
+    pub texture: TextureHandle,
+    /// Half-width as a fraction of view height.
+    pub radius: f32,
+    pub brightness: f32,
+    pub rotation: f32,
+}
