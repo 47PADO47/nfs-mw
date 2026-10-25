@@ -71,9 +71,7 @@ pub fn show(ctx: &egui::Context, open: &mut bool, model: &mut Model, settings: &
                 ui.colored_label(egui::Color32::LIGHT_RED, error);
             }
             if !matches!(model.message, Some(Err(_))) {
-                ui.weak(
-                    "Switching cars places you on the nearby road at rest. Same-car changes preserve your position.",
-                );
+                ui.weak("F5 controls camera framing during car swaps. Same-car changes preserve your position.");
             }
         });
     if before == model.draft || model.selected().is_none_or(|car| car.unavailable.is_some()) {
@@ -126,11 +124,39 @@ fn browser(ui: &mut egui::Ui, model: &mut Model, height: f32) {
                 .spacing(egui::vec2(gap, gap))
                 .show(ui, |ui| {
                     for (index, car) in matches.iter().enumerate() {
-                        let label = format!("{}\n{}", car.name, car.manufacturer);
-                        let response = ui.add_sized(
-                            egui::vec2(width, 62.0),
-                            egui::Button::new(label).selected(car.folder == model.draft.car).wrap(),
+                        let mut job = egui::text::LayoutJob::default();
+                        job.append(
+                            &car.name,
+                            0.0,
+                            egui::TextFormat {
+                                font_id: egui::FontId::proportional(17.0),
+                                color: ui.visuals().text_color(),
+                                ..Default::default()
+                            },
                         );
+                        job.append(
+                            &format!("\n{}", car.manufacturer),
+                            0.0,
+                            egui::TextFormat {
+                                font_id: egui::FontId::proportional(14.0),
+                                color: ui.visuals().weak_text_color(),
+                                ..Default::default()
+                            },
+                        );
+                        job.halign = egui::Align::LEFT;
+                        let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 62.0), egui::Sense::click());
+                        let visuals = ui.style().interact_selectable(&response, car.folder == model.draft.car);
+                        ui.painter().rect(
+                            rect,
+                            visuals.corner_radius,
+                            visuals.bg_fill,
+                            visuals.bg_stroke,
+                            egui::StrokeKind::Inside,
+                        );
+                        job.wrap.max_width = (width - 20.0).max(1.0);
+                        let galley = ui.fonts_mut(|fonts| fonts.layout_job(job));
+                        let pos = egui::pos2(rect.left() + 10.0, rect.center().y - galley.size().y * 0.5);
+                        ui.painter().galley(pos, galley, visuals.text_color());
                         if response.clicked() {
                             picked = Some(car.folder.clone());
                         }

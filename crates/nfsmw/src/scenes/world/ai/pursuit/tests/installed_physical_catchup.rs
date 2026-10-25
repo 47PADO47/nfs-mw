@@ -121,6 +121,9 @@ fn installed_physical_bmw_and_heat_five_cop_drive_a_matched_city_route() {
     };
     let mut player = CarSim::for_rig(physics, &rig);
     player.set_automatic(true);
+    // The PID emits an AI wheel-angle request. Preserve racer physics while
+    // bypassing pad range/rate shaping, as the production cinematic driver does.
+    player.cinematic_control(true);
     let forward = space::to_render((route.point(5.0) - route.point(0.0)).normalize().to_array());
     assert!(player.place_moving(
         &WorldGround { collision: scene.residency.collision(), surfaces: &scene.physics.surfaces },

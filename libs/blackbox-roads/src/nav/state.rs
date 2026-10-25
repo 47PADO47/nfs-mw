@@ -28,6 +28,10 @@ impl RoadNav {
         for value in [self.t, self.half_width, self.curvature] {
             visit(value.to_bits());
         }
+        visit(u32::from(self.lane_offset.is_some()));
+        if let Some(offset) = self.lane_offset {
+            visit(offset.to_bits());
+        }
         vector(self.position, visit);
         vector(self.forward, visit);
         for point in self.line.points {

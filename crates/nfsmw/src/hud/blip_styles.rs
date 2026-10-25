@@ -43,7 +43,7 @@ pub const AUTO_SHOP_TINT: [u8; 4] = [0xff, 0xed, 0x00, 0xff];
 pub const CAR_LOT_TINT: [u8; 4] = [0x00, 0x00, 0xff, 0xff];
 pub const SAFE_HOUSE_TINT: [u8; 4] = [0x00, 0xff, 0x00, 0xff];
 
-/// A police car: the car arrow, with a light bar that alternates blue and red while `active` (a pursuit). Cops show
+/// A police car: the car arrow, with a light bar that cycles blue, grey, red, grey while `active` (a pursuit). Cops show
 /// only inside the minimap's view, pursuing or not: never pinned to the rim.
 pub struct Cop;
 

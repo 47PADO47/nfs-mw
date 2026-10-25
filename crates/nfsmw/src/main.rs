@@ -11,6 +11,7 @@ mod cli;
 mod commands;
 mod devtools;
 mod discord;
+mod extra_options;
 mod frontend;
 mod garage;
 mod gui;

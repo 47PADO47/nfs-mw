@@ -162,7 +162,7 @@ pub fn draw(
     mut exit: MessageWriter<AppExit>,
     window: Single<&Window, With<PrimaryWindow>>,
     time: Res<Time>,
-    settings: Res<Settings>,
+    (settings, mut ui_was_hidden): (Res<Settings>, Local<bool>),
 ) {
     let _span = bevy_log::info_span!("render::draw").entered();
     let _trace = blackbox_trace::scope("Render bridge: draw");
@@ -184,6 +184,14 @@ pub fn draw(
     for id in ui.freed.drain(..) {
         renderer.free_ui_texture(id);
     }
+    let ui_hidden = host.scene.screenshot_ui_hidden();
+    if *ui_was_hidden
+        && !ui_hidden
+        && let Some(base) = host.mirror.base_layer()
+    {
+        renderer.set_ui_layer_ref(base);
+    }
+    *ui_was_hidden = ui_hidden;
     if host.rear_view_mirror && !settled {
         host.mirror.update(renderer.as_mut(), host.scene.as_mut());
     }
@@ -199,6 +207,9 @@ pub fn draw(
         false => host.split.stop(renderer.as_mut(), host.mirror.base_layer()),
     }
 
+    if ui_hidden {
+        renderer.set_ui_layer(blackbox_render::UiLayer::default());
+    }
     let aspect = renderer.aspect_ratio();
     if !settled {
         host.scene.prepare_frame(renderer.as_mut(), aspect);

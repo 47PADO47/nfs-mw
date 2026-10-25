@@ -51,6 +51,7 @@ pub enum Setting {
     Camera,
     Discord,
     DiscordTimePlayed,
+    DiscordJoin,
     Input(InputSetting),
     Hd(hd_options::HdSetting),
     /// A row of the HUD page: a `[custom_hud]` key, or the map's orientation (`hud_options.rs`).
@@ -221,8 +222,8 @@ impl Setting {
             Setting::Graphics(setting) => setting.enabled(s),
             Setting::Post(PostSetting::Aa) => !s.upscaler.upscaler().is_temporal(),
             Setting::SmokeQuality => s.tire_smoke,
-            // The time played is part of the Discord presence, so it is dimmed while that is off.
-            Setting::DiscordTimePlayed => s.discord,
+            // The time played and the join invite are part of the Discord presence, so they are dimmed while that is off.
+            Setting::DiscordTimePlayed | Setting::DiscordJoin => s.discord,
             Setting::CustomHud(setting) => setting.enabled(s),
             Setting::RenderScale => matches!(s.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1),
             // The upscalers that sharpen: FSR 1 (its RCAS pass) and FSR 3 (the RCAS of its own pipeline).
@@ -371,6 +372,7 @@ impl Setting {
             Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),
             Setting::Discord => toggle!(s, changed, discord),
             Setting::DiscordTimePlayed => toggle!(s, changed, discord_time_played),
+            Setting::DiscordJoin => toggle!(s, changed, discord_join),
             Setting::TrafficPreset => {
                 let choices = crate::settings::TrafficPreset::ALL;
                 let at = choices.iter().position(|p| *p == s.traffic_preset()).unwrap_or(0);
