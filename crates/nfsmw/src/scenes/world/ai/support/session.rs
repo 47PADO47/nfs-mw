@@ -60,8 +60,7 @@ impl Session {
     }
 
     /// The pending or active request of the chase, if there is one.
-    #[cfg(test)]
-    pub fn order(&self) -> Option<&Order> {
+    pub(in crate::scenes::world::ai) fn order(&self) -> Option<&Order> {
         self.order.as_ref()
     }
 
@@ -126,7 +125,11 @@ impl TrafficWorld {
 
     /// Hands a request from the roll to the chase. Returns whether it was taken (no request of the chase is under way).
     pub fn ask_support(&mut self, request: Request) -> bool {
-        self.pursuit.as_mut().is_some_and(|pursuit| pursuit.support.request(request))
+        let taken = self.pursuit.as_mut().is_some_and(|pursuit| pursuit.support.request(request));
+        if taken && request.strategy.is_heavy() {
+            self.roadblocks.delay_for_heavy_support();
+        }
+        taken
     }
 
     /// Runs the chase's support request for one step: the cars are taken and placed, and the request times out. A ram or
@@ -158,6 +161,15 @@ impl TrafficWorld {
         session.delay.tick(step.dt);
         let Some(mut order) = session.order else { return };
         if order.tick(step.dt) {
+            if order.is_pending() {
+                log::warn!(
+                    "support: {:?} expired before activation: {}/{} cars placed, {} placement denials",
+                    order.strategy(),
+                    session.placed,
+                    order.cars_wanted(),
+                    order.denials()
+                );
+            }
             let serial = session.serial;
             session.order = None;
             session.cars.clear();

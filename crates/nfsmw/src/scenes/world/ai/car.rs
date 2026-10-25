@@ -413,6 +413,7 @@ impl AiCar {
                     let at = state.body.position;
                     let forward = Vec3::new(state.body.forward.x, 0.0, state.body.forward.y);
                     if self.nav.init_at_point(ctx.net, ctx.index, at, forward, false) {
+                        self.nav.preserve_offset_at(ctx.net, at);
                         self.nav.enable_trail(ctx.net);
                     }
                     shift(&mut self.sim, Some(gear));
@@ -440,7 +441,7 @@ impl AiCar {
                 let ram_allowed = cop.ram_allowed;
                 self.target = think.target;
                 self.think_goal(state.body.position, think.speed, ram_allowed);
-                self.support_drive(&player);
+                self.support_drive(&player, ram_allowed);
             }
         }
     }

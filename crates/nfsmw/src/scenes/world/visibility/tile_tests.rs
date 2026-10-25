@@ -5,7 +5,6 @@ use super::*;
 use crate::scenes::world::resident::TileCull;
 use crate::viewer::camera::Lens;
 use blackbox_collision::CollisionWorld;
-use blackbox_gfx::reflection::distance::within;
 use blackbox_gfx::{InstanceKey, MeshHandle};
 use blackbox_scene::Aabb;
 use glam::Vec3;
@@ -125,15 +124,11 @@ fn reference(
     let mut out = Vec::new();
     let groups = detail.is_some().then_some(groups);
     let mut sweep =
-        Sweep::new(camera, rules, &props, groups, (REFERENCE_HEIGHT, shadow_distance), None, detail, &mut out);
+        Sweep::new(camera, rules, &props, groups, (REFERENCE_HEIGHT, shadow_distance), far, detail, &mut out);
     for tile in world.cull_tiles() {
         for p in tile.placed.iter().filter(|p| (original || !p.original_shadow) && tile.group_shown(p.group)) {
             sweep.visit(p);
         }
-    }
-    if let Some(far) = far {
-        let origin = Vec3::from_array(camera.position);
-        out.retain(|i| within(origin, i.transform.w_axis.truncate(), Some(far)));
     }
     out
 }
@@ -193,10 +188,7 @@ fn the_rear_view_cuts_at_the_far_plane_while_scanning() {
             for far in [192.0, 40.0] {
                 let mut out = Vec::new();
                 collect_rear(world.cull_tiles(), false, &camera, rules, &props, shadow_distance, Some(far), &mut out);
-                // What the capture's own cut (`cull_instances`) would have left of the unlimited scan.
-                let origin = Vec3::from_array(camera.position);
-                let mut expected = unlimited.clone();
-                expected.retain(|i| within(origin, i.transform.w_axis.truncate(), Some(far)));
+                let expected = reference(&world, false, &camera, &groups, shadow_distance, Some(far), None);
                 assert_eq!(digest(&out), digest(&expected), "far {far}");
                 drawn += out.len();
                 cut += unlimited.len() - out.len();
@@ -289,4 +281,20 @@ fn flagged_lods_sway_only_in_a_swaying_view() {
     let turn = glam::Mat3::from_mat4(drawn);
     assert!((turn * turn.transpose()).abs_diff_eq(glam::Mat3::IDENTITY, 1e-5));
     assert!(turn.z_axis.angle_between(Vec3::Z) < 3.1_f32.to_radians());
+}
+
+#[test]
+fn rear_view_keeps_nearby_world_geometry_with_a_distant_object_origin() {
+    let props = PropWorld::default();
+    let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
+    let mut p = object(InstanceKey::new(0, 1), Vec3::new(1000.0, 1010.0, 1.0), 5.0);
+    p.transform = Mat4::IDENTITY;
+    // Its vertices and authored bounding sphere are already in world coordinates.
+    p.radius = 1500.0;
+    let culls = TileCull::build(std::slice::from_ref(&p));
+    let world = World { tiles: vec![vec![p]], culls: vec![culls], collision: CollisionWorld::new(None) };
+    let camera = camera(Vec3::new(1000.0, 1000.0, 2.0), Vec3::new(1000.0, 1010.0, 2.0));
+    let mut out = Vec::new();
+    collect_rear(world.cull_tiles(), false, &camera, rules, &props, 0.0, Some(40.0), &mut out);
+    assert_eq!(out.len(), 1, "the visible world-space mesh is near even though its model origin is at zero");
 }

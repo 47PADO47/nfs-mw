@@ -73,7 +73,7 @@ pub use settings::{
 };
 pub use settings::{ShadowQuality, TextureFiltering};
 pub use shadow::ShadowProjection;
-pub use sky::{SkyLayerKind, SkyMaterialDesc, SkyState};
+pub use sky::{SkyLayerKind, SkyMaterialDesc, SkyState, SunGlare, SunGlareLayer};
 pub use stats::{BackendInfo, FramePerformance, RenderStats, WorkloadActivity};
 pub use texture::{PixelFormat, TextureDesc};
 pub use treatment::{ColourTreatment, ColourTreatmentOverride};

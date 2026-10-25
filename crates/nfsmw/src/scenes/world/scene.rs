@@ -4,36 +4,43 @@ use super::*;
 use crate::viewer::Fullscreen;
 
 impl Scene for WorldScene {
+    fn extra_options(&mut self) -> Option<&mut crate::extra_options::State> {
+        Some(&mut self.extra)
+    }
+    fn apply_extra_option(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        action: crate::extra_options::Action,
+    ) -> anyhow::Result<()> {
+        self.extra_action(renderer, action)
+    }
+    fn screenshot_ui_hidden(&self) -> bool {
+        self.extra.hide_ui
+    }
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        renderer.set_sun_glare(None);
         self.close_garage_backdrop(renderer);
         self.release_gpu(renderer);
     }
-
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
         Some(&mut self.garage)
     }
-
     fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.apply_garage_selection(renderer, selection)
     }
-
     fn begin_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         anyhow::ensure!(self.garage_entry_allowed(), "Auto shops are unavailable during an event or pursuit");
         self.begin_garage_session(renderer)
     }
-
     fn begin_tuning(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.begin_garage_session(renderer)
     }
-
     fn tuning_available(&self) -> Option<bool> {
         self.garage_tuning_available()
     }
-
     fn confirm_tuning(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.confirm_garage_tuning(renderer, selection)
     }
-
     fn garage_view(
         &mut self,
         renderer: &mut dyn RenderBackend,
@@ -42,22 +49,18 @@ impl Scene for WorldScene {
     ) -> Result<()> {
         self.show_garage_view(renderer, stage, camera)
     }
-
     fn preview_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.preview_garage_session(renderer, selection)
     }
-
     fn confirm_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.confirm_garage_session(renderer, selection)
     }
-
     fn cancel_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.cancel_garage_session(renderer)?;
         self.close_garage_backdrop(renderer);
         self.leave_garage_at_exit();
         Ok(())
     }
-
     fn set_garage_open(&mut self, open: bool) {
         self.garage_open = open;
     }
@@ -68,11 +71,9 @@ impl Scene for WorldScene {
         // The mouse looks round the car too, on the chase camera.
         true
     }
-
     fn title(&self) -> String {
         format!("nfsmw — {}", self.track)
     }
-
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         renderer.set_colour_treatment(self.colour_treatment.as_ref(), self.gain_map.as_ref());
         self.breaker_visuals.init(renderer);
@@ -82,11 +83,9 @@ impl Scene for WorldScene {
         }
         Ok(())
     }
-
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         self.update_scene(renderer, input, dt);
     }
-
     fn set_waypoint(&mut self, target: Option<[f32; 2]>) -> bool {
         self.route_to(target)
     }
@@ -95,11 +94,9 @@ impl Scene for WorldScene {
     fn attach_net_client(&mut self, client: &crate::net::ClientHandle) -> bool {
         self.attach_client(client)
     }
-
     fn runs_while_paused(&self) -> bool {
         self.is_net_client()
     }
-
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
         self.scene_ui(ctx)
     }
@@ -109,11 +106,9 @@ impl Scene for WorldScene {
     fn wants_ui(&self) -> bool {
         self.panels().any()
     }
-
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         self.story_movie.picture()
     }
-
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         self.story_movie.take_clip()
     }

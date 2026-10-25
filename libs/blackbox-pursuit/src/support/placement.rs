@@ -15,12 +15,8 @@ pub const LEADER_NEAR: f32 = 150.0;
 const HEAVY_FIRST_STEP: f32 = 60.0;
 /// The step per try (10 m).
 const STEP: f32 = 10.0;
-/// The largest try index. The spec gives `k` as `0..7`; the cap is the reading of the spec's range and is unconfirmed
-/// past the first car.
-pub const LAST_K: u32 = 7;
-
 /// The search for one request's cars: the try counter `k`. It is not reset between the cars, so a car starts its search
-/// at the try the car before it was placed at.
+/// after the try the car before it was placed at.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Search {
     k: u32,
@@ -43,15 +39,18 @@ impl Search {
     }
 
     /// Runs one car's search: `distance` gives a try's signed distance from `k`, and `at` tries a spot at that distance,
-    /// returning what it placed or `None` when the spot is refused. Up to [`TRIES`] tries; a refused try moves `k` on by
-    /// one (capped at [`LAST_K`]), and a placed one leaves `k` where it was.
+    /// returning what it placed or `None` when the spot is refused. Every trial advances `k`, including success.
+    /// A failed car restores its starting index for the reconstruction's later pending retry.
     pub fn place<T>(&mut self, distance: fn(u32) -> f32, mut at: impl FnMut(f32) -> Option<T>) -> Option<T> {
+        let start = self.k;
         for _ in 0..TRIES {
-            if let Some(placed) = at(distance(self.k)) {
+            let candidate = distance(self.k);
+            self.k = self.k.saturating_add(1);
+            if let Some(placed) = at(candidate) {
                 return Some(placed);
             }
-            self.k = (self.k + 1).min(LAST_K);
         }
+        self.k = start;
         None
     }
 }
@@ -100,18 +99,18 @@ mod tests {
     }
 
     #[test]
-    fn a_placed_try_keeps_the_counter_for_the_next_car() {
+    fn a_placed_try_advances_the_counter_for_the_next_car() {
         let mut search = Search::default();
-        // The first car is placed on the third try (k = 2), so the second car starts at 2 too.
+        // The first car is placed on the third try (k = 2); the second starts at k = 3.
         let placed = search.place(Search::heavy_distance, |d| (d < 330.0).then_some(d));
         assert_eq!(placed, Some(320.0));
-        assert_eq!(search.k(), 2);
+        assert_eq!(search.k(), 3);
         let second = search.place(Search::heavy_distance, Some);
-        assert_eq!(second, Some(320.0), "the second car's first try is where the first ended");
+        assert_eq!(second, Some(310.0), "the second car starts ten metres past the first accepted trial");
     }
 
     #[test]
-    fn a_search_that_finds_nothing_takes_all_tries_and_stops_the_counter_at_seven() {
+    fn a_failed_car_retries_the_same_bounded_window() {
         let mut search = Search::default();
         let mut asked = Vec::new();
         let found: Option<()> = search.place(Search::leader_distance, |d| {
@@ -122,7 +121,9 @@ mod tests {
         assert_eq!(asked.len(), TRIES as usize);
         assert_eq!(asked[0], -150.0);
         assert_eq!(asked[7], -220.0);
-        assert_eq!(search.k(), LAST_K);
+        assert_eq!(search.k(), 0);
+        let next = search.place(Search::leader_distance, Some);
+        assert_eq!(next, Some(-150.0));
     }
 
     #[test]

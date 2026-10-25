@@ -20,8 +20,12 @@ fn chase_with_heli(level: u32) -> TrafficWorld {
 
 fn run_manager(world: &mut TrafficWorld, steps: usize) {
     let collision = floor();
+    run_manager_on(world, steps, &collision);
+}
+
+fn run_manager_on(world: &mut TrafficWorld, steps: usize, collision: &CollisionWorld) {
     for _ in 0..steps {
-        world.update_pursuit(0.5, support_focus(0.0), &collision, &SurfaceTable::default());
+        world.update_pursuit(0.5, support_focus(0.0), collision, &SurfaceTable::default());
         see(world, true);
         see(world, true);
     }
@@ -56,6 +60,82 @@ fn only_one_helicopter_flies_at_a_time() {
     let cost = world.police.cost_to_state();
     run_manager(&mut world, 20);
     assert_eq!(world.police.cost_to_state(), cost, "no second helicopter was sent while the first flies");
+}
+
+#[test]
+#[ignore = "needs installed pursuit/support rows and vehicle physics via NFSMW_GAME_DIR"]
+fn installed_support_rows_automatically_deploy_ram_and_heli_when_unblocked() {
+    use game_install::GameDir;
+    use nfsmw_data::car::physics::PhysicsData;
+
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR")).unwrap();
+    let data = PhysicsData::load(&dir).unwrap();
+    let collision = super::installed_spawn_drive::corridor();
+    for z in [-400.0, -150.0, 270.0, 340.0, 400.0] {
+        assert!(
+            collision.ray_cast([0.0, 10.0, z], [0.0, -10.0, z], &Default::default()).is_some(),
+            "fixture must support every deployment site, z={z}"
+        );
+    }
+    let mut observed = Vec::new();
+    for level in [3, 4, 5] {
+        let mut any_ram = false;
+        let mut any_heli = false;
+        for seed in [super::super::super::streams::WORLD_SEED, 0, 1] {
+            let mut world = TrafficWorld::new(straight_road(2000.0));
+            world.reseed(seed);
+            world.load_data(data.database(), None);
+            let rows = nfsmw_data::pursuit::heat_rows(data.database());
+            let mut names = nfsmw_data::pursuit::wave_names(&rows);
+            names.extend(["copsuvl".into(), "copsuv".into(), "copcross".into()]);
+            for name in names {
+                if world.has_cop_model(&name) {
+                    continue;
+                }
+                let mut model = cop_model(&mut free_roam::renderer(), &name, player());
+                model.model.physics = data.car(&name).unwrap();
+                world.add_cop_model(model);
+            }
+            let rig = world.cop_models[0].model.rig.clone();
+            world.set_helicopter_rig(rig);
+            world.police.set_forced_pursuit(true);
+            world.start_pursuit(level, rows, player());
+            let mut ram = false;
+            let mut heli = false;
+            let mut ram_order_samples = 0;
+            for _ in 0..480 {
+                run_manager_on(&mut world, 1, &collision);
+                ram |= world.cars.iter().any(AiCar::head_on_support);
+                heli |= world.police.helicopter_present();
+                ram_order_samples += usize::from(
+                    world
+                        .pursuit
+                        .as_ref()
+                        .unwrap()
+                        .support
+                        .order()
+                        .is_some_and(|order| order.strategy() == Strategy::Ram),
+                );
+            }
+            eprintln!(
+                "AUTOMATIC_SUPPORT heat={level} seed={seed} ram={ram} heli={heli} ram_order_samples={ram_order_samples}; {:?}; {}",
+                world.police.support_row(level),
+                world.pursuit_status()
+            );
+            any_ram |= ram;
+            any_heli |= heli;
+        }
+        observed.push((level, any_ram, any_heli));
+    }
+    for (level, ram, heli) in observed {
+        assert!(
+            ram,
+            "unblocked installed heat {level} must exercise automatic ram selection and admission across the fixed seed matrix"
+        );
+        if level >= 4 {
+            assert!(heli, "unblocked installed heat {level} must exercise automatic helicopter deployment");
+        }
+    }
 }
 
 #[test]

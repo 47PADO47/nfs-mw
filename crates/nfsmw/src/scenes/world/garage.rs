@@ -231,7 +231,18 @@ impl WorldScene {
             self.reflection_last = None;
             return Ok(());
         }
+        // Comparison placement is useful only after the player explicitly detaches the view.
+        // A normal car swap must never create a fixed camera bookmark.
+        let comparing = self.extra.freecam || self.extra.selected_bookmark.is_some();
+        let preserved = self
+            .players
+            .lead()
+            .filter(|_| self.extra.camera.preserve_framing && comparing)
+            .and_then(|drive| drive.last_good());
         self.start_driving_setup(renderer, folder, model, None, false)?;
+        if let (Some(drive), Some(spawn)) = (self.players.lead_mut(), preserved) {
+            drive.respawn_at(spawn);
+        }
         if let Some(drive) = self.players.lead_mut()
             && let Some(physics) = physics
         {
@@ -239,6 +250,9 @@ impl WorldScene {
         }
         self.commit_garage_selection(selection, tunings);
         self.prepare_drive();
+        if self.extra.freecam {
+            self.view = super::View::Fly;
+        }
         self.reflection_last = None;
         Ok(())
     }

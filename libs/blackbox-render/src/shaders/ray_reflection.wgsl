@@ -64,7 +64,7 @@ struct RtHit { radiance: vec3<f32>, position: vec3<f32>, distance: f32, found: b
 fn trace_environment(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,bias:f32,range:f32)->RtHit {
     let origin=world+normal*bias;
     var query:ray_query;
-    rayQueryInitialize(&query,rt_scene,RayDesc(0u,255u,0.025,range,origin,ray));
+    rayQueryInitialize(&query,rt_scene,RayDesc(0u,1u,0.025,range,origin,ray));
     while rayQueryProceed(&query) {
         let candidate=rayQueryGetCandidateIntersection(&query);
         let triangle=rt_triangles[candidate.instance_custom_data+candidate.primitive_index];

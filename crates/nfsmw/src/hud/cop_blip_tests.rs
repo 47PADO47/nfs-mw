@@ -10,11 +10,12 @@ fn the_icons_are_named_by_their_index() {
 }
 
 #[test]
-fn the_light_bar_alternates_blue_and_red() {
+fn the_light_bar_cycles_blue_grey_red_grey() {
     let blue = [0, 0, 255, 255];
+    let grey = [204, 204, 204, 255];
     let red = [160, 0, 0, 255];
     let cycle: Vec<[u8; 4]> = (1..=8).map(pursuit_colour).collect();
-    assert_eq!(cycle, [blue, blue, red, red, blue, blue, red, red]);
+    assert_eq!(cycle, [blue, blue, grey, grey, red, red, grey, grey]);
 }
 
 #[test]
@@ -35,5 +36,6 @@ fn a_car_that_is_not_pursuing_is_white_whatever_the_step() {
 #[test]
 fn a_pursuing_car_follows_the_light_bar() {
     assert_eq!(colour(true, 1), [0, 0, 255, 255]);
-    assert_eq!(colour(true, 3), [160, 0, 0, 255]);
+    assert_eq!(colour(true, 3), [204, 204, 204, 255]);
+    assert_eq!(colour(true, 5), [160, 0, 0, 255]);
 }
