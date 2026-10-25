@@ -13,10 +13,13 @@
 //! role = "player"
 //! ```
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
+
+use crate::performance::{Change, Performance, Tuning};
 
 /// The file name of the settings file, in the mod's folder.
 pub const FILE_NAME: &str = "config.toml";
@@ -39,6 +42,23 @@ max_texture_size = 1024
 
 # Who can use the cars: \"player\", \"cop\" or \"both\".
 role = \"player\"
+
+# How the cars drive compared with the stock car each one clones. Every number is a multiplier of the clone's own
+# value (power 0.25 to 4, mass 0.25 to 4, grip 0.25 to 3, brakes 0.25 to 4, nitrous_power 0 to 4). The 2012 cars have
+# nitrous from the factory; turn it off with nitrous = false.
+# [performance]
+# power = 1.0
+# mass = 1.0
+# grip = 1.0
+# brakes = 1.0
+# nitrous = true
+# nitrous_power = 1.0
+
+# One car or a make can differ: a table named by the car's id or a part of its name, changing only the keys it lists.
+# [car.POR911CARR12]
+# power = 1.15
+# [car.Lamborghini]
+# grip = 1.1
 ";
 
 /// Who may drive or chase with the imported cars (the mod car manifest's `role`).
@@ -95,12 +115,30 @@ pub struct Config {
     pub exclude: Vec<String>,
     pub max_texture_size: u32,
     pub role: Role,
+    /// How the cars drive compared with their clones (`[performance]`).
+    pub performance: Performance,
+    /// Cars that differ from it: `[car.<id or part of the name>]`.
+    pub car: BTreeMap<String, Change>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { source: None, cars: Selection::All, exclude: Vec::new(), max_texture_size: 1024, role: Role::Player }
+        Self {
+            source: None,
+            cars: Selection::All,
+            exclude: Vec::new(),
+            max_texture_size: 1024,
+            role: Role::Player,
+            performance: Performance::default(),
+            car: BTreeMap::new(),
+        }
     }
+}
+
+/// Whether `pattern` names the car with `id` and display `name`: the id itself, or a part of the name, in any case.
+pub fn matches(pattern: &str, id: &str, name: &str) -> bool {
+    let pattern = pattern.to_ascii_lowercase();
+    id.eq_ignore_ascii_case(&pattern) || name.to_ascii_lowercase().contains(&pattern)
 }
 
 impl Config {
@@ -125,16 +163,17 @@ impl Config {
         if !self.max_texture_size.is_power_of_two() || !(16..=4096).contains(&self.max_texture_size) {
             bail!("max_texture_size {} must be a power of two from 16 to 4096", self.max_texture_size);
         }
-        Ok(())
+        self.tuning().check()
+    }
+
+    /// How the cars are tuned: the general table and the cars that differ.
+    pub fn tuning(&self) -> Tuning<'_> {
+        Tuning { general: self.performance, cars: &self.car }
     }
 
     /// Whether the car with `id` and display `name` is wanted.
     pub fn wants(&self, id: &str, name: &str) -> bool {
-        let matches = |pattern: &String| {
-            let pattern = pattern.to_ascii_lowercase();
-            let (id, name) = (id.to_ascii_lowercase(), name.to_ascii_lowercase());
-            id == pattern || name.contains(&pattern)
-        };
+        let matches = |pattern: &String| matches(pattern, id, name);
         if self.exclude.iter().any(matches) {
             return false;
         }

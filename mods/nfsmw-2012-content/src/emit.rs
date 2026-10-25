@@ -6,9 +6,10 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::config::Role;
+use crate::performance::Performance;
 
 /// One imported car, as the mod folder records it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CarEntry {
     /// The car folder, upper case.
     pub id: String,
@@ -17,6 +18,8 @@ pub struct CarEntry {
     pub name: String,
     pub manufacturer: String,
     pub role: Role,
+    /// How the car drives compared with its clone.
+    pub performance: Performance,
 }
 
 /// The files of one car.
@@ -67,6 +70,7 @@ fn car_manifest(car: &CarEntry) -> String {
     if !car.manufacturer.is_empty() {
         text.push_str(&format!("manufacturer = {}\n", quoted(&car.manufacturer)));
     }
+    text.push_str(&car.performance.manifest_table());
     text
 }
 
@@ -81,6 +85,7 @@ mod tests {
             name: "Porsche 911 \"Carrera\" S 2012".into(),
             manufacturer: "Porsche".into(),
             role: Role::Player,
+            performance: Performance::default(),
         }
     }
 

@@ -14,11 +14,14 @@
 
 pub mod config;
 mod convert;
+mod donor;
 mod emit;
 mod fit;
 pub mod import;
 pub mod job;
+mod liveries;
 mod names;
+pub mod performance;
 mod source;
 mod stamp;
 mod textures;

@@ -9,6 +9,7 @@ use anyhow::{Context, Result, bail};
 use rayon::prelude::*;
 
 use crate::config::Config;
+use crate::donor::Donors;
 use crate::emit::{CarEntry, CarFiles, ModFolder};
 use crate::fit::{StockCar, best_fit, measure, stock_cars};
 use crate::source::{CarFile, Source};
@@ -63,17 +64,18 @@ pub fn run(config: &Config, source_root: &Path, game_dir: &Path, out: &Path, thr
         .thread_name(|n| format!("nfsmw-2012-content-{n}"))
         .build()
         .context("starting the conversion threads")?;
-    pool.install(|| convert_all(config, &source, &stock, out))
+    let donors = Donors::new(&game);
+    pool.install(|| convert_all(config, &source, &stock, &donors, out))
 }
 
-fn convert_all(config: &Config, source: &Source, stock: &[StockCar], out: &Path) -> Result<Report> {
+fn convert_all(config: &Config, source: &Source, stock: &[StockCar], donors: &Donors, out: &Path) -> Result<Report> {
     let wanted: Vec<Named> = named(source).into_iter().filter(|car| config.wants(&car.id, &car.display)).collect();
     if wanted.is_empty() {
         bail!("no car of the 2012 install matches the settings");
     }
     let folder = ModFolder::create(out)?;
     let results: Vec<Result<ImportedCar>> =
-        wanted.par_iter().map(|car| import_car(source, car, config, stock, &folder)).collect();
+        wanted.par_iter().map(|car| import_car(source, car, config, stock, donors, &folder)).collect();
     let mut report = Report::default();
     for (car, result) in wanted.iter().zip(results) {
         match result {
@@ -104,6 +106,7 @@ fn import_car(
     named: &Named,
     config: &Config,
     stock: &[StockCar],
+    donors: &Donors,
     folder: &ModFolder,
 ) -> Result<ImportedCar> {
     let car = source.load(named.file)?;
@@ -112,13 +115,15 @@ fn import_car(
     log::debug!("{}: wheel layout {:?} fitted onto {} {:?}", named.id, fit.from, clone.type_name, fit.to);
     let options = convert::Options { max_texture_size: config.max_texture_size };
     let base = clone.base_model_name.to_ascii_uppercase();
-    let built = convert::build(&car, &fit, &base, &named.id, &options)?;
+    let donor = donors.of(clone);
+    let built = convert::build(&car, &fit, &donor, &base, &named.id, &options)?;
     let entry = CarEntry {
         id: named.id.clone(),
         clone: clone.type_name.clone(),
         name: named.display.clone(),
         manufacturer: named.make.clone(),
         role: config.role,
+        performance: config.tuning().for_car(&named.id, &named.display),
     };
     folder.add_car(&entry, &CarFiles { geometry: &built.geometry, textures: &built.textures })?;
     Ok(ImportedCar {

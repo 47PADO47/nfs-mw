@@ -34,6 +34,8 @@ pub struct Layout {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StockCar {
     pub type_name: String,
+    /// The car's folder under `CARS/`.
+    pub folder: String,
     pub base_model_name: String,
     pub manufacturer: String,
     pub layout: Layout,
@@ -46,8 +48,11 @@ pub fn stock_cars(dir: &GameDir) -> Result<Vec<StockCar>> {
     for info in tables.stock_types.iter().filter(|info| info.usage_type == 0 && info.skinnable) {
         let Some(setup) = WheelSetup::read(&tables.attributes, &info.base_model_name) else { continue };
         let Some(layout) = layout_of(&setup) else { continue };
+        // `CARS\<folder>\GEOMETRY.BIN`
+        let Some(folder) = info.geometry_filename.split(['/', '\\']).nth(1) else { continue };
         cars.push(StockCar {
             type_name: info.type_name.clone(),
+            folder: folder.to_owned(),
             base_model_name: info.base_model_name.clone(),
             manufacturer: info.manufacturer.clone(),
             layout,
@@ -193,6 +198,7 @@ mod tests {
     fn the_closest_stock_car_wins() {
         let car = |name: &str, wheelbase: f32| StockCar {
             type_name: name.into(),
+            folder: name.into(),
             base_model_name: name.into(),
             manufacturer: String::new(),
             layout: Layout { wheelbase, ..LAYOUT },

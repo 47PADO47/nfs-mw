@@ -13,16 +13,18 @@ use blackbox_solid::{GroupSource, PositionMarker, SolidSource, Vertex, write_geo
 use blackbox_tpk::write_tpk;
 use chameleon_vehicle::{Lod, PartMesh, SurfaceKind};
 
+use crate::donor::{Donor, LOD_LETTERS};
 use crate::fit::{Fit, to_car_space};
+use crate::liveries::PaintMap;
 use crate::source::SourceCar;
 use crate::textures::Palette;
 
-/// The levels of detail the game asks for (it draws nothing for one a car lacks). The player's car uses `B`.
-const LOD_LETTERS: [char; 4] = ['A', 'B', 'C', 'D'];
 /// Which of the car's own levels each letter takes: the finest for the two the player sees, then coarser ones.
 const LOD_SOURCE: [usize; 4] = [0, 0, 1, 2];
 /// Vertices one solid may hold: the writer puts all groups of one effect in a single 16-bit-indexed buffer.
 const MAX_SOLID_VERTICES: usize = 60_000;
+/// Vertices one solid may hold after the paint surface's vertices are split to take the clone's texture layout.
+const MAX_SPLIT_VERTICES: usize = 65_000;
 const PAINT_FLAGS: u32 = 0x14180;
 
 /// What the car files hold, and what is in them.
@@ -44,14 +46,27 @@ struct Look {
     flags: u32,
 }
 
-pub fn build(car: &SourceCar, fit: &Fit, base: &str, folder: &str, options: &Options) -> Result<Built> {
+/// Convert `car`, fitted by `fit` onto the stock car `base` whose body and paint layout `donor` carries. The body takes
+/// the donor's markers and its paint surface the donor's texture coordinates, so the game's parts, flames and vinyls
+/// work on it as they do on the stock car.
+pub fn build(car: &SourceCar, fit: &Fit, donor: &Donor, base: &str, folder: &str, options: &Options) -> Result<Built> {
     let mut palette = Palette::default();
     let mut solids = Vec::new();
     let body = |p: [f32; 3]| fit.apply(to_car_space(p));
-    let triangles = lod_for(&car.vehicle.body, 0, "body")?.iter().map(|mesh| mesh.triangles.len()).sum();
-    add_solids(&mut solids, &format!("{base}_KIT00_BODY"), &car.vehicle.body, &body, Vec::new(), &mut |mesh| {
-        look(mesh, car, base, options, &mut palette)
-    })?;
+    let finest = lod_for(&car.vehicle.body, 0, "body")?;
+    let triangles = finest.iter().map(|mesh| mesh.triangles.len()).sum();
+    let body_points: Vec<[f32; 3]> =
+        finest.iter().flat_map(|mesh| mesh.vertices.iter().map(|v| body(v.position))).collect();
+    let markers = |lod: usize| donor.body_markers(lod, &body_points);
+    let paint = (!donor.paint.is_empty()).then_some(&donor.paint);
+    add_solids(
+        &mut solids,
+        &format!("{base}_KIT00_BODY"),
+        &car.vehicle.body,
+        &Parts { transform: &body, markers: &markers, paint },
+        &mut |mesh| look(mesh, car, base, options, &mut palette),
+    )?;
+    add_base_solids(&mut solids, base, donor, &body_points);
     let wheel =
         car.vehicle.wheels.iter().find(|wheel| wheel.name.starts_with("FrontLeft")).or(car.vehicle.wheels.first());
     let wheel = wheel.context("the car has no wheels")?;
@@ -66,12 +81,36 @@ pub fn build(car: &SourceCar, fit: &Fit, base: &str, folder: &str, options: &Opt
         float_params: [0.0, 0.0],
         matrix: [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.046, 0.0, 1.0],
     };
-    add_solids(&mut solids, &format!("{base}_KIT00_FRONT_TIRE"), &wheel.lods, &rim_up, vec![brake], &mut |mesh| {
+    let brake_marker = |_: usize| vec![brake];
+    let wheel_parts = Parts { transform: &rim_up, markers: &brake_marker, paint: None };
+    add_solids(&mut solids, &format!("{base}_KIT00_FRONT_TIRE"), &wheel.lods, &wheel_parts, &mut |mesh| {
         look(mesh, car, base, options, &mut palette)
     })?;
     let geometry = write_geometry_pack(&solids).context("writing GEOMETRY.BIN")?;
     let textures = write_tpk(folder, &palette.into_textures()).context("writing TEXTURES.BIN")?;
     Ok(Built { geometry, textures, triangles })
+}
+
+/// The stock cars are a base and a body kit, and the game finds the mounts of spoilers and roof scoops and the lamp
+/// positions on the base. The mod's body is all in the body kit, so its base is one triangle with no area that carries
+/// the clone's markers and draws nothing.
+fn add_base_solids(out: &mut Vec<SolidSource>, base: &str, donor: &Donor, body: &[[f32; 3]]) {
+    let Some(&at) = body.first() else { return };
+    for (lod, letter) in LOD_LETTERS.iter().enumerate() {
+        let markers = donor.base_markers(lod, body);
+        if markers.is_empty() {
+            continue;
+        }
+        let corner = Vertex { position: at, normal: [0.0, 0.0, 1.0], color_bgra: [255; 4], uv: [0.0; 2] };
+        let mut group = GroupSource::new(vec![corner; 3], vec![0, 1, 2]);
+        group.light_material = 0;
+        group.flags = PAINT_FLAGS;
+        let mut solid = SolidSource::new(format!("{base}_BASE_{letter}"), vec![group]);
+        solid.texture_hashes = vec![bstring_hash(&format!("{base}_SKIN1"))];
+        solid.light_material_hashes = vec![bstring_hash("CARSKIN")];
+        solid.markers = markers;
+        out.push(solid);
+    }
 }
 
 /// The wheel's own frame: the 2012 left wheel (axle along x, rim face towards +x) turned to car axes, then half a turn
@@ -98,39 +137,60 @@ fn pick_lod(lods: &[Lod], wanted: usize) -> Option<(usize, &Lod)> {
     lods.iter().enumerate().skip(start).find(fits)
 }
 
+/// How the meshes of one part are carried into the game's car files.
+struct Parts<'a> {
+    /// A point of the 2012 part in 2005 car space.
+    transform: &'a dyn Fn([f32; 3]) -> [f32; 3],
+    /// The markers of the solid at a level of detail, by position in [`LOD_LETTERS`].
+    markers: &'a dyn Fn(usize) -> Vec<PositionMarker>,
+    /// The clone's paint surface: the paint meshes take its texture coordinates (`crate::liveries`).
+    paint: Option<&'a PaintMap>,
+}
+
 /// One solid per level of detail letter. Letters that land on the same level of the car share one build (the finest
 /// level serves both `A` and `B`), which is a copy with another name, not another round of normals and buffers.
 fn add_solids(
     out: &mut Vec<SolidSource>,
     stem: &str,
     lods: &[Lod],
-    transform: &dyn Fn([f32; 3]) -> [f32; 3],
-    markers: Vec<PositionMarker>,
+    parts: &Parts,
     look: &mut dyn FnMut(&PartMesh) -> Look,
 ) -> Result<()> {
     let mut built: Vec<(usize, SolidSource)> = Vec::new();
-    for (letter, wanted) in LOD_LETTERS.iter().zip(LOD_SOURCE) {
+    for (at, (letter, wanted)) in LOD_LETTERS.iter().zip(LOD_SOURCE).enumerate() {
         let Some((level, lod)) = pick_lod(lods, wanted) else { bail!("{stem}: no level of detail fits one solid") };
         let name = format!("{stem}_{letter}");
         let mut solid = match built.iter().find(|(known, _)| *known == level) {
             Some((_, solid)) => SolidSource { name, ..solid.clone() },
             None => {
-                let mut solid = solid_of(&name, lod, transform, look)?;
-                solid.markers = markers.clone();
+                let solid = solid_of(&name, lod, parts, look)?;
                 built.push((level, solid.clone()));
                 solid
             }
         };
-        solid.markers = markers.clone();
+        solid.markers = (parts.markers)(at);
         out.push(solid);
     }
     Ok(())
 }
 
-fn solid_of(
+/// The solid of one level of detail. A solid whose paint vertices, once split for the clone's texture layout, no longer
+/// fit one buffer is built again with the 2012 layout, which still paints but cannot carry the clone's vinyls.
+fn solid_of(name: &str, lod: &Lod, parts: &Parts, look: &mut dyn FnMut(&PartMesh) -> Look) -> Result<SolidSource> {
+    let solid = solid_with(name, lod, parts.transform, parts.paint, look)?;
+    let vertices: usize = solid.groups.iter().map(|group| group.vertices.len()).sum();
+    if parts.paint.is_none() || vertices <= MAX_SPLIT_VERTICES {
+        return Ok(solid);
+    }
+    log::debug!("{name}: {vertices} vertices after matching the clone's paint layout, so it keeps its own");
+    solid_with(name, lod, parts.transform, None, look)
+}
+
+fn solid_with(
     name: &str,
     lod: &Lod,
     transform: &dyn Fn([f32; 3]) -> [f32; 3],
+    paint: Option<&PaintMap>,
     look: &mut dyn FnMut(&PartMesh) -> Look,
 ) -> Result<SolidSource> {
     let positions: Vec<Vec<[f32; 3]>> =
@@ -143,7 +203,7 @@ fn solid_of(
         if mesh.triangles.is_empty() {
             continue;
         }
-        let vertices = mesh
+        let mut vertices: Vec<Vertex> = mesh
             .vertices
             .iter()
             .enumerate()
@@ -154,7 +214,12 @@ fn solid_of(
                 uv: v.uv,
             })
             .collect();
-        let indices = mesh.triangles.iter().flatten().map(|&index| index as u16).collect();
+        let mut indices: Vec<u16> = mesh.triangles.iter().flatten().map(|&index| index as u16).collect();
+        if let (SurfaceKind::Paint, Some(clone_paint)) = (mesh.appearance.kind, paint)
+            && let Some((matched, matched_indices)) = clone_paint.retarget(&vertices, &indices)
+        {
+            (vertices, indices) = (matched, matched_indices);
+        }
         let look = look(mesh);
         let diffuse = slot_of(&mut texture_hashes, bstring_hash(&look.texture));
         let mut group = GroupSource::new(vertices, indices);
