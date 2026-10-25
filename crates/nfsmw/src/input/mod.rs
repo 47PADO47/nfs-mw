@@ -14,7 +14,7 @@ mod describe;
 mod device_settings;
 #[cfg(test)]
 mod headlights_tests;
-mod hud_labels;
+pub mod hud_labels;
 #[cfg(test)]
 mod interact_tests;
 mod presentation;

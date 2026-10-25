@@ -1,9 +1,7 @@
 //! The names the controls list gives the HUD's actions, from the Fluent catalogue (`i18n/en/keys.ftl`). The FEng
-//! controls packages have eight fixed rows, none of them for these actions (`frontend/controls_screen.rs`); the Custom
-//! controls list names its rows for them with these. The `keys` listing (`describe.rs`) keeps its own English labels.
-
-// The Custom controls list that reads these is built in a later PR of the Custom HUD stack.
-#![allow(dead_code)]
+//! controls packages have eight fixed rows, none of them for these actions; the list looks (Remastered and Custom) add a
+//! row for each after the package's and name it with these (`frontend/controls_screen.rs`). The `keys` listing
+//! (`describe.rs`) keeps its own English labels.
 
 use super::Action;
 
