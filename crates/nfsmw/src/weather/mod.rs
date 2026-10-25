@@ -9,6 +9,7 @@ pub mod lens;
 pub mod rain;
 #[cfg(test)]
 mod tests;
+pub mod wind;
 
 /// A chance below this forces the rain off (the script hook's threshold).
 pub const DRY_THRESHOLD: f32 = 0.01;
