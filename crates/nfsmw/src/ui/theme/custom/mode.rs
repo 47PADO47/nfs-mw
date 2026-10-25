@@ -35,11 +35,6 @@ pub enum HudMode {
 }
 
 impl HudMode {
-    /// One of the race modes.
-    pub fn is_race(self) -> bool {
-        matches!(self, HudMode::RaceIntro | HudMode::Racing | HudMode::RaceResults)
-    }
-
     /// The pursuit phase of a pursuit mode.
     pub fn pursuit_phase(self) -> Option<PursuitPhase> {
         match self {
@@ -98,10 +93,6 @@ impl ModeClock {
 
     pub fn mode(&self) -> HudMode {
         self.mode
-    }
-
-    pub fn previous(&self) -> HudMode {
-        self.previous
     }
 
     /// Seconds since the mode began.

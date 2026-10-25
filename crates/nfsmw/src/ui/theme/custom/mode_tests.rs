@@ -62,7 +62,6 @@ fn every_chase_phase_is_its_own_pursuit_mode() {
         let mode = resolve(&state(None, None, phase));
         assert_eq!(mode, HudMode::Pursuit(phase));
         assert_eq!(mode.pursuit_phase(), Some(phase));
-        assert!(!mode.is_race());
     }
     assert_eq!(resolve(&state(None, None, PursuitPhase::None)), HudMode::FreeRoam, "no chase, no pursuit layout");
 }
@@ -83,7 +82,7 @@ fn the_clock_fades_an_element_in_with_its_mode_and_out_with_the_last() {
     assert!(clock.update(HudMode::FreeRoam, 1.0));
     assert!(!clock.update(HudMode::FreeRoam, 2.0), "the same mode is no change");
     assert!(clock.update(HudMode::Racing, 10.0));
-    assert_eq!(clock.previous(), HudMode::FreeRoam);
+    assert_eq!(clock.mode(), HudMode::Racing);
     assert_eq!(clock.opacity(racing, 10.0, 0.3), 0.0, "fades in from nothing");
     assert!((clock.opacity(racing, 10.15, 0.3) - 0.5).abs() < 1e-5, "half way");
     assert_eq!(clock.opacity(racing, 11.0, 0.3), 1.0);
