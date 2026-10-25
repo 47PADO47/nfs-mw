@@ -118,12 +118,12 @@ impl Search<'_> {
             cop_penalty |= !allowed;
             let future_t = spot.t + future_distance / segment.length;
             if future_distance > 0.0 && future_t <= 1.0 {
-                future = Some(Spot { t: future_t, lane: 0, ..spot });
+                future = Some(Spot { t: future_t, offset: 0.0, ..spot });
             }
             let target_t = spot.t + target_distance / segment.length;
             if target_t <= 1.0 {
                 if let Some(future) = future {
-                    self.evaluate(start, future, Spot { t: target_t, lane: 0, ..spot }, cop_penalty);
+                    self.evaluate(start, future, Spot { t: target_t, offset: 0.0, ..spot }, cop_penalty);
                 }
                 return;
             }
@@ -133,7 +133,7 @@ impl Search<'_> {
             let node = segment.nodes[spot.node];
             if let Some(next) = net.plain_segment_at(node, spot.segment) {
                 let new_segment = net.segment(next);
-                spot = Spot { segment: next, node: usize::from(new_segment.nodes[0] == node), t: 0.0, lane: 0 };
+                spot = Spot { segment: next, node: usize::from(new_segment.nodes[0] == node), t: 0.0, offset: 0.0 };
                 continue;
             }
             for &next in &net.node(node).segments {
@@ -147,7 +147,7 @@ impl Search<'_> {
                     continue;
                 }
                 let next_spot =
-                    Spot { segment: next, node: usize::from(new_segment.nodes[0] == node), t: 0.0, lane: 0 };
+                    Spot { segment: next, node: usize::from(new_segment.nodes[0] == node), t: 0.0, offset: 0.0 };
                 self.paths(start, next_spot, future_distance, target_distance, cop_penalty, future);
             }
             return;

@@ -51,6 +51,11 @@ fn encoded(n: vec3<f32>) -> vec4<f32> {
 }
 
 @fragment fn fs_prelit_cutout(in: Out) -> @location(0) vec4<f32> {
-    if 2.0 * textureSample(image, image_sampler, in.uv).a * in.alpha < 0.5 { discard; }
+    if 2.0 * textureSample(image, image_sampler, in.uv).a * in.alpha <= 0.375 { discard; }
+    return encoded(in.normal);
+}
+
+@fragment fn fs_world_cutout(in: Out) -> @location(0) vec4<f32> {
+    if textureSample(image, image_sampler, in.uv).a * in.alpha <= 0.375 { discard; }
     return encoded(in.normal);
 }

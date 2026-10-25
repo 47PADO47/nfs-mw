@@ -57,7 +57,7 @@ fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
     assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
     assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 9);
     assert_eq!(titles(Category::Player, &test_caps::native()).len(), 3);
-    assert_eq!(titles(Category::Discord, &test_caps::native()).len(), 2, "the Discord toggles have their own category");
+    assert_eq!(titles(Category::Discord, &test_caps::native()).len(), 3, "the Discord toggles have their own category");
 }
 
 #[test]

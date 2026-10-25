@@ -27,6 +27,33 @@ impl WorldScene {
         sky.sky_brightness = options.sky_brightness;
         sky.sky_sunset_warmth = options.sky_sunset_warmth;
         renderer.set_sky_state(sky);
+        let appearance = [
+            ("SUNMAJORRAYS", 0.16, 1.0),
+            ("SUNCENTER", 0.04, 1.4),
+            ("SUNMINORRAYS", 0.09, 0.25),
+            ("SUNHALO", 0.065, 0.035),
+            ("SUNRING", 0.09, 0.025),
+        ];
+        let layers = appearance
+            .into_iter()
+            .filter_map(|(name, radius, brightness)| {
+                let texture = self.residency.shared.materials.get(&bstring_hash(name))?.0;
+                Some(blackbox_gfx::SunGlareLayer {
+                    texture,
+                    radius: radius * options.sky_sun_size * 0.5,
+                    brightness,
+                    rotation: 0.0,
+                })
+            })
+            .collect();
+        let dusk = (1.0 - (-self.sun.direction().z / 0.5)).clamp(0.0, 1.0);
+        renderer.set_sun_glare(Some(blackbox_gfx::SunGlare {
+            layers,
+            colour: [1.0, 0.99 - 0.19 * dusk, 0.95 - 0.45 * dusk],
+            strength: options.sky_sun_brightness,
+            weather_visibility: (1.0 - sky.cloud_coverage).clamp(0.0, 1.0).powi(2),
+            angular_radius: 0.27 * options.sky_sun_size,
+        }));
     }
 }
 

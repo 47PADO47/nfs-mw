@@ -56,7 +56,10 @@ impl TrafficWorld {
     }
 
     /// The point the player will reach in a few seconds along the cop roads (`GetSeekAheadPosition`).
-    fn seek_ahead_point(&mut self, player: &Body) -> Option<Vec3> {
+    pub(super) fn reinforcement_seek(&mut self, player: &Body) -> Option<Vec3> {
+        if let Some(road) = self.target_road.observation() {
+            return Some(road.seek);
+        }
         let forward = Vec3::new(player.forward.x, 0.0, player.forward.y);
         let mut nav = RoadNav::new(NavKind::Direction, LaneType::Cop, SegmentFilter::default());
         if !nav.init_at_point(&self.network, &self.index, player.position, forward, false) {
@@ -71,7 +74,7 @@ impl TrafficWorld {
     /// The end of the walk: from the seek-ahead point, as far as the target is from it, along the cop roads in the direction
     /// of the vector back to the target turned by 60 degrees to a random side.
     pub(super) fn seek_spawn_cursor(&mut self, player: &Body) -> Option<RoadNav> {
-        let seek = self.seek_ahead_point(player)?;
+        let seek = self.reinforcement_seek(player)?;
         let back = player.position - seek;
         let distance = back.length();
         let toward = rotate_in_xz(back, side_angle(self.rng.police.next_f32()));

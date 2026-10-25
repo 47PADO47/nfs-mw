@@ -45,3 +45,15 @@ fn the_discord_flags_layer_over_the_environment_and_the_file() {
     assert!(!settings.discord_time_played, "command line first");
     assert!(Cli::try_parse_from(["nfsmw", "play", "--no-discord", "--discord"]).is_err());
 }
+
+#[test]
+fn friends_may_join_by_default_and_the_key_round_trips() {
+    assert!(Settings::from(Partial::default()).discord_join);
+    let text = write::merge("", &Partial { discord_join: Some(false), ..Partial::default() }).unwrap();
+    assert_eq!(file::parse(&text, "test").discord_join, Some(false));
+    let environment = env::read(|key| (key == env::DISCORD_JOIN).then(|| "off".into()));
+    assert_eq!(environment.discord_join, Some(false));
+    let cli = Cli::try_parse_from(["nfsmw", "play", "--no-discord-join"]).unwrap();
+    let Some(Command::Play { view, .. }) = cli.command else { unreachable!() };
+    assert!(!Settings::from(view.settings_layer()).discord_join);
+}

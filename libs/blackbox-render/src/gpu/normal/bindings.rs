@@ -53,6 +53,13 @@ pub(super) fn material_group(
             }),
         },
         wgpu::BindGroupEntry { binding: 11, resource: wgpu::BindingResource::Sampler(&water.sampler) },
+        wgpu::BindGroupEntry {
+            binding: 12,
+            resource: wgpu::BindingResource::TextureView(match active {
+                true => &water.filtered_environment,
+                false => &water.base_environment,
+            }),
+        },
     ];
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("normal scenery material"),

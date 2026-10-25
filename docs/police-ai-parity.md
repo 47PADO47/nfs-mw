@@ -1,5 +1,8 @@
 # Police AI implementation coverage
 
+For the accumulated driving follow-up, current failures and next milestones, see
+[the police driving handoff](police-ai-driving-handoff.md).
+
 This records the implementation passes dated 2026-10-23 and 2026-10-24. It supplements the
 [pursuit system overview](pursuit-system.md). It is not a claim of complete
 original-PC gameplay parity. Original recordings, listening comparisons and
@@ -60,10 +63,16 @@ survival requirement. Keep this stress result separate from
 [physical BMW city acceptance](specs/ai-pursuit-physical-target-acceptance.md),
 whose target controls and capability are known. Its first automatic pilot run
 left the declared route tube and was invalid; no police pass follows from it.
-The geometric-preview revision also exceeded the route tolerance. Its driver
-uses the ordinary player's input shaping; compatibility with the AI PID output
-needs further validation. These city diagnostics remain open for the partial
-speed build and are not treated as successful chase acceptance.
+The geometric-preview revision also exceeded the route tolerance. Applying the
+production AI input mapping to its physical racer chassis establishes a valid
+target, but the unchanged police initially still fail catch-up. The follow-up
+[road steering and reinforcement prediction](specs/ai-pursuit-reinforcement-prediction.md)
+corrects bend-apex vector signs, continuous pursuit road offsets, heading lookup
+on one-way roads and consumption of the target's existing seek cache. Integrated
+city acceptance remains separate from these rule corrections. The corrected
+physical BMW fixture is valid and the initial cop closes the declared gap, but
+still fails late moving engagement. Passing CPU and focused road tests does not
+close that sustained city failure.
 
 The first playable package still exhibited fast heat escalation and poor ground
 driving in user playtests. The follow-up corrects sandbox heat growth and its
@@ -87,7 +96,17 @@ junction navigator without applying fresh vehicle-spawn admission rules.
 - Ground driving still needs matched original/remake route acceptance. Shared primary
   free-roam target tracking is implemented, but the recorded-target city stress
   remains failed. Secondary targets and races retain the previous local road adapter;
-  authored race membership and continuous native lane offsets remain boundaries.
+  authored race membership and complete native junction/offset blending remain
+  boundaries. The [road follow-up](specs/ai-pursuit-road-followup.md) adds continuous
+  selectable target offsets and corrects head-on SUV action entry, road fallback,
+  support-pair spacing/search and spawn-to-driving junction filters. These rule
+  corrections do not close the sustained city engagement failure.
+  The [obstacle-selection follow-up](specs/ai-pursuit-obstacle-selection.md)
+  prevents distant world bodies filling the 32-body local avoidance list and
+  corrects roadblock lookup/traversal through junctions. Pursuit status now reports
+  support delays, blockers and helicopter eligibility. User-reported collisions,
+  roadblocks appearing behind the player and missing support remain integrated
+  acceptance gaps; these corrections do not establish their complete resolution.
   Primary replacement resets tracker identity, but co-op sight and remembered
   target ownership still use the existing shared pursuit memory. Query masks,
   pitched capsule geometry, support spawn handoffs and cumulative airborne

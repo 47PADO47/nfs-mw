@@ -189,7 +189,9 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
     required_features |= adapter.features() & wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
     let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
     let rays = info.backend == wgpu::Backend::Vulkan
-        && std::env::var("BLACKBOX_RT_REFLECTIONS").is_ok_and(|v| v == "1")
+        && ["BLACKBOX_RT_REFLECTIONS", "BLACKBOX_RT_SHADOWS"]
+            .iter()
+            .any(|name| std::env::var(name).is_ok_and(|v| v == "1"))
         && adapter.limits().max_bind_groups >= 4
         && adapter.features().contains(wgpu::Features::EXPERIMENTAL_RAY_QUERY);
     if rays {
@@ -351,6 +353,10 @@ fn assemble(
         ao: None,
         effect_motion: None,
         contact: None,
+        ray_shadows: None,
+        cascade_resolve: None,
+        sun_glare: None,
+        sun_glare_state: None,
         surfaces: None,
         reuse_prepass_depth: true,
         timing,

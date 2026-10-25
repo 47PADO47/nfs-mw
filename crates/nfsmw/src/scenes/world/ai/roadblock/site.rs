@@ -3,10 +3,14 @@
 //! occupancy and on-road checks that follow in `build.rs` are the rewrite's.
 
 use blackbox_pursuit::roadblock::Road;
-use blackbox_roads::{LaneType, NavKind, RoadNav, SegmentFilter, flags};
+use blackbox_roads::{LaneType, NavKind, PathType, RoadNav, SegmentFilter, closest_segment, flags};
 use glam::{Vec2, Vec3};
 
 use crate::scenes::world::ai::TrafficWorld;
+
+#[cfg(test)]
+#[path = "site_tests.rs"]
+mod tests;
 
 /// How far ahead of the target the roadblock stands, metres (`kRoadBlockAheadDistance`).
 pub const AHEAD: f32 = 250.0;
@@ -33,16 +37,16 @@ impl TrafficWorld {
     /// Finds the site ahead of a target at `target` heading `heading` (physics space). `Err` names the check that
     /// refused it; the request stays latched and tries again on the next run, from where the target is then.
     pub(super) fn roadblock_site(&mut self, target: Vec3, heading: Vec3) -> Result<Site, String> {
-        let mut nav = RoadNav::new(
-            NavKind::Direction,
-            LaneType::Racing,
-            SegmentFilter { cop: true, no_decision: true, ..SegmentFilter::default() },
-        );
-        if !nav.init_at_point(&self.network, &self.index, target, heading, false) {
-            return Err("there is no cop road under the target".into());
-        }
+        let mut nav =
+            RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter { cop: true, ..SegmentFilter::default() });
+        let found = closest_segment(&self.network, &self.index, target, heading, 0.0, nav.filter)
+            .ok_or("there is no cop road under the target")?;
+        nav.path_type = PathType::Cop;
+        nav.init_at_segment(&self.network, found.segment, found.t, target, heading, false);
         nav.half_width = 0.0;
-        nav.advance(&self.network, AHEAD, heading, &mut self.rng.roadblock);
+        nav.preserve_offset_at(&self.network, target);
+        nav.enable_trail(&self.network);
+        nav.advance(&self.network, AHEAD, Vec3::ZERO, &mut self.rng.roadblock);
         if nav.dead_end || nav.position.distance(target) < MIN_DISTANCE {
             return Err("the road ends before a roadblock site".into());
         }
