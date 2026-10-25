@@ -19,6 +19,7 @@ mod lod;
 mod override_info;
 mod section;
 mod spawner;
+pub mod sway;
 
 pub use error::{Error, Result};
 pub use group::{SceneryGroup, find_group, override_group_numbers, parse_groups, read_scenery_groups};

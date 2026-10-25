@@ -260,7 +260,7 @@ mod tests {
         let mut resources = SectionResources::default();
         let lod = LodModel { num_polys: 1, density: 1.0 };
         for (index, name) in ["SKYDOME", "SKYDOME_XENON", "SKY_SPECULAR"].iter().enumerate() {
-            resources.meshes.insert(bstring_hash(name), (MeshHandle::from_raw(index + 1), lod, false));
+            resources.meshes.insert(bstring_hash(name), (MeshHandle::from_raw(index + 1), lod, Default::default()));
         }
         let mut instances = (1..=4).map(|mesh| Instance::new(MeshHandle::from_raw(mesh), Mat4::IDENTITY)).collect();
         Sky::default().place(&resources, &mut instances, Vec3::Z * 140.0, View::Main);

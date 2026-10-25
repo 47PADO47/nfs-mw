@@ -34,7 +34,7 @@ fn a_section_frees_the_meshes_and_textures_it_uploaded() {
     });
     let mut section = SectionResources::default();
     section.materials.insert(1, (texture, BlendMode::Opaque));
-    section.meshes.insert(2, (mesh, LodModel { num_polys: 4, density: 1.0 }, false));
+    section.meshes.insert(2, (mesh, LodModel { num_polys: 4, density: 1.0 }, Default::default()));
     assert_eq!((renderer.mesh_labels.len(), renderer.texture_labels.len()), (1, 1));
     section.release(&mut renderer);
     assert!(renderer.mesh_labels.is_empty());

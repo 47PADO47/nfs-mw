@@ -37,6 +37,7 @@ fn object(key: InstanceKey, at: Vec3, half: f32) -> Placed {
         spawner: None,
         parts: None,
         signal: None,
+        sway_lods: 0,
     }
 }
 
@@ -165,6 +166,7 @@ fn the_main_view_draws_what_the_per_object_path_draws() {
                         &groups,
                         shadow_distance,
                         &mut detail,
+                        None,
                         &mut out,
                     );
                     assert_eq!(digest(&out), digest(&expected), "group {group_in}, original {original}");
@@ -259,4 +261,32 @@ fn cull_data_that_no_longer_matches_its_list_falls_back_to_the_per_object_path()
     let mut out = Vec::new();
     collect_rear(std::iter::once(tile), false, &camera, rules, &props, 0.0, None, &mut out);
     assert_eq!(out.len(), 2);
+}
+
+#[test]
+fn flagged_lods_sway_only_in_a_swaying_view() {
+    let props = PropWorld::default();
+    let rules = &blackbox_scenery::layout::MOST_WANTED.lod;
+    let camera = &cameras()[0];
+    let frame = blackbox_scenery::sway::SwayFrame { phase: 90.0, axis: [0.0, 0.0, 0.0] };
+    let draw = |sway_lods: u8, sway: Option<blackbox_scenery::sway::SwayFrame>| {
+        let mut tree = object(InstanceKey::new(1, 1), Vec3::new(10.0, 0.0, 2.0), 2.0);
+        tree.sway_lods = sway_lods;
+        let mut out = Vec::new();
+        Sweep::new(camera, rules, &props, None, (REFERENCE_HEIGHT, 0.0), None, None, &mut out)
+            .with_sway(sway)
+            .visit(&tree);
+        assert_eq!(out.len(), 1);
+        (tree.transform, out[0].transform)
+    };
+    let (rest, drawn) = draw(0b11, None);
+    assert_eq!(drawn, rest, "a view without sway draws the resting pose");
+    let (rest, drawn) = draw(0, Some(frame));
+    assert_eq!(drawn, rest, "an unflagged solid does not sway");
+    let (rest, drawn) = draw(0b11, Some(frame));
+    assert_ne!(drawn, rest);
+    assert_eq!(drawn.w_axis, rest.w_axis, "the sway turns about the object's origin");
+    let turn = glam::Mat3::from_mat4(drawn);
+    assert!((turn * turn.transpose()).abs_diff_eq(glam::Mat3::IDENTITY, 1e-5));
+    assert!(turn.z_axis.angle_between(Vec3::Z) < 3.1_f32.to_radians());
 }

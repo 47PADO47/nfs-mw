@@ -63,9 +63,18 @@ impl WorldScene {
         }
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
         let time_of_day = nfsmw_data::time_of_day::load(physics.database());
-        let rain = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
-            .and_then(|bytes| crate::weather::rain::Rain::read(&bytes))
-            .map_err(|error| log::warn!("authored rain map unavailable: {error:#}"))
+        let track = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
+            .map_err(|error| log::warn!("track parameter maps unavailable: {error:#}"))
+            .ok();
+        let rain = track
+            .as_deref()
+            .map(crate::weather::rain::Rain::read)
+            .and_then(|read| read.map_err(|error| log::warn!("authored rain map unavailable: {error:#}")).ok())
+            .unwrap_or_default();
+        let wind = track
+            .as_deref()
+            .map(crate::weather::wind::Wind::read)
+            .and_then(|read| read.map_err(|error| log::warn!("authored wind map unavailable: {error:#}")).ok())
             .unwrap_or_default();
         let camera_views = nfsmw_data::camera::load(physics.database());
         if colour_treatment.is_none() {
@@ -253,6 +262,7 @@ impl WorldScene {
                 spark_style: crate::settings::SparkStyle::OriginalPc,
                 smoke_quality: crate::settings::SmokeQuality::Standard,
                 rain,
+                wind,
                 wet_road: Default::default(),
                 explosions: Default::default(),
                 heli_wash: Default::default(),

@@ -64,7 +64,7 @@ solids.
 | 0x00 | u8[12] | zero |
 | 0x0C | u8 | **Version = 0x16** ✔ |
 | 0x0D | u8 | EndianSwapped |
-| 0x0E | u16 | Flags |
+| 0x0E | u16 | Flags; bit `0x80` = the solid sways in the wind ([scenery-sway.md](../specs/scenery-sway.md)) |
 | 0x10 | u32 | **Hash = bStringHash(name)** ✔ |
 | 0x14 | u16 | NumPolys |
 | 0x16 | u16 | NumVerts (0 in car files; use the shading groups instead) ✔ |

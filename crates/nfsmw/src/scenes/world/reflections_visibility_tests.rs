@@ -47,6 +47,7 @@ fn placement(id: u32, at: Vec3) -> Placed {
         spawner: None,
         parts: None,
         signal: None,
+        sway_lods: 0,
     }
 }
 

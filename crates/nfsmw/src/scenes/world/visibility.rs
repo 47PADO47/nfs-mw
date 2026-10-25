@@ -112,6 +112,7 @@ pub(super) fn collect_main<'a>(
     groups: &SceneryGroups,
     shadow_distance: f32,
     detail: &mut DetailState,
+    sway: Option<blackbox_scenery::sway::SwayFrame>,
     out: &mut Vec<Instance>,
 ) {
     let _trace = blackbox_trace::scope("World: visibility / caster selection");
@@ -125,7 +126,8 @@ pub(super) fn collect_main<'a>(
         None,
         Some(&mut *detail),
         out,
-    );
+    )
+    .with_sway(sway);
     for tile in tiles {
         sweep.visit_tile(&tile, original);
     }
@@ -235,6 +237,7 @@ mod tests {
             spawner: None,
             parts: None,
             signal: None,
+            sway_lods: 0,
         };
         let lens = blackbox_gfx::reflection::face_frame(
             Vec3::ZERO,

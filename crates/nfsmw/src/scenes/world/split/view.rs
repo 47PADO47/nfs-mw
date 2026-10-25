@@ -84,6 +84,14 @@ impl WorldScene {
             true => 0.0,
             false => self.shadow_quality.sampling().2,
         };
+        let view = match viewer {
+            Viewer::First => 0,
+            Viewer::Second => 1,
+        };
+        let sway = blackbox_scenery::sway::SwayFrame {
+            phase: blackbox_scenery::layout::MOST_WANTED.sway.phase(self.clock),
+            axis: self.wind.axis(view, lens.position, lens.forward).to_array(),
+        };
         visibility::collect_main(
             self.residency.cull_tiles(),
             original,
@@ -93,6 +101,7 @@ impl WorldScene {
             &self.scenery_groups,
             caster_distance,
             &mut self.detail,
+            Some(sway),
             out,
         );
         self.residency.props().fragment_instances(out);

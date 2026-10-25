@@ -3,6 +3,8 @@
 //! row-vector convention) verified by matching transformed solid bounds against
 //! the stored instance boxes (`docs/formats/maps.md`).
 
+use crate::sway::SwayRules;
+
 use super::{HookLayout, InfoLayout, InstanceLayout, LodRules, SceneryLayout, SpawnerLayout, VisibilityRules};
 
 pub const MOST_WANTED: SceneryLayout = SceneryLayout {
@@ -62,4 +64,6 @@ pub const MOST_WANTED: SceneryLayout = SceneryLayout {
         detailed_slot: 0,
         coarse_slot: 2,
     },
+    // docs/specs/scenery-sway.md.
+    sway: SwayRules { solid_flag: 0x80, unmatrixed_flag: 0x200, rate: 45.0, amplitude: 1.5, seed_scale: 60.0 },
 };

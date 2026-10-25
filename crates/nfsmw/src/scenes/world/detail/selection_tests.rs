@@ -21,6 +21,7 @@ fn near_object(key: InstanceKey) -> Placed {
         spawner: None,
         parts: None,
         signal: None,
+        sway_lods: 0,
     }
 }
 

@@ -52,6 +52,8 @@ pub struct Placed {
     pub parts: Option<Arc<super::props::scenery::ModelParts>>,
     /// The lamp head of a real traffic light (`ai/signal_props.rs`), or `None` for other objects.
     pub signal: Option<super::ai::signal_props::SignalHead>,
+    /// Bit `i` set: the mesh of LOD slot `i` sways in the player views (`docs/specs/scenery-sway.md`).
+    pub sway_lods: u8,
 }
 
 impl Placed {
@@ -83,8 +85,18 @@ impl Placed {
             spawner: None,
             parts: None,
             signal: None,
+            sway_lods: 0,
         }
     }
+}
+
+/// What placement needs to know of an uploaded solid besides its LOD inputs.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MeshTraits {
+    /// Authored shadow-overlay art (`SHD_` solids).
+    pub shadow_overlay: bool,
+    /// The solid sways in the wind (`docs/specs/scenery-sway.md`).
+    pub sways: bool,
 }
 
 /// Textures and meshes of a section, by name hash.
@@ -102,7 +114,7 @@ pub struct SectionResources {
     pub materials: HashMap<u32, (TextureHandle, BlendMode)>,
     /// Which faces the surfaces of each texture in `materials` draw.
     pub(super) sides: HashMap<u32, Sidedness>,
-    pub meshes: HashMap<u32, (MeshHandle, LodModel, bool)>,
+    pub meshes: HashMap<u32, (MeshHandle, LodModel, MeshTraits)>,
     /// Authored environment lights owned by the same lifetime as their model mesh.
     pub(super) flare_markers: HashMap<MeshHandle, Arc<[nfsmw_data::world::lights::Marker]>>,
     pub(super) mesh_bounds: HashMap<u32, Aabb>,
@@ -196,7 +208,11 @@ impl SectionResources {
                     self.mesh_bounds.insert(solid.name_hash, bounds);
                 }
                 let lod = LodModel { num_polys: solid.num_polys, density: solid.density };
-                meshes.push((solid.name_hash, (mesh, lod, solid.name.starts_with("SHD_"))));
+                let traits = MeshTraits {
+                    shadow_overlay: solid.name.starts_with("SHD_"),
+                    sways: blackbox_scenery::layout::MOST_WANTED.sway.solid_sways(solid.flags),
+                };
+                meshes.push((solid.name_hash, (mesh, lod, traits)));
             }
         }
         for (hash, mesh) in meshes {

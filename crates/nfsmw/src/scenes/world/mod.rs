@@ -281,6 +281,8 @@ pub struct WorldScene {
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
     rain: crate::weather::rain::Rain,
+    /// The wind each player view hands to the scenery sway (`docs/specs/scenery-sway.md`).
+    wind: crate::weather::wind::Wind,
     /// The petrol station's explosion effect, started by the scenery physics.
     explosions: explosion_fx::ExplosionFx,
     /// The helicopter's rotor wash on the ground (`heli_wash.rs`).
