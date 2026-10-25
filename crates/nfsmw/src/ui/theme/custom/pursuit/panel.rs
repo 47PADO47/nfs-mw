@@ -186,7 +186,8 @@ fn detail_rows(model: &PanelModel) -> Vec<(String, String)> {
     let mut rows = Vec::new();
     if model.duration.is_some() || model.bounty.is_some() {
         let duration = model.duration.map(clock).unwrap_or_default();
-        let bounty = model.bounty.map(|bounty| t!("hud-pursuit-bounty", bounty = grouped(bounty))).unwrap_or_default();
+        let bounty =
+            model.bounty.map(|bounty| t!("hud-pursuit-bounty-earned", bounty = grouped(bounty))).unwrap_or_default();
         rows.push((duration, bounty));
     }
     if let Some(age) = model.last_seen {

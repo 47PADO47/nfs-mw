@@ -153,8 +153,8 @@ hud-pursuit-status-active = Active
 hud-pursuit-status-search = Search
 hud-pursuit-status-cooldown = Cooldown
 hud-pursuit-heat = Heat
-# $bounty is a whole number with digit grouping.
-hud-pursuit-bounty = Bounty { $bounty }
+# The bounty the chase has earned so far; $bounty is a whole number with digit grouping.
+hud-pursuit-bounty-earned = +{ $bounty } bounty
 # Where the police last saw the player, $secs whole seconds ago.
 hud-pursuit-last-seen = Last seen { $secs } s ago
 # $cost is a whole number with digit grouping.

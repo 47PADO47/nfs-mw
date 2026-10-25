@@ -80,3 +80,20 @@ fn discovery_chips_come_up_in_free_roam_only() {
     let frame = memory.frame(&feed(chased, 2.0));
     assert!(frame.chips.iter().all(|chip| chip.left.is_some()), "a chase sends the chips away");
 }
+
+#[test]
+fn the_chases_bounty_outlives_the_chase_for_the_escape_card() {
+    let running = |bounty| HudState {
+        pursuit_phase: PursuitPhase::Active,
+        context: HudContext { chase_bounty: bounty, ..HudContext::default() },
+        ..HudState::default()
+    };
+    let memory = LayoutMemory::default();
+    memory.frame(&feed(running(Some(800)), 1.0));
+    assert_eq!(memory.frame(&feed(running(Some(1200)), 2.0)).marks.chase_bounty, Some(1200));
+    // The chase ends and the world banks the points: the HUD no longer has them, the card still says them.
+    let escaped = HudState { pursuit_phase: PursuitPhase::Escaped, ..HudState::default() };
+    assert_eq!(memory.frame(&feed(escaped, 3.0)).marks.chase_bounty, Some(1200));
+    let free = memory.frame(&feed(HudState::default(), 4.0));
+    assert_eq!(free.marks.chase_bounty, None, "back in free roam it is forgotten");
+}

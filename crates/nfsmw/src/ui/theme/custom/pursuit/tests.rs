@@ -7,9 +7,9 @@ use blackbox_pursuit::EndReason;
 use blackbox_ui::{Component, DrawList, LayoutCx, Rect};
 
 use super::PursuitPanel;
-use super::end_card::{CARD_SECS, EndKind, card_opacity, end_kind};
+use super::end_card::{CARD_SECS, EndKind, card_opacity, end_kind, escape_line};
 use super::model::{PanelModel, Status};
-use crate::hud::{HudState, LastKnown, PoliceIntel, PursuitEndCard, PursuitHud, PursuitPhase};
+use crate::hud::{HudContext, HudState, LastKnown, PoliceIntel, PursuitEndCard, PursuitHud, PursuitPhase};
 use crate::settings::hud::HudSettings;
 use crate::ui::theme::custom::feed::{CustomFeed, CustomFeedCell};
 use crate::ui::theme::custom::mode::Detail;
@@ -19,7 +19,8 @@ fn chase(phase: PursuitPhase) -> HudState {
     HudState {
         pursuit_phase: phase,
         vehicle_heat: 3.4,
-        career_bounty: Some(12500),
+        career_bounty: Some(40000),
+        context: HudContext { chase_bounty: Some(12500), ..HudContext::default() },
         cops_engaged: 4,
         pursuit: Some(PursuitHud { secs: 134.0, evade: 0.4, cops_destroyed: 2, ..PursuitHud::default() }),
         police_intel: PoliceIntel {
@@ -138,4 +139,20 @@ fn the_panel_draws_in_a_chase_and_nothing_without_one() {
     assert!(panel_nodes(chase(PursuitPhase::Active)) > 0);
     assert_eq!(panel_nodes(chase(PursuitPhase::None)), 0, "pursuit hidden when the phase is None");
     assert_eq!(panel_nodes(HudState::default()), 0);
+}
+
+#[test]
+fn the_panel_shows_the_chases_own_bounty_not_the_banked_total() {
+    let balanced = PanelModel::of(&chase(PursuitPhase::Active), Detail::Balanced, true).expect("a chase");
+    assert_eq!(balanced.bounty, Some(12500), "the chase's points, not the 40,000 of the bounty row");
+    let mut outside = chase(PursuitPhase::Active);
+    outside.context.chase_bounty = None;
+    assert_eq!(PanelModel::of(&outside, Detail::Advanced, true).expect("a chase").bounty, None, "outside career mode");
+}
+
+#[test]
+fn the_escape_card_says_the_bounty_earned_in_career_mode() {
+    let escaped = end(EndReason::Evaded, 1.0);
+    assert_eq!(escape_line(&escaped, Some(12500)), "01:15   Cops wrecked: 2   +12,500 bounty");
+    assert_eq!(escape_line(&escaped, None), "01:15   Cops wrecked: 2", "no bounty outside career mode");
 }

@@ -48,6 +48,9 @@ pub struct Marks {
     pub count: Option<Mark<Count>>,
     /// The serial of the race's banner line.
     pub message: Option<Mark<u32>>,
+    /// The bounty the last chase earned, as last seen while it ran: kept after it ends for the escape card (the world
+    /// banks it then), replaced by the next chase's.
+    pub chase_bounty: Option<u32>,
 }
 
 impl Marks {
@@ -56,6 +59,7 @@ impl Marks {
         self.heat = mark(self.heat, heat_level(hud), now);
         self.count = mark(self.count, hud.race.and_then(|race| race.count), now);
         self.message = mark(self.message, hud.message.as_ref().map(|message| message.serial), now);
+        self.chase_bounty = hud.context.chase_bounty.or(self.chase_bounty);
     }
 }
 

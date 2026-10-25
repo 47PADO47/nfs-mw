@@ -37,7 +37,7 @@ pub struct PanelModel {
     pub heat: Option<u32>,
     /// Seconds since the chase began; Balanced and Advanced.
     pub duration: Option<f32>,
-    /// The bounty row's number (career only); Balanced and Advanced.
+    /// The bounty the chase has earned so far (career only); Balanced and Advanced.
     pub bounty: Option<u32>,
     /// The cooldown meter, 0 to 1, only while the phase is `Cooldown`.
     pub cooldown: Option<f32>,
@@ -80,7 +80,7 @@ impl PanelModel {
         Some(Self {
             heat: heat_level(hud),
             duration: chase.map(|chase| chase.secs).filter(|_| more),
-            bounty: hud.career_bounty.filter(|_| more),
+            bounty: hud.context.chase_bounty.filter(|_| more),
             last_seen,
             hiding: chase.and_then(|chase| chase.hiding),
             bust: chase.map(|chase| chase.busted.clamp(0.0, 1.0)).filter(|bust| *bust > 0.0),

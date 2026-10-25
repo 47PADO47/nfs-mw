@@ -83,7 +83,7 @@ fn draw(feed: &CustomFeed, frame: &Frame, cx: &LayoutCx<'_>) -> Drawn {
     let end = hud.context.pursuit_end.as_ref().filter(|_| count.is_none());
     if let Some((end, kind)) = end.and_then(|end| end_card::end_kind(end, hud.busted_overlay).map(|kind| (end, kind))) {
         parts.fade(end_card::card_opacity(end.since_end, &motion));
-        end_card::draw(&mut parts, end, kind);
+        end_card::draw(&mut parts, end, kind, frame.marks.chase_bounty);
     }
     // The lines under the strip: the race's, then a mod's.
     let mut down = LINE_DOWN;
