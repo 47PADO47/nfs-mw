@@ -102,7 +102,11 @@ were not observed in live higher-heat testing.
 ### 3. Fix hazards and pursuit-state feedback
 
 - Ground spike strips using supported road surfaces and model pivots. Prevent
-  overlapping or poorly fitted roadblock cars and props.
+  overlapping or poorly fitted roadblock cars and props. Strips are now seated on
+  the ground under both ends (`roadblock/seat.rs`, unit-tested); whether this
+  removes the reported sunken strips is unconfirmed in play. Roadblock sites follow
+  the written rule (250 m along the road from the target's facing), so a site
+  behind the player's travel needs a trace of target facing at the roll.
 - Reproduce cooldown/radio gaps followed by unexpected roadblocks. Check sight,
   last-known position and phase restrictions on search deployments.
 - Check initial high-heat spawn bursts, backup triggering/countdown and its HUD.
