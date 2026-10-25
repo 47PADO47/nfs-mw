@@ -22,6 +22,7 @@ impl WorldScene {
             race_points: self.race_card().and_then(|card| card.points),
             entry: entry_prompt(&self.entry.popup),
             pursuit_end: self.pursuit_end(),
+            chase_bounty: self.career.hud.chase_bounty(),
             mod_message: crate::hud::mod_message_line(),
         }
     }

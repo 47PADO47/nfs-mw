@@ -71,6 +71,9 @@ pub struct HudContext {
     pub entry: Option<EntryPrompt>,
     /// The end of the last chase, while its card is up.
     pub pursuit_end: Option<PursuitEndCard>,
+    /// The bounty the running chase has earned so far (its pending rep points), in career mode; `None` outside career
+    /// mode and with no chase running.
+    pub chase_bounty: Option<u32>,
     /// The line a mod shows (`bb.hud`), with its tone.
     pub mod_message: Option<(String, Tone)>,
 }
