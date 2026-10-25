@@ -113,7 +113,9 @@ The Career icon opens an icon row (`MainMenu_Sub.fng`, title "career main menu",
 one the world opens (`MainMenu_Sub.fng` with the safe house row): Resume Free Roam (asks "Are you sure you want to leave the Safe
 House to resume free roam?"), Blacklist N (the Blacklist screen), Car Select (greyed out here), Rap Sheet and Save, with the
 summary of Career Completion, Bounty and Cash. Resume Free Roam starts the world (and asks for the roaming-start autosave, as
-leaving the safe house in the world does). Back returns to the career menu. **[exe]** for the items and the confirmation;
+leaving the safe house in the world does). Back returns to the career menu. Rap Sheet opens its login here as in the world: every icon of this menu must send a command,
+because the Original look disables its input when the leave animation starts and only a command re-enables it (a guard that
+ignored the Rap Sheet here hung that look). **[exe]** for the items and the confirmation;
 **[ours]** for starting the world from here.
 
 ## 7. The menu backdrop

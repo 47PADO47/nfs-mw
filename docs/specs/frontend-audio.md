@@ -50,7 +50,7 @@ an independent module instance without rereading or reparsing the bank.
 Initial implementation covers navigation, acceptance, back, dialog and main
 menu transitions. The port uses its SFX/master buses and full-scale module gain;
 the original FEHUD mix-map gain and screen-specific overrides remain unverified.
-Rap-sheet sustained sounds, screen-specific effects, car drive-on sounds and
+The rap sheet login plays its skip sound by trigger id (`0x67`, `0x68`: front-end samples 80 and 81; audibility not yet checked against the original). Rap-sheet sustained sounds, screen-specific effects, car drive-on sounds and
 an audible matched original-game comparison remain open. The installed modded
 executable differs from the clean PC 1.3 analysis image; no address is used
 against the modded running process.

@@ -24,7 +24,7 @@ pub struct LiveBlip {
     pub map: [f32; 2],
     /// Where its nose points, degrees clockwise from up the picture.
     pub bearing: f32,
-    /// A cop in a chase (its icon flashes blue and red).
+    /// A cop in a chase (its icon cycles blue, grey, red, grey).
     pub chasing: bool,
 }
 

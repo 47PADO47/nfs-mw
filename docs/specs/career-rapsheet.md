@@ -276,6 +276,13 @@ the owned bit, and it has a career record. **[exe]**
 | `EVADED_n` (`0xB1E72F78`) | `RAP_VD_TIMES_EVADED` | record `+0x14` |
 | `BUSTED_n` (`0xCB45D776`) | `RAP_VD_TIMES_BUSTED` | record `+0x16` |
 
+The header (the routine at `0x0052D8F4`, [provenance](../provenance/career-rapsheet.md)) fills four objects of its own, not the main page's:
+the name `0x1FFFB988` (`RAP_PLAYER_NAME`), the total bounty `0x1FFFB989` (`RAP_TOTAL_BOUNTY`, the stable total), the
+preferred vehicle `0x1FFFB98A` (`RAP_PREFERRED_VEHICLE`) and the recent vehicle `0x1FFFB98B` (`RAP_RECENT_VEHICLE`). The
+preferred vehicle is the listed car with the most pursuits (evaded plus busted; the first car wins a tie and a car with no
+pursuit never counts); the recent vehicle is the car key of the last pursuit (history `+0xBD4`). Without a car the line
+shows `RAP_VD_NO_CAR_ON_RECORD`, and a car type the catalogue lacks shows `ERROR_DEFAULT_STRING`. **[exe]**
+
 Rows beyond the number of cars are cleared: `CAR_n` shows `RAP_VD_NO_CAR_ON_RECORD` ("< no record >"), the other cells
 are empty. Player cars that were sold are not listed; their sums live in the sold history only. **[exe]**
 

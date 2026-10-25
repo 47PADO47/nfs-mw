@@ -2,12 +2,16 @@
 //! scrolls with up and down (`docs/specs/career-rapsheet.md` section 6).
 
 use blackbox_feng::ids::{PAD_BACK, PAD_DOWN, PAD_UP};
-use nfsmw_career::rapsheet::{DriveStatus, Page, Step, VehicleRow, vehicle_rows};
+use blackbox_text::label_hash;
+use nfsmw_career::rapsheet::{
+    DriveStatus, Page, RapTotals, Step, VehicleRow, preferred_vehicle, recent_vehicle_key, vehicle_rows,
+};
 
 use super::common::{Leave, back_to, car_name, header, number, put_label, put_text, put_value};
 use crate::career::{Career, CareerHandle};
 use crate::frontend::ids::EXIT_COMPLETE;
 use crate::frontend::logic::{Cx, ScreenLogic};
+use crate::ui::Text;
 
 /// The cells of the two visible rows, `<cell>_n` for n = 1 and 2 (the first hash, then + n - 1).
 const CAR: u32 = 0x028C_4F05;
@@ -17,8 +21,11 @@ const UNSERVED: u32 = 0x6E5C_90BB;
 const TO_DRIVE: u32 = 0xA408_468B;
 const EVADED: u32 = 0xB1E7_2F78;
 const BUSTED: u32 = 0xCB45_D776;
-/// The name object of the page header.
-const NAME: u32 = 0xE3DA_78E7;
+/// The objects of the page header: the name, the total bounty and the two named cars.
+const NAME: u32 = 0x1FFF_B988;
+const TOTAL_BOUNTY: u32 = 0x1FFF_B989;
+const PREFERRED: u32 = 0x1FFF_B98A;
+const RECENT: u32 = 0x1FFF_B98B;
 
 /// Rows on the page at a time.
 const VISIBLE: usize = 2;
@@ -62,6 +69,13 @@ impl VehiclesPage {
         CareerHandle::shared().with(|career| {
             self.lines = listed(career);
             header(cx, career, NAME);
+            let totals = RapTotals::compute(&career.stable, &career.history);
+            put_value(cx, TOTAL_BOUNTY, "RAP_TOTAL_BOUNTY", &number(totals.bounty));
+            let rows: Vec<VehicleRow> = self.lines.iter().map(|line| line.row).collect();
+            let preferred = preferred_vehicle(&rows).map(|row| car_name(career, row.frontend_key));
+            put_value(cx, PREFERRED, "RAP_PREFERRED_VEHICLE", &car_text(preferred.as_deref()));
+            let recent = recent_vehicle_key(&career.history).map(|key| car_name(career, key));
+            put_value(cx, RECENT, "RAP_RECENT_VEHICLE", &car_text(recent.as_deref()));
         });
     }
 
@@ -80,6 +94,17 @@ impl VehiclesPage {
 /// The cars of the page: every listed car with its name, in slot order.
 fn listed(career: &Career) -> Vec<Line> {
     vehicle_rows(&career.stable).into_iter().map(|row| Line { name: car_name(career, row.frontend_key), row }).collect()
+}
+
+/// The car of a header line: its name, `ERROR_DEFAULT_STRING` when the catalogue lacks the car type, and
+/// `RAP_VD_NO_CAR_ON_RECORD` when there is no car.
+fn car_text(name: Option<&str>) -> String {
+    let label = match name {
+        None => "RAP_VD_NO_CAR_ON_RECORD",
+        Some("") => "ERROR_DEFAULT_STRING",
+        Some(name) => return name.to_owned(),
+    };
+    Text::Game(label_hash(label)).resolve().unwrap_or_default()
 }
 
 /// An empty slot: "< no record >" on the car cell, nothing in the others.

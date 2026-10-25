@@ -126,3 +126,11 @@ fn installed_menu_effects_produce_audio_and_finish() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+#[test]
+fn a_trigger_can_be_requested_by_id() {
+    take();
+    request_trigger(103);
+    assert_eq!(take(), [103]);
+    assert_eq!(target(103), ("FE/FE_MB.abk", "PlayFrontEndSample", 80));
+}
