@@ -16,8 +16,8 @@
 //! - [`compose`]: builds each presented layer from the slots its theme resolves (`docs/specs/ui-themes-compose.md`).
 //! - [`original`]: the floor theme. It fills every slot: HUD adapters (T7) and menu adapters (T8).
 //! - [`custom`]: the Custom look, its tokens, layout and feed, and its two palettes (Bevy, Remastered gold). It fills the
-//!   radio card, the map legend, the menus and the LAN screens (`custom/menu`, `custom/lan_hud.rs`) today, and returns
-//!   `None` for the rest.
+//!   HUD, the radio card, the menus and the LAN screens (`custom/menu`, `custom/lan_hud.rs`) and the full-screen world
+//!   map (`custom/full_map`), and returns `None` for the rest.
 //! - [`modded`]: the themes the mods register through `bb.ui`. A mod theme is selected with [`UiThemes::select_mod`], by the
 //!   Mods page's theme choice through [`UiThemes::set_mod_choice`]; the style setting does not choose it
 //!   (`docs/specs/ui-themes.md` section 12).
@@ -54,7 +54,7 @@ use crate::frontend::world_map::Chrome;
 use crate::settings::{Settings, UiStyle, UiTheme};
 use custom::menu::MenuLook;
 use custom::tokens::{self as custom_tokens, CustomLook};
-use custom::{CustomFeedCell, CustomTheme, DriveFeedCell, RadioFeedCell, WorldMapLegendCell, palette};
+use custom::{CustomFeedCell, CustomTheme, DriveFeedCell, FullMapCell, RadioFeedCell, palette};
 use modded::{ModHud, ModTheme};
 use original::{FrameCell, OriginalTheme};
 use remastered::{RemasteredTheme, WorldMapViewCell};
@@ -92,8 +92,9 @@ pub fn sync_mod_themes(mods: Option<NonSend<crate::modding::Mods>>, mut themes: 
 }
 
 /// Builds the registry: Original as the floor, the Custom and Remastered themes registered beside it, Original active.
-/// The Original theme reads its trees from `frame`, Remastered its drive readouts from `drive`, and Custom its HUD from
-/// `custom` (both their radio card from `radio`). The caller keeps a clone of each so it can fill them each frame.
+/// The Original theme reads its trees from `frame`, Remastered its drive readouts from `drive` and its world map from
+/// `map`, and Custom its HUD from `custom` and its world map from `custom_map` (both their radio card from `radio`). The
+/// caller keeps a clone of each so it can fill them each frame.
 ///
 /// Panics when the Original theme leaves a catalogue slot unfilled. That is a programming error, found at start-up.
 /// The generic `Themes::new` cannot make this check, because it does not know the MW catalogue
@@ -103,7 +104,7 @@ pub fn build_themes(
     radio: RadioFeedCell,
     drive: DriveFeedCell,
     custom: CustomFeedCell,
-    legend: WorldMapLegendCell,
+    custom_map: FullMapCell,
     menus: MenuListCell,
     map: WorldMapViewCell,
 ) -> Themes {
@@ -112,7 +113,7 @@ pub fn build_themes(
         Themes::new(Box::new(OriginalTheme::new(frame.clone()))).expect("OriginalTheme reports ThemeId::Original");
     themes
         .register(Box::new(
-            CustomTheme::new(radio.clone(), custom, legend).with_menus(menus.clone()).with_lan(frame.lan()),
+            CustomTheme::new(radio.clone(), custom, custom_map).with_menus(menus.clone()).with_lan(frame.lan()),
         ))
         .expect("the Bevy theme is registered once, and is not Original");
     themes
@@ -132,7 +133,7 @@ fn check_floor_fills_every_slot(frame: &FrameCell) {
     }
 }
 
-/// The base skin the themes hand to their components: the Custom card's and legend's fonts (T9), and the Remastered
+/// The base skin the themes hand to their components: the Custom card's font and the map's icons (T9), and the Remastered
 /// dial's and readout's. The keys are namespaced by theme and element, so they do not clash. The active theme's tokens
 /// and the `custom.*` tokens are merged into it ([`UiThemes::refresh_skin`]).
 pub fn default_skin() -> Skin {
@@ -161,9 +162,8 @@ pub struct UiThemes {
     drive: DriveFeedCell,
     /// The frame the Custom HUD draws from. Filled by the HUD plugin each frame.
     custom: CustomFeedCell,
-    /// The open world map's legend, read by the Remastered map legend. Filled by the frontend plugin while the map is
-    /// open under a theme that recolours it, cleared otherwise.
-    legend: WorldMapLegendCell,
+    /// The open map as the Custom theme draws it. Filled by the frontend plugin while the map is open.
+    custom_map: FullMapCell,
     /// The icon menus' lists, read by the Remastered and Custom menus. Filled by the frontend plugin each frame.
     menus: MenuListCell,
     /// The open map as the Remastered theme draws it. Filled by the frontend plugin while the map is open.
@@ -183,7 +183,7 @@ impl UiThemes {
         let radio = RadioFeedCell::new();
         let drive = DriveFeedCell::new();
         let custom = CustomFeedCell::new();
-        let legend = WorldMapLegendCell::new();
+        let custom_map = FullMapCell::new();
         let menus = MenuListCell::new();
         let map = WorldMapViewCell::new();
         let mut registry = Self {
@@ -192,7 +192,7 @@ impl UiThemes {
                 radio.clone(),
                 drive.clone(),
                 custom.clone(),
-                legend.clone(),
+                custom_map.clone(),
                 menus.clone(),
                 map.clone(),
             ),
@@ -206,7 +206,7 @@ impl UiThemes {
             radio,
             drive,
             custom,
-            legend,
+            custom_map,
             menus,
             map,
             style: UiStyle::Original,
@@ -285,7 +285,7 @@ impl UiThemes {
             self.radio.clone(),
             self.drive.clone(),
             self.custom.clone(),
-            self.legend.clone(),
+            self.custom_map.clone(),
             self.menus.clone(),
             self.map.clone(),
         );
@@ -366,13 +366,13 @@ impl UiThemes {
         self.themes.active() == ThemeId::Original
     }
 
-    /// How the active theme dresses the world map: Original leaves the FEng screen alone, Remastered draws the whole map
-    /// itself, and any other theme that provides the slot (Custom) recolours the FEng screen in place and draws a legend
-    /// over it.
+    /// How the active theme dresses the world map: Original leaves the FEng screen alone, Remastered and Custom draw the
+    /// whole map themselves, and any other theme that provides the slot (a mod theme whose spec names it; the shared
+    /// Custom HUD components do not draw it) recolours the FEng screen in place and draws its chrome over it.
     pub fn world_map_chrome(&self) -> Chrome {
         match self.provided_by(ElementId::WorldMapChrome) {
             None | Some(ThemeId::Original) => Chrome::Original,
-            Some(ThemeId::Remastered) => Chrome::Drawn,
+            Some(ThemeId::Remastered | ThemeId::Custom) => Chrome::Drawn,
             Some(_) => Chrome::Recoloured,
         }
     }
@@ -420,9 +420,9 @@ impl UiThemes {
         self.map.clone()
     }
 
-    /// The legend the Custom map draws. The frontend plugin keeps this clone and calls `set` while the map is open
-    /// under a theme that recolours it, or `clear` otherwise.
-    pub fn world_map_legend(&self) -> WorldMapLegendCell {
-        self.legend.clone()
+    /// The map the Custom theme draws. The frontend plugin keeps this clone and calls `set` each frame the map is open,
+    /// and `clear` when it is closed.
+    pub fn custom_world_map(&self) -> FullMapCell {
+        self.custom_map.clone()
     }
 }

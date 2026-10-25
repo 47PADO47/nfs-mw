@@ -28,6 +28,8 @@
 //! - [`banner`]: the `Banner` slot's transient cards; [`condition`]: the vehicle condition chip (`VehicleCondition`).
 //! - [`parts`]: the plates, labels, bars, icons and key caps they draw with; [`words`]: their shared words.
 //! - [`map`]: the centred translucent map (the `Minimap` slot; `Blips` is left empty) and its turn-cue chip.
+//! - [`full_map`]: the full-screen world map (the `WorldMapChrome` slot, PR 11c), drawn with the centred map's roads,
+//!   routes and marks, from the map the frontend publishes ([`FullMapCell`]).
 //! - [`menu`]: the menus (PR 11a, 11b): the main menu, the option categories, the pause menu, the safe house, the option
 //!   pages, the dialogs, the key list, the jukebox, the credits and the Blacklist, drawn from the lists the frontend
 //!   publishes ([`MenuListCell`]), and the LAN page, drawn from the LAN cell ([`LanCell`]).
@@ -35,25 +37,25 @@
 //! - [`radio_card`], [`radio_placement`]: the radio card in the Custom style (PR 11b) and its place; [`radio_feed`] the
 //!   song it reads, which the Remastered card shares.
 //!
-//! Kept from before the rewrite until their own PRs replace them:
+//! Kept from before the rewrite:
 //!
-//! - [`map_legend`]: the world map's legend, drawn over the recoloured FEng map (the `WorldMapChrome` slot).
 //! - [`drive_feed`]: the drive state the Remastered theme reads ([`DriveFeedCell`]).
-//! - [`skin`]: the legend's font and the map's icons; [`palette`]: the two palettes `ui_theme` picks.
+//! - [`skin`]: the map's icons; [`palette`]: the two palettes `ui_theme` picks.
 //! - [`hud_component`]: the slot-to-component map, also used by a mod theme that declares tokens.
 //!
 //! The HUD components:
 //!
 //! - [`markers`]: the world-space markers (the `WorldMarkers` slot).
 
-mod cluster;
 mod banner;
+mod cluster;
 mod condition;
 mod drive_feed;
 // The Custom components that read the feed, the layout, the plate and the text helpers land in PRs 6 to 9.
 #[allow(dead_code)]
 pub mod feed;
 mod free_roam;
+pub mod full_map;
 #[cfg(test)]
 mod helpers_tests;
 mod lan_hud;
@@ -64,12 +66,11 @@ pub mod layout;
 #[cfg(test)]
 mod layout_tests;
 pub mod map;
-mod map_legend;
 mod markers;
-mod notify;
 mod memory;
-pub mod mode;
 pub mod menu;
+pub mod mode;
+mod notify;
 pub mod palette;
 mod parts;
 #[allow(dead_code)]
@@ -91,7 +92,7 @@ mod words;
 pub(in crate::ui::theme) use drive_feed::DriveFeed;
 pub use drive_feed::DriveFeedCell;
 pub use feed::{CustomFeed, CustomFeedCell};
-pub use map_legend::{MapLegend, WorldMapLegendCell};
+pub use full_map::{FullMap, FullMapCell, FullMapSnapshot};
 pub use radio_card::RadioCard;
 pub use radio_feed::RadioFeedCell;
 pub use skin::card_skin;
@@ -110,7 +111,8 @@ pub struct CustomTheme {
     tokens: Tokens,
     radio: RadioFeedCell,
     feed: CustomFeedCell,
-    legend: WorldMapLegendCell,
+    /// The open world map, as the frontend publishes it.
+    map: FullMapCell,
     /// The lists the menus draw (filled by the frontend for the list looks), and where each menu's selection plate is.
     menus: MenuListCell,
     glide: GlideCell,
@@ -120,14 +122,14 @@ pub struct CustomTheme {
 
 impl CustomTheme {
     /// The token-driven theme (`ThemeId::Custom`), whose radio card reads `radio`, whose HUD components read `feed` and
-    /// whose map legend reads `legend`.
-    pub fn new(radio: RadioFeedCell, feed: CustomFeedCell, legend: WorldMapLegendCell) -> Self {
+    /// whose full-screen world map reads `map`.
+    pub fn new(radio: RadioFeedCell, feed: CustomFeedCell, map: FullMapCell) -> Self {
         Self {
             id: ThemeId::Custom,
             tokens: palette::bevy(),
             radio,
             feed,
-            legend,
+            map,
             menus: MenuListCell::new(),
             glide: GlideCell::default(),
             lan: LanCell::default(),
@@ -151,10 +153,10 @@ impl Theme for CustomTheme {
     }
 
     fn element(&self, slot: SlotId, _cx: &BuildCx<'_>) -> Option<Box<dyn Component>> {
-        // The map: the FEng screen is recoloured in place by the frontend, and this legend is drawn over it. Providing
-        // the slot is also what tells the frontend to recolour.
+        // The world map: the theme draws all of it, full screen, and the frontend does not present the FEng screen.
+        // Providing the slot is what tells the frontend so (`UiThemes::world_map_chrome`).
         if ElementId::from_slot(slot) == Some(ElementId::WorldMapChrome) {
-            return Some(Box::new(MapLegend::new(self.legend.clone())));
+            return Some(Box::new(FullMap::new(self.map.clone())));
         }
         // The LAN screens read the LAN cell: the page as a Custom list, the session's HUD pieces on Custom plates.
         if ElementId::from_slot(slot) == Some(ElementId::LanMenu) {
