@@ -15,6 +15,8 @@ pub struct WorldTuning {
     pub turn_signals: bool,
     /// Draw the cop health bars (`Settings::cop_health_bars`).
     pub cop_health_bars: bool,
+    pub enhanced_exhaust: bool,
+    pub exhaust_style: ExhaustStyle,
     /// The Speedbreaker tunables (`NFSMWSpeedFixerSettings.ini`).
     pub speedbreaker: SpeedbreakerTuning,
     /// The high-speed radial blur: on or off, and its strength.
@@ -38,6 +40,8 @@ impl Default for WorldTuning {
             no_rev_limiter: DEFAULT_NO_REV_LIMITER,
             turn_signals: false,
             cop_health_bars: DEFAULT_COP_HEALTH_BARS,
+            enhanced_exhaust: false,
+            exhaust_style: ExhaustStyle::default(),
             speedbreaker: SpeedbreakerTuning::default(),
             motion_blur: MotionBlur::default(),
             rain_droplet_scale: 0.5,
@@ -58,6 +62,8 @@ impl From<&Settings> for WorldTuning {
             no_rev_limiter: s.no_rev_limiter,
             turn_signals: s.turn_signals,
             cop_health_bars: s.cop_health_bars,
+            enhanced_exhaust: s.enhanced_exhaust,
+            exhaust_style: s.exhaust_style,
             speedbreaker: s.speedbreaker,
             motion_blur: MotionBlur::from(s),
             rain_droplet_scale: s.rain_droplet_scale,

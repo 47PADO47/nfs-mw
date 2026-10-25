@@ -26,6 +26,8 @@ pub mod detail;
 mod discord_tests;
 pub mod eatrax;
 mod effective;
+mod exhaust_style;
+pub use exhaust_style::ExhaustStyle;
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
@@ -234,6 +236,8 @@ pub struct Settings {
     pub speed_trail_style: SpeedTrailStyle,
     /// Flames at the tail pipes: gear-change blow-off and lift-off backfire. Nothing is loaded when off.
     pub exhaust_flames: bool,
+    pub enhanced_exhaust: bool,
+    pub exhaust_style: ExhaustStyle,
     /// Show turn signals on cars while steering (a rewrite extension, off by default).
     pub turn_signals: bool,
     /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
@@ -385,6 +389,8 @@ impl From<Partial> for Settings {
             speed_trails: p.speed_trails.unwrap_or(false),
             speed_trail_style: p.speed_trail_style.unwrap_or_default(),
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
+            enhanced_exhaust: p.enhanced_exhaust.unwrap_or(false),
+            exhaust_style: p.exhaust_style.unwrap_or_default(),
             turn_signals: p.turn_signals.unwrap_or(false),
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
             discord: p.discord.unwrap_or(true),

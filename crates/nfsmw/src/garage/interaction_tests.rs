@@ -225,3 +225,25 @@ fn pointer_selection_and_paint_apply_immediately_without_repeated_requests() {
     assert!(ui.model.draft.color.is_some());
     assert_eq!(ui.click("Preset color").unwrap().color, None);
 }
+
+#[test]
+fn exhaust_widgets_apply_and_reset_without_selecting_a_different_car() {
+    let mut ui = fixture(vec![Car { folder: "RACER".into(), name: "Racer".into(), ..Default::default() }], "RACER");
+    ui.settings.enhanced_exhaust = true;
+    ui.click("Appearance");
+    ui.click("Exhaust");
+    for _ in 0..20 {
+        ui.frame(Vec::new());
+    }
+    ui.click("Default");
+    let request = ui.click("Aggressive").expect("preset applies immediately");
+    assert_eq!(request.car, "RACER");
+    assert_eq!(request.exhaust, super::ExhaustSelection::aggressive());
+    ui.model.applied = request;
+    for _ in 0..20 {
+        ui.frame(Vec::new());
+    }
+    let reset = ui.click("Reset exhaust").expect("reset applies immediately");
+    assert_eq!(reset.exhaust, super::ExhaustSelection::default());
+    assert!(ui.frame(Vec::new()).is_none());
+}

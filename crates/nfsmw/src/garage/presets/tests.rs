@@ -67,6 +67,25 @@ fn a_car_preset_round_trips_all_fields_including_stock_parts_and_paint() {
 }
 
 #[test]
+fn exhaust_presets_round_trip_reject_invalid_ranges_and_accept_legacy_setups() {
+    let (model, mut selection) = fixture();
+    selection.exhaust = crate::garage::ExhaustSelection::aggressive();
+    selection.exhaust.root = [20, 255, 90];
+    selection.exhaust.tail = [190, 30, 240];
+    let text = encode(&selection).unwrap();
+    selection.exhaust.set_style(Default::default());
+    assert_eq!(decode(&text, &model).unwrap(), selection);
+    let mut legacy: toml::Value = toml::from_str(&text).unwrap();
+    legacy.as_table_mut().unwrap().remove("exhaust");
+    assert_eq!(decode(&toml::to_string(&legacy).unwrap(), &model).unwrap().exhaust, Default::default());
+    selection.exhaust.density = 999;
+    assert!(encode(&selection).is_err());
+    let mut invalid: toml::Value = toml::from_str(&text).unwrap();
+    invalid["exhaust"]["density"] = toml::Value::Integer(999);
+    assert!(decode(&toml::to_string(&invalid).unwrap(), &model).is_err());
+}
+
+#[test]
 fn unavailable_equipment_bad_tuning_and_future_schemas_are_rejected() {
     let (mut model, selection) = fixture();
     let text = encode(&selection).unwrap();

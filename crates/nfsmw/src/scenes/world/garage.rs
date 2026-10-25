@@ -80,7 +80,7 @@ pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
         });
     }
     cars.sort_by(|a, b| (&a.manufacturer, &a.name).cmp(&(&b.manufacturer, &b.name)));
-    Ok(Model { cars, ..Model::default() })
+    Ok(Model { cars, exhaust_style_path: crate::settings::Settings::config_path(), ..Model::default() })
 }
 
 /// Imported original My Cars records retain their exact handle identity.
@@ -158,6 +158,7 @@ impl WorldScene {
         selection: Selection,
     ) -> Result<()> {
         self.discover_garage_parts(&selection.car)?;
+        selection.exhaust.validate()?;
         self.garage.castrol_unlocked = crate::career::CareerHandle::shared()
             .with_loaded(|career| career.settings.flags.contains(nfsmw_career::settings::Flags::BONUS_CAR_0X34498EB2))
             .unwrap_or(false);
