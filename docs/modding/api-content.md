@@ -80,9 +80,10 @@ Rules:
 - A cop car gets one row in each heat wave it names: 2 cars at 10 percent (`COP_COUNT`, `COP_CHANCE` in
   `car/mods.rs`). Its physics and AI are the clone's.
 
-Known gaps: the garage lists every car, cop-only ones included, and names each from the language table. It needs a
-hook to use `display_name` and `is_player_car` (`car/mods.rs`); until then a mod's display name and role are not shown.
-Paint, part models and a code form (`content.cars().register(..)`) are not built yet.
+Known gaps: the garage takes a mod car's display name (`display_name`) and skips its cop-only cars (`is_player_car`),
+but only the car name: the brand line still comes from the clone's record unless the manifest gives `manufacturer`, and
+the other screens that name cars were not checked. Paint, part models and a code form (`content.cars().register(..)`)
+are not built yet.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
@@ -92,7 +93,7 @@ Paint, part models and a code form (`content.cars().register(..)`) are not built
 | Physics name | `PhysicsData::car(name)` reads a mod car's clone record through `car::mods::physics_name` | MW | `crates/nfsmw-data/src/car/physics/data.rs` |
 | Cop rows | `pursuit::heat_row` adds `car::mods::add_cop_rows` for the level | MW | `crates/nfsmw-data/src/pursuit.rs` |
 | Seal | `car::mods::seal(cars)` once, from `open_install` | MW | `crates/nfsmw/src/modding/content/mod.rs`, `modding/open.rs` |
-| Garage name and role | `car::mods::display_name(folder)`, `car::mods::is_player_car(folder)` | MW | `crates/nfsmw-data/src/car/mods.rs`; **not called yet** by `crates/nfsmw/src/scenes/world/garage.rs` |
+| Garage name and role | `car::mods::display_name(folder)`, `car::mods::is_player_car(folder)` | MW | `crates/nfsmw-data/src/car/mods.rs`; called by `crates/nfsmw/src/scenes/world/garage.rs` (`catalog`) |
 | Planned: code form | `content.cars().register(CarDef { .. }) -> Result<CarId>`, paint (`CARSKIN`), part models, `traffic` role | G | not built |
 
 ### Music
@@ -293,8 +294,6 @@ creates the place, the blip and the entry.
   because the attribute database (`pvehicle` and its records, read through `libs/blackbox-attrib`) is read-only in
   the port. Overrides by field name, and a new record in the database, are not specified yet [unconfirmed].
   `docs/specs/car-assembly.md` and the attribute specs are the source when this is written.
-- **Garage hook.** The garage's car list (`scenes/world/garage.rs`) must call the mod functions in
-  `car/mods.rs` for display names and for cop-only cars. Until it does, mod cars show under the clone's name.
 - **Index merge** for adding districts (above).
 - **Archive layers** (a single packed file per mod) and signatures.
 - **Chunk-level patches** for merging into `.BUN` files.

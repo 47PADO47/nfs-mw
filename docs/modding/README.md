@@ -127,8 +127,9 @@ downloads or fetches a mod.
 - **Content:** a mod's `cars/<id>.toml` files add cars, each a copy of a stock car with the mod's own `files/CARS/<ID>/`
   folder, as player cars, cop cars, or both. A mod's `music/` folder joins the custom music library in the contexts
   its `[music]` table names, and plays even with the custom music setting off when `always = true`. A car or a track
-  that fails a check is logged with its reason and left out. The cars are registered once, at start-up, and a change
-  needs a restart. The garage does not yet use a mod's display name or hide its cop-only cars.
+  that fails a check is logged with its reason and left out. The cars are registered at start-up, or later when a mod
+  calls `bb.content` (see [api-content.md](api-content.md#content-registries-bbcontent)), and a change to a car that is
+  already registered needs a restart. The garage shows a mod's display name and hides its cop-only cars.
 - **Now:** a mod gets the frame events (`FRAME_START` in the start of the frame, `SCENE_TICK` after the scene's
   update, and `MOD_UNLOADING` at exit), and its `files/` layer. It also gets the game's interfaces. A mod that requires an
   interface the game does not offer is refused with its reason. In NFS:MW the `nfsmw.*` events of the chase (pursuit

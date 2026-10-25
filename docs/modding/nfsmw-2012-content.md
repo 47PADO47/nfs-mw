@@ -86,8 +86,9 @@ ones. The vertex limit of one solid (60,000) can force a coarser level.
 - **Looks only.** Handling, engine sound, damage and the HUD are the clone's. The 2012 damage model, headlight beams,
   brake discs (they are part of the wheel), spoiler and mirror animation, and the lamp locators are not converted.
 - **Normal, specular and effect maps are dropped**: the 2005 car shader has its own lighting.
-- **Names in the garage.** The mod gives every car a display name (`Porsche 911 Carrera S 2012`) and brand, but the
-  garage does not use mod names yet (see [api-content.md](api-content.md#cars)); it shows the clone's.
+- **Names.** The mod gives every car a display name (`Porsche 911 Carrera S 2012`) and a brand. The garage uses the
+  display name (`scenes/world/garage.rs`); I have not looked at the garage screen with an imported car, nor at the other
+  screens that name cars.
 - **Livery duplicates.** The 2012 game ships some cars several times as liveries (five Skyline R34 bundles, for
   example); all are imported, with a number added to the id.
 - **Traffic and low-detail bundles** (`_TR`, `_LO`) are not imported.
