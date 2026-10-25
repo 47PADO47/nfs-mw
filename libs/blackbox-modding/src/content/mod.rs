@@ -11,6 +11,7 @@ mod interior;
 #[cfg(test)]
 mod interior_tests;
 mod music;
+mod performance;
 mod racers;
 #[cfg(test)]
 mod racers_tests;
@@ -24,6 +25,7 @@ pub use car::{CarManifest, Role, parse as parse_car};
 pub use error::ContentError;
 pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, parse as parse_interior};
 pub use music::{MusicSection, parse as parse_music};
+pub use performance::Performance;
 pub use racers::{RacersSection, parse as parse_racers};
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};
 

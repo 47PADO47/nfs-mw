@@ -110,3 +110,34 @@ fn bad_music_contexts_are_refused() {
     );
     assert!(matches!(parse_music("[music]\nlooping = true\n"), Err(ContentError::Parse(_))));
 }
+
+#[test]
+fn a_car_without_a_performance_table_drives_like_its_clone() {
+    let manifest = car("clone = \"BMWM3GTR\"\n").unwrap();
+    assert!(manifest.performance.is_stock());
+}
+
+#[test]
+fn the_performance_table_sets_multipliers_and_factory_nitrous() {
+    let manifest = car(
+        "clone = \"BMWM3GTR\"\n[performance]\npower = 1.1\nmass = 0.9\ngrip = 1.05\nbrakes = 1.2\nnitrous = true\nnitrous_power = 1.5\n",
+    )
+    .unwrap();
+    let p = manifest.performance;
+    assert_eq!((p.power, p.mass, p.grip, p.brakes, p.nitrous, p.nitrous_power), (1.1, 0.9, 1.05, 1.2, true, 1.5));
+    assert!(!p.is_stock());
+}
+
+#[test]
+fn a_performance_number_outside_its_range_is_refused_with_its_name() {
+    let error = car("clone = \"BMWM3GTR\"\n[performance]\npower = 9.0\n").unwrap_err();
+    assert!(matches!(error, ContentError::Field { field: "performance.power", .. }), "{error}");
+    let error = car("clone = \"BMWM3GTR\"\n[performance]\nmass = 0.0\n").unwrap_err();
+    assert!(matches!(error, ContentError::Field { field: "performance.mass", .. }), "{error}");
+}
+
+#[test]
+fn an_unknown_performance_key_is_refused() {
+    let error = car("clone = \"BMWM3GTR\"\n[performance]\ntorque = 2.0\n").unwrap_err();
+    assert!(error.to_string().contains("torque"), "{error}");
+}

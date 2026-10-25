@@ -2,6 +2,7 @@
 
 use serde::Deserialize;
 
+use super::performance::{self, Performance};
 use super::{ContentError, is_id};
 
 /// Who may drive or chase with the car.
@@ -28,7 +29,7 @@ impl Role {
 }
 
 /// A checked `cars/<id>.toml`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CarManifest {
     /// The car id: the file name without `.toml`, in upper case. Its folder is `files/CARS/<id>/`.
     pub id: String,
@@ -42,6 +43,8 @@ pub struct CarManifest {
     pub name: Option<String>,
     /// The brand, trimmed. `None` keeps the clone's brand.
     pub manufacturer: Option<String>,
+    /// How the car drives compared with the clone (`[performance]`): the clone's own values when the table is left out.
+    pub performance: Performance,
 }
 
 /// The file as serde reads it. Unknown keys are an error, so a key the game does not support (an `[override]`
@@ -58,6 +61,8 @@ struct Raw {
     name: Option<String>,
     #[serde(default)]
     manufacturer: Option<String>,
+    #[serde(default)]
+    performance: Option<performance::Raw>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -96,7 +101,8 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     let heat = heat(raw.heat, role)?;
     let name = checked_text(raw.name, ContentError::InvalidName)?;
     let manufacturer = checked_text(raw.manufacturer, ContentError::InvalidManufacturer)?;
-    Ok(CarManifest { id: stem.to_ascii_uppercase(), clone: raw.clone, role, heat, name, manufacturer })
+    let performance = performance::check(raw.performance)?;
+    Ok(CarManifest { id: stem.to_ascii_uppercase(), clone: raw.clone, role, heat, name, manufacturer, performance })
 }
 
 /// The heat levels. A list left out is no list (empty). A list needs a cop role, names only levels from 1, and has no
