@@ -96,6 +96,25 @@ fn each_item_opens_the_documented_target_in_the_safe_house() {
 }
 
 #[test]
+fn every_safe_house_icon_sends_a_command_before_the_world_too() {
+    // The Original look plays the leave and switches its input off before it carries the press out: a press that sent
+    // nothing (the Rap Sheet did, before the world) left the screen frozen.
+    let _shared = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    CareerHandle::shared().set_prelude(true);
+    let args = Args::default();
+    let rap_sheet = press_command(args, Id::SafeHouseRapSheet, false);
+    CareerHandle::shared().set_prelude(false);
+    assert_eq!(
+        rap_sheet,
+        Some(Command::Switch(screen::RAP_SHEET_LOGIN.into(), Args { safehouse: true, ..args })),
+        "the Rap Sheet opens its login in the prelude"
+    );
+    for id in [Id::SafeHouseResume, Id::SafeHouseBlacklist(13), Id::SafeHouseCarSelect, Id::SafeHouseSave] {
+        assert!(press_command(args, id, false).is_some(), "{id:?}");
+    }
+}
+
+#[test]
 fn an_icon_maps_back_to_its_item_and_other_icons_map_to_none() {
     assert_eq!(item_of(Id::SafeHouseBlacklist(13)), Some(MenuItem::Blacklist(13)));
     assert_eq!(item_of(Id::SafeHouseSave), Some(MenuItem::Save));
