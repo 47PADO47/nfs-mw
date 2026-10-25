@@ -128,8 +128,8 @@ fn controls_icon_opens_the_key_list_and_control_options_the_sensitivity_rows() {
                 tree.nodes.iter().any(|n| n.name_hash == super::ids::ICON_TITLE && n.text.as_deref() == Some(text))
             })
         };
-        for _ in 0..4 {
-            // Audio, Video, Gameplay, Player, then Controls in both category strips.
+        for _ in 0..5 {
+            // Audio, Video, Gameplay, Player, HUD, then Controls in both category strips.
             h.press(pad::RIGHT);
         }
         h.wait(0.5);
