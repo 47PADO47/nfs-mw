@@ -81,7 +81,7 @@ Back to front, all clipped to the ellipse:
   `MMICON_CHECKPOINT` (the checkpoints and the route's end, in the route's colour), `MMICON_AIRACER_<n>` (a racer, turned
   to its heading), `MMICON_<TYPE>_0` (a discovered race start, by its type), `SHOP_0` and `CAR_LOT_0` (the game's yellow
   and blue where the object is plain white), `SAFEHOUSEINDICATOR_0` (green), `MMICON_COPCAR_0` (a sighted cop, with the
-  light bar alternating blue and red, held blue with motion reduction) and the helicopter's group. The player's arrow is
+  light bar cycling blue, grey, red, grey, held blue with motion reduction) and the helicopter's group. The player's arrow is
   `PLAYERCARINDICATOR` (`Minimap_Icon_Car`). A kind with no icon of the game's (the last-known place, a roadblock) or a
   package without the object draws the shape instead.
 

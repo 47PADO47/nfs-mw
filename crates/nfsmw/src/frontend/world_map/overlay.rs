@@ -219,7 +219,10 @@ mod tests {
         assert_eq!(car(RACER, false).icon(), "Minimap_Icon_Car.tga");
         let chase = [car(COP, true).rgba(0.0), car(COP, true).rgba(0.25)];
         assert_ne!(chase[0], chase[1], "the light bar changes colour");
-        assert!(chase.iter().all(|c| c[2] == 255 || c[0] == 0xa0));
+        assert!(
+            chase.iter().all(|c| c[2] == 255 || c[0] == 0xa0 || *c == [0xcc, 0xcc, 0xcc, 255]),
+            "blue, grey or red"
+        );
     }
 
     #[test]
