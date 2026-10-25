@@ -10,6 +10,10 @@ use super::{View, WorldScene, load_car};
 
 pub(super) const LIST: &[(&str, &str)] = &[
     (
+        "extra camera|testing [key value] | center|freecam|refill|clear|recover|repair|pursuit|end-pursuit|marker|return",
+        "F5 preferences and session overrides",
+    ),
+    (
         "environment clouds <0..1|location> | hour <0..24>",
         "set the same session weather/time controls as F8 Environment",
     ),
@@ -73,6 +77,7 @@ pub(super) fn run(
     args: &[&str],
 ) -> Option<Result<String, String>> {
     Some(match name {
+        "extra" => super::extra_options::command(scene, renderer, args),
         "environment" => super::environment::command(scene, args),
         "drive" => drive(scene, renderer, args),
         "reset" if args.is_empty() => reset(scene),

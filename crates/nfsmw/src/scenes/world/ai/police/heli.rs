@@ -158,13 +158,7 @@ impl Police {
     /// loaded; the player not busted). The first time the question is asked after the cool-down meter appeared, the
     /// search-mode roll may force it: `roll` is uniform in `0..=1` and the chance is the level's percent.
     pub fn heli_ask(&mut self, level: u32, roll: f32) -> Ask {
-        let allowed = self.heli_available
-            && self.heli.is_none()
-            && self.heli_plan.queued.is_none()
-            && self.heli_wait <= 0.0
-            && !self.is_busted()
-            && self.support_minimum_delay(level) < self.pursuit_time;
-        if !allowed {
+        if self.heli_blocker(level).is_some() {
             return Ask::No;
         }
         if self.heli_plan.search_armed {
@@ -181,6 +175,30 @@ impl Police {
             true => Ask::Forced,
             false => Ask::Allowed,
         }
+    }
+
+    pub(in crate::scenes::world::ai) fn heli_blocker(&self, level: u32) -> Option<&'static str> {
+        if !self.heli_available {
+            return Some("model unavailable");
+        }
+        if self.heli.is_some() {
+            return Some("already flying");
+        }
+        if self.heli_plan.queued.is_some() {
+            return Some("spawn queued");
+        }
+        let timer_ready = self.heli_wait <= 0.0;
+        if !timer_ready {
+            return Some("heli timer");
+        }
+        if self.is_busted() {
+            return Some("player busted");
+        }
+        let support_ready = self.support_minimum_delay(level) < self.pursuit_time;
+        if !support_ready {
+            return Some("minimum support delay");
+        }
+        None
     }
 
     /// The cop manager picked the helicopter: it appears at `spawn` on the next step.

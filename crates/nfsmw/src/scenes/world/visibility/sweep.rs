@@ -38,7 +38,7 @@ pub(super) struct Sweep<'a> {
     rules: &'a LodRules,
     props: &'a PropWorld,
     groups: Option<&'a SceneryGroups>,
-    /// Drops every instance whose origin is farther than this from the camera (the rear-view mirror's far plane).
+    /// Drops bounds entirely outside the rear-view capture range; origins are not geometry bounds.
     far: Option<f32>,
     detail: Option<&'a mut DetailState>,
     /// The wind sway of a player view; other views draw flagged scenery at rest.
@@ -48,7 +48,7 @@ pub(super) struct Sweep<'a> {
 
 impl<'a> Sweep<'a> {
     /// A pass for `camera` into `out`, which it clears. `groups` decides which grouped instances are drawn (`None`
-    /// draws none of them). `far` is applied to the origin of every instance this pass adds.
+    /// draws none of them). `far` is applied to world-space bounds before emitting geometry.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         camera: &Camera,
@@ -123,13 +123,13 @@ impl<'a> Sweep<'a> {
 
     /// How a tile whose static objects lie in `bounds`, with their origins in `origins`, stands to the view. A tile
     /// with no static object is `Outside`.
-    pub fn classify(&self, bounds: Option<&Aabb>, origins: Option<&Aabb>) -> TileView {
-        let (Some(bounds), Some(origins)) = (bounds, origins) else {
+    pub fn classify(&self, bounds: Option<&Aabb>, _origins: Option<&Aabb>) -> TileView {
+        let Some(bounds) = bounds else {
             return TileView::Outside;
         };
         if self.far.is_some() {
             let point = Vec3::from_array(self.camera);
-            let nearest = point.clamp(origins.min, origins.max);
+            let nearest = point.clamp(bounds.min, bounds.max);
             if !within(point, nearest, self.far) {
                 return TileView::Outside;
             }
@@ -145,7 +145,7 @@ impl<'a> Sweep<'a> {
 
     /// One object that never moves, from its cull data: only an object that survives reads its `Placed`.
     fn visit_static(&mut self, entry: &CullEntry, p: &Placed, in_frustum: bool) {
-        if !self.admits(entry.group, entry.flags) || self.beyond_far(entry.position) {
+        if !self.admits(entry.group, entry.flags) || self.beyond_far(&entry.bounds()) {
             return;
         }
         let turned = entry.flags & INSTANCE_TURNABLE != 0 && self.groups.is_some_and(|g| g.turned(entry.group));
@@ -166,14 +166,13 @@ impl<'a> Sweep<'a> {
         if !self.admits(p.group, p.flags) {
             return;
         }
-        let is_prop = p.prop_id != NOT_A_PROP;
-        if !is_prop && self.beyond_far(p.transform.w_axis.truncate()) {
-            return;
-        }
         let Some((transform, bounds)) = current_pose(p, self.props) else {
             return;
         };
         // A turned race wall is mirrored along its own length (`docs/specs/race-barriers.md` section 3).
+        if self.beyond_far(&bounds) {
+            return;
+        }
         let turned = p.flags & INSTANCE_TURNABLE != 0 && self.groups.is_some_and(|g| g.turned(p.group));
         let (transform, bounds) = match turned {
             true => turned_pose(transform, &bounds),
@@ -194,8 +193,10 @@ impl<'a> Sweep<'a> {
         self.detail.as_ref().is_none_or(|d| d.settings.world.admits(flags))
     }
 
-    fn beyond_far(&self, origin: Vec3) -> bool {
-        self.far.is_some() && !within(Vec3::from_array(self.camera), origin, self.far)
+    fn beyond_far(&self, bounds: &Aabb) -> bool {
+        let camera = Vec3::from_array(self.camera);
+        let nearest = camera.clamp(bounds.min, bounds.max);
+        !within(camera, nearest, self.far)
     }
 
     /// A margin along the light ray admits casters beyond the last receiver cascade.

@@ -20,6 +20,12 @@ and [optional police limits](pursuit-limit-options.md) (F8 enhancements, off by 
 Recorded reinforcement follow-up: [road interception and cursor advance](ai-pursuit-reinforcement-driving.md),
 [spawn cursor and join timing](ai-pursuit-reinforcement-lifecycle.md), and
 [AI performance estimation and physical acceleration](ai-pursuit-acceleration-handoff.md).
+[Shared reinforcement prediction and road steering](ai-pursuit-reinforcement-prediction.md)
+correct target-cache consumption, continuous pursuit offsets and bend-apex direction.
+[Obstacle selection](ai-pursuit-obstacle-selection.md) covers local vehicle
+neighbourhoods and roadblock traversal through junctions.
+[Target offset and SUV corrections](ai-pursuit-road-followup.md) cover selectable
+lane intervals, junction handoff, head-on action entry and support-pair placement.
 Sustained speed follow-up: [road-action nitrous and reentry](ai-pursuit-road-nitrous.md)
 and [actual-fleet catch-up acceptance](ai-pursuit-catchup-acceptance.md).
 [Persistent target road tracking](ai-road-target-tracker.md) supplies one shared

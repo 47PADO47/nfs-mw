@@ -5,6 +5,7 @@ pub(super) mod bindings;
 mod cache;
 mod mesh;
 mod ranges;
+mod shadow;
 mod surfaces;
 #[cfg(test)]
 mod tests;
@@ -36,7 +37,8 @@ pub(super) struct Scene {
     selected: Vec<usize>,
     arena: arena::Arena,
     offscreen: Vec<Instance>,
-    previous: Vec<(usize, [u32; 16], bool)>,
+    previous: Vec<(usize, [u32; 16], bool, u8)>,
+    shadow: Vec<Instance>,
     live_count: usize,
     dirty: bool,
 }
@@ -64,6 +66,7 @@ impl Scene {
             arena: arena::Arena::default(),
             offscreen: Vec::new(),
             previous: Vec::new(),
+            shadow: Vec::new(),
             live_count: 0,
             dirty: true,
         })
@@ -110,17 +113,21 @@ impl Scene {
     ) -> bool {
         // Exact mesh/transform identity merges main and offscreen feeds without losing repeated placements.
         let mut unique = BTreeMap::new();
-        for i in self.offscreen.iter().chain(main) {
+        for (i, mask) in self.offscreen.iter().chain(main).map(|i| (i, 1u8)).chain(self.shadow.iter().map(|i| (i, 2u8)))
+        {
             if !self.meshes.contains_key(&i.mesh.raw()) {
                 continue;
             }
             if !i.transform.is_finite() || i.transform.determinant().abs() < 1e-12 {
                 continue;
             }
-            unique.insert((i.mesh.raw(), i.transform.to_cols_array().map(f32::to_bits), i.flip_winding), i);
+            let entry = unique
+                .entry((i.mesh.raw(), i.transform.to_cols_array().map(f32::to_bits), i.flip_winding))
+                .or_insert((i, 0u8));
+            entry.1 |= mask;
         }
         let ids: Vec<_> = unique.keys().map(|k| k.0).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
-        let keys: Vec<_> = unique.keys().copied().collect();
+        let keys: Vec<_> = unique.iter().map(|(k, (_, mask))| (k.0, k.1, k.2, *mask)).collect();
         if self.dirty
             || self.selected != ids
             || self.ranked_at.is_none_or(|p| p.distance_squared(self.camera) > 32.0 * 32.0)
@@ -129,7 +136,7 @@ impl Scene {
             self.atlas.retain(&active);
             let selected = cache::select(
                 &self.meshes,
-                unique.values().copied(),
+                unique.values().map(|(i, _)| *i),
                 views,
                 self.camera,
                 self.detail.capacity(),
@@ -207,19 +214,24 @@ impl Scene {
         let capacity = self.bindings.tlas.get().len();
         self.bindings.tlas.get_mut_slice(0..capacity).unwrap().fill(None);
         let mut count = 0;
+        let mut complete = true;
         let mut winding = Vec::with_capacity(unique.len().min(bindings::MAX_INSTANCES));
         for id in self.arena.ids() {
             self.meshes.get_mut(id).unwrap().build(device, queue);
         }
-        for i in unique.values() {
-            let Some(offset) = self.arena.offset(i.mesh.raw()) else { continue };
+        for (i, mask) in unique.values() {
+            let Some(offset) = self.arena.offset(i.mesh.raw()) else {
+                complete = false;
+                continue;
+            };
             if count == bindings::MAX_INSTANCES {
+                complete = false;
                 break;
             }
             let m = &self.meshes[&i.mesh.raw()];
             let transform = i.transform.transpose().to_cols_array()[..12].try_into().unwrap();
             self.bindings.tlas[count] =
-                Some(wgpu::TlasInstance::new(m.blas.as_ref().unwrap(), transform, offset, 0xff));
+                Some(wgpu::TlasInstance::new(m.blas.as_ref().unwrap(), transform, offset, *mask));
             winding.push(u32::from(i.flip_winding));
             count += 1;
         }
@@ -234,7 +246,7 @@ impl Scene {
                 ("texture_MiB", (self.atlas.bytes() + self.detail.bytes()) as f64 / 1048576.0),
             ],
         );
-        queue.write_buffer(&self.bindings.control, 0, bytemuck::cast_slice(&[count as u32, 0, 0, 0]));
+        queue.write_buffer(&self.bindings.control, 0, bytemuck::cast_slice(&[count as u32, u32::from(complete), 0, 0]));
         if !winding.is_empty() {
             queue.write_buffer(&self.bindings.winding, 0, bytemuck::cast_slice(&winding));
         }
@@ -270,6 +282,7 @@ impl Renderer {
                 })
                 .collect();
             surfaces::apply(&mut mesh, desc, &layers, &surfaces);
+            shadow::classify(&mut mesh, desc, &layers, &surfaces);
             rt.meshes.insert(handle, mesh);
             rt.dirty = true;
         }
@@ -278,10 +291,12 @@ impl Renderer {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         instances: &[Instance],
-        camera: glam::Vec3,
+        frame: &blackbox_gfx::FrameParams,
     ) {
+        let active = self.ray_shadows_active(frame);
         let Some(rt) = &mut self.ray_reflections else { return };
-        rt.camera = camera;
+        rt.camera = frame.camera_position;
+        rt.select_shadow_casters(self.shadow_casters.as_deref().unwrap_or(instances), frame, &self.experiments, active);
         let quality = self.experiments.ray_texture_quality.min(3);
         let resized = quality != rt.quality;
         if resized {

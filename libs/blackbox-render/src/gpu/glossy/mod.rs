@@ -189,8 +189,12 @@ impl Glossy {
         }
     }
 
-    pub(in crate::gpu) fn road_environment(&self) -> (wgpu::TextureView, wgpu::TextureView) {
-        (self.environment.clone(), self.static_environment.clone())
+    pub(in crate::gpu) fn road_environment(&self) -> (wgpu::TextureView, wgpu::TextureView, wgpu::TextureView) {
+        (
+            self.environment.clone(),
+            self.static_environment.clone(),
+            self.filtered.as_ref().map_or(&self.environment, |f| &f.view).clone(),
+        )
     }
 
     pub(super) fn restore_environment(&mut self, queue: &wgpu::Queue) {
@@ -356,12 +360,17 @@ impl Renderer {
     }
     pub(in crate::gpu) fn encode_irradiance(&mut self, encoder: &mut wgpu::CommandEncoder) {
         let _trace = blackbox_trace::scope("Renderer CPU: update irradiance");
-        if self.experiments.paint_response
-            && let Some(glossy) = &mut self.glossy
-            && glossy
-                .materials
-                .iter_mut()
-                .any(|m| m.source.model == blackbox_gfx::GlossyModel::Custom && m.source.surface.is_some())
+        let wet = self.experiments.enhanced_wet_surfaces && self.surface_water.dampness > 0.0;
+        if wet {
+            self.ensure_glossy();
+        }
+        if let Some(glossy) = &mut self.glossy
+            && (wet
+                || (self.experiments.paint_response
+                    && glossy
+                        .materials
+                        .iter_mut()
+                        .any(|m| m.source.model == blackbox_gfx::GlossyModel::Custom && m.source.surface.is_some())))
             && let Some(filter) = &mut glossy.filtered
         {
             filter.encode(&self.device, encoder, &glossy.environment, &glossy.sampler);

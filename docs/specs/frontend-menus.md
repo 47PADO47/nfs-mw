@@ -198,8 +198,8 @@ fewer objects than the strip has entries (eleven).
 **Discord category (ours).** Discord Rich Presence has its own category after Control Options, with its own icon: a
 white Discord mark (`assets/discord/discord.png`, Simple Icons, CC0; see NOTICE), bundled and registered as texture
 `0xE0C0_0002` (`ui/discord_icon.rs`, next to the input atlas `0xE0C0_0001`). Its header reads "Discord". The icon
-opens `Options.fng` (pause: `Pause_Options.fng`) with category `Discord`, which shows the two toggles: Discord Rich
-Presence (`discord`) and Show Time Played (`discord_time_played`, dimmed while Discord is off). These rows left the
+opens `Options.fng` (pause: `Pause_Options.fng`) with category `Discord`, which shows the three toggles: Discord Rich
+Presence (`discord`), Show Time Played (`discord_time_played`) and Let Friends Join (`discord_join`), the last two dimmed while Discord is off. These rows left the
 Gameplay category (`options_rows.rs`); the toggles themselves are unchanged. The mark is drawn whole (full-image uv)
 and at 0.65 of its slot (`DISCORD_DRAW_SCALE`, `icon_items.rs`, [ours]): at full slot size the unpadded mark read
 bigger than the package pictures. The uv stays whole; shrinking the uv would enlarge the glyph instead.
@@ -312,6 +312,7 @@ screens, labels and behaviour where a label exists:
 | Player | Gauges | `0xAC148579` | `hud` (On / Off) |
 | Discord | Discord Rich Presence | none, plain text | `discord` (On / Off; ours) |
 | Discord | Show Time Played | none, plain text | `discord_time_played` (On / Off, dimmed while `discord` is off; ours) |
+| Discord | Let Friends Join | none, plain text | `discord_join` (On / Off, dimmed while `discord` is off; ours; [Discord join](multiplayer/discord.md)) |
 
 A row can be disabled by its setting's `enabled` rule (`frontend/options.rs`). A disabled row stays selectable and shows its value dimmed (alpha 110), but left and right do nothing and nothing is saved. Frame Limit is disabled while Vsync is on.
 

@@ -50,6 +50,9 @@ impl RenderBackend for Renderer {
         self.touch_scene();
         Renderer::destroy_sky_material(self, handle);
     }
+    fn set_sun_glare(&mut self, glare: Option<blackbox_gfx::SunGlare>) {
+        self.sun_glare_state = glare;
+    }
     fn set_sky_state(&mut self, state: blackbox_gfx::SkyState) {
         self.touch_scene();
         Renderer::set_sky_state(self, state);

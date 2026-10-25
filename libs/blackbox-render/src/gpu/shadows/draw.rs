@@ -70,6 +70,11 @@ impl Shadows {
                     {
                         &self.prelit_cutout
                     }
+                    BlendMode::AlphaTest
+                        if matches!(draw.shading, Shading::World | Shading::WorldNoFog | Shading::WorldPrelit) =>
+                    {
+                        &self.world_cutout
+                    }
                     BlendMode::AlphaTest => &self.cutout,
                     _ => &self.opaque,
                 };

@@ -3,10 +3,11 @@
 @group(0) @binding(1) var source_sampler: sampler;
 @group(0) @binding(2) var output: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(3) var<uniform> params: vec4<f32>;
+@group(0) @binding(4) var linear_source: texture_cube<f32>;
 
-fn radiance_color(color: vec3<f32>, linear: bool) -> vec3<f32> {
-    if !linear { return color; }
-    return select(pow((color + 0.055) / 1.055, vec3<f32>(2.4)), color / 12.92, color <= vec3<f32>(0.04045));
+fn radiance(direction: vec3<f32>, level: f32, linear: bool) -> vec3<f32> {
+    if linear { return textureSampleLevel(linear_source, source_sampler, direction, level).rgb; }
+    return textureSampleLevel(source, source_sampler, direction, level).rgb;
 }
 
 fn face_direction(face: u32, uv: vec2<f32>) -> vec3<f32> {
@@ -28,7 +29,7 @@ fn prefilter_main(@builtin(global_invocation_id) id: vec3<u32>) {
     let n = face_direction(id.z % 6u, (vec2<f32>(id.xy) + 0.5) / params.y);
     let linear = id.z >= 6u;
     if params.x < 0.001 {
-        let color = radiance_color(textureSampleLevel(source, source_sampler, n, 0.0).rgb, linear);
+        let color = radiance(n, log2(f32(textureDimensions(source).x) / params.y), linear);
         textureStore(output, vec2<i32>(id.xy), i32(id.z), vec4<f32>(color, 1.0));
         return;
     }
@@ -49,7 +50,15 @@ fn prefilter_main(@builtin(global_invocation_id) id: vec3<u32>) {
         let l = 2.0 * dot(n, h) * h - n;
         let nl = max(dot(n, l), 0.0);
         if nl <= 0.0 { continue; }
-        color += radiance_color(textureSampleLevel(source, source_sampler, l, 0.0).rgb, linear) * nl;
+        // Integrate the solid angle represented by each sample, rather than sampling sharp
+        // high-frequency texels sparsely across a broad lobe. V=N makes the GGX PDF D/4.
+        let denominator = max(c * c * (a2 - 1.0) + 1.0, 1e-6);
+        let pdf = max(a2 / (12.56637061436 * denominator * denominator), 1e-6);
+        let sample_angle = 1.0 / (64.0 * pdf);
+        let source_size = f32(textureDimensions(source).x);
+        let texel_angle = 12.56637061436 / (6.0 * source_size * source_size);
+        let lod = max(0.0, 0.5 * log2(sample_angle / texel_angle));
+        color += radiance(l, lod, linear) * nl;
         weight += nl;
     }
     textureStore(output, vec2<i32>(id.xy), i32(id.z), vec4<f32>(color / max(weight, 1e-6), 1.0));
