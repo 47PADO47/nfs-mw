@@ -17,7 +17,6 @@ use crate::ui::raster_text::UNITS_PER_SCALE;
 pub mod size {
     pub const SPEED: f32 = 44.0;
     pub const GEAR: f32 = 26.0;
-    pub const POSITION: f32 = 30.0;
     /// The race strip's values: lap, distance, gap.
     pub const STRIP_VALUE: f32 = 16.0;
     /// The speed unit and short headings (`POS`, `LAP`, `HEAT`).

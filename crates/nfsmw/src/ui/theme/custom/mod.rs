@@ -38,8 +38,6 @@ mod banner;
 mod cluster;
 mod condition;
 mod drive_feed;
-// The Custom components that read the feed, the layout, the plate and the text helpers land in PRs 6 to 9.
-#[allow(dead_code)]
 pub mod feed;
 mod free_roam;
 pub mod full_map;
@@ -48,7 +46,6 @@ mod helpers_tests;
 mod lan_hud;
 #[cfg(test)]
 mod lan_tests;
-#[allow(dead_code)]
 pub mod layout;
 #[cfg(test)]
 mod layout_tests;
@@ -60,7 +57,6 @@ pub mod mode;
 mod notify;
 pub mod palette;
 mod parts;
-#[allow(dead_code)]
 pub mod plate;
 mod pursuit;
 mod race;
@@ -70,9 +66,7 @@ mod radio_placement;
 mod skin;
 #[cfg(test)]
 mod tests;
-#[allow(dead_code)]
 pub mod text;
-#[allow(dead_code)]
 pub mod tokens;
 mod words;
 

@@ -54,11 +54,6 @@ impl PlateStyle {
         Self { opacity, ..self }
     }
 
-    /// This style with corners of `radius` at scale 1.
-    pub fn with_radius(self, radius: f32) -> Self {
-        Self { radius, ..self }
-    }
-
     /// This style at depth `z`.
     pub fn with_z(self, z: f32) -> Self {
         Self { z, ..self }

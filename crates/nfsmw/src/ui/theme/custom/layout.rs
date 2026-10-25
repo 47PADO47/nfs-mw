@@ -34,22 +34,14 @@ pub enum Anchor {
     TopCentre,
     TopRight,
     BottomLeft,
-    BottomCentre,
     BottomRight,
-    Centre,
 }
 
 impl Anchor {
     /// Every anchor.
-    pub const ALL: [Anchor; 7] = [
-        Anchor::TopLeft,
-        Anchor::TopCentre,
-        Anchor::TopRight,
-        Anchor::BottomLeft,
-        Anchor::BottomCentre,
-        Anchor::BottomRight,
-        Anchor::Centre,
-    ];
+    #[cfg(test)]
+    pub const ALL: [Anchor; 5] =
+        [Anchor::TopLeft, Anchor::TopCentre, Anchor::TopRight, Anchor::BottomLeft, Anchor::BottomRight];
 
     /// The side of the box the anchor is on, per axis: -1 the left (top), 0 the middle, 1 the right (bottom).
     fn sides(self) -> (f32, f32) {
@@ -58,9 +50,7 @@ impl Anchor {
             Anchor::TopCentre => (0.0, -1.0),
             Anchor::TopRight => (1.0, -1.0),
             Anchor::BottomLeft => (-1.0, 1.0),
-            Anchor::BottomCentre => (0.0, 1.0),
             Anchor::BottomRight => (1.0, 1.0),
-            Anchor::Centre => (0.0, 0.0),
         }
     }
 }
@@ -114,6 +104,7 @@ impl HudBox {
     }
 
     /// The safe inset, in canvas units. The same at every HUD scale.
+    #[cfg(test)]
     pub fn inset(&self) -> f32 {
         SAFE_INSET * FENG_HEIGHT
     }

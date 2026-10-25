@@ -23,7 +23,6 @@ mod motion;
 mod tests;
 
 pub use colours::Colours;
-#[allow(unused_imports)] // the HUD components of the later PRs read the motion table
 pub use motion::{Motion, ramp};
 
 use blackbox_ui::Skin;

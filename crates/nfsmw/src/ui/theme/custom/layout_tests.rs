@@ -115,11 +115,3 @@ fn a_window_with_no_size_or_a_bad_scale_falls_back_to_the_canvas_at_scale_1() {
     assert!(near(HudBox::new(SIXTEEN_NINE, -2.0).scale(), 1.0));
     assert_eq!(HudBox::default(), HudBox::new(CANVAS, 1.0));
 }
-
-#[test]
-fn the_centre_anchor_is_the_canvas_centre() {
-    let frame = HudBox::new(TWENTY_ONE_NINE, 1.0);
-    assert_eq!(frame.point(Anchor::Centre), (0.0, 0.0));
-    let map = frame.place(Anchor::Centre, (0.0, 0.0), (200.0, 120.0));
-    assert!(near(map.x, 0.0) && near(map.y, 0.0));
-}
