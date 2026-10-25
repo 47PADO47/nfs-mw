@@ -126,11 +126,11 @@ fn named_presets_save_reopen_and_load_through_the_real_garage_buttons() {
     ui.model.draft.tuning.active = 1;
     let wanted = ui.model.draft.clone();
     ui.frame(Vec::new());
-    assert!(ui.click("Saved presets").is_none());
+    assert!(ui.click("Save as / manage…").is_none());
     for _ in 0..20 {
         ui.frame(Vec::new());
     }
-    assert!(ui.click("Save preset").is_none());
+    assert!(ui.click("Save as").is_none());
     assert!(path.is_file());
     ui.model.select("OTHER".into());
     ui.model.preset_picker = crate::preset_store::Picker::default();
@@ -138,7 +138,7 @@ fn named_presets_save_reopen_and_load_through_the_real_garage_buttons() {
     ui.model.preset_picker.name = "Road setup".into();
     ui.frame(Vec::new());
     ui.frame(Vec::new());
-    let request = ui.click("Load preset").expect("loading emits a normal garage transaction");
+    let request = ui.click("Road setup").expect("loading emits a normal garage transaction");
     assert_eq!(request, wanted);
     assert_eq!(ui.model.applied.car, "RACER", "the scene owns committing a successful transaction");
     std::fs::remove_file(path).unwrap();

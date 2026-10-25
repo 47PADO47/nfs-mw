@@ -114,10 +114,11 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .into_iter()
             .map(|custom| row(Setting::Custom(custom), Title::Label(custom.title())))
             .collect(),
-        // The Discord Rich Presence toggles (`discord/`); the time played is dimmed while Discord is off.
+        // The Discord Rich Presence toggles (`discord/`); the others are dimmed while Discord is off.
         Category::Discord => vec![
             row(Setting::Discord, Title::Key("options-discord-presence")),
             row(Setting::DiscordTimePlayed, Title::Key("options-discord-time-played")),
+            row(Setting::DiscordJoin, Title::Key("options-discord-join")),
         ],
     }
 }

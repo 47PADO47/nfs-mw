@@ -5,6 +5,7 @@
 //! All the maths is planar: a 2D vector `(x, y)` is the `(x, z)` of physics space, as in the original.
 
 mod curvature;
+mod neighbours;
 mod occlusion;
 mod punch;
 

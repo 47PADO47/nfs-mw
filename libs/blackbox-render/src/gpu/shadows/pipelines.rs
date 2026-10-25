@@ -101,6 +101,7 @@ impl Shadows {
             bias,
             opaque: make("fs_opaque"),
             cutout: make("fs_cutout"),
+            world_cutout: make("fs_world_cutout"),
             tree_cutout: make("fs_tree_cutout"),
             prelit_cutout: make("fs_prelit_cutout"),
             buffers,
