@@ -80,6 +80,7 @@ pub struct SceneryLayout {
     pub spawners: SpawnerLayout,
     pub visibility: VisibilityRules,
     pub lod: LodRules,
+    pub sway: crate::sway::SwayRules,
 }
 
 /// A resident scenery instance's connection to the global override table.
