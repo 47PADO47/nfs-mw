@@ -1,6 +1,6 @@
 //! The Bevy side of `NetSession`: the session goes into the front end's `LanBackend` resource as its `NetFrontend`,
-//! with what the command line asked for at start, and two systems run each frame before the scene's update: the
-//! session's own update, then attaching the client to the world scene.
+//! with what the command line asked for at start, and systems run each frame before the scene's update: the session's
+//! own update, attaching the client to the world scene, and the Discord party (`discord.rs`).
 
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
@@ -8,6 +8,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use game_install::GameDir;
 
 use super::client::PlayerSetup;
+use super::discord::{accept_joins, publish_party};
 use super::options::ServeOptions;
 use super::session::NetSession;
 use crate::app::{FrameSet, Host};
@@ -52,13 +53,15 @@ impl Plugin for NetPlugin {
         if let Err(error) = started {
             log::error!("net: {error:#}");
         }
-        app.insert_non_send(LanBackend::new(Box::new(session)))
-            .add_systems(Update, (update_session, attach_client).chain().in_set(FrameSet::Commands));
+        app.insert_non_send(LanBackend::new(Box::new(session))).add_systems(
+            Update,
+            (update_session, attach_client, publish_party, accept_joins).chain().in_set(FrameSet::Commands),
+        );
     }
 }
 
 /// The game's session in the front end's resource.
-fn session(backend: &mut LanBackend) -> Option<&mut NetSession> {
+pub(super) fn session(backend: &mut LanBackend) -> Option<&mut NetSession> {
     backend.get()?.as_any_mut()?.downcast_mut::<NetSession>()
 }
 
