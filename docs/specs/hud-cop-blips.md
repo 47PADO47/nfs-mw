@@ -59,8 +59,11 @@ enabled, whether or not the car is pursuing. **[binary]** (resolves old open que
 
 Cop icons are only built when the minimap is in mode 3 (`FUN_0055b8c0` sets the mode at `+0x164`; mode 3 calls
 `FUN_00548810`, the only caller of `FUN_00531060`). Mode 1 builds the table-driven world icons and mode 0 other ones, with
-no vehicle-list icons. What selects mode 3 (a query on the player's vehicle, else a settings byte) is not yet read.
-**[binary]**, **[open]**
+no vehicle-list icons. The same class builds the roadblock icons (`FUN_00531350`, `MMICON_ROADBLOCK_%d`), so mode 3 is the
+pursuit-oriented layout and may be shared by the world map's Pursuit tab. Mode 3 is chosen when a query on the player's
+vehicle interface (the handle at `0x004040e0`, used at 101 sites for the vehicle interface) answers true, else from a settings
+byte at `+0x46` of the HUD settings object. Which question that is has not been named, so whether the original shows
+patrol cops outside a pursuit at all is **[open]**; if mode 3 means "in a pursuit", it does not.
 
 ## 4. The colour cycle
 

@@ -107,7 +107,11 @@ were not observed in live higher-heat testing.
   removes the reported sunken strips is unconfirmed in play. Roadblock sites follow
   the written rule (250 m along the road from the target's facing), so a site
   behind the player's travel needs a trace of target facing at the roll.
-- Reproduce cooldown/radio gaps followed by unexpected roadblocks. Check sight,
+- Reproduce cooldown/radio gaps followed by unexpected roadblocks. The written rule
+  (spec section 1) has no cooldown gate and latches a successful request, which then
+  retries `CreateRoadBlock` every run until a site is found, so a late roadblock
+  after a quiet spell can be the original's own behaviour. A PC capture of the
+  request latch is needed before changing it. Reproduce Check sight,
   last-known position and phase restrictions on search deployments.
 - Check initial high-heat spawn bursts, backup triggering/countdown and its HUD.
 - Cop minimap icons: the light bar's real cycle is blue, grey, red, grey (verified in
