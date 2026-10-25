@@ -123,6 +123,7 @@ setting. The config keys are top level; a value that does not parse is logged an
 | `net_interp_delay` | `NFSMW_NET_INTERP_DELAY` | `--net-interp-delay INTERVALS` | 2 snapshot intervals | 1 to 4 |
 | `net_show_stats` | `NFSMW_NET_SHOW_STATS` | `--net-show-stats` / `--no-net-show-stats` | off | on or off |
 | `net_identity_file` | `NFSMW_NET_IDENTITY_FILE` | `--net-identity-file PATH` | `identity.key` next to the config file | a path up to 240 bytes; `default` in the console |
+| `net_public_address` | `NFSMW_NET_PUBLIC_ADDRESS` | `--net-public-address IP` | this PC's LAN address | an IP address; `default` in the console ([Discord join](discord.md)) |
 
 The console reads and sets them (`get net_port`, `set net_port 9760`, `set net_show_stats` flips). The settings are `Copy`, so
 the name and the path are kept inline (`InlineText`). `NetSettings::identity_path(config_dir)` gives the key file.

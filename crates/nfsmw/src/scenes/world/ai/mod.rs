@@ -19,6 +19,7 @@ mod cop_manager;
 mod damage_effects;
 mod data;
 mod entities;
+mod extra_options;
 mod goal_aims;
 mod hit_count;
 mod hitch;
@@ -122,6 +123,7 @@ mod model;
 pub use model::TrafficModel;
 
 pub struct TrafficWorld {
+    extra_traffic_off: bool,
     water: water::Water,
     network: RoadNetwork,
     index: SegmentIndex,
@@ -266,6 +268,7 @@ impl TrafficWorld {
             police: police::Police::default(),
             cops: Default::default(),
             cars: Vec::new(),
+            extra_traffic_off: false,
             next_entity: 0,
             rng: streams::Streams::default(),
             alpha: 0.0,

@@ -26,8 +26,8 @@ use crate::scenes::world::space;
 use crate::settings::bartender::BartenderSettings;
 
 /// Spawn distance from the player, metres.
-const MIN_DISTANCE: f32 = 150.0;
-const MAX_DISTANCE: f32 = 400.0;
+pub(super) const MIN_DISTANCE: f32 = 150.0;
+pub(super) const MAX_DISTANCE: f32 = 400.0;
 /// No cop starts nearer than this to another car (`CheckSpawnPosition`'s 40 m for a spot that is not a traffic lane).
 const MIN_GAP: f32 = blackbox_pursuit::spawn_rules::ANY_OTHER;
 /// Default rolling speed for explicit requests and support placements, m/s.
@@ -415,6 +415,16 @@ impl TrafficWorld {
         let heat = self.police.heat_value();
         let seconds_per_level = self.police.heat_growth_seconds(p.heat);
         let roadblocks = self.roadblocks.stats();
+        let heli_slot = p
+            .row()
+            .into_iter()
+            .flat_map(|row| &row.cops)
+            .find(|cop| cop.name.eq_ignore_ascii_case(nfsmw_data::pursuit::HELICOPTER))
+            .map(|cop| (cop.count, cop.chance));
+        let order = p.support.order().map(|order| (order.strategy(), order.state(), order.denials()));
+        let deployment =
+            format!("{}; heli slot={heli_slot:?}; support order={order:?}", self.police.support_status(p.heat));
+        let latched = self.roadblocks.dispatcher_latched();
         let helicopter = self.helicopter_status().map_or("no helicopter".to_owned(), |h| {
             format!(
                 "helicopter {:?}, {:.0} s of fuel{}",
@@ -424,7 +434,7 @@ impl TrafficWorld {
             )
         });
         format!(
-            "heat {heat:.3} ({seconds_per_level:.0} s/level outside cooldown): {} of {} cops ({}); {} to evade{}; formation {formation}; roadblocks {} up, {} built, {} dodged; {helicopter}; evade in {to_evade:.0} s; infractions {} for ${}{}; {}",
+            "heat {heat:.3} ({seconds_per_level:.0} s/level outside cooldown): {} of {} cops ({}); {} to evade{}; formation {formation}; roadblocks {} up, {} built, {} dodged; {helicopter}; evade in {to_evade:.0} s; infractions {} for ${}{}; {}; {deployment}; roadblock latch={latched}",
             cops.len(),
             p.wanted(
                 self.police.settings(),

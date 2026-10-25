@@ -279,6 +279,16 @@ impl WorldScene {
                 cut: CameraCut::default(),
                 waiting_since: None,
                 camera_mode: CameraMode::default(),
+                extra: crate::extra_options::storage::load().unwrap_or_else(|e| {
+                    log::warn!("Extra options: {e:#}");
+                    crate::extra_options::State {
+                        persistence_error: Some(format!("{e:#}")),
+                        message: Some(format!(
+                            "Config could not be loaded: {e:#}. Fix the file and reload before saving preferences."
+                        )),
+                        ..Default::default()
+                    }
+                }),
                 cop_health: Default::default(),
                 moment: Default::default(),
                 nis: Default::default(),

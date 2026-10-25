@@ -51,6 +51,23 @@ fn words(tracker: &RoadTracker) -> Vec<u32> {
 }
 
 #[test]
+fn target_prediction_keeps_lateral_position_inside_a_selectable_lane() {
+    let mut net = straight();
+    net.profiles[0] = RoadProfile { middle: 1, zones: vec![Zone { kind: zone::TRAFFIC, width: 10.0, offset: 5.0 }; 2] };
+    let index = SegmentIndex::build(&net);
+    let mut tracker = RoadTracker::default();
+    let target = Body { position: Vec3::new(3.25, 0.0, 0.0), ..body(0.0, 20.0) };
+    tracker.update(&net, &index, Some(target), 1.0 / 60.0);
+    let observed = tracker.snapshot().unwrap();
+    assert!((observed.current.x - 3.25).abs() < 1e-4, "{observed:?}");
+    assert!((observed.future.x - 3.25).abs() < 1e-4, "{observed:?}");
+    let seek = tracker.seek_ahead(&net, 20.0, 7.8, false).unwrap();
+    assert!((seek.x - 3.25).abs() < 1e-4, "{seek:?}");
+    tracker.update(&net, &index, Some(Body { position: Vec3::new(3.5, 0.0, 0.5), ..target }), 0.025);
+    assert!((tracker.snapshot().unwrap().current.x - 3.5).abs() < 1e-4);
+}
+
+#[test]
 fn tracker_keeps_the_nearby_continuation_instead_of_a_distant_collinear_endpoint() {
     let net = network(&[[0.0, 0.0, -80.0], [0.0, 0.0, -40.0], [0.0, 0.0, 0.0], [0.0, 0.0, 600.0]], &[[0, 1], [2, 3]]);
     let index = SegmentIndex::build(&net);

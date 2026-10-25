@@ -11,6 +11,7 @@ use glam::{Mat4, Vec2, Vec3};
 use nfsmw_data::car::physics::SurfaceTable;
 use std::rc::Rc;
 
+use super::seat;
 use super::site::Site;
 use super::state::Roadblock;
 use crate::scenes::world::ai::car::{AiCar, Role, Start};
@@ -235,16 +236,25 @@ impl TrafficWorld {
         ground: &WorldGround<'_>,
         props: Option<&mut PropWorld>,
     ) {
-        let (height, normal) = ground_under(ground, slot.position).unwrap_or((slot.position.y, Vec3::Y));
+        let mut reading = ground_under(ground, slot.position).unwrap_or((slot.position.y, Vec3::Y));
+        let strip_half = self.roadblocks.physics.as_ref().and_then(|p| p.strip_half);
+        let mut strip = Strip::new(Vec2::new(slot.position.x, slot.position.z), reading.0, slot.heading);
+        if let Some(half) = strip_half.filter(|_| slot.kind == Element::Spike) {
+            strip = strip.with_half(half);
+        }
+        if slot.kind == Element::Spike {
+            // The strip is wide: seat it on the ground under both ends, not only under its centre.
+            let (_, across) = strip.axes();
+            let across = Vec3::new(across.x, 0.0, across.y);
+            let end = |sign: f32| ground_under(ground, slot.position + across * (sign * strip.half[1])).map(|g| g.0);
+            reading = seat::seat(reading, across, strip.half[1], [end(1.0), end(-1.0)]);
+            strip.elevation = reading.0;
+        }
+        let (height, normal) = reading;
         let at = Vec3::new(slot.position.x, height, slot.position.z);
         let frame: Mat4 = super::props::frame(at, slot.heading, normal);
         match slot.kind {
             Element::Spike => {
-                let half = self.roadblocks.physics.as_ref().and_then(|p| p.strip_half);
-                let mut strip = Strip::new(Vec2::new(at.x, at.z), height, slot.heading);
-                if let Some(half) = half {
-                    strip = strip.with_half(half);
-                }
                 block.strips.push(strip);
                 block.strip_frames.push(frame);
             }

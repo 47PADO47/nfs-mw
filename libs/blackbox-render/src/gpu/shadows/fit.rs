@@ -72,7 +72,12 @@ pub(super) fn fit_with_grid(
     let mut resolutions = [settings.shadow_resolution as f32; 4];
     let mut overlap = 0.8;
     if settings.wide_shadow_detail {
-        splits = [distance * 0.16, distance * 0.42, distance, settings.caster_distance()];
+        splits = [
+            distance * near_share * 2.0,
+            distance * if settings.near_shadow_focus { 0.32 } else { 0.42 },
+            distance,
+            settings.caster_distance(),
+        ];
         resolutions[..2].fill(settings.shadow_detail_resolution as f32);
         overlap = 0.65;
     }
@@ -242,7 +247,7 @@ mod tests {
     }
 
     #[test]
-    fn wide_detail_overrides_tight_focus_and_retains_distant_coverage() {
+    fn wide_detail_combines_tight_focus_and_retains_distant_coverage() {
         let settings = RenderExperiments {
             sun_shadows: true,
             far_shadows: true,
@@ -255,10 +260,10 @@ mod tests {
         };
         let fit = fit(&frame(Vec3::new(0.3, -0.2, 1.0)), settings, &[]).unwrap();
         assert_eq!(fit.params.resolutions, [8192.0, 8192.0, 4096.0, 4096.0]);
-        assert!((fit.params.splits[0] * 0.65 - 33.28).abs() < 0.001);
-        assert!((fit.params.splits[1] - 134.4).abs() < 0.001);
+        assert!((fit.params.splits[0] * 0.65 - 16.64).abs() < 0.001);
+        assert!((fit.params.splits[1] - 102.4).abs() < 0.001);
         assert_eq!(fit.params.splits[3], 960.0);
-        assert!(fit.params.texels[1] / fit.params.texels[0] < 3.0, "avoid the focused layout's sevenfold density step");
+        assert!(fit.params.texels[1] / fit.params.texels[0] < 4.1, "avoid the focused layout's sevenfold density step");
     }
 
     #[test]
