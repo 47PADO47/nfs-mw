@@ -165,6 +165,9 @@ impl TrafficWorld {
         if self.needs_patrol() && self.spawn_patrol(focus, collision, surfaces) {
             return;
         }
+        if self.extra_traffic_off {
+            return;
+        }
         let density = self.density();
         if density == 0.0 {
             return;

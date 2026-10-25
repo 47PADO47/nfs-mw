@@ -242,6 +242,8 @@ pub struct Settings {
     pub discord: bool,
     /// Show the elapsed play time in Discord Rich Presence (needs `discord`).
     pub discord_time_played: bool,
+    /// Let Discord friends join a LAN game you are in from your presence (needs `discord`).
+    pub discord_join: bool,
     /// Who changes gear: the box (default) or the player.
     pub transmission: Transmission,
     pub camera_mode: CameraMode,
@@ -387,6 +389,7 @@ impl From<Partial> for Settings {
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
             discord: p.discord.unwrap_or(true),
             discord_time_played: p.discord_time_played.unwrap_or(true),
+            discord_join: p.discord_join.unwrap_or(true),
             transmission: p.transmission.unwrap_or_default(),
             camera_mode: p.camera_mode.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),

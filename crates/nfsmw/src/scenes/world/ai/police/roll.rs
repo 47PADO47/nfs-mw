@@ -8,6 +8,20 @@ use blackbox_pursuit::support::{Option_, Request, Strategy};
 use super::{Police, SUPPORT_CHECK};
 
 impl Police {
+    pub(in crate::scenes::world::ai) fn support_status(&self, level: u32) -> String {
+        format!(
+            "support {:.1}/{:.1} s, next check {:.1} s, seen={}, busy={}, attached roadblock={}, heavy active {:.1} s; heli gate: {}",
+            self.pursuit_time,
+            self.support_minimum_delay(level),
+            self.support_timer.max(0.0),
+            self.is_perp_in_sight(),
+            self.support_busy() || self.support_requested.is_some(),
+            self.roadblock_standing,
+            self.roadblock.active_secs.max(0.0),
+            self.heli_blocker(level).unwrap_or("eligible"),
+        )
+    }
+
     /// The support check: after the minimum delay, the roll of this check, then the request it made.
     pub(super) fn tick_support(&mut self, dt: f32, seen: bool, level: u32, random: [f32; 2]) {
         let before = self.pursuit_time;

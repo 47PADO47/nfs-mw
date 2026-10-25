@@ -1,11 +1,10 @@
 //! The rear-view mirror's picture. Each frame the scene's rear view is captured offscreen and shown as the mirror's UI
 //! texture; the HUD presenter draws it under the mirror's bezel (`ui::present::blackbox`).
 //!
-//! Where the renderer can (`RenderBackend::view_capture_to_ui`) the capture never leaves the GPU: it is tinted and
-//! clipped to the bezel's opening in a compute pass and lands in the UI texture in the same frame. Otherwise the
-//! capture is read back, tinted and clipped here, and uploaded a frame or more later.
+//! Where the renderer can (`RenderBackend::view_capture_to_ui`) the capture never leaves the GPU: it is
+//! tinted in a compute pass and lands in the UI texture in the same frame. Otherwise the
+//! capture is read back, tinted here, and uploaded a frame or more later. The presenter clips both paths to the glass.
 
-use blackbox_gfx::reflection::distance::cull_instances;
 use blackbox_gfx::reflection::{MirrorTint, PLANAR_MAX};
 use blackbox_gfx::{
     CaptureId, FrameParams, Instance, RenderBackend, RenderError, UiLayer, UiTextureId, UiTexturePatch, ViewCaptureUi,
@@ -14,11 +13,9 @@ use blackbox_gfx::{
 use crate::ui::present::blackbox::MIRROR_TEXTURE;
 use crate::viewer::Scene;
 
-/// The bezel's proportions in pixels (about 256 by 87 HUD units): the base of the mirror picture's size. The
-/// setting scales it; the width always keeps this aspect.
+/// Fallback before the presenter supplies the installed glass's aspect ratio.
 const BASE: [u32; 2] = [384, 131];
 /// Inset of the picture from the captured image's edge, in pixels, so the clip does not cut the bezel's edge.
-const INSET: f32 = 2.0;
 /// The bezel's coverage as a UI texture for the GPU path: the same size as the picture, the coverage in its alpha.
 const MIRROR_MASK: UiTextureId = UiTextureId(0x4D49_5252_4D53);
 
@@ -58,7 +55,6 @@ impl MirrorOverlay {
         let _span = bevy_log::info_span!("render::mirror").entered();
         let _trace = blackbox_trace::scope("Render bridge: rear-view mirror");
         let tint = renderer.graphics().mirror_tint;
-        let distance = renderer.graphics().reflection_distance;
         if !self.uploaded {
             // Until the first capture the bezel's picture is clear, so the frame shows the glass only.
             renderer.update_ui_texture(&UiTexturePatch {
@@ -74,19 +70,20 @@ impl MirrorOverlay {
             return;
         }
         let resolution = renderer.graphics().reflection_resolution;
-        let size = resolution.mirror_size(BASE, renderer.surface_size(), PLANAR_MAX);
+        let base = self.picture_base();
+        let size = resolution.mirror_size(base, renderer.surface_size(), PLANAR_MAX);
         let aspect = size[0] as f32 / size[1] as f32;
         let Some((params, instances)) = scene.rear_view(aspect) else { return };
-        // The original's mirror far plane (192 m) is applied to the object origins, as the setting says.
-        let instances = cull_instances(instances, params.camera_position, distance.mirror_far());
+        // The scene owns rear-view culling using world bounds. World-space road meshes often have
+        // an origin at zero; cutting those origins here removes nearby roads and the camera-relative sky.
         // A backend whose view captures draw the UI needs it hidden, since the mirror shows only the road.
         let hides_ui = !renderer.capabilities().view_capture_without_ui;
         if hides_ui {
             renderer.set_ui_layer(UiLayer::default());
         }
         let started = match on_gpu {
-            true => self.capture_to_ui(renderer, size, &params, &instances, tint),
-            false => renderer.request_view_capture(size, &params, &instances).map(|id| self.pending = Some(id)),
+            true => self.capture_to_ui(renderer, size, &params, instances, tint),
+            false => renderer.request_view_capture(size, &params, instances).map(|id| self.pending = Some(id)),
         };
         if let Some(layer) = self.layer.as_ref().filter(|_| hides_ui) {
             renderer.set_ui_layer_ref(layer);
@@ -94,6 +91,30 @@ impl MirrorOverlay {
         let Err(e) = started else { return };
         log::warn!("rear-view mirror capture could not start: {e}");
         self.gpu_failed |= on_gpu;
+    }
+
+    // Match the real glass opening, including modded HUD art, rather than the padded bezel rectangle.
+    fn picture_base(&self) -> [u32; 2] {
+        let mut lo = [f32::MAX; 2];
+        let mut hi = [f32::MIN; 2];
+        for v in self
+            .layer
+            .iter()
+            .flat_map(|l| l.meshes.iter())
+            .filter(|m| m.texture == MIRROR_TEXTURE)
+            .flat_map(|m| m.vertices.iter())
+        {
+            for i in 0..2 {
+                lo[i] = lo[i].min(v.position[i]);
+                hi[i] = hi[i].max(v.position[i]);
+            }
+        }
+        let width = hi[0] - lo[0];
+        let height = hi[1] - lo[1];
+        if width <= 0.0 || height <= 0.0 || !width.is_finite() || !height.is_finite() {
+            return BASE;
+        }
+        [BASE[0], (BASE[0] as f32 * height / width).round().max(1.0) as u32]
     }
 
     /// Takes the finished readback capture, if one is in flight, and uploads it as the mirror's picture. Returns
@@ -118,8 +139,8 @@ impl MirrorOverlay {
         true
     }
 
-    /// Draws the rear view into the mirror's UI texture on the GPU, tinted and clipped to the bezel's opening. The
-    /// mask texture holding the bezel's coverage is uploaded here, again only when the picture's size changes.
+    /// Draws the tinted rear view into the UI texture. The presenter owns the glass clipping;
+    /// the common capture API receives a full-coverage mask, uploaded only when the size changes.
     fn capture_to_ui(
         &mut self,
         renderer: &mut dyn RenderBackend,
@@ -153,24 +174,11 @@ fn mask_rgba(coverage: &[u8]) -> Vec<u8> {
     coverage.iter().flat_map(|&cover| [255, 255, 255, cover]).collect()
 }
 
-/// The bezel's coverage per pixel, 0 to 255: 255 inside the rounded rectangle that is the bezel's opening, 0 outside,
-/// and a half-pixel anti-aliased edge between.
+/// Full capture coverage; the presenter's artwork-derived mesh owns the glass contour.
 fn bezel_coverage(width: u32, height: u32) -> Vec<u8> {
-    let (w, h) = (width as f32, height as f32);
-    let radius = h * 0.35;
-    let half = [w * 0.5 - INSET - radius, h * 0.5 - INSET - radius];
-    let mut coverage = Vec::with_capacity(width as usize * height as usize);
-    for y in 0..height {
-        for x in 0..width {
-            let p = [x as f32 + 0.5 - w * 0.5, y as f32 + 0.5 - h * 0.5];
-            // Signed distance to the rounded rectangle: negative inside.
-            let q = [p[0].abs() - half[0], p[1].abs() - half[1]];
-            let outside = (q[0].max(0.0).powi(2) + q[1].max(0.0).powi(2)).sqrt() + q[0].max(q[1]).min(0.0) - radius;
-            let fraction = (0.5 - outside).clamp(0.0, 1.0);
-            coverage.push((fraction * 255.0).round() as u8);
-        }
-    }
-    coverage
+    // The HUD mesh follows the installed glass contour. Pre-clipping the capture to a second,
+    // guessed rounded rectangle would cut valid corners or expose the detector/padding.
+    vec![255; width as usize * height as usize]
 }
 
 /// Tints the colour by `tint` and clips it by `coverage` in one pass. Each channel is multiplied by the tint and
@@ -197,35 +205,22 @@ mod tests {
     use super::*;
     use crate::app::test_backend::NullBackend;
 
-    /// The clip as it was before the coverage was precomputed: float math per pixel, kept here as the reference.
-    fn clip_reference(rgba: &mut [u8], width: u32, height: u32) {
-        let (w, h) = (width as f32, height as f32);
-        let radius = h * 0.35;
-        let half = [w * 0.5 - INSET - radius, h * 0.5 - INSET - radius];
-        for y in 0..height {
-            for x in 0..width {
-                let p = [x as f32 + 0.5 - w * 0.5, y as f32 + 0.5 - h * 0.5];
-                let q = [p[0].abs() - half[0], p[1].abs() - half[1]];
-                let outside = (q[0].max(0.0).powi(2) + q[1].max(0.0).powi(2)).sqrt() + q[0].max(q[1]).min(0.0) - radius;
-                let coverage = (0.5 - outside).clamp(0.0, 1.0);
-                let i = ((y * width + x) * 4) as usize;
-                for channel in &mut rgba[i..i + 3] {
-                    *channel = (f32::from(*channel) * coverage) as u8;
-                }
-                rgba[i + 3] = (coverage * 255.0) as u8;
-            }
+    /// The unmasked capture has full alpha; the presenter performs the contour clipping later.
+    fn clip_reference(rgba: &mut [u8], _: u32, _: u32) {
+        for pixel in rgba.as_chunks_mut::<4>().0 {
+            pixel[3] = 255;
         }
     }
 
     #[test]
-    fn coverage_keeps_the_middle_and_drops_the_corners() {
+    fn capture_stays_complete_and_the_presenter_owns_glass_clipping() {
         let (w, h) = (BASE[0], BASE[1]);
         let coverage = bezel_coverage(w, h);
         assert_eq!(coverage.len(), (w * h) as usize);
         let at = |x: u32, y: u32| coverage[(y * w + x) as usize];
         assert_eq!(at(w / 2, h / 2), 255, "the middle is kept");
-        assert_eq!(at(0, 0), 0, "the corner is clipped");
-        assert_eq!(at(w - 1, h - 1), 0, "the far corner is clipped");
+        assert_eq!(at(0, 0), 255, "the presenter clips the corner");
+        assert_eq!(at(w - 1, h - 1), 255, "the presenter clips the far corner");
     }
 
     #[test]

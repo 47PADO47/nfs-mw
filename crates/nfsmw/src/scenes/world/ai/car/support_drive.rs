@@ -42,6 +42,14 @@ impl AiCar {
     /// Tags this car as a support car of a request, or clears the tag (the request's end, which returns it to the chase).
     pub fn set_support(&mut self, support: Option<SupportCar>) {
         self.support = support;
+        let head_on = self.head_on_support();
+        if let super::Role::Cop(cop) = &mut self.role {
+            cop.set_head_on_support(head_on);
+        }
+    }
+
+    pub(in crate::scenes::world::ai) fn head_on_support(&self) -> bool {
+        matches!(self.support, Some(SupportCar { goal: SupportGoal::Ram(_), .. }))
     }
 
     /// The serial of the request this car supports, if it is a support car.
@@ -51,14 +59,14 @@ impl AiCar {
 
     /// After the think: a ram SUV that has started drives at its intercept at the ram's speed. The others keep the think's
     /// drive. A ram that waits for the start gate keeps the chase too.
-    pub(super) fn support_drive(&mut self, target: &Body) {
+    pub(super) fn support_drive(&mut self, target: &Body, eligible: bool) {
         let Some(SupportCar { goal: SupportGoal::Ram(_), .. }) = self.support else { return };
         let me = self.physics_position();
         let speed = self.speed().abs();
         let target_velocity = Vec2::new(target.velocity.x, target.velocity.z);
-        let target_point = (Vec2::new(target.position.x, target.position.z), target_velocity, target_velocity.length());
+        let target_point = (Vec2::new(target.position.x, target.position.z), target_velocity);
         let Some(SupportCar { goal: SupportGoal::Ram(ram), .. }) = self.support.as_mut() else { return };
-        let Some(drive) = ram.think(Vec2::new(me.x, me.z), speed, Some(target_point)) else { return };
+        let Some(drive) = ram.think(Vec2::new(me.x, me.z), speed, Some(target_point), eligible) else { return };
         self.target = Vec3::new(drive.point.x, me.y, drive.point.y);
         self.speed = drive.speed;
     }

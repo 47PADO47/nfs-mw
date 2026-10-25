@@ -27,8 +27,8 @@ impl WorldScene {
             true => 0.0,
             false => self.shadow_quality.sampling().2,
         };
-        // The mirror's far plane is applied while scanning, so the capture's own cut (`app/mirror.rs`) finds nothing left
-        // to drop and the list is not copied.
+        // Apply the mirror's far plane to world bounds while scanning. The capture bridge must not
+        // repeat this with model origins: world-space road meshes can have their origin at zero.
         let far = self.detail.mirror_far;
         visibility::collect_rear(
             self.residency.cull_tiles(),
