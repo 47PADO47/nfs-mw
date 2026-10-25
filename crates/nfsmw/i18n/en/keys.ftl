@@ -173,3 +173,4 @@ keys-action-map-zoom-in = Map zoom in
 keys-action-map-zoom-out = Map zoom out
 keys-action-map-orientation = Map north-up / heading-up
 keys-action-toggle-hud = Show or hide the HUD
+keys-action-dismiss-notification = Dismiss a notification

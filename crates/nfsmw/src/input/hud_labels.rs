@@ -16,6 +16,7 @@ pub fn label(action: Action) -> Option<String> {
         Action::MapZoomOut => "keys-action-map-zoom-out",
         Action::MapOrientation => "keys-action-map-orientation",
         Action::ToggleHud => "keys-action-toggle-hud",
+        Action::DismissNotification => "keys-action-dismiss-notification",
         _ => return None,
     };
     Some(crate::i18n::text(id, &crate::i18n::Args::new()))
@@ -36,6 +37,7 @@ mod tests {
             Action::MapZoomOut,
             Action::MapOrientation,
             Action::ToggleHud,
+            Action::DismissNotification,
         ];
         for action in named {
             let text = label(action).unwrap();
