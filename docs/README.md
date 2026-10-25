@@ -108,6 +108,9 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [formats/huff.md](formats/huff.md) | EA HUFF codec (`0x30FB`): bit stream, numbers, canonical code, run-length clue | Complete; all 10,813 blobs decode |
 | [formats/models.md](formats/models.md) | Solids: chunk tree, header, shading groups, vertex buffers per effect run, indices, LODs, compressed add-on cars | Verified; Rust reader |
 | [formats/textures.md](formats/textures.md) | TPK: both pack forms, streaming entries, `TextureInfo`, platform record, pixel formats, alpha / blend modes | Verified; Rust reader |
+| [formats/chameleon-bundle.md](formats/chameleon-bundle.md) | The 2012 game's `bnd2` bundles (Chameleon engine): header, resource table, zlib blocks, import table, resource type ids | Verified on all 2,021 files; Rust reader |
+| [formats/chameleon-gfx.md](formats/chameleon-gfx.md) | Chameleon textures, vertex layouts, renderables, materials, shaders and models | Verified on 93 cars; Rust reader |
+| [formats/chameleon-vehicle.md](formats/chameleon-vehicle.md) | A 2012 car: graphics spec, wheel placement, names, surface kinds | Verified on 93 cars; Rust reader |
 | [formats/maps.md](formats/maps.md) | The L2RA world: metadata chunks, streaming index, section families, scenery placement and rotation encoding | Verified; Rust readers |
 | [formats/world.md](formats/world.md) | World grid and road network, collision packs, bounds, triggers, emitters, sky, minimap | Partial (decomp only for several) |
 | [formats/minimap.md](formats/minimap.md) | The minimap: 8 x 8 map tiles, the per-track calibration, the HUD objects and textures | Verified; Rust reader |

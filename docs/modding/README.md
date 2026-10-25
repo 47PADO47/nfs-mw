@@ -29,6 +29,7 @@ when the module is new.
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
+| [mw2012-cars.md](mw2012-cars.md) | The 93 cars of NFS: Most Wanted (2012) as a content mod, built from your own installs: settings, what is converted, limits |
 
 ## Two layers
 
