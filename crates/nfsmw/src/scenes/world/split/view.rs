@@ -123,7 +123,7 @@ impl WorldScene {
             if shown {
                 drive.instances_with_detail(Some(&car_view), out);
             }
-            if let (true, Some(meshes)) = (self.markers_on, &self.marker_meshes) {
+            if let (true, Some(meshes)) = (self.markers_on && !self.extra.hide_ui, &self.marker_meshes) {
                 drive.marker_instances(meshes, out);
             }
         }
@@ -139,7 +139,7 @@ impl WorldScene {
             Viewer::First => self.route_arrow(),
             Viewer::Second => self.players.guests().next().and_then(|guest| self.route_arrow_for(guest.id)),
         };
-        if let Some(arrow) = arrow {
+        if let Some(arrow) = arrow.filter(|_| !self.extra.hide_ui) {
             out.push(arrow);
         }
         // The NIS scene's characters: placed with the rest, so they sort by mesh with them.

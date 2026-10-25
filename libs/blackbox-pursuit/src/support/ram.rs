@@ -14,12 +14,6 @@ pub const START_CAP: f32 = 26.82;
 /// against dividing by a zero velocity; the binary's behaviour there is not read.
 const STILL: f32 = 1e-5;
 
-/// The start gate: a ram may start only while the target drives below [`START_CAP`]. The spec gives 26.82 only as the
-/// start speed cap, so reading it as the start gate is unconfirmed (the task's rule).
-pub fn may_start(target_speed: f32) -> bool {
-    target_speed < START_CAP
-}
-
 /// The speed a ram car is placed at (`GetDesiredSpeedToTarget`, spec 5.2, a decompiled helper). `distance` is the signed
 /// distance to the target (negative when the car is behind it), `target_speed` the target's speed (m/s). Capped at 26.82.
 pub fn start_speed(distance: f32, target_speed: f32) -> f32 {
@@ -89,7 +83,7 @@ pub struct Drive {
     pub speed: f32,
 }
 
-/// The ram action of one SUV. It waits (the car chases as usual) until the target is slow enough to start, then drives
+/// The ram action of one SUV. It waits for its entry checks, then drives
 /// at the intercept until the target is gone.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Ram {
@@ -102,18 +96,17 @@ impl Ram {
         self.started
     }
 
-    /// One think. `target` is the target's position, velocity and speed; `me` and `my_speed` are the SUV's own. Returns
+    /// One think. `target` is its position and velocity; `me` and `my_speed` are the SUV's own. Returns
     /// the drive while it runs, or `None` while it waits to start.
     ///
-    /// Abort (unconfirmed, the spec is silent on it): a target that is gone ends the action and the start gate is taken
-    /// again later. The spec says the action never finishes while the target exists.
-    pub fn think(&mut self, me: Vec2, my_speed: f32, target: Option<(Vec2, Vec2, f32)>) -> Option<Drive> {
-        let Some((position, velocity, target_speed)) = target else {
+    /// A missing target ends the action; a later target takes the entry checks again.
+    pub fn think(&mut self, me: Vec2, my_speed: f32, target: Option<(Vec2, Vec2)>, eligible: bool) -> Option<Drive> {
+        let Some((position, velocity)) = target else {
             self.started = false;
             return None;
         };
         if !self.started {
-            if !may_start(target_speed) {
+            if !eligible {
                 return None;
             }
             self.started = true;
@@ -164,9 +157,10 @@ mod tests {
     }
 
     #[test]
-    fn the_start_gate_is_below_26_82_metres_a_second() {
-        assert!(may_start(26.0));
-        assert!(!may_start(27.0));
+    fn a_fast_target_is_not_a_start_veto() {
+        let mut ram = Ram::default();
+        let fast = Some((Vec2::new(100.0, 0.0), Vec2::new(45.0, 0.0)));
+        assert!(ram.think(Vec2::ZERO, 20.0, fast, true).is_some());
     }
 
     #[test]
@@ -184,30 +178,29 @@ mod tests {
     }
 
     #[test]
-    fn a_ram_waits_while_the_target_is_fast_and_starts_when_it_slows() {
+    fn a_ram_waits_for_drivability_without_waiting_for_the_target_to_slow() {
         let mut ram = Ram::default();
-        let fast = Some((Vec2::new(100.0, 0.0), Vec2::new(30.0, 0.0), 30.0));
-        assert!(ram.think(Vec2::ZERO, 20.0, fast).is_none());
+        let fast = Some((Vec2::new(100.0, 0.0), Vec2::new(45.0, 0.0)));
+        assert!(ram.think(Vec2::ZERO, 20.0, fast, false).is_none());
         assert!(!ram.started());
-        let slow = Some((Vec2::new(100.0, 0.0), Vec2::new(10.0, 0.0), 10.0));
-        let drive = ram.think(Vec2::ZERO, 20.0, slow).expect("drives");
+        let drive = ram.think(Vec2::ZERO, 20.0, fast, true).expect("drives");
         assert_eq!(drive.speed, DRIVE_SPEED);
         assert!(ram.started());
     }
 
     #[test]
-    fn a_started_ram_keeps_driving_when_the_target_speeds_up() {
+    fn a_started_ram_keeps_driving_when_entry_checks_fail() {
         let mut ram = Ram::default();
-        ram.think(Vec2::ZERO, 20.0, Some((Vec2::new(100.0, 0.0), Vec2::ZERO, 10.0)));
-        assert!(ram.think(Vec2::ZERO, 20.0, Some((Vec2::new(100.0, 0.0), Vec2::new(30.0, 0.0), 30.0))).is_some());
+        ram.think(Vec2::ZERO, 20.0, Some((Vec2::new(100.0, 0.0), Vec2::ZERO)), true);
+        assert!(ram.think(Vec2::ZERO, 20.0, Some((Vec2::new(100.0, 0.0), Vec2::new(30.0, 0.0))), false).is_some());
     }
 
     #[test]
     fn a_gone_target_aborts_the_ram() {
         let mut ram = Ram::default();
-        ram.think(Vec2::ZERO, 20.0, Some((Vec2::new(100.0, 0.0), Vec2::ZERO, 0.0)));
+        ram.think(Vec2::ZERO, 20.0, Some((Vec2::new(100.0, 0.0), Vec2::ZERO)), true);
         assert!(ram.started());
-        assert!(ram.think(Vec2::ZERO, 20.0, None).is_none());
+        assert!(ram.think(Vec2::ZERO, 20.0, None, false).is_none());
         assert!(!ram.started(), "the start gate applies again");
     }
 }

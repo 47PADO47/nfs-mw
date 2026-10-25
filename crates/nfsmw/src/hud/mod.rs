@@ -42,6 +42,8 @@ mod message_tests;
 pub(crate) mod minimap;
 #[cfg(test)]
 mod minimap_tests;
+#[cfg(test)]
+mod mirror_install_tests;
 mod plugin;
 pub(crate) mod police;
 #[cfg(test)]

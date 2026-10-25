@@ -131,7 +131,7 @@ pub(crate) fn decode(text: &str, model: &Model) -> Result<Selection> {
 }
 
 pub(super) fn show(ui: &mut egui::Ui, model: &mut Model) {
-    match model.preset_picker.show(ui, "garage-presets.toml") {
+    match model.preset_picker.show_quick(ui, "garage-presets.toml") {
         Some(crate::preset_store::Action::Save) => {
             let payload = encode(&model.draft).and_then(|text| {
                 decode(&text, model)?;

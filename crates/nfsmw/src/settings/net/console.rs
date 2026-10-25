@@ -1,11 +1,17 @@
 //! The LAN settings in the console: `get net_port`, `set net_port 9760`, `set net_show_stats` (a switch flips).
 
 use super::super::partial::parse_bool;
-use super::io::{IDENTITY_FILE_KEY, INTERP_DELAY_KEY, NAME_KEY, PORT_KEY, SHOW_STATS_KEY, SNAPSHOT_HZ_KEY};
-use super::{IdentityPath, NetSettings, parse_interp_delay, parse_port, parse_snapshot_hz, valid_name};
+use super::io::{
+    IDENTITY_FILE_KEY, INTERP_DELAY_KEY, NAME_KEY, PORT_KEY, PUBLIC_ADDRESS_KEY, SHOW_STATS_KEY, SNAPSHOT_HZ_KEY,
+};
+use super::{
+    IdentityPath, NetSettings, PublicAddress, parse_interp_delay, parse_port, parse_public_address, parse_snapshot_hz,
+    valid_name,
+};
 
 /// Every console key of the LAN settings, in the order `get` lists them.
-pub const KEYS: [&str; 6] = [NAME_KEY, PORT_KEY, SNAPSHOT_HZ_KEY, INTERP_DELAY_KEY, SHOW_STATS_KEY, IDENTITY_FILE_KEY];
+pub const KEYS: [&str; 7] =
+    [NAME_KEY, PORT_KEY, SNAPSHOT_HZ_KEY, INTERP_DELAY_KEY, SHOW_STATS_KEY, IDENTITY_FILE_KEY, PUBLIC_ADDRESS_KEY];
 
 /// Whether the console key names one of the LAN settings.
 pub fn is_key(key: &str) -> bool {
@@ -29,6 +35,8 @@ pub fn get(settings: &NetSettings, key: &str) -> String {
         INTERP_DELAY_KEY => settings.interp_delay.to_string(),
         SHOW_STATS_KEY if settings.show_stats => "on".into(),
         SHOW_STATS_KEY => "off".into(),
+        PUBLIC_ADDRESS_KEY if settings.public_address.is_empty() => "default".into(),
+        PUBLIC_ADDRESS_KEY => settings.public_address.to_string(),
         _ if settings.identity_file.is_empty() => "default".into(),
         _ => settings.identity_file.to_string(),
     }
@@ -44,6 +52,8 @@ pub fn set(settings: &mut NetSettings, key: &str, value: &str) -> Result<(), Str
         SHOW_STATS_KEY => settings.show_stats = parse_bool(value)?,
         IDENTITY_FILE_KEY if value.trim() == "default" => settings.identity_file = IdentityPath::EMPTY,
         IDENTITY_FILE_KEY => settings.identity_file = IdentityPath::new(value)?,
+        PUBLIC_ADDRESS_KEY if value.trim() == "default" => settings.public_address = PublicAddress::EMPTY,
+        PUBLIC_ADDRESS_KEY => settings.public_address = parse_public_address(value)?,
         other => return Err(format!("unknown setting {other}")),
     }
     Ok(())
@@ -58,6 +68,7 @@ pub fn syntax(key: &str) -> Option<&'static str> {
         INTERP_DELAY_KEY => "<1-4 snapshot intervals>",
         SHOW_STATS_KEY => "<on|off>",
         IDENTITY_FILE_KEY => "<path|default>",
+        PUBLIC_ADDRESS_KEY => "<ip|default>",
         _ => return None,
     })
 }
