@@ -13,6 +13,7 @@ mod anim_codecs;
 mod anim_codecs_f;
 mod anim_objects;
 mod anim_skeletons;
+mod captured_player_profile;
 mod career;
 mod carparts;
 mod cars;
