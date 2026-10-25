@@ -199,9 +199,11 @@ angle  = clamp(target, prev - rate*dT, prev + rate*dT)                     # deg
 ```
 
 The averages use 0.55 s and 0.15 s windows at 60 Hz. The input value used for the average and coefficient
-lookups is first run through a 21-point remap table that flattens small stick deflection (default
-"medium": `-1, -0.736, -0.542, -0.4, -0.292, -0.214, -0.16, -0.123, -0.078, -0.036, 0, ...` mirrored; the
-other sets are in the source and are less aggressive near the centre). Racing wheels use a separate range
+lookups is first run through the PC's selected 21-point history remap table:
+`-1, -0.712, -0.453, -0.303, -0.216, -0.148, -0.116, -0.080, -0.061, -0.034, 0, ...` mirrored.
+The raw target input is unchanged. Descriptor inspection, isolated numeric execution
+and passive player observations confirm this PC selection; see
+[player driving parity](player-driving-parity.md). Racing wheels use a separate range
 table (`[45, 15, 11, 8, 7, 7, ...]`) or full range if speed-insensitive. Speed-breaker (the slow-motion
 "game breaker" effect) lerps the angle toward `steer * 60` degrees. AI steering is `45 deg * tires.STEERING
 * input` (no shaping). Left/right wheel angles come from an Ackermann calculation (not specified here:

@@ -23,6 +23,13 @@ F5 / Escape closes the panel. Opening another developer panel closes F5.
 
 ## World and testing
 
+Physics update rate defaults to **60 Hz (original)**. **144 Hz (comparison)** is
+an optional offline comparison mode that changes numerical handling. Rendering
+FPS has its own independent limit; neither physics choice caps rendering FPS.
+The choice saves as `physics_rate_hz = 60` or `144` in `config.toml` and in alias
+settings. CLI `--physics-rate-hz 60|144` and environment `NFSMW_PHYSICS_RATE_HZ`
+can override it. Multiplayer always uses 60 Hz regardless of the local choice.
+
 Traffic off removes ambient civilians immediately and suppresses their automatic spawns.
 It retains police and race opponents and does not rewrite F8 density. Police off ends
 pursuits without awarding an escape and bars patrol/reinforcement spawning.

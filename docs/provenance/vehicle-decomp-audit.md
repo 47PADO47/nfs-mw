@@ -91,3 +91,17 @@ Companion of [../specs/vehicle-decomp-audit.md](../specs/vehicle-decomp-audit.md
    Q8 note about stopping distances.
 7. Confirm the ETirePunctured event by hash: compute the VLT hash of the event name and search for it as a
    32-bit immediate in code.
+
+## Resolution update, 2026-10-25
+
+The former steering-table use-site blocker is resolved. Maximum-steering and
+rate consumers select distinct descriptors and tables; the range correction
+follows selected-executable numeric results. Low-speed taper and the supposed
+missing lateral clamp do not need changes; ordinary-impact punctures are already
+removed. See [current provenance](player-driving-parity.md). Historical search
+failures and leads above are retained as investigation history.
+
+The old launch-band-to-converter hypothesis is also resolved: the band feeds
+vehicle staging. Converter and clutch ramps correctly retain peak-torque RPM.
+Original numeric launch vectors and the separate engine/traction assistance
+contract are recorded in [player launch](player-launch.md).

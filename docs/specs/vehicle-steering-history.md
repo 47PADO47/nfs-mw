@@ -7,7 +7,7 @@ and `CalculateSteeringSpeed`. Read for behaviour only; no code copied.
 
 **[decomp]** The range and input-magnitude coefficients use the history from the
 previous tick. For a gamepad, the rate estimator subtracts the previous tick's
-remapped input from the current **raw** input and divides by the fixed step.
+remapped input from the current **raw** input and divides by the supplied simulation delta.
 Its absolute value is looked up in the rate-coefficient table **before** recording
 the coefficient into the 0.15-second average. Averaging derivatives before the
 nonlinear lookup gives a different rate.
@@ -19,7 +19,11 @@ rate estimate. Racing wheels remember and average raw input; they have no rate
 limit. A speed-insensitive racing wheel returns the absolute 45-degree range
 directly, before braking, tuning, countersteer or collision range changes.
 
-This is a static GameCube-reference observation. Existing PC calibration confirms
-the speed axis and full-lock response but does not establish these partial-stick
-history details in the running PC game. Synthetic regressions establish agreement
-with the documented order, not complete original-game driving parity.
+The initial reference was static GameCube behavior. PC consumer inspection,
+isolated human-steering sequences and passive player callbacks now confirm the
+selected PC remap, prior-history order and averaged rate coefficients. At the
+observed modded 144 Hz cadence the histories are limited to 33 and 9 samples,
+including during Speedbreaker, whose supplied delta becomes 1/576. The remake's
+[shared clock](shared-physics-clock.md) now separates real cadence and scaled
+simulation delta. Matching component inputs still does not establish complete
+driving trajectories.

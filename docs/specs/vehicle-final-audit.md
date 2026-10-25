@@ -47,10 +47,13 @@ the existing tire, chassis, drivetrain and Speedbreaker specifications.
 Matching isolated routines and installed data does not establish matching full
 trajectories. Remaining race/drag context producers, dynamic collision geometry,
 wall contact geometry, chassis response and live clock integration need separate
-original-game comparisons. The existing single-car calibration has nonzero rear
-tire/load errors and diverging long trajectories; it is partial validation.
-The original clock uses 60 Hz real-time scheduling with variable simulation
-delta, while the remake uses fixed simulation-time ticks after a frame integral.
-Ordinary impacts currently
-produce extra tire damage through a port-specific severity rule. These remain
-behavior differences, alongside the absent race/drag and destruction producers.
+original-game comparisons. The historical single-car calibration has nonzero rear
+tire/load errors and diverging long trajectories, but used a different tire profile
+from gameplay; see [its qualifications](vehicle-calibration.md).
+The [shared clock](shared-physics-clock.md) corrects the earlier fixed-simulation-
+time scheduling difference with a real-time cadence and scaled per-tick delta.
+Full trajectory and scheduler integration acceptance remain separate from
+isolated routine agreement.
+Ordinary-impact tire punctures were removed; severe-corner-impact regression
+coverage preserves body damage without puncturing tires. Race/drag context and
+destruction producers still require separate completeness checks.
