@@ -216,7 +216,7 @@ fn world(
         };
         route_lines(route, car, &stage, (ahead, fade(ahead, DRIVEN_SHARE)), ROUTE_Z, lines);
     }
-    draw_marks(&places::marks(map), &stage, (1.0, MARK_Z), cx, front);
+    draw_marks(&places::marks(map), &stage, (1.0, MARK_Z), None, cx, front);
     let second = (colour(cx, keys::TEXT_SECONDARY), colour(cx, keys::SURFACE));
     let first = (colour(cx, keys::TEXT), colour(cx, keys::SURFACE));
     for (mark, tones) in [(map.second_mark, second), (map.player_mark, first)] {

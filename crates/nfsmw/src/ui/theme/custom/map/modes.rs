@@ -2,10 +2,12 @@
 //! that change them.
 //!
 //! - **Off:** nothing.
-//! - **Compact:** the turn-cue chip near the top centre.
+//! - **Compact:** a small, fainter overlay round the car, and the turn-cue chip near the top centre.
 //! - **Centered:** the translucent overlay round the car, in the middle of the content box.
 //! - **Expanded:** a larger, more opaque overlay that shows farther, with the paths and the stretch of the route
 //!   already driven.
+//!
+//! The overlays are 340, 500 and 710 pixels wide at 1080p (`docs/specs/custom-hud/map.md`).
 //!
 //! A mode change blends the old mode's [`Overlay`] into the new one's over `Motion::map_mode`: the ellipse and the
 //! scale glide, and the overlay and the chip fade in or out. With motion reduction the shape and the scale take the new
@@ -19,12 +21,16 @@ use crate::settings::{MinimapMode, Settings};
 
 /// A zoom key multiplies or divides `map_zoom` by this.
 pub const ZOOM_STEP: f32 = 1.25;
-/// The Centered and Expanded ellipses' half-axes (horizontal, vertical), as fractions of the content box's height.
-pub const CENTERED_RADII: [f32; 2] = [0.46, 0.34];
-pub const EXPANDED_RADII: [f32; 2] = [0.64, 0.46];
+/// The ellipses' half-axes (horizontal, vertical), as fractions of the content box's height.
+pub const COMPACT_RADII: [f32; 2] = [0.155, 0.115];
+pub const CENTERED_RADII: [f32; 2] = [0.23, 0.17];
+pub const EXPANDED_RADII: [f32; 2] = [0.33, 0.245];
 /// The world radius, metres, the ellipse's horizontal half-axis shows at zoom 1.
+pub const COMPACT_BASE_M: f32 = 200.0;
 pub const CENTERED_BASE_M: f32 = 300.0;
-pub const EXPANDED_BASE_M: f32 = 900.0;
+pub const EXPANDED_BASE_M: f32 = 600.0;
+/// How faint the Compact overlay is, as a share of `map_opacity`.
+pub const COMPACT_OPACITY_SHARE: f32 = 0.7;
 /// How far the Expanded map raises the roads' opacity over `map_opacity`, and the most it raises it to.
 pub const EXPANDED_OPACITY_GAIN: f32 = 0.25;
 pub const EXPANDED_OPACITY_CAP: f32 = 0.85;
@@ -139,8 +145,8 @@ pub struct Overlay {
 }
 
 impl Overlay {
-    /// The overlay of `mode` with the roads at `map_opacity`. Off and Compact keep the Centered shape, hidden, so a
-    /// change from them only fades.
+    /// The overlay of `mode` with the roads at `map_opacity`. Off keeps the Centered shape, hidden, so a change from it
+    /// only fades.
     pub fn of(mode: MapMode, map_opacity: f32) -> Self {
         let centered = Self {
             radii: CENTERED_RADII,
@@ -159,7 +165,13 @@ impl Overlay {
                 detail: 1.0,
                 ..centered
             },
-            MapMode::Compact => Self { shown: 0.0, chip: 1.0, ..centered },
+            MapMode::Compact => Self {
+                radii: COMPACT_RADII,
+                base_m: COMPACT_BASE_M,
+                road_opacity: map_opacity * COMPACT_OPACITY_SHARE,
+                chip: 1.0,
+                ..centered
+            },
             MapMode::Off => Self { shown: 0.0, ..centered },
         }
     }

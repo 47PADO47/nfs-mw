@@ -15,6 +15,9 @@ use crate::hud::{CHECKPOINT, HudState, LastKnown, NavMarkerKind, PursuitPhase, R
 /// How long the last-known mark fades for, seconds, and its alpha when fresh.
 pub const LAST_KNOWN_SECS: f32 = 20.0;
 pub const LAST_KNOWN_ALPHA: f32 = 0.8;
+/// The variants of [`MarkKind::Shop`]: an auto shop or a car lot.
+pub const SHOP: u8 = 0;
+pub const CAR_LOT: u8 = 1;
 /// A checkpoint blip this close to the next gate (metres) is that gate, already marked.
 const SAME_PLACE_M: f32 = 2.0;
 
@@ -50,17 +53,28 @@ impl MarkKind {
     }
 }
 
-/// One mark: what it is, where (render space, metres) and its own alpha.
+/// One mark: what it is, where (render space, metres) and its own alpha. `variant` picks among the game's icons of the
+/// kind (the racer's number, the race's type, a car lot for a shop), and `heading` is where a moving thing points.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Mark {
     pub kind: MarkKind,
     pub at: [f32; 2],
     pub alpha: f32,
+    pub variant: u8,
+    pub heading: Option<[f32; 2]>,
 }
 
 impl Mark {
-    fn new(kind: MarkKind, at: [f32; 2]) -> Self {
-        Self { kind, at, alpha: 1.0 }
+    pub fn new(kind: MarkKind, at: [f32; 2]) -> Self {
+        Self { kind, at, alpha: 1.0, variant: 0, heading: None }
+    }
+
+    fn variant(self, variant: u8) -> Self {
+        Self { variant, ..self }
+    }
+
+    fn heading(self, heading: Option<[f32; 2]>) -> Self {
+        Self { heading, ..self }
     }
 }
 
@@ -79,12 +93,13 @@ pub fn marks(hud: &HudState) -> Vec<Mark> {
 /// The discovered places: race starts, safe houses and shops.
 fn places(hud: &HudState, out: &mut Vec<Mark>) {
     for marker in hud.markers.iter().filter(|marker| marker.discovered) {
-        let kind = match marker.kind {
-            NavMarkerKind::Race(_) => MarkKind::Race,
-            NavMarkerKind::SafeHouse => MarkKind::SafeHouse,
-            NavMarkerKind::AutoShop | NavMarkerKind::CarLot => MarkKind::Shop,
+        let (kind, variant) = match marker.kind {
+            NavMarkerKind::Race(race) => (MarkKind::Race, race as u8),
+            NavMarkerKind::SafeHouse => (MarkKind::SafeHouse, 0),
+            NavMarkerKind::AutoShop => (MarkKind::Shop, SHOP),
+            NavMarkerKind::CarLot => (MarkKind::Shop, CAR_LOT),
         };
-        out.push(Mark::new(kind, marker.position));
+        out.push(Mark::new(kind, marker.position).variant(variant));
     }
 }
 
@@ -94,6 +109,7 @@ fn race(hud: &HudState, out: &mut Vec<Mark>) {
     if let Some(at) = next {
         out.push(Mark::new(MarkKind::NextCheckpoint, at));
     }
+    let mut racers = 0;
     for blip in &hud.blips {
         let kind = match blip.style {
             style if style == CHECKPOINT => MarkKind::Checkpoint,
@@ -105,7 +121,12 @@ fn race(hud: &HudState, out: &mut Vec<Mark>) {
         if kind == MarkKind::Checkpoint && is_next {
             continue;
         }
-        out.push(Mark::new(kind, blip.position));
+        let variant = match kind {
+            MarkKind::Racer => racers,
+            _ => 0,
+        };
+        racers += u8::from(kind == MarkKind::Racer);
+        out.push(Mark::new(kind, blip.position).variant(variant).heading(blip.heading));
     }
 }
 
@@ -115,7 +136,7 @@ fn police(hud: &HudState, out: &mut Vec<Mark>) {
     if let Some(last) = intel.last_known
         && let Some(alpha) = last_known_alpha(hud.pursuit_phase, last)
     {
-        out.push(Mark { kind: MarkKind::LastKnown, at: last.position, alpha });
+        out.push(Mark { alpha, ..Mark::new(MarkKind::LastKnown, last.position) });
     }
     if intel.roadblock_reported {
         out.extend(intel.roadblocks.iter().map(|at| Mark::new(MarkKind::Roadblock, *at)));

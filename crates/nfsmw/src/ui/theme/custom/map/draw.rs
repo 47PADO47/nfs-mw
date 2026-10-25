@@ -5,12 +5,13 @@
 //! outside the ellipse is not drawn, and one in the soft edge fades with the roads, except the marks that stay in view
 //! (the next checkpoint, the route's end): those are held just inside the edge.
 
-use blackbox_ui::{Clip, Component, LayoutCx, LineCap, LineJoin, Polyline, Polylines, Rect, Rounded};
+use blackbox_ui::{Clip, Component, Image, LayoutCx, LineCap, LineJoin, Polyline, Polylines, Rect, Rounded, UiTree};
 use glam::Vec2;
 
+use super::icons;
 use super::marks::{Mark, MarkKind};
 use super::view::{MapView, pin};
-use crate::hud::{NavRoute, RaceRoute};
+use crate::hud::{NavRoute, RaceRoute, TICK_SECONDS};
 use crate::ui::theme::custom::tokens::{fade, faded_skin, keys};
 
 /// The route's width at scale 1, HUD units.
@@ -34,6 +35,28 @@ pub struct Stage<'a> {
     pub radii: Vec2,
     pub scale: f32,
 }
+
+/// The game's icons for the marks and the arrow: the frame's HUD tree they are found in, and the clock the cop's light
+/// bar runs on (held at one colour with motion `reduced`). Without it every mark is its shape.
+#[derive(Clone, Copy, Debug)]
+pub struct Art<'a> {
+    pub tree: &'a UiTree,
+    pub elapsed_s: f32,
+    pub reduced: bool,
+}
+
+impl Art<'_> {
+    /// The light bar's tick (`hud::TICK_SECONDS` long).
+    fn tick(&self) -> u32 {
+        if self.reduced {
+            return 0;
+        }
+        (self.elapsed_s.max(0.0) / TICK_SECONDS) as u32
+    }
+}
+
+/// The next checkpoint's icon is this much larger than the others, so it stands out among the checkpoints.
+const NEXT_GAIN: f32 = 1.25;
 
 /// The colour of the skin key `key`, opaque white when the skin lacks it (a skin without the Custom tokens).
 pub fn colour(cx: &LayoutCx<'_>, key: &str) -> [u8; 4] {
@@ -71,10 +94,13 @@ fn look(kind: MarkKind) -> (Shape, &'static str) {
 }
 
 /// Pushes the shapes of `marks` onto `out`, each at its own alpha times `alpha`, at depth `z`.
+///
+/// With `art` a mark is the game's own icon where the package has one for it, and its shape otherwise.
 pub fn draw_marks(
     marks: &[Mark],
     stage: &Stage<'_>,
     (alpha, z): (f32, f32),
+    art: Option<&Art<'_>>,
     cx: &LayoutCx<'_>,
     out: &mut Vec<Box<dyn Component>>,
 ) {
@@ -91,8 +117,49 @@ pub fn draw_marks(
         if alpha <= 0.0 {
             continue;
         }
+        if let Some(art) = art
+            && icon_part(mark, (at, stage), (alpha, z), (art, cx), out)
+        {
+            continue;
+        }
         mark_parts(mark.kind, at, (alpha, z), stage.scale, cx, out);
     }
+}
+
+/// The clockwise turn from up, in radians, of the canvas direction `direction`.
+pub fn clockwise_from_up(direction: Vec2) -> f32 {
+    direction.x.atan2(-direction.y)
+}
+
+/// Pushes the game's icon for `mark` at `at`, and says whether the package had one. The checkpoints and the route's end
+/// take the route's colour, a cop its light bar's, and the interiors the game's tint where the package's icon is plain
+/// white; anything else keeps the icon's own colour.
+fn icon_part(
+    mark: &Mark,
+    (at, stage): (Vec2, &Stage<'_>),
+    (alpha, z): (f32, f32),
+    (art, cx): (&Art<'_>, &LayoutCx<'_>),
+    out: &mut Vec<Box<dyn Component>>,
+) -> bool {
+    let Some(name) = icons::object(mark.kind, mark.variant) else { return false };
+    let Some(icon) = icons::find(art.tree, &name) else { return false };
+    let package = [icon.colour[0], icon.colour[1], icon.colour[2], 255];
+    let colour = match mark.kind {
+        MarkKind::NextCheckpoint | MarkKind::Checkpoint | MarkKind::Target => colour(cx, keys::NAV),
+        MarkKind::Cop => icons::tint(mark.kind, mark.variant, art.tick()).unwrap_or(package),
+        _ if package[..3] == [255; 3] => icons::tint(mark.kind, mark.variant, art.tick()).unwrap_or(package),
+        _ => package,
+    };
+    let gain = match mark.kind {
+        MarkKind::NextCheckpoint => NEXT_GAIN,
+        _ => 1.0,
+    };
+    let turn = mark.heading.map_or(0.0, |heading| clockwise_from_up(stage.view.direction(heading)));
+    let size = icon.size * stage.scale * gain;
+    let mut image = Image::raw(icon.texture).with_tint(fade(colour, alpha)).with_z(z).with_rotation(turn);
+    image.layout(cx, Rect::new(at.x, at.y, size.x, size.y));
+    out.push(Box::new(image));
+    true
 }
 
 /// Pushes the shape of a mark of `kind` at `at` (canvas units) onto `out`, at `alpha` and depth `z`, sized for the
@@ -239,6 +306,26 @@ fn push_route(stretches: [(Vec<[f32; 2]>, [u8; 4]); 2], stage: &Stage<'_>, z: f3
         let line = Polyline::new(points, width, colour).with_join(LineJoin::Mitre { limit: 2.0 });
         lines.push(line.with_clip(stage.clip, stage.band).with_z(z));
     }
+}
+
+/// The player's arrow at `at` pointing along `direction`, as the game's own arrow (`PLAYERCARINDICATOR`) in the first
+/// tone, or as [`arrow`]'s strokes when the package has none.
+pub fn arrow_parts(
+    art: Option<&Art<'_>>,
+    (at, direction): (Vec2, Vec2),
+    scale: f32,
+    tones: ([u8; 4], [u8; 4]),
+    (z, cx): (f32, &LayoutCx<'_>),
+) -> Vec<Box<dyn Component>> {
+    let icon = art.and_then(|art| icons::find(art.tree, icons::PLAYER_ARROW));
+    let Some(icon) = icon else {
+        let strokes = arrow(at, direction, scale, tones, z);
+        return strokes.into_iter().map(|line| Box::new(line) as Box<dyn Component>).collect();
+    };
+    let size = icon.size * scale;
+    let mut image = Image::raw(icon.texture).with_tint(tones.0).with_z(z).with_rotation(clockwise_from_up(direction));
+    image.layout(cx, Rect::new(at.x, at.y, size.x, size.y));
+    vec![Box::new(image)]
 }
 
 /// The player's arrow at `at` pointing along `direction` (a canvas unit vector): a pointed chevron with a spine, in

@@ -113,7 +113,10 @@ pub fn build_themes(
         Themes::new(Box::new(OriginalTheme::new(frame.clone()))).expect("OriginalTheme reports ThemeId::Original");
     themes
         .register(Box::new(
-            CustomTheme::new(radio.clone(), custom, custom_map).with_menus(menus.clone()).with_lan(frame.lan()),
+            CustomTheme::new(radio.clone(), custom, custom_map)
+                .with_menus(menus.clone())
+                .with_lan(frame.lan())
+                .with_frame(frame.clone()),
         ))
         .expect("the Bevy theme is registered once, and is not Original");
     themes
@@ -326,12 +329,17 @@ impl UiThemes {
             ThemeId::Custom | ThemeId::Remastered => palette::for_ui_theme(self.ui_theme),
             _ => self.themes.active_tokens(),
         };
+        // The Custom look's accent is the signal yellow; the Remastered `ui_theme` already has a gold of its own.
+        let accent = match (active, self.ui_theme) {
+            (ThemeId::Custom, UiTheme::Bevy) => custom_tokens::SIGNAL,
+            _ => tokens.secondary,
+        };
         self.skin = self
             .base
             .clone()
             .merged(tokens.skin())
             .merged(remastered::palette_skin(&tokens))
-            .merged(custom_tokens::skin(self.custom_look, tokens.secondary))
+            .merged(custom_tokens::skin(self.custom_look, accent))
             .merged(self.menu_look.skin());
         self.skin_of = Some(wanted);
     }

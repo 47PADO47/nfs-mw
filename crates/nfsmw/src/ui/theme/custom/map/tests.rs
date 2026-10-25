@@ -3,18 +3,18 @@
 
 use crate::hud::{
     CHECKPOINT, COP, HELICOPTER, HelicopterIntel, HudState, LastKnown, MapBlip, MapRoad, MapRoads, MapRoadsHandle,
-    NavMarker, NavMarkerKind, PoliceIntel, PursuitPhase, RaceInfo, RoadClass,
+    NavMarker, NavMarkerKind, PoliceIntel, PursuitPhase, RACER, RaceInfo, RoadClass,
 };
 use crate::settings::hud::MapMode;
 use crate::settings::{MinimapMode, Partial, Settings, SpeedUnits};
 
 use super::chip::distance_text;
 use super::draw::split_route;
-use super::marks::{LAST_KNOWN_ALPHA, MarkKind, last_known_alpha, marks};
+use super::marks::{CAR_LOT, LAST_KNOWN_ALPHA, MarkKind, SHOP, last_known_alpha, marks};
 use super::memory::{ModeFade, ZoomSpring};
 use super::modes::{
-    CENTERED_RADII, EXPANDED_RADII, MapKeys, MapPresses, Overlay, expanded_opacity, flip_orientation, next_mode,
-    transition,
+    CENTERED_RADII, COMPACT_RADII, EXPANDED_RADII, MapKeys, MapPresses, Overlay, expanded_opacity, flip_orientation,
+    next_mode, transition,
 };
 use super::roads::{LocalSet, MOVE_SHARE};
 
@@ -85,7 +85,23 @@ fn expanded_is_larger_and_more_opaque_and_off_shows_nothing() {
     assert_eq!(expanded_opacity(0.9), 0.9, "never below the setting");
     assert_eq!(expanded_opacity(0.7), 0.85, "capped");
     assert_eq!((Overlay::of(MapMode::Off, 0.35).shown, Overlay::of(MapMode::Off, 0.35).chip), (0.0, 0.0));
-    assert_eq!(Overlay::of(MapMode::Compact, 0.35).chip, 1.0);
+}
+
+#[test]
+fn compact_is_a_small_faint_overlay_with_the_turn_chip() {
+    let (compact, centered) = (Overlay::of(MapMode::Compact, 0.35), Overlay::of(MapMode::Centered, 0.35));
+    assert_eq!((compact.shown, compact.chip, compact.radii), (1.0, 1.0, COMPACT_RADII));
+    assert!(compact.radii[0] < centered.radii[0] && compact.base_m < centered.base_m);
+    assert!(compact.road_opacity < centered.road_opacity, "fainter than Centered");
+}
+
+#[test]
+fn the_overlays_are_the_widths_the_design_asks_for_at_1080p() {
+    // The box is 480 units high for 1080 pixels: 2.25 pixels a unit, and the ellipse's width is twice its half-axis.
+    let width = |radii: [f32; 2]| 2.0 * radii[0] * 480.0 * 2.25;
+    assert!((300.0..=380.0).contains(&width(COMPACT_RADII)), "{}", width(COMPACT_RADII));
+    assert!((430.0..=560.0).contains(&width(CENTERED_RADII)), "{}", width(CENTERED_RADII));
+    assert!((620.0..=760.0).contains(&width(EXPANDED_RADII)), "{}", width(EXPANDED_RADII));
 }
 
 #[test]
@@ -249,4 +265,23 @@ fn the_chip_rounds_the_distance_in_the_players_unit() {
     assert_eq!(distance_text(-3.0, SpeedUnits::Metric), "0 m");
     assert_eq!(distance_text(100.0, SpeedUnits::Imperial), "350 ft");
     assert_eq!(distance_text(1609.344, SpeedUnits::Imperial), "1.0 mi");
+}
+
+#[test]
+fn a_mark_carries_the_variant_and_heading_of_the_games_icon() {
+    let place = |kind| NavMarker { kind, position: [1.0, 2.0], name: None, discovered: true };
+    let markers = vec![
+        place(NavMarkerKind::Race(nfsmw_data::gameplay::RaceType::Drag)),
+        place(NavMarkerKind::CarLot),
+        place(NavMarkerKind::AutoShop),
+    ];
+    let blips = vec![
+        MapBlip { style: RACER, position: [5.0, 0.0], active: false, heading: Some([0.0, 1.0]) },
+        MapBlip { style: RACER, position: [6.0, 0.0], active: false, heading: None },
+    ];
+    let marks = marks(&HudState { markers, blips, ..HudState::default() });
+    let variants: Vec<(MarkKind, u8)> = marks.iter().map(|mark| (mark.kind, mark.variant)).collect();
+    let expected = [(MarkKind::Race, 2), (MarkKind::Shop, CAR_LOT), (MarkKind::Shop, SHOP)];
+    assert_eq!(variants, [expected[0], expected[1], expected[2], (MarkKind::Racer, 0), (MarkKind::Racer, 1)]);
+    assert_eq!((marks[3].heading, marks[4].heading), (Some([0.0, 1.0]), None));
 }

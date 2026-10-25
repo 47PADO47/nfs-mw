@@ -108,7 +108,7 @@ impl Theme for ModHud {
             return Some(component);
         }
         match self.theme.declares_tokens() {
-            true => hud_component(slot, &self.radio, &self.custom),
+            true => hud_component(slot, &self.radio, &self.custom, None),
             false => None,
         }
     }

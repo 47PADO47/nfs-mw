@@ -24,7 +24,8 @@ names!(
 pub enum MapMode {
     /// No map.
     Off,
-    /// No map, only a turn-cue chip near the top centre: an arrow for the next turn of the route and its distance.
+    /// A small, fainter map centred on the screen, and a turn-cue chip near the top centre: an arrow for the next turn of
+    /// the route and its distance.
     Compact,
     /// The translucent map centred on the screen, always on. The default.
     #[default]

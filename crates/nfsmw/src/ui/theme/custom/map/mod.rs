@@ -1,26 +1,31 @@
-//! The Custom map: a simplified road map drawn over the middle of the 3D view, translucent so the player sees both
+//! The Custom map: the game's own map picture drawn over the middle of the 3D view, translucent so the player sees both
 //! the map and the world (`docs/specs/custom-hud-map-impl.md`). It fills the `Minimap` slot; the `Blips` slot is left
-//! empty, since the map draws its own marks.
+//! empty, since the map draws its own marks, with the game's own icons.
 //!
 //! `layout` does the frame's work: it reads the feed (`CustomFeedCell`), moves the mode change and the zoom spring on,
-//! refreshes the cached local set of roads when the car has moved far enough, and projects the roads, the race and GPS
-//! routes, the marks and the player's arrow into canvas units, clipped to a soft ellipse. `build` emits what `layout` made.
+//! and projects the picture's tiles, the race and GPS routes, the marks and the player's arrow into canvas units,
+//! clipped to a soft ellipse. `build` emits what `layout` made. An install with no minimap tiles has no picture: the
+//! map then draws the roads of the loaded network as strokes, from the cached local set of roads.
 //!
 //! - [`modes`]: the four modes, the change from one to the next, and the map's keys.
 //! - [`memory`]: what the map keeps between frames (the local set, the zoom spring, the mode change).
 //! - [`view`]: the projection (north-up or heading-up) and the ellipse.
+//! - [`picture`]: the game's map tiles, cut into cells that fade at the ellipse's edge, and the wash under them.
+//! - [`icons`]: the game's icons for the marks and the player's arrow, found in the HUD package.
 //! - [`roads`]: the local set's cache rule and the road strokes.
 //! - [`marks`]: the marks as data, under the fair-knowledge rules.
-//! - [`draw`]: the marks' shapes, the route and the arrow.
+//! - [`draw`]: the marks (the game's icons, or shapes), the route and the arrow.
 //! - [`chip`]: the Compact mode's turn-cue chip.
 
 pub mod chip;
 #[cfg(test)]
 mod component_tests;
 pub mod draw;
+pub mod icons;
 pub mod marks;
 pub mod memory;
 pub mod modes;
+pub mod picture;
 pub mod roads;
 #[cfg(test)]
 mod tests;
@@ -32,7 +37,7 @@ use blackbox_minimap::Orientation;
 use blackbox_ui::{Component, DrawList, LayoutCx, Polylines, Rect};
 use glam::Vec2;
 
-use self::draw::{Stage, arrow, colour, draw_marks, race_route_lines, route_lines};
+use self::draw::{Art, Stage, arrow_parts, colour, draw_marks, race_route_lines, route_lines};
 use self::memory::{MapMemory, MapMemoryCell};
 use self::modes::{Overlay, transition};
 use self::roads::{RoadLook, road_lines};
@@ -40,6 +45,7 @@ use self::view::{MapView, ellipse};
 use super::feed::{CustomFeed, CustomFeedCell};
 use super::layout::HudBox;
 use super::tokens::{Motion, fade, keys};
+use crate::ui::theme::original::{FengSource, FrameCell};
 
 /// Depths of the map's layers: far behind the HUD's other elements (`DEFAULT_Z`), the roads farthest, the arrow nearest.
 pub const ROAD_Z: f32 = 60.0;
@@ -51,11 +57,19 @@ pub const ROUTE_GAIN: f32 = 0.4;
 pub const DRIVEN_SHARE: f32 = 0.5;
 /// The side roads' alpha as a share of the main roads'.
 pub const SIDE_SHARE: f32 = 0.8;
+/// How much farther the overlay shows with the game's picture than with the roads, at the same zoom: the picture is
+/// 6.5 m to a texel, so it needs a wider view than vector roads to stay crisp.
+pub const PICTURE_SPAN: f32 = 2.4;
+/// The wash behind the picture, as an alpha: the usual one, and with high contrast.
+pub const WASH: f32 = picture::WASH_ALPHA;
+pub const WASH_HIGH_CONTRAST: f32 = 0.4;
 
 /// The Custom map component. Built per resolve from the shared feed; its state between frames is the feed cell's
 /// map memory.
 pub struct CustomMap {
     feed: CustomFeedCell,
+    /// The HUD package's frame, where the game's icons are. `None` draws the marks as shapes.
+    frame: Option<FrameCell>,
     memory: MapMemoryCell,
     lines: Polylines,
     parts: Vec<Box<dyn Component>>,
@@ -65,7 +79,12 @@ impl CustomMap {
     /// The map that reads `feed` and keeps its state in the feed cell's map memory.
     pub fn new(feed: CustomFeedCell) -> Self {
         let memory = feed.map_memory();
-        Self { feed, memory, lines: Polylines::new(), parts: Vec::new() }
+        Self { feed, frame: None, memory, lines: Polylines::new(), parts: Vec::new() }
+    }
+
+    /// This map with the game's icons for its marks and arrow, taken from `frame`'s HUD tree.
+    pub fn with_frame(self, frame: FrameCell) -> Self {
+        Self { frame: Some(frame), ..self }
     }
 }
 
@@ -76,7 +95,13 @@ impl Component for CustomMap {
         self.lines.clear();
         self.parts.clear();
         let (lines, parts) = (&mut self.lines, &mut self.parts);
-        self.memory.with(|memory| compose(&feed, memory, cx, (lines, parts)));
+        let tree = self.frame.as_ref().and_then(|frame| frame.get(FengSource::Hud));
+        let art = tree.as_deref().map(|tree| Art {
+            tree,
+            elapsed_s: feed.elapsed_s,
+            reduced: feed.settings.motion_reduction,
+        });
+        self.memory.with(|memory| compose(&feed, memory, cx, art.as_ref(), (lines, parts)));
     }
 
     fn build(&self, out: &mut DrawList) {
@@ -92,6 +117,7 @@ pub fn compose(
     feed: &CustomFeed,
     memory: &mut MapMemory,
     cx: &LayoutCx<'_>,
+    art: Option<&Art<'_>>,
     (lines, parts): (&mut Polylines, &mut Vec<Box<dyn Component>>),
 ) {
     let (hud, settings) = (&*feed.hud, &feed.settings);
@@ -121,15 +147,33 @@ pub fn compose(
     let content = frame.content();
     let radii = Vec2::new(overlay.radii[0], overlay.radii[1]) * content.h;
     let centre = Vec2::new(content.x, content.y);
-    let view_radius = overlay.base_m / zoom.max(0.01);
+    let picture = hud.map_picture.as_deref();
+    let span = match picture {
+        Some(_) => PICTURE_SPAN,
+        None => 1.0,
+    };
+    let view_radius = overlay.base_m * span / zoom.max(0.01);
     let view = MapView::new(car.position, car.heading, heading_up, radii.x / view_radius, centre);
     let (clip, band) = ellipse(centre, radii);
     let stage = Stage { view: &view, clip, band, radii, scale: frame.scale() };
     let roads_opacity = overlay.road_opacity * alpha;
-    if let Some(roads) = &hud.map_roads {
-        memory.local.refresh(roads, car.position, view_radius);
-        let look = road_look(cx, settings.high_contrast, (roads_opacity, overlay.detail), stage.scale);
-        road_lines(roads, &memory.local, &view, (clip, band), &look, ROAD_Z, lines);
+    match (picture, &hud.map_roads) {
+        // The game's own picture, over a faint wash that keeps it readable over a bright street.
+        (Some(picture), _) => {
+            let wash = match settings.high_contrast {
+                true => WASH_HIGH_CONTRAST,
+                false => WASH,
+            };
+            parts.extend(picture::wash(&stage, keys::SURFACE, (wash * alpha, ROAD_Z + 1.0), cx));
+            let tint = fade(colour(cx, keys::TEXT), roads_opacity);
+            picture::picture_parts(picture, &stage, (tint, ROAD_Z), cx, parts);
+        }
+        (None, Some(roads)) => {
+            memory.local.refresh(roads, car.position, view_radius);
+            let look = road_look(cx, settings.high_contrast, (roads_opacity, overlay.detail), stage.scale);
+            road_lines(roads, &memory.local, &view, (clip, band), &look, ROAD_Z, lines);
+        }
+        (None, None) => {}
     }
     let ahead = fade(colour(cx, keys::NAV), (overlay.road_opacity + ROUTE_GAIN).min(1.0) * alpha);
     if let Some(race) = &hud.race_route {
@@ -142,12 +186,10 @@ pub fn compose(
         route_lines(route, car.position, &stage, (ahead, behind), ROUTE_Z, lines);
     }
     let marks_alpha = settings.opacity * alpha;
-    draw_marks(&marks::marks(hud), &stage, (marks_alpha, MARK_Z), cx, parts);
+    draw_marks(&marks::marks(hud), &stage, (marks_alpha, MARK_Z), art, cx, parts);
     let direction = view.direction(car.heading);
     let tones = (fade(colour(cx, keys::TEXT), marks_alpha), fade(colour(cx, keys::SURFACE), marks_alpha));
-    for line in arrow(centre, direction, stage.scale, tones, ARROW_Z) {
-        parts.push(Box::new(line));
-    }
+    parts.extend(arrow_parts(art, (centre, direction), stage.scale, tones, (ARROW_Z, cx)));
 }
 
 /// The road colours for `opacity` (the roads' opacity times the overlay's fade) and `detail` (the Expanded map's

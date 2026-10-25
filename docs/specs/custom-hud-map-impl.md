@@ -7,7 +7,9 @@ not done yet.
 Code:
 
 - `crates/nfsmw/src/hud/map_roads/`: the roads as simplified polylines in a uniform grid, built on the scene side.
-- `crates/nfsmw/src/ui/theme/custom/map/`: the map component (modes, memory, view, roads, marks, draw, chip).
+- `crates/nfsmw/src/ui/theme/custom/map/`: the map component (modes, memory, view, picture, icons, roads, marks, draw,
+  chip).
+- `crates/nfsmw/src/hud/map_picture.rs`: the game's map tiles and calibration for the picture (section 9).
 - `crates/nfsmw/src/hud/map_keys.rs`: the map's keys applied to the live settings.
 - `crates/nfsmw/src/input/bindings.rs` (`hud_map`): the default bindings.
 
@@ -85,9 +87,11 @@ and draw a plain crossing. The turning ones are dropped.
 | Mode | Draws |
 |---|---|
 | Off | nothing |
-| Compact | the turn-cue chip under the top centre: an arrow (straight, left, right, U-turn) and the distance, rounded to 10 m, or to 50 ft below 1000 ft and 0.1 mi above |
-| Centered | the overlay: an ellipse of 46% by 34% of the box height for 300 m, roads at `map_opacity` |
-| Expanded | 64% by 46% for 900 m, roads at `max(map_opacity, min(map_opacity + 0.25, 0.85))`, plus paths and the stretch of the route already driven (at half the route's alpha) |
+| Compact | a small overlay, an ellipse of 15.5% by 11.5% of the box height for 200 m, at 0.7 of `map_opacity`; and the turn-cue chip under the top centre: an arrow (straight, left, right, U-turn) and the distance, rounded to 10 m, or to 50 ft below 1000 ft and 0.1 mi above |
+| Centered | the overlay: an ellipse of 23% by 17% of the box height for 300 m, at `map_opacity` |
+| Expanded | 33% by 24.5% for 600 m, at `max(map_opacity, min(map_opacity + 0.25, 0.85))`, plus paths (roads only) and the stretch of the route already driven (at half the route's alpha) |
+
+The metres are for the roads; with the game's picture the view is 2.4 times wider (section 9).
 
 - The view radius is the base over `map_zoom`; it is what the ellipse's horizontal half-axis shows. The last 12% of
   the mean radius fades the roads, the route and the marks to nothing.
@@ -104,8 +108,8 @@ and draw a plain crossing. The turning ones are dropped.
 Back to front, depths far behind the HUD's other elements (`DEFAULT_Z` is 1): roads (60), route (59), marks (58), the
 player's arrow (57). Line widths are in HUD units times the HUD scale, the same on screen at every zoom.
 
-- **Route:** `HudState::route.path`, nav cyan, three units, the stretch ahead of the car at the roads' opacity plus 0.4.
-- **Race route:** `HudState::race_route` (section 3), nav cyan, three units, under the GPS route. The stretch ahead of
+- **Route:** `HudState::route.path`, nav (signal yellow), three units, the stretch ahead of the car at the roads' opacity plus 0.4.
+- **Race route:** `HudState::race_route` (section 3), nav yellow, three units, under the GPS route. The stretch ahead of
   the player is at the route's alpha and the stretch already driven this lap at half of it; without the player's
   place on the route (no `race_info.remaining_m`) the whole lap is bright. Centered and Expanded both draw it.
 - **Race:** the next gate (`race_info.next_gate`) as a nav ring held inside the ellipse's edge when out of view; the
@@ -161,3 +165,27 @@ draws with this map's pieces rather than its own:
 
 The refactor that shared them (`mark_parts`, `ring`, `road_look`) changes nothing the HUD map draws; its tests are
 unchanged.
+
+## 9. The game's picture and icons
+
+The map draws the game's own minimap picture and icons rather than strokes of the road network
+([map.md](custom-hud/map.md) section 4a for the look).
+
+- **Handover.** `hud::MapPicture` holds the texture keys of the 64 tiles of the minimap file in use (`<stem>_CHOP<n>`)
+  and its calibration. The HUD plugin builds one when the file changes (`MinimapBinding::picture`) and copies the
+  handle into `HudState::map_picture` every frame; `None` when the install has no minimap, and the map draws the roads.
+  The file is the one the Original and Remastered minimaps show: the stage's, a pursuit race's region, or a race's own
+  event map (with its route baked in).
+- **Cells.** `map/picture.rs` finds the blocks under the circle that holds the ellipse (the picture is 64 blocks
+  wide), keeps those the ellipse reaches, draws the ones well inside as one `Image` each and cuts the ones the soft edge
+  crosses into up to 12 x 12 cells, each tinted by the fade at its middle. The cells are one component (one box per
+  frame). A block is an upright square of the picture turned by the view's heading-up turn.
+- **Why cells and not the game's mask.** The game fades its minimap through a mask texture that moves per object; the
+  presenter keeps a slot per masked object, which does not fit a thousand cells. A tint per cell does the same on an
+  additive texture.
+- **Icons.** `map/icons.rs` finds the object by its name hash in the frame's HUD tree (`FrameCell`, the source the
+  Original minimap reads) and takes its texture, its size on the HUD and its colour. `draw.rs` places it at the mark's
+  projected place, turned to the mark's heading when the HUD state has one (the racers); an icon that is missing draws
+  the shape. A mod theme that declares tokens draws the picture and the shapes: it has no frame cell.
+- **Cost.** About a thousand quads in the Centered view (the ellipse's area over the cell, and a block for the interior).
+  Measured: **to be measured** (see section 7).

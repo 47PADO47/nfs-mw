@@ -15,7 +15,8 @@
 //! The HUD ([`hud_component`], shared with a mod theme that declares tokens):
 //!
 //! - [`cluster`]: the horizontal telemetry cluster (the drive slots).
-//! - [`map`]: the centred translucent map (`Minimap`; `Blips` is left empty) and its turn-cue chip.
+//! - [`map`]: the centred translucent map, drawn from the game's own map picture and icons (`Minimap`; `Blips` is left
+//!   empty), and its turn-cue chip.
 //! - [`mode`] and [`memory`]: the contextual mode (free roam, race, pursuit) with its crossfade, and what the layouts
 //!   remember across frames.
 //! - [`free_roam`], [`race`], [`pursuit`], [`banner`], [`condition`]: the discovery chips and extras, the race strip and
@@ -80,6 +81,7 @@ pub use skin::card_skin;
 
 use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId, Tokens};
 
+use crate::ui::theme::original::FrameCell;
 use crate::ui::theme::{ElementId, LanCell, MenuListCell};
 use cluster::Cluster;
 use lan_hud::LanHudParts;
@@ -99,6 +101,8 @@ pub struct CustomTheme {
     glide: GlideCell,
     /// The LAN page and session HUD (filled by the LAN front end).
     lan: LanCell,
+    /// The HUD package's frame, where the centred map finds the game's icons. `None` draws shapes.
+    frame: Option<FrameCell>,
 }
 
 impl CustomTheme {
@@ -114,7 +118,13 @@ impl CustomTheme {
             menus: MenuListCell::new(),
             glide: GlideCell::default(),
             lan: LanCell::default(),
+            frame: None,
         }
+    }
+
+    /// This theme with the centred map drawing the game's own icons, found in `frame`'s HUD tree.
+    pub fn with_frame(self, frame: FrameCell) -> Self {
+        Self { frame: Some(frame), ..self }
     }
 
     /// This theme with its menus drawn from `menus`, the cell the frontend fills each frame.
@@ -150,7 +160,7 @@ impl Theme for CustomTheme {
         if menu::draws(slot) {
             return Some(Box::new(CustomMenu::new(slot, self.menus.clone(), self.glide.clone())));
         }
-        hud_component(slot, &self.radio, &self.feed)
+        hud_component(slot, &self.radio, &self.feed, self.frame.as_ref())
     }
 
     fn tokens(&self) -> Tokens {
@@ -161,8 +171,14 @@ impl Theme for CustomTheme {
 /// The component the token-driven look draws for `slot`, or `None` for a slot it does not re-express. Shared by the
 /// built-in token theme and by a mod theme that declares tokens (`ui/theme/modded`).
 ///
-/// The HUD components read `feed`. A slot the look does not re-express returns `None`, so it falls back to Original.
-pub fn hud_component(slot: SlotId, radio: &RadioFeedCell, feed: &CustomFeedCell) -> Option<Box<dyn Component>> {
+/// The HUD components read `feed`; the map takes the game's icons from `frame` when it has one. A slot the look does not
+/// re-express returns `None`, so it falls back to Original.
+pub fn hud_component(
+    slot: SlotId,
+    radio: &RadioFeedCell,
+    feed: &CustomFeedCell,
+    frame: Option<&FrameCell>,
+) -> Option<Box<dyn Component>> {
     // A slot id outside the catalogue has no component, and neither does any slot the look does not re-express.
     match ElementId::from_slot(slot)? {
         ElementId::RadioCard => Some(Box::new(RadioCard::new(radio.clone(), feed.clone()))),
@@ -184,7 +200,13 @@ pub fn hud_component(slot: SlotId, radio: &RadioFeedCell, feed: &CustomFeedCell)
         // The map and the edge arrows show what the player can know of the police.
         ElementId::PoliceRadar => Some(Box::new(Empty)),
         ElementId::VehicleCondition => Some(Box::new(condition::ConditionChip::new(feed.clone()))),
-        ElementId::Minimap => Some(Box::new(map::CustomMap::new(feed.clone()))),
+        ElementId::Minimap => {
+            let map = map::CustomMap::new(feed.clone());
+            Some(Box::new(match frame {
+                Some(frame) => map.with_frame(frame.clone()),
+                None => map,
+            }))
+        }
         ElementId::Blips => Some(Box::new(Empty)),
         _ => None,
     }

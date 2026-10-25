@@ -25,9 +25,9 @@ pub fn marks(frame: &WorldMapFrame) -> Vec<Mark> {
     let mut out: Vec<Mark> = listed
         .iter()
         .filter_map(|&index| frame.blips.get(index))
-        .map(|blip| Mark { kind: kind_of(blip.style), at: blip.world, alpha: 1.0 })
+        .map(|blip| Mark::new(kind_of(blip.style), blip.world))
         .collect();
-    out.extend(frame.route.as_ref().map(|route| Mark { kind: MarkKind::Target, at: route.target, alpha: 1.0 }));
+    out.extend(frame.route.as_ref().map(|route| Mark::new(MarkKind::Target, route.target)));
     out
 }
 
