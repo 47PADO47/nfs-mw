@@ -33,6 +33,7 @@ mod pcm;
 pub mod schl;
 mod source;
 pub mod speech;
+pub mod sps;
 
 #[cfg(test)]
 mod tests;
