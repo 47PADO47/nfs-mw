@@ -11,11 +11,18 @@
 //! - **PursuitMeter.** One slot for the whole chase display: the signed meter and its cool-down bar, plus the pursuit
 //!   board (its timer and the cops count). The board is bound in the same place as the meter and shows only while a
 //!   chase runs, so a split would add a slot with no consumer.
+//! - **BountyRow.** The bounty row sits inside the pursuit board **[verified]**. The pursuit meter's adapter excludes it,
+//!   and the bounty row's adapter emits it. Because the row used to go with the board, it still does: a theme that
+//!   replaces the pursuit meter but leaves the bounty row to Original draws no bounty row ([`HOSTS`], applied by the
+//!   composer), which is what that theme drew before the slot existed.
+//! - **RaceStatus, Leaderboard and Banner.** The race information group, `LeaderBoardGroup`, and the generic message and
+//!   3-2-1-GO groups. No other slot's roots are above them, so they were drawn as unclaimed nodes before their slots.
+//! - **Notifications, WorldMarkers and VehicleCondition.** No Original source: the Original theme leaves them empty.
 //! - **RadioCard and BustedOverlay.** Their packages have no HUD root, so each emits its whole package.
 //!
-//! Nodes in no slot: the rear-view mirror and the bounty row (not confirmed under the board). The police radar is the
-//! `PoliceRadar` slot, with its laser; the heat arcs belong to the minimap. They are not lost. [`emit_unclaimed`] appends
-//! every node of the HUD package that no HUD slot takes, so the composed HUD draws them as the package does (`docs/specs/ui-themes-compose.md`).
+//! Nodes in no slot: the rear-view mirror. The police radar is the `PoliceRadar` slot, with its laser; the
+//! heat arcs belong to the minimap. They are not lost. [`emit_unclaimed`] appends every node of the HUD package that no
+//! HUD slot takes, so the composed HUD draws them as the package does (`docs/specs/ui-themes-compose.md`).
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -31,8 +38,9 @@ use super::frame::{FengSource, FrameCell};
 use super::structure::NONE;
 use super::subtree::{FengSubtree, Scope};
 
-/// The slots that read the HUD package, in catalogue order. The composer builds them in this order.
-pub(crate) const HUD_SLOTS: [ElementId; 10] = [
+/// The slots of the HUD layer, in catalogue order. The composer builds them in this order. The last three have no
+/// Original source and are drawn only by a theme that provides them.
+pub(crate) const HUD_SLOTS: [ElementId; 17] = [
     ElementId::Tachometer,
     ElementId::Speedometer,
     ElementId::GearIndicator,
@@ -43,7 +51,29 @@ pub(crate) const HUD_SLOTS: [ElementId; 10] = [
     ElementId::Turbo,
     ElementId::Speedbreaker,
     ElementId::PoliceRadar,
+    ElementId::RaceStatus,
+    ElementId::Leaderboard,
+    ElementId::BountyRow,
+    ElementId::Banner,
+    ElementId::Notifications,
+    ElementId::WorldMarkers,
+    ElementId::VehicleCondition,
 ];
+
+/// The slots whose FEng objects sit inside another slot's objects in the package, each with that host slot. When the
+/// active theme replaces the host but leaves the nested slot to Original, the nested slot draws nothing, as it did while
+/// it was part of the host.
+pub(crate) const HOSTS: [(ElementId, ElementId); 1] = [(ElementId::BountyRow, ElementId::PursuitMeter)];
+
+/// The host of `slot` in [`HOSTS`], or `None` for a slot that stands on its own.
+pub(crate) fn host_of(slot: ElementId) -> Option<ElementId> {
+    HOSTS.iter().find(|(nested, _)| *nested == slot).map(|(_, host)| *host)
+}
+
+/// Whether Original leaves `slot` empty: the HUD slots that have no FEng source.
+pub(super) fn is_new_only(slot: ElementId) -> bool {
+    matches!(slot, ElementId::Notifications | ElementId::WorldMarkers | ElementId::VehicleCondition)
+}
 
 /// The scope of a slot in the HUD package, or `None` for a slot that reads another package.
 fn hud_scope(slot: ElementId) -> Option<Scope> {
@@ -59,6 +89,10 @@ fn hud_scope(slot: ElementId) -> Option<Scope> {
         ElementId::Turbo => scope(roots::turbo()),
         ElementId::Speedbreaker => scope(roots::speedbreaker()),
         ElementId::PoliceRadar => scope(roots::police_radar()),
+        ElementId::RaceStatus => scope(roots::race_status()),
+        ElementId::Leaderboard => scope(roots::leaderboard()),
+        ElementId::BountyRow => scope(roots::bounty_row()),
+        ElementId::Banner => scope(roots::banner()),
         _ => return None,
     })
 }

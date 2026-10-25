@@ -246,6 +246,7 @@ impl WorldScene {
             collisions: 0,
             origin: super::Origin { race: race.clone(), course: None },
             route: None,
+            map_route: None,
             shortcuts: Vec::new(),
             restarted: false,
         });

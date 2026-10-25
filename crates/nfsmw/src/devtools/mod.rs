@@ -4,6 +4,7 @@
 mod console;
 mod extra_options;
 mod graphics_lab;
+pub(crate) mod hud_scenarios;
 mod logbuf;
 mod logfile;
 mod metrics;
@@ -49,6 +50,7 @@ type LanParams<'w> =
 
 /// Run the UI pass: feed egui this frame's input, draw the panels, publish the output.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::type_complexity)] // Bevy takes at most 16 system parameters, so the last ones are one tuple
 fn run_ui(
     gui: Res<Gui>,
     themes: Res<crate::ui::theme::UiThemes>,
@@ -66,11 +68,12 @@ fn run_ui(
     mut focus: ResMut<crate::input::UiFocus>,
     platform: NonSend<crate::gui::Platform>,
     // Bevy takes at most 16 system parameters: the pass's own memory and the LAN menu's state are one tuple.
-    (mut styled_for, mut settled, mut skipped, mut lan): (
+    (mut styled_for, mut settled, mut skipped, mut lan, scenario): (
         Local<Option<blackbox_ui::Skin>>,
         Local<ui_gate::Settled>,
         Local<bool>,
         LanParams<'_>,
+        Option<Res<hud_scenarios::ActiveScenario>>,
     ),
 ) {
     let _trace = blackbox_trace::scope("UI: build panels");
@@ -87,6 +90,7 @@ fn run_ui(
         readout: !metrics.hud.is_empty(),
         trace: trace::indicator_up(&lab.recorder),
         platform_feedback: platform.visible(),
+        scenario: scenario.is_some(),
     };
     if !ui_gate::egui_needed(visible, *settled) {
         // No panel could take the events: drop them rather than let them pile up.
@@ -166,6 +170,9 @@ fn run_ui(
         overlay::show(ctx, settings.show_metrics, &metrics, left, net.as_deref());
         trace::indicator(ctx, &lab.recorder);
         platform.show(ctx);
+        if let Some(scenario) = scenario.as_deref() {
+            hud_scenarios::label(ctx, scenario.0);
+        }
         console::show(ctx, &mut console);
         graphics_lab::show_world(ctx, &mut lab, &mut settings, &metrics, host.scene.as_mut());
         if garage.open {

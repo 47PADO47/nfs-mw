@@ -27,7 +27,7 @@ use nfsmw_career::blacklist::{KIND_CASH_BONUS, KIND_PINK_SLIP, PART_FIRST, PART_
 
 use crate::career::{CareerHandle, grant_rewards};
 use crate::frontend::ids::screen;
-use crate::frontend::logic::{Args, Command, Cx, Pick, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, ListScreen, Pick, ScreenLogic};
 use crate::frontend::quick_play::pool::Rng;
 use crate::i18n::t;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
@@ -205,7 +205,7 @@ pub struct MarkersLogic {
     deck: Deck,
     /// The highlighted row: a card, or the Continue row after the last card.
     cursor: usize,
-    /// Whether the Remastered look draws the cards as a list (`Cx::vertical_look`).
+    /// Whether the Remastered look draws the cards as a list (`Cx::screen_list_look`, `ListScreen::Markers`).
     vertical: bool,
 }
 
@@ -248,7 +248,7 @@ fn leave(cx: &mut Cx) {
 
 impl ScreenLogic for MarkersLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.screen_list_look(ListScreen::Markers);
         let queue = CareerHandle::shared().with(|career| career.popups.entries().to_vec()).unwrap_or_default();
         self.deck = Deck::new(build_cards(&queue, &mut self.rng));
         log::info!("markers: {} card(s) offered from {} queued reward(s)", self.deck.cards().len(), queue.len());
@@ -259,7 +259,7 @@ impl ScreenLogic for MarkersLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.screen_list_look(ListScreen::Markers);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {

@@ -36,17 +36,17 @@ components read, under the `custom.*` prefix, merged into the skin like the exis
 
 | Token | Use | Default |
 |---|---|---|
-| `text` | digits, primary labels | `#E8EDF2` *(brief)*, 1.0 |
-| `text_secondary` | units, secondary labels, inactive rows | `#9BA7B3` *(brief)*, 1.0 |
-| `surface` | plates behind text | `#12161B`, 0.60 |
-| `surface_raised` | a selected menu row, an expanded chip | `#1C222A`, 0.75 |
-| `rule` | tracks, empty segments, separators | `#E8EDF2`, 0.18 |
+| `text` | digits, primary labels | `#F4F6F8`, 1.0 |
+| `text_secondary` | units, secondary labels, inactive rows | `#B4BEC8`, 1.0 |
+| `surface` | plates behind text | `#10161D`, 0.60 |
+| `surface_raised` | a selected menu row, an expanded chip | `#171F28`, 0.75 |
+| `rule` | tracks, empty segments, separators | `#7C8995`, 0.35 |
 | `accent` | the theme accent (gear box edge, selected row bar) | from `ui_theme`, see below |
-| `nav` | route, active checkpoint, turn cue | `#7FD8EC` (cool cyan) |
-| `success` | escaped, AHEAD, checkpoint confirmed | `#5CC28F` |
+| `nav` | route, active checkpoint, turn cue | `#F4B942` (signal yellow) |
+| `success` | escaped, AHEAD, checkpoint confirmed | `#7DCEA0` |
 | `caution` | rev strip near the shift point, degraded states | `#E8B24A` |
-| `danger` | pursuit, red line, BEHIND emphasis | `#E0524D` *(brief)* |
-| `critical` | critical warnings: solid plate, dark text, icon | `#FFB000`, text on it `#12161B` |
+| `danger` | pursuit, red line, BEHIND emphasis | `#F04452` (the police red) |
+| `critical` | critical warnings: solid plate, dark text, icon | `#FF5A55`, text on it `#10161D` |
 
 **Accent family.** The existing `ui_theme` setting keeps choosing the accent: `bevy` gives the cyan `#78DCFF` and
 `remastered` the gold `#FFC850` (the `secondary` colours of `ui/theme/custom/palette.rs`). Only `accent` follows it;
@@ -66,11 +66,11 @@ an icon. Pursuit danger is red text and rules on a dark plate. The two never loo
 | `surface` | `#000000`, 0.85 |
 | `surface_raised` | `#1A1A1A`, 0.92 |
 | `rule` | `#FFFFFF`, 0.50 |
-| `nav` | `#8FE6FF` |
-| `success` | `#66E0A3` |
-| `caution` | `#FFD166` |
+| `nav` | `#FFD36A` |
+| `success` | `#9AE8BB` |
+| `caution` | `#FFA862` |
 | `danger` | `#FF6B66` |
-| `critical` | `#FFD000`, text on it `#000000` |
+| `critical` | `#FF8A85`, text on it `#000000` |
 
 It also draws a one-unit `text`-coloured outline (alpha 0.6) around every plate, raises the minimum text weight one step
 (see [typography.md](typography.md) section 4) and gives the map's roads a dark under-stroke so they read over bright
@@ -84,11 +84,11 @@ colour-blind-safe set, lightened where a dark plate needs it.
 
 | Token | `default` | `deuteranopia` (red-green) | `tritanopia` (blue-yellow) |
 |---|---|---|---|
-| `nav` | `#7FD8EC` | `#F2F4F7` (cool white) | `#F2F4F7` (cool white) |
-| `success` | `#5CC28F` | `#56B4E9` (sky blue) | `#009E73` (bluish green) |
-| `caution` | `#E8B24A` | `#E69F00` (orange) | `#CC79A7` (reddish purple) |
-| `danger` | `#E0524D` | `#D55E00` (vermilion) | `#E0524D` |
-| `critical` | `#FFB000` | `#F0E442` (yellow) | `#FFB000` |
+| `nav` | `#F4B942` | `#F2F4F7` (cool white) | `#F2F4F7` (cool white) |
+| `success` | `#7DCEA0` | `#56B4E9` (sky blue) | `#009E73` (bluish green) |
+| `caution` | `#E8873A` | `#E69F00` (orange) | `#CC79A7` (reddish purple) |
+| `danger` | `#F04452` | `#D55E00` (vermilion) | `#F04452` |
+| `critical` | `#FF5A55` | `#F0E442` (yellow) | `#FF5A55` |
 
 Order of application: palette, then high contrast (which brightens the palette's hues by the same rule as section 3).
 The pairs to keep apart, checked with a colour-vision simulator in PR 5 and recorded here: `success` against `danger`

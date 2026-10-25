@@ -29,7 +29,8 @@ Design decision: `docs/decisions/0008-ui-themes.md`.
   differently under different themes. Unknown keys return `None`, and the component picks its default.
 - **`DrawList`** is the flat output: a list of `UiNode`s, the same neutral node the presenter draws.
   `in_draw_order` returns the nodes sorted by `z`, with ties kept in insertion order. `into_tree(drawn)`
-  turns the list into a `UiTree` (nodes plus `draw_order`); see the next section.
+  turns the list into a `UiTree` (nodes plus `draw_order`); see the next section. `reserve(n)` makes room for `n` more
+  nodes, for a component that emits many.
 - **`UiNode`, `UiTree`, `NodeKind`** are the neutral draw tree (`src/tree.rs`). They were moved here from
   `blackbox-feng` in task T3 and are re-exported from `blackbox-feng` unchanged.
 - **`InputEvent`** is small on purpose: a pad button press or release, or a pointer move, press or
@@ -91,6 +92,26 @@ and metrics from the `Skin`. Each builds nodes with `world`, `colour`, `world_co
   after a press.
 - **`Choice::new(style, column, value, arrows, nudge, cx)`** is the control of a row that cycles through values: the value
   centred in its column with a `Chevron` at each end when `arrows` is set, and the one the player pressed nudged.
+- **`Polyline::new(points, width, colour)`** strokes a line through `points` (canvas units, `glam::Vec2`), `width` units wide
+  in a straight RGBA `colour` (not a skin key, so a host can give each road class its own). Each segment is one untextured
+  `Image` node: its `world` has the segment (direction times length) in the x column, the normal times the width in the y
+  column and the centre in the translation, so the unit quad lands as a rectangle turned along the segment. Repeated and
+  non-finite points are skipped, so no segment has zero length; fewer than two distinct points draw nothing. Nothing
+  is cached: `build` walks the points and pushes nodes straight into the list.
+  - Joins: `LineJoin::Bevel` (the default) adds one rectangle per turn over the outer notch, its outer edge on the bevel line.
+    `LineJoin::Mitre { limit }` runs both segments on by `half_width * tan(turn / 2)`, so the outer edges meet in the mitre's
+    point with no extra node; a mitre longer than `limit` half widths is bevelled instead. A limit of 2 or less keeps the inner
+    side within the stroke too.
+  - Caps: `LineCap::Butt` (the default) or `LineCap::Square`, which runs each end on by half the width. A clipped end is flat.
+  - `.with_clip(clip, fade)` keeps the line inside a `Clip` (`None`, `Circle { centre, radius }`, `Ellipse { centre, radii }`
+    or `Rect(rect)`). The centre line is clipped analytically; the stroke's width is not, so a clipped end can reach half the width
+    past the edge. `fade` is a band inside the edge where the line fades out: the presenter has one colour per quad, so the part
+    of a segment in the band is cut into pieces about a sixth of the band long (at most 16 per end), each with the opacity at its
+    middle. A join outside the clip is not drawn, and one in the band takes the opacity at its joint.
+  - `.with_z(z)` sets the depth; `points_mut()` refills the points in place; `node_estimate()` is a reserve hint.
+- **`Polylines`** holds many `Polyline`s as one component (a road map), built in the order they were added.
+  `with_capacity(lines)`, `push`, `with_line`, `clear` (keeps the room) and `with_reserve(nodes)`, a node count `build` reserves
+  in the draw list (`DrawList::reserve`) when it is larger than the lines' own estimate.
 
 Each component has unit tests that build it into a `DrawList` and check the node count, the `NodeKind`,
 the placement and the field values. The shared test helpers are in `src/components/mod.rs` (`testing`).
@@ -179,6 +200,14 @@ rule that picks which nodes enter `draw_order`. The library holds no default rul
 visibility conventions belong to the producer. The FEng producer uses `visible && z > 0 && kind is neither
 Group nor Other`. Entries in `draw_order` run farthest first (largest `z`), and the sort is stable, so later
 nodes draw on top of earlier ones at the same depth.
+
+## Notifications
+
+`notify::NotifyQueue<K, P>` is a small queue of HUD notices, generic over the host's key `K` and payload `P`. Each
+notice has a priority (`Critical`, `High`, `Medium`, `Low`, `Background`), a duration and a dedupe window. At most
+three are visible. Critical and High evict the least urgent visible notice when there is no room; Low and Background
+wait while the host says the game is intense; a repeat of a key within its window refreshes the visible notice's expiry
+without restarting it (its `started` time stays); `dismiss` takes a key away. The rules are in `src/notify.rs`.
 
 ## Dependencies
 

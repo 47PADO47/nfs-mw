@@ -159,7 +159,8 @@ pub(super) const ANSWERED: u32 = 0x1b91_ebf4;
 /// left and right, a press answers with the focused button, and back answers no.
 pub struct ConfirmLogic {
     confirm: Confirm,
-    /// Whether the Remastered look draws this dialog as a panel (`Cx::vertical_look`), and whether Yes has the focus.
+    /// Whether a list look (Remastered or Custom) draws this dialog as a panel (`Cx::list_look`), and whether Yes has
+    /// the focus.
     vertical: bool,
     yes: bool,
 }
@@ -213,7 +214,7 @@ fn focus(cx: &mut Cx, guid: u32) {
 
 impl ScreenLogic for ConfirmLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.list_look();
         cx.hide(UNUSED_BUTTON, true);
         match &self.confirm.title {
             Some(title) => set_text(cx, TITLE, title),
@@ -240,7 +241,7 @@ impl ScreenLogic for ConfirmLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.list_look();
         self.yes = yes_is_focused(cx);
     }
 
@@ -386,14 +387,14 @@ impl AlertLogic {
 
 impl ScreenLogic for AlertLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.list_look();
         prepare_notice(cx);
         set_text(cx, MESSAGE, &self.alert.message);
         set_text(cx, ids::HEADER_TEXT, &self.alert.title);
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.list_look();
     }
 
     fn vertical(&self) -> bool {

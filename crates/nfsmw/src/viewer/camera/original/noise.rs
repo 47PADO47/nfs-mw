@@ -1,4 +1,5 @@
-//! Native deterministic vehicle/terrain camera noise, separate from custom shake.
+//! Native deterministic vehicle/terrain camera noise, separate from custom shake. The player's shake multiplier
+//! (`[custom_hud] camera_shake`) scales it too, so 0 is a steady camera.
 
 use glam::{Mat4, Vec3};
 
@@ -16,6 +17,8 @@ pub struct Input<'a> {
     pub overrev: bool,
     /// Horizontal distance to each active police helicopter.
     pub chopper_distances: &'a [f32],
+    /// The player's multiplier of every amplitude, 0 to 1 (`[custom_hud] camera_shake`); 1 is the native noise.
+    pub intensity: f32,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -26,6 +29,8 @@ pub struct Noise {
 
 impl Noise {
     pub fn apply(&mut self, mode: usize, mut sample: Sample, input: Input<'_>) -> Sample {
+        let intensity = crate::viewer::camera::chase::shake::scaled_intensity(input.intensity);
+        let scaled = |amplitudes: [f32; 4]| amplitudes.map(|value| value * intensity);
         let chopper_scale = 1.0 - (input.speed / 30.0).clamp(0.0, 1.0) * 0.8;
         for &distance in input.chopper_distances {
             if distance >= 40.0 {
@@ -37,9 +42,9 @@ impl Noise {
                 input.seconds,
                 // Authored 3.141f32 frequency, deliberately not mathematical PI.
                 [f32::from_bits(0x4049_0625), 2.971, 0.84234, 0.92345],
-                [0.01, 0.05, 1.1, 2.7].map(|value| value * amplitude),
+                scaled([0.01, 0.05, 1.1, 2.7].map(|value| value * amplitude)),
                 self.terrain_frequency,
-                self.terrain_amplitude,
+                scaled(self.terrain_amplitude),
             );
         }
         let mut amplitude = response(input.speed, [0.0, 0.005, 0.03, 0.07, 0.02]);
@@ -76,9 +81,9 @@ impl Noise {
             sample,
             input.seconds,
             [1.8, 2.0, 2.125, 2.0].map(|value| value * frequency),
-            [0.03, 0.025, 0.68, 0.28].map(|value| value * amplitude),
+            scaled([0.03, 0.025, 0.68, 0.28].map(|value| value * amplitude)),
             self.terrain_frequency,
-            self.terrain_amplitude,
+            scaled(self.terrain_amplitude),
         )
     }
 }
@@ -198,6 +203,41 @@ mod tests {
         ] {
             assert!((relative_angle(degrees, fov) / unit - expected).abs() < 0.01);
         }
+    }
+
+    fn shaking_input(intensity: f32) -> Input<'static> {
+        Input {
+            seconds: 0.37,
+            speed: 30.0,
+            forward_acceleration: 8.0,
+            terrain: [1.0, 1.0],
+            nos: false,
+            brake: true,
+            drag: false,
+            overrev: false,
+            chopper_distances: &[10.0],
+            intensity,
+        }
+    }
+
+    #[test]
+    fn the_shake_intensity_scales_the_noise_and_zero_holds_the_camera_steady() {
+        let sample = Sample { eye: Vec3::ZERO, target: -Vec3::Z, up: Vec3::Y, fov_bangle: 14198.0 };
+        let moved = |intensity: f32| {
+            let mut noise = Noise::default();
+            // A second frame also runs the helicopter pass on the stored terrain noise.
+            noise.apply(3, sample, shaking_input(intensity));
+            let result = noise.apply(3, sample, shaking_input(intensity));
+            result.eye.distance(sample.eye) + result.target.distance(sample.target)
+        };
+        let full = moved(1.0);
+        assert!(full > 1e-4, "braking at speed over rough ground shakes the camera");
+        assert_eq!(moved(f32::NAN), full, "a value that is not a number keeps the native noise");
+        let half = moved(0.5);
+        assert!(half > 0.0 && half < full, "half is between steady and native: {half} of {full}");
+        let mut noise = Noise::default();
+        noise.apply(3, sample, shaking_input(0.0));
+        assert_eq!(noise.apply(3, sample, shaking_input(0.0)), sample, "0 is a steady camera");
     }
 
     #[test]

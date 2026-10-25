@@ -85,3 +85,30 @@ fn presentation_never_starts_a_pulse_before_the_contact_tick() {
     assert_eq!(shake.sample(0.0), -Vec3::Z * 0.4);
     assert!(shake.sample(1.0).length() < 0.4);
 }
+
+#[test]
+fn the_intensity_scales_the_offset_and_zero_removes_it() {
+    let hit = |intensity: f32| {
+        let mut shake = Shake::default();
+        shake.set_intensity(intensity);
+        shake.request(Vec3::Z * 600.0);
+        shake.advance(1.0 / 60.0);
+        shake
+    };
+    assert_eq!(hit(1.0).sample(1.0), -Vec3::Z * 0.4, "1 keeps the original amplitude");
+    assert!((hit(0.5).sample(1.0) - -Vec3::Z * 0.2).length() < 1e-6);
+    assert_eq!(hit(0.0).sample(1.0), Vec3::ZERO, "0 is no shake");
+    assert_eq!(hit(f32::NAN).sample(1.0), -Vec3::Z * 0.4, "a value that is not a number keeps the shake");
+    assert_eq!(hit(3.0).sample(1.0), -Vec3::Z * 0.4, "clamped to 1");
+}
+
+#[test]
+fn clearing_drops_the_pulses_and_keeps_the_intensity() {
+    let mut shake = Shake::default();
+    shake.set_intensity(0.25);
+    shake.request(Vec3::Z * 600.0);
+    shake.advance(1.0 / 60.0);
+    shake.clear();
+    assert_eq!(shake.sample(1.0), Vec3::ZERO);
+    assert_eq!(shake.intensity, 0.25);
+}

@@ -9,8 +9,9 @@ use crate::ui::theme::ElementId;
 
 use super::{FengSource, FrameCell, OriginalTheme};
 
-/// The HUD slots, and the menu slots, which T8 fills.
-const HUD_SLOTS: [ElementId; 10] = [
+/// The HUD slots, and the menu slots, which T8 fills. The Custom HUD's slots (13 to 19) are here too: the synthetic
+/// package below has none of their objects, so they emit nothing from it (their objects are tested in `compose_tests`).
+const HUD_SLOTS: [ElementId; 17] = [
     ElementId::Tachometer,
     ElementId::Speedometer,
     ElementId::GearIndicator,
@@ -21,7 +22,19 @@ const HUD_SLOTS: [ElementId; 10] = [
     ElementId::Turbo,
     ElementId::Speedbreaker,
     ElementId::PoliceRadar,
+    ElementId::RaceStatus,
+    ElementId::Leaderboard,
+    ElementId::BountyRow,
+    ElementId::Banner,
+    ElementId::Notifications,
+    ElementId::WorldMarkers,
+    ElementId::VehicleCondition,
 ];
+
+#[test]
+fn the_local_slot_list_is_the_composers() {
+    assert_eq!(HUD_SLOTS, super::HUD_SLOTS);
+}
 
 fn h(name: &str) -> u32 {
     fe_hash_upper(name)

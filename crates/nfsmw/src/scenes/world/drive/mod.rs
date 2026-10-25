@@ -229,6 +229,11 @@ impl Drive {
         self.rig.set_scale(scale);
     }
 
+    /// The chase camera's contact shake multiplier, 0 to 1 (`[custom_hud] camera_shake`).
+    pub fn set_camera_shake(&mut self, intensity: f32) {
+        self.chase.set_shake_intensity(intensity);
+    }
+
     /// Apply an impact to a zone (see `CarSim::inflict`).
     pub fn inflict(&mut self, zone: usize, severity: u8, glazed: bool) -> bool {
         match self.sim.as_mut() {
@@ -386,7 +391,7 @@ impl Drive {
     }
 
     pub fn hud_state(&self) -> Option<crate::hud::HudState> {
-        self.sim.as_ref()?;
+        let sim = self.sim.as_ref()?;
         let t = &self.telemetry;
         let pose = self.pose();
         let forward = pose.rotation * Vec3::X;
@@ -409,6 +414,8 @@ impl Drive {
             speedbreaker_active: self.breaker.active(),
             has_turbo: t.has_induction,
             boost_psi: t.boost_psi,
+            telemetry: sim.hud_telemetry(),
+            condition: Some(sim.hud_condition()),
             ..Default::default()
         })
     }

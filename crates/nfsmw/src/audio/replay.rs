@@ -44,15 +44,24 @@ impl Audio {
         .unwrap();
         let mut music_builder = TrackBuilder::new();
         let music_filter = music_builder.add_effect(super::filter::MusicFilterBuilder);
-        let (sfx, music, engine) = (
+        let (sfx, music, engine, hud) = (
             manager.add_sub_track(TrackBuilder::new()).unwrap(),
             manager.add_sub_track(music_builder).unwrap(),
+            manager.add_sub_track(TrackBuilder::new()).unwrap(),
             manager.add_sub_track(TrackBuilder::new()).unwrap(),
         );
         Self::with_output(
             dir,
             Volumes::default(),
-            Some(Output { manager: OutputManager::Replay(Box::new(manager)), sfx, music, music_filter, engine, wet }),
+            Some(Output {
+                manager: OutputManager::Replay(Box::new(manager)),
+                sfx,
+                music,
+                music_filter,
+                engine,
+                hud,
+                wet,
+            }),
         )
     }
 

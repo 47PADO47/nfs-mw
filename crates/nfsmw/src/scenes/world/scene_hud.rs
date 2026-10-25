@@ -23,10 +23,17 @@ impl WorldScene {
         if self.career.garage.is_some() {
             return 0.0;
         }
-        crate::hud::show_interact_prompt(ctx, &self.entry.popup);
-        crate::hud::show_mod_message(ctx);
-        self.show_pursuit_end(ctx);
-        self.show_race_card(ctx);
+        // Under the Custom HUD the theme draws these cards from the HUD state (`hud/cards.rs`); a mod's line still
+        // counts its time down here.
+        match crate::hud::cards_routed() {
+            true => crate::hud::advance_mod_message(ctx.input(|input| input.stable_dt)),
+            false => {
+                crate::hud::show_interact_prompt(ctx, &self.entry.popup);
+                crate::hud::show_mod_message(ctx);
+                self.show_pursuit_end(ctx);
+                self.show_race_card(ctx);
+            }
+        }
         self.show_race_message_card(ctx);
         self.show_nis_bars(ctx);
         self.show_story_movie(ctx);

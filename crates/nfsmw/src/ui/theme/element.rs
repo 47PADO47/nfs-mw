@@ -74,6 +74,16 @@ catalogue! {
     RadioCard = 10,
     BustedOverlay = 11,
     PoliceRadar = 12,
+    // HUD slots of the Custom HUD (ADR 0013), in the free block before the front end. Numbers 13 to 19. The first four
+    // take FEng objects the HUD package already draws (the race readout, the leaderboard, the bounty row, the centred
+    // messages and countdown); the last three have no Original source, so Original leaves them empty.
+    RaceStatus = 13,
+    Leaderboard = 14,
+    BountyRow = 15,
+    Banner = 16,
+    Notifications = 17,
+    WorldMarkers = 18,
+    VehicleCondition = 19,
     // Front end (screen-fed, `frontend/`). Numbers 20 to 25.
     MainMenu = 20,
     Categories = 21,

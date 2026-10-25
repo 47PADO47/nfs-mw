@@ -35,11 +35,12 @@ pub struct WidgetMenu {
     top: usize,
     on_screen: usize,
     leaving: bool,
-    /// Whether the Remastered look draws this page as a list, and the rows as it shows them (`vertical.rs`).
+    /// Whether a list look (Remastered or Custom) draws this page, and the rows as it shows them (`vertical.rs`).
     vertical: bool,
     entries: Vec<MenuEntry>,
-    /// The page's heading, for the list.
+    /// The page's heading, and the line under it (the HUD page's preview), for the list.
     heading: String,
+    note: String,
     /// Seconds since the page opened, and the last press on a row: its index, its way and the time it was made.
     clock: f32,
     nudge: Option<(usize, bool, f32)>,
@@ -67,6 +68,7 @@ impl WidgetMenu {
             vertical: false,
             entries: Vec::new(),
             heading: String::new(),
+            note: String::new(),
             clock: 0.0,
             nudge: None,
         }
@@ -381,6 +383,7 @@ impl ScreenLogic for WidgetMenu {
             (super::logic::Category::Gameplay, true) => 0x3936_D9F8,
             (super::logic::Category::Player, true) => 0xD9DC_2F12,
             (super::logic::Category::Controls | super::logic::Category::Discord | super::logic::Category::Mods, _) => 0,
+            (super::logic::Category::Hud, _) => 0,
             (super::logic::Category::CustomRace, _) => super::custom_race::state::mode().options_title(),
         };
         self.heading = vertical::heading(cx, self.args.category, title);
@@ -395,6 +398,7 @@ impl ScreenLogic for WidgetMenu {
             super::logic::Category::Controls => cx.text_group(ids::HEADER_TEXT, &t!("menus-control-options")),
             super::logic::Category::Discord => cx.text_group(ids::HEADER_TEXT, "Discord"),
             super::logic::Category::Mods => cx.text_group(ids::HEADER_TEXT, &t!("menus-mods")),
+            super::logic::Category::Hud => cx.text_group(ids::HEADER_TEXT, &t!("menus-hud")),
             _ => {}
         }
         self.refresh(cx);

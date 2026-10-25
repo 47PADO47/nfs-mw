@@ -226,6 +226,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         fe_shadows: fe_shadows::from_env(&get),
         net: super::net::from_env(&get),
         xenon_effects: Default::default(), // config file only
+        hud_options: Default::default(),   // config file and console only
     }
 }
 

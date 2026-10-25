@@ -166,6 +166,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         fe_shadows: s.fe_shadows.into(),
         net: s.net.into(),
         xenon_effects: Default::default(), // config file only; the menus never write it
+        hud_options: s.hud_options.into(),
         rain_amount: Some(s.rain_amount),
         game_speed: Some(s.game_speed),
         animation_speed: Some(s.animation_speed),
@@ -358,6 +359,18 @@ mod tests {
         let name = save_new_alias(&store, &settings).unwrap();
         assert_eq!(load_latest_alias(&store).unwrap(), Some((name, settings)));
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_custom_hud_options_are_part_of_the_settings_written() {
+        let mut settings = Settings::from(Partial::default());
+        settings.hud_options.apply_preset(crate::settings::hud::HudPreset::Advanced);
+        settings.hud_options.scale = 1.25;
+        settings.hud_options.haptics = true;
+        let partial = partial_of(&settings);
+        assert_eq!(partial.hud_options, crate::settings::hud::HudLayer::from(settings.hud_options));
+        let back = settings_from_payload(&settings_payload(&settings).unwrap()).unwrap();
+        assert_eq!(back.hud_options, settings.hud_options, "the [custom_hud] table round-trips through an alias");
     }
 
     #[test]

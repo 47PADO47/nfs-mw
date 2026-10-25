@@ -61,6 +61,8 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [benchmarks/](benchmarks/) | Dated measurement reports: [Bevy vs native, 2026-10-10](benchmarks/2026-10-10-bevy-vs-native.md) and [performance sweep, 2026-10-17](benchmarks/2026-10-17-perf-sweep.md) |
 | [window-modes.md](window-modes.md) | Windowed, borderless and exclusive fullscreen, display selection, resolution and runtime switching |
 | [hud-layout.md](hud-layout.md) | PC widescreen, centered and Xbox-scaled HUD presets |
+| [hud-settings.md](hud-settings.md) | The Custom HUD's `[custom_hud]` table: presets, size, map, information, accessibility, camera shake and FOV, console keys |
+| [HUD_DESIGN_SYSTEM.md](HUD_DESIGN_SYSTEM.md), [HUD_REFERENCE_BOARD.md](HUD_REFERENCE_BOARD.md) | The Custom HUD's visual source of truth (Rockport / Signal System: colour, type, layout, the map from the game's own picture and icons) and its reference images |
 | [upscaling.md](upscaling.md) | Render scale, bilinear and FSR 1 upscaling, the temporal upscalers and their quality modes, ReShade limits, seams for DLSS |
 | [native-dlss.md](native-dlss.md) | Optional Streamline DLSS SR/DLAA, Reflex and Frame Generation on native Windows Vulkan/DX12 |
 | [reshade.md](reshade.md) | Using ReShade or vkBasalt: backends, the reverse-Z depth settings, render scale limits |

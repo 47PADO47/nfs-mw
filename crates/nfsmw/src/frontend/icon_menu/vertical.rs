@@ -1,5 +1,5 @@
-//! The icon menu as a list: what a theme that draws it vertically (the Remastered menus) reads and does. The package
-//! still supplies the order of the entries and the messages; this is the part that is not its icons.
+//! The icon menu as a list: what a theme that draws it vertically (the Remastered and Custom menus) reads and does. The
+//! package still supplies the order of the entries and the messages; this is the part that is not its icons.
 
 use super::{Category, Cx, Icon, IconMenu, Id, Kind, Pick};
 use crate::frontend::custom_race::state as custom_state;
@@ -33,6 +33,7 @@ impl IconMenu {
             Id::ControlOptions => Some(t!("menus-control-options")),
             Id::EndCoop => Some(t!("menus-end-coop")),
             Id::Category(Category::Discord) => Some("Discord".into()),
+            Id::Category(Category::Hud) => Some(t!("menus-hud")),
             Id::Category(Category::Mods) => Some(t!("menus-mods")),
             Id::SafeHouseBlacklist(stage) => Some(t!("menus-blacklist-stage", stage = stage)),
             _ => None,

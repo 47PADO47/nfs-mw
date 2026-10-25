@@ -30,6 +30,12 @@ impl DrawList {
         self.nodes.clear();
     }
 
+    /// Makes room for at least `additional` more nodes, so a component that emits many (a map of roads) grows the
+    /// list once instead of many times.
+    pub fn reserve(&mut self, additional: usize) {
+        self.nodes.reserve(additional);
+    }
+
     /// The nodes in insertion order.
     pub fn iter(&self) -> std::slice::Iter<'_, UiNode> {
         self.nodes.iter()
@@ -96,6 +102,15 @@ mod tests {
         assert_eq!(list.len(), 2);
         list.clear();
         assert!(list.is_empty());
+    }
+
+    #[test]
+    fn reserve_adds_no_nodes() {
+        let mut list = DrawList::new();
+        list.reserve(64);
+        assert!(list.is_empty());
+        list.push(node(0.0, 1));
+        assert_eq!(list.len(), 1);
     }
 
     #[test]

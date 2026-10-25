@@ -25,7 +25,7 @@ struct Shared {
     selected: AtomicU32,
     effective: AtomicU32,
     errors: AtomicU64,
-    groups: [AtomicU32; 3],
+    groups: [AtomicU32; 4],
 }
 
 #[derive(Clone)]
@@ -72,11 +72,12 @@ impl Bus {
             Group::Sfx => 0,
             Group::Engine => 1,
             Group::Music => 2,
+            Group::Hud => 3,
         };
         Sender { shared: self.shared.clone(), group }
     }
     pub fn volumes(&self, volumes: crate::audio::Volumes) {
-        for (slot, gain) in self.shared.groups.iter().zip([volumes.sfx, volumes.engine, volumes.music]) {
+        for (slot, gain) in self.shared.groups.iter().zip([volumes.sfx, volumes.engine, volumes.music, volumes.hud]) {
             slot.store(gain.to_bits(), Ordering::Relaxed);
         }
     }

@@ -443,6 +443,7 @@ pub(super) mod heli;
 mod helpers;
 mod hiding;
 mod infractions;
+mod intel;
 mod mod_feed;
 mod observation;
 mod original_camera;

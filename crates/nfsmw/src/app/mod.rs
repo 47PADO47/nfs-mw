@@ -99,6 +99,9 @@ pub struct RunOptions {
     pub hud: Option<game_install::GameDir>,
     /// Numbers the HUD shows until the scene supplies its own (`--hud-demo`).
     pub hud_demo: Option<crate::hud::HudState>,
+    /// A development fixture the HUD shows in place of the scene's state, with the settings it needs (`--hud-scenario`,
+    /// `devtools/hud_scenarios`). `None` on every other run.
+    pub hud_scenario: Option<crate::devtools::hud_scenarios::HudScenario>,
     /// Open the sound device and play the scene's sound, reading banks from this install.
     pub audio: Option<game_install::GameDir>,
     /// Run the front end (menus, game flow) on top of the scene.
@@ -139,6 +142,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         garage_tab,
         hud,
         hud_demo,
+        hud_scenario,
         audio,
         frontend,
         bench_seconds,
@@ -147,6 +151,9 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         #[cfg(feature = "multiplayer")]
         net,
     } = options;
+    // A `--hud-scenario` run starts with the settings its fixture needs (the HUD on, the scenario's map mode).
+    let scenario_settings = hud_scenario.map(|scenario| scenario.settings(*settings));
+    let settings = scenario_settings.as_ref().unwrap_or(settings);
     let plan = screenshot
         .clone()
         .map(|path| screenshot::Plan::new(path, screenshot_delay, screenshot_count, screenshot_interval));
@@ -243,6 +250,9 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
     if let Some(dir) = hud {
         let career = frontend.as_ref().map(|plugin| plugin.career.clone()).unwrap_or_default();
         app.add_plugins(crate::hud::HudPlugin { dir, initial: hud_demo.unwrap_or_default(), career });
+    }
+    if let Some(scenario) = hud_scenario {
+        app.insert_resource(crate::devtools::hud_scenarios::ActiveScenario(scenario));
     }
     if let Some(dir) = audio {
         app.add_plugins(crate::audio::AudioPlugin { dir });

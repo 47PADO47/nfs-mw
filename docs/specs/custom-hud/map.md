@@ -1,8 +1,9 @@
 # Custom HUD: the centred translucent map
 
-The signature element: a simplified road map drawn over the middle of the 3D view, translucent so the player sees both
-the map and the world. It is not a corner minimap. Built in PR 7a (`libs/blackbox-ui` `Polyline`) and PR 7b
-(`crates/nfsmw/src/ui/theme/custom/map/{mod,view,marks,roads}.rs`). Index: [README.md](README.md).
+The signature element: the game's own map picture drawn over the middle of the 3D view, translucent so the player sees
+both the map and the world, with the game's own icons for the places and the cars. It is not a corner minimap. Built
+in PR 7a (`libs/blackbox-ui` `Polyline`) and PR 7b (`crates/nfsmw/src/ui/theme/custom/map/`), and moved onto the
+game's picture and icons afterwards (section 4). Index: [README.md](README.md).
 
 ## 1. Modes
 
@@ -12,9 +13,9 @@ the map and the world. It is not a corner minimap. Built in PR 7a (`libs/blackbo
 | Mode | What is drawn |
 |---|---|
 | `off` | No map and no turn cues. Event feedback (notifications, world markers) still shows. |
-| `compact` | A **turn-cue chip** under the race strip (top-centre): an arrow for the next turn and its distance. Hidden when there is no route. |
-| `centered` | The player-centred overlay in the middle of the box, clipped to a soft ellipse, at `map_opacity`. |
-| `expanded` | A larger, more opaque overlay with more detail: all road classes and the whole route. Opened on demand. |
+| `compact` | A small, fainter overlay (340 px wide at 1080p) and a **turn-cue chip** under the race strip (top-centre): an arrow for the next turn and its distance. The chip is hidden when there is no route. |
+| `centered` | The player-centred overlay in the middle of the box, clipped to a soft ellipse (500 px wide), at `map_opacity`. |
+| `expanded` | A larger, more opaque overlay (710 px wide) that shows farther, with the paths and the whole route. Opened on demand. |
 
 **Turn-cue chip** (Compact): the arrow is one of straight, slight left or right, left or right, sharp left or right,
 U-turn, from `next_turn` (PR 3b: the direction and the distance, derived from the junction angles on the GPS path). The
@@ -27,10 +28,13 @@ it; the way back is then `centered` ([settings.md](settings.md)). Its road opaci
 
 ## 2. Geometry and placement
 
-- The overlay's centre is the centre of the content box. Its clip is an ellipse with a horizontal radius of 46% of the
-  box height and a vertical radius of 34% (Centered), or 64% and 46% (Expanded). The last 12% of the radius fades the
-  roads to zero (soft edge). **[ours]**, tuned on screen in PR 7b.
-- The view radius in the world is `base / map_zoom` with `base` = 300 m (Centered) or 900 m (Expanded).
+- The overlay's centre is the centre of the content box. Its clip is an ellipse with a horizontal radius of 15.5% of
+  the box height and a vertical radius of 11.5% (Compact), 23% and 17% (Centered), or 33% and 24.5% (Expanded): 340,
+  500 and 710 px wide at 1080p, the widths of the design system ([../../HUD_DESIGN_SYSTEM.md](../../HUD_DESIGN_SYSTEM.md)).
+  The last 12% of the radius fades the picture to zero (soft edge). **[ours]**
+- The view radius in the world is `base * span / map_zoom` with `base` = 200 m (Compact), 300 m (Centered) or 600 m
+  (Expanded), and `span` = 2.4 when the game's picture is drawn (it is 6.5 m to a texel, so it needs a wider view than
+  vector roads to stay crisp; about the scale the original minimap shows) and 1 for the roads.
   `[custom_hud] map_zoom` is 0.5 to 2.0, default 1.0. **[ours]**
 - The player is at the centre. The overlay never captures input and never moves the camera.
 
@@ -52,15 +56,34 @@ is the same setting Original and Remastered read, saved through the existing wri
 
 Back to front, all clipped to the ellipse:
 
-1. **Roads**, at `map_opacity`: main roads two units wide, side roads one unit, shortcuts dashed. Under high contrast
-   a dark under-stroke one unit wider.
+1. **The game's map picture**, at `map_opacity`: the tiles of the minimap file the HUD shows (the stage's map, a
+   race's own map), cut into cells that turn and scale with the view and fade at the ellipse's edge (section 4a). There
+   is no backdrop: the lines are thin over a bright street (a known gap; a dark wash drawn behind it did not show in the
+   presenter and was dropped). An install with no minimap tiles draws the roads instead: main roads two units wide, side roads one unit, with a
+   dark under-stroke one unit wider under high contrast.
 2. **Routes:** the GPS route (`Gps` path, PR 3b) in `nav`, three units; in a race the race route in `accent`, three
    units, with the stretch already driven at half alpha.
 3. **Places:** checkpoints (the next one emphasised), discovered events, safe houses and shops from the existing blip
-   data (`HudState::blips`, `hud/blip_style.rs`), drawn as small Custom icons.
+   data (`HudState::blips`, `hud/blip_style.rs`), drawn as the game's own icons (section 4a).
 4. **Pursuit intel** under the fair-knowledge rules ([fair-knowledge.md](fair-knowledge.md)): sighted cops and the
    helicopter as solid marks, last-known positions as hollow marks fading with their age.
-5. **The player arrow**, at full HUD opacity, always on top.
+5. **The player arrow**, the game's own arrow, at full HUD opacity, always on top.
+
+### 4a. The picture and the icons
+
+- **The picture.** `hud::MapPicture` (the HUD plugin builds one when the minimap file changes) holds the 64 tile
+  texture keys and the calibration ([../../formats/minimap.md](../../formats/minimap.md)). The map cuts the picture
+  into blocks of an eighth of a tile (104 m in the city): a block well inside the ellipse is one quad, one the soft edge
+  crosses is cut into cells about 14 units wide, each tinted by the edge's fade at its middle. The cells turn with the
+  heading-up view. The tiles are additive textures, so black is transparent: only the roads and the water show over the
+  world, and the tint (the `text` colour at the picture's opacity) sets how bright they are.
+- **The icons.** The marks use the textures of the HUD package's own objects, found in the frame's HUD tree by name:
+  `MMICON_CHECKPOINT` (the checkpoints and the route's end, in the route's colour), `MMICON_AIRACER_<n>` (a racer, turned
+  to its heading), `MMICON_<TYPE>_0` (a discovered race start, by its type), `SHOP_0` and `CAR_LOT_0` (the game's yellow
+  and blue where the object is plain white), `SAFEHOUSEINDICATOR_0` (green), `MMICON_COPCAR_0` (a sighted cop, with the
+  light bar cycling blue, grey, red, grey, held blue with motion reduction) and the helicopter's group. The player's arrow is
+  `PLAYERCARINDICATOR` (`Minimap_Icon_Car`). A kind with no icon of the game's (the last-known place, a roadblock) or a
+  package without the object draws the shape instead.
 
 Line widths are in HUD units, so they are the same apparent thickness at every resolution.
 

@@ -5,7 +5,7 @@
 //! always drawn them, so the layers stack as before (`docs/specs/ui-themes-compose.md`):
 //!
 //! 1. the radio layer: the `RadioCard` slot (the EA Trax chyron under Original, the card under Custom);
-//! 2. the HUD layer: the nine HUD slots and the HUD nodes no slot takes ([`hud_layer`]);
+//! 2. the HUD layer: the HUD slots and the HUD nodes no slot takes ([`hud_layer`]);
 //! 3. the busted overlay layer: the `BustedOverlay` slot, drawn over the HUD in the frame's full screen;
 //! 4. one layer per visible menu screen: its menu slot, or its own tree when no slot takes it.
 //!
@@ -15,9 +15,9 @@
 //! the tree the plugin stored, node for node and in the same draw order (`compose_tests.rs`).
 
 use blackbox_feng::tree::is_drawn;
-use blackbox_ui::{DrawList, UiTree};
+use blackbox_ui::{DrawList, ThemeId, UiTree};
 
-use super::original::{HUD_SLOTS, emit_unclaimed};
+use super::original::{HUD_SLOTS, emit_unclaimed, host_of};
 use super::{ElementId, UiThemes};
 
 /// The HUD layer: every HUD slot the theme resolves, then the nodes no HUD slot takes. The composed tree is in the HUD
@@ -26,10 +26,25 @@ pub fn hud_layer(themes: &UiThemes, time_s: f32) -> UiTree {
     let _trace = blackbox_trace::scope("HUD: theme composition");
     let mut list = DrawList::new();
     for slot in HUD_SLOTS {
+        if goes_with_its_host(themes, slot) {
+            continue;
+        }
         themes.build_slot(slot, time_s, &mut list);
     }
     emit_unclaimed(&themes.frame(), &mut list);
     finish(list)
+}
+
+/// Whether `slot` is nested in another slot's objects (`original::HOSTS`) and is dropped with it: the active theme
+/// replaces the host and leaves `slot` to Original. The bounty row inside the pursuit board is the case: a theme that
+/// draws its own pursuit display draws no FEng bounty row, as before the row had a slot. Under Original nothing is
+/// dropped, and no slot is resolved to know it.
+fn goes_with_its_host(themes: &UiThemes, slot: ElementId) -> bool {
+    let Some(host) = host_of(slot) else { return false };
+    if themes.hud_is_static() {
+        return false;
+    }
+    themes.provided_by(slot) == Some(ThemeId::Original) && themes.provided_by(host) != Some(ThemeId::Original)
 }
 
 /// The layer of one slot: the radio card, the busted overlay, or a menu screen. The composed tree of a menu slot is the

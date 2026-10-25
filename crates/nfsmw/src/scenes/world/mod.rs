@@ -27,6 +27,7 @@ mod events;
 mod exhaust;
 mod explosion_fx;
 mod extra_options;
+pub(crate) mod feed;
 mod finish_flares;
 mod frame;
 mod frame_systems;
@@ -37,6 +38,9 @@ mod gps;
 mod ground;
 mod heli_wash;
 mod hud;
+mod hud_context;
+mod hud_marks;
+mod hud_nav;
 mod hud_pursuit;
 #[cfg(test)]
 mod installed_turn;
@@ -204,6 +208,10 @@ pub struct WorldScene {
     day: day::DayClock,
     /// The aspect ratio the physics camera uses (set by each frame).
     physics_aspect: f32,
+    /// The aspect ratio of the last frame drawn (`frame.rs`), for the HUD's camera (`camera_choice.rs`).
+    drawn_aspect: f32,
+    /// The HUD's events of the frame (`feed/hud.rs`).
+    hud_feed: feed::HudFeed,
     /// The one fixed timeline of the player, the traffic and the object contacts (see `update_simulation`).
     physics_clock: drive::FixedClock,
     speedbreaker_clock: drive::SpeedbreakerClock,
@@ -217,6 +225,8 @@ pub struct WorldScene {
     rules: session_rules::SessionRules,
     /// Computer-driven cars, when the track has a road network.
     traffic: Option<ai::TrafficWorld>,
+    /// The roads the Custom map draws, built from the traffic's road network when the world opened (`hud/map_roads`).
+    map_roads: Option<crate::hud::MapRoadsHandle>,
     /// Minimap blips that do not come from the traffic: the race starts and the interiors, made once at open
     /// (`hud::static_blips`). Nothing clears this list, so a later addition stays until it is removed here.
     pub map_blips: Vec<crate::hud::MapBlip>,

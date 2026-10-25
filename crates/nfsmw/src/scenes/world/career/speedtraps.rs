@@ -7,7 +7,7 @@ use nfsmw_career::economy::cash::award_player_bounty;
 use nfsmw_career::milestones::speedtrap::Crossing;
 use nfsmw_career::phone::{BinMoment, bin_messages};
 
-use crate::hud::{LABEL_KMH, MapBlip, ModMessageTone, RACE_SPEEDTRAP, game_word, set_mod_message};
+use crate::hud::{HudEvent, LABEL_KMH, MapBlip, ModMessageTone, RACE_SPEEDTRAP, game_word, set_mod_message};
 use crate::i18n::t;
 use crate::scenes::world::players::{LEAD, PlayerId};
 use crate::scenes::world::{WorldScene, space};
@@ -139,9 +139,15 @@ impl WorldScene {
                 let unit = game_word(LABEL_KMH, "KM/H");
                 let line = t!("hud-speed-trap", speed = format!("{speed_kmh:.0}"), unit = unit, bounty = bounty);
                 set_mod_message(&line, ModMessageTone::Big, MESSAGE_SECS);
+                if who == LEAD {
+                    self.hud_feed.push(HudEvent::SpeedTrap { kmh: speed_kmh, passed: true });
+                }
             }
             Some((Crossing::TooSlow, _)) => {
                 set_mod_message(&crate::i18n::game_or_error(LABEL_TOO_SLOW), ModMessageTone::Warning, MESSAGE_SECS);
+                if who == LEAD {
+                    self.hud_feed.push(HudEvent::SpeedTrap { kmh, passed: false });
+                }
             }
             None => {}
         }

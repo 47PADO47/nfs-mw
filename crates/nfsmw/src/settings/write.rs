@@ -311,6 +311,7 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     super::net::put_into(&changes.net, &mut put);
     hd_content::merge_into(&mut table, &changes.hd_content);
     custom_fonts::merge_into(&mut table, &changes.custom_fonts);
+    super::hud::merge_into(&mut table, &changes.hud_options);
     toml::to_string(&table).context("serializing the config file")
 }
 

@@ -37,3 +37,6 @@ map-legend-empty = No blips of this type.
 map-title = Map
 map-player = Player
 map-compass-north = N
+# The Custom map's legend row for the GPS route, and the focused place's card line on how to route to it.
+map-route = GPS route
+map-card-gps = Click or press accept to set the GPS

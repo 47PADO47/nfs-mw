@@ -14,6 +14,10 @@ The Custom theme is being rewritten from scratch ([ADR 0013](../decisions/0013-c
 - **Status:** built (T9) and wired (T12). The HUD plugin fills the feed each frame and the composer draws the card
   when the Custom theme resolves `RadioCard` ([ui-themes-compose.md](ui-themes-compose.md) section 5). Under Original the
   EA Trax chyron draws the slot as before.
+- **Superseded in part (Custom HUD 2026, PR 11b):** the card's look, place and timing are now the Custom style's
+  (section 11). Sections 1, 3 and 6 describe the T9 card as it was; the feed (section 2), the `Text` change (section 4),
+  what T9 removed (section 5) and the wiring (section 7) still hold, and the T9 placement (`radio_placement::anchor`) is
+  what the Remastered card reads.
 
 ## 1. What the card is
 
@@ -125,13 +129,13 @@ baseline.
   depth. The composer sorts by `index`, and the card's nodes keep their build order (stable sort, equal indices).
 - Owed: the end-to-end screenshot with `--ui-style custom` on a GPU machine (`ui-themes-compose.md` section 7).
 
-## 8. The speedometer and the tachometer (historical)
+## 8. The speedometer and the tachometer (retired)
 
-Historical: this was the first Custom drive readout. Section 9 replaced it, and the Custom rewrite of
-[ADR 0013](../decisions/0013-custom-hud.md) replaces both (the cluster is [custom-hud/telemetry.md](custom-hud/telemetry.md)).
-The text below describes code that no longer exists in this form.
+**Retired in the Custom HUD 2026 (ADR 0013, PR 5).** Sections 8 and 9 record the first drive card; its files are
+deleted, and the horizontal cluster of PR 6 now fills the drive slots ([custom-hud-cluster.md](custom-hud-cluster.md)).
+The Custom HUD reads `CustomFeedCell` (`custom/feed.rs`); `DriveFeedCell` stays for the Remastered theme.
 
-The Custom theme also fills `Speedometer` (2) and `Tachometer` (1). Each is a neutral component, with no egui, and the
+The Custom theme also filled `Speedometer` (2) and `Tachometer` (1). Each is a neutral component, with no egui, and the
 rest of the HUD (the gear digit in the tachometer group, the minimap, the blips, the pursuit board) stays Original.
 
 - **Data:** `custom/drive_feed.rs`. `DriveFeedCell::set(&HudState)` runs once per frame in the HUD plugin, after the radio.
@@ -147,7 +151,7 @@ rest of the HUD (the gear digit in the tachometer group, the minimap, the blips,
 
 Still Original: the minimap (it needs the track geometry and the blips, so it is a separate piece of work).
 
-## 9. The drive cluster (current)
+## 9. The drive cluster (retired)
 
 The Custom cluster replaces the Original tachometer, speedometer, gear, nitrous, turbo and speed breaker slots. It is
 one card in the bottom-right corner, drawn in parts by six slots, all fed from `DriveFeedCell` (`custom/drive_feed.rs`):
@@ -164,3 +168,128 @@ Tests: `custom/drive_tests.rs`.
 
 PR 5 of the Custom rewrite deletes this cluster and PR 6 replaces it with the horizontal telemetry cluster
 ([custom-hud/telemetry.md](custom-hud/telemetry.md)).
+## 10. The Custom menus (Custom HUD 2026, PR 11a)
+
+The design is `docs/specs/custom-hud/menus.md`; this records what was built.
+
+- **Which screens publish lists.** `Cx::list_look` (`frontend/logic/look.rs`, the old `vertical_look`) is true for
+  Remastered and Custom when no mod theme took over. The icon menus, the option pages and the dialogs (confirm, alert,
+  name entry) ask it. In PR 11a the other list screens asked a Remastered-only predicate and kept their FEng packages
+  under Custom; PR 11b replaced it with a per-screen one (section 11).
+- **The slots.** `CustomTheme::element` claims `MainMenu`, `Categories`, `PauseMenu`, `SafeHouseMenu`, `OptionTable`
+  and `Dialog` (`custom/menu/mod.rs` `SLOTS`) before the shared `hud_component`, which mod token themes keep using.
+  `build_themes` hands the theme the `MenuListCell` (`CustomTheme::with_menus`). One component, `CustomMenu`, draws all
+  six from the list: a dialog is a centred plate, the pause menu dims the whole window, a settings page has a value
+  column, the rest is a list down the left of the content box. A slot with no list draws nothing.
+- **Look.** Custom tokens (`custom.*`) and the OS fonts (`text.rs` `Label`, sizes `MENU_ROW` and `MENU_TITLE`); the
+  selected row on a raised plate with a 3-unit accent bar; chevrons and a 10-segment slider for values; a scroll track
+  for lists longer than eight rows; the list's message as the description line; the footer's hints from the live
+  bindings at the bottom right. The menus have their own scale; `[custom_hud] text_size` and `motion_reduction` reach
+  them as skin metrics (`custom/menu/look.rs`, merged by `UiThemes::refresh_skin`), the palette and high contrast through
+  the `custom.*` colours. The selection plate glides 150 ms between rows (`custom/menu/glide.rs`), and jumps with
+  motion reduction.
+- **Pointer.** The frontend tests clicks against the look that draws the list (`frontend/screens/geometry.rs`
+  `ListGeometry`, set each frame from the settings): the Custom geometry is `custom/menu/layout.rs` `MenuFrame`, the
+  dialog's `dialog_row_at` and the footer's `hint_at`. Both looks show the frontend's eight-row window.
+- **Not built.** The screens' crossfade over `mode_change`; per-row descriptions (a `MenuEntry` has none, so a
+  disabled row's reason and the "Custom only" notes are a page line instead); the Original package's FEng screens are
+  still what Original draws.
+- **Tests.** `frontend/logic/look.rs` (the truth table), `custom/menu/tests.rs` (node output per state), `layout_tests.rs`,
+  `glide.rs`, `look.rs`, `frontend/screens/geometry.rs`, `frontend/hud_options_tests.rs`, and `saves.rs` (the
+  `[custom_hud]` table in a saved profile).
+
+## 11. The Custom list screens, the LAN screens and the radio card (Custom HUD 2026, PR 11b)
+
+The design is `docs/specs/custom-hud/menus.md` section 3; this records what was built.
+
+- **Which screens publish lists.** `Cx::screen_list_look(ListScreen)` (`frontend/logic/look.rs`) replaces the
+  Remastered-only predicate at its 17 call sites. Remastered answers yes for every screen, as before. Custom answers yes
+  for `Controls`, `Jukebox`, `Credits` and `Blacklist` (the list of rivals, the bio, the safe house's entry and the
+  reputation overview between them, which must follow the list so the boss race stays reachable), and no for `Markers`
+  and `RepSheets`, which keep their packages. See [frontend-menus.md](frontend-menus.md) section 6.
+- **The slots.** `custom/menu/mod.rs` `SLOTS` adds `ControlsList`, `Jukebox`, `Credits` and `Blacklist`; `CustomMenu`
+  picks the page from the list's style: the credits roll (`credits.rs`), the Blacklist (`blacklist.rs`), a rival's bio
+  (`rival.rs`), the playlist on the `Jukebox` slot (`jukebox.rs`), the list for the rest. `LanMenu` (`custom/menu/lan.rs`)
+  and `LanHud` (`custom/lan_hud.rs`) read the LAN cell, which `build_themes` hands the theme (`CustomTheme::with_lan`,
+  the `FrameCell`'s `lan()`, as Remastered reads it). Mod token themes keep the shared `hud_component` (the radio card)
+  and fall back to Original for the menus and the LAN screens.
+- **Key list.** A settings list whose value column holds the two bindings as two key caps (`keys.rs`), the primary on
+  the left; the selected row's focused cap is raised with an accent line; an unbound key (`---`) is faint. The caps
+  split the column at its middle, where the frontend's `along` press picks the binding. After the package's eight rows
+  the list has a row for each HUD action (`HUD_ROWS` in `frontend/controls_screen.rs`): Map mode, Expand the map, Map
+  zoom in and out, Map north-up / heading-up, Show or hide the HUD and Dismiss a notification, named by
+  `input/hud_labels.rs`. They rebind as the other rows do (a press waits for the next key, Escape cancels), and the
+  list keeps its own focus and scrolls its eight-row window to them. Remastered lists them too; the Original look draws
+  the package's eight rows only.
+- **Playlist.** The songs as settings rows with the mode right-aligned; the order of play beside the title's rule
+  (`Parts::subtitle`), not on the description line.
+- **Credits.** A scrim over the window, the title, and the roll centred in the content box between the title and the
+  footer, fading over 40 units at either end; a line of capitals is a heading in the spaced face and the accent colour.
+- **Blacklist.** Fifteen rows (rank, picture, name, bounty, status: success for complete, the accent for in progress,
+  faint for locked), the selection plate gliding between them, the count of rivals beaten at the title's right, and the
+  selected rival's card at the right (picture with an accent frame, name, alias, bounty, status) when the window has
+  140 units for it. `BlacklistFrame` is shared with the hit test (`ListGeometry::row_at`). The bounty is the number the
+  frontend writes, with no currency sign (no catalogue entry formats money).
+- **Bio.** The picture on the left, then the name, the alias, the car and the strength (spaced headings over values)
+  and the bio wrapped with the dialog's `wrap`, stopping above the footer.
+- **LAN page.** The page's list as a Custom list (its own glide slot), the status line beside the title, the failure on
+  the description line in the danger colour, and the chat on a plate right of the rows when 150 units are left. The LAN
+  click map follows (`ClickMap::in_custom`).
+- **LAN HUD.** From the content box's anchors at `[custom_hud] scale`, `text_size` and `opacity`: the feed on a plate at
+  the bottom left (raised clear of the condition chip, the newest line lowest, each line keeping its fade, notices in
+  the secondary colour), the countdown in the upper third with the vote on a plate under it, and the spectator's panel
+  at the top right.
+- **Radio card.** Rewritten (`radio_card.rs`): a Custom plate with the accent line at the content box's top-left anchor
+  (`radio_placement::card_rect`, at the HUD scale, taller with the text size), the title in the label face, the artist
+  and album in the secondary colour, the time in the numeric face, each row shrunk to fit. It reads the same
+  `RadioFeedCell` for the song and its age, and the Custom feed for the window and the options. It fades in over
+  `fade_in`, slides in from the left over `slide` (not with motion reduction), fades out over the last `fade_out` of its
+  six seconds, and takes `[custom_hud] opacity`. `hud_component` still returns it for `RadioCard`, so a mod theme with
+  tokens draws it in its own accent. The old `radio.font` skin key and the card's faded skin went with the old card.
+- **Not built.** The crossfade between screens; a column header for the Blacklist's bounty; the screen's Defaults and
+  Clear keys (`docs/specs/controls-remap.md` section 3), so a key is unbound or reset through `[bindings]` or the
+  console.
+- **Tests.** `frontend/logic/look.rs` (the per-screen truth table, and Remastered unchanged),
+  `custom/menu/screens_tests.rs` (the key caps and focus, the pause scrim, the playlist's order line, the roll's fades and
+  headings, the Blacklist's rows, card, narrow window and hit test, the bio), `custom/menu/keys.rs`, `credits.rs`,
+  `lan.rs`, `custom/lan_tests.rs` (the LAN page and HUD), `custom/tests.rs` (the slots, the radio card's rows, fades,
+  opacity, place and slide), `radio_placement.rs`, `frontend/screens/geometry.rs` and `frontend/lan/present/tests.rs`
+  (the clicks), `frontend/controls_screen_tests.rs` (the HUD rows in the list looks and not in Original, the scroll to
+  them, and a rebinding).
+## 12. The Custom world map (Custom HUD 2026, PR 11c)
+
+The design is `docs/specs/custom-hud/menus.md` section 3 (the `WorldMapChrome` row); this records what was built. Code:
+`crates/nfsmw/src/ui/theme/custom/full_map/`.
+
+- **The slot.** `CustomTheme::element` returns `FullMap` for `WorldMapChrome`, and `UiThemes::world_map_chrome` maps
+  Custom to `Chrome::Drawn`, as it does Remastered. The frontend then treats both alike: the FEng map screen runs
+  underneath and is not presented, the pointer is the map's own over the whole window, and the wheel and a drag zoom and
+  pan anywhere. The old legend over the recoloured FEng screen (`map_legend.rs`, `WorldMapLegendCell`, the `legend.font`
+  skin key and the per-blip rows of `frontend/world_map/legend.rs`) is gone. Mod token themes are unchanged: they share
+  `hud_component`, which never drew the map.
+- **The feed.** `FullMapCell` (`UiThemes::custom_world_map`), filled by the frontend plugin each frame the map is open
+  with a `FullMapSnapshot`: the frontend's `WorldMapFrame`, the footer hints with the live bindings
+  (`world_map::control::hints`) and the window's aspect. Remastered's cell gets the same frame. The frame carries the
+  roads, the GPS route and the city's calibration, read from the HUD state at open with the blips (`control::open`); the
+  map opens only from free roam (the M key), before the world freezes, so no extra resource is needed.
+- **Placement** (`fit.rs`). World to picture (`Calibration::to_map`), picture to view (the frontend's `Camera`: four
+  zoom levels and a pan), view to the full-screen picture square (`Picture::FULL`, the window's height, centred). The
+  composition is a north-up `MapView` (the centred map's projection), so roads, route and marks project like the HUD map,
+  and a place lands where the cursor picks its blip. Without a calibration the network's bounds are fitted into the
+  picture with a 5% margin (computed once per network).
+- **What is drawn**, back to front: the surface ground at 0.92 over the window; the roads in the centred map's look at
+  0.85 with paths, cached by its local-set rule over the window's half diagonal; the GPS route in nav cyan, the stretch
+  behind the player at half alpha; the current tab's places as the centred map's marks (shops and car lots a dot, safe
+  houses a square, races a diamond, roadblocks a bar) and the route's end; the players' arrows; a ring on the focused
+  place or a cross at the pointer; then the chrome. Marks and arrows are 1.6 times the menus' scale.
+- **Chrome.** "MAP" in the spaced face with the three tabs under it (the current one bright on an accent rule) and the
+  zoom at the top right; the legend plate at the right (the player, the GPS route when there is one, each style of the
+  tab with its mark and how many are on the map, the focused style in the accent colour, the empty line when the tab has
+  none; the legend key hides it); the focused place's card at the bottom left (its mark and name, its distance only when
+  the player's place is known, and how to set the GPS); the menus' footer (`menu::footer_parts`).
+- **Not drawn.** The racers, cops and helicopter of `WorldMapFrame::live`: the Custom map marks police only from what
+  the player knows (`fair-knowledge.md`), and the frame carries no sighting data. The open animation.
+- **Tests.** `custom/full_map/tests.rs`: the projection and its agreement with the frontend's picking, the network fit,
+  the marks and legend rows under each tab, the slot claimed, a closed map drawing nothing, the legend key, the focused
+  card, the roads and route strokes. `ui/theme/tests.rs`: Custom is `Chrome::Drawn`. `frontend/world_map/overlay.rs`:
+  the frame carries the roads, the route and the calibration until the map closes. Remastered's map tests are unchanged.

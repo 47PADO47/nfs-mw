@@ -6,7 +6,7 @@ use blackbox_minimap::{Calibration, bearing_degrees};
 
 use super::{Chrome, Filter, LiveBlip, PlacedBlip, PlayerMark, WorldMap, WorldMapFrame};
 use crate::frontend::challenge_series::maps::Maps;
-use crate::hud::{CHECKPOINT, COP, HELICOPTER, MapBlip, MapPosition, RACER};
+use crate::hud::{CHECKPOINT, COP, HELICOPTER, MapBlip, MapPosition, MapRoadsHandle, NavRoute, RACER};
 use crate::ui::UiAssets;
 
 #[derive(Resource, Default)]
@@ -24,6 +24,10 @@ pub struct WorldMapOverlay {
     pub second_mark: Option<PlayerMark>,
     /// The racers and police cars, placed on the picture; drawn on every tab.
     pub live: Vec<LiveBlip>,
+    /// The roads and the GPS route the HUD state had at open, for a theme that draws the map itself. Read at open, as
+    /// the blips are.
+    pub roads: Option<MapRoadsHandle>,
+    pub route: Option<NavRoute>,
     /// The picture of the career stage's map (`MapVariant::world_map_texture`); empty until the map opens.
     pub texture: &'static str,
     /// The running race's own picture, `TRACK_MAP_<event id>`: its name hash, and the read of it.
@@ -44,6 +48,8 @@ impl WorldMapOverlay {
         self.calibration = calibration;
         self.blips.clear();
         self.live.clear();
+        self.roads = None;
+        self.route = None;
         self.event_picture = None;
         self.clock = 0.0;
         self.snap_since = 0.0;
@@ -64,6 +70,8 @@ impl WorldMapOverlay {
         self.session = WorldMap::new();
         self.blips.clear();
         self.live.clear();
+        self.roads = None;
+        self.route = None;
         self.event_picture = None;
         self.pictures.release(assets);
     }
@@ -111,6 +119,9 @@ impl WorldMapOverlay {
             texture: self.texture,
             clock: self.clock,
             snap_age: self.clock - self.snap_since,
+            calibration: self.calibration,
+            roads: self.roads.clone(),
+            route: self.route.clone(),
         }
     }
 }
@@ -208,7 +219,10 @@ mod tests {
         assert_eq!(car(RACER, false).icon(), "Minimap_Icon_Car.tga");
         let chase = [car(COP, true).rgba(0.0), car(COP, true).rgba(0.25)];
         assert_ne!(chase[0], chase[1], "the light bar changes colour");
-        assert!(chase.iter().all(|c| c[2] == 255 || c[0] == 0xa0));
+        assert!(
+            chase.iter().all(|c| c[2] == 255 || c[0] == 0xa0 || *c == [0xcc, 0xcc, 0xcc, 255]),
+            "blue, grey or red"
+        );
     }
 
     #[test]
@@ -283,5 +297,23 @@ mod tests {
         assert_eq!(frame.session.filter, Filter::Races);
         assert!(frame.blips.is_empty());
         assert!(frame.chrome.themed());
+    }
+
+    #[test]
+    fn the_frame_carries_the_calibration_the_roads_and_the_route_until_the_map_closes() {
+        use crate::hud::{MapRoad, MapRoads, RoadClass};
+        let mut overlay = WorldMapOverlay::default();
+        overlay.open(Some(CITY));
+        let road = MapRoad { class: RoadClass::Main, points: vec![[0.0, 0.0], [10.0, 0.0]] };
+        let roads = MapRoadsHandle::new(MapRoads::from_roads(vec![road]));
+        let route = NavRoute { path: vec![[0.0, 0.0], [10.0, 0.0]], target: [10.0, 0.0], next_turn: None };
+        overlay.roads = Some(roads.clone());
+        overlay.route = Some(route.clone());
+        let frame = overlay.frame(Chrome::Drawn);
+        assert_eq!(frame.calibration, Some(CITY));
+        assert!(frame.roads.as_ref().is_some_and(|shared| shared.same(&roads)), "the same roads, not a copy");
+        assert_eq!(frame.route, Some(route));
+        overlay.close(&UiAssets::empty());
+        assert!(overlay.roads.is_none() && overlay.route.is_none(), "a closed map lets the roads go");
     }
 }

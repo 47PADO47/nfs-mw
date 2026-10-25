@@ -1,5 +1,7 @@
 //! The Bevy plugin: loads the HUD, copies the scene's state into it each frame, and presents it.
 
+use std::sync::Arc;
+
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
 use bevy_time::Time;
@@ -9,6 +11,7 @@ use blackbox_ui::{ThemeId, UiTree};
 use game_install::GameDir;
 use nfsmw_career::regions::MapVariant;
 
+use super::MapPicture;
 use super::bind::HudBinding;
 use super::blip_styles;
 use super::busted_overlay::{BustedOverlay, OVERLAY_PACKAGE};
@@ -16,6 +19,7 @@ use super::event_tiles::{EventTiles, install_loader};
 use super::frame_cache::{FrameCache, TreeKey};
 use super::map_source::{MapSource, resolve_stem};
 use super::minimap::MinimapBinding;
+use super::notify::{HudNotifications, intense};
 use super::radio::RadioHud;
 use super::state::{HudState, MapPosition};
 use super::trax::{self, TraxBinding};
@@ -56,6 +60,8 @@ struct Hud {
     map_variants: Vec<MapVariant>,
     /// The tiles of the running race's event, read on demand (`docs/specs/race-minimap.md`).
     event_tiles: EventTiles,
+    /// The picture of the map file the minimap shows, shared with the Custom map; rebuilt when the file changes.
+    map_picture: Option<Arc<MapPicture>>,
     /// The original EA Trax chyron, when the install has it.
     trax: Option<TraxBinding>,
     /// The busted overlay, when the install has it (`busted_overlay.rs`).
@@ -86,10 +92,29 @@ impl Plugin for HudPlugin {
             .insert_non_send(self.career.clone())
             .insert_resource(self.initial.clone())
             .add_systems(Update, poll.in_set(FrameSet::Prepare).run_if(resource_exists::<PendingHud>))
+            // The scene's update moves the world first, so the HUD reads the frame it draws.
             .add_systems(
                 Update,
-                sync.in_set(FrameSet::SceneUpdate).run_if(ready).run_if(resource_exists::<SharedAssets>),
+                sync.in_set(FrameSet::SceneUpdate)
+                    .after(crate::app::render::update_scene)
+                    .run_if(ready)
+                    .run_if(resource_exists::<SharedAssets>),
             )
+            // A `--hud-scenario` run writes its fixture over the scene's state (`devtools/hud_scenarios`); without the
+            // flag the resource is absent and the system never runs.
+            .add_systems(
+                Update,
+                crate::devtools::hud_scenarios::apply
+                    .in_set(FrameSet::SceneUpdate)
+                    .after(sync)
+                    .before(notify)
+                    .run_if(ready)
+                    .run_if(resource_exists::<crate::devtools::hud_scenarios::ActiveScenario>),
+            )
+            .init_resource::<HudNotifications>()
+            .add_systems(Update, notify.in_set(FrameSet::SceneUpdate).after(sync))
+            .add_systems(Update, super::notify::output.in_set(FrameSet::SceneUpdate).after(notify))
+            .add_systems(Update, super::map_keys::apply.in_set(FrameSet::SceneUpdate).after(sync))
             .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>))
             .add_systems(
                 Update,
@@ -164,6 +189,7 @@ fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
         viewport,
         map_variants,
         event_tiles,
+        map_picture: None,
         trax,
         overlay,
         drag,
@@ -192,6 +218,7 @@ fn sync(
     career: NonSend<CareerHandle>,
     settings: Res<Settings>,
     assets: Res<SharedAssets>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     mut state: ResMut<HudState>,
     mut hud: ResMut<Hud>,
 ) {
@@ -207,6 +234,10 @@ fn sync(
     }
     // The unit is the player's setting, not the scene's: every HUD look reads it from here.
     state.use_mph = settings.speed_units == SpeedUnits::Imperial;
+    // World-space markers project into the window the HUD is drawn over, in the presenter's logical pixels.
+    if let (Some(camera), Ok(window)) = (state.camera.as_mut(), windows.single()) {
+        camera.viewport = [window.width(), window.height()];
+    }
     let hud = &mut *hud;
     hud.event_tiles.update(state.map_source.event(), &assets.0);
     let stem = resolve_stem(
@@ -217,12 +248,34 @@ fn sync(
     );
     if let Some(minimap) = hud.binding.minimap_mut() {
         minimap.set_stem(stem);
+        if !hud.map_picture.as_ref().is_some_and(|picture| picture.stem() == minimap.stem()) {
+            hud.map_picture = Some(Arc::new(minimap.picture()));
+        }
     }
+    state.map_picture = hud.map_picture.clone();
     if let Some(overlay) = hud.overlay.as_mut() {
         overlay.set_shown(&mut hud.runtime, state.busted_overlay);
     }
+    // The Custom map follows the car whatever the minimap setting says, so it keeps the place before the setting hides it.
+    state.map_car = state.minimap;
     let orientation = settings.minimap.orientation();
     state.minimap = state.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
+}
+
+/// Feeds the frame's HUD events to the notifications at the player's `[custom_hud] notifications` level, ages them, and
+/// takes the dismiss action.
+fn notify(
+    state: Res<HudState>,
+    settings: Res<Settings>,
+    time: Res<Time>,
+    actions: Option<Res<crate::input::ActionState>>,
+    mut notifications: ResMut<HudNotifications>,
+) {
+    notifications.take_events(&state, settings.hud_options.notifications);
+    notifications.tick(time.delta_secs(), intense(&state));
+    if actions.is_some_and(|actions| actions.just_pressed(crate::input::Action::DismissNotification)) {
+        notifications.dismiss_oldest();
+    }
 }
 
 /// The LAN session's feed, vote, countdown and spectator panel (`frontend/lan`). They are the session's, not the car's HUD:
@@ -255,6 +308,7 @@ fn present(
     mut hud: ResMut<Hud>,
     state: Res<HudState>,
     radio: Res<RadioHud>,
+    notifications: Res<HudNotifications>,
     settings: Res<Settings>,
     time: Res<Time>,
     assets: Res<SharedAssets>,
@@ -263,8 +317,14 @@ fn present(
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
     mut drawn: Local<Drawn>,
+    (bindings, input): (Option<Res<crate::input::Bindings>>, Option<Res<crate::input::InputPresentation>>),
 ) {
     let _trace = blackbox_trace::scope("HUD: bind / animate / compose / present");
+    // A theme that fills the banner with its own component draws the world's cards too, so the world's egui cards stay
+    // out (`cards.rs`).
+    let routed =
+        !themes.hud_is_static() && themes.provided_by(ElementId::Banner).is_some_and(|id| id != ThemeId::Original);
+    super::set_cards_routed(routed);
     if !state.visible || !settings.hud {
         drawn.hidden(&mut out, window.scale_factor());
         return;
@@ -301,8 +361,28 @@ fn present(
     let frame = themes.frame();
     // The card places itself from the HUD layout, so it takes the feed, not the viewport.
     themes.radio().set(&radio, screen, settings.hud_layout);
-    // The Custom speedometer and tachometer read the drive state the same way.
+    // The Remastered cluster reads the drive state the same way.
     themes.drive().set(&state, screen);
+    // The Custom HUD reads one richer feed: the frame's state (cloned once here, shared after), the options and the
+    // clock. Nothing reads it under Original, so it is not filled there.
+    if !static_hud {
+        themes.custom().set(crate::ui::theme::custom::CustomFeed {
+            hud: std::sync::Arc::new(HudState::clone(&state)),
+            settings: settings.hud_options,
+            units: settings.speed_units,
+            transmission: settings.transmission,
+            elapsed_s: time.elapsed_secs(),
+            delta_s: time.delta_secs(),
+            screen,
+            // The notices and the feedback lane, their text in the current language. Motion reduction shows the
+            // bounty delta's sum at once instead of counting it up.
+            notifications: Some(notifications.view(settings.speed_units, !settings.hud_options.motion_reduction)),
+            interact: bindings.as_deref().map(|bindings| {
+                let device = input.as_deref().map(|input| input.device).unwrap_or_default();
+                crate::ui::prompts::for_action(bindings, crate::input::Action::Interact, device)
+            }),
+        });
+    }
     // A tree is rebuilt only when its package changed since the frame it was built for, or the viewport moved; the
     // cell then keeps its generation and the composed layers below are reused as well.
     let placement = parameters(screen, settings.hud_layout);

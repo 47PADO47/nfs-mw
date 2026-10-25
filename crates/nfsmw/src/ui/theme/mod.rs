@@ -6,16 +6,18 @@
 //!
 //! Status (T12): [`UiThemes`] is inserted at start-up, and the HUD and menu presenters resolve every slot through the
 //! composer ([`compose`]). The Original theme fills every slot in the catalogue, and [`build_themes`] checks that. The
-//! token-driven look (the radio card, the speedometer, the tachometer, the gear and the meters) is drawn by the Bevy and
-//! Original (gold) themes, and by a mod theme that declares tokens. The active theme follows `settings.ui_style` each
-//! frame ([`sync_active_theme`]), and a mod theme follows the mods' registrations ([`sync_mod_themes`]). The active
-//! theme's tokens are merged into the skin the components read ([`UiThemes::refresh_skin`]).
+//! Custom look (the radio card today, the Custom HUD 2026 of ADR 0013 as its components land) is drawn by the Custom
+//! theme, and by a mod theme that declares tokens. The active theme follows `settings.ui_style` each frame
+//! ([`sync_active_theme`]), and a mod theme follows the mods' registrations ([`sync_mod_themes`]). The active theme's
+//! tokens, and the Custom HUD's `custom.*` tokens for the player's `[custom_hud]` look, are merged into the skin the
+//! components read ([`UiThemes::refresh_skin`]).
 //!
 //! - [`element`]: the [`ElementId`] catalogue with its explicit numbers.
 //! - [`compose`]: builds each presented layer from the slots its theme resolves (`docs/specs/ui-themes-compose.md`).
 //! - [`original`]: the floor theme. It fills every slot: HUD adapters (T7) and menu adapters (T8).
-//! - [`custom`]: the token-driven look and its two palettes (Bevy, Original gold). It fills the radio card, the
-//!   speedometer, the tachometer, the gear and the meters, and returns `None` for the rest.
+//! - [`custom`]: the Custom look, its tokens, layout and feed, and its two palettes (Bevy, Remastered gold). It fills the
+//!   HUD, the radio card, the menus and the LAN screens (`custom/menu`, `custom/lan_hud.rs`) and the full-screen world
+//!   map (`custom/full_map`), and returns `None` for the rest.
 //! - [`modded`]: the themes the mods register through `bb.ui`. A mod theme is selected with [`UiThemes::select_mod`], by the
 //!   Mods page's theme choice through [`UiThemes::set_mod_choice`]; the style setting does not choose it
 //!   (`docs/specs/ui-themes.md` section 12).
@@ -50,7 +52,9 @@ use blackbox_ui::{BuildCx, Component, DrawList, LayoutCx, Rect, Skin, Theme, The
 
 use crate::frontend::world_map::Chrome;
 use crate::settings::{Settings, UiStyle, UiTheme};
-use custom::{CustomTheme, DriveFeedCell, RadioFeedCell, WorldMapLegendCell, palette};
+use custom::menu::MenuLook;
+use custom::tokens::{self as custom_tokens, CustomLook};
+use custom::{CustomFeedCell, CustomTheme, DriveFeedCell, FullMapCell, RadioFeedCell, palette};
 use modded::{ModHud, ModTheme};
 use original::{FrameCell, OriginalTheme};
 use remastered::{RemasteredTheme, WorldMapViewCell};
@@ -71,6 +75,8 @@ pub fn sync_active_theme(settings: Res<Settings>, mut themes: ResMut<UiThemes>) 
     // `bypass_change_detection`: the registry is selected every frame, so it should not look changed every frame.
     themes.bypass_change_detection().select(settings.ui_style);
     themes.bypass_change_detection().set_ui_theme(settings.ui_theme);
+    themes.bypass_change_detection().set_custom_look(CustomLook::of(&settings.hud_options));
+    themes.bypass_change_detection().set_menu_look(MenuLook::of(&settings.hud_options));
 }
 
 /// Keeps the mod themes and the player's mod theme choice in step with the mods, every frame. The mods are a non-send
@@ -85,10 +91,10 @@ pub fn sync_mod_themes(mods: Option<NonSend<crate::modding::Mods>>, mut themes: 
     themes.set_mod_choice(mods.ui_theme_choice());
 }
 
-/// Builds the registry: Original as the floor, the Bevy, Original (gold) and Remastered themes registered beside it,
-/// Original active. The Original theme reads its trees from `frame`, and the token-driven themes and Remastered their drive
-/// readouts from `drive` (the token-driven themes their radio card from `radio`). The caller keeps a clone of each so it
-/// can fill them each frame.
+/// Builds the registry: Original as the floor, the Custom and Remastered themes registered beside it, Original active.
+/// The Original theme reads its trees from `frame`, Remastered its drive readouts from `drive` and its world map from
+/// `map`, and Custom its HUD from `custom` and its world map from `custom_map` (both their radio card from `radio`). The
+/// caller keeps a clone of each so it can fill them each frame.
 ///
 /// Panics when the Original theme leaves a catalogue slot unfilled. That is a programming error, found at start-up.
 /// The generic `Themes::new` cannot make this check, because it does not know the MW catalogue
@@ -97,7 +103,8 @@ pub fn build_themes(
     frame: FrameCell,
     radio: RadioFeedCell,
     drive: DriveFeedCell,
-    legend: WorldMapLegendCell,
+    custom: CustomFeedCell,
+    custom_map: FullMapCell,
     menus: MenuListCell,
     map: WorldMapViewCell,
 ) -> Themes {
@@ -105,7 +112,12 @@ pub fn build_themes(
     let mut themes =
         Themes::new(Box::new(OriginalTheme::new(frame.clone()))).expect("OriginalTheme reports ThemeId::Original");
     themes
-        .register(Box::new(CustomTheme::new(radio.clone(), drive.clone(), legend)))
+        .register(Box::new(
+            CustomTheme::new(radio.clone(), custom, custom_map)
+                .with_menus(menus.clone())
+                .with_lan(frame.lan())
+                .with_frame(frame.clone()),
+        ))
         .expect("the Bevy theme is registered once, and is not Original");
     themes
         .register(Box::new(RemasteredTheme::new(frame.clone(), drive, radio, menus, map)))
@@ -124,9 +136,9 @@ fn check_floor_fills_every_slot(frame: &FrameCell) {
     }
 }
 
-/// The base skin the themes hand to their components: the Custom card's and readouts' fonts and status colours (T9), and
-/// the Remastered dial's and readout's. The keys are namespaced by theme and element, so they do not clash. The active
-/// theme's tokens are merged into it ([`UiThemes::refresh_skin`]).
+/// The base skin the themes hand to their components: the Custom card's font and the map's icons (T9), and the Remastered
+/// dial's and readout's. The keys are namespaced by theme and element, so they do not clash. The active theme's tokens
+/// and the `custom.*` tokens are merged into it ([`UiThemes::refresh_skin`]).
 pub fn default_skin() -> Skin {
     custom::card_skin().merged(remastered::skin()).merged(original::lan::skin())
 }
@@ -140,17 +152,22 @@ pub struct UiThemes {
     base: Skin,
     /// `base` with the active theme's tokens merged in: what the components read. Rebuilt by [`UiThemes::refresh_skin`].
     skin: Skin,
-    /// The theme `skin` was built for, or `None` when it must be built again.
-    skin_of: Option<(ThemeId, UiTheme)>,
+    /// The theme, palette, Custom look and menu look `skin` was built for, or `None` when it must be built again.
+    skin_of: Option<(ThemeId, UiTheme, CustomLook, MenuLook)>,
     /// The palette the token-driven HUD takes its colours from (the settings' `ui_theme`).
     ui_theme: UiTheme,
+    /// The Custom HUD's colour-vision palette and high contrast (the settings' `[custom_hud]`).
+    custom_look: CustomLook,
+    /// What the Custom menus take from `[custom_hud]`: the text size and motion reduction.
+    menu_look: MenuLook,
     frame: FrameCell,
     radio: RadioFeedCell,
     drive: DriveFeedCell,
-    /// The open world map's legend, read by the Remastered map legend. Filled by the frontend plugin while the map is
-    /// open under a theme that recolours it, cleared otherwise.
-    legend: WorldMapLegendCell,
-    /// The icon menus' lists, read by the Remastered vertical menus. Filled by the frontend plugin each frame.
+    /// The frame the Custom HUD draws from. Filled by the HUD plugin each frame.
+    custom: CustomFeedCell,
+    /// The open map as the Custom theme draws it. Filled by the frontend plugin while the map is open.
+    custom_map: FullMapCell,
+    /// The icon menus' lists, read by the Remastered and Custom menus. Filled by the frontend plugin each frame.
     menus: MenuListCell,
     /// The open map as the Remastered theme draws it. Filled by the frontend plugin while the map is open.
     map: WorldMapViewCell,
@@ -168,7 +185,8 @@ impl UiThemes {
         let frame = FrameCell::new();
         let radio = RadioFeedCell::new();
         let drive = DriveFeedCell::new();
-        let legend = WorldMapLegendCell::new();
+        let custom = CustomFeedCell::new();
+        let custom_map = FullMapCell::new();
         let menus = MenuListCell::new();
         let map = WorldMapViewCell::new();
         let mut registry = Self {
@@ -176,7 +194,8 @@ impl UiThemes {
                 frame.clone(),
                 radio.clone(),
                 drive.clone(),
-                legend.clone(),
+                custom.clone(),
+                custom_map.clone(),
                 menus.clone(),
                 map.clone(),
             ),
@@ -184,10 +203,13 @@ impl UiThemes {
             skin: default_skin(),
             skin_of: None,
             ui_theme: UiTheme::default(),
+            custom_look: CustomLook::default(),
+            menu_look: MenuLook::default(),
             frame,
             radio,
             drive,
-            legend,
+            custom,
+            custom_map,
             menus,
             map,
             style: UiStyle::Original,
@@ -208,6 +230,20 @@ impl UiThemes {
     /// Sets the palette the token-driven HUD draws in, once per frame. A change rebuilds the skin.
     pub fn set_ui_theme(&mut self, theme: UiTheme) {
         self.ui_theme = theme;
+        self.refresh_skin();
+    }
+
+    /// Sets the Custom HUD's colour look (`[custom_hud] palette` and `high_contrast`), once per frame. A change rebuilds
+    /// the skin.
+    pub fn set_custom_look(&mut self, look: CustomLook) {
+        self.custom_look = look;
+        self.refresh_skin();
+    }
+
+    /// Sets what the Custom menus take from `[custom_hud]` (the text size and motion reduction), once per frame. A
+    /// change rebuilds the skin.
+    pub fn set_menu_look(&mut self, look: MenuLook) {
+        self.menu_look = look;
         self.refresh_skin();
     }
 
@@ -251,12 +287,13 @@ impl UiThemes {
             self.frame.clone(),
             self.radio.clone(),
             self.drive.clone(),
-            self.legend.clone(),
+            self.custom.clone(),
+            self.custom_map.clone(),
             self.menus.clone(),
             self.map.clone(),
         );
         for theme in &self.mods {
-            let hud = ModHud::new(theme.clone(), self.radio.clone(), self.drive.clone());
+            let hud = ModHud::new(theme.clone(), self.radio.clone(), self.custom.clone());
             // The port gives each mod theme its own id, so a refusal here is a bug. It is logged and the theme skipped.
             if let Err(error) = self.themes.register(Box::new(hud)) {
                 log::warn!("the mod theme {:?} is not registered: {error}", theme.id());
@@ -277,11 +314,13 @@ impl UiThemes {
         self.refresh_skin();
     }
 
-    /// Builds the skin for the active theme: the base skin with its tokens merged in. A skin already built for the active
-    /// theme is kept, so the per-frame [`UiThemes::select`] costs one comparison.
+    /// Builds the skin for the active theme: the base skin with its tokens merged in, then the `custom.*` tokens of the
+    /// Custom look, whose accent is the active tokens' `secondary`. A skin already built for the active theme, palette and
+    /// look is kept, so the per-frame [`UiThemes::select`] costs one comparison.
     fn refresh_skin(&mut self) {
         let active = self.themes.active();
-        if self.skin_of == Some((active, self.ui_theme)) {
+        let wanted = (active, self.ui_theme, self.custom_look, self.menu_look);
+        if self.skin_of == Some(wanted) {
             return;
         }
         // The token-driven HUD and the Remastered HUD take the palette the settings chose; every other theme brings its
@@ -290,8 +329,19 @@ impl UiThemes {
             ThemeId::Custom | ThemeId::Remastered => palette::for_ui_theme(self.ui_theme),
             _ => self.themes.active_tokens(),
         };
-        self.skin = self.base.clone().merged(tokens.skin()).merged(remastered::palette_skin(&tokens));
-        self.skin_of = Some((active, self.ui_theme));
+        // The Custom look's accent is the signal yellow; the Remastered `ui_theme` already has a gold of its own.
+        let accent = match (active, self.ui_theme) {
+            (ThemeId::Custom, UiTheme::Bevy) => custom_tokens::SIGNAL,
+            _ => tokens.secondary,
+        };
+        self.skin = self
+            .base
+            .clone()
+            .merged(tokens.skin())
+            .merged(remastered::palette_skin(&tokens))
+            .merged(custom_tokens::skin(self.custom_look, accent))
+            .merged(self.menu_look.skin());
+        self.skin_of = Some(wanted);
     }
 
     /// The skin the active theme's components read: the base skin with the active tokens merged in.
@@ -324,13 +374,13 @@ impl UiThemes {
         self.themes.active() == ThemeId::Original
     }
 
-    /// How the active theme dresses the world map: Original leaves the FEng screen alone, Remastered draws the whole map
-    /// itself, and any other theme that provides the slot (Custom) recolours the FEng screen in place and draws a legend
-    /// over it.
+    /// How the active theme dresses the world map: Original leaves the FEng screen alone, Remastered and Custom draw the
+    /// whole map themselves, and any other theme that provides the slot (a mod theme whose spec names it; the shared
+    /// Custom HUD components do not draw it) recolours the FEng screen in place and draws its chrome over it.
     pub fn world_map_chrome(&self) -> Chrome {
         match self.provided_by(ElementId::WorldMapChrome) {
             None | Some(ThemeId::Original) => Chrome::Original,
-            Some(ThemeId::Remastered) => Chrome::Drawn,
+            Some(ThemeId::Remastered | ThemeId::Custom) => Chrome::Drawn,
             Some(_) => Chrome::Recoloured,
         }
     }
@@ -355,14 +405,19 @@ impl UiThemes {
         self.radio.clone()
     }
 
-    /// The drive feed the Custom speedometer and tachometer read. The HUD plugin keeps this clone and calls `set` on it
-    /// once per frame, after the HUD state is updated.
+    /// The drive feed the Remastered cluster reads. The HUD plugin keeps this clone and calls `set` on it once per frame,
+    /// after the HUD state is updated.
     pub fn drive(&self) -> DriveFeedCell {
         self.drive.clone()
     }
 
-    /// The lists the Remastered vertical menus draw. The frontend plugin keeps this clone, clears it and sets each screen's
-    /// list once per frame.
+    /// The feed the Custom HUD reads. The HUD plugin calls `set` on it once per frame, next to the drive feed.
+    pub fn custom(&self) -> CustomFeedCell {
+        self.custom.clone()
+    }
+
+    /// The lists the Remastered and Custom menus draw. The frontend plugin keeps this clone, clears it and sets each
+    /// screen's list once per frame.
     pub fn menu_lists(&self) -> MenuListCell {
         self.menus.clone()
     }
@@ -373,9 +428,9 @@ impl UiThemes {
         self.map.clone()
     }
 
-    /// The legend the Custom map draws. The frontend plugin keeps this clone and calls `set` while the map is open
-    /// under a theme that recolours it, or `clear` otherwise.
-    pub fn world_map_legend(&self) -> WorldMapLegendCell {
-        self.legend.clone()
+    /// The map the Custom theme draws. The frontend plugin keeps this clone and calls `set` each frame the map is open,
+    /// and `clear` when it is closed.
+    pub fn custom_world_map(&self) -> FullMapCell {
+        self.custom_map.clone()
     }
 }
