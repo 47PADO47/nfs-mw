@@ -82,6 +82,7 @@ impl WorldScene {
             state.markers = self.nav_markers();
             state.world_marks = self.world_marks(state);
             state.map_roads = self.map_roads.clone();
+            state.race_route = super::race::map_route_of(self.race.as_ref());
             state.events = self.hud_feed.events().to_vec();
             state.events_frame = self.hud_feed.frame();
             state.leaders = self.race_leaders();
