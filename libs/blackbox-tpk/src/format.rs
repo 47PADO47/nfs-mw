@@ -28,6 +28,18 @@ impl PixelFormat {
         }
     }
 
+    /// The D3DFORMAT / FourCC value stored in the platform record (the inverse of [`from_d3d`](Self::from_d3d)).
+    pub fn to_d3d(self) -> u32 {
+        match self {
+            Self::Dxt1 => u32::from_le_bytes(*b"DXT1"),
+            Self::Dxt3 => u32::from_le_bytes(*b"DXT3"),
+            Self::Dxt5 => u32::from_le_bytes(*b"DXT5"),
+            Self::Argb8888 => 21,
+            Self::P8 => 41,
+            Self::Other(other) => other,
+        }
+    }
+
     /// Bytes per 4×4 block for block-compressed formats.
     pub fn block_bytes(self) -> Option<usize> {
         match self {
