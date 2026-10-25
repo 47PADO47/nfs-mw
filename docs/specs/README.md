@@ -183,6 +183,7 @@ remaining clock, geometry, context and live-comparison limits.
 - [custom-fonts.md](custom-fonts.md): optional replacement FEng fonts from a user folder, per render height, with scaling.
 - [custom-hud-fonts.md](custom-hud-fonts.md): the Custom HUD's fonts read from the operating system, the fallback and tabular digits.
 - [custom-hud-audio-impl.md](custom-hud-audio-impl.md): the Custom HUD's sound cues (which install trigger each plays), its volume group and its pad rumble, as built.
+- [custom-hud-map-impl.md](custom-hud-map-impl.md): the Custom HUD's centred map as built: road classes, simplification, the local-set cache rule, modes, keys and fair-knowledge marks.
 - [fe-shadows.md](fe-shadows.md): an optional front-end shadow pass (off by default; the original draws none).
 - [hd-content-support.md](hd-content-support.md): HD font glyphs, the mouse pointer and full-motion video at the right size.
 - [hd-reflections.md](hd-reflections.md): optional HD reflection options, with the original defaults.
