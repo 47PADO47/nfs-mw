@@ -45,6 +45,9 @@ default-members = [
     "libs/blackbox-tpk",
     "libs/blackbox-ui",
     "libs/blackbox-vehicle",
+    "libs/chameleon-bundle",
+    "libs/chameleon-gfx",
+    "libs/chameleon-vehicle",
     "libs/ini-tuning",
     "libs/ea-audio",
     "libs/ea-compress",
@@ -64,6 +67,9 @@ publish = false
 rayon = "=1.11.0"
 blackbox-trace = { path = "libs/blackbox-trace" }
 # Engine-generic libraries (libs/)
+chameleon-bundle = { path = "libs/chameleon-bundle" }
+chameleon-gfx = { path = "libs/chameleon-gfx" }
+chameleon-vehicle = { path = "libs/chameleon-vehicle" }
 blackbox-aems = { path = "libs/blackbox-aems" }
 blackbox-anim = { path = "libs/blackbox-anim" }
 blackbox-attrib = { path = "libs/blackbox-attrib" }
@@ -166,6 +172,7 @@ fluent-syntax = "0.12"
 unic-langid = "0.9"
 sys-locale = "0.3"
 env_logger = "0.11"
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 foldhash = "0.2.0"
 glam = { version = "0.34", features = ["bytemuck"] }
 kira = { version = "0.12", default-features = false, features = ["cpal"] }

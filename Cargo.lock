@@ -1812,6 +1812,7 @@ name = "blackbox-solid"
 version = "0.1.0"
 dependencies = [
  "blackbox-chunk",
+ "blackbox-hash",
  "bytemuck",
  "ea-compress",
  "thiserror 2.0.21",
@@ -1843,6 +1844,7 @@ name = "blackbox-tpk"
 version = "0.1.0"
 dependencies = [
  "blackbox-chunk",
+ "blackbox-hash",
  "ea-compress",
  "texture2ddecoder",
  "thiserror 2.0.21",
@@ -2054,6 +2056,31 @@ dependencies = [
  "cipher",
  "poly1305",
  "zeroize",
+]
+
+[[package]]
+name = "chameleon-bundle"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "chameleon-gfx"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "chameleon-vehicle"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "chameleon-gfx",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -4241,6 +4268,26 @@ dependencies = [
  "glam 0.34.1",
  "log",
  "serde",
+]
+
+[[package]]
+name = "nfsmw-import2012"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blackbox-hash",
+ "blackbox-solid",
+ "blackbox-tpk",
+ "chameleon-bundle",
+ "chameleon-gfx",
+ "chameleon-vehicle",
+ "clap",
+ "env_logger",
+ "game-install",
+ "log",
+ "nfsmw-data",
+ "serde",
+ "toml 0.9.12+spec-1.1.0",
 ]
 
 [[package]]

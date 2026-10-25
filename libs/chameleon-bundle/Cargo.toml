@@ -1,0 +1,15 @@
+[package]
+name = "chameleon-bundle"
+description = "Reader for bnd2 resource bundles of the Chameleon engine (Criterion's engine behind NFS Hot Pursuit 2010 and NFS Most Wanted 2012)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+flate2.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
