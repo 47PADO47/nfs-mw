@@ -43,6 +43,12 @@ pub fn request(message: u32) {
     }
 }
 
+/// Requests a trigger directly, for a sound the original's screen code plays by id (the original's routine: ids below 23 are
+/// common samples, the rest front-end samples, the same split as [`target`]).
+pub fn request_trigger(id: i32) {
+    QUEUE.with(|queue| queue.borrow_mut().push(id));
+}
+
 /// A package can announce one gesture through both a pad event and a script response.
 pub fn request_batch(messages: impl IntoIterator<Item = (blackbox_feng::PackageId, u32)>) {
     let mut seen = Vec::new();
