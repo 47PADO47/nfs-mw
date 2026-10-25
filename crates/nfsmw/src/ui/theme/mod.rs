@@ -16,7 +16,8 @@
 //! - [`compose`]: builds each presented layer from the slots its theme resolves (`docs/specs/ui-themes-compose.md`).
 //! - [`original`]: the floor theme. It fills every slot: HUD adapters (T7) and menu adapters (T8).
 //! - [`custom`]: the Custom look, its tokens, layout and feed, and its two palettes (Bevy, Remastered gold). It fills the
-//!   radio card, the map legend and the menus (`custom/menu`) today, and returns `None` for the rest.
+//!   radio card, the map legend, the menus and the LAN screens (`custom/menu`, `custom/lan_hud.rs`) today, and returns
+//!   `None` for the rest.
 //! - [`modded`]: the themes the mods register through `bb.ui`. A mod theme is selected with [`UiThemes::select_mod`], by the
 //!   Mods page's theme choice through [`UiThemes::set_mod_choice`]; the style setting does not choose it
 //!   (`docs/specs/ui-themes.md` section 12).
@@ -110,7 +111,9 @@ pub fn build_themes(
     let mut themes =
         Themes::new(Box::new(OriginalTheme::new(frame.clone()))).expect("OriginalTheme reports ThemeId::Original");
     themes
-        .register(Box::new(CustomTheme::new(radio.clone(), custom, legend).with_menus(menus.clone())))
+        .register(Box::new(
+            CustomTheme::new(radio.clone(), custom, legend).with_menus(menus.clone()).with_lan(frame.lan()),
+        ))
         .expect("the Bevy theme is registered once, and is not Original");
     themes
         .register(Box::new(RemasteredTheme::new(frame.clone(), drive, radio, menus, map)))

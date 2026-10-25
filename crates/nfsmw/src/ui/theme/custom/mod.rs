@@ -30,13 +30,18 @@
 //! - [`map`]: the centred translucent map (the `Minimap` slot; `Blips` is left empty) and its turn-cue chip.
 //! - [`menu`]: the menus (PR 11a): the main menu, the option categories, the pause menu, the safe house, the option
 //!   pages and the dialogs, drawn from the lists the frontend publishes ([`MenuListCell`]).
+//! - [`menu`]: the menus (PR 11a, 11b): the main menu, the option categories, the pause menu, the safe house, the option
+//!   pages, the dialogs, the key list, the jukebox, the credits and the Blacklist, drawn from the lists the frontend
+//!   publishes ([`MenuListCell`]), and the LAN page, drawn from the LAN cell ([`LanCell`]).
+//! - [`lan_hud`]: the LAN session's HUD pieces (`LanHud`), from the LAN cell.
+//! - [`radio_card`], [`radio_placement`]: the radio card in the Custom style (PR 11b) and its place; [`radio_feed`] the
+//!   song it reads, which the Remastered card shares.
 //!
 //! Kept from before the rewrite until their own PRs replace them:
 //!
-//! - [`radio_card`], [`radio_feed`], [`radio_placement`]: the radio card, its feed and its place.
 //! - [`map_legend`]: the world map's legend, drawn over the recoloured FEng map (the `WorldMapChrome` slot).
 //! - [`drive_feed`]: the drive state the Remastered theme reads ([`DriveFeedCell`]).
-//! - [`skin`]: the radio card's and the legend's fonts; [`palette`]: the two palettes `ui_theme` picks.
+//! - [`skin`]: the legend's font and the map's icons; [`palette`]: the two palettes `ui_theme` picks.
 //! - [`hud_component`]: the slot-to-component map, also used by a mod theme that declares tokens.
 //!
 //! The HUD components:
@@ -53,6 +58,9 @@ pub mod feed;
 mod free_roam;
 #[cfg(test)]
 mod helpers_tests;
+mod lan_hud;
+#[cfg(test)]
+mod lan_tests;
 #[allow(dead_code)]
 pub mod layout;
 #[cfg(test)]
@@ -95,6 +103,9 @@ use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId, Tokens};
 use crate::ui::theme::{ElementId, MenuListCell};
 use cluster::Cluster;
 use menu::{CustomMenu, GlideCell};
+use crate::ui::theme::{ElementId, LanCell, MenuListCell};
+use lan_hud::LanHudParts;
+use menu::{CustomMenu, GlideCell, LanMenu};
 
 /// The token-driven theme: its id, the tokens it declares, and the feeds its components read.
 #[derive(Clone, Debug)]
@@ -107,6 +118,8 @@ pub struct CustomTheme {
     /// The lists the menus draw (filled by the frontend for the list looks), and where each menu's selection plate is.
     menus: MenuListCell,
     glide: GlideCell,
+    /// The LAN page and session HUD (filled by the LAN front end).
+    lan: LanCell,
 }
 
 impl CustomTheme {
@@ -121,12 +134,18 @@ impl CustomTheme {
             legend,
             menus: MenuListCell::new(),
             glide: GlideCell::default(),
+            lan: LanCell::default(),
         }
     }
 
     /// This theme with its menus drawn from `menus`, the cell the frontend fills each frame.
     pub fn with_menus(self, menus: MenuListCell) -> Self {
         Self { menus, ..self }
+    }
+
+    /// This theme with its LAN page and session HUD drawn from `lan`, the cell the LAN front end fills each frame.
+    pub fn with_lan(self, lan: LanCell) -> Self {
+        Self { lan, ..self }
     }
 }
 
@@ -140,6 +159,13 @@ impl Theme for CustomTheme {
         // the slot is also what tells the frontend to recolour.
         if ElementId::from_slot(slot) == Some(ElementId::WorldMapChrome) {
             return Some(Box::new(MapLegend::new(self.legend.clone())));
+        }
+        // The LAN screens read the LAN cell: the page as a Custom list, the session's HUD pieces on Custom plates.
+        if ElementId::from_slot(slot) == Some(ElementId::LanMenu) {
+            return Some(Box::new(LanMenu::new(self.lan.clone(), self.glide.clone())));
+        }
+        if ElementId::from_slot(slot) == Some(ElementId::LanHud) {
+            return Some(Box::new(LanHudParts::new(self.lan.clone(), self.feed.clone())));
         }
         // The menus are the Custom theme's own; the HUD components below are shared with the mod themes.
         if menu::draws(slot) {
