@@ -14,6 +14,11 @@ defaults to a neutral set.
   meter fills) stay fixed.
 - **Palettes.** `ui/theme/custom/palette.rs`: `bevy()` (the speedometer and panel colours) and `remastered()` (the gold
   accent of the remastered HUD). The settings choose one (`UiTheme`, row "HUD theme"); `palette::for_ui_theme` maps it.
-  The palette applies to the token-driven HUD (`ThemeId::Custom`) only, so the Remastered HUD does not read it yet.
+  The palette applies to the Custom and the Remastered HUDs: `UiThemes::refresh_skin` (`ui/theme/mod.rs`) takes
+  `palette::for_ui_theme` as the tokens when the active theme is `ThemeId::Custom` or `ThemeId::Remastered`, and merges
+  `remastered::palette_skin` over them, so the Remastered dial's redline tint, gear panel, font sizes and menu colours
+  follow the chosen palette. Every other theme brings its own tokens.
+- **The Custom rewrite.** The Custom HUD of [ADR 0013](../decisions/0013-custom-hud.md) keeps `UiTheme` as its accent
+  family and adds its own `custom.*` tokens ([custom-hud/visual-identity.md](custom-hud/visual-identity.md)).
 - **Mods.** `bb.ui` 1.1 `set_tokens`. A mod theme that declares tokens draws the token look for the slots it does not
   name (`ui/theme/modded` `ModHud`). See [api-ui.md](../modding/api-ui.md).

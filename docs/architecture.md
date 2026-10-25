@@ -334,6 +334,11 @@ with `Scene::hud_state`; nothing else knows FEng.
 - **Theme composition (T12).** The plugin stores each source's tree in the frame cell, and the composer
   (`ui/theme/compose.rs`) draws the radio layer, the HUD and the busted overlay, each as one presenter call. Under
   Original the composed HUD equals the stored tree; the chyron plays only where `RadioCard` is Original ([spec](specs/ui-themes-compose.md)).
+- **Looks.** `ui_style` picks Original (the packages above), Remastered (its own components, `ui/theme/remastered/`) or
+  Custom. Custom is being rewritten from scratch as the rewrite's own modern HUD and menus: a horizontal telemetry
+  cluster, a centred translucent map (on by default), contextual race and pursuit layouts, a notification queue and
+  world markers, with OS fonts and a `[custom_hud]` settings table ([ADR 0013](decisions/0013-custom-hud.md),
+  [spec](specs/custom-hud/README.md)). Original and Remastered do not change.
 
 ## The front end
 

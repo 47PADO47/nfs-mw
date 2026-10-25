@@ -4,6 +4,9 @@ The Custom theme's first component, `RadioCard`, and the retirement of the egui 
 Custom theme fills today (`ElementId::RadioCard`, number 10). The contract it sits under is
 [ui-themes.md](ui-themes.md) section 9. This page records what was built in T9 and what T12 must wire.
 
+The Custom theme is being rewritten from scratch ([ADR 0013](../decisions/0013-custom-hud.md)); the new design is
+[custom-hud/](custom-hud/README.md). This page stays as the record of the first Custom pieces.
+
 - **Sources read:** `crates/nfsmw/src/hud/radio.rs` (the egui card, its placement and fade), `hud/viewport.rs` (the
   placement math it reuses), `devtools/mod.rs` (the egui call site), `libs/blackbox-ui/src/components/` (`Panel`,
   `Stack`, `Text`), and the Original cells (`ui/theme/original/frame.rs`) for the shared-cell pattern.
@@ -122,7 +125,11 @@ baseline.
   depth. The composer sorts by `index`, and the card's nodes keep their build order (stable sort, equal indices).
 - Owed: the end-to-end screenshot with `--ui-style custom` on a GPU machine (`ui-themes-compose.md` section 7).
 
-## 8. The speedometer and the tachometer
+## 8. The speedometer and the tachometer (historical)
+
+Historical: this was the first Custom drive readout. Section 9 replaced it, and the Custom rewrite of
+[ADR 0013](../decisions/0013-custom-hud.md) replaces both (the cluster is [custom-hud/telemetry.md](custom-hud/telemetry.md)).
+The text below describes code that no longer exists in this form.
 
 The Custom theme also fills `Speedometer` (2) and `Tachometer` (1). Each is a neutral component, with no egui, and the
 rest of the HUD (the gear digit in the tachometer group, the minimap, the blips, the pursuit board) stays Original.
@@ -154,3 +161,6 @@ one card in the bottom-right corner, drawn in parts by six slots, all fed from `
 
 Layout: `drive_layout.rs`. The HUD layout setting does not move the cluster yet. The palette is in `skin.rs` (the `drive.*` keys).
 Tests: `custom/drive_tests.rs`.
+
+PR 5 of the Custom rewrite deletes this cluster and PR 6 replaces it with the horizontal telemetry cluster
+([custom-hud/telemetry.md](custom-hud/telemetry.md)).
