@@ -17,7 +17,8 @@ fn reflection_only_placements_keep_all_slots_without_entering_normal_or_prop_fee
     let data = data();
     let mut own = SectionResources::default();
     for i in 1..=4 {
-        own.meshes.insert(i, (MeshHandle::from_raw(i as usize), LodModel { num_polys: 1, density: 1.0 }, false));
+        own.meshes
+            .insert(i, (MeshHandle::from_raw(i as usize), LodModel { num_polys: 1, density: 1.0 }, Default::default()));
     }
     let catalog = PropCatalog::new(vec![], &blackbox_attrib::Database::new());
     let (mut player, unresolved) =

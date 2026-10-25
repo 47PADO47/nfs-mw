@@ -158,6 +158,7 @@ mod tests {
             spawner: None,
             parts: None,
             signal: None,
+            sway_lods: 0,
         }
     }
 

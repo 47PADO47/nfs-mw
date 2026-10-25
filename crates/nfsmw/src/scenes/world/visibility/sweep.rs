@@ -6,8 +6,9 @@ use blackbox_gfx::reflection::distance::within;
 use blackbox_scene::{Aabb, Frustum};
 use blackbox_scenery::INSTANCE_TURNABLE;
 use blackbox_scenery::LodView;
-use blackbox_scenery::layout::LodRules;
-use glam::{Mat4, Vec3, Vec4};
+use blackbox_scenery::layout::{LodRules, MOST_WANTED};
+use blackbox_scenery::sway::SwayFrame;
+use glam::{Mat3, Mat4, Vec3, Vec4};
 
 use super::{Camera, NOT_A_PROP, current_pose, near_caster, reaches_view, turned_pose};
 use crate::scenes::world::detail::DetailState;
@@ -40,6 +41,8 @@ pub(super) struct Sweep<'a> {
     /// Drops every instance whose origin is farther than this from the camera (the rear-view mirror's far plane).
     far: Option<f32>,
     detail: Option<&'a mut DetailState>,
+    /// The wind sway of a player view; other views draw flagged scenery at rest.
+    sway: Option<SwayFrame>,
     out: &'a mut Vec<Instance>,
 }
 
@@ -74,8 +77,15 @@ impl<'a> Sweep<'a> {
             groups,
             far,
             detail,
+            sway: None,
             out,
         }
+    }
+
+    /// Sways the flagged scenery this pass adds by `sway` (`docs/specs/scenery-sway.md`).
+    pub fn with_sway(mut self, sway: Option<SwayFrame>) -> Self {
+        self.sway = sway;
+        self
     }
 
     /// Sweeps `tile`, skipping the objects it can tell are out of reach from the tile's box. `original` lists the
@@ -240,6 +250,10 @@ impl<'a> Sweep<'a> {
         };
         let start = self.out.len();
         let is_prop = p.prop_id != NOT_A_PROP;
+        let transform = match self.sway {
+            Some(frame) if !is_prop && p.sway_lods & (1 << slot) != 0 => swayed(transform, &frame),
+            _ => transform,
+        };
         if is_prop && self.props.model_instances(p.prop_id, transform, self.out) {
             self.limit_from(start);
             return;
@@ -269,6 +283,14 @@ impl<'a> Sweep<'a> {
         }
         self.out.truncate(kept);
     }
+}
+
+/// `transform` with the wind sway turned in first, in the object's own frame: the engine's row-vector `S * M`.
+fn swayed(transform: Mat4, frame: &SwayFrame) -> Mat4 {
+    let rows = [transform.x_axis, transform.y_axis, transform.z_axis].map(|axis| axis.truncate().to_array());
+    let s = MOST_WANTED.sway.rotation(frame, rows, transform.w_axis.x);
+    // Read as columns, the rows of `S` are its transpose, the column-vector form of the same turn.
+    transform * Mat4::from_mat3(Mat3::from_cols_array_2d(&s))
 }
 
 /// The six planes of `view_proj`, as `Frustum::from_view_proj` makes them (`n · p + d >= 0` inside).

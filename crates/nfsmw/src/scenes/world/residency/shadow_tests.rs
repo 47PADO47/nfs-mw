@@ -236,6 +236,7 @@ pub(super) fn fixture() -> (Residency, NullBackend) {
         let placed = Placed {
             group: 0,
             signal: None,
+            sway_lods: 0,
             lods: [Some(MeshHandle::from_raw(i)); 4],
             detailed: None,
             transform: Mat4::from_translation(at),

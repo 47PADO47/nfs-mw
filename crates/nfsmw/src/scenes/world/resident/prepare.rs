@@ -126,8 +126,15 @@ pub fn resolve_placed(
             unresolved += 1;
             continue;
         }
-        let from_overlay = |i: usize| {
-            own.meshes.get(&item.keys[i]).or_else(|| shared.meshes.get(&item.keys[i])).is_some_and(|model| model.2)
+        let traits =
+            |i: usize| own.meshes.get(&item.keys[i]).or_else(|| shared.meshes.get(&item.keys[i])).map(|model| model.2);
+        let from_overlay = |i: usize| traits(i).is_some_and(|t| t.shadow_overlay);
+        let sway_rules = &blackbox_scenery::layout::MOST_WANTED.sway;
+        let sway_lods = match sway_rules.instance_sways(item.flags) {
+            true => {
+                (0..resolved.len().min(4)).filter(|&i| traits(i).is_some_and(|t| t.sways)).fold(0, |m, i| m | 1 << i)
+            }
+            false => 0,
         };
         placed.push(Placed {
             casts_sun_shadow: item.casts_sun_shadow,
@@ -145,6 +152,7 @@ pub fn resolve_placed(
             key: InstanceKey::TRANSIENT,
             spawner: item.spawner,
             signal: item.signal,
+            sway_lods,
             parts: item.hierarchy.clone().map(|hierarchy| {
                 let meshes: std::collections::BTreeMap<_, _> = hierarchy
                     .nodes
