@@ -1,51 +1,38 @@
 //! The Custom theme: the rewrite's own look, rebuilt from scratch as the Custom HUD 2026 (ADR 0013,
-//! `docs/decisions/0013-custom-hud.md`; the design is `docs/specs/custom-hud/`). It overrides only the slots it has
-//! re-expressed as components and returns `None` for the rest, so every other slot falls back to Original.
+//! `docs/decisions/0013-custom-hud.md`; the design is `docs/specs/custom-hud/`). It draws the whole HUD but the busted
+//! overlay, the menus, the LAN screens and the world map with its own components; any other slot falls back to Original.
 //!
-//! Status (PR 5): the foundation. The old bottom-right drive card is gone; the horizontal telemetry cluster, the
-//! centred map and the world markers come in the next PRs of the stack, and until then the drive slots fall back to
-//! Original. What is built here is what those components share:
+//! What every component shares:
 //!
 //! - [`tokens`]: the colours (`custom.*` skin keys), high contrast, the colour-vision palettes, opacity and the motion
 //!   table. `ui_theme` still chooses the accent family ([`palette`]).
 //! - [`layout`]: the 16:9 content box, the safe area, the anchors and the HUD scale.
-//! - [`feed`]: [`CustomFeedCell`], the one cell every Custom component reads, filled by the HUD plugin each frame.
-//! - [`plate`]: the translucent charcoal plate with its optional accent line.
-//! - [`text`]: text in the three font roles, sized by the HUD scale and `text_size`.
-//! - `notify`: the `Notifications` slot, the notification stack and the feedback lane's chip.
+//! - [`feed`]: [`CustomFeedCell`], the one cell the HUD components read, filled by the HUD plugin each frame, with the
+//!   memories the components keep between frames.
+//! - [`plate`], [`text`], [`parts`], [`words`]: the translucent plate, text in the three font roles, the shapes and
+//!   key caps the layouts draw with, and their shared words.
 //!
-//! Built on it (PR 6): [`cluster`], the horizontal telemetry cluster, which fills the drive slots.
+//! The HUD ([`hud_component`], shared with a mod theme that declares tokens):
 //!
-//! The contextual layouts (PR 8, `docs/specs/custom-hud/modes.md`, `race.md`, `pursuit.md`):
+//! - [`cluster`]: the horizontal telemetry cluster (the drive slots).
+//! - [`map`]: the centred translucent map (`Minimap`; `Blips` is left empty) and its turn-cue chip.
+//! - [`mode`] and [`memory`]: the contextual mode (free roam, race, pursuit) with its crossfade, and what the layouts
+//!   remember across frames.
+//! - [`free_roam`], [`race`], [`pursuit`], [`banner`], [`condition`]: the discovery chips and extras, the race strip and
+//!   leaderboard, the pursuit panel and end cards, the transient banner and the vehicle condition chip.
+//! - [`markers`]: the world-space markers and the police threat indicators (`WorldMarkers`).
+//! - [`notify`]: the notification stack and the feedback lane (`Notifications`).
+//! - [`radio_card`], [`radio_placement`]: the radio card and its place; [`radio_feed`] the song it reads, which the
+//!   Remastered card shares.
 //!
-//! - [`mode`]: the resolver from the HUD state to free roam, the race modes, a pursuit phase or hidden, and the
-//!   crossfade clock.
-//! - [`memory`]: what the layouts remember across frames (the mode clock, the discovery chips, the condition chip's
-//!   last warning, the moments a place or a heat level changed), carried by the feed cell.
-//! - [`free_roam`]: the discovery chips, the entry card and the optional extras line (the `BountyRow` slot).
-//! - [`race`]: the status strip (`RaceStatus`), the compact leaderboard (`Leaderboard`), the intro card and countdown.
-//! - [`pursuit`]: the pursuit panel (`PursuitMeter`) and the end-of-chase cards.
-//! - [`banner`]: the `Banner` slot's transient cards; [`condition`]: the vehicle condition chip (`VehicleCondition`).
-//! - [`parts`]: the plates, labels, bars, icons and key caps they draw with; [`words`]: their shared words.
-//! - [`map`]: the centred translucent map (the `Minimap` slot; `Blips` is left empty) and its turn-cue chip.
-//! - [`full_map`]: the full-screen world map (the `WorldMapChrome` slot, PR 11c), drawn with the centred map's roads,
-//!   routes and marks, from the map the frontend publishes ([`FullMapCell`]).
-//! - [`menu`]: the menus (PR 11a, 11b): the main menu, the option categories, the pause menu, the safe house, the option
-//!   pages, the dialogs, the key list, the jukebox, the credits and the Blacklist, drawn from the lists the frontend
-//!   publishes ([`MenuListCell`]), and the LAN page, drawn from the LAN cell ([`LanCell`]).
-//! - [`lan_hud`]: the LAN session's HUD pieces (`LanHud`), from the LAN cell.
-//! - [`radio_card`], [`radio_placement`]: the radio card in the Custom style (PR 11b) and its place; [`radio_feed`] the
-//!   song it reads, which the Remastered card shares.
+//! The screens:
 //!
-//! Kept from before the rewrite:
+//! - [`menu`]: the menus, drawn from the lists the frontend publishes ([`MenuListCell`]), and the LAN page ([`LanCell`]).
+//! - [`lan_hud`]: the LAN session's HUD pieces.
+//! - [`full_map`]: the full-screen world map (`WorldMapChrome`), drawn with the centred map's roads, routes and marks.
 //!
-//! - [`drive_feed`]: the drive state the Remastered theme reads ([`DriveFeedCell`]).
-//! - [`skin`]: the map's icons; [`palette`]: the two palettes `ui_theme` picks.
-//! - [`hud_component`]: the slot-to-component map, also used by a mod theme that declares tokens.
-//!
-//! The HUD components:
-//!
-//! - [`markers`]: the world-space markers (the `WorldMarkers` slot).
+//! Kept for the other looks: [`drive_feed`], the drive state the Remastered theme reads ([`DriveFeedCell`]); [`skin`],
+//! the map's icons.
 
 mod banner;
 mod cluster;
