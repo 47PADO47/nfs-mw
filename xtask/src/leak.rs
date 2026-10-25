@@ -49,6 +49,7 @@ fn has_exe_address(line: &str) -> bool {
 /// The only media exceptions: reviewed independently licensed images, each pinned byte-for-byte by fingerprint.
 /// Updating an asset requires reviewing its source/licence and fingerprint here.
 const REVIEWED_MEDIA: &[(&str, u64)] = &[
+    ("assets/effects/three-fire.png", 0x44250738a007c6e5),
     ("assets/input-prompts/kenney-xbox.png", 0xda7a_10ea_8ad2_ea78),
     ("assets/discord/discord.png", 0xdbef_44cb_d040_d484),
     ("assets/mods/mod-manager.png", 0xc589_bd95_d57a_200f),

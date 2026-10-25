@@ -4,6 +4,7 @@ use super::{Category, Model, Selection};
 use crate::settings::Settings;
 
 pub fn show(ctx: &egui::Context, open: &mut bool, model: &mut Model, settings: &mut Settings) -> Option<Selection> {
+    model.draft.exhaust.set_style(settings.exhaust_style);
     let before = model.draft.clone();
     let (id, size, minimum) = match model.preview {
         true => ("garage_preview", egui::vec2(340.0, 680.0), egui::vec2(300.0, 400.0)),
@@ -34,6 +35,7 @@ pub fn show(ctx: &egui::Context, open: &mut bool, model: &mut Model, settings: &
                 });
             });
             super::presets::show(ui, model);
+            model.draft.exhaust.set_style(settings.exhaust_style);
             ui.separator();
             let height = (ui.available_height() - 36.0).max(260.0);
             if model.preview {
@@ -74,6 +76,17 @@ pub fn show(ctx: &egui::Context, open: &mut bool, model: &mut Model, settings: &
                 ui.weak("F5 controls camera framing during car swaps. Same-car changes preserve your position.");
             }
         });
+    if model.exhaust_style_dirty && (!*open || !ctx.input(|i| i.pointer.any_down())) {
+        model.exhaust_style_dirty = false;
+        if let Some(path) = model.exhaust_style_path.as_ref() {
+            let changes =
+                crate::settings::Partial { exhaust_style: Some(settings.exhaust_style), ..Default::default() };
+            if let Err(error) = crate::settings::write_file(path, &changes) {
+                log::warn!("saving shared exhaust style: {error}");
+                model.message = Some(Err(format!("Could not save exhaust style: {error}")));
+            }
+        }
+    }
     if before == model.draft || model.selected().is_none_or(|car| car.unavailable.is_some()) {
         return None;
     }

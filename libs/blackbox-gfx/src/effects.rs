@@ -3,7 +3,7 @@
 //! All are depth tested and drawn before the UI without writing depth.
 //! The caller owns geometry, sorting, lifetime and budgets; buffers are reused across frames.
 
-use glam::Vec3;
+use glam::{Mat4, Vec3, Vec4};
 
 use crate::{BlendMode, TextureHandle};
 
@@ -13,6 +13,56 @@ pub struct TexturedEffect {
     pub texture: TextureHandle,
     pub blend: BlendMode,
     pub vertices: Vec<EffectVertex>,
+}
+
+/// An emissive, turbulent volume. Local space is a unit cube; the flame flows along +Y.
+/// The texture maps radial distance (U) and flame height (V, bottom to top).
+#[derive(Debug, Clone)]
+pub struct FlameVolume {
+    pub texture: TextureHandle,
+    pub to_world: Mat4,
+    pub time: f32,
+    pub seed: f32,
+    /// Blue ignition root, heating through white into a warm yellow tail.
+    pub blue: bool,
+    /// Emission multiplier, independent of coverage.
+    pub intensity: f32,
+    pub appearance: FlameAppearance,
+}
+
+/// Per-volume tint, optical density and tip displacement in normalized local space.
+#[derive(Debug, Clone)]
+pub struct FlameAppearance {
+    pub root_tint: Vec3,
+    pub tail_tint: Vec3,
+    pub density: f32,
+    pub turbulence: f32,
+    /// Combined tip displacement. The first 35% stays straight; the rest bends quadratically.
+    pub bend: Vec3,
+    /// Optional contact plane in local coordinates, with signed distance in world metres.
+    /// Positive is the flame side. Zero disables contact clipping.
+    pub contact_plane: Vec4,
+    /// Compensate for wider proxy bounds without changing the visible radius.
+    pub radial_scale: f32,
+    /// Optional RGB palette and blend weight, independent of the density lookup's channels.
+    pub root_color: [f32; 4],
+    pub tail_color: [f32; 4],
+}
+
+impl Default for FlameAppearance {
+    fn default() -> Self {
+        Self {
+            root_tint: Vec3::ONE,
+            tail_tint: Vec3::ONE,
+            density: 1.0,
+            turbulence: 1.0,
+            bend: Vec3::ZERO,
+            contact_plane: Vec4::ZERO,
+            radial_scale: 1.0,
+            root_color: [0.0; 4],
+            tail_color: [0.0; 4],
+        }
+    }
 }
 
 #[repr(C)]
@@ -32,6 +82,8 @@ pub const DEFAULT_SOFT_DISTANCE: f32 = 0.3;
 
 #[derive(Debug, Clone)]
 pub struct EffectLayer {
+    /// Bounded emissive volumes, rendered against the completed scene depth.
+    pub flames: Vec<FlameVolume>,
     /// Main-view optical distortion. Never drawn in world captures.
     pub distortion: Option<crate::ScreenDistortion>,
     /// Surface overlays with feathered edges and a subtle longitudinal pattern.
@@ -53,6 +105,7 @@ pub struct EffectLayer {
 impl Default for EffectLayer {
     fn default() -> Self {
         Self {
+            flames: Vec::new(),
             distortion: None,
             surfaces: Vec::new(),
             particles: Vec::new(),
@@ -67,6 +120,7 @@ impl Default for EffectLayer {
 
 impl EffectLayer {
     pub fn clear(&mut self) {
+        self.flames.clear();
         self.distortion = None;
         self.surfaces.clear();
         self.particles.clear();

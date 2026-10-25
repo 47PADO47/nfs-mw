@@ -15,6 +15,7 @@ mod effects_tests;
 mod filter;
 #[cfg(test)]
 mod filter_tests;
+mod flames;
 mod fsr1;
 #[cfg(test)]
 mod fsr1_tests;

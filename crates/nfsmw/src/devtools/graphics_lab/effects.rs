@@ -29,6 +29,9 @@ pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings) {
         );
     });
     ui.checkbox(&mut settings.exhaust_flames, "Exhaust flames");
+    ui.add_enabled_ui(settings.exhaust_flames && settings.renderer == crate::settings::RendererKind::Blackbox, |ui| {
+        ui.checkbox(&mut settings.enhanced_exhaust, "Enhanced exhaust");
+    });
     ui.checkbox(&mut settings.motion_blur, "Motion blur");
     ui.add_enabled_ui(settings.motion_blur, |ui| {
         ui.add(egui::Slider::new(&mut settings.motion_blur_strength, 0.0..=2.0).text("Motion blur strength"));

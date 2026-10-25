@@ -332,6 +332,8 @@ impl Settings {
             speed_trails: Some(self.speed_trails),
             speed_trail_style: Some(self.speed_trail_style),
             exhaust_flames: Some(self.exhaust_flames),
+            enhanced_exhaust: Some(self.enhanced_exhaust),
+            exhaust_style: Some(self.exhaust_style),
             ..self.appearance_layer()
         }
     }

@@ -34,6 +34,14 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
         super::tuning::show(ui, model);
         return;
     }
+    model.draft.exhaust.set_style(settings.exhaust_style);
+    super::exhaust::show(ui, &mut model.draft.exhaust, settings.enhanced_exhaust, &mut model.exhaust_preview);
+    let style = model.draft.exhaust.style();
+    if style != settings.exhaust_style {
+        settings.exhaust_style = style;
+        model.exhaust_style_dirty = true;
+    }
+    ui.add_space(12.0);
     super::appearance::show(ui, model, settings);
     if settings.car_shading == crate::settings::CarShading::Simple {
         ui.weak("Paint finishes and tints need material shading.");
