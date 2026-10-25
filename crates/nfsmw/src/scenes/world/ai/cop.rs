@@ -92,6 +92,7 @@ pub(super) struct Environment {
     pub nitrous_boost: f32,
     pub jerk: bool,
     pub racing: bool,
+    pub head_on_support: bool,
     /// The primary uses the shared tracker even when it cannot publish a road.
     pub shared_target_road: bool,
     pub target_road: Option<TargetRoad>,
@@ -151,6 +152,16 @@ impl CopState {
 
     pub(super) fn environment(&mut self, environment: Environment) {
         self.environment = environment;
+    }
+
+    pub(super) fn set_head_on_support(&mut self, enabled: bool) {
+        if self.environment.head_on_support == enabled {
+            return;
+        }
+        self.environment.head_on_support = enabled;
+        self.repath = 0.0;
+        self.road_nos.leave();
+        self.close.leave();
     }
 
     pub(super) fn nitrous(&self) -> bool {
@@ -263,6 +274,12 @@ impl CopState {
             return think;
         }
         if !self.road_nos.active() {
+            if self.close.active()
+                && let Some(own) = roads::at_car(ctx, &car.body, self.environment.level)
+            {
+                *nav = own;
+                nav.enable_trail(ctx.net);
+            }
             self.repath = 0.0;
             self.governor = SpeedGovernor::begin(car.forward_speed);
             self.last_speed = car.forward_speed;
@@ -272,7 +289,10 @@ impl CopState {
         let (net, index, rng) = (ctx.net, ctx.index, &mut *ctx.rng);
         // The road chase intercepts the player's future road. Formation slots
         // belong to the close/ram actions and must not turn a distant cop back.
-        let goal = road.as_ref().map_or(target.body.position, |r| r.seek);
+        let goal = match self.environment.head_on_support {
+            true => target.body.position,
+            false => road.as_ref().map_or(target.body.position, |r| r.seek),
+        };
         self.repath -= THINK_PERIOD;
         let to_target = Vec3::new(goal.x - car.body.position.x, 0.0, goal.z - car.body.position.z);
         if self.repath <= 0.0 || nav.dead_end {
@@ -298,6 +318,7 @@ impl CopState {
                 Vec3::new(car.body.forward.x, 0.0, car.body.forward.y),
                 false,
             ) {
+                nav.preserve_offset_at(net, car.body.position);
                 nav.enable_trail(net);
                 self.repath = 0.0;
             }
