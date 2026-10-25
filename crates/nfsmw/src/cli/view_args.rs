@@ -288,6 +288,12 @@ pub struct ViewArgs {
     /// Hide the elapsed play time from Discord Rich Presence.
     #[arg(long)]
     pub no_discord_time_played: bool,
+    /// Let Discord friends join your LAN game from your presence [env NFSMW_DISCORD_JOIN; config `discord_join`; default on].
+    #[arg(long, conflicts_with = "no_discord_join")]
+    pub discord_join: bool,
+    /// Do not let Discord friends join your LAN game from your presence.
+    #[arg(long)]
+    pub no_discord_join: bool,
     /// Tone-mapping curve: off or aces [env NFSMW_POST_TONEMAP; config `post_tonemap`; default off].
     #[arg(long, value_name = "off|aces")]
     pub post_tonemap: Option<crate::settings::PostTonemap>,
@@ -420,6 +426,7 @@ impl ViewArgs {
             rear_view_mirror: switch(self.rear_view_mirror, self.no_rear_view_mirror),
             discord: switch(self.discord, self.no_discord),
             discord_time_played: switch(self.discord_time_played, self.no_discord_time_played),
+            discord_join: switch(self.discord_join, self.no_discord_join),
             mods: self.no_mods.then_some(crate::settings::mods::ModsMode::Off),
             transmission: self.transmission,
             camera_mode: self.camera_mode,

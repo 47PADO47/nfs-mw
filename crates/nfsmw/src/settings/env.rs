@@ -54,6 +54,7 @@ pub const EXHAUST_FLAMES: &str = "NFSMW_EXHAUST_FLAMES";
 pub const REAR_VIEW_MIRROR: &str = "NFSMW_REAR_VIEW_MIRROR";
 pub const DISCORD: &str = "NFSMW_DISCORD";
 pub const DISCORD_TIME_PLAYED: &str = "NFSMW_DISCORD_TIME_PLAYED";
+pub const DISCORD_JOIN: &str = "NFSMW_DISCORD_JOIN";
 pub const MODS: &str = "NFSMW_MODS";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
 pub const CAMERA_MODE: &str = "NFSMW_CAMERA_MODE";
@@ -160,6 +161,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         rear_view_mirror: value(&get, REAR_VIEW_MIRROR, parse_bool),
         discord: value(&get, DISCORD, parse_bool),
         discord_time_played: value(&get, DISCORD_TIME_PLAYED, parse_bool),
+        discord_join: value(&get, DISCORD_JOIN, parse_bool),
         mods: value(&get, MODS, super::mods::ModsMode::from_str),
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
         camera_mode: value(&get, CAMERA_MODE, CameraMode::from_str),

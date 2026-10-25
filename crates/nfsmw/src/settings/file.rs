@@ -128,6 +128,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         rear_view_mirror: field(&table, origin, "rear_view_mirror", boolean),
         discord: field(&table, origin, "discord", boolean),
         discord_time_played: field(&table, origin, "discord_time_played", boolean),
+        discord_join: field(&table, origin, "discord_join", boolean),
         mods: field(&table, origin, "mods", |v| super::mods::ModsMode::from_str(text_of(v)?)),
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
         camera_mode: field(&table, origin, "camera_mode", |v| CameraMode::from_str(text_of(v)?)),
