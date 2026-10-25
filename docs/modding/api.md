@@ -47,8 +47,9 @@ The `Mod` trait is the entry point. Methods are called by the generated trampoli
 | Event | `fn event(&mut self, ctx: &mut Ctx, e: &Event)` | G | `modding/events.rs` (new) |
 | Unload | `fn unload(&mut self, ctx: &mut Ctx)` | G | `modding/runtime.rs` (new): at exit, or on a dev reload; the host then removes every registration |
 | Log | `ctx.log(level: Level, msg: &str)` | G | host table `log` -> `log` crate, target `mod:<id>` |
+| Mod folder | `ctx.mod_dir() -> Result<PathBuf>`: the folder of the mod itself (its `mod.toml`). A mod keeps its `config.toml` there and may write the `files/` and `cars/` folders it generates in `load`: the host reads them after every mod has loaded. `Unsupported` on a host that predates the field | G | `libs/blackbox-modding/src/host/table.rs` (`BbHost.mod_dir`), `sdk/ctx.rs` |
+| Game folder | `ctx.game_dir() -> Result<PathBuf>`: the folder of the game's own install; `Unsupported` when the host has none | G | `BbHost.game_dir`, set from `HostOffer::with_game_dir` (`crates/nfsmw/src/modding/open.rs`) |
 | Game info | `ctx.game() -> GameInfo { id, version, abi }` | G | `modding/runtime.rs` (new) |
-| Mod folder | `ctx.mod_dir() -> &Path` (read only; copied path) | G | `modding/runtime.rs` (new) |
 | Frame number | `ctx.frame() -> u64` | G | `app/host.rs` (`Host::frames`) |
 | Interface probe | `ctx.has(id: &str, min: (u16, u16)) -> bool` | G | `query_interface` in `modding/runtime.rs` (new) |
 | Extension | `ctx.ext::<E: Extension>() -> Option<E>` | G/MW | `query_interface`; `E` is e.g. `nfsmw_modding::sdk::Pursuit` |

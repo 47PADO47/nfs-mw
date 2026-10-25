@@ -44,6 +44,7 @@ use core::ffi::c_void;
 use core::ptr;
 use std::cell::RefCell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::Path;
 use std::rc::Rc;
 
 use crate::abi::{
@@ -113,25 +114,33 @@ impl CallState {
 /// is destroyed.
 pub(crate) struct HostTable {
     _state: Box<CallState>,
-    _strings: Box<(String, String)>,
+    _strings: Box<[String; 4]>,
     table: Box<BbHost>,
 }
 
 impl HostTable {
-    /// Build the table for mod `mod_id`, answering with the identity of `offer` and the interfaces of `registry`.
-    pub(crate) fn new(mod_id: &str, offer: &HostOffer, registry: Rc<InterfaceRegistry>) -> Self {
+    /// Build the table for mod `mod_id` living in `mod_dir`, answering with the identity of `offer` and the interfaces
+    /// of `registry`.
+    pub(crate) fn new(mod_id: &str, mod_dir: &Path, offer: &HostOffer, registry: Rc<InterfaceRegistry>) -> Self {
         let state = Box::new(CallState { mod_id: mod_id.to_owned(), registry, attached: RefCell::new(Vec::new()) });
-        let strings = Box::new((offer.game_id.clone(), offer.game_version.clone()));
+        let strings = Box::new([
+            offer.game_id.clone(),
+            offer.game_version.clone(),
+            mod_dir.to_string_lossy().into_owned(),
+            offer.game_dir.clone(),
+        ]);
         let ctx: *const CallState = &*state;
         let table = Box::new(BbHost {
             size: core::mem::size_of::<BbHost>() as u32,
             abi_major: ABI_MAJOR,
             abi_minor: ABI_MINOR,
             ctx: ctx.cast_mut().cast::<c_void>(),
-            game_id: BbStr::new(&strings.0),
-            game_version: BbStr::new(&strings.1),
+            game_id: BbStr::new(&strings[0]),
+            game_version: BbStr::new(&strings[1]),
             log: Some(host_log),
             query_interface: Some(host_query),
+            mod_dir: BbStr::new(&strings[2]),
+            game_dir: BbStr::new(&strings[3]),
         });
         HostTable { _state: state, _strings: strings, table }
     }

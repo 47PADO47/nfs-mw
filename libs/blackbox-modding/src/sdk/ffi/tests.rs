@@ -97,6 +97,8 @@ fn fake_host() -> BbHost {
         game_version: BbStr::new("1.0"),
         log: Some(fake_log),
         query_interface: Some(fake_query),
+        mod_dir: BbStr::new("mods/test"),
+        game_dir: BbStr::new(""),
     }
 }
 
@@ -261,4 +263,6 @@ fn game_id_and_version_are_copied_from_the_host() {
     let ctx = test_ctx(&host);
     assert_eq!(ctx.game_id(), Ok("testgame".to_owned()));
     assert_eq!(ctx.game_version(), Ok("1.0".to_owned()));
+    assert_eq!(ctx.mod_dir(), Ok(std::path::PathBuf::from("mods/test")));
+    assert_eq!(ctx.game_dir(), Err(Error::Unsupported));
 }

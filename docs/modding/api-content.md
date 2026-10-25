@@ -65,6 +65,8 @@ manufacturer = "Acme"           # brand (optional; default: the clone's)
 
 Rules:
 
+- A mod may write its `cars/` and `files/` folders in `Mod::load` (it finds its folder with `ctx.mod_dir()`): the game
+  reads them after every mod has loaded. The [2012 cars mod](mw2012-cars.md) does.
 - The car id is the file name in upper case (`FASTCOUPE`). Its geometry must be in the mod's own `files/` folder, not
   only in the install.
 - `clone` names a stock car (its folder or its type name), or a car an earlier mod added in this run.

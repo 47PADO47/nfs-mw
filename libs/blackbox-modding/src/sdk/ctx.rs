@@ -65,6 +65,22 @@ impl Ctx {
         ffi::game_id(self.host)
     }
 
+    /// The folder of this mod: where its `mod.toml` is. The mod may keep its settings there (`config.toml`) and write
+    /// the content it generates (`files/`, `cars/`): the host reads those after the mod has loaded, so what a mod
+    /// writes in `Mod::load` is part of the game's content for this run.
+    pub fn mod_dir(&self) -> ModResult<std::path::PathBuf> {
+        ffi::mod_dir(self.host).map(std::path::PathBuf::from)
+    }
+
+    /// The folder of the game's own install, or `Unsupported` when the host has none.
+    pub fn game_dir(&self) -> ModResult<std::path::PathBuf> {
+        let dir = ffi::game_dir(self.host)?;
+        if dir.is_empty() {
+            return Err(crate::sdk::Error::Unsupported);
+        }
+        Ok(std::path::PathBuf::from(dir))
+    }
+
     /// The game version string the host reports.
     pub fn game_version(&self) -> ModResult<String> {
         ffi::game_version(self.host)

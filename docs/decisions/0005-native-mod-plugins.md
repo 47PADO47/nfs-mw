@@ -74,6 +74,8 @@ a new interface id suffix, so two majors can be offered side by side during a de
     pub log: unsafe extern "C" fn(ctx: *mut c_void, level: u32, msg: BbStr),
     pub query_interface: unsafe extern "C" fn(ctx: *mut c_void, id: BbStr, major: u16, min_minor: u16)
         -> *const BbIface,           // null when absent or too old
+    pub mod_dir: BbStr,              // the mod's own folder (appended later; check `size` before reading)
+    pub game_dir: BbStr,             // the game's install folder, empty when the host has none (appended later)
 }
 ```
 

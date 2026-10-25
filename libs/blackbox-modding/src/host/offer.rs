@@ -15,6 +15,8 @@ pub struct HostOffer {
     pub game_version: String,
     /// The interfaces the host offers, with their versions.
     pub interfaces: Vec<InterfaceOffer>,
+    /// The folder of the game's install, which every mod can read from its host table. Empty when the host has none.
+    pub game_dir: String,
 }
 
 /// One interface the host offers.
@@ -29,7 +31,18 @@ pub struct InterfaceOffer {
 impl HostOffer {
     /// An offer for `game_id` with no interfaces yet.
     pub fn new(game_id: &str, game_version: &str) -> Self {
-        HostOffer { game_id: game_id.to_owned(), game_version: game_version.to_owned(), interfaces: Vec::new() }
+        HostOffer {
+            game_id: game_id.to_owned(),
+            game_version: game_version.to_owned(),
+            interfaces: Vec::new(),
+            game_dir: String::new(),
+        }
+    }
+
+    /// Say where the game's install is, for the mods' host tables.
+    pub fn with_game_dir(mut self, dir: &std::path::Path) -> Self {
+        self.game_dir = dir.to_string_lossy().into_owned();
+        self
     }
 
     /// Add an interface to the offer.
