@@ -164,3 +164,33 @@ Tests: `custom/drive_tests.rs`.
 
 PR 5 of the Custom rewrite deletes this cluster and PR 6 replaces it with the horizontal telemetry cluster
 ([custom-hud/telemetry.md](custom-hud/telemetry.md)).
+## 10. The Custom menus (Custom HUD 2026, PR 11a)
+
+The design is `docs/specs/custom-hud/menus.md`; this records what was built.
+
+- **Which screens publish lists.** `Cx::list_look` (`frontend/logic/look.rs`, the old `vertical_look`) is true for
+  Remastered and Custom when no mod theme took over. The icon menus, the option pages and the dialogs (confirm, alert,
+  name entry) ask it. The list screens Custom does not draw yet (the key list, the jukebox, the credits, the Blacklist
+  and its bio, the rap sheet pages, and the safe house's Blacklist entry) ask `Cx::remastered_look`, so under Custom they
+  keep their FEng packages until PR 11b.
+- **The slots.** `CustomTheme::element` claims `MainMenu`, `Categories`, `PauseMenu`, `SafeHouseMenu`, `OptionTable`
+  and `Dialog` (`custom/menu/mod.rs` `SLOTS`) before the shared `hud_component`, which mod token themes keep using.
+  `build_themes` hands the theme the `MenuListCell` (`CustomTheme::with_menus`). One component, `CustomMenu`, draws all
+  six from the list: a dialog is a centred plate, the pause menu dims the whole window, a settings page has a value
+  column, the rest is a list down the left of the content box. A slot with no list draws nothing.
+- **Look.** Custom tokens (`custom.*`) and the OS fonts (`text.rs` `Label`, sizes `MENU_ROW` and `MENU_TITLE`); the
+  selected row on a raised plate with a 3-unit accent bar; chevrons and a 10-segment slider for values; a scroll track
+  for lists longer than eight rows; the list's message as the description line; the footer's hints from the live
+  bindings at the bottom right. The menus have their own scale; `[custom_hud] text_size` and `motion_reduction` reach
+  them as skin metrics (`custom/menu/look.rs`, merged by `UiThemes::refresh_skin`), the palette and high contrast through
+  the `custom.*` colours. The selection plate glides 150 ms between rows (`custom/menu/glide.rs`), and jumps with
+  motion reduction.
+- **Pointer.** The frontend tests clicks against the look that draws the list (`frontend/screens/geometry.rs`
+  `ListGeometry`, set each frame from the settings): the Custom geometry is `custom/menu/layout.rs` `MenuFrame`, the
+  dialog's `dialog_row_at` and the footer's `hint_at`. Both looks show the frontend's eight-row window.
+- **Not built.** The screens' crossfade over `mode_change`; per-row descriptions (a `MenuEntry` has none, so a
+  disabled row's reason and the "Custom only" notes are a page line instead); the Original package's FEng screens are
+  still what Original draws.
+- **Tests.** `frontend/logic/look.rs` (the truth table), `custom/menu/tests.rs` (node output per state), `layout_tests.rs`,
+  `glide.rs`, `look.rs`, `frontend/screens/geometry.rs`, `frontend/hud_options_tests.rs`, and `saves.rs` (the
+  `[custom_hud]` table in a saved profile).

@@ -313,6 +313,12 @@ screens, labels and behaviour where a label exists:
 | Discord | Discord Rich Presence | none, plain text | `discord` (On / Off; ours) |
 | Discord | Show Time Played | none, plain text | `discord_time_played` (On / Off, dimmed while `discord` is off; ours) |
 
+The **HUD** category (`Category::Hud`, after Player; `frontend/hud_options.rs`) holds one row per `[custom_hud]` key,
+the map's orientation (`minimap`) and the speed units, in the order of `docs/specs/custom-hud/menus.md` section 4; the
+values and steps are in [hud-settings.md](../hud-settings.md). Its rows write `Settings::hud_options` and record their
+keys in the `[custom_hud]` table of the changes. The icon borrows Gameplay's picture; the name is the catalogue's
+`menus-hud`. A list look carries the page's note (`hud_options::note`) as the list's message.
+
 A row can be disabled by its setting's `enabled` rule (`frontend/options.rs`). A disabled row stays selectable and shows its value dimmed (alpha 110), but left and right do nothing and nothing is saved. Frame Limit is disabled while Vsync is on.
 
 Changes apply at once. The config file layer is written when the screen is left (accept or back), when the pause

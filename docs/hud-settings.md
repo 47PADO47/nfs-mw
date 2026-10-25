@@ -2,8 +2,22 @@
 
 The `[custom_hud]` table of the config file holds the options of the Custom HUD (`ui_style = "custom"`): a preset, the
 display size, the map, which information shows, notifications, accessibility, the camera and feedback. Code:
-`crates/nfsmw/src/settings/hud/`. The options page in the menus comes later; until then the table is set in the config
-file or from the console.
+`crates/nfsmw/src/settings/hud/`. The table is set on the **HUD** page of the options (in every style; see below), in
+the config file, or from the console.
+
+## The HUD options page
+
+Options, then HUD (after Player, in the main menu's and the pause menu's categories). One row per key, in the table's
+order, with the map's orientation (the `minimap` setting, North up or Heading up) and the speed units after the map's
+zoom. Numbers step in fixed amounts and stop at their ends (scale by 0.05; opacity, text size and the 0 to 1 rows by
+0.1; map opacity by 0.05; map zoom by 0.25); the camera shake, speed FOV intensity and HUD volume rows are sliders.
+Choices cycle; switches flip. The map mode row offers off, compact and centered; the expanded view stays the
+`MapExpand` action's. Picking a preset applies its six options at once. Every row applies on the next frame and is
+written to the `[custom_hud]` table when the page is left, and a saved profile keeps the table too.
+
+Under the Custom style the page's last line sums the result up ("Centered map, balanced information, high
+contrast"); under another style it says that most rows are for the Custom style. `nfsmw view-screen Options.fng
+--options --category hud --screenshot out.png` shows the page offscreen.
 
 ```toml
 [custom_hud]
