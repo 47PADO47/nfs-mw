@@ -37,7 +37,9 @@ result, reflected environment and sun specular in linear light, then encodes
 the result for the legacy scene pipeline. The cube is display-encoded, so its
 4 percent dielectric reflectance must not multiply encoded bytes directly.
 Filtering still averages encoded probe samples; this remains a hybrid rather
-than a fully linear capture/IBL pipeline. There is no ambient floor.
+than a fully linear capture/IBL pipeline. Layered materials use a separate linear
+pyramid decoded before reduction. Both now integrate spatially filtered source
+footprints; see [reflection filtering](../reflection-filtering.md). There is no ambient floor.
 
 Global clearcoat remains an enable switch. Opted-in paint scales that coat by
 its own finish strength; matte uses roughness 0.52 and coat strength 0.25.

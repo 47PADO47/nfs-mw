@@ -114,3 +114,6 @@ pub(crate) use scene::garage::{GarageBackdrop, GarageStage};
 #[cfg(test)]
 pub(crate) use scene::{Pausable, PauseFlag};
 pub use script::UiScript;
+
+#[cfg(test)]
+mod extra_options_tests;

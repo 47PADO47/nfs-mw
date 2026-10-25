@@ -59,6 +59,19 @@ pub struct RenderExperiments {
     /// Reconstructed authored world material families instead of legacy prelit fallback.
     pub original_world_materials: bool,
     pub sun_shadows: bool,
+    /// Deterministic near-field Vulkan sun visibility, with cascades at distance.
+    pub ray_sun_shadows: bool,
+    /// Finite sun-disc visibility; hard rays remain an independent comparison.
+    pub ray_soft_shadows: bool,
+    pub ray_shadow_samples: u32,
+    /// Linear mask resolution percentage. 50 traces one quarter as many pixels.
+    pub ray_shadow_resolution: u32,
+    /// Blend two adjacent spatial estimates without recursive accumulation.
+    pub ray_shadow_temporal: bool,
+    pub ray_shadow_filter: f32,
+    pub ray_shadow_range: f32,
+    pub ray_shadow_length: f32,
+    pub ray_shadow_bias: f32,
     /// Reuse exact static depth while redrawing moving casters every frame.
     pub cached_shadows: bool,
     /// Reuse local probes within a bounded time and movement budget.
@@ -67,7 +80,11 @@ pub struct RenderExperiments {
     pub screen_reflections: bool,
     /// None uses custom cascades; Some fits one perspective shadow projection.
     pub shadow_projection: Option<crate::ShadowProjection>,
+    /// Short motion-reprojected stabilization of cascaded visibility.
+    pub cascade_temporal: bool,
     pub far_shadows: bool,
+    /// Outer cascade coverage relative to the detailed range.
+    pub far_shadow_scale: f32,
     pub contact_shadows: bool,
     pub clearcoat: bool,
     /// Opt-in surfaces use calibrated highlights and filtered environment reflections.
@@ -119,6 +136,15 @@ impl Default for RenderExperiments {
             road_reflection_range: 320.0,
             road_reflection_fade: 0.65,
             ray_road_reflections: true,
+            ray_sun_shadows: false,
+            ray_soft_shadows: false,
+            ray_shadow_samples: 4,
+            ray_shadow_resolution: 50,
+            ray_shadow_temporal: false,
+            ray_shadow_filter: 0.75,
+            ray_shadow_range: 100.0,
+            ray_shadow_length: 300.0,
+            ray_shadow_bias: 0.006,
             ray_car_reflections: false,
             ray_texture_quality: 1,
             ray_car_range: 320.0,
@@ -136,7 +162,9 @@ impl Default for RenderExperiments {
             cached_reflections: false,
             screen_reflections: false,
             shadow_projection: None,
+            cascade_temporal: false,
             far_shadows: false,
+            far_shadow_scale: 3.0,
             contact_shadows: false,
             clearcoat: false,
             paint_response: true,
@@ -174,6 +202,20 @@ impl RenderExperiments {
             puddle_scale: finite(self.puddle_scale, 7.0).clamp(2.0, 30.0),
             road_reflection_range: finite(self.road_reflection_range, 320.0).clamp(80.0, 800.0),
             road_reflection_fade: finite(self.road_reflection_fade, 0.65).clamp(0.1, 0.9),
+            ray_shadow_samples: match self.ray_shadow_samples {
+                0..=4 => 4,
+                5..=8 => 8,
+                _ => 16,
+            },
+            ray_shadow_resolution: match self.ray_shadow_resolution {
+                0..=50 => 50,
+                _ => 100,
+            },
+            far_shadow_scale: finite(self.far_shadow_scale, 3.0).clamp(1.0, 5.0),
+            ray_shadow_filter: finite(self.ray_shadow_filter, 0.75).clamp(0.0, 2.0),
+            ray_shadow_range: finite(self.ray_shadow_range, 100.0).clamp(10.0, 240.0),
+            ray_shadow_length: finite(self.ray_shadow_length, 300.0).clamp(40.0, 800.0),
+            ray_shadow_bias: finite(self.ray_shadow_bias, 0.006).clamp(0.001, 0.05),
             ray_texture_quality: self.ray_texture_quality.min(3),
             ray_car_range: finite(self.ray_car_range, 320.0).clamp(40.0, 800.0),
             ray_car_blend: finite(self.ray_car_blend, 1.0).clamp(0.0, 1.0),
@@ -214,7 +256,7 @@ impl RenderExperiments {
         }
         self.shadow_distance
             * match self.far_shadows {
-                true => 3.0,
+                true => finite(self.far_shadow_scale, 3.0).clamp(1.0, 5.0),
                 false => 1.0,
             }
     }
@@ -241,4 +283,44 @@ pub struct ExperimentStats {
     pub gpu_shadow_ms: Option<f32>,
     pub gpu_contact_ms: Option<f32>,
     pub gpu_ao_ms: Option<f32>,
+}
+
+#[cfg(test)]
+mod ray_shadow_tests {
+    use super::RenderExperiments;
+    #[test]
+    fn invalid_sun_ray_controls_are_bounded_and_old_profiles_stay_opt_in() {
+        let defaults = RenderExperiments::default();
+        assert!(!defaults.ray_sun_shadows);
+        let invalid = RenderExperiments {
+            ray_shadow_samples: 100,
+            ray_shadow_resolution: 999,
+            far_shadow_scale: f32::INFINITY,
+            ray_shadow_filter: f32::NAN,
+            ray_shadow_range: f32::NAN,
+            ray_shadow_length: f32::INFINITY,
+            ray_shadow_bias: -1.0,
+            ..defaults
+        }
+        .sanitized();
+        assert_eq!(invalid.ray_shadow_samples, 16);
+        assert_eq!(invalid.ray_shadow_resolution, 100);
+        assert_eq!(invalid.far_shadow_scale, 3.0);
+        let range = RenderExperiments {
+            sun_shadows: true,
+            far_shadows: true,
+            shadow_distance: 160.0,
+            far_shadow_scale: 2.5,
+            ..defaults
+        };
+        assert_eq!(range.caster_distance(), 400.0);
+        assert_eq!(invalid.ray_shadow_filter, 0.75);
+        assert_eq!(invalid.ray_shadow_range, 100.0);
+        assert_eq!(invalid.ray_shadow_length, 300.0);
+        assert_eq!(invalid.ray_shadow_bias, 0.001);
+        let large =
+            RenderExperiments { ray_shadow_range: 900.0, ray_shadow_length: 900.0, ray_shadow_bias: 1.0, ..defaults }
+                .sanitized();
+        assert_eq!((large.ray_shadow_range, large.ray_shadow_length, large.ray_shadow_bias), (240.0, 800.0, 0.05));
+    }
 }

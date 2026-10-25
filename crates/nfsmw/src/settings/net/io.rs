@@ -5,7 +5,10 @@ use clap::Args;
 use toml::{Table, Value};
 
 use super::super::partial::parse_bool;
-use super::{IdentityPath, NetLayer, NetName, parse_interp_delay, parse_port, parse_snapshot_hz, valid_name};
+use super::{
+    IdentityPath, NetLayer, NetName, PublicAddress, parse_interp_delay, parse_port, parse_public_address,
+    parse_snapshot_hz, valid_name,
+};
 
 pub const NAME_KEY: &str = "net_name";
 pub const PORT_KEY: &str = "net_port";
@@ -13,6 +16,7 @@ pub const SNAPSHOT_HZ_KEY: &str = "net_snapshot_hz";
 pub const INTERP_DELAY_KEY: &str = "net_interp_delay";
 pub const SHOW_STATS_KEY: &str = "net_show_stats";
 pub const IDENTITY_FILE_KEY: &str = "net_identity_file";
+pub const PUBLIC_ADDRESS_KEY: &str = "net_public_address";
 
 pub const NAME_ENV: &str = "NFSMW_NET_NAME";
 pub const PORT_ENV: &str = "NFSMW_NET_PORT";
@@ -20,6 +24,7 @@ pub const SNAPSHOT_HZ_ENV: &str = "NFSMW_NET_SNAPSHOT_HZ";
 pub const INTERP_DELAY_ENV: &str = "NFSMW_NET_INTERP_DELAY";
 pub const SHOW_STATS_ENV: &str = "NFSMW_NET_SHOW_STATS";
 pub const IDENTITY_FILE_ENV: &str = "NFSMW_NET_IDENTITY_FILE";
+pub const PUBLIC_ADDRESS_ENV: &str = "NFSMW_NET_PUBLIC_ADDRESS";
 
 /// The keys of the config file (`origin` names the file in the warnings).
 pub fn read(table: &Table, origin: &str) -> NetLayer {
@@ -50,6 +55,8 @@ pub fn read(table: &Table, origin: &str) -> NetLayer {
         show_stats: parse(SHOW_STATS_KEY, &|v| parse_bool(v).map(drop)).and_then(|v| parse_bool(&v).ok()),
         identity_file: parse(IDENTITY_FILE_KEY, &|v| IdentityPath::new(v).map(drop))
             .and_then(|v| IdentityPath::new(&v).ok()),
+        public_address: parse(PUBLIC_ADDRESS_KEY, &|v| parse_public_address(v).map(drop))
+            .and_then(|v| parse_public_address(&v).ok()),
     }
 }
 
@@ -68,6 +75,7 @@ pub fn from_env(get: impl Fn(&str) -> Option<String>) -> NetLayer {
         interp_delay: value(INTERP_DELAY_ENV).and_then(|v| parse_interp_delay(&v).ok()),
         show_stats: value(SHOW_STATS_ENV).and_then(|v| parse_bool(&v).ok()),
         identity_file: value(IDENTITY_FILE_ENV).and_then(|v| IdentityPath::new(&v).ok()),
+        public_address: value(PUBLIC_ADDRESS_ENV).and_then(|v| parse_public_address(&v).ok()),
     }
 }
 
@@ -90,6 +98,9 @@ pub fn put_into(changes: &NetLayer, put: &mut impl FnMut(&str, Value)) {
     }
     if let Some(path) = changes.identity_file {
         put(IDENTITY_FILE_KEY, Value::String(path.as_str().to_owned()));
+    }
+    if let Some(address) = changes.public_address {
+        put(PUBLIC_ADDRESS_KEY, Value::String(address.as_str().to_owned()));
     }
 }
 
@@ -117,6 +128,10 @@ pub struct NetArgs {
     /// The identity key file [env NFSMW_NET_IDENTITY_FILE; default identity.key next to the config file].
     #[arg(long, value_name = "PATH", value_parser = |v: &str| IdentityPath::new(v))]
     pub net_identity_file: Option<IdentityPath>,
+    /// The IP address a Discord invite carries for a game you host, for friends outside the LAN
+    /// [env NFSMW_NET_PUBLIC_ADDRESS; default this PC's LAN address].
+    #[arg(long, value_name = "IP", value_parser = parse_public_address)]
+    pub net_public_address: Option<PublicAddress>,
 }
 
 impl NetArgs {
@@ -133,6 +148,7 @@ impl NetArgs {
             interp_delay: self.net_interp_delay,
             show_stats,
             identity_file: self.net_identity_file,
+            public_address: self.net_public_address,
         }
     }
 }

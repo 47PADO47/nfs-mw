@@ -6,6 +6,9 @@ use glam::{Vec2, Vec3};
 use super::punch::{Body, punch_avoidables};
 use super::{CUT, CUT_BEHIND, Cookie, Trail, cross, xz};
 
+#[cfg(test)]
+mod tests;
+
 /// The car is "past" a cookie when it is on the far side of its cross-section; the cookies at least this
 /// far ahead (widened when the car is out of bounds) start the visibility sweep.
 const LOOK_MIN: f32 = 2.0;
@@ -76,7 +79,7 @@ pub fn update_occluded_position(
             current = i;
             let lateral = c.lateral(car2);
             let out = out_bounds + (lateral - c.right_offset).max(c.left_offset - lateral);
-            look = (LOOK_MIN + OUT_SCALE * out.max(0.0)).min(look_max);
+            look = (look + OUT_SCALE * out.max(0.0)).min(look_max);
         } else if dot < -look {
             n = i;
             break;
@@ -89,7 +92,8 @@ pub fn update_occluded_position(
 
     // Cut holes for the other cars in a local copy of the cookies from the current one on.
     let mut local: Vec<Cookie> = cookies[current..].to_vec();
-    let blocker = punch_avoidables(&mut local, car, avoidables, traffic, vehicle_half_width);
+    let neighbours = super::neighbours::nearby(car, cursor, avoidables);
+    let blocker = punch_avoidables(&mut local, car, neighbours, traffic, vehicle_half_width);
     let skip = n.saturating_sub(current).min(local.len().saturating_sub(1));
     let sweep = sweep(&local[skip..], car2, cursor);
 
@@ -129,7 +133,7 @@ fn blend(cookies: &[Cookie], current: usize, car: Vec2) -> Cookie {
     let a = cookies[current];
     let Some(b) = cookies.get(current + 1) else { return a };
     let dot_a = a.forward.dot(car - xz(a.centre)).max(0.0);
-    let dot_b = b.forward.dot(car - xz(b.centre)).abs();
+    let dot_b = a.forward.dot(car - xz(b.centre)).abs();
     // How far the car is from `a` towards `b`.
     let t = match dot_a + dot_b > 1e-6 {
         true => dot_a / (dot_a + dot_b),
@@ -185,12 +189,12 @@ fn sweep(cookies: &[Cookie], car: Vec2, cursor: Vec3) -> Option<(i8, Vec2, usize
 }
 
 /// The point to steer at when the view is blocked: the cursor reflected through the apex, projected on the
-/// bisector of the directions apex-to-car and apex-to-cursor, no further than the corridor is wide.
+/// bisector of the directions car-to-apex and cursor-to-apex, no further than the corridor is wide.
 fn aim_point(car: Vec2, apex: Vec2, cursor: Vec2, o: &Occlusion, body: &Body) -> Vec3 {
-    let to_car = (car - apex).try_normalize().unwrap_or(Vec2::NEG_Y);
-    let to_cursor = (cursor - apex).try_normalize().unwrap_or(Vec2::Y);
-    let bisector = (to_car + to_cursor).try_normalize().unwrap_or(to_cursor);
-    let desired = apex + to_cursor * (car - apex).length();
+    let car_to_apex = (apex - car).try_normalize().unwrap_or(Vec2::Y);
+    let cursor_to_apex = (apex - cursor).try_normalize().unwrap_or(Vec2::NEG_Y);
+    let bisector = (car_to_apex + cursor_to_apex).try_normalize().unwrap_or(cursor_to_apex);
+    let desired = apex + cursor_to_apex * (car - apex).length();
     let mut length = (desired - apex).dot(bisector);
     let width = o.apex_width.max(0.1);
     if o.avoidable != 0 {

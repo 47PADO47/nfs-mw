@@ -52,8 +52,9 @@ Simulation clocks age even without an authorized body observation, but no
 inactive snapshot is exposed. A single primary tracker is shared before the
 car loop; secondary assignments retain an explicit separate fallback until
 their target vehicle identities own equivalent state. Existing hidden-target
-selection remains authoritative. The lane-index representation, broad-phase
-grid, race and barrier adapters still limit exact geometric parity.
+selection remains authoritative. Continuous selectable offsets are corrected by
+the [road follow-up](ai-pursuit-road-followup.md). Complete junction splines,
+broad-phase grid, race and barrier adapters still limit exact geometric parity.
 
 The current adapter retains primary vehicle history before a pursuit and across
 pursuit starts. Production-step regressions cover missing bodies, vehicle/seat

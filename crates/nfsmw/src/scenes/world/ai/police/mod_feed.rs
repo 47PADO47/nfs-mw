@@ -9,6 +9,18 @@ use crate::modding::outbox;
 use crate::modding::pursuit_feed::{PursuitRequest, PursuitView};
 
 impl Police {
+    pub(in crate::scenes::world::ai) fn set_test_heat(&mut self, level: Option<u8>) {
+        let Some(level) = level else {
+            self.reclamp_heat();
+            return;
+        };
+        if self.heat.is_some() {
+            let mut heat = Heat::new(f32::from(level), f32::from(level));
+            heat.begin();
+            self.heat = Some(heat);
+        }
+    }
+
     /// The heat value of the chase, 0 when none is on.
     pub fn heat_value(&self) -> f32 {
         self.heat.map_or(0.0, |heat| heat.value())
@@ -84,5 +96,24 @@ impl super::super::TrafficWorld {
             }
             EndMode::Abort => self.end_pursuit(blackbox_pursuit::EndReason::None),
         }
+    }
+}
+
+#[cfg(test)]
+mod extra_tests {
+    use super::*;
+    #[test]
+    fn test_heat_can_lower_lock_and_restore_the_normal_chase_range() {
+        let mut police = Police::default();
+        police.begin(1);
+        police.set_test_heat(Some(7));
+        assert_eq!(police.heat_value(), 7.0);
+        police.set_heat(9.0);
+        assert_eq!(police.heat_value(), 7.0);
+        police.set_test_heat(Some(2));
+        assert_eq!(police.heat_value(), 2.0);
+        police.set_test_heat(None);
+        police.set_heat(3.0);
+        assert_eq!(police.heat_value(), 3.0);
     }
 }

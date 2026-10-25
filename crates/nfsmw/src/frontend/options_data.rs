@@ -65,6 +65,7 @@ impl Setting {
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
             Setting::Discord => on_off(s.discord),
             Setting::DiscordTimePlayed => on_off(s.discord_time_played),
+            Setting::DiscordJoin => on_off(s.discord_join),
             Setting::SmokeQuality => match s.smoke_quality {
                 SmokeQuality::Standard => message("options-standard"),
                 SmokeQuality::High => message("options-high"),
