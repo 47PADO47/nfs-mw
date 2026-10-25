@@ -1,10 +1,10 @@
-# Adds the cars of NFS Most Wanted (2012) (docs/modding/mw2012-cars.md). Put the folder of your 2012 install in
-# config.toml (the mod writes a commented one the first time the game starts) and restart: the cars are converted while
-# the game starts, once, and listed with the game's own.
+# Adds the cars of NFS Most Wanted (2012) (docs/modding/nfsmw-2012-content.md). Put the folder of your 2012 install in
+# config.toml (the mod writes a commented one the first time the game starts) and restart: the cars are converted in
+# the background, once, and are in the garage and the career as soon as they are ready.
 
 [mod]
-id = "mw2012.cars"
-name = "NFS Most Wanted (2012) cars"
+id = "nfsmw-2012-content"
+name = "NFS Most Wanted (2012) content"
 version = "0.1.0"
 authors = ["nfs-mw contributors"]
 license = "MIT OR Apache-2.0"
@@ -15,7 +15,10 @@ blackbox_modding = "0.1"
 [games]
 supported = ["nfsmw"]
 
+[optional.interfaces]
+"bb.content" = "1.0"
+
 [library]
-windows = "mw2012_cars_mod.dll"
-linux = "libmw2012_cars_mod.so"
-macos = "libmw2012_cars_mod.dylib"
+windows = "nfsmw_2012_content.dll"
+linux = "libnfsmw_2012_content.so"
+macos = "libnfsmw_2012_content.dylib"

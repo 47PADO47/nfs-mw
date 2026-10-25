@@ -1,34 +1,36 @@
-# The NFS: Most Wanted (2012) cars mod
+# The NFS: Most Wanted (2012) content mod
 
-`mw2012-cars` adds the cars of **NFS: Most Wanted (2012)** to this game: 93 more cars to choose from, with their own
-bodies, interiors, glass, lamps, wheels and textures. The 2012 game runs on a different engine (Criterion's Chameleon,
-not Black Box), so the cars are converted, not copied. The mod is a native mod like [`hello`](examples.md): the source
-is [`examples/mods/mw2012-cars`](../../examples/mods/mw2012-cars), the conversion is
-[`crates/nfsmw-import2012`](../../crates/nfsmw-import2012) and the readers behind it are the three `libs/chameleon-*`
-crates (formats: [chameleon-bundle](../formats/chameleon-bundle.md), [chameleon-gfx](../formats/chameleon-gfx.md),
-[chameleon-vehicle](../formats/chameleon-vehicle.md)).
+`nfsmw-2012-content` adds the cars of **NFS: Most Wanted (2012)** to this game: 93 more cars to choose from, with their
+own bodies, interiors, glass, lamps, wheels and textures. The 2012 game runs on a different engine (Criterion's
+Chameleon, not Black Box), so the cars are converted, not copied. It is a native mod like [`hello`](examples.md), the only
+mod of the repository that is built with the workspace: [`mods/nfsmw-2012-content`](../../mods/nfsmw-2012-content). The
+readers behind it are the three `libs/chameleon-*` crates (formats: [chameleon-bundle](../formats/chameleon-bundle.md),
+[chameleon-gfx](../formats/chameleon-gfx.md), [chameleon-vehicle](../formats/chameleon-vehicle.md)).
 
-**Nothing from either game is in the repository or in a release.** The cars are made on your machine, while the game
-starts, from your own installs. Without a 2012 install the mod adds nothing and the game is unaffected.
+**Nothing from either game is in the repository or in a release.** The cars are made on your machine, in the background
+while the game runs, from your own installs. Without a 2012 install the mod adds nothing and the game is unaffected.
 
 ## Using it
 
-1. Build the mod (`cargo build --release -p mw2012-cars-mod`) and put `examples/mods/mw2012-cars/mod.toml` and the built
-   library (`mw2012_cars_mod.dll`, `libmw2012_cars_mod.so` or `libmw2012_cars_mod.dylib` from `target/release/`) in one
-   folder under the game's mods folder, for example `%APPDATA%\nfsmw\config\mods\mw2012.cars\` (see
+1. Build the mod (`cargo build --release -p nfsmw-2012-content`) and put `mods/nfsmw-2012-content/mod.toml` and the built
+   library (`nfsmw_2012_content.dll`, `libnfsmw_2012_content.so` or `libnfsmw_2012_content.dylib` from `target/release/`)
+   in one folder under the game's mods folder, for example `%APPDATA%\nfsmw\config\mods\nfsmw-2012-content\` (see
    [Using mods](README.md#using-mods)).
-2. Start the game once. The mod writes a commented `config.toml` next to its `mod.toml` and logs where it is.
+2. Start the game once. The mod writes a commented `config.toml` next to its `mod.toml`.
 3. Put the folder of your 2012 install in it and start the game again:
 
    ```toml
    source = 'D:\Need For Speed Most Wanted 2012'
    ```
 
-That is all. The first start with a `source` converts the cars while the game starts (about ten seconds and 360 MB for
-all 93, written into the mod's own `files/` and `cars/` folders); the cars are then in the game like any content mod's.
-Later starts convert nothing unless the settings or the files of either install changed (the mod keeps a fingerprint
-in `.import-stamp`) and take under a second. A change in `config.toml` takes effect at the next start. To remove the
-cars, delete the mod folder or set `mods = off` / use `--no-mods`.
+That is all. With a `source` set, the mod converts the cars **on a background thread while the game starts and runs**;
+nothing waits for it. It takes about a second on a six-core PC once the files are in the disk cache, a few more seconds
+when they are not, and writes 360 MB into the mod's own `files/` and `cars/` folders. When it is done the cars are in
+the game: everything the game opens after that, the garage and the career among them, lists them, so by the time you
+reach the career menu they are there. Later starts convert nothing unless the settings or the files of either install
+changed (the mod keeps a fingerprint in `.import-stamp`), and the cars are in from the first frame. A change in
+`config.toml` takes effect at the next start; when cars are already in the game, the new conversion is kept aside and
+replaces them at that start. To remove the cars, delete the mod folder, or set `mods = off` / use `--no-mods`.
 
 The cars are clones: each takes the physics, sound, parts and wheel layout of a stock racing car it fits best (the mod
 picks the one whose wheelbase, track and tyre radius need the least stretching). Paint is the game's own: the body paint
@@ -65,13 +67,19 @@ it converts or leaves out and why.
 Levels of detail: the game draws nothing for a level a car lacks, so A and B are the finest body, C and D the coarser
 ones. The vertex limit of one solid (60,000) can force a coarser level.
 
-## How a mod does this
+## How it works with the host
 
-The game reads a mod's `files/` and `cars/` folders **after** the mod's `load` has run (`open_install`), so a mod can
-generate content in `load`. For that the host table tells every mod where it lives: `ctx.mod_dir()` is the mod's own
-folder (where `mod.toml`, its `config.toml` and the generated folders are) and `ctx.game_dir()` is the game's install,
-which the mod needs to read the stock cars' wheel layouts (see [api.md](api.md#lifecycle)). Both are appended fields of
-the host table, so mods built before them keep loading.
+- **At load** the mod learns its own folder and the game's install from the host table (`ctx.mod_dir()`,
+  `ctx.game_dir()`, see [api.md](api.md#lifecycle)). It promotes a finished conversion left by an earlier start, reads
+  `config.toml`, and, unless the content on disk is still right, starts the conversion thread and returns.
+- **The conversion** runs on a pool of all cores but one (at most six), one car per task, and builds into `.staging/`. It
+  never writes where the game reads. The fingerprint is written last, so a run cut short is thrown away.
+- **When it is done** (the mod sees it in its frame events: the worker cannot call the host) the mod moves `.staging/files`
+  and `.staging/cars` into place and calls `bb.content.rescan()`. The host adds the mod's `files/` as a *late layer* of the
+  install, which every copy of the install shares, including the ones the scenes already hold, and publishes the cars its
+  `cars/` folder declares; the car tables list them from then on. See [api-content.md](api-content.md#content-registries-bbcontent).
+- If content was already live at start (a rerun after a change), the finished conversion is promoted at the next start
+  instead, because the game has indexed the folder.
 
 ## Limits
 
@@ -84,15 +92,16 @@ the host table, so mods built before them keep loading.
   example); all are imported, with a number added to the id.
 - **Traffic and low-detail bundles** (`_TR`, `_LO`) are not imported.
 - A few cars stretch visibly: the SWAT van and the Venom GT need 1.4 times along one axis on the nearest stock car.
-- The conversion runs on the game's main thread while it starts, so the very first start with a `source` waits for it.
+- A screen the game has open when the conversion finishes keeps the car list it built; open it again to see the cars.
 
 ## Tests
 
-`cargo test -p nfsmw-import2012` runs the unit tests (settings, ids, fitting, textures, folder and fingerprint safety).
-With `MW2012_GAME_DIR=<2012 install>` and `NFSMW_GAME_DIR=<2005 install>` set, `cargo test -p nfsmw-import2012 --
---ignored` converts a car the way the mod does and reads it back with the game's readers, and
-`CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-bundle -p chameleon-vehicle -- --ignored` loads every car of
-the install. To look at a car without opening a window:
+`cargo test -p nfsmw-2012-content` runs the unit tests (settings, ids, fitting, textures, promotion and fingerprint). With
+`MW2012_GAME_DIR=<2012 install>` and `NFSMW_GAME_DIR=<2005 install>` set, `cargo test -p nfsmw-2012-content -- --ignored`
+converts a car through the background job, reads it back with the game's readers, and converts every car with the time it
+takes. `NFSMW_GAME_DIR=<2005 install> cargo test -p nfsmw rescan` checks that content added after start-up reaches the
+copies of the install that are already open. `CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-bundle
+-p chameleon-vehicle -- --ignored` loads every car of the install. To look at a car without opening a window:
 
 ```
 nfsmw view-car POR911CARR12 --screenshot out.png --muted

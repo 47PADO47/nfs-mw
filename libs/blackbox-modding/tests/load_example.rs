@@ -99,20 +99,22 @@ fn platform_key() -> &'static str {
     }
 }
 
-/// Build `hello-mod` with the same profile as this test binary, and return the path of the library it produced. Cargo says
-/// where it put the library (`--message-format=json`), so the folder layout of the target directory does not matter.
+/// Build `hello-mod` with the same profile as this test binary, and return the path of the library it produced. The mod
+/// lives in `mods/hello`, outside the workspace, so it is built through its own manifest into a target folder of its
+/// own. Cargo says where it put the library (`--message-format=json`), so the folder layout does not matter.
 fn build_hello() -> PathBuf {
     let release = !cfg!(debug_assertions);
     let mut command = Command::new(env!("CARGO"));
     command
         .current_dir(workspace_root())
-        .args(["build", "-p", "hello-mod", "--message-format=json-render-diagnostics"])
+        .args(["build", "--manifest-path", "mods/hello/Cargo.toml", "--target-dir", "target/hello-mod"])
+        .arg("--message-format=json-render-diagnostics")
         .stdout(Stdio::piped());
     if release {
         command.arg("--release");
     }
-    let output = command.output().expect("run cargo build -p hello-mod");
-    assert!(output.status.success(), "cargo build -p hello-mod failed");
+    let output = command.output().expect("run cargo build for mods/hello");
+    assert!(output.status.success(), "cargo build of mods/hello failed");
 
     let messages = String::from_utf8_lossy(&output.stdout);
     let library = artifact_path(&messages, &library_file_name())
@@ -135,7 +137,7 @@ fn artifact_path(messages: &str, file: &str) -> Option<PathBuf> {
 
 /// The manifest of the example, as committed in the repository.
 fn example_manifest() -> Vec<u8> {
-    let path = workspace_root().join("examples").join("mods").join("hello").join("mod.toml");
+    let path = workspace_root().join("mods").join("hello").join("mod.toml");
     fs::read(&path).expect("read the example mod.toml")
 }
 

@@ -1,0 +1,27 @@
+# An example mod, outside the game's workspace: a plain build of the repository never compiles it. Build it on demand:
+#   cargo build --manifest-path mods/hello/Cargo.toml
+# The empty [workspace] table makes this package its own workspace root (so it carries its own lock file and target
+# folder unless `--target-dir` says otherwise), and the fields the game's workspace would share are spelled out.
+
+[package]
+name = "hello-mod"
+description = "Example native mod: logs on load, counts and logs each event, logs on unload. Not built with the workspace."
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+blackbox-modding = { path = "../../libs/blackbox-modding", features = ["sdk"] }
+
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[workspace]

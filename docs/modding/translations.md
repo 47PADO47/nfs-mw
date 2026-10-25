@@ -71,7 +71,7 @@ At most 16 variables per message.
 
 ## Language packs
 
-A mod with only a `lang/` folder and no `[library]` is a language pack. See the example in `examples/mods/lang-pack`.
+A mod with only a `lang/` folder and no `[library]` is a language pack. See the example in `mods/lang-pack`.
 
 - **`_core/`** translates the rewrite's own messages: the menus, prompts and HUD text that the original game does not
   have. The English source is `crates/nfsmw/i18n/en/` in the repository; copy a file, keep the ids and translate the

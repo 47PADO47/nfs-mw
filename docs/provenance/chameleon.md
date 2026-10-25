@@ -1,7 +1,7 @@
 # Provenance: the Chameleon formats and the 2012 car import
 
 Covers [`libs/chameleon-bundle`](../../libs/chameleon-bundle), [`libs/chameleon-gfx`](../../libs/chameleon-gfx),
-[`libs/chameleon-vehicle`](../../libs/chameleon-vehicle) and [`crates/nfsmw-import2012`](../../crates/nfsmw-import2012).
+[`libs/chameleon-vehicle`](../../libs/chameleon-vehicle) and the conversion in [`mods/nfsmw-2012-content`](../../mods/nfsmw-2012-content).
 Specs: [formats/chameleon-bundle.md](../formats/chameleon-bundle.md), [formats/chameleon-gfx.md](../formats/chameleon-gfx.md),
 [formats/chameleon-vehicle.md](../formats/chameleon-vehicle.md). Process: [licensing.md](../licensing.md).
 

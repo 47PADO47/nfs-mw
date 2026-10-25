@@ -29,7 +29,7 @@ when the module is new.
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
-| [mw2012-cars.md](mw2012-cars.md) | The `mw2012-cars` mod: the 93 cars of NFS: Most Wanted (2012), converted at start-up from your own install named in the mod's `config.toml`: settings, what is converted, limits |
+| [nfsmw-2012-content.md](nfsmw-2012-content.md) | The `nfsmw-2012-content` mod: the 93 cars of NFS: Most Wanted (2012), converted in the background from your own install named in the mod's `config.toml`: settings, what is converted, limits |
 
 ## Two layers
 
@@ -145,7 +145,7 @@ downloads or fetches a mod.
   - `bb.time`: `get`, `set_hour` (wrapped into 0 to 24), `set_day_length` (a rate clamped to 10 to 3600 real seconds
     per hour; `0` holds the hour) and `freeze`. The clock is the world's day clock, and a menu has none, so a call
     there is `not ready`. A mod's read at load is `not ready` too: the mods start before the scene exists, so the
-    clock is first copied in at the first frame. A mod reads it on its first event, as `examples/mods/hello` does.
+    clock is first copied in at the first frame. A mod reads it on its first event, as `mods/hello` does.
   - `bb.menus`: `register` adds a row to a Mods page under Options, which is listed only while a mod has rows. A row
     is a toggle, a slider, a list or a button. A change is saved under `[mod_values."<id>"]` in the config file and
     calls the mod back. `ctx.menus()` in the SDK adds these rows with closures, and reads and sets them. Pages of their

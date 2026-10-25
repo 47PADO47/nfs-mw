@@ -1,4 +1,4 @@
-//! The settings of the mw2012-cars mod: the `config.toml` in the mod's own folder.
+//! The settings of the nfsmw-2012-content mod: the `config.toml` in the mod's own folder.
 //!
 //! ```toml
 //! # Folder of the user's own NFS Most Wanted (2012) install. Left out: the mod adds no cars and says why.
@@ -20,6 +20,26 @@ use serde::Deserialize;
 
 /// The file name of the settings file, in the mod's folder.
 pub const FILE_NAME: &str = "config.toml";
+
+/// A commented settings file with the defaults: what the mod writes into its folder when it finds none.
+pub const DEFAULT_CONFIG: &str = "# Settings of the NFS: Most Wanted (2012) cars mod (docs/modding/nfsmw-2012-content.md). Restart the game after a change.
+
+# Folder of your own NFS Most Wanted (2012) install. Without it no car is added.
+# source = 'D:\\Need For Speed Most Wanted 2012'
+
+# Which cars: \"all\", or a list of ids or name fragments.
+cars = \"all\"
+# cars = [\"Porsche\", \"Lamborghini\"]
+
+# Cars to leave out, by id or name fragment.
+exclude = []
+
+# Longest texture side in pixels (a power of two, 16 to 4096). Bigger textures lose their top mip levels.
+max_texture_size = 1024
+
+# Who can use the cars: \"player\", \"cop\" or \"both\".
+role = \"player\"
+";
 
 /// Who may drive or chase with the imported cars (the mod car manifest's `role`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
@@ -128,6 +148,11 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_default_settings_file_parses_to_the_defaults() {
+        assert_eq!(Config::parse(DEFAULT_CONFIG).unwrap(), Config::default());
+    }
 
     #[test]
     fn defaults_want_everything() {

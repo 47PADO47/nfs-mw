@@ -7,8 +7,8 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the conversion changes what it writes for the same input.
-const CONVERSION: u32 = 3;
-const FILE: &str = ".import-stamp";
+const CONVERSION: u32 = 4;
+pub const FILE: &str = ".import-stamp";
 
 /// The fingerprint for these settings and installs: the settings, the converter's version, and the names, sizes and
 /// modification times of the source files and of the 2005 files the clone choice reads.

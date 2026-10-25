@@ -362,8 +362,10 @@ New game code touching the `Scene` trait is limited to one optional method that 
 `unsafe_code = "deny"` and `#[allow(unsafe_code)]` on the `abi`, `host::loader` and `sdk::ffi` modules only;
 every `unsafe` block has a `// SAFETY:` comment. The game crate itself keeps the workspace lint.
 
-**Example mods** are workspace members in `examples/mods/*`, each a `cdylib` (plus `rlib` for tests), listed in
-`members` but **not** in `default-members`, so a plain build never compiles them. Planned set: `hello`
+**Mods in the repository** live in `mods/*`. `mods/nfsmw-2012-content` is a real mod and a workspace member. The examples
+(`mods/hello`, and the content-only `mods/lang-pack`) are **not** members: `hello` is its own workspace (an empty
+`[workspace]` table in its manifest), so a build of the repository never compiles it, and the tests that need it build it
+with `--manifest-path mods/hello/Cargo.toml`. Each library mod is a `cdylib`. Planned examples: `hello`
 (commands, events, runs on any game), `nitro-ability` (hotkey, ability, HUD message), `mw-heat-hud` (uses
 `nfsmw.pursuit`, optional), `car-pack` (content only, no library), and two negative fixtures used by tests
 (`panics`, `future-abi`). `mod.toml` files are allowed in `.gitignore`; no library is ever committed.

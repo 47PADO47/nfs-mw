@@ -4,19 +4,20 @@ Four small mods, each a folder you can copy, using the 0.1 SDK: the generic `lib
 in the last one, the NFS:MW extension in `crates/nfsmw-modding`. The catalogue is in [api.md](api.md) and the pages it
 links.
 
-The one example CI builds is [`examples/mods/hello`](../../examples/mods/hello). The four below are sketches written
+The one example CI builds is [`mods/hello`](../../mods/hello). The four below are sketches written
 against the same APIs. They are **not built by CI**; each heading says so. Where a sketch goes past what the SDK
 wraps, it says so.
 
 ## Build and install
 
-Each Rust mod is a `cdylib` whose `Cargo.toml` follows [`examples/mods/hello/Cargo.toml`](../../examples/mods/hello/Cargo.toml),
-with its own package name and any extra dependency. Inside the repository, the folder goes under `examples/mods/<name>/`
-and into the root `Cargo.toml` members, as `hello` is. The workspace denies `unsafe_code`, so an item that uses
+Each Rust mod is a `cdylib` whose `Cargo.toml` follows [`mods/hello/Cargo.toml`](../../mods/hello/Cargo.toml),
+with its own package name and any extra dependency. Inside the repository, the folder goes under `mods/<name>/`. An example stays out of the workspace like `hello`
+(an empty `[workspace]` table in its manifest, so a build of the repository does not compile it); a mod that ships with the
+game, like `nfsmw-2012-content`, is a member of the root `Cargo.toml`. The workspace denies `unsafe_code`, so an item that uses
 `unsafe` carries `#[allow(unsafe_code)]`.
 
-Build from the repository root with the package name, for example `cargo build -p hello-mod` (the ADR says
-`example-mod-hello`; the file says `hello-mod`, and that is what builds). The library is `target\debug\hello_mod.dll`,
+Build an example from the repository root with its manifest, for example `cargo build --manifest-path mods/hello/Cargo.toml`
+(a mod that is a workspace member builds with `-p <package>`). The library is `mods/hello/target/debug/hello_mod.dll`,
 or `libhello_mod.so` on Linux.
 
 Install by copying `mod.toml`, the library (named by `[library]`) and any `files/`, `cars/` and `music/` folders into
@@ -28,7 +29,7 @@ each refused mod with its reason. The F12 command `mods` shows the same in the g
 Works in any game that offers `bb.commands` and `bb.input`. The hotkey `F5` and the console command `hello` both show a
 message and move one blip to the player's car. Based on the APIs in the 0.1 ABI.
 
-Layout: `examples/mods/hotkey/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
+Layout: `mods/hotkey/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
 
 `mod.toml`:
 
@@ -128,7 +129,7 @@ A Mods-page slider sets the real seconds per in-world hour through `bb.time` (10
 The slider is added with `ctx.menus()`, the SDK wrapper of `bb.menus` (see [api-world.md](api-world.md#menus)), so the
 mod has no `unsafe`. Based on the 0.1 ABI.
 
-Layout: `examples/mods/fastclock/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
+Layout: `mods/fastclock/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
 
 `mod.toml`:
 
@@ -276,7 +277,7 @@ Install: copy the folder to `%APPDATA%\nfsmw\config\mods\example.pack\`. No buil
 NFS:MW only. On `F6` it raises the heat of a chase, and it logs each step of the chase and its result. The `nfsmw.*`
 events arrive as `Event::Unknown` with their payload bytes, and `MwEvent::decode` types them. Based on the 0.1 ABI.
 
-Layout: `examples/mods/bounty/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
+Layout: `mods/bounty/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
 
 `mod.toml`:
 

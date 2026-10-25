@@ -1,6 +1,6 @@
 [package]
-name = "mw2012-cars-mod"
-description = "Native mod: adds the cars of NFS Most Wanted (2012) to NFS: Most Wanted (2005), converted at start-up from the user's own 2012 install. Not part of the default build."
+name = "nfsmw-2012-content"
+description = "Native mod: adds the cars of NFS Most Wanted (2012) to NFS: Most Wanted (2005), converted in the background from the user's own 2012 install."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,11 +8,23 @@ license.workspace = true
 publish = false
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-blackbox-modding = { path = "../../../libs/blackbox-modding", features = ["sdk"] }
-nfsmw-import2012 = { path = "../../../crates/nfsmw-import2012" }
+anyhow.workspace = true
+blackbox-hash.workspace = true
+blackbox-modding = { workspace = true, features = ["sdk"] }
+blackbox-solid.workspace = true
+blackbox-tpk.workspace = true
+chameleon-bundle.workspace = true
+chameleon-gfx.workspace = true
+chameleon-vehicle.workspace = true
+game-install.workspace = true
+log.workspace = true
+nfsmw-data.workspace = true
+rayon.workspace = true
+serde.workspace = true
+toml.workspace = true
 
 [lints]
 workspace = true

@@ -1,3 +1,7 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use chameleon_bundle::{Pool, ResourceKind};
 use chameleon_gfx::{Material, Model, Renderable, Shader, Texture, Vertex, VertexDescriptor};
 
@@ -48,10 +52,12 @@ impl Vehicle {
 pub fn load(pool: &Pool, spec: u64) -> Result<Vehicle> {
     let spec = expect(pool, spec, ResourceKind::VehicleGraphicsSpec)?;
     let spec = GraphicsSpec::parse(&spec.blocks[0], &spec.imports)?;
-    let body = model_lods(pool, spec.body_model)?;
+    let surfaces = Surfaces::default();
+    let body = model_lods(pool, &surfaces, spec.body_model)?;
     let mut wheels = Vec::with_capacity(spec.wheels.len());
     for wheel in &spec.wheels {
-        let models = wheel.models.iter().map(|&model| model_lods(pool, model)).collect::<Result<Vec<_>>>()?;
+        let models =
+            wheel.models.iter().map(|&model| model_lods(pool, &surfaces, model)).collect::<Result<Vec<_>>>()?;
         let levels = models.iter().map(Vec::len).max().unwrap_or(0);
         let lods = (0..levels)
             .map(|level| models.iter().filter_map(|lods| lods.get(level).or(lods.last())).flatten().cloned().collect())
@@ -76,19 +82,20 @@ fn expect(pool: &Pool, id: u64, kind: ResourceKind) -> Result<chameleon_bundle::
 }
 
 /// The meshes of every level of a model, most detailed first.
-fn model_lods(pool: &Pool, model: u64) -> Result<Vec<Lod>> {
+fn model_lods(pool: &Pool, surfaces: &Surfaces, model: u64) -> Result<Vec<Lod>> {
     let resource = expect(pool, model, ResourceKind::Model)?;
     let model = Model::parse(&resource.blocks[0], &resource.imports)?;
-    model.lods.iter().map(|&lod| renderable_meshes(pool, lod)).collect()
+    model.lods.iter().map(|&lod| renderable_meshes(pool, surfaces, lod)).collect()
 }
 
-fn renderable_meshes(pool: &Pool, lod: u64) -> Result<Lod> {
+fn renderable_meshes(pool: &Pool, surfaces: &Surfaces, lod: u64) -> Result<Lod> {
     let resource = expect(pool, lod, ResourceKind::Renderable)?;
     let renderable = Renderable::parse(&resource.blocks[0], &resource.imports)?;
     let graphics = &resource.blocks[1];
     let mut meshes = Vec::with_capacity(renderable.meshes.len());
     for mesh in &renderable.meshes {
-        let Some((descriptor, appearance)) = surface(pool, mesh.material)? else { continue };
+        let Some(surface) = surfaces.get(pool, mesh.material)? else { continue };
+        let (descriptor, appearance) = (&surface.0, surface.1.clone());
         let vertices = descriptor.decode(mesh.vertex_bytes(graphics)?)?;
         let triangles = mesh.triangles(graphics)?;
         let in_range = triangles.iter().flatten().all(|&index| (index as usize) < vertices.len());
@@ -98,6 +105,28 @@ fn renderable_meshes(pool: &Pool, lod: u64) -> Result<Lod> {
         meshes.push(PartMesh { vertices, triangles, appearance });
     }
     Ok(meshes)
+}
+
+/// The vertex layout and the look of each material seen so far: a car's meshes share a few dozen materials across its
+/// levels of detail and its wheels, and each costs three inflates and a parse the first time.
+/// A material's vertex layout and look.
+type Surface = Rc<(VertexDescriptor, Appearance)>;
+
+#[derive(Default)]
+struct Surfaces {
+    known: RefCell<HashMap<u64, Option<Surface>>>,
+}
+
+impl Surfaces {
+    /// The surface of `material`, or `None` when the material's shader has no layout we can read.
+    fn get(&self, pool: &Pool, material: u64) -> Result<Option<Surface>> {
+        if let Some(found) = self.known.borrow().get(&material) {
+            return Ok(found.clone());
+        }
+        let made = surface(pool, material)?.map(Rc::new);
+        self.known.borrow_mut().insert(material, made.clone());
+        Ok(made)
+    }
 }
 
 /// The vertex layout and the look of a material, or `None` when the material's shader has no layout we can read.

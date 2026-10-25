@@ -1,5 +1,8 @@
 use chameleon_bundle::{Bundle, ResourceKind};
 
+/// Biggest main block of a Genesys object that is read for names, in bytes.
+const MAX_NAME_OBJECT: usize = 4096;
+
 /// Words that start behaviour and audio object names, not car names.
 const NOT_A_CAR: [&str; 9] =
     ["Race", "Blacklist", "Traffic", "Chassis", "Front", "Rear", "Wheel", "Players", "LocalPlayer"];
@@ -11,7 +14,8 @@ pub fn vehicle_name(bundle: &Bundle) -> Option<String> {
     let kind = ResourceKind::GenesysObject.id();
     let mut votes: Vec<(String, usize)> = Vec::new();
     for (index, entry) in bundle.entries().iter().enumerate() {
-        if entry.kind != kind {
+        // The names sit in the small behaviour objects; the big ones are audio and physics graphs.
+        if entry.kind != kind || entry.block_size(0) > MAX_NAME_OBJECT {
             continue;
         }
         let Ok(resource) = bundle.resource(index) else { continue };

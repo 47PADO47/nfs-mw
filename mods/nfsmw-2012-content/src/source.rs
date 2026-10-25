@@ -22,9 +22,6 @@ pub struct CarFile {
 
 /// A car read out of its bundle.
 pub struct SourceCar {
-    pub number: u32,
-    /// The engine's object name for the car, when the bundle has one.
-    pub object_name: Option<String>,
     pub vehicle: Vehicle,
     /// The diffuse textures the car's meshes use, decoded.
     pub textures: HashMap<u64, Texture>,
@@ -80,7 +77,7 @@ impl Source {
             }
             textures.insert(id, load_texture(&pool, id)?);
         }
-        Ok(SourceCar { number: file.number, object_name: vehicle_name(&bundle), vehicle, textures })
+        Ok(SourceCar { vehicle, textures })
     }
 }
 

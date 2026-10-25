@@ -90,13 +90,16 @@ fn lod_for<'a>(lods: &'a [Lod], level: usize, what: &str) -> Result<&'a Lod> {
     lods.get(level).or(lods.last()).with_context(|| format!("the {what} has no meshes"))
 }
 
-/// The most detailed level at or after `wanted` that fits one solid.
-fn pick_lod(lods: &[Lod], wanted: usize) -> Option<&Lod> {
-    let fits = |lod: &&Lod| lod.iter().map(|mesh| mesh.vertices.len()).sum::<usize>() <= MAX_SOLID_VERTICES;
+/// The position and meshes of the most detailed level at or after `wanted` that fits one solid.
+fn pick_lod(lods: &[Lod], wanted: usize) -> Option<(usize, &Lod)> {
+    let fits =
+        |(_, lod): &(usize, &Lod)| lod.iter().map(|mesh| mesh.vertices.len()).sum::<usize>() <= MAX_SOLID_VERTICES;
     let start = wanted.min(lods.len().saturating_sub(1));
-    lods[start..].iter().find(fits)
+    lods.iter().enumerate().skip(start).find(fits)
 }
 
+/// One solid per level of detail letter. Letters that land on the same level of the car share one build (the finest
+/// level serves both `A` and `B`), which is a copy with another name, not another round of normals and buffers.
 fn add_solids(
     out: &mut Vec<SolidSource>,
     stem: &str,
@@ -105,9 +108,19 @@ fn add_solids(
     markers: Vec<PositionMarker>,
     look: &mut dyn FnMut(&PartMesh) -> Look,
 ) -> Result<()> {
+    let mut built: Vec<(usize, SolidSource)> = Vec::new();
     for (letter, wanted) in LOD_LETTERS.iter().zip(LOD_SOURCE) {
-        let Some(lod) = pick_lod(lods, wanted) else { bail!("{stem}: no level of detail fits one solid") };
-        let mut solid = solid_of(&format!("{stem}_{letter}"), lod, transform, look)?;
+        let Some((level, lod)) = pick_lod(lods, wanted) else { bail!("{stem}: no level of detail fits one solid") };
+        let name = format!("{stem}_{letter}");
+        let mut solid = match built.iter().find(|(known, _)| *known == level) {
+            Some((_, solid)) => SolidSource { name, ..solid.clone() },
+            None => {
+                let mut solid = solid_of(&name, lod, transform, look)?;
+                solid.markers = markers.clone();
+                built.push((level, solid.clone()));
+                solid
+            }
+        };
         solid.markers = markers.clone();
         out.push(solid);
     }
