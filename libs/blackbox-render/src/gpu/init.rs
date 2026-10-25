@@ -355,6 +355,8 @@ fn assemble(
         contact: None,
         ray_shadows: None,
         cascade_resolve: None,
+        sun_glare: None,
+        sun_glare_state: None,
         surfaces: None,
         reuse_prepass_depth: true,
         timing,

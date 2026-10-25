@@ -5,6 +5,7 @@ use crate::viewer::Fullscreen;
 
 impl Scene for WorldScene {
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        renderer.set_sun_glare(None);
         self.close_garage_backdrop(renderer);
         self.release_gpu(renderer);
     }

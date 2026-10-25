@@ -69,6 +69,7 @@ mod sized;
 mod sky;
 mod slots;
 mod spatial_aa;
+mod sun_glare;
 mod surface;
 mod targets;
 mod temporal;
@@ -135,6 +136,8 @@ pub struct Renderer {
     contact: Option<contact::Contact>,
     ray_shadows: Option<ray_shadows::RayShadows>,
     cascade_resolve: Option<shadow_resolve::Resolve>,
+    sun_glare: Option<sun_glare::Pass>,
+    sun_glare_state: Option<blackbox_gfx::SunGlare>,
     surfaces: Option<surface::Surfaces>,
     reuse_prepass_depth: bool,
     timing: Option<timing::Timing>,

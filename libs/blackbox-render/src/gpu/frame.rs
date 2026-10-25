@@ -180,6 +180,8 @@ impl Renderer {
             timing.stamp(encoder, 7);
         }
         self.encode_scene_mode(encoder, targets, output, frame, instances, false, None);
+        let colour = targets.unwrap_or(&self.targets).offscreen().map_or(output, |off| &off.color_view).clone();
+        self.encode_sun_glare(encoder, &colour, &depth, frame);
         self.encode_motion(encoder, targets, instances);
     }
 
