@@ -151,8 +151,8 @@ pub fn compose(
 }
 
 /// The road colours for `opacity` (the roads' opacity times the overlay's fade) and `detail` (the Expanded map's
-/// paths), from the skin's tokens.
-fn road_look(cx: &LayoutCx<'_>, high_contrast: bool, (opacity, detail): (f32, f32), scale: f32) -> RoadLook {
+/// paths), from the skin's tokens. The full-screen map (`custom/full_map`) draws its roads in the same look.
+pub fn road_look(cx: &LayoutCx<'_>, high_contrast: bool, (opacity, detail): (f32, f32), scale: f32) -> RoadLook {
     RoadLook {
         main: fade(colour(cx, keys::TEXT), opacity),
         side: fade(colour(cx, keys::TEXT_SECONDARY), opacity * SIDE_SHARE),

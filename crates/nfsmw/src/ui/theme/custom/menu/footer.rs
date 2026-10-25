@@ -103,6 +103,14 @@ pub fn hint_at(hints: &[MenuHint], point: Vec2, aspect: f32, text_size: f32) -> 
     hints.iter().zip(&spots).find(|(_, spot)| spot.area.contains(point.x, point.y)).and_then(|(hint, _)| hint.action)
 }
 
+/// The hints along the footer line of `frame`, as parts laid out against `cx`: the menus' footer, for a screen that is
+/// not a menu list (the full-screen map, `custom/full_map`).
+pub fn footer_parts(hints: &[MenuHint], frame: MenuFrame, cx: &LayoutCx<'_>) -> Vec<Box<dyn Component>> {
+    let mut parts = Parts::new(cx, frame);
+    parts.footer(hints);
+    parts.finish()
+}
+
 impl Parts<'_, '_> {
     /// The hints along the footer line.
     pub(super) fn footer(&mut self, hints: &[MenuHint]) {

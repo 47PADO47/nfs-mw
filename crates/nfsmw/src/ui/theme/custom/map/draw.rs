@@ -91,9 +91,22 @@ pub fn draw_marks(
         if alpha <= 0.0 {
             continue;
         }
-        let (shape, key) = look(mark.kind);
-        shape_parts(shape, key, at, (alpha, z), stage.scale, cx, out);
+        mark_parts(mark.kind, at, (alpha, z), stage.scale, cx, out);
     }
+}
+
+/// Pushes the shape of a mark of `kind` at `at` (canvas units) onto `out`, at `alpha` and depth `z`, sized for the
+/// scale `scale`: what [`draw_marks`] draws for one mark, and what a legend shows beside the kind's name.
+pub fn mark_parts(
+    kind: MarkKind,
+    at: Vec2,
+    (alpha, z): (f32, f32),
+    scale: f32,
+    cx: &LayoutCx<'_>,
+    out: &mut Vec<Box<dyn Component>>,
+) {
+    let (shape, key) = look(kind);
+    shape_parts(shape, key, at, (alpha, z), scale, cx, out);
 }
 
 /// The parts of one shape at `at`.
@@ -137,8 +150,8 @@ fn disc(key: &'static str, at: Vec2, size: f32, radius: f32, (alpha, z): (f32, f
     Rounded::at_depth(key, Rect::new(at.x, at.y, size, size), radius, z, &LayoutCx::new(&skin, cx.time_s))
 }
 
-/// A ring of `radius` round `at`, stroked `width` wide in `colour`.
-fn ring(at: Vec2, radius: f32, width: f32, colour: [u8; 4], z: f32) -> Polyline {
+/// A ring of `radius` round `at`, stroked `width` wide in `colour`, at depth `z`.
+pub fn ring(at: Vec2, radius: f32, width: f32, colour: [u8; 4], z: f32) -> Polyline {
     let points = (0..=RING_POINTS + 1)
         .map(|i| {
             let angle = i as f32 / RING_POINTS as f32 * std::f32::consts::TAU;

@@ -36,7 +36,7 @@ mod value;
 
 pub use blacklist::row_at as blacklist_row_at;
 pub use dialog::row_at as dialog_row_at;
-pub use footer::hint_at;
+pub use footer::{footer_parts, hint_at};
 pub use glide::GlideCell;
 pub use lan::LanMenu;
 pub use look::MenuLook;
