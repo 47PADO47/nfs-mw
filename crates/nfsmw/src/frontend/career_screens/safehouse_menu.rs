@@ -13,7 +13,7 @@ use crate::frontend::confirm::Confirm;
 use crate::frontend::icon_items::{Id, safehouse_icons};
 use crate::frontend::icon_menu::{IconMenu, Kind};
 use crate::frontend::ids::screen;
-use crate::frontend::logic::{Args, Command, Cx, Footer, Pick, Plain, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, Footer, ListScreen, Pick, Plain, ScreenLogic};
 use crate::i18n::fmt::grouped;
 use crate::ui::theme::MenuList;
 use crate::ui::{Text, UiAssets};
@@ -109,13 +109,16 @@ impl ScreenLogic for SafeHouseMenu {
 
 /// Runs the selected icon: its item decides the screen, and every screen it opens stays in the safe house.
 pub fn press(cx: &mut Cx, args: Args, id: Id) {
-    let Some(item) = item_of(id) else { return };
-    // The Rap Sheet does nothing before the world exists.
-    if item == MenuItem::RapSheet && CareerHandle::shared().is_prelude() {
-        return;
-    }
-    let target = select(item);
-    cx.send(command_for(target, Args { safehouse: true, ..args }, cx.vertical_look()));
+    let Some(command) = press_command(args, id, cx.screen_list_look(ListScreen::Blacklist)) else { return };
+    cx.send(command);
+}
+
+/// The command a press on icon `id` sends. Every item sends one, before the world exists as well: the Original look has
+/// already played the package's leave and switched its input off by the time the press is carried out, so an item that
+/// sent nothing would leave the screen dead.
+fn press_command(args: Args, id: Id, vertical: bool) -> Option<Command> {
+    let item = item_of(id)?;
+    Some(command_for(select(item), Args { safehouse: true, ..args }, vertical))
 }
 
 /// The menu item an icon stands for; none for the icons of other menus.
@@ -139,8 +142,8 @@ fn select(item: MenuItem) -> MenuTarget {
 }
 
 /// The command a target opens. Resume Free Roam asks first, and the answer's command is `Resume`: the flow then
-/// runs `safehouse::resume_free_roam` (the prologue check needs the career's node progress). `vertical` is the
-/// Remastered look, which has no overview page and shows its list of rivals instead.
+/// runs `safehouse::resume_free_roam` (the prologue check needs the career's node progress). `vertical` is a look
+/// that draws the Blacklist as a list (`ListScreen::Blacklist`): it opens the list of rivals instead of the overview.
 fn command_for(target: MenuTarget, args: Args, vertical: bool) -> Command {
     match target {
         MenuTarget::ConfirmResume => Command::Confirm(Confirm::new(Text::Game(CONFIRM_RESUME_LABEL), Command::Resume)),

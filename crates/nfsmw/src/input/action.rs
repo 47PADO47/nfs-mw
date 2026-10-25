@@ -104,6 +104,20 @@ pub enum Action {
     Garage,
     /// Button: open or close the full-screen world map, from free roam (`frontend/world_map`).
     Map,
+    /// Driving button: take the HUD's oldest notification off the screen (`hud/notify`).
+    DismissNotification,
+    /// HUD button: the Custom map's next mode: off, compact, centered, expanded, then off again
+    /// (`ui/theme/custom/map/modes.rs`). Never a driving input.
+    MapMode,
+    /// HUD button: open the expanded map, or go back to the mode it was opened from.
+    MapExpand,
+    /// HUD buttons: zoom the Custom map in and out a step.
+    MapZoomIn,
+    MapZoomOut,
+    /// HUD button: turn the map north-up or heading-up (the `minimap` setting).
+    MapOrientation,
+    /// HUD button: hide or show the whole HUD for the session (the `hud` setting, not saved).
+    ToggleHud,
 }
 
 impl Action {
@@ -165,6 +179,13 @@ impl Action {
             "radio_previous",
             "garage",
             "map",
+            "dismiss_notification",
+            "map_mode",
+            "map_expand",
+            "map_zoom_in",
+            "map_zoom_out",
+            "map_orientation",
+            "toggle_hud",
         ];
         NAMES[self.index()]
     }
@@ -176,7 +197,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 56] = [
+    pub const ALL: [Action; 63] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -233,6 +254,13 @@ impl Action {
         Action::RadioPrevious,
         Action::Garage,
         Action::Map,
+        Action::DismissNotification,
+        Action::MapMode,
+        Action::MapExpand,
+        Action::MapZoomIn,
+        Action::MapZoomOut,
+        Action::MapOrientation,
+        Action::ToggleHud,
     ];
 
     /// Actions that still work while the UI has the keyboard.

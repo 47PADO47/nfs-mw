@@ -54,6 +54,7 @@ here only. Image base `0x00400000`; program `/speed.exe` (Black Edition PC v1.3)
 | `RapSheetRS` | `FUN_00546650` | `0x0089E5D0` | `0x0052CB80` | `FUN_0052cbc0` | summary index loop at `0x0052CE02` to `0x0052CEF0`; `RAP_SUMMARY_%.2d` at `0x0089D414` |
 | `RapSheetUS` | `FUN_005466D0` | `0x0089E630` | `0x005469D0` | `FUN_0052cf40` (rows), `0x0052D420` (header) | rows are 0x24-byte data nodes (vtable `0x0089C2C0`), slot vtable `0x0089C2C8`, show `0x0051E2F0`; toggle `0x0052D5C0`; view byte `+0xE0` |
 | `RapSheetVD` | `FUN_00546A50` | `0x0089E65C` | `0x0052D5E0` | `FUN_0052d640` | data nodes vtable `0x0089C2D4`, slot vtable `0x0089C2DC`, show `0x0051E480` |
+| `RapSheetVD` header | undefined (created at `0x0052D8F4` to read it) | | | `0x0052D8F4` | fills `CASE_FILE`, name `0x1FFFB988` (`RAP_PLAYER_NAME`), bounty `0x1FFFB989` (`RAP_TOTAL_BOUNTY`, `FUN_00590500`), preferred vehicle `0x1FFFB98A` (`RAP_PREFERRED_VEHICLE`, `FUN_00599c50`), recent vehicle `0x1FFFB98B` (`RAP_RECENT_VEHICLE`, `FUN_00599970`); the main page's name `0xE3DA78E7` is not on this page |
 | `RapSheetCTS` | `FUN_0052da20` | `0x0089D504` | `0x0052DD20` | `FUN_0051e6e0` (rows), `0x0052DD80` (header) | slot vtable `0x0089C2EC`, show `0x0051E660`; unit prices in `FUN_005a3f10` |
 | `RapSheetTEP` | `FUN_00546fc0` | `0x0089E668` | `0x0052DE40` | `FUN_0052e0c0` | 5 buttons, jump table `0x0052E0A0` |
 | `RapSheetPD` | `FUN_00547050` | `0x0089E678` | `0x0052E410` | `FUN_0052e450` | entry index u16 at `+0x2C` |
@@ -73,6 +74,9 @@ here only. Image base `0x00400000`; program `/speed.exe` (Black Edition PC v1.3)
 | Per-car counts | `FUN_00580ea0` | `0x00580EA0` | sum of the eight unserved / served counters of one car |
 | Total bounty, evaded, busted, impounded, fines, monitored | `FUN_00590500`, `FUN_00590550`, `FUN_005905a0`, `FUN_005905f0`, `FUN_00590630`, `FUN_005906b0` | `0x00590500` ... `0x005906B0` | |
 | Car name label | `FUN_00591160` / `FUN_005913b0` | `0x00591160` / `0x005913B0` | `CARNAME_%s_%s`, maker from `FUN_00581790` |
+| Preferred vehicle | `FUN_00599c50` | `0x00599C50` | walks the 200 slots with the live-car test; keeps the car whose evaded (`+0x14`) plus busted (`+0x16`) is **strictly** greater than the best so far, which starts at 0, so ties go to the first car and no pursuit gives no car (label `0x73AF0386`, `RAP_VD_NO_CAR_ON_RECORD`) |
+| Recent vehicle | `FUN_00599970` | `0x00599970` | reads the history `+0xBD4` car key; 0 gives no car, otherwise the name label of a car record built around that key (`FUN_00591160`) |
+| UI sound by trigger id | `FUN_004ae940` | `0x004AE940` | (this = sound owner, id): ids below `0x17` go to the common sample player (`this+0x5C`), the rest to the front-end one (`this+0x58`), the same split as `frontend-audio.md`. The login's `0x67` and `0x68` are therefore front-end triggers, samples 80 and 81 after subtracting 23 |
 | History recorder | `FUN_00580170` | `0x00580170` | via `FUN_0058fd00` from the pursuit-end recorder `FUN_00411240` |
 | Cost to state lines | `FUN_005a3f10` | `0x005A3F10` | switch 0 to 9, unit prices 2000, 450, 250, 5000, 250, 500, 250, 225, 500, direct pair |
 | Rank | `FUN_005a3c30` | `0x005A3C30` | collection names by statistic and mode; the `*4000` for statistic 0 is a hidden x87 operand in the decompile |
@@ -104,3 +108,10 @@ here only. Image base `0x00400000`; program `/speed.exe` (Black Edition PC v1.3)
 - The race sheet launch chain (`FUN_005fdcb0`, `FUN_00603440`, `FUN_00600ab0`, `FUN_0057eca0`) was only read as calls.
 - The reader of the context bit 9 beyond the audio state chooser `FUN_004df6d0` (state 13).
 - The meaning of the front-end database byte `+3` that hides the main menu card.
+
+## Findings of the Rap Sheet hang fix (2026-10-25)
+
+- **The hang was ours, not the original's.** The safe house menu ignored a Rap Sheet press while the career handle's prelude flag was set (a stub from `4b0857c2`, when the pre-world menu was first added). The flag is set for every safe house visit, in the world as well (`flow_career.rs`). The Original look posts the package's leave and disables its input before carrying a press out, so an item that sends no command leaves the screen dead; the Remastered look acts at once and so only looked inert. Every safe house icon now sends its command.
+- **The vehicle database header was unfilled.** The page wrote the main page's name object, so the package's design text (`PLAYER NAME`, a bounty, `PORSCHE 911S`, `MAZDA RX-8`) stayed on screen. The header routine above fills four objects of its own.
+- **Not verified.** The login's timed animation and the leave transitions (the screenshot runs render the state after the scripted pad has finished), and whether samples 80 and 81 are audible (the port plays them; no listening comparison against the original).
+- **Method note.** The `bust` and `STAGE15` screenshot profiles lack settings flag bit 4, so their Rap Sheet icon is greyed. A rap sheet profile for a run can be made by setting `Flags::HAS_RAP_SHEET` in a copy and re-sealing it with `ProfileSave::set_settings` and `to_bytes`.

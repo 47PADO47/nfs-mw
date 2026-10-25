@@ -40,15 +40,17 @@ thread_local! {
 }
 
 /// Publish the chase as it is now. The notices of the change since the last snapshot are queued for the `ModsPost`
-/// system. The first snapshot is compared with an idle chase, so it says what it finds.
-pub fn publish(view: PursuitView) {
+/// system, and returned for the HUD, which reads the same changes (`scenes/world/feed/hud.rs`). The first snapshot is
+/// compared with an idle chase, so it says what it finds.
+pub fn publish(view: PursuitView) -> Vec<Notice> {
     OUTBOX.with(|outbox| {
         let mut outbox = outbox.borrow_mut();
         let before = outbox.view.unwrap_or_else(|| PursuitView::idle(view.fines));
         let changes = observe(&before, &view);
         outbox.view = Some(view);
-        push_bounded(&mut outbox.notices, changes, MAX_NOTICES);
-    });
+        push_bounded(&mut outbox.notices, changes.clone(), MAX_NOTICES);
+        changes
+    })
 }
 
 /// The chase as the world last published it, or `None` before the first publish.

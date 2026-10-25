@@ -2,8 +2,8 @@
 //!
 //! Each list is the list [`super::elements::Layout::update`] uses for the same element, so an adapter emits the
 //! objects the HUD shows for it, and no others. Every hash is a name hash (`Runtime::find`), as in `elements.rs`
-//! and `bind.rs`. The grouping decisions (the pursuit board, the gear inside the tachometer, the minimap's blips) are
-//! recorded in `docs/specs/ui-themes.md` section 8.
+//! and `bind.rs`. The grouping decisions (the pursuit board, the gear inside the tachometer, the minimap's blips, the
+//! bounty row inside the board) are recorded in `docs/specs/ui-themes.md` section 8 and `docs/specs/ui-themes-slots.md`.
 
 use std::sync::{Arc, OnceLock};
 
@@ -11,8 +11,11 @@ use blackbox_feng::fe_hash_upper;
 
 use super::bind::GEAR;
 use super::blip_styles;
-use super::elements::{COOLDOWN, NITROUS, PURSUIT_BOARD, PURSUIT_COPS, SPEEDOMETER, TACHOMETER, TURBO_GROUP};
+use super::elements::{
+    BOUNTY_ROW, COOLDOWN, NITROUS, PURSUIT_BOARD, PURSUIT_COPS, SPEEDOMETER, TACHOMETER, TURBO_GROUP,
+};
 use super::minimap::{ARROW, BACKING, GROUP as MINIMAP_GROUP, PIECES as MINIMAP_PIECES};
+use super::race;
 use super::speedbreaker;
 
 /// The name hashes one HUD element's adapter takes: the roots of its subtrees, and the subtrees that belong to
@@ -104,10 +107,38 @@ pub(crate) fn blips() -> Roots {
 }
 
 /// The signed busted/evade meter and its cool-down bar, with the pursuit board and the cops count. The board is the
-/// chase's display (timer, cops, meter), so it belongs to the same slot as the meter.
+/// chase's display (timer, cops, meter), so it belongs to the same slot as the meter. The bounty row sits inside the
+/// board in the package **[verified]** (`HUD_SingleRace.fng`: `0x8674e6d4` under `PursuitBoardGroup`), but it is its
+/// own slot ([`bounty_row`]), so it is left out here.
 pub(crate) fn pursuit_meter() -> Roots {
     static ROOTS: OnceLock<Roots> = OnceLock::new();
-    shared(&ROOTS, || Roots::new(PURSUIT_BOARD.into_iter().chain(PURSUIT_COPS).chain(COOLDOWN), []))
+    shared(&ROOTS, || Roots::new(PURSUIT_BOARD.into_iter().chain(PURSUIT_COPS).chain(COOLDOWN), BOUNTY_ROW))
+}
+
+/// The race readout: the race information group (the place, the clock and its icon, the progress and the held lap group)
+/// and the roots the layout shows with it, all inside that group.
+pub(crate) fn race_status() -> Roots {
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new(race::root_hashes(), []))
+}
+
+/// The race leaderboard: `LeaderBoardGroup` and its rows.
+pub(crate) fn leaderboard() -> Roots {
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new([super::leaderboard::GROUP], []))
+}
+
+/// The career bounty row, on its own. It sits inside the pursuit board, which [`pursuit_meter`] leaves it out of.
+pub(crate) fn bounty_row() -> Roots {
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new(BOUNTY_ROW, []))
+}
+
+/// The lines over the road: the generic message group (`Hud_GenericMessage`, a checkpoint, a lap, the race-over line)
+/// and the 3-2-1-GO group. Both sit in the radar's group in the package, which no slot takes.
+pub(crate) fn banner() -> Roots {
+    static ROOTS: OnceLock<Roots> = OnceLock::new();
+    shared(&ROOTS, || Roots::new([race::message_hash(), race::count_hash()], []))
 }
 
 /// The nitrous gauge: its group and its bar.

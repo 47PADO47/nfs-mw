@@ -71,21 +71,24 @@ GPS target in its own GPS-target routine and asks through a separate dialog (`do
 
 ## Custom look (themeable UI)
 
-Under the **Custom** theme the live `WorldMapMain.fng` screen is **recoloured in place**, not replaced, so it keeps
-its fullscreen picture, its filter switch, its button prompts (`PC_key_*`, `R1`/`L1`) and all of its mouse behaviour
-(drag, zoom, pin-click). `world_map/screen/restyle.rs` hides the decorative stripe and makes the one background layer
-(`BasePoly.tga`, and the big side/centre panels) less transparent — a single dark scrim, no separate panel behind the
-map content — so the frozen world still shows through; under Custom it also tints the panels dark and the static
-text light. The screen then hides its own list and card, and the themed legend is drawn in their place.
+Under the **Custom** theme the whole map is drawn by the theme, as under Remastered (`ui/theme/custom/full_map/`, PR 11c
+of the Custom HUD 2026): `WorldMapChrome` resolves to `FullMap`, `UiThemes::world_map_chrome` says `Drawn`, and the FEng
+screen runs underneath for its logic and the dialog stack but is not presented. The session, the input (the wheel zooms
+and a drag pans anywhere in the window), the cursor's focus and the GPS prompt are the same as every look's.
 
-- **The flag + legend.** `ElementId::WorldMapChrome` (26) resolves to `MapLegend` (`ui/theme/custom/map_legend.rs`)
-  under Custom and `Empty` under Original. Providing it also tells the frontend to recolour: the plugin reads
-  `UiThemes::draws_world_map_chrome`, passes `themed` into `control::step` (which sets `WorldMapFrame.chrome_themed`, so
-  the screen recolours and hides its list), fills the legend from the open map (`world_map/legend.rs`, the same data the
-  FEng list shows), and presents the legend over the map. Under Original the flag is off and the screen is untouched.
-- **The legend panel** shows up to `VISIBLE_ROWS` of the filter's blips (icon, name, distance), the focused row in the
-  accent colour. When the filter has more, the wheel (cursor off the picture) scrolls the list and a slim scrollbar in
-  the right gutter shows the position.
+- **The roads** are the centred map's (`hud/map_roads`): the scene's shared handle and the GPS route are read from the HUD
+  state at open, with the blips, and carried in `WorldMapFrame::roads` and `route`, next to the city's `calibration`.
+- **Placement.** Every world point goes through the calibration onto the picture, through the camera onto the view and
+  onto the full-screen picture square (`Picture::FULL`), so a place drawn from its world position lands where the cursor
+  picks its blip. A map with no calibration fits the network's bounds to the screen's height.
+- **Drawn** in the Custom tokens and OS fonts: a dark ground, the roads, the route in nav cyan, the current tab's places
+  as the centred map's marks with the route's end, the player's arrow, a ring on the focused place or a cross at the
+  pointer, "MAP" with the three tabs and the zoom, the legend (the player, the route, each style of the tab with its mark
+  and count; **L** hides it), the focused place's card (name, distance, how to set the GPS) and the menus' footer hints.
+  Details: [ui-themes-custom.md](ui-themes-custom.md) section 11.
+
+The recolour-in-place path (`Chrome::Recoloured`, `world_map/screen/restyle.rs`) stays for a theme that provides the slot
+without drawing the whole map (a mod theme whose spec names it); no built-in theme takes it any more.
 
 ## Remastered look (themeable UI)
 
@@ -93,7 +96,7 @@ Under the **Remastered** theme the whole map is drawn by the theme (`ui/theme/re
 `WorldMapMain.fng` still runs underneath, for its logic and the dialog stack, but is not presented. The session, the input
 and the GPS prompt are the same as every other look's.
 
-- **The flag.** `ElementId::WorldMapChrome` (26) resolves to `WorldMapView` under Remastered, to `MapLegend` under Custom and
+- **The flag.** `ElementId::WorldMapChrome` (26) resolves to `WorldMapView` under Remastered, to `FullMap` under Custom and
   to `Empty` under Original. `UiThemes::world_map_chrome` turns that into a `Chrome` (`Original`, `Recoloured`, `Drawn`),
   which the plugin passes to `control::input` and `control::step` and stores in `WorldMapFrame::chrome`.
 - **The picture** is the career stage's map texture (`WorldMapFrame::texture`, from `MapVariant::world_map_texture`). It is

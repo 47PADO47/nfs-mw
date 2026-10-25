@@ -91,14 +91,14 @@ pub fn allowed(c: char) -> bool {
 
 impl ScreenLogic for NameEntry {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.list_look();
         confirm::prepare_notice(cx);
         set_text(cx, ids::HEADER_TEXT, &Text::Game(HEADER));
         self.refresh(cx);
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.list_look();
     }
 
     fn vertical(&self) -> bool {

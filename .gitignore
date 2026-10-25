@@ -74,6 +74,9 @@
 # Python research tools and their tests
 !/tools/**/*.py
 !/tests/*.py
+# Developer scripts that drive the game offscreen (the HUD screenshot matrix); they ship no data
+!/tools/*.ps1
+!/tools/*.sh
 
 # Reviewed, independently licensed controller prompts (no game textures).
 !/assets/input-prompts/kenney-xbox.png

@@ -54,6 +54,8 @@ pub enum Setting {
     DiscordJoin,
     Input(InputSetting),
     Hd(hd_options::HdSetting),
+    /// A row of the HUD page: a `[custom_hud]` key, or the map's orientation (`hud_options.rs`).
+    CustomHud(hud_options::HudSetting),
     Post(PostSetting),
     Graphics(GraphicsSetting),
     Renderer(RendererSetting),
@@ -148,6 +150,9 @@ pub use category_rows::rows;
 #[path = "hd_options.rs"]
 mod hd_options;
 
+#[path = "hud_options.rs"]
+pub(super) mod hud_options;
+
 #[path = "options_caps.rs"]
 mod caps_rows;
 
@@ -201,6 +206,9 @@ fn percent_of(s: &Settings, setting: Setting) -> Option<Percent> {
 
 impl Setting {
     pub fn control(self, s: &Settings) -> Control {
+        if let Setting::CustomHud(setting) = self {
+            return setting.control(s);
+        }
         percent_of(s, self).map_or(Control::Toggle, |p| Control::Slider(p.0))
     }
 
@@ -216,6 +224,7 @@ impl Setting {
             Setting::SmokeQuality => s.tire_smoke,
             // The time played and the join invite are part of the Discord presence, so they are dimmed while that is off.
             Setting::DiscordTimePlayed | Setting::DiscordJoin => s.discord,
+            Setting::CustomHud(setting) => setting.enabled(s),
             Setting::RenderScale => matches!(s.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1),
             // The upscalers that sharpen: FSR 1 (its RCAS pass) and FSR 3 (the RCAS of its own pipeline).
             Setting::UpscaleSharpness => matches!(s.upscaler, UpscaleMode::Fsr1 | UpscaleMode::Fsr3),
@@ -264,6 +273,7 @@ impl Setting {
             Setting::Graphics(setting) => return setting.step(s, changed, forward),
             Setting::Renderer(setting) => return setting.step(s, changed, forward),
             Setting::Hd(setting) => return setting.step(s, changed, forward),
+            Setting::CustomHud(setting) => return setting.step(s, changed, forward),
             Setting::Language => return language::step(s, changed, forward),
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];

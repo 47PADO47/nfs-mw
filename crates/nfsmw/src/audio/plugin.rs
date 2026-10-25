@@ -24,6 +24,7 @@ pub fn volumes_of(settings: &Settings) -> Volumes {
         music: settings.music_volume.amplitude(),
         sfx: settings.sfx_volume.amplitude(),
         engine: settings.engine_volume.amplitude(),
+        hud: settings.hud_options.hud_volume,
     }
 }
 

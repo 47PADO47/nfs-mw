@@ -1,6 +1,6 @@
-//! The option screens as a vertical list: what a theme that draws them its own way (the Remastered settings pages) reads
-//! and does. The package still supplies the messages; the rows, their values and the window onto them are published as a
-//! [`MenuList`], and a click or the pointer picks a row.
+//! The option screens as a vertical list: what a theme that draws them its own way (the Remastered and Custom settings
+//! pages) reads and does. The package still supplies the messages; the rows, their values and the window onto them are
+//! published as a [`MenuList`], and a click or the pointer picks a row.
 
 use super::options::{self, Control, Data, Row, Title};
 use super::{Cx, Pick, Way, WidgetMenu, mod_options};
@@ -37,16 +37,20 @@ impl WidgetMenu {
         }
     }
 
-    /// Whether the Remastered look draws this page, and if it does the rows as the list shows them. The window follows the
+    /// Whether a list look draws this page, and if it does the rows as the list shows them. The window follows the
     /// selection, so a theme change on this very page leaves the selected row in view.
     pub(super) fn refresh(&mut self, cx: &Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.list_look();
         if !self.vertical {
             self.entries.clear();
             return;
         }
         self.top = window_start(self.top, self.selected, self.rows.len());
         self.entries = self.rows.iter().map(|row| entry_of(cx, row)).collect();
+        self.note = match self.args.category {
+            super::super::logic::Category::Hud => options::hud_options::note(cx.settings),
+            _ => String::new(),
+        };
     }
 
     /// The page as a list, or `None` when it is not drawn as one.
@@ -61,7 +65,7 @@ impl WidgetMenu {
         };
         Some(MenuList {
             title: self.heading.clone(),
-            message: String::new(),
+            message: self.note.clone(),
             entries: self.entries.clone(),
             selected: self.selected,
             first: self.top,
@@ -104,6 +108,7 @@ pub(super) fn heading(_cx: &Cx, category: super::super::logic::Category, label: 
     match category {
         Category::Controls => t!("menus-control-options"),
         Category::Discord => "Discord".into(),
+        Category::Hud => t!("menus-hud"),
         Category::Mods => t!("menus-mods"),
         Category::CustomRace => Text::Game(TRACK_OPTIONS).show(),
         _ => Text::Game(label).resolve().unwrap_or_default(),

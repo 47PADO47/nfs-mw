@@ -127,12 +127,27 @@ mod tests {
             challenge: None,
             origin: Origin { race: race(), course },
             route: None,
+            map_route: None,
             shortcuts: Vec::new(),
             restarted: false,
             map: crate::hud::MapSource::default(),
             walls: Default::default(),
             collisions: 0,
         }
+    }
+
+    #[test]
+    fn the_hud_gets_the_race_route_only_during_a_race() {
+        use crate::hud::{RaceRoute, RaceRouteHandle};
+        use crate::scenes::world::race::map_route_of;
+        assert_eq!(map_route_of(None), None, "no race, no route on the map");
+        let without = session(Stage::Running, RaceOptions::default(), None);
+        assert_eq!(map_route_of(Some(&without)), None, "a race with no road network has none");
+        let lap = RaceRoute::from_samples(vec![([0.0, 0.0], 0.0), ([10.0, 0.0], 10.0)], 10.0, 10.0, false).unwrap();
+        let handle = RaceRouteHandle::new(lap);
+        let mut running = session(Stage::Running, RaceOptions::default(), None);
+        running.map_route = Some(handle.clone());
+        assert_eq!(map_route_of(Some(&running)), Some(handle), "the session's own route, shared");
     }
 
     #[test]

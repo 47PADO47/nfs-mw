@@ -1,4 +1,5 @@
-//! The shared cell the Custom speedometer and tachometer read their state from.
+//! The shared cell the Remastered cluster, minimap, radar and pursuit timer read their state from. The Custom HUD reads
+//! its own, richer cell (`feed.rs`); this one stays as Remastered knows it.
 //!
 //! The same producer rule as `radio_feed.rs`: the HUD plugin copies the state in once per frame, and the components only
 //! read it. The copy is plain data, so the cell is `Send + Sync`, as `Theme` requires.
@@ -8,13 +9,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use crate::hud::{HudState, PursuitHud};
 use crate::ui::present::Screen;
 
-use super::drive_layout::Corner;
-
 /// One frame's copy of the drive state.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(in crate::ui::theme) struct DriveFeed {
-    /// The window's bottom-right corner, where the cluster is laid out from (`drive_layout`).
-    pub corner: Corner,
     /// The speed in the unit shown, as whole units (`HudState::display_speed`).
     pub speed: u32,
     /// Whether the speed is in miles per hour (otherwise kilometres per hour).
@@ -58,13 +55,14 @@ pub struct DriveFeedCell {
 }
 
 impl DriveFeedCell {
-    /// An empty cell: the drive components read zeros until the plugin sets it.
+    /// An empty cell: the components read zeros until the plugin sets it.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Copies this frame's drive state into the cell. Replaces the previous frame's copy.
-    pub(crate) fn set(&self, state: &HudState, screen: Screen) {
+    /// Copies this frame's drive state into the cell. Replaces the previous frame's copy. The screen is not read: the
+    /// Remastered components place themselves from the canvas.
+    pub(crate) fn set(&self, state: &HudState, _screen: Screen) {
         let scale = state.scale_rpm();
         let feed = DriveFeed {
             speed: state.display_speed(),
@@ -74,7 +72,6 @@ impl DriveFeedCell {
             gear: state.gear,
             scale_rpm: scale,
             shift_light: state.shift_light,
-            corner: Corner::of(screen),
             has_nos: state.has_nos,
             nos: state.nos,
             has_turbo: state.has_turbo,

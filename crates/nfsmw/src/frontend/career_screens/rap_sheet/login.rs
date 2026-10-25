@@ -61,9 +61,10 @@ impl ScreenLogic for LoginScreen {
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
-            // The UI sound (`0x67` or `0x68`) is not played: the screens have no sound call yet.
+            // The skip plays the page's UI sound, `0x67` or `0x68`, once.
             PAD_ACCEPT | MOUSE_LEFT_RELEASED => {
-                self.page.accept();
+                let Some(sound) = self.page.accept() else { return };
+                crate::audio::menu::request_trigger(i32::from(sound));
             }
             PAD_BACK => self.page.back(),
             EXIT_COMPLETE => self.exit(cx),

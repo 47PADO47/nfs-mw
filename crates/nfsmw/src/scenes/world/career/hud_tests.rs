@@ -20,7 +20,17 @@ fn the_heat_meter_stays_within_its_top() {
 
 #[test]
 fn a_car_without_a_record_has_no_bounty_and_no_heat() {
-    assert_eq!(CareerHud::new(None, 0), CareerHud { on: true, bounty: 0, car_heat: 0.0 });
+    assert_eq!(CareerHud::new(None, 0), CareerHud { on: true, bounty: 0, car_heat: 0.0, cash: 0, chase: None });
+}
+
+#[test]
+fn the_career_cash_goes_into_the_state_in_career_mode_only() {
+    let mut state = HudState::default();
+    CareerHud::new(None, 0).with_cash(12_500).apply(&mut state);
+    assert_eq!(state.cash, Some(12_500));
+    let mut outside = HudState::default();
+    CareerHud::default().with_cash(12_500).apply(&mut outside);
+    assert_eq!(outside.cash, None, "outside career mode there is no cash to show");
 }
 
 #[test]
@@ -47,4 +57,13 @@ fn outside_career_mode_the_state_is_left_alone() {
     CareerHud::default().apply(&mut state);
     assert_eq!(state.career_bounty, None);
     assert_eq!(state.vehicle_heat, 4.0);
+}
+
+#[test]
+fn the_chase_bounty_is_the_running_chases_points_in_career_mode_only() {
+    let chasing = CareerHud::new(Some((1000, 2.0)), 250).with_chase(Some(250));
+    assert_eq!(chasing.chase_bounty(), Some(250));
+    assert_eq!(chasing.bounty(), Some(1250), "the row still sums the banked bounty and the chase's points");
+    assert_eq!(CareerHud::new(None, 0).chase_bounty(), None, "no chase");
+    assert_eq!(CareerHud::default().with_chase(Some(250)).chase_bounty(), None, "outside career mode");
 }

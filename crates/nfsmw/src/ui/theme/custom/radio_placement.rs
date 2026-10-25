@@ -1,10 +1,24 @@
-//! Where the Custom radio card sits, in FEng units from the canvas centre. It is the authored spot of the 4:3 HUD,
-//! moved and scaled like the HUD's left side by the HUD layout setting (`hud/viewport.rs`). The math is the viewport's;
-//! only the card's own corner and edge rule are here.
+//! Where the radio cards sit, in canvas units from the canvas centre.
+//!
+//! - **The Custom card** ([`card_rect`]): at the top-left anchor of the content box (`layout.rs` `HudBox`), the zone
+//!   the layout gives it, sized at the HUD scale and grown with `[custom_hud] text_size`. Its rows' places are
+//!   [`row_middle`].
+//! - **The Remastered card** ([`anchor`]): the authored spot of the 4:3 HUD, moved and scaled like the HUD's left side by
+//!   the HUD layout setting (`hud/viewport.rs`), and kept a few points inside the window. The radio feed carries it
+//!   (`radio_feed.rs`); the Custom card no longer reads it.
 
+use blackbox_ui::Rect;
+
+use super::layout::{self, HudBox};
 use crate::hud::viewport;
 use crate::settings::HudLayout;
 use crate::ui::present::Screen;
+
+/// The Custom card's width, the room inside its plate, and its rows' heights at text size 1, all at scale 1.
+const CARD_WIDTH: f32 = 240.0;
+pub(super) const PAD: f32 = 8.0;
+const TITLE_LINE: f32 = 18.0;
+const DETAIL_LINE: f32 = 15.0;
 
 /// The card's top-left corner in the authored 4:3 HUD, in FEng units from the centre of the canvas: the left margin of
 /// the HUD and the top of the screen.
@@ -35,6 +49,25 @@ pub(super) fn anchor(screen: Screen, layout: HudLayout) -> Anchor {
     let min_left = (EDGE - screen.width / 2.0) / points;
     let min_top = (EDGE - screen.height / 2.0) / points;
     Anchor { left: left.max(min_left), top: top.max(min_top), scale }
+}
+
+/// The heights of the Custom card's three rows at scale 1 and `text_size`: the title, then two detail rows.
+fn row_heights(text_size: f32) -> [f32; 3] {
+    [TITLE_LINE * text_size, DETAIL_LINE * text_size, DETAIL_LINE * text_size]
+}
+
+/// The middle of the Custom card's row `i` below the card's top, at scale 1 and `text_size`.
+pub(super) fn row_middle(i: usize, text_size: f32) -> f32 {
+    let heights = row_heights(text_size);
+    let above: f32 = heights.iter().take(i).sum();
+    PAD + above + heights.get(i).copied().unwrap_or(0.0) / 2.0
+}
+
+/// The Custom card's rectangle in `frame` at `text_size`, moved `slide` units right (at scale 1) from its place: at
+/// the content box's top-left anchor.
+pub(super) fn card_rect(frame: &HudBox, text_size: f32, slide: f32) -> Rect {
+    let height = 2.0 * PAD + row_heights(text_size).iter().sum::<f32>();
+    frame.place(layout::Anchor::TopLeft, (slide, 0.0), (CARD_WIDTH, height))
 }
 
 #[cfg(test)]
@@ -88,5 +121,42 @@ mod tests {
     fn a_window_with_no_height_is_not_clamped_or_divided_by() {
         let flat = anchor(screen(800.0, 0.0), HudLayout::Pc);
         assert!(flat.left.is_finite() && flat.top.is_finite());
+    }
+
+    #[test]
+    fn the_custom_card_sits_in_the_top_left_corner_of_the_safe_area() {
+        for screen in [screen(1920.0, 1080.0), screen(3440.0, 1440.0), screen(1024.0, 768.0)] {
+            let frame = HudBox::new(screen, 1.0);
+            let card = card_rect(&frame, 1.0, 0.0);
+            let safe = frame.safe();
+            assert!((card.min_x() - safe.min_x()).abs() < 1e-3 && (card.min_y() - safe.min_y()).abs() < 1e-3);
+        }
+        let wide = HudBox::new(screen(3440.0, 1440.0), 1.0);
+        assert!(
+            card_rect(&wide, 1.0, 0.0).min_x() > -240.0 * 3440.0 / 1440.0,
+            "the box, not the ultrawide window's edge"
+        );
+    }
+
+    #[test]
+    fn the_custom_card_grows_with_the_scale_and_the_text_size_and_slides_from_the_left() {
+        let frame = HudBox::new(screen(1920.0, 1080.0), 1.0);
+        let base = card_rect(&frame, 1.0, 0.0);
+        let larger = card_rect(&HudBox::new(screen(1920.0, 1080.0), 1.5), 1.0, 0.0);
+        assert!((larger.w - base.w * 1.5).abs() < 1e-3 && larger.min_x() == base.min_x(), "grows about its anchor");
+        assert!(card_rect(&frame, 1.4, 0.0).h > base.h, "larger text, a taller card");
+        assert!((card_rect(&frame, 1.0, -12.0).min_x() - (base.min_x() - 12.0)).abs() < 1e-3);
+    }
+
+    #[test]
+    fn the_custom_rows_stack_inside_the_padding() {
+        let ts = 1.0;
+        assert!((row_middle(0, ts) - (PAD + TITLE_LINE / 2.0)).abs() < 1e-4);
+        assert!(row_middle(1, ts) > row_middle(0, ts) && row_middle(2, ts) > row_middle(1, ts));
+        let height = card_rect(&HudBox::new(screen(1920.0, 1080.0), 1.0), ts, 0.0).h;
+        assert!(
+            (row_middle(2, ts) + DETAIL_LINE / 2.0 + PAD - height).abs() < 1e-3,
+            "the last row ends a padding above the bottom"
+        );
     }
 }

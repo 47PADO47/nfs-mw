@@ -2,24 +2,29 @@
 //! `Pause_PC_Controller.fng` (the in-game copy). Each draws eight rows, each with a primary and a secondary button; the
 //! GUIDs of each package are in `controls_layout.rs`. A press on a button asks the frontend to take the next key for
 //! that slot (`Command::Remap`). The packages' rows and buttons are in docs/specs/controls-remap.md.
+//!
+//! A list look (Remastered or Custom) publishes the list instead of drawing the package, and lists the HUD's actions
+//! after the package's rows ([`HUD_ROWS`]). Those rows have no button in the package, so the list keeps its own focus
+//! then, scrolled through the list's window of rows.
 
 use blackbox_feng::ObjectRef;
 use blackbox_feng::ids::{BUTTON_PRESSED, BUTTON_RELEASED, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 
 use bevy_input::keyboard::KeyCode;
 
-use crate::input::{Action, Bindings, Control};
+use crate::input::{Action, Bindings, Control, hud_labels};
 
 use super::controls_layout::{self, Layout, ROW_COUNT};
 use super::ids::screen;
-use super::logic::{Args, Command, Cx, Pick, ScreenLogic, wheel_as_rows};
+use super::logic::{Args, Command, Cx, ListScreen, Pick, ScreenLogic, wheel_as_rows};
 use crate::i18n::{self, t};
+use crate::ui::theme::remastered::menu::layout::window_start;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue};
 use crate::ui::{UiAssets, prompts};
 
 /// The control each row changes, from the top. Steering is one axis, so its two rows are its two directions.
 ///
-/// The package draws eight rows, so the list has no row for the other actions: Map (`M`, the world map) and
+/// The package draws eight rows, so the original list has no row for the other actions: Map (`M`, the world map) and
 /// ShiftUp are not on it. They stay rebindable in the bindings file (`[bindings]`, `docs/specs/controller-settings.md`).
 pub const ROWS: [Control; ROW_COUNT] = [
     Control::button(Action::Throttle),
@@ -32,6 +37,18 @@ pub const ROWS: [Control; ROW_COUNT] = [
     Control::button(Action::ShiftDown),
 ];
 
+/// The HUD's actions, the rows a list look adds after the package's, named by `input/hud_labels.rs`. The Original look
+/// draws the package, which has no buttons for them.
+pub const HUD_ROWS: [Control; 7] = [
+    Control::button(Action::MapMode),
+    Control::button(Action::MapExpand),
+    Control::button(Action::MapZoomIn),
+    Control::button(Action::MapZoomOut),
+    Control::button(Action::MapOrientation),
+    Control::button(Action::ToggleHud),
+    Control::button(Action::DismissNotification),
+];
+
 /// The game's name for each row's control (`GAME_ACTION_GAS`, `GAME_ACTION_BRAKE`, `GAME_ACTION_STEERLEFT`,
 /// `GAME_ACTION_STEERRIGHT`, `GAME_ACTION_HANDBRAKE`, `GAME_ACTION_GAMEBREAKER`, `N2O`, `GAME_ACTION_SHIFTDOWN`).
 /// `GAME_ACTION_NOS` is not used: its English text reads `N20`.
@@ -42,6 +59,27 @@ const TITLE: u32 = 0x04DC_6DB5;
 /// Shown in every key field until the screen gets the bindings (the original shows the key names there).
 const KEY_PLACEHOLDER: &str = "---";
 
+/// The rows of the list: the package's eight, and in a list look the HUD's after them.
+fn row_count(list_look: bool) -> usize {
+    match list_look {
+        true => ROW_COUNT + HUD_ROWS.len(),
+        false => ROW_COUNT,
+    }
+}
+
+/// The control of a row: the package's rows first, then the HUD's.
+fn control(row: usize) -> Option<Control> {
+    ROWS.iter().chain(&HUD_ROWS).nth(row).copied()
+}
+
+/// A row's name: the game's for the package's rows, the catalogue's for the HUD's.
+fn row_label(row: usize) -> String {
+    if let Some(label) = LABELS.get(row) {
+        return i18n::game_or_error(*label);
+    }
+    control(row).and_then(|control| hud_labels::label(control.action)).unwrap_or_default()
+}
+
 /// A button of the list: the row, and the slot (0 primary, 1 secondary).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Cell {
@@ -50,11 +88,13 @@ struct Cell {
 }
 
 impl Cell {
-    fn guid(self, layout: &Layout) -> u32 {
-        match self.slot {
-            0 => layout.primary[self.row],
-            _ => layout.secondary[self.row],
-        }
+    /// The package's button for this cell; a HUD row has none.
+    fn guid(self, layout: &Layout) -> Option<u32> {
+        let column = match self.slot {
+            0 => &layout.primary,
+            _ => &layout.secondary,
+        };
+        column.get(self.row).copied()
     }
 }
 
@@ -88,15 +128,15 @@ fn set_text(cx: &mut Cx, guid: u32, text: &str) {
     }
 }
 
+/// Focuses the package's button of a cell; a HUD row's cell leaves the package's focus where it was.
 fn focus(cx: &mut Cx, layout: &Layout, cell: Cell) {
-    if let Some(o) = by_guid(cx, cell.guid(layout)) {
-        cx.rt.focus_button(o);
-    }
+    let Some(o) = cell.guid(layout).and_then(|guid| by_guid(cx, guid)) else { return };
+    cx.rt.focus_button(o);
 }
 
-/// The cell one step away from `from` in a direction (clamped to the list).
-fn step(from: Cell, message: u32) -> Option<Cell> {
-    let last = ROW_COUNT - 1;
+/// The cell one step away from `from` in a direction, clamped to a list of `rows` rows.
+fn step(from: Cell, message: u32, rows: usize) -> Option<Cell> {
+    let last = rows.saturating_sub(1);
     Some(match message {
         PAD_UP => Cell { row: from.row.saturating_sub(1), ..from },
         PAD_DOWN => Cell { row: (from.row + 1).min(last), ..from },
@@ -130,10 +170,11 @@ fn waiting_text() -> String {
     t!("keys-waiting").to_uppercase()
 }
 
-/// The key names of each row, primary then secondary, from the bindings. A slot with no key shows the placeholder, and the
-/// slot `waiting` for its key says so.
+/// The key names of each row, primary then secondary, from the bindings: the package's rows, then the HUD's. A slot
+/// with no key shows the placeholder, and the slot `waiting` for its key says so.
 pub fn key_texts(bindings: &Bindings, waiting: Option<(Control, usize)>) -> Vec<[String; 2]> {
     ROWS.iter()
+        .chain(&HUD_ROWS)
         .map(|control| {
             let keys = bindings.keyboard_keys(*control);
             let text = |slot: usize| match waiting {
@@ -151,9 +192,12 @@ pub struct ControlsLogic {
     args: Args,
     layout: &'static Layout,
     shown: Vec<[String; 2]>,
-    /// Whether the Remastered look draws this list (`Cx::vertical_look`), and the cell that has the focus.
+    /// Whether a list look draws this list (`Cx::screen_list_look`), and the cell that has the focus. In a list look the
+    /// cell is the list's own, since the HUD's rows have no button in the package.
     vertical: bool,
     cell: Cell,
+    /// The first row of the list's window.
+    top: usize,
 }
 
 impl ControlsLogic {
@@ -165,6 +209,7 @@ impl ControlsLogic {
             shown: Vec::new(),
             vertical: false,
             cell: Cell { row: 0, slot: 0 },
+            top: 0,
         }
     }
 
@@ -174,16 +219,31 @@ impl ControlsLogic {
         }
         Command::Switch(screen::MAIN_MENU_SUB.into(), Args { options: true, ..self.args })
     }
+
+    /// The first row of the window that shows the focused row.
+    fn first(&self) -> usize {
+        window_start(self.top, self.cell.row, row_count(self.vertical))
+    }
+
+    /// The cell a press changes: the list's own in a list look, else the package's focused button.
+    fn pressed_cell(&self, cx: &Cx) -> Option<Cell> {
+        match self.vertical {
+            true => Some(self.cell),
+            false => focused(cx, self.layout),
+        }
+    }
 }
 
 impl ScreenLogic for ControlsLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.vertical_look();
+        self.vertical = cx.screen_list_look(ListScreen::Controls);
         let layout = self.layout;
         for (row, label) in LABELS.iter().enumerate() {
             set_text(cx, layout.title[row], &i18n::game_or_error(*label));
         }
-        focus(cx, layout, Cell { row: 0, slot: 0 });
+        self.cell = Cell { row: 0, slot: 0 };
+        self.top = 0;
+        focus(cx, layout, self.cell);
     }
 
     fn vertical(&self) -> bool {
@@ -195,12 +255,14 @@ impl ScreenLogic for ControlsLogic {
             Pick::Hover => self.cell.slot,
             Pick::Press(_, along) => usize::from(along >= 0.5),
         };
-        self.cell = Cell { row: row.min(ROW_COUNT - 1), slot };
+        self.cell = Cell { row: row.min(row_count(self.vertical) - 1), slot };
         focus(cx, self.layout, self.cell);
-        if matches!(pick, Pick::Press(..)) {
-            cx.send(Command::Remap(ROWS[self.cell.row], self.cell.slot));
-            crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+        if !matches!(pick, Pick::Press(..)) {
+            return;
         }
+        let Some(control) = control(self.cell.row) else { return };
+        cx.send(Command::Remap(control, self.cell.slot));
+        crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
     }
 
     fn list(&self, _assets: &UiAssets) -> Option<MenuList> {
@@ -210,11 +272,9 @@ impl ScreenLogic for ControlsLogic {
         let key = |row: usize, slot: usize| {
             self.shown.get(row).map_or_else(|| KEY_PLACEHOLDER.to_owned(), |texts| texts[slot].clone())
         };
-        let entries = LABELS
-            .iter()
-            .enumerate()
-            .map(|(row, label)| MenuEntry {
-                label: i18n::game_or_error(*label),
+        let entries = (0..row_count(true))
+            .map(|row| MenuEntry {
+                label: row_label(row),
                 enabled: true,
                 value: MenuValue::Keys { primary: key(row, 0), secondary: key(row, 1), focus: Some(self.cell.slot) },
                 icon: None,
@@ -226,7 +286,7 @@ impl ScreenLogic for ControlsLogic {
             message: String::new(),
             entries,
             selected: self.cell.row,
-            first: 0,
+            first: self.first(),
             hints: Vec::new(),
             style,
             nudge: None,
@@ -236,10 +296,13 @@ impl ScreenLogic for ControlsLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.vertical_look();
-        if let Some(cell) = focused(cx, self.layout) {
+        self.vertical = cx.screen_list_look(ListScreen::Controls);
+        if !self.vertical
+            && let Some(cell) = focused(cx, self.layout)
+        {
             self.cell = cell;
         }
+        self.top = self.first();
         if self.shown.as_slice() == cx.key_texts {
             return;
         }
@@ -260,8 +323,10 @@ impl ScreenLogic for ControlsLogic {
         // The hint says "press ENTER to re-map". The pad accept reaches the field as its release (`BUTTON_RELEASED`),
         // and a mouse click as its press.
         if message == BUTTON_PRESSED || message == BUTTON_RELEASED {
-            if let Some(cell) = focused(cx, layout) {
-                cx.send(Command::Remap(ROWS[cell.row], cell.slot));
+            if let Some(cell) = self.pressed_cell(cx)
+                && let Some(control) = control(cell.row)
+            {
+                cx.send(Command::Remap(control, cell.slot));
             }
             return;
         }
@@ -269,84 +334,13 @@ impl ScreenLogic for ControlsLogic {
             cx.send(self.back());
             return;
         }
-        let from = focused(cx, layout).unwrap_or(Cell { row: 0, slot: 0 });
-        if let Some(to) = step(from, message) {
-            focus(cx, layout, to);
-        }
+        let from = self.pressed_cell(cx).unwrap_or(Cell { row: 0, slot: 0 });
+        let Some(to) = step(from, message, row_count(self.vertical)) else { return };
+        self.cell = to;
+        focus(cx, layout, to);
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn every_button_belongs_to_one_row_and_slot_in_both_packages() {
-        for layout in [&controls_layout::OPTIONS, &controls_layout::PAUSE] {
-            for row in 0..ROW_COUNT {
-                assert_eq!(cell_of_guid(layout, layout.primary[row]), Some(Cell { row, slot: 0 }));
-                assert_eq!(cell_of_guid(layout, layout.secondary[row]), Some(Cell { row, slot: 1 }));
-            }
-        }
-    }
-
-    #[test]
-    fn each_package_routes_its_text_objects_by_row() {
-        for layout in [&controls_layout::OPTIONS, &controls_layout::PAUSE] {
-            for row in 0..ROW_COUNT {
-                assert_ne!(layout.primary_text[row], layout.secondary_text[row]);
-                assert_ne!(layout.title[row], layout.primary_text[row]);
-            }
-        }
-    }
-
-    #[test]
-    fn the_pause_list_is_the_one_used_in_game() {
-        let logic = ControlsLogic::new("Pause_PC_Controller.fng", Args::default());
-        assert!(std::ptr::eq(logic.layout, &controls_layout::PAUSE));
-        let logic = ControlsLogic::new("Options_PC_Controller.fng", Args::default());
-        assert!(std::ptr::eq(logic.layout, &controls_layout::OPTIONS));
-    }
-
-    #[test]
-    fn the_two_steering_rows_are_the_two_directions_of_steer() {
-        assert_eq!(ROWS[2], Control::axis(Action::Steer, -1.0));
-        assert_eq!(ROWS[3], Control::axis(Action::Steer, 1.0));
-    }
-
-    #[test]
-    fn the_arrows_move_the_focus_and_stop_at_the_ends() {
-        let top = Cell { row: 0, slot: 0 };
-        assert_eq!(step(top, PAD_UP), Some(top));
-        assert_eq!(step(top, PAD_RIGHT), Some(Cell { row: 0, slot: 1 }));
-        let bottom = Cell { row: ROW_COUNT - 1, slot: 1 };
-        assert_eq!(step(bottom, PAD_DOWN), Some(bottom));
-        assert_eq!(step(bottom, PAD_LEFT), Some(Cell { row: ROW_COUNT - 1, slot: 0 }));
-        assert_eq!(step(top, BUTTON_PRESSED), None);
-    }
-
-    #[test]
-    fn a_key_shows_its_name_without_the_key_prefix() {
-        assert_eq!(key_name(KeyCode::KeyW), "W");
-        assert_eq!(key_name(KeyCode::Space), "SPACE");
-        assert_eq!(key_name(KeyCode::ArrowDown), "DOWN");
-        assert_eq!(key_name(KeyCode::ControlLeft), "L CTRL");
-        assert_eq!(key_name(KeyCode::ShiftRight), "R SHIFT");
-        assert_eq!(key_name(KeyCode::Escape), "ESCAPE");
-        assert_eq!(key_name(KeyCode::Digit1), "1");
-    }
-
-    #[test]
-    fn a_slot_waiting_for_its_key_says_so() {
-        let texts = key_texts(&Bindings(Vec::new()), Some((ROWS[1], 1)));
-        assert_eq!(texts[1], [KEY_PLACEHOLDER.to_owned(), waiting_text()]);
-        assert_eq!(texts[0][1], KEY_PLACEHOLDER, "the others are as they were");
-    }
-
-    #[test]
-    fn an_unbound_control_shows_the_placeholder() {
-        let texts = key_texts(&Bindings(Vec::new()), None);
-        assert_eq!(texts.len(), ROW_COUNT);
-        assert!(texts.iter().all(|t| t[0] == KEY_PLACEHOLDER && t[1] == KEY_PLACEHOLDER));
-    }
-}
+#[path = "controls_screen_tests.rs"]
+mod tests;

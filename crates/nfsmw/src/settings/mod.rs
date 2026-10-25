@@ -49,6 +49,7 @@ mod graphics_tests;
 pub mod hd_content;
 pub mod helicopter;
 pub mod helicopter_lists;
+pub mod hud;
 mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
@@ -250,8 +251,11 @@ pub struct Settings {
     pub minimap: MinimapMode,
     /// Placement and scale of the in-game HUD.
     pub hud_layout: HudLayout,
-    /// The look of all HUD and menu UI: the original (default), the rewrite's Custom elements, or Remastered (not yet
-    /// implemented, falls back to Original). Replaces the old `radio_hud` key (`docs/specs/ui-themes.md` section 11).
+    /// The Custom HUD's options (`[custom_hud]`): preset, size, map, information, accessibility, camera, haptics, volume.
+    pub hud_options: hud::HudSettings,
+    /// The look of all HUD and menu UI: the original (default), Remastered (its own cluster, minimap, menus and world
+    /// map), or Custom (the rewrite's own modern HUD and menus, `docs/decisions/0013-custom-hud.md`). A slot a look
+    /// does not fill falls back to Original. Replaces the old `radio_hud` key (`docs/specs/ui-themes.md` section 11).
     pub ui_style: UiStyle,
     /// The unit speed is shown in on every HUD look (`speed_units`). Display only.
     pub speed_units: SpeedUnits,
@@ -390,6 +394,7 @@ impl From<Partial> for Settings {
             camera_mode: p.camera_mode.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
             hud_layout: p.hud_layout.unwrap_or_default(),
+            hud_options: hud::HudSettings::from_layer(p.hud_options),
             ui_style: p.ui_style.unwrap_or_default(),
             speed_units: p.speed_units.unwrap_or_default(),
             language: p.language,

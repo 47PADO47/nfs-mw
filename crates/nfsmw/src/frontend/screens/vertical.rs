@@ -1,12 +1,12 @@
 //! The stack's vertical menus: the list a screen publishes with its footer hints, the row under the pointer, and the pad
-//! a vertical menu sees (`ui/theme/remastered/menu`).
+//! a vertical menu sees (`ui/theme/remastered/menu`, `ui/theme/custom/menu`). The places come from the look that draws
+//! the list (`geometry.rs`).
 
 use glam::Vec2;
 
 use super::{Env, Pick, Screen, Screens};
 use crate::frontend::logic::Way;
-use crate::ui::theme::remastered::menu::layout as menu_layout;
-use crate::ui::theme::{MenuHint, MenuList, MenuStyle};
+use crate::ui::theme::{MenuHint, MenuList};
 
 impl Screens {
     /// The screen's list with the footer hints and the window's aspect filled in.
@@ -29,28 +29,17 @@ impl Screens {
     pub(super) fn row_at(&self, point: Vec2) -> Option<usize> {
         let top = self.stack.last().filter(|top| top.logic.vertical())?;
         let list = top.logic.list(&self.assets)?;
-        if list.style == MenuStyle::Dialog {
-            return menu_layout::dialog_row_at(point, &list);
-        }
-        if list.style == MenuStyle::Blacklist {
-            return menu_layout::blacklist_row_at(point, &list);
-        }
-        let shown = menu_layout::shown(list.entries.len().saturating_sub(list.first));
-        menu_layout::row_at(point, shown, self.aspect, list.has_values()).map(|row| list.first + row)
+        self.geometry.row_at(point, &list, self.aspect)
     }
 
     /// Which way a click at `point` presses a row of the top screen's list: back on the left chevron, forward on the right.
     pub(super) fn way_at(&self, point: Vec2) -> Way {
-        match menu_layout::side_at(point.x - menu_layout::left_edge(self.aspect)) {
-            menu_layout::Side::Left => Way::Back,
-            menu_layout::Side::Right => Way::Forward,
-            menu_layout::Side::Middle => Way::Stay,
-        }
+        self.geometry.way_at(point, self.aspect)
     }
 
     /// How far along the value column of a row a point is, from 0 at its left edge to 1 at its right.
     pub(super) fn along_at(&self, point: Vec2) -> f32 {
-        menu_layout::along_value(point.x - menu_layout::left_edge(self.aspect))
+        self.geometry.along_at(point, self.aspect)
     }
 
     /// Whether the top screen is a vertical list: the package's own icons are not on screen then, so they take no clicks.

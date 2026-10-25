@@ -1,4 +1,6 @@
-//! Menu event routing and authored bank playback. Spec: `frontend-audio.md`.
+//! Menu event routing and authored bank playback. Spec: `frontend-audio.md`. The HUD's cues reuse the same triggers
+//! ([`request_hud`]), played in the HUD's volume group instead of the effects group
+//! (`docs/specs/custom-hud-audio-impl.md`).
 
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -15,6 +17,8 @@ const LAST_COMMON_BUTTON: u32 = PAD_BUTTON0 + 5;
 
 thread_local! {
     static QUEUE: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
+    /// The HUD's cues: trigger ids, played in [`Group::Hud`].
+    static HUD_QUEUE: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Maps the original sound messages and the port's semantic pad events to UI triggers.
@@ -43,6 +47,12 @@ pub fn request(message: u32) {
     }
 }
 
+/// Requests a trigger directly, for a sound the original's screen code plays by id (the original's routine: ids below 23 are
+/// common samples, the rest front-end samples, the same split as [`target`]).
+pub fn request_trigger(id: i32) {
+    QUEUE.with(|queue| queue.borrow_mut().push(id));
+}
+
 /// A package can announce one gesture through both a pad event and a script response.
 pub fn request_batch(messages: impl IntoIterator<Item = (blackbox_feng::PackageId, u32)>) {
     let mut seen = Vec::new();
@@ -60,6 +70,16 @@ pub(crate) fn take() -> Vec<i32> {
     QUEUE.with(|queue| std::mem::take(&mut *queue.borrow_mut()))
 }
 
+/// Requests trigger `id` (a front-end bank trigger, as [`trigger`] gives them) as one of the HUD's cues: it plays like
+/// a menu sound, in the HUD's volume group. Call it on the main thread, where the audio plugin takes the queue.
+pub fn request_hud(id: i32) {
+    HUD_QUEUE.with(|queue| queue.borrow_mut().push(id));
+}
+
+pub(crate) fn take_hud() -> Vec<i32> {
+    HUD_QUEUE.with(|queue| std::mem::take(&mut *queue.borrow_mut()))
+}
+
 fn target(id: i32) -> (&'static str, &'static str, i32) {
     if id < 23 {
         return ("GLOBAL/FE_COMMON_MB.abk", "PlayCommonSample", id);
@@ -72,6 +92,7 @@ struct Running {
     words: [i32; 4],
     age: f32,
     released: bool,
+    group: Group,
 }
 
 /// Sound lifetimes survive screen changes and end independently of the menu stack.
@@ -84,6 +105,11 @@ pub(super) struct MenuPlayer {
 
 impl MenuPlayer {
     fn start(&mut self, audio: &mut Audio, id: i32) {
+        self.start_in(audio, id, Group::Sfx);
+    }
+
+    /// Starts trigger `id` in the mixer group `group`.
+    fn start_in(&mut self, audio: &mut Audio, id: i32, group: Group) {
         if self.unavailable.contains(&id) {
             return;
         }
@@ -91,7 +117,7 @@ impl MenuPlayer {
         self.seed = self.seed.wrapping_add(1);
         match EffectModule::load(audio, bank, class, self.seed) {
             Ok(module) => {
-                self.active.push(Running { module, words: [index, 32767, 4096, 0], age: 0.0, released: false })
+                self.active.push(Running { module, words: [index, 32767, 4096, 0], age: 0.0, released: false, group })
             }
             Err(error) => {
                 self.unavailable.insert(id);
@@ -106,7 +132,7 @@ impl MenuPlayer {
         }
         self.active.retain_mut(|running| {
             running.age += dt;
-            let usable = running.module.update(&mut EffectSampler(audio, Group::Sfx), dt, &running.words);
+            let usable = running.module.update(&mut EffectSampler(audio, running.group), dt, &running.words);
             // The graph must see its class data once before its short-lived Csis owner is released.
             if !running.released && running.age >= 1.0 / 60.0 {
                 running.module.release();
@@ -119,6 +145,9 @@ impl MenuPlayer {
     pub(super) fn service(&mut self, audio: &mut Audio, dt: f32) {
         for id in take() {
             self.start(audio, id);
+        }
+        for id in take_hud() {
+            self.start_in(audio, id, Group::Hud);
         }
         self.update(audio, dt);
     }

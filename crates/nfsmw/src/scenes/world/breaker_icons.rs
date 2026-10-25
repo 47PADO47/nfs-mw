@@ -77,6 +77,23 @@ impl BreakerIcons {
         }
     }
 
+    /// The breakers that show an icon within `radius` metres of `place`, nearest first and at most `count`, both in
+    /// render space, for the Custom HUD's world markers (`hud_marks.rs`). None outside a chase, as on the minimap.
+    pub fn near(&self, pursuing: bool, place: Vec3, radius: f32, count: usize) -> Vec<Vec3> {
+        if !pursuing {
+            return Vec::new();
+        }
+        let mut near: Vec<Vec3> = self
+            .shown
+            .iter()
+            .map(|icon| space::to_render(icon.position.to_array()))
+            .filter(|at| at.distance(place) <= radius)
+            .collect();
+        near.sort_by(|a, b| a.distance(place).total_cmp(&b.distance(place)));
+        near.truncate(count);
+        near
+    }
+
     /// How many icons stand within `radius` metres of `place` (physics space).
     #[cfg(test)]
     pub fn shown_near(&self, place: Vec3, radius: f32) -> usize {
@@ -115,6 +132,16 @@ mod tests {
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].style, PURSUIT_BREAKER);
         assert_eq!(out[0].position, [300.0, 100.0], "render space: forward is physics z, left is minus x");
+    }
+
+    #[test]
+    fn the_breakers_near_the_car_are_in_render_space_nearest_first_and_only_in_a_chase() {
+        // Physics (0, 0, 100) is render (100, 0, 0); physics (-50, 0, 0) is render (0, 50, 0).
+        let icons = icons(&[Vec3::new(0.0, 0.0, 100.0), Vec3::new(-50.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 900.0)]);
+        assert!(icons.near(false, Vec3::ZERO, 150.0, 4).is_empty(), "no breakers outside a chase");
+        let near = icons.near(true, Vec3::ZERO, 150.0, 4);
+        assert_eq!(near, vec![Vec3::new(0.0, 50.0, 0.0), Vec3::new(100.0, 0.0, 0.0)]);
+        assert_eq!(icons.near(true, Vec3::ZERO, 150.0, 1), vec![Vec3::new(0.0, 50.0, 0.0)], "at most `count`");
     }
 
     #[test]

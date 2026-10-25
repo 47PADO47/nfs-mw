@@ -4,8 +4,7 @@ use std::collections::HashSet;
 
 use blackbox_ui::{BuildCx, DrawList, Theme, ThemeId};
 
-use super::custom::WorldMapLegendCell;
-use super::custom::{CustomTheme, DriveFeedCell, RadioFeedCell};
+use super::custom::{CustomFeedCell, CustomTheme, DriveFeedCell, FullMapCell, RadioFeedCell};
 use super::original::{FrameCell, OriginalTheme};
 use super::{ElementId, MenuListCell, build_themes, default_skin};
 use crate::frontend::world_map::Chrome;
@@ -24,6 +23,13 @@ const PINNED: &[(ElementId, u32)] = &[
     (ElementId::RadioCard, 10),
     (ElementId::BustedOverlay, 11),
     (ElementId::PoliceRadar, 12),
+    (ElementId::RaceStatus, 13),
+    (ElementId::Leaderboard, 14),
+    (ElementId::BountyRow, 15),
+    (ElementId::Banner, 16),
+    (ElementId::Notifications, 17),
+    (ElementId::WorldMarkers, 18),
+    (ElementId::VehicleCondition, 19),
     (ElementId::MainMenu, 20),
     (ElementId::Categories, 21),
     (ElementId::PauseMenu, 22),
@@ -83,10 +89,29 @@ fn name_is_the_variant_name() {
 }
 
 #[test]
+fn the_custom_hud_slots_are_hud_slots_not_menus() {
+    let custom_hud = [
+        ElementId::RaceStatus,
+        ElementId::Leaderboard,
+        ElementId::BountyRow,
+        ElementId::Banner,
+        ElementId::Notifications,
+        ElementId::WorldMarkers,
+        ElementId::VehicleCondition,
+    ];
+    for slot in custom_hud {
+        assert!(!slot.is_menu(), "{} is classed as a menu", slot.name());
+        assert!((13..20).contains(&slot.raw()), "{} is outside the HUD block", slot.name());
+    }
+    // The first menu number is still a menu.
+    assert!(ElementId::MainMenu.is_menu());
+}
+
+#[test]
 fn theme_ids_are_original_and_custom() {
     assert_eq!(OriginalTheme::new(FrameCell::new()).id(), ThemeId::Original);
     assert_eq!(
-        CustomTheme::new(RadioFeedCell::default(), DriveFeedCell::default(), WorldMapLegendCell::default()).id(),
+        CustomTheme::new(RadioFeedCell::default(), CustomFeedCell::default(), FullMapCell::default()).id(),
         ThemeId::Custom
     );
 }
@@ -97,7 +122,8 @@ fn registry_has_original_then_custom_and_remastered_with_original_active() {
         FrameCell::new(),
         RadioFeedCell::new(),
         DriveFeedCell::new(),
-        WorldMapLegendCell::new(),
+        CustomFeedCell::new(),
+        FullMapCell::new(),
         MenuListCell::new(),
         Default::default(),
     );
@@ -112,16 +138,17 @@ fn custom_can_be_made_active_and_resolves_every_slot() {
         FrameCell::new(),
         RadioFeedCell::new(),
         DriveFeedCell::new(),
-        WorldMapLegendCell::new(),
+        CustomFeedCell::new(),
+        FullMapCell::new(),
         MenuListCell::new(),
         Default::default(),
     );
     themes.set_active(ThemeId::Custom).expect("Custom is registered");
     let skin = default_skin();
     for slot in ElementId::ALL {
-        // Custom fills only the radio card, and every other slot falls back to Original: the HUD and menu slots get
-        // their adapters, which draw nothing from an empty frame cell. The radio card draws nothing from an empty
-        // feed. The check is that resolution and build run for every slot without panicking.
+        // Custom fills the radio card and the drive slots, and every other slot falls back to Original: the HUD and
+        // menu slots get their adapters, which draw nothing from an empty frame cell. The radio card draws nothing from
+        // an empty feed. The check is that resolution and build run for every slot without panicking.
         let component = themes.resolve(slot.slot(), &BuildCx::new(&skin));
         let mut out = DrawList::new();
         component.build(&mut out);
@@ -137,19 +164,19 @@ fn ui_style_maps_onto_its_theme_id() {
 }
 
 #[test]
-fn custom_recolours_the_world_map_and_original_does_not() {
+fn custom_draws_the_whole_world_map_and_original_does_not() {
     use crate::settings::UiStyle;
     let mut themes = super::UiThemes::build();
 
     // Original (the default) leaves the FEng map screen as it is.
     assert_eq!(themes.world_map_chrome(), Chrome::Original, "Original does not dress the map");
 
-    // Custom provides the slot (the legend over the recoloured FEng map): that is the flag the plugin reads.
+    // Custom provides the slot and draws the whole map, as Remastered does: that is the flag the plugin reads.
     themes.select(UiStyle::Custom);
-    assert_eq!(themes.world_map_chrome(), Chrome::Recoloured, "Custom recolours the map");
+    assert_eq!(themes.world_map_chrome(), Chrome::Drawn, "Custom draws the map");
     assert!(
         super::slot_layer(&themes, ElementId::WorldMapChrome, 0.0).nodes.is_empty(),
-        "no legend until a map is open"
+        "no map is drawn until one is open"
     );
 
     // Back to Original: the map is left alone again.
@@ -216,4 +243,29 @@ fn the_active_theme_tokens_reach_the_skin_the_components_read() {
         Some(blackbox_ui::Tokens::default().background),
         "the floor merges the neutral tokens"
     );
+}
+
+#[test]
+fn the_custom_tokens_follow_the_look_and_take_their_accent_from_the_theme() {
+    use crate::settings::hud::HudPalette;
+    use crate::settings::{UiStyle, UiTheme};
+
+    use super::custom::palette;
+    use super::custom::tokens::{Colours, CustomLook, keys};
+
+    let mut themes = super::UiThemes::build();
+    themes.select(UiStyle::Custom);
+    assert_eq!(themes.skin.colour(keys::TEXT), Some(Colours::BRIEF.text));
+    assert_eq!(
+        themes.skin.colour(keys::ACCENT),
+        Some(super::custom::tokens::SIGNAL),
+        "the Bevy theme takes the signal yellow"
+    );
+    themes.set_ui_theme(UiTheme::Remastered);
+    assert_eq!(themes.skin.colour(keys::ACCENT), Some(palette::remastered().secondary), "the Remastered gold");
+    themes.set_custom_look(CustomLook { palette: HudPalette::Deuteranopia, high_contrast: true });
+    assert_eq!(themes.skin.colour(keys::TEXT), Some([255, 255, 255, 255]));
+    assert!(themes.skin.colour(keys::OUTLINE).is_some(), "high contrast outlines the plates");
+    themes.set_custom_look(CustomLook::default());
+    assert_eq!(themes.skin.colour(keys::OUTLINE), None, "the outline goes with high contrast");
 }

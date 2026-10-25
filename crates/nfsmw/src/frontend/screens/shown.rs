@@ -18,7 +18,6 @@ use crate::frontend::logic::Footer;
 use crate::frontend::prompts::{self, HintArea};
 use crate::input::{Action, Bindings, InputDevice};
 use crate::settings::custom_fonts;
-use crate::ui::theme::remastered::menu::layout as menu_layout;
 use crate::ui::theme::{ElementId, MenuList};
 
 /// Numbers the trees that were built, across all screens, so a number names one tree's content for good (an `Arc` can be
@@ -168,7 +167,7 @@ impl Screens {
         let top = self.stack.last()?;
         if top.logic.vertical() {
             let list = self.list_of(top, bindings, device)?;
-            return menu_layout::hint_at(&list.hints, point, self.aspect);
+            return self.geometry.hint_at(&list.hints, point, self.aspect);
         }
         let shown = self.shown(top, bindings, device);
         shown.hints.iter().find(|h| h.covers(point)).map(|h| h.action)

@@ -121,13 +121,31 @@ impl WorldScene {
         self.camera_mode = mode;
     }
 
+    /// The camera of the frame for the HUD's world-space markers: the lens the world is drawn from, at the aspect of the
+    /// last frame drawn. The viewport is the HUD plugin's to fill (`hud/plugin.rs`).
+    ///
+    /// The lens includes the camera shake. The chase camera shakes its view (`viewer/camera/chase/shake.rs`), and the
+    /// original cameras bake theirs, with their noise, into the timeline's keys (`viewer/camera/original/timeline.rs`),
+    /// which also take the custom shot with its shake as their input. A lens without the shake would need the timeline
+    /// to keep a second, unshaken set of keys, so the HUD gets the drawn lens: its markers stay on their places in the
+    /// world, and the drawing smooths what it places on the screen.
+    pub(super) fn hud_camera(&self) -> Option<crate::hud::HudCamera> {
+        if self.view == View::Fly {
+            return None;
+        }
+        let lens = self.gameplay_lens(self.drawn_aspect);
+        Some(crate::hud::HudCamera { view_proj: lens.view_proj().to_cols_array_2d(), viewport: [0.0, 0.0] })
+    }
+
     /// Raw custom intent. Speedbreaker optics belong to the real-time camera timeline.
     pub(super) fn car_lens(&self, drive: &Drive, chase: ChaseView, aspect: f32) -> Lens {
         debug_assert!(chase.selectable());
         let kick = self.traffic.as_ref().map_or(0.0, |traffic| traffic.fov_kick());
         if self.camera_mode == CameraMode::DynamicFov && self.extra.camera.speed_zoom {
             let offset = self.extra.camera.fov - 60.0;
-            let mut lens = DynamicFov { chase: &chase, speed: drive.speed().abs(), kick: kick + offset }.lens(aspect);
+            let intensity = self.tuning.fov_intensity;
+            let mut lens =
+                DynamicFov { chase: &chase, speed: drive.speed().abs(), kick: kick + offset, intensity }.lens(aspect);
             lens.fov_y_degrees = lens.fov_y_degrees.clamp(20.0, 150.0);
             lens.projection = crate::viewer::camera::projection(lens.fov_y_degrees, aspect, 0.3);
             return lens;

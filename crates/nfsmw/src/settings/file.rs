@@ -134,6 +134,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         camera_mode: field(&table, origin, "camera_mode", |v| CameraMode::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
         hud_layout: field(&table, origin, "hud_layout", |v| HudLayout::from_str(text_of(v)?)),
+        hud_options: super::hud::read(&table, origin),
         // `radio_hud` is the legacy key: read only when this file sets no `ui_style` (`docs/specs/ui-themes.md` section 11).
         ui_theme: field(&table, origin, "ui_theme", |v| UiTheme::from_str(text_of(v)?)),
         ui_style: field(&table, origin, "ui_style", |v| UiStyle::from_str(text_of(v)?)).or_else(|| {

@@ -198,6 +198,7 @@ pub fn defaults() -> Vec<Binding> {
     .chain(driving())
     .chain(menus())
     .chain(radio())
+    .chain(hud_map())
     .collect()
 }
 
@@ -276,7 +277,7 @@ fn menus() -> Vec<Binding> {
 
 /// Driving: W/S or the arrows for the pedals, A/D or the arrows to steer, Space for the handbrake,
 /// E/Q (or Right Shift/Ctrl) to shift up/down, Left Shift for nitrous, R to reset the car, F to toggle the camera,
-/// Enter to interact. The pad follows NFS-XtendedInput's Most Wanted layout (the Xbox 360 one), so the remake and the
+/// Enter to interact, X to dismiss the HUD's notification (a key no other default uses; the pad has no default). The pad follows NFS-XtendedInput's Most Wanted layout (the Xbox 360 one), so the remake and the
 /// original share muscle memory: the triggers are the pedals, the left stick steers, the right stick pushed up/down
 /// shifts up/down, A is the handbrake, B nitrous, X the speed breaker, the right bumper changes the camera, the left
 /// bumper looks back, Back resets the car, D-pad up engages an event (A also does, to skip a cutscene) and D-pad left
@@ -312,6 +313,7 @@ fn driving() -> Vec<Binding> {
         Binding::new(ToggleHeadlights, key(KeyCode::KeyH), 1.0),
         Binding::new(LookBack, key(KeyCode::KeyB), 1.0),
         Binding::new(Interact, key(KeyCode::Enter), 1.0),
+        Binding::new(DismissNotification, key(KeyCode::KeyX), 1.0),
         Binding::new(Throttle, Source::PadTrigger(GamepadButton::RightTrigger2), 1.0),
         Binding::new(Brake, Source::PadTrigger(GamepadButton::LeftTrigger2), 1.0),
         Binding::new(Steer, Source::PadAxis(GamepadAxis::LeftStickX), 1.0),
@@ -330,6 +332,28 @@ fn driving() -> Vec<Binding> {
     ]
 }
 
+/// The Custom HUD's map and the HUD's visibility (`docs/specs/custom-hud-map-impl.md`): Tab cycles the map's mode, T
+/// opens the expanded map, I and K zoom it, O turns it north-up or heading-up, F1 hides the HUD. On a pad D-pad down
+/// cycles the mode and D-pad right turns it; the other D-pad directions are Interact (up) and the world map (left).
+/// None of these keys or buttons is a driving input, so the map never accelerates, brakes or steers
+/// (`map_bindings_tests.rs`). The pad's D-pad down is also the free camera's zoom and a menu direction, which are read
+/// in other contexts.
+fn hud_map() -> Vec<Binding> {
+    use Action::*;
+    let key = Source::Key;
+    let button = Source::PadButton;
+    vec![
+        Binding::new(MapMode, key(KeyCode::Tab), 1.0),
+        Binding::new(MapExpand, key(KeyCode::KeyT), 1.0),
+        Binding::new(MapZoomIn, key(KeyCode::KeyI), 1.0),
+        Binding::new(MapZoomOut, key(KeyCode::KeyK), 1.0),
+        Binding::new(MapOrientation, key(KeyCode::KeyO), 1.0),
+        Binding::new(ToggleHud, key(KeyCode::F1), 1.0),
+        Binding::new(MapMode, button(GamepadButton::DPadDown), 1.0),
+        Binding::new(MapOrientation, button(GamepadButton::DPadRight), 1.0),
+    ]
+}
+
 /// The shift paddles of a steering wheel. A wheel shows up as a gamepad; the buttons the platform has no name for
 /// arrive as `GamepadButton::Other(code)` with a code that depends on the device, so the player gives the codes
 /// (the input layer logs the code of every unnamed button when it is pressed). A wheel whose paddles the platform
@@ -341,6 +365,10 @@ pub fn paddles(up: Option<u32>, down: Option<u32>) -> Vec<Binding> {
         .chain(down.map(|code| bind(Action::ShiftDown, code)))
         .collect()
 }
+
+#[cfg(test)]
+#[path = "map_bindings_tests.rs"]
+mod map_tests;
 
 #[cfg(test)]
 mod tests {

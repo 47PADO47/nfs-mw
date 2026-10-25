@@ -12,6 +12,7 @@
 //! - [`history`]: the history block and how a pursuit is recorded (top 5 by bounty, best pairs, sums).
 //! - [`card`]: the completion percentages of the safe house menu and the main menu card.
 //! - [`time`]: the pursuit length formatter.
+//! - [`vehicle_header`]: the preferred and the recent vehicle of the vehicle database header.
 
 pub mod card;
 pub mod history;
@@ -20,6 +21,7 @@ pub mod pages;
 pub mod rank;
 pub mod session;
 pub mod time;
+pub mod vehicle_header;
 
 pub use card::{CardCounts, ProfileCard, SeriesRecord, count_series, lifetime_ranks, rap_percent};
 pub use history::{
@@ -36,3 +38,4 @@ pub use pages::{
 pub use rank::{RankingRow, UNRANKED, rank, rank_default, ranking_rows};
 pub use session::{EndGame, EndGamePage, RankingViews, Remembered, SelectionMemory, highlight_button};
 pub use time::format_ticks;
+pub use vehicle_header::{preferred_vehicle, recent_vehicle_key};

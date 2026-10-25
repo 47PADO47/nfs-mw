@@ -16,6 +16,7 @@ pub(crate) mod prompts;
 mod raster_text;
 mod shared;
 mod strings;
+mod system_fonts;
 mod text;
 pub mod theme;
 pub(crate) mod tips;

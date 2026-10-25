@@ -100,7 +100,7 @@ pub enum Command {
         /// Preview the safe-house menu with an in-memory career, without reading or writing a profile.
         #[arg(long, hide = true, conflicts_with_all = ["pause", "options"])]
         safehouse: bool,
-        /// For the option screens: audio, video, gameplay, player, controls or discord.
+        /// For the option screens: audio, video, gameplay, player, hud, controls or discord.
         #[arg(long, default_value = "audio")]
         category: String,
         /// A scripted pad for tests and screenshots (see play); with --screenshot the default is "wait 2".

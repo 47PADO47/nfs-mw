@@ -150,10 +150,11 @@ pub fn run(cli: Cli) -> Result<()> {
                 "video" => crate::frontend::Category::Video,
                 "gameplay" => crate::frontend::Category::Gameplay,
                 "player" => crate::frontend::Category::Player,
+                "hud" => crate::frontend::Category::Hud,
                 "controls" => crate::frontend::Category::Controls,
                 "discord" => crate::frontend::Category::Discord,
                 other => {
-                    anyhow::bail!("unknown category {other:?} (audio, video, gameplay, player, controls, discord)")
+                    anyhow::bail!("unknown category {other:?} (audio, video, gameplay, player, hud, controls, discord)")
                 }
             };
             if crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES).find(&name).is_none() {

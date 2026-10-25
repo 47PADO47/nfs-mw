@@ -207,6 +207,7 @@ impl WorldScene {
         active: bool,
         simulation_scale: f32,
     ) {
+        self.original_camera.set_shake_intensity(self.tuning.camera_shake);
         let view = original::index_of(self.camera_mode)
             .filter(|_| self.view == View::Chase)
             .and_then(|mode| self.camera_environment.views.as_ref().map(|views| (mode, &views.views[mode])));

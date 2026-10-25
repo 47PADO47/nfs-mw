@@ -1,5 +1,6 @@
 //! Category layout for the option screens.
 use super::hd_options::HdSetting;
+use super::hud_options::HudSetting;
 use super::{LABEL_TRANSMISSION, Row, Setting, Title, row};
 use crate::frontend::graphics_options::GraphicsSetting;
 use crate::frontend::input_options::InputSetting;
@@ -23,7 +24,8 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::SfxVolume, Title::Label(0xFD48_7543)),
             row(Setting::EngineVolume, Title::Label(0xA2B1_F888)),
             row(Setting::MusicVolume, Title::Label(0x418E_681D)),
-            row(Setting::SpeechVolume, Title::Label(0x9E5F_B82A)),
+            // The speech volume is the police dispatch's radio, so the row says so (`speech_volume` keeps its key).
+            row(Setting::SpeechVolume, Title::Key("options-police-dispatch-volume")),
         ],
         Category::Video => vec![row(Setting::WindowMode, Title::Key("options-window-mode"))]
             .into_iter()
@@ -113,6 +115,16 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         Category::CustomRace => crate::frontend::custom_race::options::rows()
             .into_iter()
             .map(|custom| row(Setting::Custom(custom), Title::Label(custom.title())))
+            .collect(),
+        // The HUD page: one row per `[custom_hud]` key, the map's orientation, then the speed units after it
+        // (docs/specs/custom-hud/menus.md, section 4).
+        Category::Hud => HudSetting::ALL
+            .into_iter()
+            .flat_map(|setting| {
+                let units = (setting == HudSetting::MapOrientation)
+                    .then(|| row(Setting::SpeedUnits, Title::Key("options-speed-units")));
+                [Some(row(Setting::CustomHud(setting), setting.title())), units].into_iter().flatten()
+            })
             .collect(),
         // The Discord Rich Presence toggles (`discord/`); the others are dimmed while Discord is off.
         Category::Discord => vec![

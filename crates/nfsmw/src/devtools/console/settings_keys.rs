@@ -1,7 +1,7 @@
 //! The keys the console's `get` and `set` know, in the order `get` lists them.
 
 /// Every setting the console can show, by its key.
-pub(super) const KEYS: [&str; 98] = [
+pub(super) const KEYS: [&str; 118] = [
     "traffic_preset",
     "traffic_population",
     "traffic_density",
@@ -100,4 +100,24 @@ pub(super) const KEYS: [&str; 98] = [
     "net_interp_delay",
     "net_show_stats",
     "net_identity_file",
+    "custom_hud.preset",
+    "custom_hud.scale",
+    "custom_hud.opacity",
+    "custom_hud.text_size",
+    "custom_hud.map_mode",
+    "custom_hud.map_opacity",
+    "custom_hud.map_zoom",
+    "custom_hud.advanced_telemetry",
+    "custom_hud.world_markers",
+    "custom_hud.race_info",
+    "custom_hud.pursuit_info",
+    "custom_hud.free_roam_extras",
+    "custom_hud.notifications",
+    "custom_hud.high_contrast",
+    "custom_hud.palette",
+    "custom_hud.motion_reduction",
+    "custom_hud.camera_shake",
+    "custom_hud.fov_intensity",
+    "custom_hud.haptics",
+    "custom_hud.hud_volume",
 ];

@@ -178,3 +178,17 @@ fn the_traffic_light_switches_reach_the_cli_settings_layer() {
     assert_eq!(layer(&["--no-traffic-lights"]), Some(false));
     assert!(Cli::try_parse_from(["nfsmw", "view-car", "--traffic-lights", "--no-traffic-lights"]).is_err());
 }
+
+#[test]
+fn the_hud_scenario_takes_a_name_and_turns_the_hud_on() {
+    use crate::devtools::hud_scenarios::HudScenario;
+    let cli = Cli::try_parse_from(["nfsmw", "view-world", "--hud-scenario", "cooldown"]).unwrap();
+    let Some(Command::ViewWorld { view, .. }) = cli.command else { panic!("wrong command") };
+    assert_eq!(view.hud_scenario, Some(HudScenario::Cooldown));
+    let car = Cli::try_parse_from(["nfsmw", "view-car"]).unwrap();
+    let Some(Command::ViewCar { view: plain, .. }) = car.command else { panic!("wrong command") };
+    assert_eq!(plain.hud_scenario, None, "off unless the flag is given");
+    assert!(Cli::try_parse_from(["nfsmw", "view-world", "--hud-scenario", "warp-speed"]).is_err());
+    let both = ["nfsmw", "view-world", "--hud-scenario", "racing", "--hud-demo", "100,4000,8000,3"];
+    assert!(Cli::try_parse_from(both).is_err(), "a scenario and a demo state do not mix");
+}

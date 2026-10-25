@@ -77,6 +77,11 @@ fn tree_of(nodes: Vec<UiNode>) -> UiTree {
 /// - 11 minimap root, 13 its track. 12 a blip icon under the minimap (the blips slot takes it).
 /// - 14 nitrous root, hidden, 15 its picture: hidden with its root, so no slot draws it.
 /// - 16 an object the runtime does not draw (no slot).
+/// - 17 the group that holds the race parts (no slot). Under it: 18 the race information group (RaceStatus) with 19 its
+///   clock; 20 the leaderboard with 21 a row; 22 the pursuit board (PursuitMeter) with 23 its backing and 24 the bounty
+///   row (BountyRow), 25 its value.
+/// - Under the radar group (9): 26 the generic message group with 27 its text, 28 the countdown group with 29 its text
+///   (Banner).
 fn synthetic_hud() -> UiTree {
     let tach = roots::tachometer().roots[0];
     let gear = roots::gear().roots[0];
@@ -84,6 +89,13 @@ fn synthetic_hud() -> UiTree {
     let minimap = roots::minimap().roots[0];
     let blip = roots::blip_icons().first().copied().expect("the blip pool has icons");
     let nitrous = roots::nitrous().roots[0];
+    let race = roots::race_status().roots[0];
+    let clock = roots::race_status().roots[1];
+    let leaders = roots::leaderboard().roots[0];
+    let board = roots::pursuit_meter().roots[0];
+    let bounty = roots::bounty_row().roots[0];
+    let message = roots::banner().roots[0];
+    let countdown = roots::banner().roots[1];
     tree_of(vec![
         group(0, tach, None, 0.0, true),
         image(1, 0x1111_0001, Some(0), 3.0, true),
@@ -102,13 +114,31 @@ fn synthetic_hud() -> UiTree {
         group(14, nitrous, None, 0.0, false),
         image(15, 0x1111_000F, Some(14), 2.0, false),
         node(16, 0x1111_0010, None, NodeKind::Other, 9.0, true),
+        group(17, RACE_PARTS, None, 0.0, true),
+        group(18, race, Some(17), 0.0, true),
+        text(19, clock, Some(18), 3.0),
+        group(20, leaders, Some(17), 0.0, true),
+        image(21, 0x1111_0015, Some(20), 2.0, true),
+        group(22, board, Some(17), 0.0, true),
+        image(23, 0x1111_0017, Some(22), 2.5, true),
+        group(24, bounty, Some(22), 0.0, true),
+        text(25, BOUNTY_VALUE, Some(24), 2.0),
+        group(26, message, Some(9), 0.0, true),
+        text(27, 0x1111_001B, Some(26), 1.5),
+        group(28, countdown, Some(9), 0.0, true),
+        text(29, 0x1111_001D, Some(28), 1.5),
     ])
 }
 
-/// The slot roots whose parent lies outside their slot: the gear's root (inside the tachometer) and the blip icon (inside
-/// the minimap). Their composed `parent` is `None`, the one documented difference of the composed tree.
-const GEAR_ROOT: usize = 2;
-const BLIP_ROOT: usize = 12;
+/// The group the race parts sit in, and the bounty row's value: names no slot has as a root.
+const RACE_PARTS: u32 = 0x5C7A_5C8A;
+const BOUNTY_VALUE: u32 = 0x1111_0019;
+
+/// The slot roots whose parent lies outside their slot: the gear's root (inside the tachometer), the blip icon (inside
+/// the minimap), and the roots of the race readout, the leaderboard, the pursuit board, the bounty row (inside the board)
+/// and the two banner groups, whose parents no slot takes. Their composed `parent` is `None`, the one documented
+/// difference of the composed tree.
+const DETACHED_ROOTS: [usize; 8] = [2, 12, 18, 20, 22, 24, 26, 28];
 
 /// Asserts that `actual` holds the same nodes as `expected`, in the same order, with the same draw order.
 fn assert_same(actual: &UiTree, expected: &UiTree) {
@@ -122,7 +152,7 @@ fn assert_same(actual: &UiTree, expected: &UiTree) {
 /// The input with the documented parent difference applied: the slot roots whose parent lies outside them have none.
 fn expected_hud() -> UiTree {
     let mut expected = synthetic_hud();
-    for root in [GEAR_ROOT, BLIP_ROOT] {
+    for root in DETACHED_ROOTS {
         expected.nodes[root].parent = None;
     }
     expected
@@ -167,6 +197,47 @@ fn the_hud_slots_claim_each_node_at_most_once() {
     assert_eq!(counts[5], 0);
     assert_eq!(counts[9], 0);
     assert_eq!(counts[16], 0);
+    // The race parts' group is no slot's; everything under it is one slot's, the bounty row included.
+    assert_eq!(counts[17], 0);
+    assert!(counts[18..30].iter().all(|count| *count == 1), "a race, board or banner node is unclaimed: {counts:?}");
+}
+
+#[test]
+fn the_new_hud_slots_emit_the_race_leaderboard_bounty_and_banner_objects() {
+    let themes = UiThemes::build();
+    themes.frame().set(FengSource::Hud, synthetic_hud());
+    let emitted = |slot: ElementId| {
+        let mut list = DrawList::new();
+        themes.build_slot(slot, 0.0, &mut list);
+        list.iter().map(|node| node.index).collect::<Vec<usize>>()
+    };
+    assert_eq!(emitted(ElementId::RaceStatus), vec![18, 19]);
+    assert_eq!(emitted(ElementId::Leaderboard), vec![20, 21]);
+    assert_eq!(emitted(ElementId::BountyRow), vec![24, 25]);
+    assert_eq!(emitted(ElementId::Banner), vec![26, 27, 28, 29]);
+    // The board keeps its backing and loses the bounty row to the bounty row's own slot.
+    assert_eq!(emitted(ElementId::PursuitMeter), vec![22, 23]);
+    for slot in [ElementId::Notifications, ElementId::WorldMarkers, ElementId::VehicleCondition] {
+        assert!(emitted(slot).is_empty(), "{} has no Original source", slot.name());
+    }
+}
+
+#[test]
+fn remastered_still_draws_no_bounty_row_with_its_own_pursuit_display() {
+    let mut themes = UiThemes::build();
+    themes.select(UiStyle::Remastered);
+    themes.frame().set(FengSource::Hud, synthetic_hud());
+    assert_eq!(themes.provided_by(ElementId::PursuitMeter), Some(ThemeId::Remastered));
+    assert_eq!(themes.provided_by(ElementId::BountyRow), Some(ThemeId::Original));
+    let composed = hud_layer(&themes, 0.0);
+    // The bounty row went with the FEng board before it had a slot, and it still does.
+    assert!(!has_name(&composed, roots::bounty_row().roots[0]), "the bounty row is drawn under Remastered");
+    assert!(!has_name(&composed, BOUNTY_VALUE), "the bounty value is drawn under Remastered");
+    // The other new slots fall back to Original, which draws what the unclaimed nodes drew.
+    assert!(has_name(&composed, roots::race_status().roots[0]), "the race readout is lost");
+    assert!(has_name(&composed, roots::leaderboard().roots[0]), "the leaderboard is lost");
+    assert!(has_name(&composed, roots::banner().roots[0]), "the message group is lost");
+    assert!(has_name(&composed, roots::banner().roots[1]), "the countdown is lost");
 }
 
 #[test]
@@ -191,31 +262,25 @@ fn a_hidden_root_keeps_its_nodes_but_draws_none_of_them() {
 }
 
 #[test]
-fn the_custom_theme_fills_the_drive_readouts_and_keeps_the_other_hud_slots_original() {
+fn the_custom_theme_draws_every_hud_slot_but_the_busted_overlay() {
+    // The rewrite (ADR 0013) draws the whole HUD with its own components: the cluster, the map, the layouts, the
+    // markers and the notifications. Only the busted overlay stays Original's.
     let mut themes = UiThemes::build();
     themes.select(UiStyle::Custom);
     themes.frame().set(FengSource::Hud, synthetic_hud());
-    assert_eq!(themes.provided_by(ElementId::Tachometer), Some(ThemeId::Custom));
-    assert_eq!(themes.provided_by(ElementId::Speedometer), Some(ThemeId::Custom));
-    assert_eq!(themes.provided_by(ElementId::GearIndicator), Some(ThemeId::Custom));
     for element in super::original::HUD_SLOTS {
-        if matches!(
-            element,
-            ElementId::Tachometer
-                | ElementId::Speedometer
-                | ElementId::GearIndicator
-                | ElementId::Nitrous
-                | ElementId::Turbo
-                | ElementId::Speedbreaker
-        ) {
-            continue;
-        }
-        assert_eq!(themes.provided_by(element), Some(ThemeId::Original), "{}", element.name());
+        let expected = match element {
+            ElementId::BustedOverlay => ThemeId::Original,
+            _ => ThemeId::Custom,
+        };
+        assert_eq!(themes.provided_by(element), Some(expected), "{}", element.name());
     }
-    // The Original tachometer and speedometer nodes are gone: the Custom readouts replace them.
     let composed = hud_layer(&themes, 0.0);
-    assert!(!has_name(&composed, roots::tachometer().roots[0]), "the Original tachometer is still drawn");
-    assert!(!has_name(&composed, roots::speedometer().roots[0]), "the Original speedometer is still drawn");
+    assert!(!has_name(&composed, roots::minimap().roots[0]), "the FEng minimap is still drawn");
+    let blip = roots::blip_icons().first().copied().expect("the blip pool has icons");
+    assert!(!has_name(&composed, blip), "the FEng blips are still drawn");
+    assert!(!has_name(&composed, roots::gear().roots[0]), "the FEng gear is still drawn");
+    assert!(!has_name(&composed, roots::tachometer().roots[0]), "the FEng tachometer is still drawn");
 }
 
 #[test]

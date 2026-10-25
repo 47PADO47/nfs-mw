@@ -143,22 +143,8 @@ The catalogue below is final for this milestone (T6). Each slot's number is expl
 of the mod ABI: never reused, never renumbered. "Original source" was confirmed in the code in T6; the `?` entries of
 the T1 draft are resolved here.
 
-**HUD (state-fed):**
-
-| Slot (id) | Original source (confirmed in code) |
-|---|---|
-| `Tachometer` (1) | Group guid `0x5164D4EA` (`TACHOMETER`, `hud/elements.rs`) in `HUD_SingleRace.fng`. Needle `3rdPersonNeedle`, face `TAC_Lines_7500`, redline `RPM_REDLINE`, shift light `Shift_light`, fill guid `0x456E`. Bound by `HudBinding::tachometer` (`hud/bind.rs`) |
-| `Speedometer` (2) | Group guid `0x941FFF09` (`SPEEDOMETER`). Digits `SPEED_DIGIT_1..3`, units `3rdPersonSpeedUnits`. Bound by `HudBinding::speedometer` |
-| `GearIndicator` (3) | Object `3rdPersonGear`, inside the tachometer group. Text and shift-time alpha set in `HudBinding::tachometer`. **Confirmed** (was `?`) |
-| `Minimap` (4) | `hud/minimap.rs` (`GROUP`, `BACKING`, `ARROW`), shown by `hud/elements.rs`, placed by `hud/viewport.rs` ([hud-minimap.md](hud-minimap.md)) |
-| `Blips` (5) | `hud/blips.rs`; styles from `hud/blip_style.rs` and `hud/blip_styles.rs` |
-| `PursuitMeter` (6) | `hud/pursuit_meter.rs` (meter guid `0x7B422BA3`, cool-down guid `0x84A226EC`). The pursuit board (timer and cops count, groups `0xDE89E070` and `0xE0B1430B`) is bound in `HudBinding::pursuit`. **Decided (T7):** the board is part of this slot (section 8, slot map) |
-| `Nitrous` (7) | Group guid `0x87C38E97`, bar guid `0xEDFB6D37` (`nos_bar`), icon guid `0x27DDF583` (`nos_icon`, scripts `SCRIPT_NOS_BURNING` and `SCRIPT_NOS_READY`). Bound by `HudBinding::nitrous`. **Confirmed** (was `?`) |
-| `Turbo` (8) | Group `TURBO_GROUP` (`hud/elements.rs`), needle `3rdperson_TurboDial`. Bound by `HudBinding::turbo`. **Confirmed** (was `?`) |
-| `Speedbreaker` (9) | `hud/speedbreaker.rs`: icon `SPEEDBREAKER_METER_ICON_GROUP`, group `Speedbreaker_Meter_Group`, mask `Speedbreaker_Meter_Multi_Image`, linear group guid `0x82D60021`, bar guid `0x1FDAF669`. **Confirmed** (was `?`) |
-| `RadioCard` (10) | Original: the EA Trax chyron, `hud/trax.rs`, package `EA_TRAX.fng` (`GLOBAL/GlobalB.lzc`). Custom: `ui/theme/custom/radio_card.rs`, fed by `hud/radio.rs` data (built in T9, [ui-themes-custom.md](ui-themes-custom.md)) |
-| `PoliceRadar` (12) | `hud/radar.rs`, `hud/roots.rs::police_radar`: the detector group (laser, arrow, two LED rows) and its backing in either layout. Original: the package's objects. Remastered: a pill with dashes and a dial ([ui-themes-remastered-screens.md](ui-themes-remastered-screens.md)) |
-| `BustedOverlay` (11) | `hud/busted_overlay.rs`, package `BUSTED_OVERLAY.fng` (`GLOBAL/InGameB.bun`), loaded by the HUD while `HudState::busted_overlay` is set. **Confirmed** (was `?`) |
+**HUD (state-fed):** slots 1 to 12, and the Custom HUD's slots 13 to 19 (ADR 0013), with the Original source of each,
+are in [ui-themes-slots.md](ui-themes-slots.md).
 
 **Front end (screen-fed, backed by the existing `ScreenLogic` contract):**
 
@@ -170,7 +156,7 @@ the T1 draft are resolved here.
 | `OptionTable` (23) | `Options.fng` and `Pause_Options.fng` → `WidgetMenu` (`frontend/widget_menu.rs`), rows from `frontend/options_rows.rs`, settings from `frontend/options.rs` |
 | `TrackSelect` (24) | `Track_Select.fng` → `frontend/custom_race/track_select.rs` (Custom Race, step two). **Confirmed** (was `?`) |
 | `SafeHouseMenu` (25) | `MainMenu_Sub.fng` with `Args::safehouse` → `frontend/career_screens/safehouse_menu.rs` → `IconMenu` `Kind::SafeHouse`. **Confirmed** (was `?`) |
-| `WorldMapChrome` (26) | No Original source. The slot resolves to `Empty` under every theme; it is a flag, not a drawn component. When the active theme provides it (Custom), the frontend recolours the live `WorldMapMain.fng` screen dark in place (`world_map/screen/restyle.rs`), keeping its fullscreen map, filter switch, button prompts and mouse behaviour. Not menu-cell-fed (`is_menu()` excludes it). See [world-map.md](world-map.md) |
+| `WorldMapChrome` (26) | No Original source. Original resolves the slot to `Empty`. Remastered (`WorldMapView`) and Custom (`FullMap`) draw the whole map and the frontend does not present the live `WorldMapMain.fng` screen; another theme that provides it has the screen recoloured dark in place (`world_map/screen/restyle.rs`). Not menu-cell-fed (`is_menu()` excludes it). See [world-map.md](world-map.md) |
 
 **Career screens (`frontend/career_screens/`):**
 
@@ -341,13 +327,15 @@ Menu and career slots (raw 20 and up) are not in this table. Their adapters, the
   excludes them, and the blips slot emits them. The exclusion holds wherever they sit under those roots.
 - **Pursuit board in `PursuitMeter`.** The board (`PURSUIT_BOARD`, timer and cops count) and the meter and cool-down
   bar are one slot. They are bound together, and show only during a chase. A split would add a slot with no consumer.
-  The bounty row is in neither the catalogue nor this slot, unless it sits under the board group. Not checked.
+  The bounty row sits under the board group **[verified]**; it is its own slot, `BountyRow` (15), and the board excludes
+  it ([ui-themes-slots.md](ui-themes-slots.md)).
 - **Radar cool-down.** The cool-down bar (`0x84A226EC`) is a root of `PursuitMeter`, so its membership is its own.
-- **Not in any slot.** The rear-view mirror's bezel (`0x7FAC287B`) and the bounty row; the composer appends every node no slot
-  claims (`hud_slots::emit_unclaimed`). The police radar and its laser (`0x839E7D77`, `0x062743F5`, `0x6CCBBBF1`, with the mirror
+- **Not in any slot.** The rear-view mirror's bezel (`0x7FAC287B`); the composer appends every node no slot
+  claims (`hud_slots::emit_unclaimed`). The race readout, the leaderboard and the banner groups were here too until the
+  Custom HUD gave them slots 13, 14 and 16. The police radar and its laser (`0x839E7D77`, `0x062743F5`, `0x6CCBBBF1`, with the mirror
   backing `0x9EE06631`) are the `PoliceRadar` slot (12), and the heat group and arcs (`0xC46A80A9`, `0xB0F63386`) the `Minimap` slot's.
-- **Unchecked assumption.** Only the gear is known to sit inside another slot's root (the tachometer), and the blip icons
-  sit under the minimap. The synthetic tests check that no node is claimed twice. The real-package check is owed
+- **Unchecked assumption.** The gear sits inside another slot's root (the tachometer), the blip icons under the minimap,
+  and the bounty row under the pursuit board (read from the package). The synthetic tests check that no node is claimed twice. The real-package check is owed
   ([ui-themes-compose.md](ui-themes-compose.md) section 7).
 
 **Ghidra was not used.** Every identity above was already pinned by the Rust code (`elements.rs`, `bind.rs`,
@@ -355,37 +343,38 @@ Menu and career slots (raw 20 and up) are not in this table. Their adapters, the
 
 ## 9. The Custom theme: native components
 
-`Custom` implements `RadioCard` and returns `None` for every other slot. The card is built (T9) and described in
-[ui-themes-custom.md](ui-themes-custom.md): a `Panel` and three `Text` rows, emitted as neutral nodes. It draws through
-the presenter, and nothing is drawn in egui. It reads its state from a feed the plugin fills each frame (T12), and
-places itself from the HUD layout, so the composer does not apply the HUD viewport to it.
+`Custom` is being rewritten from scratch as the rewrite's own modern HUD and menus:
+[ADR 0013](../decisions/0013-custom-hud.md), spec [custom-hud/](custom-hud/README.md). Until that stack lands it fills
+`RadioCard` (T9, [ui-themes-custom.md](ui-themes-custom.md): a `Panel` and three `Text` rows, fed by the plugin, placed
+from the HUD layout so the composer does not apply the HUD viewport to it), the drive card (slots 1, 2, 3, 7, 8 and 9)
+and the world map's legend (`WorldMapChrome`). Every other slot falls back to Original. All of it draws through the
+presenter; nothing is drawn in egui.
+
+The Custom HUD 2026 ([ADR 0013](../decisions/0013-custom-hud.md), `docs/specs/custom-hud/`) rewrites the rest. Its first
+drive card is retired; its components build on the tokens, layout and feed in `ui/theme/custom/` as they land.
 
 The egui branch in `crates/nfsmw/src/devtools/mod.rs` (the `settings.radio_hud == RadioHudStyle::Custom` check and
 the call to `crate::hud::show_radio`) is removed. T9 checked that the metrics and console overlays do not depend on
 that branch: they draw as before.
 
-## 10. Remastered: extension point and worked example
+## 10. Remastered
 
-`Remastered` is an enum variant and a documented extension point. It is not implemented in this milestone.
+`Remastered` is registered and built (`crates/nfsmw/src/ui/theme/remastered/`). It fills the tachometer (a dial), the
+speedometer with the gear, the nitrous, speed breaker and boost bars, the minimap with its heat ring, the police radar,
+the pursuit timer, the radio card, the full-screen world map, the vertical icon menus
+([ui-themes-remastered-menus.md](ui-themes-remastered-menus.md), which added `Slant` and `Outline` to the base
+components) and the dialogs, key list, credits, Blacklist and LAN screens
+([ui-themes-remastered-screens.md](ui-themes-remastered-screens.md), which added `Ring`). A slot it does not fill falls
+back to Original. It stays as it is: the Custom rewrite shares no code with it (ADR 0013).
 
-Worked design note, to show the component set is enough. The example is a fullscreen minimap:
-
-- The **original map** is drawn fullscreen behind everything, as a `Panel` with an `Image` child that uses the
-  existing map tiles (`hud/minimap.rs`, [hud-minimap.md](hud-minimap.md)).
-- The **legend** sits on the right, as a `Stack` of `Row`s, each `Text` plus `Image` (the blip icons from
-  `hud/blip_style.rs`).
-- The `Minimap` slot in the Remastered theme returns that `Panel`. The Blips slot can still return `None`, so the
-  original blips draw on the new map, or it can return a component of its own.
-
-The example needs only `Panel`, `Stack`, `Row`, `Text` and `Image`. No new base component and no new node kind.
-
-Built since: the Remastered cluster, the map legend, the vertical icon menus ([ui-themes-remastered-menus.md](ui-themes-remastered-menus.md)), which added `Slant` and `Outline` to the base components, and the dialogs, Blacklist, minimap with its heat ring and radio card ([ui-themes-remastered-screens.md](ui-themes-remastered-screens.md)), which added `Ring`.
+The worked example this section first gave, a full-screen map with a legend on the right built from `Panel`, `Stack`,
+`Row`, `Text` and `Image` only, was meant to show that the base components are enough; the built theme confirmed it.
 
 ## 11. The `UiStyle` setting
 
 Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original`
-(`crates/nfsmw/src/settings/ui_style.rs`): the three HUD choices. The palette of the token-driven HUD is the separate
-`UiTheme { Remastered, Bevy }` setting (`settings/ui_theme.rs`), which applies only when the HUD is not Original (section 15).
+(`crates/nfsmw/src/settings/ui_style.rs`): the three HUD choices. The palette is the separate
+`UiTheme { Remastered, Bevy }` setting (`settings/ui_theme.rs`), which the Custom and Remastered HUDs read (section 15).
 
 - Modelled on `VisualStyle` (`crates/nfsmw/src/settings/appearance.rs`): kebab-case serde, `names!` for the strict
   `FromStr` and `Display`, `ALL`, `label()`. The serialised names are `original`, `custom` and `remastered`.
@@ -411,8 +400,8 @@ Built in T10. `enum UiStyle { Original, Custom, Remastered }`, default `Original
   `RadioHudStyle` stays as the parser for that legacy value. It is no longer a settings field.
 - **Live switch.** `ui::theme::sync_active_theme` runs in `FrameSet::Prepare` every frame and calls
   `UiThemes::select(settings.ui_style)`. An options change takes effect on the next frame, with no restart.
-  `theme_of` maps `UiStyle` to `ThemeId`. `Remastered` has no registered theme yet, so `select` leaves Original
-  active. The HUD and menu presenters resolve the slots each frame (T12).
+  `theme_of` maps `UiStyle` to `ThemeId`; a style whose theme is not registered leaves Original active (every built-in
+  style is registered). The HUD and menu presenters resolve the slots each frame (T12).
 - **Chyron gate.** `hud/plugin.rs` shows the EA Trax chyron only where the `RadioCard` slot resolves to Original
   (`UiThemes::provided_by`), so Custom's card replaces it and a mod theme that does not name the slot keeps it (T12).
 - **Tests:** `settings/ui_style_tests.rs` (defaults, tokens, the three layers, legacy mapping, write, CLI),
