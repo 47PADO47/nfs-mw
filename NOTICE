@@ -405,3 +405,11 @@ https://github.com/SpeedBreakerProject/speedbreaker/blob/main/runtime/game/ultra
 madelrandel-blip/NFSMW-Recompiled (Xbox 360 port identification):
 https://github.com/madelrandel-blip/NFSMW-Recompiled
 No code copied. PC bezel contour and bilinear-footprint coverage independently implemented.
+
+Reflection integration filtering references
+-------------------------------------------
+Google Filament (Apache-2.0), pre-filtered importance sampling theory:
+https://google.github.io/filament/main/filament.html
+rustyAC CSP rendering research (GPL-3.0-or-later, reference only):
+https://github.com/thesupersupersigma/rustyAC/blob/master/docs/csp/rendering_config.md
+No implementation code copied. Source footprints, GGX PDF LOD and cube-edge filtering independently implemented.

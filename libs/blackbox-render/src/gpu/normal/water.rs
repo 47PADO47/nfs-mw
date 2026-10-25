@@ -6,6 +6,7 @@ pub(super) struct Water {
     pub screen: Screen,
     pub disabled: wgpu::Buffer,
     pub environment: wgpu::TextureView,
+    pub filtered_environment: wgpu::TextureView,
     pub base_environment: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
 }
@@ -35,11 +36,13 @@ impl Water {
             screen: Screen::new(device),
             disabled,
             base_environment: environment.clone(),
+            filtered_environment: environment.clone(),
             environment,
             sampler: device.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some("road reflection clamp"),
                 mag_filter: wgpu::FilterMode::Linear,
                 min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::MipmapFilterMode::Linear,
                 ..Default::default()
             }),
         }
