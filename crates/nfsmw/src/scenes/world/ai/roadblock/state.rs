@@ -143,6 +143,11 @@ impl Roadblocks {
         self.dispatcher.is_latched()
     }
 
+    /// Every selected heavy option postpones the ordinary lottery, including a ram pair.
+    pub(in crate::scenes::world::ai) fn delay_for_heavy_support(&mut self) {
+        self.dispatcher.heavy_chosen();
+    }
+
     /// The statistics of the chase.
     pub fn stats(&self) -> Stats {
         self.stats

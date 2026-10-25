@@ -67,6 +67,7 @@ struct MaskedSlot {
 #[derive(Default)]
 pub struct BlackboxPresenter {
     uploaded: HashSet<u32>,
+    mirror_glass: mirror::GlassCache,
     masked: HashMap<MaskedKey, MaskedSlot>,
     /// Straight pictures/masks uploaded once; scrolling/rotation updates only small GPU commands.
     mask_sources: HashSet<u32>,
@@ -153,7 +154,7 @@ impl BlackboxPresenter {
                 NodeKind::Image { texture, uv, mask, mask_rotation, mask_uv } => {
                     if node.name_hash == MIRROR_BEZEL && !mirror_drawn {
                         mirror_drawn = true;
-                        mirror_picture(tree, &mut builder, scale, origin);
+                        mirror_picture(tree, &mut builder, assets, &mut self.mirror_glass, scale, origin);
                     }
                     if mask.is_none() && self.repeated(node, *texture, *uv, assets, out, &mut builder, scale, origin) {
                         continue;

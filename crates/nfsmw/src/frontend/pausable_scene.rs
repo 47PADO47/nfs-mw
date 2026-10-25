@@ -3,41 +3,47 @@ use super::*;
 use crate::viewer::Fullscreen;
 
 impl Scene for Pausable {
+    fn extra_options(&mut self) -> Option<&mut crate::extra_options::State> {
+        self.inner.extra_options()
+    }
+    fn apply_extra_option(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        action: crate::extra_options::Action,
+    ) -> Result<()> {
+        self.inner.apply_extra_option(renderer, action)
+    }
+    fn screenshot_ui_hidden(&self) -> bool {
+        self.inner.screenshot_ui_hidden()
+    }
+
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
         self.inner.close(renderer);
     }
-
     fn reattached(&mut self, renderer: &mut dyn RenderBackend) {
         self.inner.reattached(renderer);
     }
-
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
         self.inner.garage()
     }
-
     fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.inner.apply_garage(renderer, selection)
     }
-
     fn set_garage_open(&mut self, open: bool) {
         self.inner.set_garage_open(open);
     }
-
     fn begin_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.inner.begin_garage(renderer)
     }
     fn begin_tuning(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.inner.begin_tuning(renderer)
     }
-
     fn tuning_available(&self) -> Option<bool> {
         self.inner.tuning_available()
     }
-
     fn confirm_tuning(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.inner.confirm_tuning(renderer, selection)
     }
-
     fn garage_view(
         &mut self,
         renderer: &mut dyn RenderBackend,
@@ -46,15 +52,12 @@ impl Scene for Pausable {
     ) -> Result<()> {
         self.inner.garage_view(renderer, stage, camera)
     }
-
     fn preview_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.inner.preview_garage(renderer, selection)
     }
-
     fn confirm_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.inner.confirm_garage(renderer, selection)
     }
-
     fn cancel_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.inner.cancel_garage(renderer)
     }
@@ -73,15 +76,12 @@ impl Scene for Pausable {
     fn title(&self) -> String {
         self.inner.title()
     }
-
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.inner.init(renderer)
     }
-
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         self.advance_scene(renderer, input, dt);
     }
-
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         if !self.concealed() {
             return self.inner.frame(aspect);
@@ -99,22 +99,18 @@ impl Scene for Pausable {
         }
         self.inner.rear_view(aspect)
     }
-
     fn set_second_input(&mut self, input: &ActionState) {
         self.inner.set_second_input(input);
     }
-
     fn split_active(&self) -> bool {
         !self.concealed() && self.inner.split_active()
     }
-
     fn split_view(&mut self, player: usize, aspect: f32) -> Option<(FrameParams, &[Instance])> {
         if self.concealed() {
             return None;
         }
         self.inner.split_view(player, aspect)
     }
-
     fn split_hud_state(&self, player: usize) -> Option<crate::hud::HudState> {
         self.inner.split_hud_state(player)
     }
@@ -131,7 +127,6 @@ impl Scene for Pausable {
     fn end_coop(&mut self) {
         self.inner.end_coop();
     }
-
     fn coop_end_locked(&self) -> bool {
         self.inner.coop_end_locked()
     }
@@ -140,7 +135,6 @@ impl Scene for Pausable {
     fn speed_streaks(&self) -> f32 {
         self.inner.speed_streaks()
     }
-
     fn ready(&self) -> bool {
         self.inner.ready()
     }
@@ -156,19 +150,15 @@ impl Scene for Pausable {
         }
         self.inner.menu_frame()
     }
-
     fn race_staging(&self) -> bool {
         self.inner.race_staging()
     }
-
     fn benchmark_ready(&self) -> bool {
         self.inner.benchmark_ready()
     }
-
     fn captures_mouse(&self) -> bool {
         !self.paused.get() && !self.concealed() && self.inner.captures_mouse()
     }
-
     fn status(&self) -> Option<String> {
         self.inner.status()
     }

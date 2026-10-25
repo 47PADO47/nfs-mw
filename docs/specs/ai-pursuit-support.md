@@ -127,7 +127,9 @@ not seen (section 10).
 
 - For each car in the request's list the spawn search (section 8) is run with distance `400 - (60 + 10 k)` for
   `k = 0` to `7`: **340, 330, ..., 270 m ahead** of the target. The counter `k` (the 60 start value) is **not reset
-  between the cars**: the second car's first try is at the distance the first car ended on. **[decomp]**
+  between the cars**. Native follow-up confirms that every trial increments it,
+  including success, so an unobstructed second car starts 10 m behind the first.
+  Eight trials apply per car, not as a shared counter cap. **[native verified]**
 - Each car is placed at its point with its direction **negated** (the road direction at the point points away from the
   target, so the negation makes the car face the target). Then it is activated, added to the pursuit (slot `+0x78`),
   and the manager's cop count (`+0x94`) rises by one per car. **[decomp]**
@@ -283,9 +285,14 @@ says the same).
   Execution results are recorded in the validation run, not implied here.
 
 Remaining limits: original pool-first/partial acquisition semantics, uncertain
-ram start-speed gates, spawn-speed handoff and callback details require further
+spawn-speed handoff and callback details require further
 native or matched behavior evidence. The rewrite creates the roadblock layout's
 required cars; the original supplies four SUVs and may recruit additional cars.
 The request's later placement attempts retain the documented search counter.
 See [coverage](../police-ai-parity.md) and
 [implementation provenance](../provenance/ai-pursuit-scripted-spawning.md).
+
+Native follow-up separates ram eligibility from the launch cap: target speed
+does not veto entry. The adapter now uses its two drivability checks. See
+[road and SUV corrections](ai-pursuit-road-followup.md); the missing chicken-state
+adapter and complete support placement/lifetime parity remain open.

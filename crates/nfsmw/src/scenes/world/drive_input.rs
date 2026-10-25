@@ -92,12 +92,20 @@ impl WorldScene {
         let found = match request.exact {
             Some(spawn) if drive.spawn(spawn, collision, surfaces) => Some(spawn),
             _ => tops.into_iter().flatten().find_map(|top| {
-                road::find(request.near, |x, y| road::probe(collision, x, y, top)).filter(|&spawn| {
-                    // `spawn` consumed the request when it failed above; ask again only on success.
-                    drive.spawn(spawn, collision, surfaces)
-                })
+                road::find(request.near, |x, y| road::probe(collision, x, y, top))
+                    .map(|mut spawn| {
+                        if let Some(heading) = self.extra.teleport_heading {
+                            spawn.heading = heading;
+                        }
+                        spawn
+                    })
+                    .filter(|&spawn| {
+                        // `spawn` consumed the request when it failed above; ask again only on success.
+                        drive.spawn(spawn, collision, surfaces)
+                    })
             }),
         };
+        self.extra.teleport_heading = None;
         match found {
             Some(spawn) => log_placed(&drive.car_name, spawn),
             // No road in reach: the last place the car stood on one, if there is any.
@@ -123,6 +131,13 @@ impl WorldScene {
 
     /// Switch between the chase camera and the free camera (the car waits while you fly).
     pub(super) fn toggle_view(&mut self) -> &'static str {
+        if self.extra.freecam {
+            self.extra.freecam = false;
+            self.extra.selected_bookmark = None;
+            self.view = View::Chase;
+            self.cut.arm();
+            return "driving camera (car position preserved)";
+        }
         let original = crate::viewer::camera::original::index_of(self.camera_mode)
             .map(|_| self.gameplay_lens(self.physics_aspect));
         let Some(drive) = self.players.lead_mut() else { return "not driving (use the drive command)" };

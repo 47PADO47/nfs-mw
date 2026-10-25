@@ -152,7 +152,7 @@ impl Police {
         self.reclamp_heat();
     }
 
-    fn reclamp_heat(&mut self) {
+    pub(super) fn reclamp_heat(&mut self) {
         if let Some(old) = self.heat {
             let config = crate::settings::extra_options::active().heat_bounds().map(|bounds| (bounds.min, bounds.max));
             let (min, max) = self.heat_model.range_for(config, old.level());

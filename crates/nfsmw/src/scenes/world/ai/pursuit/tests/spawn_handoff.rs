@@ -35,12 +35,98 @@ fn an_automatic_reinforcement_enters_at_rest_before_its_first_ai_step() {
 }
 
 #[test]
-fn a_seek_walk_reversed_cursor_survives_the_production_spawn_on_a_one_way_road() {
+fn an_explicit_cop_keeps_its_spawn_pose_but_can_drive_through_the_next_junction() {
+    let (mut world, _) = setup(false);
+    let prototype = world.network.segments[0].clone();
+    world.network.nodes = [-500.0, 0.0, 10.0, 500.0]
+        .into_iter()
+        .enumerate()
+        .map(|(i, z)| blackbox_roads::RoadNode {
+            position: Vec3::Z * z,
+            profile: 0,
+            segments: match i {
+                0 => vec![0],
+                1 => vec![0, 1],
+                2 => vec![1, 2],
+                _ => vec![2],
+            },
+        })
+        .collect();
+    world.network.segments = (0..3)
+        .map(|i| blackbox_roads::RoadSegment {
+            nodes: [i, i + 1],
+            length: [500.0, 10.0, 490.0][usize::from(i)],
+            flags: match i {
+                1 => blackbox_roads::flags::DECISION | blackbox_roads::flags::INTERSECTION,
+                _ => 0,
+            },
+            ..prototype.clone()
+        })
+        .collect();
+    world.index = blackbox_roads::SegmentIndex::build(&world.network);
+    let spot = CopSpot { at: -Vec3::Z * 10.0, target: Vec3::Z * 200.0, speed: 20.0, player: player(), band: None };
+    assert!(world.spawn_cop_at("copx", spot, &floor(), &SurfaceTable::default()));
+    let car = &world.cars[0];
+    assert!((car.physics_position().z + 10.0).abs() < 0.1);
+    assert!(car.physics_forward().dot(Vec3::Z) > 0.99);
+    let mut nav = car.navigation().clone();
+    nav.advance(&world.network, 60.0, Vec3::Z, &mut blackbox_roads::SplitMix(7));
+    assert_eq!(nav.segment, 2, "the admitted cursor must cross the decision segment");
+    assert!(!nav.dead_end);
+}
+
+#[test]
+fn ram_support_entry_uses_drivability_even_against_a_fast_target() {
+    use crate::scenes::world::ai::car::support_drive::{SupportCar, SupportGoal};
+    use blackbox_pursuit::support::ram::{DRIVE_SPEED, Ram};
+
+    let (mut world, focus) = setup(false);
+    let target = Body { velocity: Vec3::Z * 60.0, ..focus.body.unwrap() };
+    let spot = CopSpot {
+        at: target.position + Vec3::Z * 150.0,
+        target: target.position,
+        speed: 20.0,
+        player: player(),
+        band: None,
+    };
+    assert!(world.spawn_cop_at("copx", spot, &floor(), &SurfaceTable::default()));
+    let car = &mut world.cars[0];
+    car.set_support(Some(SupportCar { serial: 1, goal: SupportGoal::Ram(Ram::default()) }));
+    let mut rng = blackbox_roads::SplitMix(7);
+    let mut props = crate::scenes::world::props::PropWorld::default();
+    let collision = floor();
+    let surfaces = SurfaceTable::default();
+    for _ in 0..16 {
+        let mut ctx = crate::scenes::world::ai::car::Ctx {
+            net: &world.network,
+            index: &world.index,
+            rng: &mut rng,
+            bodies: &[],
+            me: 0,
+            player: Some(target),
+            aims: &[None],
+            lights: None,
+        };
+        car.step(&mut ctx, &collision, &mut props, &surfaces);
+    }
+    assert_eq!(car.drive_request().1, DRIVE_SPEED, "target speed does not veto an eligible ram");
+    assert!((car.drive_request().0 - car.physics_position()).dot(car.physics_forward()) > 0.0);
+}
+
+#[test]
+fn an_accepted_reversed_cursor_survives_the_production_spawn_on_a_one_way_road() {
     let (mut world, focus) = setup(true);
     let target = focus.body.unwrap().position;
     let (collision, surfaces) = (floor(), SurfaceTable::default());
     assert!(world.cars.is_empty());
-    assert!(world.spawn_cop("copx", focus, target, player(), &collision, &surfaces));
+    // Admission receives a selected cursor. The random seek walk on a single
+    // straight road can return to the target and fail the distance window.
+    let mut nav = RoadNav::new(NavKind::Direction, LaneType::Cop, SegmentFilter::default());
+    let at = target + Vec3::Z * 250.0;
+    assert!(nav.init_at_point(&world.network, &world.index, at, Vec3::Z, false));
+    nav.reverse(&world.network);
+    let spot = CopSpot { at, target, speed: 0.0, player: player(), band: Some((150.0, 400.0)) };
+    assert!(world.spawn_cop_on_road("copx", spot, nav, &collision, &surfaces));
     let cop = &world.cars[0];
     assert!((150.0..=400.0).contains(&cop.physics_position().distance(target)));
     assert_eq!(cop.navigation().node_ind, 0, "re-locating the accepted cursor would silently restore one-way travel");
@@ -62,7 +148,12 @@ fn an_unfilled_wave_alternates_fast_joins_after_the_initial_three() {
         // Clear the previous far, unengaged unit: the next request still lacks four cars.
         world.cars.clear();
         world.pursuit.as_mut().unwrap().spawn_timer = -1.0;
-        world.update_pursuit(0.25, focus, &collision, &surfaces);
+        // Failed samples do not arm a join delay. Keep sampling until the
+        // production manager accepts one, without assuming a first-attempt hit.
+        assert!((0..60).any(|_| {
+            world.update_pursuit(0.25, focus, &collision, &surfaces);
+            !world.cars.is_empty()
+        }));
         assert_eq!(world.cars.len(), 1, "the production manager placed its requested unit");
         delays.push(world.pursuit.as_ref().unwrap().spawn_timer);
     }

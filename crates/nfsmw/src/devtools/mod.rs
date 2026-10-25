@@ -2,6 +2,7 @@
 //! panels that draw it are thin egui views, so a full Bevy move changes the views, not the tools.
 
 mod console;
+mod extra_options;
 mod graphics_lab;
 mod logbuf;
 mod logfile;
@@ -32,6 +33,7 @@ pub struct DevToolsPlugin;
 impl Plugin for DevToolsPlugin {
     fn build(&self, app: &mut App) {
         console::build(app);
+        extra_options::build(app);
         graphics_lab::build(app);
         trace::build(app);
         app.init_resource::<Metrics>()
@@ -55,7 +57,7 @@ fn run_ui(
     window: Single<&Window, With<PrimaryWindow>>,
     time: Res<Time<Real>>,
     mut settings: ResMut<Settings>,
-    mut lab: ResMut<graphics_lab::GraphicsLab>,
+    (mut lab, mut extra): (ResMut<graphics_lab::GraphicsLab>, ResMut<extra_options::Overlay>),
     metrics: Res<Metrics>,
     mut console: ResMut<Console>,
     mut host: NonSendMut<crate::app::Host>,
@@ -78,7 +80,9 @@ fn run_ui(
         scene: host.scene.wants_ui(),
         console: console.open,
         garage: garage.open,
-        graphics_lab: lab.open,
+        graphics_lab: lab.open
+            || extra.open
+            || host.scene.extra_options().is_some_and(|s| s.testing.active() || s.restore_environment.is_some()),
         metrics: settings.show_metrics != ShowMetrics::Off,
         readout: !metrics.hud.is_empty(),
         trace: trace::indicator_up(&lab.recorder),
@@ -118,6 +122,43 @@ fn run_ui(
     }
     let (lan_ui, lan_backend) = (&mut lan.0, &mut lan.1);
     gui.frame(raw, window.scale_factor(), &mut out, |ctx| {
+        let actions = match host.scene.extra_options() {
+            Some(state) => crate::extra_options::view::show(ctx, &mut extra.open, state, &mut settings),
+            None => {
+                if extra.open {
+                    egui::Window::new("Extra options · F5").open(&mut extra.open).show(ctx, |ui| {
+                        ui.label("Start driving to use camera and world tools.");
+                    });
+                }
+                Vec::new()
+            }
+        };
+        for action in actions {
+            let host = &mut *host;
+            if let Some(renderer) = host.renderer.as_mut() {
+                let result = host.scene.apply_extra_option(renderer.as_mut(), action);
+                if let Some(state) = host.scene.extra_options() {
+                    state.message = Some(match result {
+                        Ok(()) => "Applied".into(),
+                        Err(e) => format!("{e:#}"),
+                    });
+                }
+            }
+        }
+        if !extra.open
+            && let Some(state) = host.scene.extra_options()
+            && state.testing.active()
+            && !state.hide_ui
+        {
+            egui::Area::new("extra_overrides_indicator".into()).anchor(egui::Align2::RIGHT_TOP, [-12.0, 12.0]).show(
+                ctx,
+                |ui| {
+                    if ui.button("Testing overrides active · F5").clicked() {
+                        extra.open = true;
+                    }
+                },
+            );
+        }
         // The scene's panels first: the metrics sit beside them, so they know how far in to go.
         let left = host.scene.ui(ctx);
         let net = lan_ui.as_deref_mut().and_then(|ui| crate::frontend::lan::stats_line(ui, lan_backend.as_deref_mut()));
@@ -149,6 +190,10 @@ fn run_ui(
             }
         }
     });
+    if host.scene.screenshot_ui_hidden() {
+        extra.open = false;
+    }
+    extra.sync(&mut capture, &mut focus);
     let drew_nothing = out.layer.as_ref().is_some_and(|layer| layer.meshes.is_empty());
     *settled = ui_gate::Settled::after_pass(
         drew_nothing,

@@ -111,6 +111,7 @@ impl Settings {
         target.wide_shadow_detail = light.wide_shadow_detail;
         target.shadow_detail_resolution = light.shadow_detail_resolution;
         target.far_shadows = light.far_shadows;
+        target.far_shadow_scale = light.far_shadow_scale;
         target.dense_shadow_filter = light.dense_shadow_filter;
     }
 }

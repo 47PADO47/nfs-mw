@@ -101,12 +101,18 @@ fn temporal_upscaling_owns_resolution_and_anti_aliasing_on_a_supported_renderer(
 }
 
 #[test]
-fn the_discord_category_holds_the_two_toggles_and_the_time_played_dims_while_discord_is_off() {
+fn the_discord_category_holds_its_toggles_and_the_others_dim_while_discord_is_off() {
     let caps = crate::settings::test_caps::native();
     let toggles: Vec<Setting> = rows(Category::Discord, &caps).iter().map(|row| row.setting).collect();
-    assert_eq!(toggles, [Setting::Discord, Setting::DiscordTimePlayed]);
+    assert_eq!(toggles, [Setting::Discord, Setting::DiscordTimePlayed, Setting::DiscordJoin]);
     let gameplay = rows(Category::Gameplay, &caps);
-    assert!(!gameplay.iter().any(|row| matches!(row.setting, Setting::Discord | Setting::DiscordTimePlayed)));
+    assert!(
+        !gameplay
+            .iter()
+            .any(|row| matches!(row.setting, Setting::Discord | Setting::DiscordTimePlayed | Setting::DiscordJoin))
+    );
     assert!(!Setting::DiscordTimePlayed.enabled(&Settings { discord: false, ..settings(true) }));
     assert!(Setting::DiscordTimePlayed.enabled(&Settings { discord: true, ..settings(true) }));
+    assert!(!Setting::DiscordJoin.enabled(&Settings { discord: false, ..settings(true) }));
+    assert!(Setting::DiscordJoin.enabled(&Settings { discord: true, ..settings(true) }));
 }

@@ -141,6 +141,28 @@ fn nothing_is_asked_for_before_the_minimum_delay() {
 }
 
 #[test]
+fn an_accepted_ram_request_delays_the_ordinary_roadblock_lottery() {
+    let mut world = chase(9);
+    for _ in 0..50 {
+        see(&mut world, true);
+    }
+    assert!(world.ask_support(support(Strategy::Ram)));
+    for _ in 0..60 {
+        run(&mut world, 0.25, -150.0);
+        assert_eq!(world.roadblocks.count(), 0, "ram selection must postpone the ordinary lottery for 15 s");
+        assert!(!world.roadblocks.dispatcher_latched());
+        assert!(!world.ask_support(support(Strategy::Ram)), "an existing order refuses another request");
+    }
+    for _ in 0..60 {
+        run(&mut world, 0.5, -150.0);
+        if world.roadblocks.count() > 0 {
+            break;
+        }
+    }
+    assert_eq!(world.roadblocks.count(), 1, "rejected requests must not refresh the delay indefinitely");
+}
+
+#[test]
 fn a_target_that_stays_near_the_roadblock_makes_it_recruit_one_car() {
     let mut world = chase(5);
     build(&mut world, Cause::Console).unwrap();
