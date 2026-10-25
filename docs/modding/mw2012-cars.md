@@ -51,7 +51,7 @@ the folder or use `--no-mods` / the `mods` setting (see [Using mods](README.md#u
 
 | 2012 | In the game |
 |---|---|
-| Body, interior, lamps, mirrors (finest of 3 levels, 5,000 to 36,000 triangles) | `<CLONE>_KIT00_BODY_A..D`, in car space (+x forward, +y left, +z up), squeezed along each axis until the hubs land on the clone's |
+| Body, interior, lamps, mirrors (finest of 3 levels, 5,000 to 36,000 triangles) | `<CLONE>_KIT00_BODY_A..D`, in car space (+x forward, +y left, +z up), squeezed along each axis until the wheels land on the clone's: hub height and wheelbase at the hubs, track at the rim face (the game puts the rim face at the stock track) |
 | Tyre, brake disc, rim and caliper | one `<CLONE>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled |
 | Diffuse maps (BC1, BC3) | the car's `TEXTURES.BIN` as DXT1 and DXT5, cut to `max_texture_size` |
 | Paint surfaces | the game's `<CAR>_SKIN1` placeholder with light material `CARSKIN`, which the game swaps for the paint |

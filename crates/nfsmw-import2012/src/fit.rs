@@ -22,7 +22,8 @@ pub struct Layout {
     pub wheelbase: f32,
     /// Mean x of the four hubs.
     pub x_mid: f32,
-    /// Mean distance of the hubs from the centre line.
+    /// Mean distance from the centre line of the wheel's outer face. The game puts the rim face at this distance, so
+    /// for a 2012 car it is the hub plus how far the wheel reaches outwards, not the hub itself.
     pub track: f32,
     /// Hub height.
     pub hub_z: f32,
@@ -83,8 +84,14 @@ pub fn measure(vehicle: &Vehicle) -> Option<Layout> {
     let front = hubs.iter().filter(|hub| hub[0] > x_mid).map(|hub| hub[0]).sum::<f32>() / 2.0;
     let rear = hubs.iter().filter(|hub| hub[0] <= x_mid).map(|hub| hub[0]).sum::<f32>() / 2.0;
     let radius = wheel_radius(vehicle)?;
-    let layout =
-        Layout { wheelbase: front - rear, x_mid, track: mean(&|hub| hub[1].abs()), hub_z: mean(&|hub| hub[2]), radius };
+    let outward = wheel_outward(vehicle)?;
+    let layout = Layout {
+        wheelbase: front - rear,
+        x_mid,
+        track: mean(&|hub| hub[1].abs()) + outward,
+        hub_z: mean(&|hub| hub[2]),
+        radius,
+    };
     (layout.wheelbase > 1.0 && layout.track > 0.3).then_some(layout)
 }
 
@@ -94,6 +101,19 @@ fn wheel_radius(vehicle: &Vehicle) -> Option<f32> {
     let heights = lod.iter().flat_map(|mesh| mesh.vertices.iter().map(|v| v.position[1]));
     let (low, high) = heights.fold((f32::MAX, f32::MIN), |(low, high), y| (low.min(y), high.max(y)));
     (high > low).then_some((high - low) / 2.0)
+}
+
+/// How far the wheel reaches outwards from its hub: the models are authored as a left wheel, so that is the largest x of
+/// the most detailed meshes of a wheel on the left (positive x).
+fn wheel_outward(vehicle: &Vehicle) -> Option<f32> {
+    let wheel = vehicle.wheels.iter().find(|wheel| wheel.position[0] > 0.0)?;
+    let reach = wheel
+        .lods
+        .first()?
+        .iter()
+        .flat_map(|mesh| mesh.vertices.iter().map(|v| v.position[0]))
+        .fold(f32::MIN, f32::max);
+    (reach > 0.0).then_some(reach)
 }
 
 /// How a 2012 car is moved and scaled onto a stock car's hubs.

@@ -144,6 +144,7 @@ fn import_car(
     let car = source.load(file)?;
     let layout = measure(&car.vehicle).context("the wheel layout of the car could not be measured")?;
     let (clone, fit) = best_fit(layout, stock).context("no stock car to clone")?;
+    log::debug!("{id}: wheel layout {:?} fitted onto {} {:?}", fit.from, clone.type_name, fit.to);
     let options = convert::Options { max_texture_size: config.max_texture_size };
     let built = convert::build(&car, &fit, &clone.base_model_name.to_ascii_uppercase(), id, &options)?;
     let name = names::car_name(car.object_name.as_deref(), file.number);
