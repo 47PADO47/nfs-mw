@@ -1,5 +1,7 @@
 # nfs-mw docs
 
+Extra options: [F5 camera, testing and presets](extra-options.md).
+
 Runtime customization: [garage-overlay.md](garage-overlay.md).
 Normal garage coverage: [garage-parity.md](garage-parity.md).
 

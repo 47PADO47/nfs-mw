@@ -26,6 +26,7 @@ mod environment;
 mod events;
 mod exhaust;
 mod explosion_fx;
+mod extra_options;
 pub(crate) mod feed;
 mod finish_flares;
 mod frame;
@@ -158,6 +159,7 @@ enum View {
 }
 
 pub struct WorldScene {
+    extra: crate::extra_options::State,
     detail: detail::DetailState,
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,

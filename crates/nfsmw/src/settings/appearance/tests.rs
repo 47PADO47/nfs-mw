@@ -324,6 +324,17 @@ fn enhanced_water_tuning_round_trips_and_original_style_stays_unchanged() {
     s.appearance.lighting.ray_road_reflections = false;
     s.appearance.lighting.ray_car_reflections = true;
     s.appearance.lighting.ray_texture_quality = 3;
+    s.appearance.lighting.ray_sun_shadows = true;
+    s.appearance.lighting.ray_soft_shadows = true;
+    s.appearance.lighting.ray_shadow_temporal = true;
+    s.appearance.lighting.ray_shadow_samples = 16;
+    s.appearance.lighting.ray_shadow_resolution = 100;
+    s.appearance.lighting.cascade_temporal = true;
+    s.appearance.lighting.far_shadow_scale = 2.5;
+    s.appearance.lighting.ray_shadow_filter = 1.0;
+    s.appearance.lighting.ray_shadow_range = 120.0;
+    s.appearance.lighting.ray_shadow_length = 450.0;
+    s.appearance.lighting.ray_shadow_bias = 0.012;
     s.appearance.lighting.ray_car_range = 160.0;
     s.appearance.lighting.ray_car_blend = 0.75;
     s.appearance.lighting.ray_road_blend = 0.6;

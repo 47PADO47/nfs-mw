@@ -62,6 +62,27 @@ fn copied_observations_do_not_advance_seek_cache_or_random_streams() {
 }
 
 #[test]
+fn reinforcement_seek_reuses_the_primary_targets_cached_road_prediction() {
+    let mut world = TrafficWorld::new(straight_road(2000.0));
+    let first = Body { velocity: Vec3::Z * 35.0, forward: Vec2::Y, ..focus().body.unwrap() };
+    let cached = update(&mut world, Some(first)).unwrap();
+    let moved = Body { position: first.position + Vec3::Z * 12.0, ..first };
+    assert_eq!(update(&mut world, Some(moved)).unwrap().seek, cached.seek);
+    let before = tracked_hash(&world.target_road);
+    assert_eq!(world.reinforcement_seek(&moved), Some(cached.seek), "spawn and driving must use the same cache");
+    assert_eq!(tracked_hash(&world.target_road), before, "spawn reads must not advance target history");
+}
+
+#[test]
+fn reinforcement_seek_keeps_the_shorter_jerk_prediction() {
+    let mut world = TrafficWorld::new(straight_road(2000.0));
+    let target = Body { velocity: Vec3::Z * 35.0, forward: Vec2::Y, ..focus().body.unwrap() };
+    let cached = world.target_road.update(&world.network, &world.index, Some(target), false, true, 1.0 / 60.0).unwrap();
+    assert!(cached.seek.distance(target.position) < 150.0, "fixture must exercise the jerk horizon");
+    assert_eq!(world.reinforcement_seek(&target), Some(cached.seek), "spawn must not rebuild the ordinary horizon");
+}
+
+#[test]
 fn missing_target_and_racing_publish_no_free_roam_snapshot_but_age_state() {
     let mut world = TrafficWorld::new(straight_road(1000.0));
     let body = focus().body.unwrap();

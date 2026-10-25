@@ -1,12 +1,13 @@
 //! The LAN play settings (`docs/specs/multiplayer/integration.md` section 2): the player's name in a session, the game
 //! port, the snapshot rate a host serves, the interpolation delay, the network line of the overlay and the identity key
-//! file. Each is a layered setting (command line > environment > config file > defaults).
+//! file, and the address a Discord join invite carries. Each is a layered setting (command line > environment > config
+//! file > defaults).
 //!
 //! Config (top-level keys): `net_name`, `net_port`, `net_snapshot_hz`, `net_interp_delay`, `net_show_stats`,
-//! `net_identity_file`. Environment: `NFSMW_NET_NAME`, `NFSMW_NET_PORT`, `NFSMW_NET_SNAPSHOT_HZ`,
-//! `NFSMW_NET_INTERP_DELAY`, `NFSMW_NET_SHOW_STATS`, `NFSMW_NET_IDENTITY_FILE`. Command line: `--net-name`,
-//! `--net-port`, `--net-snapshot-hz`, `--net-interp-delay`, `--net-show-stats` / `--no-net-show-stats`,
-//! `--net-identity-file`. Console: `set net_port 9760` and the same for the others.
+//! `net_identity_file`, `net_public_address`. Environment: `NFSMW_NET_NAME`, `NFSMW_NET_PORT`, `NFSMW_NET_SNAPSHOT_HZ`,
+//! `NFSMW_NET_INTERP_DELAY`, `NFSMW_NET_SHOW_STATS`, `NFSMW_NET_IDENTITY_FILE`, `NFSMW_NET_PUBLIC_ADDRESS`. Command line:
+//! `--net-name`, `--net-port`, `--net-snapshot-hz`, `--net-interp-delay`, `--net-show-stats` / `--no-net-show-stats`,
+//! `--net-identity-file`, `--net-public-address`. Console: `set net_port 9760` and the same for the others.
 //!
 //! - `text.rs`: [`InlineText`], the `Copy` text the name and the path are kept in.
 //! - `io.rs`: the config keys, the environment and the command line.
@@ -24,6 +25,8 @@ pub use text::InlineText;
 pub type NetName = InlineText<96>;
 /// The identity key file's path.
 pub type IdentityPath = InlineText<240>;
+/// The IP address a Discord invite carries (an IPv6 address fits).
+pub type PublicAddress = InlineText<48>;
 
 /// The name a session shows when none is set.
 pub const DEFAULT_NAME: &str = "Player";
@@ -59,6 +62,9 @@ pub struct NetSettings {
     pub show_stats: bool,
     /// The identity key file; empty for [`DEFAULT_IDENTITY_FILE`] next to the config file (`net_identity_file`).
     pub identity_file: IdentityPath,
+    /// The IP address Discord invites carry for a game this PC hosts; empty for this PC's LAN address
+    /// (`net_public_address`). Set it to the public (or VPN) address when friends join from outside the LAN.
+    pub public_address: PublicAddress,
 }
 
 impl Default for NetSettings {
@@ -79,7 +85,14 @@ impl NetSettings {
             interp_delay: layer.interp_delay.map_or(DEFAULT_INTERP_DELAY, clamp_delay),
             show_stats: layer.show_stats.unwrap_or(DEFAULT_SHOW_STATS),
             identity_file: layer.identity_file.unwrap_or_default(),
+            public_address: layer.public_address.unwrap_or_default(),
         }
+    }
+
+    /// The address set for Discord invites, `None` for this PC's LAN address.
+    #[cfg_attr(not(feature = "multiplayer"), allow(dead_code))]
+    pub fn public_ip(&self) -> Option<std::net::IpAddr> {
+        self.public_address.as_str().parse().ok()
     }
 
     /// The identity key file: the set path, or [`DEFAULT_IDENTITY_FILE`] in `config_dir`.
@@ -101,6 +114,7 @@ pub struct NetLayer {
     pub interp_delay: Option<f32>,
     pub show_stats: Option<bool>,
     pub identity_file: Option<IdentityPath>,
+    pub public_address: Option<PublicAddress>,
 }
 
 impl NetLayer {
@@ -113,6 +127,7 @@ impl NetLayer {
             interp_delay: self.interp_delay.or(lower.interp_delay),
             show_stats: self.show_stats.or(lower.show_stats),
             identity_file: self.identity_file.or(lower.identity_file),
+            public_address: self.public_address.or(lower.public_address),
         }
     }
 }
@@ -127,6 +142,7 @@ impl From<NetSettings> for NetLayer {
             interp_delay: Some(value.interp_delay),
             show_stats: Some(value.show_stats),
             identity_file: Some(value.identity_file),
+            public_address: Some(value.public_address),
         }
     }
 }
@@ -155,6 +171,15 @@ pub fn parse_port(text: &str) -> Result<u16, String> {
         return Err(format!("the port must be {} to {}", PORT_RANGE.0, PORT_RANGE.1));
     }
     Ok(port)
+}
+
+/// An IP address for Discord invites; the empty text is the default (this PC's LAN address).
+pub fn parse_public_address(text: &str) -> Result<PublicAddress, String> {
+    let text = text.trim();
+    if !text.is_empty() && text.parse::<std::net::IpAddr>().is_err() {
+        return Err(format!("{text:?} is not an IP address"));
+    }
+    PublicAddress::new(text)
 }
 
 /// A snapshot rate: [`SNAPSHOT_HZ_RANGE`].

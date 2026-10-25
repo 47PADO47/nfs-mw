@@ -81,6 +81,7 @@ impl RoadNav {
         self.t = 1.0 - self.t;
         // The same physical lane has the mirrored index in the other direction's profile.
         self.lane = zones.saturating_sub(1).saturating_sub(self.lane);
+        self.lane_offset = self.lane_offset.map(|offset| -offset);
         self.dead_end = false;
         self.rebuild(net);
         self.reset_trail(net);
