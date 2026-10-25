@@ -22,6 +22,8 @@ pub use spec::TireSpec;
 pub use state::{LoadedInput, ROLLING_FRICTION, Tire, TireParams, WHEEL_INERTIA};
 
 #[cfg(test)]
+mod capture_tests;
+#[cfg(test)]
 mod integration_tests;
 #[cfg(test)]
 mod tests;

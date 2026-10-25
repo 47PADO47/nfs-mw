@@ -80,8 +80,13 @@ impl Tire {
         let pilot = self.pilot_factor(p, i.body_speed);
         let skid = slip.hypot(lat);
         let patch_speed = fwd.hypot(lat);
+        let moving_patch = match reference {
+            true => fwd != 0.0 || lat != 0.0,
+            false => patch_speed > EPS,
+        };
+        let friction_active = skid > EPS && moving_patch;
         let (mut dyn_grip, mut ground_friction, mut ground_force) = (1.0, 0.0, 0.0);
-        if skid > EPS && patch_speed > EPS {
+        if friction_active {
             dyn_grip = p.dynamic_grip * self.traction_boost * pilot;
             let divisor = match reference {
                 true => skid,
@@ -93,7 +98,7 @@ impl Tire {
 
         // Brake lock test.
         let available = (self.brake * p.brake_lock_spec + self.ebrake * p.ebrake_spec) * LOCK_RATIO;
-        let test_lock = !reference || (skid > EPS && patch_speed > EPS);
+        let test_lock = !reference || friction_active;
         let locked = match (test_lock, available > ground_force * r + self.av.abs() * LOCK_AV_FACTOR) {
             (false, _) => self.brake_locked,
             (_, true) => {
@@ -190,6 +195,9 @@ impl Tire {
                 self.angular_acc = lerp(self.angular_acc, fwd_acc / r, self.traction);
             }
             self.av += self.angular_acc * dt;
+            self.check_sign();
+        }
+        if reference && locked {
             self.check_sign();
         }
 
