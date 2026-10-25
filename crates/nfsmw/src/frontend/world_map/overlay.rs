@@ -197,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn a_racer_is_orange_and_a_cop_is_white_or_flashes_blue_and_red() {
+    fn a_racer_is_orange_and_a_cop_is_white_or_cycles_blue_grey_red_grey() {
         let car = |style, chasing| LiveBlip { style, map: [0.0; 2], bearing: 0.0, chasing };
         assert_eq!(car(RACER, false).rgba(0.0), [255, 150, 40, 255]);
         assert_eq!(car(COP, false).rgba(0.0), [255, 255, 255, 255]);
@@ -206,9 +206,12 @@ mod tests {
         assert_eq!(car(CHECKPOINT, false).icon(), "Minimap_Icon_Circuit.tga");
         assert_eq!(car(HELICOPTER, false).icon(), "Helicopter_Minimap_Icon.tga");
         assert_eq!(car(RACER, false).icon(), "Minimap_Icon_Car.tga");
-        let chase = [car(COP, true).rgba(0.0), car(COP, true).rgba(0.25)];
-        assert_ne!(chase[0], chase[1], "the light bar changes colour");
-        assert!(chase.iter().all(|c| c[2] == 255 || c[0] == 0xa0));
+        // A step lasts a tenth of a second and the cycle is two steps each of blue, grey, red and grey.
+        let chase = |clock| car(COP, true).rgba(clock);
+        assert_eq!(chase(0.0), [0, 0, 255, 255], "blue");
+        assert_eq!(chase(0.25), [204, 204, 204, 255], "grey");
+        assert_eq!(chase(0.45), [0xa0, 0, 0, 255], "red");
+        assert_eq!(chase(0.65), [204, 204, 204, 255], "grey again");
     }
 
     #[test]
