@@ -36,7 +36,7 @@ parser is pure text in, typed values out; the file read is the only I/O). The Sp
 | `[Weather] AlwaysRain` | forces rain on every track | Rain is drawn from the drop pool (see [weather.md](weather.md#the-ports-rain-what-is-drawn)); the original's zone rain map is not reproduced yet. |
 | `[Weather] GeneralRainAmount` | scales the drop spawn rate; 0 to 100 percent (values above 1 clamp) | |
 | `[Gameplay] GameSpeed` | multiplies the physics clock; 0.1 to 4 | Applies to the drive's physics steps (cars and collisions). Traffic and effects keep frame time. |
-| `[Gameplay] WorldAnimationSpeed` | multiplies the world animation clock (textures and animated scenery); 0.1 to 4 | The mod measures it in its own unit, where 45 is the original rate; the port divides by 45. |
+| `[Gameplay] WorldAnimationSpeed` | multiplies the world animation clock (textures, animated scenery and the [scenery sway](scenery-sway.md) of trees and boats); 0.1 to 4 | The mod measures it in its own unit, where 45 is the original rate (the sway clock's degrees per second, at `0x904AEC`); the port divides by 45. |
 | `[Gameplay] CarScale` | scales the player car's body parts; 0.25 to 4 | Visual only: the lamps, effects and collision keep the stock size. |
 | `[Gameplay] NoRevLimiter` | lifts the engine's rev limiter: the engine turns up to the top of its torque curve | Uses `EngineSpec::no_rev_limiter`. Shifting still happens at the red line. The example car's drag stops it short of the red line, so the effect on top speed is unverified in-game. |
 | `[Gameplay] ShowHUDOnLookBack` | keeps the HUD up while the look-back control is held | Without it the HUD hides while looking back, as the original does. Look back is hold `B`. |
