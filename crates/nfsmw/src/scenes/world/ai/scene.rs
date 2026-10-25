@@ -87,7 +87,7 @@ impl WorldScene {
     /// Apply settings and load requested models before any physics tick.
     pub(in crate::scenes::world) fn prepare_traffic(&mut self, renderer: &mut dyn RenderBackend) {
         let (wanted, share) = (self.traffic_wanted(), u32::from(self.traffic_setting.cop_share.0));
-        let barred = self.race_bars_cops();
+        let barred = self.extra.testing.police_off || self.race_bars_cops();
         let guests = self.guest_traffic_views();
         let blocking_models = self.rules.blocking_models;
         let Some(traffic) = self.traffic.as_mut() else { return };

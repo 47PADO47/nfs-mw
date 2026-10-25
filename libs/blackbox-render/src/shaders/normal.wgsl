@@ -200,6 +200,12 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
         let world_n = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
         let ray = reflect(-unit(globals.camera_pos.xyz-in.world),world_n);
         filtered = textureSampleLevel(road_environment,road_sampler,ray,0.0).rgb;
+        // A water film retains road microstructure; standing water is much smoother.
+        // Apply this to the probe fallback only, leaving traced intersections unchanged.
+        let roughness = mix(0.32,0.07,pool);
+        let lod = roughness*f32(textureNumLevels(road_filtered_environment)-1u);
+        let broad = textureSampleLevel(road_filtered_environment,road_sampler,ray,lod).rgb;
+        filtered = mix(filtered,broad,smoothstep(0.08,0.32,roughness));
         // A pixel the mask leaves unreflective shows nothing of the traced hit, so the march is skipped. Any
         // reflectance above zero still marches: over a dark road even a fraction of a percent shows once encoded.
         if reflectance > 0.0 {

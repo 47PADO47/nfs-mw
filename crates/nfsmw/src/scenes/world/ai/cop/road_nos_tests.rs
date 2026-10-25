@@ -59,9 +59,12 @@ fn returning_from_close_pursuit_resets_the_road_governor_at_the_current_speed() 
     let inputs = || ActionInputs { collision: &collision, grade: 0.0, ram: false, nitrous: RoadNitrous::default() };
     cop.think(&mut ctx, &mut nav, &near, &Target { body: body(30.0, 20.0), aim: None }, [], inputs());
     assert!(cop.close_active(), "the first think must enter close pursuit");
+    // Leave a tactical cursor on another lateral slot before the road action resumes.
+    nav.preserve_offset_at(&network, Vec3::new(-2.0, 0.0, nav.position.z));
     let now = state(body(0.0, 40.0));
     let think = cop.think(&mut ctx, &mut nav, &now, &Target { body: body(180.0, 60.0), aim: None }, [], inputs());
     assert!(!cop.close_active(), "the distant target must restore the road action");
+    assert!(nav.position.x > 0.0, "road entry starts from the actual car, not the old tactical slot");
     assert!(
         think.speed >= now.forward_speed,
         "a fresh road governor must not brake for stale pre-close speed history: {think:?}"
