@@ -149,8 +149,9 @@ impl Renderer {
         self.upload_main_instances(instances);
         if (self.experiments.ray_road_reflections && self.road_reflections_active(frame, false))
             || self.ray_cars_active(frame)
+            || self.ray_shadows_active(frame)
         {
-            self.prepare_ray_reflections(encoder, instances, frame.camera_position);
+            self.prepare_ray_reflections(encoder, instances, frame);
         }
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 4);
@@ -159,11 +160,13 @@ impl Renderer {
         self.encode_surfaces(encoder, size, frame, instances, &depth);
         self.encode_effect_motion(encoder, frame, instances);
         self.encode_contact(encoder, size, frame);
+        self.encode_ray_shadows(encoder, size, frame);
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 5);
             timing.stamp(encoder, 2);
         }
         self.encode_shadows(encoder, frame, instances);
+        self.encode_cascade_history(encoder, frame);
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 3);
         }

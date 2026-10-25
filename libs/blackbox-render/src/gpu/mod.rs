@@ -51,6 +51,7 @@ mod prewarm_tests;
 mod projected;
 mod queued;
 mod ray_reflections;
+mod ray_shadows;
 mod redirects;
 mod reflection_queue;
 mod reflection_store;
@@ -62,6 +63,7 @@ mod reflections;
 mod resources;
 mod reuse;
 mod scene_pass;
+mod shadow_resolve;
 mod shadows;
 mod sized;
 mod sky;
@@ -131,6 +133,8 @@ pub struct Renderer {
     ao: Option<ao::AmbientOcclusion>,
     effect_motion: Option<temporal::EffectMotion>,
     contact: Option<contact::Contact>,
+    ray_shadows: Option<ray_shadows::RayShadows>,
+    cascade_resolve: Option<shadow_resolve::Resolve>,
     surfaces: Option<surface::Surfaces>,
     reuse_prepass_depth: bool,
     timing: Option<timing::Timing>,

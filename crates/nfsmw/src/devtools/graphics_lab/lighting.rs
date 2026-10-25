@@ -11,7 +11,31 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
         car::show(ui, lab, settings);
         ui.separator();
         super::controls::checkbox(ui, &mut lab.options.sun_shadows, "Sun shadows", defaults.sun_shadows);
+        ui.add_enabled_ui(lab.ray_reflections_available, |ui| {
+            super::controls::checkbox(ui, &mut lab.options.ray_sun_shadows, "Hardware RT sun shadows", defaults.ray_sun_shadows)
+                .on_hover_text("Vulkan prototype: sun shadows near the camera, cascaded shadows farther away. Reuses RT geometry. Soft mode can use a short, two-frame history. Requires an RT-enabled launch.");
+        });
         super::controls::checkbox(ui, &mut lab.options.original_shadows, "Original shadow overlays", defaults.original_shadows);
+        ui.collapsing("Advanced RT sun shadows", |ui| {
+            ui.add_enabled_ui(lab.options.ray_sun_shadows, |ui| {
+                super::controls::checkbox(ui, &mut lab.options.ray_soft_shadows, "Soft RT sunlight", defaults.ray_soft_shadows)
+                    .on_hover_text("Samples the sun disc: contact edges stay tight, elevated blockers cast broader edges. Surface-aware upsampling and optional two-frame stabilization. Lower mask resolution reduces ray cost.");
+                if lab.options.ray_soft_shadows {
+                    super::controls::slider(ui, &mut lab.options.sun_angle, 0.0..=2.0, "Sun radius °", defaults.sun_angle);
+                    super::controls::choice(ui, "RT mask resolution %", &mut lab.options.ray_shadow_resolution, &[50, 100], defaults.ray_shadow_resolution);
+                    ui.small("50% traces one quarter of the pixels and reconstructs full-resolution visibility using depth and normals. Fine unmatched surfaces retain cascades. 100% is the quality reference.");
+                    super::controls::choice(ui, "Sun rays per pixel", &mut lab.options.ray_shadow_samples, &[4, 8, 16], defaults.ray_shadow_samples);
+                    super::controls::slider(ui, &mut lab.options.ray_shadow_filter, 0.0..=2.0, "RT spatial smoothing", defaults.ray_shadow_filter);
+                    super::controls::checkbox(ui, &mut lab.options.ray_shadow_temporal, "Two-frame stabilization", defaults.ray_shadow_temporal)
+                        .on_hover_text("Blends this frame with the previous unblended spatial estimate. Reprojects motion, rejects changed surfaces and clamps changed shadows. No older history.");
+                    ui.small("4 rays is the normal target. Surface-aware smoothing removes sample grain; 0 disables it and stabilization. Stabilization blends only two unblended frames.");
+                }
+                super::controls::slider(ui, &mut lab.options.ray_shadow_range, 10.0..=240.0, "RT receiver range (m)", defaults.ray_shadow_range);
+                super::controls::slider(ui, &mut lab.options.ray_shadow_length, 40.0..=800.0, "RT blocker reach (m)", defaults.ray_shadow_length);
+                super::controls::slider(ui, &mut lab.options.ray_shadow_bias, 0.001..=0.05, "RT surface bias (m)", defaults.ray_shadow_bias);
+                ui.small("The outer 20% blends to cascades. Blocker reach includes off-camera sunward geometry. Higher reach can cost more; bias trades self-shadow acne for detached edges. Sun radius also controls soft RT sunlight. PCSS affects cascades only. RT replaces screen-space contact detail while active; AO remains independent.");
+            });
+        });
         ui.collapsing("Advanced shadows", |ui| {
         ui.add_enabled_ui(lab.options.sun_shadows, |ui| {
             ui.horizontal_wrapped(|ui| {
@@ -41,13 +65,21 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
                     super::controls::choice(ui, "Detail map resolution (first two)", &mut lab.options.shadow_detail_resolution, &sizes, defaults.shadow_detail_resolution.max(lab.options.shadow_resolution));
                     ui.small("Map resolution above controls distant cascades. Filter width uses the nearest map's texel size.");
                 }
-                if !lab.options.wide_shadow_detail {
-                    super::controls::checkbox(ui, &mut lab.options.near_shadow_focus, "Tight near focus (legacy)", defaults.near_shadow_focus)
-                        .on_hover_text("Doubles nearest detail by halving coverage; makes the quality transition appear closer to the camera.");
+                {
+                    super::controls::checkbox(ui, &mut lab.options.near_shadow_focus, "Tight near focus", defaults.near_shadow_focus)
+                        .on_hover_text("Doubles nearest detail by halving its coverage. Works with wide detail: its higher resolution retains car detail over a wider near area. Overlapping cascades blend smoothly.");
                 }
+                super::controls::checkbox(ui, &mut lab.options.cascade_temporal, "Two-frame cascade stabilization", defaults.cascade_temporal)
+                    .on_hover_text("Blends current and previous unblended visibility using motion, depth and normal checks. Reduces edge shimmer; rejects camera cuts and changed surfaces. Adds a screen-space resolve. Inactive with RT shadows.");
                 super::controls::checkbox(ui, &mut lab.options.cached_shadows, "Cache unchanged shadow cascades", defaults.cached_shadows)
                     .on_hover_text("Caches static depth only when the exact cascade projection is unchanged. Moving casters redraw every frame. Most effective with a stationary camera and frozen sun; moving projections use the original path.");
-                super::controls::checkbox(ui, &mut lab.options.far_shadows, "Distant coverage (3× range)", defaults.far_shadows);
+                let mut reach = if lab.options.far_shadows { lab.options.far_shadow_scale } else { 1.0 };
+                super::controls::slider(ui, &mut reach, 1.0..=5.0, "Distant range ×", if defaults.far_shadows { defaults.far_shadow_scale } else { 1.0 });
+                if reach != if lab.options.far_shadows { lab.options.far_shadow_scale } else { 1.0 } {
+                    lab.options.far_shadows = reach > 1.01;
+                    lab.options.far_shadow_scale = reach;
+                }
+                ui.small(format!("Detailed coverage {:.0} m; total shadow coverage {:.0} m. Longer distance adds distant caster work, not near detail.", lab.options.shadow_distance, lab.options.shadow_distance * reach));
                 super::controls::slider(ui, &mut lab.options.shadow_distance, 40.0..=320.0, "Near range", defaults.shadow_distance);
                 super::controls::slider(ui, &mut lab.options.shadow_filter, 0.0..=3.0, "Filter width", defaults.shadow_filter);
                 super::controls::checkbox(ui, &mut lab.options.soft_shadows, "Contact-hardening sun (PCSS)", defaults.soft_shadows);
@@ -80,7 +112,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
             ui.small("Debug bypasses colour effects. White means visible; black means occluded.");
         }
         if matches!(lab.options.lighting_debug, LightingDebug::ShadowBlockers | LightingDebug::ShadowPenumbra) {
-            ui.small("Custom cascades only. Blockers: black = 0, white = 16. Filter radius: black = 0, white = 8 shadow texels. PCSS off keeps a fixed radius.");
+            ui.small("Custom cascades only. Blockers: black = 0, white = 8. Filter radius: black = 0, white = 8 shadow texels. PCSS off keeps a fixed radius.");
         }
         });
     });

@@ -383,3 +383,15 @@ https://github.com/gfx-rs/wgpu/tree/v30.0.0/examples/features/src/ray_scene
 https://github.com/gfx-rs/wgpu/tree/v30.0.0/examples/features/src/ray_shadows
 Read as references for BLAS/TLAS descriptors and WGSL intersection queries.
 Native reflection material adaptation is independently implemented.
+
+Hybrid sun-shadow architecture reference
+---------------------------------------
+AMD FidelityFX Hybrid Shadows documentation:
+https://gpuopen.com/fidelityfx-hybrid-shadows/
+Reference for combining cascaded and ray-traced visibility; no sample code copied.
+
+Finite-light shadow sampling reference
+---------------------------------------
+Khronos Vulkan Documentation: Shadows, Ray Query Integration.
+https://docs.vulkan.org/tutorial/latest/Building_a_Simple_Engine/Lighting_Materials/07_shadows.html
+Documentation reference only; finite-sun sampling and spatial filtering independently implemented.
