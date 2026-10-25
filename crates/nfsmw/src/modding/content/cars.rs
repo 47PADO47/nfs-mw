@@ -11,17 +11,21 @@ use nfsmw_data::pursuit::HEAT_LEVELS;
 
 use super::ModDir;
 
-/// Register the cars that the mods declare, and seal them. Without any car request the tables are not read at all.
-pub(super) fn register(dir: &GameDir, mods: &[ModDir]) {
-    let specs: Vec<CarSpec> = mods.iter().flat_map(|m| specs_of(dir, m)).collect();
+/// Register the cars that the mods declare and publish them: at start-up for every loaded mod, and again for one mod
+/// that added cars later. A car that is already published is skipped, so a repeated call adds only what is new.
+/// Without any new car request the tables are not read at all. Returns how many cars were added.
+pub(super) fn register(dir: &GameDir, mods: &[ModDir]) -> usize {
+    let published = car_mods::published();
+    let is_new = |spec: &CarSpec| !published.iter().any(|car| car.folder.eq_ignore_ascii_case(&spec.folder));
+    let specs: Vec<CarSpec> = mods.iter().flat_map(|m| specs_of(dir, m)).filter(is_new).collect();
     if specs.is_empty() {
-        return;
+        return 0;
     }
     let tables = match CarTables::load(dir) {
         Ok(tables) => tables,
         Err(error) => {
             log::warn!("mod cars: the car tables cannot be read, so {} car(s) are not added: {error:#}", specs.len());
-            return;
+            return 0;
         }
     };
     let (cars, rejected) = car_mods::register(&tables.types, &specs);
@@ -31,9 +35,9 @@ pub(super) fn register(dir: &GameDir, mods: &[ModDir]) {
     for car in &cars {
         log::info!("mod {}: car {} added as a clone of {}", car.owner, car.folder, car.car_type.type_name);
     }
-    if car_mods::seal(cars).is_err() {
-        log::warn!("mod cars were already sealed for this run; the new set is not used");
-    }
+    let added = cars.len();
+    car_mods::publish(cars);
+    added
 }
 
 /// The car requests of one mod: its `cars/*.toml` files, in name order.

@@ -108,6 +108,11 @@ impl Bridge {
         *self.install.borrow_mut() = Some(dir);
     }
 
+    /// A copy of the install, with its layers (late ones included: they are shared by every copy). `None` until known.
+    pub(super) fn install(&self) -> Option<GameDir> {
+        self.install.borrow().clone()
+    }
+
     /// The install's wave of `table` at `level`, as the install defines it. `NotReady` until the install is known,
     /// `NotFound` for a level the install has no wave for.
     pub(super) fn install_row(&self, table: CopTable, level: u32) -> Result<HeatRow, blackbox_modding::abi::BbStatus> {

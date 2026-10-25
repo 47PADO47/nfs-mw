@@ -3,10 +3,10 @@
 //! A mod car is a clone of a stock car type: it keeps the stock record's name, so its parts, physics and sound are the
 //! clone's, and it ships its own `CARS/<FOLDER>/` geometry and textures. [`register`] is the pure part: it takes the
 //! stock car table and the mods' requests, and returns the cars it admits and the reasons it refuses the others. The
-//! game seals the admitted cars once, at start-up ([`seal`]); after that every car-table load sees them
+//! game publishes the admitted cars at start-up and again when a mod adds more later ([`publish`]); every car-table load after that sees them
 //! ([`car_types`]), and the physics, cop and garage lookups read them through the functions below.
 
-use std::sync::OnceLock;
+use std::sync::{PoisonError, RwLock};
 
 use blackbox_carparts::CarTypeInfo;
 
@@ -144,28 +144,36 @@ fn find_type<'a>(types: &'a [CarTypeInfo], id: &str) -> Option<&'a CarTypeInfo> 
         .or_else(|| types.iter().find(|info| info.type_name.eq_ignore_ascii_case(id)))
 }
 
-/// The cars of this run, set once at start-up. Later calls return the cars they were given.
-static SEALED: OnceLock<Vec<ModCar>> = OnceLock::new();
+/// The cars of this run: the ones the mods declared at start-up, then the ones that mods added while the game ran. Each
+/// publication leaks the new list, so [`published`] can hand out a slice that outlives the lock; a run makes a handful.
+static PUBLISHED: RwLock<&'static [ModCar]> = RwLock::new(&[]);
 
-/// Make `cars` the mod cars of this run. The first call wins; a second returns its cars back, unchanged.
-pub fn seal(cars: Vec<ModCar>) -> Result<(), Vec<ModCar>> {
-    SEALED.set(cars)
+/// Add `cars` to the mod cars of this run. They are in every car table loaded from now on. A car whose folder is
+/// already published is not added twice.
+pub fn publish(cars: Vec<ModCar>) {
+    let mut published = PUBLISHED.write().unwrap_or_else(PoisonError::into_inner);
+    let fresh = cars.into_iter().filter(|car| !published.iter().any(|known| known.folder == car.folder));
+    let all: Vec<ModCar> = published.iter().cloned().chain(fresh).collect();
+    if all.len() == published.len() {
+        return;
+    }
+    *published = Box::leak(all.into_boxed_slice());
 }
 
-/// The mod cars of this run: empty before [`seal`], or when no mod adds a car.
-pub fn sealed() -> &'static [ModCar] {
-    SEALED.get().map_or(&[], Vec::as_slice)
+/// The mod cars of this run so far: empty before [`publish`], or when no mod adds a car.
+pub fn published() -> &'static [ModCar] {
+    *PUBLISHED.read().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The car types the mod cars add to the table, after the stock ones.
 pub fn car_types() -> Vec<CarTypeInfo> {
-    sealed().iter().map(|car| car.car_type.clone()).collect()
+    published().iter().map(|car| car.car_type.clone()).collect()
 }
 
 /// The name a physics or AI lookup should use for `name`: a mod car's folder names its clone's type, which owns the
 /// physics record. Any other name is returned as it is.
 pub fn physics_name(name: &str) -> &str {
-    physics_name_in(sealed(), name)
+    physics_name_in(published(), name)
 }
 
 fn physics_name_in<'a>(cars: &'a [ModCar], name: &'a str) -> &'a str {
@@ -174,7 +182,7 @@ fn physics_name_in<'a>(cars: &'a [ModCar], name: &'a str) -> &'a str {
 
 /// Whether the car in `folder` is listed among the player's cars: every stock car is, and a mod car is when it asks.
 pub fn is_player_car(folder: &str) -> bool {
-    player_in(sealed(), folder)
+    player_in(published(), folder)
 }
 
 fn player_in(cars: &[ModCar], folder: &str) -> bool {
@@ -183,7 +191,7 @@ fn player_in(cars: &[ModCar], folder: &str) -> bool {
 
 /// The display name a mod gave the car in `folder`, if any. The garage's own name table is used otherwise.
 pub fn display_name(folder: &str) -> Option<&'static str> {
-    display_name_in(sealed(), folder)
+    display_name_in(published(), folder)
 }
 
 fn display_name_in<'a>(cars: &'a [ModCar], folder: &str) -> Option<&'a str> {

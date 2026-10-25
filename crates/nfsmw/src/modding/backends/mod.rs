@@ -13,6 +13,7 @@ mod bridge;
 mod camera;
 mod career;
 pub mod commands;
+mod content;
 mod hud;
 mod i18n;
 mod input;
@@ -75,6 +76,7 @@ pub fn interfaces() -> Interfaces {
     let mut registry = InterfaceRegistry::new();
     registry
         .add_commands(Rc::new(commands::CommandsPort(bridge.clone())))
+        .add_content(Rc::new(content::ContentPort(bridge.clone())))
         .add_input(Rc::new(input::InputPort(bridge.clone())))
         .add_time(Rc::new(time::TimePort(bridge.clone())))
         .add_map(Rc::new(map::MapPort(bridge.clone())))

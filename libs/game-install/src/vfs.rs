@@ -17,7 +17,7 @@ mod tests;
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError, RwLock};
 
 use overlay::Overlay;
 pub use overlay::{LayerError, LayerInfo, Provider};
@@ -43,6 +43,16 @@ pub struct GameDir {
     /// Overlays in ascending priority. Equal priorities keep the order they were
     /// added in, so the last entry is the highest layer and is searched first.
     overlays: Vec<Overlay>,
+    /// Overlays added after start-up (`add_late_overlay`), shared by every clone, so a layer that appears while the
+    /// game runs is seen by the copies the scenes already hold.
+    late: Arc<LateLayers>,
+}
+
+/// The layers added while the game runs. Each is leaked on purpose: an entry lives for the rest of the run, which lets
+/// a lookup hand out a path from it without holding the lock. A run adds a handful, one per mod that generates content.
+#[derive(Debug, Default)]
+struct LateLayers {
+    layers: RwLock<Vec<&'static Overlay>>,
 }
 
 /// Normalise a game-relative path: `/` or `\` separators, `.` and empty segments dropped,
@@ -106,13 +116,13 @@ impl GameDir {
             }
         }
         log::debug!("indexed {} files under {}", files.len(), root.display());
-        Ok(Self { root, files: Arc::new(files), overlays: Vec::new() })
+        Ok(Self { root, files: Arc::new(files), overlays: Vec::new(), late: Arc::default() })
     }
 
     /// Add a layer above the ones already there. Its files replace or add to the files
     /// below. Symlinks are followed only when they resolve to a file inside `root`.
     pub fn add_overlay(&mut self, id: &str, root: impl AsRef<Path>, priority: i32) -> Result<(), LayerError> {
-        if self.overlays.iter().any(|o| o.id == id) {
+        if self.has_layer(id) {
             return Err(LayerError::DuplicateId(id.to_owned()));
         }
         let overlay = Overlay::index(id, root.as_ref(), priority)?;
@@ -122,6 +132,36 @@ impl GameDir {
         Ok(())
     }
 
+    /// Add a layer while the game runs. Unlike [`add_overlay`](Self::add_overlay) it works through a shared reference
+    /// and reaches every clone of this directory, including the ones scenes already hold, so a mod that produces files
+    /// after start-up can still serve them. The layer is kept for the rest of the run. At equal priority a late layer
+    /// wins over one added at start-up.
+    pub fn add_late_overlay(&self, id: &str, root: impl AsRef<Path>, priority: i32) -> Result<(), LayerError> {
+        let overlay: &'static Overlay = Box::leak(Box::new(Overlay::index(id, root.as_ref(), priority)?));
+        let mut late = self.late.layers.write().unwrap_or_else(PoisonError::into_inner);
+        if self.overlays.iter().any(|o| o.id == id) || late.iter().any(|o| o.id == id) {
+            return Err(LayerError::DuplicateId(id.to_owned()));
+        }
+        late.push(overlay);
+        late.sort_by_key(|o| o.priority);
+        Ok(())
+    }
+
+    /// Whether a layer with this id is there, added at start-up or later.
+    pub fn has_layer(&self, id: &str) -> bool {
+        let late = self.late.layers.read().unwrap_or_else(PoisonError::into_inner);
+        self.overlays.iter().any(|o| o.id == id) || late.iter().any(|o| o.id == id)
+    }
+
+    /// Every overlay, highest first: by priority, and at equal priority the one added last (late layers after the
+    /// start-up ones).
+    fn overlays_top_down(&self) -> Vec<&Overlay> {
+        let late = self.late.layers.read().unwrap_or_else(PoisonError::into_inner);
+        let mut all: Vec<(usize, &Overlay)> = self.overlays.iter().chain(late.iter().copied()).enumerate().collect();
+        all.sort_by_key(|(order, o)| std::cmp::Reverse((o.priority, *order)));
+        all.into_iter().map(|(_, o)| o).collect()
+    }
+
     /// The install root (overlays are not under it).
     pub fn root(&self) -> &Path {
         &self.root
@@ -129,15 +169,14 @@ impl GameDir {
 
     /// Number of distinct files visible through all layers.
     pub fn file_count(&self) -> usize {
-        self.layers_top_down().flat_map(|files| files.keys()).collect::<HashSet<_>>().len()
+        self.layers_top_down().into_iter().flat_map(|files| files.keys()).collect::<HashSet<_>>().len()
     }
 
     /// The layers from the highest to the lowest: the overlays first, then the install.
     pub fn layers(&self) -> Vec<LayerInfo<'_>> {
         let mut out: Vec<LayerInfo<'_>> = self
-            .overlays
-            .iter()
-            .rev()
+            .overlays_top_down()
+            .into_iter()
             .map(|o| LayerInfo {
                 provider: Provider::Overlay(o.id.as_str()),
                 priority: Some(o.priority),
@@ -244,16 +283,26 @@ impl GameDir {
     }
 
     /// The overlays from the highest to the lowest, then the install.
-    fn layers_top_down(&self) -> impl Iterator<Item = &FileMap> + '_ {
-        self.overlays.iter().rev().map(|o| &*o.files).chain(std::iter::once(&*self.files))
+    fn layers_top_down(&self) -> Vec<&FileMap> {
+        let mut layers: Vec<&FileMap> = self.overlays_top_down().into_iter().map(|o| &*o.files).collect();
+        layers.push(&self.files);
+        layers
     }
 
     /// The layer and real path of the highest file under a normalised key.
     fn winner(&self, k: &str) -> Option<(Provider<'_>, &PathBuf)> {
-        for overlay in self.overlays.iter().rev() {
-            if let Some(real) = overlay.files.get(k) {
-                return Some((Provider::Overlay(overlay.id.as_str()), real));
-            }
+        let own = self.overlays.iter().rev().find_map(|o| o.files.get(k).map(|real| (o, real)));
+        let late = {
+            let late = self.late.layers.read().unwrap_or_else(PoisonError::into_inner);
+            late.iter().rev().find_map(|&o| o.files.get(k).map(|real| (o, real)))
+        };
+        let best = match (own, late) {
+            (Some(own), Some(late)) if late.0.priority >= own.0.priority => Some(late),
+            (Some(own), _) => Some(own),
+            (None, late) => late,
+        };
+        if let Some((overlay, real)) = best {
+            return Some((Provider::Overlay(overlay.id.as_str()), real));
         }
         self.files.get(k).map(|real| (Provider::Install, real))
     }

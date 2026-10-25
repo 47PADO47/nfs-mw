@@ -81,6 +81,37 @@ fn subdirectories_keep_original_case() {
 }
 
 #[test]
+fn a_late_layer_reaches_every_clone_and_keeps_the_priority_rules() {
+    let (root, dir) = install("late");
+    put(&root.join("late"), "global/globalb.lzc", b"late");
+    put(&root.join("late"), "cars/new/geometry.bin", b"car");
+    put(&root.join("early"), "global/globalb.lzc", b"early");
+    let mut early = dir.clone();
+    early.add_overlay("mod.early", root.join("early"), 0).unwrap();
+    let held_by_a_scene = early.clone();
+    assert_eq!(held_by_a_scene.read("GLOBAL/GLOBALB.LZC").unwrap(), b"early");
+    assert!(!held_by_a_scene.exists("CARS/NEW/GEOMETRY.BIN"));
+
+    early.add_late_overlay("mod.late", root.join("late"), 0).unwrap();
+    assert_eq!(held_by_a_scene.read("CARS/NEW/GEOMETRY.BIN").unwrap(), b"car", "the clone made earlier sees it");
+    assert_eq!(held_by_a_scene.read("GLOBAL/GLOBALB.LZC").unwrap(), b"late", "equal priority: the later layer wins");
+    assert_eq!(held_by_a_scene.provider("CARS/NEW/GEOMETRY.BIN"), Some(Provider::Overlay("mod.late")));
+    assert_eq!(held_by_a_scene.files_in("CARS/NEW"), ["geometry.bin"]);
+    assert_eq!(held_by_a_scene.layers().len(), 3);
+    assert!(held_by_a_scene.has_layer("mod.late"));
+
+    assert!(matches!(early.add_late_overlay("mod.late", root.join("late"), 0), Err(LayerError::DuplicateId(_))));
+    assert!(matches!(early.add_late_overlay("mod.early", root.join("late"), 0), Err(LayerError::DuplicateId(_))));
+    early.add_late_overlay("mod.high", root.join("early"), 5).unwrap();
+    assert_eq!(
+        dir.read("GLOBAL/GLOBALB.LZC").unwrap(),
+        b"early",
+        "a higher late layer wins, and reaches the original too"
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn clones_share_the_index_and_keep_their_own_overlays() {
     let (root, dir) = install("clone");
     put(&root.join("mod"), "global/globalb.lzc", b"new");

@@ -162,13 +162,17 @@ fn a_cop_row_gets_the_mod_car_in_its_heat_levels_only() {
     assert_eq!(row.cops, [CopRecord { name: "mycop".to_owned(), count: COP_COUNT, chance: COP_CHANCE }]);
 }
 
-/// The only test in this binary that seals: the seal is process-wide and set once.
+/// The only test in this binary that publishes: the list is process-wide.
 #[test]
-fn the_seal_is_set_once_and_the_first_set_stays() {
-    let (cars, _) = register(&table(), &[spec("SEALTEST", "CAMARO")]);
-    assert_eq!(seal(cars.clone()), Ok(()));
-    assert_eq!(sealed(), cars.as_slice());
-    assert_eq!(car_types().last().map(|t| t.geometry_filename.as_str()), Some("CARS\\SEALTEST\\GEOMETRY.BIN"));
-    assert_eq!(seal(Vec::new()), Err(Vec::new()));
-    assert_eq!(sealed(), cars.as_slice());
+fn published_cars_accumulate_and_a_folder_is_added_once() {
+    let (first, _) = register(&table(), &[spec("PUBTEST", "CAMARO")]);
+    publish(first.clone());
+    assert_eq!(published(), first.as_slice());
+    assert_eq!(car_types().last().map(|t| t.geometry_filename.as_str()), Some("CARS\\PUBTEST\\GEOMETRY.BIN"));
+    let (second, _) = register(&table(), &[spec("PUBLATER", "CAMARO")]);
+    publish([first.clone(), second.clone()].concat());
+    assert_eq!(published().len(), 2, "the repeated folder is not added again");
+    assert_eq!(published()[1], second[0]);
+    publish(Vec::new());
+    assert_eq!(published().len(), 2);
 }

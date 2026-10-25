@@ -8,6 +8,7 @@
 mod audio;
 mod camera;
 mod commands;
+mod content;
 mod hud;
 mod i18n;
 mod input;
@@ -27,6 +28,7 @@ pub use camera::{
     BB_CAMERA_HOOD, BB_CAMERA_PURSUIT, BB_CAMERA_SUPER_FAR, BbCamera, BbCameraGetFn, BbCameraSetModeFn, BbCameraState,
 };
 pub use commands::{BbCommandCallbackFn, BbCommands, BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn};
+pub use content::{BbContent, BbContentRescanFn};
 pub use hud::{BB_HUD_BIG, BB_HUD_INFO, BB_HUD_WARNING, BbHud, BbHudHideFn, BbHudMessageFn};
 pub use i18n::{BB_I18N_INT, BB_I18N_TEXT, BbI18n, BbI18nArg, BbI18nGenerationFn, BbI18nLocaleFn, BbI18nTextFn};
 pub use input::{BbHotkeyFn, BbInput, BbInputRegisterFn, BbInputUnregisterFn};
@@ -69,6 +71,10 @@ pub const IFACE_INPUT: &str = "bb.input";
 /// The version the host implements for [`IFACE_INPUT`], as `(major, minor)`.
 pub const IFACE_INPUT_VERSION: (u16, u16) = (1, 0);
 
+/// Id of the content interface: tell the host that the files a mod keeps in its folder have changed.
+pub const IFACE_CONTENT: &str = "bb.content";
+/// The version the host implements for [`IFACE_CONTENT`], as `(major, minor)`.
+pub const IFACE_CONTENT_VERSION: (u16, u16) = (1, 0);
 /// Id of the time-of-day interface: read and set the world clock.
 pub const IFACE_TIME: &str = "bb.time";
 /// The version the host implements for [`IFACE_TIME`], as `(major, minor)`.

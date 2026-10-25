@@ -28,6 +28,8 @@ static MODS: OnceLock<Vec<ModDir>> = OnceLock::new();
 pub struct ModDir {
     pub id: String,
     pub dir: PathBuf,
+    /// The mod's `[content] priority`: where its `files/` layer sits above the install.
+    pub priority: i32,
 }
 
 /// The loaded mods that have a folder, in load order. A mod that is not loaded declares nothing.
@@ -36,7 +38,7 @@ pub fn plan(loaded: &[String], candidates: &[Candidate]) -> Vec<ModDir> {
         .iter()
         .filter_map(|id| {
             let candidate = candidates.iter().find(|candidate| &candidate.manifest.id == id)?;
-            Some(ModDir { id: id.clone(), dir: candidate.dir.clone() })
+            Some(ModDir { id: id.clone(), dir: candidate.dir.clone(), priority: candidate.manifest.priority })
         })
         .collect()
 }
@@ -52,10 +54,40 @@ pub fn register(dir: &GameDir, mods: &[ModDir]) {
     }
 }
 
+/// Why [`rescan`] could not add a mod's content.
+#[derive(Debug, PartialEq, Eq)]
+pub enum RescanError {
+    /// No loaded mod has this id.
+    NotLoaded,
+    /// The mod's `files/` folder could not be added as a layer.
+    Layer(String),
+}
+
+/// Add the content mod `id` has produced since start-up: its `files/` as a layer of `dir` (shared by every copy of the
+/// install, so the scenes already open see it) and the cars its `cars/` folder declares. A layer that is already there
+/// is left as it is (it was indexed once), and a car that is already published is not added again. Returns how many
+/// cars were added.
+pub fn rescan(dir: &GameDir, id: &str) -> Result<usize, RescanError> {
+    rescan_in(dir, mod_dirs(), id)
+}
+
+/// [`rescan`] over an explicit list of loaded mods.
+fn rescan_in(dir: &GameDir, mods: &[ModDir], id: &str) -> Result<usize, RescanError> {
+    let Some(m) = mods.iter().find(|m| m.id == id) else { return Err(RescanError::NotLoaded) };
+    let files = m.dir.join(super::layers::FILES_FOLDER);
+    if files.is_dir() && !dir.has_layer(id) {
+        dir.add_late_overlay(id, &files, m.priority).map_err(|error| RescanError::Layer(error.to_string()))?;
+    }
+    Ok(cars::register(dir, std::slice::from_ref(m)))
+}
+
 /// The loaded mods of this run, in load order. Empty before [`register`].
 pub fn mod_dirs() -> &'static [ModDir] {
     MODS.get().map(Vec::as_slice).unwrap_or(&[])
 }
+
+#[cfg(test)]
+mod rescan_tests;
 
 /// The `.toml` files directly in `folder`, sorted by name. A missing folder has none.
 fn toml_files(folder: &std::path::Path) -> Vec<std::path::PathBuf> {

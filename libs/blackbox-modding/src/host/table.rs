@@ -15,6 +15,7 @@ mod camera;
 #[cfg(test)]
 mod camera_tests;
 mod commands;
+mod content;
 mod hud;
 #[cfg(test)]
 mod hud_tests;
@@ -58,6 +59,7 @@ use super::registry::InterfaceRegistry;
 pub(crate) use audio::attach as attach_audio;
 pub(crate) use camera::attach as attach_camera;
 pub(crate) use commands::attach as attach_commands;
+pub(crate) use content::attach as attach_content;
 pub(crate) use hud::attach as attach_hud;
 pub(crate) use i18n::attach as attach_i18n;
 pub(crate) use input::attach as attach_input;
@@ -72,6 +74,7 @@ pub(crate) use world::attach as attach_world;
 pub use audio::AudioBackend;
 pub use camera::{CameraBackend, CameraKind, CameraState};
 pub use commands::{CommandHandler, CommandsBackend};
+pub use content::ContentBackend;
 pub use hud::{HudBackend, MAX_MESSAGE_SECS, MessageStyle};
 pub use i18n::{I18nArg, I18nBackend, MAX_ARGS as MAX_I18N_ARGS};
 pub use input::{HotkeyHandler, InputBackend};

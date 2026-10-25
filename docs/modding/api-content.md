@@ -41,6 +41,7 @@ running game); the host rejects an entry whose source game has no reader or layo
 | Registry list | `content.list(kind: Kind) -> Vec<EntryInfo { key, owner }>` (any kind, including the game's own) | G | `modding/content.rs` (new) |
 | Lookup | `content.get(kind, key) -> Option<EntryInfo>` | G | same |
 | Unregister (own) | `content.remove(kind, key)`, valid in `Load` | G | same |
+| Rescan | `ctx.content() -> Option<Content>`, `content.rescan() -> Result<()>` (built, `bb.content` 1.0): the mod's `files/` and `cars/` changed since start-up. The host adds `files/` as a late layer of the install (shared by every copy, `GameDir::add_late_overlay`) and publishes the new cars (`car::mods::publish`); what the game opens afterwards lists them. A layer that exists is not re-indexed; a car already published is not added twice. Main thread only: a worker thread tells the mod's event callback, which calls it | G (interface), MW (cars) | `libs/blackbox-modding/src/{abi/iface,host/table,sdk}/content.rs`, `crates/nfsmw/src/modding/backends/content.rs`, `modding/content/mod.rs` (`rescan`) |
 
 ### Cars
 
@@ -66,7 +67,7 @@ manufacturer = "Acme"           # brand (optional; default: the clone's)
 Rules:
 
 - A mod may write its `cars/` and `files/` folders in `Mod::load` (it finds its folder with `ctx.mod_dir()`): the game
-  reads them after every mod has loaded. The [2012 cars mod](mw2012-cars.md) does.
+  reads them after every mod has loaded. The [2012 content mod](nfsmw-2012-content.md) does, on a worker thread, and calls `bb.content` when it is done.
 - The car id is the file name in upper case (`FASTCOUPE`). Its geometry must be in the mod's own `files/` folder, not
   only in the install.
 - `clone` names a stock car (its folder or its type name), or a car an earlier mod added in this run.

@@ -53,7 +53,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("mod.toml"), manifest).unwrap();
 
-        read_names(&ModDir { id: "example.racers".to_owned(), dir })
+        read_names(&ModDir { id: "example.racers".to_owned(), dir, priority: 0 })
     }
 
     #[test]
