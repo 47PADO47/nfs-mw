@@ -11,7 +11,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 use super::super::trailer::Brakes;
 use super::super::{cop, racer, traffic};
 use super::{AiCar, Ctx, IDLE_SPEED, RECOVERY_SPEED, ROADBLOCK_GOAL, Role, SHOCK_TIME, shift};
-use crate::scenes::world::drive::{DriveInput, Integration, STEP, StepStart, WorldGround};
+use crate::scenes::world::drive::{DriveInput, Integration, StepStart, WorldGround};
 use crate::scenes::world::props::PropWorld;
 
 impl AiCar {
@@ -39,6 +39,7 @@ impl AiCar {
         if self.stand_in.active {
             return None;
         }
+        self.think_elapsed += self.step_delta;
         self.sim.collision_goal =
             if self.roadblock && !self.is_wrecked() { Some(ROADBLOCK_GOAL) } else { self.goal_drive().collision_goal };
         let think_steps = match self.role {
@@ -55,7 +56,7 @@ impl AiCar {
         }
         let mut view = self.sim.driver_view();
         view.in_shock = self.shock > 0.0;
-        self.shock = (self.shock - STEP / SHOCK_TIME).max(0.0);
+        self.shock = (self.shock - self.step_delta / SHOCK_TIME).max(0.0);
         let reversing = self.driver.reverse_override_left() > 0.0;
         let flags = match (&self.role, reversing, self.searching) {
             (Role::Cop(_) | Role::Racer(_), false, false) => DriveFlags::FULL,
@@ -64,10 +65,10 @@ impl AiCar {
         let wanted = if reversing { RECOVERY_SPEED } else { self.speed };
         let target = self.target + self.avoid.steer_offset(&self.nav, view.position);
         let request = DriveRequest { target, speed: wanted, flags };
-        let clock = self.steps as f32 * STEP;
+        let clock = self.elapsed;
         let held = self.controls.steer;
         if human.is_none() {
-            self.controls = self.driver.step(&view, &request, STEP, clock);
+            self.controls = self.driver.step(&view, &request, self.step_delta, clock);
             if let super::Role::Cop(cop) = &self.role {
                 self.controls.nos = cop.nitrous()
                     && !self.searching
@@ -110,7 +111,7 @@ impl AiCar {
         };
         let destroyed = self.is_wrecked();
         self.sim.set_destroyed_non_player(destroyed);
-        Some(self.sim.begin_step(&input, true, Some(props)))
+        Some(self.sim.begin_step_with_delta(self.step_delta, &input, true, Some(props)))
     }
 
     /// The integration of [`Self::step`]: the part that may run on another thread.
@@ -130,21 +131,22 @@ impl AiCar {
         for hit in impact.damage {
             self.wreck_hit(hit, self.damage_distance);
         }
-        self.avoid.advance(self.speed().abs() * STEP);
+        self.avoid.advance(self.speed().abs() * self.step_delta);
         if let Some(trailer) = self.trailer.as_mut() {
             let brakes = Brakes { brake: self.controls.brake, handbrake: self.controls.handbrake > 0.5 };
-            trailer.step(&mut self.sim, brakes, collision, props, surfaces);
+            trailer.step_with_delta(self.step_delta, &mut self.sim, brakes, collision, props, surfaces);
         }
         self.previous = self.current;
         self.current = self.sim.pose();
-        self.wreck_step(STEP);
+        self.wreck_step(self.step_delta);
         self.steps += 1;
+        self.elapsed += self.step_delta;
         self.airborne = match self.sim.telemetry().wheels_on_ground == 0 {
-            true => self.airborne + STEP,
+            true => self.airborne + self.step_delta,
             false => 0.0,
         };
         self.idle = match self.sim.telemetry().speed_mps.abs() < IDLE_SPEED && !self.waiting {
-            true => self.idle + STEP,
+            true => self.idle + self.step_delta,
             false => 0.0,
         };
     }

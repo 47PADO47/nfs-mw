@@ -21,9 +21,10 @@ impl SoundFeed {
         self.ticks.clear();
         self.camera_contacts.clear();
     }
-    fn append_world_contacts(&mut self, contacts: Vec<CarContact>, player_advanced: bool) {
+    fn append_world_contacts(&mut self, contacts: Vec<CarContact>, player_advanced: bool, dt: f32) {
         if !player_advanced {
             self.ticks.push(CarSoundTick {
+                sim_dt: dt,
                 telemetry: self.telemetry,
                 input: self.latest,
                 contacts,
@@ -42,7 +43,7 @@ impl SoundFeed {
         surfaces: &SurfaceTable,
         impact: &Impact,
         input: &DriveInput,
-        _speed: f32,
+        dt: f32,
     ) {
         let t = sim.telemetry();
         let span = t.red_line - t.idle;
@@ -65,6 +66,7 @@ impl SoundFeed {
         contacts.extend(sim.take_sound_contacts());
         self.camera_contacts.clone_from(&contacts);
         self.ticks.push(CarSoundTick {
+            sim_dt: dt,
             telemetry: self.telemetry,
             input: self.latest,
             contacts,
@@ -99,12 +101,13 @@ impl super::Drive {
         &mut self,
         contacts: Vec<CarContact>,
         player_advanced: bool,
+        dt: f32,
     ) {
         if self.sim.is_none() {
             self.sound.clear();
             return;
         }
-        self.sound.append_world_contacts(contacts, player_advanced);
+        self.sound.append_world_contacts(contacts, player_advanced, dt);
     }
 }
 
@@ -151,9 +154,11 @@ mod tests {
                     bottom: false,
                 }],
                 false,
+                1.0 / 144.0,
             );
         }
         assert_eq!(feed.ticks.len(), 3, "traffic-only ticks must not merge into an old player tick");
+        assert!(feed.ticks.iter().all(|tick| tick.sim_dt == 1.0 / 144.0));
         assert_eq!(
             feed.ticks.iter().map(|tick| tick.contacts[0].vehicle.unwrap().identity).collect::<Vec<_>>(),
             [11, 12, 13]

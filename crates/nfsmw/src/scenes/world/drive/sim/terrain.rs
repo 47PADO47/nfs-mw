@@ -10,7 +10,7 @@ use blackbox_collision::{CandidateSet, CollisionWorld};
 use blackbox_vehicle::ground::{Ground, GroundHit, SurfaceGrip, WheelPlane};
 use blackbox_vehicle::rigid_body::BodyState;
 use blackbox_vehicle::vehicle::GroundReference;
-use blackbox_vehicle::{FIXED_STEP, InputState, Vehicle};
+use blackbox_vehicle::{InputState, Vehicle};
 use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
 use std::cell::RefCell;
@@ -123,6 +123,7 @@ impl Integration<'_> {
             self.ground_reference,
             self.wheel_ground,
             &start.input,
+            start.delta,
             ground,
             start.prepared(),
         );
@@ -144,6 +145,7 @@ impl Integration<'_> {
             self.ground_reference,
             self.wheel_ground,
             &start.input,
+            start.delta,
             &ground,
             start.prepared(),
         );
@@ -155,15 +157,16 @@ fn step_with_ground(
     ground_reference: &GroundReferenceCache,
     wheel_ground: &RefCell<[GroundFaceCache; 4]>,
     input: &InputState,
+    dt: f32,
     ground: &dyn Ground,
     prepared: bool,
 ) {
     if !prepared {
-        vehicle.step(FIXED_STEP, input, ground);
+        vehicle.step(dt, input, ground);
         return;
     }
     let ground = PreparedGround { fallback: ground, faces: ground_reference.faces(), wheels: wheel_ground };
-    vehicle.step(FIXED_STEP, input, &ground);
+    vehicle.step(dt, input, &ground);
 }
 
 /// The body's terrain plane from `terrain`'s world and query; none without a world.

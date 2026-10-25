@@ -79,15 +79,25 @@ impl Coupling {
         self.update_hitch(tractor, trailer)
     }
 
+    #[cfg(test)]
     fn update_hitch(&mut self, tractor: &CarSim, trailer: &CarSim) -> bool {
-        self.hitch.update(STEP, posture(tractor), posture(trailer))
+        self.update_hitch_with_delta(STEP, tractor, trailer)
     }
 
+    fn update_hitch_with_delta(&mut self, dt: f32, tractor: &CarSim, trailer: &CarSim) -> bool {
+        self.hitch.update(dt, posture(tractor), posture(trailer))
+    }
+
+    #[cfg(test)]
     fn resolve(&self, tractor: &mut CarSim, trailer: &mut CarSim) {
+        self.resolve_with_delta(STEP, tractor, trailer);
+    }
+
+    fn resolve_with_delta(&self, dt: f32, tractor: &mut CarSim, trailer: &mut CarSim) {
         if !self.hitch.is_hitched() {
             return;
         }
-        self.joint.solve(tractor.body_mut(), trailer.body_mut(), STEP, SOLVER_PASSES);
+        self.joint.solve(tractor.body_mut(), trailer.body_mut(), dt, SOLVER_PASSES);
         for limit in &self.limits {
             limit.solve(&self.joint, tractor.body_mut(), trailer.body_mut());
         }
@@ -101,6 +111,7 @@ impl Coupling {
 
 pub struct TrailerCar {
     rig: Rc<CarRig>,
+    step_delta: f32,
     /// This trailer's identity, independent of other copies of its shared rig.
     render_id: u32,
     sim: CarSim,
@@ -140,6 +151,7 @@ impl TrailerCar {
         let pose = sim.pose();
         Some(Self {
             rig: model.rig.clone(),
+            step_delta: STEP,
             render_id: model.keys.next(),
             sim,
             coupling,
@@ -153,6 +165,7 @@ impl TrailerCar {
 
     /// One physics step: roll, taking the tractor's brakes only while hitched, meet the world, then hold to
     /// the tractor. A released trailer clears both pedals (`trailer-release-controls.md`).
+    #[cfg(test)]
     pub fn step(
         &mut self,
         tractor: &mut CarSim,
@@ -161,6 +174,19 @@ impl TrailerCar {
         props: &mut PropWorld,
         surfaces: &SurfaceTable,
     ) {
+        self.step_with_delta(STEP, tractor, brakes, collision, props, surfaces);
+    }
+
+    pub fn step_with_delta(
+        &mut self,
+        dt: f32,
+        tractor: &mut CarSim,
+        brakes: Brakes,
+        collision: &CollisionWorld,
+        props: &mut PropWorld,
+        surfaces: &SurfaceTable,
+    ) {
+        self.step_delta = dt;
         let was_hitched = self.coupling.is_hitched();
         self.sim.set_trailer_hitched(was_hitched);
         let input = match was_hitched {
@@ -168,8 +194,8 @@ impl TrailerCar {
             false => DriveInput::default(),
         };
         let ground = WorldGround { collision, surfaces };
-        self.sim.step(&input, &ground, Some((collision, props)));
-        if was_hitched && !self.coupling.update_hitch(tractor, &self.sim) {
+        self.sim.step_with_delta(dt, &input, &ground, Some((collision, props)));
+        if was_hitched && !self.coupling.update_hitch_with_delta(dt, tractor, &self.sim) {
             let gap = self.coupling.gap(tractor, &self.sim);
             let (a, b) = (posture(tractor), posture(&self.sim));
             log::info!(
@@ -186,11 +212,11 @@ impl TrailerCar {
         self.current = self.sim.pose();
         let telemetry = self.sim.telemetry();
         self.airborne = match telemetry.wheels_on_ground == 0 {
-            true => self.airborne + STEP,
+            true => self.airborne + dt,
             false => 0.0,
         };
         self.idle = match telemetry.speed_mps.abs() < IDLE_SPEED {
-            true => self.idle + STEP,
+            true => self.idle + dt,
             false => 0.0,
         };
     }
@@ -265,7 +291,7 @@ impl TrailerCar {
     }
 
     pub fn sync_contacts(&mut self, tractor: &mut CarSim) {
-        self.coupling.resolve(tractor, &mut self.sim);
+        self.coupling.resolve_with_delta(self.step_delta, tractor, &mut self.sim);
         self.current = self.sim.pose();
     }
 

@@ -86,6 +86,8 @@ impl Drive {
             }
             return false;
         }
+        sim.configure_player_launch(self.launch_cancel_on_shift);
+        sim.set_race_staging(self.gridded);
         self.pending_speed = 0.0;
         self.strict_since = None;
         if replacing {
@@ -104,7 +106,7 @@ impl Drive {
         self.cut.arm();
         self.steps = 0;
         self.fall.reset();
-        self.last_check = 0;
+        self.road_check_elapsed = 0.0;
         self.last_good = Some(spawn);
         true
     }

@@ -18,6 +18,7 @@ pub struct SimSave {
     vehicle: Vehicle,
     spin: [f32; 4],
     before_velocity: Vec3,
+    step_delta: f32,
     previous_contact_pose: BodyPose,
     brake_lamp_age: f32,
 }
@@ -44,6 +45,7 @@ impl CarSim {
             vehicle: self.vehicle.clone(),
             spin: self.spin,
             before_velocity: self.before_velocity,
+            step_delta: self.step_delta,
             previous_contact_pose: self.previous_contact_pose,
             brake_lamp_age: self.brake_lamp_age,
         }
@@ -53,6 +55,7 @@ impl CarSim {
         self.vehicle = saved.vehicle.clone();
         self.spin = saved.spin;
         self.before_velocity = saved.before_velocity;
+        self.step_delta = saved.step_delta;
         self.previous_contact_pose = saved.previous_contact_pose;
         self.brake_lamp_age = saved.brake_lamp_age;
         self.ground_reference.clear();

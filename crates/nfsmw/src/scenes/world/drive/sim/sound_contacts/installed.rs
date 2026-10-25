@@ -19,13 +19,25 @@ fn render(dir: GameDir, contacts: Vec<CarContact>) -> Vec<f32> {
         events: vec![],
         scrape: None,
         surface: 0,
-        ticks: vec![CarSoundTick { telemetry: Default::default(), input, contacts, surface: 0 }],
+        ticks: vec![CarSoundTick {
+            sim_dt: blackbox_vehicle::FIXED_STEP,
+            telemetry: Default::default(),
+            input,
+            contacts,
+            surface: 0,
+        }],
         view: Default::default(),
     };
     let mut recorded = Vec::new();
     for _ in 0..180 {
         audio.drive_car(Some(&state), 1.0 / 60.0);
-        state.ticks = vec![CarSoundTick { telemetry: Default::default(), input, contacts: vec![], surface: 0 }];
+        state.ticks = vec![CarSoundTick {
+            sim_dt: blackbox_vehicle::FIXED_STEP,
+            telemetry: Default::default(),
+            input,
+            contacts: vec![],
+            surface: 0,
+        }];
         for &sample in audio.render_replay(800) {
             assert!(sample.is_finite());
             recorded.push(sample);

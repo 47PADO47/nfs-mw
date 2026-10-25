@@ -34,7 +34,7 @@ impl AiCar {
         if self.steps == 0 {
             return self.light_phase;
         }
-        ((self.steps - 1) as f32 + alpha.clamp(0.0, 1.0)) * crate::scenes::world::drive::STEP + self.light_phase
+        (self.elapsed - self.step_delta + alpha.clamp(0.0, 1.0) * self.step_delta) + self.light_phase
     }
 
     pub fn glows(

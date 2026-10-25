@@ -91,6 +91,7 @@ pub struct Partial {
     pub rain_amount: Option<Percent>,
     /// `GameSpeed`: the multiplier of the physics clock (1 is the original speed).
     pub game_speed: Option<f32>,
+    pub physics_rate_hz: Option<u32>,
     /// `WorldAnimationSpeed`: the multiplier of the world animation clock (1 is the original rate).
     pub animation_speed: Option<f32>,
     pub car_scale: Option<f32>,
@@ -229,6 +230,7 @@ impl Partial {
             always_rain: self.always_rain.or(lower.always_rain),
             rain_amount: self.rain_amount.or(lower.rain_amount),
             game_speed: self.game_speed.or(lower.game_speed),
+            physics_rate_hz: self.physics_rate_hz.or(lower.physics_rate_hz),
             animation_speed: self.animation_speed.or(lower.animation_speed),
             car_scale: self.car_scale.or(lower.car_scale),
             no_rev_limiter: self.no_rev_limiter.or(lower.no_rev_limiter),

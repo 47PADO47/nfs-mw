@@ -87,6 +87,7 @@ pub(super) use walls::VisualContact;
 struct ScriptRun {
     script: DriveScript,
     time: f32,
+    previous_time: Option<f32>,
 }
 
 /// Where the car should appear once the road around it has loaded.
@@ -104,7 +105,7 @@ pub struct SpawnRequest {
 }
 
 /// Seconds between the checks that remember the last place the car was on the road.
-const GOOD_SPOT_STEPS: u32 = 30;
+const GOOD_SPOT_SECONDS: f64 = 0.5;
 
 pub struct Drive {
     pub car_name: String,
@@ -139,8 +140,10 @@ pub struct Drive {
     breaker_barred: bool,
     /// The engine is sabotaged by the scripted chase: no throttle (`sabotage.rs`).
     sabotaged: bool,
-    /// The car stands on a race grid before GO: the brakes are held (`grid.rs`).
+    /// The car stands on a race grid before GO: its body is held (`grid.rs`).
     gridded: bool,
+    /// Drag launches cancel their bonus when shifting; ordinary race launches pause its timer.
+    launch_cancel_on_shift: bool,
     /// A point (physics space) the car steers at by itself, with the player's steering ignored (the drag assist,
     /// `grid.rs`).
     assist_aim: Option<glam::Vec3>,
@@ -182,8 +185,8 @@ pub struct Drive {
     /// When a strict request first failed to find its ground.
     strict_since: Option<std::time::Instant>,
     fall: FallWatch,
-    /// Step count at the last road check.
-    last_check: u32,
+    /// Simulation seconds since the last road check.
+    road_check_elapsed: f64,
     /// Button presses that have not met a physics step yet.
     presses: Presses,
     /// Who changes gear.

@@ -54,6 +54,10 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         always_rain: None,
         rain_amount: None,
         game_speed: None,
+        physics_rate_hz: field(&table, origin, "physics_rate_hz", |v| match v {
+            Value::Integer(n) => super::parse_physics_rate(&n.to_string()),
+            other => super::parse_physics_rate(text_of(other)?),
+        }),
         animation_speed: None,
         car_scale: None,
         headlights_key: None,

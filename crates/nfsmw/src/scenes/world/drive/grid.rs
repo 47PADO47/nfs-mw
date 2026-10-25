@@ -1,4 +1,4 @@
-//! The race grid: before GO the player's car is held with the brakes on, and a race can put the car at an exact place.
+//! The race grid: before GO the player's body is held while its pedals remain under driver control.
 
 use super::{Drive, DriveInput, SpawnRequest};
 use crate::scenes::world::road::Spawn;
@@ -8,9 +8,26 @@ const ASSIST_MIN_SPEED: f32 = 1.0;
 
 impl Drive {
     /// Holds the car on the grid (`true`) or releases it (`false`). A held car keeps the player's throttle and steering,
-    /// so the engine can be revved, but the brakes and the handbrake are on.
+    /// so the engine can be revved. Body holding prevents departure independently of pedal input.
     pub fn hold_on_grid(&mut self, held: bool) {
         self.gridded = held;
+        if let Some(sim) = self.sim.as_mut() {
+            sim.set_race_staging(held);
+        }
+    }
+
+    /// Selects the race's launch rules before placing the car on its grid.
+    pub fn set_launch_mode(&mut self, drag: bool) {
+        self.launch_cancel_on_shift = drag;
+    }
+
+    /// Only GO awards a launch. Other grid releases (abort, results) do not.
+    pub fn launch_from_grid(&mut self) -> bool {
+        if !self.gridded {
+            return false;
+        }
+        self.gridded = false;
+        self.sim.as_mut().is_some_and(|sim| sim.launch_from_grid())
     }
 
     /// Sets the point the car steers at by itself (physics space), or clears it. While it is set, the car's steering
@@ -52,12 +69,12 @@ impl Drive {
 }
 
 impl DriveInput {
-    /// The input of a car held on the grid: the pedals and the steering stay, the brakes come on.
+    /// The input of a grid car: driver controls stay; nitrous and Speedbreaker are unavailable.
     pub(super) fn on_grid(self, held: bool) -> Self {
         if !held {
             return self;
         }
-        Self { brake: 1.0, handbrake: true, nos: false, speedbreaker: false, ..self }
+        Self { nos: false, speedbreaker: false, ..self }
     }
 }
 
@@ -66,10 +83,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_held_car_keeps_throttle_and_steering_but_brakes() {
-        let input = DriveInput { throttle: 1.0, steer: 0.5, nos: true, ..Default::default() };
+    fn a_held_car_keeps_the_driver_pedals_and_steering() {
+        let input = DriveInput { throttle: 1.0, brake: 0.3, steer: 0.5, nos: true, ..Default::default() };
         let held = input.on_grid(true);
-        assert_eq!((held.throttle, held.steer, held.brake, held.handbrake, held.nos), (1.0, 0.5, 1.0, true, false));
+        assert_eq!((held.throttle, held.steer, held.brake, held.handbrake, held.nos), (1.0, 0.5, 0.3, false, false));
         assert_eq!(input.on_grid(false), input);
     }
 }

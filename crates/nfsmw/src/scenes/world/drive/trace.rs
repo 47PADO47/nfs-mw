@@ -1,4 +1,4 @@
-//! The once-a-second trace of a scripted run.
+//! Periodic trace of a scripted run, timestamped in actual simulated seconds.
 
 use super::CarPose;
 use super::input::DriveInput;
@@ -9,12 +9,13 @@ use crate::scenes::world::vehicle_effects::VehicleEffects;
 
 impl super::Drive {
     /// Opt-in frame telemetry for movement and streaming regressions.
-    pub fn trace_frame(&self, dt: f32, ticks: u32, loaded: bool, complete: bool) {
+    pub fn trace_frame(&self, dt: f32, ticks: u32, tick_sim_dt: f32, loaded: bool, complete: bool) {
         if !log::log_enabled!(target: "nfsmw::movement", log::Level::Trace) || self.sim.is_none() {
             return;
         }
         log::trace!(target: "nfsmw::movement",
-            "frame {{\"dt\":{dt:?},\"ticks\":{ticks},\"step\":{},\"alpha\":{:?},\"loaded\":{loaded},\"complete\":{complete},\"waiting\":{},\"speed\":{:?},\"rpm\":{:?},\"wheels\":{},\"finite\":{},\"car\":{:?},\"draw\":{:?},\"camera\":{:?},\"camera_previous\":{:?},\"camera_current\":{:?}}}",
+            "frame {{\"dt\":{dt:?},\"ticks\":{ticks},\"sim_dt\":{tick_sim_dt:?},\"speedbreaker\":{},\"step\":{},\"alpha\":{:?},\"loaded\":{loaded},\"complete\":{complete},\"waiting\":{},\"speed\":{:?},\"rpm\":{:?},\"wheels\":{},\"finite\":{},\"car\":{:?},\"draw\":{:?},\"camera\":{:?},\"camera_previous\":{:?},\"camera_current\":{:?}}}",
+            self.breaker.active(),
             self.steps, self.alpha, self.request.is_some(), self.telemetry.speed_mps,
             self.telemetry.rpm, self.telemetry.wheels_on_ground, self.sim.as_ref().is_some_and(|s| s.is_finite()),
             self.current.position.to_array(), self.pose().position.to_array(),
@@ -24,9 +25,9 @@ impl super::Drive {
     }
 }
 
-/// Log the effects and the car after `steps` physics steps of a scripted run.
+/// Log the effects and car at the script's actual simulation time.
 pub(super) fn log(
-    steps: u32,
+    simulation_seconds: f32,
     effects: (&TireEffects, &VehicleEffects, &ExhaustFlames),
     car: (&CarPose, &Telemetry),
     input: &DriveInput,
@@ -37,7 +38,7 @@ pub(super) fn log(
     let (p, t) = (car.0.position, car.1);
     log::info!(
         "t={:>5.1}s  {:>6.1} km/h  {:>5.0} rpm  gear {}  at ({:.1}, {:.1}, {:.2})  {} on ground  throttle {:.1} brake {:.1} steer {:+.2}",
-        steps as f32 / 60.0,
+        simulation_seconds,
         t.speed_mps * 3.6,
         t.rpm,
         t.gear,

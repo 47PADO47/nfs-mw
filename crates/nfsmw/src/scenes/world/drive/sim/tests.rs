@@ -11,6 +11,7 @@ mod damage_callbacks;
 mod frame_rate;
 mod geometry;
 mod impact_matrix;
+mod launch;
 mod lights;
 mod pair_dispatch;
 mod player_contacts;
@@ -19,6 +20,7 @@ mod reactions;
 mod reset_collision;
 mod retirement;
 mod simple_chassis;
+mod timestep;
 mod traffic_placement;
 
 fn sim() -> CarSim {
@@ -48,15 +50,6 @@ fn a_nan_in_the_engine_or_wheels_counts_as_not_finite() {
     assert!(!sim.is_finite(), "a NaN spin is caught");
     sim.vehicle.body_mut().angular_velocity = Vec3::ZERO;
     assert!(sim.is_finite());
-}
-
-#[test]
-fn hold_still_stops_a_body_the_brakes_alone_let_creep() {
-    let mut sim = sim();
-    sim.vehicle.body_mut().linear_velocity = Vec3::new(0.5, -0.2, 1.5);
-    sim.vehicle.body_mut().angular_velocity = Vec3::new(0.0, 0.1, 0.0);
-    sim.hold_still();
-    assert_eq!((sim.vehicle.linear_velocity(), sim.vehicle.angular_velocity()), (Vec3::ZERO, Vec3::ZERO));
 }
 
 fn spawn_at(heading: f32) -> Spawn {

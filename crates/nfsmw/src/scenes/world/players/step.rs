@@ -24,10 +24,15 @@ impl WorldScene {
         self.players.guests_mut().fold(false, |any, guest| guest.drive.prepare_time() | any)
     }
 
-    pub(in crate::scenes::world) fn guests_finish_time(&mut self, sim_dt: f32, real_dt: f32) {
+    pub(in crate::scenes::world) fn guests_finish_time(&mut self, sim_dt: f32, real_dt: f32, tick_sim_dt: f32) {
         let idle = ActionState::default();
         for guest in self.players.guests_mut() {
-            guest.drive.finish_time(self.inputs.get(guest.id).unwrap_or(&idle), sim_dt, real_dt);
+            guest.drive.finish_time_with_tick_delta(
+                self.inputs.get(guest.id).unwrap_or(&idle),
+                sim_dt,
+                real_dt,
+                tick_sim_dt,
+            );
         }
     }
 

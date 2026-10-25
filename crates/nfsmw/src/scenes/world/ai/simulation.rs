@@ -7,7 +7,9 @@ use nfsmw_data::car::physics::SurfaceTable;
 use super::car::{AiCar, Ctx};
 use super::stop::Lights;
 use super::{Focus, TrafficWorld, activation, parallel, police::Police};
-use crate::scenes::world::drive::{STEP, WorldGround};
+#[cfg(test)]
+use crate::scenes::world::drive::STEP;
+use crate::scenes::world::drive::WorldGround;
 use crate::scenes::world::props::PropWorld;
 use crate::viewer::camera::Lens;
 
@@ -46,7 +48,24 @@ impl TrafficWorld {
     /// With enough cars the integrations run on several threads (`parallel.rs`): every car's start first, in car order,
     /// then the integrations, then every car's end in car order. The cars come out bit for bit as the plain order
     /// leaves them, each car's whole step before the next car's.
+    #[cfg(test)]
     pub fn step(&mut self, focus: Focus, collision: &CollisionWorld, props: &mut PropWorld, surfaces: &SurfaceTable) {
+        self.step_with_delta(STEP, focus, collision, props, surfaces);
+    }
+
+    /// One ordered shared tick with its simulation delta, independent of render cadence.
+    pub fn step_with_delta(
+        &mut self,
+        dt: f32,
+        focus: Focus,
+        collision: &CollisionWorld,
+        props: &mut PropWorld,
+        surfaces: &SurfaceTable,
+    ) {
+        if !dt.is_finite() || dt <= 0.0 {
+            return;
+        }
+        self.step_delta = dt;
         // Every car as the others' trails see it (a hitched trailer is part of its tractor), with whether it is
         // a cop, then the trailers that came loose.
         let mut bodies = std::mem::take(&mut self.bodies);
@@ -60,8 +79,14 @@ impl TrafficWorld {
         // A running pursuit may use only its published visible or remembered target.
         let tracking_body = if self.pursuit.is_none() { focus.body } else { target };
         let racing = self.police.pursuit_context().racing;
-        let target_road =
-            self.target_road.update(&self.network, &self.index, tracking_body, racing, self.police.is_jerk(), STEP);
+        let target_road = self.target_road.update(
+            &self.network,
+            &self.index,
+            tracking_body,
+            racing,
+            self.police.is_jerk(),
+            self.step_delta,
+        );
         let lights = self.lights_on.then_some(Lights { controller: &self.signals, time: self.signal_time });
         let mut aims = std::mem::take(&mut self.aims);
         aims.clear();
@@ -84,6 +109,7 @@ impl TrafficWorld {
         // A car's own crash damage is gated by the nearest player's view (`collide.rs`).
         let eyes: Vec<glam::Vec3> = self.guest_eyes().collect();
         for (me, car) in self.cars.iter_mut().enumerate() {
+            car.set_step_delta(dt);
             let secondary = chasers.get(me).copied().flatten();
             let shared_target_road = !racing && secondary.is_none();
             let view = self.damage_view.or_else(|| focus.body.map(|b| b.position));
@@ -166,8 +192,8 @@ impl TrafficWorld {
         self.bodies = bodies;
         self.aims = aims;
         self.starts = starts;
-        self.signal_time += STEP;
-        self.breaker_zones.step(STEP);
+        self.signal_time += self.step_delta;
+        self.breaker_zones.step(self.step_delta);
     }
 
     /// Commit contact poses and advance every gameplay timer by exactly one tick. `camera` is the lens the
@@ -192,11 +218,11 @@ impl TrafficWorld {
                 pursuit.damaged.insert(car.audio_emitter().id);
             }
         }
-        let finishing = self.warmup_left > 0.0 && self.warmup_left <= STEP;
-        self.warmup_left = (self.warmup_left - STEP).max(0.0);
-        self.update_pursuit(STEP, focus, collision, surfaces);
+        let finishing = self.warmup_left > 0.0 && self.warmup_left <= self.step_delta;
+        self.warmup_left = (self.warmup_left - self.step_delta).max(0.0);
+        self.update_pursuit(self.step_delta, focus, collision, surfaces);
         self.apply_breakers_to_helicopter();
-        self.log_timer += STEP;
+        self.log_timer += self.step_delta;
         if self.log_timer >= 5.0 && log::log_enabled!(log::Level::Debug) {
             self.log_timer = 0.0;
             log::debug!("traffic status: {}", self.status(focus));
@@ -204,10 +230,10 @@ impl TrafficWorld {
         if finishing {
             log::info!("traffic after the screenshot warm-up: {}", self.status(focus));
         }
-        self.recycle(STEP, focus, camera, shown, props);
+        self.recycle(self.step_delta, focus, camera, shown, props);
         self.service_spawn_requests(focus, collision, surfaces);
         let enabled = self.target > 0 || self.patrol_enabled();
-        if activation::due(&mut self.spawn_timer, STEP, enabled) {
+        if activation::due(&mut self.spawn_timer, self.step_delta, enabled) {
             let at = self.next_spawn_focus(focus);
             self.manage(activation::PERIOD, at, collision, surfaces);
         }

@@ -169,6 +169,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         hud_options: s.hud_options.into(),
         rain_amount: Some(s.rain_amount),
         game_speed: Some(s.game_speed),
+        physics_rate_hz: Some(s.physics_rate_hz),
         animation_speed: Some(s.animation_speed),
         car_scale: Some(s.car_scale),
         no_rev_limiter: Some(s.no_rev_limiter),

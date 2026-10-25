@@ -3,6 +3,14 @@
 use super::*;
 
 impl AiCar {
+    /// Simulation time covered by the next staggered pursuit decision.
+    pub(in crate::scenes::world::ai) fn next_think_delta(&self, dt: f32) -> f32 {
+        match self.has_thought {
+            true => self.think_elapsed + dt,
+            false => super::cop::THINK_STEPS as f32 * dt,
+        }
+    }
+
     /// Makes this car a roadblock car: it stays where it was placed with the brakes on.
     pub fn set_roadblock(&mut self) {
         self.roadblock = true;
@@ -163,7 +171,7 @@ impl AiCar {
 
     /// Seconds since the car was placed.
     pub fn age(&self) -> f32 {
-        self.steps as f32 * STEP
+        self.elapsed
     }
 
     /// Whether the patrol pass may recycle this cop now, given whether its spot is available to recycle

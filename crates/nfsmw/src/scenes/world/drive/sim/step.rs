@@ -5,6 +5,7 @@ use super::*;
 #[derive(Debug, Clone, Copy)]
 pub(in crate::scenes::world) struct StepStart {
     pub(super) input: InputState,
+    pub(super) delta: f32,
     /// `None` without a collision world: the car then only meets the road.
     pub(super) terrain: Option<TerrainQuery>,
 }
@@ -20,36 +21,55 @@ impl CarSim {
     /// One physics step. `world` is the collision the body's walls are tested against (the ground is
     /// `ground`); without it the car only meets the road.
     ///
-    /// The step is [`Self::begin_step`], the [`Self::integration`] and [`Self::end_step`]; a caller that integrates many
+    /// The step is [`Self::begin_step_with_delta`], the [`Self::integration`] and [`Self::end_step`]; a caller that integrates many
     /// cars at once runs the three itself (`ai/parallel.rs`).
+    #[cfg(test)]
     pub fn step(
         &mut self,
         input: &DriveInput,
         ground: &dyn Ground,
+        world: Option<(&CollisionWorld, &mut PropWorld)>,
+    ) -> Impact {
+        self.step_with_delta(FIXED_STEP, input, ground, world)
+    }
+
+    /// One step with an explicit simulation delta; invalid deltas leave all state unchanged.
+    /// The caller owns scheduling and shared-world contact order; see `docs/specs/player-timestep.md`.
+    pub fn step_with_delta(
+        &mut self,
+        dt: f32,
+        input: &DriveInput,
+        ground: &dyn Ground,
         mut world: Option<(&CollisionWorld, &mut PropWorld)>,
     ) -> Impact {
+        if !dt.is_finite() || dt <= 0.0 {
+            return Impact::default();
+        }
         let collision = world.as_ref().map(|(collision, _)| *collision);
-        let start = self.begin_step(input, collision.is_some(), world.as_mut().map(|(_, props)| &mut **props));
+        let start =
+            self.begin_step_with_delta(dt, input, collision.is_some(), world.as_mut().map(|(_, props)| &mut **props));
         self.integration().run(&start, ground, collision);
         self.end_step(&start, ground, world)
     }
 
     /// The start of a step, up to the integration: the input, the terrain query and the explosions that push the body.
     /// `props` is `None` without a collision world.
-    pub(in crate::scenes::world) fn begin_step(
+    pub(in crate::scenes::world) fn begin_step_with_delta(
         &mut self,
+        dt: f32,
         input: &DriveInput,
         has_world: bool,
         props: Option<&mut PropWorld>,
     ) -> StepStart {
-        self.reset_collision.advance(FIXED_STEP);
+        self.step_delta = dt;
+        self.reset_collision.advance(dt);
         // Taken before the explosions below: they can wake a sleeping body. The plane is refreshed by the integration.
         let terrain = has_world.then(|| self.terrain_query());
         self.before_velocity = self.vehicle.body().linear_velocity;
         let input = input.to_vehicle();
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
         if let (Some(props), Some(events)) = (props, &self.events) {
-            props.vehicle_explosions(self.vehicle.body_mut(), &events.owner, self.collision_role.player, FIXED_STEP);
+            props.vehicle_explosions(self.vehicle.body_mut(), &events.owner, self.collision_role.player, dt);
         }
         if let Some(events) = &self.events {
             let punctured = events.punctured();
@@ -57,7 +77,7 @@ impl CarSim {
                 self.vehicle.tire_damage.puncture(wheel);
             }
         }
-        StepStart { input, terrain }
+        StepStart { input, delta: dt, terrain }
     }
 
     /// The rest of a step after the integration: props, walls, contacts, damage, effects and sounds.
@@ -138,12 +158,12 @@ impl CarSim {
             }
         }
         for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
-            *spin += self.vehicle.wheel(physics).angular_velocity * FIXED_STEP;
+            *spin += self.vehicle.wheel(physics).angular_velocity * start.delta;
         }
         let body = self.vehicle.body();
         self.memo.record(&input, &impact, self.before_velocity, body.linear_velocity, body.mass());
         self.queue_non_player_sounds(&impact);
-        self.advance_lamps(input.brake);
+        self.advance_lamps(input.brake, start.delta);
         impact
     }
 }

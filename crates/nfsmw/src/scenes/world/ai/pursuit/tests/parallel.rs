@@ -76,6 +76,10 @@ fn world(parallel: Parallel, collision: &CollisionWorld, surfaces: &SurfaceTable
 
 /// Every car's body as bits, then the next draw of the navigation stream, after each tick.
 fn run(parallel: Parallel) -> Vec<(Vec<[u32; 8]>, u32)> {
+    run_with_deltas(parallel, |_| STEP)
+}
+
+fn run_with_deltas(parallel: Parallel, delta: impl Fn(u32) -> f32) -> Vec<(Vec<[u32; 8]>, u32)> {
     let collision = floor();
     let surfaces = SurfaceTable::default();
     let mut props = PropWorld::default();
@@ -84,7 +88,8 @@ fn run(parallel: Parallel) -> Vec<(Vec<[u32; 8]>, u32)> {
         .map(|t| {
             let at = player_at(t);
             world.player_position = Some(at);
-            world.step(player_focus(at), &collision, &mut props, &surfaces);
+            let dt = delta(t);
+            world.step_with_delta(dt, player_focus(at), &collision, &mut props, &surfaces);
             let cars = world
                 .cars
                 .iter()
@@ -114,4 +119,18 @@ fn the_traffic_step_is_the_same_on_one_thread_and_on_four() {
         assert_eq!(serial, parallel, "tick {tick}");
     }
     assert_eq!(serial.len(), parallel.len());
+}
+
+#[test]
+fn changing_scaled_tick_deltas_match_in_serial_and_parallel() {
+    crate::scenes::world::ai::parallel::tests::init_pool();
+    let delta = |t: u32| match t % 3 {
+        0 => STEP,
+        1 => STEP * 0.25,
+        _ => 1.0 / 144.0,
+    };
+    let serial = run_with_deltas(Parallel::SERIAL, delta);
+    let parallel = run_with_deltas(Parallel { min_cars: 1, per_thread: 1, max_threads: 4 }, delta);
+    assert_eq!(serial, parallel);
+    assert_ne!(serial, run(Parallel::SERIAL), "scaled time must change actual car integration");
 }

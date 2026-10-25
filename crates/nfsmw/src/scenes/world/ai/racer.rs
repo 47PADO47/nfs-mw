@@ -53,6 +53,7 @@ pub struct RacerState {
     player: Performance,
     limits: CarLimits,
     governor: SpeedGovernor,
+    think_delta: f32,
     pub stuck: StuckDetector,
     /// The next gate, in physics space; `None` after the finish (the racer cruises on).
     goal: Option<Vec3>,
@@ -85,6 +86,10 @@ pub struct RacerThink {
 }
 
 impl RacerState {
+    pub(super) fn set_think_delta(&mut self, dt: f32) {
+        self.think_delta = dt;
+    }
+
     /// A temporary player autopilot preserves the speed supplied by its ownership handoff.
     pub(super) fn set_cruise_speed(&mut self, speed: f32) {
         self.cruise = speed.max(0.0);
@@ -105,6 +110,7 @@ impl RacerState {
             performance,
             player,
             governor: SpeedGovernor::begin(speed),
+            think_delta: THINK_PERIOD,
             stuck: StuckDetector::default(),
             goal: None,
             repath: 0.0,
@@ -161,7 +167,7 @@ impl RacerState {
         let Some(goal) = self.goal else {
             return self.cruise_think(ctx, nav, car, traffic);
         };
-        self.repath -= THINK_PERIOD;
+        self.repath -= self.think_delta;
         let to_goal = Vec3::new(goal.x - car.body.position.x, 0.0, goal.z - car.body.position.z);
         if self.repath <= 0.0 || nav.dead_end {
             self.repath = REPATH_PERIOD;
@@ -200,7 +206,7 @@ impl RacerState {
         let reference = speed.abs().max(self.governor.speed_limit);
         let table = self.performance.acceleration_at(reference).min(self.player.acceleration_at(reference));
         let accel = potential_acceleration(table, &self.limits, skill, None, 0.0);
-        let wanted = self.governor.update(speed, potential, accel, skill, THINK_PERIOD);
+        let wanted = self.governor.update(speed, potential, accel, skill, self.think_delta);
         RacerThink { target: occlusion.map_or(nav.position, |o| o.position), speed: wanted }
     }
 
@@ -252,7 +258,7 @@ impl RacerState {
             .trail()
             .and_then(|trail| update_occluded_position(trail, &car.body, nav.position, traffic, false, nav.half_width));
         let target = occlusion.map_or(nav.position, |o| o.position);
-        let wanted = self.governor.update(car.forward_speed, self.cruise, 4.0, 0.5, THINK_PERIOD);
+        let wanted = self.governor.update(car.forward_speed, self.cruise, 4.0, 0.5, self.think_delta);
         RacerThink { target, speed: wanted.min(self.cruise) }
     }
 }
