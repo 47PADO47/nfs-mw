@@ -147,6 +147,9 @@ pub struct HudState {
     /// The car's place for the Custom map. The HUD plugin copies it from `minimap` before the minimap setting is
     /// applied, so it stays when the minimap is off; its `orientation` is not read (the map turns by `minimap`'s).
     pub map_car: Option<MapPosition>,
+    /// The game's own map picture the minimap shows now (its tiles and calibration), for the Custom map to draw; the HUD
+    /// plugin sets it. `None` when the install has no minimap, and the Custom map draws its roads instead.
+    pub map_picture: Option<std::sync::Arc<super::MapPicture>>,
     /// What changed this frame, once per change (`scenes/world/feed/hud.rs`).
     pub events: Vec<HudEvent>,
     /// The frame `events` belong to: a reader that gets the same frame twice (a paused scene) does not take them again.
@@ -207,6 +210,7 @@ impl Default for HudState {
             map_roads: None,
             race_route: None,
             map_car: None,
+            map_picture: None,
             events: Vec::new(),
             events_frame: 0,
             world_marks: WorldMarks::default(),

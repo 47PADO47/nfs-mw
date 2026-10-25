@@ -38,6 +38,8 @@ mod leaders;
 mod leaders_tests;
 /// The Custom map's keys, applied to the settings.
 mod map_keys;
+/// The map file's tiles and calibration, for the Custom map's picture.
+mod map_picture;
 /// The roads the Custom map draws, built once per network.
 mod map_roads;
 mod map_source;
@@ -90,6 +92,7 @@ pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 pub use leaders::{
     Entry as LeaderEntry, LABEL_BUSTED, LABEL_KMH, LABEL_KNOCKED_OUT, LABEL_MPH, LeaderRow, Leaders, game_word,
 };
+pub use map_picture::MapPicture;
 #[cfg(test)]
 pub use map_roads::MapRoad;
 pub use map_roads::{MapRoads, MapRoadsHandle, RaceRoute, RaceRouteHandle, RoadClass};

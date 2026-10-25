@@ -102,6 +102,13 @@ Textures (searched in the packs the HUD already uses, [textures.md](textures.md)
 | `MINIMAP_ICON_CAR` | `GLOBAL/InGameA.bun`, `FRONTEND/FrontB.lzc` | 32 x 32 DXT3, blend 1 | a white arrow with a black outline **pointing up** |
 | `MINIMAP_BACKING_COLOR` | `GLOBAL/GlobalB.lzc` | 64 x 64 DXT3, blend 1 | a white disc, tinted by the object's colour |
 
+## The Custom look
+
+The Custom HUD does not move the game's four map pieces: it keeps the 64 tile textures' keys and the calibration
+(`hud::MapPicture`) and draws the tiles itself, cut into cells that turn and fade with its own view, with the HUD
+package's own icons for the blips and the player's arrow. How: [../specs/custom-hud-map-impl.md](../specs/custom-hud-map-impl.md)
+section 9.
+
 ## Probing it
 
 `cargo test --release -p nfsmw-data --test real_install minimap -- --ignored` reads the three files, checks the

@@ -1,5 +1,7 @@
 //! The Bevy plugin: loads the HUD, copies the scene's state into it each frame, and presents it.
 
+use std::sync::Arc;
+
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
 use bevy_time::Time;
@@ -9,6 +11,7 @@ use blackbox_ui::{ThemeId, UiTree};
 use game_install::GameDir;
 use nfsmw_career::regions::MapVariant;
 
+use super::MapPicture;
 use super::bind::HudBinding;
 use super::blip_styles;
 use super::busted_overlay::{BustedOverlay, OVERLAY_PACKAGE};
@@ -57,6 +60,8 @@ struct Hud {
     map_variants: Vec<MapVariant>,
     /// The tiles of the running race's event, read on demand (`docs/specs/race-minimap.md`).
     event_tiles: EventTiles,
+    /// The picture of the map file the minimap shows, shared with the Custom map; rebuilt when the file changes.
+    map_picture: Option<Arc<MapPicture>>,
     /// The original EA Trax chyron, when the install has it.
     trax: Option<TraxBinding>,
     /// The busted overlay, when the install has it (`busted_overlay.rs`).
@@ -184,6 +189,7 @@ fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
         viewport,
         map_variants,
         event_tiles,
+        map_picture: None,
         trax,
         overlay,
         drag,
@@ -242,7 +248,11 @@ fn sync(
     );
     if let Some(minimap) = hud.binding.minimap_mut() {
         minimap.set_stem(stem);
+        if !hud.map_picture.as_ref().is_some_and(|picture| picture.stem() == minimap.stem()) {
+            hud.map_picture = Some(Arc::new(minimap.picture()));
+        }
     }
+    state.map_picture = hud.map_picture.clone();
     if let Some(overlay) = hud.overlay.as_mut() {
         overlay.set_shown(&mut hud.runtime, state.busted_overlay);
     }
