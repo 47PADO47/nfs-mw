@@ -141,6 +141,9 @@ pub struct HudState {
     /// The roads of the loaded network for the Custom map, shared, not copied (`hud/map_roads`); `None` in a world with
     /// no road network.
     pub map_roads: Option<super::MapRoadsHandle>,
+    /// One lap of the running race's route for the Custom map, shared, built when the race started; `None` outside a
+    /// race (`hud/map_roads/race_route.rs`).
+    pub race_route: Option<super::RaceRouteHandle>,
     /// The car's place for the Custom map. The HUD plugin copies it from `minimap` before the minimap setting is
     /// applied, so it stays when the minimap is off; its `orientation` is not read (the map turns by `minimap`'s).
     pub map_car: Option<MapPosition>,
@@ -202,6 +205,7 @@ impl Default for HudState {
             route: None,
             markers: Vec::new(),
             map_roads: None,
+            race_route: None,
             map_car: None,
             events: Vec::new(),
             events_frame: 0,

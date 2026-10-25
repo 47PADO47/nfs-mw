@@ -92,7 +92,7 @@ pub use leaders::{
 };
 #[cfg(test)]
 pub use map_roads::MapRoad;
-pub use map_roads::{MapRoads, MapRoadsHandle, RoadClass};
+pub use map_roads::{MapRoads, MapRoadsHandle, RaceRoute, RaceRouteHandle, RoadClass};
 pub use map_source::MapSource;
 #[cfg(test)]
 pub use message::current as current_mod_message;

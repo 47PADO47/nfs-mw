@@ -22,15 +22,30 @@ pub(super) fn polyline(
     tolerance: f32,
     to_render: &impl Fn(Vec3) -> [f32; 2],
 ) -> Vec<[f32; 2]> {
-    let start = to_render(curve.start());
-    let end = to_render(curve.end());
+    let points: Vec<[f32; 2]> =
+        sample(curve, (0.0, 1.0), curved, tolerance, to_render).into_iter().map(|(_, p)| p).collect();
+    douglas_peucker(&points, tolerance)
+}
+
+/// The part of `curve` from `t0` to `t1` (its parameter) as samples `(t, point)` in render (x, y), both ends included:
+/// the ends alone for a straight segment, else cut until each chord is within `tolerance` metres of the curve. Not
+/// thinned.
+pub(super) fn sample(
+    curve: &Bezier,
+    (t0, t1): (f32, f32),
+    curved: bool,
+    tolerance: f32,
+    to_render: &impl Fn(Vec3) -> [f32; 2],
+) -> Vec<(f32, [f32; 2])> {
+    let start = (t0, to_render(curve.position(t0)));
+    let end = (t1, to_render(curve.position(t1)));
     if !curved {
         return vec![start, end];
     }
-    let mut points = vec![start];
+    let mut samples = vec![start];
     let pieces = Pieces { curve, tolerance, to_render };
-    pieces.cut((0.0, start), (1.0, end), 0, &mut points);
-    douglas_peucker(&points, tolerance)
+    pieces.cut(start, end, 0, &mut samples);
+    samples
 }
 
 /// The sampling of one curve.
@@ -43,12 +58,12 @@ struct Pieces<'a, F> {
 impl<F: Fn(Vec3) -> [f32; 2]> Pieces<'_, F> {
     /// Pushes the points after `a` up to and including `b`, cutting the piece between them while its middle is farther
     /// than the tolerance from its chord.
-    fn cut(&self, a: (f32, [f32; 2]), b: (f32, [f32; 2]), level: u32, out: &mut Vec<[f32; 2]>) {
+    fn cut(&self, a: (f32, [f32; 2]), b: (f32, [f32; 2]), level: u32, out: &mut Vec<(f32, [f32; 2])>) {
         let t = (a.0 + b.0) / 2.0;
         let middle = (self.to_render)(self.curve.position(t));
         let flat = level >= MIN_LEVEL && distance_to_segment(middle, a.1, b.1) <= self.tolerance;
         if flat || level >= MAX_LEVEL {
-            out.push(b.1);
+            out.push(b);
             return;
         }
         self.cut(a, (t, middle), level + 1, out);
@@ -59,8 +74,15 @@ impl<F: Fn(Vec3) -> [f32; 2]> Pieces<'_, F> {
 /// `points` thinned: the ends are kept, and a point between two kept ones only when it is farther than `tolerance`
 /// from the line between them (Douglas-Peucker, iterative).
 pub(super) fn douglas_peucker(points: &[[f32; 2]], tolerance: f32) -> Vec<[f32; 2]> {
+    let keep = kept(points, tolerance);
+    points.iter().zip(keep).filter(|(_, kept)| *kept).map(|(point, _)| *point).collect()
+}
+
+/// Which points of `points` Douglas-Peucker keeps at `tolerance`: the ends always, every point of a line of fewer than
+/// three.
+pub(super) fn kept(points: &[[f32; 2]], tolerance: f32) -> Vec<bool> {
     if points.len() < 3 {
-        return points.to_vec();
+        return vec![true; points.len()];
     }
     let last = points.len() - 1;
     let mut keep = vec![false; points.len()];
@@ -82,7 +104,7 @@ pub(super) fn douglas_peucker(points: &[[f32; 2]], tolerance: f32) -> Vec<[f32; 
         spans.push((a, farthest.0));
         spans.push((farthest.0, b));
     }
-    points.iter().zip(keep).filter(|(_, kept)| *kept).map(|(point, _)| *point).collect()
+    keep
 }
 
 /// The distance from `p` to the segment from `a` to `b` (to `a` for a segment of no length).

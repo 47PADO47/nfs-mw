@@ -9,9 +9,13 @@
 //! - `simplify`: the curve sampling and the Douglas-Peucker thinning.
 //! - `classify`: main road, side road or path, from the lanes and the segment flags.
 //! - `grid`: the uniform grid and its circle query.
+//! - `race_route`: one lap of the race's route, built once per race.
 
 mod classify;
 mod grid;
+mod race_route;
+#[cfg(test)]
+mod race_route_tests;
 mod simplify;
 #[cfg(test)]
 mod tests;
@@ -24,6 +28,7 @@ use glam::Vec3;
 
 pub use classify::RoadClass;
 use grid::RoadGrid;
+pub use race_route::{RaceRoute, RaceRouteHandle};
 
 /// How far a simplified road may stray from the network's curve, metres: the curve is sampled until each chord is
 /// this close to it, then thinned at the same tolerance.
