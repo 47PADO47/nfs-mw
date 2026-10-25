@@ -7,6 +7,7 @@ mod direction;
 mod init;
 mod lane_type;
 mod next;
+mod offset;
 mod path_nav;
 mod random;
 mod state;
@@ -44,6 +45,8 @@ pub struct RoadNav {
     pub t: f32,
     /// Index of the lane in the travel-frame profile.
     pub lane: usize,
+    /// Continuous travel-frame offset for callers that do not drive indexed lanes.
+    lane_offset: Option<f32>,
     /// Set when the cursor could not leave its segment (a traffic cursor stops there).
     pub dead_end: bool,
     /// Half the car's width in metres.

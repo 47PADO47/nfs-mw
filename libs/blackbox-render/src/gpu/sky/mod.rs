@@ -291,6 +291,10 @@ impl Renderer {
         }
     }
 
+    pub(super) fn glare_clouds(&self) -> Option<&wgpu::TextureView> {
+        self.sky.as_ref().filter(|s| s.state.enhanced).map(|s| &s.cloud_map.view)
+    }
+
     pub fn set_sky_state(&mut self, state: SkyState) {
         let state = state.sanitized();
         if self.sky.as_ref().is_none_or(|sky| sky.state == state) {

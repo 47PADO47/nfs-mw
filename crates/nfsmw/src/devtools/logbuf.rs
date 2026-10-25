@@ -110,8 +110,9 @@ impl Log for Tee {
 }
 
 /// `gilrs::gamepad` warns once per device with no SDL mapping (virtual pads report an all-zero UUID); the pad still
-/// works through its raw layout, so only its errors are shown.
-const DEFAULT_FILTER: &str = "info,wgpu_core=warn,wgpu_hal=warn,naga=warn,gilrs::gamepad=error";
+/// works through its raw layout, so only its errors are shown. `discord_presence` logs an error each time the Discord
+/// client is not running; the game's own `discord` lines say what matters.
+const DEFAULT_FILTER: &str = "info,wgpu_core=warn,wgpu_hal=warn,naga=warn,gilrs::gamepad=error,discord_presence=off";
 
 /// An `env_logger` builder that honours `RUST_LOG`, so the file and stderr keep the same filter.
 fn env_builder() -> env_logger::Builder {

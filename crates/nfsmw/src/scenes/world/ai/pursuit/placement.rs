@@ -2,6 +2,12 @@
 
 use super::*;
 
+#[derive(Clone, Copy)]
+enum Spacing {
+    Reinforcement,
+    Support,
+}
+
 impl TrafficWorld {
     pub(in crate::scenes::world::ai) fn spawn_cop(
         &mut self,
@@ -50,15 +56,39 @@ impl TrafficWorld {
         &mut self,
         name: &str,
         spot: CopSpot,
+        nav: RoadNav,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) -> bool {
+        self.place_cop_on_road(name, spot, nav, collision, surfaces, Spacing::Reinforcement)
+    }
+
+    pub(in crate::scenes::world::ai) fn spawn_support_on_road(
+        &mut self,
+        name: &str,
+        spot: CopSpot,
+        nav: RoadNav,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) -> bool {
+        self.place_cop_on_road(name, spot, nav, collision, surfaces, Spacing::Support)
+    }
+
+    fn place_cop_on_road(
+        &mut self,
+        name: &str,
+        spot: CopSpot,
         mut nav: RoadNav,
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
+        spacing: Spacing,
     ) -> bool {
         let CopSpot { target, speed, player, band, .. } = spot;
         let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(name)) else {
             return false;
         };
         nav.half_width = model.model.physics.spec.dimension.x;
+        nav.preserve_offset_at(&self.network, nav.position);
         nav.enable_trail(&self.network);
         if self.cops.bars_spawn(nav.position) {
             return false;
@@ -68,7 +98,14 @@ impl TrafficWorld {
         if band.is_some_and(|(near, far)| !(near..=far).contains(&gap)) {
             return false;
         }
-        if self.cars.iter().any(|c| c.physics_position().distance(nav.position) < MIN_GAP) {
+        let radius = model.model.physics.spec.dimension.length();
+        if self.cars.iter().any(|c| {
+            let clearance = match spacing {
+                Spacing::Reinforcement => MIN_GAP,
+                Spacing::Support => radius + c.bounding_radius() + 2.0,
+            };
+            c.physics_position().distance(nav.position) < clearance
+        }) {
             return false;
         }
         let render = space::to_render(nav.position.to_array());
@@ -81,6 +118,8 @@ impl TrafficWorld {
             cruise: Cruise::default(),
             patrol: false,
         };
+        // Placement may exclude junctions; a live cop must be able to drive through them.
+        nav.filter.no_decision = false;
         let Some(car) = AiCar::place(
             &model.model,
             Role::Cop(Box::new(state)),

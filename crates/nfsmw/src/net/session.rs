@@ -10,7 +10,7 @@
 //! | `Dedicated` | The server loop on the main thread with no window (`dedicated.rs`); no Bevy app, so only [`NetSession::run_dedicated`] sees it |
 
 use std::cell::RefCell;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -26,6 +26,7 @@ use super::client::{ClientHandle, NetClient, PlayerSetup, connect};
 use super::discover::scan_config;
 use super::listen::ListenServer;
 use super::options::ServeOptions;
+use crate::discord::LanGame;
 use crate::frontend::lan::backend::ServerEntry;
 
 /// What the session does.
@@ -57,6 +58,8 @@ pub struct NetSession {
     /// The lobby and the last result record as of this frame, for the screens (`frontend.rs`).
     pub(super) lobby: Option<LobbyView>,
     pub(super) results: Option<RaceResults>,
+    /// The server a `Join` session was started at.
+    joined: Option<SocketAddr>,
 }
 
 impl NetSession {
@@ -76,6 +79,7 @@ impl NetSession {
             auto_ready: false,
             lobby: None,
             results: None,
+            joined: None,
         }
     }
 
@@ -139,6 +143,7 @@ impl NetSession {
         let client = NetClient::new(endpoint, config, self.auto_ready).with_connector(connector);
         self.client = Some(Rc::new(RefCell::new(client)));
         self.mode = Mode::Join;
+        self.joined = Some(addr);
         self.error = None;
         log::info!("net: joining {addr}");
         Ok(())
@@ -153,7 +158,39 @@ impl NetSession {
             listen.stop();
         }
         self.mode = Mode::Idle;
+        self.joined = None;
         self.lobby = None;
+    }
+
+    /// The LAN game this player is seated in, as the Discord party shows it. A game this PC hosts is reached at
+    /// `advertise` (when known) and the server's port; a game joined is at the address it was joined at, and is not
+    /// offered on.
+    pub fn lan_game(&self, advertise: Option<IpAddr>) -> Option<LanGame> {
+        let lobby = self.lobby.as_ref()?;
+        lobby.my_slot?;
+        let settings = lobby.settings.as_ref()?;
+        let (host, hosting) = match self.mode {
+            Mode::Host => (SocketAddr::new(advertise?, self.listen.as_ref()?.addr()?.port()), true),
+            Mode::Join => (self.joined?, false),
+            Mode::Idle | Mode::Dedicated => return None,
+        };
+        let players = u8::try_from(lobby.players.len()).unwrap_or(u8::MAX);
+        let open = hosting && !settings.password_required && players < settings.max_players;
+        Some(LanGame { host, players, max_players: settings.max_players, open })
+    }
+
+    /// A friend's Discord invite to the server at `addr`: join it, unless this player hosts or is seated in a game
+    /// already (a click on a stale invite must not drop them out of it).
+    pub fn join_from_discord(&mut self, addr: SocketAddr) {
+        let seated = self.lobby.as_ref().is_some_and(|lobby| lobby.my_slot.is_some());
+        if self.mode == Mode::Host || seated {
+            log::info!("net: the Discord invite to {addr} was ignored: already in a game");
+            return;
+        }
+        if let Err(error) = self.join(addr, None) {
+            log::warn!("net: the Discord invite to {addr} failed: {error:#}");
+            self.error = Some(format!("{error:#}"));
+        }
     }
 
     /// Starts a LAN scan for servers on `port` for `duration`; the list fills as answers come.
@@ -237,6 +274,10 @@ impl NetSession {
         result
     }
 }
+
+#[cfg(test)]
+#[path = "session_tests.rs"]
+mod tests;
 
 impl Drop for NetSession {
     fn drop(&mut self) {

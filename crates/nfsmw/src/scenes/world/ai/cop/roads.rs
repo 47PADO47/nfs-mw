@@ -58,7 +58,11 @@ fn road_on(net: &RoadNetwork, index: &SegmentIndex, body: &Body, level: u32, cop
     let mut nav = RoadNav::new(NavKind::Direction, lane, SegmentFilter { cop, ..Default::default() });
     nav.half_width = body.half_width;
     let heading = close::lift(body.forward, 0.0);
-    nav.init_at_point(net, index, body.position, heading, false).then_some(nav)
+    if !nav.init_at_point(net, index, body.position, heading, false) {
+        return None;
+    }
+    nav.preserve_offset_at(net, body.position);
+    Some(nav)
 }
 
 pub(super) fn target<R: RandomSource>(
@@ -120,20 +124,9 @@ pub(super) fn snap<R: RandomSource>(
             }
             along = (point - nav.position).dot(nav.forward);
         }
-        let side = close::lift(Vec2::new(nav.forward.z, -nav.forward.x), 0.0);
-        let profile = blackbox_roads::travel_profile(ctx.net, nav.segment, nav.node_ind, nav.t >= 0.5);
-        let mask = nav.lane_type.selectable_mask();
-        let lane = (0..profile.zones.len())
-            .filter(|&lane| profile.zones[lane].in_mask(mask))
-            .map(|lane| {
-                let position = blackbox_roads::lane_line(ctx.net, nav.segment, nav.node_ind, lane).position(nav.t);
-                (lane, (point - position).dot(side).abs())
-            })
-            .min_by(|a, b| a.1.total_cmp(&b.1));
-        if let Some((lane, gap)) = lane
+        if let Some(gap) = nav.snap_offset_at(ctx.net, point)
             && gap < 4.0
         {
-            nav.place(ctx.net, nav.segment, nav.node_ind, lane, nav.t);
             nav.advance(ctx.net, along.max(0.1), toward, ctx.rng);
             let occlusion = nav.trail().and_then(|trail| {
                 blackbox_roads::update_occluded_position(
@@ -197,6 +190,27 @@ mod tests {
             }],
             roads: vec![Road { scale: 1.0, speech_id: 0 }],
         }
+    }
+
+    #[test]
+    fn close_seek_preserves_a_requested_position_inside_a_wide_lane() {
+        let net = wide_road();
+        let index = SegmentIndex::build(&net);
+        let mut rng = SplitMix(4);
+        let mut ctx =
+            Ctx { net: &net, index: &index, rng: &mut rng, bodies: &[], me: 0, player: None, aims: &[], lights: None };
+        let me = Body {
+            position: Vec3::ZERO,
+            velocity: Vec3::Z * 20.0,
+            forward: Vec2::Y,
+            half_width: 1.0,
+            half_length: 2.5,
+        };
+        let mut nav = at_car(&ctx, &me, 5).unwrap();
+        nav.enable_trail(&net);
+        let result = snap(&mut ctx, &mut nav, &me, Vec3::new(3.25, 0.0, 30.0), Vec2::Y, &[], 5);
+        assert!(result.point.is_some());
+        assert!((nav.position.x - 3.25).abs() < 1e-4, "{:?}", nav.position);
     }
 
     #[test]

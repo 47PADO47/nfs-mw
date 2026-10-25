@@ -187,6 +187,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         rear_view_mirror: Some(s.rear_view_mirror),
         discord: Some(s.discord),
         discord_time_played: Some(s.discord_time_played),
+        discord_join: Some(s.discord_join),
         mods: None,
         transmission: Some(s.transmission),
         camera_mode: Some(s.camera_mode),

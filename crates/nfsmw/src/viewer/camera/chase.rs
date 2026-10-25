@@ -35,9 +35,6 @@ const LOOK_SENSITIVITY: f32 = 0.003;
 /// How high above the car's level the camera may be orbited, and how far below it, radians.
 const LOOK_MAX_ELEVATION: f32 = 1.2;
 const LOOK_MIN_ELEVATION: f32 = -0.15;
-/// Seconds without look input before the camera swings back behind the car, and how quickly, per second.
-const RECENTRE_AFTER: f32 = 1.2;
-const RECENTRE_RATE: f32 = 3.0;
 /// How fast the camera swings round to look back while the control is held, per second.
 const LOOK_BACK_RATE: f32 = 6.0;
 /// Keep this far from walls and the ground.
@@ -46,6 +43,7 @@ const CLEARANCE: f32 = 0.4;
 const MIN_DISTANCE: f32 = 2.8;
 
 pub struct ChaseCamera {
+    pub preferences: crate::extra_options::CameraPreferences,
     pub position: Vec3,
     target: Vec3,
     /// Heading the camera looks along, radians from +X.
@@ -83,6 +81,7 @@ pub struct Followed {
 impl Default for ChaseCamera {
     fn default() -> Self {
         Self {
+            preferences: Default::default(),
             position: Vec3::ZERO,
             target: Vec3::X,
             yaw: 0.0,
@@ -110,6 +109,12 @@ fn approach(rate: f32, dt: f32) -> f32 {
 }
 
 impl ChaseCamera {
+    pub fn center(&mut self) {
+        self.orbit_yaw = 0.0;
+        self.orbit_elevation = 0.0;
+        self.previous_view = None;
+    }
+
     pub fn view(&self) -> ChaseView {
         ChaseView { position: self.position, target: self.target, fov_degrees: self.fov_degrees, shaken: None }
     }
@@ -161,10 +166,10 @@ impl ChaseCamera {
             return;
         }
         self.idle += dt;
-        if self.idle < RECENTRE_AFTER {
+        if !self.preferences.auto_center || self.idle < self.preferences.center_delay {
             return;
         }
-        let back = approach(RECENTRE_RATE, dt);
+        let back = approach(self.preferences.center_speed, dt);
         self.orbit_yaw -= self.orbit_yaw * back;
         self.orbit_elevation -= self.orbit_elevation * back;
     }
@@ -194,7 +199,10 @@ impl ChaseCamera {
     pub fn update(&mut self, car: Followed, dt: f32, blocked: impl Fn(Vec3, Vec3) -> Option<f32>) {
         self.shake.advance(dt);
         self.previous_view = self.placed.then(|| self.view());
-        let speed01 = (car.speed.abs() / FAST).clamp(0.0, 1.0);
+        let speed01 = match self.preferences.speed_zoom {
+            true => (car.speed.abs() / FAST).clamp(0.0, 1.0),
+            false => 0.0,
+        };
         let look = car.position + Vec3::Z * LOOK_HEIGHT;
         if !self.placed {
             self.yaw = car.heading;
@@ -204,10 +212,10 @@ impl ChaseCamera {
         let turn_target = if self.looking_back { 1.0 } else { 0.0 };
         self.back_turn += (turn_target - self.back_turn) * approach(LOOK_BACK_RATE, dt);
         let behind = -direction(self.yaw + self.orbit_yaw + std::f32::consts::PI * self.back_turn, 0.0);
-        let distance = NEAR + (FAR - NEAR) * speed01;
+        let distance = self.preferences.distance + (FAR - NEAR) * speed01;
         let (up, flat) = self.orbit_elevation.sin_cos();
-        let wanted =
-            behind * (distance * flat) + Vec3::Z * (LOW + (HIGH - LOW) * speed01 - LOOK_HEIGHT + distance * up);
+        let wanted = behind * (distance * flat)
+            + Vec3::Z * (self.preferences.height + (HIGH - LOW) * speed01 - LOOK_HEIGHT + distance * up);
         self.offset = if self.placed { self.offset.lerp(wanted, approach(FOLLOW_RATE, dt)) } else { wanted };
 
         let length = self.offset.length();
@@ -223,7 +231,7 @@ impl ChaseCamera {
         // Looking round the car, the camera keeps its eyes on the car rather than on the road ahead.
         let ahead = 1.0 - (self.orbit_yaw.abs() / 0.5).min(1.0);
         self.target = look + direction(car.heading, 0.0) * (car.speed.max(0.0) * LOOK_AHEAD * ahead);
-        self.fov_degrees = FOV_SLOW + (FOV_FAST - FOV_SLOW) * speed01;
+        self.fov_degrees = self.preferences.fov + (FOV_FAST - FOV_SLOW) * speed01;
     }
 
     const NEAR_PLANE: f32 = 0.3;
@@ -260,6 +268,32 @@ mod tests {
 
     /// The camera's horizontal distance behind the car at full speed.
     const FAR_AT_FAST: f32 = FAR;
+
+    #[test]
+    fn disabled_auto_center_keeps_the_screenshot_angle_until_explicit_center() {
+        let mut cam = ChaseCamera::default();
+        cam.preferences.auto_center = false;
+        cam.look(250.0, 100.0, 0.016);
+        let orbit = (cam.orbit_yaw, cam.orbit_elevation);
+        for _ in 0..600 {
+            cam.look(0.0, 0.0, 0.016);
+        }
+        assert_eq!((cam.orbit_yaw, cam.orbit_elevation), orbit);
+        cam.center();
+        assert_eq!((cam.orbit_yaw, cam.orbit_elevation), (0.0, 0.0));
+    }
+    #[test]
+    fn custom_distance_height_and_fixed_fov_apply_without_speed_zoom() {
+        let mut cam = ChaseCamera::default();
+        cam.preferences.distance = 12.0;
+        cam.preferences.height = 4.0;
+        cam.preferences.fov = 75.0;
+        cam.preferences.speed_zoom = false;
+        cam.update(car(0.0, 60.0), 0.016, open);
+        assert!((cam.position.x - 88.0).abs() < 0.001);
+        assert!((cam.position.z - 14.0).abs() < 0.001);
+        assert_eq!(cam.fov_degrees(), 75.0);
+    }
 
     #[test]
     fn starts_behind_the_car() {

@@ -85,7 +85,9 @@ impl RoadNav {
     pub(super) fn snap_onto(&self, net: &RoadNetwork, segment: u16, node: u16) -> Step {
         let node_ind = leaving_from(net.segment(segment), node);
         let from = travel_profile(net, self.segment, self.node_ind, true);
-        let offset = from.zones.get(self.lane).map(|_| from.signed_offset(self.lane)).unwrap_or(0.0);
+        let offset = self
+            .lane_offset
+            .unwrap_or_else(|| from.zones.get(self.lane).map(|_| from.signed_offset(self.lane)).unwrap_or(0.0));
         let profile = travel_profile(net, segment, node_ind, false);
         let mask = self.lane_type.selectable_mask();
         let both_sides = matches!(
