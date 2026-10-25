@@ -96,3 +96,19 @@ fn the_console_reads_sets_and_refuses() {
     assert!(flag(&mut s, "net_port").is_none());
     assert_eq!(syntax("net_port"), Some("<1024-65534>"));
 }
+
+#[test]
+fn the_public_address_is_an_ip_or_the_default() {
+    let mut s = NetSettings::default();
+    assert_eq!((get(&s, "net_public_address"), s.public_ip()), ("default".into(), None));
+    set(&mut s, "net_public_address", " 203.0.113.9 ").unwrap();
+    assert_eq!(s.public_ip(), Some("203.0.113.9".parse().unwrap()));
+    set(&mut s, "net_public_address", "[::1]").unwrap_err();
+    set(&mut s, "net_public_address", "example.com").unwrap_err();
+    set(&mut s, "net_public_address", "default").unwrap();
+    assert!(s.public_address.is_empty());
+    let env = from_env(|name| (name == PUBLIC_ADDRESS_ENV).then(|| "198.51.100.4".into()));
+    assert_eq!(NetSettings::from_layer(env).public_ip(), Some("198.51.100.4".parse().unwrap()));
+    let table: Table = "net_public_address = \"nope\"".parse().unwrap();
+    assert_eq!(read(&table, "test").public_address, None, "a bad address is left unset");
+}

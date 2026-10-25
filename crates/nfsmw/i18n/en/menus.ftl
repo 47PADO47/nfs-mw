@@ -31,6 +31,8 @@ menus-jukebox-reordering = { $order }, re-order on
 
 # The line Discord shows under the application's name.
 menus-presence-playing = Playing NFS: Most Wanted
+# The line while the player is seated in a LAN game.
+menus-presence-lan = In a LAN game
 # The window's title, refreshed each second: $scene is the scene's name, $renderer the graphics backend, $fps the frames
 # of the last second, and $status the scene's own status (empty, or starting with " - ").
 menus-window-title = { $scene } - { $renderer } - { $fps } fps{ $status }

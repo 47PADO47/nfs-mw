@@ -1,5 +1,5 @@
-// Directional PCSS (NVIDIA's blocker-distance concept) with a per-pixel rotated Vogel-disk filter,
-// early-outs for fully lit and fully shadowed pixels, and dithered cascade handoffs.
+// Directional PCSS with bilinear blocker moments, a fixed light-space disk,
+// and smoothly blended cascade handoffs. No screen-locked sampling noise.
 // No frame seed, jitter, history or reprojection. SHADOW_GROUP selects the material layout.
 struct ShadowData {
     matrices: array<mat4x4<f32>, 4>, splits: vec4<f32>, options: vec4<f32>,
@@ -62,13 +62,11 @@ const BLOCKERS = array<vec2<f32>, 16>(
     vec2<f32>(-0.924, -0.383), vec2<f32>(-0.383, -0.924), vec2<f32>(0.383, -0.924), vec2<f32>(0.924, -0.383)
 );
 
-// Per-pixel screen position for the rotation and cascade dithering below. Entry points that know
-// it set it in direct_visibility; elsewhere it stays zero, which gives a fixed, unrotated pattern.
-var<private> shadow_pixel: vec2<f32>;
-
-// Interleaved gradient noise (Jimenez): cheap, stable per pixel, no frame seed or history.
-fn interleaved_noise(pixel: vec2<f32>) -> f32 {
-    return fract(52.9829189 * fract(dot(pixel, vec2<f32>(0.06711056, 0.00583715))));
+// Projected receiver-pixel width. Evaluated before selecting a cascade.
+var<private> shadow_footprint: f32;
+fn shadow_receiver_footprint(world:vec3<f32>)->f32 {
+    let x=dpdx(world);let y=dpdy(world);let sun=shadow_data.sun.xyz;
+    return max(length(x-sun*dot(x,sun)),length(y-sun*dot(y,sun)));
 }
 
 // Vogel (golden angle) disks, radius sqrt((i + 0.5) / N). Twelve taps for the soft filter,
@@ -94,11 +92,10 @@ fn disk_tap(i: i32, dense: bool) -> vec2<f32> {
     return VOGEL_12[i];
 }
 
-// Centre-weighted disk of hardware bilinear comparisons, `radius` texels across, rotated per pixel
-// so the few taps trade banding for fine noise. Replaces the 5x5 grid and the dense tent.
+// Centre-weighted, fixed light-space disk of bilinear comparisons. Camera motion does not rotate it.
 fn disk_filter(uv: vec2<f32>, cascade: u32, reference: f32, gradient: vec2<f32>, radius: f32, dense: bool) -> f32 {
     let texel = 1.0 / shadow_size(cascade);
-    let angle = interleaved_noise(shadow_pixel) * 6.2831853;
+    let angle = 0.37;
     let spin = vec2<f32>(cos(angle), sin(angle));
     var taps = 12;
     if dense { taps = 20; }
@@ -149,6 +146,11 @@ fn cascade_sample(world: vec3<f32>, normal: vec3<f32>, cascade: u32) -> vec3<f32
         radius *= scale;
         maximum_radius *= scale;
     }
+    // An undersized filter aliases even a very dense near map when the sun moves.
+    // Integrate at least half a receiver pixel, independent of cascade texel density.
+    let antialias = min(shadow_footprint * 0.5 / texel_world, 8.0);
+    radius = max(radius, antialias);
+    maximum_radius = max(maximum_radius, antialias);
     var blocker_fraction = 0.0;
     if shadow_data.softness.y > 0.5 && shadow_data.softness.x > 0.0 {
         // Directional light has no finite depth origin. The old p.z*span footprint
@@ -157,20 +159,27 @@ fn cascade_sample(world: vec3<f32>, normal: vec3<f32>, cascade: u32) -> vec3<f32
         let search = 12.0;
         var separation = 0.0;
         var count = 0.0;
-        for (var i = 0; i < 16; i++) {
-            let sample_uv = clamp(uv + BLOCKERS[i] * search * texel, vec2<f32>(texel * 0.5), vec2<f32>(1.0 - texel * 0.5));
-            let sample_pixel = vec2<i32>(sample_uv * size);
-            let sample_center = (vec2<f32>(sample_pixel) + 0.5) * texel;
-            let d = shadow_depth(sample_pixel,cascade);
-            let gap = reference + dot(gradient, sample_center - uv) - d;
-            if d < 1.0 && gap > bias { separation += gap * span; count += 1.0; }
+        for (var i = 0; i < 8; i++) {
+            let sample_uv = clamp(uv + BLOCKERS[i*2] * search * texel, vec2<f32>(texel * 0.5), vec2<f32>(1.0 - texel * 0.5));
+            let position = sample_uv * size - 0.5;
+            let base = vec2<i32>(floor(position));
+            let f = fract(position);
+            for(var y=0;y<=1;y++){for(var x=0;x<=1;x++) {
+                let sample_pixel = clamp(base+vec2(x,y),vec2(0),vec2<i32>(i32(size)-1));
+                let sample_center = (vec2<f32>(sample_pixel) + 0.5) * texel;
+                let d = shadow_depth(sample_pixel,cascade);
+                let gap = reference + dot(gradient, sample_center - uv) - d;
+                let w = select(1.0-f,f,vec2(x,y)!=vec2(0));
+                let accepted = w.x*w.y*smoothstep(bias,bias+texel_world*0.5/span,gap);
+                if d < 1.0 { separation += max(gap,0.0)*span*accepted; count += accepted; }
+            }}
         }
         // No tap sees a blocker: the receiver is lit, whatever the filter would have averaged.
         if count < 0.5 { return vec3<f32>(1.0,0.0,radius/8.0); }
         radius = max(radius, clamp(separation / count * shadow_data.softness.x / texel_world, 0.0, maximum_radius));
-        blocker_fraction = count / 16.0;
+        blocker_fraction = count / 8.0;
         // Every tap is a blocker and the penumbra fits inside the search: fully shadowed.
-        if count > 15.5 && radius < 2.5 { return vec3<f32>(0.0,blocker_fraction,radius/8.0); }
+        if count > 7.5 && radius < 2.5 { return vec3<f32>(0.0,blocker_fraction,radius/8.0); }
     }
     if shadow_data.softness.z > 0.5 && radius > 2.0 {
         let dense = disk_filter(uv,cascade,reference,gradient,radius,true);
@@ -197,11 +206,9 @@ fn sun_sample(world: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     let overlap = select(0.8,0.65,shadow_data.softness.w > 0.5 && cascade + 1u < count);
     let transition = smoothstep(end * overlap, end, depth);
     if cascade + 1u < count {
-        // Dithered handoff: one cascade per pixel, the next one with probability `transition`.
-        // The noise is offset from the filter rotation so the two do not correlate.
-        let pick = interleaved_noise(shadow_pixel + vec2<f32>(47.0,13.0));
-        if transition > pick { return cascade_sample(world, normal, cascade + 1u); }
-        return cascade_sample(world, normal, cascade);
+        let near = cascade_sample(world, normal, cascade);
+        if transition <= 0.0 { return near; }
+        return mix(near, cascade_sample(world, normal, cascade + 1u), transition);
     }
     var sample = cascade_sample(world, normal, cascade);
     sample.x = mix(sample.x, 1.0, transition);
@@ -261,7 +268,13 @@ fn car_direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) 
 }
 
 fn direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) -> f32 {
-    shadow_pixel = pixel;
+    shadow_footprint = shadow_receiver_footprint(world);
+    if shadow_data.contact.z > 1.5 {
+        let p = clamp(vec2<i32>(pixel),vec2<i32>(0),vec2<i32>(shadow_data.contact.xy)-vec2<i32>(1));
+        let ray = textureLoad(contact_map,p,0).rg;
+        if ray.g >= 0.999 { return ray.r; }
+        return mix(sun_visibility(world,normal),ray.r,ray.g);
+    }
     var visibility = sun_visibility(world, normal);
     if shadow_data.contact.z > 0.5 {
         let p = clamp(vec2<i32>(pixel), vec2<i32>(0), vec2<i32>(shadow_data.contact.xy) - vec2<i32>(1));
@@ -271,12 +284,12 @@ fn direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) -> f
 }
 
 fn lighting_debug_colour(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) -> vec3<f32> {
-    shadow_pixel = pixel;
+    shadow_footprint = shadow_receiver_footprint(world);
     if shadow_data.debug.x > 3.5 {
         let sample = sun_sample(world,normal);
         return vec3<f32>(select(sample.y,sample.z,shadow_data.debug.x>4.5));
     }
-    if shadow_data.debug.x < 1.5 { return vec3<f32>(sun_visibility(world, normal)); }
+    if shadow_data.debug.x < 1.5 { return vec3<f32>(direct_visibility(world, normal, pixel)); }
     if shadow_data.debug.x < 2.5 { return vec3<f32>(ambient_visibility(pixel)); }
     if shadow_data.options.x < 0.5 { return vec3<f32>(0.15); }
     let depth = dot(world - shadow_data.camera.xyz, shadow_data.forward.xyz);

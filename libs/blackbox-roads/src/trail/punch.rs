@@ -11,7 +11,7 @@ use super::{CUT, CUT_BEHIND, Cookie, xz};
 mod tests;
 
 /// Cars higher or lower than this relative to the trail are ignored.
-const MAX_HEIGHT_DIFF: f32 = 5.0;
+pub(super) const MAX_HEIGHT_DIFF: f32 = 5.0;
 /// Half a metre of room on every side of a car.
 const CAR_MARGIN: f32 = 0.5;
 /// Time to closest approach returned when two cars move alike, seconds.

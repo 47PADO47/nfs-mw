@@ -58,7 +58,14 @@ impl Renderer {
         frame: &FrameParams,
         instances: &[Instance],
     ) {
-        if !self.graphics.ao.method.temporal() || !self.graphics.ao.active() {
+        let sun_history = self.ray_shadows_active(frame)
+            && self.experiments.ray_soft_shadows
+            && self.experiments.ray_shadow_temporal
+            && self.experiments.ray_shadow_filter > 0.0;
+        if !(self.graphics.ao.method.temporal() && self.graphics.ao.active())
+            && !sun_history
+            && !self.cascade_history_active(frame)
+        {
             self.effect_motion = None;
             return;
         }
