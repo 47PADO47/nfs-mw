@@ -28,8 +28,6 @@
 //! - [`banner`]: the `Banner` slot's transient cards; [`condition`]: the vehicle condition chip (`VehicleCondition`).
 //! - [`parts`]: the plates, labels, bars, icons and key caps they draw with; [`words`]: their shared words.
 //! - [`map`]: the centred translucent map (the `Minimap` slot; `Blips` is left empty) and its turn-cue chip.
-//! - [`menu`]: the menus (PR 11a): the main menu, the option categories, the pause menu, the safe house, the option
-//!   pages and the dialogs, drawn from the lists the frontend publishes ([`MenuListCell`]).
 //! - [`menu`]: the menus (PR 11a, 11b): the main menu, the option categories, the pause menu, the safe house, the option
 //!   pages, the dialogs, the key list, the jukebox, the credits and the Blacklist, drawn from the lists the frontend
 //!   publishes ([`MenuListCell`]), and the LAN page, drawn from the LAN cell ([`LanCell`]).
@@ -100,10 +98,8 @@ pub use skin::card_skin;
 
 use blackbox_ui::{BuildCx, Component, Empty, SlotId, Theme, ThemeId, Tokens};
 
-use crate::ui::theme::{ElementId, MenuListCell};
-use cluster::Cluster;
-use menu::{CustomMenu, GlideCell};
 use crate::ui::theme::{ElementId, LanCell, MenuListCell};
+use cluster::Cluster;
 use lan_hud::LanHudParts;
 use menu::{CustomMenu, GlideCell, LanMenu};
 
@@ -186,7 +182,7 @@ impl Theme for CustomTheme {
 pub fn hud_component(slot: SlotId, radio: &RadioFeedCell, feed: &CustomFeedCell) -> Option<Box<dyn Component>> {
     // A slot id outside the catalogue has no component, and neither does any slot the look does not re-express.
     match ElementId::from_slot(slot)? {
-        ElementId::RadioCard => Some(Box::new(RadioCard::new(radio.clone()))),
+        ElementId::RadioCard => Some(Box::new(RadioCard::new(radio.clone(), feed.clone()))),
         // The telemetry cluster draws the speed, the revs, the gear and the bars from one slot (PR 6).
         ElementId::Speedometer => Some(Box::new(Cluster::new(feed.clone()))),
         ElementId::Tachometer => Some(Box::new(Empty)),
