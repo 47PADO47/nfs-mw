@@ -68,6 +68,15 @@ and draw a plain crossing. The turning ones are dropped.
   was taken, the view radius has changed by more than 10%, or the network is another one. The margin covers both
   thresholds, so no road in view is missing between two queries. A frame with no change only projects the cached
   roads and builds their strokes. Off and Compact do not touch the set.
+- **The race route** (`hud/map_roads/race_route.rs`). `RaceSession::route` (the opponents' `blackbox_roads::Route`)
+  runs through every gate of every lap. When the session starts (`scenes/world/race/start.rs`), the first lap's legs
+  (checkpoints plus the finish) are sampled like the roads (each step's piece of its segment's centre line, a missing
+  leg as the straight line between its goals), thinned at 1.5 m, and each kept point keeps its distance along the
+  route. A lap race (circuit, knockout) is closed: the line runs on to its first point. The result sits in the session
+  as a `RaceRouteHandle` (an `Arc`), and `hud_frame` copies the handle into `HudState::race_route` while a session
+  exists, `None` outside a race. The player's place on the lap is the route's length less `race_info.remaining_m`,
+  modulo the lap's length, so splitting the line costs a binary search per frame. A pursuit challenge has no route
+  and draws none.
 - **Memory between frames.** The theme makes a fresh component every frame, so the local set, the zoom spring and the
   mode change live in a `MapMemoryCell` the `CustomFeedCell` holds (`custom/map/memory.rs`).
 
@@ -96,10 +105,11 @@ Back to front, depths far behind the HUD's other elements (`DEFAULT_Z` is 1): ro
 player's arrow (57). Line widths are in HUD units times the HUD scale, the same on screen at every zoom.
 
 - **Route:** `HudState::route.path`, nav cyan, three units, the stretch ahead of the car at the roads' opacity plus 0.4.
+- **Race route:** `HudState::race_route` (section 3), nav cyan, three units, under the GPS route. The stretch ahead of
+  the player is at the route's alpha and the stretch already driven this lap at half of it; without the player's
+  place on the route (no `race_info.remaining_m`) the whole lap is bright. Centered and Expanded both draw it.
 - **Race:** the next gate (`race_info.next_gate`) as a nav ring held inside the ellipse's edge when out of view; the
-  checkpoint, speed-trap and racer blips as dots. **The race route is not drawn**: `HudState` has no race route
-  polyline (only the remaining distance), and the map does not invent one. A race route in the HUD state is the
-  follow-up.
+  checkpoint, speed-trap and racer blips as dots.
 - **Places:** the discovered `HudState::markers`: race starts (accent diamond), safe houses (success square), shops
   and car lots (text dot). The route's end is a nav diamond, held in view like the next gate.
 - **Police**, by the fair-knowledge rules, from `HudState::police_intel` only (the cop blips are never read): sighted
