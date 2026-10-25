@@ -26,7 +26,8 @@ fn the_last_driver_of_a_lap_is_knocked_out_and_everyone_is_told() {
 
     let mut next = vec![0usize; racers.len()];
     for _ in 0..12_000 {
-        if h.clients[racers[0]].got(|message| matches!(message, Message::KnockedOut(_))) {
+        // Endpoints deliver independently. One client's notice does not mean the other has drained its queue.
+        if racers.iter().all(|&index| h.clients[index].got(|message| matches!(message, Message::KnockedOut(_)))) {
             break;
         }
         h.step_by(|index, client| {
