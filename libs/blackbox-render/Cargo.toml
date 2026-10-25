@@ -18,6 +18,7 @@ ash = { version = "0.38", optional = true }
 windows = { version = "0.62", default-features = false, features = ["Win32_Graphics_Direct3D12", "Win32_System_Performance", "Win32_System_Threading"] }
 
 [dependencies]
+rayon.workspace = true
 blackbox-trace.workspace = true
 blackbox-gfx.workspace = true
 blackbox-gpu-passes.workspace = true

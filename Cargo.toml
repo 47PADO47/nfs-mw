@@ -61,6 +61,7 @@ license = "MIT OR Apache-2.0"
 publish = false
 
 [workspace.dependencies]
+rayon = "=1.11.0"
 blackbox-trace = { path = "libs/blackbox-trace" }
 # Engine-generic libraries (libs/)
 blackbox-aems = { path = "libs/blackbox-aems" }

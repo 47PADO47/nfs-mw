@@ -333,8 +333,8 @@ fn record_face(
     store.draw(encoder, &faces[*face], *face);
 }
 
-/// Record the prepared faces `jobs` at the same time: the first on this thread after the commands `first` holds,
-/// every other into an encoder of its own on a scoped worker thread. Recording only reads the renderer's state, and
+/// Record the prepared faces `jobs` on reusable workers: the first after the commands `first` holds,
+/// every other into an encoder of its own. Recording only reads the renderer's state, and
 /// wgpu's device, encoders and resources may be used from any thread. Returns the command buffers in the jobs' order,
 /// `first`'s at the start.
 fn record_in_parallel(
@@ -345,24 +345,24 @@ fn record_in_parallel(
     mut first: wgpu::CommandEncoder,
 ) -> Vec<wgpu::CommandBuffer> {
     let Some((head, rest)) = jobs.split_first() else { return vec![first.finish()] };
-    std::thread::scope(|scope| {
-        let workers: Vec<_> = rest
-            .iter()
-            .map(|job| {
-                scope.spawn(move || {
+    // Keep OS worker identities stable. Creating fresh GPU-recording threads every frame can
+    // retain driver thread-local allocations even after those threads have exited.
+    use rayon::prelude::*;
+    let (head, tail) = rayon::join(
+        || {
+            record_face(draw, outputs, &mut first, head);
+            first.finish()
+        },
+        || {
+            rest.par_iter()
+                .map(|job| {
                     let label = Some("reflection face");
                     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label });
                     record_face(draw, outputs, &mut encoder, job);
                     encoder.finish()
                 })
-            })
-            .collect();
-        record_face(draw, outputs, &mut first, head);
-        let mut commands = Vec::with_capacity(jobs.len());
-        commands.push(first.finish());
-        for worker in workers {
-            commands.push(worker.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)));
-        }
-        commands
-    })
+                .collect::<Vec<_>>()
+        },
+    );
+    std::iter::once(head).chain(tail).collect()
 }
