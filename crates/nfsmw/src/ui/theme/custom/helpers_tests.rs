@@ -86,7 +86,7 @@ fn a_numeric_label_is_one_text_node_in_the_numeric_face_sized_by_scale_and_text_
     assert_eq!(node.colour, Colours::BRIEF.text);
     let expected = size::SPEED * 1.5 * 1.2 / UNITS_PER_SCALE;
     assert!((node.world.x_axis.x - expected).abs() < 1e-4, "glyph scale {} for {expected}", node.world.x_axis.x);
-    assert!((sizing.units(size::SPEED) - 79.2).abs() < 1e-3, "44 units at 1.5 and 1.2");
+    assert!((sizing.units(size::SPEED) - 66.6).abs() < 1e-3, "37 units at 1.5 and 1.2");
 }
 
 #[test]

@@ -31,7 +31,7 @@ fn the_names_parse_back_and_are_unique() {
     let mut names: Vec<&str> = HudScenario::ALL.iter().map(|s| s.name()).collect();
     names.sort_unstable();
     names.dedup();
-    assert_eq!(names.len(), 12);
+    assert_eq!(names.len(), 13);
 }
 
 #[test]
@@ -174,6 +174,7 @@ fn notify_preempt_steps_a_critical_event_in_after_the_first_ones() {
 fn the_map_scenarios_share_a_route_with_a_left_turn_next() {
     let centred = first(HudScenario::MapCentered);
     assert_eq!(centred, first(HudScenario::MapExpanded), "only the map mode differs");
+    assert_eq!(centred, first(HudScenario::MapCompact), "only the map mode differs");
     let route = centred.route.unwrap();
     let turn = route.next_turn.unwrap();
     assert_eq!(turn.direction, TurnDirection::Left);
@@ -195,6 +196,7 @@ fn the_settings_pin_the_hud_and_take_the_map_mode() {
     assert!(expanded.hud && !expanded.hud_options.high_contrast, "the player's options are put back to the defaults");
     assert_eq!(expanded.speed_units, crate::settings::SpeedUnits::Metric);
     assert_eq!(HudScenario::MapCentered.settings(mine).hud_options.map_mode, MapMode::Centered);
+    assert_eq!(HudScenario::MapCompact.settings(mine).hud_options.map_mode, MapMode::Compact);
     let cooldown = HudScenario::Cooldown.settings(mine);
     assert_eq!(cooldown.hud_options, HudSettings::default());
 }

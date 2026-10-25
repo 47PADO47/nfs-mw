@@ -65,7 +65,9 @@ pub enum HudScenario {
     CriticalDamage,
     /// A Low notice and two Medium ones up, then a Critical event that displaces the Low one.
     NotifyPreempt,
-    /// Free roam with a GPS route two turns long, the map centred.
+    /// Free roam with a GPS route two turns long, the map compact.
+    MapCompact,
+    /// The same with the map centred.
     MapCentered,
     /// The same with the map expanded.
     MapExpanded,
@@ -73,7 +75,7 @@ pub enum HudScenario {
 
 impl HudScenario {
     /// Every scenario, in the order the screenshot matrix renders them.
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::FreeRoam,
         Self::RaceIntro,
         Self::Racing,
@@ -84,6 +86,7 @@ impl HudScenario {
         Self::Escape,
         Self::CriticalDamage,
         Self::NotifyPreempt,
+        Self::MapCompact,
         Self::MapCentered,
         Self::MapExpanded,
     ];
@@ -101,6 +104,7 @@ impl HudScenario {
             Self::Escape => "escape",
             Self::CriticalDamage => "critical-damage",
             Self::NotifyPreempt => "notify-preempt",
+            Self::MapCompact => "map-compact",
             Self::MapCentered => "map-centered",
             Self::MapExpanded => "map-expanded",
         }
@@ -109,6 +113,7 @@ impl HudScenario {
     /// The map mode the scenario runs with; `None` keeps the default.
     pub fn map_mode(self) -> Option<MapMode> {
         match self {
+            Self::MapCompact => Some(MapMode::Compact),
             Self::MapCentered => Some(MapMode::Centered),
             Self::MapExpanded => Some(MapMode::Expanded),
             _ => None,
@@ -137,7 +142,7 @@ impl HudScenario {
             Self::Escape => pursuit::escape(viewport),
             Self::CriticalDamage => driving::critical_damage(viewport),
             Self::NotifyPreempt => driving::free_roam(viewport),
-            Self::MapCentered | Self::MapExpanded => map::route(viewport),
+            Self::MapCompact | Self::MapCentered | Self::MapExpanded => map::route(viewport),
         }
     }
 

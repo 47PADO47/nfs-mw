@@ -1,5 +1,8 @@
-//! The map scenarios: free roam with a GPS route to the safe house, two turns long. `map-centered` and
-//! `map-expanded` share the state; only the map mode they run with differs (`HudScenario::map_mode`).
+//! The map scenarios: free roam with a GPS route to the safe house, two turns long, an auto shop and a discovered race
+//! start. `map-compact`, `map-centered` and `map-expanded` share the state; only the map mode they run with differs
+//! (`HudScenario::map_mode`).
+
+use nfsmw_data::gameplay::RaceType;
 
 use super::common::{CAR, at, car, career};
 use crate::hud::{GPS, HudState, MapBlip, NavMarker, NavMarkerKind, NavRoute, next_turn};
@@ -13,9 +16,15 @@ pub fn route(viewport: [f32; 2]) -> HudState {
     let route = NavRoute { next_turn: next_turn(&path, &junctions, CAR), path, target };
     let safe_house = NavMarker { kind: NavMarkerKind::SafeHouse, position: target, name: None, discovered: true };
     let shop = NavMarker { kind: NavMarkerKind::AutoShop, position: at(150.0, -260.0), name: None, discovered: true };
+    let race = NavMarker {
+        kind: NavMarkerKind::Race(RaceType::Sprint),
+        position: at(-180.0, 140.0),
+        name: Some("fixture".to_owned()),
+        discovered: true,
+    };
     HudState {
         route: Some(route),
-        markers: vec![safe_house, shop],
+        markers: vec![safe_house, shop, race],
         blips: vec![MapBlip { style: GPS, position: target, active: false, heading: None }],
         ..career(car(96.0, 3, 4300.0, viewport))
     }

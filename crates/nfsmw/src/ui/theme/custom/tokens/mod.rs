@@ -22,7 +22,7 @@ mod motion;
 #[cfg(test)]
 mod tests;
 
-pub use colours::Colours;
+pub use colours::{Colours, SIGNAL};
 pub use motion::{Motion, ramp};
 
 use blackbox_ui::Skin;

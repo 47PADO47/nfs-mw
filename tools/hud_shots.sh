@@ -19,7 +19,7 @@
 set -eu
 
 # The names of HudScenario::ALL (crates/nfsmw/src/devtools/hud_scenarios/mod.rs), in its order.
-ALL_SCENARIOS="free-roam race-intro racing race-results pursuit-active search cooldown escape critical-damage notify-preempt map-centered map-expanded"
+ALL_SCENARIOS="free-roam race-intro racing race-results pursuit-active search cooldown escape critical-damage notify-preempt map-compact map-centered map-expanded"
 SIZES="1280x720 2560x1080 5120x1440"
 PALETTES="deuteranopia tritanopia"
 # Long enough after the scene is ready for the notices and the fades to settle (notify-preempt steps on frame 30).

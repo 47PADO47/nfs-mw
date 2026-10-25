@@ -1,5 +1,5 @@
-//! The Custom HUD's colours (`docs/specs/custom-hud/visual-identity.md` sections 2 to 4): the brief's palette, the
-//! high-contrast variant and the colour-vision palettes, as `[r, g, b, a]`.
+//! The Custom HUD's colours (`docs/specs/custom-hud/visual-identity.md` sections 2 to 4): the Rockport / Signal System
+//! palette (`docs/HUD_DESIGN_SYSTEM.md`), the high-contrast variant and the colour-vision palettes, as `[r, g, b, a]`.
 //!
 //! Order of application: the palette replaces the meaning hues, then high contrast replaces the neutrals and brightens
 //! the hues. With the default palette the high-contrast hues are the spec's table; with a colour-vision palette they
@@ -8,6 +8,9 @@
 use crate::settings::hud::HudPalette;
 
 use super::CustomLook;
+
+/// The signal yellow: the route, the player's action and, with the Bevy `ui_theme`, the accent.
+pub const SIGNAL: [u8; 4] = [0xF4, 0xB9, 0x42, 255];
 
 /// How far high contrast moves a colour-vision palette's hue towards white.
 pub const BRIGHTEN: f32 = 0.25;
@@ -39,13 +42,14 @@ struct Hues {
     critical: [u8; 4],
 }
 
-/// The brief's hues (`text`, `text_secondary` and `danger` are its hex values), and the default palette's.
+/// The default palette's hues: signal yellow for the route and the player's action, the police red for danger, and a
+/// deeper orange for caution so a warning is not read as the route.
 const DEFAULT_HUES: Hues = Hues {
-    nav: [0x7F, 0xD8, 0xEC, 255],
-    success: [0x5C, 0xC2, 0x8F, 255],
-    caution: [0xE8, 0xB2, 0x4A, 255],
-    danger: [0xE0, 0x52, 0x4D, 255],
-    critical: [0xFF, 0xB0, 0x00, 255],
+    nav: SIGNAL,
+    success: [0x7D, 0xCE, 0xA0, 255],
+    caution: [0xE8, 0x87, 0x3A, 255],
+    danger: [0xF0, 0x44, 0x52, 255],
+    critical: [0xFF, 0x5A, 0x55, 255],
 };
 
 /// Red-green: the Okabe and Ito set, a cool white for the route.
@@ -62,33 +66,33 @@ const TRITANOPIA_HUES: Hues = Hues {
     nav: [0xF2, 0xF4, 0xF7, 255],
     success: [0x00, 0x9E, 0x73, 255],
     caution: [0xCC, 0x79, 0xA7, 255],
-    danger: [0xE0, 0x52, 0x4D, 255],
-    critical: [0xFF, 0xB0, 0x00, 255],
+    danger: [0xF0, 0x44, 0x52, 255],
+    critical: [0xFF, 0x5A, 0x55, 255],
 };
 
 /// The default palette's hues under high contrast.
 const HIGH_CONTRAST_HUES: Hues = Hues {
-    nav: [0x8F, 0xE6, 0xFF, 255],
-    success: [0x66, 0xE0, 0xA3, 255],
-    caution: [0xFF, 0xD1, 0x66, 255],
+    nav: [0xFF, 0xD3, 0x6A, 255],
+    success: [0x9A, 0xE8, 0xBB, 255],
+    caution: [0xFF, 0xA8, 0x62, 255],
     danger: [0xFF, 0x6B, 0x66, 255],
-    critical: [0xFF, 0xD0, 0x00, 255],
+    critical: [0xFF, 0x8A, 0x85, 255],
 };
 
 impl Colours {
-    /// The brief's palette: light text on a translucent charcoal plate.
+    /// The default palette: light text on a translucent graphite plate.
     pub const BRIEF: Colours = Colours {
-        text: [0xE8, 0xED, 0xF2, 255],
-        text_secondary: [0x9B, 0xA7, 0xB3, 255],
-        surface: [0x12, 0x16, 0x1B, 153],
-        surface_raised: [0x1C, 0x22, 0x2A, 191],
-        rule: [0xE8, 0xED, 0xF2, 46],
+        text: [0xF4, 0xF6, 0xF8, 255],
+        text_secondary: [0xB4, 0xBE, 0xC8, 255],
+        surface: [0x10, 0x16, 0x1D, 153],
+        surface_raised: [0x17, 0x1F, 0x28, 191],
+        rule: [0x7C, 0x89, 0x95, 90],
         nav: DEFAULT_HUES.nav,
         success: DEFAULT_HUES.success,
         caution: DEFAULT_HUES.caution,
         danger: DEFAULT_HUES.danger,
         critical: DEFAULT_HUES.critical,
-        critical_text: [0x12, 0x16, 0x1B, 255],
+        critical_text: [0x10, 0x16, 0x1D, 255],
         outline: None,
     };
 

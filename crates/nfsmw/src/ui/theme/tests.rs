@@ -246,7 +246,7 @@ fn the_active_theme_tokens_reach_the_skin_the_components_read() {
 }
 
 #[test]
-fn the_custom_tokens_follow_the_look_and_take_their_accent_from_the_palette() {
+fn the_custom_tokens_follow_the_look_and_take_their_accent_from_the_theme() {
     use crate::settings::hud::HudPalette;
     use crate::settings::{UiStyle, UiTheme};
 
@@ -256,7 +256,11 @@ fn the_custom_tokens_follow_the_look_and_take_their_accent_from_the_palette() {
     let mut themes = super::UiThemes::build();
     themes.select(UiStyle::Custom);
     assert_eq!(themes.skin.colour(keys::TEXT), Some(Colours::BRIEF.text));
-    assert_eq!(themes.skin.colour(keys::ACCENT), Some(palette::bevy().secondary), "the Bevy cyan");
+    assert_eq!(
+        themes.skin.colour(keys::ACCENT),
+        Some(super::custom::tokens::SIGNAL),
+        "the Bevy theme takes the signal yellow"
+    );
     themes.set_ui_theme(UiTheme::Remastered);
     assert_eq!(themes.skin.colour(keys::ACCENT), Some(palette::remastered().secondary), "the Remastered gold");
     themes.set_custom_look(CustomLook { palette: HudPalette::Deuteranopia, high_contrast: true });

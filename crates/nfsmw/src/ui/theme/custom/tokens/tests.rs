@@ -29,9 +29,10 @@ fn hues(c: &Colours) -> [[u8; 4]; 5] {
 fn the_default_look_is_the_briefs_palette() {
     let c = Colours::for_look(CustomLook::default());
     assert_eq!(c, Colours::BRIEF);
-    assert_eq!(c.text, [0xE8, 0xED, 0xF2, 255], "#E8EDF2");
-    assert_eq!(c.text_secondary, [0x9B, 0xA7, 0xB3, 255], "#9BA7B3");
-    assert_eq!(c.danger, [0xE0, 0x52, 0x4D, 255], "#E0524D");
+    assert_eq!(c.text, [0xF4, 0xF6, 0xF8, 255], "#F4F6F8");
+    assert_eq!(c.text_secondary, [0xB4, 0xBE, 0xC8, 255], "#B4BEC8");
+    assert_eq!(c.nav, [0xF4, 0xB9, 0x42, 255], "signal yellow for the route");
+    assert_eq!(c.danger, [0xF0, 0x44, 0x52, 255], "#F04452, the police red");
     assert_eq!(c.surface[3], 153, "the charcoal plate is translucent (0.6)");
     assert_eq!(c.outline, None, "no outline without high contrast");
 }

@@ -39,7 +39,7 @@ All values come from `HudState` through `CustomFeedCell`. Fields added in PR 3a 
 
 ## 3. Speed
 
-- **Digits:** numeric key, size 44, right-aligned on their last cell, tabular ([typography.md](typography.md)
+- **Digits:** numeric key, size 37, right-aligned on their last cell, tabular ([typography.md](typography.md)
   section 5). The value is the raw speed floored, exactly as `display_speed` does today, so the digits never lag.
 - **Unit:** label-wide key, size 10, `text_secondary`: `KM/H` or `MPH` from the catalogue (`hud.ftl`).
 - **Unit conversion** follows the existing `SpeedUnits` rules; tests check km/h to mph on known values (PR 6).

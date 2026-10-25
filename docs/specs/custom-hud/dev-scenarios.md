@@ -28,7 +28,8 @@ also builds the `HudEvent`s and a notification queue state, and pins the elapsed
 | `escape` | the escape card, 4:05, bounty earned |
 | `critical-damage` | rear-left tyre blown, front-right punctured with 12 s left, heavy body damage |
 | `notify-preempt` | three Medium notifications visible, then a Critical arrives and displaces the oldest |
-| `map-centered` | free roam with a GPS route and two turns ahead, map Centered |
+| `map-compact` | free roam with a GPS route and two turns ahead, a shop and a discovered race, map Compact |
+| `map-centered` | the same with the map Centered |
 | `map-expanded` | the same with the map Expanded |
 
 The fixtures are synthetic numbers chosen to exercise the layout; no game data is copied into them.

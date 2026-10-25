@@ -22,8 +22,8 @@ for the Remastered text (`ui/raster_text.rs`, `ui/present/blackbox.rs`). No FEng
 
 | Element | Key | Size |
 |---|---|---|
-| Speed digits | numeric | 44 |
-| Gear | numeric | 26 |
+| Speed digits | numeric | 37 |
+| Gear | numeric | 19 |
 | Race position (`2`) | numeric | 30 |
 | Strip values (lap, distance, gap) | numeric | 16 |
 | Speed unit, headings | label wide | 10 |

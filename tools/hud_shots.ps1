@@ -49,7 +49,7 @@ $ErrorActionPreference = 'Stop'
 $AllScenarios = @(
     'free-roam', 'race-intro', 'racing', 'race-results',
     'pursuit-active', 'search', 'cooldown', 'escape',
-    'critical-damage', 'notify-preempt', 'map-centered', 'map-expanded'
+    'critical-damage', 'notify-preempt', 'map-compact', 'map-centered', 'map-expanded'
 )
 $Sizes = @('1280x720', '2560x1080', '5120x1440')
 $Palettes = @('deuteranopia', 'tritanopia')
