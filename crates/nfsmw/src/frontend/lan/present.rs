@@ -7,6 +7,8 @@ use super::hud::HudView;
 use super::menu::rows::{HintDoes, HintKey, PageView, Row, RowKind};
 use crate::input::Action;
 use crate::ui::prompts::Prompt;
+use crate::ui::theme::custom::menu::hint_at as custom_hint_at;
+use crate::ui::theme::custom::menu::layout::{self as custom_place, MenuFrame, Side as CustomSide};
 use crate::ui::theme::remastered::menu::layout as place;
 use crate::ui::theme::{
     LanHud, LanLine, LanLineKind, LanPage, LanSpectator, MenuEntry, MenuHint, MenuList, MenuStyle, MenuValue,
@@ -88,7 +90,8 @@ pub fn hud_of(hud: &HudView, aspect: f32) -> LanHud {
     }
 }
 
-/// Where the page drawn last put its rows and hints, for a click on them (the same geometry the themes draw by).
+/// Where the page drawn last put its rows and hints, for a click on them (the same geometry the themes draw by: the
+/// Original and Remastered pages share the Remastered places, the Custom page has its own).
 #[derive(Clone, Debug, Default)]
 pub struct ClickMap {
     pub first: usize,
@@ -98,6 +101,9 @@ pub struct ClickMap {
     pub hints: Vec<MenuHint>,
     /// Which rows are choices: a click on a chevron steps them.
     pub choices: Vec<bool>,
+    /// The `[custom_hud]` text size when the Custom look draws the page (`custom/menu/lan.rs`), `None` for the
+    /// Remastered places.
+    pub custom: Option<f32>,
 }
 
 impl ClickMap {
@@ -109,20 +115,40 @@ impl ClickMap {
             aspect: page.list.aspect,
             hints: page.list.hints.clone(),
             choices: view.rows.iter().map(|row| row.kind == RowKind::Choice).collect(),
+            custom: None,
         }
+    }
+
+    /// This map for a page the Custom look draws, at `[custom_hud] text_size`, or for the Remastered places (`None`).
+    pub fn in_custom(self, text_size: Option<f32>) -> Self {
+        Self { custom: text_size, ..self }
     }
 
     /// The row under `point` (FEng units), and which part of it.
     pub fn row_at(&self, point: glam::Vec2) -> Option<(usize, place::Side)> {
-        let shown = place::shown(self.count);
-        let row = place::row_at(point, shown, self.aspect, self.wide)? + self.first;
-        let side = place::side_at(point.x - place::left_edge(self.aspect));
+        let Some(text_size) = self.custom else {
+            let shown = place::shown(self.count);
+            let row = place::row_at(point, shown, self.aspect, self.wide)? + self.first;
+            let side = place::side_at(point.x - place::left_edge(self.aspect));
+            return Some((row, side));
+        };
+        let frame = MenuFrame::new(self.aspect, text_size);
+        let shown = custom_place::shown(self.count.saturating_sub(self.first));
+        let row = frame.row_at(point, shown, self.wide)? + self.first;
+        let side = match frame.side_at(point.x) {
+            CustomSide::Left => place::Side::Left,
+            CustomSide::Middle => place::Side::Middle,
+            CustomSide::Right => place::Side::Right,
+        };
         Some((row, side))
     }
 
     /// The action of the footer hint under `point`.
     pub fn hint_at(&self, point: glam::Vec2) -> Option<Action> {
-        place::hint_at(&self.hints, point, self.aspect)
+        match self.custom {
+            Some(text_size) => custom_hint_at(&self.hints, point, self.aspect, text_size),
+            None => place::hint_at(&self.hints, point, self.aspect),
+        }
     }
 }
 

@@ -10,7 +10,7 @@ use crate::frontend::logic::Way;
 use crate::input::Action;
 use crate::settings::{Settings, UiStyle};
 use crate::ui::theme::custom::menu::layout::{self as custom_layout, MenuFrame, Side as CustomSide};
-use crate::ui::theme::custom::menu::{dialog_row_at, hint_at as custom_hint_at};
+use crate::ui::theme::custom::menu::{blacklist_row_at, dialog_row_at, hint_at as custom_hint_at};
 use crate::ui::theme::remastered::menu::layout as remastered;
 use crate::ui::theme::{MenuHint, MenuList, MenuStyle};
 
@@ -37,12 +37,14 @@ impl ListGeometry {
     /// The entry of `list` under a point, on a window `aspect` wide.
     pub fn row_at(self, point: Vec2, list: &MenuList, aspect: f32) -> Option<usize> {
         let rest = list.entries.len().saturating_sub(list.first);
-        let text_size = match self {
-            Self::Custom { text_size } if list.style != MenuStyle::Blacklist => text_size,
-            _ => return remastered_row_at(point, list, aspect),
+        let Self::Custom { text_size } = self else {
+            return remastered_row_at(point, list, aspect);
         };
         if list.style == MenuStyle::Dialog {
             return dialog_row_at(point, list, aspect, text_size);
+        }
+        if list.style == MenuStyle::Blacklist {
+            return blacklist_row_at(point, list, aspect, text_size);
         }
         let frame = MenuFrame::new(aspect, text_size);
         frame.row_at(point, custom_layout::shown(rest), list.has_values()).map(|row| list.first + row)
@@ -152,6 +154,20 @@ mod tests {
         assert_eq!(at(column.max_x() - 2.0), Way::Forward);
         assert_eq!(at(column.x), Way::Stay);
         assert!((custom.along_at(Vec2::new(column.x, 0.0), DEFAULT_ASPECT) - 0.5).abs() < 1e-4);
+    }
+
+    #[test]
+    fn a_click_on_the_blacklist_lands_on_the_row_the_custom_look_draws() {
+        use crate::ui::theme::custom::menu::blacklist::BlacklistFrame;
+        let custom = ListGeometry::Custom { text_size: 1.0 };
+        let entries = (0..15).map(|i| MenuEntry::plain(format!("Rival {i}"), true)).collect();
+        let blacklist = MenuList { entries, ..list(MenuStyle::Blacklist) };
+        let rows = BlacklistFrame::of(&MenuFrame::new(DEFAULT_ASPECT, 1.0));
+        let at = |i: usize| Vec2::new(rows.left() + 40.0, rows.row_y(i));
+        assert_eq!(custom.row_at(at(0), &blacklist, DEFAULT_ASPECT), Some(0));
+        assert_eq!(custom.row_at(at(14), &blacklist, DEFAULT_ASPECT), Some(14));
+        let past = Vec2::new(rows.right() + 4.0, rows.row_y(3));
+        assert_eq!(custom.row_at(past, &blacklist, DEFAULT_ASPECT), None, "right of the rows, on the card");
     }
 
     #[test]

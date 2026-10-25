@@ -80,6 +80,21 @@ fn a_click_lands_on_the_row_and_the_side_the_themes_draw() {
 }
 
 #[test]
+fn under_the_custom_look_a_click_lands_on_the_custom_rows_and_sides() {
+    use crate::ui::theme::custom::menu::layout::MenuFrame;
+    let view = view();
+    let page = page_of(&view, 0, 16.0 / 9.0);
+    let map = ClickMap::of(&view, &page).in_custom(Some(1.0));
+    let frame = MenuFrame::new(16.0 / 9.0, 1.0);
+    let column = frame.value_column(frame.row_y(1));
+    assert_eq!(map.row_at(Vec2::new(frame.text_left(), frame.row_y(1))), Some((1, Side::Middle)));
+    assert_eq!(map.row_at(Vec2::new(column.min_x() + 2.0, column.y)), Some((1, Side::Left)));
+    assert_eq!(map.row_at(Vec2::new(column.max_x() - 2.0, column.y)), Some((1, Side::Right)));
+    assert_eq!(map.row_at(Vec2::new(frame.row_right(true) + 10.0, frame.row_y(1))), None, "right of the rows");
+    assert_eq!(ClickMap::of(&view, &page).custom, None, "the Remastered places by default");
+}
+
+#[test]
 fn the_window_of_rows_follows_the_selection() {
     assert_eq!(window_first(0, 3, 20), 0);
     assert_eq!(window_first(0, 9, 20), 2);

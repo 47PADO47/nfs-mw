@@ -11,6 +11,7 @@ use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 use blackbox_feng::fe_hash_upper;
 use blackbox_feng::runtime::pad;
+use blackbox_ui::ThemeId;
 use nfsmw_data::gameplay::RaceType;
 use nfsmw_net::message::Mode;
 
@@ -27,8 +28,8 @@ use crate::frontend::name_entry::TextKey;
 use crate::frontend::plugin_keys::{TypedKeys, pad_mask, text_mask};
 use crate::input::{Action, ActionState};
 use crate::settings::Settings;
-use crate::ui::theme::UiThemes;
 use crate::ui::theme::remastered::menu::layout::Side;
+use crate::ui::theme::{ElementId, UiThemes};
 
 /// The LAN menu and what it keeps between frames.
 #[derive(Resource, Default)]
@@ -294,7 +295,10 @@ pub(in crate::frontend) fn publish(
         let view = ui.menu.view(&Cx::new(net, &settings, &ui.cars));
         ui.first = present::window_first(ui.first, view.selected, view.rows.len());
         let page = present::page_of(&view, ui.first, aspect);
-        ui.clicks = ClickMap::of(&view, &page);
+        // The Custom look lays the rows out its own way, so a click is tested against its places.
+        let custom =
+            (themes.provided_by(ElementId::LanMenu) == Some(ThemeId::Custom)).then_some(settings.hud_options.text_size);
+        ui.clicks = ClickMap::of(&view, &page).in_custom(custom);
         cell.set_page(page);
         return;
     }
