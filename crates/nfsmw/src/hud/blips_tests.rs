@@ -241,8 +241,8 @@ fn the_light_bar_moves_with_time_not_with_frames() {
         binding.apply(&mut rt, &state);
     }
     assert_eq!(cop_colour(&rt, id), [0, 0, 255, 255]);
-    // 0.25 s is tick 2, the third step: red.
+    // 0.25 s is tick 2, the third step: grey.
     binding.advance_blips(0.25);
     binding.apply(&mut rt, &state);
-    assert_eq!(cop_colour(&rt, id), [160, 0, 0, 255]);
+    assert_eq!(cop_colour(&rt, id), [204, 204, 204, 255]);
 }

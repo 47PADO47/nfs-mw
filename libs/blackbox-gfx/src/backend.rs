@@ -90,6 +90,7 @@ pub trait RenderBackend {
     }
     fn destroy_sky_material(&mut self, _handle: crate::SkyMaterialHandle) {}
     fn set_sky_state(&mut self, _state: crate::SkyState) {}
+    fn set_sun_glare(&mut self, _glare: Option<crate::SunGlare>) {}
 
     /// Unsupported backends return `None`, requesting the caller's legacy fallback.
     fn create_normal_material(&mut self, _desc: &crate::NormalMaterialDesc) -> Option<crate::NormalMaterialHandle> {

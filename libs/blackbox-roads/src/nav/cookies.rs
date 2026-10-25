@@ -64,10 +64,11 @@ impl RoadNav {
     /// Absolute lane and corridor offsets at one endpoint, in the travel frame.
     fn endpoint(&self, net: &RoadNetwork, heading_end: bool, margin: f32) -> Endpoint {
         let profile = travel_profile(net, self.segment, self.node_ind, heading_end);
-        let offset = match profile.zones.is_empty() {
+        let indexed_offset = match profile.zones.is_empty() {
             true => 0.0,
             false => profile.signed_offset(self.lane.min(profile.zones.len() - 1)),
         };
+        let offset = self.lane_offset.unwrap_or(indexed_offset);
         let default = Endpoint { offset, left: offset - DEFAULT_BOUND, right: offset + DEFAULT_BOUND };
         if profile.zones.is_empty() {
             return default;
@@ -101,6 +102,9 @@ impl RoadNav {
     /// Build the centre from the same endpoint corridors as its active trail.
     pub(super) fn drive_line(&self, net: &RoadNetwork) -> Bezier {
         if self.trail.is_none() || self.kind == NavKind::Traffic {
+            if let Some(offset) = self.lane_offset {
+                return lane_line_at_offsets(net, self.segment, self.node_ind, offset, offset);
+            }
             return lane_line(net, self.segment, self.node_ind, self.lane);
         }
         let margin = self.half_width + EDGE_MARGIN;

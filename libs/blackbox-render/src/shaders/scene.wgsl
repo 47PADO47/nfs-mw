@@ -179,7 +179,10 @@ fn fs_alpha_test(in: VsOut) -> @location(0) vec4<f32> {
     if WORLD_KIND > 0u && globals.light_dir.w > 0.5 {
         alpha = select(alpha, texture_alpha, WORLD_KIND == 2u) * select(1.0, 2.0, WORLD_KIND == 3u);
     }
-    if alpha < 0.5 {
+    // World-family coverage also includes authored half-alpha walls. Keep genuine texture holes.
+    // Independent behavior reference: docs/specs/world-material-routing.md.
+    let cutoff = select(0.5, 0.375, WORLD_KIND == 1u || WORLD_KIND == 3u || WORLD_KIND == 4u);
+    if select(alpha < cutoff, alpha <= cutoff, WORLD_KIND == 1u || WORLD_KIND == 3u || WORLD_KIND == 4u) {
         discard;
     }
     let c = shade(in, true);

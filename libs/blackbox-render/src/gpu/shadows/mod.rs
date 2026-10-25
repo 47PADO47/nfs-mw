@@ -45,6 +45,7 @@ pub(super) struct Shadows {
     bias: [f32; 2],
     opaque: wgpu::RenderPipeline,
     cutout: wgpu::RenderPipeline,
+    world_cutout: wgpu::RenderPipeline,
     tree_cutout: wgpu::RenderPipeline,
     prelit_cutout: wgpu::RenderPipeline,
     buffers: Vec<wgpu::Buffer>,
@@ -168,6 +169,18 @@ impl Renderer {
         {
             let size = contact.size();
             params.contact = [size.0 as f32, size.1 as f32, 1.0, 0.0];
+        }
+        if self.ray_shadows_active(frame)
+            && let Some(ray) = &self.ray_shadows
+        {
+            let size = ray.size();
+            params.contact = [size.0 as f32, size.1 as f32, 2.0, 0.0];
+        }
+        if self.cascade_history_active(frame)
+            && let Some(surfaces) = &self.surfaces
+        {
+            let size = surfaces.targets.size;
+            params.contact = [size.0 as f32, size.1 as f32, 2.0, 0.0];
         }
         params.environment = [
             u8::from(settings.car_skylight && self.supports_irradiance()) as f32,
