@@ -161,7 +161,8 @@ pub fn format_metres(metres: f32) -> String {
 /// Opens the map over the frozen world. The blips and the player are read before the world freezes (a paused scene
 /// reports no blips), and stay as they were while it is paused.
 pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, env: &mut Env) {
-    let (blips, player, second, event) = match host.scene.hud_state() {
+    let hud = host.scene.hud_state();
+    let (blips, player, second, event) = match &hud {
         Some(hud) => (hud.blips.clone(), hud.minimap, hud.second_player, hud.map_source.event().map(str::to_owned)),
         None => (Vec::new(), None, None, None),
     };
@@ -173,6 +174,10 @@ pub fn open(fe: &mut Frontend, overlay: &mut WorldMapOverlay, host: &mut Host, e
         }
     };
     overlay.open(calibration);
+    // A theme that draws the map itself (Custom) draws the roads and the GPS route too: the scene's handle to the roads
+    // (a reference count, not a copy) and the route, taken with the blips before the world freezes.
+    overlay.roads = hud.as_ref().and_then(|hud| hud.map_roads.clone());
+    overlay.route = hud.and_then(|hud| hud.route);
     overlay.refresh(&blips, player.as_ref(), second.as_ref());
     let helicopters = overlay.live.iter().filter(|blip| blip.style == crate::hud::HELICOPTER).count();
     log::info!(

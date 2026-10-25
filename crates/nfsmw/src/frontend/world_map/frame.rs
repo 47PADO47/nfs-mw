@@ -2,8 +2,11 @@
 //! the blips placed on the picture and the player's place. The frontend makes one each frame from the overlay and hands
 //! it to the screen (`Cx::world_map`).
 
+use blackbox_minimap::Calibration;
+
 use super::layout::Picture;
 use super::{PlacedBlip, WorldMap};
+use crate::hud::{MapRoadsHandle, NavRoute};
 
 /// The player's car on the picture: its place on the map, and its bearing in degrees, clockwise from up.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -103,4 +106,11 @@ pub struct WorldMapFrame {
     pub clock: f32,
     /// Seconds since the cursor last snapped onto, or off, a blip, for the snap animation.
     pub snap_age: f32,
+    /// The city's calibration (world metres to the picture), so a theme that draws the map itself can place the roads
+    /// and the route where the blips are. `None` when the map opened without one.
+    pub calibration: Option<Calibration>,
+    /// The roads of the loaded network, read from the HUD state at open (`HudState::map_roads`): shared, not copied.
+    pub roads: Option<MapRoadsHandle>,
+    /// The GPS route at open (`HudState::route`), render space.
+    pub route: Option<NavRoute>,
 }
