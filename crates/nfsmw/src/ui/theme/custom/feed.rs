@@ -123,13 +123,7 @@ pub struct CustomFeedCell {
     /// What the free-roam, race and pursuit layouts remember across frames (`memory.rs`): the components are rebuilt
     /// every frame, so their memory travels with the feed they read.
     memory: LayoutMemory,
-}
-
-/// The shared cell. Clones share one feed, and one map memory: the state the map keeps between frames (`map/memory.rs`),
-/// since the theme makes a fresh map component every frame.
-#[derive(Clone, Debug, Default)]
-pub struct CustomFeedCell {
-    feed: Arc<Mutex<CustomFeed>>,
+    /// The state the map keeps between frames (`map/memory.rs`), since the theme makes a fresh map component every frame.
     map: MapMemoryCell,
 }
 

@@ -262,22 +262,16 @@ fn a_hidden_root_keeps_its_nodes_but_draws_none_of_them() {
 }
 
 #[test]
-fn the_custom_theme_draws_its_map_and_leaves_the_other_hud_slots_to_original() {
-    // The old drive card is gone (ADR 0013). The map fills the minimap and blip slots; the cluster and the layouts come
-    // in later PRs, so until then every other HUD slot falls back to Original.
+fn the_custom_theme_draws_every_hud_slot_but_the_busted_overlay() {
+    // The rewrite (ADR 0013) draws the whole HUD with its own components: the cluster, the map, the layouts, the
+    // markers and the notifications. Only the busted overlay stays Original's.
     let mut themes = UiThemes::build();
     themes.select(UiStyle::Custom);
     themes.frame().set(FengSource::Hud, synthetic_hud());
     for element in super::original::HUD_SLOTS {
-        // The notification stack is Custom's (PR 10); with no notification in the feed it draws nothing, and Original
-        // has nothing there either.
         let expected = match element {
-            ElementId::Notifications => ThemeId::Custom,
-        }
-
-        let expected = match element {
-            ElementId::Minimap | ElementId::Blips => ThemeId::Custom,
-            _ => ThemeId::Original,
+            ElementId::BustedOverlay => ThemeId::Original,
+            _ => ThemeId::Custom,
         };
         assert_eq!(themes.provided_by(element), Some(expected), "{}", element.name());
     }
@@ -285,8 +279,8 @@ fn the_custom_theme_draws_its_map_and_leaves_the_other_hud_slots_to_original() {
     assert!(!has_name(&composed, roots::minimap().roots[0]), "the FEng minimap is still drawn");
     let blip = roots::blip_icons().first().copied().expect("the blip pool has icons");
     assert!(!has_name(&composed, blip), "the FEng blips are still drawn");
-    assert!(has_name(&composed, roots::gear().roots[0]), "the gear is Original's");
-    assert!(has_name(&composed, roots::tachometer().roots[0]), "the tachometer is Original's");
+    assert!(!has_name(&composed, roots::gear().roots[0]), "the FEng gear is still drawn");
+    assert!(!has_name(&composed, roots::tachometer().roots[0]), "the FEng tachometer is still drawn");
 }
 
 #[test]
