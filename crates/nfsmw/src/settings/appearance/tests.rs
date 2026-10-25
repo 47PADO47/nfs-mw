@@ -321,6 +321,13 @@ fn enhanced_water_tuning_round_trips_and_original_style_stays_unchanged() {
     s.appearance.lighting.water_ripples = 1.2;
     s.appearance.lighting.road_reflection_range = 500.0;
     s.appearance.lighting.road_reflection_fade = 0.8;
+    s.appearance.lighting.ray_road_reflections = false;
+    s.appearance.lighting.ray_car_reflections = true;
+    s.appearance.lighting.ray_texture_quality = 3;
+    s.appearance.lighting.ray_car_range = 160.0;
+    s.appearance.lighting.ray_car_blend = 0.75;
+    s.appearance.lighting.ray_road_blend = 0.6;
+    s.appearance.lighting.ray_road_screen_reuse = 0.7;
     let stored = s.appearance.value().unwrap();
     assert_eq!(Appearance::read(&stored, "water round-trip").unwrap(), s.appearance);
     s.select_visual_style(VisualStyle::OriginalPc);

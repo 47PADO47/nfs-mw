@@ -1,5 +1,8 @@
 # blackbox-render
 
+Optional Vulkan triangle reflections for enhanced wet roads are documented in
+[vulkan-ray-reflections.md](../../docs/vulkan-ray-reflections.md).
+
 Screen displacement draws sparse textured regions after post effects and upscaling,
 before display mapping and HUD. It has no pass or scratch cost while disabled.
 
@@ -258,3 +261,6 @@ Transparent planar captures retain coverage in an independent HDR target. Diffus
 receivers sample their unjittered projection through complementary floor alpha,
 keeping their original draw bucket, depth and blend order. Road captures retain
 their separate culling contract.
+
+Cubemap face recording uses reusable workers. Avoid per-frame OS thread creation: some
+Vulkan drivers retain thread-local recording allocations after short-lived threads exit.

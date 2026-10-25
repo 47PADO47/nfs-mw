@@ -25,19 +25,28 @@ impl Renderer {
         let Projection::PerspectiveInfiniteReverse { near, .. } = frame.projection else { return };
         let Some(glossy) = &mut self.glossy else { return };
         glossy.screen.capture(&self.device, encoder, target, depth);
-        glossy.screen.enable(&self.queue, [1.0, near, 50.0, 0.0]);
+        glossy.screen.enable(&self.queue, [f32::from(self.experiments.screen_reflections), near, 80.0, 0.0]);
         glossy.scene = screen_scene(glossy, &self.device);
         let mut pass = resume(encoder, target, depth);
         pass.set_bind_group(0, &self.shared.bindings.globals_bind_group, &[]);
         pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
         let shading = Shading::Glossy(blackbox_gfx::GlossyMaterialHandle::from_raw(0));
+        let ray =
+            glossy.ray.as_ref().filter(|_| self.experiments.ray_car_reflections && self.ray_reflections.is_some());
+        if let Some(ray) = ray {
+            pass.set_bind_group(0, &ray.group, &[]);
+        }
+        let pick = |mode, face| match ray {
+            Some(ray) => ray.get(target.texture().format(), mode, face),
+            None => self.pipelines.get(mode, shading, false, face),
+        };
         // The colour pass's own glossy buckets: the same draws in the same order the instance walk made.
         for (mode_index, mode) in BLEND_ORDER.into_iter().take(2).enumerate() {
             let bucket = self.draw_list.bucket(mode_index * SHADINGS.len() + GLOSSY_SHADING);
             if bucket.is_empty() {
                 continue;
             }
-            let Some(pipeline) = self.pipelines.get(mode, shading, false, Face::Both) else { continue };
+            let Some(pipeline) = pick(mode, Face::Both) else { continue };
             pass.set_pipeline(pipeline);
             let mut bound_face = Face::Both;
             glossy.bind_scene(&mut pass);
@@ -56,7 +65,7 @@ impl Renderer {
                 }
                 let face = cmd.face.seen(frame.mirrored_view());
                 if face != bound_face
-                    && let Some(p) = self.pipelines.get(mode, shading, false, face)
+                    && let Some(p) = pick(mode, face)
                 {
                     pass.set_pipeline(p);
                     bound_face = face;

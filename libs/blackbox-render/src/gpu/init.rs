@@ -188,6 +188,17 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
     // The FSR 3 upscaler stores its 16-bit intermediates in 16-bit formats where the adapter allows it.
     required_features |= adapter.features() & wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
     let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
+    let rays = info.backend == wgpu::Backend::Vulkan
+        && std::env::var("BLACKBOX_RT_REFLECTIONS").is_ok_and(|v| v == "1")
+        && adapter.limits().max_bind_groups >= 4
+        && adapter.features().contains(wgpu::Features::EXPERIMENTAL_RAY_QUERY);
+    if rays {
+        required_features |= wgpu::Features::EXPERIMENTAL_RAY_QUERY;
+        limits = limits.using_minimum_supported_acceleration_structure_values();
+        limits.max_texture_array_layers = adapter.limits().max_texture_array_layers.min(2048);
+        limits.max_bind_groups = 4;
+        log::info!("Vulkan hardware reflection ray queries enabled");
+    }
     if adapter.get_downlevel_capabilities().flags.contains(wgpu::DownlevelFlags::COMPUTE_SHADERS) {
         // The compute limits the optional AO pass and the FSR 3 upscaler need, as far as the adapter has them.
         // Retains the GL fallback, which asks for what it has and so reports no FSR 3.
@@ -210,6 +221,8 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
         label: Some("blackbox-render device"),
         required_features,
         required_limits: limits,
+        // Opt-in Vulkan prototype; wgpu's experimental API can contain driver/API bugs.
+        experimental_features: super::ray_reflections::experimental_features(rays),
         ..Default::default()
     }))
     .map_err(|e| RenderError::Device(e.to_string()))
@@ -304,6 +317,7 @@ fn assemble(
     let timing = super::timing::Timing::new(&device, &queue);
     let display = super::display::Display::new(&output, adapter);
     let activity = super::activity::Monitor::new(matches!(output, Output::Window { .. }));
+    let ray_reflections = super::ray_reflections::Scene::new(&device, &queue);
     let mut renderer = Renderer {
         #[cfg(all(windows, feature = "streamline"))]
         dlss: None,
@@ -355,6 +369,7 @@ fn assemble(
         glossy: None,
         sky: None,
         normal: None,
+        ray_reflections,
         window: None,
         ui,
         redirects: Default::default(),

@@ -50,6 +50,7 @@ mod prewarm_bench;
 mod prewarm_tests;
 mod projected;
 mod queued;
+mod ray_reflections;
 mod redirects;
 mod reflection_queue;
 mod reflection_store;
@@ -151,6 +152,7 @@ pub struct Renderer {
     glossy: Option<glossy::Glossy>,
     sky: Option<sky::Sky>,
     normal: Option<normal::Normal>,
+    ray_reflections: Option<ray_reflections::Scene>,
     window: Option<window::Window>,
     ui: ui::Ui,
     /// Texture slot -> slot drawn in its place (animated textures).

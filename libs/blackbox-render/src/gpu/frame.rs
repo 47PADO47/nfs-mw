@@ -107,6 +107,12 @@ impl Renderer {
         size: (u32, u32),
     ) {
         let _trace = blackbox_trace::scope("Renderer CPU: post-processing / upscaling");
+        #[cfg(all(windows, feature = "streamline"))]
+        if self.dlss.is_some() {
+            // Parallel cube faces may own the frame prefix, including the TLAS build.
+            // Native DLSS submits this encoder internally, so that prefix must reach the queue first.
+            self.flush_captures();
+        }
         let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
         let ctx = PassContext {
             device: &self.device,
@@ -141,6 +147,11 @@ impl Renderer {
         // use the same instance order and transforms.
         self.begin_store_epoch();
         self.upload_main_instances(instances);
+        if (self.experiments.ray_road_reflections && self.road_reflections_active(frame, false))
+            || self.ray_cars_active(frame)
+        {
+            self.prepare_ray_reflections(encoder, instances, frame.camera_position);
+        }
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 4);
         }
@@ -217,6 +228,7 @@ impl Renderer {
         {
             return;
         }
+        pass.set_bind_group(0, &view.globals, &[]);
         self.effects.draw(&mut pass, Some(&self.shared.shadows.fallback));
         self.effects.draw_textured(&mut pass, |t| self.textures.get(t.raw()));
         drop(pass);
@@ -241,7 +253,7 @@ impl Renderer {
         let reflection = capture.is_some();
         let screen = !reflection
             && !reduced
-            && self.experiments.screen_reflections
+            && (self.experiments.screen_reflections || self.ray_cars_active(frame))
             && self.screen_lighting_active(frame)
             && self.glossy.is_some();
         if !screen
@@ -290,6 +302,9 @@ impl Renderer {
         // Only a planar capture discards fragments behind its clip plane; the main view keeps early depth.
         self.select_clip_variant(planar);
         self.pipelines.use_format(&self.device, format, self.glossy.is_some());
+        if !reflection && !reduced && self.ray_cars_active(frame) {
+            self.prepare_ray_cars(format);
+        }
         self.effects.use_format(&self.device, format);
         if let Some(sky) = &mut self.sky {
             sky.prepare(&self.device, &self.queue, format, self.pipeline_cache.as_ref());

@@ -42,6 +42,7 @@ pub struct GraphicsLab {
     profile_path: Option<std::path::PathBuf>,
     message: Option<String>,
     caps: Option<blackbox_gfx::Capabilities>,
+    ray_reflections_available: bool,
     display: blackbox_gfx::DisplayStatus,
     latency: blackbox_gfx::LatencyStatus,
     output_size: [u32; 2],
@@ -99,6 +100,7 @@ impl Default for GraphicsLab {
             profile_path: Settings::config_path(),
             message: None,
             caps: None,
+            ray_reflections_available: false,
             display: Default::default(),
             latency: Default::default(),
             output_size: [0; 2],
@@ -236,6 +238,7 @@ fn apply(mut lab: ResMut<GraphicsLab>, settings: Res<Settings>, mut host: NonSen
     let Some(renderer) = host.renderer.as_mut() else { return };
     renderer.set_render_experiments(settings.appearance.lighting);
     lab.caps = Some(*renderer.capabilities());
+    lab.ray_reflections_available = renderer.ray_reflections_enabled();
     lab.display = renderer.display_status();
     lab.latency = renderer.latency_status();
     lab.output_size = renderer.surface_size();

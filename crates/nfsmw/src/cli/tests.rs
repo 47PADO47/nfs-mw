@@ -54,6 +54,23 @@ fn cli_is_consistent() {
 }
 
 #[test]
+fn hidden_benchmark_accepts_an_explicit_4k_target() {
+    let cli = Cli::try_parse_from([
+        "nfsmw",
+        "view-world",
+        "--bench-seconds",
+        "10",
+        "--offscreen",
+        "--screenshot-size",
+        "3840x2160",
+    ])
+    .unwrap();
+    let Some(Command::ViewWorld { view, .. }) = cli.command else { panic!("wrong command") };
+    assert_eq!(view.screenshot_size, Some([3840, 2160]));
+    assert_eq!(view.settings_layer().resolution, None);
+}
+
+#[test]
 fn no_command_starts_the_game() {
     let bare = Cli::try_parse_from(["nfsmw"]).unwrap();
     assert!(bare.command.is_none());

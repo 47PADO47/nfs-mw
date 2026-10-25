@@ -28,35 +28,36 @@ pub(super) fn material_group(
     water: &water::Water,
     active: bool,
 ) -> wgpu::BindGroup {
+    let entries = vec![
+        wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&views[0]) },
+        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&views[1]) },
+        wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&views[2]) },
+        wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(sampler) },
+        wgpu::BindGroupEntry { binding: 4, resource: offset.as_entire_binding() },
+        wgpu::BindGroupEntry { binding: 5, resource: lighting.as_entire_binding() },
+        wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&views[3]) },
+        wgpu::BindGroupEntry {
+            binding: 7,
+            resource: match active {
+                true => water.screen.control.as_entire_binding(),
+                false => water.disabled.as_entire_binding(),
+            },
+        },
+        wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::TextureView(&water.screen.color) },
+        wgpu::BindGroupEntry { binding: 9, resource: wgpu::BindingResource::TextureView(&water.screen.depth) },
+        wgpu::BindGroupEntry {
+            binding: 10,
+            resource: wgpu::BindingResource::TextureView(match active {
+                true => &water.environment,
+                false => &water.base_environment,
+            }),
+        },
+        wgpu::BindGroupEntry { binding: 11, resource: wgpu::BindingResource::Sampler(&water.sampler) },
+    ];
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("normal scenery material"),
         layout,
-        entries: &[
-            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&views[0]) },
-            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&views[1]) },
-            wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&views[2]) },
-            wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(sampler) },
-            wgpu::BindGroupEntry { binding: 4, resource: offset.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 5, resource: lighting.as_entire_binding() },
-            wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&views[3]) },
-            wgpu::BindGroupEntry {
-                binding: 7,
-                resource: match active {
-                    true => water.screen.control.as_entire_binding(),
-                    false => water.disabled.as_entire_binding(),
-                },
-            },
-            wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::TextureView(&water.screen.color) },
-            wgpu::BindGroupEntry { binding: 9, resource: wgpu::BindingResource::TextureView(&water.screen.depth) },
-            wgpu::BindGroupEntry {
-                binding: 10,
-                resource: wgpu::BindingResource::TextureView(match active {
-                    true => &water.environment,
-                    false => &water.base_environment,
-                }),
-            },
-            wgpu::BindGroupEntry { binding: 11, resource: wgpu::BindingResource::Sampler(&water.sampler) },
-        ],
+        entries: &entries,
     })
 }
 
@@ -86,6 +87,9 @@ impl Normal {
             );
             material.water_group = None;
         }
+    }
+    pub(in crate::gpu) fn hit_surface(&self, handle: NormalMaterialHandle) -> Option<NormalMaterialDesc> {
+        self.materials.get(handle.raw()).map(|m| m.hit_surface)
     }
     pub(in crate::gpu) fn capture_diffuse(&self, handle: NormalMaterialHandle) -> Option<blackbox_gfx::TextureHandle> {
         self.materials.get(handle.raw()).map(|m| m.diffuse)

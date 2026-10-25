@@ -141,6 +141,7 @@ fn paint_layers_are_distinct_and_all_classes_restore_legacy_and_ignore_original_
         SurfaceKind::Metallic,
         SurfaceKind::Pearl,
         SurfaceKind::Conductor,
+        SurfaceKind::TintedChrome,
         SurfaceKind::Glass,
         SurfaceKind::Composite,
         SurfaceKind::PaintedMetal,

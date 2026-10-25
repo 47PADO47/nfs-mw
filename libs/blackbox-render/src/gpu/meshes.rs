@@ -81,7 +81,7 @@ impl Renderer {
         if single_sided {
             self.pipelines.enable_culling();
         }
-        MeshHandle::from_raw(self.meshes.insert(GpuMesh {
+        let slot = self.meshes.insert(GpuMesh {
             vertices,
             secondary_uvs,
             tangents,
@@ -92,11 +92,16 @@ impl Renderer {
             single_sided,
             center,
             radius,
-        }))
+        });
+        self.add_ray_mesh(slot, desc);
+        MeshHandle::from_raw(slot)
     }
 
     pub fn destroy_mesh(&mut self, handle: MeshHandle) {
         self.meshes.remove(handle.raw());
+        if let Some(rt) = &mut self.ray_reflections {
+            rt.remove_mesh(handle.raw());
+        }
     }
 }
 

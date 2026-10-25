@@ -104,6 +104,9 @@ impl Renderer {
         // pass walks the full normal lists below.
         let projected = normal.materials.iter_indexed().filter(|(_, m)| m.uses_projected).map(|(slot, _)| slot);
         self.draw_list.set_projected(projected);
+        if let Some(ray) = &mut normal.ray {
+            ray.enabled = self.experiments.ray_road_reflections;
+        }
         let previous = normal.water.screen.color.clone();
         normal.water.screen.capture(&self.device, encoder, target, depth);
         if normal.water.screen.color != previous {
@@ -129,7 +132,13 @@ impl Renderer {
         let format = target.texture().format();
         let store = self.draw_list.store.bind_group();
         let mut pass = resume(encoder, target, depth);
-        pass.set_bind_group(0, &self.shared.bindings.globals_bind_group, &[]);
+        let globals = normal
+            .ray
+            .as_ref()
+            .filter(|ray| ray.enabled)
+            .and_then(|ray| ray.group.as_ref())
+            .unwrap_or(&self.shared.bindings.globals_bind_group);
+        pass.set_bind_group(0, globals, &[]);
         // Scenery reads u32 slots after the glossy matrix prefix, exactly as the base draw does.
         pass.set_vertex_buffer(1, self.instances.buffer.slice(self.draw_list.store.main_offset()..));
         for (index, mode) in BLEND_ORDER.into_iter().take(2).enumerate() {

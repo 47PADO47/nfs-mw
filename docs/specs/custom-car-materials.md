@@ -72,3 +72,14 @@ and Original family pixel equality. Installed tests must verify material and
 surface routing, paint preview validation and resource lifetimes. Compare matched captures
 in sunlight and shade. Outdoor probes cannot establish complete tunnel/weather
 lighting parity or compensate for missing environmental illumination.
+
+## Coloured body chrome
+
+Custom chrome body paint uses `TintedChrome` independently of bare-metal `Conductor`
+rims, trim and brake discs. Its reflection F0 mixes 60% linear composite skin colour
+with the neutral metal baseline; bare metal retains its 35% mix. The body finish reads
+the paint/vinyl texture before authored diffuse ramps, which can be black on chrome.
+There is no added diffuse pigment layer: selected colour and vinyl contrast modulate
+the conductor reflection. Original PC shading and disabled material response retain
+their existing equations. GPU coverage checks saturated colours with zero authored
+diffuse, composite stripe contrast and the absence of invented light in a black probe.

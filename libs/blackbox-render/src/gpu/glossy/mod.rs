@@ -11,6 +11,11 @@ mod prefilter;
 mod probe;
 #[cfg(test)]
 mod probe_tests;
+#[cfg(test)]
+mod ray_hit_tests;
+mod ray_pass;
+#[cfg(test)]
+mod ray_tests;
 pub(in crate::gpu) mod screen;
 pub(in crate::gpu) mod screen_draw;
 #[cfg(test)]
@@ -31,15 +36,23 @@ use crate::{GlossyMaterial, GlossyMaterialHandle, LightingRig, SkyGradient};
 use uniforms::{MaterialUniform, RigUniform};
 
 /// The WGSL source of the glossy pipelines.
-pub(super) const SHADER: &str = concat!(
-    include_str!("../../shaders/glossy.wgsl"),
-    "\n",
-    include_str!("../../shaders/reflection_screen.wgsl"),
-    "\n",
-    include_str!("../../shaders/reflection_probe.wgsl"),
-    include_str!("../../shaders/paint_surface.wgsl"),
-    include_str!("../../shaders/material_layers.wgsl")
-);
+macro_rules! glossy_source {
+    ($reflection:literal) => {
+        concat!(
+            include_str!("../../shaders/glossy.wgsl"),
+            "\n",
+            include_str!("../../shaders/reflection_screen.wgsl"),
+            "\n",
+            include_str!($reflection),
+            "\n",
+            include_str!("../../shaders/reflection_probe.wgsl"),
+            include_str!("../../shaders/paint_surface.wgsl"),
+            include_str!("../../shaders/material_layers.wgsl")
+        )
+    };
+}
+pub(super) const SHADER: &str = glossy_source!("../../shaders/reflection_hybrid.wgsl");
+const RAY_SHADER: &str = glossy_source!("../../shaders/reflection_ray_car.wgsl");
 
 /// Side of the generated sky cube's faces.
 const SKY_FACE_SIZE: u32 = 64;
@@ -65,6 +78,7 @@ pub(super) struct Glossy {
     /// The vehicle reflection brightness the material blocks were last packed with.
     brightness: f32,
     probe: probe::Probe,
+    pub(in crate::gpu) ray: Option<ray_pass::RayPass>,
 }
 
 struct Material {
@@ -140,6 +154,7 @@ impl Glossy {
             materials: Slots::new(),
             brightness: 1.0,
             probe,
+            ray: None,
         }
     }
 
@@ -445,17 +460,28 @@ impl Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let group = self.shared.shadows.material_group(&self.device, &glossy.layouts.material, &buffer);
-        GlossyMaterialHandle::from_raw(glossy.materials.insert(Material {
+        let handle = GlossyMaterialHandle::from_raw(glossy.materials.insert(Material {
             original: material.model != blackbox_gfx::GlossyModel::Custom,
             source: *material,
             buffer,
             group,
-        }))
+        }));
+        if let Some(rt) = &self.ray_reflections {
+            rt.set_material(
+                &self.queue,
+                handle.raw(),
+                Some(bytemuck::bytes_of(&MaterialUniform::new(material, brightness))),
+            );
+        }
+        handle
     }
 
     /// Free a material. Draws that still use it are skipped.
     pub fn destroy_glossy_material(&mut self, handle: GlossyMaterialHandle) {
         let Some(glossy) = self.glossy.as_mut() else { return };
         glossy.materials.remove(handle.raw());
+        if let Some(rt) = &self.ray_reflections {
+            rt.set_material(&self.queue, handle.raw(), None);
+        }
     }
 }

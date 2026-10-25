@@ -52,10 +52,10 @@ pub struct ViewArgs {
     #[arg(long, value_name = "off|minimal|full")]
     pub show_readout: Option<ShowReadout>,
     /// Render one frame to this PNG file and exit instead of opening an interactive window.
-    #[arg(long, value_name = "FILE.png")]
+    #[arg(long, value_name = "FILE.png", group = "capture_target")]
     pub screenshot: Option<PathBuf>,
-    /// Physical render target for a screenshot (default 1280x720); independent of window preferences.
-    #[arg(long, hide = true, requires = "screenshot", value_name = "WIDTHxHEIGHT", value_parser = parse_screenshot_size)]
+    /// Physical render target for a screenshot or hidden benchmark; independent of window preferences.
+    #[arg(long, hide = true, requires = "capture_target", value_name = "WIDTHxHEIGHT", value_parser = parse_screenshot_size)]
     pub screenshot_size: Option<[u32; 2]>,
     /// For --screenshot: seconds to wait after the scene is ready before the first capture [default 0].
     #[arg(long, requires = "screenshot", value_name = "SECS")]
@@ -68,7 +68,7 @@ pub struct ViewArgs {
     pub screenshot_interval: Option<f32>,
     /// Measure frame times for this many seconds once the scene has loaded, print p50, p95, p99 and the worst
     /// frame with the renderer and the CPU and memory use, and exit. Add --no-vsync for meaningful numbers.
-    #[arg(long, value_name = "SECONDS", conflicts_with = "screenshot")]
+    #[arg(long, value_name = "SECONDS", conflicts_with = "screenshot", group = "capture_target")]
     pub bench_seconds: Option<f32>,
     /// With --bench-seconds: keep the window hidden, unfocused and off-screen, as a screenshot run does, so a measurement
     /// never takes focus from the desktop.

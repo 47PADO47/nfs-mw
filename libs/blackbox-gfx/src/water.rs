@@ -65,11 +65,19 @@ mod tests {
         let options = crate::RenderExperiments {
             road_reflection_range: f32::INFINITY,
             road_reflection_fade: f32::NAN,
+            ray_road_blend: f32::INFINITY,
+            ray_car_range: f32::NAN,
+            ray_car_blend: f32::NEG_INFINITY,
+            ray_road_screen_reuse: f32::NAN,
             ..Default::default()
         }
         .sanitized();
         assert_eq!(options.road_reflection_range, 320.0);
         assert_eq!(options.road_reflection_fade, 0.65);
+        assert_eq!(options.ray_road_blend, 1.0);
+        assert_eq!(options.ray_car_range, 320.0);
+        assert_eq!(options.ray_car_blend, 1.0);
+        assert_eq!(options.ray_road_screen_reuse, 1.0);
         let options = crate::RenderExperiments { road_reflection_range: 10000.0, road_reflection_fade: 0.0, ..options }
             .sanitized();
         assert_eq!(options.road_reflection_range, 800.0);

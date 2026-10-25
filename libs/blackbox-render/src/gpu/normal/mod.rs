@@ -2,6 +2,7 @@
 
 mod bindings;
 pub(super) mod pipeline;
+mod ray_pass;
 #[cfg(test)]
 mod reflect_tests;
 #[cfg(test)]
@@ -25,6 +26,7 @@ struct Material {
     offset: wgpu::Buffer,
     uses_projected: bool,
     diffuse: blackbox_gfx::TextureHandle,
+    hit_surface: NormalMaterialDesc,
 }
 
 pub(super) struct Normal {
@@ -45,9 +47,20 @@ pub(super) struct Normal {
     /// Instances are read from the instance store, bound at group 3.
     store: bool,
     water: water::Water,
+    ray: Option<ray_pass::RayPass>,
 }
 
 impl Normal {
+    pub(super) fn set_ray_bindings(
+        &mut self,
+        device: &wgpu::Device,
+        rt: super::ray_reflections::Bindings,
+        globals: &wgpu::Buffer,
+    ) {
+        if let Some(ray) = &mut self.ray {
+            ray.set_scene(device, &rt, globals);
+        }
+    }
     fn new(
         device: &wgpu::Device,
         globals: &wgpu::BindGroupLayout,
@@ -63,6 +76,7 @@ impl Normal {
                 [..3 + usize::from(store)],
             immediate_size: 0,
         });
+        let ray = ray_pass::RayPass::new(device, &material_layout, shadows, instances.as_ref());
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("normal scenery shader"),
             source: wgpu::ShaderSource::Wgsl(
@@ -108,6 +122,7 @@ impl Normal {
             clip: false,
             store,
             water: water::Water::new(device),
+            ray,
         }
     }
 
@@ -129,6 +144,9 @@ impl Normal {
         pipeline::fill_faces(self.pipelines.entry((format, clip)).or_default(), culled, |mode, face| {
             pipeline::create(device, shader, layout, format, (mode, face), true, store, clip, cache)
         });
+        if let Some(ray) = &mut self.ray {
+            ray.prepare(device, format, culled, store, cache);
+        }
         let specular = frame
             .surface_light
             .map_or([0.0, 0.0, 0.0, 1.0], |l| [l.specular[0], l.specular[1], l.specular[2], l.specular_power]);
@@ -177,7 +195,11 @@ impl Normal {
         if list.is_empty() {
             return;
         }
-        let Some(pipelines) = self.pipelines.get(&(format, self.clip)) else { return };
+        let pipelines = match (water_pass, &self.ray) {
+            (true, Some(ray)) if ray.enabled && ray.group.is_some() => ray.pipelines.get(&format),
+            _ => self.pipelines.get(&(format, self.clip)),
+        };
+        let Some(pipelines) = pipelines else { return };
         let index = BLEND_ORDER.iter().position(|m| *m == mode).expect("known blend mode");
         let Some(two_sided) = pipeline::pick(pipelines, index, Face::Both) else { return };
         pass.set_pipeline(two_sided);
@@ -283,6 +305,11 @@ impl Renderer {
                 &self.shared.bindings.sampler,
             )
         });
+        if normal.ray.as_ref().is_some_and(|ray| ray.group.is_none())
+            && let Some(rt) = &self.ray_reflections
+        {
+            normal.set_ray_bindings(&self.device, rt.bindings.clone(), &self.shared.bindings.globals);
+        }
         normal.set_projected(&self.device, self.projected.as_ref().map(|p| p.output()));
         let reflection = match desc.reflection {
             Some(texture) => self.texture_views.get(&texture.raw())?,
@@ -318,6 +345,7 @@ impl Renderer {
             model: desc.model,
             uses_projected: desc.reflection.is_none() && desc.model == blackbox_gfx::NormalModel::Reflective,
             diffuse: desc.diffuse,
+            hit_surface: *desc,
             views,
             offset,
         })))
