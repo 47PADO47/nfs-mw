@@ -20,6 +20,8 @@ use crate::ui::present::Screen;
 use super::cluster::ClusterMemory;
 use super::layout::CANVAS;
 use super::markers::MarkerMemoryCell;
+use super::memory::LayoutMemory;
+use crate::ui::prompts::Prompt;
 
 /// What the notification manager shows this frame (`hud/notify/view.rs` fills it from the queue and the feedback lane):
 /// the notices, the lane's chip and the nitrous pulse, with their text already in the current language.
@@ -88,6 +90,9 @@ pub struct CustomFeed {
     pub screen: Screen,
     /// The notifications on screen. `None` before the HUD plugin fills it (a viewer without the notification manager).
     pub notifications: Option<NotificationView>,
+    /// The live binding of the Interact action on the device the player uses (`ui/prompts.rs`), for the entry card;
+    /// `None` before the input is set up.
+    pub interact: Option<Prompt>,
 }
 
 impl Default for CustomFeed {
@@ -102,6 +107,7 @@ impl Default for CustomFeed {
             delta_s: 0.0,
             screen: CANVAS,
             notifications: None,
+            interact: None,
         }
     }
 }
@@ -113,6 +119,9 @@ pub struct CustomFeedCell {
     cluster: ClusterMemory,
     /// What the world markers keep between frames (`markers/memory.rs`): the components are rebuilt every frame.
     markers: MarkerMemoryCell,
+    /// What the free-roam, race and pursuit layouts remember across frames (`memory.rs`): the components are rebuilt
+    /// every frame, so their memory travels with the feed they read.
+    memory: LayoutMemory,
 }
 
 impl CustomFeedCell {
@@ -140,6 +149,11 @@ impl CustomFeedCell {
     /// The world markers' memory, shared by every clone of the cell.
     pub(super) fn markers(&self) -> MarkerMemoryCell {
         self.markers.clone()
+    }
+
+    /// The contextual layouts' memory.
+    pub fn memory(&self) -> &LayoutMemory {
+        &self.memory
     }
 
     /// The feed lock. A poisoned lock still holds a whole feed (each write replaces all of it), so the poison is

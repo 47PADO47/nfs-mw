@@ -304,11 +304,13 @@ fn present(
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
     mut drawn: Local<Drawn>,
+    (bindings, input): (Option<Res<crate::input::Bindings>>, Option<Res<crate::input::InputPresentation>>),
 ) {
     let _trace = blackbox_trace::scope("HUD: bind / animate / compose / present");
     // A theme that fills the banner with its own component draws the world's cards too, so the world's egui cards stay
     // out (`cards.rs`).
-    let routed = !themes.hud_is_static() && themes.provided_by(ElementId::Banner).is_some_and(|id| id != ThemeId::Original);
+    let routed =
+        !themes.hud_is_static() && themes.provided_by(ElementId::Banner).is_some_and(|id| id != ThemeId::Original);
     super::set_cards_routed(routed);
     if !state.visible || !settings.hud {
         drawn.hidden(&mut out, window.scale_factor());
@@ -362,6 +364,10 @@ fn present(
             // The notices and the feedback lane, their text in the current language. Motion reduction shows the
             // bounty delta's sum at once instead of counting it up.
             notifications: Some(notifications.view(settings.speed_units, !settings.hud_options.motion_reduction)),
+            interact: bindings.as_deref().map(|bindings| {
+                let device = input.as_deref().map(|input| input.device).unwrap_or_default();
+                crate::ui::prompts::for_action(bindings, crate::input::Action::Interact, device)
+            }),
         });
     }
     // A tree is rebuilt only when its package changed since the frame it was built for, or the viewport moved; the
