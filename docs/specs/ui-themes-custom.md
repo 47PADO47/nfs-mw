@@ -14,6 +14,10 @@ The Custom theme is being rewritten from scratch ([ADR 0013](../decisions/0013-c
 - **Status:** built (T9) and wired (T12). The HUD plugin fills the feed each frame and the composer draws the card
   when the Custom theme resolves `RadioCard` ([ui-themes-compose.md](ui-themes-compose.md) section 5). Under Original the
   EA Trax chyron draws the slot as before.
+- **Superseded in part (Custom HUD 2026, PR 11b):** the card's look, place and timing are now the Custom style's
+  (section 11). Sections 1, 3 and 6 describe the T9 card as it was; the feed (section 2), the `Text` change (section 4),
+  what T9 removed (section 5) and the wiring (section 7) still hold, and the T9 placement (`radio_placement::anchor`) is
+  what the Remastered card reads.
 
 ## 1. What the card is
 
@@ -170,9 +174,8 @@ The design is `docs/specs/custom-hud/menus.md`; this records what was built.
 
 - **Which screens publish lists.** `Cx::list_look` (`frontend/logic/look.rs`, the old `vertical_look`) is true for
   Remastered and Custom when no mod theme took over. The icon menus, the option pages and the dialogs (confirm, alert,
-  name entry) ask it. The list screens Custom does not draw yet (the key list, the jukebox, the credits, the Blacklist
-  and its bio, the rap sheet pages, and the safe house's Blacklist entry) ask `Cx::remastered_look`, so under Custom they
-  keep their FEng packages until PR 11b.
+  name entry) ask it. In PR 11a the other list screens asked a Remastered-only predicate and kept their FEng packages
+  under Custom; PR 11b replaced it with a per-screen one (section 11).
 - **The slots.** `CustomTheme::element` claims `MainMenu`, `Categories`, `PauseMenu`, `SafeHouseMenu`, `OptionTable`
   and `Dialog` (`custom/menu/mod.rs` `SLOTS`) before the shared `hud_component`, which mod token themes keep using.
   `build_themes` hands the theme the `MenuListCell` (`CustomTheme::with_menus`). One component, `CustomMenu`, draws all
@@ -194,3 +197,58 @@ The design is `docs/specs/custom-hud/menus.md`; this records what was built.
 - **Tests.** `frontend/logic/look.rs` (the truth table), `custom/menu/tests.rs` (node output per state), `layout_tests.rs`,
   `glide.rs`, `look.rs`, `frontend/screens/geometry.rs`, `frontend/hud_options_tests.rs`, and `saves.rs` (the
   `[custom_hud]` table in a saved profile).
+
+## 11. The Custom list screens, the LAN screens and the radio card (Custom HUD 2026, PR 11b)
+
+The design is `docs/specs/custom-hud/menus.md` section 3; this records what was built. The full-screen world map
+(`WorldMapChrome`) is not in this pass: the legend over the recoloured FEng map stays until the map PR.
+
+- **Which screens publish lists.** `Cx::screen_list_look(ListScreen)` (`frontend/logic/look.rs`) replaces the
+  Remastered-only predicate at its 17 call sites. Remastered answers yes for every screen, as before. Custom answers yes
+  for `Controls`, `Jukebox`, `Credits` and `Blacklist` (the list of rivals, the bio, the safe house's entry and the
+  reputation overview between them, which must follow the list so the boss race stays reachable), and no for `Markers`
+  and `RepSheets`, which keep their packages. See [frontend-menus.md](frontend-menus.md) section 6.
+- **The slots.** `custom/menu/mod.rs` `SLOTS` adds `ControlsList`, `Jukebox`, `Credits` and `Blacklist`; `CustomMenu`
+  picks the page from the list's style: the credits roll (`credits.rs`), the Blacklist (`blacklist.rs`), a rival's bio
+  (`rival.rs`), the playlist on the `Jukebox` slot (`jukebox.rs`), the list for the rest. `LanMenu` (`custom/menu/lan.rs`)
+  and `LanHud` (`custom/lan_hud.rs`) read the LAN cell, which `build_themes` hands the theme (`CustomTheme::with_lan`,
+  the `FrameCell`'s `lan()`, as Remastered reads it). Mod token themes keep the shared `hud_component` (the radio card)
+  and fall back to Original for the menus and the LAN screens.
+- **Key list.** A settings list whose value column holds the two bindings as two key caps (`keys.rs`), the primary on
+  the left; the selected row's focused cap is raised with an accent line; an unbound key (`---`) is faint. The caps
+  split the column at its middle, where the frontend's `along` press picks the binding. The new map actions are not on
+  the list: the package draws eight rows, and the input labels the map PR adds (`input/hud_labels.rs`) are not on this
+  branch.
+- **Playlist.** The songs as settings rows with the mode right-aligned; the order of play beside the title's rule
+  (`Parts::subtitle`), not on the description line.
+- **Credits.** A scrim over the window, the title, and the roll centred in the content box between the title and the
+  footer, fading over 40 units at either end; a line of capitals is a heading in the spaced face and the accent colour.
+- **Blacklist.** Fifteen rows (rank, picture, name, bounty, status: success for complete, the accent for in progress,
+  faint for locked), the selection plate gliding between them, the count of rivals beaten at the title's right, and the
+  selected rival's card at the right (picture with an accent frame, name, alias, bounty, status) when the window has
+  140 units for it. `BlacklistFrame` is shared with the hit test (`ListGeometry::row_at`). The bounty is the number the
+  frontend writes, with no currency sign (no catalogue entry formats money).
+- **Bio.** The picture on the left, then the name, the alias, the car and the strength (spaced headings over values)
+  and the bio wrapped with the dialog's `wrap`, stopping above the footer.
+- **LAN page.** The page's list as a Custom list (its own glide slot), the status line beside the title, the failure on
+  the description line in the danger colour, and the chat on a plate right of the rows when 150 units are left. The LAN
+  click map follows (`ClickMap::in_custom`).
+- **LAN HUD.** From the content box's anchors at `[custom_hud] scale`, `text_size` and `opacity`: the feed on a plate at
+  the bottom left (raised clear of the condition chip, the newest line lowest, each line keeping its fade, notices in
+  the secondary colour), the countdown in the upper third with the vote on a plate under it, and the spectator's panel
+  at the top right.
+- **Radio card.** Rewritten (`radio_card.rs`): a Custom plate with the accent line at the content box's top-left anchor
+  (`radio_placement::card_rect`, at the HUD scale, taller with the text size), the title in the label face, the artist
+  and album in the secondary colour, the time in the numeric face, each row shrunk to fit. It reads the same
+  `RadioFeedCell` for the song and its age, and the Custom feed for the window and the options. It fades in over
+  `fade_in`, slides in from the left over `slide` (not with motion reduction), fades out over the last `fade_out` of its
+  six seconds, and takes `[custom_hud] opacity`. `hud_component` still returns it for `RadioCard`, so a mod theme with
+  tokens draws it in its own accent. The old `radio.font` skin key and the card's faded skin went with the old card.
+- **Not built.** The world map; the crossfade between screens; the new map actions in the key list (above); a column
+  header for the Blacklist's bounty.
+- **Tests.** `frontend/logic/look.rs` (the per-screen truth table, and Remastered unchanged),
+  `custom/menu/screens_tests.rs` (the key caps and focus, the pause scrim, the playlist's order line, the roll's fades and
+  headings, the Blacklist's rows, card, narrow window and hit test, the bio), `custom/menu/keys.rs`, `credits.rs`,
+  `lan.rs`, `custom/lan_tests.rs` (the LAN page and HUD), `custom/tests.rs` (the slots, the radio card's rows, fades,
+  opacity, place and slide), `radio_placement.rs`, `frontend/screens/geometry.rs` and `frontend/lan/present/tests.rs`
+  (the clicks).

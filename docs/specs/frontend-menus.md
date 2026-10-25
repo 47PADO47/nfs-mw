@@ -362,6 +362,30 @@ Message hashes were checked against `bStringHash` of the upper-cased names (`PAD
 Object names are not recovered (they are only known as hashes; the names above come from the string texts of
 the dump, not the object names).
 
+## 6. The list looks [ours]
+
+Two looks draw the menus as lists from the entries the screens publish (`ScreenLogic::list` into the `MenuListCell`):
+Remastered and Custom ([ui-themes-custom.md](ui-themes-custom.md) section 10). The FEng packages keep running underneath;
+only the drawing and the input of the list change. `frontend/logic/look.rs` decides it:
+
+- `Cx::list_look`: Remastered or Custom, when no mod theme took the menus over. The icon menus, the option pages and the
+  dialogs ask it.
+- `Cx::screen_list_look(ListScreen)`: the other list screens, per screen. Remastered draws them all; Custom draws the key
+  list (`Controls`), the EA Trax playlist (`Jukebox`), the credits (`Credits`) and the Blacklist (`Blacklist`, PR 11b),
+  and leaves the marker cards (`Markers`) and the rap sheet pages (`RepSheets`) to their packages.
+- **The Blacklist's flow** moves as one: the list of rivals and the bio (`SafeHouseRivalChallenge.fng`,
+  `SafeHouseRivalBio.fng`, both on the `Blacklist` slot), the safe house's Blacklist entry (it opens the list rather than
+  the overview) and the reputation overview. The overview has no slot of its own, so no list look draws its list, but
+  it takes the list's input whenever the Blacklist is a list: its Challenge entry is where a boss race starts from, and
+  a list of rivals that led back to the overview's package could not reach it.
+- The truth table (screen by style, and every screen false under a mod theme) is the test in `look.rs`; under
+  Remastered every list screen answers as it did before PR 11b.
+- **Clicks** are tested against the look that draws the list (`frontend/screens/geometry.rs` `ListGeometry`): the Custom
+  menus' `MenuFrame`, its dialog, its Blacklist rows (`custom/menu/blacklist.rs` `row_at`) and its footer. The LAN page
+  is not a stack screen: its click map (`frontend/lan/present.rs` `ClickMap`) uses the Custom places when the Custom
+  theme provides the `LanMenu` slot (`ClickMap::in_custom`), the Remastered ones otherwise (the Original LAN page stands
+  where the Remastered one does).
+
 ## How to check it
 
 1. `nfsmw view-screen MainMenu.fng --screenshot out.png`, then with `--ui-script "wait 1;right;right;wait 0.5"`: the icons
