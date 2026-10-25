@@ -33,6 +33,10 @@ pub enum Command {
         /// Build a preset car from the game's PresetRides (e.g. CE_GTRSTREET) instead of the stock car.
         #[arg(long, value_name = "NAME")]
         preset: Option<String>,
+        /// Pick auto-shop parts by number, as the `parts` console command lists them: `--part paint=12 --part vinyl=30`
+        /// (body, spoiler, hood, roof, rims, paint, tint, rimpaint or vinyl).
+        #[arg(long = "part", value_name = "CATEGORY=N")]
+        parts: Vec<String>,
         /// Camera yaw in degrees.
         #[arg(long, default_value_t = 35.0, allow_negative_numbers = true)]
         yaw: f32,

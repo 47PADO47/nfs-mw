@@ -6,6 +6,7 @@ mod install;
 mod net;
 mod setup;
 mod start;
+mod view_parts;
 
 use anyhow::Result;
 use nfsmw_data::game::open_install;
@@ -216,10 +217,11 @@ pub fn run(cli: Cli) -> Result<()> {
             let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
-        Command::ViewCar { car, lod, all_parts, preset, yaw, view } => {
+        Command::ViewCar { car, lod, all_parts, preset, parts, yaw, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let options = nfsmw_data::car::LoadOptions { lod, all_parts, preset };
-            let model = nfsmw_data::car::load(&dir, &car, &options)?;
+            let selection = view_parts::selection(&dir, &car, &parts)?;
+            let model = nfsmw_data::car::load_customized(&dir, &car, &options, &selection)?;
             let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(
                 Box::new(CarScene::new(model, yaw).with_source(dir, options)),
