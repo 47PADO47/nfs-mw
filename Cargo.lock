@@ -24,7 +24,7 @@ version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3b7f7f85a7e5f68090000ed7622545829afd484d210358702ae4cb97dd0c320"
 dependencies = [
- "uuid 1.27.0",
+ "uuid",
 ]
 
 [[package]]
@@ -485,7 +485,7 @@ dependencies = [
  "bevy_utils",
  "dlss_wgpu",
  "tracing",
- "uuid 1.27.0",
+ "uuid",
 ]
 
 [[package]]
@@ -548,7 +548,7 @@ dependencies = [
  "stackfuture",
  "thiserror 2.0.21",
  "tracing",
- "uuid 1.27.0",
+ "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -1123,7 +1123,7 @@ dependencies = [
  "smallvec",
  "smol_str",
  "thiserror 2.0.21",
- "uuid 1.27.0",
+ "uuid",
  "variadics_please",
  "wgpu-types",
 ]
@@ -1139,7 +1139,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
- "uuid 1.27.0",
+ "uuid",
 ]
 
 [[package]]
@@ -2410,7 +2410,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0b1fab2ae45819af2d0731d60f2afe17227ebb1a1538a236da84c93e9a60162"
 dependencies = [
  "dispatch2",
- "nix",
+ "nix 0.31.3",
  "windows-sys 0.61.2",
 ]
 
@@ -2550,18 +2550,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "discord-rich-presence"
-version = "1.1.0"
+name = "discord-presence"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90c55d69cab17c19677ce3a5f8face993a9e6eaf847fecac3547f3a3ff4a2494"
+checksum = "9c8d811ebed75ede6c72a7b36fdcb832010298f77814cb3f63c1a7c9e6e8c192"
 dependencies = [
+ "byteorder",
+ "bytes",
+ "cfg-if",
+ "crossbeam-channel",
  "log",
+ "num-derive",
+ "num-traits",
+ "parking_lot",
+ "paste",
+ "quork",
  "serde",
- "serde_derive",
  "serde_json",
- "serde_repr",
  "thiserror 2.0.21",
- "uuid 0.8.2",
+ "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2619,7 +2627,7 @@ dependencies = [
  "bitflags 2.13.2",
  "cc",
  "thiserror 2.0.21",
- "uuid 1.27.0",
+ "uuid",
  "wgpu",
 ]
 
@@ -3151,7 +3159,7 @@ dependencies = [
  "fnv",
  "gilrs-core",
  "log",
- "uuid 1.27.0",
+ "uuid",
  "vec_map",
 ]
 
@@ -3166,10 +3174,10 @@ dependencies = [
  "libc",
  "libudev-sys",
  "log",
- "nix",
+ "nix 0.31.3",
  "objc2-core-foundation",
  "objc2-io-kit",
- "uuid 1.27.0",
+ "uuid",
  "vec_map",
  "wasm-bindgen",
  "web-sys",
@@ -4140,7 +4148,7 @@ dependencies = [
  "blackbox-vehicle",
  "clap",
  "ctrlc",
- "discord-rich-presence",
+ "discord-presence",
  "ea-audio",
  "egui",
  "env_logger",
@@ -4279,6 +4287,18 @@ source = "git+https://github.com/ruffle-rs/nihav-vp6?rev=12d0bdf10a85641dc2de3d6
 dependencies = [
  "nihav_codec_support",
  "nihav_core",
+]
+
+[[package]]
+name = "nix"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
+dependencies = [
+ "bitflags 2.13.2",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
 ]
 
 [[package]]
@@ -5020,6 +5040,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-error-attr2"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96de42df36bb9bba5542fe9f1a054b8cc87e172759a1868aa05c1f3acc89dfc5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
+name = "proc-macro-error2"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11ec05c52be0a07b08061f7dd003e7d7092e0472bc731b4af7bb1ef876109802"
+dependencies = [
+ "proc-macro-error-attr2",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5053,6 +5095,32 @@ name = "pxfm"
 version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
+
+[[package]]
+name = "quork"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7681987dab9e7839dc146829c97f184f1e20a5e00e21204874ff7be361a9387"
+dependencies = [
+ "cfg-if",
+ "nix 0.29.0",
+ "quork-proc",
+ "thiserror 2.0.21",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "quork-proc"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "860d36740d9412e39fff90f57010e9870b15c2b48e5325295a6f5a824a480439"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro-error2",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
 
 [[package]]
 name = "quote"
@@ -5400,17 +5468,6 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
-]
-
-[[package]]
-name = "serde_repr"
-version = "0.1.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d3b1629de253c70a0508c3899572da79ca359fdab27c7920ff00406df418906"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.6",
 ]
 
 [[package]]
@@ -6192,15 +6249,6 @@ name = "utf8parse"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
-
-[[package]]
-name = "uuid"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
-dependencies = [
- "getrandom 0.2.17",
-]
 
 [[package]]
 name = "uuid"

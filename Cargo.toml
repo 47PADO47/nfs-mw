@@ -157,7 +157,7 @@ anyhow = "1"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
 directories = "6"
-discord-rich-presence = "=1.1.0"
+discord-presence = "=3.2.0"
 egui = "0.36"
 # Translations (docs/decisions/0012-localization.md): Fluent catalogues, BCP 47 tags and the system locale.
 fluent-bundle = "0.16"
