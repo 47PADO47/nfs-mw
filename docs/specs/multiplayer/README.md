@@ -30,7 +30,7 @@ Read in this order:
 7. [integration.md](integration.md): the threads, the Bevy shell pieces, the crates, the extraction of the headless world, and the
    order of work for milestone 10; [client-session.md](client-session.md): the client's session driver as built (API and
    lifecycle) and the scripted bots over it; [server.md](server.md): the server loop as built, its config keys and how to run it;
-   [world-host.md](world-host.md): the real world behind the server; [game-wiring.md](game-wiring.md): the game's side as
+   [world-host.md](world-host.md): the real world behind the server; [discord.md](discord.md): joining a LAN game from Discord; [game-wiring.md](game-wiring.md): the game's side as
    built (`--host`, `--connect`, `--dedicated`, `--discover`, `NetSession`, the listen server's thread, the world's client
    mode);
    [frontend.md](frontend.md): the LAN menu, the lobby, the session HUD, the `net.*` console commands and the `net_*` settings as

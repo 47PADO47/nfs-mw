@@ -113,8 +113,10 @@ trail, the cursor position. Outputs: current cookie (interpolated), `out_of_boun
    Otherwise the apex is the occluder bound point (at the apex cookie's height); `road occlusion` = ±1
    (left/right) when the apex cookie was not cut by an avoidable, `avoidable occlusion` = ±1 when it was
    (cookie flag bit 0), and `occluded from behind` when also flag bit 1. The aim point is reflected through
-   the apex: `desired = apex + dir(apex→cursor) × dist(car→apex)`, projected on the bisector of the
-   directions apex→car and apex→cursor, with the projection length limited to the apex cookie's width.
+   the apex: `desired = apex + dir(cursor→apex) × dist(car→apex)`, projected on the bisector of the
+   directions car→apex and cursor→apex, with the projection length limited to the apex cookie's width.
+   **[native verified PC correction]** Both vectors point toward the apex; reversing both reverses the
+   final displacement. See [reinforcement prediction and steering](ai-pursuit-reinforcement-prediction.md).
    For avoidable occlusion the projection is scaled by `2 × ratio`, `ratio = clamp(closing_speed / (2 ×
    own_speed_along), 0, 1)` where `closing_speed` is the car's speed along the car→apex direction minus the
    occluder's speed along the trail ("occluding trail speed"); then limited again to the width. The result is

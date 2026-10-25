@@ -4,6 +4,7 @@
 @group(1) @binding(9) var road_depth: texture_depth_2d;
 @group(1) @binding(10) var road_environment: texture_cube<f32>;
 @group(1) @binding(11) var road_sampler: sampler;
+@group(1) @binding(12) var road_filtered_environment: texture_cube<f32>;
 
 fn road_uv(point:vec3<f32>)->vec3<f32> {
     let c = globals.view_proj*vec4(point,1.0);

@@ -7,7 +7,7 @@ threshold. It complements the unchanged recorded-target stress test, whose
 ## Independent physical target
 
 Load the installed stock BMW's complete player physics, tire integration and
-normal chassis/control configuration. Supply the pursuing fleet with the
+normal racer chassis and AI steering input mapping. Supply the pursuing fleet with the
 analytical performance and nitrous capability derived from that same physics.
 Do not configure the BMW as an AI car or substitute a simpler police chassis.
 
@@ -45,7 +45,7 @@ unprepared raw lane centre would reject the intended native centre clamp.
 ## Simulation and measurements
 
 Run thirty-five seconds of physical steps. Stream collision around the physical player
-and all police. Advance the BMW through ordinary player controls and the police
+and all police. Advance the BMW through the production cinematic-control mapping and the police
 through the production world. Resolve actual player/cop pair contacts and feed
 post-contact body motion, real nitrous telemetry and real sight to the pursuit.
 
@@ -75,5 +75,7 @@ fast-target stress or prove original-game equivalence. Keep target validity,
 initial-unit performance, replacement behavior and overall pursuit contact
 separate in diagnostics. Authored race routes, co-op targets and modded-player
 performance remain independent acceptance work.
+AI input mapping bypasses human gamepad range/rate shaping; it does not configure
+the physical BMW as a simplified police car. Earlier invalid pilots remain invalid.
 The current fixture has no populated dynamic props. Bend and height coverage
 describe the projected route; they do not measure actual chassis rotation.

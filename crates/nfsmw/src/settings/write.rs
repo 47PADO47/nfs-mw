@@ -169,6 +169,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.discord_time_played {
         put("discord_time_played", Value::Boolean(v));
     }
+    if let Some(v) = changes.discord_join {
+        put("discord_join", Value::Boolean(v));
+    }
     if let Some(v) = changes.graphics_preset {
         put("graphics_preset", Value::String(v.to_string()));
     }

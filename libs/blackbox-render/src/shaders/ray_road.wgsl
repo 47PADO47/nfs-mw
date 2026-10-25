@@ -4,6 +4,7 @@
 @group(1) @binding(9) var road_depth: texture_depth_2d;
 @group(1) @binding(10) var road_environment: texture_cube<f32>;
 @group(1) @binding(11) var road_sampler: sampler;
+@group(1) @binding(12) var road_filtered_environment: texture_cube<f32>;
 fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,fallback:vec3<f32>,pool:f32,footprint:f32)->vec3<f32> {
     if road_control.x<0.5 || globals.fog_range.w>0.5 || rt_control.scene.x==0u || rt_control.tuning.x<=0.0 { return fallback; }
     let result=trace_environment(world,normal,ray,max(0.03,footprint*0.1),road_control.z);
@@ -26,6 +27,8 @@ fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,fallback:v
 }
 
 fn rt_hit_environment(position:vec3<f32>,direction:vec3<f32>,roughness:f32)->vec3<f32> {
-    let lod=roughness*f32(textureNumLevels(road_environment)-1u);
-    return textureSampleLevel(road_environment,road_sampler,direction,lod).rgb;
+    let lod=roughness*f32(textureNumLevels(road_filtered_environment)-1u);
+    let sharp=textureSampleLevel(road_environment,road_sampler,direction,0.0).rgb;
+    let filtered=textureSampleLevel(road_filtered_environment,road_sampler,direction,lod).rgb;
+    return mix(sharp,filtered,smoothstep(0.08,0.32,roughness));
 }

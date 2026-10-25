@@ -121,6 +121,12 @@ test. Layouts therefore span `min_width` metres of road starting at the edge nea
 - After all elements: `NotifyRoadblockDeployed` (cost 500). The speech system is told the roadblock was created
   (`MReqRoadBlock(1)` "Created") or failed (`MReqRoadBlock(0)`). `AddRoadBlock` on the pursuit ends the running formation
   unless it is FOLLOW or its finisher is active. [decomp]
+- **Strip seating (rewrite).** The original reads one ground ray at the strip's position. A strip is 6.5 m across, so on
+  a banked or sloping road an end can sink below the surface. The rewrite also reads the ground a half width either side
+  along the strip's long axis (`roadblock/seat.rs`). With both ends found it stands the strip at the mean of the ends
+  (never below the centre reading) and tilts it onto the line through them; a centre more than 5 cm above that mean
+  (a crowned road) stays level at the centre height. A missing end keeps the centre reading. **[inferred]** as a fix for
+  the reported strips below the road; not confirmed in play.
 
 ## 3. Layouts without spikes (`RoadblockCandidateList`)
 
