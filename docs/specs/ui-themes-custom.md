@@ -200,8 +200,7 @@ The design is `docs/specs/custom-hud/menus.md`; this records what was built.
 
 ## 11. The Custom list screens, the LAN screens and the radio card (Custom HUD 2026, PR 11b)
 
-The design is `docs/specs/custom-hud/menus.md` section 3; this records what was built. The full-screen world map
-(`WorldMapChrome`) is not in this pass: the legend over the recoloured FEng map stays until the map PR.
+The design is `docs/specs/custom-hud/menus.md` section 3; this records what was built.
 
 - **Which screens publish lists.** `Cx::screen_list_look(ListScreen)` (`frontend/logic/look.rs`) replaces the
   Remastered-only predicate at its 17 call sites. Remastered answers yes for every screen, as before. Custom answers yes
@@ -244,7 +243,7 @@ The design is `docs/specs/custom-hud/menus.md` section 3; this records what was 
   `fade_in`, slides in from the left over `slide` (not with motion reduction), fades out over the last `fade_out` of its
   six seconds, and takes `[custom_hud] opacity`. `hud_component` still returns it for `RadioCard`, so a mod theme with
   tokens draws it in its own accent. The old `radio.font` skin key and the card's faded skin went with the old card.
-- **Not built.** The world map; the crossfade between screens; the new map actions in the key list (above); a column
+- **Not built.** The crossfade between screens; the new map actions in the key list (above); a column
   header for the Blacklist's bounty.
 - **Tests.** `frontend/logic/look.rs` (the per-screen truth table, and Remastered unchanged),
   `custom/menu/screens_tests.rs` (the key caps and focus, the pause scrim, the playlist's order line, the roll's fades and
@@ -252,3 +251,40 @@ The design is `docs/specs/custom-hud/menus.md` section 3; this records what was 
   `lan.rs`, `custom/lan_tests.rs` (the LAN page and HUD), `custom/tests.rs` (the slots, the radio card's rows, fades,
   opacity, place and slide), `radio_placement.rs`, `frontend/screens/geometry.rs` and `frontend/lan/present/tests.rs`
   (the clicks).
+## 12. The Custom world map (Custom HUD 2026, PR 11c)
+
+The design is `docs/specs/custom-hud/menus.md` section 3 (the `WorldMapChrome` row); this records what was built. Code:
+`crates/nfsmw/src/ui/theme/custom/full_map/`.
+
+- **The slot.** `CustomTheme::element` returns `FullMap` for `WorldMapChrome`, and `UiThemes::world_map_chrome` maps
+  Custom to `Chrome::Drawn`, as it does Remastered. The frontend then treats both alike: the FEng map screen runs
+  underneath and is not presented, the pointer is the map's own over the whole window, and the wheel and a drag zoom and
+  pan anywhere. The old legend over the recoloured FEng screen (`map_legend.rs`, `WorldMapLegendCell`, the `legend.font`
+  skin key and the per-blip rows of `frontend/world_map/legend.rs`) is gone. Mod token themes are unchanged: they share
+  `hud_component`, which never drew the map.
+- **The feed.** `FullMapCell` (`UiThemes::custom_world_map`), filled by the frontend plugin each frame the map is open
+  with a `FullMapSnapshot`: the frontend's `WorldMapFrame`, the footer hints with the live bindings
+  (`world_map::control::hints`) and the window's aspect. Remastered's cell gets the same frame. The frame carries the
+  roads, the GPS route and the city's calibration, read from the HUD state at open with the blips (`control::open`); the
+  map opens only from free roam (the M key), before the world freezes, so no extra resource is needed.
+- **Placement** (`fit.rs`). World to picture (`Calibration::to_map`), picture to view (the frontend's `Camera`: four
+  zoom levels and a pan), view to the full-screen picture square (`Picture::FULL`, the window's height, centred). The
+  composition is a north-up `MapView` (the centred map's projection), so roads, route and marks project like the HUD map,
+  and a place lands where the cursor picks its blip. Without a calibration the network's bounds are fitted into the
+  picture with a 5% margin (computed once per network).
+- **What is drawn**, back to front: the surface ground at 0.92 over the window; the roads in the centred map's look at
+  0.85 with paths, cached by its local-set rule over the window's half diagonal; the GPS route in nav cyan, the stretch
+  behind the player at half alpha; the current tab's places as the centred map's marks (shops and car lots a dot, safe
+  houses a square, races a diamond, roadblocks a bar) and the route's end; the players' arrows; a ring on the focused
+  place or a cross at the pointer; then the chrome. Marks and arrows are 1.6 times the menus' scale.
+- **Chrome.** "MAP" in the spaced face with the three tabs under it (the current one bright on an accent rule) and the
+  zoom at the top right; the legend plate at the right (the player, the GPS route when there is one, each style of the
+  tab with its mark and how many are on the map, the focused style in the accent colour, the empty line when the tab has
+  none; the legend key hides it); the focused place's card at the bottom left (its mark and name, its distance only when
+  the player's place is known, and how to set the GPS); the menus' footer (`menu::footer_parts`).
+- **Not drawn.** The racers, cops and helicopter of `WorldMapFrame::live`: the Custom map marks police only from what
+  the player knows (`fair-knowledge.md`), and the frame carries no sighting data. The open animation.
+- **Tests.** `custom/full_map/tests.rs`: the projection and its agreement with the frontend's picking, the network fit,
+  the marks and legend rows under each tab, the slot claimed, a closed map drawing nothing, the legend key, the focused
+  card, the roads and route strokes. `ui/theme/tests.rs`: Custom is `Chrome::Drawn`. `frontend/world_map/overlay.rs`:
+  the frame carries the roads, the route and the calibration until the map closes. Remastered's map tests are unchanged.

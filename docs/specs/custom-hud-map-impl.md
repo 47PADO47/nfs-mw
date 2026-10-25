@@ -144,3 +144,20 @@ few hundred roads in the Centered view, more in Expanded.
 | Custom, map `off` | to be measured | to be measured |
 | Custom, map `centered` | to be measured | to be measured |
 | Custom, map `expanded` | to be measured | to be measured |
+
+## 8. The full-screen world map (PR 11c)
+
+The Custom theme's full-screen world map (`ui/theme/custom/full_map/`, described in `ui-themes-custom.md` section 11)
+draws with this map's pieces rather than its own:
+
+- **Roads:** the same `MapRoadsHandle`, carried from the HUD state into the frontend's map frame at open (a reference
+  count), the same `LocalSet` cache rule (here over the window's half diagonal, so a pan or a zoom step queries the grid
+  again and a still map does not), and `road_lines` with `road_look`, at opacity 0.85 with paths.
+- **Projection:** a north-up `MapView` built from the city's calibration and the frontend's camera, its centre the
+  screen's centre; no ellipse, a rectangle clip of the window with no soft edge.
+- **Route and marks:** `route_lines` for the GPS route, `draw_marks` for the current tab's places and the route's end
+  (pinned inside the window's inscribed ellipse like the overlay's), `mark_parts` for the legend's and the card's
+  shapes, `ring` for the focused place, and `arrow` for the players.
+
+The refactor that shared them (`mark_parts`, `ring`, `road_look`) changes nothing the HUD map draws; its tests are
+unchanged.

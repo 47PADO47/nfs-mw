@@ -156,7 +156,7 @@ are in [ui-themes-slots.md](ui-themes-slots.md).
 | `OptionTable` (23) | `Options.fng` and `Pause_Options.fng` → `WidgetMenu` (`frontend/widget_menu.rs`), rows from `frontend/options_rows.rs`, settings from `frontend/options.rs` |
 | `TrackSelect` (24) | `Track_Select.fng` → `frontend/custom_race/track_select.rs` (Custom Race, step two). **Confirmed** (was `?`) |
 | `SafeHouseMenu` (25) | `MainMenu_Sub.fng` with `Args::safehouse` → `frontend/career_screens/safehouse_menu.rs` → `IconMenu` `Kind::SafeHouse`. **Confirmed** (was `?`) |
-| `WorldMapChrome` (26) | No Original source. The slot resolves to `Empty` under every theme; it is a flag, not a drawn component. When the active theme provides it (Custom), the frontend recolours the live `WorldMapMain.fng` screen dark in place (`world_map/screen/restyle.rs`), keeping its fullscreen map, filter switch, button prompts and mouse behaviour. Not menu-cell-fed (`is_menu()` excludes it). See [world-map.md](world-map.md) |
+| `WorldMapChrome` (26) | No Original source. Original resolves the slot to `Empty`. Remastered (`WorldMapView`) and Custom (`FullMap`) draw the whole map and the frontend does not present the live `WorldMapMain.fng` screen; another theme that provides it has the screen recoloured dark in place (`world_map/screen/restyle.rs`). Not menu-cell-fed (`is_menu()` excludes it). See [world-map.md](world-map.md) |
 
 **Career screens (`frontend/career_screens/`):**
 
