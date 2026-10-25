@@ -27,12 +27,14 @@ impl Vehicle {
         self.tire_damage.advance(dt);
         self.begin_retirement_frame();
         self.body_contacts.clear();
+        let previous_position = self.body.position;
         self.body.begin_frame(dt);
+        self.hold_staged_body(previous_position);
         self.time += dt;
         match self.body.state {
             BodyState::Frozen => return,
             BodyState::Asleep => {
-                if input.throttle > 0.0 || input.handbrake > 0.0 {
+                if self.staging() || input.throttle > 0.0 || input.handbrake > 0.0 {
                     self.body.wake();
                 } else {
                     return;
@@ -54,6 +56,7 @@ impl Vehicle {
         self.update_steering(dt, local_velocity.z);
         self.apply_wall_steering();
 
+        self.update_launch(dt, speed);
         self.begin_tires(speed);
         self.run_powertrain(dt, speed);
         self.tune_tires(dt, speed, angular_velocity);
@@ -78,9 +81,9 @@ impl Vehicle {
         self.damp_creep(collided, angular_velocity);
 
         self.body.apply_drag();
-        let corner_contacts = self.collide_body_with_ground(ground);
+        let corner_contacts = self.collide_body_with_ground(ground, dt);
         self.body_ground_contact = corner_contacts > 0;
-        if self.wheels_on_ground == 0 {
+        if self.wheels_on_ground == 0 && !self.staging() {
             self.body.update_sleep(corner_contacts);
         }
         self.sanitize();

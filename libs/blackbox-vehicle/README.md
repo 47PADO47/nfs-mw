@@ -150,9 +150,10 @@ profile; see [tire profiles](../../docs/specs/vehicle-tire-profiles.md) and
    force and torque, which froze a freshly landed car off its resting ride height.
 8. **The speed limiter** tapers the throttle from the unclamped speedometer; the spec clamps the speedometer
    to the limiter, which would make the taper unreachable.
-9. **Conflicting tables in the spec:** the steering range coefficient uses the `[1, 1.05, 1.1, 1.2, 1.3, 1.4]`
-   table of the steering section (the input section lists `[1, 1, 1.1, 1.2, 1.25, 1.35]`), and the input
-   remap uses the "medium" set of the input section (the steering section lists a milder one).
+9. **PC steering tables:** verified separate consumers select range multipliers
+   `[1, 1, 1.1, 1.2, 1.25, 1.35]` and the PC partial-input history curve headed by
+   `[-1, -0.712, -0.453, ...]`. Rate multipliers remain separate. Original numeric
+   vectors and passive player callbacks resolve the earlier conflicting-spec choice.
    `max_slip` uses 71 m/s as the top of its ramp in every gear.
 10. **Hard-turn hold beats the post-collision limit.** In the spec's order the "held full lock keeps
     `last_max`" rule runs after the collision scaling and undoes it; kept as written.
@@ -224,6 +225,11 @@ mirrored turns, nitrous, the handbrake, a slope, a ledge, a flipped car, bit-exa
 NaN and infinite inputs, and random input across six drivetrain layouts.
 
 License: MIT OR Apache-2.0.
+
+Race launch assistance is opt-in through `Vehicle::set_launch_config`. The caller
+supplies all game constants, staging state and the explicit `Vehicle::launch`
+trigger. Generic vehicles and AI retain disabled defaults. The shared band,
+timer, engine and traction rules are in [the launch contract](../../docs/specs/player-launch.md).
 
 `Vehicle::set_coasting_tires` selects a caller-configured loaded-tire response
 without powered slip or handbrake. It uses direct ordinary brakes and axle torque,

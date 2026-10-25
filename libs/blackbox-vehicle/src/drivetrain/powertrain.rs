@@ -64,6 +64,8 @@ pub struct Powertrain {
     pub(super) shift_timer: f32,
     sport_timer: f32,
     pub(super) throttle: f32,
+    pub(super) staging: bool,
+    pub(super) launch_strength: f32,
     pub(super) shift_points: ShiftPoints,
     pub(super) peak_torque_rpm: f32,
     pub(super) peak_torque_nm: f32,
@@ -98,6 +100,8 @@ impl Powertrain {
             shift_timer: 0.0,
             sport_timer: 0.0,
             throttle: 0.0,
+            staging: false,
+            launch_strength: 0.0,
             shift_points,
             peak_torque_rpm,
             peak_torque_nm,
@@ -142,6 +146,7 @@ impl Powertrain {
         self.shift_timer = 0.0;
         self.sport_timer = 0.0;
         self.throttle = 0.0;
+        self.set_launch_context(false, 0.0);
         self.induction = Induction::default();
         self.nos = Nos::new(&self.nos_spec);
         self.drive_torque = 0.0;
@@ -377,7 +382,7 @@ impl Powertrain {
 
         self.shift_timer = (self.shift_timer - dt).max(0.0);
         self.clutch.update(dt);
-        if i.automatic {
+        if i.automatic && !self.staging {
             self.auto_shift(i, dt);
         }
         self.command_clutch(i.clutch_pedal);

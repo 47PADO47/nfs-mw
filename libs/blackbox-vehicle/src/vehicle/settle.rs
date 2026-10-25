@@ -23,6 +23,9 @@ impl Vehicle {
     /// Stops a nearly stopped car from creeping: with the brakes on and all four wheels down the speed is
     /// damped and the wheels stop; otherwise below 1 m/s the sideways speed and yaw rate fade.
     pub(super) fn damp_creep(&mut self, collided: bool, angular_velocity: Vec3) {
+        if self.staging() {
+            return;
+        }
         let c = self.controls;
         let speed = self.body.linear_velocity.length();
         let spin = angular_velocity.length();

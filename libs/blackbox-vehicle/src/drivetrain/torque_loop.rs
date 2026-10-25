@@ -45,8 +45,13 @@ impl Powertrain {
             return 0.0;
         }
 
-        let engine_t = self.engine.torque_nm(rpm) * (1.0 + self.induction.boost) * self.nos.boost;
+        let mut engine_t = self.engine.torque_nm(rpm) * (1.0 + self.induction.boost) * self.nos.boost;
         let mut braking_t = self.engine.braking_torque(engine_t, rpm);
+        if self.launch_strength > 0.0 && self.throttle > 0.0 {
+            self.throttle = 1.0;
+            engine_t = self.peak_torque_nm * self.nos.boost;
+            braking_t = 0.0;
+        }
 
         let (free, locked) = driven_speeds(c.av, driven, reverse);
         let omega_trans_old = self.omega_trans;
