@@ -94,3 +94,6 @@
 .env
 .claude/
 __pycache__/
+
+# Independently licensed THREE.Fire lookup; source and licence in docs/enhanced-exhaust.md.
+!/assets/effects/three-fire.png
