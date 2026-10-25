@@ -15,16 +15,16 @@ use crate::ui::theme::{
     ElementId, MenuEntry, MenuHint, MenuList, MenuListCell, MenuNudge, MenuStyle, MenuValue, default_skin,
 };
 
-const ASPECT: f32 = 16.0 / 9.0;
+pub(super) const ASPECT: f32 = 16.0 / 9.0;
 
-fn hints() -> Vec<MenuHint> {
+pub(super) fn hints() -> Vec<MenuHint> {
     vec![
         MenuHint { keys: vec![Prompt::Key("Enter".into())], label: "Accept".into(), action: Some(Action::MenuAccept) },
         MenuHint { keys: vec![Prompt::Icon(Glyph::B)], label: "Back".into(), action: Some(Action::MenuBack) },
     ]
 }
 
-fn list(style: MenuStyle, selected: usize) -> MenuList {
+pub(super) fn list(style: MenuStyle, selected: usize) -> MenuList {
     MenuList {
         title: "Main menu".into(),
         message: String::new(),
@@ -68,18 +68,18 @@ fn dialog(selected: usize) -> MenuList {
     }
 }
 
-fn skin(look: MenuLook) -> Skin {
+pub(super) fn skin(look: MenuLook) -> Skin {
     default_skin()
         .merged(palette::bevy().skin())
         .merged(tokens::skin(CustomLook::default(), palette::bevy().secondary))
         .merged(look.skin())
 }
 
-fn theme(cell: &MenuListCell) -> CustomTheme {
+pub(super) fn theme(cell: &MenuListCell) -> CustomTheme {
     CustomTheme::new(RadioFeedCell::default(), CustomFeedCell::default(), Default::default()).with_menus(cell.clone())
 }
 
-fn built_with(theme: &CustomTheme, slot: ElementId, look: MenuLook, time: f32) -> Vec<UiNode> {
+pub(super) fn built_with(theme: &CustomTheme, slot: ElementId, look: MenuLook, time: f32) -> Vec<UiNode> {
     let skin = skin(look);
     let mut menu = theme.element(slot.slot(), &BuildCx::new(&skin)).expect("Custom draws this menu");
     menu.layout(&LayoutCx::new(&skin, time), Rect::SCREEN);
@@ -88,22 +88,22 @@ fn built_with(theme: &CustomTheme, slot: ElementId, look: MenuLook, time: f32) -
     out.iter().cloned().collect()
 }
 
-fn built(slot: ElementId, list: MenuList) -> Vec<UiNode> {
+pub(super) fn built(slot: ElementId, list: MenuList) -> Vec<UiNode> {
     let cell = MenuListCell::new();
     cell.set(slot.slot(), list);
     built_with(&theme(&cell), slot, MenuLook::default(), 0.0)
 }
 
-fn texts(nodes: &[UiNode]) -> Vec<&str> {
+pub(super) fn texts(nodes: &[UiNode]) -> Vec<&str> {
     nodes.iter().filter_map(|node| node.text.as_deref()).collect()
 }
 
-fn text_at<'a>(nodes: &'a [UiNode], text: &str) -> &'a UiNode {
+pub(super) fn text_at<'a>(nodes: &'a [UiNode], text: &str) -> &'a UiNode {
     nodes.iter().find(|n| n.text.as_deref() == Some(text)).unwrap_or_else(|| panic!("no {text:?} drawn"))
 }
 
 /// The untextured panels in `colour` whose middle is on the row at `y`.
-fn panels_at(nodes: &[UiNode], colour: [u8; 4], y: f32) -> usize {
+pub(super) fn panels_at(nodes: &[UiNode], colour: [u8; 4], y: f32) -> usize {
     nodes
         .iter()
         .filter(|n| matches!(n.kind, NodeKind::Image { texture: 0, .. }) && n.colour == colour)
@@ -111,12 +111,12 @@ fn panels_at(nodes: &[UiNode], colour: [u8; 4], y: f32) -> usize {
         .count()
 }
 
-fn accent() -> [u8; 4] {
+pub(super) fn accent() -> [u8; 4] {
     palette::bevy().secondary
 }
 
 #[test]
-fn the_custom_theme_draws_the_six_menus_and_leaves_the_other_list_screens() {
+fn the_custom_theme_draws_the_menus_and_leaves_the_track_select_and_career_screens() {
     let theme = theme(&MenuListCell::new());
     let skin = skin(MenuLook::default());
     let cx = BuildCx::new(&skin);
@@ -124,9 +124,13 @@ fn the_custom_theme_draws_the_six_menus_and_leaves_the_other_list_screens() {
         assert!(theme.element(slot.slot(), &cx).is_some(), "{} is a Custom menu", slot.name());
     }
     for slot in [ElementId::ControlsList, ElementId::Jukebox, ElementId::Credits, ElementId::Blacklist] {
-        assert!(theme.element(slot.slot(), &cx).is_none(), "{} waits for PR 11b", slot.name());
+        assert!(super::SLOTS.contains(&slot), "{} is drawn since PR 11b", slot.name());
     }
     assert!(theme.element(ElementId::TrackSelect.slot(), &cx).is_none(), "the track select stays Original");
+    for slot in [ElementId::CarLot, ElementId::RapSheet, ElementId::RegionUnlock, ElementId::MemoryCard, ElementId::Sms]
+    {
+        assert!(theme.element(slot.slot(), &cx).is_none(), "{} stays Original", slot.name());
+    }
 }
 
 #[test]

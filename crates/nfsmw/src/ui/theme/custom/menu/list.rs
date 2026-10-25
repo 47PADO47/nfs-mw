@@ -26,6 +26,8 @@ pub(super) const DISABLED: f32 = 0.5;
 const TITLE_RULE: (f32, f32, f32) = (32.0, 2.0, 16.0);
 /// The description line's size.
 pub(super) const DESCRIPTION: f32 = 12.0;
+/// The space between the title's rule and the subtitle beside it.
+const SUBTITLE_GAP: f32 = 8.0;
 /// The scroll track: its gap from the rows' plates and its width.
 const TRACK_GAP: f32 = 6.0;
 const TRACK_WIDTH: f32 = 2.0;
@@ -40,13 +42,17 @@ pub(super) fn row_colour(entry: &MenuEntry, selected: bool) -> (&'static str, f3
     }
 }
 
-/// The row size, or less when the label at that size is longer than `room` units, so it stops short of the values. A
-/// label whose width is not known (the font did not load) keeps the row size.
+/// The row size, or less when the label at that size is longer than `room` units, so it stops short of the values.
 fn fitted(label: &str, room: f32, sizing: Sizing) -> f32 {
-    let row = size::MENU_ROW;
-    match width_units(CUSTOM_LABEL_FONT_KEY, label, sizing.glyph_scale(row)) {
-        Some(width) if width > room && width > 0.0 => row * room / width,
-        _ => row,
+    fitted_size(label, size::MENU_ROW, room, sizing)
+}
+
+/// `size`, or less when `text` at that size in the label face is wider than `room` units. A text whose width is not
+/// known (the font did not load) keeps `size`.
+pub(super) fn fitted_size(text: &str, size: f32, room: f32, sizing: Sizing) -> f32 {
+    match width_units(CUSTOM_LABEL_FONT_KEY, text, sizing.glyph_scale(size)) {
+        Some(width) if width > room && width > 0.0 => size * room / width,
+        _ => size,
     }
 }
 
@@ -98,7 +104,7 @@ impl Parts<'_, '_> {
     }
 
     /// The title in the spaced face, and the short accent rule under it.
-    fn title(&mut self, title: &str) {
+    pub(super) fn title(&mut self, title: &str) {
         let frame = self.frame();
         if title.is_empty() {
             return;
@@ -115,6 +121,20 @@ impl Parts<'_, '_> {
             thickness * s,
         );
         self.panel(keys::ACCENT, rule, 1.0);
+    }
+
+    /// A line about the page beside the title's accent rule (the playlist's order, a LAN page's status). Nothing for
+    /// an empty line.
+    pub(super) fn subtitle(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        let frame = self.frame();
+        let (width, _, drop) = TITLE_RULE;
+        let x = frame.text_left() + (width + SUBTITLE_GAP) * frame.scale();
+        let y = frame.title_y() + frame.sizing().units(drop);
+        let line = Label::label(text.to_owned(), DESCRIPTION).colour(keys::TEXT_SECONDARY);
+        self.text(line, (x, y), Align::Left);
     }
 
     /// The selected row's raised plate at `y`, with the accent bar on its left.

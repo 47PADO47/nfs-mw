@@ -1,6 +1,7 @@
 //! The value of a settings row, in its column at the right of the row: a value that left and right cycle sits between
 //! two small chevrons (the one last pressed is nudged outward for a moment); a value that only does something when
-//! pressed is right-aligned; a slider is a 10-segment bar like the HUD's, with its number at the right.
+//! pressed is right-aligned; a slider is a 10-segment bar like the HUD's, with its number at the right; the key list's
+//! two bindings are two key caps (`keys.rs`).
 
 use blackbox_ui::{Rect, bounce};
 
@@ -36,10 +37,9 @@ impl Parts<'_, '_> {
                 self.text(label, (column.max_x(), y), Align::Right);
             }
             MenuValue::Slider(level) => self.slider(*level, column, (colour, alpha), selected && entry.enabled),
-            MenuValue::Keys { primary, secondary, .. } => {
-                let keys = format!("{primary}  \u{00B7}  {secondary}");
-                let label = Label::label(keys, size::MENU_ROW).colour(colour).opacity(alpha);
-                self.text(label, (column.max_x(), y), Align::Right);
+            MenuValue::Keys { primary, secondary, focus } => {
+                let focus = selected.then_some(*focus).flatten();
+                self.key_caps([primary.as_str(), secondary.as_str()], column, entry.enabled, focus);
             }
         }
     }

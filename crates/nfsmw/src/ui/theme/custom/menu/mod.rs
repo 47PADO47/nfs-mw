@@ -1,48 +1,67 @@
 //! The Custom menus (`docs/specs/custom-hud/menus.md`): the main menu, the option categories, the pause menu, the safe
-//! house, the option pages and the dialogs, written from scratch in the Custom tokens and the OS fonts. They read the
-//! entries the frontend publishes for the list looks ([`MenuListCell`], `frontend/logic/look.rs`) and draw nothing for
-//! a slot with no list, as the FEng screens keep running underneath.
+//! house, the option pages and the dialogs (PR 11a), and the key list, the EA Trax playlist, the credits, the Blacklist
+//! with a rival's bio, and the LAN pages (PR 11b), written from scratch in the Custom tokens and the OS fonts. They read
+//! the entries the frontend publishes for the list looks ([`MenuListCell`], `frontend/logic/look.rs`; the LAN pages
+//! from the LAN cell) and draw nothing for a slot with no list, as the FEng screens keep running underneath.
 //!
-//! One component, [`CustomMenu`], draws the six slots; what differs comes from the list itself: a dialog
-//! (`MenuStyle::Dialog`) is a centred plate, the pause menu dims the whole frozen world, a settings page (entries with
-//! values) has wider rows with a value column, and the other menus are a list down the left of the content box.
+//! One component, [`CustomMenu`], draws the menu slots; what differs comes from the list itself: a dialog
+//! (`MenuStyle::Dialog`) is a centred plate, the credits roll, the Blacklist and a rival's bio have pages of their own,
+//! the pause menu dims the whole frozen world, a settings page (entries with values) has wider rows with a value
+//! column, and the other menus are a list down the left of the content box.
 //!
 //! - [`layout`]: the places, shared with the frontend's hit tests.
 //! - [`look`]: the `[custom_hud]` options the menus take (text size, motion reduction), carried in the skin.
 //! - [`glide`]: the selection plate's glide from row to row.
-//! - `list`, `value`, `footer`, `dialog`: the parts of a screen.
+//! - `list`, `value`, `keys`, `footer`, `dialog`: the parts of a screen; `keys` the key list's caps.
+//! - `jukebox`, `credits`, [`blacklist`], `rival`: the playlist, the roll, the Blacklist and its card and bio page.
+//! - [`lan`]: the LAN page (`LanMenu`), a list with the LAN's own lines round it.
 
+pub mod blacklist;
+mod credits;
 mod dialog;
 mod footer;
 pub mod glide;
+mod jukebox;
+mod keys;
+pub mod lan;
 pub mod layout;
 mod list;
 pub mod look;
+mod rival;
+#[cfg(test)]
+mod screens_tests;
 #[cfg(test)]
 mod tests;
 mod value;
 
+pub use blacklist::row_at as blacklist_row_at;
 pub use dialog::row_at as dialog_row_at;
 pub use footer::hint_at;
 pub use glide::GlideCell;
+pub use lan::LanMenu;
 pub use look::MenuLook;
 
 use blackbox_ui::{Component, DrawList, LayoutCx, Panel, Rect, SlotId, justify};
 
+use self::blacklist::BlacklistFrame;
 use self::layout::MenuFrame;
 use super::plate::{Plate, PlateStyle};
 use super::text::Label;
 use super::tokens::faded_skin;
 use crate::ui::theme::{ElementId, MenuList, MenuListCell, MenuStyle};
 
-/// The slots the Custom menus draw.
-pub const SLOTS: [ElementId; 6] = [
+/// The slots the Custom menus draw from the menu list cell. The LAN page is drawn from its own cell ([`LanMenu`]).
+pub const SLOTS: [ElementId; 10] = [
     ElementId::MainMenu,
     ElementId::Categories,
     ElementId::PauseMenu,
     ElementId::SafeHouseMenu,
     ElementId::OptionTable,
     ElementId::Dialog,
+    ElementId::ControlsList,
+    ElementId::Jukebox,
+    ElementId::Credits,
+    ElementId::Blacklist,
 ];
 
 /// Whether the Custom menus draw `slot`.
@@ -72,23 +91,7 @@ impl Component for CustomMenu {
             self.parts = Vec::new();
             return;
         };
-        let look = MenuLook::from_skin(cx.skin);
-        let mut parts = Parts::new(cx, MenuFrame::new(list.aspect, look.text_size()));
-        if list.style == MenuStyle::Dialog {
-            parts.dialog(&list);
-            self.parts = parts.finish();
-            return;
-        }
-        let duration = match look.reduce_motion() {
-            true => 0.0,
-            false => glide::GLIDE_SECS,
-        };
-        let plate_y = selected_row(&list).map(|row| {
-            let target = parts.frame().row_y(row);
-            self.glide.follow(self.slot, &list.title, target, cx.time_s, duration)
-        });
-        parts.list(&list, plate_y);
-        self.parts = parts.finish();
+        self.parts = screen(self.slot, &list, cx, &self.glide).finish();
     }
 
     fn build(&self, out: &mut DrawList) {
@@ -96,6 +99,35 @@ impl Component for CustomMenu {
             part.build(out);
         }
     }
+}
+
+/// The parts of the screen `list` on `slot`, its selection plate gliding on `glide` (no glide with motion reduction).
+fn screen<'a, 'b>(slot: SlotId, list: &MenuList, cx: &'a LayoutCx<'b>, glide: &GlideCell) -> Parts<'a, 'b> {
+    let look = MenuLook::from_skin(cx.skin);
+    let mut parts = Parts::new(cx, MenuFrame::new(list.aspect, look.text_size()));
+    let duration = match look.reduce_motion() {
+        true => 0.0,
+        false => glide::GLIDE_SECS,
+    };
+    let plate = |target: Option<f32>| target.map(|y| glide.follow(slot, &list.title, y, cx.time_s, duration));
+    match list.style {
+        MenuStyle::Dialog => parts.dialog(list),
+        MenuStyle::Credits => parts.credits(list),
+        MenuStyle::Rival => parts.rival_bio(list),
+        MenuStyle::Blacklist => {
+            let rows = BlacklistFrame::of(&parts.frame());
+            let shown = list.entries.len().min(blacklist::ROWS);
+            parts.blacklist(list, plate((list.selected < shown).then(|| rows.row_y(list.selected))));
+        }
+        MenuStyle::Main | MenuStyle::Sub | MenuStyle::Pause => {
+            let plate_y = plate(selected_row(list).map(|row| parts.frame().row_y(row)));
+            match ElementId::from_slot(slot) == Some(ElementId::Jukebox) {
+                true => parts.jukebox(list, plate_y),
+                false => parts.list(list, plate_y),
+            }
+        }
+    }
+    parts
 }
 
 /// The selected entry's place among the shown ones, or `None` when it is scrolled out of view.
