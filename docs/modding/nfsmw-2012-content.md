@@ -33,9 +33,11 @@ changed (the mod keeps a fingerprint in `.import-stamp`), and the cars are in fr
 replaces them at that start. To remove the cars, delete the mod folder, or set `mods = off` / use `--no-mods`.
 
 The cars are clones: each takes the physics, sound, parts and wheel layout of a stock racing car it fits best (the mod
-picks the one whose wheelbase, track and tyre radius need the least stretching). Paint is the game's own: the body paint
-surfaces use the placeholder texture and light material the stock cars use, so the colour comes from the clone's paint
-system. Only the default paint was looked at; repainting in the garage is untested.
+picks the one whose wheelbase, track and tyre radius need the least stretching). The auto shop works on them as it does
+on the clone: paint and finishes, rim paint, rims, window tint, the clone's **vinyls (liveries)**, spoilers and roof
+scoops, the performance upgrades and **nitrous**, which the cars have from the factory. How each of these gets to a
+converted car, and how to set how the cars drive, is in [car-customization.md](car-customization.md); this page is the
+mod's settings and what the conversion writes.
 
 ### Settings (`config.toml` in the mod's folder)
 
@@ -48,9 +50,31 @@ Every key is optional. An unknown key is an error and no car is added, so a typo
 | `exclude` | Ids or name fragments to leave out |
 | `max_texture_size` | Longest texture side, a power of two from 16 to 4096 (default 1024); bigger maps lose their top mips |
 | `role` | `"player"` (default), `"cop"` or `"both"`: who can use the cars |
+| `[performance]` | How the cars drive compared with their clones: multipliers `power`, `mass`, `grip`, `brakes`, `nitrous_power` (1.0 keeps the clone's) and `nitrous` (`true` by default: factory nitrous). The ranges are in [car-customization.md](car-customization.md#performance-performance-in-the-car-manifest) |
+| `[car.<id or name fragment>]` | The same keys for one car or a make, changing only the keys it lists: `[car.POR911CARR12]`, `[car.Lamborghini]`. The tables apply in name order over `[performance]` |
 
 The ids are made from the car's name (`POR911CARR12` for the 2012 Porsche 911 Carrera S); the mod's log lists every car
 it converts or leaves out and why.
+
+The tables go after the plain keys of the file, because TOML puts every key below a table header inside that table:
+
+```toml
+source = 'D:\Need For Speed Most Wanted 2012'
+cars = "all"
+
+[performance]
+power = 1.05
+nitrous = true
+
+[car.POR911CARR12]
+power = 1.2
+mass = 0.95
+
+[car."Aston Martin"]
+grip = 1.05
+```
+
+A name with a space is written in quotes, as in the last table.
 
 ## What is converted
 
@@ -59,7 +83,8 @@ it converts or leaves out and why.
 | Body, interior, lamps, mirrors (finest of 3 levels, 5,000 to 36,000 triangles) | `<CLONE>_KIT00_BODY_A..D`, in car space (+x forward, +y left, +z up), squeezed along each axis until the wheels land on the clone's: hub height and wheelbase at the hubs, track at the rim face (the game puts the rim face at the stock track) |
 | Tyre, brake disc, rim and caliper | one `<CLONE>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled |
 | Diffuse maps (BC1, BC3) | the car's `TEXTURES.BIN` as DXT1 and DXT5, cut to `max_texture_size` |
-| Paint surfaces | the game's `<CAR>_SKIN1` placeholder with light material `CARSKIN`, which the game swaps for the paint |
+| Paint surfaces | the game's `<CAR>_SKIN1` placeholder with light material `CARSKIN`, which the game swaps for the paint or for a vinyl. Their texture coordinates are those of the nearest point of the clone's paint surface, so the clone's vinyls fit (`src/liveries.rs`) |
+| Markers | the clone's markers: the tail pipes (`EXHAUST`, `LEFT_EXHAUST`, `RIGHT_EXHAUST`, where the nitrous flames start) on `<CLONE>_KIT00_BODY_A..D`, and the spoiler, roof-scoop and lamp markers on `<CLONE>_BASE_A..D`, a base solid of one triangle with no area. Pipes move back, and spoiler and scoop mounts up, to the 2012 body's surface by at most 35 cm (`src/donor.rs`) |
 | Glass and lamp lenses | a translucent tint texture with light material `WINDSHIELD` |
 | Untextured surfaces | a flat colour texture from the material's diffuse colour (dark grey when it has none) |
 | Normals | recomputed from the triangles |
@@ -83,12 +108,15 @@ ones. The vertex limit of one solid (60,000) can force a coarser level.
 
 ## Limits
 
-- **Looks only.** Handling, engine sound, damage and the HUD are the clone's. The 2012 damage model, headlight beams,
-  brake discs (they are part of the wheel), spoiler and mirror animation, and the lamp locators are not converted.
+- **Mostly looks.** Handling, engine sound, damage and the HUD are the clone's, plus whatever `[performance]` changes. The
+  2012 damage model, headlight beams, brake discs (they are part of the wheel), spoiler and mirror animation, and the
+  2012 lamp locators are not converted; the lamps use the clone's positions.
+- **Body kits and hoods** are models of the clone's own body, so the shop does not offer them. The performance bars of
+  the shop show the clone's ratings.
+- **Vinyls fit by nearest point**, which follows the large panels and is rougher at the bumpers and around the lamps.
 - **Normal, specular and effect maps are dropped**: the 2005 car shader has its own lighting.
-- **Names.** The mod gives every car a display name (`Porsche 911 Carrera S 2012`) and a brand. The garage uses the
-  display name (`scenes/world/garage.rs`); I have not looked at the garage screen with an imported car, nor at the other
-  screens that name cars.
+- **Names.** The mod gives every car a display name (`Porsche 911 Carrera S 2012`) and a brand. The garage lists the car
+  under both (`scenes/world/garage.rs`); the other screens that name cars were not checked.
 - **Livery duplicates.** The 2012 game ships some cars several times as liveries (five Skyline R34 bundles, for
   example); all are imported, with a number added to the id.
 - **Traffic and low-detail bundles** (`_TR`, `_LO`) are not imported.
@@ -100,10 +128,14 @@ ones. The vertex limit of one solid (60,000) can force a coarser level.
 `cargo test -p nfsmw-2012-content` runs the unit tests (settings, ids, fitting, textures, promotion and fingerprint). With
 `MW2012_GAME_DIR=<2012 install>` and `NFSMW_GAME_DIR=<2005 install>` set, `cargo test -p nfsmw-2012-content -- --ignored`
 converts a car through the background job, reads it back with the game's readers, and converts every car with the time it
-takes. `NFSMW_GAME_DIR=<2005 install> cargo test -p nfsmw rescan` checks that content added after start-up reaches the
+takes. The test `customize` converts one car and checks, against the real installs, what the shop offers it (paint, tint,
+rims, the clone's vinyls, spoilers, roof scoops), that it has tail pipes, that `[performance]` scales its physics and that it
+has nitrous: `cargo test -p nfsmw-2012-content --test customize -- --ignored --nocapture`.
+`NFSMW_GAME_DIR=<2005 install> cargo test -p nfsmw rescan` checks that content added after start-up reaches the
 copies of the install that are already open. `CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-bundle
 -p chameleon-vehicle -- --ignored` loads every car of the install. To look at a car without opening a window:
 
 ```
 nfsmw view-car POR911CARR12 --screenshot out.png --muted
+nfsmw view-car POR911CARR12 --part paint=40 --part vinyl=30 --yaw 55 --screenshot out.png --muted
 ```

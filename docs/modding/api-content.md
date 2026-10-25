@@ -62,6 +62,10 @@ role = "both"                   # player, cop or both (default: player)
 heat = [2, 3, 4]                # cop only: heat levels whose waves may use it (left out: every level)
 name = "Fast Coupe"             # display name (optional; default: the clone's)
 manufacturer = "Acme"           # brand (optional; default: the clone's)
+
+[performance]                   # optional: multipliers of the clone's physics (car-customization.md)
+power = 1.15
+nitrous = true                  # nitrous from the factory
 ```
 
 Rules:
@@ -72,22 +76,29 @@ Rules:
   only in the install.
 - `clone` names a stock car (its folder or its type name), or a car an earlier mod added in this run.
 - A folder that is already a car (stock, or another mod's) is refused. Heat levels run from 1 to 10.
-- A key the game does not know refuses the car. So does an `[override]` table: physics and attribute overrides are not
-  in the first delivery (see open items).
+- A key the game does not know refuses the car. So does an `[override]` table: arbitrary physics and attribute
+  overrides are not offered (see open items). The `[performance]` table is: multipliers of the clone's power, mass,
+  grip and brakes, and factory nitrous, each checked against a range ([car-customization.md](car-customization.md)).
 - Each refused car is logged with its mod and reason. The game goes on without that car.
 - Registration runs once in `open_install`, before any scene is built, and the result is sealed for the run. A changed
   car needs a restart.
 - A cop car gets one row in each heat wave it names: 2 cars at 10 percent (`COP_COUNT`, `COP_CHANCE` in
   `car/mods.rs`). Its physics and AI are the clone's.
 
-Known gaps: the garage takes a mod car's display name (`display_name`) and skips its cop-only cars (`is_player_car`),
-but only the car name: the brand line still comes from the clone's record unless the manifest gives `manufacturer`, and
-the other screens that name cars were not checked. Paint, part models and a code form (`content.cars().register(..)`)
-are not built yet.
+The auto shop treats the car as its clone's: paint, tint, rims, vinyls (the clone's), spoilers, roof scoops, the
+performance upgrades and nitrous all work, with the markers and paint layout a car's files have to provide described in
+[car-customization.md](car-customization.md). The garage takes a mod car's display name and brand (`display_name`,
+`manufacturer`) and skips its cop-only cars (`is_player_car`); the other screens that name cars were not checked.
+
+Known gaps: body kits and hoods (models of the clone's own body), the performance bars of the shop (the clone's), and a
+code form (`content.cars().register(..)`) are not built.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
-| Car manifest | `cars/<id>.toml` with `clone`, `role`, `heat`, `name`, `manufacturer`; unknown keys refused | G (schema), MW (checks) | `libs/blackbox-modding/src/content/car.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
+| Car manifest | `cars/<id>.toml` with `clone`, `role`, `heat`, `name`, `manufacturer`, `[performance]`; unknown keys refused | G (schema), MW (checks) | `libs/blackbox-modding/src/content/car.rs`, `performance.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
+| Performance | `Performance { power, mass, grip, brakes, nitrous, nitrous_power }`, multipliers of the clone's physics, applied after the player's upgrades; `PhysicsData::car(folder)` and `car_with_performance(folder, package)` apply them, `car::mods::tuning(folder)` reads them | G (schema), MW (applied) | `car/mods/tuning.rs`, `car/physics/data.rs` |
+| Clone's vinyls | `car::mods::clone_folder(folder)`: the stock folder whose `VINYLS.BIN` a mod car uses after its own | MW | `crates/nfsmw-data/src/car/vinyl.rs` |
+| Brand | `car::mods::manufacturer(folder)`: the brand a mod gave | MW | `crates/nfsmw/src/scenes/world/garage.rs` (`catalog`) |
 | Register cars | `car::mods::register(stock: &[CarTypeInfo], specs: &[CarSpec]) -> (Vec<ModCar>, Vec<Rejected>)` | MW | `crates/nfsmw-data/src/car/mods.rs` |
 | Car table | `CarTables::load` appends `car::mods::car_types()` after the stock types, so `car::load`, the garage's car list and cop loading find the car by folder | MW | `crates/nfsmw-data/src/car/tables.rs` |
 | Physics name | `PhysicsData::car(name)` reads a mod car's clone record through `car::mods::physics_name` | MW | `crates/nfsmw-data/src/car/physics/data.rs` |
