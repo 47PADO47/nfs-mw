@@ -24,7 +24,7 @@ use super::reputation_overview;
 use crate::frontend::challenge_series::{Crop, Maps, Zoom};
 use crate::frontend::confirm::Confirm;
 use crate::frontend::ids::screen;
-use crate::frontend::logic::{Args, Command, Cx, Footer, Pick, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, Footer, ListScreen, Pick, ScreenLogic};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue};
 use crate::ui::{Text, UiAssets};
 
@@ -257,7 +257,7 @@ fn open_page(kind: Kind, bin: u8) -> Box<dyn Page> {
 
 impl ScreenLogic for Sheet {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.remastered_look();
+        self.vertical = cx.screen_list_look(ListScreen::RepSheets);
         self.start_maps();
         self.refresh(cx);
     }
@@ -271,7 +271,7 @@ impl ScreenLogic for Sheet {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        self.vertical = cx.remastered_look();
+        self.vertical = cx.screen_list_look(ListScreen::RepSheets);
         self.maps.poll(cx.assets);
         self.zoom.tick(dt);
         self.place_map(cx);

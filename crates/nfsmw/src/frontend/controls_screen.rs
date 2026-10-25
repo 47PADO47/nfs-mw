@@ -12,7 +12,7 @@ use crate::input::{Action, Bindings, Control};
 
 use super::controls_layout::{self, Layout, ROW_COUNT};
 use super::ids::screen;
-use super::logic::{Args, Command, Cx, Pick, ScreenLogic, wheel_as_rows};
+use super::logic::{Args, Command, Cx, ListScreen, Pick, ScreenLogic, wheel_as_rows};
 use crate::i18n::{self, t};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue};
 use crate::ui::{UiAssets, prompts};
@@ -151,7 +151,7 @@ pub struct ControlsLogic {
     args: Args,
     layout: &'static Layout,
     shown: Vec<[String; 2]>,
-    /// Whether the Remastered look draws this list (`Cx::remastered_look`), and the cell that has the focus.
+    /// Whether a list look draws this list (`Cx::screen_list_look`), and the cell that has the focus.
     vertical: bool,
     cell: Cell,
 }
@@ -178,7 +178,7 @@ impl ControlsLogic {
 
 impl ScreenLogic for ControlsLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.remastered_look();
+        self.vertical = cx.screen_list_look(ListScreen::Controls);
         let layout = self.layout;
         for (row, label) in LABELS.iter().enumerate() {
             set_text(cx, layout.title[row], &i18n::game_or_error(*label));
@@ -236,7 +236,7 @@ impl ScreenLogic for ControlsLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        self.vertical = cx.remastered_look();
+        self.vertical = cx.screen_list_look(ListScreen::Controls);
         if let Some(cell) = focused(cx, self.layout) {
             self.cell = cell;
         }

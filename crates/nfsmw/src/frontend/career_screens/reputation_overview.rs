@@ -24,7 +24,7 @@ use crate::career::CareerHandle;
 use crate::frontend::disabled;
 use crate::frontend::icon_strip::Hit;
 use crate::frontend::ids::{EXIT_STARTED, screen};
-use crate::frontend::logic::{Args, Command, Cx, Footer, Pick, Plain, ScreenLogic};
+use crate::frontend::logic::{Args, Command, Cx, Footer, ListScreen, Pick, Plain, ScreenLogic};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
 
@@ -119,7 +119,7 @@ struct Overview {
     sheet: usize,
     /// What the page was opened with, for the menu it goes back to and the screens it opens.
     args: Args,
-    /// The Remastered look is on: the page is a list and `cursor` is the entry on it.
+    /// The Blacklist is a list (`ListScreen::Blacklist`): the page is driven as a list and `cursor` is the entry on it.
     vertical: bool,
     cursor: usize,
     row: Row,
@@ -283,7 +283,7 @@ impl Overview {
 
 impl ScreenLogic for Overview {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.remastered_look();
+        self.vertical = cx.screen_list_look(ListScreen::Blacklist);
         self.row.start(cx, self.sheet);
         self.low = lowest(current_bin().unwrap_or(FIRST_RIVAL_STAGE));
         self.shown = first_shown(self.asked, self.low);
@@ -297,7 +297,7 @@ impl ScreenLogic for Overview {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        self.vertical = cx.remastered_look();
+        self.vertical = cx.screen_list_look(ListScreen::Blacklist);
         if !self.vertical {
             self.row.tick(cx, dt);
         }

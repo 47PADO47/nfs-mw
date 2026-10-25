@@ -11,7 +11,7 @@ use game_install::GameDir;
 use glam::Vec2;
 
 use super::ids::{self, screen};
-use super::logic::{Args, Category, Command, Cx, Pick, ScreenLogic};
+use super::logic::{Args, Category, Command, Cx, ListScreen, Pick, ScreenLogic};
 use crate::ui::UiAssets;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuList, MenuStyle};
 
@@ -107,7 +107,7 @@ pub struct CreditsLogic {
     elapsed: f32,
     /// The first line the window shows, once the text was set.
     shown: Option<usize>,
-    /// Whether the Remastered look draws the roll (`Cx::remastered_look`).
+    /// Whether a list look draws the roll (`Cx::screen_list_look`).
     vertical: bool,
 }
 
@@ -122,7 +122,7 @@ impl CreditsLogic {
 
 impl ScreenLogic for CreditsLogic {
     fn start(&mut self, cx: &mut Cx) {
-        self.vertical = cx.remastered_look();
+        self.vertical = cx.screen_list_look(ListScreen::Credits);
         self.lines = LINES.get().cloned().unwrap_or_default();
         self.set_window(cx, 0);
         // The package starts with its buttons off, so Back does nothing until it is told to switch them on.
@@ -176,7 +176,7 @@ impl ScreenLogic for CreditsLogic {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        self.vertical = cx.remastered_look();
+        self.vertical = cx.screen_list_look(ListScreen::Credits);
         self.elapsed += dt;
         let first = (self.elapsed * LINES_PER_SECOND) as usize;
         if self.shown != Some(first) {
