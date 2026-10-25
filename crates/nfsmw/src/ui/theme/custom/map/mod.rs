@@ -10,7 +10,7 @@
 //! - [`modes`]: the four modes, the change from one to the next, and the map's keys.
 //! - [`memory`]: what the map keeps between frames (the local set, the zoom spring, the mode change).
 //! - [`view`]: the projection (north-up or heading-up) and the ellipse.
-//! - [`picture`]: the game's map tiles, cut into cells that fade at the ellipse's edge, and the wash under them.
+//! - [`picture`]: the game's map tiles, cut into cells that fade at the ellipse's edge.
 //! - [`icons`]: the game's icons for the marks and the player's arrow, found in the HUD package.
 //! - [`roads`]: the local set's cache rule and the road strokes.
 //! - [`marks`]: the marks as data, under the fair-knowledge rules.
@@ -60,9 +60,6 @@ pub const SIDE_SHARE: f32 = 0.8;
 /// How much farther the overlay shows with the game's picture than with the roads, at the same zoom: the picture is
 /// 6.5 m to a texel, so it needs a wider view than vector roads to stay crisp.
 pub const PICTURE_SPAN: f32 = 2.4;
-/// The wash behind the picture, as an alpha: the usual one, and with high contrast.
-pub const WASH: f32 = picture::WASH_ALPHA;
-pub const WASH_HIGH_CONTRAST: f32 = 0.4;
 
 /// The Custom map component. Built per resolve from the shared feed; its state between frames is the feed cell's
 /// map memory.
@@ -158,13 +155,8 @@ pub fn compose(
     let stage = Stage { view: &view, clip, band, radii, scale: frame.scale() };
     let roads_opacity = overlay.road_opacity * alpha;
     match (picture, &hud.map_roads) {
-        // The game's own picture, over a faint wash that keeps it readable over a bright street.
+        // The game's own picture.
         (Some(picture), _) => {
-            let wash = match settings.high_contrast {
-                true => WASH_HIGH_CONTRAST,
-                false => WASH,
-            };
-            parts.extend(picture::wash(&stage, keys::SURFACE, (wash * alpha, ROAD_Z + 1.0), cx));
             let tint = fade(colour(cx, keys::TEXT), roads_opacity);
             picture::picture_parts(picture, &stage, (tint, ROAD_Z), cx, parts);
         }

@@ -77,7 +77,7 @@ The map is the one element drawn over the middle of the view. Its modes and size
 
 - **The picture.** The tiles of the game's minimap file, as the install has them (the stage's map, or a race's own
   map). The tiles are additive: black is transparent, so only roads and water show over the world. The overlay fades
-  to nothing at its elliptical edge, over a faint dark wash that keeps it readable over a bright street.
+  to nothing at its elliptical edge. It has no backdrop yet, so its thin lines are faint over a bright street.
 - **The icons.** The checkpoints, racers, race starts, shops, safe houses, cops and the helicopter, and the player's
   arrow, are the game's own icons (`HUD_SingleRace.fng`). A kind with no game icon (a roadblock, the last-known place)
   is a thin shape. The route is signal yellow.

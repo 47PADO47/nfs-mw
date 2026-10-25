@@ -1,5 +1,5 @@
 //! The game's own map picture on the overlay: the minimap tiles of the install, cut into square blocks that turn and
-//! scale with the view, and a faint dark wash under them.
+//! scale with the view.
 //!
 //! **Transparency.** The tiles are additive textures (`docs/formats/minimap.md`): black adds nothing, so only the roads
 //! and the water show over the world, and the tint scales how bright they are. The overlay fades toward its edge by
@@ -9,12 +9,12 @@
 //! the soft edge crosses is cut into finer cells, each tinted by the fade at its middle, so the edge is smooth to a
 //! cell's width. A block outside is not built. Every cell is an upright square of the picture, turned with the view.
 
-use blackbox_ui::{Component, DrawList, Image, LayoutCx, Rect, Rounded};
+use blackbox_ui::{Component, DrawList, Image, LayoutCx, Rect};
 use glam::Vec2;
 
 use super::draw::Stage;
 use crate::hud::MapPicture;
-use crate::ui::theme::custom::tokens::{fade, faded_skin};
+use crate::ui::theme::custom::tokens::fade;
 
 /// Blocks per tile side. A tile is 832 m in the city map, so a block is 104 m.
 pub const BLOCKS: i32 = 8;
@@ -22,9 +22,6 @@ pub const BLOCKS: i32 = 8;
 /// [`MAX_CUT`] cells a side.
 const CELL: f32 = 14.0;
 const MAX_CUT: u32 = 12;
-/// The wash's alpha behind the picture, and the strips it is built from.
-pub const WASH_ALPHA: f32 = 0.16;
-const WASH_STRIPS: u32 = 24;
 
 /// The picture's cells as one component, so a frame boxes one part, not a thousand.
 struct Cells(Vec<Image>);
@@ -140,33 +137,6 @@ fn cut_block(turn: f32, (at, size): (Vec2, f32), uv: [f32; 4], cut: u32) -> Vec<
         }
     }
     out
-}
-
-/// The dark wash behind the picture, `alpha` strong at depth `z` in the skin colour `key`: strips across the ellipse,
-/// each as wide as the ellipse is at its height and as strong as the soft edge lets it be.
-pub fn wash(
-    stage: &Stage<'_>,
-    key: &'static str,
-    (alpha, z): (f32, f32),
-    cx: &LayoutCx<'_>,
-) -> Vec<Box<dyn Component>> {
-    let (centre, radii) = (stage.view.centre, stage.radii);
-    let height = 2.0 * radii.y / WASH_STRIPS as f32;
-    (0..WASH_STRIPS)
-        .filter_map(|k| {
-            let y = centre.y - radii.y + (k as f32 + 0.5) * height;
-            let t = (y - centre.y) / radii.y;
-            let width = 2.0 * radii.x * (1.0 - t * t).max(0.0).sqrt();
-            let strength = alpha * stage.clip.fade(Vec2::new(centre.x, y), stage.band);
-            if width <= 0.0 || strength <= 0.0 {
-                return None;
-            }
-            let skin = faded_skin(cx.skin, &[key], &[], strength);
-            let strip = Rect::new(centre.x, y, width, height);
-            let part = Rounded::at_depth(key, strip, 0.0, z, &LayoutCx::new(&skin, cx.time_s));
-            Some(Box::new(part) as Box<dyn Component>)
-        })
-        .collect()
 }
 
 #[cfg(test)]

@@ -57,9 +57,9 @@ is the same setting Original and Remastered read, saved through the existing wri
 Back to front, all clipped to the ellipse:
 
 1. **The game's map picture**, at `map_opacity`: the tiles of the minimap file the HUD shows (the stage's map, a
-   race's own map), cut into cells that turn and scale with the view and fade at the ellipse's edge (section 4a). Under
-   it, a faint wash of the `surface` colour (alpha 0.16, 0.4 with high contrast) keeps it readable over a bright street.
-   An install with no minimap tiles draws the roads instead: main roads two units wide, side roads one unit, with a
+   race's own map), cut into cells that turn and scale with the view and fade at the ellipse's edge (section 4a). There
+   is no backdrop: the lines are thin over a bright street (a known gap; a dark wash drawn behind it did not show in the
+   presenter and was dropped). An install with no minimap tiles draws the roads instead: main roads two units wide, side roads one unit, with a
    dark under-stroke one unit wider under high contrast.
 2. **Routes:** the GPS route (`Gps` path, PR 3b) in `nav`, three units; in a race the race route in `accent`, three
    units, with the stretch already driven at half alpha.
