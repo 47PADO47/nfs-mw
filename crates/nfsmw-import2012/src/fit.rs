@@ -67,7 +67,13 @@ fn layout_of(setup: &WheelSetup) -> Option<Layout> {
         wheelbase: front - rear,
         x_mid: (front + rear) / 2.0,
         track: hubs.iter().map(|hub| hub[1].abs()).sum::<f32>() / 4.0,
-        hub_z: hubs.iter().map(|hub| hub[2]).sum::<f32>() / 4.0,
+        // The front end draws a wheel at its offset plus the suspension compression of its axle (spec section 3).
+        hub_z: hubs
+            .iter()
+            .enumerate()
+            .map(|(wheel, hub)| hub[2] + setup.fe_compressions[usize::from(wheel > 1)])
+            .sum::<f32>()
+            / 4.0,
         radius: hubs.iter().map(|hub| hub[3]).sum::<f32>() / 4.0,
     };
     (layout.wheelbase > 1.0 && layout.track > 0.3 && layout.radius > 0.1).then_some(layout)
