@@ -15,7 +15,6 @@ pub(super) struct PrimaryRoad {
 }
 
 impl PrimaryRoad {
-    #[cfg(test)]
     pub(super) fn observation(&self) -> Option<TargetRoad> {
         self.observation
     }

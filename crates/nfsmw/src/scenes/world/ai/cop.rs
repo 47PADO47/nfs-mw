@@ -263,6 +263,12 @@ impl CopState {
             return think;
         }
         if !self.road_nos.active() {
+            if self.close.active()
+                && let Some(own) = roads::at_car(ctx, &car.body, self.environment.level)
+            {
+                *nav = own;
+                nav.enable_trail(ctx.net);
+            }
             self.repath = 0.0;
             self.governor = SpeedGovernor::begin(car.forward_speed);
             self.last_speed = car.forward_speed;
@@ -298,6 +304,7 @@ impl CopState {
                 Vec3::new(car.body.forward.x, 0.0, car.body.forward.y),
                 false,
             ) {
+                nav.preserve_offset_at(net, car.body.position);
                 nav.enable_trail(net);
                 self.repath = 0.0;
             }
