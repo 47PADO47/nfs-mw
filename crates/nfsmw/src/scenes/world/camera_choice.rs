@@ -21,6 +21,9 @@ impl WorldScene {
     /// free camera when there is no car to follow.
     pub(super) fn gameplay_lens(&self, aspect: f32) -> Lens {
         let _trace = blackbox_trace::scope("World: gameplay lens");
+        if let Some(lens) = self.extra_lens(aspect) {
+            return lens;
+        }
         if let Some(lens) = self.garage_lens(aspect) {
             return lens;
         }
@@ -122,8 +125,12 @@ impl WorldScene {
     pub(super) fn car_lens(&self, drive: &Drive, chase: ChaseView, aspect: f32) -> Lens {
         debug_assert!(chase.selectable());
         let kick = self.traffic.as_ref().map_or(0.0, |traffic| traffic.fov_kick());
-        if self.camera_mode == CameraMode::DynamicFov {
-            return DynamicFov { chase: &chase, speed: drive.speed().abs(), kick }.lens(aspect);
+        if self.camera_mode == CameraMode::DynamicFov && self.extra.camera.speed_zoom {
+            let offset = self.extra.camera.fov - 60.0;
+            let mut lens = DynamicFov { chase: &chase, speed: drive.speed().abs(), kick: kick + offset }.lens(aspect);
+            lens.fov_y_degrees = lens.fov_y_degrees.clamp(20.0, 150.0);
+            lens.projection = crate::viewer::camera::projection(lens.fov_y_degrees, aspect, 0.3);
+            return lens;
         }
         chase.lens_with_fov(aspect, chase.fov_degrees() + kick)
     }
