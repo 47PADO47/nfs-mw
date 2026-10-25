@@ -48,6 +48,8 @@ pub fn apply(
     fixture.use_mph = settings.speed_units == SpeedUnits::Imperial;
     let orientation = settings.minimap.orientation();
     fixture.minimap = fixture.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
+    // The roads come from the loaded world, not the fixture, so the map draws the real network around the fixture's car.
+    fixture.map_roads = state.map_roads.clone();
     *state = fixture;
 }
 
