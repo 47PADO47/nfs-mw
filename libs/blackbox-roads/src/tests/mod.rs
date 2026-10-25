@@ -3,6 +3,7 @@ mod gps;
 mod install;
 mod locate;
 mod nav;
+mod offset;
 mod path;
 mod route;
 mod signal;

@@ -31,6 +31,12 @@ that same entry. Relevant IDs are:
 Shader selection must happen per group, preserving mixed-effect solids. The
 existing vehicle light-material overrides have precedence and remain unchanged.
 Texture alpha usage still chooses cutout/blended/opaque pipeline state separately.
+The world-family cutout rejects combined alpha at or below `0.375`, following
+the independent noclip.website MW renderer's `ALPHA_TEST` reference. This is
+not an exact retail render-state reconstruction. A `0.5` cutoff rejects entire
+installed walls authored with vertex alpha `127/255`, even with opaque texels.
+Texture holes must remain cut out; increasing vertex alpha instead would also
+change authored blending.
 Unknown effects retain an explicit fallback and are not reported as matched.
 
 ## Color semantics

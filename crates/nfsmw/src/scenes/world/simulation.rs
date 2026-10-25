@@ -33,7 +33,13 @@ impl WorldScene {
         self.prepare_traffic(renderer);
         drop(trace);
         let arrested = self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active());
-        let speedbreaker = self.tuning.speedbreaker;
+        let mut speedbreaker = self.tuning.speedbreaker;
+        if self.extra.testing.unlimited_breaker {
+            speedbreaker.max_duration = None;
+        }
+        if let Some(drive) = self.players.lead_mut() {
+            drive.refill_extra(self.extra.testing.unlimited_nos, self.extra.testing.unlimited_breaker);
+        }
         self.speedbreaker_clock.set_dilation(speedbreaker.dilation);
         // A session forbids time scaling: the speedbreaker is off for every player and the tick runs at 1.0
         // (`session_rules.rs`, `docs/specs/multiplayer/determinism.md` D2).
@@ -148,6 +154,9 @@ impl WorldScene {
         if self.players.is_empty() {
             return;
         }
+        if self.extra.testing.police_off {
+            return;
+        }
         self.coop_chase_tick();
         let primary = self.chase_primary();
         let (collision, _) = self.residency.world_parts();
@@ -170,6 +179,9 @@ impl WorldScene {
             let cast = super::drive::sight::sight_cast(collision);
             let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
             traffic.note_player_height(drive.half_height());
+            if self.extra.testing.lock_heat {
+                traffic.set_extra_heat(Some(self.extra.testing.heat));
+            }
             traffic.update_police(STEP, &view, &clear);
             // The pursuit camera reads the bust after the police's tick, on the same clock.
             drive.update_pursuit(STEP, pursuit_feed(traffic, view.position));
@@ -198,6 +210,9 @@ impl WorldScene {
     /// Every moving car integrates before pair contacts, and every pose is captured after those contacts.
     fn physics_step(&mut self, driving: bool, look: (f32, f32), guest_looks: &[(f32, f32)]) {
         let _span = bevy_log::info_span!("world::physics_step").entered();
+        if let Some(drive) = self.players.lead_mut() {
+            drive.refill_extra(self.extra.testing.unlimited_nos, self.extra.testing.unlimited_breaker);
+        }
         self.update_moment_control();
         let primary = self.chase_primary();
         let focus = self.traffic_focus();

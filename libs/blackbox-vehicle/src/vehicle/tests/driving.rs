@@ -156,6 +156,10 @@ fn nitrous_adds_acceleration_and_drains_the_tank() {
     );
     assert!(boosted.nos_level() < 0.6, "tank {}", boosted.nos_level());
     assert_eq!(plain.nos_level(), 1.0);
+    let speed = boosted.forward_speed();
+    boosted.refill_nitrous();
+    assert_eq!(boosted.nos_level(), 1.0);
+    assert_eq!(boosted.forward_speed(), speed, "refilling must preserve vehicle motion");
 }
 
 #[test]
