@@ -3,6 +3,8 @@ mod filtered;
 mod rigid;
 mod skin;
 mod winding;
+mod writer;
+mod writer_install;
 
 use builder::{Group, bstring_hash, solid_file, solid_file_with_markers, vertex_buffer};
 

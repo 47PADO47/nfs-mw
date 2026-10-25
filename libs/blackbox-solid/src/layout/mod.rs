@@ -7,6 +7,8 @@
 mod v16;
 mod v18;
 
+pub use v16::V16;
+
 /// Field offsets inside `SolidInfo`.
 #[derive(Debug, Clone)]
 pub struct InfoLayout {
