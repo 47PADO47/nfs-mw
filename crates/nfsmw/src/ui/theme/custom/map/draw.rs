@@ -1,4 +1,4 @@
-//! The overlay's shapes: the marks (`marks.rs`), the GPS route and the player's arrow, each in a token colour from the
+//! The overlay's shapes: the marks (`marks.rs`), the GPS and race routes and the player's arrow, each in a token colour from the
 //! skin, faded by its alpha.
 //!
 //! Every shape is quads: a solid mark is a `Rounded` disc or square, a hollow one a ring of `Polyline` strokes. A mark
@@ -10,7 +10,7 @@ use glam::Vec2;
 
 use super::marks::{Mark, MarkKind};
 use super::view::{MapView, pin};
-use crate::hud::NavRoute;
+use crate::hud::{NavRoute, RaceRoute};
 use crate::ui::theme::custom::tokens::{fade, faded_skin, keys};
 
 /// The route's width at scale 1, HUD units.
@@ -193,8 +193,32 @@ pub fn route_lines(
     lines: &mut Polylines,
 ) {
     let (driven, to_go) = split_route(&route.path, car);
+    push_route([(driven, behind), (to_go, ahead)], stage, z, lines);
+}
+
+/// Pushes the race route's strokes onto `lines`: split `along` metres into the lap when the player's place on it is
+/// known, the stretch ahead in `ahead` and the stretch driven in `driven`; the whole lap in `ahead` otherwise. A lap
+/// race's line is already closed (`hud/map_roads/race_route.rs`).
+pub fn race_route_lines(
+    route: &RaceRoute,
+    along: Option<f32>,
+    stage: &Stage<'_>,
+    (ahead, driven): ([u8; 4], [u8; 4]),
+    z: f32,
+    lines: &mut Polylines,
+) {
+    let (behind, to_go) = match along {
+        Some(along) => route.split(along),
+        None => (Vec::new(), route.points().to_vec()),
+    };
+    push_route([(behind, driven), (to_go, ahead)], stage, z, lines);
+}
+
+/// Pushes route stretches (render-space points and a colour) as [`ROUTE_WIDTH`] strokes; a transparent or one-point
+/// stretch is skipped.
+fn push_route(stretches: [(Vec<[f32; 2]>, [u8; 4]); 2], stage: &Stage<'_>, z: f32, lines: &mut Polylines) {
     let width = ROUTE_WIDTH * stage.scale;
-    for (points, colour) in [(driven, behind), (to_go, ahead)] {
+    for (points, colour) in stretches {
         if colour[3] == 0 || points.len() < 2 {
             continue;
         }

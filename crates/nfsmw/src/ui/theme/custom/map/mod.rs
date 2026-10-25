@@ -3,8 +3,8 @@
 //! empty, since the map draws its own marks.
 //!
 //! `layout` does the frame's work: it reads the feed (`CustomFeedCell`), moves the mode change and the zoom spring on,
-//! refreshes the cached local set of roads when the car has moved far enough, and projects the roads, the route, the
-//! marks and the player's arrow into canvas units, clipped to a soft ellipse. `build` emits what `layout` made.
+//! refreshes the cached local set of roads when the car has moved far enough, and projects the roads, the race and GPS
+//! routes, the marks and the player's arrow into canvas units, clipped to a soft ellipse. `build` emits what `layout` made.
 //!
 //! - [`modes`]: the four modes, the change from one to the next, and the map's keys.
 //! - [`memory`]: what the map keeps between frames (the local set, the zoom spring, the mode change).
@@ -32,7 +32,7 @@ use blackbox_minimap::Orientation;
 use blackbox_ui::{Component, DrawList, LayoutCx, Polylines, Rect};
 use glam::Vec2;
 
-use self::draw::{Stage, arrow, colour, draw_marks, route_lines};
+use self::draw::{Stage, arrow, colour, draw_marks, race_route_lines, route_lines};
 use self::memory::{MapMemory, MapMemoryCell};
 use self::modes::{Overlay, transition};
 use self::roads::{RoadLook, road_lines};
@@ -131,9 +131,13 @@ pub fn compose(
         let look = road_look(cx, settings.high_contrast, (roads_opacity, overlay.detail), stage.scale);
         road_lines(roads, &memory.local, &view, (clip, band), &look, ROAD_Z, lines);
     }
+    let ahead = fade(colour(cx, keys::NAV), (overlay.road_opacity + ROUTE_GAIN).min(1.0) * alpha);
+    if let Some(race) = &hud.race_route {
+        let left = hud.race_info.as_ref().and_then(|info| info.remaining_m);
+        let along = left.and_then(|left| race.route().along(left));
+        race_route_lines(race.route(), along, &stage, (ahead, fade(ahead, DRIVEN_SHARE)), ROUTE_Z, lines);
+    }
     if let Some(route) = &hud.route {
-        let nav = colour(cx, keys::NAV);
-        let ahead = fade(nav, (overlay.road_opacity + ROUTE_GAIN).min(1.0) * alpha);
         let behind = fade(ahead, DRIVEN_SHARE * overlay.detail);
         route_lines(route, car.position, &stage, (ahead, behind), ROUTE_Z, lines);
     }

@@ -7,7 +7,10 @@ use blackbox_minimap::Orientation;
 use blackbox_ui::{Component, DrawList, LayoutCx, Rect, Skin, UiNode};
 
 use super::CustomMap;
-use crate::hud::{HudState, MapPosition, MapRoad, MapRoads, MapRoadsHandle, NavRoute, RoadClass, next_turn};
+use crate::hud::{
+    HudState, MapPosition, MapRoad, MapRoads, MapRoadsHandle, NavRoute, RaceRoute, RaceRouteHandle, RoadClass,
+    next_turn,
+};
 use crate::settings::hud::{HudSettings, MapMode};
 use crate::ui::present::Screen;
 use crate::ui::theme::custom::feed::{CustomFeed, CustomFeedCell};
@@ -107,4 +110,15 @@ fn compact_shows_the_turn_chip_only_with_a_route() {
     let nodes = built(&CustomFeedCell::new(), feed(hud, MapMode::Compact));
     let texts: Vec<&str> = nodes.iter().filter_map(|node| node.text.as_deref()).collect();
     assert_eq!(texts, ["350 m"]);
+}
+
+#[test]
+fn the_race_route_is_drawn_on_the_overlay_and_not_in_compact() {
+    let samples = vec![([-100.0, 0.0], 0.0), ([100.0, 0.0], 200.0), ([100.0, 100.0], 300.0)];
+    let lap = RaceRouteHandle::new(RaceRoute::from_samples(samples, 300.0, 300.0, true).unwrap());
+    let racing = HudState { race_route: Some(lap), ..on_map(None) };
+    let bare = built(&CustomFeedCell::new(), feed(on_map(None), MapMode::Centered)).len();
+    assert!(built(&CustomFeedCell::new(), feed(racing.clone(), MapMode::Centered)).len() > bare);
+    assert!(built(&CustomFeedCell::new(), feed(racing.clone(), MapMode::Expanded)).len() > bare);
+    assert!(built(&CustomFeedCell::new(), feed(racing, MapMode::Compact)).is_empty(), "no route without the overlay");
 }
