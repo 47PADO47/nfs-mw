@@ -102,6 +102,78 @@ hud-notify-bounty = Bounty { $bounty }
 hud-notify-tire = Tyre punctured
 hud-notify-heavy-damage = Heavy damage
 hud-notify-vehicle-critical = Vehicle disabled
+
+## The Custom HUD's contextual layouts (ui/theme/custom: free_roam, race, pursuit, condition, words). Headings are
+## shown in capitals.
+
+# What Interact does on the entry card, after the key that does it.
+hud-entry-action-go-in = Go in
+hud-entry-action-leave = Leave
+# The heading of a discovery chip for a place that is not a race.
+hud-discovery-nearby = Nearby
+# The free-roam extras line: $cash and $bounty are whole numbers with digit grouping, $distance a distance with its unit.
+hud-extras-cash = ${ $cash }
+hud-extras-bounty = Bounty { $bounty }
+hud-extras-route = GPS { $distance }
+# Distances: $value is a number, already rounded.
+hud-distance-m = { $value } m
+hud-distance-km = { $value } km
+hud-distance-ft = { $value } ft
+hud-distance-mi = { $value } mi
+hud-race-type-sprint = Sprint
+hud-race-type-circuit = Circuit
+hud-race-type-drag = Drag
+hud-race-type-knockout = Lap knockout
+hud-race-type-tollbooth = Tollbooth
+hud-race-type-speed-trap = Speedtrap
+hud-race-type-challenge = Challenge
+hud-race-type-race = Race
+# The gap to the nearest rival at the latest checkpoint both passed: $seconds is unsigned, two decimals. Never a sign:
+# the word says the side.
+hud-gap-ahead = { $seconds } s AHEAD
+hud-gap-behind = { $seconds } s BEHIND
+hud-gap-level = LEVEL
+# The race strip's headings.
+hud-strip-position = Pos
+hud-strip-lap = Lap
+hud-strip-final-lap = Final lap
+# A checkpoint race's gate.
+hud-strip-checkpoint = CP
+# The race intro card.
+hud-intro-laps = { $laps ->
+    [one] { $laps } lap
+   *[other] { $laps } laps
+}
+hud-intro-opponents = { $n ->
+    [one] { $n } opponent
+   *[other] { $n } opponents
+}
+# The pursuit panel's status, a word beside its icon.
+hud-pursuit-status-active = Active
+hud-pursuit-status-search = Search
+hud-pursuit-status-cooldown = Cooldown
+hud-pursuit-heat = Heat
+# $bounty is a whole number with digit grouping.
+hud-pursuit-bounty = Bounty { $bounty }
+# Where the police last saw the player, $secs whole seconds ago.
+hud-pursuit-last-seen = Last seen { $secs } s ago
+# $cost is a whole number with digit grouping.
+hud-pursuit-cost = Cost { $cost }
+# The cop cars that joined the chase and those wrecked.
+hud-pursuit-units = Units { $engaged } / { $wrecked } wrecked
+hud-pursuit-hiding = Hiding
+hud-pursuit-escaped-card = Escaped
+hud-pursuit-busted-card = Busted
+# The vehicle condition chip.
+hud-condition-damaged = Damaged
+hud-condition-disabled = Vehicle disabled
+hud-condition-tire-blown = Tyre blown
+hud-condition-tire-punctured = Tyre punctured
+hud-condition-heavy-damage = Heavy damage
+hud-wheel-front-left = Front left
+hud-wheel-front-right = Front right
+hud-wheel-rear-left = Rear left
+hud-wheel-rear-right = Rear right
 # The count badge of a notice or a chip that repeats: $count is how many times it came.
 hud-notify-count = ×{ $count }
 # The feedback lane's bounty chip: $amount is the bounty gained, already written with the language's digit grouping.
