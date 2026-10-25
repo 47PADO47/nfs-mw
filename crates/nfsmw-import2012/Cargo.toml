@@ -1,0 +1,31 @@
+[package]
+name = "nfsmw-import2012"
+description = "Builds a mod that adds the cars of NFS Most Wanted (2012) to NFS: Most Wanted (2005), from the user's own installs of both."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "nfsmw-import2012"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+blackbox-hash.workspace = true
+blackbox-solid.workspace = true
+blackbox-tpk.workspace = true
+chameleon-bundle.workspace = true
+chameleon-gfx.workspace = true
+chameleon-vehicle.workspace = true
+clap.workspace = true
+env_logger.workspace = true
+game-install.workspace = true
+log.workspace = true
+nfsmw-data.workspace = true
+serde.workspace = true
+toml.workspace = true
+
+[lints]
+workspace = true
