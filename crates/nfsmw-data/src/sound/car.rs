@@ -61,6 +61,8 @@ impl CarSound {
 /// The sound set of car type `type_name` (`BMWM3GTR`, any case) at the given upgrade levels, from `db`
 /// (`attributes.bin`).
 pub fn car_sound(db: &Database, type_name: &str, upgrades: SoundUpgrades) -> Result<CarSound> {
+    // A mod car sounds like its clone (its own engine loops, when it has them, are the audio's business).
+    let type_name = crate::car::mods::physics_name(type_name);
     let name = type_name.to_ascii_lowercase();
     let car = db.collection("pvehicle", &name).with_context(|| format!("no vehicle record named {name}"))?;
     let pvehicle = Fields(car);

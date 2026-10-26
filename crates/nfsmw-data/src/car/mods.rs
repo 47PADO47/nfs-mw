@@ -12,7 +12,9 @@ use blackbox_carparts::CarTypeInfo;
 
 use crate::pursuit::{CopRecord, HEAT_LEVELS, HeatRow};
 
+mod engine;
 mod tuning;
+pub use engine::{EngineLayer, EngineSound};
 pub use tuning::{TYPICAL_NITROUS, Tuning};
 
 /// How many cars of a mod's kind a cop wave with the car has.
@@ -41,6 +43,8 @@ pub struct CarSpec {
     pub geometry_in_mod: bool,
     /// How the car drives compared with its clone.
     pub tuning: Tuning,
+    /// The car's own engine loops, if the mod gives them.
+    pub engine_sound: Option<EngineSound>,
 }
 
 /// A car the game admitted, with the car type it adds to the table.
@@ -57,6 +61,8 @@ pub struct ModCar {
     /// surfaces, which a mod makes with the clone's texture layout.
     pub clone_folder: String,
     pub tuning: Tuning,
+    /// The car's own engine loops, if the mod gives them.
+    pub engine_sound: Option<EngineSound>,
     /// A copy of the clone's record, with the mod's folder as its geometry and the brand the mod gave.
     pub car_type: CarTypeInfo,
 }
@@ -147,6 +153,7 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
         cop_heat: spec.cop_heat.clone(),
         clone_folder,
         tuning: spec.tuning,
+        engine_sound: spec.engine_sound.clone(),
         car_type,
     })
 }
@@ -233,6 +240,11 @@ pub fn clone_folder(folder: &str) -> Option<&'static str> {
 /// asked for no change.
 pub fn tuning(folder: &str) -> Option<Tuning> {
     find_in(published(), folder).map(|car| car.tuning).filter(|tuning| !tuning.is_stock())
+}
+
+/// The engine loops a mod gave the car in `folder`. `None` for a car that is not a mod car or has no loops of its own.
+pub fn engine_sound(folder: &str) -> Option<&'static EngineSound> {
+    find_in(published(), folder).and_then(|car| car.engine_sound.as_ref())
 }
 
 /// Whether `folder` is a car a mod added.

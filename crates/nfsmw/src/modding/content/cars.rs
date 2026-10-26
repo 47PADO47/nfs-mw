@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use blackbox_modding::content::{CARS_FOLDER, CarManifest, parse_car};
 use game_install::{GameDir, Provider};
 use nfsmw_data::car::CarTables;
-use nfsmw_data::car::mods::{self as car_mods, CarSpec, Tuning};
+use nfsmw_data::car::mods::{self as car_mods, CarSpec, EngineLayer, EngineSound, Tuning};
 use nfsmw_data::pursuit::HEAT_LEVELS;
 
 use super::ModDir;
@@ -85,7 +85,17 @@ fn read_spec(dir: &GameDir, owner: &str, path: &Path) -> Result<CarSpec, String>
         cop_heat,
         geometry_in_mod,
         tuning,
+        engine_sound: manifest.engine_sound.as_ref().map(engine_sound_of),
     })
+}
+
+/// The manifest's `[engine_sound]` as the game's engine loops.
+fn engine_sound_of(sound: &blackbox_modding::content::EngineSound) -> EngineSound {
+    EngineSound {
+        idle_rpm: sound.idle_rpm,
+        redline_rpm: sound.redline_rpm,
+        layers: sound.layers.iter().map(|layer| EngineLayer { file: layer.file.clone(), rpm: layer.rpm }).collect(),
+    }
 }
 
 /// The manifest's `[performance]` as the game's tuning of a mod car.

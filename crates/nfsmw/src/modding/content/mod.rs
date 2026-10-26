@@ -72,7 +72,7 @@ pub fn rescan(dir: &GameDir, id: &str) -> Result<usize, RescanError> {
 }
 
 /// [`rescan`] over an explicit list of loaded mods.
-fn rescan_in(dir: &GameDir, mods: &[ModDir], id: &str) -> Result<usize, RescanError> {
+pub(crate) fn rescan_in(dir: &GameDir, mods: &[ModDir], id: &str) -> Result<usize, RescanError> {
     let Some(m) = mods.iter().find(|m| m.id == id) else { return Err(RescanError::NotLoaded) };
     let files = m.dir.join(super::layers::FILES_FOLDER);
     if files.is_dir() && !dir.has_layer(id) {
