@@ -407,6 +407,9 @@ impl Scene for WorldScene {
         self.mod_blips.clear();
         self.mod_blips.extend_from_slice(blips);
     }
+    fn set_nitrous_fx(&mut self, fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>) {
+        self.scene_set_nitrous_fx(fx);
+    }
     fn player_car(&mut self) -> Option<crate::viewer::PlayerCar> {
         self.player_car_state()
     }

@@ -145,6 +145,9 @@ impl Audio {
                 _ => false,
             })
             .collect();
+        // A mod's nitrous variant plays its own sounds; the game's nitrous sound is silent while they do.
+        let replaced = car.nitrous.update(self, frame.nitrous_fx, input.nos_active);
+        car.power.set_silence_nitrous(replaced);
         car.power.update(self, &car.sound, &input, power_frame, power_levels, frame.dt);
         for (command, power_event) in commands.drain(..).zip(routed) {
             routing::dispatch(self, car, command, tyres_owned, power_event);
