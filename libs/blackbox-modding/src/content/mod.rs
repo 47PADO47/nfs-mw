@@ -7,6 +7,9 @@
 
 mod car;
 mod customization;
+mod damage_parts;
+#[cfg(test)]
+mod damage_parts_tests;
 #[cfg(test)]
 mod customization_tests;
 mod engine_sound;
@@ -26,6 +29,7 @@ mod stats;
 mod tests;
 
 pub use car::{CarManifest, Role, parse as parse_car};
+pub use damage_parts::{DamagePart, MAX_DAMAGE_PARTS, MAX_STAGES, Zone as DamageZone};
 pub use customization::{Customization, Finish, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
 pub use engine_sound::{
     CarEffects, EngineSound, Layer as EngineLayer, MAX_EFFECT_FILES, MAX_LAYERS as MAX_ENGINE_LAYERS,
