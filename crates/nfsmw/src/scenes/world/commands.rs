@@ -21,7 +21,7 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("reset", "put the car back on the nearest road, facing the same way"),
     ("tp <x> <y>", "put the car on the road nearest to the map position"),
     ("goto <x> <y> [height]", "fly the free camera to a map position"),
-    ("garage", "list your cars (for now every car in the install; use drive <car> to get into one)"),
+    ("garage", "list the cars of the install by category (racing, police, mod player, mod police with their heat waves); use drive <car> to get into one"),
     ("parts preset <name>", "load a saved F6 car setup through the normal garage validation"),
     (
         "parts [stock|<body|spoiler|hood|roof|rims> <stock|index> ...]",
@@ -92,7 +92,7 @@ pub(super) fn run(
         "story" => super::career::story_command::story_command(scene, args),
         "session" => super::session_rules::session_command(scene, args),
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
-        "garage" if args.is_empty() => Ok(nfsmw_data::car::list(&scene.dir).join("  ")),
+        "garage" if args.is_empty() => Ok(crate::devtools::car_list::garage_list(&scene.dir)),
         "parts" => super::garage::command::run(scene, renderer, args),
         "coop" => super::players::command::coop(scene, renderer, args),
         "pos" if args.is_empty() => Ok(pos(scene)),
