@@ -21,11 +21,16 @@ use crate::scenes::world::props::{FragmentSpawn, PropWorld};
 /// Move the parts that follow the car's speed (an active spoiler) one step: the car's speed decides whether each is going
 /// up or down.
 fn advance(sim: &mut CarSim, hinges: &[hinged::Hinge]) {
-    if hinges.iter().all(|hinge| hinge.active.is_none()) {
+    let wing = hinges.iter().find_map(|hinge| hinge.wing.as_ref());
+    if wing.is_none() && hinges.iter().all(|hinge| hinge.active.is_none()) {
         return;
     }
     let mph = sim.velocity().length() * hinged::MPS_TO_MPH;
+    let brake = sim.brake_pedal();
     let Some(events) = sim.events.as_mut() else { return };
+    if let Some(wing) = wing {
+        events.wing_blend = Some(events.wing.step(wing, mph, brake, STEP));
+    }
     events.deployment.resize(hinges.len(), hinged::Deployment::default());
     for (hinge, deployment) in hinges.iter().zip(&mut events.deployment) {
         if let Some(active) = &hinge.active {
@@ -60,6 +65,7 @@ pub(super) fn release(sim: &mut CarSim, rig: &CarRig, props: &mut PropWorld) {
     let parent =
         Parent { position: body.position, velocity: body.linear_velocity, angular_velocity: body.angular_velocity };
     let model = sim.pose().transform();
+    let blend = sim.events.as_ref().and_then(|events| events.wing_blend);
     let Some(events) = sim.events.as_mut() else { return };
     let owner = Rc::downgrade(&events.owner);
     for (n, turned, deployed) in due {
@@ -67,7 +73,7 @@ pub(super) fn release(sim: &mut CarSim, rig: &CarRig, props: &mut PropWorld) {
         let slot = hinged::slot_of(n);
         // Whether or not the body could be made, the car does not draw the part again.
         events.hidden_slots.insert(slot);
-        let Some(spawn) = spawn_of(rig, n, (turned, deployed), &parent, model) else {
+        let Some(spawn) = spawn_of(rig, n, (turned, deployed), &parent, model, blend.as_ref()) else {
             log::warn!("hinged part {} has no body to leave the car with", hinge.name);
             continue;
         };
@@ -78,15 +84,22 @@ pub(super) fn release(sim: &mut CarSim, rig: &CarRig, props: &mut PropWorld) {
 }
 
 /// What the prop solver needs to start the part `n` of the car drawn by `rig`, turned by `stance.0` degrees and deployed
-/// by `stance.1` (0 to 1).
-fn spawn_of(rig: &CarRig, n: usize, stance: (f32, f32), parent: &Parent, model: glam::Mat4) -> Option<FragmentSpawn> {
+/// by `stance.1` (0 to 1), with the wing machine playing `blend`.
+fn spawn_of(
+    rig: &CarRig,
+    n: usize,
+    stance: (f32, f32),
+    parent: &Parent,
+    model: glam::Mat4,
+    blend: Option<&hinged::Blend>,
+) -> Option<FragmentSpawn> {
     let (turned, deployed) = stance;
     let hinge = rig.hinges().get(n)?;
     let slot = hinged::slot_of(n);
     let placement = rig.model().placements.iter().find(|p| p.slot == slot)?;
     let solid = rig.model().solids.get(&placement.solid)?;
     let (low, high) = (Vec3::from_array(solid.bounds_min), Vec3::from_array(solid.bounds_max));
-    let stand = hinge.transform(turned, deployed);
+    let stand = hinge.transform_with(turned, deployed, blend);
     let turn = stand * placement.transform;
     let mut instances = rig.fragment_instances(slot, None);
     if instances.is_empty() {

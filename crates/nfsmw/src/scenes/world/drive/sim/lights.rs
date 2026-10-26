@@ -20,6 +20,11 @@ impl CarSim {
         f32::from(u8::from(on))
     }
 
+    /// How hard the brake is pressed, 0 to 1.
+    pub fn brake_pedal(&self) -> f32 {
+        self.vehicle.controls().brake
+    }
+
     pub fn lamp_damage(&self) -> u32 {
         self.events.as_ref().map_or(0, |events| events.broken_lights())
     }
