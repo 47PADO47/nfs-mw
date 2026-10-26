@@ -29,6 +29,7 @@ when the module is new.
 | [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paints, rims, spoilers, vinyls), the `[customization]` table of a car manifest, and the files a mod's own car needs |
 | [car-stats.md](car-stats.md) | The `[stats]` table of a car manifest (mass, engine, gearbox, tyres, brakes, nitrous in SI units), the upgrade levels, the shop's bars |
 | [car-sound.md](car-sound.md) | The `[engine_sound]` and `[car_sound]` tables of a car manifest: the car's own engine loops, the built-in engine, shifts, turbo, backfire and pops |
+| [car-lamps.md](car-lamps.md) | The lamps of a mod car: the head, brake and reverse lamp markers on its body solid, the lamp placeholder textures, what the 2012 cars get |
 | [car-collision.md](car-collision.md) | The collision and impact geometry of a mod car: its `BOUNDS.BIN` (what it holds, what the game checks), the damage zones and numbers, how to make one |
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |

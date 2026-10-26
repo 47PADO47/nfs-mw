@@ -96,7 +96,8 @@ table instead ([car-stats.md](car-stats.md)).
 | Engine loops | the looping samples of the car's bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), except the turbo's whistle, one 16-bit WAV per layer at one level, and an `[engine_sound]` table in the car's manifest naming them with the rpm each stands for (`src/engine.rs`, `src/sample.rs`) |
 | Shifts, turbo, backfire, pops | the samples that the car's sound graphs play for the live values `GetPlayerNormalisedGearChangeTimeElapsed`, `BackfireGain`, `GetPopProbability`/`PopGain`, `NormalisedTurboRPM`/`TurboToneGain` and `TurboBlowoffGain` (the last two also use the shared `VEHICLES/WAVES.BNDL`), as WAVs and a `[car_sound]` table (`src/graphs.rs`, `src/effects.rs`). A car with no such graph has no such sound |
 | Collision mesh and tyres | `files/CARS/<ID>/BOUNDS.BIN`: the car's own collision bounds, fitted to the poly soup of its bundle (the body's real extents, 166 to 256 triangles) and to the box of each tyre, through the same transform as the body: a root box, a lower body box, a cabin box, front and roof corner spheres and the silhouette the car rolls on. The one bundle without a collision mesh (the SWAT van) is fitted to its visible body. Format and what the 2012 game holds: [car-collision.md](car-collision.md), [chameleon-collision.md](../formats/chameleon-collision.md) (`src/collision.rs`) |
-| Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
+| Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The lamp markers `LEFT_HEADLIGHT`, `RIGHT_HEADLIGHT`, `LEFT_BRAKELIGHT`, `RIGHT_BRAKELIGHT` and `BRAKELIGHT_CENTRE` are the car's own lamp locators, picked by its lamp records ([car-lamps.md](car-lamps.md)). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
+| Lamp surfaces | the lit strips of the 2012 lamps, split by piece, drawn with the game's lamp placeholders, and the car's own `<ID>_KIT00_HEADLIGHT_ON`/`_OFF` and `_BRAKELIGHT_ON`/`_OFF` textures (flat colours); the lamp interiors are dark grey ([car-lamps.md](car-lamps.md)) |
 | Glass and lamp lenses | a translucent tint texture with light material `WINDSHIELD` |
 | Untextured surfaces | a flat colour texture from the material's diffuse colour (dark grey when it has none) |
 | Normals | recomputed from the triangles |
@@ -141,8 +142,9 @@ Then what the conversion does not do:
 - **No vinyls, rims, spoilers, scoops, tints, body kits or hoods**: the 2012 game has none to offer, so the shop lists only
   the paints. The performance bars of the shop are computed from each car's stats.
 - **Collision is fitted, not copied.** The 2012 damage objects (hinged parts, per-zone thresholds: not decoded), headlight
-  beams, brake discs (they are part of the wheel), spoiler and mirror animation, and the 2012 lamp locators are not
-  converted. The sets were not compared with how the cars drive in a window.
+  beams, brake discs (they are part of the wheel) and spoiler and mirror animation are not converted. The lamps are:
+  markers from the lamp locators, but no reverse lamp (the 2012 files have no record for one) and flat lit colours
+  ([car-lamps.md](car-lamps.md)). The sets were not compared with how the cars drive in a window.
 - **Tail pipes are approximated** from the body's shape; the 2012 tail pipe locators are not decoded.
 - **Paint names.** The 2012 records carry no names; a paint is named by its finish and colour (`Metallic #AD2B2C`).
 - **Normal, specular and effect maps are dropped**: the 2005 car shader has its own lighting.
