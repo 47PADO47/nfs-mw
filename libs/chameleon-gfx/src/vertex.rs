@@ -10,6 +10,10 @@ pub mod usage {
     pub const POSITION: u8 = 1;
     pub const COLOR: u8 = 4;
     pub const TEXCOORD: u8 = 5;
+    /// Four bone indices, one byte each (the descriptor says `R10G10B10A2_UINT`, but the four bytes are indices).
+    pub const BONES: u8 = 13;
+    /// Four skin weights, one byte each, in the order of the bone indices.
+    pub const WEIGHTS: u8 = 14;
 }
 
 /// One element of a vertex.
