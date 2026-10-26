@@ -6,6 +6,7 @@
 //! the caller puts those in the same [`chameleon_bundle::Pool`].
 
 mod active_aero;
+mod hsm;
 mod appearance;
 mod collision;
 mod error;

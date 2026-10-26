@@ -75,9 +75,9 @@ fn the_cars_with_an_active_spoiler_are_found() {
         found.push((file, motion.above_mph, motion.below_mph));
     }
     // The single-state speed machines of the install: the speeds come from their conditions.
-    assert_eq!(found.len(), 8, "{found:?}");
+    assert_eq!(found.len(), 10, "{found:?}");
     let speeds: std::collections::BTreeSet<(i32, i32)> =
         found.iter().map(|(_, above, below)| (*above as i32, *below as i32)).collect();
-    let expected = [(70, 40), (70, 50), (74, 64), (75, 75), (100, 80)];
+    let expected = [(70, 40), (70, 50), (74, 64), (75, 75), (80, 50), (100, 80)];
     assert_eq!(speeds, expected.into_iter().collect(), "{found:?}");
 }
