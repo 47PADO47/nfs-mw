@@ -2,7 +2,7 @@
 //!
 //! A hinged part is a solid of the car's own `GEOMETRY.BIN` that the body does not contain. While the car is intact the
 //! part is drawn where it was modelled; as the damage of the zones around it grows it turns about its hinge line, and
-//! past `detach_at` it is gone. [`add`] puts the parts on an assembled car as placements of their own slots, and
+//! past its release level it leaves the car ([`debris`]). [`add`] puts the parts on an assembled car as placements of their own slots, and
 //! [`Hinge::pose`] says how far each has turned for the zone levels of the car's damage.
 
 use std::collections::HashMap;
@@ -13,6 +13,9 @@ use blackbox_solid::Solid;
 use glam::{Mat4, Vec3};
 
 use crate::car::{LodAssembly, Placement};
+
+mod debris;
+pub use debris::{DEBRIS_SOUND, Motion, Parent, debris_bounds, debris_dynamics, debris_motion, part_axis, part_frame};
 
 /// The first slot number of the hinged parts: part `n` of a car is slot `HINGED_SLOT + n`. The slots of the parts
 /// database end at 135, so these never meet one.
@@ -40,6 +43,10 @@ pub struct Hinge {
     /// The zone damage fractions at which the stages start, ascending.
     pub stages: Vec<f32>,
     pub detach_at: Option<f32>,
+    /// Whether the part can leave the car at all.
+    pub detach: bool,
+    /// What the part weighs as a body of its own, in kg.
+    pub mass_kg: f32,
 }
 
 /// How a hinged part stands for some damage.
@@ -47,7 +54,7 @@ pub struct Hinge {
 pub enum Pose {
     /// Turned `degrees` about its hinge (0 while the car is intact in its zones).
     Turned(f32),
-    /// Fallen off: not drawn.
+    /// Released: the car no longer draws it (it is a body of its own, see [`debris`]).
     Gone,
 }
 
@@ -62,14 +69,36 @@ impl Hinge {
     /// The part's pose at damage `fraction` (0 to 1). No damage leaves it at rest; otherwise it has turned `angle` times
     /// the share of its stages that the damage has reached.
     pub fn pose(&self, fraction: f32) -> Pose {
-        if fraction <= 0.0 {
-            return Pose::Turned(0.0);
-        }
-        if self.detach_at.is_some_and(|at| fraction >= at) {
+        if self.releases(fraction, false) {
             return Pose::Gone;
         }
+        Pose::Turned(self.swing(fraction))
+    }
+
+    /// Degrees the part has turned at damage `fraction`, whether or not it has been released since: 0 without damage,
+    /// else `angle` times the share of the stages the damage has reached.
+    pub fn swing(&self, fraction: f32) -> f32 {
+        if fraction <= 0.0 {
+            return 0.0;
+        }
         let reached = self.stages.iter().filter(|&&stage| fraction >= stage).count();
-        Pose::Turned(self.angle * reached as f32 / self.stages.len().max(1) as f32)
+        self.angle * reached as f32 / self.stages.len().max(1) as f32
+    }
+
+    /// The damage fraction from which the part leaves the car: the manifest's `detach_at`, else the last stage but not
+    /// before half the damage a zone can take. `None` for a part that stays on the car.
+    pub fn release_level(&self) -> Option<f32> {
+        if !self.detach {
+            return None;
+        }
+        Some(self.detach_at.unwrap_or_else(|| self.stages.last().copied().unwrap_or(0.0).max(0.5)))
+    }
+
+    /// Whether the part is to leave the car now: its damage has reached the release level, or the car is `wrecked`
+    /// (destroyed or busted) and the part can detach at all.
+    pub fn releases(&self, fraction: f32, wrecked: bool) -> bool {
+        let Some(level) = self.release_level() else { return false };
+        wrecked || (fraction > 0.0 && fraction >= level)
     }
 
     /// The transform of the part turned by `degrees` about its hinge line, in the car's solid space.
@@ -180,6 +209,8 @@ mod tests {
             angle: -15.0,
             stages: vec![0.04, 0.05, 0.5],
             detach_at: None,
+            detach: false,
+            mass_kg: 40.0,
         }
     }
 
@@ -195,9 +226,35 @@ mod tests {
 
     #[test]
     fn a_part_with_a_detach_level_falls_off_there() {
-        let hinge = Hinge { detach_at: Some(0.9), ..bonnet() };
+        let hinge = Hinge { detach: true, detach_at: Some(0.9), ..bonnet() };
         assert_eq!(hinge.pose(2.0 / 3.0), Pose::Turned(-15.0));
         assert_eq!(hinge.pose(1.0), Pose::Gone);
+    }
+
+    #[test]
+    fn without_a_detach_level_the_last_stage_decides_but_not_before_half_the_damage() {
+        let bonnet = Hinge { detach: true, ..bonnet() };
+        assert_eq!(bonnet.release_level(), Some(0.5), "the last stage of the 911's bonnet");
+        let mirror = Hinge { stages: vec![0.0, 0.09, 0.2], ..bonnet.clone() };
+        assert_eq!(mirror.release_level(), Some(0.5), "a mirror's 0.2 is the first dent: not that early");
+        let door = Hinge { stages: vec![0.4, 1.0], ..bonnet.clone() };
+        assert_eq!(door.release_level(), Some(1.0));
+        assert!(!door.releases(2.0 / 3.0, false) && door.releases(1.0, false));
+        assert!(bonnet.releases(2.0 / 3.0, false) && !bonnet.releases(1.0 / 3.0, false));
+        assert_eq!(bonnet.pose(2.0 / 3.0), Pose::Gone);
+        assert_eq!(bonnet.swing(2.0 / 3.0), -15.0, "the swing it had when it left");
+    }
+
+    #[test]
+    fn a_wreck_sheds_every_part_that_can_detach_and_only_those() {
+        let free = Hinge { detach: true, ..bonnet() };
+        assert!(free.releases(0.0, true), "an undamaged zone does not save a wrecked car's part");
+        assert!(!free.releases(0.0, false));
+        let kept = Hinge { detach: false, ..bonnet() };
+        assert!(!kept.releases(1.0, true) && !kept.releases(1.0, false));
+        assert_eq!(kept.release_level(), None);
+        let set = Hinge { detach: true, detach_at: Some(0.2), ..bonnet() };
+        assert!(set.releases(1.0 / 3.0, false), "an explicit level is used as it is");
     }
 
     #[test]
