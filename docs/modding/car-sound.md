@@ -195,3 +195,96 @@ render. The windows' direction, the audible-speed range taken as idle to redline
 whine's reference speed and which of the two Ginsu sets plays are readings of the data
 ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)); the shift direction is unknown. A converted car may sound
 wrong even when everything loads. The built-in engine has not been judged by ear either.
+
+## Measured against the cars of the game
+
+Nobody can listen while the game is built, so the sound of a car is **measured**: `crates/nfsmw/src/audio/car/measure`
+drives a car through the real mixer with the headless backend (`Audio::replay`, nothing is played) and reads numbers off the
+render: loudness (root mean square, and a gated 400 ms loudness like LUFS without the K weighting), peak and clipping, the
+spectral centroid and strongest partial against the engine speed, the largest level step between 100 ms windows, clicks,
+holes and bangs. The scripts are steady engine speeds at 30 and 100 percent throttle, a sweep from idle to redline, a
+coast, a standing start through six shifts, a nitrous pull, a hit and a scrape. The cars of the game are the reference
+(BMW M3 GTR, Corvette, Audi TT, Lancer Evo, Cobalt SS). Run it:
+
+```sh
+# the converted cars: MW2012_GAME_DIR=<2012 install> MW2012_MOD_OUT=<folder>
+cargo test --release -p nfsmw-2012-content --test sound_convert -- --ignored
+# the numbers (NFSMW_MEASURE_CARS narrows them, NFSMW_MEASURE_OUT appends them to a file)
+NFSMW_GAME_DIR=<2005 install> NFSMW_MEASURE_MOD=<folder> cargo test -p nfsmw --bin nfsmw measure_cars -- --ignored --nocapture
+# the thresholds every converted car must keep
+NFSMW_GAME_DIR=<2005 install> NFSMW_MEASURE_MOD=<folder> cargo test -p nfsmw --bin nfsmw every_converted_car -- --ignored
+```
+
+### What was wrong, and the numbers
+
+| Problem | Before | After | Stock cars |
+|---|---|---|---|
+| Engine level of a converted car (Porsche 911 Carrera S, full throttle, idle to redline) | -46 to -41 dB | -19.1 to -19.2 dB | -21 to -16 dB |
+| Engine level at idle over the 73 cars, full throttle (min, median, max) | -49.6, -23.7, -10.4 dB (after the first fix of the factor) | -31.6, -19.1, -16.4 dB | -33 (Cobalt), -17, -16 |
+| Engine level at 50 percent revs (min, median, max) | -29.5, -20.9, -12.1 dB | -22.9, -19.2, -16.3 dB | -32 to -15 |
+| Turbo whistle: spectral centroid at the limiter (median, max) | 1503, 5158 Hz | 708, 1539 Hz | 468 to 578 Hz |
+| Peak of a rev sweep (median, max) | -4.9, -0.3 dB | -6.6, -3.5 dB | -10.6 to -6.6 dB |
+| Peak of the shifts, backfires and pops of a six-shift drive | -2.4 dB | -12.2 dB | -16.9 to -12.8 dB |
+| Loudness of those effects | -14.4 dB | -27.9 dB | -33.0 to -28.6 dB |
+| Backfire chance at the limiter | 70 percent of lifts | 25 percent | |
+| A wall scrape (average level over the scrape) | -17.5 dB | -26.6 dB (peak -13.5 dB) | -24.7 to -26.5 dB |
+
+The causes, in the order they were found:
+
+1. **Engine level.** The host scaled a mod car's engine by `engine_volume * accel_volume` of a car of the game, which is 0.035
+   (24 dB under the stock cars: the factor scales a stock car's Ginsu loop next to its sample layer and means nothing for
+   layers that have no sample layer). Dropped; the engine is now scaled by `own_engine/level.rs`: it predicts the level of
+   the whole engine at the current engine speed, load and car speed from the root mean square of each recording (a Ginsu
+   recording at the stretch its frequency plays) times the gain each layer has, and brings it to -19 dB at the nominal
+   engine volume (-22 dB off the throttle). The correction stays within 4 times of the car's typical one, so a car whose
+   graph idles quietly (two cars, as the stock Cobalt does) keeps a quiet idle.
+2. **Recordings mastered apart.** The 2012 cars' Ginsu and idle recordings differ by up to 40 dB, and the three Ginsu voices
+   of a few cars have no engine-load curve at all (they play together); both are absorbed by the level above.
+3. **The turbo whistle was a second engine**: the loops were brought to a root mean square of 0.25, as loud as the whole
+   engine, and made every turbocharged car a hiss (centroid 5 to 10 kHz). `WHINE_LEVEL` is now 0.08.
+4. **The transmission whine** the graph gives (a gain of 0.6 on a channel at -16 dB) sits 6 dB under the engine at 1 to 3 kHz;
+   the converter takes it down to 0.35 of that so it is a detail 15 dB under the engine.
+5. **The shifts and pops** were normalised to a peak of 0.9 and played at the volume the stock mixer asks for the clunk of a
+   car of the game (whose recording is quiet): `SHOT_LEVEL` is 0.3. A backfire followed a lift at the limiter seven times in
+   ten and a lift at idle speed one in five, then two to four pops: now 3 to 25 percent, one to three pops.
+6. **Silent idle:** for three cars (the Koenigsegg and two others) the first of the two engine sets of the bundle starts its
+   items 250 rpm above the bottom of its range and is silent at idle (-55.8 dB); the converter takes the first set that
+   sounds at the bottom of the range.
+7. **The electric car** (Tesla Roadster) has no Ginsu voice: its old engine was the five whine loops spread by pitch over an
+   idle of 500 rpm and a redline of 14,000. It now plays the whine loops by the car's speed, as its graph does, at the level
+   of the other cars; it is silent at standstill.
+8. **Scrape**: the mod's shared scrape was 9 dB louder than the same scrape of the cars of the game (average -17.5 dB against
+   -26.5, peak -4.4 against -16.5 dB): `SCRAPE_LEVEL` is 0.35. A hit peaks as high as the hit of the cars of the game (-2.5 dB) and
+   its 500 ms level is 3 to 5 dB higher (the recordings are longer); that is left as it is.
+
+### Where the cars stand now
+
+All 73 converted cars pass `every_converted_car_is_as_loud_and_as_smooth_as_the_cars_of_the_game`: their median loudness is
+within 3 dB of the BMW M3 GTR (-19.2 against -18.8 dB), every rev from 10 percent to the limiter is between -25 and -14 dB,
+a car's loudness spreads at most 9 dB over the revs, no sweep, coast or drive clips or peaks above -3 dB, there is no hole and
+no step above 10 dB in 100 ms (the stock cars: up to 13.5 dB on a coast), the sound brightens with the revs (median Spearman
+correlation of the centroid with the revs 0.94; the stock cars 0.71 to 0.98), and the effects stay under the engine.
+
+The cars by how their engine is made (73 conversions; the livery bundles of a car are not cars):
+
+| Class | Cars | Engine |
+|---|---|---|
+| Three Ginsu voices, an idle loop and five whine loops | 69 | the graphs' own engine, level set as above |
+| The same plus a tenth layer (a second idle loop of the hybrid) | 2 (Porsche 918 Spyder, both) | as above |
+| Two Ginsu voices | 1 (Mercedes SLS AMG 2010) | as above |
+| No Ginsu voice, whine loops by speed | 1 (Tesla Roadster) | the whine loops are the motor |
+| Pitch heuristic (the bundle has no engine graph) | 0 | kept for a car that has none |
+| Built-in engine (`own_engine_sound = false`, or a car with no table) | 0 of the converted cars | six-cylinder loops, level set as above; between two of its loops the level dips up to 6 dB where they are out of phase |
+
+### What is still different, and what cannot be checked
+
+- **Brightness.** The 2012 Ginsu recordings are brighter than the 2005 ones (centroid at the limiter: median 708 Hz against 468
+  to 578 Hz; the brightest cars, the Pagani Zonda and the Audi A1 family, 1.4 to 1.5 kHz). The 2012 game filters its voices
+  with mixer-channel filters (low-pass, band-pass, peaking) that are not ported
+  ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)).
+- **Pitch tracking** is read from the strongest partial and the centroid: the Audi A1 family (3 cars) and the Aston Martin
+  DBS family (2) rise less than the others, because their dominant component is not the engine.
+- **The loudness model** adds powers (incoherent); between two layers of the same harmonics the real level can dip.
+- **Nothing was listened to.** The numbers say a converted car is as loud, as smooth and about as bright as the cars of the
+  game within a few dB; they do not say it sounds like the 2012 car or like a stock car. The gains of the individual voices
+  (the graph's relative levels, the two engine sets, the load crossfade) are the graph's own and unverified by ear.

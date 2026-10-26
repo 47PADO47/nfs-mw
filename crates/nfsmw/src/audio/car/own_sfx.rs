@@ -21,6 +21,17 @@ use crate::audio::{Audio, Group, pcm};
 pub mod logic;
 mod shared;
 
+/// The level of the turbo whistle loops, a factor on their mix. The files are at a listening level of their own
+/// (`nfsmw-2012-content/src/effects.rs`); next to the engine the whistle is a high, thin line, not a second engine, and
+/// measured at the file level it was as loud as the whole engine and made the car sound like a hiss (centroid of 5 to
+/// 10 kHz against 0.2 to 0.5 kHz for the cars of the game).
+pub const WHINE_LEVEL: f32 = 0.08;
+
+/// The level of the one-shots (shifts, blow-off, backfires, pops), a factor on the level each asks for. The files are
+/// brought to a peak of 0.9 (`nfsmw-2012-content/src/effects.rs`), which is far above the gear clunk of the cars of the
+/// game: a drive of six shifts peaked at -2.4 dB against -12.8 dB for the BMW M3 GTR.
+pub const SHOT_LEVEL: f32 = 0.3;
+
 /// The volume and pitch of the whistle change over this long, so a frame's step is not heard as a click.
 const SMOOTH: Duration = Duration::from_millis(80);
 
@@ -81,7 +92,7 @@ impl OwnSfx {
         let tween = Tween { duration: SMOOTH, ..Tween::default() };
         let mix = logic::whine_mix(self.whine.len(), self.spool);
         for (handle, layer) in self.whine.iter_mut().zip(mix) {
-            handle.set_volume(decibels(layer.gain), tween);
+            handle.set_volume(decibels(layer.gain * WHINE_LEVEL), tween);
             handle.set_playback_rate(PlaybackRate(f64::from(layer.rate)), tween);
         }
     }
@@ -115,7 +126,7 @@ impl OwnSfx {
         let variant = self.rng.below(count);
         let data = self.shots[list][variant]
             .clone()
-            .volume(decibels(volume))
+            .volume(decibels(volume * SHOT_LEVEL))
             .start_time(StartTime::Delayed(Duration::from_secs_f32(delay)));
         if let Err(e) = audio.play(Group::Sfx, data) {
             log::debug!("a car effect: {e}");

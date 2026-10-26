@@ -1,4 +1,4 @@
-use chameleon_sound_graph::Fade;
+use chameleon_sound_graph::{Fade, GinsuItem, Modulator, WaveItem};
 
 use super::*;
 
@@ -86,4 +86,58 @@ fn a_layer_written_by_the_mod_is_accepted_by_the_games_manifest_parser() {
     assert_eq!(sound.layers.len(), 2);
     assert_eq!(sound.layers[0].span, Some((1790.0, 7500.0)));
     assert_eq!(sound.layers[1].pitch.unwrap().reference, 40.0);
+}
+
+fn engine_set(id: u64, lo: f32, items: Vec<Item>) -> Sequence {
+    Sequence { id, driver: ENGINE_RPM.into(), lo, hi: 7500.0, items }
+}
+
+fn ginsu_item(lo: f32) -> Item {
+    Item {
+        lo,
+        hi: 7500.0,
+        fade_in: Fade { shape: 0.5, span: 100.0 },
+        fade_out: Fade { shape: 1.0, span: 0.0 },
+        kind: ItemKind::Ginsu(GinsuItem { resource: 1, mixer: 2 }),
+    }
+}
+
+fn idle_item(lo: f32) -> Item {
+    let wave = WaveItem {
+        waves: vec![3],
+        mixer: 4,
+        gain: Modulator::default(),
+        pitch: Modulator::default(),
+        tracks_driver: false,
+        random: false,
+    };
+    Item {
+        lo,
+        hi: lo + 500.0,
+        fade_in: Fade { shape: 1.0, span: 0.0 },
+        fade_out: Fade { shape: 0.5, span: 500.0 },
+        kind: ItemKind::Wave(wave),
+    }
+}
+
+#[test]
+fn of_two_sets_the_one_that_sounds_at_idle_is_the_engine() {
+    // The first set starts its items 250 rpm above the bottom of its range: silent at idle. The second does not.
+    let silent = engine_set(1, 1400.0, vec![ginsu_item(1650.0), idle_item(1650.0)]);
+    let sounding = engine_set(2, 1650.0, vec![ginsu_item(1650.0), idle_item(1650.0)]);
+    let graphs = SoundGraphs { sequences: vec![silent.clone(), sounding.clone()], ..SoundGraphs::default() };
+    assert_eq!(engine_sequence(&graphs).map(|sequence| sequence.id), Some(2));
+    let both = SoundGraphs { sequences: vec![sounding, silent], ..SoundGraphs::default() };
+    assert_eq!(engine_sequence(&both).map(|sequence| sequence.id), Some(2), "the first that sounds, in bundle order");
+}
+
+#[test]
+fn with_no_set_that_sounds_the_first_is_kept_and_with_no_ginsu_there_is_none() {
+    let a = engine_set(1, 1400.0, vec![ginsu_item(1650.0)]);
+    let b = engine_set(2, 1400.0, vec![ginsu_item(1700.0)]);
+    let graphs = SoundGraphs { sequences: vec![a, b], ..SoundGraphs::default() };
+    assert_eq!(engine_sequence(&graphs).map(|sequence| sequence.id), Some(1));
+    let none =
+        SoundGraphs { sequences: vec![engine_set(3, 1400.0, vec![idle_item(1400.0)])], ..SoundGraphs::default() };
+    assert!(engine_sequence(&none).is_none());
 }
