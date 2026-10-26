@@ -137,7 +137,37 @@ fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
                 rotation: track.rotation.clone(),
             })
             .collect(),
+        drives: part.drives.iter().map(drive_of).collect(),
         wing: None,
+    }
+}
+
+/// A manifest's `[[damage_parts.drive]]` as the game's drive.
+fn drive_of(drive: &blackbox_modding::content::PartDrive) -> hinged::Drive {
+    use blackbox_modding::content::{DriveInput, DriveOp, DriveTest};
+    let test = |test: &DriveTest| hinged::DriveTest {
+        input: match test.input {
+            DriveInput::Speed => hinged::DriveInput::Speed,
+            DriveInput::Gas => hinged::DriveInput::Gas,
+            DriveInput::Brake => hinged::DriveInput::Brake,
+            DriveInput::Steering => hinged::DriveInput::Steering,
+        },
+        op: match test.op {
+            DriveOp::Eq => hinged::DriveOp::Eq,
+            DriveOp::Ne => hinged::DriveOp::Ne,
+            DriveOp::Gt => hinged::DriveOp::Gt,
+            DriveOp::Lt => hinged::DriveOp::Lt,
+            DriveOp::Ge => hinged::DriveOp::Ge,
+            DriveOp::Le => hinged::DriveOp::Le,
+        },
+        value: test.value,
+    };
+    hinged::Drive {
+        open: drive.open.iter().map(test).collect(),
+        open_any: drive.open_any,
+        open_after: drive.open_after_seconds,
+        close: drive.close.iter().map(test).collect(),
+        close_any: drive.close_any,
     }
 }
 

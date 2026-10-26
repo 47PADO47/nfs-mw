@@ -8,6 +8,9 @@
 //! (its animation, and the condition that closes it), the conditions (a number, the input it is tested against, an operator)
 //! and the machine's child lists, which put a condition before the state it opens.
 
+mod drive;
+pub use drive::{DriveSpec, Guard, drives};
+
 /// The type hashes of the records.
 const MACHINE: u32 = 0x24c4_22b2;
 const STATE: u32 = 0x849c_8ce8;
@@ -78,12 +81,13 @@ fn half(block: &[u8], at: usize) -> Option<u16> {
     Some(u16::from_le_bytes(block.get(at..at + 2)?.try_into().ok()?))
 }
 
-/// The NUL-terminated text at `at`, when it is printable ASCII (it may be empty).
+/// The NUL-terminated text at `at`, when it is printable (ASCII or the bytes of a name with a degree sign; it may be empty).
 fn text_at(block: &[u8], at: usize) -> Option<String> {
     let tail = block.get(at..)?;
     let end = tail.iter().position(|&b| b == 0)?;
     let text = &tail[..end];
-    (end < 64 && text.iter().all(|b| (32..127).contains(b))).then(|| String::from_utf8_lossy(text).into_owned())
+    (end < 64 && text.iter().all(|b| (32..127).contains(b) || *b >= 0x80))
+        .then(|| String::from_utf8_lossy(text).into_owned())
 }
 
 /// The record that starts at `at`, if one does: a known type hash, an id in range and a name that reads.

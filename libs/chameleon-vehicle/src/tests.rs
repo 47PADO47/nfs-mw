@@ -139,3 +139,34 @@ fn the_air_vents_have_their_delays() {
     let numbers: Vec<_> = found.iter().map(|f| (f.0, f.1, f.2, f.3)).collect();
     assert_eq!(numbers, wanted, "{found:?}");
 }
+
+#[test]
+#[ignore = "reads the game install (CHAMELEON_GAME_DIR)"]
+fn the_huayra_flaps_are_guarded_animations() {
+    let Some(dir) = std::env::var_os("CHAMELEON_GAME_DIR") else { return };
+    let data = std::fs::read(Path::new(&dir).join("VEHICLES/VEH_535435_HI.BNDL")).unwrap();
+    let bundle = Bundle::parse(&data).unwrap();
+    for (i, e) in bundle.entries().iter().enumerate() {
+        if e.kind != 0x501 {
+            continue;
+        }
+        let machine = bundle.resource(i).unwrap();
+        for drive in crate::hsm::drives(&machine.blocks[0]) {
+            let tests = |g: &crate::hsm::Guard| {
+                format!(
+                    "{}{:?}",
+                    if g.any { "ANY" } else { "ALL" },
+                    g.tests.iter().map(|t| format!("{} {} {}", t.input, t.operator, t.value)).collect::<Vec<_>>()
+                )
+            };
+            println!(
+                "DRIVE {} anim {} open {} hold {} close {}",
+                drive.name,
+                drive.animation,
+                tests(&drive.open),
+                drive.open_hold,
+                tests(&drive.close)
+            );
+        }
+    }
+}

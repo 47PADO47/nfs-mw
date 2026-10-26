@@ -161,6 +161,40 @@ fn a_vent_waits_before_it_opens_and_before_it_closes() {
     }
 }
 
+const DRIVE: &str = "
+[[damage_parts.drive]]
+open = [{ input = \"speed_mph\", op = \">\", value = 50.0 }, { input = \"steering\", op = \">\", value = 0.3 }]
+close = [{ input = \"speed_mph\", op = \"<=\", value = 50.0 }, { input = \"steering\", op = \"<=\", value = 0.3 }]
+close_any = true
+open_after_seconds = 0.4
+";
+
+#[test]
+fn a_part_can_be_played_out_by_conditions() {
+    let flap = ACTIVE.replace("above_mph = 70.0", "above_mph = 0.0").replace("below_mph = 40.0", "below_mph = 0.0");
+    let part = &car(&format!("{ONE}{flap}{DRIVE}")).unwrap().damage_parts[0];
+    let drive = &part.drives[0];
+    assert_eq!((drive.open.len(), drive.open_any, drive.open_after_seconds, drive.close_any), (2, false, 0.4, true));
+    assert_eq!((drive.open[1].input, drive.open[1].op, drive.open[1].value), (DriveInput::Steering, DriveOp::Gt, 0.3));
+    assert_eq!(drive.close[0].op, DriveOp::Le);
+}
+
+#[test]
+fn bad_drives_are_refused() {
+    let flap = ACTIVE.replace("above_mph = 70.0", "above_mph = 0.0").replace("below_mph = 40.0", "below_mph = 0.0");
+    let bad = [
+        format!("{ONE}{DRIVE}"),
+        format!("{ONE}{flap}{}", DRIVE.replace("speed_mph", "rpm")),
+        format!("{ONE}{flap}{}", DRIVE.replace("\"<=\"", "\"=>\"")),
+        format!("{ONE}{flap}{}", DRIVE.replace("open_after_seconds = 0.4", "open_after_seconds = -1.0")),
+        format!("{ONE}{flap}{DRIVE}{DRIVE}{DRIVE}{DRIVE}{DRIVE}"),
+        format!("{ONE}{flap}{}", DRIVE.replace("close = [{ input = \"speed_mph\", op = \"<=\", value = 50.0 }, { input = \"steering\", op = \"<=\", value = 0.3 }]", "close = []")),
+    ];
+    for text in bad {
+        assert!(car(&text).is_err(), "accepted: {text}");
+    }
+}
+
 #[test]
 fn a_part_that_only_moves_with_the_speed_has_no_damage_turn() {
     let still = ONE.replace("angle = -15.0", "angle = 0.0");
