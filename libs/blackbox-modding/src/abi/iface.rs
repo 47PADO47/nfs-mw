@@ -14,6 +14,7 @@ mod i18n;
 mod input;
 mod map;
 mod menus;
+mod settings;
 mod time;
 mod ui;
 mod vehicles;
@@ -36,6 +37,10 @@ pub use map::{BbBlip, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbRgba};
 pub use menus::{
     BB_MENU_BUTTON, BB_MENU_LIST, BB_MENU_SLIDER, BB_MENU_TOGGLE, BbMenuCallbackFn, BbMenuRow, BbMenus, BbMenusGetFn,
     BbMenusRegisterFn, BbMenusSetFn, BbMenusUnregisterFn,
+};
+pub use settings::{
+    BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_TOGGLE, BbSettingCallbackFn, BbSettingOption, BbSettingValue,
+    BbSettings, BbSettingsAddOptionFn, BbSettingsGetFn, BbSettingsRemoveOptionFn,
 };
 pub use time::{BbTime, BbTimeFreezeFn, BbTimeGetFn, BbTimeOfDay, BbTimeSetDayLengthFn, BbTimeSetHourFn};
 pub use ui::{
@@ -89,6 +94,11 @@ pub const IFACE_MAP_VERSION: (u16, u16) = (1, 0);
 pub const IFACE_MENUS: &str = "bb.menus";
 /// The version the host implements for [`IFACE_MENUS`], as `(major, minor)`.
 pub const IFACE_MENUS_VERSION: (u16, u16) = (1, 0);
+
+/// Id of the settings interface: options (and values of options) a mod adds to the game's settings screens.
+pub const IFACE_SETTINGS: &str = "bb.settings";
+/// The version the host implements for [`IFACE_SETTINGS`], as `(major, minor)`.
+pub const IFACE_SETTINGS_VERSION: (u16, u16) = (1, 0);
 
 /// Id of the vehicles interface: read and move the player's car.
 pub const IFACE_VEHICLES: &str = "bb.vehicles";
