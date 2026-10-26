@@ -1,12 +1,12 @@
-//! The car's own engine sound, from the sample resources of its 2012 bundle (docs/formats/chameleon-sound.md).
+//! The pitch heuristic for the engine of a car whose bundle has no engine sound graph (docs/formats/chameleon-sound.md).
 //!
 //! A car bundle holds about forty samples: mono 48 kHz `EL31` streams behind a 128-byte header, seven or so of them
-//! loops. The 2012 game mixes them in a sound graph with synthesised harmonics, which this mod does not rebuild. What
-//! it does instead is read each loop's pitch, treat the loops as recordings of the engine at different speeds (a loop's
-//! rpm is the idle rpm times its pitch over the lowest pitch), and let the game's mixer play them by engine speed. That
-//! is an approximation. The loops another effect claims (the turbo's whistle, see `effects`) are left out; the rest are
-//! taken as the engine's, which includes the five loops of the graph that reads `GetTransmissionSpeedMph` (by its
-//! name, the transmission's whine, not an engine) because the engine alone has too few pitches to cover the range.
+//! loops. When `graph_voices` finds the car's engine sequences it writes the real behaviour; otherwise this reads each
+//! loop's pitch, treats the loops as recordings of the engine at different speeds (a loop's rpm is the idle rpm times its
+//! pitch over the lowest pitch), and lets the game's mixer play them by engine speed. That is an approximation. The loops
+//! another effect claims (the turbo's whistle, see `effects`) are left out; the rest are taken as the engine's, which
+//! includes the loops of the graph that reads `GetTransmissionSpeedMph` (by its name, the transmission's whine) because the
+//! engine alone has too few pitches to cover the range.
 
 use std::collections::BTreeSet;
 
