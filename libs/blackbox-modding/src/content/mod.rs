@@ -2,7 +2,7 @@
 //! table of `mod.toml` for the `music/` folder, a manifest per scenery pack in `scenery/`, and a manifest per interior in
 //! `interiors/`, and the `[racers]` table of `mod.toml` for extra racer names.
 //!
-//! This module checks the schema only. Whether a `clone` names a stock car, whether a section number is free, and whether
+//! This module checks the schema only. Whether a section number is free, and whether
 //! the mod's files exist, is for the game to decide, because only the game knows its car tables and its index.
 
 mod car;
@@ -40,10 +40,10 @@ pub const SCENERY_FOLDER: &str = "scenery";
 /// The folder inside a mod that holds one interior manifest per interior.
 pub const INTERIORS_FOLDER: &str = "interiors";
 
-/// Longest car id or clone id, in bytes.
+/// Longest car id, in bytes.
 const MAX_ID_BYTES: usize = 32;
 
-/// A car id or a clone id: `A-Z a-z 0-9 _ -`, 1 to 32 bytes.
+/// A car id: `A-Z a-z 0-9 _ -`, 1 to 32 bytes.
 fn is_id(text: &str) -> bool {
     !text.is_empty()
         && text.len() <= MAX_ID_BYTES

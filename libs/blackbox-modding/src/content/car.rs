@@ -34,19 +34,17 @@ impl Role {
 pub struct CarManifest {
     /// The car id: the file name without `.toml`, in upper case. Its folder is `files/CARS/<id>/`.
     pub id: String,
-    /// The stock car it copies, as the game names car folders. The car keeps that car's record, parts and physics.
-    pub clone: String,
     pub role: Role,
     /// The heat levels whose cop waves may use the car: ascending, no repeats. Empty when the list was left out, which
     /// the game reads as every level. Always empty for a car that is not a cop.
     pub heat: Vec<u32>,
-    /// The display name, trimmed. `None` keeps the stock name of the clone.
+    /// The display name, trimmed. `None` shows the car id.
     pub name: Option<String>,
-    /// The brand, trimmed. `None` keeps the clone's brand.
+    /// The brand, trimmed. `None` shows no brand.
     pub manufacturer: Option<String>,
     /// How the car drives compared with the clone (`[performance]`): the clone's own values when the table is left out.
     pub performance: Performance,
-    /// The car's own engine loops (`[engine_sound]`), played instead of its clone's engine. `None` keeps the clone's.
+    /// The car's own engine loops (`[engine_sound]`), `None` for a car with no loops of its own.
     pub engine_sound: Option<EngineSound>,
 }
 
@@ -55,7 +53,6 @@ pub struct CarManifest {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Raw {
-    clone: String,
     #[serde(default)]
     role: RawRole,
     #[serde(default)]
@@ -99,9 +96,6 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     if !is_id(stem) {
         return Err(ContentError::InvalidId(stem.to_owned()));
     }
-    if !is_id(&raw.clone) {
-        return Err(ContentError::InvalidClone(raw.clone));
-    }
     let role = Role::from(raw.role);
     let heat = heat(raw.heat, role)?;
     let name = checked_text(raw.name, ContentError::InvalidName)?;
@@ -110,7 +104,6 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     let engine_sound = engine_sound::check(raw.engine_sound)?;
     Ok(CarManifest {
         id: stem.to_ascii_uppercase(),
-        clone: raw.clone,
         role,
         heat,
         name,

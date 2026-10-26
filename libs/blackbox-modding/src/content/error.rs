@@ -10,9 +10,6 @@ pub enum ContentError {
     /// The file name is not a valid car id.
     #[error("{0:?} is not a valid car id (letters, digits, _ and -, 1 to 32 bytes)")]
     InvalidId(String),
-    /// `clone` is not a valid car id.
-    #[error("clone {0:?} is not a valid car id (letters, digits, _ and -, 1 to 32 bytes)")]
-    InvalidClone(String),
     /// `name` is empty or has a control character.
     #[error("name {0:?} is empty or has a control character")]
     InvalidName(String),

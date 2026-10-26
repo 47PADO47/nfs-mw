@@ -1,4 +1,4 @@
-//! The `[engine_sound]` table of a car manifest: the car's own engine loops, played instead of its clone's engine.
+//! The `[engine_sound]` table of a car manifest: the car's own engine loops.
 //!
 //! The game plays every layer as a loop at once and mixes them by the engine's speed: a layer is loudest when the engine
 //! turns at the layer's own `rpm` and fades out towards its neighbours, and each layer is sped up or slowed down in
