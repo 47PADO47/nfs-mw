@@ -25,6 +25,7 @@ mod racers_tests;
 mod scenery;
 #[cfg(test)]
 mod scenery_tests;
+mod shared_sound;
 mod stats;
 #[cfg(test)]
 mod tests;
@@ -44,6 +45,7 @@ pub use nitrous_fx::{
 };
 pub use racers::{RacersSection, parse as parse_racers};
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};
+pub use shared_sound::SharedSound;
 pub use stats::{Drive, Stats};
 
 /// The folder inside a mod that holds one car manifest per car.

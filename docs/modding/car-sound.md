@@ -7,15 +7,16 @@ nothing of any other car. Its stats are in [car-stats.md](car-stats.md), its sho
 
 ## Sound: `[engine_sound]` and `[car_sound]` in the car manifest
 
-What a mod car sounds like is made of three things, and the manifest can replace the first two:
+What a mod car sounds like is made of four things, and the manifest can replace the first three:
 
 | Sound | The car's own | Without one |
 |---|---|---|
 | Engine | `[engine_sound]` loops | the **built-in engine**, below |
 | Gear shifts, turbo whistle and blow-off, backfires, pops | `[car_sound]` recordings | **silent**, except the gear clunk below |
-| Collisions, scrapes, skids, nitrous, road noise, wind | none: shared by every car | always plays, from the game-wide banks |
+| Collisions and scrapes | the mod's shared recordings, `[car_sound.shared]` | the game-wide banks |
+| Skids, nitrous, road noise, wind | none: shared by every car | always plays, from the game-wide banks |
 
-**The shared sounds.** Collision and scrape sounds are the links of `pvehicle/cars`, the record every car of the game
+**The game-wide sounds.** Collision and scrape sounds (for a car with no `[car_sound.shared]`) are the links of `pvehicle/cars`, the record every car of the game
 derives from, so a car gets what a car gets when it sets nothing of its own (`generic_car_sound`,
 `crates/nfsmw-data/src/sound/car.rs`); skids and nitrous come from the game-wide bank lists (`audiosystem/mostwanted`); road
 noise, wind and the scrape loops are shared banks of `SOUND/IG_GLOBAL`. None of them is a particular car's. The rpm shape of
@@ -87,6 +88,41 @@ released more than 55 percent of the way from idle to the limiter, in a gear abo
 recording plays, and how loud, is chosen here (`crates/nfsmw/src/audio/car/own_sfx.rs`); the 2012 game decides it in sound
 graphs that are not decoded ([chameleon-sound.md](../formats/chameleon-sound.md)).
 
+
+### The shared sounds: `[car_sound.shared]`
+
+```toml
+[car_sound.shared]
+impact_small  = ["SOUND/MODSHARED/IMPACT/B38F5.WAV", "SOUND/MODSHARED/IMPACT/B38F6.WAV"]
+impact_medium = ["SOUND/MODSHARED/IMPACT/B3903.WAV"]
+impact_big    = ["SOUND/MODSHARED/IMPACT/B3922.WAV"]
+scrape        = ["SOUND/MODSHARED/SCRAPE/B38F2.WAV", "SOUND/MODSHARED/SCRAPE/B38F3.WAV"]
+pops          = ["SOUND/MODSHARED/POP/17F571.WAV"]
+```
+
+A mod that adds many cars has recordings its cars share (the 2012 game keeps them in `METALCAR.BNDL` and `WAVES.BNDL`). The
+mod writes them **once** in a folder of its own and every car's manifest names them by path, so the files are not copied
+per car. Each list has up to sixteen 16-bit PCM WAV files (mono or stereo, paths like the engine's), several files being
+variants of which one is picked at random. A wrong table refuses the car. The table is a part of `[car_sound]`: a car may
+have it alone or beside its own lists.
+
+| Key | Plays | Notes |
+|---|---|---|
+| `impact_small`, `impact_medium`, `impact_big` | when the car's body hits the world or another car | the class is picked from the hit's strength (0 to 1): up to 0.25 small, up to 0.75 medium, above it big; a class without files uses the nearest one that has some |
+| `scrape` | while the body scrapes along a surface | the one-shots follow one another (the next starts when 85 percent of the last has played, never the same twice running) and fade out 0.15 s after the scrape stops |
+| `pops` | after a backfire, like `[car_sound] pops` | used only when `[car_sound] pops` is empty |
+
+**What is played and what stays with the game.** A car with impact files plays a **body hit** from them instead of from the
+collision banks of its class-wide record: a hit on the world or on another car, not on a prop that falls over (a cone, a
+sign: those are the `smackable` hits). A hit of another kind (the ground, a landing, a part coming off) has no recording
+in the table and plays what a car without the table plays. A car with `scrape` files scrapes with them instead of the
+scrape loop of the banks. **When** a hit is heard and **how hard** it is (its strength, and whether a scrape is loud enough)
+is still decided by the collision rules of the class-wide record, so the recordings are the car's and the thresholds are the
+game's; the volume of a hit is `0.55 + 0.45 * strength`, a scrape's `0.35 + 0.65 * strength`; two hits within 0.1 s are
+one. A car without the table, and every car of the game, plays exactly what it did (`crates/nfsmw/src/audio/car/own_sfx/shared.rs`).
+Skids, nitrous, road noise, wind and the landing sounds stay with the game-wide banks for every car.
+
+
 ### The 2012 cars' recordings
 
 The 2012 game builds its engine sound in a sound graph of loops and synthesised harmonics, which this game does not
@@ -104,10 +140,19 @@ high tone, `VEHICLES/WAVES.BNDL`); `TurboBlowoffGain` `turbo_blowoff` (the share
 and a half seconds). The evidence for each is in [chameleon-sound.md](../formats/chameleon-sound.md). A car whose bundle has no
 such graph has no such sound: a car without a turbo has no whistle, and one without `TurboBlowoffGain` no blow-off.
 
-`own_engine_sound = false` in the mod's `config.toml` writes no recordings: the cars play the built-in engine and have
-only the shared sounds.
+**The shared recordings of the 2012 cars.** The 2012 game's body hits live in `SOUND/METALCAR.BNDL` and are named by
+the graphs `Player Vehicle Collision Small`, `Medium` and `Big`; the scrape one-shots by `Player Vehicle Scraping` (in
+`HAWAII/SURFACESOUNDS.BNDL`); and the pops of 72 cars are not in the cars' bundles but in the shared `VEHICLES/WAVES.BNDL`,
+named by the cars' own pop graphs. The mod converts these once to `files/SOUND/MODSHARED/` and names them in every car's
+`[car_sound.shared]`. Only the **first selector** of each collision graph (the crash itself, 11 to 12 recordings per size) is
+used: the layers above it (a bright layer, a thud, two tails) are mixed by graph nodes that are not decoded. The 2012 data
+names no material, skid, glass break or tyre burst in the shared bundles, so those are not converted. The evidence is in
+[chameleon-shared-sounds.md](../formats/chameleon-shared-sounds.md).
+
+`own_engine_sound = false` in the mod's `config.toml` writes no recordings, the shared ones included: the cars play the
+built-in engine and have only the game-wide sounds.
 
 **What was not verified.** No recording has been listened to in the game: the checks are that the files are written, that the
-manifests parse and that the mixing and trigger logic passes its unit tests. Which 2012 sample is which (the engine layer
+manifests parse and that the mixing and trigger logic passes its unit tests. The body hits, scrapes and shared pops are the same: the graph names that pick them are text in the data, but which crash a mass or a strength should play, and the level of one against another, are the game's own simple rules here. Which 2012 sample is which (the engine layer
 roles are not read, the pitch-to-rpm mapping is a guess, the shift direction is unknown) is a reading of the data, so a
 converted car may sound wrong even when everything loads. The built-in engine has not been judged by ear either.

@@ -29,6 +29,10 @@ struct Scrape {
 pub(super) struct ContactPlayback {
     scrapes: HashMap<Key, Scrape>,
     failed: bool,
+    /// The car scrapes with its own recordings (`own_sfx`): no scrape of the game's is started, and the strongest
+    /// scrape is kept in `scrape_level` for the car to play.
+    own_scrape: bool,
+    scrape_level: f32,
 }
 
 /// Keep the strongest response for repeated shape/probe observations of one source/material.
@@ -60,6 +64,16 @@ fn admits_scrape(sound: &ImpactSound, magnitude: f32) -> bool {
 }
 
 impl ContactPlayback {
+    /// Let the car play its scrapes from its own recordings (or the game's again, with `false`).
+    pub fn set_own_scrape(&mut self, own: bool) {
+        self.own_scrape = own;
+    }
+
+    /// The strongest scrape (0 to 1) the contacts reported since the last call, 0 for none.
+    pub fn take_scrape_level(&mut self) -> f32 {
+        std::mem::take(&mut self.scrape_level)
+    }
+
     #[cfg(test)]
     pub fn active_count(&self) -> usize {
         self.scrapes.len()
@@ -161,6 +175,12 @@ impl ContactPlayback {
                 scrape.magnitude = magnitude;
                 scrape.timeout = 0.2;
                 scrape.release = None;
+                continue;
+            }
+            if self.own_scrape {
+                if admits_scrape(selected, magnitude) {
+                    self.scrape_level = self.scrape_level.max(magnitude);
+                }
                 continue;
             }
             if self.failed {

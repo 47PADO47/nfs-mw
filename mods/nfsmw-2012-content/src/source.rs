@@ -134,6 +134,11 @@ impl Source {
         vehicle_name(&Bundle::parse(&data).ok()?)
     }
 
+    /// The bytes of the file `rel` of the install (`SOUND/METALCAR.BNDL`), `None` when it is missing or unreadable.
+    pub fn install_file(&self, rel: &str) -> Option<Vec<u8>> {
+        std::fs::read(self.root.join(rel)).ok()
+    }
+
     /// The shared sample bundle (`VEHICLES/WAVES.BNDL`), if the install has it.
     pub fn shared_samples(&self) -> Option<&[u8]> {
         self.shared_samples.as_deref()

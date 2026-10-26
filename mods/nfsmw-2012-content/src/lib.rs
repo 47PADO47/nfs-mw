@@ -30,6 +30,7 @@ pub mod nitrous;
 mod paints;
 pub mod performance;
 mod sample;
+mod shared;
 mod sounds;
 mod source;
 mod stamp;

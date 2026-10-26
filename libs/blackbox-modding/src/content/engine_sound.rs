@@ -111,6 +111,8 @@ pub struct CarEffects {
     pub backfire: Vec<String>,
     /// Short bangs that follow a backfire.
     pub pops: Vec<String>,
+    /// The recordings every car of a mod shares (`[car_sound.shared]`): body hits, scrapes and pops.
+    pub shared: super::shared_sound::SharedSound,
 }
 
 impl CarEffects {
@@ -137,6 +139,8 @@ pub(super) struct RawEffects {
     backfire: Vec<String>,
     #[serde(default)]
     pops: Vec<String>,
+    #[serde(default)]
+    shared: super::shared_sound::RawShared,
 }
 
 /// Check the table. A table that names no file is the same as no table.
@@ -159,6 +163,7 @@ pub(super) fn check_effects(raw: Option<RawEffects>) -> Result<Option<CarEffects
         turbo_blowoff: list("car_sound.turbo_blowoff", raw.turbo_blowoff)?,
         backfire: list("car_sound.backfire", raw.backfire)?,
         pops: list("car_sound.pops", raw.pops)?,
+        shared: super::shared_sound::check(raw.shared)?,
     };
     Ok((!effects.is_empty()).then_some(effects))
 }

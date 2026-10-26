@@ -9,7 +9,7 @@ use game_install::{GameDir, Provider};
 use nfsmw_data::car::CarTables;
 use nfsmw_data::car::mods::custom;
 use nfsmw_data::car::mods::hinged;
-use nfsmw_data::car::mods::{self as car_mods, CarEffects, CarSpec, CarStats, EngineLayer, EngineSound};
+use nfsmw_data::car::mods::{self as car_mods, CarEffects, CarSpec, CarStats, EngineLayer, EngineSound, SharedSound};
 use nfsmw_data::pursuit::HEAT_LEVELS;
 
 use super::ModDir;
@@ -202,6 +202,18 @@ fn car_effects_of(sound: &blackbox_modding::content::CarEffects) -> CarEffects {
         turbo_blowoff: sound.turbo_blowoff.clone(),
         backfire: sound.backfire.clone(),
         pops: sound.pops.clone(),
+        shared: shared_sound_of(&sound.shared),
+    }
+}
+
+/// The manifest's `[car_sound.shared]` as the game's shared recordings.
+fn shared_sound_of(shared: &blackbox_modding::content::SharedSound) -> SharedSound {
+    SharedSound {
+        impact_small: shared.impact_small.clone(),
+        impact_medium: shared.impact_medium.clone(),
+        impact_big: shared.impact_big.clone(),
+        scrape: shared.scrape.clone(),
+        pops: shared.pops.clone(),
     }
 }
 
