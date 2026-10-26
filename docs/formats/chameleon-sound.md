@@ -115,4 +115,4 @@ two engine loops have the same pitch, are in the node data. The shifts could be 
 what the graphs play for a gear change, not known to be a "clunk". The turbo tone's rpm tracking and the blow-off's
 trigger are likewise the game's own rules here, not the 2012 game's (`docs/modding/car-sound.md`).
 
-`WAVES.BNDL` and `METALCAR.BNDL` hold the shared one-shots in the same resource layout.
+`WAVES.BNDL` and `METALCAR.BNDL` hold the shared one-shots in the same resource layout; which of them the named graphs play (body hits, scraping, the cars' pops) is in [chameleon-shared-sounds.md](chameleon-shared-sounds.md).
