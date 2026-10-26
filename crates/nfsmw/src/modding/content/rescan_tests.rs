@@ -13,7 +13,7 @@ fn mod_folder(name: &str) -> PathBuf {
     std::fs::create_dir_all(dir.join("files/CARS/LATECAR")).unwrap();
     std::fs::create_dir_all(dir.join("cars")).unwrap();
     std::fs::write(dir.join("files/CARS/LATECAR/GEOMETRY.BIN"), b"not read by the registration").unwrap();
-    std::fs::write(dir.join("cars/latecar.toml"), "clone = \"BMWM3GTR\"\nname = \"Late car\"\n").unwrap();
+    std::fs::write(dir.join("cars/latecar.toml"), "name = \"Late car\"\n").unwrap();
     dir
 }
 

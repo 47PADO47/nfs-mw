@@ -1,4 +1,4 @@
-//! The cars of the mods: each `cars/<id>.toml` is read and checked, and the clones are registered against the car table
+//! The cars of the mods: each `cars/<id>.toml` is read and checked, and the cars are registered against the car table
 //! of the install (`nfsmw_data::car::mods`). A car that fails any check is logged and left out; the game goes on.
 
 use std::path::{Path, PathBuf};
@@ -33,7 +33,7 @@ pub(super) fn register(dir: &GameDir, mods: &[ModDir]) -> usize {
         log::warn!("mod {}: car {} is not added: {}", refused.owner, refused.folder, refused.reason);
     }
     for car in &cars {
-        log::info!("mod {}: car {} added as a clone of {}", car.owner, car.folder, car.car_type.type_name);
+        log::info!("mod {}: car {} added", car.owner, car.folder);
     }
     let added = cars.len();
     car_mods::publish(cars);
@@ -78,7 +78,6 @@ fn read_spec(dir: &GameDir, owner: &str, path: &Path) -> Result<CarSpec, String>
     Ok(CarSpec {
         folder: manifest.id,
         owner: owner.to_owned(),
-        clone: manifest.clone,
         name: manifest.name,
         manufacturer: manifest.manufacturer,
         player: manifest.role.is_player(),

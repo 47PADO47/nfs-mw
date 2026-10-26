@@ -73,7 +73,7 @@ impl GarageScene {
             .physics
             .as_ref()
             .context("Physics is loading")?
-            .car_with_performance(entry.physics_key(), selection.performance)?;
+            .car_with_performance(&entry.physics_name, selection.performance)?;
         ensure!(selection.color.is_none() || entry.paintable, "This car has a fixed livery");
         let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
         let mut model = nfsmw_data::car::load_customized(&self.dir, &selection.car, &options, &selection.parts)?;

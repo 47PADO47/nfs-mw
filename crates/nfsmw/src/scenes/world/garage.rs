@@ -174,7 +174,7 @@ impl WorldScene {
         let changed_performance = selection.performance != self.garage.applied.performance;
         let changed_parts = selection.parts != self.garage.applied.parts;
         let physics = match changed_performance || selection.car != self.last_car {
-            true => Some(self.physics.car_with_performance(entry.physics_key(), selection.performance)?),
+            true => Some(self.physics.car_with_performance(&entry.physics_name, selection.performance)?),
             false => None,
         };
         if let Some(physics) = &physics {

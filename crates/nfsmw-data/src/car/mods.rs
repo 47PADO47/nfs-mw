@@ -1,8 +1,9 @@
 //! Cars that mods add (ADR 0005 section 5; docs/modding/api-content.md "Cars").
 //!
-//! A mod car is a clone of a stock car type: it keeps the stock record's name, so its parts, physics and sound are the
-//! clone's, and it ships its own `CARS/<FOLDER>/` geometry and textures. [`register`] is the pure part: it takes the
-//! stock car table and the mods' requests, and returns the cars it admits and the reasons it refuses the others. The
+//! A mod car is a car of its own: it is one more entry in the car table, named by its folder, and it ships its own
+//! `CARS/<FOLDER>/` geometry and textures. Nothing of it is taken from a car of the game. [`register`] is the pure part:
+//! it takes the stock car table and the mods' requests, and returns the cars it admits and the reasons it refuses the
+//! others. The
 //! game publishes the admitted cars at start-up and again when a mod adds more later ([`publish`]); every car-table load after that sees them
 //! ([`car_types`]), and the physics, cop and garage lookups read them through the functions below.
 
@@ -29,8 +30,6 @@ pub struct CarSpec {
     pub folder: String,
     /// The mod that asks for it.
     pub owner: String,
-    /// The stock car it copies: a car folder or a car type name.
-    pub clone: String,
     /// The display name, if the mod gives one.
     pub name: Option<String>,
     /// The brand, if the mod gives one.
@@ -53,25 +52,20 @@ pub struct ModCar {
     pub folder: String,
     pub owner: String,
     pub name: Option<String>,
-    /// The brand the mod gave. `None` keeps the clone's.
+    /// The brand the mod gave. `None` shows no brand.
     pub manufacturer: Option<String>,
     pub player: bool,
     pub cop_heat: Option<Vec<u32>>,
-    /// The stock car folder the car copies, following a chain of mod cars to the end. Its vinyls fit the car's paint
-    /// surfaces, which a mod makes with the clone's texture layout.
-    pub clone_folder: String,
     pub tuning: Tuning,
     /// The car's own engine loops, if the mod gives them.
     pub engine_sound: Option<EngineSound>,
-    /// A copy of the clone's record, with the mod's folder as its geometry and the brand the mod gave.
+    /// The car's entry in the car table: its folder as the type name, its geometry and the brand the mod gave.
     pub car_type: CarTypeInfo,
 }
 
 /// Why a mod's car is not added.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Reason {
-    /// `clone` names no stock car (or a car another mod added).
-    UnknownClone(String),
     /// The mod's `files/` folder has no `CARS/<folder>/GEOMETRY.BIN`.
     NoGeometry,
     /// The folder is a car the game already has, or another mod's car.
@@ -83,7 +77,6 @@ pub enum Reason {
 impl std::fmt::Display for Reason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnknownClone(clone) => write!(f, "clone {clone:?} is not a car of the game"),
             Self::NoGeometry => write!(f, "the mod's files have no CARS/<folder>/GEOMETRY.BIN for it"),
             Self::NameTaken => write!(f, "the folder is already a car"),
             Self::NoSuchHeat(level) => write!(f, "heat level {level} is not one of the game's {HEAT_LEVELS}"),
@@ -100,7 +93,7 @@ pub struct Rejected {
 }
 
 /// Check the requests in order against `stock` and against each other, and return the admitted cars and the refused
-/// requests. A car admitted here can be the clone of a later request. A refused car is not in either list.
+/// requests. A refused car is not in either list.
 pub fn register(stock: &[CarTypeInfo], specs: &[CarSpec]) -> (Vec<ModCar>, Vec<Rejected>) {
     let mut types = stock.to_vec();
     let mut cars: Vec<ModCar> = Vec::new();
@@ -120,9 +113,6 @@ pub fn register(stock: &[CarTypeInfo], specs: &[CarSpec]) -> (Vec<ModCar>, Vec<R
 }
 
 fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCar, Reason> {
-    let Some(source) = find_type(types, &spec.clone) else {
-        return Err(Reason::UnknownClone(spec.clone.clone()));
-    };
     if !spec.geometry_in_mod {
         return Err(Reason::NoGeometry);
     }
@@ -133,17 +123,6 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
     if let Some(&level) = spec.cop_heat.iter().flatten().find(|&&level| level == 0 || level > HEAT_LEVELS) {
         return Err(Reason::NoSuchHeat(level));
     }
-    let mut car_type = source.clone();
-    car_type.geometry_filename = format!("CARS\\{}\\GEOMETRY.BIN", spec.folder);
-    if let Some(manufacturer) = &spec.manufacturer {
-        car_type.manufacturer = manufacturer.clone();
-    }
-    // The clone may itself be a mod car: its own clone is the stock folder.
-    let source_folder = folder_of(source).unwrap_or_default();
-    let clone_folder = cars
-        .iter()
-        .find(|car| car.folder.eq_ignore_ascii_case(source_folder))
-        .map_or_else(|| source_folder.to_owned(), |car| car.clone_folder.clone());
     Ok(ModCar {
         folder: spec.folder.clone(),
         owner: spec.owner.clone(),
@@ -151,11 +130,29 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
         manufacturer: spec.manufacturer.clone(),
         player: spec.player,
         cop_heat: spec.cop_heat.clone(),
-        clone_folder,
         tuning: spec.tuning,
         engine_sound: spec.engine_sound.clone(),
-        car_type,
+        car_type: car_type_of(spec, types.len()),
     })
+}
+
+/// The car table entry of a mod car, made from the car's own request: its folder is its type name and the prefix of
+/// its solids, and its type hash is the hash of that name. A car that only chases (a cop role without the player role)
+/// is a cop type; any other is a racer.
+fn car_type_of(spec: &CarSpec, index: usize) -> CarTypeInfo {
+    let cop_only = spec.cop_heat.is_some() && !spec.player;
+    CarTypeInfo {
+        type_name: spec.folder.clone(),
+        base_model_name: spec.folder.clone(),
+        geometry_filename: format!("CARS\\{}\\GEOMETRY.BIN", spec.folder),
+        manufacturer: spec.manufacturer.clone().unwrap_or_default(),
+        type_name_hash: blackbox_hash::bstring_hash(&spec.folder),
+        index: i32::try_from(index).unwrap_or(i32::MAX),
+        usage_type: i32::from(cop_only),
+        default_skin_number: 1,
+        skinnable: true,
+        default_base_paint: 0,
+    }
 }
 
 /// The folder of a car type: the `CARS/<folder>/` part of its geometry path, in either separator style.
@@ -197,16 +194,6 @@ pub fn car_types() -> Vec<CarTypeInfo> {
     published().iter().map(|car| car.car_type.clone()).collect()
 }
 
-/// The name a physics or AI lookup should use for `name`: a mod car's folder names its clone's type, which owns the
-/// physics record. Any other name is returned as it is.
-pub fn physics_name(name: &str) -> &str {
-    physics_name_in(published(), name)
-}
-
-fn physics_name_in<'a>(cars: &'a [ModCar], name: &'a str) -> &'a str {
-    cars.iter().find(|car| car.folder.eq_ignore_ascii_case(name)).map_or(name, |car| car.car_type.type_name.as_str())
-}
-
 /// Whether the car in `folder` is listed among the player's cars: every stock car is, and a mod car is when it asks.
 pub fn is_player_car(folder: &str) -> bool {
     player_in(published(), folder)
@@ -225,15 +212,9 @@ fn display_name_in<'a>(cars: &'a [ModCar], folder: &str) -> Option<&'a str> {
     cars.iter().find(|car| car.folder.eq_ignore_ascii_case(folder)).and_then(|car| car.name.as_deref())
 }
 
-/// The brand a mod gave the car in `folder`, if any. The clone's brand is used otherwise.
+/// The brand a mod gave the car in `folder`, if any.
 pub fn manufacturer(folder: &str) -> Option<&'static str> {
     find_in(published(), folder).and_then(|car| car.manufacturer.as_deref())
-}
-
-/// The stock folder whose vinyl artwork the car in `folder` uses: the car it clones. `None` for a car that is not a mod
-/// car, which uses its own folder.
-pub fn clone_folder(folder: &str) -> Option<&'static str> {
-    find_in(published(), folder).map(|car| car.clone_folder.as_str())
 }
 
 /// How the mod car in `folder` drives compared with its clone. `None` for a car that is not a mod car, or one whose mod

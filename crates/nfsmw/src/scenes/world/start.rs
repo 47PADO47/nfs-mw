@@ -12,12 +12,7 @@ impl WorldScene {
     /// The physics of the car `model` was assembled as.
     pub(super) fn physics_of(&mut self, model: &CarModel) -> Result<CarPhysics> {
         let type_name = model.car_type.as_deref().context("this car is not in the car tables, so it has no physics")?;
-        // A mod car asks by its folder, so the mod's `[performance]` applies on top of its clone's physics.
-        let key = match nfsmw_data::car::mods::is_mod_car(&model.name) {
-            true => model.name.as_str(),
-            false => type_name,
-        };
-        self.physics.car(key)
+        self.physics.car(type_name)
     }
 
     /// Start (or restart) driving `model` from the camera's place.
