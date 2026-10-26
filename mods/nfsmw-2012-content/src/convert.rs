@@ -15,6 +15,7 @@ use blackbox_tpk::write_tpk;
 use chameleon_vehicle::{Lod, PartMesh, SurfaceKind};
 
 use crate::fit::{Fit, to_car_space};
+use crate::hinges;
 use crate::markers;
 use crate::source::SourceCar;
 use crate::textures::Palette;
@@ -35,6 +36,8 @@ pub struct Built {
     pub triangles: usize,
     /// The car's `BOUNDS.BIN` (`crate::collision`).
     pub bounds: Vec<u8>,
+    /// The `[[damage_parts]]` tables of the car's manifest, empty when it has no hinged part (`crate::hinges`).
+    pub damage_parts: String,
 }
 
 pub struct Options {
@@ -68,6 +71,7 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
         &Parts { transform: &body, markers: &body_markers },
         &mut |mesh| look(mesh, car, folder, options, &mut palette),
     )?;
+    let damage_parts = cut_hinged(&mut solids, car, fit, folder);
     let wheel =
         car.vehicle.wheels.iter().find(|wheel| wheel.name.starts_with("FrontLeft")).or(car.vehicle.wheels.first());
     let wheel = wheel.context("the car has no wheels")?;
@@ -91,7 +95,37 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
     let textures = write_tpk(folder, &palette.into_textures()).context("writing TEXTURES.BIN")?;
     let collision = crate::collision::build(car, &body, folder)?;
     log::debug!("{folder}: bounds from the {:?}, half dimensions {:?}", collision.basis, collision.half);
-    Ok(Built { geometry, textures, triangles, bounds: collision.bytes })
+    Ok(Built { geometry, textures, triangles, bounds: collision.bytes, damage_parts })
+}
+
+/// Cut the hinged parts out of the finest body solids (`A` and `B`, which share the finest level) into solids of their
+/// own, and return the `[[damage_parts]]` text that tells the game how they swing. Nothing is cut, and the text is empty,
+/// when the car has no hinged part or its finest level does not fit one solid.
+fn cut_hinged(solids: &mut Vec<SolidSource>, car: &SourceCar, fit: &Fit, folder: &str) -> String {
+    let Some(hinged) = &car.hinged else { return String::new() };
+    if !matches!(pick_lod(&car.vehicle.body, 0), Some((0, _))) {
+        return String::new();
+    }
+    let stems: Vec<String> = hinged.parts.iter().map(|p| format!("{folder}_KIT00_{}", hinges::stem(&p.name))).collect();
+    let mut cuts = Vec::new();
+    for letter in ['A', 'B'] {
+        let name = format!("{folder}_KIT00_BODY_{letter}");
+        let Some(at) = solids.iter().position(|solid| solid.name == name) else { return String::new() };
+        let Some(cut) = hinges::split(&solids[at], &stems, letter, &hinged.classes) else {
+            log::warn!("{folder}: the hinged parts do not line up with the body: not cut");
+            return String::new();
+        };
+        cuts.push((at, cut));
+    }
+    let owned: Vec<bool> = (0..stems.len()).map(|n| cuts.iter().all(|(_, (_, parts))| parts[n].is_some())).collect();
+    for (at, (rest, parts)) in cuts {
+        solids[at] = rest;
+        solids.extend(parts.into_iter().zip(&owned).filter(|(_, owned)| **owned).filter_map(|(solid, _)| solid));
+    }
+    let kept = |n: usize| owned[n];
+    let parts = hinged.parts.iter().enumerate().filter(|(n, _)| kept(*n)).map(|(_, part)| part.clone()).collect();
+    let kept_stems: Vec<String> = stems.into_iter().enumerate().filter(|(n, _)| kept(*n)).map(|(_, s)| s).collect();
+    hinges::manifest_tables(&hinges::Hinged { parts, classes: Vec::new() }, &kept_stems, fit)
 }
 
 /// The wheel's own frame: the 2012 left wheel (axle along x, rim face towards +x) turned to car axes, then half a turn

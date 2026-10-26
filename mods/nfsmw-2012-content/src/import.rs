@@ -117,7 +117,7 @@ fn import_car(source: &Source, named: &Named, config: &Config, folder: &ModFolde
         manufacturer: named.make.clone(),
         role: config.role,
         stats,
-        customization: paints::manifest_table(&paints::choices(&car.paints)),
+        customization: paints::manifest_table(&paints::choices(&car.paints)) + &built.damage_parts,
     };
     let files = CarFiles {
         geometry: &built.geometry,

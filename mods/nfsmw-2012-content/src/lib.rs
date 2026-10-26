@@ -20,6 +20,7 @@ mod emit;
 mod engine;
 mod fit;
 mod graphs;
+mod hinges;
 pub mod import;
 pub mod job;
 mod markers;
