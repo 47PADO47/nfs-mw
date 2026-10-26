@@ -6,6 +6,11 @@ Reader for the **collision data** of EA Black Box games (Need for Speed: Most Wa
   articles that hold triangle strips, barriers and a surface table.
 - `Grid` (chunk `0x3B800`): the world-wide xz grid that lists which instances touch each cell.
 - `BoundsSet` (`0x8003B900`): the boxes, spheres and point clouds of a car or prop.
+- `write_bounds_pack`: the write side of the above: sets back to `0x8003B900` bytes the parser reads (millimetre
+  lengths, 16-byte aligned payloads).
+- `fit_body`: builds a vehicle's `BoundsSet` from points sampled on its body: a root box of the extents, a lower body
+  box, a cabin box, corner and roof spheres and a mirrored silhouette cloud for the ground (the template of the stock
+  sets, see `body_fit`). `BoundsSet::check_vehicle_body` validates a set before a host builds a body from it.
 - `BodyGeometry`: selects one body's immediate children or root, retaining separate fragment
   subtrees and disabled flags. `GeometryOptions` supplies fallback dimensions, shape, padding
   and material from the host. Construction evidence is in `docs/specs/world-sequencers.md`.

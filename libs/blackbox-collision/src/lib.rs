@@ -13,6 +13,7 @@
 
 mod article;
 mod barrier_query;
+mod body_fit;
 mod body_geometry;
 mod bounds;
 mod bounds_writer;
@@ -40,6 +41,7 @@ pub use article::{
     SURFACE_NO_GROUND, Strip, Triangle, VERT_SCALE,
 };
 pub use barrier_query::WorldBarrier;
+pub use body_fit::{BodyLimits, FitOptions, fit_body};
 pub use body_geometry::{BodyGeometry, BodyMesh, BodyPrimitive, GeometryOptions};
 pub use bounds::{Bounds, BoundsSet, Shape, find_bounds, flags as bounds_flags, read_bounds_sets};
 pub use bounds_writer::write_bounds_pack;
