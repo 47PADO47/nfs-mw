@@ -19,11 +19,20 @@ use super::{CarState, EMITTER_LIMIT, Lane, SpriteTexture};
 
 /// The seed of the variant's emitters, apart from the game's own.
 const SEED: u64 = 0x4e49_5452;
+/// The throttle above which the pedal is down. The 2012 game sets the pop's light-state bit (14) only when the pedal bit (8)
+/// and the nitrous start bit (9) are clear, so a pop effect never plays with the pedal pressed.
+const PEDAL_DOWN: f32 = 0.05;
 
 /// One effect of the profile at every pipe.
 struct VariantLane {
     on: EffectOn,
     duration: f32,
+    /// Particles a second at rest, and for each metre a second of the car's speed.
+    rate: f32,
+    rate_per_speed: f32,
+    /// The share of the car's velocity a new particle carries on average: it is born that much of a step behind the pipe, so that
+    /// the step that moves it brings it to the pipe and not past it.
+    carried: f32,
     lane: Lane,
 }
 
@@ -33,8 +42,9 @@ struct Loaded {
     textures: Vec<SpriteTexture>,
     lanes: Vec<VariantLane>,
     /// Seconds left of the start effects.
-    start_left: f32,
-    burning: bool,
+    start_t: f32,
+    /// Seconds since the game's own pop flame began, `f32::INFINITY` while there is none.
+    pop_t: f32,
     /// The batches handed to the layer by the latest `geometry`: the lane, the texture and the layer's index.
     handed: Vec<(usize, TextureHandle, usize)>,
 }
@@ -106,11 +116,15 @@ impl Variant {
             lanes.push(VariantLane {
                 on: effect.on,
                 duration: effect.duration,
+                rate: effect.rate,
+                rate_per_speed: effect.rate_per_speed,
+                carried: carried_share(effect),
                 lane: lane(effect, index, pipes, slot),
             });
         }
         let textures = textures.into_iter().map(|(_, _, texture)| texture).collect();
-        self.loaded = Some(Loaded { profile, textures, lanes, start_left: 0.0, burning: false, handed: Vec::new() });
+        self.loaded =
+            Some(Loaded { profile, textures, lanes, start_t: f32::INFINITY, pop_t: f32::INFINITY, handed: Vec::new() });
     }
 
     /// Whether the game's own blue nitrous flame is not drawn: a loaded burn effect stands in for it.
@@ -130,34 +144,44 @@ impl Variant {
     }
 
     /// One physics step. `pop` is how strongly the game's own blow-off or backfire would flame now (0 to 1).
+    ///
+    /// Each moment follows the 2012 state bits: the start (bit 9) is the instant the nitrous lights and the burn (bit 20) is the
+    /// time it burns, so a tank that is empty while the button is held (the car's nitrous does not burn) has neither; the pop
+    /// (bit 14) needs the pedal up and the nitrous off.
     pub(super) fn step(&mut self, dt: f32, car: &CarState, pipes: &[Mat4], pop: f32) {
         let Some(loaded) = self.loaded.as_mut() else { return };
-        if car.nitrous && !loaded.burning {
-            loaded.start_left = loaded
-                .lanes
-                .iter()
-                .filter(|lane| lane.on == EffectOn::Start)
-                .map(|lane| lane.duration)
-                .fold(0.0, f32::max);
-        }
-        loaded.burning = car.nitrous;
-        loaded.start_left = (loaded.start_left - dt).max(0.0);
-        let (start, burn, pop) = (loaded.start_left > 0.0, car.nitrous, pop > 0.0 && !car.nitrous);
+        let pop = pop > 0.0 && !car.nitrous && car.throttle <= PEDAL_DOWN;
+        // Time since each moment began; it restarts at the edge that begins it.
+        loaded.start_t = match (car.nitrous, loaded.start_t.is_finite()) {
+            (false, _) => f32::INFINITY,
+            (true, false) => 0.0,
+            (true, true) => loaded.start_t + dt,
+        };
+        loaded.pop_t = match (pop, loaded.pop_t.is_finite()) {
+            (false, _) => f32::INFINITY,
+            (true, false) => 0.0,
+            (true, true) => loaded.pop_t + dt,
+        };
+        let (start_t, pop_t) = (loaded.start_t, loaded.pop_t);
+        let speed = car.velocity.length();
         for lane in &mut loaded.lanes {
+            // A duration of 0 is for as long as the moment lasts.
+            let within = |t: f32| t.is_finite() && (lane.duration <= 0.0 || t < lane.duration);
             let on = match lane.on {
-                EffectOn::Start => start,
-                EffectOn::Burn => burn,
-                EffectOn::Pop => pop,
+                EffectOn::Start => within(start_t),
+                EffectOn::Burn => car.nitrous,
+                EffectOn::Pop => within(pop_t),
             };
+            let intensity = spawn_intensity(lane.rate, lane.rate_per_speed, speed);
+            let behind = car.velocity * (dt * lane.carried);
             for (emitter, pipe) in lane.lane.emitters.iter_mut().zip(pipes) {
                 if !on && emitter.is_empty() {
                     continue;
                 }
                 emitter.set_enabled(on);
-                emitter.step(
-                    dt,
-                    &Frame { to_world: car.to_world * *pipe, inherit_velocity: car.velocity, intensity: 1.0 },
-                );
+                let mut to_world = car.to_world * *pipe;
+                to_world.w_axis -= behind.extend(0.0);
+                emitter.step(dt, &Frame { to_world, inherit_velocity: car.velocity, intensity });
             }
         }
     }
@@ -165,8 +189,8 @@ impl Variant {
     /// Let what is alive finish its life, with nothing new (the physics is parked).
     pub(super) fn age(&mut self, dt: f32) {
         let Some(loaded) = self.loaded.as_mut() else { return };
-        loaded.burning = false;
-        loaded.start_left = 0.0;
+        loaded.start_t = f32::INFINITY;
+        loaded.pop_t = f32::INFINITY;
         for emitter in loaded.lanes.iter_mut().flat_map(|lane| lane.lane.emitters.iter_mut()) {
             if emitter.is_empty() {
                 continue;
@@ -203,11 +227,26 @@ impl Variant {
     }
 }
 
+/// The share of the car's velocity the particles of `effect` carry on average at birth.
+fn carried_share(effect: &EffectProfile) -> f32 {
+    effect.inherit * (1.0 - 0.5 * effect.inherit_variance)
+}
+
+/// The emitter's intensity (its rate is multiplied by it) that makes the spawn rate `rate + rate_per_speed * speed`: the
+/// emitter's own rate is `rate`, or `rate_per_speed` itself when the effect has no rate at rest.
+pub(super) fn spawn_intensity(rate: f32, rate_per_speed: f32, speed: f32) -> f32 {
+    match rate > 0.0 {
+        true => 1.0 + rate_per_speed * speed / rate,
+        false => speed,
+    }
+}
+
 /// The emitter parameters of an effect: the profile's numbers on the game's own emitter model.
 pub(super) fn emitter_spec(effect: &EffectProfile) -> EmitterSpec {
     EmitterSpec {
         animation: Animation { grid: effect.grid, fps: effect.fps, random_start: effect.random_start },
-        rate: effect.rate,
+        // With no rate at rest the emitter's rate is the one per metre a second, and the intensity is the speed.
+        rate: if effect.rate > 0.0 { effect.rate } else { effect.rate_per_speed },
         life: effect.life,
         life_variance: effect.life_variance,
         speed: effect.speed,
@@ -216,7 +255,11 @@ pub(super) fn emitter_spec(effect: &EffectProfile) -> EmitterSpec {
         // The emitter's gravity is subtracted from the vertical speed: a lift is its opposite.
         gravity: -effect.lift,
         drag: effect.drag,
+        damping: effect.damping,
         inherit: effect.inherit,
+        inherit_variance: effect.inherit_variance,
+        initial_angle_range: effect.angle_range,
+        keys: effect.keys,
         size: effect.size,
         colors: effect.colors,
         ..EmitterSpec::default()
