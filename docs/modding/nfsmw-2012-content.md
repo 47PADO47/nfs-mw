@@ -34,8 +34,9 @@ replaces them at that start. To remove the cars, delete the mod folder, or set `
 
 The cars are clones: each takes the physics, sound, parts and wheel layout of a stock racing car it fits best (the mod
 picks the one whose wheelbase, track and tyre radius need the least stretching). The auto shop works on them as it does
-on the clone: paint and finishes, rim paint, rims, window tint, the clone's **vinyls (liveries)**, spoilers and roof
-scoops, the performance upgrades and **nitrous**, which the cars have from the factory. How each of these gets to a
+on the clone: the performance upgrades and **nitrous**, which the cars have from the factory. What the shop offers for the
+car's looks is the car's own: the **paints of its 2012 bundle**, 1 to 15 per car, which is all the 2012 game offers (no
+vinyls, rims, spoilers or tints: [chameleon-customization.md](../formats/chameleon-customization.md)). How that gets to a
 converted car, and how to set how the cars drive, is in [car-customization.md](car-customization.md); this page is the
 mod's settings and what the conversion writes.
 
@@ -81,12 +82,13 @@ A name with a space is written in quotes, as in the last table.
 
 | 2012 | In the game |
 |---|---|
-| Body, interior, lamps, mirrors (finest of 3 levels, 5,000 to 36,000 triangles) | `<CLONE>_KIT00_BODY_A..D`, in car space (+x forward, +y left, +z up), squeezed along each axis until the wheels land on the clone's: hub height and wheelbase at the hubs, track at the rim face (the game puts the rim face at the stock track) |
-| Tyre, brake disc, rim and caliper | one `<CLONE>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled |
+| Body, interior, lamps, mirrors (finest of 3 levels, 5,000 to 36,000 triangles) | `<ID>_KIT00_BODY_A..D` (the car's own folder), in car space (+x forward, +y left, +z up), squeezed along each axis until the wheels land on the clone's: hub height and wheelbase at the hubs, track at the rim face (the game puts the rim face at the stock track) |
+| Tyre, brake disc, rim and caliper | one `<ID>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled |
 | Diffuse maps (BC1, BC3) | the car's `TEXTURES.BIN` as DXT1 and DXT5, cut to `max_texture_size` |
-| Paint surfaces | the game's `<CAR>_SKIN1` placeholder with light material `CARSKIN`, which the game swaps for the paint or for a vinyl. Their texture coordinates are those of the nearest point of the clone's paint surface, so the clone's vinyls fit (`src/liveries.rs`) |
+| Paint surfaces | the placeholder `<ID>_SKIN1` with light material `CARSKIN`, which the game swaps for the paint the player picks. Their texture coordinates are the 2012 car's own |
+| Paints | the `VehiclePaint` records of the car's bundle (`libs/chameleon-vehicle/src/paint.rs`): the colour, and the finish from the record's type, as the `[customization]` table of the manifest, repeated colours dropped (`src/paints.rs`) |
 | Engine loops | the looping samples of the car's bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), one 16-bit WAV per layer at one level, and an `[engine_sound]` table in the car's manifest naming them with the rpm each stands for (`src/engine.rs`) |
-| Markers | the clone's markers: the tail pipes (`EXHAUST`, `LEFT_EXHAUST`, `RIGHT_EXHAUST`, where the nitrous flames start) on `<CLONE>_KIT00_BODY_A..D`, and the spoiler, roof-scoop and lamp markers on `<CLONE>_BASE_A..D`, a base solid of one triangle with no area. Pipes move back, and spoiler and scoop mounts up, to the 2012 body's surface by at most 35 cm (`src/donor.rs`) |
+| Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
 | Glass and lamp lenses | a translucent tint texture with light material `WINDSHIELD` |
 | Untextured surfaces | a flat colour texture from the material's diffuse colour (dark grey when it has none) |
 | Normals | recomputed from the triangles |
@@ -113,9 +115,10 @@ ones. The vertex limit of one solid (60,000) can force a coarser level.
 - **Mostly looks.** Handling, damage and the HUD are the clone's, plus whatever `[performance]` changes; so are the shifts, the turbo and the collisions of the sound, and the engine too when `own_engine_sound` is off or a car has no pitched loop. The
   2012 damage model, headlight beams, brake discs (they are part of the wheel), spoiler and mirror animation, and the
   2012 lamp locators are not converted; the lamps use the clone's positions.
-- **Body kits and hoods** are models of the clone's own body, so the shop does not offer them. The performance bars of
-  the shop show the clone's ratings.
-- **Vinyls fit by nearest point**, which follows the large panels and is rougher at the bumpers and around the lamps.
+- **No vinyls, rims, spoilers, scoops, tints, body kits or hoods**: the 2012 game has none to offer, so the shop lists only
+  the paints. The performance bars of the shop show the clone's ratings.
+- **Tail pipes are approximated** from the body's shape; the 2012 tail pipe locators are not decoded.
+- **Paint names.** The 2012 records carry no names; a paint is named by its finish and colour (`Metallic #AD2B2C`).
 - **Normal, specular and effect maps are dropped**: the 2005 car shader has its own lighting.
 - **Names.** The mod gives every car a display name (`Porsche 911 Carrera S 2012`) and a brand. The garage lists the car
   under both (`scenes/world/garage.rs`); the other screens that name cars were not checked.
@@ -130,8 +133,8 @@ ones. The vertex limit of one solid (60,000) can force a coarser level.
 `cargo test -p nfsmw-2012-content` runs the unit tests (settings, ids, fitting, textures, promotion and fingerprint). With
 `MW2012_GAME_DIR=<2012 install>` and `NFSMW_GAME_DIR=<2005 install>` set, `cargo test -p nfsmw-2012-content -- --ignored`
 converts a car through the background job, reads it back with the game's readers, and converts every car with the time it
-takes. The test `customize` converts one car and checks, against the real installs, what the shop offers it (paint, tint,
-rims, the clone's vinyls, spoilers, roof scoops), that it has tail pipes, that `[performance]` scales its physics and that it
+takes. The test `customize` converts one car and checks, against the real installs, what the shop offers it (its own paints and no
+stock car's parts), that a paint reaches the body texture, that it has tail pipes, that `[performance]` scales its physics and that it
 has nitrous: `cargo test -p nfsmw-2012-content --test customize -- --ignored --nocapture`.
 `NFSMW_GAME_DIR=<2005 install> cargo test -p nfsmw rescan` checks that content added after start-up reaches the
 copies of the install that are already open. `CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-bundle
