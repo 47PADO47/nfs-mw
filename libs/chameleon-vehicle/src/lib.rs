@@ -6,12 +6,12 @@
 //! the caller puts those in the same [`chameleon_bundle::Pool`].
 
 mod active_aero;
-mod hsm;
 mod appearance;
 mod collision;
 mod error;
 mod genesys;
 mod hinged;
+mod hsm;
 mod lamps;
 mod name;
 mod paint;
@@ -20,6 +20,7 @@ mod skin;
 mod spec;
 mod stats;
 mod vehicle;
+mod wing;
 
 #[cfg(test)]
 mod stats_tests;
@@ -39,3 +40,4 @@ pub use skin::{BodyParts, body_parts};
 pub use spec::{GraphicsSpec, WheelSpec, find_spec};
 pub use stats::{TorqueKnot, VehicleStats, WheelStats, read_stats};
 pub use vehicle::{Lod, PartMesh, Vehicle, Wheel, load, load_texture};
+pub use wing::{WingBoneTrack, WingMachine, wing_machine};

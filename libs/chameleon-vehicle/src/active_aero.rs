@@ -18,8 +18,12 @@ use crate::skeleton::Skeleton;
 const HSM_KIND: u32 = 0x501;
 /// The operator codes of a condition: 2 is "greater than" and 3 is "less than". Every speed condition of the install that
 /// the condition labels name (`Speed above N`, `Speed under N`) has these codes.
+const EQUAL: &str = "0";
+const NOT_EQUAL: &str = "1";
 const GREATER: &str = "2";
 const LESS: &str = "3";
+/// The input of the throttle.
+const GAS_INPUT: &str = "gas";
 /// The input the spoiler machines test.
 const SPEED_INPUT: &str = "speedinmph";
 
@@ -49,7 +53,7 @@ const PACKED_FORMAT: u16 = 1;
 /// What a spoiler does: where it moves to, how long it takes and at which speeds.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SpoilerMotion {
-    /// The bone that moves: the skeleton's `SpoilerHinge`.
+    /// The bone that moves: the skeleton's `SpoilerHinge` when the animation moves it, else the first bone it moves.
     pub bone: usize,
     /// The movement of the bone between the animation's first key and its last, metres, in the engine's space (x left,
     /// y up, z forward); the bone is turned first and then moved.
@@ -62,6 +66,9 @@ pub struct SpoilerMotion {
     pub above_mph: f32,
     /// It closes when the speed falls below this, mph.
     pub below_mph: f32,
+    /// The throttle matters too: the animation opens only while the gas is pressed (and the speed is above `above_mph`) and
+    /// closes when the gas is released; the speed alone does not close it.
+    pub gas: bool,
 }
 
 impl SpoilerMotion {
@@ -74,49 +81,66 @@ impl SpoilerMotion {
     }
 }
 
-/// A bone below the spoiler's that the same animation moves (the side flaps of the Panamera): it moves with the clock of the
-/// spoiler and rides on the spoiler's own movement.
+/// Another bone that the spoiler's animation moves (the side flaps of the Panamera, the flaps of the Agera): it moves with the
+/// clock of the spoiler.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AttachedMotion {
     pub bone: usize,
-    /// The bone it hangs from: the spoiler's, or another attached one.
-    pub parent: usize,
+    /// The bone it hangs from when that bone moves too (the spoiler, or another attached one), else `None`.
+    pub parent: Option<usize>,
     /// As [`SpoilerMotion::translation`] and [`SpoilerMotion::rotation`]: between the first key and the last, in the parent's
     /// frame.
     pub translation: [f32; 3],
     pub rotation: [f32; 4],
 }
 
-/// The spoiler motion of the car in `bundle`: the animation state that moves the skeleton's `SpoilerHinge`, opened by a
-/// speed condition (`>`) and closed by another (`<`) as the state machine lists them (see [`crate::hsm`]). `None` for a car
-/// without one, and for a state with timed transitions or conditions on other inputs, which are not decoded.
+/// The spoiler motion of the car in `bundle`: the animation state opened by the condition listed before it and closed by
+/// the one it holds, when they are a speed above and a speed below, or the speed above with the gas pressed and the gas
+/// released (see [`crate::hsm`]). `None` for a car without one, and for a state with timed transitions or other conditions,
+/// which are not decoded.
 pub fn spoiler_motion(bundle: &Bundle, skeleton: &Skeleton) -> Option<SpoilerMotion> {
     spoiler_state(bundle, skeleton).map(|(motion, _)| motion)
 }
 
-/// The other bones the spoiler's animation moves that hang from the spoiler, parents before children.
+/// The other bones the spoiler's animation moves, parents before children.
 pub fn attached_motions(bundle: &Bundle, skeleton: &Skeleton) -> Vec<AttachedMotion> {
     let Some((spoiler, block)) = spoiler_state(bundle, skeleton) else { return Vec::new() };
     let mut out: Vec<AttachedMotion> = Vec::new();
     for bone in (0..skeleton.bones.len()).filter(|&bone| bone != spoiler.bone) {
-        let Some(parent) = skeleton.bones[bone].parent else { continue };
-        let hangs = parent == spoiler.bone || out.iter().any(|attached| attached.bone == parent);
-        let Some((translation, rotation, _)) = movement(&block, bone).filter(|_| hangs) else { continue };
+        let Some((translation, rotation, _)) = movement(&block, bone) else { continue };
+        let parent = skeleton.bones[bone]
+            .parent
+            .filter(|&parent| parent == spoiler.bone || out.iter().any(|attached| attached.bone == parent));
         out.push(AttachedMotion { bone, parent, translation, rotation });
     }
     out
 }
 
+/// The speed or gas conditions of a plain state as thresholds: the speed it opens above, the speed it closes below, and
+/// whether the gas matters. `None` for any other state.
+fn plain_conditions(open: &[crate::hsm::Threshold], close: &[crate::hsm::Threshold]) -> Option<(f32, f32, bool)> {
+    let is = |t: &crate::hsm::Threshold, input: &str, operator: &str| t.input == input && t.operator == operator;
+    match (open, close) {
+        ([above], [below]) if is(above, SPEED_INPUT, GREATER) && is(below, SPEED_INPUT, LESS) => {
+            Some((above.value, below.value, false))
+        }
+        ([above, gas], [off])
+            if is(above, SPEED_INPUT, GREATER) && is(gas, GAS_INPUT, NOT_EQUAL) && is(off, GAS_INPUT, EQUAL) =>
+        {
+            Some((above.value, 0.0, true))
+        }
+        _ => None,
+    }
+}
+
 /// The spoiler's motion and the block of its animation.
 fn spoiler_state(bundle: &Bundle, skeleton: &Skeleton) -> Option<(SpoilerMotion, Vec<u8>)> {
-    let bone = skeleton.find("SpoilerHinge")?;
     let kind = ResourceKind::Animation.id();
     for index in (0..bundle.entries().len()).filter(|&at| bundle.entries()[at].kind == HSM_KIND) {
         let machine = bundle.resource(index).ok()?;
         for state in crate::hsm::states(&machine.blocks[0]) {
-            let (Some(open), Some(close)) = (&state.open, &state.close) else { continue };
-            let plain = !state.has_children && open.input == SPEED_INPUT && close.input == SPEED_INPUT;
-            if !plain || open.operator != GREATER || close.operator != LESS {
+            let Some((above_mph, below_mph, gas)) = plain_conditions(&state.open, &state.close) else { continue };
+            if state.has_children {
                 continue;
             }
             let Some(at) = bundle.entries().iter().position(|e| e.kind == kind && e.id & ID_MASK == state.animation)
@@ -125,9 +149,13 @@ fn spoiler_state(bundle: &Bundle, skeleton: &Skeleton) -> Option<(SpoilerMotion,
             };
             let animation = bundle.resource(at).ok()?;
             let block = &animation.blocks[0];
+            let hinge = skeleton.find("SpoilerHinge").filter(|&bone| movement(block, bone).is_some());
+            let Some(bone) = hinge.or_else(|| (0..skeleton.bones.len()).find(|&bone| movement(block, bone).is_some()))
+            else {
+                continue;
+            };
             let Some((translation, rotation, seconds)) = movement(block, bone) else { continue };
-            let motion =
-                SpoilerMotion { bone, translation, rotation, seconds, above_mph: open.value, below_mph: close.value };
+            let motion = SpoilerMotion { bone, translation, rotation, seconds, above_mph, below_mph, gas };
             return Some((motion, block.clone()));
         }
     }
@@ -177,8 +205,40 @@ fn movement(block: &[u8], bone: usize) -> Option<([f32; 3], [f32; 4], f32)> {
         rotation = relative(key(keys - 1)?, key(reference)?);
     }
     let moved = translation.iter().any(|c| c.abs() >= MIN_TRAVEL);
-    let turn = SpoilerMotion { bone, translation, rotation, seconds, above_mph: 0.0, below_mph: 0.0 };
+    let turn = SpoilerMotion { bone, translation, rotation, seconds, above_mph: 0.0, below_mph: 0.0, gas: false };
     (moved || turn.rotation_axis_angle().is_some()).then_some((translation, rotation, seconds))
+}
+
+/// The keys of a bone in an animation: its absolute slide and turn at each key, and the animation's length in seconds.
+/// `None` for a bone the animation does not move.
+pub(crate) fn key_poses(block: &[u8], bone: usize) -> Option<(Vec<[f32; 3]>, Vec<[f32; 4]>, f32)> {
+    let seconds = f32::from_bits(word(block, DURATION_AT)?);
+    let format = half(block, FORMAT_AT)?;
+    let (keys, bones) = (word(block, KEYS_AT)? as usize, word(block, BONES_AT)? as usize);
+    let (rotation_stride, translation_stride) =
+        (word(block, ROTATION_STRIDE_AT)? as usize, word(block, TRANSLATION_STRIDE_AT)? as usize);
+    let table = |n: usize| word(block, TABLES_AT + 4 * n).map(|at| at as usize);
+    let (translations, translation_map, packed, rotation_map) = (table(1)?, table(4)?, table(5)?, table(7)?);
+    if keys < 2 || bone >= bones || !(0.01..=60.0).contains(&seconds) {
+        return None;
+    }
+    let track = |map: usize| block.get(map + bone).copied().filter(|&t| t != 0xff).map(usize::from);
+    let (slide, turn) = (track(translation_map), track(rotation_map));
+    if slide.is_none() && turn.is_none() || turn.is_some() && format != PACKED_FORMAT {
+        return None;
+    }
+    let mut translation = vec![[0.0f32; 3]; keys];
+    let mut rotation = vec![[0.0, 0.0, 0.0, 1.0]; keys];
+    for key in 0..keys {
+        if let Some(track) = slide {
+            let at = translations + key * translation_stride + 16 * track;
+            translation[key] = [0, 4, 8].map(|k| f32::from_bits(word(block, at + k).unwrap_or(0)));
+        }
+        if let Some(track) = turn {
+            rotation[key] = unpack_rotation(word(block, packed + key * rotation_stride + 4 * track)?);
+        }
+    }
+    Some((translation, rotation, seconds))
 }
 
 /// A packed rotation: the top two bits say which of the four components is left out; the three 10-bit fields below hold
@@ -226,6 +286,7 @@ mod tests {
             seconds: 0.6,
             above_mph: 70.0,
             below_mph: 40.0,
+            gas: false,
         };
         let (axis, angle) = motion.rotation_axis_angle().unwrap();
         assert!((angle - 30.46).abs() < 0.05, "{angle}");
@@ -241,6 +302,7 @@ mod tests {
             seconds: 1.0,
             above_mph: 1.0,
             below_mph: 1.0,
+            gas: false,
         };
         assert_eq!(motion.rotation_axis_angle(), None);
     }

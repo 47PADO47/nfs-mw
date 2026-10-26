@@ -29,7 +29,9 @@ const IDS: std::ops::Range<u32> = 0x1000..0x0100_0000;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Threshold {
     pub input: String,
-    /// The operator code as text: `2` is greater than, `3` is less than (the meaning of `0` and `1` is not known).
+    /// The operator code as text: `0` equal, `1` not equal, `2` greater than, `3` less than, `4` at most, `5` at least
+    /// (read off the labels of the conditions: `Brake OFF` is `brake` `0` `0`, `Brake ON` is `1`, `Turning Left` is
+    /// `steering` below -0.3 and `Turning Right` above 0.3).
     pub operator: String,
     pub value: f32,
 }
@@ -40,10 +42,10 @@ pub struct State {
     pub name: String,
     /// The id of the animation (without the namespace byte).
     pub animation: u64,
-    /// The condition that opens the state: the condition listed just before it in its machine.
-    pub open: Option<Threshold>,
-    /// The condition kept in the state's own properties, that closes it.
-    pub close: Option<Threshold>,
+    /// The tests that open the state, all of which have to hold: the condition listed just before it in its machine.
+    pub open: Vec<Threshold>,
+    /// The tests kept in the state's own properties, that close it. Empty: none.
+    pub close: Vec<Threshold>,
     /// Whether the state has children of its own (conditions and timed transitions to other states).
     pub has_children: bool,
 }
@@ -60,6 +62,8 @@ struct Row {
     key: u64,
     cell: usize,
     kind: u16,
+    /// The flag word: how many objects an object row holds.
+    count: usize,
 }
 
 fn word(block: &[u8], at: usize) -> Option<u32> {
@@ -109,12 +113,12 @@ fn rows(block: &[u8], at: usize) -> Vec<Row> {
         let valid = key & 0x3f == 0
             && key >> 8 != 0
             && (1..block.len()).contains(&(cell as usize))
-            && flag <= 1
+            && flag <= 8
             && kind <= OBJECT;
         if !valid {
             break;
         }
-        out.push(Row { key, cell: cell as usize, kind });
+        out.push(Row { key, cell: cell as usize, kind, count: usize::from(flag) });
         at += 16;
     }
     out
@@ -125,15 +129,21 @@ fn text_of(block: &[u8], row: &Row) -> Option<String> {
     (row.kind != OBJECT).then(|| text_at(block, word(block, row.cell)? as usize)).flatten()
 }
 
-/// The rows of the nested object a row holds.
-fn object_of(block: &[u8], row: &Row) -> Option<Vec<Row>> {
+/// The nested objects a row holds: its flag word counts them (a condition that is several tests at once has one per test),
+/// and its cell holds a table offset and a row count for each.
+fn objects_of(block: &[u8], row: &Row) -> Vec<Vec<Row>> {
     if row.kind != OBJECT {
-        return None;
+        return Vec::new();
     }
-    let (table, count) = (word(block, row.cell)? as usize, word(block, row.cell + 4)? as usize);
-    let mut found = rows(block, table);
-    found.truncate(count);
-    (found.len() == count).then_some(found)
+    (0..row.count.max(1))
+        .filter_map(|n| {
+            let at = row.cell + 8 * n;
+            let (table, count) = (word(block, at)? as usize, word(block, at + 4)? as usize);
+            let mut found = rows(block, table);
+            found.truncate(count);
+            (found.len() == count).then_some(found)
+        })
+        .collect()
 }
 
 /// A condition's data in the rows of an object.
@@ -143,12 +153,18 @@ fn threshold(block: &[u8], object: &[Row]) -> Option<Threshold> {
     Some(Threshold { input: text(KEY_INPUT)?, operator: text(KEY_OPERATOR)?, value })
 }
 
-/// The condition of a condition record: the data object among its properties.
-fn condition_of(block: &[u8], record: &Record) -> Option<Threshold> {
+/// The tests in the nested objects of a row: all of them have to hold.
+fn thresholds_of(block: &[u8], row: &Row) -> Vec<Threshold> {
+    objects_of(block, row).iter().filter_map(|object| threshold(block, object)).collect()
+}
+
+/// The condition of a condition record: the tests among its properties.
+fn condition_of(block: &[u8], record: &Record) -> Vec<Threshold> {
     rows(block, record.props)
         .iter()
-        .filter_map(|row| object_of(block, row))
-        .find_map(|object| threshold(block, &object))
+        .map(|row| thresholds_of(block, row))
+        .find(|found| !found.is_empty())
+        .unwrap_or_default()
 }
 
 /// The ids in the child list at `at`: entries of 16 bytes while the first word is the id of a record.
@@ -161,6 +177,15 @@ fn children(block: &[u8], at: usize, known: &[Record]) -> Vec<u32> {
         at += 16;
     }
     out
+}
+
+/// The data of every condition of the machine in `block`.
+pub fn conditions(block: &[u8]) -> Vec<Threshold> {
+    records(block)
+        .iter()
+        .filter(|record| record.kind == CONDITION)
+        .flat_map(|record| condition_of(block, record))
+        .collect()
 }
 
 /// The animation states of the machine in `block`.
@@ -180,13 +205,16 @@ pub fn states(block: &[u8]) -> Vec<State> {
         else {
             continue;
         };
-        let close = prop(KEY_CLOSE).and_then(|row| object_of(block, row)).and_then(|object| threshold(block, &object));
-        let open = lists.iter().find_map(|(_, list)| {
-            let at = list.iter().position(|&id| id == record.id)?;
-            let before = list.get(at.checked_sub(1)?)?;
-            let condition = all.iter().find(|candidate| candidate.id == *before && candidate.kind == CONDITION)?;
-            condition_of(block, condition)
-        });
+        let close = prop(KEY_CLOSE).map(|row| thresholds_of(block, row)).unwrap_or_default();
+        let open = lists
+            .iter()
+            .find_map(|(_, list)| {
+                let at = list.iter().position(|&id| id == record.id)?;
+                let before = list.get(at.checked_sub(1)?)?;
+                let condition = all.iter().find(|candidate| candidate.id == *before && candidate.kind == CONDITION)?;
+                Some(condition_of(block, condition))
+            })
+            .unwrap_or_default();
         out.push(State {
             name: text_at(block, record.name).unwrap_or_default(),
             animation,
@@ -277,14 +305,14 @@ mod tests {
         assert_eq!(found.len(), 1);
         let state = &found[0];
         assert_eq!((state.animation, state.name.as_str(), state.has_children), (904078, "Anim", false));
-        assert_eq!(state.open, Some(Threshold { input: "speedinmph".into(), operator: "2".into(), value: 70.0 }));
-        assert_eq!(state.close, Some(Threshold { input: "speedinmph".into(), operator: "3".into(), value: 40.0 }));
+        assert_eq!(state.open, vec![Threshold { input: "speedinmph".into(), operator: "2".into(), value: 70.0 }]);
+        assert_eq!(state.close, vec![Threshold { input: "speedinmph".into(), operator: "3".into(), value: 40.0 }]);
     }
 
     #[test]
     fn a_state_with_children_and_one_without_a_close_condition_are_told_apart() {
         let waits = states(&machine(("75", "speedinmph", "2"), None, true));
-        assert!(waits[0].has_children && waits[0].close.is_none());
+        assert!(waits[0].has_children && waits[0].close.is_empty());
         assert!(states(&[0u8; 64]).is_empty(), "a block with no record has no state");
     }
 }

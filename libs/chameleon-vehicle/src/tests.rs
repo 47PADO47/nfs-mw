@@ -59,6 +59,32 @@ fn every_high_detail_car_has_paints() {
 
 #[test]
 #[ignore = "reads the game install (CHAMELEON_GAME_DIR)"]
+fn the_veyrons_have_a_wing_machine_with_five_animations() {
+    let Some(dir) = std::env::var_os("CHAMELEON_GAME_DIR") else { return };
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(Path::new(&dir).join("VEHICLES")).unwrap().flatten() {
+        let file = entry.file_name().to_string_lossy().to_uppercase();
+        if !(file.starts_with("VEH_") && file.ends_with("_HI.BNDL")) {
+            continue;
+        }
+        let data = std::fs::read(entry.path()).unwrap();
+        let bundle = Bundle::parse(&data).unwrap();
+        let Some(skeleton) = crate::Skeleton::read(&bundle) else { continue };
+        let Some(machine) = crate::wing_machine(&bundle, &skeleton) else { continue };
+        let bones: std::collections::BTreeSet<usize> = machine.tracks.iter().map(|t| t.bone).collect();
+        println!(
+            "{file} {:?} {:?} bones {bones:?} tracks {}",
+            vehicle_name(&bundle),
+            machine.seconds,
+            machine.tracks.len()
+        );
+        found.push(file);
+    }
+    assert_eq!(found.len(), 2, "{found:?}");
+}
+
+#[test]
+#[ignore = "reads the game install (CHAMELEON_GAME_DIR)"]
 fn the_cars_with_an_active_spoiler_are_found() {
     let Some(dir) = std::env::var_os("CHAMELEON_GAME_DIR") else { return };
     let mut found = Vec::new();
@@ -75,9 +101,9 @@ fn the_cars_with_an_active_spoiler_are_found() {
         found.push((file, motion.above_mph, motion.below_mph));
     }
     // The single-state speed machines of the install: the speeds come from their conditions.
-    assert_eq!(found.len(), 10, "{found:?}");
+    assert_eq!(found.len(), 11, "{found:?}");
     let speeds: std::collections::BTreeSet<(i32, i32)> =
         found.iter().map(|(_, above, below)| (*above as i32, *below as i32)).collect();
-    let expected = [(70, 40), (70, 50), (74, 64), (75, 75), (80, 50), (100, 80)];
+    let expected = [(70, 0), (70, 40), (70, 50), (74, 64), (75, 75), (80, 50), (100, 80)];
     assert_eq!(speeds, expected.into_iter().collect(), "{found:?}");
 }
