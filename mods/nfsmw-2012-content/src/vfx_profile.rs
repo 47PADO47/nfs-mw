@@ -44,6 +44,30 @@ const FLAME_WIDTH: u32 = 512;
 const OPEN_WINDOW: f32 = 1.0e5;
 /// The width of a sprite in radii (a sprite's radius is its half width).
 const WIDTH_PER_RADIUS: f32 = 2.0;
+/// The spawn rate's second term multiplies the length of a vector input of the effect (`Velocity` or the movement since the last
+/// frame: the cone block does not say which). Read as the car's speed, the glow's 1 particle a metre gives a dense cloud over the
+/// whole car at 130 km/h that the screenshots of the game do not show; read as the movement of one frame it is a 60th of that.
+/// **Chosen against the screenshots, not decoded.**
+const MOVEMENT_FRAMES_PER_SECOND: f32 = 60.0;
+/// Whether the glow is left behind the car as the effect file says (see `Entry::of`). Off: it rides with the car.
+const KEEP_TRAIL: bool = false;
+/// What the sprites are drawn at, as a factor on the width the radius gives, by the index of the parameter that scales the
+/// spawn rate (a glow `P[0]`, a flame `P[1]`). **Calibrated against two screenshots of the 2012 game, not decoded**: the
+/// effect's parameter array and its sprite draw scale are not read, and with a factor of 1 the glow is twice as wide as the
+/// screenshots show it and the flames a third too small.
+fn draw_scale(rate_param: u8) -> f32 {
+    match rate_param {
+        0 => 1.0,
+        _ => 2.0,
+    }
+}
+/// The emitters whose spawn rate is scaled by a parameter of this index or above are the smoke puffs of the start and the pop;
+/// by the order of the effect's inputs (`Transform`, `Velocity`, `ColourOverride`, `PreCrashVelocity`, `Intensity`,
+/// `ImpactClosingVelocity`, ...) those are the crash and impact inputs, which are zero when driving. **Inferred, not read**:
+/// the effect parameter array is not decoded; the references (a start burst of the 2012 game) show no puffs.
+const CRASH_PARAMS: u8 = 3;
+/// The most keys one effect is given.
+const MAX_KEYS: usize = 12;
 /// The age fraction the curves are read at for the end of a life.
 const LAST_MOMENT: f32 = 0.9999;
 /// Degrees in one unit of the starting rotation range.
@@ -129,9 +153,10 @@ struct Entry {
     inherit: f32,
     inherit_variance: f32,
     angle_range: f32,
-    keys: [f32; 4],
-    size: [f32; 4],
-    colors: [[u8; 4]; 4],
+    keys: Vec<f32>,
+    size: Vec<f32>,
+    colors: Vec<[u8; 4]>,
+    spin: f32,
     duration: f32,
 }
 
@@ -144,13 +169,17 @@ impl Entry {
             return None;
         }
         let (life, cone, gradient) = (fx.lifetime()?, fx.cone()?, fx.gradient()?);
+        if cone.params[0] >= CRASH_PARAMS {
+            return None;
+        }
         let (radius, curve) = (fx.radius()?, fx.radius_curve()?);
         let mean = (radius.min + radius.max) * 0.5;
-        let width = |t: f32| WIDTH_PER_RADIUS * mean * curve.at(t);
+        let width = |t: f32| WIDTH_PER_RADIUS * draw_scale(cone.params[0]) * mean * curve.at(t);
         let mut knots = gradient.alpha_x.to_vec();
         knots.push(curve.peak);
+        knots.extend(gradient.weight_breakpoints());
         let reference = knots.iter().map(|k| width(*k)).fold(f32::MIN_POSITIVE, f32::max);
-        let keys = choose_keys(&knots, |t| {
+        let keys = choose_keys(&knots, MAX_KEYS, |t| {
             let [r, g, b, a] = colour_at(&gradient, t).map(|v| f32::from(v) / 255.0);
             [a, (width(t) / reference).clamp(0.0, 1.0), r, g, b]
         });
@@ -166,8 +195,11 @@ impl Entry {
         let longest = life.max.max(0.01);
         let top = cone.velocity.iter().copied().fold(0.0, f32::max);
         // Particles that follow their emitter are put into the world from its place every frame: they ride with the car, which
-        // is to say they take all of its velocity; the others take the share the effect names, once, at birth.
-        let follows = fx.follows_emitter();
+        // is to say they take all of its velocity; the others take the share the effect names, once, at birth, and the motion's
+        // per-step drag then leaves them where they are. The glow is of the second kind in the effect file, and would be a trail
+        // of large soft sprites behind the car; the screenshots of the 2012 game show it at the pipes and no trail, so unless
+        // `KEEP_TRAIL` every sprite rides with the car.
+        let follows = fx.follows_emitter() || !KEEP_TRAIL;
         let inherit = fx.inherit().filter(|_| !follows);
         let share = if follows { 1.0 } else { inherit.map_or(0.0, |i| i.max).clamp(0.0, 1.0) };
         let flame = emitter.flipbook && emitter.picture.width >= FLAME_WIDTH;
@@ -178,7 +210,7 @@ impl Entry {
             // The flipbook plays once over a particle's life.
             fps: (f32::from(FLAME_GRID).powi(2) / longest).round().clamp(1.0, 255.0) as u8,
             rate: cone.base_rate.clamp(0.0, 500.0),
-            rate_per_speed: cone.rate_per_speed.clamp(0.0, 100.0),
+            rate_per_speed: (cone.rate_per_speed / MOVEMENT_FRAMES_PER_SECOND).clamp(0.0, 100.0),
             life: longest.min(10.0),
             life_variance: ((longest - life.min) / longest).clamp(0.0, 1.0),
             speed: top.min(50.0),
@@ -193,9 +225,10 @@ impl Entry {
                 _ => 0.0,
             },
             angle_range: fx.rotation().map_or(0.0, |r| ((r.max - r.min).abs() * DEGREES_PER_ROTATION_UNIT).min(360.0)),
+            size: keys.iter().map(|key| width(*key).clamp(0.0, 20.0)).collect(),
+            colors: keys.iter().map(|key| colour_at(&gradient, *key)).collect(),
+            spin: fx.rotation().map_or(0.0, |r| (r.spin.abs() * DEGREES_PER_ROTATION_UNIT).min(3600.0)),
             keys,
-            size: keys.map(|key| width(key).clamp(0.0, 20.0)),
-            colors: keys.map(|key| colour_at(&gradient, key)),
             duration: duration.clamp(0.0, 10.0),
         })
     }
@@ -204,12 +237,14 @@ impl Entry {
         let blend = if self.additive { "additive" } else { "alpha" };
         let grid = if self.grid > 0 { format!("grid = {}\nfps = {}\n", self.grid, self.fps) } else { String::new() };
         let duration = if self.duration > 0.0 { format!("duration = {:?}\n", self.duration) } else { String::new() };
-        let list = |values: [f32; 4]| values.map(|v| format!("{v:.4}")).join(", ");
-        let colors = self.colors.map(|c| format!("[{}, {}, {}, {}]", c[0], c[1], c[2], c[3])).join(", ");
+        let list = |values: &[f32]| values.iter().map(|v| format!("{v:.4}")).collect::<Vec<_>>().join(", ");
+        let colors: Vec<String> =
+            self.colors.iter().map(|c| format!("[{}, {}, {}, {}]", c[0], c[1], c[2], c[3])).collect();
+        let colors = colors.join(", ");
         format!(
             "\n[[effect]]\non = \"{}\"\ntexture = \"{FOLDER}/{texture}\"\nblend = \"{blend}\"\n{grid}rate = {:?}\n\
              rate_per_speed = {:?}\nlife = {:?}\nlife_variance = {:?}\nspeed = {:?}\nspeed_variance = {:?}\nspread = {:?}\n\
-             lift = {:?}\ndamping = {:?}\ninherit = {:?}\ninherit_variance = {:?}\nangle_range = {:?}\nkeys = [{}]\nsize = [{}]\n\
+             lift = {:?}\ndamping = {:?}\ninherit = {:?}\ninherit_variance = {:?}\nangle_range = {:?}\nspin = {:?}\nkeys = [{}]\nsize = [{}]\n\
              colors = [{colors}]\n{duration}",
             self.on.name(),
             self.rate,
@@ -224,8 +259,9 @@ impl Entry {
             self.inherit,
             self.inherit_variance,
             self.angle_range,
-            list(self.keys),
-            list(self.size),
+            self.spin,
+            list(&self.keys),
+            list(&self.size),
         )
     }
 }
@@ -239,10 +275,9 @@ fn colour_at(gradient: &Gradient, t: f32) -> [u8; 4] {
     [byte(r * bright), byte(g * bright), byte(b * bright), byte(gradient.alpha_at(t))]
 }
 
-/// Four points along the life to sample the curves at. The candidates are the knots of the curves, and 0 and 1; while there are
-/// more than four, the interior one that the line between its neighbours misses least (over everything `sample` returns) is
-/// dropped. With fewer than four, the middle of the widest gap is added.
-fn choose_keys(knots: &[f32], sample: impl Fn(f32) -> [f32; 5]) -> [f32; 4] {
+/// The points along the life to sample the curves at: every knot of the curves, and 0 and 1. While there are more than
+/// `most`, the interior one that the line between its neighbours misses least (over everything `sample` returns) is dropped.
+fn choose_keys(knots: &[f32], most: usize, sample: impl Fn(f32) -> [f32; 5]) -> Vec<f32> {
     let mut points: Vec<f32> = knots.iter().map(|k| k.clamp(0.0, 1.0)).chain([0.0, 1.0]).collect();
     points.sort_by(f32::total_cmp);
     points.dedup_by(|a, b| (*a - *b).abs() < 1.0e-3);
@@ -251,19 +286,11 @@ fn choose_keys(knots: &[f32], sample: impl Fn(f32) -> [f32; 5]) -> [f32; 4] {
         let u = (points[i] - points[i - 1]) / (points[i + 1] - points[i - 1]);
         (0..5).map(|k| (m[k] - (a[k] + (b[k] - a[k]) * u)).abs()).fold(0.0, f32::max)
     };
-    while points.len() > 4 {
+    while points.len() > most.max(2) {
         let drop = (1..points.len() - 1).min_by(|a, b| miss(&points, *a).total_cmp(&miss(&points, *b))).unwrap_or(1);
         points.remove(drop);
     }
-    while points.len() < 4 {
-        let at = (1..points.len()).max_by(|a, b| gap(&points, *a).total_cmp(&gap(&points, *b))).unwrap_or(1);
-        points.insert(at, (points[at - 1] + points[at]) * 0.5);
-    }
-    [points[0], points[1], points[2], points[3]]
-}
-
-fn gap(points: &[f32], i: usize) -> f32 {
-    points[i] - points[i - 1]
+    points
 }
 
 #[cfg(test)]
