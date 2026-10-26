@@ -61,7 +61,12 @@ mods/example.pack/
 ```toml
 # cars/fastcoupe.toml
 role = "both"                   # player, cop or both (default: player)
-heat = [2, 3, 4]                # cop only: heat levels whose waves may use it (left out: every level)
+heat = [2, 3, 4]                # cop only: heat levels whose waves may use it, 2 cars at 10 percent (left out: every level)
+cop_class = "patrol"            # cop only: patrol (default), pursuit or heavy (cop-cars.md)
+[[cop]]                         # cop only, repeatable: one wave entry with its own numbers (cop-cars.md)
+heat = 6                        # one level or a list of levels
+count = 2                       # cars the wave wants, 1 to 8
+chance = 80                     # weight of the pick, percent, 1 to 100
 name = "Fast Coupe"             # display name (optional; default: the car id)
 manufacturer = "Acme"           # brand (optional; default: none)
 
@@ -78,7 +83,8 @@ rims = [{ name = "Five spoke", model = "FASTCOUPE_RIM1" }]   # a wheel solid of 
 [[damage_parts]]                # optional, repeatable: parts that hang on hinges when damaged (car-damage-parts.md)
 ```
 
-A key not listed in the manifest table below refuses the car. There is no key that names another car: a manifest with a
+A key not listed in the manifest table below refuses the car. A car with `role = "cop"` or `"both"` is a police car with a wave
+entry per heat level: [cop-cars.md](cop-cars.md). There is no key that names another car: a manifest with a
 `clone` key is refused as an unknown key. (What changed: an earlier version made a mod car a copy of a stock car, kept that
 car's record, parts, physics and sound, and had a `[performance]` table of multipliers over it. All of that is gone; `[stats]`
 holds absolute values.)
@@ -99,15 +105,17 @@ Rules:
 - Each refused car is logged with its mod and reason. The game goes on without that car.
 - Registration runs once in `open_install`, before any scene is built, and the result is sealed for the run. A changed
   car needs a restart.
-- A cop car gets one row in each heat wave it names: 2 cars at 10 percent (`COP_COUNT`, `COP_CHANCE` in
-  `car/mods.rs`). Its physics are built from its stats like a player car's, and the AI may use its whole `top_speed_kph`
-  (200 km/h when it gives none).
+- A cop car gets one record `{ car, count, chance }` in each heat wave it names, with the numbers of its `[[cop]]` entry, or 2
+  cars at 10 percent (`COP_COUNT`, `COP_CHANCE` in `car/mods/cop.rs`) for the `heat = [..]` short form and for a car that names
+  no level (every level). A car that is only a cop is a police type of the car table (usage 1, `Category::Police`); its physics are
+  built from its stats like a player car's, and the AI may use its whole `top_speed_kph` (200 km/h when it gives none). Its
+  damage, rep value and radio class come from `cop_class`. All of it is in [cop-cars.md](cop-cars.md).
 
 The auto shop offers the car what its `[customization]` table lists (body paints and finishes, rim paints, tints, rims,
 spoilers, roof scoops, vinyls), read from the table and the car's own files; no stock car's parts table is involved. The
 performance upgrades and nitrous work as described in [car-stats.md](car-stats.md). The garage takes a mod car's display
-name and brand (`display_name`, `manufacturer`), skips its cop-only cars (`is_player_car`) and any car whose physics cannot
-be built (for one, a missing `BOUNDS.BIN`); the other screens that name cars were not checked.
+name and brand (`display_name`, `manufacturer`), lists its cop-only cars under Police ([cop-cars.md](cop-cars.md)) and skips any
+car whose physics cannot be built (for one, a missing `BOUNDS.BIN`); the other screens that name cars were not checked.
 
 **Collision: `BOUNDS.BIN`.** The car's `files/CARS/<ID>/` folder holds `BOUNDS.BIN`, its collision bounds in the game's
 own `BoundsPack` format: the box its rigid body is built from, its contact shapes, the ground mesh and, from the box, its damage
@@ -122,7 +130,7 @@ Known gaps: body kits and hoods (a mod car has none), and a code form (`content.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
-| Car manifest | `cars/<id>.toml` with `role`, `heat`, `name`, `manufacturer`, `[stats]`, `[customization]`, `[[damage_parts]]`, `[engine_sound]`, `[car_sound]`; unknown keys refused | G (schema), MW (checks) | `libs/blackbox-modding/src/content/car.rs`, `stats.rs`, `customization.rs`, `engine_sound.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
+| Car manifest | `cars/<id>.toml` with `role`, `heat`, `[[cop]]`, `cop_class`, `name`, `manufacturer`, `[stats]`, `[customization]`, `[[damage_parts]]`, `[engine_sound]`, `[car_sound]`; unknown keys refused | G (schema), MW (checks) | `libs/blackbox-modding/src/content/car.rs`, `stats.rs`, `customization.rs`, `engine_sound.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
 | Stats | `Stats` (40 keys, absolute SI values; `Stats::default()` is the engine's generic car) converts to `blackbox_vehicle::stats::CarStats`; `car::mods::stats(folder)` reads it; `CarPhysics::from_stats(stats, bounds)` and `physics_from_stats(stats, package, bounds)` build the physics, `PerformanceCatalog::from_stats` the shop's upgrade list, `RatingBook::for_stats` its bars, `ai_vehicle_from_stats` the AI's speed limit | G (schema, builder), MW (wired) | `libs/blackbox-modding/src/content/stats.rs`, `libs/blackbox-vehicle/src/stats/`, `crates/nfsmw-data/src/car/physics/from_stats.rs` |
 | Physics and collision | `PhysicsData::car(folder)` builds a mod car from its `[stats]` and its own `BOUNDS.BIN` (`mod_car_collision`); nothing is read from a vehicle record | MW | `crates/nfsmw-data/src/car/physics/{data,mod_car,bounds}.rs` |
 | Wheel layout | `WheelSetup::for_car` takes a mod car's hubs from its stats (`WheelSetup::from_stats`): plus and minus half the wheelbase, track and tyre size from `[stats]` | MW | `crates/nfsmw-data/src/car/ecar.rs` |
@@ -134,9 +142,9 @@ Known gaps: body kits and hoods (a mod car has none), and a code form (`content.
 | Brand | `car::mods::manufacturer(folder)`: the brand a mod gave | MW | `crates/nfsmw/src/scenes/world/garage.rs` (`catalog`) |
 | Register cars | `car::mods::register(stock: &[CarTypeInfo], specs: &[CarSpec]) -> (Vec<ModCar>, Vec<Rejected>)` | MW | `crates/nfsmw-data/src/car/mods.rs` |
 | Car table | `CarTables::load` appends `car::mods::car_types()` after the stock types (the entry of a mod car is made by `car_type_of`, from its folder), so `car::load`, the garage's car list and cop loading find the car by folder. The parts database of those tables also holds the mod cars' parts: the extended tables are built when a load first sees a new set of published cars and shared after | MW | `crates/nfsmw-data/src/car/tables.rs` |
-| Cop rows | `pursuit::heat_row` adds `car::mods::add_cop_rows` for the level | MW | `crates/nfsmw-data/src/pursuit.rs` |
+| Cop rows | `pursuit::heat_row` adds `car::mods::add_cop_rows` for the level, one record per car whose unit has an entry for it (count and chance of the entry); `car::mods::{cop_unit, cop_kind, cop_cars}` give the unit (class and entries) | MW | `crates/nfsmw-data/src/pursuit.rs`, `car/mods/cop.rs` |
 | Publish | `car::mods::publish(cars)` from `open_install` (once for the start-up cars, again for the cars a mod adds through `content.rescan()`); a folder already published is not added twice | MW | `crates/nfsmw/src/modding/content/{mod,cars}.rs`, `modding/open.rs` |
-| Garage name and role | `car::mods::display_name(folder)`, `car::mods::is_player_car(folder)` | MW | `crates/nfsmw-data/src/car/mods.rs`; called by `crates/nfsmw/src/scenes/world/garage.rs` (`catalog`) |
+| Garage name and role | `car::mods::display_name(folder)`, `car::mods::is_player_car(folder)`; a cop-only car is usage type 1 and `Category::Police` | MW | `crates/nfsmw-data/src/car/mods.rs`; called by `crates/nfsmw/src/scenes/world/garage.rs` (`catalog`) |
 | Planned: code form | `content.cars().register(CarDef { .. }) -> Result<CarId>`, paint (`CARSKIN`), part models, `traffic` role | G | not built |
 
 ### Music
