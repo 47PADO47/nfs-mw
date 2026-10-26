@@ -151,6 +151,12 @@ impl Inventory {
         Ok(Self { tables, shared, decal_textures })
     }
 
+    /// Whether the car tables this inventory was read with have the car in `folder`. A mod car published after the inventory
+    /// was loaded is not in it, and the inventory is read again.
+    pub fn knows(&self, folder: &str) -> bool {
+        self.tables.car_type_for_folder(folder).is_some()
+    }
+
     pub fn catalog(&self, dir: &GameDir, folder: &str) -> Result<Catalog> {
         if let Some(custom) = super::mods::custom::of(folder) {
             // A mod car that carries its own customization is offered that, and nothing of a stock car's parts.

@@ -7,6 +7,7 @@ mod color_parts;
 mod controls;
 #[cfg(test)]
 mod interaction_tests;
+pub(crate) mod listing;
 mod menu;
 pub(crate) mod menu_rows;
 #[cfg(test)]

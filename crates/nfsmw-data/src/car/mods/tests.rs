@@ -178,3 +178,20 @@ fn a_mod_car_keeps_its_own_brand_and_tuning() {
     assert_eq!(find_in(&cars, "MYCAR2").map(|car| car.stats.mass_kg), Some(CarStats::default().mass_kg));
     assert!(find_in(&cars, "CAMARO").is_none(), "a stock car is not a mod car");
 }
+
+#[test]
+fn a_mod_car_is_titled_by_its_mod_and_any_other_car_by_the_game() {
+    let mut named = spec("NAMED");
+    named.name = Some("Own Name".to_owned());
+    named.manufacturer = Some("Acme".to_owned());
+    let (cars, _) = register(&table(), &[named, spec("PLAIN")]);
+    let game = || ("M3 GTR".to_owned(), "Bmw".to_owned());
+    let (name, brand) = game();
+    assert_eq!(titled_in(&cars, "named", name, brand), ("Own Name".to_owned(), "Acme".to_owned()));
+    // A mod car that gives no name keeps the game's name, and shows no brand it did not give.
+    let (name, brand) = game();
+    assert_eq!(titled_in(&cars, "PLAIN", name, brand), ("M3 GTR".to_owned(), String::new()));
+    // A car of the game is titled by the game.
+    let (name, brand) = game();
+    assert_eq!(titled_in(&cars, "BMWM3GTR", name, brand), game());
+}

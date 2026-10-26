@@ -221,6 +221,18 @@ fn display_name_in<'a>(cars: &'a [ModCar], folder: &str) -> Option<&'a str> {
     cars.iter().find(|car| car.folder.eq_ignore_ascii_case(folder)).and_then(|car| car.name.as_deref())
 }
 
+/// The name and the brand a screen shows for the car in `folder`, given the ones the game's own tables give it: a mod car shows
+/// what its mod gave it (a mod car with no brand shows none), any other car the ones passed. Every place that names a car
+/// goes through this, so a mod car is named the same everywhere.
+pub fn titled(folder: &str, name: String, manufacturer: String) -> (String, String) {
+    titled_in(published(), folder, name, manufacturer)
+}
+
+fn titled_in(cars: &[ModCar], folder: &str, name: String, manufacturer: String) -> (String, String) {
+    let Some(car) = find_in(cars, folder) else { return (name, manufacturer) };
+    (car.name.clone().unwrap_or(name), car.manufacturer.clone().unwrap_or_default())
+}
+
 /// The brand a mod gave the car in `folder`, if any.
 pub fn manufacturer(folder: &str) -> Option<&'static str> {
     find_in(published(), folder).and_then(|car| car.manufacturer.as_deref())

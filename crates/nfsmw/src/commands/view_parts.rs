@@ -28,7 +28,8 @@ pub(super) fn selection(dir: &GameDir, folder: &str, parts: &[String]) -> Result
     if parts.is_empty() {
         return Ok(selection);
     }
-    let catalog = Catalog::load(dir, folder).with_context(|| format!("listing the parts of {folder}"))?;
+    let mut catalog = Catalog::load(dir, folder).with_context(|| format!("listing the parts of {folder}"))?;
+    crate::garage::listing::arrange(&mut catalog, &crate::i18n::game);
     for part in parts {
         let (key, number) = part.split_once('=').with_context(|| format!("--part {part}: use category=number"))?;
         let Some(category) = category(key) else {
