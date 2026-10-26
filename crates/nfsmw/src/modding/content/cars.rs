@@ -79,8 +79,8 @@ fn hinges_of(parts: &[blackbox_modding::content::DamagePart]) -> Vec<hinged::Hin
         let mut hinge = hinge_of(part);
         let parent = part.parent.as_ref().and_then(|name| out.iter().find(|known| known.name == *name));
         if let Some(parent) = parent {
-            let own = parent.active.map(|active| (active, parent.pivot));
-            hinge.ancestors = parent.ancestors.iter().copied().chain(own).collect();
+            let own = hinged::Ancestor { active: parent.active, tracks: parent.tracks.clone(), pivot: parent.pivot };
+            hinge.ancestors = parent.ancestors.iter().cloned().chain(Some(own)).collect();
         }
         out.push(hinge);
     }
@@ -108,6 +108,8 @@ fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
             seconds: active.seconds,
         }),
         ancestors: Vec::new(),
+        tracks: Vec::new(),
+        wing: None,
     }
 }
 
