@@ -4,7 +4,8 @@
 //! A part is a solid of the car's own `GEOMETRY.BIN` (named by `model`, without the level-of-detail letter) that the
 //! body does not contain. While the car is intact it is drawn where it was modelled; once the damage of one of its
 //! `zones` reaches the first of its `stages` it turns about the line through `pivot` along `axis`, further with every
-//! stage passed, up to `angle` degrees at the last. A part with `detach_at` is not drawn once the damage reaches it.
+//! stage passed, up to `angle` degrees at the last. From `detach_at` on, or when the car is wrecked, the part leaves the
+//! body and falls as a physical object of `mass_kg`; `detach = false` keeps it on the car for good.
 //! This module checks the schema only; whether the model exists is for the game to decide, because only the game opens
 //! the car's files. Spec: `docs/modding/car-damage-parts.md`.
 
@@ -16,6 +17,9 @@ use super::ContentError;
 pub const MAX_DAMAGE_PARTS: usize = 16;
 /// Most stages of one part.
 pub const MAX_STAGES: usize = 8;
+/// The mass of a part that gives none, in kg, and the range a mass may have.
+pub const DEFAULT_MASS_KG: f32 = 25.0;
+const MASS_RANGE: (f32, f32) = (0.5, 5000.0);
 /// Longest name, in characters, and longest model name, in bytes (the game appends `_A` to `_E`).
 const MAX_NAME_CHARS: usize = 32;
 const MAX_MODEL_BYTES: usize = 56;
@@ -89,8 +93,13 @@ pub struct DamagePart {
     /// The zone damage (0 to 1, ascending) at which each stage starts. The part has turned `angle` times the share of
     /// stages passed. Left out: one stage at the first damage.
     pub stages: Vec<f32>,
-    /// The zone damage (above 0, at most 1) from which the part is gone. `None`: it never falls off.
+    /// The zone damage (above 0, at most 1) from which the part falls off. `None` (with `detach` true): the last stage,
+    /// but not before half the damage the zone can take (`DamagePart::release_level` in the game).
     pub detach_at: Option<f32>,
+    /// Whether the part can leave the car at all. `false` keeps it on the car whatever the damage, wreck included.
+    pub detach: bool,
+    /// What the part weighs once it is a body of its own, in kg.
+    pub mass_kg: f32,
 }
 
 #[derive(Deserialize)]
@@ -106,6 +115,10 @@ pub(super) struct Raw {
     stages: Vec<f32>,
     #[serde(default)]
     detach_at: Option<f32>,
+    #[serde(default)]
+    detach: Option<bool>,
+    #[serde(default)]
+    mass_kg: Option<f32>,
 }
 
 fn field(reason: &'static str) -> ContentError {
@@ -176,6 +189,14 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
     if raw.detach_at.is_some_and(|at| !at.is_finite() || at <= 0.0 || at > 1.0) {
         return Err(field("detach_at is a damage fraction above 0 and at most 1"));
     }
+    let detach = raw.detach.unwrap_or(true);
+    if !detach && raw.detach_at.is_some() {
+        return Err(field("detach_at needs a part that can detach: detach is false"));
+    }
+    let mass_kg = raw.mass_kg.unwrap_or(DEFAULT_MASS_KG);
+    if !mass_kg.is_finite() || mass_kg < MASS_RANGE.0 || mass_kg > MASS_RANGE.1 {
+        return Err(field("mass_kg is from 0.5 to 5000"));
+    }
     let stages = if raw.stages.is_empty() { vec![0.0] } else { raw.stages };
     let axis = raw.axis.map(|c| c / length);
     Ok(DamagePart {
@@ -187,5 +208,7 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
         angle: raw.angle,
         stages,
         detach_at: raw.detach_at,
+        detach,
+        mass_kg,
     })
 }

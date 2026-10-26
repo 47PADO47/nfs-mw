@@ -39,6 +39,16 @@ fn stages_default_to_the_first_damage() {
     let part = &car(&text).unwrap().damage_parts[0];
     assert_eq!(part.stages, vec![0.0]);
     assert_eq!(part.detach_at, None);
+    assert!(part.detach, "a part can fall off unless it says it cannot");
+    assert_eq!(part.mass_kg, DEFAULT_MASS_KG);
+}
+
+#[test]
+fn a_part_can_be_kept_on_the_car_and_given_a_mass() {
+    let kept = ONE.replace("detach_at = 0.9\n", "detach = false\nmass_kg = 12.5\n");
+    let part = &car(&kept).unwrap().damage_parts[0];
+    assert!(!part.detach);
+    assert_eq!((part.mass_kg, part.detach_at), (12.5, None));
 }
 
 #[test]
@@ -67,6 +77,9 @@ fn bad_parts_are_refused() {
         ONE.replace("pivot = [0.7, 0.0, 0.9]", "pivot = [0.7, 0.0, 900.0]"),
         ONE.replace("name = \"Bonnet\"", "name = \"\""),
         ONE.replace("angle = -15.0", "angle = -15.0\ncolour = 1"),
+        ONE.replace("detach_at = 0.9", "detach = false\ndetach_at = 0.9"),
+        ONE.replace("detach_at = 0.9", "mass_kg = 0.0"),
+        ONE.replace("detach_at = 0.9", "mass_kg = 90000.0"),
         format!("{ONE}{ONE}"),
     ];
     for text in bad {
