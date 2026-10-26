@@ -76,6 +76,24 @@ long the whole movement takes. An active part moves or turns, not neither. A par
 the damage then does not turn it, though it still comes off at its release level and in a wreck. Without a `stages` list it
 comes off at the second dent of its zones (default release level 0.5).
 
+### `[[damage_parts.drive]]`
+
+A part with an `[damage_parts.active]` movement (give `above_mph = 0` and `below_mph = 0`) may instead be played by conditions: up
+to four drives, each with tests on `speed_mph`, `gas`, `brake` and `steering` (`==`, `!=`, `>`, `<`, `>=`, `<=`):
+
+```toml
+[[damage_parts.drive]]
+open = [{ input = "speed_mph", op = ">", value = 50.0 }, { input = "steering", op = ">", value = 0.3 }]
+open_any = false                  # optional: one open test is enough (default: all)
+open_after_seconds = 0.4          # optional: the open tests must hold this long first
+close = [{ input = "speed_mph", op = "<", value = 50.0 }, { input = "steering", op = "<=", value = 0.3 }]
+close_any = true                  # optional: one close test is enough (default: all)
+```
+
+A drive moves the part from rest to its full pose at a constant rate over the movement's `seconds` once its open tests hold, and
+back once its close tests hold; a part with several drives is out as far as the furthest. `steering` is -1 to 1, positive to the
+right. Not together with `gas`, a vent's waits or tracks.
+
 ### `[wing]` and `[[damage_parts.track]]`
 
 A car with parts that several keyed animations move has a `[wing]` table, the machine that plays five animations (slot 0 to 4)
@@ -86,7 +104,7 @@ over the speed and the brake, and each such part has one `[[damage_parts.track]]
 [wing]
 open_mph = 140.0             # animation 0 plays above this speed
 brake_mph = 125.0            # braking above this speed at rest plays animation 1
-top_mph = 200.0              # above this speed animation 4 plays
+top_mph = 200.0              # optional: above this speed animation 4 plays (left out: the wing has no top-speed animation)
 brake_hold_seconds = 0.4     # the brake counts once it has been held this long
 fade_seconds = 0.25          # cross-fades between animations
 slot_seconds = [1.5, 3.0, 1.58, 3.0, 1.5]    # the length of each animation
@@ -154,8 +172,9 @@ The cars whose spoiler is a plain speed state (the 911, the 918 Spyder and its C
 [chameleon-active-aero.md](../formats/chameleon-active-aero.md)) get one more part, `Spoiler`, with an `active` table whose
 speeds, time, slide and turn are decoded from the 2012 state machine and animation, and no damage turn; the Panamera's two side
 flaps are parts of their own that hang from it. The Agera's flaps follow the gas (`gas = true`), the air vents of four cars wait
-(`open_after_seconds`, `close_after_seconds`) and the Veyrons' wing is a `[wing]` machine with keyed `track`s. The McLaren, the
-Venom and the Huayra keep their parts at rest: what the data does not state is not guessed.
+(`open_after_seconds`, `close_after_seconds`) and the Veyrons' wing is a `[wing]` machine with keyed `track`s. The McLaren and the
+Venom use the same `[wing]` machine without a top-speed animation, and the Huayra's flaps are played by `[[damage_parts.drive]]`
+tables; both rest on assumptions listed in [chameleon-active-aero.md](../formats/chameleon-active-aero.md).
 
 The [2012 mod](nfsmw-2012-content.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data.
 A 2012 part turns through a few degrees at most, so its stages are small steps. The mod writes the part's own mass and no

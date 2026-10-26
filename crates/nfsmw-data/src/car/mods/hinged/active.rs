@@ -44,6 +44,8 @@ pub struct Deployment {
     /// The vent machine: 0 closed, 1 opening, 2 open, 3 closing, 4 waiting to close; and the seconds it has been counting.
     phase: u8,
     timer: f32,
+    /// The drives of a part played out by conditions.
+    drives: [super::drive::DriveState; super::drive::MAX_DRIVES],
 }
 
 impl Deployment {
@@ -67,6 +69,20 @@ impl Deployment {
 }
 
 impl Deployment {
+    /// Advance a part played out by `drives` (the movement takes `seconds`): it is out as far as the furthest drive.
+    pub fn step_drives(
+        &mut self,
+        drives: &[super::drive::Drive],
+        seconds: f32,
+        inputs: &super::drive::Inputs,
+        dt: f32,
+    ) {
+        for (drive, state) in drives.iter().zip(&mut self.drives) {
+            state.step(drive, seconds, inputs, dt);
+        }
+        self.amount = self.drives.iter().take(drives.len()).map(|state| state.amount).fold(0.0, f32::max);
+    }
+
     /// An air vent: closed, it counts the seconds the speed stays above `above_mph` and opens when `open_after` have
     /// passed; it plays out; open, it starts counting `close_after` seconds when the speed is below `below_mph`, and then
     /// closes, whatever the speed does meanwhile.

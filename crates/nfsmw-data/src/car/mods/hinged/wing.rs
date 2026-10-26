@@ -24,7 +24,7 @@ const LEVELS: f32 = ((1 << BITS) - 1) as f32;
 pub struct Wing {
     pub open_mph: f32,
     pub brake_mph: f32,
-    pub top_mph: f32,
+    pub top_mph: Option<f32>,
     /// How long the brake has to be held before it counts, seconds.
     pub brake_hold: f32,
     /// How long a cross-fade takes, seconds.
@@ -159,7 +159,7 @@ impl WingState {
         };
         let braking = brake > 0.0 && self.held >= wing.brake_hold;
         let len = wing.seconds;
-        let (open, top, brake_mph) = (wing.open_mph, wing.top_mph, wing.brake_mph);
+        let (open, top, brake_mph) = (wing.open_mph, wing.top_mph.unwrap_or(f32::INFINITY), wing.brake_mph);
         let forward = |clock: &mut f32, slot: usize| {
             *clock = (*clock + dt).min(len[slot]);
         };
@@ -322,7 +322,7 @@ mod tests {
         Wing {
             open_mph: 140.0,
             brake_mph: 125.0,
-            top_mph: 200.0,
+            top_mph: Some(200.0),
             brake_hold: 0.4,
             fade: 0.25,
             seconds: [1.5, 3.0, 1.6, 3.0, 1.5],
@@ -388,6 +388,22 @@ mod tests {
         let early =
             WingState { state: 9, clock: [1.5, 0.0, 0.0, 0.0, 0.0], held: 1.0 }.step(&wing(), 160.0, 1.0, 0.125);
         assert!((early.second.unwrap().2 - 0.5).abs() < 0.02, "half faded after 0.125 s: {early:?}");
+    }
+
+    #[test]
+    fn a_wing_without_a_top_speed_animation_never_goes_past_the_open_pose() {
+        let mclaren = Wing { open_mph: 120.0, brake_mph: 80.0, top_mph: None, ..wing() };
+        let mut state = WingState::default();
+        let mut last = Blend::default();
+        for _ in 0..(3.0 / DT) as usize {
+            last = state.step(&mclaren, 250.0, 0.0, DT);
+        }
+        assert_eq!((last.first, state.state()), (Some((0, 1.0)), 2), "held open at any speed");
+        let mut state = WingState::default();
+        for _ in 0..(1.0 / DT) as usize {
+            state.step(&mclaren, 100.0, 1.0, DT);
+        }
+        assert_eq!(state.state(), 4, "braking above 80 mph at rest plays the brake animation");
     }
 
     #[test]

@@ -59,7 +59,7 @@ fn every_high_detail_car_has_paints() {
 
 #[test]
 #[ignore = "reads the game install (CHAMELEON_GAME_DIR)"]
-fn the_veyrons_have_a_wing_machine_with_five_animations() {
+fn the_veyrons_mclaren_and_venom_have_a_wing_machine() {
     let Some(dir) = std::env::var_os("CHAMELEON_GAME_DIR") else { return };
     let mut found = Vec::new();
     for entry in std::fs::read_dir(Path::new(&dir).join("VEHICLES")).unwrap().flatten() {
@@ -80,7 +80,7 @@ fn the_veyrons_have_a_wing_machine_with_five_animations() {
         );
         found.push(file);
     }
-    assert_eq!(found.len(), 2, "{found:?}");
+    assert_eq!(found.len(), 4, "{found:?}");
 }
 
 #[test]
@@ -138,4 +138,40 @@ fn the_air_vents_have_their_delays() {
         vec![(75.0, 3.0, 75.0, 5.0), (100.0, 3.0, 100.0, 5.0), (100.0, 3.0, 100.0, 5.0), (120.0, 3.0, 100.0, 5.0)];
     let numbers: Vec<_> = found.iter().map(|f| (f.0, f.1, f.2, f.3)).collect();
     assert_eq!(numbers, wanted, "{found:?}");
+}
+
+#[test]
+#[ignore = "reads the game install (CHAMELEON_GAME_DIR)"]
+fn the_huayra_flaps_are_guarded_animations() {
+    let Some(dir) = std::env::var_os("CHAMELEON_GAME_DIR") else { return };
+    let data = std::fs::read(Path::new(&dir).join("VEHICLES/VEH_535435_HI.BNDL")).unwrap();
+    let bundle = Bundle::parse(&data).unwrap();
+    let mut count = 0;
+    for (i, e) in bundle.entries().iter().enumerate() {
+        if e.kind != 0x501 {
+            continue;
+        }
+        let machine = bundle.resource(i).unwrap();
+        for drive in crate::hsm::drives(&machine.blocks[0]) {
+            count += 1;
+            let tests = |g: &crate::hsm::Guard| {
+                format!(
+                    "{}{:?}",
+                    if g.any { "ANY" } else { "ALL" },
+                    g.tests.iter().map(|t| format!("{} {} {}", t.input, t.operator, t.value)).collect::<Vec<_>>()
+                )
+            };
+            println!(
+                "DRIVE {} anim {} open {} hold {} close {}",
+                drive.name,
+                drive.animation,
+                tests(&drive.open),
+                drive.open_hold,
+                tests(&drive.close)
+            );
+        }
+    }
+    assert_eq!(count, 10, "four turning, two front and two rear speed bands, two rear brakes");
+    let skeleton = crate::Skeleton::read(&bundle).unwrap();
+    assert_eq!(crate::flap_motions(&bundle, &skeleton).len(), 4, "four flap bones");
 }

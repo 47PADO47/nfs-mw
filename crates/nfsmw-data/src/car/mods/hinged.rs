@@ -16,9 +16,13 @@ use crate::car::{LodAssembly, Placement};
 
 mod active;
 mod debris;
+mod drive;
 mod wing;
 pub use active::{Active, Deployment, MPS_TO_MPH, deploy_in, deploy_mark};
 pub use debris::{DEBRIS_SOUND, Motion, Parent, debris_bounds, debris_dynamics, debris_motion, part_axis, part_frame};
+pub use drive::{
+    Drive, DriveState, Input as DriveInput, Inputs as DriveInputs, MAX_DRIVES, Op as DriveOp, Test as DriveTest,
+};
 pub use wing::{Blend, SLOTS, Sample, Wing, WingState, WingTrack};
 
 /// The first slot number of the hinged parts: part `n` of a car is slot `HINGED_SLOT + n`. The slots of the parts
@@ -58,6 +62,8 @@ pub struct Hinge {
     pub ancestors: Vec<Ancestor>,
     /// The keyed animations that move the part, when a wing machine does (`[wing]`).
     pub tracks: Vec<WingTrack>,
+    /// The conditions that play the part's active movement (`[[damage_parts.drive]]`).
+    pub drives: Vec<Drive>,
     /// The wing machine of the car (the same on every part it moves).
     pub wing: Option<Wing>,
 }
@@ -258,6 +264,7 @@ mod tests {
             active: None,
             ancestors: Vec::new(),
             tracks: Vec::new(),
+            drives: Vec::new(),
             wing: None,
         }
     }

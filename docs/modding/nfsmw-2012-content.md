@@ -245,7 +245,7 @@ The cars whose spoiler is a plain speed state (the bone `SpoilerHinge`, 10 bundl
 2013 and Concept Study, LFA, SL65 AMG, SLS AMG, LP700-4 and Panamera Turbo S) get a part `Spoiler` the same way, whether or not their damage object lists
 it, with a `[damage_parts.active]` table decoded from the 2012 state machine and animation: the open and close speeds, the
 time, the slide and the turn ([chameleon-active-aero.md](../formats/chameleon-active-aero.md)); the Panamera's side flaps are
-parts that hang from its spoiler (`parent`). The McLaren, the Venom and the Huayra keep that part at rest: what the data does not state is not guessed.
+parts that hang from its spoiler (`parent`). The **McLaren and the Venom** get the `[wing]` machine without a top-speed animation, with their own speeds (120 and 80 mph) and brake hold; the **Huayra** gets four flaps with `[[damage_parts.drive]]` tables (turning, speed bands, rear brake). Both rest on assumptions, listed in [chameleon-active-aero.md](../formats/chameleon-active-aero.md#the-mclaren-the-venom-and-the-huayra).
 
 The **Agera R** gets two flaps that open above 70 mph with the gas pressed (`gas = true`); the **air vents** of the 918 Concept
 Study, the LP700-4, the Marussia B2 and the Aventador J become `AirVentN` parts with the waits of the 2012 timed transitions

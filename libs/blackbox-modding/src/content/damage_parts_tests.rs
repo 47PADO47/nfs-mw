@@ -161,6 +161,40 @@ fn a_vent_waits_before_it_opens_and_before_it_closes() {
     }
 }
 
+const DRIVE: &str = "
+[[damage_parts.drive]]
+open = [{ input = \"speed_mph\", op = \">\", value = 50.0 }, { input = \"steering\", op = \">\", value = 0.3 }]
+close = [{ input = \"speed_mph\", op = \"<=\", value = 50.0 }, { input = \"steering\", op = \"<=\", value = 0.3 }]
+close_any = true
+open_after_seconds = 0.4
+";
+
+#[test]
+fn a_part_can_be_played_out_by_conditions() {
+    let flap = ACTIVE.replace("above_mph = 70.0", "above_mph = 0.0").replace("below_mph = 40.0", "below_mph = 0.0");
+    let part = &car(&format!("{ONE}{flap}{DRIVE}")).unwrap().damage_parts[0];
+    let drive = &part.drives[0];
+    assert_eq!((drive.open.len(), drive.open_any, drive.open_after_seconds, drive.close_any), (2, false, 0.4, true));
+    assert_eq!((drive.open[1].input, drive.open[1].op, drive.open[1].value), (DriveInput::Steering, DriveOp::Gt, 0.3));
+    assert_eq!(drive.close[0].op, DriveOp::Le);
+}
+
+#[test]
+fn bad_drives_are_refused() {
+    let flap = ACTIVE.replace("above_mph = 70.0", "above_mph = 0.0").replace("below_mph = 40.0", "below_mph = 0.0");
+    let bad = [
+        format!("{ONE}{DRIVE}"),
+        format!("{ONE}{flap}{}", DRIVE.replace("speed_mph", "rpm")),
+        format!("{ONE}{flap}{}", DRIVE.replace("\"<=\"", "\"=>\"")),
+        format!("{ONE}{flap}{}", DRIVE.replace("open_after_seconds = 0.4", "open_after_seconds = -1.0")),
+        format!("{ONE}{flap}{DRIVE}{DRIVE}{DRIVE}{DRIVE}{DRIVE}"),
+        format!("{ONE}{flap}{}", DRIVE.replace("close = [{ input = \"speed_mph\", op = \"<=\", value = 50.0 }, { input = \"steering\", op = \"<=\", value = 0.3 }]", "close = []")),
+    ];
+    for text in bad {
+        assert!(car(&text).is_err(), "accepted: {text}");
+    }
+}
+
 #[test]
 fn a_part_that_only_moves_with_the_speed_has_no_damage_turn() {
     let still = ONE.replace("angle = -15.0", "angle = 0.0");
@@ -229,7 +263,12 @@ rotation = [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.2588, 0.9659]]
 fn a_part_can_be_moved_by_the_keys_of_a_wing_machine() {
     let manifest = car(&format!("{ONE}{TRACK}{WING}")).unwrap();
     let wing = manifest.wing.expect("the wing");
-    assert_eq!((wing.open_mph, wing.brake_mph, wing.top_mph, wing.brake_hold_seconds), (140.0, 125.0, 200.0, 0.4));
+    assert_eq!(
+        (wing.open_mph, wing.brake_mph, wing.top_mph, wing.brake_hold_seconds),
+        (140.0, 125.0, Some(200.0), 0.4)
+    );
+    let no_top = WING.replace("top_mph = 200.0\n", "");
+    assert_eq!(car(&format!("{ONE}{TRACK}{no_top}")).unwrap().wing.unwrap().top_mph, None);
     assert_eq!(wing.slot_seconds, [1.5, 3.0, 1.6, 3.0, 1.5]);
     let track = &manifest.damage_parts[0].tracks[0];
     assert_eq!((track.slot, track.translation.len(), track.rotation.len()), (0, 2, 2));

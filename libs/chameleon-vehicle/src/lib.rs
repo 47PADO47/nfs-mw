@@ -28,11 +28,14 @@ mod stats_tests;
 #[cfg(test)]
 mod tests;
 
-pub use active_aero::{AttachedMotion, SpoilerMotion, VentMotion, attached_motions, spoiler_motion, vent_motions};
+pub use active_aero::{
+    AttachedMotion, FlapMotion, SpoilerMotion, VentMotion, attached_motions, flap_motions, spoiler_motion, vent_motions,
+};
 pub use appearance::{Appearance, LampEnd, LampSide, LampSurface, SurfaceKind};
 pub use collision::{PolySoup, load_poly_soup};
 pub use error::{Error, Result};
 pub use hinged::{HingedPart, hinged_parts};
+pub use hsm::{DriveSpec, Guard, Threshold};
 pub use lamps::{LampEntry, Lamps, Locator, LocatorGroup, SpotEffect, read_groups, read_lamps, split_lenses};
 pub use name::vehicle_name;
 pub use paint::{VehiclePaint, paints};
@@ -42,7 +45,4 @@ pub use skin::{BodyParts, body_parts};
 pub use spec::{GraphicsSpec, WheelSpec, find_spec};
 pub use stats::{TorqueKnot, VehicleStats, WheelStats, read_stats};
 pub use vehicle::{Lod, PartMesh, Vehicle, Wheel, load, load_texture};
-pub use wing::{
-    BRAKE_HOLD_SECONDS as WING_BRAKE_HOLD_SECONDS, BRAKE_MPH as WING_BRAKE_MPH, FADE_SECONDS as WING_FADE_SECONDS,
-    OPEN_MPH as WING_OPEN_MPH, TOP_MPH as WING_TOP_MPH, WingBoneTrack, WingMachine, wing_machine,
-};
+pub use wing::{WingBoneTrack, WingMachine, WingParams, wing_machine};

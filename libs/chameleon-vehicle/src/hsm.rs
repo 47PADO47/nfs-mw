@@ -8,6 +8,9 @@
 //! (its animation, and the condition that closes it), the conditions (a number, the input it is tested against, an operator)
 //! and the machine's child lists, which put a condition before the state it opens.
 
+mod drive;
+pub use drive::{DriveSpec, Guard, drives};
+
 /// The type hashes of the records.
 const MACHINE: u32 = 0x24c4_22b2;
 const STATE: u32 = 0x849c_8ce8;
@@ -22,6 +25,8 @@ const KEY_INPUT: u64 = 0x9952_fc58_1900_0000;
 const KEY_OPERATOR: u64 = 0x5b55_835f_4e5a_7080;
 /// The key of the seconds of a timed transition (`Wait for 5s`).
 const KEY_TIMER: u64 = 0xbd69_b4a6_1900_0000;
+/// The row of a condition that is 1 when any of its tests is enough.
+const KEY_ANY: u64 = 0x5b56_2d0c_8c7b_8000;
 /// The row type of a nested object.
 const OBJECT: u16 = 6;
 /// Range of the ids of the objects of a machine.
@@ -31,7 +36,7 @@ const IDS: std::ops::Range<u32> = 0x1000..0x0100_0000;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Threshold {
     pub input: String,
-    /// The operator code as text: `0` equal, `1` not equal, `2` greater than, `3` less than, `4` at most, `5` at least
+    /// The operator code as text: `0` equal, `1` not equal, `2` greater than, `3` less than, `4` at least, `5` at most
     /// (read off the labels of the conditions: `Brake OFF` is `brake` `0` `0`, `Brake ON` is `1`, `Turning Left` is
     /// `steering` below -0.3 and `Turning Right` above 0.3).
     pub operator: String,
@@ -76,12 +81,13 @@ fn half(block: &[u8], at: usize) -> Option<u16> {
     Some(u16::from_le_bytes(block.get(at..at + 2)?.try_into().ok()?))
 }
 
-/// The NUL-terminated text at `at`, when it is printable ASCII (it may be empty).
+/// The NUL-terminated text at `at`, when it is printable (ASCII or the bytes of a name with a degree sign; it may be empty).
 fn text_at(block: &[u8], at: usize) -> Option<String> {
     let tail = block.get(at..)?;
     let end = tail.iter().position(|&b| b == 0)?;
     let text = &tail[..end];
-    (end < 64 && text.iter().all(|b| (32..127).contains(b))).then(|| String::from_utf8_lossy(text).into_owned())
+    (end < 64 && text.iter().all(|b| (32..127).contains(b) || *b >= 0x80))
+        .then(|| String::from_utf8_lossy(text).into_owned())
 }
 
 /// The record that starts at `at`, if one does: a known type hash, an id in range and a name that reads.
@@ -275,13 +281,35 @@ pub fn vents(block: &[u8]) -> Vec<Vent> {
     out
 }
 
-/// The data of every condition of the machine in `block`.
-pub fn conditions(block: &[u8]) -> Vec<Threshold> {
+/// A condition record: its tests, and whether any of them is enough (otherwise all have to hold).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionRecord {
+    pub name: String,
+    pub tests: Vec<Threshold>,
+    pub any: bool,
+}
+
+/// The conditions of the machine in `block` with the way their tests combine (the row `5b562d0c8c7b8000` is 1 for `OR`).
+pub fn condition_records(block: &[u8]) -> Vec<ConditionRecord> {
     records(block)
         .iter()
         .filter(|record| record.kind == CONDITION)
-        .flat_map(|record| condition_of(block, record))
+        .map(|record| ConditionRecord {
+            name: text_at(block, record.name).unwrap_or_default(),
+            tests: condition_of(block, record),
+            any: rows(block, record.props)
+                .iter()
+                .find(|row| row.key == KEY_ANY)
+                .and_then(|row| text_of(block, row))
+                .is_some_and(|text| text == "1"),
+        })
         .collect()
+}
+
+/// The seconds of every timed transition of the machine in `block`.
+pub fn timers(block: &[u8]) -> Vec<f32> {
+    let all = records(block);
+    all.iter().filter(|record| record.kind == TRANSITION).filter_map(|record| timer_of(block, record)).collect()
 }
 
 /// The animation states of the machine in `block`.
