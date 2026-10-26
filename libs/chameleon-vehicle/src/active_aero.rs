@@ -116,6 +116,64 @@ pub fn attached_motions(bundle: &Bundle, skeleton: &Skeleton) -> Vec<AttachedMot
     out
 }
 
+/// An air vent: a state that opens when the speed has been above a number for some seconds and closes some seconds after the
+/// speed falls below another, moving one or more bones.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VentMotion {
+    /// The first bone the animation moves, with the speeds in `above_mph` (opens) and `below_mph` (closes).
+    pub motion: SpoilerMotion,
+    /// How long the speed has to stay above `above_mph` before the vent opens, seconds.
+    pub open_seconds: f32,
+    /// How long the vent waits after the speed falls below `below_mph` before it closes, seconds.
+    pub close_seconds: f32,
+    /// The other bones the animation moves.
+    pub attached: Vec<AttachedMotion>,
+}
+
+/// The air vents of the car in `bundle` (a car has none, one or two).
+pub fn vent_motions(bundle: &Bundle, skeleton: &Skeleton) -> Vec<VentMotion> {
+    let kind = ResourceKind::Animation.id();
+    let mut out = Vec::new();
+    for index in (0..bundle.entries().len()).filter(|&at| bundle.entries()[at].kind == HSM_KIND) {
+        let Ok(machine) = bundle.resource(index) else { continue };
+        for vent in crate::hsm::vents(&machine.blocks[0]) {
+            let Some(at) = bundle.entries().iter().position(|e| e.kind == kind && e.id & ID_MASK == vent.animation)
+            else {
+                continue;
+            };
+            let Ok(animation) = bundle.resource(at) else { continue };
+            let block = &animation.blocks[0];
+            let moved: Vec<usize> = (0..skeleton.bones.len()).filter(|&bone| movement(block, bone).is_some()).collect();
+            let Some(&first) = moved.first() else { continue };
+            let Some((translation, rotation, seconds)) = movement(block, first) else { continue };
+            let motion = SpoilerMotion {
+                bone: first,
+                translation,
+                rotation,
+                seconds,
+                above_mph: vent.open_mph,
+                below_mph: vent.close_mph,
+                gas: false,
+            };
+            let mut attached: Vec<AttachedMotion> = Vec::new();
+            for &bone in moved.iter().skip(1) {
+                let Some((translation, rotation, _)) = movement(block, bone) else { continue };
+                let parent = skeleton.bones[bone]
+                    .parent
+                    .filter(|&parent| parent == first || attached.iter().any(|a| a.bone == parent));
+                attached.push(AttachedMotion { bone, parent, translation, rotation });
+            }
+            out.push(VentMotion {
+                motion,
+                open_seconds: vent.open_seconds,
+                close_seconds: vent.close_seconds,
+                attached,
+            });
+        }
+    }
+    out
+}
+
 /// The speed or gas conditions of a plain state as thresholds: the speed it opens above, the speed it closes below, and
 /// whether the gas matters. `None` for any other state.
 fn plain_conditions(open: &[crate::hsm::Threshold], close: &[crate::hsm::Threshold]) -> Option<(f32, f32, bool)> {

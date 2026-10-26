@@ -125,6 +125,7 @@ fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
             below_mph: active.below_mph,
             seconds: active.seconds,
             gas: active.gas,
+            delay: active.delay,
         }),
         ancestors: Vec::new(),
         tracks: part

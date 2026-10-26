@@ -20,6 +20,8 @@ const KEY_CLOSE: u64 = 0x6845_63f7_fd6c_4600;
 const KEY_VALUE: u64 = 0xbcda_a6b6_34a9_aa00;
 const KEY_INPUT: u64 = 0x9952_fc58_1900_0000;
 const KEY_OPERATOR: u64 = 0x5b55_835f_4e5a_7080;
+/// The key of the seconds of a timed transition (`Wait for 5s`).
+const KEY_TIMER: u64 = 0xbd69_b4a6_1900_0000;
 /// The row type of a nested object.
 const OBJECT: u16 = 6;
 /// Range of the ids of the objects of a machine.
@@ -175,6 +177,100 @@ fn children(block: &[u8], at: usize, known: &[Record]) -> Vec<u32> {
         let Some(id) = word(block, at).filter(|id| known.iter().any(|record| record.id == *id)) else { break };
         out.push(id);
         at += 16;
+    }
+    out
+}
+
+/// An air vent: an animation state with the delays of the timed transitions around it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Vent {
+    pub name: String,
+    pub animation: u64,
+    /// The speed it opens above, and the seconds the speed has to stay above it.
+    pub open_mph: f32,
+    pub open_seconds: f32,
+    /// The speed it closes below, and the seconds it waits after that before it closes.
+    pub close_mph: f32,
+    pub close_seconds: f32,
+}
+
+/// The seconds of a timed transition record.
+fn timer_of(block: &[u8], record: &Record) -> Option<f32> {
+    let row = rows(block, record.props).into_iter().find(|row| row.key == KEY_TIMER)?;
+    text_of(block, &row)?.parse::<f32>().ok().filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
+}
+
+/// The speed test (input `speedinmph`, operator `op`) that a record holds as its only condition, or that its single child
+/// condition holds (a timed transition names the test that aborts its wait).
+fn speed_test(block: &[u8], all: &[Record], record: &Record, op: &str) -> Option<f32> {
+    let own = condition_of(block, record);
+    let tests = match own.is_empty() {
+        true => children(block, record.children, all)
+            .iter()
+            .filter_map(|id| all.iter().find(|candidate| candidate.id == *id && candidate.kind == CONDITION))
+            .flat_map(|condition| condition_of(block, condition))
+            .collect(),
+        false => own,
+    };
+    match &tests[..] {
+        [test] if test.input == "speedinmph" && test.operator == op => Some(test.value),
+        _ => None,
+    }
+}
+
+/// The air vents of the machine in `block`: animation states that have children of their own (a condition that closes them
+/// and a timed transition), opened by the nearest condition listed before them, with a timed transition listed in the machine whose
+/// aborting condition is the opposite of that one.
+pub fn vents(block: &[u8]) -> Vec<Vent> {
+    let all = records(block);
+    let mut out = Vec::new();
+    for state in all.iter().filter(|record| record.kind == STATE) {
+        let props = rows(block, state.props);
+        let Some(animation) = props
+            .iter()
+            .find(|row| row.key == KEY_ANIMATION)
+            .and_then(|row| text_of(block, row))
+            .and_then(|text| text.parse::<u64>().ok())
+        else {
+            continue;
+        };
+        let own: Vec<&Record> = children(block, state.children, &all)
+            .iter()
+            .filter_map(|id| all.iter().find(|candidate| candidate.id == *id))
+            .collect();
+        let close = own.iter().find_map(|record| match record.kind {
+            CONDITION => speed_test(block, &all, record, "3"),
+            _ => None,
+        });
+        let close_wait = own.iter().find(|record| record.kind == TRANSITION).and_then(|record| timer_of(block, record));
+        let machine = all.iter().filter(|record| record.kind == MACHINE).find_map(|record| {
+            let list = children(block, record.children, &all);
+            list.iter().position(|id| *id == state.id).map(|at| (list, at))
+        });
+        let Some((list, at)) = machine else { continue };
+        let open = list[..at]
+            .iter()
+            .rev()
+            .find_map(|id| all.iter().find(|candidate| candidate.id == *id && candidate.kind == CONDITION))
+            .and_then(|record| speed_test(block, &all, record, "2"));
+        let open_wait = list
+            .iter()
+            .filter_map(|id| all.iter().find(|candidate| candidate.id == *id && candidate.kind == TRANSITION))
+            .find(|record| open.is_some() && speed_test(block, &all, record, "3") == open)
+            .and_then(|record| timer_of(block, record));
+        let (Some(close_mph), Some(close_seconds), Some(open_mph), Some(open_seconds)) =
+            (close, close_wait, open, open_wait)
+        else {
+            continue;
+        };
+        out.push(Vent {
+            name: text_at(block, state.name).unwrap_or_default(),
+            animation,
+            open_mph,
+            open_seconds,
+            close_mph,
+            close_seconds,
+        });
     }
     out
 }

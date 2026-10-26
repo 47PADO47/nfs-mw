@@ -323,6 +323,7 @@ mod tests {
             below_mph: 40.0,
             seconds: 0.6,
             gas: false,
+            delay: None,
         };
         let hinge = Hinge { pivot: [1.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], active: Some(active), ..bonnet() };
         assert_eq!(hinge.transform(0.0, 0.0), Mat4::IDENTITY);
@@ -342,6 +343,7 @@ mod tests {
             below_mph: 40.0,
             seconds: 0.6,
             gas: false,
+            delay: None,
         };
         let flap = Active { offset: [0.0, 0.5, 0.0], ..wing };
         let hinge = Hinge {

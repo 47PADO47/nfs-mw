@@ -107,3 +107,35 @@ fn the_cars_with_an_active_spoiler_are_found() {
     let expected = [(70, 0), (70, 40), (70, 50), (74, 64), (75, 75), (80, 50), (100, 80)];
     assert_eq!(speeds, expected.into_iter().collect(), "{found:?}");
 }
+
+#[test]
+#[ignore = "reads the game install (CHAMELEON_GAME_DIR)"]
+fn the_air_vents_have_their_delays() {
+    let Some(dir) = std::env::var_os("CHAMELEON_GAME_DIR") else { return };
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(Path::new(&dir).join("VEHICLES")).unwrap().flatten() {
+        let file = entry.file_name().to_string_lossy().to_uppercase();
+        if !(file.starts_with("VEH_") && file.ends_with("_HI.BNDL")) {
+            continue;
+        }
+        let data = std::fs::read(entry.path()).unwrap();
+        let bundle = Bundle::parse(&data).unwrap();
+        let Some(skeleton) = crate::Skeleton::read(&bundle) else { continue };
+        for vent in crate::vent_motions(&bundle, &skeleton) {
+            println!("{file} {:?} {:?}", vehicle_name(&bundle), vent);
+            found.push((
+                vent.motion.above_mph,
+                vent.open_seconds,
+                vent.motion.below_mph,
+                vent.close_seconds,
+                1 + vent.attached.len(),
+            ));
+        }
+    }
+    found.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    // 918 Concept 75/3 s and 75/5 s; Marussia 120/3 s and 100/5 s; LP700-4 and Aventador J 100/3 s and 100/5 s.
+    let wanted: Vec<(f32, f32, f32, f32)> =
+        vec![(75.0, 3.0, 75.0, 5.0), (100.0, 3.0, 100.0, 5.0), (100.0, 3.0, 100.0, 5.0), (120.0, 3.0, 100.0, 5.0)];
+    let numbers: Vec<_> = found.iter().map(|f| (f.0, f.1, f.2, f.3)).collect();
+    assert_eq!(numbers, wanted, "{found:?}");
+}

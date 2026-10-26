@@ -147,6 +147,21 @@ fn bad_rotations_are_refused() {
 }
 
 #[test]
+fn a_vent_waits_before_it_opens_and_before_it_closes() {
+    let vent = ACTIVE.replace("seconds = 0.6", "seconds = 0.6\nopen_after_seconds = 3.0\nclose_after_seconds = 5.0");
+    let active = car(&format!("{ONE}{vent}")).unwrap().damage_parts[0].active.unwrap();
+    assert_eq!(active.delay, Some((3.0, 5.0)));
+    for bad in [
+        ACTIVE.replace("seconds = 0.6", "seconds = 0.6\nopen_after_seconds = 3.0"),
+        ACTIVE.replace("seconds = 0.6", "seconds = 0.6\nopen_after_seconds = -1.0\nclose_after_seconds = 5.0"),
+        ACTIVE
+            .replace("seconds = 0.6", "seconds = 0.6\ngas = true\nopen_after_seconds = 1.0\nclose_after_seconds = 5.0"),
+    ] {
+        assert!(car(&format!("{ONE}{bad}")).is_err(), "accepted:{bad}");
+    }
+}
+
+#[test]
 fn a_part_that_only_moves_with_the_speed_has_no_damage_turn() {
     let still = ONE.replace("angle = -15.0", "angle = 0.0");
     assert_eq!(car(&format!("{still}{ACTIVE}")).unwrap().damage_parts[0].angle, 0.0);

@@ -99,6 +99,10 @@ pub struct Active {
     /// The throttle matters: the part deploys only while the gas is pressed (above `above_mph`) and retracts when the gas
     /// is released; the speed alone does not retract it (`below_mph` is then 0).
     pub gas: bool,
+    /// An air vent: `(open_after, close_after)` in seconds. It opens once the speed has stayed above `above_mph` for the first,
+    /// then plays out; when the speed falls below `below_mph` it waits the second and then closes, without looking at the
+    /// speed again until it has closed. `None`: it follows the speed at once.
+    pub delay: Option<(f32, f32)>,
 }
 
 /// Animations a wing machine plays.
@@ -181,6 +185,10 @@ struct RawActive {
     seconds: f32,
     #[serde(default)]
     gas: bool,
+    #[serde(default)]
+    open_after_seconds: Option<f32>,
+    #[serde(default)]
+    close_after_seconds: Option<f32>,
 }
 
 #[derive(Deserialize)]
@@ -355,7 +363,25 @@ fn check_active(raw: RawActive) -> Result<Active, ContentError> {
     if !raw.seconds.is_finite() || !(SECONDS_RANGE.0..=SECONDS_RANGE.1).contains(&raw.seconds) {
         return Err(field("an active movement takes 0.05 to 10 seconds"));
     }
-    Ok(Active { offset: raw.offset, rotation, above_mph: raw.above_mph, below_mph, seconds: raw.seconds, gas: raw.gas })
+    let delay = match (raw.open_after_seconds, raw.close_after_seconds) {
+        (None, None) => None,
+        (Some(open), Some(close)) if [open, close].iter().all(|v| v.is_finite() && (0.0..=60.0).contains(v)) => {
+            Some((open, close))
+        }
+        _ => return Err(field("open_after_seconds and close_after_seconds come together, 0 to 60 seconds")),
+    };
+    if delay.is_some() && raw.gas {
+        return Err(field("a vent that waits does not follow the gas"));
+    }
+    Ok(Active {
+        offset: raw.offset,
+        rotation,
+        above_mph: raw.above_mph,
+        below_mph,
+        seconds: raw.seconds,
+        gas: raw.gas,
+        delay,
+    })
 }
 
 /// The turn of an active part: both of `rotation_axis` and `rotation_deg` or none of them.
