@@ -6,6 +6,8 @@ use nfsmw_data::car::CarModel;
 
 use super::vehicle_effects::geometry;
 mod damage;
+#[cfg(test)]
+mod mod_car_tests;
 use damage::marker_flags;
 
 const HEAD_MARKERS: [&str; 3] = ["LEFT_HEADLIGHT", "CENTRE_HEADLIGHT", "RIGHT_HEADLIGHT"];
