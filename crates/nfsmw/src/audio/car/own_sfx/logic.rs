@@ -96,17 +96,27 @@ pub struct LiftOff {
     pub pops: Vec<Pop>,
 }
 
+/// How likely a lift-off at `rpm_pct` is to backfire: a few percent near idle, a quarter at the limiter (measured against
+/// a drive of six shifts, the earlier 20 to 70 percent was a bang at nearly every lift).
+pub fn backfire_chance(rpm_pct: f32) -> f32 {
+    let rpm_pct = rpm_pct.clamp(0.0, 1.0);
+    0.03 + 0.22 * rpm_pct * rpm_pct
+}
+
+/// The chance that a lift-off with no backfire still pops once or twice.
+const LONE_POP_CHANCE: f32 = 0.06;
+
 /// The effects of a lift-off at `spool` and `rpm_pct`. The faster the engine turns the likelier it is to backfire; a
-/// backfire is followed by two to four pops, and a lift-off without one sometimes has one or two pops of its own.
+/// backfire is followed by one to three pops, and a lift-off without one sometimes has one or two pops of its own.
 pub fn lift_off(spool: f32, rpm_pct: f32, rng: &mut Rng) -> LiftOff {
     let rpm_pct = rpm_pct.clamp(0.0, 1.0);
     let blowoff = (spool >= BLOWOFF_MIN_SPOOL).then(|| 0.5 + 0.5 * spool.min(1.0));
-    let chance = 0.2 + 0.5 * rpm_pct;
+    let chance = backfire_chance(rpm_pct);
     let roll = rng.unit();
     let backfire = (roll < chance).then_some(0.5 + 0.5 * rpm_pct);
     let count = match roll {
-        r if r < chance => 2 + rng.below(3),
-        r if r < chance + 0.15 => 1 + rng.below(2),
+        r if r < chance => 1 + rng.below(3),
+        r if r < chance + LONE_POP_CHANCE => 1 + rng.below(2),
         _ => 0,
     };
     let mut delay = 0.12;

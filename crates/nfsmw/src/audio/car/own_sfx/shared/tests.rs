@@ -11,7 +11,7 @@ fn a_blow_is_light_medium_or_heavy_by_its_strength() {
 fn a_harder_blow_and_a_harder_scrape_are_louder_and_none_is_silent() {
     assert!(impact_volume(0.0) > 0.5 && impact_volume(1.0) <= 1.0);
     assert!(impact_volume(0.9) > impact_volume(0.1));
-    assert!(scrape_volume(0.0) > 0.3 && scrape_volume(1.0) <= 1.0);
+    assert!(scrape_volume(0.0) > 0.1 && scrape_volume(1.0) <= 0.4);
     assert!(scrape_volume(0.9) > scrape_volume(0.1));
 }
 

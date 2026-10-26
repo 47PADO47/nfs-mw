@@ -37,9 +37,14 @@ pub fn impact_volume(magnitude: f32) -> f32 {
     0.55 + 0.45 * magnitude.clamp(0.0, 1.0)
 }
 
+/// A scrape of the mod's recordings is this much of its recording's level: measured through the mixer, a wall scrape of a
+/// converted car was 9 dB louder than the same scrape of the cars of the game (-17.5 dB against -26.5 dB over the scrape,
+/// peak -4.4 dB against -16.5 dB).
+const SCRAPE_LEVEL: f32 = 0.35;
+
 /// The volume of a scrape one-shot at scrape strength `level` (0 to 1).
 pub fn scrape_volume(level: f32) -> f32 {
-    0.35 + 0.65 * level.clamp(0.0, 1.0)
+    SCRAPE_LEVEL * (0.35 + 0.65 * level.clamp(0.0, 1.0))
 }
 
 /// What the scrape clock asks for.
