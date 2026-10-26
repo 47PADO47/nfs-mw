@@ -39,6 +39,8 @@ pub struct Built {
 
 pub struct Options {
     pub max_texture_size: u32,
+    /// The liveries of the car: each picture and the name it takes in the car's `TEXTURES.BIN`.
+    pub liveries: Vec<(String, chameleon_gfx::Texture)>,
 }
 
 /// Where a mesh's surface gets its look from in the 2005 car shader.
@@ -88,6 +90,9 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
         look(mesh, car, folder, options, &mut palette)
     })?;
     let geometry = write_geometry_pack(&solids).context("writing GEOMETRY.BIN")?;
+    for (name, picture) in &options.liveries {
+        palette.add_map(name, picture, options.max_texture_size, false);
+    }
     let textures = write_tpk(folder, &palette.into_textures()).context("writing TEXTURES.BIN")?;
     let collision = crate::collision::build(car, &body, folder)?;
     log::debug!("{folder}: bounds from the {:?}, half dimensions {:?}", collision.basis, collision.half);
