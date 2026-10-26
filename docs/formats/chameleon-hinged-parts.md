@@ -130,6 +130,12 @@ The 911 has no `BootHinge` (its engine is behind). Each car lists only the parts
   ([car-damage-parts.md](../modding/car-damage-parts.md)). It condenses the three ranges into the one largest swing (the
   axis and end with the largest magnitude) and keeps the ladder as the stages.
 
+## The active spoiler
+
+The bone `SpoilerHinge` also exists on cars whose damage object does not list it (the 911's is bone 36). It is the root of
+the spoiler's triangles, and the animation of the spoiler state machine moves it
+([chameleon-active-aero.md](chameleon-active-aero.md)).
+
 ## Not decoded, not verified
 
 - **The consumer.** The fields above were read from data. `NFS13.exe` holds no names of the fields; the only string of the

@@ -32,6 +32,13 @@ stages = [0.04, 0.05, 0.5]            # damage fractions at which each stage sta
 # detach_at = 0.9                     # optional: the part falls off from this damage on
 # detach = false                      # optional: the part never leaves the car
 mass_kg = 40.0                        # optional: its mass once it is a body of its own (default 25)
+
+# A part that also moves with the car's speed, such as an active spoiler:
+[damage_parts.active]
+offset = [-0.07, 0.0, 0.02]           # metres at full deployment, in the solids' space
+above_mph = 70.0                      # deploys from this speed up
+below_mph = 40.0                      # comes down below this speed (default: above_mph)
+seconds = 0.6                         # the whole movement takes this long
 ```
 
 | Key | Meaning |
@@ -46,11 +53,24 @@ mass_kg = 40.0                        # optional: its mass once it is a body of 
 | `detach` | `false` keeps the part on the car whatever happens, a wreck included. Not with `detach_at` |
 | `mass_kg` | 0.5 to 5000, default 25. The mass of the body the part becomes |
 
+### `[damage_parts.active]`
+
+A part may move with the car's speed. `offset` is the way it slides at full deployment (up to 5 m, not 0), `above_mph` the
+speed it starts going out at, `below_mph` the speed it starts coming back at (not above `above_mph`; between the two it goes
+on the way it was going, so it does not flutter), `seconds` (0.05 to 10) how long the whole movement takes. A part with an
+`active` table may have `angle = 0`: the damage then does not turn it, though it still comes off at its release level and
+in a wreck. Without a `stages` list it comes off at the second dent of its zones (default release level 0.5).
+
 A wrong value, or a key the table does not know, refuses the car and the log names the key. At most 16 parts per car. The
 schema is checked by `libs/blackbox-modding/src/content/damage_parts.rs`; whether the model exists is checked by the game
 when it assembles the car.
 
 ## What the game does
+
+Each tick the car's speed (the length of its velocity, in mph) moves every active part one step: out at `above_mph`, back
+below `below_mph`, at a speed of 1 over `seconds` of the whole way, eased at both ends. The part is drawn displaced by
+`offset` times that, and then turned by the damage as below. The deployment travels to the car draw in the set of revealed
+slots, like the zone levels. A part that falls off keeps the place it had. The downforce of the car's physics is not changed.
 
 The damage model keeps a panel level from 0 to 3 for each of the eight zones
 ([vehicle-damage.md](../specs/vehicle-damage.md)). A part's **damage** is the worst panel level of its `zones` over 3: 0, 0.33,
@@ -87,6 +107,9 @@ shape; the fallen part is not a bounds node with joints (`JOINT_MALE` and `JOINT
 of the 2005 game and play no part here); no sparks or smoke are made when it breaks off.
 
 ## The 2012 cars
+
+The cars with an active spoiler (the 911, the 918 Spyder, the LFA and others, [chameleon-active-aero.md](../formats/chameleon-active-aero.md))
+get one more part, `Spoiler`, with an `active` table from the 2012 state machine and no damage turn.
 
 The [2012 mod](nfsmw-2012-content.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data.
 A 2012 part turns through a few degrees at most, so its stages are small steps. The mod writes the part's own mass and no
