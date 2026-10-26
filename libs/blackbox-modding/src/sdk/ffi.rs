@@ -18,6 +18,9 @@ pub(crate) mod map;
 pub(crate) mod menus;
 #[cfg(all(test, feature = "host"))]
 mod menus_tests;
+pub(crate) mod settings;
+#[cfg(all(test, feature = "host"))]
+mod settings_tests;
 pub(crate) mod time;
 pub(crate) mod ui;
 #[cfg(all(test, feature = "host"))]
