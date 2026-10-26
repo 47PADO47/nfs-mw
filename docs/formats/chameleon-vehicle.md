@@ -17,7 +17,7 @@ names (`122672`, `1085007`, ...) are the car's number in `VEHICLELIST.BNDL`.
 | `_TR` | traffic cars (not imported) |
 
 Several numbers are the same car in other liveries: the Nissan Skyline R34 appears five times, the 350Z five, the
-BMW M3 E46 GTR five, the Porsche 911 GT2 five, the Lamborghini Diablo SV five. One slot (`BMW1M12`, number 2196065)
+BMW M3 E46 GTR five, the Porsche 911 GT2 five, the Lamborghini Diablo SV five (one vehicle each, the vehicle list names the bundles; they differ in one texture, see [chameleon-customization.md](chameleon-customization.md#liveries)). One slot (`BMW1M12`, number 2196065)
 holds Lightning McQueen from the *Cars* tie-in, with a 5,700-triangle body.
 
 ## Graphics spec (type 0x106)
