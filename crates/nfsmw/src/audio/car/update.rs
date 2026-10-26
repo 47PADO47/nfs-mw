@@ -1,6 +1,9 @@
 //! Ordered controller updates and the shared ownership router.
 use super::*;
 
+/// Miles per hour in one metre per second.
+const METRES_PER_SECOND_TO_MPH: f32 = 2.236_94;
+
 impl Audio {
     pub(super) fn advance_car(&mut self, car: &mut CarAudio, frame: &DriveFrame<'_>) {
         let view = super::super::AudioView {
@@ -53,7 +56,12 @@ impl Audio {
         }
         let levels = car.levels;
         if let Some(own_engine) = car.own_engine.as_mut() {
-            own_engine.update(input.rpm_pct, levels.engine_volume * out.accel_volume.max(out.decel_volume));
+            let inputs = own_engine::EngineInputs {
+                rpm: input.rpm_pct,
+                load: input.throttle,
+                speed_mph: input.speed.abs() * METRES_PER_SECOND_TO_MPH,
+            };
+            own_engine.update_inputs(&inputs, levels.engine_volume * out.accel_volume.max(out.decel_volume));
         }
         if let Some(handle) = car.handle.as_ref() {
             handle.set_tick(

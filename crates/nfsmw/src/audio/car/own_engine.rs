@@ -1,24 +1,31 @@
-//! A mod car's engine: loops that play all the time and are mixed by engine speed (docs/modding/car-sound.md,
-//! "Engine: `[engine_sound]`"). They are the car's own recordings (`[engine_sound]`), or, for a car that gives none,
-//! loops the game synthesises (`blackbox_carsound::synth`). A mod car has no Ginsu voice: this is its whole engine.
+//! A mod car's engine: layers that play all the time (docs/modding/car-sound.md, "Engine: `[engine_sound]`"). They are
+//! the car's own recordings (`[engine_sound]`), or, for a car that gives none, loops the game synthesises
+//! (`blackbox_carsound::synth`). A mod car has no engine voice of the game's cars: this is its whole engine.
 //!
-//! A layer is loudest when the engine turns at its own rpm and fades out, equal power, into its neighbour's; each is
-//! played at the engine's rpm over its own, so the pitch follows the engine, within a range that keeps a layer from
-//! being stretched into mush.
+//! A layer without curves is loudest when the engine turns at its own rpm and fades out, equal power, into its
+//! neighbour's; each is played at the engine's rpm over its own, so the pitch follows the engine, within a range that
+//! keeps a layer from being stretched into mush. A layer with curves (`mixing`) is as loud as its curves say for the
+//! car's engine speed, load and speed; a Ginsu layer is a granular engine recording that plays at the frequency its
+//! span gives the engine speed.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use blackbox_carsound::synth;
+use blackbox_ginsu::{GinsuData, GinsuTables};
 use ea_audio::Pcm;
 use kira::sound::static_sound::StaticSoundHandle;
 use kira::{PlaybackRate, Tween};
-use nfsmw_data::car::mods::{EngineLayer, EngineSound};
+use nfsmw_data::car::mods::{EngineLayer, EngineSound, LayerKind};
 
 use crate::audio::volume::decibels;
-use crate::audio::{Audio, Group, pcm};
+use crate::audio::{Audio, EngineHandle, EngineMix, EngineVoice, Group, pcm};
 
-/// A layer plays no faster or slower than this, so one recording is not asked to cover the whole range.
-const RATE_RANGE: (f32, f32) = (0.55, 1.8);
+mod mixing;
+#[cfg(test)]
+use mixing::RATE_RANGE;
+pub use mixing::{EngineInputs, LayerMix, mix, mix_inputs};
+
 /// The volume and pitch change over this long, so a frame's step is not heard as a click.
 const SMOOTH: Duration = Duration::from_millis(50);
 
@@ -33,71 +40,67 @@ const BUILT_IN_RATE: u32 = 32_000;
 /// The name the built-in layers carry where a file name would be.
 const BUILT_IN_SOURCE: &str = "(built-in engine)";
 
-/// What one layer should sound like right now.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct LayerMix {
-    pub gain: f32,
-    pub rate: f32,
-}
-
-/// The mix of every layer of `sound` at engine speed `rpm`.
-pub fn mix(sound: &EngineSound, rpm: f32) -> Vec<LayerMix> {
-    let layers = &sound.layers;
-    let rate = |layer: usize| (rpm / layers[layer].rpm).clamp(RATE_RANGE.0, RATE_RANGE.1);
-    let mut out = vec![LayerMix { gain: 0.0, rate: 1.0 }; layers.len()];
-    for (at, slot) in out.iter_mut().enumerate() {
-        slot.rate = rate(at);
-    }
-    let Some(above) = layers.iter().position(|layer| layer.rpm >= rpm) else {
-        let last = layers.len() - 1;
-        out[last].gain = 1.0;
-        return out;
-    };
-    if above == 0 {
-        out[0].gain = 1.0;
-        return out;
-    }
-    let below = above - 1;
-    let span = (layers[above].rpm / layers[below].rpm).ln();
-    let t = ((rpm / layers[below].rpm).ln() / span).clamp(0.0, 1.0);
-    out[below].gain = (t * std::f32::consts::FRAC_PI_2).cos();
-    out[above].gain = (t * std::f32::consts::FRAC_PI_2).sin();
-    out
-}
-
 /// The built-in engine's description: the layers carry no file.
 pub fn built_in() -> EngineSound {
     EngineSound {
         idle_rpm: BUILT_IN_IDLE_RPM,
         redline_rpm: BUILT_IN_REDLINE_RPM,
-        layers: BUILT_IN_LAYER_RPMS.iter().map(|&rpm| EngineLayer { file: BUILT_IN_SOURCE.into(), rpm }).collect(),
+        layers: BUILT_IN_LAYER_RPMS.iter().map(|&rpm| EngineLayer::classic(BUILT_IN_SOURCE, rpm)).collect(),
     }
 }
 
-/// The loops of a car that is playing.
+/// One playing layer.
+enum Voice {
+    Loop(StaticSoundHandle),
+    Ginsu(EngineHandle),
+}
+
+/// What a layer is made of, before it plays.
+enum Source {
+    Loop(Pcm),
+    Ginsu(Arc<GinsuData>),
+}
+
+/// The layers of a car that is playing.
 pub struct OwnEngine {
     sound: EngineSound,
-    layers: Vec<StaticSoundHandle>,
+    layers: Vec<Voice>,
 }
 
 impl OwnEngine {
-    /// Follow the engine: `fraction` is how far it is from idle (0) to redline (1), `volume` the linear level.
+    /// Follow the engine when only its speed is known: `fraction` is how far it is from idle (0) to redline (1),
+    /// `volume` the linear level. The load is taken as full and the car as standing.
     pub fn update(&mut self, fraction: f32, volume: f32) {
+        self.update_inputs(&EngineInputs { rpm: fraction, load: 1.0, speed_mph: 0.0 }, volume);
+    }
+
+    /// Follow the engine speed, the throttle and the car's speed; `volume` is the linear level.
+    pub fn update_inputs(&mut self, inputs: &EngineInputs, volume: f32) {
         let tween = Tween { duration: SMOOTH, ..Tween::default() };
-        let mix = mix(&self.sound, self.sound.rpm_at(fraction));
-        for (handle, layer) in self.layers.iter_mut().zip(mix) {
-            handle.set_volume(decibels(layer.gain * volume), tween);
-            handle.set_playback_rate(PlaybackRate(f64::from(layer.rate)), tween);
+        let mixed = mix_inputs(&self.sound, inputs);
+        for (voice, layer) in self.layers.iter_mut().zip(mixed) {
+            match voice {
+                Voice::Loop(handle) => {
+                    handle.set_volume(decibels(layer.gain * volume), tween);
+                    handle.set_playback_rate(PlaybackRate(f64::from(layer.rate)), tween);
+                }
+                Voice::Ginsu(handle) => {
+                    handle.set(EngineMix::shared(layer.frequency, layer.rate, layer.gain * volume, 0.0));
+                }
+            }
         }
     }
 }
 
 impl Drop for OwnEngine {
-    /// A kira handle that is dropped leaves its sound playing, so the loops are stopped here.
+    /// A kira handle that is dropped leaves its sound playing, so the loops are stopped here. A Ginsu voice ends with
+    /// its handle.
     fn drop(&mut self) {
         let fade = Tween { duration: Duration::from_millis(120), ..Tween::default() };
-        for handle in &mut self.layers {
-            handle.stop(fade);
+        for voice in &mut self.layers {
+            if let Voice::Loop(handle) = voice {
+                handle.stop(fade);
+            }
         }
     }
 }
@@ -118,29 +121,52 @@ impl Audio {
     /// Start every layer of `sound`, silent. A layer that cannot be read or played fails the whole engine, so the car
     /// plays the built-in engine rather than half an engine.
     pub(super) fn start_own_engine(&mut self, sound: &EngineSound) -> Result<OwnEngine, String> {
-        let mut layers = Vec::with_capacity(sound.layers.len());
+        let mut sources = Vec::with_capacity(sound.layers.len());
         for layer in &sound.layers {
             let bytes = self.dir.read(&layer.file).map_err(|e| format!("{}: {e:#}", layer.file))?;
-            let pcm = parse_wav(&bytes).map_err(|e| format!("{}: {e}", layer.file))?;
-            layers.push(pcm);
+            let source = match layer.kind {
+                LayerKind::Loop => Source::Loop(parse_wav(&bytes).map_err(|e| format!("{}: {e}", layer.file))?),
+                LayerKind::Ginsu => {
+                    Source::Ginsu(Arc::new(load_ginsu(&bytes).map_err(|e| format!("{}: {e}", layer.file))?))
+                }
+            };
+            sources.push(source);
         }
-        self.start_layers(sound.clone(), layers)
+        self.start_layers(sound.clone(), sources)
     }
 
     /// Start the built-in engine, silent.
     pub(super) fn start_built_in_engine(&mut self) -> Result<OwnEngine, String> {
         let sound = built_in();
-        let layers = sound.layers.iter().map(|layer| built_in_loop(layer.rpm)).collect();
-        self.start_layers(sound, layers)
+        let sources = sound.layers.iter().map(|layer| Source::Loop(built_in_loop(layer.rpm))).collect();
+        self.start_layers(sound, sources)
     }
 
-    fn start_layers(&mut self, sound: EngineSound, pcms: Vec<Pcm>) -> Result<OwnEngine, String> {
-        let mut layers = Vec::with_capacity(pcms.len());
-        for pcm in &pcms {
-            layers.push(self.play(Group::Engine, pcm::sound(pcm).volume(decibels(0.0)))?);
+    fn start_layers(&mut self, sound: EngineSound, sources: Vec<Source>) -> Result<OwnEngine, String> {
+        let mut layers = Vec::with_capacity(sources.len());
+        for source in &sources {
+            let voice = match source {
+                Source::Loop(pcm) => Voice::Loop(self.play(Group::Engine, pcm::sound(pcm).volume(decibels(0.0)))?),
+                Source::Ginsu(data) => {
+                    let silent = EngineMix::shared(data.tables().min_frequency(), 1.0, 0.0, 0.0);
+                    let voice = EngineVoice { accel: data.clone(), decel: None, start: silent };
+                    Voice::Ginsu(self.start_engine(voice)?)
+                }
+            };
+            layers.push(voice);
         }
         Ok(OwnEngine { sound, layers })
     }
+}
+
+/// A `.gin` file: the tables of `blackbox-ginsu` and the audio of `ea-audio`.
+fn load_ginsu(bytes: &[u8]) -> Result<GinsuData, String> {
+    let (tables, _) = GinsuTables::parse(bytes).map_err(|e| format!("its tables: {e}"))?;
+    let pcm = ea_audio::gin::decode(bytes).map_err(|e| format!("its audio: {e}"))?;
+    if pcm.sample_rate != tables.sample_rate() {
+        return Err(format!("the audio is {} Hz and the tables {} Hz", pcm.sample_rate, tables.sample_rate()));
+    }
+    GinsuData::from_i16(tables, &pcm.samples).map_err(|e| e.to_string())
 }
 
 /// The built-in engine's loop at `rpm`.
