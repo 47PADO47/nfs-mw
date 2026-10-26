@@ -33,6 +33,8 @@ pub struct Built {
     pub textures: Vec<u8>,
     /// Triangles of the finest body level.
     pub triangles: usize,
+    /// The car's `BOUNDS.BIN` (`crate::collision`).
+    pub bounds: Vec<u8>,
 }
 
 pub struct Options {
@@ -88,7 +90,9 @@ pub fn build(car: &SourceCar, fit: &Fit, donor: &Donor, base: &str, folder: &str
     })?;
     let geometry = write_geometry_pack(&solids).context("writing GEOMETRY.BIN")?;
     let textures = write_tpk(folder, &palette.into_textures()).context("writing TEXTURES.BIN")?;
-    Ok(Built { geometry, textures, triangles })
+    let collision = crate::collision::build(car, &body, folder)?;
+    log::debug!("{folder}: bounds from the {:?}, half dimensions {:?}", collision.basis, collision.half);
+    Ok(Built { geometry, textures, triangles, bounds: collision.bytes })
 }
 
 /// The stock cars are a base and a body kit, and the game finds the mounts of spoilers and roof scoops and the lamp

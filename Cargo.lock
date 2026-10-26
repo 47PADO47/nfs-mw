@@ -4225,6 +4225,8 @@ name = "nfsmw-2012-content"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blackbox-attrib",
+ "blackbox-collision",
  "blackbox-hash",
  "blackbox-modding",
  "blackbox-solid",

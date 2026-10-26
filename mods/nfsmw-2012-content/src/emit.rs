@@ -26,6 +26,8 @@ pub struct CarEntry {
 pub struct CarFiles<'a> {
     pub geometry: &'a [u8],
     pub textures: &'a [u8],
+    /// The car's collision bounds, written as `BOUNDS.BIN`: a car without them cannot drive.
+    pub bounds: &'a [u8],
     /// The car's own engine loops, if it has any.
     pub engine: Option<&'a EngineFiles>,
 }
@@ -61,6 +63,7 @@ impl ModFolder {
         std::fs::create_dir_all(&folder)?;
         std::fs::write(folder.join("GEOMETRY.BIN"), files.geometry)?;
         std::fs::write(folder.join("TEXTURES.BIN"), files.textures)?;
+        std::fs::write(folder.join("BOUNDS.BIN"), files.bounds)?;
         let engine = files.engine.map(|engine| self.add_engine(&car.id, engine)).transpose()?;
         let cars = self.root.join("cars");
         std::fs::create_dir_all(&cars)?;
@@ -136,8 +139,9 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("mod.toml"), "keep").unwrap();
         let folder = ModFolder::create(&dir).unwrap();
-        folder.add_car(&entry(), &CarFiles { geometry: b"g", textures: b"t", engine: None }).unwrap();
+        folder.add_car(&entry(), &CarFiles { geometry: b"g", textures: b"t", bounds: b"b", engine: None }).unwrap();
         assert!(dir.join("files/CARS/POR911CARR12/GEOMETRY.BIN").is_file());
+        assert_eq!(std::fs::read(dir.join("files/CARS/POR911CARR12/BOUNDS.BIN")).unwrap(), b"b");
         assert!(dir.join("cars/por911carr12.toml").is_file());
         ModFolder::create(&dir).unwrap();
         assert!(!dir.join("files").exists() && !dir.join("cars").exists());

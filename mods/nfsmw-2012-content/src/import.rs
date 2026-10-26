@@ -126,8 +126,15 @@ fn import_car(
         role: config.role,
         performance: config.tuning().for_car(&named.id, &named.display),
     };
-    folder
-        .add_car(&entry, &CarFiles { geometry: &built.geometry, textures: &built.textures, engine: engine.as_ref() })?;
+    folder.add_car(
+        &entry,
+        &CarFiles {
+            geometry: &built.geometry,
+            textures: &built.textures,
+            bounds: &built.bounds,
+            engine: engine.as_ref(),
+        },
+    )?;
     Ok(ImportedCar {
         id: named.id.clone(),
         name: named.display.clone(),
