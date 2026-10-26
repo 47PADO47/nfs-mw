@@ -7,6 +7,7 @@ mod browse;
 mod camera_move;
 mod camera_pose;
 mod camera_rig;
+mod car_title;
 mod career_screens;
 // The challenge series screen (`docs/specs/challenge-series.md`); the world records its wins.
 pub(crate) mod challenge_series;

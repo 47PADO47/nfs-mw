@@ -70,7 +70,16 @@ A car that gives no `[customization]` table offers the shop nothing of its own: 
 shop lists no choice for it.
 
 The garage lists the car under the display name and brand its manifest gives (`name`, `manufacturer`; without a name it shows
-the car id, without a brand none).
+the car id, without a brand none). `nfsmw_data::car::mods::titled` is the one place that decides the name and brand a screen
+shows for a car, and the screens built on the `Car_Select` package (the garage's car page, the car lot, the custom race's car
+select, Quick Play) write a mod car's name into the package's two name strings, which the game fills with the model-name picture
+of a stock car and the sample text `temp123`/`tempXXX` otherwise (`frontend/car_title.rs`).
+
+**The developer tools.** The F12 `parts` command and the F6 garage panel list and apply a mod car's own choices (paints, rim
+paints, tints, rims, spoilers, scoops, vinyls, and the liveries among the vinyls) from the same catalogue as the auto shop
+(`Inventory::catalog`), for the car being driven (not for the car the panel has selected for browsing), and read the inventory
+again when a mod car was published after it was loaded. In a world with a converted Nissan Skyline R34 GT-R, `parts vinyl 3`
+and `view-car NISSKYLINE99 --part vinyl=3` put its third livery on the car.
 
 To look at a car's paint without starting the world:
 
@@ -79,7 +88,8 @@ nfsmw view-car POR911CARR12 --part paint=3 --screenshot out.png --muted
 ```
 
 The number after `=` counts from 1 in the order the `parts` console command lists (F12, then `parts` in a world with the
-car; `parts paint 3` applies it there). The categories are `body`, `spoiler`, `hood`, `roof`, `rims`, `paint`,
+car; `parts paint 3` applies it there; both come from `garage::listing::arrange`, which puts each category in name order and
+numbers choices that share a name, so a number means the same part in the viewer, the console and the F6 panel). The categories are `body`, `spoiler`, `hood`, `roof`, `rims`, `paint`,
 `tint`, `rimpaint` and `vinyl`.
 
 ## Customization: `[customization]` in the car manifest

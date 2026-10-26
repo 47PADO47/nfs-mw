@@ -9,13 +9,14 @@ pub fn car_type(folder: &str) -> u32 {
     fe_hash_upper(folder)
 }
 
-/// The folder among `known` whose type id is `car_type`, or the id in hex when none is.
+/// The name of the folder among `known` whose type id is `car_type` (a mod car's own name, else the folder), or the id in hex
+/// when none is.
 pub fn car_name<'a>(car_type: u32, known: impl IntoIterator<Item = &'a str>) -> String {
     if car_type == 0 {
         return "-".into();
     }
     let found = known.into_iter().find(|folder| self::car_type(folder) == car_type);
-    found.map_or_else(|| format!("car {car_type:08X}"), str::to_owned)
+    found.map_or_else(|| format!("car {car_type:08X}"), crate::frontend::car_title::title)
 }
 
 #[cfg(test)]

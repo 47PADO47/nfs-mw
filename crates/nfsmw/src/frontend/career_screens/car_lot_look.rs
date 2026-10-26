@@ -77,6 +77,7 @@ pub(super) fn draw(cx: &mut Cx, shown: &Shown<'_>) {
     let car = shown.row.and_then(|row| pool_car(&row.name));
     match &car {
         Some((car, _)) => {
+            crate::frontend::car_title::show(cx, &car.folder);
             let (maker, model) = logo_textures(cx.assets, car);
             for (name, texture) in [(MAKER_LOGO, maker), (MODEL_LOGO, model)] {
                 if let Some(o) = cx.object(name) {
