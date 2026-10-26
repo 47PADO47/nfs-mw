@@ -7,14 +7,13 @@ use std::str::FromStr;
 use blackbox_gfx::reflection::{MirrorTint, ReflectionSize};
 use toml::Value;
 
-/// The sizes the Video options step through, in order. A size from the config file that is not in this list steps
-/// from the first entry.
+/// The same rear-view choices in the Video menu and F8. Fixed values are picture heights in pixels.
 pub const MENU_SIZES: [ReflectionSize; 5] = [
     ReflectionSize::Auto,
-    ReflectionSize::Scale(0.5),
-    ReflectionSize::Scale(1.0),
-    ReflectionSize::Scale(1.5),
-    ReflectionSize::Scale(2.0),
+    ReflectionSize::Fixed(128),
+    ReflectionSize::Fixed(256),
+    ReflectionSize::Fixed(360),
+    ReflectionSize::Fixed(512),
 ];
 
 /// Explicit square face sizes offered by the car-cubemap UI. Saved legacy sizes still load unchanged.
@@ -58,9 +57,11 @@ pub fn step_cube(settings: &super::Settings, forward: bool) -> ReflectionSize {
     ReflectionSize::Fixed(next)
 }
 
-/// The next (or previous) size in [`MENU_SIZES`], wrapping.
+/// Step through the mirror choices. An older custom value returns to Auto in either direction.
 pub fn step_size(current: ReflectionSize, forward: bool) -> ReflectionSize {
-    let at = MENU_SIZES.iter().position(|size| *size == current).unwrap_or(0);
+    let Some(at) = MENU_SIZES.iter().position(|size| *size == current) else {
+        return ReflectionSize::Auto;
+    };
     let next = match forward {
         true => (at + 1) % MENU_SIZES.len(),
         false => (at + MENU_SIZES.len() - 1) % MENU_SIZES.len(),
@@ -76,12 +77,16 @@ pub fn step_tint(current: MirrorTint) -> MirrorTint {
     }
 }
 
-/// The row's text: `Auto`, `150%` or `256 px`.
+/// Label the mirror choices and preserve the meaning of saved custom values.
 pub fn size_label(size: ReflectionSize) -> String {
     match size {
         ReflectionSize::Auto => "Auto".to_owned(),
-        ReflectionSize::Fixed(px) => format!("{px} px"),
-        ReflectionSize::Scale(_) => size.to_string(),
+        ReflectionSize::Fixed(128) => "128 px".to_owned(),
+        ReflectionSize::Fixed(256) => "256 px".to_owned(),
+        ReflectionSize::Fixed(360) => "360 px".to_owned(),
+        ReflectionSize::Fixed(512) => "512 px".to_owned(),
+        ReflectionSize::Fixed(px) => format!("Custom ({px} px)"),
+        ReflectionSize::Scale(_) => format!("Custom ({size} of base)"),
     }
 }
 

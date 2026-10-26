@@ -142,7 +142,7 @@ pub struct ViewArgs {
     #[arg(long, value_name = "auto|25%-400%|px")]
     pub reflection_cube_size: Option<crate::settings::ReflectionSize>,
     /// Rear-view mirror picture size, the same forms as the cube face; the width keeps the bezel's shape
-    /// [env NFSMW_REFLECTION_MIRROR_SIZE; config `reflection_mirror_size`; default 100%].
+    /// [env NFSMW_REFLECTION_MIRROR_SIZE; config `reflection_mirror_size`; default auto].
     #[arg(long, value_name = "auto|25%-400%|px")]
     pub reflection_mirror_size: Option<crate::settings::ReflectionSize>,
     /// Round car cube faces down to a power of two [env NFSMW_REFLECTION_POW2; config `reflection_pow2`; default off].
