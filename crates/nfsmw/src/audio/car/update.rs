@@ -88,9 +88,18 @@ impl Audio {
             layer.set_synth_frequency(car.handle.as_ref().map_or(0.0, EngineHandle::current_frequency) * below_min);
             layer.update(&mut KiraSampler(self), frame.dt, &Feed { engine: &out, levels: &levels });
         }
+        car.contacts.set_own_scrape(car.own_sfx.as_ref().is_some_and(own_sfx::OwnSfx::has_shared_scrapes));
         let hits = car.contacts.observe(self, &car.sound, car.mixer.as_ref(), frame.contacts, frame.sim_dt, &view);
         for event in hits.iter().chain(frame.events) {
+            // A body hit the car has its own recording for is played from it, not from the game's collision banks.
+            if car.own_sfx.as_mut().is_some_and(|sfx| sfx.shared_impact(self, event, frame.delay)) {
+                continue;
+            }
             self.play_impact(car, event, &input, &view);
+        }
+        let scrape = car.contacts.take_scrape_level();
+        if let Some(sfx) = car.own_sfx.as_mut() {
+            sfx.shared_scrape(self, scrape, frame.dt, frame.delay);
         }
         if let Some(landing) = landing {
             self.play_landing(car, landing);

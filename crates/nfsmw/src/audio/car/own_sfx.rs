@@ -19,6 +19,7 @@ use crate::audio::volume::decibels;
 use crate::audio::{Audio, Group, pcm};
 
 pub mod logic;
+mod shared;
 
 /// The volume and pitch of the whistle change over this long, so a frame's step is not heard as a click.
 const SMOOTH: Duration = Duration::from_millis(80);
@@ -49,17 +50,20 @@ pub struct OwnSfx {
     whine: Vec<StaticSoundHandle>,
     spool: f32,
     rng: logic::Rng,
+    /// The body hits and scrapes from the recordings the mod's cars share.
+    shared: shared::SharedSfx,
 }
 
 impl OwnSfx {
     /// Whether the car has any sound to play.
     pub fn is_empty(&self) -> bool {
-        self.shots.iter().all(Vec::is_empty) && self.whine.is_empty()
+        self.shots.iter().all(Vec::is_empty) && self.whine.is_empty() && self.shared.is_empty()
     }
 
     /// One frame: take over the gear clunks from `commands` when the car has its own, follow the turbo, and play what a
     /// lifted throttle sets off.
     pub fn drive(&mut self, audio: &mut Audio, frame: &SfxFrame, commands: &mut Vec<SoundCommand>) {
+        self.shared.tick(frame.dt);
         commands.retain(|command| {
             let SoundCommand::Play { sound: SoundRef::GearClunk { up }, volume, .. } = *command else { return true };
             let list = if up { SHIFT_UP } else { SHIFT_DOWN };
@@ -134,12 +138,14 @@ impl Audio {
     /// Read the recordings of mod car `name` and start its whistle loops, silent. A file that cannot be read is left
     /// out, and the log says why; `None` when nothing is left to play.
     pub(super) fn start_own_sfx(&mut self, name: &str, effects: &CarEffects) -> Option<OwnSfx> {
+        // The car's own pops, else the ones its sound graph names in the mod's shared recordings.
+        let pops = if effects.pops.is_empty() { &effects.shared.pops } else { &effects.pops };
         let shots = [
             self.read_shots(name, "shift_up", effects.shift_files(true)),
             self.read_shots(name, "shift_down", effects.shift_files(false)),
             self.read_shots(name, "turbo_blowoff", &effects.turbo_blowoff),
             self.read_shots(name, "backfire", &effects.backfire),
-            self.read_shots(name, "pops", &effects.pops),
+            self.read_shots(name, "pops", pops),
         ];
         let mut whine = Vec::new();
         for file in &effects.turbo_whine {
@@ -150,8 +156,9 @@ impl Audio {
                 Err(e) => log::warn!("{name}: turbo_whine {file} is not used: {e}"),
             }
         }
+        let shared = self.read_shared(name, &effects.shared);
         let seed = name.bytes().fold(0x9e37_79b9u32, |seed, byte| seed.rotate_left(5) ^ u32::from(byte));
-        let sfx = OwnSfx { shots, whine, spool: 0.0, rng: logic::Rng::new(seed) };
+        let sfx = OwnSfx { shots, whine, spool: 0.0, rng: logic::Rng::new(seed), shared };
         (!sfx.is_empty()).then_some(sfx)
     }
 
@@ -172,5 +179,22 @@ impl Audio {
     fn read_wav(&mut self, file: &str) -> Result<ea_audio::Pcm, String> {
         let bytes = self.dir.read(file).map_err(|e| format!("{e:#}"))?;
         parse_wav(&bytes)
+    }
+}
+
+impl OwnSfx {
+    /// Play a body hit from the shared recordings. False when the car has none for this hit, so the game's own sound plays.
+    pub fn shared_impact(&mut self, audio: &mut Audio, event: &crate::audio::CarEvent, delay: f32) -> bool {
+        self.shared.impact(audio, event, delay)
+    }
+
+    /// Whether the car scrapes with the shared recordings: the contacts then start no scrape of the game's.
+    pub fn has_shared_scrapes(&self) -> bool {
+        self.shared.has_scrapes()
+    }
+
+    /// One step of the shared scrape, at the strongest scrape strength the contacts reported (0 for none).
+    pub fn shared_scrape(&mut self, audio: &mut Audio, level: f32, dt: f32, delay: f32) {
+        self.shared.scrape(audio, level, dt, delay);
     }
 }
