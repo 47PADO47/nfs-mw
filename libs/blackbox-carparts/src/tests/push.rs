@@ -1,0 +1,157 @@
+use blackbox_hash::bstring_hash;
+
+use super::builder;
+use crate::layout::MOST_WANTED;
+use crate::{Error, NewPart, PartQuery, PartsDb, read_parts_db};
+
+fn db() -> PartsDb {
+    read_parts_db(&builder::parts_pack(), &MOST_WANTED).unwrap()
+}
+
+fn body<'a>(models: &'a [u32], attributes: &'a [(u32, u32)]) -> NewPart<'a> {
+    NewPart {
+        type_name_hash: bstring_hash("MODCAR"),
+        part_id: 23,
+        name: "MODCAR_BODY",
+        upgrade_level: 0,
+        models,
+        attributes,
+    }
+}
+
+#[test]
+fn a_pushed_part_reads_back_like_a_stored_one() {
+    let mut db = db();
+    let before = db.parts().len();
+    let solids =
+        [bstring_hash("MODCAR_KIT00_BODY_A"), bstring_hash("MODCAR_KIT00_BODY_B"), u32::MAX, u32::MAX, u32::MAX];
+    let kit = (bstring_hash("KITNUMBER"), 0);
+    let pushed = db.push_part(&body(&solids, &[kit, (bstring_hash("NAME"), 7)])).unwrap();
+
+    assert_eq!(db.parts().len(), before + 1);
+    assert_eq!(db.parts().last(), Some(&pushed));
+    let found = db.find(&PartQuery::new(23, bstring_hash("MODCAR")).upgrade_level(0)).unwrap();
+    assert_eq!(found, &pushed);
+    assert_eq!(db.name(found), "MODCAR_BODY");
+    assert_eq!(db.by_name_hash(bstring_hash("MODCAR_BODY")), Some(&pushed));
+    assert_eq!(db.type_name_hash(found), bstring_hash("MODCAR"));
+    assert_eq!(db.model_hash(found, 0), Some(solids[0]));
+    assert_eq!(db.model_hash(found, 1), Some(solids[1]));
+    assert_eq!(db.model_hash(found, 2), None);
+    assert_eq!(db.model_hash(found, 4), None);
+    assert_eq!(db.attribute(found, "KITNUMBER"), Some(0));
+    assert_eq!(db.attribute(found, "NAME"), Some(7));
+}
+
+#[test]
+fn the_stock_parts_are_untouched_and_found_first() {
+    let mut db = db();
+    let stock: Vec<_> = db.parts().to_vec();
+    let car = bstring_hash("CAR");
+    let stock_body = *db.find(&PartQuery::new(23, car).upgrade_level(0)).unwrap();
+    let mut other = body(&[1], &[]);
+    other.type_name_hash = car;
+    other.name = "CAR_BODY_EXTRA";
+    db.push_part(&other).unwrap();
+    assert_eq!(&db.parts()[..stock.len()], &stock[..]);
+    assert_eq!(db.find(&PartQuery::new(23, car).upgrade_level(0)), Some(&stock_body));
+    assert_eq!(db.name(&stock_body), "BODY_00");
+    assert_eq!(db.model_hash(&stock_body, 0), Some(bstring_hash("CAR_KIT00_BODY_A")));
+    assert_eq!(db.attribute(&stock_body, "KITNUMBER"), Some(0));
+    assert_eq!(db.type_names().len(), 2, "an existing type name is reused");
+}
+
+#[test]
+fn attributes_are_shared_and_a_part_without_any_has_none() {
+    let mut db = db();
+    let known = db.attributes.len();
+    let kit = (bstring_hash("KITNUMBER"), 0);
+    let first = db.push_part(&body(&[1], &[kit])).unwrap();
+    assert_eq!(db.attributes.len(), known, "the stock pack already has this pair");
+    let mut second = body(&[2], &[]);
+    second.name = "MODCAR_WHEEL";
+    second.part_id = 67;
+    let second = db.push_part(&second).unwrap();
+    assert_eq!(db.attributes(&first).collect::<Vec<_>>(), [kit]);
+    assert_eq!(db.attributes(&second).count(), 0);
+    assert_eq!(db.attribute(&second, "KITNUMBER"), None);
+}
+
+#[test]
+fn strings_stay_aligned_and_readable() {
+    let mut db = db();
+    let mut a = body(&[1], &[]);
+    a.name = "A";
+    let mut b = body(&[1], &[]);
+    b.name = "LONGER_NAME_HERE";
+    let (a, b) = (db.push_part(&a).unwrap(), db.push_part(&b).unwrap());
+    assert_eq!((db.name(&a), db.name(&b)), ("A", "LONGER_NAME_HERE"));
+    assert_eq!(db.strings.len() % 4, 0);
+}
+
+#[test]
+fn a_level_beyond_the_three_bits_is_refused() {
+    let mut db = db();
+    let mut new = body(&[1], &[]);
+    new.upgrade_level = 8;
+    assert!(matches!(db.push_part(&new), Err(Error::OutOfRange { .. })));
+    assert_eq!(db.parts().len(), 3);
+}
+
+#[test]
+fn the_type_name_table_is_a_byte_wide_index() {
+    let mut db = db();
+    // The pack has 2 type names; 254 more fill the 256 an 8-bit index reaches.
+    for i in 0..254u32 {
+        let mut new = body(&[1], &[]);
+        new.type_name_hash = 0x1000 + i;
+        new.name = "X";
+        db.push_part(&new).unwrap();
+    }
+    assert_eq!(db.type_names().len(), 256);
+    let (parts, strings, models) = (db.parts().len(), db.strings.len(), db.model_tables.len());
+    let mut over = body(&[1], &[]);
+    over.type_name_hash = 0xFFFF;
+    assert!(matches!(db.push_part(&over), Err(Error::Full("type-name"))));
+    // A refusal changes nothing; a known type still goes in.
+    assert_eq!((db.parts().len(), db.strings.len(), db.model_tables.len()), (parts, strings, models));
+    over.type_name_hash = 0x1000;
+    let last = db.push_part(&over).unwrap();
+    assert_eq!(db.type_name_hash(&last), 0x1000);
+    assert_eq!(last.type_index, 2);
+}
+
+#[test]
+fn a_full_string_table_is_refused_not_wrapped() {
+    let mut db = db();
+    let mut new = body(&[1], &[]);
+    // 4-byte units: offsets reach 65534 units, about 262 kB.
+    db.strings.resize(65_535 * 4, 0);
+    assert!(matches!(db.push_part(&new), Err(Error::Full("string"))));
+    db.strings.truncate(65_533 * 4);
+    new.name = "LAST";
+    let ok = db.push_part(&new).unwrap();
+    assert_eq!(db.name(&ok), "LAST");
+}
+
+#[test]
+fn a_full_model_or_attribute_table_is_refused() {
+    let mut db = db();
+    db.model_tables.resize(
+        usize::from(u16::MAX),
+        crate::parts::ModelTable { templated: false, middle: None, entries: Vec::new() },
+    );
+    assert!(matches!(db.push_part(&body(&[1], &[])), Err(Error::Full("model"))));
+
+    let mut db = self::db();
+    db.attributes.resize(i16::MAX as usize, (1, 1));
+    assert!(matches!(db.push_part(&body(&[1], &[(9, 9)])), Err(Error::Full("attribute"))));
+    // A pair that is already stored needs no room.
+    assert!(db.push_part(&body(&[1], &[(1, 1)])).is_ok());
+
+    let mut db = self::db();
+    db.attribute_lists.resize(usize::from(u16::MAX) * 2, 0);
+    assert!(matches!(db.push_part(&body(&[1], &[(bstring_hash("KITNUMBER"), 0)])), Err(Error::Full("attribute list"))));
+    // No list is needed for a part without attributes.
+    assert!(db.push_part(&body(&[1], &[])).is_ok());
+}
