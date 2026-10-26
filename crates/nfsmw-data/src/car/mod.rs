@@ -214,7 +214,7 @@ fn load_with(
     if setup.is_none() {
         log::warn!("{car}: no ecar record for {}; wheels are not placed", car_type.base_model_name);
     }
-    let (placements, corners) = assemble::assemble(t, &slots, &pool, setup.as_ref(), lod, driver);
+    let (mut placements, corners) = assemble::assemble(t, &slots, &pool, setup.as_ref(), lod, driver);
     customization::validate_placements(stock_selection, &placements)?;
     let extra = match driver && lod == 0 {
         true => lods::assemble(t, &slots, &pool, setup.as_ref(), damage_slots.is_some()),
@@ -237,7 +237,9 @@ fn load_with(
         true => damage_effects::DamageFx::read(&t.attributes, &car_type.base_model_name, setup.as_ref()),
         false => Default::default(),
     };
-    let driving_lods = DrivingLods { traffic: car_type.usage_type == 2, levels: extra, damage, damage_fx };
+    let mut driving_lods = DrivingLods { traffic: car_type.usage_type == 2, levels: extra, damage, damage_fx };
+    // A mod car's hinged parts are solids of its own that its body does not hold (docs/modding/car-damage-parts.md).
+    mods::hinged::add(car, lod, &pool, &mut placements, &mut driving_lods.levels);
     let used: HashSet<u32> = placements
         .iter()
         .chain(driving_lods.levels.iter().chain(&driving_lods.damage.levels).flat_map(|l| &l.placements))

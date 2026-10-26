@@ -16,13 +16,15 @@ x left, y up, z forward, metres, the origin on the ground between the wheels (th
 | Collision mesh | `PolySoupList` (0x60), imported by the graphics spec | 1 (92 of 93 cars; one is empty) | yes, [below](#the-collision-mesh-polysouplist-0x60) |
 | Convex hulls of the chassis | `ConvexHull` (0x303) | 5 (92 cars) or 4 (1 car), 8 to 20 vertices each | format read, not used |
 | Physics body definition | `GenesysObject` (0x15) of type `RaceCarPhysicalDefinition` | 1 | partly decoded, not read |
-| Damage behaviour | `GenesysObject` of type `VehicleDamageBehaviour` and `Vehicle_Gameplay.DamageStats` | 1 each | names and counts only |
+| Damage behaviour | `GenesysObject` of type `VehicleDamageBehaviour` and `Vehicle_Gameplay.DamageStats` | 1 each | the hinged parts, [decoded](chameleon-hinged-parts.md); the rest names and counts only |
 | Skeleton, hinge animations | `Skeleton` (0xB2), `Animation` (0xB3), `HSMData` (0x501) | 1 each | no |
 
 Not found in any car bundle: a deformable or crumple mesh, damage mesh swaps (no `DAMAGE0_*` style parts), impact point
 locators, bumper or crumple zone volumes, a collision box other than the hulls and the soup. The 2012 body is not
-deformed by shape: damage is a set of numbers per zone plus hinged parts (below) **[verified]** by the type list of the
-bundles (the `GenesysType` resources name every kind of object a car can hold).
+deformed by mesh swaps: damage is a set of numbers per zone, hinged parts ([chameleon-hinged-parts.md](chameleon-hinged-parts.md))
+and, probably, bone animations of the skinned body (an `AnimationList` of 8 animations over the car's bones, one per zone
+**[unconfirmed]**) **[verified]** by the type list of the bundles (the `GenesysType` resources name every kind of object a car
+can hold).
 
 ## The collision mesh (`PolySoupList`, 0x60)
 
@@ -111,7 +113,8 @@ are the business of the car's stats, not of its collision.
 ## Damage and impact
 
 The bundle has a `VehicleDamageBehaviour` object (3,200 bytes in the 911) with the type `Bodypart`, `Bodypart.DamageThreshold`,
-`SpotEffect` and `DamageSequence`. In the 911 it lists seven hinged parts by name: `BonnetHinge`, `FrontBumperHinge`,
+`SpotEffect` and `DamageSequence`. The fields of a part (centre, angle ranges, mass, zone, ladder, the bone it is skinned to)
+are decoded in [chameleon-hinged-parts.md](chameleon-hinged-parts.md). In the 911 it lists seven hinged parts by name: `BonnetHinge`, `FrontBumperHinge`,
 `LeftMirrorHinge`, `RightMirrorHinge`, `RearBumperHinge`, `FrontLeftDoorHinge`, `FrontRightDoorHinge`, 25 damage thresholds and
 eight damage sequences. The eight are tied by name to the eight damage bars the HUD reads from the car:
 `GetFrontDamageBar`, `GetRearDamageBar`, `GetLeftDamageBar`, `GetRightDamageBar`, `GetFrontLeftDamageBar`,
@@ -124,7 +127,7 @@ animations.
 
 So the 2012 game keeps no impact points as geometry: where a hit lands is decided by zone at run time, as the 2005 game does
 (a contact point against the half dimensions of the body, [vehicle-damage.md](../specs/vehicle-damage.md)), and a part comes
-off its hinge when the zone's damage passes a threshold. The converted cars therefore take **zones from their own root box**
+loose on its hinge when the zone's damage passes a threshold of its ladder. The converted cars therefore take **zones from their own root box**
 (it is the extent of the collision mesh) and the damage numbers of [car-collision.md](../modding/car-collision.md#damage).
 
 ## Using it

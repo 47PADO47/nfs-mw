@@ -73,7 +73,7 @@ pub fn load_texture(pool: &Pool, id: u64) -> Result<Texture> {
     Ok(Texture::parse(&resource.blocks[0], &resource.blocks[1])?)
 }
 
-fn expect(pool: &Pool, id: u64, kind: ResourceKind) -> Result<chameleon_bundle::Resource> {
+pub(crate) fn expect(pool: &Pool, id: u64, kind: ResourceKind) -> Result<chameleon_bundle::Resource> {
     let resource = pool.resource(id)?;
     if resource.entry.kind != kind.id() {
         return Err(Error::WrongKind { id, found: resource.entry.kind, expected: kind.id() });
@@ -110,16 +110,16 @@ fn renderable_meshes(pool: &Pool, surfaces: &Surfaces, lod: u64) -> Result<Lod> 
 /// The vertex layout and the look of each material seen so far: a car's meshes share a few dozen materials across its
 /// levels of detail and its wheels, and each costs three inflates and a parse the first time.
 /// A material's vertex layout and look.
-type Surface = Rc<(VertexDescriptor, Appearance)>;
+pub(crate) type Surface = Rc<(VertexDescriptor, Appearance)>;
 
 #[derive(Default)]
-struct Surfaces {
+pub(crate) struct Surfaces {
     known: RefCell<HashMap<u64, Option<Surface>>>,
 }
 
 impl Surfaces {
     /// The surface of `material`, or `None` when the material's shader has no layout we can read.
-    fn get(&self, pool: &Pool, material: u64) -> Result<Option<Surface>> {
+    pub(crate) fn get(&self, pool: &Pool, material: u64) -> Result<Option<Surface>> {
         if let Some(found) = self.known.borrow().get(&material) {
             return Ok(found.clone());
         }

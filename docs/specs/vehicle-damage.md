@@ -60,6 +60,17 @@ collision and original swept-box parity are unverified. See
 [pursuit-free-roam](pursuit-free-roam.md) and
 [pursuit-system](../pursuit-system.md). Run-flat data remains unread. `repair`
 resets tire state.
+## Mod cars: hinged parts
+
+A car a mod adds can list `[[damage_parts]]` in its manifest ([car-damage-parts.md](../modding/car-damage-parts.md)): solids
+of its own geometry that the body does not hold, each following the damage of some zones. The model above is unchanged; the
+parts read it. A part's damage is the worst **panel** level of its zones over 3 (0, 0.33, 0.67, 1). At 0 the part is at rest;
+above it, the part has turned by its `angle` times the share of its `stages` (damage fractions) reached, about its hinge line,
+and from its `detach_at` it is not drawn. `repair` puts it back. The zone levels reach the car draw as marks in the set of
+revealed slots (`VehicleEvents::revealed_slots`, `car::mods::hinged::level_mark`); the placements of the parts are slots 256
+and up. The 2012 cars carry their own parts from the 2012 damage data ([chameleon-hinged-parts.md](../formats/chameleon-hinged-parts.md)).
+Not done: a falling or flapping part, and the 2012 crumple animation of the body.
+
 ## Traffic and cop cars
 
 AI cars consume the captured vehicle/world/prop callback through `VehicleEvents`,

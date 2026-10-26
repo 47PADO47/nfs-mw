@@ -150,7 +150,7 @@ fn import_car(source: &Source, named: &Named, config: &Config, folder: &ModFolde
         customization: paints::manifest_table(
             &paints::choices(&car.paints),
             &pictures.iter().map(|(choice, _)| choice.clone()).collect::<Vec<_>>(),
-        ),
+        ) + &built.damage_parts,
     };
     let files = CarFiles {
         geometry: &built.geometry,

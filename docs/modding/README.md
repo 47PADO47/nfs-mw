@@ -32,6 +32,7 @@ when the module is new.
 | [car-stats.md](car-stats.md) | The `[stats]` table of a car manifest (mass, engine, gearbox, tyres, brakes, nitrous in SI units), the upgrade levels, the shop's bars |
 | [car-sound.md](car-sound.md) | The `[engine_sound]` and `[car_sound]` tables of a car manifest: the car's own engine loops, the built-in engine, shifts, turbo, backfire and pops |
 | [car-collision.md](car-collision.md) | The collision and impact geometry of a mod car: its `BOUNDS.BIN` (what it holds, what the game checks), the damage zones and numbers, how to make one |
+| [car-damage-parts.md](car-damage-parts.md) | The hinged parts of a mod car (`[[damage_parts]]`): solids that turn on a hinge or fall off as the zones around them are damaged |
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |

@@ -65,6 +65,7 @@ diffuse colour; `Alpha1bit` in the technique means the diffuse alpha cuts the su
 
 ## Not read
 
-Skeleton and animations (steering wheel, spoiler, bonnet and mirror hinges), damage data, the convex hulls and the physics
+Animations (steering wheel, spoiler, the damage animations), most damage data (the hinged parts and the skeleton are read:
+[chameleon-hinged-parts.md](chameleon-hinged-parts.md)), the convex hulls and the physics
 body objects (the collision mesh is read: [chameleon-collision.md](chameleon-collision.md)), vehicle sound, lamp and exhaust locators, the engine and handling objects, the rear-view
 mirror and cockpit, and the low-detail bundles.

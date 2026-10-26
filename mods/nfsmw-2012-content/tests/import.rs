@@ -69,6 +69,29 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
     assert!(manifest.contains("[stats]"), "the car has no stats of its own");
     assert!(manifest.contains("[customization]"), "the car has no paints of its own");
 
+    // The hinged parts: the 911 has seven, each its own solid at the two finest levels, cut out of the body.
+    let parsed_car = blackbox_modding::content::parse_car(&car.id, &manifest).expect("the game's parser takes it");
+    assert_eq!(parsed_car.damage_parts.len(), 7, "bonnet, bumpers, mirrors and front doors");
+    let triangles = |name: &str| {
+        let solid = solids.iter().find(|solid| solid.name == name).unwrap_or_else(|| panic!("no solid named {name}"));
+        solid.groups.iter().map(|group| group.num_indices as usize / 3).sum::<usize>()
+    };
+    for letter in ['A', 'B'] {
+        let body = triangles(&format!("{}_KIT00_BODY_{letter}", car.id));
+        let parts: usize =
+            parsed_car.damage_parts.iter().map(|part| triangles(&format!("{}_{letter}", part.model))).sum();
+        assert!(
+            parts > 1000 && parts < body,
+            "level {letter}: {parts} triangles in the parts, {body} left in the body"
+        );
+    }
+    assert_eq!(
+        triangles(&format!("{}_KIT00_BODY_A", car.id))
+            + parsed_car.damage_parts.iter().map(|p| triangles(&format!("{}_A", p.model))).sum::<usize>(),
+        report.imported[0].triangles,
+        "cutting the parts out loses no triangle of the finest level"
+    );
+
     // The car's own recordings: the manifest names every file of its engine and its other sounds, and they are all there.
     let parsed: toml::Table = toml::from_str(&manifest).unwrap();
     let mut named = Vec::new();

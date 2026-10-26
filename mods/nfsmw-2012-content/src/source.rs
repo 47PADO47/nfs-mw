@@ -39,6 +39,8 @@ pub struct SourceCar {
     pub paints: Vec<VehiclePaint>,
     /// The car's collision mesh, when its bundle has one that reads (92 of the 93 cars do).
     pub collision: Option<PolySoup>,
+    /// The hinged parts of the body and the triangles they own, when the car has any (`hinges.rs`).
+    pub hinged: Option<crate::hinges::Hinged>,
 }
 
 /// An opened 2012 install. The shared bundles stay in memory; each car's bundle is read when it is loaded.
@@ -164,7 +166,8 @@ impl Source {
             log::warn!("{}: the collision mesh does not read: {error}", file.path.display());
             None
         });
-        Ok(SourceCar { vehicle, textures, paints: car_paints, collision })
+        let hinged = crate::hinges::read(&bundle, &pool, spec, &vehicle);
+        Ok(SourceCar { vehicle, textures, paints: car_paints, collision, hinged })
     }
 }
 

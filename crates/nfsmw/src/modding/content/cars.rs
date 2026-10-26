@@ -8,6 +8,7 @@ use blackbox_modding::content::{CARS_FOLDER, CarManifest, parse_car};
 use game_install::{GameDir, Provider};
 use nfsmw_data::car::CarTables;
 use nfsmw_data::car::mods::custom;
+use nfsmw_data::car::mods::hinged;
 use nfsmw_data::car::mods::{self as car_mods, CarEffects, CarSpec, CarStats, EngineLayer, EngineSound};
 use nfsmw_data::pursuit::HEAT_LEVELS;
 
@@ -48,10 +49,40 @@ pub(super) fn register(dir: &GameDir, mods: &[ModDir]) -> usize {
         if let Some(own) = customizations.remove(&car.folder) {
             custom::publish(&car.folder, own);
         }
+        publish_hinges(mods, car);
     }
     let added = cars.len();
     car_mods::publish(cars);
     added
+}
+
+/// The hinged parts (`[[damage_parts]]`) of an admitted car, read again from its manifest and published for the game.
+fn publish_hinges(mods: &[ModDir], car: &car_mods::ModCar) {
+    let Some(owner) = mods.iter().find(|m| m.id == car.owner) else { return };
+    for path in manifest_files(&owner.dir.join(CARS_FOLDER)) {
+        let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else { continue };
+        if !stem.eq_ignore_ascii_case(&car.folder) {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else { return };
+        let Ok(manifest) = parse_car(stem, &text) else { return };
+        hinged::publish(&car.folder, manifest.damage_parts.iter().map(hinge_of).collect());
+        return;
+    }
+}
+
+/// A manifest's `[[damage_parts]]` entry as the game's hinged part.
+fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
+    hinged::Hinge {
+        name: part.name.clone(),
+        model: part.model.clone(),
+        zones: part.zones.iter().map(|zone| zone.index()).collect(),
+        pivot: part.pivot,
+        axis: part.axis,
+        angle: part.angle,
+        stages: part.stages.clone(),
+        detach_at: part.detach_at,
+    }
 }
 
 /// The car requests of one mod: its `cars/*.toml` files, in name order.

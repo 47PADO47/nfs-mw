@@ -101,6 +101,7 @@ table instead ([car-stats.md](car-stats.md)).
 | Engine loops | the looping samples of the car's bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), except the turbo's whistle, one 16-bit WAV per layer at one level, and an `[engine_sound]` table in the car's manifest naming them with the rpm each stands for (`src/engine.rs`, `src/sample.rs`) |
 | Shifts, turbo, backfire, pops | the samples that the car's sound graphs play for the live values `GetPlayerNormalisedGearChangeTimeElapsed`, `BackfireGain`, `GetPopProbability`/`PopGain`, `NormalisedTurboRPM`/`TurboToneGain` and `TurboBlowoffGain` (the last two also use the shared `VEHICLES/WAVES.BNDL`), as WAVs and a `[car_sound]` table (`src/graphs.rs`, `src/effects.rs`). A car with no such graph has no such sound |
 | Collision mesh and tyres | `files/CARS/<ID>/BOUNDS.BIN`: the car's own collision bounds, fitted to the poly soup of its bundle (the body's real extents, 166 to 256 triangles) and to the box of each tyre, through the same transform as the body: a root box, a lower body box, a cabin box, front and roof corner spheres and the silhouette the car rolls on. The one bundle without a collision mesh (the SWAT van) is fitted to its visible body. Format and what the 2012 game holds: [car-collision.md](car-collision.md), [chameleon-collision.md](../formats/chameleon-collision.md) (`src/collision.rs`) |
+| Hinged parts | The parts the car's damage object lists (bonnet, bumpers, mirrors, doors, boot, as the car has them): cut out of the finest body solids into `<ID>_KIT00_<PART>_A` and `_B`, and a `[[damage_parts]]` table per part in the manifest ([below](#hinged-parts)) (`src/hinges.rs`) |
 | Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
 | Nitrous sounds | the burn loop, the end sound and the start sound of the 2012 heat level sound set (`GAMELOGIC/HL_*.BNDL`, found by the expression `NitrousState.UsingNitrous` and the trigger `NITROUS_POSTFX_OFF`), as stereo WAV files in `files/NITROUS/MW2012/` with a `profile.toml`, and the value **NFS Most Wanted 2012** of the gameplay setting "Nitrous variant" (`bb.settings`), offered when a 2012 install is set. The post effects, flames, camera and HUD of the 2012 nitrous are not played; see [nitrous-variants.md](nitrous-variants.md) and [chameleon-nitrous.md](../formats/chameleon-nitrous.md) (`src/nitrous.rs`) |
 | Glass and lamp lenses | a translucent tint texture with light material `WINDSHIELD` |
@@ -146,7 +147,8 @@ Then what the conversion does not do:
   ([car-collision.md](car-collision.md#damage)); the HUD is the game's own.
 - **No vinyls, rims, spoilers, scoops, tints, body kits or hoods**: the 2012 game has none to offer, so the shop lists only
   the paints. The performance bars of the shop are computed from each car's stats.
-- **Collision is fitted, not copied.** The 2012 damage objects (hinged parts, per-zone thresholds: not decoded), headlight
+- **Collision is fitted, not copied.** The 2012 damage objects' zone numbers and crumple animations (not decoded; the hinged
+  parts are, [below](#hinged-parts)), headlight
   beams, brake discs (they are part of the wheel), spoiler and mirror animation, and the 2012 lamp locators are not
   converted. The sets were not compared with how the cars drive in a window.
 - **Tail pipes are approximated** from the body's shape; the 2012 tail pipe locators are not decoded.
@@ -164,11 +166,33 @@ Then what the conversion does not do:
 - **Traffic and low-detail bundles** (`_TR`, `_LO`) are not imported.
 - A screen the game has open when the conversion finishes keeps the car list it built; open it again to see the cars.
 
+## Hinged parts
+
+The 2012 body is one skinned model, and its damage object names the parts that hang on hinges, each after a bone of the
+car's skeleton ([chameleon-hinged-parts.md](../formats/chameleon-hinged-parts.md)). The conversion gives each part the
+triangles weighted to its bone and the bones below it, and cuts them out of the finest body solid (`_A` and `_B`, which share
+the finest level) into a solid of their own; vertices, normals and materials are those of the body, so an intact car draws as
+before. Per part it writes a `[[damage_parts]]` table ([car-damage-parts.md](car-damage-parts.md)):
+
+| Table key | From the 2012 data |
+|---|---|
+| `name`, `model` | the bone's name without `Hinge` (`FrontLeftDoor`), and `<ID>_KIT00_FRONT_LEFT_DOOR` |
+| `pivot` | the position of the part's bone, through the same transform as the body |
+| `axis`, `angle` | the one largest swing of the three angle ranges: the axis and the end with the largest magnitude, ties to the first axis and the positive end (the 911: bonnet -15 about the lateral axis, left mirror 15 about the vertical axis, doors 1 about the length) |
+| `zones` | the part's zone and the corners beside it: a front part follows `front`, `front_left` and `front_right`, a left part `left`, `front_left` and `rear_left` |
+| `stages` | the ladder of damage fractions of the part, ascending |
+
+On the 911 that is 7 parts with 12,119 of the 30,908 triangles of the finest body level; 90 of the 93 cars have parts (the
+SWAT van has no skeleton, and two cars have a skin of all-zero weights). Limits: the coarser body levels (`C`, `D`) are not
+skinned and keep the parts in the body, so a damaged car far away looks intact; the 2012 ranges are a few degrees, so the
+parts hang slightly (the bonnet lifts by up to 15 degrees) and none falls off; the units and the meaning of the ladder are
+inferred. Nothing has been seen in a running game.
+
 ## Tests
 
 `cargo test -p nfsmw-2012-content` runs the unit tests (settings, ids, fitting, textures, promotion and fingerprint, the
 manifest the mod writes against the game's parser). With `MW2012_GAME_DIR=<2012 install>` set, `cargo test -p
-nfsmw-2012-content -- --ignored` converts a car through the background job, reads it back with the game's readers, and
+nfsmw-2012-content -- --ignored` converts a car through the background job (checking that its seven hinged parts are cut out of the body without losing a triangle), reads it back with the game's readers, and
 converts every car with the time it takes. The test `customize` also needs `NFSMW_GAME_DIR=<2005 install>`, because the
 game builds a car's tables and physics around the 2005 install even though the conversion never reads it: it converts one
 car and checks that the shop offers it its own paints and no parts of any other car, that a paint reaches the body texture,
