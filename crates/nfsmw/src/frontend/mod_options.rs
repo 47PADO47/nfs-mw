@@ -16,8 +16,8 @@ use super::options::{Control, Data, Row, Setting, Title, message};
 use crate::i18n::t;
 use crate::modding::manager::Row as Switch;
 use crate::modding::{
-    Mods, RowInfo, change_gameplay_option, change_menu_row, gameplay_option, has_ui_themes, menu_rows, step_ui_theme_choice,
-    ui_theme_display, visible_gameplay_options,
+    Mods, RowInfo, change_gameplay_option, change_menu_row, gameplay_option, has_ui_themes, menu_rows,
+    step_ui_theme_choice, ui_theme_display, visible_gameplay_options,
 };
 
 /// The title of a Mods row: its label is the mod's, shown in its place (`shown`).

@@ -106,7 +106,8 @@ fn the_mods_callback_runs_with_the_new_value() {
 #[test]
 fn a_clash_of_kinds_is_refused_and_a_setting_the_game_lacks_is_appended() {
     let (bridge, _, port) = setup();
-    let toggle = OptionSpec { id: NITROUS_VARIANT, kind: OptionKind::Toggle, label: "x", values: vec![], default_on: false };
+    let toggle =
+        OptionSpec { id: NITROUS_VARIANT, kind: OptionKind::Toggle, label: "x", values: vec![], default_on: false };
     assert_eq!(port.add_option("m", &toggle, None), Err(BB_ERR_EXISTS));
     assert!(visible(&bridge).is_empty());
 
@@ -128,7 +129,8 @@ fn a_clash_of_kinds_is_refused_and_a_setting_the_game_lacks_is_appended() {
 fn a_toggle_the_mod_adds_is_shown_and_flips() {
     let (bridge, _, port) = setup();
     let (seen, handler) = recorder();
-    let toggle = OptionSpec { id: "extra_hud", kind: OptionKind::Toggle, label: "Extra HUD", values: vec![], default_on: true };
+    let toggle =
+        OptionSpec { id: "extra_hud", kind: OptionKind::Toggle, label: "Extra HUD", values: vec![], default_on: true };
     port.add_option("m", &toggle, Some(handler)).unwrap();
     let at = visible(&bridge)[0];
     assert!(info(&bridge, at).unwrap().on);

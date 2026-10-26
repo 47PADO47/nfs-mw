@@ -45,9 +45,9 @@ mod menus_tests;
 #[cfg(test)]
 mod nfsmw_pursuit_tests;
 #[cfg(test)]
-pub(crate) mod support;
-#[cfg(test)]
 mod settings_tests;
+#[cfg(test)]
+pub(crate) mod support;
 #[cfg(test)]
 mod time_tests;
 #[cfg(test)]

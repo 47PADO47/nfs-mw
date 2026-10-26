@@ -59,12 +59,7 @@ fn store_key(option: &str) -> String {
 }
 
 impl SettingsBackend for SettingsPort {
-    fn add_option(
-        &self,
-        owner: &str,
-        spec: &OptionSpec<'_>,
-        on_change: Option<SettingHandler>,
-    ) -> BackendResult<u64> {
+    fn add_option(&self, owner: &str, spec: &OptionSpec<'_>, on_change: Option<SettingHandler>) -> BackendResult<u64> {
         let added = self.0.options.borrow_mut().add_option(owner, spec);
         let (handle, merge) = match added {
             Ok(done) => done,

@@ -325,7 +325,9 @@ impl WidgetMenu {
             cx.send(Command::OpenGraphics);
             return;
         }
-        if let options::Setting::Mod(_) | options::Setting::ModManaged(_) | options::Setting::GameplayOption(_) = row.setting {
+        if let options::Setting::Mod(_) | options::Setting::ModManaged(_) | options::Setting::GameplayOption(_) =
+            row.setting
+        {
             mod_options::change(cx.mods, row.setting, forward);
             self.draw_visible(cx);
             return;
