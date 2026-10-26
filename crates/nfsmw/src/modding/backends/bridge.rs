@@ -7,12 +7,13 @@
 //! to it.
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
-use blackbox_modding::host::HotkeyHandler;
+use blackbox_modding::host::{HotkeyHandler, OptionsModel};
 use blackbox_ui::ThemeId;
 use game_install::GameDir;
 use nfsmw_data::pursuit::{HeatRow, heat_row, race_heat_row};
@@ -23,6 +24,7 @@ use super::input::Hotkey;
 use super::map::{self, ModBlip};
 use super::menu_store::{ConfigFile, ValueStore};
 use super::menus::MenuRow;
+use super::settings::{self, OptionHandler};
 use super::time::{self, Clock, ClockRequest};
 use super::ui::UiRecord;
 use super::world::{self, WorldRequest};
@@ -55,6 +57,12 @@ pub struct Bridge {
     pub(super) blips: RefCell<Vec<ModBlip>>,
     /// The rows the mods added to the Mods page of the options.
     pub(super) menu_rows: RefCell<Vec<MenuRow>>,
+    /// The options of the gameplay settings: the game's own and what the mods added (`bb.settings`).
+    pub(super) options: RefCell<OptionsModel>,
+    /// The callbacks the mods gave for their options.
+    pub(super) option_handlers: RefCell<Vec<OptionHandler>>,
+    /// The chosen value of each option read so far, so the config file is not read every frame.
+    pub(super) option_choices: RefCell<HashMap<String, String>>,
     /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
     pub(super) ui_themes: RefCell<Vec<UiRecord>>,
     /// The mod theme the player chose on the Mods page, or `None` for the built-in style (`ui.rs`). The theme sync
@@ -89,6 +97,9 @@ impl Bridge {
             world_requests: RefCell::default(),
             blips: RefCell::default(),
             menu_rows: RefCell::default(),
+            options: RefCell::new(OptionsModel::new(settings::builtin())),
+            option_handlers: RefCell::default(),
+            option_choices: RefCell::default(),
             ui_themes: RefCell::default(),
             ui_theme_choice: Cell::new(None),
             store,

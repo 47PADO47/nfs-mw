@@ -77,3 +77,10 @@ fn without_mods_there_is_no_ui_theme_row_to_show_or_change() {
     assert!(shown(None, Setting::ModTheme).is_none());
     change(None, Setting::ModTheme, true);
 }
+
+#[test]
+fn without_mods_the_gameplay_page_gets_no_extra_rows() {
+    assert!(gameplay_rows(None).is_empty(), "the page is as it was without mods");
+    assert!(shown(None, Setting::GameplayOption(0)).is_none());
+    change(None, Setting::GameplayOption(0), true);
+}
