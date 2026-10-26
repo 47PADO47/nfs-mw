@@ -21,10 +21,16 @@ use nfsmw_data::car::mods::{EngineLayer, EngineSound, LayerKind};
 use crate::audio::volume::decibels;
 use crate::audio::{Audio, EngineHandle, EngineMix, EngineVoice, Group, pcm};
 
+mod level;
 mod mixing;
+use level::{Normaliser, Recording};
 pub use mixing::{EngineInputs, mix_inputs};
 #[cfg(test)]
 use mixing::{RATE_RANGE, mix};
+
+/// The one layer the offline measurement lets sound (all of them when it is `usize::MAX`).
+#[cfg(test)]
+pub(super) static SOLO_LAYER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(usize::MAX);
 
 /// The volume and pitch change over this long, so a frame's step is not heard as a click.
 const SMOOTH: Duration = Duration::from_millis(50);
@@ -61,10 +67,34 @@ enum Source {
     Ginsu(Arc<GinsuData>),
 }
 
+impl Source {
+    /// How loud the recording is, for the level of the engine (`level`).
+    fn recording(&self) -> Recording {
+        match self {
+            Self::Loop(pcm) => Recording::of_loop(pcm),
+            Self::Ginsu(data) => Recording::of_ginsu(data),
+        }
+    }
+}
+
 /// The layers of a car that is playing.
 pub struct OwnEngine {
     sound: EngineSound,
     layers: Vec<Voice>,
+    /// What the engine is scaled by so that every car is as loud as the cars of the game.
+    level: Normaliser,
+}
+
+/// `mixed` with every layer but the solo one silenced, when the measurement asks for one.
+#[cfg(test)]
+fn solo(mut mixed: Vec<mixing::LayerMix>) -> Vec<mixing::LayerMix> {
+    let only = SOLO_LAYER.load(std::sync::atomic::Ordering::Relaxed);
+    for (at, layer) in mixed.iter_mut().enumerate() {
+        if only != usize::MAX && at != only {
+            layer.gain = 0.0;
+        }
+    }
+    mixed
 }
 
 impl OwnEngine {
@@ -79,6 +109,9 @@ impl OwnEngine {
     pub fn update_inputs(&mut self, inputs: &EngineInputs, volume: f32) {
         let tween = Tween { duration: SMOOTH, ..Tween::default() };
         let mixed = mix_inputs(&self.sound, inputs);
+        #[cfg(test)]
+        let mixed = solo(mixed);
+        let volume = volume * self.level.scale(inputs);
         for (voice, layer) in self.layers.iter_mut().zip(mixed) {
             match voice {
                 Voice::Loop(handle) => {
@@ -156,7 +189,9 @@ impl Audio {
             };
             layers.push(voice);
         }
-        Ok(OwnEngine { sound, layers })
+        let recordings: Vec<Recording> = sources.iter().map(Source::recording).collect();
+        let level = Normaliser::new(&sound, &recordings);
+        Ok(OwnEngine { sound, layers, level })
     }
 }
 

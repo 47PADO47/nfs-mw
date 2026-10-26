@@ -165,3 +165,37 @@ fn curves_decide_which_layers_are_heard_in_the_real_mixer() {
     assert!(level(0.5, 0.0, 60.0) > 0.01, "the whine plays at speed with no throttle");
     assert!(level(0.5, 0.0, 130.0) < 0.002, "and is gone above its window");
 }
+
+#[test]
+#[ignore = "reads the 2005 install (NFSMW_GAME_DIR)"]
+fn the_built_in_engine_is_as_loud_as_the_cars_of_the_game_at_every_speed() {
+    let Some(game) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = GameDir::open(PathBuf::from(game)).unwrap();
+    let mut audio = Audio::replay(dir, RATE);
+    let mut engine = audio.start_built_in_engine().expect("the built-in loops start");
+    for rpm in [0.0, 0.25, 0.5, 0.75, 1.0] {
+        let inputs = EngineInputs { rpm, load: 1.0, speed_mph: 40.0 + 40.0 * rpm };
+        engine.update_inputs(&inputs, level::NOMINAL_ENGINE_VOLUME);
+        audio.render_replay(24_000);
+        // Two layers of one synthetic recipe beat against each other, so the level is read over several seconds.
+        let seconds = left(audio.render_replay(4 * RATE as usize));
+        let db = 20.0 * rms(&seconds).log10();
+        let sound = built_in();
+        let recordings: Vec<_> =
+            sound.layers.iter().map(|layer| level::Recording::of_loop(&built_in_loop(layer.rpm))).collect();
+        let predicted =
+            level::predicted_power(&sound, &recordings, &inputs).sqrt() * engine_scale(&sound, &recordings, &inputs);
+        println!(
+            "  built-in engine at {rpm}: {db:.1} dB, predicted {:.1} dB, recordings {recordings:?}",
+            20.0 * (predicted * level::NOMINAL_ENGINE_VOLUME).log10()
+        );
+        // Between two of its loops, which are built from the same harmonics, the engine dips a few dB below the level
+        // the recordings predict where the two are out of phase (about -24 dB at half the revs): inside 6 dB of the cars of
+        // the game, where it was 40 dB under before the level was set.
+        assert!((-26.0..=-15.0).contains(&db), "{rpm}: {db} dB, the cars of the game are at -17 to -22");
+    }
+}
+
+fn engine_scale(sound: &EngineSound, recordings: &[level::Recording], inputs: &EngineInputs) -> f32 {
+    level::Normaliser::new(sound, recordings).scale(inputs)
+}
