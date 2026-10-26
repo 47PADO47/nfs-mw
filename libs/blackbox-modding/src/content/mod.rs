@@ -33,6 +33,7 @@ mod shared_sound;
 mod stats;
 #[cfg(test)]
 mod tests;
+mod wheels;
 
 pub use car::{CarManifest, Role, parse as parse_car};
 pub use customization::{Customization, Finish, Livery, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
@@ -57,6 +58,7 @@ pub use racers::{RacersSection, parse as parse_racers};
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};
 pub use shared_sound::SharedSound;
 pub use stats::{Drive, Stats};
+pub use wheels::{Tyre, WheelLayout};
 
 /// The folder inside a mod that holds one car manifest per car.
 pub const CARS_FOLDER: &str = "cars";
