@@ -198,7 +198,7 @@ pub fn decode(texture: &Texture) -> Result<Picture> {
             return Ok(Picture { width: texture.width, height: texture.height, rgba: mip.to_vec() });
         }
         PixelFormat::Bgra8 => {
-            let rgba = mip.chunks_exact(4).flat_map(|p| [p[2], p[1], p[0], p[3]]).collect();
+            let rgba = mip.as_chunks::<4>().0.iter().flat_map(|p| [p[2], p[1], p[0], p[3]]).collect();
             return Ok(Picture { width: texture.width, height: texture.height, rgba });
         }
         PixelFormat::Bc1 => TpkFormat::Dxt1,

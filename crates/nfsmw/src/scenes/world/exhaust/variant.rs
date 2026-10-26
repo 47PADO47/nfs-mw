@@ -50,6 +50,14 @@ pub(super) struct Variant {
 }
 
 impl Variant {
+    /// Whether any particle is alive.
+    #[cfg(test)]
+    pub(super) fn live(&self) -> bool {
+        self.loaded
+            .as_ref()
+            .is_some_and(|loaded| loaded.lanes.iter().any(|lane| lane.lane.emitters.iter().any(|e| !e.is_empty())))
+    }
+
     /// The profile in effect, or `None`. A profile with no effect is the same as none.
     pub(super) fn set_wanted(&mut self, profile: Option<Arc<NitrousProfile>>) {
         self.wanted = profile.filter(|profile| !profile.effects.is_empty());
@@ -85,7 +93,8 @@ impl Variant {
         let mut textures: Vec<(String, bool, SpriteTexture)> = Vec::new();
         let mut lanes = Vec::new();
         for (index, effect) in profile.effects.iter().enumerate() {
-            let known = textures.iter().position(|(path, additive, _)| *path == effect.texture && *additive == effect.additive);
+            let known =
+                textures.iter().position(|(path, additive, _)| *path == effect.texture && *additive == effect.additive);
             let slot = match known {
                 Some(slot) => slot,
                 None => {
@@ -94,7 +103,11 @@ impl Variant {
                     textures.len() - 1
                 }
             };
-            lanes.push(VariantLane { on: effect.on, duration: effect.duration, lane: lane(effect, index, pipes, slot) });
+            lanes.push(VariantLane {
+                on: effect.on,
+                duration: effect.duration,
+                lane: lane(effect, index, pipes, slot),
+            });
         }
         let textures = textures.into_iter().map(|(_, _, texture)| texture).collect();
         self.loaded = Some(Loaded { profile, textures, lanes, start_left: 0.0, burning: false, handed: Vec::new() });
@@ -120,7 +133,12 @@ impl Variant {
     pub(super) fn step(&mut self, dt: f32, car: &CarState, pipes: &[Mat4], pop: f32) {
         let Some(loaded) = self.loaded.as_mut() else { return };
         if car.nitrous && !loaded.burning {
-            loaded.start_left = loaded.lanes.iter().filter(|lane| lane.on == EffectOn::Start).map(|lane| lane.duration).fold(0.0, f32::max);
+            loaded.start_left = loaded
+                .lanes
+                .iter()
+                .filter(|lane| lane.on == EffectOn::Start)
+                .map(|lane| lane.duration)
+                .fold(0.0, f32::max);
         }
         loaded.burning = car.nitrous;
         loaded.start_left = (loaded.start_left - dt).max(0.0);
@@ -136,7 +154,10 @@ impl Variant {
                     continue;
                 }
                 emitter.set_enabled(on);
-                emitter.step(dt, &Frame { to_world: car.to_world * *pipe, inherit_velocity: car.velocity, intensity: 1.0 });
+                emitter.step(
+                    dt,
+                    &Frame { to_world: car.to_world * *pipe, inherit_velocity: car.velocity, intensity: 1.0 },
+                );
             }
         }
     }
@@ -153,11 +174,6 @@ impl Variant {
             emitter.set_enabled(false);
             emitter.step(dt, &Frame::default());
         }
-    }
-
-    /// Whether any particle is alive.
-    pub(super) fn live(&self) -> bool {
-        self.loaded.as_ref().is_some_and(|loaded| loaded.lanes.iter().any(|lane| lane.lane.emitters.iter().any(|e| !e.is_empty())))
     }
 
     /// Append one textured batch per effect with particles to `layer`, far to near. Call [`Variant::reclaim`] once the layer has
@@ -250,11 +266,14 @@ fn upload(renderer: &mut dyn RenderBackend, dir: &GameDir, effect: &EffectProfil
     Some(SpriteTexture { handle: Some(handle), blend })
 }
 
+/// A sprite ready to draw: its depth, corners, colour and texture window.
+type DrawnSprite = (f32, [Vec3; 4], [u8; 4], [[f32; 2]; 2]);
+
 /// Fill the lane's vertices with its quads, far to near; false when it has no particles.
 fn quads(lane: &mut Lane, camera: Vec3, forward: Vec3) -> bool {
     let right = forward.cross(Vec3::Z).normalize_or(Vec3::X);
     let up = right.cross(forward).normalize_or(Vec3::Z);
-    let mut order: Vec<(f32, [Vec3; 4], [u8; 4], [[f32; 2]; 2])> = lane
+    let mut order: Vec<DrawnSprite> = lane
         .emitters
         .iter()
         .flat_map(Emitter::sprites)
