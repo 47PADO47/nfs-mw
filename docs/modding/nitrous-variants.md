@@ -35,7 +35,7 @@ gain = 1.0                    # multiplies its alpha
 replace_burn = true           # the game's blue nitrous flame is not drawn while a burn effect plays
 replace_pop = true            # the game's blow-off and backfire flame is not drawn while a pop effect plays
 
-[[effect]]                    # a particle emitter at every tail pipe, in the pipe's frame; up to 8
+[[effect]]                    # a particle emitter at every tail pipe, in the pipe's frame; up to 16
 on = "start"                  # "start" (for `duration` seconds after the nitrous lights), "burn" or "pop"
 texture = "NITROUS/MW2012/FLAME.PNG"   # an RGBA PNG in the mod's files
 blend = "additive"            # or "alpha"
@@ -46,7 +46,8 @@ life = 0.35                   # seconds; life_variance, speed (m/s along the pip
 spread = 18.0                 #   spread (cone, degrees), lift, drag and inherit (share of the car's speed) too
 size = [0.25, 0.45, 0.55, 0.6]        # full width in metres at four equal steps of the life
 colors = [[255, 255, 255, 0], [255, 255, 255, 235], [255, 255, 255, 200], [255, 255, 255, 0]]
-duration = 0.8                # a start effect plays this long
+duration = 0.8                # a start or pop effect spawns this long (0: as long as it lasts); a burn lasts as long as the nitrous
+damping = 0.0                 # the share of its velocity a particle loses every 60th of a second (0.75: all but a quarter)
 
 [screen]                      # effects that follow the burn
 vignette = 0.2                # 0 to 1 at full effect (the renderer's additive vignette)
@@ -65,7 +66,7 @@ sounds are; `NITROUS/` is for these). The format is `blackbox_modding::content::
 |---|---|---|
 | `[audio]` | `audio/car/nitrous_fx.rs` | The start and end play on the edges of the burn (`CarInput::nos_active`), the loop is faded in and out. With `replace_original` and the files read, `PowerPlayback::set_silence_nitrous` keeps the game's own nitrous sound from starting. If a file cannot be read, the game's sound plays |
 | `[flame]` | `scenes/world/exhaust` | `tint` and `gain` are applied to the game's blue nitrous flame. `replace_burn` and `replace_pop` stop the game's own flames from spawning while the profile has a burn or a pop effect. Only with the `exhaust_flames` setting on; without `[flame]` the game's blue flame is drawn |
-| `[[effect]]` | `scenes/world/exhaust/variant.rs` | One emitter of the game's particle system (`blackbox-particles`) per pipe for each effect, in the pipe's frame (the pipes the car's `EXHAUST` markers give: a car with none shows none), with the PNG as its texture. `start` plays for `duration` after the nitrous lights, `burn` while it burns, `pop` while the game's own blow-off or backfire flame would show (and not while the nitrous burns). The PNGs are read through the install's layers and uploaded when the variant is chosen |
+| `[[effect]]` | `scenes/world/exhaust/variant.rs` | One emitter of the game's particle system (`blackbox-particles`) per pipe for each effect, in the pipe's frame (the pipes the car's `EXHAUST` markers give: a car with none shows none), with the PNG as its texture. `start` plays for `duration` after the nitrous lights (the instant it burns, so never with an empty tank), `burn` only while it burns, `pop` while the game's own blow-off or backfire flame would show, for `duration` (0: as long as it lasts), and only with the pedal up and the nitrous off, as the 2012 state bits do. A particle takes `inherit` of the car's velocity at birth and loses `damping` of it every 60th of a second: `inherit = 1` with no damping rides with the car (a flame), a high damping leaves the particle where it was born (a trail). The PNGs are read through the install's layers and uploaded when the variant is chosen |
 | `[screen]` | `scenes/world/focus_feed.rs` | `blackbox_gfx::FocusFilter`'s `vignette` and `radial_blur` are raised to `strength x level`, where the level follows the burn (`BurnFollower`) with the fades. Renderers without the blur ignore it |
 
 What a profile does not change: the game's nitrous physics, its speed trails, its camera, its HUD bar. A variant is a look and
@@ -95,7 +96,7 @@ is set in its `config.toml`. What it finds, and what it does not, is in
 |---|---|
 | burn loop, end sound, start sound | played (`[audio]`), at the level they have in the install |
 | post effects (vignette, bloom tint, colour grade) | **not played**: the values are known, the renderer has no darkening vignette, bloom tint or grade control |
-| the start burst, the blue glow, the pop-off flame | **played** (`[[effect]]`): the flame sheet (25 frames, 5 x 5), the glow in its own colour (0.03, 0.52, 0.86), the dust, found through the cars' `SpotEffect` records; they replace the game's blue flame and its blow-off flame. The emitters' numbers (rate, life, speed, size) are not decoded and are set by eye ([chameleon-nitrous.md](../formats/chameleon-nitrous.md#tail-pipe-effects-verified-programs-not-decoded)); the three smoke puffs of the effects and the effect `0x24F2F` (heat haze) are not played; no light and no lens flare, which the renderer has no control for |
+| the start burst, the blue glow, the pop-off flame | **played** (`[[effect]]`), with the numbers the effect files hold (spawn rate and window, life, radius over the life, colour and alpha over the life, lift, the per-step drag as `damping`, inheritance, whether the particles ride with the emitter), decoded in [chameleon-effects.md](../formats/chameleon-effects.md): the flame sheet (5 x 5), the glow, the dust and the three smoke puffs; they replace the game's blue flame and its blow-off flame. A flame runs 0.5 s at most and then only the glow is left; with an empty tank nothing plays. Not decoded and so not carried over: the parameter array that scales rates, the flipbook cell rule, the blends (chosen from the brightness and the role), wind, turbulence, spin. The light emitter and the heat haze effect `0x24F2F` are **not played** (the particle system has no light and no refraction sprite). **Bloom** is the player's own post setting and applies to the additive sprites as to everything bright; no per-effect bloom, **lens flare** or **rainbow flare** is drawn: the renderer's flares are the lamps' (`car_light_flares.rs`, from lamp profiles) and the 2012 flare data is not decoded |
 | camera, speed lines, motion blur | not changed: nothing in the 2012 data names the nitrous |
 | HUD bar and flash | not changed: the 2012 HUD movies are not read |
 
