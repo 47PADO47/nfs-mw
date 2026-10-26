@@ -28,22 +28,31 @@ pub struct Radius {
     pub scale_floor: f32,
 }
 
-/// The radius over the particle's life: `(lo * rise + base + hi * fall)` times the starting radius, where `t` is the age over
-/// the lifetime, `lo = min(t, peak)` and `hi = max(t, peak)` (decompiled).
+/// The radius over the particle's life, as a factor on the starting radius (decompiled: the loader turns the file's three
+/// values into the line `min(t, peak) * rise + base + max(t, peak) * fall` that the executor evaluates, which is the same as
+/// this): `at_start` at age 0, `at_peak` at age `peak` and `at_end` at age 1, straight lines between. `t` is the age over the
+/// life. The executor also multiplies by `floor + (1 - floor) * P[i]` for a per effect parameter `P[i]` (not decoded).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RadiusCurve {
     pub peak: f32,
-    pub base: f32,
-    pub rise: f32,
-    pub fall: f32,
+    pub at_start: f32,
+    pub at_peak: f32,
+    pub at_end: f32,
     pub scale_floor: f32,
 }
 
 impl RadiusCurve {
     /// The factor on the starting radius at age fraction `t`.
     pub fn at(&self, t: f32) -> f32 {
-        let (lo, hi) = (t.min(self.peak), t.max(self.peak));
-        lo * self.rise + self.base + hi * self.fall
+        let peak = self.peak.clamp(0.0, 1.0);
+        let line = |from: f32, to: f32, start: f32, end: f32| match end - start > 1e-6 {
+            true => from + (to - from) * ((t - start) / (end - start)).clamp(0.0, 1.0),
+            false => to,
+        };
+        match t <= peak {
+            true => line(self.at_start, self.at_peak, 0.0, peak),
+            false => line(self.at_peak, self.at_end, peak, 1.0),
+        }
     }
 }
 
@@ -77,6 +86,9 @@ pub struct Cone {
     pub burst: u32,
     /// The camera distance range the spawn rate fades out over (file +0x20, mapped; the use is a distance fade).
     pub fade_distance: [f32; 2],
+    /// The indices into the effect's parameter array `P` of the rate scale, the carry-over scale, the shell scale and the
+    /// speed scale (file bytes +0x70..+0x73, decompiled): the spawn rate is multiplied by `P[rate_param]`.
+    pub params: [u8; 4],
 }
 
 /// The colour and alpha of a particle over its life (decompiled): `colour = c0 + sum(w[i] * c[i + 1])` with
@@ -102,6 +114,24 @@ impl Gradient {
         let frac = x - x.floor();
         let w: [f32; 4] = std::array::from_fn(|i| (frac * self.a[i] + self.b[i]).clamp(0.0, 1.0));
         std::array::from_fn(|m| self.colours[0][m] + (0..4).map(|i| w[i] * self.colours[i + 1][m]).sum::<f32>())
+    }
+
+    /// The ages in 0..1 where one of the four ramp weights starts or stops rising (where `frac(t * scale) * a + b` is 0 or 1),
+    /// the points the colour bends at. A weight switched off by a huge slope has none.
+    pub fn weight_breakpoints(&self) -> Vec<f32> {
+        let mut found = Vec::new();
+        for i in 0..4 {
+            if self.a[i].abs() < 1.0e-3 || self.a[i].abs() > 1.0e4 {
+                continue;
+            }
+            for level in [0.0, 1.0] {
+                let t = (level - self.b[i]) / self.a[i] / self.colour_scale.max(1.0e-6);
+                if (0.0..1.0).contains(&t) {
+                    found.push(t);
+                }
+            }
+        }
+        found
     }
 
     /// The alpha at age fraction `t`: zero outside the five points.
@@ -157,9 +187,9 @@ impl Emitter {
         let b = self.block(UPDATE_PARAMETRIC_RADIUS)?;
         Some(RadiusCurve {
             peak: f32_at(b, 0x14)?,
-            base: f32_at(b, 0x18)?,
-            rise: f32_at(b, 0x1C)?,
-            fall: f32_at(b, 0x20)?,
+            at_start: f32_at(b, 0x18)?,
+            at_peak: f32_at(b, 0x1C)?,
+            at_end: f32_at(b, 0x20)?,
             scale_floor: f32_at(b, 0x24)?,
         })
     }
@@ -188,6 +218,7 @@ impl Emitter {
             delay: f32_at(b, 0x68)?,
             burst: u32_at(b, 0x6C)?,
             fade_distance: pair(0x20)?,
+            params: [*b.get(0x70)?, *b.get(0x71)?, *b.get(0x72)?, *b.get(0x73)?],
         })
     }
 
