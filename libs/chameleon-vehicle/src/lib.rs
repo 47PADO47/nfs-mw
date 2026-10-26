@@ -7,10 +7,14 @@
 
 mod appearance;
 mod error;
+mod genesys;
 mod name;
 mod spec;
+mod stats;
 mod vehicle;
 
+#[cfg(test)]
+mod stats_tests;
 #[cfg(test)]
 mod tests;
 
@@ -18,4 +22,5 @@ pub use appearance::{Appearance, SurfaceKind};
 pub use error::{Error, Result};
 pub use name::vehicle_name;
 pub use spec::{GraphicsSpec, WheelSpec, find_spec};
+pub use stats::{TorqueKnot, VehicleStats, WheelStats, read_stats};
 pub use vehicle::{Lod, PartMesh, Vehicle, Wheel, load, load_texture};
