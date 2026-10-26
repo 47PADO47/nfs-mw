@@ -4,10 +4,11 @@
 
 use crate::ops::{
     EMITTER_CONE_PLUS, INITIALISE_2D_ROTATION, INITIALISE_AGE_AND_LIFETIME, INITIALISE_RADIUS,
-    INITIALISE_VELOCITY_INHERITANCE, PARAMETRIC_SET_COLOUR_GRADIENT, PARAMETRIC_SET_SUB_UV, UPDATE_PARAMETRIC_RADIUS,
-    UPDATE_POS_VEL,
+    INITIALISE_VELOCITY_INHERITANCE, PARAMETRIC_POS_VEL_TO_WORLD_SPACE,
+    PARAMETRIC_POS_VEL_TO_WORLD_SPACE_WITH_LOCAL_TRANSFORM, PARAMETRIC_SET_COLOUR_GRADIENT, PARAMETRIC_SET_SUB_UV,
+    UPDATE_PARAMETRIC_RADIUS, UPDATE_POS_VEL,
 };
-use crate::{Emitter, f32_at};
+use crate::{Emitter, f32_at, u32_at};
 
 /// The lifetime of a particle: uniform in `[min, max]` seconds, times a scale that is `scale_floor` to 1 by the effect
 /// parameter `channel` (decompiled).
@@ -46,9 +47,9 @@ impl RadiusCurve {
     }
 }
 
-/// How the particles move each step (decompiled): position gains `velocity * dt`; the velocity is kept by `(1 - drag)`,
-/// pulled towards the effect's wind by `drag * wind_blend`, gains `lift * dt` upwards and a random kick of up to
-/// `turbulence * dt` on each axis.
+/// How the particles move each step (decompiled, `UpdatePosVel`): position gains `velocity * dt`; the velocity is kept by
+/// `(1 - drag)` **at every step, whatever its length** (so `drag` 0.75 leaves a quarter of it each step), pulled towards the
+/// effect's wind by `drag * wind_blend`, gains `lift * dt` upwards and a random kick of up to `turbulence * dt` on each axis.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Motion {
     pub lift: f32,
@@ -70,6 +71,12 @@ pub struct Cone {
     pub speed_gate: [f32; 2],
     pub base_rate: f32,
     pub rate_per_speed: f32,
+    /// The spawner starts after a random delay of up to this many seconds (file +0x68, decompiled).
+    pub delay: f32,
+    /// Particles spawned at once when it starts (file +0x6C, decompiled: the spawn counter starts at this plus 0.9999).
+    pub burst: u32,
+    /// The camera distance range the spawn rate fades out over (file +0x20, mapped; the use is a distance fade).
+    pub fade_distance: [f32; 2],
 }
 
 /// The colour and alpha of a particle over its life (decompiled): `colour = c0 + sum(w[i] * c[i + 1])` with
@@ -178,6 +185,9 @@ impl Emitter {
             speed_gate: pair(0x40)?,
             base_rate: f32_at(b, 0x60)?,
             rate_per_speed: f32_at(b, 0x64)?,
+            delay: f32_at(b, 0x68)?,
+            burst: u32_at(b, 0x6C)?,
+            fade_distance: pair(0x20)?,
         })
     }
 
@@ -207,6 +217,13 @@ impl Emitter {
     pub fn rotation(&self) -> Option<Rotation> {
         let b = self.block(INITIALISE_2D_ROTATION)?;
         Some(Rotation { min: f32_at(b, 0)?, max: f32_at(b, 4)?, spin: f32_at(b, 0x14)? })
+    }
+
+    /// Whether the emitter's particles travel with the emitter: they are put into the world every frame from the emitter's
+    /// current place (`ParametricPosVelToWorldSpace`, with or without the local transform), instead of once at birth.
+    pub fn follows_emitter(&self) -> bool {
+        self.task(PARAMETRIC_POS_VEL_TO_WORLD_SPACE).is_some()
+            || self.task(PARAMETRIC_POS_VEL_TO_WORLD_SPACE_WITH_LOCAL_TRANSFORM).is_some()
     }
 
     /// Whether the emitter plays a flipbook (it sets a sub-picture and renders sub-pictures).
