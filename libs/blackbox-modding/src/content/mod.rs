@@ -6,6 +6,9 @@
 //! the mod's files exist, is for the game to decide, because only the game knows its car tables and its index.
 
 mod car;
+mod cop;
+#[cfg(test)]
+mod cop_tests;
 mod customization;
 #[cfg(test)]
 mod customization_tests;
@@ -35,6 +38,7 @@ mod stats;
 mod tests;
 
 pub use car::{CarManifest, Role, parse as parse_car};
+pub use cop::{CopClass, CopWave, DEFAULT_CHANCE, DEFAULT_COUNT, MAX_CHANCE, MAX_COUNT};
 pub use customization::{Customization, Finish, Livery, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
 pub use damage_parts::{
     Active as ActivePart, DEFAULT_MASS_KG, DamagePart, MAX_DAMAGE_PARTS, MAX_STAGES, Zone as DamageZone,
