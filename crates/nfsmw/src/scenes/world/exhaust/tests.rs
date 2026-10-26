@@ -343,8 +343,8 @@ fn a_mod_variants_tint_multiplies_the_blue_flame_and_no_profile_leaves_it_alone(
     use blackbox_modding::content::FlameProfile;
     let color = [200, 100, 50, 80];
     assert_eq!(super::apply_flame_profile(color, None), color);
-    let flame = FlameProfile { tint: [0.5, 1.0, 2.0], gain: 0.5 };
+    let flame = FlameProfile { tint: [0.5, 1.0, 2.0], gain: 0.5, replace_burn: false, replace_pop: false };
     assert_eq!(super::apply_flame_profile(color, Some(flame)), [100, 100, 100, 40]);
-    let loud = FlameProfile { tint: [4.0, 4.0, 4.0], gain: 4.0 };
+    let loud = FlameProfile { tint: [4.0, 4.0, 4.0], gain: 4.0, replace_burn: false, replace_pop: false };
     assert_eq!(super::apply_flame_profile(color, Some(loud)), [255, 255, 200, 255], "clamped to a byte");
 }

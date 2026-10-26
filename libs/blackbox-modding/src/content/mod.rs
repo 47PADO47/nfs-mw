@@ -21,6 +21,7 @@ mod interior;
 #[cfg(test)]
 mod interior_tests;
 mod music;
+mod nitrous_effects;
 mod nitrous_fx;
 mod racers;
 #[cfg(test)]
@@ -45,6 +46,7 @@ pub use engine_sound::{
 pub use error::ContentError;
 pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, parse as parse_interior};
 pub use music::{MusicSection, parse as parse_music};
+pub use nitrous_effects::{EffectOn, EffectProfile, MAX_EFFECTS};
 pub use nitrous_fx::{
     AudioProfile, BurnFollower, BurnStep, FlameProfile, NITROUS_FOLDER, NitrousProfile, PROFILE_FILE, ScreenProfile,
     parse as parse_nitrous_profile, profile_path as nitrous_profile_path,
