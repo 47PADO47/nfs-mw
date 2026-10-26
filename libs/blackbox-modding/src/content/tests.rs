@@ -112,34 +112,100 @@ fn bad_music_contexts_are_refused() {
 }
 
 #[test]
-fn a_car_without_a_performance_table_drives_like_its_clone() {
-    let manifest = car("clone = \"BMWM3GTR\"\n").unwrap();
-    assert!(manifest.performance.is_stock());
-}
-
-#[test]
-fn the_performance_table_sets_multipliers_and_factory_nitrous() {
-    let manifest = car(
-        "clone = \"BMWM3GTR\"\n[performance]\npower = 1.1\nmass = 0.9\ngrip = 1.05\nbrakes = 1.2\nnitrous = true\nnitrous_power = 1.5\n",
-    )
+fn a_car_without_a_stats_table_has_the_generic_stats() {
+    let manifest = car("clone = \"BMWM3GTR\"
+")
     .unwrap();
-    let p = manifest.performance;
-    assert_eq!((p.power, p.mass, p.grip, p.brakes, p.nitrous, p.nitrous_power), (1.1, 0.9, 1.05, 1.2, true, 1.5));
-    assert!(!p.is_stock());
+    assert_eq!(manifest.stats, Stats::default());
+}
+
+const STATS: &str = "clone = \"BMWM3GTR\"
+[stats]
+mass_kg = 1295.0
+front_weight_pct = 38.4
+wheelbase_m = 2.45
+front_tire_radius_m = 0.34
+idle_rpm = 1000.0
+redline_rpm = 7800.0
+torque_curve = [[1000.0, 360.0], [5600.0, 440.0], [7800.0, 390.0]]
+gear_ratios = [3.91, 2.29, 1.55, 1.3, 1.08, 0.88, 0.71]
+final_drive = 3.44
+drive = \"rwd\"
+top_speed_kph = 304.0
+front_tire_grip = 1.5
+front_brake_torque_nm = 1300.0
+nitrous = true
+nitrous_boost = 0.9
+";
+
+#[test]
+fn the_stats_table_gives_absolute_values_and_keeps_the_generic_rest() {
+    let stats = car(STATS).unwrap().stats;
+    assert_eq!((stats.mass_kg, stats.front_weight_pct, stats.wheelbase_m), (1295.0, 38.4, 2.45));
+    assert_eq!((stats.idle_rpm, stats.redline_rpm), (1000.0, 7800.0));
+    assert_eq!(stats.torque_curve, vec![[1000.0, 360.0], [5600.0, 440.0], [7800.0, 390.0]]);
+    assert_eq!(stats.gear_ratios.len(), 7);
+    assert_eq!((stats.final_drive, stats.drive, stats.top_speed_kph), (3.44, Drive::Rear, Some(304.0)));
+    assert_eq!((stats.tire_radius_m[0], stats.tire_grip[0], stats.brake_torque_nm[0]), (0.34, 1.5, 1300.0));
+    assert!(stats.nitrous && stats.nitrous_boost == 0.9);
+    // Keys left out are the generic car's.
+    let generic = Stats::default();
+    assert_eq!((stats.tire_radius_m[1], stats.tire_grip[1], stats.brake_torque_nm[1]), (0.33, 1.2, 950.0));
+    assert_eq!(stats.damping_ratio, generic.damping_ratio);
 }
 
 #[test]
-fn a_performance_number_outside_its_range_is_refused_with_its_name() {
-    let error = car("clone = \"BMWM3GTR\"\n[performance]\npower = 9.0\n").unwrap_err();
-    assert!(matches!(error, ContentError::Field { field: "performance.power", .. }), "{error}");
-    let error = car("clone = \"BMWM3GTR\"\n[performance]\nmass = 0.0\n").unwrap_err();
-    assert!(matches!(error, ContentError::Field { field: "performance.mass", .. }), "{error}");
+fn a_stats_number_outside_its_range_is_refused_with_its_name() {
+    for (key, bad) in [("mass_kg", "5.0"), ("front_tire_grip", "9.0"), ("final_drive", "0.0"), ("idle_rpm", "-1.0")] {
+        let error = car(&format!(
+            "clone = \"X\"
+[stats]
+{key} = {bad}
+"
+        ))
+        .unwrap_err();
+        assert!(matches!(&error, ContentError::Field { field, .. } if *field == format!("stats.{key}")), "{error}");
+    }
 }
 
 #[test]
-fn an_unknown_performance_key_is_refused() {
-    let error = car("clone = \"BMWM3GTR\"\n[performance]\ntorque = 2.0\n").unwrap_err();
+fn stats_that_contradict_each_other_are_refused() {
+    let redline = car("clone = \"X\"
+[stats]
+idle_rpm = 2000.0
+redline_rpm = 1800.0
+")
+    .unwrap_err();
+    assert!(matches!(redline, ContentError::Field { field: "stats.redline_rpm", .. }), "{redline}");
+    let curve = car("clone = \"X\"
+[stats]
+torque_curve = [[3000.0, 300.0], [2000.0, 320.0]]
+")
+    .unwrap_err();
+    assert!(matches!(curve, ContentError::Field { field: "stats.torque_curve", .. }), "{curve}");
+    let gears = car("clone = \"X\"
+[stats]
+gear_ratios = [1.0, 2.0]
+")
+    .unwrap_err();
+    assert!(matches!(gears, ContentError::Field { field: "stats.gear_ratios", .. }), "{gears}");
+}
+
+#[test]
+fn an_unknown_stats_key_is_refused_and_named() {
+    let error = car("clone = \"X\"
+[stats]
+torque = 2.0
+")
+    .unwrap_err();
     assert!(error.to_string().contains("torque"), "{error}");
+    // The old multipliers are gone: a car has no clone to be a multiple of.
+    let error = car("clone = \"X\"
+[performance]
+power = 1.1
+")
+    .unwrap_err();
+    assert!(error.to_string().contains("performance"), "{error}");
 }
 
 const ENGINE: &str = "clone = \"BMWM3GTR\"\n[engine_sound]\nidle_rpm = 820.0\nredline_rpm = 7500.0\nlayers = [\n  { file = \"SOUND/MODENGINE/MYCAR/HIGH.WAV\", rpm = 5000.0 },\n  { file = \"SOUND/MODENGINE/MYCAR/IDLE.WAV\", rpm = 820.0 },\n]\n";
