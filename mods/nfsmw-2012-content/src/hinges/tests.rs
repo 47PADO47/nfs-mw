@@ -82,6 +82,7 @@ fn the_manifest_table_carries_the_swing_in_car_space() {
         active: None,
         parent: None,
         delay: None,
+        drives: Vec::new(),
         tracks: Vec::new(),
     };
     let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
@@ -122,6 +123,7 @@ fn an_active_spoiler_writes_its_movement_and_needs_no_damage_swing() {
         active: Some(motion),
         parent: None,
         delay: None,
+        drives: Vec::new(),
         tracks: Vec::new(),
     };
     let hinged = Hinged { parts: vec![part.clone()], wing: None, classes: Vec::new() };
@@ -198,6 +200,7 @@ fn the_manifest_names_the_part_a_flap_hangs_from() {
         active: Some(motion),
         parent: Some("Spoiler".into()),
         delay: None,
+        drives: Vec::new(),
         tracks: Vec::new(),
     };
     let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
@@ -301,4 +304,29 @@ fn the_mclaren_and_the_venom_write_a_wing_with_three_animations_and_the_numbers_
             manifest.damage_parts.iter().flat_map(|part| part.tracks.iter().map(|t| t.slot)).collect();
         assert_eq!(slots.into_iter().collect::<Vec<_>>(), vec![0, 1, 2], "three animations move the parts");
     }
+}
+
+#[test]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+fn the_huayra_writes_four_flaps_with_their_drives_and_the_game_accepts_them() {
+    let Some((_, manifest)) = manifest_of(535435) else { return };
+    let flaps: Vec<_> = manifest.damage_parts.iter().filter(|part| !part.drives.is_empty()).collect();
+    assert_eq!(flaps.len(), 4, "four flaps");
+    let counts: std::collections::BTreeMap<&str, usize> =
+        flaps.iter().map(|p| (p.name.as_str(), p.drives.len())).collect();
+    assert_eq!(counts["FrontLeftFlap"], 2, "turning and the speed band: {counts:?}");
+    assert_eq!(counts["FrontRightFlap"], 2);
+    assert_eq!(counts["RearLeftFlap"], 3, "turning, the speed band and the brake");
+    assert_eq!(counts["RearRightFlap"], 3);
+    let rear = flaps.iter().find(|p| p.name == "RearRightFlap").unwrap();
+    assert!(rear.drives.iter().any(|d| d.open_after_seconds == 0.4 && d.close_any), "the brake drive waits 0.4 s");
+    let right_turn = rear
+        .drives
+        .iter()
+        .find(|d| d.open.iter().any(|t| t.input == blackbox_modding::content::DriveInput::Steering))
+        .unwrap();
+    assert!(
+        right_turn.open.iter().any(|t| t.op == blackbox_modding::content::DriveOp::Gt && t.value == 0.3),
+        "{right_turn:?}"
+    );
 }

@@ -27,11 +27,14 @@ mod stats_tests;
 #[cfg(test)]
 mod tests;
 
-pub use active_aero::{AttachedMotion, SpoilerMotion, VentMotion, attached_motions, spoiler_motion, vent_motions};
+pub use active_aero::{
+    AttachedMotion, FlapMotion, SpoilerMotion, VentMotion, attached_motions, flap_motions, spoiler_motion, vent_motions,
+};
 pub use appearance::{Appearance, LampEnd, LampSide, LampSurface, SurfaceKind};
 pub use collision::{PolySoup, load_poly_soup};
 pub use error::{Error, Result};
 pub use hinged::{HingedPart, hinged_parts};
+pub use hsm::{DriveSpec, Guard, Threshold};
 pub use lamps::{LampEntry, Lamps, Locator, LocatorGroup, SpotEffect, read_groups, read_lamps, split_lenses};
 pub use name::vehicle_name;
 pub use paint::{VehiclePaint, paints};

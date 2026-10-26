@@ -116,6 +116,52 @@ pub fn attached_motions(bundle: &Bundle, skeleton: &Skeleton) -> Vec<AttachedMot
     out
 }
 
+/// A bone played out by guarded animations (the Huayra's flaps): its movement, and the conditions that start and end the
+/// animations that move it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlapMotion {
+    /// The bone and its movement between the first key and the last; `above_mph` and `below_mph` are 0.
+    pub motion: SpoilerMotion,
+    pub drives: Vec<crate::hsm::DriveSpec>,
+}
+
+/// The bones that guarded animations move, one entry for each, with every guarded animation that plays an animation that
+/// moves the bone.
+pub fn flap_motions(bundle: &Bundle, skeleton: &Skeleton) -> Vec<FlapMotion> {
+    let kind = ResourceKind::Animation.id();
+    let mut out: Vec<FlapMotion> = Vec::new();
+    for index in (0..bundle.entries().len()).filter(|&at| bundle.entries()[at].kind == HSM_KIND) {
+        let Ok(machine) = bundle.resource(index) else { continue };
+        for drive in crate::hsm::drives(&machine.blocks[0]) {
+            let Some(at) = bundle.entries().iter().position(|e| e.kind == kind && e.id & ID_MASK == drive.animation)
+            else {
+                continue;
+            };
+            let Ok(animation) = bundle.resource(at) else { continue };
+            let block = &animation.blocks[0];
+            for bone in (0..skeleton.bones.len()).filter(|&bone| movement(block, bone).is_some()) {
+                let Some((translation, rotation, seconds)) = movement(block, bone) else { continue };
+                match out.iter_mut().find(|flap| flap.motion.bone == bone) {
+                    Some(flap) => flap.drives.push(drive.clone()),
+                    None => out.push(FlapMotion {
+                        motion: SpoilerMotion {
+                            bone,
+                            translation,
+                            rotation,
+                            seconds,
+                            above_mph: 0.0,
+                            below_mph: 0.0,
+                            gas: false,
+                        },
+                        drives: vec![drive.clone()],
+                    }),
+                }
+            }
+        }
+    }
+    out
+}
+
 /// An air vent: a state that opens when the speed has been above a number for some seconds and closes some seconds after the
 /// speed falls below another, moving one or more bones.
 #[derive(Debug, Clone, PartialEq)]

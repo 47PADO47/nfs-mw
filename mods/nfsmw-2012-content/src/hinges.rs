@@ -12,8 +12,8 @@
 use blackbox_solid::{GroupSource, SolidSource, Vertex};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_vehicle::{
-    HingedPart, Skeleton, SpoilerMotion, Vehicle, WingBoneTrack, WingMachine, attached_motions, body_parts,
-    hinged_parts, spoiler_motion, vent_motions, wing_machine,
+    DriveSpec, Guard, HingedPart, Skeleton, SpoilerMotion, Vehicle, WingBoneTrack, WingMachine, attached_motions,
+    body_parts, flap_motions, hinged_parts, spoiler_motion, vent_motions, wing_machine,
 };
 
 use crate::fit::{Fit, to_car_space};
@@ -50,6 +50,8 @@ pub struct Part {
     pub parent: Option<String>,
     /// An air vent: the seconds the speed has to stay above the opening speed, and the wait before it closes.
     pub delay: Option<(f32, f32)>,
+    /// The guarded animations that play the movement (a flap): when they start and end it.
+    pub drives: Vec<DriveSpec>,
     /// The keys the wing machine's animations give the part.
     pub tracks: Vec<WingBoneTrack>,
 }
@@ -66,6 +68,7 @@ struct Moving {
     motion: SpoilerMotion,
     parent: Option<usize>,
     delay: Option<(f32, f32)>,
+    drives: Vec<DriveSpec>,
 }
 
 /// Read the hinged parts of the car in `bundle` and classify the triangles of the finest body level of `vehicle`. `None`
@@ -78,7 +81,7 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
     // The spoiler and the other bones its animation moves, each with the motion it plays.
     let mut moving: Vec<Moving> = Vec::new();
     if let Some(motion) = motion {
-        moving.push(Moving { bone: motion.bone, motion, parent: None, delay: None });
+        moving.push(Moving { bone: motion.bone, motion, parent: None, delay: None, drives: Vec::new() });
         for attached in attached_motions(bundle, &skeleton) {
             let own = SpoilerMotion {
                 bone: attached.bone,
@@ -86,12 +89,18 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 rotation: attached.rotation,
                 ..motion
             };
-            moving.push(Moving { bone: attached.bone, motion: own, parent: attached.parent, delay: None });
+            moving.push(Moving {
+                bone: attached.bone,
+                motion: own,
+                parent: attached.parent,
+                delay: None,
+                drives: Vec::new(),
+            });
         }
     }
     for vent in vent_motions(bundle, &skeleton) {
         let delay = Some((vent.open_seconds, vent.close_seconds));
-        moving.push(Moving { bone: vent.motion.bone, motion: vent.motion, parent: None, delay });
+        moving.push(Moving { bone: vent.motion.bone, motion: vent.motion, parent: None, delay, drives: Vec::new() });
         for attached in &vent.attached {
             let own = SpoilerMotion {
                 bone: attached.bone,
@@ -99,7 +108,21 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 rotation: attached.rotation,
                 ..vent.motion
             };
-            moving.push(Moving { bone: attached.bone, motion: own, parent: attached.parent, delay });
+            moving.push(Moving {
+                bone: attached.bone,
+                motion: own,
+                parent: attached.parent,
+                delay,
+                drives: Vec::new(),
+            });
+        }
+    }
+    if moving.is_empty() && machine.is_none() {
+        for flap in flap_motions(bundle, &skeleton) {
+            let drives = flap.drives.iter().filter(|drive| convertible(drive)).cloned().collect::<Vec<_>>();
+            if !drives.is_empty() {
+                moving.push(Moving { bone: flap.motion.bone, motion: flap.motion, parent: None, delay: None, drives });
+            }
         }
     }
     let mut vents = 0;
@@ -115,6 +138,7 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 vents += 1;
                 format!("AirVent{vents}")
             }
+            (false, None) if !mover.drives.is_empty() => flap_name(&skeleton.bones[*bone].position),
             (false, None) => attached_name(&mover.motion, at),
         };
         parts.push(HingedPart {
@@ -185,6 +209,7 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 mass_kg: part.mass_kg,
                 active: moves.map(|mover| mover.motion),
                 delay: moves.and_then(|mover| mover.delay),
+                drives: moves.map(|mover| mover.drives.clone()).unwrap_or_default(),
                 parent: parent.map(|known| label(&known.name)),
                 tracks: machine.iter().flat_map(|m| m.tracks.iter().filter(|t| t.bone == part.bone).cloned()).collect(),
             }
@@ -343,120 +368,9 @@ fn subset(group: &GroupSource, classes: &[Option<usize>], wanted: Option<usize>)
     Some(GroupSource { vertices, indices, bounds: None, ..group.clone() })
 }
 
-/// The `[[damage_parts]]` tables for the parts of `hinged`, whose solids are `stems` (the same order), moved into the
-/// car's space by `fit`.
-pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
-    let mut text = String::new();
-    for (part, stem) in hinged.parts.iter().zip(stems) {
-        let Some(zones) = zones(part.zone) else { continue };
-        let still = part.active.is_some() || !part.tracks.is_empty();
-        let Some((axis, angle)) = swing(&part.limits).or(still.then_some((0, 0.0))) else { continue };
-        let mut direction = [0.0f32; 3];
-        direction[axis] = 1.0;
-        let axis = to_car_space(direction);
-        let pivot = fit.apply(to_car_space(part.pivot));
-        let mut stages: Vec<f32> = part.thresholds.iter().map(|t| t.clamp(0.0, 1.0)).collect();
-        stages.sort_by(f32::total_cmp);
-        stages.truncate(MAX_STAGES);
-        let name = label(&part.name);
-        let zone_list: Vec<String> = zones.iter().map(|zone| format!("\"{zone}\"")).collect();
-        text.push_str("\n[[damage_parts]]\n");
-        text.push_str(&format!("name = \"{name}\"\nmodel = \"{stem}\"\n"));
-        text.push_str(&format!("zones = [{}]\n", zone_list.join(", ")));
-        text.push_str(&format!("pivot = [{:.5}, {:.5}, {:.5}]\n", pivot[0], pivot[1], pivot[2]));
-        text.push_str(&format!("axis = [{:.1}, {:.1}, {:.1}]\nangle = {angle:.2}\n", axis[0], axis[1], axis[2]));
-        text.push_str(&format!("mass_kg = {:.1}\n", part.mass_kg.clamp(0.5, 5000.0)));
-        if !stages.is_empty() {
-            let list: Vec<String> = stages.iter().map(|s| format!("{s:.4}")).collect();
-            text.push_str(&format!("stages = [{}]\n", list.join(", ")));
-        }
-        if let Some(parent) = &part.parent {
-            text.push_str(&format!("parent = \"{parent}\"\n"));
-        }
-        if let Some(motion) = part.active {
-            text.push_str(&active_table(&motion, part.delay, fit));
-        }
-        for track in &part.tracks {
-            text.push_str(&track_table(track, fit));
-        }
-    }
-    if let Some(machine) = hinged.wing.as_ref().filter(|_| hinged.parts.iter().any(|part| !part.tracks.is_empty())) {
-        text.push_str(&wing_table(machine));
-    }
-    text
-}
-
-/// The `[[damage_parts.track]]` table of one animation of a part: the keys in the car's space (the cyclic change of axes
-/// keeps the handedness, so a quaternion carries over with its vector part permuted).
-fn track_table(track: &WingBoneTrack, fit: &Fit) -> String {
-    let slide: Vec<String> = track
-        .translation
-        .iter()
-        .map(|key| {
-            let moved = to_car_space(*key);
-            let [x, y, z] = [0, 1, 2].map(|k| moved[k] * fit.scale[k]);
-            format!("[{x:.5}, {y:.5}, {z:.5}]")
-        })
-        .collect();
-    let turn: Vec<String> = track
-        .rotation
-        .iter()
-        .map(|key| {
-            let [x, y, z] = to_car_space([key[0], key[1], key[2]]);
-            format!("[{x:.6}, {y:.6}, {z:.6}, {:.6}]", key[3])
-        })
-        .collect();
-    format!(
-        "\n[[damage_parts.track]]\nslot = {}\ntranslation = [{}]\nrotation = [{}]\n",
-        track.slot,
-        slide.join(", "),
-        turn.join(", ")
-    )
-}
-
-/// The `[wing]` table: the numbers of the machine the game plays and the length of the five animations.
-fn wing_table(machine: &WingMachine) -> String {
-    let seconds: Vec<String> = machine.seconds.iter().map(|s| format!("{s:.4}")).collect();
-    format!(
-        "\n[wing]\nopen_mph = {:.1}\nbrake_mph = {:.1}\n{}brake_hold_seconds = {:.2}\nfade_seconds = {:.2}\nslot_seconds = [{}]\n",
-        machine.params.open_mph,
-        machine.params.brake_mph,
-        machine.params.top_mph.map_or(String::new(), |top| format!("top_mph = {top:.1}\n")),
-        machine.params.brake_hold_seconds,
-        machine.params.fade_seconds,
-        seconds.join(", ")
-    )
-}
-
-/// The `[damage_parts.active]` table of a spoiler: its slide in the car's space (the fit scales it with the body), its
-/// turn about the pivot (the cyclic change of axes keeps the handedness, so the axis and the angle carry over), the
-/// speeds and the time. All of them are what the car's data says.
-fn active_table(motion: &SpoilerMotion, delay: Option<(f32, f32)>, fit: &Fit) -> String {
-    let moved = to_car_space(motion.translation);
-    let offset = [0, 1, 2].map(|k| moved[k] * fit.scale[k]);
-    let mut text = String::from("\n[damage_parts.active]\n");
-    if motion.gas {
-        text.push_str("gas = true\n");
-    }
-    if let Some((open, close)) = delay {
-        text.push_str(&format!("open_after_seconds = {open:.2}\nclose_after_seconds = {close:.2}\n"));
-    }
-    if offset.iter().any(|c| c.abs() >= 1e-4) {
-        text.push_str(&format!("offset = [{:.5}, {:.5}, {:.5}]\n", offset[0], offset[1], offset[2]));
-    }
-    if let Some((axis, degrees)) = motion.rotation_axis_angle() {
-        let axis = to_car_space(axis);
-        text.push_str(&format!(
-            "rotation_axis = [{:.5}, {:.5}, {:.5}]\nrotation_deg = {degrees:.3}\n",
-            axis[0], axis[1], axis[2]
-        ));
-    }
-    text.push_str(&format!(
-        "above_mph = {:.1}\nbelow_mph = {:.1}\nseconds = {:.3}\n",
-        motion.above_mph, motion.below_mph, motion.seconds
-    ));
-    text
-}
+mod manifest;
+pub use manifest::manifest_tables;
+use manifest::{convertible, flap_name};
 
 #[cfg(test)]
 mod tests;
