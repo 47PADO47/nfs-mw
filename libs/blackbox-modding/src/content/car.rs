@@ -2,6 +2,7 @@
 
 use serde::Deserialize;
 
+use super::engine_sound::{self, EngineSound};
 use super::performance::{self, Performance};
 use super::{ContentError, is_id};
 
@@ -45,6 +46,8 @@ pub struct CarManifest {
     pub manufacturer: Option<String>,
     /// How the car drives compared with the clone (`[performance]`): the clone's own values when the table is left out.
     pub performance: Performance,
+    /// The car's own engine loops (`[engine_sound]`), played instead of its clone's engine. `None` keeps the clone's.
+    pub engine_sound: Option<EngineSound>,
 }
 
 /// The file as serde reads it. Unknown keys are an error, so a key the game does not support (an `[override]`
@@ -63,6 +66,8 @@ struct Raw {
     manufacturer: Option<String>,
     #[serde(default)]
     performance: Option<performance::Raw>,
+    #[serde(default)]
+    engine_sound: Option<engine_sound::Raw>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -102,7 +107,17 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     let name = checked_text(raw.name, ContentError::InvalidName)?;
     let manufacturer = checked_text(raw.manufacturer, ContentError::InvalidManufacturer)?;
     let performance = performance::check(raw.performance)?;
-    Ok(CarManifest { id: stem.to_ascii_uppercase(), clone: raw.clone, role, heat, name, manufacturer, performance })
+    let engine_sound = engine_sound::check(raw.engine_sound)?;
+    Ok(CarManifest {
+        id: stem.to_ascii_uppercase(),
+        clone: raw.clone,
+        role,
+        heat,
+        name,
+        manufacturer,
+        performance,
+        engine_sound,
+    })
 }
 
 /// The heat levels. A list left out is no list (empty). A list needs a cop role, names only levels from 1, and has no

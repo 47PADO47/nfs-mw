@@ -141,3 +141,32 @@ fn an_unknown_performance_key_is_refused() {
     let error = car("clone = \"BMWM3GTR\"\n[performance]\ntorque = 2.0\n").unwrap_err();
     assert!(error.to_string().contains("torque"), "{error}");
 }
+
+const ENGINE: &str = "clone = \"BMWM3GTR\"\n[engine_sound]\nidle_rpm = 820.0\nredline_rpm = 7500.0\nlayers = [\n  { file = \"SOUND/MODENGINE/MYCAR/HIGH.WAV\", rpm = 5000.0 },\n  { file = \"SOUND/MODENGINE/MYCAR/IDLE.WAV\", rpm = 820.0 },\n]\n";
+
+#[test]
+fn a_car_has_no_engine_sound_unless_it_gives_one() {
+    assert_eq!(car("clone = \"BMWM3GTR\"\n").unwrap().engine_sound, None);
+}
+
+#[test]
+fn the_engine_sound_table_gives_layers_slowest_first() {
+    let sound = car(ENGINE).unwrap().engine_sound.unwrap();
+    assert_eq!((sound.idle_rpm, sound.redline_rpm), (820.0, 7500.0));
+    assert_eq!(sound.layers.iter().map(|layer| layer.rpm).collect::<Vec<_>>(), [820.0, 5000.0]);
+    assert_eq!(sound.layers[0].file, "SOUND/MODENGINE/MYCAR/IDLE.WAV");
+}
+
+#[test]
+fn a_bad_engine_sound_is_refused() {
+    for (edit, from, to) in [
+        ("a redline under the idle", "redline_rpm = 7500.0", "redline_rpm = 500.0"),
+        ("a path with ..", "SOUND/MODENGINE/MYCAR/IDLE.WAV", "SOUND/../IDLE.WAV"),
+        ("a file that is not a WAV", "SOUND/MODENGINE/MYCAR/HIGH.WAV", "SOUND/MODENGINE/MYCAR/HIGH.MP3"),
+        ("two layers at one rpm", "rpm = 5000.0", "rpm = 820.0"),
+        ("an absolute path", "SOUND/MODENGINE/MYCAR/IDLE.WAV", "/SOUND/IDLE.WAV"),
+    ] {
+        assert!(car(&ENGINE.replace(from, to)).is_err(), "{edit}");
+    }
+    assert!(car("clone = \"X\"\n[engine_sound]\nidle_rpm = 800.0\nredline_rpm = 7000.0\nlayers = []\n").is_err());
+}

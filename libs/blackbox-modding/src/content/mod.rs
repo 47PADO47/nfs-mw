@@ -6,6 +6,7 @@
 //! the mod's files exist, is for the game to decide, because only the game knows its car tables and its index.
 
 mod car;
+mod engine_sound;
 mod error;
 mod interior;
 #[cfg(test)]
@@ -22,6 +23,7 @@ mod scenery_tests;
 mod tests;
 
 pub use car::{CarManifest, Role, parse as parse_car};
+pub use engine_sound::{EngineSound, Layer as EngineLayer, MAX_LAYERS as MAX_ENGINE_LAYERS};
 pub use error::ContentError;
 pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, parse as parse_interior};
 pub use music::{MusicSection, parse as parse_music};
