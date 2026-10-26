@@ -28,6 +28,8 @@ pub mod eatrax;
 mod effective;
 mod exhaust_style;
 pub use exhaust_style::ExhaustStyle;
+mod backfire_style;
+pub use backfire_style::BackfireStyle;
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
@@ -56,6 +58,7 @@ mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
 mod language;
+mod load;
 mod minimap;
 pub mod mods;
 pub mod motion_blur;
@@ -238,6 +241,7 @@ pub struct Settings {
     pub exhaust_flames: bool,
     pub enhanced_exhaust: bool,
     pub exhaust_style: ExhaustStyle,
+    pub backfire_style: BackfireStyle,
     /// Show turn signals on cars while steering (a rewrite extension, off by default).
     pub turn_signals: bool,
     /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
@@ -391,6 +395,7 @@ impl From<Partial> for Settings {
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
             enhanced_exhaust: p.enhanced_exhaust.unwrap_or(false),
             exhaust_style: p.exhaust_style.unwrap_or_default(),
+            backfire_style: p.backfire_style.unwrap_or_default(),
             turn_signals: p.turn_signals.unwrap_or(false),
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
             discord: p.discord.unwrap_or(true),
@@ -456,36 +461,6 @@ impl Settings {
     /// What a steering wheel's extra controls are switched on.
     pub fn wheel_options(&self) -> WheelOptions {
         WheelOptions { manual_clutch: self.manual_clutch, h_shifter: self.h_shifter }
-    }
-
-    /// The per-user config file (it may not exist yet).
-    pub fn config_path() -> Option<std::path::PathBuf> {
-        game_install::config_file_path(&nfsmw_data::game::SPEC)
-    }
-
-    /// Writes the settings a layer sets to the config file, keeping its other keys.
-    pub fn save(changes: &Partial) -> anyhow::Result<std::path::PathBuf> {
-        let path = Self::config_path().ok_or_else(|| anyhow::anyhow!("there is no per-user config folder"))?;
-        write_file(&path, changes)?;
-        Ok(path)
-    }
-
-    /// Resolve the settings: `cli` over the process environment over the config file over the defaults.
-    pub fn load(cli: Partial) -> Self {
-        let env = env::read(|name| std::env::var(name).ok());
-        let config = game_install::config_file_path(&nfsmw_data::game::SPEC);
-        let file = config.as_deref().map(file::read).unwrap_or_default();
-        let extra = match config.as_deref().and_then(std::path::Path::parent) {
-            Some(dir) => extra_options::read(&dir.join(extra_options::FILE_NAME)),
-            None => Partial::default(),
-        };
-        let speedbreaker = match config.as_deref().and_then(std::path::Path::parent) {
-            Some(dir) => speedbreaker::read(&dir.join(speedbreaker::FILE_NAME)),
-            None => SpeedbreakerTuning::default(),
-        };
-        let mut settings: Self = cli.or(env).or(file).or(extra).into();
-        settings.speedbreaker = speedbreaker;
-        settings
     }
 }
 

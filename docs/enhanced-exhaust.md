@@ -119,6 +119,30 @@ no new power, exhaust events, smoke, sparks, dynamic lights or heat distortion.
 Existing rain distortion is unchanged. Bloom is not required to construct the
 flame and its settings are not overridden by selecting this appearance.
 
+## Transient backfire appearance
+
+Enhanced shift flashes and lift-off pops have separate event-driven envelopes.
+The installed shift eligibility and the existing sound-pop/console triggers remain
+unchanged; the original sprite path retains its original timing. Enhanced flashes
+have a fast attack, expansion, turbulent breakup and decay. Shift flashes are
+larger and longer than individual lift-off pops. Variation is seeded once per
+event and pipe, never regenerated per frame. At most three flashes overlap per
+pipe, and no extra crackles, smoke or sparks are invented. Held NOS suppresses
+new bursts. Existing NOS appearance and its release-relative baseline are unchanged.
+
+The same licensed lookup and noise render each flash, with a warm luminous core,
+orange edges and a small cooler root. Airflow and turn lag affect the short outer
+plume; buoyant rise is weaker than for sustained NOS. Wall clipping and surface
+glow are reused. Physical and presentation clocks keep separate event timelines
+so Speedbreaker can show smooth, slowed flashes without advancing them twice.
+
+F6 > Appearance > Backfire supplies independent root/tail colours, size,
+brightness, duration and variation (100% defaults), plus one-shot shift and pop
+previews. These controls persist in a shared `[backfire_style]` table, separate
+from NOS colours and car presets. Preview uses wall-clock time while the garage
+freezes physics and never fires a gameplay pop or consumes NOS. Runtime quality
+and cost require driving feedback; a successful release build is not visual proof.
+
 Synthetic checks cover marker direction, frame-rate-independent activation,
 release/reset, the original fallback, and settings round-trip. The GPU regression
 checks visibility and opaque depth clipping. The ignored installed-game check

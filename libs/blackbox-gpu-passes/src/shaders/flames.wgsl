@@ -137,7 +137,15 @@ fn sample_fire(local: vec3<f32>, time: f32, seed: f32, blue: f32, swell: f32,
     let heated = mix(natural * tint, recoloured, clamp(palette.a, 0.0, 1.0));
     let end_fade = (1.0 - smoothstep(0.85, 1.0, local.y + 0.5))
         * mix(1.0, 1.0 - smoothstep(0.65, 1.0, height), blue);
-    return vec4<f32>(mix(source, heated, blue) * end_fade * root.w, source.r * end_fade * blue * root.w) * wall_fade;
+    var emission = mix(source, heated, blue);
+    if shape.w > 0.0 {
+        let pulse_palette = mix(root_color.rgb, tail_color.rgb, smoothstep(0.015, 0.12, height));
+        let pulse_core = vec3<f32>(1.0, 0.96, 0.82) * 2.0;
+        let pulse = mix(pulse_palette, pulse_core, core * smoothstep(0.02, 0.10, height) * 0.9)
+            * max(source.r, max(source.g, source.b));
+        emission = mix(emission, pulse, shape.w);
+    }
+    return vec4<f32>(emission * end_fade * root.w, source.r * end_fade * max(blue, shape.w) * root.w) * wall_fade;
 }
 
 fn flame(in: VsOut, front: bool) -> vec4<f32> {

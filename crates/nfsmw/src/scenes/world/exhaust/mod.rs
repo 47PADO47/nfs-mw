@@ -153,7 +153,7 @@ impl Active {
     /// One physics step: the shift event and the backfire, then every pipe's emitters (spawning while the pipes
     /// flame). A step with nothing flaming and nothing alive does no more than that.
     fn step(&mut self, dt: f32, car: &CarState, pops: u32, forced: bool, engine_level: i32) {
-        self.shift.note_gear(car.gear);
+        let shifted = self.shift.note_gear(car.gear);
         self.shift.advance(dt, car.gear, car.velocity.length(), self.timing);
         self.backfire.pops(pops, car.throttle, car.gear);
         if forced {
@@ -163,7 +163,14 @@ impl Active {
         self.intensity = flame_intensity(blowoff, &self.shift, &self.backfire);
         self.backfire.advance(dt);
         self.nitrous = car.nitrous;
-        self.enhanced.step(dt, car, self.intensity);
+        let event = match forced || (pops > 0 && car.throttle < trigger::LIFT_OFF_THROTTLE && car.gear >= 1) {
+            true => Some(crate::garage::BackfireEvent::Pop),
+            false => match shifted && blowoff && self.shift.active() {
+                true => Some(crate::garage::BackfireEvent::Shift),
+                false => None,
+            },
+        };
+        self.enhanced.step(dt, car, event);
         if self.intensity == 0.0 && !self.nitrous && self.live == 0 {
             return;
         }
@@ -274,6 +281,24 @@ impl ExhaustFlames {
     pub fn set_preview(&mut self, on: bool) {
         if let State::Ready(active) = &mut self.state {
             active.enhanced.set_preview(on);
+        }
+    }
+
+    pub fn set_backfire(
+        &mut self,
+        style: crate::settings::BackfireStyle,
+        preview: Option<crate::garage::BackfireEvent>,
+        garage_open: bool,
+    ) {
+        if let State::Ready(active) = &mut self.state {
+            active.enhanced.backfire_style = style;
+            if !garage_open {
+                active.enhanced.clear_backfire_preview();
+                return;
+            }
+            if let Some(event) = preview {
+                active.enhanced.preview_backfire(event);
+            }
         }
     }
 

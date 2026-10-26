@@ -334,6 +334,7 @@ impl Settings {
             exhaust_flames: Some(self.exhaust_flames),
             enhanced_exhaust: Some(self.enhanced_exhaust),
             exhaust_style: Some(self.exhaust_style),
+            backfire_style: Some(self.backfire_style),
             ..self.appearance_layer()
         }
     }

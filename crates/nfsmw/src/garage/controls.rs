@@ -41,6 +41,7 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
         settings.exhaust_style = style;
         model.exhaust_style_dirty = true;
     }
+    super::backfire::show(ui, model, settings);
     ui.add_space(12.0);
     super::appearance::show(ui, model, settings);
     if settings.car_shading == crate::settings::CarShading::Simple {

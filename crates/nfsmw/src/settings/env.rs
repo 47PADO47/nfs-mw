@@ -159,6 +159,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         exhaust_flames: value(&get, EXHAUST_FLAMES, parse_bool),
         enhanced_exhaust: value(&get, "NFSMW_ENHANCED_EXHAUST", parse_bool),
         exhaust_style: None,
+        backfire_style: None,
         turn_signals: None,
         rear_view_mirror: value(&get, REAR_VIEW_MIRROR, parse_bool),
         discord: value(&get, DISCORD, parse_bool),
