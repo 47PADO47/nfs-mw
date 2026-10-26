@@ -17,7 +17,7 @@ fn the_porsche_engine_sequence_has_three_ginsu_voices_and_an_idle_loop() {
     let Some(bytes) = bundle_bytes() else { return };
     let bundle = Bundle::parse(&bytes).unwrap();
     let graphs = SoundGraphs::read(&bundle);
-    let engines: Vec<_> = graphs.driven_by("AudibleRPM").collect();
+    let engines: Vec<_> = graphs.driven_by("GetPlayerAudibleRPM").collect();
     assert_eq!(engines.len(), 2, "two Ginsu sets");
     for sequence in engines {
         assert_eq!((sequence.lo, sequence.hi), (1790.0, 7500.0));
@@ -40,7 +40,7 @@ fn the_engine_load_sequence_gives_each_ginsu_voice_a_gain_curve() {
     let Some(bytes) = bundle_bytes() else { return };
     let bundle = Bundle::parse(&bytes).unwrap();
     let graphs = SoundGraphs::read(&bundle);
-    let engine = graphs.driven_by("AudibleRPM").next().unwrap();
+    let engine = graphs.driven_by("GetPlayerAudibleRPM").next().unwrap();
     for item in &engine.items {
         let ItemKind::Ginsu(ginsu) = &item.kind else { continue };
         let found: Vec<_> = graphs.mixer_items("EngineLoad", ginsu.mixer).collect();
@@ -55,7 +55,7 @@ fn a_ginsu_resource_converts_and_decodes_with_the_shared_readers() {
     let Some(bytes) = bundle_bytes() else { return };
     let bundle = Bundle::parse(&bytes).unwrap();
     let graphs = SoundGraphs::read(&bundle);
-    let engine = graphs.driven_by("AudibleRPM").next().unwrap();
+    let engine = graphs.driven_by("GetPlayerAudibleRPM").next().unwrap();
     let ItemKind::Ginsu(ginsu) =
         engine.items.iter().map(|item| &item.kind).find(|k| matches!(k, ItemKind::Ginsu(_))).unwrap()
     else {
@@ -111,6 +111,34 @@ fn summary() {
                 ),
                 ItemKind::Other(o) => println!("{head} {o}"),
             }
+        }
+    }
+}
+
+#[test]
+#[ignore = "needs the 2012 install"]
+fn a_converted_ginsu_voice_runs_in_the_ginsu_synthesiser_at_every_frequency_of_its_span() {
+    use blackbox_ginsu::{GinsuData, GinsuSynth, GinsuTables, SynthParams};
+
+    let Some(bytes) = bundle_bytes() else { return };
+    let bundle = Bundle::parse(&bytes).unwrap();
+    let graphs = SoundGraphs::read(&bundle);
+    let engine = graphs.driven_by("GetPlayerAudibleRPM").next().unwrap();
+    for item in &engine.items {
+        let ItemKind::Ginsu(ginsu) = &item.kind else { continue };
+        let gin = ginsu_resource(&bundle, ginsu.resource).unwrap().to_gin();
+        let (tables, _) = GinsuTables::parse(&gin).unwrap();
+        let pcm = ea_audio::gin::decode(&gin).unwrap();
+        let data = std::sync::Arc::new(GinsuData::from_i16(tables, &pcm.samples).unwrap());
+        let mut synth = GinsuSynth::new(data, engine.lo).unwrap();
+        for frequency in [1790.0f32, 3000.0, 5000.0, 7500.0] {
+            let mut block = [0.0f32; 4096];
+            for _ in 0..8 {
+                synth.render(&SynthParams::new(frequency).with_volume(1.0), &mut block);
+            }
+            let rms = (block.iter().map(|s| s * s).sum::<f32>() / block.len() as f32).sqrt();
+            println!("{:x} at {frequency}: rms {rms:.3}", ginsu.resource & 0xffffff);
+            assert!(rms > 0.005 && rms.is_finite(), "{frequency}: {rms}");
         }
     }
 }

@@ -11,6 +11,7 @@ publish.workspace = true
 chameleon-bundle.workspace = true
 
 [dev-dependencies]
+blackbox-ginsu.workspace = true
 ea-audio.workspace = true
 
 [lints]

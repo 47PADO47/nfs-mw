@@ -2079,6 +2079,7 @@ dependencies = [
 name = "chameleon-sound-graph"
 version = "0.1.0"
 dependencies = [
+ "blackbox-ginsu",
  "chameleon-bundle",
  "ea-audio",
 ]
