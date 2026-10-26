@@ -19,6 +19,8 @@ pub use split::split_drive_torque;
 pub use wheels::{DrivenAxles, driven_speeds, write_back};
 
 #[cfg(test)]
+mod countdown_tests;
+#[cfg(test)]
 mod launch_tests;
 #[cfg(test)]
 mod parity_tests;

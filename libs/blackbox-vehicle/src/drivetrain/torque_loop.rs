@@ -71,10 +71,11 @@ impl Powertrain {
         let first_or_reverse = !neutral && self.gear <= GEAR_FIRST;
 
         let (mut drive_t, mut road_t) = (0.0_f32, 0.0_f32);
-        let diff_rpm = rad_to_rpm(self.omega - self.omega_trans);
+        let diff_rpm = rad_to_rpm(self.omega_trans - self.omega);
         if !neutral {
             match self.clutch.state {
                 ClutchState::Engaged => {
+                    self.prev_rpm_diff = 0.0;
                     drive_t = total_t;
                     road_t = -total_t * wheels_ratio;
                     // Make the engine and the wheels agree on acceleration.
@@ -102,13 +103,13 @@ impl Powertrain {
                         stiffness *= 0.5;
                     }
                     let clutch_t = d * stiffness * self.clutch.factor();
+                    self.prev_rpm_diff = diff_rpm;
                     drive_t += clutch_t;
                     road_t -= clutch_t * wheels_ratio;
                 }
-                ClutchState::Disengaged => {}
+                ClutchState::Disengaged => self.prev_rpm_diff = 0.0,
             }
         }
-        self.prev_rpm_diff = diff_rpm;
 
         if !neutral && self.clutch.is_engaged() && on_ground > 0 {
             if throttle > 0.2 && c.drive_slip > 0.1 && self.gear <= GEAR_FIRST && self.omega_trans < self.omega {
@@ -122,13 +123,13 @@ impl Powertrain {
             }
         }
 
-        if first_or_reverse && self.clutch.is_engaged() {
+        if first_or_reverse {
             let net = total_t + road_t;
             if road_t < total_t && net < 0.0 {
                 let play = graph(&CLUTCH_PLAY, 1000.0 * net);
                 road_t += play * net * self.trans.clutch_slip;
             }
-            if throttle > 0.0 && road_t * total_t < 0.0 {
+            if self.clutch.is_engaged() && throttle > 0.0 && road_t * total_t < 0.0 {
                 let slip = self.trans.clutch_slip
                     * throttle
                     * (1.0 - throttle * ramp(rpm, self.engine.idle, self.peak_torque_rpm));
