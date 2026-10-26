@@ -10,7 +10,7 @@
 //! on = "burn"                   # "start" (for `duration` seconds after the nitrous lights), "burn" or "pop"
 //! texture = "NITROUS/MW2012/GLOW.PNG"
 //! blend = "additive"            # or "alpha"; the default is additive
-//! grid = 0                      # 2, 4, 8 or 16 cells per side for a flipbook, 0 for the whole picture
+//! grid = 0                      # 2 to 16 cells per side for a flipbook, 0 for the whole picture
 //! fps = 24                      # flipbook frames a second
 //! rate = 20.0                   # particles a second
 //! life = 0.3                    # seconds
@@ -46,7 +46,7 @@ pub struct EffectProfile {
     /// An RGBA PNG, a relative path in the mod's `files/` (the same rule as the sounds).
     pub texture: String,
     pub additive: bool,
-    /// 0 for the whole picture, else 2, 4, 8 or 16 cells per side, played as a flipbook.
+    /// 0 for the whole picture, else 2 to 16 cells per side, played as a flipbook.
     pub grid: u8,
     pub fps: u8,
     pub random_start: bool,
@@ -122,8 +122,8 @@ fn effect(raw: RawEffect) -> Result<EffectProfile, ContentError> {
         Some(_) => return Err(ContentError::Field { field: "effect.blend", reason: "additive or alpha" }),
     };
     let grid = raw.grid.unwrap_or(0);
-    if !matches!(grid, 0 | 2 | 4 | 8 | 16) {
-        return Err(ContentError::Field { field: "effect.grid", reason: "0, 2, 4, 8 or 16" });
+    if grid == 1 || grid > 16 {
+        return Err(ContentError::Field { field: "effect.grid", reason: "0, or 2 to 16" });
     }
     if !is_png_path(&raw.texture) {
         return Err(ContentError::Field {
@@ -204,7 +204,7 @@ duration = 0.8
             parse_nitrous_profile(&format!("format = 1\n[[effect]]\non = \"burn\"\ntexture = \"A.PNG\"\n{extra}"))
         };
         assert!(bad("").is_ok());
-        assert!(matches!(bad("grid = 3"), Err(ContentError::Field { field: "effect.grid", .. })));
+        assert!(matches!(bad("grid = 17"), Err(ContentError::Field { field: "effect.grid", .. })));
         assert!(matches!(bad("blend = \"x\""), Err(ContentError::Field { field: "effect.blend", .. })));
         assert!(matches!(bad("rate = 9999.0"), Err(ContentError::Field { field: "effect.rate", .. })));
         assert!(matches!(bad("size = [0.1, 0.1, 0.1, 99.0]"), Err(ContentError::Field { field: "effect.size", .. })));
