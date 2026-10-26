@@ -42,6 +42,8 @@ pub struct Source {
     /// The shared sample bundle, when the install has one that can be read.
     shared_samples: Option<Vec<u8>>,
     cars: Vec<CarFile>,
+    /// The install's folder, for the bundles read on demand.
+    root: PathBuf,
 }
 
 impl Source {
@@ -57,7 +59,7 @@ impl Source {
         let textures = std::fs::read(find(SHARED_TEXTURES)?).context("reading the shared vehicle textures")?;
         let shaders = std::fs::read(find(SHADERS)?).context("reading the shaders")?;
         let shared_samples = std::fs::read(root.join(SHARED_SAMPLES)).ok();
-        Ok(Self { textures, shaders, shared_samples, cars: list_cars(&root.join(VEHICLES))? })
+        Ok(Self { textures, shaders, shared_samples, cars: list_cars(&root.join(VEHICLES))?, root: root.to_owned() })
     }
 
     /// The high-detail bundle of every car, in file-number order.
@@ -69,6 +71,11 @@ impl Source {
     pub fn object_name(&self, file: &CarFile) -> Option<String> {
         let data = std::fs::read(&file.path).ok()?;
         vehicle_name(&Bundle::parse(&data).ok()?)
+    }
+
+    /// The bytes of the file `rel` of the install (`SOUND/METALCAR.BNDL`), `None` when it is missing or unreadable.
+    pub fn install_file(&self, rel: &str) -> Option<Vec<u8>> {
+        std::fs::read(self.root.join(rel)).ok()
     }
 
     /// The shared sample bundle (`VEHICLES/WAVES.BNDL`), if the install has it.

@@ -61,6 +61,22 @@ impl ModFolder {
         Ok(Self { root: root.to_owned() })
     }
 
+    /// The mod folder.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Add `text` (whole tables, starting with a newline) to the end of the manifest of the car `id`, which `add_car` has written.
+    pub fn append_to_manifest(&self, id: &str, text: &str) -> Result<()> {
+        use std::io::Write;
+        let path = self.root.join("cars").join(format!("{}.toml", id.to_ascii_lowercase()));
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .with_context(|| format!("opening {}", path.display()))?;
+        file.write_all(text.as_bytes()).with_context(|| format!("writing {}", path.display()))
+    }
+
     pub fn add_car(&self, car: &CarEntry, files: &CarFiles) -> Result<()> {
         let folder = self.root.join("files").join("CARS").join(&car.id);
         std::fs::create_dir_all(&folder)?;
@@ -252,6 +268,26 @@ paints = [{ name = \"Red\", color = [200, 0, 0] }]
         ModFolder::create(&dir).unwrap();
         assert!(!dir.join("files").exists() && !dir.join("cars").exists());
         assert!(dir.join("mod.toml").is_file());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_shared_sounds_are_added_to_a_written_manifest_and_the_game_reads_them() {
+        let dir = std::env::temp_dir().join(format!("nfsmw-import2012-shared-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let folder = ModFolder::create(&dir).unwrap();
+        let effects = EffectFiles { shift: vec![vec![1]], ..EffectFiles::default() };
+        let files = CarFiles { geometry: b"g", textures: b"t", bounds: b"b", engine: None, effects: Some(&effects) };
+        folder.add_car(&entry(), &files).unwrap();
+        let table = "\n[car_sound.shared]\nimpact_big = [\"SOUND/MODSHARED/IMPACT/B.WAV\"]\nscrape = [\"SOUND/MODSHARED/SCRAPE/S.WAV\"]\n";
+        folder.append_to_manifest("POR911CARR12", table).unwrap();
+        let text = std::fs::read_to_string(dir.join("cars/por911carr12.toml")).unwrap();
+        let manifest = blackbox_modding::content::parse_car("por911carr12", &text).unwrap();
+        let sound = manifest.car_sound.unwrap();
+        assert_eq!(sound.shift, ["SOUND/MODENGINE/POR911CARR12/SHIFT0.WAV"], "the car's own list is kept");
+        assert_eq!(sound.shared.impact_big, ["SOUND/MODSHARED/IMPACT/B.WAV"]);
+        assert_eq!(sound.shared.scrape, ["SOUND/MODSHARED/SCRAPE/S.WAV"]);
+        assert!(folder.append_to_manifest("NOSUCHCAR", table).is_err());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
