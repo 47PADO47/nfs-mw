@@ -15,17 +15,21 @@
 mod collision;
 pub mod config;
 mod convert;
+mod effects;
 mod emit;
 mod engine;
 mod fit;
+mod graphs;
 pub mod import;
 pub mod job;
 mod markers;
 mod names;
 mod paints;
 pub mod performance;
+mod sample;
 mod source;
 mod stamp;
+mod sounds;
 pub mod stats;
 mod textures;
 

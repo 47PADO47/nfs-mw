@@ -35,6 +35,7 @@ fn spec(folder: &str) -> CarSpec {
         geometry_in_mod: true,
         stats: CarStats::default(),
         engine_sound: None,
+        car_effects: None,
     }
 }
 

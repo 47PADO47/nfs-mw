@@ -370,10 +370,19 @@ impl Audio {
         self.load_car_engine_upgraded(car, SoundUpgrades::default())
     }
 
+    /// The sound set of car `car`: its records in the database at the installed performance levels, or, for a car a
+    /// mod added (which has none), the class-wide defaults and the shared banks (`generic_car_sound`).
+    pub(super) fn sound_set(&mut self, car: &str, upgrades: SoundUpgrades) -> Result<CarSound, String> {
+        let db = self.database()?;
+        if nfsmw_data::car::mods::is_mod_car(car) {
+            return nfsmw_data::sound::generic_car_sound(&db, car).map_err(|e| format!("{car}: {e:#}"));
+        }
+        nfsmw_data::sound::car_sound(&db, car, upgrades).map_err(|e| format!("{car}: {e:#}"))
+    }
+
     /// The engine and effects sound set selected by the installed performance levels.
     pub fn load_car_engine_upgraded(&mut self, car: &str, upgrades: SoundUpgrades) -> Result<CarEngine, String> {
-        let db = self.database()?;
-        let set = nfsmw_data::sound::car_sound(&db, car, upgrades).map_err(|e| format!("{car}: {e:#}"))?;
+        let set = self.sound_set(car, upgrades)?;
         self.preload_sound_set(&set);
         let loops = EngineLoops::load(&self.dir, &set.engine).map_err(|e| format!("{car}: {e:#}"))?;
         let accel = loops.accel.ok_or_else(|| format!("{car} has no Ginsu engine loop"))?;

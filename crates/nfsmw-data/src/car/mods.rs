@@ -16,7 +16,7 @@ use crate::pursuit::{CopRecord, HEAT_LEVELS, HeatRow};
 pub mod custom;
 mod engine;
 pub use blackbox_vehicle::stats::{CarStats, Drive};
-pub use engine::{EngineLayer, EngineSound};
+pub use engine::{CarEffects, EngineLayer, EngineSound};
 
 /// How many cars of a mod's kind a cop wave with the car has.
 pub const COP_COUNT: u32 = 2;
@@ -44,6 +44,8 @@ pub struct CarSpec {
     pub stats: CarStats,
     /// The car's own engine loops, if the mod gives them.
     pub engine_sound: Option<EngineSound>,
+    /// The car's own recordings of its shifts, turbo, backfire and pops, if the mod gives them.
+    pub car_effects: Option<CarEffects>,
 }
 
 /// A car the game admitted, with the car type it adds to the table.
@@ -60,6 +62,8 @@ pub struct ModCar {
     pub stats: CarStats,
     /// The car's own engine loops, if the mod gives them.
     pub engine_sound: Option<EngineSound>,
+    /// The car's own recordings of its shifts, turbo, backfire and pops, if the mod gives them.
+    pub car_effects: Option<CarEffects>,
     /// The car's entry in the car table: its folder as the type name, its geometry and the brand the mod gave.
     pub car_type: CarTypeInfo,
 }
@@ -133,6 +137,7 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
         cop_heat: spec.cop_heat.clone(),
         stats: spec.stats.clone(),
         engine_sound: spec.engine_sound.clone(),
+        car_effects: spec.car_effects.clone(),
         car_type: car_type_of(spec, types.len()),
     })
 }
@@ -226,6 +231,12 @@ pub fn stats(folder: &str) -> Option<&'static CarStats> {
 /// The engine loops a mod gave the car in `folder`. `None` for a car that is not a mod car or has no loops of its own.
 pub fn engine_sound(folder: &str) -> Option<&'static EngineSound> {
     find_in(published(), folder).and_then(|car| car.engine_sound.as_ref())
+}
+
+/// The recordings of the shifts, turbo, backfire and pops a mod gave the car in `folder`. `None` for a car that is not a
+/// mod car or has none.
+pub fn car_effects(folder: &str) -> Option<&'static CarEffects> {
+    find_in(published(), folder).and_then(|car| car.car_effects.as_ref())
 }
 
 /// Whether `folder` is a car a mod added.

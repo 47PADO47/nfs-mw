@@ -1,5 +1,6 @@
-//! A mod car's own engine: its recordings loop all the time and are mixed by engine speed
-//! (docs/modding/car-customization.md, "Engine sound"). The clone's Ginsu voice is silent while this plays.
+//! A mod car's engine: loops that play all the time and are mixed by engine speed (docs/modding/car-customization.md,
+//! "Engine sound"). They are the car's own recordings (`[engine_sound]`), or, for a car that gives none, loops the game
+//! synthesises (`blackbox_carsound::synth`). A mod car has no Ginsu voice: this is its whole engine.
 //!
 //! A layer is loudest when the engine turns at its own rpm and fades out, equal power, into its neighbour's; each is
 //! played at the engine's rpm over its own, so the pitch follows the engine, within a range that keeps a layer from
@@ -7,10 +8,11 @@
 
 use std::time::Duration;
 
+use blackbox_carsound::synth;
 use ea_audio::Pcm;
 use kira::sound::static_sound::StaticSoundHandle;
 use kira::{PlaybackRate, Tween};
-use nfsmw_data::car::mods::EngineSound;
+use nfsmw_data::car::mods::{EngineLayer, EngineSound};
 
 use crate::audio::volume::decibels;
 use crate::audio::{Audio, Group, pcm};
@@ -19,6 +21,17 @@ use crate::audio::{Audio, Group, pcm};
 const RATE_RANGE: (f32, f32) = (0.55, 1.8);
 /// The volume and pitch change over this long, so a frame's step is not heard as a click.
 const SMOOTH: Duration = Duration::from_millis(50);
+
+/// The built-in engine, for a car that gives no recordings of its own: a six-cylinder four-stroke that idles at 900 rpm
+/// and is limited at 7000, with loops at these engine speeds. Nothing about it is any car's; it is a plain engine.
+const BUILT_IN_CYLINDERS: u32 = 6;
+const BUILT_IN_IDLE_RPM: f32 = 900.0;
+const BUILT_IN_REDLINE_RPM: f32 = 7000.0;
+const BUILT_IN_LAYER_RPMS: [f32; 5] = [900.0, 1700.0, 2900.0, 4400.0, 6500.0];
+/// The sample rate the built-in loops are made at.
+const BUILT_IN_RATE: u32 = 32_000;
+/// The name the built-in layers carry where a file name would be.
+const BUILT_IN_SOURCE: &str = "(built-in engine)";
 
 /// What one layer should sound like right now.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -52,9 +65,18 @@ pub fn mix(sound: &EngineSound, rpm: f32) -> Vec<LayerMix> {
     out
 }
 
+/// The built-in engine's description: the layers carry no file.
+pub fn built_in() -> EngineSound {
+    EngineSound {
+        idle_rpm: BUILT_IN_IDLE_RPM,
+        redline_rpm: BUILT_IN_REDLINE_RPM,
+        layers: BUILT_IN_LAYER_RPMS.iter().map(|&rpm| EngineLayer { file: BUILT_IN_SOURCE.into(), rpm }).collect(),
+    }
+}
+
 /// The loops of a car that is playing.
 pub struct OwnEngine {
-    sound: &'static EngineSound,
+    sound: EngineSound,
     layers: Vec<StaticSoundHandle>,
 }
 
@@ -62,7 +84,7 @@ impl OwnEngine {
     /// Follow the engine: `fraction` is how far it is from idle (0) to redline (1), `volume` the linear level.
     pub fn update(&mut self, fraction: f32, volume: f32) {
         let tween = Tween { duration: SMOOTH, ..Tween::default() };
-        let mix = mix(self.sound, self.sound.rpm_at(fraction));
+        let mix = mix(&self.sound, self.sound.rpm_at(fraction));
         for (handle, layer) in self.layers.iter_mut().zip(mix) {
             handle.set_volume(decibels(layer.gain * volume), tween);
             handle.set_playback_rate(PlaybackRate(f64::from(layer.rate)), tween);
@@ -81,18 +103,51 @@ impl Drop for OwnEngine {
 }
 
 impl Audio {
+    /// The engine of the mod car `name`: its own recordings when it gives them, else (and when a recording cannot be
+    /// read) the built-in engine.
+    pub(super) fn start_mod_engine(&mut self, name: &str) -> Result<OwnEngine, String> {
+        if let Some(sound) = nfsmw_data::car::mods::engine_sound(name) {
+            match self.start_own_engine(sound) {
+                Ok(engine) => return Ok(engine),
+                Err(e) => log::warn!("{name}: its engine recordings are not used, the built-in engine plays: {e}"),
+            }
+        }
+        self.start_built_in_engine()
+    }
+
     /// Start every layer of `sound`, silent. A layer that cannot be read or played fails the whole engine, so the car
-    /// falls back to its clone's sound rather than playing half an engine.
-    pub(super) fn start_own_engine(&mut self, sound: &'static EngineSound) -> Result<OwnEngine, String> {
+    /// plays the built-in engine rather than half an engine.
+    pub(super) fn start_own_engine(&mut self, sound: &EngineSound) -> Result<OwnEngine, String> {
         let mut layers = Vec::with_capacity(sound.layers.len());
         for layer in &sound.layers {
             let bytes = self.dir.read(&layer.file).map_err(|e| format!("{}: {e:#}", layer.file))?;
             let pcm = parse_wav(&bytes).map_err(|e| format!("{}: {e}", layer.file))?;
-            let data = pcm::sound(&pcm).volume(decibels(0.0));
-            layers.push(self.play(Group::Engine, data)?);
+            layers.push(pcm);
+        }
+        self.start_layers(sound.clone(), layers)
+    }
+
+    /// Start the built-in engine, silent.
+    pub(super) fn start_built_in_engine(&mut self) -> Result<OwnEngine, String> {
+        let sound = built_in();
+        let layers = sound.layers.iter().map(|layer| built_in_loop(layer.rpm)).collect();
+        self.start_layers(sound, layers)
+    }
+
+    fn start_layers(&mut self, sound: EngineSound, pcms: Vec<Pcm>) -> Result<OwnEngine, String> {
+        let mut layers = Vec::with_capacity(pcms.len());
+        for pcm in &pcms {
+            layers.push(self.play(Group::Engine, pcm::sound(pcm).volume(decibels(0.0)))?);
         }
         Ok(OwnEngine { sound, layers })
     }
+}
+
+/// The built-in engine's loop at `rpm`.
+fn built_in_loop(rpm: f32) -> Pcm {
+    let samples = synth::to_pcm16(&synth::engine_loop(rpm, BUILT_IN_CYLINDERS, BUILT_IN_RATE));
+    let frames = samples.len() as u32;
+    Pcm { sample_rate: BUILT_IN_RATE, channels: 1, samples, loop_range: Some((0, frames)) }
 }
 
 /// A 16-bit PCM WAV file, mono or stereo, as a sound that loops over its whole length.

@@ -1,5 +1,5 @@
 //! A mod car's own engine sound (the `[engine_sound]` table of the car manifest, docs/modding/car-customization.md):
-//! looping recordings the audio mixes by engine speed, in place of the clone's engine.
+//! looping recordings the audio mixes by engine speed. A car without them plays the game's built-in engine.
 
 /// One looping recording and the engine speed it was made at.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,5 +22,44 @@ impl EngineSound {
     /// The engine speed in rpm at `fraction` of the way from idle to redline.
     pub fn rpm_at(&self, fraction: f32) -> f32 {
         self.idle_rpm + fraction.clamp(0.0, 1.0) * (self.redline_rpm - self.idle_rpm)
+    }
+}
+
+/// A mod car's own recordings of the sounds besides its engine (the `[car_sound]` table of the car manifest,
+/// docs/modding/car-customization.md). A list left empty is silence for that effect: the car plays no other car's sound.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CarEffects {
+    /// WAV files played at a gear change that `shift_up` or `shift_down` does not cover.
+    pub shift: Vec<String>,
+    pub shift_up: Vec<String>,
+    pub shift_down: Vec<String>,
+    /// Loops of the turbo's whistle, mixed by how far it has spooled.
+    pub turbo_whine: Vec<String>,
+    pub turbo_blowoff: Vec<String>,
+    pub backfire: Vec<String>,
+    pub pops: Vec<String>,
+}
+
+impl CarEffects {
+    /// The files for a gear change: the ones for its direction, else the ones for any.
+    pub fn shift_files(&self, up: bool) -> &[String] {
+        let own = if up { &self.shift_up } else { &self.shift_down };
+        if own.is_empty() { &self.shift } else { own }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_shift_uses_the_files_of_its_direction_and_falls_back_to_the_general_ones() {
+        let general = vec!["SOUND/ANY.WAV".to_owned()];
+        let mut effects = CarEffects { shift: general.clone(), ..Default::default() };
+        assert_eq!((effects.shift_files(true), effects.shift_files(false)), (&general[..], &general[..]));
+        effects.shift_up = vec!["SOUND/UP.WAV".to_owned()];
+        assert_eq!(effects.shift_files(true), ["SOUND/UP.WAV"]);
+        assert_eq!(effects.shift_files(false), ["SOUND/ANY.WAV"]);
+        assert!(CarEffects::default().shift_files(true).is_empty());
     }
 }

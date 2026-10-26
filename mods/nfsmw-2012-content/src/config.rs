@@ -43,8 +43,9 @@ max_texture_size = 1024
 # Who can use the cars: \"player\", \"cop\" or \"both\".
 role = \"player\"
 
-# Play the engine loops of each 2012 car (an approximation: see docs/modding/car-customization.md). The loops are
-# written into the mod's folder; false leaves the cars with the game's generic engine sound.
+# Give each 2012 car its own recordings: the engine loops of its bundle, and its gear shifts, turbo whistle and
+# blow-off, backfires and pops (an approximation: see docs/modding/car-customization.md). They are written into the
+# mod's folder. false gives the cars no recordings: they play the game's built-in engine and have no other car sounds.
 own_engine_sound = true
 
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
@@ -120,7 +121,7 @@ pub struct Config {
     pub exclude: Vec<String>,
     pub max_texture_size: u32,
     pub role: Role,
-    /// Whether each car plays the engine loops of its 2012 bundle.
+    /// Whether each car gets the recordings of its 2012 bundle (engine loops, shifts, turbo, backfire, pops).
     pub own_engine_sound: bool,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,

@@ -4,25 +4,14 @@
 //! loops. The 2012 game mixes them in a sound graph with synthesised harmonics, which this mod does not rebuild. What
 //! it does instead is read each loop's pitch, treat the loops as recordings of the engine at different speeds (a loop's
 //! rpm is the idle rpm times its pitch over the lowest pitch), and let the game's mixer play them by engine speed. That
-//! is an approximation: the loops that are not engine loops (a whine, a drone) are played as if they were.
+//! is an approximation. The loops another effect claims (the turbo's whistle, see `effects`) are left out; the rest are
+//! taken as the engine's, which includes the five loops of the graph that reads `GetTransmissionSpeedMph` (by its
+//! name, the transmission's whine, not an engine) because the engine alone has too few pitches to cover the range.
 
-use std::io::Cursor;
+use std::collections::BTreeSet;
 
-use anyhow::{Context, Result, bail};
-use chameleon_bundle::Bundle;
-use symphonia::core::codecs::CodecParameters;
-use symphonia::core::codecs::audio::AudioDecoderOptions;
-use symphonia::core::formats::FormatOptions;
-use symphonia::core::formats::probe::Hint;
-use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
-use symphonia::core::meta::MetadataOptions;
+use crate::sample::{Sample, gain_to_rms, wav_bytes};
 
-/// The resource kind of a sample.
-const SAMPLE_KIND: u32 = 0x81;
-/// Bytes before the stream in a sample resource.
-const SAMPLE_HEADER: usize = 128;
-/// Samples a Layer III decoder adds in front of the audio (its filter bank and one granule).
-const DECODER_DELAY: usize = 1105;
 /// Shortest loop kept: shorter ones are one-shot-like and repeat too fast.
 const MIN_SECONDS: f32 = 0.8;
 /// The pitch range searched, in Hz: idle of a big engine to the whine of a high-revving one.
@@ -50,66 +39,18 @@ pub struct Layer {
     pub wav: Vec<u8>,
 }
 
-/// The looping samples of the car bundle `data`, decoded and trimmed to one loop each.
-pub fn loops(data: &[u8]) -> Result<Vec<Loop>> {
-    let bundle = Bundle::parse(data)?;
-    let mut out = Vec::new();
-    for (at, entry) in bundle.entries().iter().enumerate() {
-        if entry.kind != SAMPLE_KIND {
-            continue;
-        }
-        let resource = bundle.resource(at)?;
-        let block = &resource.blocks[0];
-        let Some(size) = block.get(24..28).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize) else {
-            continue;
-        };
-        let Some(stream) = block.get(SAMPLE_HEADER..SAMPLE_HEADER + size) else { continue };
-        let Ok(header) = ea_audio::sps::read_header(stream) else { continue };
-        if header.loop_start.is_none() || header.channels != 1 {
-            continue;
-        }
-        let Ok(mp3) = ea_audio::sps::to_mp3(stream) else { continue };
-        let Ok((rate, pcm)) = decode(mp3.cores[0].bytes.clone()) else { continue };
-        let end = (DECODER_DELAY + header.samples as usize).min(pcm.len());
-        let Some(samples) = pcm.get(DECODER_DELAY.min(end)..end) else { continue };
-        if (samples.len() as f32) < MIN_SECONDS * rate as f32 {
-            continue;
-        }
-        let pitch = pitch_of(samples, rate);
-        out.push(Loop { samples: samples.to_vec(), rate, pitch });
-    }
-    Ok(out)
-}
-
-/// An MP3 stream as mono samples (the first channel) and its sample rate.
-fn decode(bytes: Vec<u8>) -> Result<(u32, Vec<f32>)> {
-    let mut hint = Hint::new();
-    hint.with_extension("mp3");
-    let source = MediaSourceStream::new(Box::new(Cursor::new(bytes)), MediaSourceStreamOptions::default());
-    let mut format = symphonia::default::get_probe()
-        .probe(&hint, source, FormatOptions::default(), MetadataOptions::default())
-        .context("probing the repacked stream")?;
-    let track = format
-        .tracks()
+/// The looping samples among `samples` that are long enough to be an engine's, except the ones in `not_engine` (the
+/// loops other effects use, such as the turbo's whistle).
+pub fn loops(samples: &[Sample], not_engine: &BTreeSet<u64>) -> Vec<Loop> {
+    samples
         .iter()
-        .find(|track| matches!(track.codec_params, Some(CodecParameters::Audio(_))))
-        .context("no audio track")?;
-    let id = track.id;
-    let Some(CodecParameters::Audio(params)) = track.codec_params.clone() else { bail!("no audio parameters") };
-    let mut decoder = symphonia::default::get_codecs().make_audio_decoder(&params, &AudioDecoderOptions::default())?;
-    let (mut rate, mut samples) = (0, Vec::new());
-    while let Ok(Some(packet)) = format.next_packet() {
-        if packet.track_id != id {
-            continue;
-        }
-        let Ok(buffer) = decoder.decode(&packet) else { continue };
-        rate = buffer.spec().rate();
-        let channels = buffer.spec().channels().count().max(1);
-        let mut interleaved: Vec<f32> = Vec::new();
-        buffer.copy_to_vec_interleaved(&mut interleaved);
-        samples.extend(interleaved.chunks_exact(channels).map(|frame| frame[0]));
-    }
-    Ok((rate, samples))
+        .filter(|sample| sample.looped && !not_engine.contains(&sample.id) && sample.seconds() >= MIN_SECONDS)
+        .map(|sample| Loop {
+            pitch: pitch_of(&sample.samples, sample.rate),
+            samples: sample.samples.clone(),
+            rate: sample.rate,
+        })
+        .collect()
 }
 
 /// The pitch of `samples` in Hz: the first strong peak of the normalised autocorrelation of a stretch from the middle of
@@ -163,30 +104,13 @@ pub fn layers(loops: Vec<Loop>, idle_rpm: f32, redline_rpm: f32) -> Vec<Layer> {
         }
         layers.push((rpm, loop_));
     }
-    layers.into_iter().take(MAX_LAYERS).map(|(rpm, l)| Layer { rpm, wav: wav_bytes(&l) }).collect()
+    layers.into_iter().take(MAX_LAYERS).map(|(rpm, l)| Layer { rpm, wav: loop_wav(&l) }).collect()
 }
 
 /// A 16-bit mono WAV of the loop at the level every layer is brought to.
-fn wav_bytes(loop_: &Loop) -> Vec<u8> {
+fn loop_wav(loop_: &Loop) -> Vec<u8> {
     let rms = (loop_.samples.iter().map(|s| s * s).sum::<f32>() / loop_.samples.len().max(1) as f32).sqrt();
-    let gain = if rms > 1e-4 { (TARGET_RMS / rms).min(8.0) } else { 1.0 };
-    let data_len = (loop_.samples.len() * 2) as u32;
-    let mut bytes = b"RIFF".to_vec();
-    bytes.extend((36 + data_len).to_le_bytes());
-    bytes.extend(b"WAVEfmt ");
-    bytes.extend(16u32.to_le_bytes());
-    bytes.extend(1u16.to_le_bytes());
-    bytes.extend(1u16.to_le_bytes());
-    bytes.extend(loop_.rate.to_le_bytes());
-    bytes.extend((loop_.rate * 2).to_le_bytes());
-    bytes.extend(2u16.to_le_bytes());
-    bytes.extend(16u16.to_le_bytes());
-    bytes.extend(b"data");
-    bytes.extend(data_len.to_le_bytes());
-    bytes.extend(
-        loop_.samples.iter().flat_map(|s| (((s * gain).clamp(-1.0, 1.0) * 32767.0).round() as i16).to_le_bytes()),
-    );
-    bytes
+    wav_bytes(&loop_.samples, loop_.rate, gain_to_rms(rms, TARGET_RMS, 8.0))
 }
 
 #[cfg(test)]

@@ -21,6 +21,16 @@ impl Audio {
         let mut commands = std::mem::take(&mut car.commands);
         commands.clear();
         let landing = car.effects.update(frame.dt, &input, &out, &mut commands);
+        if let Some(sfx) = car.own_sfx.as_mut() {
+            let sfx_frame = own_sfx::SfxFrame {
+                throttle: input.throttle,
+                rpm_pct: input.rpm_pct,
+                lift_off: out.events.engine_off_sweetener,
+                dt: frame.dt,
+                delay: frame.delay,
+            };
+            sfx.drive(self, &sfx_frame, &mut commands);
+        }
         if let Some(mixer) = car.mixer.as_mut() {
             mixer.set_view(view);
             mixer.set_landing(landing);
@@ -38,31 +48,33 @@ impl Audio {
         }
         let wet_supported = self.update_wet(car.levels.environment.requested_patch);
         car.levels.environment.wet_supported = wet_supported;
-        car.handle.set_wet_gain(car.levels.environment.ginsu_wet as f32 / 32767.0);
+        if let Some(handle) = car.handle.as_ref() {
+            handle.set_wet_gain(car.levels.environment.ginsu_wet as f32 / 32767.0);
+        }
         let levels = car.levels;
-        let own = car.own_engine.is_some();
         if let Some(own_engine) = car.own_engine.as_mut() {
             own_engine.update(input.rpm_pct, levels.engine_volume * out.accel_volume.max(out.decel_volume));
         }
-        let ginsu = if own { 0.0 } else { 1.0 };
-        car.handle.set_tick(
-            EngineMix {
-                accel: LoopMix {
-                    frequency: out.accel_loop.frequency,
-                    volume: out.accel_volume * levels.engine_volume * ginsu,
-                    pitch: out.accel_loop.playback_rate * levels.engine_pitch,
+        if let Some(handle) = car.handle.as_ref() {
+            handle.set_tick(
+                EngineMix {
+                    accel: LoopMix {
+                        frequency: out.accel_loop.frequency,
+                        volume: out.accel_volume * levels.engine_volume,
+                        pitch: out.accel_loop.playback_rate * levels.engine_pitch,
+                    },
+                    decel: LoopMix {
+                        frequency: out.decel_loop.frequency,
+                        volume: out.decel_volume * levels.engine_volume,
+                        pitch: out.decel_loop.playback_rate * levels.engine_pitch,
+                    },
+                    low_pass_hz: out.low_pass_hz.min(levels.engine_low_pass_hz),
+                    azimuth: levels.engine_azimuth as u16,
+                    dry: (levels.environment.ginsu_dry.clamp(0, 32767) >> 8) as f32 / 127.0,
                 },
-                decel: LoopMix {
-                    frequency: out.decel_loop.frequency,
-                    volume: out.decel_volume * levels.engine_volume * ginsu,
-                    pitch: out.decel_loop.playback_rate * levels.engine_pitch,
-                },
-                low_pass_hz: out.low_pass_hz.min(levels.engine_low_pass_hz),
-                azimuth: levels.engine_azimuth as u16,
-                dry: (levels.environment.ginsu_dry.clamp(0, 32767) >> 8) as f32 / 127.0,
-            },
-            out.tick_revision,
-        );
+                out.tick_revision,
+            );
+        }
         if out.redlining != car.redlining {
             car.redlining = out.redlining;
             log::debug!("{}: engine limiter {}", car.car, if out.redlining { "starts" } else { "ends" });
@@ -73,7 +85,7 @@ impl Audio {
             } else {
                 1.0
             };
-            layer.set_synth_frequency(car.handle.current_frequency() * below_min);
+            layer.set_synth_frequency(car.handle.as_ref().map_or(0.0, EngineHandle::current_frequency) * below_min);
             layer.update(&mut KiraSampler(self), frame.dt, &Feed { engine: &out, levels: &levels });
         }
         let hits = car.contacts.observe(self, &car.sound, car.mixer.as_ref(), frame.contacts, frame.sim_dt, &view);
@@ -144,8 +156,8 @@ impl Audio {
                     "car={} requested={} consumed={:?} frequency={}",
                     car.car,
                     out.tick_revision,
-                    car.handle.consumed_revision(),
-                    car.handle.current_frequency()
+                    car.handle.as_ref().and_then(EngineHandle::consumed_revision),
+                    car.handle.as_ref().map_or(0.0, EngineHandle::current_frequency)
                 ),
             );
         }

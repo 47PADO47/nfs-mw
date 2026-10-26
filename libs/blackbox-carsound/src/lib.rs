@@ -12,6 +12,7 @@ mod input;
 mod interp;
 mod math;
 mod rng;
+pub mod synth;
 mod tuning;
 
 #[cfg(test)]

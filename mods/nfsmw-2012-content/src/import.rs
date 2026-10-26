@@ -11,11 +11,11 @@ use chameleon_vehicle::read_stats;
 use rayon::prelude::*;
 
 use crate::config::Config;
-use crate::emit::{CarEntry, CarFiles, EngineFiles, ModFolder};
+use crate::emit::{CarEntry, CarFiles, ModFolder};
 use crate::fit::{Fit, measure};
 use crate::source::{CarFile, Source};
 use crate::stats::ImportedStats;
-use crate::{convert, engine, names, paints};
+use crate::{convert, names, paints, sounds};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
 const MAX_THREADS: usize = 6;
@@ -114,7 +114,8 @@ fn import_car(
     let car_stats = read_stats(&Bundle::parse(&bytes)?).context("the stats of the car could not be read")?;
     let mut stats = ImportedStats::of(&car_stats);
     config.tuning().for_car(&named.id, &named.display).apply(&mut stats);
-    let engine = engine_of(&bytes, named, config, &stats);
+    let rpm = Some((stats.idle_rpm, stats.redline_rpm));
+    let sounds = sounds::of(source, named.file, &named.id, config, rpm);
     let entry = CarEntry {
         id: named.id.clone(),
         name: named.display.clone(),
@@ -123,33 +124,20 @@ fn import_car(
         stats,
         customization: paints::manifest_table(&paints::choices(&car.paints)),
     };
-    folder.add_car(
-        &entry,
-        &CarFiles {
-            geometry: &built.geometry,
-            textures: &built.textures,
-            bounds: &built.bounds,
-            engine: engine.as_ref(),
-        },
-    )?;
+    let files = CarFiles {
+        geometry: &built.geometry,
+        textures: &built.textures,
+        bounds: &built.bounds,
+        engine: sounds.engine.as_ref(),
+        effects: sounds.effects.as_ref(),
+    };
+    folder.add_car(&entry, &files)?;
     Ok(ImportedCar {
         id: named.id.clone(),
         name: named.display.clone(),
         stretch: fit.distortion().exp(),
         triangles: built.triangles,
     })
-}
-
-/// The car's own engine loops, when the settings ask for them and its bundle has pitched loops. The loops stand for the
-/// engine speeds between the idle and the redline of the car's own stats. A car whose loops cannot be read still
-/// converts, with the game's generic engine sound.
-fn engine_of(bundle: &[u8], named: &Named, config: &Config, stats: &ImportedStats) -> Option<EngineFiles> {
-    if !config.own_engine_sound || stats.idle_rpm <= 0.0 || stats.redline_rpm <= stats.idle_rpm {
-        return None;
-    }
-    let loops = engine::loops(bundle).map_err(|error| log::warn!("{}: no engine loops: {error:#}", named.id)).ok()?;
-    let layers = engine::layers(loops, stats.idle_rpm, stats.redline_rpm);
-    (!layers.is_empty()).then_some(EngineFiles { idle_rpm: stats.idle_rpm, redline_rpm: stats.redline_rpm, layers })
 }
 
 #[cfg(test)]

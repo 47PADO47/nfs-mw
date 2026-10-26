@@ -76,6 +76,7 @@ fn register(game: &GameDir, mod_dir: &Path) -> CarStats {
         geometry_in_mod: true,
         stats: stats.clone(),
         engine_sound: manifest.get("engine_sound").map(engine_sound_of),
+        car_effects: None,
     };
     let (cars, rejected) = car_mods::register(&tables.types, &[spec]);
     assert!(rejected.is_empty(), "{rejected:?}");
