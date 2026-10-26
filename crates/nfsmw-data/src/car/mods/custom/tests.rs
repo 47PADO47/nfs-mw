@@ -14,6 +14,7 @@ fn car() -> Customization {
         roof_scoops: Vec::new(),
         vinyls: Vec::new(),
         vinyl_colors: Vec::new(),
+        liveries: vec![Livery { name: "Livery 1".into(), texture: "TESTCAR_LIV1".into() }],
     }
 }
 
@@ -60,6 +61,22 @@ fn a_car_without_vinyl_colours_gets_the_built_in_palette() {
     let mut own = car;
     own.vinyl_colors = vec![VinylColor { name: "Mint".into(), color: [1, 2, 3] }];
     assert_eq!(vinyl_palette(&own), vec![("Mint".to_owned(), [1, 2, 3])]);
+}
+
+#[test]
+fn a_livery_and_a_vinyl_of_one_name_are_told_apart_by_their_kind() {
+    let livery = part_hash("TESTCAR", Kind::Livery, "Livery 1");
+    assert_ne!(livery, part_hash("TESTCAR", Kind::Vinyl, "Livery 1"));
+    let car = car();
+    assert!(pick("TESTCAR", Kind::Livery, &car.liveries, |l| &l.name, livery).is_some());
+    assert!(pick("TESTCAR", Kind::Vinyl, &car.vinyls, |v| &v.name, livery).is_none());
+}
+
+#[test]
+fn a_livery_is_priced_at_the_first_tier_like_the_other_choices() {
+    publish("CUSTOMLIVERYCAR", car());
+    assert_eq!(price_level(part_hash("CUSTOMLIVERYCAR", Kind::Livery, "Livery 1")), Some(1));
+    assert_eq!(price_level(part_hash("CUSTOMLIVERYCAR", Kind::Livery, "Missing")), None);
 }
 
 #[test]

@@ -153,6 +153,11 @@ fn customization_of(table: &blackbox_modding::content::Customization) -> custom:
             .iter()
             .map(|color| custom::VinylColor { name: color.name.clone(), color: color.color })
             .collect(),
+        liveries: table
+            .liveries
+            .iter()
+            .map(|livery| custom::Livery { name: livery.name.clone(), texture: livery.texture.clone() })
+            .collect(),
     }
 }
 

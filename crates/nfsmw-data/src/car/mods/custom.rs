@@ -11,6 +11,7 @@ use blackbox_hash::bstring_hash;
 
 pub mod apply;
 pub mod catalog;
+pub mod livery;
 #[cfg(test)]
 mod tests;
 
@@ -86,6 +87,14 @@ pub struct Vinyl {
     pub channels: u8,
 }
 
+/// A whole-body picture in the layout of the car's paint surfaces: `texture` is a texture of the car's own
+/// `TEXTURES.BIN`. It is offered with the vinyls ([`livery`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Livery {
+    pub name: String,
+    pub texture: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VinylColor {
     pub name: String,
@@ -105,6 +114,7 @@ pub struct Customization {
     pub vinyls: Vec<Vinyl>,
     /// The colours of the vinyl channels. Empty: [`DEFAULT_VINYL_COLORS`].
     pub vinyl_colors: Vec<VinylColor>,
+    pub liveries: Vec<Livery>,
 }
 
 /// The vinyl channel colours of a car that lists none of its own: name and sRGB colour.
@@ -134,6 +144,7 @@ pub enum Kind {
     RoofScoop,
     Vinyl,
     VinylColor,
+    Livery,
 }
 
 impl Kind {
@@ -147,6 +158,7 @@ impl Kind {
             Self::RoofScoop => "ROOF",
             Self::Vinyl => "VINYL",
             Self::VinylColor => "VINYLCOLOR",
+            Self::Livery => "LIVERY",
         }
     }
 }
@@ -198,6 +210,7 @@ fn hashes(folder: &str, custom: &Customization) -> Vec<u32> {
     all.extend(custom.spoilers.iter().map(|e| part_hash(folder, Kind::Spoiler, &e.name)));
     all.extend(custom.roof_scoops.iter().map(|e| part_hash(folder, Kind::RoofScoop, &e.name)));
     all.extend(custom.vinyls.iter().map(|e| part_hash(folder, Kind::Vinyl, &e.name)));
+    all.extend(custom.liveries.iter().map(|e| part_hash(folder, Kind::Livery, &e.name)));
     all
 }
 
