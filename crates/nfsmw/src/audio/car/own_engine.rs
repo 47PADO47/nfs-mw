@@ -23,8 +23,8 @@ use crate::audio::{Audio, EngineHandle, EngineMix, EngineVoice, Group, pcm};
 
 mod mixing;
 #[cfg(test)]
-use mixing::RATE_RANGE;
-pub use mixing::{EngineInputs, LayerMix, mix, mix_inputs};
+use mixing::{RATE_RANGE, mix};
+pub use mixing::{EngineInputs, mix_inputs};
 
 /// The volume and pitch change over this long, so a frame's step is not heard as a click.
 const SMOOTH: Duration = Duration::from_millis(50);
