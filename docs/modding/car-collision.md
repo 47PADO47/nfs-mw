@@ -92,8 +92,8 @@ CarEventSpec::racing_defaults() -> CarEventSpec;
 
 ## Not done
 
-- Per-car damage numbers: the 2012 bundles hold per-car damage objects, but their fields are not decoded
-  ([formats/chameleon-collision.md](../formats/chameleon-collision.md#damage-and-impact)), so every converted car takes the shared table.
+- Per-car damage numbers: the 2012 bundles hold per-car damage objects, but their zone numbers are not decoded
+  ([formats/chameleon-collision.md](../formats/chameleon-collision.md#damage-and-impact)), so every converted car takes the shared table. Their hinged parts are decoded and played ([car-damage-parts.md](car-damage-parts.md)).
 - The set was not compared with how the cars drive in the game with a window: the checks are the numbers (every one of the 93 sets is a
   valid vehicle body whose box holds the visible body to within 0.22 m) and the unit tests, not a run.
 - Rear corner spheres, wheel spheres and a separate hood or door collision are not part of the layout; the stock sets have none.

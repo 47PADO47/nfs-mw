@@ -75,6 +75,7 @@ nitrous = true                  # nitrous from the factory
 [customization]                 # optional: the car's own paints and parts (car-customization.md)
 paints = [{ name = "Red", color = [173, 43, 44] }, { name = "Silver", color = [200, 204, 197], finish = "metallic" }]
 rims = [{ name = "Five spoke", model = "FASTCOUPE_RIM1" }]   # a wheel solid of the car's own GEOMETRY.BIN
+[[damage_parts]]                # optional, repeatable: parts that hang on hinges when damaged (car-damage-parts.md)
 ```
 
 A key not listed in the manifest table below refuses the car. There is no key that names another car: a manifest with a
@@ -121,7 +122,7 @@ Known gaps: body kits and hoods (a mod car has none), and a code form (`content.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
-| Car manifest | `cars/<id>.toml` with `role`, `heat`, `name`, `manufacturer`, `[stats]`, `[customization]`, `[engine_sound]`, `[car_sound]`; unknown keys refused | G (schema), MW (checks) | `libs/blackbox-modding/src/content/car.rs`, `stats.rs`, `customization.rs`, `engine_sound.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
+| Car manifest | `cars/<id>.toml` with `role`, `heat`, `name`, `manufacturer`, `[stats]`, `[customization]`, `[[damage_parts]]`, `[engine_sound]`, `[car_sound]`; unknown keys refused | G (schema), MW (checks) | `libs/blackbox-modding/src/content/car.rs`, `stats.rs`, `customization.rs`, `engine_sound.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
 | Stats | `Stats` (40 keys, absolute SI values; `Stats::default()` is the engine's generic car) converts to `blackbox_vehicle::stats::CarStats`; `car::mods::stats(folder)` reads it; `CarPhysics::from_stats(stats, bounds)` and `physics_from_stats(stats, package, bounds)` build the physics, `PerformanceCatalog::from_stats` the shop's upgrade list, `RatingBook::for_stats` its bars, `ai_vehicle_from_stats` the AI's speed limit | G (schema, builder), MW (wired) | `libs/blackbox-modding/src/content/stats.rs`, `libs/blackbox-vehicle/src/stats/`, `crates/nfsmw-data/src/car/physics/from_stats.rs` |
 | Physics and collision | `PhysicsData::car(folder)` builds a mod car from its `[stats]` and its own `BOUNDS.BIN` (`mod_car_collision`); nothing is read from a vehicle record | MW | `crates/nfsmw-data/src/car/physics/{data,mod_car,bounds}.rs` |
 | Wheel layout | `WheelSetup::for_car` takes a mod car's hubs from its stats (`WheelSetup::from_stats`): plus and minus half the wheelbase, track and tyre size from `[stats]` | MW | `crates/nfsmw-data/src/car/ecar.rs` |

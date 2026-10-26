@@ -11,6 +11,7 @@ other halves of a car are on their own pages:
 | [car-stats.md](car-stats.md) | `[stats]` (mass, engine, gearbox, tyres, brakes in SI units), the upgrade levels, the shop's bars, nitrous |
 | [car-sound.md](car-sound.md) | `[engine_sound]`, `[car_sound]`, the built-in engine, the 2012 recordings |
 | [car-collision.md](car-collision.md) | `BOUNDS.BIN`: the collision shape, the damage zones |
+| [car-damage-parts.md](car-damage-parts.md) | `[[damage_parts]]`: bonnet, bumpers, mirrors and doors that turn or fall off as the car is damaged |
 
 The [2012 cars mod](nfsmw-2012-content.md) is the worked example, and its settings are on its own page.
 
