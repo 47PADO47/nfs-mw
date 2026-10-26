@@ -29,6 +29,11 @@ const LOAD_SAMPLES: usize = 17;
 const FADE_STEPS: usize = 6;
 /// Most layers a car gets (what the car manifest allows).
 const MAX_LAYERS: usize = 12;
+/// The level of the transmission whine loops next to the rest of the engine, a factor on the gain the graph gives them. By the
+/// graph alone (a gain of 0.6 on a channel at -16 dB) they sound 6 dB under the whole engine at a spectral centroid of 1 to
+/// 3 kHz, which made the converted cars much brighter than the cars of the game (centroid at the limiter 745 Hz against 470
+/// to 580 Hz for the stock cars, measured); at this factor the whine is a detail 15 dB under the engine.
+const WHINE_BALANCE: f32 = 0.35;
 /// The largest level of a curve point (what the car manifest allows).
 const MAX_LEVEL: f32 = 8.0;
 
@@ -60,21 +65,18 @@ impl Domain {
 
 /// The layers of the engine the sound graphs describe, or none.
 pub fn build(bundle: &Bundle, graphs: &SoundGraphs, samples: &[Sample]) -> Vec<Layer> {
-    let Some(engine) = graphs
-        .driven_by(ENGINE_RPM)
-        .find(|sequence| sequence.items.iter().any(|item| matches!(item.kind, ItemKind::Ginsu(_))))
-    else {
-        return Vec::new();
-    };
     let mut layers = Vec::new();
-    let domain = Domain::Rpm { lo: engine.lo, hi: engine.hi };
-    for item in &engine.items {
-        let layer = match &item.kind {
-            ItemKind::Ginsu(ginsu) => ginsu_layer(bundle, graphs, engine, item, ginsu),
-            ItemKind::Wave(wave) => loop_layer(graphs, samples, item, wave, domain, engine),
-            _ => None,
-        };
-        layers.extend(layer);
+    // A car with no Ginsu voice (the electric one) has the whine loops of its transmission alone: they are its motor.
+    if let Some(engine) = engine_sequence(graphs) {
+        let domain = Domain::Rpm { lo: engine.lo, hi: engine.hi };
+        for item in &engine.items {
+            let layer = match &item.kind {
+                ItemKind::Ginsu(ginsu) => ginsu_layer(bundle, graphs, engine, item, ginsu),
+                ItemKind::Wave(wave) => loop_layer(graphs, samples, item, wave, domain, engine),
+                _ => None,
+            };
+            layers.extend(layer);
+        }
     }
     for whine in graphs.driven_by(WHINE_SPEED).filter(|sequence| sequence.items.len() > 1) {
         for item in &whine.items {
@@ -85,6 +87,21 @@ pub fn build(bundle: &Bundle, graphs: &SoundGraphs, samples: &[Sample]) -> Vec<L
     }
     layers.truncate(MAX_LAYERS);
     layers
+}
+
+/// The sequence of the engine: of the local player's sequences driven by the audible engine speed that hold Ginsu voices (a
+/// car has two sets), the first whose items sound at the bottom of the range. Some cars' first set starts its items above
+/// the bottom of its range and is silent at idle; the other set is not.
+fn engine_sequence(graphs: &SoundGraphs) -> Option<&Sequence> {
+    let mut sets = graphs
+        .driven_by(ENGINE_RPM)
+        .filter(|sequence| sequence.items.iter().any(|item| matches!(item.kind, ItemKind::Ginsu(_))))
+        .peekable();
+    let first = sets.peek().copied()?;
+    let sounds_at_idle = |sequence: &Sequence| {
+        sequence.items.iter().any(|item| matches!(item.kind, ItemKind::Wave(_)) && item.window(sequence.lo) > 0.0)
+    };
+    sets.find(|sequence| sounds_at_idle(sequence)).or(Some(first))
 }
 
 fn ginsu_layer(
@@ -120,7 +137,8 @@ fn loop_layer(
     let sample = samples.iter().find(|sample| wave.waves.first() == Some(&sample.id) && sample.looped)?;
     let gain = [window_curve(item, sequence, domain)?];
     let level = if wave.gain.follows_input() { 1.0 } else { wave.gain.base };
-    let volume = round(level * channel_gain(graphs, wave.mixer));
+    let balance = if matches!(domain, Domain::Speed) { WHINE_BALANCE } else { 1.0 };
+    let volume = round(level * channel_gain(graphs, wave.mixer) * balance);
     let pitch = match (wave.tracks_driver, domain) {
         (true, Domain::Speed) if wave.pitch.base > 0.0 => {
             format!(", pitch = {{ input = \"speed_mph\", reference = {:?} }}", wave.pitch.base)

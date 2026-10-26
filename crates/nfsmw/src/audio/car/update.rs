@@ -61,7 +61,7 @@ impl Audio {
                 load: input.throttle,
                 speed_mph: input.speed.abs() * METRES_PER_SECOND_TO_MPH,
             };
-            own_engine.update_inputs(&inputs, levels.engine_volume * out.accel_volume.max(out.decel_volume));
+            own_engine.update_inputs(&inputs, levels.engine_volume);
         }
         if let Some(handle) = car.handle.as_ref() {
             handle.set_tick(

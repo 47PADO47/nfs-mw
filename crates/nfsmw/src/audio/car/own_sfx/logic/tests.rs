@@ -80,15 +80,15 @@ fn a_backfire_is_likelier_at_high_revs_and_is_followed_by_pops() {
         let mut rng = Rng::new(11);
         (0..4000).filter(|_| lift_off(0.0, rpm_pct, &mut rng).backfire.is_some()).count() as f32 / 4000.0
     };
-    assert!((backfires(0.0) - 0.2).abs() < 0.04, "{}", backfires(0.0));
-    assert!((backfires(1.0) - 0.7).abs() < 0.04, "{}", backfires(1.0));
+    assert!((backfires(0.0) - 0.03).abs() < 0.02, "{}", backfires(0.0));
+    assert!((backfires(1.0) - 0.25).abs() < 0.04, "{}", backfires(1.0));
     let mut rng = Rng::new(5);
     for _ in 0..500 {
         let lift = lift_off(0.0, 0.8, &mut rng);
         if lift.backfire.is_some() {
-            assert!((2..=4).contains(&lift.pops.len()), "{lift:?}");
+            assert!((1..=3).contains(&lift.pops.len()), "{lift:?}");
         }
-        assert!(lift.pops.len() <= 4);
+        assert!(lift.pops.len() <= 3);
         assert!(lift.pops.windows(2).all(|pair| pair[0].delay < pair[1].delay), "{lift:?}");
         assert!(lift.pops.iter().all(|pop| pop.delay >= 0.12 && (0.4..=0.8).contains(&pop.volume)), "{lift:?}");
         assert!(lift.backfire.is_none_or(|volume| (0.5..=1.0).contains(&volume)));
