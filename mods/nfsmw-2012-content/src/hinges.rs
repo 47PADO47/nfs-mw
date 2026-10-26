@@ -12,7 +12,8 @@
 use blackbox_solid::{GroupSource, SolidSource, Vertex};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_vehicle::{
-    HingedPart, Skeleton, SpoilerMotion, Vehicle, attached_motions, body_parts, hinged_parts, spoiler_motion,
+    HingedPart, Skeleton, SpoilerMotion, Vehicle, WingBoneTrack, WingMachine, attached_motions, body_parts,
+    hinged_parts, spoiler_motion, vent_motions, wing_machine,
 };
 
 use crate::fit::{Fit, to_car_space};
@@ -24,6 +25,8 @@ const MAX_STAGES: usize = 8;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hinged {
     pub parts: Vec<Part>,
+    /// The wing machine of the car and the keys of the bones it moves, when it has one (`[wing]`).
+    pub wing: Option<WingMachine>,
     /// For each mesh of the finest body level and each of its triangles, the index into `parts`.
     pub classes: Vec<Vec<Option<usize>>>,
 }
@@ -45,6 +48,10 @@ pub struct Part {
     pub active: Option<SpoilerMotion>,
     /// The name of the part it hangs from (the spoiler, for a flap the spoiler's animation moves).
     pub parent: Option<String>,
+    /// An air vent: the seconds the speed has to stay above the opening speed, and the wait before it closes.
+    pub delay: Option<(f32, f32)>,
+    /// The keys the wing machine's animations give the part.
+    pub tracks: Vec<WingBoneTrack>,
 }
 
 /// The name of the bone of an active spoiler, and the zone code (the rear) it is given when the car has no record of it.
@@ -53,17 +60,25 @@ const REAR_ZONE: u16 = 2;
 /// What an active spoiler weighs when the car's damage object does not say, kg.
 const SPOILER_MASS_KG: f32 = 30.0;
 
+/// A bone that an animation of the car's spoilers or vents moves, with its motion and the part it rides on.
+struct Moving {
+    bone: usize,
+    motion: SpoilerMotion,
+    parent: Option<usize>,
+    delay: Option<(f32, f32)>,
+}
+
 /// Read the hinged parts of the car in `bundle` and classify the triangles of the finest body level of `vehicle`. `None`
 /// when the car has no usable part: no skeleton, no skin, or parts that own no triangle of the finest level.
 pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Option<Hinged> {
     let mut parts = hinged_parts(bundle).ok()?;
     let skeleton = Skeleton::read(bundle)?;
     let motion = spoiler_motion(bundle, &skeleton);
-    let spoiler = motion.and_then(|_| skeleton.find(SPOILER_BONE));
-    // The spoiler and the bones that hang from it and move with it, each with the motion it plays.
-    let mut moving: Vec<(usize, SpoilerMotion, Option<usize>)> = Vec::new();
-    if let (Some(motion), Some(bone)) = (motion, spoiler) {
-        moving.push((bone, motion, None));
+    let machine = wing_machine(bundle, &skeleton);
+    // The spoiler and the other bones its animation moves, each with the motion it plays.
+    let mut moving: Vec<Moving> = Vec::new();
+    if let Some(motion) = motion {
+        moving.push(Moving { bone: motion.bone, motion, parent: None, delay: None });
         for attached in attached_motions(bundle, &skeleton) {
             let own = SpoilerMotion {
                 bone: attached.bone,
@@ -71,15 +86,39 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 rotation: attached.rotation,
                 ..motion
             };
-            moving.push((attached.bone, own, Some(attached.parent)));
+            moving.push(Moving { bone: attached.bone, motion: own, parent: attached.parent, delay: None });
         }
     }
-    for (at, (bone, _, _)) in moving.iter().enumerate() {
+    for vent in vent_motions(bundle, &skeleton) {
+        let delay = Some((vent.open_seconds, vent.close_seconds));
+        moving.push(Moving { bone: vent.motion.bone, motion: vent.motion, parent: None, delay });
+        for attached in &vent.attached {
+            let own = SpoilerMotion {
+                bone: attached.bone,
+                translation: attached.translation,
+                rotation: attached.rotation,
+                ..vent.motion
+            };
+            moving.push(Moving { bone: attached.bone, motion: own, parent: attached.parent, delay });
+        }
+    }
+    let mut vents = 0;
+    for (at, mover) in moving.iter().enumerate() {
+        let bone = &mover.bone;
         if parts.iter().any(|part| part.bone == *bone) {
             continue;
         }
+        let spoiler = skeleton.find(SPOILER_BONE) == Some(*bone);
+        let name = match (spoiler, mover.delay) {
+            (true, _) => SPOILER_BONE.to_owned(),
+            (false, Some(_)) => {
+                vents += 1;
+                format!("AirVent{vents}")
+            }
+            (false, None) => attached_name(&mover.motion, at),
+        };
         parts.push(HingedPart {
-            name: if at == 0 { SPOILER_BONE.to_owned() } else { attached_name(&moving[at].1, at) },
+            name,
             bone: *bone,
             zone: REAR_ZONE,
             centre: skeleton.bones[*bone].position,
@@ -88,7 +127,27 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
             thresholds: Vec::new(),
         });
     }
-    let active_bones: Vec<usize> = moving.iter().map(|(bone, _, _)| *bone).collect();
+    let mut wing_bones: Vec<usize> = machine.iter().flat_map(|m| m.tracks.iter().map(|t| t.bone)).collect();
+    wing_bones.sort_unstable();
+    wing_bones.dedup();
+    let missing: Vec<(usize, usize)> = wing_bones
+        .iter()
+        .copied()
+        .enumerate()
+        .filter(|(_, bone)| parts.iter().all(|part| part.bone != *bone))
+        .collect();
+    for (at, bone) in missing {
+        parts.push(HingedPart {
+            name: format!("Wing{}", at + 1),
+            bone,
+            zone: REAR_ZONE,
+            centre: skeleton.bones[bone].position,
+            limits: [[0.0; 2]; 3],
+            mass_kg: SPOILER_MASS_KG,
+            thresholds: Vec::new(),
+        });
+    }
+    let active_bones: Vec<usize> = moving.iter().map(|mover| mover.bone).chain(wing_bones.iter().copied()).collect();
     let levels = body_parts(pool, spec, &skeleton, &parts).ok()?;
     let finest = levels.into_iter().next()?;
     let body = vehicle.body.first()?;
@@ -99,7 +158,9 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
     }
     let mut counts = vec![0usize; parts.len()];
     finest.iter().flatten().flatten().for_each(|&part| counts[part] += 1);
-    let keep: Vec<usize> = (0..parts.len()).filter(|&at| counts[at] > 0 && usable(&parts[at], &active_bones)).collect();
+    let keep: Vec<usize> = (0..parts.len())
+        .filter(|&at| (counts[at] > 0 || wing_bones.contains(&parts[at].bone)) && usable(&parts[at], &active_bones))
+        .collect();
     if keep.is_empty() {
         return None;
     }
@@ -109,9 +170,12 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
         .into_iter()
         .map(|at| {
             let part = &parts[at];
-            let moves = moving.iter().find(|(bone, _, _)| *bone == part.bone);
-            let parent =
-                moves.and_then(|(_, _, parent)| *parent).and_then(|bone| parts.iter().find(|known| known.bone == bone));
+            let moves = moving.iter().find(|mover| mover.bone == part.bone);
+            let ride = moves.and_then(|mover| mover.parent).or_else(|| {
+                let up = skeleton.bones[part.bone].parent?;
+                wing_bones.contains(&part.bone).then_some(up).filter(|up| wing_bones.contains(up))
+            });
+            let parent = ride.and_then(|bone| parts.iter().find(|known| known.bone == bone));
             Part {
                 name: part.name.clone(),
                 zone: part.zone,
@@ -119,12 +183,14 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 limits: part.limits,
                 thresholds: part.thresholds.clone(),
                 mass_kg: part.mass_kg,
-                active: moves.map(|(_, motion, _)| *motion),
+                active: moves.map(|mover| mover.motion),
+                delay: moves.and_then(|mover| mover.delay),
                 parent: parent.map(|known| label(&known.name)),
+                tracks: machine.iter().flat_map(|m| m.tracks.iter().filter(|t| t.bone == part.bone).cloned()).collect(),
             }
         })
         .collect();
-    Some(Hinged { parts, classes })
+    Some(Hinged { parts, wing: machine, classes })
 }
 
 /// A part the game can play: a zone it knows and a range to swing through, or the active spoiler (`spoiler` is its bone).
@@ -283,7 +349,8 @@ pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
     let mut text = String::new();
     for (part, stem) in hinged.parts.iter().zip(stems) {
         let Some(zones) = zones(part.zone) else { continue };
-        let Some((axis, angle)) = swing(&part.limits).or(part.active.map(|_| (0, 0.0))) else { continue };
+        let still = part.active.is_some() || !part.tracks.is_empty();
+        let Some((axis, angle)) = swing(&part.limits).or(still.then_some((0, 0.0))) else { continue };
         let mut direction = [0.0f32; 3];
         direction[axis] = 1.0;
         let axis = to_car_space(direction);
@@ -307,19 +374,73 @@ pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
             text.push_str(&format!("parent = \"{parent}\"\n"));
         }
         if let Some(motion) = part.active {
-            text.push_str(&active_table(&motion, fit));
+            text.push_str(&active_table(&motion, part.delay, fit));
+        }
+        for track in &part.tracks {
+            text.push_str(&track_table(track, fit));
         }
     }
+    if let Some(machine) = hinged.wing.as_ref().filter(|_| hinged.parts.iter().any(|part| !part.tracks.is_empty())) {
+        text.push_str(&wing_table(machine));
+    }
     text
+}
+
+/// The `[[damage_parts.track]]` table of one animation of a part: the keys in the car's space (the cyclic change of axes
+/// keeps the handedness, so a quaternion carries over with its vector part permuted).
+fn track_table(track: &WingBoneTrack, fit: &Fit) -> String {
+    let slide: Vec<String> = track
+        .translation
+        .iter()
+        .map(|key| {
+            let moved = to_car_space(*key);
+            let [x, y, z] = [0, 1, 2].map(|k| moved[k] * fit.scale[k]);
+            format!("[{x:.5}, {y:.5}, {z:.5}]")
+        })
+        .collect();
+    let turn: Vec<String> = track
+        .rotation
+        .iter()
+        .map(|key| {
+            let [x, y, z] = to_car_space([key[0], key[1], key[2]]);
+            format!("[{x:.6}, {y:.6}, {z:.6}, {:.6}]", key[3])
+        })
+        .collect();
+    format!(
+        "\n[[damage_parts.track]]\nslot = {}\ntranslation = [{}]\nrotation = [{}]\n",
+        track.slot,
+        slide.join(", "),
+        turn.join(", ")
+    )
+}
+
+/// The `[wing]` table: the numbers of the machine the game plays and the length of the five animations.
+fn wing_table(machine: &WingMachine) -> String {
+    let seconds: Vec<String> = machine.seconds.iter().map(|s| format!("{s:.4}")).collect();
+    format!(
+        "\n[wing]\nopen_mph = {:.1}\nbrake_mph = {:.1}\ntop_mph = {:.1}\nbrake_hold_seconds = {:.2}\nfade_seconds = {:.2}\nslot_seconds = [{}]\n",
+        chameleon_vehicle::WING_OPEN_MPH,
+        chameleon_vehicle::WING_BRAKE_MPH,
+        chameleon_vehicle::WING_TOP_MPH,
+        chameleon_vehicle::WING_BRAKE_HOLD_SECONDS,
+        chameleon_vehicle::WING_FADE_SECONDS,
+        seconds.join(", ")
+    )
 }
 
 /// The `[damage_parts.active]` table of a spoiler: its slide in the car's space (the fit scales it with the body), its
 /// turn about the pivot (the cyclic change of axes keeps the handedness, so the axis and the angle carry over), the
 /// speeds and the time. All of them are what the car's data says.
-fn active_table(motion: &SpoilerMotion, fit: &Fit) -> String {
+fn active_table(motion: &SpoilerMotion, delay: Option<(f32, f32)>, fit: &Fit) -> String {
     let moved = to_car_space(motion.translation);
     let offset = [0, 1, 2].map(|k| moved[k] * fit.scale[k]);
     let mut text = String::from("\n[damage_parts.active]\n");
+    if motion.gas {
+        text.push_str("gas = true\n");
+    }
+    if let Some((open, close)) = delay {
+        text.push_str(&format!("open_after_seconds = {open:.2}\nclose_after_seconds = {close:.2}\n"));
+    }
     if offset.iter().any(|c| c.abs() >= 1e-4) {
         text.push_str(&format!("offset = [{:.5}, {:.5}, {:.5}]\n", offset[0], offset[1], offset[2]));
     }

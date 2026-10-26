@@ -38,6 +38,9 @@ mass_kg = 40.0                        # optional: its mass once it is a body of 
 offset = [-0.07, 0.0, 0.02]           # metres at full deployment, in the solids' space
 rotation_axis = [0.0, 1.0, 0.0]       # optional, with rotation_deg: a turn about the part's pivot
 rotation_deg = 30.5                   # degrees at full deployment
+# gas = true                         # optional: only with the gas pedal pressed; releasing it retracts the part
+# open_after_seconds = 3.0            # optional vent: the speed must stay above above_mph this long
+# close_after_seconds = 5.0           # ... and the part closes this long after the speed falls below below_mph
 above_mph = 70.0                      # deploys above this speed
 below_mph = 40.0                      # comes down below this speed (default: above_mph)
 seconds = 0.6                         # the whole movement takes this long
@@ -58,7 +61,13 @@ seconds = 0.6                         # the whole movement takes this long
 
 ### `[damage_parts.active]`
 
-A part may move with the car's speed. `offset` is the way it slides at full deployment (up to 5 m; it may be left out when
+A part may move with the car's speed. With `gas = true` it also needs the gas pedal: it deploys above `above_mph` only while the
+gas is pressed and retracts when it is released (`below_mph` is then usually 0). With `open_after_seconds` and
+`close_after_seconds` (both or neither) it is an **air vent**: it opens once the speed has stayed above `above_mph` for the first,
+plays out, and when the speed falls below `below_mph` it waits the second and then closes, without looking at the speed again
+until it has closed.
+
+A part may instead be moved by a **wing machine** (below). `offset` is the way it slides at full deployment (up to 5 m; it may be left out when
 the part only turns), `rotation_axis` and `rotation_deg` (both or neither) the turn about the part's `pivot` at full
 deployment (a non-zero axis, normalised by the game; up to 180 degrees, not 0), `above_mph` the speed it starts going out
 above, `below_mph` the speed it starts coming back below (not above `above_mph`; between the two it goes on the way it was
@@ -66,6 +75,32 @@ going, so it does not flutter; when they are equal it goes out above the speed a
 long the whole movement takes. An active part moves or turns, not neither. A part with an `active` table may have `angle = 0`:
 the damage then does not turn it, though it still comes off at its release level and in a wreck. Without a `stages` list it
 comes off at the second dent of its zones (default release level 0.5).
+
+### `[wing]` and `[[damage_parts.track]]`
+
+A car with parts that several keyed animations move has a `[wing]` table, the machine that plays five animations (slot 0 to 4)
+over the speed and the brake, and each such part has one `[[damage_parts.track]]` per animation that moves it (not together with
+`[damage_parts.active]`; `parent` works as for active parts):
+
+```toml
+[wing]
+open_mph = 140.0             # animation 0 plays above this speed
+brake_mph = 125.0            # braking above this speed at rest plays animation 1
+top_mph = 200.0              # above this speed animation 4 plays
+brake_hold_seconds = 0.4     # the brake counts once it has been held this long
+fade_seconds = 0.25          # cross-fades between animations
+slot_seconds = [1.5, 3.0, 1.58, 3.0, 1.5]    # the length of each animation
+
+[[damage_parts.track]]
+slot = 0
+translation = [[0.0, 0.0, 0.0], [0.002, 0.184, -0.208]]      # metres at each key, evenly spaced over the animation
+rotation = [[0.0, 0.0, 0.0, 1.0], [0.0, 0.18, 0.0, 0.98]]    # unit quaternion (x, y, z, w) at each key, about the pivot
+```
+
+The machine: slot 0 opens above `open_mph` (and closes below it); braking above `brake_mph` at rest plays slot 1; above `top_mph`
+slot 4 plays; braking with the wing out cross-fades to slot 2 (from the open wing) or slot 3 (from the top-speed wing). A part's
+pose is the blend of the keys of the animations playing (the first replaces it, the second moves it toward its own pose by the
+fade weight; a part with no track in an animation stays at rest there). Keys are absolute poses, 2 to 64 per track.
 
 A wrong value, or a key the table does not know, refuses the car and the log names the key. At most 16 parts per car. The
 schema is checked by `libs/blackbox-modding/src/content/damage_parts.rs`; whether the model exists is checked by the game
@@ -117,9 +152,10 @@ of the 2005 game and play no part here); no sparks or smoke are made when it bre
 
 The cars whose spoiler is a plain speed state (the 911, the 918 Spyder and its Concept Study, the LFA, the SL65, the SLS, the LP700-4 and the Panamera: 10 bundles,
 [chameleon-active-aero.md](../formats/chameleon-active-aero.md)) get one more part, `Spoiler`, with an `active` table whose
-speeds, time, slide and turn are decoded from the 2012 state machine and animation, and no damage turn; the Panamera's two side flaps are parts of their own that hang from it. The cars whose
-machines have timed transitions or other inputs (the air vents, the Agera, the Veyron, the McLaren, the Venom, the Huayra) keep
-that part at rest: what the data does not state is not guessed.
+speeds, time, slide and turn are decoded from the 2012 state machine and animation, and no damage turn; the Panamera's two side
+flaps are parts of their own that hang from it. The Agera's flaps follow the gas (`gas = true`), the air vents of four cars wait
+(`open_after_seconds`, `close_after_seconds`) and the Veyrons' wing is a `[wing]` machine with keyed `track`s. The McLaren, the
+Venom and the Huayra keep their parts at rest: what the data does not state is not guessed.
 
 The [2012 mod](nfsmw-2012-content.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data.
 A 2012 part turns through a few degrees at most, so its stages are small steps. The mod writes the part's own mass and no

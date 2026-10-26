@@ -245,8 +245,13 @@ The cars whose spoiler is a plain speed state (the bone `SpoilerHinge`, 10 bundl
 2013 and Concept Study, LFA, SL65 AMG, SLS AMG, LP700-4 and Panamera Turbo S) get a part `Spoiler` the same way, whether or not their damage object lists
 it, with a `[damage_parts.active]` table decoded from the 2012 state machine and animation: the open and close speeds, the
 time, the slide and the turn ([chameleon-active-aero.md](../formats/chameleon-active-aero.md)); the Panamera's side flaps are
-parts that hang from its spoiler (`parent`). The cars whose machines have timed transitions or other inputs (the air vents,
-the Agera, the Veyron, the McLaren, the Venom, the Huayra) keep that part at rest: what the data does not state is not guessed.
+parts that hang from its spoiler (`parent`). The McLaren, the Venom and the Huayra keep that part at rest: what the data does not state is not guessed.
+
+The **Agera R** gets two flaps that open above 70 mph with the gas pressed (`gas = true`); the **air vents** of the 918 Concept
+Study, the LP700-4, the Marussia B2 and the Aventador J become `AirVentN` parts with the waits of the 2012 timed transitions
+(`open_after_seconds`, `close_after_seconds`); the **Veyron Super Sport and Grand Sport Vitesse** get the `[wing]` machine with
+`WingN` parts (the wing and its arms) carrying the keys of its five animations. A part that only moves the parts below it (a
+bone with no skin of its own) is still written, without a solid, so that its movement carries its children.
 
 On the 911 that is 8 parts, the 7 of its damage object with 12,119 of the 30,908 triangles of the finest body level, and the spoiler; 90 of the 93 cars have parts (the
 SWAT van has no skeleton, and two cars have a skin of all-zero weights). Limits: the coarser body levels (`C`, `D`) are not

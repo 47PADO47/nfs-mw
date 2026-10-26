@@ -39,6 +39,9 @@ pub struct VehicleEvents {
     pub hidden_slots: BTreeSet<usize>,
     /// How far each hinged part of a mod car that moves with the speed is deployed (one per hinged part).
     pub deployment: Vec<nfsmw_data::car::mods::hinged::Deployment>,
+    /// The state of the car's wing machine and what it plays now (`[wing]`).
+    pub wing: nfsmw_data::car::mods::hinged::WingState,
+    pub wing_blend: Option<nfsmw_data::car::mods::hinged::Blend>,
     pub spawned: BTreeSet<u32>,
     /// Child models live until their original parent is destroyed, independently of scenery tiles.
     pub owner: Rc<()>,
@@ -84,6 +87,8 @@ impl VehicleEvents {
             failed: false,
             hidden_slots: BTreeSet::new(),
             deployment: Vec::new(),
+            wing: Default::default(),
+            wing_blend: None,
             spawned: BTreeSet::new(),
             owner: Rc::new(()),
             damage: Damage::new(DAMAGE_ZONES.len()),
@@ -108,6 +113,7 @@ impl VehicleEvents {
         for (part, deployed) in self.deployment.iter().enumerate() {
             slots.extend(nfsmw_data::car::mods::hinged::deploy_mark(part, deployed.amount));
         }
+        slots.extend(self.wing_blend.and_then(|blend| blend.mark()));
         slots
     }
 

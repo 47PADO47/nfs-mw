@@ -81,8 +81,10 @@ fn the_manifest_table_carries_the_swing_in_car_space() {
         mass_kg: 50.0,
         active: None,
         parent: None,
+        delay: None,
+        tracks: Vec::new(),
     };
-    let hinged = Hinged { parts: vec![part], classes: Vec::new() };
+    let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
     let text = manifest_tables(&hinged, &["CAR_KIT00_BONNET".into()], &Fit::own(layout));
     let table: toml::Table = toml::from_str(&text).unwrap();
     let entry = &table["damage_parts"][0];
@@ -108,6 +110,7 @@ fn an_active_spoiler_writes_its_movement_and_needs_no_damage_swing() {
         seconds: 0.612,
         above_mph: 70.0,
         below_mph: 40.0,
+        gas: false,
     };
     let part = Part {
         name: "SpoilerHinge".into(),
@@ -118,8 +121,10 @@ fn an_active_spoiler_writes_its_movement_and_needs_no_damage_swing() {
         mass_kg: 30.0,
         active: Some(motion),
         parent: None,
+        delay: None,
+        tracks: Vec::new(),
     };
-    let hinged = Hinged { parts: vec![part.clone()], classes: Vec::new() };
+    let hinged = Hinged { parts: vec![part.clone()], wing: None, classes: Vec::new() };
     let text = manifest_tables(&hinged, &["CAR_KIT00_SPOILER".into()], &Fit::own(layout));
     let table: toml::Table = toml::from_str(&text).unwrap();
     let entry = &table["damage_parts"][0];
@@ -134,7 +139,7 @@ fn an_active_spoiler_writes_its_movement_and_needs_no_damage_swing() {
     assert_eq!((active["above_mph"].as_float(), active["below_mph"].as_float()), (Some(70.0), Some(40.0)));
     assert_eq!(active["seconds"].as_float(), Some(0.612));
     // Without a movement, a part with no swing is not written at all.
-    let still = Hinged { parts: vec![Part { active: None, ..part }], classes: Vec::new() };
+    let still = Hinged { parts: vec![Part { active: None, ..part }], wing: None, classes: Vec::new() };
     assert!(manifest_tables(&still, &["CAR_KIT00_SPOILER".into()], &Fit::own(layout)).is_empty());
 }
 
@@ -163,6 +168,7 @@ fn a_flap_is_named_by_the_side_it_moves_to() {
         seconds: 1.0,
         above_mph: 70.0,
         below_mph: 50.0,
+        gas: false,
     };
     assert_eq!(attached_name(&motion([0.142, -0.009, 0.0]), 1), "SpoilerFlapLeft");
     assert_eq!(attached_name(&motion([-0.144, -0.009, 0.0]), 2), "SpoilerFlapRight");
@@ -180,6 +186,7 @@ fn the_manifest_names_the_part_a_flap_hangs_from() {
         seconds: 3.0,
         above_mph: 70.0,
         below_mph: 50.0,
+        gas: false,
     };
     let part = Part {
         name: "SpoilerFlapLeft".into(),
@@ -190,8 +197,10 @@ fn the_manifest_names_the_part_a_flap_hangs_from() {
         mass_kg: 30.0,
         active: Some(motion),
         parent: Some("Spoiler".into()),
+        delay: None,
+        tracks: Vec::new(),
     };
-    let hinged = Hinged { parts: vec![part], classes: Vec::new() };
+    let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
     let text = manifest_tables(&hinged, &["CAR_KIT00_SPOILER_FLAP_LEFT".into()], &Fit::own(layout));
     let table: toml::Table = toml::from_str(&text).unwrap();
     assert_eq!(table["damage_parts"][0]["parent"].as_str(), Some("Spoiler"));
@@ -214,4 +223,66 @@ fn the_panamera_has_a_spoiler_with_two_flaps_that_hang_from_it() {
         .collect();
     assert_eq!(active.len(), 3, "{active:?}");
     assert_eq!(active.iter().filter(|(_, parent)| *parent == Some("Spoiler")).count(), 2, "{active:?}");
+}
+
+fn layout() -> crate::fit::Layout {
+    crate::fit::Layout { wheelbase: 2.6, x_mid: 0.0, track: 0.8, hub_z: 0.35, radius: 0.35 }
+}
+
+/// The hinged parts of the car `number` of the 2012 install and the manifest tables the converter writes for them.
+fn manifest_of(number: u32) -> Option<(Hinged, blackbox_modding::content::CarManifest)> {
+    let dir = std::env::var_os("MW2012_GAME_DIR")?;
+    let source = crate::source::Source::open(std::path::Path::new(&dir)).unwrap();
+    let file = source.cars().iter().find(|car| car.number == number).unwrap();
+    let car = source.load(file).unwrap();
+    let hinged = car.hinged?;
+    let stems: Vec<String> = hinged.parts.iter().map(|part| format!("CAR_KIT00_{}", stem(&part.name))).collect();
+    let text = manifest_tables(&hinged, &stems, &Fit::own(layout()));
+    let manifest = blackbox_modding::content::parse_car("CAR", &text).unwrap_or_else(|e| panic!("{e}\n{text}"));
+    Some((hinged, manifest))
+}
+
+#[test]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+fn the_veyron_writes_a_wing_with_five_animations_that_the_game_accepts() {
+    let Some((hinged, manifest)) = manifest_of(122692) else { return };
+    let wing = manifest.wing.expect("the wing machine");
+    assert_eq!(
+        (wing.open_mph, wing.brake_mph, wing.top_mph, wing.brake_hold_seconds, wing.fade_seconds),
+        (140.0, 125.0, 200.0, 0.4, 0.25)
+    );
+    assert!(wing.slot_seconds.iter().all(|s| *s > 1.0), "{:?}", wing.slot_seconds);
+    let tracked: Vec<usize> =
+        manifest.damage_parts.iter().map(|part| part.tracks.len()).filter(|tracks| *tracks > 0).collect();
+    assert_eq!(
+        tracked,
+        vec![5, 4, 4, 5],
+        "the wing and its three arms, with a key set for each animation that moves them"
+    );
+    assert_eq!(tracked.len(), hinged.parts.iter().filter(|part| !part.tracks.is_empty()).count());
+    assert!(manifest.damage_parts.iter().any(|part| part.parent.is_some()), "the arms hang from the wing");
+}
+
+#[test]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+fn the_agera_follows_the_gas_and_moves_two_flaps() {
+    let Some((_, manifest)) = manifest_of(589261) else { return };
+    let active: Vec<_> = manifest.damage_parts.iter().filter_map(|part| part.active).collect();
+    assert_eq!(active.len(), 2, "two flaps");
+    assert!(active.iter().all(|a| a.gas && a.above_mph == 70.0 && a.below_mph == 0.0));
+}
+
+#[test]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+fn the_air_vents_write_their_waits_and_the_game_accepts_them() {
+    let Some((_, marussia)) = manifest_of(1551590) else { return };
+    let vents: Vec<_> = marussia.damage_parts.iter().filter_map(|part| part.active).collect();
+    assert!(vents.len() >= 2, "{} vents", vents.len());
+    assert!(vents.iter().all(|a| a.delay == Some((3.0, 5.0)) && a.above_mph == 120.0 && a.below_mph == 100.0));
+    let Some((_, concept)) = manifest_of(1085830) else { return };
+    let waits: Vec<_> = concept.damage_parts.iter().filter_map(|part| part.active).map(|a| a.delay.is_some()).collect();
+    assert!(
+        waits.contains(&true) && waits.contains(&false),
+        "the spoiler follows the speed, the vents wait: {waits:?}"
+    );
 }

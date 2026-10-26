@@ -16,8 +16,10 @@ use crate::car::{LodAssembly, Placement};
 
 mod active;
 mod debris;
+mod wing;
 pub use active::{Active, Deployment, MPS_TO_MPH, deploy_in, deploy_mark};
 pub use debris::{DEBRIS_SOUND, Motion, Parent, debris_bounds, debris_dynamics, debris_motion, part_axis, part_frame};
+pub use wing::{Blend, SLOTS, Sample, Wing, WingState, WingTrack};
 
 /// The first slot number of the hinged parts: part `n` of a car is slot `HINGED_SLOT + n`. The slots of the parts
 /// database end at 135, so these never meet one.
@@ -51,9 +53,21 @@ pub struct Hinge {
     pub mass_kg: f32,
     /// How the part moves with the car's speed (an active spoiler), if it does.
     pub active: Option<Active>,
-    /// The speed movements of the parts it hangs from, outermost first, each with its part's pivot: they carry the part
-    /// along with the same deployment before its own movement.
-    pub ancestors: Vec<(Active, [f32; 3])>,
+    /// The movements of the parts it hangs from, outermost first: they carry the part along with the same deployment (or the
+    /// same wing blend) before its own movement.
+    pub ancestors: Vec<Ancestor>,
+    /// The keyed animations that move the part, when a wing machine does (`[wing]`).
+    pub tracks: Vec<WingTrack>,
+    /// The wing machine of the car (the same on every part it moves).
+    pub wing: Option<Wing>,
+}
+
+/// A part a hinged part hangs from, as far as its movement goes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ancestor {
+    pub active: Option<Active>,
+    pub tracks: Vec<WingTrack>,
+    pub pivot: [f32; 3],
 }
 
 /// How a hinged part stands for some damage.
@@ -111,13 +125,24 @@ impl Hinge {
     /// Where the part stands in the car's solid space: moved by its active movement at `amount` of its deployment, then
     /// turned by `degrees` about its hinge line.
     pub fn transform(&self, degrees: f32, amount: f32) -> Mat4 {
-        let pivot = Vec3::from_array(self.pivot);
+        self.transform_with(degrees, amount, None)
+    }
+
+    /// [`Hinge::transform`] with the wing machine's `blend`, for a part that its animations move.
+    pub fn transform_with(&self, degrees: f32, amount: f32, blend: Option<&Blend>) -> Mat4 {
+        let motion = |active: Option<&Active>, tracks: &[WingTrack], pivot: [f32; 3]| {
+            let pivot = Vec3::from_array(pivot);
+            match (active, blend) {
+                (Some(active), _) => active.motion(pivot, amount),
+                (None, Some(blend)) if !tracks.is_empty() => blend.pose(tracks).matrix(pivot),
+                _ => Mat4::IDENTITY,
+            }
+        };
         let carried: Mat4 = self
             .ancestors
             .iter()
-            .fold(Mat4::IDENTITY, |chain, (active, at)| chain * active.motion(Vec3::from_array(*at), amount));
-        let moved = self.active.map_or(Mat4::IDENTITY, |active| active.motion(pivot, amount));
-        self.turn(degrees) * carried * moved
+            .fold(Mat4::IDENTITY, |chain, up| chain * motion(up.active.as_ref(), &up.tracks, up.pivot));
+        self.turn(degrees) * carried * motion(self.active.as_ref(), &self.tracks, self.pivot)
     }
 
     /// The transform of the part turned by `degrees` about its hinge line, in the car's solid space.
@@ -232,6 +257,8 @@ mod tests {
             mass_kg: 40.0,
             active: None,
             ancestors: Vec::new(),
+            tracks: Vec::new(),
+            wing: None,
         }
     }
 
@@ -289,7 +316,15 @@ mod tests {
 
     #[test]
     fn an_active_part_is_moved_before_it_is_turned() {
-        let active = Active { offset: [0.0, 0.0, 1.0], rotation: None, above_mph: 70.0, below_mph: 40.0, seconds: 0.6 };
+        let active = Active {
+            offset: [0.0, 0.0, 1.0],
+            rotation: None,
+            above_mph: 70.0,
+            below_mph: 40.0,
+            seconds: 0.6,
+            gas: false,
+            delay: None,
+        };
         let hinge = Hinge { pivot: [1.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], active: Some(active), ..bonnet() };
         assert_eq!(hinge.transform(0.0, 0.0), Mat4::IDENTITY);
         let up = hinge.transform(0.0, 1.0).transform_point3(Vec3::ZERO);
@@ -301,9 +336,21 @@ mod tests {
 
     #[test]
     fn a_part_rides_on_the_movement_of_the_part_it_hangs_from() {
-        let wing = Active { offset: [0.0, 0.0, 1.0], rotation: None, above_mph: 70.0, below_mph: 40.0, seconds: 0.6 };
+        let wing = Active {
+            offset: [0.0, 0.0, 1.0],
+            rotation: None,
+            above_mph: 70.0,
+            below_mph: 40.0,
+            seconds: 0.6,
+            gas: false,
+            delay: None,
+        };
         let flap = Active { offset: [0.0, 0.5, 0.0], ..wing };
-        let hinge = Hinge { active: Some(flap), ancestors: vec![(wing, [0.0; 3])], ..bonnet() };
+        let hinge = Hinge {
+            active: Some(flap),
+            ancestors: vec![Ancestor { active: Some(wing), tracks: Vec::new(), pivot: [0.0; 3] }],
+            ..bonnet()
+        };
         let moved = hinge.transform(0.0, 1.0).transform_point3(Vec3::ZERO);
         assert!((moved - Vec3::new(0.0, 0.5, 1.0)).length() < 1e-6, "the wing's lift and the flap's slide: {moved:?}");
         let half = hinge.transform(0.0, 0.5).transform_point3(Vec3::ZERO);

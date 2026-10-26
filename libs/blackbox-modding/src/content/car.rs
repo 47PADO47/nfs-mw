@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use super::cop::{self, CopClass, CopWave};
 use super::customization::{self, Customization};
-use super::damage_parts::{self, DamagePart};
+use super::damage_parts::{self, DamagePart, Wing};
 use super::engine_sound::{self, CarEffects, EngineSound};
 use super::stats::{self, Stats};
 use super::wheels::{self, WheelLayout};
@@ -65,6 +65,8 @@ pub struct CarManifest {
     pub damage_parts: Vec<DamagePart>,
     /// Where the car's model has its tyres (`[wheels]`), `None` to draw the wheels from `[stats]`.
     pub wheels: Option<WheelLayout>,
+    /// The machine that plays the keyed animations of the parts with tracks (`[wing]`).
+    pub wing: Option<Wing>,
 }
 
 /// The file as serde reads it. Unknown keys are an error, so a key the game does not support (an `[override]`
@@ -95,6 +97,7 @@ struct Raw {
     damage_parts: Option<Vec<damage_parts::Raw>>,
     #[serde(default)]
     wheels: Option<wheels::Raw>,
+    wing: Option<damage_parts::RawWing>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -141,6 +144,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     let car_sound = engine_sound::check_effects(raw.car_sound)?;
     let damage_parts = damage_parts::check(raw.damage_parts)?;
     let wheels = wheels::check(raw.wheels)?;
+    let wing = damage_parts::check_wing(raw.wing, &damage_parts)?;
     Ok(CarManifest {
         id: stem.to_ascii_uppercase(),
         role,
@@ -155,6 +159,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
         car_sound,
         damage_parts,
         wheels,
+        wing,
     })
 }
 

@@ -70,7 +70,7 @@ fn publish_hinges(mods: &[ModDir], car: &car_mods::ModCar) {
         }
         let Ok(text) = std::fs::read_to_string(&path) else { return };
         let Ok(manifest) = parse_car(stem, &text) else { return };
-        hinged::publish(&car.folder, hinges_of(&manifest.damage_parts));
+        hinged::publish(&car.folder, hinges_of(&manifest.damage_parts, manifest.wing.as_ref()));
         if let Some(layout) = &manifest.wheels {
             wheel_layout::publish(&car.folder, wheel_layout_of(layout));
         }
@@ -80,14 +80,20 @@ fn publish_hinges(mods: &[ModDir], car: &car_mods::ModCar) {
 
 /// The manifest's `[[damage_parts]]` as the game's hinged parts; a part that hangs from another carries that part's
 /// movement (the manifest check puts the parent before the child).
-fn hinges_of(parts: &[blackbox_modding::content::DamagePart]) -> Vec<hinged::Hinge> {
+fn hinges_of(
+    parts: &[blackbox_modding::content::DamagePart],
+    wing: Option<&blackbox_modding::content::Wing>,
+) -> Vec<hinged::Hinge> {
     let mut out: Vec<hinged::Hinge> = Vec::with_capacity(parts.len());
     for part in parts {
         let mut hinge = hinge_of(part);
+        if !part.tracks.is_empty() {
+            hinge.wing = wing.map(wing_of);
+        }
         let parent = part.parent.as_ref().and_then(|name| out.iter().find(|known| known.name == *name));
         if let Some(parent) = parent {
-            let own = parent.active.map(|active| (active, parent.pivot));
-            hinge.ancestors = parent.ancestors.iter().copied().chain(own).collect();
+            let own = hinged::Ancestor { active: parent.active, tracks: parent.tracks.clone(), pivot: parent.pivot };
+            hinge.ancestors = parent.ancestors.iter().cloned().chain(Some(own)).collect();
         }
         out.push(hinge);
     }
@@ -104,6 +110,18 @@ fn wheel_layout_of(layout: &blackbox_modding::content::WheelLayout) -> wheel_lay
         width: tyre.width_m,
     };
     wheel_layout::WheelLayout { front: tyre(&layout.front), rear: tyre(&layout.rear) }
+}
+
+/// The manifest's `[wing]` as the game's wing machine.
+fn wing_of(wing: &blackbox_modding::content::Wing) -> hinged::Wing {
+    hinged::Wing {
+        open_mph: wing.open_mph,
+        brake_mph: wing.brake_mph,
+        top_mph: wing.top_mph,
+        brake_hold: wing.brake_hold_seconds,
+        fade: wing.fade_seconds,
+        seconds: wing.slot_seconds,
+    }
 }
 
 /// A manifest's `[[damage_parts]]` entry as the game's hinged part.
@@ -125,8 +143,20 @@ fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
             above_mph: active.above_mph,
             below_mph: active.below_mph,
             seconds: active.seconds,
+            gas: active.gas,
+            delay: active.delay,
         }),
         ancestors: Vec::new(),
+        tracks: part
+            .tracks
+            .iter()
+            .map(|track| hinged::WingTrack {
+                slot: track.slot,
+                translation: track.translation.clone(),
+                rotation: track.rotation.clone(),
+            })
+            .collect(),
+        wing: None,
     }
 }
 

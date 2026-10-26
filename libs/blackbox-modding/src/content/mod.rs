@@ -42,7 +42,8 @@ pub use car::{CarManifest, Role, parse as parse_car};
 pub use cop::{CopClass, CopWave, DEFAULT_CHANCE, DEFAULT_COUNT, MAX_CHANCE, MAX_COUNT};
 pub use customization::{Customization, Finish, Livery, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
 pub use damage_parts::{
-    Active as ActivePart, DEFAULT_MASS_KG, DamagePart, MAX_DAMAGE_PARTS, MAX_STAGES, Zone as DamageZone,
+    Active as ActivePart, DEFAULT_MASS_KG, DamagePart, MAX_DAMAGE_PARTS, MAX_STAGES, Track as WingTrack, WING_SLOTS,
+    Wing, Zone as DamageZone,
 };
 pub use engine_curves::{
     Curve as EngineCurve, Input as EngineInput, LayerKind as EngineLayerKind, Pitch as EnginePitch,

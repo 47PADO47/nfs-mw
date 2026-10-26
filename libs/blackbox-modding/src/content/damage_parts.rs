@@ -96,6 +96,45 @@ pub struct Active {
     pub below_mph: f32,
     /// How long the whole movement takes, seconds.
     pub seconds: f32,
+    /// The throttle matters: the part deploys only while the gas is pressed (above `above_mph`) and retracts when the gas
+    /// is released; the speed alone does not retract it (`below_mph` is then 0).
+    pub gas: bool,
+    /// An air vent: `(open_after, close_after)` in seconds. It opens once the speed has stayed above `above_mph` for the first,
+    /// then plays out; when the speed falls below `below_mph` it waits the second and then closes, without looking at the
+    /// speed again until it has closed. `None`: it follows the speed at once.
+    pub delay: Option<(f32, f32)>,
+}
+
+/// Animations a wing machine plays.
+pub const WING_SLOTS: usize = 5;
+/// Most keys of a track.
+const MAX_KEYS: usize = 64;
+
+/// A wing machine (`[wing]`): the numbers of the machine that plays a car's five keyed animations over its speed and brake.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Wing {
+    /// The wing opens above this speed (animation 0), mph.
+    pub open_mph: f32,
+    /// The brake opens it at rest above this speed (animation 1), mph.
+    pub brake_mph: f32,
+    /// Above this speed it opens further (animation 4), mph.
+    pub top_mph: f32,
+    /// The brake counts once it has been held this long, seconds.
+    pub brake_hold_seconds: f32,
+    /// How long the cross-fades take, seconds.
+    pub fade_seconds: f32,
+    /// The length of each animation, seconds.
+    pub slot_seconds: [f32; WING_SLOTS],
+}
+
+/// The keys of one animation of a part: its slide and its turn at keys spread evenly over the animation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Track {
+    pub slot: usize,
+    /// The slide at each key, in the car solid space, metres.
+    pub translation: Vec<[f32; 3]>,
+    /// The turn at each key as a quaternion (x, y, z, w) in the same space, about the part pivot.
+    pub rotation: Vec<[f32; 4]>,
 }
 
 /// A checked `[[damage_parts]]` entry.
@@ -127,6 +166,8 @@ pub struct DamagePart {
     /// The name of the part it hangs from (an earlier one that moves with the speed): its movement rides on the parent's.
     /// Only for a part that moves with the speed itself.
     pub parent: Option<String>,
+    /// The animations of the car wing machine that move the part (`[[damage_parts.track]]`), empty for none.
+    pub tracks: Vec<Track>,
 }
 
 #[derive(Deserialize)]
@@ -142,6 +183,31 @@ struct RawActive {
     #[serde(default)]
     below_mph: Option<f32>,
     seconds: f32,
+    #[serde(default)]
+    gas: bool,
+    #[serde(default)]
+    open_after_seconds: Option<f32>,
+    #[serde(default)]
+    close_after_seconds: Option<f32>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct RawTrack {
+    slot: usize,
+    translation: Vec<[f32; 3]>,
+    rotation: Vec<[f32; 4]>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct RawWing {
+    open_mph: f32,
+    brake_mph: f32,
+    top_mph: f32,
+    brake_hold_seconds: f32,
+    fade_seconds: f32,
+    slot_seconds: [f32; WING_SLOTS],
 }
 
 #[derive(Deserialize)]
@@ -165,6 +231,8 @@ pub(super) struct Raw {
     active: Option<RawActive>,
     #[serde(default)]
     parent: Option<String>,
+    #[serde(default)]
+    track: Vec<RawTrack>,
 }
 
 fn field(reason: &'static str) -> ContentError {
@@ -191,11 +259,13 @@ pub(super) fn check(raw: Option<Vec<Raw>>) -> Result<Vec<DamagePart>, ContentErr
         if parts.iter().any(|known| known.name == part.name) {
             return Err(field("two parts have the same name"));
         }
+        let moves = |part: &DamagePart| part.active.is_some() || !part.tracks.is_empty();
         if let Some(parent) = &part.parent {
-            let hangs =
-                part.active.is_some() && parts.iter().any(|known| known.name == *parent && known.active.is_some());
+            let hangs = moves(&part) && parts.iter().any(|known| known.name == *parent && moves(known));
             if !hangs {
-                return Err(field("a parent is an earlier part that moves with the speed, for a part that does too"));
+                return Err(field(
+                    "a parent is an earlier part that moves with the speed or the wing, for a part that does too",
+                ));
             }
         }
         parts.push(part);
@@ -251,6 +321,13 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
         return Err(field("mass_kg is from 0.5 to 5000"));
     }
     let active = raw.active.map(check_active).transpose()?;
+    let tracks = raw.track.into_iter().map(check_track).collect::<Result<Vec<_>, _>>()?;
+    if active.is_some() && !tracks.is_empty() {
+        return Err(field("a part moves with the speed (active) or with the wing (track), not both"));
+    }
+    if (0..WING_SLOTS).any(|slot| tracks.iter().filter(|track| track.slot == slot).count() > 1) {
+        return Err(field("a part has one track per wing animation"));
+    }
     let stages = if raw.stages.is_empty() { vec![0.0] } else { raw.stages };
     let axis = raw.axis.map(|c| c / length);
     Ok(DamagePart {
@@ -266,6 +343,7 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
         mass_kg,
         active,
         parent: raw.parent.map(|name| name.trim().to_owned()),
+        tracks,
     })
 }
 
@@ -285,7 +363,25 @@ fn check_active(raw: RawActive) -> Result<Active, ContentError> {
     if !raw.seconds.is_finite() || !(SECONDS_RANGE.0..=SECONDS_RANGE.1).contains(&raw.seconds) {
         return Err(field("an active movement takes 0.05 to 10 seconds"));
     }
-    Ok(Active { offset: raw.offset, rotation, above_mph: raw.above_mph, below_mph, seconds: raw.seconds })
+    let delay = match (raw.open_after_seconds, raw.close_after_seconds) {
+        (None, None) => None,
+        (Some(open), Some(close)) if [open, close].iter().all(|v| v.is_finite() && (0.0..=60.0).contains(v)) => {
+            Some((open, close))
+        }
+        _ => return Err(field("open_after_seconds and close_after_seconds come together, 0 to 60 seconds")),
+    };
+    if delay.is_some() && raw.gas {
+        return Err(field("a vent that waits does not follow the gas"));
+    }
+    Ok(Active {
+        offset: raw.offset,
+        rotation,
+        above_mph: raw.above_mph,
+        below_mph,
+        seconds: raw.seconds,
+        gas: raw.gas,
+        delay,
+    })
 }
 
 /// The turn of an active part: both of `rotation_axis` and `rotation_deg` or none of them.
@@ -303,4 +399,58 @@ fn check_rotation(axis: Option<[f32; 3]>, degrees: Option<f32>) -> Result<Option
         return Err(field("rotation_deg is a turn of up to 180 degrees, not 0"));
     }
     Ok(Some((axis.map(|c| c / length), degrees)))
+}
+
+fn check_track(raw: RawTrack) -> Result<Track, ContentError> {
+    if raw.slot >= WING_SLOTS {
+        return Err(field("a track slot is 0 to 4"));
+    }
+    let keys = raw.translation.len();
+    if !(2..=MAX_KEYS).contains(&keys) || raw.rotation.len() != keys {
+        return Err(field("a track has 2 to 64 keys, a slide and a turn for each"));
+    }
+    if raw.translation.iter().flatten().any(|c| !c.is_finite() || c.abs() > MAX_TRAVEL) {
+        return Err(field("a track slides up to 5 m"));
+    }
+    let unit =
+        |q: &[f32; 4]| q.iter().all(|c| c.is_finite()) && (q.iter().map(|c| c * c).sum::<f32>() - 1.0).abs() < 0.05;
+    if !raw.rotation.iter().all(unit) {
+        return Err(field("track turns are unit quaternions (x, y, z, w)"));
+    }
+    Ok(Track { slot: raw.slot, translation: raw.translation, rotation: raw.rotation })
+}
+
+/// Check the `[wing]` table against the parts: a car with tracks needs it, and it needs tracks.
+pub(super) fn check_wing(raw: Option<RawWing>, parts: &[DamagePart]) -> Result<Option<Wing>, ContentError> {
+    let tracked = parts.iter().any(|part| !part.tracks.is_empty());
+    let Some(raw) = raw else {
+        return match tracked {
+            true => Err(field("a part with tracks needs a [wing] table")),
+            false => Ok(None),
+        };
+    };
+    if !tracked {
+        return Err(field("a [wing] table needs a part with tracks"));
+    }
+    let speeds = [raw.brake_mph, raw.open_mph, raw.top_mph];
+    if speeds.iter().any(|v| !v.is_finite() || !(0.0..=MAX_MPH).contains(v)) || speeds.windows(2).any(|w| w[0] > w[1]) {
+        return Err(field(
+            "wing speeds are 0 to 500 mph with brake_mph not above open_mph and open_mph not above top_mph",
+        ));
+    }
+    let times = [raw.brake_hold_seconds, raw.fade_seconds];
+    if times.iter().any(|v| !v.is_finite() || !(0.0..=10.0).contains(v)) || raw.fade_seconds <= 0.0 {
+        return Err(field("a wing brake hold is 0 to 10 seconds and its fade above 0"));
+    }
+    if raw.slot_seconds.iter().any(|v| !v.is_finite() || !(SECONDS_RANGE.0..=60.0).contains(v)) {
+        return Err(field("a wing animation takes 0.05 to 60 seconds"));
+    }
+    Ok(Some(Wing {
+        open_mph: raw.open_mph,
+        brake_mph: raw.brake_mph,
+        top_mph: raw.top_mph,
+        brake_hold_seconds: raw.brake_hold_seconds,
+        fade_seconds: raw.fade_seconds,
+        slot_seconds: raw.slot_seconds,
+    }))
 }

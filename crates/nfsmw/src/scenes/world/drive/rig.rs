@@ -299,7 +299,9 @@ impl CarRig {
             };
             let local = match self.hinge_pose(placement.slot, revealed) {
                 Some((_, Pose::Gone, _)) => continue,
-                Some((hinge, Pose::Turned(degrees), amount)) => hinge.transform(degrees, amount) * local,
+                Some((hinge, Pose::Turned(degrees), amount)) => {
+                    hinge.transform_with(degrees, amount, hinged::Blend::from_marks(revealed).as_ref()) * local
+                }
                 None => local,
             };
             out.push(Instance::keyed(part.lamps[state], world * local, keys::car_part(car, part.key)));
