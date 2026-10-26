@@ -103,10 +103,10 @@ impl Blend {
             .first
             .and_then(|(slot, fraction)| track(slot).map(|track| track.sample(fraction)))
             .unwrap_or(Sample::REST);
-        if let Some((slot, fraction, weight)) = self.second {
-            if let Some(track) = track(slot) {
-                pose = pose.toward(&track.sample(fraction), weight);
-            }
+        if let Some((track, fraction, weight)) =
+            self.second.and_then(|(slot, fraction, weight)| Some((track(slot)?, fraction, weight)))
+        {
+            pose = pose.toward(&track.sample(fraction), weight);
         }
         pose
     }

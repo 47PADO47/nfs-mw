@@ -269,7 +269,10 @@ fn movement(block: &[u8], bone: usize) -> Option<([f32; 3], [f32; 4], f32)> {
 
 /// The keys of a bone in an animation: its absolute slide and turn at each key, and the animation's length in seconds.
 /// `None` for a bone the animation does not move.
-pub(crate) fn key_poses(block: &[u8], bone: usize) -> Option<(Vec<[f32; 3]>, Vec<[f32; 4]>, f32)> {
+/// The absolute slides, the absolute turns and the length in seconds of a bone's keys.
+pub(crate) type BoneKeys = (Vec<[f32; 3]>, Vec<[f32; 4]>, f32);
+
+pub(crate) fn key_poses(block: &[u8], bone: usize) -> Option<BoneKeys> {
     let seconds = f32::from_bits(word(block, DURATION_AT)?);
     let format = half(block, FORMAT_AT)?;
     let (keys, bones) = (word(block, KEYS_AT)? as usize, word(block, BONES_AT)? as usize);

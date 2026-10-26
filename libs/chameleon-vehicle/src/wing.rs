@@ -89,6 +89,6 @@ mod tests {
     fn the_five_states_are_in_the_order_of_the_machines_clocks() {
         assert_eq!(SLOT_STATES[0], "Handling Anim");
         assert_eq!(SLOT_STATES[4], "Top Speed Anim");
-        assert!(OPEN_MPH > BRAKE_MPH && TOP_MPH > OPEN_MPH);
+        const { assert!(OPEN_MPH > BRAKE_MPH && TOP_MPH > OPEN_MPH) };
     }
 }

@@ -357,15 +357,15 @@ mod tests {
                 put(b, at + 4 * k, v);
             }
         };
-        record(&mut b, 0x30, MACHINE, 0x1000_00, 0x200, 0, 0x300);
-        record(&mut b, 0x50, CONDITION, 0x1000_02, 0, 0x100, 0x310);
-        record(&mut b, 0x70, STATE, 0x1000_04, if waits { 0x230 } else { 0 }, 0x170, 0x320);
+        record(&mut b, 0x30, MACHINE, 0x0010_0000, 0x200, 0, 0x300);
+        record(&mut b, 0x50, CONDITION, 0x0010_0002, 0, 0x100, 0x310);
+        record(&mut b, 0x70, STATE, 0x0010_0004, if waits { 0x230 } else { 0 }, 0x170, 0x320);
         // The machine's children: the condition, then the state.
-        for (k, id) in [0x1000_02u32, 0x1000_04].into_iter().enumerate() {
+        for (k, id) in [0x0010_0002u32, 0x0010_0004].into_iter().enumerate() {
             put(&mut b, 0x200 + 16 * k, id);
         }
         if waits {
-            put(&mut b, 0x230, 0x1000_02);
+            put(&mut b, 0x230, 0x0010_0002);
         }
         // The condition's property table: one object row at 0x100, its object at 0x120 (3 rows), strings at 0x340.
         put(&mut b, 0x100, 0xff05_55c0);
