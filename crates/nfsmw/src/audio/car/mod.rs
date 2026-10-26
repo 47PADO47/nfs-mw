@@ -355,6 +355,8 @@ impl Audio {
 }
 
 #[cfg(test)]
+mod measure;
+#[cfg(test)]
 mod regression_tests;
 #[cfg(test)]
 mod routing_tests;
