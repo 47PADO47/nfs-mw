@@ -1,4 +1,5 @@
-//! From a car type to its sound set: `pvehicle` -> `engineaudio`, `shiftpattern`, `turbosfx`, `acceltrans`.
+//! From a car type to its sound set: `pvehicle` -> `engineaudio`, `shiftpattern`, `turbosfx`, `acceltrans`. A car
+//! that has no `pvehicle` record (a car a mod adds) gets the class-wide defaults instead ([`generic_car_sound`]).
 //! Rules: `docs/specs/engine-sound.md` §2.
 
 use anyhow::{Context, Result};
@@ -61,8 +62,6 @@ impl CarSound {
 /// The sound set of car type `type_name` (`BMWM3GTR`, any case) at the given upgrade levels, from `db`
 /// (`attributes.bin`).
 pub fn car_sound(db: &Database, type_name: &str, upgrades: SoundUpgrades) -> Result<CarSound> {
-    // A mod car sounds like its clone (its own engine loops, when it has them, are the audio's business).
-    let type_name = crate::car::mods::physics_name(type_name);
     let name = type_name.to_ascii_lowercase();
     let car = db.collection("pvehicle", &name).with_context(|| format!("no vehicle record named {name}"))?;
     let pvehicle = Fields(car);
@@ -95,6 +94,44 @@ pub fn car_sound(db: &Database, type_name: &str, upgrades: SoundUpgrades) -> Res
         engine_level,
         banks: GlobalBanks::read(db),
         collision: CollisionSounds::read(db, type_name),
+    })
+}
+
+/// The collection the sound set of a car that is not one of the game's own cars is built from: every car record of
+/// the game derives from it, so its collision links are the ones a car has when it sets none of its own.
+const CAR_CLASS: &str = "cars";
+/// The range of the engine mixer's sound scale, for a set that names none.
+const GENERIC_RPM_RANGE: (f32, f32) = (1000.0, 9000.0);
+/// The class-wide `default` collection of `engineaudio`, `shiftpattern` and `acceltrans`.
+const CLASS_DEFAULT: &str = "default";
+
+/// The sound set of a car that has no record of its own in the database (a car a mod adds), named `name`: only the
+/// class-wide defaults of the attribute database and the game-wide shared banks, nothing of any particular car.
+///
+/// - the engine is `engineaudio/default`: tuning numbers and no loops or banks, so the car has no Ginsu voice and no
+///   sample layer (its engine is the car's own, see the audio crate);
+/// - the gear change is `shiftpattern/default`: how the engine's rpm moves through a shift, and no bank, so no clunk;
+/// - the turbo is none (`turbosfx/default` switches it off);
+/// - the collisions and scrapes are the links of `pvehicle/cars`, which every car derives from, and the skid and
+///   nitrous banks are the game-wide lists.
+pub fn generic_car_sound(db: &Database, name: &str) -> Result<CarSound> {
+    let engine = db.collection("engineaudio", CLASS_DEFAULT).context("no engineaudio/default record")?;
+    let shift = db.collection("shiftpattern", CLASS_DEFAULT).context("no shiftpattern/default record")?;
+    anyhow::ensure!(db.collection("pvehicle", CAR_CLASS).is_some(), "no pvehicle/{CAR_CLASS} record");
+    let mut engine_sound = EngineSound::read(Fields(engine));
+    // The default record leaves out the Ginsu frequency range; the engine mixer's own sound scale stands in for it.
+    if engine_sound.max_rpm <= engine_sound.min_rpm {
+        (engine_sound.min_rpm, engine_sound.max_rpm) = GENERIC_RPM_RANGE;
+    }
+    Ok(CarSound {
+        car: name.to_ascii_lowercase(),
+        engine: engine_sound,
+        shift: ShiftSound::read(Fields(shift)),
+        turbo: None,
+        accel_transition: car_accel(&engine),
+        engine_level: 0,
+        banks: GlobalBanks::read(db),
+        collision: CollisionSounds::read(db, CAR_CLASS),
     })
 }
 
