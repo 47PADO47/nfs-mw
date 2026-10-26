@@ -3,7 +3,7 @@
 //! (docs/decisions/0002-ui-presentation.md).
 
 mod assets;
-pub(crate) use assets::read_wanted;
+pub(crate) use assets::{decode_png_rgba, read_wanted};
 mod catalog;
 pub(crate) mod discord_icon;
 pub mod fonts;

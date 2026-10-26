@@ -29,6 +29,9 @@ impl WorldScene {
         if let Some(drive) = self.players.lead_mut() {
             drive.flames.set_profile(flame);
         }
+        if let Some(drive) = self.players.lead_mut() {
+            drive.flames.set_effects(fx.clone());
+        }
         self.nitrous_fx = fx;
     }
 
