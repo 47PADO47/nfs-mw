@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_gfx::Texture;
-use chameleon_vehicle::{Vehicle, VehiclePaint, find_spec, load, load_texture, paints, vehicle_name};
+use chameleon_vehicle::{PolySoup, Vehicle, VehiclePaint, find_spec, load, load_poly_soup, load_texture, paints, vehicle_name};
 
 const VEHICLES: &str = "VEHICLES";
 const SHARED_TEXTURES: &str = "VEHICLES/VEHICLETEX.BNDL";
@@ -27,6 +27,8 @@ pub struct SourceCar {
     pub textures: HashMap<u64, Texture>,
     /// The paints the car is offered in, from the colour records of its bundle.
     pub paints: Vec<VehiclePaint>,
+    /// The car's collision mesh, when its bundle has one that reads (92 of the 93 cars do).
+    pub collision: Option<PolySoup>,
 }
 
 /// An opened 2012 install. The shared bundles stay in memory; each car's bundle is read when it is loaded.
@@ -85,7 +87,11 @@ impl Source {
             }
             textures.insert(id, load_texture(&pool, id)?);
         }
-        Ok(SourceCar { vehicle, textures, paints: car_paints })
+        let collision = load_poly_soup(&pool, spec).unwrap_or_else(|error| {
+            log::warn!("{}: the collision mesh does not read: {error}", file.path.display());
+            None
+        });
+        Ok(SourceCar { vehicle, textures, paints: car_paints, collision })
     }
 }
 

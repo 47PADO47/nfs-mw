@@ -308,6 +308,24 @@ width, y up, z length; the M3 GTR root box has half dimensions `(0.938, 0.621, 2
 surfaces: cars use `carbody` (633 nodes), 0 (336), `metal` (72), `glass` (10), `wood` (10), `stone` (5);
 props use 0 (1,249), `metal` (524), `wood` (351), `stone` (9), `glass` (8).
 
+### The layout of the car sets **[verified]**
+
+Counted over the sets whose root is a box (`GlobalB.lzc`): **36** have exactly this node order, flags in brackets: the root
+(`0x40`), a lower body box (`0x46`), a cabin box (`0x46`), a front corner sphere (`0x82`), the mesh-versus-ground node (`0x50`), three
+more front corner spheres (`0x82`) and two roof spheres (`0x82`). The others are simpler (root, two boxes and the mesh: 5 sets,
+a few more with three boxes) or the articulated vehicles with 30 or more nodes. Sphere radii are 0.33 m (168 spheres) and 0.24 m
+(70) in nearly all of them, and the top of the lower box is 0.752 m above the ground in 23 sets. In the M3 GTR, Supra and Corvette
+C6R sets the spheres sit as follows, which a builder can reproduce: a front sphere's centre is 0.6 radius inside the side of the root
+box, 0.5 radius behind its nose, 0.55 radius above the lowest point (low) or 1.19 radius higher (high); a roof sphere is 0.5 radius
+inside the side of the cabin, 0.54 radius under its top and 0.55 radius behind its front.
+
+All positions below the root, and the point cloud, are measured from the **root's pivot** (the box centre), not from the model's
+origin: the M3 GTR cloud has y from -0.56 to 0.59 around a root pivot at y = 0.62, which is the body from 0.06 to 1.21 m. The
+mesh node stores its own box in a frame turned half a turn about `(1, -1, 0)` (orientation `(0.707, -0.707, 0, 0)`), so its half
+dimensions are (height, width, length); only its point cloud is used. A car's cloud is 16 points: 8 corners of the side view, once
+for each side, x mirrored. [`blackbox_collision::fit_body`](../../libs/blackbox-collision/src/body_fit/mod.rs) builds this layout from points
+and `write_bounds_pack` writes it ([car-collision.md](../modding/car-collision.md)).
+
 ## Props **[verified on the install]**
 
 The 405 prop sets in `TRACKS/L2RA.BUN` are the collision of loose and standing scenery (cones, bins,

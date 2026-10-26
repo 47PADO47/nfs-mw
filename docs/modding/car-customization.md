@@ -200,6 +200,14 @@ The game starts the nitrous flames at the markers `EXHAUST`, `LEFT_EXHAUST` and 
 locators, but their table is not decoded, so the 2012 mod places the pipes from the body's shape: at the rear face, at 22
 percent of the car's height, and at half the half width of the rear on either side. That is an approximation.
 
+## Collision and impact geometry
+
+A car's collision is its own file, `BOUNDS.BIN` in the car's `files/CARS/<ID>/` folder, whatever the car's other files take
+from elsewhere: the root box its rigid body is built from, its contact boxes and spheres, the mesh it rolls on, and the zones its
+damage is counted in (taken from the root box). The file is required for the car to drive. Its contents, the checks the game
+makes, the damage numbers and how a mod writes one are in [car-collision.md](car-collision.md). The 2012 mod fits it to the
+collision mesh of each 2012 car ([nfsmw-2012-content.md](nfsmw-2012-content.md)).
+
 ## Using it
 
 1. Add the car (a mod with a `cars/<id>.toml`, or the [2012 mod](nfsmw-2012-content.md)).

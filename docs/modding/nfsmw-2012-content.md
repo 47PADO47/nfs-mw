@@ -88,6 +88,7 @@ A name with a space is written in quotes, as in the last table.
 | Paint surfaces | the placeholder `<ID>_SKIN1` with light material `CARSKIN`, which the game swaps for the paint the player picks. Their texture coordinates are the 2012 car's own |
 | Paints | the `VehiclePaint` records of the car's bundle (`libs/chameleon-vehicle/src/paint.rs`): the colour, and the finish from the record's type, as the `[customization]` table of the manifest, repeated colours dropped (`src/paints.rs`) |
 | Engine loops | the looping samples of the car's bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), one 16-bit WAV per layer at one level, and an `[engine_sound]` table in the car's manifest naming them with the rpm each stands for (`src/engine.rs`) |
+| Collision mesh and tyres | `files/CARS/<ID>/BOUNDS.BIN`: the car's own collision bounds, fitted to the poly soup of its bundle (the body's real extents, 166 to 256 triangles) and to the box of each tyre, through the same transform as the body: a root box, a lower body box, a cabin box, front and roof corner spheres and the silhouette the car rolls on. The one bundle without a collision mesh (the SWAT van) is fitted to its visible body. Format and what the 2012 game holds: [car-collision.md](car-collision.md), [chameleon-collision.md](../formats/chameleon-collision.md) (`src/collision.rs`) |
 | Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
 | Glass and lamp lenses | a translucent tint texture with light material `WINDSHIELD` |
 | Untextured surfaces | a flat colour texture from the material's diffuse colour (dark grey when it has none) |
@@ -112,8 +113,8 @@ ones. The vertex limit of one solid (60,000) can force a coarser level.
 
 ## Limits
 
-- **Mostly looks.** Handling, damage and the HUD are the clone's, plus whatever `[performance]` changes; so are the shifts, the turbo and the collisions of the sound, and the engine too when `own_engine_sound` is off or a car has no pitched loop. The
-  2012 damage model, headlight beams, brake discs (they are part of the wheel), spoiler and mirror animation, and the
+- **Mostly looks.** Handling and the HUD are the clone's, and the collision is the car's own (`BOUNDS.BIN`, above) while the damage numbers are the shared racing table ([car-collision.md](car-collision.md#damage)), plus whatever `[performance]` changes; so are the shifts, the turbo and the collisions of the sound, and the engine too when `own_engine_sound` is off or a car has no pitched loop. The
+  2012 damage objects (hinged parts, per-zone thresholds: not decoded), headlight beams, brake discs (they are part of the wheel), spoiler and mirror animation, and the
   2012 lamp locators are not converted; the lamps use the clone's positions.
 - **No vinyls, rims, spoilers, scoops, tints, body kits or hoods**: the 2012 game has none to offer, so the shop lists only
   the paints. The performance bars of the shop show the clone's ratings.

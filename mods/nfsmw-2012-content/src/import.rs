@@ -122,8 +122,15 @@ fn import_car(
         performance: config.tuning().for_car(&named.id, &named.display),
         customization: paints::manifest_table(&paints::choices(&car.paints)),
     };
-    folder
-        .add_car(&entry, &CarFiles { geometry: &built.geometry, textures: &built.textures, engine: engine.as_ref() })?;
+    folder.add_car(
+        &entry,
+        &CarFiles {
+            geometry: &built.geometry,
+            textures: &built.textures,
+            bounds: &built.bounds,
+            engine: engine.as_ref(),
+        },
+    )?;
     Ok(ImportedCar {
         id: named.id.clone(),
         name: named.display.clone(),

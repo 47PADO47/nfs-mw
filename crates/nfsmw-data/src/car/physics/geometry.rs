@@ -30,6 +30,13 @@ impl CarGeometry {
         Some(Self { body: BodyGeometry::from_bounds(&bounds, 0, options)?, bounds })
     }
 
+    /// The contact shapes of a mod car from its own bounds set ([`super::mod_car_bounds`]), which has no vehicle record
+    /// to take attributes from: no box padding, a box where the set has no usable shape, and the surface each node
+    /// names (a node with none has the object's default, 0).
+    pub fn for_mod_car(bounds: Arc<BoundsSet>) -> Option<Self> {
+        Self::read(bounds, None)
+    }
+
     /// Stored body-relative position, not a difference between quantized absolute pivots.
     pub fn joint(&self, name: u32, male: bool) -> Option<Vec3> {
         Some(Vec3::from_array(self.joint_node(name, male)?.position))

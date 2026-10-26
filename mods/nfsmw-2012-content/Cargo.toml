@@ -12,6 +12,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow.workspace = true
+blackbox-attrib.workspace = true
+blackbox-collision.workspace = true
 blackbox-hash.workspace = true
 blackbox-modding = { workspace = true, features = ["sdk"] }
 blackbox-solid.workspace = true
