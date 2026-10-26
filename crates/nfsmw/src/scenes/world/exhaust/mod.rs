@@ -9,6 +9,7 @@
 mod command;
 mod load;
 mod trigger;
+mod variant;
 
 use blackbox_gfx::RenderBackend;
 use blackbox_modding::content::FlameProfile;
@@ -102,6 +103,8 @@ pub struct ExhaustFlames {
     forced: bool,
     /// The tint of the nitrous variant the player chose, if it is a mod's. `None` draws the game's own blue flame.
     profile: Option<FlameProfile>,
+    /// The particle effects of the nitrous variant the player chose (`variant.rs`).
+    variant: variant::Variant,
 }
 
 impl Default for ExhaustFlames {
@@ -115,6 +118,7 @@ impl Default for ExhaustFlames {
             pops: 0,
             forced: false,
             profile: None,
+            variant: variant::Variant::default(),
         }
     }
 }
@@ -165,7 +169,7 @@ impl Active {
 
     /// One physics step: the shift event and the backfire, then every pipe's emitters (spawning while the pipes
     /// flame). A step with nothing flaming and nothing alive does no more than that.
-    fn step(&mut self, dt: f32, car: &CarState, pops: u32, forced: bool, engine_level: i32) {
+    fn step(&mut self, dt: f32, car: &CarState, pops: u32, forced: bool, engine_level: i32, replaced: (bool, bool)) {
         self.shift.note_gear(car.gear);
         self.shift.advance(dt, car.gear, car.velocity.length(), self.timing);
         self.backfire.pops(pops, car.throttle, car.gear);
@@ -180,8 +184,9 @@ impl Active {
             return;
         }
         // The burning nitrous flames blue in place of the orange blow-off and backfire.
-        let orange = if self.nitrous { 0.0 } else { self.intensity };
-        let blue = if self.nitrous { 1.0 } else { 0.0 };
+        // A variant's effects can stand in for the game's flames (`variant.rs`): then they spawn nothing.
+        let orange = if self.nitrous || replaced.1 { 0.0 } else { self.intensity };
+        let blue = if self.nitrous && !replaced.0 { 1.0 } else { 0.0 };
         for (lanes, intensity) in [(&mut self.lanes, orange), (&mut self.blue, blue)] {
             for lane in lanes {
                 for (emitter, pipe) in lane.emitters.iter_mut().zip(&self.pipes) {
@@ -258,6 +263,23 @@ impl Active {
 }
 
 impl ExhaustFlames {
+    /// The nitrous variant the player chose, if it is a mod's: its particle effects are loaded at the next frame
+    /// ([`Self::load_variant`]). `None` is the game's own flames only.
+    pub fn set_effects(&mut self, profile: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>) {
+        self.variant.set_wanted(profile);
+    }
+
+    /// Load the particle effects of the variant in effect, once the car's pipes are known, or drop them when the variant
+    /// changed. Does nothing while the setting is off or nothing changed.
+    pub fn load_variant(&mut self, renderer: &mut dyn RenderBackend, dir: &game_install::GameDir) {
+        if !self.enabled || !self.variant.needs_load() {
+            return;
+        }
+        let State::Ready(active) = &self.state else { return };
+        let pipes = active.pipes.len();
+        self.variant.load(renderer, dir, pipes);
+    }
+
     /// The tint of a mod's nitrous variant for the burning flames, or `None` for the game's own.
     pub fn set_profile(&mut self, profile: Option<FlameProfile>) {
         self.profile = profile;
@@ -287,6 +309,7 @@ impl ExhaustFlames {
     pub fn unload(&mut self) {
         self.pops = 0;
         self.forced = false;
+        self.variant.unload();
         let State::Ready(active) = std::mem::replace(&mut self.state, State::Unloaded) else { return };
         self.stale.extend(active.textures.iter().filter_map(|t| t.handle));
     }
@@ -298,6 +321,7 @@ impl ExhaustFlames {
 
     /// Free the GPU textures of flames that were unloaded.
     pub fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        self.variant.release(renderer);
         for handle in self.stale.drain(..) {
             renderer.destroy_texture(handle);
         }
@@ -322,7 +346,10 @@ impl ExhaustFlames {
     pub fn step(&mut self, dt: f32, car: &CarState) {
         let (pops, forced) = (std::mem::take(&mut self.pops), std::mem::take(&mut self.forced));
         let State::Ready(active) = &mut self.state else { return };
-        active.step(dt, car, pops, forced, self.engine_level);
+        let replaced = (self.variant.replaces_burn(), self.variant.replaces_pop());
+        active.step(dt, car, pops, forced, self.engine_level, replaced);
+        let pop = active.intensity;
+        self.variant.step(dt, car, &active.pipes, pop);
     }
 
     /// Let the particles alive finish their life without spawning any (the physics is parked).
@@ -330,6 +357,7 @@ impl ExhaustFlames {
         if let State::Ready(active) = &mut self.state {
             active.age(dt);
         }
+        self.variant.age(dt);
     }
 
     /// The car was put somewhere else: forget the shift event and the backfire; the particles alive finish their
@@ -359,6 +387,12 @@ impl ExhaustFlames {
     /// Append one textured batch per particle texture to `layer`, each sorted far to near. Call
     /// [`Self::reclaim`] once the layer has been uploaded.
     pub fn geometry(&mut self, camera: Vec3, forward: Vec3, layer: &mut EffectLayer) {
+        self.own_geometry(camera, forward, layer);
+        self.variant.geometry(camera, forward, layer);
+    }
+
+    /// The game's own flames' batches.
+    fn own_geometry(&mut self, camera: Vec3, forward: Vec3, layer: &mut EffectLayer) {
         let flame = self.profile;
         let State::Ready(active) = &mut self.state else { return };
         active.handed.clear();
@@ -379,6 +413,7 @@ impl ExhaustFlames {
 
     /// Take the vertex buffers back from `layer` so that the next frame fills them again without allocating.
     pub fn reclaim(&mut self, layer: &mut EffectLayer) {
+        self.variant.reclaim(layer);
         let State::Ready(active) = &mut self.state else { return };
         for (lane, handle, index) in active.handed.drain(..) {
             let Some(batch) = layer.textured.get_mut(index).filter(|b| b.texture == handle) else { continue };

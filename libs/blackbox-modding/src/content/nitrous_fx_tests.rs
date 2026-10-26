@@ -24,7 +24,10 @@ fn a_full_profile_parses_with_defaults_for_what_it_leaves_out() {
     assert_eq!(audio.looped.as_deref(), Some("NITROUS/MW2012/LOOP.WAV"));
     assert_eq!((audio.start_gain, audio.loop_gain, audio.loop_fade_in, audio.loop_fade_out), (1.0, 0.8, 0.1, 0.5));
     assert!(audio.replace_original, "the profile's sounds replace the game's by default");
-    assert_eq!(profile.flame, Some(FlameProfile { tint: [0.4, 0.6, 1.0], gain: 1.0 }));
+    assert_eq!(
+        profile.flame,
+        Some(FlameProfile { tint: [0.4, 0.6, 1.0], gain: 1.0, replace_burn: false, replace_pop: false })
+    );
     let screen = profile.screen.unwrap();
     assert_eq!((screen.vignette, screen.radial_blur, screen.fade_in, screen.fade_out), (0.2, 0.3, 0.25, 1.0));
 }

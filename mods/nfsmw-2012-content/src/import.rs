@@ -103,10 +103,12 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
 /// The nitrous sounds and profile of the 2012 game, as the variant the 2005 game's nitrous option offers. A failure only costs
 /// the variant: the cars are converted, and the game's own nitrous stays the only choice.
 fn write_nitrous(source: &Source, out: &Path) {
-    let Some(found) = nitrous::find_in(&source.game_logic_bundles()) else {
-        log::warn!("the 2012 install has no nitrous sounds that can be read: the nitrous variant has no effects");
+    let mut found = nitrous::find_in(&source.game_logic_bundles()).unwrap_or_default();
+    found.effects = nitrous::find_effects(source);
+    if found.is_empty() {
+        log::warn!("the 2012 install has no nitrous sounds or effects that can be read: the nitrous variant has none");
         return;
-    };
+    }
     if let Err(error) = nitrous::write(out, &found) {
         log::warn!("the nitrous variant is not written: {error:#}");
     }

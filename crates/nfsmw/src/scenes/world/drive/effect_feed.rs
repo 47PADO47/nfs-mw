@@ -36,6 +36,7 @@ impl Drive {
     pub fn maintain_flames(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database) {
         self.flames.release(renderer);
         self.flames.load(renderer, dir, db, self.rig.model());
+        self.flames.load_variant(renderer, dir);
     }
 }
 

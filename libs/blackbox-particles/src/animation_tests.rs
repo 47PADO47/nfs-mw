@@ -34,3 +34,17 @@ fn quantized_animation_preserves_pc_frame_boundaries_and_wrap() {
     animation.advance(&mut phase, &mut cell, 0.25);
     assert_eq!((phase, cell), (10848, 0));
 }
+
+#[test]
+fn a_five_by_five_flipbook_has_twenty_five_cells_of_a_fifth() {
+    let animation = Animation { grid: 5, fps: 25, random_start: false };
+    let [min, max] = animation.uv(7);
+    assert!((min[0] - 0.4).abs() < 1e-3 && (min[1] - 0.2).abs() < 1e-3, "cell 7 is column 2, row 1: {min:?}");
+    assert!((max[0] - 0.6).abs() < 1e-3 && (max[1] - 0.4).abs() < 1e-3, "{max:?}");
+    let mut phase = 0;
+    let mut cell = 0;
+    for _ in 0..100 {
+        animation.advance(&mut phase, &mut cell, 0.01);
+    }
+    assert!(cell < 25, "the cell never leaves the sheet");
+}

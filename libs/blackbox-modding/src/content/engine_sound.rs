@@ -154,6 +154,13 @@ fn check_layer(layer: RawLayer) -> Result<Layer, ContentError> {
 }
 
 /// A relative path of the install's layout that names a `.WAV` file: letters, digits, `_`, `-`, `.` and `/`, no `..`.
+/// A relative path of the install's layout that names a `.PNG` file, under the same rules as a sound path.
+pub(super) fn is_png_path(path: &str) -> bool {
+    let safe = path.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'/'));
+    let parts_ok = path.split('/').all(|part| !part.is_empty() && part != "." && part != "..");
+    safe && parts_ok && path.len() <= 96 && path.to_ascii_lowercase().ends_with(".png")
+}
+
 pub(super) fn is_sound_path(path: &str) -> bool {
     is_path(path, ".wav")
 }

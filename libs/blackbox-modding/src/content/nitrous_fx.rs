@@ -22,8 +22,14 @@
 //! [flame]                       # the tail pipe flames, drawn from the game's emitters with this tint
 //! tint = [0.4, 0.6, 1.0]        # multiplies the red, green and blue of the flame's particles
 //! gain = 1.0                    # multiplies their alpha
+//! replace_burn = false          # the game's own blue flame is not drawn while an `on = "burn"` effect plays
+//! replace_pop = false           # the game's blow-off and backfire flame is not drawn while an `on = "pop"` effect plays
 //!
-//! [screen]                      # screen effects that follow the burn
+//! [[effect]]                    # a particle emitter at every tail pipe, see `nitrous_effects`
+//! on = "burn"                   # "start", "burn" or "pop"
+//! texture = "NITROUS/MW2012/GLOW.PNG"
+//!
+//! [screen]                     # screen effects that follow the burn
 //! vignette = 0.2                # strength 0 to 1 at full effect
 //! radial_blur = 0.3             # strength 0 to 1 at full effect
 //! fade_in = 0.25                # seconds to reach full effect
@@ -34,6 +40,7 @@ use serde::Deserialize;
 
 use super::ContentError;
 use super::engine_sound::is_sound_path;
+use super::nitrous_effects::{self as effects, EffectProfile, RawEffect};
 
 /// The folder under a mod's `files/` that holds the variants' files.
 pub const NITROUS_FOLDER: &str = "NITROUS";
@@ -68,6 +75,10 @@ pub struct AudioProfile {
 pub struct FlameProfile {
     pub tint: [f32; 3],
     pub gain: f32,
+    /// The game's blue nitrous flame is not drawn while a `burn` effect plays.
+    pub replace_burn: bool,
+    /// The game's blow-off and backfire flame is not drawn while a `pop` effect plays.
+    pub replace_pop: bool,
 }
 
 /// The screen effects that follow the burn.
@@ -85,6 +96,8 @@ pub struct NitrousProfile {
     pub audio: Option<AudioProfile>,
     pub flame: Option<FlameProfile>,
     pub screen: Option<ScreenProfile>,
+    /// The particle effects, in file order (`nitrous_effects`).
+    pub effects: Vec<EffectProfile>,
 }
 
 #[derive(Deserialize)]
@@ -94,6 +107,8 @@ struct Raw {
     audio: Option<RawAudio>,
     flame: Option<RawFlame>,
     screen: Option<RawScreen>,
+    #[serde(default)]
+    effect: Vec<RawEffect>,
 }
 
 #[derive(Deserialize)]
@@ -116,6 +131,8 @@ struct RawAudio {
 struct RawFlame {
     tint: Option<[f32; 3]>,
     gain: Option<f32>,
+    replace_burn: Option<bool>,
+    replace_pop: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -142,6 +159,7 @@ pub fn parse(text: &str) -> Result<NitrousProfile, ContentError> {
         audio: raw.audio.map(audio).transpose()?,
         flame: raw.flame.map(flame).transpose()?,
         screen: raw.screen.map(screen).transpose()?,
+        effects: effects::check(raw.effect)?,
     })
 }
 
@@ -192,7 +210,12 @@ fn flame(raw: RawFlame) -> Result<FlameProfile, ContentError> {
     if tint.iter().any(|c| !c.is_finite() || !GAIN_RANGE.contains(c)) {
         return Err(ContentError::Field { field: "flame.tint", reason: "three numbers from 0 to 4" });
     }
-    Ok(FlameProfile { tint, gain: within(raw.gain, 1.0, &GAIN_RANGE, "flame.gain")? })
+    Ok(FlameProfile {
+        tint,
+        gain: within(raw.gain, 1.0, &GAIN_RANGE, "flame.gain")?,
+        replace_burn: raw.replace_burn.unwrap_or(false),
+        replace_pop: raw.replace_pop.unwrap_or(false),
+    })
 }
 
 fn screen(raw: RawScreen) -> Result<ScreenProfile, ContentError> {

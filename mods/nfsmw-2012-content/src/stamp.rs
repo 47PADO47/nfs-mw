@@ -14,8 +14,11 @@ pub const FILE: &str = ".import-stamp";
 /// modification times of the source files.
 pub fn of(config: &Config, source: &Path) -> String {
     let mut parts = vec![format!("conversion {CONVERSION}"), format!("{config:?}")];
-    let mut sources =
-        vec![fingerprint(&source.join("VEHICLES/VEHICLETEX.BNDL")), fingerprint(&source.join("SHADERS.BNDL"))];
+    let mut sources = vec![
+        fingerprint(&source.join("VEHICLES/VEHICLETEX.BNDL")),
+        fingerprint(&source.join("SHADERS.BNDL")),
+        fingerprint(&source.join("GLOBALEFFECTS.BNDL")),
+    ];
     for entry in fs::read_dir(source.join("GAMELOGIC")).into_iter().flatten().flatten() {
         sources.push(fingerprint(&entry.path()));
     }
