@@ -2076,6 +2076,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "chameleon-sound-graph"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "ea-audio",
+]
+
+[[package]]
 name = "chameleon-vehicle"
 version = "0.1.0"
 dependencies = [
