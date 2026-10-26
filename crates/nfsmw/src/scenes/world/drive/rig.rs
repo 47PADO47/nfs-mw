@@ -298,8 +298,8 @@ impl CarRig {
                 _ => placement.transform,
             };
             let local = match self.hinge_pose(placement.slot, revealed) {
-                Some((_, Pose::Gone)) => continue,
-                Some((hinge, Pose::Turned(degrees))) => hinge.turn(degrees) * local,
+                Some((_, Pose::Gone, _)) => continue,
+                Some((hinge, Pose::Turned(degrees), amount)) => hinge.transform(degrees, amount) * local,
                 None => local,
             };
             out.push(Instance::keyed(part.lamps[state], world * local, keys::car_part(car, part.key)));
@@ -312,9 +312,11 @@ impl CarRig {
     }
 
     /// The hinged part in `slot` and how it stands for the zone levels in `revealed`. `None` for a slot that is not one.
-    fn hinge_pose(&self, slot: usize, revealed: &std::collections::BTreeSet<usize>) -> Option<(&Hinge, Pose)> {
-        let hinge = self.hinges.as_ref()?.get(hinged::index_of(slot)?)?;
-        Some((hinge, hinge.pose(hinge.fraction(|zone| hinged::level_in(revealed, zone)))))
+    fn hinge_pose(&self, slot: usize, revealed: &std::collections::BTreeSet<usize>) -> Option<(&Hinge, Pose, f32)> {
+        let part = hinged::index_of(slot)?;
+        let hinge = self.hinges.as_ref()?.get(part)?;
+        let pose = hinge.pose(hinge.fraction(|zone| hinged::level_in(revealed, zone)));
+        Some((hinge, pose, hinged::deploy_in(revealed, part)))
     }
 
     pub fn fragment_instances(&self, slot: usize, damage: Option<&[u8; 10]>) -> Vec<Instance> {

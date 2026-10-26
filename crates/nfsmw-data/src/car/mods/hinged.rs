@@ -14,7 +14,9 @@ use glam::{Mat4, Vec3};
 
 use crate::car::{LodAssembly, Placement};
 
+mod active;
 mod debris;
+pub use active::{Active, Deployment, MPS_TO_MPH, deploy_in, deploy_mark};
 pub use debris::{DEBRIS_SOUND, Motion, Parent, debris_bounds, debris_dynamics, debris_motion, part_axis, part_frame};
 
 /// The first slot number of the hinged parts: part `n` of a car is slot `HINGED_SLOT + n`. The slots of the parts
@@ -47,6 +49,8 @@ pub struct Hinge {
     pub detach: bool,
     /// What the part weighs as a body of its own, in kg.
     pub mass_kg: f32,
+    /// How the part moves with the car's speed (an active spoiler), if it does.
+    pub active: Option<Active>,
 }
 
 /// How a hinged part stands for some damage.
@@ -99,6 +103,13 @@ impl Hinge {
     pub fn releases(&self, fraction: f32, wrecked: bool) -> bool {
         let Some(level) = self.release_level() else { return false };
         wrecked || (fraction > 0.0 && fraction >= level)
+    }
+
+    /// Where the part stands in the car's solid space: moved by its active movement at `amount` of its deployment, then
+    /// turned by `degrees` about its hinge line.
+    pub fn transform(&self, degrees: f32, amount: f32) -> Mat4 {
+        let moved = self.active.map_or(Mat4::IDENTITY, |active| active.translation(amount));
+        self.turn(degrees) * moved
     }
 
     /// The transform of the part turned by `degrees` about its hinge line, in the car's solid space.
@@ -211,6 +222,7 @@ mod tests {
             detach_at: None,
             detach: false,
             mass_kg: 40.0,
+            active: None,
         }
     }
 
@@ -264,6 +276,18 @@ mod tests {
         assert_eq!(hinge.fraction(|zone| levels[zone]), 1.0);
         assert_eq!(hinge.fraction(|_| 0), 0.0);
         assert_eq!(hinge.fraction(|_| 9), 1.0, "levels past the top count as the top");
+    }
+
+    #[test]
+    fn an_active_part_is_moved_before_it_is_turned() {
+        let active = Active { offset: [0.0, 0.0, 1.0], above_mph: 70.0, below_mph: 40.0, seconds: 0.6 };
+        let hinge = Hinge { pivot: [1.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], active: Some(active), ..bonnet() };
+        assert_eq!(hinge.transform(0.0, 0.0), Mat4::IDENTITY);
+        let up = hinge.transform(0.0, 1.0).transform_point3(Vec3::ZERO);
+        assert!((up - Vec3::Z).length() < 1e-6, "moved up a metre");
+        let both = hinge.transform(90.0, 1.0).transform_point3(Vec3::new(2.0, 0.0, 0.0));
+        assert!((both - Vec3::new(1.0, 1.0, 1.0)).length() < 1e-5, "moved, then turned about the hinge: {both:?}");
+        assert_eq!(bonnet().transform(0.0, 1.0), Mat4::IDENTITY, "a part with no movement ignores the deployment");
     }
 
     #[test]

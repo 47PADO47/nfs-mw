@@ -37,6 +37,8 @@ pub struct VehicleEvents {
     light_damage: u32,
     failed: bool,
     pub hidden_slots: BTreeSet<usize>,
+    /// How far each hinged part of a mod car that moves with the speed is deployed (one per hinged part).
+    pub deployment: Vec<nfsmw_data::car::mods::hinged::Deployment>,
     pub spawned: BTreeSet<u32>,
     /// Child models live until their original parent is destroyed, independently of scenery tiles.
     pub owner: Rc<()>,
@@ -81,6 +83,7 @@ impl VehicleEvents {
             light_damage: 0,
             failed: false,
             hidden_slots: BTreeSet::new(),
+            deployment: Vec::new(),
             spawned: BTreeSet::new(),
             owner: Rc::new(()),
             damage: Damage::new(DAMAGE_ZONES.len()),
@@ -101,6 +104,9 @@ impl VehicleEvents {
             if level > 0 {
                 slots.insert(nfsmw_data::car::mods::hinged::level_mark(zone, level));
             }
+        }
+        for (part, deployed) in self.deployment.iter().enumerate() {
+            slots.extend(nfsmw_data::car::mods::hinged::deploy_mark(part, deployed.amount));
         }
         slots
     }
