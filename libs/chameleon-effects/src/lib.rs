@@ -122,8 +122,10 @@ impl Emitter {
             let head = main.get(start..start + 4).ok_or(Error::Truncated("stage list"))?;
             let pairs = usize::from(head[0]) + usize::from(head[1]);
             let body = main.get(start + 4..start + 4 + 2 * pairs).ok_or(Error::Truncated("stage list"))?;
-            *slot =
-                Some(Stage { groups: (head[0], head[1]), pairs: body.chunks_exact(2).map(|p| (p[0], p[1])).collect() });
+            *slot = Some(Stage {
+                groups: (head[0], head[1]),
+                pairs: body.as_chunks::<2>().0.iter().map(|p| (p[0], p[1])).collect(),
+            });
         }
         Ok(Emitter { flags, tasks, stages })
     }
