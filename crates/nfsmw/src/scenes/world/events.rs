@@ -94,7 +94,15 @@ impl VehicleEvents {
 
     /// The corner damage overlays to draw: those of zones whose panel has dented.
     pub fn revealed_slots(&self) -> BTreeSet<usize> {
-        revealed_overlays(&self.damage)
+        let mut slots = revealed_overlays(&self.damage);
+        // The panel level of each damaged zone, for the hinged parts of a mod car (`nfsmw_data::car::mods::hinged`).
+        for zone in 0..self.damage.zone_count() {
+            let level = self.damage.zone(zone).panel;
+            if level > 0 {
+                slots.insert(nfsmw_data::car::mods::hinged::level_mark(zone, level));
+            }
+        }
+        slots
     }
 
     pub fn hit(&mut self, hit: DamageHit) {

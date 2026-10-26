@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use blackbox_gfx::{Instance, MeshHandle, RenderBackend, Shading};
 use blackbox_scene::upload_solid;
 use glam::{Mat4, Quat, Vec3};
+use nfsmw_data::car::mods::hinged::{self, Hinge, Pose};
 use nfsmw_data::car::{CarModel, TextureSwaps, WheelPose};
 
 use crate::scenes::car::materials::{CarMaterials, set_lighting};
@@ -95,6 +96,8 @@ pub struct CarRig {
     /// The model scale (`CarScale`); 1 is the original size. Only the body parts scale, not the lights.
     scale: f32,
     glass: RefCell<std::collections::BTreeMap<SurfaceDamage, glass::GlassVariant>>,
+    /// The hinged parts of a mod car, which turn or fall off as its zones are damaged.
+    hinges: Option<std::sync::Arc<Vec<Hinge>>>,
 }
 
 impl CarRig {
@@ -119,6 +122,7 @@ impl CarRig {
         let swaps = model.swaps.clone();
         let (parts, meshes, materials) = upload_parts(renderer, &model, &swaps, shading, to_sun);
         let lights = CarLights::for_model(&model);
+        let hinges = nfsmw_data::car::mods::hinged::of(&model.name);
         let flares = super::super::car_light_flares::CarLightFlares::upload(renderer, &model);
         Self {
             detail_radius: super::car_detail::radius(&model),
@@ -129,6 +133,7 @@ impl CarRig {
             flares,
             scale: 1.0,
             glass: RefCell::default(),
+            hinges,
         }
     }
 
@@ -292,8 +297,19 @@ impl CarRig {
                 }
                 _ => placement.transform,
             };
+            let local = match self.hinge_pose(placement.slot, revealed) {
+                Some((_, Pose::Gone)) => continue,
+                Some((hinge, Pose::Turned(degrees))) => hinge.turn(degrees) * local,
+                None => local,
+            };
             out.push(Instance::keyed(part.lamps[state], world * local, keys::car_part(car, part.key)));
         }
+    }
+
+    /// The hinged part in `slot` and how it stands for the zone levels in `revealed`. `None` for a slot that is not one.
+    fn hinge_pose(&self, slot: usize, revealed: &std::collections::BTreeSet<usize>) -> Option<(&Hinge, Pose)> {
+        let hinge = self.hinges.as_ref()?.get(hinged::index_of(slot)?)?;
+        Some((hinge, hinge.pose(hinge.fraction(|zone| hinged::level_in(revealed, zone)))))
     }
 
     pub fn fragment_instances(&self, slot: usize, damage: Option<&[u8; 10]>) -> Vec<Instance> {
