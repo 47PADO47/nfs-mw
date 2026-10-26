@@ -5,11 +5,13 @@
 //! out of the finest body solid into one solid per part (`<ID>_KIT00_<PART>_A`, `_B`), so the body no longer holds them,
 //! and the vertices, normals and materials stay exactly as they were: an intact car draws the same pixels. Coarser body
 //! levels have no skin data for most parts and keep them. The 2012 ranges are condensed into the one swing a manifest
-//! entry describes ([`swing`]).
+//! entry describes ([`swing`]). An active spoiler (`chameleon_vehicle::spoiler_motion`) is the part of the bone
+//! `SpoilerHinge`, with or without a damage record of its own, and carries the `[damage_parts.active]` table.
+//! Spec: `docs/formats/chameleon-active-aero.md`.
 
 use blackbox_solid::{GroupSource, SolidSource, Vertex};
 use chameleon_bundle::{Bundle, Pool};
-use chameleon_vehicle::{HingedPart, Skeleton, Vehicle, body_parts, hinged_parts};
+use chameleon_vehicle::{HingedPart, Skeleton, SpoilerMotion, Vehicle, body_parts, hinged_parts, spoiler_motion};
 
 use crate::fit::{Fit, to_car_space};
 
@@ -37,13 +39,34 @@ pub struct Part {
     pub thresholds: Vec<f32>,
     /// The part's mass in kg: the mass of the body it becomes when it falls off.
     pub mass_kg: f32,
+    /// How the part moves with the car's speed, for the active spoiler.
+    pub active: Option<SpoilerMotion>,
 }
+
+/// The name of the bone of an active spoiler, and the zone code (the rear) it is given when the car has no record of it.
+const SPOILER_BONE: &str = "SpoilerHinge";
+const REAR_ZONE: u16 = 2;
+/// What an active spoiler weighs when the car's damage object does not say, kg.
+const SPOILER_MASS_KG: f32 = 30.0;
 
 /// Read the hinged parts of the car in `bundle` and classify the triangles of the finest body level of `vehicle`. `None`
 /// when the car has no usable part: no skeleton, no skin, or parts that own no triangle of the finest level.
 pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Option<Hinged> {
-    let parts = hinged_parts(bundle).ok()?;
+    let mut parts = hinged_parts(bundle).ok()?;
     let skeleton = Skeleton::read(bundle)?;
+    let motion = spoiler_motion(bundle);
+    let spoiler = motion.and_then(|_| skeleton.find(SPOILER_BONE));
+    if let Some(bone) = spoiler.filter(|&bone| parts.iter().all(|part| part.bone != bone)) {
+        parts.push(HingedPart {
+            name: SPOILER_BONE.to_owned(),
+            bone,
+            zone: REAR_ZONE,
+            centre: skeleton.bones[bone].position,
+            limits: [[0.0; 2]; 3],
+            mass_kg: SPOILER_MASS_KG,
+            thresholds: Vec::new(),
+        });
+    }
     let levels = body_parts(pool, spec, &skeleton, &parts).ok()?;
     let finest = levels.into_iter().next()?;
     let body = vehicle.body.first()?;
@@ -54,7 +77,7 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
     }
     let mut counts = vec![0usize; parts.len()];
     finest.iter().flatten().flatten().for_each(|&part| counts[part] += 1);
-    let keep: Vec<usize> = (0..parts.len()).filter(|&at| counts[at] > 0 && usable(&parts[at])).collect();
+    let keep: Vec<usize> = (0..parts.len()).filter(|&at| counts[at] > 0 && usable(&parts[at], spoiler)).collect();
     if keep.is_empty() {
         return None;
     }
@@ -71,15 +94,16 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 limits: part.limits,
                 thresholds: part.thresholds.clone(),
                 mass_kg: part.mass_kg,
+                active: motion.filter(|_| Some(part.bone) == spoiler),
             }
         })
         .collect();
     Some(Hinged { parts, classes })
 }
 
-/// A part the game can play: a zone it knows and a range to swing through.
-fn usable(part: &HingedPart) -> bool {
-    zones(part.zone).is_some() && swing(&part.limits).is_some()
+/// A part the game can play: a zone it knows and a range to swing through, or the active spoiler (`spoiler` is its bone).
+fn usable(part: &HingedPart, spoiler: Option<usize>) -> bool {
+    zones(part.zone).is_some() && (swing(&part.limits).is_some() || Some(part.bone) == spoiler)
 }
 
 /// The zones whose damage moves a part of `code`: its own and the corners beside it. The file names one zone per part
@@ -222,7 +246,8 @@ fn subset(group: &GroupSource, classes: &[Option<usize>], wanted: Option<usize>)
 pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
     let mut text = String::new();
     for (part, stem) in hinged.parts.iter().zip(stems) {
-        let (Some(zones), Some((axis, angle))) = (zones(part.zone), swing(&part.limits)) else { continue };
+        let Some(zones) = zones(part.zone) else { continue };
+        let Some((axis, angle)) = swing(&part.limits).or(part.active.map(|_| (0, 0.0))) else { continue };
         let mut direction = [0.0f32; 3];
         direction[axis] = 1.0;
         let axis = to_car_space(direction);
@@ -242,8 +267,22 @@ pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
             let list: Vec<String> = stages.iter().map(|s| format!("{s:.4}")).collect();
             text.push_str(&format!("stages = [{}]\n", list.join(", ")));
         }
+        if let Some(motion) = part.active {
+            text.push_str(&active_table(&motion, fit));
+        }
     }
     text
+}
+
+/// The `[damage_parts.active]` table of a spoiler: its movement in the car's space (the fit scales it with the body), the
+/// speeds and the time.
+fn active_table(motion: &SpoilerMotion, fit: &Fit) -> String {
+    let moved = to_car_space(motion.offset);
+    let offset = [0, 1, 2].map(|k| moved[k] * fit.scale[k]);
+    format!(
+        "\n[damage_parts.active]\noffset = [{:.5}, {:.5}, {:.5}]\nabove_mph = {:.1}\nbelow_mph = {:.1}\nseconds = {:.3}\n",
+        offset[0], offset[1], offset[2], motion.above_mph, motion.below_mph, motion.seconds
+    )
 }
 
 #[cfg(test)]
@@ -329,6 +368,7 @@ mod tests {
             limits: [[-15.0, 0.0], [0.0; 2], [0.0; 2]],
             thresholds: vec![0.5, 0.04],
             mass_kg: 50.0,
+            active: None,
         };
         let hinged = Hinged { parts: vec![part], classes: Vec::new() };
         let text = manifest_tables(&hinged, &["CAR_KIT00_BONNET".into()], &Fit::own(layout));
@@ -342,5 +382,51 @@ mod tests {
         assert_eq!(entry["stages"][0].as_float(), Some(0.04), "stages are sorted");
         assert_eq!(entry["mass_kg"].as_float(), Some(50.0), "the part's own mass is the mass of what falls off");
         assert!(entry.get("detach_at").is_none(), "the game's default ladder rule decides when it falls off");
+    }
+
+    #[test]
+    fn an_active_spoiler_writes_its_movement_and_needs_no_damage_swing() {
+        use crate::fit::Layout;
+        let layout = Layout { wheelbase: 2.6, x_mid: 0.0, track: 0.8, hub_z: 0.35, radius: 0.35 };
+        let motion = SpoilerMotion { offset: [0.0, 0.02, -0.07], seconds: 0.612, above_mph: 70.0, below_mph: 40.0 };
+        let part = Part {
+            name: "SpoilerHinge".into(),
+            zone: 2,
+            pivot: [0.0, 0.78, -1.83],
+            limits: [[0.0; 2]; 3],
+            thresholds: Vec::new(),
+            mass_kg: 30.0,
+            active: Some(motion),
+        };
+        let hinged = Hinged { parts: vec![part.clone()], classes: Vec::new() };
+        let text = manifest_tables(&hinged, &["CAR_KIT00_SPOILER".into()], &Fit::own(layout));
+        let table: toml::Table = toml::from_str(&text).unwrap();
+        let entry = &table["damage_parts"][0];
+        assert_eq!((entry["name"].as_str(), entry["angle"].as_float()), (Some("Spoiler"), Some(0.0)));
+        let active = &entry["active"];
+        // The engine's up (+y) is the game's up (+z); back (-z) is -x.
+        assert_eq!(active["offset"][0].as_float(), Some(-0.07));
+        assert_eq!(active["offset"][2].as_float(), Some(0.02));
+        assert_eq!((active["above_mph"].as_float(), active["below_mph"].as_float()), (Some(70.0), Some(40.0)));
+        assert_eq!(active["seconds"].as_float(), Some(0.612));
+        // Without a movement, a part with no swing is not written at all.
+        let still = Hinged { parts: vec![Part { active: None, ..part }], classes: Vec::new() };
+        assert!(manifest_tables(&still, &["CAR_KIT00_SPOILER".into()], &Fit::own(layout)).is_empty());
+    }
+
+    #[test]
+    #[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+    fn the_911_has_hinged_parts_and_an_active_spoiler() {
+        let Some(dir) = std::env::var_os("MW2012_GAME_DIR") else { return };
+        let source = crate::source::Source::open(std::path::Path::new(&dir)).unwrap();
+        let file = source.cars().iter().find(|car| car.number == 1085007).unwrap();
+        let car = source.load(file).unwrap();
+        let hinged = car.hinged.as_ref().expect("the 911 has hinged parts");
+        let names: Vec<&str> = hinged.parts.iter().map(|part| part.name.as_str()).collect();
+        assert_eq!(hinged.parts.len(), 8, "{names:?}");
+        let spoiler = hinged.parts.iter().find(|part| part.name == "SpoilerHinge").expect("the spoiler");
+        let motion = spoiler.active.expect("it moves");
+        assert_eq!((motion.above_mph, motion.below_mph), (70.0, 40.0));
+        assert!(hinged.parts.iter().filter(|part| part.active.is_some()).count() == 1);
     }
 }
