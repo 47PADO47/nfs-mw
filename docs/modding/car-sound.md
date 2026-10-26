@@ -227,7 +227,7 @@ NFSMW_GAME_DIR=<2005 install> NFSMW_MEASURE_MOD=<folder> cargo test -p nfsmw --b
 | Peak of the shifts, backfires and pops of a six-shift drive | -2.4 dB | -12.2 dB | -16.9 to -12.8 dB |
 | Loudness of those effects | -14.4 dB | -27.9 dB | -33.0 to -28.6 dB |
 | Backfire chance at the limiter | 70 percent of lifts | 25 percent | |
-| A wall scrape (average level over the scrape) | -17.5 dB | -26 dB (expected from the factor) | -24.7 to -26.5 dB |
+| A wall scrape (average level over the scrape) | -17.5 dB | -26.6 dB (peak -13.5 dB) | -24.7 to -26.5 dB |
 
 The causes, in the order they were found:
 
