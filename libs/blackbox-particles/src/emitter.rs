@@ -10,6 +10,8 @@ pub const MAX_PARTICLES: usize = 1024;
 
 /// Longest life a particle may be given, seconds.
 const MAX_LIFE: f32 = 60.0;
+/// The steps a second that [`EmitterSpec::damping`] is counted in.
+const DAMPING_STEPS_PER_SECOND: f32 = 60.0;
 
 /// Where the emitter is and what it hands to new particles for one step.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -309,6 +311,9 @@ impl Emitter {
         s.animation.advance(&mut p.animation_phase, &mut p.animation_cell, dt);
         if s.drag > 0.0 {
             p.velocity += p.velocity * (-dt * s.drag * p.velocity.length()).max(-1.0);
+        }
+        if s.damping > 0.0 {
+            p.velocity *= (1.0 - s.damping.min(1.0)).powf(dt * DAMPING_STEPS_PER_SECOND);
         }
         match s.gravity != 0.0 {
             true => p.velocity.z -= s.gravity * dt,

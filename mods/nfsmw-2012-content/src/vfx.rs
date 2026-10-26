@@ -8,8 +8,8 @@
 //! (the blow-off). An effect is a list of emitters, each with the attributes it keeps per particle (a `SubUV` one is a
 //! flipbook) and one material, whose first texture is the picture.
 //!
-//! The emitters' programs (spawn rates, lifetimes, velocities, curves) are bytecode that is not decoded: only which emitters
-//! there are, their pictures and, for a single-emitter glow, its colour constant are read.
+//! The emitters' programs are read by `chameleon-effects` (spawn rate, lifetime, radius curve, motion, colour and alpha over
+//! the life); this module finds the effects of the cars and the pictures of their emitters.
 
 use anyhow::{Result, bail};
 use blackbox_tpk::{AlphaUsage, PixelFormat as TpkFormat, Texture as TpkTexture, decode_mip_rgba8};
@@ -107,14 +107,13 @@ pub fn roles(spots: &[Spot]) -> Option<Roles> {
     Some(Roles { start: of(START_BIT)?, burn: of(BURN_BIT)?, pop: of(POP_BIT)? })
 }
 
-/// One emitter of an effect: its picture, and whether it keeps a `SubUV` attribute (a flipbook).
+/// One emitter of an effect that draws particles: its picture, and what the effect's bytes say of it (`chameleon-effects`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Emitter {
     pub picture: Picture,
+    /// The emitter plays a flipbook.
     pub flipbook: bool,
-    /// The first colour of the emitter's constants, when it has one that looks like one: (r, g, b) in 0 to 1 with alpha 1,
-    /// not white and not black. Only read for an effect of one emitter, where there is no other float4 to confuse it with.
-    pub colour: Option<[f32; 3]>,
+    pub fx: chameleon_effects::Emitter,
 }
 
 /// A decoded picture, RGBA8.
@@ -125,28 +124,21 @@ pub struct Picture {
     pub rgba: Vec<u8>,
 }
 
-const ATTRIBUTES: &[u8] = b"Position\0Velocity\0Age\0RecipLifetime\0";
+/// The operations that draw an emitter's particles as sprites.
+const SPRITES: [u8; 3] = [
+    chameleon_effects::ops::RENDER_SPRITE,
+    chameleon_effects::ops::RENDER_SPRITE_SUB_UV,
+    chameleon_effects::ops::RENDER_SPRITE_UV_DISTORTION,
+];
 
-/// The emitters of the effect `id`, in order, each with its picture. The emitters that draw particles (those with a `Colour`
-/// attribute) are matched with the effect's material imports in order.
+/// The emitters of the effect `id` that draw sprites, in order, each with its picture. The sprite emitters are matched with the
+/// effect's material imports in order; an emitter with no sprite (the light) has no material.
 pub fn emitters(bundle: &Bundle, id: u64) -> Result<Vec<Emitter>> {
     let Some(index) = bundle.find(id) else { bail!("the effect {id:#x} is not in the bundle") };
     let resource = bundle.resource(index)?;
-    let main = &resource.blocks[0];
-    let starts: Vec<usize> = (0..main.len().saturating_sub(ATTRIBUTES.len()))
-        .filter(|&at| &main[at..at + ATTRIBUTES.len()] == ATTRIBUTES)
-        .collect();
-    let mut kinds = Vec::new();
-    for (n, start) in starts.iter().enumerate() {
-        let end = starts.get(n + 1).copied().unwrap_or(main.len());
-        let segment = &main[*start..end];
-        // The attribute names run on after the fixed four, up to the first byte that cannot be part of a name.
-        let names =
-            &segment[..segment.iter().position(|b| !(b.is_ascii_alphanumeric() || *b == 0)).unwrap_or(segment.len())];
-        if contains(names, b"Colour") {
-            kinds.push((contains(names, b"SubUV"), *start..end));
-        }
-    }
+    let effect = chameleon_effects::Effect::parse(&resource.blocks[0]).map_err(|error| anyhow::anyhow!("{error}"))?;
+    let drawing: Vec<chameleon_effects::Emitter> =
+        effect.emitters.into_iter().filter(|e| e.render_op().is_some_and(|op| SPRITES.contains(&op))).collect();
     let mut materials: Vec<_> = resource
         .imports
         .iter()
@@ -155,21 +147,15 @@ pub fn emitters(bundle: &Bundle, id: u64) -> Result<Vec<Emitter>> {
         })
         .collect();
     materials.sort_by_key(|import| import.offset);
-    if materials.len() != kinds.len() {
-        bail!("the effect {id:#x} has {} particle emitters and {} materials", kinds.len(), materials.len());
+    if materials.len() != drawing.len() {
+        bail!("the effect {id:#x} has {} sprite emitters and {} materials", drawing.len(), materials.len());
     }
-    let single = kinds.len() == 1;
     let mut out = Vec::new();
-    for ((flipbook, range), import) in kinds.into_iter().zip(materials) {
+    for (fx, import) in drawing.into_iter().zip(materials) {
         let picture = material_picture(bundle, import.id)?;
-        let colour = if single { colour_constant(main, range) } else { None };
-        out.push(Emitter { picture, flipbook, colour });
+        out.push(Emitter { picture, flipbook: fx.flipbook(), fx });
     }
     Ok(out)
-}
-
-fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    haystack.windows(needle.len()).any(|window| window == needle)
 }
 
 /// The picture of the first texture of a material.
@@ -223,22 +209,6 @@ pub fn decode(texture: &Texture) -> Result<Picture> {
     };
     let Some(rgba) = decode_mip_rgba8(&source, 0) else { bail!("the texture does not decode") };
     Ok(Picture { width: texture.width, height: texture.height, rgba })
-}
-
-/// The first float4 inside `range` of `block` that reads as an authored colour: red, green and blue in 0 to 1, at least one
-/// above 0.02 and one below 0.98, none of them a round number (the effects keep many round constants, such as (1, 0.25, 1, 1),
-/// that are not colours), and an alpha of exactly 1. The float4s are 4-byte aligned in the block.
-fn colour_constant(block: &[u8], range: std::ops::Range<usize>) -> Option<[f32; 3]> {
-    let first = range.start.next_multiple_of(4);
-    (first..range.end.saturating_sub(15)).step_by(4).find_map(|at| {
-        let value = |n: usize| word(block, at + 4 * n).map(f32::from_bits);
-        let rgb = [value(0)?, value(1)?, value(2)?];
-        let alpha = value(3)?;
-        let inside = rgb.iter().all(|c| (0.0..=1.0).contains(c));
-        let varied = rgb.iter().any(|c| *c > 0.02) && rgb.iter().any(|c| *c < 0.98);
-        let authored = rgb.iter().all(|c| ((c * 64.0).round() - c * 64.0).abs() > 1e-3);
-        (inside && varied && authored && alpha == 1.0).then_some(rgb)
-    })
 }
 
 /// A picture as a PNG file.

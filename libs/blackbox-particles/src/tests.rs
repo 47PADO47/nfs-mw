@@ -248,3 +248,28 @@ fn particles_beyond_a_lowered_limit_are_left_to_die() {
     run(&mut emitter, 30, &Frame::default());
     assert!(emitter.is_empty());
 }
+
+#[test]
+fn damping_takes_a_share_of_the_velocity_every_sixtieth_of_a_second_whatever_the_speed() {
+    let travelled = |speed: f32, damping: f32| {
+        let spec = EmitterSpec { rate: 1000.0, life: 5.0, speed, damping, ..Default::default() };
+        let mut emitter = Emitter::new(spec, 3);
+        // One particle is born (a thousandth of a second); then it is left to move for a third of a second.
+        emitter.step(0.001, &Frame::default());
+        for _ in 0..20 {
+            emitter.step(1.0 / 60.0, &Frame { intensity: 0.0, ..Frame::default() });
+        }
+        emitter.sprites().map(|sprite| sprite.position.z).fold(f32::MIN, f32::max)
+    };
+    let free = travelled(10.0, 0.0);
+    let slowed = travelled(10.0, 0.5);
+    let twice = travelled(20.0, 0.5);
+    assert!(free > 3.0, "{free}");
+    assert!(slowed < 0.25 * free, "half the velocity is lost every step: {slowed} against {free}");
+    assert!(
+        (twice / slowed - 2.0).abs() < 0.05,
+        "the loss is a share, not a drag that grows with speed: {twice} {slowed}"
+    );
+    let stopped = travelled(10.0, 1.0);
+    assert!(stopped < 0.2, "a damping of 1 stops it after its first step: {stopped}");
+}

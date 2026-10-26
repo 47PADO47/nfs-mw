@@ -128,6 +128,7 @@ fn emitter_spec(e: CollectionRef<'_>) -> EmitterSpec {
         volume_center: vector("VolumeCenter"),
         volume_extent: vector("VolumeExtent"),
         drag: float("Drag"),
+        damping: 0.0,
         gravity: float("Gravity"),
         inherit: float("MotionInherit"),
         inherit_variance: float("MotionInheritVariance"),

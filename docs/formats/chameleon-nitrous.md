@@ -101,7 +101,7 @@ state objects hold the pair 2.0, 1.0 (nitrous and overdrive) next to their expre
 (`blackbox_gfx::FocusFilter`); the 2012 vignette darkens and the bloom and the grade are not controls of the renderer. The
 values are kept here so that a renderer that grows those controls can read them.
 
-## Tail pipe effects **[verified]** (programs not decoded)
+## Tail pipe effects **[verified]**
 
 The effect id of the sound sequence (`RaceCarEffectSequenceItem`, `0x1B0A3B`) is not what plays the flames; the car does. Each
 car bundle has a `Genesys.Gen.VehicleVfxBehaviour` object (the one that holds the lamps, see
@@ -118,12 +118,14 @@ group (the tail pipes, or another place), at +0x18 a bit of the **light-state wo
 | `0x24F5A`, `0x14023F` | `0x1401FC` | 12 | other places |
 | `0x220308` | `0x126DFD` | 20 | one smoke emitter (in 6 cars it is listed in the pipes' group too, before `0x22030B`) |
 
-**The bits.** `FUN_0057A5E0` of `NFS13.exe` builds the word each frame **[exe]**. Bit 9 (`0x200`) is set when the vehicle's
-state byte at +0x195B is 1; bit 20 (`0x100000`) when it is 3 and two more conditions hold; bit 14 (`0x4000`) when neither the
-throttle bit nor bit 9 is set and a timer that starts at 2 is running, which the executable restarts at a gear change and
-decrements every frame; bit 8 (`0x100`) when the pedal is pressed. The lamps page read bit 9 as the reverse gear; no car has a
-reverse lamp record and the two screenshots below say otherwise. **[unconfirmed]** reading: the byte is the nitrous state
-(1 lighting, 3 burning), bit 14 the blow-off.
+**The bits.** The executable's light-state routine builds the word each frame **[exe]**. Bit 9 (`0x200`) is set when the vehicle's
+state byte (at +0x195B of the vehicle, +0x33 of its nitrous input record) is 1; bit 20 (`0x100000`) when it is 3 and two more
+conditions hold (a per-player flag is 2 and a vehicle check passes), only for a vehicle that is not flagged as traffic; bit 14
+(`0x4000`) when neither the pedal bit (8, `0x100`) nor bit 9 is set and a timer that starts at 2 at a gear change is running; bit
+8 when the pedal is pressed. The byte comes from the nitrous button's state in the input system, remapped **[exe]**: its states
+0 and 1 (nothing, and **no nitrous to use**) both give 0, 2 gives 1 (the button was just accepted: the start), 3 gives 2, 4 gives 3
+(burning). So an empty tank with the button held is state 0: **no start, no burn, no effect and no sputter** are in the data. The
+lamps page read bit 9 as the reverse gear; no car has a reverse lamp record and the two screenshots below say otherwise.
 
 **Looked at the screenshots of the game** (a white Porsche 918, from behind): while the nitrous burns, a blue-white glow sits
 in each pipe, with bloom (effect `0x22030B`); when it lights, an orange-yellow flame bursts from each pipe, with sparks and dust
@@ -134,13 +136,22 @@ orange fireball in a 5 x 5 grid, and the glow is a grey soft cloud that the effe
 (`122699`, `122706`, `122713`, `510072`, `1085764`, `1467242`) have no pipe effects. The mod takes the three from the first car
 that has them.
 
-**An effect** is a bytecode program per emitter (each emitter starts with the attribute names it keeps: `Position`, `Velocity`,
-`Age`, `RecipLifetime`, `2dAngularVelocity`, `2dRotation`, `Radius`, `Colour`, and `SubUV` for a flipbook), a list of operations
-(`0xEB40...` records with attribute slots) and float constants (ranges written as minimum, maximum, 0.001). The material import of
-each emitter gives its picture. The glow's colour is a constant in its program: (0.0307, 0.521, 0.863, 1.0), the blue seen in
-the screenshot. What this page does **not** have is the meaning of the other constants (spawn rate, lifetime, speed, size over
-life): ranges such as (0.1, 0.2), (0.2, 0.35) and (0.25, 0.3) are there, but which attribute each initialises is not decoded, so
-the mod sets those numbers by eye (see [nitrous-variants.md](../modding/nitrous-variants.md#the-2012-variant)).
+**An effect** is a bytecode program per emitter. The format, the operation table and the parameter blocks are in
+[chameleon-effects.md](chameleon-effects.md); read with it, the three effects are (numbers are the effect files'):
+
+| Effect | Emitter | Spawn | Life (s) | Look |
+|---|---|---|---|---|
+| start `0x16205B` | 3 smoke puffs, 128 x 128 | 80, 300 and 300 a second, **no window end** | 0.2-0.4, 0.05-0.225 | small cyan-white additive puffs, 0.07-0.37 m wide, riding with the pipe |
+| | 2 flames, 512 x 512 sheet | 100 and 40 a second for **0.5 s** | 0.1-0.2 | 0.29 to 0.68 m, rising at 10 m/s2, riding with the pipe |
+| | flipbook, 128 x 128 | 100 a second for 0.5 s | 0.2-0.5 | small orange sparks |
+| burn `0x22030B` | glow, 256 x 256 | 5 a second plus 1 for each m/s of the car, no window end | 0.25-0.5 | colour (0.03, 0.52, 0.86), 1.7 m growing to 6 m wide, takes 0.8 to 0.9 of the car's velocity at birth, then **loses 75 % of it every step**: it stays where it was born and the car drives out of it, a trail |
+| pop `0x24F2D` | smoke, 2 flames, flipbook | 100, 100, 40 and 100 a second for 0.5 s | 0.1-0.5 | the same flames, with a big faint dark smoke |
+| | a last emitter with no picture | burst of 1 | 0.25 | a light (radius 0.5), not played |
+
+The glow's colour is the first colour of its gradient: (0.0307, 0.521, 0.863, 1.0), the blue seen in the screenshot. Not
+decoded, and assumed 1 or 0: the effect's parameter array (it scales the rates and the shell), the flipbook cell rule, the blends,
+the light and the heat haze (`0x24F2F`, refraction sprite). The mod turns what is decoded into its profile
+([nitrous-variants.md](../modding/nitrous-variants.md#the-2012-variant)).
 
 ## HUD **[exe]**
 
@@ -152,7 +163,7 @@ so the look of the bar and its flash is unknown.
 
 ## Not found
 
-- **The emitters' numbers.** The effects are found (see above); their spawn, lifetime, speed and size programs are not decoded.
+- **The effect's parameter array**, the flipbook cell rule, the blends and the lights: see [chameleon-effects.md](chameleon-effects.md#decoded-and-not).
 - **Camera.** The car bundles have `CameraGameplayExternal` (with `Speed_based_movement.High_Speed_Shake`,
   `Acceleration_movement`, `Camera_Roll`) and `CameraGameplayExternalGlobals.LensProperties`; none of them names the nitrous.
   The executable has "The FOV of the Gameplay External camera" and "Max Fov", "Min Fov" in a debug table. A field of view or
