@@ -32,6 +32,16 @@ use super::world::{self, WorldRequest};
 use crate::devtools::Console;
 use crate::viewer::{CameraReadout, PlayerCar, Scene, WorldInfo};
 
+/// How many frames pass before a profile that was not found is looked for again.
+const PROFILE_RETRY_CALLS: u32 = 300;
+
+/// The nitrous profile read for the chosen value, and when to look again if it was missing.
+pub(super) struct NitrousCache {
+    value: String,
+    profile: Option<Arc<NitrousProfile>>,
+    retry_in: u32,
+}
+
 pub struct Bridge {
     /// The last handle given out. Handles start at 1; 0 means none.
     last_handle: Cell<u64>,
@@ -65,7 +75,7 @@ pub struct Bridge {
     /// The chosen value of each option read so far, so the config file is not read every frame.
     pub(super) option_choices: RefCell<HashMap<String, String>>,
     /// The profile of the nitrous variant in effect, read from the install once per chosen value (`nitrous_profile`).
-    pub(super) nitrous_cache: RefCell<Option<(String, Option<Arc<NitrousProfile>>)>>,
+    pub(super) nitrous_cache: RefCell<Option<NitrousCache>>,
     /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
     pub(super) ui_themes: RefCell<Vec<UiRecord>>,
     /// The mod theme the player chose on the Mods page, or `None` for the built-in style (`ui.rs`). The theme sync
@@ -153,14 +163,22 @@ impl Bridge {
     pub fn nitrous_profile(&self) -> Option<Arc<NitrousProfile>> {
         let choice = settings::nitrous_variant(self);
         choice.owner.as_ref()?;
-        if let Some((value, profile)) = self.nitrous_cache.borrow().as_ref()
-            && *value == choice.value
+        let mut cache = self.nitrous_cache.borrow_mut();
+        let mut first = true;
+        if let Some(cached) = cache.as_mut()
+            && cached.value == choice.value
         {
-            return profile.clone();
+            // A profile that was not there is looked for again every so often: the mod may still be converting it.
+            cached.retry_in = cached.retry_in.saturating_sub(1);
+            if cached.profile.is_some() || cached.retry_in > 0 {
+                return cached.profile.clone();
+            }
+            first = false;
         }
         let dir = self.install()?;
-        let profile = read_profile(&dir, &choice.value);
-        *self.nitrous_cache.borrow_mut() = Some((choice.value, profile.clone()));
+        let (profile, found) = read_profile(&dir, &choice.value, first);
+        let retry_in = if found { u32::MAX } else { PROFILE_RETRY_CALLS };
+        *cache = Some(NitrousCache { value: choice.value, profile: profile.clone(), retry_in });
         profile
     }
 
@@ -201,22 +219,25 @@ impl Bridge {
     }
 }
 
-/// The profile of variant `value`, read and checked. A failure is a warning, and the variant then has no effects.
-fn read_profile(dir: &GameDir, value: &str) -> Option<Arc<NitrousProfile>> {
+/// The profile of variant `value`, read and checked, and whether the file was there. A failure is a warning (when `warn`),
+/// and the variant then has no effects.
+fn read_profile(dir: &GameDir, value: &str, warn: bool) -> (Option<Arc<NitrousProfile>>, bool) {
     let path = nitrous_profile_path(value);
     let bytes = match dir.read(&path) {
         Ok(bytes) => bytes,
         Err(error) => {
-            log::warn!("the nitrous variant {value:?} has no profile ({path}): {error}; the game's nitrous plays");
-            return None;
+            if warn {
+                log::warn!("the nitrous variant {value:?} has no profile ({path}): {error}; the game's nitrous plays");
+            }
+            return (None, false);
         }
     };
     let text = String::from_utf8_lossy(&bytes);
     match parse_nitrous_profile(&text) {
-        Ok(profile) => Some(Arc::new(profile)),
+        Ok(profile) => (Some(Arc::new(profile)), true),
         Err(error) => {
             log::warn!("the nitrous variant {value:?}: {path} is refused: {error}; the game's nitrous plays");
-            None
+            (None, true)
         }
     }
 }
