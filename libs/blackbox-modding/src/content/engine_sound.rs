@@ -16,7 +16,7 @@ use super::ContentError;
 /// Most layers a car may have.
 pub const MAX_LAYERS: usize = 8;
 /// Most files one list of `[car_sound]` may name.
-pub const MAX_EFFECT_FILES: usize = 8;
+pub const MAX_EFFECT_FILES: usize = 16;
 
 /// One looping recording of the engine.
 #[derive(Debug, Clone, PartialEq)]
@@ -144,7 +144,7 @@ pub(super) fn check_effects(raw: Option<RawEffects>) -> Result<Option<CarEffects
     let Some(raw) = raw else { return Ok(None) };
     let list = |name: &'static str, files: Vec<String>| -> Result<Vec<String>, ContentError> {
         if files.len() > MAX_EFFECT_FILES {
-            return Err(ContentError::Field { field: name, reason: "a list names at most 8 files" });
+            return Err(ContentError::Field { field: name, reason: "a list names at most 16 files" });
         }
         if let Some(bad) = files.iter().find(|file| !is_sound_path(file)) {
             return Err(ContentError::InvalidText(bad.clone()));
@@ -199,12 +199,12 @@ mod tests {
 
     #[test]
     fn bad_effects_are_refused() {
-        let nine = format!("[car_sound]\npops = [{}]\n", vec!["\"SOUND/P.WAV\""; 9].join(", "));
+        let seventeen = format!("[car_sound]\npops = [{}]\n", vec!["\"SOUND/P.WAV\""; 17].join(", "));
         for (edit, text) in [
             ("a path with ..", "[car_sound]\nshift = [\"SOUND/../S.WAV\"]\n"),
             ("a file that is not a WAV", "[car_sound]\npops = [\"SOUND/P.MP3\"]\n"),
             ("an absolute path", "[car_sound]\nbackfire = [\"/SOUND/B.WAV\"]\n"),
-            ("nine files", nine.as_str()),
+            ("seventeen files", seventeen.as_str()),
             ("a key the game does not know", "[car_sound]\nhorn = [\"SOUND/H.WAV\"]\n"),
             ("a file instead of a list", "[car_sound]\nshift = \"SOUND/S.WAV\"\n"),
         ] {

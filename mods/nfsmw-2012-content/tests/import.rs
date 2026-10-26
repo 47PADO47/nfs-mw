@@ -67,6 +67,22 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
         std::fs::read_to_string(dir.join("cars").join(format!("{}.toml", car.id.to_ascii_lowercase()))).unwrap();
     assert!(manifest.contains(&format!("clone = \"{}\"", car.clone)));
 
+    // The car's own recordings: the manifest names every file of its engine and its other sounds, and they are all there.
+    let parsed: toml::Table = toml::from_str(&manifest).unwrap();
+    let mut named = Vec::new();
+    for (table, keys) in [("engine_sound", &["layers"][..]), ("car_sound", &["shift", "backfire", "pops"][..])] {
+        let table = parsed[table].as_table().unwrap_or_else(|| panic!("the Porsche has a [{table}] table"));
+        for key in keys {
+            let entries = table[*key].as_array().unwrap_or_else(|| panic!("{key} is a list"));
+            assert!(!entries.is_empty(), "{key} names no file");
+            named.extend(entries.iter().map(|entry| entry.as_str().or_else(|| entry["file"].as_str()).unwrap().to_owned()));
+        }
+    }
+    for file in named {
+        let wav = std::fs::read(dir.join("files").join(&file)).unwrap_or_else(|e| panic!("{file}: {e}"));
+        assert_eq!(&wav[..4], b"RIFF", "{file} is a WAV");
+    }
+
     assert!(matches!(job::start(&dir, &game).unwrap(), Start::UpToDate { cars: 1 }));
     std::fs::write(dir.join("config.toml"), "source = 'nowhere'\n").unwrap();
     let Start::Started { job: second, live } = job::start(&dir, &game).unwrap() else {

@@ -15,16 +15,20 @@
 pub mod config;
 mod convert;
 mod donor;
+mod effects;
 mod emit;
 mod engine;
 mod fit;
+mod graphs;
 pub mod import;
 pub mod job;
 mod liveries;
 mod names;
 pub mod performance;
+mod sample;
 mod source;
 mod stamp;
+mod sounds;
 mod textures;
 
 use std::path::PathBuf;

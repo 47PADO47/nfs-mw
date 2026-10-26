@@ -11,6 +11,8 @@ use chameleon_vehicle::{Vehicle, find_spec, load, load_texture, vehicle_name};
 const VEHICLES: &str = "VEHICLES";
 const SHARED_TEXTURES: &str = "VEHICLES/VEHICLETEX.BNDL";
 const SHADERS: &str = "SHADERS.BNDL";
+/// The one-shots the cars share (the turbo's blow-off is one); optional.
+const SHARED_SAMPLES: &str = "VEHICLES/WAVES.BNDL";
 
 /// One car's bundle file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,6 +33,8 @@ pub struct SourceCar {
 pub struct Source {
     textures: Vec<u8>,
     shaders: Vec<u8>,
+    /// The shared sample bundle, when the install has one that can be read.
+    shared_samples: Option<Vec<u8>>,
     cars: Vec<CarFile>,
 }
 
@@ -46,7 +50,8 @@ impl Source {
         };
         let textures = std::fs::read(find(SHARED_TEXTURES)?).context("reading the shared vehicle textures")?;
         let shaders = std::fs::read(find(SHADERS)?).context("reading the shaders")?;
-        Ok(Self { textures, shaders, cars: list_cars(&root.join(VEHICLES))? })
+        let shared_samples = std::fs::read(root.join(SHARED_SAMPLES)).ok();
+        Ok(Self { textures, shaders, shared_samples, cars: list_cars(&root.join(VEHICLES))? })
     }
 
     /// The high-detail bundle of every car, in file-number order.
@@ -58,6 +63,11 @@ impl Source {
     pub fn object_name(&self, file: &CarFile) -> Option<String> {
         let data = std::fs::read(&file.path).ok()?;
         vehicle_name(&Bundle::parse(&data).ok()?)
+    }
+
+    /// The shared sample bundle (`VEHICLES/WAVES.BNDL`), if the install has it.
+    pub fn shared_samples(&self) -> Option<&[u8]> {
+        self.shared_samples.as_deref()
     }
 
     /// The bytes of the car's high-detail bundle.
