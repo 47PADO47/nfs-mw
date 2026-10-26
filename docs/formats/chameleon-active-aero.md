@@ -16,13 +16,14 @@ decoded, the part stays still and it is listed under [What is not decoded](#what
 - A car with moving aero has an **`HSMData`** resource (type 0x501), a state machine named `<car>_SpoilerAnimation` (or
   `_AirVentsAnimation`, `_AileronAnimations`): conditions on inputs of the car (`gas`, `brake`, `steering`, `speedinmph`,
   `coplights`) and **animation states** that play an animation (type 0xB3) of the skeleton **[verified]**: 18 of the 93 bundles.
-- Driven from decoded data:
+- Driven from the data:
   - **spoiler states** (speed above / speed below): 911 Carrera S x2, LFA, 918 Spyder, 918 Spyder Concept Study, SL65 AMG x2, SLS AMG,
     LP700-4, Panamera (spoiler and two side flaps);
   - the **Agera R**: two flaps that open above 70 mph with the gas pressed and close when it is released;
   - the **air vents** of the 918 Spyder Concept Study, the LP700-4, the Marussia B2 and the Aventador J, with their waits;
-  - the **Veyron Super Sport and Grand Sport Vitesse** wing machine: five keyed animations, cross-fades, the brake.
-- **Not driven:** McLaren MP4-12C, Hennessey Venom GT Spyder, Pagani Huayra (the exact blocker is below).
+  - the **Veyron Super Sport and Grand Sport Vitesse** wing machine: five keyed animations, cross-fades, the brake;
+  - the **McLaren MP4-12C and Hennessey Venom GT Spyder** wing: the Veyron's machine without the top-speed states, numbers from their own data (assumption, see below);
+  - the **Pagani Huayra** flaps: guarded animations (assumptions, see below).
 
 ## The input names and the speed [exe]
 
@@ -48,10 +49,10 @@ A condition's data object holds a number, an input and an **operator code**. Rea
 | 1 | not equal | `Brake ON` (`brake` 1 0), `Speed 70mph + Gas` (`gas` 1 0) |
 | 2 | greater than | `Speed above N`; `Turning Right` (`steering` 2 0.3, 5 0.3 on the Agera and Huayra flaps) |
 | 3 | less than | `Speed under N`; `Turning Left` (`steering` 3 -0.3) |
-| 4 | at most | `Front Left Flap Turning Anim` (`steering` 4 -0.3) |
-| 5 | at least | `Front Right Flap Turning Anim` (`steering` 5 0.3) |
+| 4 | at least (>=) | the end of a left turn: `Front Left Flap Turning Anim` closes when `steering` is at least -0.3 |
+| 5 | at most (<=) | `Brake OFF and Speed under 120mph` (`speedinmph` 5 120); the end of a right turn: closes when `steering` is at most 0.3 |
 
-The codes 4 and 5 are read from two labels only. A condition that is several tests at once (`Speed 125mph + Brake ON`, `Speed
+The codes 4 and 5 are read from the labels of the Huayra and the McLaren (the first reading of this table had them the other way round; a right turn that ends at `steering` 5 0.3 only makes sense as "at most"). A condition that is several tests at once (`Speed 125mph + Brake ON`, `Speed
 70mph + Gas`) has several data objects: the **flag word of its property row counts them**, and all have to hold. The
 executable does not evaluate operators in the animation behaviours (below): the generic evaluator that turns conditions into
 the flags and thresholds those behaviours read was not found.
@@ -109,7 +110,7 @@ animation replaces the pose, the second moves it toward its own pose by a weight
 linearly interpolated and rotations spherically. A bone that only the second animation moves is moved from rest.
 
 **Flag classes** (0x0047bd00 and 0x0047c0b0 <!-- leak-check: allow -->): one-bit open and close behaviours that read booleans
-from the generic condition evaluator; the McLaren, Venom and Huayra are of this family (not read, below).
+from the generic condition evaluator; no car was tied to them.
 
 ## The state machine's data
 
@@ -178,29 +179,48 @@ The converter writes `rotation_axis`, `rotation_deg`, `offset`, `gas`, `open_aft
 
 ## What is not decoded
 
-Those cars keep their parts still. No number is guessed for them.
+Nothing is driven that the data does not state; the open questions are:
 
-- **McLaren MP4-12C, Hennessey Venom GT Spyder and Pagani Huayra.** What was established and where the trail ends:
-  - The behaviour classes are registered in a table of nine entries at 0x00fae0ac (stride 0x14: a small function that returns a
-    category, a common word, the constructor, two more) <!-- leak-check: allow -->. Constructor, class vtable and update routine of
-    each: 0x005aae60 / 0x00faf168 / 0x005a9d10 (bone controllers: wheels and suspension, not wings); 0x005adad0 / 0x00faf1c8 /
-    0x005ad7d0 (the speed spoiler and the Veyron wing machine); 0x005a8900 / 0x00faf0d8 / 0x005a8670 (the timed vents);
-    0x005a84a0 / 0x00faf0a8 / 0x005a82e0 (one-animation open/close flag); 0x005ad5e0 / 0x00faf198 / 0x005ad410 (the same with
-    vehicle flags); 0x005ae8d0 / 0x00faf078 / 0x005b62f0 (lights and dirt, not animation states); 0x005ac8c0 / 0x00faefe8 /
-    0x005ac790 (one animation scrubbed by a continuous vehicle value, `0.5 + 0.5 v`, e.g. a steering wheel); 0x005af090 /
-    0x00faf208 and 0x005b6230 were not read <!-- leak-check: allow -->.
-  - The data does not name the class: every animation state of every car has the same type hash. What differs is the **top byte of the
-    record's flags word**: `00` for the plain spoilers, the Agera and the Huayra flaps, `02` for the vents, and `07`, `06`, `03`, `00`
-    for the Veyron's `Handling`, `Top Speed`, `Brake from ...` and `Brake` states, `06`, `03`, `00` for the McLaren's and the Venom's
-    `Spoiler Up`, `Brake From Speed` and `Brake`. Nothing in the executable's registration table reads it; the loader that turns
-    these objects into the native ones the constructors read (0x005adad0 and the others) was **not located**, so the byte cannot
-    be tied to an entry.
-  - The McLaren cannot run the Veyron's machine: that one tests static constants 140, 125 and 200 mph (made at 0x00f4b700 to
-    0x00f4b720), while the McLaren's data holds 120 and 80 and `Speed under 10`, and none of the static vector constants of the
-    animation classes is 120 or 80 (the only static 120 and 80 belong to code outside this family: 0x00910790, 0x00589e20,
-    0x0063dfa0). Its graph has the same shape as the Veyron's without the top-speed states, which is not enough to port the
-    Veyron's code with other numbers: the thresholds of that code are not read from the data.
-  - The Huayra's four flaps follow `steering` at -0.3 and 0.3 (operators 4 and 5), speed and brake; their states have the two
-    flag properties set to 1 (the McLaren's `Brake` has one of them) and no flags byte. The class is not among the entries read.
+- **The class of the McLaren, the Venom and the Huayra.** No native class was tied to their data: the registration table at
+  0x00fae0ac has nine entries (constructor / vtable / update): 0x005aae60 / 0x00faf168 / 0x005a9d10 (bone controllers),
+  0x005adad0 / 0x00faf1c8 / 0x005ad7d0 (speed spoiler and Veyron machine), 0x005a8900 / 0x00faf0d8 / 0x005a8670 (timed vents),
+  0x005a84a0 / 0x00faf0a8 / 0x005a82e0 (flag), 0x005ad5e0 / 0x00faf198 / 0x005ad410 (vehicle flags), 0x005ae8d0 / 0x00faf078 /
+  0x005b62f0 (lights and dirt), 0x005ac8c0 / 0x00faefe8 / 0x005ac790 (a scrubbed animation), and 0x005af090 / 0x00faf208 and
+  0x005b6230 (not read) <!-- leak-check: allow -->. The data names no class (every animation state has the same type hash;
+  the top byte of the record's flags word differs: 00, 02 for vents, 03, 06 and 07 for the Veyron and McLaren states) and
+  the loader from data to native objects was not found. These three cars are therefore driven from the **graph in their data**,
+  with the assumptions below.
+
+## The McLaren, the Venom and the Huayra
+
+**Link semantics read from the data** (the child lists of a machine: each child has links of 24 bytes to other objects of the
+machine; a link with the key `684561a168000000` joins a condition and what it guards, both ways; a `Wait` transition in the chain
+is the seconds the condition has to hold; a condition that is `OR` has the row `5b562d0c8c7b8000` = 1). The McLaren's and the
+Venom's graph is the Veyron's without `Top Speed`: the root has an `OR` group (`Speed above 120mph`, `Brake ON and Speed above
+80mph`), `Wait 0.4s` with `Brake OFF`, and the states `Spoiler Up Anim`, `Brake Anim` and the nested `Brake From Speed Anim`
+with its `Reverse` copies; it exits by `Speed under 120mph OR Brake`, `Brake OFF and Speed above/under 120mph`.
+
+**Played as the wing machine** (the Veyron's code, native class unknown): slot 0 is `Spoiler Up Anim`, slot 1 `Brake Anim`, slot 2
+`Brake From Speed Anim`; the open speed (120 mph, the condition that is a single speed test), the brake speed (80 mph, the speed
+test of `Brake ON and Speed above 80mph`) and the hold (0.4 s, the timed transitions) come from the data; there is no top-speed
+state. **Assumptions, not data:** that the three-animation graph is played by the same state table as the Veyron's (the
+Veyron's code takes its speeds from static constants, so another class must hold the McLaren's numbers; the graphs are
+isomorphic), that the 0.25 s cross-fade of the Veyron's code applies, that `Speed under 10` (and the Veyron's `Speed under 20`)
+is not tested (the Veyron's code does not), and that a clock runs linearly over the animation's length between evenly spaced keys.
+
+**Guarded animations** (the Huayra, any other machine of animation states directly in a group machine): each state is played
+by the condition that guards it (looked up through the links, and through the group it is in: the group's condition starts all
+its states, the group's free condition ends them) and, if it has its own condition list, ends by that. The Huayra has ten
+(`hsm::drives`): the four `Turning` states (speed above 50 and below 137 mph with `steering` beyond 0.3 to the right or -0.3 to
+the left; they end when the speed leaves the band or the wheel comes back to 0.3), the two front speed bands (50 to 93 mph),
+the two rear speed bands (50 to 155 mph) and the two rear brake states (speed above 155 mph with the brake, held 0.4 s; they
+end when the brake is off or the speed under 10). The four animations move one bone each (the two front and two rear flaps),
+so each flap has two or three drives. **Assumptions, not data:** a drive plays its animation **to the end** at a constant rate
+over the animation's length (the labels `Rotate 30°` and `Rotate to 50°` are two states playing the same animation, whose end
+pose is about 48°; no field limits the 30° state), a flap is out as far as the furthest of its drives, a drive that is out stays
+until its closing tests hold, the brake states nested inside a speed state of the front flaps (`Brake Animation` when the speed is
+above 62 mph with the brake) add nothing (they play the animation the speed state already plays), a positive `steering` of the
+game is a turn to the right, and the speed of the Huayra's front flaps ends at 93 mph as its data says.
+
 - **The key times** of the animations (uniform spacing assumed) and the rest-pose frame, as marked above.
 - Whether the physical downforce changes with the wings: nothing in the data says so. The repo leaves it unchanged.

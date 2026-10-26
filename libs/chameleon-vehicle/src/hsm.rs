@@ -36,7 +36,7 @@ const IDS: std::ops::Range<u32> = 0x1000..0x0100_0000;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Threshold {
     pub input: String,
-    /// The operator code as text: `0` equal, `1` not equal, `2` greater than, `3` less than, `4` at most, `5` at least
+    /// The operator code as text: `0` equal, `1` not equal, `2` greater than, `3` less than, `4` at least, `5` at most
     /// (read off the labels of the conditions: `Brake OFF` is `brake` `0` `0`, `Brake ON` is `1`, `Turning Left` is
     /// `steering` below -0.3 and `Turning Right` above 0.3).
     pub operator: String,
