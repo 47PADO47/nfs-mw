@@ -8,7 +8,7 @@ use blackbox_modding::content::{CARS_FOLDER, CarManifest, parse_car};
 use game_install::{GameDir, Provider};
 use nfsmw_data::car::CarTables;
 use nfsmw_data::car::mods::custom;
-use nfsmw_data::car::mods::{self as car_mods, CarEffects, CarSpec, CarStats, EngineLayer, EngineSound};
+use nfsmw_data::car::mods::{self as car_mods, CarEffects, CarSpec, CarStats, EngineSound};
 use nfsmw_data::pursuit::HEAT_LEVELS;
 
 use super::ModDir;
@@ -174,7 +174,7 @@ fn engine_sound_of(sound: &blackbox_modding::content::EngineSound) -> EngineSoun
     EngineSound {
         idle_rpm: sound.idle_rpm,
         redline_rpm: sound.redline_rpm,
-        layers: sound.layers.iter().map(|layer| EngineLayer { file: layer.file.clone(), rpm: layer.rpm }).collect(),
+        layers: sound.layers.iter().map(super::engine_layers::layer_of).collect(),
     }
 }
 
