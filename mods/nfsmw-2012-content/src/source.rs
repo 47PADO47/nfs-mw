@@ -60,6 +60,11 @@ impl Source {
         vehicle_name(&Bundle::parse(&data).ok()?)
     }
 
+    /// The bytes of the car's high-detail bundle.
+    pub fn bundle_bytes(&self, file: &CarFile) -> Result<Vec<u8>> {
+        std::fs::read(&file.path).with_context(|| format!("reading {}", file.path.display()))
+    }
+
     pub fn load(&self, file: &CarFile) -> Result<SourceCar> {
         let data = std::fs::read(&file.path).with_context(|| format!("reading {}", file.path.display()))?;
         let bundle = Bundle::parse(&data)?;

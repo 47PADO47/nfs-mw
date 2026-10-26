@@ -4232,11 +4232,13 @@ dependencies = [
  "chameleon-bundle",
  "chameleon-gfx",
  "chameleon-vehicle",
+ "ea-audio",
  "game-install",
  "log",
  "nfsmw-data",
  "rayon",
  "serde",
+ "symphonia",
  "toml 0.9.12+spec-1.1.0",
 ]
 

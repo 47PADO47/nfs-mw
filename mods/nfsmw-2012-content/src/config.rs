@@ -43,6 +43,10 @@ max_texture_size = 1024
 # Who can use the cars: \"player\", \"cop\" or \"both\".
 role = \"player\"
 
+# Play the engine loops of each 2012 car instead of its stock clone's engine sound (an approximation: see
+# docs/modding/car-customization.md). The loops are written into the mod's folder; false keeps the clone's sound.
+own_engine_sound = true
+
 # How the cars drive compared with the stock car each one clones. Every number is a multiplier of the clone's own
 # value (power 0.25 to 4, mass 0.25 to 4, grip 0.25 to 3, brakes 0.25 to 4, nitrous_power 0 to 4). The 2012 cars have
 # nitrous from the factory; turn it off with nitrous = false.
@@ -115,6 +119,8 @@ pub struct Config {
     pub exclude: Vec<String>,
     pub max_texture_size: u32,
     pub role: Role,
+    /// Whether each car plays the engine loops of its 2012 bundle instead of its clone's engine sound.
+    pub own_engine_sound: bool,
     /// How the cars drive compared with their clones (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -129,6 +135,7 @@ impl Default for Config {
             exclude: Vec::new(),
             max_texture_size: 1024,
             role: Role::Player,
+            own_engine_sound: true,
             performance: Performance::default(),
             car: BTreeMap::new(),
         }

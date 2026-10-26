@@ -9,7 +9,7 @@ use blackbox_hash::bstring_hash;
 use game_install::GameDir;
 use nfsmw_2012_content::job::{self, Finished, Start};
 use nfsmw_data::car::customization::{Category, Inventory, Selection};
-use nfsmw_data::car::mods::{self as car_mods, CarSpec, Tuning};
+use nfsmw_data::car::mods::{self as car_mods, CarSpec, EngineLayer, EngineSound, Tuning};
 use nfsmw_data::car::physics::{PerformancePackage, PhysicsData};
 use nfsmw_data::car::{CarTables, LoadOptions, exhaust};
 
@@ -41,6 +41,20 @@ fn converted(source: &Path, game: &Path) -> PathBuf {
 }
 
 /// The car the way the host registers it from `cars/<id>.toml`.
+/// The manifest's `[engine_sound]` table as the game reads it.
+fn engine_sound_of(table: &toml::Value) -> EngineSound {
+    let number = |value: &toml::Value| value.as_float().unwrap() as f32;
+    let layers = table["layers"].as_array().unwrap();
+    EngineSound {
+        idle_rpm: number(&table["idle_rpm"]),
+        redline_rpm: number(&table["redline_rpm"]),
+        layers: layers
+            .iter()
+            .map(|layer| EngineLayer { file: layer["file"].as_str().unwrap().to_owned(), rpm: number(&layer["rpm"]) })
+            .collect(),
+    }
+}
+
 fn register(game: &GameDir, mod_dir: &Path) -> Tuning {
     let text =
         std::fs::read_to_string(mod_dir.join("cars").join(format!("{}.toml", CAR.to_ascii_lowercase()))).unwrap();
@@ -67,6 +81,7 @@ fn register(game: &GameDir, mod_dir: &Path) -> Tuning {
         cop_heat: None,
         geometry_in_mod: true,
         tuning,
+        engine_sound: manifest.get("engine_sound").map(engine_sound_of),
     };
     let (cars, rejected) = car_mods::register(&tables.types, &[spec]);
     assert!(rejected.is_empty(), "{rejected:?}");
@@ -133,5 +148,14 @@ fn a_converted_car_takes_paint_vinyls_spoilers_flames_and_tuning() {
     println!("nitrous {:?}, the clone's {:?}", tuned.spec.nos, base.spec.nos);
     let upgraded = physics.car_with_performance(CAR, PerformancePackage::default()).unwrap();
     assert_eq!(format!("{:?}", upgraded.spec.engine.torque), format!("{:?}", tuned.spec.engine.torque));
+    // The car has engine loops of its own: WAV files in the mod's layer of the install, slowest first.
+    let engine = car_mods::engine_sound(CAR).expect("the manifest names engine loops");
+    println!("engine loops: {:?}", engine.layers);
+    assert!(engine.idle_rpm > 0.0 && engine.redline_rpm > engine.idle_rpm);
+    for layer in &engine.layers {
+        let wav = game.read(&layer.file).unwrap();
+        assert_eq!(&wav[..4], b"RIFF", "{}", layer.file);
+    }
+    assert!(engine.layers.windows(2).all(|pair| pair[0].rpm < pair[1].rpm));
     std::fs::remove_dir_all(&mod_dir).unwrap();
 }

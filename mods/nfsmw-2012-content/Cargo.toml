@@ -19,11 +19,13 @@ blackbox-tpk.workspace = true
 chameleon-bundle.workspace = true
 chameleon-gfx.workspace = true
 chameleon-vehicle.workspace = true
+ea-audio.workspace = true
 game-install.workspace = true
 log.workspace = true
 nfsmw-data.workspace = true
 rayon.workspace = true
 serde.workspace = true
+symphonia.workspace = true
 toml.workspace = true
 
 [lints]

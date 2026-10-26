@@ -16,6 +16,7 @@ pub mod config;
 mod convert;
 mod donor;
 mod emit;
+mod engine;
 mod fit;
 pub mod import;
 pub mod job;
