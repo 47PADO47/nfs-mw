@@ -124,6 +124,13 @@ fn every_car_converts_and_how_long_it_takes() {
         let own = manifest.customization.unwrap_or_else(|| panic!("{stem} has no paints"));
         assert!(own.rims.is_empty() && own.spoilers.is_empty() && own.vinyls.is_empty() && own.tints.is_empty());
         paints += own.paints.len();
+        // Every car names the shared sounds, and the files they name are written once.
+        let shared = manifest.car_sound.map(|sound| sound.shared).unwrap_or_default();
+        assert_eq!((shared.impact_big.len(), shared.scrape.len()), (12, 3), "{stem}");
+        let named = [&shared.impact_small, &shared.impact_medium, &shared.impact_big, &shared.scrape, &shared.pops];
+        for path in named.into_iter().flatten() {
+            assert!(dir.join("files").join(path).is_file(), "{stem}: {path} is named and not written");
+        }
     }
     println!("{paints} paints in {} cars", report.imported.len());
     std::fs::remove_dir_all(&dir).unwrap();

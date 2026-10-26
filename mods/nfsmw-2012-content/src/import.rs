@@ -13,6 +13,7 @@ use rayon::prelude::*;
 use crate::config::Config;
 use crate::emit::{CarEntry, CarFiles, ModFolder};
 use crate::fit::{Fit, measure};
+use crate::shared::SharedSet;
 use crate::source::{CarFile, Source};
 use crate::stats::ImportedStats;
 use crate::{convert, names, paints, sounds};
@@ -71,8 +72,10 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
         bail!("no car of the 2012 install matches the settings");
     }
     let folder = ModFolder::create(out)?;
+    let shared = SharedSet::open(source, config);
     let results: Vec<Result<ImportedCar>> =
-        wanted.par_iter().map(|car| import_car(source, car, config, &folder)).collect();
+        wanted.par_iter().map(|car| import_car(source, car, config, &folder, &shared)).collect();
+    shared.write(folder.root())?;
     let mut report = Report::default();
     for (car, result) in wanted.iter().zip(results) {
         match result {
@@ -98,7 +101,13 @@ fn named(source: &Source) -> Vec<Named<'_>> {
     cars
 }
 
-fn import_car(source: &Source, named: &Named, config: &Config, folder: &ModFolder) -> Result<ImportedCar> {
+fn import_car(
+    source: &Source,
+    named: &Named,
+    config: &Config,
+    folder: &ModFolder,
+    shared: &SharedSet,
+) -> Result<ImportedCar> {
     let car = source.load(named.file)?;
     let layout = measure(&car.vehicle).context("the wheel layout of the car could not be measured")?;
     let fit = Fit::own(layout);
@@ -127,6 +136,10 @@ fn import_car(source: &Source, named: &Named, config: &Config, folder: &ModFolde
         effects: sounds.effects.as_ref(),
     };
     folder.add_car(&entry, &files)?;
+    // The shared sounds are named after the car is written; a car that cannot name them is still a car.
+    if let Err(error) = shared.add_to_car(folder, &named.id, &bytes) {
+        log::warn!("{}: no shared sounds: {error:#}", named.id);
+    }
     Ok(ImportedCar {
         id: named.id.clone(),
         name: named.display.clone(),
