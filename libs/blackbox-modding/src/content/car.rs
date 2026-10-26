@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use super::engine_sound::{self, EngineSound};
+use super::engine_sound::{self, CarEffects, EngineSound};
 use super::performance::{self, Performance};
 use super::{ContentError, is_id};
 
@@ -48,6 +48,8 @@ pub struct CarManifest {
     pub performance: Performance,
     /// The car's own engine loops (`[engine_sound]`), played instead of its clone's engine. `None` keeps the clone's.
     pub engine_sound: Option<EngineSound>,
+    /// The car's own recordings of its shifts, turbo, backfire and pops (`[car_sound]`). A sound it does not give is silent.
+    pub car_sound: Option<CarEffects>,
 }
 
 /// The file as serde reads it. Unknown keys are an error, so a key the game does not support (an `[override]`
@@ -68,6 +70,8 @@ struct Raw {
     performance: Option<performance::Raw>,
     #[serde(default)]
     engine_sound: Option<engine_sound::Raw>,
+    #[serde(default)]
+    car_sound: Option<engine_sound::RawEffects>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -108,6 +112,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     let manufacturer = checked_text(raw.manufacturer, ContentError::InvalidManufacturer)?;
     let performance = performance::check(raw.performance)?;
     let engine_sound = engine_sound::check(raw.engine_sound)?;
+    let car_sound = engine_sound::check_effects(raw.car_sound)?;
     Ok(CarManifest {
         id: stem.to_ascii_uppercase(),
         clone: raw.clone,
@@ -117,6 +122,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
         manufacturer,
         performance,
         engine_sound,
+        car_sound,
     })
 }
 

@@ -23,7 +23,9 @@ mod scenery_tests;
 mod tests;
 
 pub use car::{CarManifest, Role, parse as parse_car};
-pub use engine_sound::{EngineSound, Layer as EngineLayer, MAX_LAYERS as MAX_ENGINE_LAYERS};
+pub use engine_sound::{
+    CarEffects, EngineSound, Layer as EngineLayer, MAX_EFFECT_FILES, MAX_LAYERS as MAX_ENGINE_LAYERS,
+};
 pub use error::ContentError;
 pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, parse as parse_interior};
 pub use music::{MusicSection, parse as parse_music};
