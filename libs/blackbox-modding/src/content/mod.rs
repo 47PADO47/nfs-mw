@@ -26,7 +26,7 @@ mod stats;
 mod tests;
 
 pub use car::{CarManifest, Role, parse as parse_car};
-pub use customization::{Customization, Finish, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
+pub use customization::{Customization, Finish, Livery, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
 pub use engine_sound::{
     CarEffects, EngineSound, Layer as EngineLayer, MAX_EFFECT_FILES, MAX_LAYERS as MAX_ENGINE_LAYERS,
 };

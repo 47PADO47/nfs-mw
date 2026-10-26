@@ -1,8 +1,8 @@
 //! The `[customization]` table of a car manifest: everything the auto shop offers for a car that a mod adds.
 //!
 //! A car's looks are its own data, not another car's. The table lists the body paints (with the finish each is drawn
-//! in), the rim paints, the window tints, and the parts the car carries in its own files: rims, spoilers, roof scoops
-//! and vinyls. Parts are named by the models and textures of the car's own folder (`files/CARS/<ID>/`), so a mod car has
+//! in), the rim paints, the window tints, and the parts the car carries in its own files: rims, spoilers, roof scoops,
+//! vinyls and liveries. Parts are named by the models and textures of the car's own folder (`files/CARS/<ID>/`), so a mod car has
 //! no stock car behind it. This module checks the schema only; whether a named model or texture exists is for the game
 //! to decide, because only the game opens the car's files.
 
@@ -95,6 +95,16 @@ pub struct Vinyl {
     pub channels: u8,
 }
 
+/// A livery: a whole-body picture in the layout of the car's paint surfaces, drawn over the body paint. Where the picture
+/// is opaque it replaces the paint; where it is transparent the paint colour shows (the 2012 game's rule). Unlike a
+/// vinyl it has no mask of its own and no recolourable channels: the picture carries its colours and its alpha.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Livery {
+    pub name: String,
+    /// The picture's texture in the car's own `TEXTURES.BIN`.
+    pub texture: String,
+}
+
 /// A colour a vinyl channel can take.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VinylColor {
@@ -117,6 +127,8 @@ pub struct Customization {
     pub vinyls: Vec<Vinyl>,
     /// The colours the vinyl channels can take. Empty keeps the game's built-in palette.
     pub vinyl_colors: Vec<VinylColor>,
+    /// The liveries, offered with the vinyls.
+    pub liveries: Vec<Livery>,
 }
 
 #[derive(Deserialize)]
@@ -140,6 +152,8 @@ pub(super) struct Raw {
     vinyls: Vec<RawVinyl>,
     #[serde(default)]
     vinyl_colors: Vec<RawColor>,
+    #[serde(default)]
+    liveries: Vec<RawLivery>,
 }
 
 #[derive(Deserialize)]
@@ -183,6 +197,13 @@ struct RawVinyl {
     channels: Option<i64>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawLivery {
+    name: String,
+    texture: String,
+}
+
 fn field(field: &'static str, reason: &'static str) -> ContentError {
     ContentError::Field { field, reason }
 }
@@ -195,7 +216,7 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<Customization>, ContentEr
     }
     let too_many = |len: usize| len > MAX_PER_KIND;
     if [raw.paints.len(), raw.rim_paints.len(), raw.tints.len(), raw.rims.len()].into_iter().any(too_many)
-        || [raw.spoilers.len(), raw.roof_scoops.len(), raw.vinyls.len()].into_iter().any(too_many)
+        || [raw.spoilers.len(), raw.roof_scoops.len(), raw.vinyls.len(), raw.liveries.len()].into_iter().any(too_many)
         || raw.vinyl_colors.len() > MAX_VINYL_COLORS
     {
         return Err(field("customization", "a list has more than 64 entries"));
@@ -252,6 +273,11 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<Customization>, ContentEr
             })
         })
         .collect::<Result<Vec<_>, ContentError>>()?;
+    let liveries = raw
+        .liveries
+        .into_iter()
+        .map(|livery| Ok(Livery { name: name(livery.name)?, texture: asset(livery.texture)? }))
+        .collect::<Result<Vec<_>, ContentError>>()?;
     let result = Customization {
         paints,
         default_paint,
@@ -262,6 +288,7 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<Customization>, ContentEr
         roof_scoops: parts(raw.roof_scoops)?,
         vinyls,
         vinyl_colors,
+        liveries,
     };
     no_repeats(&result)?;
     Ok(Some(result))
@@ -301,7 +328,9 @@ fn color(rgb: [i64; 3]) -> Result<[u8; 3], ContentError> {
 /// Two entries of one list must not share a name: the game tells choices apart by name, and a saved car remembers the
 /// choice by it.
 fn no_repeats(table: &Customization) -> Result<(), ContentError> {
-    let lists: [(&'static str, Vec<&str>); 8] = [
+    let vinyl_names: Vec<&str> =
+        table.vinyls.iter().map(|e| e.name.as_str()).chain(table.liveries.iter().map(|e| e.name.as_str())).collect();
+    let lists: [(&'static str, Vec<&str>); 10] = [
         ("customization.paints", table.paints.iter().map(|e| e.name.as_str()).collect()),
         ("customization.rim_paints", table.rim_paints.iter().map(|e| e.name.as_str()).collect()),
         ("customization.tints", table.tints.iter().map(|e| e.name.as_str()).collect()),
@@ -310,6 +339,9 @@ fn no_repeats(table: &Customization) -> Result<(), ContentError> {
         ("customization.roof_scoops", table.roof_scoops.iter().map(|e| e.name.as_str()).collect()),
         ("customization.vinyls", table.vinyls.iter().map(|e| e.name.as_str()).collect()),
         ("customization.vinyl_colors", table.vinyl_colors.iter().map(|e| e.name.as_str()).collect()),
+        ("customization.liveries", table.liveries.iter().map(|e| e.name.as_str()).collect()),
+        // The shop lists vinyls and liveries in one category, so a livery may not take a vinyl's name.
+        ("customization.liveries and vinyls", vinyl_names),
     ];
     for (field_name, names) in lists {
         let mut seen: Vec<&str> = Vec::with_capacity(names.len());
