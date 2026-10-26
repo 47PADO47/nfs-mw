@@ -5,6 +5,7 @@
 //! and gives each mesh a reduced [`Appearance`]. Shaders, vertex layouts and most textures live in shared bundles, so
 //! the caller puts those in the same [`chameleon_bundle::Pool`].
 
+mod active_aero;
 mod appearance;
 mod collision;
 mod error;
@@ -24,6 +25,7 @@ mod stats_tests;
 #[cfg(test)]
 mod tests;
 
+pub use active_aero::{SpoilerMotion, spoiler_motion};
 pub use appearance::{Appearance, LampEnd, LampSide, LampSurface, SurfaceKind};
 pub use collision::{PolySoup, load_poly_soup};
 pub use error::{Error, Result};

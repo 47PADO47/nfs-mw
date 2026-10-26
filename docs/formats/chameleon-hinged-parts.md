@@ -130,13 +130,21 @@ The 911 has no `BootHinge` (its engine is behind). Each car lists only the parts
   ([car-damage-parts.md](../modding/car-damage-parts.md)). It condenses the three ranges into the one largest swing (the
   axis and end with the largest magnitude) and keeps the ladder as the stages.
 
+## The active spoiler
+
+The bone `SpoilerHinge` also exists on cars whose damage object does not list it (the 911's is bone 36). It is the root of
+the spoiler's triangles, and the animation of the spoiler state machine moves it
+([chameleon-active-aero.md](chameleon-active-aero.md)).
+
 ## Not decoded, not verified
 
 - **The consumer.** The fields above were read from data. `NFS13.exe` holds no names of the fields; the only string of the
   family is `Rear_Bumper_Hinge` at 0x00fae80c **[exe]**, and the table that registers the damage types (hash and type id
   pairs, 0x00f95bbc to 0x00f95be0) has no code reference, so no function that reads a `Bodypart` was found. The meaning of
   the ranges (degrees, per axis), the three triples and the ladder is inferred.
-- Whether a part ever **detaches** in the 2012 game, and what each ladder step does.
+- Whether a part ever **detaches** in the 2012 game, and what each ladder step does. The repo makes its 2012 parts fall off by
+  its own rule ([car-damage-parts.md](../modding/car-damage-parts.md#falling-off)): the last step of the ladder, not before
+  half the damage, or a wreck.
 - The 8 damage animations of the `AnimationList` (0x0C4DA5 on the 911), the `DamageSequence` effects (one `Handle` per zone)
   and the `SpotEffect` list (empty on the 911).
 - Coarser body levels: no skin, so no part can be cut from them.

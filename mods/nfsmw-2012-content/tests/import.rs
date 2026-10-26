@@ -71,7 +71,11 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
 
     // The hinged parts: the 911 has seven, each its own solid at the two finest levels, cut out of the body.
     let parsed_car = blackbox_modding::content::parse_car(&car.id, &manifest).expect("the game's parser takes it");
-    assert_eq!(parsed_car.damage_parts.len(), 7, "bonnet, bumpers, mirrors and front doors");
+    assert_eq!(parsed_car.damage_parts.len(), 8, "bonnet, bumpers, mirrors, front doors and the active spoiler");
+    let spoiler = parsed_car.damage_parts.iter().find(|part| part.active.is_some()).expect("the 911's spoiler moves");
+    let active = spoiler.active.unwrap();
+    assert_eq!((active.above_mph, active.below_mph), (70.0, 40.0));
+    assert!(active.offset[2] > 0.0 && active.offset[0] < 0.0, "it goes up and back: {:?}", active.offset);
     let triangles = |name: &str| {
         let solid = solids.iter().find(|solid| solid.name == name).unwrap_or_else(|| panic!("no solid named {name}"));
         solid.groups.iter().map(|group| group.num_indices as usize / 3).sum::<usize>()

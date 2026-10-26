@@ -205,18 +205,32 @@ fn spots(object: &Object) -> Result<Vec<SpotEffect>> {
 /// Replace each lens mesh (the `Refraction` shader) by one mesh per connected piece, each marked as a lamp surface of the
 /// end and side of the car it sits on. Other meshes are returned as they are.
 pub fn split_lenses(mesh: PartMesh) -> Vec<PartMesh> {
+    let Some(groups) = lens_groups(&mesh) else { return vec![mesh] };
+    groups
+        .iter()
+        .map(|ids| {
+            let triangles: Vec<[u32; 3]> = ids.iter().map(|&at| mesh.triangles[at]).collect();
+            piece(&mesh, &triangles)
+        })
+        .collect()
+}
+
+/// The pieces [`split_lenses`] makes of `mesh`, each as the positions (in `mesh.triangles`, in order) of its triangles,
+/// in the order the pieces come out. `None` for a mesh that is not a lens, which stays one mesh. The skin of the body
+/// (`skin.rs`) follows the same split so that its triangle classes line up with the meshes.
+pub(crate) fn lens_groups(mesh: &PartMesh) -> Option<Vec<Vec<usize>>> {
     let is_lens = mesh.appearance.kind == SurfaceKind::Glass && mesh.appearance.technique.contains("Refraction");
     if !is_lens || mesh.triangles.is_empty() {
-        return vec![mesh];
+        return None;
     }
-    let mut pieces: HashMap<usize, Vec<[u32; 3]>> = HashMap::new();
-    let root = components(&mesh);
-    for triangle in &mesh.triangles {
-        pieces.entry(root[triangle[0] as usize]).or_default().push(*triangle);
+    let mut pieces: HashMap<usize, Vec<usize>> = HashMap::new();
+    let root = components(mesh);
+    for (at, triangle) in mesh.triangles.iter().enumerate() {
+        pieces.entry(root[triangle[0] as usize]).or_default().push(at);
     }
     let mut roots: Vec<usize> = pieces.keys().copied().collect();
     roots.sort_unstable();
-    roots.into_iter().map(|key| piece(&mesh, &pieces[&key])).collect()
+    Some(roots.into_iter().map(|key| pieces.remove(&key).unwrap_or_default()).collect())
 }
 
 /// For each vertex, a number shared by every vertex of its connected piece (vertices at one place are one).

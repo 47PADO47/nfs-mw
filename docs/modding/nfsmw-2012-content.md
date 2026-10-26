@@ -188,12 +188,19 @@ before. Per part it writes a `[[damage_parts]]` table ([car-damage-parts.md](car
 | `axis`, `angle` | the one largest swing of the three angle ranges: the axis and the end with the largest magnitude, ties to the first axis and the positive end (the 911: bonnet -15 about the lateral axis, left mirror 15 about the vertical axis, doors 1 about the length) |
 | `zones` | the part's zone and the corners beside it: a front part follows `front`, `front_left` and `front_right`, a left part `left`, `front_left` and `rear_left` |
 | `stages` | the ladder of damage fractions of the part, ascending |
+| `mass_kg` | the part's mass (30 or 50 kg on the 911) |
 
-On the 911 that is 7 parts with 12,119 of the 30,908 triangles of the finest body level; 90 of the 93 cars have parts (the
+The cars with an **active spoiler** (the bone `SpoilerHinge`, 11 bundles: 911 Carrera S, 918 Spyder, LFA, SLS AMG, Agera R and
+others) get a part `Spoiler` the same way, whether or not their damage object lists it, with a `[damage_parts.active]` table
+from the 2012 state machine: the speeds, the time and the movement of the animation
+([chameleon-active-aero.md](../formats/chameleon-active-aero.md)). The Veyron, the McLaren, the Venom, the Huayra's flaps
+and the air vents are not converted.
+
+On the 911 that is 8 parts, the 7 of its damage object with 12,119 of the 30,908 triangles of the finest body level, and the spoiler; 90 of the 93 cars have parts (the
 SWAT van has no skeleton, and two cars have a skin of all-zero weights). Limits: the coarser body levels (`C`, `D`) are not
 skinned and keep the parts in the body, so a damaged car far away looks intact; the 2012 ranges are a few degrees, so the
-parts hang slightly (the bonnet lifts by up to 15 degrees) and none falls off; the units and the meaning of the ladder are
-inferred. Nothing has been seen in a running game.
+parts hang slightly (the bonnet lifts by up to 15 degrees) until they fall off, which is the game's rule, not the 2012
+data's ([car-damage-parts.md](car-damage-parts.md#falling-off)); the units and the meaning of the ladder are inferred. Nothing has been seen in a running game.
 
 ## Tests
 

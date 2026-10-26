@@ -29,7 +29,16 @@ pivot = [0.74, -0.70, 0.88]           # a point of the hinge line, in the solids
 axis = [0.0, 1.0, 0.0]                # the direction of the hinge line
 angle = -15.0                         # degrees turned at the last stage
 stages = [0.04, 0.05, 0.5]            # damage fractions at which each stage starts
-# detach_at = 0.9                     # optional: the part is gone from this damage on
+# detach_at = 0.9                     # optional: the part falls off from this damage on
+# detach = false                      # optional: the part never leaves the car
+mass_kg = 40.0                        # optional: its mass once it is a body of its own (default 25)
+
+# A part that also moves with the car's speed, such as an active spoiler:
+[damage_parts.active]
+offset = [-0.07, 0.0, 0.02]           # metres at full deployment, in the solids' space
+above_mph = 70.0                      # deploys from this speed up
+below_mph = 40.0                      # comes down below this speed (default: above_mph)
+seconds = 0.6                         # the whole movement takes this long
 ```
 
 | Key | Meaning |
@@ -40,7 +49,17 @@ stages = [0.04, 0.05, 0.5]            # damage fractions at which each stage sta
 | `pivot`, `axis` | The hinge line, in the space of the solids (+x forward, +y left, +z up), metres. The axis is any non-zero direction, normalised by the game |
 | `angle` | Degrees turned at the last stage, right-handed about `axis`, not 0, at most 180 |
 | `stages` | Up to 8 damage fractions from 0 to 1, in ascending order. Left out: one stage at the first damage |
-| `detach_at` | A damage fraction above 0 and at most 1. From there on the part is not drawn |
+| `detach_at` | A damage fraction above 0 and at most 1: from there on the part falls off. Left out: the last of its `stages`, but not before 0.5 (a part comes off when the car is heavily damaged, not at the first dent) |
+| `detach` | `false` keeps the part on the car whatever happens, a wreck included. Not with `detach_at` |
+| `mass_kg` | 0.5 to 5000, default 25. The mass of the body the part becomes |
+
+### `[damage_parts.active]`
+
+A part may move with the car's speed. `offset` is the way it slides at full deployment (up to 5 m, not 0), `above_mph` the
+speed it starts going out at, `below_mph` the speed it starts coming back at (not above `above_mph`; between the two it goes
+on the way it was going, so it does not flutter), `seconds` (0.05 to 10) how long the whole movement takes. A part with an
+`active` table may have `angle = 0`: the damage then does not turn it, though it still comes off at its release level and
+in a wreck. Without a `stages` list it comes off at the second dent of its zones (default release level 0.5).
 
 A wrong value, or a key the table does not know, refuses the car and the log names the key. At most 16 parts per car. The
 schema is checked by `libs/blackbox-modding/src/content/damage_parts.rs`; whether the model exists is checked by the game
@@ -48,24 +67,55 @@ when it assembles the car.
 
 ## What the game does
 
+Each tick the car's speed (the length of its velocity, in mph) moves every active part one step: out at `above_mph`, back
+below `below_mph`, at a speed of 1 over `seconds` of the whole way, eased at both ends. The part is drawn displaced by
+`offset` times that, and then turned by the damage as below. The deployment travels to the car draw in the set of revealed
+slots, like the zone levels. A part that falls off keeps the place it had. The downforce of the car's physics is not changed.
+
 The damage model keeps a panel level from 0 to 3 for each of the eight zones
 ([vehicle-damage.md](../specs/vehicle-damage.md)). A part's **damage** is the worst panel level of its `zones` over 3: 0, 0.33,
 0.67 or 1. With no damage the part is at rest. Otherwise it has turned by `angle` times the share of its `stages` that the
-damage has reached, about the line through `pivot` along `axis`, and from `detach_at` on it is not drawn. A repair (the
-`repair` console command) puts it back. The turn is a pose of the solid on the car: the part keeps its mesh and its materials,
+damage has reached, about the line through `pivot` along `axis`. A repair (the `repair` console command) puts it back on the
+car. The turn is a pose of the solid on the car: the part keeps its mesh and its materials,
 and every car drawn with its damage events (the player's car, and the cars that pass them to the rig) shows it.
 
-The slot numbers 256 and up of a car's placements are its hinged parts (`car::mods::hinged`); the parts database and the
-`hidden` set of the 2005 slots do not see them.
+The slot numbers 256 and up of a car's placements are its hinged parts (`car::mods::hinged`); the parts database of the 2005
+slots does not see them.
 
-Not done: the part does not collide as its own body, a detached part does not fall to the road, and it does not flap as the
-car moves (it holds the pose of its stage). The 2012 data has no fall and no flap either
-([chameleon-hinged-parts.md](../formats/chameleon-hinged-parts.md)).
+### Falling off
+
+A part **leaves the car** when its damage reaches its release level (`detach_at`, or the default above) or when the car is
+wrecked: destroyed by its health, wrecked as a cop car, or busted by a breaker. A wreck sheds every part that can detach,
+whatever the damage of its zones. The part keeps the turn it had, and becomes a fragment of the same prop solver that the
+installed vehicle parts use (a cop car's hood, `docs/specs/world-sequencers.md` "Fragments"):
+
+- a rigid body of the part's `mass_kg` whose box is the bounding box of its own solid, centred on the box, with the car's
+  orientation;
+- it starts with the velocity of the point of the car it sat on (the car's velocity plus its spin about the car), thrown 2 m/s
+  outwards along the ground and 1 m/s up, and spinning at 3 rad/s about its hinge the way it had turned;
+- gravity, ground and world collisions, and collisions with other bodies, as any prop; it does not damage the cars it hits;
+- it comes to rest where it lands, and is released a while after: 5 s out of the camera's sight, then it sinks for 2 s and is
+  removed; it goes at once with the car that owns it (when the car is removed); the game keeps at most 121 vehicle fragments;
+- the car stops drawing the part (its slot joins the car's hidden slots), and the part does not come back, except through
+  `repair`, which puts it on the car again and leaves the fallen body where it lies.
+
+The sound is the one the game already plays for a detached part that hits the road or a car: the prop contact sound of the
+metal `smackable` record `largemetalpost`. Nothing else plays when a part comes off.
+
+Not done: a part does not flap as the car moves (it holds the pose of its stage); its box is the bounding box, not its
+shape; the fallen part is not a bounds node with joints (`JOINT_MALE` and `JOINT_FEMALE` of the bounds are the trailer hitch
+of the 2005 game and play no part here); no sparks or smoke are made when it breaks off.
 
 ## The 2012 cars
 
+The cars with an active spoiler (the 911, the 918 Spyder, the LFA and others, [chameleon-active-aero.md](../formats/chameleon-active-aero.md))
+get one more part, `Spoiler`, with an `active` table from the 2012 state machine and no damage turn.
+
 The [2012 mod](nfsmw-2012-content.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data.
-A 2012 part turns through a few degrees at most, so its stages are small steps and `detach_at` is not set.
+A 2012 part turns through a few degrees at most, so its stages are small steps. The mod writes the part's own mass and no
+`detach_at`: the 2012 data names no release level, so the default applies, which comes from the 2012 ladder of the part (its
+last step, and not before half the damage): the 911's bonnet (last step 0.5) and mirrors (0.2, raised to 0.5) come off with
+the second dent of their zones, its bumpers (0.75) and doors (1.0) with the third. A wreck takes them all.
 
 ## Using it
 

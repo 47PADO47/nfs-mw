@@ -4,9 +4,11 @@
 //! A part is a solid of the car's own `GEOMETRY.BIN` (named by `model`, without the level-of-detail letter) that the
 //! body does not contain. While the car is intact it is drawn where it was modelled; once the damage of one of its
 //! `zones` reaches the first of its `stages` it turns about the line through `pivot` along `axis`, further with every
-//! stage passed, up to `angle` degrees at the last. A part with `detach_at` is not drawn once the damage reaches it.
+//! stage passed, up to `angle` degrees at the last. From `detach_at` on, or when the car is wrecked, the part leaves the
+//! body and falls as a physical object of `mass_kg`; `detach = false` keeps it on the car for good.
 //! This module checks the schema only; whether the model exists is for the game to decide, because only the game opens
-//! the car's files. Spec: `docs/modding/car-damage-parts.md`.
+//! the car's files. A part may also move with the car's speed, as an active spoiler does (`[damage_parts.active]`).
+//! Spec: `docs/modding/car-damage-parts.md`.
 
 use serde::Deserialize;
 
@@ -16,11 +18,18 @@ use super::ContentError;
 pub const MAX_DAMAGE_PARTS: usize = 16;
 /// Most stages of one part.
 pub const MAX_STAGES: usize = 8;
+/// The mass of a part that gives none, in kg, and the range a mass may have.
+pub const DEFAULT_MASS_KG: f32 = 25.0;
+const MASS_RANGE: (f32, f32) = (0.5, 5000.0);
 /// Longest name, in characters, and longest model name, in bytes (the game appends `_A` to `_E`).
 const MAX_NAME_CHARS: usize = 32;
 const MAX_MODEL_BYTES: usize = 56;
 /// The biggest coordinate of a pivot, in metres: far outside any car.
 const MAX_COORDINATE: f32 = 50.0;
+/// The biggest movement of an active part, in metres, and the speeds and times it may name.
+const MAX_TRAVEL: f32 = 5.0;
+const MAX_MPH: f32 = 500.0;
+const SECONDS_RANGE: (f32, f32) = (0.05, 10.0);
 
 /// A damage zone, in the order the game counts them (`DZ_FRONT` to `DZ_RREAR`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +81,20 @@ impl Zone {
     }
 }
 
+/// How a part moves with the car's speed: it slides by `offset` when the car is at `above_mph` or faster and slides back
+/// below `below_mph`, taking `seconds` for the whole way.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Active {
+    /// The movement at full deployment, in the car's solid space (+x forward, +y left, +z up), metres.
+    pub offset: [f32; 3],
+    /// The part deploys from this speed up, mph.
+    pub above_mph: f32,
+    /// It retracts below this speed, mph (not above `above_mph`).
+    pub below_mph: f32,
+    /// How long the whole movement takes, seconds.
+    pub seconds: f32,
+}
+
 /// A checked `[[damage_parts]]` entry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DamagePart {
@@ -89,8 +112,25 @@ pub struct DamagePart {
     /// The zone damage (0 to 1, ascending) at which each stage starts. The part has turned `angle` times the share of
     /// stages passed. Left out: one stage at the first damage.
     pub stages: Vec<f32>,
-    /// The zone damage (above 0, at most 1) from which the part is gone. `None`: it never falls off.
+    /// The zone damage (above 0, at most 1) from which the part falls off. `None` (with `detach` true): the last stage,
+    /// but not before half the damage the zone can take (`DamagePart::release_level` in the game).
     pub detach_at: Option<f32>,
+    /// Whether the part can leave the car at all. `false` keeps it on the car whatever the damage, wreck included.
+    pub detach: bool,
+    /// What the part weighs once it is a body of its own, in kg.
+    pub mass_kg: f32,
+    /// How the part moves with the car's speed, if it does (`[damage_parts.active]`).
+    pub active: Option<Active>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawActive {
+    offset: [f32; 3],
+    above_mph: f32,
+    #[serde(default)]
+    below_mph: Option<f32>,
+    seconds: f32,
 }
 
 #[derive(Deserialize)]
@@ -106,6 +146,12 @@ pub(super) struct Raw {
     stages: Vec<f32>,
     #[serde(default)]
     detach_at: Option<f32>,
+    #[serde(default)]
+    detach: Option<bool>,
+    #[serde(default)]
+    mass_kg: Option<f32>,
+    #[serde(default)]
+    active: Option<RawActive>,
 }
 
 fn field(reason: &'static str) -> ContentError {
@@ -163,8 +209,8 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
     if raw.axis.iter().any(|c| !c.is_finite()) || length < 1e-3 || length > 1e6 {
         return Err(field("an axis is a direction: three finite numbers, not all 0"));
     }
-    if !raw.angle.is_finite() || raw.angle == 0.0 || raw.angle.abs() > 180.0 {
-        return Err(field("an angle is a number of degrees, not 0, within 180"));
+    if !raw.angle.is_finite() || raw.angle.abs() > 180.0 {
+        return Err(field("an angle is a number of degrees within 180 (0: the damage does not turn the part)"));
     }
     if raw.stages.len() > MAX_STAGES {
         return Err(field("a part has at most 8 stages"));
@@ -176,6 +222,15 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
     if raw.detach_at.is_some_and(|at| !at.is_finite() || at <= 0.0 || at > 1.0) {
         return Err(field("detach_at is a damage fraction above 0 and at most 1"));
     }
+    let detach = raw.detach.unwrap_or(true);
+    if !detach && raw.detach_at.is_some() {
+        return Err(field("detach_at needs a part that can detach: detach is false"));
+    }
+    let mass_kg = raw.mass_kg.unwrap_or(DEFAULT_MASS_KG);
+    if !mass_kg.is_finite() || mass_kg < MASS_RANGE.0 || mass_kg > MASS_RANGE.1 {
+        return Err(field("mass_kg is from 0.5 to 5000"));
+    }
+    let active = raw.active.map(check_active).transpose()?;
     let stages = if raw.stages.is_empty() { vec![0.0] } else { raw.stages };
     let axis = raw.axis.map(|c| c / length);
     Ok(DamagePart {
@@ -187,5 +242,23 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
         angle: raw.angle,
         stages,
         detach_at: raw.detach_at,
+        detach,
+        mass_kg,
+        active,
     })
+}
+
+fn check_active(raw: RawActive) -> Result<Active, ContentError> {
+    let below_mph = raw.below_mph.unwrap_or(raw.above_mph);
+    if raw.offset.iter().any(|c| !c.is_finite() || c.abs() > MAX_TRAVEL) || raw.offset == [0.0; 3] {
+        return Err(field("an active offset is a movement of up to 5 m, not 0"));
+    }
+    let speeds = [raw.above_mph, below_mph];
+    if speeds.iter().any(|v| !v.is_finite() || !(0.0..=MAX_MPH).contains(v)) || below_mph > raw.above_mph {
+        return Err(field("active speeds are 0 to 500 mph and below_mph is not above above_mph"));
+    }
+    if !raw.seconds.is_finite() || !(SECONDS_RANGE.0..=SECONDS_RANGE.1).contains(&raw.seconds) {
+        return Err(field("an active movement takes 0.05 to 10 seconds"));
+    }
+    Ok(Active { offset: raw.offset, above_mph: raw.above_mph, below_mph, seconds: raw.seconds })
 }

@@ -46,7 +46,8 @@ pub fn body_parts(pool: &Pool, spec: u64, skeleton: &Skeleton, parts: &[HingedPa
             let stride = descriptor.stride();
             let find = |wanted: u8| descriptor.elements.iter().find(|e| e.usage() == wanted && e.index() == 0);
             let (Some(bones), Some(weights)) = (find(usage::BONES), find(usage::WEIGHTS)) else {
-                meshes.push(vec![None; triangles.len()]);
+                let classes = vec![None; triangles.len()];
+                meshes.extend(split_like_lenses(descriptor, bytes, &surface.1, triangles, classes));
                 continue;
             };
             let vertices = bytes.len() / stride.max(1);
@@ -59,11 +60,30 @@ pub fn body_parts(pool: &Pool, spec: u64, skeleton: &Skeleton, parts: &[HingedPa
                     (bytes[base + bones.offset as usize + k], bytes[base + weights.offset as usize + k])
                 }))
             };
-            meshes.push(triangles.iter().map(|tri| triangle_part(tri, &skin, &owner, parts.len())).collect());
+            let classes: Vec<Option<usize>> =
+                triangles.iter().map(|tri| triangle_part(tri, &skin, &owner, parts.len())).collect();
+            meshes.extend(split_like_lenses(descriptor, bytes, &surface.1, triangles, classes));
         }
         levels.push(meshes);
     }
     Ok(levels)
+}
+
+/// The classes of one mesh as the meshes `load` makes of it: a lens (`Refraction` glass) is one mesh per connected piece
+/// (`lamps::split_lenses`), any other mesh is one.
+fn split_like_lenses(
+    descriptor: &chameleon_gfx::VertexDescriptor,
+    bytes: &[u8],
+    appearance: &crate::Appearance,
+    triangles: Vec<[u32; 3]>,
+    classes: Vec<Option<usize>>,
+) -> Vec<Vec<Option<usize>>> {
+    let Ok(vertices) = descriptor.decode(bytes) else { return vec![classes] };
+    let mesh = crate::PartMesh { vertices, triangles, appearance: appearance.clone() };
+    match crate::lamps::lens_groups(&mesh) {
+        Some(groups) => groups.iter().map(|ids| ids.iter().map(|&at| classes[at]).collect()).collect(),
+        None => vec![classes],
+    }
 }
 
 /// The part with the largest summed weight over the three corners, `None` when the body (every bone that no part owns)

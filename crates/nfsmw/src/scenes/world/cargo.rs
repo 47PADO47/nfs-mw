@@ -9,6 +9,7 @@ use nfsmw_data::world::sequences::WorldEvent;
 
 use super::drive::{CarRig, CarSim};
 use super::props::{FragmentSpawn, PropWorld};
+mod hinged;
 mod particles;
 
 pub fn update(sim: &mut CarSim, rig: &CarRig, props: &mut PropWorld, data: &PhysicsData, view: Vec3) {
@@ -16,6 +17,7 @@ pub fn update(sim: &mut CarSim, rig: &CarRig, props: &mut PropWorld, data: &Phys
         let instances = rig.fragment_instances(slot, Some(damage));
         (!instances.is_empty()).then_some(instances)
     });
+    hinged::release(sim, rig, props);
 }
 
 fn update_with(
