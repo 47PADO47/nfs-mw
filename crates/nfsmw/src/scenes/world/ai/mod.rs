@@ -233,7 +233,7 @@ pub struct TrafficWorld {
     world_moment: bool,
     /// When the step integrates the cars on several threads, and the starts of their steps by car index (`parallel.rs`).
     parallel: parallel::Parallel,
-    starts: Vec<Option<super::drive::StepStart>>,
+    starts: Vec<Option<car::AiStep>>,
     /// The hits and close passes of the collision step (`collide.rs`).
     hits: Vec<collide::Hit>,
     passes: Vec<collide::Pass>,

@@ -30,6 +30,7 @@ mod install_tests;
 mod interact_prompt;
 #[cfg(test)]
 mod interact_prompt_tests;
+mod launch_needle;
 mod leaderboard;
 #[cfg(test)]
 mod leaderboard_tests;

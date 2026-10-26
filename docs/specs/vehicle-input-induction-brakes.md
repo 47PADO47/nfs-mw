@@ -118,14 +118,17 @@ Boost (the torque multiplier is `1 + boost`):
 if rpm >= spool_rpm:
     r      = ramp(rpm, spool_rpm, RED_LINE)
     boost  = r * high + (1 - r) * low
-    target_psi = spool * PSI * ramp(boost, 0, max(high, low))
+    target_psi = (ramp(boost, 0, max(high, low)) * PSI) * spool
 elif VACUUM < 0:
     d      = ramp(rpm, IDLE, spool_rpm)
     boost  = d * VACUUM
-    target_psi = d * -PSI * ramp(-boost, 0, max(high, low))
+    target_psi = -((ramp(-boost, 0, max(high, low)) * PSI) * d)
 else boost = 0 ; target_psi = 0
 induction_boost = boost * spool
-psi moves toward target_psi at 20 psi/s
+step = 20 * dT
+if psi > target_psi: psi = max(psi - step, target_psi)
+if psi < target_psi: psi = min(psi + step, target_psi)
+# At most one branch moves the value; equal values retain its sign.
 ```
 
 A supercharger (`SPOOL = 0`) has `spool_rpm = IDLE`, so it boosts across the whole range. [decomp]

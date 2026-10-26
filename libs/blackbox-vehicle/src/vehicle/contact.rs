@@ -44,7 +44,7 @@ mod tests {
             car.step(dt, &InputState::default(), &actual);
 
             // With no contacts, the final body pose is also the body-probe pose. Compare the adapter
-            // to the existing body query contract, independently of the wheel-probe queries before it.
+            // to the body query contract, independently of the later wheel-probe queries.
             let expected = Queries::default();
             let half = car.body.dimension() + car.body.spec().collision_box_pad;
             for corner in BOX_CORNERS {
@@ -52,7 +52,7 @@ mod tests {
                 car.body.ground_contact(point, &expected, dt);
             }
             let actual = actual.0.borrow();
-            assert_eq!(&actual[actual.len() - 8..], expected.0.borrow().as_slice(), "dt {dt}");
+            assert_eq!(&actual[..8], expected.0.borrow().as_slice(), "dt {dt}");
         }
     }
 }

@@ -255,7 +255,8 @@ pre-response relative contact velocity, and body velocity is the pre-response li
 The first nonzero nose and first nonzero side value survive additional callbacks that tick. A zero
 normal-right dot chooses -1 for the nose sign. Side contacts require `abs(dot(normal,right)) > epsilon`.
 
-Steering consumes the preceding contact tick, using the preceding grounded-wheel count. Nose yaw is
+Steering consumes pending contacts once at the next chassis callback, using the preceding grounded-wheel count.
+With the shared body/contact barrier, those contacts can come from the same tick. Nose yaw is
 `steer*gas*0.125*abs(nose)` and only runs with positive gas and more than two grounded wheels. An opposed
 nose sign returns immediately, skipping the side path. Side yaw is
 `-steer*gas*0.125*abs(side)` when `side*steer*gas > 0`, more than two wheels are grounded, and gear is
@@ -309,6 +310,10 @@ ground below (normal.y > 0.9, up.y > 0.1, alignment > 0.8, altitude > 0): pitch 
 ground normal. These keep jumps controllable.
 
 ### 7.4 Sleep damping (`DoSleep`) [decomp]
+
+The exact Reference accumulation and damping arithmetic is corrected by
+[vehicle creep response](vehicle-creep-response.md). In the lateral branch,
+the unchanged local force/torque axes add again; they are not simply preserved.
 
 Not while staging. If speed < 0.5 m/s, all four wheels grounded, brake or handbrake pressed, no gas, small
 spin (< 0.25 rad/s) and no collision this step: multiply velocity, spin and pending force/torque by

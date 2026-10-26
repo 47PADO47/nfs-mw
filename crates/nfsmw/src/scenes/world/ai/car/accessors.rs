@@ -91,7 +91,7 @@ impl AiCar {
     /// Collision separation belongs to this tick's displayed pose too.
     pub fn sync_contacts(&mut self) {
         if let Some(trailer) = self.trailer.as_mut() {
-            trailer.sync_contacts(&mut self.sim);
+            trailer.sync_contacts();
         }
         self.sim.finish_retirement_contacts();
         self.current = self.sim.pose();

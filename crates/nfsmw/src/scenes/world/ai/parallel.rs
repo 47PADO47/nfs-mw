@@ -1,14 +1,11 @@
 //! The AI cars' integrations on several threads at once. The result must not depend on it: the netcode relies on a
 //! bit-identical step (`docs/physics-timing.md`).
 //!
-//! A traffic step runs each car's start in car order, then the cars' integrations, then each car's end in car order
-//! (`car/stepping.rs`, `simulation.rs`). An integration reads only its own car's body and terrain caches, the static
+//! After shared body contacts, a traffic step runs the cars' responses, then each car's end in car order
+//! (`car/stepping.rs`, `simulation.rs`). A response reads only its own car's body and terrain caches, the static
 //! collision (each car casting through its own candidate window) and the surface table; it reads no other car, draws
-//! no random number and queues nothing. So it gives the same body wherever it runs, and moving every car's start ahead
-//! of the earlier cars' ends changes nothing either: a start reads the bodies of the others as the step began
-//! (`TrafficWorld::bodies`) and its own car, and the explosion waves it may push the body with are a part of the props
-//! that the ends never touch. Everything with side effects (props, contacts, sounds, effects, damage, the random
-//! streams) stays in the serial parts, in car order.
+//! no random number and queues nothing. Shared contacts, explosions, sounds, damage and random streams stay on
+//! the simulation thread in stable order. AI thinking reads the saved beginning-of-tick bodies.
 //!
 //! The shares run on Bevy's compute task pool, whose threads stay alive from one tick to the next. Without that pool
 //! (a unit test that never built the app) every step runs on the calling thread.
@@ -83,7 +80,7 @@ struct Job<'a> {
 /// up to `threads` threads of the compute pool, the calling thread taking the first share.
 pub(super) fn integrate(
     cars: &mut [AiCar],
-    starts: &[Option<StepStart>],
+    starts: &[Option<super::car::AiStep>],
     collision: &CollisionWorld,
     surfaces: &SurfaceTable,
     threads: usize,
@@ -91,7 +88,7 @@ pub(super) fn integrate(
     let mut jobs: Vec<Job<'_>> = cars
         .iter_mut()
         .zip(starts)
-        .filter_map(|(car, start)| Some(Job { start: (*start)?, integration: car.integration() }))
+        .filter_map(|(car, start)| Some(Job { start: (*start)?.car, integration: car.integration() }))
         .collect();
     let share = jobs.len().div_ceil(threads.max(1)).max(1);
     let mut shares = jobs.chunks_mut(share);

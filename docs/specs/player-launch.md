@@ -61,6 +61,8 @@ Speedbreaker remain unavailable while staged. The explicit GO event releases sta
 and requests a launch once. Cancelling or ending a race only clears staging;
 it must not award a launch. Rolling starts never stage and earn no launch.
 Drag races select shift cancellation, independently of ordinary race launches.
+Race teardown clears this mode on both the scene and its current simulation,
+including any active launch state, so free roam restores ordinary RPM presentation.
 Initial grid gear/clutch sequencing and tachometer needle-color feedback remain
 separate comparison limits.
 

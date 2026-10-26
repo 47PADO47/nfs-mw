@@ -63,6 +63,7 @@ impl Drive {
             nis_pose: None,
             net_pose: None,
             telemetry: Telemetry::default(),
+            gauges: Default::default(),
             breaker: SpeedBreaker::default(),
             breaker_camera: Zoom::default(),
             sound: SoundFeed::default(),

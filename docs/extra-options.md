@@ -38,9 +38,9 @@ Heat can be started/set and locked from 1 to 10. Unlimited NOS fills an installe
 it does not add an upgrade. Unlimited Speedbreaker keeps its normal activation rules.
 Refill, repair and recover-to-road are explicit actions.
 
-Gameplay-changing controls require a local single-player test session outside active career.
-They cannot silently write modified heat or rewards into a career. Camera preferences remain
-available. Multiplayer testing overrides are rejected. Teleport is barred during a race.
+Gameplay-changing controls are available in local single-player career and free roam.
+Override settings remain session-only, while normal career progress and rewards still save.
+Multiplayer and co-op testing overrides are rejected. Teleport is barred during a race.
 
 Teleport accepts map coordinates, a GPS destination, or a saved location/heading. It uses
 normal road placement and stops the car. Return restores the previous teleport location.

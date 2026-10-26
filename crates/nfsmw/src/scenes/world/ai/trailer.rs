@@ -12,7 +12,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::TrafficModel;
 use super::hitch::{Hitch, Posture, Release};
-use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, WorldGround};
+use crate::scenes::world::drive::{CarPose, CarRig, CarSim, DriveInput, STEP, StepStart, WorldGround};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 
@@ -177,6 +177,7 @@ impl TrailerCar {
         self.step_with_delta(STEP, tractor, brakes, collision, props, surfaces);
     }
 
+    #[cfg(test)]
     pub fn step_with_delta(
         &mut self,
         dt: f32,
@@ -186,6 +187,21 @@ impl TrailerCar {
         props: &mut PropWorld,
         surfaces: &SurfaceTable,
     ) {
+        let start = self.begin_step(dt, brakes, collision, props);
+        let ground = WorldGround { collision, surfaces };
+        self.sim.finish_body(&start, &ground, Some((collision, &mut *props)));
+        self.resolve_articulation(tractor);
+        self.complete_step(&start, tractor, collision, props, surfaces);
+    }
+
+    /// Integrate the trailer beside every other moving body, before shared pairs.
+    pub(super) fn begin_step(
+        &mut self,
+        dt: f32,
+        brakes: Brakes,
+        collision: &CollisionWorld,
+        props: &mut PropWorld,
+    ) -> StepStart {
         self.step_delta = dt;
         let was_hitched = self.coupling.is_hitched();
         self.sim.set_trailer_hitched(was_hitched);
@@ -193,8 +209,25 @@ impl TrailerCar {
             true => DriveInput { brake: brakes.brake, handbrake: brakes.handbrake, ..DriveInput::default() },
             false => DriveInput::default(),
         };
+        let start = self.sim.begin_step_with_delta(dt, &input, true, Some(props));
+        self.sim.begin_body(&start, Some(collision));
+        start
+    }
+
+    /// Compute the trailer's forces and publish its completed motion after body contacts.
+    pub(super) fn complete_step(
+        &mut self,
+        start: &StepStart,
+        tractor: &mut CarSim,
+        collision: &CollisionWorld,
+        props: &mut PropWorld,
+        surfaces: &SurfaceTable,
+    ) {
+        let dt = self.step_delta;
+        let was_hitched = self.coupling.is_hitched();
         let ground = WorldGround { collision, surfaces };
-        self.sim.step_with_delta(dt, &input, &ground, Some((collision, props)));
+        self.sim.integration().run(start, &ground, Some(collision));
+        self.sim.end_step(start, &ground, Some((collision, props)));
         if was_hitched && !self.coupling.update_hitch_with_delta(dt, tractor, &self.sim) {
             let gap = self.coupling.gap(tractor, &self.sim);
             let (a, b) = (posture(tractor), posture(&self.sim));
@@ -290,8 +323,11 @@ impl TrailerCar {
         &mut self.sim
     }
 
-    pub fn sync_contacts(&mut self, tractor: &mut CarSim) {
+    pub(super) fn resolve_articulation(&mut self, tractor: &mut CarSim) {
         self.coupling.resolve_with_delta(self.step_delta, tractor, &mut self.sim);
+    }
+
+    pub fn sync_contacts(&mut self) {
         self.current = self.sim.pose();
     }
 

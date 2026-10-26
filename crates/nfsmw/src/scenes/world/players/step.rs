@@ -20,19 +20,14 @@ impl WorldScene {
 
     /// The guests' Speedbreaker edges. The world has one clock, so a guest holding Speedbreaker slows it for everyone,
     /// as the lead's does [ours]. Every guest is asked, so each meter sees its own button.
-    pub(in crate::scenes::world) fn guests_prepare_time(&mut self) -> bool {
-        self.players.guests_mut().fold(false, |any, guest| guest.drive.prepare_time() | any)
+    pub(in crate::scenes::world) fn guests_prepare_time(&mut self, real_dt: f32) -> bool {
+        self.players.guests_mut().fold(false, |any, guest| guest.drive.prepare_time(real_dt) | any)
     }
 
-    pub(in crate::scenes::world) fn guests_finish_time(&mut self, sim_dt: f32, real_dt: f32, tick_sim_dt: f32) {
+    pub(in crate::scenes::world) fn guests_finish_visual_time(&mut self, sim_dt: f32, real_dt: f32) {
         let idle = ActionState::default();
         for guest in self.players.guests_mut() {
-            guest.drive.finish_time_with_tick_delta(
-                self.inputs.get(guest.id).unwrap_or(&idle),
-                sim_dt,
-                real_dt,
-                tick_sim_dt,
-            );
+            guest.drive.finish_visual_time(self.inputs.get(guest.id).unwrap_or(&idle), sim_dt, real_dt);
         }
     }
 

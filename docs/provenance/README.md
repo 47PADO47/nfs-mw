@@ -1,6 +1,11 @@
 # Provenance records
 
 Player countdown follow-up: [engine clutch gates and state history](player-countdown-drivetrain.md).
+Shared collision timeline: [body and driving response phases](shared-vehicle-phases.md).
+Driving state readers: [consumer audit](driving-state-consumers.md).
+Prop/articulation barriers: [phase provenance](prop-articulation-phases.md).
+Reference low-speed damping: [creep response](vehicle-creep-response.md).
+Vehicle force arithmetic: [scalar operation order](vehicle-scalar-order.md).
 
 One file per crate or module whose behaviour came from a restricted source (decompiled code, GPL code,
 unlicensed code). Format-only readers that just follow the docs in [`../formats`](../formats) don't need

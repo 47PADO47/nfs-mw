@@ -9,6 +9,7 @@ mod coasting;
 mod contact_order;
 mod damage_callbacks;
 mod frame_rate;
+mod gauges;
 mod geometry;
 mod impact_matrix;
 mod launch;
@@ -106,12 +107,22 @@ fn steering_right_turns_the_car_to_the_right() {
     let mut sim = sim();
     assert!(sim.place(&ground, spawn_at(0.0)));
     drive(&mut sim, &ground, DriveInput { throttle: 0.6, ..DriveInput::default() }, 3.0);
-    drive(&mut sim, &ground, DriveInput { throttle: 0.5, steer: 1.0, ..DriveInput::default() }, 2.0);
+    let mut heading = 0.0_f32;
+    let mut turn = 0.0_f32;
+    for _ in 0..120 {
+        sim.step(&DriveInput { throttle: 0.5, steer: 1.0, ..DriveInput::default() }, &ground, None);
+        let forward = sim.pose().rotation * Vec3::X;
+        let next = forward.y.atan2(forward.x);
+        let change = next - heading;
+        turn += change.sin().atan2(change.cos());
+        heading = next;
+    }
     let pose = sim.pose();
     // Right of +X is -Y.
     assert!(pose.position.y < 50.0 - 1.0, "went {:?}", pose.position);
-    let forward = pose.rotation * Vec3::X;
-    assert!(forward.y < -0.1, "{forward:?}");
+    // Measure signed turning along the path: the final heading alone loses
+    // direction once the car completes a half turn.
+    assert!(turn < -0.1, "signed turn {turn}, final heading {heading}");
     // The front wheels show a right turn as a negative (left-positive) angle; the rear wheels none.
     assert!(pose.wheels[0].steer < 0.0 && pose.wheels[1].steer < 0.0);
     assert!(pose.wheels[2].steer == 0.0 && pose.wheels[3].steer == 0.0);

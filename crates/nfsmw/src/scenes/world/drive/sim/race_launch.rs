@@ -5,6 +5,10 @@ use blackbox_vehicle::LaunchConfig;
 use super::CarSim;
 
 impl CarSim {
+    pub(in crate::scenes::world::drive) fn staged_launch_band(&self) -> Option<(f32, f32)> {
+        self.vehicle.staged_launch_band()
+    }
+
     /// Called after a human car is placed, including restarts and resets. AI stays unconfigured.
     pub(in crate::scenes::world::drive) fn configure_player_launch(&mut self, cancel_on_shift: bool) {
         self.vehicle.set_launch_config(Some(LaunchConfig {

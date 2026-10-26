@@ -36,6 +36,7 @@ mod speech;
 mod stand_in;
 mod state_hash;
 mod stepping;
+pub(super) use stepping::AiStep;
 pub(super) mod support_drive;
 mod towing;
 

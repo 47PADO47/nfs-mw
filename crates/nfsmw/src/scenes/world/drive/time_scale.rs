@@ -77,10 +77,10 @@ impl Drive {
     }
 
     /// Meter/button edges run every loaded frame, including frames with no 60 Hz tick.
-    pub fn prepare_time(&mut self) -> bool {
-        if self.arrested || self.breaker_barred || self.cinematic_input.is_some() {
+    pub fn prepare_time(&mut self, real_dt: f32) -> bool {
+        let blocked = self.arrested || self.breaker_barred || self.cinematic_input.is_some();
+        if blocked {
             self.breaker.cancel();
-            return false;
         }
         if self.request.is_some() || self.sim.is_none() || (self.batch_run && self.script_finished()) {
             return false;
@@ -90,37 +90,27 @@ impl Drive {
             .as_ref()
             .map_or(self.frame_input.speedbreaker, |run| run.script.input_at(run.time).speedbreaker);
         let speed = self.sim.as_ref().map_or(0.0, |sim| sim.speedbreaker_speed());
-        self.breaker.step(held, speed, 0.0, 0.0);
-        self.breaker.active()
-    }
-
-    /// Recharge follows completed physics; frame look and real-time depletion keep their own intervals.
-    pub fn finish_time_with_tick_delta(
-        &mut self,
-        input: &ActionState,
-        frame_sim_dt: f32,
-        real_dt: f32,
-        tick_sim_dt: f32,
-    ) {
-        if self.request.is_some() || self.sim.is_none() || (self.batch_run && self.script_finished()) {
-            return;
-        }
-        let held = self
-            .script
-            .as_ref()
-            .map_or(self.frame_input.speedbreaker, |run| run.script.input_at(run.time).speedbreaker);
-        let speed = self.sim.as_ref().map_or(0.0, |sim| sim.speedbreaker_speed());
-        let active = self.breaker.step(
-            held && !self.arrested && !self.breaker_barred && self.cinematic_input.is_none(),
-            if self.arrested { 0.0 } else { speed },
-            tick_sim_dt,
-            real_dt,
-        );
-        self.breaker_camera.update(active, real_dt);
+        let real_dt = match real_dt.is_finite() && real_dt > 0.0 {
+            true => real_dt,
+            false => 0.0,
+        };
+        let active = match blocked {
+            true => false,
+            false => self.breaker.step(held, speed, 0.0, real_dt),
+        };
         if let Some(sim) = self.sim.as_mut() {
             sim.set_nos_recharge(!active);
             sim.set_speedbreaker_effect(active, &self.breaker.tuning().physics);
         }
+        active
+    }
+
+    /// Frame presentation reads the resolved meter state without changing gameplay activity.
+    pub fn finish_visual_time(&mut self, input: &ActionState, frame_sim_dt: f32, real_dt: f32) {
+        if self.request.is_some() || self.sim.is_none() || (self.batch_run && self.script_finished()) {
+            return;
+        }
+        self.breaker_camera.update(self.breaker.active(), real_dt);
         let scale = match real_dt > 0.0 {
             true => frame_sim_dt / real_dt,
             false => 0.0,
@@ -181,5 +171,7 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod consumer_tests;
 #[cfg(test)]
 mod scaled_tests;

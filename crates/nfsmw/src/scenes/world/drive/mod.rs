@@ -17,6 +17,7 @@ mod debug;
 mod effect_feed;
 mod fall;
 mod garage;
+mod gauges;
 mod ground;
 mod input;
 #[cfg(test)]
@@ -27,6 +28,8 @@ mod nis_pose;
 mod original_camera;
 mod placement;
 pub(super) use placement::Strict;
+#[cfg(test)]
+mod observer_tests;
 #[cfg_attr(not(feature = "multiplayer"), allow(dead_code))]
 mod predict;
 #[cfg(test)]
@@ -157,6 +160,7 @@ pub struct Drive {
     /// (`predict.rs`); `None` draws the physics pose.
     net_pose: Option<CarPose>,
     telemetry: Telemetry,
+    gauges: gauges::GaugeHistory,
     /// The speed breaker's meter (`speedbreaker.rs`).
     breaker: speedbreaker::SpeedBreaker,
     breaker_camera: breaker_camera::Zoom,
@@ -398,14 +402,20 @@ impl Drive {
         let t = &self.telemetry;
         let pose = self.pose();
         let forward = pose.rotation * Vec3::X;
+        let gauges = self.gauges.sample(self.alpha);
+        let rpm = match self.gridded || self.launch_cancel_on_shift {
+            true => gauges.rpm,
+            false => self.hud_visual_rpm(t.idle, t.red_line, gauges.rpm),
+        };
         Some(crate::hud::HudState {
             minimap: Some(crate::hud::MapPosition {
                 position: [pose.position.x, pose.position.y],
                 heading: [forward.x, forward.y],
                 orientation: blackbox_minimap::Orientation::North,
             }),
-            speed: t.speed_mps.abs(),
-            rpm: t.rpm,
+            speed: gauges.speed.abs(),
+            rpm,
+            perfect_launch_range: gauges::in_launch_range(rpm, sim.staged_launch_band()),
             max_rpm: t.max_rpm,
             red_line: t.red_line,
             gear: t.gear,

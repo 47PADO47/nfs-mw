@@ -10,8 +10,8 @@ use super::CarSim;
 use crate::scenes::world::object_geometry::BodyPose;
 use crate::scenes::world::space;
 
-/// Everything a later step of the car depends on, for rewinding. The ground caches are left out: they are caches, and
-/// a restore clears them. The damage engine and the reset-collision window are not rewound (a prediction does not
+/// Everything a later step depends on, including retained terrain/face history.
+/// The damage engine and the reset-collision window are not rewound (a prediction does not
 /// take damage twice; sync-model.md section 4.2).
 #[derive(Debug, Clone)]
 pub struct SimSave {
@@ -21,6 +21,8 @@ pub struct SimSave {
     step_delta: f32,
     previous_contact_pose: BodyPose,
     brake_lamp_age: f32,
+    ground_reference: blackbox_collision::ground_reference::GroundReferenceCache,
+    wheel_ground: [blackbox_collision::ground_reference::GroundFaceCache; 4],
 }
 
 /// The reduced motion of the car in render space: the model's origin and axes, and the body's velocities.
@@ -48,6 +50,8 @@ impl CarSim {
             step_delta: self.step_delta,
             previous_contact_pose: self.previous_contact_pose,
             brake_lamp_age: self.brake_lamp_age,
+            ground_reference: self.ground_reference.clone(),
+            wheel_ground: self.wheel_ground.borrow().clone(),
         }
     }
 
@@ -58,10 +62,11 @@ impl CarSim {
         self.step_delta = saved.step_delta;
         self.previous_contact_pose = saved.previous_contact_pose;
         self.brake_lamp_age = saved.brake_lamp_age;
-        self.ground_reference.clear();
-        for wheel in self.wheel_ground.get_mut() {
-            wheel.clear();
-        }
+        self.ground_reference = saved.ground_reference.clone();
+        *self.wheel_ground.get_mut() = saved.wheel_ground.clone();
+        // Ray acceleration is rebuildable; selected terrain faces above are physical history.
+        self.ground_window.clear();
+        self.pending_body_impact = Default::default();
     }
 
     /// The reduced motion now.

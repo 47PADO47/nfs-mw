@@ -11,9 +11,10 @@ Each tick currently runs these operations:
 
 1. Advance prop lifecycle timers by the shared tick's simulation delta.
 2. Integrate the player and all AI cars/trailers.
-3. Resolve car pairs, including the player and detached trailers.
-4. Capture poses after contact separation; advance traffic, pursuit and spawn timers.
-5. Feed the player's final state into effects, sound, telemetry and recovery checks.
+3. Resolve ordered prop and car pairs, including the player and detached trailers.
+4. Finish every body's world/ground contacts and drag.
+5. Resolve trailer articulations, then run engine and suspension response. Capture poses and publish effects,
+   sound, telemetry and gameplay timers.
 
 Rendering interpolates the preceding and current poses using the shared clock's
 fractional remainder. Parked cars and completed scripted captures draw their final
@@ -34,8 +35,9 @@ started its threads anew every tick, which made the mean tick 10 % slower at 16 
 slower at 59 (2026-10-24, 16 players, dev profile; `world_step_costs` with `NFSMW_BENCH_CARS`); the pool's threads stay
 alive, so a share only has to be picked up. Only the
 integration runs there: each car's start (search, think with every random draw, driver, input, explosions) runs
-first in car order, and its end (props, walls, damage, effects, sounds) runs afterwards in car order. No car reads
-another car's new state within a step, and each thread casts rays through its own candidate window, so the
+first in car order. Shared pairs and body world contacts finish serially before
+parallel engine/suspension responses; publication follows in car order. No response job reads
+another car's new state, and each thread casts rays through its own candidate window, so the
 result is bit-identical to the serial order; `ai/pursuit/tests/parallel.rs` compares both every tick.
 
 ## Verification
@@ -51,7 +53,10 @@ The shared real-time clock, per-tick dilation integration and forced network
 
 ## Remaining order differences
 
-Car integration still includes each car's world contacts before pair contacts.
-The original's general body pipeline resolves pairs before world contacts and
-articulations. Full ordering parity is tracked in [world interactions](world-interactions.md),
-together with primitive sweeps, moving props and released truck cargo.
+Car pairs now precede body world contacts and engine/suspension response.
+Prop pairs follow all body begins, and articulations follow body finish before
+driving response. Unified mixed-body pair traversal, trailer-release callback
+priority and every wake path remain unverified. See
+[the phase contract](specs/shared-vehicle-phases.md) and
+[world interactions](world-interactions.md) for remaining primitive sweeps,
+moving props and released truck cargo differences.

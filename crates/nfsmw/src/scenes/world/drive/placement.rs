@@ -99,6 +99,8 @@ impl Drive {
         self.vehicle_effects.clear();
         (self.previous, self.current) = (pose, pose);
         self.telemetry = sim.telemetry();
+        self.gauges.snap(sim.gauge_sample());
+        self.clear_visual_rpm();
         self.alpha = 0.0;
         self.chase.snap();
         // Placement can complete with the garage open, before any driving ticks.

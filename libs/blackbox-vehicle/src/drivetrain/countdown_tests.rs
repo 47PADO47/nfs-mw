@@ -17,7 +17,14 @@ fn first_and_reverse_clutch_play_also_damps_an_engaging_flywheel() {
         let previous = p.omega;
         let mut av = [0.0; 4];
         let dt = 1.0 / 144.0;
-        p.torque_loop(&mut LoopCtx { dt, av: &mut av, grounded: [true; 4], drive_slip: 0.0, speed: 0.0 });
+        p.torque_loop(&mut LoopCtx {
+            dt,
+            av: &mut av,
+            grounded: [true; 4],
+            loaded_wheels: 4,
+            drive_slip: 0.0,
+            speed: 0.0,
+        });
         // Difference exceeds 300 rad/s. Stiffness 20 and initial coupling 0.25
         // give road torque -1500. Clutch play adds -750 even while engaging.
         let expected = previous - 2250.0 / p.engine.inertia(false) * dt;
@@ -37,7 +44,7 @@ fn higher_gears_do_not_receive_first_gear_clutch_play() {
     let previous = p.omega;
     let mut av = [0.0; 4];
     let dt = 1.0 / 144.0;
-    p.torque_loop(&mut LoopCtx { dt, av: &mut av, grounded: [true; 4], drive_slip: 0.0, speed: 0.0 });
+    p.torque_loop(&mut LoopCtx { dt, av: &mut av, grounded: [true; 4], loaded_wheels: 4, drive_slip: 0.0, speed: 0.0 });
     let expected = previous - 1500.0 / p.engine.inertia(false) * dt;
     assert!((p.omega - expected).abs() < 0.0001);
 }
@@ -54,7 +61,14 @@ fn opening_or_locking_the_clutch_clears_old_engagement_difference() {
             p.clutch.disengage();
         }
         let mut av = [0.0; 4];
-        p.torque_loop(&mut LoopCtx { dt: 1.0 / 144.0, av: &mut av, grounded: [true; 4], drive_slip: 0.0, speed: 0.0 });
+        p.torque_loop(&mut LoopCtx {
+            dt: 1.0 / 144.0,
+            av: &mut av,
+            grounded: [true; 4],
+            loaded_wheels: 4,
+            drive_slip: 0.0,
+            speed: 0.0,
+        });
         assert_eq!(p.prev_rpm_diff, 0.0, "engaged={engaged}");
         p.clutch.disengage();
         p.clutch.engage(0.25);
@@ -66,6 +80,7 @@ fn opening_or_locking_the_clutch_clears_old_engagement_difference() {
             dt: 1.0 / 144.0,
             av: &mut av,
             grounded: [true; 4],
+            loaded_wheels: 4,
             drive_slip: 0.0,
             speed: 0.0,
         });
@@ -73,6 +88,7 @@ fn opening_or_locking_the_clutch_clears_old_engagement_difference() {
             dt: 1.0 / 144.0,
             av: &mut fresh_av,
             grounded: [true; 4],
+            loaded_wheels: 4,
             drive_slip: 0.0,
             speed: 0.0,
         });

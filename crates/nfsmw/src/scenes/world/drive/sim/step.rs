@@ -21,8 +21,8 @@ impl CarSim {
     /// One physics step. `world` is the collision the body's walls are tested against (the ground is
     /// `ground`); without it the car only meets the road.
     ///
-    /// The step is [`Self::begin_step_with_delta`], the [`Self::integration`] and [`Self::end_step`]; a caller that integrates many
-    /// cars at once runs the three itself (`ai/parallel.rs`).
+    /// Composes preparation, body integration, body contacts, driving response and publication.
+    /// Shared callers place car pairs between body integration and contacts.
     #[cfg(test)]
     pub fn step(
         &mut self,
@@ -35,6 +35,7 @@ impl CarSim {
 
     /// One step with an explicit simulation delta; invalid deltas leave all state unchanged.
     /// The caller owns scheduling and shared-world contact order; see `docs/specs/player-timestep.md`.
+    #[cfg(test)]
     pub fn step_with_delta(
         &mut self,
         dt: f32,
@@ -48,6 +49,8 @@ impl CarSim {
         let collision = world.as_ref().map(|(collision, _)| *collision);
         let start =
             self.begin_step_with_delta(dt, input, collision.is_some(), world.as_mut().map(|(_, props)| &mut **props));
+        self.begin_body(&start, collision);
+        self.finish_body(&start, ground, world.as_mut().map(|(collision, props)| (*collision, &mut **props)));
         self.integration().run(&start, ground, collision);
         self.end_step(&start, ground, world)
     }
@@ -61,9 +64,13 @@ impl CarSim {
         has_world: bool,
         props: Option<&mut PropWorld>,
     ) -> StepStart {
+        if !dt.is_finite() || dt <= 0.0 {
+            return StepStart { input: input.to_vehicle(), delta: dt, terrain: None };
+        }
         self.step_delta = dt;
+        self.pending_body_impact = Impact::default();
         self.reset_collision.advance(dt);
-        // Taken before the explosions below: they can wake a sleeping body. The plane is refreshed by the integration.
+        // Taken before explosions: they can wake a sleeping body. Body begin refreshes this captured query.
         let terrain = has_world.then(|| self.terrain_query());
         self.before_velocity = self.vehicle.body().linear_velocity;
         let input = input.to_vehicle();
@@ -80,15 +87,17 @@ impl CarSim {
         StepStart { input, delta: dt, terrain }
     }
 
-    /// The rest of a step after the integration: props, walls, contacts, damage, effects and sounds.
-    pub(in crate::scenes::world) fn end_step(
+    /// Resolves world contacts and body drag after the shared pair pass, before driving response.
+    pub(in crate::scenes::world) fn finish_body(
         &mut self,
         start: &StepStart,
         ground: &dyn Ground,
         world: Option<(&CollisionWorld, &mut PropWorld)>,
-    ) -> Impact {
-        let input = start.input;
-        let mut impact = match world {
+    ) {
+        if !start.delta.is_finite() || start.delta <= 0.0 {
+            return;
+        }
+        self.pending_body_impact = match world {
             Some((collision, props)) => {
                 let frame = self
                     .geometry
@@ -117,6 +126,21 @@ impl CarSim {
             }
             None => Impact::default(),
         };
+        self.vehicle.finish_body_step(start.delta, ground);
+    }
+
+    /// Publishes body contacts and driving response once both phases have completed.
+    pub(in crate::scenes::world) fn end_step(
+        &mut self,
+        start: &StepStart,
+        _ground: &dyn Ground,
+        _world: Option<(&CollisionWorld, &mut PropWorld)>,
+    ) -> Impact {
+        if !start.delta.is_finite() || start.delta <= 0.0 {
+            return Impact::default();
+        }
+        let input = start.input;
+        let mut impact = std::mem::take(&mut self.pending_body_impact);
 
         self.smacked.append(&mut impact.smacked);
         self.prop_struck |=

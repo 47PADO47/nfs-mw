@@ -17,15 +17,35 @@ const LOCK_RATIO: f32 = 1.2;
 /// Brake lock test: N m per rad/s of wheel speed.
 const LOCK_AV_FACTOR: f32 = 100.0;
 
+fn gripping_feedback(angular_acc: f32, radius: f32, forward_acc: f32, reference: bool) -> f32 {
+    let delta = angular_acc * radius - forward_acc;
+    match reference {
+        true => (delta / radius) * WHEEL_INERTIA,
+        false => (delta * WHEEL_INERTIA) / radius,
+    }
+}
+
+fn scale_traction(traction: f32, slip: f32, limit: f32, reference: bool) -> f32 {
+    match reference {
+        true => (traction / slip.abs()) * limit,
+        false => traction * (limit / slip.abs()),
+    }
+}
+
 impl Tire {
     /// Rear wheels grip a little less at low speed unless locked or spinning backwards.
     fn pilot_factor(&self, p: &TireParams, body_speed: f32) -> f32 {
         if p.front || self.brake_locked || self.av < 0.0 {
-            1.0
-        } else {
-            let mph = ms_to_mph(body_speed);
-            0.85 + 0.15 * ((mph - 30.0) / 20.0).clamp(0.0, 1.0)
+            return 1.0;
         }
+        if self.integration == super::TireIntegration::Reference {
+            let base = 0.85_f32;
+            let factor =
+                ((body_speed - crate::math::mph_to_ms(30.0)) * (1.0 / crate::math::mph_to_ms(20.0))).clamp(0.0, 1.0);
+            return factor * (1.0 - base) + base;
+        }
+        let mph = ms_to_mph(body_speed);
+        0.85 + 0.15 * ((mph - 30.0) / 20.0).clamp(0.0, 1.0)
     }
 
     /// Updates a tire pressed onto the ground and returns the lateral force (N, negative when the patch
@@ -81,8 +101,10 @@ impl Tire {
         let slip = self.av * r - fwd;
         self.slip = slip;
         let pilot = self.pilot_factor(p, i.body_speed);
-        let skid = slip.hypot(lat);
-        let patch_speed = fwd.hypot(lat);
+        let (skid, patch_speed) = match reference {
+            true => ((slip * slip + lat * lat).sqrt(), (fwd * fwd + lat * lat).sqrt()),
+            false => (slip.hypot(lat), fwd.hypot(lat)),
+        };
         let moving_patch = match reference {
             true => fwd != 0.0 || lat != 0.0,
             false => patch_speed > EPS,
@@ -95,7 +117,10 @@ impl Tire {
                 true => skid,
                 false => skid.max(SKID_FLOOR),
             };
-            ground_friction = load * dyn_grip / divisor;
+            ground_friction = match reference {
+                true => (dyn_grip / divisor) * load,
+                false => load * dyn_grip / divisor,
+            };
             ground_force = fwd.abs() * load * dyn_grip / patch_speed;
         }
 
@@ -115,8 +140,15 @@ impl Tire {
         // Sliding forces: full kinetic friction along the slip direction.
         let (mut slide_x, mut slide_y) = (ground_friction * slip, -ground_friction * lat);
         if body_mph < 1.0 && dyn_grip > 0.1 {
-            slide_x /= dyn_grip;
-            slide_y /= dyn_grip;
+            let (x, y) = match reference {
+                true => {
+                    let inverse = 1.0 / dyn_grip;
+                    (slide_x * inverse, slide_y * inverse)
+                }
+                false => (slide_x / dyn_grip, slide_y / dyn_grip),
+            };
+            slide_x = x;
+            slide_y = y;
         }
         let reference_limit = reference && slide_x * total_torque > 0.0;
         if reference_limit || (!reference && !locked) {
@@ -132,7 +164,7 @@ impl Tire {
         } else {
             0.0
         };
-        let grip_x = total_torque / r + (self.angular_acc * r - fwd_acc) * WHEEL_INERTIA / r;
+        let grip_x = total_torque / r + gripping_feedback(self.angular_acc, r, fwd_acc, reference);
         // The original picks one branch by last step's traction, which makes a tire at its limit flip
         // between the two every step. Blending by that traction settles on the friction limit instead.
         let w = match (locked, reference, self.traction >= 1.0) {
@@ -151,8 +183,14 @@ impl Tire {
         fy *= self.traction_circle.0;
         fx *= self.traction_circle.1;
 
-        let len = fx.hypot(fy);
-        let max_f = load * p.static_grip * self.traction_boost * self.drift_friction * pilot;
+        let len = match reference {
+            true => (fx * fx + fy * fy).sqrt(),
+            false => fx.hypot(fy),
+        };
+        let max_f = match reference {
+            true => (((self.drift_friction * self.traction_boost) * p.static_grip) * load) * pilot,
+            false => load * p.static_grip * self.traction_boost * self.drift_friction * pilot,
+        };
         let mut max_slip = self.max_slip;
         if len > max_f && len > 0.001 {
             let ratio = max_f / len;
@@ -167,7 +205,7 @@ impl Tire {
             }
         }
         if slip.abs() > max_slip {
-            self.traction *= max_slip / slip.abs();
+            self.traction = scale_traction(self.traction, slip, max_slip, reference);
         }
 
         fy *= i.surface.lateral;
@@ -235,5 +273,96 @@ impl Tire {
         self.angular_acc = (self.drive_torque + brake_torque) / WHEEL_INERTIA;
         self.av += self.angular_acc * dt;
         self.check_sign();
+    }
+}
+
+#[cfg(test)]
+mod pilot_tests {
+    use super::*;
+    use crate::{math::mph_to_ms, tires::TireIntegration};
+
+    #[test]
+    fn reference_gripping_feedback_divides_before_inertia() {
+        let actual = gripping_feedback(1.25, 0.27, 274.4884, true);
+        let stabilized = gripping_feedback(1.25, 0.27, 274.4884, false);
+        assert_eq!(actual.to_bits(), 0xc61ea6f3);
+        assert_ne!(actual.to_bits(), stabilized.to_bits());
+    }
+
+    #[test]
+    fn reference_traction_divides_before_limit() {
+        let actual = scale_traction(0.1, 0.71, 0.32, true);
+        let stabilized = scale_traction(0.1, 0.71, 0.32, false);
+        assert_eq!(actual.to_bits(), 0x3d389bc4);
+        assert_ne!(actual.to_bits(), stabilized.to_bits());
+    }
+
+    #[test]
+    fn reference_sliding_preserves_force_rounding() {
+        for (dynamic_grip, traction_boost, static_grip, drift_friction, expected_x, expected_y) in [
+            (1.2, 1.0, 100.0, 1.0, 0x44752529, 0xc19ce496),
+            (1.1, 1.1, 100.0, 1.0, 0x4475252a, 0xc19ce496),
+            (1.1, 1.0, 1.1, 0.85, 0x4442d442, 0xc179619d),
+        ] {
+            let mut tire = Tire {
+                integration: TireIntegration::Reference,
+                av: 2.0,
+                load: 1000.0,
+                traction: 0.5,
+                road_speed: 0.1,
+                last_sign: 1,
+                traction_boost,
+                drift_friction,
+                ..Tire::default()
+            };
+            let params = TireParams {
+                radius: 0.3,
+                grip_scale: 1.0,
+                static_grip,
+                dynamic_grip,
+                brake_spec: 0.0,
+                brake_lock_spec: 0.0,
+                ebrake_spec: 0.0,
+                front: false,
+            };
+            let input = LoadedInput {
+                lat_vel: 0.1,
+                fwd_vel: 0.1,
+                body_speed: 0.2,
+                load: 1000.0,
+                dt: 1.0 / 60.0,
+                quarter_mass: 375.0,
+                surface: crate::ground::SurfaceGrip::DEFAULT,
+            };
+            assert_eq!(tire.update_loaded(&params, &input).to_bits(), expected_y);
+            assert_eq!(tire.longitudinal_force.to_bits(), expected_x);
+        }
+    }
+    #[test]
+    fn reference_pilot_curve_uses_the_si_threshold_and_span() {
+        let mut t = Tire { integration: TireIntegration::Reference, av: 10.0, ..Tire::default() };
+        let mut p = TireParams {
+            radius: 0.3,
+            grip_scale: 1.0,
+            static_grip: 1.0,
+            dynamic_grip: 1.0,
+            brake_spec: 1.0,
+            brake_lock_spec: 1.0,
+            ebrake_spec: 1.0,
+            front: false,
+        };
+        for (speed, expected) in
+            [(0.0, 0.85), (mph_to_ms(30.0), 0.85), (mph_to_ms(40.0), 0.925), (mph_to_ms(50.0), 1.0)]
+        {
+            assert_eq!(t.pilot_factor(&p, speed), expected);
+        }
+        p.front = true;
+        assert_eq!(t.pilot_factor(&p, 0.0), 1.0);
+        p.front = false;
+        t.brake_locked = true;
+        assert_eq!(t.pilot_factor(&p, 0.0), 1.0);
+        t.brake_locked = false;
+        t.av = -10.0;
+        assert_eq!(t.pilot_factor(&p, 0.0), 1.0);
     }
 }

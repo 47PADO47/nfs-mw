@@ -1,5 +1,4 @@
-//! One fixed step of the whole vehicle, in the order of the spec: integrate last step's forces, shape the
-//! controls, steer, run the engine, then aero, the wheels, damping and body contacts.
+//! Shared body and vehicle-response phases. Spec: `shared-vehicle-phases.md`.
 
 use glam::Vec3;
 
@@ -21,6 +20,13 @@ impl Vehicle {
     /// Forces computed in this step move the body in the next one, so the position you read afterwards
     /// lags the forces by one step.
     pub fn step(&mut self, dt: f32, input: &InputState, ground: &dyn Ground) {
+        self.begin_body_step(dt);
+        self.finish_body_step(dt, ground);
+        self.respond_step(dt, input, ground);
+    }
+
+    /// Integrates previous forces. The host resolves all body pairs after this phase.
+    pub fn begin_body_step(&mut self, dt: f32) {
         if dt.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) || !dt.is_finite() {
             return;
         }
@@ -31,8 +37,50 @@ impl Vehicle {
         self.body.begin_frame(dt);
         self.hold_staged_body(previous_position);
         self.time += dt;
+    }
+
+    /// Finishes body collision and drag before any engine or suspension response.
+    pub fn finish_body_step(&mut self, dt: f32, ground: &dyn Ground) {
+        if !dt.is_finite() || dt <= 0.0 || self.body.state != BodyState::Awake {
+            return;
+        }
+        let corner_contacts = self.collide_body_with_ground(ground, dt);
+        self.body_ground_contact = corner_contacts > 0;
+        self.body.apply_drag();
+        if self.tire_integration == crate::tires::TireIntegration::Reference {
+            if let Some(contacts) = self.reference_sleep_contacts(corner_contacts) {
+                self.body.update_sleep(contacts);
+            }
+            return;
+        }
+        if self.wheels_on_ground == 0 && !self.staging() && !self.collided {
+            self.body.update_sleep(corner_contacts);
+        }
+    }
+
+    /// Computes this tick's driving response from the post-contact body state.
+    pub fn respond_step(&mut self, dt: f32, input: &InputState, ground: &dyn Ground) {
+        if !dt.is_finite() || dt <= 0.0 || self.body.state == BodyState::Frozen {
+            return;
+        }
+        let rot = self.body.rotation();
+        let local_velocity = rot.transpose() * self.body.linear_velocity;
+        // Input and brake-lamp consumers remain current even when chassis response sleeps.
+        self.update_controls(input, local_velocity.z);
+        let reference = self.tire_integration == crate::tires::TireIntegration::Reference;
+        if reference {
+            self.advance_retirement_support(dt);
+        }
         match self.body.state {
             BodyState::Frozen => return,
+            BodyState::Asleep if reference => {
+                if self.retired() {
+                    self.update_launch(dt, self.body.linear_velocity.length());
+                    self.run_powertrain(dt, self.body.linear_velocity.length());
+                    self.sanitize();
+                    return;
+                }
+            }
             BodyState::Asleep => {
                 if self.staging() || input.throttle > 0.0 || input.handbrake > 0.0 {
                     self.body.wake();
@@ -45,25 +93,25 @@ impl Vehicle {
         let collided = std::mem::take(&mut self.collided);
         self.wheels_on_ground_prev = self.wheels_on_ground;
 
-        let rot = self.body.rotation();
-        let local_velocity = rot.transpose() * self.body.linear_velocity;
         let speed = self.body.linear_velocity.length();
         let angular_velocity = self.body.angular_velocity;
         self.body_slip = if local_velocity.z < 1.0 { 0.0 } else { local_velocity.x.atan2(local_velocity.z) };
 
-        self.update_controls(input, local_velocity.z);
         self.update_chassis_cog();
         self.update_steering(dt, local_velocity.z);
         self.apply_wall_steering();
 
         self.update_launch(dt, speed);
         self.begin_tires(speed);
-        self.run_powertrain(dt, speed);
+        let drive_torque = self.run_powertrain(dt, speed);
+        self.distribute_drive(drive_torque, self.tires.map(|t| t.av), self.loaded);
         self.tune_tires(dt, speed, angular_velocity);
         self.apply_aero();
 
         let out = self.wheel_forces(dt, ground, angular_velocity);
-        self.advance_retirement_support(dt);
+        if !reference {
+            self.advance_retirement_support(dt);
+        }
         if self.wheels_on_ground > 0 {
             let up = self.body.rotation().y_axis;
             let mut torque = out.torque;
@@ -72,26 +120,36 @@ impl Vehicle {
             torque += up * (yaw * self.spec.tires.yaw_speed - yaw);
             self.body.apply_force(out.force);
             self.body.apply_torque(torque);
-            if out.lift_need > 0.0 {
-                self.body.position.y += out.lift_need;
+        }
+        if out.lift_need > 0.0 {
+            self.body.position.y += out.lift_need;
+            for patch in &mut self.patch_positions {
+                patch.y += out.lift_need;
             }
         }
         let angular_velocity = self.damp_landing(angular_velocity);
         self.apply_jump(dt, speed, angular_velocity);
         self.damp_creep(collided, angular_velocity);
 
-        self.body.apply_drag();
-        let corner_contacts = self.collide_body_with_ground(ground, dt);
-        self.body_ground_contact = corner_contacts > 0;
-        if self.wheels_on_ground == 0 && !self.staging() {
-            self.body.update_sleep(corner_contacts);
-        }
         self.sanitize();
     }
 
     fn update_controls(&mut self, input: &InputState, forward_speed: f32) {
+        // The player's shift action precedes auto-reverse. Shape from the gear
+        // actually accepted by the gearbox, including reverse exit this tick.
+        let mut pedals = *input;
+        if !self.disabled && (self.config.automatic || input.gear_select.is_none()) {
+            let dir = i32::from(input.shift_up) - i32::from(input.shift_down);
+            let desired =
+                (self.powertrain.gear() as i64 + i64::from(dir)).clamp(1, self.powertrain.top_gear() as i64) as usize;
+            if dir != 0 && (!self.staging() || desired <= GEAR_FIRST) {
+                self.powertrain.request_shift(dir, self.config.automatic);
+            }
+        }
+        pedals.shift_up = false;
+        pedals.shift_down = false;
         let ctx = InputContext { forward_speed, gear: self.powertrain.gear(), disabled: self.disabled };
-        let controls = shape(input, &self.config, &ctx);
+        let controls = shape(&pedals, &self.config, &ctx);
         match controls.gear_request {
             Some(GearRequest::Reverse) => {
                 self.powertrain.shift(GEAR_REVERSE);
@@ -138,7 +196,7 @@ impl Vehicle {
             .unwrap_or_else(|| ackermann(angle, self.spec.chassis.wheel_base, self.spec.chassis.track_width[0]));
     }
 
-    fn run_powertrain(&mut self, dt: f32, speed: f32) {
+    fn run_powertrain(&mut self, dt: f32, speed: f32) -> f32 {
         let trans = &self.spec.transmission;
         let (front, rear) = match self.rolling_chassis {
             Some(config) => (config.front_drive_share > 0.0, config.front_drive_share < 1.0),
@@ -152,37 +210,44 @@ impl Vehicle {
         } else {
             (0..4).filter(|&i| is_driven(i)).map(|i| self.tires[i].slip).sum::<f32>() / count as f32 * dir
         };
-        let max_wheel_slip = self.tires.iter().map(|t| t.slip.abs()).fold(0.0, f32::max);
+        let max_wheel_slip = self.tires.iter().map(|t| t.slip).fold(0.0, f32::max);
         let reference = self.tire_integration == crate::tires::TireIntegration::Reference;
         let mut av: [f32; 4] = std::array::from_fn(|i| match reference {
             true => self.tires[i].display_av(self.params[i].radius, self.corners[i].compression > 0.0),
             false => self.tires[i].av,
         });
         let grounded = self.loaded;
-        let drive_torque = self.powertrain.tick(&mut TickInput {
-            dt,
-            gas: self.controls.gas,
-            nos_held: self.controls.nos,
-            can_recharge_nos: self.can_recharge_nos,
-            blown: self.disabled,
-            automatic: self.config.automatic,
-            speed,
-            wheel_av: &mut av,
-            grounded,
-            drifting: self.is_drifting(),
-            drive_slip,
-            max_wheel_slip,
-            induction_tuning: self.tunings.induction,
-            nos_tuning: self.tunings.nos,
-            clutch_pedal: self.controls.clutch,
-        });
+        let wheel_contacts = match reference {
+            true => self.corners.map(|corner| corner.compression > 0.0),
+            false => grounded,
+        };
+        let drive_torque = self.powertrain.tick_with_loaded_wheels(
+            &mut TickInput {
+                dt,
+                gas: self.controls.gas,
+                nos_held: self.controls.nos,
+                can_recharge_nos: self.can_recharge_nos,
+                blown: self.disabled,
+                automatic: self.config.automatic,
+                speed,
+                wheel_av: &mut av,
+                grounded: wheel_contacts,
+                drifting: self.is_drifting(),
+                drive_slip,
+                max_wheel_slip,
+                induction_tuning: self.tunings.induction,
+                nos_tuning: self.tunings.nos,
+                clutch_pedal: self.controls.clutch,
+            },
+            self.wheels_on_ground,
+        );
         let writes = self.powertrain.wheel_writes();
         for (i, t) in self.tires.iter_mut().enumerate() {
             if self.rolling_chassis.is_none() && (!reference || writes[i]) {
                 t.av = av[i];
             }
         }
-        self.distribute_drive(drive_torque, self.tires.map(|t| t.av), grounded);
+        drive_torque
     }
 
     /// A drift: a grounded rear tire slides sideways past [`DRIFT_SLIP`] (turns, 1.0 = 360 deg).
@@ -197,12 +262,18 @@ impl Vehicle {
             return;
         }
         let rot = self.body.rotation();
-        self.body.apply_force(-rot.y_axis * self.spec.mass * self.maneuver.extra_downward_acceleration);
+        if self.maneuver.extra_downward_acceleration != 0.0 {
+            self.body.apply_force(-rot.y_axis * self.spec.mass * self.maneuver.extra_downward_acceleration);
+        }
         let aero = crate::aero::AeroSpec {
             drag_coefficient: self.spec.aero.drag_coefficient * self.maneuver.drag_scale,
             ..self.spec.aero
         };
-        let f = aero::forces(
+        let aero_forces = match self.tire_integration {
+            crate::tires::TireIntegration::Reference => aero::reference_forces,
+            crate::tires::TireIntegration::Regularized => aero::forces,
+        };
+        let f = aero_forces(
             &aero,
             &AeroInput {
                 linear_velocity: self.body.linear_velocity,
@@ -215,7 +286,9 @@ impl Vehicle {
             self.geometry.front_z(),
             self.geometry.rear_z(),
         );
-        if f.drag != Vec3::ZERO {
+        let reference_drag =
+            self.tire_integration == crate::tires::TireIntegration::Reference && self.maneuver.drag_scale > 0.0;
+        if reference_drag || f.drag != Vec3::ZERO {
             let at = self.body.world_cog() - rot.y_axis * f.drag_drop;
             self.body.apply_force_at(f.drag, at);
         }

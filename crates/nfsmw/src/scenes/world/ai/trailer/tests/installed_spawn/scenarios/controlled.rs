@@ -148,7 +148,7 @@ fn trace(
                 &mut props,
                 &data.surfaces,
             );
-            trailer.sync_contacts(&mut tractor);
+            trailer.sync_contacts();
             assert!(tractor.is_finite() && trailer.is_finite(), "{} {scenario} tick {tick}", model.name);
             assert!(
                 trailer.is_hitched(),

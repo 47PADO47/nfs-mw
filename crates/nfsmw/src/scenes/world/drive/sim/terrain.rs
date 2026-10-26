@@ -47,6 +47,15 @@ const POINT_SETTINGS: PointQuerySettings = PointQuerySettings {
 };
 
 impl CarSim {
+    /// Refreshes the captured prior-pose terrain query, then integrates the body before shared pairs.
+    pub(in crate::scenes::world) fn begin_body(&mut self, start: &StepStart, world: Option<&CollisionWorld>) {
+        if !start.delta.is_finite() || start.delta <= 0.0 {
+            return;
+        }
+        refresh_ground_reference(&mut self.vehicle, &mut self.ground_reference, world.zip(start.terrain));
+        self.vehicle.begin_body_step(start.delta);
+    }
+
     pub(super) fn terrain_exclusion(&self) -> u16 {
         if self.collision_role.player || self.collision_racer {
             return 0;
@@ -78,7 +87,7 @@ impl CarSim {
         refresh_ground_reference(&mut self.vehicle, &mut self.ground_reference, terrain);
     }
 
-    /// The part of the step that touches only the body, its terrain caches and the static collision.
+    /// The response job touches only this vehicle, its terrain caches and static collision.
     pub(in crate::scenes::world) fn integration(&mut self) -> Integration<'_> {
         Integration {
             vehicle: &mut self.vehicle,
@@ -98,8 +107,8 @@ pub(super) struct TerrainQuery {
     exclusion: u16,
 }
 
-/// The integration of one step: the body against the ground, reading only the car's own body and terrain caches and
-/// the static collision. It holds nothing else of the car, so the cars' integrations can run on several threads at
+/// The driving response of one step, reading only this car's body, terrain caches and
+/// static collision. It holds nothing else of the car, so responses can run on several threads at
 /// once (`ai/parallel.rs`).
 pub(in crate::scenes::world) struct Integration<'a> {
     vehicle: &'a mut Vehicle,
@@ -110,14 +119,13 @@ pub(in crate::scenes::world) struct Integration<'a> {
 }
 
 impl Integration<'_> {
-    /// Refreshes the terrain plane and integrates the body over `ground`, as the start of the step left them.
+    /// Computes forces using the body and terrain plane retained after the shared contact barrier.
     pub(in crate::scenes::world) fn run(
         &mut self,
         start: &StepStart,
         ground: &dyn Ground,
-        world: Option<&CollisionWorld>,
+        _world: Option<&CollisionWorld>,
     ) {
-        refresh_ground_reference(self.vehicle, self.ground_reference, world.zip(start.terrain));
         step_with_ground(
             self.vehicle,
             self.ground_reference,
@@ -137,7 +145,6 @@ impl Integration<'_> {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) {
-        refresh_ground_reference(self.vehicle, self.ground_reference, Some(collision).zip(start.terrain));
         let ground =
             WindowedGround { world: WorldGround { collision, surfaces }, window: RefCell::new(&mut *self.window) };
         step_with_ground(
@@ -162,11 +169,11 @@ fn step_with_ground(
     prepared: bool,
 ) {
     if !prepared {
-        vehicle.step(dt, input, ground);
+        vehicle.respond_step(dt, input, ground);
         return;
     }
     let ground = PreparedGround { fallback: ground, faces: ground_reference.faces(), wheels: wheel_ground };
-    vehicle.step(dt, input, &ground);
+    vehicle.respond_step(dt, input, &ground);
 }
 
 /// The body's terrain plane from `terrain`'s world and query; none without a world.

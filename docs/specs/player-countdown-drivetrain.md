@@ -24,6 +24,17 @@ records the current difference after checking for a large sign reversal. A
 difference remembered before the clutch opens must not halve the stiffness of
 a later engagement. Neutral bypasses these gear-coupling branches.
 
+## Displayed RPM with an open clutch
+
+The displayed-RPM decay uses the faster limit in neutral, or above first gear
+when either a gear change is active or the clutch is fully disengaged. An open
+clutch must keep the faster decay after the shift timer expires. Engaging alone
+does not select that limit. First and reverse retain the ordinary decay limit,
+including while staged. Apply the existing smoothing blend after that limit.
+
+This corrects higher-gear RPM presentation. It does not establish the cause of
+the reported first-gear countdown rev behavior or change clutch engagement.
+
 ## Evidence and acceptance
 
 The selected PC binary's control flow independently confirms the distinct gates;

@@ -188,21 +188,18 @@ max_w  = rad(rev_limit)         # rev_limit = RED_LINE normally; MAX_RPM for a d
 dir    = -1 if gear == reverse else +1
 ratio  = GEAR_RATIO[gear] * FINAL_GEAR * dir
 rpm    = rpm_of(omega)
-
 # automatic-transmission style torque converter, optional
 if TORQUE_CONVERTER > 0:
     conv = TORQUE_CONVERTER * throttle * (1 - ramp(rpm, IDLE, peak_torque_rpm))
     if shifting: conv *= clutch_factor
     ratio *= 1 + conv
-
 if ratio == 0 and gear != neutral: stop this tick
-
 engine_t  = engine_torque(rpm)
 braking_t = braking_torque(engine_t, rpm)
 (perfect launch override, §10)
-
 omega_trans_old = omega_trans
-omega_trans     = min_w + diff_w_locked * ratio * (max_w - min_w) / max_w
+speed_factor    = (max_w - min_w) / max_w
+omega_trans     = speed_factor * ratio * diff_w_locked + min_w
 trans_accel     = (omega_trans - omega_trans_old) / dT
 
 # if the wheels are driving the engine faster than the engine drives them, braking torque
@@ -213,6 +210,10 @@ total_t = engine_t * throttle + braking_t * (1 - throttle)
 engine_braking_flag = total_t < 0
 wheels_ratio = max(0.25, wheels_on_ground / 4)
 ```
+
+Preserve the written single-precision grouping: multiply `speed_factor` by the
+signed ratio before multiplying by wheel speed, then add idle speed. See
+[scalar-order evidence](../provenance/engine-scalar-order.md).
 
 Here `diff_w_locked` is the "locked" average driven-wheel angular velocity and `axle_w` the "free" one
 (§6.4). Then, for any gear but neutral:
@@ -271,7 +272,7 @@ if omega_trans > max_w and ratio != 0:
         if drive_t * ratio > 0: drive_t = 0           # limiter cuts drive
         omega_trans = max_w; driven wheels set to max_w / ratio
 drive_t *= 1 + 0.5 * catchup_cheat   (only when drive_t > 0 and an AI catch-up cheat exists; 0 for humans)
-drive_torque = drive_t * ratio * GEAR_EFFICIENCY[gear]        # N·m to the chassis
+drive_torque = (GEAR_EFFICIENCY[gear] * drive_t) * ratio        # N·m to the chassis
 rpm_display  = smooth(rpm_display, rpm_of(omega))
 ```
 
@@ -284,7 +285,7 @@ An engine **sabotage** (used for a scripted breakdown) multiplies `omega` by
 ### Smoothed RPM (tachometer, audio)
 
 ```
-max_decel = -( 15 if (shifting and gear > first) or gear == neutral else 2.5 ) * 1000 / inertia   # rpm/s
+max_decel = -( 15 if ((shifting or clutch == DISENGAGED) and gear > first) or gear == neutral else 2.5 ) * 1000 / inertia   # rpm/s
 new = rpm_of(omega)
 if (new - old) / dT < max_decel: new = max(old + max_decel * dT, new)
 rpm_display = 0.55 * new + 0.45 * old
@@ -314,7 +315,7 @@ The speedometer function (§7.4) separately clamps its result to `SPEED_LIMITER[
 | Field | Unit | Use |
 |---|---|---|
 | `GEAR_RATIO[]` (up to 9) | ratio | indexed by gear id (reverse, neutral = 0, first, ...) |
-| `GEAR_EFFICIENCY[]` (up to 9) | 0..1 | per gear driveline efficiency |
+| `GEAR_EFFICIENCY[]` (up to 9) | unitless | per gear torque multiplier; upgrades may exceed 1 |
 | `FINAL_GEAR` | ratio | final drive |
 | `TORQUE_SPLIT` | 0..1 | fraction of drive torque to the **front** axle |
 | `DIFFERENTIAL[3]` | 0..1 | lock factor of front diff `[0]`, rear diff `[1]`, centre diff `[2]` |
@@ -369,11 +370,8 @@ For each axle with `|axle_torque| > epsilon` (`axle_torque = drive_torque * shar
 
 ### 6.4 Wheel speed read-back and write-back
 
-`free` driven-wheel speed (used for the sign of braking torque): average of the driven axles' wheel
-speeds, taking the larger magnitude when both axles drive. `locked` speed: the same but forced non-negative
-(non-positive in reverse); this feeds `omega_trans`. The write-back (used for the lock-up and limiter) shifts
-all driven wheels by the difference to the wanted value; below **40 mph**, or when both wheels of an axle are
-off the ground, the pair is first averaged (a locked diff) [decomp].
+See [wheel feedback and force boundaries](vehicle-force-boundaries.md) for free/locked
+axle speeds, write-back, and separate wheel-contact/load-count semantics.
 
 ## 7. Gearbox logic
 

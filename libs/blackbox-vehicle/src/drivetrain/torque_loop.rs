@@ -16,6 +16,7 @@ pub(super) struct LoopCtx<'a> {
     pub dt: f32,
     pub av: &'a mut [f32; 4],
     pub grounded: [bool; 4],
+    pub loaded_wheels: usize,
     pub drive_slip: f32,
     pub speed: f32,
 }
@@ -55,7 +56,7 @@ impl Powertrain {
 
         let (free, locked) = driven_speeds(c.av, driven, reverse);
         let omega_trans_old = self.omega_trans;
-        self.omega_trans = min_w + locked * ratio * (max_w - min_w) / max_w;
+        self.omega_trans = (max_w - min_w) / max_w * ratio * locked + min_w;
         let trans_accel = (self.omega_trans - omega_trans_old) / dt;
 
         // Wheels driving the engine faster than it drives them: braking must still oppose the motion.
@@ -65,7 +66,7 @@ impl Powertrain {
         let throttle = self.throttle;
         let total_t = engine_t * throttle + braking_t * (1.0 - throttle);
         self.engine_braking = total_t < 0.0;
-        let on_ground = c.grounded.iter().filter(|g| **g).count();
+        let on_ground = c.loaded_wheels.min(4);
         let wheels_ratio = (on_ground as f32 / 4.0).max(0.25);
         let inertia = self.engine.inertia(neutral);
         let first_or_reverse = !neutral && self.gear <= GEAR_FIRST;
@@ -158,7 +159,7 @@ impl Powertrain {
                 self.mark_driven_written(driven);
             }
         }
-        drive_t * ratio * self.trans.efficiency(self.gear)
+        (self.trans.efficiency(self.gear) * drive_t) * ratio
     }
 
     fn mark_driven_written(&mut self, driven: (bool, bool)) {

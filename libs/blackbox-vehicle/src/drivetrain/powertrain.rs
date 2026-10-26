@@ -1,4 +1,8 @@
 mod reconfigure;
+#[cfg(test)]
+mod rpm_tests;
+#[cfg(test)]
+mod scheduling_tests;
 
 use super::gearbox::{ShiftPoints, ShiftPotential};
 use super::spec::{GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE, TransmissionSpec};
@@ -36,7 +40,7 @@ pub struct TickInput<'a> {
     pub drifting: bool,
     /// Mean slip of the driven wheels in the direction of travel (m/s, + = spinning).
     pub drive_slip: f32,
-    /// Largest slip magnitude over the four wheels (m/s): gates automatic up-shifts.
+    /// Largest signed slip over the four wheels (m/s): gates automatic up-shifts.
     pub max_wheel_slip: f32,
     /// Tuning sliders in [-1, 1].
     pub induction_tuning: f32,
@@ -67,6 +71,7 @@ pub struct Powertrain {
     pub(super) staging: bool,
     pub(super) launch_strength: f32,
     pub(super) shift_points: ShiftPoints,
+    pub(super) shift_potential: ShiftPotential,
     pub(super) peak_torque_rpm: f32,
     pub(super) peak_torque_nm: f32,
     pub induction: Induction,
@@ -103,6 +108,7 @@ impl Powertrain {
             staging: false,
             launch_strength: 0.0,
             shift_points,
+            shift_potential: ShiftPotential::None,
             peak_torque_rpm,
             peak_torque_nm,
             induction: Induction::default(),
@@ -138,6 +144,7 @@ impl Powertrain {
 
     /// Resets to the spawn state: idle, clutch engaged, first gear, nothing spooled.
     pub fn reset(&mut self) {
+        self.shift_potential = ShiftPotential::None;
         self.omega = self.engine.idle_rad();
         self.omega_trans = 0.0;
         self.rpm_display = self.engine.idle;
@@ -266,6 +273,7 @@ impl Powertrain {
         let delay = self.trans.shift_speed * self.trans.ratio(new_gear);
         self.shift_timer = if new_gear < self.gear { delay * 0.25 } else { delay };
         self.gear = new_gear;
+        self.shift_potential = ShiftPotential::None;
         self.clutch.disengage();
         true
     }
@@ -339,10 +347,17 @@ impl Powertrain {
     /// Advances throttle, nitrous, speed limiter, induction, shifting and the torque loop by one step and
     /// returns the drive torque for the chassis (N m at the wheels).
     pub fn tick(&mut self, i: &mut TickInput<'_>) -> f32 {
+        let loaded_wheels = i.grounded.iter().filter(|g| **g).count();
+        self.tick_with_loaded_wheels(i, loaded_wheels)
+    }
+
+    /// Like `tick`, with the number of load-bearing wheels supplied independently
+    /// of per-wheel contact. A compressed wheel on a steep surface may not carry load.
+    pub fn tick_with_loaded_wheels(&mut self, i: &mut TickInput<'_>, loaded_wheels: usize) -> f32 {
         let dt = i.dt;
         self.throttle = if i.blown { 0.0 } else { i.gas.clamp(0.0, 1.0) };
 
-        let speed_mph = crate::math::ms_to_mph(i.speed);
+        let speed_mph = i.speed * 2.23699;
         self.nos.update(
             &self.nos_spec,
             &NosInput {
@@ -380,43 +395,41 @@ impl Powertrain {
             },
         );
 
-        self.shift_timer = (self.shift_timer - dt).max(0.0);
-        self.clutch.update(dt);
         if i.automatic && !self.staging {
-            self.auto_shift(i, dt);
+            self.auto_shift(i);
         }
+        self.shift_timer = (self.shift_timer - dt).max(0.0);
+        if self.sport_timer > 0.0 && self.shift_potential != ShiftPotential::None {
+            self.sport_timer = (self.sport_timer - dt * (2.0 - i.gas.clamp(0.0, 1.0))).max(0.0);
+        }
+        self.clutch.update(dt);
         self.command_clutch(i.clutch_pedal);
 
         let mut ctx = super::torque_loop::LoopCtx {
             dt,
             av: i.wheel_av,
             grounded: i.grounded,
+            loaded_wheels,
             drive_slip: i.drive_slip,
             speed: i.speed,
         };
         self.wheel_written = [false; 4];
         self.drive_torque = clamp_signed(self.torque_loop(&mut ctx), 1.0e6);
         self.smooth_rpm(dt);
+        self.refresh_shift_potential();
         self.drive_torque
     }
 
-    fn auto_shift(&mut self, i: &TickInput<'_>, dt: f32) {
-        if self.gear == GEAR_REVERSE || self.shifting() {
-            return;
-        }
-        if self.sport_timer > 0.0 {
-            self.sport_timer -= dt * (2.0 - i.gas.clamp(0.0, 1.0));
+    fn auto_shift(&mut self, i: &TickInput<'_>) {
+        if self.gear == GEAR_REVERSE || self.shifting() || self.sport_timer > 0.0 {
             return;
         }
         if self.gear == GEAR_NEUTRAL {
-            self.shift(GEAR_FIRST.min(self.trans.top_gear()));
-            return;
-        }
-        if !self.clutch.is_engaged() {
+            self.gear = GEAR_FIRST.min(self.trans.top_gear());
             return;
         }
         let rpm = rad_to_rpm(self.omega_trans);
-        match self.shift_points.potential(&self.engine, &self.trans, self.gear, rpm, self.throttle) {
+        match self.shift_potential {
             ShiftPotential::Down => {
                 let target =
                     self.shift_points.downshift_target(&self.engine, &self.trans, self.gear, rpm, self.throttle);
@@ -456,7 +469,8 @@ impl Powertrain {
 
     fn smooth_rpm(&mut self, dt: f32) {
         let inertia = self.engine.inertia(self.gear == GEAR_NEUTRAL);
-        let fast = (self.shifting() && self.gear > GEAR_FIRST) || self.gear == GEAR_NEUTRAL;
+        let open = self.clutch.state == crate::engine::ClutchState::Disengaged;
+        let fast = ((self.shifting() || open) && self.gear > GEAR_FIRST) || self.gear == GEAR_NEUTRAL;
         let max_decel = -(if fast { 15.0 } else { 2.5 }) * 1000.0 / inertia;
         let new = rad_to_rpm(self.omega);
         let old = self.rpm_display;

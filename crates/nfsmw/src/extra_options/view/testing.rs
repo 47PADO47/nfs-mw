@@ -87,5 +87,5 @@ pub(super) fn show(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings
     if ui.button("Clear all testing overrides").clicked() {
         actions.push(Action::Clear);
     }
-    ui.small("Use a free-roam test session. Gameplay overrides are unavailable with a loaded career or a multiplayer session.");
+    ui.small("Available in local career and free roam. Overrides last for this session; career progress still saves normally. Multiplayer and co-op are unavailable.");
 }

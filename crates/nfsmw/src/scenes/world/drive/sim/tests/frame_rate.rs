@@ -33,9 +33,13 @@ fn run_at(frame_times: impl IntoIterator<Item = f32>, rate: u32, scale: f32) -> 
     let mut trace = Trace { steps: 0, states: Vec::new(), hits: Vec::new() };
     for dt in frame_times {
         for period in clock.advance_real(dt) {
-            for car in &mut cars {
-                car.step_with_delta(period * scale, &DriveInput::default(), &ground, None);
-            }
+            let starts = cars.each_mut().map(|car| {
+                let start = car.begin_step_with_delta(period * scale, &DriveInput::default(), false, None);
+                car.begin_body(&start, None);
+                start
+            });
+            // Body-pair impulses must precede this tick's engine and suspension response.
+            // Every render grouping uses the same shared timeline as the world scene.
             for i in 0..cars.len() {
                 let (head, tail) = cars.split_at_mut(i + 1);
                 for (offset, other) in tail.iter_mut().enumerate() {
@@ -43,6 +47,13 @@ fn run_at(frame_times: impl IntoIterator<Item = f32>, rate: u32, scale: f32) -> 
                         trace.hits.push((trace.steps, i, i + 1 + offset, hit.impulse.to_bits()));
                     }
                 }
+            }
+            for (car, start) in cars.iter_mut().zip(&starts) {
+                car.finish_body(start, &ground, None);
+            }
+            for (car, start) in cars.iter_mut().zip(&starts) {
+                car.integration().run(start, &ground, None);
+                car.end_step(start, &ground, None);
             }
             for car in &cars {
                 let body = car.body();

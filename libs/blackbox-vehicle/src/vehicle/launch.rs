@@ -25,6 +25,19 @@ impl Vehicle {
         self.launch.strength()
     }
 
+    pub fn staged_launch_band(&self) -> Option<(f32, f32)> {
+        if !self.staging() {
+            return None;
+        }
+        let engine = self.powertrain.engine_spec();
+        self.launch.rpm_band(
+            self.powertrain.gear() == GEAR_FIRST,
+            engine.idle,
+            engine.red_line,
+            self.powertrain.peak_torque().1,
+        )
+    }
+
     pub(super) fn update_launch(&mut self, dt: f32, speed: f32) {
         let engine = self.powertrain.engine_spec();
         self.launch.update(&LaunchInput {

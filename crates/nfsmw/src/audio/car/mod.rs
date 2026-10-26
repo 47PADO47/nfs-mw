@@ -21,6 +21,7 @@ pub(super) mod power_effects;
 pub(super) mod routing;
 mod telemetry;
 mod update;
+mod visual_rpm;
 pub use ambient::{RoadContext, RoadTerrain};
 pub use telemetry::CarAudioTelemetry;
 mod contact;

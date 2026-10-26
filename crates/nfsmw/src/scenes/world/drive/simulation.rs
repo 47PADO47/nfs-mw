@@ -6,7 +6,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::effect_feed;
 use super::walls::Impact;
-use super::{Drive, DriveInput, GOOD_SPOT_SECONDS, Spawn, SpawnRequest, WorldGround, clock, fall, trace};
+use super::{Drive, DriveInput, GOOD_SPOT_SECONDS, Spawn, SpawnRequest, StepStart, WorldGround, clock, fall, trace};
 use crate::input::ActionState;
 use crate::scenes::world::{props::PropWorld, road, space};
 
@@ -14,6 +14,13 @@ use crate::scenes::world::{props::PropWorld, road, space};
 pub struct DriveStep {
     input: DriveInput,
     impact: Impact,
+    delta: f32,
+}
+
+/// A captured player tick whose body has integrated, before shared body-pair contacts.
+pub struct DrivePhysicsStep {
+    input: DriveInput,
+    start: StepStart,
     delta: f32,
 }
 
@@ -62,6 +69,19 @@ impl Drive {
         props: &mut PropWorld,
         surfaces: &SurfaceTable,
     ) -> Option<DriveStep> {
+        let step = self.begin_physics_step_with_delta(dt, collision, props, surfaces)?;
+        self.finish_physics_body(&step, collision, props, surfaces);
+        Some(self.complete_physics_step(step, collision, props, surfaces))
+    }
+
+    /// Capture input and integrate the body, leaving shared pair contacts to the caller.
+    pub fn begin_physics_step_with_delta(
+        &mut self,
+        dt: f32,
+        collision: &CollisionWorld,
+        props: &mut PropWorld,
+        _surfaces: &SurfaceTable,
+    ) -> Option<DrivePhysicsStep> {
         if !dt.is_finite() || dt <= 0.0 {
             return None;
         }
@@ -89,15 +109,43 @@ impl Drive {
         if input.pop {
             self.flames.pop();
         }
-        let impact =
-            sim.step_with_delta(dt, &input, &WorldGround { collision, surfaces }, Some((collision, &mut *props)));
+        let start = sim.begin_step_with_delta(dt, &input, true, Some(props));
+        sim.begin_body(&start, Some(collision));
+        Some(DrivePhysicsStep { input, start, delta: dt })
+    }
+
+    /// Resolve world contacts and finish the body before any car runs its engine and wheels.
+    pub fn finish_physics_body(
+        &mut self,
+        step: &DrivePhysicsStep,
+        collision: &CollisionWorld,
+        props: &mut PropWorld,
+        surfaces: &SurfaceTable,
+    ) {
+        let sim = self.sim.as_mut().expect("an active physics tick retains its car");
+        sim.finish_body(&step.start, &WorldGround { collision, surfaces }, Some((collision, props)));
+    }
+
+    /// Run vehicle response after every body's contacts, then collect the tick's presentation work.
+    pub fn complete_physics_step(
+        &mut self,
+        step: DrivePhysicsStep,
+        collision: &CollisionWorld,
+        props: &mut PropWorld,
+        surfaces: &SurfaceTable,
+    ) -> DriveStep {
+        let DrivePhysicsStep { input, start, delta } = step;
+        let sim = self.sim.as_mut().expect("an active physics tick retains its car");
+        let ground = WorldGround { collision, surfaces };
+        sim.integration().run(&start, &ground, Some(collision));
+        let impact = sim.end_step(&start, &ground, Some((collision, &mut *props)));
         let hits = impact
             .visuals
             .iter()
             .map(|v| (v.prop, v.info))
             .chain(impact.knocked.iter().map(|&(id, _)| (Some(id), None)));
         self.markers.log_new_hits(hits, props);
-        Some(DriveStep { input, impact, delta: dt })
+        DriveStep { input, impact, delta }
     }
 
     /// Read the final state after car/prop contacts, then emit effects, telemetry and traces.
@@ -106,24 +154,32 @@ impl Drive {
         self.steer_lamp = input.steer;
         self.lamp_time += dt;
         let Some(sim) = self.sim.as_mut() else { return };
+        let pose = sim.pose();
+        let telemetry = sim.telemetry();
+        let gauge = sim.gauge_sample();
+        let velocity = sim.effect_velocity();
+        self.previous = self.current;
+        self.current = pose;
+        self.telemetry = telemetry;
+        self.gauges.push(gauge);
         self.brake_lamp = sim.lamp_brake();
         let (strength, speed, slip) = sim.drift_charge();
         self.breaker.charge_drift(strength, speed, slip, dt);
+        if !self.arrested {
+            self.breaker.charge_passive(sim.speedbreaker_speed(), dt);
+        }
         self.pending_knocks.extend(impact.knocked.iter().map(|&(id, _)| id));
         let tire_contacts = sim.tire_contacts(collision);
-        self.effects.step(tire_contacts, sim.effect_velocity(), dt);
-        self.vehicle_effects.step(&impact.visuals, sim.pose(), sim.effect_velocity(), self.telemetry.nos_burning, dt);
-        self.vehicle_effects.water_step(sim.water_contacts(tire_contacts), sim.pose(), sim.effect_velocity(), dt);
+        self.effects.step(tire_contacts, velocity, dt);
+        self.vehicle_effects.step(&impact.visuals, pose, velocity, telemetry.nos_burning, dt);
+        self.vehicle_effects.water_step(sim.water_contacts(tire_contacts), pose, velocity, dt);
         self.vehicle_effects.bounce(collision, dt);
         self.markers.record(&impact.contacts, sim.tyre_hits());
         self.prop_touch.step(&impact.contacts, dt);
-        self.previous = self.current;
-        self.current = sim.pose();
-        self.telemetry = sim.telemetry();
-        let car = effect_feed::car_state(&self.current, &self.telemetry, sim.effect_velocity(), input.throttle);
+        let car = effect_feed::car_state(&pose, &telemetry, velocity, input.throttle);
         self.flames.step(dt, &car);
-        self.tail_trails.step(car.to_world, car.nitrous, sim.effect_velocity().length());
-        self.sound.after_step(sim, surfaces, &impact, &input, dt);
+        self.tail_trails.step(car.to_world, car.nitrous, velocity.length());
+        self.sound.after_step(sim, surfaces, &impact, &input, dt, self.gridded);
         self.chase.impact(sim.camera_acceleration());
         self.steps += 1;
         if let Some(run) = self.script.as_ref().filter(|_| self.steps.is_multiple_of(60)) {

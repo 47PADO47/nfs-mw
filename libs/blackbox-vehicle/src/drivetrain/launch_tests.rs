@@ -17,6 +17,7 @@ fn drive(staging: bool, strength: f32, gas: f32, gear: usize) -> (f32, f32, bool
         dt: 1.0 / 144.0,
         av: &mut av,
         grounded: [true; 4],
+        loaded_wheels: 4,
         drive_slip: 0.0,
         speed: 0.0,
     });

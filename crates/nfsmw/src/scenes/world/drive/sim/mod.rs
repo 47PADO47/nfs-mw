@@ -82,6 +82,8 @@ pub struct CarSim {
     sound_identity: u64,
     /// The wall contacts of the last step, kept so the step does not allocate (`walls::resolve_into`).
     wall_scratch: Vec<WallContact>,
+    /// Body-phase contacts retained until the response phase publishes them.
+    pending_body_impact: Impact,
     /// What the last step did to the car, for the police radio (`memo.rs`).
     memo: memo::StepMemo,
 }
@@ -110,6 +112,7 @@ impl CarSim {
             vehicle,
             cinematic_controls: None,
             reset_collision: Default::default(),
+            pending_body_impact: Impact::default(),
             prop_struck: false,
             smacked: Vec::new(),
             pivot: physics.bounds.pivot,

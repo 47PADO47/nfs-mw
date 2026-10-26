@@ -32,3 +32,12 @@
   velocities at engine entry and some engine dependencies were not captured.
 - Limits: the gate mismatch is established. Its share of the user-reported
   countdown rev defect is not yet measured. No full race-start parity claim.
+- Follow-up: PC program identity was rechecked before inspecting the RPM
+  smoothing helper. The engine supplies an active-shift or fully-disengaged
+  clutch flag. The helper selects its faster decay only above first gear,
+  or unconditionally in neutral. Rust omitted the disengaged-clutch part of
+  this flag. The same independently inspected
+  [behavioral reference](https://github.com/dbalatoni13/nfsmw/blob/80993f35224c61d2f1b135beba76c6f8234c7940/src/Speed/Indep/Src/Physics/Behaviors/EngineRacer.cpp)
+  corroborates the caller and helper gates. Private decompilation is retained
+  outside this repository. First-gear countdown decay is unaffected by this
+  higher-gear correction; full countdown producer acceptance remains open.

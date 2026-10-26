@@ -1,6 +1,6 @@
 //! Resident instance point search used when no prepared collider list is supplied.
 use super::{GroundFace, GroundPlane, GroundReferenceSettings, candidates, geometry};
-use crate::math::{Vec3, dot, segment_point_dist_sq, sub};
+use crate::math::{Vec3, segment_point_dist_sq};
 use crate::{CollisionWorld, STRIP_FACING_UNKNOWN, STRIP_UP_FACING, Triangle};
 
 /// Geometric policy for upright/tilted point searches, supplied by the game adapter.
@@ -23,7 +23,7 @@ pub(super) fn update(
 ) -> GroundPlane {
     let same = plane.valid && face.is_some_and(|f| geometry::contains(f.triangle.pts, position));
     if same && settings.cache.reuse_face {
-        plane.separation = dot(sub(face.unwrap().triangle.pts[0], position), plane.normal);
+        plane.separation = geometry::separation(face.unwrap().triangle.pts[0], position, plane.normal);
         return *plane;
     }
     let was_valid = plane.valid;
@@ -40,7 +40,7 @@ pub(super) fn update(
     }
     let Some(face) = *face else { return *plane };
     plane.normal = geometry::normal(face.triangle.pts, settings.cache.maximum_normal_y);
-    plane.separation = dot(sub(face.triangle.pts[0], position), plane.normal);
+    plane.separation = geometry::separation(face.triangle.pts[0], position, plane.normal);
     *plane
 }
 

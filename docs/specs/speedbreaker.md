@@ -49,11 +49,13 @@ The original values were read from the PC executable and checked against the
 meter routines. Mod option keys are separate configuration inputs and do not
 identify AttribSys fields.
 
-The meter processes button edges once per loaded render frame, with the input
-flag `DriveInput::speedbreaker` and the speedometer speed. Recharge uses that
-frame's simulation delta; depletion uses its real delta. Frames that produce
-no physics tick still consume real-time charge. The garage and unavailable
-local road data freeze both meter and clock progression.
+The meter processes button edges and depletion once per loaded render frame,
+before selecting the clock target and handling effects, with the input flag
+`DriveInput::speedbreaker` and the speedometer speed. Passive recharge uses each
+completed physics tick's speedometer speed and simulation delta. Depletion uses
+real frame time, including frames without a physics tick. The garage and
+unavailable local road data freeze both meter and clock progression. This
+remake scheduling policy does not establish exact original exhaustion cadence.
 
 ## 3. Global time and vehicle effects [decomp]
 

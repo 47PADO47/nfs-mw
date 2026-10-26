@@ -114,3 +114,62 @@ fn reset_grace_uses_elapsed_simulation_time_at_an_explicit_delta() {
     }
     assert!(!car.reset_collision_active(), "grace expires after enough simulation time");
 }
+
+#[test]
+fn a_shared_pair_impulse_changes_nitrous_admission_in_the_same_tick() {
+    let mut cars = [sim(), sim()];
+    for car in &mut cars {
+        let mut spec = car.vehicle.spec().clone();
+        spec.body.gravity = 0.0;
+        spec.nos.nos_capacity = 120.0;
+        spec.nos.torque_boost = 1.0;
+        car.vehicle.set_spec(spec);
+    }
+    let half_length = cars[0].body().dimension().z;
+    cars[0].body_mut().place(Vec3::NEG_Z * (half_length - 0.1), Quat::IDENTITY);
+    cars[1].body_mut().place(Vec3::Z * (half_length - 0.1), Quat::IDENTITY);
+    cars[0].body_mut().linear_velocity = Vec3::Z * 6.0;
+    cars[1].body_mut().linear_velocity = Vec3::NEG_Z * 6.0;
+    let input = DriveInput { throttle: 1.0, nos: true, ..Default::default() };
+    let mut unobstructed = sim();
+    unobstructed.vehicle = cars[0].vehicle.clone();
+    unobstructed.step(&input, &NoGround, None);
+    assert!(unobstructed.telemetry().nos_burning, "the incoming speed must admit nitrous");
+
+    let starts = cars.each_mut().map(|car| {
+        let start = car.begin_step_with_delta(FIXED_STEP, &input, false, None);
+        car.begin_body(&start, None);
+        start
+    });
+    let (first, second) = cars.split_at_mut(1);
+    let hit = first[0].collide_with(&mut second[0]).expect("the approaching bodies must collide");
+    assert!(hit.impulse > 0.0);
+    assert!(cars[0].body().linear_velocity.length() < 4.4703, "contact must cross the nitrous speed gate");
+    for (car, start) in cars.iter_mut().zip(&starts) {
+        car.finish_body(start, &NoGround, None);
+    }
+    for (car, start) in cars.iter_mut().zip(&starts) {
+        car.integration().run(start, &NoGround, None);
+        car.end_step(start, &NoGround, None);
+    }
+    assert!(!cars[0].telemetry().nos_burning, "nitrous must read the post-contact speed this tick");
+}
+
+#[test]
+fn invalid_deltas_do_not_advance_any_explicit_phase() {
+    let ground = FlatGround::new(5.0);
+    let mut car = sim();
+    assert!(car.place_moving(&ground, spawn_at(0.0), 20.0));
+    let before = state(&car.vehicle);
+    for dt in [0.0, -0.1, f32::NAN, f32::INFINITY] {
+        let start = car.begin_step_with_delta(dt, &DriveInput { throttle: 1.0, ..Default::default() }, false, None);
+        car.begin_body(&start, None);
+        car.finish_body(&start, &ground, None);
+        car.integration().run(&start, &ground, None);
+        car.end_step(&start, &ground, None);
+        assert_eq!(state(&car.vehicle), before);
+        assert_eq!(car.spin, [0.0; 4]);
+        assert_eq!(car.step_delta, FIXED_STEP);
+        assert_eq!(car.brake_lamp_age, 0.0);
+    }
+}

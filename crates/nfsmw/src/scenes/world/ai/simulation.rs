@@ -43,18 +43,33 @@ impl TrafficWorld {
         self.police.set_heli_alpha(alpha);
     }
 
-    /// Integrate all AI bodies once. Pair contacts follow before the poses are published.
-    ///
-    /// With enough cars the integrations run on several threads (`parallel.rs`): every car's start first, in car order,
-    /// then the integrations, then every car's end in car order. The cars come out bit for bit as the plain order
-    /// leaves them, each car's whole step before the next car's.
+    /// Standalone AI tick. The world uses the phases separately to insert shared pair contacts.
     #[cfg(test)]
     pub fn step(&mut self, focus: Focus, collision: &CollisionWorld, props: &mut PropWorld, surfaces: &SurfaceTable) {
         self.step_with_delta(STEP, focus, collision, props, surfaces);
     }
 
     /// One ordered shared tick with its simulation delta, independent of render cadence.
+    #[cfg(test)]
     pub fn step_with_delta(
+        &mut self,
+        dt: f32,
+        focus: Focus,
+        collision: &CollisionWorld,
+        props: &mut PropWorld,
+        surfaces: &SurfaceTable,
+    ) {
+        if !dt.is_finite() || dt <= 0.0 {
+            return;
+        }
+        self.begin_step_with_delta(dt, focus, collision, props, surfaces);
+        self.finish_bodies(collision, props, surfaces);
+        self.resolve_articulations();
+        self.complete_step(collision, props, surfaces);
+    }
+
+    /// Think once and integrate all bodies before the world resolves shared pairs.
+    pub fn begin_step_with_delta(
         &mut self,
         dt: f32,
         focus: Focus,
@@ -101,7 +116,6 @@ impl TrafficWorld {
             }
         }
         self.population_stats.waiting_collision = 0;
-        let threads = self.parallel.threads(self.cars.len());
         let mut starts = std::mem::take(&mut self.starts);
         starts.clear();
         let searching = !self.police.is_perp_in_sight();
@@ -159,39 +173,47 @@ impl TrafficWorld {
             // A racer off the loaded world does not wait for it: its stand-in drives on (`car/stand_in.rs`).
             if car.update_stand_in(ready, &WorldGround { collision, surfaces }) {
                 car.stand_in_step(&mut ctx, collision);
-                if threads > 1 {
-                    starts.push(None);
-                    continue;
-                }
-                car_after_step(car, &mut self.police);
+                starts.push(None);
                 continue;
             }
             self.population_stats.waiting_collision += usize::from(!ready);
-            if threads > 1 {
-                starts.push(match ready {
-                    true => car.begin_step(&mut ctx, props, collision),
-                    false => None,
-                });
-                continue;
-            }
-            if ready {
-                car.step(&mut ctx, collision, props, surfaces);
-            }
-            car_after_step(car, &mut self.police);
+            starts.push(match ready {
+                true => car.begin_step(&mut ctx, props, collision),
+                false => None,
+            });
         }
-        if threads > 1 {
-            parallel::integrate(&mut self.cars, &starts, collision, surfaces, threads);
-            for (car, start) in self.cars.iter_mut().zip(&starts) {
-                if let Some(start) = start {
-                    car.finish_step(start, collision, props, surfaces);
-                }
-                car_after_step(car, &mut self.police);
-            }
-        }
-        self.watch_cops_against_walls();
         self.bodies = bodies;
         self.aims = aims;
         self.starts = starts;
+    }
+
+    /// Finish every AI body before the first player or AI response runs.
+    pub fn finish_bodies(&mut self, collision: &CollisionWorld, props: &mut PropWorld, surfaces: &SurfaceTable) {
+        for (car, start) in self.cars.iter_mut().zip(&self.starts) {
+            if let Some(start) = start {
+                car.finish_body(start, collision, props, surfaces);
+            }
+        }
+    }
+
+    /// Resolve every tractor/trailer constraint after all body ends and before driving response.
+    pub fn resolve_articulations(&mut self) {
+        for car in &mut self.cars {
+            car.resolve_articulation();
+        }
+    }
+
+    /// Compute forces after the world's body and articulation barriers.
+    pub fn complete_step(&mut self, collision: &CollisionWorld, props: &mut PropWorld, surfaces: &SurfaceTable) {
+        let threads = self.parallel.threads(self.cars.len());
+        parallel::integrate(&mut self.cars, &self.starts, collision, surfaces, threads);
+        for (car, start) in self.cars.iter_mut().zip(&self.starts) {
+            if let Some(start) = start {
+                car.finish_step(start, collision, props, surfaces);
+            }
+            car_after_step(car, &mut self.police);
+        }
+        self.watch_cops_against_walls();
         self.signal_time += self.step_delta;
         self.breaker_zones.step(self.step_delta);
     }

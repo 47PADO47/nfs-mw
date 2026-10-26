@@ -38,9 +38,13 @@ println!("{:.1} m/s in gear {}", car.forward_speed(), car.gear());
 - **Gear ids:** 0 reverse, 1 neutral, 2 first, ... `GEAR_RATIO` and `GEAR_EFFICIENCY` are indexed by gear id.
   Ratios are used as magnitudes; reverse flips the sign itself.
 - **Step:** `Vehicle::step(dt, &InputState, &dyn Ground)`, `dt = FIXED_STEP = 1/60`. The tuning (springs,
-  damper blow-off, tire relaxation, clutch gains) assumes 60 Hz; other steps are accepted but untested.
-  A zero, negative or NaN `dt` is ignored. Forces computed in a step move the body in the next one, so
+  damper blow-off, tire relaxation, clutch gains) assumes 60 Hz; 144 Hz and scaled-delta regressions
+  check selected contracts without establishing original-game trajectory parity.
+  A nonpositive or nonfinite `dt` is ignored. Forces computed in a step move the body in the next one, so
   positions lag forces by one step.
+- **Shared contacts:** hosts can call `begin_body_step`, resolve shared pairs, call
+  `finish_body_step`, then `respond_step`. Finish all bodies before any response.
+  `step` composes these same phases for a standalone car.
 - **Angles inside the tire code** are turns (1.0 = 360 degrees) as in the spec; `WheelState` reports radians.
 
 ## Modules

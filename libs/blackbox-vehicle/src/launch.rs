@@ -58,6 +58,20 @@ impl LaunchState {
         self.staging
     }
 
+    /// The configured first-gear band; visual and physical callers choose their endpoint rules.
+    pub fn rpm_band(&self, first_gear: bool, idle: f32, redline: f32, peak_rpm: f32) -> Option<(f32, f32)> {
+        let config = self.config?;
+        if !first_gear {
+            return None;
+        }
+        let width = (redline - idle) * config.band_fraction;
+        let lower = (peak_rpm + width).min(redline - config.redline_margin) - width;
+        if width <= 0.0 || lower <= 0.0 {
+            return None;
+        }
+        Some((lower, width))
+    }
+
     /// Triggers the release using the most recently staged strength.
     pub fn launch(&mut self) -> bool {
         let Some(config) = self.config else { return false };
@@ -93,11 +107,11 @@ impl LaunchState {
                 return;
             }
             self.strength = 0.0;
-            if !input.first_gear {
+            let Some((lower, width)) =
+                self.rpm_band(input.first_gear, input.idle, input.redline, input.peak_torque_rpm)
+            else {
                 return;
-            }
-            let width = (input.redline - input.idle) * config.band_fraction;
-            let lower = (input.peak_torque_rpm + width).min(input.redline - config.redline_margin) - width;
+            };
             let offset = input.rpm - lower;
             if width <= 0.0 || lower <= 0.0 || offset <= 0.0 || offset >= width {
                 return;
