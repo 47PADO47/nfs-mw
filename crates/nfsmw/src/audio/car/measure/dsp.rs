@@ -6,7 +6,7 @@ pub const FLOOR_DB: f32 = -120.0;
 
 /// The mean of the two channels of an interleaved stereo render.
 pub fn mono(stereo: &[f32]) -> Vec<f32> {
-    stereo.chunks_exact(2).map(|frame| 0.5 * (frame[0] + frame[1])).collect()
+    stereo.as_chunks::<2>().0.iter().map(|frame| 0.5 * (frame[0] + frame[1])).collect()
 }
 
 fn to_db(amplitude: f64) -> f32 {

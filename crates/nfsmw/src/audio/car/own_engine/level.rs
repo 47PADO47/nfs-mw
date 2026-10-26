@@ -204,13 +204,15 @@ mod tests {
         };
         let at = EngineInputs { rpm: 0.5, load: 1.0, speed_mph: 60.0 };
         let (quiet, loud) = (Recording::Loop(0.05), Recording::Loop(0.5));
-        let a = Normaliser::new(&sound(1.0), &[quiet.clone()]).scale(&at);
+        let a = Normaliser::new(&sound(1.0), std::slice::from_ref(&quiet)).scale(&at);
         let b = Normaliser::new(&sound(1.0), &[loud]).scale(&at);
         assert!((a / b - 10.0).abs() < 1e-3, "{a} {b}");
         let result = |volume: f32| {
             let engine = sound(volume);
-            let table = Normaliser::new(&engine, &[quiet.clone()]);
-            table.scale(&at) * predicted_power(&engine, &[quiet.clone()], &at).sqrt() * NOMINAL_ENGINE_VOLUME
+            let table = Normaliser::new(&engine, std::slice::from_ref(&quiet));
+            table.scale(&at)
+                * predicted_power(&engine, std::slice::from_ref(&quiet), &at).sqrt()
+                * NOMINAL_ENGINE_VOLUME
         };
         assert!((result(1.0) - result(0.5)).abs() < 1e-4, "the volume of the graph does not change the level");
         assert!((20.0 * result(1.0).log10() - TARGET_DB).abs() < 0.1);
