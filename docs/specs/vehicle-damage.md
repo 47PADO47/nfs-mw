@@ -66,10 +66,12 @@ A car a mod adds can list `[[damage_parts]]` in its manifest ([car-damage-parts.
 of its own geometry that the body does not hold, each following the damage of some zones. The model above is unchanged; the
 parts read it. A part's damage is the worst **panel** level of its zones over 3 (0, 0.33, 0.67, 1). At 0 the part is at rest;
 above it, the part has turned by its `angle` times the share of its `stages` (damage fractions) reached, about its hinge line,
-and from its `detach_at` it is not drawn. `repair` puts it back. The zone levels reach the car draw as marks in the set of
+and from its release level (`detach_at`, else its last stage but at least 0.5) or when the car is wrecked it leaves the car as
+a prop-solver fragment: a rigid body of its own that falls, collides, rests and is released after a while, with the sound of
+the installed detached parts. `repair` puts the part back on the car. The zone levels reach the car draw as marks in the set of
 revealed slots (`VehicleEvents::revealed_slots`, `car::mods::hinged::level_mark`); the placements of the parts are slots 256
 and up. The 2012 cars carry their own parts from the 2012 damage data ([chameleon-hinged-parts.md](../formats/chameleon-hinged-parts.md)).
-Not done: a falling or flapping part, and the 2012 crumple animation of the body.
+Not done: a flapping part, joints, and the 2012 crumple animation of the body. Details: [car-damage-parts.md](../modding/car-damage-parts.md#falling-off).
 
 ## Traffic and cop cars
 

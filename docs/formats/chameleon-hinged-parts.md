@@ -136,7 +136,9 @@ The 911 has no `BootHinge` (its engine is behind). Each car lists only the parts
   family is `Rear_Bumper_Hinge` at 0x00fae80c **[exe]**, and the table that registers the damage types (hash and type id
   pairs, 0x00f95bbc to 0x00f95be0) has no code reference, so no function that reads a `Bodypart` was found. The meaning of
   the ranges (degrees, per axis), the three triples and the ladder is inferred.
-- Whether a part ever **detaches** in the 2012 game, and what each ladder step does.
+- Whether a part ever **detaches** in the 2012 game, and what each ladder step does. The repo makes its 2012 parts fall off by
+  its own rule ([car-damage-parts.md](../modding/car-damage-parts.md#falling-off)): the last step of the ladder, not before
+  half the damage, or a wreck.
 - The 8 damage animations of the `AnimationList` (0x0C4DA5 on the 911), the `DamageSequence` effects (one `Handle` per zone)
   and the `SpotEffect` list (empty on the 911).
 - Coarser body levels: no skin, so no part can be cut from them.
