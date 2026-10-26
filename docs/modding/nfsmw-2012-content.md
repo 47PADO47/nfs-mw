@@ -50,7 +50,7 @@ Every key is optional. An unknown key is an error and no car is added, so a typo
 | `exclude` | Ids or name fragments to leave out |
 | `max_texture_size` | Longest texture side, a power of two from 16 to 4096 (default 1024); bigger maps lose their top mips |
 | `role` | `"player"` (default), `"cop"` or `"both"`: who can use the cars |
-| `own_engine_sound` | `true` (default): each car plays the looping engine recordings of its own 2012 bundle, written into the mod folder as WAVs (`files/SOUND/MODENGINE/<ID>/`), instead of its clone's engine. `false` keeps the clone's. An approximation, see [car-customization.md](car-customization.md#the-2012-cars-engine-loops) |
+| `own_engine_sound` | `true` (default): each car gets the recordings of its own 2012 bundle, written into the mod folder as WAVs (`files/SOUND/MODENGINE/<ID>/`): its engine loops, and its gear shifts, turbo whistle and blow-off, backfires and pops. `false` writes none: the cars play the game's built-in engine and have only the shared sounds. An approximation, see [car-customization.md](car-customization.md#the-2012-cars-recordings) |
 | `[performance]` | How the cars drive compared with their clones: multipliers `power`, `mass`, `grip`, `brakes`, `nitrous_power` (1.0 keeps the clone's) and `nitrous` (`true` by default: factory nitrous). The ranges are in [car-customization.md](car-customization.md#performance-performance-in-the-car-manifest) |
 | `[car.<id or name fragment>]` | The same keys for one car or a make, changing only the keys it lists: `[car.POR911CARR12]`, `[car.Lamborghini]`. The tables apply in name order over `[performance]` |
 
@@ -85,7 +85,8 @@ A name with a space is written in quotes, as in the last table.
 | Tyre, brake disc, rim and caliper | one `<CLONE>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled |
 | Diffuse maps (BC1, BC3) | the car's `TEXTURES.BIN` as DXT1 and DXT5, cut to `max_texture_size` |
 | Paint surfaces | the game's `<CAR>_SKIN1` placeholder with light material `CARSKIN`, which the game swaps for the paint or for a vinyl. Their texture coordinates are those of the nearest point of the clone's paint surface, so the clone's vinyls fit (`src/liveries.rs`) |
-| Engine loops | the looping samples of the car's bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), one 16-bit WAV per layer at one level, and an `[engine_sound]` table in the car's manifest naming them with the rpm each stands for (`src/engine.rs`) |
+| Engine loops | the looping samples of the car's bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), except the turbo's whistle, one 16-bit WAV per layer at one level, and an `[engine_sound]` table in the car's manifest naming them with the rpm each stands for (`src/engine.rs`, `src/sample.rs`) |
+| Shifts, turbo, backfire, pops | the samples that the car's sound graphs play for the live values `GetPlayerNormalisedGearChangeTimeElapsed`, `BackfireGain`, `GetPopProbability`/`PopGain`, `NormalisedTurboRPM`/`TurboToneGain` and `TurboBlowoffGain` (the last two also use the shared `VEHICLES/WAVES.BNDL`), as WAVs and a `[car_sound]` table (`src/graphs.rs`, `src/effects.rs`). A car with no such graph has no such sound |
 | Markers | the clone's markers: the tail pipes (`EXHAUST`, `LEFT_EXHAUST`, `RIGHT_EXHAUST`, where the nitrous flames start) on `<CLONE>_KIT00_BODY_A..D`, and the spoiler, roof-scoop and lamp markers on `<CLONE>_BASE_A..D`, a base solid of one triangle with no area. Pipes move back, and spoiler and scoop mounts up, to the 2012 body's surface by at most 35 cm (`src/donor.rs`) |
 | Glass and lamp lenses | a translucent tint texture with light material `WINDSHIELD` |
 | Untextured surfaces | a flat colour texture from the material's diffuse colour (dark grey when it has none) |
@@ -110,7 +111,7 @@ ones. The vertex limit of one solid (60,000) can force a coarser level.
 
 ## Limits
 
-- **Mostly looks.** Handling, damage and the HUD are the clone's, plus whatever `[performance]` changes; so are the shifts, the turbo and the collisions of the sound, and the engine too when `own_engine_sound` is off or a car has no pitched loop. The
+- **Mostly looks.** Handling, damage and the HUD are the clone's, plus whatever `[performance]` changes; the sound is the car's own recordings (engine loops, shifts, turbo, backfire and pops) with the game's shared collision, skid and road sounds, and the built-in engine when `own_engine_sound` is off or a car has no pitched loop. The
   2012 damage model, headlight beams, brake discs (they are part of the wheel), spoiler and mirror animation, and the
   2012 lamp locators are not converted; the lamps use the clone's positions.
 - **Body kits and hoods** are models of the clone's own body, so the shop does not offer them. The performance bars of

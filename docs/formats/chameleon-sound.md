@@ -69,12 +69,50 @@ that idles near 800 rpm, so these are the car's own engine loops. Other loops ha
 **How the game uses them.** The sample resources are named by sound graphs, kind `0x15` objects in the same bundle whose
 imports point at the samples. A graph is a tree of nodes with ranges (a pair like 7500 and 1790 is the span of the
 engine speed it follows) and expression strings that read live values: `GetAudibleRPM`, `GetNormalisedRPM`,
-`GetEngineLoad`, `GetTransmissionSpeedMph`, `GetNormalisedGearChangeTimeElapsed`. Two graphs read `GetAudibleRPM` and
-play the two 41 Hz idle loops; one reads `GetTransmissionSpeedMph` and holds the five other loops; others are the shifts,
-backfire and pops. The upper range of the engine is synthesised by a DSP object (`EngineSound2`, parameters
-`TrackedHarmonic1Frequency` and so on) that follows the rpm, which no recording holds.
+`GetEngineLoad`, `GetTransmissionSpeedMph`, `GetNormalisedGearChangeTimeElapsed`. The upper range of the engine is
+synthesised by a DSP object (`EngineSound2`, parameters `TrackedHarmonic1Frequency` and so on) that follows the rpm,
+which no recording holds.
 
-**Not known yet:** the node format (the curves between the rpm and each loop's volume and pitch) is not decoded, so the
-layers cannot be played as the 2012 game plays them. The mod approximates (see
-[car-customization.md](../modding/car-customization.md#the-2012-cars-engine-loops)): it plays the loops by their pitch.
+**Not known yet:** the node format (the curves between a live value and each sample's volume or pitch, and which sample
+of a graph plays when) is not decoded, so the sounds cannot be played as the 2012 game plays them. What is known is
+**which graph, named by the live value it reads, plays which sample**, and that is how the mod finds the shifts, the
+turbo, the backfires and the pops.
+
+## Which samples play when **[measured on the 2012 install; the node format is not decoded]**
+
+A graph's main block holds its expression strings (`RaceCars.EntityEngineSound[#].BackfireGain`) and its imports are the
+resources it plays, in order: other graphs, shared node types (kind `0x14`), and samples. Following the imports from every
+graph that has a given name in its strings gives the samples that graph plays. The names occur across the 93 car bundles
+(`VEH_*_HI.BNDL`; the turbo values only in the turbocharged cars), and what they reach is listed here for two cars that show the whole set,
+the Porsche 911 Carrera S (`VEH_1085007`, no turbo) and a turbocharged car (`VEH_1085698`); the mod's real-install tests
+repeat the counts on a third and a fourth (`src/effects/real_tests.rs`):
+
+| Live value the graph reads | Samples it plays | Evidence for the effect |
+|---|---|---|
+| `Players.LocalPlayer.GetPlayerAudibleRPM`, `...EntityEngineSound[..].GetAudibleRPM` | two 1.6 to 1.8 s loops (`17f5f7`, `17f5f8`; Porsche: `1d1c7a`, `1d1c7b`, 41 Hz fundamentals) | the engine's own idle loops |
+| `RaceCars.Entities[..].GetTransmissionSpeedMph` | five loops, 0.4 to 3.5 s | transmission speed: by its name the transmission's whine |
+| `RaceCars.Entities[..].GetReverseTransSpeedMph` | one 0.8 s loop at 24 kHz (`23104`) | reverse gear whine |
+| `LocalPlayer.GetPlayerNormalisedGearChangeTimeElapsed` (five graphs, each with `EngineSound[#].Lfo`) | six one-shots of 0.14 to 0.36 s (`d4a9f` to `d4aa4`): two groups, of four and of two, each behind a selector node | played during a gear change, timed by the elapsed gear change; **up and down are not told apart** |
+| `RaceCars.EngineSound[#].ShuntLfo` | twelve one-shots of 0.09 to 0.36 s | the engine shunt on throttle changes; not exported |
+| `...EntityEngineSound[#].BackfireGain` | one 0.77 s one-shot (`17f5c9`), listed with two more (`17f5c7`, `17f5c8`, 0.70 and 0.72 s) by a graph with no expression of its own, a bag of variants | the backfire and its variants |
+| `RaceCars.Entities[..].GetPopProbability` (Porsche) | nine one-shots of 0.02 to 0.10 s | the pops: the game's own name for the chance of a pop; `PopGain` and `GurgleGain` are other cars' versions (gurgles are not exported) |
+| `...EntityEngineSound["Id"].NormalisedTurboRPM` (turbo cars) | two 1.0 s loops (`17f618`, `17f619`) | the turbo shaft's speed, 0 to 1: the whistle |
+| `...EngineSound[#].TurboLfo` (turbo cars) | six 3 s one-shots and three 2 s ones | not identified further; not exported |
+| `NormalisedTurboRPM` + `TurboToneGain` + `GetEngineLoad(LTEQ:0.1)` + `TurboBlowoffGain`, one shared graph (`1d1b53`) | two samples of the shared `VEHICLES/WAVES.BNDL` (also `SOUND/GLOBAL.BNDL`): `d6787` and `d4de7` | see below |
+| `...GetEngineHeat`, `TrackedHarmonic*`, `SubharmoniserFrequency` | eight 0.13 to 0.25 s one-shots (`f3468` to `f346f`) | the grains of the synthesised engine; not exported |
+| `RevLimitGain`, `...EngineOn` | not examined | the limiter and ignition; not exported |
+
+The shared turbo graph imports two resources that no car bundle holds. They are samples of `WAVES.BNDL`: `d6787` is a
+0.86 s **loop** with its energy at 3 to 7 kHz (a high tone, the turbo whistle at full spool), and `d4de7` a 2.57 s
+**one-shot** whose level falls to under a quarter by its last third (broadband, centroid about 1.6 kHz: air let out, the
+blow-off). The graph's string table lists `NormalisedTurboRPM` and `TurboToneGain` first, then
+`GetEngineLoad(LTEQ:0.1)` (the throttle closed) and `TurboBlowoffGain`, and the measured samples fit that order: the
+tone first, the blow-off second. A turbo car whose graphs lack `TurboBlowoffGain` (`VEH_2076399`) has a whistle and no
+blow-off.
+
+**What this does not say.** Which sample of a group plays at a moment, at what level and pitch, and why the Porsche's
+two engine loops have the same pitch, are in the node data. The shifts could be a click, a blip or a burble: they are
+what the graphs play for a gear change, not known to be a "clunk". The turbo tone's rpm tracking and the blow-off's
+trigger are likewise the game's own rules here, not the 2012 game's (`docs/modding/car-customization.md`).
+
 `WAVES.BNDL` and `METALCAR.BNDL` hold the shared one-shots in the same resource layout.

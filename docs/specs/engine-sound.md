@@ -140,6 +140,27 @@ collection **[verified]**: `AEMS_SkidBanks` (`SKID_BIG_MB`, `SKID_SML_MB`, `SKID
 `TURBO.csi`, `ENVIRO_AEMS.csi`, `STITCH_AEMS.csi`, `COP_SIREN_AEMS.csi`). The banks of one family have
 identical layouts per type (for example all 16 shifting banks hold 3 to 4 sounds).
 
+### 2.4 A car with no `pvehicle` record (the Rust implementation)
+
+The rewrite lets mods add cars, and a mod car has no `pvehicle`, `engineaudio`, `ShiftSND` or `TurboSND` record, so
+the sound set cannot come from §2. `generic_car_sound` (`crates/nfsmw-data/src/sound/car.rs`) builds one from the
+class-wide records instead, **[verified]** on the install:
+
+- `engineaudio/default` has the mix volumes and levels (`GINSUAccelVol` 24000, `AEMSMix_S_RPM` 0.9, ...), `Vol_Sputters`
+  13500, `Vol_ShiftSweets` 15000 and a `PhysicsRPM_Map`, and **no** `.gin` file, bank, sweetener bank, `MinRPM` or `MaxRPM`
+  (the Rust side fills the Ginsu range with the mixer's own 1000 to 9000). So the car has no Ginsu voice and no sample
+  layer. `pvehicle/cars.engineaudio` is *not* a generic engine: it links `for_mus_a`, a Mustang's.
+- `shiftpattern/default` has the full rpm shape of an up and a down shift and `BankName` `GEAR_SML_Base.abk`, so the car
+  clunks into gear. `turbosfx/default` switches the turbo sound off (`TurboSound::read` returns `None`).
+  `pvehicle/cars.ShiftSND` links the specific pattern `shiftpattern/0x3480925F`, which is not used.
+- `pvehicle/cars` derives only from `pvehicle/default` and carries the `OnHitGround`, `OnBottomOut` and `OnBottomScrape`
+  links; `OnHitWorld`, `OnHitObject` and the scrape links come from `pvehicle/default`. Every car of the game that sets
+  none of its own (the M3 GTR sets none) gets exactly these, so the collision and scrape sounds are the class-wide ones.
+- The skid and nitrous banks are the `audiosystem/mostwanted` lists of §2.3.
+
+The effects with no class-wide record (Ginsu engine, sample layer, sweeteners, reverse whine, turbo) are silent for the car
+unless the car's own recordings supply them; see `docs/modding/car-customization.md`.
+
 ## 3. Telemetry the sound system reads
 
 Once per frame the physics fills a packet (`Pkt_Car_Service`) for each car; the sound system copies it **[decomp]**.
