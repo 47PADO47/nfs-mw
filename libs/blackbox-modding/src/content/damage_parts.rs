@@ -124,6 +124,9 @@ pub struct DamagePart {
     pub mass_kg: f32,
     /// How the part moves with the car's speed, if it does (`[damage_parts.active]`).
     pub active: Option<Active>,
+    /// The name of the part it hangs from (an earlier one that moves with the speed): its movement rides on the parent's.
+    /// Only for a part that moves with the speed itself.
+    pub parent: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -160,6 +163,8 @@ pub(super) struct Raw {
     mass_kg: Option<f32>,
     #[serde(default)]
     active: Option<RawActive>,
+    #[serde(default)]
+    parent: Option<String>,
 }
 
 fn field(reason: &'static str) -> ContentError {
@@ -185,6 +190,13 @@ pub(super) fn check(raw: Option<Vec<Raw>>) -> Result<Vec<DamagePart>, ContentErr
         let part = check_one(entry)?;
         if parts.iter().any(|known| known.name == part.name) {
             return Err(field("two parts have the same name"));
+        }
+        if let Some(parent) = &part.parent {
+            let hangs =
+                part.active.is_some() && parts.iter().any(|known| known.name == *parent && known.active.is_some());
+            if !hangs {
+                return Err(field("a parent is an earlier part that moves with the speed, for a part that does too"));
+            }
         }
         parts.push(part);
     }
@@ -253,6 +265,7 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
         detach,
         mass_kg,
         active,
+        parent: raw.parent.map(|name| name.trim().to_owned()),
     })
 }
 

@@ -66,9 +66,25 @@ fn publish_hinges(mods: &[ModDir], car: &car_mods::ModCar) {
         }
         let Ok(text) = std::fs::read_to_string(&path) else { return };
         let Ok(manifest) = parse_car(stem, &text) else { return };
-        hinged::publish(&car.folder, manifest.damage_parts.iter().map(hinge_of).collect());
+        hinged::publish(&car.folder, hinges_of(&manifest.damage_parts));
         return;
     }
+}
+
+/// The manifest's `[[damage_parts]]` as the game's hinged parts; a part that hangs from another carries that part's
+/// movement (the manifest check puts the parent before the child).
+fn hinges_of(parts: &[blackbox_modding::content::DamagePart]) -> Vec<hinged::Hinge> {
+    let mut out: Vec<hinged::Hinge> = Vec::with_capacity(parts.len());
+    for part in parts {
+        let mut hinge = hinge_of(part);
+        let parent = part.parent.as_ref().and_then(|name| out.iter().find(|known| known.name == *name));
+        if let Some(parent) = parent {
+            let own = parent.active.map(|active| (active, parent.pivot));
+            hinge.ancestors = parent.ancestors.iter().copied().chain(own).collect();
+        }
+        out.push(hinge);
+    }
+    out
 }
 
 /// A manifest's `[[damage_parts]]` entry as the game's hinged part.
@@ -91,6 +107,7 @@ fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
             below_mph: active.below_mph,
             seconds: active.seconds,
         }),
+        ancestors: Vec::new(),
     }
 }
 

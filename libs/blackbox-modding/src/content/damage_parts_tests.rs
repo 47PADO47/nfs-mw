@@ -167,3 +167,28 @@ fn bad_active_tables_are_refused() {
         assert!(car(&format!("{ONE}{table}")).is_err(), "accepted:{table}");
     }
 }
+
+fn hung(parent: &str) -> String {
+    let child = ONE.replace("Bonnet", "Flap");
+    format!("{child}parent = \"{parent}\"{ACTIVE}")
+}
+
+#[test]
+fn a_part_may_hang_from_an_earlier_active_part() {
+    let text = format!("{ONE}{ACTIVE}{}", hung("Bonnet"));
+    let parts = car(&text).unwrap().damage_parts;
+    assert_eq!(parts[1].parent.as_deref(), Some("Bonnet"));
+    assert_eq!(parts[0].parent, None);
+}
+
+#[test]
+fn a_bad_parent_is_refused() {
+    let child = ONE.replace("Bonnet", "Flap");
+    let missing = format!("{ONE}{ACTIVE}{}", hung("Nothing"));
+    let first = format!("{}{ONE}{ACTIVE}", hung("Bonnet"));
+    let parent_still = format!("{ONE}{}", hung("Bonnet"));
+    let child_still = format!("{ONE}{ACTIVE}{child}parent = \"Bonnet\"");
+    for text in [missing, first, parent_still, child_still] {
+        assert!(car(&text).is_err(), "accepted: {text}");
+    }
+}

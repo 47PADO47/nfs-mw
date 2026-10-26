@@ -51,6 +51,9 @@ pub struct Hinge {
     pub mass_kg: f32,
     /// How the part moves with the car's speed (an active spoiler), if it does.
     pub active: Option<Active>,
+    /// The speed movements of the parts it hangs from, outermost first, each with its part's pivot: they carry the part
+    /// along with the same deployment before its own movement.
+    pub ancestors: Vec<(Active, [f32; 3])>,
 }
 
 /// How a hinged part stands for some damage.
@@ -109,8 +112,12 @@ impl Hinge {
     /// turned by `degrees` about its hinge line.
     pub fn transform(&self, degrees: f32, amount: f32) -> Mat4 {
         let pivot = Vec3::from_array(self.pivot);
+        let carried: Mat4 = self
+            .ancestors
+            .iter()
+            .fold(Mat4::IDENTITY, |chain, (active, at)| chain * active.motion(Vec3::from_array(*at), amount));
         let moved = self.active.map_or(Mat4::IDENTITY, |active| active.motion(pivot, amount));
-        self.turn(degrees) * moved
+        self.turn(degrees) * carried * moved
     }
 
     /// The transform of the part turned by `degrees` about its hinge line, in the car's solid space.
@@ -224,6 +231,7 @@ mod tests {
             detach: false,
             mass_kg: 40.0,
             active: None,
+            ancestors: Vec::new(),
         }
     }
 
@@ -289,6 +297,17 @@ mod tests {
         let both = hinge.transform(90.0, 1.0).transform_point3(Vec3::new(2.0, 0.0, 0.0));
         assert!((both - Vec3::new(1.0, 1.0, 1.0)).length() < 1e-5, "moved, then turned about the hinge: {both:?}");
         assert_eq!(bonnet().transform(0.0, 1.0), Mat4::IDENTITY, "a part with no movement ignores the deployment");
+    }
+
+    #[test]
+    fn a_part_rides_on_the_movement_of_the_part_it_hangs_from() {
+        let wing = Active { offset: [0.0, 0.0, 1.0], rotation: None, above_mph: 70.0, below_mph: 40.0, seconds: 0.6 };
+        let flap = Active { offset: [0.0, 0.5, 0.0], ..wing };
+        let hinge = Hinge { active: Some(flap), ancestors: vec![(wing, [0.0; 3])], ..bonnet() };
+        let moved = hinge.transform(0.0, 1.0).transform_point3(Vec3::ZERO);
+        assert!((moved - Vec3::new(0.0, 0.5, 1.0)).length() < 1e-6, "the wing's lift and the flap's slide: {moved:?}");
+        let half = hinge.transform(0.0, 0.5).transform_point3(Vec3::ZERO);
+        assert!((half - Vec3::new(0.0, 0.25, 0.5)).length() < 1e-6, "both in proportion: {half:?}");
     }
 
     #[test]
