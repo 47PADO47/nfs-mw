@@ -105,6 +105,11 @@ fn customization_of(text: &str) -> custom::Customization {
         roof_scoops: Vec::new(),
         vinyls: Vec::new(),
         vinyl_colors: Vec::new(),
+        liveries: table
+            .liveries
+            .iter()
+            .map(|livery| custom::Livery { name: livery.name.clone(), texture: livery.texture.clone() })
+            .collect(),
     }
 }
 

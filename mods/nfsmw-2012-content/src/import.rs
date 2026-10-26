@@ -15,7 +15,7 @@ use crate::emit::{CarEntry, CarFiles, ModFolder};
 use crate::fit::{Fit, measure};
 use crate::source::{CarFile, Source};
 use crate::stats::ImportedStats;
-use crate::{convert, names, nitrous, paints, sounds};
+use crate::{convert, names, nitrous, paints, sounds, variants};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
 const MAX_THREADS: usize = 6;
@@ -36,6 +36,8 @@ pub struct ImportedCar {
     pub stretch: f32,
     /// Triangles of the finest body level.
     pub triangles: usize,
+    /// Liveries the car offers in the shop (bundles of the same vehicle that were folded into it).
+    pub liveries: usize,
 }
 
 /// A car of the install with the names the mod gives it.
@@ -44,6 +46,8 @@ struct Named<'a> {
     id: String,
     display: String,
     make: String,
+    /// The bundles of the car's liveries, which are not cars of their own.
+    liveries: Vec<&'a CarFile>,
 }
 
 /// How many threads to convert on: all the cores but one, between one and [`MAX_THREADS`].
@@ -66,7 +70,16 @@ pub fn run(config: &Config, source_root: &Path, out: &Path, threads: usize) -> R
 }
 
 fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
-    let wanted: Vec<Named> = named(source).into_iter().filter(|car| config.wants(&car.id, &car.display)).collect();
+    // A livery bundle is a variant of its vehicle's car, not a car: only the vehicles' own bundles are converted.
+    let plan = variants::plan(source);
+    let wanted: Vec<Named> = named(source)
+        .into_iter()
+        .filter_map(|mut car| {
+            car.liveries = plan.iter().find(|planned| planned.file.number == car.file.number)?.liveries.clone();
+            Some(car)
+        })
+        .filter(|car| config.wants(&car.id, &car.display))
+        .collect();
     if wanted.is_empty() {
         bail!("no car of the 2012 install matches the settings");
     }
@@ -106,7 +119,7 @@ fn named(source: &Source) -> Vec<Named<'_>> {
         let name = names::car_name(object.as_deref(), file.number);
         let id = names::unique_id(&name.id, &taken);
         taken.push(id.clone());
-        cars.push(Named { file, id, display: name.display, make: name.make });
+        cars.push(Named { file, id, display: name.display, make: name.make, liveries: Vec::new() });
     }
     cars
 }
@@ -115,7 +128,11 @@ fn import_car(source: &Source, named: &Named, config: &Config, folder: &ModFolde
     let car = source.load(named.file)?;
     let layout = measure(&car.vehicle).context("the wheel layout of the car could not be measured")?;
     let fit = Fit::own(layout);
-    let options = convert::Options { max_texture_size: config.max_texture_size };
+    let pictures = variants::pictures(source, &car, &named.id, &named.liveries);
+    let options = convert::Options {
+        max_texture_size: config.max_texture_size,
+        liveries: pictures.iter().map(|(choice, picture)| (choice.texture.clone(), picture.clone())).collect(),
+    };
     let built = convert::build(&car, &fit, &named.id, &options)?;
     // What the car is comes from its own bundle; the user's multipliers, if any, change it here.
     let bytes = source.bundle_bytes(named.file)?;
@@ -130,7 +147,10 @@ fn import_car(source: &Source, named: &Named, config: &Config, folder: &ModFolde
         manufacturer: named.make.clone(),
         role: config.role,
         stats,
-        customization: paints::manifest_table(&paints::choices(&car.paints)),
+        customization: paints::manifest_table(
+            &paints::choices(&car.paints),
+            &pictures.iter().map(|(choice, _)| choice.clone()).collect::<Vec<_>>(),
+        ),
     };
     let files = CarFiles {
         geometry: &built.geometry,
@@ -145,6 +165,7 @@ fn import_car(source: &Source, named: &Named, config: &Config, folder: &ModFolde
         name: named.display.clone(),
         stretch: fit.distortion().exp(),
         triangles: built.triangles,
+        liveries: pictures.len(),
     })
 }
 

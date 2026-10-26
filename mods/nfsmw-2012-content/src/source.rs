@@ -10,8 +10,13 @@ use chameleon_vehicle::{
     PolySoup, Vehicle, VehiclePaint, find_spec, load, load_poly_soup, load_texture, paints, vehicle_name,
 };
 
+use crate::liveries::{self, Signature};
+use crate::vehicle_list::{self, ListEntry};
+
 const VEHICLES: &str = "VEHICLES";
 const SHARED_TEXTURES: &str = "VEHICLES/VEHICLETEX.BNDL";
+/// The vehicle list: which bundles are the same vehicle in another livery.
+const VEHICLE_LIST: &str = "VEHICLES/VEHICLELIST.BNDL";
 const SHADERS: &str = "SHADERS.BNDL";
 const GAME_LOGIC: &str = "GAMELOGIC";
 /// The one-shots the cars share (the turbo's blow-off is one); optional.
@@ -45,6 +50,14 @@ pub struct Source {
     cars: Vec<CarFile>,
     /// The install's folder.
     root: PathBuf,
+    /// The entries of the vehicle list; empty when the install has none that reads.
+    list: Vec<ListEntry>,
+}
+
+/// A bundle's car as far as liveries are concerned: what it is, and the picture its paint surfaces draw.
+pub struct LiveryView {
+    pub signature: Signature,
+    pub picture: Option<Texture>,
 }
 
 impl Source {
@@ -60,7 +73,16 @@ impl Source {
         let textures = std::fs::read(find(SHARED_TEXTURES)?).context("reading the shared vehicle textures")?;
         let shaders = std::fs::read(find(SHADERS)?).context("reading the shaders")?;
         let shared_samples = std::fs::read(root.join(SHARED_SAMPLES)).ok();
-        Ok(Self { textures, shaders, shared_samples, cars: list_cars(&root.join(VEHICLES))?, root: root.to_owned() })
+        let list = std::fs::read(root.join(VEHICLE_LIST)).ok().and_then(|data| vehicle_list::read(&data));
+        let list = list.unwrap_or_default();
+        Ok(Self {
+            textures,
+            shaders,
+            shared_samples,
+            cars: list_cars(&root.join(VEHICLES))?,
+            root: root.to_owned(),
+            list,
+        })
     }
 
     /// The bundles of the game's logic (`GAMELOGIC/*.BNDL`), where the sound sets of the heat levels, the nitrous's among them,
@@ -78,6 +100,30 @@ impl Source {
     /// The high-detail bundle of every car, in file-number order.
     pub fn cars(&self) -> &[CarFile] {
         &self.cars
+    }
+
+    /// The entries of the vehicle list, in list order. Empty when the install's list does not read: then no bundle is a
+    /// livery of another and every bundle is a car.
+    pub fn list(&self) -> &[ListEntry] {
+        &self.list
+    }
+
+    /// The signature and the paint picture of the car in `file`, read without decoding its other textures.
+    pub fn livery_view(&self, file: &CarFile) -> Result<LiveryView> {
+        let data = std::fs::read(&file.path).with_context(|| format!("reading {}", file.path.display()))?;
+        let bundle = Bundle::parse(&data)?;
+        let spec = find_spec(&bundle).context("the bundle has no vehicle graphics spec")?;
+        let mut pool = Pool::new();
+        pool.add(bundle.clone());
+        pool.add(Bundle::parse(&self.textures)?);
+        pool.add(Bundle::parse(&self.shaders)?);
+        let vehicle = load(&pool, spec)?;
+        let signature = liveries::signature(&vehicle);
+        let picture = match signature.picture {
+            Some(id) if pool.contains(id) => Some(load_texture(&pool, id)?),
+            _ => None,
+        };
+        Ok(LiveryView { signature, picture })
     }
 
     /// The engine's object name of the car in `file`, read without decoding any geometry.

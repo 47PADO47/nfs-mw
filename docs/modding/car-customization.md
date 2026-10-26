@@ -59,6 +59,7 @@ table. The table and the files in the car's folder are the whole source:
 | Rims | yes | `rims`: wheel models in the car's own `GEOMETRY.BIN` |
 | Spoilers, roof scoops | yes | `spoilers`, `roof_scoops`: models in the car's own `GEOMETRY.BIN` |
 | **Vinyls** and their colour channels | yes | `vinyls`: pictures in the car's own `VINYLS.BIN`; `vinyl_colors` is the palette |
+| **Liveries** | yes, listed with the vinyls | `liveries`: whole-body pictures in the car's own `TEXTURES.BIN` ([Liveries](#liveries)) |
 | Performance upgrades (engine, transmission, tires, brakes, suspension, induction, nitrous) | yes, three levels each | steps of the car's own `[stats]` ([car-stats.md](car-stats.md#upgrades)) |
 | Nitrous | yes: from the factory (`nitrous = true`), or bought as a kit | [car-stats.md](car-stats.md#nitrous) |
 | Body kits, hoods, manufacturer decals, door numbers | no | a mod car has no such parts; a mod that wants a body variant adds another car |
@@ -99,6 +100,7 @@ spoilers = [{ name = "Wing", model = "FASTCOUPE_WING" }]
 roof_scoops = [{ name = "Scoop", model = "FASTCOUPE_SCOOP" }]
 vinyls = [{ name = "Stripe", bitmap = "FASTCOUPE_STRIPE", mask = "FASTCOUPE_STRIPE_MASK", channels = 2 }]
 vinyl_colors = [{ name = "White", color = [255, 255, 255] }]        # left out: a built-in palette of 12 colours
+liveries = [{ name = "Livery 1", texture = "FASTCOUPE_LIV1" }]       # a picture in the car's TEXTURES.BIN
 ```
 
 | Key | Meaning |
@@ -111,6 +113,7 @@ vinyl_colors = [{ name = "White", color = [255, 255, 255] }]        # left out: 
 | `spoilers`, `roof_scoops` | `model` as for rims. The solid is in car space (+x forward, +y left, +z up), already at its place on the body: it is drawn as it is, with no mount marker. |
 | `vinyls` | `bitmap` and `mask` are texture names in the car's own `VINYLS.BIN` (a texture pack; `PREVINYL.BIN` is read too). The mask's red channel is the opacity. `channels` (0 to 3) says how many of the bitmap's red, green and blue weights are colour channels the player can recolour; 0 keeps the bitmap's own colours. |
 | `vinyl_colors` | The colours the channels can take, for all three channels. |
+| `liveries` | `texture` is a texture name in the car's own `TEXTURES.BIN`, in the layout of the car's paint surfaces. See [Liveries](#liveries). |
 
 - A name is 1 to 32 characters, with no control character, and unique within its list. Models and textures are letters,
   digits, `_` and `-`, up to 56 bytes. A list has at most 64 entries. A wrong value, or a key the table does not know,
@@ -132,14 +135,30 @@ their texture coordinates, so the mod authors the picture for its own coordinate
 entries of `VINYLS.BIN`; the shop composes the layer (`vinyl::compose`) and draws it over the paint colour. The 2012 cars give
 none (see below).
 
+### Liveries
+
+A livery is a whole-body picture, authored for the car's own paint texture coordinates, laid over the body paint **by its
+alpha**: where the picture is opaque it replaces the paint, where it is transparent the paint shows (the rule of the 2012
+game's livery shader, [chameleon-customization.md](../formats/chameleon-customization.md#liveries)). It differs from a vinyl
+in three ways: the picture carries its own colours (there are no recolourable channels), its alpha is its mask (there is no
+mask texture), and it lives in `TEXTURES.BIN`, not `VINYLS.BIN`. The picture may be DXT1 with one-bit alpha, DXT3, DXT5 or
+a 32-bit texture; DXT1 is read with its one-bit alpha.
+
+The shop lists the liveries among the **vinyls** (the vinyl category: a livery and a vinyl are both a picture over the paint),
+after the vinyls, in the order of the list; choosing none keeps the plain paint. A livery is not offered, and the log says
+why, when its texture is missing from the car's `TEXTURES.BIN` or cannot be decoded. A livery may not take the name of a
+vinyl or of another livery. The choice is told apart like the others, by a hash of the folder, the kind (`LIVERY`) and the
+name. A livery is drawn on every paint surface of the car (they all share one texture layout); the paint the player picked
+shows only where the picture is transparent.
+
 ### The 2012 cars
 
-The [2012 mod](nfsmw-2012-content.md) fills only `paints`, with the colour records of each car's own bundle (1 to 15 per
-car, 396 in the 93 cars), because that is all the 2012 game offers for a car's looks: it has no vinyls, rims, spoilers,
-roof scoops or tints to choose, and its paint shader takes a flat colour and has no artwork layout
-([chameleon-customization.md](../formats/chameleon-customization.md)). The paint texture coordinates of a converted car
-are the 2012 car's own. The 2012 game ships some cars several times as liveries (five Skyline R34 bundles); each bundle is a
-separate vehicle there, and the mod converts each as a car of its own, so a livery is never a vinyl.
+The [2012 mod](nfsmw-2012-content.md) fills `paints`, with the colour records of each car's own bundle (1 to 15 per
+car, 396 in the 93 bundles), and `liveries`: that is all the 2012 game offers for a car's looks (no vinyls, rims, spoilers,
+roof scoops or tints to choose; [chameleon-customization.md](../formats/chameleon-customization.md)). The paint texture
+coordinates of a converted car are the 2012 car's own. The 2012 game ships five vehicles (the BMW M3 GTR, Lamborghini Diablo SV,
+Porsche 911 GT2, Nissan 350Z and Nissan Skyline R34) in five liveries each, a bundle per livery; the mod makes one car of each
+and lists the five pictures as `Livery 1` to `Livery 5` (73 cars from 93 bundles).
 
 ### Tail pipes
 
@@ -165,7 +184,11 @@ car's height, and at half the half width of the rear on either side. That is an 
   with a mod car has not been tested.
 - **Part fit.** A rim, spoiler or roof scoop model is drawn as it is, at the place the mod modelled it. The game does not
   move it to fit the body.
-- **Coverage.** The paints of the 2012 cars are checked against the real installs (the conversion of all 93 cars, and the
+- **Livery blending.** A livery's picture is flattened over the paint into one texture per choice, without mip levels, as the
+  vinyls are; the flat paint of a car with no livery is a 4 x 4 texture. Two liveries cost one texture of the picture's size
+  each in memory while chosen. A livery changes only the paint surfaces' texture: lamps, glass and the rest of the car are
+  unchanged.
+- **Coverage.** The paints of the 2012 cars are checked against the real installs (the conversion of all 93 bundles, and the
   garage catalogue and paint of one). The other parts of the table (rim paints, tints, rims, spoilers, roof scoops, vinyls)
   are covered by unit tests only, because no 2012 car uses them; a mod that does has to check them on its car.
 - **Not played.** Nobody has driven the converted cars or used their shop in a window: the checks are the conversion of

@@ -59,7 +59,11 @@ pub fn apply(
         crate::car::rim_paint::recolour(model, base, rim.color);
     }
     if let Some(hash) = chosen(Category::Vinyl) {
-        set_vinyl(dir, folder, custom, selection, hash, model)?;
+        // The shop lists liveries with the vinyls: the hash says which kind it is.
+        match pick(folder, Kind::Livery, &custom.liveries, |l| &l.name, hash) {
+            Some(livery) => super::livery::apply(dir, folder, livery, model)?,
+            None => set_vinyl(dir, folder, custom, selection, hash, model)?,
+        }
     }
     Ok(())
 }

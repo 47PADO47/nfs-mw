@@ -14,8 +14,8 @@ fn choice(hash: u32, label: &str) -> Choice {
     Choice { hash, label: label.to_owned(), language_hash: None, carbon: false }
 }
 
-/// The catalogue of the car in `folder`. A model the car's `GEOMETRY.BIN` lacks, or a vinyl whose pictures its
-/// `VINYLS.BIN` lacks or cannot decode, is not offered.
+/// The catalogue of the car in `folder`. A model the car's `GEOMETRY.BIN` lacks, a vinyl whose pictures its
+/// `VINYLS.BIN` lacks or cannot decode, or a livery whose picture its `TEXTURES.BIN` lacks, is not offered.
 pub fn catalog(dir: &GameDir, folder: &str, custom: &Customization) -> Result<Catalog> {
     let mut catalog = Catalog::default();
     paints(folder, custom, &mut catalog);
@@ -45,6 +45,7 @@ pub fn catalog(dir: &GameDir, folder: &str, custom: &Customization) -> Result<Ca
         }
     }
     vinyls(dir, folder, custom, &mut catalog)?;
+    super::livery::offer(dir, folder, custom, &mut catalog)?;
     for list in [Category::Wheels, Category::Spoiler, Category::Roof, Category::WindowTint, Category::Vinyl] {
         for entry in &catalog.choices[list as usize] {
             catalog.part_groups.insert(entry.hash, 0);

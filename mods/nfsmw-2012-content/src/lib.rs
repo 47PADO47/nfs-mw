@@ -22,6 +22,7 @@ mod fit;
 mod graphs;
 pub mod import;
 pub mod job;
+mod liveries;
 mod markers;
 mod names;
 pub mod nitrous;
@@ -33,6 +34,8 @@ mod source;
 mod stamp;
 pub mod stats;
 mod textures;
+mod variants;
+mod vehicle_list;
 
 use std::path::PathBuf;
 

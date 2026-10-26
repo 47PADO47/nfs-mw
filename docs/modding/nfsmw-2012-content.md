@@ -1,6 +1,7 @@
 # The NFS: Most Wanted (2012) content mod
 
-`nfsmw-2012-content` adds the cars of **NFS: Most Wanted (2012)** to this game: 93 more cars to choose from, with their
+`nfsmw-2012-content` adds the cars of **NFS: Most Wanted (2012)** to this game: 73 more cars to choose from (the install has 93 car bundles; 20 are
+liveries of other cars, which the shop offers as liveries), with their
 own bodies, interiors, glass, lamps, wheels, textures, paints, stats, collision and sounds. The 2012 game runs on a
 different engine (Criterion's Chameleon, not Black Box), so the cars are converted, not copied. It is a native mod like
 [`hello`](examples.md), the only mod of the repository that is built with the workspace:
@@ -39,8 +40,11 @@ starts convert nothing unless the settings, the converter or the 2012 files chan
 cars are already in the game, the new conversion is kept aside and replaces them at that start. To remove the cars, delete
 the mod folder, or set `mods = off` / use `--no-mods`.
 
-What the shop offers for a car's looks is the car's own: the **paints of its 2012 bundle**, 1 to 15 per car, which is all the
-2012 game offers (no vinyls, rims, spoilers or tints: [chameleon-customization.md](../formats/chameleon-customization.md)).
+What the shop offers for a car's looks is the car's own: the **paints of its 2012 bundle**, 1 to 15 per car, and, for the five
+cars the 2012 game ships in several liveries, **the liveries** (no vinyls, rims, spoilers or tints:
+[chameleon-customization.md](../formats/chameleon-customization.md)). The 2012 game lists a livery as a vehicle of its own, with
+a bundle of its own; the mod makes one car of a vehicle and lists the pictures of its bundles as `Livery 1` to `Livery 5` in the
+shop's vinyl category ([car-customization.md](car-customization.md#liveries)).
 The performance upgrades and **nitrous** work on the car's own stats; the cars have nitrous from the factory. How the shop
 treats a car is in [car-customization.md](car-customization.md), how it drives in [car-stats.md](car-stats.md), how it sounds
 in [car-sound.md](car-sound.md); this page is the mod's settings and what the conversion writes.
@@ -91,6 +95,7 @@ table instead ([car-stats.md](car-stats.md)).
 | Tyre, brake disc, rim and caliper | one `<ID>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled; the game draws it at the four hubs the car's `[stats]` give |
 | Diffuse maps (BC1, BC3) | the car's `TEXTURES.BIN` as DXT1 and DXT5, cut to `max_texture_size` |
 | Paint surfaces | the placeholder `<ID>_SKIN1` with light material `CARSKIN`, which the game swaps for the paint the player picks. Their texture coordinates are the 2012 car's own |
+| Liveries | the paint picture of each bundle of a vehicle that has several (2048 x 1024 BC1, cut to `max_texture_size`): the vehicle's own bundle first, then its liveries in vehicle list order, as `<ID>_LIV1` to `<ID>_LIV5` in the car's `TEXTURES.BIN` and the `liveries` list of its `[customization]` table. A livery bundle is the car with that one texture replaced; one that is not (another body, no picture) is converted as a car of its own (`src/vehicle_list.rs`, `src/liveries.rs`, `src/variants.rs`) |
 | Paints | the `VehiclePaint` records of the car's bundle (`libs/chameleon-vehicle/src/paint.rs`): the colour, and the finish from the record's type, written as the `[customization]` table of the manifest, repeated colours dropped (`src/paints.rs`) |
 | Stats | the car's own stats, read from its Genesys handling definition ([chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md)) and written as the `[stats]` table of its manifest: mass (body and wheels), weight distribution and centre-of-gravity height from the axles and rigid bodies, wheelbase, track and tyre size, the torque curve (at most 16 points, knots kept) with its idle and limiter, the gearbox and final drive, the drive layout and differential locks, the tyres' peak grip, the brake torque of each axle, the design top speed (the game solves the air drag from it) and the nitrous strength as `nitrous_boost`; then the `[performance]` multipliers (`src/stats.rs`, `src/performance.rs`) |
 | Engine loops | the looping samples of the car's bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), except the turbo's whistle, one 16-bit WAV per layer at one level, and an `[engine_sound]` table in the car's manifest naming them with the rpm each stands for (`src/engine.rs`, `src/sample.rs`) |
@@ -149,9 +154,13 @@ Then what the conversion does not do:
 - **Normal, specular and effect maps are dropped**: the 2005 car shader has its own lighting.
 - **Names.** The mod gives every car a display name and a brand. The garage lists the car under both
   (`scenes/world/garage.rs`); the other screens that name cars were not checked.
-- **Livery bundles are separate cars.** The 2012 game ships some cars several times as liveries (five Skyline R34 bundles, for
-  example), each a bundle of its own. The mod converts each bundle as a car of its own, with a number added to the id; it does
-  not import the 2012 game's choice among liveries, and there is nothing to apply a livery to within a car.
+- **Liveries are numbered, and the picture is all there is.** The 2012 game names its liveries with images, not text, so the
+  shop calls them `Livery 1` to `Livery 5`; a livery changes only the paint picture, as in the 2012 game. The pictures are laid
+  over the paint colour by their alpha, so an opaque livery hides the paint the player picks. The car has no livery until the
+  player picks one (its stock look is the flat paint, not the vehicle's own bundle's picture). Eleven other bundles have a
+  livery technique with a shared or partial picture; they have no alternative to choose from and stay flat paint.
+  Older conversions made each livery bundle a car of its own (20 more cars with generated ids): those ids are gone after the
+  next conversion, while the ids of the other 73 cars are unchanged.
 - **Traffic and low-detail bundles** (`_TR`, `_LO`) are not imported.
 - A screen the game has open when the conversion finishes keeps the car list it built; open it again to see the cars.
 

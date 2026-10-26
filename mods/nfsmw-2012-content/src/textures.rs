@@ -79,6 +79,11 @@ fn solid_block(r: u8, g: u8, b: u8) -> Vec<u8> {
     vec![end[0], end[1], end[0], end[1], 0, 0, 0, 0]
 }
 
+/// Whether [`Palette::add_map`] can carry `texture` over: only the block formats the old engine reads.
+pub fn can_carry(texture: &Texture) -> bool {
+    matches!(texture.format, SourceFormat::Bc1 | SourceFormat::Bc3)
+}
+
 fn convert(name: &str, texture: &Texture, max_size: u32, cut_out: bool) -> Option<TextureSource> {
     let format = match texture.format {
         SourceFormat::Bc1 => PixelFormat::Dxt1,

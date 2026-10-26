@@ -1,10 +1,13 @@
-//! The paints of a 2012 car as the `[customization]` table of its manifest.
+//! The paints and liveries of a 2012 car as the `[customization]` table of its manifest.
 //!
 //! The 2012 game paints a car with one of the colour records its bundle carries (`chameleon_vehicle::paints`), 1 to 15
-//! per car, and offers nothing else for its looks: no vinyls, rims, spoilers, tints or body kits (see
-//! `docs/formats/chameleon-customization.md`). The table is therefore the car's paints and nothing more.
+//! per car, and offers nothing else for its looks but the liveries of the car's other bundles: no rims, spoilers, tints
+//! or body kits (see `docs/formats/chameleon-customization.md`). The table is therefore the car's paints and its
+//! liveries, if it has any.
 
 use chameleon_vehicle::VehiclePaint;
+
+use crate::liveries::LiveryChoice;
 
 /// A paint the car is offered in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,9 +39,9 @@ pub fn choices(paints: &[VehiclePaint]) -> Vec<PaintChoice> {
     out
 }
 
-/// The `[customization]` table for `choices`, to follow the other keys of a car manifest. Empty when there is no paint,
-/// which leaves the car with none of its own.
-pub fn manifest_table(choices: &[PaintChoice]) -> String {
+/// The `[customization]` table for `choices` and `liveries`, to follow the other keys of a car manifest. Empty when there
+/// is no paint, which leaves the car with none of its own (a table needs a paint).
+pub fn manifest_table(choices: &[PaintChoice], liveries: &[LiveryChoice]) -> String {
     if choices.is_empty() {
         return String::new();
     }
@@ -50,6 +53,14 @@ pub fn manifest_table(choices: &[PaintChoice]) -> String {
             "  {{ name = \"{}\", color = [{r}, {g}, {b}], finish = \"{finish}\" }},\n",
             choice.name()
         ));
+    }
+    text.push_str("]\n");
+    if liveries.is_empty() {
+        return text;
+    }
+    text.push_str("liveries = [\n");
+    for livery in liveries {
+        text.push_str(&format!("  {{ name = \"{}\", texture = \"{}\" }},\n", livery.name, livery.texture));
     }
     text.push_str("]\n");
     text
@@ -82,7 +93,7 @@ mod tests {
 
     #[test]
     fn the_table_is_valid_and_the_game_accepts_it() {
-        let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 1), paint([0.0, 0.0, 1.0], 0)]));
+        let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 1), paint([0.0, 0.0, 1.0], 0)]), &[]);
         let text = format!("name = \"Test car\"\n{table}");
         let manifest = blackbox_modding::content::parse_car("testcar", &text).unwrap();
         let own = manifest.customization.unwrap();
@@ -93,6 +104,26 @@ mod tests {
 
     #[test]
     fn a_car_without_paints_has_no_table() {
-        assert_eq!(manifest_table(&[]), "");
+        assert_eq!(manifest_table(&[], &[]), "");
+        let livery = LiveryChoice { name: "Livery 1".into(), texture: "X_LIV1".into() };
+        assert_eq!(manifest_table(&[], &[livery]), "", "a table needs a paint, and liveries do not make one");
+    }
+
+    #[test]
+    fn liveries_follow_the_paints_and_the_game_accepts_them() {
+        let liveries = [crate::liveries::choice("TESTCAR", 0), crate::liveries::choice("TESTCAR", 1)];
+        let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 0)]), &liveries);
+        let text = format!("name = \"Test car\"\n{table}");
+        let own = blackbox_modding::content::parse_car("testcar", &text).unwrap().customization.unwrap();
+        assert_eq!(own.paints.len(), 1);
+        assert_eq!(own.liveries.len(), 2);
+        assert_eq!(own.liveries[1].name, "Livery 2");
+        assert_eq!(own.liveries[1].texture, "TESTCAR_LIV2");
+    }
+
+    #[test]
+    fn a_car_without_liveries_writes_no_livery_key() {
+        let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 0)]), &[]);
+        assert!(!table.contains("liveries"));
     }
 }
