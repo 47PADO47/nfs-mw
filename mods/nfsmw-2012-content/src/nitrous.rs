@@ -15,6 +15,9 @@ use anyhow::{Context, Result};
 use chameleon_bundle::{Bundle, ResourceKind};
 
 use crate::sample::{self, SAMPLE_KIND, StereoSample};
+use crate::source::Source;
+use crate::vfx::{self, GLOBAL_EFFECTS};
+use crate::vfx_profile::{self, EffectSet};
 
 /// The id of the variant in the `nitrous_variant` option, and the folder name of its files.
 pub const VARIANT: &str = "mw2012";
@@ -33,11 +36,17 @@ pub struct Found {
     pub looped: Option<StereoSample>,
     /// Played once as it stops.
     pub end: Option<StereoSample>,
+    /// The particle effects and their pictures, when the install gives them.
+    pub effects: Option<EffectSet>,
 }
 
 impl Found {
     pub fn is_empty(&self) -> bool {
-        self.start.is_none() && self.looped.is_none() && self.end.is_none()
+        !self.has_sounds() && self.effects.is_none()
+    }
+
+    fn has_sounds(&self) -> bool {
+        self.start.is_some() || self.looped.is_some() || self.end.is_some()
     }
 }
 
@@ -81,7 +90,7 @@ fn assign(burn: Vec<StereoSample>, ignite: Vec<StereoSample>) -> Found {
     let looped = burn.iter().find(|sample| sample.looped).cloned();
     let end = burn.iter().find(|sample| !sample.looped).cloned();
     let start = ignite.into_iter().find(|sample| !sample.looped);
-    Found { start, looped, end }
+    Found { start, looped, end, effects: None }
 }
 
 fn contains(haystack: &[u8], needle: &[u8]) -> bool {
@@ -103,8 +112,11 @@ pub fn find_in(paths: &[std::path::PathBuf]) -> Option<Found> {
 /// The `profile.toml` for the sounds that were found: only the sounds it has are named. The fades are the game's defaults,
 /// not read from the 2012 data.
 pub fn profile_text(found: &Found) -> String {
-    let mut text = String::from("format = 1\n\n[audio]\n");
+    let mut text = String::from("format = 1\n");
     let folder = format!("NITROUS/{}", VARIANT.to_ascii_uppercase());
+    if found.has_sounds() {
+        text.push_str("\n[audio]\n");
+    }
     for (key, sample, name) in
         [("start", &found.start, "START"), ("loop", &found.looped, "LOOP"), ("end", &found.end, "END")]
     {
@@ -112,8 +124,31 @@ pub fn profile_text(found: &Found) -> String {
             text.push_str(&format!("{key} = \"{folder}/{name}.WAV\"\n"));
         }
     }
-    text.push_str("replace_original = true\n");
+    if found.has_sounds() {
+        text.push_str("replace_original = true\n");
+    }
+    let Some(effects) = &found.effects else { return text };
+    // The 2012 effects stand in for the game's blue nitrous flame and for its blow-off and backfire flame.
+    text.push_str(&format!("\n[flame]\nreplace_burn = {}\nreplace_pop = {}\n", effects.has_burn, effects.has_pop));
+    text.push_str(&effects.toml);
     text
+}
+
+/// The tail pipe effects of the 2012 game: found through the `SpotEffect` records of the first car that has the three, built
+/// from the emitters of `GLOBALEFFECTS.BNDL` (`vfx`, `vfx_profile`). `None` when the install has none that read.
+pub fn find_effects(source: &Source) -> Option<EffectSet> {
+    let global = source.read_file(GLOBAL_EFFECTS).ok()?;
+    let global = Bundle::parse(&global).ok()?;
+    for file in source.cars() {
+        let Ok(bytes) = source.bundle_bytes(file) else { continue };
+        let Ok(car) = Bundle::parse(&bytes) else { continue };
+        let Some(roles) = vfx::roles(&vfx::spots(&car)) else { continue };
+        let emitters =
+            |id| vfx::emitters(&global, id).map_err(|error| log::warn!("nitrous effect {id:#x}: {error:#}")).ok();
+        let (start, burn, pop) = (emitters(roles.start)?, emitters(roles.burn)?, emitters(roles.pop)?);
+        return vfx_profile::build(&start, &burn, &pop);
+    }
+    None
 }
 
 /// Write the sounds and the profile under `out/files/NITROUS/<VARIANT>/`.
@@ -124,6 +159,10 @@ pub fn write(out: &Path, found: &Found) -> Result<()> {
         let Some(sample) = sample else { continue };
         let bytes = sample::wav_stereo_bytes(&sample.frames, sample.rate, 1.0);
         std::fs::write(folder.join(format!("{name}.WAV")), bytes).with_context(|| format!("writing {name}.WAV"))?;
+    }
+    for (name, picture) in found.effects.iter().flat_map(|effects| &effects.pictures) {
+        let bytes = vfx::png_bytes(picture)?;
+        std::fs::write(folder.join(name), bytes).with_context(|| format!("writing {name}"))?;
     }
     std::fs::write(folder.join("profile.toml"), profile_text(found)).context("writing the nitrous profile")
 }

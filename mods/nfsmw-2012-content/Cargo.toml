@@ -24,6 +24,7 @@ chameleon-sound-graph.workspace = true
 chameleon-vehicle.workspace = true
 ea-audio.workspace = true
 log.workspace = true
+png.workspace = true
 rayon.workspace = true
 serde.workspace = true
 symphonia.workspace = true

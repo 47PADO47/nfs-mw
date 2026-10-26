@@ -67,3 +67,27 @@ fn the_real_install_has_a_looping_burn_sound_and_two_one_shots() {
     println!("start {:?} loop {:?} end {:?}", seconds(&found.start), seconds(&found.looped), seconds(&found.end));
     assert!(found.looped.is_some() && found.end.is_some() && found.start.is_some());
 }
+
+#[test]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+fn the_real_install_converts_to_a_profile_the_game_reads_with_its_pictures() {
+    let root = std::path::PathBuf::from(std::env::var_os("MW2012_GAME_DIR").expect("MW2012_GAME_DIR"));
+    let source = crate::source::Source::open(&root).unwrap();
+    let mut found = find_in(&source.game_logic_bundles()).unwrap_or_default();
+    found.effects = find_effects(&source);
+    let dir = std::env::temp_dir().join(format!("nfsmw-2012-nitrous-real-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    write(&dir, &found).unwrap();
+    let folder = dir.join("files/NITROUS/MW2012");
+    let text = std::fs::read_to_string(folder.join("profile.toml")).unwrap();
+    let profile = parse_nitrous_profile(&text).unwrap();
+    println!("{text}");
+    assert!(profile.audio.is_some() && !profile.effects.is_empty());
+    for effect in &profile.effects {
+        let file = folder.join(effect.texture.rsplit('/').next().unwrap());
+        assert!(file.is_file(), "{}", file.display());
+    }
+    let flame = profile.flame.expect("the effects stand in for the game's flames");
+    assert!(flame.replace_burn && flame.replace_pop);
+    std::fs::remove_dir_all(&dir).unwrap();
+}

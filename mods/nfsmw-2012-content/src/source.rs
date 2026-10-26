@@ -90,6 +90,12 @@ impl Source {
         })
     }
 
+    /// A file of the install, by its path under the install's folder.
+    pub fn read_file(&self, rel: &str) -> Result<Vec<u8>> {
+        let path = self.root.join(rel);
+        std::fs::read(&path).with_context(|| format!("reading {}", path.display()))
+    }
+
     /// The bundles of the game's logic (`GAMELOGIC/*.BNDL`), where the sound sets of the heat levels, the nitrous's among them,
     /// are kept. Sorted by name; empty when the folder is not there.
     pub fn game_logic_bundles(&self) -> Vec<PathBuf> {

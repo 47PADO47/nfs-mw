@@ -39,6 +39,8 @@ pub mod stats;
 mod textures;
 mod variants;
 mod vehicle_list;
+mod vfx;
+mod vfx_profile;
 
 use std::path::PathBuf;
 
