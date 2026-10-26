@@ -191,7 +191,7 @@ const REASON: &str = "must be a number inside the range the docs give";
 /// `value`, or `default` when the key was left out; an error naming `field` when it is outside `low..=high`.
 fn ranged(value: Option<f32>, default: f32, field: &'static str, low: f32, high: f32) -> Result<f32, ContentError> {
     let Some(value) = value else { return Ok(default) };
-    if !value.is_finite() || value < low || value > high {
+    if !(low..=high).contains(&value) {
         return Err(ContentError::Field { field, reason: REASON });
     }
     Ok(value)
