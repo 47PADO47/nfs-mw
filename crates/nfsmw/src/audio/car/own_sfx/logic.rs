@@ -27,7 +27,7 @@ impl Rng {
     }
 
     /// A number from 0 up to, not including, 1.
-    pub fn next(&mut self) -> f32 {
+    pub fn unit(&mut self) -> f32 {
         self.0 ^= self.0 << 13;
         self.0 ^= self.0 >> 17;
         self.0 ^= self.0 << 5;
@@ -36,7 +36,7 @@ impl Rng {
 
     /// A number from 0 up to, not including, `n` (0 for an `n` of 0).
     pub fn below(&mut self, n: usize) -> usize {
-        ((self.next() * n as f32) as usize).min(n.saturating_sub(1))
+        ((self.unit() * n as f32) as usize).min(n.saturating_sub(1))
     }
 }
 
@@ -102,7 +102,7 @@ pub fn lift_off(spool: f32, rpm_pct: f32, rng: &mut Rng) -> LiftOff {
     let rpm_pct = rpm_pct.clamp(0.0, 1.0);
     let blowoff = (spool >= BLOWOFF_MIN_SPOOL).then(|| 0.5 + 0.5 * spool.min(1.0));
     let chance = 0.2 + 0.5 * rpm_pct;
-    let roll = rng.next();
+    let roll = rng.unit();
     let backfire = (roll < chance).then(|| 0.5 + 0.5 * rpm_pct);
     let count = match roll {
         r if r < chance => 2 + rng.below(3),
@@ -112,8 +112,8 @@ pub fn lift_off(spool: f32, rpm_pct: f32, rng: &mut Rng) -> LiftOff {
     let mut delay = 0.12;
     let mut pops = Vec::with_capacity(count);
     for _ in 0..count {
-        pops.push(Pop { delay, volume: 0.4 + 0.4 * rng.next() });
-        delay += 0.05 + 0.2 * rng.next();
+        pops.push(Pop { delay, volume: 0.4 + 0.4 * rng.unit() });
+        delay += 0.05 + 0.2 * rng.unit();
     }
     LiftOff { blowoff, backfire, pops }
 }

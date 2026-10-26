@@ -4,8 +4,8 @@ use super::*;
 fn the_same_seed_always_gives_the_same_numbers_and_they_stay_in_range() {
     let (mut a, mut b) = (Rng::new(7), Rng::new(7));
     for _ in 0..200 {
-        let x = a.next();
-        assert_eq!(x, b.next());
+        let x = a.unit();
+        assert_eq!(x, b.unit());
         assert!((0.0..1.0).contains(&x));
     }
     let mut rng = Rng::new(0);
