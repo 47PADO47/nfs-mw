@@ -27,35 +27,6 @@ fn a_car_without_all_three_has_no_roles() {
     assert_eq!(roles(&[]), None, "an electric car has none");
 }
 
-fn words(values: &[f32]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_le_bytes()).collect()
-}
-
-#[test]
-fn an_authored_colour_is_found_and_round_constants_are_not() {
-    // (1, 0.25, 1, 1) is a round constant, then the glow colour.
-    let block = words(&[0.0, 1.0, 0.25, 1.0, 1.0, 0.030_713_4, 0.520_995, 0.863_157, 1.0]);
-    assert_eq!(colour_constant(&block, 0..block.len()), Some([0.030_713_4, 0.520_995, 0.863_157]));
-    let rounds = words(&[1.0, 0.25, 1.0, 1.0, 0.5, 0.5, 0.5, 1.0]);
-    assert_eq!(colour_constant(&rounds, 0..rounds.len()), None);
-    let not_opaque = words(&[0.03, 0.52, 0.86, 0.5]);
-    assert_eq!(colour_constant(&not_opaque, 0..16), None);
-}
-
-#[test]
-fn a_range_that_starts_off_the_float_grid_is_read_on_it() {
-    let mut block = vec![0xAA; 4];
-    block.extend(words(&[0.030_713_4, 0.520_995, 0.863_157, 1.0]));
-    assert!(colour_constant(&block, 1..block.len()).is_some(), "the colour is at 4, the next float boundary of 1");
-    let mut shifted = vec![0xAA; 3];
-    shifted.extend(words(&[0.030_713_4, 0.520_995, 0.863_157, 1.0]));
-    assert_eq!(
-        colour_constant(&shifted, 3..shifted.len()),
-        None,
-        "data at 3 is not on the grid, so it is not a float4"
-    );
-}
-
 fn texture(format: PixelFormat, width: u32, height: u32, data: Vec<u8>) -> Texture {
     Texture { width, height, depth: 1, array_size: 1, mip_levels: 1, dxgi_format: 0, format, data }
 }
@@ -103,13 +74,16 @@ fn the_real_install_names_a_start_a_burn_and_a_pop_effect_made_of_the_pictures_s
         let list = emitters(&effects, id).unwrap();
         let shapes: Vec<String> = list
             .iter()
-            .map(|e| format!("{}x{} flipbook={} colour={:?}", e.picture.width, e.picture.height, e.flipbook, e.colour))
+            .map(|e| {
+                format!("{}x{} flipbook={} life={:?}", e.picture.width, e.picture.height, e.flipbook, e.fx.lifetime())
+            })
             .collect();
         println!("{name} {id:#x}: {shapes:?}");
     }
     let burn = emitters(&effects, roles.burn).unwrap();
     assert_eq!(burn.len(), 1);
-    let colour = burn[0].colour.expect("the glow colour constant");
+    let gradient = burn[0].fx.gradient().expect("the glow's colour gradient");
+    let colour = gradient.colours[0];
     assert!((colour[2] - 0.863).abs() < 0.01 && (colour[1] - 0.521).abs() < 0.01 && colour[0] < 0.05, "{colour:?}");
 }
 

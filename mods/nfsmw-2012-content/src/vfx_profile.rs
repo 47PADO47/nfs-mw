@@ -1,14 +1,25 @@
 //! The `[[effect]]` entries and the pictures of the 2012 nitrous variant, made from the emitters of the three 2012 effects
-//! (`vfx`).
+//! (`vfx`) with the numbers the effects themselves hold (`chameleon-effects`, docs/formats/chameleon-effects.md):
 //!
-//! What is read from the 2012 data: which emitters each effect has, their pictures (the flame sheet, the glow, the dust), that a
-//! picture is a flipbook (a `SubUV` attribute), its cell grid (the flame sheet is 5 by 5 cells, seen on the picture) and the
-//! glow's colour constant. What is **not** read, because the emitters' programs are not decoded: how often they spawn, how long
-//! they live, how fast they move and how big they get. Those numbers are this module's own, set by eye against screenshots of
-//! the 2012 game (an orange burst at the pipes when the nitrous lights, two blue glows while it burns, a short flame at a
-//! pop), and the docs say so.
+//! | The profile's | From the emitter |
+//! |---|---|
+//! | `rate`, `rate_per_speed` | the spawner's rate at rest, and for each m/s of the car's speed |
+//! | `life`, `life_variance` | the longest lifetime, and the share of it the shortest falls short by |
+//! | `duration` | the end of the spawner's time window (a burn lasts as long as the nitrous does) |
+//! | `size`, `keys` | twice the starting radius's mean times the radius curve, at four points of the life |
+//! | `colors` | the colour gradient at those points with its brightness multiplied in, and the alpha curve |
+//! | `lift`, `damping` | the motion's upward acceleration, and the share of the velocity it keeps losing at every step |
+//! | `speed`, `spread` | the spawner's velocity scale, thrown in random directions at a random share of it |
+//! | `inherit`, `inherit_variance` | the velocity inheritance range; an emitter whose particles follow it takes all of it |
+//! | `angle_range` | the starting rotation range |
 //!
-//! Emitters with no flipbook and no colour of their own in a start or pop effect (the three smoke puffs) are not played.
+//! What is not carried over, because it is not decoded or the host cannot play it: the wind and the turbulence of the motion,
+//! the spawn offset ("shell"), the random scale channels, the spin, the sprite's draw scale (a sprite is taken to be twice its radius
+//! wide), how the flipbook picks its frame (it plays once over the life), the blend (decided here from the brightness and the
+//! role) and the lights. The refraction sprite (heat haze) is not a sprite the host can draw and is left out.
+
+use chameleon_effects::decode::Gradient;
+use chameleon_effects::ops::RENDER_SPRITE_UV_DISTORTION;
 
 use crate::vfx::{Emitter, Picture};
 
@@ -16,7 +27,7 @@ use crate::vfx::{Emitter, Picture};
 #[derive(Debug, Clone, PartialEq)]
 pub struct EffectSet {
     /// File name and picture, written under `files/NITROUS/MW2012/`.
-    pub pictures: Vec<(&'static str, Picture)>,
+    pub pictures: Vec<(String, Picture)>,
     /// The `[[effect]]` tables, and whether there are burn and pop effects (so the game's own flames can be replaced).
     pub toml: String,
     pub has_burn: bool,
@@ -25,126 +36,234 @@ pub struct EffectSet {
 
 /// The folder the pictures are named in.
 const FOLDER: &str = "NITROUS/MW2012";
-/// The cells per side of the flame sheet (25 frames).
+/// The cells per side of the flame sheet (25 frames), seen on the picture.
 const FLAME_GRID: u8 = 5;
 /// A flipbook picture at least this wide is the flame sheet; a smaller one is the dust.
 const FLAME_WIDTH: u32 = 512;
+/// A window that ends later than this is "for as long as the effect is on".
+const OPEN_WINDOW: f32 = 1.0e5;
+/// The width of a sprite in radii (a sprite's radius is its half width).
+const WIDTH_PER_RADIUS: f32 = 2.0;
+/// The age fraction the curves are read at for the end of a life.
+const LAST_MOMENT: f32 = 0.9999;
+/// Degrees in one unit of the starting rotation range.
+const DEGREES_PER_ROTATION_UNIT: f32 = 360.0;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Look {
-    Flame,
-    Dust,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Moment {
+    Start,
+    Burn,
+    Pop,
 }
 
-fn look(emitter: &Emitter) -> Option<Look> {
-    match (emitter.flipbook, emitter.picture.width >= FLAME_WIDTH) {
-        (true, true) => Some(Look::Flame),
-        (true, false) => Some(Look::Dust),
-        (false, _) => None,
+impl Moment {
+    fn name(self) -> &'static str {
+        match self {
+            Moment::Start => "start",
+            Moment::Burn => "burn",
+            Moment::Pop => "pop",
+        }
     }
 }
 
 /// The effects of the three moments, from the emitters of the 2012 effects. `None` when no emitter gives anything to play.
 pub fn build(start: &[Emitter], burn: &[Emitter], pop: &[Emitter]) -> Option<EffectSet> {
     let mut set = EffectSet { pictures: Vec::new(), toml: String::new(), has_burn: false, has_pop: false };
-    for (on, emitters) in [("start", start), ("pop", pop)] {
-        let mut flames = 0;
+    for (moment, emitters) in [(Moment::Start, start), (Moment::Burn, burn), (Moment::Pop, pop)] {
+        let sibling = longest_window(emitters);
         for emitter in emitters {
-            let Some(kind) = look(emitter) else { continue };
-            let name = add_picture(&mut set, kind, &emitter.picture);
-            let entry = match kind {
-                Look::Flame => flame(on, name, flames),
-                Look::Dust => dust(on, name),
-            };
-            flames += usize::from(kind == Look::Flame);
-            set.toml.push_str(&entry);
-            set.has_pop |= on == "pop";
+            let Some(entry) = Entry::of(moment, emitter, sibling) else { continue };
+            let file = add_picture(&mut set, moment, emitter);
+            set.toml.push_str(&entry.toml(&file));
+            set.has_burn |= moment == Moment::Burn;
+            set.has_pop |= moment == Moment::Pop;
         }
-    }
-    // The glow is the burn's one emitter without a flipbook; its colour is the one read from the effect.
-    if let Some(glow) = burn.iter().find(|emitter| !emitter.flipbook) {
-        set.pictures.push(("GLOW.PNG", glow.picture.clone()));
-        let colour = glow.colour.unwrap_or([0.03, 0.52, 0.86]);
-        set.toml.push_str(&glow_halo(colour));
-        set.toml.push_str(&glow_core(colour));
-        set.has_burn = true;
     }
     (!set.toml.is_empty()).then_some(set)
 }
 
-/// The file name of `picture` of `kind`, adding it once.
-fn add_picture(set: &mut EffectSet, kind: Look, picture: &Picture) -> &'static str {
-    let name = match kind {
-        Look::Flame => "FLAME.PNG",
-        Look::Dust => "DUST.PNG",
+/// The longest finite spawner window of the effect's emitters, 0 when there is none.
+fn longest_window(emitters: &[Emitter]) -> f32 {
+    let ends = emitters.iter().filter_map(|e| e.fx.cone()).map(|cone| cone.window[1]);
+    ends.filter(|end| *end < OPEN_WINDOW).fold(0.0, f32::max)
+}
+
+/// The file name of the emitter's picture, adding the picture once.
+fn add_picture(set: &mut EffectSet, moment: Moment, emitter: &Emitter) -> String {
+    let base = match (emitter.flipbook, emitter.picture.width >= FLAME_WIDTH, moment) {
+        (true, true, _) => "FLAME",
+        (true, false, _) => "DUST",
+        (false, _, Moment::Burn) => "GLOW",
+        (false, _, _) => "SMOKE",
     };
-    if !set.pictures.iter().any(|(known, _)| *known == name) {
-        set.pictures.push((name, picture.clone()));
+    let mut n = 1;
+    loop {
+        let name = if n == 1 { format!("{base}.PNG") } else { format!("{base}{n}.PNG") };
+        match set.pictures.iter().find(|(known, _)| *known == name) {
+            Some((_, same)) if *same == emitter.picture => return name,
+            Some(_) => n += 1,
+            None => {
+                set.pictures.push((name.clone(), emitter.picture.clone()));
+                return name;
+            }
+        }
     }
-    name
 }
 
-fn path(name: &str) -> String {
-    format!("{FOLDER}/{name}")
+/// One `[[effect]]`, as numbers.
+#[derive(Debug, Clone, PartialEq)]
+struct Entry {
+    on: Moment,
+    additive: bool,
+    grid: u8,
+    fps: u8,
+    rate: f32,
+    rate_per_speed: f32,
+    life: f32,
+    life_variance: f32,
+    speed: f32,
+    speed_variance: f32,
+    spread: f32,
+    lift: f32,
+    damping: f32,
+    inherit: f32,
+    inherit_variance: f32,
+    angle_range: f32,
+    keys: [f32; 4],
+    size: [f32; 4],
+    colors: [[u8; 4]; 4],
+    duration: f32,
 }
 
-/// A flame burst: the sheet played once over a particle's life, leaving the pipe along its axis. The second flame of an effect
-/// is a little smaller and slower, as the 2012 effects have two.
-fn flame(on: &str, name: &str, nth: usize) -> String {
-    let (life, speed, scale) = match (on, nth) {
-        ("start", 0) => (0.35, 3.0, 1.0),
-        ("start", _) => (0.30, 1.8, 0.7),
-        (_, 0) => (0.22, 4.0, 0.8),
-        _ => (0.18, 2.4, 0.55),
+impl Entry {
+    /// The entry for one emitter, or `None` when it lacks the lifetime, spawner, radius or colour that the numbers come from,
+    /// or is a refraction sprite.
+    fn of(on: Moment, emitter: &Emitter, sibling_window: f32) -> Option<Entry> {
+        let fx = &emitter.fx;
+        if fx.render_op() == Some(RENDER_SPRITE_UV_DISTORTION) {
+            return None;
+        }
+        let (life, cone, gradient) = (fx.lifetime()?, fx.cone()?, fx.gradient()?);
+        let (radius, curve) = (fx.radius()?, fx.radius_curve()?);
+        let mean = (radius.min + radius.max) * 0.5;
+        let width = |t: f32| WIDTH_PER_RADIUS * mean * curve.at(t);
+        let mut knots = gradient.alpha_x.to_vec();
+        knots.push(curve.peak);
+        let reference = knots.iter().map(|k| width(*k)).fold(f32::MIN_POSITIVE, f32::max);
+        let keys = choose_keys(&knots, |t| {
+            let [r, g, b, a] = colour_at(&gradient, t).map(|v| f32::from(v) / 255.0);
+            [a, (width(t) / reference).clamp(0.0, 1.0), r, g, b]
+        });
+        let brightness = keys.iter().any(|k| gradient.colour_at(k.min(LAST_MOMENT))[3] > 1.0);
+        let window = cone.window[1];
+        let duration = match (on, window < OPEN_WINDOW) {
+            (Moment::Burn, _) => 0.0,
+            (_, true) => window,
+            (_, false) if sibling_window > 0.0 => sibling_window,
+            // No other spawner ends: one generation of particles, the effect is over when the first ones are dead.
+            (_, false) => life.max,
+        };
+        let longest = life.max.max(0.01);
+        let top = cone.velocity.iter().copied().fold(0.0, f32::max);
+        // Particles that follow their emitter are put into the world from its place every frame: they ride with the car, which
+        // is to say they take all of its velocity; the others take the share the effect names, once, at birth.
+        let follows = fx.follows_emitter();
+        let inherit = fx.inherit().filter(|_| !follows);
+        let share = if follows { 1.0 } else { inherit.map_or(0.0, |i| i.max).clamp(0.0, 1.0) };
+        let flame = emitter.flipbook && emitter.picture.width >= FLAME_WIDTH;
+        Some(Entry {
+            on,
+            additive: on == Moment::Burn || emitter.flipbook || brightness,
+            grid: if flame { FLAME_GRID } else { 0 },
+            // The flipbook plays once over a particle's life.
+            fps: (f32::from(FLAME_GRID).powi(2) / longest).round().clamp(1.0, 255.0) as u8,
+            rate: cone.base_rate.clamp(0.0, 500.0),
+            rate_per_speed: cone.rate_per_speed.clamp(0.0, 100.0),
+            life: longest.min(10.0),
+            life_variance: ((longest - life.min) / longest).clamp(0.0, 1.0),
+            speed: top.min(50.0),
+            speed_variance: if top > 0.0 { 1.0 } else { 0.0 },
+            spread: if top > 0.0 { 180.0 } else { 0.0 },
+            lift: fx.motion().map_or(0.0, |m| m.lift).clamp(-50.0, 50.0),
+            // A following particle's own velocity is the emitter's, which the motion's damping does not touch.
+            damping: if follows { 0.0 } else { fx.motion().map_or(0.0, |m| m.drag).clamp(0.0, 1.0) },
+            inherit: share,
+            inherit_variance: match (inherit, share > 0.0) {
+                (Some(i), true) => ((share - i.min) / share).clamp(0.0, 1.0),
+                _ => 0.0,
+            },
+            angle_range: fx.rotation().map_or(0.0, |r| ((r.max - r.min).abs() * DEGREES_PER_ROTATION_UNIT).min(360.0)),
+            keys,
+            size: keys.map(|key| width(key).clamp(0.0, 20.0)),
+            colors: keys.map(|key| colour_at(&gradient, key)),
+            duration: duration.clamp(0.0, 10.0),
+        })
+    }
+
+    fn toml(&self, texture: &str) -> String {
+        let blend = if self.additive { "additive" } else { "alpha" };
+        let grid = if self.grid > 0 { format!("grid = {}\nfps = {}\n", self.grid, self.fps) } else { String::new() };
+        let duration = if self.duration > 0.0 { format!("duration = {:?}\n", self.duration) } else { String::new() };
+        let list = |values: [f32; 4]| values.map(|v| format!("{v:.4}")).join(", ");
+        let colors = self.colors.map(|c| format!("[{}, {}, {}, {}]", c[0], c[1], c[2], c[3])).join(", ");
+        format!(
+            "\n[[effect]]\non = \"{}\"\ntexture = \"{FOLDER}/{texture}\"\nblend = \"{blend}\"\n{grid}rate = {:?}\n\
+             rate_per_speed = {:?}\nlife = {:?}\nlife_variance = {:?}\nspeed = {:?}\nspeed_variance = {:?}\nspread = {:?}\n\
+             lift = {:?}\ndamping = {:?}\ninherit = {:?}\ninherit_variance = {:?}\nangle_range = {:?}\nkeys = [{}]\nsize = [{}]\n\
+             colors = [{colors}]\n{duration}",
+            self.on.name(),
+            self.rate,
+            self.rate_per_speed,
+            self.life,
+            self.life_variance,
+            self.speed,
+            self.speed_variance,
+            self.spread,
+            self.lift,
+            self.damping,
+            self.inherit,
+            self.inherit_variance,
+            self.angle_range,
+            list(self.keys),
+            list(self.size),
+        )
+    }
+}
+
+/// The colour at age fraction `t`: red, green and blue times the brightness, clamped to a byte, and the alpha curve's value. A
+/// particle is dead when its age fraction reaches 1 and the curves start over there, so the end is sampled just before it.
+fn colour_at(gradient: &Gradient, t: f32) -> [u8; 4] {
+    let t = t.min(LAST_MOMENT);
+    let [r, g, b, bright] = gradient.colour_at(t);
+    let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    [byte(r * bright), byte(g * bright), byte(b * bright), byte(gradient.alpha_at(t))]
+}
+
+/// Four points along the life to sample the curves at. The candidates are the knots of the curves, and 0 and 1; while there are
+/// more than four, the interior one that the line between its neighbours misses least (over everything `sample` returns) is
+/// dropped. With fewer than four, the middle of the widest gap is added.
+fn choose_keys(knots: &[f32], sample: impl Fn(f32) -> [f32; 5]) -> [f32; 4] {
+    let mut points: Vec<f32> = knots.iter().map(|k| k.clamp(0.0, 1.0)).chain([0.0, 1.0]).collect();
+    points.sort_by(f32::total_cmp);
+    points.dedup_by(|a, b| (*a - *b).abs() < 1.0e-3);
+    let miss = |points: &[f32], i: usize| {
+        let (a, m, b) = (sample(points[i - 1]), sample(points[i]), sample(points[i + 1]));
+        let u = (points[i] - points[i - 1]) / (points[i + 1] - points[i - 1]);
+        (0..5).map(|k| (m[k] - (a[k] + (b[k] - a[k]) * u)).abs()).fold(0.0, f32::max)
     };
-    let rate = if on == "start" { 25.0 } else { 45.0 };
-    let duration = if on == "start" { "duration = 0.8\n" } else { "" };
-    let fps = (f32::from(FLAME_GRID).powi(2) / life).round();
-    format!(
-        "\n[[effect]]\non = \"{on}\"\ntexture = \"{}\"\nblend = \"additive\"\ngrid = {FLAME_GRID}\nfps = {fps}\nrate = {rate:?}\nlife = {life:?}\n\
-         life_variance = 0.05\nspeed = {speed:?}\nspeed_variance = 0.5\nspread = 18.0\ninherit = 0.3\n\
-         size = [{:.2}, {:.2}, {:.2}, {:.2}]\ncolors = [[255, 255, 255, 0], [255, 255, 255, 235], [255, 255, 255, 200], [255, 255, 255, 0]]\n{duration}",
-        path(name),
-        0.25 * scale,
-        0.45 * scale,
-        0.55 * scale,
-        0.6 * scale,
-    )
+    while points.len() > 4 {
+        let drop = (1..points.len() - 1).min_by(|a, b| miss(&points, *a).total_cmp(&miss(&points, *b))).unwrap_or(1);
+        points.remove(drop);
+    }
+    while points.len() < 4 {
+        let at = (1..points.len()).max_by(|a, b| gap(&points, *a).total_cmp(&gap(&points, *b))).unwrap_or(1);
+        points.insert(at, (points[at - 1] + points[at]) * 0.5);
+    }
+    [points[0], points[1], points[2], points[3]]
 }
 
-/// The dust and sparks round the pipes: the small picture, drifting out and fading.
-fn dust(on: &str, name: &str) -> String {
-    let duration = if on == "start" { "duration = 0.8\n" } else { "" };
-    format!(
-        "\n[[effect]]\non = \"{on}\"\ntexture = \"{}\"\nblend = \"additive\"\nrate = 30.0\nlife = 0.5\nlife_variance = 0.2\n\
-         speed = 1.5\nspeed_variance = 1.0\nspread = 120.0\ninherit = 0.2\nsize = [0.04, 0.07, 0.08, 0.05]\n\
-         colors = [[255, 200, 120, 0], [255, 200, 120, 200], [255, 160, 80, 140], [255, 120, 60, 0]]\n{duration}",
-        path(name)
-    )
-}
-
-fn byte(c: f32) -> u8 {
-    (c.clamp(0.0, 1.0) * 255.0).round() as u8
-}
-
-/// The glow at a pipe while the nitrous burns: the picture in the colour read from the 2012 effect, held on the pipe.
-fn glow_halo(colour: [f32; 3]) -> String {
-    let [r, g, b] = colour.map(byte);
-    format!(
-        "\n[[effect]]\non = \"burn\"\ntexture = \"{}\"\nblend = \"additive\"\nrate = 40.0\nlife = 0.12\nspeed = 0.0\ninherit = 1.0\n\
-         size = [0.14, 0.32, 0.32, 0.18]\ncolors = [[{r}, {g}, {b}, 0], [{r}, {g}, {b}, 230], [{r}, {g}, {b}, 230], [{r}, {g}, {b}, 0]]\n",
-        path("GLOW.PNG")
-    )
-}
-
-/// The brighter, smaller core of the glow (the screenshots show a white-blue centre), a lighter mix of the same colour.
-fn glow_core(colour: [f32; 3]) -> String {
-    let [r, g, b] = colour.map(|c| byte(c + (1.0 - c) * 0.7));
-    format!(
-        "\n[[effect]]\non = \"burn\"\ntexture = \"{}\"\nblend = \"additive\"\nrate = 40.0\nlife = 0.12\nspeed = 0.0\ninherit = 1.0\n\
-         size = [0.06, 0.13, 0.13, 0.07]\ncolors = [[{r}, {g}, {b}, 0], [{r}, {g}, {b}, 255], [{r}, {g}, {b}, 255], [{r}, {g}, {b}, 0]]\n",
-        path("GLOW.PNG")
-    )
+fn gap(points: &[f32], i: usize) -> f32 {
+    points[i] - points[i - 1]
 }
 
 #[cfg(test)]
