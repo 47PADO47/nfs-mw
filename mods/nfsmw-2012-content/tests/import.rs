@@ -111,7 +111,7 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
     }
     for file in named {
         let wav = std::fs::read(dir.join("files").join(&file)).unwrap_or_else(|e| panic!("{file}: {e}"));
-        assert_eq!(&wav[..4], b"RIFF", "{file} is a WAV");
+        assert!(&wav[..4] == b"RIFF" || &wav[..4] == b"Gnsu", "{file} is a WAV or a Ginsu file");
     }
 
     assert!(matches!(job::start(&dir).unwrap(), Start::UpToDate { cars: 1 }));
