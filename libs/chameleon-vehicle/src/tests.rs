@@ -38,3 +38,21 @@ fn every_high_detail_car_loads() {
     assert!(loaded > 50, "only {loaded} cars found");
     println!("{loaded} cars loaded, {names} with a name");
 }
+
+#[test]
+#[ignore = "reads the game install (CHAMELEON_GAME_DIR)"]
+fn every_high_detail_car_has_paints() {
+    let Some(dir) = std::env::var_os("CHAMELEON_GAME_DIR") else { return };
+    let mut total = 0;
+    for entry in std::fs::read_dir(Path::new(&dir).join("VEHICLES")).unwrap().flatten() {
+        let file = entry.file_name().to_string_lossy().to_uppercase();
+        if !(file.starts_with("VEH_") && file.ends_with("_HI.BNDL")) {
+            continue;
+        }
+        let data = std::fs::read(entry.path()).unwrap();
+        let found = crate::paints(&Bundle::parse(&data).unwrap());
+        assert!(!found.is_empty(), "{file}: no paint");
+        total += found.len();
+    }
+    assert_eq!(total, 443, "the 93 cars of the checked install hold 443 paint records");
+}

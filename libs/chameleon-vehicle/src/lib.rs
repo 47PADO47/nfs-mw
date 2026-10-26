@@ -8,6 +8,7 @@
 mod appearance;
 mod error;
 mod name;
+mod paint;
 mod spec;
 mod vehicle;
 
@@ -17,5 +18,6 @@ mod tests;
 pub use appearance::{Appearance, SurfaceKind};
 pub use error::{Error, Result};
 pub use name::vehicle_name;
+pub use paint::{VehiclePaint, paints};
 pub use spec::{GraphicsSpec, WheelSpec, find_spec};
 pub use vehicle::{Lod, PartMesh, Vehicle, Wheel, load, load_texture};
