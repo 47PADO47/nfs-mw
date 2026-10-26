@@ -113,6 +113,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [formats/chameleon-bundle.md](formats/chameleon-bundle.md) | The 2012 game's `bnd2` bundles (Chameleon engine): header, resource table, zlib blocks, import table, resource type ids | Verified on all 2,021 files; Rust reader |
 | [formats/chameleon-gfx.md](formats/chameleon-gfx.md) | Chameleon textures, vertex layouts, renderables, materials, shaders and models | Verified on 93 cars; Rust reader |
 | [formats/chameleon-vehicle.md](formats/chameleon-vehicle.md) | A 2012 car: graphics spec, wheel placement, names, surface kinds | Verified on 93 cars; Rust reader |
+| [formats/chameleon-collision.md](formats/chameleon-collision.md) | What a 2012 car keeps for collision, physics shapes and damage: the collision mesh (decoded), the convex hulls and the physics body (partly), the damage zones and hinged parts | Mesh verified on 92 of 93 cars; Rust reader |
 | [formats/chameleon-sound.md](formats/chameleon-sound.md) | The 2012 game's `.SPS` streams (EA Audio Core, `EL31` Layer III frames) and the sample resources inside the car bundles | Streams verified on all 56 files; Rust reader `ea-audio::sps`; engine layer roles not read |
 | [formats/maps.md](formats/maps.md) | The L2RA world: metadata chunks, streaming index, section families, scenery placement and rotation encoding | Verified; Rust readers |
 | [formats/world.md](formats/world.md) | World grid and road network, collision packs, bounds, triggers, emitters, sky, minimap | Partial (decomp only for several) |

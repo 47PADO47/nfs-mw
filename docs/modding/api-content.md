@@ -90,6 +90,11 @@ performance upgrades and nitrous all work, with the markers and paint layout a c
 [car-customization.md](car-customization.md). The garage takes a mod car's display name and brand (`display_name`,
 `manufacturer`) and skips its cop-only cars (`is_player_car`); the other screens that name cars were not checked.
 
+**Collision: `BOUNDS.BIN`.** The car's `files/CARS/<ID>/` folder holds `BOUNDS.BIN`, its collision bounds in the game's
+own `BoundsPack` format: the box its rigid body is built from, its contact shapes, the ground mesh and, from the box, its damage
+zones. **It is required for a car to drive:** the game reads the car's own file and never a stock car's, and refuses a car
+without a valid one, with the reason in the log. What it holds and how to write one: [car-collision.md](car-collision.md).
+
 The engine can be the car's own: [car-customization.md](car-customization.md#engine-sound-engine_sound-in-the-car-manifest).
 
 Known gaps: body kits and hoods (models of the clone's own body), the performance bars of the shop (the clone's), and a

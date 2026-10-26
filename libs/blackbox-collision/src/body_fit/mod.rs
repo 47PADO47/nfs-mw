@@ -12,9 +12,10 @@
 //!   corners of the cabin, which round off what a wall or another car meets first;
 //! - a **mesh-versus-ground** node whose point cloud is the mirrored side silhouette of the body ([`profile`]).
 //!
-//! The proportions come from the 86 stock sets of `GlobalB.lzc`, which share one template: lower box top 0.752 m,
-//! front sphere radius 0.329 m, roof sphere radius 0.237 m, and a sphere placed at a fixed fraction of its radius
-//! from the body's edges. The numbers below are those measurements; nothing is copied from any one car's set.
+//! The proportions are those of the commonest layout of the original game's car sets (36 of its 86 have exactly these
+//! ten nodes, `docs/formats/collision.md`): lower box top 0.752 m, front sphere radius 0.329 m, roof sphere radius
+//! 0.237 m, and a sphere placed at a fixed fraction of its radius from the body's edges. The numbers below are those
+//! measurements; nothing is copied from any one car's set.
 //!
 //! Axes are the bounds space of vehicles: x across, y up, z along the body (forward is +z), metres, with the origin
 //! at the vehicle's own origin (on the ground, between the wheels).
