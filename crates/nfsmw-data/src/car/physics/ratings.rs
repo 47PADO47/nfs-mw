@@ -6,6 +6,8 @@ use std::sync::Arc;
 
 use anyhow::{Result, ensure};
 use blackbox_attrib::{Database, vlt_hash};
+use blackbox_vehicle::VehicleSpec;
+use blackbox_vehicle::stats::{CarStats, MAX_LEVEL, handling_index, upgrade};
 use game_install::GameDir;
 use glam::Vec3;
 
@@ -63,6 +65,8 @@ impl RatingEndpoints {
 /// The native combined stock/max population, calculated once for the installed attribute database.
 pub struct RatingBook {
     cars: HashMap<u32, RatingEndpoints>,
+    /// Lowest and highest raw top speed, handling and time to 100 mph of the stock population: the scale of the bars.
+    ranges: [(f32, f32); 3],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -159,7 +163,29 @@ impl RatingBook {
                 )
             })
             .collect();
-        Self { cars }
+        Self { cars, ranges }
+    }
+
+    /// The bars of a car with its own stats, on the scale of the stock population: its stock build and its build with
+    /// every upgrade at the maximum. Top speed and acceleration come from the same longitudinal estimate as the stock
+    /// cars'; handling is the stats' own score. `None` when the stats do not make a drivable car.
+    pub fn for_stats(&self, stats: &CarStats) -> Option<RatingEndpoints> {
+        let maximum = upgrade(stats, [MAX_LEVEL; 7]);
+        Some(RatingEndpoints {
+            stock: self.stats_axes(stats)?,
+            maximum: self.stats_axes(&maximum)?,
+            max_levels: [MAX_LEVEL; 7],
+        })
+    }
+
+    fn stats_axes(&self, stats: &CarStats) -> Option<[f32; 3]> {
+        let spec = VehicleSpec::from_stats(stats, Vec3::ONE);
+        let estimated = estimate::estimate(&spec)?;
+        Some([
+            normalized(estimated.top_speed, self.ranges[0]),
+            handling_index(stats),
+            1.0 - normalized(estimated.time_to_100, self.ranges[2]),
+        ])
     }
 }
 

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use blackbox_modding::content::{CARS_FOLDER, CarManifest, parse_car};
 use game_install::{GameDir, Provider};
 use nfsmw_data::car::CarTables;
-use nfsmw_data::car::mods::{self as car_mods, CarSpec, EngineLayer, EngineSound, Tuning};
+use nfsmw_data::car::mods::{self as car_mods, CarSpec, CarStats, EngineLayer, EngineSound};
 use nfsmw_data::pursuit::HEAT_LEVELS;
 
 use super::ModDir;
@@ -72,7 +72,7 @@ fn read_spec(dir: &GameDir, owner: &str, path: &Path) -> Result<CarSpec, String>
     let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
     let manifest = parse_car(stem, &text).map_err(|error| error.to_string())?;
     let cop_heat = manifest.role.is_cop().then(|| cop_levels(&manifest));
-    let tuning = tuning_of(&manifest);
+    let stats = CarStats::from(&manifest.stats);
     let geometry = format!("CARS/{}/GEOMETRY.BIN", manifest.id);
     let geometry_in_mod = matches!(dir.provider(&geometry), Some(Provider::Overlay(id)) if id == owner);
     Ok(CarSpec {
@@ -84,7 +84,7 @@ fn read_spec(dir: &GameDir, owner: &str, path: &Path) -> Result<CarSpec, String>
         player: manifest.role.is_player(),
         cop_heat,
         geometry_in_mod,
-        tuning,
+        stats,
         engine_sound: manifest.engine_sound.as_ref().map(engine_sound_of),
     })
 }
@@ -95,19 +95,6 @@ fn engine_sound_of(sound: &blackbox_modding::content::EngineSound) -> EngineSoun
         idle_rpm: sound.idle_rpm,
         redline_rpm: sound.redline_rpm,
         layers: sound.layers.iter().map(|layer| EngineLayer { file: layer.file.clone(), rpm: layer.rpm }).collect(),
-    }
-}
-
-/// The manifest's `[performance]` as the game's tuning of a mod car.
-fn tuning_of(manifest: &CarManifest) -> Tuning {
-    let p = manifest.performance;
-    Tuning {
-        power: p.power,
-        mass: p.mass,
-        grip: p.grip,
-        brakes: p.brakes,
-        nitrous: p.nitrous,
-        nitrous_power: p.nitrous_power,
     }
 }
 
