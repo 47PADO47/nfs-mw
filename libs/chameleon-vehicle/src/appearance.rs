@@ -14,6 +14,30 @@ pub enum SurfaceKind {
     Wheel,
     Tyre,
     Other,
+    /// One lit piece of a lamp lens, with the end and side of the car it sits on (`lamps::split_lenses`).
+    Lamp(LampSurface),
+}
+
+/// Which end of the car a lamp is at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LampEnd {
+    Front,
+    Rear,
+}
+
+/// Which side of the car a lamp is at; the car's left is +x of the engine's vehicle space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LampSide {
+    Left,
+    Right,
+    Centre,
+}
+
+/// The place of a lit lamp surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LampSurface {
+    pub end: LampEnd,
+    pub side: LampSide,
 }
 
 /// How a mesh looks, reduced to what an older engine can draw.

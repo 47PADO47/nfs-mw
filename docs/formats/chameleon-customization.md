@@ -156,8 +156,8 @@ records only, not for strings):
   modification lists **[code: `FUN_00875370`]**;
 - `ColourHasTexture` and `GetColourTexture` return a swatch image, not a paint texture.
 
-The car-space locators of the graphics spec (lamps, tail pipes) are present but their name table is not decoded
-([chameleon-vehicle.md](chameleon-vehicle.md)), so spoiler or scoop mounts, if the 2012 bodies had any, cannot be read from
+The locator groups of the graphics spec (lamps, tail pipes) have numeric ids and no names
+([chameleon-lamps.md](chameleon-lamps.md)), so spoiler or scoop mounts, if the 2012 bodies had any, cannot be read from
 them either. The 2012 bodies do not need any: the game has no aftermarket part to mount.
 
 ## How the importer uses it

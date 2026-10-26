@@ -105,6 +105,8 @@ table instead ([car-stats.md](car-stats.md)).
 | Hinged parts | The parts the car's damage object lists (bonnet, bumpers, mirrors, doors, boot, as the car has them): cut out of the finest body solids into `<ID>_KIT00_<PART>_A` and `_B`, and a `[[damage_parts]]` table per part in the manifest ([below](#hinged-parts)) (`src/hinges.rs`) |
 | Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
 | Nitrous sounds | the burn loop, the end sound and the start sound of the 2012 heat level sound set (`GAMELOGIC/HL_*.BNDL`, found by the expression `NitrousState.UsingNitrous` and the trigger `NITROUS_POSTFX_OFF`), as stereo WAV files in `files/NITROUS/MW2012/` with a `profile.toml`, and the value **NFS Most Wanted 2012** of the gameplay setting "Nitrous variant" (`bb.settings`), offered when a 2012 install is set. The post effects, flames, camera and HUD of the 2012 nitrous are not played; see [nitrous-variants.md](nitrous-variants.md) and [chameleon-nitrous.md](../formats/chameleon-nitrous.md) (`src/nitrous.rs`) |
+| Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The lamp markers `LEFT_HEADLIGHT`, `RIGHT_HEADLIGHT`, `LEFT_BRAKELIGHT`, `RIGHT_BRAKELIGHT` and `BRAKELIGHT_CENTRE` are the car's own lamp locators, picked by its lamp records ([car-lamps.md](car-lamps.md)). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
+| Lamp surfaces | the lit strips of the 2012 lamps, split by piece, drawn with the game's lamp placeholders, and the car's own `<ID>_KIT00_HEADLIGHT_ON`/`_OFF` and `_BRAKELIGHT_ON`/`_OFF` textures (flat colours); the lamp interiors are dark grey ([car-lamps.md](car-lamps.md)) |
 | Glass and lamp lenses | a translucent tint texture with light material `WINDSHIELD` |
 | Untextured surfaces | a flat colour texture from the material's diffuse colour (dark grey when it has none) |
 | Normals | recomputed from the triangles |
@@ -152,6 +154,10 @@ Then what the conversion does not do:
   parts are, [below](#hinged-parts)), headlight
   beams, brake discs (they are part of the wheel), spoiler and mirror animation, and the 2012 lamp locators are not
   converted. The sets were not compared with how the cars drive in a window.
+- **Collision is fitted, not copied.** The 2012 damage objects (hinged parts, per-zone thresholds: not decoded), headlight
+  beams, brake discs (they are part of the wheel) and spoiler and mirror animation are not converted. The lamps are:
+  markers from the lamp locators, but no reverse lamp (the 2012 files have no record for one) and flat lit colours
+  ([car-lamps.md](car-lamps.md)). The sets were not compared with how the cars drive in a window.
 - **Tail pipes are approximated** from the body's shape; the 2012 tail pipe locators are not decoded.
 - **Paint names.** The 2012 records carry no names; a paint is named by its finish and colour (`Metallic #AD2B2C`).
 - **Normal, specular and effect maps are dropped**: the 2005 car shader has its own lighting.

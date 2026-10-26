@@ -12,6 +12,7 @@ other halves of a car are on their own pages:
 | [car-sound.md](car-sound.md) | `[engine_sound]`, `[car_sound]`, the built-in engine, the 2012 recordings |
 | [car-collision.md](car-collision.md) | `BOUNDS.BIN`: the collision shape, the damage zones |
 | [car-damage-parts.md](car-damage-parts.md) | `[[damage_parts]]`: bonnet, bumpers, mirrors and doors that turn or fall off as the car is damaged |
+| [car-lamps.md](car-lamps.md) | the lamp markers and lamp textures: flares and lit surfaces of the head, brake and reverse lamps |
 
 The [2012 cars mod](nfsmw-2012-content.md) is the worked example, and its settings are on its own page.
 
@@ -32,7 +33,7 @@ manifest's file name). A solid it does not find is not drawn, and a car with nei
 
 | Solid | Is |
 |---|---|
-| `<ID>_KIT00_BODY_A` to `_D` | the body, with the glass, lamps and interior, and the tail pipe markers ([Tail pipes](#tail-pipes)) |
+| `<ID>_KIT00_BODY_A` to `_D` | the body, with the glass, lamps and interior, the tail pipe markers ([Tail pipes](#tail-pipes)) and the lamp markers ([car-lamps.md](car-lamps.md)) |
 | `<ID>_KIT00_FRONT_TIRE_A` to `_D` | one wheel solid: tyre, rim, brake disc and caliper, axle along y, rim face at y = 0, as the game's wheels are modelled; the car draws it at all four corners and the game turns it for the left side |
 
 The letters are the levels of detail, `A` the finest; `E` is not looked for, and a level a car lacks draws nothing at that

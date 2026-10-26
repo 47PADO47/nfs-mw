@@ -7,7 +7,8 @@ use anyhow::{Context, Result, bail};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_gfx::Texture;
 use chameleon_vehicle::{
-    PolySoup, Vehicle, VehiclePaint, find_spec, load, load_poly_soup, load_texture, paints, vehicle_name,
+    Lamps, PolySoup, Vehicle, VehiclePaint, find_spec, load, load_poly_soup, load_texture, paints, read_lamps,
+    vehicle_name,
 };
 
 use crate::liveries::{self, Signature};
@@ -41,6 +42,8 @@ pub struct SourceCar {
     pub collision: Option<PolySoup>,
     /// The hinged parts of the body and the triangles they own, when the car has any (`hinges.rs`).
     pub hinged: Option<crate::hinges::Hinged>,
+    /// The car's lamp locators and lamp records; empty when the bundle's do not read.
+    pub lamps: Lamps,
 }
 
 /// An opened 2012 install. The shared bundles stay in memory; each car's bundle is read when it is loaded.
@@ -154,6 +157,10 @@ impl Source {
         let bundle = Bundle::parse(&data)?;
         let spec = find_spec(&bundle).context("the bundle has no vehicle graphics spec")?;
         let car_paints = paints(&bundle);
+        let lamps = read_lamps(&bundle).unwrap_or_else(|error| {
+            log::warn!("{}: the lamps do not read: {error}", file.path.display());
+            Lamps::default()
+        });
         let mut pool = Pool::new();
         pool.add(bundle.clone());
         pool.add(Bundle::parse(&self.textures)?);
@@ -172,7 +179,7 @@ impl Source {
             None
         });
         let hinged = crate::hinges::read(&bundle, &pool, spec, &vehicle);
-        Ok(SourceCar { vehicle, textures, paints: car_paints, collision, hinged })
+        Ok(SourceCar { vehicle, textures, paints: car_paints, collision, hinged, lamps })
     }
 }
 

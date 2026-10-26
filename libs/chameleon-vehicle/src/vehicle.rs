@@ -102,7 +102,7 @@ fn renderable_meshes(pool: &Pool, surfaces: &Surfaces, lod: u64) -> Result<Lod> 
         if !in_range {
             return Err(Error::Spec(format!("a mesh of renderable {lod:016X} indexes past its vertices")));
         }
-        meshes.push(PartMesh { vertices, triangles, appearance });
+        meshes.extend(crate::lamps::split_lenses(PartMesh { vertices, triangles, appearance }));
     }
     Ok(meshes)
 }

@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the conversion changes what it writes for the same input.
-const CONVERSION: u32 = 8;
+const CONVERSION: u32 = 9;
 pub const FILE: &str = ".import-stamp";
 
 /// The fingerprint for these settings and the install: the settings, the converter's version, and the names, sizes and

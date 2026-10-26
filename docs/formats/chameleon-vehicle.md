@@ -43,8 +43,8 @@ The left and right wheels import the same four models. The models are authored a
 towards +x); the right wheel is the mirror image, applied at draw time **[unconfirmed: the mirroring itself]**. The
 hubs sit at the height of the tyre radius, so the car's origin is on the ground.
 
-Other data in the spec (a table of 26 name-hashed entries at 0x280, 4 x 4 matrices from 0x4A0 that look like lamp and
-exhaust locators) is not decoded.
+The spec also holds the table of **locator groups** (lamp, tail pipe and other placements, from 0x4A0 in the Porsche) and a
+table of behaviour records at 0x280; the lamps are in [chameleon-lamps.md](chameleon-lamps.md).
 
 ## The car's name
 
@@ -68,4 +68,6 @@ diffuse colour; `Alpha1bit` in the technique means the diffuse alpha cuts the su
 Animations (steering wheel, spoiler, the damage animations), most damage data (the hinged parts and the skeleton are read:
 [chameleon-hinged-parts.md](chameleon-hinged-parts.md)), the convex hulls and the physics
 body objects (the collision mesh is read: [chameleon-collision.md](chameleon-collision.md)), vehicle sound, lamp and exhaust locators, the engine and handling objects, the rear-view
+Skeleton and animations (steering wheel, spoiler, bonnet and mirror hinges), damage data, the convex hulls and the physics
+body objects (the collision mesh is read: [chameleon-collision.md](chameleon-collision.md)), vehicle sound, the exhaust locators (the lamp locators are read: [chameleon-lamps.md](chameleon-lamps.md)), the engine and handling objects, the rear-view
 mirror and cockpit, and the low-detail bundles.
