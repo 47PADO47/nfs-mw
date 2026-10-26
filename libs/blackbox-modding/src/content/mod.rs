@@ -19,6 +19,7 @@ mod racers;
 #[cfg(test)]
 mod racers_tests;
 mod scenery;
+mod shared_sound;
 #[cfg(test)]
 mod scenery_tests;
 mod stats;
@@ -35,6 +36,7 @@ pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, p
 pub use music::{MusicSection, parse as parse_music};
 pub use racers::{RacersSection, parse as parse_racers};
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};
+pub use shared_sound::SharedSound;
 pub use stats::{Drive, Stats};
 
 /// The folder inside a mod that holds one car manifest per car.
