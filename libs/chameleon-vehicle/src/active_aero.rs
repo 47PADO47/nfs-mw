@@ -74,10 +74,41 @@ impl SpoilerMotion {
     }
 }
 
+/// A bone below the spoiler's that the same animation moves (the side flaps of the Panamera): it moves with the clock of the
+/// spoiler and rides on the spoiler's own movement.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AttachedMotion {
+    pub bone: usize,
+    /// The bone it hangs from: the spoiler's, or another attached one.
+    pub parent: usize,
+    /// As [`SpoilerMotion::translation`] and [`SpoilerMotion::rotation`]: between the first key and the last, in the parent's
+    /// frame.
+    pub translation: [f32; 3],
+    pub rotation: [f32; 4],
+}
+
 /// The spoiler motion of the car in `bundle`: the animation state that moves the skeleton's `SpoilerHinge`, opened by a
 /// speed condition (`>`) and closed by another (`<`) as the state machine lists them (see [`crate::hsm`]). `None` for a car
 /// without one, and for a state with timed transitions or conditions on other inputs, which are not decoded.
 pub fn spoiler_motion(bundle: &Bundle, skeleton: &Skeleton) -> Option<SpoilerMotion> {
+    spoiler_state(bundle, skeleton).map(|(motion, _)| motion)
+}
+
+/// The other bones the spoiler's animation moves that hang from the spoiler, parents before children.
+pub fn attached_motions(bundle: &Bundle, skeleton: &Skeleton) -> Vec<AttachedMotion> {
+    let Some((spoiler, block)) = spoiler_state(bundle, skeleton) else { return Vec::new() };
+    let mut out: Vec<AttachedMotion> = Vec::new();
+    for bone in (0..skeleton.bones.len()).filter(|&bone| bone != spoiler.bone) {
+        let Some(parent) = skeleton.bones[bone].parent else { continue };
+        let hangs = parent == spoiler.bone || out.iter().any(|attached| attached.bone == parent);
+        let Some((translation, rotation, _)) = movement(&block, bone).filter(|_| hangs) else { continue };
+        out.push(AttachedMotion { bone, parent, translation, rotation });
+    }
+    out
+}
+
+/// The spoiler's motion and the block of its animation.
+fn spoiler_state(bundle: &Bundle, skeleton: &Skeleton) -> Option<(SpoilerMotion, Vec<u8>)> {
     let bone = skeleton.find("SpoilerHinge")?;
     let kind = ResourceKind::Animation.id();
     for index in (0..bundle.entries().len()).filter(|&at| bundle.entries()[at].kind == HSM_KIND) {
@@ -93,15 +124,11 @@ pub fn spoiler_motion(bundle: &Bundle, skeleton: &Skeleton) -> Option<SpoilerMot
                 continue;
             };
             let animation = bundle.resource(at).ok()?;
-            let Some((translation, rotation, seconds)) = movement(&animation.blocks[0], bone) else { continue };
-            return Some(SpoilerMotion {
-                bone,
-                translation,
-                rotation,
-                seconds,
-                above_mph: open.value,
-                below_mph: close.value,
-            });
+            let block = &animation.blocks[0];
+            let Some((translation, rotation, seconds)) = movement(block, bone) else { continue };
+            let motion =
+                SpoilerMotion { bone, translation, rotation, seconds, above_mph: open.value, below_mph: close.value };
+            return Some((motion, block.clone()));
         }
     }
     None

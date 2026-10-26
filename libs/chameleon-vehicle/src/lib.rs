@@ -26,7 +26,7 @@ mod stats_tests;
 #[cfg(test)]
 mod tests;
 
-pub use active_aero::{SpoilerMotion, spoiler_motion};
+pub use active_aero::{AttachedMotion, SpoilerMotion, attached_motions, spoiler_motion};
 pub use appearance::{Appearance, LampEnd, LampSide, LampSurface, SurfaceKind};
 pub use collision::{PolySoup, load_poly_soup};
 pub use error::{Error, Result};

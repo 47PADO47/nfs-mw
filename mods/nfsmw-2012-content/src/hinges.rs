@@ -11,7 +11,9 @@
 
 use blackbox_solid::{GroupSource, SolidSource, Vertex};
 use chameleon_bundle::{Bundle, Pool};
-use chameleon_vehicle::{HingedPart, Skeleton, SpoilerMotion, Vehicle, body_parts, hinged_parts, spoiler_motion};
+use chameleon_vehicle::{
+    HingedPart, Skeleton, SpoilerMotion, Vehicle, attached_motions, body_parts, hinged_parts, spoiler_motion,
+};
 
 use crate::fit::{Fit, to_car_space};
 
@@ -41,6 +43,8 @@ pub struct Part {
     pub mass_kg: f32,
     /// How the part moves with the car's speed, for the active spoiler.
     pub active: Option<SpoilerMotion>,
+    /// The name of the part it hangs from (the spoiler, for a flap the spoiler's animation moves).
+    pub parent: Option<String>,
 }
 
 /// The name of the bone of an active spoiler, and the zone code (the rear) it is given when the car has no record of it.
@@ -56,17 +60,35 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
     let skeleton = Skeleton::read(bundle)?;
     let motion = spoiler_motion(bundle, &skeleton);
     let spoiler = motion.and_then(|_| skeleton.find(SPOILER_BONE));
-    if let Some(bone) = spoiler.filter(|&bone| parts.iter().all(|part| part.bone != bone)) {
+    // The spoiler and the bones that hang from it and move with it, each with the motion it plays.
+    let mut moving: Vec<(usize, SpoilerMotion, Option<usize>)> = Vec::new();
+    if let (Some(motion), Some(bone)) = (motion, spoiler) {
+        moving.push((bone, motion, None));
+        for attached in attached_motions(bundle, &skeleton) {
+            let own = SpoilerMotion {
+                bone: attached.bone,
+                translation: attached.translation,
+                rotation: attached.rotation,
+                ..motion
+            };
+            moving.push((attached.bone, own, Some(attached.parent)));
+        }
+    }
+    for (at, (bone, _, _)) in moving.iter().enumerate() {
+        if parts.iter().any(|part| part.bone == *bone) {
+            continue;
+        }
         parts.push(HingedPart {
-            name: SPOILER_BONE.to_owned(),
-            bone,
+            name: if at == 0 { SPOILER_BONE.to_owned() } else { attached_name(&moving[at].1, at) },
+            bone: *bone,
             zone: REAR_ZONE,
-            centre: skeleton.bones[bone].position,
+            centre: skeleton.bones[*bone].position,
             limits: [[0.0; 2]; 3],
             mass_kg: SPOILER_MASS_KG,
             thresholds: Vec::new(),
         });
     }
+    let active_bones: Vec<usize> = moving.iter().map(|(bone, _, _)| *bone).collect();
     let levels = body_parts(pool, spec, &skeleton, &parts).ok()?;
     let finest = levels.into_iter().next()?;
     let body = vehicle.body.first()?;
@@ -77,7 +99,7 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
     }
     let mut counts = vec![0usize; parts.len()];
     finest.iter().flatten().flatten().for_each(|&part| counts[part] += 1);
-    let keep: Vec<usize> = (0..parts.len()).filter(|&at| counts[at] > 0 && usable(&parts[at], spoiler)).collect();
+    let keep: Vec<usize> = (0..parts.len()).filter(|&at| counts[at] > 0 && usable(&parts[at], &active_bones)).collect();
     if keep.is_empty() {
         return None;
     }
@@ -87,6 +109,9 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
         .into_iter()
         .map(|at| {
             let part = &parts[at];
+            let moves = moving.iter().find(|(bone, _, _)| *bone == part.bone);
+            let parent =
+                moves.and_then(|(_, _, parent)| *parent).and_then(|bone| parts.iter().find(|known| known.bone == bone));
             Part {
                 name: part.name.clone(),
                 zone: part.zone,
@@ -94,7 +119,8 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 limits: part.limits,
                 thresholds: part.thresholds.clone(),
                 mass_kg: part.mass_kg,
-                active: motion.filter(|_| Some(part.bone) == spoiler),
+                active: moves.map(|(_, motion, _)| *motion),
+                parent: parent.map(|known| label(&known.name)),
             }
         })
         .collect();
@@ -102,8 +128,18 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
 }
 
 /// A part the game can play: a zone it knows and a range to swing through, or the active spoiler (`spoiler` is its bone).
-fn usable(part: &HingedPart, spoiler: Option<usize>) -> bool {
-    zones(part.zone).is_some() && (swing(&part.limits).is_some() || Some(part.bone) == spoiler)
+fn usable(part: &HingedPart, active_bones: &[usize]) -> bool {
+    zones(part.zone).is_some() && (swing(&part.limits).is_some() || active_bones.contains(&part.bone))
+}
+
+/// The name of a flap the spoiler's animation moves: which side it moves to (the engine's x is to the left), else its number.
+fn attached_name(motion: &SpoilerMotion, number: usize) -> String {
+    let [x, y, z] = motion.translation;
+    match (x.abs() > y.abs().max(z.abs()), x > 0.0) {
+        (true, true) => "SpoilerFlapLeft".to_owned(),
+        (true, false) => "SpoilerFlapRight".to_owned(),
+        (false, _) => format!("SpoilerFlap{number}"),
+    }
 }
 
 /// The zones whose damage moves a part of `code`: its own and the corners beside it. The file names one zone per part
@@ -267,6 +303,9 @@ pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
             let list: Vec<String> = stages.iter().map(|s| format!("{s:.4}")).collect();
             text.push_str(&format!("stages = [{}]\n", list.join(", ")));
         }
+        if let Some(parent) = &part.parent {
+            text.push_str(&format!("parent = \"{parent}\"\n"));
+        }
         if let Some(motion) = part.active {
             text.push_str(&active_table(&motion, fit));
         }
@@ -299,158 +338,4 @@ fn active_table(motion: &SpoilerMotion, fit: &Fit) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn vertex(x: f32) -> Vertex {
-        Vertex { position: [x, 0.0, 0.0], normal: [0.0, 0.0, 1.0], color_bgra: [255; 4], uv: [x, 0.0] }
-    }
-
-    fn body() -> SolidSource {
-        // One group of four triangles on five vertices; the middle two belong to part 0 and part 1.
-        let vertices = (0..5).map(|n| vertex(n as f32)).collect();
-        let indices = vec![0, 1, 2, 1, 2, 3, 2, 3, 4, 0, 3, 4];
-        let mut group = GroupSource::new(vertices, indices);
-        group.flags = 7;
-        let mut solid = SolidSource::new("CAR_KIT00_BODY_A", vec![group]);
-        solid.texture_hashes = vec![5];
-        solid
-    }
-
-    #[test]
-    fn a_cut_keeps_every_triangle_exactly_once() {
-        let classes = vec![vec![None, Some(0), Some(1), None]];
-        let stems = vec!["CAR_KIT00_BONNET".to_owned(), "CAR_KIT00_DOOR".to_owned()];
-        let (rest, parts) = split(&body(), &stems, 'A', &classes).unwrap();
-        let triangles = |solid: &SolidSource| solid.groups.iter().map(|g| g.indices.len() / 3).sum::<usize>();
-        assert_eq!(triangles(&rest), 2);
-        let bonnet = parts[0].as_ref().unwrap();
-        assert_eq!((bonnet.name.as_str(), triangles(bonnet)), ("CAR_KIT00_BONNET_A", 1));
-        assert_eq!(triangles(parts[1].as_ref().unwrap()), 1);
-        let group = &bonnet.groups[0];
-        assert_eq!(group.flags, 7, "the material of the group is kept");
-        assert_eq!(bonnet.texture_hashes, vec![5]);
-        let xs: Vec<f32> = group.indices.iter().map(|&i| group.vertices[usize::from(i)].position[0]).collect();
-        assert_eq!(xs, vec![1.0, 2.0, 3.0], "the triangle keeps its corners");
-        assert_eq!(group.vertices.len(), 3, "only the vertices it uses");
-    }
-
-    #[test]
-    fn a_part_that_owns_nothing_has_no_solid_and_a_misaligned_cut_is_refused() {
-        let stems = vec!["A".to_owned(), "B".to_owned()];
-        let (_, parts) = split(&body(), &stems, 'B', &[vec![None, Some(0), None, None]]).unwrap();
-        assert!(parts[0].is_some() && parts[1].is_none());
-        assert!(split(&body(), &stems, 'A', &[vec![None; 3]]).is_none());
-        assert!(split(&body(), &stems, 'A', &[]).is_none());
-    }
-
-    #[test]
-    fn part_names_become_solid_stems() {
-        assert_eq!(stem("BonnetHinge"), "BONNET");
-        assert_eq!(stem("FrontLeftDoorHinge"), "FRONT_LEFT_DOOR");
-        assert_eq!(stem("LeftMirrorHinge1"), "LEFT_MIRROR1");
-        assert_eq!(stem("Hinge"), "HINGE");
-    }
-
-    #[test]
-    fn the_swing_is_the_largest_end_of_the_widest_axis() {
-        // The 911's bonnet turns about x, to -15; its left mirror about y, to 15; its doors about z, to 1.
-        assert_eq!(swing(&[[-15.0, 0.0], [0.0, 0.0], [0.0, 0.0]]), Some((0, -15.0)));
-        assert_eq!(swing(&[[0.0, 0.0], [-5.0, 15.0], [-15.0, 15.0]]), Some((1, 15.0)));
-        assert_eq!(swing(&[[0.0, 0.0], [-15.0, 5.0], [-15.0, 15.0]]), Some((1, -15.0)));
-        assert_eq!(swing(&[[0.0, 0.0], [0.0, 0.0], [-1.0, 1.0]]), Some((2, 1.0)));
-        assert_eq!(swing(&[[0.0; 2]; 3]), None);
-    }
-
-    #[test]
-    fn corner_zones_reach_the_parts_beside_them() {
-        assert_eq!(zones(1), Some(&["front", "front_left", "front_right"][..]));
-        assert_eq!(zones(5), Some(&["front_left"][..]));
-        assert_eq!(zones(0), None);
-        assert_eq!(zones(9), None);
-    }
-
-    #[test]
-    fn the_manifest_table_carries_the_swing_in_car_space() {
-        use crate::fit::Layout;
-        let layout = Layout { wheelbase: 2.6, x_mid: 0.0, track: 0.8, hub_z: 0.35, radius: 0.35 };
-        let part = Part {
-            name: "BonnetHinge".into(),
-            zone: 1,
-            pivot: [-0.7, 0.88, 0.74],
-            limits: [[-15.0, 0.0], [0.0; 2], [0.0; 2]],
-            thresholds: vec![0.5, 0.04],
-            mass_kg: 50.0,
-            active: None,
-        };
-        let hinged = Hinged { parts: vec![part], classes: Vec::new() };
-        let text = manifest_tables(&hinged, &["CAR_KIT00_BONNET".into()], &Fit::own(layout));
-        let table: toml::Table = toml::from_str(&text).unwrap();
-        let entry = &table["damage_parts"][0];
-        assert_eq!(entry["name"].as_str(), Some("Bonnet"));
-        assert_eq!(entry["angle"].as_float(), Some(-15.0));
-        // The lateral axis (2012 x, to the left) is the game's y.
-        assert_eq!(entry["axis"][1].as_float(), Some(1.0));
-        assert_eq!(entry["pivot"][0].as_float(), Some(0.74), "forward is x");
-        assert_eq!(entry["stages"][0].as_float(), Some(0.04), "stages are sorted");
-        assert_eq!(entry["mass_kg"].as_float(), Some(50.0), "the part's own mass is the mass of what falls off");
-        assert!(entry.get("detach_at").is_none(), "the game's default ladder rule decides when it falls off");
-    }
-
-    #[test]
-    fn an_active_spoiler_writes_its_movement_and_needs_no_damage_swing() {
-        use crate::fit::Layout;
-        let layout = Layout { wheelbase: 2.6, x_mid: 0.0, track: 0.8, hub_z: 0.35, radius: 0.35 };
-        let half = 15f32.to_radians();
-        let motion = SpoilerMotion {
-            bone: 3,
-            translation: [0.0, 0.02, -0.07],
-            rotation: [half.sin(), 0.0, 0.0, half.cos()],
-            seconds: 0.612,
-            above_mph: 70.0,
-            below_mph: 40.0,
-        };
-        let part = Part {
-            name: "SpoilerHinge".into(),
-            zone: 2,
-            pivot: [0.0, 0.78, -1.83],
-            limits: [[0.0; 2]; 3],
-            thresholds: Vec::new(),
-            mass_kg: 30.0,
-            active: Some(motion),
-        };
-        let hinged = Hinged { parts: vec![part.clone()], classes: Vec::new() };
-        let text = manifest_tables(&hinged, &["CAR_KIT00_SPOILER".into()], &Fit::own(layout));
-        let table: toml::Table = toml::from_str(&text).unwrap();
-        let entry = &table["damage_parts"][0];
-        assert_eq!((entry["name"].as_str(), entry["angle"].as_float()), (Some("Spoiler"), Some(0.0)));
-        let active = &entry["active"];
-        // The engine's up (+y) is the game's up (+z); back (-z) is -x.
-        assert_eq!(active["offset"][0].as_float(), Some(-0.07));
-        assert_eq!(active["offset"][2].as_float(), Some(0.02));
-        // The lateral axis (2012 x) is the game's y; the angle is kept.
-        assert_eq!(active["rotation_axis"][1].as_float(), Some(1.0));
-        assert!((active["rotation_deg"].as_float().unwrap() - 30.0).abs() < 1e-3);
-        assert_eq!((active["above_mph"].as_float(), active["below_mph"].as_float()), (Some(70.0), Some(40.0)));
-        assert_eq!(active["seconds"].as_float(), Some(0.612));
-        // Without a movement, a part with no swing is not written at all.
-        let still = Hinged { parts: vec![Part { active: None, ..part }], classes: Vec::new() };
-        assert!(manifest_tables(&still, &["CAR_KIT00_SPOILER".into()], &Fit::own(layout)).is_empty());
-    }
-
-    #[test]
-    #[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
-    fn the_911_has_hinged_parts_and_an_active_spoiler() {
-        let Some(dir) = std::env::var_os("MW2012_GAME_DIR") else { return };
-        let source = crate::source::Source::open(std::path::Path::new(&dir)).unwrap();
-        let file = source.cars().iter().find(|car| car.number == 1085007).unwrap();
-        let car = source.load(file).unwrap();
-        let hinged = car.hinged.as_ref().expect("the 911 has hinged parts");
-        let names: Vec<&str> = hinged.parts.iter().map(|part| part.name.as_str()).collect();
-        assert_eq!(hinged.parts.len(), 8, "{names:?}");
-        let spoiler = hinged.parts.iter().find(|part| part.name == "SpoilerHinge").expect("the spoiler");
-        let motion = spoiler.active.expect("it moves");
-        assert_eq!((motion.above_mph, motion.below_mph), (70.0, 40.0));
-        assert!(hinged.parts.iter().filter(|part| part.active.is_some()).count() == 1);
-    }
-}
+mod tests;
