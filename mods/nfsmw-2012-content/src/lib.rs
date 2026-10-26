@@ -30,6 +30,7 @@ mod names;
 pub mod nitrous;
 mod paints;
 pub mod performance;
+mod pipes;
 mod sample;
 mod shared;
 mod sounds;

@@ -1,9 +1,9 @@
-//! The markers a converted car carries, derived from its own body.
+//! The markers a converted car carries.
 //!
-//! The game starts the nitrous flames at the markers `LEFT_EXHAUST` and `RIGHT_EXHAUST` of the body solid. The 2012 files
-//! have locators for the tail pipes, but their table is not decoded (`docs/formats/chameleon-customization.md`), so the
-//! pipes are put where tail pipes sit on a car of this body: at the rear face, low, a little inside the corners. This is
-//! an approximation made from the car's own shape; it is not the 2012 game's data.
+//! The game starts the nitrous flames at the markers `EXHAUST`, `LEFT_EXHAUST` and `RIGHT_EXHAUST` of the body solid. The
+//! pipes come from the car's own locators (`pipes.rs`); [`tail_pipes`] is only the fallback for a car whose bundle has no
+//! lamp and effect records at all, and puts the pipes where tail pipes sit on a car of this body: at the rear face, low,
+//! a little inside the corners. That is an approximation made from the car's own shape, not the 2012 game's data.
 //!
 //! The 2012 body has no mount for an aftermarket spoiler or roof scoop (the game has none to offer), so none is made.
 //!
@@ -39,9 +39,9 @@ const CENTRE_BAND: f32 = 0.05;
 
 /// One lamp: where it is in the game's car space and the way it shines (a unit vector).
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct Spot {
-    at: [f32; 3],
-    shines: [f32; 3],
+pub(crate) struct Spot {
+    pub(crate) at: [f32; 3],
+    pub(crate) shines: [f32; 3],
 }
 
 /// The lamp markers of a car: the head lamps, the brake lamps and the centre brake lamp, in car space (`to_car` turns a
@@ -114,7 +114,7 @@ fn unit(v: [f32; 3], front: bool) -> [f32; 3] {
     [v[0] / length, v[1] / length, v[2] / length]
 }
 
-fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
+pub(crate) fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
     ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
 }
 
@@ -142,7 +142,7 @@ fn sided<'a>(spots: &[Spot], left: &'a str, right: &'a str, centre: Option<&'a s
 }
 
 /// A lamp marker: the z axis is the way the lamp shines, the x axis points up, as on the game's own cars.
-fn marker_at(name: &str, spot: Spot) -> PositionMarker {
+pub(crate) fn marker_at(name: &str, spot: Spot) -> PositionMarker {
     let z = spot.shines;
     let dot = z[2];
     let up = [-dot * z[0], -dot * z[1], 1.0 - dot * z[2]];
@@ -211,7 +211,7 @@ mod tests {
                 entry(4, 6, [1.0, 0.45, 0.13, 1.0]),
                 entry(4, 3, [1.0; 4]),
             ],
-            lights: Vec::new(),
+            ..Default::default()
         }
     }
 

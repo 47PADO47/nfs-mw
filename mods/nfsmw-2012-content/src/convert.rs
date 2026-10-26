@@ -17,6 +17,7 @@ use chameleon_vehicle::{LampEnd, LampSide, LampSurface, Lod, PartMesh, SurfaceKi
 use crate::fit::{Fit, to_car_space};
 use crate::hinges;
 use crate::markers;
+use crate::pipes;
 use crate::source::SourceCar;
 use crate::textures::Palette;
 
@@ -64,7 +65,7 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
     let triangles = finest.iter().map(|mesh| mesh.triangles.len()).sum();
     let body_points: Vec<[f32; 3]> =
         finest.iter().flat_map(|mesh| mesh.vertices.iter().map(|v| body(v.position))).collect();
-    let mut body_marks = markers::tail_pipes(&body_points);
+    let mut body_marks = pipes::for_body(&car.lamps, &body, &body_points);
     body_marks.extend(markers::lamp_markers(&car.lamps, &body));
     let body_markers = |_: usize| body_marks.clone();
     add_solids(

@@ -22,6 +22,7 @@ use crate::vehicle::PartMesh;
 const VFX_TYPE: &str = "Genesys.Gen.VehicleVfxBehaviour";
 const CORONA_TYPE: &str = "Genesys.Gen.VehicleVfxBehaviour.Corona";
 const LIGHT_TYPE: &str = "Genesys.Gen.VehicleVfxBehaviour.Light";
+const SPOT_TYPE: &str = "Genesys.Gen.VehicleVfxBehaviour.SpotEffect";
 
 /// Spec header: number of groups, offset of their ids (u32 each), offset of their entries (12 bytes each).
 const GROUP_COUNT_AT: usize = 0x1C;
@@ -73,12 +74,25 @@ pub struct LampEntry {
     pub level: f32,
 }
 
+/// One spot effect record of the car's `VehicleVfxBehaviour`: a particle effect played at a locator group while a bit of
+/// the vehicle's state word is set. The tail pipes are the groups of the nitrous effects (bits 8 and 9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpotEffect {
+    /// The locator group the effect plays at.
+    pub group: u32,
+    /// Which bit of the vehicle's state word starts the effect.
+    pub state_bit: u16,
+    /// The effect is also played at the mirror image of each locator of the group (byte +0x1D).
+    pub mirrored: bool,
+}
+
 /// The locators and lamp records of a car.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Lamps {
     pub groups: Vec<LocatorGroup>,
     pub coronas: Vec<LampEntry>,
     pub lights: Vec<LampEntry>,
+    pub spot_effects: Vec<SpotEffect>,
 }
 
 impl Lamps {
@@ -101,7 +115,8 @@ pub fn read_lamps(bundle: &Bundle) -> Result<Lamps> {
     };
     let coronas = entries(&object, CORONA_TYPE, 0x50, Layout::Corona)?;
     let lights = entries(&object, LIGHT_TYPE, 0x40, Layout::Light)?;
-    Ok(Lamps { groups, coronas, lights })
+    let spot_effects = spots(&object)?;
+    Ok(Lamps { groups, coronas, lights, spot_effects })
 }
 
 fn word(block: &[u8], at: usize) -> Result<u32> {
@@ -170,6 +185,19 @@ fn entries(object: &Object, name: &str, size: usize, layout: Layout) -> Result<V
             tint: object.floats::<4>(at + 0x10)?,
             level: object.f32(at + 0x34)?,
         });
+    }
+    Ok(out)
+}
+
+/// The spot effect records: group id at +0x14, state bit at +0x18, a mirror flag at +0x1D.
+fn spots(object: &Object) -> Result<Vec<SpotEffect>> {
+    let mut out = Vec::new();
+    for at in object.all(SPOT_TYPE) {
+        if at + 0x20 > object.main.len() {
+            return Err(Error::Spec("a spot effect record runs past its object".into()));
+        }
+        let flag = object.main[at + 0x1D];
+        out.push(SpotEffect { group: object.u32(at + 0x14)?, state_bit: object.u16(at + 0x18)?, mirrored: flag == 1 });
     }
     Ok(out)
 }

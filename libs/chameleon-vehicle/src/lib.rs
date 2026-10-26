@@ -28,7 +28,7 @@ pub use appearance::{Appearance, LampEnd, LampSide, LampSurface, SurfaceKind};
 pub use collision::{PolySoup, load_poly_soup};
 pub use error::{Error, Result};
 pub use hinged::{HingedPart, hinged_parts};
-pub use lamps::{LampEntry, Lamps, Locator, LocatorGroup, read_groups, read_lamps, split_lenses};
+pub use lamps::{LampEntry, Lamps, Locator, LocatorGroup, SpotEffect, read_groups, read_lamps, split_lenses};
 pub use name::vehicle_name;
 pub use paint::{VehiclePaint, paints};
 pub use skeleton::{Bone, Skeleton, bone_hash};
