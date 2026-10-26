@@ -35,6 +35,8 @@ pub struct Part {
     pub pivot: [f32; 3],
     pub limits: [[f32; 2]; 3],
     pub thresholds: Vec<f32>,
+    /// The part's mass in kg: the mass of the body it becomes when it falls off.
+    pub mass_kg: f32,
 }
 
 /// Read the hinged parts of the car in `bundle` and classify the triangles of the finest body level of `vehicle`. `None`
@@ -68,6 +70,7 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 pivot: skeleton.bones[part.bone].position,
                 limits: part.limits,
                 thresholds: part.thresholds.clone(),
+                mass_kg: part.mass_kg,
             }
         })
         .collect();
@@ -234,6 +237,7 @@ pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
         text.push_str(&format!("zones = [{}]\n", zone_list.join(", ")));
         text.push_str(&format!("pivot = [{:.5}, {:.5}, {:.5}]\n", pivot[0], pivot[1], pivot[2]));
         text.push_str(&format!("axis = [{:.1}, {:.1}, {:.1}]\nangle = {angle:.2}\n", axis[0], axis[1], axis[2]));
+        text.push_str(&format!("mass_kg = {:.1}\n", part.mass_kg.clamp(0.5, 5000.0)));
         if !stages.is_empty() {
             let list: Vec<String> = stages.iter().map(|s| format!("{s:.4}")).collect();
             text.push_str(&format!("stages = [{}]\n", list.join(", ")));
@@ -324,6 +328,7 @@ mod tests {
             pivot: [-0.7, 0.88, 0.74],
             limits: [[-15.0, 0.0], [0.0; 2], [0.0; 2]],
             thresholds: vec![0.5, 0.04],
+            mass_kg: 50.0,
         };
         let hinged = Hinged { parts: vec![part], classes: Vec::new() };
         let text = manifest_tables(&hinged, &["CAR_KIT00_BONNET".into()], &Fit::own(layout));
@@ -335,5 +340,7 @@ mod tests {
         assert_eq!(entry["axis"][1].as_float(), Some(1.0));
         assert_eq!(entry["pivot"][0].as_float(), Some(0.74), "forward is x");
         assert_eq!(entry["stages"][0].as_float(), Some(0.04), "stages are sorted");
+        assert_eq!(entry["mass_kg"].as_float(), Some(50.0), "the part's own mass is the mass of what falls off");
+        assert!(entry.get("detach_at").is_none(), "the game's default ladder rule decides when it falls off");
     }
 }
