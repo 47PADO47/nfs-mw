@@ -54,6 +54,7 @@ seconds = 0.6                         # the whole movement takes this long
 | `detach_at` | A damage fraction above 0 and at most 1: from there on the part falls off. Left out: the last of its `stages`, but not before 0.5 (a part comes off when the car is heavily damaged, not at the first dent) |
 | `detach` | `false` keeps the part on the car whatever happens, a wreck included. Not with `detach_at` |
 | `mass_kg` | 0.5 to 5000, default 25. The mass of the body the part becomes |
+| `parent` | The name of an earlier part that has an `[damage_parts.active]` table, for a part that has one too: the part rides on its parent's speed movement (the Panamera's side flaps on its spoiler), at the same deployment, before its own movement |
 
 ### `[damage_parts.active]`
 
@@ -114,11 +115,11 @@ of the 2005 game and play no part here); no sparks or smoke are made when it bre
 
 ## The 2012 cars
 
-The cars whose spoiler is a plain speed machine (the 911, the 918 Spyder 2013, the LFA, the SL65, the SLS and the Panamera: 8 bundles,
+The cars whose spoiler is a plain speed state (the 911, the 918 Spyder and its Concept Study, the LFA, the SL65, the SLS, the LP700-4 and the Panamera: 10 bundles,
 [chameleon-active-aero.md](../formats/chameleon-active-aero.md)) get one more part, `Spoiler`, with an `active` table whose
-speeds, time, slide and turn are decoded from the 2012 state machine and animation, and no damage turn. The cars whose
-machines have more states (the Veyron, McLaren, Venom, Huayra, vents, two-stage cars and the Agera) keep their wing at rest:
-their state graphs are not decoded and no value is guessed for them.
+speeds, time, slide and turn are decoded from the 2012 state machine and animation, and no damage turn; the Panamera's two side flaps are parts of their own that hang from it. The cars whose
+machines have timed transitions or other inputs (the air vents, the Agera, the Veyron, the McLaren, the Venom, the Huayra) keep
+that part at rest: what the data does not state is not guessed.
 
 The [2012 mod](nfsmw-2012-content.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data.
 A 2012 part turns through a few degrees at most, so its stages are small steps. The mod writes the part's own mass and no
