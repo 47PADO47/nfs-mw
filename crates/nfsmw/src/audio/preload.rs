@@ -42,8 +42,7 @@ impl Audio {
         if self.failed.as_ref().is_some_and(|(failed, levels)| failed == car && *levels == upgrades) {
             return;
         }
-        let Ok(database) = self.database() else { return };
-        let Ok(set) = nfsmw_data::sound::car_sound(&database, car, upgrades) else { return };
+        let Ok(set) = self.sound_set(car, upgrades) else { return };
         self.preload_sound_set(&set);
     }
 

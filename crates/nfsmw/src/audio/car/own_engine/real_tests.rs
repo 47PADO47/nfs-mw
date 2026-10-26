@@ -59,11 +59,11 @@ fn the_cars_own_engine_plays_at_every_speed_and_follows_the_rpm_in_the_real_mixe
     let sound = car_mods::engine_sound(&car.folder).expect("the Porsche has engine loops");
     println!("{}: {} layers, idle {} redline {}", car.folder, sound.layers.len(), sound.idle_rpm, sound.redline_rpm);
 
-    // The car's clone sound set is found by the car's folder: the rest of the car's sounds (shifts, turbo, collisions) play.
+    // The car has no record in the sound database: its set is the class-wide defaults, named by the car's folder.
     let database = nfsmw_data::shared::attributes(&dir).unwrap();
-    let set =
-        nfsmw_data::sound::car_sound(&database, "por911carr12", Default::default()).expect("the clone's sound set");
-    assert_eq!(set.car, "sl500");
+    assert!(nfsmw_data::sound::car_sound(&database, "por911carr12", Default::default()).is_err());
+    let set = nfsmw_data::sound::generic_car_sound(&database, "por911carr12").expect("the default sound set");
+    assert_eq!(set.car, "por911carr12");
 
     // Every speed of the car's whole engine is audible.
     let mut audio = Audio::replay(dir, RATE);
@@ -87,4 +87,22 @@ fn the_cars_own_engine_plays_at_every_speed_and_follows_the_rpm_in_the_real_mixe
         (pitch(&render(&mut audio, &mut engine, 0.0)), pitch(&render(&mut audio, &mut engine, 1.0)));
     println!("  one layer: {natural:.1} Hz at its own rpm, {raised:.1} Hz at 1.5 times it");
     assert!((raised / natural - 1.5).abs() < 0.1, "{natural} Hz became {raised} Hz");
+}
+
+#[test]
+#[ignore = "reads the 2005 install (NFSMW_GAME_DIR)"]
+fn the_built_in_engine_is_audible_and_rises_with_the_rpm_in_the_real_mixer() {
+    let Some(game) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = GameDir::open(PathBuf::from(game)).unwrap();
+    let mut audio = Audio::replay(dir, RATE);
+    let mut engine = audio.start_built_in_engine().expect("the built-in loops start");
+    let mut pitches = Vec::new();
+    for fraction in [0.0, 0.25, 0.5, 0.75, 1.0] {
+        let samples = render(&mut audio, &mut engine, fraction);
+        let level = rms(&samples);
+        println!("  {fraction:.2} of the way to redline: rms {level:.3}, pitch {:.1} Hz", pitch(&samples));
+        assert!(level > 0.01, "silent at {fraction}");
+        pitches.push(pitch(&samples));
+    }
+    assert!(pitches.windows(2).all(|pair| pair[1] > pair[0] * 1.1), "the pitch follows the rpm: {pitches:?}");
 }
