@@ -26,6 +26,7 @@ pub use telemetry::CarAudioTelemetry;
 mod contact;
 mod contacts;
 pub(super) mod impacts;
+mod own_engine;
 pub(super) mod transmission;
 pub(super) mod tyres;
 pub use contact::{CarContact, ContactSource, ContactVehicle};
@@ -92,6 +93,8 @@ pub(super) struct CarAudio {
     /// `engineaudio.Master_Vol`.
     master_volume: u32,
     handle: EngineHandle,
+    /// The car's own engine loops, which play instead of the Ginsu voice (`None` for a car without them).
+    own_engine: Option<own_engine::OwnEngine>,
     /// The engine was at the limiter in the last frame (for the log).
     redlining: bool,
     /// The loops that are playing, with the sound each plays.
@@ -267,6 +270,9 @@ impl Audio {
         let mixer = CarMixer::load(&self.dir, dual)
             .map_err(|e| log::warn!("no mixer map, the effects play at their generated levels: {e}"))
             .ok();
+        let own_engine = nfsmw_data::car::mods::engine_sound(name).and_then(|sound| {
+            self.start_own_engine(sound).map_err(|e| log::warn!("{name}: its own engine sound is not used: {e}")).ok()
+        });
         let aems = AemsLayer::load(self, &loaded.sound).map_err(|e| log::warn!("no sample layer for {name}: {e}")).ok();
         Ok(CarAudio {
             levels: Levels::unmixed(),
@@ -280,6 +286,7 @@ impl Audio {
             effects: EffectsMixer::new(&tuning),
             sound: loaded.sound,
             handle,
+            own_engine,
             redlining: false,
             loops: HashMap::new(),
             commands: Vec::new(),

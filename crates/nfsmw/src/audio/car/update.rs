@@ -40,16 +40,21 @@ impl Audio {
         car.levels.environment.wet_supported = wet_supported;
         car.handle.set_wet_gain(car.levels.environment.ginsu_wet as f32 / 32767.0);
         let levels = car.levels;
+        let own = car.own_engine.is_some();
+        if let Some(own_engine) = car.own_engine.as_mut() {
+            own_engine.update(input.rpm_pct, levels.engine_volume * out.accel_volume.max(out.decel_volume));
+        }
+        let ginsu = if own { 0.0 } else { 1.0 };
         car.handle.set_tick(
             EngineMix {
                 accel: LoopMix {
                     frequency: out.accel_loop.frequency,
-                    volume: out.accel_volume * levels.engine_volume,
+                    volume: out.accel_volume * levels.engine_volume * ginsu,
                     pitch: out.accel_loop.playback_rate * levels.engine_pitch,
                 },
                 decel: LoopMix {
                     frequency: out.decel_loop.frequency,
-                    volume: out.decel_volume * levels.engine_volume,
+                    volume: out.decel_volume * levels.engine_volume * ginsu,
                     pitch: out.decel_loop.playback_rate * levels.engine_pitch,
                 },
                 low_pass_hz: out.low_pass_hz.min(levels.engine_low_pass_hz),
