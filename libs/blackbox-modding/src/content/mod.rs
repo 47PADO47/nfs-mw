@@ -35,7 +35,7 @@ mod tests;
 
 pub use car::{CarManifest, Role, parse as parse_car};
 pub use customization::{Customization, Finish, Livery, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
-pub use damage_parts::{DEFAULT_MASS_KG, DamagePart, MAX_DAMAGE_PARTS, MAX_STAGES, Zone as DamageZone};
+pub use damage_parts::{Active as ActivePart, DEFAULT_MASS_KG, DamagePart, MAX_DAMAGE_PARTS, MAX_STAGES, Zone as DamageZone};
 pub use engine_curves::{
     Curve as EngineCurve, Input as EngineInput, LayerKind as EngineLayerKind, Pitch as EnginePitch,
 };

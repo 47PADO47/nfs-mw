@@ -68,7 +68,6 @@ fn bad_parts_are_refused() {
         ONE.replace("\"front_left\"", "\"front\""),
         ONE.replace("\"front_left\"", "\"roof\""),
         ONE.replace("axis = [0.0, 2.0, 0.0]", "axis = [0.0, 0.0, 0.0]"),
-        ONE.replace("angle = -15.0", "angle = 0.0"),
         ONE.replace("angle = -15.0", "angle = 270.0"),
         ONE.replace("[0.04, 0.05, 0.5]", "[0.5, 0.05]"),
         ONE.replace("[0.04, 0.05, 0.5]", "[0.5, 1.5]"),
@@ -92,3 +91,45 @@ fn too_many_parts_are_refused() {
     let many: String = (0..=MAX_DAMAGE_PARTS).map(|n| ONE.replace("Bonnet", &format!("Part{n}"))).collect();
     assert!(car(&many).is_err());
 }
+
+const ACTIVE: &str = "
+[damage_parts.active]
+offset = [-0.07, 0.0, 0.02]
+above_mph = 70.0
+below_mph = 40.0
+seconds = 0.6
+";
+
+#[test]
+fn a_part_can_move_with_the_speed() {
+    let part = &car(&format!("{ONE}{ACTIVE}")).unwrap().damage_parts[0];
+    let active = part.active.unwrap();
+    assert_eq!((active.above_mph, active.below_mph, active.seconds), (70.0, 40.0, 0.6));
+    assert_eq!(active.offset, [-0.07, 0.0, 0.02]);
+    assert!(car(ONE).unwrap().damage_parts[0].active.is_none());
+    let no_lower = ACTIVE.replace("below_mph = 40.0\n", "");
+    assert_eq!(car(&format!("{ONE}{no_lower}")).unwrap().damage_parts[0].active.unwrap().below_mph, 70.0);
+}
+
+#[test]
+fn a_part_that_only_moves_with_the_speed_has_no_damage_turn() {
+    let still = ONE.replace("angle = -15.0", "angle = 0.0");
+    assert_eq!(car(&format!("{still}{ACTIVE}")).unwrap().damage_parts[0].angle, 0.0);
+}
+
+#[test]
+fn bad_active_tables_are_refused() {
+    let bad = [
+        ACTIVE.replace("[-0.07, 0.0, 0.02]", "[0.0, 0.0, 0.0]"),
+        ACTIVE.replace("[-0.07, 0.0, 0.02]", "[9.0, 0.0, 0.0]"),
+        ACTIVE.replace("below_mph = 40.0", "below_mph = 80.0"),
+        ACTIVE.replace("above_mph = 70.0", "above_mph = 900.0"),
+        ACTIVE.replace("seconds = 0.6", "seconds = 0.0"),
+        ACTIVE.replace("seconds = 0.6", "seconds = 60.0"),
+        format!("{ACTIVE}colour = 1\n"),
+    ];
+    for table in bad {
+        assert!(car(&format!("{ONE}{table}")).is_err(), "accepted:{table}");
+    }
+}
+
