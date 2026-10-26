@@ -7,9 +7,10 @@ evidence tags see [README.md](../README.md#evidence-tags): **[verified]** is rea
 another source in it, **[exe]** is a string or table of the executable, **[unconfirmed]** is a reading that fits but is not
 proved. No number here is invented: a number that is not in the data is not given.
 
-The 2012 game does **not** use particles or camera data that name the nitrous: the effects are driven by the live value
-`NitrousState.UsingNitrous` (and `InOverdrive`, the punch) of the local player, read by expression strings in Genesys
-objects (kind `0x15`). That is how they are found.
+The 2012 game has no data that is *named* for the nitrous in its particle and camera files. The sounds and the post effects
+are driven by the live value `NitrousState.UsingNitrous` (and `InOverdrive`, the punch) of the local player, read by expression
+strings in Genesys objects (kind `0x15`); the tail pipe particles are driven by a bit of the car's light-state word. That is how
+they are found.
 
 ## Summary
 
@@ -19,7 +20,7 @@ objects (kind `0x15`). That is how they are found.
 | Post effects (vignette, bloom, colour grade) | `POSTFX.BNDL`: a state bound to `UsingNitrous` and one to `InOverdrive`, with keyframes and colour cubes | [verified] values; field names [unconfirmed] |
 | Post effect fades | the sequence of the sound set blends a post effect state in and out | times read, meaning [unconfirmed] |
 | HUD | the `NitrousViewModel` signals in the executable | [exe]; the HUD movies are not read |
-| Tail pipe flames | an effect on the car named by a `RaceCarEffectSequenceItem`; the effect resource is not in any loose bundle | not found |
+| Tail pipe effects (start burst, blue glow, pop-off flame) | `SpotEffect` records of every car name the effects; their emitters, pictures and the glow's colour are in `GLOBALEFFECTS.BNDL` | [verified]: which effect, its emitters, pictures, glow colour; the emitters' programs (rates, lifetimes, speeds) are not decoded |
 | Camera (field of view, shake) | no type or value that names the nitrous | not found |
 | Speed lines, motion blur | no type or value that names the nitrous | not found |
 
@@ -100,6 +101,47 @@ state objects hold the pair 2.0, 1.0 (nitrous and overdrive) next to their expre
 (`blackbox_gfx::FocusFilter`); the 2012 vignette darkens and the bloom and the grade are not controls of the renderer. The
 values are kept here so that a renderer that grows those controls can read them.
 
+## Tail pipe effects **[verified]** (programs not decoded)
+
+The effect id of the sound sequence (`RaceCarEffectSequenceItem`, `0x1B0A3B`) is not what plays the flames; the car does. Each
+car bundle has a `Genesys.Gen.VehicleVfxBehaviour` object (the one that holds the lamps, see
+[chameleon-lamps.md](chameleon-lamps.md)) with `SpotEffect` records: at +0x0C a reference to an effect, at +0x14 a locator
+group (the tail pipes, or another place), at +0x18 a bit of the **light-state word**. The Porsche 911 (`VEH_1085007`) has eight:
+
+| Effect (`GLOBALEFFECTS.BNDL`, kind `0x301`) | Group | Bit | What it is made of (emitters in order) |
+|---|---|---|---|
+| `0x16205B` | pipes | 9 | three smoke puffs (`0x18092F`: a 128 x 128 soft cloud), a flame (`0xF5824`: the 512 x 512 flame sheet), a 128 x 128 flipbook (`0x69DE0`), a second flame |
+| `0x22030B` | pipes | 20 | one emitter, material `0x250D1`: a 256 x 256 soft glow |
+| `0x24F2D` | pipes | 14 | one smoke puff, a flame, the 128 x 128 flipbook, a second flame, and a last emitter with no picture (`Position`, `Velocity`, `Age`, `RecipLifetime`, `Radius`: no colour, **[unconfirmed]** a light) |
+| `0x24F34` | pipes | 8 | three smoke puffs |
+| `0x24F2F` | pipes | 19 | a material of shader `0xF7E12` and two cloud pictures (**[unconfirmed]** heat haze) |
+| `0x24F5A`, `0x14023F` | `0x1401FC` | 12 | other places |
+| `0x220308` | `0x126DFD` | 20 | one smoke emitter (in 6 cars it is listed in the pipes' group too, before `0x22030B`) |
+
+**The bits.** `FUN_0057A5E0` of `NFS13.exe` builds the word each frame **[exe]**. Bit 9 (`0x200`) is set when the vehicle's
+state byte at +0x195B is 1; bit 20 (`0x100000`) when it is 3 and two more conditions hold; bit 14 (`0x4000`) when neither the
+throttle bit nor bit 9 is set and a timer that starts at 2 is running, which the executable restarts at a gear change and
+decrements every frame; bit 8 (`0x100`) when the pedal is pressed. The lamps page read bit 9 as the reverse gear; no car has a
+reverse lamp record and the two screenshots below say otherwise. **[unconfirmed]** reading: the byte is the nitrous state
+(1 lighting, 3 burning), bit 14 the blow-off.
+
+**Looked at the screenshots of the game** (a white Porsche 918, from behind): while the nitrous burns, a blue-white glow sits
+in each pipe, with bloom (effect `0x22030B`); when it lights, an orange-yellow flame bursts from each pipe, with sparks and dust
+(effect `0x16205B`: the flame sheet and the small flipbook). That fits the pictures: the flame sheet is 25 frames of an
+orange fireball in a 5 x 5 grid, and the glow is a grey soft cloud that the effect colours.
+
+**Cars.** 87 of the 93 cars name the same start (`0x16205B`) and pop (`0x24F2D`) effects and a burn effect `0x22030B`; six
+(`122699`, `122706`, `122713`, `510072`, `1085764`, `1467242`) have no pipe effects. The mod takes the three from the first car
+that has them.
+
+**An effect** is a bytecode program per emitter (each emitter starts with the attribute names it keeps: `Position`, `Velocity`,
+`Age`, `RecipLifetime`, `2dAngularVelocity`, `2dRotation`, `Radius`, `Colour`, and `SubUV` for a flipbook), a list of operations
+(`0xEB40...` records with attribute slots) and float constants (ranges written as minimum, maximum, 0.001). The material import of
+each emitter gives its picture. The glow's colour is a constant in its program: (0.0307, 0.521, 0.863, 1.0), the blue seen in
+the screenshot. What this page does **not** have is the meaning of the other constants (spawn rate, lifetime, speed, size over
+life): ranges such as (0.1, 0.2), (0.2, 0.35) and (0.25, 0.3) are there, but which attribute each initialises is not decoded, so
+the mod sets those numbers by eye (see [nitrous-variants.md](../modding/nitrous-variants.md#the-2012-variant)).
+
 ## HUD **[exe]**
 
 `NFS13.exe` has a `NitrousViewModel` (the HUD's data source) with these signals: `NitrousAmount` ("the current nitrous
@@ -110,9 +152,7 @@ so the look of the bar and its flash is unknown.
 
 ## Not found
 
-- **Flames at the tail pipes.** The `RaceCarEffectSequenceItem` of the start sequence names an effect by an id that no loose
-  bundle of the install holds (`GLOBALEFFECTS.BNDL` has 214 `BearEffect` resources, all named by hash). A car's `*_EXHAUST`
-  markers are the only data about the pipes. The mod therefore leaves the 2005 game's own blue flame as it is.
+- **The emitters' numbers.** The effects are found (see above); their spawn, lifetime, speed and size programs are not decoded.
 - **Camera.** The car bundles have `CameraGameplayExternal` (with `Speed_based_movement.High_Speed_Shake`,
   `Acceleration_movement`, `Camera_Roll`) and `CameraGameplayExternalGlobals.LensProperties`; none of them names the nitrous.
   The executable has "The FOV of the Gameplay External camera" and "Max Fov", "Min Fov" in a debug table. A field of view or
