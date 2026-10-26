@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_gfx::Texture;
-use chameleon_vehicle::{Vehicle, find_spec, load, load_texture, vehicle_name};
+use chameleon_vehicle::{Vehicle, VehiclePaint, find_spec, load, load_texture, paints, vehicle_name};
 
 const VEHICLES: &str = "VEHICLES";
 const SHARED_TEXTURES: &str = "VEHICLES/VEHICLETEX.BNDL";
@@ -25,6 +25,8 @@ pub struct SourceCar {
     pub vehicle: Vehicle,
     /// The diffuse textures the car's meshes use, decoded.
     pub textures: HashMap<u64, Texture>,
+    /// The paints the car is offered in, from the colour records of its bundle.
+    pub paints: Vec<VehiclePaint>,
 }
 
 /// An opened 2012 install. The shared bundles stay in memory; each car's bundle is read when it is loaded.
@@ -69,6 +71,7 @@ impl Source {
         let data = std::fs::read(&file.path).with_context(|| format!("reading {}", file.path.display()))?;
         let bundle = Bundle::parse(&data)?;
         let spec = find_spec(&bundle).context("the bundle has no vehicle graphics spec")?;
+        let car_paints = paints(&bundle);
         let mut pool = Pool::new();
         pool.add(bundle.clone());
         pool.add(Bundle::parse(&self.textures)?);
@@ -82,7 +85,7 @@ impl Source {
             }
             textures.insert(id, load_texture(&pool, id)?);
         }
-        Ok(SourceCar { vehicle, textures })
+        Ok(SourceCar { vehicle, textures, paints: car_paints })
     }
 }
 
