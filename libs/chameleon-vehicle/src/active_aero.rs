@@ -144,7 +144,17 @@ mod tests {
 
     #[test]
     fn the_911_goes_up_at_70_and_down_at_40() {
-        let found = strings(&["Porsche_911CarreraS_2012_SpoilerAnimation", "Speed above 70mph", "Spoiler Anim", "904078", "40", "speedinmph", "False", "0.25", "70"]);
+        let found = strings(&[
+            "Porsche_911CarreraS_2012_SpoilerAnimation",
+            "Speed above 70mph",
+            "Spoiler Anim",
+            "904078",
+            "40",
+            "speedinmph",
+            "False",
+            "0.25",
+            "70",
+        ]);
         assert_eq!(speeds(&found), Some((70.0, 40.0)));
     }
 

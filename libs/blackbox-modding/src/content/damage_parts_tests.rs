@@ -132,4 +132,3 @@ fn bad_active_tables_are_refused() {
         assert!(car(&format!("{ONE}{table}")).is_err(), "accepted:{table}");
     }
 }
-
