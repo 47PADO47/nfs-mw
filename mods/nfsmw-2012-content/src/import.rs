@@ -15,7 +15,7 @@ use crate::emit::{CarEntry, CarFiles, ModFolder};
 use crate::fit::{Fit, measure};
 use crate::source::{CarFile, Source};
 use crate::stats::ImportedStats;
-use crate::{convert, names, paints, sounds};
+use crate::{convert, names, nitrous, paints, sounds};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
 const MAX_THREADS: usize = 6;
@@ -73,6 +73,7 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     let folder = ModFolder::create(out)?;
     let results: Vec<Result<ImportedCar>> =
         wanted.par_iter().map(|car| import_car(source, car, config, &folder)).collect();
+    write_nitrous(source, out);
     let mut report = Report::default();
     for (car, result) in wanted.iter().zip(results) {
         match result {
@@ -81,6 +82,18 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
         }
     }
     Ok(report)
+}
+
+/// The nitrous sounds and profile of the 2012 game, as the variant the 2005 game's nitrous option offers. A failure only costs
+/// the variant: the cars are converted, and the game's own nitrous stays the only choice.
+fn write_nitrous(source: &Source, out: &Path) {
+    let Some(found) = nitrous::find_in(&source.game_logic_bundles()) else {
+        log::warn!("the 2012 install has no nitrous sounds that can be read: the nitrous variant has no effects");
+        return;
+    };
+    if let Err(error) = nitrous::write(out, &found) {
+        log::warn!("the nitrous variant is not written: {error:#}");
+    }
 }
 
 /// Every car with its names. Reading a name touches only the small objects of the bundle, so this pass is quick; ids

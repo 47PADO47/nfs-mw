@@ -13,6 +13,7 @@ use chameleon_vehicle::{
 const VEHICLES: &str = "VEHICLES";
 const SHARED_TEXTURES: &str = "VEHICLES/VEHICLETEX.BNDL";
 const SHADERS: &str = "SHADERS.BNDL";
+const GAME_LOGIC: &str = "GAMELOGIC";
 /// The one-shots the cars share (the turbo's blow-off is one); optional.
 const SHARED_SAMPLES: &str = "VEHICLES/WAVES.BNDL";
 
@@ -42,6 +43,8 @@ pub struct Source {
     /// The shared sample bundle, when the install has one that can be read.
     shared_samples: Option<Vec<u8>>,
     cars: Vec<CarFile>,
+    /// The install's folder.
+    root: PathBuf,
 }
 
 impl Source {
@@ -57,7 +60,19 @@ impl Source {
         let textures = std::fs::read(find(SHARED_TEXTURES)?).context("reading the shared vehicle textures")?;
         let shaders = std::fs::read(find(SHADERS)?).context("reading the shaders")?;
         let shared_samples = std::fs::read(root.join(SHARED_SAMPLES)).ok();
-        Ok(Self { textures, shaders, shared_samples, cars: list_cars(&root.join(VEHICLES))? })
+        Ok(Self { textures, shaders, shared_samples, cars: list_cars(&root.join(VEHICLES))?, root: root.to_owned() })
+    }
+
+    /// The bundles of the game's logic (`GAMELOGIC/*.BNDL`), where the sound sets of the heat levels, the nitrous's among them,
+    /// are kept. Sorted by name; empty when the folder is not there.
+    pub fn game_logic_bundles(&self) -> Vec<PathBuf> {
+        let entries = std::fs::read_dir(self.root.join(GAME_LOGIC)).into_iter().flatten().flatten();
+        let mut files: Vec<PathBuf> = entries
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("bndl")))
+            .collect();
+        files.sort();
+        files
     }
 
     /// The high-detail bundle of every car, in file-number order.
