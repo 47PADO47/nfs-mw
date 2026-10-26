@@ -41,6 +41,7 @@ pub mod math;
 pub mod nos;
 pub mod performance;
 pub mod rigid_body;
+pub mod stats;
 pub mod steering;
 pub mod suspension;
 pub mod tires;

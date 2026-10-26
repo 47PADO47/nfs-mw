@@ -28,6 +28,7 @@ when the module is new.
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
 | [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paint, liveries, spoilers, upgrades, nitrous), the `[performance]` table of a car manifest, and what a mod's own car needs |
 | [car-collision.md](car-collision.md) | The collision and impact geometry of a mod car: its `BOUNDS.BIN` (what it holds, what the game checks), the damage zones and numbers, how to make one |
+| [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paint, liveries, spoilers, upgrades, nitrous), the `[stats]` table of a car manifest (mass, engine, gearbox, tyres, brakes, nitrous in SI units), and what a mod's own car needs |
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
@@ -131,7 +132,7 @@ downloads or fetches a mod.
   its `[music]` table names, and plays even with the custom music setting off when `always = true`. A car or a track
   that fails a check is logged with its reason and left out. The cars are registered at start-up, or later when a mod
   calls `bb.content` (see [api-content.md](api-content.md#content-registries-bbcontent)), and a change to a car that is
-  already registered needs a restart. The garage shows a mod's display name and brand and hides its cop-only cars, and the auto shop paints and upgrades the car and fits the clone's liveries to it (see [car-customization.md](car-customization.md)); a manifest's `[performance]` table sets how it drives.
+  already registered needs a restart. The garage shows a mod's display name and brand and hides its cop-only cars, and the auto shop paints and upgrades the car and fits the clone's liveries to it (see [car-customization.md](car-customization.md)); a manifest's `[stats]` table is what the car is and how it drives.
 - **Now:** a mod gets the frame events (`FRAME_START` in the start of the frame, `SCENE_TICK` after the scene's
   update, and `MOD_UNLOADING` at exit), and its `files/` layer. It also gets the game's interfaces. A mod that requires an
   interface the game does not offer is refused with its reason. In NFS:MW the `nfsmw.*` events of the chase (pursuit

@@ -10,9 +10,9 @@ use crate::config::Config;
 const CONVERSION: u32 = 7;
 pub const FILE: &str = ".import-stamp";
 
-/// The fingerprint for these settings and installs: the settings, the converter's version, and the names, sizes and
-/// modification times of the source files and of the 2005 files the clone choice reads.
-pub fn of(config: &Config, source: &Path, game: &Path) -> String {
+/// The fingerprint for these settings and the install: the settings, the converter's version, and the names, sizes and
+/// modification times of the source files.
+pub fn of(config: &Config, source: &Path) -> String {
     let mut parts = vec![format!("conversion {CONVERSION}"), format!("{config:?}")];
     let mut sources =
         vec![fingerprint(&source.join("VEHICLES/VEHICLETEX.BNDL")), fingerprint(&source.join("SHADERS.BNDL"))];
@@ -24,8 +24,6 @@ pub fn of(config: &Config, source: &Path, game: &Path) -> String {
     }
     sources.sort();
     parts.extend(sources);
-    parts.push(fingerprint(&game.join("GLOBAL/GLOBALB.LZC")));
-    parts.push(fingerprint(&game.join("GLOBAL/ATTRIBUTES.BIN")));
     parts.join("\n")
 }
 
@@ -70,8 +68,8 @@ mod tests {
     #[test]
     fn settings_change_the_stamp() {
         let nowhere = Path::new("definitely/not/here");
-        let a = of(&Config::default(), nowhere, nowhere);
-        let b = of(&Config { max_texture_size: 512, ..Config::default() }, nowhere, nowhere);
+        let a = of(&Config::default(), nowhere);
+        let b = of(&Config { max_texture_size: 512, ..Config::default() }, nowhere);
         assert_ne!(a, b);
     }
 }

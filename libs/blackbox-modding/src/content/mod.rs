@@ -15,13 +15,13 @@ mod interior;
 #[cfg(test)]
 mod interior_tests;
 mod music;
-mod performance;
 mod racers;
 #[cfg(test)]
 mod racers_tests;
 mod scenery;
 #[cfg(test)]
 mod scenery_tests;
+mod stats;
 #[cfg(test)]
 mod tests;
 
@@ -31,9 +31,9 @@ pub use engine_sound::{EngineSound, Layer as EngineLayer, MAX_LAYERS as MAX_ENGI
 pub use error::ContentError;
 pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, parse as parse_interior};
 pub use music::{MusicSection, parse as parse_music};
-pub use performance::Performance;
 pub use racers::{RacersSection, parse as parse_racers};
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};
+pub use stats::{Drive, Stats};
 
 /// The folder inside a mod that holds one car manifest per car.
 pub const CARS_FOLDER: &str = "cars";

@@ -23,6 +23,14 @@ whole source:
 | Performance upgrades (engine, transmission, tires, brakes, suspension, induction, nitrous) | yes | see [Performance](#performance-performance-in-the-car-manifest) |
 | Nitrous | yes: bought as a kit, or from the factory with `nitrous = true` | see [Nitrous](#nitrous) |
 | Body kits, hoods, manufacturer decals, door numbers | no | a mod car has no such parts; a mod that wants a body variant adds another car |
+| Paint finish, preset colours, custom RGB body colour | yes | the clone's paint parts; the body's paint surfaces take the colour |
+| Rim paint, rims, window tint | yes | the clone's parts, the shared `WHEELS` models |
+| **Vinyls** (liveries) and their colour channels | yes, the clone's | the clone's `VINYLS.BIN`, drawn over the paint (see [Vinyls](#vinyls)) |
+| Spoilers and roof scoops | yes, the shared aftermarket models | marker `SPOILER` / `SPOILER2` / `ROOF_SCOOP` on the car's `<BASE>_BASE` solid |
+| Performance upgrades (engine, transmission, tires, brakes, suspension, induction, nitrous) | yes, three levels each | steps of the car's own `[stats]` ([Upgrades](#upgrades)) |
+| Nitrous | yes: from the factory (`nitrous = true`), or bought as a kit | see [Nitrous](#nitrous) |
+| Body kits, hoods | no | they are models in the clone's own `GEOMETRY.BIN`, drawn for its body shape |
+| Manufacturer decals, door numbers | not checked | |
 
 A car that gives no table gives the shop nothing of its own to offer: its paint is what its files say and the shop lists no
 choice for it. (While a car can still name a stock car in `clone`, the shop falls back to that car's parts for a car with no
@@ -40,49 +48,122 @@ The number after `=` counts from 1 in the order the `parts` console command list
 car; `parts paint 3` applies it there). The categories are `body`, `spoiler`, `hood`, `roof`, `rims`, `paint`,
 `tint`, `rimpaint` and `vinyl`.
 
-## Performance: `[performance]` in the car manifest
+## Stats: `[stats]` in the car manifest
 
-A car's manifest may carry a `[performance]` table. Every number is a **multiplier of the clone's own value**, so the
-table says how the car differs from its clone and leaving a key out (or `1.0`) keeps the clone.
+A mod car is a car of its own. What it weighs, how its engine pulls, how its gearbox is spaced, what grip its tyres have
+and how hard it brakes is in its manifest, in absolute SI units, and the game builds the car's physics from that table and
+from the engine's documented generic values for what the table does not say. Nothing is taken from a stock car.
 
 ```toml
 # cars/fastcoupe.toml
-clone = "CAMARO"
-name = "Fast Coupe"
-
-[performance]
-power = 1.15          # engine torque at every rpm
-mass = 0.95           # body mass
-grip = 1.05           # tyre grip, lateral and longitudinal
-brakes = 1.2          # brake torque, both axles
-nitrous = true        # the car has nitrous from the factory
-nitrous_power = 1.25  # torque the nitrous adds, times the kit's own
+[stats]
+mass_kg = 1397.0
+front_weight_pct = 38.8            # share of the weight on the front axle
+cg_height_m = 0.44
+wheelbase_m = 2.45
+front_track_m = 1.54
+rear_track_m = 1.52
+front_tire_radius_m = 0.34
+rear_tire_radius_m = 0.343
+idle_rpm = 1000.0
+redline_rpm = 7800.0
+torque_curve = [[1000.0, 360.0], [3300.0, 419.0], [5600.0, 440.0], [7800.0, 390.0]]   # [rpm, N m]
+gear_ratios = [3.91, 2.29, 1.55, 1.3, 1.08, 0.88, 0.71]
+reverse_ratio = 2.68
+final_drive = 3.44
+drive = "rwd"                      # rwd, fwd or awd
+top_speed_kph = 304.0              # the air drag is solved so that the car reaches this
+front_tire_grip = 1.5              # peak friction coefficient
+rear_tire_grip = 1.4
+front_brake_torque_nm = 1300.0
+rear_brake_torque_nm = 1350.0
+nitrous = true
+nitrous_boost = 0.9
 ```
 
-| Key | Range | Default | Changes |
-|---|---|---|---|
-| `power` | 0.25 to 4 | 1.0 | every point of the engine torque curve |
-| `mass` | 0.25 to 4 | 1.0 | the body mass |
-| `grip` | 0.25 to 3 | 1.0 | the tyre grip scale and the static and dynamic friction of both axles |
-| `brakes` | 0.25 to 4 | 1.0 | the brake torque of both axles |
-| `nitrous` | `true` or `false` | `false` | whether the car has nitrous without buying the kit |
-| `nitrous_power` | 0 to 4 | 1.0 | the torque the nitrous adds; `0` switches a car's nitrous off |
+Every key is optional. A key left out takes the engine's generic car, a 1450 kg rear-drive saloon of about 290 hp
+(`CarStats::default`, the numbers of `VehicleSpec::example`). A key outside its range, a key that is not in the table, a torque
+curve that does not rise in rpm and an idle above the redline refuse the car; the log names the key.
 
-- A number outside its range, or a key that is not in the table, refuses the car; the log names the key.
-- The multipliers are applied **after the upgrades** the player has bought. A car with `power = 1.15` is 15 percent
-  stronger at stock, with the engine kit and with the junkman part, because the upgrade picks the clone's engine record
-  and the multiplier then scales it.
-- They apply wherever the car's physics are built: the garage preview, the world, split screen, and the AI when the car
-  is a cop car. A car that asks for nothing is built exactly as its clone.
-- The performance bars in the shop (top speed, handling, acceleration) are the clone's: they come from the frontend's
-  own rating table, which does not know the multipliers. The car does drive as the manifest says.
+| Key | Unit, range | Default | Builds |
+|---|---|---|---|
+| `mass_kg` | kg, 200 to 40000 | 1450 | body mass |
+| `front_weight_pct` | percent, 20 to 80 | 52 | where the centre of gravity is along the wheelbase |
+| `cg_height_m` | m, 0.1 to 2 | 0.5 | centre-of-gravity height (the chassis' roll centre) |
+| `wheelbase_m` | m, 1 to 6 | 2.7 | wheelbase; the axles are centred on the body box |
+| `front_track_m`, `rear_track_m` | m, 0.8 to 3.5 | 1.55 | track between the tyre centres |
+| `front_tire_radius_m`, `rear_tire_radius_m` | m, 0.15 to 0.8 | 0.33 | outer tyre radius (the rim takes what a sidewall of 45 percent of the width leaves, then the aspect ratio makes the radius exact) |
+| `front_tire_width_m`, `rear_tire_width_m` | m, 0.1 to 0.5 | 0.235, 0.255 | tyre width |
+| `ride_height_m` | m, 0.03 to 0.5 | 0.12 | gap under the body |
+| `idle_rpm`, `redline_rpm` | rpm, 300 to 3000, 1500 to 20000 | 900, 7000 | idle and rev limiter |
+| `torque_curve` | `[rpm, N m]`, 2 to 16 points, rpm rising | 8 points, peak 359 N m | the engine's torque, sampled to 16 evenly spaced values from idle to the last point |
+| `engine_braking` | share of the torque, 0 to 1 | 0.15 | closed-throttle drag |
+| `gear_ratios` | 1 to 10 ratios, 0.2 to 10, falling | 6 gears, 3.6 to 0.75 | forward gears |
+| `reverse_ratio`, `final_drive` | 0.5 to 10 | 3.4, 3.7 | |
+| `gear_efficiency` | 0.5 to 1 | 0.9 | power kept by the gearbox |
+| `drive`, `front_torque_share` | rwd, fwd, awd; 0 to 1 | rwd, 0.4 | which axle gets the torque; with `awd`, the front's share |
+| `front_diff_lock`, `rear_diff_lock` | 0 to 1 | 0, 0.3 | differential lock (an all-wheel drive's centre differential is 0.5) |
+| `top_speed_kph` | km/h, 50 to 700 | none | the air drag is solved so that the car, at full throttle in its top gear, reaches it (see below) |
+| `drag` | N per (m/s)², 0.02 to 3 | 0.35 | air drag, used when there is no `top_speed_kph` |
+| `downforce` | N per (m/s)², 0 to 0.1 | 0.003 | downforce |
+| `front_tire_grip`, `rear_tire_grip` | friction coefficient, 0.3 to 3 | 1.2 | tyre grip, see below |
+| `front_brake_torque_nm`, `rear_brake_torque_nm` | N m per wheel, 100 to 20000 | 1400, 950 | brakes |
+| `handbrake_torque_nm` | N m, 0 to 20000 | 1500 | handbrake at the rear wheels |
+| `steering_scale` | 0.5 to 2 | 1 | steering range |
+| `front_ride_frequency_hz`, `rear_ride_frequency_hz` | Hz, 0.5 to 6 | 3.0, 3.1 | spring rate per wheel, `k = m (2 pi f)²` from the mass on that wheel |
+| `damping_ratio`, `travel_m` | 0.1 to 1; 0.03 to 0.4 m | 0.7, 0.1 | dampers (`c = 2 zeta sqrt(k m)`, rebound 1.33 times), wheel travel |
+| `induction_boost` | share of the torque at the red line, 0 to 1.5 | 0 | a turbo (for a torque curve without one) |
+| `nitrous`, `nitrous_boost`, `nitrous_seconds` | bool; 0 to 3; 0.5 to 30 s | false, 0.5, 5 | [Nitrous](#nitrous) |
+
+What the physics reads that the table does not give (flywheel mass, gear-change times, the body's ground and object contact,
+yaw assists, the damper and anti-roll shapes, the downforce centre, wall contact) takes the engine's generic value; the list is
+at the top of `libs/blackbox-vehicle/src/stats/build.rs`.
+
+- **Tyre grip.** `front_tire_grip` is a friction coefficient (1.0 an ordinary road tyre, 1.5 a sports tyre). The engine's
+  tyre model is calibrated on a high-performance tyre whose `STATIC_GRIP` is 2.075 and `DYNAMIC_GRIP` 1.85
+  (`docs/specs/vehicle-calibration.md`), which the builder calls a coefficient of 1.65: a car's grip and its lateral curve
+  scale with `coefficient / 1.65`. That scale is a calibration, not a measurement of every car (**not yet checked by a skidpad
+  run**): if the cars handle too stickily or too loosely, change `GRIP` constants in `build.rs`, not the cars.
+- **Top speed.** At the top speed the drag force equals the wheel force of the engine in top gear: the engine speed at a road
+  speed follows the game's drivetrain, and `drag = wheel force / speed²`. A top speed the car cannot reach before the rev
+  limiter gives the speed at the limiter (a little under it). Upgrades keep the drag the stock car got.
+- A car with no table is the generic car above.
+
+## Upgrades
+
+The shop offers every category three levels (no junkman parts). A level changes the car's own numbers by a share of
+what it has, so a strong engine gains more newton metres than a weak one (`libs/blackbox-vehicle/src/stats/upgrades.rs`):
+
+| Category | Per level |
+|---|---|
+| Tires | grip + 5 percent of the car's own, both axles |
+| Brakes | brake torque + 10 percent |
+| Suspension | spring frequency + 6 percent, damping ratio + 0.03, ride height - 8 mm, centre of gravity - 15 mm, downforce + 15 percent |
+| Transmission | gear efficiency + 0.03 (at most 1) |
+| Engine | torque + 6 percent at every engine speed |
+| Induction | `induction_boost` + 0.08 |
+| Nitrous | level 1 is the car's factory nitrous (a car without one gets a kit of 0.4 boost for 4 s); each further level + 15 percent boost, + 25 percent burn time |
+
+The physics of an upgraded car are `physics_from_stats(stats, package, bounds)`; the garage preview, the world, split screen
+and the AI use the same function.
+
+### The shop's bars
+
+The three bars of the shop (top speed, handling, acceleration) are computed from the car's stats. Top speed and acceleration
+are the shop's longitudinal estimate (`docs/specs/garage-performance-bars.md`) of the car built from its stats, put on the
+scale of the stock cars (the lowest and highest of the stock cars and their maximum builds are 0 and 1, and a faster car is
+clamped to 1). Handling is the score of the car's grip, `0.75 x cornering + 0.25 x braking` on a scale from 1.0 g (0) to
+1.9 g (1), where cornering is the mean tyre coefficient less up to 25 percent for a high centre of gravity on a narrow track
+(`libs/blackbox-vehicle/src/stats/rating.rs`). The bars of the maximum build are the same estimate for the car with every
+category at level 3.
 
 ## Nitrous
 
-A stock car has no nitrous until its owner buys the kit. A mod car with `nitrous = true` has the clone's **first
-nitrous kit** from the factory. If the clone sells no kit, the car gets a typical one (a 5 second tank, half again the
-torque, a recharge that depends on speed). When the player buys a nitrous level in the shop, that level replaces the
-factory kit; `nitrous_power` is applied to whichever is fitted.
+A stock car has no nitrous until its owner buys the kit. A mod car with `nitrous = true` has it from the factory: the extra
+torque while it burns is `nitrous_boost` times the engine's (`0.9` is 90 percent more) and a full tank lasts
+`nitrous_seconds`. When the player buys a nitrous level in the shop, level 1 is the factory nitrous, and the levels above
+make it stronger and longer ([Upgrades](#upgrades)); a car without nitrous gets a kit of 0.4 boost for 4 seconds. The
+tank refills by speed (20 s at 20 mph, 5 s at 100 mph).
 
 The flames come out of the tail pipes. The game finds a pipe by the markers `EXHAUST`, `LEFT_EXHAUST` and `RIGHT_EXHAUST`
 on the car's body solid, so a mod's own car has to carry them (the 2012 mod derives them from the body, see [Tail pipes](#tail-pipes)). A car without pipe
@@ -219,6 +300,12 @@ collision mesh of each 2012 car ([nfsmw-2012-content.md](nfsmw-2012-content.md))
 
 - **Body kits and hoods** are not offered: a mod car has none (a body variant is another car).
 - **The performance bars** show the clone's ratings (see above).
+   pick the car. Paint, tint, rims, vinyls, spoilers and the performance upgrades are on the usual screens.
+3. To change how the car drives, edit its `[stats]` table (for the 2012 cars, the multipliers of `config.toml`) and restart.
+
+## Limits
+
+- **Body kits and hoods** are not offered: they are models of the clone's own body.
 - **Saved careers.** My Cars slots remember the car's folder. The career's own garage record names a car by its car type,
   which for a mod car is its clone's, so a clone and the mod cars that copy it share one career record. I have not
   tested a career save with a mod car.

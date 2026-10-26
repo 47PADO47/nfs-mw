@@ -31,7 +31,9 @@ symphonia.workspace = true
 toml.workspace = true
 
 [dev-dependencies]
+# The tests check the generated manifests with the game's own parser.
 blackbox-modding = { workspace = true, features = ["host"] }
+glam.workspace = true
 
 [lints]
 workspace = true

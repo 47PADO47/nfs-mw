@@ -1,17 +1,18 @@
 //! A converted car in the garage, with the real installs: it is offered the paints of its own 2012 bundle and nothing of
-//! a stock car's parts, it has the pipes the nitrous flames come out of, and it drives with the mod's `[performance]`. Set
+//! a stock car's parts, it has the pipes the nitrous flames come out of, and it is built from its own `[stats]`. Set
 //! `MW2012_GAME_DIR` (the 2012 install) and `NFSMW_GAME_DIR` (the 2005 install) and run with `--ignored`.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use blackbox_hash::bstring_hash;
+use blackbox_modding::content::parse_car;
 use game_install::GameDir;
 use nfsmw_2012_content::job::{self, Finished, Start};
 use nfsmw_data::car::customization::{Category, Inventory, Selection};
 use nfsmw_data::car::mods::custom;
-use nfsmw_data::car::mods::{self as car_mods, CarSpec, EngineLayer, EngineSound, Tuning};
-use nfsmw_data::car::physics::{PerformancePackage, PhysicsData};
+use nfsmw_data::car::mods::{self as car_mods, CarSpec, CarStats, EngineLayer, EngineSound};
+use nfsmw_data::car::physics::{CarBounds, PerformancePackage, physics_from_stats};
 use nfsmw_data::car::{CarTables, LoadOptions, exhaust};
 
 const CAR: &str = "POR911CARR12";
@@ -56,20 +57,12 @@ fn engine_sound_of(table: &toml::Value) -> EngineSound {
     }
 }
 
-fn register(game: &GameDir, mod_dir: &Path) -> Tuning {
+fn register(game: &GameDir, mod_dir: &Path) -> CarStats {
     let text =
         std::fs::read_to_string(mod_dir.join("cars").join(format!("{}.toml", CAR.to_ascii_lowercase()))).unwrap();
     let manifest: toml::Table = toml::from_str(&text).unwrap();
-    let performance = manifest["performance"].as_table().unwrap();
-    let number = |key: &str| performance[key].as_float().unwrap() as f32;
-    let tuning = Tuning {
-        power: number("power"),
-        mass: number("mass"),
-        grip: number("grip"),
-        brakes: number("brakes"),
-        nitrous: performance["nitrous"].as_bool().unwrap(),
-        nitrous_power: number("nitrous_power"),
-    };
+    // The game's own parser checks the `[stats]` table; the car is registered with the stats it reads.
+    let stats = CarStats::from(&parse_car(CAR, &text).unwrap().stats);
     game.add_late_overlay("nfsmw-2012-content", mod_dir.join("files"), 0).unwrap();
     let tables = CarTables::load(game).unwrap();
     let spec = CarSpec {
@@ -81,14 +74,14 @@ fn register(game: &GameDir, mod_dir: &Path) -> Tuning {
         player: true,
         cop_heat: None,
         geometry_in_mod: true,
-        tuning,
+        stats: stats.clone(),
         engine_sound: manifest.get("engine_sound").map(engine_sound_of),
     };
     let (cars, rejected) = car_mods::register(&tables.types, &[spec]);
     assert!(rejected.is_empty(), "{rejected:?}");
     car_mods::publish(cars);
     custom::publish(CAR, customization_of(&text));
-    tuning
+    stats
 }
 
 /// The manifest's `[customization]` table as the game registers it (paints only: that is all the 2012 cars have).
@@ -125,8 +118,13 @@ fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
     };
     let mod_dir = converted(Path::new(&source), Path::new(&root));
     let game = GameDir::open(Path::new(&root)).unwrap();
-    let tuning = register(&game, &mod_dir);
-    assert_eq!((tuning.power, tuning.brakes, tuning.nitrous), (1.2, 1.3, true));
+    let stats = register(&game, &mod_dir);
+    // The 2012 Porsche 911 Carrera S has 440 N m at 5600 rpm and 1300 N m brakes at the front; the settings of this test
+    // multiply them by 1.2 and 1.3. Its nitrous is the 2012 car's.
+    assert!((stats.peak_torque_nm() - 440.0 * 1.2).abs() < 0.5, "{}", stats.peak_torque_nm());
+    assert!((stats.brake_torque_nm[0] - 1300.0 * 1.3).abs() < 1.0, "{:?}", stats.brake_torque_nm);
+    assert!(stats.nitrous && (stats.nitrous_boost - 0.9).abs() < 1e-3);
+    assert_eq!((stats.gear_ratios.len(), stats.final_drive), (7, 3.44));
 
     let tables = CarTables::load(&game).unwrap();
     let car_type = tables.car_type_for_folder(CAR).unwrap().clone();
@@ -162,16 +160,19 @@ fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
         );
     }
 
-    // The tuning is on top of the clone's physics, and the car has nitrous.
-    let physics = PhysicsData::load(&game).unwrap();
-    let base = physics.car(&car_type.type_name).unwrap();
-    let tuned = physics.car(CAR).unwrap();
-    let ratio = tuned.spec.engine.torque[3] / base.spec.engine.torque[3];
-    assert!((ratio - 1.2).abs() < 1e-4, "torque ratio {ratio}");
-    assert!(tuned.spec.nos.present(), "{:?}", tuned.spec.nos);
-    println!("nitrous {:?}, the clone's {:?}", tuned.spec.nos, base.spec.nos);
-    let upgraded = physics.car_with_performance(CAR, PerformancePackage::default()).unwrap();
-    assert_eq!(format!("{:?}", upgraded.spec.engine.torque), format!("{:?}", tuned.spec.engine.torque));
+    // The physics are built from the car's own stats: the box is the caller's, the rest is the 2012 car's.
+    let bounds = CarBounds { half_dimensions: glam::Vec3::new(0.91, 0.55, 2.21), pivot: glam::Vec3::ZERO };
+    let stock = physics_from_stats(car_mods::stats(CAR).unwrap(), PerformancePackage::default(), bounds);
+    assert_eq!(stock.spec.mass, stats.mass_kg);
+    assert!(stock.spec.nos.present(), "{:?}", stock.spec.nos);
+    assert_eq!(stock.spec.transmission.gear_ratio[2], 3.91);
+    assert!((stock.spec.engine.torque_nm(5600.0) - 440.0 * 1.2).abs() < 10.0);
+    let tuned = physics_from_stats(
+        car_mods::stats(CAR).unwrap(),
+        PerformancePackage { levels: [0, 0, 0, 0, 3, 0, 0], junkman: 0 },
+        bounds,
+    );
+    assert!(tuned.spec.engine.torque_nm(5600.0) > stock.spec.engine.torque_nm(5600.0) * 1.1);
     // The car has engine loops of its own: WAV files in the mod's layer of the install, slowest first.
     let engine = car_mods::engine_sound(CAR).expect("the manifest names engine loops");
     println!("engine loops: {:?}", engine.layers);

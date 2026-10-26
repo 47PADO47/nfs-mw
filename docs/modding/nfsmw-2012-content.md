@@ -32,7 +32,7 @@ changed (the mod keeps a fingerprint in `.import-stamp`), and the cars are in fr
 `config.toml` takes effect at the next start; when cars are already in the game, the new conversion is kept aside and
 replaces them at that start. To remove the cars, delete the mod folder, or set `mods = off` / use `--no-mods`.
 
-The cars are clones: each takes the physics, sound, parts and wheel layout of a stock racing car it fits best (the mod
+The cars take the parts and wheel layout of a stock racing car they fit best (their physics are their own: see Stats below) (the mod
 picks the one whose wheelbase, track and tyre radius need the least stretching). The auto shop works on them as it does
 on the clone: the performance upgrades and **nitrous**, which the cars have from the factory. What the shop offers for the
 car's looks is the car's own: the **paints of its 2012 bundle**, 1 to 15 per car, which is all the 2012 game offers (no
@@ -52,8 +52,8 @@ Every key is optional. An unknown key is an error and no car is added, so a typo
 | `max_texture_size` | Longest texture side, a power of two from 16 to 4096 (default 1024); bigger maps lose their top mips |
 | `role` | `"player"` (default), `"cop"` or `"both"`: who can use the cars |
 | `own_engine_sound` | `true` (default): each car plays the looping engine recordings of its own 2012 bundle, written into the mod folder as WAVs (`files/SOUND/MODENGINE/<ID>/`), instead of its clone's engine. `false` keeps the clone's. An approximation, see [car-customization.md](car-customization.md#the-2012-cars-engine-loops) |
-| `[performance]` | How the cars drive compared with their clones: multipliers `power`, `mass`, `grip`, `brakes`, `nitrous_power` (1.0 keeps the clone's) and `nitrous` (`true` by default: factory nitrous). The ranges are in [car-customization.md](car-customization.md#performance-performance-in-the-car-manifest) |
-| `[car.<id or name fragment>]` | The same keys for one car or a make, changing only the keys it lists: `[car.POR911CARR12]`, `[car.Lamborghini]`. The tables apply in name order over `[performance]` |
+| `[performance]` | Optional multipliers on the stats imported from each car's own 2012 data: `power` (torque at every engine speed), `mass`, `grip` (tyre friction), `brakes` (brake torque), `nitrous_power` (the extra torque of the nitrous), all 1.0 by default, and `nitrous` (`true` by default: the car keeps the nitrous its 2012 data gives it). They are applied by the mod when it writes the car, so the game only sees the resulting `[stats]`. Ranges: `power`, `mass`, `brakes` 0.25 to 4, `grip` 0.25 to 3, `nitrous_power` 0 to 4 |
+| `[car.<id or name fragment>]` | The same keys for one car or a make, changing only the keys it lists: `[car.POR911CARR12]`, `[car.Lamborghini]`. The tables apply in name order over `[performance]`. The multipliers are the only way to change a 2012 car's numbers by hand; to write absolute values, give a car of your own a `[stats]` table ([car-customization.md](car-customization.md#stats-stats-in-the-car-manifest)) |
 
 The ids are made from the car's name (`POR911CARR12` for the 2012 Porsche 911 Carrera S); the mod's log lists every car
 it converts or leaves out and why.
@@ -87,6 +87,8 @@ A name with a space is written in quotes, as in the last table.
 | Diffuse maps (BC1, BC3) | the car's `TEXTURES.BIN` as DXT1 and DXT5, cut to `max_texture_size` |
 | Paint surfaces | the placeholder `<ID>_SKIN1` with light material `CARSKIN`, which the game swaps for the paint the player picks. Their texture coordinates are the 2012 car's own |
 | Paints | the `VehiclePaint` records of the car's bundle (`libs/chameleon-vehicle/src/paint.rs`): the colour, and the finish from the record's type, as the `[customization]` table of the manifest, repeated colours dropped (`src/paints.rs`) |
+| Paint surfaces | the game's `<CAR>_SKIN1` placeholder with light material `CARSKIN`, which the game swaps for the paint or for a vinyl. Their texture coordinates are those of the nearest point of the clone's paint surface, so the clone's vinyls fit (`src/liveries.rs`) |
+| Stats | the car's own base stats, read from its Genesys handling definition ([chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md)) and written as the `[stats]` table of its manifest: mass (body and wheels), weight distribution and centre-of-gravity height from the axles and rigid bodies, wheelbase, track and tyre size, the torque curve (at most 16 points, knots kept) with its idle and limiter, the stock gearbox and final drive, the drive layout and differential locks, the tyres' peak grip, the brake torque of each axle, the design top speed (the game solves the air drag from it) and the nitrous strength as `nitrous_boost` (`src/stats.rs`) |
 | Engine loops | the looping samples of the car's bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), one 16-bit WAV per layer at one level, and an `[engine_sound]` table in the car's manifest naming them with the rpm each stands for (`src/engine.rs`) |
 | Collision mesh and tyres | `files/CARS/<ID>/BOUNDS.BIN`: the car's own collision bounds, fitted to the poly soup of its bundle (the body's real extents, 166 to 256 triangles) and to the box of each tyre, through the same transform as the body: a root box, a lower body box, a cabin box, front and roof corner spheres and the silhouette the car rolls on. The one bundle without a collision mesh (the SWAT van) is fitted to its visible body. Format and what the 2012 game holds: [car-collision.md](car-collision.md), [chameleon-collision.md](../formats/chameleon-collision.md) (`src/collision.rs`) |
 | Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
@@ -120,6 +122,12 @@ ones. The vertex limit of one solid (60,000) can force a coarser level.
   the paints. The performance bars of the shop show the clone's ratings.
 - **Tail pipes are approximated** from the body's shape; the 2012 tail pipe locators are not decoded.
 - **Paint names.** The 2012 records carry no names; a paint is named by its finish and colour (`Metallic #AD2B2C`).
+- **Handling is each car's own, approximately.** Mass, engine, gearbox, tyre grip and brakes are the 2012 car's numbers; springs, dampers, steering, downforce, the handbrake and gear efficiency are the engine's generic values, because the 2012 files give them in units that are not decoded ([chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md)). The tyre grip scale is a calibration that has not been checked by driving the cars on a skidpad. Damage and the HUD are not the 2012 game's; so are the shifts, the turbo and the collisions of the sound, and the engine too when `own_engine_sound` is off or a car has no pitched loop. The
+  2012 damage model, headlight beams, brake discs (they are part of the wheel), spoiler and mirror animation, and the
+  2012 lamp locators are not converted; the lamps use the clone's positions.
+- **Body kits and hoods** are models of the clone's own body, so the shop does not offer them. The performance bars of
+  the shop are computed from the car's own stats.
+- **Vinyls fit by nearest point**, which follows the large panels and is rougher at the bumpers and around the lamps.
 - **Normal, specular and effect maps are dropped**: the 2005 car shader has its own lighting.
 - **Names.** The mod gives every car a display name (`Porsche 911 Carrera S 2012`) and a brand. The garage lists the car
   under both (`scenes/world/garage.rs`); the other screens that name cars were not checked.
@@ -136,6 +144,9 @@ ones. The vertex limit of one solid (60,000) can force a coarser level.
 converts a car through the background job, reads it back with the game's readers, and converts every car with the time it
 takes. The test `customize` converts one car and checks, against the real installs, what the shop offers it (its own paints and no
 stock car's parts), that a paint reaches the body texture, that it has tail pipes, that `[performance]` scales its physics and that it
+takes. The test `customize` converts one car and checks, against the real installs, what the shop offers it (paint, tint,
+rims, the clone's vinyls, spoilers, roof scoops), that it has tail pipes, that its physics are built from its own `[stats]` (peak torque, brakes and nitrous as the 2012 car and the multipliers of the test's
+`config.toml` make them) and that it
 has nitrous: `cargo test -p nfsmw-2012-content --test customize -- --ignored --nocapture`.
 `NFSMW_GAME_DIR=<2005 install> cargo test -p nfsmw rescan` checks that content added after start-up reaches the
 copies of the install that are already open. `CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-bundle

@@ -56,7 +56,7 @@ impl Job {
 
 /// What the mod does at load: promote a finished run left by an earlier start, read the settings from
 /// `mod_dir/config.toml`, and, unless the content on disk is still right, start converting in the background.
-pub fn start(mod_dir: &Path, game_dir: &Path) -> Result<Start> {
+pub fn start(mod_dir: &Path) -> Result<Start> {
     promote(mod_dir)?;
     let config_path = mod_dir.join(config::FILE_NAME);
     let created = !config_path.exists();
@@ -68,23 +68,23 @@ pub fn start(mod_dir: &Path, game_dir: &Path) -> Result<Start> {
     let Some(source) = config.source.clone() else {
         return Ok(Start::NotConfigured { config: config_path, created });
     };
-    let stamp = stamp::of(&config, &source, game_dir);
+    let stamp = stamp::of(&config, &source);
     if stamp::is_current(mod_dir, &stamp) {
         return Ok(Start::UpToDate { cars: count_cars(mod_dir) });
     }
     let live = mod_dir.join(CONTENT[0]).is_dir();
-    let job = spawn(config, source, game_dir.to_owned(), mod_dir.to_owned(), stamp)?;
+    let job = spawn(config, source, mod_dir.to_owned(), stamp)?;
     Ok(Start::Started { job, live })
 }
 
-fn spawn(config: Config, source: PathBuf, game_dir: PathBuf, mod_dir: PathBuf, stamp: String) -> Result<Job> {
+fn spawn(config: Config, source: PathBuf, mod_dir: PathBuf, stamp: String) -> Result<Job> {
     let (sender, receiver) = channel();
     let thread = thread::Builder::new()
         .name("nfsmw-2012-content".to_owned())
         .spawn(move || {
             let staging = mod_dir.join(STAGING);
             let _ = fs::remove_dir_all(&staging);
-            let result = build(&config, &source, &game_dir, &staging, &stamp);
+            let result = build(&config, &source, &staging, &stamp);
             if result.is_err() {
                 let _ = fs::remove_dir_all(&staging);
             }
@@ -94,8 +94,8 @@ fn spawn(config: Config, source: PathBuf, game_dir: PathBuf, mod_dir: PathBuf, s
     Ok(Job { receiver, _thread: thread })
 }
 
-fn build(config: &Config, source: &Path, game_dir: &Path, staging: &Path, stamp: &str) -> Result<Report> {
-    let report = import::run(config, source, game_dir, staging, import::default_threads())?;
+fn build(config: &Config, source: &Path, staging: &Path, stamp: &str) -> Result<Report> {
+    let report = import::run(config, source, staging, import::default_threads())?;
     // The stamp is written last: a staging folder without one was cut short and is thrown away.
     stamp::save(staging, stamp).context("saving the import stamp")?;
     Ok(report)
@@ -185,12 +185,12 @@ mod tests {
     #[test]
     fn a_first_start_writes_the_settings_and_converts_nothing() {
         let dir = temp("first");
-        let start = start(&dir, Path::new("no/game")).unwrap();
+        let start = start(&dir).unwrap();
         assert!(matches!(start, Start::NotConfigured { created: true, .. }));
         assert!(dir.join("config.toml").is_file());
         assert!(!dir.join("files").exists() && !dir.join("cars").exists() && !dir.join(STAGING).exists());
         assert!(matches!(
-            self::start(&dir, Path::new("no/game")).unwrap(),
+            self::start(&dir).unwrap(),
             Start::NotConfigured { created: false, .. }
         ));
         fs::remove_dir_all(&dir).unwrap();

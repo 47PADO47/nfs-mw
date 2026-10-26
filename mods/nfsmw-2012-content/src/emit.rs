@@ -6,20 +6,18 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::config::Role;
-use crate::performance::Performance;
+use crate::stats::ImportedStats;
 
 /// One imported car, as the mod folder records it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CarEntry {
     /// The car folder, upper case.
     pub id: String,
-    /// The stock car it clones.
-    pub clone: String,
     pub name: String,
     pub manufacturer: String,
     pub role: Role,
-    /// How the car drives compared with its clone.
-    pub performance: Performance,
+    /// What the car is, imported from its own 2012 data (the `[stats]` table).
+    pub stats: ImportedStats,
     /// The car's own paints: the `[customization]` table text, empty when the car has none (`paints::manifest_table`).
     pub customization: String,
 }
@@ -101,11 +99,11 @@ fn quoted(text: &str) -> String {
 
 fn car_manifest(car: &CarEntry, engine: Option<&str>) -> String {
     let mut text =
-        format!("clone = {}\nrole = {}\nname = {}\n", quoted(&car.clone), quoted(car.role.as_str()), quoted(&car.name));
+        format!("role = {}\nname = {}\n", quoted(car.role.as_str()), quoted(&car.name));
     if !car.manufacturer.is_empty() {
         text.push_str(&format!("manufacturer = {}\n", quoted(&car.manufacturer)));
     }
-    text.push_str(&car.performance.manifest_table());
+    text.push_str(&car.stats.manifest_table());
     text.push_str(&car.customization);
     text.push_str(engine.unwrap_or_default());
     text
@@ -118,12 +116,36 @@ mod tests {
     fn entry() -> CarEntry {
         CarEntry {
             id: "POR911CARR12".into(),
-            clone: "BMWM3GTR".into(),
             name: "Porsche 911 \"Carrera\" S 2012".into(),
             manufacturer: "Porsche".into(),
             role: Role::Player,
-            performance: Performance::default(),
-            customization: "\n[customization]\npaints = [{ name = \"Red\", color = [200, 0, 0] }]\n".into(),
+            stats: ImportedStats {
+                mass_kg: 1397.0,
+                front_weight_pct: 38.8,
+                cg_height_m: 0.442,
+                wheelbase_m: 2.45,
+                track_m: [1.538, 1.516],
+                tire_radius_m: [0.34, 0.343],
+                tire_width_m: [0.246, 0.296],
+                ride_height_m: 0.171,
+                idle_rpm: 1000.0,
+                redline_rpm: 7800.0,
+                torque_curve: vec![[1000.0, 360.0], [5600.0, 440.0], [7800.0, 390.0]],
+                gear_ratios: vec![3.91, 2.29, 1.55, 1.3, 1.08, 0.88, 0.71],
+                reverse_ratio: 2.68,
+                final_drive: 3.44,
+                drive: "rwd",
+                front_torque_share: 0.0,
+                diff_lock: [0.0, 0.75],
+                top_speed_kph: 304.2,
+                tire_grip: [1.5, 1.4],
+                brake_torque_nm: [1300.0, 1350.0],
+                nitrous_boost: 0.9,
+            },
+            customization: "
+[customization]
+paints = [{ name = \"Red\", color = [200, 0, 0] }]
+".into(),
         }
     }
 
@@ -131,10 +153,14 @@ mod tests {
     fn the_car_manifest_is_valid_toml_the_game_accepts() {
         let text = car_manifest(&entry(), None);
         let parsed: toml::Table = toml::from_str(&text).unwrap();
-        assert_eq!(parsed["clone"].as_str(), Some("BMWM3GTR"));
+        assert!(parsed.get("clone").is_none());
         assert_eq!(parsed["name"].as_str(), Some("Porsche 911 \"Carrera\" S 2012"));
         assert_eq!(parsed["role"].as_str(), Some("player"));
         assert_eq!(parsed["customization"]["paints"].as_array().map(Vec::len), Some(1));
+        let stats = parsed["stats"].as_table().unwrap();
+        assert_eq!(stats["mass_kg"].as_float(), Some(1397.0));
+        assert_eq!(stats["drive"].as_str(), Some("rwd"));
+        assert!(parsed.get("performance").is_none(), "a car has stats, not multipliers of a clone");
     }
 
     #[test]

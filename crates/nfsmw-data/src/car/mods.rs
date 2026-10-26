@@ -15,9 +15,8 @@ use crate::pursuit::{CopRecord, HEAT_LEVELS, HeatRow};
 
 pub mod custom;
 mod engine;
-mod tuning;
+pub use blackbox_vehicle::stats::{CarStats, Drive};
 pub use engine::{EngineLayer, EngineSound};
-pub use tuning::{TYPICAL_NITROUS, Tuning};
 
 /// How many cars of a mod's kind a cop wave with the car has.
 pub const COP_COUNT: u32 = 2;
@@ -41,8 +40,8 @@ pub struct CarSpec {
     pub cop_heat: Option<Vec<u32>>,
     /// Whether the mod's own `files/` folder holds `CARS/<folder>/GEOMETRY.BIN`.
     pub geometry_in_mod: bool,
-    /// How the car drives compared with its clone.
-    pub tuning: Tuning,
+    /// What the car is: its mass, engine, gearbox, tyres and brakes, from which its physics are built.
+    pub stats: CarStats,
     /// The car's own engine loops, if the mod gives them.
     pub engine_sound: Option<EngineSound>,
 }
@@ -57,7 +56,8 @@ pub struct ModCar {
     pub manufacturer: Option<String>,
     pub player: bool,
     pub cop_heat: Option<Vec<u32>>,
-    pub tuning: Tuning,
+    /// What the car is: its physics are built from these, not from any stock car's.
+    pub stats: CarStats,
     /// The car's own engine loops, if the mod gives them.
     pub engine_sound: Option<EngineSound>,
     /// The car's entry in the car table: its folder as the type name, its geometry and the brand the mod gave.
@@ -131,7 +131,7 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
         manufacturer: spec.manufacturer.clone(),
         player: spec.player,
         cop_heat: spec.cop_heat.clone(),
-        tuning: spec.tuning,
+        stats: spec.stats.clone(),
         engine_sound: spec.engine_sound.clone(),
         car_type: car_type_of(spec, types.len()),
     })
@@ -218,10 +218,9 @@ pub fn manufacturer(folder: &str) -> Option<&'static str> {
     find_in(published(), folder).and_then(|car| car.manufacturer.as_deref())
 }
 
-/// How the mod car in `folder` drives compared with its clone. `None` for a car that is not a mod car, or one whose mod
-/// asked for no change.
-pub fn tuning(folder: &str) -> Option<Tuning> {
-    find_in(published(), folder).map(|car| car.tuning).filter(|tuning| !tuning.is_stock())
+/// The stats of the mod car in `folder`. `None` for a car that is not a mod car.
+pub fn stats(folder: &str) -> Option<&'static CarStats> {
+    find_in(published(), folder).map(|car| &car.stats)
 }
 
 /// The engine loops a mod gave the car in `folder`. `None` for a car that is not a mod car or has no loops of its own.

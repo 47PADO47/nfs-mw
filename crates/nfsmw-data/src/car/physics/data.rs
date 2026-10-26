@@ -47,44 +47,18 @@ impl PhysicsData {
         self.sequences.get(key).cloned()
     }
 
-    /// The physics of car type `type_name` (e.g. `BMWM3GTR`), or of a mod car's folder: the clone's physics with the
-    /// mod's `[performance]` on top. A vehicle without bounds of its own (the semi tractor variants `semib`,
-    /// `semicon`, ...) has the bounds of the nearest ancestor that has them.
+    /// The physics of car type `type_name` (e.g. `BMWM3GTR`). A vehicle without bounds of its own (the semi tractor
+    /// variants `semib`, `semicon`, ...) has the bounds of the nearest ancestor that has them. A car that a mod adds is
+    /// built from its own stats, not here: see [`super::physics_from_stats`].
     pub fn car(&self, type_name: &str) -> Result<CarPhysics> {
-        let mut physics = self.stock_car(type_name)?;
-        self.tune(type_name, &mut physics);
-        Ok(physics)
+        self.stock_car(type_name)
     }
 
-    /// [`Self::car`] with the performance upgrades `package` names. A mod car's `[performance]` is applied after the
-    /// upgrades, so it holds at every stage. Pass a mod car's folder, not its clone's type name, to get its tuning.
+    /// [`Self::car`] with the performance upgrades `package` names.
     pub fn car_with_performance(&self, type_name: &str, package: super::PerformancePackage) -> Result<CarPhysics> {
         let mut physics = self.stock_car(type_name)?;
         super::performance::apply(&self.db, crate::car::mods::physics_name(type_name), package, &mut physics)?;
-        self.tune(type_name, &mut physics);
         Ok(physics)
-    }
-
-    /// The mod's multipliers on a mod car's physics, and its factory nitrous. A car that is not a mod car, or whose mod
-    /// asked for nothing, is left alone.
-    fn tune(&self, name: &str, physics: &mut CarPhysics) {
-        let Some(tuning) = crate::car::mods::tuning(name) else { return };
-        if tuning.nitrous && !physics.spec.nos.present() {
-            physics.spec.nos = self.first_nitrous_kit(crate::car::mods::physics_name(name), physics);
-        }
-        tuning.apply(&mut physics.spec);
-    }
-
-    /// The nitrous of the first kit the car's shop sells, or a typical kit for a car whose record has none.
-    fn first_nitrous_kit(&self, type_name: &str, physics: &CarPhysics) -> blackbox_vehicle::nos::NosSpec {
-        let mut package = super::PerformancePackage::default();
-        package.levels[super::PerformanceCategory::Nitrous as usize] = 1;
-        let mut kitted = physics.clone();
-        let fitted = super::performance::apply(&self.db, type_name, package, &mut kitted).is_ok();
-        match fitted && kitted.spec.nos.present() {
-            true => kitted.spec.nos,
-            false => crate::car::mods::TYPICAL_NITROUS,
-        }
     }
 
     fn stock_car(&self, type_name: &str) -> Result<CarPhysics> {

@@ -1654,6 +1654,7 @@ dependencies = [
 name = "blackbox-modding"
 version = "0.1.0"
 dependencies = [
+ "blackbox-vehicle",
  "libloading",
  "log",
  "semver",
@@ -4236,6 +4237,7 @@ dependencies = [
  "chameleon-vehicle",
  "ea-audio",
  "game-install",
+ "glam 0.34.1",
  "log",
  "nfsmw-data",
  "rayon",

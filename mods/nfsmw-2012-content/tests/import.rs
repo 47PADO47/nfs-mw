@@ -1,5 +1,5 @@
 //! Converts one car from real installs, the way the mod does at start-up (in the background, then promoted), and reads the
-//! result back with the game's own readers. Set `MW2012_GAME_DIR` (the 2012 install) and `NFSMW_GAME_DIR` (the 2005
+//! result back with the game's own readers. Set `MW2012_GAME_DIR` (the 2012 install) (the 2005
 //! install) and run with `--ignored`.
 
 use std::path::{Path, PathBuf};
@@ -28,15 +28,15 @@ fn wait(job: &Job) -> Finished {
 }
 
 #[test]
-#[ignore = "reads both game installs (MW2012_GAME_DIR, NFSMW_GAME_DIR)"]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
 fn a_start_converts_in_the_background_and_the_next_start_does_not() {
-    let (Some(source), Some(game)) = (std::env::var_os("MW2012_GAME_DIR"), std::env::var_os("NFSMW_GAME_DIR")) else {
+    let Some(source) = std::env::var_os("MW2012_GAME_DIR") else {
         return;
     };
-    let (source, game) = (PathBuf::from(source), PathBuf::from(game));
+    let source = PathBuf::from(source);
     let dir = mod_folder(&source);
 
-    let Start::Started { job: running, live } = job::start(&dir, &game).unwrap() else {
+    let Start::Started { job: running, live } = job::start(&dir).unwrap() else {
         panic!("the first start must convert")
     };
     assert!(!live, "nothing is live on a first start");
@@ -65,12 +65,13 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
 
     let manifest =
         std::fs::read_to_string(dir.join("cars").join(format!("{}.toml", car.id.to_ascii_lowercase()))).unwrap();
-    assert!(manifest.contains(&format!("clone = \"{}\"", car.clone)));
+    assert!(!manifest.contains("clone"), "a mod car is not a copy of any car");
+    assert!(manifest.contains("[stats]"), "the car has no stats of its own");
     assert!(manifest.contains("[customization]"), "the car has no paints of its own");
 
-    assert!(matches!(job::start(&dir, &game).unwrap(), Start::UpToDate { cars: 1 }));
+    assert!(matches!(job::start(&dir).unwrap(), Start::UpToDate { cars: 1 }));
     std::fs::write(dir.join("config.toml"), "source = 'nowhere'\n").unwrap();
-    let Start::Started { job: second, live } = job::start(&dir, &game).unwrap() else {
+    let Start::Started { job: second, live } = job::start(&dir).unwrap() else {
         panic!("a changed setting converts")
     };
     assert!(live, "content from the first run is live now, so the new run waits for the next start");
@@ -80,9 +81,9 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
 }
 
 #[test]
-#[ignore = "reads both game installs (MW2012_GAME_DIR, NFSMW_GAME_DIR); prints the time"]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR); prints the time"]
 fn every_car_converts_and_how_long_it_takes() {
-    let (Some(source), Some(game)) = (std::env::var_os("MW2012_GAME_DIR"), std::env::var_os("NFSMW_GAME_DIR")) else {
+    let Some(source) = std::env::var_os("MW2012_GAME_DIR") else {
         return;
     };
     let dir = std::env::temp_dir().join(format!("nfsmw-2012-content-all-{}", std::process::id()));
@@ -92,7 +93,7 @@ fn every_car_converts_and_how_long_it_takes() {
     for threads in [1, 3, nfsmw_2012_content::import::default_threads()] {
         let started = Instant::now();
         let report =
-            nfsmw_2012_content::import::run(&config, Path::new(&source), Path::new(&game), &dir, threads).unwrap();
+            nfsmw_2012_content::import::run(&config, Path::new(&source), &dir, threads).unwrap();
         println!("{} cars in {:.2} s on {threads} threads", report.imported.len(), started.elapsed().as_secs_f32());
         last = Some(report);
     }

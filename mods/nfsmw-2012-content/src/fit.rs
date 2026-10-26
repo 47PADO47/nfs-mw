@@ -1,14 +1,10 @@
-//! Fitting a 2012 car to the wheel layout of a stock 2005 car.
+//! Placing a 2012 car in the game's car space.
 //!
-//! A mod car is a clone of a stock car type and keeps its record, so its wheels are drawn where the stock car's gameplay
-//! record puts them, scaled to the stock tyre radius and width (docs/specs/car-assembly.md section 3). The 2012 body is
-//! therefore squeezed along each axis until its own wheel hubs land on the stock hubs, and the stock car is chosen to
-//! make that squeeze as small as it can be.
+//! The body keeps the shape it has in the 2012 files: no axis is stretched. Only the axes are permuted into the car space
+//! of the game and the car is centred on its wheelbase, so the hubs sit at plus and minus half of it along x. The host
+//! draws the wheels at the hubs the car's own stats give (`WheelSetup::from_stats`).
 
-use anyhow::{Result, bail};
 use chameleon_vehicle::Vehicle;
-use game_install::GameDir;
-use nfsmw_data::car::{CarTables, WheelSetup};
 
 /// Engine space of the 2012 files (x left, y up, z forward) to the 2005 car space (x forward, y left, z up).
 pub fn to_car_space(p: [f32; 3]) -> [f32; 3] {
@@ -28,70 +24,6 @@ pub struct Layout {
     /// Hub height.
     pub hub_z: f32,
     pub radius: f32,
-}
-
-/// A stock car a mod car can clone.
-#[derive(Debug, Clone, PartialEq)]
-pub struct StockCar {
-    pub type_name: String,
-    /// The car's folder under `CARS/`.
-    pub folder: String,
-    pub base_model_name: String,
-    pub manufacturer: String,
-    pub layout: Layout,
-    /// The rpm the clone idles at and its limiter holds, from its physics; 0 when they are not known.
-    pub idle_rpm: f32,
-    pub redline_rpm: f32,
-}
-
-/// The racing cars of the install that have a wheel layout.
-pub fn stock_cars(dir: &GameDir) -> Result<Vec<StockCar>> {
-    let tables = CarTables::load(dir)?;
-    let mut cars = Vec::new();
-    let physics = nfsmw_data::car::physics::PhysicsData::load(dir).ok();
-    for info in tables.stock_types.iter().filter(|info| info.usage_type == 0 && info.skinnable) {
-        let Some(setup) = WheelSetup::read(&tables.attributes, &info.base_model_name) else { continue };
-        let Some(layout) = layout_of(&setup) else { continue };
-        // `CARS\<folder>\GEOMETRY.BIN`
-        let Some(folder) = info.geometry_filename.split(['/', '\\']).nth(1) else { continue };
-        let rpms = physics
-            .as_ref()
-            .and_then(|physics| physics.car(&info.type_name).ok())
-            .map_or((0.0, 0.0), |car| (car.spec.engine.idle, car.spec.engine.red_line));
-        cars.push(StockCar {
-            type_name: info.type_name.clone(),
-            folder: folder.to_owned(),
-            base_model_name: info.base_model_name.clone(),
-            manufacturer: info.manufacturer.clone(),
-            layout,
-            idle_rpm: rpms.0,
-            redline_rpm: rpms.1,
-        });
-    }
-    if cars.is_empty() {
-        bail!("the install lists no racing car with a wheel layout");
-    }
-    Ok(cars)
-}
-
-fn layout_of(setup: &WheelSetup) -> Option<Layout> {
-    let hubs = &setup.tire_offsets;
-    let front = (hubs[0][0] + hubs[1][0]) / 2.0;
-    let rear = (hubs[2][0] + hubs[3][0]) / 2.0;
-    let layout = Layout {
-        wheelbase: front - rear,
-        x_mid: (front + rear) / 2.0,
-        track: hubs.iter().map(|hub| hub[1].abs()).sum::<f32>() / 4.0,
-        // The front end draws a wheel at its offset plus the suspension compression of its axle (spec section 3).
-        hub_z: hubs
-            .iter()
-            .enumerate()
-            .map(|(wheel, hub)| hub[2] + setup.fe_compressions[usize::from(wheel > 1)])
-            .sum::<f32>()
-            / 4.0,
-        radius: hubs.iter().map(|hub| hub[3]).sum::<f32>() / 4.0,
-    };
-    (layout.wheelbase > 1.0 && layout.track > 0.3 && layout.radius > 0.1).then_some(layout)
 }
 
 /// The layout of a 2012 car, measured from its wheel hubs and the height of its wheel meshes.
@@ -137,7 +69,7 @@ fn wheel_outward(vehicle: &Vehicle) -> Option<f32> {
     (reach > 0.0).then_some(reach)
 }
 
-/// How a 2012 car is moved and scaled onto a stock car's hubs.
+/// How a 2012 car is moved into the game's car space (and, if `to` differs from `from`, scaled onto other hubs).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Fit {
     pub from: Layout,
@@ -147,12 +79,17 @@ pub struct Fit {
 }
 
 impl Fit {
+    /// The car as it is, centred on its wheelbase: nothing is scaled.
+    pub fn own(from: Layout) -> Self {
+        Self::new(from, Layout { x_mid: 0.0, ..from })
+    }
+
     pub fn new(from: Layout, to: Layout) -> Self {
         let radius = to.radius / from.radius;
         Self { from, to, scale: [to.wheelbase / from.wheelbase, to.track / from.track, radius] }
     }
 
-    /// A point of the 2012 car in 2005 car space, moved onto the stock hubs.
+    /// A point of the 2012 car in the game's car space, moved onto the hubs `to` names.
     pub fn apply(&self, car_space: [f32; 3]) -> [f32; 3] {
         let [x, y, z] = car_space;
         [
@@ -168,14 +105,6 @@ impl Fit {
     }
 }
 
-/// The stock car whose layout needs the smallest squeeze, and the fit onto it.
-pub fn best_fit(from: Layout, stock: &[StockCar]) -> Option<(&StockCar, Fit)> {
-    stock
-        .iter()
-        .map(|car| (car, Fit::new(from, car.layout)))
-        .min_by(|(_, a), (_, b)| a.distortion().total_cmp(&b.distortion()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,6 +117,13 @@ mod tests {
     }
 
     #[test]
+    fn an_own_fit_centres_the_wheelbase_and_scales_nothing() {
+        let fit = Fit::own(LAYOUT);
+        assert_eq!(fit.distortion(), 0.0);
+        assert_eq!(fit.apply([LAYOUT.x_mid + 1.3, 0.5, 0.9]), [1.3, 0.5, 0.9]);
+    }
+
+    #[test]
     fn a_car_fitted_to_its_own_layout_does_not_move() {
         let fit = Fit::new(LAYOUT, LAYOUT);
         assert_eq!(fit.distortion(), 0.0);
@@ -195,27 +131,12 @@ mod tests {
     }
 
     #[test]
-    fn hubs_land_on_the_stock_hubs() {
+    fn hubs_land_on_the_hubs_they_are_fitted_to() {
         let stock = Layout { wheelbase: 2.8, x_mid: 0.0, track: 0.9, hub_z: 0.0, radius: 0.33 };
         let fit = Fit::new(LAYOUT, stock);
         let front_left = fit.apply([LAYOUT.x_mid + LAYOUT.wheelbase / 2.0, LAYOUT.track, LAYOUT.hub_z]);
         assert!((front_left[0] - 1.4).abs() < 1e-5);
         assert!((front_left[1] - 0.9).abs() < 1e-5);
         assert!(front_left[2].abs() < 1e-5);
-    }
-
-    #[test]
-    fn the_closest_stock_car_wins() {
-        let car = |name: &str, wheelbase: f32| StockCar {
-            type_name: name.into(),
-            folder: name.into(),
-            base_model_name: name.into(),
-            manufacturer: String::new(),
-            layout: Layout { wheelbase, ..LAYOUT },
-            idle_rpm: 800.0,
-            redline_rpm: 7000.0,
-        };
-        let stock = [car("LONG", 3.4), car("NEAR", 2.65), car("SHORT", 2.2)];
-        assert_eq!(best_fit(LAYOUT, &stock).unwrap().0.type_name, "NEAR");
     }
 }

@@ -33,7 +33,7 @@ fn spec(folder: &str) -> CarSpec {
         player: true,
         cop_heat: None,
         geometry_in_mod: true,
-        tuning: Tuning::default(),
+        stats: CarStats::default(),
         engine_sound: None,
     }
 }
@@ -164,52 +164,16 @@ fn published_cars_accumulate_and_a_folder_is_added_once() {
     assert_eq!(published().len(), 2);
 }
 
-fn tuned(tuning: Tuning) -> (blackbox_vehicle::VehicleSpec, blackbox_vehicle::VehicleSpec) {
-    let stock = blackbox_vehicle::VehicleSpec::example();
-    let mut spec = stock.clone();
-    tuning.apply(&mut spec);
-    (stock, spec)
-}
-
-#[test]
-fn a_stock_tuning_changes_nothing_and_says_so() {
-    assert!(Tuning::default().is_stock());
-    let (stock, spec) = tuned(Tuning::default());
-    assert_eq!(format!("{stock:?}"), format!("{spec:?}"));
-}
-
-#[test]
-fn the_tuning_scales_power_mass_grip_brakes_and_the_nitrous_boost() {
-    let (stock, spec) =
-        tuned(Tuning { power: 1.2, mass: 0.9, grip: 1.1, brakes: 1.5, nitrous: false, nitrous_power: 2.0 });
-    for (new, old) in spec.engine.torque.iter().zip(&stock.engine.torque) {
-        assert!((new - old * 1.2).abs() < 1e-3);
-    }
-    assert!((spec.mass - stock.mass * 0.9).abs() < 1e-3);
-    for axle in 0..2 {
-        assert!((spec.tires.grip_scale[axle] - stock.tires.grip_scale[axle] * 1.1).abs() < 1e-4);
-        assert!((spec.tires.static_grip[axle] - stock.tires.static_grip[axle] * 1.1).abs() < 1e-4);
-        assert!((spec.tires.dynamic_grip[axle] - stock.tires.dynamic_grip[axle] * 1.1).abs() < 1e-4);
-        assert!((spec.brakes.brakes[axle] - stock.brakes.brakes[axle] * 1.5).abs() < 1e-3);
-    }
-    assert!((spec.nos.torque_boost - stock.nos.torque_boost * 2.0).abs() < 1e-5);
-}
-
-#[test]
-fn factory_nitrous_alone_is_a_change_and_the_typical_kit_has_nitrous() {
-    assert!(!Tuning { nitrous: true, ..Tuning::default() }.is_stock());
-    assert!(TYPICAL_NITROUS.present());
-}
-
 #[test]
 fn a_mod_car_keeps_its_own_brand_and_tuning() {
     let mut first = spec("MYCAR");
     first.manufacturer = Some("Acme".to_owned());
-    first.tuning = Tuning { power: 1.3, ..Tuning::default() };
+    first.stats = CarStats { mass_kg: 1300.0, ..CarStats::default() };
     let (cars, rejected) = register(&table(), &[first, spec("MYCAR2")]);
     assert!(rejected.is_empty(), "{rejected:?}");
     assert_eq!(find_in(&cars, "mycar").and_then(|car| car.manufacturer.as_deref()), Some("Acme"));
     assert_eq!(find_in(&cars, "MYCAR2").and_then(|car| car.manufacturer.as_deref()), None);
-    assert_eq!(find_in(&cars, "mycar").map(|car| car.tuning.power), Some(1.3));
+    assert_eq!(find_in(&cars, "mycar").map(|car| car.stats.mass_kg), Some(1300.0));
+    assert_eq!(find_in(&cars, "MYCAR2").map(|car| car.stats.mass_kg), Some(CarStats::default().mass_kg));
     assert!(find_in(&cars, "CAMARO").is_none(), "a stock car is not a mod car");
 }

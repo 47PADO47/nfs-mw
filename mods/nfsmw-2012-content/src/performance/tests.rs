@@ -5,7 +5,7 @@ fn cars(text: &str) -> BTreeMap<String, Change> {
 }
 
 #[test]
-fn the_converted_cars_have_nitrous_and_drive_like_their_clone_by_default() {
+fn the_converted_cars_keep_their_2012_stats_and_nitrous_by_default() {
     let performance = Performance::default();
     assert!(performance.nitrous);
     assert_eq!((performance.power, performance.mass, performance.grip, performance.brakes), (1.0, 1.0, 1.0, 1.0));
@@ -24,14 +24,50 @@ fn a_car_table_changes_only_the_keys_it_names() {
     assert_eq!(other, general);
 }
 
+fn stats() -> ImportedStats {
+    ImportedStats {
+        mass_kg: 1400.0,
+        front_weight_pct: 50.0,
+        cg_height_m: 0.45,
+        wheelbase_m: 2.6,
+        track_m: [1.55, 1.55],
+        tire_radius_m: [0.34, 0.34],
+        tire_width_m: [0.25, 0.28],
+        ride_height_m: 0.15,
+        idle_rpm: 1000.0,
+        redline_rpm: 7000.0,
+        torque_curve: vec![[1000.0, 300.0], [4000.0, 400.0], [7000.0, 350.0]],
+        gear_ratios: vec![3.5, 2.0, 1.4, 1.0, 0.8],
+        reverse_ratio: 3.0,
+        final_drive: 3.5,
+        drive: "rwd",
+        front_torque_share: 0.0,
+        diff_lock: [0.0, 0.5],
+        top_speed_kph: 280.0,
+        tire_grip: [1.5, 1.5],
+        brake_torque_nm: [1500.0, 1200.0],
+        nitrous_boost: 0.9,
+    }
+}
+
 #[test]
-fn the_manifest_table_is_valid_toml_with_every_key() {
-    let table = Performance { power: 1.25, nitrous: false, ..Performance::default() }.manifest_table();
-    let parsed: toml::Table = toml::from_str(&table).unwrap();
-    let performance = parsed["performance"].as_table().unwrap();
-    assert_eq!(performance.len(), 6);
-    assert_eq!(performance["power"].as_float(), Some(1.25));
-    assert_eq!(performance["nitrous"].as_bool(), Some(false));
+fn the_multipliers_scale_the_imported_stats() {
+    let mut car = stats();
+    Performance { power: 1.25, mass: 0.9, grip: 1.1, brakes: 2.0, nitrous: true, nitrous_power: 0.5 }.apply(&mut car);
+    assert_eq!(car.peak_torque_nm(), 500.0);
+    assert!((car.mass_kg - 1260.0).abs() < 1e-3);
+    assert!((car.tire_grip[0] - 1.65).abs() < 1e-5);
+    assert_eq!(car.brake_torque_nm, [3000.0, 2400.0]);
+    assert!((car.nitrous_boost - 0.45).abs() < 1e-6);
+}
+
+#[test]
+fn the_default_multipliers_change_nothing_and_nitrous_can_be_turned_off() {
+    let mut car = stats();
+    Performance::default().apply(&mut car);
+    assert_eq!(car, stats());
+    Performance { nitrous: false, ..Performance::default() }.apply(&mut car);
+    assert_eq!(car.nitrous_boost, 0.0);
 }
 
 #[test]

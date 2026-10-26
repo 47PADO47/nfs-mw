@@ -6,12 +6,15 @@
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
+use chameleon_bundle::Bundle;
+use chameleon_vehicle::read_stats;
 use rayon::prelude::*;
 
 use crate::config::Config;
 use crate::emit::{CarEntry, CarFiles, EngineFiles, ModFolder};
-use crate::fit::{StockCar, best_fit, measure, stock_cars};
+use crate::fit::{Fit, measure};
 use crate::source::{CarFile, Source};
+use crate::stats::ImportedStats;
 use crate::{convert, engine, names, paints};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
@@ -29,7 +32,6 @@ pub struct Report {
 pub struct ImportedCar {
     pub id: String,
     pub name: String,
-    pub clone: String,
     /// Largest stretch the fit applied along any axis (1.0 is none).
     pub stretch: f32,
     /// Triangles of the finest body level.
@@ -50,30 +52,27 @@ pub fn default_threads() -> usize {
     cores.saturating_sub(1).clamp(1, MAX_THREADS)
 }
 
-/// Convert the cars `config` asks for, from the 2012 install at `source_root` and with the stock cars of the 2005
-/// install at `game_dir`, into the mod folder `out`, on `threads` threads.
-pub fn run(config: &Config, source_root: &Path, game_dir: &Path, out: &Path, threads: usize) -> Result<Report> {
+/// Convert the cars `config` asks for, from the 2012 install at `source_root` into the mod folder `out`, on `threads`
+/// threads.
+pub fn run(config: &Config, source_root: &Path, out: &Path, threads: usize) -> Result<Report> {
     config.check()?;
     let source = Source::open(source_root)?;
-    let game = game_install::GameDir::open(game_dir)
-        .with_context(|| format!("opening the NFS: Most Wanted install {}", game_dir.display()))?;
-    let stock = stock_cars(&game).context("reading the stock cars' wheel layouts")?;
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads.max(1))
         .thread_name(|n| format!("nfsmw-2012-content-{n}"))
         .build()
         .context("starting the conversion threads")?;
-    pool.install(|| convert_all(config, &source, &stock, out))
+    pool.install(|| convert_all(config, &source, out))
 }
 
-fn convert_all(config: &Config, source: &Source, stock: &[StockCar], out: &Path) -> Result<Report> {
+fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     let wanted: Vec<Named> = named(source).into_iter().filter(|car| config.wants(&car.id, &car.display)).collect();
     if wanted.is_empty() {
         bail!("no car of the 2012 install matches the settings");
     }
     let folder = ModFolder::create(out)?;
     let results: Vec<Result<ImportedCar>> =
-        wanted.par_iter().map(|car| import_car(source, car, config, stock, &folder)).collect();
+        wanted.par_iter().map(|car| import_car(source, car, config, &folder)).collect();
     let mut report = Report::default();
     for (car, result) in wanted.iter().zip(results) {
         match result {
@@ -103,23 +102,25 @@ fn import_car(
     source: &Source,
     named: &Named,
     config: &Config,
-    stock: &[StockCar],
     folder: &ModFolder,
 ) -> Result<ImportedCar> {
     let car = source.load(named.file)?;
     let layout = measure(&car.vehicle).context("the wheel layout of the car could not be measured")?;
-    let (clone, fit) = best_fit(layout, stock).context("no stock car to clone")?;
-    log::debug!("{}: wheel layout {:?} fitted onto {} {:?}", named.id, fit.from, clone.type_name, fit.to);
+    let fit = Fit::own(layout);
     let options = convert::Options { max_texture_size: config.max_texture_size };
     let built = convert::build(&car, &fit, &named.id, &options)?;
-    let engine = engine_of(source, named, config, clone);
+    // What the car is comes from its own bundle; the user's multipliers, if any, change it here.
+    let bytes = source.bundle_bytes(named.file)?;
+    let car_stats = read_stats(&Bundle::parse(&bytes)?).context("the stats of the car could not be read")?;
+    let mut stats = ImportedStats::of(&car_stats);
+    config.tuning().for_car(&named.id, &named.display).apply(&mut stats);
+    let engine = engine_of(&bytes, named, config, &stats);
     let entry = CarEntry {
         id: named.id.clone(),
-        clone: clone.type_name.clone(),
         name: named.display.clone(),
         manufacturer: named.make.clone(),
         role: config.role,
-        performance: config.tuning().for_car(&named.id, &named.display),
+        stats,
         customization: paints::manifest_table(&paints::choices(&car.paints)),
     };
     folder.add_car(
@@ -134,22 +135,21 @@ fn import_car(
     Ok(ImportedCar {
         id: named.id.clone(),
         name: named.display.clone(),
-        clone: clone.type_name.clone(),
         stretch: fit.distortion().exp(),
         triangles: built.triangles,
     })
 }
 
-/// The car's own engine loops, when the settings ask for them and its bundle has pitched loops. A car whose loops cannot
-/// be read still converts, with its clone's engine sound.
-fn engine_of(source: &Source, named: &Named, config: &Config, clone: &StockCar) -> Option<EngineFiles> {
-    if !config.own_engine_sound || clone.idle_rpm <= 0.0 || clone.redline_rpm <= clone.idle_rpm {
+/// The car's own engine loops, when the settings ask for them and its bundle has pitched loops. The loops stand for the
+/// engine speeds between the idle and the redline of the car's own stats. A car whose loops cannot be read still
+/// converts, with the game's generic engine sound.
+fn engine_of(bundle: &[u8], named: &Named, config: &Config, stats: &ImportedStats) -> Option<EngineFiles> {
+    if !config.own_engine_sound || stats.idle_rpm <= 0.0 || stats.redline_rpm <= stats.idle_rpm {
         return None;
     }
-    let loops = source.bundle_bytes(named.file).and_then(|bytes| engine::loops(&bytes));
-    let loops = loops.map_err(|error| log::warn!("{}: no engine loops: {error:#}", named.id)).ok()?;
-    let layers = engine::layers(loops, clone.idle_rpm, clone.redline_rpm);
-    (!layers.is_empty()).then_some(EngineFiles { idle_rpm: clone.idle_rpm, redline_rpm: clone.redline_rpm, layers })
+    let loops = engine::loops(bundle).map_err(|error| log::warn!("{}: no engine loops: {error:#}", named.id)).ok()?;
+    let layers = engine::layers(loops, stats.idle_rpm, stats.redline_rpm);
+    (!layers.is_empty()).then_some(EngineFiles { idle_rpm: stats.idle_rpm, redline_rpm: stats.redline_rpm, layers })
 }
 
 #[cfg(test)]

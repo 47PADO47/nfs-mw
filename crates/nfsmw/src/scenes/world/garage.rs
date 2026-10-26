@@ -59,13 +59,23 @@ pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
             manufacturer = brand.to_owned();
         }
         let original_color = stock_parts(&tables, car_type)[slot::BASE_PAINT].map(|part| Paint::of(&tables, &part).rgb);
-        let performance = PerformanceCatalog::read(physics.database(), &car_type.type_name)?;
+        // A mod car's upgrades, bars and package texts come from its own stats (nothing of a stock car's record).
+        let own_stats = car_mods::stats(&folder);
+        let performance = match own_stats {
+            Some(stats) => PerformanceCatalog::from_stats(stats),
+            None => PerformanceCatalog::read(physics.database(), &car_type.type_name)?,
+        };
+        let details_name = own_stats.map_or(car_type.type_name.as_str(), |_| folder.as_str());
         let performance_details = nfsmw_data::car::physics::performance::PerformanceDetails::read(
             &frontend,
-            &car_type.type_name,
+            details_name,
             &performance,
             data.spec.induction.kind() == blackbox_vehicle::induction::InductionKind::Turbo,
         );
+        let performance_ratings = match own_stats {
+            Some(stats) => ratings.for_stats(stats),
+            None => ratings.for_car(&car_type.type_name),
+        };
         cars.push(Car {
             folder,
             name,
@@ -78,7 +88,7 @@ pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
             physics_name: car_type.type_name.clone(),
             performance,
             performance_details,
-            performance_ratings: ratings.for_car(&car_type.type_name),
+            performance_ratings,
             parts: None,
             unavailable: None,
         });

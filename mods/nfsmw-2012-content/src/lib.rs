@@ -26,6 +26,7 @@ mod paints;
 pub mod performance;
 mod source;
 mod stamp;
+pub mod stats;
 mod textures;
 
 use std::path::PathBuf;
@@ -44,12 +45,12 @@ pub struct NfsmwContent {
 
 impl Mod for NfsmwContent {
     fn load(ctx: &mut Ctx) -> ModResult<Self> {
-        let (Ok(mod_dir), Ok(game_dir)) = (ctx.mod_dir(), ctx.game_dir()) else {
-            ctx.log(Level::Warn, "nfsmw-2012-content: the host does not say where the mod and the game are");
+        let Ok(mod_dir) = ctx.mod_dir() else {
+            ctx.log(Level::Warn, "nfsmw-2012-content: the host does not say where the mod is");
             return Ok(Self { mod_dir: PathBuf::new(), job: None, live: false });
         };
         let mut state = Self { mod_dir: mod_dir.clone(), job: None, live: false };
-        match job::start(&mod_dir, &game_dir) {
+        match job::start(&mod_dir) {
             Ok(Start::NotConfigured { config, created }) => {
                 let made = if created { " (written just now)" } else { "" };
                 ctx.log(

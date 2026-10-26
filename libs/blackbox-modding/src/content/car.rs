@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use super::customization::{self, Customization};
 use super::engine_sound::{self, EngineSound};
-use super::performance::{self, Performance};
+use super::stats::{self, Stats};
 use super::{ContentError, is_id};
 
 /// Who may drive or chase with the car.
@@ -43,8 +43,9 @@ pub struct CarManifest {
     pub name: Option<String>,
     /// The brand, trimmed. `None` shows no brand.
     pub manufacturer: Option<String>,
-    /// How the car drives compared with the clone (`[performance]`): the clone's own values when the table is left out.
-    pub performance: Performance,
+    /// What the car is (`[stats]`): its mass, engine, gearbox, tyres and brakes, in absolute units. The engine's generic
+    /// car when the table is left out.
+    pub stats: Stats,
     /// The car's own engine loops (`[engine_sound]`), `None` for a car with no loops of its own.
     pub engine_sound: Option<EngineSound>,
     /// The car's own paints, rims and other parts (`[customization]`). `None`: the car offers none of its own.
@@ -65,7 +66,7 @@ struct Raw {
     #[serde(default)]
     manufacturer: Option<String>,
     #[serde(default)]
-    performance: Option<performance::Raw>,
+    stats: Option<stats::Raw>,
     #[serde(default)]
     engine_sound: Option<engine_sound::Raw>,
     #[serde(default)]
@@ -105,7 +106,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     let heat = heat(raw.heat, role)?;
     let name = checked_text(raw.name, ContentError::InvalidName)?;
     let manufacturer = checked_text(raw.manufacturer, ContentError::InvalidManufacturer)?;
-    let performance = performance::check(raw.performance)?;
+    let stats = stats::check(raw.stats)?;
     let engine_sound = engine_sound::check(raw.engine_sound)?;
     let customization = customization::check(raw.customization)?;
     Ok(CarManifest {
@@ -114,7 +115,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
         heat,
         name,
         manufacturer,
-        performance,
+        stats,
         engine_sound,
         customization,
     })
