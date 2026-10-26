@@ -271,3 +271,32 @@ fn the_curve_is_linear_between_points_and_flat_outside() {
     assert_eq!(stats.torque_at(9000.0), 200.0);
     assert_eq!(stats.peak_torque_nm(), 200.0);
 }
+
+/// Drive at `speed` and steer by `steer` after seven seconds; the yaw rate the car settles at, and its speed then.
+fn settled_turn(spec: &VehicleSpec, speed: f32, steer: f32) -> (f32, f32) {
+    use crate::FIXED_STEP;
+    use crate::ground::FlatGround;
+    use crate::input::InputState;
+    use crate::vehicle::Vehicle;
+    let ground = FlatGround::new(0.0);
+    let mut car = Vehicle::new(spec.clone());
+    car.place_on_ground(&ground, 0.0, 0.0, 5.0, 0.0);
+    for step in 0..(14.0 / FIXED_STEP) as usize {
+        let time = step as f32 * FIXED_STEP;
+        let throttle = if car.forward_speed() < speed { 1.0 } else { 0.2 };
+        let steer = if time > 7.0 { steer } else { 0.0 };
+        car.step(FIXED_STEP, &InputState { throttle, steer, ..InputState::default() }, &ground);
+    }
+    (car.angular_velocity().y.abs(), car.speed())
+}
+
+#[test]
+fn the_car_turns_at_speed_and_does_not_spin_at_high_speed() {
+    let mut spec = VehicleSpec::from_stats(&sports_car(), BOX);
+    spec.rest_at(0.15);
+    let (yaw, _) = settled_turn(&spec, 30.0, 0.5);
+    assert!(yaw > 0.8, "it turns at 30 m/s: yaw {yaw}");
+    let (yaw, speed) = settled_turn(&spec, 50.0, 0.3);
+    assert!((0.3..1.0).contains(&yaw), "it holds its line at 50 m/s: yaw {yaw}");
+    assert!(speed > 40.0, "it does not spin and lose its speed: {speed}");
+}

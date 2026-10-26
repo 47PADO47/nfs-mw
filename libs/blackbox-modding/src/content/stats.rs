@@ -116,7 +116,7 @@ impl Default for Stats {
             diff_lock: [0.0, 0.3],
             top_speed_kph: None,
             drag: 0.35,
-            downforce: 0.003,
+            downforce: 0.2,
             tire_grip: [1.2, 1.2],
             brake_torque_nm: [1400.0, 950.0],
             handbrake_torque_nm: 1500.0,
@@ -241,7 +241,7 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Stats, ContentError> {
         ],
         top_speed_kph: raw.top_speed_kph.map(|v| r(Some(v), v, "stats.top_speed_kph", 50.0, 700.0)).transpose()?,
         drag: r(raw.drag, d.drag, "stats.drag", 0.02, 3.0)?,
-        downforce: r(raw.downforce, d.downforce, "stats.downforce", 0.0, 0.1)?,
+        downforce: r(raw.downforce, d.downforce, "stats.downforce", 0.0, 0.5)?,
         tire_grip: [
             r(raw.front_tire_grip, d.tire_grip[0], "stats.front_tire_grip", 0.3, 3.0)?,
             r(raw.rear_tire_grip, d.tire_grip[1], "stats.rear_tire_grip", 0.3, 3.0)?,

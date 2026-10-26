@@ -6,8 +6,8 @@
 //!
 //! | Parameter | Value |
 //! |---|---|
-//! | Rigid body (gravity, drag on the body, sleep, ground contact, object contact) | [`RigidBodySpec::default`] |
-//! | Inertia tensor scale | 1 on every axis |
+//! | Rigid body (gravity, sleep, ground contact, object contact) | the one every stock racing car has ([`racer_body`]) |
+//! | Inertia tensor scale | `(1, 2, 1)`: twice the inertia about the vertical axis, as the stock racing cars |
 //! | Flywheel mass, rev-limiter ceiling | 20, the last torque point or the red line |
 //! | Gear efficiency per gear | the stats' single efficiency |
 //! | Clutch slip, shift speed, torque converter, perfect-shift window | 0.3, 0.1, 0, 0 |
@@ -30,7 +30,7 @@ use crate::engine::EngineSpec;
 use crate::induction::InductionSpec;
 use crate::math::{FT_LB_TO_NM, LB_IN_TO_N_M, RPM_PER_RAD_S, inch_to_m};
 use crate::nos::NosSpec;
-use crate::rigid_body::RigidBodySpec;
+use crate::rigid_body::{ObjectMaterial, RigidBodySpec};
 use crate::suspension::ChassisSpec;
 use crate::tires::TireSpec;
 use crate::vehicle::VehicleSpec;
@@ -71,8 +71,8 @@ pub(super) fn spec(stats: &CarStats, dimension: Vec3) -> VehicleSpec {
     let mut spec = VehicleSpec {
         mass: stats.mass_kg,
         dimension,
-        tensor_scale: Vec3::ONE,
-        body: RigidBodySpec::default(),
+        tensor_scale: TENSOR_SCALE,
+        body: racer_body(),
         chassis: chassis(stats, dimension),
         tires: tires(stats),
         brakes: brakes(stats),
@@ -83,7 +83,7 @@ pub(super) fn spec(stats: &CarStats, dimension: Vec3) -> VehicleSpec {
         aero: AeroSpec {
             drag_coefficient: stats.drag,
             aero_coefficient: stats.downforce,
-            aero_cg: 50.0,
+            aero_cg: aero_cg(stats),
             ..AeroSpec::default()
         },
     };
@@ -144,6 +144,38 @@ pub(super) fn rest_at(spec: &mut VehicleSpec, clearance: f32) {
         spec.chassis.ride_height[axle] = (clearance + sag) / inch_to_m(1.0);
     }
 }
+
+/// The engine's own rigid body of a racing car: how it sits on the ground and how it bounces off objects. Every stock
+/// racing car has these numbers; they are not any one car's.
+fn racer_body() -> RigidBodySpec {
+    RigidBodySpec {
+        gravity: -9.8128,
+        sleep_velocity: 1.0,
+        ground_friction: [0.55, 0.45],
+        ground_elasticity: Vec3::ZERO,
+        ground_moment_scale: Vec3::new(1.5, 3.0, 1.5),
+        objects: ObjectMaterial {
+            immobile: false,
+            friction: [0.55, 0.35],
+            elasticity: Vec3::new(0.0, 0.0, 0.05),
+            inertia_scale: Vec3::new(4.0, 15.0, 3.0),
+            mass_scale: 1.0,
+        },
+        ..RigidBodySpec::default()
+    }
+}
+
+/// Twice the inertia about the vertical axis, as the stock racing cars have it: a car that yaws as easily as a real one
+/// is too twitchy for the engine's steering.
+const TENSOR_SCALE: Vec3 = Vec3::new(1.0, 2.0, 1.0);
+/// Where the downforce acts along the wheelbase, in percent. The stock racing cars have it 4 to 7 points behind their
+/// weight bias (47 to 50 for a 53 to 54 percent front bias); a car whose downforce acts further forward than its weight
+/// does lifts its rear and spins at speed.
+fn aero_cg(stats: &CarStats) -> f32 {
+    (stats.front_weight_pct - AERO_BEHIND_WEIGHT).clamp(25.0, 55.0)
+}
+
+const AERO_BEHIND_WEIGHT: f32 = 6.0;
 
 /// Height of the roll centre, which is also the height of the centre of gravity, above the road. The engine's handling is
 /// tuned for the low centres of gravity of its cars (0.18 to 0.22 of the height of the body box in the stock cars), not

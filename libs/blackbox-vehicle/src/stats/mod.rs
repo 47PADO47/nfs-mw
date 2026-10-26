@@ -115,7 +115,7 @@ impl Default for CarStats {
             diff_lock: [0.0, 0.3],
             top_speed: None,
             drag: 0.35,
-            downforce: 0.003,
+            downforce: 0.2,
             tire_grip: [1.2, 1.2],
             brake_torque_nm: [1400.0, 950.0],
             handbrake_torque_nm: 1500.0,
