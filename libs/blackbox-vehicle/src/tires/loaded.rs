@@ -74,7 +74,10 @@ impl Tire {
         let total_torque = self.drive_torque + brake_torque;
 
         // Slip.
-        self.slip_angle = lat.atan2(fwd.abs()) / TAU;
+        self.slip_angle = match reference {
+            true => super::angle::reference_angle(lat, fwd.abs()),
+            false => lat.atan2(fwd.abs()) / TAU,
+        };
         let slip = self.av * r - fwd;
         self.slip = slip;
         let pilot = self.pilot_factor(p, i.body_speed);

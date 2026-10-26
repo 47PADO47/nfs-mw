@@ -72,3 +72,27 @@ fn reference_brake_lock_clears_previous_wheel_direction_in_both_directions() {
         assert_eq!(tire.last_sign, 0);
     }
 }
+
+#[test]
+fn only_reference_loaded_tires_quantize_slip_angle_and_filter_tiny_components() {
+    for (lateral, forward, units) in [(0.3, 15.0, 208.0), (1e-6, 1e-6, 0.0), (1.0, 1e-6, 16384.0)] {
+        for integration in [TireIntegration::Reference, TireIntegration::Regularized] {
+            let mut tire = Tire { integration, load: 1024.0, ..Default::default() };
+            let input = LoadedInput {
+                lat_vel: lateral,
+                fwd_vel: forward,
+                body_speed: forward,
+                load: 1024.0,
+                dt: 1.0 / 60.0,
+                quarter_mass: 100.0,
+                surface: SurfaceGrip::DEFAULT,
+            };
+            tire.update_loaded(&params(), &input);
+            let expected = match integration {
+                TireIntegration::Reference => units / 65536.0,
+                TireIntegration::Regularized => lateral.atan2(forward) / std::f32::consts::TAU,
+            };
+            assert_eq!(tire.slip_angle, expected, "{integration:?}: {lateral}, {forward}");
+        }
+    }
+}

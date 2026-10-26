@@ -1,6 +1,7 @@
 //! The tire model: wheel spin, slip, load-sensitive lateral force, friction ellipse and surface grip.
 //! Spec section 3 of `docs/specs/vehicle-suspension-tires.md`.
 
+mod angle;
 mod coasting;
 mod damage;
 mod integration;
