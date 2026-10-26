@@ -6,6 +6,9 @@
 //! the mod's files exist, is for the game to decide, because only the game knows its car tables and its index.
 
 mod car;
+mod customization;
+#[cfg(test)]
+mod customization_tests;
 mod engine_sound;
 mod error;
 mod interior;
@@ -22,6 +25,7 @@ mod scenery_tests;
 #[cfg(test)]
 mod tests;
 
+pub use customization::{Customization, Finish, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
 pub use car::{CarManifest, Role, parse as parse_car};
 pub use engine_sound::{EngineSound, Layer as EngineLayer, MAX_LAYERS as MAX_ENGINE_LAYERS};
 pub use error::ContentError;
