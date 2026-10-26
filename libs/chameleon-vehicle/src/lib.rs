@@ -9,6 +9,7 @@ mod appearance;
 mod collision;
 mod error;
 mod genesys;
+mod lamps;
 mod name;
 mod paint;
 mod spec;
@@ -20,9 +21,10 @@ mod stats_tests;
 #[cfg(test)]
 mod tests;
 
-pub use appearance::{Appearance, SurfaceKind};
+pub use appearance::{Appearance, LampEnd, LampSide, LampSurface, SurfaceKind};
 pub use collision::{PolySoup, load_poly_soup};
 pub use error::{Error, Result};
+pub use lamps::{LampEntry, Lamps, Locator, LocatorGroup, read_groups, read_lamps, split_lenses};
 pub use name::vehicle_name;
 pub use paint::{VehiclePaint, paints};
 pub use spec::{GraphicsSpec, WheelSpec, find_spec};
