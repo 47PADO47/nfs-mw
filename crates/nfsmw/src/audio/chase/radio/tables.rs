@@ -51,8 +51,16 @@ pub fn vehicle_battalion(vehicle: Vehicle) -> Option<Battalion> {
     }
 }
 
-/// The vehicle class of a cop car's `pvehicle` name.
+/// The vehicle class of a cop car's `pvehicle` name. A mod cop car has no `pvehicle`: its unit class gives the radio class
+/// (heavy: the sport-utility units, pursuit: the super pursuit units, patrol: an ordinary car).
 pub fn vehicle_of(name: &str) -> Vehicle {
+    use nfsmw_data::car::mods::{CopKind, cop_kind};
+    match cop_kind(name) {
+        Some(CopKind::Heavy) => return Vehicle::Suv,
+        Some(CopKind::Pursuit) => return Vehicle::SuperPursuit,
+        Some(CopKind::Patrol) => return Vehicle::Patrol,
+        None => {}
+    }
     match name.to_ascii_lowercase().as_str() {
         "copsuv" | "copsuvl" | "copsuvpatrol" => Vehicle::Suv,
         "copsport" | "copsportghost" | "copsporthench" => Vehicle::SuperPursuit,
