@@ -190,11 +190,12 @@ before. Per part it writes a `[[damage_parts]]` table ([car-damage-parts.md](car
 | `stages` | the ladder of damage fractions of the part, ascending |
 | `mass_kg` | the part's mass (30 or 50 kg on the 911) |
 
-The cars with an **active spoiler** (the bone `SpoilerHinge`, 11 bundles: 911 Carrera S, 918 Spyder, LFA, SLS AMG, Agera R and
-others) get a part `Spoiler` the same way, whether or not their damage object lists it, with a `[damage_parts.active]` table
-from the 2012 state machine: the speeds, the time and the movement of the animation
-([chameleon-active-aero.md](../formats/chameleon-active-aero.md)). The Veyron, the McLaren, the Venom, the Huayra's flaps
-and the air vents are not converted.
+The cars whose spoiler is a plain speed machine (the bone `SpoilerHinge`, 8 bundles of 7 models: 911 Carrera S, 918 Spyder
+2013, LFA, SL65 AMG, SLS AMG and Panamera Turbo S) get a part `Spoiler` the same way, whether or not their damage object lists
+it, with a `[damage_parts.active]` table decoded from the 2012 state machine and animation: the open and close speeds, the
+time, the slide and the turn ([chameleon-active-aero.md](../formats/chameleon-active-aero.md)). The cars whose machines
+have several states or inputs (the two-stage 918 Concept and LP700-4, the Agera, the Veyron, the McLaren, the Venom, the
+Huayra's flaps and the air vents) keep that wing at rest: their state graphs are not decoded and the mod does not guess.
 
 On the 911 that is 8 parts, the 7 of its damage object with 12,119 of the 30,908 triangles of the finest body level, and the spoiler; 90 of the 93 cars have parts (the
 SWAT van has no skeleton, and two cars have a skin of all-zero weights). Limits: the coarser body levels (`C`, `D`) are not

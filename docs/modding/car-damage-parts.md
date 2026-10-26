@@ -36,7 +36,9 @@ mass_kg = 40.0                        # optional: its mass once it is a body of 
 # A part that also moves with the car's speed, such as an active spoiler:
 [damage_parts.active]
 offset = [-0.07, 0.0, 0.02]           # metres at full deployment, in the solids' space
-above_mph = 70.0                      # deploys from this speed up
+rotation_axis = [0.0, 1.0, 0.0]       # optional, with rotation_deg: a turn about the part's pivot
+rotation_deg = 30.5                   # degrees at full deployment
+above_mph = 70.0                      # deploys above this speed
 below_mph = 40.0                      # comes down below this speed (default: above_mph)
 seconds = 0.6                         # the whole movement takes this long
 ```
@@ -55,11 +57,14 @@ seconds = 0.6                         # the whole movement takes this long
 
 ### `[damage_parts.active]`
 
-A part may move with the car's speed. `offset` is the way it slides at full deployment (up to 5 m, not 0), `above_mph` the
-speed it starts going out at, `below_mph` the speed it starts coming back at (not above `above_mph`; between the two it goes
-on the way it was going, so it does not flutter), `seconds` (0.05 to 10) how long the whole movement takes. A part with an
-`active` table may have `angle = 0`: the damage then does not turn it, though it still comes off at its release level and
-in a wreck. Without a `stages` list it comes off at the second dent of its zones (default release level 0.5).
+A part may move with the car's speed. `offset` is the way it slides at full deployment (up to 5 m; it may be left out when
+the part only turns), `rotation_axis` and `rotation_deg` (both or neither) the turn about the part's `pivot` at full
+deployment (a non-zero axis, normalised by the game; up to 180 degrees, not 0), `above_mph` the speed it starts going out
+above, `below_mph` the speed it starts coming back below (not above `above_mph`; between the two it goes on the way it was
+going, so it does not flutter; when they are equal it goes out above the speed and back below it), `seconds` (0.05 to 10) how
+long the whole movement takes. An active part moves or turns, not neither. A part with an `active` table may have `angle = 0`:
+the damage then does not turn it, though it still comes off at its release level and in a wreck. Without a `stages` list it
+comes off at the second dent of its zones (default release level 0.5).
 
 A wrong value, or a key the table does not know, refuses the car and the log names the key. At most 16 parts per car. The
 schema is checked by `libs/blackbox-modding/src/content/damage_parts.rs`; whether the model exists is checked by the game
@@ -67,9 +72,10 @@ when it assembles the car.
 
 ## What the game does
 
-Each tick the car's speed (the length of its velocity, in mph) moves every active part one step: out at `above_mph`, back
-below `below_mph`, at a speed of 1 over `seconds` of the whole way, eased at both ends. The part is drawn displaced by
-`offset` times that, and then turned by the damage as below. The deployment travels to the car draw in the set of revealed
+Each tick the car's speed (the length of its velocity, in mph) moves every active part one step: out above `above_mph`, back
+below `below_mph`, at a constant rate of 1 over `seconds` for the whole way (the game's own animation clock does not ease
+either). The part is turned about its `pivot` by `rotation_deg` times that, moved by `offset` times that, and then turned by
+the damage as below. The deployment travels to the car draw in the set of revealed
 slots, like the zone levels. A part that falls off keeps the place it had. The downforce of the car's physics is not changed.
 
 The damage model keeps a panel level from 0 to 3 for each of the eight zones
@@ -108,8 +114,11 @@ of the 2005 game and play no part here); no sparks or smoke are made when it bre
 
 ## The 2012 cars
 
-The cars with an active spoiler (the 911, the 918 Spyder, the LFA and others, [chameleon-active-aero.md](../formats/chameleon-active-aero.md))
-get one more part, `Spoiler`, with an `active` table from the 2012 state machine and no damage turn.
+The cars whose spoiler is a plain speed machine (the 911, the 918 Spyder 2013, the LFA, the SL65, the SLS and the Panamera: 8 bundles,
+[chameleon-active-aero.md](../formats/chameleon-active-aero.md)) get one more part, `Spoiler`, with an `active` table whose
+speeds, time, slide and turn are decoded from the 2012 state machine and animation, and no damage turn. The cars whose
+machines have more states (the Veyron, McLaren, Venom, Huayra, vents, two-stage cars and the Agera) keep their wing at rest:
+their state graphs are not decoded and no value is guessed for them.
 
 The [2012 mod](nfsmw-2012-content.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data.
 A 2012 part turns through a few degrees at most, so its stages are small steps. The mod writes the part's own mass and no
