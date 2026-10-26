@@ -4,6 +4,7 @@
 use glam::{Mat3, Vec3};
 
 use crate::math::{graph, ramp};
+use crate::rigid_body::transform_vector;
 
 impl super::Vehicle {
     pub(super) fn apply_jump(&mut self, dt: f32, speed: f32, angular_velocity: Vec3) {
@@ -128,7 +129,9 @@ impl JumpState {
             *self = Self::default();
         }
         result.torque += passive(config.passive, input);
-        result.torque += alignment(config.alignment, input);
+        let [pitch, roll] = alignment(config.alignment, input);
+        result.torque += pitch;
+        result.torque += roll;
         result
     }
 
@@ -138,7 +141,7 @@ impl JumpState {
         let altitude = -ground.separation;
         if self.airborne_time <= c.minimum_time
             || self.peak_altitude <= c.minimum_peak_altitude
-            || input.rotation.y_axis.dot(ground.normal) <= c.minimum_alignment
+            || ordered_dot(input.rotation.y_axis, ground.normal) <= c.minimum_alignment
             || input.linear_velocity.y >= 0.0
             || altitude >= c.maximum_altitude
         {
@@ -156,41 +159,56 @@ fn passive(config: PassiveConfig, input: &JumpInput) -> Vec3 {
     {
         return Vec3::ZERO;
     }
-    let angular = input.rotation.transpose() * input.angular_velocity;
+    let angular = transform_vector(input.rotation.transpose(), input.angular_velocity);
     let damping = ramp(input.speed, 0.0, config.maximum_speed) * graph(config.damping, angular.length());
     let moment = -angular * input.inertia * damping;
-    input.rotation * Vec3::new(moment.x, 0.0, moment.z)
+    transform_vector(input.rotation, Vec3::new(moment.x, 0.0, moment.z))
 }
 
-fn alignment(config: AlignmentConfig, input: &JumpInput) -> Vec3 {
-    let Some(ground) = input.ground else { return Vec3::ZERO };
+fn alignment(config: AlignmentConfig, input: &JumpInput) -> [Vec3; 2] {
+    let Some(ground) = input.ground else { return [Vec3::ZERO; 2] };
     let up = input.rotation.y_axis;
     let altitude = -ground.separation;
     if input.grounded_wheels != 0
         || ground.normal.y <= config.minimum_ground_up
         || up.y <= config.minimum_body_up
-        || up.dot(ground.normal) <= config.minimum_alignment
+        || ordered_dot(up, ground.normal) <= config.minimum_alignment
         || altitude <= config.minimum_altitude
     {
-        return Vec3::ZERO;
+        return [Vec3::ZERO; 2];
     }
     let right = input.rotation.x_axis;
     let forward = input.rotation.z_axis;
-    let weight = input.mass
-        * ramp(input.speed, 0.0, config.maximum_speed)
-        * (1.0 - ramp(altitude, 0.0, config.maximum_altitude));
-    let flat_forward = right.cross(ground.normal).normalize_or_zero();
-    let flat_right = ground.normal.cross(forward).normalize_or_zero();
-    correction(flat_forward, forward, weight * config.pitch, config.correction_threshold)
-        + correction(flat_right, right, weight * config.roll, config.correction_threshold)
+    let speed = ramp(input.speed, 0.0, config.maximum_speed);
+    let altitude = 1.0 - ramp(altitude, 0.0, config.maximum_altitude);
+    let flat_forward = unit_cross(right, ground.normal);
+    let flat_right = unit_cross(ground.normal, forward);
+    [
+        correction(flat_forward, forward, input.mass, speed, altitude, config.pitch, config.correction_threshold),
+        correction(flat_right, right, input.mass, speed, altitude, config.roll, config.correction_threshold),
+    ]
 }
 
-fn correction(flat: Vec3, direction: Vec3, weight: f32, threshold: f32) -> Vec3 {
-    let dot = flat.dot(direction);
+fn correction(flat: Vec3, direction: Vec3, mass: f32, speed: f32, altitude: f32, gain: f32, threshold: f32) -> Vec3 {
+    let dot = ordered_dot(flat, direction);
     if dot >= threshold {
         return Vec3::ZERO;
     }
-    flat.cross(direction).normalize_or_zero() * (weight * (dot - 1.0))
+    let magnitude = ((((dot - 1.0) * mass) * speed) * altitude) * gain;
+    unit_cross(flat, direction) * magnitude
+}
+
+fn ordered_dot(a: Vec3, b: Vec3) -> f32 {
+    (a.z * b.z + a.y * b.y) + a.x * b.x
+}
+
+fn unit_cross(a: Vec3, b: Vec3) -> Vec3 {
+    let cross = a.cross(b);
+    let squared = (cross.x * cross.x + cross.y * cross.y) + cross.z * cross.z;
+    if squared <= 0.000001 {
+        return Vec3::ZERO;
+    }
+    cross * (1.0 / squared.sqrt())
 }
 
 #[cfg(test)]

@@ -17,6 +17,7 @@ mod debug;
 mod effect_feed;
 mod fall;
 mod garage;
+mod gauges;
 mod ground;
 mod input;
 #[cfg(test)]
@@ -27,6 +28,8 @@ mod nis_pose;
 mod original_camera;
 mod placement;
 pub(super) use placement::Strict;
+#[cfg(test)]
+mod observer_tests;
 #[cfg_attr(not(feature = "multiplayer"), allow(dead_code))]
 mod predict;
 #[cfg(test)]
@@ -87,6 +90,7 @@ pub(super) use walls::VisualContact;
 struct ScriptRun {
     script: DriveScript,
     time: f32,
+    previous_time: Option<f32>,
 }
 
 /// Where the car should appear once the road around it has loaded.
@@ -104,7 +108,7 @@ pub struct SpawnRequest {
 }
 
 /// Seconds between the checks that remember the last place the car was on the road.
-const GOOD_SPOT_STEPS: u32 = 30;
+const GOOD_SPOT_SECONDS: f64 = 0.5;
 
 pub struct Drive {
     pub car_name: String,
@@ -139,8 +143,10 @@ pub struct Drive {
     breaker_barred: bool,
     /// The engine is sabotaged by the scripted chase: no throttle (`sabotage.rs`).
     sabotaged: bool,
-    /// The car stands on a race grid before GO: the brakes are held (`grid.rs`).
+    /// The car stands on a race grid before GO: its body is held (`grid.rs`).
     gridded: bool,
+    /// Drag launches cancel their bonus when shifting; ordinary race launches pause its timer.
+    launch_cancel_on_shift: bool,
     /// A point (physics space) the car steers at by itself, with the player's steering ignored (the drag assist,
     /// `grid.rs`).
     assist_aim: Option<glam::Vec3>,
@@ -154,6 +160,7 @@ pub struct Drive {
     /// (`predict.rs`); `None` draws the physics pose.
     net_pose: Option<CarPose>,
     telemetry: Telemetry,
+    gauges: gauges::GaugeHistory,
     /// The speed breaker's meter (`speedbreaker.rs`).
     breaker: speedbreaker::SpeedBreaker,
     breaker_camera: breaker_camera::Zoom,
@@ -182,8 +189,8 @@ pub struct Drive {
     /// When a strict request first failed to find its ground.
     strict_since: Option<std::time::Instant>,
     fall: FallWatch,
-    /// Step count at the last road check.
-    last_check: u32,
+    /// Simulation seconds since the last road check.
+    road_check_elapsed: f64,
     /// Button presses that have not met a physics step yet.
     presses: Presses,
     /// Who changes gear.
@@ -395,14 +402,20 @@ impl Drive {
         let t = &self.telemetry;
         let pose = self.pose();
         let forward = pose.rotation * Vec3::X;
+        let gauges = self.gauges.sample(self.alpha);
+        let rpm = match self.gridded || self.launch_cancel_on_shift {
+            true => gauges.rpm,
+            false => self.hud_visual_rpm(t.idle, t.red_line, gauges.rpm),
+        };
         Some(crate::hud::HudState {
             minimap: Some(crate::hud::MapPosition {
                 position: [pose.position.x, pose.position.y],
                 heading: [forward.x, forward.y],
                 orientation: blackbox_minimap::Orientation::North,
             }),
-            speed: t.speed_mps.abs(),
-            rpm: t.rpm,
+            speed: gauges.speed.abs(),
+            rpm,
+            perfect_launch_range: gauges::in_launch_range(rpm, sim.staged_launch_band()),
             max_rpm: t.max_rpm,
             red_line: t.red_line,
             gear: t.gear,

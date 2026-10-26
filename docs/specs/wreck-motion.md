@@ -16,9 +16,14 @@ body sleep test. The candidate must still have:
 - more than two contact points, counting body-ground contacts plus supported wheels.
 
 Apply this check after the tick's world and vehicle/prop contacts, so an incoming hit retains its
-pre-response velocity and can prevent sleep. Simulation advances the support timer once per tick;
+pre-response velocity and can prevent sleep. For the Reference profile, this is the shared body-end check: it reads the prior
+support timer. The later behavior callback advances support time before suspension.
+The Regularized profile retains its late contact-finalization check.
+Simulation advances the support timer once per tick;
 repeated pose synchronization must not advance it again. A later contact can wake the body through
-the existing response path. Player/live vehicle behavior and authored mass/friction remain unchanged.
+the existing response path. Authored mass and friction remain unchanged. Reference intact sleepers continue
+engine and suspension; caller-tagged retired sleepers run engine only. The tag
+currently excludes destroyed players, whose full task policy remains unverified.
 
 This correction targets final low-speed creeping. It does not establish parity of high-speed wreck
 sliding, the complete SuspensionSimple tire/engine path or complete original driving trajectories.

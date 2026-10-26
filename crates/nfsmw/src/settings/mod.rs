@@ -66,6 +66,8 @@ pub mod motion_blur;
 mod motion_blur_tests;
 pub mod net;
 mod partial;
+pub mod physics_rate;
+pub use physics_rate::{DEFAULT_PHYSICS_RATE_HZ, parse_physics_rate};
 pub mod pursuit_options;
 pub use pursuit_options::PursuitOptions;
 mod post;
@@ -219,6 +221,7 @@ pub struct Settings {
     pub rain_amount: Percent,
     /// The physics clock multiplier, 0.1 to 4 (Extra Options `GameSpeed`).
     pub game_speed: f32,
+    pub physics_rate_hz: u32,
     /// The world animation rate, 0.1 to 4 (Extra Options `WorldAnimationSpeed`).
     pub animation_speed: f32,
     /// The player car's model scale, 0.25 to 4 (Extra Options `CarScale`).
@@ -379,6 +382,7 @@ impl From<Partial> for Settings {
             always_rain: p.always_rain.unwrap_or(DEFAULT_ALWAYS_RAIN),
             rain_amount: p.rain_amount.unwrap_or(DEFAULT_RAIN_AMOUNT),
             game_speed: p.game_speed.unwrap_or(DEFAULT_GAME_SPEED).clamp(0.1, 4.0),
+            physics_rate_hz: physics_rate::resolve(p.physics_rate_hz),
             animation_speed: p.animation_speed.unwrap_or(DEFAULT_ANIMATION_SPEED).clamp(0.1, 4.0),
             show_hud_on_look_back: p.show_hud_on_look_back.unwrap_or(DEFAULT_SHOW_HUD_ON_LOOK_BACK),
             car_scale: p.car_scale.unwrap_or(DEFAULT_CAR_SCALE).clamp(0.25, 4.0),

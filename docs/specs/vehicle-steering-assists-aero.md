@@ -186,7 +186,7 @@ range(v)  = Table over v = local forward speed (m/s) 0..160, 10 points:
 speedcoef(v) = Table over 0..160 m/s: [1, 1, 1, 0.56, 0.5, 0.35, 0.3, 0.3, 0.3, 0.3]
 tb = 1 - (gas + 1 - (brake + ebrake)*0.5) * 0.5               0 at full throttle, 0.5 coasting, 0.75 braking, 1 braking+ebrake
 max = range(v) * (1.45 * tb * speedcoef(v) + 1)
-max *= RangeCoef(|avg_input|)   with Table over |input| in 0..1 of [1, 1.05, 1.1, 1.2, 1.3, 1.4]
+max *= RangeCoef(|avg_input|)   with Table over |input| in 0..1 of [1, 1, 1.1, 1.2, 1.25, 1.35]
 max *= 1 + 0.2 * steering_tuning
 post-collision (timer in (0,1]): max *= speed_term*(1 - blend) + blend   (terms below)
 counter-steer: if steer_input > 0 and rear tire 3 slip angle > 0, max = clamp(max(max, slip3_deg), .., 45); symmetric with tire 2 for steer_input < 0
@@ -205,11 +205,14 @@ Post-collision (timer `T` set by a hard hit, from 0 to 1 s): `secs = 1 - T`; if 
 Here impulse is force divided by the body's temporary collision mass, in m/s,
 not the normal impulse in N s. An immobile contact moment supplies zero to steering.
 
-Averages: `avg_input` is a mean of the *remapped* steering input over the last 0.55 s of game time. The
-input remap is a 21-point table over [-1, 1] whose centre is flat (derivative ~3.4 per unit near 0):
+Averages: the original histories are bounded by 33 magnitude samples and 9 rate
+samples, with nominal expiry windows 0.55 s and 0.15 s. At the observed modded
+144 Hz cadence their capacities are reached before expiration. The selected PC
+input remap is a 21-point table over [-1, 1]:
 values `-1, -0.712, -0.453, -0.303, -0.216, -0.148, -0.116, -0.08, -0.061, -0.034, 0, ...` mirrored. Note
 the remapped value is only used for `last_input` and the averages; the target angle itself uses the raw
-`steer_input` [decomp: `newsteer` is formed before the remap]. Open question 8.
+`steer_input` [decomp: `newsteer` is formed before the remap]. PC selection and
+callback behavior are now verified; see [player driving parity](player-driving-parity.md).
 
 AI cars: `max = 45 deg` (times `STEERING` unless drag race) and `target = max * steer_input`.
 
@@ -252,7 +255,8 @@ pre-response relative contact velocity, and body velocity is the pre-response li
 The first nonzero nose and first nonzero side value survive additional callbacks that tick. A zero
 normal-right dot chooses -1 for the nose sign. Side contacts require `abs(dot(normal,right)) > epsilon`.
 
-Steering consumes the preceding contact tick, using the preceding grounded-wheel count. Nose yaw is
+Steering consumes pending contacts once at the next chassis callback, using the preceding grounded-wheel count.
+With the shared body/contact barrier, those contacts can come from the same tick. Nose yaw is
 `steer*gas*0.125*abs(nose)` and only runs with positive gas and more than two grounded wheels. An opposed
 nose sign returns immediately, skipping the side path. Side yaw is
 `-steer*gas*0.125*abs(side)` when `side*steer*gas > 0`, more than two wheels are grounded, and gear is
@@ -306,6 +310,10 @@ ground below (normal.y > 0.9, up.y > 0.1, alignment > 0.8, altitude > 0): pitch 
 ground normal. These keep jumps controllable.
 
 ### 7.4 Sleep damping (`DoSleep`) [decomp]
+
+The exact Reference accumulation and damping arithmetic is corrected by
+[vehicle creep response](vehicle-creep-response.md). In the lateral branch,
+the unchanged local force/torque axes add again; they are not simply preserved.
 
 Not while staging. If speed < 0.5 m/s, all four wheels grounded, brake or handbrake pressed, no gas, small
 spin (< 0.25 rad/s) and no collision this step: multiply velocity, spin and pending force/torque by

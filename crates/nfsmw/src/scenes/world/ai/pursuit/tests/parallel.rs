@@ -76,15 +76,51 @@ fn world(parallel: Parallel, collision: &CollisionWorld, surfaces: &SurfaceTable
 
 /// Every car's body as bits, then the next draw of the navigation stream, after each tick.
 fn run(parallel: Parallel) -> Vec<(Vec<[u32; 8]>, u32)> {
+    run_with_deltas(parallel, |_| STEP)
+}
+
+fn run_with_deltas(parallel: Parallel, delta: impl Fn(u32) -> f32) -> Vec<(Vec<[u32; 8]>, u32)> {
     let collision = floor();
     let surfaces = SurfaceTable::default();
     let mut props = PropWorld::default();
     let mut world = world(parallel, &collision, &surfaces);
+    // Force a real shared contact in the first tick: the moving car approaches an overlapping stopped car.
+    // Both response schedules must consume the same pair-corrected body state.
+    let at = world.cars[2].sims_mut().0.body().position;
+    let separation =
+        world.cars[2].sims_mut().0.half_dimensions().z + world.cars[3].sims_mut().0.half_dimensions().z - 0.05;
+    world.cars[2].sims_mut().0.body_mut().linear_velocity = Vec3::Z * 20.0;
+    let other = world.cars[3].sims_mut().0;
+    // A deep overlap selects the thinner vertical axis and gives no longitudinal closing impulse.
+    // Shallow nose-to-tail penetration selects the axis along which this fixture approaches.
+    other.body_mut().position = at + Vec3::Z * separation;
+    other.body_mut().linear_velocity = Vec3::ZERO;
     (0..TICKS)
         .map(|t| {
             let at = player_at(t);
             world.player_position = Some(at);
-            world.step(player_focus(at), &collision, &mut props, &surfaces);
+            let dt = delta(t);
+            props.begin_native(dt);
+            world.begin_step_with_delta(dt, player_focus(at), &collision, &mut props, &surfaces);
+            if t == 0 {
+                let (head, tail) = world.cars.split_at_mut(3);
+                let a = head[2].sims_mut().0;
+                let b = tail[0].sims_mut().0;
+                let contact = blackbox_vehicle::rigid_body::obb_contact(&a.collision_box(), &b.collision_box())
+                    .expect("the pair fixture must overlap after body integration");
+                assert!(contact.normal.z.abs() > 0.99, "the pair must approach nose-to-tail: {contact:?}");
+                assert!(contact.normal.dot(a.body().linear_velocity - b.body().linear_velocity) < 0.0);
+            }
+            props.resolve_native_pairs();
+            world.collide_pairs(None);
+            if t == 0 {
+                assert!(!world.touches().is_empty(), "the shared phase fixture must resolve a car pair");
+            }
+            world.finish_bodies(&collision, &mut props, &surfaces);
+            props.finish_native_world(&WorldGround { collision: &collision, surfaces: &surfaces }, dt);
+            world.resolve_articulations();
+            world.complete_step(&collision, &mut props, &surfaces);
+            world.observe_completed_step(None);
             let cars = world
                 .cars
                 .iter()
@@ -114,4 +150,18 @@ fn the_traffic_step_is_the_same_on_one_thread_and_on_four() {
         assert_eq!(serial, parallel, "tick {tick}");
     }
     assert_eq!(serial.len(), parallel.len());
+}
+
+#[test]
+fn changing_scaled_tick_deltas_match_in_serial_and_parallel() {
+    crate::scenes::world::ai::parallel::tests::init_pool();
+    let delta = |t: u32| match t % 3 {
+        0 => STEP,
+        1 => STEP * 0.25,
+        _ => 1.0 / 144.0,
+    };
+    let serial = run_with_deltas(Parallel::SERIAL, delta);
+    let parallel = run_with_deltas(Parallel { min_cars: 1, per_thread: 1, max_threads: 4 }, delta);
+    assert_eq!(serial, parallel);
+    assert_ne!(serial, run(Parallel::SERIAL), "scaled time must change actual car integration");
 }

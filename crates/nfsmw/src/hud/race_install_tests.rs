@@ -7,6 +7,36 @@ use game_install::GameDir;
 use super::bind::HudBinding;
 use crate::ui::Catalog;
 
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_launch_highlight_complements_normal_and_drag_needles_after_custom_colors() {
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    for package in ["HUD_SingleRace.fng", "HUD_Drag.fng"] {
+        let mut rt = Runtime::new();
+        let id = rt.load(catalog.find(package).unwrap().clone());
+        let mut binding = HudBinding::new(&mut rt, id);
+        let needle = rt.find(id, fe_hash_upper("3rdPersonNeedle")).expect(package);
+        let mut state = super::HudState {
+            rpm: 4200.0,
+            perfect_launch_range: true,
+            drag: package == "HUD_Drag.fng",
+            gauge_colors: [None, Some([10, 80, 170]), None],
+            ..Default::default()
+        };
+        binding.apply(&mut rt, &state);
+        rt.update(1.0 / 144.0);
+        binding.finish_frame(&mut rt, &state);
+        assert_eq!(rt.colour_rgba(needle), Some([245, 175, 85, 255]), "{package}");
+        binding.finish_frame(&mut rt, &state);
+        assert_eq!(rt.colour_rgba(needle), Some([245, 175, 85, 255]), "{package}: no color toggling each frame");
+        state.perfect_launch_range = false;
+        binding.finish_frame(&mut rt, &state);
+        assert_eq!(rt.colour_rgba(needle), Some([10, 80, 170, 255]), "{package}: restore custom color");
+    }
+}
+
 /// The group names of the executable's race code are objects of the photo screen `InGamePhotoMaster.fng` and of no other
 /// package; the other names are Lua and message names, objects of none (`docs/provenance/race-mode.md` section 10).
 #[test]

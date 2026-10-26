@@ -23,6 +23,13 @@ F5 / Escape closes the panel. Opening another developer panel closes F5.
 
 ## World and testing
 
+Physics update rate defaults to **60 Hz (original)**. **144 Hz (comparison)** is
+an optional offline comparison mode that changes numerical handling. Rendering
+FPS has its own independent limit; neither physics choice caps rendering FPS.
+The choice saves as `physics_rate_hz = 60` or `144` in `config.toml` and in alias
+settings. CLI `--physics-rate-hz 60|144` and environment `NFSMW_PHYSICS_RATE_HZ`
+can override it. Multiplayer always uses 60 Hz regardless of the local choice.
+
 Traffic off removes ambient civilians immediately and suppresses their automatic spawns.
 It retains police and race opponents and does not rewrite F8 density. Police off ends
 pursuits without awarding an escape and bars patrol/reinforcement spawning.
@@ -31,9 +38,9 @@ Heat can be started/set and locked from 1 to 10. Unlimited NOS fills an installe
 it does not add an upgrade. Unlimited Speedbreaker keeps its normal activation rules.
 Refill, repair and recover-to-road are explicit actions.
 
-Gameplay-changing controls require a local single-player test session outside active career.
-They cannot silently write modified heat or rewards into a career. Camera preferences remain
-available. Multiplayer testing overrides are rejected. Teleport is barred during a race.
+Gameplay-changing controls are available in local single-player career and free roam.
+Override settings remain session-only, while normal career progress and rewards still save.
+Multiplayer and co-op testing overrides are rejected. Teleport is barred during a race.
 
 Teleport accepts map coordinates, a GPS destination, or a saved location/heading. It uses
 normal road placement and stops the car. Return restores the previous teleport location.

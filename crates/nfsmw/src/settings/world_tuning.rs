@@ -5,6 +5,8 @@ use super::*;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WorldTuning {
     pub game_speed: f32,
+    /// Real-time simulation cadence; rendering has its own independent limit.
+    pub physics_rate_hz: u32,
     pub animation_speed: f32,
     /// The player car's model scale, 0.25 to 4 (Extra Options `CarScale`).
     pub car_scale: f32,
@@ -35,6 +37,7 @@ impl Default for WorldTuning {
     fn default() -> Self {
         Self {
             game_speed: DEFAULT_GAME_SPEED,
+            physics_rate_hz: DEFAULT_PHYSICS_RATE_HZ,
             animation_speed: DEFAULT_ANIMATION_SPEED,
             show_hud_on_look_back: DEFAULT_SHOW_HUD_ON_LOOK_BACK,
             car_scale: DEFAULT_CAR_SCALE,
@@ -58,6 +61,7 @@ impl From<&Settings> for WorldTuning {
     fn from(s: &Settings) -> Self {
         Self {
             game_speed: s.game_speed,
+            physics_rate_hz: s.physics_rate_hz,
             animation_speed: s.animation_speed,
             show_hud_on_look_back: s.show_hud_on_look_back,
             car_scale: s.car_scale,

@@ -51,7 +51,7 @@ impl WorldScene {
     }
 
     /// Apply camera ownership at each physics tick, reusing the normal race driver on the existing player body.
-    pub(super) fn update_moment_control(&mut self) {
+    pub(super) fn update_moment_control_with_delta(&mut self, dt: f32) {
         self.sync_moment_ownership();
         if !self.moment.hides_hud() {
             return;
@@ -65,7 +65,9 @@ impl WorldScene {
         let input = self
             .traffic
             .as_mut()
-            .map(|traffic| traffic.moment_input(&mut self.moment.driver, body, view, performance, ai, mass))
+            .map(|traffic| {
+                traffic.moment_input_with_delta(dt, &mut self.moment.driver, body, view, performance, ai, mass)
+            })
             .unwrap_or_default();
         if let Some(drive) = self.players.lead_mut() {
             drive.set_cinematic_input(Some(input));

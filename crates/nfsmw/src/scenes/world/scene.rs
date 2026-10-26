@@ -339,6 +339,9 @@ impl Scene for WorldScene {
     fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.guest_audio_state()
     }
+    fn note_car_visual_rpm(&mut self, player: usize, fraction: Option<f32>) {
+        self.accept_car_visual_rpm(player, fraction);
+    }
 
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
         std::mem::take(&mut self.common_sounds)

@@ -15,7 +15,7 @@ pub struct ChassisSpec {
     pub shock_valving: [f32; 2],
     /// 0..1: how much the damper force flattens beyond the valving speed (0 = linear).
     pub shock_digression: [f32; 2],
-    /// Damper force above this many body weights is blown off (0 disables).
+    /// Damper force above this many body weights is blown off. Zero vents any positive damping.
     pub shock_blowout: f32,
     /// Anti-roll bar stiffness, lb/in on the left-right compression difference.
     pub swaybar_stiffness: [f32; 2],

@@ -30,6 +30,7 @@ measurement against the running game has been made yet. [inferred] is used where
 how a value is used but no source states it (stronger than [unconfirmed]).
 
 ## Conventions
+PC single-precision operation order: [vehicle scalar order](vehicle-scalar-order.md).
 
 - **Physics space** is **x right, y up, z forward**, right-handed, metres [decomp: the body matrix rows
   are right, up, forward; `local_vel.z` is forward speed]. This is *not* the car-solid space of
@@ -198,21 +199,22 @@ A wheel is **loaded** if `c_new > 0` and `upness > 0.2` (roll-stop threshold). O
 ### 2.4 Vertical force of a loaded wheel [decomp]
 
 ```
-rise   = (c_new - c_old) / dT                         m/s, + when compressing
+rise   = (c_new - c_old) * (1 / dT)                   m/s, + when compressing
 if valving > 1e-6 and digress < 1 and |rise| > valving:
         |rise| := valving * (|rise| / valving) ^ digress          (damper digression, keeps sign)
-spring_f = c_new * spring * (1 + c_new * prog)        progressive spring
+spring_f = ((1 + c_new * prog) * spring) * c_new      progressive spring
 damp_f   = rise * (rise > 0 ? shock : shock_ex)
 if damp_f > SHOCK_BLOWOUT * 9.81 * mass:  damp_f = 0  (blow-off valve opens)
 sway_f   = (c_left - c_right) * sway       for the left wheel, negated for the right wheel
            (uses the compressions stored at the start of this step for both wheels of the axle)
-F_spring = max(damp_f + spring_f + sway_f, 0)         pushes the body along its up axis
+F_spring = max((damp_f + sway_f) + spring_f, 0)       pushes the body along its up axis
 ```
 
 Compression speeds use the *stored* old compression, so the damper sees last step's value. The anti-roll
 bar is a spring on the left-right compression difference, per axle, equal and opposite on the two wheels;
 there is no separate roll model. `SHOCK_BLOWOUT` is a multiplier of body weight [inferred from the
 expression `BLOWOUT * g * mass`].
+See [PC force boundary corrections](vehicle-force-boundaries.md).
 
 ### 2.5 Tire load and contact forces [decomp]
 
@@ -255,6 +257,8 @@ After that:
 - if `lift_need > 0`, translate the body up by `lift_need` (and every wheel position by the same);
 - if wheels were all off the ground last step and some are loaded now (landing), multiply the body's local
   angular velocity about **y (up)** and **z (forward)** by 0.5.
+
+
 
 The stored wheel render position is `p_world`; `compression` becomes `c_new`. Render systems read it back
 as "suspension travel"; `RENDER_MOTION` (chassis class) is an exposed multiplier for visual body motion

@@ -21,6 +21,7 @@ pub(super) mod power_effects;
 pub(super) mod routing;
 mod telemetry;
 mod update;
+mod visual_rpm;
 pub use ambient::{RoadContext, RoadTerrain};
 pub use telemetry::CarAudioTelemetry;
 mod contact;
@@ -33,6 +34,8 @@ pub use contact::{CarContact, ContactSource, ContactVehicle};
 /// Every physics state since the previous audio update, in simulation order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CarSoundTick {
+    /// Simulation duration of this completed physics update, independent of the audio/render interval.
+    pub sim_dt: f32,
     pub telemetry: CarAudioTelemetry,
     pub input: CarInput,
     pub contacts: Vec<CarContact>,
@@ -233,7 +236,7 @@ impl Audio {
                     events: if i == 0 { &state.events } else { &[] },
                     view: &state.view,
                     dt: delta,
-                    sim_dt: blackbox_vehicle::FIXED_STEP,
+                    sim_dt: tick.sim_dt,
                     delay: i as f32 * delta,
                 },
             );

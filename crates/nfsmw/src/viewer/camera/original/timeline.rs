@@ -1,4 +1,4 @@
-//! Stable real-time updates with timestamped fixed-physics inputs.
+//! Stable real-time updates with timestamped physics inputs.
 
 use std::collections::VecDeque;
 
@@ -9,6 +9,8 @@ use super::follow::{BodyInput, Follow, Sample};
 use super::obstruction::{CameraHit, Obstruction};
 use super::{anchor, impacts, noise, projection, underpass, vehicle_avoidance};
 
+#[cfg(test)]
+mod delta_tests;
 #[cfg(test)]
 mod shake_tests;
 
@@ -85,9 +87,22 @@ pub struct Timeline {
 }
 
 impl Timeline {
-    /// Record every world step, including steps with no placed player.
+    /// Preserve exact 60-Hz timestamps for legacy fixtures; the world supplies actual deltas.
+    #[cfg(test)]
     pub fn physics_step(&mut self, frame: Option<PhysicsFrame>) {
-        self.physics_time += STEP;
+        self.push_physics(frame, STEP);
+    }
+
+    /// Timestamp physical history with simulation time; camera sampling stays at 60 real-time Hz.
+    pub fn physics_step_with_delta(&mut self, frame: Option<PhysicsFrame>, dt: f32) {
+        if !dt.is_finite() || dt <= 0.0 {
+            return;
+        }
+        self.push_physics(frame, f64::from(dt));
+    }
+
+    fn push_physics(&mut self, frame: Option<PhysicsFrame>, dt: f64) {
+        self.physics_time += dt;
         if let Some(frame) = frame {
             self.bodies.push_back(BodyKey { time: self.physics_time, frame });
         }

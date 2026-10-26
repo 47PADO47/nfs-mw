@@ -194,7 +194,8 @@ impl AiCar {
 
     /// The original pursuit goal selects its lane-following traffic action after tracked sight expires.
     pub(super) fn think_search<R: RandomSource>(&mut self, ctx: &mut Ctx<'_, R>, state: &traffic::CarState) {
-        let think = traffic::think(
+        let think = traffic::think_with_delta(
+            self.think_delta,
             ctx.net,
             &mut self.nav,
             state,

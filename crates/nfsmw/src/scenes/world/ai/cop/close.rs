@@ -31,6 +31,7 @@ pub(super) struct Close {
     history: super::history::History,
     active: bool,
     limit: f32,
+    think_delta: f32,
     nos_wait: f32,
     target_nos: bool,
     pub nos: bool,
@@ -44,6 +45,7 @@ impl Default for Close {
             history: super::history::History::default(),
             active: false,
             limit: 0.0,
+            think_delta: THINK_PERIOD,
             nos_wait: 0.0,
             target_nos: false,
             nos: false,
@@ -54,10 +56,14 @@ impl Default for Close {
 }
 
 impl Close {
+    pub(super) fn set_think_delta(&mut self, dt: f32) {
+        self.think_delta = dt;
+    }
     pub(super) fn hash_into(&self, hash: &mut crate::scenes::world::StateHasher) {
         self.history.hash_into(hash);
         hash.bool(self.active);
         hash.f32(self.limit);
+        hash.f32(self.think_delta);
         hash.f32(self.nos_wait);
         hash.bool(self.target_nos);
         hash.bool(self.nos);
@@ -76,7 +82,7 @@ impl Close {
     }
 
     fn sample(&mut self, speed: f32, delay: f32) -> f32 {
-        self.history.add(speed, THINK_PERIOD);
+        self.history.add(speed, self.think_delta);
         self.history.sample(delay)
     }
 
@@ -140,7 +146,7 @@ impl Close {
         }
         #[cfg(test)]
         let previous_limit = self.limit;
-        self.limit = limiter_step(self.limit, forward_speed, ceiling, acceleration, THINK_PERIOD);
+        self.limit = limiter_step(self.limit, forward_speed, ceiling, acceleration, self.think_delta);
         seek = seek.clamp_length_max(self.limit.max(0.0));
         let mut steer = combine(seek, separation + avoidance + affinity, 35.0, 25.0);
         #[cfg(test)]
@@ -182,7 +188,7 @@ impl Close {
         let rising = target_nos && !self.target_nos;
         self.target_nos = target_nos;
         if self.nos_wait > 0.0 {
-            self.nos_wait = (self.nos_wait - THINK_PERIOD).max(0.0);
+            self.nos_wait = (self.nos_wait - self.think_delta).max(0.0);
             self.nos = false;
             return;
         }

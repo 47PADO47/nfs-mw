@@ -1,4 +1,4 @@
-//! Fixed-step timing: the physics runs at 60 Hz whatever the frame rate is.
+//! Shared real-time physics cadence, independent of rendering and simulation dilation.
 
 /// The physics step, seconds.
 pub const STEP: f32 = 1.0 / 60.0;
@@ -9,6 +9,9 @@ const CLOCK_EPSILON: f64 = 1e-8;
 #[derive(Debug, Default)]
 pub struct FixedClock {
     accumulator: f64,
+    /// Zero is the default 60-Hz cadence, so default construction needs no setup.
+    current_rate: u32,
+    requested_rate: u32,
     /// Every update with time to spend runs exactly one step, whatever its length: a server's world, whose own loop
     /// keeps the 60 Hz pace (`scenes/world/net`). Off for a playing scene, whose steps follow the frame time.
     one_per_update: bool,
@@ -19,9 +22,54 @@ impl FixedClock {
     pub fn set_one_per_update(&mut self, on: bool) {
         self.one_per_update = on;
         self.accumulator = 0.0;
+        self.current_rate = match on {
+            true => 60,
+            false => self.requested_rate,
+        };
+    }
+
+    /// Local comparison cadence. A pending tick finishes at its old cadence before a change applies.
+    pub fn set_rate_hz(&mut self, rate: u32) {
+        self.requested_rate = match rate {
+            144 => 144,
+            _ => 60,
+        };
+        if self.accumulator <= 0.0 && !self.one_per_update {
+            self.current_rate = self.requested_rate;
+        }
+    }
+
+    fn period(&self) -> f64 {
+        match self.current_rate {
+            144 if !self.one_per_update => 1.0 / 144.0,
+            _ => CLOCK_STEP,
+        }
+    }
+
+    /// Completed unscaled tick periods. Simulation dilation is sampled separately at each completed tick.
+    pub fn advance_real(&mut self, real_dt: f32) -> Vec<f32> {
+        if !real_dt.is_finite() || real_dt <= 0.0 {
+            return Vec::new();
+        }
+        if self.one_per_update {
+            return vec![STEP];
+        }
+        self.accumulator += f64::from(real_dt);
+        let mut periods = Vec::new();
+        loop {
+            let period = self.period();
+            if self.accumulator + CLOCK_EPSILON < period {
+                break;
+            }
+            self.accumulator -= period;
+            periods.push(period as f32);
+            self.current_rate = self.requested_rate;
+        }
+        periods
     }
 
     /// Add a frame's time; returns how many steps to run now.
+    #[cfg(test)]
     pub fn advance(&mut self, dt: f32) -> u32 {
         if !dt.is_finite() || dt <= 0.0 {
             return 0;
@@ -37,7 +85,7 @@ impl FixedClock {
 
     /// How far the display is between the last two steps, 0..1.
     pub fn alpha(&self) -> f32 {
-        (self.accumulator / CLOCK_STEP).clamp(0.0, 1.0) as f32
+        (self.accumulator / self.period()).clamp(0.0, 1.0) as f32
     }
 }
 
@@ -91,3 +139,6 @@ mod tests {
         assert_eq!(clock.advance(STEP), 1, "invalid frame time did not poison the clock");
     }
 }
+
+#[cfg(test)]
+mod scaled_tests;

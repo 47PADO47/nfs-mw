@@ -17,6 +17,10 @@ use crate::hud::{HudTelemetry, TireCondition, VehicleCondition, cosmetic_level};
 const G: f32 = 9.806_65;
 
 impl CarSim {
+    pub(in crate::scenes::world::drive) fn gauge_sample(&self) -> super::super::gauges::GaugeSample {
+        super::super::gauges::GaugeSample { rpm: self.vehicle.powertrain().rpm_display(), speed: self.vehicle.speed() }
+    }
+
     /// The extra telemetry of the car for the HUD.
     pub fn hud_telemetry(&self) -> HudTelemetry {
         let vehicle = &self.vehicle;

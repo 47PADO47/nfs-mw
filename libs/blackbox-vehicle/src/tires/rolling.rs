@@ -2,6 +2,7 @@
 
 use std::f32::consts::TAU;
 
+use super::angle::rolling_angle;
 use super::{LoadedInput, Tire, TireParams};
 use crate::math::table;
 
@@ -102,40 +103,6 @@ impl Tire {
             self.av = 0.0;
         }
     }
-}
-
-/// Mathematical octant samples with integer interpolation; no external lookup data.
-pub(super) fn rolling_angle(lateral: f32, forward: f32) -> f32 {
-    static OCTANT: std::sync::OnceLock<[u16; 257]> = std::sync::OnceLock::new();
-    let nodes = OCTANT.get_or_init(|| {
-        std::array::from_fn(|i| ((i as f64 / 256.0).atan() * 65536.0 / std::f64::consts::TAU).round() as u16)
-    });
-    let y = match lateral.abs() <= 1e-6 {
-        true => 0.0,
-        false => lateral.abs(),
-    };
-    let x = match forward.abs() <= 1e-6 {
-        true => 0.0,
-        false => forward.abs(),
-    };
-    let largest = x.max(y);
-    if largest == 0.0 {
-        return 0.0;
-    }
-    let ratio = (f64::from(x.min(y)) / f64::from(largest) * 65536.0) as u32;
-    let index = (ratio >> 8) as usize;
-    let base = u32::from(nodes[index]);
-    let next = u32::from(nodes[(index + 1).min(256)]);
-    let interpolated = base + (((next - base) * (ratio & 255)) >> 8);
-    let angle = match y > x {
-        true => 16384 - interpolated,
-        false => interpolated,
-    };
-    let sign = match lateral < 0.0 {
-        true => -1.0,
-        false => 1.0,
-    };
-    sign * angle as f32 / 65536.0
 }
 
 #[cfg(test)]

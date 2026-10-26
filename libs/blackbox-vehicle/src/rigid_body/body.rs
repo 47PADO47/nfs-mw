@@ -15,7 +15,7 @@ const AIR_DENSITY: f32 = 1.225;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BodyState {
     Awake,
-    /// Not integrated, velocities zero; any applied force wakes it.
+    /// Not integrated; the next begin clears velocities. Any admitted force wakes it.
     Asleep,
     /// Frozen: no integration, no collisions.
     Frozen,
@@ -178,20 +178,36 @@ impl RigidBody {
         self.refresh_matrices();
     }
 
+    /// Supplies an explicit rotation cache for isolated numeric boundary tests.
+    /// This skips quaternion conversion and does not model normal pose construction.
+    #[cfg(test)]
+    pub(crate) fn seed_test_rotation(&mut self, rotation: Mat3) {
+        self.rotation = rotation;
+    }
+
     /// Adds a force (N, world frame) at the centre of gravity. Wakes a sleeping body.
     pub fn apply_force(&mut self, force: Vec3) {
+        if self.state == BodyState::Frozen {
+            return;
+        }
         self.wake();
         self.force += force;
     }
 
     /// Adds a torque (N m, world frame). Wakes a sleeping body.
     pub fn apply_torque(&mut self, torque: Vec3) {
+        if self.state == BodyState::Frozen {
+            return;
+        }
         self.wake();
         self.torque += torque;
     }
 
     /// Adds a force acting at a world point: force plus the torque about the centre of gravity.
     pub fn apply_force_at(&mut self, force: Vec3, world_point: Vec3) {
+        if self.state == BodyState::Frozen {
+            return;
+        }
         self.wake();
         self.torque += (world_point - self.world_cog()).cross(force);
         self.force += force;
@@ -211,6 +227,9 @@ impl RigidBody {
 
     /// Adds only the torque of a force acting at a world point.
     pub fn apply_torque_at(&mut self, force: Vec3, world_point: Vec3) {
+        if self.state == BodyState::Frozen {
+            return;
+        }
         self.wake();
         self.torque += (world_point - self.world_cog()).cross(force);
     }
@@ -234,7 +253,11 @@ impl RigidBody {
     /// Integrates the previous step's force and torque, clears the accumulators and adds gravity.
     pub fn begin_frame(&mut self, dt: f32) {
         match self.state {
-            BodyState::Frozen => return,
+            BodyState::Frozen => {
+                self.force = Vec3::ZERO;
+                self.torque = Vec3::ZERO;
+                return;
+            }
             BodyState::Asleep => {
                 self.linear_velocity = Vec3::ZERO;
                 self.angular_velocity = Vec3::ZERO;
@@ -247,15 +270,13 @@ impl RigidBody {
         let cg0 = transform_vector(self.rotation, self.cog);
         self.linear_velocity += self.force * (dt * self.inv_mass);
         self.position += self.linear_velocity * dt;
-        self.angular_velocity += self.inv_world_tensor * (self.torque * dt);
+        self.angular_velocity += transform_vector(self.inv_world_tensor, self.torque * dt);
         self.linear_velocity =
             self.linear_velocity.clamp(Vec3::splat(-MAX_LINEAR_SPEED), Vec3::splat(MAX_LINEAR_SPEED));
         self.angular_velocity =
             self.angular_velocity.clamp(Vec3::splat(-MAX_ANGULAR_SPEED), Vec3::splat(MAX_ANGULAR_SPEED));
         if self.angular_velocity.length_squared() != 0.0 {
-            let w = self.angular_velocity * dt;
-            let dq = Quat::from_xyzw(w.x, w.y, w.z, 0.0) * self.orientation;
-            self.orientation = (self.orientation + dq * 0.5).normalize();
+            self.orientation = integrate_orientation(self.orientation, self.angular_velocity * dt);
         }
         self.refresh_matrices();
         // Rotate about the centre of gravity, not about the origin.
@@ -291,14 +312,12 @@ impl RigidBody {
         }
     }
 
-    /// Puts the body to sleep when it is slow and touches enough points. Returns the new state.
+    /// Marks a slow supported body asleep. The next sleeping begin clears its vectors.
     pub fn update_sleep(&mut self, contact_points: usize) -> BodyState {
         if self.state == BodyState::Awake {
             let sum = self.linear_velocity.length() + self.angular_velocity.length() * self.radius;
             if sum < self.spec.sleep_velocity && contact_points > 2 {
                 self.state = BodyState::Asleep;
-                self.linear_velocity = Vec3::ZERO;
-                self.angular_velocity = Vec3::ZERO;
             }
         }
         self.state
@@ -307,5 +326,35 @@ impl RigidBody {
     /// Inverse world inertia with the principal moments scaled per body axis by `scale`.
     pub(super) fn scaled_inv_world_tensor(&self, scale: Vec3) -> Mat3 {
         inverse_world_inertia(self.rotation, self.inertia * scale)
+    }
+}
+
+/// Preserve the scalar quaternion update and normalization order from the body spec.
+fn integrate_orientation(q: Quat, step: Vec3) -> Quat {
+    let [x, y, z, w] = q.to_array();
+    let [a, b, c] = step.to_array();
+    let dx = (b * z - c * y) + w * a;
+    let dy = (x * c - a * z) + w * b;
+    let dz = (a * y - x * b) + w * c;
+    let dw = ((0.0 - x * a) - b * y) - c * z;
+    let x = x + dx * 0.5;
+    let y = y + dy * 0.5;
+    let z = z + dz * 0.5;
+    let w = w + dw * 0.5;
+    let length_squared = ((w * w + z * z) + y * y) + x * x;
+    let inverse_length = 1.0 / length_squared.sqrt();
+    Quat::from_xyzw(x * inverse_length, y * inverse_length, z * inverse_length, w * inverse_length)
+}
+
+#[cfg(test)]
+mod orientation_tests {
+    use super::*;
+
+    #[test]
+    fn scalar_update_matches_an_independent_instruction_fixture() {
+        let q = Quat::from_xyzw(0.1, 0.2, 0.3, 0.9);
+        let step = Vec3::new(0.12, -0.06, 0.24) * (1.0 / 60.0);
+        let actual = integrate_orientation(q, step).to_array().map(f32::to_bits);
+        assert_eq!(actual, [0x3dd2daf1, 0x3e518ac0, 0x3e9eaab0, 0x3f6c3a2b]);
     }
 }

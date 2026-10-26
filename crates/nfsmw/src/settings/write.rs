@@ -198,6 +198,10 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.transmission {
         put("transmission", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.physics_rate_hz {
+        anyhow::ensure!(matches!(v, 60 | 144), "physics_rate_hz must be 60 or 144");
+        put("physics_rate_hz", Value::Integer(i64::from(v)));
+    }
     if let Some(v) = changes.minimap {
         put("minimap", Value::String(v.to_string()));
     }
