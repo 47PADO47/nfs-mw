@@ -83,3 +83,27 @@ fn the_default_paint_is_the_stock_paint_and_the_other_paints_are_the_choices() {
     assert_eq!(catalog.finishes, vec![("Gloss".to_owned(), red)]);
     assert_eq!(catalog.paint_families[&silver], "METAL");
 }
+
+#[test]
+#[ignore = "requires an installed game"]
+fn the_garage_catalogue_of_a_car_with_a_table_has_only_its_own_choices() {
+    use crate::car::customization::{Category, Inventory, Selection};
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let mut table = car();
+    table.rims.clear(); // the car has no GEOMETRY.BIN in this test
+    publish("CATALOGTEST", table);
+    let catalog = Inventory::load(&dir).unwrap().catalog(&dir, "CATALOGTEST").unwrap();
+    assert_eq!(catalog.choices[Category::Paint as usize].len(), 1);
+    assert!(
+        catalog.choices[Category::Vinyl as usize].is_empty() && catalog.choices[Category::Spoiler as usize].is_empty()
+    );
+    assert!(catalog.custom_rim_paint && !catalog.gauge_skins.is_empty());
+    let mut selection = Selection::default();
+    selection.parts[Category::Paint as usize] = Some(part_hash("CATALOGTEST", Kind::Paint, "Red"));
+    catalog.validate(&selection).unwrap();
+    selection.parts[Category::Paint as usize] = Some(part_hash("CATALOGTEST", Kind::Paint, "Missing"));
+    assert!(catalog.validate(&selection).is_err());
+    selection.parts[Category::Paint as usize] = None;
+    selection.rim_color = Some([1, 2, 3]);
+    catalog.validate(&selection).unwrap();
+}
