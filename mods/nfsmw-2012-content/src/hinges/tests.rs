@@ -81,6 +81,7 @@ fn the_manifest_table_carries_the_swing_in_car_space() {
         mass_kg: 50.0,
         active: None,
         parent: None,
+        delay: None,
         tracks: Vec::new(),
     };
     let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
@@ -120,6 +121,7 @@ fn an_active_spoiler_writes_its_movement_and_needs_no_damage_swing() {
         mass_kg: 30.0,
         active: Some(motion),
         parent: None,
+        delay: None,
         tracks: Vec::new(),
     };
     let hinged = Hinged { parts: vec![part.clone()], wing: None, classes: Vec::new() };
@@ -195,6 +197,7 @@ fn the_manifest_names_the_part_a_flap_hangs_from() {
         mass_kg: 30.0,
         active: Some(motion),
         parent: Some("Spoiler".into()),
+        delay: None,
         tracks: Vec::new(),
     };
     let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
@@ -267,4 +270,19 @@ fn the_agera_follows_the_gas_and_moves_two_flaps() {
     let active: Vec<_> = manifest.damage_parts.iter().filter_map(|part| part.active).collect();
     assert_eq!(active.len(), 2, "two flaps");
     assert!(active.iter().all(|a| a.gas && a.above_mph == 70.0 && a.below_mph == 0.0));
+}
+
+#[test]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+fn the_air_vents_write_their_waits_and_the_game_accepts_them() {
+    let Some((_, marussia)) = manifest_of(1551590) else { return };
+    let vents: Vec<_> = marussia.damage_parts.iter().filter_map(|part| part.active).collect();
+    assert!(vents.len() >= 2, "{} vents", vents.len());
+    assert!(vents.iter().all(|a| a.delay == Some((3.0, 5.0)) && a.above_mph == 120.0 && a.below_mph == 100.0));
+    let Some((_, concept)) = manifest_of(1085830) else { return };
+    let waits: Vec<_> = concept.damage_parts.iter().filter_map(|part| part.active).map(|a| a.delay.is_some()).collect();
+    assert!(
+        waits.contains(&true) && waits.contains(&false),
+        "the spoiler follows the speed, the vents wait: {waits:?}"
+    );
 }
