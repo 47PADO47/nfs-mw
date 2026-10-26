@@ -1,5 +1,7 @@
 # Provenance records
 
+Player countdown follow-up: [engine clutch gates and state history](player-countdown-drivetrain.md).
+
 One file per crate or module whose behaviour came from a restricted source (decompiled code, GPL code,
 unlicensed code). Format-only readers that just follow the docs in [`../formats`](../formats) don't need
 a record. Process: [licensing.md § Spec-first](../licensing.md#spec-first).

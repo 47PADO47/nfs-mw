@@ -11,8 +11,11 @@ tests prove the complete race start works correctly.
 **Open, reported during playtesting on 2026-10-26:** engine revs during the race
 countdown are buggy and behave differently from the original game. The exact
 input sequence and RPM trace have not yet been captured for the remake.
-The cause is not established. Do not classify this as fixed by the launch-band,
-staged-body restraint, or shared-clock changes.
+Two related drivetrain defects have since been corrected: engaging-clutch play
+was skipped, and old clutch RPM difference survived engaged/disengaged states.
+Their contribution to the reported symptom has not been measured in a complete
+countdown retest. Do not classify the whole defect as fixed by component results.
+See [the drivetrain comparison](specs/player-countdown-drivetrain.md).
 
 Initial grid gear/clutch sequencing and the ordering of engine, displayed-RPM,
 staging and release producers remain comparison gaps. These are investigation
@@ -47,9 +50,9 @@ and [tire correction spec](specs/vehicle-tire-capture-corrections.md).
 
 ## Other unresolved or excluded behavior
 
-- **Tire arithmetic:** the original quantized/near-zero angle helper differs
-  from Rust `atan2`. Residual tire-force differences remain after the branch
-  fixes. Exact per-call force equality is not claimed.
+- **Tire arithmetic:** Reference tires now use the original-style quantized angle
+  helper and match every captured angle. Residual tire-force differences remain
+  in other arithmetic. Exact per-call force equality is not claimed.
 - **Complete driving:** matched-route trajectories, dynamic contact geometry,
   wall/chassis response, banks, landings and live Speedbreaker transitions need
   original/remake acceptance. Isolated endpoint agreement is narrower evidence.
@@ -74,10 +77,26 @@ original installation has that cadence. See the linked provenance records.
 
 Two original Golf sessions supplied 38,764 independently initialized tire calls.
 After the fixes, wheel-lock and sign-history mismatches were eliminated in these
-calls. Maximum remaining absolute longitudinal/lateral force differences were
-13.6015625/41.6399 N in one session and 12.09375/57.7808 N in the other. No
+calls. With the angle correction, maximum remaining absolute longitudinal/lateral
+force differences are 0.015625/0.0234375 N in one session and
+0.1787109375/0.40234375 N in the other. Before that correction the corresponding
+errors were 13.6015625/41.6399 N and 12.09375/57.7808 N. No
 acceptance tolerance is invented for these residuals. This replay does not
 reconstruct a complete vehicle trajectory.
+
+The private engine comparison now supports independent boundaries and sequences.
+Fifty-two synthetic one-step cases and four 16-tick sequences match the original
+single-precision torque-loop outputs exactly for engine speed, transmission
+speed, clutch RPM history, wheel torque and engine-braking state. Clutch and
+wheel feedback are explicit boundary inputs. Suspension-side wheel-write effects,
+stored angular acceleration and complete engine/countdown producers are outside
+that comparison. Alternate original floating-point precision is recorded
+separately; the live engine FPU control word remains unobserved.
+
+A new installed-data regression exercises 244 directed cases across FWD, RWD and
+AWD, nine distinct car/package pairs, 61 reachable tuning profiles, 60/144 Hz and
+normal/quarter-speed deltas. It checks usable acceleration/braking and finite
+state, not original trajectories. Existing broader car/part tests remain separate.
 
 Local native-only validation before PR preparation passed 9,373 workspace tests
 (868 ignored), seven Vulkan/DX12 smoke cases and 25 selected installed cases.

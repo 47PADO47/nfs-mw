@@ -31,10 +31,31 @@ locked to zero records zero direction, rather than retaining the preceding
 positive or negative direction. Angular acceleration remains zero while locked.
 The Regularized profile retains its existing locked-wheel behavior.
 
+## Reference slip angle
+
+The Reference loaded tire uses a quantized signed angle in turns instead of
+`atan2`. Set each velocity component to zero when its absolute value is at most
+`1e-6` m/s. Use absolute forward velocity. If both filtered components are zero,
+the angle is zero. Otherwise divide the smaller magnitude by the larger with
+single-precision rounding, multiply by 65,536, and truncate to an integer.
+
+Use its upper eight bits to select adjacent octant nodes and lower eight bits
+for integer interpolation. Node `i` is the mathematical value
+`round(atan(i / 256) * 65536 / (2*pi))`, for `i = 0..256`; generate these values,
+without embedding an extracted game table. Integer interpolation truncates the
+weighted node difference. Reflect around quarter-turn for larger lateral than
+forward magnitude, apply the original lateral sign, then divide by 65,536.
+
+This single-precision ratio matches all 38,764 previously captured tire angles.
+Four boundary cases differ by one angle unit under double-precision division.
+Isolated original helper execution at single precision independently confirms
+the arithmetic. The runtime FPU control word itself was not captured.
+The existing rolling response retains its double-precision ratio and the generic
+Regularized loaded tire retains its continuous `atan2` response.
+
 ## Limits
 
 These corrections do not change grip constants, tire profiles, scheduling,
-steering history or AI control. The original angle helper has quantized and
-near-zero behavior that differs from the current Rust `atan2`; that remains a
-separate arithmetic comparison. Individual tire-call agreement is not complete
+steering history or AI control. Angle agreement does not establish exact agreement
+of every remaining floating-point operation. Individual tire-call agreement is not complete
 car, suspension, contact-order or trajectory parity.

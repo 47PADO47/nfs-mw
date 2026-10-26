@@ -23,7 +23,20 @@
   Isolated original-code replay confirms the zero-direction outputs.
 - Implementation preserves the generic Regularized profile's branch choices
   and locked-wheel behavior. Existing AI scheduling/control are unchanged.
-- Limits: the angle helper and full vehicle dynamics remain separate. A runtime
+- Angle follow-up (2026-10-26): original loaded-tire helper `005cb5d0` applies
+  the near-zero component gates and calls signed quantized angle helper
+  `0045ded0`. Inspection used the hash-identified clean PC analysis program;
+  numeric execution used the selected memory-patched executable above. All 257
+  octant nodes equal mathematically generated rounded arctangents. No extracted
+  lookup bytes are required in the implementation. A private model agrees with
+  4,056 directed/random isolated original-helper executions under x87 control
+  word `007f`, including axes, equal components, zero thresholds and table-cell
+  boundaries. Its angle matches all 38,764 captured loaded-tire calls exactly.
+  Double-precision ratio calculation differs from four live angles by one
+  `1/65536`-turn unit; each case is resolved by single-precision ratio rounding.
+  This establishes captured arithmetic behavior, not a direct observation of
+  the live control word. Existing rolling-response precision remains unchanged.
+- Limits: full vehicle dynamics remain separate. A runtime
   initialized lateral-table descriptor differs from its on-disk sentinel;
   isolated original numeric execution must initialize the verified live value.
   This is not permission to tune grip around an uninitialized numeric oracle.

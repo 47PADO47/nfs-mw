@@ -8,6 +8,8 @@ See [provenance](../provenance/player-launch.md).
 behave differently from the original. The cause is unconfirmed. Component tests
 below do not establish countdown producer timing or complete launch parity.
 See [the open defect and acceptance criteria](../player-driving-status.md).
+The [countdown drivetrain follow-up](player-countdown-drivetrain.md) corrects two
+clutch-state rules without claiming full race-start acceptance.
 
 For the selected PC game, first gear alone supplies a launch band. Its width is
 `(redline - idle) * 0.25`; its lower edge is

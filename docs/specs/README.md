@@ -6,6 +6,8 @@ before the Rust implementation. Required wherever the only source is decompiled 
 
 Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
 
+Player countdown follow-up: [clutch state and comparison boundaries](player-countdown-drivetrain.md).
+
 Driving extensions: [performance-upgrades.md](performance-upgrades.md),
 [speedbreaker.md](speedbreaker.md), [vehicle-jump-stabilizers.md](vehicle-jump-stabilizers.md),
 and [vehicle-ground-reference.md](vehicle-ground-reference.md) (persistent body terrain queries).
