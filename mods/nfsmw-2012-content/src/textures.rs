@@ -66,6 +66,25 @@ impl Palette {
     }
 }
 
+impl Palette {
+    /// Add the lit and unlit textures of the head and brake lamps of the car in `folder` (once), under the names the game
+    /// swaps its lamp placeholders for (`<FOLDER>_KIT00_HEADLIGHT_ON`, `_OFF`, `_BRAKELIGHT_ON`, `_OFF`). They are flat
+    /// colours: the 2012 lamps are lit strips whose pattern is not carried over.
+    pub fn add_lamp_states(&mut self, folder: &str) {
+        for (kind, off, on) in [("HEADLIGHT", [38, 42, 48], [255, 244, 214]), ("BRAKELIGHT", [56, 8, 8], [255, 24, 16])]
+        {
+            for (state, [r, g, b]) in [("OFF", off), ("ON", on)] {
+                let name = format!("{folder}_KIT00_{kind}_{state}");
+                if self.names.contains_key(&name) {
+                    continue;
+                }
+                self.names.insert(name.clone(), self.textures.len());
+                self.textures.push(TextureSource::new(&name, 4, 4, PixelFormat::Dxt1, 1, solid_block(r, g, b)));
+            }
+        }
+    }
+}
+
 fn to_srgb_byte(linear: f32) -> u8 {
     let value = linear.clamp(0.0, 1.0);
     let encoded = if value <= 0.003_130_8 { value * 12.92 } else { 1.055 * value.powf(1.0 / 2.4) - 0.055 };
@@ -167,5 +186,17 @@ mod tests {
         assert_eq!(first, "C_BCBCBC");
         palette.add_colour([0.0, 0.0, 0.0]);
         assert_eq!(palette.into_textures().len(), 2);
+    }
+
+    #[test]
+    fn the_lamp_states_are_four_textures_named_for_the_car() {
+        let mut palette = Palette::default();
+        palette.add_lamp_states("POR911");
+        palette.add_lamp_states("POR911");
+        let names: Vec<String> = palette.into_textures().iter().map(|t| t.name.clone()).collect();
+        for name in ["HEADLIGHT_ON", "HEADLIGHT_OFF", "BRAKELIGHT_ON", "BRAKELIGHT_OFF"] {
+            assert!(names.contains(&format!("POR911_KIT00_{name}")), "{names:?}");
+        }
+        assert_eq!(names.len(), 4);
     }
 }

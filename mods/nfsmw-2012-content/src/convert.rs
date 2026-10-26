@@ -12,7 +12,7 @@ use anyhow::{Context, Result, bail};
 use blackbox_hash::bstring_hash;
 use blackbox_solid::{GroupSource, PositionMarker, SolidSource, Vertex, write_geometry_pack};
 use blackbox_tpk::write_tpk;
-use chameleon_vehicle::{Lod, PartMesh, SurfaceKind};
+use chameleon_vehicle::{LampEnd, LampSide, LampSurface, Lod, PartMesh, SurfaceKind};
 
 use crate::fit::{Fit, to_car_space};
 use crate::markers;
@@ -59,8 +59,9 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
     let triangles = finest.iter().map(|mesh| mesh.triangles.len()).sum();
     let body_points: Vec<[f32; 3]> =
         finest.iter().flat_map(|mesh| mesh.vertices.iter().map(|v| body(v.position))).collect();
-    let pipes = markers::tail_pipes(&body_points);
-    let body_markers = |_: usize| pipes.clone();
+    let mut body_marks = markers::tail_pipes(&body_points);
+    body_marks.extend(markers::lamp_markers(&car.lamps, &body));
+    let body_markers = |_: usize| body_marks.clone();
     add_solids(
         &mut solids,
         &format!("{folder}_KIT00_BODY"),
@@ -243,6 +244,18 @@ fn normalised(v: [f32; 3]) -> [f32; 3] {
     [v[0] / length, v[1] / length, v[2] / length]
 }
 
+/// The placeholder texture of the game's lamps that a lens piece is drawn with. The front centre has none: it follows the
+/// left lamp, and the head lamps of both sides look the same.
+fn lamp_placeholder(surface: LampSurface) -> &'static str {
+    match (surface.end, surface.side) {
+        (LampEnd::Front, LampSide::Right) => "HEADLIGHT_RIGHT",
+        (LampEnd::Front, _) => "HEADLIGHT_LEFT",
+        (LampEnd::Rear, LampSide::Left) => "BRAKELIGHT_LEFT",
+        (LampEnd::Rear, LampSide::Right) => "BRAKELIGHT_RIGHT",
+        (LampEnd::Rear, LampSide::Centre) => "BRAKELIGHT_CENTRE",
+    }
+}
+
 /// The 2005 texture and light material that stand in for a 2012 surface.
 fn look(mesh: &PartMesh, car: &SourceCar, folder: &str, options: &Options, palette: &mut Palette) -> Look {
     let appearance = &mesh.appearance;
@@ -252,12 +265,17 @@ fn look(mesh: &PartMesh, car: &SourceCar, folder: &str, options: &Options, palet
             Look { texture: format!("{folder}_SKIN1"), light_material: "CARSKIN", flags: PAINT_FLAGS }
         }
         SurfaceKind::Glass => Look { texture: palette.add_glass(), light_material: "WINDSHIELD", flags: 0x4180 },
+        // A lit lens strip: the game's lamp placeholder, which it swaps for the car's own lit or unlit texture.
+        SurfaceKind::Lamp(surface) => {
+            palette.add_lamp_states(folder);
+            Look { texture: lamp_placeholder(surface).to_owned(), light_material: "MATTEPLASTIC", flags: 0x4180 }
+        }
         kind => {
             let (light_material, fallback) = match kind {
                 SurfaceKind::Tyre => ("RUBBER", [0.03; 3]),
                 SurfaceKind::Wheel => ("MAGSILVER", [0.4; 3]),
                 SurfaceKind::Body => ("SHINYPLASTIC", [0.1; 3]),
-                SurfaceKind::Light => ("MATTEPLASTIC", [0.8; 3]),
+                SurfaceKind::Light => ("MATTEPLASTIC", [0.1; 3]),
                 _ => ("MATTEPLASTIC", [0.3; 3]),
             };
             let map = appearance.diffuse_texture.and_then(|id| {
