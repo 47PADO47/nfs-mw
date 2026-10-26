@@ -9,11 +9,11 @@ use crate::bytes::{Reader, malformed};
 use crate::math::Vec3;
 
 const PACK_ALIGN: usize = 16;
-const HEADER_LEN: usize = 16;
-const NODE_LEN: usize = 0x30;
+pub(crate) const HEADER_LEN: usize = 16;
+pub(crate) const NODE_LEN: usize = 0x30;
 /// Positions and half extents are stored in millimetres.
-const VECTOR_SCALE: f32 = 1000.0;
-const QUAT_SCALE: f32 = 32767.0;
+pub(crate) const VECTOR_SCALE: f32 = 1000.0;
+pub(crate) const QUAT_SCALE: f32 = 32767.0;
 
 /// `fFlags` bits of a node.
 pub mod flags {

@@ -15,6 +15,7 @@ mod article;
 mod barrier_query;
 mod body_geometry;
 mod bounds;
+mod bounds_writer;
 mod bytes;
 mod camera_query;
 pub mod carp;
@@ -41,6 +42,7 @@ pub use article::{
 pub use barrier_query::WorldBarrier;
 pub use body_geometry::{BodyGeometry, BodyMesh, BodyPrimitive, GeometryOptions};
 pub use bounds::{Bounds, BoundsSet, Shape, find_bounds, flags as bounds_flags, read_bounds_sets};
+pub use bounds_writer::write_bounds_pack;
 pub use error::{Error, Result};
 pub use grid::{Grid, GridNode, InstanceRef};
 pub use instance::{FLAG_DYNAMIC, FLAG_Y_NOT_UP, Instance};
