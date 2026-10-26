@@ -47,15 +47,9 @@ pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
         {
             continue;
         }
-        let (mut name, mut manufacturer) =
+        let (name, manufacturer) =
             names::display(&car_type.type_name, &car_type.manufacturer, &brands, &crate::i18n::game);
-        if let Some(own) = car_mods::display_name(&folder) {
-            name = own.to_owned();
-        }
-        // The brand a mod gives is shown as it is written; without one the car shows no brand.
-        if let Some(brand) = car_mods::manufacturer(&folder) {
-            manufacturer = brand.to_owned();
-        }
+        let (name, manufacturer) = car_mods::titled(&folder, name, manufacturer);
         let original_color = stock_parts(&tables, car_type)[slot::BASE_PAINT].map(|part| Paint::of(&tables, &part).rgb);
         // A mod car's upgrades, bars and package texts come from its own stats (nothing of a stock car's record).
         let own_stats = car_mods::stats(&folder);
@@ -131,35 +125,13 @@ impl WorldScene {
         if car.parts.is_some() {
             return Ok(());
         }
-        if self.garage_parts.is_none() {
+        // A mod car published after the inventory was read is not in its tables: read it again.
+        if self.garage_parts.as_ref().is_none_or(|inventory| !inventory.knows(folder)) {
             self.garage_parts = Some(customization::Inventory::load(&self.dir)?);
         }
         let mut catalog =
             self.garage_parts.as_ref().context("part inventory unavailable")?.catalog(&self.dir, folder)?;
-        for (index, choices) in catalog.choices.iter_mut().enumerate() {
-            for choice in choices.iter_mut() {
-                if index != customization::Category::Body as usize
-                    && index != customization::Category::Wheels as usize
-                    && let Some(name) = choice.language_hash.and_then(crate::i18n::game)
-                    && !name.trim().is_empty()
-                {
-                    choice.label = name;
-                }
-                if choice.carbon {
-                    choice.label.push_str(" (Carbon)");
-                }
-            }
-            choices.sort_by(|a, b| (&a.label, a.hash).cmp(&(&b.label, b.hash)));
-            // Some installed variants share a localized name. Keep every identity selectable.
-            let labels: Vec<_> = choices.iter().map(|p| p.label.clone()).collect();
-            for (i, choice) in choices.iter_mut().enumerate() {
-                let duplicate = labels.iter().filter(|label| **label == labels[i]).count() > 1;
-                if duplicate {
-                    let variant = labels[..=i].iter().filter(|label| **label == labels[i]).count();
-                    choice.label.push_str(&format!(" · {variant}"));
-                }
-            }
-        }
+        crate::garage::listing::arrange(&mut catalog, &crate::i18n::game);
         car.parts = Some(catalog.into());
         Ok(())
     }

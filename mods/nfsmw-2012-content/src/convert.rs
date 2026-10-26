@@ -76,8 +76,14 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
         &mut |mesh| look(mesh, car, folder, options, &mut palette),
     )?;
     let damage_parts = cut_hinged(&mut solids, car, fit, folder);
-    let wheel =
-        car.vehicle.wheels.iter().find(|wheel| wheel.name.starts_with("FrontLeft")).or(car.vehicle.wheels.first());
+    // The front left wheel by its place (a few cars name their wheels the wrong way round).
+    let wheel = car
+        .vehicle
+        .wheels
+        .iter()
+        .filter(|wheel| wheel.position[0] > 0.0)
+        .max_by(|a, b| a.position[2].total_cmp(&b.position[2]))
+        .or(car.vehicle.wheels.first());
     let wheel = wheel.context("the car has no wheels")?;
     let shift = wheel_shift(lod_for(&wheel.lods, 0, "wheel")?);
     let rim_up = |p: [f32; 3]| {

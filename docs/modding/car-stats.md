@@ -129,6 +129,30 @@ tank refills by speed (20 s at 20 mph, 5 s at 100 mph).
 The flames come out of the tail pipes, which the car's body solid marks
 ([car-customization.md](car-customization.md#tail-pipes)); a car without pipe markers boosts but shows no flame.
 
+## Where the wheels are drawn: `[wheels]`
+
+`[stats]` says what the tyres do. Without more, the game draws a mod car's wheels from it: the tyres' centres at plus and minus
+half of `wheelbase_m`, as high as their radius, the outer face half a tyre width beyond the track. A model whose hubs are
+elsewhere (a hub height that is not the radius, a tyre mesh that is not the size of the physics cylinder, a body not centred
+on its wheelbase) gets an optional `[wheels]` table with the tyres exactly as the model has them, one sub-table per axle
+(the left tyre; the right is its mirror), in the car's own space (x forward, y left, z up, the origin of the model):
+
+```toml
+[wheels.front]
+x_m = 1.4025        # centre of the tyre, forward of the origin (negative behind it)
+z_m = 0.334         # height of the centre above the ground the model stands on
+face_m = 0.9325     # centre line to the tyre's outer face
+radius_m = 0.3211
+width_m = 0.2649
+[wheels.rear]
+x_m = -1.4025
+# ... the same five keys
+```
+
+Every key of both axles is required when the table is there, and the front axle is ahead of the rear. The game draws the
+wheel solid (the car's `FRONT_TIRE`) scaled to each axle's radius and width; the wheel's brake, skid marks and damage
+effects follow the same hubs. The table changes nothing of the physics, which stay `[stats]`.
+
 ## The 2012 cars' stats
 
 The [2012 mod](nfsmw-2012-content.md) writes a `[stats]` table for each car, read from the car's own handling definition

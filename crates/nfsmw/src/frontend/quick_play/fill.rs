@@ -97,6 +97,7 @@ pub(crate) fn logo_textures(assets: &crate::ui::UiAssets, car: &PoolCar) -> (u32
 
 fn show_car(cx: &mut Cx, car: &PoolCar, pool: &CarPool) {
     let (maker, model) = logo_textures(cx.assets, car);
+    crate::frontend::car_title::show(cx, &car.folder);
     set_texture(cx, MANUFACTURER_LOGO, maker);
     set_texture(cx, MODEL_LOGO, model);
     let [top, handling, acceleration] = match car.stats {

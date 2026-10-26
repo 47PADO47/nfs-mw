@@ -277,6 +277,7 @@ impl Manager {
             cx.rt.set_hidden(object, true);
             cx.rt.set_text(object, String::new());
         }
+        crate::frontend::car_title::show(cx, &car.folder);
         cx.hide(0xd0f7_c7cc, car.unavailable.is_none());
         cx.text_object(0x2d25_b2c4, car.unavailable.as_deref().unwrap_or_default());
     }

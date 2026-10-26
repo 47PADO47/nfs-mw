@@ -26,8 +26,20 @@ impl WheelSetup {
     /// The setup of the car `car`: a mod car's from its own stats, any other car's from its `ecar` record.
     pub fn for_car(db: &Database, car: &blackbox_carparts::CarTypeInfo) -> Option<Self> {
         match super::mods::stats(&car.type_name) {
-            Some(stats) => Some(Self::from_stats(stats)),
+            Some(stats) => Some(Self::from_layout(stats, super::mods::wheel_layout::of(&car.type_name).as_ref())),
             None => Self::read(db, &car.base_model_name),
+        }
+    }
+
+    /// The setup of a mod car: where its model has its tyres when the car says so, else what its stats make of them.
+    pub fn from_layout(stats: &super::mods::CarStats, layout: Option<&super::mods::wheel_layout::WheelLayout>) -> Self {
+        let Some(layout) = layout else { return Self::from_stats(stats) };
+        let tyre = |tyre: &super::mods::wheel_layout::Tyre, side: f32| [tyre.x, side * tyre.face, tyre.z, tyre.radius];
+        let (front, rear) = (&layout.front, &layout.rear);
+        Self {
+            tire_offsets: [tyre(front, 1.0), tyre(front, -1.0), tyre(rear, -1.0), tyre(rear, 1.0)],
+            skid_width: [front.width, front.width, rear.width, rear.width],
+            ..Self::from_stats(stats)
         }
     }
 

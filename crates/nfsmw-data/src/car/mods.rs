@@ -18,6 +18,7 @@ pub mod custom;
 mod engine;
 pub mod hinged;
 pub(super) mod parts;
+pub mod wheel_layout;
 pub use blackbox_vehicle::stats::{CarStats, Drive};
 pub use cop::{
     COP_CHANCE, COP_COUNT, CopDamage, CopKind, CopUnit, CopWave, add_cop_rows, cop_cars, cop_kind, cop_unit, is_cop_car,
@@ -219,6 +220,18 @@ pub fn display_name(folder: &str) -> Option<&'static str> {
 
 fn display_name_in<'a>(cars: &'a [ModCar], folder: &str) -> Option<&'a str> {
     cars.iter().find(|car| car.folder.eq_ignore_ascii_case(folder)).and_then(|car| car.name.as_deref())
+}
+
+/// The name and the brand a screen shows for the car in `folder`, given the ones the game's own tables give it: a mod car shows
+/// what its mod gave it (a mod car with no brand shows none), any other car the ones passed. Every place that names a car
+/// goes through this, so a mod car is named the same everywhere.
+pub fn titled(folder: &str, name: String, manufacturer: String) -> (String, String) {
+    titled_in(published(), folder, name, manufacturer)
+}
+
+fn titled_in(cars: &[ModCar], folder: &str, name: String, manufacturer: String) -> (String, String) {
+    let Some(car) = find_in(cars, folder) else { return (name, manufacturer) };
+    (car.name.clone().unwrap_or(name), car.manufacturer.clone().unwrap_or_default())
 }
 
 /// The brand a mod gave the car in `folder`, if any.

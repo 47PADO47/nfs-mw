@@ -9,6 +9,7 @@ use game_install::{GameDir, Provider};
 use nfsmw_data::car::CarTables;
 use nfsmw_data::car::mods::custom;
 use nfsmw_data::car::mods::hinged;
+use nfsmw_data::car::mods::wheel_layout;
 use nfsmw_data::car::mods::{
     self as car_mods, COP_CHANCE, COP_COUNT, CarEffects, CarSpec, CarStats, CopKind, CopUnit, CopWave, EngineSound,
     SharedSound,
@@ -70,6 +71,9 @@ fn publish_hinges(mods: &[ModDir], car: &car_mods::ModCar) {
         let Ok(text) = std::fs::read_to_string(&path) else { return };
         let Ok(manifest) = parse_car(stem, &text) else { return };
         hinged::publish(&car.folder, hinges_of(&manifest.damage_parts));
+        if let Some(layout) = &manifest.wheels {
+            wheel_layout::publish(&car.folder, wheel_layout_of(layout));
+        }
         return;
     }
 }
@@ -88,6 +92,18 @@ fn hinges_of(parts: &[blackbox_modding::content::DamagePart]) -> Vec<hinged::Hin
         out.push(hinge);
     }
     out
+}
+
+/// A manifest's `[wheels]` table as the game's wheel layout.
+fn wheel_layout_of(layout: &blackbox_modding::content::WheelLayout) -> wheel_layout::WheelLayout {
+    let tyre = |tyre: &blackbox_modding::content::Tyre| wheel_layout::Tyre {
+        x: tyre.x_m,
+        z: tyre.z_m,
+        face: tyre.face_m,
+        radius: tyre.radius_m,
+        width: tyre.width_m,
+    };
+    wheel_layout::WheelLayout { front: tyre(&layout.front), rear: tyre(&layout.rear) }
 }
 
 /// A manifest's `[[damage_parts]]` entry as the game's hinged part.
