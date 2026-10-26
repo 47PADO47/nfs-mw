@@ -289,10 +289,16 @@ impl Emitter {
     /// Set the size, rotation and colour a particle has at curve position `t`; `extra` is the share of the
     /// rotation curve added on top (0 at birth).
     fn look(&self, p: &mut Particle, t: f32, extra: f32) {
-        p.half_size = (self.size.value(t) * 0.5).max(0.0);
-        let delta = self.angle.value(t).to_radians() * (1.0 + extra);
+        let tracked = crate::track_at(&self.spec.track, t);
+        let size = tracked.map_or_else(|| self.size.value(t), |look| look.0);
+        let angle = tracked.map_or_else(|| self.angle.value(t), |look| look.1);
+        p.half_size = (size * 0.5).max(0.0);
+        let delta = angle.to_radians() * (1.0 + extra);
         p.angle = if p.turn_back { p.initial_angle - delta } else { p.initial_angle + delta };
-        p.color = std::array::from_fn(|c| (self.color[c].value(t) * 255.0).clamp(0.0, 255.0) as u8);
+        p.color = match tracked {
+            Some((_, _, color)) => color.map(|c| c.clamp(0.0, 255.0).round() as u8),
+            None => std::array::from_fn(|c| (self.color[c].value(t) * 255.0).clamp(0.0, 255.0) as u8),
+        };
     }
 
     fn advance(&mut self, dt: f32) {

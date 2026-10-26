@@ -51,3 +51,38 @@ impl Curve {
         self.values[last]
     }
 }
+
+/// One key of a [`Track`]: where it sits along the life and what the particle looks like there.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TrackKey {
+    /// 0 (born) to 1 (the end of the emitter's nominal life), rising along the track.
+    pub t: f32,
+    /// Full width of the sprite.
+    pub size: f32,
+    /// Rotation in degrees added to the initial angle.
+    pub angle: f32,
+    /// RGBA, straight.
+    pub color: [u8; 4],
+}
+
+/// The look of a particle over its life as straight lines between any number of keys (the emitter's four-key cubics are
+/// used when it has none). Before the first key and after the last the nearest key's values hold.
+pub fn track_at(keys: &[TrackKey], t: f32) -> Option<(f32, f32, [f32; 4])> {
+    let (first, last) = (keys.first()?, keys.last()?);
+    let colour = |k: &TrackKey| k.color.map(f32::from);
+    if t <= first.t {
+        return Some((first.size, first.angle, colour(first)));
+    }
+    for pair in keys.windows(2) {
+        let (a, b) = (&pair[0], &pair[1]);
+        if t > b.t {
+            continue;
+        }
+        let span = b.t - a.t;
+        let u = if span > 1e-6 { ((t - a.t) / span).clamp(0.0, 1.0) } else { 1.0 };
+        let mix = |x: f32, y: f32| x + (y - x) * u;
+        let (ca, cb) = (colour(a), colour(b));
+        return Some((mix(a.size, b.size), mix(a.angle, b.angle), std::array::from_fn(|i| mix(ca[i], cb[i]))));
+    }
+    Some((last.size, last.angle, colour(last)))
+}
