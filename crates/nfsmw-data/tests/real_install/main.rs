@@ -18,6 +18,7 @@ mod career;
 mod carparts;
 mod cars;
 mod compare;
+mod driving_matrix;
 mod exhaust;
 mod explosion;
 mod frontend_camera;
