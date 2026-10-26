@@ -29,6 +29,8 @@ pub struct Active {
     pub below_mph: f32,
     /// Seconds the whole movement takes.
     pub seconds: f32,
+    /// The gas pedal matters: deploys only with the gas pressed, retracts when it is released.
+    pub gas: bool,
 }
 
 /// How far a part is deployed, and which way it is going.
@@ -42,10 +44,10 @@ pub struct Deployment {
 impl Deployment {
     /// Advance by `dt` seconds with the car at `mph`: it starts going up above the deploy speed, and down below the
     /// retract speed; at a speed between the two (or exactly at one) it goes on the way it was going.
-    pub fn step(&mut self, active: &Active, mph: f32, dt: f32) {
-        if mph > active.above_mph {
+    pub fn step(&mut self, active: &Active, mph: f32, gas: bool, dt: f32) {
+        if mph > active.above_mph && (gas || !active.gas) {
             self.up = true;
-        } else if mph < active.below_mph {
+        } else if mph < active.below_mph || (active.gas && !gas) {
             self.up = false;
         }
         let rate = dt.max(0.0) / active.seconds.max(0.01);
@@ -87,12 +89,18 @@ pub fn deploy_in(marks: &BTreeSet<usize>, part: usize) -> f32 {
 mod tests {
     use super::*;
 
-    const SPOILER: Active =
-        Active { offset: [-0.07, 0.0, 0.02], rotation: None, above_mph: 70.0, below_mph: 40.0, seconds: 0.6 };
+    const SPOILER: Active = Active {
+        offset: [-0.07, 0.0, 0.02],
+        rotation: None,
+        above_mph: 70.0,
+        below_mph: 40.0,
+        seconds: 0.6,
+        gas: false,
+    };
 
     fn run(deployment: &mut Deployment, mph: f32, seconds: f32) {
         for _ in 0..(seconds * 60.0).round() as usize {
-            deployment.step(&SPOILER, mph, 1.0 / 60.0);
+            deployment.step(&SPOILER, mph, false, 1.0 / 60.0);
         }
     }
 
@@ -125,10 +133,24 @@ mod tests {
     fn a_car_with_one_speed_goes_up_above_it_and_down_below_it() {
         let single = Active { above_mph: 75.0, below_mph: 75.0, ..SPOILER };
         let mut d = Deployment::default();
-        d.step(&single, 76.0, 0.3);
+        d.step(&single, 76.0, false, 0.3);
         assert!(d.amount > 0.4);
-        d.step(&single, 74.0, 0.3);
+        d.step(&single, 74.0, false, 0.3);
         assert_eq!(d.amount, 0.0);
+    }
+
+    #[test]
+    fn a_gas_part_deploys_above_the_speed_with_the_gas_and_retracts_when_it_is_released() {
+        let wing = Active { gas: true, below_mph: 0.0, ..SPOILER };
+        let mut d = Deployment::default();
+        d.step(&wing, 100.0, false, 0.3);
+        assert_eq!(d.amount, 0.0, "fast but off the gas: it stays down");
+        d.step(&wing, 100.0, true, 0.3);
+        assert!(d.amount > 0.4);
+        d.step(&wing, 100.0, false, 0.3);
+        assert_eq!(d.amount, 0.0, "off the gas it comes down at any speed");
+        d.step(&wing, 60.0, true, 0.3);
+        assert_eq!(d.amount, 0.0, "slow: it does not deploy with the gas");
     }
 
     #[test]

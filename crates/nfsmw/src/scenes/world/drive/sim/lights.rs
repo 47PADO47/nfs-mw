@@ -20,6 +20,11 @@ impl CarSim {
         f32::from(u8::from(on))
     }
 
+    /// How hard the throttle is pressed, 0 to 1.
+    pub fn gas_pedal(&self) -> f32 {
+        self.vehicle.controls().gas
+    }
+
     /// How hard the brake is pressed, 0 to 1.
     pub fn brake_pedal(&self) -> f32 {
         self.vehicle.controls().brake

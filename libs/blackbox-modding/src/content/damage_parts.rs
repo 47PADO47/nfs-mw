@@ -96,6 +96,9 @@ pub struct Active {
     pub below_mph: f32,
     /// How long the whole movement takes, seconds.
     pub seconds: f32,
+    /// The throttle matters: the part deploys only while the gas is pressed (above `above_mph`) and retracts when the gas
+    /// is released; the speed alone does not retract it (`below_mph` is then 0).
+    pub gas: bool,
 }
 
 /// Animations a wing machine plays.
@@ -176,6 +179,8 @@ struct RawActive {
     #[serde(default)]
     below_mph: Option<f32>,
     seconds: f32,
+    #[serde(default)]
+    gas: bool,
 }
 
 #[derive(Deserialize)]
@@ -350,7 +355,7 @@ fn check_active(raw: RawActive) -> Result<Active, ContentError> {
     if !raw.seconds.is_finite() || !(SECONDS_RANGE.0..=SECONDS_RANGE.1).contains(&raw.seconds) {
         return Err(field("an active movement takes 0.05 to 10 seconds"));
     }
-    Ok(Active { offset: raw.offset, rotation, above_mph: raw.above_mph, below_mph, seconds: raw.seconds })
+    Ok(Active { offset: raw.offset, rotation, above_mph: raw.above_mph, below_mph, seconds: raw.seconds, gas: raw.gas })
 }
 
 /// The turn of an active part: both of `rotation_axis` and `rotation_deg` or none of them.

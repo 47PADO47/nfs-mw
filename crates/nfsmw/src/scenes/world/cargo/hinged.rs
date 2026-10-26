@@ -27,6 +27,7 @@ fn advance(sim: &mut CarSim, hinges: &[hinged::Hinge]) {
     }
     let mph = sim.velocity().length() * hinged::MPS_TO_MPH;
     let brake = sim.brake_pedal();
+    let gas = sim.gas_pedal() > 0.0;
     let Some(events) = sim.events.as_mut() else { return };
     if let Some(wing) = wing {
         events.wing_blend = Some(events.wing.step(wing, mph, brake, STEP));
@@ -34,7 +35,7 @@ fn advance(sim: &mut CarSim, hinges: &[hinged::Hinge]) {
     events.deployment.resize(hinges.len(), hinged::Deployment::default());
     for (hinge, deployment) in hinges.iter().zip(&mut events.deployment) {
         if let Some(active) = &hinge.active {
-            deployment.step(active, mph, STEP);
+            deployment.step(active, mph, gas, STEP);
         }
     }
 }
