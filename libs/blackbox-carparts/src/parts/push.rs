@@ -30,6 +30,23 @@ const ATTRIBUTE_LIMIT: usize = i16::MAX as usize;
 const MAX_LEVEL: u8 = 7;
 
 impl PartsDb {
+    /// Add all of `news`, or none of them: when one does not fit, the database is as it was before the call. Returns the
+    /// parts as stored, in order.
+    pub fn push_parts(&mut self, news: &[NewPart<'_>]) -> Result<Vec<Part>> {
+        let mark = self.mark();
+        let mut stored = Vec::with_capacity(news.len());
+        for new in news {
+            match self.push_part(new) {
+                Ok(part) => stored.push(part),
+                Err(e) => {
+                    self.rewind(&mark);
+                    return Err(e);
+                }
+            }
+        }
+        Ok(stored)
+    }
+
     /// Add `new` to the database and return the part as stored. The part comes after every part the database had, so a
     /// search that takes the first match still finds the stock parts first.
     ///
@@ -108,6 +125,27 @@ impl PartsDb {
         Ok(part)
     }
 
+    fn mark(&self) -> Mark {
+        Mark {
+            strings: self.strings.len(),
+            attribute_lists: self.attribute_lists.len(),
+            attributes: self.attributes.len(),
+            model_tables: self.model_tables.len(),
+            type_names: self.type_names.len(),
+            parts: self.parts.len(),
+        }
+    }
+
+    /// Drop what was pushed since `mark`: every table only grows, so cutting them back restores the database.
+    fn rewind(&mut self, mark: &Mark) {
+        self.strings.truncate(mark.strings);
+        self.attribute_lists.truncate(mark.attribute_lists);
+        self.attributes.truncate(mark.attributes);
+        self.model_tables.truncate(mark.model_tables);
+        self.type_names.truncate(mark.type_names);
+        self.parts.truncate(mark.parts);
+    }
+
     /// The index of `hash` in the type-name table, or the index it would get when added.
     fn type_index_for(&self, hash: u32) -> Result<usize> {
         if let Some(at) = self.type_names.iter().position(|&known| known == hash) {
@@ -119,6 +157,16 @@ impl PartsDb {
         }
         Ok(next)
     }
+}
+
+/// The lengths of the tables, to cut them back to.
+struct Mark {
+    strings: usize,
+    attribute_lists: usize,
+    attributes: usize,
+    model_tables: usize,
+    type_names: usize,
+    parts: usize,
 }
 
 /// `index` as a `u16` table index, which must stay below the `u16::MAX` that means "none".

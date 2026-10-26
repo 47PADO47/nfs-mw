@@ -155,3 +155,29 @@ fn a_full_model_or_attribute_table_is_refused() {
     // No list is needed for a part without attributes.
     assert!(db.push_part(&body(&[1], &[])).is_ok());
 }
+
+#[test]
+fn a_group_goes_in_whole_or_not_at_all() {
+    let mut db = db();
+    let parts = db.parts().len();
+    let (one, two, name) = ([1], [2], [(bstring_hash("NAME"), 3)]);
+    let mut wheel = body(&two, &name);
+    wheel.part_id = 67;
+    wheel.name = "MODCAR_WHEEL";
+    let stored = db.push_parts(&[body(&one, &[]), wheel]).unwrap();
+    assert_eq!(stored.len(), 2);
+    assert_eq!(db.parts().len(), parts + 2);
+
+    // The second of the pair does not fit (the model table is full after the first): nothing stays.
+    let mut db = self::db();
+    db.model_tables.resize(
+        usize::from(u16::MAX) - 1,
+        crate::parts::ModelTable { templated: false, middle: None, entries: Vec::new() },
+    );
+    let mut other = body(&one, &name);
+    other.type_name_hash = 0xABCD;
+    let before = (db.strings.len(), db.parts().len(), db.type_names().len(), db.attributes.len());
+    assert!(matches!(db.push_parts(&[other, wheel]), Err(Error::Full("model"))));
+    assert_eq!((db.strings.len(), db.parts().len(), db.type_names().len(), db.attributes.len()), before);
+    assert_eq!(db.model_tables.len(), usize::from(u16::MAX) - 1);
+}
