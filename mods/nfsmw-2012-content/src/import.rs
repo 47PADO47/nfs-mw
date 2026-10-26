@@ -12,11 +12,11 @@ use rayon::prelude::*;
 
 use crate::config::Config;
 use crate::emit::{CarEntry, CarFiles, ModFolder};
-use crate::fit::{Fit, measure};
+use crate::fit::Fit;
 use crate::shared::SharedSet;
 use crate::source::{CarFile, Source};
 use crate::stats::ImportedStats;
-use crate::{convert, names, nitrous, paints, sounds, variants};
+use crate::{convert, names, nitrous, paints, sounds, variants, wheels};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
 const MAX_THREADS: usize = 6;
@@ -137,17 +137,25 @@ fn import_car(
     shared: &SharedSet,
 ) -> Result<ImportedCar> {
     let car = source.load(named.file)?;
-    let layout = measure(&car.vehicle).context("the wheel layout of the car could not be measured")?;
-    let fit = Fit::own(layout);
+    // What the car is comes from its own bundle; the user's multipliers, if any, change it below.
+    let bytes = source.bundle_bytes(named.file)?;
+    let mut car_stats = read_stats(&Bundle::parse(&bytes)?).context("the stats of the car could not be read")?;
+    let body = car.vehicle.body.first().context("the car has no body")?;
+    let (rear_end, front_end) = body
+        .iter()
+        .flat_map(|mesh| mesh.vertices.iter().map(|v| v.position[2]))
+        .fold((f32::MAX, f32::MIN), |(low, high), z| (low.min(z), high.max(z)));
+    let placed = wheels::place(&car.vehicle, (rear_end, front_end), car_stats.axle_z)
+        .context("the wheel layout of the car could not be measured")?;
+    // The stats' wheelbase and weight distribution are those of the hubs the wheels are drawn on.
+    car_stats.axle_z = placed.axles;
+    let fit = Fit::own(placed.layout);
     let pictures = variants::pictures(source, &car, &named.id, &named.liveries);
     let options = convert::Options {
         max_texture_size: config.max_texture_size,
         liveries: pictures.iter().map(|(choice, picture)| (choice.texture.clone(), picture.clone())).collect(),
     };
     let built = convert::build(&car, &fit, &named.id, &options)?;
-    // What the car is comes from its own bundle; the user's multipliers, if any, change it here.
-    let bytes = source.bundle_bytes(named.file)?;
-    let car_stats = read_stats(&Bundle::parse(&bytes)?).context("the stats of the car could not be read")?;
     let mut stats = ImportedStats::of(&car_stats);
     config.tuning().for_car(&named.id, &named.display).apply(&mut stats);
     let rpm = Some((stats.idle_rpm, stats.redline_rpm));
@@ -161,7 +169,8 @@ fn import_car(
         customization: paints::manifest_table(
             &paints::choices(&car.paints),
             &pictures.iter().map(|(choice, _)| choice.clone()).collect::<Vec<_>>(),
-        ) + &built.damage_parts,
+        ) + &built.damage_parts
+            + &placed.manifest_table(),
     };
     let files = CarFiles {
         geometry: &built.geometry,

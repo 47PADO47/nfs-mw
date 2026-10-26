@@ -202,6 +202,21 @@ skinned and keep the parts in the body, so a damaged car far away looks intact; 
 parts hang slightly (the bonnet lifts by up to 15 degrees) until they fall off, which is the game's rule, not the 2012
 data's ([car-damage-parts.md](car-damage-parts.md#falling-off)); the units and the meaning of the ladder are inferred. Nothing has been seen in a running game.
 
+## The wheels
+
+The wheel hubs come from the car's graphics spec; the tyre's height, width and reach come from its wheel mesh; the converter
+writes them as the car's `[wheels]` table ([car-stats.md](car-stats.md#where-the-wheels-are-drawn-wheels)), and the stats'
+wheelbase and weight distribution are those of the same hubs, so the body, the physics and the drawn wheels agree. The wheels are
+taken by their place and not their name (a few cars name them the wrong way round). One car has hubs that cannot be right: the
+Venom GT Spyder's front hubs lie behind its doors (z 0.125 against a body from -2.33 to 2.33, and a front arch at 1.3). An axle
+whose hubs are more than 30% of the body's length from its end is taken from the vehicle info's axle instead (1.3 for the
+Venom), which the arches of the body confirm. With the real install, `cargo test -p nfsmw-2012-content --lib fit_real --
+--ignored --nocapture` tabulates, for every car, the largest error (centre, height, outer and inner face, radius) of the drawn
+wheels against the model's own wheel mesh: before the table, 21 of the 93 bundles were off by more than 2 cm (the Venom by
+59 cm, the BMW 1M by 35 cm, the E46 GTR by 7 cm, the Lancia Delta by 6 cm and twelve more by 2 to 5 cm); with it all are within
+2 cm (the largest is 1.4 cm). This checks the numbers the game is given, and the Venom was also looked at in a render
+(`nfsmw view-car HENVENOMGT12 --yaw 90 --screenshot out.png --muted`).
+
 ## Tests
 
 `cargo test -p nfsmw-2012-content` runs the unit tests (settings, ids, fitting, textures, promotion and fingerprint, the

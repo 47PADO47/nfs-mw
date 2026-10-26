@@ -26,8 +26,9 @@ pub struct Layout {
     pub radius: f32,
 }
 
-/// The layout of a 2012 car, measured from its wheel hubs and the height of its wheel meshes.
-pub fn measure(vehicle: &Vehicle) -> Option<Layout> {
+/// The layout of a 2012 car whose axles are at the x (forward, car space) `axles` names, front first, in place of the x of
+/// its hubs; `None` keeps the hubs'. The rest is measured from the hubs and the height and reach of the wheel meshes.
+pub fn measure_on(vehicle: &Vehicle, axles: Option<[f32; 2]>) -> Option<Layout> {
     if vehicle.wheels.len() != 4 {
         return None;
     }
@@ -36,11 +37,12 @@ pub fn measure(vehicle: &Vehicle) -> Option<Layout> {
     let x_mid = mean(&|hub| hub[0]);
     let front = hubs.iter().filter(|hub| hub[0] > x_mid).map(|hub| hub[0]).sum::<f32>() / 2.0;
     let rear = hubs.iter().filter(|hub| hub[0] <= x_mid).map(|hub| hub[0]).sum::<f32>() / 2.0;
+    let [front, rear] = axles.unwrap_or([front, rear]);
     let radius = wheel_radius(vehicle)?;
     let outward = wheel_outward(vehicle)?;
     let layout = Layout {
         wheelbase: front - rear,
-        x_mid,
+        x_mid: (front + rear) / 2.0,
         track: mean(&|hub| hub[1].abs()) + outward,
         hub_z: mean(&|hub| hub[2]),
         radius,

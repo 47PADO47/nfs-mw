@@ -19,6 +19,8 @@ mod effects;
 mod emit;
 mod engine;
 mod fit;
+#[cfg(test)]
+mod fit_real;
 mod graph_voices;
 mod graphs;
 mod hinges;
@@ -42,6 +44,7 @@ mod variants;
 mod vehicle_list;
 mod vfx;
 mod vfx_profile;
+mod wheels;
 
 use std::path::PathBuf;
 
