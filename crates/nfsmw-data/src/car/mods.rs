@@ -17,6 +17,7 @@ pub mod custom;
 mod engine;
 pub mod hinged;
 pub(super) mod parts;
+pub mod wheel_layout;
 pub use blackbox_vehicle::stats::{CarStats, Drive};
 pub use engine::{CarEffects, CurveInput, EngineLayer, EngineSound, LayerCurve, LayerKind, LayerPitch, SharedSound};
 
