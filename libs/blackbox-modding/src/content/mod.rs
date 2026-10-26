@@ -9,7 +9,10 @@ mod car;
 mod customization;
 #[cfg(test)]
 mod customization_tests;
+mod engine_curves;
 mod engine_sound;
+#[cfg(test)]
+mod engine_sound_tests;
 mod error;
 mod interior;
 #[cfg(test)]
@@ -30,6 +33,7 @@ pub use customization::{Customization, Finish, MAX_PER_KIND, Paint, Part, RimPai
 pub use engine_sound::{
     CarEffects, EngineSound, Layer as EngineLayer, MAX_EFFECT_FILES, MAX_LAYERS as MAX_ENGINE_LAYERS,
 };
+pub use engine_curves::{Curve as EngineCurve, Input as EngineInput, LayerKind as EngineLayerKind, Pitch as EnginePitch};
 pub use error::ContentError;
 pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, parse as parse_interior};
 pub use music::{MusicSection, parse as parse_music};
