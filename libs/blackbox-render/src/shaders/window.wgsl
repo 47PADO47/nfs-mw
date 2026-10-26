@@ -91,6 +91,7 @@ fn shade(v: Output) -> vec4<f32> {
     }
     var q = 1.0;
     if globals.fog_range.w<0.5 && v.receives_shadow != 0u { q = direct_visibility(v.world,plane,v.clip.xy); }
+    q *= cloud_visibility(v.world);
     let rgb = 2.0*(tex.rgb*v.ambient+(tex.rgb*v.diffuse+2.0*tex.a*v.highlight)*q)+tex.a*reflection.rgb+v.scatter;
     return extended_output(vec4(rgb,tex.a));
 }

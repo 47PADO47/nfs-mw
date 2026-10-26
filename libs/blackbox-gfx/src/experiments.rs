@@ -29,6 +29,8 @@ impl std::fmt::Display for LightingDebug {
 pub struct RenderExperiments {
     /// Procedural atmosphere and sun-lit cloud volume in the native sky pass.
     pub enhanced_sky: bool,
+    /// Cloud sunlight attenuation, independent of geometry shadows.
+    pub cloud_shadows: bool,
     /// Spatial wet-film and pooled-water response on eligible reflective surfaces.
     pub enhanced_wet_surfaces: bool,
     pub puddle_coverage: f32,
@@ -129,6 +131,7 @@ impl Default for RenderExperiments {
     fn default() -> Self {
         Self {
             enhanced_sky: true,
+            cloud_shadows: false,
             enhanced_wet_surfaces: false,
             puddle_coverage: 0.7,
             puddle_scale: 7.0,

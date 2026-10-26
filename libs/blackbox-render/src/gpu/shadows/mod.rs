@@ -182,6 +182,19 @@ impl Renderer {
             let size = surfaces.targets.size;
             params.contact = [size.0 as f32, size.1 as f32, 2.0, 0.0];
         }
+        let cloud_on = self.experiments.cloud_shadows
+            && self.sky.as_ref().is_some_and(|sky| sky.cloud_shadow_active())
+            && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. })
+            && (-frame.light_dir).normalize_or_zero().z > 0.05;
+        if cloud_on {
+            params.sun = (-frame.light_dir).normalize_or_zero().extend(0.0).to_array();
+        }
+        params.cloud = [
+            super::sky::cloud_shadow::anchor(frame.camera_position.x),
+            super::sky::cloud_shadow::anchor(frame.camera_position.y),
+            0.0,
+            u8::from(cloud_on) as f32,
+        ];
         params.environment = [
             u8::from(settings.car_skylight && self.supports_irradiance()) as f32,
             settings.sky_strength * settings.indirect_strength,

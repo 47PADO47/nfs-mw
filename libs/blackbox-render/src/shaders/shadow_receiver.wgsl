@@ -6,7 +6,7 @@ struct ShadowData {
     camera: vec4<f32>, forward: vec4<f32>, sun: vec4<f32>,
     texels: vec4<f32>, depth_spans: vec4<f32>, softness: vec4<f32>, contact: vec4<f32>,
     ambient: vec4<f32>, environment: vec4<f32>, world: vec4<f32>, debug: vec4<f32>,
-    projected: vec4<f32>, resolutions: vec4<f32>,
+    projected: vec4<f32>, resolutions: vec4<f32>, cloud: vec4<f32>,
 };
 @group(SHADOW_GROUP) @binding(1) var<uniform> shadow_data: ShadowData;
 @group(SHADOW_GROUP) @binding(2) var shadow_map: texture_depth_2d_array;
@@ -14,6 +14,27 @@ struct ShadowData {
 @group(SHADOW_GROUP) @binding(4) var contact_map: texture_2d<f32>;
 @group(SHADOW_GROUP) @binding(5) var ambient_map: texture_2d<f32>;
 @group(SHADOW_GROUP) @binding(6) var detail_shadow_map: texture_depth_2d_array;
+@group(SHADOW_GROUP) @binding(7) var cloud_shadow_map: texture_2d<f32>;
+
+// The reference plane is z=0. Project elevated receivers along the same sun ray.
+fn cloud_visibility(world: vec3<f32>) -> f32 {
+    if shadow_data.cloud.w < 0.5 { return 1.0; }
+    let sun = shadow_data.sun.xyz;
+    if sun.z <= 0.05 { return 1.0; }
+    let point = world.xy - world.z * sun.xy / sun.z;
+    let uv = (point - shadow_data.cloud.xy) / 8000.0 + vec2(0.5);
+    let edge = min(min(uv.x, uv.y), min(1.0-uv.x, 1.0-uv.y));
+    if edge <= 0.0 { return 1.0; }
+    let p = uv * 256.0 - vec2(0.5);
+    let base = vec2<i32>(floor(p));
+    let f = fract(p);
+    let a = textureLoad(cloud_shadow_map, clamp(base, vec2(0), vec2(255)), 0).r;
+    let b = textureLoad(cloud_shadow_map, clamp(base+vec2(1,0), vec2(0), vec2(255)), 0).r;
+    let c = textureLoad(cloud_shadow_map, clamp(base+vec2(0,1), vec2(0), vec2(255)), 0).r;
+    let d = textureLoad(cloud_shadow_map, clamp(base+vec2(1,1), vec2(0), vec2(255)), 0).r;
+    let t = mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+    return mix(1.0, t, smoothstep(0.0, 0.04, edge) * smoothstep(0.05, 0.15, sun.z));
+}
 
 fn shadow_size(cascade: u32) -> f32 {
     if shadow_data.softness.w > 0.5 { return shadow_data.resolutions[cascade]; }
