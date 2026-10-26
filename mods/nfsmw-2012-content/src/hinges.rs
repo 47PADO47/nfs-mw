@@ -54,7 +54,7 @@ const SPOILER_MASS_KG: f32 = 30.0;
 pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Option<Hinged> {
     let mut parts = hinged_parts(bundle).ok()?;
     let skeleton = Skeleton::read(bundle)?;
-    let motion = spoiler_motion(bundle);
+    let motion = spoiler_motion(bundle, &skeleton);
     let spoiler = motion.and_then(|_| skeleton.find(SPOILER_BONE));
     if let Some(bone) = spoiler.filter(|&bone| parts.iter().all(|part| part.bone != bone)) {
         parts.push(HingedPart {
@@ -274,15 +274,28 @@ pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
     text
 }
 
-/// The `[damage_parts.active]` table of a spoiler: its movement in the car's space (the fit scales it with the body), the
-/// speeds and the time.
+/// The `[damage_parts.active]` table of a spoiler: its slide in the car's space (the fit scales it with the body), its
+/// turn about the pivot (the cyclic change of axes keeps the handedness, so the axis and the angle carry over), the
+/// speeds and the time. All of them are what the car's data says.
 fn active_table(motion: &SpoilerMotion, fit: &Fit) -> String {
-    let moved = to_car_space(motion.offset);
+    let moved = to_car_space(motion.translation);
     let offset = [0, 1, 2].map(|k| moved[k] * fit.scale[k]);
-    format!(
-        "\n[damage_parts.active]\noffset = [{:.5}, {:.5}, {:.5}]\nabove_mph = {:.1}\nbelow_mph = {:.1}\nseconds = {:.3}\n",
-        offset[0], offset[1], offset[2], motion.above_mph, motion.below_mph, motion.seconds
-    )
+    let mut text = String::from("\n[damage_parts.active]\n");
+    if offset.iter().any(|c| c.abs() >= 1e-4) {
+        text.push_str(&format!("offset = [{:.5}, {:.5}, {:.5}]\n", offset[0], offset[1], offset[2]));
+    }
+    if let Some((axis, degrees)) = motion.rotation_axis_angle() {
+        let axis = to_car_space(axis);
+        text.push_str(&format!(
+            "rotation_axis = [{:.5}, {:.5}, {:.5}]\nrotation_deg = {degrees:.3}\n",
+            axis[0], axis[1], axis[2]
+        ));
+    }
+    text.push_str(&format!(
+        "above_mph = {:.1}\nbelow_mph = {:.1}\nseconds = {:.3}\n",
+        motion.above_mph, motion.below_mph, motion.seconds
+    ));
+    text
 }
 
 #[cfg(test)]
@@ -388,7 +401,15 @@ mod tests {
     fn an_active_spoiler_writes_its_movement_and_needs_no_damage_swing() {
         use crate::fit::Layout;
         let layout = Layout { wheelbase: 2.6, x_mid: 0.0, track: 0.8, hub_z: 0.35, radius: 0.35 };
-        let motion = SpoilerMotion { offset: [0.0, 0.02, -0.07], seconds: 0.612, above_mph: 70.0, below_mph: 40.0 };
+        let half = 15f32.to_radians();
+        let motion = SpoilerMotion {
+            bone: 3,
+            translation: [0.0, 0.02, -0.07],
+            rotation: [half.sin(), 0.0, 0.0, half.cos()],
+            seconds: 0.612,
+            above_mph: 70.0,
+            below_mph: 40.0,
+        };
         let part = Part {
             name: "SpoilerHinge".into(),
             zone: 2,
@@ -407,6 +428,9 @@ mod tests {
         // The engine's up (+y) is the game's up (+z); back (-z) is -x.
         assert_eq!(active["offset"][0].as_float(), Some(-0.07));
         assert_eq!(active["offset"][2].as_float(), Some(0.02));
+        // The lateral axis (2012 x) is the game's y; the angle is kept.
+        assert_eq!(active["rotation_axis"][1].as_float(), Some(1.0));
+        assert!((active["rotation_deg"].as_float().unwrap() - 30.0).abs() < 1e-3);
         assert_eq!((active["above_mph"].as_float(), active["below_mph"].as_float()), (Some(70.0), Some(40.0)));
         assert_eq!(active["seconds"].as_float(), Some(0.612));
         // Without a movement, a part with no swing is not written at all.

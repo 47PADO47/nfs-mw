@@ -76,6 +76,8 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
     let active = spoiler.active.unwrap();
     assert_eq!((active.above_mph, active.below_mph), (70.0, 40.0));
     assert!(active.offset[2] > 0.0 && active.offset[0] < 0.0, "it goes up and back: {:?}", active.offset);
+    let (axis, degrees) = active.rotation.expect("and it turns, as the animation's rotation key says");
+    assert!(axis[1].abs() > 0.999 && (degrees.abs() - 30.46).abs() < 0.1, "{axis:?} {degrees}");
     let triangles = |name: &str| {
         let solid = solids.iter().find(|solid| solid.name == name).unwrap_or_else(|| panic!("no solid named {name}"));
         solid.groups.iter().map(|group| group.num_indices as usize / 3).sum::<usize>()

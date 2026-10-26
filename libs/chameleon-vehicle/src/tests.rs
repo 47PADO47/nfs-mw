@@ -69,12 +69,15 @@ fn the_cars_with_an_active_spoiler_are_found() {
         }
         let data = std::fs::read(entry.path()).unwrap();
         let bundle = Bundle::parse(&data).unwrap();
-        let Some(motion) = crate::spoiler_motion(&bundle) else { continue };
-        let skeleton = crate::Skeleton::read(&bundle).unwrap();
-        let bone = skeleton.find("SpoilerHinge");
-        println!("{file} {:?} {motion:?} bone {bone:?}", vehicle_name(&bundle));
-        found.push((file, bone.is_some()));
+        let Some(skeleton) = crate::Skeleton::read(&bundle) else { continue };
+        let Some(motion) = crate::spoiler_motion(&bundle, &skeleton) else { continue };
+        println!("{file} {:?} {motion:?} {:?}", vehicle_name(&bundle), motion.rotation_axis_angle());
+        found.push((file, motion.above_mph, motion.below_mph));
     }
-    assert!(found.len() >= 10, "{found:?}");
-    assert!(found.iter().all(|(_, bone)| *bone), "every spoiler car has a SpoilerHinge bone: {found:?}");
+    // The single-state speed machines of the install: the speeds come from their conditions.
+    assert_eq!(found.len(), 8, "{found:?}");
+    let speeds: std::collections::BTreeSet<(i32, i32)> =
+        found.iter().map(|(_, above, below)| (*above as i32, *below as i32)).collect();
+    let expected = [(70, 40), (70, 50), (74, 64), (75, 75), (100, 80)];
+    assert_eq!(speeds, expected.into_iter().collect(), "{found:?}");
 }
