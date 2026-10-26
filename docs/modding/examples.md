@@ -1,10 +1,10 @@
 # Mod examples
 
-Four small mods, each a folder you can copy, using the 0.1 SDK: the generic `libs/blackbox-modding` interfaces and,
+Five small mods, each a folder you can copy, using the 0.1 SDK: the generic `libs/blackbox-modding` interfaces and,
 in the last one, the NFS:MW extension in `crates/nfsmw-modding`. The catalogue is in [api.md](api.md) and the pages it
 links.
 
-The one example CI builds is [`mods/hello`](../../mods/hello). The four below are sketches written
+The one example CI builds is [`mods/hello`](../../mods/hello). The five below are sketches written
 against the same APIs. They are **not built by CI**; each heading says so. Where a sketch goes past what the SDK
 wraps, it says so.
 
@@ -407,6 +407,58 @@ declare_mod!(Bounty);
   `heat` reads the frame before, and `add_heat` is not in 0.1.
 - To change the cop wave, use `cop_table` and `set_cop_table` before the first pursuit
   ([api-nfsmw.md](api-nfsmw.md#cop-tables)).
+
+## 5. A nitrous variant (NFS:MW, not built by CI)
+
+A content mod with a few lines of code: it adds the value `rumble` to the game's "Nitrous variant" option and ships a profile.
+Nothing runs while the nitrous burns; the game plays the profile ([nitrous-variants.md](nitrous-variants.md)).
+
+```
+mods/example.rumble/
+  mod.toml
+  rumble.dll
+  files/NITROUS/RUMBLE/profile.toml
+  files/NITROUS/RUMBLE/LOOP.WAV
+```
+
+```toml
+# mod.toml (extra)
+[optional.interfaces]
+"bb.settings" = "1.0"
+```
+
+```toml
+# files/NITROUS/RUMBLE/profile.toml
+format = 1
+[audio]
+loop = "NITROUS/RUMBLE/LOOP.WAV"
+loop_fade_in = 0.2
+[flame]
+tint = [1.0, 0.5, 0.2]
+[screen]
+vignette = 0.15
+fade_out = 0.8
+```
+
+```rust
+use blackbox_modding::sdk::{Ctx, Mod, ModResult, SettingValue, declare_mod};
+
+struct Rumble;
+
+impl Mod for Rumble {
+    fn load(ctx: &mut Ctx) -> ModResult<Self> {
+        // With this value the game's one-value list gets a second one, so the row shows in the gameplay settings.
+        if let Some(settings) = ctx.settings() {
+            settings.add_option("nitrous_variant", "Nitrous variant", &[SettingValue { id: "rumble", label: "Rumble" }])?;
+        }
+        Ok(Rumble)
+    }
+}
+
+declare_mod!(Rumble);
+```
+
+Without the mod, the row is not in the menu. With it and "Original" chosen, the game is unchanged.
 
 ## Gaps the sketches run into (0.1)
 

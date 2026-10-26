@@ -9,7 +9,7 @@ Status: **partly built**. `bb.commands`, `bb.input`, `bb.time`, `bb.map` and `bb
 chase). The game interaction interfaces are partly built: `bb.vehicles` (the player's car: state, teleport, repair),
 `bb.hud` (a centred message), `bb.camera` (read and the gameplay views) and `bb.world` (track, district, rain, traffic)
 work; `bb.audio` is offered but every play is unsupported until sound names are looked up; traffic spawn at a point is
-unsupported. `bb.ui` 1.0 registers named UI themes whose slots a mod redraws with panels, text and images; the registry
+unsupported. `bb.settings` 1.0 adds options to the gameplay settings, or values to the game's own, and the game's "Nitrous variant" option takes a mod's variants ([api-settings.md](api-settings.md), [nitrous-variants.md](nitrous-variants.md)). `bb.ui` 1.0 registers named UI themes whose slots a mod redraws with panels, text and images; the registry
 builds them, but the live game draws them only after the presenter wiring (see [api-ui.md](api-ui.md)). The status of each row is in [api-world.md](api-world.md#game-interaction). `nfsmw.career`
 is offered with no state, so a mod can detect it; `nfsmw.races` runs over the world's races. The four interior events (`INTERIOR_ENTERING`,
 `INTERIOR_ENTERED`, `INTERIOR_EXITING`, `INTERIOR_EXITED`, ABI 14 to 17) are sent for a mod interior; the interior's key
@@ -24,6 +24,8 @@ when the module is new.
 |---|---|
 | [api.md](api.md) | How to read the catalogue, shared types, lifecycle, events, commands, hotkeys and abilities, time of day |
 | [api-world.md](api-world.md) | Map blips and the world map, menus, game interaction (vehicles, player, HUD, audio, camera, world) |
+| [api-settings.md](api-settings.md) | Settings (`bb.settings`): add an option to the gameplay settings or values to the game's own, the merge rules, when a list is hidden |
+| [nitrous-variants.md](nitrous-variants.md) | The "Nitrous variant" option, a variant's `profile.toml` (sounds, flame tint, screen effects) and how a mod adds one |
 | [api-ui.md](api-ui.md) | UI themes (`bb.ui`): named themes, the slot numbers, the draw primitives, the SDK |
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
 | [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paints, rims, spoilers, vinyls), the `[customization]` table of a car manifest, and the files a mod's own car needs |
@@ -91,6 +93,7 @@ linux   = "libhello.so"
 | Day and time cycle | `bb.time` | [api.md](api.md#time-of-day) |
 | Map blips, world-map markers | `bb.map` | [api-world.md](api-world.md#map-blips-and-the-world-map) |
 | Extend menus | `bb.menus` | [api-world.md](api-world.md#menus) |
+| Add a gameplay setting, or a value to one (a nitrous variant) | `bb.settings` | [api-settings.md](api-settings.md), [nitrous-variants.md](nitrous-variants.md) |
 | Interact with the game (player car, spawn traffic and cops, HUD message, sound, camera) | `bb.vehicles`, `bb.hud`, `bb.audio`, `bb.camera`, `bb.world` | [api-world.md](api-world.md#game-interaction) |
 | Add cars (player and cop) | `bb.content` | [api-content.md](api-content.md#cars) |
 | Add music, fonts, scenery and map packs | `bb.content`, VFS overlay | [api-content.md](api-content.md) |
