@@ -2068,6 +2068,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "chameleon-effects"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+]
+
+[[package]]
 name = "chameleon-gfx"
 version = "0.1.0"
 dependencies = [

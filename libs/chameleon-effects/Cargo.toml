@@ -1,0 +1,16 @@
+[package]
+name = "chameleon-effects"
+description = "Particle effects of the Chameleon engine: the BearEffect resource (emitters, their operations and parameters), decoded from the bytes of its main block."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+chameleon-bundle.workspace = true
+
+[lints]
+workspace = true

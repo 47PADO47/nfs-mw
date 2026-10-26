@@ -48,6 +48,7 @@ default-members = [
     "libs/blackbox-ui",
     "libs/blackbox-vehicle",
     "libs/chameleon-bundle",
+    "libs/chameleon-effects",
     "libs/chameleon-gfx",
     "libs/chameleon-sound-graph",
     "libs/chameleon-vehicle",
@@ -71,6 +72,7 @@ rayon = "=1.11.0"
 blackbox-trace = { path = "libs/blackbox-trace" }
 # Engine-generic libraries (libs/)
 chameleon-bundle = { path = "libs/chameleon-bundle" }
+chameleon-effects = { path = "libs/chameleon-effects" }
 chameleon-gfx = { path = "libs/chameleon-gfx" }
 chameleon-sound-graph = { path = "libs/chameleon-sound-graph" }
 chameleon-vehicle = { path = "libs/chameleon-vehicle" }
