@@ -40,7 +40,4 @@ pub use skin::{BodyParts, body_parts};
 pub use spec::{GraphicsSpec, WheelSpec, find_spec};
 pub use stats::{TorqueKnot, VehicleStats, WheelStats, read_stats};
 pub use vehicle::{Lod, PartMesh, Vehicle, Wheel, load, load_texture};
-pub use wing::{
-    BRAKE_HOLD_SECONDS as WING_BRAKE_HOLD_SECONDS, BRAKE_MPH as WING_BRAKE_MPH, FADE_SECONDS as WING_FADE_SECONDS,
-    OPEN_MPH as WING_OPEN_MPH, TOP_MPH as WING_TOP_MPH, WingBoneTrack, WingMachine, wing_machine,
-};
+pub use wing::{WingBoneTrack, WingMachine, WingParams, wing_machine};

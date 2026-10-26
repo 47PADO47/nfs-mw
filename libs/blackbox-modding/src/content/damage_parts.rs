@@ -117,8 +117,8 @@ pub struct Wing {
     pub open_mph: f32,
     /// The brake opens it at rest above this speed (animation 1), mph.
     pub brake_mph: f32,
-    /// Above this speed it opens further (animation 4), mph.
-    pub top_mph: f32,
+    /// Above this speed it opens further (animation 4), mph. `None`: the wing has no top-speed animation.
+    pub top_mph: Option<f32>,
     /// The brake counts once it has been held this long, seconds.
     pub brake_hold_seconds: f32,
     /// How long the cross-fades take, seconds.
@@ -204,7 +204,8 @@ pub(super) struct RawTrack {
 pub(super) struct RawWing {
     open_mph: f32,
     brake_mph: f32,
-    top_mph: f32,
+    #[serde(default)]
+    top_mph: Option<f32>,
     brake_hold_seconds: f32,
     fade_seconds: f32,
     slot_seconds: [f32; WING_SLOTS],
@@ -432,7 +433,7 @@ pub(super) fn check_wing(raw: Option<RawWing>, parts: &[DamagePart]) -> Result<O
     if !tracked {
         return Err(field("a [wing] table needs a part with tracks"));
     }
-    let speeds = [raw.brake_mph, raw.open_mph, raw.top_mph];
+    let speeds: Vec<f32> = [Some(raw.brake_mph), Some(raw.open_mph), raw.top_mph].into_iter().flatten().collect();
     if speeds.iter().any(|v| !v.is_finite() || !(0.0..=MAX_MPH).contains(v)) || speeds.windows(2).any(|w| w[0] > w[1]) {
         return Err(field(
             "wing speeds are 0 to 500 mph with brake_mph not above open_mph and open_mph not above top_mph",

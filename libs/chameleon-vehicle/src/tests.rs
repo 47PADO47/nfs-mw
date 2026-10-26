@@ -59,7 +59,7 @@ fn every_high_detail_car_has_paints() {
 
 #[test]
 #[ignore = "reads the game install (CHAMELEON_GAME_DIR)"]
-fn the_veyrons_have_a_wing_machine_with_five_animations() {
+fn the_veyrons_mclaren_and_venom_have_a_wing_machine() {
     let Some(dir) = std::env::var_os("CHAMELEON_GAME_DIR") else { return };
     let mut found = Vec::new();
     for entry in std::fs::read_dir(Path::new(&dir).join("VEHICLES")).unwrap().flatten() {
@@ -80,7 +80,7 @@ fn the_veyrons_have_a_wing_machine_with_five_animations() {
         );
         found.push(file);
     }
-    assert_eq!(found.len(), 2, "{found:?}");
+    assert_eq!(found.len(), 4, "{found:?}");
 }
 
 #[test]

@@ -249,7 +249,7 @@ fn the_veyron_writes_a_wing_with_five_animations_that_the_game_accepts() {
     let wing = manifest.wing.expect("the wing machine");
     assert_eq!(
         (wing.open_mph, wing.brake_mph, wing.top_mph, wing.brake_hold_seconds, wing.fade_seconds),
-        (140.0, 125.0, 200.0, 0.4, 0.25)
+        (140.0, 125.0, Some(200.0), 0.4, 0.25)
     );
     assert!(wing.slot_seconds.iter().all(|s| *s > 1.0), "{:?}", wing.slot_seconds);
     let tracked: Vec<usize> =
@@ -285,4 +285,20 @@ fn the_air_vents_write_their_waits_and_the_game_accepts_them() {
         waits.contains(&true) && waits.contains(&false),
         "the spoiler follows the speed, the vents wait: {waits:?}"
     );
+}
+
+#[test]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+fn the_mclaren_and_the_venom_write_a_wing_with_three_animations_and_the_numbers_of_their_data() {
+    for number in [122765, 2076137] {
+        let Some((_, manifest)) = manifest_of(number) else { return };
+        let wing = manifest.wing.expect("the wing machine");
+        assert_eq!(
+            (wing.open_mph, wing.brake_mph, wing.top_mph, wing.brake_hold_seconds, wing.fade_seconds),
+            (120.0, 80.0, None, 0.4, 0.25)
+        );
+        let slots: std::collections::BTreeSet<usize> =
+            manifest.damage_parts.iter().flat_map(|part| part.tracks.iter().map(|t| t.slot)).collect();
+        assert_eq!(slots.into_iter().collect::<Vec<_>>(), vec![0, 1, 2], "three animations move the parts");
+    }
 }

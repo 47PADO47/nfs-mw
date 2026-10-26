@@ -229,7 +229,12 @@ rotation = [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.2588, 0.9659]]
 fn a_part_can_be_moved_by_the_keys_of_a_wing_machine() {
     let manifest = car(&format!("{ONE}{TRACK}{WING}")).unwrap();
     let wing = manifest.wing.expect("the wing");
-    assert_eq!((wing.open_mph, wing.brake_mph, wing.top_mph, wing.brake_hold_seconds), (140.0, 125.0, 200.0, 0.4));
+    assert_eq!(
+        (wing.open_mph, wing.brake_mph, wing.top_mph, wing.brake_hold_seconds),
+        (140.0, 125.0, Some(200.0), 0.4)
+    );
+    let no_top = WING.replace("top_mph = 200.0\n", "");
+    assert_eq!(car(&format!("{ONE}{TRACK}{no_top}")).unwrap().wing.unwrap().top_mph, None);
     assert_eq!(wing.slot_seconds, [1.5, 3.0, 1.6, 3.0, 1.5]);
     let track = &manifest.damage_parts[0].tracks[0];
     assert_eq!((track.slot, track.translation.len(), track.rotation.len()), (0, 2, 2));

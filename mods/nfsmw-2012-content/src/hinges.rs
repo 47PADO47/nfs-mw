@@ -418,12 +418,12 @@ fn track_table(track: &WingBoneTrack, fit: &Fit) -> String {
 fn wing_table(machine: &WingMachine) -> String {
     let seconds: Vec<String> = machine.seconds.iter().map(|s| format!("{s:.4}")).collect();
     format!(
-        "\n[wing]\nopen_mph = {:.1}\nbrake_mph = {:.1}\ntop_mph = {:.1}\nbrake_hold_seconds = {:.2}\nfade_seconds = {:.2}\nslot_seconds = [{}]\n",
-        chameleon_vehicle::WING_OPEN_MPH,
-        chameleon_vehicle::WING_BRAKE_MPH,
-        chameleon_vehicle::WING_TOP_MPH,
-        chameleon_vehicle::WING_BRAKE_HOLD_SECONDS,
-        chameleon_vehicle::WING_FADE_SECONDS,
+        "\n[wing]\nopen_mph = {:.1}\nbrake_mph = {:.1}\n{}brake_hold_seconds = {:.2}\nfade_seconds = {:.2}\nslot_seconds = [{}]\n",
+        machine.params.open_mph,
+        machine.params.brake_mph,
+        machine.params.top_mph.map_or(String::new(), |top| format!("top_mph = {top:.1}\n")),
+        machine.params.brake_hold_seconds,
+        machine.params.fade_seconds,
         seconds.join(", ")
     )
 }

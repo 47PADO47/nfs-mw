@@ -22,6 +22,8 @@ const KEY_INPUT: u64 = 0x9952_fc58_1900_0000;
 const KEY_OPERATOR: u64 = 0x5b55_835f_4e5a_7080;
 /// The key of the seconds of a timed transition (`Wait for 5s`).
 const KEY_TIMER: u64 = 0xbd69_b4a6_1900_0000;
+/// The row of a condition that is 1 when any of its tests is enough.
+const KEY_ANY: u64 = 0x5b56_2d0c_8c7b_8000;
 /// The row type of a nested object.
 const OBJECT: u16 = 6;
 /// Range of the ids of the objects of a machine.
@@ -273,6 +275,37 @@ pub fn vents(block: &[u8]) -> Vec<Vent> {
         });
     }
     out
+}
+
+/// A condition record: its tests, and whether any of them is enough (otherwise all have to hold).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionRecord {
+    pub name: String,
+    pub tests: Vec<Threshold>,
+    pub any: bool,
+}
+
+/// The conditions of the machine in `block` with the way their tests combine (the row `5b562d0c8c7b8000` is 1 for `OR`).
+pub fn condition_records(block: &[u8]) -> Vec<ConditionRecord> {
+    records(block)
+        .iter()
+        .filter(|record| record.kind == CONDITION)
+        .map(|record| ConditionRecord {
+            name: text_at(block, record.name).unwrap_or_default(),
+            tests: condition_of(block, record),
+            any: rows(block, record.props)
+                .iter()
+                .find(|row| row.key == KEY_ANY)
+                .and_then(|row| text_of(block, row))
+                .is_some_and(|text| text == "1"),
+        })
+        .collect()
+}
+
+/// The seconds of every timed transition of the machine in `block`.
+pub fn timers(block: &[u8]) -> Vec<f32> {
+    let all = records(block);
+    all.iter().filter(|record| record.kind == TRANSITION).filter_map(|record| timer_of(block, record)).collect()
 }
 
 /// The data of every condition of the machine in `block`.
