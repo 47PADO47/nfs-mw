@@ -50,7 +50,7 @@ fn engine_sound_of(table: &toml::Value) -> EngineSound {
         redline_rpm: number(&table["redline_rpm"]),
         layers: layers
             .iter()
-            .map(|layer| EngineLayer::classic(layer["file"].as_str().unwrap(), number(&layer["rpm"])))
+            .map(|layer| EngineLayer::classic(layer["file"].as_str().unwrap(), layer.get("rpm").map_or(0.0, number)))
             .collect(),
     }
 }
@@ -209,8 +209,10 @@ fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
     assert!(engine.idle_rpm > 0.0 && engine.redline_rpm > engine.idle_rpm);
     for layer in &engine.layers {
         let wav = game.read(&layer.file).unwrap();
-        assert_eq!(&wav[..4], b"RIFF", "{}", layer.file);
+        assert!(&wav[..4] == b"RIFF" || &wav[..4] == b"Gnsu", "{}: a WAV or a Ginsu file", layer.file);
     }
-    assert!(engine.layers.windows(2).all(|pair| pair[0].rpm < pair[1].rpm));
+    // The layers mixed by engine speed run slowest first; the ones with curves have no engine speed of their own.
+    let by_speed: Vec<f32> = engine.layers.iter().map(|layer| layer.rpm).filter(|rpm| *rpm > 0.0).collect();
+    assert!(by_speed.windows(2).all(|pair| pair[0] < pair[1]));
     std::fs::remove_dir_all(&mod_dir).unwrap();
 }
