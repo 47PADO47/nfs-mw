@@ -192,3 +192,57 @@ fn a_bad_parent_is_refused() {
         assert!(car(&text).is_err(), "accepted: {text}");
     }
 }
+
+const WING: &str = "
+[wing]
+open_mph = 140.0
+brake_mph = 125.0
+top_mph = 200.0
+brake_hold_seconds = 0.4
+fade_seconds = 0.25
+slot_seconds = [1.5, 3.0, 1.6, 3.0, 1.5]
+";
+
+const TRACK: &str = "
+[[damage_parts.track]]
+slot = 0
+translation = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.1]]
+rotation = [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.2588, 0.9659]]
+";
+
+#[test]
+fn a_part_can_be_moved_by_the_keys_of_a_wing_machine() {
+    let manifest = car(&format!("{ONE}{TRACK}{WING}")).unwrap();
+    let wing = manifest.wing.expect("the wing");
+    assert_eq!((wing.open_mph, wing.brake_mph, wing.top_mph, wing.brake_hold_seconds), (140.0, 125.0, 200.0, 0.4));
+    assert_eq!(wing.slot_seconds, [1.5, 3.0, 1.6, 3.0, 1.5]);
+    let track = &manifest.damage_parts[0].tracks[0];
+    assert_eq!((track.slot, track.translation.len(), track.rotation.len()), (0, 2, 2));
+    assert!(car(ONE).unwrap().wing.is_none());
+}
+
+#[test]
+fn a_part_may_hang_from_a_part_the_wing_moves() {
+    let child = ONE.replace("Bonnet", "Arm");
+    let text = format!("{ONE}{TRACK}{child}parent = \"Bonnet\"{TRACK}{WING}");
+    assert_eq!(car(&text).unwrap().damage_parts[1].parent.as_deref(), Some("Bonnet"));
+}
+
+#[test]
+fn bad_wings_and_tracks_are_refused() {
+    let bad = [
+        format!("{ONE}{TRACK}"),
+        format!("{ONE}{WING}"),
+        format!("{ONE}{TRACK}{}", WING.replace("brake_mph = 125.0", "brake_mph = 150.0")),
+        format!("{ONE}{TRACK}{}", WING.replace("fade_seconds = 0.25", "fade_seconds = 0.0")),
+        format!("{ONE}{TRACK}{}", WING.replace("[1.5, 3.0, 1.6, 3.0, 1.5]", "[1.5, 3.0, 1.6, 3.0, 0.0]")),
+        format!("{ONE}{}{WING}", TRACK.replace("slot = 0", "slot = 5")),
+        format!("{ONE}{}{WING}", TRACK.replace("[0.0, 0.0, 0.2588, 0.9659]", "[0.0, 0.0, 0.5, 0.5]")),
+        format!("{ONE}{}{WING}", TRACK.replace(", [0.0, 0.0, 0.1]]", "]")),
+        format!("{ONE}{TRACK}{TRACK}{WING}"),
+        format!("{ONE}{ACTIVE}{TRACK}{WING}"),
+    ];
+    for text in bad {
+        assert!(car(&text).is_err(), "accepted: {text}");
+    }
+}
