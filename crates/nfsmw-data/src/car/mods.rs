@@ -12,6 +12,7 @@ use blackbox_carparts::CarTypeInfo;
 
 use crate::pursuit::{CopRecord, HEAT_LEVELS, HeatRow};
 
+pub mod custom;
 mod engine;
 mod tuning;
 pub use engine::{EngineLayer, EngineSound};
