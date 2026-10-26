@@ -25,6 +25,7 @@ mod names;
 pub mod performance;
 mod source;
 mod stamp;
+pub mod stats;
 mod textures;
 
 use std::path::PathBuf;

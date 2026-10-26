@@ -6,6 +6,8 @@
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
+use chameleon_bundle::Bundle;
+use chameleon_vehicle::read_stats;
 use rayon::prelude::*;
 
 use crate::config::Config;
@@ -13,6 +15,7 @@ use crate::donor::Donors;
 use crate::emit::{CarEntry, CarFiles, EngineFiles, ModFolder};
 use crate::fit::{StockCar, best_fit, measure, stock_cars};
 use crate::source::{CarFile, Source};
+use crate::stats::ImportedStats;
 use crate::{convert, engine, names};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
@@ -117,14 +120,19 @@ fn import_car(
     let base = clone.base_model_name.to_ascii_uppercase();
     let donor = donors.of(clone);
     let built = convert::build(&car, &fit, &donor, &base, &named.id, &options)?;
-    let engine = engine_of(source, named, config, clone);
+    // What the car is comes from its own bundle; the user's multipliers, if any, change it here.
+    let bytes = source.bundle_bytes(named.file)?;
+    let car_stats = read_stats(&Bundle::parse(&bytes)?).context("the stats of the car could not be read")?;
+    let mut stats = ImportedStats::of(&car_stats);
+    config.tuning().for_car(&named.id, &named.display).apply(&mut stats);
+    let engine = engine_of(&bytes, named, config, &stats);
     let entry = CarEntry {
         id: named.id.clone(),
         clone: clone.type_name.clone(),
         name: named.display.clone(),
         manufacturer: named.make.clone(),
         role: config.role,
-        performance: config.tuning().for_car(&named.id, &named.display),
+        stats,
     };
     folder
         .add_car(&entry, &CarFiles { geometry: &built.geometry, textures: &built.textures, engine: engine.as_ref() })?;
@@ -137,16 +145,16 @@ fn import_car(
     })
 }
 
-/// The car's own engine loops, when the settings ask for them and its bundle has pitched loops. A car whose loops cannot
-/// be read still converts, with its clone's engine sound.
-fn engine_of(source: &Source, named: &Named, config: &Config, clone: &StockCar) -> Option<EngineFiles> {
-    if !config.own_engine_sound || clone.idle_rpm <= 0.0 || clone.redline_rpm <= clone.idle_rpm {
+/// The car's own engine loops, when the settings ask for them and its bundle has pitched loops. The loops stand for the
+/// engine speeds between the idle and the redline of the car's own stats. A car whose loops cannot be read still
+/// converts, with the game's generic engine sound.
+fn engine_of(bundle: &[u8], named: &Named, config: &Config, stats: &ImportedStats) -> Option<EngineFiles> {
+    if !config.own_engine_sound || stats.idle_rpm <= 0.0 || stats.redline_rpm <= stats.idle_rpm {
         return None;
     }
-    let loops = source.bundle_bytes(named.file).and_then(|bytes| engine::loops(&bytes));
-    let loops = loops.map_err(|error| log::warn!("{}: no engine loops: {error:#}", named.id)).ok()?;
-    let layers = engine::layers(loops, clone.idle_rpm, clone.redline_rpm);
-    (!layers.is_empty()).then_some(EngineFiles { idle_rpm: clone.idle_rpm, redline_rpm: clone.redline_rpm, layers })
+    let loops = engine::loops(bundle).map_err(|error| log::warn!("{}: no engine loops: {error:#}", named.id)).ok()?;
+    let layers = engine::layers(loops, stats.idle_rpm, stats.redline_rpm);
+    (!layers.is_empty()).then_some(EngineFiles { idle_rpm: stats.idle_rpm, redline_rpm: stats.redline_rpm, layers })
 }
 
 #[cfg(test)]

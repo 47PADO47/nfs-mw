@@ -43,13 +43,14 @@ max_texture_size = 1024
 # Who can use the cars: \"player\", \"cop\" or \"both\".
 role = \"player\"
 
-# Play the engine loops of each 2012 car instead of its stock clone's engine sound (an approximation: see
-# docs/modding/car-customization.md). The loops are written into the mod's folder; false keeps the clone's sound.
+# Play the engine loops of each 2012 car (an approximation: see docs/modding/car-customization.md). The loops are
+# written into the mod's folder; false leaves the cars with the game's generic engine sound.
 own_engine_sound = true
 
-# How the cars drive compared with the stock car each one clones. Every number is a multiplier of the clone's own
-# value (power 0.25 to 4, mass 0.25 to 4, grip 0.25 to 3, brakes 0.25 to 4, nitrous_power 0 to 4). The 2012 cars have
-# nitrous from the factory; turn it off with nitrous = false.
+# Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
+# multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
+# weight, grip the tyres, brakes the brake torque (0.25 to 4 each, grip 0.25 to 3), nitrous_power the extra torque of
+# the nitrous (0 to 4). The 2012 cars have their nitrous from the factory; turn it off with nitrous = false.
 # [performance]
 # power = 1.0
 # mass = 1.0
@@ -119,9 +120,9 @@ pub struct Config {
     pub exclude: Vec<String>,
     pub max_texture_size: u32,
     pub role: Role,
-    /// Whether each car plays the engine loops of its 2012 bundle instead of its clone's engine sound.
+    /// Whether each car plays the engine loops of its 2012 bundle.
     pub own_engine_sound: bool,
-    /// How the cars drive compared with their clones (`[performance]`).
+    /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
     pub car: BTreeMap<String, Change>,

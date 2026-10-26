@@ -1,20 +1,23 @@
-//! How the converted cars drive compared with the stock car each one clones: the `[performance]` table and the
-//! `[car.<id>]` tables of `config.toml`, written into each car's manifest (`[performance]` of `cars/<id>.toml`,
-//! docs/modding/car-customization.md).
+//! The user's multipliers on the imported stats: the `[performance]` table and the `[car.<id>]` tables of `config.toml`.
 //!
-//! Every number is a multiplier of the clone's own value. The ranges are the ones the game accepts; a number outside
-//! them would make the game refuse the car, so the settings are checked here first and the mod says which key is wrong.
+//! Each car gets its base stats from its own 2012 bundle ([`crate::stats`]). These multipliers are optional and change the
+//! stats before they are written into the car's manifest (`[stats]` of `cars/<id>.toml`), so a car whose settings are left
+//! alone is exactly the 2012 car, and `power = 1.15` is 15 percent more torque than the 2012 car has at every engine
+//! speed. The game never sees the multipliers: they are applied here, at conversion time. The ranges keep the results
+//! inside what the game's `[stats]` accepts, and the mod says which key is wrong.
 
 use std::collections::BTreeMap;
 
 use anyhow::{Result, bail};
 use serde::Deserialize;
 
-/// What a converted car's manifest asks of the game.
+use crate::stats::ImportedStats;
+
+/// The multipliers on a converted car's stats.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Performance {
-    /// Engine torque.
+    /// Engine torque at every engine speed.
     pub power: f32,
     /// Body mass.
     pub mass: f32,
@@ -22,9 +25,9 @@ pub struct Performance {
     pub grip: f32,
     /// Brake torque.
     pub brakes: f32,
-    /// The car has nitrous from the factory. The 2012 cars have it unless this is turned off.
+    /// The car keeps the nitrous its 2012 data gives it. Off removes it.
     pub nitrous: bool,
-    /// Torque the nitrous adds, as a multiplier of the kit's own.
+    /// Multiplier of the extra torque the nitrous adds.
     pub nitrous_power: f32,
 }
 
@@ -67,12 +70,17 @@ pub struct Tuning<'a> {
 }
 
 impl Performance {
-    /// The `[performance]` table of a car manifest.
-    pub fn manifest_table(&self) -> String {
-        format!(
-            "\n[performance]\npower = {:?}\nmass = {:?}\ngrip = {:?}\nbrakes = {:?}\nnitrous = {}\nnitrous_power = {:?}\n",
-            self.power, self.mass, self.grip, self.brakes, self.nitrous, self.nitrous_power
-        )
+    /// Apply the multipliers to the car's imported stats. The nitrous the 2012 car has stays unless `nitrous` is off or
+    /// `nitrous_power` is 0; `nitrous_power` scales its extra torque.
+    pub fn apply(&self, stats: &mut ImportedStats) {
+        stats.scale_torque(self.power);
+        stats.scale_mass(self.mass);
+        stats.scale_grip(self.grip);
+        stats.scale_brakes(self.brakes);
+        stats.nitrous_boost = match self.nitrous {
+            true => (stats.nitrous_boost * self.nitrous_power).clamp(0.0, 3.0),
+            false => 0.0,
+        };
     }
 
     /// Refuse a number the game would refuse, naming the key.

@@ -39,33 +39,23 @@ pub struct StockCar {
     pub base_model_name: String,
     pub manufacturer: String,
     pub layout: Layout,
-    /// The rpm the clone idles at and its limiter holds, from its physics; 0 when they are not known.
-    pub idle_rpm: f32,
-    pub redline_rpm: f32,
 }
 
 /// The racing cars of the install that have a wheel layout.
 pub fn stock_cars(dir: &GameDir) -> Result<Vec<StockCar>> {
     let tables = CarTables::load(dir)?;
     let mut cars = Vec::new();
-    let physics = nfsmw_data::car::physics::PhysicsData::load(dir).ok();
     for info in tables.stock_types.iter().filter(|info| info.usage_type == 0 && info.skinnable) {
         let Some(setup) = WheelSetup::read(&tables.attributes, &info.base_model_name) else { continue };
         let Some(layout) = layout_of(&setup) else { continue };
         // `CARS\<folder>\GEOMETRY.BIN`
         let Some(folder) = info.geometry_filename.split(['/', '\\']).nth(1) else { continue };
-        let rpms = physics
-            .as_ref()
-            .and_then(|physics| physics.car(&info.type_name).ok())
-            .map_or((0.0, 0.0), |car| (car.spec.engine.idle, car.spec.engine.red_line));
         cars.push(StockCar {
             type_name: info.type_name.clone(),
             folder: folder.to_owned(),
             base_model_name: info.base_model_name.clone(),
             manufacturer: info.manufacturer.clone(),
             layout,
-            idle_rpm: rpms.0,
-            redline_rpm: rpms.1,
         });
     }
     if cars.is_empty() {
@@ -212,8 +202,6 @@ mod tests {
             base_model_name: name.into(),
             manufacturer: String::new(),
             layout: Layout { wheelbase, ..LAYOUT },
-            idle_rpm: 800.0,
-            redline_rpm: 7000.0,
         };
         let stock = [car("LONG", 3.4), car("NEAR", 2.65), car("SHORT", 2.2)];
         assert_eq!(best_fit(LAYOUT, &stock).unwrap().0.type_name, "NEAR");
