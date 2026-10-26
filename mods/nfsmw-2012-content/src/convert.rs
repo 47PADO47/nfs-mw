@@ -129,10 +129,10 @@ fn cut_hinged(solids: &mut Vec<SolidSource>, car: &SourceCar, fit: &Fit, folder:
         solids[at] = rest;
         solids.extend(parts.into_iter().zip(&owned).filter(|(_, owned)| **owned).filter_map(|(solid, _)| solid));
     }
-    let kept = |n: usize| owned[n];
+    let kept = |n: usize| owned[n] || !hinged.parts[n].tracks.is_empty();
     let parts = hinged.parts.iter().enumerate().filter(|(n, _)| kept(*n)).map(|(_, part)| part.clone()).collect();
     let kept_stems: Vec<String> = stems.into_iter().enumerate().filter(|(n, _)| kept(*n)).map(|(_, s)| s).collect();
-    hinges::manifest_tables(&hinges::Hinged { parts, classes: Vec::new() }, &kept_stems, fit)
+    hinges::manifest_tables(&hinges::Hinged { parts, wing: hinged.wing.clone(), classes: Vec::new() }, &kept_stems, fit)
 }
 
 /// The wheel's own frame: the 2012 left wheel (axle along x, rim face towards +x) turned to car axes, then half a turn
