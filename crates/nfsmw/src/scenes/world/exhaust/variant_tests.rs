@@ -23,9 +23,10 @@ fn effect(on: EffectOn) -> EffectProfile {
         inherit: 0.0,
         inherit_variance: 0.0,
         angle_range: 0.0,
-        keys: [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0],
-        size: [0.1; 4],
-        colors: [[255; 4]; 4],
+        keys: vec![0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0],
+        size: vec![0.1; 4],
+        colors: vec![[255; 4]; 4],
+        spin: 0.0,
         duration: 0.3,
     }
 }
@@ -87,13 +88,13 @@ fn the_profiles_numbers_become_the_games_emitter_parameters() {
     e.grid = 4;
     e.lift = 2.0;
     e.life_variance = 0.1;
-    e.size = [0.1, 0.2, 0.3, 0.4];
+    e.size = vec![0.1, 0.2, 0.3, 0.4];
     let spec = emitter_spec(&e);
     assert_eq!((spec.animation.grid, spec.animation.fps), (4, 24));
     assert_eq!((spec.rate, spec.life, spec.life_variance, spec.speed), (200.0, 0.5, 0.1, 1.0));
     assert_eq!(spec.gravity, -2.0, "a lift is the opposite of the emitter's gravity");
-    assert_eq!(spec.size, [0.1, 0.2, 0.3, 0.4]);
-    assert_eq!(spec.keys, EmitterSpec::default().keys);
+    let look: Vec<(f32, f32)> = spec.track.iter().map(|key| (key.t, key.size)).collect();
+    assert_eq!(look, [(0.0, 0.1), (1.0 / 3.0, 0.2), (2.0 / 3.0, 0.3), (1.0, 0.4)]);
 }
 
 #[test]
@@ -206,13 +207,13 @@ fn a_pop_effect_with_a_duration_ends_before_the_pop_does_and_one_without_follows
 #[test]
 fn the_profiles_keys_angle_and_variances_reach_the_emitter() {
     let mut e = effect(EffectOn::Burn);
-    e.keys = [0.0, 0.05, 0.3, 1.0];
+    e.keys = vec![0.0, 0.05, 0.3, 1.0];
     e.angle_range = 360.0;
     e.inherit = 0.9;
     e.inherit_variance = 0.1;
     e.life_variance = 0.5;
     let spec = emitter_spec(&e);
-    assert_eq!(spec.keys, [0.0, 0.05, 0.3, 1.0]);
+    assert_eq!(spec.track.iter().map(|key| key.t).collect::<Vec<_>>(), [0.0, 0.05, 0.3, 1.0]);
     assert_eq!(
         (spec.initial_angle_range, spec.inherit, spec.inherit_variance, spec.life_variance),
         (360.0, 0.9, 0.1, 0.5)

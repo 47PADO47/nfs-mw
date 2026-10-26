@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use blackbox_gfx::{PixelFormat, RenderBackend, TextureDesc};
 use blackbox_modding::content::{EffectOn, EffectProfile, NitrousProfile};
-use blackbox_particles::{Animation, Emitter, EmitterSpec, Frame};
+use blackbox_particles::{Animation, Emitter, EmitterSpec, Frame, TrackKey};
 use blackbox_render::{BlendMode, EffectLayer, TextureHandle, TexturedEffect};
 use game_install::GameDir;
 use glam::{Mat4, Vec3};
@@ -259,9 +259,17 @@ pub(super) fn emitter_spec(effect: &EffectProfile) -> EmitterSpec {
         inherit: effect.inherit,
         inherit_variance: effect.inherit_variance,
         initial_angle_range: effect.angle_range,
-        keys: effect.keys,
-        size: effect.size,
-        colors: effect.colors,
+        // The look is the profile's keys as straight lines between them. A particle turns either way at a rate up to the
+        // profile's spin, so half of it on average.
+        track: effect
+            .keys
+            .iter()
+            .zip(&effect.size)
+            .zip(&effect.colors)
+            .map(|((&t, &size), &color)| TrackKey { t, size, angle: 0.5 * effect.spin * effect.life * t, color })
+            .collect(),
+        random_rotation_direction: effect.spin > 0.0,
+        kill_alpha: None,
         ..EmitterSpec::default()
     }
 }
