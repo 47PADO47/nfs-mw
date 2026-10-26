@@ -306,6 +306,11 @@ impl CarRig {
         }
     }
 
+    /// The hinged parts of a mod car (`[[damage_parts]]`), empty for a car with none.
+    pub fn hinges(&self) -> &[Hinge] {
+        self.hinges.as_ref().map_or(&[][..], |hinges| hinges.as_slice())
+    }
+
     /// The hinged part in `slot` and how it stands for the zone levels in `revealed`. `None` for a slot that is not one.
     fn hinge_pose(&self, slot: usize, revealed: &std::collections::BTreeSet<usize>) -> Option<(&Hinge, Pose)> {
         let hinge = self.hinges.as_ref()?.get(hinged::index_of(slot)?)?;

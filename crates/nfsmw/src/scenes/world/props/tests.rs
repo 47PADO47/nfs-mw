@@ -8,6 +8,7 @@ use super::*;
 
 mod compound;
 mod fragments;
+mod hinged_debris;
 mod immobile;
 mod installed;
 mod lifetime;

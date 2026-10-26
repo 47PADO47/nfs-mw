@@ -82,6 +82,8 @@ fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
         angle: part.angle,
         stages: part.stages.clone(),
         detach_at: part.detach_at,
+        detach: part.detach,
+        mass_kg: part.mass_kg,
     }
 }
 
