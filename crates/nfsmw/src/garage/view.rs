@@ -79,8 +79,11 @@ pub fn show(ctx: &egui::Context, open: &mut bool, model: &mut Model, settings: &
     if model.exhaust_style_dirty && (!*open || !ctx.input(|i| i.pointer.any_down())) {
         model.exhaust_style_dirty = false;
         if let Some(path) = model.exhaust_style_path.as_ref() {
-            let changes =
-                crate::settings::Partial { exhaust_style: Some(settings.exhaust_style), ..Default::default() };
+            let changes = crate::settings::Partial {
+                exhaust_style: Some(settings.exhaust_style),
+                backfire_style: Some(settings.backfire_style),
+                ..Default::default()
+            };
             if let Err(error) = crate::settings::write_file(path, &changes) {
                 log::warn!("saving shared exhaust style: {error}");
                 model.message = Some(Err(format!("Could not save exhaust style: {error}")));

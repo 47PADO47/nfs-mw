@@ -183,6 +183,7 @@ pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
     settings.exhaust_flames = snapshot.exhaust_flames;
     settings.enhanced_exhaust = snapshot.enhanced_exhaust;
     settings.exhaust_style = snapshot.exhaust_style;
+    settings.backfire_style = snapshot.backfire_style;
 }
 
 pub(super) fn restore_appearance(settings: &mut Settings, snapshot: &Settings) {
