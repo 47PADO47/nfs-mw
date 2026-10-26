@@ -189,7 +189,7 @@ Genesys handling objects was not found or read**: the layout above is from the d
 
 [`mods/nfsmw-2012-content`](../../mods/nfsmw-2012-content) reads these numbers with
 `chameleon_vehicle::read_stats` and writes them to the `[stats]` table of each car's manifest
-([car-customization.md](../modding/car-customization.md#stats-stats-in-the-car-manifest)):
+([car-stats.md](../modding/car-stats.md#stats-stats-in-the-car-manifest)):
 
 | `[stats]` key | From |
 |---|---|

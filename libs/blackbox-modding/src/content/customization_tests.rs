@@ -5,7 +5,6 @@ fn car(text: &str) -> Result<CarManifest, ContentError> {
 }
 
 const FULL: &str = r#"
-clone = "BMWM3GTR"
 [customization]
 default_paint = 1
 paints = [
@@ -22,12 +21,12 @@ vinyl_colors = [{ name = "White", color = [255, 255, 255] }]
 "#;
 
 fn with_table(table: &str) -> String {
-    format!("clone = \"BMWM3GTR\"\n[customization]\n{table}")
+    format!("[customization]\n{table}")
 }
 
 #[test]
 fn a_car_has_no_customization_unless_it_gives_the_table() {
-    assert_eq!(car("clone = \"BMWM3GTR\"\n").unwrap().customization, None);
+    assert_eq!(car("").unwrap().customization, None);
 }
 
 #[test]

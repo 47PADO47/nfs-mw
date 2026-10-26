@@ -75,10 +75,7 @@ fn a_bad_file_name_is_refused() {
 #[test]
 fn an_empty_or_control_text_field_is_refused() {
     assert_eq!(car("name = \"   \"\n"), Err(ContentError::InvalidName("   ".into())));
-    assert_eq!(
-        car("manufacturer = \"Ac\\tme\"\n"),
-        Err(ContentError::InvalidManufacturer("Ac\tme".into()))
-    );
+    assert_eq!(car("manufacturer = \"Ac\\tme\"\n"), Err(ContentError::InvalidManufacturer("Ac\tme".into())));
 }
 
 #[test]
@@ -111,8 +108,7 @@ fn bad_music_contexts_are_refused() {
 
 #[test]
 fn a_car_without_a_stats_table_has_the_generic_stats() {
-    let manifest = car("")
-    .unwrap();
+    let manifest = car("").unwrap();
     assert_eq!(manifest.stats, Stats::default());
 }
 

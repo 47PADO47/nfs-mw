@@ -147,8 +147,7 @@ fn quoted(text: &str) -> String {
 }
 
 fn car_manifest(car: &CarEntry, engine: Option<&str>) -> String {
-    let mut text =
-        format!("role = {}\nname = {}\n", quoted(car.role.as_str()), quoted(&car.name));
+    let mut text = format!("role = {}\nname = {}\n", quoted(car.role.as_str()), quoted(&car.name));
     if !car.manufacturer.is_empty() {
         text.push_str(&format!("manufacturer = {}\n", quoted(&car.manufacturer)));
     }
@@ -194,7 +193,8 @@ mod tests {
             customization: "
 [customization]
 paints = [{ name = \"Red\", color = [200, 0, 0] }]
-".into(),
+"
+            .into(),
         }
     }
 
@@ -214,11 +214,7 @@ paints = [{ name = \"Red\", color = [200, 0, 0] }]
 
     #[test]
     fn the_effects_table_names_every_file_it_writes_and_leaves_out_what_the_car_lacks() {
-        let effects = EffectFiles {
-            shift: vec![vec![1], vec![2]],
-            backfire: vec![vec![3]],
-            ..EffectFiles::default()
-        };
+        let effects = EffectFiles { shift: vec![vec![1], vec![2]], backfire: vec![vec![3]], ..EffectFiles::default() };
         let (table, files) = effects_table("MYCAR", &effects);
         let parsed: toml::Table = toml::from_str(&table).unwrap();
         let sound = parsed["car_sound"].as_table().unwrap();

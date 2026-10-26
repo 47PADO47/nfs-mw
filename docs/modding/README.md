@@ -26,9 +26,10 @@ when the module is new.
 | [api-world.md](api-world.md) | Map blips and the world map, menus, game interaction (vehicles, player, HUD, audio, camera, world) |
 | [api-ui.md](api-ui.md) | UI themes (`bb.ui`): named themes, the slot numbers, the draw primitives, the SDK |
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
-| [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paint, liveries, spoilers, upgrades, nitrous), the `[performance]` table of a car manifest, and what a mod's own car needs |
+| [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paints, rims, spoilers, vinyls), the `[customization]` table of a car manifest, and the files a mod's own car needs |
+| [car-stats.md](car-stats.md) | The `[stats]` table of a car manifest (mass, engine, gearbox, tyres, brakes, nitrous in SI units), the upgrade levels, the shop's bars |
+| [car-sound.md](car-sound.md) | The `[engine_sound]` and `[car_sound]` tables of a car manifest: the car's own engine loops, the built-in engine, shifts, turbo, backfire and pops |
 | [car-collision.md](car-collision.md) | The collision and impact geometry of a mod car: its `BOUNDS.BIN` (what it holds, what the game checks), the damage zones and numbers, how to make one |
-| [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paint, liveries, spoilers, upgrades, nitrous), the `[stats]` table of a car manifest (mass, engine, gearbox, tyres, brakes, nitrous in SI units), and what a mod's own car needs |
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
@@ -52,7 +53,7 @@ mods/<id>/
   mod.toml        manifest (required)
   <library>       .dll / .so (optional: a content-only mod has none)
   files/          VFS overlay, mirrors the install layout (CARS/MYCAR/..., MUSIC/...)
-  cars/           one <id>.toml per car the mod adds (clone, role, heat); see api-content.md#cars
+  cars/           one <id>.toml per car the mod adds (role, heat, name, [stats], [customization]); see api-content.md#cars
   music/          audio files and .m3u playlists; the contexts are in [music] of mod.toml
   lang/           <locale>/*.ftl translations of the mod's text, and language packs; see translations.md
   content/        other declarative registrations (TOML), planned
@@ -127,12 +128,16 @@ downloads or fetches a mod.
   the same path in the install or in a lower layer, and a new path adds one. Layers order by `[content] priority`
   (higher wins), then by load order (a later mod wins a tie). Mods do not write to the
   install.
-- **Content:** a mod's `cars/<id>.toml` files add cars, each a copy of a stock car with the mod's own `files/CARS/<ID>/`
-  folder, as player cars, cop cars, or both. A mod's `music/` folder joins the custom music library in the contexts
-  its `[music]` table names, and plays even with the custom music setting off when `always = true`. A car or a track
-  that fails a check is logged with its reason and left out. The cars are registered at start-up, or later when a mod
-  calls `bb.content` (see [api-content.md](api-content.md#content-registries-bbcontent)), and a change to a car that is
-  already registered needs a restart. The garage shows a mod's display name and brand and hides its cop-only cars, and the auto shop paints and upgrades the car and fits the clone's liveries to it (see [car-customization.md](car-customization.md)); a manifest's `[stats]` table is what the car is and how it drives.
+- **Content:** a mod's `cars/<id>.toml` files add cars, each a car of its own (not a copy of a stock one) with the mod's own
+  `files/CARS/<ID>/` folder (geometry, textures and collision bounds), as player cars, cop cars, or both. A mod's `music/`
+  folder joins the custom music library in the contexts its `[music]` table names, and plays even with the custom music
+  setting off when `always = true`. A car or a track that fails a check is logged with its reason and left out. The cars are
+  registered at start-up, or later when a mod calls `bb.content` (see
+  [api-content.md](api-content.md#content-registries-bbcontent)), and a change to a car that is already registered needs a
+  restart. The garage shows a mod's display name and brand and hides its cop-only cars. The auto shop offers the car the
+  paints and parts its own `[customization]` table lists ([car-customization.md](car-customization.md)); a manifest's
+  `[stats]` table is what the car is and how it drives ([car-stats.md](car-stats.md)), and `[engine_sound]` and `[car_sound]`
+  are how it sounds ([car-sound.md](car-sound.md)).
 - **Now:** a mod gets the frame events (`FRAME_START` in the start of the frame, `SCENE_TICK` after the scene's
   update, and `MOD_UNLOADING` at exit), and its `files/` layer. It also gets the game's interfaces. A mod that requires an
   interface the game does not offer is refused with its reason. In NFS:MW the `nfsmw.*` events of the chase (pursuit

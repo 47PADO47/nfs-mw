@@ -37,4 +37,4 @@ No decompiled code, no game data and no dump of either is in the repository. The
 
 The Genesys objects (gameplay data), damage and crumple data, collision hulls, skeletons, lamp locators and the
 diffuse-colour slot rule for materials are only partly understood; the docs say which parts are **[unconfirmed]**.
-The import is a visual port: the converted cars drive with the physics, sound and damage of the stock car they clone.
+The import gives each car its own stats, collision bounds and sounds, read from the car's 2012 bundle (a mod car in this game is a car of its own, not a copy of a 2005 car). The numbers behind the stats and the sound are partly unconfirmed ([chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md)), and no converted car has been driven or heard in the game.

@@ -189,10 +189,7 @@ mod tests {
         assert!(matches!(start, Start::NotConfigured { created: true, .. }));
         assert!(dir.join("config.toml").is_file());
         assert!(!dir.join("files").exists() && !dir.join("cars").exists() && !dir.join(STAGING).exists());
-        assert!(matches!(
-            self::start(&dir).unwrap(),
-            Start::NotConfigured { created: false, .. }
-        ));
+        assert!(matches!(self::start(&dir).unwrap(), Start::NotConfigured { created: false, .. }));
         fs::remove_dir_all(&dir).unwrap();
     }
 }

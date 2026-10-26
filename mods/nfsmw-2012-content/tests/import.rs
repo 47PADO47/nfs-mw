@@ -77,7 +77,9 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
         for key in keys {
             let entries = table[*key].as_array().unwrap_or_else(|| panic!("{key} is a list"));
             assert!(!entries.is_empty(), "{key} names no file");
-            named.extend(entries.iter().map(|entry| entry.as_str().or_else(|| entry["file"].as_str()).unwrap().to_owned()));
+            named.extend(
+                entries.iter().map(|entry| entry.as_str().or_else(|| entry["file"].as_str()).unwrap().to_owned()),
+            );
         }
     }
     for file in named {
@@ -87,9 +89,7 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
 
     assert!(matches!(job::start(&dir).unwrap(), Start::UpToDate { cars: 1 }));
     std::fs::write(dir.join("config.toml"), "source = 'nowhere'\n").unwrap();
-    let Start::Started { job: second, live } = job::start(&dir).unwrap() else {
-        panic!("a changed setting converts")
-    };
+    let Start::Started { job: second, live } = job::start(&dir).unwrap() else { panic!("a changed setting converts") };
     assert!(live, "content from the first run is live now, so the new run waits for the next start");
     assert!(matches!(wait(&second), Finished::Failed(_)), "a missing install is a failure, not a crash");
     assert!(dir.join("files").is_dir(), "a failed run leaves the content as it was");
@@ -108,8 +108,7 @@ fn every_car_converts_and_how_long_it_takes() {
     let mut last = None;
     for threads in [1, 3, nfsmw_2012_content::import::default_threads()] {
         let started = Instant::now();
-        let report =
-            nfsmw_2012_content::import::run(&config, Path::new(&source), &dir, threads).unwrap();
+        let report = nfsmw_2012_content::import::run(&config, Path::new(&source), &dir, threads).unwrap();
         println!("{} cars in {:.2} s on {threads} threads", report.imported.len(), started.elapsed().as_secs_f32());
         last = Some(report);
     }

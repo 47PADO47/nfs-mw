@@ -37,7 +37,12 @@ impl WheelSetup {
     pub fn from_stats(stats: &super::mods::CarStats) -> Self {
         let half = stats.wheelbase_m / 2.0;
         let hub = |axle: usize, x: f32, side: f32| {
-            [x, side * (stats.track_m[axle] + stats.tire_width_m[axle]) / 2.0, stats.tire_radius_m[axle], stats.tire_radius_m[axle]]
+            [
+                x,
+                side * (stats.track_m[axle] + stats.tire_width_m[axle]) / 2.0,
+                stats.tire_radius_m[axle],
+                stats.tire_radius_m[axle],
+            ]
         };
         Self {
             tire_offsets: [hub(0, half, 1.0), hub(0, half, -1.0), hub(1, -half, -1.0), hub(1, -half, 1.0)],

@@ -125,7 +125,7 @@ fn a_set_the_parser_would_refuse_is_not_written() {
 #[test]
 fn an_orientation_is_stored_over_32767() {
     let mut set = sample(1);
-    set.nodes[1].orientation = [0.707_1, -0.707_1, 0.0, 0.0];
+    set.nodes[1].orientation = [std::f32::consts::FRAC_1_SQRT_2, -std::f32::consts::FRAC_1_SQRT_2, 0.0, 0.0];
     let read = BoundsSet::parse(&set.to_payload().unwrap()).unwrap();
     for (a, b) in read.nodes[1].orientation.iter().zip(set.nodes[1].orientation) {
         assert!((a - b).abs() < 1e-4, "{a} vs {b}");

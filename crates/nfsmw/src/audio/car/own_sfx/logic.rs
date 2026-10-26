@@ -103,7 +103,7 @@ pub fn lift_off(spool: f32, rpm_pct: f32, rng: &mut Rng) -> LiftOff {
     let blowoff = (spool >= BLOWOFF_MIN_SPOOL).then(|| 0.5 + 0.5 * spool.min(1.0));
     let chance = 0.2 + 0.5 * rpm_pct;
     let roll = rng.unit();
-    let backfire = (roll < chance).then(|| 0.5 + 0.5 * rpm_pct);
+    let backfire = (roll < chance).then_some(0.5 + 0.5 * rpm_pct);
     let count = match roll {
         r if r < chance => 2 + rng.below(3),
         r if r < chance + 0.15 => 1 + rng.below(2),

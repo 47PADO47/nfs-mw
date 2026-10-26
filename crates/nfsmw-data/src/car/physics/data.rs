@@ -68,7 +68,12 @@ impl PhysicsData {
 
     /// A car a mod added: its physics from its own stats (and the upgrades), its contact shapes and damage from the
     /// bounds in its own files. Nothing is read from a vehicle record.
-    fn mod_car(&self, folder: &str, stats: &crate::car::mods::CarStats, package: super::PerformancePackage) -> Result<CarPhysics> {
+    fn mod_car(
+        &self,
+        folder: &str,
+        stats: &crate::car::mods::CarStats,
+        package: super::PerformancePackage,
+    ) -> Result<CarPhysics> {
         let collision = super::mod_car_collision(&self.dir, folder)?;
         let mut physics = super::physics_from_stats(stats, package, collision.bounds);
         physics.geometry = Some(collision.geometry);

@@ -27,9 +27,9 @@ mod names;
 mod paints;
 pub mod performance;
 mod sample;
+mod sounds;
 mod source;
 mod stamp;
-mod sounds;
 pub mod stats;
 mod textures;
 

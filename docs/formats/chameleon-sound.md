@@ -113,6 +113,6 @@ blow-off.
 **What this does not say.** Which sample of a group plays at a moment, at what level and pitch, and why the Porsche's
 two engine loops have the same pitch, are in the node data. The shifts could be a click, a blip or a burble: they are
 what the graphs play for a gear change, not known to be a "clunk". The turbo tone's rpm tracking and the blow-off's
-trigger are likewise the game's own rules here, not the 2012 game's (`docs/modding/car-customization.md`).
+trigger are likewise the game's own rules here, not the 2012 game's (`docs/modding/car-sound.md`).
 
 `WAVES.BNDL` and `METALCAR.BNDL` hold the shared one-shots in the same resource layout.

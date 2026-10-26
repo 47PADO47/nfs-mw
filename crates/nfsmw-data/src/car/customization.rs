@@ -161,7 +161,7 @@ impl Inventory {
             names::read(&self.tables, &mut catalog);
             return Ok(catalog);
         }
-        let car =self.tables.car_type_for_folder(folder).context("car type unavailable")?;
+        let car = self.tables.car_type_for_folder(folder).context("car type unavailable")?;
         let solids: HashMap<_, _> = super::read_solids(dir, folder)?.into_iter().map(|s| (s.name_hash, s)).collect();
         let mut catalog = Catalog::from_geometry(&self.tables, car, &solids, &self.shared);
         let vinyls = super::vinyl::available(dir, folder, &self.tables, car)?;

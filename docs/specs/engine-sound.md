@@ -159,7 +159,7 @@ class-wide records instead, **[verified]** on the install:
 - The skid and nitrous banks are the `audiosystem/mostwanted` lists of §2.3.
 
 The effects with no class-wide record (Ginsu engine, sample layer, sweeteners, reverse whine, turbo) are silent for the car
-unless the car's own recordings supply them; see `docs/modding/car-customization.md`.
+unless the car's own recordings supply them; see `docs/modding/car-sound.md`.
 
 ## 3. Telemetry the sound system reads
 

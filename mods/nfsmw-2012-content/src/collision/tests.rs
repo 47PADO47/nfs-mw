@@ -56,7 +56,7 @@ fn vehicle(body_shift_x: f32) -> Vehicle {
 }
 
 fn source(vehicle: Vehicle, collision: Option<PolySoup>) -> SourceCar {
-    SourceCar { vehicle, textures: HashMap::new(), collision }
+    SourceCar { vehicle, textures: HashMap::new(), paints: Vec::new(), collision }
 }
 
 fn soup(min: [f32; 3], max: [f32; 3]) -> PolySoup {

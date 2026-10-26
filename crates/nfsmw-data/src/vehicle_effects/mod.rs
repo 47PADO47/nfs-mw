@@ -34,7 +34,8 @@ pub struct VisualEffectsData {
 impl VisualEffectsData {
     pub fn read(db: &Database, car_type: &str) -> Self {
         // A car with no record of its own (a mod car) has the class-wide default effects.
-        let record = db.collection("pvehicle", &car_type.to_ascii_lowercase()).or_else(|| db.collection("pvehicle", "default"));
+        let record =
+            db.collection("pvehicle", &car_type.to_ascii_lowercase()).or_else(|| db.collection("pvehicle", "default"));
         let Some(car) = record else { return Self::default() };
         let trail = db
             .collection("fuelcell_effect", "contrail")

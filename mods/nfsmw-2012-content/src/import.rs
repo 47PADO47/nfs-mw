@@ -98,12 +98,7 @@ fn named(source: &Source) -> Vec<Named<'_>> {
     cars
 }
 
-fn import_car(
-    source: &Source,
-    named: &Named,
-    config: &Config,
-    folder: &ModFolder,
-) -> Result<ImportedCar> {
+fn import_car(source: &Source, named: &Named, config: &Config, folder: &ModFolder) -> Result<ImportedCar> {
     let car = source.load(named.file)?;
     let layout = measure(&car.vehicle).context("the wheel layout of the car could not be measured")?;
     let fit = Fit::own(layout);

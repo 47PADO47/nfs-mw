@@ -192,8 +192,12 @@ impl Default for AiVehicle {
     }
 }
 
-/// The `aivehicle` record of the `pvehicle` named `car` (lower case); the defaults when it has none.
+/// The `aivehicle` record of the `pvehicle` named `car` (lower case); the defaults when it has none. A car a mod added
+/// is driven within its own stats.
 pub fn ai_vehicle(db: &Database, car: &str) -> AiVehicle {
+    if let Some(stats) = crate::car::mods::stats(car) {
+        return crate::car::physics::ai_vehicle_from_stats(stats);
+    }
     let defaults = AiVehicle::default();
     let Some(record) = db.collection("pvehicle", &car.to_ascii_lowercase()).and_then(|p| p.follow("aivehicle")) else {
         return defaults;

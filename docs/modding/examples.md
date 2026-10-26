@@ -217,11 +217,12 @@ declare_mod!(FastClock);
 - A value saved by an earlier run (under `[mod_values."example.fastclock"]`) is not applied at start-up here. A fuller
   version would read the row with `Menus::get` on the first frame, using the handle `slider` returns.
 
-## 3. Content pack: a car clone and music (NFS:MW, not built by CI)
+## 3. Content pack: a car and music (NFS:MW, not built by CI)
 
-A content-only mod has no library and no code: a car that copies a stock NFS:MW car, and music in two contexts. The
-repository ships no game assets, so the car's files are yours to make in the install's format
-([licensing.md](../licensing.md) applies before you share them).
+A content-only mod has no library and no code: a car of its own, and music in two contexts. The car is one more entry in the
+car list, named by its folder; it copies nothing from a stock car, so its manifest says what it is (`[stats]`) and its
+folder holds everything it needs. The repository ships no game assets, so the car's files are yours to make in the install's
+format ([licensing.md](../licensing.md) applies before you share them).
 
 Layout:
 
@@ -229,8 +230,9 @@ Layout:
 mods/example.pack/
   mod.toml
   cars/fastcoupe.toml
-  files/CARS/FASTCOUPE/GEOMETRY.BIN     your geometry, in the install's format
+  files/CARS/FASTCOUPE/GEOMETRY.BIN     your body and wheel solids, in the install's format
   files/CARS/FASTCOUPE/TEXTURES.BIN     your textures
+  files/CARS/FASTCOUPE/BOUNDS.BIN       your collision bounds (a BoundsPack); without it the car cannot drive
   music/track01.ogg
   music/track02.mp3
   music/mix.m3u                         a playlist; its entries are relative to it
@@ -258,16 +260,53 @@ always = false                      # true: play even when the custom music sett
 `cars/fastcoupe.toml`:
 
 ```toml
-clone = "CAMARO"        # a stock car: the new car keeps its record, parts, physics and sound
 role = "both"           # player, cop or both (default: player)
 heat = [2, 3, 4]        # cop waves that may use it; allowed only with a cop role; left out means every level
-name = "Fast Coupe"     # optional display name
+name = "Fast Coupe"     # optional display name (left out: the car id)
 manufacturer = "Acme"   # optional brand
+
+[stats]                 # optional; absolute SI values, each checked against a range (car-stats.md)
+mass_kg = 1397.0
+front_weight_pct = 45.0
+cg_height_m = 0.46
+wheelbase_m = 2.55
+front_track_m = 1.56
+rear_track_m = 1.54
+front_tire_radius_m = 0.33
+rear_tire_radius_m = 0.335
+idle_rpm = 900.0
+redline_rpm = 7500.0
+torque_curve = [[900.0, 330.0], [3000.0, 410.0], [5500.0, 440.0], [7500.0, 380.0]]   # [rpm, N m]
+gear_ratios = [3.8, 2.4, 1.7, 1.3, 1.05, 0.85]
+reverse_ratio = 3.4
+final_drive = 3.6
+drive = "rwd"
+top_speed_kph = 290.0
+front_tire_grip = 1.4
+rear_tire_grip = 1.4
+front_brake_torque_nm = 1400.0
+rear_brake_torque_nm = 1000.0
+nitrous = true
+nitrous_boost = 0.6
+
+[customization]         # optional; without it the shop offers the car nothing of its own (car-customization.md)
+paints = [
+  { name = "Red", color = [173, 43, 44] },
+  { name = "Silver", color = [200, 204, 197], finish = "metallic" },
+]
 ```
 
-- The car id is the file name in upper case (`FASTCOUPE`), and its geometry must sit in the mod's own
-  `files/CARS/FASTCOUPE/`. An unknown key, such as `[override]`, refuses the car. Cars are registered at start-up, so a
-  change needs a restart.
+- The car id is the file name in upper case (`FASTCOUPE`; 1 to 32 letters, digits, `_` or `-`), and its `GEOMETRY.BIN` must
+  sit in the mod's own `files/CARS/FASTCOUPE/`. There is no key that names a stock car, and an unknown key (an `[override]`
+  table, say) refuses the car. Cars are registered at start-up, so a change needs a restart.
+- The files this car relies on: `GEOMETRY.BIN` with the body as `FASTCOUPE_KIT00_BODY_A` to `_D` and the wheel as
+  `FASTCOUPE_KIT00_FRONT_TIRE_A` to `_D`, `TEXTURES.BIN` with the paint placeholder `FASTCOUPE_SKIN1` on the paint surfaces,
+  tail pipe markers on the body if you want nitrous flames, and `BOUNDS.BIN`
+  ([car-customization.md](car-customization.md#the-files-of-a-car), [car-collision.md](car-collision.md)). The example has no
+  `rims`, `spoilers`, `roof_scoops` or `vinyls`: each needs models or textures you add to the car's own files.
+- A key left out of `[stats]` takes the engine's generic car (a 1450 kg rear-drive saloon of about 290 hp). With no
+  `[engine_sound]` the car plays the game's built-in engine, and with no `[car_sound]` it has no shift, turbo, backfire or
+  pop sounds ([car-sound.md](car-sound.md)).
 - Without `always = true`, the tracks play only while the custom music setting is on.
 
 Install: copy the folder to `%APPDATA%\nfsmw\config\mods\example.pack\`. No build step is needed.

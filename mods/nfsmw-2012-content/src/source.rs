@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_gfx::Texture;
-use chameleon_vehicle::{PolySoup, Vehicle, VehiclePaint, find_spec, load, load_poly_soup, load_texture, paints, vehicle_name};
+use chameleon_vehicle::{
+    PolySoup, Vehicle, VehiclePaint, find_spec, load, load_poly_soup, load_texture, paints, vehicle_name,
+};
 
 const VEHICLES: &str = "VEHICLES";
 const SHARED_TEXTURES: &str = "VEHICLES/VEHICLETEX.BNDL";

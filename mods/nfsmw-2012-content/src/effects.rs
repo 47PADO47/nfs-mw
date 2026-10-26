@@ -136,6 +136,6 @@ fn shared_turbo(graphs: &Graphs, shared: Option<&[u8]>) -> Vec<Sample> {
 }
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod real_tests;
+#[cfg(test)]
+mod tests;

@@ -25,9 +25,7 @@ fn converted(source: &Path) -> PathBuf {
     let text =
         format!("source = '{source}'\ncars = ['{CAR}']\n\n[performance]\npower = 1.2\n\n[car.{CAR}]\nbrakes = 1.3\n");
     std::fs::write(dir.join("config.toml"), text).unwrap();
-    let Start::Started { job: running, .. } = job::start(&dir).unwrap() else {
-        panic!("the first start converts")
-    };
+    let Start::Started { job: running, .. } = job::start(&dir).unwrap() else { panic!("the first start converts") };
     let started = Instant::now();
     let finished = loop {
         if let Some(finished) = running.poll() {
@@ -168,7 +166,10 @@ fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
     assert!(built.geometry.is_some() && built.events.is_some(), "the car's own contact shapes and damage");
     assert_eq!(built.spec.dimension, built.bounds.half_dimensions);
     let own_box = built.bounds.half_dimensions;
-    assert!((0.7..1.3).contains(&own_box.x) && (0.4..1.0).contains(&own_box.y) && (1.4..3.0).contains(&own_box.z), "{own_box}");
+    assert!(
+        (0.7..1.3).contains(&own_box.x) && (0.4..1.0).contains(&own_box.y) && (1.4..3.0).contains(&own_box.z),
+        "{own_box}"
+    );
 
     // The physics are built from the car's own stats: the box is the caller's, the rest is the 2012 car's.
     let bounds = CarBounds { half_dimensions: glam::Vec3::new(0.91, 0.55, 2.21), pivot: glam::Vec3::ZERO };

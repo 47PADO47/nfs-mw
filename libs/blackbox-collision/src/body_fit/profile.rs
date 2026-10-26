@@ -45,7 +45,7 @@ pub(super) fn thin(mut polygon: Vec<[f32; 2]>, max: usize) -> Vec<[f32; 2]> {
             || p[1] == fold(1, f32::min, f32::MAX)
             || p[1] == fold(1, f32::max, f32::MIN)
     };
-    let keep: Vec<[f32; 2]> = polygon.iter().filter(|p| extreme(*p, &polygon)).copied().collect();
+    let keep: Vec<[f32; 2]> = polygon.iter().filter(|p| extreme(p, &polygon)).copied().collect();
     let max = max.max(keep.len()).max(3);
     while polygon.len() > max {
         let n = polygon.len();
