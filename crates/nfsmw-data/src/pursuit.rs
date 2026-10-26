@@ -333,13 +333,18 @@ pub fn destroy_rep_points(db: &Database, car: &str, heat: u32) -> Option<u32> {
 /// The rep tables of the install: the rates of every heat level and the destruction points of every cop car type.
 pub fn rep_table(db: &Database) -> RepTable {
     let rates = (1..=HEAT_LEVELS).map(|heat| rep_rates(db, heat).unwrap_or_default()).collect();
-    let destroy = cop_car_names(db)
+    let mut destroy: Vec<(String, Vec<u32>)> = cop_car_names(db)
         .into_iter()
         .map(|name| {
             let points = (1..=HEAT_LEVELS).map(|heat| destroy_rep_points(db, &name, heat).unwrap_or(0)).collect();
             (name, points)
         })
         .collect();
+    // A mod cop car has no `aivehicle` record: its class gives the points, at every level (car/mods/cop.rs).
+    for car in crate::car::mods::cop_cars() {
+        let Some(unit) = car.cop.as_ref() else { continue };
+        destroy.push((car.folder.to_ascii_lowercase(), vec![unit.kind.destroy_points(); HEAT_LEVELS as usize]));
+    }
     RepTable { rates, destroy }
 }
 

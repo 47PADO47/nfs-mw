@@ -51,7 +51,7 @@ fn register(game: &GameDir, mod_dir: &Path) {
         name: manifest.name.clone(),
         manufacturer: manifest.manufacturer.clone(),
         player: true,
-        cop_heat: None,
+        cop: None,
         geometry_in_mod: true,
         stats: CarStats::from(&manifest.stats),
         engine_sound: None,

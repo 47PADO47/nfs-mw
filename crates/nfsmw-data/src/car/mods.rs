@@ -11,19 +11,18 @@ use std::sync::{PoisonError, RwLock};
 
 use blackbox_carparts::CarTypeInfo;
 
-use crate::pursuit::{CopRecord, HEAT_LEVELS, HeatRow};
+use crate::pursuit::HEAT_LEVELS;
 
+pub mod cop;
 pub mod custom;
 mod engine;
 pub mod hinged;
 pub(super) mod parts;
 pub use blackbox_vehicle::stats::{CarStats, Drive};
+pub use cop::{
+    COP_CHANCE, COP_COUNT, CopDamage, CopKind, CopUnit, CopWave, add_cop_rows, cop_cars, cop_kind, cop_unit, is_cop_car,
+};
 pub use engine::{CarEffects, CurveInput, EngineLayer, EngineSound, LayerCurve, LayerKind, LayerPitch, SharedSound};
-
-/// How many cars of a mod's kind a cop wave with the car has.
-pub const COP_COUNT: u32 = 2;
-/// The spawn weight of a mod's cop car in its waves, in percent.
-pub const COP_CHANCE: u32 = 10;
 
 /// A mod's request for one car, with the facts the caller has checked against the install.
 #[derive(Debug, Clone, PartialEq)]
@@ -38,8 +37,8 @@ pub struct CarSpec {
     pub manufacturer: Option<String>,
     /// Whether the car is listed among the player's cars.
     pub player: bool,
-    /// The cop heat levels whose waves get the car, or `None` for a car that is not a cop. Levels are not checked yet.
-    pub cop_heat: Option<Vec<u32>>,
+    /// The car's police unit (its class and wave entries), or `None` for a car that is not a cop. Levels are not checked yet.
+    pub cop: Option<CopUnit>,
     /// Whether the mod's own `files/` folder holds `CARS/<folder>/GEOMETRY.BIN`.
     pub geometry_in_mod: bool,
     /// What the car is: its mass, engine, gearbox, tyres and brakes, from which its physics are built.
@@ -59,7 +58,8 @@ pub struct ModCar {
     /// The brand the mod gave. `None` shows no brand.
     pub manufacturer: Option<String>,
     pub player: bool,
-    pub cop_heat: Option<Vec<u32>>,
+    /// The car's police unit, or `None` for a car that is not a cop.
+    pub cop: Option<CopUnit>,
     /// What the car is: its physics are built from these, not from any stock car's.
     pub stats: CarStats,
     /// The car's own engine loops, if the mod gives them.
@@ -127,8 +127,8 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
     if taken {
         return Err(Reason::NameTaken);
     }
-    if let Some(&level) = spec.cop_heat.iter().flatten().find(|&&level| level == 0 || level > HEAT_LEVELS) {
-        return Err(Reason::NoSuchHeat(level));
+    if let Some(wave) = spec.cop.iter().flat_map(|unit| &unit.waves).find(|w| w.heat == 0 || w.heat > HEAT_LEVELS) {
+        return Err(Reason::NoSuchHeat(wave.heat));
     }
     Ok(ModCar {
         folder: spec.folder.clone(),
@@ -136,7 +136,7 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
         name: spec.name.clone(),
         manufacturer: spec.manufacturer.clone(),
         player: spec.player,
-        cop_heat: spec.cop_heat.clone(),
+        cop: spec.cop.clone(),
         stats: spec.stats.clone(),
         engine_sound: spec.engine_sound.clone(),
         car_effects: spec.car_effects.clone(),
@@ -146,9 +146,10 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
 
 /// The car table entry of a mod car, made from the car's own request: its folder is its type name and the prefix of
 /// its solids, and its type hash is the hash of that name. A car that only chases (a cop role without the player role)
-/// is a cop type; any other is a racer.
+/// is a police type (usage 1, the stock cops' own); any other is a racer (usage 0): a car that is also a player car has
+/// to be in the player's lists, which list racers, and it drives as a cop by its unit.
 fn car_type_of(spec: &CarSpec, index: usize) -> CarTypeInfo {
-    let cop_only = spec.cop_heat.is_some() && !spec.player;
+    let cop_only = spec.cop.is_some() && !spec.player;
     CarTypeInfo {
         type_name: spec.folder.clone(),
         base_model_name: spec.folder.clone(),
@@ -248,18 +249,6 @@ pub fn is_mod_car(folder: &str) -> bool {
 
 fn find_in<'a>(cars: &'a [ModCar], folder: &str) -> Option<&'a ModCar> {
     cars.iter().find(|car| car.folder.eq_ignore_ascii_case(folder))
-}
-
-/// Add a cop row for each mod car whose heat list has `heat` to `row`, the wave of that heat level. The row names the
-/// car by its folder in lower case, which is how the cop tables and the AI name cars.
-pub fn add_cop_rows(cars: &[ModCar], heat: u32, row: &mut HeatRow) {
-    for car in cars {
-        let in_wave = car.cop_heat.as_deref().is_some_and(|levels| levels.contains(&heat));
-        if !in_wave {
-            continue;
-        }
-        row.cops.push(CopRecord { name: car.folder.to_ascii_lowercase(), count: COP_COUNT, chance: COP_CHANCE });
-    }
 }
 
 #[cfg(test)]
