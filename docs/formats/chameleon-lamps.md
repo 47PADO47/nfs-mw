@@ -51,7 +51,7 @@ Porsche 911 Carrera S (`VEH_1085007_HI`), the groups the lamp records use, in en
 | `0x21838`, `0x21839` | 1 each | (-0.63, 0.75, -2.01): the rear lamp, right |
 | `0x21830` | 2 | (+-0.63, 0.75, -2.26): the rear road lights, rotated 130 degrees about x |
 | `0x2181F` | 1 | (0, 0.96, -1.77): the centre high brake lamp |
-| `0x21833` | 4 | (+-0.51, 0.27, -2.16), (+-0.41, 0.27, -2.19): the tail pipes (not read here: the mod keeps its approximation) |
+| `0x21833` | 4 | (+-0.51, 0.27, -2.16), (+-0.41, 0.27, -2.19): the tail pipes ([chameleon-exhaust.md](chameleon-exhaust.md)) |
 
 ## The `VehicleVfxBehaviour` object [verified]
 
@@ -82,8 +82,9 @@ hashed name per field, names not stored).
 | +0x38 | u16 | the **light-state bit** |
 | +0x3A | u16 | mode (2 in about 90 percent of the lights, 0 or 1 in the others) |
 
-A `SpotEffect` has a locator group id at +0x14 and a mask at +0x18; its reference at +0x0C is an effect object (one of the
-Porsche's names the tail pipe group). Not used here.
+A `SpotEffect` has a locator group id at +0x14, a state bit at +0x18 and a mirror flag at +0x1D; its reference at +0x0C is an
+effect of `GLOBALEFFECTS.BNDL`. The ones with state bit 8 or 9 (nitrous) place the tail pipes:
+[chameleon-exhaust.md](chameleon-exhaust.md).
 
 ### Mode **[unconfirmed]**
 

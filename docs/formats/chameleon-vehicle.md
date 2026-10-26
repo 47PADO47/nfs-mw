@@ -69,5 +69,5 @@ Animations (steering wheel, spoiler, the damage animations), most damage data (t
 [chameleon-hinged-parts.md](chameleon-hinged-parts.md)), the convex hulls and the physics
 body objects (the collision mesh is read: [chameleon-collision.md](chameleon-collision.md)), vehicle sound, lamp and exhaust locators, the engine and handling objects, the rear-view
 Skeleton and animations (steering wheel, spoiler, bonnet and mirror hinges), damage data, the convex hulls and the physics
-body objects (the collision mesh is read: [chameleon-collision.md](chameleon-collision.md)), vehicle sound, the exhaust locators (the lamp locators are read: [chameleon-lamps.md](chameleon-lamps.md)), the engine and handling objects, the rear-view
+body objects (the collision mesh is read: [chameleon-collision.md](chameleon-collision.md)), vehicle sound, the lamp and exhaust locators are read ([chameleon-lamps.md](chameleon-lamps.md), [chameleon-exhaust.md](chameleon-exhaust.md)), the engine and handling objects, the rear-view
 mirror and cockpit, and the low-detail bundles.

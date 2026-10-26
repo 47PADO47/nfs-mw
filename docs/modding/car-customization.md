@@ -167,8 +167,9 @@ and lists the five pictures as `Livery 1` to `Livery 5` (73 cars from 93 bundles
 The game starts the nitrous flames at the markers `EXHAUST`, `LEFT_EXHAUST` and `RIGHT_EXHAUST` of the car's body solid
 (the marker's z axis points backwards), so a mod's own car has to carry them. A car without pipe markers boosts, but shows no
 flame. The flame emitters themselves are the game's default `ecar` effect group. The 2012 files have tail pipe locators,
-but their table is not decoded, so the 2012 mod places the pipes from the body's shape: at the rear face, at 22 percent of the
-car's height, and at half the half width of the rear on either side. That is an approximation.
+and the 2012 mod writes one marker for each of a car's pipes from them ([chameleon-exhaust.md](../formats/chameleon-exhaust.md)),
+none for a car without a pipe (an electric car boosts with no flame). Only a car whose bundle has no effect records gets
+pipes derived from its body's shape.
 
 ## Using it
 
