@@ -12,19 +12,40 @@
 use serde::Deserialize;
 
 use super::ContentError;
+use super::engine_curves::{self, Curve, LayerKind, Pitch, RawCurve, RawPitch};
 
 /// Most layers a car may have.
-pub const MAX_LAYERS: usize = 8;
+pub const MAX_LAYERS: usize = 12;
 /// Most files one list of `[car_sound]` may name.
 pub const MAX_EFFECT_FILES: usize = 16;
 
-/// One looping recording of the engine.
+/// One layer of the engine: a looping recording, or a granular engine recording (`kind = "ginsu"`).
+///
+/// A layer without `gain` curves is mixed by engine speed: it is loudest at `rpm`, the speed it was recorded at. A layer
+/// with `gain` curves plays by them (docs/modding/car-sound.md, "Curves") and its `rpm` is 0.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layer {
-    /// The file, a path of the install's layout (`SOUND/MODENGINE/MYCAR/IDLE.WAV`).
+    /// The file, a path of the install's layout (`SOUND/MODENGINE/MYCAR/IDLE.WAV`, or `.GIN` for a Ginsu layer).
     pub file: String,
-    /// The engine speed the recording was made at.
+    /// The engine speed the recording was made at (0 for a layer with curves).
     pub rpm: f32,
+    pub kind: LayerKind,
+    /// The curves that multiply into the layer's volume; empty for a layer mixed by `rpm`.
+    pub gain: Vec<Curve>,
+    /// What the layer's playback rate follows; a layer without it plays at its own speed (curve layers) or at the
+    /// engine's rpm over its own (layers mixed by `rpm`).
+    pub pitch: Option<Pitch>,
+    /// For a Ginsu layer: the frequencies its recording is played at from idle to redline.
+    pub span: Option<(f32, f32)>,
+    /// A fixed level the curves are scaled by.
+    pub volume: f32,
+}
+
+impl Layer {
+    /// A layer mixed by the engine speed it was recorded at.
+    pub fn classic(file: impl Into<String>, rpm: f32) -> Self {
+        Self { file: file.into(), rpm, kind: LayerKind::Loop, gain: Vec::new(), pitch: None, span: None, volume: 1.0 }
+    }
 }
 
 /// A car's own engine sound.
@@ -49,7 +70,18 @@ pub(super) struct Raw {
 #[serde(deny_unknown_fields)]
 struct RawLayer {
     file: String,
-    rpm: f32,
+    #[serde(default)]
+    rpm: Option<f32>,
+    #[serde(default)]
+    kind: LayerKind,
+    #[serde(default)]
+    gain: Vec<RawCurve>,
+    #[serde(default)]
+    pitch: Option<RawPitch>,
+    #[serde(default)]
+    span: Option<[f32; 2]>,
+    #[serde(default)]
+    volume: Option<f32>,
 }
 
 const RPM_RANGE: std::ops::RangeInclusive<f32> = 100.0..=20_000.0;
@@ -69,26 +101,68 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<EngineSound>, ContentErro
     }
     let mut layers = Vec::with_capacity(raw.layers.len());
     for layer in raw.layers {
-        if !RPM_RANGE.contains(&layer.rpm) {
-            return Err(field("engine_sound.layers.rpm", "a layer's rpm is a number from 100 to 20000"));
-        }
-        if !is_sound_path(&layer.file) {
-            return Err(ContentError::InvalidText(layer.file));
-        }
-        layers.push(Layer { file: layer.file, rpm: layer.rpm });
+        layers.push(check_layer(layer)?);
     }
     layers.sort_by(|a, b| a.rpm.total_cmp(&b.rpm));
-    if layers.windows(2).any(|pair| pair[0].rpm == pair[1].rpm) {
+    let mixed = || layers.iter().filter(|layer| layer.gain.is_empty());
+    if mixed().zip(mixed().skip(1)).any(|(a, b)| a.rpm == b.rpm) {
         return Err(field("engine_sound.layers.rpm", "two layers have the same rpm"));
     }
     Ok(Some(EngineSound { idle_rpm: raw.idle_rpm, redline_rpm: raw.redline_rpm, layers }))
 }
 
+/// Check one layer: its file, and either an `rpm` or curves, and the Ginsu span.
+fn check_layer(layer: RawLayer) -> Result<Layer, ContentError> {
+    let field = |field: &'static str, reason: &'static str| ContentError::Field { field, reason };
+    let extension = if layer.kind == LayerKind::Ginsu { ".gin" } else { ".wav" };
+    if !is_path(&layer.file, extension) {
+        return Err(ContentError::InvalidText(layer.file));
+    }
+    let gain = engine_curves::check_curves(layer.gain)?;
+    let rpm = match (layer.rpm, gain.is_empty()) {
+        (Some(rpm), _) if !RPM_RANGE.contains(&rpm) => {
+            return Err(field("engine_sound.layers.rpm", "a layer's rpm is a number from 100 to 20000"));
+        }
+        (Some(rpm), true) => rpm,
+        (None, true) => return Err(field("engine_sound.layers.rpm", "a layer with no curves needs an rpm")),
+        (_, false) => 0.0,
+    };
+    let span = match (layer.kind, layer.span) {
+        (LayerKind::Ginsu, Some([low, high]))
+            if RPM_RANGE.contains(&low) && RPM_RANGE.contains(&high) && low < high =>
+        {
+            Some((low, high))
+        }
+        (LayerKind::Ginsu, _) => {
+            return Err(field(
+                "engine_sound.layers.span",
+                "a Ginsu layer has a span of two rising frequencies, 100 to 20000",
+            ));
+        }
+        (LayerKind::Loop, None) => None,
+        (LayerKind::Loop, Some(_)) => return Err(field("engine_sound.layers.span", "only a Ginsu layer has a span")),
+    };
+    if layer.kind == LayerKind::Ginsu && gain.is_empty() {
+        return Err(field("engine_sound.layers.gain", "a Ginsu layer has curves"));
+    }
+    let volume = layer.volume.unwrap_or(1.0);
+    if !(0.0..=engine_curves::MAX_LEVEL).contains(&volume) {
+        return Err(field("engine_sound.layers.volume", "a layer's volume is a number from 0 to 8"));
+    }
+    let pitch = engine_curves::check_pitch(layer.pitch)?;
+    Ok(Layer { file: layer.file, rpm, kind: layer.kind, gain, pitch, span, volume })
+}
+
 /// A relative path of the install's layout that names a `.WAV` file: letters, digits, `_`, `-`, `.` and `/`, no `..`.
 pub(super) fn is_sound_path(path: &str) -> bool {
+    is_path(path, ".wav")
+}
+
+/// A relative path of the install's layout that ends in `extension` (lower case, with the dot).
+fn is_path(path: &str, extension: &str) -> bool {
     let safe = path.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'/'));
     let parts_ok = path.split('/').all(|part| !part.is_empty() && part != "." && part != "..");
-    safe && parts_ok && path.len() <= 96 && path.to_ascii_lowercase().ends_with(".wav")
+    safe && parts_ok && path.len() <= 96 && path.to_ascii_lowercase().ends_with(extension)
 }
 
 /// The car's own recordings of the sounds besides its engine (`[car_sound]`). Every list is optional; a list left out is

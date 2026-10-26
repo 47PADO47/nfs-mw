@@ -49,6 +49,7 @@ default-members = [
     "libs/blackbox-vehicle",
     "libs/chameleon-bundle",
     "libs/chameleon-gfx",
+    "libs/chameleon-sound-graph",
     "libs/chameleon-vehicle",
     "libs/ini-tuning",
     "libs/ea-audio",
@@ -71,6 +72,7 @@ blackbox-trace = { path = "libs/blackbox-trace" }
 # Engine-generic libraries (libs/)
 chameleon-bundle = { path = "libs/chameleon-bundle" }
 chameleon-gfx = { path = "libs/chameleon-gfx" }
+chameleon-sound-graph = { path = "libs/chameleon-sound-graph" }
 chameleon-vehicle = { path = "libs/chameleon-vehicle" }
 blackbox-aems = { path = "libs/blackbox-aems" }
 blackbox-anim = { path = "libs/blackbox-anim" }

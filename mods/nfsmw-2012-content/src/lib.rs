@@ -19,6 +19,7 @@ mod effects;
 mod emit;
 mod engine;
 mod fit;
+mod graph_voices;
 mod graphs;
 mod hinges;
 pub mod import;

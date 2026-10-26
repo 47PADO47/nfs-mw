@@ -40,7 +40,7 @@ layers = [
 - A layer is a looping recording of the engine made at the engine speed `rpm`: a 16-bit PCM WAV, mono or stereo, that
   repeats over its whole length. The file is a path of the install's layout (letters, digits, `_`, `-`, `.` and `/`, up to 96
   characters, ending in `.WAV`), so it goes in the mod's `files/` folder.
-- One to eight layers, `rpm` from 100 to 20000, no two the same, `idle_rpm` below `redline_rpm` (both 100 to 20000). A wrong
+- One to twelve layers, `rpm` from 100 to 20000 (a layer with `gain` curves has none, see [Curves](#curves-layers-that-play-by-the-cars-own-inputs)), no two the same, `idle_rpm` below `redline_rpm` (both 100 to 20000). A wrong
   table refuses the car.
 - All layers play at once. Each is played at the engine's rpm over its own (so its pitch follows the engine) but never
   slower than 0.55 or faster than 1.8 times its recording, and the layers are mixed by how close the engine's rpm is
@@ -86,7 +86,7 @@ picked at random each time. A file that cannot be read is left out, and the log 
 engine is turning (0.9 seconds up, 0.6 down); a "lift-off" is the engine mixer's *engine off* event (the throttle
 released more than 55 percent of the way from idle to the limiter, in a gear above first, with no shift under way). When a
 recording plays, and how loud, is chosen here (`crates/nfsmw/src/audio/car/own_sfx.rs`); the 2012 game decides it in sound
-graphs that are not decoded ([chameleon-sound.md](../formats/chameleon-sound.md)).
+graphs ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)).
 
 
 ### The shared sounds: `[car_sound.shared]`
@@ -123,14 +123,51 @@ one. A car without the table, and every car of the game, plays exactly what it d
 Skids, nitrous, road noise, wind and the landing sounds stay with the game-wide banks for every car.
 
 
-### The 2012 cars' recordings
+### Curves: layers that play by the car's own inputs
 
-The 2012 game builds its engine sound in a sound graph of loops and synthesised harmonics, which this game does not
-rebuild. The 2012 mod takes **the looping recordings of each car's bundle** ([chameleon-sound.md](../formats/chameleon-sound.md)),
-measures the pitch of each, calls the lowest one the idle, and gives every other loop the rpm that its pitch stands for
-(the idle rpm times its pitch over the lowest pitch). Loops that would need an rpm far beyond the limiter are left out.
-This is an **approximation**: the five loops of the transmission whine graph are mixed as if they were engine loops (the
-engine alone has too few pitches), and the loops are not the 2012 game's own blend.
+A layer can carry curves instead of the engine speed it was recorded at. The 2012 mod writes them (below); a mod author can
+too:
+
+```toml
+[engine_sound]
+idle_rpm = 1000.0
+redline_rpm = 7800.0
+layers = [
+  { file = "SOUND/MODENGINE/MYCAR/L0.GIN", kind = "ginsu", span = [1790.0, 7500.0], volume = 0.35,
+    gain = [ { input = "rpm", points = [[0.0, 0.0], [0.0175, 1.0], [1.0, 1.0]] },
+             { input = "load", points = [[0.0, 0.0], [0.6, 0.0], [0.94, 1.0], [1.0, 1.0]] } ] },
+  { file = "SOUND/MODENGINE/MYCAR/L1.WAV", volume = 0.6,
+    gain = [ { input = "speed_mph", points = [[20.0, 0.0], [40.0, 1.0], [90.0, 1.0], [110.0, 0.0]] } ],
+    pitch = { input = "speed_mph", reference = 40.0 } },
+]
+```
+
+- `gain` is a list of up to four curves of two to 32 points (`x` rising, `y` from 0 to 8), piecewise linear and flat
+  outside their points. A layer's volume is its `volume` (0 to 8, default 1) times the value of each curve at the car's
+  current input. The inputs are `rpm` (0 at idle to 1 at the limiter), `load` (the throttle, 0 to 1) and `speed_mph` (the
+  car's speed). A layer with `gain` needs no `rpm` and takes no part in the mix by engine speed; layers without `gain` are
+  mixed by `rpm` among themselves as before, so the two kinds can share a car.
+- `pitch = { input, reference }` plays the layer at the input over `reference` (from 0.25 to 4 times its own speed). A layer
+  without it plays at its own speed (a curve layer) or at the engine's rpm over its own (a layer mixed by `rpm`).
+- `kind = "ginsu"` makes the file a `.GIN` granular engine recording (the format of the 2005 game's `.gin`), played by the
+  game's Ginsu synthesiser at the frequency `span` gives the engine speed: `span[0]` at idle, `span[1]` at the limiter.
+  It needs `gain` and `span`; the rest of the table is as for a loop.
+- Up to 12 layers.
+
+### The 2012 cars' engine
+
+The 2012 game builds a car's engine in **sound graphs** ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)):
+three Ginsu voices (granular recordings, crossfaded by the engine load), an idle loop that hands over to them just above
+idle, and five whine loops driven by the car's speed. The 2012 mod reads those sequences from each car's bundle and writes
+them as layers with curves: the Ginsu resources become `.GIN` files, the loops WAV files, the windows and the load
+curves `gain` curves, the whine's reference speed `pitch`. A car whose bundle has no such sequence falls back to the older
+**approximation**: it takes **the looping recordings of each car's bundle**
+([chameleon-sound.md](../formats/chameleon-sound.md)), measures the pitch of each, calls the lowest one the idle, and gives
+every other loop the rpm that its pitch stands for (the idle rpm times its pitch over the lowest pitch). Loops that would
+need an rpm far beyond the limiter are left out, and the loops are not the 2012 game's own blend.
+
+The tracked harmonics (`EngineSound2`) are filters on the mixer channels, not a synthesiser, and are **not ported**: the
+engine plays unfiltered.
 
 Its other recordings are found by the **name of the live value each sound graph reads**: the samples that the graph
 reading `GetPlayerNormalisedGearChangeTimeElapsed` plays are `shift` (the direction is not known, so it is `shift`, not
@@ -153,6 +190,8 @@ names no material, skid, glass break or tyre burst in the shared bundles, so tho
 built-in engine and have only the game-wide sounds.
 
 **What was not verified.** No recording has been listened to in the game: the checks are that the files are written, that the
-manifests parse and that the mixing and trigger logic passes its unit tests. The body hits, scrapes and shared pops are the same: the graph names that pick them are text in the data, but which crash a mass or a strength should play, and the level of one against another, are the game's own simple rules here. Which 2012 sample is which (the engine layer
-roles are not read, the pitch-to-rpm mapping is a guess, the shift direction is unknown) is a reading of the data, so a
-converted car may sound wrong even when everything loads. The built-in engine has not been judged by ear either.
+manifests parse, that the Ginsu files decode and that the mixing and trigger logic passes its unit tests and a headless
+render. The windows' direction, the audible-speed range taken as idle to redline, the curve tangents, the fade shapes, the
+whine's reference speed and which of the two Ginsu sets plays are readings of the data
+([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)); the shift direction is unknown. A converted car may sound
+wrong even when everything loads. The built-in engine has not been judged by ear either.

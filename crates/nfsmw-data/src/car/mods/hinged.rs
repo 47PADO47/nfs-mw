@@ -230,6 +230,6 @@ mod tests {
         assert_eq!((level_in(&marks, 4), level_in(&marks, 0), level_in(&marks, 1)), (2, 3, 0));
         assert!(marks.iter().all(|&mark| mark > crate::car::slot::HUD_COLOURS.end().to_owned() + 256 * 3));
         assert_eq!(index_of(10), None);
-        assert!(HINGED_SLOT > crate::car::slot::HUD_COLOURS.end().to_owned());
+        assert!(HINGED_SLOT > *crate::car::slot::HUD_COLOURS.end());
     }
 }

@@ -101,8 +101,12 @@ impl ModFolder {
         std::fs::create_dir_all(&folder)?;
         let mut layers = Vec::new();
         for (at, layer) in engine.layers.iter().enumerate() {
-            std::fs::write(folder.join(format!("L{at}.WAV")), &layer.wav)?;
-            layers.push(format!("  {{ file = \"SOUND/MODENGINE/{id}/L{at}.WAV\", rpm = {:?} }},\n", layer.rpm));
+            let (extension, fields) = match &layer.curves {
+                None => ("WAV", format!("rpm = {:?}", layer.rpm)),
+                Some(curved) => (if curved.ginsu { "GIN" } else { "WAV" }, curved.fields.clone()),
+            };
+            std::fs::write(folder.join(format!("L{at}.{extension}")), &layer.wav)?;
+            layers.push(format!("  {{ file = \"SOUND/MODENGINE/{id}/L{at}.{extension}\", {fields} }},\n"));
         }
         Ok(format!(
             "\n[engine_sound]\nidle_rpm = {:?}\nredline_rpm = {:?}\nlayers = [\n{}]\n",

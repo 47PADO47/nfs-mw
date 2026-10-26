@@ -2076,6 +2076,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "chameleon-sound-graph"
+version = "0.1.0"
+dependencies = [
+ "blackbox-ginsu",
+ "chameleon-bundle",
+ "ea-audio",
+]
+
+[[package]]
 name = "chameleon-vehicle"
 version = "0.1.0"
 dependencies = [
@@ -4234,6 +4243,7 @@ dependencies = [
  "blackbox-tpk",
  "chameleon-bundle",
  "chameleon-gfx",
+ "chameleon-sound-graph",
  "chameleon-vehicle",
  "ea-audio",
  "game-install",

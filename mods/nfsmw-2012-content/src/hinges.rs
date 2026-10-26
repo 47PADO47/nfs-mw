@@ -195,7 +195,7 @@ fn subset(group: &GroupSource, classes: &[Option<usize>], wanted: Option<usize>)
     let mut remap: Vec<Option<u16>> = vec![None; group.vertices.len()];
     let mut vertices: Vec<Vertex> = Vec::new();
     let mut indices = Vec::new();
-    for (triangle, class) in group.indices.chunks_exact(3).zip(classes) {
+    for (triangle, class) in group.indices.as_chunks::<3>().0.iter().zip(classes) {
         if *class != wanted {
             continue;
         }

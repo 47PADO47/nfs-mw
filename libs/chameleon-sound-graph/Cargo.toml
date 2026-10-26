@@ -1,0 +1,18 @@
+[package]
+name = "chameleon-sound-graph"
+description = "Sound graphs of the Chameleon engine: the sequences, curves and Ginsu engine resources of a car bundle."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+chameleon-bundle.workspace = true
+
+[dev-dependencies]
+blackbox-ginsu.workspace = true
+ea-audio.workspace = true
+
+[lints]
+workspace = true

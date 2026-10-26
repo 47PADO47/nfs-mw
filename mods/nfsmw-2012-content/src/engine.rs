@@ -1,12 +1,12 @@
-//! The car's own engine sound, from the sample resources of its 2012 bundle (docs/formats/chameleon-sound.md).
+//! The pitch heuristic for the engine of a car whose bundle has no engine sound graph (docs/formats/chameleon-sound.md).
 //!
 //! A car bundle holds about forty samples: mono 48 kHz `EL31` streams behind a 128-byte header, seven or so of them
-//! loops. The 2012 game mixes them in a sound graph with synthesised harmonics, which this mod does not rebuild. What
-//! it does instead is read each loop's pitch, treat the loops as recordings of the engine at different speeds (a loop's
-//! rpm is the idle rpm times its pitch over the lowest pitch), and let the game's mixer play them by engine speed. That
-//! is an approximation. The loops another effect claims (the turbo's whistle, see `effects`) are left out; the rest are
-//! taken as the engine's, which includes the five loops of the graph that reads `GetTransmissionSpeedMph` (by its
-//! name, the transmission's whine, not an engine) because the engine alone has too few pitches to cover the range.
+//! loops. When `graph_voices` finds the car's engine sequences it writes the real behaviour; otherwise this reads each
+//! loop's pitch, treats the loops as recordings of the engine at different speeds (a loop's rpm is the idle rpm times its
+//! pitch over the lowest pitch), and lets the game's mixer play them by engine speed. That is an approximation. The loops
+//! another effect claims (the turbo's whistle, see `effects`) are left out; the rest are taken as the engine's, which
+//! includes the loops of the graph that reads `GetTransmissionSpeedMph` (by its name, the transmission's whine) because the
+//! engine alone has too few pitches to cover the range.
 
 use std::collections::BTreeSet;
 
@@ -33,10 +33,21 @@ pub struct Loop {
     pub pitch: f32,
 }
 
-/// A layer of the car's engine sound: a loop and the engine speed it stands for.
+/// A layer of the car's engine sound: a loop and the engine speed it stands for, or a layer that plays by the curves
+/// of the car's sound graphs (`graph_voices`).
 pub struct Layer {
     pub rpm: f32,
+    /// The bytes of the file: a WAV, or a `.gin` file for a Ginsu layer.
     pub wav: Vec<u8>,
+    pub curves: Option<Curved>,
+}
+
+/// The manifest fields of a layer that plays by curves.
+pub struct Curved {
+    /// The file is a Ginsu recording (`.GIN`), not a WAV.
+    pub ginsu: bool,
+    /// The fields of the layer's inline table after `file` (`volume = ..., gain = [...]`).
+    pub fields: String,
 }
 
 /// The looping samples among `samples` that are long enough to be an engine's, except the ones in `not_engine` (the
@@ -104,7 +115,7 @@ pub fn layers(loops: Vec<Loop>, idle_rpm: f32, redline_rpm: f32) -> Vec<Layer> {
         }
         layers.push((rpm, loop_));
     }
-    layers.into_iter().take(MAX_LAYERS).map(|(rpm, l)| Layer { rpm, wav: loop_wav(&l) }).collect()
+    layers.into_iter().take(MAX_LAYERS).map(|(rpm, l)| Layer { rpm, wav: loop_wav(&l), curves: None }).collect()
 }
 
 /// A 16-bit mono WAV of the loop at the level every layer is brought to.

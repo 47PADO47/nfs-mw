@@ -67,7 +67,7 @@ mod tests {
     }
 
     fn peak_of(wav: &[u8]) -> i16 {
-        wav[44..].chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]).abs()).max().unwrap()
+        wav[44..].as_chunks::<2>().0.iter().map(|b| i16::from_le_bytes([b[0], b[1]]).abs()).max().unwrap()
     }
 
     #[test]

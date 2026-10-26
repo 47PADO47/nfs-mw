@@ -2,7 +2,7 @@ use super::*;
 use nfsmw_data::car::mods::EngineLayer;
 
 fn sound() -> EngineSound {
-    let layer = |rpm: f32| EngineLayer { file: format!("SOUND/{rpm}.WAV"), rpm };
+    let layer = |rpm: f32| EngineLayer::classic(format!("SOUND/{rpm}.WAV"), rpm);
     EngineSound { idle_rpm: 800.0, redline_rpm: 7000.0, layers: vec![layer(800.0), layer(3200.0), layer(6400.0)] }
 }
 

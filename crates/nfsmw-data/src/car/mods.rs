@@ -18,7 +18,7 @@ mod engine;
 pub mod hinged;
 pub(super) mod parts;
 pub use blackbox_vehicle::stats::{CarStats, Drive};
-pub use engine::{CarEffects, EngineLayer, EngineSound, SharedSound};
+pub use engine::{CarEffects, CurveInput, EngineLayer, EngineSound, LayerCurve, LayerKind, LayerPitch, SharedSound};
 
 /// How many cars of a mod's kind a cop wave with the car has.
 pub const COP_COUNT: u32 = 2;

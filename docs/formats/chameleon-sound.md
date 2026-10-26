@@ -73,10 +73,10 @@ engine speed it follows) and expression strings that read live values: `GetAudib
 synthesised by a DSP object (`EngineSound2`, parameters `TrackedHarmonic1Frequency` and so on) that follows the rpm,
 which no recording holds.
 
-**Not known yet:** the node format (the curves between a live value and each sample's volume or pitch, and which sample
-of a graph plays when) is not decoded, so the sounds cannot be played as the 2012 game plays them. What is known is
-**which graph, named by the live value it reads, plays which sample**, and that is how the mod finds the shifts, the
-turbo, the backfires and the pops.
+**The node format** is decoded for the engine's sequences (the windows, fades and curves between a live value and each
+sample's volume or pitch, and the Ginsu engine resources): see [chameleon-sound-graph.md](chameleon-sound-graph.md). The
+shift, turbo, backfire and pop graphs are still found by **which graph, named by the live value it reads, plays which
+sample**, and that is how the mod finds them.
 
 ## Which samples play when **[measured on the 2012 install; the node format is not decoded]**
 
@@ -111,7 +111,7 @@ tone first, the blow-off second. A turbo car whose graphs lack `TurboBlowoffGain
 blow-off.
 
 **What this does not say.** Which sample of a group plays at a moment, at what level and pitch, and why the Porsche's
-two engine loops have the same pitch, are in the node data. The shifts could be a click, a blip or a burble: they are
+two engine loops have the same pitch, are in the node data of those graphs, which is not read ([chameleon-sound-graph.md](chameleon-sound-graph.md#what-is-not-decoded-unknown)). The shifts could be a click, a blip or a burble: they are
 what the graphs play for a gear change, not known to be a "clunk". The turbo tone's rpm tracking and the blow-off's
 trigger are likewise the game's own rules here, not the 2012 game's (`docs/modding/car-sound.md`).
 

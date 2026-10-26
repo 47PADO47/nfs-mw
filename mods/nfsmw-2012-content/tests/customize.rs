@@ -50,7 +50,7 @@ fn engine_sound_of(table: &toml::Value) -> EngineSound {
         redline_rpm: number(&table["redline_rpm"]),
         layers: layers
             .iter()
-            .map(|layer| EngineLayer { file: layer["file"].as_str().unwrap().to_owned(), rpm: number(&layer["rpm"]) })
+            .map(|layer| EngineLayer::classic(layer["file"].as_str().unwrap(), number(&layer["rpm"])))
             .collect(),
     }
 }

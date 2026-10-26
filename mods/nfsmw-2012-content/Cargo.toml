@@ -20,6 +20,7 @@ blackbox-solid.workspace = true
 blackbox-tpk.workspace = true
 chameleon-bundle.workspace = true
 chameleon-gfx.workspace = true
+chameleon-sound-graph.workspace = true
 chameleon-vehicle.workspace = true
 ea-audio.workspace = true
 log.workspace = true

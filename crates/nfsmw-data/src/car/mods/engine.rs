@@ -1,12 +1,75 @@
 //! A mod car's own engine sound (the `[engine_sound]` table of the car manifest, docs/modding/car-sound.md):
 //! looping recordings the audio mixes by engine speed. A car without them plays the game's built-in engine.
 
-/// One looping recording and the engine speed it was made at.
+/// What a layer's curve or pitch is read at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CurveInput {
+    /// How far the engine is from idle (0) to redline (1).
+    Rpm,
+    /// The engine load: the throttle, 0 to 1.
+    Load,
+    /// The car's speed in miles per hour.
+    SpeedMph,
+}
+
+/// A piecewise linear curve of one input, flat before its first and after its last point.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LayerCurve {
+    pub input: CurveInput,
+    pub points: Vec<(f32, f32)>,
+}
+
+impl LayerCurve {
+    pub fn eval(&self, x: f32) -> f32 {
+        let (Some(first), Some(last)) = (self.points.first(), self.points.last()) else { return 1.0 };
+        if x <= first.0 {
+            return first.1;
+        }
+        if x >= last.0 {
+            return last.1;
+        }
+        let Some(pair) = self.points.windows(2).find(|pair| x <= pair[1].0) else { return last.1 };
+        pair[0].1 + (pair[1].1 - pair[0].1) * (x - pair[0].0) / (pair[1].0 - pair[0].0)
+    }
+}
+
+/// A pitch that follows an input: the playback rate is the input over `reference`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LayerPitch {
+    pub input: CurveInput,
+    pub reference: f32,
+}
+
+/// What a layer plays.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayerKind {
+    /// A looping WAV.
+    Loop,
+    /// A granular engine recording (`.GIN`).
+    Ginsu,
+}
+
+/// One layer of the engine: a looping recording and the engine speed it was made at, or a layer that plays by curves.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EngineLayer {
-    /// The WAV file, a path of the install's layout.
+    /// The WAV (or `.GIN`) file, a path of the install's layout.
     pub file: String,
+    /// The engine speed of the recording; 0 for a layer with curves.
     pub rpm: f32,
+    pub kind: LayerKind,
+    /// The curves that multiply into the layer's volume; empty for a layer mixed by `rpm`.
+    pub gain: Vec<LayerCurve>,
+    pub pitch: Option<LayerPitch>,
+    /// For a Ginsu layer: the frequencies from idle to redline.
+    pub span: Option<(f32, f32)>,
+    pub volume: f32,
+}
+
+impl EngineLayer {
+    /// A layer mixed by the engine speed it was recorded at.
+    pub fn classic(file: impl Into<String>, rpm: f32) -> Self {
+        Self { file: file.into(), rpm, kind: LayerKind::Loop, gain: Vec::new(), pitch: None, span: None, volume: 1.0 }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -2,9 +2,9 @@
 //! that reads a named live value plays.
 //!
 //! A graph is a tree of nodes whose expression strings read live values of the game (`...GetPopProbability`,
-//! `...BackfireGain`). Its imports point at the samples it plays and at other graphs. The node format is not decoded, so
-//! what is known about a sample is only *which graphs, named by the values they read, play it*; the curves between a
-//! value and a sample's volume or pitch are not known.
+//! `...BackfireGain`). Its imports point at the samples it plays and at other graphs. This module only asks *which graphs,
+//! named by the values they read, play a sample*; the nodes themselves (windows, fades and curves) are read by
+//! `chameleon-sound-graph` for the engine (`graph_voices`) and are not read for the other effects.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
