@@ -76,10 +76,10 @@ fn a_car_without_a_collision_mesh_is_fitted_to_its_visible_body_and_its_tyres() 
     assert_eq!(result.basis, Basis::VisibleMesh);
     let set = read(&result, "TESTCAR");
     set.check_vehicle_body(&BodyLimits::default()).unwrap();
-    // The tyres stand 0.2 m beyond the hub: 0.77 + 0.2 = 0.97 on each side, wider than the 0.9 m body. Their lowest
-    // point is the ground; the roof is at 1.3 m; the body is the longest part.
-    assert_eq!(result.half, [0.97, 0.65, 2.2]);
-    assert_eq!(set.root().pivot, [0.0, 0.65, 0.0]);
+    // The tyres stand 0.2 m beyond the hub: 0.77 + 0.2 = 0.97 on each side, wider than the 0.9 m body. The box starts at
+    // the underside of the body (0.2 m), not at the road under the tyres; the roof is at 1.3 m; the body is the longest part.
+    assert_eq!(result.half, [0.97, 0.55, 2.2]);
+    assert_eq!(set.root().pivot, [0.0, 0.75, 0.0]);
 }
 
 #[test]
