@@ -45,7 +45,8 @@ impl ExhaustFx {
     /// Read the effects of `model` from the gameplay database (`attributes.bin`).
     pub fn read(db: &Database, model: &CarModel) -> Option<Self> {
         let key = model.car_type.as_deref().unwrap_or(&model.name).to_ascii_lowercase();
-        let ecar = db.collection("ecar", &key)?;
+        // A car with no record of its own (a mod car) has the class-wide default effects.
+        let ecar = db.collection("ecar", &key).or_else(|| db.collection("ecar", "default"))?;
         let engine_upgrades =
             db.collection("pvehicle", &key).and_then(|pvehicle| pvehicle.get_i32("engine_upgrades")).unwrap_or(0);
         let group = ecar.follow("NOSEffect");

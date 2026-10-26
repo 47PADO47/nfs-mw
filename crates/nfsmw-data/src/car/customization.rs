@@ -190,7 +190,7 @@ impl Catalog {
         let slots = stock_parts(t, car);
         let stock = Category::ALL.map(|c| slots[c.slot()].map(|p| p.name_hash));
         let base = slots[slot::BASE].and_then(|p| t.parts.model_hash(&p, 0)).and_then(|h| solids.get(&h));
-        let wheels = WheelSetup::read(&t.attributes, &car.base_model_name).is_some();
+        let wheels = WheelSetup::for_car(&t.attributes, car).is_some();
         let mut catalog = Self { stock, color_palettes: palettes::read(t, car), ..Self::default() };
         for category in [Category::Paint, Category::RimPaint] {
             if let Some(part) = stock[category as usize].and_then(|hash| t.parts.by_name_hash(hash)) {

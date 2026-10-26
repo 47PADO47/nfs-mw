@@ -12,12 +12,12 @@ use nfsmw_2012_content::job::{self, Finished, Start};
 use nfsmw_data::car::customization::{Category, Inventory, Selection};
 use nfsmw_data::car::mods::custom;
 use nfsmw_data::car::mods::{self as car_mods, CarSpec, CarStats, EngineLayer, EngineSound};
-use nfsmw_data::car::physics::{CarBounds, PerformancePackage, physics_from_stats};
+use nfsmw_data::car::physics::{CarBounds, PerformancePackage, PhysicsData, physics_from_stats};
 use nfsmw_data::car::{CarTables, LoadOptions, exhaust};
 
 const CAR: &str = "POR911CARR12";
 
-fn converted(source: &Path, game: &Path) -> PathBuf {
+fn converted(source: &Path) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("nfsmw-2012-content-customize-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -25,7 +25,7 @@ fn converted(source: &Path, game: &Path) -> PathBuf {
     let text =
         format!("source = '{source}'\ncars = ['{CAR}']\n\n[performance]\npower = 1.2\n\n[car.{CAR}]\nbrakes = 1.3\n");
     std::fs::write(dir.join("config.toml"), text).unwrap();
-    let Start::Started { job: running, .. } = job::start(&dir, game).unwrap() else {
+    let Start::Started { job: running, .. } = job::start(&dir).unwrap() else {
         panic!("the first start converts")
     };
     let started = Instant::now();
@@ -68,7 +68,6 @@ fn register(game: &GameDir, mod_dir: &Path) -> CarStats {
     let spec = CarSpec {
         folder: CAR.to_owned(),
         owner: "nfsmw-2012-content".to_owned(),
-        clone: manifest["clone"].as_str().unwrap().to_owned(),
         name: manifest["name"].as_str().map(str::to_owned),
         manufacturer: manifest.get("manufacturer").and_then(|brand| brand.as_str()).map(str::to_owned),
         player: true,
@@ -117,7 +116,7 @@ fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
     let (Some(source), Some(root)) = (std::env::var_os("MW2012_GAME_DIR"), std::env::var_os("NFSMW_GAME_DIR")) else {
         return;
     };
-    let mod_dir = converted(Path::new(&source), Path::new(&root));
+    let mod_dir = converted(Path::new(&source));
     let game = GameDir::open(Path::new(&root)).unwrap();
     let stats = register(&game, &mod_dir);
     // The 2012 Porsche 911 Carrera S has 440 N m at 5600 rpm and 1300 N m brakes at the front; the settings of this test
@@ -129,6 +128,7 @@ fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
 
     let tables = CarTables::load(&game).unwrap();
     let car_type = tables.car_type_for_folder(CAR).unwrap().clone();
+    assert_eq!(car_type.type_name, CAR, "the car is its own table entry");
 
     // The body has tail pipes of its own (the markers the nitrous flames come out of).
     let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
@@ -160,6 +160,15 @@ fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
             "the paint did not reach the body texture"
         );
     }
+
+    // The host builds the car from its own stats and its own BOUNDS.BIN: no vehicle record is read.
+    let physics = PhysicsData::load(&game).unwrap();
+    let built = physics.car_with_performance(CAR, PerformancePackage::default()).unwrap();
+    assert_eq!(built.spec.mass, stats.mass_kg);
+    assert!(built.geometry.is_some() && built.events.is_some(), "the car's own contact shapes and damage");
+    assert_eq!(built.spec.dimension, built.bounds.half_dimensions);
+    let own_box = built.bounds.half_dimensions;
+    assert!((0.7..1.3).contains(&own_box.x) && (0.4..1.0).contains(&own_box.y) && (1.4..3.0).contains(&own_box.z), "{own_box}");
 
     // The physics are built from the car's own stats: the box is the caller's, the rest is the 2012 car's.
     let bounds = CarBounds { half_dimensions: glam::Vec3::new(0.91, 0.55, 2.21), pivot: glam::Vec3::ZERO };

@@ -210,7 +210,7 @@ fn load_with(
         }
     }
 
-    let setup = WheelSetup::read(&t.attributes, &car_type.base_model_name);
+    let setup = WheelSetup::for_car(&t.attributes, car_type);
     if setup.is_none() {
         log::warn!("{car}: no ecar record for {}; wheels are not placed", car_type.base_model_name);
     }
