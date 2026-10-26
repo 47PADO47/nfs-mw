@@ -38,6 +38,36 @@ pub struct CarEffects {
     pub turbo_blowoff: Vec<String>,
     pub backfire: Vec<String>,
     pub pops: Vec<String>,
+    /// The recordings the mod's cars share.
+    pub shared: SharedSound,
+}
+
+/// The recordings the cars of a mod share (the `[car_sound.shared]` table, docs/modding/car-sound.md): body hits by
+/// strength, scrape one-shots and pops. A list left empty is a sound the car does not give, and the game plays what it
+/// plays for a car without it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SharedSound {
+    pub impact_small: Vec<String>,
+    pub impact_medium: Vec<String>,
+    pub impact_big: Vec<String>,
+    pub scrape: Vec<String>,
+    pub pops: Vec<String>,
+}
+
+impl SharedSound {
+    /// The files of the body-hit class `class`: 0 light, 1 medium, 2 heavy (anything above is heavy).
+    pub fn impact_files(&self, class: usize) -> &[String] {
+        match class {
+            0 => &self.impact_small,
+            1 => &self.impact_medium,
+            _ => &self.impact_big,
+        }
+    }
+
+    /// Whether the car has a body-hit recording of any class.
+    pub fn has_impacts(&self) -> bool {
+        !(self.impact_small.is_empty() && self.impact_medium.is_empty() && self.impact_big.is_empty())
+    }
 }
 
 impl CarEffects {
@@ -61,5 +91,21 @@ mod tests {
         assert_eq!(effects.shift_files(true), ["SOUND/UP.WAV"]);
         assert_eq!(effects.shift_files(false), ["SOUND/ANY.WAV"]);
         assert!(CarEffects::default().shift_files(true).is_empty());
+    }
+
+    #[test]
+    fn a_blow_s_class_picks_its_list_and_the_heaviest_takes_the_rest() {
+        let shared = SharedSound {
+            impact_small: vec!["S".into()],
+            impact_medium: vec!["M".into()],
+            impact_big: vec!["B".into()],
+            ..Default::default()
+        };
+        assert_eq!(
+            (shared.impact_files(0), shared.impact_files(1), shared.impact_files(2)),
+            (&["S".to_owned()][..], &["M".to_owned()][..], &["B".to_owned()][..])
+        );
+        assert_eq!(shared.impact_files(9), ["B"]);
+        assert!(shared.has_impacts() && !SharedSound::default().has_impacts());
     }
 }

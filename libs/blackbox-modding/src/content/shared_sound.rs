@@ -86,7 +86,8 @@ mod tests {
 
     #[test]
     fn a_car_with_only_shared_sounds_has_effects() {
-        let text = "[car_sound.shared]\nimpact_big = [\"SOUND/S/B0.WAV\", \"SOUND/S/B1.WAV\"]\nscrape = [\"SOUND/S/R.WAV\"]\n";
+        let text =
+            "[car_sound.shared]\nimpact_big = [\"SOUND/S/B0.WAV\", \"SOUND/S/B1.WAV\"]\nscrape = [\"SOUND/S/R.WAV\"]\n";
         let got = effects(text).unwrap().unwrap();
         assert_eq!(got.shared.impact_big, ["SOUND/S/B0.WAV", "SOUND/S/B1.WAV"]);
         assert_eq!(got.shared.scrape, ["SOUND/S/R.WAV"]);
