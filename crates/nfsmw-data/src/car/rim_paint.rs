@@ -1,5 +1,6 @@
 //! Isolate rim paint on eligible wheel solids so tires, brakes and body trim retain their materials.
 use super::{CarModel, CarTables, Slots, slot};
+use blackbox_carparts::LightMaterial;
 use blackbox_hash::bstring_hash;
 
 pub(super) fn apply(model: &mut CarModel, tables: &CarTables, slots: &Slots, custom: Option<[u8; 3]>) {
@@ -10,10 +11,15 @@ pub(super) fn apply(model: &mut CarModel, tables: &CarTables, slots: &Slots, cus
         return;
     };
     let paint = super::Paint::of(tables, &part);
-    let Some(mut material) = paint.light_material.and_then(|h| model.light_materials.get(&h)).cloned() else {
+    let Some(material) = paint.light_material.and_then(|h| model.light_materials.get(&h)).cloned() else {
         return;
     };
-    let rgb = custom.unwrap_or(paint.rgb).map(|v| f32::from(v) / 255.0);
+    recolour(model, material, custom.unwrap_or(paint.rgb));
+}
+
+/// Draw the metal of every placed wheel with `material`, its diffuse colour scaled by `rgb`.
+pub(super) fn recolour(model: &mut CarModel, mut material: LightMaterial, rgb: [u8; 3]) {
+    let rgb = rgb.map(|v| f32::from(v) / 255.0);
     for (i, c) in rgb.into_iter().enumerate() {
         material.diffuse_min[i] *= c;
         material.diffuse_max[i] *= c;
