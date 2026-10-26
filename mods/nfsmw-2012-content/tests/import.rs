@@ -52,8 +52,8 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
     assert!(errors.is_empty(), "{errors:?}");
     for stem in ["KIT00_BODY", "KIT00_FRONT_TIRE"] {
         for letter in ['A', 'B', 'C', 'D'] {
-            let suffix = format!("_{stem}_{letter}");
-            assert!(solids.iter().any(|solid| solid.name.ends_with(&suffix)), "no solid ending {suffix}");
+            let name = format!("{}_{stem}_{letter}", car.id);
+            assert!(solids.iter().any(|solid| solid.name == name), "no solid named {name}");
         }
     }
     assert!(solids.iter().all(|solid| !solid.groups.is_empty()));
@@ -66,6 +66,7 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
     let manifest =
         std::fs::read_to_string(dir.join("cars").join(format!("{}.toml", car.id.to_ascii_lowercase()))).unwrap();
     assert!(manifest.contains(&format!("clone = \"{}\"", car.clone)));
+    assert!(manifest.contains("[customization]"), "the car has no paints of its own");
 
     assert!(matches!(job::start(&dir, &game).unwrap(), Start::UpToDate { cars: 1 }));
     std::fs::write(dir.join("config.toml"), "source = 'nowhere'\n").unwrap();
@@ -98,5 +99,16 @@ fn every_car_converts_and_how_long_it_takes() {
     let report = last.unwrap();
     assert!(report.skipped.is_empty(), "skipped: {:?}", report.skipped);
     assert!(report.imported.len() > 90);
+    // Every manifest passes the game's checks and carries the car's own paints, and nothing else for its looks.
+    let mut paints = 0;
+    for entry in std::fs::read_dir(dir.join("cars")).unwrap().flatten() {
+        let path = entry.path();
+        let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
+        let manifest = blackbox_modding::content::parse_car(&stem, &std::fs::read_to_string(&path).unwrap()).unwrap();
+        let own = manifest.customization.unwrap_or_else(|| panic!("{stem} has no paints"));
+        assert!(own.rims.is_empty() && own.spoilers.is_empty() && own.vinyls.is_empty() && own.tints.is_empty());
+        paints += own.paints.len();
+    }
+    println!("{paints} paints in {} cars", report.imported.len());
     std::fs::remove_dir_all(&dir).unwrap();
 }

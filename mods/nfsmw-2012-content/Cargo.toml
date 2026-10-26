@@ -28,5 +28,8 @@ serde.workspace = true
 symphonia.workspace = true
 toml.workspace = true
 
+[dev-dependencies]
+blackbox-modding = { workspace = true, features = ["host"] }
+
 [lints]
 workspace = true

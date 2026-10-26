@@ -1,5 +1,5 @@
-//! A converted car in the garage, with the real installs: it can be painted and given a vinyl of its clone, it has the
-//! mounts for spoilers and the pipes the nitrous flames come out of, and it drives with the mod's `[performance]`. Set
+//! A converted car in the garage, with the real installs: it is offered the paints of its own 2012 bundle and nothing of
+//! a stock car's parts, it has the pipes the nitrous flames come out of, and it drives with the mod's `[performance]`. Set
 //! `MW2012_GAME_DIR` (the 2012 install) and `NFSMW_GAME_DIR` (the 2005 install) and run with `--ignored`.
 
 use std::path::{Path, PathBuf};
@@ -9,6 +9,7 @@ use blackbox_hash::bstring_hash;
 use game_install::GameDir;
 use nfsmw_2012_content::job::{self, Finished, Start};
 use nfsmw_data::car::customization::{Category, Inventory, Selection};
+use nfsmw_data::car::mods::custom;
 use nfsmw_data::car::mods::{self as car_mods, CarSpec, EngineLayer, EngineSound, Tuning};
 use nfsmw_data::car::physics::{PerformancePackage, PhysicsData};
 use nfsmw_data::car::{CarTables, LoadOptions, exhaust};
@@ -86,12 +87,39 @@ fn register(game: &GameDir, mod_dir: &Path) -> Tuning {
     let (cars, rejected) = car_mods::register(&tables.types, &[spec]);
     assert!(rejected.is_empty(), "{rejected:?}");
     car_mods::publish(cars);
+    custom::publish(CAR, customization_of(&text));
     tuning
+}
+
+/// The manifest's `[customization]` table as the game registers it (paints only: that is all the 2012 cars have).
+fn customization_of(text: &str) -> custom::Customization {
+    let manifest = blackbox_modding::content::parse_car(&CAR.to_ascii_lowercase(), text).unwrap();
+    let table = manifest.customization.expect("the manifest has a [customization] table");
+    let finish = |paint: &blackbox_modding::content::Paint| match paint.finish {
+        blackbox_modding::content::Finish::Gloss => custom::Finish::Gloss,
+        blackbox_modding::content::Finish::Metallic => custom::Finish::Metallic,
+        blackbox_modding::content::Finish::Chrome => custom::Finish::Chrome,
+    };
+    custom::Customization {
+        paints: table
+            .paints
+            .iter()
+            .map(|paint| custom::Paint { name: paint.name.clone(), color: paint.color, finish: finish(paint) })
+            .collect(),
+        default_paint: table.default_paint,
+        rim_paints: Vec::new(),
+        tints: Vec::new(),
+        rims: Vec::new(),
+        spoilers: Vec::new(),
+        roof_scoops: Vec::new(),
+        vinyls: Vec::new(),
+        vinyl_colors: Vec::new(),
+    }
 }
 
 #[test]
 #[ignore = "reads both game installs (MW2012_GAME_DIR, NFSMW_GAME_DIR)"]
-fn a_converted_car_takes_paint_vinyls_spoilers_flames_and_tuning() {
+fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
     let (Some(source), Some(root)) = (std::env::var_os("MW2012_GAME_DIR"), std::env::var_os("NFSMW_GAME_DIR")) else {
         return;
     };
@@ -102,41 +130,37 @@ fn a_converted_car_takes_paint_vinyls_spoilers_flames_and_tuning() {
 
     let tables = CarTables::load(&game).unwrap();
     let car_type = tables.car_type_for_folder(CAR).unwrap().clone();
-    let clone_folder = car_mods::clone_folder(CAR).unwrap();
-    println!("{CAR} clones {} (folder {clone_folder})", car_type.type_name);
 
-    // The mounts and pipes of the clone are on the body.
+    // The body has tail pipes of its own (the markers the nitrous flames come out of).
     let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
     let stock = nfsmw_data::car::load_customized(&game, CAR, &options, &Selection::default()).unwrap();
     let pipes = exhaust::pipe_frames(&stock.placements, &stock.solids);
     assert!(!pipes.is_empty(), "no tail pipe marker: the nitrous flames have nowhere to start");
 
-    // What the garage offers the car is what it offers the clone, vinyls included.
+    // The garage offers the car the paints of its own bundle, and none of the parts a stock car has.
     let inventory = Inventory::load(&game).unwrap();
     let own = inventory.catalog(&game, CAR).unwrap();
-    let clone = inventory.catalog(&game, clone_folder).unwrap();
     for category in Category::ALL {
-        println!(
-            "{:<24} car {:>3}  clone {:>3}",
-            category.label(),
-            own.choices[category as usize].len(),
-            clone.choices[category as usize].len()
+        println!("{:<24} {:>3}", category.label(), own.choices[category as usize].len());
+    }
+    let expected = custom::of(CAR).unwrap().paints.len() - 1;
+    assert_eq!(own.choices[Category::Paint as usize].len(), expected, "the default paint is the stock one");
+    for category in [Category::Spoiler, Category::Roof, Category::Vinyl, Category::Wheels, Category::Body] {
+        assert!(own.choices[category as usize].is_empty(), "{}: the 2012 game has none", category.label());
+    }
+
+    // A paint changes the colour of the body's paint texture.
+    let skin = bstring_hash(&format!("{CAR}_SKIN1"));
+    assert!(stock.textures.contains_key(&skin), "the body's paint placeholder is the car's own");
+    if let Some(paint) = own.choices[Category::Paint as usize].first() {
+        let mut selection = Selection::default();
+        selection.parts[Category::Paint as usize] = Some(paint.hash);
+        let painted = nfsmw_data::car::load_customized(&game, CAR, &options, &selection).unwrap();
+        assert_ne!(
+            stock.textures[&skin].data, painted.textures[&skin].data,
+            "the paint did not reach the body texture"
         );
     }
-    assert!(!own.choices[Category::Paint as usize].is_empty(), "no paint finish");
-    assert!(!own.choices[Category::Spoiler as usize].is_empty(), "no spoiler: the body has no SPOILER marker");
-    assert_eq!(own.choices[Category::Vinyl as usize].len(), clone.choices[Category::Vinyl as usize].len());
-
-    // A vinyl changes the paint texture the body is drawn with.
-    let skin = bstring_hash(&format!("{}_SKIN1", car_type.base_model_name.to_ascii_uppercase()));
-    let Some(vinyl) = own.choices[Category::Vinyl as usize].first() else {
-        println!("the clone has no vinyls, so none is checked");
-        return;
-    };
-    let mut selection = Selection::default();
-    selection.parts[Category::Vinyl as usize] = Some(vinyl.hash);
-    let painted = nfsmw_data::car::load_customized(&game, CAR, &options, &selection).unwrap();
-    assert_ne!(stock.textures[&skin].data, painted.textures[&skin].data, "the vinyl did not reach the body texture");
 
     // The tuning is on top of the clone's physics, and the car has nitrous.
     let physics = PhysicsData::load(&game).unwrap();

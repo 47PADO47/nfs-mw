@@ -9,11 +9,10 @@ use anyhow::{Context, Result, bail};
 use rayon::prelude::*;
 
 use crate::config::Config;
-use crate::donor::Donors;
 use crate::emit::{CarEntry, CarFiles, EngineFiles, ModFolder};
 use crate::fit::{StockCar, best_fit, measure, stock_cars};
 use crate::source::{CarFile, Source};
-use crate::{convert, engine, names};
+use crate::{convert, engine, names, paints};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
 const MAX_THREADS: usize = 6;
@@ -64,18 +63,17 @@ pub fn run(config: &Config, source_root: &Path, game_dir: &Path, out: &Path, thr
         .thread_name(|n| format!("nfsmw-2012-content-{n}"))
         .build()
         .context("starting the conversion threads")?;
-    let donors = Donors::new(&game);
-    pool.install(|| convert_all(config, &source, &stock, &donors, out))
+    pool.install(|| convert_all(config, &source, &stock, out))
 }
 
-fn convert_all(config: &Config, source: &Source, stock: &[StockCar], donors: &Donors, out: &Path) -> Result<Report> {
+fn convert_all(config: &Config, source: &Source, stock: &[StockCar], out: &Path) -> Result<Report> {
     let wanted: Vec<Named> = named(source).into_iter().filter(|car| config.wants(&car.id, &car.display)).collect();
     if wanted.is_empty() {
         bail!("no car of the 2012 install matches the settings");
     }
     let folder = ModFolder::create(out)?;
     let results: Vec<Result<ImportedCar>> =
-        wanted.par_iter().map(|car| import_car(source, car, config, stock, donors, &folder)).collect();
+        wanted.par_iter().map(|car| import_car(source, car, config, stock, &folder)).collect();
     let mut report = Report::default();
     for (car, result) in wanted.iter().zip(results) {
         match result {
@@ -106,7 +104,6 @@ fn import_car(
     named: &Named,
     config: &Config,
     stock: &[StockCar],
-    donors: &Donors,
     folder: &ModFolder,
 ) -> Result<ImportedCar> {
     let car = source.load(named.file)?;
@@ -114,9 +111,7 @@ fn import_car(
     let (clone, fit) = best_fit(layout, stock).context("no stock car to clone")?;
     log::debug!("{}: wheel layout {:?} fitted onto {} {:?}", named.id, fit.from, clone.type_name, fit.to);
     let options = convert::Options { max_texture_size: config.max_texture_size };
-    let base = clone.base_model_name.to_ascii_uppercase();
-    let donor = donors.of(clone);
-    let built = convert::build(&car, &fit, &donor, &base, &named.id, &options)?;
+    let built = convert::build(&car, &fit, &named.id, &options)?;
     let engine = engine_of(source, named, config, clone);
     let entry = CarEntry {
         id: named.id.clone(),
@@ -125,6 +120,7 @@ fn import_car(
         manufacturer: named.make.clone(),
         role: config.role,
         performance: config.tuning().for_car(&named.id, &named.display),
+        customization: paints::manifest_table(&paints::choices(&car.paints)),
     };
     folder
         .add_car(&entry, &CarFiles { geometry: &built.geometry, textures: &built.textures, engine: engine.as_ref() })?;

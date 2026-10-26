@@ -127,6 +127,8 @@ pub struct Catalog {
     pub paintable_wheels: std::collections::HashSet<u32>,
     pub decals: [DecalZoneCatalog; 6],
     pub number_choices: [Vec<Choice>; 2],
+    /// A mod car whose rim paint works on the wheels it ships with, with or without aftermarket rims.
+    pub custom_rim_paint: bool,
 }
 
 /// Shared geometry identities and tables are read once, then reused for each selected car.
@@ -150,7 +152,16 @@ impl Inventory {
     }
 
     pub fn catalog(&self, dir: &GameDir, folder: &str) -> Result<Catalog> {
-        let car = self.tables.car_type_for_folder(folder).context("car type unavailable")?;
+        if let Some(custom) = super::mods::custom::of(folder) {
+            // A mod car that carries its own customization is offered that, and nothing of a stock car's parts.
+            let mut catalog = super::mods::custom::catalog::catalog(dir, folder, custom)?;
+            catalog.gauge_skins =
+                (0..=10).filter(|skin| dir.exists(&format!("GLOBAL/HUDS_Custom_{skin:02}.bin"))).collect();
+            catalog.number_choices = super::decals::number_choices(&self.tables, &self.decal_textures);
+            names::read(&self.tables, &mut catalog);
+            return Ok(catalog);
+        }
+        let car =self.tables.car_type_for_folder(folder).context("car type unavailable")?;
         let solids: HashMap<_, _> = super::read_solids(dir, folder)?.into_iter().map(|s| (s.name_hash, s)).collect();
         let mut catalog = Catalog::from_geometry(&self.tables, car, &solids, &self.shared);
         let vinyls = super::vinyl::available(dir, folder, &self.tables, car)?;
@@ -298,7 +309,8 @@ impl Catalog {
         }
         if selection.rim_color.is_some() || selection.parts[Category::RimPaint as usize].is_some() {
             ensure!(
-                selection.parts[Category::Wheels as usize].is_some_and(|h| self.paintable_wheels.contains(&h)),
+                self.custom_rim_paint
+                    || selection.parts[Category::Wheels as usize].is_some_and(|h| self.paintable_wheels.contains(&h)),
                 "fit aftermarket rims before selecting rim paint"
             );
         }

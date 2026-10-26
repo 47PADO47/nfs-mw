@@ -114,6 +114,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [formats/chameleon-gfx.md](formats/chameleon-gfx.md) | Chameleon textures, vertex layouts, renderables, materials, shaders and models | Verified on 93 cars; Rust reader |
 | [formats/chameleon-vehicle.md](formats/chameleon-vehicle.md) | A 2012 car: graphics spec, wheel placement, names, surface kinds | Verified on 93 cars; Rust reader |
 | [formats/chameleon-sound.md](formats/chameleon-sound.md) | The 2012 game's `.SPS` streams (EA Audio Core, `EL31` Layer III frames) and the sample resources inside the car bundles | Streams verified on all 56 files; Rust reader `ea-audio::sps`; engine layer roles not read |
+| [formats/chameleon-customization.md](formats/chameleon-customization.md) | What the 2012 game offers per car for its looks: the `VehiclePaint` records (443 in 93 cars), liveries as vehicle entries, and what it does not have (vinyls, rims, spoilers, tint) | Paint records verified on all 93 cars; Rust reader `chameleon-vehicle::paints`; pack and list fields partly open |
 | [formats/maps.md](formats/maps.md) | The L2RA world: metadata chunks, streaming index, section families, scenery placement and rotation encoding | Verified; Rust readers |
 | [formats/world.md](formats/world.md) | World grid and road network, collision packs, bounds, triggers, emitters, sky, minimap | Partial (decomp only for several) |
 | [formats/minimap.md](formats/minimap.md) | The minimap: 8 x 8 map tiles, the per-track calibration, the HUD objects and textures | Verified; Rust reader |

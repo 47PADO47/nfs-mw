@@ -20,6 +20,8 @@ pub struct CarEntry {
     pub role: Role,
     /// How the car drives compared with its clone.
     pub performance: Performance,
+    /// The car's own paints: the `[customization]` table text, empty when the car has none (`paints::manifest_table`).
+    pub customization: String,
 }
 
 /// The files of one car.
@@ -101,6 +103,7 @@ fn car_manifest(car: &CarEntry, engine: Option<&str>) -> String {
         text.push_str(&format!("manufacturer = {}\n", quoted(&car.manufacturer)));
     }
     text.push_str(&car.performance.manifest_table());
+    text.push_str(&car.customization);
     text.push_str(engine.unwrap_or_default());
     text
 }
@@ -117,6 +120,7 @@ mod tests {
             manufacturer: "Porsche".into(),
             role: Role::Player,
             performance: Performance::default(),
+            customization: "\n[customization]\npaints = [{ name = \"Red\", color = [200, 0, 0] }]\n".into(),
         }
     }
 
@@ -127,6 +131,7 @@ mod tests {
         assert_eq!(parsed["clone"].as_str(), Some("BMWM3GTR"));
         assert_eq!(parsed["name"].as_str(), Some("Porsche 911 \"Carrera\" S 2012"));
         assert_eq!(parsed["role"].as_str(), Some("player"));
+        assert_eq!(parsed["customization"]["paints"].as_array().map(Vec::len), Some(1));
     }
 
     #[test]

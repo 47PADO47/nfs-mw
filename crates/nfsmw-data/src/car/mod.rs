@@ -158,6 +158,11 @@ fn load_with(
     if lod > 4 {
         bail!("LOD must be A to E, not {:?}", options.lod);
     }
+    // A mod car with its own customization takes its choices from that, not from a stock car's parts: the stock
+    // assembly sees no selection and the car's own customization is applied to the assembled model.
+    let custom = mods::custom::of(car);
+    let no_selection = customization::Selection::default();
+    let stock_selection = if custom.is_some() { &no_selection } else { customization };
     let own = read_solids(dir, car)?;
     let tables = if options.all_parts { None } else { Some(CarTables::load(dir)?) };
     let car_type = tables.as_ref().and_then(|t| t.car_type_for_folder(car));
@@ -173,7 +178,7 @@ fn load_with(
 
     let slots = match &options.preset {
         Some(name) => preset_parts(t, car_type, t.preset(name).with_context(|| format!("no preset named {name}"))?),
-        None => customization::resolve(t, car_type, customization)?,
+        None => customization::resolve(t, car_type, stock_selection)?,
     };
     let damage_slots = driver.then(|| damage_parts::slots(t, car_type, &slots)).flatten();
     let mut pool: HashMap<u32, Arc<Solid>> = own.into_iter().map(|s| (s.name_hash, Arc::new(s))).collect();
@@ -210,7 +215,7 @@ fn load_with(
         log::warn!("{car}: no ecar record for {}; wheels are not placed", car_type.base_model_name);
     }
     let (placements, corners) = assemble::assemble(t, &slots, &pool, setup.as_ref(), lod, driver);
-    customization::validate_placements(customization, &placements)?;
+    customization::validate_placements(stock_selection, &placements)?;
     let extra = match driver && lod == 0 {
         true => lods::assemble(t, &slots, &pool, setup.as_ref(), damage_slots.is_some()),
         false => Vec::new(),
@@ -283,11 +288,17 @@ fn load_with(
         corners,
         wheel_setup: setup,
     };
-    if customization.rim_color.is_some() || customization.parts[customization::Category::RimPaint as usize].is_some() {
-        rim_paint::apply(&mut model, t, &slots, customization.rim_color);
-    }
-    if customization.parts[customization::Category::Vinyl as usize].is_some() {
-        vinyl::apply(dir, car, t, car_type, &slots, customization, &mut model)?;
+    match custom {
+        Some(own_parts) => mods::custom::apply::apply(dir, car, own_parts, customization, lod, &mut model)?,
+        None => {
+            let rim_paint = customization.parts[customization::Category::RimPaint as usize].is_some();
+            if customization.rim_color.is_some() || rim_paint {
+                rim_paint::apply(&mut model, t, &slots, customization.rim_color);
+            }
+            if customization.parts[customization::Category::Vinyl as usize].is_some() {
+                vinyl::apply(dir, car, t, car_type, &slots, customization, &mut model)?;
+            }
+        }
     }
     decals::apply(dir, car, t, &slots, &mut model)?;
     Ok(model)

@@ -2,6 +2,7 @@
 
 use serde::Deserialize;
 
+use super::customization::{self, Customization};
 use super::engine_sound::{self, EngineSound};
 use super::performance::{self, Performance};
 use super::{ContentError, is_id};
@@ -46,6 +47,8 @@ pub struct CarManifest {
     pub performance: Performance,
     /// The car's own engine loops (`[engine_sound]`), `None` for a car with no loops of its own.
     pub engine_sound: Option<EngineSound>,
+    /// The car's own paints, rims and other parts (`[customization]`). `None`: the car offers none of its own.
+    pub customization: Option<Customization>,
 }
 
 /// The file as serde reads it. Unknown keys are an error, so a key the game does not support (an `[override]`
@@ -65,6 +68,8 @@ struct Raw {
     performance: Option<performance::Raw>,
     #[serde(default)]
     engine_sound: Option<engine_sound::Raw>,
+    #[serde(default)]
+    customization: Option<customization::Raw>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -102,6 +107,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     let manufacturer = checked_text(raw.manufacturer, ContentError::InvalidManufacturer)?;
     let performance = performance::check(raw.performance)?;
     let engine_sound = engine_sound::check(raw.engine_sound)?;
+    let customization = customization::check(raw.customization)?;
     Ok(CarManifest {
         id: stem.to_ascii_uppercase(),
         role,
@@ -110,6 +116,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
         manufacturer,
         performance,
         engine_sound,
+        customization,
     })
 }
 
