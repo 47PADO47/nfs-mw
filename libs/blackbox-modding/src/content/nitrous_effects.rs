@@ -12,11 +12,13 @@
 //! blend = "additive"            # or "alpha"; the default is additive
 //! grid = 0                      # 2 to 16 cells per side for a flipbook, 0 for the whole picture
 //! fps = 24                      # flipbook frames a second
-//! rate = 20.0                   # particles a second
-//! life = 0.3                    # seconds
+//! rate = 20.0                   # particles a second, plus rate_per_speed for each m/s the car goes
+//! life = 0.3                    # seconds at most; life_variance (0 to 1) is how much of it a particle may fall short of
 //! speed = 1.0                   # metres a second along the pipe's axis
 //! size = [0.1, 0.3, 0.3, 0.1]   # full width in metres at four equal steps of the life
 //! colors = [[255, 255, 255, 0], [255, 255, 255, 255], [255, 255, 255, 255], [255, 255, 255, 0]]
+//! keys = [0.0, 0.33, 0.66, 1.0]  # where the four sizes and colours sit along the life
+//! damping = 0.0                 # the share of its velocity a particle loses every 60th of a second (0.75: all but a quarter)
 //! ```
 
 use serde::Deserialize;
@@ -25,7 +27,7 @@ use super::ContentError;
 use super::engine_sound::is_png_path;
 
 /// The most effects a profile may have.
-pub const MAX_EFFECTS: usize = 8;
+pub const MAX_EFFECTS: usize = 16;
 
 /// When an effect plays.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,8 +52,10 @@ pub struct EffectProfile {
     pub grid: u8,
     pub fps: u8,
     pub random_start: bool,
-    /// Particles a second, and seconds of life with its variance.
+    /// Particles a second, plus `rate_per_speed` for each metre a second the car goes.
     pub rate: f32,
+    pub rate_per_speed: f32,
+    /// Seconds a particle lives at most, and the fraction of that it may fall short of: the life is `life * (1 - v)` to `life`.
     pub life: f32,
     pub life_variance: f32,
     /// Metres a second along the pipe's axis, with its variance, and the cone's full angle in degrees.
@@ -61,12 +65,20 @@ pub struct EffectProfile {
     /// Metres a second squared the particles rise (negative falls).
     pub lift: f32,
     pub drag: f32,
-    /// The share of the car's velocity a particle takes at birth, 0 to 1.
+    /// The share of its velocity a particle loses every 60th of a second, 0 to 1 (1 stops it at once).
+    pub damping: f32,
+    /// The share of the car's velocity a particle takes at birth, 0 to 1, and the fraction of it a particle may fall short of.
     pub inherit: f32,
+    pub inherit_variance: f32,
+    /// Degrees: the starting rotation is anywhere in this span (0 keeps the picture upright).
+    pub angle_range: f32,
+    /// Where the four values of `size` and `colors` sit along the particle's life, 0 to 1, rising.
+    pub keys: [f32; 4],
     /// Full width in metres at four equal steps of the life, and the colour there.
     pub size: [f32; 4],
     pub colors: [[u8; 4]; 4],
-    /// Seconds a `start` effect plays; unused by the others.
+    /// Seconds the effect spawns after its moment begins (the lighting of the nitrous, or the pop); 0 means for as long as
+    /// the moment lasts.
     pub duration: f32,
 }
 
@@ -80,6 +92,7 @@ pub(super) struct RawEffect {
     fps: Option<u8>,
     random_start: Option<bool>,
     rate: Option<f32>,
+    rate_per_speed: Option<f32>,
     life: Option<f32>,
     life_variance: Option<f32>,
     speed: Option<f32>,
@@ -87,7 +100,11 @@ pub(super) struct RawEffect {
     spread: Option<f32>,
     lift: Option<f32>,
     drag: Option<f32>,
+    damping: Option<f32>,
     inherit: Option<f32>,
+    inherit_variance: Option<f32>,
+    angle_range: Option<f32>,
+    keys: Option<[f32; 4]>,
     size: Option<[f32; 4]>,
     colors: Option<[[u8; 4]; 4]>,
     duration: Option<f32>,
@@ -104,7 +121,7 @@ fn within(value: Option<f32>, default: f32, low: f32, high: f32, field: &'static
 /// Check the effects of a profile.
 pub(super) fn check(raw: Vec<RawEffect>) -> Result<Vec<EffectProfile>, ContentError> {
     if raw.len() > MAX_EFFECTS {
-        return Err(ContentError::Field { field: "effect", reason: "a profile has at most 8 effects" });
+        return Err(ContentError::Field { field: "effect", reason: "a profile has at most 16 effects" });
     }
     raw.into_iter().map(effect).collect()
 }
@@ -135,6 +152,11 @@ fn effect(raw: RawEffect) -> Result<EffectProfile, ContentError> {
     if size.iter().any(|s| !s.is_finite() || !(0.0..=20.0).contains(s)) {
         return Err(ContentError::Field { field: "effect.size", reason: "four numbers from 0 to 20 metres" });
     }
+    let keys = raw.keys.unwrap_or([0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]);
+    let rising = keys.windows(2).all(|pair| pair[0] <= pair[1]);
+    if !rising || keys.iter().any(|k| !k.is_finite() || !(0.0..=1.0).contains(k)) {
+        return Err(ContentError::Field { field: "effect.keys", reason: "four rising numbers from 0 to 1" });
+    }
     Ok(EffectProfile {
         on,
         texture: raw.texture,
@@ -143,17 +165,22 @@ fn effect(raw: RawEffect) -> Result<EffectProfile, ContentError> {
         fps: raw.fps.unwrap_or(24),
         random_start: raw.random_start.unwrap_or(false),
         rate: within(raw.rate, 20.0, 0.0, 500.0, "effect.rate")?,
+        rate_per_speed: within(raw.rate_per_speed, 0.0, 0.0, 100.0, "effect.rate_per_speed")?,
         life: within(raw.life, 0.3, 0.01, 10.0, "effect.life")?,
-        life_variance: within(raw.life_variance, 0.0, 0.0, 10.0, "effect.life_variance")?,
+        life_variance: within(raw.life_variance, 0.0, 0.0, 1.0, "effect.life_variance")?,
         speed: within(raw.speed, 0.0, -50.0, 50.0, "effect.speed")?,
         speed_variance: within(raw.speed_variance, 0.0, 0.0, 50.0, "effect.speed_variance")?,
         spread: within(raw.spread, 0.0, 0.0, 180.0, "effect.spread")?,
         lift: within(raw.lift, 0.0, -50.0, 50.0, "effect.lift")?,
         drag: within(raw.drag, 0.0, 0.0, 50.0, "effect.drag")?,
+        damping: within(raw.damping, 0.0, 0.0, 1.0, "effect.damping")?,
         inherit: within(raw.inherit, 0.0, 0.0, 1.0, "effect.inherit")?,
+        inherit_variance: within(raw.inherit_variance, 0.0, 0.0, 1.0, "effect.inherit_variance")?,
+        angle_range: within(raw.angle_range, 0.0, 0.0, 360.0, "effect.angle_range")?,
+        keys,
         size,
         colors: raw.colors.unwrap_or([[255; 4]; 4]),
-        duration: within(raw.duration, 0.5, 0.0, 10.0, "effect.duration")?,
+        duration: within(raw.duration, 0.0, 0.0, 10.0, "effect.duration")?,
     })
 }
 
@@ -196,6 +223,7 @@ duration = 0.8
             (EffectOn::Start, false, 4, 24, 0.8)
         );
         assert_eq!(flame.size, [0.2; 4], "the size a profile leaves out");
+        assert_eq!(flame.keys, [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]);
     }
 
     #[test]
@@ -207,12 +235,16 @@ duration = 0.8
         assert!(matches!(bad("grid = 17"), Err(ContentError::Field { field: "effect.grid", .. })));
         assert!(matches!(bad("blend = \"x\""), Err(ContentError::Field { field: "effect.blend", .. })));
         assert!(matches!(bad("rate = 9999.0"), Err(ContentError::Field { field: "effect.rate", .. })));
+        assert!(matches!(bad("keys = [0.0, 0.5, 0.4, 1.0]"), Err(ContentError::Field { field: "effect.keys", .. })));
+        assert!(matches!(bad("damping = 1.5"), Err(ContentError::Field { field: "effect.damping", .. })));
+        assert!(bad("damping = 0.75").is_ok());
+        assert!(matches!(bad("life_variance = 2.0"), Err(ContentError::Field { field: "effect.life_variance", .. })));
         assert!(matches!(bad("size = [0.1, 0.1, 0.1, 99.0]"), Err(ContentError::Field { field: "effect.size", .. })));
         let wrong_on = "format = 1\n[[effect]]\non = \"sometimes\"\ntexture = \"A.PNG\"";
         assert!(matches!(parse_nitrous_profile(wrong_on), Err(ContentError::Field { field: "effect.on", .. })));
         let wrong_file = "format = 1\n[[effect]]\non = \"burn\"\ntexture = \"../A.PNG\"";
         assert!(matches!(parse_nitrous_profile(wrong_file), Err(ContentError::Field { field: "effect.texture", .. })));
-        let nine = "[[effect]]\non = \"burn\"\ntexture = \"A.PNG\"\n".repeat(9);
-        assert!(matches!(parse_nitrous_profile(&format!("format = 1\n{nine}")), Err(ContentError::Field { .. })));
+        let too_many = "[[effect]]\non = \"burn\"\ntexture = \"A.PNG\"\n".repeat(17);
+        assert!(matches!(parse_nitrous_profile(&format!("format = 1\n{too_many}")), Err(ContentError::Field { .. })));
     }
 }
