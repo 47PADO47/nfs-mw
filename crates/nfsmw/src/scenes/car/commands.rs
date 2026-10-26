@@ -7,7 +7,10 @@ use crate::viewer::camera::FlyCamera;
 
 pub(super) const LIST: &[(&str, &str)] = &[
     ("car <folder>", "show another car (garage lists the folders)"),
-    ("garage", "list the cars of the install by category (racing, police, mod player, mod police); use car <folder> to show one"),
+    (
+        "garage",
+        "list the cars of the install by category (racing, police, mod player, mod police); use car <folder> to show one",
+    ),
     ("paint <part-name> [RRGGBB]", "preview an installed paint at the current orbit angle"),
     ("freecam", "switch between the orbit and the free camera"),
 ];

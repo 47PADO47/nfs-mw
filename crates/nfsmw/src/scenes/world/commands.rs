@@ -21,7 +21,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("reset", "put the car back on the nearest road, facing the same way"),
     ("tp <x> <y>", "put the car on the road nearest to the map position"),
     ("goto <x> <y> [height]", "fly the free camera to a map position"),
-    ("garage", "list the cars of the install by category (racing, police, mod player, mod police with their heat waves); use drive <car> to get into one"),
+    (
+        "garage",
+        "list the cars of the install by category (racing, police, mod player, mod police with their heat waves); use drive <car> to get into one",
+    ),
     ("parts preset <name>", "load a saved F6 car setup through the normal garage validation"),
     (
         "parts [stock|<body|spoiler|hood|roof|rims> <stock|index> ...]",
