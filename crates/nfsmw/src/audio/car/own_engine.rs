@@ -1,6 +1,6 @@
-//! A mod car's engine: loops that play all the time and are mixed by engine speed (docs/modding/car-customization.md,
-//! "Engine sound"). They are the car's own recordings (`[engine_sound]`), or, for a car that gives none, loops the game
-//! synthesises (`blackbox_carsound::synth`). A mod car has no Ginsu voice: this is its whole engine.
+//! A mod car's engine: loops that play all the time and are mixed by engine speed (docs/modding/car-sound.md,
+//! "Engine: `[engine_sound]`"). They are the car's own recordings (`[engine_sound]`), or, for a car that gives none,
+//! loops the game synthesises (`blackbox_carsound::synth`). A mod car has no Ginsu voice: this is its whole engine.
 //!
 //! A layer is loudest when the engine turns at its own rpm and fades out, equal power, into its neighbour's; each is
 //! played at the engine's rpm over its own, so the pitch follows the engine, within a range that keeps a layer from

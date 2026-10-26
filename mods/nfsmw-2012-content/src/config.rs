@@ -44,7 +44,7 @@ max_texture_size = 1024
 role = \"player\"
 
 # Give each 2012 car its own recordings: the engine loops of its bundle, and its gear shifts, turbo whistle and
-# blow-off, backfires and pops (an approximation: see docs/modding/car-customization.md). They are written into the
+# blow-off, backfires and pops (an approximation: see docs/modding/car-sound.md). They are written into the
 # mod's folder. false gives the cars no recordings: they play the game's built-in engine and have no other car sounds.
 own_engine_sound = true
 

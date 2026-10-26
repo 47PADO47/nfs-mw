@@ -1,4 +1,4 @@
-//! A mod car's own engine sound (the `[engine_sound]` table of the car manifest, docs/modding/car-customization.md):
+//! A mod car's own engine sound (the `[engine_sound]` table of the car manifest, docs/modding/car-sound.md):
 //! looping recordings the audio mixes by engine speed. A car without them plays the game's built-in engine.
 
 /// One looping recording and the engine speed it was made at.
@@ -26,7 +26,7 @@ impl EngineSound {
 }
 
 /// A mod car's own recordings of the sounds besides its engine (the `[car_sound]` table of the car manifest,
-/// docs/modding/car-customization.md). A list left empty is silence for that effect: the car plays no other car's sound.
+/// docs/modding/car-sound.md). A list left empty is silence for that effect: the car plays no other car's sound.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CarEffects {
     /// WAV files played at a gear change that `shift_up` or `shift_down` does not cover.

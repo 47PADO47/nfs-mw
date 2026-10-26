@@ -83,7 +83,7 @@ mod tests {
     #[test]
     fn the_table_is_valid_and_the_game_accepts_it() {
         let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 1), paint([0.0, 0.0, 1.0], 0)]));
-        let text = format!("clone = \"BMWM3GTR\"\n{table}");
+        let text = format!("name = \"Test car\"\n{table}");
         let manifest = blackbox_modding::content::parse_car("testcar", &text).unwrap();
         let own = manifest.customization.unwrap();
         assert_eq!(own.paints.len(), 2);

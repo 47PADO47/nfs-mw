@@ -1,8 +1,8 @@
 //! `nfsmw-2012-content`: adds the cars of NFS Most Wanted (2012) to the game.
 //!
 //! The 2012 game runs on the Chameleon engine, not on the 2005 Black Box engine, so its car models and textures are
-//! converted: `chameleon-vehicle` reads a car out of its bundles, this mod fits it to the wheel layout of a stock 2005
-//! car and writes it as that car's `GEOMETRY.BIN` and `TEXTURES.BIN`, with a `cars/<id>.toml`, in its own folder. The
+//! converted: `chameleon-vehicle` reads a car out of its bundles, this mod centres it on its own wheelbase and writes it
+//! as the car's own `GEOMETRY.BIN`, `TEXTURES.BIN` and `BOUNDS.BIN`, with a `cars/<id>.toml`, in its own folder. The
 //! game loads those like the cars of any content mod (`docs/modding/api-content.md`). Nothing from either game is in
 //! the repository: the cars are made on the user's machine from the user's own installs, and without a 2012 install
 //! named in `config.toml` ([`config::Config::source`]) the mod adds nothing.

@@ -54,7 +54,7 @@ pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
         if let Some(own) = car_mods::display_name(&folder) {
             name = own.to_owned();
         }
-        // The brand a mod gives is shown as it is written; without one the clone's brand stays.
+        // The brand a mod gives is shown as it is written; without one the car shows no brand.
         if let Some(brand) = car_mods::manufacturer(&folder) {
             manufacturer = brand.to_owned();
         }

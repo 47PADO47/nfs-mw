@@ -1,5 +1,5 @@
 //! A mod car's own effects: gear shifts, turbo whistle and blow-off, backfires and pops, played from the car's own
-//! recordings (`[car_sound]`, docs/modding/car-customization.md, "Other sounds"). A car plays nothing that it does not
+//! recordings (`[car_sound]`, docs/modding/car-sound.md, "Other sounds"). A car plays nothing that it does not
 //! have: a missing list is silence for that effect, never another car's sound.
 //!
 //! The shifts take the place of the shared gear clunk when the car has them; the rest are the car's alone, since the

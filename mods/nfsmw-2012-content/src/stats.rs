@@ -1,5 +1,5 @@
 //! A 2012 car's own stats, as the `[stats]` table of its car manifest (docs/formats/chameleon-vehicle-stats.md,
-//! docs/modding/car-customization.md).
+//! docs/modding/car-stats.md).
 //!
 //! Every number comes from the car's own bundle: the mass of its rigid bodies, the places of its axles and wheels, the
 //! torque curve of its engine, its gearbox, tyre grip, brake torque, top speed and nitrous strength. What the 2012 data
