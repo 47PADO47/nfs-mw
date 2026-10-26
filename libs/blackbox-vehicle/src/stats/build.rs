@@ -49,7 +49,21 @@ const SIDEWALL_OF_WIDTH: f32 = 0.45;
 const MIN_RIM: f32 = 0.25;
 /// Damper extension over compression and anti-roll bar over spring rate, as in [`VehicleSpec::example`].
 const EXTENSION_OVER_COMPRESSION: f32 = 1.33;
-const SWAYBAR_OVER_SPRING: f32 = 0.15;
+const SWAYBAR_OVER_SPRING: f32 = 0.5;
+/// Spring progression, damper valving speed, valving digression and blow-off of the stock racing cars (400 to 475 lb/in
+/// springs: 5 to 7.5, 17 to 24, 0.2 to 0.35, 5 to 6), and the height of their centre of gravity over the box height.
+const SPRING_PROGRESSION: f32 = 6.0;
+const SHOCK_VALVING: f32 = 20.0;
+const SHOCK_DIGRESSION: f32 = 0.3;
+const SHOCK_BLOWOUT: f32 = 5.0;
+const CG_OF_BOX_HEIGHT: f32 = 0.2;
+const MIN_CG: f32 = 0.18;
+const MAX_CG: f32 = 0.32;
+/// The tyre model's yaw assist against speed and its rate, as the stock M3 has them: weak at low speed, full at speed.
+const YAW_CONTROL: [f32; 4] = [0.1, 0.4, 0.6, 1.0];
+const YAW_SPEED: f32 = 0.3;
+/// The least rear grip over the front grip.
+const REAR_OVER_FRONT_GRIP: f32 = 1.1;
 /// The share of the drag and torque limit a solved drag keeps under the rev limiter (see [`solve_drag`]).
 const LIMITER_MARGIN: f32 = 0.985;
 
@@ -59,7 +73,7 @@ pub(super) fn spec(stats: &CarStats, dimension: Vec3) -> VehicleSpec {
         dimension,
         tensor_scale: Vec3::ONE,
         body: RigidBodySpec::default(),
-        chassis: chassis(stats),
+        chassis: chassis(stats, dimension),
         tires: tires(stats),
         brakes: brakes(stats),
         engine: engine(stats),
@@ -79,7 +93,7 @@ pub(super) fn spec(stats: &CarStats, dimension: Vec3) -> VehicleSpec {
     spec
 }
 
-fn chassis(stats: &CarStats) -> ChassisSpec {
+fn chassis(stats: &CarStats, dimension: Vec3) -> ChassisSpec {
     let front_share = stats.front_weight_pct * 0.01;
     // Mass on one wheel of each axle.
     let corner = [stats.mass_kg * front_share * 0.5, stats.mass_kg * (1.0 - front_share) * 0.5];
@@ -96,12 +110,12 @@ fn chassis(stats: &CarStats) -> ChassisSpec {
     let travel = stats.travel_m / inch_to_m(1.0);
     ChassisSpec {
         spring_stiffness: spring,
-        spring_progression: [2.0; 2],
+        spring_progression: [SPRING_PROGRESSION; 2],
         shock_stiffness: damper,
         shock_ext_stiffness: damper.map(|rate| rate * EXTENSION_OVER_COMPRESSION),
-        shock_valving: [0.0; 2],
-        shock_digression: [0.0; 2],
-        shock_blowout: 0.0,
+        shock_valving: [SHOCK_VALVING; 2],
+        shock_digression: [SHOCK_DIGRESSION; 2],
+        shock_blowout: SHOCK_BLOWOUT,
         swaybar_stiffness: spring.map(|rate| rate * SWAYBAR_OVER_SPRING),
         travel: [travel; 2],
         ride_height: [stats.ride_height_m / inch_to_m(1.0); 2],
@@ -111,8 +125,31 @@ fn chassis(stats: &CarStats) -> ChassisSpec {
         // The axles are centred on the body box.
         front_axle: stats.wheelbase_m * 0.5,
         front_weight_bias: stats.front_weight_pct,
-        roll_center: stats.cg_height_m / inch_to_m(1.0),
+        roll_center: roll_center(dimension) / inch_to_m(1.0),
     }
+}
+
+/// How far a spring sags under its share of the weight, over the closed form `m g / k`: the progression stiffens it as it
+/// compresses.
+const SAG_FACTOR: f32 = 0.9;
+
+/// See [`VehicleSpec::rest_at`].
+pub(super) fn rest_at(spec: &mut VehicleSpec, clearance: f32) {
+    let front_share = spec.chassis.front_weight_bias * 0.01;
+    let shares = [front_share, 1.0 - front_share];
+    for axle in 0..2 {
+        let corner = spec.mass * shares[axle] * 0.5;
+        let stiffness = (spec.chassis.spring_stiffness[axle] * LB_IN_TO_N_M).max(1.0);
+        let sag = SAG_FACTOR * corner * 9.81 / stiffness;
+        spec.chassis.ride_height[axle] = (clearance + sag) / inch_to_m(1.0);
+    }
+}
+
+/// Height of the roll centre, which is also the height of the centre of gravity, above the road. The engine's handling is
+/// tuned for the low centres of gravity of its cars (0.18 to 0.22 of the height of the body box in the stock cars), not
+/// for the real ones (0.35 to 0.5 m), which a car of this engine rolls over and slides on. The box is the car's own.
+fn roll_center(dimension: Vec3) -> f32 {
+    (CG_OF_BOX_HEIGHT * 2.0 * dimension.y).clamp(MIN_CG, MAX_CG)
 }
 
 /// Rim, section width and aspect ratio of the tyre of an axle, whose outer radius and width are in the stats. The rim
@@ -128,7 +165,11 @@ fn tire_size(radius: f32, width: f32) -> (f32, f32, f32) {
 
 fn tires(stats: &CarStats) -> TireSpec {
     let size: [_; 2] = std::array::from_fn(|axle| tire_size(stats.tire_radius_m[axle], stats.tire_width_m[axle]));
-    let level = stats.tire_grip.map(|grip| grip / REFERENCE_GRIP);
+    let mut level = stats.tire_grip.map(|grip| grip / REFERENCE_GRIP);
+    // The engine's stability assists and its tyre model are tuned for cars whose rear tyres hold at least as well as the
+    // front ones (all the stock cars: rear static grip is 1.0 to 1.1 of the front's). A rear that holds less, as on a
+    // rear-engined car, spins at once at the speed and steering angle a stock car corners at.
+    level[1] = level[1].max(level[0] * REAR_OVER_FRONT_GRIP);
     TireSpec {
         rim_size: size.map(|(rim, ..)| rim),
         section_width: size.map(|(_, width, _)| width),
@@ -137,8 +178,8 @@ fn tires(stats: &CarStats) -> TireSpec {
         static_grip: level.map(|level| level * REFERENCE_STATIC),
         dynamic_grip: level.map(|level| level * REFERENCE_DYNAMIC),
         steering: stats.steering_scale,
-        yaw_control: vec![1.0, 0.8, 0.6],
-        yaw_speed: 1.0,
+        yaw_control: YAW_CONTROL.to_vec(),
+        yaw_speed: YAW_SPEED,
     }
 }
 

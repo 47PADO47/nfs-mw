@@ -122,7 +122,7 @@ impl Default for CarStats {
             steering_scale: 1.0,
             ride_frequency_hz: [3.0, 3.1],
             damping_ratio: 0.7,
-            travel_m: 0.1,
+            travel_m: 0.18,
             induction_boost: 0.0,
             nitrous: false,
             nitrous_boost: 0.5,
@@ -155,6 +155,13 @@ impl VehicleSpec {
     /// which the caller measures from the car's own geometry.
     pub fn from_stats(stats: &CarStats, dimension: glam::Vec3) -> Self {
         build::spec(stats, dimension)
+    }
+
+    /// Set the ride height so that the car rests with the bottom of its body box `clearance` metres above the road, where
+    /// the model puts it: the springs sag under the car's weight, so the wheels must reach that much further down than
+    /// the clearance. Call it after [`Self::from_stats`] and after any upgrade, which changes the springs.
+    pub fn rest_at(&mut self, clearance: f32) {
+        build::rest_at(self, clearance);
     }
 }
 

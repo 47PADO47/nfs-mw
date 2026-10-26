@@ -93,11 +93,64 @@ fn the_brakes_convert_back_to_the_stats_newton_metres() {
 
 #[test]
 fn grip_is_scaled_from_the_reference_tyre() {
-    let spec = VehicleSpec::from_stats(&CarStats { tire_grip: [1.65, 0.825], ..CarStats::default() }, BOX);
+    let spec = VehicleSpec::from_stats(&CarStats { tire_grip: [1.65, 1.65 * 1.5], ..CarStats::default() }, BOX);
     assert!((spec.tires.static_grip[0] - 2.075).abs() < 1e-4);
     assert!((spec.tires.dynamic_grip[0] - 1.85).abs() < 1e-4);
-    assert!((spec.tires.static_grip[1] - 1.0375).abs() < 1e-4);
+    assert!((spec.tires.static_grip[1] - 2.075 * 1.5).abs() < 1e-4);
     assert!((spec.tires.grip_scale[0] - 1.0).abs() < 1e-5);
+}
+
+#[test]
+fn a_rear_that_holds_less_than_the_front_is_raised_to_just_above_it() {
+    let spec = VehicleSpec::from_stats(&CarStats { tire_grip: [1.5, 1.2], ..CarStats::default() }, BOX);
+    assert!((spec.tires.grip_scale[1] / spec.tires.grip_scale[0] - 1.1).abs() < 1e-4);
+    assert!(spec.tires.static_grip[1] > spec.tires.static_grip[0]);
+}
+
+#[test]
+fn the_car_rests_with_the_bottom_of_its_box_where_it_is_asked() {
+    use crate::FIXED_STEP;
+    use crate::ground::FlatGround;
+    use crate::input::InputState;
+    use crate::vehicle::Vehicle;
+    for clearance in [0.1_f32, 0.17] {
+        let mut spec = VehicleSpec::from_stats(&sports_car(), BOX);
+        spec.rest_at(clearance);
+        let ground = FlatGround::new(0.0);
+        let mut car = Vehicle::new(spec);
+        car.place_on_ground(&ground, 0.0, 0.0, 5.0, 0.0);
+        for _ in 0..(3.0 / FIXED_STEP) as usize {
+            car.step(FIXED_STEP, &InputState::default(), &ground);
+        }
+        let bottom = car.position().y - BOX.y;
+        assert!((bottom - clearance).abs() < 0.01, "{bottom} against {clearance}");
+    }
+}
+
+#[test]
+fn the_car_holds_a_corner_instead_of_spinning() {
+    use crate::FIXED_STEP;
+    use crate::ground::FlatGround;
+    use crate::input::InputState;
+    use crate::vehicle::Vehicle;
+    let mut spec = VehicleSpec::from_stats(&sports_car(), BOX);
+    spec.rest_at(0.15);
+    let ground = FlatGround::new(0.0);
+    let mut car = Vehicle::new(spec);
+    car.place_on_ground(&ground, 0.0, 0.0, 5.0, 0.0);
+    let mut worst = 0.0_f32;
+    for step in 0..(14.0 / FIXED_STEP) as usize {
+        let time = step as f32 * FIXED_STEP;
+        let throttle = if car.forward_speed() < 22.0 { 1.0 } else { 0.15 };
+        let steer = if time > 7.0 { 0.35 } else { 0.0 };
+        car.step(FIXED_STEP, &InputState { throttle, steer, ..InputState::default() }, &ground);
+        if time > 8.5 {
+            let velocity = car.linear_velocity().normalize_or_zero();
+            let slip = velocity.dot(car.rotation() * glam::Vec3::Z).clamp(-1.0, 1.0).acos().to_degrees();
+            worst = worst.max(slip);
+        }
+    }
+    assert!(worst < 15.0, "the car slid {worst} degrees on a steady corner");
 }
 
 #[test]

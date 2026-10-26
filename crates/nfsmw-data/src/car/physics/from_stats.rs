@@ -22,6 +22,9 @@ impl CarPhysics {
     /// fills `geometry`, `events`, `reactions` and `effect_source` from the car's own bounds.
     pub fn from_stats(stats: &CarStats, bounds: CarBounds) -> Self {
         let mut spec = VehicleSpec::from_stats(stats, bounds.half_dimensions);
+        // The model is authored with the road at y = 0, and its collision box starts at the underside of the body: the
+        // car must rest with the box there, not higher (it would float) or lower.
+        spec.rest_at((bounds.pivot.y - bounds.half_dimensions.y).max(0.0));
         spec.aero.airborne_scale = AIRBORNE_DOWNFORCE;
         Self {
             effect_source: 0,

@@ -99,7 +99,8 @@ fn tyre_corners(wheel: &Wheel) -> Vec<[f32; 3]> {
     let mirror = if wheel.position[0] < 0.0 { -1.0 } else { 1.0 };
     let mut corners = Vec::with_capacity(8);
     for x in [min[0], max[0]] {
-        for y in [min[1], max[1]] {
+        // The lower face is at the hub: the box is the body's, and starts at its underside, not at the road.
+        for y in [min[1].max(0.0), max[1]] {
             for z in [min[2], max[2]] {
                 corners.push([wheel.position[0] + mirror * x, wheel.position[1] + y, wheel.position[2] + z]);
             }

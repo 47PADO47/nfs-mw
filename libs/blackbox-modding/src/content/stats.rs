@@ -123,7 +123,7 @@ impl Default for Stats {
             steering_scale: 1.0,
             ride_frequency_hz: [3.0, 3.1],
             damping_ratio: 0.7,
-            travel_m: 0.1,
+            travel_m: 0.18,
             induction_boost: 0.0,
             nitrous: false,
             nitrous_boost: 0.5,
