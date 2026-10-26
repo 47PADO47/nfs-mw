@@ -15,6 +15,7 @@ use crate::pursuit::{CopRecord, HEAT_LEVELS, HeatRow};
 
 pub mod custom;
 mod engine;
+pub(super) mod parts;
 pub use blackbox_vehicle::stats::{CarStats, Drive};
 pub use engine::{CarEffects, EngineLayer, EngineSound};
 

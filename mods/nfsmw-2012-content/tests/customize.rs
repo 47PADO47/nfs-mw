@@ -13,7 +13,7 @@ use nfsmw_data::car::customization::{Category, Inventory, Selection};
 use nfsmw_data::car::mods::custom;
 use nfsmw_data::car::mods::{self as car_mods, CarSpec, CarStats, EngineLayer, EngineSound};
 use nfsmw_data::car::physics::{CarBounds, PerformancePackage, PhysicsData, physics_from_stats};
-use nfsmw_data::car::{CarTables, LoadOptions, exhaust};
+use nfsmw_data::car::{CarTables, LoadOptions, exhaust, slot};
 
 const CAR: &str = "POR911CARR12";
 
@@ -133,6 +133,20 @@ fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
     let stock = nfsmw_data::car::load_customized(&game, CAR, &options, &Selection::default()).unwrap();
     let pipes = exhaust::pipe_frames(&stock.placements, &stock.solids);
     assert!(!pipes.is_empty(), "no tail pipe marker: the nitrous flames have nowhere to start");
+
+    // The car is assembled from its own solids: a body, and its one wheel solid at all four corners.
+    let own = |slot: usize| stock.placements.iter().filter(move |p| p.slot == slot).count();
+    assert_eq!((own(slot::BODY), own(slot::FRONT_WHEEL), own(slot::REAR_WHEEL)), (1, 2, 2), "{:?}", stock.placements);
+    assert_eq!(stock.placements.len(), 5, "nothing is borrowed from a stock car's parts");
+    assert!(stock.corners.is_some() && stock.wheel_setup.is_some());
+    let wheel = stock.placements.iter().find(|p| p.slot == slot::FRONT_WHEEL).unwrap().solid;
+    assert_eq!(wheel, bstring_hash(&format!("{CAR}_KIT00_FRONT_TIRE_A")));
+    // The same car is there at the coarser levels the game draws at a distance, and for driving.
+    let driving = nfsmw_data::car::load_driving(&game, CAR, &options).unwrap();
+    let levels: Vec<usize> = driving.driving_lods.levels.iter().map(|l| l.level).collect();
+    assert_eq!(levels, [1, 2, 3], "levels B to D");
+    assert!(driving.driving_lods.levels.iter().all(|l| l.placements.len() == 5));
+    println!("type names: {}", tables.parts.type_names().len());
 
     // The garage offers the car the paints of its own bundle, and none of the parts a stock car has.
     let inventory = Inventory::load(&game).unwrap();

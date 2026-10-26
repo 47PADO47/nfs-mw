@@ -2,7 +2,7 @@
 //! that car assembly reads, loaded once.
 
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use anyhow::{Context, Result};
 use blackbox_attrib::Database;
@@ -80,6 +80,47 @@ impl StockTables {
     }
 }
 
+/// The stock tables with the parts of the mod cars added (see [`CarTables::load`]), for the stock tables and the number
+/// of published mod cars they were built for.
+struct Extended {
+    stock: Arc<StockTables>,
+    cars: usize,
+    tables: Arc<StockTables>,
+}
+
+static EXTENDED: Mutex<Option<Extended>> = Mutex::new(None);
+
+impl StockTables {
+    /// These tables with the parts of the mod cars `cars` added to the parts database.
+    fn with_mod_parts(&self, cars: &[blackbox_carparts::CarTypeInfo]) -> Self {
+        let mut parts = self.parts.clone();
+        super::mods::parts::extend(&mut parts, cars);
+        Self {
+            stock_types: self.stock_types.clone(),
+            parts,
+            slot_types: self.slot_types.clone(),
+            presets: self.presets.clone(),
+            light_materials: self.light_materials.clone(),
+            attributes: Arc::clone(&self.attributes),
+        }
+    }
+}
+
+/// The tables of `stock` for the mod cars `cars`: `stock` itself when there are none, else the extended tables, built
+/// once for this `stock` and this many cars and kept until a car is published or the stock tables are read again.
+fn tables_for(stock: Arc<StockTables>, cars: &[blackbox_carparts::CarTypeInfo]) -> Arc<StockTables> {
+    if cars.is_empty() {
+        return stock;
+    }
+    let mut cached = EXTENDED.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(known) = cached.as_ref().filter(|known| Arc::ptr_eq(&known.stock, &stock) && known.cars == cars.len()) {
+        return Arc::clone(&known.tables);
+    }
+    let tables = Arc::new(stock.with_mod_parts(cars));
+    *cached = Some(Extended { stock, cars: cars.len(), tables: Arc::clone(&tables) });
+    tables
+}
+
 /// The car tables of one install: the stock tables (reached through [`Deref`]) and the car types, mod cars included.
 pub struct CarTables {
     /// The stock car types first, so a stock folder always finds its own type; the mod cars follow (car/mods.rs).
@@ -98,12 +139,14 @@ impl Deref for CarTables {
 impl CarTables {
     /// The car tables of `dir`. The stock tables are read once per session, keyed on the two files they come from.
     /// The car types are assembled on every call: the mod cars are sealed once at start-up, and a load made before
-    /// that must not fix the list for the rest of the session.
+    /// that must not fix the list for the rest of the session. With mod cars published, the parts database also holds
+    /// their parts (`mods/parts.rs`); those tables are built when the first load sees a new set of cars and shared after.
     pub fn load(dir: &GameDir) -> Result<Self> {
         let stock = memo(dir, &[shared::GLOBALB_FILE, shared::ATTRIBUTES_FILE], || StockTables::read(dir))?;
+        let mod_types = super::mods::car_types();
         let mut types = stock.stock_types.clone();
-        types.extend(super::mods::car_types());
-        Ok(Self { types, stock })
+        types.extend(mod_types.iter().cloned());
+        Ok(Self { types, stock: tables_for(stock, &mod_types) })
     }
 
     /// The car type whose geometry lives in `CARS/<folder>/`, or whose type name is `folder`.
@@ -125,7 +168,74 @@ impl CarTables {
 
 #[cfg(test)]
 mod tests {
+    use blackbox_carparts::CarTypeInfo;
+    use blackbox_hash::bstring_hash;
+
     use super::*;
+
+    fn empty_stock() -> Arc<StockTables> {
+        Arc::new(StockTables {
+            stock_types: Vec::new(),
+            parts: PartsDb::default(),
+            slot_types: SlotTypes::default(),
+            presets: Vec::new(),
+            light_materials: Vec::new(),
+            attributes: Arc::new(Database::default()),
+        })
+    }
+
+    fn mod_car(folder: &str) -> CarTypeInfo {
+        CarTypeInfo {
+            type_name: folder.to_owned(),
+            base_model_name: folder.to_owned(),
+            geometry_filename: format!(r"CARS\{folder}\GEOMETRY.BIN"),
+            manufacturer: String::new(),
+            type_name_hash: bstring_hash(folder),
+            index: 0,
+            usage_type: 0,
+            default_skin_number: 1,
+            skinnable: true,
+            default_base_paint: 0,
+        }
+    }
+
+    #[test]
+    fn a_mod_car_finds_its_own_body_and_wheel_in_the_extended_tables() {
+        let stock = empty_stock();
+        let cars = [mod_car("MODCAR"), mod_car("OTHERCAR")];
+        let tables = CarTables { types: cars.to_vec(), stock: tables_for(Arc::clone(&stock), &cars) };
+        let slots = super::super::stock_parts(&tables, &cars[0]);
+        let body = slots[slot::BODY].expect("the car's own body part");
+        let wheel = slots[slot::FRONT_WHEEL].expect("the car's own wheel part");
+        assert_eq!(tables.parts.model_hash(&body, 0), Some(bstring_hash("MODCAR_KIT00_BODY_A")));
+        assert_eq!(tables.parts.model_hash(&body, 3), Some(bstring_hash("MODCAR_KIT00_BODY_D")));
+        assert_eq!(tables.parts.model_hash(&body, 4), None, "the car has no level E");
+        assert_eq!(tables.parts.model_hash(&wheel, 1), Some(bstring_hash("MODCAR_KIT00_FRONT_TIRE_B")));
+        // Nothing else is filled, and the other car's parts are its own.
+        let filled: Vec<usize> = (0..slots.len()).filter(|&s| slots[s].is_some()).collect();
+        assert_eq!(filled, [slot::BODY, slot::FRONT_WHEEL]);
+        let other = super::super::stock_parts(&tables, &cars[1]);
+        assert_eq!(
+            tables.parts.model_hash(&other[slot::BODY].unwrap(), 0),
+            Some(bstring_hash("OTHERCAR_KIT00_BODY_A"))
+        );
+        assert!(stock.parts.parts().is_empty(), "the shared stock tables are not changed");
+    }
+
+    #[test]
+    fn the_extended_tables_are_built_once_per_set_of_cars() {
+        let stock = empty_stock();
+        assert!(Arc::ptr_eq(&tables_for(Arc::clone(&stock), &[]), &stock), "no mod cars: the stock tables themselves");
+        let one = [mod_car("ONECAR")];
+        let first = tables_for(Arc::clone(&stock), &one);
+        let again = tables_for(Arc::clone(&stock), &one);
+        assert!(Arc::ptr_eq(&first, &again));
+        let two = [mod_car("ONECAR"), mod_car("TWOCAR")];
+        let grown = tables_for(Arc::clone(&stock), &two);
+        assert!(!Arc::ptr_eq(&first, &grown));
+        assert_eq!(grown.parts.parts().len(), 4);
+        assert_eq!(first.parts.parts().len(), 2);
+    }
 
     #[test]
     fn slot_numbers_match_the_layout() {
