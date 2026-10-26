@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use game_install::GameDir;
-use nfsmw_data::car::mods::{self as car_mods, EngineSound};
+use nfsmw_data::car::mods::{self as car_mods, CurveInput, EngineLayer, EngineSound, LayerCurve, LayerPitch};
 
 use super::*;
 use crate::modding::content::{ModDir, rescan_in};
@@ -105,4 +105,63 @@ fn the_built_in_engine_is_audible_and_rises_with_the_rpm_in_the_real_mixer() {
         pitches.push(pitch(&samples));
     }
     assert!(pitches.windows(2).all(|pair| pair[1] > pair[0] * 1.1), "the pitch follows the rpm: {pitches:?}");
+}
+
+/// The sound of `engine` for `inputs`, one second after they are set, as the left channel.
+fn render_inputs(audio: &mut Audio, engine: &mut OwnEngine, inputs: &EngineInputs) -> Vec<f32> {
+    engine.update_inputs(inputs, 1.0);
+    audio.render_replay(24_000);
+    left(audio.render_replay(RATE as usize))
+}
+
+fn curve(input: CurveInput, points: &[(f32, f32)]) -> LayerCurve {
+    LayerCurve { input, points: points.to_vec() }
+}
+
+/// An engine of three loops that play by curves like the decoded ones of a 2012 car: an idle loop that is gone 10 percent
+/// above idle, a loop that needs revs and throttle, and a whine that follows the car's speed.
+fn curved_engine() -> EngineSound {
+    let layer = |file: &str, gain: Vec<LayerCurve>| EngineLayer { gain, ..EngineLayer::classic(file, 0.0) };
+    let mut whine =
+        layer("whine", vec![curve(CurveInput::SpeedMph, &[(20.0, 0.0), (40.0, 1.0), (90.0, 1.0), (110.0, 0.0)])]);
+    whine.pitch = Some(LayerPitch { input: CurveInput::SpeedMph, reference: 40.0 });
+    EngineSound {
+        idle_rpm: 900.0,
+        redline_rpm: 7000.0,
+        layers: vec![
+            layer("idle", vec![curve(CurveInput::Rpm, &[(0.0, 1.0), (0.1, 0.0)])]),
+            layer(
+                "revs",
+                vec![
+                    curve(CurveInput::Rpm, &[(0.0, 0.0), (0.2, 1.0), (1.0, 1.0)]),
+                    curve(CurveInput::Load, &[(0.0, 0.0), (1.0, 1.0)]),
+                ],
+            ),
+            whine,
+        ],
+    }
+}
+
+#[test]
+#[ignore = "reads the 2005 install (NFSMW_GAME_DIR)"]
+fn curves_decide_which_layers_are_heard_in_the_real_mixer() {
+    let Some(game) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = GameDir::open(PathBuf::from(game)).unwrap();
+    let mut audio = Audio::replay(dir, RATE);
+    let sources = vec![
+        Source::Loop(built_in_loop(900.0)),
+        Source::Loop(built_in_loop(4400.0)),
+        Source::Loop(built_in_loop(6500.0)),
+    ];
+    let mut engine = audio.start_layers(curved_engine(), sources).expect("the layers start");
+    let mut level = |rpm: f32, load: f32, speed_mph: f32| {
+        let level = rms(&render_inputs(&mut audio, &mut engine, &EngineInputs { rpm, load, speed_mph }));
+        println!("  rpm {rpm} load {load} speed {speed_mph} mph: rms {level:.3}");
+        level
+    };
+    assert!(level(0.0, 0.0, 0.0) > 0.01, "the idle loop plays at idle");
+    assert!(level(1.0, 0.0, 0.0) < 0.002, "at the limiter with the throttle shut nothing is left");
+    assert!(level(1.0, 1.0, 0.0) > 0.01, "the revs loop needs both");
+    assert!(level(0.5, 0.0, 60.0) > 0.01, "the whine plays at speed with no throttle");
+    assert!(level(0.5, 0.0, 130.0) < 0.002, "and is gone above its window");
 }
