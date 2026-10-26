@@ -86,6 +86,7 @@ fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
         mass_kg: part.mass_kg,
         active: part.active.map(|active| hinged::Active {
             offset: active.offset,
+            rotation: active.rotation,
             above_mph: active.above_mph,
             below_mph: active.below_mph,
             seconds: active.seconds,

@@ -81,13 +81,16 @@ impl Zone {
     }
 }
 
-/// How a part moves with the car's speed: it slides by `offset` when the car is at `above_mph` or faster and slides back
-/// below `below_mph`, taking `seconds` for the whole way.
+/// How a part moves with the car's speed: it turns by `rotation` about its pivot and slides by `offset` when the car is
+/// above `above_mph` and goes back when the car is below `below_mph`, taking `seconds` for the whole way (linear in time).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Active {
     /// The movement at full deployment, in the car's solid space (+x forward, +y left, +z up), metres.
     pub offset: [f32; 3],
-    /// The part deploys from this speed up, mph.
+    /// The turn at full deployment: a unit axis through the part's pivot (same space) and an angle in degrees, right-handed.
+    /// The part turns first and then slides. `None`: no turn.
+    pub rotation: Option<([f32; 3], f32)>,
+    /// The part deploys above this speed, mph.
     pub above_mph: f32,
     /// It retracts below this speed, mph (not above `above_mph`).
     pub below_mph: f32,
@@ -126,7 +129,12 @@ pub struct DamagePart {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawActive {
+    #[serde(default)]
     offset: [f32; 3],
+    #[serde(default)]
+    rotation_axis: Option<[f32; 3]>,
+    #[serde(default)]
+    rotation_deg: Option<f32>,
     above_mph: f32,
     #[serde(default)]
     below_mph: Option<f32>,
@@ -250,8 +258,12 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
 
 fn check_active(raw: RawActive) -> Result<Active, ContentError> {
     let below_mph = raw.below_mph.unwrap_or(raw.above_mph);
-    if raw.offset.iter().any(|c| !c.is_finite() || c.abs() > MAX_TRAVEL) || raw.offset == [0.0; 3] {
-        return Err(field("an active offset is a movement of up to 5 m, not 0"));
+    let rotation = check_rotation(raw.rotation_axis, raw.rotation_deg)?;
+    if raw.offset.iter().any(|c| !c.is_finite() || c.abs() > MAX_TRAVEL) {
+        return Err(field("an active offset is a movement of up to 5 m"));
+    }
+    if raw.offset == [0.0; 3] && rotation.is_none() {
+        return Err(field("an active part moves (offset) or turns (rotation_axis and rotation_deg)"));
     }
     let speeds = [raw.above_mph, below_mph];
     if speeds.iter().any(|v| !v.is_finite() || !(0.0..=MAX_MPH).contains(v)) || below_mph > raw.above_mph {
@@ -260,5 +272,22 @@ fn check_active(raw: RawActive) -> Result<Active, ContentError> {
     if !raw.seconds.is_finite() || !(SECONDS_RANGE.0..=SECONDS_RANGE.1).contains(&raw.seconds) {
         return Err(field("an active movement takes 0.05 to 10 seconds"));
     }
-    Ok(Active { offset: raw.offset, above_mph: raw.above_mph, below_mph, seconds: raw.seconds })
+    Ok(Active { offset: raw.offset, rotation, above_mph: raw.above_mph, below_mph, seconds: raw.seconds })
+}
+
+/// The turn of an active part: both of `rotation_axis` and `rotation_deg` or none of them.
+fn check_rotation(axis: Option<[f32; 3]>, degrees: Option<f32>) -> Result<Option<([f32; 3], f32)>, ContentError> {
+    let (axis, degrees) = match (axis, degrees) {
+        (None, None) => return Ok(None),
+        (Some(axis), Some(degrees)) => (axis, degrees),
+        _ => return Err(field("rotation_axis and rotation_deg come together")),
+    };
+    let length = axis.iter().map(|c| c * c).sum::<f32>().sqrt();
+    if axis.iter().any(|c| !c.is_finite()) || !(1e-3..=1e6).contains(&length) {
+        return Err(field("a rotation_axis is a direction: three finite numbers, not all 0"));
+    }
+    if !degrees.is_finite() || degrees == 0.0 || degrees.abs() > 180.0 {
+        return Err(field("rotation_deg is a turn of up to 180 degrees, not 0"));
+    }
+    Ok(Some((axis.map(|c| c / length), degrees)))
 }

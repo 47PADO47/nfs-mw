@@ -111,6 +111,41 @@ fn a_part_can_move_with_the_speed() {
     assert_eq!(car(&format!("{ONE}{no_lower}")).unwrap().damage_parts[0].active.unwrap().below_mph, 70.0);
 }
 
+const TURNING: &str = "
+[damage_parts.active]
+rotation_axis = [0.0, 2.0, 0.0]
+rotation_deg = 30.5
+above_mph = 70.0
+below_mph = 40.0
+seconds = 0.6
+";
+
+#[test]
+fn an_active_part_may_only_turn() {
+    let part = &car(&format!("{ONE}{TURNING}")).unwrap().damage_parts[0];
+    let active = part.active.unwrap();
+    assert_eq!(active.rotation, Some(([0.0, 1.0, 0.0], 30.5)), "the axis is normalised");
+    assert_eq!(active.offset, [0.0; 3]);
+    let both = ACTIVE.replace("seconds", "rotation_axis = [0.0, 1.0, 0.0]\nrotation_deg = -10.0\nseconds");
+    assert_eq!(car(&format!("{ONE}{both}")).unwrap().damage_parts[0].active.unwrap().rotation.unwrap().1, -10.0);
+    assert!(car(&format!("{ONE}{ACTIVE}")).unwrap().damage_parts[0].active.unwrap().rotation.is_none());
+}
+
+#[test]
+fn bad_rotations_are_refused() {
+    let bad = [
+        TURNING.replace("rotation_deg = 30.5\n", ""),
+        TURNING.replace("rotation_axis = [0.0, 2.0, 0.0]\n", ""),
+        TURNING.replace("[0.0, 2.0, 0.0]", "[0.0, 0.0, 0.0]"),
+        TURNING.replace("30.5", "0.0"),
+        TURNING.replace("30.5", "270.0"),
+        TURNING.replace("rotation_deg = 30.5\n", "").replace("rotation_axis = [0.0, 2.0, 0.0]\n", ""),
+    ];
+    for table in bad {
+        assert!(car(&format!("{ONE}{table}")).is_err(), "accepted:{table}");
+    }
+}
+
 #[test]
 fn a_part_that_only_moves_with_the_speed_has_no_damage_turn() {
     let still = ONE.replace("angle = -15.0", "angle = 0.0");

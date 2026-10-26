@@ -1,9 +1,10 @@
 //! A hinged part that moves with the car's speed: an active spoiler.
 //!
-//! The part slides by an offset when the car is at its deploy speed or faster and slides back below its retract speed
-//! (between the two it keeps what it was doing), taking a set time for the whole way. The deployment is a number from 0
-//! to 1 that the car keeps ([`Deployment`]) and that reaches the car draw as a mark in the set of revealed slots, as the
-//! zone levels do ([`deploy_mark`]).
+//! The part turns about its pivot and slides by an offset when the car is above its deploy speed and goes back when the
+//! car is below its retract speed (between the two it keeps what it was doing), taking a set time for the whole way, at a
+//! constant rate as the game's animation state plays (`docs/formats/chameleon-active-aero.md`). The deployment is a
+//! number from 0 to 1 that the car keeps ([`Deployment`]) and that reaches the car draw as a mark in the set of revealed
+//! slots, as the zone levels do ([`deploy_mark`]).
 
 use std::collections::BTreeSet;
 
@@ -22,6 +23,8 @@ pub const MPS_TO_MPH: f32 = 2.236_936;
 pub struct Active {
     /// The movement at full deployment, in the car's solid space, metres.
     pub offset: [f32; 3],
+    /// The turn at full deployment about the part's pivot: unit axis and degrees. `None`: no turn.
+    pub rotation: Option<([f32; 3], f32)>,
     pub above_mph: f32,
     pub below_mph: f32,
     /// Seconds the whole movement takes.
@@ -37,10 +40,10 @@ pub struct Deployment {
 }
 
 impl Deployment {
-    /// Advance by `dt` seconds with the car at `mph`: it starts going up at the deploy speed, and down below the retract
-    /// speed; at a speed between the two it goes on the way it was going.
+    /// Advance by `dt` seconds with the car at `mph`: it starts going up above the deploy speed, and down below the
+    /// retract speed; at a speed between the two (or exactly at one) it goes on the way it was going.
     pub fn step(&mut self, active: &Active, mph: f32, dt: f32) {
-        if mph >= active.above_mph {
+        if mph > active.above_mph {
             self.up = true;
         } else if mph < active.below_mph {
             self.up = false;
@@ -53,19 +56,18 @@ impl Deployment {
     }
 }
 
-/// The deployment eased: slow at both ends of the movement.
-pub fn eased(amount: f32) -> f32 {
-    let t = amount.clamp(0.0, 1.0);
-    t * t * (3.0 - 2.0 * t)
-}
-
 impl Active {
-    /// The movement of the part at `amount` of its deployment, in the car's solid space.
-    pub fn translation(&self, amount: f32) -> Mat4 {
-        match amount > 0.0 {
-            true => Mat4::from_translation(Vec3::from_array(self.offset) * eased(amount)),
-            false => Mat4::IDENTITY,
+    /// The movement of the part at `amount` of its deployment, in the car's solid space: turned about `pivot` by the
+    /// share of the rotation, then moved by the share of the offset. Both grow in proportion to `amount`.
+    pub fn motion(&self, pivot: Vec3, amount: f32) -> Mat4 {
+        let amount = amount.clamp(0.0, 1.0);
+        if amount <= 0.0 {
+            return Mat4::IDENTITY;
         }
+        let slide = Mat4::from_translation(Vec3::from_array(self.offset) * amount);
+        let Some((axis, degrees)) = self.rotation else { return slide };
+        let turn = Mat4::from_axis_angle(Vec3::from_array(axis), (degrees * amount).to_radians());
+        slide * Mat4::from_translation(pivot) * turn * Mat4::from_translation(-pivot)
     }
 }
 
@@ -85,7 +87,8 @@ pub fn deploy_in(marks: &BTreeSet<usize>, part: usize) -> f32 {
 mod tests {
     use super::*;
 
-    const SPOILER: Active = Active { offset: [-0.07, 0.0, 0.02], above_mph: 70.0, below_mph: 40.0, seconds: 0.6 };
+    const SPOILER: Active =
+        Active { offset: [-0.07, 0.0, 0.02], rotation: None, above_mph: 70.0, below_mph: 40.0, seconds: 0.6 };
 
     fn run(deployment: &mut Deployment, mph: f32, seconds: f32) {
         for _ in 0..(seconds * 60.0).round() as usize {
@@ -94,10 +97,12 @@ mod tests {
     }
 
     #[test]
-    fn it_goes_up_at_the_deploy_speed_in_the_time_it_takes_and_stays() {
+    fn it_goes_up_above_the_deploy_speed_in_the_time_it_takes_and_stays() {
         let mut d = Deployment::default();
         run(&mut d, 60.0, 2.0);
         assert_eq!(d.amount, 0.0, "below the deploy speed it stays down");
+        run(&mut d, 70.0, 1.0);
+        assert_eq!(d.amount, 0.0, "the condition is greater than, not at");
         run(&mut d, 71.0, 0.3);
         assert!((d.amount - 0.5).abs() < 0.03, "half way after half the time: {}", d.amount);
         run(&mut d, 71.0, 1.0);
@@ -117,12 +122,40 @@ mod tests {
     }
 
     #[test]
-    fn the_movement_is_eased_and_exact_at_the_ends() {
-        assert_eq!(SPOILER.translation(0.0), Mat4::IDENTITY);
-        let full = SPOILER.translation(1.0).transform_point3(Vec3::ZERO);
+    fn a_car_with_one_speed_goes_up_above_it_and_down_below_it() {
+        let single = Active { above_mph: 75.0, below_mph: 75.0, ..SPOILER };
+        let mut d = Deployment::default();
+        d.step(&single, 76.0, 0.3);
+        assert!(d.amount > 0.4);
+        d.step(&single, 74.0, 0.3);
+        assert_eq!(d.amount, 0.0);
+    }
+
+    #[test]
+    fn the_movement_is_linear_and_exact_at_the_ends() {
+        assert_eq!(SPOILER.motion(Vec3::ZERO, 0.0), Mat4::IDENTITY);
+        let full = SPOILER.motion(Vec3::ZERO, 1.0).transform_point3(Vec3::ZERO);
         assert!((full - Vec3::new(-0.07, 0.0, 0.02)).length() < 1e-6);
-        assert!(eased(0.25) < 0.25 && eased(0.75) > 0.75);
-        assert_eq!((eased(0.0), eased(1.0), eased(2.0)), (0.0, 1.0, 1.0));
+        let half = SPOILER.motion(Vec3::ZERO, 0.5).transform_point3(Vec3::ZERO);
+        assert!((half - Vec3::new(-0.035, 0.0, 0.01)).length() < 1e-6, "no easing: {half}");
+    }
+
+    #[test]
+    fn a_turn_is_about_the_pivot_in_proportion_to_the_deployment() {
+        let flap = Active { offset: [0.0; 3], rotation: Some(([0.0, 1.0, 0.0], 30.0)), ..SPOILER };
+        let pivot = Vec3::new(1.0, 0.0, 0.5);
+        assert!((flap.motion(pivot, 1.0).transform_point3(pivot) - pivot).length() < 1e-6, "the pivot stays");
+        let tip = pivot + Vec3::X;
+        let at = |amount: f32, degrees: f32| {
+            let moved = flap.motion(pivot, amount).transform_point3(tip);
+            // A right-handed turn about +y takes +x down, towards -z.
+            let wanted = pivot + Vec3::new(degrees.to_radians().cos(), 0.0, -degrees.to_radians().sin());
+            (moved - wanted).length()
+        };
+        assert!(at(1.0, 30.0) < 1e-5);
+        assert!(at(0.5, 15.0) < 1e-5);
+        let both = Active { offset: [0.0, 0.0, 0.1], ..flap };
+        assert!((both.motion(pivot, 1.0).transform_point3(pivot) - (pivot + Vec3::Z * 0.1)).length() < 1e-6);
     }
 
     #[test]

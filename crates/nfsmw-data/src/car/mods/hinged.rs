@@ -108,7 +108,8 @@ impl Hinge {
     /// Where the part stands in the car's solid space: moved by its active movement at `amount` of its deployment, then
     /// turned by `degrees` about its hinge line.
     pub fn transform(&self, degrees: f32, amount: f32) -> Mat4 {
-        let moved = self.active.map_or(Mat4::IDENTITY, |active| active.translation(amount));
+        let pivot = Vec3::from_array(self.pivot);
+        let moved = self.active.map_or(Mat4::IDENTITY, |active| active.motion(pivot, amount));
         self.turn(degrees) * moved
     }
 
@@ -280,7 +281,7 @@ mod tests {
 
     #[test]
     fn an_active_part_is_moved_before_it_is_turned() {
-        let active = Active { offset: [0.0, 0.0, 1.0], above_mph: 70.0, below_mph: 40.0, seconds: 0.6 };
+        let active = Active { offset: [0.0, 0.0, 1.0], rotation: None, above_mph: 70.0, below_mph: 40.0, seconds: 0.6 };
         let hinge = Hinge { pivot: [1.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], active: Some(active), ..bonnet() };
         assert_eq!(hinge.transform(0.0, 0.0), Mat4::IDENTITY);
         let up = hinge.transform(0.0, 1.0).transform_point3(Vec3::ZERO);
