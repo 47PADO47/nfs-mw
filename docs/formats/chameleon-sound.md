@@ -66,6 +66,15 @@ engine with three firings per revolution is an idle of about 820 rpm. That car i
 that idles near 800 rpm, so these are the car's own engine loops. Other loops have partials near 510, 680, 850 and
 1,020 Hz (higher revs, or a whine).
 
-**Not known yet:** which resource is which layer (idle, on or off throttle, a given rpm), the loop points and the rules
-that blend them; the object that lists them in the car's gameplay data (kinds `0x14` and `0x15`) is not read.
+**How the game uses them.** The sample resources are named by sound graphs, kind `0x15` objects in the same bundle whose
+imports point at the samples. A graph is a tree of nodes with ranges (a pair like 7500 and 1790 is the span of the
+engine speed it follows) and expression strings that read live values: `GetAudibleRPM`, `GetNormalisedRPM`,
+`GetEngineLoad`, `GetTransmissionSpeedMph`, `GetNormalisedGearChangeTimeElapsed`. Two graphs read `GetAudibleRPM` and
+play the two 41 Hz idle loops; one reads `GetTransmissionSpeedMph` and holds the five other loops; others are the shifts,
+backfire and pops. The upper range of the engine is synthesised by a DSP object (`EngineSound2`, parameters
+`TrackedHarmonic1Frequency` and so on) that follows the rpm, which no recording holds.
+
+**Not known yet:** the node format (the curves between the rpm and each loop's volume and pitch) is not decoded, so the
+layers cannot be played as the 2012 game plays them. The mod approximates (see
+[car-customization.md](../modding/car-customization.md#the-2012-cars-engine-loops)): it plays the loops by their pitch.
 `WAVES.BNDL` and `METALCAR.BNDL` hold the shared one-shots in the same resource layout.

@@ -1,7 +1,7 @@
-# Customizing mod cars: paint, liveries, performance and nitrous
+# Customizing mod cars: paint, liveries, performance, nitrous and engine sound
 
 Part of the [modding catalogue](README.md). A car a mod adds ([api-content.md](api-content.md#cars)) is a *clone*: it
-keeps the record of a stock car, and with it the stock car's parts, physics and sound. This page says what the auto shop
+keeps the record of a stock car, and with it the stock car's parts, physics and sound (the engine can be its own: [Engine sound](#engine-sound-engine_sound-in-the-car-manifest)). This page says what the auto shop
 (the garage, the career shop and the F6 garage) does with such a car, how a mod sets how it drives, and what a mod that
 brings its own car has to put in its files for the shop to work on it. The
 [2012 cars mod](nfsmw-2012-content.md) is the worked example, and its settings are in its own page.
@@ -79,6 +79,45 @@ factory kit; `nitrous_power` is applied to whichever is fitted.
 The flames come out of the tail pipes. The game finds a pipe by the markers `EXHAUST`, `LEFT_EXHAUST` and `RIGHT_EXHAUST`
 on the car's body solid, so a mod's own car has to carry them (the 2012 mod copies its clone's). A car without pipe
 markers boosts, but shows no flame.
+
+## Engine sound: `[engine_sound]` in the car manifest
+
+A mod car sounds like its clone: the engine, the shifts, the turbo and the collisions all come from the clone's sound
+set. A mod car may give **its own engine loops**, which play instead of the clone's engine (the rest of the clone's
+sounds stay):
+
+```toml
+[engine_sound]
+idle_rpm = 820.0       # where the engine idles
+redline_rpm = 7500.0   # where its limiter holds: the game's 0 to 1 engine speed spans idle to redline
+layers = [
+  { file = "SOUND/MODENGINE/FASTCOUPE/IDLE.WAV", rpm = 820.0 },
+  { file = "SOUND/MODENGINE/FASTCOUPE/HIGH.WAV", rpm = 5200.0 },
+]
+```
+
+- A layer is a looping recording of the engine made at the engine speed `rpm`: a 16-bit PCM WAV, mono or stereo, that
+  repeats over its whole length. The file is a path of the install's layout, so it goes in the mod's `files/` folder.
+- One to eight layers, `rpm` from 100 to 20000, no two the same, `idle_rpm` below `redline_rpm`. A wrong table refuses the car.
+- All layers play at once. Each is played at the engine's rpm over its own (so its pitch follows the engine) but never
+  slower than 0.55 or faster than 1.8 times its recording, and the layers are mixed by how close the engine's rpm is
+  to theirs, in equal power, on a log scale. Below the lowest and above the highest layer one layer carries the sound.
+  The volume is the clone's engine volume (throttle and load).
+- A layer that cannot be read leaves the car with its clone's engine sound, and the log says why.
+- Only the car the player drives uses its loops; traffic and cops keep the clone's engine.
+
+The 2012 mod fills this table from the car's own bundle (see below). A real recording at the right rpm for every part of
+the range gives the best sound; few layers stretched far sound thin.
+
+### The 2012 cars' engine loops
+
+The 2012 game builds its engine sound in a sound graph of loops and synthesised harmonics, which this game does not
+rebuild. The 2012 mod takes **the looping recordings of each car's bundle** ([chameleon-sound.md](../formats/chameleon-sound.md)),
+measures the pitch of each, calls the lowest one the idle, and gives every other loop the rpm that its pitch stands for
+(the idle rpm times its pitch over the lowest pitch). Loops that would need an rpm far beyond the limiter are left out.
+This is an **approximation**: a loop of the bundle that is not a recording of the engine at one speed (a whine, a
+drone) is mixed as if it were, and the loops are not the 2012 game's own blend. It is the car's own recording, not its
+clone's. `own_engine_sound = false` in the mod's `config.toml` keeps the clone's engine instead.
 
 ## What a mod's own car needs for the shop to work
 
