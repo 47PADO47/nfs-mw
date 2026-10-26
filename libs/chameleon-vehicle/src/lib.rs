@@ -6,6 +6,7 @@
 //! the caller puts those in the same [`chameleon_bundle::Pool`].
 
 mod appearance;
+mod collision;
 mod error;
 mod name;
 mod spec;
@@ -15,6 +16,7 @@ mod vehicle;
 mod tests;
 
 pub use appearance::{Appearance, SurfaceKind};
+pub use collision::{PolySoup, load_poly_soup};
 pub use error::{Error, Result};
 pub use name::vehicle_name;
 pub use spec::{GraphicsSpec, WheelSpec, find_spec};
