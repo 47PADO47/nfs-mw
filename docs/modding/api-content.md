@@ -53,7 +53,7 @@ game (its parts, physics and sound are its own).
 mods/example.pack/
   mod.toml
   cars/fastcoupe.toml                 the manifest
-  files/CARS/FASTCOUPE/GEOMETRY.BIN   the body and wheels, in the install's format
+  files/CARS/FASTCOUPE/GEOMETRY.BIN   the solids FASTCOUPE_KIT00_BODY_A..D and FASTCOUPE_KIT00_FRONT_TIRE_A..D (car-customization.md)
   files/CARS/FASTCOUPE/TEXTURES.BIN   its textures
   files/CARS/FASTCOUPE/BOUNDS.BIN     its collision bounds (a BoundsPack): without it the car cannot drive
 ```
@@ -129,9 +129,10 @@ Known gaps: body kits and hoods (a mod car has none), and a code form (`content.
 | Car sound | `[car_sound]` (`shift`, `shift_up`, `shift_down`, `turbo_whine`, `turbo_blowoff`, `backfire`, `pops`): lists of up to 16 WAV files, `MAX_EFFECT_FILES`; a list left out is silence. `car::mods::car_effects(folder)` reads it, `audio/car/own_sfx.rs` plays it | G (schema), MW (played) | `libs/blackbox-modding/src/content/engine_sound.rs` (`CarEffects`), `crates/nfsmw-data/src/car/mods/engine.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
 | Sound set | `sound::generic_car_sound(db, name)`: the sound set of a car with no `pvehicle` record, from `engineaudio/default`, `shiftpattern/default`, no turbo, the collision links of `pvehicle/cars` and the shared skid and nitrous banks; `Audio::sound_set` picks it for every mod car | MW | `crates/nfsmw-data/src/sound/car.rs`, `crates/nfsmw/src/audio/mod.rs` |
 | Customization | `[customization]` (`paints`, `default_paint`, `rim_paints`, `tints`, `rims`, `spoilers`, `roof_scoops`, `vinyls`, `vinyl_colors`): `car::mods::custom::of(folder)` reads it; the garage catalogue (`custom::catalog`) and the assembled model (`custom::apply`) come from it and the car's own `GEOMETRY.BIN` and `VINYLS.BIN` | G (schema), MW (shop) | `libs/blackbox-modding/src/content/customization.rs`, `crates/nfsmw-data/src/car/mods/custom/` |
+| Car parts | the body and wheel part of each mod car, made from the car's own solids `<ID>_KIT00_BODY_A..D` and `<ID>_KIT00_FRONT_TIRE_A..D` and added to the parts database (`PartsDb::push_parts`); no other slot is filled | G (`push_part`), MW | `libs/blackbox-carparts/src/parts/push.rs`, `crates/nfsmw-data/src/car/mods/parts.rs` |
 | Brand | `car::mods::manufacturer(folder)`: the brand a mod gave | MW | `crates/nfsmw/src/scenes/world/garage.rs` (`catalog`) |
 | Register cars | `car::mods::register(stock: &[CarTypeInfo], specs: &[CarSpec]) -> (Vec<ModCar>, Vec<Rejected>)` | MW | `crates/nfsmw-data/src/car/mods.rs` |
-| Car table | `CarTables::load` appends `car::mods::car_types()` after the stock types (the entry of a mod car is made by `car_type_of`, from its folder), so `car::load`, the garage's car list and cop loading find the car by folder | MW | `crates/nfsmw-data/src/car/tables.rs` |
+| Car table | `CarTables::load` appends `car::mods::car_types()` after the stock types (the entry of a mod car is made by `car_type_of`, from its folder), so `car::load`, the garage's car list and cop loading find the car by folder. The parts database of those tables also holds the mod cars' parts: the extended tables are built when a load first sees a new set of published cars and shared after | MW | `crates/nfsmw-data/src/car/tables.rs` |
 | Cop rows | `pursuit::heat_row` adds `car::mods::add_cop_rows` for the level | MW | `crates/nfsmw-data/src/pursuit.rs` |
 | Publish | `car::mods::publish(cars)` from `open_install` (once for the start-up cars, again for the cars a mod adds through `content.rescan()`); a folder already published is not added twice | MW | `crates/nfsmw/src/modding/content/{mod,cars}.rs`, `modding/open.rs` |
 | Garage name and role | `car::mods::display_name(folder)`, `car::mods::is_player_car(folder)` | MW | `crates/nfsmw-data/src/car/mods.rs`; called by `crates/nfsmw/src/scenes/world/garage.rs` (`catalog`) |

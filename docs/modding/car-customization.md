@@ -20,19 +20,31 @@ A car is the folder `files/CARS/<ID>/` of a mod plus the manifest `cars/<id>.tom
 
 | File | Needed | Holds |
 |---|---|---|
-| `GEOMETRY.BIN` | yes | the body and wheel solids, in the install's format |
+| `GEOMETRY.BIN` | yes | the body and wheel solids, in the install's format, **under the names below** |
 | `TEXTURES.BIN` | yes | their textures |
 | `BOUNDS.BIN` | yes, to drive | the car's own collision bounds ([car-collision.md](car-collision.md)); the garage leaves out a car whose physics cannot be built, and the game refuses it with the reason in the log |
 | `VINYLS.BIN` | only for `vinyls` | the vinyl pictures, a texture pack (`PREVINYL.BIN` is read too) |
 | `SOUND/...` WAV files | only for `[engine_sound]`, `[car_sound]` | [car-sound.md](car-sound.md) |
 
-The 2012 mod names the solids after the car's folder: `<ID>_KIT00_BODY_A` to `_D` (the body, with the glass, lamps and
-interior), `<ID>_KIT00_FRONT_TIRE_A` to `_D` (one wheel solid: tyre, rim, brake disc and caliper, axle along y, rim face
-at y = 0, as the game's wheels are modelled; the game turns it for the left side) and the placeholder texture
-`<ID>_SKIN1` on the paint surfaces. Solids are in car space (+x forward, +y left, +z up), centred on the wheelbase: the
-wheels sit at plus and minus half the `wheelbase_m` of `[stats]` ([car-stats.md](car-stats.md)). A level of detail a car
-lacks draws nothing, so A and B are the finest. These are the names the 2012 mod writes and its real-install test loads; how
-the game would find the body of a hand-made car under other names was not re-checked.
+The game builds the car from its own solids, named after its folder (`<ID>` is the folder, in upper case, as in the
+manifest's file name). A solid it does not find is not drawn, and a car with neither a body nor a wheel solid does not show:
+
+| Solid | Is |
+|---|---|
+| `<ID>_KIT00_BODY_A` to `_D` | the body, with the glass, lamps and interior, and the tail pipe markers ([Tail pipes](#tail-pipes)) |
+| `<ID>_KIT00_FRONT_TIRE_A` to `_D` | one wheel solid: tyre, rim, brake disc and caliper, axle along y, rim face at y = 0, as the game's wheels are modelled; the car draws it at all four corners and the game turns it for the left side |
+
+The letters are the levels of detail, `A` the finest; `E` is not looked for, and a level a car lacks draws nothing at that
+distance, so A and B are the finest the player sees. The paint placeholder texture is `<ID>_SKIN1`, on the paint surfaces.
+Solids are in car space (+x forward, +y left, +z up), centred on the wheelbase: the wheels sit at plus and minus half the
+`wheelbase_m` of `[stats]` ([car-stats.md](car-stats.md)).
+
+The game finds these through two parts it adds to its parts database for the car (`car/mods/parts.rs`): the body and the wheel,
+each of the car's own type, with these solids as their models. Nothing else is added: the car has no brake part (the wheel
+solid holds the discs), no hood, spoiler, roof, damage overlay, decal or window tint part, and its paint, rims and tints are
+the choices of its `[customization]` table. The 2005 parts database allows 256 car and part-group names, about 106 of which
+the game uses, so a game that publishes more than about 150 mod cars leaves the later ones without a body part (the log says
+so). Hand-made cars must use the names above: the 2012 mod writes exactly these, and its real-install test loads them.
 
 ## What the shop offers a mod car
 
