@@ -9,7 +9,9 @@ impl Police {
         if self.level().is_none() {
             return;
         }
-        let support = matches!(name.to_ascii_lowercase().as_str(), "copsuv" | "copsuvl" | "copcross" | "copsporthench");
+        let heavy_mod = nfsmw_data::car::mods::cop_kind(name) == Some(nfsmw_data::car::mods::CopKind::Heavy);
+        let support = heavy_mod
+            || matches!(name.to_ascii_lowercase().as_str(), "copsuv" | "copsuvl" | "copcross" | "copsporthench");
         let (count, price) = match support {
             true => (&mut self.rep.costs.support_cars, 450),
             false => (&mut self.rep.costs.patrol_cars, 250),

@@ -31,6 +31,7 @@ pub mod nitrous;
 mod paints;
 pub mod performance;
 mod pipes;
+mod police;
 mod sample;
 mod shared;
 mod sounds;

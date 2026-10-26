@@ -7,8 +7,8 @@ use anyhow::{Context, Result, bail};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_gfx::Texture;
 use chameleon_vehicle::{
-    Lamps, PolySoup, Vehicle, VehiclePaint, find_spec, load, load_poly_soup, load_texture, paints, read_lamps,
-    vehicle_name,
+    Lamps, PoliceMarks, PolySoup, Vehicle, VehiclePaint, find_spec, load, load_poly_soup, load_texture, paints,
+    police_marks, read_lamps, vehicle_name,
 };
 
 use crate::liveries::{self, Signature};
@@ -141,6 +141,17 @@ impl Source {
     pub fn object_name(&self, file: &CarFile) -> Option<String> {
         let data = std::fs::read(&file.path).ok()?;
         vehicle_name(&Bundle::parse(&data).ok()?)
+    }
+
+    /// The engine's object name of the car in `file` and what its bundle says about the vehicle being a police vehicle, read
+    /// without decoding any geometry. A police vehicle whose behaviour objects carry no model year has no object name; its
+    /// siren corona object names it instead.
+    pub fn identify(&self, file: &CarFile) -> (Option<String>, PoliceMarks) {
+        let Ok(data) = std::fs::read(&file.path) else { return (None, PoliceMarks::default()) };
+        let Ok(bundle) = Bundle::parse(&data) else { return (None, PoliceMarks::default()) };
+        let marks = police_marks(&bundle);
+        let name = vehicle_name(&bundle).or_else(|| marks.siren_name.clone());
+        (name, marks)
     }
 
     /// The bytes of the file `rel` of the install (`SOUND/METALCAR.BNDL`), `None` when it is missing or unreadable.

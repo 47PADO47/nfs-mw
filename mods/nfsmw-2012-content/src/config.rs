@@ -20,6 +20,7 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 use crate::performance::{Change, Performance, Tuning};
+use crate::police::Police;
 
 /// The file name of the settings file, in the mod's folder.
 pub const FILE_NAME: &str = "config.toml";
@@ -59,6 +60,22 @@ own_engine_sound = true
 # brakes = 1.0
 # nitrous = true
 # nitrous_power = 1.0
+
+# The police cars of the 2012 game (the Crown Victoria and Charger cops, the Explorer Interceptor, the Corvette Z06 and the SWAT
+# van: read from their bundles) are added as police cars: they chase you in the cop waves and are not in your garage. Their
+# levels follow the kind of car (docs/modding/nfsmw-2012-content.md, \"Police cars\"). Every key is optional:
+# [police]
+# auto = true                 # false: no car is a police car unless `add` names it
+# add = [\"Camaro\"]           # more cars to make police cars (ids or name fragments)
+# remove = [\"Explorer\"]       # cars that stay player cars although the 2012 game made them police cars
+# role = \"cop\"               # \"both\": the player may drive the police cars as well
+# One police car or a make: class (\"patrol\", \"pursuit\", \"heavy\") and its levels, as `heat = [..]` (2 cars at 10 percent
+# each) or one entry per level with its numbers (count 1 to 8, chance 1 to 100 percent):
+# [police.car.SWAT]
+# class = \"heavy\"
+# cop = [{ heat = 8, count = 1, chance = 30 }, { heat = 10, count = 3, chance = 60 }]
+# [police.car.Crown]
+# heat = [1, 2]
 
 # One car or a make can differ: a table named by the car's id or a part of its name, changing only the keys it lists.
 # [car.POR911CARR12]
@@ -127,6 +144,8 @@ pub struct Config {
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
     pub car: BTreeMap<String, Change>,
+    /// Which cars are police cars and where they appear (`[police]`).
+    pub police: Police,
 }
 
 impl Default for Config {
@@ -140,6 +159,7 @@ impl Default for Config {
             own_engine_sound: true,
             performance: Performance::default(),
             car: BTreeMap::new(),
+            police: Police::default(),
         }
     }
 }
@@ -172,6 +192,7 @@ impl Config {
         if !self.max_texture_size.is_power_of_two() || !(16..=4096).contains(&self.max_texture_size) {
             bail!("max_texture_size {} must be a power of two from 16 to 4096", self.max_texture_size);
         }
+        self.police.check().map_err(|message| anyhow::anyhow!(message))?;
         self.tuning().check()
     }
 

@@ -36,10 +36,8 @@ pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
         // Shared accessory folders have geometry but are not vehicle types.
         let Some(car_type) = tables.car_type_for_folder(&folder) else { continue };
         let Some(category) = Category::from_usage(car_type.usage_type) else { continue };
-        // A mod's cop-only car is not a player car (car/mods.rs).
-        if !car_mods::is_player_car(&folder) {
-            continue;
-        }
+        // A mod's cop-only car is a police car (usage 1): it is listed under Police like the stock cops, for the developer
+        // garage. The player's lists take racing cars only (`frontend/garage_scene.rs`), so it is not offered there.
         let Ok(data) = physics.car(&car_type.type_name) else { continue };
         if data.spec.engine.torque.len() < 2
             || !data.spec.engine.torque.iter().any(|t| *t > 0.0)

@@ -69,7 +69,7 @@ fn register(game: &GameDir, mod_dir: &Path) -> CarStats {
         name: manifest["name"].as_str().map(str::to_owned),
         manufacturer: manifest.get("manufacturer").and_then(|brand| brand.as_str()).map(str::to_owned),
         player: true,
-        cop_heat: None,
+        cop: None,
         geometry_in_mod: true,
         stats: stats.clone(),
         engine_sound: manifest.get("engine_sound").map(engine_sound_of),

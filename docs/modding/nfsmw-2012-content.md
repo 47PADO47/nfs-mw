@@ -59,12 +59,14 @@ Every key is optional. An unknown key is an error and no car is added, so a typo
 | `cars` | `"all"` (default) or a list of ids or name fragments (`["Porsche", "LAMGALLARD11"]`) |
 | `exclude` | Ids or name fragments to leave out |
 | `max_texture_size` | Longest texture side, a power of two from 16 to 4096 (default 1024); bigger maps lose their top mips |
-| `role` | `"player"` (default), `"cop"` or `"both"`: who can use the cars |
+| `role` | `"player"` (default), `"cop"` or `"both"`: who can use the cars that are not police cars (the police cars have their own setting, `[police]`) |
+| `[police]` | Which cars are police cars and where they chase: `auto` (default `true`), `add`, `remove`, `role`, and `[police.car.<id or name fragment>]` with `class`, `heat` and `cop` entries ([Police cars](#police-cars)) |
 | `own_engine_sound` | `true` (default): each car gets the recordings of its own 2012 bundle, written into the mod folder as WAVs (`files/SOUND/MODENGINE/<ID>/`): its engine loops, and its gear shifts, turbo whistle and blow-off, backfires and pops. `false` writes none (the shared recordings included): the cars play the game's built-in engine and have only the game-wide sounds. An approximation, see [car-sound.md](car-sound.md#the-2012-cars-recordings) |
 | `[performance]` | Optional multipliers on the stats read from each car's own 2012 data: `power` (torque at every engine speed), `mass`, `grip` (tyre friction), `brakes` (brake torque), `nitrous_power` (the extra torque of the nitrous), all 1.0 by default, and `nitrous` (`true` by default: the car keeps the nitrous its 2012 data gives it; `false` removes it). The mod applies them when it writes the car, so the game only sees the resulting absolute `[stats]` table ([car-stats.md](car-stats.md)); a car whose settings are left alone is exactly the imported 2012 car. Ranges: `power`, `mass`, `brakes` 0.25 to 4, `grip` 0.25 to 3, `nitrous_power` 0 to 4; results are clamped to the ranges of `[stats]` |
 | `[car.<id or name fragment>]` | The same keys for one car or a make, changing only the keys it lists: `[car.POR911CARR12]`, `[car.Lamborghini]`. The tables apply in the order of their names over `[performance]`. |
 
-The ids are made from the car's name (`POR911CARR12` for the 2012 Porsche 911 Carrera S, at most 12 characters); the mod's log
+The police cars of the install get a name from their siren corona object when their behaviour objects carry no model year
+(`Dodge Charger SRT8 Cop`, `Ford Crown Victoria COP`); the other cars keep the ids they had. The ids are made from the car's name (`POR911CARR12` for the 2012 Porsche 911 Carrera S, at most 12 characters); the mod's log
 lists every car it converts or leaves out and why. The tables go after the plain keys of the file, because TOML puts every key
 below a table header inside that table:
 
@@ -172,6 +174,55 @@ Then what the conversion does not do:
   next conversion, while the ids of the other 73 cars are unchanged.
 - **Traffic and low-detail bundles** (`_TR`, `_LO`) are not imported.
 - A screen the game has open when the conversion finishes keeps the car list it built; open it again to see the cars.
+
+## Police cars
+
+Five of the install's 93 bundles are the 2012 game's **police vehicles**, and they are converted as police cars of the 2005 game
+(`role = "cop"`, not in the garage, in the cop waves) instead of player cars. They are found by what their bundle holds, not by
+a list: a siren corona object (`<Car>_Cop_Coronas`), a `LightBarHinge` part, or the SWAT van's name
+([evidence](../formats/chameleon-police.md)); no other bundle has any of them, and none of the five is in a list of cars the
+player may be given.
+
+| Car (the mod's display name) | Class | Default levels: `heat count @chance` |
+|---|---|---|
+| Ford Crown Victoria COP | patrol | `1 x4 @100`, `2 x4 @60`, `3 x3 @40` |
+| Dodge Charger SRT8 Cop | patrol | `2 x3 @40`, `3 x4 @60`, `4 x5 @100`, `5 x4 @60`, `6 x3 @40` |
+| Chevrolet Corvette Z06 2006 | pursuit | `5 x2 @50`, `6 x3 @60`, `7 x3 @70`, `8 x4 @80`, `9 x4 @90`, `10 x4 @100` |
+| Ford Explorer Interceptor 2011 | heavy | `6 x2 @80`, `7 x6 @90`, `8 x2 @50`, `9 x2 @50`, `10 x2 @50` |
+| NFS Swat Van 2012 | heavy | `8 x1 @30`, `9 x2 @40`, `10 x2 @50` |
+
+**These levels are a design, not 2012 data.** The 2012 install's heat levels (40 behaviour records with their own tiers) were not
+decoded, and nothing found ties a police vehicle to a level ([chameleon-police.md](../formats/chameleon-police.md#what-is-not-in-the-install-in-a-form-that-was-decoded)).
+The table follows the kind of car and the 2005 game's own waves: the patrol sedan and the muscle car at the low levels (heat 1
+is four mid-size cops), the sport utility with the numbers of the 2005 patrol SUV at heat 6 and 7 (`x2 @80`, `x6 @90`), the sports
+car from heat 5, the van at the top. A police car that no row fits (one you `add`) is a patrol car in every level with 2 cars at
+10 percent.
+
+Change any of it in `config.toml` (a change takes effect at the next start, like every setting):
+
+```toml
+[police]
+auto = true                  # false: no car is a police car unless `add` names it
+add = ["Camaro"]             # more police cars: ids or name fragments (they get the patrol class, every level)
+remove = ["Explorer"]        # cars that stay player cars, although the 2012 game made them police cars
+role = "cop"                 # "both": the player may drive the police cars too (they are racing-category cars then)
+
+[police.car.SWAT]            # one car or a make, by id or name fragment
+class = "heavy"              # patrol, pursuit or heavy: damage, rep value and radio class (cop-cars.md)
+cop = [{ heat = 8, count = 1, chance = 30 }, { heat = 10, count = 3, chance = 60 }]
+
+[police.car.Crown]
+heat = [1, 2]                # levels with the default numbers (2 cars at 10 percent)
+```
+
+A `heat` list or `cop` entries replace the car's default levels (they do not add to them); the tables apply in the order of their
+names. Levels run from 1 to 10, `count` from 1 to 8, `chance` from 1 to 100. A mistake refuses the settings and no car is added,
+as for the other keys. The tables go after the plain keys of the file.
+
+The siren lamps of these cars (eight coronas on state bit 3 in each police bundle) are **not converted yet**: the converted police
+cars have no flashing light bar, and no part of the roof is lit. The class and levels were not driven in a window; the mod's tests
+check the rule against the install (`MW2012_GAME_DIR`, `cargo test -p nfsmw-2012-content --lib police -- --include-ignored`) and
+the manifest against the game's parser.
 
 ## Hinged parts
 

@@ -49,13 +49,16 @@ pub(super) struct CopDamage {
 
 impl CopDamage {
     pub(super) fn for_model(model: &str, spec: Option<&CarEventSpec>) -> Self {
-        let mut tuning = tuning_for(model);
+        // A mod cop has no damage record: the damage numbers of its unit class stand in (`car/mods/cop.rs`). The racing
+        // numbers its physics carry have no hit points, so they are not read for it.
+        let class = nfsmw_data::car::mods::cop_kind(model);
+        let mut tuning = class.map_or_else(|| tuning_for(model), class_tuning);
         let mut scales = [1.0; 10];
         scales[0] = tuning.front_rear_scale;
         scales[1] = tuning.front_rear_scale;
         scales[8] = 0.5;
         scales[9] = 0.0;
-        if let Some(spec) = spec {
+        if let Some(spec) = spec.filter(|_| class.is_none()) {
             tuning.hit_points = spec.hit_points;
             tuning.threshold = spec.hit_point_threshold;
             tuning.suppress_dist = spec.suppress_distance;
@@ -71,6 +74,18 @@ impl CopDamage {
             pending: false,
             since_player: f32::INFINITY,
         }
+    }
+}
+
+/// The generic damage numbers of a mod cop's unit class (`CopKind::damage`).
+fn class_tuning(kind: nfsmw_data::car::mods::CopKind) -> WreckTuning {
+    let damage = kind.damage();
+    WreckTuning {
+        hit_points: damage.hit_points,
+        threshold: damage.threshold,
+        suppress_dist: damage.suppress_distance,
+        front_rear_scale: damage.front_rear_scale,
+        strength: 20_000.0,
     }
 }
 
@@ -269,9 +284,19 @@ impl AiCar {
 
 #[cfg(test)]
 mod tests {
-    use super::{cop_sample, is_fast, starts_crash, tuning_for};
+    use super::{class_tuning, cop_sample, is_fast, starts_crash, tuning_for};
     use crate::scenes::world::ai::collide::DriverClass;
     use glam::Vec3;
+
+    #[test]
+    fn a_mod_cops_class_gives_it_hit_points_so_it_can_be_wrecked() {
+        use nfsmw_data::car::mods::CopKind;
+        let patrol = class_tuning(CopKind::Patrol);
+        let heavy = class_tuning(CopKind::Heavy);
+        assert!(patrol.hit_points > 0.0, "the racing numbers of a mod car have no hit points: a cop would be immortal");
+        assert!(heavy.hit_points > patrol.hit_points && heavy.threshold > patrol.threshold);
+        assert_eq!(patrol.suppress_dist, 35.0);
+    }
 
     #[test]
     fn a_cop_gets_a_health_sample_wrecked_or_not_and_traffic_gets_none() {

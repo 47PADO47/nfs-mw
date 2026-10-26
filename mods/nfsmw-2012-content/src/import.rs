@@ -7,12 +7,13 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use chameleon_bundle::Bundle;
-use chameleon_vehicle::read_stats;
+use chameleon_vehicle::{PoliceMarks, read_stats};
 use rayon::prelude::*;
 
-use crate::config::Config;
+use crate::config::{Config, Role};
 use crate::emit::{CarEntry, CarFiles, ModFolder};
 use crate::fit::{Fit, measure};
+use crate::police::PoliceRole;
 use crate::shared::SharedSet;
 use crate::source::{CarFile, Source};
 use crate::stats::ImportedStats;
@@ -47,6 +48,8 @@ struct Named<'a> {
     id: String,
     display: String,
     make: String,
+    /// What the car's bundle says about it being a police vehicle.
+    marks: PoliceMarks,
     /// The bundles of the car's liveries, which are not cars of their own.
     liveries: Vec<&'a CarFile>,
 }
@@ -117,14 +120,15 @@ fn write_nitrous(source: &Source, out: &Path) {
 /// Every car with its names. Reading a name touches only the small objects of the bundle, so this pass is quick; ids
 /// are made one after another because a repeated name is numbered in file order.
 fn named(source: &Source) -> Vec<Named<'_>> {
-    let objects: Vec<Option<String>> = source.cars().par_iter().map(|file| source.object_name(file)).collect();
+    let objects: Vec<(Option<String>, PoliceMarks)> =
+        source.cars().par_iter().map(|file| source.identify(file)).collect();
     let mut taken = Vec::new();
     let mut cars = Vec::with_capacity(objects.len());
-    for (file, object) in source.cars().iter().zip(objects) {
+    for (file, (object, marks)) in source.cars().iter().zip(objects) {
         let name = names::car_name(object.as_deref(), file.number);
         let id = names::unique_id(&name.id, &taken);
         taken.push(id.clone());
-        cars.push(Named { file, id, display: name.display, make: name.make, liveries: Vec::new() });
+        cars.push(Named { file, id, display: name.display, make: name.make, marks, liveries: Vec::new() });
     }
     cars
 }
@@ -152,11 +156,19 @@ fn import_car(
     config.tuning().for_car(&named.id, &named.display).apply(&mut stats);
     let rpm = Some((stats.idle_rpm, stats.redline_rpm));
     let sounds = sounds::of(source, named.file, &named.id, config, rpm);
+    let police = config
+        .police
+        .is_police(&named.id, &named.display, &named.marks)
+        .then(|| config.police.plan(&named.id, &named.display, &named.marks));
     let entry = CarEntry {
         id: named.id.clone(),
         name: named.display.clone(),
         manufacturer: named.make.clone(),
-        role: config.role,
+        role: police.as_ref().map_or(config.role, |plan| match plan.role {
+            PoliceRole::Cop => Role::Cop,
+            PoliceRole::Both => Role::Both,
+        }),
+        police,
         stats,
         customization: paints::manifest_table(
             &paints::choices(&car.paints),

@@ -2,6 +2,7 @@
 
 use serde::Deserialize;
 
+use super::cop::{self, CopClass, CopWave};
 use super::customization::{self, Customization};
 use super::damage_parts::{self, DamagePart};
 use super::engine_sound::{self, CarEffects, EngineSound};
@@ -40,6 +41,12 @@ pub struct CarManifest {
     /// The heat levels whose cop waves may use the car: ascending, no repeats. Empty when the list was left out, which
     /// the game reads as every level. Always empty for a car that is not a cop.
     pub heat: Vec<u32>,
+    /// The cop car's wave entries, in level order: the levels of `heat` with the default numbers and the `[[cop]]` tables
+    /// with theirs. Empty when the manifest names no level (the game then reads every level, with the default numbers).
+    /// Always empty for a car that is not a cop.
+    pub waves: Vec<CopWave>,
+    /// What kind of police unit the car is (`cop_class`). Patrol for a car that is not a cop.
+    pub cop_class: CopClass,
     /// The display name, trimmed. `None` shows the car id.
     pub name: Option<String>,
     /// The brand, trimmed. `None` shows no brand.
@@ -66,6 +73,10 @@ struct Raw {
     role: RawRole,
     #[serde(default)]
     heat: Option<Vec<u32>>,
+    #[serde(default)]
+    cop: Option<Vec<cop::RawWave>>,
+    #[serde(default)]
+    cop_class: Option<CopClass>,
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
@@ -112,6 +123,11 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     }
     let role = Role::from(raw.role);
     let heat = heat(raw.heat, role)?;
+    if !role.is_cop() && (raw.cop.is_some() || raw.cop_class.is_some()) {
+        return Err(ContentError::HeatWithoutCop);
+    }
+    let waves = cop::check(&heat, raw.cop)?;
+    let cop_class = raw.cop_class.unwrap_or_default();
     let name = checked_text(raw.name, ContentError::InvalidName)?;
     let manufacturer = checked_text(raw.manufacturer, ContentError::InvalidManufacturer)?;
     let stats = stats::check(raw.stats)?;
@@ -123,6 +139,8 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
         id: stem.to_ascii_uppercase(),
         role,
         heat,
+        waves,
+        cop_class,
         name,
         manufacturer,
         stats,

@@ -17,6 +17,8 @@ pub struct CarEntry {
     pub name: String,
     pub manufacturer: String,
     pub role: Role,
+    /// The car's place in the cop waves, when it is a police car (`police.rs`): its unit class and its levels.
+    pub police: Option<crate::police::Plan>,
     /// What the car is, imported from its own 2012 data (the `[stats]` table).
     pub stats: ImportedStats,
     /// The car's own paints: the `[customization]` table text, empty when the car has none (`paints::manifest_table`).
@@ -171,9 +173,13 @@ fn car_manifest(car: &CarEntry, engine: Option<&str>) -> String {
     if !car.manufacturer.is_empty() {
         text.push_str(&format!("manufacturer = {}\n", quoted(&car.manufacturer)));
     }
+    let (class, waves) = car.police.as_ref().map(|plan| plan.manifest()).unwrap_or_default();
+    text.push_str(&class);
     text.push_str(&car.stats.manifest_table());
     text.push_str(&car.customization);
     text.push_str(engine.unwrap_or_default());
+    // The `[[cop]]` tables go last: every key below a table header belongs to that table.
+    text.push_str(&waves);
     text
 }
 
@@ -187,6 +193,7 @@ mod tests {
             name: "Porsche 911 \"Carrera\" S 2012".into(),
             manufacturer: "Porsche".into(),
             role: Role::Player,
+            police: None,
             stats: ImportedStats {
                 mass_kg: 1397.0,
                 front_weight_pct: 38.8,
@@ -273,6 +280,24 @@ paints = [{ name = \"Red\", color = [200, 0, 0] }]
         assert!(!dir.join("files").exists() && !dir.join("cars").exists());
         assert!(dir.join("mod.toml").is_file());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_police_car_is_written_as_a_cop_with_its_class_and_waves_and_the_game_reads_them() {
+        use crate::police::{Class, Plan, PoliceRole, Wave};
+        let mut car = entry();
+        car.role = Role::Cop;
+        let waves = vec![Wave { heat: 6, count: 2, chance: 80 }, Wave { heat: 7, count: 6, chance: 90 }];
+        car.police = Some(Plan { role: PoliceRole::Cop, class: Class::Heavy, waves });
+        let text = car_manifest(&car, None);
+        let manifest = blackbox_modding::content::parse_car("por911carr12", &text).unwrap();
+        assert_eq!(manifest.role, blackbox_modding::content::Role::Cop);
+        assert_eq!(manifest.cop_class, blackbox_modding::content::CopClass::Heavy);
+        let seen: Vec<(u32, u32, u32)> = manifest.waves.iter().map(|w| (w.heat, w.count, w.chance)).collect();
+        assert_eq!(seen, [(6, 2, 80), (7, 6, 90)]);
+        assert!(manifest.customization.is_some(), "the car's other tables are still read");
+        let plain = car_manifest(&entry(), None);
+        assert!(!plain.contains("cop"), "a player car carries no police key");
     }
 
     #[test]

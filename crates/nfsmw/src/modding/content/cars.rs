@@ -4,12 +4,15 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use blackbox_modding::content::{CARS_FOLDER, CarManifest, parse_car};
+use blackbox_modding::content::{CARS_FOLDER, CarManifest, CopClass, parse_car};
 use game_install::{GameDir, Provider};
 use nfsmw_data::car::CarTables;
 use nfsmw_data::car::mods::custom;
 use nfsmw_data::car::mods::hinged;
-use nfsmw_data::car::mods::{self as car_mods, CarEffects, CarSpec, CarStats, EngineSound, SharedSound};
+use nfsmw_data::car::mods::{
+    self as car_mods, COP_CHANCE, COP_COUNT, CarEffects, CarSpec, CarStats, CopKind, CopUnit, CopWave, EngineSound,
+    SharedSound,
+};
 use nfsmw_data::pursuit::HEAT_LEVELS;
 
 use super::ModDir;
@@ -142,7 +145,7 @@ fn read_spec(dir: &GameDir, owner: &str, path: &Path) -> Result<(CarSpec, Option
     let stem = path.file_stem().and_then(|stem| stem.to_str()).ok_or("the file name is not text")?;
     let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
     let manifest = parse_car(stem, &text).map_err(|error| error.to_string())?;
-    let cop_heat = manifest.role.is_cop().then(|| cop_levels(&manifest));
+    let cop = manifest.role.is_cop().then(|| cop_unit(&manifest));
     let stats = CarStats::from(&manifest.stats);
     let geometry = format!("CARS/{}/GEOMETRY.BIN", manifest.id);
     let geometry_in_mod = matches!(dir.provider(&geometry), Some(Provider::Overlay(id)) if id == owner);
@@ -153,7 +156,7 @@ fn read_spec(dir: &GameDir, owner: &str, path: &Path) -> Result<(CarSpec, Option
         name: manifest.name,
         manufacturer: manifest.manufacturer,
         player: manifest.role.is_player(),
-        cop_heat,
+        cop,
         geometry_in_mod,
         stats,
         engine_sound: manifest.engine_sound.as_ref().map(engine_sound_of),
@@ -252,11 +255,18 @@ fn engine_sound_of(sound: &blackbox_modding::content::EngineSound) -> EngineSoun
     }
 }
 
-/// The levels a cop car is in: its list, or every level of the game when the list was left out. A level the game does
-/// not have is refused by the car table (`car_mods::register`).
-fn cop_levels(manifest: &CarManifest) -> Vec<u32> {
-    if manifest.heat.is_empty() {
-        return (1..=HEAT_LEVELS).collect();
+/// The police unit of a cop manifest: its class and its wave entries. A manifest that names no level is in every level of
+/// the game with the default numbers. A level the game does not have is refused by the car table (`car_mods::register`).
+fn cop_unit(manifest: &CarManifest) -> CopUnit {
+    let kind = match manifest.cop_class {
+        CopClass::Patrol => CopKind::Patrol,
+        CopClass::Pursuit => CopKind::Pursuit,
+        CopClass::Heavy => CopKind::Heavy,
+    };
+    if manifest.waves.is_empty() {
+        let waves = (1..=HEAT_LEVELS).map(|heat| CopWave { heat, count: COP_COUNT, chance: COP_CHANCE }).collect();
+        return CopUnit { kind, waves };
     }
-    manifest.heat.clone()
+    let waves = manifest.waves.iter().map(|w| CopWave { heat: w.heat, count: w.count, chance: w.chance }).collect();
+    CopUnit { kind, waves }
 }
