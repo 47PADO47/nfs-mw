@@ -154,6 +154,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     let main_view = globals.fog_range.w < 0.5;
     var visibility = 1.0;
     if main_view && in.receives_shadow != 0u { visibility = direct_visibility(in.world, receiver, in.clip.xy); }
+    visibility *= cloud_visibility(in.world);
     var ao = 1.0;
     if receive_ao && main_view { ao = ambient_visibility(in.clip.xy); }
     var indirect = rig.ambient.xyz;
@@ -357,6 +358,7 @@ fn original_pixel(in: VsOut, tex: vec4<f32>) -> Shaded {
             visibility = car_direct_visibility(in.world, receiver_normal(in.world, in.normal), in.clip.xy);
         }
     }
+    visibility *= mix(1.0, cloud_visibility(in.world), 0.35);
     var out: Shaded;
     let raw = (diff.rgb * tex.rgb + highlight * diff.a * spec.rgb * visibility) * visibility
         + env * spec.a * diff.a * environment_gain;

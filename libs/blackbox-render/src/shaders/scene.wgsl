@@ -122,7 +122,7 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
     if receive_ao && FOG && globals.fog_range.w < 0.5 { ao = ambient_visibility(in.clip.xy); }
     if PRELIT {
         lit = min(base.rgb * 2.0, vec3<f32>(1.0));
-        if FOG { lit *= prelit_illumination(in.color.rgb, receiver, ao, scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow)); }
+        if FOG { lit *= prelit_illumination(in.color.rgb, receiver, ao, scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) * cloud_visibility(in.world)); }
     } else {
         let n = normalize(in.normal);
         let diffuse_light = max(dot(n, -globals.light_dir.xyz), 0.0);
@@ -132,7 +132,7 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
         let on = globals.surface_ambient.w > 0.5;
         let ambient = select(vec3<f32>(0.35), globals.surface_ambient.xyz, on);
         let diffuse = select(vec3<f32>(0.65), globals.surface_diffuse.xyz, on);
-        lit = base.rgb * (ambient * ao + diffuse * diffuse_light * scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) + back_light * ao);
+        lit = base.rgb * (ambient * ao + diffuse * diffuse_light * scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) * cloud_visibility(in.world) + back_light * ao);
     }
     let distance = length(in.world - globals.camera_pos.xyz);
     var fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);

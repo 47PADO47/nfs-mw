@@ -7,6 +7,10 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
     ui.heading("Time & weather");
     ui.checkbox(&mut lab.options.enhanced_sky, "Enhanced sky")
         .on_hover_text("Atmospheric colour, sun disk and wind-driven cloud volume. Shared by the main view and reflections. Disable for the authored sky.");
+    ui.add_enabled_ui(lab.options.enhanced_sky, |ui| {
+        ui.checkbox(&mut lab.options.cloud_shadows, "Cloud shadows")
+            .on_hover_text("Moving cloud shade on sunlight. Independent of geometry shadows; requires Enhanced sky.");
+    });
     ui.small("Cloud coverage and sunlight follow the weather and sun below. Full night lighting is not implemented.");
     sky_tuning(ui, lab, settings);
     let Some(mut value) = lab.environment else {

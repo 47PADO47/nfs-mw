@@ -115,6 +115,7 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
     if globals.fog_range.w<0.5 && in.receives_shadow != 0u { q = direct_visibility(in.world,plane,in.clip.xy); }
     if globals.fog_range.w>2.5 && in.receives_shadow != 0u { q = capture_sun_visibility(in.world,plane); }
     var ao = 1.0;
+    q *= cloud_visibility(in.world);
     if receive_ao && globals.fog_range.w<0.5 { ao = ambient_visibility(in.clip.xy); }
     var surface = 2.0*(tex.rgb*in.ambient.rgb*ao+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected);
     if uv_offset.value.z>0.5 && light.wet_tuning.x>0.5 && light.water.x>0.0 {

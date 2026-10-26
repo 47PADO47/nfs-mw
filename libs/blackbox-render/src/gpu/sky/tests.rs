@@ -9,6 +9,8 @@ use glam::{Mat4, Vec3};
 use super::super::test_support;
 use crate::{BlendMode, Renderer};
 
+#[path = "cloud_shadow_tests.rs"]
+mod cloud_shadow;
 #[path = "enhanced_tests.rs"]
 mod enhanced;
 

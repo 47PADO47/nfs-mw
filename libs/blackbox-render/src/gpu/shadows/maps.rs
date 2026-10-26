@@ -14,6 +14,7 @@ pub(in crate::gpu) struct Maps {
     pub fallback: wgpu::BindGroup,
     pub contact: wgpu::TextureView,
     pub ambient: wgpu::TextureView,
+    pub cloud: wgpu::TextureView,
     dummy: wgpu::Buffer,
 }
 
@@ -42,6 +43,20 @@ impl Maps {
                 .create_view(&Default::default())
         });
         let ambient = ambient.unwrap_or_else(|| crate::gpu::surface::mask(device, (1, 1), "disabled ambient mask"));
+        let cloud = device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("cloud sunlight transmission"),
+                size: wgpu::Extent3d { width: 256, height: 256, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[],
+            })
+            .create_view(&Default::default());
         let (view, detail, layers) = match detail_resolution {
             Some(size) => {
                 let (detail, mut layers) = atlas(device, size, 2);
@@ -71,7 +86,7 @@ impl Maps {
             contents: &[0; 80],
             usage: wgpu::BufferUsages::UNIFORM,
         });
-        let fallback = group(device, layout, &dummy, &buffer, (&view, &detail), &sampler, (&contact, &ambient));
+        let fallback = group(device, layout, &dummy, &buffer, (&view, &detail), &sampler, (&contact, &ambient, &cloud));
         Self {
             resolution,
             detail_resolution,
@@ -84,6 +99,7 @@ impl Maps {
             fallback,
             contact,
             ambient,
+            cloud,
             dummy,
         }
     }
@@ -101,7 +117,7 @@ impl Maps {
             &self.buffer,
             (&self.view, &self.detail),
             &self.sampler,
-            (&self.contact, &self.ambient),
+            (&self.contact, &self.ambient, &self.cloud),
         )
     }
     pub(in crate::gpu) fn set_ambient(
@@ -131,7 +147,7 @@ fn group(
     buffer: &wgpu::Buffer,
     views: (&wgpu::TextureView, &wgpu::TextureView),
     sampler: &wgpu::Sampler,
-    masks: (&wgpu::TextureView, &wgpu::TextureView),
+    masks: (&wgpu::TextureView, &wgpu::TextureView, &wgpu::TextureView),
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("material and shadow receivers"),
@@ -144,6 +160,7 @@ fn group(
             wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(masks.0) },
             wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(masks.1) },
             wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(views.1) },
+            wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(masks.2) },
         ],
     })
 }

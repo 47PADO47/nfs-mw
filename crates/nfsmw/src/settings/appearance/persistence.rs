@@ -17,7 +17,7 @@ macro_rules! lighting {
     }
 }
 lighting! {
-    enhanced_sky: bool,
+    enhanced_sky: bool, cloud_shadows: bool,
     enhanced_wet_surfaces: bool, puddle_coverage: f32, puddle_scale: f32, water_ripples: f32,
     road_reflection_range: f32, road_reflection_fade: f32,
     ray_texture_quality: u32,
