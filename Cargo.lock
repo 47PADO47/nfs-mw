@@ -4242,6 +4242,7 @@ dependencies = [
  "blackbox-tpk",
  "chameleon-bundle",
  "chameleon-gfx",
+ "chameleon-sound-graph",
  "chameleon-vehicle",
  "ea-audio",
  "game-install",

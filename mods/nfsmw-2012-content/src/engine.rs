@@ -33,10 +33,21 @@ pub struct Loop {
     pub pitch: f32,
 }
 
-/// A layer of the car's engine sound: a loop and the engine speed it stands for.
+/// A layer of the car's engine sound: a loop and the engine speed it stands for, or a layer that plays by the curves
+/// of the car's sound graphs (`graph_voices`).
 pub struct Layer {
     pub rpm: f32,
+    /// The bytes of the file: a WAV, or a `.gin` file for a Ginsu layer.
     pub wav: Vec<u8>,
+    pub curves: Option<Curved>,
+}
+
+/// The manifest fields of a layer that plays by curves.
+pub struct Curved {
+    /// The file is a Ginsu recording (`.GIN`), not a WAV.
+    pub ginsu: bool,
+    /// The fields of the layer's inline table after `file` (`volume = ..., gain = [...]`).
+    pub fields: String,
 }
 
 /// The looping samples among `samples` that are long enough to be an engine's, except the ones in `not_engine` (the
@@ -104,7 +115,7 @@ pub fn layers(loops: Vec<Loop>, idle_rpm: f32, redline_rpm: f32) -> Vec<Layer> {
         }
         layers.push((rpm, loop_));
     }
-    layers.into_iter().take(MAX_LAYERS).map(|(rpm, l)| Layer { rpm, wav: loop_wav(&l) }).collect()
+    layers.into_iter().take(MAX_LAYERS).map(|(rpm, l)| Layer { rpm, wav: loop_wav(&l), curves: None }).collect()
 }
 
 /// A 16-bit mono WAV of the loop at the level every layer is brought to.
