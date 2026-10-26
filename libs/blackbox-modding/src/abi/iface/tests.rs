@@ -175,3 +175,24 @@ fn map_table_and_blip() {
     assert_eq!(offset_of!(BbBlip, style), 8);
     assert_eq!(offset_of!(BbBlip, position), 24);
 }
+
+#[test]
+fn settings_table_and_option() {
+    assert_eq!(IFACE_SETTINGS, "bb.settings");
+    assert_eq!(IFACE_SETTINGS_VERSION, (1, 0));
+    assert_eq!(size_of::<BbSettingValue>(), 32);
+    assert_eq!(offset_of!(BbSettingValue, label), 16);
+    assert_eq!(size_of::<BbSettingOption>(), 72);
+    assert_eq!(offset_of!(BbSettingOption, menu), 8);
+    assert_eq!(offset_of!(BbSettingOption, id), 16);
+    assert_eq!(offset_of!(BbSettingOption, label), 32);
+    assert_eq!(offset_of!(BbSettingOption, values), 48);
+    assert_eq!(offset_of!(BbSettingOption, value_count), 56);
+    assert_eq!(offset_of!(BbSettingOption, default_on), 64);
+    assert_eq!(size_of::<BbSettings>(), 40);
+    assert_eq!(offset_of!(BbSettings, ctx), 8);
+    assert_eq!(offset_of!(BbSettings, add_option), 16);
+    assert_eq!(offset_of!(BbSettings, remove_option), 24);
+    assert_eq!(offset_of!(BbSettings, get), 32);
+    assert_eq!([BB_SETTING_TOGGLE, BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY], [0, 1, 0]);
+}

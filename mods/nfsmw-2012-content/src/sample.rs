@@ -74,8 +74,47 @@ pub fn read(bundle: &Bundle, at: usize) -> Option<Sample> {
     Some(Sample { id: entry.id, samples, rate, looped: header.loop_start.is_some() })
 }
 
+/// One stereo sample of a bundle, decoded.
+#[derive(Debug, Clone)]
+pub struct StereoSample {
+    pub id: u64,
+    pub frames: Vec<[f32; 2]>,
+    pub rate: u32,
+    /// The stream repeats from its start (the loop flag of its header).
+    pub looped: bool,
+}
+
+/// The sample at `at` of the bundle's table, as stereo frames: a mono sample is doubled, a stereo one kept, and a stream of
+/// more channels (the 5.1 ones) gives its first stereo core, the front pair. `None` if it is not a sample this reader decodes.
+pub fn read_stereo(bundle: &Bundle, at: usize) -> Option<StereoSample> {
+    let entry = bundle.entries().get(at)?;
+    if entry.kind != SAMPLE_KIND {
+        return None;
+    }
+    let resource = bundle.resource(at).ok()?;
+    let block = resource.blocks.first()?;
+    let size = u32::from_le_bytes(block.get(24..28)?.try_into().ok()?) as usize;
+    let stream = block.get(SAMPLE_HEADER..SAMPLE_HEADER + size)?;
+    let header = ea_audio::sps::read_header(stream).ok()?;
+    let mp3 = ea_audio::sps::to_mp3(stream).ok()?;
+    let (rate, pcm) = decode_stereo(mp3.cores.first()?.bytes.clone()).ok()?;
+    let end = (DECODER_DELAY + header.samples as usize).min(pcm.len());
+    let frames = pcm.get(DECODER_DELAY.min(end)..end)?.to_vec();
+    Some(StereoSample { id: entry.id, frames, rate, looped: header.loop_start.is_some() })
+}
+
 /// An MP3 stream as mono samples (the first channel) and its sample rate.
 fn decode(bytes: Vec<u8>) -> Result<(u32, Vec<f32>)> {
+    decode_by(bytes, |frame| frame[0])
+}
+
+/// An MP3 stream as stereo frames (a mono stream is doubled) and its sample rate.
+fn decode_stereo(bytes: Vec<u8>) -> Result<(u32, Vec<[f32; 2]>)> {
+    decode_by(bytes, |frame| [frame[0], frame[frame.len().min(2) - 1]])
+}
+
+/// An MP3 stream decoded, each frame of interleaved channels reduced to one value by `pick`.
+fn decode_by<T>(bytes: Vec<u8>, pick: impl Fn(&[f32]) -> T) -> Result<(u32, Vec<T>)> {
     let mut hint = Hint::new();
     hint.with_extension("mp3");
     let source = MediaSourceStream::new(Box::new(Cursor::new(bytes)), MediaSourceStreamOptions::default());
@@ -100,7 +139,7 @@ fn decode(bytes: Vec<u8>) -> Result<(u32, Vec<f32>)> {
         let channels = buffer.spec().channels().count().max(1);
         let mut interleaved: Vec<f32> = Vec::new();
         buffer.copy_to_vec_interleaved(&mut interleaved);
-        samples.extend(interleaved.chunks_exact(channels).map(|frame| frame[0]));
+        samples.extend(interleaved.chunks_exact(channels).map(&pick));
     }
     Ok((rate, samples))
 }
@@ -121,6 +160,26 @@ pub fn wav_bytes(samples: &[f32], rate: u32, gain: f32) -> Vec<u8> {
     bytes.extend(b"data");
     bytes.extend(data_len.to_le_bytes());
     bytes.extend(samples.iter().flat_map(|s| (((s * gain).clamp(-1.0, 1.0) * 32767.0).round() as i16).to_le_bytes()));
+    bytes
+}
+
+/// A 16-bit stereo WAV of `frames` at `rate`, each value multiplied by `gain` and clamped.
+pub fn wav_stereo_bytes(frames: &[[f32; 2]], rate: u32, gain: f32) -> Vec<u8> {
+    let data_len = (frames.len() * 4) as u32;
+    let mut bytes = b"RIFF".to_vec();
+    bytes.extend((36 + data_len).to_le_bytes());
+    bytes.extend(b"WAVEfmt ");
+    bytes.extend(16u32.to_le_bytes());
+    bytes.extend(1u16.to_le_bytes());
+    bytes.extend(2u16.to_le_bytes());
+    bytes.extend(rate.to_le_bytes());
+    bytes.extend((rate * 4).to_le_bytes());
+    bytes.extend(4u16.to_le_bytes());
+    bytes.extend(16u16.to_le_bytes());
+    bytes.extend(b"data");
+    bytes.extend(data_len.to_le_bytes());
+    let sample = |s: f32| (((s * gain).clamp(-1.0, 1.0) * 32767.0).round() as i16).to_le_bytes();
+    bytes.extend(frames.iter().flat_map(|frame| frame.iter().flat_map(|s| sample(*s))));
     bytes
 }
 
@@ -155,6 +214,15 @@ mod tests {
         let samples: Vec<i16> = bytes[44..].as_chunks::<2>().0.iter().map(|b| i16::from_le_bytes(*b)).collect();
         assert_eq!(samples, [0, 32767, -32767, 32767]);
         assert_eq!(u32::from_le_bytes([bytes[40], bytes[41], bytes[42], bytes[43]]), 8);
+    }
+
+    #[test]
+    fn a_stereo_wav_interleaves_the_channels_and_clamps() {
+        let bytes = wav_stereo_bytes(&[[0.5, -0.5], [2.0, 0.0]], 48_000, 1.0);
+        assert_eq!(u16::from_le_bytes([bytes[22], bytes[23]]), 2);
+        assert_eq!(u32::from_le_bytes([bytes[40], bytes[41], bytes[42], bytes[43]]), 8);
+        let samples: Vec<i16> = bytes[44..].as_chunks::<2>().0.iter().map(|b| i16::from_le_bytes(*b)).collect();
+        assert_eq!(samples, [16384, -16384, 32767, 0]);
     }
 
     #[test]

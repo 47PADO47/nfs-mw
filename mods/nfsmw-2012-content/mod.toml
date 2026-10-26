@@ -17,6 +17,7 @@ supported = ["nfsmw"]
 
 [optional.interfaces]
 "bb.content" = "1.0"
+"bb.settings" = "1.0"
 
 [library]
 windows = "nfsmw_2012_content.dll"

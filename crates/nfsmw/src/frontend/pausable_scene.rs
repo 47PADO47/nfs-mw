@@ -196,6 +196,10 @@ impl Scene for Pausable {
         self.inner.set_mod_blips(blips);
     }
 
+    fn set_nitrous_fx(&mut self, fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>) {
+        self.inner.set_nitrous_fx(fx);
+    }
+
     fn set_waypoint(&mut self, target: Option<[f32; 2]>) -> bool {
         self.inner.set_waypoint(target)
     }

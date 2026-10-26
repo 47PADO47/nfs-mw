@@ -270,6 +270,10 @@ pub struct WorldScene {
     race_mods: race::mods::RaceMods,
     /// Minimap blips the mods placed (`bb.map`), set each frame by the mods' systems and merged after `map_blips`.
     pub mod_blips: Vec<crate::hud::MapBlip>,
+    /// The effects of the nitrous variant the player chose, if it is a mod's (`scene_effects.rs`), and the follower of the
+    /// burn that fades its screen effects.
+    nitrous_fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
+    nitrous_burn: blackbox_modding::content::BurnFollower,
     /// The career being played, if any, and what it asks of the front end (`career/`).
     career: career::WorldCareer,
     /// The scenery groups switched on (`scenery_groups.rs`); the career opens and closes the region gates through it.

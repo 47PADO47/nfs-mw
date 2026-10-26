@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the conversion changes what it writes for the same input.
-const CONVERSION: u32 = 7;
+const CONVERSION: u32 = 8;
 pub const FILE: &str = ".import-stamp";
 
 /// The fingerprint for these settings and the install: the settings, the converter's version, and the names, sizes and
@@ -16,6 +16,9 @@ pub fn of(config: &Config, source: &Path) -> String {
     let mut parts = vec![format!("conversion {CONVERSION}"), format!("{config:?}")];
     let mut sources =
         vec![fingerprint(&source.join("VEHICLES/VEHICLETEX.BNDL")), fingerprint(&source.join("SHADERS.BNDL"))];
+    for entry in fs::read_dir(source.join("GAMELOGIC")).into_iter().flatten().flatten() {
+        sources.push(fingerprint(&entry.path()));
+    }
     for entry in fs::read_dir(source.join("VEHICLES")).into_iter().flatten().flatten() {
         let name = entry.file_name().to_string_lossy().to_ascii_uppercase();
         if name.starts_with("VEH_") && name.ends_with("_HI.BNDL") {

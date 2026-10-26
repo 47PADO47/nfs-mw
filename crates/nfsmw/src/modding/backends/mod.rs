@@ -22,6 +22,7 @@ pub mod menu_store;
 pub mod menus;
 mod nfsmw_pursuit;
 mod races;
+pub mod settings;
 mod time;
 pub mod ui;
 mod vehicles;
@@ -45,6 +46,8 @@ mod menus_tests;
 mod nfsmw_pursuit_tests;
 #[cfg(test)]
 pub(crate) mod support;
+#[cfg(test)]
+mod settings_tests;
 #[cfg(test)]
 mod time_tests;
 #[cfg(test)]
@@ -82,6 +85,7 @@ pub fn interfaces() -> Interfaces {
         .add_map(Rc::new(map::MapPort(bridge.clone())))
         .add_menus(Rc::new(menus::MenusPort(bridge.clone())))
         .add_i18n(Rc::new(i18n::I18nPort))
+        .add_settings(Rc::new(settings::SettingsPort(bridge.clone())))
         .add_vehicles(Rc::new(vehicles::VehiclesPort(bridge.clone())))
         .add_hud(Rc::new(hud::HudPort(bridge.clone())))
         .add_camera(Rc::new(camera::CameraPort(bridge.clone())))

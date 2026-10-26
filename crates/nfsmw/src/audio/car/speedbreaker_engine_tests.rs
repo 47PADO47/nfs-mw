@@ -25,6 +25,7 @@ fn installed_speedbreaker_attenuates_actual_engine_pcm_and_restores_it_at_high_f
                     tick += 1;
                 }
                 let mut state = CarSoundState {
+                    nitrous_fx: None,
                     telemetry: Default::default(),
                     car: "BMWM3GTR".into(),
                     upgrades: Default::default(),

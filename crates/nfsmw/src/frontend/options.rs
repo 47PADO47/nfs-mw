@@ -78,6 +78,9 @@ pub enum Setting {
     /// The UI theme the Mods page chooses among the mods' themes (`bb.ui`), or the built-in style. Its value is kept by
     /// the bridge, not the settings (`mod_options.rs`).
     ModTheme,
+    /// An option of the gameplay settings that the options model holds (`bb.settings`), by its position in the model: the
+    /// nitrous variant, and the options mods added (`mod_options.rs`).
+    GameplayOption(usize),
 }
 
 /// What a row's title shows.
@@ -263,7 +266,7 @@ impl Setting {
             Setting::AdvancedGraphics => return false,
             // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings. The theme choice lives in the
             // bridge too.
-            Setting::Mod(_) | Setting::ModManaged(_) | Setting::ModTheme => return false,
+            Setting::Mod(_) | Setting::ModManaged(_) | Setting::ModTheme | Setting::GameplayOption(_) => return false,
             Setting::Custom(row) => {
                 super::custom_race::options::step(row, forward);
                 return true;

@@ -6,14 +6,16 @@ use std::rc::Rc;
 
 use super::ffi::{self, HostTable};
 use super::{
-    Audio, Camera, Commands, Content, Hud, I18n, Input, Interface, Map, Menus, ModResult, Time, Ui, Vehicles, World,
+    Audio, Camera, Commands, Content, Hud, I18n, Input, Interface, Map, Menus, ModResult, Settings, Time, Ui, Vehicles,
+    World,
 };
 use crate::abi::{
     AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_AUDIO, IFACE_AUDIO_VERSION,
     IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_CONTENT, IFACE_CONTENT_VERSION,
     IFACE_HUD, IFACE_HUD_VERSION, IFACE_I18N, IFACE_I18N_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP,
-    IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_TIME, IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION,
-    IFACE_VEHICLES, IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
+    IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_SETTINGS, IFACE_SETTINGS_VERSION, IFACE_TIME,
+    IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES, IFACE_VEHICLES_VERSION, IFACE_WORLD,
+    IFACE_WORLD_VERSION,
 };
 
 /// The longest message the host takes in one line (ADR 0005 section 4). Longer text is cut at a character boundary.
@@ -110,6 +112,13 @@ impl Ctx {
     pub fn menus(&self) -> Option<Menus> {
         let iface = self.query_interface(IFACE_MENUS, IFACE_MENUS_VERSION.0, IFACE_MENUS_VERSION.1)?;
         Some(Menus::new(ffi::menus::read(iface), self.host, self.keep.clone()))
+    }
+
+    /// The settings interface (`bb.settings`), when the host offers it: options (and values of the game's options) in the
+    /// gameplay settings.
+    pub fn settings(&self) -> Option<Settings> {
+        let iface = self.query_interface(IFACE_SETTINGS, IFACE_SETTINGS_VERSION.0, IFACE_SETTINGS_VERSION.1)?;
+        Some(Settings::new(ffi::settings::read(iface), self.host, self.keep.clone()))
     }
 
     /// The UI interface (`bb.ui`), when the host offers it: named themes with draw specs for the slots they override.

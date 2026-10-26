@@ -81,6 +81,7 @@ impl WorldScene {
                 .and_then(|position| self.audio_environment.as_ref().map(|map| map.at(position)));
         }
         state.telemetry.environment = Some(state.view.environment);
+        state.nitrous_fx = self.nitrous_fx.clone();
         state
     }
 }

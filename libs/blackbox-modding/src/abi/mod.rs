@@ -71,6 +71,11 @@ pub use iface::{
     IFACE_TIME_VERSION,
 };
 pub use iface::{
+    BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_TOGGLE, BbSettingCallbackFn, BbSettingOption, BbSettingValue,
+    BbSettings, BbSettingsAddOptionFn, BbSettingsGetFn, BbSettingsRemoveOptionFn, IFACE_SETTINGS,
+    IFACE_SETTINGS_VERSION,
+};
+pub use iface::{
     BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn, BbUiSetTokensFn,
     BbUiTokens, BbUiUnregisterThemeFn, IFACE_UI, IFACE_UI_VERSION,
 };

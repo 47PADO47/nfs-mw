@@ -24,6 +24,7 @@ pub mod import;
 pub mod job;
 mod markers;
 mod names;
+pub mod nitrous;
 mod paints;
 pub mod performance;
 mod sample;
@@ -35,7 +36,7 @@ mod textures;
 
 use std::path::PathBuf;
 
-use blackbox_modding::sdk::{Ctx, Event, Level, Mod, ModResult, declare_mod};
+use blackbox_modding::sdk::{Ctx, Event, Level, Mod, ModResult, SettingValue, declare_mod};
 use job::{Finished, Job, Start};
 
 /// The mod's state: the conversion in flight, if any.
@@ -66,9 +67,11 @@ impl Mod for NfsmwContent {
                 );
             }
             Ok(Start::UpToDate { cars }) => {
+                add_nitrous_variant(ctx);
                 ctx.log(Level::Info, &format!("nfsmw-2012-content: {cars} cars are ready"));
             }
             Ok(Start::Started { job, live }) => {
+                add_nitrous_variant(ctx);
                 ctx.log(Level::Info, "nfsmw-2012-content: converting the 2012 cars in the background");
                 state.job = Some(job);
                 state.live = live;
@@ -87,6 +90,19 @@ impl Mod for NfsmwContent {
                 ctx.log(Level::Warn, &format!("nfsmw-2012-content: the conversion failed, no car is added: {reason}"));
             }
         }
+    }
+}
+
+/// Offer the 2012 nitrous as a value of the game's "Nitrous variant" option (`bb.settings`). It is offered only when a 2012
+/// install is set, since the variant's sounds are converted from it. A game without `bb.settings` keeps its own nitrous.
+fn add_nitrous_variant(ctx: &Ctx) {
+    let Some(settings) = ctx.settings() else {
+        ctx.log(Level::Info, "nfsmw-2012-content: the game has no bb.settings, so the 2012 nitrous is not offered");
+        return;
+    };
+    let values = [SettingValue { id: nitrous::VARIANT, label: nitrous::LABEL }];
+    if let Err(error) = settings.add_option("nitrous_variant", "Nitrous variant", &values) {
+        ctx.log(Level::Warn, &format!("nfsmw-2012-content: the nitrous variant is not added: {error}"));
     }
 }
 

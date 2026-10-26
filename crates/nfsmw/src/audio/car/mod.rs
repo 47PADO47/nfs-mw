@@ -30,6 +30,7 @@ pub use telemetry::CarAudioTelemetry;
 mod contact;
 mod contacts;
 pub(super) mod impacts;
+mod nitrous_fx;
 mod own_engine;
 mod own_sfx;
 pub(super) mod transmission;
@@ -79,6 +80,8 @@ pub struct CarSoundState {
     pub surface: u32,
     pub ticks: Vec<CarSoundTick>,
     pub view: super::AudioView,
+    /// The effects of the nitrous variant the player chose, if it is a mod's: its sounds are played by `nitrous_fx`.
+    pub nitrous_fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
 }
 
 /// The mixers, the voices and the sound set of one car.
@@ -114,6 +117,8 @@ pub(super) struct CarAudio {
     tyres: tyres::TyrePlayback,
     transmission: transmission::TransmissionPlayback,
     power: power_effects::PowerPlayback,
+    /// The sounds of a mod's nitrous variant (`nitrous_fx.rs`).
+    nitrous: nitrous_fx::NitrousVoice,
     pub(super) event_delay: f32,
 }
 
@@ -126,6 +131,7 @@ struct DriveFrame<'a> {
     dt: f32,
     sim_dt: f32,
     delay: f32,
+    nitrous_fx: Option<&'a std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
 }
 
 impl Drop for CarAudio {
@@ -227,6 +233,7 @@ impl Audio {
                     dt,
                     sim_dt: 0.0,
                     delay: 0.0,
+                    nitrous_fx: state.nitrous_fx.as_ref(),
                 },
             );
             *slot = Some(car);
@@ -245,6 +252,7 @@ impl Audio {
                     dt: delta,
                     sim_dt: blackbox_vehicle::FIXED_STEP,
                     delay: i as f32 * delta,
+                    nitrous_fx: state.nitrous_fx.as_ref(),
                 },
             );
         }
@@ -326,6 +334,7 @@ impl Audio {
             tyres: tyres::TyrePlayback::default(),
             transmission: transmission::TransmissionPlayback::default(),
             power: power_effects::PowerPlayback::default(),
+            nitrous: nitrous_fx::NitrousVoice::default(),
             event_delay: 0.0,
         })
     }

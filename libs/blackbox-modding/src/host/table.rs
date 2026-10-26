@@ -27,6 +27,9 @@ mod map;
 mod menus;
 #[cfg(test)]
 mod menus_tests;
+mod settings;
+#[cfg(test)]
+mod settings_tests;
 mod slot;
 #[cfg(test)]
 mod tests;
@@ -65,6 +68,7 @@ pub(crate) use i18n::attach as attach_i18n;
 pub(crate) use input::attach as attach_input;
 pub(crate) use map::attach as attach_map;
 pub(crate) use menus::attach as attach_menus;
+pub(crate) use settings::attach as attach_settings;
 pub use slot::Attached;
 pub(crate) use time::attach as attach_time;
 pub(crate) use ui::attach as attach_ui;
@@ -80,6 +84,7 @@ pub use i18n::{I18nArg, I18nBackend, MAX_ARGS as MAX_I18N_ARGS};
 pub use input::{HotkeyHandler, InputBackend};
 pub use map::{BlipSpec, MapBackend};
 pub use menus::{MAX_CHOICES, MenuHandler, MenuKind, MenuRowSpec, MenusBackend};
+pub use settings::{SettingHandler, SettingsBackend};
 pub use time::TimeBackend;
 pub use ui::{MAX_PRIMITIVES, UiBackend, UiPrim, UiRect, UiThemeSpec, UiTokens};
 pub use vehicles::{VehicleState, VehiclesBackend};

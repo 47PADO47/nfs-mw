@@ -11,6 +11,7 @@ mod load;
 mod trigger;
 
 use blackbox_gfx::RenderBackend;
+use blackbox_modding::content::FlameProfile;
 use blackbox_particles::{Emitter, Frame};
 use blackbox_render::{BlendMode, EffectLayer, EffectVertex, TextureHandle, TexturedEffect};
 use glam::{Mat4, Vec3};
@@ -99,12 +100,22 @@ pub struct ExhaustFlames {
     pops: u32,
     /// The console asked for a backfire.
     forced: bool,
+    /// The tint of the nitrous variant the player chose, if it is a mod's. `None` draws the game's own blue flame.
+    profile: Option<FlameProfile>,
 }
 
 impl Default for ExhaustFlames {
     /// Off, and nothing allocated.
     fn default() -> Self {
-        Self { enabled: false, state: State::Unloaded, stale: Vec::new(), engine_level: 0, pops: 0, forced: false }
+        Self {
+            enabled: false,
+            state: State::Unloaded,
+            stale: Vec::new(),
+            engine_level: 0,
+            pops: 0,
+            forced: false,
+            profile: None,
+        }
     }
 }
 
@@ -115,6 +126,19 @@ fn lane_of<'a>(orange: &'a mut [Lane], blue: &'a mut [Lane], index: usize) -> &'
         true => &mut orange[index],
         false => &mut blue[index - orange.len()],
     }
+}
+
+/// The nitrous flame's colour with a mod variant's tint: each of red, green and blue is multiplied by the profile's, and the
+/// alpha by its gain. Without a profile the colour is as it was.
+fn apply_flame_profile(color: [u8; 4], flame: Option<FlameProfile>) -> [u8; 4] {
+    let Some(flame) = flame else { return color };
+    let scale = |value: u8, factor: f32| (f32::from(value) * factor).clamp(0.0, 255.0) as u8;
+    [
+        scale(color[0], flame.tint[0]),
+        scale(color[1], flame.tint[1]),
+        scale(color[2], flame.tint[2]),
+        scale(color[3], flame.gain),
+    ]
 }
 
 /// The flame in blue: red and blue swap, so the fire keeps its shape and brightness and the nitrous reads cold.
@@ -200,7 +224,7 @@ impl Active {
     }
 
     /// Fill lane `lane`'s vertices with its quads, far to near; false when it has no particles.
-    fn quads(&mut self, lane: usize, camera: Vec3, forward: Vec3) -> bool {
+    fn quads(&mut self, lane: usize, camera: Vec3, forward: Vec3, flame: Option<FlameProfile>) -> bool {
         let right = forward.cross(Vec3::Z).normalize_or(Vec3::X);
         let up = right.cross(forward).normalize_or(Vec3::Z);
         let blue = lane >= self.lanes.len();
@@ -216,6 +240,7 @@ impl Active {
             let mut color = sprite.color;
             if blue {
                 color = tint_blue(color);
+                color = apply_flame_profile(color, flame);
             }
             color[3] = (f32::from(color[3]) * gain).min(255.0) as u8;
             self.order.push(((sprite.position - camera).dot(forward), corners, color, sprite.uv));
@@ -233,6 +258,11 @@ impl Active {
 }
 
 impl ExhaustFlames {
+    /// The tint of a mod's nitrous variant for the burning flames, or `None` for the game's own.
+    pub fn set_profile(&mut self, profile: Option<FlameProfile>) {
+        self.profile = profile;
+    }
+
     /// Follow the installed engine level without changing loaded emitters or textures.
     pub fn set_performance(&mut self, performance: nfsmw_data::car::physics::PerformancePackage) {
         self.engine_level = i32::from(performance.get(nfsmw_data::car::physics::PerformanceCategory::Engine));
@@ -329,6 +359,7 @@ impl ExhaustFlames {
     /// Append one textured batch per particle texture to `layer`, each sorted far to near. Call
     /// [`Self::reclaim`] once the layer has been uploaded.
     pub fn geometry(&mut self, camera: Vec3, forward: Vec3, layer: &mut EffectLayer) {
+        let flame = self.profile;
         let State::Ready(active) = &mut self.state else { return };
         active.handed.clear();
         if active.live == 0 {
@@ -337,7 +368,7 @@ impl ExhaustFlames {
         for lane in 0..active.lane_count() {
             let texture = &active.textures[active.lane(lane).texture];
             let (blend, Some(handle)) = (texture.blend, texture.handle) else { continue };
-            if !active.quads(lane, camera, forward) {
+            if !active.quads(lane, camera, forward, flame) {
                 continue;
             }
             let vertices = std::mem::take(&mut lane_of(&mut active.lanes, &mut active.blue, lane).vertices);

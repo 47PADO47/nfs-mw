@@ -325,7 +325,7 @@ impl WidgetMenu {
             cx.send(Command::OpenGraphics);
             return;
         }
-        if let options::Setting::Mod(_) | options::Setting::ModManaged(_) = row.setting {
+        if let options::Setting::Mod(_) | options::Setting::ModManaged(_) | options::Setting::GameplayOption(_) = row.setting {
             mod_options::change(cx.mods, row.setting, forward);
             self.draw_visible(cx);
             return;
@@ -364,6 +364,11 @@ impl ScreenLogic for WidgetMenu {
     fn start(&mut self, cx: &mut Cx) {
         self.rows = match self.args.category {
             super::logic::Category::Mods => mod_options::rows(cx.mods),
+            super::logic::Category::Gameplay => {
+                let mut rows = options::rows(super::logic::Category::Gameplay, &cx.caps);
+                rows.extend(mod_options::gameplay_rows(cx.mods));
+                rows
+            }
             category => options::rows(category, &cx.caps),
         };
         self.find_rows(cx);

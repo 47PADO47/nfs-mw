@@ -19,6 +19,19 @@ impl WorldScene {
         }
     }
 
+    /// The effects of the nitrous variant the player chose: the flames take its tint, the screen its fades, the sound its
+    /// samples (`listened_car_state`). `None` is the game's own, and nothing here changes then.
+    pub(super) fn scene_set_nitrous_fx(
+        &mut self,
+        fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
+    ) {
+        let flame = fx.as_deref().and_then(|profile| profile.flame);
+        if let Some(drive) = self.players.lead_mut() {
+            drive.flames.set_profile(flame);
+        }
+        self.nitrous_fx = fx;
+    }
+
     pub(super) fn scene_set_exhaust_flames(&mut self, on: bool) {
         self.exhaust_flames = on;
         if let Some(drive) = self.players.lead_mut() {

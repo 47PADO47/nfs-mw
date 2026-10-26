@@ -16,7 +16,8 @@ use super::options::{Control, Data, Row, Setting, Title, message};
 use crate::i18n::t;
 use crate::modding::manager::Row as Switch;
 use crate::modding::{
-    Mods, RowInfo, change_menu_row, has_ui_themes, menu_rows, step_ui_theme_choice, ui_theme_display,
+    Mods, RowInfo, change_gameplay_option, change_menu_row, gameplay_option, has_ui_themes, menu_rows, step_ui_theme_choice,
+    ui_theme_display, visible_gameplay_options,
 };
 
 /// The title of a Mods row: its label is the mod's, shown in its place (`shown`).
@@ -43,6 +44,18 @@ pub fn rows(mods: Option<&Mods>) -> Vec<Row> {
     theme.into_iter().chain(switches).chain(registered).collect()
 }
 
+/// The rows the Gameplay page adds after its own: the options of the options model that are visible (`bb.settings`), the
+/// nitrous variant among them once a mod gives it a second value. None without mods, as before.
+pub fn gameplay_rows(mods: Option<&Mods>) -> Vec<Row> {
+    let Some(mods) = mods else {
+        return Vec::new();
+    };
+    visible_gameplay_options(mods.bridge())
+        .into_iter()
+        .map(|index| Row { setting: Setting::GameplayOption(index), title: MOD_TITLE })
+        .collect()
+}
+
 /// The UI theme row, when `offered`: a mod registered a theme, so there is a choice to make.
 fn theme_row(offered: bool) -> Option<Row> {
     match offered {
@@ -64,6 +77,14 @@ pub fn shown(mods: Option<&Mods>, setting: Setting) -> Option<Shown> {
             let info = menu_rows(mods.bridge()).into_iter().find(|info| info.handle == handle)?;
             Some(describe(info))
         }
+        Setting::GameplayOption(index) => {
+            let info = gameplay_option(mods.bridge(), index)?;
+            let data = match info.toggle {
+                true => Data::Label(if info.on { LABEL_ON } else { LABEL_OFF }),
+                false => Data::Text(info.text),
+            };
+            Some(Shown { label: info.label, control: Control::Toggle, data })
+        }
         _ => None,
     }
 }
@@ -82,6 +103,7 @@ pub fn change(mods: Option<&Mods>, setting: Setting, forward: bool) {
             }
         }
         Setting::Mod(handle) => change_menu_row(mods.bridge(), handle, forward),
+        Setting::GameplayOption(index) => change_gameplay_option(mods.bridge(), index, forward),
         _ => {}
     }
 }
