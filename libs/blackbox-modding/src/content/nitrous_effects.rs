@@ -15,9 +15,9 @@
 //! rate = 20.0                   # particles a second, plus rate_per_speed for each m/s the car goes
 //! life = 0.3                    # seconds at most; life_variance (0 to 1) is how much of it a particle may fall short of
 //! speed = 1.0                   # metres a second along the pipe's axis
-//! size = [0.1, 0.3, 0.3, 0.1]   # full width in metres at four equal steps of the life
+//! size = [0.1, 0.3, 0.3, 0.1]   # full width in metres at each key
 //! colors = [[255, 255, 255, 0], [255, 255, 255, 255], [255, 255, 255, 255], [255, 255, 255, 0]]
-//! keys = [0.0, 0.33, 0.66, 1.0]  # where the four sizes and colours sit along the life
+//! keys = [0.0, 0.33, 0.66, 1.0]  # where the sizes and colours sit along the life (2 to 16; straight lines between)
 //! damping = 0.0                 # the share of its velocity a particle loses every 60th of a second (0.75: all but a quarter)
 //! ```
 
@@ -28,6 +28,8 @@ use super::engine_sound::is_png_path;
 
 /// The most effects a profile may have.
 pub const MAX_EFFECTS: usize = 16;
+/// The most keys along a particle's life.
+pub const MAX_KEYS: usize = 16;
 
 /// When an effect plays.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,11 +74,14 @@ pub struct EffectProfile {
     pub inherit_variance: f32,
     /// Degrees: the starting rotation is anywhere in this span (0 keeps the picture upright).
     pub angle_range: f32,
-    /// Where the four values of `size` and `colors` sit along the particle's life, 0 to 1, rising.
-    pub keys: [f32; 4],
-    /// Full width in metres at four equal steps of the life, and the colour there.
-    pub size: [f32; 4],
-    pub colors: [[u8; 4]; 4],
+    /// Where the values of `size` and `colors` sit along the particle's life, 0 to 1, rising: 2 to 16 of them. Between the
+    /// keys the size and the colour change in straight lines.
+    pub keys: Vec<f32>,
+    /// Full width in metres at each key, and the colour there.
+    pub size: Vec<f32>,
+    pub colors: Vec<[u8; 4]>,
+    /// Degrees a second a particle turns at most, either way (0 keeps it as it was born).
+    pub spin: f32,
     /// Seconds the effect spawns after its moment begins (the lighting of the nitrous, or the pop); 0 means for as long as
     /// the moment lasts.
     pub duration: f32,
@@ -104,9 +109,10 @@ pub(super) struct RawEffect {
     inherit: Option<f32>,
     inherit_variance: Option<f32>,
     angle_range: Option<f32>,
-    keys: Option<[f32; 4]>,
-    size: Option<[f32; 4]>,
-    colors: Option<[[u8; 4]; 4]>,
+    keys: Option<Vec<f32>>,
+    size: Option<Vec<f32>>,
+    colors: Option<Vec<[u8; 4]>>,
+    spin: Option<f32>,
     duration: Option<f32>,
 }
 
@@ -148,14 +154,22 @@ fn effect(raw: RawEffect) -> Result<EffectProfile, ContentError> {
             reason: "a relative .PNG path of letters, digits, _ - . /",
         });
     }
-    let size = raw.size.unwrap_or([0.2; 4]);
-    if size.iter().any(|s| !s.is_finite() || !(0.0..=20.0).contains(s)) {
-        return Err(ContentError::Field { field: "effect.size", reason: "four numbers from 0 to 20 metres" });
+    let keys = raw.keys.unwrap_or_else(|| vec![0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]);
+    let count = keys.len();
+    if !(2..=MAX_KEYS).contains(&count) {
+        return Err(ContentError::Field { field: "effect.keys", reason: "2 to 16 numbers" });
     }
-    let keys = raw.keys.unwrap_or([0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]);
     let rising = keys.windows(2).all(|pair| pair[0] <= pair[1]);
     if !rising || keys.iter().any(|k| !k.is_finite() || !(0.0..=1.0).contains(k)) {
-        return Err(ContentError::Field { field: "effect.keys", reason: "four rising numbers from 0 to 1" });
+        return Err(ContentError::Field { field: "effect.keys", reason: "rising numbers from 0 to 1" });
+    }
+    let size = raw.size.unwrap_or_else(|| vec![0.2; count]);
+    if size.len() != count || size.iter().any(|s| !s.is_finite() || !(0.0..=20.0).contains(s)) {
+        return Err(ContentError::Field { field: "effect.size", reason: "a number from 0 to 20 metres for each key" });
+    }
+    let colors = raw.colors.unwrap_or_else(|| vec![[255; 4]; count]);
+    if colors.len() != count {
+        return Err(ContentError::Field { field: "effect.colors", reason: "a colour for each key" });
     }
     Ok(EffectProfile {
         on,
@@ -179,7 +193,8 @@ fn effect(raw: RawEffect) -> Result<EffectProfile, ContentError> {
         angle_range: within(raw.angle_range, 0.0, 0.0, 360.0, "effect.angle_range")?,
         keys,
         size,
-        colors: raw.colors.unwrap_or([[255; 4]; 4]),
+        colors,
+        spin: within(raw.spin, 0.0, 0.0, 3600.0, "effect.spin")?,
         duration: within(raw.duration, 0.0, 0.0, 10.0, "effect.duration")?,
     })
 }
@@ -222,8 +237,34 @@ duration = 0.8
             (flame.on, flame.additive, flame.grid, flame.fps, flame.duration),
             (EffectOn::Start, false, 4, 24, 0.8)
         );
-        assert_eq!(flame.size, [0.2; 4], "the size a profile leaves out");
-        assert_eq!(flame.keys, [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]);
+        assert_eq!(flame.size, vec![0.2; 4], "the size a profile leaves out");
+        assert_eq!(flame.keys, vec![0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]);
+    }
+
+    #[test]
+    fn any_number_of_keys_from_two_to_sixteen_may_be_used_when_every_list_has_one_value_for_each() {
+        let keyed = |keys: &str, size: &str, colors: &str| {
+            parse_nitrous_profile(&format!(
+                "format = 1
+[[effect]]
+on = \"burn\"
+texture = \"A.PNG\"
+keys = {keys}
+size = {size}
+colors = {colors}
+spin = 90.0"
+            ))
+        };
+        let seven = keyed(
+            "[0.0, 0.1, 0.2, 0.3, 0.5, 0.9, 1.0]",
+            "[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]",
+            "[[1,2,3,4],[1,2,3,4],[1,2,3,4],[1,2,3,4],[1,2,3,4],[1,2,3,4],[1,2,3,4]]",
+        )
+        .unwrap();
+        assert_eq!((seven.effects[0].keys.len(), seven.effects[0].spin), (7, 90.0));
+        assert!(keyed("[0.0, 1.0]", "[0.1]", "[[1,2,3,4],[1,2,3,4]]").is_err(), "one size too few");
+        assert!(keyed("[0.0, 1.0]", "[0.1, 0.1]", "[[1,2,3,4]]").is_err(), "one colour too few");
+        assert!(keyed("[0.5]", "[0.1]", "[[1,2,3,4]]").is_err(), "a single key is no track");
     }
 
     #[test]

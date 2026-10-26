@@ -31,7 +31,7 @@ fn synthetic() -> Vec<u8> {
     put_f32(&mut b, d + 0x30 + 0x10, 0.5);
     put_f32(&mut b, d + 0x30 + 0x14, 0.001);
     b[d + 0x30 + 0x18] = 3;
-    // Radius curve: peak 0.25, base 0.45, rise 1, fall 8.
+    // Radius curve: peak 0.25, 0.45 at birth, 1 at the peak, 8 at the end.
     for (at, v) in [(0x14, 0.25), (0x18, 0.45), (0x1C, 1.0), (0x20, 8.0), (0x24, 0.001)] {
         put_f32(&mut b, d + 0x60 + at, v);
     }
@@ -60,9 +60,11 @@ fn the_lifetime_and_the_radius_curve_are_read_from_their_blocks() {
     let life = emitter.lifetime().unwrap();
     assert_eq!((life.min, life.max, life.scale_floor, life.channel), (0.25, 0.5, 0.001, 3));
     let curve = emitter.radius_curve().unwrap();
-    assert_eq!((curve.peak, curve.base, curve.rise, curve.fall), (0.25, 0.45, 1.0, 8.0));
-    assert!((curve.at(0.0) - (0.45 + 8.0 * 0.25)).abs() < 1e-6, "at birth lo = 0 and hi = the peak");
-    assert!((curve.at(1.0) - (0.25 + 0.45 + 8.0)).abs() < 1e-6, "at the end lo = the peak and hi = 1");
+    assert_eq!((curve.peak, curve.at_start, curve.at_peak, curve.at_end), (0.25, 0.45, 1.0, 8.0));
+    assert!((curve.at(0.0) - 0.45).abs() < 1e-6, "the first value at birth");
+    assert!((curve.at(0.25) - 1.0).abs() < 1e-6, "the second at the peak");
+    assert!((curve.at(1.0) - 8.0).abs() < 1e-6, "the third at the end");
+    assert!((curve.at(0.625) - 4.5).abs() < 1e-5, "a straight line between the peak and the end");
     assert!(
         emitter.cone().is_none() && emitter.gradient().is_none(),
         "an operation the emitter lacks has no reader result"

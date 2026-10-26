@@ -141,10 +141,10 @@ that has them.
 
 | Effect | Emitter | Spawn | Life (s) | Look |
 |---|---|---|---|---|
-| start `0x16205B` | 3 smoke puffs, 128 x 128 | 80, 300 and 300 a second, **no window end** | 0.2-0.4, 0.05-0.225 | small cyan-white additive puffs, 0.07-0.37 m wide, riding with the pipe |
+| start `0x16205B` | 3 smoke puffs, 128 x 128 | 80, 300 and 300 a second, **no window end** | 0.2-0.4, 0.05-0.225 | small cyan-white additive puffs, 0.07-0.37 m wide, riding with the pipe; scaled by an input of the crash kind: **not played** |
 | | 2 flames, 512 x 512 sheet | 100 and 40 a second for **0.5 s** | 0.1-0.2 | 0.29 to 0.68 m, rising at 10 m/s2, riding with the pipe |
 | | flipbook, 128 x 128 | 100 a second for 0.5 s | 0.2-0.5 | small orange sparks |
-| burn `0x22030B` | glow, 256 x 256 | 5 a second plus 1 for each m/s of the car, no window end | 0.25-0.5 | colour (0.03, 0.52, 0.86), 1.7 m growing to 6 m wide, takes 0.8 to 0.9 of the car's velocity at birth, then **loses 75 % of it every step**: it stays where it was born and the car drives out of it, a trail |
+| burn `0x22030B` | glow, 256 x 256 | 5 a second plus 1 for each m/s of the car, no window end | 0.25-0.5 | colour (0.03, 0.52, 0.86), 0.3 m wide growing to 0.7 m at the peak of its alpha and to 5.6 m at the end of its life, takes 0.8 to 0.9 of the car's velocity at birth, then **loses 75 % of it every step** (the file says it is left behind as a trail; the screenshots show none, and the mod lets it ride with the car) |
 | pop `0x24F2D` | smoke, 2 flames, flipbook | 100, 100, 40 and 100 a second for 0.5 s | 0.1-0.5 | the same flames, with a big faint dark smoke |
 | | a last emitter with no picture | burst of 1 | 0.25 | a light (radius 0.5), not played |
 

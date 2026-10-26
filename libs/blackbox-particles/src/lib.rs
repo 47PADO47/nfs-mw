@@ -35,7 +35,7 @@ mod spec;
 mod tests;
 
 pub use animation::Animation;
-pub use curve::Curve;
+pub use curve::{Curve, TrackKey, track_at};
 pub use emitter::{Emitter, Frame, MAX_PARTICLES, Sprite};
 pub use rng::Rng;
 pub use spec::EmitterSpec;
