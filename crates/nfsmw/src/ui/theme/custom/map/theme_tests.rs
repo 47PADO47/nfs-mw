@@ -16,7 +16,7 @@ use crate::ui::theme::custom::tokens::{CustomLook, skin};
 const SCREEN: Screen = Screen { width: 1920.0, height: 1080.0, pixels_per_point: 1.0 };
 
 /// The sources of the map and the full map (not their tests). A colour in them must come from the skin.
-const SOURCES: [(&str, &str); 14] = [
+const SOURCES: [(&str, &str); 15] = [
     ("map/backdrop.rs", include_str!("backdrop.rs")),
     ("map/chip.rs", include_str!("chip.rs")),
     ("map/draw.rs", include_str!("draw.rs")),
@@ -26,6 +26,7 @@ const SOURCES: [(&str, &str); 14] = [
     ("map/modes.rs", include_str!("modes.rs")),
     ("map/picture.rs", include_str!("picture.rs")),
     ("map/roads.rs", include_str!("roads.rs")),
+    ("full_map/art.rs", include_str!("../full_map/art.rs")),
     ("full_map/card.rs", include_str!("../full_map/card.rs")),
     ("full_map/chrome.rs", include_str!("../full_map/chrome.rs")),
     ("full_map/fit.rs", include_str!("../full_map/fit.rs")),

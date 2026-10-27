@@ -330,11 +330,10 @@ impl UiThemes {
             ThemeId::Custom | ThemeId::Remastered => palette::for_ui_theme(self.ui_theme),
             _ => self.themes.active_tokens(),
         };
-        // The Custom look's accent is the signal yellow; the Remastered `ui_theme` already has a gold of its own.
-        let accent = match (active, self.ui_theme) {
-            (ThemeId::Custom, UiTheme::Bevy) => custom_tokens::SIGNAL,
-            _ => tokens.secondary,
-        };
+        // The accent of the Custom components (`custom.accent`: a menu's selection bar, a plate's top line, the gear
+        // box's edge) is the active tokens' `secondary`, so the HUD theme the player chose is the one accent source.
+        // The route and the checkpoints keep the signal yellow as `custom.nav`, which is a meaning, not the accent.
+        let accent = tokens.secondary;
         self.skin = self
             .base
             .clone()

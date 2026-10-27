@@ -21,6 +21,9 @@ Remastered; only the drawing changes. The rename keeps one predicate, not two co
 - **Rows:** label key, size 16, sentence case, `text_secondary` when not selected. The selected row is `text`, on a
   `surface_raised` plate, with a 3-unit `accent` bar on its left. A disabled row is `text_secondary` at 0.5 alpha with
   its reason in the description line.
+- **Pictures:** an entry that has a picture (the icon menus' own textures) shows it before its label in every HUD theme,
+  not only where a palette asks for pictures; a list in which some entry has one keeps one label column, and an entry
+  without a picture draws the HUD icon set's fallback pictogram (`menu/picture.rs`).
 - **Values** (option rows): right-aligned in the numeric or label key; a cycling value has small chevrons either side;
   a slider is a 10-segment bar like the HUD's.
 - **Motion:** the selection moves with a 150 ms ease; screens crossfade over `mode_change`. Motion reduction: no
@@ -45,7 +48,7 @@ Remastered; only the drawing changes. The rename keeps one predicate, not two co
 | `Credits` (30) | `Credits` | 11b |
 | `Blacklist` (40) | `Blacklist` | 11b |
 | `LanMenu` (31), `LanHud` (32) | `LanMenu`, `LanHud` | 11b |
-| `WorldMapChrome` (26) | a Custom full-screen map that reuses the PR 7b road and marker drawing | 11b |
+| `WorldMapChrome` (26) | a Custom full-screen map: the game's world-map picture and icon textures (as Remastered draws them) with Custom chrome and the GPS route | 11b |
 | `RadioCard` (10) | the radio card, rewritten in the new style | 11b |
 
 `TrackSelect` (24) and the career screens other than the Blacklist (41 to 45) keep falling back to Original until a

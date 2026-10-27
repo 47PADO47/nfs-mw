@@ -3,7 +3,7 @@
 
 use blackbox_ui::{Component, Image, Outline, Rect};
 
-use super::blacklist::{BlacklistFrame, LOCKED_PICTURE, SCRIM, rival_at, status_look, status_text};
+use super::blacklist::{BlacklistFrame, SCRIM, picture_tint, rival_at, status_look, status_text};
 use super::dialog::wrap;
 use super::list::fitted_size;
 use super::{Align, Parts};
@@ -69,7 +69,7 @@ impl Parts<'_, '_> {
     /// A rival's picture with a thin accent frame. A rival not reached yet is dimmed.
     fn rival_picture(&mut self, info: &RivalInfo, rect: Rect) {
         if info.portrait != 0 {
-            let tint = if info.status == RivalStatus::Locked { LOCKED_PICTURE } else { [255; 4] };
+            let tint = picture_tint(self.cx().skin, info.status == RivalStatus::Locked);
             let mut picture = Image::raw(info.portrait).with_tint(tint);
             picture.layout(self.cx(), rect);
             self.add(picture);

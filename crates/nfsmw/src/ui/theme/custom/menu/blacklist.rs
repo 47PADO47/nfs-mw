@@ -3,7 +3,7 @@
 //! on the raised plate with the accent bar, and the selected rival's card at the right when the window has room for it
 //! (`rival.rs`). The rows' geometry is shared with the frontend's hit test ([`row_at`]).
 
-use blackbox_ui::{Component, Image, Rect};
+use blackbox_ui::{Component, Image, Rect, Skin};
 use glam::Vec2;
 
 use super::layout::{BAR_WIDTH, MenuFrame};
@@ -43,8 +43,17 @@ const STATUS_INSET: f32 = 12.0;
 /// The card's gap from the rows and the least width it needs, at scale 1.
 const CARD_GAP: f32 = 24.0;
 const CARD_LEAST: f32 = 140.0;
-/// The tint of a picture of a rival not reached yet.
-pub(super) const LOCKED_PICTURE: [u8; 4] = [70, 72, 80, 255];
+/// The share of the secondary text colour's brightness a picture of a rival not reached yet keeps.
+const LOCKED_SHARE: f32 = 0.4;
+
+/// The tint of a rival's picture: none when the rival is reached, else the skin's secondary text colour dimmed, so a
+/// theme's own neutrals decide how dark the locked pictures are.
+pub(super) fn picture_tint(skin: &Skin, locked: bool) -> [u8; 4] {
+    let untinted = [u8::MAX; 4];
+    let Some([r, g, b, _]) = skin.colour(keys::TEXT_SECONDARY).filter(|_| locked) else { return untinted };
+    let dim = |channel: u8| (f32::from(channel) * LOCKED_SHARE).round() as u8;
+    [dim(r), dim(g), dim(b), u8::MAX]
+}
 
 /// Where the Blacklist's parts are, in one menu frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -207,7 +216,7 @@ impl Parts<'_, '_> {
         let rank = Label::numeric(info.rank.to_string(), TEXT_SIZE).colour(colour).opacity(alpha);
         self.text(rank, (left + RANK_RIGHT * s, y), Align::Right);
         if info.portrait != 0 {
-            let tint = if locked { LOCKED_PICTURE } else { [255; 4] };
+            let tint = picture_tint(self.cx().skin, locked);
             let rect = Rect::new(left + (PICTURE_LEFT + PICTURE / 2.0) * s, y, PICTURE * s, PICTURE * s);
             let mut picture = Image::raw(info.portrait).with_tint(tint);
             picture.layout(self.cx(), rect);

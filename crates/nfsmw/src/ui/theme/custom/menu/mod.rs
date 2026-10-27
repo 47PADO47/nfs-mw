@@ -13,6 +13,7 @@
 //! - [`look`]: the `[custom_hud]` options the menus take (text size, motion reduction), carried in the skin.
 //! - [`glide`]: the selection plate's glide from row to row.
 //! - `list`, `value`, `keys`, `footer`, `dialog`: the parts of a screen; `keys` the key list's caps.
+//! - `picture`: the game's icon beside an entry, drawn whatever the HUD theme is, with a pictogram for an entry without.
 //! - `jukebox`, `credits`, [`blacklist`], `rival`: the playlist, the roll, the Blacklist and its card and bio page.
 //! - [`lan`]: the LAN page (`LanMenu`), a list with the LAN's own lines round it.
 
@@ -27,6 +28,7 @@ pub mod lan;
 pub mod layout;
 mod list;
 pub mod look;
+mod picture;
 mod rival;
 #[cfg(test)]
 mod screens_tests;
