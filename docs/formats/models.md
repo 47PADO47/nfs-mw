@@ -180,9 +180,47 @@ without it (`nfsmw_data::car` logs a warning). **[ours]**: the cause of the brok
 ## Reading models today
 
 - **This project:** [`libs/blackbox-solid`](../../libs/blackbox-solid) (Rust) reads solids, including
-  the compressed and the flat add-on ones, and `nfsmw view-car <CAR>` draws them.
+  the compressed and the flat add-on ones, and `nfsmw view-car <CAR>` draws them. It also writes them
+  ([below](#writing-geometrybin-verified)).
 - [NFS-ModTools](https://github.com/NFSTools/NFS-ModTools) (C#, **no license**: read-only reference) has a
   MW reader (`Common/Geometry/MostWantedSolidReader.cs`) and exports to FBX with `AssetDumper`.
+
+## Writing `GEOMETRY.BIN` **[verified]**
+
+[`blackbox_solid::write_geometry_pack`](../../libs/blackbox-solid/src/writer/mod.rs) builds a car `GEOMETRY.BIN` from
+vertex and index lists. Checked on 100 car files (15,624 solids): every solid it writes reads back as the same
+`Solid`, and for four cars (BMWM3GTR, 911GT2, CAMARO, COPSUV) the payloads of `SolidInfo`, the texture and light lists,
+the markers and the whole mesh container are byte-identical to the stock chunks, `0x11` fill included
+(`libs/blackbox-solid/src/tests/writer_install.rs`, run with `NFSMW_GAME_DIR`). The layout facts it relies on, beyond
+the tables above:
+
+- **Chunk placement.** `GeometryPack` holds an empty padding chunk (id 0, size 0, so the next header sits at 0x10),
+  `MeshContainerInfo`, then the `SolidPack`s, each header on a 0x80 boundary, with zero-filled padding chunks between
+  them. Inside a `SolidPack` the children follow each other with no padding chunks; only the payloads are left-padded
+  with `0x11` to their alignment: `SolidInfo`, markers, `MeshInfoHeader`, shading groups and indices 0x10, the vertex
+  buffer 0x80, texture and light lists and material names none.
+- **`MeshContainerHeader`** is 144 bytes: u32 29 at 0x08 (in every file), the solid count at 0x0C, `GEOMETRY.BIN` at
+  0x10, `DEFAULT` at 0x48, the file length at 0x68, u32 0x80 at 0x70, the rest zero. The keys and the offsets are in
+  ascending name-hash order; an offsets entry is `(hash, offset of the SolidPack chunk header, chunk size + 8,
+  chunk size + 8, 0, 0)`.
+- **`SolidInfo`** is 0xA0 bytes plus the name with its NUL padded to a multiple of 4. NumVerts, NumBones and
+  NumPositionMarkers are 0; NumTextureTableEntries and NumLightMaterials are the list lengths. Flags are 0x0040 on
+  nearly every car solid. The u32s at 0x88 and 0x8C are 0x000EA550 in all 14,843 car solids with a mesh. At 0x98 is the
+  volume of the bounds (a double-precision product rounded to f32), at 0x9C NumPolys divided by it.
+- **Bounds.** Group and solid bounds are the box of the vertices made 0.01 larger on all six sides (true of the stock
+  cars; add-on cars made with other tools differ). NumPolys is the triangle total, except for a few solids that say 1
+  or 2 more.
+- **Indices.** An odd index total is followed by one zero `u16`, so the chunk is a multiple of 4 bytes (1,707 of 5,192
+  car solids checked); no group refers to it and the group records and `MeshInfoHeader` count only real indices.
+- **`MeshInfoHeader`** (48 bytes): u32 18 at 0x08, the OR of the groups' flags at 0x0C, the group count at 0x10, the
+  number of vertex buffers at 0x18 (checked on all 20,377 world solids), the index total at 0x2C.
+- **Group records** are zero except the fields in the table above. Effect id 4 is on 40,523 of 40,545 car groups, 0 on
+  the other 22. Their flags are one of a handful of values (0x14180, 0x4180, 0xA24180, ...); the meaning is not known.
+- **Material names** (`00134C02`): one chunk per shading group, in order, NUL-terminated and padded to a multiple of 4
+  (`BODY_CHROME`, `WINDOW_FRONT`, `DECAL1`, ...).
+
+Not written: the vertex layouts other than the 36-byte one, and `00134017` to `00134019` (normal smoothing, on 137 of
+the 414 solids compared). Whether the game accepts a custom file that leaves them out is **[unconfirmed]**.
 
 ## Skinned vertices and bones
 

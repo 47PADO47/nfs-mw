@@ -5,12 +5,16 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::ffi::{self, HostTable};
-use super::{Audio, Camera, Commands, Hud, I18n, Input, Interface, Map, Menus, ModResult, Time, Ui, Vehicles, World};
+use super::{
+    Audio, Camera, Commands, Content, Hud, I18n, Input, Interface, Map, Menus, ModConfig, ModResult, Settings, Time,
+    Ui, Vehicles, World,
+};
 use crate::abi::{
     AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_AUDIO, IFACE_AUDIO_VERSION,
-    IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_HUD, IFACE_HUD_VERSION,
-    IFACE_I18N, IFACE_I18N_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS,
-    IFACE_MENUS_VERSION, IFACE_TIME, IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES,
+    IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_CONFIG, IFACE_CONFIG_VERSION,
+    IFACE_CONTENT, IFACE_CONTENT_VERSION, IFACE_HUD, IFACE_HUD_VERSION, IFACE_I18N, IFACE_I18N_VERSION, IFACE_INPUT,
+    IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_SETTINGS,
+    IFACE_SETTINGS_VERSION, IFACE_TIME, IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES,
     IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
 };
 
@@ -65,6 +69,22 @@ impl Ctx {
         ffi::game_id(self.host)
     }
 
+    /// The folder of this mod: where its `mod.toml` is. The mod's settings are read through [`Ctx::config`]. The content it
+    /// generates (`files/`, `cars/`) is written here: the host reads those after the mod has loaded, so what a mod
+    /// writes in `Mod::load` is part of the game's content for this run.
+    pub fn mod_dir(&self) -> ModResult<std::path::PathBuf> {
+        ffi::mod_dir(self.host).map(std::path::PathBuf::from)
+    }
+
+    /// The folder of the game's own install, or `Unsupported` when the host has none.
+    pub fn game_dir(&self) -> ModResult<std::path::PathBuf> {
+        let dir = ffi::game_dir(self.host)?;
+        if dir.is_empty() {
+            return Err(crate::sdk::Error::Unsupported);
+        }
+        Ok(std::path::PathBuf::from(dir))
+    }
+
     /// The game version string the host reports.
     pub fn game_version(&self) -> ModResult<String> {
         ffi::game_version(self.host)
@@ -94,10 +114,24 @@ impl Ctx {
         Some(Menus::new(ffi::menus::read(iface), self.host, self.keep.clone()))
     }
 
+    /// The settings interface (`bb.settings`), when the host offers it: options (and values of the game's options) in the
+    /// gameplay settings.
+    pub fn settings(&self) -> Option<Settings> {
+        let iface = self.query_interface(IFACE_SETTINGS, IFACE_SETTINGS_VERSION.0, IFACE_SETTINGS_VERSION.1)?;
+        Some(Settings::new(ffi::settings::read(iface), self.host, self.keep.clone()))
+    }
+
     /// The UI interface (`bb.ui`), when the host offers it: named themes with draw specs for the slots they override.
     pub fn ui(&self) -> Option<Ui> {
         let iface = self.query_interface(IFACE_UI, IFACE_UI_VERSION.0, IFACE_UI_VERSION.1)?;
         Some(Ui::new(ffi::ui::read(iface)))
+    }
+
+    /// The content interface (`bb.content`), when the host offers it: how a mod that generates its content on a worker
+    /// thread tells the host that it is ready.
+    pub fn content(&self) -> Option<Content> {
+        let iface = self.query_interface(IFACE_CONTENT, IFACE_CONTENT_VERSION.0, IFACE_CONTENT_VERSION.1)?;
+        Some(Content::new(ffi::content::read(iface)))
     }
 
     /// The time-of-day interface (`bb.time`), when the host offers it.
@@ -127,7 +161,7 @@ impl Ctx {
     /// The camera interface (`bb.camera`), when the host offers it.
     pub fn camera(&self) -> Option<Camera> {
         let iface = self.query_interface(IFACE_CAMERA, IFACE_CAMERA_VERSION.0, IFACE_CAMERA_VERSION.1)?;
-        Some(Camera::new(ffi::camera::read(iface)))
+        Some(Camera::new(ffi::camera::read(iface), self.host, self.keep.clone()))
     }
 
     /// The audio interface (`bb.audio`), when the host offers it.
@@ -140,6 +174,13 @@ impl Ctx {
     pub fn world(&self) -> Option<World> {
         let iface = self.query_interface(IFACE_WORLD, IFACE_WORLD_VERSION.0, IFACE_WORLD_VERSION.1)?;
         Some(World::new(ffi::world::read(iface)))
+    }
+
+    /// The configuration interface (`bb.config`), when the host offers it: the mod's own config file merged with its table in
+    /// the game's main config. Read it in `Mod::load`; the text does not change while the mod runs.
+    pub fn config(&self) -> Option<ModConfig> {
+        let iface = self.query_interface(IFACE_CONFIG, IFACE_CONFIG_VERSION.0, IFACE_CONFIG_VERSION.1)?;
+        Some(ModConfig::new(ffi::config::read(iface)))
     }
 
     /// The translation interface (`bb.i18n`), when the host offers it.

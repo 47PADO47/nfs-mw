@@ -119,7 +119,7 @@ mod tests {
 
     fn source_of(dir: &Path, manifest: &str) -> Option<MusicSource> {
         fs::write(dir.join("mod.toml"), manifest).unwrap();
-        read_source(&ModDir { id: "example.radio".to_owned(), dir: dir.to_path_buf() })
+        read_source(&ModDir { id: "example.radio".to_owned(), dir: dir.to_path_buf(), priority: 0 })
     }
 
     #[test]

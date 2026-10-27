@@ -61,6 +61,7 @@ fn replay(speedbreaker: bool) {
                 latest = (tick.input, tick.telemetry);
             }
             let state = CarSoundState {
+                nitrous_fx: None,
                 car: "LANCEREVO8".into(),
                 upgrades: Default::default(),
                 input: latest.0,

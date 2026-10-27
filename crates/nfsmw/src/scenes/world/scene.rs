@@ -169,7 +169,7 @@ impl Scene for WorldScene {
     }
 
     fn next_camera_mode(&self, current: CameraMode) -> CameraMode {
-        camera_cycle::next_mode(current, self.camera_environment.views.as_ref())
+        camera_cycle::next_mode(current, self.camera_environment.views.as_ref(), &self.extra_view_keys())
     }
 
     fn takes_camera_setting(&self) -> bool {
@@ -409,6 +409,9 @@ impl Scene for WorldScene {
     fn set_mod_blips(&mut self, blips: &[crate::hud::MapBlip]) {
         self.mod_blips.clear();
         self.mod_blips.extend_from_slice(blips);
+    }
+    fn set_nitrous_fx(&mut self, fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>) {
+        self.scene_set_nitrous_fx(fx);
     }
     fn player_car(&mut self) -> Option<crate::viewer::PlayerCar> {
         self.player_car_state()

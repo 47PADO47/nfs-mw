@@ -10,6 +10,8 @@ pub const MAX_PARTICLES: usize = 1024;
 
 /// Longest life a particle may be given, seconds.
 const MAX_LIFE: f32 = 60.0;
+/// The steps a second that [`EmitterSpec::damping`] is counted in.
+const DAMPING_STEPS_PER_SECOND: f32 = 60.0;
 
 /// Where the emitter is and what it hands to new particles for one step.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -287,10 +289,16 @@ impl Emitter {
     /// Set the size, rotation and colour a particle has at curve position `t`; `extra` is the share of the
     /// rotation curve added on top (0 at birth).
     fn look(&self, p: &mut Particle, t: f32, extra: f32) {
-        p.half_size = (self.size.value(t) * 0.5).max(0.0);
-        let delta = self.angle.value(t).to_radians() * (1.0 + extra);
+        let tracked = crate::track_at(&self.spec.track, t);
+        let size = tracked.map_or_else(|| self.size.value(t), |look| look.0);
+        let angle = tracked.map_or_else(|| self.angle.value(t), |look| look.1);
+        p.half_size = (size * 0.5).max(0.0);
+        let delta = angle.to_radians() * (1.0 + extra);
         p.angle = if p.turn_back { p.initial_angle - delta } else { p.initial_angle + delta };
-        p.color = std::array::from_fn(|c| (self.color[c].value(t) * 255.0).clamp(0.0, 255.0) as u8);
+        p.color = match tracked {
+            Some((_, _, color)) => color.map(|c| c.clamp(0.0, 255.0).round() as u8),
+            None => std::array::from_fn(|c| (self.color[c].value(t) * 255.0).clamp(0.0, 255.0) as u8),
+        };
     }
 
     fn advance(&mut self, dt: f32) {
@@ -309,6 +317,9 @@ impl Emitter {
         s.animation.advance(&mut p.animation_phase, &mut p.animation_cell, dt);
         if s.drag > 0.0 {
             p.velocity += p.velocity * (-dt * s.drag * p.velocity.length()).max(-1.0);
+        }
+        if s.damping > 0.0 {
+            p.velocity *= (1.0 - s.damping.min(1.0)).powf(dt * DAMPING_STEPS_PER_SECOND);
         }
         match s.gravity != 0.0 {
             true => p.velocity.z -= s.gravity * dt,

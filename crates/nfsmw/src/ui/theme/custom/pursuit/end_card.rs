@@ -51,7 +51,7 @@ pub fn card_opacity(since_end: f32, motion: &Motion) -> f32 {
 
 /// Draws the card for `end` in the upper third, where the countdown would be.
 pub fn draw(parts: &mut Parts<'_>, end: &PursuitEndCard, kind: EndKind, bounty: Option<u32>) {
-    let rect = parts.place(Anchor::TopCentre, (0.0, COUNT_DOWN - CARD.1 / 2.0), CARD);
+    let rect = parts.place_clear(Anchor::TopCentre, (0.0, COUNT_DOWN - CARD.1 / 2.0), CARD);
     let (accent, title) = match kind {
         EndKind::Escaped => (keys::SUCCESS, t!("hud-pursuit-escaped-card")),
         EndKind::Busted => (keys::DANGER, t!("hud-pursuit-busted-card")),

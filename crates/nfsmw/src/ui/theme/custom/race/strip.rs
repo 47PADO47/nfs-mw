@@ -15,6 +15,7 @@ use nfsmw_data::gameplay::RaceType;
 
 use super::super::feed::{CustomFeed, CustomFeedCell};
 use super::super::layout::{Anchor, HudBox};
+use super::super::map::place;
 use super::super::memory::Frame;
 use super::super::mode::{Detail, HudMode};
 use super::super::parts::{Drawn, Parts, Row, centred, left, right};
@@ -173,7 +174,8 @@ fn draw(feed: &CustomFeed, frame: &Frame, cx: &LayoutCx<'_>) -> Drawn {
         return Drawn::default();
     }
     let Some(model) = StripModel::of(&feed.hud, Detail::of(&feed.settings)) else { return Drawn::default() };
-    let mut parts = Parts::new(cx, HudBox::new(feed.screen, feed.settings.scale), &feed.settings);
+    let area = place::cleared(HudBox::new(feed.screen, feed.settings.scale), &feed.settings);
+    let mut parts = Parts::new(cx, area, &feed.settings);
     parts.fade(fade);
     let widths = cell_widths(&model);
     let total = widths.iter().sum::<f32>() + SPACE * (widths.len() - 1) as f32 + 2.0 * PAD;

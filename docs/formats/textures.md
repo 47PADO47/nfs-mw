@@ -186,3 +186,25 @@ Models reference the first frame's texture. At draw time the engine substitutes 
 `(time × fps) mod count`. The Rust viewer does the same with `Renderer::redirect_texture`
 (`blackbox-tpk::read_texture_anims`).
 
+
+## Writing a pack
+
+`blackbox_tpk::write_tpk` builds a version 5 pack that the reader parses back to the same textures. Layout
+facts it follows, read off `CARS/BMWM3GTR/TEXTURES.BIN` **[verified]** unless marked otherwise:
+
+- Frame: pack container at 0, then a zero-filled padding chunk (id 0) so `TexturePackInfo` starts at 0x40; info children
+  are header, keys, then entries (streamed) or textures + comps (plain). Another padding chunk puts
+  `TexturePackData` at a 0x80 boundary; inside it the 24-byte data header, padding to 0x80, then the array chunk
+  whose payload is `0x11`-padded up to a 0x80 boundary.
+- Header (0x7C): version, pack name (28 B), file name (64 B), then `bStringHash(file name)` at 0x60.
+  The data header is `0, 0, 1, bStringHash(file name), 0, 0`.
+- Keys (`…02`): `{hash, 0}` pairs (8 B each); keys, entries and records are sorted by ascending name hash.
+- Streamed entries: `UserFlags 0, Flags 1, RefCount 0`; blobs sit **inside the array**, each starting on a 0x40 file
+  boundary, with the array padded to 0x40 at the end. Offsets are from the start of the file, so the pack must be
+  the first chunk of its file.
+- `TextureInfo` fields the reader ignores, as in the install: ClassNameHash `0x001A93CF`, BaseImageSize = size of mip 0,
+  ShiftWidth/Height = log2, RenderingOrder 5 on car textures, ScrollTimeStep and ScaleS/T `0x100`. In a streamed
+  blob ImagePlacement is 0 and PalettePlacement equals the image size.
+- The writer compresses blobs with its own JDLZ encoder (valid for the decoder, not byte-identical to EA's tools; the
+  game's files also use HUFF, which is not written). Whether the game itself accepts these blobs or the plain
+  form in a car `TEXTURES.BIN` is **[unconfirmed]**: only the Rust reader has been run on them.

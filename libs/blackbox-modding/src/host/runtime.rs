@@ -210,7 +210,8 @@ impl ModRuntime {
         let old = self.loaded.remove(index);
         let Loaded { candidate, module, faults: _ } = old;
         drop(module);
-        match Module::load(&copy, id, &self.offer, self.registry.clone()) {
+        let config = candidate.manifest.config.as_deref();
+        match Module::load(&copy, id, &candidate.dir, config, &self.offer, self.registry.clone()) {
             Ok(module) => {
                 self.loaded.insert(index, Loaded { candidate, module: Some(module), faults: FaultCounter::default() });
                 log::info!("reloaded mod {id}");
@@ -249,7 +250,14 @@ impl ModRuntime {
             Ok(file) => file,
             Err(reason) => return self.refuse(candidate, reason),
         };
-        match Module::load(&file, &id, &self.offer, self.registry.clone()) {
+        match Module::load(
+            &file,
+            &id,
+            &candidate.dir,
+            candidate.manifest.config.as_deref(),
+            &self.offer,
+            self.registry.clone(),
+        ) {
             Ok(module) => self.accept(candidate, Some(module)),
             Err(error) => self.refuse(candidate, RejectReason::LoadFailed(error.to_string())),
         }

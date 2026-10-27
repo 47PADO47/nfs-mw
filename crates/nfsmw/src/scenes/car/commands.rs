@@ -7,7 +7,10 @@ use crate::viewer::camera::FlyCamera;
 
 pub(super) const LIST: &[(&str, &str)] = &[
     ("car <folder>", "show another car (garage lists the folders)"),
-    ("garage", "list your cars (for now every car in the install; use car <folder> to show one)"),
+    (
+        "garage",
+        "list the cars of the install by category (racing, police, mod player, mod police); use car <folder> to show one",
+    ),
     ("paint <part-name> [RRGGBB]", "preview an installed paint at the current orbit angle"),
     ("freecam", "switch between the orbit and the free camera"),
 ];
@@ -33,7 +36,7 @@ pub(super) fn run(
 
 fn list(scene: &CarScene) -> Result<String, String> {
     let source = scene.source.as_ref().ok_or("this viewer cannot load other cars")?;
-    Ok(nfsmw_data::car::list(&source.dir).join("  "))
+    Ok(crate::devtools::car_list::garage_list(&source.dir))
 }
 
 fn switch(scene: &mut CarScene, renderer: &mut dyn RenderBackend, folder: &str) -> Result<String, String> {

@@ -1,0 +1,16 @@
+[package]
+name = "chameleon-gfx"
+description = "Graphics resources of the Chameleon engine: textures, vertex descriptors, renderables, materials, shaders and models."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+chameleon-bundle.workspace = true
+texture2ddecoder.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

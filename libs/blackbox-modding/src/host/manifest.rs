@@ -29,6 +29,9 @@ pub struct Manifest {
     pub authors: Vec<String>,
     /// License, as written. The host does not check it.
     pub license: Option<String>,
+    /// The mod's own config file, relative to the mod folder (`[mod] config = "settings/mod.toml"`). `None` means the
+    /// default, `config.toml`. The path is checked to stay inside the folder (see [`super::config::check_relative`]).
+    pub config: Option<String>,
     /// The ABI version the mod was built against.
     pub api: AbiVersion,
     /// Games the mod runs in.
@@ -164,6 +167,9 @@ pub enum ManifestError {
     /// The mod names itself as a dependency or in a load-order hint.
     #[error("mod {0} names itself")]
     SelfReference(String),
+    /// The `config` path is not a relative path inside the mod folder.
+    #[error("config {file:?} is not a path inside the mod folder: {reason}")]
+    InvalidConfig { file: String, reason: &'static str },
 }
 
 /// Parse and check the text of a `mod.toml`.
@@ -218,6 +224,7 @@ struct RawModule {
     #[serde(default)]
     authors: Vec<String>,
     license: Option<String>,
+    config: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -272,12 +279,14 @@ fn validate(raw: RawManifest) -> Result<Manifest, ManifestError> {
     let dependencies = dependencies(&id, raw.dependencies)?;
     let load_after = references(&id, raw.load.after)?;
     let load_before = references(&id, raw.load.before)?;
+    let config = config_file(raw.module.config)?;
     Ok(Manifest {
         id,
         name,
         version,
         authors: raw.module.authors,
         license: raw.module.license,
+        config,
         api: AbiVersion { major: api_major, minor: api_minor },
         games,
         library,
@@ -295,6 +304,17 @@ fn checked_id(text: &str) -> Result<String, ManifestError> {
         return Err(ManifestError::InvalidId(text.to_owned()));
     }
     Ok(text.to_owned())
+}
+
+/// The `config` key: a relative path with `/` separators that stays inside the mod folder.
+fn config_file(file: Option<String>) -> Result<Option<String>, ManifestError> {
+    let Some(file) = file else {
+        return Ok(None);
+    };
+    if let Err(reason) = super::config::check_relative(&file) {
+        return Err(ManifestError::InvalidConfig { file, reason });
+    }
+    Ok(Some(file))
 }
 
 /// Parse `"MAJOR.MINOR"`: exactly two numbers.

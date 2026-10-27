@@ -11,7 +11,8 @@ into source. Provenance: [player-car-lights](../provenance/player-car-lights.md)
 ## Lamps and state
 
 Head markers include left, right and centre. Brake markers include left, right
-and centre. Reverse markers are separate. Preserve each marker's position and
+and centre. Reverse markers are separate. A mod car may also place a `CENTRE_REVERSE` marker (a rewrite extension, no damage bit,
+never broken) for a reverse lamp on the centre plane. Preserve each marker's position and
 third basis vector through assembly and world transforms. Normal car flares are
 one-sided, with intensity multiplied by the nonnegative facing cosine raised
 to the profile's `Power`. There are no steering-triggered amber lamps at the

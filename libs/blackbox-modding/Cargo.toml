@@ -13,9 +13,10 @@ abi = []
 sdk = ["abi"]
 # The loader and dispatcher (ADR 0005 section 3). Only the host pulls in the file, manifest and loading crates; a mod
 # that links `sdk` gets none of them.
-host = ["abi", "dep:libloading", "dep:semver", "dep:serde", "dep:sha2", "dep:thiserror", "dep:toml", "dep:log"]
+host = ["abi", "dep:blackbox-vehicle", "dep:libloading", "dep:semver", "dep:serde", "dep:sha2", "dep:thiserror", "dep:toml", "dep:log"]
 
 [dependencies]
+blackbox-vehicle = { workspace = true, optional = true }
 libloading = { workspace = true, optional = true }
 log = { workspace = true, optional = true }
 semver = { workspace = true, optional = true }

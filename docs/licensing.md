@@ -59,7 +59,7 @@ So for an unlicensed repo:
   for example by opening an issue. Then record the permission or the new license in NOTICE.
 
 Unlicensed projects we rely on today: NFS-ModTools, FEngLib, Attribulator, Brawltendo's vehicle decomp,
-nfsu2-re, NFSMWUnlimiter, MWEncyclopedia, and parts of the NFSTools org. All are used as references only.
+nfsu2-re, NFSMWUnlimiter, MWEncyclopedia, Chameleon-dat-to-dds, and parts of the NFSTools org. All are used as references only.
 
 ## Facts versus code
 

@@ -12,6 +12,7 @@ fn render(dir: GameDir, contacts: Vec<CarContact>) -> Vec<f32> {
     audio.render_replay(24_000); // Finish volume commands before any engine voice starts.
     let input = CarInput::default();
     let mut state = CarSoundState {
+        nitrous_fx: None,
         telemetry: Default::default(),
         car: "BMWM3GTR".into(),
         upgrades: Default::default(),

@@ -11,6 +11,7 @@ mod backfire;
 pub use backfire::BackfireEvent;
 #[cfg(test)]
 mod interaction_tests;
+pub(crate) mod listing;
 mod menu;
 pub(crate) mod menu_rows;
 #[cfg(test)]

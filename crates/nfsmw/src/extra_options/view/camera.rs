@@ -3,7 +3,7 @@ pub(super) fn show(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings
     let before = state.camera.clone();
     let mode = settings.camera_mode;
     egui::ComboBox::from_id_salt("extra_camera_mode").selected_text(camera_name(mode)).show_ui(ui, |ui| {
-        for mode in CameraMode::ALL {
+        for mode in crate::modding::camera_views::choices() {
             ui.selectable_value(&mut settings.camera_mode, mode, camera_name(mode));
         }
     });

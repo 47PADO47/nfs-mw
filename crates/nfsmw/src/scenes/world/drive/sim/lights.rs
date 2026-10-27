@@ -20,6 +20,21 @@ impl CarSim {
         f32::from(u8::from(on))
     }
 
+    /// The steering, -1 to 1, positive to the right.
+    pub fn steering_input(&self) -> f32 {
+        self.vehicle.controls().steering
+    }
+
+    /// How hard the throttle is pressed, 0 to 1.
+    pub fn gas_pedal(&self) -> f32 {
+        self.vehicle.controls().gas
+    }
+
+    /// How hard the brake is pressed, 0 to 1.
+    pub fn brake_pedal(&self) -> f32 {
+        self.vehicle.controls().brake
+    }
+
     pub fn lamp_damage(&self) -> u32 {
         self.events.as_ref().map_or(0, |events| events.broken_lights())
     }

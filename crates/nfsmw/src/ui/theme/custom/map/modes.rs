@@ -2,12 +2,14 @@
 //! that change them.
 //!
 //! - **Off:** nothing.
-//! - **Compact:** a small, fainter overlay round the car, and the turn-cue chip near the top centre.
-//! - **Centered:** the translucent overlay round the car, in the middle of the content box.
+//! - **Compact:** a small, fainter overlay round the car, and the turn-cue chip under it.
+//! - **Centered:** the translucent overlay round the car, horizontally centred at the top of the content box. The name
+//!   is kept for the setting (`map_mode = "centered"`): it is centred across the screen, and sits at the top.
 //! - **Expanded:** a larger, more opaque overlay that shows farther, with the paths and the stretch of the route
 //!   already driven.
 //!
-//! The overlays are 340, 500 and 710 pixels wide at 1080p (`docs/specs/custom-hud/map.md`).
+//! The overlays are 340, 500 and 710 pixels wide at 1080p, and half as tall as wide, so each stays in the upper part of the
+//! screen (`docs/specs/custom-hud/map.md`; the placement is `place.rs`).
 //!
 //! A mode change blends the old mode's [`Overlay`] into the new one's over `Motion::map_mode`: the ellipse and the
 //! scale glide, and the overlay and the chip fade in or out. With motion reduction the shape and the scale take the new
@@ -21,10 +23,13 @@ use crate::settings::{MinimapMode, Settings};
 
 /// A zoom key multiplies or divides `map_zoom` by this.
 pub const ZOOM_STEP: f32 = 1.25;
-/// The ellipses' half-axes (horizontal, vertical), as fractions of the content box's height.
-pub const COMPACT_RADII: [f32; 2] = [0.155, 0.115];
-pub const CENTERED_RADII: [f32; 2] = [0.23, 0.17];
-pub const EXPANDED_RADII: [f32; 2] = [0.33, 0.245];
+/// The ellipses' half-axes (horizontal, vertical), as fractions of the content box's height. The vertical one is
+/// [`SHAPE`] of the horizontal: a wide, shallow ellipse that fits under the top edge.
+pub const COMPACT_RADII: [f32; 2] = [0.155, 0.155 * SHAPE];
+pub const CENTERED_RADII: [f32; 2] = [0.23, 0.23 * SHAPE];
+pub const EXPANDED_RADII: [f32; 2] = [0.33, 0.33 * SHAPE];
+/// The ellipse's height over its width.
+pub const SHAPE: f32 = 0.5;
 /// The world radius, metres, the ellipse's horizontal half-axis shows at zoom 1.
 pub const COMPACT_BASE_M: f32 = 200.0;
 pub const CENTERED_BASE_M: f32 = 300.0;

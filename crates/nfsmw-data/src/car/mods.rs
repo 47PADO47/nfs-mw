@@ -1,41 +1,53 @@
 //! Cars that mods add (ADR 0005 section 5; docs/modding/api-content.md "Cars").
 //!
-//! A mod car is a clone of a stock car type: it keeps the stock record's name, so its parts, physics and sound are the
-//! clone's, and it ships its own `CARS/<FOLDER>/` geometry and textures. [`register`] is the pure part: it takes the
-//! stock car table and the mods' requests, and returns the cars it admits and the reasons it refuses the others. The
-//! game seals the admitted cars once, at start-up ([`seal`]); after that every car-table load sees them
+//! A mod car is a car of its own: it is one more entry in the car table, named by its folder, and it ships its own
+//! `CARS/<FOLDER>/` geometry and textures. Nothing of it is taken from a car of the game. [`register`] is the pure part:
+//! it takes the stock car table and the mods' requests, and returns the cars it admits and the reasons it refuses the
+//! others. The
+//! game publishes the admitted cars at start-up and again when a mod adds more later ([`publish`]); every car-table load after that sees them
 //! ([`car_types`]), and the physics, cop and garage lookups read them through the functions below.
 
-use std::sync::OnceLock;
+use std::sync::{PoisonError, RwLock};
 
 use blackbox_carparts::CarTypeInfo;
 
-use crate::pursuit::{CopRecord, HEAT_LEVELS, HeatRow};
+use crate::pursuit::HEAT_LEVELS;
 
-/// How many cars of a mod's kind a cop wave with the car has.
-pub const COP_COUNT: u32 = 2;
-/// The spawn weight of a mod's cop car in its waves, in percent.
-pub const COP_CHANCE: u32 = 10;
+pub mod cop;
+pub mod custom;
+mod engine;
+pub mod hinged;
+pub(super) mod parts;
+pub mod wheel_layout;
+pub use blackbox_vehicle::stats::{CarStats, Drive};
+pub use cop::{
+    COP_CHANCE, COP_COUNT, CopDamage, CopKind, CopUnit, CopWave, add_cop_rows, cop_cars, cop_kind, cop_unit, is_cop_car,
+};
+pub use engine::{CarEffects, CurveInput, EngineLayer, EngineSound, LayerCurve, LayerKind, LayerPitch, SharedSound};
 
 /// A mod's request for one car, with the facts the caller has checked against the install.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CarSpec {
     /// The car's folder under `CARS/`, in upper case.
     pub folder: String,
     /// The mod that asks for it.
     pub owner: String,
-    /// The stock car it copies: a car folder or a car type name.
-    pub clone: String,
     /// The display name, if the mod gives one.
     pub name: Option<String>,
     /// The brand, if the mod gives one.
     pub manufacturer: Option<String>,
     /// Whether the car is listed among the player's cars.
     pub player: bool,
-    /// The cop heat levels whose waves get the car, or `None` for a car that is not a cop. Levels are not checked yet.
-    pub cop_heat: Option<Vec<u32>>,
+    /// The car's police unit (its class and wave entries), or `None` for a car that is not a cop. Levels are not checked yet.
+    pub cop: Option<CopUnit>,
     /// Whether the mod's own `files/` folder holds `CARS/<folder>/GEOMETRY.BIN`.
     pub geometry_in_mod: bool,
+    /// What the car is: its mass, engine, gearbox, tyres and brakes, from which its physics are built.
+    pub stats: CarStats,
+    /// The car's own engine loops, if the mod gives them.
+    pub engine_sound: Option<EngineSound>,
+    /// The car's own recordings of its shifts, turbo, backfire and pops, if the mod gives them.
+    pub car_effects: Option<CarEffects>,
 }
 
 /// A car the game admitted, with the car type it adds to the table.
@@ -44,17 +56,24 @@ pub struct ModCar {
     pub folder: String,
     pub owner: String,
     pub name: Option<String>,
+    /// The brand the mod gave. `None` shows no brand.
+    pub manufacturer: Option<String>,
     pub player: bool,
-    pub cop_heat: Option<Vec<u32>>,
-    /// A copy of the clone's record, with the mod's folder as its geometry and the brand the mod gave.
+    /// The car's police unit, or `None` for a car that is not a cop.
+    pub cop: Option<CopUnit>,
+    /// What the car is: its physics are built from these, not from any stock car's.
+    pub stats: CarStats,
+    /// The car's own engine loops, if the mod gives them.
+    pub engine_sound: Option<EngineSound>,
+    /// The car's own recordings of its shifts, turbo, backfire and pops, if the mod gives them.
+    pub car_effects: Option<CarEffects>,
+    /// The car's entry in the car table: its folder as the type name, its geometry and the brand the mod gave.
     pub car_type: CarTypeInfo,
 }
 
 /// Why a mod's car is not added.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Reason {
-    /// `clone` names no stock car (or a car another mod added).
-    UnknownClone(String),
     /// The mod's `files/` folder has no `CARS/<folder>/GEOMETRY.BIN`.
     NoGeometry,
     /// The folder is a car the game already has, or another mod's car.
@@ -66,7 +85,6 @@ pub enum Reason {
 impl std::fmt::Display for Reason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnknownClone(clone) => write!(f, "clone {clone:?} is not a car of the game"),
             Self::NoGeometry => write!(f, "the mod's files have no CARS/<folder>/GEOMETRY.BIN for it"),
             Self::NameTaken => write!(f, "the folder is already a car"),
             Self::NoSuchHeat(level) => write!(f, "heat level {level} is not one of the game's {HEAT_LEVELS}"),
@@ -83,7 +101,7 @@ pub struct Rejected {
 }
 
 /// Check the requests in order against `stock` and against each other, and return the admitted cars and the refused
-/// requests. A car admitted here can be the clone of a later request. A refused car is not in either list.
+/// requests. A refused car is not in either list.
 pub fn register(stock: &[CarTypeInfo], specs: &[CarSpec]) -> (Vec<ModCar>, Vec<Rejected>) {
     let mut types = stock.to_vec();
     let mut cars: Vec<ModCar> = Vec::new();
@@ -103,9 +121,6 @@ pub fn register(stock: &[CarTypeInfo], specs: &[CarSpec]) -> (Vec<ModCar>, Vec<R
 }
 
 fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCar, Reason> {
-    let Some(source) = find_type(types, &spec.clone) else {
-        return Err(Reason::UnknownClone(spec.clone.clone()));
-    };
     if !spec.geometry_in_mod {
         return Err(Reason::NoGeometry);
     }
@@ -113,22 +128,41 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
     if taken {
         return Err(Reason::NameTaken);
     }
-    if let Some(&level) = spec.cop_heat.iter().flatten().find(|&&level| level == 0 || level > HEAT_LEVELS) {
-        return Err(Reason::NoSuchHeat(level));
-    }
-    let mut car_type = source.clone();
-    car_type.geometry_filename = format!("CARS\\{}\\GEOMETRY.BIN", spec.folder);
-    if let Some(manufacturer) = &spec.manufacturer {
-        car_type.manufacturer = manufacturer.clone();
+    if let Some(wave) = spec.cop.iter().flat_map(|unit| &unit.waves).find(|w| w.heat == 0 || w.heat > HEAT_LEVELS) {
+        return Err(Reason::NoSuchHeat(wave.heat));
     }
     Ok(ModCar {
         folder: spec.folder.clone(),
         owner: spec.owner.clone(),
         name: spec.name.clone(),
+        manufacturer: spec.manufacturer.clone(),
         player: spec.player,
-        cop_heat: spec.cop_heat.clone(),
-        car_type,
+        cop: spec.cop.clone(),
+        stats: spec.stats.clone(),
+        engine_sound: spec.engine_sound.clone(),
+        car_effects: spec.car_effects.clone(),
+        car_type: car_type_of(spec, types.len()),
     })
+}
+
+/// The car table entry of a mod car, made from the car's own request: its folder is its type name and the prefix of
+/// its solids, and its type hash is the hash of that name. A car that only chases (a cop role without the player role)
+/// is a police type (usage 1, the stock cops' own); any other is a racer (usage 0): a car that is also a player car has
+/// to be in the player's lists, which list racers, and it drives as a cop by its unit.
+fn car_type_of(spec: &CarSpec, index: usize) -> CarTypeInfo {
+    let cop_only = spec.cop.is_some() && !spec.player;
+    CarTypeInfo {
+        type_name: spec.folder.clone(),
+        base_model_name: spec.folder.clone(),
+        geometry_filename: format!("CARS\\{}\\GEOMETRY.BIN", spec.folder),
+        manufacturer: spec.manufacturer.clone().unwrap_or_default(),
+        type_name_hash: blackbox_hash::bstring_hash(&spec.folder),
+        index: i32::try_from(index).unwrap_or(i32::MAX),
+        usage_type: i32::from(cop_only),
+        default_skin_number: 1,
+        skinnable: true,
+        default_base_paint: 0,
+    }
 }
 
 /// The folder of a car type: the `CARS/<folder>/` part of its geometry path, in either separator style.
@@ -144,37 +178,35 @@ fn find_type<'a>(types: &'a [CarTypeInfo], id: &str) -> Option<&'a CarTypeInfo> 
         .or_else(|| types.iter().find(|info| info.type_name.eq_ignore_ascii_case(id)))
 }
 
-/// The cars of this run, set once at start-up. Later calls return the cars they were given.
-static SEALED: OnceLock<Vec<ModCar>> = OnceLock::new();
+/// The cars of this run: the ones the mods declared at start-up, then the ones that mods added while the game ran. Each
+/// publication leaks the new list, so [`published`] can hand out a slice that outlives the lock; a run makes a handful.
+static PUBLISHED: RwLock<&'static [ModCar]> = RwLock::new(&[]);
 
-/// Make `cars` the mod cars of this run. The first call wins; a second returns its cars back, unchanged.
-pub fn seal(cars: Vec<ModCar>) -> Result<(), Vec<ModCar>> {
-    SEALED.set(cars)
+/// Add `cars` to the mod cars of this run. They are in every car table loaded from now on. A car whose folder is
+/// already published is not added twice.
+pub fn publish(cars: Vec<ModCar>) {
+    let mut published = PUBLISHED.write().unwrap_or_else(PoisonError::into_inner);
+    let fresh = cars.into_iter().filter(|car| !published.iter().any(|known| known.folder == car.folder));
+    let all: Vec<ModCar> = published.iter().cloned().chain(fresh).collect();
+    if all.len() == published.len() {
+        return;
+    }
+    *published = Box::leak(all.into_boxed_slice());
 }
 
-/// The mod cars of this run: empty before [`seal`], or when no mod adds a car.
-pub fn sealed() -> &'static [ModCar] {
-    SEALED.get().map_or(&[], Vec::as_slice)
+/// The mod cars of this run so far: empty before [`publish`], or when no mod adds a car.
+pub fn published() -> &'static [ModCar] {
+    *PUBLISHED.read().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The car types the mod cars add to the table, after the stock ones.
 pub fn car_types() -> Vec<CarTypeInfo> {
-    sealed().iter().map(|car| car.car_type.clone()).collect()
-}
-
-/// The name a physics or AI lookup should use for `name`: a mod car's folder names its clone's type, which owns the
-/// physics record. Any other name is returned as it is.
-pub fn physics_name(name: &str) -> &str {
-    physics_name_in(sealed(), name)
-}
-
-fn physics_name_in<'a>(cars: &'a [ModCar], name: &'a str) -> &'a str {
-    cars.iter().find(|car| car.folder.eq_ignore_ascii_case(name)).map_or(name, |car| car.car_type.type_name.as_str())
+    published().iter().map(|car| car.car_type.clone()).collect()
 }
 
 /// Whether the car in `folder` is listed among the player's cars: every stock car is, and a mod car is when it asks.
 pub fn is_player_car(folder: &str) -> bool {
-    player_in(sealed(), folder)
+    player_in(published(), folder)
 }
 
 fn player_in(cars: &[ModCar], folder: &str) -> bool {
@@ -183,23 +215,53 @@ fn player_in(cars: &[ModCar], folder: &str) -> bool {
 
 /// The display name a mod gave the car in `folder`, if any. The garage's own name table is used otherwise.
 pub fn display_name(folder: &str) -> Option<&'static str> {
-    display_name_in(sealed(), folder)
+    display_name_in(published(), folder)
 }
 
 fn display_name_in<'a>(cars: &'a [ModCar], folder: &str) -> Option<&'a str> {
     cars.iter().find(|car| car.folder.eq_ignore_ascii_case(folder)).and_then(|car| car.name.as_deref())
 }
 
-/// Add a cop row for each mod car whose heat list has `heat` to `row`, the wave of that heat level. The row names the
-/// car by its folder in lower case, which is how the cop tables and the AI name cars.
-pub fn add_cop_rows(cars: &[ModCar], heat: u32, row: &mut HeatRow) {
-    for car in cars {
-        let in_wave = car.cop_heat.as_deref().is_some_and(|levels| levels.contains(&heat));
-        if !in_wave {
-            continue;
-        }
-        row.cops.push(CopRecord { name: car.folder.to_ascii_lowercase(), count: COP_COUNT, chance: COP_CHANCE });
-    }
+/// The name and the brand a screen shows for the car in `folder`, given the ones the game's own tables give it: a mod car shows
+/// what its mod gave it (a mod car with no brand shows none), any other car the ones passed. Every place that names a car
+/// goes through this, so a mod car is named the same everywhere.
+pub fn titled(folder: &str, name: String, manufacturer: String) -> (String, String) {
+    titled_in(published(), folder, name, manufacturer)
+}
+
+fn titled_in(cars: &[ModCar], folder: &str, name: String, manufacturer: String) -> (String, String) {
+    let Some(car) = find_in(cars, folder) else { return (name, manufacturer) };
+    (car.name.clone().unwrap_or(name), car.manufacturer.clone().unwrap_or_default())
+}
+
+/// The brand a mod gave the car in `folder`, if any.
+pub fn manufacturer(folder: &str) -> Option<&'static str> {
+    find_in(published(), folder).and_then(|car| car.manufacturer.as_deref())
+}
+
+/// The stats of the mod car in `folder`. `None` for a car that is not a mod car.
+pub fn stats(folder: &str) -> Option<&'static CarStats> {
+    find_in(published(), folder).map(|car| &car.stats)
+}
+
+/// The engine loops a mod gave the car in `folder`. `None` for a car that is not a mod car or has no loops of its own.
+pub fn engine_sound(folder: &str) -> Option<&'static EngineSound> {
+    find_in(published(), folder).and_then(|car| car.engine_sound.as_ref())
+}
+
+/// The recordings of the shifts, turbo, backfire and pops a mod gave the car in `folder`. `None` for a car that is not a
+/// mod car or has none.
+pub fn car_effects(folder: &str) -> Option<&'static CarEffects> {
+    find_in(published(), folder).and_then(|car| car.car_effects.as_ref())
+}
+
+/// Whether `folder` is a car a mod added.
+pub fn is_mod_car(folder: &str) -> bool {
+    find_in(published(), folder).is_some()
+}
+
+fn find_in<'a>(cars: &'a [ModCar], folder: &str) -> Option<&'a ModCar> {
+    cars.iter().find(|car| car.folder.eq_ignore_ascii_case(folder))
 }
 
 #[cfg(test)]

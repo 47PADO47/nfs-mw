@@ -24,13 +24,14 @@ names!(
 pub enum MapMode {
     /// No map.
     Off,
-    /// A small, fainter map centred on the screen, and a turn-cue chip near the top centre: an arrow for the next turn of
+    /// A small, fainter map at the top centre of the screen, and a turn-cue chip under it: an arrow for the next turn of
     /// the route and its distance.
     Compact,
-    /// The translucent map centred on the screen, always on. The default.
+    /// The translucent map at the top centre of the screen (centred across it), always on. The default. The name is kept
+    /// from when the map was in the middle of the view.
     #[default]
     Centered,
-    /// The centred map, larger.
+    /// The centred map, larger (still at the top).
     Expanded,
 }
 names!(

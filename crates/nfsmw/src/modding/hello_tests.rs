@@ -32,32 +32,38 @@ fn library_file_name() -> String {
     format!("{}hello_mod{}", env::consts::DLL_PREFIX, env::consts::DLL_SUFFIX)
 }
 
-/// Build `hello-mod` with the profile of this test binary, and return the library it produced.
+/// Build the `hello` mod (`mods/hello`, outside the workspace, so through its own manifest and target folder) with the
+/// profile of this test binary, and return the library it produced.
 fn build_hello() -> PathBuf {
     let mut command = Command::new(env!("CARGO"));
-    command.current_dir(workspace_root()).args(["build", "-p", "hello-mod"]);
+    command.current_dir(workspace_root()).args([
+        "build",
+        "--manifest-path",
+        "mods/hello/Cargo.toml",
+        "--target-dir",
+        "target/hello-mod",
+    ]);
+    let profile = if cfg!(debug_assertions) { "debug" } else { "release" };
     if !cfg!(debug_assertions) {
         command.arg("--release");
     }
-    let status = command.status().expect("run cargo build -p hello-mod");
-    assert!(status.success(), "cargo build -p hello-mod failed");
+    let status = command.status().expect("run cargo build for mods/hello");
+    assert!(status.success(), "cargo build of mods/hello failed");
 
-    let exe = env::current_exe().expect("test binary path");
-    let profile_dir = exe.parent().and_then(Path::parent).expect("target profile folder");
-    let library = profile_dir.join(library_file_name());
+    let library = workspace_root().join("target/hello-mod").join(profile).join(library_file_name());
     assert!(library.is_file(), "built library not found at {}", library.display());
     library
 }
 
 #[test]
-#[ignore = "builds examples/mods/hello with cargo, which is slow; run with --ignored"]
+#[ignore = "builds mods/hello with cargo, which is slow; run with --ignored"]
 fn the_hello_mod_loads_and_receives_the_frame_events() {
     let library = build_hello();
     let root = env::temp_dir().join(format!("nfsmw-hello-{}", std::process::id()));
     let scratch = Scratch { path: root.clone() };
     let folder = root.join("example.hello");
     fs::create_dir_all(&folder).expect("the mod folder");
-    fs::copy(workspace_root().join("examples").join("mods").join("hello").join("mod.toml"), folder.join("mod.toml"))
+    fs::copy(workspace_root().join("mods").join("hello").join("mod.toml"), folder.join("mod.toml"))
         .expect("copy the manifest");
     fs::copy(&library, folder.join(library_file_name())).expect("copy the library");
 

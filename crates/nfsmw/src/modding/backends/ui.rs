@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use blackbox_modding::abi::{BB_ERR_ARG, BB_ERR_EXISTS, BB_ERR_NOT_FOUND};
 use blackbox_modding::host::{BackendResult, MAX_PRIMITIVES, UiBackend, UiPrim, UiThemeSpec, UiTokens};
-use blackbox_ui::{SlotId, Theme, ThemeId, Tokens};
+use blackbox_ui::{Roles, SlotId, Theme, ThemeId, Tokens};
 use toml::Value;
 
 use super::bridge::Bridge;
@@ -113,6 +113,8 @@ fn to_tokens(tokens: &UiTokens) -> Tokens {
         text_scale: 1.0,
         // The mod ABI has no icons flag either: a mod theme's menus show no pictures.
         icons: false,
+        // The mod ABI has no colour roles: they derive from the five colours above, so a mod theme's map matches it.
+        roles: Roles::default(),
     }
 }
 

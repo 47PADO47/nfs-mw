@@ -1,6 +1,9 @@
 //! Ordered controller updates and the shared ownership router.
 use super::*;
 
+/// Miles per hour in one metre per second.
+const METRES_PER_SECOND_TO_MPH: f32 = 2.236_94;
+
 impl Audio {
     pub(super) fn advance_car(&mut self, car: &mut CarAudio, frame: &DriveFrame<'_>) {
         let view = super::super::AudioView {
@@ -21,6 +24,16 @@ impl Audio {
         let mut commands = std::mem::take(&mut car.commands);
         commands.clear();
         let landing = car.effects.update(frame.dt, &input, &out, &mut commands);
+        if let Some(sfx) = car.own_sfx.as_mut() {
+            let sfx_frame = own_sfx::SfxFrame {
+                throttle: input.throttle,
+                rpm_pct: input.rpm_pct,
+                lift_off: out.events.engine_off_sweetener,
+                dt: frame.dt,
+                delay: frame.delay,
+            };
+            sfx.drive(self, &sfx_frame, &mut commands);
+        }
         if let Some(mixer) = car.mixer.as_mut() {
             mixer.set_view(view);
             mixer.set_landing(landing);
@@ -38,26 +51,38 @@ impl Audio {
         }
         let wet_supported = self.update_wet(car.levels.environment.requested_patch);
         car.levels.environment.wet_supported = wet_supported;
-        car.handle.set_wet_gain(car.levels.environment.ginsu_wet as f32 / 32767.0);
+        if let Some(handle) = car.handle.as_ref() {
+            handle.set_wet_gain(car.levels.environment.ginsu_wet as f32 / 32767.0);
+        }
         let levels = car.levels;
-        car.handle.set_tick(
-            EngineMix {
-                accel: LoopMix {
-                    frequency: out.accel_loop.frequency,
-                    volume: out.accel_volume * levels.engine_volume,
-                    pitch: out.accel_loop.playback_rate * levels.engine_pitch,
+        if let Some(own_engine) = car.own_engine.as_mut() {
+            let inputs = own_engine::EngineInputs {
+                rpm: input.rpm_pct,
+                load: input.throttle,
+                speed_mph: input.speed.abs() * METRES_PER_SECOND_TO_MPH,
+            };
+            own_engine.update_inputs(&inputs, levels.engine_volume);
+        }
+        if let Some(handle) = car.handle.as_ref() {
+            handle.set_tick(
+                EngineMix {
+                    accel: LoopMix {
+                        frequency: out.accel_loop.frequency,
+                        volume: out.accel_volume * levels.engine_volume,
+                        pitch: out.accel_loop.playback_rate * levels.engine_pitch,
+                    },
+                    decel: LoopMix {
+                        frequency: out.decel_loop.frequency,
+                        volume: out.decel_volume * levels.engine_volume,
+                        pitch: out.decel_loop.playback_rate * levels.engine_pitch,
+                    },
+                    low_pass_hz: out.low_pass_hz.min(levels.engine_low_pass_hz),
+                    azimuth: levels.engine_azimuth as u16,
+                    dry: (levels.environment.ginsu_dry.clamp(0, 32767) >> 8) as f32 / 127.0,
                 },
-                decel: LoopMix {
-                    frequency: out.decel_loop.frequency,
-                    volume: out.decel_volume * levels.engine_volume,
-                    pitch: out.decel_loop.playback_rate * levels.engine_pitch,
-                },
-                low_pass_hz: out.low_pass_hz.min(levels.engine_low_pass_hz),
-                azimuth: levels.engine_azimuth as u16,
-                dry: (levels.environment.ginsu_dry.clamp(0, 32767) >> 8) as f32 / 127.0,
-            },
-            out.tick_revision,
-        );
+                out.tick_revision,
+            );
+        }
         if out.redlining != car.redlining {
             car.redlining = out.redlining;
             log::debug!("{}: engine limiter {}", car.car, if out.redlining { "starts" } else { "ends" });
@@ -68,12 +93,21 @@ impl Audio {
             } else {
                 1.0
             };
-            layer.set_synth_frequency(car.handle.current_frequency() * below_min);
+            layer.set_synth_frequency(car.handle.as_ref().map_or(0.0, EngineHandle::current_frequency) * below_min);
             layer.update(&mut KiraSampler(self), frame.dt, &Feed { engine: &out, levels: &levels });
         }
+        car.contacts.set_own_scrape(car.own_sfx.as_ref().is_some_and(own_sfx::OwnSfx::has_shared_scrapes));
         let hits = car.contacts.observe(self, &car.sound, car.mixer.as_ref(), frame.contacts, frame.sim_dt, &view);
         for event in hits.iter().chain(frame.events) {
+            // A body hit the car has its own recording for is played from it, not from the game's collision banks.
+            if car.own_sfx.as_mut().is_some_and(|sfx| sfx.shared_impact(self, event, frame.delay)) {
+                continue;
+            }
             self.play_impact(car, event, &input, &view);
+        }
+        let scrape = car.contacts.take_scrape_level();
+        if let Some(sfx) = car.own_sfx.as_mut() {
+            sfx.shared_scrape(self, scrape, frame.dt, frame.delay);
         }
         if let Some(landing) = landing {
             self.play_landing(car, landing);
@@ -128,6 +162,9 @@ impl Audio {
                 _ => false,
             })
             .collect();
+        // A mod's nitrous variant plays its own sounds; the game's nitrous sound is silent while they do.
+        let replaced = car.nitrous.update(self, frame.nitrous_fx, input.nos_active);
+        car.power.set_silence_nitrous(replaced);
         car.power.update(self, &car.sound, &input, power_frame, power_levels, frame.dt);
         for (command, power_event) in commands.drain(..).zip(routed) {
             routing::dispatch(self, car, command, tyres_owned, power_event);
@@ -139,8 +176,8 @@ impl Audio {
                     "car={} requested={} consumed={:?} frequency={}",
                     car.car,
                     out.tick_revision,
-                    car.handle.consumed_revision(),
-                    car.handle.current_frequency()
+                    car.handle.as_ref().and_then(EngineHandle::consumed_revision),
+                    car.handle.as_ref().map_or(0.0, EngineHandle::current_frequency)
                 ),
             );
         }

@@ -20,7 +20,13 @@ pub(in crate::scenes::world) fn run(
     }
     let car = scene.garage.applied.car.clone();
     scene.discover_garage_parts(&car).map_err(|e| format!("{e:#}"))?;
-    let catalog = scene.garage.selected().and_then(|c| c.parts.as_ref()).ok_or("parts unavailable")?;
+    let catalog = scene
+        .garage
+        .cars
+        .iter()
+        .find(|c| c.folder == car)
+        .and_then(|c| c.parts.as_ref())
+        .ok_or_else(|| format!("{car} is not in the garage list, so its parts are unavailable"))?;
     if args.is_empty() {
         let mut lines = Vec::new();
         for category in Category::ALL {

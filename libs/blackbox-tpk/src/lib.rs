@@ -12,6 +12,9 @@
 //! the version in `TexturePackInfoHeader` (see [`layout`]). Supported today:
 //! version 5 (NFS: Most Wanted, PC). Other versions fail with
 //! [`Error::UnsupportedVersion`] until their layout is added.
+//!
+//! [`write_tpk`] goes the other way: it builds a version 5 pack (the car `TEXTURES.BIN` form, or the plain form)
+//! from [`TextureSource`]s, and the result reads back to the same textures.
 
 mod anim;
 mod decode;
@@ -21,13 +24,18 @@ mod info;
 pub mod layout;
 mod reader;
 mod texture;
+mod writer;
 
 #[cfg(test)]
 mod tests;
 
 pub use anim::{TextureAnim, read_texture_anims};
-pub use decode::{decode_mip_rgba8, decode_rgba8, mip_level_size};
+pub use decode::{decode_mip_rgba8, decode_rgba8, decode_rgba8_cutout, mip_level_size};
 pub use error::{Error, Result};
 pub use format::{AlphaUsage, PixelFormat};
 pub use reader::{read_texture_packs, read_texture_packs_filtered, read_texture_packs_ranged};
 pub use texture::{Texture, TexturePack};
+pub use writer::{
+    DEFAULT_RENDERING_ORDER, MAX_DIMENSION, MAX_STORED_NAME, PackForm, TextureSource, WriteError, WriteOptions,
+    WriteResult, default_compression_type, write_tpk, write_tpk_with,
+};

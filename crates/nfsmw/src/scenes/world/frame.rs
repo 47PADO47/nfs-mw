@@ -44,7 +44,8 @@ impl WorldScene {
             || self.extra.selected_bookmark.is_some()
             || self.career.garage.is_some()
             || self.photo_shot.is_some()
-            || render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode))
+            || (render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode))
+                && !self.extra_view_hides_car())
     }
 }
 

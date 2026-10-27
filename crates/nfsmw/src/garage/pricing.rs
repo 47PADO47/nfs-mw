@@ -106,7 +106,10 @@ impl Pricing {
     }
 
     fn level(&self, hash: Option<u32>) -> u32 {
-        hash.and_then(|hash| self.tables.parts.by_name_hash(hash)).map_or(0, |part| u32::from(part.upgrade_level))
+        let Some(hash) = hash else { return 0 };
+        let stock = self.tables.parts.by_name_hash(hash).map(|part| u32::from(part.upgrade_level));
+        // A choice of a mod car's own customization is no part of the game's table; it costs the first tier.
+        stock.or_else(|| nfsmw_data::car::mods::custom::price_level(hash)).unwrap_or(0)
     }
 
     fn visual(

@@ -9,7 +9,7 @@ Status: **partly built**. `bb.commands`, `bb.input`, `bb.time`, `bb.map` and `bb
 chase). The game interaction interfaces are partly built: `bb.vehicles` (the player's car: state, teleport, repair),
 `bb.hud` (a centred message), `bb.camera` (read and the gameplay views) and `bb.world` (track, district, rain, traffic)
 work; `bb.audio` is offered but every play is unsupported until sound names are looked up; traffic spawn at a point is
-unsupported. `bb.ui` 1.0 registers named UI themes whose slots a mod redraws with panels, text and images; the registry
+unsupported. `bb.config` 1.0 gives a mod its settings, merged from a file in its folder and its `[mods.<id>]` table in the game's config ([api-config.md](api-config.md)). `bb.settings` 1.0 adds options to the gameplay settings, or values to the game's own, and the game's "Nitrous variant" option takes a mod's variants ([api-settings.md](api-settings.md), [nitrous-variants.md](nitrous-variants.md)). `bb.ui` 1.0 registers named UI themes whose slots a mod redraws with panels, text and images; the registry
 builds them, but the live game draws them only after the presenter wiring (see [api-ui.md](api-ui.md)). The status of each row is in [api-world.md](api-world.md#game-interaction). `nfsmw.career`
 is offered with no state, so a mod can detect it; `nfsmw.races` runs over the world's races. The four interior events (`INTERIOR_ENTERING`,
 `INTERIOR_ENTERED`, `INTERIOR_EXITING`, `INTERIOR_EXITED`, ABI 14 to 17) are sent for a mod interior; the interior's key
@@ -24,11 +24,22 @@ when the module is new.
 |---|---|
 | [api.md](api.md) | How to read the catalogue, shared types, lifecycle, events, commands, hotkeys and abilities, time of day |
 | [api-world.md](api-world.md) | Map blips and the world map, menus, game interaction (vehicles, player, HUD, audio, camera, world) |
+| [api-config.md](api-config.md) | Configuration (`bb.config`): a mod's settings from its own file, from the game's main config, or both; the `config` key of `mod.toml`; the `[mods.<id>]` table; the merge rules |
+| [api-settings.md](api-settings.md) | Settings (`bb.settings`): add an option to the gameplay settings or values to the game's own, the merge rules, when a list is hidden |
+| [nitrous-variants.md](nitrous-variants.md) | The "Nitrous variant" option, a variant's `profile.toml` (sounds, flame tint, screen effects) and how a mod adds one |
 | [api-ui.md](api-ui.md) | UI themes (`bb.ui`): named themes, the slot numbers, the draw primitives, the SDK |
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
+| [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paints, rims, spoilers, vinyls), the `[customization]` table of a car manifest, and the files a mod's own car needs |
+| [car-stats.md](car-stats.md) | The `[stats]` table of a car manifest (mass, engine, gearbox, tyres, brakes, nitrous in SI units), the upgrade levels, the shop's bars |
+| [car-sound.md](car-sound.md) | The `[engine_sound]` and `[car_sound]` tables of a car manifest: the car's own engine loops, the built-in engine, shifts, turbo, backfire and pops |
+| [cop-cars.md](cop-cars.md) | Police cars in mods: `role = "cop"`, the `[[cop]]` wave entries (count and chance per heat level), the unit class, how the original assigns cops to heat levels, what each system gives a mod cop car, the developer tools |
+| [car-lamps.md](car-lamps.md) | The lamps of a mod car: the head, brake and reverse lamp markers on its body solid, the lamp placeholder textures, what the 2012 cars get |
+| [car-collision.md](car-collision.md) | The collision and impact geometry of a mod car: its `BOUNDS.BIN` (what it holds, what the game checks), the damage zones and numbers, how to make one |
+| [car-damage-parts.md](car-damage-parts.md) | The hinged parts of a mod car (`[[damage_parts]]`): solids that turn on a hinge or fall off as the zones around them are damaged |
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
+| [nfsmw-2012-content.md](nfsmw-2012-content.md) | The `nfsmw-2012-content` mod: the 73 cars of NFS: Most Wanted (2012) (93 bundles, 20 of them liveries), converted in the background from your own install named in the mod's `config.toml`: settings, what is converted, limits |
 
 ## Two layers
 
@@ -48,11 +59,11 @@ mods/<id>/
   mod.toml        manifest (required)
   <library>       .dll / .so (optional: a content-only mod has none)
   files/          VFS overlay, mirrors the install layout (CARS/MYCAR/..., MUSIC/...)
-  cars/           one <id>.toml per car the mod adds (clone, role, heat); see api-content.md#cars
+  cars/           one <id>.toml per car the mod adds (role, heat, name, [stats], [customization]); see api-content.md#cars
   music/          audio files and .m3u playlists; the contexts are in [music] of mod.toml
   lang/           <locale>/*.ftl translations of the mod's text, and language packs; see translations.md
   content/        other declarative registrations (TOML), planned
-  config.toml     the mod's own settings, managed through bb.config
+  config.toml     the mod's own settings, read through bb.config (or the file named by `config` in mod.toml); see api-config.md
 ```
 
 `mods/` is `<config dir>/mods/`. The manifest fields, discovery, ordering and failure rules are in the ADR
@@ -76,6 +87,30 @@ linux   = "libhello.so"
 "bb.commands" = "1.0"
 ```
 
+`[mod]` also takes an optional `config = "settings/mine.toml"`: the mod's own settings file, a path inside the mod's folder
+(default `config.toml`; see [Configuration](#configuration)).
+
+## Configuration
+
+A mod's settings live in a TOML file in its folder (`config.toml`, or the file named by `config = "path/in/the/folder.toml"` in
+the `[mod]` table of `mod.toml`), in a table of the game's main config file (`[mods.<id>]`, written `[mods."my.mod"]` when the
+id has a dot), or in both. The host merges them, the main config winning key by key (tables merge, other values and arrays are
+replaced), and `ctx.config()` hands the mod the result as TOML text, to parse with its own TOML library. `has_file()` and
+`has_main_section()` say which sources exist. The text is read when the mod calls, which a mod does at load, so an edit of
+either file is seen at the next start (or developer reload). The main config's `mods` key is still the string
+`mods = "all"`, or a `[mods]` table with `mode`, `allowlist`, `disabled` and the `[mods.<id>]` tables; the table's lists win over
+`mods_allowlist` and `mods_disabled`. The full rules, the SDK and the ABI are in [api-config.md](api-config.md).
+
+```toml
+# in the game's config file
+[mods]
+mode = "all"
+
+[mods.nfsmw-2012-content]
+source = 'D:/Need For Speed Most Wanted 2012'
+role = "both"
+```
+
 ## What a mod can do (capability map)
 
 | Wanted capability | Interface | Catalogue |
@@ -86,6 +121,8 @@ linux   = "libhello.so"
 | Day and time cycle | `bb.time` | [api.md](api.md#time-of-day) |
 | Map blips, world-map markers | `bb.map` | [api-world.md](api-world.md#map-blips-and-the-world-map) |
 | Extend menus | `bb.menus` | [api-world.md](api-world.md#menus) |
+| Read the mod's own settings (its file, and its table in the game's config) | `bb.config` | [api-config.md](api-config.md) |
+| Add a gameplay setting, or a value to one (a nitrous variant) | `bb.settings` | [api-settings.md](api-settings.md), [nitrous-variants.md](nitrous-variants.md) |
 | Interact with the game (player car, spawn traffic and cops, HUD message, sound, camera) | `bb.vehicles`, `bb.hud`, `bb.audio`, `bb.camera`, `bb.world` | [api-world.md](api-world.md#game-interaction) |
 | Add cars (player and cop) | `bb.content` | [api-content.md](api-content.md#cars) |
 | Add music, fonts, scenery and map packs | `bb.content`, VFS overlay | [api-content.md](api-content.md) |
@@ -112,8 +149,9 @@ downloads or fetches a mod.
   Windows, `~/.config/nfsmw/mods/<id>/` on Linux. The folder holds `mod.toml`, the library and `files/` (see
   [Folder layout](#folder-layout-of-a-mod)). `--mods-dir <path>` adds a second folder to search.
 - **Which load:** the `mods` setting is `all` by default (every mod in the folders), `allowlist` (only the ids in
-  `mods_allowlist`, a list in `config.toml`) or `off`. Set it in `config.toml` (`mods = "allowlist"`) or in the
-  environment (`NFSMW_MODS=off`). `--no-mods` loads none, native mods included; use it first when reporting a bug.
+  `mods_allowlist`, a list in the game's `config.toml`) or `off`. Set it in the game's `config.toml` (`mods = "allowlist"`, or
+  `mode = "allowlist"` in a `[mods]` table, which can also hold `allowlist`, `disabled` and each mod's own settings: see
+  [api-config.md](api-config.md)) or in the environment (`NFSMW_MODS=off`). `--no-mods` loads none, native mods included; use it first when reporting a bug.
 - **Developer runs:** `--mod-dev` loads copies of the libraries from the local data folder, so a rebuilt library can
   replace the original while the game is running. Reloading a mod during a run is not in the console yet.
 - **Checking:** the start-up log names each loaded mod, its version and the SHA-256 of its library, and each refused
@@ -123,11 +161,16 @@ downloads or fetches a mod.
   the same path in the install or in a lower layer, and a new path adds one. Layers order by `[content] priority`
   (higher wins), then by load order (a later mod wins a tie). Mods do not write to the
   install.
-- **Content:** a mod's `cars/<id>.toml` files add cars, each a copy of a stock car with the mod's own `files/CARS/<ID>/`
-  folder, as player cars, cop cars, or both. A mod's `music/` folder joins the custom music library in the contexts
-  its `[music]` table names, and plays even with the custom music setting off when `always = true`. A car or a track
-  that fails a check is logged with its reason and left out. The cars are registered once, at start-up, and a change
-  needs a restart. The garage does not yet use a mod's display name or hide its cop-only cars.
+- **Content:** a mod's `cars/<id>.toml` files add cars, each a car of its own (not a copy of a stock one) with the mod's own
+  `files/CARS/<ID>/` folder (geometry, textures and collision bounds), as player cars, cop cars, or both. A mod's `music/`
+  folder joins the custom music library in the contexts its `[music]` table names, and plays even with the custom music
+  setting off when `always = true`. A car or a track that fails a check is logged with its reason and left out. The cars are
+  registered at start-up, or later when a mod calls `bb.content` (see
+  [api-content.md](api-content.md#content-registries-bbcontent)), and a change to a car that is already registered needs a
+  restart. The garage shows a mod's display name and brand and hides its cop-only cars. The auto shop offers the car the
+  paints and parts its own `[customization]` table lists ([car-customization.md](car-customization.md)); a manifest's
+  `[stats]` table is what the car is and how it drives ([car-stats.md](car-stats.md)), and `[engine_sound]` and `[car_sound]`
+  are how it sounds ([car-sound.md](car-sound.md)).
 - **Now:** a mod gets the frame events (`FRAME_START` in the start of the frame, `SCENE_TICK` after the scene's
   update, and `MOD_UNLOADING` at exit), and its `files/` layer. It also gets the game's interfaces. A mod that requires an
   interface the game does not offer is refused with its reason. In NFS:MW the `nfsmw.*` events of the chase (pursuit
@@ -144,7 +187,7 @@ downloads or fetches a mod.
   - `bb.time`: `get`, `set_hour` (wrapped into 0 to 24), `set_day_length` (a rate clamped to 10 to 3600 real seconds
     per hour; `0` holds the hour) and `freeze`. The clock is the world's day clock, and a menu has none, so a call
     there is `not ready`. A mod's read at load is `not ready` too: the mods start before the scene exists, so the
-    clock is first copied in at the first frame. A mod reads it on its first event, as `examples/mods/hello` does.
+    clock is first copied in at the first frame. A mod reads it on its first event, as `mods/hello` does.
   - `bb.menus`: `register` adds a row to a Mods page under Options, which is listed only while a mod has rows. A row
     is a toggle, a slider, a list or a button. A change is saved under `[mod_values."<id>"]` in the config file and
     calls the mod back. `ctx.menus()` in the SDK adds these rows with closures, and reads and sets them. Pages of their

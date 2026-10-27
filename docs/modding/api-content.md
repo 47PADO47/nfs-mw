@@ -41,55 +41,110 @@ running game); the host rejects an entry whose source game has no reader or layo
 | Registry list | `content.list(kind: Kind) -> Vec<EntryInfo { key, owner }>` (any kind, including the game's own) | G | `modding/content.rs` (new) |
 | Lookup | `content.get(kind, key) -> Option<EntryInfo>` | G | same |
 | Unregister (own) | `content.remove(kind, key)`, valid in `Load` | G | same |
+| Rescan | `ctx.content() -> Option<Content>`, `content.rescan() -> Result<()>` (built, `bb.content` 1.0): the mod's `files/` and `cars/` changed since start-up. The host adds `files/` as a late layer of the install (shared by every copy, `GameDir::add_late_overlay`) and publishes the new cars (`car::mods::publish`); what the game opens afterwards lists them. A layer that exists is not re-indexed; a car already published is not added twice. Main thread only: a worker thread tells the mod's event callback, which calls it | G (interface), MW (cars) | `libs/blackbox-modding/src/{abi/iface,host/table,sdk}/content.rs`, `crates/nfsmw/src/modding/backends/content.rs`, `modding/content/mod.rs` (`rescan`) |
 
 ### Cars
 
-Works now in NFS:MW. A mod adds a car with its files and one manifest. The car id is the manifest's file name:
+Works now in NFS:MW. A mod adds a car with its files and one manifest. The car id is the manifest's file name. A mod car is
+**one more entry in the car list**, named by its folder: it is not a copy of a stock car and inherits nothing from the 2005
+game (its parts, physics and sound are its own).
 
 ```
 mods/example.pack/
   mod.toml
-  files/CARS/FASTCOUPE/GEOMETRY.BIN   the body, in the install's format
-  files/CARS/FASTCOUPE/TEXTURES.BIN   its textures
   cars/fastcoupe.toml                 the manifest
+  files/CARS/FASTCOUPE/GEOMETRY.BIN   the solids FASTCOUPE_KIT00_BODY_A..D and FASTCOUPE_KIT00_FRONT_TIRE_A..D (car-customization.md)
+  files/CARS/FASTCOUPE/TEXTURES.BIN   its textures
+  files/CARS/FASTCOUPE/BOUNDS.BIN     its collision bounds (a BoundsPack): without it the car cannot drive
 ```
 
 ```toml
 # cars/fastcoupe.toml
-clone = "CAMARO"                # a stock car: the new car keeps its record, parts, physics and sound
 role = "both"                   # player, cop or both (default: player)
-heat = [2, 3, 4]                # cop only: heat levels whose waves may use it (left out: every level)
-name = "Fast Coupe"             # display name (optional; default: the clone's)
-manufacturer = "Acme"           # brand (optional; default: the clone's)
+heat = [2, 3, 4]                # cop only: heat levels whose waves may use it, 2 cars at 10 percent (left out: every level)
+cop_class = "patrol"            # cop only: patrol (default), pursuit or heavy (cop-cars.md)
+[[cop]]                         # cop only, repeatable: one wave entry with its own numbers (cop-cars.md)
+heat = 6                        # one level or a list of levels
+count = 2                       # cars the wave wants, 1 to 8
+chance = 80                     # weight of the pick, percent, 1 to 100
+name = "Fast Coupe"             # display name (optional; default: the car id)
+manufacturer = "Acme"           # brand (optional; default: none)
+
+[stats]                         # optional: what the car is, in absolute SI units (car-stats.md)
+mass_kg = 1295.0
+torque_curve = [[1000.0, 360.0], [5600.0, 440.0], [7800.0, 390.0]]   # [rpm, N m]
+gear_ratios = [3.91, 2.29, 1.55, 1.3, 1.08, 0.88, 0.71]
+final_drive = 3.44
+nitrous = true                  # nitrous from the factory
+
+[customization]                 # optional: the car's own paints and parts (car-customization.md)
+paints = [{ name = "Red", color = [173, 43, 44] }, { name = "Silver", color = [200, 204, 197], finish = "metallic" }]
+rims = [{ name = "Five spoke", model = "FASTCOUPE_RIM1" }]   # a wheel solid of the car's own GEOMETRY.BIN
+[[damage_parts]]                # optional, repeatable: parts that hang on hinges when damaged (car-damage-parts.md)
 ```
+
+A key not listed in the manifest table below refuses the car. A car with `role = "cop"` or `"both"` is a police car with a wave
+entry per heat level: [cop-cars.md](cop-cars.md). There is no key that names another car: a manifest with a
+`clone` key is refused as an unknown key. (What changed: an earlier version made a mod car a copy of a stock car, kept that
+car's record, parts, physics and sound, and had a `[performance]` table of multipliers over it. All of that is gone; `[stats]`
+holds absolute values.)
 
 Rules:
 
-- The car id is the file name in upper case (`FASTCOUPE`). Its geometry must be in the mod's own `files/` folder, not
-  only in the install.
-- `clone` names a stock car (its folder or its type name), or a car an earlier mod added in this run.
-- A folder that is already a car (stock, or another mod's) is refused. Heat levels run from 1 to 10.
-- A key the game does not know refuses the car. So does an `[override]` table: physics and attribute overrides are not
-  in the first delivery (see open items).
+- A mod may write its `cars/` and `files/` folders in `Mod::load` (it finds its folder with `ctx.mod_dir()`): the game
+  reads them after every mod has loaded. The [2012 content mod](nfsmw-2012-content.md) does, on a worker thread, and calls
+  `bb.content` when it is done.
+- The car id is the file name in upper case (`FASTCOUPE`; 1 to 32 letters, digits, `_` or `-`). Its `GEOMETRY.BIN` must be in the mod's own `files/` folder, not
+  only in the install (`Reason::NoGeometry`).
+- A folder that is already a car (stock, or another mod's) is refused (`Reason::NameTaken`). Heat levels run from 1 to 10.
+- A key the game does not know refuses the car. So does an `[override]` table: arbitrary physics and attribute
+  overrides are not offered (see open items). The `[stats]` table is: the car's mass, engine, gearbox, tyres, brakes,
+  suspension and nitrous in SI units, each key checked against a range and a key left out taking the engine's generic
+  value ([car-stats.md](car-stats.md#stats-stats-in-the-car-manifest)). The car's physics are built from these and from
+  the car's own `BOUNDS.BIN`, and from nothing else.
 - Each refused car is logged with its mod and reason. The game goes on without that car.
 - Registration runs once in `open_install`, before any scene is built, and the result is sealed for the run. A changed
   car needs a restart.
-- A cop car gets one row in each heat wave it names: 2 cars at 10 percent (`COP_COUNT`, `COP_CHANCE` in
-  `car/mods.rs`). Its physics and AI are the clone's.
+- A cop car gets one record `{ car, count, chance }` in each heat wave it names, with the numbers of its `[[cop]]` entry, or 2
+  cars at 10 percent (`COP_COUNT`, `COP_CHANCE` in `car/mods/cop.rs`) for the `heat = [..]` short form and for a car that names
+  no level (every level). A car that is only a cop is a police type of the car table (usage 1, `Category::Police`); its physics are
+  built from its stats like a player car's, and the AI may use its whole `top_speed_kph` (200 km/h when it gives none). Its
+  damage, rep value and radio class come from `cop_class`. All of it is in [cop-cars.md](cop-cars.md).
 
-Known gaps: the garage lists every car, cop-only ones included, and names each from the language table. It needs a
-hook to use `display_name` and `is_player_car` (`car/mods.rs`); until then a mod's display name and role are not shown.
-Paint, part models and a code form (`content.cars().register(..)`) are not built yet.
+The auto shop offers the car what its `[customization]` table lists (body paints and finishes, rim paints, tints, rims,
+spoilers, roof scoops, vinyls), read from the table and the car's own files; no stock car's parts table is involved. The
+performance upgrades and nitrous work as described in [car-stats.md](car-stats.md). The garage takes a mod car's display
+name and brand (`display_name`, `manufacturer`), lists its cop-only cars under Police ([cop-cars.md](cop-cars.md)) and skips any
+car whose physics cannot be built (for one, a missing `BOUNDS.BIN`); the other screens that name cars were not checked.
+
+**Collision: `BOUNDS.BIN`.** The car's `files/CARS/<ID>/` folder holds `BOUNDS.BIN`, its collision bounds in the game's
+own `BoundsPack` format: the box its rigid body is built from, its contact shapes, the ground mesh and, from the box, its damage
+zones. **It is required for a car to drive:** the game reads the car's own file and never a stock car's, and refuses a car
+without a valid one, with the reason in the log. What it holds and how to write one: [car-collision.md](car-collision.md).
+
+**Sound.** The car's sound is its own, never another car's: its engine loops (`[engine_sound]`, else a built-in engine),
+and its gear shifts, turbo whistle and blow-off, backfires and pops (`[car_sound]`, else silence). Collisions, skids,
+nitrous and the road share the game-wide banks. See [car-sound.md](car-sound.md).
+
+Known gaps: body kits and hoods (a mod car has none), and a code form (`content.cars().register(..)`) are not built.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
-| Car manifest | `cars/<id>.toml` with `clone`, `role`, `heat`, `name`, `manufacturer`; unknown keys refused | G (schema), MW (checks) | `libs/blackbox-modding/src/content/car.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
+| Car manifest | `cars/<id>.toml` with `role`, `heat`, `[[cop]]`, `cop_class`, `name`, `manufacturer`, `[stats]`, `[customization]`, `[[damage_parts]]`, `[engine_sound]`, `[car_sound]`; unknown keys refused | G (schema), MW (checks) | `libs/blackbox-modding/src/content/car.rs`, `stats.rs`, `customization.rs`, `engine_sound.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
+| Stats | `Stats` (40 keys, absolute SI values; `Stats::default()` is the engine's generic car) converts to `blackbox_vehicle::stats::CarStats`; `car::mods::stats(folder)` reads it; `CarPhysics::from_stats(stats, bounds)` and `physics_from_stats(stats, package, bounds)` build the physics, `PerformanceCatalog::from_stats` the shop's upgrade list, `RatingBook::for_stats` its bars, `ai_vehicle_from_stats` the AI's speed limit | G (schema, builder), MW (wired) | `libs/blackbox-modding/src/content/stats.rs`, `libs/blackbox-vehicle/src/stats/`, `crates/nfsmw-data/src/car/physics/from_stats.rs` |
+| Physics and collision | `PhysicsData::car(folder)` builds a mod car from its `[stats]` and its own `BOUNDS.BIN` (`mod_car_collision`); nothing is read from a vehicle record | MW | `crates/nfsmw-data/src/car/physics/{data,mod_car,bounds}.rs` |
+| Wheel layout | `WheelSetup::for_car` takes a mod car's hubs from its `[wheels]` table when it has one (`WheelSetup::from_layout`, [car-stats.md](car-stats.md#where-the-wheels-are-drawn-wheels)), else from its stats (`WheelSetup::from_stats`): plus and minus half the wheelbase, track and tyre size from `[stats]` | MW | `crates/nfsmw-data/src/car/ecar.rs` |
+| Engine sound | `[engine_sound]` (`idle_rpm`, `redline_rpm`, `layers`): looping WAVs mixed by engine speed; a car without it plays the built-in engine (`blackbox_carsound::synth`). `car::mods::engine_sound(folder)` reads it, `audio/car/own_engine.rs` plays it | G (schema), MW (played) | `libs/blackbox-modding/src/content/engine_sound.rs`, `crates/nfsmw-data/src/car/mods/engine.rs` |
+| Car sound | `[car_sound]` (`shift`, `shift_up`, `shift_down`, `turbo_whine`, `turbo_blowoff`, `backfire`, `pops`): lists of up to 16 WAV files, `MAX_EFFECT_FILES`; a list left out is silence. `car::mods::car_effects(folder)` reads it, `audio/car/own_sfx.rs` plays it | G (schema), MW (played) | `libs/blackbox-modding/src/content/engine_sound.rs` (`CarEffects`), `crates/nfsmw-data/src/car/mods/engine.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
+| Sound set | `sound::generic_car_sound(db, name)`: the sound set of a car with no `pvehicle` record, from `engineaudio/default`, `shiftpattern/default`, no turbo, the collision links of `pvehicle/cars` and the shared skid and nitrous banks; `Audio::sound_set` picks it for every mod car | MW | `crates/nfsmw-data/src/sound/car.rs`, `crates/nfsmw/src/audio/mod.rs` |
+| Customization | `[customization]` (`paints`, `default_paint`, `rim_paints`, `tints`, `rims`, `spoilers`, `roof_scoops`, `vinyls`, `vinyl_colors`, `liveries`, `default_livery`): `car::mods::custom::of(folder)` reads it; the garage catalogue (`custom::catalog`, `custom::livery`) and the assembled model (`custom::apply`) come from it and the car's own `GEOMETRY.BIN`, `VINYLS.BIN` and `TEXTURES.BIN` | G (schema), MW (shop) | `libs/blackbox-modding/src/content/customization.rs`, `crates/nfsmw-data/src/car/mods/custom/` |
+| Car parts | the body and wheel part of each mod car, made from the car's own solids `<ID>_KIT00_BODY_A..D` and `<ID>_KIT00_FRONT_TIRE_A..D` and added to the parts database (`PartsDb::push_parts`); no other slot is filled | G (`push_part`), MW | `libs/blackbox-carparts/src/parts/push.rs`, `crates/nfsmw-data/src/car/mods/parts.rs` |
+| Brand | `car::mods::manufacturer(folder)`: the brand a mod gave | MW | `crates/nfsmw/src/scenes/world/garage.rs` (`catalog`) |
 | Register cars | `car::mods::register(stock: &[CarTypeInfo], specs: &[CarSpec]) -> (Vec<ModCar>, Vec<Rejected>)` | MW | `crates/nfsmw-data/src/car/mods.rs` |
-| Car table | `CarTables::load` appends `car::mods::car_types()` after the stock types, so `car::load`, the garage's car list and cop loading find the car by folder | MW | `crates/nfsmw-data/src/car/tables.rs` |
-| Physics name | `PhysicsData::car(name)` reads a mod car's clone record through `car::mods::physics_name` | MW | `crates/nfsmw-data/src/car/physics/data.rs` |
-| Cop rows | `pursuit::heat_row` adds `car::mods::add_cop_rows` for the level | MW | `crates/nfsmw-data/src/pursuit.rs` |
-| Seal | `car::mods::seal(cars)` once, from `open_install` | MW | `crates/nfsmw/src/modding/content/mod.rs`, `modding/open.rs` |
-| Garage name and role | `car::mods::display_name(folder)`, `car::mods::is_player_car(folder)` | MW | `crates/nfsmw-data/src/car/mods.rs`; **not called yet** by `crates/nfsmw/src/scenes/world/garage.rs` |
+| Car table | `CarTables::load` appends `car::mods::car_types()` after the stock types (the entry of a mod car is made by `car_type_of`, from its folder), so `car::load`, the garage's car list and cop loading find the car by folder. The parts database of those tables also holds the mod cars' parts: the extended tables are built when a load first sees a new set of published cars and shared after | MW | `crates/nfsmw-data/src/car/tables.rs` |
+| Cop rows | `pursuit::heat_row` adds `car::mods::add_cop_rows` for the level, one record per car whose unit has an entry for it (count and chance of the entry); `car::mods::{cop_unit, cop_kind, cop_cars}` give the unit (class and entries) | MW | `crates/nfsmw-data/src/pursuit.rs`, `car/mods/cop.rs` |
+| Publish | `car::mods::publish(cars)` from `open_install` (once for the start-up cars, again for the cars a mod adds through `content.rescan()`); a folder already published is not added twice | MW | `crates/nfsmw/src/modding/content/{mod,cars}.rs`, `modding/open.rs` |
+| Garage name and role | `car::mods::display_name(folder)`, `car::mods::is_player_car(folder)`; a cop-only car is usage type 1 and `Category::Police` | MW | `crates/nfsmw-data/src/car/mods.rs`; called by `crates/nfsmw/src/scenes/world/garage.rs` (`catalog`) |
 | Planned: code form | `content.cars().register(CarDef { .. }) -> Result<CarId>`, paint (`CARSKIN`), part models, `traffic` role | G | not built |
 
 ### Music
@@ -115,6 +170,38 @@ always = true                      # play even when the custom music setting is 
 | Planned: track record | `content.music().register(TrackDef { key, title, artist, file, categories, station, loop_points })`, stations, `[track]` files | G | not built |
 | Replace track | a file in `files/` with the install's path replaces the original (overlay), no registration | G | VFS overlay |
 | Planned: speech line | `content.speech().register(key, file)` for `audio.speak` | G | not built |
+
+### Manufacturers
+
+Works now in NFS:MW. A mod gives a brand a logo, which the car screens (the car select of the garage's Add New Car, the car lot,
+the custom race and Quick Play, and the Showcase) draw in the maker's place of a car of that brand. The game's own cars have
+a logo per manufacturer; a mod car's brand is a string (`manufacturer` in its manifest), so a mod gives the brands of its cars
+a logo this way, and may replace the logo of a brand the game already has.
+
+```
+mods/example.pack/
+  manufacturers/bentley.toml          the manifest; the id is the file name
+  files/UI/MAKERS/BENTLEY.PNG         the logo
+```
+
+```toml
+name = "Bentley"                      # the brand, 1 to 32 characters; compared ignoring case, spaces and punctuation
+logo = "UI/MAKERS/BENTLEY.PNG"        # a PNG under files/: letters, digits, _ - . / and ending in .png; any colour type, up to 2048 on a side
+override = false                      # true: replace the logo of a brand that already has one; default false
+```
+
+- The logo is drawn in a slot twice as wide as it is tall (about 150 by 75), shrunk to fit and centred, never stretched: draw
+  it light on a transparent background, as the game's own logos are.
+- **Which logo a brand gets**, in order: a mod's logo with `override = true`; the game's own logo of a manufacturer of that name
+  (`Subaru`, `Aston Martin`, `General Motors`; a brand that starts with one, such as `Mercedes-Benz`, is that manufacturer); a mod's
+  logo with `override = false`; the brand written out as text. So a mod that only adds brands never replaces a logo the game has,
+  and a mod that wants the old brands to look different sets `override = true`.
+- The same brand with the same `override` is taken from the first mod that declares it. A manifest with a bad key, a logo that is
+  missing or not a PNG is refused and logged, and the others still load. A mod that adds manufacturers later is read at its rescan.
+
+| Entry | Signature sketch | Scope | Implemented in |
+|---|---|---|---|
+| Manufacturers | `manufacturers/<id>.toml` (`name`, `logo`, `override`) | G (schema), MW (drawn) | `libs/blackbox-modding/src/content/manufacturer.rs`, `crates/nfsmw/src/modding/content/manufacturers.rs`, `frontend/car_title.rs` |
 
 ### Racer names
 
@@ -285,13 +372,12 @@ creates the place, the blip and the entry.
 
 ## Open items
 
-- **Car overrides.** The first delivery clones a stock car type and changes only its display name and brand
-  ([Cars](#cars)). A mod car has no record of its own: its physics, engine, transmission and tyres are the clone's,
-  because the attribute database (`pvehicle` and its records, read through `libs/blackbox-attrib`) is read-only in
-  the port. Overrides by field name, and a new record in the database, are not specified yet [unconfirmed].
-  `docs/specs/car-assembly.md` and the attribute specs are the source when this is written.
-- **Garage hook.** The garage's car list (`scenes/world/garage.rs`) must call the mod functions in
-  `car/mods.rs` for display names and for cop-only cars. Until it does, mod cars show under the clone's name.
+- **Car overrides.** A mod car is a car of its own ([Cars](#cars)): its physics come from its `[stats]` table and its
+  `BOUNDS.BIN`, not from a record of the attribute database (`pvehicle` and its records, read through
+  `libs/blackbox-attrib`, which is read-only in the port). Overrides of a stock car's fields by name, and a new record in
+  that database, are not offered and not specified yet [unconfirmed]. A mod that wants a changed version of a stock car
+  adds a car of its own with its own numbers. `docs/specs/car-assembly.md` and the attribute specs are the source when
+  overrides are written.
 - **Index merge** for adding districts (above).
 - **Archive layers** (a single packed file per mod) and signatures.
 - **Chunk-level patches** for merging into `.BUN` files.

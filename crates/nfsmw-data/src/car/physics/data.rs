@@ -12,6 +12,8 @@ use crate::shared;
 use crate::world::sequences::SequenceCatalog;
 
 pub struct PhysicsData {
+    /// The install, for the collision bounds a mod car ships in its own files.
+    dir: GameDir,
     db: Arc<Database>,
     bounds: Arc<Vec<BoundsSet>>,
     sequences: SequenceCatalog,
@@ -25,7 +27,7 @@ impl PhysicsData {
         let bounds = read_car_bounds(dir)?;
         let surfaces = SurfaceTable::from_database(&db);
         log::info!("physics data: {} car bounds, {} road surfaces", bounds.len(), surfaces.len());
-        Ok(Self { db, bounds, surfaces, sequences: SequenceCatalog::default() })
+        Ok(Self { dir: dir.clone(), db, bounds, surfaces, sequences: SequenceCatalog::default() })
     }
 
     /// The gameplay database (`attributes.bin`).
@@ -47,11 +49,39 @@ impl PhysicsData {
         self.sequences.get(key).cloned()
     }
 
-    /// The physics of car type `type_name` (e.g. `BMWM3GTR`). A vehicle without bounds of its own (the
-    /// semi tractor variants `semib`, `semicon`, ...) has the bounds of the nearest ancestor that has them.
+    /// The physics of car type `type_name` (e.g. `BMWM3GTR`), or of the car in the folder `type_name` that a mod added.
+    /// A vehicle without bounds of its own (the semi tractor variants `semib`, `semicon`, ...) has the bounds of the
+    /// nearest ancestor that has them. A mod car has no vehicle record: it is built from its own stats and bounds.
     pub fn car(&self, type_name: &str) -> Result<CarPhysics> {
-        // A mod car names its clone's physics record (car/mods.rs); any other name is unchanged.
-        let type_name = crate::car::mods::physics_name(type_name);
+        self.car_with_performance(type_name, super::PerformancePackage::default())
+    }
+
+    /// [`Self::car`] with the performance upgrades `package` names.
+    pub fn car_with_performance(&self, type_name: &str, package: super::PerformancePackage) -> Result<CarPhysics> {
+        if let Some(stats) = crate::car::mods::stats(type_name) {
+            return self.mod_car(type_name, stats, package);
+        }
+        let mut physics = self.stock_car(type_name)?;
+        super::performance::apply(&self.db, type_name, package, &mut physics)?;
+        Ok(physics)
+    }
+
+    /// A car a mod added: its physics from its own stats (and the upgrades), its contact shapes and damage from the
+    /// bounds in its own files. Nothing is read from a vehicle record.
+    fn mod_car(
+        &self,
+        folder: &str,
+        stats: &crate::car::mods::CarStats,
+        package: super::PerformancePackage,
+    ) -> Result<CarPhysics> {
+        let collision = super::mod_car_collision(&self.dir, folder)?;
+        let mut physics = super::physics_from_stats(stats, package, collision.bounds);
+        physics.geometry = Some(collision.geometry);
+        physics.events = Some(collision.events);
+        Ok(physics)
+    }
+
+    fn stock_car(&self, type_name: &str) -> Result<CarPhysics> {
         let (bounds, source) = self
             .lineage(type_name)
             .into_iter()
@@ -77,12 +107,6 @@ impl PhysicsData {
                 CarEventSpec::read(vehicle, &self.sequences)
             })
             .map(Arc::new);
-        Ok(physics)
-    }
-
-    pub fn car_with_performance(&self, type_name: &str, package: super::PerformancePackage) -> Result<CarPhysics> {
-        let mut physics = self.car(type_name)?;
-        super::performance::apply(&self.db, type_name, package, &mut physics)?;
         Ok(physics)
     }
 

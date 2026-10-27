@@ -49,13 +49,18 @@ pub use host::{
     BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, BbHost, BbLogFn, BbQueryInterfaceFn,
 };
 pub use iface::{
-    BB_CAMERA_BUMPER, BB_CAMERA_CHASE, BB_CAMERA_CLOSE, BB_CAMERA_DRIFT, BB_CAMERA_DYNAMIC_FOV, BB_CAMERA_FAR,
-    BB_CAMERA_HOOD, BB_CAMERA_PURSUIT, BB_CAMERA_SUPER_FAR, BB_HUD_BIG, BB_HUD_INFO, BB_HUD_WARNING, BbAudio,
-    BbAudioPlayFn, BbCamera, BbCameraGetFn, BbCameraSetModeFn, BbCameraState, BbHud, BbHudHideFn, BbHudMessageFn,
-    BbVec3, BbVehicleRepairFn, BbVehicleSpawnTrafficFn, BbVehicleState, BbVehicleStateFn, BbVehicleTeleportFn,
-    BbVehicles, BbWorld, BbWorldSetRainFn, BbWorldSetTrafficFn, BbWorldTextFn, IFACE_AUDIO, IFACE_AUDIO_VERSION,
-    IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_HUD, IFACE_HUD_VERSION, IFACE_VEHICLES, IFACE_VEHICLES_VERSION,
-    IFACE_WORLD, IFACE_WORLD_VERSION,
+    BB_CAMERA_BUMPER, BB_CAMERA_CHASE, BB_CAMERA_CLOSE, BB_CAMERA_DRIFT, BB_CAMERA_DYNAMIC_FOV, BB_CAMERA_EXTRA,
+    BB_CAMERA_FAR, BB_CAMERA_HOOD, BB_CAMERA_INPUT_RESET, BB_CAMERA_POSE_HIDE_CAR, BB_CAMERA_PURSUIT,
+    BB_CAMERA_SUPER_FAR, BB_HUD_BIG, BB_HUD_INFO, BB_HUD_WARNING, BbAudio, BbAudioPlayFn, BbCamera,
+    BbCameraAvailableFn, BbCameraGetFn, BbCameraInput, BbCameraPose, BbCameraRegisterViewFn, BbCameraSelectViewFn,
+    BbCameraSetModeFn, BbCameraState, BbCameraUnregisterViewFn, BbCameraUpdateFn, BbCameraView, BbHud, BbHudHideFn,
+    BbHudMessageFn, BbVec3, BbVehicleRepairFn, BbVehicleSpawnTrafficFn, BbVehicleState, BbVehicleStateFn,
+    BbVehicleTeleportFn, BbVehicles, BbWorld, BbWorldSetRainFn, BbWorldSetTrafficFn, BbWorldTextFn, IFACE_AUDIO,
+    IFACE_AUDIO_VERSION, IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_HUD, IFACE_HUD_VERSION, IFACE_VEHICLES,
+    IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
+};
+pub use iface::{
+    BB_CONFIG_FILE, BB_CONFIG_MAIN, BbConfig, BbConfigReadFn, BbConfigSourcesFn, IFACE_CONFIG, IFACE_CONFIG_VERSION,
 };
 pub use iface::{
     BB_I18N_INT, BB_I18N_TEXT, BbI18n, BbI18nArg, BbI18nGenerationFn, BbI18nLocaleFn, BbI18nTextFn, IFACE_I18N,
@@ -71,9 +76,15 @@ pub use iface::{
     IFACE_TIME_VERSION,
 };
 pub use iface::{
+    BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_TOGGLE, BbSettingCallbackFn, BbSettingOption, BbSettingValue,
+    BbSettings, BbSettingsAddOptionFn, BbSettingsGetFn, BbSettingsRemoveOptionFn, IFACE_SETTINGS,
+    IFACE_SETTINGS_VERSION,
+};
+pub use iface::{
     BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn, BbUiSetTokensFn,
     BbUiTokens, BbUiUnregisterThemeFn, IFACE_UI, IFACE_UI_VERSION,
 };
+pub use iface::{BbContent, BbContentRescanFn, IFACE_CONTENT, IFACE_CONTENT_VERSION};
 pub use module::{
     BB_EVENT_CANCEL, BB_EVENT_CONTINUE, BbDestroyFn, BbEvent, BbEventResult, BbModApi, BbModCreateFn, BbModInfo,
     BbModInfoFn, BbOnEventFn, MOD_CREATE_SYMBOL, MOD_INFO_SYMBOL,

@@ -3,7 +3,9 @@
 //! A switch is saved in the config file and takes effect at the next start: a normal run loads and unloads mods only at
 //! start and exit (ADR 0005 section 3), so a mod that is switched off keeps running until the game restarts. In `all`
 //! mode the switch edits the `mods_disabled` list; in `allowlist` mode it edits `mods_allowlist`, because there a mod
-//! loads only when it is listed.
+//! loads only when it is listed. When the config file has a `[mods]` table (docs/modding/api-config.md) the lists are
+//! written inside it (`mods.disabled`, `mods.allowlist`), where they win over the legacy keys; the `[mods.<id>]` tables
+//! of the mods' own configuration are never touched.
 
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -159,6 +161,24 @@ mod tests {
         assert!(manager.toggle(0).is_err());
         assert!(manager.rows()[0].enabled, "the failed switch leaves the state as it was");
         assert!(manager.toggle(9).is_err(), "an unknown row changes nothing");
+    }
+
+    #[test]
+    fn a_switch_in_a_mods_table_file_keeps_the_mods_own_tables() {
+        let scratch = std::env::temp_dir().join(format!("nfsmw-manager-table-{}", std::process::id()));
+        let path = scratch.join("settings.toml");
+        std::fs::create_dir_all(&scratch).unwrap();
+        std::fs::write(&path, "[mods]\nmode = \"all\"\n[mods.a-mod]\nkey = \"value\"\n").unwrap();
+        let manager = ModManager::new(ModsSettings::default(), Some(path.clone()), &["a-mod".to_owned()], &[]);
+        assert_eq!(manager.toggle(0), Ok(false));
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(crate::settings::mods::parse_list(&text, DISABLED_KEY), ["a-mod"]);
+        assert_eq!(
+            crate::settings::mods::mod_section(&text, "a-mod").and_then(|t| t.get("key").cloned()),
+            Some("value".into())
+        );
+        assert!(text.contains("mode"), "the mode stays in the table");
+        let _ = std::fs::remove_dir_all(scratch);
     }
 
     #[test]

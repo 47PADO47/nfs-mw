@@ -1,8 +1,10 @@
 //! The saved values of the `bb.menus` rows, kept per mod in the config file under `[mod_values.<id>]`.
 //!
-//! The table cannot be `[mods.<id>]`: the config's `mods` key is the mod mode (`off`, `allowlist`, `all`), and TOML does
-//! not allow a key and a table of the same name. The table is written with the rest of the file, after its plain keys, so
-//! the settings writer and the alias payloads keep their order.
+//! The table is not `[mods.<id>]`: that table is a mod's own configuration (`bb.config`, docs/modding/api-config.md), and in
+//! a file whose `mods` key is still the legacy mode string (`mods = "all"`) a `[mods.<id>]` table could not exist at all,
+//! since TOML does not allow a key and a table of the same name. Row values are saved state the mod did not write, so they
+//! stay in their own table. The table is written with the rest of the file, after its plain keys, so the settings writer
+//! and the alias payloads keep their order. Both shapes of `mods` survive a save, `[mods.<id>]` tables included.
 
 use std::io::ErrorKind;
 use std::path::Path;
@@ -145,6 +147,20 @@ mod tests {
         assert_eq!(table.get("master_volume").and_then(Value::as_integer), Some(70));
         assert!(table.get("hd_content").is_some(), "another table is kept");
         assert!(after.find("[mod_values").unwrap() > after.find("master_volume").unwrap(), "plain keys come first");
+    }
+
+    #[test]
+    fn a_mods_table_with_the_mods_own_configuration_survives_a_save() {
+        let before = "[mods]\nmode = \"all\"\n\n[mods.example-mod]\nkey = \"value\"\n";
+        let after = with_saved(before, "example.hello", "fast", Value::Boolean(true)).unwrap();
+        let table: Table = after.parse().unwrap();
+        let mods = table.get("mods").and_then(Value::as_table).expect("mods is still a table");
+        assert_eq!(mods.get("mode").and_then(Value::as_str), Some("all"));
+        assert_eq!(
+            mods.get("example-mod").and_then(Value::as_table).and_then(|t| t.get("key")).and_then(Value::as_str),
+            Some("value")
+        );
+        assert_eq!(saved_in(&after, "example.hello", "fast"), Some(1.0));
     }
 
     #[test]

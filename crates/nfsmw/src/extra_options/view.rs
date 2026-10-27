@@ -97,7 +97,10 @@ fn profiles(ui: &mut egui::Ui, state: &mut State, actions: &mut Vec<Action>) {
         }
     }
 }
-pub fn camera_name(mode: CameraMode) -> &'static str {
+pub fn camera_name(mode: CameraMode) -> String {
+    if let CameraMode::Extra(key) = mode {
+        return crate::modding::camera_views::name_of(key).unwrap_or_else(|| "Mod camera (not loaded)".into());
+    }
     match mode {
         CameraMode::Chase => "Remake chase",
         CameraMode::DynamicFov => "Remake chase · dynamic FOV",
@@ -108,5 +111,7 @@ pub fn camera_name(mode: CameraMode) -> &'static str {
         CameraMode::SuperFar => "Extra far chase (original extra)",
         CameraMode::Drift => "Drift (original extra)",
         CameraMode::Pursuit => "Pursuit (original extra)",
+        CameraMode::Extra(_) => unreachable!("handled above"),
     }
+    .into()
 }

@@ -131,7 +131,7 @@ use blackbox_gfx::GraphicsApi;
 pub use blackbox_gfx::ReflectionQuality;
 pub use blackbox_gfx::reflection::{MirrorTint, ReflectionSize};
 pub use blackbox_gfx::{AoMethod, AoQuality, ShadowQuality, TextureFiltering};
-pub use camera_mode::CameraMode;
+pub use camera_mode::{CameraMode, ViewKey};
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use custom_music::{CustomContext, CustomMode, CustomMusic, Sources as CustomSources};
@@ -473,6 +473,9 @@ impl Settings {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod mods_tests;
 
 #[cfg(test)]
 mod xenon_effects_tests;

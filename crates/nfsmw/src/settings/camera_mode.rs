@@ -1,8 +1,45 @@
 //! The camera setting: which camera gameplay uses. Only cameras that report `selectable()` (see
 //! [`crate::viewer::camera::Camera`]) are listed here; the free and orbit cameras have their own toggles.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
+
+/// An extra camera view a mod registered, named by a hash of `<mod id>/<view id>` so that it is `Copy`, survives a change in
+/// the order mods load, and parses from the config without the mod being loaded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ViewKey(u32);
+
+thread_local! {
+    /// The `<mod id>/<view id>` of every key seen this run, so a key can be written back as its name.
+    static NAMES: RefCell<HashMap<u32, String>> = RefCell::new(HashMap::new());
+}
+
+impl ViewKey {
+    /// The key of the view `view` of mod `owner`. Remembers the name for [`ViewKey::path`].
+    pub fn of(owner: &str, view: &str) -> Self {
+        Self::from_path(&format!("{owner}/{view}"))
+    }
+
+    /// The key of a `<mod id>/<view id>` path. Remembers the path for [`ViewKey::path`].
+    pub fn from_path(path: &str) -> Self {
+        let key = Self(fnv1a(path.to_ascii_lowercase().as_bytes()));
+        NAMES.with(|names| {
+            names.borrow_mut().entry(key.0).or_insert_with(|| path.to_owned());
+        });
+        key
+    }
+
+    /// The `<mod id>/<view id>` path, when the key was made from one this run.
+    pub fn path(self) -> Option<String> {
+        NAMES.with(|names| names.borrow().get(&self.0).cloned())
+    }
+}
+
+fn fnv1a(bytes: &[u8]) -> u32 {
+    bytes.iter().fold(0x811C_9DC5, |hash, byte| (hash ^ u32::from(*byte)).wrapping_mul(0x0100_0193))
+}
 
 /// The cameras gameplay can use. Each variant must be a camera whose `selectable()` is true.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -20,6 +57,8 @@ pub enum CameraMode {
     SuperFar,
     Drift,
     Pursuit,
+    /// A view a mod registered (`bb.camera` 1.1). Not in [`CameraMode::ALL`]: which views exist depends on the mods.
+    Extra(ViewKey),
 }
 
 impl CameraMode {
@@ -57,9 +96,12 @@ impl FromStr for CameraMode {
             "superfar" | "super-far" | "super_far" => Ok(Self::SuperFar),
             "drift" => Ok(Self::Drift),
             "pursuit" => Ok(Self::Pursuit),
-            _ => Err(format!(
-                "expected chase, dynamic-fov, bumper, hood, close, far, superfar, drift or pursuit, got {s:?}"
-            )),
+            other => match other.strip_prefix("extra:") {
+                Some(path) if path.contains('/') => Ok(Self::Extra(ViewKey::from_path(path))),
+                _ => Err(format!(
+                    "expected chase, dynamic-fov, bumper, hood, close, far, superfar, drift, pursuit or extra:<mod>/<view>, got {s:?}"
+                )),
+            },
         }
     }
 }
@@ -76,6 +118,10 @@ impl fmt::Display for CameraMode {
             Self::SuperFar => "superfar",
             Self::Drift => "drift",
             Self::Pursuit => "pursuit",
+            // Every extra key was made from its path in this process; the fallback keeps the file parsable.
+            Self::Extra(key) => {
+                return write!(f, "extra:{}", key.path().unwrap_or_else(|| format!("unknown/{:08x}", key.0)));
+            }
         })
     }
 }
@@ -95,6 +141,16 @@ mod tests {
             assert_eq!(mode.to_string().parse(), Ok(mode));
         }
         assert_eq!(CameraMode::default(), CameraMode::Chase);
+    }
+
+    #[test]
+    fn extra_views_parse_by_path_and_display_back() {
+        let mode: CameraMode = "extra:Nfsmw-2012-Content/chase".parse().unwrap();
+        assert_eq!(mode, CameraMode::Extra(ViewKey::of("nfsmw-2012-content", "chase")));
+        assert_eq!(mode.to_string(), "extra:nfsmw-2012-content/chase");
+        assert!("extra:nopath".parse::<CameraMode>().is_err());
+        assert_ne!(ViewKey::of("a", "b"), ViewKey::of("a", "c"));
+        assert!(!CameraMode::ALL.iter().any(|mode| matches!(mode, CameraMode::Extra(_))));
     }
 
     #[test]

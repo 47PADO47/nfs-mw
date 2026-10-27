@@ -15,6 +15,7 @@ pub(super) use car_detail::{DetailView, DrawOptions};
 mod cracked;
 mod debug;
 mod effect_feed;
+mod extra_view;
 mod fall;
 mod garage;
 mod gauges;

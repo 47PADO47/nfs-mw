@@ -88,6 +88,8 @@ fn fake_host() -> BbHost {
         game_version: BbStr::new("0"),
         log: None,
         query_interface: None,
+        mod_dir: BbStr::new(""),
+        game_dir: BbStr::new(""),
     }
 }
 

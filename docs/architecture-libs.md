@@ -14,6 +14,11 @@ Each lib has its own README and can move to a shared utilities repo unchanged. T
 | [`blackbox-chunk`](../libs/blackbox-chunk) | Zero-copy bChunk trees; chunk ids by domain | — |
 | [`blackbox-tpk`](../libs/blackbox-tpk) | Texture packs (plain and compressed forms), CPU decoding | `layout/` per TPK version (5 = MW) |
 | [`blackbox-solid`](../libs/blackbox-solid) | Solids: groups, every vertex buffer, indices, position markers | `layout/` per `SolidInfo` version (0x16 = MW) |
+| [`chameleon-bundle`](../libs/chameleon-bundle) | `bnd2` bundles of the Chameleon engine (NFS Hot Pursuit 2010, Most Wanted 2012): header and stream names, resource table and ids, zlib blocks, imports, debug names, the resource type registry, a multi-bundle pool | one layout (version 5, PC) |
+| [`chameleon-text`](../libs/chameleon-text) | Chameleon `LocalisedText` string tables (`UI/LANGUAGE`): read, edit, write back byte for byte | one layout (32-bit) |
+| [`chameleon-gfx`](../libs/chameleon-gfx) | Chameleon textures (with `.dds` export), vertex layouts, renderables, materials, shaders, models | one layout per resource type |
+| [`chameleon-vehicle`](../libs/chameleon-vehicle) | A Chameleon car: graphics spec, wheels, names, meshes with a reduced appearance | |
+| [`chameleon-camera`](../libs/chameleon-camera) | The gameplay cameras of a Chameleon car: the chase, bonnet, bumper and rear-view camera data of a car bundle (host axes, metres, degrees) and a camera behaviour model (`CameraState`) stepped once per frame from a `CarMotion` | |
 | [`blackbox-streaming`](../libs/blackbox-streaming) | The track streaming index | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-scenery`](../libs/blackbox-scenery) | Scenery infos and instances; visibility rule | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-collision`](../libs/blackbox-collision) | World collision packs, the collision grid, car and prop bounds, a ray-cast query | — (one layout so far) |

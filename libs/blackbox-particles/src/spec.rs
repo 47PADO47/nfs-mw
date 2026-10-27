@@ -34,6 +34,8 @@ pub struct EmitterSpec {
     pub volume_extent: Vec3,
     /// Quadratic drag coefficient: `v += v * -dt * drag * |v|`.
     pub drag: f32,
+    /// Share of the velocity lost at every 60th of a second (0 to 1; 1 stops the particle at once), whatever its speed.
+    pub damping: f32,
     /// Subtracted from the vertical velocity each second (a negative value lifts). 0 means "use the
     /// acceleration" instead.
     pub gravity: f32,
@@ -56,6 +58,9 @@ pub struct EmitterSpec {
     pub angle: [f32; 4],
     /// RGBA at each key.
     pub colors: [[u8; 4]; 4],
+    /// With any keys here the size, rotation and colour follow these as straight lines between them, in place of `keys`,
+    /// `size`, `angle` and `colors` (which are the cubics of the games' own emitters).
+    pub track: Vec<crate::TrackKey>,
     /// A particle whose alpha falls to this value or below dies (`None`: never).
     pub kill_alpha: Option<u8>,
     /// The emitter is on for `on_cycle` seconds, then off for `off_cycle` seconds, each drawn additively within its
@@ -92,6 +97,7 @@ impl Default for EmitterSpec {
             volume_center: Vec3::ZERO,
             volume_extent: Vec3::ZERO,
             drag: 0.0,
+            damping: 0.0,
             gravity: 0.0,
             inherit: 0.0,
             inherit_variance: 0.0,
@@ -103,6 +109,7 @@ impl Default for EmitterSpec {
             size: [1.0; 4],
             angle: [0.0; 4],
             colors: [[255; 4]; 4],
+            track: Vec::new(),
             kill_alpha: Some(0),
             on_cycle: 0.0,
             on_cycle_variance: 0.0,

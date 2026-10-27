@@ -113,9 +113,7 @@ impl CarMaterials {
                 {
                     material.surface = model.paint.as_ref().and_then(super::paint_surface::response);
                 }
-                if matches!(shading, CarShading::Glossy | CarShading::GlossyLamps)
-                    && Some(hash) != paint
-                {
+                if matches!(shading, CarShading::Glossy | CarShading::GlossyLamps) && Some(hash) != paint {
                     material.surface = if background_actor && shading == CarShading::Glossy {
                         super::material_response::scene_response(&model.light_materials[&hash])
                     } else {
@@ -127,15 +125,11 @@ impl CarMaterials {
                     && model.light_materials[&hash].name == "DULLPLASTIC"
                 {
                     // Cargo atlases already contain their colour; avoid the authored 1.2x diffuse boost.
-                    for (minimum, range) in material.diffuse_min[..3]
-                        .iter_mut()
-                        .zip(&mut material.diffuse_range[..3])
-                    {
+                    for (minimum, range) in material.diffuse_min[..3].iter_mut().zip(&mut material.diffuse_range[..3]) {
                         let facing = (*minimum + *range).clamp(0.0, 1.0);
                         *minimum = minimum.clamp(0.0, 1.0);
                         *range = facing - *minimum;
                     }
-                }
                 }
                 material.background_actor = background_actor && shading == CarShading::Glossy;
                 Some((hash, renderer.create_glossy_material(&material)))

@@ -235,7 +235,7 @@ fn quads_are_built_per_lane_far_to_near_and_reuse_their_buffer() {
     burn(&mut fx, 10);
     let State::Ready(a) = &mut fx.state else { unreachable!() };
     for lane in 0..2 {
-        assert!(a.quads(lane, Vec3::new(90.0, 0.0, 1.0), Vec3::X));
+        assert!(a.quads(lane, Vec3::new(90.0, 0.0, 1.0), Vec3::X, None));
         let vertices = &a.lanes[lane].vertices;
         assert!(!vertices.is_empty() && vertices.len() % 6 == 0);
         // The pass that draws them needs far-to-near order: the first quad is not nearer than the last.
@@ -243,7 +243,7 @@ fn quads_are_built_per_lane_far_to_near_and_reuse_their_buffer() {
         assert!(depth(&vertices[0]) >= depth(&vertices[vertices.len() - 1]) - 1.0);
     }
     let capacity = a.lanes[0].vertices.capacity();
-    assert!(a.quads(0, Vec3::new(90.0, 0.0, 1.0), Vec3::X));
+    assert!(a.quads(0, Vec3::new(90.0, 0.0, 1.0), Vec3::X, None));
     assert_eq!(a.lanes[0].vertices.capacity(), capacity);
     // Without a GPU texture a lane is built but not handed to the layer.
     let mut layer = EffectLayer::default();
@@ -310,7 +310,7 @@ fn only_the_additive_lane_is_brightened() {
     burn(&mut fx, 6);
     let State::Ready(a) = &mut fx.state else { unreachable!() };
     let alpha = |a: &mut Active, lane: usize| {
-        assert!(a.quads(lane, Vec3::new(90.0, 0.0, 1.0), Vec3::X));
+        assert!(a.quads(lane, Vec3::new(90.0, 0.0, 1.0), Vec3::X, None));
         a.lanes[lane].vertices.iter().map(|v| v.color[3]).max().unwrap()
     };
     // The colour curve starts at the given alpha and the particles are young: 40, times the gain for the fire.
@@ -336,4 +336,15 @@ fn the_burning_nitrous_flames_blue_in_place_of_the_orange_flame_and_stops_with_i
 #[test]
 fn blue_swaps_red_and_blue_and_keeps_the_alpha() {
     assert_eq!(tint_blue([250, 120, 10, 77]), [10, 120, 250, 77]);
+}
+
+#[test]
+fn a_mod_variants_tint_multiplies_the_blue_flame_and_no_profile_leaves_it_alone() {
+    use blackbox_modding::content::FlameProfile;
+    let color = [200, 100, 50, 80];
+    assert_eq!(super::apply_flame_profile(color, None), color);
+    let flame = FlameProfile { tint: [0.5, 1.0, 2.0], gain: 0.5, replace_burn: false, replace_pop: false };
+    assert_eq!(super::apply_flame_profile(color, Some(flame)), [100, 100, 100, 40]);
+    let loud = FlameProfile { tint: [4.0, 4.0, 4.0], gain: 4.0, replace_burn: false, replace_pop: false };
+    assert_eq!(super::apply_flame_profile(color, Some(loud)), [255, 255, 200, 255], "clamped to a byte");
 }

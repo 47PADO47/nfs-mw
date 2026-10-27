@@ -68,9 +68,17 @@ pub(in crate::audio) struct PowerPlayback {
     whine_failed: bool,
     turbo: turbo::TurboPlayback,
     seed: u32,
+    /// A mod's nitrous variant plays its own sounds, so the game's are not started (`nitrous_fx.rs`).
+    silence_nitrous: bool,
 }
 
 impl PowerPlayback {
+    /// Keep the game's own nitrous sound silent (a mod variant stands in for it), or let it play again. Off by default, so
+    /// the game's nitrous is exactly as it was unless a variant asks.
+    pub fn set_silence_nitrous(&mut self, silent: bool) {
+        self.silence_nitrous = silent;
+    }
+
     /// Whether an authored route remains healthy, including naturally completed one-shots.
     pub fn owns(&self, sound: SoundRef) -> bool {
         match sound {
@@ -182,7 +190,8 @@ impl PowerPlayback {
                 }
             }
         }
-        if input.nos_active && !self.active {
+        let nos_active = input.nos_active && !self.silence_nitrous;
+        if nos_active && !self.active {
             self.nitrous = sound.banks.nitrous_bank().and_then(|bank| {
                 self.start(
                     audio,
@@ -194,14 +203,14 @@ impl PowerPlayback {
             });
             self.nitrous_owned = self.nitrous.is_some();
         }
-        if !input.nos_active
+        if !nos_active
             && self.active
             && let Some(running) = self.nitrous.as_mut()
         {
             running.words[3] = 1;
             running.module.release();
         }
-        self.active = input.nos_active;
+        self.active = nos_active;
         if let Some(running) = self.nitrous.as_mut() {
             running.words = params::nitrous(levels, running.words[3] != 0).to_vec();
             if !running.update(audio, dt) {

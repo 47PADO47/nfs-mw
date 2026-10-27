@@ -1,0 +1,40 @@
+//! Gameplay cameras of the Chameleon engine (NFS: Most Wanted 2012). Spec: `docs/formats/chameleon-camera.md`.
+//!
+//! Every car bundle carries a `VehicleCameraContainer`: the data of the car's chase ("external"), bonnet, bumper and
+//! rear-view cameras plus a few shared globals (impact shake, lens, gradient adjustments). [`read_cameras`] decodes
+//! it into [`CarCameras`] (host space: x forward, y left, z up, metres, degrees, seconds). [`CameraState`] is a
+//! behaviour model the host steps once per rendered frame with a [`CarMotion`] to get a [`CameraPose`].
+//!
+//! The data layout and its per-car values are **[verified]** on the 93 cars of the install; the behaviour of the model
+//! is built from the data's structure names and values, not from the executable, so it is **[unconfirmed]** (the doc
+//! lists each reading). This crate takes a parsed [`chameleon_bundle::Bundle`] and never opens files.
+
+mod chase;
+mod effects;
+mod error;
+mod genesys;
+mod math;
+mod motion;
+mod mounted;
+mod params;
+mod read;
+mod state;
+
+#[cfg(test)]
+mod install_tests;
+#[cfg(test)]
+mod model_tests;
+#[cfg(test)]
+mod read_tests;
+
+pub use chase::ChaseCamera;
+pub use effects::{AccelFilter, ImpactState};
+pub use error::{Error, Result};
+pub use motion::{CameraOptions, CameraPose, CameraView, CarMotion, MAX_DT};
+pub use mounted::{MountedRig, RearViewRig};
+pub use params::{
+    AccelMovement, CameraRoll, CarCameras, DecelPitch, ExternalCamera, ExternalGlobals, GradientAdjustments,
+    HighSpeedShake, ImpactShake, Lens, MountedCamera, RearView, SpeedMovement, Vec3, YawSpring, from_data_axes,
+};
+pub use read::{read_all_cameras, read_cameras};
+pub use state::CameraState;

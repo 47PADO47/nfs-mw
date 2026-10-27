@@ -9,26 +9,26 @@ use game_install::GameDir;
 
 use super::{CarModel, CarTables, Slots, slot};
 
-const LAYER: &str = "__GARAGE_VINYL";
+pub(super) const LAYER: &str = "__GARAGE_VINYL";
 
 fn names(t: &CarTables, car: &CarTypeInfo, part: &Part) -> (String, String) {
     let name = format!("{}_{}", car.base_model_name, t.parts.name(part));
     (name.clone(), format!("{name}_MASK"))
 }
 
-fn textures(dir: &GameDir, folder: &str, wanted: &HashSet<u32>) -> Result<HashMap<u32, Texture>> {
+/// The vinyl artwork of `folder`, from the car's own `VINYLS.BIN` and `PREVINYL.BIN`. The artwork is drawn over the
+/// paint texture, so it is authored in the layout of the car's own paint surfaces.
+pub(super) fn textures(dir: &GameDir, folder: &str, wanted: &HashSet<u32>) -> Result<HashMap<u32, Texture>> {
     let mut found = HashMap::new();
     for file in ["VINYLS.BIN", "PREVINYL.BIN"] {
         let path = format!("CARS/{folder}/{file}");
         if !dir.exists(&path) {
             continue;
         }
-        for pack in
-            blackbox_tpk::read_texture_packs_filtered(&crate::read_unwrapped(dir, &path)?, |h| wanted.contains(&h))?
-        {
-            for texture in pack.textures {
-                found.entry(texture.name_hash).or_insert(texture);
-            }
+        let packs =
+            blackbox_tpk::read_texture_packs_filtered(&crate::read_unwrapped(dir, &path)?, |h| wanted.contains(&h))?;
+        for texture in packs.into_iter().flat_map(|pack| pack.textures) {
+            found.entry(texture.name_hash).or_insert(texture);
         }
     }
     Ok(found)
@@ -83,14 +83,28 @@ pub(super) fn apply(
     let found = textures(dir, folder, &HashSet::from([bstring_hash(&name), bstring_hash(&mask)]))?;
     let texture = found.get(&bstring_hash(&name)).context("vinyl bitmap is missing")?;
     let mask = found.get(&bstring_hash(&mask)).context("vinyl mask is missing")?;
-    ensure!(texture.width == mask.width && texture.height == mask.height, "vinyl/mask dimensions differ");
-    let mut rgba = decode_rgba8(texture).context("vinyl pixels cannot be decoded")?;
-    let mask = decode_rgba8(mask).context("vinyl mask cannot be decoded")?;
     let colors: [[u8; 3]; 3] = std::array::from_fn(|i| {
         selection.vinyl_colors[i]
             .unwrap_or_else(|| slots[79 + i].map(|p| super::Paint::of(t, &p).rgb).unwrap_or([255; 3]))
     });
     let remap = t.parts.attribute(&part, "NUMREMAPCOLOURS").unwrap_or(0) as usize;
+    let layer = compose(texture, mask, remap, colors, super::Paint::of(t, &part).texture(LAYER))?;
+    model.textures.insert(layer.name_hash, layer);
+    repaint(model)
+}
+
+/// The vinyl layer: the bitmap weighed into `remap` colour channels (0 keeps the bitmap's own colours), with the mask as
+/// opacity, written over `layer`, a texture to take the result.
+pub(super) fn compose(
+    texture: &Texture,
+    mask: &Texture,
+    remap: usize,
+    colors: [[u8; 3]; 3],
+    mut layer: Texture,
+) -> Result<Texture> {
+    ensure!(texture.width == mask.width && texture.height == mask.height, "vinyl/mask dimensions differ");
+    let mut rgba = decode_rgba8(texture).context("vinyl pixels cannot be decoded")?;
+    let mask = decode_rgba8(mask).context("vinyl mask cannot be decoded")?;
     ensure!(remap <= 3, "vinyl uses unsupported color weights");
     for (pixel, mask) in rgba.as_chunks_mut::<4>().0.iter_mut().zip(mask.as_chunks::<4>().0) {
         if remap > 0 {
@@ -105,14 +119,12 @@ pub(super) fn apply(
         }
         pixel[3] = mask[0];
     }
-    let mut layer = super::Paint::of(t, &part).texture(LAYER);
     layer.width = texture.width;
     layer.height = texture.height;
     layer.data = rgba.as_chunks::<4>().0.iter().flat_map(|p| [p[2], p[1], p[0], p[3]]).collect();
     layer.alpha_usage = AlphaUsage::None;
     layer.format = PixelFormat::Argb8888;
-    model.textures.insert(layer.name_hash, layer);
-    repaint(model)
+    Ok(layer)
 }
 
 pub(super) fn repaint(model: &mut CarModel) -> Result<()> {

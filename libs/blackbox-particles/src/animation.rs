@@ -3,7 +3,7 @@ use crate::Rng;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Animation {
-    /// Zero for the full texture; otherwise 2, 4, 8 or 16 cells per axis.
+    /// Zero for the full texture; otherwise 2 to 16 cells per axis.
     pub grid: u8,
     pub fps: u8,
     pub random_start: bool,
@@ -12,7 +12,8 @@ pub struct Animation {
 impl Animation {
     fn frames(self) -> u32 {
         match self.grid {
-            2 | 4 | 8 | 16 => u32::from(self.grid).pow(2),
+            // The game's own data uses 2, 4, 8 and 16 (`nfsmw-data` reads only those); a mod's flipbook may use any 2 to 16.
+            2..=16 => u32::from(self.grid).pow(2),
             _ => 0,
         }
     }

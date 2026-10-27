@@ -69,11 +69,14 @@ pub struct Module {
 }
 
 impl Module {
-    /// Load the library at `path` for mod `id`. The library is opened only after its bytes are hashed, and its ABI is
+    /// Load the library at `path` for mod `id`, whose folder is `dir` and whose own config file is `config` (the manifest's
+    /// `config` value, `None` for `config.toml`). The library is opened only after its bytes are hashed, and its ABI is
     /// checked before the host table is built.
     pub fn load(
         path: &Path,
         id: &str,
+        dir: &Path,
+        config: Option<&str>,
         offer: &HostOffer,
         registry: Rc<InterfaceRegistry>,
     ) -> Result<Module, LoadError> {
@@ -84,7 +87,7 @@ impl Module {
         let library = unsafe { Library::new(path) }.map_err(|error| LoadError::Open(error.to_string()))?;
         let declared = read_info(&library)?;
         check_mod_abi(declared)?;
-        let host = HostTable::new(id, offer, registry);
+        let host = HostTable::new(id, dir, config, offer, registry);
         let callbacks = call_create(&library, host.as_ptr())?;
         Ok(Module {
             id: id.to_owned(),

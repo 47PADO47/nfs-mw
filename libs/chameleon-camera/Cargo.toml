@@ -1,0 +1,20 @@
+[package]
+name = "chameleon-camera"
+description = "Gameplay cameras of the Chameleon engine (NFS Most Wanted 2012): the per-car chase, bonnet, bumper and rear-view camera data of a car bundle, and a behaviour model that turns car motion into a camera pose."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+chameleon-bundle.workspace = true
+serde = { workspace = true, optional = true }
+thiserror.workspace = true
+
+[features]
+# Derive Serialize and Deserialize on the parameter types, so a host can keep them between runs.
+serde = ["dep:serde"]
+
+[lints]
+workspace = true

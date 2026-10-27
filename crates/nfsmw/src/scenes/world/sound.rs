@@ -124,6 +124,7 @@ impl WorldScene {
                 .and_then(|position| self.audio_environment.as_ref().map(|map| map.at(position)));
         }
         state.telemetry.environment = Some(state.view.environment);
+        state.nitrous_fx = self.nitrous_fx.clone();
         state
     }
 }
@@ -146,6 +147,7 @@ mod tests {
     fn a_frame_spanning_go_retains_each_ticks_pre_race_phase() {
         use crate::audio::{CarSoundState, CarSoundTick};
         let mut state = CarSoundState {
+            nitrous_fx: None,
             car: "fixture".into(),
             upgrades: Default::default(),
             input: Default::default(),

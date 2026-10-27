@@ -86,6 +86,7 @@ impl SoundFeed {
     /// Reading the latest state never repeats contacts from an earlier physics tick.
     pub fn state(&mut self, car: &str, _t: &Telemetry, performance: PerformancePackage) -> CarSoundState {
         CarSoundState {
+            nitrous_fx: None,
             telemetry: self.telemetry,
             car: car.to_owned(),
             upgrades: sound_upgrades(performance),

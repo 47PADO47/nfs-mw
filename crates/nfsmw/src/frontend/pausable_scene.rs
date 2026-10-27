@@ -191,9 +191,11 @@ impl Scene for Pausable {
     fn set_time_held(&mut self, held: bool) {
         self.inner.set_time_held(held);
     }
-
     fn set_mod_blips(&mut self, blips: &[crate::hud::MapBlip]) {
         self.inner.set_mod_blips(blips);
+    }
+    fn set_nitrous_fx(&mut self, fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>) {
+        self.inner.set_nitrous_fx(fx);
     }
 
     fn set_waypoint(&mut self, target: Option<[f32; 2]>) -> bool {

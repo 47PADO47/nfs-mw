@@ -1,7 +1,8 @@
-# Custom HUD: the centred translucent map
+# Custom HUD: the translucent map at the top centre
 
-The signature element: the game's own map picture drawn over the middle of the 3D view, translucent so the player sees
-both the map and the world, with the game's own icons for the places and the cars. It is not a corner minimap. Built
+The signature element: the game's own map picture drawn at the top centre of the 3D view, translucent so the player sees
+both the map and the world, with the game's own icons for the places and the cars. It is not a corner minimap. It was first drawn in the middle of the view; the owner moved it to the top centre
+(section 2, [ADR 0013](../../decisions/0013-custom-hud.md) amendment). Built
 in PR 7a (`libs/blackbox-ui` `Polyline`) and PR 7b (`crates/nfsmw/src/ui/theme/custom/map/`), and moved onto the
 game's picture and icons afterwards (section 4). Index: [README.md](README.md).
 
@@ -13,8 +14,8 @@ game's picture and icons afterwards (section 4). Index: [README.md](README.md).
 | Mode | What is drawn |
 |---|---|
 | `off` | No map and no turn cues. Event feedback (notifications, world markers) still shows. |
-| `compact` | A small, fainter overlay (340 px wide at 1080p) and a **turn-cue chip** under the race strip (top-centre): an arrow for the next turn and its distance. The chip is hidden when there is no route. |
-| `centered` | The player-centred overlay in the middle of the box, clipped to a soft ellipse (500 px wide), at `map_opacity`. |
+| `compact` | A small, fainter overlay (340 px wide at 1080p) and a **turn-cue chip** under the map and the race strip (top-centre): an arrow for the next turn and its distance. The chip is hidden when there is no route. |
+| `centered` | The player-centred overlay at the top centre of the box, clipped to a soft ellipse (500 px wide), at `map_opacity`. The name means centred across the screen; it is kept so existing configs, the console and the options row keep working, and no second name was added. |
 | `expanded` | A larger, more opaque overlay (710 px wide) that shows farther, with the paths and the whole route. Opened on demand. |
 
 **Turn-cue chip** (Compact): the arrow is one of straight, slight left or right, left or right, sharp left or right,
@@ -28,15 +29,29 @@ it; the way back is then `centered` ([settings.md](settings.md)). Its road opaci
 
 ## 2. Geometry and placement
 
-- The overlay's centre is the centre of the content box. Its clip is an ellipse with a horizontal radius of 15.5% of
-  the box height and a vertical radius of 11.5% (Compact), 23% and 17% (Centered), or 33% and 24.5% (Expanded): 340,
-  500 and 710 px wide at 1080p, the widths of the design system ([../../HUD_DESIGN_SYSTEM.md](../../HUD_DESIGN_SYSTEM.md)).
+- **Placement.** The overlay hangs from the top of the content box, horizontally centred: its ellipse's top edge is on
+  the safe area's top, 3.5% of the screen's height from the edge, at every mode and every HUD scale. A bigger mode grows
+  downwards. `map/place.rs` **[ours]**.
+- **Size.** The clip is an ellipse with a horizontal radius of 15.5% of the box height (Compact), 23% (Centered) or 33%
+  (Expanded) and a vertical radius half of that: 340, 500 and 710 px wide and 167, 248 and 356 px tall at 1080p. The
+  widths are the design system's ([../../HUD_DESIGN_SYSTEM.md](../../HUD_DESIGN_SYSTEM.md)); the shape is shallower than
+  the middle-of-the-view ellipse (which was 0.74 as tall as wide) so that Expanded ends at 27% of the screen's height.
   The last 12% of the radius fades the picture to zero (soft edge). **[ours]**
+- **Beside it.** The radio card (top left), the pursuit panel and the leaderboard (top right) are up to 240 units wide
+  at scale 1. The map's horizontal radius is held back so it clears them (the vertical one follows, keeping the shape),
+  down to 50 units on a very narrow window or a large HUD scale. The notifications are at the left-middle and the
+  cluster bottom right, so they are clear of the map in height and width.
+- **Under it.** Everything else at the top centre stacks under the map: the race strip, the banner lines under the
+  strip, the Compact turn-cue chip, and the LAN countdown and vote move down by the map's height plus 6 units. The race
+  countdown and the escape or busted card, which belong in the upper third, are pushed down only as far as they must to
+  clear it. The stack follows the setting's mode at once (the strip does not glide with the ellipse's change).
+  Contexts: free roam (map only), race (map, strip, lines), pursuit (map, end card; the panel is at the right), split
+  screen (the Custom HUD is hidden there, so no map). With the map off nothing is cleared.
 - The view radius in the world is `base * span / map_zoom` with `base` = 200 m (Compact), 300 m (Centered) or 600 m
   (Expanded), and `span` = 2.4 when the game's picture is drawn (it is 6.5 m to a texel, so it needs a wider view than
   vector roads to stay crisp; about the scale the original minimap shows) and 1 for the roads.
   `[custom_hud] map_zoom` is 0.5 to 2.0, default 1.0. **[ours]**
-- The player is at the centre. The overlay never captures input and never moves the camera.
+- The player is at the ellipse's centre. The overlay never captures input and never moves the camera.
 
 ## 3. Orientation
 
@@ -58,10 +73,9 @@ Back to front, all clipped to the ellipse:
 
 1. **The game's map picture**, at `map_opacity`: the tiles of the minimap file the HUD shows (the stage's map, a
    race's own map), cut into cells that turn and scale with the view and fade at the ellipse's edge (section 4a). There
-   is no backdrop: the lines are thin over a bright street (a known gap; a dark wash drawn behind it did not show in the
-   presenter and was dropped). An install with no minimap tiles draws the roads instead: main roads two units wide, side roads one unit, with a
+   is a subtle **plate** behind it (section 4b), so the thin lines stay readable over a bright street. An install with no minimap tiles draws the roads instead: main roads two units wide, side roads one unit, with a
    dark under-stroke one unit wider under high contrast.
-2. **Routes:** the GPS route (`Gps` path, PR 3b) in `nav`, three units; in a race the race route in `accent`, three
+2. **Routes:** the GPS route (`Gps` path, PR 3b) in the theme's `guide`, three units; in a race the race route in `guide` too, three
    units, with the stretch already driven at half alpha.
 3. **Places:** checkpoints (the next one emphasised), discovered events, safe houses and shops from the existing blip
    data (`HudState::blips`, `hud/blip_style.rs`), drawn as the game's own icons (section 4a).
@@ -76,16 +90,52 @@ Back to front, all clipped to the ellipse:
   into blocks of an eighth of a tile (104 m in the city): a block well inside the ellipse is one quad, one the soft edge
   crosses is cut into cells about 14 units wide, each tinted by the edge's fade at its middle. The cells turn with the
   heading-up view. The tiles are additive textures, so black is transparent: only the roads and the water show over the
-  world, and the tint (the `text` colour at the picture's opacity) sets how bright they are.
+  world, and the tint (the theme's `line` colour at the picture's opacity) sets how bright they are.
 - **The icons.** The marks use the textures of the HUD package's own objects, found in the frame's HUD tree by name:
   `MMICON_CHECKPOINT` (the checkpoints and the route's end, in the route's colour), `MMICON_AIRACER_<n>` (a racer, turned
-  to its heading), `MMICON_<TYPE>_0` (a discovered race start, by its type), `SHOP_0` and `CAR_LOT_0` (the game's yellow
-  and blue where the object is plain white), `SAFEHOUSEINDICATOR_0` (green), `MMICON_COPCAR_0` (a sighted cop, with the
-  light bar cycling blue, grey, red, grey, held blue with motion reduction) and the helicopter's group. The player's arrow is
+  to its heading), `MMICON_<TYPE>_0` (a discovered race start, by its type), `SHOP_0` and `CAR_LOT_0` (the theme's accent and `info`
+  where the object is plain white), `SAFEHOUSEINDICATOR_0` (`success`), `MMICON_COPCAR_0` (a sighted cop, with the
+  light bar cycling `info`, the minor line tone, `danger`, the minor tone, held on `info` with motion reduction) and the helicopter's group. The player's arrow is
   `PLAYERCARINDICATOR` (`Minimap_Icon_Car`). A kind with no icon of the game's (the last-known place, a roadblock) or a
   package without the object draws the shape instead.
 
 Line widths are in HUD units, so they are the same apparent thickness at every resolution.
+
+### 4b. The plate
+
+A translucent ellipse in the theme's `scrim` colour at 35% of the scrim's alpha lies behind the picture, stopping half way
+into the soft edge. It follows the overlay's fade and the zoom crossfade. It is made of 28 horizontal strips (the
+presenter draws quads), `map/backdrop.rs`. The full-screen map (section 11) has a much stronger backdrop; the two must not
+be mistaken for each other.
+
+### 4c. Colours
+
+No colour of the map is fixed: every stroke, shape and tint reads the active theme's tokens (the skin keys `theme.*`,
+[../ui-themes-tokens.md](../ui-themes-tokens.md)), with the neutral default when a skin lacks one.
+
+| Part | Token |
+|---|---|
+| Picture tint, main roads, the cross of the free cursor | `line` |
+| Side roads, racers, the second car's arrow | `line_minor` |
+| Paths (Expanded) | `line_faint` |
+| High-contrast under-stroke, the arrow's dark edge | `overlay` |
+| GPS and race route, checkpoints, the route's end, the turn chip | `guide` |
+| Player arrow, shop dot | `primary` / `line` |
+| Race start | `secondary` |
+| Safe house | `success` |
+| Speed trap, roadblock | `caution` |
+| Cops, helicopter, last-known place | `danger` |
+| Car lot, the light bar's other flash | `info` |
+| HUD plate, full-map scrim | `scrim` |
+| Full-map plate under the picture | `overlay` |
+
+How the player's settings sit on top of the theme (`custom/tokens/roles.rs`): a **colour-vision palette** replaces the
+meaning roles (`guide`, `success`, `caution`, `danger`) with the palette's hues whatever the theme says, so the colours
+the palette keeps apart stay apart; **high contrast** turns the linework white on near-black, darkens the scrim and the
+overlay and brightens every meaning hue (the table's tuned hues for the built-in one, the theme's own hue moved a quarter
+towards white otherwise). State is never told by colour alone: every mark has its own icon or shape, and the legend names
+them. The built-in palettes (Bevy and Remastered `ui_theme`) declare the roles with the Custom brief's colours, so the
+default look is unchanged; the Remastered palette's guide is its gold.
 
 ## 5. Road data and caching
 
@@ -168,3 +218,24 @@ in PR 7b and recorded here.
 - The local-set rebuild threshold (movement and zoom) and that an unchanged frame does not rebuild.
 - Default bindings collide with no driving action.
 - Fair knowledge on the map: no cop mark without a sighting ([fair-knowledge.md](fair-knowledge.md)).
+- Placement (`map/place_tests.rs`): at the top centre with 3.5% padding, centred across, ending in the upper part of the
+  screen, clear of the top columns, on 4:3, 16:9, 21:9 and 32:9 and at HUD scales 0.75, 1 and 1.5; the clearance the strip,
+  the lines and the chip stack under; the cards that are pushed only as far as needed.
+- Colours (`map/theme_tests.rs`, `custom/tokens/roles.rs`, `ui/theme/tests.rs`): the map's sources hold no fixed colour (a
+  scan), a theme's tokens reach the roads, the route and the arrow, a theme with no roles gets derived ones, the
+  colour-vision palette and high contrast adjust them, and a mod theme gets a complete set.
+
+## 11. The full-screen map's backdrop
+
+Pressing the map key opens the full-screen world map (`custom/full_map`, [menus.md](menus.md) section 3). It must read as
+another layer from the HUD map, so it dims the whole scene and holds the map on a strong plate:
+
+- the theme's **`scrim`** over the whole window (the built-in palettes: graphite at 66% alpha; high contrast: black at
+  80%), which dims the frozen world everywhere, including beside the map's picture on a wide window;
+- the theme's **`overlay`** plate (graphite at 91%; high contrast: black at 96%) under the picture, the screen-high square
+  the map is fitted to. Over the picture the two add up to 97%.
+
+Both fade in together over `Motion::map_mode` (0.30 s, eased; 0.15 s with motion reduction) from the frame the map opens,
+and start from nothing again each time it opens. The HUD map's plate is 35% of the scrim's alpha (23%), so the full map's
+scrim alone is nearly three times as strong as the HUD's plate, and the plate under the picture almost four times. The roads, route, marks and arrows of the full map use the same
+tokens as the HUD map (section 4c). `full_map/chrome.rs` `backdrop`, tested in `full_map/backdrop_tests.rs`.

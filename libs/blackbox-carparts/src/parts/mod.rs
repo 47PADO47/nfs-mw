@@ -1,8 +1,10 @@
 //! The parts database (`CarPartPack`): parts, their attributes and model names.
 
 mod model;
+mod push;
 mod reader;
 
+pub use push::NewPart;
 pub use reader::read_parts_db;
 
 use blackbox_hash::bstring_hash;

@@ -127,6 +127,8 @@ pub struct Catalog {
     pub paintable_wheels: std::collections::HashSet<u32>,
     pub decals: [DecalZoneCatalog; 6],
     pub number_choices: [Vec<Choice>; 2],
+    /// A mod car whose rim paint works on the wheels it ships with, with or without aftermarket rims.
+    pub custom_rim_paint: bool,
 }
 
 /// Shared geometry identities and tables are read once, then reused for each selected car.
@@ -149,7 +151,22 @@ impl Inventory {
         Ok(Self { tables, shared, decal_textures })
     }
 
+    /// Whether the car tables this inventory was read with have the car in `folder`. A mod car published after the inventory
+    /// was loaded is not in it, and the inventory is read again.
+    pub fn knows(&self, folder: &str) -> bool {
+        self.tables.car_type_for_folder(folder).is_some()
+    }
+
     pub fn catalog(&self, dir: &GameDir, folder: &str) -> Result<Catalog> {
+        if let Some(custom) = super::mods::custom::of(folder) {
+            // A mod car that carries its own customization is offered that, and nothing of a stock car's parts.
+            let mut catalog = super::mods::custom::catalog::catalog(dir, folder, custom)?;
+            catalog.gauge_skins =
+                (0..=10).filter(|skin| dir.exists(&format!("GLOBAL/HUDS_Custom_{skin:02}.bin"))).collect();
+            catalog.number_choices = super::decals::number_choices(&self.tables, &self.decal_textures);
+            names::read(&self.tables, &mut catalog);
+            return Ok(catalog);
+        }
         let car = self.tables.car_type_for_folder(folder).context("car type unavailable")?;
         let solids: HashMap<_, _> = super::read_solids(dir, folder)?.into_iter().map(|s| (s.name_hash, s)).collect();
         let mut catalog = Catalog::from_geometry(&self.tables, car, &solids, &self.shared);
@@ -179,7 +196,7 @@ impl Catalog {
         let slots = stock_parts(t, car);
         let stock = Category::ALL.map(|c| slots[c.slot()].map(|p| p.name_hash));
         let base = slots[slot::BASE].and_then(|p| t.parts.model_hash(&p, 0)).and_then(|h| solids.get(&h));
-        let wheels = WheelSetup::read(&t.attributes, &car.base_model_name).is_some();
+        let wheels = WheelSetup::for_car(&t.attributes, car).is_some();
         let mut catalog = Self { stock, color_palettes: palettes::read(t, car), ..Self::default() };
         for category in [Category::Paint, Category::RimPaint] {
             if let Some(part) = stock[category as usize].and_then(|hash| t.parts.by_name_hash(hash)) {
@@ -298,7 +315,8 @@ impl Catalog {
         }
         if selection.rim_color.is_some() || selection.parts[Category::RimPaint as usize].is_some() {
             ensure!(
-                selection.parts[Category::Wheels as usize].is_some_and(|h| self.paintable_wheels.contains(&h)),
+                self.custom_rim_paint
+                    || selection.parts[Category::Wheels as usize].is_some_and(|h| self.paintable_wheels.contains(&h)),
                 "fit aftermarket rims before selecting rim paint"
             );
         }

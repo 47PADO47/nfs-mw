@@ -23,6 +23,50 @@ pub struct WheelSetup {
 }
 
 impl WheelSetup {
+    /// The setup of the car `car`: a mod car's from its own stats, any other car's from its `ecar` record.
+    pub fn for_car(db: &Database, car: &blackbox_carparts::CarTypeInfo) -> Option<Self> {
+        match super::mods::stats(&car.type_name) {
+            Some(stats) => Some(Self::from_layout(stats, super::mods::wheel_layout::of(&car.type_name).as_ref())),
+            None => Self::read(db, &car.base_model_name),
+        }
+    }
+
+    /// The setup of a mod car: where its model has its tyres when the car says so, else what its stats make of them.
+    pub fn from_layout(stats: &super::mods::CarStats, layout: Option<&super::mods::wheel_layout::WheelLayout>) -> Self {
+        let Some(layout) = layout else { return Self::from_stats(stats) };
+        let tyre = |tyre: &super::mods::wheel_layout::Tyre, side: f32| [tyre.x, side * tyre.face, tyre.z, tyre.radius];
+        let (front, rear) = (&layout.front, &layout.rear);
+        Self {
+            tire_offsets: [tyre(front, 1.0), tyre(front, -1.0), tyre(rear, -1.0), tyre(rear, 1.0)],
+            skid_width: [front.width, front.width, rear.width, rear.width],
+            ..Self::from_stats(stats)
+        }
+    }
+
+    /// The setup of a car with its own stats: the hubs sit at plus and minus half the wheelbase (the model is centred on
+    /// its wheelbase), a tyre's centre as high as its radius, and the wheel's outer face half a tyre width beyond the
+    /// hub. No body kit moves them, and the wheels have no camber.
+    pub fn from_stats(stats: &super::mods::CarStats) -> Self {
+        let half = stats.wheelbase_m / 2.0;
+        let hub = |axle: usize, x: f32, side: f32| {
+            [
+                x,
+                side * (stats.track_m[axle] + stats.tire_width_m[axle]) / 2.0,
+                stats.tire_radius_m[axle],
+                stats.tire_radius_m[axle],
+            ]
+        };
+        Self {
+            tire_offsets: [hub(0, half, 1.0), hub(0, half, -1.0), hub(1, -half, -1.0), hub(1, -half, 1.0)],
+            fe_compressions: [0.0; 2],
+            skid_width: [stats.tire_width_m[0], stats.tire_width_m[0], stats.tire_width_m[1], stats.tire_width_m[1]],
+            skid_width_kit_scale: Vec::new(),
+            kit_wheel_offset: [Vec::new(), Vec::new()],
+            camber: [0.0; 2],
+            spoke_count: 0,
+        }
+    }
+
     /// The setup of the car whose base model name is `base_model_name` (e.g. `BMWM3GTR`).
     pub fn read(db: &Database, base_model_name: &str) -> Option<Self> {
         let car = db.collection("ecar", &base_model_name.to_ascii_lowercase())?;

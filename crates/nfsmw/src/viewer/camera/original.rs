@@ -46,7 +46,7 @@ pub fn index_of(mode: CameraMode) -> Option<usize> {
         CameraMode::SuperFar => 4,
         CameraMode::Drift => 5,
         CameraMode::Pursuit => 6,
-        CameraMode::Chase | CameraMode::DynamicFov => return None,
+        CameraMode::Chase | CameraMode::DynamicFov | CameraMode::Extra(_) => return None,
     })
 }
 

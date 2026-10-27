@@ -71,8 +71,8 @@ fn off_draws_nothing_and_centered_draws_at_least_the_arrow() {
 
 #[test]
 fn roads_are_clipped_to_the_ellipse_not_its_box() {
-    // At 1080p the box is 480 units high: the Centered ellipse is 110.4 by 81.6 units for 300 m, 0.368 units a metre.
-    // North-up, (271, 204) m is at about (100, -75) units: inside the ellipse's box, outside the ellipse.
+    // At 1080p the box is 480 units high: the Centered ellipse's half-axes are 110.4 by 55.2 units for 300 m, 0.368
+    // units a metre. North-up, (271, 204) m is at about (100, -75) units from the car: outside the ellipse.
     let corner = vec![vec![[250.0, 190.0], [290.0, 215.0]]];
     let through = vec![vec![[-100.0, 0.0], [100.0, 0.0]]];
     let bare = built(&CustomFeedCell::new(), feed(on_map(None), MapMode::Centered)).len();

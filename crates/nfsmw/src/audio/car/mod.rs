@@ -1,6 +1,10 @@
 //! The sound of the car being driven: the scene reports its telemetry each frame, the engine mixer
 //! (`blackbox-carsound`) turns it into the Ginsu frequency and loop volumes the engine voice plays, and the
 //! effects mixer into the shift, turbo, tire, road and collision sounds.
+//!
+//! A car a mod adds has no record in the sound database: its sound set is the class-wide defaults and the shared
+//! banks, its engine is its own loops (or the built-in engine), and its shifts, turbo, backfires and pops are its own
+//! recordings or silence (`own_engine`, `own_sfx`). It has no Ginsu voice and no sample layer.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -27,6 +31,9 @@ pub use telemetry::CarAudioTelemetry;
 mod contact;
 mod contacts;
 pub(super) mod impacts;
+mod nitrous_fx;
+mod own_engine;
+mod own_sfx;
 pub(super) mod transmission;
 pub(super) mod tyres;
 pub use contact::{CarContact, ContactSource, ContactVehicle};
@@ -76,6 +83,8 @@ pub struct CarSoundState {
     pub surface: u32,
     pub ticks: Vec<CarSoundTick>,
     pub view: super::AudioView,
+    /// The effects of the nitrous variant the player chose, if it is a mod's: its sounds are played by `nitrous_fx`.
+    pub nitrous_fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
 }
 
 /// The mixers, the voices and the sound set of one car.
@@ -94,7 +103,12 @@ pub(super) struct CarAudio {
     sample_available: bool,
     /// `engineaudio.Master_Vol`.
     master_volume: u32,
-    handle: EngineHandle,
+    /// The Ginsu engine voice; `None` for a car a mod added, whose engine is `own_engine`.
+    handle: Option<EngineHandle>,
+    /// The engine of a car a mod added: its own loops, or the built-in engine (`None` for a car of the game).
+    own_engine: Option<own_engine::OwnEngine>,
+    /// A mod car's own shifts, turbo, backfires and pops (`None` for a car of the game or one with none).
+    own_sfx: Option<own_sfx::OwnSfx>,
     /// The engine was at the limiter in the last frame (for the log).
     redlining: bool,
     /// The loops that are playing, with the sound each plays.
@@ -106,6 +120,8 @@ pub(super) struct CarAudio {
     tyres: tyres::TyrePlayback,
     transmission: transmission::TransmissionPlayback,
     power: power_effects::PowerPlayback,
+    /// The sounds of a mod's nitrous variant (`nitrous_fx.rs`).
+    nitrous: nitrous_fx::NitrousVoice,
     pub(super) event_delay: f32,
 }
 
@@ -118,6 +134,7 @@ struct DriveFrame<'a> {
     dt: f32,
     sim_dt: f32,
     delay: f32,
+    nitrous_fx: Option<&'a std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
 }
 
 impl Drop for CarAudio {
@@ -178,8 +195,7 @@ impl Audio {
         };
         let selectors_changed = slot.as_ref().is_some_and(|c| c.car == state.car && c.upgrades != state.upgrades);
         if selectors_changed
-            && let Ok(database) = self.database()
-            && let Ok(mut selected) = nfsmw_data::sound::car_sound(&database, &state.car, state.upgrades)
+            && let Ok(mut selected) = self.sound_set(&state.car, state.upgrades)
             && let Some(car) = slot.as_mut()
         {
             selected.engine_level = car.sound.engine_level;
@@ -220,6 +236,7 @@ impl Audio {
                     dt,
                     sim_dt: 0.0,
                     delay: 0.0,
+                    nitrous_fx: state.nitrous_fx.as_ref(),
                 },
             );
             *slot = Some(car);
@@ -238,6 +255,7 @@ impl Audio {
                     dt: delta,
                     sim_dt: tick.sim_dt,
                     delay: i as f32 * delta,
+                    nitrous_fx: state.nitrous_fx.as_ref(),
                 },
             );
         }
@@ -249,12 +267,28 @@ impl Audio {
         self.car.as_mut().and_then(|car| car.aems.as_mut()).map_or(0, AemsLayer::take_pops)
     }
 
-    fn start_car(&mut self, name: &str, upgrades: SoundUpgrades) -> Result<CarAudio, String> {
+    /// The sound set of the car, its Ginsu voice (a car of the game only) and the lowest frequency of its loops.
+    fn sound_and_voice(
+        &mut self,
+        name: &str,
+        upgrades: SoundUpgrades,
+    ) -> Result<(CarSound, Option<super::EngineVoice>, f32), String> {
+        if nfsmw_data::car::mods::is_mod_car(name) {
+            let sound = self.sound_set(name, upgrades)?;
+            self.preload_sound_set(&sound);
+            return Ok((sound, None, 0.0));
+        }
         let loaded = self.load_car_engine_upgraded(name, upgrades)?;
-        let mut tuning = tuning(&loaded.sound, loaded.accel_min_frequency());
+        let lowest = loaded.accel_min_frequency();
+        Ok((loaded.sound, Some(loaded.voice), lowest))
+    }
+
+    fn start_car(&mut self, name: &str, upgrades: SoundUpgrades) -> Result<CarAudio, String> {
+        let (sound, voice, accel_min_frequency) = self.sound_and_voice(name, upgrades)?;
+        let mut tuning = tuning(&sound, accel_min_frequency);
         if let Some(turbo) = tuning.turbo.as_mut() {
             for (id, seconds) in turbo.blowoff_seconds.iter_mut().enumerate() {
-                let Some(target) = super::refs::resolve(&loaded.sound, SoundRef::TurboBlowoff(id as u8)) else {
+                let Some(target) = super::refs::resolve(&sound, SoundRef::TurboBlowoff(id as u8)) else {
                     continue;
                 };
                 match self.bank_sound(&target.bank, target.index) {
@@ -263,26 +297,37 @@ impl Audio {
                 }
             }
         }
-        let silent = EngineMix::shared(loaded.sound.engine.min_rpm, 1.0, 0.0, 0.0);
-        let handle = self.start_engine(super::EngineVoice { start: silent, ..loaded.voice })?;
-        log::info!("engine sound: {} ({})", loaded.sound.engine.name, loaded.sound.engine.accel_loop);
-        let dual = !loaded.sound.engine.decel_loop.is_empty();
+        let handle = match voice {
+            Some(voice) => {
+                let silent = EngineMix::shared(sound.engine.min_rpm, 1.0, 0.0, 0.0);
+                log::info!("engine sound: {} ({})", sound.engine.name, sound.engine.accel_loop);
+                Some(self.start_engine(super::EngineVoice { start: silent, ..voice })?)
+            }
+            None => None,
+        };
+        let dual = !sound.engine.decel_loop.is_empty();
         let mixer = CarMixer::load(&self.dir, dual)
             .map_err(|e| log::warn!("no mixer map, the effects play at their generated levels: {e}"))
             .ok();
-        let aems = AemsLayer::load(self, &loaded.sound).map_err(|e| log::warn!("no sample layer for {name}: {e}")).ok();
+        let (own_engine, own_sfx) = self.start_mod_sounds(name, handle.is_none())?;
+        let aems = match handle {
+            Some(_) => AemsLayer::load(self, &sound).map_err(|e| log::warn!("no sample layer for {name}: {e}")).ok(),
+            None => None,
+        };
         Ok(CarAudio {
             levels: Levels::unmixed(),
             sample_available: aems.as_ref().is_some_and(AemsLayer::engine_available),
             aems,
             mixer,
-            master_volume: loaded.sound.engine.master_volume,
+            master_volume: sound.engine.master_volume,
             car: name.to_owned(),
             upgrades,
             engine: EngineMixer::new(&tuning),
             effects: EffectsMixer::new(&tuning),
-            sound: loaded.sound,
+            sound,
             handle,
+            own_engine,
+            own_sfx,
             redlining: false,
             loops: HashMap::new(),
             commands: Vec::new(),
@@ -292,11 +337,28 @@ impl Audio {
             tyres: tyres::TyrePlayback::default(),
             transmission: transmission::TransmissionPlayback::default(),
             power: power_effects::PowerPlayback::default(),
+            nitrous: nitrous_fx::NitrousVoice::default(),
             event_delay: 0.0,
         })
     }
+
+    /// The engine and the effects of a car a mod added (`modded`); nothing for a car of the game.
+    fn start_mod_sounds(
+        &mut self,
+        name: &str,
+        modded: bool,
+    ) -> Result<(Option<own_engine::OwnEngine>, Option<own_sfx::OwnSfx>), String> {
+        if !modded {
+            return Ok((None, None));
+        }
+        let engine = self.start_mod_engine(name)?;
+        let sfx = nfsmw_data::car::mods::car_effects(name).and_then(|effects| self.start_own_sfx(name, effects));
+        Ok((Some(engine), sfx))
+    }
 }
 
+#[cfg(test)]
+mod measure;
 #[cfg(test)]
 mod regression_tests;
 #[cfg(test)]

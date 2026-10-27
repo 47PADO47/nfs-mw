@@ -136,3 +136,29 @@ the stack Custom shows the Original pieces between PR 5 and PR 6; the stack merg
   in split screen is a follow-up.
 - **Not shown.** Drafting, drift scoring, engine, brake and tyre temperatures, cooling damage and a search-area shape are
   not in the simulation, so the HUD has no widget for them. The spec lists them.
+
+## Amendments
+
+### 2026-10-27: the map moves to the top centre, takes its colours from the theme and gets a backdrop
+
+Decision 3 says the map is "in the middle of the view". The owner moved it: the map now hangs from the top centre of the
+view, horizontally centred, with only the safe area's padding (3.5% of the screen's height) above it. The overlays keep
+their widths (340, 500 and 710 px at 1080p) and are half as tall as wide, so Expanded ends at 27% of the screen's height.
+The race strip, its lines, the turn-cue chip, the countdown, the end card and the LAN countdown and vote stack under it, and
+the horizontal radius is held back to clear the top columns. The Custom HUD is hidden in split screen, so the map has no
+split-screen case. [map.md](../specs/custom-hud/map.md) section 2 has the numbers.
+
+- **The setting names do not change.** `map_mode = "centered"` (and the console, command line and options-row names) stays
+  the accepted and default spelling. It now reads "centred across the screen", not "in the middle of the view"; adding a
+  clearer name with the old one as an alias would be a second value to document and to keep in every config for no
+  behaviour, so the smaller change is to keep one name and say what it means. A later rename can add an alias then.
+- **The map's colours are the theme's.** Decision 3's overlay and its route, marks and arrow no longer read the fixed
+  `custom.*` palette. `blackbox-ui` `Tokens` gains optional colour roles (`line`, `line_minor`, `line_faint`, `guide`,
+  `success`, `caution`, `danger`, `info`, `scrim`, `overlay`; skin keys `theme.*`), derived from the five core colours when
+  a theme does not set them, so a mod theme (whose ABI carries only the core colours) still gets a full set
+  ([ADR 0008](0008-ui-themes.md), [ui-themes-tokens.md](../specs/ui-themes-tokens.md)). The built-in palettes declare them
+  with the brief's colours, so the default look is unchanged. The colour-vision palette and high contrast are applied to the
+  roles on top of the theme, as they are to `custom.*`, so the accessibility rules hold whichever theme is active.
+- **The HUD map has a subtle plate** (the scrim at 35% of its alpha), which closes the follow-up "no backdrop plate".
+- **The full-screen map (M) has a strong backdrop**: the scrim over the whole window and the overlay plate under the
+  picture, faded in over `Motion::map_mode`, so it cannot be mistaken for the HUD map.

@@ -5,14 +5,17 @@
 //! outside the ellipse is not drawn, and one in the soft edge fades with the roads, except the marks that stay in view
 //! (the next checkpoint, the route's end): those are held just inside the edge.
 
-use blackbox_ui::{Clip, Component, Image, LayoutCx, LineCap, LineJoin, Polyline, Polylines, Rect, Rounded, UiTree};
+use blackbox_ui::{
+    Clip, Component, Image, LayoutCx, LineCap, LineJoin, Polyline, Polylines, Rect, Rounded, Skin, Tokens, UiTree,
+    token_keys,
+};
 use glam::Vec2;
 
 use super::icons;
 use super::marks::{Mark, MarkKind};
 use super::view::{MapView, pin};
 use crate::hud::{NavRoute, RaceRoute, TICK_SECONDS};
-use crate::ui::theme::custom::tokens::{fade, faded_skin, keys};
+use crate::ui::theme::custom::tokens::fade;
 
 /// The route's width at scale 1, HUD units.
 pub const ROUTE_WIDTH: f32 = 3.0;
@@ -58,9 +61,10 @@ impl Art<'_> {
 /// The next checkpoint's icon is this much larger than the others, so it stands out among the checkpoints.
 const NEXT_GAIN: f32 = 1.25;
 
-/// The colour of the skin key `key`, opaque white when the skin lacks it (a skin without the Custom tokens).
+/// The colour of the skin key `key`: the active theme's token (`theme.*`), or the neutral default's when the skin lacks
+/// it (`Tokens::colour_in`). The map names only theme keys, so no colour of it is fixed.
 pub fn colour(cx: &LayoutCx<'_>, key: &str) -> [u8; 4] {
-    cx.skin.colour(key).unwrap_or([255, 255, 255, 255])
+    Tokens::colour_in(cx.skin, key)
 }
 
 /// A mark's shape, sizes at scale 1 in HUD units.
@@ -75,21 +79,21 @@ enum Shape {
     Bar(f32),
 }
 
-/// The shape and the token colour of a kind of mark.
+/// The shape and the theme token (`theme.*` skin key) of a kind of mark.
 fn look(kind: MarkKind) -> (Shape, &'static str) {
     match kind {
-        MarkKind::NextCheckpoint => (Shape::Target(9.0), keys::NAV),
-        MarkKind::Checkpoint => (Shape::Dot(4.0), keys::NAV),
-        MarkKind::SpeedTrap => (Shape::Dot(4.0), keys::CAUTION),
-        MarkKind::Racer => (Shape::Dot(4.0), keys::TEXT_SECONDARY),
-        MarkKind::Target => (Shape::Diamond(7.0), keys::NAV),
-        MarkKind::Race => (Shape::Diamond(6.0), keys::ACCENT),
-        MarkKind::SafeHouse => (Shape::Square(6.0), keys::SUCCESS),
-        MarkKind::Shop => (Shape::Dot(5.0), keys::TEXT),
-        MarkKind::Cop => (Shape::Dot(6.0), keys::DANGER),
-        MarkKind::Helicopter => (Shape::Target(8.0), keys::DANGER),
-        MarkKind::LastKnown => (Shape::Ring(8.0), keys::DANGER),
-        MarkKind::Roadblock => (Shape::Bar(10.0), keys::CAUTION),
+        MarkKind::NextCheckpoint => (Shape::Target(9.0), token_keys::GUIDE),
+        MarkKind::Checkpoint => (Shape::Dot(4.0), token_keys::GUIDE),
+        MarkKind::SpeedTrap => (Shape::Dot(4.0), token_keys::CAUTION),
+        MarkKind::Racer => (Shape::Dot(4.0), token_keys::LINE_MINOR),
+        MarkKind::Target => (Shape::Diamond(7.0), token_keys::GUIDE),
+        MarkKind::Race => (Shape::Diamond(6.0), token_keys::SECONDARY),
+        MarkKind::SafeHouse => (Shape::Square(6.0), token_keys::SUCCESS),
+        MarkKind::Shop => (Shape::Dot(5.0), token_keys::LINE),
+        MarkKind::Cop => (Shape::Dot(6.0), token_keys::DANGER),
+        MarkKind::Helicopter => (Shape::Target(8.0), token_keys::DANGER),
+        MarkKind::LastKnown => (Shape::Ring(8.0), token_keys::DANGER),
+        MarkKind::Roadblock => (Shape::Bar(10.0), token_keys::CAUTION),
     }
 }
 
@@ -145,9 +149,9 @@ fn icon_part(
     let Some(icon) = icons::find(art.tree, &name) else { return false };
     let package = [icon.colour[0], icon.colour[1], icon.colour[2], 255];
     let colour = match mark.kind {
-        MarkKind::NextCheckpoint | MarkKind::Checkpoint | MarkKind::Target => colour(cx, keys::NAV),
-        MarkKind::Cop => icons::tint(mark.kind, mark.variant, art.tick()).unwrap_or(package),
-        _ if package[..3] == [255; 3] => icons::tint(mark.kind, mark.variant, art.tick()).unwrap_or(package),
+        MarkKind::NextCheckpoint | MarkKind::Checkpoint | MarkKind::Target => colour(cx, token_keys::GUIDE),
+        MarkKind::Cop => icons::tint(mark.kind, mark.variant, art.tick(), cx.skin).unwrap_or(package),
+        _ if package[..3] == [255; 3] => icons::tint(mark.kind, mark.variant, art.tick(), cx.skin).unwrap_or(package),
         _ => package,
     };
     let gain = match mark.kind {
@@ -213,7 +217,7 @@ fn shape_parts(
 /// A filled rounded square `size` across with corners of `radius` round `at`, in the skin colour `key` at `alpha`: a
 /// disc when the radius is half the size.
 fn disc(key: &'static str, at: Vec2, size: f32, radius: f32, (alpha, z): (f32, f32), cx: &LayoutCx<'_>) -> Rounded {
-    let skin = faded_skin(cx.skin, &[key], &[], alpha);
+    let skin = Skin::new().with_colour(key, fade(colour(cx, key), alpha));
     Rounded::at_depth(key, Rect::new(at.x, at.y, size, size), radius, z, &LayoutCx::new(&skin, cx.time_s))
 }
 

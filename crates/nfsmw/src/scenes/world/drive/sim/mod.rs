@@ -372,6 +372,8 @@ impl CarSim {
     pub fn repair(&mut self) {
         if let Some(events) = self.events.as_mut() {
             events.damage.repair();
+            // The hinged parts of a mod car are on the car again (the ones that fell off stay where they lie).
+            events.hidden_slots.retain(|&slot| nfsmw_data::car::mods::hinged::index_of(slot).is_none());
             events.repair_lights();
             self.vehicle.tire_damage.reset();
         }

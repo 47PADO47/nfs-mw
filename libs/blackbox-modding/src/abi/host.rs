@@ -47,4 +47,9 @@ pub struct BbHost {
     pub log: Option<BbLogFn>,
     /// Finds an interface by id.
     pub query_interface: Option<BbQueryInterfaceFn>,
+    /// The folder of the mod itself: where its `mod.toml` is, and where it may keep its settings and generated
+    /// files (`files/`, `cars/`) that the host reads after the mod loads. UTF-8.
+    pub mod_dir: BbStr,
+    /// The folder of the game's own install, empty when the host has none.
+    pub game_dir: BbStr,
 }

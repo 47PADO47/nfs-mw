@@ -7,12 +7,14 @@
 //! to it.
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
-use blackbox_modding::host::HotkeyHandler;
+use blackbox_modding::content::{NitrousProfile, nitrous_profile_path, parse_nitrous_profile};
+use blackbox_modding::host::{HotkeyHandler, OptionsModel};
 use blackbox_ui::ThemeId;
 use game_install::GameDir;
 use nfsmw_data::pursuit::{HeatRow, heat_row, race_heat_row};
@@ -23,11 +25,22 @@ use super::input::Hotkey;
 use super::map::{self, ModBlip};
 use super::menu_store::{ConfigFile, ValueStore};
 use super::menus::MenuRow;
+use super::settings::{self, OptionHandler};
 use super::time::{self, Clock, ClockRequest};
 use super::ui::UiRecord;
 use super::world::{self, WorldRequest};
 use crate::devtools::Console;
 use crate::viewer::{CameraReadout, PlayerCar, Scene, WorldInfo};
+
+/// How many frames pass before a profile that was not found is looked for again.
+const PROFILE_RETRY_CALLS: u32 = 300;
+
+/// The nitrous profile read for the chosen value, and when to look again if it was missing.
+pub(super) struct NitrousCache {
+    value: String,
+    profile: Option<Arc<NitrousProfile>>,
+    retry_in: u32,
+}
 
 pub struct Bridge {
     /// The last handle given out. Handles start at 1; 0 means none.
@@ -55,6 +68,14 @@ pub struct Bridge {
     pub(super) blips: RefCell<Vec<ModBlip>>,
     /// The rows the mods added to the Mods page of the options.
     pub(super) menu_rows: RefCell<Vec<MenuRow>>,
+    /// The options of the gameplay settings: the game's own and what the mods added (`bb.settings`).
+    pub(super) options: RefCell<OptionsModel>,
+    /// The callbacks the mods gave for their options.
+    pub(super) option_handlers: RefCell<Vec<OptionHandler>>,
+    /// The chosen value of each option read so far, so the config file is not read every frame.
+    pub(super) option_choices: RefCell<HashMap<String, String>>,
+    /// The profile of the nitrous variant in effect, read from the install once per chosen value (`nitrous_profile`).
+    pub(super) nitrous_cache: RefCell<Option<NitrousCache>>,
     /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
     pub(super) ui_themes: RefCell<Vec<UiRecord>>,
     /// The mod theme the player chose on the Mods page, or `None` for the built-in style (`ui.rs`). The theme sync
@@ -89,6 +110,10 @@ impl Bridge {
             world_requests: RefCell::default(),
             blips: RefCell::default(),
             menu_rows: RefCell::default(),
+            options: RefCell::new(OptionsModel::new(settings::builtin())),
+            option_handlers: RefCell::default(),
+            option_choices: RefCell::default(),
+            nitrous_cache: RefCell::default(),
             ui_themes: RefCell::default(),
             ui_theme_choice: Cell::new(None),
             store,
@@ -108,6 +133,11 @@ impl Bridge {
         *self.install.borrow_mut() = Some(dir);
     }
 
+    /// A copy of the install, with its layers (late ones included: they are shared by every copy). `None` until known.
+    pub(super) fn install(&self) -> Option<GameDir> {
+        self.install.borrow().clone()
+    }
+
     /// The install's wave of `table` at `level`, as the install defines it. `NotReady` until the install is known,
     /// `NotFound` for a level the install has no wave for.
     pub(super) fn install_row(&self, table: CopTable, level: u32) -> Result<HeatRow, blackbox_modding::abi::BbStatus> {
@@ -124,6 +154,32 @@ impl Bridge {
         let install = self.install.borrow();
         let dir = install.as_ref().ok_or(blackbox_modding::abi::BB_ERR_NOT_READY)?;
         nfsmw_data::shared::attributes(dir).map_err(|_| blackbox_modding::abi::BB_ERR_HOST)
+    }
+
+    /// The effects of the nitrous variant the player chose, when it is a mod's: the profile the mod keeps in its `files/`
+    /// folder (`NITROUS/<value>/profile.toml`), read through the install's layers once for each chosen value. `None` for the
+    /// game's own "Original", for a variant whose mod is not loaded, and for a profile that is missing or refused (a warning
+    /// says why), so the game's nitrous is then exactly as it was.
+    pub fn nitrous_profile(&self) -> Option<Arc<NitrousProfile>> {
+        let choice = settings::nitrous_variant(self);
+        choice.owner.as_ref()?;
+        let mut cache = self.nitrous_cache.borrow_mut();
+        let mut first = true;
+        if let Some(cached) = cache.as_mut()
+            && cached.value == choice.value
+        {
+            // A profile that was not there is looked for again every so often: the mod may still be converting it.
+            cached.retry_in = cached.retry_in.saturating_sub(1);
+            if cached.profile.is_some() || cached.retry_in > 0 {
+                return cached.profile.clone();
+            }
+            first = false;
+        }
+        let dir = self.install()?;
+        let (profile, found) = read_profile(&dir, &choice.value, first);
+        let retry_in = if found { u32::MAX } else { PROFILE_RETRY_CALLS };
+        *cache = Some(NitrousCache { value: choice.value, profile: profile.clone(), retry_in });
+        profile
     }
 
     /// Copy the scene's clock, car, camera and track in, so the mods read this frame's state. Called before the mods run.
@@ -157,7 +213,31 @@ impl Bridge {
         let requests = std::mem::take(&mut *self.world_requests.borrow_mut());
         world::apply(requests, scene);
         scene.set_mod_blips(&map::minimap_blips(self));
+        scene.set_nitrous_fx(self.nitrous_profile());
         let lines = std::mem::take(&mut *self.queued_lines.borrow_mut());
         console.queue_lines(lines);
+    }
+}
+
+/// The profile of variant `value`, read and checked, and whether the file was there. A failure is a warning (when `warn`),
+/// and the variant then has no effects.
+fn read_profile(dir: &GameDir, value: &str, warn: bool) -> (Option<Arc<NitrousProfile>>, bool) {
+    let path = nitrous_profile_path(value);
+    let bytes = match dir.read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            if warn {
+                log::warn!("the nitrous variant {value:?} has no profile ({path}): {error}; the game's nitrous plays");
+            }
+            return (None, false);
+        }
+    };
+    let text = String::from_utf8_lossy(&bytes);
+    match parse_nitrous_profile(&text) {
+        Ok(profile) => (Some(Arc::new(profile)), true),
+        Err(error) => {
+            log::warn!("the nitrous variant {value:?}: {path} is refused: {error}; the game's nitrous plays");
+            (None, true)
+        }
     }
 }

@@ -385,11 +385,21 @@ fn vinyl_groups(model: &Model, backroom: bool) -> Vec<Item> {
         .collect();
     groups.sort_unstable();
     groups.dedup();
+    let custom_car = model.selected().is_some_and(|car| nfsmw_data::car::mods::is_mod_car(&car.folder));
     for group in groups {
-        let (label, texture) = VINYLS.get(group as usize).copied().unwrap_or(("Custom Vinyls", 0x5577_8e5a));
+        let (label, texture) = vinyl_group(group, custom_car);
         result.push(Item::page(label, texture, Page::Vinyls { group, backroom }, true));
     }
     result
+}
+
+/// The label and picture of vinyl group `group`. A mod car's vinyls and liveries are all in group 0, which the stock cars use for
+/// the flames, so they go under a name of their own.
+fn vinyl_group(group: u8, custom_car: bool) -> (&'static str, u32) {
+    if custom_car {
+        return ("Vinyls & Liveries", 0x5577_8e5a);
+    }
+    VINYLS.get(group as usize).copied().unwrap_or(("Custom Vinyls", 0x5577_8e5a))
 }
 
 fn group_options(model: &Model, category: Part, group: u8) -> Vec<Item> {
@@ -402,7 +412,8 @@ fn group_options(model: &Model, category: Part, group: u8) -> Vec<Item> {
         actual == group || (category == Part::Spoiler && actual == 4)
     });
     if category == Part::Vinyl {
-        let texture = VINYLS.get(group as usize).map_or(0x5577_8e5a, |(_, texture)| *texture);
+        let custom_car = model.selected().is_some_and(|car| nfsmw_data::car::mods::is_mod_car(&car.folder));
+        let (_, texture) = vinyl_group(group, custom_car);
         for item in &mut options {
             item.texture = texture;
         }

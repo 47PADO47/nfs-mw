@@ -17,13 +17,9 @@ pub(super) fn refresh(cx: &mut Cx, model: &Model) {
     }
 }
 
+/// The logo of the brand `name`: a mod's, or the game's own, or the generic one.
 pub(super) fn manufacturer(cx: &Cx, name: &str) -> u32 {
-    let cleaned: String = name.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
-    let hash = fe_hash_upper(&format!("CARSELECT_MANUFACTURER_{cleaned}"));
-    match cx.assets.texture(hash) {
-        Some(_) => hash,
-        None => fe_hash_upper("GENERIC_LOGO_128"),
-    }
+    crate::frontend::car_title::logo_of(cx.assets, name).unwrap_or_else(|| fe_hash_upper("GENERIC_LOGO_128"))
 }
 
 pub(super) fn model_logo(cx: &Cx, name: &str) -> u32 {

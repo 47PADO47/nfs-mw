@@ -1654,6 +1654,7 @@ dependencies = [
 name = "blackbox-modding"
 version = "0.1.0"
 dependencies = [
+ "blackbox-vehicle",
  "libloading",
  "log",
  "semver",
@@ -1812,6 +1813,7 @@ name = "blackbox-solid"
 version = "0.1.0"
 dependencies = [
  "blackbox-chunk",
+ "blackbox-hash",
  "bytemuck",
  "ea-compress",
  "thiserror 2.0.21",
@@ -1843,6 +1845,7 @@ name = "blackbox-tpk"
 version = "0.1.0"
 dependencies = [
  "blackbox-chunk",
+ "blackbox-hash",
  "ea-compress",
  "texture2ddecoder",
  "thiserror 2.0.21",
@@ -2054,6 +2057,65 @@ dependencies = [
  "cipher",
  "poly1305",
  "zeroize",
+]
+
+[[package]]
+name = "chameleon-bundle"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "chameleon-camera"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "chameleon-effects"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+]
+
+[[package]]
+name = "chameleon-gfx"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "texture2ddecoder",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "chameleon-sound-graph"
+version = "0.1.0"
+dependencies = [
+ "blackbox-ginsu",
+ "chameleon-bundle",
+ "ea-audio",
+]
+
+[[package]]
+name = "chameleon-text"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "chameleon-vehicle"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "chameleon-gfx",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2676,6 +2738,7 @@ checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 name = "ea-audio"
 version = "0.1.0"
 dependencies = [
+ "symphonia",
  "thiserror 2.0.21",
 ]
 
@@ -3376,13 +3439,6 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
-
-[[package]]
-name = "hello-mod"
-version = "0.1.0"
-dependencies = [
- "blackbox-modding",
-]
 
 [[package]]
 name = "hermit-abi"
@@ -4197,6 +4253,35 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "wgpu",
  "windows",
+]
+
+[[package]]
+name = "nfsmw-2012-content"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blackbox-attrib",
+ "blackbox-collision",
+ "blackbox-hash",
+ "blackbox-modding",
+ "blackbox-solid",
+ "blackbox-tpk",
+ "chameleon-bundle",
+ "chameleon-camera",
+ "chameleon-effects",
+ "chameleon-gfx",
+ "chameleon-sound-graph",
+ "chameleon-vehicle",
+ "ea-audio",
+ "game-install",
+ "glam 0.34.1",
+ "log",
+ "nfsmw-data",
+ "png",
+ "rayon",
+ "serde",
+ "symphonia",
+ "toml 0.9.12+spec-1.1.0",
 ]
 
 [[package]]

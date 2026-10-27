@@ -10,9 +10,6 @@ pub enum ContentError {
     /// The file name is not a valid car id.
     #[error("{0:?} is not a valid car id (letters, digits, _ and -, 1 to 32 bytes)")]
     InvalidId(String),
-    /// `clone` is not a valid car id.
-    #[error("clone {0:?} is not a valid car id (letters, digits, _ and -, 1 to 32 bytes)")]
-    InvalidClone(String),
     /// `name` is empty or has a control character.
     #[error("name {0:?} is empty or has a control character")]
     InvalidName(String),
@@ -28,9 +25,15 @@ pub enum ContentError {
     /// `heat` is an empty list.
     #[error("heat lists no level")]
     EmptyHeat,
-    /// `heat` is given for a car that is not a cop.
-    #[error("heat is for cop use: set role to cop or both")]
+    /// `heat`, `[[cop]]` or `cop_class` is given for a car that is not a cop.
+    #[error("heat, [[cop]] and cop_class are for cop use: set role to cop or both")]
     HeatWithoutCop,
+    /// A `[[cop]]` count is outside 1 to 8.
+    #[error("cop count {0} is not from 1 to 8")]
+    InvalidCopCount(u32),
+    /// A `[[cop]]` chance is outside 1 to 100.
+    #[error("cop chance {0} is not from 1 to 100 percent")]
+    InvalidCopChance(u32),
     /// A music context is not a name of lower-case letters and `_`.
     #[error("music context {0:?} is not a name (lower-case letters and _)")]
     InvalidMusicContext(String),

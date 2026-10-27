@@ -61,11 +61,12 @@
 !/xtask/Cargo.toml
 !/xtask/src/**/*.rs
 
-# Example mods (ADR 0005 section 8): manifests and sources only; a built library is never committed
-!/examples/**/Cargo.toml
-!/examples/**/*.rs
-!/examples/**/mod.toml
-!/examples/mods/*/lang/**/*.ftl
+# Mods (ADR 0005 section 8): manifests, sources and translation catalogues only; a built library is never committed
+!/mods/*/Cargo.toml
+!/mods/*/mod.toml
+!/mods/*/src/**/*.rs
+!/mods/*/tests/**/*.rs
+!/mods/*/lang/**/*.ftl
 
 # Documentation (Markdown only)
 !/docs/**/*.md

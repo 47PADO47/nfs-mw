@@ -64,6 +64,7 @@ println!("{:.1} m/s in gear {}", car.forward_speed(), car.gear());
 | `input` | `InputState` to `Controls`: dead zone, automatic reverse, idle auto-brake, handbrake priority, shift requests (`ControlConfig::automatic = false` is manual shifting: nothing shifts by itself, see `docs/specs/vehicle-manual-shifting.md`) |
 | `ground` | the `Ground` trait, `GroundHit`, `SurfaceGrip`, and `FlatGround`, `SlopedGround`, `NoGround` |
 | `vehicle` | `Vehicle`, `VehicleSpec`, `Tunings`, `WheelState`; `VehicleSpec::example()` is a plausible rear-drive saloon for tests, not any game car |
+| `stats` | `CarStats`: a car in absolute SI units (mass, torque curve, gear ratios, tyre grip, brake torque, nitrous ...) and `VehicleSpec::from_stats`, which builds the whole spec from it with documented generic values for what the stats do not give; `upgrade` (shop levels as shares of the car's own numbers), `solve_drag` (the air drag that gives a top speed) and `handling_index` |
 
 `RollingChassisConfig` optionally selects direct brake/axle controls, fixed steering,
 simple drag, a force-arm multiplier and an optional fixed centre of gravity.

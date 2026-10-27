@@ -1,6 +1,7 @@
 //! Developer tools: the performance overlay now, the F12 console next. Their state is plain data; the
 //! panels that draw it are thin egui views, so a full Bevy move changes the views, not the tools.
 
+pub(crate) mod car_list;
 mod console;
 mod extra_options;
 mod graphics_lab;

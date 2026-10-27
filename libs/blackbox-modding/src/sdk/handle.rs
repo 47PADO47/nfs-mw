@@ -7,6 +7,8 @@
 //! - `BlipId`: a map blip the mod added.
 //! - `SoundId`: a one-shot sound the mod started.
 //! - `UiThemeId`: a theme the mod registered.
+//! - `SettingId`: an option the mod added to the game's settings (`bb.settings`).
+//! - `CameraViewId`: an extra camera view the mod registered (`bb.camera` 1.1).
 
 macro_rules! handle {
     ($($name:ident),* $(,)?) => {
@@ -30,4 +32,16 @@ macro_rules! handle {
     };
 }
 
-handle!(VehicleId, WorldId, MenuId, AbilityId, ActionId, CommandId, BlipId, SoundId, UiThemeId);
+handle!(
+    VehicleId,
+    WorldId,
+    MenuId,
+    AbilityId,
+    ActionId,
+    CommandId,
+    BlipId,
+    SoundId,
+    UiThemeId,
+    SettingId,
+    CameraViewId
+);

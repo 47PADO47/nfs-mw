@@ -92,7 +92,7 @@ mod layout64 {
 
     #[test]
     fn host_table() {
-        assert_eq!(size_of::<BbHost>(), 64);
+        assert_eq!(size_of::<BbHost>(), 96);
         assert_eq!(align_of::<BbHost>(), 8);
         assert_eq!(offset_of!(BbHost, size), 0);
         assert_eq!(offset_of!(BbHost, abi_major), 4);
@@ -102,6 +102,8 @@ mod layout64 {
         assert_eq!(offset_of!(BbHost, game_version), 32);
         assert_eq!(offset_of!(BbHost, log), 48);
         assert_eq!(offset_of!(BbHost, query_interface), 56);
+        assert_eq!(offset_of!(BbHost, mod_dir), 64);
+        assert_eq!(offset_of!(BbHost, game_dir), 80);
     }
 
     #[test]

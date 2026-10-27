@@ -269,3 +269,37 @@ fn the_custom_tokens_follow_the_look_and_take_their_accent_from_the_theme() {
     themes.set_custom_look(CustomLook::default());
     assert_eq!(themes.skin.colour(keys::OUTLINE), None, "the outline goes with high contrast");
 }
+
+#[test]
+fn the_themes_colour_roles_reach_the_skin_and_a_mod_theme_gets_derived_ones() {
+    use crate::settings::hud::HudPalette;
+    use crate::settings::{UiStyle, UiTheme};
+    use blackbox_ui::{Tokens, token_keys};
+
+    use super::custom::palette;
+    use super::custom::tokens::{Colours, CustomLook};
+
+    let mut themes = super::UiThemes::build();
+    themes.select(UiStyle::Custom);
+    assert_eq!(themes.skin.colour(token_keys::GUIDE), Some(palette::bevy().resolved_roles().guide));
+    assert_eq!(themes.skin.colour(token_keys::SCRIM), Some(palette::SCRIM));
+    themes.set_ui_theme(UiTheme::Remastered);
+    assert_eq!(themes.skin.colour(token_keys::GUIDE), Some(palette::remastered().resolved_roles().guide));
+    assert_ne!(
+        themes.skin.colour(token_keys::GUIDE),
+        Some(palette::bevy().resolved_roles().guide),
+        "switching the theme changes the route's colour"
+    );
+    // The player's colour-vision palette wins over the theme for the meaning hues.
+    let look = CustomLook { palette: HudPalette::Deuteranopia, high_contrast: false };
+    themes.set_custom_look(look);
+    assert_eq!(themes.skin.colour(token_keys::DANGER), Some(Colours::for_look(look).danger));
+    themes.set_custom_look(CustomLook { palette: HudPalette::Default, high_contrast: true });
+    assert_eq!(themes.skin.colour(token_keys::LINE), Some([255, 255, 255, 255]), "high contrast whitens the linework");
+    // The floor and a theme with no roles of its own derive them from the five core colours.
+    themes.set_custom_look(CustomLook::default());
+    themes.select(UiStyle::Original);
+    let neutral = Tokens::default();
+    assert_eq!(themes.skin.colour(token_keys::LINE), Some(neutral.primary));
+    assert_eq!(themes.skin.colour(token_keys::GUIDE), Some(neutral.secondary));
+}

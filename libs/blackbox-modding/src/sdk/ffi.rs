@@ -9,6 +9,10 @@
 pub(crate) mod audio;
 pub(crate) mod camera;
 pub(crate) mod commands;
+pub(crate) mod config;
+#[cfg(all(test, feature = "host"))]
+mod config_tests;
+pub(crate) mod content;
 mod event;
 pub(crate) mod hud;
 pub(crate) mod i18n;
@@ -17,6 +21,9 @@ pub(crate) mod map;
 pub(crate) mod menus;
 #[cfg(all(test, feature = "host"))]
 mod menus_tests;
+pub(crate) mod settings;
+#[cfg(all(test, feature = "host"))]
+mod settings_tests;
 pub(crate) mod time;
 pub(crate) mod ui;
 #[cfg(all(test, feature = "host"))]
@@ -104,6 +111,22 @@ impl HostTable {
         Some(unsafe { addr_of!((*self.ptr.as_ptr()).game_id).read() })
     }
 
+    fn mod_dir_field(&self) -> Option<BbStr> {
+        if !self.covers(offset_of!(BbHost, mod_dir) + size_of::<BbStr>()) {
+            return None;
+        }
+        // SAFETY: the table covers this field (checked above); the string is valid while the mod is loaded.
+        Some(unsafe { addr_of!((*self.ptr.as_ptr()).mod_dir).read() })
+    }
+
+    fn game_dir_field(&self) -> Option<BbStr> {
+        if !self.covers(offset_of!(BbHost, game_dir) + size_of::<BbStr>()) {
+            return None;
+        }
+        // SAFETY: the table covers this field (checked above); the string is valid while the mod is loaded.
+        Some(unsafe { addr_of!((*self.ptr.as_ptr()).game_dir).read() })
+    }
+
     fn game_version_field(&self) -> Option<BbStr> {
         if !self.covers(offset_of!(BbHost, game_version) + size_of::<BbStr>()) {
             return None;
@@ -152,6 +175,16 @@ pub(crate) fn game_id(host: HostTable) -> ModResult<String> {
 /// The game version, copied out of the host table.
 pub(crate) fn game_version(host: HostTable) -> ModResult<String> {
     owned_text(host.game_version_field())
+}
+
+/// The folder of the mod itself, copied out of the host table. `Unsupported` for a host that predates the field.
+pub(crate) fn mod_dir(host: HostTable) -> ModResult<String> {
+    owned_text(host.mod_dir_field())
+}
+
+/// The folder of the game's install, copied out of the host table. Empty when the host has none.
+pub(crate) fn game_dir(host: HostTable) -> ModResult<String> {
+    owned_text(host.game_dir_field())
 }
 
 fn owned_text(text: Option<BbStr>) -> ModResult<String> {

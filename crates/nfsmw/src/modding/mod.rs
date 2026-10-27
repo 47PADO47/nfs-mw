@@ -10,6 +10,7 @@
 //! and the events as well.
 
 mod backends;
+pub mod camera_views;
 mod console;
 pub(crate) mod content;
 pub(crate) mod cop_rows;
@@ -31,6 +32,9 @@ mod hello_tests;
 mod tests;
 
 pub use backends::menus::{RowInfo, change as change_menu_row, rows as menu_rows};
+pub use backends::settings::{
+    change as change_gameplay_option, info as gameplay_option, visible as visible_gameplay_options,
+};
 pub use backends::ui::{
     any_theme as has_ui_themes, chosen_display as ui_theme_display, step_choice as step_ui_theme_choice,
 };

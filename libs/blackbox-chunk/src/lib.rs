@@ -15,14 +15,18 @@ pub mod ice;
 pub mod ids;
 mod iter;
 mod search;
+mod writer;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod writer_tests;
 
 pub use chunk::Chunk;
 pub use error::{Error, Result};
 pub use iter::{Chunks, chunks};
 pub use search::{find, find_all};
+pub use writer::ChunkWriter;
 
 /// Bit 31 of a chunk id: the payload is a sequence of child chunks.
 pub const CONTAINER_BIT: u32 = 0x8000_0000;

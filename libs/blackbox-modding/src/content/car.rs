@@ -2,6 +2,12 @@
 
 use serde::Deserialize;
 
+use super::cop::{self, CopClass, CopWave};
+use super::customization::{self, Customization};
+use super::damage_parts::{self, DamagePart, Wing};
+use super::engine_sound::{self, CarEffects, EngineSound};
+use super::stats::{self, Stats};
+use super::wheels::{self, WheelLayout};
 use super::{ContentError, is_id};
 
 /// Who may drive or chase with the car.
@@ -28,20 +34,39 @@ impl Role {
 }
 
 /// A checked `cars/<id>.toml`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CarManifest {
     /// The car id: the file name without `.toml`, in upper case. Its folder is `files/CARS/<id>/`.
     pub id: String,
-    /// The stock car it copies, as the game names car folders. The car keeps that car's record, parts and physics.
-    pub clone: String,
     pub role: Role,
     /// The heat levels whose cop waves may use the car: ascending, no repeats. Empty when the list was left out, which
     /// the game reads as every level. Always empty for a car that is not a cop.
     pub heat: Vec<u32>,
-    /// The display name, trimmed. `None` keeps the stock name of the clone.
+    /// The cop car's wave entries, in level order: the levels of `heat` with the default numbers and the `[[cop]]` tables
+    /// with theirs. Empty when the manifest names no level (the game then reads every level, with the default numbers).
+    /// Always empty for a car that is not a cop.
+    pub waves: Vec<CopWave>,
+    /// What kind of police unit the car is (`cop_class`). Patrol for a car that is not a cop.
+    pub cop_class: CopClass,
+    /// The display name, trimmed. `None` shows the car id.
     pub name: Option<String>,
-    /// The brand, trimmed. `None` keeps the clone's brand.
+    /// The brand, trimmed. `None` shows no brand.
     pub manufacturer: Option<String>,
+    /// What the car is (`[stats]`): its mass, engine, gearbox, tyres and brakes, in absolute units. The engine's generic
+    /// car when the table is left out.
+    pub stats: Stats,
+    /// The car's own engine loops (`[engine_sound]`), `None` for a car with no loops of its own.
+    pub engine_sound: Option<EngineSound>,
+    /// The car's own paints, rims and other parts (`[customization]`). `None`: the car offers none of its own.
+    pub customization: Option<Customization>,
+    /// The car's own recordings of its shifts, turbo, backfire and pops (`[car_sound]`). A sound it does not give is silent.
+    pub car_sound: Option<CarEffects>,
+    /// The parts that swing on a hinge or fall off as the car is damaged (`[[damage_parts]]`). Empty: none.
+    pub damage_parts: Vec<DamagePart>,
+    /// Where the car's model has its tyres (`[wheels]`), `None` to draw the wheels from `[stats]`.
+    pub wheels: Option<WheelLayout>,
+    /// The machine that plays the keyed animations of the parts with tracks (`[wing]`).
+    pub wing: Option<Wing>,
 }
 
 /// The file as serde reads it. Unknown keys are an error, so a key the game does not support (an `[override]`
@@ -49,15 +74,30 @@ pub struct CarManifest {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Raw {
-    clone: String,
     #[serde(default)]
     role: RawRole,
     #[serde(default)]
     heat: Option<Vec<u32>>,
     #[serde(default)]
+    cop: Option<Vec<cop::RawWave>>,
+    #[serde(default)]
+    cop_class: Option<CopClass>,
+    #[serde(default)]
     name: Option<String>,
     #[serde(default)]
     manufacturer: Option<String>,
+    #[serde(default)]
+    stats: Option<stats::Raw>,
+    #[serde(default)]
+    engine_sound: Option<engine_sound::Raw>,
+    #[serde(default)]
+    customization: Option<customization::Raw>,
+    car_sound: Option<engine_sound::RawEffects>,
+    #[serde(default)]
+    damage_parts: Option<Vec<damage_parts::Raw>>,
+    #[serde(default)]
+    wheels: Option<wheels::Raw>,
+    wing: Option<damage_parts::RawWing>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -89,14 +129,38 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     if !is_id(stem) {
         return Err(ContentError::InvalidId(stem.to_owned()));
     }
-    if !is_id(&raw.clone) {
-        return Err(ContentError::InvalidClone(raw.clone));
-    }
     let role = Role::from(raw.role);
     let heat = heat(raw.heat, role)?;
+    if !role.is_cop() && (raw.cop.is_some() || raw.cop_class.is_some()) {
+        return Err(ContentError::HeatWithoutCop);
+    }
+    let waves = cop::check(&heat, raw.cop)?;
+    let cop_class = raw.cop_class.unwrap_or_default();
     let name = checked_text(raw.name, ContentError::InvalidName)?;
     let manufacturer = checked_text(raw.manufacturer, ContentError::InvalidManufacturer)?;
-    Ok(CarManifest { id: stem.to_ascii_uppercase(), clone: raw.clone, role, heat, name, manufacturer })
+    let stats = stats::check(raw.stats)?;
+    let engine_sound = engine_sound::check(raw.engine_sound)?;
+    let customization = customization::check(raw.customization)?;
+    let car_sound = engine_sound::check_effects(raw.car_sound)?;
+    let damage_parts = damage_parts::check(raw.damage_parts)?;
+    let wheels = wheels::check(raw.wheels)?;
+    let wing = damage_parts::check_wing(raw.wing, &damage_parts)?;
+    Ok(CarManifest {
+        id: stem.to_ascii_uppercase(),
+        role,
+        heat,
+        waves,
+        cop_class,
+        name,
+        manufacturer,
+        stats,
+        engine_sound,
+        customization,
+        car_sound,
+        damage_parts,
+        wheels,
+        wing,
+    })
 }
 
 /// The heat levels. A list left out is no list (empty). A list needs a cop role, names only levels from 1, and has no

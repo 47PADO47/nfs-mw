@@ -1,0 +1,43 @@
+[package]
+name = "nfsmw-2012-content"
+description = "Native mod: adds the cars of NFS Most Wanted (2012) to NFS: Most Wanted (2005), converted in the background from the user's own 2012 install."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow.workspace = true
+blackbox-attrib.workspace = true
+blackbox-collision.workspace = true
+blackbox-hash.workspace = true
+blackbox-modding = { workspace = true, features = ["sdk"] }
+blackbox-solid.workspace = true
+blackbox-tpk.workspace = true
+chameleon-bundle.workspace = true
+chameleon-camera = { workspace = true, features = ["serde"] }
+chameleon-effects.workspace = true
+chameleon-gfx.workspace = true
+chameleon-sound-graph.workspace = true
+chameleon-vehicle.workspace = true
+ea-audio.workspace = true
+log.workspace = true
+png.workspace = true
+rayon.workspace = true
+serde.workspace = true
+symphonia.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+# The tests check the generated manifests with the game's own parser.
+blackbox-modding = { workspace = true, features = ["host"] }
+game-install.workspace = true
+glam.workspace = true
+nfsmw-data.workspace = true
+
+[lints]
+workspace = true

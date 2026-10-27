@@ -89,6 +89,9 @@ pub trait Scene {
     fn set_time_held(&mut self, _held: bool) {}
     /// The minimap blips the mods placed (`bb.map`), merged into the scene's own. Scenes without a minimap ignore them.
     fn set_mod_blips(&mut self, _blips: &[MapBlip]) {}
+    /// The effects of the nitrous variant the player chose (`nitrous_variant`, `docs/modding/nitrous-variants.md`), or `None`
+    /// for the game's own. Set every frame by the mods' systems. Scenes without nitrous ignore it.
+    fn set_nitrous_fx(&mut self, _fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>) {}
     /// Sets the GPS route to a point on the road (render space x, y), or clears it with `None`. Returns whether the
     /// route is set. Scenes without a road network refuse. The world map, the console and the mods come through here.
     fn set_waypoint(&mut self, _target: Option<[f32; 2]>) -> bool {

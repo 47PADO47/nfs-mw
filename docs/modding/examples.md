@@ -1,22 +1,23 @@
 # Mod examples
 
-Four small mods, each a folder you can copy, using the 0.1 SDK: the generic `libs/blackbox-modding` interfaces and,
+Five small mods, each a folder you can copy, using the 0.1 SDK: the generic `libs/blackbox-modding` interfaces and,
 in the last one, the NFS:MW extension in `crates/nfsmw-modding`. The catalogue is in [api.md](api.md) and the pages it
 links.
 
-The one example CI builds is [`examples/mods/hello`](../../examples/mods/hello). The four below are sketches written
+The one example CI builds is [`mods/hello`](../../mods/hello). The five below are sketches written
 against the same APIs. They are **not built by CI**; each heading says so. Where a sketch goes past what the SDK
 wraps, it says so.
 
 ## Build and install
 
-Each Rust mod is a `cdylib` whose `Cargo.toml` follows [`examples/mods/hello/Cargo.toml`](../../examples/mods/hello/Cargo.toml),
-with its own package name and any extra dependency. Inside the repository, the folder goes under `examples/mods/<name>/`
-and into the root `Cargo.toml` members, as `hello` is. The workspace denies `unsafe_code`, so an item that uses
+Each Rust mod is a `cdylib` whose `Cargo.toml` follows [`mods/hello/Cargo.toml`](../../mods/hello/Cargo.toml),
+with its own package name and any extra dependency. Inside the repository, the folder goes under `mods/<name>/`. An example stays out of the workspace like `hello`
+(an empty `[workspace]` table in its manifest, so a build of the repository does not compile it); a mod that ships with the
+game, like `nfsmw-2012-content`, is a member of the root `Cargo.toml`. The workspace denies `unsafe_code`, so an item that uses
 `unsafe` carries `#[allow(unsafe_code)]`.
 
-Build from the repository root with the package name, for example `cargo build -p hello-mod` (the ADR says
-`example-mod-hello`; the file says `hello-mod`, and that is what builds). The library is `target\debug\hello_mod.dll`,
+Build an example from the repository root with its manifest, for example `cargo build --manifest-path mods/hello/Cargo.toml`
+(a mod that is a workspace member builds with `-p <package>`). The library is `mods/hello/target/debug/hello_mod.dll`,
 or `libhello_mod.so` on Linux.
 
 Install by copying `mod.toml`, the library (named by `[library]`) and any `files/`, `cars/` and `music/` folders into
@@ -28,7 +29,7 @@ each refused mod with its reason. The F12 command `mods` shows the same in the g
 Works in any game that offers `bb.commands` and `bb.input`. The hotkey `F5` and the console command `hello` both show a
 message and move one blip to the player's car. Based on the APIs in the 0.1 ABI.
 
-Layout: `examples/mods/hotkey/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
+Layout: `mods/hotkey/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
 
 `mod.toml`:
 
@@ -128,7 +129,7 @@ A Mods-page slider sets the real seconds per in-world hour through `bb.time` (10
 The slider is added with `ctx.menus()`, the SDK wrapper of `bb.menus` (see [api-world.md](api-world.md#menus)), so the
 mod has no `unsafe`. Based on the 0.1 ABI.
 
-Layout: `examples/mods/fastclock/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
+Layout: `mods/fastclock/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
 
 `mod.toml`:
 
@@ -216,11 +217,12 @@ declare_mod!(FastClock);
 - A value saved by an earlier run (under `[mod_values."example.fastclock"]`) is not applied at start-up here. A fuller
   version would read the row with `Menus::get` on the first frame, using the handle `slider` returns.
 
-## 3. Content pack: a car clone and music (NFS:MW, not built by CI)
+## 3. Content pack: a car and music (NFS:MW, not built by CI)
 
-A content-only mod has no library and no code: a car that copies a stock NFS:MW car, and music in two contexts. The
-repository ships no game assets, so the car's files are yours to make in the install's format
-([licensing.md](../licensing.md) applies before you share them).
+A content-only mod has no library and no code: a car of its own, and music in two contexts. The car is one more entry in the
+car list, named by its folder; it copies nothing from a stock car, so its manifest says what it is (`[stats]`) and its
+folder holds everything it needs. The repository ships no game assets, so the car's files are yours to make in the install's
+format ([licensing.md](../licensing.md) applies before you share them).
 
 Layout:
 
@@ -228,8 +230,9 @@ Layout:
 mods/example.pack/
   mod.toml
   cars/fastcoupe.toml
-  files/CARS/FASTCOUPE/GEOMETRY.BIN     your geometry, in the install's format
+  files/CARS/FASTCOUPE/GEOMETRY.BIN     your body and wheel solids, in the install's format
   files/CARS/FASTCOUPE/TEXTURES.BIN     your textures
+  files/CARS/FASTCOUPE/BOUNDS.BIN       your collision bounds (a BoundsPack); without it the car cannot drive
   music/track01.ogg
   music/track02.mp3
   music/mix.m3u                         a playlist; its entries are relative to it
@@ -257,16 +260,53 @@ always = false                      # true: play even when the custom music sett
 `cars/fastcoupe.toml`:
 
 ```toml
-clone = "CAMARO"        # a stock car: the new car keeps its record, parts, physics and sound
 role = "both"           # player, cop or both (default: player)
 heat = [2, 3, 4]        # cop waves that may use it; allowed only with a cop role; left out means every level
-name = "Fast Coupe"     # optional display name
+name = "Fast Coupe"     # optional display name (left out: the car id)
 manufacturer = "Acme"   # optional brand
+
+[stats]                 # optional; absolute SI values, each checked against a range (car-stats.md)
+mass_kg = 1397.0
+front_weight_pct = 45.0
+cg_height_m = 0.46
+wheelbase_m = 2.55
+front_track_m = 1.56
+rear_track_m = 1.54
+front_tire_radius_m = 0.33
+rear_tire_radius_m = 0.335
+idle_rpm = 900.0
+redline_rpm = 7500.0
+torque_curve = [[900.0, 330.0], [3000.0, 410.0], [5500.0, 440.0], [7500.0, 380.0]]   # [rpm, N m]
+gear_ratios = [3.8, 2.4, 1.7, 1.3, 1.05, 0.85]
+reverse_ratio = 3.4
+final_drive = 3.6
+drive = "rwd"
+top_speed_kph = 290.0
+front_tire_grip = 1.4
+rear_tire_grip = 1.4
+front_brake_torque_nm = 1400.0
+rear_brake_torque_nm = 1000.0
+nitrous = true
+nitrous_boost = 0.6
+
+[customization]         # optional; without it the shop offers the car nothing of its own (car-customization.md)
+paints = [
+  { name = "Red", color = [173, 43, 44] },
+  { name = "Silver", color = [200, 204, 197], finish = "metallic" },
+]
 ```
 
-- The car id is the file name in upper case (`FASTCOUPE`), and its geometry must sit in the mod's own
-  `files/CARS/FASTCOUPE/`. An unknown key, such as `[override]`, refuses the car. Cars are registered at start-up, so a
-  change needs a restart.
+- The car id is the file name in upper case (`FASTCOUPE`; 1 to 32 letters, digits, `_` or `-`), and its `GEOMETRY.BIN` must
+  sit in the mod's own `files/CARS/FASTCOUPE/`. There is no key that names a stock car, and an unknown key (an `[override]`
+  table, say) refuses the car. Cars are registered at start-up, so a change needs a restart.
+- The files this car relies on: `GEOMETRY.BIN` with the body as `FASTCOUPE_KIT00_BODY_A` to `_D` and the wheel as
+  `FASTCOUPE_KIT00_FRONT_TIRE_A` to `_D`, `TEXTURES.BIN` with the paint placeholder `FASTCOUPE_SKIN1` on the paint surfaces,
+  tail pipe markers on the body if you want nitrous flames, and `BOUNDS.BIN`
+  ([car-customization.md](car-customization.md#the-files-of-a-car), [car-collision.md](car-collision.md)). The example has no
+  `rims`, `spoilers`, `roof_scoops` or `vinyls`: each needs models or textures you add to the car's own files.
+- A key left out of `[stats]` takes the engine's generic car (a 1450 kg rear-drive saloon of about 290 hp). With no
+  `[engine_sound]` the car plays the game's built-in engine, and with no `[car_sound]` it has no shift, turbo, backfire or
+  pop sounds ([car-sound.md](car-sound.md)).
 - Without `always = true`, the tracks play only while the custom music setting is on.
 
 Install: copy the folder to `%APPDATA%\nfsmw\config\mods\example.pack\`. No build step is needed.
@@ -276,7 +316,7 @@ Install: copy the folder to `%APPDATA%\nfsmw\config\mods\example.pack\`. No buil
 NFS:MW only. On `F6` it raises the heat of a chase, and it logs each step of the chase and its result. The `nfsmw.*`
 events arrive as `Event::Unknown` with their payload bytes, and `MwEvent::decode` types them. Based on the 0.1 ABI.
 
-Layout: `examples/mods/bounty/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
+Layout: `mods/bounty/` with `Cargo.toml`, `mod.toml` and `src/lib.rs`.
 
 `mod.toml`:
 
@@ -367,6 +407,58 @@ declare_mod!(Bounty);
   `heat` reads the frame before, and `add_heat` is not in 0.1.
 - To change the cop wave, use `cop_table` and `set_cop_table` before the first pursuit
   ([api-nfsmw.md](api-nfsmw.md#cop-tables)).
+
+## 5. A nitrous variant (NFS:MW, not built by CI)
+
+A content mod with a few lines of code: it adds the value `rumble` to the game's "Nitrous variant" option and ships a profile.
+Nothing runs while the nitrous burns; the game plays the profile ([nitrous-variants.md](nitrous-variants.md)).
+
+```
+mods/example.rumble/
+  mod.toml
+  rumble.dll
+  files/NITROUS/RUMBLE/profile.toml
+  files/NITROUS/RUMBLE/LOOP.WAV
+```
+
+```toml
+# mod.toml (extra)
+[optional.interfaces]
+"bb.settings" = "1.0"
+```
+
+```toml
+# files/NITROUS/RUMBLE/profile.toml
+format = 1
+[audio]
+loop = "NITROUS/RUMBLE/LOOP.WAV"
+loop_fade_in = 0.2
+[flame]
+tint = [1.0, 0.5, 0.2]
+[screen]
+vignette = 0.15
+fade_out = 0.8
+```
+
+```rust
+use blackbox_modding::sdk::{Ctx, Mod, ModResult, SettingValue, declare_mod};
+
+struct Rumble;
+
+impl Mod for Rumble {
+    fn load(ctx: &mut Ctx) -> ModResult<Self> {
+        // With this value the game's one-value list gets a second one, so the row shows in the gameplay settings.
+        if let Some(settings) = ctx.settings() {
+            settings.add_option("nitrous_variant", "Nitrous variant", &[SettingValue { id: "rumble", label: "Rumble" }])?;
+        }
+        Ok(Rumble)
+    }
+}
+
+declare_mod!(Rumble);
+```
+
+Without the mod, the row is not in the menu. With it and "Original" chosen, the game is unchanged.
 
 ## Gaps the sketches run into (0.1)
 

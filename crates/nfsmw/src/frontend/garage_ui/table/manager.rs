@@ -257,8 +257,8 @@ impl Manager {
             return;
         };
         chrome::selection(cx, &car.name, self.picked + 1, self.len());
-        let maker = manufacturer(cx, &car.manufacturer);
-        let texture = model_logo(cx, &car.physics_name);
+        let (maker, texture) = crate::frontend::car_title::pictures(cx.assets, &car.folder)
+            .unwrap_or_else(|| (manufacturer(cx, &car.manufacturer), model_logo(cx, &car.physics_name)));
         for (name, texture) in [(0x3e01_ad1d, maker), (0xb05d_d708, texture)] {
             if let Some(object) = cx.object(name) {
                 cx.rt.set_hidden(object, false);

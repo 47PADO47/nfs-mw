@@ -55,7 +55,7 @@ pub(in crate::scenes::world) fn pursuit_command(
     renderer: &mut dyn RenderBackend,
     args: &[&str],
 ) -> Result<String, String> {
-    const USAGE: &str = "usage: pursuit <heat 1-10>|off|status|911|heli|cop <car>|breakers|hiding";
+    const USAGE: &str = "usage: pursuit <heat 1-10>|off|status|911|heli|cop <car>|cops|breakers|hiding";
     match args {
         ["breakers"] => return super::inspect::breakers(scene),
         ["hiding"] => return super::inspect::hiding(scene),
@@ -74,6 +74,7 @@ pub(in crate::scenes::world) fn pursuit_command(
         ["status"] => Ok(scene.traffic.as_ref().map(|t| t.pursuit_status()).unwrap_or_default()),
         ["911"] => Ok(scene.traffic.as_mut().map(|t| t.dev_911_call()).unwrap_or_default()),
         ["cop", name] => queue_cop(scene, renderer, name),
+        ["cops"] => Ok(cops_listing(scene)),
         ["heli"] => {
             let body = scene.traffic_focus().body.ok_or("not driving (use the drive command first)")?;
             scene.traffic.as_mut().ok_or("this track has no road network")?.dev_send_helicopter(&body)
@@ -92,6 +93,40 @@ pub(in crate::scenes::world) fn pursuit_command(
         }
         _ => Err(USAGE.into()),
     }
+}
+
+/// `pursuit cops`: the wave of every heat level (car, count, spawn weight), the mods' police cars marked with their unit
+/// class, and each mod police car with its wave entries. Any car named here can be asked for with `pursuit cop <car>`.
+fn cops_listing(scene: &WorldScene) -> String {
+    use nfsmw_data::car::mods::{cop_cars, cop_kind};
+    let rows = nfsmw_data::pursuit::heat_rows(scene.physics.database());
+    let mut lines: Vec<String> = rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| {
+            let units: Vec<String> = row
+                .cops
+                .iter()
+                .map(|cop| {
+                    let tag = cop_kind(&cop.name).map_or(String::new(), |kind| format!(" (mod, {})", kind.name()));
+                    format!("{} x{} @{}%{tag}", cop.name, cop.count, cop.chance)
+                })
+                .collect();
+            format!("heat {}: {}", index + 1, units.join(", "))
+        })
+        .collect();
+    for car in cop_cars() {
+        let Some(unit) = car.cop.as_ref() else { continue };
+        let role = match car.player {
+            true => "player and police",
+            false => "police only",
+        };
+        lines.push(format!("mod cop car {} ({role}): {}", car.folder, unit.describe()));
+    }
+    lines.join(
+        "
+",
+    )
 }
 
 /// `pursuit cop <car>`: asks the cop manager for a cop car of that `pvehicle` name 40 m ahead of the player, as a script's spawn

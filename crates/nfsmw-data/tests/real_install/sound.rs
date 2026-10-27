@@ -166,3 +166,39 @@ fn collision_sounds_and_stitches_resolve() {
     assert_eq!(surfaces.audio(SurfaceTable::hash_of("asphalt")).road_loop, 5);
     assert_eq!(surfaces.audio(SurfaceTable::hash_of("grass")).skid_type, 1);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn a_car_without_a_record_has_the_class_wide_defaults_only() {
+    use nfsmw_data::car::physics::SurfaceTable;
+    use nfsmw_data::sound::{EventKind, generic_car_sound};
+
+    let Some((dir, db)) = attributes() else { return };
+    assert!(car_sound(&db, "NOT_A_CAR_IN_THE_GAME", SoundUpgrades::default()).is_err(), "it has no pvehicle record");
+    let set = generic_car_sound(&db, "MYCAR").unwrap();
+    assert_eq!(set.car, "mycar");
+
+    // The engine is `engineaudio/default`: tuning numbers, no Ginsu loop, no sample bank, no sweeteners.
+    let engine = &set.engine;
+    assert_eq!(engine.name, "default");
+    assert!(!engine.has_ginsu() && engine.bank_main.is_empty() && engine.sweet_banks.is_empty());
+    assert!(engine.max_rpm > engine.min_rpm, "the Ginsu range is filled in");
+    assert!(engine.mix.accel_loop_volume > 0, "the default record carries the mix volumes");
+
+    // The gear change is `shiftpattern/default`: its class-wide gear bank and the rpm shape; no turbo sound.
+    assert_eq!(set.shift.name, "default");
+    assert_eq!(set.shift.bank, "GEAR_SML_Base.abk");
+    assert!(!set.shift.up_disengage_fall.is_empty() && set.shift.up_engage.is_some());
+    assert!(set.turbo.is_none());
+
+    // The shared banks and the collision links every car derives from.
+    assert_eq!(set.banks.nitrous_bank(), Some("Nitrous_00_MB.abk"));
+    assert_eq!(set.banks.skid_bank(), Some("SKID_BIG_MB.abk"));
+    let default = SurfaceTable::hash_of("default");
+    let grass = set.collision.pick(EventKind::HitGround, SurfaceTable::hash_of("grass"), default, false);
+    assert_eq!(grass.map(|sound| sound.name.as_str()), Some("carhitgrass"));
+    assert!(set.collision.pick(EventKind::HitWorld, default, default, true).is_some());
+    for file in set.files() {
+        assert!(dir.exists(&file), "{file} is missing");
+    }
+}

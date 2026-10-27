@@ -247,6 +247,8 @@ impl WorldScene {
                 end_coop_queued: false,
                 race_mods: Default::default(),
                 mod_blips: Vec::new(),
+                nitrous_fx: None,
+                nitrous_burn: Default::default(),
                 career: Default::default(),
                 scenery_groups: scenery_groups::SceneryGroups::new(group_table),
                 entry: entry::Entry {
@@ -289,6 +291,7 @@ impl WorldScene {
                 cut: CameraCut::default(),
                 waiting_since: None,
                 camera_mode: CameraMode::default(),
+                extra_view: Default::default(),
                 extra: crate::extra_options::storage::load().unwrap_or_else(|e| {
                     log::warn!("Extra options: {e:#}");
                     crate::extra_options::State {

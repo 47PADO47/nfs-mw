@@ -315,8 +315,9 @@ impl UiThemes {
     }
 
     /// Builds the skin for the active theme: the base skin with its tokens merged in, then the `custom.*` tokens of the
-    /// Custom look, whose accent is the active tokens' `secondary`. A skin already built for the active theme, palette and
-    /// look is kept, so the per-frame [`UiThemes::select`] costs one comparison.
+    /// Custom look, whose accent is the active tokens' `secondary`. The tokens' colour roles go through the look first
+    /// (`custom_tokens::roles_skin`). A skin already built for the active theme, palette and look is kept, so the per-frame
+    /// [`UiThemes::select`] costs one comparison.
     fn refresh_skin(&mut self) {
         let active = self.themes.active();
         let wanted = (active, self.ui_theme, self.custom_look, self.menu_look);
@@ -339,6 +340,7 @@ impl UiThemes {
             .clone()
             .merged(tokens.skin())
             .merged(remastered::palette_skin(&tokens))
+            .merged(custom_tokens::roles_skin(&tokens, self.custom_look))
             .merged(custom_tokens::skin(self.custom_look, accent))
             .merged(self.menu_look.skin());
         self.skin_of = Some(wanted);
