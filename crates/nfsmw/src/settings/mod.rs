@@ -124,7 +124,7 @@ use blackbox_gfx::GraphicsApi;
 pub use blackbox_gfx::ReflectionQuality;
 pub use blackbox_gfx::reflection::{MirrorTint, ReflectionSize};
 pub use blackbox_gfx::{AoMethod, AoQuality, ShadowQuality, TextureFiltering};
-pub use camera_mode::CameraMode;
+pub use camera_mode::{CameraMode, ViewKey};
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use custom_music::{CustomContext, CustomMode, CustomMusic, Sources as CustomSources};
