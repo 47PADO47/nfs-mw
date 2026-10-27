@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 use super::ffi::{self, HostTable};
 use super::{
-    Audio, Camera, Commands, Content, Hud, I18n, Input, Interface, Map, Menus, ModConfig, ModResult, Settings, Time, Ui,
-    Vehicles, World,
+    Audio, Camera, Commands, Content, Hud, I18n, Input, Interface, Map, Menus, ModConfig, ModResult, Settings, Time,
+    Ui, Vehicles, World,
 };
 use crate::abi::{
     AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_AUDIO, IFACE_AUDIO_VERSION,
@@ -161,7 +161,7 @@ impl Ctx {
     /// The camera interface (`bb.camera`), when the host offers it.
     pub fn camera(&self) -> Option<Camera> {
         let iface = self.query_interface(IFACE_CAMERA, IFACE_CAMERA_VERSION.0, IFACE_CAMERA_VERSION.1)?;
-        Some(Camera::new(ffi::camera::read(iface)))
+        Some(Camera::new(ffi::camera::read(iface), self.host, self.keep.clone()))
     }
 
     /// The audio interface (`bb.audio`), when the host offers it.

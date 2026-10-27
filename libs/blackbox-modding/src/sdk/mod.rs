@@ -50,14 +50,16 @@ mod world;
 
 pub use crate::declare_mod;
 pub use audio::Audio;
-pub use camera::{Camera, CameraKind, CameraState};
+pub use camera::{Camera, CameraInput, CameraKind, CameraPose, CameraState, CameraView};
 pub use commands::Commands;
 pub use config::ModConfig;
 pub use content::Content;
 pub use ctx::{Ctx, Level, MAX_MESSAGE_BYTES};
 pub use error::{Error, ModResult};
 pub use event::{Collider, Event, Role};
-pub use handle::{AbilityId, ActionId, BlipId, CommandId, MenuId, SettingId, SoundId, UiThemeId, VehicleId, WorldId};
+pub use handle::{
+    AbilityId, ActionId, BlipId, CameraViewId, CommandId, MenuId, SettingId, SoundId, UiThemeId, VehicleId, WorldId,
+};
 pub use hud::{Hud, MessageStyle};
 pub use i18n::{Arg as I18nArg, I18n};
 pub use iface::Interface;
