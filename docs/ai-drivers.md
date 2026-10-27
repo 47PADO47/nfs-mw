@@ -23,6 +23,7 @@ named constants `DEFAULT_TRAFFIC`, `DEFAULT_COP_SHARE` and `DEFAULT_TRAFFIC_LIGH
 | `traffic <count>` | a count that replaces the setting until it changes; `traffic off` removes the cars, `traffic status` lists them |
 | `pursuit <heat>` | cops of that heat level (1 to 10) spawn 150 to 400 m away and chase you; `pursuit off`, `pursuit status` |
 | `traffic warmup <s>` | for `--screenshot` runs: simulate `<s>` seconds first (a screenshot has no frame time) |
+| `traffic cars`, `traffic spawn <car> [metres] [oncoming]` | the traffic cars mods add ([modding/api-traffic.md](modding/api-traffic.md)): list them; put one ahead of the player (30 m by default) as soon as its model is loaded |
 
 Headless: `--exec "traffic 24" --exec "traffic warmup 25" --screenshot out.png`.
 

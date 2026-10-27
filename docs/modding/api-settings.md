@@ -13,7 +13,7 @@ in the game window.
 - **Option.** A row of the settings page with an id (`a-z`, `0-9`, `_`, `.`, `-`; at most 128 bytes), a label and a kind.
 - **Kind.** `List` (one of several values; each value has an id, which is saved, and a label) or `Toggle` (on or off).
 - **Menu.** Only the gameplay settings take options in this delivery (`BB_SETTING_MENU_GAMEPLAY`).
-- **The game's own options.** The game declares its options by id and kind. `nitrous_variant`, `tire_smoke_variant`, `collision_spark_variant` and `xenon_spark_variant` are lists
+- **The game's own options.** The game declares its options by id and kind. `nitrous_variant`, `tire_smoke_variant`, `collision_spark_variant`, `xenon_spark_variant` and `wind_variant` are lists
   with one value, `original` ("Original"): one such option for every kind of effect that has variants; see
   [effect-variants.md](effect-variants.md) (the mechanism, the profile of each kind and how to add a kind) and
   [nitrous-variants.md](nitrous-variants.md). The game's other gameplay rows (`hud_layout`,

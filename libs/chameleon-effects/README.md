@@ -9,5 +9,9 @@ spawner of the tyre smoke, its rates and where on the tyre a particle starts).
 Format and evidence: [docs/formats/chameleon-effects.md](../../docs/formats/chameleon-effects.md). No game data is in this
 crate; the tests that read the install are `#[ignore]` and need `MW2012_GAME_DIR`.
 
+The `corona` module reads the `Corona` objects of a car bundle (flare, glow and beam layers, the four-lane curve blocks and the chain that
+evaluates them, the siren flash patterns): [docs/formats/chameleon-corona.md](../../docs/formats/chameleon-corona.md); `examples/corona.rs`
+prints a car's records, layers and patterns.
+
 Collision effects (the spawner on the colliding mesh, the bounce, the spark streak and the bindings) are in `collision.rs`, documented in
 [docs/formats/chameleon-collision-effects.md](../../docs/formats/chameleon-collision-effects.md).

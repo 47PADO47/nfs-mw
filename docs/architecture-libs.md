@@ -18,6 +18,7 @@ Each lib has its own README and can move to a shared utilities repo unchanged. T
 | [`chameleon-text`](../libs/chameleon-text) | Chameleon `LocalisedText` string tables (`UI/LANGUAGE`): read, edit, write back byte for byte | one layout (32-bit) |
 | [`chameleon-gfx`](../libs/chameleon-gfx) | Chameleon textures (with `.dds` export), vertex layouts, renderables, materials, shaders, models | one layout per resource type |
 | [`chameleon-vehicle`](../libs/chameleon-vehicle) | A Chameleon car: graphics spec, wheels, names, meshes with a reduced appearance | |
+| [`chameleon-anim`](../libs/chameleon-anim) | Chameleon skeletons, animation lists and clips, a pose from a clip, a two-bone reach, skinning a point | one layout |
 | [`chameleon-camera`](../libs/chameleon-camera) | The gameplay cameras of a Chameleon car: the chase, bonnet, bumper and rear-view camera data of a car bundle (host axes, metres, degrees) and a camera behaviour model (`CameraState`) stepped once per frame from a `CarMotion` | |
 | [`blackbox-streaming`](../libs/blackbox-streaming) | The track streaming index | `layout::MOST_WANTED` passed by the caller |
 | [`blackbox-scenery`](../libs/blackbox-scenery) | Scenery infos and instances; visibility rule | `layout::MOST_WANTED` passed by the caller |

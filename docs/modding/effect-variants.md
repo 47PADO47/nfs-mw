@@ -12,6 +12,7 @@ saved with the other settings (`[mod_values.nfsmw] option_<kind>_variant = "<val
 | Tire smoke | `tire_smoke_variant` | `TIRESMOKE/<ID>/` | `blackbox_modding::content::tire_smoke` | below |
 | Collision sparks (Original PC spark style) | `collision_spark_variant` | `SPARKS/<ID>/` | `blackbox_modding::content::spark_variant` | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) |
 | Restored sparks (Restored spark style; sparks only, no contrail or streaks) | `xenon_spark_variant` | `XENON/<ID>/` | `blackbox_modding::content::xenon_variant` | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) |
+| Wind (looping recordings played with the car's speed) | `wind_variant` | `WIND/<ID>/` | `blackbox_modding::content::wind_fx` | below |
 
 ## How a variant works
 
@@ -59,6 +60,35 @@ it replaces red, green and blue and keeps the alpha.
 
 The 2012 mod's value, **NFS Most Wanted 2012**, is converted from the player's own 2012 install: what it holds and how it was
 read is in [chameleon-effects.md](../formats/chameleon-effects.md#wheel-effects-tyre-smoke).
+
+## Profile format of the wind
+
+The wind is a sound, not a picture: the game's own is the `FX_WIND` module of the 2005 sound banks, which plays for every car. A
+wind variant replaces it with looping recordings that play all the time the car is driven.
+
+```toml
+format = 1
+volume = 1.0                       # every layer is multiplied by it, 0 to 8 (default 1)
+
+[[layer]]                          # one to sixteen
+file = "WIND/MW2012/W182159.WAV"   # a 16-bit PCM WAV, mono or stereo, looped over its whole length
+volume = 0.2197                    # this layer's level, 0 to 8 (default 1)
+rate = 1.0                         # playback rate, 0.25 to 4 (default 1)
+gain = [[0.0, 0.0], [45.0, 0.0], [50.0, 0.25], [90.0, 0.0]]   # speed in mph and level, 0 to 8
+```
+
+`gain` is piecewise linear and flat outside its points (two to 64 points, the speeds rising). The car's speed is its speed in
+miles an hour whichever way it goes. All layers start with the car and play on; a layer whose file cannot be read gives up the
+whole variant and the game's wind plays (a warning says why). While the loops play, the game's wind module plays no left, right
+or rumble sound (the weather wind, the `FX_WIND_Weather` module, is a separate sound and keeps playing). The car's sound plays
+them (`audio/car/wind_fx.rs`) for the car being driven, in the Sfx group, and an original car hears them as well once the
+variant is chosen: the setting is the player's, not the car's.
+
+The 2012 mod's value, **NFS Most Wanted 2012**, is the wind sequence of `SOUND/GLOBAL.BNDL`: eleven loops with the level of each at
+every speed from 0 to 180 mph, the windows, fades, curves and channel gains of the data multiplied; what the data holds and
+the loops left out (two that swell in the air, two muted) are in
+[chameleon-sound-graph.md](../formats/chameleon-sound-graph.md#the-sound-of-speed). Loudness against the game's own wind was not
+heard, so `volume` is the data's alone. In a co-op session each car's voice plays its own copy of the loops.
 
 ## The spark kinds
 

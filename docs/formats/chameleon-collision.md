@@ -116,14 +116,13 @@ The bundle has a `VehicleDamageBehaviour` object (3,200 bytes in the 911) with t
 `SpotEffect` and `DamageSequence`. The fields of a part (centre, angle ranges, mass, zone, ladder, the bone it is skinned to)
 are decoded in [chameleon-hinged-parts.md](chameleon-hinged-parts.md). In the 911 it lists seven hinged parts by name: `BonnetHinge`, `FrontBumperHinge`,
 `LeftMirrorHinge`, `RightMirrorHinge`, `RearBumperHinge`, `FrontLeftDoorHinge`, `FrontRightDoorHinge`, 25 damage thresholds and
-eight damage sequences. The eight are tied by name to the eight damage bars the HUD reads from the car:
+eight damage sequences (empty on all 93 cars). The crumple and breakage clips of the zones are in [chameleon-damage.md](chameleon-damage.md). The eight are tied by name to the eight damage bars the HUD reads from the car:
 `GetFrontDamageBar`, `GetRearDamageBar`, `GetLeftDamageBar`, `GetRightDamageBar`, `GetFrontLeftDamageBar`,
 `GetFrontRightDamageBar`, `GetRearLeftDamageBar`, `GetRearRightDamageBar` (the string `GetFrontDamageBar` is in the executable
 **[exe]**; the objects of each are in the bundle). So the 2012 damage zones are **front, rear, left, right and the four
 corners**: the 2005 game's `DZ_FRONT` ... `DZ_RREAR` without roof and underbody. The record `Vehicle_Gameplay.DamageStats`
 (three instances, each holding the number 126.6 and byte-sized values from 15 to 100) and `WheelDamage` (one per wheel:
--15, 1, 1, 0.25, 30, 7) are present; what the numbers are is **not decoded**. A `Skeleton` and an `HSMData` resource drive the hinge
-animations.
+-15, 1, 1, 0.25, 30, 7) are present; what the numbers are is **not decoded**. A `Skeleton` and an animation list drive the hinge animations (the list is [decoded](chameleon-damage.md)).
 
 So the 2012 game keeps no impact points as geometry: where a hit lands is decided by zone at run time, as the 2005 game does
 (a contact point against the half dimensions of the body, [vehicle-damage.md](../specs/vehicle-damage.md)), and a part comes
@@ -144,4 +143,4 @@ the 93 cars: root half width 0.85 to 1.10 m (1.66 for the SWAT van with its mirr
   everything marked unconfirmed above.
 - How the 2012 executable consumes soup and hulls (a function that registers `PolySoupList` at `0x00a1f300`, and the `PolySoup`
   collision batch string at `0x01033a5c` with its debug-draw consumer, were found; the narrow phase was not read).
-- Whether any car in a bundle other than `_HI` (the `_LO`, `_TR` files) holds a different collision shape. They were not opened.
+- Whether the `_LO` files hold a different collision shape from the `_HI` ones (not compared). Each of the 11 `_TR` traffic bundles has one poly soup of 186 to 268 triangles, which the content mod fits like a player car's ([chameleon-traffic.md](chameleon-traffic.md)).

@@ -2,7 +2,8 @@
 
 What the 2012 car bundles hold for lamps and how the 2012 game drives them. Container and resource formats:
 [chameleon-bundle.md](chameleon-bundle.md), [chameleon-gfx.md](chameleon-gfx.md), [chameleon-vehicle.md](chameleon-vehicle.md).
-Reader: `libs/chameleon-vehicle/src/lamps.rs`. Used by [`mods/nfsmw-2012-content`](../../mods/nfsmw-2012-content), which turns
+Reader: `libs/chameleon-vehicle/src/lamps.rs` (the records with their corona references: `corona_records.rs`; the corona objects:
+[chameleon-corona.md](chameleon-corona.md)). Used by [`mods/nfsmw-2012-content`](../../mods/nfsmw-2012-content), which turns
 it into the lamp markers and lamp surfaces of [the mod car lamp contract](../modding/car-lamps.md).
 
 Tags: **[verified]** is checked on the 93 `VEH_<n>_HI.BNDL` of the install (v1.4.0.0) with the reader or a script;
@@ -130,6 +131,10 @@ the record's first locator:
 | rear | 2 | 125 coronas, 89 cars | a white or grey-white lamp: the **reverse lamp** (below) |
 | rear | 3 | 6 | second-switch lamp |
 
+The bit 3 coronas are the siren lamps of the police vehicles (63 records in all the bundles, every one with a flash pattern:
+[chameleon-corona.md](chameleon-corona.md), counted with `read_corona_records` over every lamp object). The table above was counted over one
+lamp object per bundle with an earlier script, so its 2 and 6 bit-3 records and the "fog lamp" reading are superseded by that count.
+
 The lights: front bits 6, 17 and 4 (three road lights), rear bits 7, 2 and 1 (the Porsche's rear light for bit 2 has
 intensity 0.5, the others 1). Bit 17 is not set by `FUN_0057A5E0`: another writer exists.
 
@@ -232,7 +237,7 @@ at the rear corners (x +-0.45 to 0.74, y 0.72 to 0.75), head lens pieces at the 
 
 ## Not decoded
 
-- the `Corona`, `Light_Spot` and `Light_Base` objects (flare and glow curves, textures, cone data), the `SpotEffect` records;
+- the `Light_Spot` and `Light_Base` objects (cone data) and the `SpotEffect` records; the `Corona` objects (flare, glow and beam layers, curves, pictures) and the siren flash patterns are decoded in [chameleon-corona.md](chameleon-corona.md);
 - the meaning of mode, of bits 3, 8, 9 and 17 and of the corona factors; bit 2 as game code (it is the reverse lamp by data);
 - the front bit 3 coronas (2 cars, fog lamps) and the rear ones (6), the amber position or turn lamps (bit 6, 12 records);
 - the code that fills `g_selfIlluminationMask` (which bit drives which circuit), the `EmissiveLuminance` scale and the HDR

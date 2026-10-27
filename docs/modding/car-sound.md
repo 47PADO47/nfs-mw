@@ -14,7 +14,7 @@ What a mod car sounds like is made of four things, and the manifest can replace 
 | Engine | `[engine_sound]` loops | the **built-in engine**, below |
 | Gear shifts, turbo whistle and blow-off, backfires, pops | `[car_sound]` recordings | **silent**, except the gear clunk below (which `shift_clunk = false` silences) |
 | Collisions and scrapes | the mod's shared recordings, `[car_sound.shared]` | the game-wide banks |
-| Skids, nitrous, road noise, wind | none: shared by every car | always plays, from the game-wide banks |
+| Skids, nitrous, road noise, wind | none: shared by every car | always plays, from the game-wide banks (the wind may be replaced by a mod's [wind variant](effect-variants.md#profile-format-of-the-wind)) |
 
 **The game-wide sounds.** Collision and scrape sounds (for a car with no `[car_sound.shared]`) are the links of `pvehicle/cars`, the record every car of the game
 derives from, so a car gets what a car gets when it sets nothing of its own (`generic_car_sound`,

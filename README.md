@@ -151,7 +151,7 @@ trust. `--no-mods` (or `mods = "off"` in `config.toml`) loads none. How to write
    source = 'D:\Need For Speed Most Wanted 2012'
    ```
 
-The cars are converted in the background (a few seconds to a minute, 360 MB written into the mod's folder) and then show
+The cars are converted in the background (a few minutes the first time, about 740 MB written into the mod's folder) and then show
 up in the garage and the career, with their own paints, liveries, sounds and camera views. Without a `source` the
 mod adds nothing. Settings, what is converted and the known limits:
 [mods/nfsmw-2012-content/README.md](mods/nfsmw-2012-content/README.md).

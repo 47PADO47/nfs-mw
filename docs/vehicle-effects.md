@@ -101,9 +101,13 @@ thrown with; **Original** is everything above, unchanged. `nfsmw-2012-content` a
 - **Collision spark variant (Original PC)** (`option_collision_spark_variant`): in the Original PC style, a vehicle's impacts and scrapes
   throw the mod's sparks (streaks along the velocity, flashes and dust sprites, with an overbright colour) in place of the install's
   particle groups. The strength of an impact follows the closing speed and scales the count and the speed; a scrape's follows the
-  sliding speed and scales the rate. Props, and any channel the mod gives no sparks for, keep the install's groups.
+  sliding speed and scales the rate. **This includes a car driven into a wall, a barrier or a prop**: the sparks come out of the
+  wall at the contact point, along its normal, for any impact that closes above 1 m/s and for any slide the mod's gate counts (the
+  2012 one: from 0.73 m/s), not only the install's 5 m/s; they need only that the surface has a group in the install. The ground
+  and the underside, and any channel the mod gives no sparks for, keep the install's groups.
 - **Restored spark variant (sparks only)** (`option_xenon_spark_variant`): in the Restored (Experimental) style, the two line
-  sparks take the mod's numbers (velocity, gravity, length, width, bounce, colour, count) and the same strength rules. **The wind
+  sparks take the mod's numbers (velocity, gravity, length, width, bounce, colour, count) and the same strength rules, on walls
+  as well (also on a surface the install has no restored spark for, wood for one). **The wind
   contrail and the speed streaks are not part of it**: the 2012 game has neither, so the variant leaves them as they are.
 
 The `[xenon_effects]` tuning still applies to the restored variant (`spark_intensity`, `max_sparks`); `spark_rate` does not, since a

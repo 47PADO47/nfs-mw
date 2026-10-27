@@ -149,8 +149,9 @@ The restoration of the 2005 game's console effects ([vehicle effects](../vehicle
 contrail** behind the car at speed and **view streaks** over the screen. Nothing in the 2012 install matches either: no effect
 of `GLOBALEFFECTS.BNDL` is driven by the car's speed alone (the closest are the wheel and exhaust effects), the post effect
 states ([chameleon-nitrous.md](chameleon-nitrous.md#post-effects-verified-values-field-names-unconfirmed)) hold vignette, bloom
-and colour grade, and the executable names `MotionBlurAmounts` as a shader constant. The wind is a sound layer
-(`Genesys.Gen.SpeedSoundSet.WindLayer`). Lamp flares and glare are the `Corona`, `Corona.Flare` and `Corona.Glow` objects of
+and colour grade, and the executable names `MotionBlurAmounts` as a shader constant. The wind is a sound: the layers of
+`Genesys.Gen.SpeedSoundSet.WindLayer` are silence, the loops are a sequence of `GLOBAL.BNDL`
+([chameleon-sound-graph.md](chameleon-sound-graph.md#the-sound-of-speed)). Lamp flares and glare are the `Corona`, `Corona.Flare` and `Corona.Glow` objects of
 `GLOBALEFFECTS.BNDL` (`0x25169`, `0x2518C`, `0x49258`) and the coronas of the cars ([chameleon-lamps.md](chameleon-lamps.md));
 their shape and curves are not decoded here.
 

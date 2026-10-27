@@ -83,12 +83,29 @@ the track plus half the tyre width to the outer face, as high as the tyre radius
   (`docs/specs/vehicle-calibration.md`), which the builder calls a coefficient of 1.65: a car's grip and its lateral curve
   scale with `coefficient / 1.65`. That scale is a calibration, not a measurement of every car (**not yet checked by a skidpad
   run**): if the cars handle too stickily or too loosely, change the `GRIP` constants in `build.rs`, not the cars.
+- **Drift.** The keys of [the drift keys](#the-drift-keys) tune the drift assist, a layer a mod can turn on; they change
+  nothing while it is off.
 - **Top speed.** At the top speed the drag force equals the wheel force of the engine in top gear: the engine speed at a road
   speed follows the game's drivetrain, and `drag = wheel force / speed²`. A top speed the car cannot reach before the rev
   limiter gives the speed at the limiter (a little under it). Upgrades keep the drag the stock build got.
 - **The AI.** A computer-driven mod car (a cop, say) may use its whole `top_speed_kph`; without one the AI's default limit of
   200 km/h applies (`ai_vehicle_from_stats`).
 - A car with no table is the generic car above.
+
+## The drift keys
+
+A mod can turn on the drift assist of the player's car (`bb.vehicles` 1.2 `set_drift_assist`, [api-world.md](api-world.md#vehicles-and-the-player)):
+the handbrake and a turned wheel start a slide, the wheel holds its angle, the rear tyres let go part of their grip. These
+optional keys say how a car does it. A car without them has the generic numbers (the median of the 2012 cars), and with the
+assist off, which is how the game starts, none of them is read.
+
+| Key | Unit, range | Default | Means |
+|---|---|---|---|
+| `drift_enter_speed_ms` | m/s, 2 to 60 | 10 | the speed along the car from which a slide counts as a drift |
+| `drift_enter_angle_deg` | degrees, 2 to 30 | 7.5 | the slip angle from which it does |
+| `drift_exit_angle_deg` | degrees, 1 to 20, under the enter angle | 3 | the drift ends once the slip stays under it for 0.25 s |
+| `drift_max_angle_deg` | degrees, 10 to 70 | 40 | the largest drift angle; full steering lock holds half of it |
+| `drift_yaw_torque_nm` | N m, 0 to 200000 | 0 | the yaw torque that holds a drift. It is divided by the yaw inertia of the body the physics builds and kept between 3 and 10 rad/s^2; 0 is the generic 6 rad/s^2 |
 
 ## Upgrades
 
@@ -159,7 +176,8 @@ The [2012 mod](../../mods/nfsmw-2012-content/README.md) writes a `[stats]` table
 ([chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md)): mass, weight distribution, wheelbase, track, tyre size,
 the torque curve, the gearbox, the drive layout, the tyres' peak grip, the brake torque, the design top speed and the nitrous
 strength. It leaves out what the 2012 data gives in units that are not decoded (springs, dampers, steering, downforce, the
-handbrake, gear efficiency, engine braking), so those take the generic values above.
+handbrake, gear efficiency, engine braking), so those take the generic values above. It also writes the [drift keys](#the-drift-keys)
+from the car's `DriftBehaviour` (inert unless the "2012 drifting" setting turns the assist on).
 
 **What was not verified.** Several meanings in the 2012 files are marked **[unconfirmed]** in
 [chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md): the torque spline's interpolation, the differential

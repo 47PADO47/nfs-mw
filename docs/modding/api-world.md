@@ -72,7 +72,7 @@ catalogue ([translations.md](translations.md)); characters the font lacks are dr
 
 ## Game interaction
 
-Status of the five interfaces (ids `bb.vehicles`, `bb.hud`, `bb.camera` (1.1), `bb.audio`, `bb.world`, all 1.0 otherwise). The rows below
+Status of the five interfaces (ids `bb.vehicles` (1.2), `bb.hud`, `bb.camera` (1.1), `bb.audio`, `bb.world`, all 1.0 otherwise). The rows below
 say what each delivers; the rest of each table is still the plan. A call the game cannot serve answers
 `BB_ERR_UNSUPPORTED`, and a call that needs a world or a car answers `BB_ERR_NOT_READY` while none is loaded.
 The wire layouts are in [api.md](api.md#wire-numbers-abi-01).
@@ -94,10 +94,27 @@ system ignores it (the HUD's `nos` reads 0 for such a car); no car answers `BB_E
 and `add_nos` is appended to the table, so a mod built for 1.0 reads the 1.0 fields and never sees the table grow; a mod that
 wants the new calls asks for 1.1 (`"bb.vehicles" = "1.1"` in `[optional.interfaces]`). The host implements it in
 `scenes/world/drive/mod_feed.rs` (hit, tank), `scenes/world/mod_hooks.rs` (the state) and `modding/backends/vehicles.rs`; the
-2012 drift nitrous ([chameleon-drift.md](../formats/chameleon-drift.md)) is its first user.
+2012 drifting ([chameleon-drift.md](../formats/chameleon-drift.md)) is its first user.
+**Delivered (1.2): the drift assist.** `set_drift_assist(enabled)` turns a physics layer of the player's car on or off. It is
+queued like `repair` and stays as set: it follows a change of car only if the mod sends it again (the 2012 mod sends it on every
+scene tick while its setting is on), and a car that is replaced starts with it off. The call answers `BB_ERR_NOT_READY` with no
+car and `BB_ERR_UNSUPPORTED` on a host older than 1.2 (the SDK maps the missing table field to `Unsupported`). With the assist
+off the physics is bit for bit what it was. With it on (`libs/blackbox-vehicle`, `Vehicle::set_drift_assist`):
+**entry**, the handbrake pulled with the wheel turned (more than 0.15) at the car's drift speed (10 m/s) pushes the nose round
+with a yaw torque in the steering direction for up to 0.45 s; **hold**, once the slip angle has reached the car's drift angle
+(the slide counts as a drift until it stays under the exit angle for 0.25 s) a yaw torque, a damped spring on the slip angle,
+holds the angle the steering asks for (full lock asks half of the car's largest drift angle, 20 degrees for 40; no steering
+asks for none, so letting go straightens the car out), strongest with the throttle down (0.4 of it with the throttle up);
+**grip**, the rear tyres keep 0.75 of their friction at the full drift angle. The strength is a yaw acceleration (6 rad/s^2
+generic, or the car's `drift_yaw_torque_nm` over the body's inertia, kept between 3 and 10) times the body's inertia, so it holds any
+car. The car's `[stats]` keys `drift_enter_speed_ms`, `drift_enter_angle_deg`, `drift_exit_angle_deg`, `drift_max_angle_deg` and
+`drift_yaw_torque_nm` ([car-stats.md](car-stats.md#the-drift-keys)) tune it; a car without them (every 2005 car) has the generic
+numbers. The model is the rewrite's own, built from what the 2012 data names ([chameleon-drift.md](../formats/chameleon-drift.md#the-sliding-physics)).
+The host implements it in `scenes/world/drive/sim/mod_feed.rs` (`CarSim::set_drift_assist`), `scenes/world/mod_hooks.rs`
+(`set_player_drift_assist_to`) and `modding/backends/vehicles.rs` (`WorldRequest::DriftAssist`).
 **Delivered (1.0, `spawn_traffic`):** a traffic car at a point. The call answers a handle and queues the spawn; the scene
 places it in the same frame, after the mods have run (`WorldRequest::SpawnTraffic`, `Scene::spawn_traffic_at`, and
-`TrafficWorld::spawn_traffic_at`). The car is a random loaded traffic model on the nearest lane that can take a car, with
+`TrafficWorld::spawn_traffic_at`). The car is a random loaded traffic model (the traffic cars that mods add are among them, and `bb.traffic` places one by name: [api-traffic.md](api-traffic.md)) on the nearest lane that can take a car, with
 the spacing of the manager from the other cars. A point within 150 m of the player is placed and logged, since a mod asked
 for it (the manager's own cars stay out of view). The heading is in radians, as the car's `heading` reads. The position's height
 is not used. A call with no world loaded answers `BB_ERR_NOT_READY`; a spawn the road or the traffic models refuse is
@@ -114,6 +131,7 @@ AI goals, `near`, `set_velocity`, `set_nos`, `set_tuning`, `damage`, lights, hor
 | Teleport | `vehicles.teleport(VehicleId, pos: Vec3, heading: f32)` **W**; the player is put on the nearest road like `reset` | G | `scenes/world/commands.rs` (`tp`, `reset`) |
 | Set velocity | `vehicles.set_velocity(VehicleId, v: Vec3)` **W** | G | `libs/blackbox-vehicle` state via the drive module |
 | Add NOS | `vehicles.add_nos(amount: f32)` (delivered in 1.1: the player's car only, `Vehicles::add_nos` in the SDK), `set_nos`, `set_infinite_nos(bool)` **W** | G | `scenes/world/drive/mod_feed.rs`, `libs/blackbox-vehicle` (`Vehicle::add_nitrous`) |
+| Drift assist | `vehicles.set_drift_assist(on: bool)` (delivered in 1.2: the player's car, `Vehicles::set_drift_assist` in the SDK) **W** | G | `scenes/world/drive/mod_feed.rs`, `libs/blackbox-vehicle` (`Vehicle::set_drift_assist`, `vehicle/drift_assist.rs`) |
 | Repair | `vehicles.repair(VehicleId)`, `vehicles.damage(VehicleId, zone: u8, severity: u8)` **W** | G | `commands.rs` (`repair`, `damage`), `libs/blackbox-damage` |
 | Tune physics | `vehicles.set_tuning(VehicleId, Tuning { grip_scale, power_scale, mass_scale, top_speed_scale })` **W**, scaling the car's real values, reset by `None` | G | `libs/blackbox-vehicle`, `nfsmw-data/src/car/physics.rs` |
 | Spawn | `vehicles.spawn(SpawnDesc { car: CarId, role: Player or Traffic or Cop or Racer, pos: Vec3, heading: f32, ai: Default or Idle or Chase(VehicleId), colour: Option<Rgba> }) -> Result<VehicleId>` **W** | G | `scenes/world/ai/spawn.rs`, `ai/manager.rs`, `ai/car.rs`; player role via `drive` |
