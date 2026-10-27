@@ -27,6 +27,7 @@ mod events;
 mod exhaust;
 mod explosion_fx;
 mod extra_options;
+mod extra_view;
 pub(crate) mod feed;
 mod finish_flares;
 mod frame;
@@ -324,6 +325,8 @@ pub struct WorldScene {
     waiting_since: Option<drive_input::RoadWait>,
     /// The gameplay camera the setting picked; only used while driving.
     camera_mode: CameraMode,
+    /// The extra camera view a mod registered, when the setting picked one (`extra_view.rs`).
+    extra_view: extra_view::ExtraViewState,
     /// The cop health bars: their state, the bars of the last step and their texture (`effects/cop_health.rs`).
     cop_health: effects::cop_health::CopHealthBars,
     /// The cinematic moment of a pursuit breaker, when one plays (`moment.rs`).

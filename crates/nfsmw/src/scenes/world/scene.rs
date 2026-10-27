@@ -169,7 +169,7 @@ impl Scene for WorldScene {
     }
 
     fn next_camera_mode(&self, current: CameraMode) -> CameraMode {
-        camera_cycle::next_mode(current, self.camera_environment.views.as_ref())
+        camera_cycle::next_mode(current, self.camera_environment.views.as_ref(), &self.extra_view_keys())
     }
 
     fn takes_camera_setting(&self) -> bool {

@@ -18,6 +18,7 @@ mod effect_feed;
 mod fall;
 mod garage;
 mod ground;
+mod extra_view;
 mod input;
 #[cfg(test)]
 mod lamp_tests;
