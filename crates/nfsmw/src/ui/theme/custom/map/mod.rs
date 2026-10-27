@@ -196,7 +196,8 @@ pub fn compose(
 }
 
 /// The road colours for `opacity` (the roads' opacity times the overlay's fade) and `detail` (the Expanded map's
-/// paths), from the active theme's tokens (`theme.line`, `theme.line_minor`, `theme.line_faint`, `theme.overlay`). The full-screen map (`custom/full_map`) draws its roads in the same look.
+/// paths), from the active theme's tokens (`theme.line`, `theme.line_minor`, `theme.line_faint`, `theme.overlay`). The
+/// full-screen map (`custom/full_map`) draws its roads in the same look.
 pub fn road_look(cx: &LayoutCx<'_>, high_contrast: bool, (opacity, detail): (f32, f32), scale: f32) -> RoadLook {
     RoadLook {
         main: fade(colour(cx, token_keys::LINE), opacity),

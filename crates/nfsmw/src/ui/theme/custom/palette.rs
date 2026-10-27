@@ -10,8 +10,7 @@ use crate::settings::UiTheme;
 pub const DEFAULT_RADIUS: f32 = 14.0;
 
 /// The colour roles of the Custom look's two palettes: the map's linework in the brief's text tones, the meaning colours
-/// of the brief's palette, and the brief's plates. `guide` is the route's colour of the palette (`guide` is the only
-/// role the two palettes differ in).
+/// of the brief's palette, and graphite plates. The palettes differ only in `guide`, the route's colour.
 fn roles(guide: [u8; 4]) -> Roles {
     let brief = Colours::BRIEF;
     Roles {

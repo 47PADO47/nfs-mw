@@ -237,5 +237,5 @@ another layer from the HUD map, so it dims the whole scene and holds the map on 
 
 Both fade in together over `Motion::map_mode` (0.30 s, eased; 0.15 s with motion reduction) from the frame the map opens,
 and start from nothing again each time it opens. The HUD map's plate is 35% of the scrim's alpha (23%), so the full map's
-backdrop is at least three times as strong as the HUD's. The roads, route, marks and arrows of the full map use the same
+scrim alone is nearly three times as strong as the HUD's plate, and the plate under the picture almost four times. The roads, route, marks and arrows of the full map use the same
 tokens as the HUD map (section 4c). `full_map/chrome.rs` `backdrop`, tested in `full_map/backdrop_tests.rs`.
