@@ -26,13 +26,16 @@ mod tests;
 
 pub use audio::{BbAudio, BbAudioPlayFn};
 pub use camera::{
-    BB_CAMERA_BUMPER, BB_CAMERA_CHASE, BB_CAMERA_CLOSE, BB_CAMERA_DRIFT, BB_CAMERA_DYNAMIC_FOV, BB_CAMERA_FAR,
-    BB_CAMERA_HOOD, BB_CAMERA_PURSUIT, BB_CAMERA_SUPER_FAR, BbCamera, BbCameraGetFn, BbCameraSetModeFn, BbCameraState,
+    BB_CAMERA_BUMPER, BB_CAMERA_CHASE, BB_CAMERA_CLOSE, BB_CAMERA_DRIFT, BB_CAMERA_DYNAMIC_FOV, BB_CAMERA_EXTRA,
+    BB_CAMERA_FAR, BB_CAMERA_HOOD, BB_CAMERA_INPUT_RESET, BB_CAMERA_POSE_HIDE_CAR, BB_CAMERA_PURSUIT,
+    BB_CAMERA_SUPER_FAR, BbCamera, BbCameraAvailableFn, BbCameraGetFn, BbCameraInput, BbCameraPose,
+    BbCameraRegisterViewFn, BbCameraSelectViewFn, BbCameraSetModeFn, BbCameraState, BbCameraUnregisterViewFn,
+    BbCameraUpdateFn, BbCameraView,
 };
 pub use commands::{BbCommandCallbackFn, BbCommands, BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn};
+pub use config::{BB_CONFIG_FILE, BB_CONFIG_MAIN, BbConfig, BbConfigReadFn, BbConfigSourcesFn};
 pub use content::{BbContent, BbContentRescanFn};
 pub use hud::{BB_HUD_BIG, BB_HUD_INFO, BB_HUD_WARNING, BbHud, BbHudHideFn, BbHudMessageFn};
-pub use config::{BB_CONFIG_FILE, BB_CONFIG_MAIN, BbConfig, BbConfigReadFn, BbConfigSourcesFn};
 pub use i18n::{BB_I18N_INT, BB_I18N_TEXT, BbI18n, BbI18nArg, BbI18nGenerationFn, BbI18nLocaleFn, BbI18nTextFn};
 pub use input::{BbHotkeyFn, BbInput, BbInputRegisterFn, BbInputUnregisterFn};
 pub use map::{BbBlip, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbRgba};
@@ -115,7 +118,7 @@ pub const IFACE_HUD_VERSION: (u16, u16) = (1, 0);
 /// Id of the camera interface: read the camera and choose a view.
 pub const IFACE_CAMERA: &str = "bb.camera";
 /// The version the host implements for [`IFACE_CAMERA`], as `(major, minor)`.
-pub const IFACE_CAMERA_VERSION: (u16, u16) = (1, 0);
+pub const IFACE_CAMERA_VERSION: (u16, u16) = (1, 1);
 
 /// Id of the audio interface: play one-shot sounds.
 pub const IFACE_AUDIO: &str = "bb.audio";

@@ -23,7 +23,7 @@ fn ids_and_versions_are_locked() {
     );
     assert_eq!(
         [IFACE_VEHICLES_VERSION, IFACE_HUD_VERSION, IFACE_CAMERA_VERSION, IFACE_AUDIO_VERSION, IFACE_WORLD_VERSION],
-        [(1, 0); 5]
+        [(1, 0), (1, 0), (1, 1), (1, 0), (1, 0)]
     );
     assert_eq!(IFACE_UI, "bb.ui");
     assert_eq!(IFACE_UI_VERSION, (1, 1));
@@ -79,9 +79,24 @@ fn hud_and_message_styles() {
 
 #[test]
 fn camera_table_state_and_modes() {
-    assert_eq!(size_of::<BbCamera>(), 32);
+    assert_eq!(size_of::<BbCamera>(), 56);
     assert_eq!(offset_of!(BbCamera, get), 16);
     assert_eq!(offset_of!(BbCamera, set_mode), 24);
+    assert_eq!(offset_of!(BbCamera, register_view), 32);
+    assert_eq!(offset_of!(BbCamera, unregister_view), 40);
+    assert_eq!(offset_of!(BbCamera, select_view), 48);
+    assert_eq!(size_of::<BbCameraInput>(), 120);
+    assert_eq!(offset_of!(BbCameraInput, dt), 8);
+    assert_eq!(offset_of!(BbCameraInput, position), 40);
+    assert_eq!(offset_of!(BbCameraInput, angular_velocity), 88);
+    assert_eq!(offset_of!(BbCameraInput, car), 104);
+    assert_eq!(size_of::<BbCameraPose>(), 52);
+    assert_eq!(offset_of!(BbCameraPose, position), 8);
+    assert_eq!(offset_of!(BbCameraPose, fov), 44);
+    assert_eq!(size_of::<BbCameraView>(), 64);
+    assert_eq!(offset_of!(BbCameraView, user), 40);
+    assert_eq!(offset_of!(BbCameraView, update), 56);
+    assert_eq!([BB_CAMERA_EXTRA, BB_CAMERA_INPUT_RESET, BB_CAMERA_POSE_HIDE_CAR], [100, 1, 1]);
     assert_eq!(size_of::<BbCameraState>(), 36);
     assert_eq!(offset_of!(BbCameraState, mode), 4);
     assert_eq!(offset_of!(BbCameraState, position), 8);
