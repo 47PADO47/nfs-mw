@@ -15,15 +15,19 @@ mod error;
 mod genesys;
 mod math;
 mod motion;
+mod mounted;
 mod params;
 mod read;
+mod state;
 
 pub use chase::ChaseCamera;
 pub use effects::{AccelFilter, ImpactState};
 pub use error::{Error, Result};
 pub use motion::{CameraOptions, CameraPose, CameraView, CarMotion, MAX_DT};
+pub use mounted::{MountedRig, RearViewRig};
 pub use params::{
     AccelMovement, CameraRoll, CarCameras, DecelPitch, ExternalCamera, ExternalGlobals, GradientAdjustments,
     HighSpeedShake, ImpactShake, Lens, MountedCamera, RearView, SpeedMovement, Vec3, YawSpring, from_data_axes,
 };
 pub use read::{read_all_cameras, read_cameras};
+pub use state::CameraState;
