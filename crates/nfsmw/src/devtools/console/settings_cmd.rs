@@ -286,7 +286,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "spark_style" => "<original-pc|restored-experimental>",
         "speed_trail_style" => "<streaks|car>",
         "transmission" => "<automatic|manual>",
-        "camera_mode" => "<chase|dynamic-fov|bumper|hood|close|far|superfar|drift|pursuit>",
+        "camera_mode" => "<chase|dynamic-fov|bumper|hood|close|far|superfar|drift|pursuit|extra:MOD/VIEW>",
         "minimap" => "<fixed|rotating|off>",
         "hud_layout" | "hud-layout" => "<pc|classic|xbox360>",
         "ui_style" | "ui-style" => "<original|custom|remastered>",

@@ -90,6 +90,10 @@ impl Setting {
                 CameraMode::SuperFar => Data::Label(LABEL_CAM_SUPER_FAR),
                 CameraMode::Drift => message("options-camera-drift"),
                 CameraMode::Pursuit => message("options-camera-pursuit"),
+                CameraMode::Extra(key) => Data::Text(crate::modding::camera_views::name_of(key).unwrap_or_else(|| {
+                    // The mod that added the view is not loaded: the camera is the chase until it is.
+                    key.path().unwrap_or_default()
+                })),
             },
             Setting::MaxFps => match s.max_fps.to_string().as_str() {
                 "unlocked" => message("options-frame-limit-unlocked"),

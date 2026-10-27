@@ -133,6 +133,10 @@ pub fn update_scene(
     // The camera hotkey changes the setting in memory (not the config file); the scene follows it below.
     if actions.just_pressed(Action::CycleCamera) && host.scene.takes_camera_setting() {
         settings.camera_mode = host.scene.next_camera_mode(settings.camera_mode);
+        if let crate::settings::CameraMode::Extra(key) = settings.camera_mode {
+            let name = crate::modding::camera_views::name_of(key).unwrap_or_default();
+            crate::hud::set_mod_message(&name, crate::hud::ModMessageTone::Info, 2.0);
+        }
     }
     host.transmission = settings.transmission;
     host.camera_mode = settings.camera_mode;

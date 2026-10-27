@@ -388,8 +388,9 @@ impl Setting {
                 changed.transmission = Some(s.transmission);
             }
             Setting::Camera => {
-                let at = CameraMode::ALL.iter().position(|m| *m == s.camera_mode).unwrap_or(0);
-                s.camera_mode = CameraMode::ALL[cycle(at, CameraMode::ALL.len(), forward)];
+                let choices = crate::modding::camera_views::choices();
+                let at = choices.iter().position(|m| *m == s.camera_mode).unwrap_or(0);
+                s.camera_mode = choices[cycle(at, choices.len(), forward)];
                 changed.camera_mode = Some(s.camera_mode);
             }
             Setting::MaxFps => {
