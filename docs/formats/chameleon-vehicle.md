@@ -13,8 +13,8 @@ names (`122672`, `1085007`, ...) are the car's number in `VEHICLELIST.BNDL`.
 | Bundle | Detail |
 |---|---|
 | `_HI` | the body at three levels (the Porsche: 17, 10 and 1 meshes), wheel models at two or three; 5,000 to 36,000 triangles on the finest body level |
-| `_LO` | the same car cut down for traffic and distance |
-| `_TR` | traffic cars (not imported) |
+| `_LO` | the same car for the distance: a body of five or six levels, among them a mid-detail one of 4,800 to 11,400 triangles that `_HI` lacks ([chameleon-traffic.md](chameleon-traffic.md#low-detail-bundles-_lo)) |
+| `_TR` | the 11 traffic cars: body at five levels, wheels, lamps, collision soup, no stats, paints or driver ([chameleon-traffic.md](chameleon-traffic.md)) |
 
 Several numbers are the same car in other liveries: the Nissan Skyline R34 appears five times, the 350Z five, the
 BMW M3 E46 GTR five, the Porsche 911 GT2 five, the Lamborghini Diablo SV five (one vehicle each, the vehicle list names the bundles; they differ in one texture, see [chameleon-customization.md](chameleon-customization.md#liveries)). One slot (`BMW1M12`, number 2196065)
@@ -81,7 +81,10 @@ from the start of the structure; the field names are hashed, so these are by pos
 |---|---|---|
 | 0x10 | f32 x 3 | the seat: where the character's origin goes in the car's space (x left, y up, z forward), metres. (19, 19, 19) means no driver (only the BMW 1M, 2196065, whose body is Lightning McQueen's) |
 | 0x24 | u32 | the key of the `CharacterSpec` that sits in the car: 0x3D8E in 61 bundles, 0x17785D in 32 |
-| 0x28, 0x2C, 0x30, 0x50 | u32 | the object's own key, and keys of other resources (animation or pose records; the seven looked up are in no bundle of the install) **[unconfirmed]** |
+| 0x28 | u32 | the object's own key |
+| 0x2C | u32 | the id of a **locator group** of the car's spec (one locator: the gear lever); 0 in 28 cars |
+| 0x30 | u32 | the id of a locator group of the car's spec with **two locators: the left and right hand grips on the wheel** (the middle of the two is within 20 cm of the `SteeringWheel` bone and they are 31 to 50 cm apart in all 91 cars that have them) **[verified]** |
+| 0x50 | u32 | the low word of the id of one of the clips 20 to 27 of the character's animation list: the pose of the hands and feet for this car's wheel **[verified]**, see [chameleon-driver-animation.md](chameleon-driver-animation.md) |
 | 0x34, 0x38 | f32 | 0.05 and 0.095 (0x38 is 0.05 in three cars and 0.18 in the BAC Mono) **[unconfirmed]** |
 | 0x3C | u32 | offset of the belt records (0x60) |
 | 0x42 | u16 | the number of belt bones: 3 with character 0x3D8E, 4 with 0x17785D **[verified]** (the 4 are the racing harness: `HarnessTopRight`) |
@@ -111,8 +114,8 @@ in that order, so the diffuse is material texture 1; the normal map is 2048 x 20
 and vertex readers. The positions are the **rest pose, which is the seated pose**: x within 0.27 of the middle, y 0.78 to 1.84,
 z -0.44 (the back) to 1.00 (the feet) **[verified]**, with the hands out on the wheel at z 0.5. The skeleton has 46 bones, among
 them `SeatbeltBottomRight`, `SeatbeltBottomLeft`, `SeatbeltTop`, `HarnessTopRight` (the executable spells these four), `Neck`,
-`Head`, `LeftHand`, `RightHand` and `Hips` (found by their hashes). The animation list (201,584 bytes) holds 28 clips by its
-header **[unconfirmed]**; they were not decoded.
+`Head`, `LeftHand`, `RightHand` and `Hips` (found by their hashes). The animation list (201,584 bytes) holds 28 clips, decoded
+in [chameleon-driver-animation.md](chameleon-driver-animation.md) (the skeleton's 46 bones are named there).
 
 **Placement.** The car's driver is the character's rest-pose mesh moved by the seat, with no rotation and no scale
 (`Driver::seated`). The geometry agrees **[verified]**: over the 92 cars with a seat, the head is under the highest point of the
@@ -120,9 +123,9 @@ body over the seat (the roof; an open car's windscreen or roll hoop) by 0.00 to 
 in the other 11 (the open Cobra and BAC Mono by 0.27 and 0.32, the rest by 0.03 to 0.06); the soles are -0.02 to 1.05 m above the
 ground (1.05 is a tall van, the Atom's are at 0.04); and nothing pokes out of the body sideways or lengthways. The test
 `every_car_seats_a_character_inside_its_body` asserts the head under the body's top, the soles above the ground, and the
-figure's box in the body's, for every car. That the game uses the seat as it is (no per-car rotation or scale) and that the
-hands are posed on the wheel by an animation (the steering) are **[unconfirmed]**: the 28 clips were not read and the game was
-not run. Nothing was drawn.
+figure's box in the body's, for every car. That the game uses the seat as it is (no per-car rotation or scale) is
+**[unconfirmed]**. The game animates the figure: it scrubs a steering clip and reaches the hands to the grips above
+([chameleon-driver-animation.md](chameleon-driver-animation.md) **[exe]**). Nothing of the game was run.
 
 **The baked driver.** One bundle, the police Explorer (`Ford_ExplorerInterceptor_2011`, 510072), also draws a 362-vertex
 (389-triangle, finest level only) seated figure as a body mesh whose material technique ends in `Driver`
@@ -151,7 +154,7 @@ diffuse colour; `Alpha1bit` in the technique means the diffuse alpha cuts the su
 
 ## Not read
 
-Animations (steering wheel, spoiler, the damage animations), most damage data (the hinged parts and the skeleton are read:
+Animations of the car (steering wheel, the damage animations; the driver's are read), most damage data (the hinged parts and the skeleton are read:
 [chameleon-hinged-parts.md](chameleon-hinged-parts.md)), the convex hulls and the physics body objects (the collision mesh is
 read: [chameleon-collision.md](chameleon-collision.md)), vehicle sound, the engine and handling objects (the stats are read),
 the effect objects the spot effects play ([chameleon-exhaust.md](chameleon-exhaust.md)); the lamp and exhaust locators are

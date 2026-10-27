@@ -113,6 +113,7 @@ impl AiCar {
                 glass: self.glass_mask(),
                 broken_lights: self.lamp_state().broken,
                 damage: self.sim.events.as_ref().map(|e| e.source_levels()),
+                ..Default::default()
             },
             out,
         );

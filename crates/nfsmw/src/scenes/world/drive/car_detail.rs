@@ -18,10 +18,21 @@ pub struct DrawOptions<'a> {
     pub glass: u16,
     pub broken_lights: u32,
     pub damage: Option<&'a [u8; 10]>,
+    /// The driver's steering input, -1 (full left) to 1 (full right): the pose a mod car's posed driver is drawn in.
+    pub steering: f32,
 }
 impl Default for DrawOptions<'_> {
     fn default() -> Self {
-        Self { car: 0, lamps: [true, false], reverse: false, detail: None, glass: 0, broken_lights: 0, damage: None }
+        Self {
+            car: 0,
+            lamps: [true, false],
+            reverse: false,
+            detail: None,
+            glass: 0,
+            broken_lights: 0,
+            damage: None,
+            steering: 0.0,
+        }
     }
 }
 
