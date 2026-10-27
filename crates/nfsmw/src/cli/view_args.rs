@@ -142,7 +142,7 @@ pub struct ViewArgs {
     #[arg(long, value_name = "auto|25%-400%|px")]
     pub reflection_cube_size: Option<crate::settings::ReflectionSize>,
     /// Rear-view mirror picture size, the same forms as the cube face; the width keeps the bezel's shape
-    /// [env NFSMW_REFLECTION_MIRROR_SIZE; config `reflection_mirror_size`; default 100%].
+    /// [env NFSMW_REFLECTION_MIRROR_SIZE; config `reflection_mirror_size`; default auto].
     #[arg(long, value_name = "auto|25%-400%|px")]
     pub reflection_mirror_size: Option<crate::settings::ReflectionSize>,
     /// Round car cube faces down to a power of two [env NFSMW_REFLECTION_POW2; config `reflection_pow2`; default off].
@@ -329,6 +329,10 @@ pub struct ViewArgs {
     /// [env NFSMW_TRANSMISSION; config `transmission`; default automatic].
     #[arg(long, value_name = "automatic|manual")]
     pub transmission: Option<crate::settings::Transmission>,
+    /// Real-time physics cadence; rendering FPS is independent. 144 changes numerical handling
+    /// [env NFSMW_PHYSICS_RATE_HZ; config `physics_rate_hz`; default 60].
+    #[arg(long, value_name = "60|144", value_parser = crate::settings::parse_physics_rate)]
+    pub physics_rate_hz: Option<u32>,
     /// Which camera gameplay uses: chase, dynamic-fov, bumper, hood, close, far, superfar, drift or pursuit [env NFSMW_CAMERA_MODE; config `camera_mode`; default chase].
     #[arg(long, value_name = "chase|dynamic-fov|bumper|hood|close|far|superfar|drift|pursuit")]
     pub camera_mode: Option<crate::settings::CameraMode>,
@@ -436,6 +440,7 @@ impl ViewArgs {
             discord_join: switch(self.discord_join, self.no_discord_join),
             mods: self.no_mods.then_some(crate::settings::mods::ModsMode::Off),
             transmission: self.transmission,
+            physics_rate_hz: self.physics_rate_hz,
             camera_mode: self.camera_mode,
             post_tonemap: self.post_tonemap,
             post_bloom: self.post_bloom,

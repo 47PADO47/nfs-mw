@@ -20,6 +20,11 @@ pub trait MaterialLookup {
         None
     }
 
+    /// Select shading using both the original texture slot and light material.
+    fn texture_shading(&self, _texture_hash: u32, _light_material_hash: Option<u32>) -> Option<Shading> {
+        None
+    }
+
     /// A game's effect-index routing, used when no light-material override exists.
     /// Effect numbers have no renderer-wide meaning; callers provide the mapping.
     fn group_shading(&self, _group_index: usize) -> Option<Shading> {
@@ -84,10 +89,15 @@ fn group_draw(
     let g = &solid.groups[index];
     let material = g.diffuse_texture(solid).and_then(|h| materials.material(h));
     let light_material = solid.light_material_hashes.get(usize::from(g.light_material)).copied();
-    let shading = light_material
-        .and_then(|h| materials.shading(h))
-        .or_else(|| materials.group_shading(index))
-        .or_else(|| materials.effect_shading(g.effect_id))
+    let shading = g
+        .diffuse_texture(solid)
+        .and_then(|texture| materials.texture_shading(texture, light_material))
+        .or_else(|| {
+            light_material
+                .and_then(|h| materials.shading(h))
+                .or_else(|| materials.group_shading(index))
+                .or_else(|| materials.effect_shading(g.effect_id))
+        })
         .unwrap_or(shading);
     DrawRange {
         first_index,
@@ -255,6 +265,29 @@ mod tests {
         let draws = solid_mesh(&solid(), &Shiny, Shading::Lit);
         let shadings: Vec<Shading> = draws.iter().map(|d| d.shading).collect();
         assert_eq!(shadings, [Shading::Lit, Shading::Sky, Shading::Lit]);
+    }
+
+    #[test]
+    fn texture_slot_can_select_shading_without_affecting_other_groups() {
+        struct Lamp;
+        impl MaterialLookup for Lamp {
+            fn material(&self, _: u32) -> Option<(TextureHandle, BlendMode)> {
+                None
+            }
+            fn shading(&self, _: u32) -> Option<Shading> {
+                Some(Shading::Lit)
+            }
+            fn texture_shading(&self, texture: u32, light: Option<u32>) -> Option<Shading> {
+                (texture == 42 && light == Some(0xAAAA)).then_some(Shading::Sky)
+            }
+        }
+        let mut car = solid();
+        car.texture_hashes.push(42);
+        for group in &mut car.groups {
+            group.texture_slots[0] = 0;
+        }
+        let draws = solid_mesh(&car, &Lamp, Shading::Prelit);
+        assert_eq!(draws.iter().map(|d| d.shading).collect::<Vec<_>>(), [Shading::Sky, Shading::Lit, Shading::Prelit]);
     }
 
     struct Effects;

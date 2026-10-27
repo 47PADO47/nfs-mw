@@ -5,8 +5,22 @@ use glam::Vec3;
 
 use super::Vehicle;
 use crate::ground::Ground;
+use crate::rigid_body::transform_vector;
 use crate::suspension::{Side, SpringInput, WheelContact, compression, probe, spring_force};
 use crate::tires::LoadedInput;
+
+fn reference_forward_speed(velocity: Vec3, direction: Vec3) -> f32 {
+    (velocity.x * direction.x + velocity.z * direction.z) + velocity.y * direction.y
+}
+
+fn query_tolerance(velocity: Vec3, dt: f32, radius: f32, height: f32, reference: bool) -> f32 {
+    let down = (-velocity.y * dt).max(0.0);
+    let horizontal = Vec3::new(velocity.x, 0.0, velocity.z).length() * dt;
+    match reference {
+        true => ((horizontal + down) + radius).min(height),
+        false => ((down + radius) + horizontal).min(height),
+    }
+}
 
 /// Sum over the four wheels.
 pub(super) struct WheelOutput {
@@ -23,28 +37,30 @@ impl Vehicle {
         let rot = self.body.rotation();
         let up = rot.y_axis;
         let pos = self.body.position;
-        let cog_world = rot * self.body.cog();
-        let cog_point = pos + cog_world;
+        let cog_world = transform_vector(rot, self.body.cog());
         let velocity = self.body.linear_velocity;
         let body_speed = velocity.length();
         let mass = self.body.mass();
         let ride_extra = self.tunings.ride_height;
         let axles = [self.spec.chassis.axle(0, ride_extra), self.spec.chassis.axle(1, ride_extra)];
         let old_compression: [f32; 4] = std::array::from_fn(|i| self.corners[i].compression);
-        let steer_dir = |angle: f32| rot * Vec3::new(angle.sin(), 0.0, angle.cos());
+        let steer_dir = |angle: f32| transform_vector(rot, Vec3::new(angle.sin(), 0.0, angle.cos()));
         let dirs = [steer_dir(self.wheel_angles.left), steer_dir(self.wheel_angles.right), rot.z_axis, rot.z_axis];
 
         let mut out = WheelOutput { force: Vec3::ZERO, torque: Vec3::ZERO, lift_need: 0.0 };
         for i in 0..4 {
             let axle = i / 2;
             let a = &axles[axle];
-            let arm_world = rot * self.geometry.arms[i];
+            let arm_world = transform_vector(rot, self.geometry.arms[i]);
             let point = pos + arm_world;
             let point_vel = velocity + angular_velocity.cross(arm_world - cog_world);
-            let tolerance = ((-point_vel.y * dt).max(0.0)
-                + self.geometry.radius[i]
-                + Vec3::new(point_vel.x, 0.0, point_vel.z).length() * dt)
-                .min(self.spec.dimension.y);
+            let tolerance = query_tolerance(
+                point_vel,
+                dt,
+                self.geometry.radius[i],
+                self.spec.dimension.y,
+                self.tires[i].integration == crate::tires::TireIntegration::Reference,
+            );
 
             let contact = ground
                 .wheel_plane(i, point, tolerance, old_compression[i] > 0.0)
@@ -59,14 +75,16 @@ impl Vehicle {
             let c_old = old_compression[i];
             let comp = contact.map(|c| compression(a.ride, a.travel, c.normal.dot(up).clamp(0.0, 1.0), c.penetration));
             let c_new = comp.map_or(0.0, |c| c.value);
+            if let Some(comp) = comp {
+                out.lift_need = out.lift_need.max(comp.lift_need);
+            }
             self.corners[i].compression = c_new;
             self.corners[i].air_time = if c_new == 0.0 { self.corners[i].air_time + dt } else { 0.0 };
 
             let mut force = Vec3::ZERO;
             let loaded = comp.is_some_and(|c| c.loaded);
             self.loaded[i] = loaded;
-            if let (true, Some(c), Some(comp)) = (loaded, contact, comp) {
-                out.lift_need = out.lift_need.max(comp.lift_need);
+            if let (true, Some(c)) = (loaded, contact) {
                 let f_spring = spring_force(
                     a,
                     &SpringInput {
@@ -92,7 +110,10 @@ impl Vehicle {
                     let l = n.cross(f);
                     if l.length_squared() > 1e-8 { l.normalize() } else { rot.x_axis }
                 };
-                let fwd_speed = point_vel.dot(f);
+                let fwd_speed = match self.tires[i].integration {
+                    crate::tires::TireIntegration::Reference => reference_forward_speed(point_vel, f),
+                    crate::tires::TireIntegration::Regularized => point_vel.dot(f),
+                };
                 let lat_speed = point_vel.dot(lat_dir);
                 let input = LoadedInput {
                     lat_vel: lat_speed,
@@ -125,11 +146,11 @@ impl Vehicle {
             // The force acts at the contact patch: the arm lowered by the unused ride height.
             let mut arm = self.geometry.arms[i];
             arm.y += c_new - a.ride;
-            let patch = pos + rot * arm;
+            let patch = pos + transform_vector(rot, arm);
             self.patch_positions[i] = patch;
             if force.is_finite() {
                 out.force += force;
-                let mut arm = patch - cog_point;
+                let mut arm = (patch - cog_world) - pos;
                 if let Some(config) = self.rolling_chassis {
                     arm.y *= config.force_arm_height;
                 }
@@ -138,5 +159,26 @@ impl Vehicle {
         }
         self.wheels_on_ground = self.loaded.iter().filter(|l| **l).count();
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn forward_projection_preserves_xz_before_y_rounding() {
+        let velocity = Vec3::new(4.598474, -0.8348535, 6.4309535);
+        let direction = Vec3::new(0.41014934, -0.67413306, -0.1900244);
+        assert_eq!(reference_forward_speed(velocity, direction).to_bits(), 0x3f9d089c);
+    }
+
+    #[test]
+    fn reference_tolerance_adds_radius_last() {
+        let velocity = Vec3::new(0.13, -0.013 / 0.007, 0.32);
+        let reference = query_tolerance(velocity, 0.007, 0.27, 1.5, true);
+        let regularized = query_tolerance(velocity, 0.007, 0.27, 1.5, false);
+        assert_eq!(reference.to_bits(), 0x3e922248);
+        assert_ne!(reference.to_bits(), regularized.to_bits());
     }
 }

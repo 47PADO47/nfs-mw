@@ -235,6 +235,7 @@ impl WorldScene {
             lane: Default::default(),
             log_clock: 0.0,
             banner: Banner::default(),
+            launch_banner: Banner::default(),
             lap_mark: 0.0,
             result: None,
             report: None,
@@ -329,12 +330,7 @@ impl WorldScene {
         let was_reached = challenge.reached;
         let verdict = challenge.judge(value, reason);
         if challenge.reached && !was_reached {
-            session.banner = Banner {
-                text: crate::i18n::game_or_error(LABEL_CHALLENGE_COMPLETE),
-                left: BANNER_SECS,
-                serial: session.banner.serial.wrapping_add(1),
-                count: None,
-            };
+            super::flow::flash(&mut session.banner, crate::i18n::game_or_error(LABEL_CHALLENGE_COMPLETE), BANNER_SECS);
             log::info!("race: {}: the challenge value is reached ({value})", session.name);
         }
         let Some(won) = verdict else { return true };

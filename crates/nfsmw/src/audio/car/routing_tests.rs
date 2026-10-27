@@ -49,6 +49,7 @@ fn replay(speedbreaker: bool) {
                     ..Default::default()
                 };
                 ticks.push(CarSoundTick {
+                    sim_dt: blackbox_vehicle::FIXED_STEP,
                     input,
                     telemetry: CarAudioTelemetry { forward_speed: 35.0, max_physics_rpm: 8500.0, ..Default::default() },
                     contacts: Vec::new(),

@@ -114,18 +114,24 @@ impl Induction {
         if i.rpm >= spool_rpm {
             let r = ramp(i.rpm, spool_rpm, i.red_line);
             boost = r * high + (1.0 - r) * low;
-            target_psi = self.spool * spec.psi * ramp(boost, 0.0, peak);
+            target_psi = (ramp(boost, 0.0, peak) * spec.psi) * self.spool;
         } else if spec.vacuum < 0.0 {
             let d = ramp(i.rpm, i.idle, spool_rpm);
             boost = d * spec.vacuum;
-            target_psi = d * -spec.psi * ramp(-boost, 0.0, peak);
+            target_psi = -((ramp(-boost, 0.0, peak) * spec.psi) * d);
         } else {
             boost = 0.0;
             target_psi = 0.0;
         }
         self.boost = boost * self.spool;
         let max_step = 20.0 * i.dt;
-        self.psi += (target_psi - self.psi).clamp(-max_step, max_step);
+        if self.psi > target_psi {
+            self.psi = (self.psi - max_step).max(target_psi);
+            return;
+        }
+        if self.psi < target_psi {
+            self.psi = (self.psi + max_step).min(target_psi);
+        }
     }
 }
 

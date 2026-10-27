@@ -10,11 +10,16 @@ impl Powertrain {
     /// point, with the clutch engaged (the wish is cleared during a shift) and a higher gear to go to. This is
     /// what lights the shift light of the tachometer; an automatic car shifts as soon as it holds.
     pub fn shift_up_wish(&self) -> bool {
-        if !self.clutch.is_engaged() {
-            return false;
+        self.shift_potential == ShiftPotential::Up
+    }
+
+    pub(super) fn refresh_shift_potential(&mut self) {
+        self.shift_potential = ShiftPotential::None;
+        if !self.clutch.is_engaged() || self.staging {
+            return;
         }
         let rpm = rad_to_rpm(self.omega_trans);
-        self.shift_points.potential(&self.engine, &self.trans, self.gear, rpm, self.throttle) == ShiftPotential::Up
+        self.shift_potential = self.shift_points.potential(&self.engine, &self.trans, self.gear, rpm, self.throttle);
     }
 }
 
@@ -34,14 +39,18 @@ mod tests {
         p.gear = GEAR_FIRST;
         let up = p.shift_points().up[GEAR_FIRST];
         p.omega_trans = rpm_to_rad(up - 100.0);
+        p.refresh_shift_potential();
         assert!(!p.shift_up_wish());
         p.omega_trans = rpm_to_rad(up + 10.0);
+        p.refresh_shift_potential();
         assert!(p.shift_up_wish());
         p.clutch.disengage();
+        p.refresh_shift_potential();
         assert!(!p.shift_up_wish(), "a gear change in progress clears it");
         p.clutch.engage(0.0);
         p.gear = p.top_gear();
         p.omega_trans = rpm_to_rad(engine().red_line);
+        p.refresh_shift_potential();
         assert!(!p.shift_up_wish(), "there is no higher gear");
     }
 }

@@ -18,13 +18,16 @@ impl ExhaustFlames {
     /// Load the flames of `model` if the setting is on and they are not loaded: its pipes, particle group and
     /// textures, uploaded to `renderer`. A car without pipes or data gets none (nothing is drawn).
     pub fn load(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &CarModel) {
-        if !self.wants_load() {
-            return;
+        if self.wants_load() {
+            self.state = match read(renderer, dir, db, model) {
+                Some(active) => State::Ready(Box::new(active)),
+                None => State::Missing,
+            };
         }
-        self.state = match read(renderer, dir, db, model) {
-            Some(active) => State::Ready(Box::new(active)),
-            None => State::Missing,
-        };
+        if let State::Ready(active) = &mut self.state {
+            active.enhanced.enabled = self.enhanced;
+            active.enhanced.load(renderer);
+        }
     }
 }
 
@@ -129,6 +132,7 @@ impl Active {
     ) -> Self {
         let blue = lanes.iter().map(Lane::blue_copy).collect();
         Self {
+            enhanced: Default::default(),
             pipes,
             lanes,
             blue,

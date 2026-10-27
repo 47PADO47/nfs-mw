@@ -183,6 +183,8 @@ pub(super) struct RaceSession {
     /// Seconds since the last debug line about the racers.
     pub log_clock: f32,
     pub banner: Banner,
+    /// The launch notice can play alongside the GO countdown.
+    pub launch_banner: Banner,
     /// The race clock at the start of the lap the player is on, for the best lap (`custom_race/records.rs`).
     pub lap_mark: f32,
     pub result: Option<RaceResult>,

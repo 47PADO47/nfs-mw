@@ -36,6 +36,7 @@ mod speech;
 mod stand_in;
 mod state_hash;
 mod stepping;
+pub(super) use stepping::AiStep;
 pub(super) mod support_drive;
 mod towing;
 
@@ -91,6 +92,11 @@ pub struct AiCar {
     nis_pose: Option<CarPose>,
     /// Physics steps since the car was placed.
     steps: u32,
+    step_delta: f32,
+    elapsed: f32,
+    think_elapsed: f32,
+    think_delta: f32,
+    has_thought: bool,
     /// Delays the first think so the cars' thinks spread over ten steps.
     stagger: u32,
     /// What the last think decided.
@@ -237,6 +243,11 @@ impl AiCar {
             current: pose,
             nis_pose: None,
             steps: 0,
+            step_delta: STEP,
+            elapsed: 0.0,
+            think_elapsed: 0.0,
+            think_delta: traffic::THINK_PERIOD,
+            has_thought: false,
             stagger: start.stagger,
             speed: start.speed,
             controls: AiControls::default(),
@@ -290,11 +301,15 @@ impl AiCar {
         [nose.x, nose.y]
     }
 
+    pub(in crate::scenes::world::ai) fn set_step_delta(&mut self, dt: f32) {
+        self.step_delta = dt;
+    }
+
     /// Advance the light bars by one tick, at the car's frame.
     pub fn step_lights(&mut self) {
         let active = self.emergency_lights();
         if let Some(lights) = &mut self.cop_lights {
-            lights.step(STEP, self.current.transform(), active);
+            lights.step(self.step_delta, self.current.transform(), active);
         }
     }
 
@@ -323,6 +338,25 @@ impl AiCar {
 
     /// The think of the car's role: traffic follows its lane, a cop chases the player.
     fn think<R: RandomSource>(&mut self, ctx: &mut Ctx<'_, R>, collision: &blackbox_collision::CollisionWorld) {
+        self.think_delta = match self.has_thought {
+            true => self.think_elapsed,
+            false => {
+                (match self.role {
+                    Role::Traffic => traffic::THINK_STEPS,
+                    Role::Cop(_) => cop::THINK_STEPS,
+                    Role::Racer(_) => racer::RACER_THINK_STEPS,
+                }) as f32
+                    * self.step_delta
+            }
+        };
+        self.think_elapsed = 0.0;
+        self.has_thought = true;
+        self.avoid.set_think_delta(self.think_delta);
+        match &mut self.role {
+            Role::Cop(cop) => cop.set_think_delta(self.think_delta),
+            Role::Racer(racer) => racer.set_think_delta(self.think_delta),
+            Role::Traffic => {}
+        }
         let view = self.sim.driver_view();
         let mut state = traffic::CarState {
             body: self.body(),
@@ -358,7 +392,8 @@ impl AiCar {
                     self.stop_memory,
                     traffic::others(ctx.bodies, ctx.me, ctx.player),
                 );
-                let think = traffic::think(
+                let think = traffic::think_with_delta(
+                    self.think_delta,
                     ctx.net,
                     &mut self.nav,
                     &state,
@@ -377,7 +412,7 @@ impl AiCar {
                 // A stand-in is not driven, so it cannot be stuck.
                 let stuck = !racer.held
                     && !self.stand_in.active
-                    && racer.stuck.update(cop::THINK_PERIOD, pressing, reversing, false, state.body.position);
+                    && racer.stuck.update(self.think_delta, pressing, reversing, false, state.body.position);
                 if stuck {
                     log::info!("race: {} is stuck, reversing", self.name);
                     let gear = self.driver.start_reverse_override(RECOVERY_SECONDS, view.gear_is_reverse);
@@ -401,7 +436,7 @@ impl AiCar {
                 let others = bodies.iter().enumerate().filter(move |&(i, _)| i != me).map(|(_, b)| b.0);
                 let pressing = self.controls.gas >= 0.5;
                 let stuck = cop.stuck.update(
-                    cop::THINK_PERIOD,
+                    self.think_delta,
                     pressing,
                     self.driver.reverse_override_left() > 0.0,
                     false,

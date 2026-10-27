@@ -5,6 +5,7 @@ impl PropWorld {
     #[cfg(test)]
     pub fn step(&mut self, ground: &dyn Ground, dt: f32) {
         self.begin_native(dt);
+        self.resolve_native_pairs();
         self.finish_native(ground, dt);
     }
 
@@ -34,6 +35,12 @@ impl PropWorld {
         for &id in &active {
             self.regrid(id);
         }
+        self.active_scratch = active;
+    }
+
+    /// Resolve prop pairs after every participating car and prop has integrated.
+    pub(in crate::scenes::world) fn resolve_native_pairs(&mut self) {
+        let active = std::mem::take(&mut self.active_scratch);
         self.collide_props(&active);
         self.active_scratch = active;
     }
@@ -64,7 +71,6 @@ impl PropWorld {
         for &id in &ids {
             let collider = self.colliders.get_mut(&id).unwrap();
             let prop = collider.body.as_mut().unwrap();
-            prop.rigid.apply_drag();
             if let Some(world) = world
                 && let Some(spec) = &collider.shape.dynamics
             {
@@ -92,7 +98,10 @@ impl PropWorld {
                     contact.identity = u64::from(id);
                 }
             }
-            if let Some(contact) = ground::step(prop, ground, dt, &mut self.contact_scratch)
+            let contact = ground::step(prop, ground, dt, &mut self.contact_scratch);
+            prop.rigid.apply_drag();
+            prop.rigid.update_sleep(self.contact_scratch.len());
+            if let Some(contact) = contact
                 && let Some(spec) = &collider.shape.dynamics
             {
                 let raw = super::super::impact_effects::RawContact::ground(&contact, prop.rigid.linear_velocity);

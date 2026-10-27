@@ -16,6 +16,7 @@ pub(super) struct LoopCtx<'a> {
     pub dt: f32,
     pub av: &'a mut [f32; 4],
     pub grounded: [bool; 4],
+    pub loaded_wheels: usize,
     pub drive_slip: f32,
     pub speed: f32,
 }
@@ -45,12 +46,17 @@ impl Powertrain {
             return 0.0;
         }
 
-        let engine_t = self.engine.torque_nm(rpm) * (1.0 + self.induction.boost) * self.nos.boost;
+        let mut engine_t = self.engine.torque_nm(rpm) * (1.0 + self.induction.boost) * self.nos.boost;
         let mut braking_t = self.engine.braking_torque(engine_t, rpm);
+        if self.launch_strength > 0.0 && self.throttle > 0.0 {
+            self.throttle = 1.0;
+            engine_t = self.peak_torque_nm * self.nos.boost;
+            braking_t = 0.0;
+        }
 
         let (free, locked) = driven_speeds(c.av, driven, reverse);
         let omega_trans_old = self.omega_trans;
-        self.omega_trans = min_w + locked * ratio * (max_w - min_w) / max_w;
+        self.omega_trans = (max_w - min_w) / max_w * ratio * locked + min_w;
         let trans_accel = (self.omega_trans - omega_trans_old) / dt;
 
         // Wheels driving the engine faster than it drives them: braking must still oppose the motion.
@@ -60,16 +66,17 @@ impl Powertrain {
         let throttle = self.throttle;
         let total_t = engine_t * throttle + braking_t * (1.0 - throttle);
         self.engine_braking = total_t < 0.0;
-        let on_ground = c.grounded.iter().filter(|g| **g).count();
+        let on_ground = c.loaded_wheels.min(4);
         let wheels_ratio = (on_ground as f32 / 4.0).max(0.25);
         let inertia = self.engine.inertia(neutral);
         let first_or_reverse = !neutral && self.gear <= GEAR_FIRST;
 
         let (mut drive_t, mut road_t) = (0.0_f32, 0.0_f32);
-        let diff_rpm = rad_to_rpm(self.omega - self.omega_trans);
+        let diff_rpm = rad_to_rpm(self.omega_trans - self.omega);
         if !neutral {
             match self.clutch.state {
                 ClutchState::Engaged => {
+                    self.prev_rpm_diff = 0.0;
                     drive_t = total_t;
                     road_t = -total_t * wheels_ratio;
                     // Make the engine and the wheels agree on acceleration.
@@ -97,13 +104,13 @@ impl Powertrain {
                         stiffness *= 0.5;
                     }
                     let clutch_t = d * stiffness * self.clutch.factor();
+                    self.prev_rpm_diff = diff_rpm;
                     drive_t += clutch_t;
                     road_t -= clutch_t * wheels_ratio;
                 }
-                ClutchState::Disengaged => {}
+                ClutchState::Disengaged => self.prev_rpm_diff = 0.0,
             }
         }
-        self.prev_rpm_diff = diff_rpm;
 
         if !neutral && self.clutch.is_engaged() && on_ground > 0 {
             if throttle > 0.2 && c.drive_slip > 0.1 && self.gear <= GEAR_FIRST && self.omega_trans < self.omega {
@@ -117,13 +124,13 @@ impl Powertrain {
             }
         }
 
-        if first_or_reverse && self.clutch.is_engaged() {
+        if first_or_reverse {
             let net = total_t + road_t;
             if road_t < total_t && net < 0.0 {
                 let play = graph(&CLUTCH_PLAY, 1000.0 * net);
                 road_t += play * net * self.trans.clutch_slip;
             }
-            if throttle > 0.0 && road_t * total_t < 0.0 {
+            if self.clutch.is_engaged() && throttle > 0.0 && road_t * total_t < 0.0 {
                 let slip = self.trans.clutch_slip
                     * throttle
                     * (1.0 - throttle * ramp(rpm, self.engine.idle, self.peak_torque_rpm));
@@ -152,7 +159,7 @@ impl Powertrain {
                 self.mark_driven_written(driven);
             }
         }
-        drive_t * ratio * self.trans.efficiency(self.gear)
+        (self.trans.efficiency(self.gear) * drive_t) * ratio
     }
 
     fn mark_driven_written(&mut self, driven: (bool, bool)) {

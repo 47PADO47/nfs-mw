@@ -67,6 +67,7 @@ pub struct CopState {
     limits: CarLimits,
     player: Performance,
     governor: SpeedGovernor,
+    think_delta: f32,
     road_nos: road_nos::State,
     pub stuck: StuckDetector,
     repath: f32,
@@ -122,12 +123,18 @@ pub(super) struct ActionInputs<'a> {
 }
 
 impl CopState {
+    pub(super) fn set_think_delta(&mut self, dt: f32) {
+        self.think_delta = dt;
+        self.close.set_think_delta(dt);
+    }
+
     pub fn new(car: CopCar, player: Performance, speed: f32) -> Self {
         Self {
             limits: matched_limits(&car, &player),
             car,
             player,
             governor: SpeedGovernor::begin(speed),
+            think_delta: THINK_PERIOD,
             road_nos: road_nos::State::default(),
             stuck: StuckDetector::default(),
             repath: 0.0,
@@ -293,7 +300,7 @@ impl CopState {
             true => target.body.position,
             false => road.as_ref().map_or(target.body.position, |r| r.seek),
         };
-        self.repath -= THINK_PERIOD;
+        self.repath -= self.think_delta;
         let to_target = Vec3::new(goal.x - car.body.position.x, 0.0, goal.z - car.body.position.z);
         if self.repath <= 0.0 || nav.dead_end {
             self.repath = REPATH_PERIOD;
@@ -371,8 +378,8 @@ impl CopState {
         };
         let boost = nitrous.acceleration_boost(self.environment.nitrous_boost);
         let accel = potential_acceleration(table * scale, &self.limits, SKILL, boost, grade);
-        let actual_acceleration = (speed - self.last_speed) / THINK_PERIOD;
-        let wanted = self.governor.update(speed, potential, accel, SKILL, THINK_PERIOD);
+        let actual_acceleration = (speed - self.last_speed) / self.think_delta;
+        let wanted = self.governor.update(speed, potential, accel, SKILL, self.think_delta);
         self.last_speed = speed;
         log::trace!(
             "cop think: speed {speed:.1} curvature {curvature:.4} potential {potential:.1} accel {accel:.1} (table {table:.1}) wanted {wanted:.1} cap {:.1} path {:?}",
@@ -394,7 +401,7 @@ impl CopState {
                 stopping: turning,
                 skill: SKILL,
             },
-            THINK_PERIOD,
+            self.think_delta,
         );
         #[cfg(test)]
         {

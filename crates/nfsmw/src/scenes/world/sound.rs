@@ -1,6 +1,7 @@
 //! Installed environment context follows the ordered physics positions.
 use super::race::Stage;
 use super::*;
+use blackbox_race::Phase;
 
 /// Whether a story cutscene owns the sound: a movie plays, or the NIS of a race's intro does
 /// (`docs/specs/prologue-car-and-audio.md`). The movie's and the NIS's own streams are the sound then, not the car idling
@@ -9,7 +10,45 @@ fn cutscene_owns_sound(movie: bool, nis: bool, race_intro: bool) -> bool {
     movie || (nis && race_intro)
 }
 
+fn pre_race_audio(rolling: bool, stage: &Stage, phase: Option<Phase>) -> bool {
+    if rolling {
+        return false;
+    }
+    match stage {
+        Stage::Loading { .. } | Stage::Intro { .. } | Stage::Staged { .. } => true,
+        Stage::Running => matches!(phase, Some(Phase::Staging | Phase::Countdown { .. })),
+        _ => false,
+    }
+}
+
+fn set_pre_race(state: &mut crate::audio::CarSoundState, before_go: bool) {
+    state.input.pre_race = before_go;
+    if before_go {
+        for tick in &mut state.ticks {
+            tick.input.pre_race = true;
+        }
+    }
+    // After GO preserve each completed tick's staging flag, including a catch-up frame spanning GO.
+}
+
 impl WorldScene {
+    /// Only local engine voices return display feedback; absent voices clear the corresponding seat.
+    pub(super) fn accept_car_visual_rpm(&mut self, player: usize, fraction: Option<f32>) {
+        match player {
+            0 => {
+                if let Some(drive) = self.players.lead_mut() {
+                    drive.note_visual_rpm(fraction);
+                }
+            }
+            1 => {
+                if let Some(guest) = self.players.guests_mut().next() {
+                    guest.drive.note_visual_rpm(fraction);
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// The lead's car, for its engine voice.
     pub(super) fn audio_state(&mut self) -> Option<crate::audio::CarSoundState> {
         if self.garage_open {
@@ -51,6 +90,10 @@ impl WorldScene {
         mut state: crate::audio::CarSoundState,
         pose: crate::scenes::world::drive::CarPose,
     ) -> crate::audio::CarSoundState {
+        let before_go = self.race.as_ref().is_some_and(|race| {
+            pre_race_audio(race.origin.race.params.rolling_start, &race.stage, race.engine.as_ref().map(|e| e.phase()))
+        });
+        set_pre_race(&mut state, before_go);
         let lens = self.gameplay_lens(1.0);
         let (camera_state, view_value) = match self.camera_mode {
             CameraMode::Bumper => (1, 0),
@@ -87,7 +130,46 @@ impl WorldScene {
 
 #[cfg(test)]
 mod tests {
-    use super::cutscene_owns_sound;
+    use super::{Phase, Stage, cutscene_owns_sound, pre_race_audio, set_pre_race};
+
+    #[test]
+    fn pre_race_visual_audio_tracks_standing_countdown_and_excludes_rolling_starts() {
+        assert!(pre_race_audio(false, &Stage::Loading { waited: 0.0 }, None));
+        assert!(pre_race_audio(false, &Stage::Staged { lead: 180 }, Some(Phase::Staging)));
+        assert!(pre_race_audio(false, &Stage::Running, Some(Phase::Countdown { left: 1.0 })));
+        assert!(!pre_race_audio(false, &Stage::Running, Some(Phase::Racing)));
+        assert!(!pre_race_audio(true, &Stage::Running, Some(Phase::Countdown { left: 1.0 })));
+        assert!(!pre_race_audio(true, &Stage::Loading { waited: 0.0 }, None));
+    }
+
+    #[test]
+    fn a_frame_spanning_go_retains_each_ticks_pre_race_phase() {
+        use crate::audio::{CarSoundState, CarSoundTick};
+        let mut state = CarSoundState {
+            car: "fixture".into(),
+            upgrades: Default::default(),
+            input: Default::default(),
+            telemetry: Default::default(),
+            events: Vec::new(),
+            scrape: None,
+            surface: 0,
+            view: Default::default(),
+            ticks: [true, false]
+                .map(|pre_race| CarSoundTick {
+                    sim_dt: 1.0 / 60.0,
+                    telemetry: Default::default(),
+                    input: blackbox_carsound::CarInput { pre_race, ..Default::default() },
+                    contacts: Vec::new(),
+                    surface: 0,
+                })
+                .into(),
+        };
+        set_pre_race(&mut state, false);
+        assert!(!state.input.pre_race);
+        assert_eq!(state.ticks.iter().map(|tick| tick.input.pre_race).collect::<Vec<_>>(), [true, false]);
+        set_pre_race(&mut state, true);
+        assert!(state.input.pre_race && state.ticks.iter().all(|tick| tick.input.pre_race));
+    }
 
     #[test]
     fn a_movie_or_the_intro_nis_of_a_race_silences_the_car() {

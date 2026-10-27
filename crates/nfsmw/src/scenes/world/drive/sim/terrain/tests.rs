@@ -165,3 +165,5 @@ fn sleeping_global_query_uses_zero_mask_even_for_a_cop_role() {
     assert!(car.ground_reference.plane().valid, "original sleeping point query uses exclusion zero");
     assert_eq!(car.ground_reference.plane().surface_hash, 7);
 }
+
+mod prediction;

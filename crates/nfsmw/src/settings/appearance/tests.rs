@@ -1,4 +1,21 @@
 use super::*;
+
+#[test]
+fn world_skylight_is_an_enhanced_style_choice_with_persistent_calibration() {
+    let mut settings = Settings::from(crate::settings::Partial::default());
+    settings.select_visual_style(VisualStyle::Enhanced);
+    assert!(settings.appearance.lighting.world_skylight);
+    settings.appearance.lighting.world_skylight_strength = 0.42;
+    let stored = settings.appearance.value().unwrap();
+    assert_eq!(Appearance::read(&stored, "world ambient round-trip").unwrap(), settings.appearance);
+    settings.select_visual_style(VisualStyle::OriginalPc);
+    assert!(!settings.appearance.lighting.world_skylight);
+    let old = Appearance::read(&toml::from_str("version=1").unwrap(), "older profile").unwrap();
+    assert!(!old.lighting.world_skylight);
+    let sanitized =
+        blackbox_gfx::RenderExperiments { world_skylight_strength: f32::NAN, ..Default::default() }.sanitized();
+    assert_eq!(sanitized.world_skylight_strength, 0.65);
+}
 fn settings() -> Settings {
     Settings::from(Partial::default())
 }

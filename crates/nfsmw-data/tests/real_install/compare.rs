@@ -6,6 +6,18 @@ use nfsmw_data::car::physics::PhysicsData;
 
 use crate::install;
 
+fn installed_vehicle(data: &PhysicsData, name: &str) -> Vehicle {
+    let physics = data.car(name).unwrap();
+    let mut vehicle = Vehicle::new(physics.spec);
+    vehicle.set_tire_integration(physics.tire_integration);
+    vehicle.jump_config = physics.jump_config;
+    if physics.tire_integration == blackbox_vehicle::tires::TireIntegration::Reference {
+        vehicle.wall_steering_config = nfsmw_data::car::physics::wall_steering_config();
+    }
+    println!("comparison {name}: tire profile {:?}", vehicle.tire_integration());
+    vehicle
+}
+
 fn row(v: &Vehicle) -> String {
     let w: Vec<_> = (0..4).map(|i| v.wheel(i)).collect();
     format!(
@@ -29,17 +41,17 @@ fn compare_with_original() {
     let Some(dir) = install() else { return };
     let name = std::env::var("NFSMW_CAR").unwrap_or_else(|_| "BMWM3GTR".into());
     let data = PhysicsData::load(&dir).unwrap();
-    let spec = data.car(&name).unwrap().spec;
-    println!("== {name}: {} kg", spec.mass);
+    let template = installed_vehicle(&data, &name);
+    println!("== {name}: {} kg", template.spec().mass);
     let g = FlatGround::new(0.0);
-    let mut v = Vehicle::new(spec.clone());
+    let mut v = template.clone();
     v.place_on_ground(&g, 0.0, 0.0, 5.0, 0.0);
     for _ in 0..180 {
         v.step(FIXED_STEP, &InputState::default(), &g);
     }
     println!("rest      {}", row(&v));
     for speed in [10.0f32, 20.0, 30.0, 40.0] {
-        let mut c = Vehicle::new(spec.clone());
+        let mut c = template.clone();
         c.config.auto_reverse = false;
         c.place_moving(Vec3::new(0.0, 0.8, 0.0), Quat::IDENTITY, speed);
         for _ in 0..90 {
@@ -65,10 +77,10 @@ fn compare_with_original() {
 fn steering_lock_by_speed() {
     let Some(dir) = install() else { return };
     let name = std::env::var("NFSMW_CAR").unwrap_or_else(|_| "BMWM3GTR".into());
-    let spec = PhysicsData::load(&dir).unwrap().car(&name).unwrap().spec;
+    let template = installed_vehicle(&PhysicsData::load(&dir).unwrap(), &name);
     let g = FlatGround::new(0.0);
     for speed in [5.0f32, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0] {
-        let mut c = Vehicle::new(spec.clone());
+        let mut c = template.clone();
         c.place_moving(Vec3::new(0.0, 0.8, 0.0), Quat::IDENTITY, speed);
         let mut last = (0.0, 0.0);
         for _ in 0..30 {
@@ -90,10 +102,10 @@ fn steering_lock_by_speed() {
 fn steering_step_response() {
     let Some(dir) = install() else { return };
     let name = std::env::var("NFSMW_CAR").unwrap_or_else(|_| "BMWM3GTR".into());
-    let spec = PhysicsData::load(&dir).unwrap().car(&name).unwrap().spec;
+    let template = installed_vehicle(&PhysicsData::load(&dir).unwrap(), &name);
     let g = FlatGround::new(0.0);
     for speed in [5.0f32, 15.0, 30.0] {
-        let mut c = Vehicle::new(spec.clone());
+        let mut c = template.clone();
         c.place_moving(Vec3::new(0.0, 0.8, 0.0), Quat::IDENTITY, speed);
         for _ in 0..30 {
             c.step(FIXED_STEP, &InputState { throttle: 1.0, ..Default::default() }, &g);
@@ -167,15 +179,16 @@ fn replay_capture() {
     let num = |k: &str, d: f32| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
     let (from, to) = (num("NFSMW_FROM", 60.0), num("NFSMW_TO", 70.0));
     let name = std::env::var("NFSMW_CAR").unwrap_or_else(|_| "911GT2".into());
-    let spec = PhysicsData::load(&dir).unwrap().car(&name).unwrap().spec;
+    let mut v = installed_vehicle(&PhysicsData::load(&dir).unwrap(), &name);
     let cap: Vec<Sample> = read_capture(&path).into_iter().filter(|s| s.t >= from && s.t <= to).collect();
     assert!(cap.len() > 10, "no samples between {from} s and {to} s");
     let at = |t: f32| *cap.iter().min_by(|a, b| (a.t - t).abs().total_cmp(&(b.t - t).abs())).unwrap();
     let g = FlatGround::new(0.0);
-    let mut v = Vehicle::new(spec);
     v.config.auto_reverse = false;
     v.place_moving(Vec3::new(0.0, 0.8, 0.0), Quat::IDENTITY, cap[0].road);
-    println!("t      | original: speed lat F  lat R  load  | ours: speed lat F  lat R  load  | wheel deg  gas brake");
+    println!("diagnostic only: original speed is average wheel-road speed; ours is body-forward speed");
+    println!("pedals are reconstructed from torque; forced wheel angles bypass human steering");
+    println!("t      | original: road  lat F  lat R  load | ours: body   lat F  lat R  load | wheel deg  gas brake");
     let steps = ((to - from) / FIXED_STEP) as usize;
     for i in 0..steps {
         let t = from + i as f32 * FIXED_STEP;

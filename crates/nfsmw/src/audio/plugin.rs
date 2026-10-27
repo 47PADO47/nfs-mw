@@ -112,6 +112,8 @@ fn drive_car(
     // A scene that went away takes its soundtrack with it, even when the next one has none.
     if *seen != host.scene_changes {
         *seen = host.scene_changes;
+        audio.drive_car(None, 0.0);
+        audio.drive_second_car(None, 0.0);
         audio.stop_music();
         audio.stop_traffic();
         audio.stop_explosion();
@@ -123,6 +125,9 @@ fn drive_car(
     // Player 2's engine in a co-op session is a voice of its own, heard through the same listener.
     let second_car = host.scene.second_car_sound();
     audio.drive_second_car(second_car.as_ref(), time.delta_secs());
+    // HUD sync samples this on the next scene frame. No voice must clear a previous voice's value.
+    host.scene.note_car_visual_rpm(0, audio.car_visual_rpm(0));
+    host.scene.note_car_visual_rpm(1, audio.car_visual_rpm(1));
     audio.update_common(host.scene.take_common_sounds(), time.delta_secs());
     // The NIS player asks for the stream of the scene it plays, and hears back whether the stream still plays.
     audio.update_nis(host.scene.nis_audio().and_then(|request| request.scene.as_deref()));

@@ -479,7 +479,7 @@ impl Renderer {
             rt.set_material(
                 &self.queue,
                 handle.raw(),
-                Some(bytemuck::bytes_of(&MaterialUniform::new(material, brightness))),
+                Some(bytemuck::bytes_of(&MaterialUniform::new(material, brightness).ray_hit())),
             );
         }
         handle

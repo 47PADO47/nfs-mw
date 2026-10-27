@@ -7,6 +7,48 @@ fn body() -> RigidBody {
     RigidBody::new(1000.0, Vec3::new(1.0, 0.5, 2.0), Vec3::ONE, RigidBodySpec::default())
 }
 
+fn force_methods() -> [fn(&mut RigidBody, Vec3); 4] {
+    [
+        |body, value| body.apply_force(value),
+        |body, value| body.apply_torque(value),
+        |body, value| body.apply_force_at(value, Vec3::X * 2.0),
+        |body, value| body.apply_torque_at(value, Vec3::Z * 3.0),
+    ]
+}
+
+#[test]
+fn frozen_force_methods_preserve_existing_accumulators_and_velocities() {
+    for method in force_methods() {
+        for value in [Vec3::ZERO, Vec3::new(4.0, 8.0, 16.0)] {
+            let mut b = body();
+            b.force = Vec3::new(32.0, 64.0, 128.0);
+            b.torque = Vec3::new(256.0, 512.0, 1024.0);
+            b.linear_velocity = Vec3::new(2.0, 4.0, 8.0);
+            b.angular_velocity = Vec3::new(0.5, 1.0, 2.0);
+            b.state = BodyState::Frozen;
+            let before = b.clone();
+            method(&mut b, value);
+            assert_eq!(b.state, BodyState::Frozen);
+            assert_eq!(b.pending_force(), before.pending_force());
+            assert_eq!(b.pending_torque(), before.pending_torque());
+            assert_eq!(b.linear_velocity, before.linear_velocity);
+            assert_eq!(b.angular_velocity, before.angular_velocity);
+        }
+    }
+}
+
+#[test]
+fn zero_force_methods_wake_sleeping_bodies_without_adding_force() {
+    for method in force_methods() {
+        let mut b = body();
+        b.state = BodyState::Asleep;
+        method(&mut b, Vec3::ZERO);
+        assert_eq!(b.state, BodyState::Awake);
+        assert_eq!(b.pending_force(), Vec3::ZERO);
+        assert_eq!(b.pending_torque(), Vec3::ZERO);
+    }
+}
+
 #[test]
 fn free_fall_matches_gravity() {
     let mut b = body();
@@ -85,11 +127,42 @@ fn sleeps_when_slow_with_enough_contacts_and_wakes_on_force() {
     b.linear_velocity = Vec3::new(0.0, 0.0, 0.01);
     assert_eq!(b.update_sleep(2), BodyState::Awake);
     assert_eq!(b.update_sleep(4), BodyState::Asleep);
-    assert_eq!(b.linear_velocity, Vec3::ZERO);
+    assert_eq!(b.linear_velocity.z, 0.01, "sleep decision does not erase the current velocity");
     b.begin_frame(FIXED_STEP);
+    assert_eq!(b.linear_velocity, Vec3::ZERO);
     assert_eq!(b.position, Vec3::ZERO);
     b.apply_force(Vec3::X);
     assert_eq!(b.state, BodyState::Awake);
+}
+
+#[test]
+fn sleep_transition_preserves_pending_vectors_until_the_next_begin() {
+    let mut b = body();
+    b.linear_velocity = Vec3::X * 0.02;
+    b.angular_velocity = Vec3::Y * 0.005;
+    b.apply_force(Vec3::X * 64.0);
+    b.apply_torque(Vec3::Y * 32.0);
+    let before = b.clone();
+    assert_eq!(b.update_sleep(3), BodyState::Asleep);
+    assert_eq!(b.linear_velocity, before.linear_velocity);
+    assert_eq!(b.angular_velocity, before.angular_velocity);
+    assert_eq!(b.pending_force(), before.pending_force());
+    assert_eq!(b.pending_torque(), before.pending_torque());
+    let mut woken = b.clone();
+    b.begin_frame(FIXED_STEP);
+    assert_eq!(b.position, before.position);
+    assert_eq!(b.linear_velocity, Vec3::ZERO);
+    assert_eq!(b.angular_velocity, Vec3::ZERO);
+    assert_eq!(b.pending_force(), Vec3::ZERO);
+    assert_eq!(b.pending_torque(), Vec3::ZERO);
+
+    woken.apply_force(Vec3::ZERO);
+    assert_eq!(woken.state, BodyState::Awake);
+    assert_eq!(woken.linear_velocity, before.linear_velocity);
+    assert_eq!(woken.pending_force(), before.pending_force());
+    woken.begin_frame(FIXED_STEP);
+    assert!(woken.linear_velocity.x > before.linear_velocity.x);
+    assert!(woken.position.x > before.position.x);
 }
 
 #[test]

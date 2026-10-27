@@ -8,7 +8,6 @@ use super::{Banner, RaceSession, Stage, setup};
 use crate::hud::{Count, LABEL_KMH, game_word};
 use crate::i18n::t;
 use crate::input::{Action, ActionState};
-use crate::scenes::world::drive::STEP;
 use crate::scenes::world::{WorldScene, space};
 
 /// Seconds the world waits for a front end to show the post-race screen before it ends the race (a run without one).
@@ -47,6 +46,7 @@ impl WorldScene {
             Stage::Outro { .. } => self.race_outro(&mut session, frame_dt),
         };
         session.banner.left = (session.banner.left - frame_dt).max(0.0);
+        session.launch_banner.left = (session.launch_banner.left - frame_dt).max(0.0);
         self.sync_race_pursuit_context(&session);
         match keep {
             true => self.race = Some(session),
@@ -57,10 +57,10 @@ impl WorldScene {
     /// One physics tick of a running race: the clock, the racers' positions and checkpoints, the goals and the catch-up.
     /// It runs inside the tick loop, after the physics and the police, so a crossing is tested at the tick it happens
     /// and the race does not depend on how ticks group into frames (`docs/specs/multiplayer/determinism.md`, D2).
-    pub(in crate::scenes::world) fn race_tick(&mut self) {
+    pub(in crate::scenes::world) fn race_tick_with_delta(&mut self, dt: f32) {
         let Some(mut session) = self.race.take() else { return };
         let tick = match session.stage {
-            Stage::Running if session.challenge.is_none() => self.race_running(&mut session, STEP),
+            Stage::Running if session.challenge.is_none() => self.race_running(&mut session, dt),
             _ => Tick::Keep,
         };
         self.sync_race_pursuit_context(&session);
@@ -227,7 +227,10 @@ impl WorldScene {
                 },
                 RaceEvent::Go => {
                     flash_count(&mut session.banner, Count::Go, GO_SECS);
-                    self.release_grid();
+                    if self.release_grid() {
+                        flash(&mut session.launch_banner, crate::i18n::game_or_error(0xB1E2_E5C2), 3.2);
+                        session.banner.serial = session.launch_banner.serial;
+                    }
                 }
                 RaceEvent::TimeUp => {
                     flash(&mut session.banner, crate::i18n::game_or_error(LABEL_TIME_UP), BANNER_SECS * 2.0)
@@ -276,13 +279,12 @@ impl WorldScene {
     }
 
     /// GO: the player's car and the racers' cars are let go.
-    fn release_grid(&mut self) {
-        if let Some(drive) = self.players.lead_mut() {
-            drive.hold_on_grid(false);
-        }
+    fn release_grid(&mut self) -> bool {
+        let launched = self.players.lead_mut().is_some_and(|drive| drive.launch_from_grid());
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.release_racers();
         }
+        launched
     }
 
     /// The race-over message stays for its duration, or until Interact; then the post-race screen has the race.
@@ -347,13 +349,20 @@ fn note_gate(session: &RaceSession, event: &RaceEvent) {
     }
 }
 
-fn flash(banner: &mut Banner, text: String, secs: f32) {
-    *banner = Banner { text, left: secs, serial: banner.serial.wrapping_add(1), count: None };
+pub(super) fn flash(banner: &mut Banner, text: String, secs: f32) {
+    *banner = Banner { text, left: secs, serial: next_banner_serial(), count: None };
+}
+
+/// Presentation identities survive race restarts and stay below the reserved result-message range.
+fn next_banner_serial() -> u32 {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static NEXT: AtomicU32 = AtomicU32::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed) & ((1 << 30) - 1)
 }
 
 /// A countdown step as the banner: the countdown group shows it, and its text is the step's own.
 fn flash_count(banner: &mut Banner, step: Count, secs: f32) {
-    *banner = Banner { text: step.text(), left: secs, serial: banner.serial.wrapping_add(1), count: Some(step) };
+    *banner = Banner { text: step.text(), left: secs, serial: next_banner_serial(), count: Some(step) };
 }
 
 /// How far past a gate's centre an opponent aims, metres. A path that ends at the gate would stop the car short of it
@@ -375,6 +384,18 @@ pub(super) fn next_gate(course: &blackbox_race::Course, reached: usize) -> Optio
 mod tests {
     use super::*;
     use blackbox_race::{Course, Gate};
+
+    #[test]
+    fn separate_race_sessions_get_distinct_launch_message_identities() {
+        let mut first = Banner::default();
+        flash_count(&mut first, Count::Go, 3.0);
+        flash(&mut first, "launch".into(), 3.2);
+        let mut restarted = Banner::default();
+        flash_count(&mut restarted, Count::Go, 3.0);
+        flash(&mut restarted, "launch".into(), 3.2);
+        assert_ne!(first.serial, restarted.serial);
+        assert!(first.serial < 1 << 30 && restarted.serial < 1 << 30);
+    }
 
     fn gate(z: f32) -> Gate {
         Gate::new(Vec3::new(0.0, 0.0, z), Vec3::Z, Vec3::Y, [2.0, 40.0, 10.0])

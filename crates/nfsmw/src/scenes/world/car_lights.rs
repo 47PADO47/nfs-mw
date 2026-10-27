@@ -63,6 +63,8 @@ pub struct LampState {
     pub steer: f32,
     /// The headlights are on.
     pub headlights: bool,
+    /// Optional enhanced optics; original flare profiles remain unchanged when false.
+    pub enhanced: bool,
     /// Turn signals are enabled (the `turn_signals` setting).
     pub turn_signals: bool,
     /// Simulated seconds, for the blinking.

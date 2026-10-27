@@ -1,5 +1,16 @@
 use super::*;
 
+#[test]
+fn ordered_alignment_dot_keeps_the_small_z_term_before_x_cancellation() {
+    assert_eq!(ordered_dot(Vec3::new(100_000_000.0, -100_000_000.0, 1.0), Vec3::ONE), 0.0);
+}
+
+#[test]
+fn unit_cross_rejects_nearly_parallel_axes_before_normalizing() {
+    assert_eq!(unit_cross(Vec3::X, Vec3::new(1.0, 0.0005, 0.0)), Vec3::ZERO);
+    assert_eq!(unit_cross(Vec3::X, Vec3::new(1.0, 0.002, 0.0)), Vec3::Z);
+}
+
 fn fixture_config() -> JumpConfig {
     JumpConfig {
         extra_airborne_acceleration: 3.0,

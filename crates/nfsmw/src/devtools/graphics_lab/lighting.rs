@@ -4,11 +4,14 @@ use super::*;
 
 mod car;
 mod dependencies;
+mod world;
 
 pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Settings) {
     let defaults = super::profiles::defaults(settings).appearance.lighting;
     ui.add_enabled_ui(lab.stats.supported, |ui| {
         car::show(ui, lab, settings);
+        ui.separator();
+        world::show(ui, lab, settings);
         ui.separator();
         super::controls::checkbox(ui, &mut lab.options.sun_shadows, "Sun shadows", defaults.sun_shadows);
         ui.add_enabled_ui(lab.ray_reflections_available, |ui| {

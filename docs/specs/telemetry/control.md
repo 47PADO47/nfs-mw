@@ -107,7 +107,7 @@ Not exposed, with the reason:
   example `not driving` for `tp`).
 - **Pause and loading.** The command queue is drained every frame, including paused frames, so a write made while
   paused runs then (the scene's own checks still decide). A `clock.set` during pause changes the stored clock; the
-  sun and the lights show the new hour from the next frame.
+  sun shows the new hour from the next frame. Player headlights retain their manual state.
 - **Ordering.** Writes run in arrival order at the frame boundary. Two writes in one frame run in order.
 - **Rate.** At most 10 accepted writes per second (section 3).
 - **No free text.** The server sends a command name and an argument list. It never builds a console line from
@@ -121,7 +121,7 @@ Not exposed, with the reason:
 - A write made while a pursuit runs changes it at once: `pursuit.stop` ends the chase through the pursuit's own end
   path (EndReason), so the HUD and the camera react the same way they would to the console.
 - `clock.set` is the first write that changes a visible state with no gameplay side effect. It needs a test that the
-  sun and the lights follow the new hour, using the same tests as `day.rs`.
+  sun follows the new hour; player headlights retain their manual state.
 - The writes never bypass the scene's checks. The server adds no check of its own beyond the schema, the scene
   requirement and the rate limit; whatever the console would refuse, the server refuses with the same text.
 

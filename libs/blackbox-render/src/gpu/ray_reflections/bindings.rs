@@ -3,7 +3,7 @@ use wgpu::util::DeviceExt;
 pub(super) const MAX_INSTANCES: usize = 32768;
 // Fourteen flag bits encode the shading family/material slot; values 0..2 are non-glossy.
 pub(super) const MAX_MATERIALS: usize = (1 << 14) - 3;
-pub(super) const MATERIAL_STRIDE: usize = 112;
+pub(in crate::gpu) const MATERIAL_STRIDE: usize = 112;
 pub(super) fn tlas(device: &wgpu::Device, capacity: usize) -> wgpu::Tlas {
     device.create_tlas(&wgpu::CreateTlasDescriptor {
         label: Some("RT reflection TLAS"),

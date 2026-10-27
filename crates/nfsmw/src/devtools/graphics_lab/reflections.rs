@@ -14,7 +14,8 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
                 ui.add(egui::Slider::new(metres, 25..=2000).text("Capture distance (m)"));
             }
             ui.small("Enhanced quality presets use 100 / 200 / 300 / 500 m. Range limits car and mirror geometry; update rate is separate.");
-            size(ui, "Rear-view capture size", &mut settings.reflection_mirror_size);
+            size(ui, "Rear-view image height", &mut settings.reflection_mirror_size);
+            ui.small("Auto targets one-sixth of the output height. Other choices set the picture height in pixels; larger sizes can cost more GPU time. Wide mirrors may be limited by the maximum texture size.");
             egui::ComboBox::from_label("Mirror tint")
                 .selected_text(reflection_res::tint_label(settings.mirror_tint))
                 .show_ui(ui, |ui| {
@@ -27,8 +28,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
 
 fn size(ui: &mut egui::Ui, label: &str, value: &mut ReflectionSize) {
     egui::ComboBox::from_label(label).selected_text(reflection_res::size_label(*value)).show_ui(ui, |ui| {
-        for size in reflection_res::MENU_SIZES.into_iter().chain([128, 256, 512, 1024, 2048].map(ReflectionSize::Fixed))
-        {
+        for size in reflection_res::MENU_SIZES {
             ui.selectable_value(value, size, reflection_res::size_label(size));
         }
     });

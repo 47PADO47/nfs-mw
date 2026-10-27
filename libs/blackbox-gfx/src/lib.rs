@@ -47,7 +47,7 @@ pub use caps::{
 };
 pub use capture::{RgbaImage, ViewCaptureUi};
 pub use display::{DisplaySettings, DisplayStatus, HdrMode};
-pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, TexturedEffect};
+pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, FlameAppearance, FlameVolume, TexturedEffect};
 pub use error::RenderError;
 pub use focus::FocusFilter;
 pub use frame::{

@@ -115,8 +115,11 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
     if globals.fog_range.w<0.5 && in.receives_shadow != 0u { q = direct_visibility(in.world,plane,in.clip.xy); }
     if globals.fog_range.w>2.5 && in.receives_shadow != 0u { q = capture_sun_visibility(in.world,plane); }
     var ao = 1.0;
+    q *= cloud_visibility(in.world);
     if receive_ao && globals.fog_range.w<0.5 { ao = ambient_visibility(in.clip.xy); }
-    var surface = 2.0*(tex.rgb*in.ambient.rgb*ao+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected);
+    let shading_normal = unit(in.tangent*n.x+in.binormal*n.y+in.normal*n.z);
+    let ambient = in.ambient.rgb*world_environment(shading_normal);
+    var surface = 2.0*(tex.rgb*ambient*ao+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected);
     if uv_offset.value.z>0.5 && light.wet_tuning.x>0.5 && light.water.x>0.0 {
         surface = wet_surface(in, tex, spec_tex, n, l, v, diffuse_light, q, ao, surface);
     }
@@ -224,7 +227,8 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
             +wet_capture(uv+pixel*vec2(0.0,radius),pixel)
             +wet_capture(uv-pixel*vec2(0.0,radius),pixel)+center*4.0)/8.0;
     }
-    let base = 2.0*tex.rgb*(in.ambient.rgb*ao+diffuse_light*max(dot(water_n,l),0.0)*q);
+    let shading_normal = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
+    let base = 2.0*tex.rgb*(in.ambient.rgb*world_environment(shading_normal)*ao+diffuse_light*max(dot(water_n,l),0.0)*q);
     let diffuse = wet_linear(base)*mix(1.0,0.72,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
     let power = mix(24.0,192.0,pool);
     let h = unit(l+v);

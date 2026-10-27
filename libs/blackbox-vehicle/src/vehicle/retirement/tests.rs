@@ -108,3 +108,40 @@ fn wreck_sleep_reaches_the_fixed_step_wheel_pipeline_persists_and_wakes_on_impul
     car.finish_retirement_contacts();
     assert_eq!(car.body.state, BodyState::Awake, "moving wrecks must remain physical");
 }
+
+#[test]
+fn reference_body_end_reads_prior_support_timer_and_distinct_object_veto() {
+    let mut car = candidate();
+    car.set_tire_integration(crate::tires::TireIntegration::Reference);
+    assert_eq!(car.reference_sleep_contacts(0), None);
+    car.advance_retirement_support(1.0);
+    assert_eq!(car.reference_sleep_contacts(0), None);
+    car.advance_retirement_support(1.0);
+    assert_eq!(car.reference_sleep_contacts(0), Some(4));
+    car.notify_collision(0.0);
+    assert_eq!(car.reference_sleep_contacts(0), Some(4));
+    car.mark_object_contact();
+    assert_eq!(car.reference_sleep_contacts(0), None);
+    car.begin_retirement_frame();
+    car.set_retirement_sleep_delay(None);
+    assert_eq!(car.reference_sleep_contacts(0), None);
+    car.wheels_on_ground = 0;
+    assert_eq!(car.reference_sleep_contacts(3), Some(3));
+    car.finish_retirement_contacts();
+    assert_eq!(car.body.state, BodyState::Awake, "late pose sync cannot put Reference bodies to sleep");
+}
+
+#[test]
+fn reference_retirement_crossing_waits_for_the_next_body_end() {
+    let mut car = candidate();
+    car.set_tire_integration(crate::tires::TireIntegration::Reference);
+    car.body.position = Vec3::Y * 5.0;
+    car.advance_retirement_support(1.5);
+    car.finish_body_step(FIXED_STEP, &FlatGround::new(0.0));
+    assert_eq!(car.body.state, BodyState::Awake);
+    car.advance_retirement_support(0.5);
+    car.finish_retirement_contacts();
+    assert_eq!(car.body.state, BodyState::Awake, "the later callback cannot sleep the body this tick");
+    car.finish_body_step(FIXED_STEP, &FlatGround::new(0.0));
+    assert_eq!(car.body.state, BodyState::Asleep);
+}

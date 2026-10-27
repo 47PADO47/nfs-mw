@@ -76,7 +76,7 @@ pub fn apply(requests: Vec<ClockRequest>, scene: &mut dyn Scene) {
     scene.set_environment(Environment { hour, seconds_per_hour: rate, ..env });
 }
 
-/// Whether the headlights are on at `hour`, by the game's default day-night curves (the world's clock uses them).
+/// Time-derived lighting flag exposed by the existing mod API, independent of player headlights.
 fn lights_on(hour: f32) -> bool {
     day_night::lights_on(hour, &DayNightConfig::default())
 }

@@ -7,6 +7,7 @@
 //! the install, and only while the `exhaust_flames` setting is on.
 
 mod command;
+mod enhanced;
 mod load;
 mod trigger;
 
@@ -56,6 +57,7 @@ struct Lane {
 
 /// The flames of a loaded car.
 struct Active {
+    enhanced: enhanced::Enhanced,
     /// Each pipe's frame in the car model's space.
     pipes: Vec<Mat4>,
     lanes: Vec<Lane>,
@@ -89,6 +91,7 @@ enum State {
 }
 
 pub struct ExhaustFlames {
+    enhanced: bool,
     enabled: bool,
     state: State,
     /// GPU textures to free at the next chance (a renderer is needed).
@@ -104,7 +107,15 @@ pub struct ExhaustFlames {
 impl Default for ExhaustFlames {
     /// Off, and nothing allocated.
     fn default() -> Self {
-        Self { enabled: false, state: State::Unloaded, stale: Vec::new(), engine_level: 0, pops: 0, forced: false }
+        Self {
+            enhanced: false,
+            enabled: false,
+            state: State::Unloaded,
+            stale: Vec::new(),
+            engine_level: 0,
+            pops: 0,
+            forced: false,
+        }
     }
 }
 
@@ -142,7 +153,7 @@ impl Active {
     /// One physics step: the shift event and the backfire, then every pipe's emitters (spawning while the pipes
     /// flame). A step with nothing flaming and nothing alive does no more than that.
     fn step(&mut self, dt: f32, car: &CarState, pops: u32, forced: bool, engine_level: i32) {
-        self.shift.note_gear(car.gear);
+        let shifted = self.shift.note_gear(car.gear);
         self.shift.advance(dt, car.gear, car.velocity.length(), self.timing);
         self.backfire.pops(pops, car.throttle, car.gear);
         if forced {
@@ -152,6 +163,14 @@ impl Active {
         self.intensity = flame_intensity(blowoff, &self.shift, &self.backfire);
         self.backfire.advance(dt);
         self.nitrous = car.nitrous;
+        let event = match forced || (pops > 0 && car.throttle < trigger::LIFT_OFF_THROTTLE && car.gear >= 1) {
+            true => Some(crate::garage::BackfireEvent::Pop),
+            false => match shifted && blowoff && self.shift.active() {
+                true => Some(crate::garage::BackfireEvent::Shift),
+                false => None,
+            },
+        };
+        self.enhanced.step(dt, car, event);
         if self.intensity == 0.0 && !self.nitrous && self.live == 0 {
             return;
         }
@@ -171,6 +190,7 @@ impl Active {
     }
 
     fn age(&mut self, dt: f32) {
+        self.enhanced.age(dt);
         self.intensity = 0.0;
         self.nitrous = false;
         if self.live == 0 {
@@ -184,6 +204,7 @@ impl Active {
     }
 
     fn disconnect(&mut self) {
+        self.enhanced.disconnect();
         self.shift.reset();
         self.backfire.reset();
         self.intensity = 0.0;
@@ -243,8 +264,58 @@ impl ExhaustFlames {
         self.enabled
     }
 
-    /// The `exhaust_flames` setting. Turning it off drops the emitters and frees the textures at the next chance;
-    /// turning it on loads the car's flames at the next frame.
+    /// Select the enhanced appearance while retaining the original particle fallback.
+    pub fn set_enhanced(&mut self, on: bool) {
+        self.enhanced = on;
+        if let State::Ready(active) = &mut self.state {
+            active.enhanced.enabled = on;
+        }
+    }
+
+    pub fn set_appearance(&mut self, appearance: &crate::garage::ExhaustSelection) {
+        if let State::Ready(active) = &mut self.state {
+            active.enhanced.appearance = appearance.clone();
+        }
+    }
+
+    pub fn set_preview(&mut self, on: bool) {
+        if let State::Ready(active) = &mut self.state {
+            active.enhanced.set_preview(on);
+        }
+    }
+
+    pub fn set_backfire(
+        &mut self,
+        style: crate::settings::BackfireStyle,
+        preview: Option<crate::garage::BackfireEvent>,
+        garage_open: bool,
+    ) {
+        if let State::Ready(active) = &mut self.state {
+            active.enhanced.backfire_style = style;
+            if !garage_open {
+                active.enhanced.clear_backfire_preview();
+                return;
+            }
+            if let Some(event) = preview {
+                active.enhanced.preview_backfire(event);
+            }
+        }
+    }
+
+    /// Match the rendered car between fixed physics steps, keeping the flame root on the pipe.
+    pub fn set_render_pose(&mut self, pose: Mat4) {
+        if let State::Ready(active) = &mut self.state {
+            active.enhanced.set_pose(pose);
+        }
+    }
+
+    pub fn advance_visual(&mut self, dt: f32, pose: Mat4) {
+        if let State::Ready(active) = &mut self.state {
+            active.enhanced.advance_visual(dt, pose);
+        }
+    }
+
+    /// Turning off unloads textures; turning on loads the car's flames at the next frame.
     pub fn set_enabled(&mut self, on: bool) {
         self.enabled = on;
         if !on {
@@ -259,6 +330,7 @@ impl ExhaustFlames {
         self.forced = false;
         let State::Ready(active) = std::mem::replace(&mut self.state, State::Unloaded) else { return };
         self.stale.extend(active.textures.iter().filter_map(|t| t.handle));
+        self.stale.extend(active.enhanced.texture);
     }
 
     /// Whether the next frame should load the car's flames.
@@ -331,6 +403,9 @@ impl ExhaustFlames {
     pub fn geometry(&mut self, camera: Vec3, forward: Vec3, layer: &mut EffectLayer) {
         let State::Ready(active) = &mut self.state else { return };
         active.handed.clear();
+        if active.enhanced.geometry(&active.pipes, &mut layer.flames) {
+            return;
+        }
         if active.live == 0 {
             return;
         }
@@ -343,6 +418,21 @@ impl ExhaustFlames {
             let vertices = std::mem::take(&mut lane_of(&mut active.lanes, &mut active.blue, lane).vertices);
             active.handed.push((lane, handle, layer.textured.len()));
             layer.textured.push(TexturedEffect { texture: handle, blend, vertices });
+        }
+    }
+
+    /// Append flames and constrain only these new volumes against resident world collision.
+    pub fn geometry_in_world(
+        &mut self,
+        camera: Vec3,
+        forward: Vec3,
+        world: &blackbox_collision::CollisionWorld,
+        layer: &mut EffectLayer,
+    ) {
+        let start = layer.flames.len();
+        self.geometry(camera, forward, layer);
+        if let State::Ready(active) = &self.state {
+            active.enhanced.contact(world, layer, start);
         }
     }
 
