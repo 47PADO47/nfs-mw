@@ -251,7 +251,7 @@ fn carried_share(effect: &EffectProfile) -> f32 {
 
 /// The emitter's intensity (its rate is multiplied by it) that makes the spawn rate `rate + rate_per_speed * speed`: the
 /// emitter's own rate is `rate`, or `rate_per_speed` itself when the effect has no rate at rest.
-pub(super) fn spawn_intensity(rate: f32, rate_per_speed: f32, speed: f32) -> f32 {
+pub(in crate::scenes::world) fn spawn_intensity(rate: f32, rate_per_speed: f32, speed: f32) -> f32 {
     match rate > 0.0 {
         true => 1.0 + rate_per_speed * speed / rate,
         false => speed,
@@ -259,7 +259,7 @@ pub(super) fn spawn_intensity(rate: f32, rate_per_speed: f32, speed: f32) -> f32
 }
 
 /// The emitter parameters of an effect: the profile's numbers on the game's own emitter model.
-pub(super) fn emitter_spec(effect: &EffectProfile) -> EmitterSpec {
+pub(in crate::scenes::world) fn emitter_spec(effect: &EffectProfile) -> EmitterSpec {
     EmitterSpec {
         animation: Animation { grid: effect.grid, fps: effect.fps, random_start: effect.random_start },
         // With no rate at rest the emitter's rate is the one per metre a second, and the intensity is the speed.
@@ -306,32 +306,45 @@ fn lane(effect: &EffectProfile, index: usize, pipes: usize, texture: usize) -> L
 
 /// Read the effect's picture and upload it, or `None` with a warning.
 fn upload(renderer: &mut dyn RenderBackend, dir: &GameDir, effect: &EffectProfile) -> Option<SpriteTexture> {
-    let bytes = match dir.read(&effect.texture) {
+    let (handle, blend) = upload_png(renderer, dir, &effect.texture, effect.additive, "nitrous variant")?;
+    Some(SpriteTexture { handle: Some(handle), blend })
+}
+
+/// Read the PNG at `path` of the install's layers and upload it with the blend a particle layer asks for, or `None` with a
+/// warning that starts with `what` (the effect variant it is for). Shared by the effect variants that draw particles.
+pub(in crate::scenes::world) fn upload_png(
+    renderer: &mut dyn RenderBackend,
+    dir: &GameDir,
+    path: &str,
+    additive: bool,
+    what: &str,
+) -> Option<(TextureHandle, BlendMode)> {
+    let bytes = match dir.read(path) {
         Ok(bytes) => bytes,
         Err(error) => {
-            log::warn!("nitrous variant: {} is not read: {error}", effect.texture);
+            log::warn!("{what}: {path} is not read: {error}");
             return None;
         }
     };
     let image = match crate::ui::decode_png_rgba(&bytes) {
         Ok(image) => image,
         Err(error) => {
-            log::warn!("nitrous variant: {} is not a usable PNG: {error:#}", effect.texture);
+            log::warn!("{what}: {path} is not a usable PNG: {error:#}");
             return None;
         }
     };
     let handle = renderer.create_texture(&TextureDesc {
-        label: &effect.texture,
+        label: path,
         width: image.width,
         height: image.height,
         format: PixelFormat::Rgba8,
         mips: vec![&image.rgba[..]],
     });
-    let blend = match effect.additive {
+    let blend = match additive {
         true => BlendMode::Additive,
         false => BlendMode::AlphaBlend,
     };
-    Some(SpriteTexture { handle: Some(handle), blend })
+    Some((handle, blend))
 }
 
 /// A sprite ready to draw: its depth, corners, colour and texture window.

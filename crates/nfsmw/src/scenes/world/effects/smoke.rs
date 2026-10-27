@@ -2,11 +2,15 @@
 
 use std::collections::VecDeque;
 
-use crate::settings::SmokeQuality;
+use crate::settings::{SmokeQuality, SmokeTint};
 use blackbox_gfx::{EffectLayer, EffectVertex};
 use glam::Vec3;
 
+use super::tint;
 use super::{Contact, MAX_HIGH_PARTICLES, MAX_PARTICLES};
+
+/// The colour of the game's own smoke (red, green, blue).
+pub(super) const BASE_COLOR: [u8; 3] = [172, 174, 177];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Particle {
@@ -17,10 +21,15 @@ struct Particle {
     life: f32,
     opacity: f32,
     seed: f32,
+    /// What the colour mode reads of the moment the puff was born (`tint::level_of`).
+    level: f32,
 }
 
 pub(super) struct Smoke {
     pub quality: SmokeQuality,
+    tint: SmokeTint,
+    /// Seconds of smoke time, which turns the rainbow.
+    clock: f32,
     particles: VecDeque<Particle>,
     emission: [f32; 4],
     pub emitted: u64,
@@ -31,6 +40,8 @@ impl Default for Smoke {
     fn default() -> Self {
         Self {
             quality: SmokeQuality::Standard,
+            tint: SmokeTint::default(),
+            clock: 0.0,
             particles: VecDeque::with_capacity(MAX_PARTICLES),
             emission: [0.0; 4],
             emitted: 0,
@@ -49,6 +60,10 @@ impl Smoke {
         let limit = self.limit();
         self.particles.reserve(limit);
         self.order.reserve(limit);
+    }
+
+    pub fn set_tint(&mut self, tint: SmokeTint) {
+        self.tint = tint;
     }
 
     pub fn limit(&self) -> usize {
@@ -75,6 +90,7 @@ impl Smoke {
     }
 
     pub fn age(&mut self, dt: f32) {
+        self.clock = (self.clock + dt) % 3600.0;
         for p in &mut self.particles {
             p.age += dt;
             p.position += p.velocity * dt;
@@ -88,6 +104,7 @@ impl Smoke {
             return;
         };
         let detailed = self.quality == SmokeQuality::High;
+        let level = tint::level_of(self.tint.mode, velocity.length(), c.smoke);
         let rate = if detailed { 70.0 } else { 35.0 };
         // A long frame cannot owe more puffs than the buffer holds.
         self.emission[wheel] = (self.emission[wheel] + c.smoke * rate * dt).min(self.limit() as f32);
@@ -108,6 +125,7 @@ impl Smoke {
                 life: 1.4 + vary.abs() * 0.6,
                 opacity: if detailed { 0.55 * c.smoke } else { 0.36 * c.smoke },
                 seed: n * 2.399_963,
+                level,
             });
             self.emitted += 1;
         }
@@ -131,7 +149,9 @@ impl Smoke {
             let (sin, cos) = angle.sin_cos();
             let (r, u) = ((right * cos + up * sin) * scale, (up * cos - right * sin) * scale);
             let corners = [p.position - r - u, p.position + r - u, p.position + r + u, p.position - r + u];
-            EffectLayer::particle_quad(out, corners, [172, 174, 177, (alpha * 255.0) as u8], [p.age, p.seed]);
+            let [r, g, b] =
+                tint::smoke_rgb(self.tint, BASE_COLOR, tint::rainbow_phase(self.clock, p.position), p.level);
+            EffectLayer::particle_quad(out, corners, [r, g, b, (alpha * 255.0) as u8], [p.age, p.seed]);
         }
     }
 }

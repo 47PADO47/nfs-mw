@@ -3,10 +3,12 @@
 //!
 //! [`Effect::parse`] reads the structure from the resource's main block: the header, the emitters, each emitter's tasks (an
 //! operation id and a parameter block) and the stage lists that say in which order the tasks run. The operations whose
-//! parameters are understood have typed readers in [`decode`].
+//! parameters are understood have typed readers in [`decode`] (and [`wheel`] for the wheel spawner).
 
+pub mod collision;
 pub mod decode;
 pub mod ops;
+pub mod wheel;
 
 #[cfg(test)]
 mod tests;
