@@ -1,5 +1,5 @@
 //! The game's side of the interfaces a mod can ask for: the generic ones (`bb.commands`, `bb.input`, `bb.time`, `bb.map`,
-//! `bb.menus`, and `bb.vehicles`, `bb.hud`, `bb.camera`, `bb.audio`, `bb.world`, `bb.ui`) and the three `nfsmw.*` ones (`nfsmw.pursuit`,
+//! `bb.menus`, `bb.config`, and `bb.vehicles`, `bb.hud`, `bb.camera`, `bb.audio`, `bb.world`, `bb.ui`) and the three `nfsmw.*` ones (`nfsmw.pursuit`,
 //! `nfsmw.career` over the career being played, and `nfsmw.races` over the world's race snapshot, `races_feed`).
 //!
 //! Each interface has a backend trait in `blackbox-modding` or `nfsmw-modding` and a port here that implements it. A call
@@ -13,6 +13,7 @@ mod bridge;
 mod camera;
 mod career;
 pub mod commands;
+mod config;
 mod content;
 mod hud;
 mod i18n;
@@ -36,6 +37,8 @@ mod camera_tests;
 mod career_tests;
 #[cfg(test)]
 mod commands_tests;
+#[cfg(test)]
+mod config_tests;
 #[cfg(test)]
 mod input_tests;
 #[cfg(test)]
@@ -80,6 +83,7 @@ pub fn interfaces() -> Interfaces {
     registry
         .add_commands(Rc::new(commands::CommandsPort(bridge.clone())))
         .add_content(Rc::new(content::ContentPort(bridge.clone())))
+        .add_config(Rc::new(config::ConfigPort::new()))
         .add_input(Rc::new(input::InputPort(bridge.clone())))
         .add_time(Rc::new(time::TimePort(bridge.clone())))
         .add_map(Rc::new(map::MapPort(bridge.clone())))
