@@ -22,6 +22,10 @@ use super::{Channel, Gate, KEYS, Kind, Set, Spark};
 const MAX_EMITTERS: usize = 8;
 /// The restored spark style has two line emitters in a channel.
 const MAX_LINES: usize = 2;
+/// The widest a layer may be, metres (`blackbox_modding::content::parse_sparks_profile` refuses more).
+const MAX_SIZE: f32 = 10.0;
+/// The brightness up to which a layer is drawn with alpha blending rather than added.
+const DUST_BRIGHTNESS: f32 = 1.5;
 
 /// A number with at most four decimals and no trailing zeros, always with a decimal point (the profiles hold floats).
 pub(super) fn num(value: f32) -> String {
@@ -108,7 +112,13 @@ fn pc_emitters(out: &mut String, section: &str, count_key: &str, channel: &Chann
             };
             let _ = writeln!(out, "grid = {cells}");
         }
-        let _ = writeln!(out, "blend = \"additive\"");
+        // A sprite that is not overbright (the grey dust) is a haze, not a light: it covers instead of adding.
+        let glows = spark.brightness.iter().any(|brightness| *brightness > DUST_BRIGHTNESS);
+        let blend = match glows {
+            true => "additive",
+            false => "alpha",
+        };
+        let _ = writeln!(out, "blend = \"{blend}\"");
         let _ = writeln!(out, "{count_key} = {}", num(count(spark).round()));
         let _ = writeln!(out, "life = {}", num(spark.life[1]));
         let _ = writeln!(out, "life_variance = {}", num(variance(spark.life)));
@@ -127,7 +137,9 @@ fn pc_emitters(out: &mut String, section: &str, count_key: &str, channel: &Chann
             let _ = writeln!(out, "stretch = {}", num(stretch));
         }
         let _ = writeln!(out, "keys = {}", list(&KEYS));
-        let _ = writeln!(out, "size = {}", list(&spark.width));
+        // The profile takes at most MAX_SIZE metres; the 2012 dust sprite (3 m radius growing to 1.85 times) is wider.
+        let size: Vec<f32> = spark.width.iter().map(|width| width.min(MAX_SIZE)).collect();
+        let _ = writeln!(out, "size = {}", list(&size));
         let colors: Vec<String> = (0..KEYS.len())
             .map(|k| {
                 let [r, g, b] = spark.rgb[k];

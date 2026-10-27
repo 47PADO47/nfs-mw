@@ -22,12 +22,28 @@ Restored style's wind contrail and the view streaks of the speed trails have no 
 
 ## What stays the game's
 
-The install's triggers are not replaced, only what is thrown and how strong it is. A contact plays only when the install's own link
-for it accepts it: the contact closes (an impact needs a closing speed above 1 m/s and, for the Restored style, a reaction impulse)
-or slides (above 1 m/s and at least the link's minimum), the surface has a spark group in the install, and for the Original PC style
-the camera is inside the group's cull distance. The collision sparks apply to **vehicles** (the player's, traffic and police cars)
-only; props (lamp posts, fences, wood, glass) keep their own groups, because the 2012 per-surface mapping is not decoded. A channel
-the profile has no layer or spark for (`[hit]` or `[scrape]` absent, or with none) is the install's, exactly as it was.
+The variants replace what is thrown and how strong it is. What the install keeps is whether a surface sparks at all and where the
+camera must be, and for the ground and the car's underside also its own acceptance of the contact.
+
+**A car against a wall, a barrier, a guard rail or a prop** (the world's collision mesh and the scenery; a car against a car
+too) is played by the profile's own gates:
+
+- an **impact** plays when the contact closes (a closing speed above 1 m/s) and the wall reacted to the car; the strength is the
+  profile's curve of the closing speed. The install's own ramp (a reaction of 1 m/s or more) is not asked, so a tap of 3 m/s plays;
+- a **scrape** plays whenever the car slides along the surface; the profile's gate (the 2012 one: nothing below 0.73 m/s, full from
+  1.37) says how much. The install's scrape would start only at 5 m/s of sliding speed, which would leave out the slow slides the
+  2012 game sparks;
+- the surface must have a spark in the install for the style: in the **Original PC** style a particle group (every surface of the
+  installed cars has one, wood included), in the **Restored** style a restored spark, **unless the profile has sparks for that
+  channel**, which then plays on any surface (the install has no restored spark for wood, a fence of wood sparks in 2012 all the same);
+- the group's draw distance applies to the Original PC style (100 m for the installed cars).
+
+A wall reacts to a car in some steps only (a car sliding along it is pushed back and comes in again), so a scrape goes on from the
+car's last contact for 0.1 s when a step brings none (the install keeps its scrape for 0.2 s the same way).
+
+The **ground** (a landing, the underside) keeps the install's acceptance of the contact: it closes or slides, with the link's
+minimum. A channel the profile has no layer or spark for (`[hit]` or `[scrape]` absent, or with none) is the install's, exactly
+as it was. With the variant **Original** nothing here changes.
 
 ## Common to both profiles
 
@@ -144,6 +160,10 @@ below 1 dimmer ones) and `max_sparks`. The contact flash takes the colour of the
 The contact patch area (a nominal 0.39 m^2), the segment length factor (the executable's own constant is taken as 1), the speed
 scaling of the scrape (taken as none), that a scrape's strength follows the sliding speed and an impact's the closing speed (the
 inputs are named `ImpactClosingVelocity` and the effect's `Velocity`; the code that fills them was not found), and which of the 8
-surface slots the install's default is (the mod takes the effect the objects list most). The look of the variants in the
-renderer (the streak picture, the overbright) has not been compared with the 2012 game. The tests cover the parsers, the strength
-curves, the counts and speeds and the gating; no screenshot has been taken.
+surface slots the install's default is (the mod takes the effect the objects list most). That the 2012 game sparks a wall in every
+state of the car (its trigger code was not found; the host plays any wall contact that closes above 1 m/s or slides). The mod writes the
+2012 dust (3 m radius, growing to 1.85 times) at most 10 m wide, which is the most a layer may be, and draws a sprite that is not
+overbright (the dust) with alpha blending instead of adding it; the 2012 blend of the dust is not decoded. The look of the variants in
+the renderer (the streak picture, the overbright, the flash that a scrape throws 196 times a second) has not been compared with the
+2012 game. The tests cover the parsers, the strength curves, the counts and speeds, the gating and the wall contacts (a fake wall
+contact at 20 m/s, a slide at 0.5 and at 2 m/s); no screenshot of the variant has been taken.

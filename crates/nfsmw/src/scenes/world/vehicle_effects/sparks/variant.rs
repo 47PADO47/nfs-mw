@@ -1,12 +1,13 @@
 //! The restored spark variant a mod gives (`XENON/<value>/profile.toml`, `docs/modding/effect-variants-sparks-xenon.md`): the
 //! numbers of the two line sparks the **Restored (Experimental)** style throws at an impact and at a scrape.
 //!
-//! The install's triggers stay: a contact must close or slide, and the surface must have a restored spark of its own
-//! (`CollisionEffects`), for anything to be thrown. With a variant chosen, a channel the profile has sparks for is played
-//! from the profile instead of the install: the strength comes from the profile's gate (`[hit]`: the closing speed, `[scrape]`:
-//! the sliding speed), and the strength scales the count of an impact and its speed; a scrape scales the rate. A channel the
-//! profile has no spark for keeps the install's, exactly as it was. The wind contrail and the view streaks are not here: the
-//! 2012 game has none, so the variant is the sparks only.
+//! The install's triggers stay for its own sparks: a contact must close or slide, and the surface must have a restored spark of
+//! its own (`CollisionEffects`). With a variant chosen, a channel the profile has sparks for is played from the profile instead:
+//! on any surface (a wall of wood too, `stand_in`), the impact when the contact closes and the wall reacted, the scrape whenever
+//! the car slides (the install's minimum of 5 m/s does not apply). The strength comes from the profile's gate (`[hit]`: the
+//! closing speed, `[scrape]`: the sliding speed), and it scales the count of an impact and its speed; a scrape scales the rate.
+//! A channel the profile has no spark for keeps the install's, exactly as it was. The wind contrail and the view streaks are not
+//! here: the 2012 game has none, so the variant is the sparks only.
 
 use std::sync::Arc;
 
@@ -84,6 +85,17 @@ pub(super) fn hit_played(profile: &XenonProfile, closing: f32) -> Option<Played>
 pub(super) fn scrape_played(profile: &XenonProfile, sliding: f32) -> Option<Played> {
     let strength = profile.scrape.strength(sliding)?;
     Some(played(&profile.scrape.items, strength))
+}
+
+/// The link of a surface the install has no restored spark for (wood, say) when the variant has sparks for the channel: a wall
+/// of any material sparks in the 2012 game. It holds nothing of the install's, the variant's sparks replace all of it.
+pub(super) fn stand_in(profile: Option<&XenonProfile>, hit: bool) -> Option<SparkLink> {
+    let profile = profile?;
+    let has = match hit {
+        true => !profile.hit.items.is_empty(),
+        false => !profile.scrape.items.is_empty(),
+    };
+    has.then_some(SparkLink { min: 0.0, max: 1.0, styles: [None; 2], inherit_velocity: 1.0 })
 }
 
 /// The link, strength and variant play of an impact whose surface has `link` in the install. Without a variant spark for impacts

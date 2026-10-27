@@ -112,7 +112,7 @@ impl ImpactEffects {
                 .then(|| profile.pick(Action::Detached, c.surface))
                 .flatten()
                 .and_then(|link| link.hit(c.closing.length_squared(), c.closing.length()).map(|i| (link, i)));
-            let (hit, scrape) = actions(c.kind, c.bottom);
+            let (hit, scrape_action) = actions(c.kind, c.bottom);
             let impact = if c.bottom { c.closing.length() } else { c.delta_v };
             let mut accepted_hit = detached.or_else(|| {
                 profile
@@ -120,17 +120,20 @@ impl ImpactEffects {
                     .and_then(|link| link.hit(c.closing.length_squared(), impact).map(|i| (link, i)))
             });
             let mut scrape = if detached.is_none() {
-                profile.pick(scrape, c.surface).and_then(|link| link.scrape(c.sliding.length()).map(|i| (link, i)))
+                profile
+                    .pick(scrape_action, c.surface)
+                    .and_then(|link| link.scrape(c.sliding.length()).map(|i| (link, i)))
             } else {
                 None
             };
             // A collision spark variant plays a vehicle's contact from its profile where it has a channel for it, and the
-            // install's group is then not thrown as well; the install's own acceptance of the contact (above) stays.
+            // install's group is then not thrown as well. A contact with a wall or a prop is played by the profile's own
+            // gates (`variant/trigger.rs`); the install's acceptance (above) decides only the ground and bottom contacts.
             if contact.source.class == vehicle {
-                let cull =
-                    |taken: Option<(Link, f32)>| taken.and_then(|(link, _)| link.particles.map(|_| link.visual_cull));
-                let (took_hit, took_scrape) =
-                    self.variant.play(contact.owner, &c, cull(accepted_hit), cull(scrape), camera);
+                let installed = |taken: Option<(Link, f32)>| taken.map(|(link, _)| link);
+                let (hit_cull, scrape_cull) =
+                    variant::culls(profile, (hit, scrape_action), &c, (installed(accepted_hit), installed(scrape)));
+                let (took_hit, took_scrape) = self.variant.play(contact.owner, &c, hit_cull, scrape_cull, camera);
                 if took_hit {
                     accepted_hit = None;
                 }

@@ -125,6 +125,41 @@ fn a_sprite_names_a_picture_the_mod_writes_and_the_games_parser_takes_it() {
 }
 
 #[test]
+fn a_dust_sprite_wider_than_the_profile_takes_is_clamped_and_blends_with_alpha() {
+    use blackbox_modding::content::parse_sparks_profile;
+    // The 2012 dust: a 3 m radius growing to 1.85 times is 11 m wide; the profile takes at most 10 (it refused the whole file).
+    let dust = Spark {
+        kind: Kind::Sprite,
+        stretch: None,
+        width: [6.0, 10.9, 16.4, 11.1],
+        brightness: [1.0; 4],
+        sheet: Some(Sheet {
+            name: "E1_5.PNG".to_owned(),
+            picture: crate::vfx::Picture { width: 1, height: 1, rgba: vec![255; 4] },
+            grid: 2,
+        }),
+        ..streak()
+    };
+    let mut set = set();
+    set.hit.sparks.push(dust);
+    let parsed = parse_sparks_profile(&sparks(&set)).unwrap_or_else(|e| panic!("{e}"));
+    let (spark, dust) = (&parsed.hit.items[0], &parsed.hit.items[1]);
+    assert!(spark.additive && !dust.additive, "the streak adds, the dust covers");
+    assert_eq!(dust.size, vec![6.0, 10.0, 10.0, 10.0]);
+}
+
+#[test]
+fn the_profiles_give_a_hit_and_a_scrape_layer_the_games_gates_play() {
+    use blackbox_modding::content::parse_sparks_profile;
+    let parsed = parse_sparks_profile(&sparks(&set())).unwrap_or_else(|e| panic!("{e}"));
+    // The 2012 curves: 0.153 + 0.847 * min(v / 22.1, 1) for an impact, nothing below 0.73 m/s and full from 1.37 for a scrape.
+    assert!((parsed.hit.strength(20.0).unwrap() - (0.153 + 0.847 * 20.0 / 22.08)).abs() < 1e-3);
+    assert_eq!(parsed.scrape.strength(0.5), Some(0.0));
+    assert_eq!(parsed.scrape.strength(1.5), Some(1.0));
+    assert!(parsed.scrape.items[0].count > 0.0 && parsed.hit.items[0].count > 0.0);
+}
+
+#[test]
 #[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
 fn the_real_install_gives_a_hit_and_a_scrape_channel() {
     let root = std::path::PathBuf::from(std::env::var_os("MW2012_GAME_DIR").expect("MW2012_GAME_DIR"));
@@ -141,4 +176,11 @@ fn the_real_install_gives_a_hit_and_a_scrape_channel() {
     for text in [sparks(&set), xenon(&set)] {
         assert!(text.parse::<toml::Table>().is_ok());
     }
+    // The game's own parsers take what the real install gives, with a layer for the hit and one for the scrape.
+    use blackbox_modding::content::{parse_sparks_profile, parse_xenon_profile};
+    let parsed = parse_sparks_profile(&sparks(&set)).unwrap_or_else(|e| panic!("the sparks profile is refused: {e}"));
+    assert!(!parsed.hit.items.is_empty() && !parsed.scrape.items.is_empty());
+    assert!(parsed.hit.strength(20.0).unwrap() > 0.9 && parsed.scrape.strength(0.5) == Some(0.0));
+    let restored = parse_xenon_profile(&xenon(&set)).unwrap_or_else(|e| panic!("the xenon profile is refused: {e}"));
+    assert!(!restored.hit.items.is_empty() && !restored.scrape.items.is_empty());
 }

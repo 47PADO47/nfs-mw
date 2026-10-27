@@ -134,7 +134,11 @@ fn a_scrape_below_the_profiles_start_speed_throws_nothing_and_a_pause_resets_the
     fx.finish(STEP);
     assert_eq!(fx.scrapers.len(), 1);
     fx.finish(STEP);
-    assert!(fx.scrapers.is_empty(), "a car that did not scrape in a step is forgotten");
+    assert_eq!(fx.scrapers.len(), 1, "a car that brings no contact in one step keeps its last one");
+    for _ in 0..8 {
+        fx.finish(STEP);
+    }
+    assert!(fx.scrapers.is_empty(), "a car that did not scrape for a tenth of a second is forgotten");
 }
 
 #[test]

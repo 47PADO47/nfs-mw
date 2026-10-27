@@ -2,17 +2,21 @@
 //! sparks a vehicle throws at an impact and at a scrape in the **Original PC** spark style, in place of the install's particle
 //! groups for the channels the profile has layers for.
 //!
-//! The install's triggers stay: a contact is played only when the install's own link for it accepts it (the contact closes or
-//! slides, the surface has a particle group, the camera is near enough). What changes is what it throws and how strong it is: the
-//! strength comes from the profile's gate (`[hit]`: the closing speed, `[scrape]`: the sliding speed), and it scales the count
-//! and the speed of an impact and the rate of a scrape. A channel the profile has no layer for, a prop and a contact the install
-//! has no group for are the install's, exactly as they were. The sparks here are one small system apart from `PcSparks`: they
-//! need a quad along the velocity and an overbright colour, which the install's emitter model does not have.
+//! A car's contact with a wall or a prop is played whenever it closes (an impact) or slides (a scrape) and the surface has a
+//! particle group in the install, within that group's draw distance (`trigger.rs`); the ground and the underside keep the
+//! install's acceptance of the contact. What changes is what it throws and how strong it is: the strength comes from the
+//! profile's gate (`[hit]`: the closing speed, `[scrape]`: the sliding speed), and it scales the count and the speed of an
+//! impact and the rate of a scrape. A channel the profile has no layer for and a surface the install has no group for are the
+//! install's, exactly as they were. The sparks here are one small system apart from `PcSparks`: they need a quad along the
+//! velocity and an overbright colour, which the install's emitter model does not have.
 
 mod draw;
 #[cfg(test)]
 mod fixtures;
 mod spark;
+mod trigger;
+
+pub(super) use trigger::culls;
 
 use std::sync::Arc;
 
@@ -29,6 +33,8 @@ use spark::{Birth, Spark};
 const LIMIT: usize = 1024;
 /// The most cars that scrape at once.
 const MOST_SCRAPERS: usize = 64;
+/// Seconds a car keeps scraping from its last contact when a step brings none (a wall reacts to a car in some steps only).
+const HOLD: f32 = 0.1;
 
 #[cfg(test)]
 #[path = "variant_tests.rs"]
@@ -52,11 +58,14 @@ struct Offer {
     strength: f32,
 }
 
-/// A car that scrapes: the part of a spark each scrape layer owes it, and its contact of this step.
+/// A car that scrapes: the part of a spark each scrape layer owes it, its contact of this step and its last one.
 struct Scraper {
     owner: u64,
     carry: [f32; MAX_SPARK_LAYERS],
     offer: Option<Offer>,
+    /// The last contact the car scraped with, and the seconds since.
+    held: Option<Offer>,
+    idle: f32,
 }
 
 /// The collision spark variant in effect and its live sparks.
@@ -259,7 +268,13 @@ impl SparkVariantFx {
                 if self.scrapers.len() >= MOST_SCRAPERS {
                     return;
                 }
-                self.scrapers.push(Scraper { owner, carry: [0.0; MAX_SPARK_LAYERS], offer: None });
+                self.scrapers.push(Scraper {
+                    owner,
+                    carry: [0.0; MAX_SPARK_LAYERS],
+                    offer: None,
+                    held: None,
+                    idle: 0.0,
+                });
                 self.scrapers.len() - 1
             }
         };
@@ -271,7 +286,8 @@ impl SparkVariantFx {
     }
 
     /// The end of a physics step of `dt` seconds: every car that scraped throws its scrape layers' `rate * strength * dt`
-    /// sparks from its strongest contact. A car that did not scrape this step starts again from nothing.
+    /// sparks from its strongest contact. A car that brings no contact keeps its last one for `HOLD` seconds, then starts again
+    /// from nothing.
     pub fn finish(&mut self, dt: f32) {
         let Some(profile) = self.ready() else {
             self.scrapers.clear();
@@ -280,7 +296,21 @@ impl SparkVariantFx {
         let mut scrapers = std::mem::take(&mut self.scrapers);
         let first = profile.hit.items.len();
         scrapers.retain_mut(|scraper| {
-            let Some(offer) = scraper.offer.take() else { return false };
+            let offer = match scraper.offer.take() {
+                Some(offer) => {
+                    scraper.held = Some(offer);
+                    scraper.idle = 0.0;
+                    offer
+                }
+                // A car pressed to a wall is reacted to in some steps only; its last contact carries it over the gap.
+                None => {
+                    scraper.idle += dt.max(0.0);
+                    match scraper.held {
+                        Some(held) if scraper.idle <= HOLD => held,
+                        _ => return false,
+                    }
+                }
+            };
             let birth = Birth {
                 point: offer.point,
                 normal: offer.normal,

@@ -123,6 +123,12 @@ impl SourceEffects {
         }
         out
     }
+    /// These effects with `link` for `action` on the surface `surface` (the `default` surface answers every surface that has no
+    /// ancestry): the effects of a source that is not in the database, for the code that tests with them.
+    pub fn with_link(mut self, action: Action, surface: u32, link: Option<Link>) -> Self {
+        self.links.entry(vlt_hash(action.field())).or_default().insert(surface, link);
+        self
+    }
     pub fn pick(&self, action: Action, mut surface: u32) -> Option<Link> {
         let links = self.links.get(&vlt_hash(action.field()))?;
         if !self.parents.contains_key(&surface) {
@@ -156,6 +162,25 @@ mod tests {
         assert_eq!(link.scrape(5.0), Some(0.1));
         assert_eq!(link.scrape(4.0), None);
         assert_eq!(link.intensity(1.0), 0.0);
+    }
+    #[test]
+    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+    fn installed_cars_have_particle_groups_for_world_hits_and_scrapes_on_every_surface() {
+        let path = std::env::var_os(crate::game::SPEC.env_var).expect("set NFSMW_GAME_DIR");
+        let dir = game_install::GameDir::open(std::path::PathBuf::from(path)).unwrap();
+        let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).unwrap();
+        for car in ["bmwm3gtr", "cobaltss", "copmidsize", "traftaxi"] {
+            let profile = SourceEffects::read(&db, db.collection("pvehicle", car).unwrap());
+            let surfaces = db.collections_of("simsurface").map(|surface| surface.key()).chain([0]);
+            for surface in surfaces {
+                // A wall of any material (or none) gets a group; a hit starts at 0.5 or 1 m/s of reaction, a scrape at 5 m/s.
+                let hit =
+                    profile.pick(Action::HitWorld, surface).unwrap_or_else(|| panic!("{car}: no hit on {surface:#x}"));
+                let scrape = profile.pick(Action::ScrapeWorld, surface).expect("a scrape link");
+                assert!(hit.particles.is_some() && scrape.particles.is_some(), "{car} {surface:#x}");
+                assert!(hit.min <= 1.0 && scrape.min == 5.0 && hit.visual_cull >= 100.0, "{car} {surface:#x}");
+            }
+        }
     }
     #[test]
     fn source_contact_lookup_respects_unknown_ancestry_and_explicit_null_override() {

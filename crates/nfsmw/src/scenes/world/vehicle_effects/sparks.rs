@@ -128,22 +128,23 @@ impl Sparks {
             }
             let normal_speed = c.velocity.dot(c.normal);
             let sliding = (c.velocity - c.normal * normal_speed).length();
+            // A variant's channel is played on any surface (a wall of any material), the profile's gate says how hard.
             if -normal_speed > 1.0
                 && c.impulse_delta_v > 0.0
-                && let Some(link) = pick(surface, true)
+                && let Some(link) = pick(surface, true).or_else(|| variant::stand_in(chosen.as_deref(), true))
             {
                 let (link, strength, played) = variant::hit(chosen.as_deref(), link, -normal_speed, c.impulse_delta_v);
                 if strength > hit.as_ref().map_or(0.0, |(_, _, s, _)| *s) {
                     hit = Some((c, link, strength, played));
                 }
             }
-            if sliding > 1.0
-                && normal_speed <= 0.1
-                && let Some(link) = pick(surface, false)
-                && sliding >= link.min
+            if normal_speed <= 0.1
+                && let Some(link) = pick(surface, false).or_else(|| variant::stand_in(chosen.as_deref(), false))
             {
                 let (link, strength, played) = variant::scrape(chosen.as_deref(), link, sliding);
-                if strength > scrape.as_ref().map_or(0.0, |(_, _, s, _)| *s) {
+                // The install's scrape needs more than 1 m/s and its link's minimum; a variant's, only its own gate.
+                let accepted = played.is_some() || (sliding > 1.0 && sliding >= link.min);
+                if accepted && strength > scrape.as_ref().map_or(0.0, |(_, _, s, _)| *s) {
                     scrape = Some((c, link, strength, played));
                 }
             }

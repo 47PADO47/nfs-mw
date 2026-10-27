@@ -128,8 +128,48 @@ fn the_installs_triggers_stay() {
     assert_eq!(sparks.emitted, 0, "a stationary correction is not an impact");
     emit(&mut sparks, contact(Vec3::Z * 10.0, 0.0));
     assert_eq!(sparks.emitted, 0, "an impact needs a reaction");
-    sparks.emit_selected(&[contact(Vec3::Z * 10.0, 10.0)], |_, _| None, &XenonEffects::default(), STEP);
-    assert_eq!(sparks.emitted, 0, "a surface with no spark in the install has none");
+    let mut plain = with(None);
+    plain.emit_selected(&[contact(Vec3::Z * 10.0, 10.0)], |_, _| None, &XenonEffects::default(), STEP);
+    assert_eq!(plain.emitted, 0, "a surface with no spark in the install has none without a variant");
+}
+
+/// A wall facing +x (physics) with the surface and velocity given.
+fn wall(velocity: Vec3, impulse: f32) -> VisualContact {
+    VisualContact { normal: Vec3::X, ..contact(velocity, impulse) }
+}
+
+#[test]
+fn a_wall_is_played_by_the_profiles_gates_on_any_surface_and_at_any_install_minimum() {
+    let nothing = |sparks: &mut Sparks, c: VisualContact| {
+        sparks.emit_selected(&[c], |_, _| None, &XenonEffects::default(), STEP);
+    };
+    // A surface the install has no spark for: 20 m/s into the wall is the full 100 sparks.
+    let mut hit = with(Some(profile("")));
+    nothing(&mut hit, wall(-Vec3::X * 20.0, 10.0));
+    assert_eq!(hit.emitted, 100);
+    let along = space::to_render([1.0, 0.0, 0.0]);
+    assert!(hit.particles.iter().all(|p| p.velocity.abs_diff_eq(along * 5.0, 1e-4)), "out of the wall");
+    // 0.5 m/s along it is below the profile's start of 1 m/s: nothing.
+    let mut slow = with(Some(profile("")));
+    for _ in 0..60 {
+        nothing(&mut slow, wall(Vec3::Z * 0.5, 0.0));
+    }
+    assert_eq!(slow.emitted, 0);
+    // 2 m/s is half the rate, whatever the install's own minimum for the surface is.
+    let mut fast = with(Some(profile("")));
+    for _ in 0..60 {
+        nothing(&mut fast, wall(Vec3::Z * 2.0, 0.0));
+    }
+    assert!((59..=61).contains(&fast.emitted), "{}", fast.emitted);
+    let strict = SparkLink { min: 5.0, ..link() };
+    let mut gated = with(Some(profile("")));
+    let mut installed = with(None);
+    for _ in 0..60 {
+        gated.emit_selected(&[wall(Vec3::Z * 2.0, 0.0)], |_, _| Some(strict), &XenonEffects::default(), STEP);
+        installed.emit_selected(&[wall(Vec3::Z * 2.0, 0.0)], |_, _| Some(strict), &XenonEffects::default(), STEP);
+    }
+    assert!((59..=61).contains(&gated.emitted), "{}", gated.emitted);
+    assert_eq!(installed.emitted, 0, "the install's scrape needs its minimum");
 }
 
 #[test]
