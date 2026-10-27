@@ -141,6 +141,7 @@ pub fn read_mode(table: &Table, origin: &str) -> Option<ModsMode> {
 /// The configuration the config file text keeps for mod `id`: the table `[mods.<id>]`, as its own keys. `None` when `mods`
 /// is not a table (the legacy string), the table has no such mod, or the text is not TOML. The id is the exact key, so a
 /// mod id with dots is written quoted: `[mods."my.mod"]`.
+#[cfg(test)]
 pub fn mod_section(text: &str, id: &str) -> Option<Table> {
     let table: Table = text.parse().ok()?;
     section_in(&table, id).cloned()

@@ -14,7 +14,7 @@ use glam::Vec2;
 
 use super::modes::Overlay;
 use crate::settings::hud::HudSettings;
-use crate::ui::theme::custom::layout::{HudBox, SAFE_INSET};
+use crate::ui::theme::custom::layout::HudBox;
 
 /// The widest of the top-left and top-right columns at scale 1, canvas units (the radio card).
 pub const SIDE_RESERVE: f32 = 240.0;
@@ -23,8 +23,6 @@ pub const SIDE_GAP: f32 = 6.0;
 pub const TOP_GAP: f32 = 6.0;
 /// The narrowest half-width the map is squeezed to, canvas units.
 pub const MIN_HALF_WIDTH: f32 = 50.0;
-/// The map's top edge below the screen's top, as a share of the screen's height. At most a few percent.
-pub const TOP_PADDING_SHARE: f32 = SAFE_INSET;
 
 /// The ellipse's half-axes in canvas units for `fractions` (of the content box's height) in `frame`: the fractions
 /// scaled to the box, then held back so the map clears the top columns. The shape is kept.

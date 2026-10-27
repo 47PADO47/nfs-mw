@@ -38,20 +38,8 @@ const FIXED_COLOUR: [&str; 6] = ["[255,", "[0, 0, 0", "0x", "255, 255", "from_rg
 
 /// The code of a source file: everything before its inline test module, with the line endings normalised.
 fn code_of(source: &str) -> String {
-    let source = source.replace(
-        "
-", "
-",
-    );
-    source
-        .split(
-            "
-#[cfg(test)]
-mod tests {",
-        )
-        .next()
-        .unwrap_or(&source)
-        .to_owned()
+    let source = source.replace("\r\n", "\n");
+    source.split("\n#[cfg(test)]\nmod tests {").next().unwrap_or(&source).to_owned()
 }
 
 #[test]

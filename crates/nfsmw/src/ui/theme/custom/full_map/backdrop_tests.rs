@@ -101,7 +101,7 @@ fn the_backdrop_fades_in_over_the_motion_tables_map_change_and_a_reduced_one_ove
     at(&mut quick, &reduced, 10.0);
     let done = at(&mut quick, &reduced, 10.0 + Motion::REDUCED.mode_change);
     assert_eq!(alpha_of(&done, [1, 2, 3]), Some(SCRIM[3]));
-    assert!(Motion::REDUCED.mode_change < Motion::FULL.mode_change);
+    const { assert!(Motion::REDUCED.mode_change < Motion::FULL.mode_change) };
 }
 
 #[test]

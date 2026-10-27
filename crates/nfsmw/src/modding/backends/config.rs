@@ -6,7 +6,7 @@
 //! the settings, is therefore seen by the next mod load or developer reload, and never by a mod that is already running.
 
 use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use blackbox_modding::abi::BB_ERR_HOST;
 use blackbox_modding::host::{BackendResult, ConfigBackend};
@@ -27,7 +27,8 @@ impl ConfigPort {
     }
 
     /// The port over the config file at `path`.
-    pub fn at(path: &Path) -> Self {
+    #[cfg(test)]
+    pub fn at(path: &std::path::Path) -> Self {
         Self { path: Some(path.to_owned()) }
     }
 }

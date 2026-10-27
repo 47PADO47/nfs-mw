@@ -97,11 +97,6 @@ fn look(kind: MarkKind) -> (Shape, &'static str) {
     }
 }
 
-/// The theme token a kind of mark is drawn in.
-pub fn mark_key(kind: MarkKind) -> &'static str {
-    look(kind).1
-}
-
 /// Pushes the shapes of `marks` onto `out`, each at its own alpha times `alpha`, at depth `z`.
 ///
 /// With `art` a mark is the game's own icon where the package has one for it, and its shape otherwise.
