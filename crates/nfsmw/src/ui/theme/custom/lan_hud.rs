@@ -13,6 +13,7 @@ use blackbox_ui::{Component, DrawList, LayoutCx, Rect, justify};
 
 use super::feed::CustomFeedCell;
 use super::layout::{Anchor, HudBox};
+use super::map::place;
 use super::plate::{Plate, PlateStyle};
 use super::text::{Label, Sizing, size};
 use super::tokens::keys;
@@ -84,22 +85,25 @@ struct Builder<'a, 'b> {
 
 impl<'a, 'b> Builder<'a, 'b> {
     fn new(cx: &'a LayoutCx<'b>, settings: &HudSettings, aspect: f32) -> Self {
-        let frame = HudBox::new(screen_of(aspect), settings.scale);
+        let frame = place::cleared(HudBox::new(screen_of(aspect), settings.scale), settings);
         let sizing = Sizing::of(&frame, settings);
         Self { cx, frame, sizing, opacity: settings.opacity, parts: Vec::new() }
     }
 
     fn hud(mut self, hud: &LanHud) -> Vec<Box<dyn Component>> {
         self.feed(hud);
+        // The countdown and the vote hang from the top centre; under the map they move down together, only as far as it
+        // takes to clear it.
+        let s = self.frame.scale();
+        let (x, top) = self.frame.point(Anchor::TopCentre);
+        let shift = (self.frame.top_clearance() - (COUNTDOWN_DROP - COUNTDOWN_SIZE / 2.0) * s).max(0.0);
         if let Some(countdown) = &hud.countdown {
-            let (x, top) = self.frame.point(Anchor::TopCentre);
-            let y = top + COUNTDOWN_DROP * self.frame.scale();
+            let y = top + COUNTDOWN_DROP * s + shift;
             let label = Label::label(countdown.clone(), COUNTDOWN_SIZE).colour(keys::TEXT);
             self.line(label, (x, y), Centred::Yes, 1.0);
         }
         if let Some(vote) = &hud.vote {
-            let offset = (0.0, VOTE_DROP - VOTE_HEIGHT / 2.0);
-            let plate = self.frame.place(Anchor::TopCentre, offset, (VOTE_WIDTH, VOTE_HEIGHT));
+            let plate = Rect::new(x, top + VOTE_DROP * s + shift, VOTE_WIDTH * s, VOTE_HEIGHT * s);
             self.plate(plate, PlateStyle::SURFACE);
             let label = Label::label(vote.clone(), LINE_SIZE + 1.0).colour(keys::TEXT);
             self.line(label, (plate.x, plate.y), Centred::Yes, 1.0);

@@ -68,6 +68,12 @@ impl<'a> Parts<'a> {
         self.frame.place(anchor, offset, size)
     }
 
+    /// As [`Parts::place`], but a top-centre card is pushed down only as far as it needs to clear the map
+    /// (`HudBox::place_clear`).
+    pub fn place_clear(&self, anchor: Anchor, offset: (f32, f32), size: (f32, f32)) -> Rect {
+        self.frame.place_clear(anchor, offset, size)
+    }
+
     /// A plate over `rect` in `style` (its own opacity times the parts' opacity).
     pub fn plate(&mut self, rect: Rect, style: PlateStyle) {
         let style = style.scaled(self.scale()).with_opacity(style.opacity * self.opacity);

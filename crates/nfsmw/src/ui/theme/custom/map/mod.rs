@@ -1,4 +1,4 @@
-//! The Custom map: the game's own map picture drawn over the middle of the 3D view, translucent so the player sees both
+//! The Custom map: the game's own map picture drawn over the top centre of the 3D view, translucent so the player sees both
 //! the map and the world (`docs/specs/custom-hud-map-impl.md`). It fills the `Minimap` slot; the `Blips` slot is left
 //! empty, since the map draws its own marks, with the game's own icons.
 //!
@@ -9,6 +9,7 @@
 //!
 //! - [`modes`]: the four modes, the change from one to the next, and the map's keys.
 //! - [`memory`]: what the map keeps between frames (the local set, the zoom spring, the mode change).
+//! - [`place`]: where the map sits at the top, and the clearance the top-centre elements stack under.
 //! - [`view`]: the projection (north-up or heading-up) and the ellipse.
 //! - [`picture`]: the game's map tiles, cut into cells that fade at the ellipse's edge.
 //! - [`icons`]: the game's icons for the marks and the player's arrow, found in the HUD package.
@@ -26,9 +27,12 @@ pub mod marks;
 pub mod memory;
 pub mod modes;
 pub mod picture;
+pub mod place;
 pub mod roads;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod place_tests;
 #[cfg(test)]
 mod theme_tests;
 pub mod view;
@@ -37,7 +41,6 @@ mod view_tests;
 
 use blackbox_minimap::Orientation;
 use blackbox_ui::{Component, DrawList, LayoutCx, Polylines, Rect, token_keys};
-use glam::Vec2;
 
 use self::draw::{Art, Stage, arrow_parts, colour, draw_marks, race_route_lines, route_lines};
 use self::memory::{MapMemory, MapMemoryCell};
@@ -88,7 +91,7 @@ impl CustomMap {
 }
 
 impl Component for CustomMap {
-    /// The map does not use `bounds`: it sits in the content box's centre, from the feed's window.
+    /// The map does not use `bounds`: it sits at the top centre of the content box, from the feed's window.
     fn layout(&mut self, cx: &LayoutCx<'_>, _bounds: Rect) {
         let feed = self.feed.get();
         self.lines.clear();
@@ -133,7 +136,8 @@ pub fn compose(
     if overlay.chip > 0.0
         && let Some(route) = &hud.route
     {
-        parts.extend(chip::chip(route, feed.units, (&frame, settings), overlay.chip, cx).into_iter().flatten());
+        let under_map = place::cleared(frame, settings);
+        parts.extend(chip::chip(route, feed.units, (&under_map, settings), overlay.chip, cx).into_iter().flatten());
     }
     if overlay.shown <= 0.0 {
         return;
@@ -143,9 +147,8 @@ pub fn compose(
     let reduced = settings.motion_reduction;
     let zoom = memory.zoom.step(settings.map_zoom, feed.delta_s, feed.elapsed_s, motion.map_zoom, reduced);
     let alpha = overlay.shown * memory.zoom.crossfade(feed.elapsed_s, motion.map_zoom, reduced);
-    let content = frame.content();
-    let radii = Vec2::new(overlay.radii[0], overlay.radii[1]) * content.h;
-    let centre = Vec2::new(content.x, content.y);
+    let radii = place::radii(overlay.radii, &frame);
+    let centre = place::centre(&frame, radii);
     let picture = hud.map_picture.as_deref();
     let span = match picture {
         Some(_) => PICTURE_SPAN,

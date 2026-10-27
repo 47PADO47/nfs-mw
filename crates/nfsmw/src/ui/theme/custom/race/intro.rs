@@ -77,6 +77,6 @@ pub fn countdown(parts: &mut Parts<'_>, count: Count, age: f32, motion: &Motion)
         (_, true) => keys::ACCENT,
         (_, false) => keys::TEXT,
     };
-    let rect = parts.place(Anchor::TopCentre, (0.0, COUNT_DOWN - COUNT_BOX.1 / 2.0), COUNT_BOX);
+    let rect = parts.place_clear(Anchor::TopCentre, (0.0, COUNT_DOWN - COUNT_BOX.1 / 2.0), COUNT_BOX);
     parts.text(Label::numeric(count.text(), COUNT_SIZE * grow).colour(colour).justify(centred()), rect);
 }
