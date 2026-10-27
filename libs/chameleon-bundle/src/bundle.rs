@@ -2,6 +2,7 @@ use std::io::Read;
 
 use flate2::read::ZlibDecoder;
 
+use crate::debug::{DebugName, parse_debug_names};
 use crate::entry::{Entry, Import};
 use crate::error::{Error, Result};
 use crate::header::{BLOCKS, ENTRY_SIZE, FLAG_HAS_DEBUG_DATA, HEADER_SIZE, Header, u32_at, u64_at};
@@ -78,6 +79,11 @@ impl<'a> Bundle<'a> {
         };
         let end = text.iter().position(|&byte| byte == 0).unwrap_or(text.len());
         String::from_utf8(text[..end].to_vec()).ok()
+    }
+
+    /// The names the debug data gives to resources (empty when the bundle has none).
+    pub fn debug_names(&self) -> Vec<DebugName> {
+        self.debug_xml().map(|xml| parse_debug_names(&xml)).unwrap_or_default()
     }
 
     fn read_block(&self, index: usize, entry: &Entry, block: usize) -> Result<Vec<u8>> {

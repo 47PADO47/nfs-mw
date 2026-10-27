@@ -9,9 +9,11 @@
 //! This crate takes `&[u8]` and never opens files.
 
 mod bundle;
+mod debug;
 mod entry;
 mod error;
 mod header;
+mod id;
 mod pool;
 mod types;
 
@@ -19,8 +21,13 @@ mod types;
 mod tests;
 
 pub use bundle::{Bundle, Resource};
-pub use entry::{Entry, Import};
+pub use debug::{DebugName, parse_debug_names};
+pub use entry::{Entry, HANDLE_FLAG, Import, ImportKind};
 pub use error::{Error, Result};
-pub use header::{BLOCKS, ENTRY_SIZE, FLAG_COMPRESSED, FLAG_HAS_DEBUG_DATA, HEADER_SIZE, Header};
+pub use header::{
+    BLOCKS, ENTRY_SIZE, EXTENDED_HEADER_SIZE, FLAG_COMPRESSED, FLAG_DELTA, FLAG_HAS_DEBUG_DATA,
+    FLAG_HAS_DEFAULT_RESOURCE, FLAG_MULTISTREAM, FLAG_NON_ASYNC_FIXUP, HEADER_SIZE, Header, STREAMS,
+};
+pub use id::{IdClass, ResourceId};
 pub use pool::Pool;
 pub use types::ResourceKind;
