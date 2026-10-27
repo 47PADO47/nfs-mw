@@ -27,7 +27,7 @@ mod tests;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use blackbox_minimap::Calibration;
-use blackbox_ui::{Clip, Component, DrawList, LayoutCx, Polylines, Rect};
+use blackbox_ui::{Clip, Component, DrawList, LayoutCx, Polylines, Rect, token_keys};
 use glam::Vec2;
 
 use super::map::draw::{Stage, arrow, colour, draw_marks, route_lines};
@@ -208,7 +208,7 @@ fn world(
         road_lines(roads, &memory.local, view, (clip, 0.0), &look, ROAD_Z, lines);
     }
     if let Some(route) = &map.route {
-        let ahead = colour(cx, keys::NAV);
+        let ahead = colour(cx, token_keys::GUIDE);
         // Without the player's place the whole route is ahead: it is split at its start.
         let car = match map.player_mark {
             Some(_) => map.player,
@@ -217,8 +217,9 @@ fn world(
         route_lines(route, car, &stage, (ahead, fade(ahead, DRIVEN_SHARE)), ROUTE_Z, lines);
     }
     draw_marks(&places::marks(map), &stage, (1.0, MARK_Z), None, cx, front);
-    let second = (colour(cx, keys::TEXT_SECONDARY), colour(cx, keys::SURFACE));
-    let first = (colour(cx, keys::TEXT), colour(cx, keys::SURFACE));
+    let edge = colour(cx, token_keys::OVERLAY);
+    let second = (colour(cx, token_keys::LINE_MINOR), edge);
+    let first = (colour(cx, token_keys::PRIMARY), edge);
     for (mark, tones) in [(map.second_mark, second), (map.player_mark, first)] {
         let Some(mark) = mark else { continue };
         let at = fit::on_screen(map.session.camera, mark.map);

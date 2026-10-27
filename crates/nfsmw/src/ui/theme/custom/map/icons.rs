@@ -5,11 +5,11 @@
 //! kind with no icon of the game's, like a roadblock) is drawn as its shape (`draw.rs`).
 
 use blackbox_feng::fe_hash_upper;
-use blackbox_ui::{NodeKind, UiTree};
+use blackbox_ui::{NodeKind, Skin, Tokens, UiTree, token_keys};
 use glam::Vec2;
 
 use super::marks::{CAR_LOT, MarkKind};
-use crate::hud::{AUTO_SHOP_TINT, CAR_LOT_TINT, SAFE_HOUSE_TINT, cop_colour, cop_step_at};
+use crate::hud::cop_step_at;
 
 /// The player's arrow (`Minimap_Icon_Car`).
 pub const PLAYER_ARROW: &str = "PLAYERCARINDICATOR";
@@ -49,16 +49,29 @@ pub fn object(kind: MarkKind, variant: u8) -> Option<String> {
     }
 }
 
-/// The colour a mark's icon takes when the package's own is plain white: the game's tint of the interiors, and the
-/// light bar of a cop at `tick`.
-pub fn tint(kind: MarkKind, variant: u8, tick: u32) -> Option<[u8; 4]> {
+/// The colour a mark's icon takes when the package's own is plain white, from the active theme's tokens: the accent for
+/// an auto shop, the info colour for a car lot, the success colour for a safe house, and for a cop the light bar at
+/// `tick` (info, a grey, danger, a grey). The shapes differ as well, so colour is never the only carrier.
+pub fn tint(kind: MarkKind, variant: u8, tick: u32, skin: &Skin) -> Option<[u8; 4]> {
+    let themed = |key: &str| Tokens::colour_in(skin, key);
     match kind {
-        MarkKind::Shop if variant == CAR_LOT => Some(CAR_LOT_TINT),
-        MarkKind::Shop => Some(AUTO_SHOP_TINT),
-        MarkKind::SafeHouse => Some(SAFE_HOUSE_TINT),
-        MarkKind::Cop => Some(cop_colour(true, cop_step_at(tick))),
+        MarkKind::Shop if variant == CAR_LOT => Some(themed(token_keys::INFO)),
+        MarkKind::Shop => Some(themed(token_keys::SECONDARY)),
+        MarkKind::SafeHouse => Some(themed(token_keys::SUCCESS)),
+        MarkKind::Cop => Some(light_bar(cop_step_at(tick), skin)),
         _ => None,
     }
+}
+
+/// The cop's light bar at `step` (1 to 8): two steps of the info colour, two of the minor line tone, two of danger, two
+/// of the minor tone (the cycle of the game's own bar, in the theme's colours).
+pub fn light_bar(step: u8, skin: &Skin) -> [u8; 4] {
+    let key = match step {
+        1 | 2 => token_keys::INFO,
+        5 | 6 => token_keys::DANGER,
+        _ => token_keys::LINE_MINOR,
+    };
+    Tokens::colour_in(skin, key)
 }
 
 /// The icon of the object `name` in `tree`: the object's own image, or the first image under it when the object is a

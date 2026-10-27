@@ -29,12 +29,14 @@ pub mod picture;
 pub mod roads;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod theme_tests;
 pub mod view;
 #[cfg(test)]
 mod view_tests;
 
 use blackbox_minimap::Orientation;
-use blackbox_ui::{Component, DrawList, LayoutCx, Polylines, Rect};
+use blackbox_ui::{Component, DrawList, LayoutCx, Polylines, Rect, token_keys};
 use glam::Vec2;
 
 use self::draw::{Art, Stage, arrow_parts, colour, draw_marks, race_route_lines, route_lines};
@@ -44,7 +46,7 @@ use self::roads::{RoadLook, road_lines};
 use self::view::{MapView, ellipse};
 use super::feed::{CustomFeed, CustomFeedCell};
 use super::layout::HudBox;
-use super::tokens::{Motion, fade, keys};
+use super::tokens::{Motion, fade};
 use crate::ui::theme::original::{FengSource, FrameCell};
 
 /// Depths of the map's layers: far behind the HUD's other elements (`DEFAULT_Z`), the roads farthest, the arrow nearest.
@@ -157,7 +159,7 @@ pub fn compose(
     match (picture, &hud.map_roads) {
         // The game's own picture.
         (Some(picture), _) => {
-            let tint = fade(colour(cx, keys::TEXT), roads_opacity);
+            let tint = fade(colour(cx, token_keys::LINE), roads_opacity);
             picture::picture_parts(picture, &stage, (tint, ROAD_Z), cx, parts);
         }
         (None, Some(roads)) => {
@@ -167,7 +169,7 @@ pub fn compose(
         }
         (None, None) => {}
     }
-    let ahead = fade(colour(cx, keys::NAV), (overlay.road_opacity + ROUTE_GAIN).min(1.0) * alpha);
+    let ahead = fade(colour(cx, token_keys::GUIDE), (overlay.road_opacity + ROUTE_GAIN).min(1.0) * alpha);
     if let Some(race) = &hud.race_route {
         let left = hud.race_info.as_ref().and_then(|info| info.remaining_m);
         let along = left.and_then(|left| race.route().along(left));
@@ -180,18 +182,19 @@ pub fn compose(
     let marks_alpha = settings.opacity * alpha;
     draw_marks(&marks::marks(hud), &stage, (marks_alpha, MARK_Z), art, cx, parts);
     let direction = view.direction(car.heading);
-    let tones = (fade(colour(cx, keys::TEXT), marks_alpha), fade(colour(cx, keys::SURFACE), marks_alpha));
+    let arrow = fade(colour(cx, token_keys::PRIMARY), marks_alpha);
+    let tones = (arrow, fade(colour(cx, token_keys::OVERLAY), marks_alpha));
     parts.extend(arrow_parts(art, (centre, direction), stage.scale, tones, (ARROW_Z, cx)));
 }
 
 /// The road colours for `opacity` (the roads' opacity times the overlay's fade) and `detail` (the Expanded map's
-/// paths), from the skin's tokens. The full-screen map (`custom/full_map`) draws its roads in the same look.
+/// paths), from the active theme's tokens (`theme.line`, `theme.line_minor`, `theme.line_faint`, `theme.overlay`). The full-screen map (`custom/full_map`) draws its roads in the same look.
 pub fn road_look(cx: &LayoutCx<'_>, high_contrast: bool, (opacity, detail): (f32, f32), scale: f32) -> RoadLook {
     RoadLook {
-        main: fade(colour(cx, keys::TEXT), opacity),
-        side: fade(colour(cx, keys::TEXT_SECONDARY), opacity * SIDE_SHARE),
-        path: fade(colour(cx, keys::RULE), opacity * detail),
-        under: high_contrast.then(|| fade(colour(cx, keys::SURFACE), opacity)),
+        main: fade(colour(cx, token_keys::LINE), opacity),
+        side: fade(colour(cx, token_keys::LINE_MINOR), opacity * SIDE_SHARE),
+        path: fade(colour(cx, token_keys::LINE_FAINT), opacity * detail),
+        under: high_contrast.then(|| fade(colour(cx, token_keys::OVERLAY), opacity)),
         scale,
     }
 }

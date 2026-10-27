@@ -3,7 +3,7 @@
 //! canvas units (480 high, origin at the centre, y down) from the menus' frame (`custom/menu/layout.rs`), so the map's
 //! footer and the menus' sit on the same line.
 
-use blackbox_ui::{Component, LayoutCx, Panel, Polyline, Rect, justify};
+use blackbox_ui::{Component, LayoutCx, Panel, Polyline, Rect, justify, token_keys};
 use glam::Vec2;
 
 use super::places::{self, LegendRow};
@@ -136,7 +136,7 @@ pub fn legend(map: &WorldMapFrame, frame: &MenuFrame, cx: &LayoutCx<'_>, out: &m
     let name_x = left + NAME_X * s;
     let count_x = plate.max_x() - LEGEND_PAD * s;
     let mut row = 0;
-    let tones = (colour(cx, keys::TEXT), colour(cx, keys::SURFACE));
+    let tones = (colour(cx, token_keys::PRIMARY), colour(cx, token_keys::OVERLAY));
     out.extend(arrow(mark_at(row), Vec2::NEG_Y, s * 0.7, tones, CONTENT_Z).into_iter().map(boxed));
     let player = Label::label(t!("map-player"), ROW_SIZE);
     out.push(text(player, (name_x, row_y(row)), Align::Left, sizing, cx));
@@ -144,7 +144,7 @@ pub fn legend(map: &WorldMapFrame, frame: &MenuFrame, cx: &LayoutCx<'_>, out: &m
     if route {
         let at = mark_at(row);
         let half = Vec2::new(ROUTE_SAMPLE * s, 0.0);
-        let stroke = Polyline::new(vec![at - half, at + half], 3.0 * s, colour(cx, keys::NAV));
+        let stroke = Polyline::new(vec![at - half, at + half], 3.0 * s, colour(cx, token_keys::GUIDE));
         out.push(Box::new(stroke.with_z(CONTENT_Z)));
         out.push(text(Label::label(t!("map-route"), ROW_SIZE), (name_x, row_y(row)), Align::Left, sizing, cx));
         row += 1;

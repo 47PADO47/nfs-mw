@@ -3,7 +3,7 @@
 //! cross where the pointer is. The focused blip's card sits at the safe area's bottom left, above the footer: its mark,
 //! its name, how far it is from the player and how to set the GPS to it.
 
-use blackbox_ui::{Component, LayoutCx, LineCap, Polyline, Rect};
+use blackbox_ui::{Component, LayoutCx, LineCap, Polyline, Rect, token_keys};
 use glam::Vec2;
 
 use super::chrome::{Align, CONTENT_Z, text};
@@ -43,7 +43,7 @@ pub fn cursor(map: &WorldMapFrame, scale: f32, cx: &LayoutCx<'_>, out: &mut Vec<
     if let Some(blip) = places::focused(map) {
         let at = fit::on_screen(camera, blip.map);
         let stroke = RING_STROKE * scale;
-        out.push(Box::new(ring(at, RING_RADIUS * scale, stroke, colour(cx, keys::ACCENT), CURSOR_Z)));
+        out.push(Box::new(ring(at, RING_RADIUS * scale, stroke, colour(cx, token_keys::GUIDE), CURSOR_Z)));
         return;
     }
     let Some(view) = map.session.cursor else { return };
@@ -52,7 +52,7 @@ pub fn cursor(map: &WorldMapFrame, scale: f32, cx: &LayoutCx<'_>, out: &mut Vec<
     let near = CROSS_GAP * scale;
     for direction in [Vec2::X, Vec2::NEG_X, Vec2::Y, Vec2::NEG_Y] {
         let arm = vec![at + direction * near, at + direction * reach];
-        let line = Polyline::new(arm, CROSS_STROKE * scale, colour(cx, keys::TEXT)).with_cap(LineCap::Square);
+        let line = Polyline::new(arm, CROSS_STROKE * scale, colour(cx, token_keys::LINE)).with_cap(LineCap::Square);
         out.push(Box::new(line.with_z(CURSOR_Z)));
     }
 }

@@ -5,7 +5,7 @@
 //! The distance follows `speed_units`: rounded to 10 m in metric; in imperial to 50 ft below 1000 ft and to 0.1 mi
 //! above.
 
-use blackbox_ui::{Component, LayoutCx, LineCap, LineJoin, Polyline, Rect, justify};
+use blackbox_ui::{Component, LayoutCx, LineCap, LineJoin, Polyline, Rect, justify, token_keys};
 use glam::Vec2;
 
 use crate::hud::{NavRoute, TurnDirection};
@@ -15,7 +15,7 @@ use crate::settings::hud::HudSettings;
 use crate::ui::theme::custom::layout::{Anchor, HudBox};
 use crate::ui::theme::custom::plate::{Plate, PlateStyle};
 use crate::ui::theme::custom::text::{Label, Sizing, size};
-use crate::ui::theme::custom::tokens::{fade, keys};
+use crate::ui::theme::custom::tokens::fade;
 
 use super::draw::colour;
 
@@ -52,10 +52,11 @@ pub fn chip(
     }
     let scale = frame.scale();
     let rect = frame.place(Anchor::TopCentre, CHIP_OFFSET, CHIP_SIZE);
-    let plate = Plate::new(rect, PlateStyle::SURFACE.with_accent(keys::NAV).scaled(scale).with_opacity(opacity), cx);
+    let plate =
+        Plate::new(rect, PlateStyle::SURFACE.with_accent(token_keys::GUIDE).scaled(scale).with_opacity(opacity), cx);
     let mut parts: Vec<Box<dyn Component>> = vec![Box::new(plate)];
     let glyph_centre = Vec2::new(rect.min_x() + rect.h / 2.0, rect.y);
-    let stroke = fade(colour(cx, keys::NAV), opacity);
+    let stroke = fade(colour(cx, token_keys::GUIDE), opacity);
     for line in glyph(turn.direction, glyph_centre, rect.h * 0.3, GLYPH_WIDTH * scale, stroke) {
         parts.push(Box::new(line));
     }
