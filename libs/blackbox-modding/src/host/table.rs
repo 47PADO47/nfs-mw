@@ -12,9 +12,9 @@ mod audio;
 #[cfg(test)]
 mod audio_tests;
 mod camera;
-mod camera_view;
 #[cfg(test)]
 mod camera_tests;
+mod camera_view;
 mod commands;
 mod config;
 #[cfg(test)]
@@ -146,12 +146,8 @@ impl HostTable {
         registry: Rc<InterfaceRegistry>,
     ) -> Self {
         let place = ModPlace { dir: mod_dir.to_owned(), config_file: config_file.map(str::to_owned) };
-        let state = Box::new(CallState {
-            mod_id: mod_id.to_owned(),
-            place,
-            registry,
-            attached: RefCell::new(Vec::new()),
-        });
+        let state =
+            Box::new(CallState { mod_id: mod_id.to_owned(), place, registry, attached: RefCell::new(Vec::new()) });
         let strings = Box::new([
             offer.game_id.clone(),
             offer.game_version.clone(),

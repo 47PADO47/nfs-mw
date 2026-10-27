@@ -55,7 +55,7 @@ pub use runtime::{DispatchReport, ModRuntime, ModSummary, ReloadError, RunMode};
 pub use table::{
     Attached, AudioBackend, BackendResult, BlipSpec, CameraBackend, CameraKind, CameraState, CommandHandler,
     CommandsBackend, ConfigBackend, ContentBackend, HotkeyHandler, HudBackend, I18nArg, I18nBackend, InputBackend,
-    MAX_CHOICES, MAX_COP_SHARE, MAX_I18N_ARGS, MAX_MESSAGE_SECS, MAX_PRIMITIVES, MapBackend, MenuHandler, MenuKind, MenuRowSpec,
-    MenusBackend, MessageStyle, SettingHandler, SettingsBackend, TimeBackend, UiBackend, UiPrim, UiRect, UiThemeSpec,
-    UiTokens, VehicleState, VehiclesBackend, WorldBackend,
+    MAX_CHOICES, MAX_COP_SHARE, MAX_I18N_ARGS, MAX_MESSAGE_SECS, MAX_PRIMITIVES, MapBackend, MenuHandler, MenuKind,
+    MenuRowSpec, MenusBackend, MessageStyle, SettingHandler, SettingsBackend, TimeBackend, UiBackend, UiPrim, UiRect,
+    UiThemeSpec, UiTokens, VehicleState, VehiclesBackend, ViewHandlers, ViewInput, ViewPose, ViewSpec, WorldBackend,
 };
