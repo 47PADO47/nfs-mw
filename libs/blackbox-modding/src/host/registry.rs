@@ -198,6 +198,7 @@ impl InterfaceRegistry {
 
     /// The table of interface `id` for mod `owner`, when the registry offers it at `major` with a minor of at least
     /// `min_minor`.
+    #[cfg(test)]
     pub(crate) fn build(&self, owner: &str, id: &str, major: u16, min_minor: u16) -> Option<Attached> {
         self.build_in(&HostCtx::new(owner, &ModPlace::default()), id, major, min_minor)
     }

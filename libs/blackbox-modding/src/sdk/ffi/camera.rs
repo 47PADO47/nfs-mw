@@ -12,7 +12,7 @@ use crate::abi::{
     BbCameraUnregisterViewFn, BbCameraView, BbStatus, BbStr,
 };
 use crate::sdk::ctx::Keep;
-use crate::sdk::{CameraInput, CameraPose, CameraView, CameraViewId, Error, Interface, ModResult, guard};
+use crate::sdk::{CameraInput, CameraView, CameraViewId, Error, Interface, ModResult, guard};
 
 /// The function pointers of one `bb.camera` table, read once.
 #[derive(Clone, Copy)]

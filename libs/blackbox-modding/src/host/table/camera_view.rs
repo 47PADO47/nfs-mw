@@ -55,12 +55,17 @@ pub struct ViewPose {
     pub hide_car: bool,
 }
 
+/// A view's answer to "can you be used with this car?".
+pub type AvailableFn = Box<dyn Fn(&str) -> bool>;
+/// A view's answer to a frame: the pose, or `None` when the mod declined it.
+pub type UpdateFn = Box<dyn Fn(&ViewInput<'_>) -> Option<ViewPose>>;
+
 /// The two calls a registered view answers, as closures over the mod's callbacks.
 pub struct ViewHandlers {
     /// Whether the view can be used with the car of that id.
-    pub available: Box<dyn Fn(&str) -> bool>,
+    pub available: AvailableFn,
     /// The pose for this frame, `None` when the mod declined it.
-    pub update: Box<dyn Fn(&ViewInput<'_>) -> Option<ViewPose>>,
+    pub update: UpdateFn,
 }
 
 fn vec3(value: [f32; 3]) -> BbVec3 {
@@ -99,7 +104,7 @@ pub(super) unsafe fn read_view<'a>(view: *const BbCameraView) -> Result<(ViewSpe
 #[derive(Clone, Copy)]
 struct UserPtr(*mut c_void);
 
-fn available_closure(user: UserPtr, available: Option<BbCameraAvailableFn>) -> Box<dyn Fn(&str) -> bool> {
+fn available_closure(user: UserPtr, available: Option<BbCameraAvailableFn>) -> AvailableFn {
     Box::new(move |car: &str| {
         let Some(available) = available else { return true };
         // SAFETY: the mod keeps `user` valid until the view is unregistered; the string lives for this call.
@@ -107,7 +112,7 @@ fn available_closure(user: UserPtr, available: Option<BbCameraAvailableFn>) -> B
     })
 }
 
-fn update_closure(user: UserPtr, update: BbCameraUpdateFn) -> Box<dyn Fn(&ViewInput<'_>) -> Option<ViewPose>> {
+fn update_closure(user: UserPtr, update: BbCameraUpdateFn) -> UpdateFn {
     Box::new(move |input: &ViewInput<'_>| {
         let wire = BbCameraInput {
             size: size_of::<BbCameraInput>() as u32,
