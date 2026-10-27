@@ -20,6 +20,13 @@ mod params;
 mod read;
 mod state;
 
+#[cfg(test)]
+mod install_tests;
+#[cfg(test)]
+mod model_tests;
+#[cfg(test)]
+mod read_tests;
+
 pub use chase::ChaseCamera;
 pub use effects::{AccelFilter, ImpactState};
 pub use error::{Error, Result};
