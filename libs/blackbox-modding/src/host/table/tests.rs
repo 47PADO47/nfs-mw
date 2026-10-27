@@ -419,8 +419,13 @@ fn an_external_provider_is_built_per_mod_and_queried_through_the_host() {
 #[test]
 fn the_table_says_where_the_mod_and_the_game_are() {
     let offer = crate::host::HostOffer::new("testgame", "test").with_game_dir(std::path::Path::new("games/mw"));
-    let host =
-        HostTable::new("example.one", std::path::Path::new("mods/one"), None, &offer, Rc::new(InterfaceRegistry::new()));
+    let host = HostTable::new(
+        "example.one",
+        std::path::Path::new("mods/one"),
+        None,
+        &offer,
+        Rc::new(InterfaceRegistry::new()),
+    );
     // SAFETY: the host table lives for the test and its strings are valid while it does.
     let (mod_dir, game_dir) = unsafe { ((*host.as_ptr()).mod_dir.as_str(), (*host.as_ptr()).game_dir.as_str()) };
     assert_eq!(mod_dir, Some("mods/one"));
