@@ -147,6 +147,9 @@ The road lights agree: each car's rear `Light` record of bit 2 is the lamp the c
 (the 918's group `0x21B4DB` points 49 degrees down, the Charger's has intensity 0.5), where the brake and tail records
 (bits 1 and 7) share the group. The code path that sets bit 2 in `FUN_0057A5E0` was not traced to a gear test (the gear byte sets bit 9, which no lamp record uses), so the
 reading rests on the data and on the 2012 game showing the 918's lamp in reverse.
+The lit surfaces agree too: the blue channel of the lit pattern, whose triangles sit at the places of these records,
+is the surface of the reverse lamp ([lamp circuits](#lamp-circuits-verified-by-data)); the 918's is a 30 cm bar of 15 LED
+dots at the rear centre.
 
 There is no turn signal record: the indicators of the 2012 game are not locator driven **[verified absence]**.
 
@@ -163,24 +166,84 @@ The Porsche body at the finest level (17 meshes, [verified] with `chameleon-vehi
 | 5, 6, 15 | `Glass`, `Glass_Textured_Lightmap` | windows and the clear head lamp cover |
 
 The `Refraction` shader names its colour constants `BrakeColour`, `EmissiveLuminance`, `HeadlightColour`, `ReversingColour`
-and `TaillightColour` and has an `EmissiveTextureSampler`; in the Porsche the first colour constant is (0.34, 0, 0) (the
-brake red) and the emissive map is a two-channel mask with the strips' pattern. `EmissiveFourChannel` names
-`LightmappedLightsRed/Green/Blue/AlphaChannelColour`, in the Porsche (0.49, 0.008, 0), (4.16, 4.16, 4.16),
-(0.07, 0.10, 0.12) and a fourth that is not a colour; slot order follows the names, so the white one is the blue channel
-**[unconfirmed]**. The converter does not read these constants. It reads each piece's place instead.
+and `TaillightColour` and has an `EmissiveTextureSampler`; `EmissiveFourChannel` names
+`LightmappedLightsRed/Green/Blue/AlphaChannelColour` and has a `LightmapLightsTextureSampler`. Both read the same picture
+in the same way: the **lit pattern** of [the lamp circuits](#lamp-circuits-verified-by-data) below. The converter reads the
+pattern, not the colour constants.
+
+## Lamp circuits [verified by data]
+
+The lit pattern of a lamp material is a picture whose four channels are four lamp circuits, the same for both shaders
+(a `Bc3` or `Bc1` picture of 256 to 1024 texels a side, read with the first texture coordinates):
+
+| Channel | Circuit | Evidence |
+|---|---|---|
+| red | **brake** | lit texels sit on the rear lamps (**[unconfirmed]** against alpha: position cannot tell brake from tail); the red constant is the bright one (918: 0.43, 911: 909) and the `Refraction` shader's `BrakeColour` is the first of its four circuit colours |
+| green | **head** | 13,140 of the ~13,800 lit triangles of `EmissiveFourChannel` over the 93 cars are within 0.5 m of a front record of bit 0 |
+| blue | **reverse** | 824 of the ~1,000 lit triangles are within 0.5 m of a rear record of bit 2; in the `Refraction` lenses 436 of 564 |
+| alpha | **tail** | rear lamps only, in dim areas (the 918 Spyder's alpha peaks at 45) and with the dim constant (918: 0.14, 911: 0.49); **[unconfirmed]** as the tail circuit, lit with the headlights (rear bits 7 and 0); a `Bc1` picture has no alpha channel |
+
+The colour constants of `EmissiveFourChannel` sit in 16-byte slots in the alphabetical order of their names:
+`LightmappedLightsAlphaChannelColour`, `Blue`, `Green`, `Red`, `PbrMaterialClearcoatFresnel`,
+`PbrMaterialClearcoatSpecular`, `PbrMaterialDiffuseColour`, `mSelfIlluminationMultiplier` (8 slots, the last is 10 in the
+Porsche cars). So the colour of a channel is the slot of its name, not the order red, green, blue, alpha: the Porsche 911's
+red (brake) is (909, 5.7, 0), its blue (reverse) a white of 4.16, its green (head) a blue-white (0.07, 0.10, 0.12) and its
+alpha (tail) a dim red (0.49, 0.008, 0); the 918 Spyder's are (0.43, 0, 0), (0.06, 0.08, 0.10), (0.09, 0.13, 0.14) and
+(0.14, 0, 0). The values are HDR radiances the 2012 tone mapping brings down; they are not carried over. `Refraction`
+orders its slots the same way (`BrakeColour`, `EmissiveLuminance`, `HeadlightColour`, `ParallaxConstants`, ...,
+`ReversingColour`, `TaillightColour`, `mExternalGlassColour`), **[unconfirmed]** as the executable was not traced for it.
+The game sets the state of the circuits each frame through `g_selfIlluminationMask`, a shader constant both shaders name; the
+code that fills it was not traced, so the link from a circuit to a bit of the light-state word rests on the positions above.
+
+### The 918 Spyder **[verified]**
+
+The 918 has no `Refraction` mesh. Its lamps are in `EmissiveFourChannel` (mesh 6 of its finest level, 3,639 vertices and
+3,420 triangles over the whole car, picture `0x0B22CE`), where the lit pattern shows dots and shapes on a black picture:
+
+- red: two rows of 12 red LED dots, the rear brake lamps (bbox x +-0.77, y 0.70 to 0.78, z -2.16 to -1.95);
+- green: two clusters of four dots, the front LED head lamps (x +-0.65 to 0.78, y 0.54 to 0.65, z 1.74);
+- blue: one row of 15 dots, the **reverse bar**: 20 triangles at the rear centre, 0.30 m wide and 3 cm tall (x +-0.15,
+  y 0.29 to 0.32, z -2.30), where the reverse record's locator sits (0, 0.31, -2.31);
+- alpha: the dim areas of the tail lamp housings (x 0.42 to 0.85, y 0.64 to 0.75, z -2.15 to -1.87).
+
+The number plate lamps are other meshes (`BodyPaint_Livery_Lightmap`, `Body_Textured_NormalMap_Lightmap` and `..._Licenseplate`)
+with one grey picture (`0x0B22D7`) read with the fourth texture coordinate set (usage 8, index 3); they are not circuits of
+the four channels and are not converted. The 2012 game draws the bar as 15 bright points with a large HDR multiplier and a
+bloom, which looks like one lit bar; a 2005 flat texture colour on the same triangles is what the converter makes of it.
+
+### How the converter cuts a lamp (`lamp_pieces.rs`)
+
+A triangle is lit by the channel that is lit at most of the samples taken across it: at least every 2 texels along its
+longest edge, at most 24 steps; a channel is lit above 35 percent of its peak in the picture (and above 48, alpha 16); a
+triangle sampled 15 times or less is lit by one lit sample, a larger one by 3 percent of them. The picture is clamped at its
+edge. A circuit lights the lamps at its own end only (head at the front, the others at the rear): a green texel on a rear
+triangle is not read. Then:
+
+- the `EmissiveFourChannel` triangles that a circuit lights become one surface per circuit and side
+  (`LampSurface`: end, side by the triangle's place, circuit); the others stay the dark interior;
+- a `Refraction` lens is cut into its connected pieces, and each piece again by the circuit of its triangles; a triangle the
+  pattern does not light takes the main circuit of its piece, and a lens with no readable pattern takes the circuit of its
+  end (head at the front, brake at the rear), as before.
+
+Over the 93 cars the cut gives, as surfaces of the finest level: interior pieces of brake 149, head 154, reverse 42 and tail
+122, and lens pieces of brake 213, head 248, reverse 124 and tail 127. The 918 Spyder gets brake, head, reverse (a centre
+piece of 9 triangles and two of 4 at the corners of the bar) and tail pieces; the 911 gets brake and reverse lens pieces
+at the rear corners (x +-0.45 to 0.74, y 0.72 to 0.75), head lens pieces at the front and interior pieces of all but reverse.
 
 ## Not decoded
 
 - the `Corona`, `Light_Spot` and `Light_Base` objects (flare and glow curves, textures, cone data), the `SpotEffect` records;
 - the meaning of mode, of bits 3, 8, 9 and 17 and of the corona factors; bit 2 as game code (it is the reverse lamp by data);
 - the front bit 3 coronas (2 cars, fog lamps) and the rear ones (6), the amber position or turn lamps (bit 6, 12 records);
-- the lightmap channels of `EmissiveFourChannel` and the emissive map of `Refraction`, and which circuit (head, brake, reverse,
-  signal) each belongs to;
+- the code that fills `g_selfIlluminationMask` (which bit drives which circuit), the `EmissiveLuminance` scale and the HDR
+  multiplier, the single grey lightmaps (`Lightmap` techniques: number plate and some rear lamps) and the plain
+  `Emissive` shaders (interior and dashboard lights);
 - how the game turns the indicators.
 
 ## Tests
 
-`CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-vehicle lamps -- --ignored` reads every car's groups and lamp
+`CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-vehicle lamp -- --ignored` reads every car's groups and lamp
 records (93 cars, 981 coronas, 549 lights; 92 cars have a head lamp record at the front and a brake record at the rear) and
-checks every record points at a group the car has. `MW2012_GAME_DIR=<2012 install> cargo test -p nfsmw-2012-content --test
+checks every record points at a group the car has; it also loads every car, checks that the hinged-part classes line up with
+the lamp pieces and that the 918 Spyder has its reverse bar (`lamp_pieces_tests.rs`). `MW2012_GAME_DIR=<2012 install> cargo test -p nfsmw-2012-content --test
 lamps -- --ignored` converts the Porsche and checks its markers (head, brake, centre brake and reverse) and lamp textures.

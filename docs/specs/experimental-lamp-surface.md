@@ -5,7 +5,8 @@ Custom car shading by the F8 **Enhanced vehicle lamps** option.
 Original and simple shading retain their existing surface response.
 
 Only named headlight and brake-light texture slots with installed ON artwork
-receive the experimental emission. The active state comes from
+receive the experimental emission. A mod car's tail-light (red, lit with the headlights) and reverse-light (white, lit
+in reverse gear) slots, which only mod cars name ([car lamps](../modding/car-lamps.md)), receive it the same way. The active state comes from
 the existing vehicle lamp variants. Broken left and right headlight bits select
 their emission-off state independently, as brake-light variants already do. If
 OFF artwork is missing the original texture fallback remains visible, but the
