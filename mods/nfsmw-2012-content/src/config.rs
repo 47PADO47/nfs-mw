@@ -1,4 +1,6 @@
-//! The settings of the nfsmw-2012-content mod: the `config.toml` in the mod's own folder.
+//! The settings of the nfsmw-2012-content mod. They come from the host's `bb.config` (docs/modding/api-config.md): the
+//! `config.toml` in the mod's own folder, with the `[mods.nfsmw-2012-content]` table of the game's main config file merged
+//! over it key by key. The same keys work in either place. A host without `bb.config` gets the file alone, read here.
 //!
 //! ```toml
 //! # Folder of the user's own NFS Most Wanted (2012) install. Left out: the mod adds no cars and says why.
@@ -25,8 +27,30 @@ use crate::police::Police;
 /// The file name of the settings file, in the mod's folder.
 pub const FILE_NAME: &str = "config.toml";
 
+/// The mod's id: its table in the game's main config file is `[mods.nfsmw-2012-content]`.
+pub const MOD_ID: &str = "nfsmw-2012-content";
+
+/// The settings as the host merged them (`bb.config`): the TOML text, and which sources the host found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Supplied {
+    /// The merged settings as TOML text.
+    pub text: String,
+    /// The mod's own `config.toml` exists.
+    pub has_file: bool,
+    /// The game's main config has a `[mods.nfsmw-2012-content]` table.
+    pub has_main_section: bool,
+}
+
+impl Supplied {
+    /// Whether the player has written settings anywhere. Without any, the mod writes its commented template.
+    pub fn is_empty(&self) -> bool {
+        !self.has_file && !self.has_main_section
+    }
+}
+
 /// A commented settings file with the defaults: what the mod writes into its folder when it finds none.
 pub const DEFAULT_CONFIG: &str = "# Settings of the NFS: Most Wanted (2012) cars mod (docs/modding/nfsmw-2012-content.md). Restart the game after a change.
+# The same keys work under [mods.nfsmw-2012-content] in the game's own config file, which wins over this file key by key.
 
 # Folder of your own NFS Most Wanted (2012) install. Without it no car is added.
 # source = 'D:\\Need For Speed Most Wanted 2012'
@@ -171,6 +195,28 @@ pub fn matches(pattern: &str, id: &str, name: &str) -> bool {
 }
 
 impl Config {
+    /// The settings for a start: the ones the host merged (`supplied`), or, for a host without `bb.config`, the file at
+    /// `path`. When no settings exist anywhere (no file, no `[mods.nfsmw-2012-content]` table) the commented template
+    /// [`DEFAULT_CONFIG`] is written to `path` first; `created` says so. A table in the main config and no file writes
+    /// nothing: the file would only shadow nothing and confuse.
+    pub fn resolve(supplied: Option<&Supplied>, path: &Path) -> Result<(Self, bool)> {
+        let Some(supplied) = supplied else {
+            let created = !path.exists();
+            if created {
+                std::fs::write(path, DEFAULT_CONFIG).with_context(|| format!("writing {}", path.display()))?;
+            }
+            return Ok((Self::load(path)?, created));
+        };
+        if supplied.is_empty() {
+            std::fs::write(path, DEFAULT_CONFIG).with_context(|| format!("writing {}", path.display()))?;
+            return Ok((Self::parse(DEFAULT_CONFIG)?, true));
+        }
+        let config = Self::parse(&supplied.text).with_context(|| {
+            format!("reading the settings ({}, or [mods.{MOD_ID}] in the game's config)", path.display())
+        })?;
+        Ok((config, false))
+    }
+
     /// Read the file at `path`; a missing file gives the defaults.
     pub fn load(path: &Path) -> Result<Self> {
         let text = match std::fs::read_to_string(path) {
@@ -236,6 +282,80 @@ mod tests {
         assert!(config.wants("LAMGALLARDO", "Lamborghini Gallardo 2011"));
         assert!(!config.wants("POR911GT208", "Porsche 911 GT2 2008"));
         assert!(!config.wants("BMW1M12", "BMW 1M 2012"));
+    }
+
+    fn supplied(text: &str, has_file: bool, has_main_section: bool) -> Supplied {
+        Supplied { text: text.to_owned(), has_file, has_main_section }
+    }
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("nfsmw-2012-config-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn the_hosts_merged_text_is_the_settings() {
+        let dir = scratch("merged");
+        let path = dir.join(FILE_NAME);
+        let (config, created) =
+            Config::resolve(Some(&supplied("role = 'cop'\nmax_texture_size = 512\n", false, true)), &path).unwrap();
+        assert_eq!((config.role, config.max_texture_size, created), (Role::Cop, 512, false));
+        assert!(!path.exists(), "a table in the main config and no file: no template is written");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn with_no_settings_anywhere_the_template_is_written_and_means_the_defaults() {
+        let dir = scratch("template");
+        let path = dir.join(FILE_NAME);
+        let (config, created) = Config::resolve(Some(&supplied("", false, false)), &path).unwrap();
+        assert_eq!((config, created), (Config::default(), true));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), DEFAULT_CONFIG);
+        let (_, again) = Config::resolve(Some(&supplied("", true, false)), &path).unwrap();
+        assert!(!again, "once the file exists nothing is written");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_host_without_the_interface_gets_the_file_alone() {
+        let dir = scratch("legacy");
+        let path = dir.join(FILE_NAME);
+        let (config, created) = Config::resolve(None, &path).unwrap();
+        assert_eq!((config, created), (Config::default(), true));
+        std::fs::write(&path, "role = 'both'\n").unwrap();
+        let (config, created) = Config::resolve(None, &path).unwrap();
+        assert_eq!((config.role, created), (Role::Both, false));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn an_unknown_key_in_either_source_is_an_error() {
+        let dir = scratch("typo");
+        let path = dir.join(FILE_NAME);
+        let error = Config::resolve(Some(&supplied("typo = 1\n", false, true)), &path).unwrap_err();
+        assert!(format!("{error:#}").contains("typo"), "{error:#}");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_change_in_either_source_changes_the_import_stamp() {
+        use blackbox_modding::host::config::effective;
+        let nowhere = Path::new("definitely/not/here");
+        let stamp = |file: &str, main: &str| {
+            let merged = effective(Some(file), Some(main)).unwrap();
+            crate::stamp::of(&Config::parse(&merged.text).unwrap(), nowhere)
+        };
+        let base = stamp("role = 'player'\n", "max_texture_size = 1024\n");
+        assert_ne!(base, stamp("role = 'cop'\n", "max_texture_size = 1024\n"), "the file changed");
+        assert_ne!(base, stamp("role = 'player'\n", "max_texture_size = 512\n"), "the main config changed");
+        assert_eq!(base, stamp("role = 'player'\n", "max_texture_size = 1024\n"), "nothing changed");
+        assert_eq!(
+            base,
+            stamp("role = 'player'\nmax_texture_size = 1024\n", "role = 'player'\n"),
+            "the same effective settings from other sources are the same stamp"
+        );
     }
 
     #[test]

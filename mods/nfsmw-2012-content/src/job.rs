@@ -54,17 +54,13 @@ impl Job {
     }
 }
 
-/// What the mod does at load: promote a finished run left by an earlier start, read the settings from
-/// `mod_dir/config.toml`, and, unless the content on disk is still right, start converting in the background.
-pub fn start(mod_dir: &Path) -> Result<Start> {
+/// What the mod does at load: promote a finished run left by an earlier start, take the settings the host merged from
+/// `mod_dir/config.toml` and the game's `[mods.nfsmw-2012-content]` table (`supplied`; without it, read `config.toml`
+/// alone), and, unless the content on disk is still right, start converting in the background.
+pub fn start(mod_dir: &Path, supplied: Option<&config::Supplied>) -> Result<Start> {
     promote(mod_dir)?;
     let config_path = mod_dir.join(config::FILE_NAME);
-    let created = !config_path.exists();
-    if created {
-        fs::write(&config_path, config::DEFAULT_CONFIG)
-            .with_context(|| format!("writing {}", config_path.display()))?;
-    }
-    let config = Config::load(&config_path)?;
+    let (config, created) = Config::resolve(supplied, &config_path)?;
     let Some(source) = config.source.clone() else {
         return Ok(Start::NotConfigured { config: config_path, created });
     };
@@ -183,13 +179,24 @@ mod tests {
     }
 
     #[test]
+    fn settings_in_the_main_config_alone_write_no_file_and_convert_nothing_without_a_source() {
+        let dir = temp("main-only");
+        let text = "role = 'cop'\n".to_owned();
+        let supplied = config::Supplied { text, has_file: false, has_main_section: true };
+        let start = start(&dir, Some(&supplied)).unwrap();
+        assert!(matches!(start, Start::NotConfigured { created: false, .. }));
+        assert!(!dir.join("config.toml").exists(), "a template next to a [mods] table would only confuse");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn a_first_start_writes_the_settings_and_converts_nothing() {
         let dir = temp("first");
-        let start = start(&dir).unwrap();
+        let start = start(&dir, None).unwrap();
         assert!(matches!(start, Start::NotConfigured { created: true, .. }));
         assert!(dir.join("config.toml").is_file());
         assert!(!dir.join("files").exists() && !dir.join("cars").exists() && !dir.join(STAGING).exists());
-        assert!(matches!(self::start(&dir).unwrap(), Start::NotConfigured { created: false, .. }));
+        assert!(matches!(self::start(&dir, None).unwrap(), Start::NotConfigured { created: false, .. }));
         fs::remove_dir_all(&dir).unwrap();
     }
 }

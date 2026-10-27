@@ -25,7 +25,7 @@ fn converted(source: &Path) -> PathBuf {
     let text =
         format!("source = '{source}'\ncars = ['{CAR}']\n\n[performance]\npower = 1.2\n\n[car.{CAR}]\nbrakes = 1.3\n");
     std::fs::write(dir.join("config.toml"), text).unwrap();
-    let Start::Started { job: running, .. } = job::start(&dir).unwrap() else { panic!("the first start converts") };
+    let Start::Started { job: running, .. } = job::start(&dir, None).unwrap() else { panic!("the first start converts") };
     let started = Instant::now();
     let finished = loop {
         if let Some(finished) = running.poll() {

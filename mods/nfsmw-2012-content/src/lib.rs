@@ -5,7 +5,8 @@
 //! as the car's own `GEOMETRY.BIN`, `TEXTURES.BIN` and `BOUNDS.BIN`, with a `cars/<id>.toml`, in its own folder. The
 //! game loads those like the cars of any content mod (`docs/modding/api-content.md`). Nothing from either game is in
 //! the repository: the cars are made on the user's machine from the user's own installs, and without a 2012 install
-//! named in `config.toml` ([`config::Config::source`]) the mod adds nothing.
+//! named in its settings ([`config::Config::source`]: `config.toml` or `[mods.nfsmw-2012-content]` in the game's config file)
+//! the mod adds nothing.
 //!
 //! The conversion runs on a background thread ([`job`]) so the game does not wait for it. The first time, the cars are
 //! written to a staging folder; when the job ends, the mod moves them into place and tells the host through
@@ -70,15 +71,22 @@ impl Mod for NfsmwContent {
             return Ok(Self { mod_dir: PathBuf::new(), job: None, live: false });
         };
         let mut state = Self { mod_dir: mod_dir.clone(), job: None, live: false };
-        match job::start(&mod_dir) {
+        let supplied = match supplied_config(ctx) {
+            Ok(supplied) => supplied,
+            Err(error) => {
+                let reason = format!("nfsmw-2012-content: no car is added, the settings are not read: {error}");
+                ctx.log(Level::Warn, &reason);
+                return Ok(state);
+            }
+        };
+        match job::start(&mod_dir, supplied.as_ref()) {
             Ok(Start::NotConfigured { config, created }) => {
                 let made = if created { " (written just now)" } else { "" };
+                let elsewhere = format!("or under [mods.{}] in the game's config file,", config::MOD_ID);
+                let place = format!("{}{made}, {elsewhere}", config.display());
                 ctx.log(
                     Level::Info,
-                    &format!(
-                        "nfsmw-2012-content: no 2012 install is set. Put `source = '<folder>'` in {}{made} and restart",
-                        config.display()
-                    ),
+                    &format!("nfsmw-2012-content: no 2012 install is set. Put `source = '<folder>'` in {place} and restart"),
                 );
             }
             Ok(Start::UpToDate { cars }) => {
@@ -106,6 +114,14 @@ impl Mod for NfsmwContent {
             }
         }
     }
+}
+
+/// The settings the host merged from the mod's `config.toml` and the game's `[mods.nfsmw-2012-content]` table
+/// (`bb.config`). `None` for a host that does not offer `bb.config`: the mod then reads `config.toml` alone.
+fn supplied_config(ctx: &Ctx) -> ModResult<Option<config::Supplied>> {
+    let Some(host) = ctx.config() else { return Ok(None) };
+    let text = host.text()?;
+    Ok(Some(config::Supplied { text, has_file: host.has_file(), has_main_section: host.has_main_section() }))
 }
 
 /// Offer the 2012 nitrous as a value of the game's "Nitrous variant" option (`bb.settings`). It is offered only when a 2012
