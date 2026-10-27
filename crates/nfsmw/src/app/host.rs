@@ -81,7 +81,7 @@ impl Host {
         scene.set_rain(settings.always_rain, settings.rain_amount.amplitude());
         scene.set_world_tuning(settings.into());
         scene.set_detail(settings.detail);
-        scene.set_car_shading(settings.car_shading);
+        scene.set_car_shading(settings.effective_car_shading());
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
         scene.set_spark_style(settings.spark_style);
         scene.set_speed_trail_style(settings.speed_trail_style);
@@ -116,7 +116,7 @@ impl Host {
             smoke_quality: settings.smoke_quality,
             rain: (settings.always_rain, settings.rain_amount.amplitude()),
             world: settings.into(),
-            car_shading: settings.car_shading,
+            car_shading: settings.effective_car_shading(),
             vehicle_effects: [settings.collision_sparks, settings.speed_trails],
             spark_style: settings.spark_style,
             speed_trail_style: settings.speed_trail_style,

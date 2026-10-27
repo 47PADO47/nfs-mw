@@ -8,6 +8,9 @@ preserve this X-dependent term that the earlier decompiler summary omitted.
 The older runtime observations below remain historical evidence, not current
 implementation or proof that the cloud gate is neutral everywhere.
 
+**Current headlight behavior:** player headlights default to on and do not
+follow the clock. The manual headlights toggle remains available.
+
 Status: **sun motion and fog colour implemented, built and tested in the running game** (world tests 230 pass; sun and fog unit tests 17 pass; `nfsmw-data` 69 pass; offscreen screenshot renders). Day-night clock (E1): the clock, the sun phase for the hour, the lights-on and lights-off switch, and their config (`crates/nfsmw-data/src/day_night.rs`, `crates/nfsmw/src/scenes/world/day.rs`) are implemented with unit tests, not yet checked against the original at a known hour. The per-frame sun integrator is gone; the clock sets the sun. The double `sun.advance` noted in the earlier pass was already removed on the current branch. Outstanding: the visual match of the scattering fog and lighting against the original game, which needs a reference frame. Out of scope for this pass and still open: the sky dome, the colour grade's time link, scalar `+0xA0`, and the live blend weight `t` (held at 0.0685).
 world scene (`crates/nfsmw/src/scenes/world/sun.rs`). The low-sun colours are specified too: in the states
 checked, the preset blend follows a location value, not the clock, and the clock's counter is never written.
@@ -305,8 +308,8 @@ with the original game is not verified.
 2. **Day-night clock and lights** (done, own config). `DayNightConfig` in `crates/nfsmw-data/src/day_night.rs`
    (serde, defaults above): `force_time` (`ForceTime`), `real_time` and `random_startup_time` (read, not applied),
    `sun_rise`, `sun_set`, `lights_on`, `lights_off`, `sun_azimuth` (the orbit's `+0x0C` angle `a`, our mapping).
-   The player's headlights switch at `lights_on` and `lights_off` (`Drive::set_headlights`); a manual toggle holds
-   until the next switch. World lights and the sky colour are not driven yet.
+   The player's headlights default to on and are controlled by the manual toggle;
+   the clock does not change them. World lights and the sky colour are not driven yet.
    Not yet wired: loading the config from the settings file (the defaults are used).
 3. **Preset blend** (done as specified, in the location form). `time_of_day::blend` with `t` from the world's
    `+0x290` value. Not yet applied to the renderer's colours.

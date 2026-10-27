@@ -46,14 +46,17 @@ pub(super) fn upload_solids(
                 continue;
             }
             let solid = &model.solids[&p.solid];
+            let lamp_material = materials.enhanced_lamps_for(&solid.name);
             let relevant = solid.groups.iter().filter_map(|g| g.diffuse_texture(solid)).fold(0, |mask, hash| {
-                let head = variants[0].resolve_for(hash, p.left_brake) != variants[1].resolve_for(hash, p.left_brake);
-                let brake = variants[0].resolve_for(hash, p.left_brake) != variants[2].resolve_for(hash, p.left_brake);
+                let head = variants[0].resolve_for(hash, p.left_brake) != variants[1].resolve_for(hash, p.left_brake)
+                    || (lamp_material && variants[0].lamp_is_on(hash) != variants[1].lamp_is_on(hash));
+                let brake = variants[0].resolve_for(hash, p.left_brake) != variants[2].resolve_for(hash, p.left_brake)
+                    || (lamp_material && variants[0].lamp_is_on(hash) != variants[2].lamp_is_on(hash));
                 mask | u8::from(head) | (u8::from(brake) << 1)
             });
             let lamps: [_; 4] = std::array::from_fn(|state| {
                 *cache.entry((p.solid, p.left_brake, state as u8 & relevant)).or_insert_with(|| {
-                    let lookup = materials.for_placement(&variants[state], p.left_brake);
+                    let lookup = materials.for_solid(&variants[state], p.left_brake, &solid.name);
                     upload_solid(renderer, solid, &lookup, Shading::Lit)
                 })
             });

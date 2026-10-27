@@ -62,6 +62,8 @@ fn mesh_draw(r: &mut Renderer, desc: GlossyMaterial, baked: u8, blend: BlendMode
 mod actors;
 #[path = "chrome_tests.rs"]
 mod chrome;
+#[path = "lamp_tests.rs"]
+mod lamps;
 #[path = "layer_tests.rs"]
 mod layers;
 fn rig(r: &mut Renderer, intensity: f32) {

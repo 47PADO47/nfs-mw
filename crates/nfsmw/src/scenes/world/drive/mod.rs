@@ -225,6 +225,7 @@ impl Drive {
             reverse,
             steer: self.steer_lamp,
             headlights: self.headlights,
+            enhanced: self.rig.enhanced_lamps(),
             turn_signals: false,
             time: self.lamp_time,
         };
@@ -270,11 +271,6 @@ impl Drive {
     pub fn toggle_headlights(&mut self) -> bool {
         self.headlights = !self.headlights;
         self.headlights
-    }
-
-    /// Set the headlights on or off, as the day-night clock does at its lights-on and lights-off hours.
-    pub fn set_headlights(&mut self, on: bool) {
-        self.headlights = on;
     }
 
     pub fn heading(&self) -> f32 {

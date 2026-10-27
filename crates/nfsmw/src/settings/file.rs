@@ -129,6 +129,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         }),
         exhaust_flames: field(&table, origin, "exhaust_flames", boolean),
         enhanced_exhaust: field(&table, origin, "enhanced_exhaust", boolean),
+        enhanced_lamps: field(&table, origin, "enhanced_lamps", boolean),
         exhaust_style: table.get("exhaust_style").and_then(super::exhaust_style::parse),
         backfire_style: table.get("backfire_style").and_then(super::backfire_style::parse),
         turn_signals: field(&table, origin, "turn_signals", boolean),
