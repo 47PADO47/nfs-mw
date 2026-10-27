@@ -300,3 +300,23 @@ fn bad_wings_and_tracks_are_refused() {
         assert!(car(&text).is_err(), "accepted: {text}");
     }
 }
+
+#[test]
+fn a_part_can_name_the_turn_of_each_stage() {
+    let text = ONE.replace("detach_at = 0.9", "stage_angles = [-1.0, -4.0, -9.0]");
+    let part = &car(&text).unwrap().damage_parts[0];
+    assert_eq!(part.stage_angles, vec![-1.0, -4.0, -9.0]);
+    assert!(car(ONE).unwrap().damage_parts[0].stage_angles.is_empty(), "left out: an even share of angle");
+    let short = ONE.replace("detach_at = 0.9", "stage_angles = [-1.0, -4.0]");
+    assert!(car(&short).is_err(), "one angle per stage");
+    let wild = ONE.replace("detach_at = 0.9", "stage_angles = [-1.0, -4.0, 400.0]");
+    assert!(car(&wild).is_err(), "within 180 degrees");
+}
+
+#[test]
+fn a_car_may_list_many_pieces_up_to_the_limit() {
+    let piece = ONE.replace("angle = -15.0", "angle = 0.0");
+    let many: String = (0..MAX_DAMAGE_PARTS).map(|n| piece.replace("Bonnet", &format!("Piece{n}"))).collect();
+    assert_eq!(car(&many).unwrap().damage_parts.len(), MAX_DAMAGE_PARTS);
+    const { assert!(MAX_DAMAGE_PARTS >= 32, "room for the pieces of a 2012 car") };
+}

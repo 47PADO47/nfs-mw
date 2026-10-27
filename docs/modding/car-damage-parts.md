@@ -29,6 +29,7 @@ pivot = [0.74, -0.70, 0.88]           # a point of the hinge line, in the solids
 axis = [0.0, 1.0, 0.0]                # the direction of the hinge line
 angle = -15.0                         # degrees turned at the last stage
 stages = [0.04, 0.05, 0.5]            # damage fractions at which each stage starts
+# stage_angles = [-2.0, -4.0, -9.0]   # optional: the degrees turned at each stage (one per stage), instead of an even share of angle
 # detach_at = 0.9                     # optional: the part falls off from this damage on
 # detach = false                      # optional: the part never leaves the car
 mass_kg = 40.0                        # optional: its mass once it is a body of its own (default 25)
@@ -52,8 +53,9 @@ seconds = 0.6                         # the whole movement takes this long
 | `model` | The part's solid in the car's `GEOMETRY.BIN`, letters, digits, `_` and `-`, up to 56 bytes. The game looks for `<model>_A` to `<model>_E` and draws the part at the levels that have one. A part with none is left out and the log says so |
 | `zones` | At least one of `front`, `rear`, `left`, `right`, `front_left`, `front_right`, `rear_left`, `rear_right` (the game's damage zones). The part follows the worst of them |
 | `pivot`, `axis` | The hinge line, in the space of the solids (+x forward, +y left, +z up), metres. The axis is any non-zero direction, normalised by the game |
-| `angle` | Degrees turned at the last stage, right-handed about `axis`, not 0, at most 180 |
+| `angle` | Degrees turned at the last stage, right-handed about `axis`, at most 180; 0: the damage does not turn the part (it can still fall off) |
 | `stages` | Up to 8 damage fractions from 0 to 1, in ascending order. Left out: one stage at the first damage |
+| `stage_angles` | One angle in degrees per stage (up to 180 each), the turn the part has once that stage is reached; left out, the turn is `angle` times the share of stages reached. The 2012 mod writes the turn of its clip at the three panel levels |
 | `detach_at` | A damage fraction above 0 and at most 1: from there on the part falls off. Left out: the last of its `stages`, but not before 0.5 (a part comes off when the car is heavily damaged, not at the first dent) |
 | `detach` | `false` keeps the part on the car whatever happens, a wreck included. Not with `detach_at` |
 | `mass_kg` | 0.5 to 5000, default 25. The mass of the body the part becomes |
@@ -120,7 +122,7 @@ slot 4 plays; braking with the wing out cross-fades to slot 2 (from the open win
 pose is the blend of the keys of the animations playing (the first replaces it, the second moves it toward its own pose by the
 fade weight; a part with no track in an animation stays at rest there). Keys are absolute poses, 2 to 64 per track.
 
-A wrong value, or a key the table does not know, refuses the car and the log names the key. At most 16 parts per car. The
+A wrong value, or a key the table does not know, refuses the car and the log names the key. At most 64 parts per car (the first 16 may move with the speed). The
 schema is checked by `libs/blackbox-modding/src/content/damage_parts.rs`; whether the model exists is checked by the game
 when it assembles the car.
 
@@ -135,7 +137,7 @@ slots, like the zone levels. A part that falls off keeps the place it had. The d
 The damage model keeps a panel level from 0 to 3 for each of the eight zones
 ([vehicle-damage.md](../specs/vehicle-damage.md)). A part's **damage** is the worst panel level of its `zones` over 3: 0, 0.33,
 0.67 or 1. With no damage the part is at rest. Otherwise it has turned by `angle` times the share of its `stages` that the
-damage has reached, about the line through `pivot` along `axis`. A repair (the `repair` console command) puts it back on the
+damage has reached (or by the `stage_angles` entry of the last stage reached), about the line through `pivot` along `axis`. A repair (the `repair` console command) puts it back on the
 car. The turn is a pose of the solid on the car: the part keeps its mesh and its materials,
 and every car drawn with its damage events (the player's car, and the cars that pass them to the rig) shows it.
 
@@ -174,13 +176,16 @@ speeds, time, slide and turn are decoded from the 2012 state machine and animati
 flaps are parts of their own that hang from it. The Agera's flaps follow the gas (`gas = true`), the air vents of four cars wait
 (`open_after_seconds`, `close_after_seconds`) and the Veyrons' wing is a `[wing]` machine with keyed `track`s. The McLaren and the
 Venom use the same `[wing]` machine without a top-speed animation, and the Huayra's flaps are played by `[[damage_parts.drive]]`
-tables; both rest on assumptions listed in [chameleon-active-aero.md](../formats/chameleon-active-aero.md).
+tables; their numbers are the data's, the state table and the playback are partly unconfirmed, item by item in [chameleon-active-aero.md](../formats/chameleon-active-aero.md#second-pass-what-the-data-and-the-executable-confirm).
 
-The [2012 mod](../../mods/nfsmw-2012-content/README.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data.
-A 2012 part turns through a few degrees at most, so its stages are small steps. The mod writes the part's own mass and no
-`detach_at`: the 2012 data names no release level, so the default applies, which comes from the 2012 ladder of the part (its
-last step, and not before half the damage): the 911's bonnet (last step 0.5) and mirrors (0.2, raised to 0.5) come off with
-the second dent of their zones, its bumpers (0.75) and doors (1.0) with the third. A wreck takes them all.
+The [2012 mod](../../mods/nfsmw-2012-content/README.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data
+([chameleon-damage.md](../formats/chameleon-damage.md)): the damage clip of each zone says how far a part's bone turns at a third, two
+thirds and all of the zone's damage (`stages = [0.33, 0.66, 1.0]` with `stage_angles`: a few degrees, the bonnet about 9) and the first
+key at which its piece is gone (`detach_at`: bumpers and spoiler at 1.0, mirrors and lamps at 0.25, window glass at 0.4, corner pieces at
+0.6). A part whose clip never breaks it (the bonnet, the doors) gets `detach = false` and stays on the car, a wreck included. Every other
+piece the clips break (lamp glasses, window glass, the lips and corner pieces of the bumpers) is a part of its own, `Piece<bone>`, with
+no turn of its own: it turns with the part it sits on (the same `pivot`, `axis` and `stage_angles`) and falls off at its own level. A
+part with no clip keeps the ladder of its damage object as its stages and the default release.
 
 ## Using it
 

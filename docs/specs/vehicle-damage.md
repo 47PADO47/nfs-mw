@@ -71,7 +71,7 @@ a prop-solver fragment: a rigid body of its own that falls, collides, rests and 
 the installed detached parts. `repair` puts the part back on the car. The zone levels reach the car draw as marks in the set of
 revealed slots (`VehicleEvents::revealed_slots`, `car::mods::hinged::level_mark`); the placements of the parts are slots 256
 and up. The 2012 cars carry their own parts from the 2012 damage data ([chameleon-hinged-parts.md](../formats/chameleon-hinged-parts.md)).
-Not done: a flapping part, joints, and the 2012 crumple animation of the body. Details: [car-damage-parts.md](../modding/car-damage-parts.md#falling-off).
+The 2012 cars take the turn, the break-off level and the extra breakable pieces of each part from the 2012 damage clips ([chameleon-damage.md](../formats/chameleon-damage.md)), as `stage_angles` and `detach_at`. Not done: a flapping part, joints, the slides of the 2012 clips and vertex-level dents. Details: [car-damage-parts.md](../modding/car-damage-parts.md#falling-off).
 
 ## Traffic and cop cars
 

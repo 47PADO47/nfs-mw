@@ -20,7 +20,7 @@ use play::{RawDrive, RawTrack, check_drive, check_track};
 pub(in crate::content) use play::{RawWing, check_wing};
 
 /// Most hinged parts a car lists.
-pub const MAX_DAMAGE_PARTS: usize = 16;
+pub const MAX_DAMAGE_PARTS: usize = 64;
 /// Most stages of one part.
 pub const MAX_STAGES: usize = 8;
 /// The mass of a part that gives none, in kg, and the range a mass may have.
@@ -127,6 +127,9 @@ pub struct DamagePart {
     /// The zone damage (0 to 1, ascending) at which each stage starts. The part has turned `angle` times the share of
     /// stages passed. Left out: one stage at the first damage.
     pub stages: Vec<f32>,
+    /// The degrees the part has turned at each stage (one per stage), when the stages do not turn it evenly. Empty: it has
+    /// turned `angle` times the share of stages passed.
+    pub stage_angles: Vec<f32>,
     /// The zone damage (above 0, at most 1) from which the part falls off. `None` (with `detach` true): the last stage,
     /// but not before half the damage the zone can take (`DamagePart::release_level` in the game).
     pub detach_at: Option<f32>,
@@ -178,6 +181,8 @@ pub(super) struct Raw {
     #[serde(default)]
     stages: Vec<f32>,
     #[serde(default)]
+    stage_angles: Vec<f32>,
+    #[serde(default)]
     detach_at: Option<f32>,
     #[serde(default)]
     detach: Option<bool>,
@@ -209,7 +214,7 @@ fn is_model(text: &str) -> bool {
 pub(super) fn check(raw: Option<Vec<Raw>>) -> Result<Vec<DamagePart>, ContentError> {
     let Some(raw) = raw else { return Ok(Vec::new()) };
     if raw.len() > MAX_DAMAGE_PARTS {
-        return Err(field("a car lists at most 16 parts"));
+        return Err(field("a car lists at most 64 parts"));
     }
     let mut parts: Vec<DamagePart> = Vec::with_capacity(raw.len());
     for entry in raw {
@@ -294,6 +299,10 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
         return Err(field("a part has one track per wing animation"));
     }
     let stages = if raw.stages.is_empty() { vec![0.0] } else { raw.stages };
+    let angles_ok = raw.stage_angles.iter().all(|a| a.is_finite() && a.abs() <= 180.0);
+    if !angles_ok || (!raw.stage_angles.is_empty() && raw.stage_angles.len() != stages.len()) {
+        return Err(field("stage_angles is one angle of up to 180 degrees per stage"));
+    }
     let axis = raw.axis.map(|c| c / length);
     Ok(DamagePart {
         name,
@@ -303,6 +312,7 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
         axis,
         angle: raw.angle,
         stages,
+        stage_angles: raw.stage_angles,
         detach_at: raw.detach_at,
         detach,
         mass_kg,
