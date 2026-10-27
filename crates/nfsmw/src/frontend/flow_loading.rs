@@ -123,7 +123,7 @@ impl Frontend {
         if let Some(setup) = self.split.as_ref()
             && setup.customs[1]
         {
-            world.set_car_shading(env.settings.car_shading);
+            world.set_car_shading(env.settings.effective_car_shading());
             let result = host
                 .renderer
                 .as_mut()

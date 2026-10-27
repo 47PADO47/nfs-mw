@@ -1,7 +1,7 @@
 # Experimental lamp surface
 
 This is an artistic prototype, not original-game behaviour. It is enabled for
-Custom car shading by the process variable `NFSMW_EXPERIMENTAL_LAMPS=1`.
+Custom car shading by the F8 **Enhanced vehicle lamps** option.
 Original and simple shading retain their existing surface response.
 
 Only named headlight and brake-light texture slots with installed ON artwork

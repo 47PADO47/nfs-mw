@@ -243,6 +243,8 @@ pub struct Settings {
     /// Flames at the tail pipes: gear-change blow-off and lift-off backfire. Nothing is loaded when off.
     pub exhaust_flames: bool,
     pub enhanced_exhaust: bool,
+    /// Enhanced lamp surfaces and marker glow in custom car shading.
+    pub enhanced_lamps: bool,
     pub exhaust_style: ExhaustStyle,
     pub backfire_style: BackfireStyle,
     /// Show turn signals on cars while steering (a rewrite extension, off by default).
@@ -398,6 +400,7 @@ impl From<Partial> for Settings {
             speed_trail_style: p.speed_trail_style.unwrap_or_default(),
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
             enhanced_exhaust: p.enhanced_exhaust.unwrap_or(false),
+            enhanced_lamps: p.enhanced_lamps.unwrap_or(false),
             exhaust_style: p.exhaust_style.unwrap_or_default(),
             backfire_style: p.backfire_style.unwrap_or_default(),
             turn_signals: p.turn_signals.unwrap_or(false),

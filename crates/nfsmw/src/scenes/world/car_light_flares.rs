@@ -64,11 +64,9 @@ impl CarLightFlares {
                 set.profiles.push(Profile { kind, spec: spec.clone(), texture: handle });
             }
         }
-        if std::env::var_os("NFSMW_EXPERIMENTAL_LAMPS").is_some_and(|v| v == "1") {
-            let texture = enhanced::upload(renderer);
-            set.textures.push(texture);
-            set.enhanced_texture = Some(texture);
-        }
+        let texture = enhanced::upload(renderer);
+        set.textures.push(texture);
+        set.enhanced_texture = Some(texture);
         set
     }
 

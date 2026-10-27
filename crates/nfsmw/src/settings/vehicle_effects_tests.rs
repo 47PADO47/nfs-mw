@@ -3,6 +3,22 @@ use crate::cli::{Cli, Command};
 use clap::Parser;
 
 #[test]
+fn enhanced_lamps_persist_and_only_change_custom_car_shading() {
+    let mut settings = Settings::from(Partial::default());
+    assert!(!settings.enhanced_lamps);
+    assert_eq!(settings.effective_car_shading(), CarShading::Glossy);
+    settings.enhanced_lamps = true;
+    assert_eq!(settings.effective_car_shading(), CarShading::GlossyLamps);
+    let text = write::merge("", &settings.graphics_layer()).unwrap();
+    let mut restored = Settings::from(file::parse(&text, "test"));
+    assert!(restored.enhanced_lamps);
+    assert_eq!(restored.effective_car_shading(), CarShading::GlossyLamps);
+    restored.car_shading = CarShading::Original;
+    assert_eq!(restored.effective_car_shading(), CarShading::Original);
+    assert!(restored.enhanced_lamps, "switching shading preserves the F8 preference");
+}
+
+#[test]
 fn optional_visuals_keep_pc_defaults_and_layer_independently() {
     let defaults = Settings::from(Partial::default());
     assert!(!defaults.collision_sparks && !defaults.speed_trails);

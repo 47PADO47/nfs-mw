@@ -5,7 +5,7 @@ use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 
 use super::{exec, parse, settings_cmd};
 use crate::app::Host;
-use crate::settings::{Partial, Settings, SmokeQuality, SparkStyle};
+use crate::settings::{CarShading, Partial, Settings, SmokeQuality, SparkStyle};
 use crate::viewer::Scene;
 
 #[derive(Default)]
@@ -14,6 +14,7 @@ struct Seen {
     tires: Vec<[bool; 2]>,
     quality: Vec<SmokeQuality>,
     styles: Vec<SparkStyle>,
+    shading: Vec<CarShading>,
 }
 
 struct ObservedScene(Arc<Mutex<Seen>>);
@@ -41,6 +42,31 @@ impl Scene for ObservedScene {
     fn set_smoke_quality(&mut self, quality: SmokeQuality) {
         self.0.lock().unwrap().quality.push(quality);
     }
+    fn set_car_shading(&mut self, shading: CarShading) {
+        self.0.lock().unwrap().shading.push(shading);
+    }
+}
+
+#[test]
+fn enhanced_lamps_update_live_and_follow_car_shading() {
+    let seen = Arc::new(Mutex::new(Seen::default()));
+    let initial = Settings::from(Partial::default());
+    let host = Host::new(Box::new(ObservedScene(seen.clone())), &initial, None);
+    let mut app = App::new();
+    app.insert_resource(initial).insert_non_send(host).add_systems(Update, exec::sync_settings);
+    app.update();
+    app.world_mut().resource_mut::<Settings>().enhanced_lamps = true;
+    app.update();
+    assert_eq!(seen.lock().unwrap().shading.last(), Some(&CarShading::GlossyLamps));
+    app.world_mut().resource_mut::<Settings>().car_shading = CarShading::Original;
+    app.update();
+    assert_eq!(seen.lock().unwrap().shading.last(), Some(&CarShading::Original));
+    app.world_mut().resource_mut::<Settings>().car_shading = CarShading::Glossy;
+    app.update();
+    assert_eq!(seen.lock().unwrap().shading.last(), Some(&CarShading::GlossyLamps));
+    app.world_mut().resource_mut::<Settings>().enhanced_lamps = false;
+    app.update();
+    assert_eq!(seen.lock().unwrap().shading.last(), Some(&CarShading::Glossy));
 }
 
 #[test]

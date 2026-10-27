@@ -93,10 +93,13 @@ impl CarMaterials {
                     true => original_material(material, model_kind),
                     false => glossy_material(material),
                 };
-                if shading == CarShading::Glossy && Some(hash) == paint && model.paintable {
+                if matches!(shading, CarShading::Glossy | CarShading::GlossyLamps)
+                    && Some(hash) == paint
+                    && model.paintable
+                {
                     material.surface = model.paint.as_ref().and_then(super::paint_surface::response);
                 }
-                if shading == CarShading::Glossy && Some(hash) != paint {
+                if matches!(shading, CarShading::Glossy | CarShading::GlossyLamps) && Some(hash) != paint {
                     material.surface = super::material_response::response(&model.light_materials[&hash]);
                 }
                 Some((hash, renderer.create_glossy_material(&material)))
@@ -104,8 +107,7 @@ impl CarMaterials {
             .collect();
         let fallback =
             Some(renderer.create_glossy_material(&GlossyMaterial { model: model_kind, ..Default::default() }));
-        let enabled =
-            shading == CarShading::Glossy && std::env::var_os("NFSMW_EXPERIMENTAL_LAMPS").is_some_and(|v| v == "1");
+        let enabled = shading == CarShading::GlossyLamps;
         let mut lamp_glossy = HashMap::new();
         let mut lamp_fallback = None;
         let mut brake_glossy = HashMap::new();

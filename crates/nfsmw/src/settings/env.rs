@@ -160,6 +160,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         speed_trail_style: value(&get, SPEED_TRAIL_STYLE, super::SpeedTrailStyle::from_str),
         exhaust_flames: value(&get, EXHAUST_FLAMES, parse_bool),
         enhanced_exhaust: value(&get, "NFSMW_ENHANCED_EXHAUST", parse_bool),
+        enhanced_lamps: None,
         exhaust_style: None,
         backfire_style: None,
         turn_signals: None,

@@ -108,7 +108,7 @@ fn counts(backend: &NullBackend) -> (usize, usize, usize) {
 }
 
 #[test]
-#[ignore = "requires installed Supra and NFSMW_EXPERIMENTAL_LAMPS=1"]
+#[ignore = "requires installed Supra"]
 fn installed_lamp_glass_does_not_emit_through_shared_body_slot() {
     let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
     let model = nfsmw_data::car::load_driving(
@@ -121,7 +121,7 @@ fn installed_lamp_glass_does_not_emit_through_shared_body_slot() {
         .with_mesh_tracking()
         .with_glossy_tracking()
         .with_normal_tracking();
-    let rig = CarRig::upload(&mut backend, keys::next_car(), model, CarShading::Glossy, Vec3::Z);
+    let rig = CarRig::upload(&mut backend, keys::next_car(), model, CarShading::GlossyLamps, Vec3::Z);
     assert!(rig.appearance.borrow().materials.enhanced_lamps());
     let appearance = rig.appearance.borrow();
     let mut seen = false;
@@ -153,14 +153,14 @@ fn installed_lamp_glass_does_not_emit_through_shared_body_slot() {
 }
 
 #[test]
-#[ignore = "requires installed BMW and NFSMW_EXPERIMENTAL_LAMPS=1"]
+#[ignore = "requires installed BMW"]
 fn installed_experimental_head_damage_is_per_actor_and_repairs() {
     let mut backend = NullBackend::new(crate::settings::test_caps::native())
         .with_mesh_tracking()
         .with_texture_tracking()
         .with_glossy_tracking()
         .with_normal_tracking();
-    let rig = CarRig::upload(&mut backend, keys::next_car(), model(), CarShading::Glossy, Vec3::Z);
+    let rig = CarRig::upload(&mut backend, keys::next_car(), model(), CarShading::GlossyLamps, Vec3::Z);
     assert!(rig.appearance.borrow().materials.enhanced_lamps());
     let intact_swaps = rig.swaps().with_lamp_state(true, true, &rig.model.textures);
     let left_swaps = rig.swaps().with_broken_head_lights(1).with_lamp_state(true, true, &rig.model.textures);
