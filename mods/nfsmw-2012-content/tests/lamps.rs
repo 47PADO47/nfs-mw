@@ -62,7 +62,14 @@ fn a_converted_car_has_its_own_lamp_markers_and_lamp_surfaces() {
             "{name}"
         );
     }
-    assert!(find("LEFT_REVERSE").is_empty(), "the 2012 files have no reverse lamp to take a place from");
+    // The Porsche's rear record of bit 2 (the reverse lamp) is at (-2.00, +-0.63, 0.74): one lamp each side, shining back.
+    for (name, side) in [("LEFT_REVERSE", 1.0f32), ("RIGHT_REVERSE", -1.0)] {
+        let found = find(name);
+        assert_eq!(found.len(), 1, "no {name} marker");
+        let [x, y, z] = found[0].translation();
+        assert!(x < -1.8 && (y - side * 0.63).abs() < 0.05 && (0.5..1.0).contains(&z), "{name} at {x} {y} {z}");
+        assert!(found[0].matrix[8] < -0.5, "{name} shines the wrong way");
+    }
     assert!(!find("LEFT_EXHAUST").is_empty(), "the tail pipes are still there");
 
     // The lens strips use the game's lamp placeholders, so the game lights them with the car's state textures.

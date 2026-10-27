@@ -95,3 +95,19 @@ fn a_body_with_no_lamp_markers_has_no_lamps() {
     let lights = CarLights::for_model(&model(body(vec![marker("LEFT_EXHAUST", [-2.0, 0.3, 0.3], [-1.0, 0.0, 0.0])])));
     assert!(lights.lamps().is_empty());
 }
+
+#[test]
+fn a_mod_cars_reverse_lamps_are_left_right_and_centre_markers() {
+    let back = [-1.0, 0.0, 0.0];
+    let lights = CarLights::for_model(&model(body(vec![
+        marker("LEFT_REVERSE", [-2.0, 0.5, 0.35], back),
+        marker("RIGHT_REVERSE", [-2.0, -0.5, 0.35], back),
+        marker("CENTRE_REVERSE", [-2.3, 0.0, 0.31], back),
+    ])));
+    let reverse: Vec<_> = lights.lamps().iter().filter(|lamp| lamp.kind == Kind::Reverse).collect();
+    assert_eq!(reverse.len(), 3);
+    assert!(reverse.iter().all(|lamp| lamp.direction.dot(Vec3::NEG_X) > 0.99), "reverse lamps shine back");
+    let mut flags: Vec<u32> = reverse.iter().map(|lamp| lamp.flags).collect();
+    flags.sort_unstable();
+    assert_eq!(flags, vec![0, 64, 128], "the centre lamp has no damage identity of its own");
+}

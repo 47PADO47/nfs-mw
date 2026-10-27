@@ -13,7 +13,8 @@ use damage::marker_flags;
 const HEAD_MARKERS: [&str; 3] = ["LEFT_HEADLIGHT", "CENTRE_HEADLIGHT", "RIGHT_HEADLIGHT"];
 const TAIL_MARKERS: [&str; 2] = ["LEFT_BRAKELIGHT", "RIGHT_BRAKELIGHT"];
 const CENTRE_MARKERS: [&str; 2] = ["BRAKELIGHT_CENTRE", "CENTRE_BRAKELIGHT"];
-const REVERSE_MARKERS: [&str; 2] = ["LEFT_REVERSE", "RIGHT_REVERSE"];
+/// `CENTRE_REVERSE` is an extension for a mod car whose reverse lamp sits on the centre plane (it has no damage bit).
+const REVERSE_MARKERS: [&str; 3] = ["LEFT_REVERSE", "RIGHT_REVERSE", "CENTRE_REVERSE"];
 const SIGNAL_MARKERS: [(&str, bool); 4] =
     [("LEFT_HEADLIGHT", true), ("RIGHT_HEADLIGHT", false), ("LEFT_BRAKELIGHT", true), ("RIGHT_BRAKELIGHT", false)];
 /// The cop light bar: red lamps and blue lamps.

@@ -104,7 +104,7 @@ The game keeps a 32-bit word of lamp states per vehicle (at +0x3C8 of the lamp c
 |---|---|
 | 0, 4, 6, 7 (`0xD1`) | the vehicle's headlights flag is on (byte +0x1A8C, the one `Player.GetHeadLightsOn` reads) |
 | 1 | the second input float of the vehicle (+0x1930, the brake in its input block) is positive; also set together with bit 2 when the first (+0x192C, the throttle) is positive on some paths |
-| 2 | set on the same code path, **[unconfirmed]** meaning |
+| 2 | set on the same code path (value 4, whenever that path's moving test passes, and as `6` with bit 1 when the first float is positive); **[unconfirmed]** as code, but the records that use it are the reverse lamps, see below |
 | 3 | a second switch (byte +0x1C27) |
 | 9 (`0x200`) | the gear byte (+0x195B) is 1, **[unconfirmed]**: the reverse gear |
 | 8 | a flag of the same family (+0x1944 > 0 and the vehicle is the camera's, **[unconfirmed]**) |
@@ -127,14 +127,28 @@ the record's first locator:
 | rear | 1 | 230 | brake lamp |
 | rear | 7 | 122 | tail lamp, on with the headlights |
 | rear | 0 | 60 | tail lamp (on with the headlights) |
-| rear | 2 | 86 | a grey-white record, **[unconfirmed]** (the pattern of a reverse lamp, but no code path was traced) |
+| rear | 2 | 125 coronas, 89 cars | a white or grey-white lamp: the **reverse lamp** (below) |
 | rear | 3 | 6 | second-switch lamp |
 
 The lights: front bits 6, 17 and 4 (three road lights), rear bits 7, 2 and 1 (the Porsche's rear light for bit 2 has
 intensity 0.5, the others 1). Bit 17 is not set by `FUN_0057A5E0`: another writer exists.
 
-There is **no record for the reverse lamps** in any of the 93 cars, no record with bit 9, and no turn signal record: the
-indicators of the 2012 game are not locator driven **[verified absence]**.
+### The reverse lamp is bit 2 **[verified by data]**
+
+Every car but four (the Cobra 427, the Audi A1 Clubsport, the Huayra and one unnamed bundle) has rear coronas of bit 2, none
+has one at the front, and none has a corona of bit 8 or 9. Their shape is one pattern: a white or light-grey tint (0.67 to
+1), a size factor of 0.5 to 2 (100 in the 918 Spyder), mode 0, and a locator group that holds
+- one lamp off the centre plane (54 cars: the 911 at (-0.63, 0.74, -2.00); the mod mirrors it, like every lamp),
+- a left and a right lamp (32 cars: the Charger SRT8 at +-0.48 inside its tail cluster, the Corvettes low at +-0.50, height 0.33),
+- or one lamp on the centre plane (3 cars): the **918 Spyder** (`VEH_2196000`) has a single lamp at (0, 0.31, -2.31), low at
+  the rear face, turned about 10 degrees off the back axis. This is the white light seen at the bottom of the car in reverse.
+
+The road lights agree: each car's rear `Light` record of bit 2 is the lamp the car throws backward and down while reversing
+(the 918's group `0x21B4DB` points 49 degrees down, the Charger's has intensity 0.5), where the brake and tail records
+(bits 1 and 7) share the group. The code path that sets bit 2 in `FUN_0057A5E0` was not traced to a gear test (the gear byte sets bit 9, which no lamp record uses), so the
+reading rests on the data and on the 2012 game showing the 918's lamp in reverse.
+
+There is no turn signal record: the indicators of the 2012 game are not locator driven **[verified absence]**.
 
 ## Lamp surfaces
 
@@ -158,7 +172,8 @@ brake red) and the emissive map is a two-channel mask with the strips' pattern. 
 ## Not decoded
 
 - the `Corona`, `Light_Spot` and `Light_Base` objects (flare and glow curves, textures, cone data), the `SpotEffect` records;
-- the meaning of mode, of bits 2, 8, 9 and 17 and of the corona factors;
+- the meaning of mode, of bits 3, 8, 9 and 17 and of the corona factors; bit 2 as game code (it is the reverse lamp by data);
+- the front bit 3 coronas (2 cars, fog lamps) and the rear ones (6), the amber position or turn lamps (bit 6, 12 records);
 - the lightmap channels of `EmissiveFourChannel` and the emissive map of `Refraction`, and which circuit (head, brake, reverse,
   signal) each belongs to;
 - how the game turns the indicators.
@@ -168,4 +183,4 @@ brake red) and the emissive map is a two-channel mask with the strips' pattern. 
 `CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-vehicle lamps -- --ignored` reads every car's groups and lamp
 records (93 cars, 981 coronas, 549 lights; 92 cars have a head lamp record at the front and a brake record at the rear) and
 checks every record points at a group the car has. `MW2012_GAME_DIR=<2012 install> cargo test -p nfsmw-2012-content --test
-lamps -- --ignored` converts the Porsche and checks its markers and lamp textures.
+lamps -- --ignored` converts the Porsche and checks its markers (head, brake, centre brake and reverse) and lamp textures.

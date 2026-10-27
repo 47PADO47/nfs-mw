@@ -34,6 +34,8 @@ pub fn tail_pipes(body: &[[f32; 3]]) -> Vec<PositionMarker> {
 const MAX_PER_SIDE: usize = 2;
 /// Two lamp places closer than this, metres, are one lamp.
 const SAME_PLACE: f32 = 0.02;
+/// The bit of the light-state word the white rear lamps are on: the reverse lamps (`docs/formats/chameleon-lamps.md`).
+const REVERSE_BIT: u16 = 2;
 /// A lamp this close to the centre plane, metres, is a centre lamp.
 const CENTRE_BAND: f32 = 0.05;
 
@@ -47,8 +49,9 @@ pub(crate) struct Spot {
 /// The lamp markers of a car: the head lamps, the brake lamps and the centre brake lamp, in car space (`to_car` turns a
 /// point of the 2012 vehicle space into the game's car space, the way the body was moved).
 ///
-/// A car has no marker of a kind its records do not give (the cars with no lamp records have none at all, and no 2012
-/// record is a reverse lamp, so there are no reverse markers).
+/// A car has no marker of a kind its records do not give (the cars with no lamp records have none at all). The reverse
+/// lamps are the rear records of bit 2 of the light-state word ([`REVERSE_BIT`]); a lamp on the centre plane (the 918
+/// Spyder's low centre lamp) is a `CENTRE_REVERSE` marker, which the host draws like the left and right ones.
 pub fn lamp_markers(lamps: &Lamps, to_car: &dyn Fn([f32; 3]) -> [f32; 3]) -> Vec<PositionMarker> {
     let mut out = Vec::new();
     let heads = spots(lamps, |entry| matches!(entry.state_bit, 0 | 6) && !is_amber(entry), true, to_car);
@@ -60,6 +63,10 @@ pub fn lamp_markers(lamps: &Lamps, to_car: &dyn Fn([f32; 3]) -> [f32; 3]) -> Vec
         out.push(marker_at(name, spot));
     }
     for (spot, name) in sided(&brakes, "LEFT_BRAKELIGHT", "RIGHT_BRAKELIGHT", Some("BRAKELIGHT_CENTRE")) {
+        out.push(marker_at(name, spot));
+    }
+    let reverses = spots(lamps, |entry| entry.state_bit == REVERSE_BIT, false, to_car);
+    for (spot, name) in sided(&reverses, "LEFT_REVERSE", "RIGHT_REVERSE", Some("CENTRE_REVERSE")) {
         out.push(marker_at(name, spot));
     }
     out
@@ -265,6 +272,37 @@ mod tests {
         lamps.coronas.push(entry(2, 7, [1.0; 4]));
         let markers = lamp_markers(&lamps, &|p| [p[2], p[0], p[1]]);
         assert_eq!(find(&markers, "LEFT_BRAKELIGHT").len(), 1);
+    }
+
+    #[test]
+    fn a_rear_record_of_bit_2_is_a_reverse_lamp_on_both_sides() {
+        let mut lamps = lamps();
+        lamps.groups.push(LocatorGroup { id: 5, locators: vec![locator(-0.5, 0.35, -2.05, [0.0, 1.0, 0.0, 0.0])] });
+        lamps.coronas.push(entry(5, 2, [0.7, 0.7, 0.7, 1.0]));
+        let markers = lamp_markers(&lamps, &|p| [p[2], p[0], p[1]]);
+        let (left, right) = (find(&markers, "LEFT_REVERSE"), find(&markers, "RIGHT_REVERSE"));
+        assert_eq!(right[0].translation(), [-2.05, -0.5, 0.35]);
+        assert_eq!(left[0].translation(), [-2.05, 0.5, 0.35]);
+        assert_eq!(&left[0].matrix[8..11], &[-1.0, 0.0, 0.0], "a reverse lamp shines backward");
+        assert!(find(&markers, "CENTRE_REVERSE").is_empty());
+    }
+
+    #[test]
+    fn a_reverse_lamp_on_the_centre_plane_is_one_centre_marker() {
+        let mut lamps = lamps();
+        lamps.groups.push(LocatorGroup { id: 5, locators: vec![locator(0.0, 0.31, -2.31, [0.0, 1.0, 0.0, 0.0])] });
+        lamps.coronas.push(entry(5, 2, [1.0; 4]));
+        let markers = lamp_markers(&lamps, &|p| [p[2], p[0], p[1]]);
+        assert_eq!(find(&markers, "CENTRE_REVERSE").len(), 1);
+        assert_eq!(find(&markers, "CENTRE_REVERSE")[0].translation(), [-2.31, 0.0, 0.31]);
+        assert!(find(&markers, "LEFT_REVERSE").is_empty() && find(&markers, "RIGHT_REVERSE").is_empty());
+    }
+
+    #[test]
+    fn a_front_record_of_bit_2_is_no_reverse_lamp() {
+        let mut lamps = lamps();
+        lamps.coronas.push(entry(1, 2, [1.0; 4]));
+        assert!(find(&lamp_markers(&lamps, &|p| [p[2], p[0], p[1]]), "LEFT_REVERSE").is_empty());
     }
 
     #[test]
