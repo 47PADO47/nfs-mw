@@ -6,6 +6,7 @@ use nfsmw_career::carlot::stats;
 
 use super::pool::{CarPool, PoolCar};
 use super::text::{self, Unlock};
+use crate::frontend::car_title;
 use crate::frontend::career_screens::car_lot::{Strip, set_bar};
 use crate::frontend::logic::Cx;
 use crate::frontend::quick_race::Track;
@@ -86,7 +87,7 @@ fn show_race(cx: &mut Cx, track: &Track) {
 /// The textures of a car's manufacturer logo and model-name picture; the generic logos stand in for a missing one, and a mod
 /// car has pictures drawn from its name (`car_title`).
 pub(crate) fn logo_textures(assets: &crate::ui::UiAssets, car: &PoolCar) -> (u32, u32) {
-    if let Some(pictures) = crate::frontend::car_title::pictures(assets, &car.folder) {
+    if let Some(pictures) = car_title::pictures(assets, &car.folder) {
         return pictures;
     }
     let logo = |name: String, generic: &str| {
@@ -96,7 +97,9 @@ pub(crate) fn logo_textures(assets: &crate::ui::UiAssets, car: &PoolCar) -> (u32
             None => fe_hash_upper(generic),
         }
     };
-    (logo(text::manufacturer_texture(car), "GENERIC_LOGO_128"), logo(text::model_texture(car), "GENERIC_LOGO_256"))
+    let own_maker = car.manufacturer.and_then(text::manufacturer).and_then(|name| car_title::logo_of(assets, name));
+    let maker = own_maker.unwrap_or_else(|| logo(text::manufacturer_texture(car), "GENERIC_LOGO_128"));
+    (maker, logo(text::model_texture(car), "GENERIC_LOGO_256"))
 }
 
 fn show_car(cx: &mut Cx, car: &PoolCar, pool: &CarPool) {

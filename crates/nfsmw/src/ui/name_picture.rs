@@ -31,6 +31,11 @@ pub(crate) fn texture(name: &str, text: &str, (width, height): (u32, u32)) -> Te
     if let Some(glyphs) = drawn {
         paint(&mut data, &glyphs, width, height);
     }
+    picture(name, (width, height), data)
+}
+
+/// A BGRA picture as a UI texture.
+fn picture(name: &str, (width, height): (u32, u32), data: Vec<u8>) -> Texture {
     Texture {
         name: name.to_owned(),
         name_hash: fe_hash_upper(name),
@@ -46,6 +51,58 @@ pub(crate) fn texture(name: &str, text: &str, (width, height): (u32, u32)) -> Te
         data,
         palette: Vec::new(),
     }
+}
+
+/// The texture named `name`: the logo `rgba` (`width` by `height`, straight alpha) shrunk to fit a picture of `slot` pixels and
+/// centred in it, so a logo of any shape fills the slot the screen draws it in without stretching.
+pub(crate) fn logo(name: &str, (width, height, rgba): (u32, u32, &[u8]), slot: (u32, u32)) -> Texture {
+    let (sw, sh) = (slot.0 as f32, slot.1 as f32);
+    let scale = (sw / width as f32).min(sh / height as f32);
+    let (drawn_w, drawn_h) = (width as f32 * scale, height as f32 * scale);
+    let (left, top) = ((sw - drawn_w) / 2.0, (sh - drawn_h) / 2.0);
+    let mut data = vec![0u8; (slot.0 * slot.1 * 4) as usize];
+    let texel = |x: i64, y: i64| -> [f32; 4] {
+        if x < 0 || y < 0 || x >= i64::from(width) || y >= i64::from(height) {
+            return [0.0; 4];
+        }
+        let at = ((y as u32 * width + x as u32) * 4) as usize;
+        [rgba[at], rgba[at + 1], rgba[at + 2], rgba[at + 3]].map(f32::from)
+    };
+    for y in 0..slot.1 {
+        for x in 0..slot.0 {
+            let u = (x as f32 + 0.5 - left) / scale - 0.5;
+            let v = (y as f32 + 0.5 - top) / scale - 0.5;
+            let (x0, y0) = (u.floor(), v.floor());
+            let (fx, fy) = (u - x0, v - y0);
+            let (x0, y0) = (x0 as i64, y0 as i64);
+            let mut mixed = [0.0f32; 4];
+            let corners =
+                [(0, 0, (1.0 - fx) * (1.0 - fy)), (1, 0, fx * (1.0 - fy)), (0, 1, (1.0 - fx) * fy), (1, 1, fx * fy)];
+            for (dx, dy, weight) in corners {
+                let texel = texel(x0 + dx, y0 + dy);
+                // Colours are weighted by their alpha, so a clear edge pixel does not tint its neighbours.
+                let alpha = texel[3] / 255.0;
+                for (sum, channel) in
+                    mixed.iter_mut().zip([texel[0] * alpha, texel[1] * alpha, texel[2] * alpha, texel[3]])
+                {
+                    *sum += weight * channel;
+                }
+            }
+            let alpha = mixed[3];
+            if alpha <= 0.0 {
+                continue;
+            }
+            let colour = |channel: f32| (channel / (alpha / 255.0)).round().clamp(0.0, 255.0) as u8;
+            let at = ((y * slot.0 + x) * 4) as usize;
+            data[at..at + 4].copy_from_slice(&[
+                colour(mixed[2]),
+                colour(mixed[1]),
+                colour(mixed[0]),
+                alpha.round() as u8,
+            ]);
+        }
+    }
+    picture(name, slot, data)
 }
 
 /// Where the glyph image lands in the picture: its top left corner and the scale from glyph pixels to picture pixels.
@@ -145,5 +202,16 @@ mod tests {
     #[test]
     fn the_picture_is_found_by_the_hash_of_its_upper_case_name() {
         assert_eq!(texture("name_one", "A", (8, 8)).name_hash, fe_hash_upper("NAME_ONE"));
+    }
+
+    #[test]
+    fn a_logo_is_fitted_to_the_slot_without_stretching() {
+        // A 4 by 2 white logo in an 8 by 8 slot becomes 8 by 4 in the middle rows.
+        let logo = logo("L", (4, 2, &[255; 4 * 2 * 4]), (8, 8));
+        assert_eq!((logo.width, logo.height), (8, 8));
+        assert_eq!(alpha_at(&logo, 4, 0), 0, "the top row is clear");
+        assert_eq!(alpha_at(&logo, 4, 7), 0, "the bottom row is clear");
+        assert_eq!(alpha_at(&logo, 4, 4), 255, "the middle is the logo");
+        assert_eq!(&logo.data[(4 * 8 + 4) * 4..][..3], &[255, 255, 255], "white stays white");
     }
 }

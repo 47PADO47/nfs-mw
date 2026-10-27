@@ -171,6 +171,38 @@ always = true                      # play even when the custom music setting is 
 | Replace track | a file in `files/` with the install's path replaces the original (overlay), no registration | G | VFS overlay |
 | Planned: speech line | `content.speech().register(key, file)` for `audio.speak` | G | not built |
 
+### Manufacturers
+
+Works now in NFS:MW. A mod gives a brand a logo, which the car screens (the car select of the garage's Add New Car, the car lot,
+the custom race and Quick Play, and the Showcase) draw in the maker's place of a car of that brand. The game's own cars have
+a logo per manufacturer; a mod car's brand is a string (`manufacturer` in its manifest), so a mod gives the brands of its cars
+a logo this way, and may replace the logo of a brand the game already has.
+
+```
+mods/example.pack/
+  manufacturers/bentley.toml          the manifest; the id is the file name
+  files/UI/MAKERS/BENTLEY.PNG         the logo
+```
+
+```toml
+name = "Bentley"                      # the brand, 1 to 32 characters; compared ignoring case, spaces and punctuation
+logo = "UI/MAKERS/BENTLEY.PNG"        # a PNG under files/: letters, digits, _ - . / and ending in .png; any colour type, up to 2048 on a side
+override = false                      # true: replace the logo of a brand that already has one; default false
+```
+
+- The logo is drawn in a slot twice as wide as it is tall (about 150 by 75), shrunk to fit and centred, never stretched: draw
+  it light on a transparent background, as the game's own logos are.
+- **Which logo a brand gets**, in order: a mod's logo with `override = true`; the game's own logo of a manufacturer of that name
+  (`Subaru`, `Aston Martin`, `General Motors`; a brand that starts with one, such as `Mercedes-Benz`, is that manufacturer); a mod's
+  logo with `override = false`; the brand written out as text. So a mod that only adds brands never replaces a logo the game has,
+  and a mod that wants the old brands to look different sets `override = true`.
+- The same brand with the same `override` is taken from the first mod that declares it. A manifest with a bad key, a logo that is
+  missing or not a PNG is refused and logged, and the others still load. A mod that adds manufacturers later is read at its rescan.
+
+| Entry | Signature sketch | Scope | Implemented in |
+|---|---|---|---|
+| Manufacturers | `manufacturers/<id>.toml` (`name`, `logo`, `override`) | G (schema), MW (drawn) | `libs/blackbox-modding/src/content/manufacturer.rs`, `crates/nfsmw/src/modding/content/manufacturers.rs`, `frontend/car_title.rs` |
+
 ### Racer names
 
 A mod adds names to the pool the computer-driven racers of every race draw from (the game's own list has 150):

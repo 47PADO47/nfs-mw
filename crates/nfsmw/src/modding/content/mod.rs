@@ -8,6 +8,7 @@
 mod cars;
 mod engine_layers;
 pub mod interior;
+pub(crate) mod manufacturers;
 mod music;
 mod racers;
 pub mod scenery;
@@ -47,6 +48,7 @@ pub fn plan(loaded: &[String], candidates: &[Candidate]) -> Vec<ModDir> {
 /// Read the declarations of `mods` and seal them: the mod cars into the car tables, the music sources into the custom
 /// music library. `dir` is the install with the mods' layers in place, which says which car files a mod supplies.
 pub fn register(dir: &GameDir, mods: &[ModDir]) {
+    manufacturers::register(mods);
     cars::register(dir, mods);
     music::register(mods);
     racers::register(mods);
@@ -79,6 +81,7 @@ pub(crate) fn rescan_in(dir: &GameDir, mods: &[ModDir], id: &str) -> Result<usiz
     if files.is_dir() && !dir.has_layer(id) {
         dir.add_late_overlay(id, &files, m.priority).map_err(|error| RescanError::Layer(error.to_string()))?;
     }
+    manufacturers::register(std::slice::from_ref(m));
     Ok(cars::register(dir, std::slice::from_ref(m)))
 }
 

@@ -23,6 +23,9 @@ mod error;
 mod interior;
 #[cfg(test)]
 mod interior_tests;
+mod manufacturer;
+#[cfg(test)]
+mod manufacturer_tests;
 mod music;
 mod nitrous_effects;
 mod nitrous_fx;
@@ -53,6 +56,7 @@ pub use engine_sound::{
 };
 pub use error::ContentError;
 pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, parse as parse_interior};
+pub use manufacturer::{Manufacturer, brand_key, parse as parse_manufacturer};
 pub use music::{MusicSection, parse as parse_music};
 pub use nitrous_effects::{EffectOn, EffectProfile, MAX_EFFECTS};
 pub use nitrous_fx::{
@@ -67,6 +71,8 @@ pub use wheels::{Tyre, WheelLayout};
 
 /// The folder inside a mod that holds one car manifest per car.
 pub const CARS_FOLDER: &str = "cars";
+/// The folder inside a mod that holds one manufacturer manifest per brand.
+pub const MANUFACTURERS_FOLDER: &str = "manufacturers";
 /// The folder inside a mod that holds its music.
 pub const MUSIC_FOLDER: &str = "music";
 /// The folder inside a mod that holds one scenery manifest per pack.

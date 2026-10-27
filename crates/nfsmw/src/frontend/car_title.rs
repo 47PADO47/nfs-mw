@@ -6,9 +6,13 @@
 //! (`ui::name_picture`), which the screen sets as the textures of the two logos: the package keeps its layout and its name
 //! strings stay hidden.
 
+use std::ops::BitXor;
+
 use blackbox_feng::fe_hash_upper;
 use nfsmw_data::car::mods;
 
+use crate::frontend::quick_play::text::manufacturer_named;
+use crate::modding::content::manufacturers::{self, Maker};
 use crate::ui::{UiAssets, name_picture};
 
 /// The size of the two picture slots (the maker's logo is 150 by 75, the model's name 256 by 64 in the package), drawn at a
@@ -22,17 +26,46 @@ pub(crate) fn title(folder: &str) -> String {
 }
 
 /// The textures of the maker's logo and the model's name for the mod car in `folder`, drawn on first use; `None` for a car of
-/// the game, whose pictures the package has. The maker's picture is the brand (clear for a car with none), the model's the name
-/// without the brand in front of it.
+/// the game, whose pictures the package has. The maker's picture is the brand's logo ([`logo_of`]), else the brand written out
+/// (clear for a car with none), the model's the name without the brand in front of it.
 pub(crate) fn pictures(assets: &UiAssets, folder: &str) -> Option<(u32, u32)> {
     if !mods::is_mod_car(folder) {
         return None;
     }
     let brand = mods::manufacturer(folder).unwrap_or_default().trim();
     let title = title(folder);
-    let maker = picture(assets, "MAKER", brand, MAKER_SLOT);
+    let maker = logo_of(assets, brand).unwrap_or_else(|| picture(assets, "MAKER", brand, MAKER_SLOT));
     let model = picture(assets, "MODEL", model_name(&title, brand), MODEL_SLOT);
     Some((maker, model))
+}
+
+/// The texture of the logo of the manufacturer `brand`, the first of: a mod's logo that overrides the brand's, the game's own
+/// logo of a manufacturer of that name (compared ignoring case, spaces and punctuation), a mod's logo for a brand the game
+/// lacks. `None` when no one has a logo for it.
+pub(crate) fn logo_of(assets: &UiAssets, brand: &str) -> Option<u32> {
+    if let Some(maker) = manufacturers::find(brand, true) {
+        return Some(mod_logo(assets, maker));
+    }
+    let stock = manufacturer_named(brand).map(|name| fe_hash_upper(&format!("CARSELECT_MANUFACTURER_{name}")));
+    if let Some(hash) = stock.filter(|hash| assets.texture(*hash).is_some()) {
+        return Some(hash);
+    }
+    manufacturers::find(brand, false).map(|maker| mod_logo(assets, maker))
+}
+
+/// The texture of a mod manufacturer's logo in the maker's slot, made when the assets do not hold it yet. The name carries a
+/// checksum of the picture, so a mod that changes its logo is drawn anew.
+fn mod_logo(assets: &UiAssets, maker: &Maker) -> u32 {
+    let checksum = maker.rgba.iter().fold(maker.width ^ maker.height.rotate_left(16), |sum, &byte| {
+        sum.rotate_left(5).bitxor(u32::from(byte)).wrapping_mul(0x0100_0193)
+    });
+    let name = format!("MODMAKER_{}_{checksum:08X}", maker.key);
+    let hash = fe_hash_upper(&name);
+    if assets.texture(hash).is_none() {
+        let picture = (maker.width, maker.height, maker.rgba.as_slice());
+        assets.add_textures([name_picture::logo(&name, picture, MAKER_SLOT)]);
+    }
+    hash
 }
 
 /// The name `title` gives the model: the title less the `brand` it starts with (`Tesla Roadster 2011` of `Tesla` is

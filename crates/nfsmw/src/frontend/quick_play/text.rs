@@ -90,6 +90,16 @@ pub fn manufacturer(index: u8) -> Option<&'static str> {
     MANUFACTURERS.get(usize::from(index).checked_sub(1)?).copied()
 }
 
+/// The game's own manufacturer a brand name stands for, ignoring case, spaces and punctuation (`Aston Martin` is `ASTONMARTIN`,
+/// `General Motors` is `GENERAL_MOTORS`). A brand that starts with a manufacturer's name (`Mercedes-Benz`) is that manufacturer.
+pub fn manufacturer_named(brand: &str) -> Option<&'static str> {
+    let key = blackbox_modding::content::brand_key(brand);
+    MANUFACTURERS.iter().copied().find(|name| {
+        let known = blackbox_modding::content::brand_key(name);
+        key == known || (known.len() >= 4 && key.starts_with(&known))
+    })
+}
+
 /// The manufacturer logo texture of a car, `CARSELECT_MANUFACTURER_<NAME>`; the generic 128 pixel logo when the car has no
 /// manufacturer.
 pub fn manufacturer_texture(car: &PoolCar) -> String {
@@ -174,4 +184,19 @@ pub fn alias_key(member: u8) -> String {
 /// An unlock sentence with its printf places filled in order: the alias (`%s`), then the member's number (`%d`).
 pub fn fill_sentence(template: &str, alias: &str, member: u8) -> String {
     blackbox_text::printf::fill(template, &[alias, member.to_string().as_str()])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_brand_is_the_games_manufacturer_ignoring_case_spaces_and_punctuation() {
+        assert_eq!(manufacturer_named("subaru"), Some("SUBARU"));
+        assert_eq!(manufacturer_named("Aston Martin"), Some("ASTONMARTIN"));
+        assert_eq!(manufacturer_named("General Motors"), Some("GENERAL_MOTORS"));
+        assert_eq!(manufacturer_named("Mercedes-Benz"), Some("MERCEDES"));
+        assert_eq!(manufacturer_named("Bentley"), None);
+        assert_eq!(manufacturer_named(""), None);
+    }
 }
