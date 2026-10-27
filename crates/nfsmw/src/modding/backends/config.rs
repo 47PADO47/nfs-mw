@@ -17,7 +17,7 @@ use crate::settings::mods::section_in;
 
 /// The `bb.config` port of the game. It holds the path of the config file, and reads it on every call.
 pub struct ConfigPort {
-    path: Option<PathBuf>,
+    pub(super) path: Option<PathBuf>,
 }
 
 impl ConfigPort {
