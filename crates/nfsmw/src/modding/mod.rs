@@ -10,6 +10,7 @@
 //! and the events as well.
 
 mod backends;
+pub mod camera_views;
 mod console;
 pub(crate) mod content;
 pub(crate) mod cop_rows;
