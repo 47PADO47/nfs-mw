@@ -136,8 +136,13 @@ fn the_model_drives_every_car_without_a_bad_number() {
                 pose = state.step(&car);
             }
             let finite = [pose.position, pose.forward, pose.up].iter().flatten().all(|v| v.is_finite());
+            // The rear view is a wide, short mirror strip: its vertical field is narrow.
+            let narrowest = match view {
+                CameraView::RearView => 5.0,
+                _ => 20.0,
+            };
             assert!(
-                finite && pose.vertical_fov_deg > 20.0 && pose.vertical_fov_deg < 120.0,
+                finite && pose.vertical_fov_deg > narrowest && pose.vertical_fov_deg < 120.0,
                 "{name} {view:?}: {pose:?}"
             );
         }
