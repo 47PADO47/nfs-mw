@@ -1,12 +1,13 @@
-//! The full-screen map's chrome, in the Custom tokens and the OS fonts: the dark ground over the frozen world, the title
+//! The full-screen map's chrome, in the Custom tokens and the OS fonts: the backdrop over the frozen world, the title
 //! with the filter's tabs and the zoom at the top of the safe area, and the legend plate at the right. Places are in
 //! canvas units (480 high, origin at the centre, y down) from the menus' frame (`custom/menu/layout.rs`), so the map's
 //! footer and the menus' sit on the same line.
 
-use blackbox_ui::{Component, LayoutCx, Panel, Polyline, Rect, justify, token_keys};
+use blackbox_ui::{Component, LayoutCx, Panel, Polyline, Rect, Skin, justify, token_keys};
 use glam::Vec2;
 
 use super::places::{self, LegendRow};
+use crate::frontend::world_map::layout::Picture;
 use crate::frontend::world_map::legend::is_empty;
 use crate::frontend::world_map::{Filter, WorldMapFrame};
 use crate::i18n::t;
@@ -15,11 +16,12 @@ use crate::ui::theme::custom::map::draw::{arrow, colour, mark_parts};
 use crate::ui::theme::custom::menu::layout::MenuFrame;
 use crate::ui::theme::custom::plate::{Plate, PlateStyle};
 use crate::ui::theme::custom::text::{Label, Sizing, size};
-use crate::ui::theme::custom::tokens::{faded_skin, keys};
+use crate::ui::theme::custom::tokens::{fade, keys};
 
-/// The ground's alpha over the frozen world, and its depth: behind the roads (`map::ROAD_Z`).
-pub const GROUND_ALPHA: f32 = 0.92;
+/// The depths of the backdrop: the scrim over the whole window, and the plate under the map's picture, both behind the
+/// roads (`map::ROAD_Z`).
 pub const GROUND_Z: f32 = 70.0;
+pub const PLATE_Z: f32 = 69.5;
 /// The depth of the marks and arrows on a plate: nearer than the plate (`DEFAULT_Z`), so a shape's dark edge, drawn
 /// half a unit behind it, still lies on the plate.
 pub const CONTENT_Z: f32 = 0.5;
@@ -73,17 +75,30 @@ pub fn text_width(text: &str, size: f32, sizing: Sizing) -> f32 {
     width_units(CUSTOM_LABEL_FONT_KEY, text, sizing.glyph_scale(size)).unwrap_or(estimate)
 }
 
-/// A rectangle in the skin colour `key`, its alpha multiplied by `opacity`, at depth `z`.
+/// A rectangle in the skin colour `key` (the neutral default's when the skin lacks it), its alpha multiplied by
+/// `opacity`, at depth `z`.
 pub fn panel(key: &'static str, rect: Rect, (opacity, z): (f32, f32), cx: &LayoutCx<'_>) -> Box<dyn Component> {
-    let skin = faded_skin(cx.skin, &[key], &[], opacity);
+    let skin = Skin::new().with_colour(key, fade(colour(cx, key), opacity));
     let mut panel = Panel::new(key).with_z(z);
     panel.layout(&LayoutCx::new(&skin, cx.time_s), rect);
     Box::new(panel)
 }
 
-/// The ground: the surface colour over the whole window, so the map reads against the frozen world behind it.
-pub fn ground(window: Rect, cx: &LayoutCx<'_>) -> Box<dyn Component> {
-    panel(keys::SURFACE, window, (GROUND_ALPHA, GROUND_Z), cx)
+/// The backdrop that sets the open map apart from the HUD's own light map, at `open` (0 to 1, the soft transition):
+///
+/// - the theme's **scrim** over the whole window, which dims the frozen world behind the map everywhere, and
+/// - the theme's **overlay** plate under the map's picture (the screen-high square the map is fitted to), which holds the
+///   map with a nearly opaque ground.
+///
+/// Over the picture the two add up, so the map is on a darker ground than the dimmed scene beside it. The HUD map's plate
+/// (`map/backdrop.rs`) is only a third of the scrim's alpha.
+pub fn backdrop(window: Rect, open: f32, cx: &LayoutCx<'_>) -> Vec<Box<dyn Component>> {
+    let side = Picture::FULL.side;
+    let picture = Rect::new(0.0, 0.0, side, side);
+    vec![
+        panel(token_keys::SCRIM, window, (open, GROUND_Z), cx),
+        panel(token_keys::OVERLAY, picture, (open, PLATE_Z), cx),
+    ]
 }
 
 /// "MAP" in the spaced face at the safe area's top left, the filter's tabs under it (the current one bright, with an

@@ -7,6 +7,7 @@
 //! clipped to a soft ellipse. `build` emits what `layout` made. An install with no minimap tiles has no picture: the
 //! map then draws the roads of the loaded network as strokes, from the cached local set of roads.
 //!
+//! - [`backdrop`]: the subtle plate behind the roads.
 //! - [`modes`]: the four modes, the change from one to the next, and the map's keys.
 //! - [`memory`]: what the map keeps between frames (the local set, the zoom spring, the mode change).
 //! - [`place`]: where the map sits at the top, and the clearance the top-centre elements stack under.
@@ -18,6 +19,7 @@
 //! - [`draw`]: the marks (the game's icons, or shapes), the route and the arrow.
 //! - [`chip`]: the Compact mode's turn-cue chip.
 
+pub mod backdrop;
 pub mod chip;
 #[cfg(test)]
 mod component_tests;
@@ -158,6 +160,9 @@ pub fn compose(
     let view = MapView::new(car.position, car.heading, heading_up, radii.x / view_radius, centre);
     let (clip, band) = ellipse(centre, radii);
     let stage = Stage { view: &view, clip, band, radii, scale: frame.scale() };
+    if let Some(plate) = backdrop::plate(centre, radii, overlay.shown * alpha, cx) {
+        parts.push(Box::new(plate));
+    }
     let roads_opacity = overlay.road_opacity * alpha;
     match (picture, &hud.map_roads) {
         // The game's own picture.

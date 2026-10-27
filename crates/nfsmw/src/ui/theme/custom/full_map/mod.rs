@@ -8,19 +8,22 @@
 //! city's calibration it read at open), the footer hints with the player's bindings, and the window's aspect. The
 //! component draws nothing without it.
 //!
-//! Back to front: the ground over the frozen world, the roads, the GPS route, the current tab's marks and the route's
+//! Back to front: the backdrop over the frozen world (a scrim over the whole window and a strong plate under the map's
+//! picture, faded in as the map opens), the roads, the GPS route, the current tab's marks and the route's
 //! end, the players' arrows, the cursor, then the chrome (the title with the tabs and the zoom, the legend, the focused
 //! blip's card and the footer).
 //!
 //! - [`fit`]: the projection from the world through the frontend's camera to the screen.
 //! - [`places`]: the marks and the legend's rows as data, under the frontend's filter.
-//! - [`chrome`]: the ground, the title and tabs, the legend.
+//! - [`chrome`]: the backdrop, the title and tabs, the legend.
 //! - [`card`]: the cursor and the focused blip's card.
 
 pub mod card;
 pub mod chrome;
 pub mod fit;
 pub mod places;
+#[cfg(test)]
+mod backdrop_tests;
 #[cfg(test)]
 mod tests;
 
@@ -31,13 +34,14 @@ use blackbox_ui::{Clip, Component, DrawList, LayoutCx, Polylines, Rect, token_ke
 use glam::Vec2;
 
 use super::map::draw::{Stage, arrow, colour, draw_marks, route_lines};
+use super::map::modes::ease;
 use super::map::roads::{LocalSet, road_lines};
 use super::map::view::MapView;
 use super::map::{ARROW_Z, DRIVEN_SHARE, MARK_Z, ROAD_Z, ROUTE_Z, road_look};
 use super::menu::footer_parts;
 use super::menu::layout::MenuFrame;
 use super::menu::look::MenuLook;
-use super::tokens::{fade, keys};
+use super::tokens::{Motion, fade, keys, ramp};
 use crate::frontend::world_map::{PlayerMark, WorldMapFrame};
 use crate::hud::MapRoadsHandle;
 use crate::ui::theme::MenuHint;
@@ -64,9 +68,19 @@ pub struct FullMapSnapshot {
 pub struct FullMapMemory {
     local: LocalSet,
     fit: Option<(MapRoadsHandle, Option<Calibration>)>,
+    /// When the map was first drawn since it opened, on the layout clock (`LayoutCx::time_s`): the backdrop fades in
+    /// from then.
+    opened_at: Option<f32>,
 }
 
 impl FullMapMemory {
+    /// How open the map is at `now`, 0 to 1: the first frame is 0, and it is 1 once `duration` seconds have passed, eased
+    /// like the HUD map's mode change. The backdrop fades in with it.
+    pub fn open(&mut self, now: f32, duration: f32) -> f32 {
+        let since = *self.opened_at.get_or_insert(now);
+        ease(ramp(now - since, duration))
+    }
+
     /// The calibration that places the world on the map: the city's, else one fitted to the roads (computed once per
     /// network), else `None`.
     fn calibration(&mut self, map: &WorldMapFrame) -> Option<Calibration> {
@@ -169,8 +183,10 @@ struct Layers<'a> {
 /// The map for one frame of `snapshot`.
 fn compose(snapshot: &FullMapSnapshot, memory: &mut FullMapMemory, cx: &LayoutCx<'_>, layers: Layers<'_>) {
     let map = &snapshot.frame;
-    let frame = MenuFrame::new(snapshot.aspect, MenuLook::from_skin(cx.skin).text_size());
-    layers.back.push(chrome::ground(frame.window(), cx));
+    let look = MenuLook::from_skin(cx.skin);
+    let frame = MenuFrame::new(snapshot.aspect, look.text_size());
+    let open = memory.open(cx.time_s, Motion::of(look.reduce_motion()).mode_change);
+    layers.back.extend(chrome::backdrop(frame.window(), open, cx));
     if let Some(calibration) = memory.calibration(map) {
         let view = fit::view(calibration, map.session.camera);
         world(map, &view, &frame, memory, cx, (&mut *layers.lines, &mut *layers.front));
