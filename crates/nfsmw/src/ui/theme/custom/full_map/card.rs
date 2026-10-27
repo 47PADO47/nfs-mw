@@ -6,12 +6,13 @@
 use blackbox_ui::{Component, LayoutCx, LineCap, Polyline, Rect, token_keys};
 use glam::Vec2;
 
+use super::art::icon;
 use super::chrome::{Align, CONTENT_Z, text};
 use super::{fit, places};
-use crate::frontend::world_map::control::{format_metres, style_name};
+use crate::frontend::world_map::control::{blip_rgba, format_metres, icon_name, style_name};
 use crate::frontend::world_map::{WorldMapFrame, distance_metres};
 use crate::i18n::t;
-use crate::ui::theme::custom::map::draw::{colour, mark_parts, ring};
+use crate::ui::theme::custom::map::draw::{colour, ring};
 use crate::ui::theme::custom::menu::layout::MenuFrame;
 use crate::ui::theme::custom::plate::{Plate, PlateStyle};
 use crate::ui::theme::custom::text::Label;
@@ -31,7 +32,8 @@ const CARD_WIDTH: f32 = 230.0;
 const CARD_HEIGHT: f32 = 62.0;
 const CARD_LIFT: f32 = 22.0;
 const CARD_PAD: f32 = 12.0;
-const CARD_MARK: f32 = 1.6;
+const CARD_ICON: f32 = 20.0;
+const ICON_GAP: f32 = 6.0;
 const NAME_SIZE: f32 = 16.0;
 const DISTANCE_SIZE: f32 = 14.0;
 const GPS_SIZE: f32 = 11.0;
@@ -69,9 +71,9 @@ pub fn card(map: &WorldMapFrame, frame: &MenuFrame, cx: &LayoutCx<'_>, out: &mut
     let left = rect.min_x() + CARD_PAD * s;
     let top = rect.min_y() + CARD_PAD * s;
     let name_y = top + NAME_SIZE * s / 2.0;
-    let mark = Vec2::new(left + 4.0 * s, name_y);
-    mark_parts(places::kind_of(blip.style), mark, (1.0, CONTENT_Z), s * CARD_MARK, cx, out);
-    let name_x = left + 16.0 * s;
+    let mark = Vec2::new(left + CARD_ICON * s / 2.0, name_y);
+    out.push(icon(icon_name(blip.style), mark, CARD_ICON * s, (blip_rgba(blip.style), 0.0), CONTENT_Z, cx));
+    let name_x = left + (CARD_ICON + ICON_GAP) * s;
     out.push(text(Label::label(style_name(blip.style), NAME_SIZE), (name_x, name_y), Align::Left, sizing, cx));
     if map.player_mark.is_some() {
         let distance = format_metres(distance_metres(map.player, blip));

@@ -165,19 +165,17 @@ few hundred roads in the Centered view, more in Expanded.
 ## 8. The full-screen world map (PR 11c)
 
 The Custom theme's full-screen world map (`ui/theme/custom/full_map/`, described in `ui-themes-custom.md` section 11)
-draws with this map's pieces rather than its own:
+draws the game's own art, as the Remastered map does, with this map's pieces for the route and the cursor:
 
-- **Roads:** the same `MapRoadsHandle`, carried from the HUD state into the frontend's map frame at open (a reference
-  count), the same `LocalSet` cache rule (here over the window's half diagonal, so a pan or a zoom step queries the grid
-  again and a still map does not), and `road_lines` with `road_look`, at opacity 0.85 with paths.
-- **Projection:** a north-up `MapView` built from the city's calibration and the frontend's camera, its centre the
-  screen's centre; no ellipse, a rectangle clip of the window with no soft edge.
-- **Route and marks:** `route_lines` for the GPS route, `draw_marks` for the current tab's places and the route's end
-  (pinned inside the window's inscribed ellipse like the overlay's), `mark_parts` for the legend's and the card's
-  shapes, `ring` for the focused place, and `arrow` for the players.
+- **Picture and icons** (`full_map/art.rs`): the world-map picture of the stage (or the race's own) and the icon textures
+  of `frontend/world_map/control.rs` (`icon_name`, `blip_rgba`, `LiveBlip::icon`), placed from the blips' picture
+  coordinates through the frontend's camera. No road is stroked.
+- **Projection (route only):** a north-up `MapView` built from the city's calibration and the frontend's camera, its
+  centre the screen's centre; a rectangle clip of the window with no soft edge.
+- **Route and cursor:** `route_lines` for the GPS route and `ring` for the focused place.
 
-The refactor that shared them (`mark_parts`, `ring`, `road_look`) changes nothing the HUD map draws; its tests are
-unchanged.
+The earlier version drew the roads (`road_lines`), the marks (`draw_marks`, `mark_parts`) and the arrows (`arrow`) by hand;
+that is gone from the full map, and the HUD map keeps those pieces unchanged.
 
 **Backdrop.** `chrome::backdrop` draws the theme's `scrim` over the whole window (depth 70) and the theme's `overlay`
 plate under the picture's square (depth 69.5), both at the open fade `FullMapMemory::open` (eased over `Motion::map_mode`,

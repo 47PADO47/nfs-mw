@@ -6,13 +6,15 @@
 use blackbox_ui::{Component, LayoutCx, Panel, Polyline, Rect, Skin, justify, token_keys};
 use glam::Vec2;
 
+use super::art::{NO_TINT, PLAYER_ICON, icon};
 use super::places::{self, LegendRow};
+use crate::frontend::world_map::control::{blip_rgba, icon_name};
 use crate::frontend::world_map::layout::Picture;
 use crate::frontend::world_map::legend::is_empty;
 use crate::frontend::world_map::{Filter, WorldMapFrame};
 use crate::i18n::t;
 use crate::ui::raster_text::{CUSTOM_LABEL_FONT_KEY, width_units};
-use crate::ui::theme::custom::map::draw::{arrow, colour, mark_parts};
+use crate::ui::theme::custom::map::draw::colour;
 use crate::ui::theme::custom::menu::layout::MenuFrame;
 use crate::ui::theme::custom::plate::{Plate, PlateStyle};
 use crate::ui::theme::custom::text::{Label, Sizing, size};
@@ -44,8 +46,8 @@ const ROW_SIZE: f32 = 12.0;
 /// Where a row's mark sits from the plate's left, and where its name starts, at scale 1.
 const MARK_X: f32 = 14.0;
 const NAME_X: f32 = 30.0;
-/// The scale of the marks in the legend, and the route's sample stroke's half length.
-const ROW_MARK_SCALE: f32 = 1.3;
+/// The side of the icons in the legend, and the route's sample stroke's half length, at scale 1.
+const ROW_ICON: f32 = 15.0;
 const ROUTE_SAMPLE: f32 = 7.0;
 /// The width of the box a string is laid out in. Wide enough for any string; the justification places it.
 const TEXT_BOX: f32 = 640.0;
@@ -151,8 +153,8 @@ pub fn legend(map: &WorldMapFrame, frame: &MenuFrame, cx: &LayoutCx<'_>, out: &m
     let name_x = left + NAME_X * s;
     let count_x = plate.max_x() - LEGEND_PAD * s;
     let mut row = 0;
-    let tones = (colour(cx, token_keys::PRIMARY), colour(cx, token_keys::OVERLAY));
-    out.extend(arrow(mark_at(row), Vec2::NEG_Y, s * 0.7, tones, CONTENT_Z).into_iter().map(boxed));
+    let side = ROW_ICON * s;
+    out.push(icon(PLAYER_ICON, mark_at(row), side, (NO_TINT, 0.0), CONTENT_Z, cx));
     let player = Label::label(t!("map-player"), ROW_SIZE);
     out.push(text(player, (name_x, row_y(row)), Align::Left, sizing, cx));
     row += 1;
@@ -165,12 +167,12 @@ pub fn legend(map: &WorldMapFrame, frame: &MenuFrame, cx: &LayoutCx<'_>, out: &m
         row += 1;
     }
     let lit = places::focused(map).map(|blip| blip.style);
-    for LegendRow { style, kind, name, count } in rows {
+    for LegendRow { style, name, count } in rows {
         let tone = match lit == Some(style) {
             true => keys::ACCENT,
             false => keys::TEXT,
         };
-        mark_parts(kind, mark_at(row), (1.0, CONTENT_Z), s * ROW_MARK_SCALE, cx, out);
+        out.push(icon(icon_name(style), mark_at(row), side, (blip_rgba(style), 0.0), CONTENT_Z, cx));
         out.push(text(Label::label(name, ROW_SIZE).colour(tone), (name_x, row_y(row)), Align::Left, sizing, cx));
         let number = Label::numeric(count.to_string(), ROW_SIZE).colour(keys::TEXT_SECONDARY);
         out.push(text(number, (count_x, row_y(row)), Align::Right, sizing, cx));
@@ -180,8 +182,4 @@ pub fn legend(map: &WorldMapFrame, frame: &MenuFrame, cx: &LayoutCx<'_>, out: &m
         let line = Label::label(t!("map-legend-empty"), ROW_SIZE).colour(keys::TEXT_SECONDARY);
         out.push(text(line, (left + MARK_X * s, row_y(row)), Align::Left, sizing, cx));
     }
-}
-
-fn boxed(line: Polyline) -> Box<dyn Component> {
-    Box::new(line)
 }
