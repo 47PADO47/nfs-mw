@@ -8,6 +8,7 @@ Normal garage coverage: [garage-parity.md](garage-parity.md).
 Original menu UI: [fixes and parity audit](menu-ui-parity.md).
 
 Native physics work: [collision and destruction parity](native-physics-parity.md).
+Driving state flow: [downstream consumer audit](driving-state-audit.md).
 
 Documentation for the Rust rewrite of Need for Speed: Most Wanted (2005, PC v1.3 / Black Edition): how
 the game stores its data, what prior work exists, and how the rewrite is built. Format claims are checked

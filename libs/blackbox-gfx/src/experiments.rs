@@ -29,6 +29,8 @@ impl std::fmt::Display for LightingDebug {
 pub struct RenderExperiments {
     /// Procedural atmosphere and sun-lit cloud volume in the native sky pass.
     pub enhanced_sky: bool,
+    /// Cloud sunlight attenuation, independent of geometry shadows.
+    pub cloud_shadows: bool,
     /// Spatial wet-film and pooled-water response on eligible reflective surfaces.
     pub enhanced_wet_surfaces: bool,
     pub puddle_coverage: f32,
@@ -99,6 +101,9 @@ pub struct RenderExperiments {
     pub world_ambient_share: f32,
     /// Strength of the scene ambient colour in additional shaded regions.
     pub world_ambient_tint: f32,
+    /// Replace a portion of authored ambient with directional sky/ground illumination.
+    pub world_skylight: bool,
+    pub world_skylight_strength: f32,
     pub freeze_sun: bool,
     pub lighting_debug: LightingDebug,
     /// Overall indirect lighting multiplier, independent of hemisphere calibration.
@@ -129,6 +134,7 @@ impl Default for RenderExperiments {
     fn default() -> Self {
         Self {
             enhanced_sky: true,
+            cloud_shadows: false,
             enhanced_wet_surfaces: false,
             puddle_coverage: 0.7,
             puddle_scale: 7.0,
@@ -174,6 +180,8 @@ impl Default for RenderExperiments {
             world_ambient: false,
             world_ambient_share: 0.6,
             world_ambient_tint: 0.35,
+            world_skylight: false,
+            world_skylight_strength: 0.65,
             freeze_sun: false,
             lighting_debug: LightingDebug::Off,
             indirect_strength: 1.0,
@@ -198,6 +206,7 @@ impl Default for RenderExperiments {
 impl RenderExperiments {
     pub fn sanitized(self) -> Self {
         Self {
+            world_skylight_strength: finite(self.world_skylight_strength, 0.65).clamp(0.0, 1.0),
             puddle_coverage: finite(self.puddle_coverage, 0.7).clamp(0.0, 1.0),
             puddle_scale: finite(self.puddle_scale, 7.0).clamp(2.0, 30.0),
             road_reflection_range: finite(self.road_reflection_range, 320.0).clamp(80.0, 800.0),

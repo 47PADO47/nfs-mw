@@ -40,7 +40,19 @@ impl WorldScene {
             renderer.set_effects(&layer);
             return;
         };
+        drive.flames.set_enhanced(self.tuning.enhanced_exhaust && renderer.info().renderer == "blackbox");
         drive.maintain_flames(renderer, &self.dir, self.physics.database());
+        let mut appearance = self.garage.applied.exhaust.clone();
+        appearance.set_style(self.tuning.exhaust_style);
+        drive.flames.set_appearance(&appearance);
+        drive.flames.set_preview(self.garage_open && !self.garage.shop && self.garage.exhaust_preview);
+        drive.flames.set_backfire(
+            self.tuning.backfire_style,
+            self.garage.backfire_preview.take(),
+            self.garage_open && !self.garage.shop,
+        );
+        let rendered_pose = drive.pose().transform();
+        drive.flames.set_render_pose(rendered_pose);
         self.explosions.load(renderer, &self.dir, self.physics.database());
         self.heli_wash.load(renderer, &self.dir, self.physics.database());
         self.finish_flares.maintain(renderer, &self.dir, self.physics.database());
@@ -87,7 +99,7 @@ impl WorldScene {
             &mut layer.textured,
         );
         drive.vehicle_effects.textured(forward, &self.residency.shared.materials, &mut layer.textured);
-        drive.flames.geometry(position, forward, layer);
+        drive.flames.geometry_in_world(position, forward, self.residency.collision(), layer);
         self.explosions.textured(position, forward, &mut layer.textured);
         self.heli_wash.textured(position, forward, &mut layer.textured);
         self.finish_flares.textured(position, forward, &mut layer.textured);

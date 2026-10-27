@@ -142,6 +142,7 @@ impl Settings {
                 self.ao = AoQuality::Off;
             }
             VisualStyle::Enhanced => {
+                self.appearance.lighting.world_skylight = true;
                 self.appearance.lighting.enhanced_wet_surfaces = true;
                 self.visual_treatment = VisualTreatment::Low;
                 self.post_tonemap = PostTonemap::Aces;
@@ -332,6 +333,10 @@ impl Settings {
             speed_trails: Some(self.speed_trails),
             speed_trail_style: Some(self.speed_trail_style),
             exhaust_flames: Some(self.exhaust_flames),
+            enhanced_exhaust: Some(self.enhanced_exhaust),
+            enhanced_lamps: Some(self.enhanced_lamps),
+            exhaust_style: Some(self.exhaust_style),
+            backfire_style: Some(self.backfire_style),
             ..self.appearance_layer()
         }
     }

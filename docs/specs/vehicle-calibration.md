@@ -24,7 +24,20 @@ build **[install]**. Findings:
   faster, so later instants differ by more). The coast-down from 38.8 m/s matches to within 0.2 m/s. The step
   response of the wheel angle (about 0.15 s to 40 degrees) matches the capture.
 
-This is partial validation of one car on flat ground. Rear-force and load errors
-remain, and sustained trajectories diverge. It does not establish complete
-handling parity across cars, upgrades, terrain, wall contacts or Speedbreaker.
+These are historical measurements of one car on flat ground, not current-build
+acceptance results. The comparison harness constructed a generic regularized
+vehicle rather than selecting gameplay's reference tire profile. It now applies
+the installed tire/jump/wall-steering configuration; the historical numbers have
+not been remeasured with that correction. The replay also reconstructs binary
+pedals from torque thresholds and does not reproduce the full initial state or
+terrain. Rear-force/load error and trajectory divergence remain comparison work,
+not measured error bounds for the current player car. See
+[player driving parity](player-driving-parity.md).
+
+The historical speed column averages original wheel-road speeds while printing
+the remake's body-forward speed. Those observables differ in corners and slip.
+Forced wheel angles also bypass human steering. Fresh comparisons must record
+actual pedals, body velocity/orientation, raw input, per-physics-call delta,
+hardware and tuning, with wheel-road speeds kept separate. Tire forces must be
+sampled after the wheel-force update; begin-frame clears them before steering.
 

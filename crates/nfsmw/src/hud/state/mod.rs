@@ -62,6 +62,8 @@ pub struct HudState {
     pub use_mph: bool,
     /// Engine speed in rpm.
     pub rpm: f32,
+    /// The displayed RPM is in the standing-start launch range, including its endpoints.
+    pub perfect_launch_range: bool,
     /// The engine's `MAX_RPM`: it picks the tachometer face and the end of the needle's sweep.
     pub max_rpm: f32,
     /// The engine's red line: where the red zone of the tachometer starts.
@@ -180,6 +182,7 @@ impl Default for HudState {
             speed: 0.0,
             use_mph: false,
             rpm: 0.0,
+            perfect_launch_range: false,
             max_rpm: 8000.0,
             red_line: 7500.0,
             gear: 0,

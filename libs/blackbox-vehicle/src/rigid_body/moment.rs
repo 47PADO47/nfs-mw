@@ -155,6 +155,14 @@ fn friction(momentum: Vec3, normal: Vec3, impulse: f32, plane: &PlaneContact) ->
     (-tangent, FrictionState::Static)
 }
 
+fn plane_normal(n: Vec3) -> Option<Vec3> {
+    let length = ((n.x * n.x + n.y * n.y) + n.z * n.z).sqrt();
+    if !length.is_finite() || length <= 0.0 {
+        return None;
+    }
+    Some(n * (1.0 / length))
+}
+
 /// Resolve a contact using separate temporary velocities and restitution increments.
 /// Object contacts conventionally use 32 iterations. Returns the initial closing/sliding speed,
 /// initial friction state and accumulated normal impulse, before restitution.
@@ -165,13 +173,35 @@ pub fn react_moments(
     plane: &PlaneContact,
     iterations: u32,
 ) -> Option<Reaction> {
+    react_contact_moments(a, b, plane, iterations, false)
+}
+
+pub(super) fn react_plane_moments(
+    a: &mut ContactMoment,
+    b: &mut ContactMoment,
+    plane: &PlaneContact,
+    iterations: u32,
+) -> Option<Reaction> {
+    react_contact_moments(a, b, plane, iterations, true)
+}
+
+fn react_contact_moments(
+    a: &mut ContactMoment,
+    b: &mut ContactMoment,
+    plane: &PlaneContact,
+    iterations: u32,
+    plane_response: bool,
+) -> Option<Reaction> {
     if iterations == 0 || !a.is_valid() || !b.is_valid() || !plane.point.is_finite() {
         return None;
     }
     if !plane.friction_static.is_finite() || !plane.friction_kinetic.is_finite() {
         return None;
     }
-    let normal = plane.normal.try_normalize()?;
+    let normal = match plane_response {
+        true => plane_normal(plane.normal)?,
+        false => plane.normal.try_normalize()?,
+    };
     let (mut left, mut right) = (
         IterationBody::new(a, plane.point, a.immobile && !b.immobile),
         IterationBody::new(b, plane.point, b.immobile && !a.immobile),
@@ -181,13 +211,19 @@ pub fn react_moments(
     for i in 0..iterations {
         let velocity = left.velocity() - right.velocity();
         let momentum = velocity * mass;
-        let approach = -((momentum.x * normal.x + momentum.z * normal.z) + momentum.y * normal.y);
+        let approach = match plane_response {
+            true => -((momentum.z * normal.z + momentum.y * normal.y) + momentum.x * normal.x),
+            false => -((momentum.x * normal.x + momentum.z * normal.z) + momentum.y * normal.y),
+        };
         if approach <= 0.0 {
             break;
         }
         let (tangent, state) = friction(momentum, normal, approach, plane);
         if i == 0 {
-            let closing_speed = -velocity.dot(normal);
+            let closing_speed = match plane_response {
+                true => -((velocity.z * normal.z + velocity.y * normal.y) + velocity.x * normal.x),
+                false => -velocity.dot(normal),
+            };
             reaction = Some(Reaction {
                 impulse: 0.0,
                 closing_speed,
@@ -211,4 +247,16 @@ pub fn react_moments(
     left.finish(a);
     right.finish(b);
     reaction
+}
+
+#[cfg(test)]
+mod plane_tests {
+    use super::*;
+
+    #[test]
+    fn normalization_matches_the_independent_scalar_instruction_fixture() {
+        let actual = plane_normal(Vec3::new(0.3, 0.7, 0.5)).unwrap().to_array().map(f32::to_bits);
+        assert_eq!(actual, [0x3ea89911, 0x3f44b293, 0x3f0c7f8e]);
+        assert!(plane_normal(Vec3::ZERO).is_none());
+    }
 }

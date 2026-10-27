@@ -8,9 +8,7 @@ use crate::viewer::camera::original::{Avoidable, BodyInput};
 
 impl CarSim {
     pub fn camera_acceleration(&self) -> Vec3 {
-        space::to_render(
-            ((self.body().linear_velocity - self.before_velocity) / blackbox_vehicle::FIXED_STEP).to_array(),
-        )
+        space::to_render(((self.body().linear_velocity - self.before_velocity) / self.step_delta).to_array())
     }
 
     pub fn original_camera_body(&self, zoom: f32, look_back: bool) -> BodyInput {

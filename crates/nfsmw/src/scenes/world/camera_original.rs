@@ -193,10 +193,13 @@ impl WorldScene {
         self.original_player_step = Some(step);
     }
 
-    pub(super) fn record_original_camera(&mut self) {
+    pub(super) fn record_original_camera_with_delta(&mut self, dt: f32) {
+        if !dt.is_finite() || dt <= 0.0 {
+            return;
+        }
         let input = self.original_inputs();
         self.original_player_step = input.as_ref().and_then(|_| self.players.lead().map(|drive| drive.original_step()));
-        self.original_camera.physics_step(input);
+        self.original_camera.physics_step_with_delta(input, dt);
     }
 
     pub(super) fn update_original_camera(

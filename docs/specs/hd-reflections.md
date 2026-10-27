@@ -376,7 +376,7 @@ pixels (`256`). This replaces the proposed `reflection_car_scale`, `reflection_m
 | Key | Default | Values | Env | CLI | Console | Menu row (Video options) |
 |---|---|---|---|---|---|---|
 | `reflection_cube_size` | `100%` | `auto`, `N%`, `N` px | `NFSMW_REFLECTION_CUBE_SIZE` | `--reflection-cube-size` | yes | Car Reflection Size |
-| `reflection_mirror_size` | `100%` | `auto`, `N%`, `N` px (height) | `NFSMW_REFLECTION_MIRROR_SIZE` | `--reflection-mirror-size` | yes | Mirror Reflection Size |
+| `reflection_mirror_size` | `auto` | `auto`, `N%`, `N` px (height) | `NFSMW_REFLECTION_MIRROR_SIZE` | `--reflection-mirror-size` | yes | Mirror Reflection Size |
 | `reflection_pow2` | off | on, off | `NFSMW_REFLECTION_POW2` | `--reflection-pow2` / `--no-reflection-pow2` | yes | Power-of-Two Cube Size |
 | `mirror_tint` | off | `off`, `on`, `#rrggbb`, `r g b` | `NFSMW_MIRROR_TINT` | `--mirror-tint` | yes | Mirror Tint (off or stock) |
 

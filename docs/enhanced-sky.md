@@ -65,8 +65,8 @@ multiple-scattering LUT atmosphere. It retains the existing shared sun orbit and
 world lighting, including the current clock's dusk-based night behaviour. A full
 24-hour solar orbit, moon/stars, city night lighting and exposure need separate work.
 
-Clouds do not cast moving shadows onto the city. The authored weather still controls
-world sunlight. The flat slab and finite horizon fade approximate a ground-level
+Optional [cloud shadows](cloud-shadows.md) project sunlight attenuation onto the city.
+Authored weather still controls world sunlight. The flat slab and finite horizon fade approximate a ground-level
 sky; flying through clouds is outside the supported camera range. Noise repeats
 at large distances. Distant clouds can show noise patterns and blocky detail; these
 remain known visual limitations for later refinement. No performance claim is made from shader sample counts alone.
@@ -90,4 +90,4 @@ samples choose their density detail from the ray segment and angular footprint.
 A fixed midpoint replaces the interleaved screen pattern; longer horizon paths
 use up to 384 samples instead of a fixed 96. This improves the source image
 without temporal reconstruction. The shared angular map can still limit distant
-silhouettes; this does not add cloud shadows or extend the day/night orbit.
+silhouettes; this does not extend the day/night orbit.

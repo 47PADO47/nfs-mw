@@ -42,9 +42,12 @@ struct Stored {
     vinyl_color_parts: [Option<u32>; 3],
     #[serde(default)]
     gauges: super::GaugeSelection,
+    #[serde(default)]
+    exhaust: super::ExhaustSelection,
 }
 
 pub(crate) fn encode(selection: &Selection) -> Result<String> {
+    selection.exhaust.validate()?;
     selection.tuning.validate()?;
     let stored = Stored {
         version: 1,
@@ -54,6 +57,7 @@ pub(crate) fn encode(selection: &Selection) -> Result<String> {
         vinyl_color3: selection.parts.vinyl_colors[2],
         vinyl_color_parts: selection.parts.vinyl_color_parts,
         gauges: selection.gauges.clone(),
+        exhaust: selection.exhaust.clone(),
         car: selection.car.clone(),
         color: selection.color,
         levels: selection.performance.levels,
@@ -85,6 +89,7 @@ pub(crate) fn encode(selection: &Selection) -> Result<String> {
 
 pub(crate) fn decode(text: &str, model: &Model) -> Result<Selection> {
     let stored: Stored = toml::from_str(text).context("Invalid car preset")?;
+    stored.exhaust.validate()?;
     ensure!(stored.version == 1, "Unsupported car preset schema");
     let car = model.cars.iter().find(|c| c.folder == stored.car).context("Preset car is not installed")?;
     ensure!(car.unavailable.is_none(), "Preset car is unavailable");
@@ -127,7 +132,15 @@ pub(crate) fn decode(text: &str, model: &Model) -> Result<Selection> {
         stored.gauges.validate(catalog)?;
         catalog.validate(&parts)?;
     }
-    Ok(Selection { car: stored.car, color: stored.color, performance, tuning, parts, gauges: stored.gauges })
+    Ok(Selection {
+        car: stored.car,
+        color: stored.color,
+        performance,
+        tuning,
+        parts,
+        gauges: stored.gauges,
+        exhaust: stored.exhaust,
+    })
 }
 
 pub(super) fn show(ui: &mut egui::Ui, model: &mut Model) {

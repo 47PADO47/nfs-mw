@@ -2,6 +2,20 @@
 use super::*;
 use blackbox_gfx::SurfaceKind;
 
+#[test]
+#[ignore = "needs a GPU"]
+fn emissive_surface_remains_visible_without_external_light() {
+    let _serial = test_support::serial();
+    let Some(mut r) = test_support::headless(SIZE) else { return };
+    environment(&mut r, 0);
+    rig(&mut r, 0.0);
+    let desc = layer(SurfaceKind::Emissive, 0.2, 0.0);
+    let lit = mesh(&mut r, desc);
+    let dark = mesh(&mut r, GlossyMaterial { surface: None, ..desc });
+    assert!(center(&r.capture(96, 96, &frame(), &lit).unwrap()) > 100);
+    assert_eq!(center(&r.capture(96, 96, &frame(), &dark).unwrap()), 0);
+}
+
 fn layer(kind: SurfaceKind, roughness: f32, coat: f32) -> GlossyMaterial {
     GlossyMaterial {
         surface: Some(GlossySurface { kind, roughness, coat }),

@@ -8,7 +8,6 @@ use blackbox_pursuit::targets::{TargetId, TargetStatus, Targets};
 
 use super::super::WorldScene;
 use super::super::ai::coop_chase::SECONDARY_SIGHT;
-use super::super::drive::STEP;
 use super::{LEAD, PlayerId};
 
 /// How near (metres) a cop of a running chase must come to a player for that player to join it as a target [ours].
@@ -64,7 +63,7 @@ impl WorldScene {
 
     /// One police tick of a co-op chase, before the police read the primary: who is chased, who the primary is, the
     /// cops' secondary targets, the shared sighting and the per-target busts. Does nothing outside co-op.
-    pub(in crate::scenes::world) fn coop_chase_tick(&mut self) {
+    pub(in crate::scenes::world) fn coop_chase_tick_with_delta(&mut self, dt: f32) {
         let (Some(session), Some(traffic)) = (self.coop.as_mut(), self.traffic.as_mut()) else { return };
         let chase = &mut session.chase;
         let pursuing = traffic.is_pursuing();
@@ -110,7 +109,7 @@ impl WorldScene {
                         chase.meters.len() - 1
                     }
                 };
-                if chase.meters[at].1.update(STEP, &input, &tuning) {
+                if chase.meters[at].1.update(dt, &input, &tuning) {
                     busted.push(*id);
                 }
             }

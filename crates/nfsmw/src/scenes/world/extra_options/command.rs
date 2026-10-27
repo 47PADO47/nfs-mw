@@ -40,12 +40,7 @@ fn run_inner(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&
             }
         }
         ["testing", key, value] => {
-            ensure!(
-                scene.rules.time_scale_allowed
-                    && !scene.players.has_guests()
-                    && !crate::career::CareerHandle::shared().is_active(),
-                "Testing overrides require local free roam outside career"
-            );
+            ensure!(scene.extra_options_allowed(), "Testing overrides require local single player");
             let testing: crate::extra_options::Overrides = changed(&scene.extra.testing, key, value)?;
             testing.validate()?;
             scene.extra.testing = testing;

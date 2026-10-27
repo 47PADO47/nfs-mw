@@ -287,6 +287,13 @@ impl Scene for Pausable {
     fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.paused_second_car_sound()
     }
+    fn note_car_visual_rpm(&mut self, player: usize, fraction: Option<f32>) {
+        let fraction = match self.paused.get() || self.concealed() {
+            true => None,
+            false => fraction,
+        };
+        self.inner.note_car_visual_rpm(player, fraction);
+    }
 
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
         self.paused_take_common_sounds()

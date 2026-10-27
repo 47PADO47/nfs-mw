@@ -182,6 +182,19 @@ impl Renderer {
             let size = surfaces.targets.size;
             params.contact = [size.0 as f32, size.1 as f32, 2.0, 0.0];
         }
+        let cloud_on = self.experiments.cloud_shadows
+            && self.sky.as_ref().is_some_and(|sky| sky.cloud_shadow_active())
+            && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. })
+            && (-frame.light_dir).normalize_or_zero().z > 0.05;
+        if cloud_on {
+            params.sun = (-frame.light_dir).normalize_or_zero().extend(0.0).to_array();
+        }
+        params.cloud = [
+            super::sky::cloud_shadow::anchor(frame.camera_position.x),
+            super::sky::cloud_shadow::anchor(frame.camera_position.y),
+            0.0,
+            u8::from(cloud_on) as f32,
+        ];
         params.environment = [
             u8::from(settings.car_skylight && self.supports_irradiance()) as f32,
             settings.sky_strength * settings.indirect_strength,
@@ -192,8 +205,15 @@ impl Renderer {
             u8::from(settings.world_ambient && stats.supported) as f32,
             settings.world_ambient_share,
             settings.world_ambient_tint,
-            0.0,
+            match settings.world_skylight && settings.shadow_projection.is_none() {
+                true => settings.world_skylight_strength,
+                false => 0.0,
+            },
         ];
+        if params.world[3] > 0.0 {
+            params.world_light =
+                super::world_light::coefficients(frame, self.sky.as_ref().map(|sky| sky.lighting_state()));
+        }
         params.debug[0] = match stats.supported {
             true => settings.lighting_debug as u32 as f32,
             false => 0.0,

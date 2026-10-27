@@ -27,3 +27,26 @@
   per-driver instance masks; dynamic group transitions remain a boundary.
 - **Validation still needed:** original runtime jumps/landings and query behavior
   at bridge edges and stacked surfaces. No complete original jump parity claim.
+
+## Retained boundary arithmetic audit, 2026-10-26
+
+Original instruction replay reproduces all 72 force-changing retained jump
+boundaries exactly with captured interface inputs in the single-precision FPU
+mode. The initial direct production comparison matches 50 of 72 exactly; its
+maximum torque component residual is 0.001708984375 Nm. Forces and jump timers
+match. A separate scalar model reproduces every production result, isolating
+rotation, dot, magnitude and accumulation grouping as the residual sources.
+
+The corrected ordered model matches all 72 original outputs exactly. Actual
+Rust validation remains a separate check; a finite-output measurement run alone
+does not establish parity. The generic numeric replay adapter contains no
+recorded values. Cache selection and full trajectories remain outside this
+helper boundary.
+
+The corrected production replay matches all 1,967 complete retained jump calls
+exactly for force, torque and both timers: 72 active calls and 1,895 no-op calls.
+Original instruction execution separately reproduces the observed accumulators
+and timers in all 1,967 calls in the declared single-precision mode. The numeric
+adapter now requires exact equality after reporting residuals; finite output
+alone cannot pass its boundary checks. Complete producer and route closure
+remain outside this comparison.

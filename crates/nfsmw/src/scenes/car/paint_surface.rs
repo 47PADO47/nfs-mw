@@ -9,6 +9,8 @@ pub(super) fn response(paint: &Paint) -> Option<GlossySurface> {
         n if n.starts_with("METAL") => (0.32, 0.9, SurfaceKind::Metallic),
         n if n.starts_with("PEARL") => (0.30, 0.9, SurfaceKind::Pearl),
         n if n.starts_with("GLOSS") => (0.24, 1.0, SurfaceKind::Coated),
+        n if n.starts_with("TRAFFIC_") => (0.36, 0.45, SurfaceKind::Coated),
+        n if n.starts_with("COP_") => (0.30, 0.65, SurfaceKind::Coated),
         _ => return None,
     };
     Some(GlossySurface { roughness, coat, kind })
@@ -17,6 +19,16 @@ pub(super) fn response(paint: &Paint) -> Option<GlossySurface> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn traffic_and_police_paint_receive_a_restrained_coated_finish() {
+        for name in ["TRAFFIC_BLUE", "COP_WHITE"] {
+            let paint = Paint { name: name.into(), rgb: [120; 3], gloss: 0, light_material: None };
+            let surface = response(&paint).unwrap();
+            assert_eq!(surface.kind, SurfaceKind::Coated);
+            assert!(surface.roughness >= 0.30 && surface.coat <= 0.65);
+        }
+    }
 
     #[test]
     fn matte_is_rough_with_minimal_coat_and_authored_gloss_is_not_reinterpreted() {

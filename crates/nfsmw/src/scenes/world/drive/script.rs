@@ -67,10 +67,15 @@ impl DriveScript {
     /// The input at `time` seconds into the script (zero input after the end). A gear shift is
     /// requested on the first physics step of its segment only.
     pub fn input_at(&self, time: f32) -> DriveInput {
+        self.input_after(time, Some(time - STEP))
+    }
+
+    /// Sample levels and emit segment-edge actions only when the caller has entered a new segment.
+    pub fn input_after(&self, time: f32, previous_time: Option<f32>) -> DriveInput {
         let mut start = 0.0;
         for s in &self.segments {
             if time < start + s.seconds {
-                let first = time - start < STEP;
+                let first = previous_time.is_none_or(|previous| previous < start);
                 return DriveInput {
                     shift_up: s.input.shift_up && first,
                     shift_down: s.input.shift_down && first,
@@ -92,6 +97,25 @@ impl DriveScript {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn segment_actions_fire_once_with_small_and_changing_tick_deltas() {
+        let script = DriveScript::parse("0.1:up,pop;0.1:down,reset;0.1:up").unwrap();
+        for deltas in [vec![1.0 / 144.0; 60], vec![1.0 / 576.0; 240], vec![0.07, 0.06, 0.001, 0.045, 0.08, 0.08]] {
+            let (mut time, mut previous) = (0.0, None);
+            let mut counts = [0; 4];
+            for delta in deltas {
+                let input = script.input_after(time, previous);
+                for (count, active) in counts.iter_mut().zip([input.shift_up, input.shift_down, input.pop, input.reset])
+                {
+                    *count += u32::from(active);
+                }
+                previous = Some(time);
+                time += delta;
+            }
+            assert_eq!(counts, [2, 1, 1, 1]);
+        }
+    }
 
     #[test]
     fn parses_segments() {

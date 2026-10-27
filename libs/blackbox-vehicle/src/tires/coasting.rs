@@ -2,7 +2,7 @@
 
 use std::f32::consts::TAU;
 
-use super::rolling::rolling_angle;
+use super::angle::rolling_angle;
 use super::{LoadedInput, Tire, TireParams};
 
 #[derive(Clone, Copy, Debug)]

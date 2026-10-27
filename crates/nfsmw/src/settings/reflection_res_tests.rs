@@ -4,13 +4,13 @@ use super::reflection_res::{MENU_SIZES, size_label, step_size, step_tint, tint_l
 use super::{Partial, Settings, env, file, write};
 
 #[test]
-fn the_defaults_keep_the_port_look() {
+fn the_default_mirror_follows_the_output() {
     let s = Settings::from(Partial::default());
     assert_eq!(s.reflection_cube_size, ReflectionSize::Scale(1.0));
-    assert_eq!(s.reflection_mirror_size, ReflectionSize::Scale(1.0));
+    assert_eq!(s.reflection_mirror_size, ReflectionSize::Auto);
     assert!(!s.reflection_pow2);
     assert_eq!(s.mirror_tint, MirrorTint::NONE);
-    assert_eq!(s.graphics().reflection_resolution, Default::default());
+    assert_eq!(s.graphics().reflection_resolution.mirror, ReflectionSize::Auto);
     assert_eq!(s.graphics().mirror_tint, MirrorTint::NONE);
 }
 
@@ -22,7 +22,8 @@ fn the_menu_steps_wrap_and_a_size_outside_the_list_steps_from_the_start() {
     }
     assert_eq!(size, MENU_SIZES[0]);
     assert_eq!(step_size(MENU_SIZES[0], false), MENU_SIZES[MENU_SIZES.len() - 1]);
-    assert_eq!(step_size(ReflectionSize::Fixed(256), true), MENU_SIZES[1]);
+    assert_eq!(step_size(ReflectionSize::Scale(1.5), true), ReflectionSize::Auto);
+    assert_eq!(step_size(ReflectionSize::Scale(1.5), false), ReflectionSize::Auto);
     assert_eq!(step_tint(MirrorTint::NONE), MirrorTint::STOCK);
     assert_eq!(step_tint(MirrorTint::STOCK), MirrorTint::NONE);
     assert_eq!(step_tint(MirrorTint([1, 2, 3])), MirrorTint::NONE);
@@ -31,8 +32,12 @@ fn the_menu_steps_wrap_and_a_size_outside_the_list_steps_from_the_start() {
 #[test]
 fn labels_show_auto_percent_pixels_and_the_tint_name() {
     assert_eq!(size_label(ReflectionSize::Auto), "Auto");
-    assert_eq!(size_label(ReflectionSize::Scale(1.5)), "150%");
+    assert_eq!(size_label(ReflectionSize::Scale(1.5)), "Custom (150% of base)");
     assert_eq!(size_label(ReflectionSize::Fixed(256)), "256 px");
+    assert_eq!(size_label(ReflectionSize::Fixed(360)), "360 px");
+    assert_eq!(size_label(ReflectionSize::Fixed(1024)), "Custom (1024 px)");
+    assert_eq!(size_label(ReflectionSize::Fixed(2048)), "Custom (2048 px)");
+    assert_eq!(size_label(ReflectionSize::Fixed(1000)), "Custom (1000 px)");
     let names = [MirrorTint::NONE, MirrorTint::STOCK, MirrorTint([1, 2, 3])].map(tint_label);
     assert_eq!(names, ["Off", "Stock", "Custom"]);
 }
@@ -53,6 +58,7 @@ fn the_config_file_round_trips_and_a_higher_layer_wins() {
     let cli = Partial { reflection_pow2: Some(false), ..Partial::default() };
     let s = Settings::from(cli.or(saved));
     assert_eq!((s.reflection_pow2, s.reflection_cube_size), (false, ReflectionSize::Scale(1.5)));
+    assert_eq!(s.reflection_mirror_size, ReflectionSize::Fixed(200));
 }
 
 #[test]

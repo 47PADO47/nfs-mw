@@ -77,7 +77,7 @@ impl RigidBody {
             breaking_impulse: 0.0,
             fixed_centre: true,
         };
-        let reaction = super::react_moments(&mut body, &mut surface, contact, 16)?;
+        let reaction = super::moment::react_plane_moments(&mut body, &mut surface, contact, 16)?;
         self.apply_contact_moment(&body);
         Some(reaction)
     }

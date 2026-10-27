@@ -1,5 +1,3 @@
-use crate::math::table;
-
 /// Lateral force families, one per two degrees of slip angle (0, 2, ..., 12), each sampled at the corrected
 /// load `x = 0, 2, 4, 6, 8, 10`.
 const FAMILIES: [[f32; 6]; 7] = [
@@ -12,6 +10,17 @@ const FAMILIES: [[f32; 6]; 7] = [
     [0.0, 1.9, 3.8, 5.2, 6.3, 7.1],
 ];
 
+fn family_force(index: usize, load_coordinate: f32) -> f32 {
+    let values = &FAMILIES[index];
+    let position = load_coordinate * 0.5;
+    let i = position as usize;
+    if i >= values.len() - 1 {
+        return values[values.len() - 1];
+    }
+    let t = position - i as f32;
+    (1.0 - t) * values[i] + t * values[i + 1]
+}
+
 /// Lateral force magnitude (N) of a tire at `load` (N) and absolute `slip_angle` (turns, 1.0 = 360 deg).
 ///
 /// Roughly linear in load at small loads and saturating (doubling the load gives less than double the
@@ -23,19 +32,24 @@ pub fn lateral_force(load: f32, slip_angle: f32, grip_scale: f32, grip_boost: f3
     let k = seg.floor();
     let frac = seg - k;
     let x = load.max(0.0) * 0.001 * 0.8;
-    let family = |i: usize| table(&FAMILIES[i], 0.0, 10.0, x);
-    let value = if k >= 6.0 {
-        family(6)
-    } else {
-        let k = k as usize;
-        family(k) + frac * (family(k + 1) - family(k))
-    };
-    grip_scale * 1000.0 * grip_boost * 2.5 * value
+    if k >= 6.0 {
+        return ((family_force(6, x) * grip_boost) * grip_scale) * 2500.0;
+    }
+    let k = k as usize;
+    let a = family_force(k, x);
+    let value = a + (family_force(k + 1, x) - a) * frac;
+    ((value * grip_scale) * grip_boost) * 2500.0
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn family_gain_order_preserves_single_precision_rounding() {
+        assert_eq!(lateral_force(1000.0, 1.0 / 360.0, 1.1984999, 1.0).to_bits(), 0x4433c667);
+        assert_eq!(lateral_force(1000.0, 12.0 / 360.0, 1.1984999, 1.015201).to_bits(), 0x45107c3d);
+    }
 
     #[test]
     fn no_slip_no_force() {

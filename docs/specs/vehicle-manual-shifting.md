@@ -53,7 +53,7 @@ top     = number of gear ratios - 1
 desired = clamp(gear + dir, 1, top)            # 1 is neutral: a downshift from first goes to neutral
 if gear == reverse:                 refuse     # the shift buttons do nothing in reverse
 if desired == gear:                 refuse     # an upshift in the top gear
-if staging in a drag race and desired > 2: refuse
+if staging and desired > 2:          refuse
 if manual:    Shift(desired)                   # the plain gear change of the drivetrain spec, section 7.2
 else:         SportShift(desired)              # the "tiptronic" of section 7.5; refused while a shift runs
 ```
@@ -158,8 +158,12 @@ The speed limiter (ECU) still tapers the throttle in the gears above neutral.
   gear's red-line speed by about 4% within four seconds and then creeps up by a few percent per ten seconds. The
   tire port's wheel-spin reaction term keeps pushing while the limiter pins the wheels each tick; in the top gear and
   above 40 mph the car settles within 1% of its red-line speed. Not investigated against the original.
-- **Known difference.** An auto-reverse gear request in the same step cancels a shift request (the original runs
-  both, shift first); the order only matters in the step the car stops.
+- **Player input order.** Apply a shift-button request before auto-reverse, then shape pedals using the resulting
+  gear. Both gear changes can occur in one step. Staging refuses button requests above first in every race mode;
+  it still permits neutral and pedal-selected reverse. Direct gear selectors remain a remake extension.
+
+The PC input boundary was checked independently for staged shifts, both pedals, auto-reverse speed thresholds,
+idle braking and handbrake priority. See [countdown controls provenance](../provenance/countdown-controls.md).
 
 ## How to check it
 
