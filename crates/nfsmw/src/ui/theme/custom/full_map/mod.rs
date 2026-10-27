@@ -18,12 +18,12 @@
 //! - [`chrome`]: the backdrop, the title and tabs, the legend.
 //! - [`card`]: the cursor and the focused blip's card.
 
+#[cfg(test)]
+mod backdrop_tests;
 pub mod card;
 pub mod chrome;
 pub mod fit;
 pub mod places;
-#[cfg(test)]
-mod backdrop_tests;
 #[cfg(test)]
 mod tests;
 

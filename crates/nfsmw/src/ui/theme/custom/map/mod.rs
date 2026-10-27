@@ -30,11 +30,11 @@ pub mod memory;
 pub mod modes;
 pub mod picture;
 pub mod place;
+#[cfg(test)]
+mod place_tests;
 pub mod roads;
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod place_tests;
 #[cfg(test)]
 mod theme_tests;
 pub mod view;
