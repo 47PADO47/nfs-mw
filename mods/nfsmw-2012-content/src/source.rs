@@ -2,16 +2,16 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result, bail};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_gfx::Texture;
 use chameleon_vehicle::{
-    Driver, Lamps, PaintPackGroup, PoliceMarks, PolySoup, Vehicle, VehiclePaint, driver_meshes, find_spec, has_driver,
-    load, load_poly_soup, load_texture, localised_text, paint_packs, paints, police_marks, read_lamps, steering_wheel,
-    take_driver, vehicle_name,
+    Driver, Lamps, PaintPackGroup, PaintSurface, PoliceMarks, PolySoup, Vehicle, VehiclePaint, driver_meshes,
+    find_spec, load, load_driver, load_poly_soup, load_texture, localised_text, paint_packs, paint_surfaces, paints,
+    police_marks, read_lamps, remove_baked_driver, vehicle_name,
 };
-use rayon::prelude::*;
 
 use crate::liveries::{self, Signature};
 use crate::vehicle_list::{self, ListEntry};
@@ -25,6 +25,8 @@ const PAINT_PACKS: &str = "GAMELOGIC/GAMEPLAY.BNDL";
 /// The English text tables, where the packs' names are.
 const TEXTS: &str = "UI/LANGUAGE/0001.BNDL";
 const SHADERS: &str = "SHADERS.BNDL";
+/// The people of the game: the figures that sit in the cars; optional.
+const CHARACTERS: &str = "CHARACTERS/ALL_CHARS.BNDL";
 const GAME_LOGIC: &str = "GAMELOGIC";
 /// The one-shots the cars share (the turbo's blow-off is one); optional.
 const SHARED_SAMPLES: &str = "VEHICLES/WAVES.BNDL";
@@ -52,8 +54,8 @@ pub struct SourceCar {
     pub lamps: Lamps,
 }
 
-/// The driver figure of the install with the textures its meshes draw. The driver a bundle draws itself (one does) is not
-/// in its [`SourceCar::vehicle`]: this figure takes its place there and in every other car.
+/// A driver figure of the install with the textures its meshes draw. The driver a bundle bakes into its body (one does) is not
+/// in its [`SourceCar::vehicle`]: the character its driver setup names takes its place there, as in every other car.
 pub struct DriverFigure {
     pub driver: Driver,
     pub textures: HashMap<u64, Texture>,
@@ -63,6 +65,10 @@ pub struct DriverFigure {
 pub struct Source {
     textures: Vec<u8>,
     shaders: Vec<u8>,
+    /// The character bundle, when the install has one.
+    characters: Option<Vec<u8>>,
+    /// The driver figures read so far, by character key (`None` for one that does not read).
+    figures: Mutex<HashMap<u32, Option<Arc<DriverFigure>>>>,
     /// The shared sample bundle, when the install has one that can be read.
     shared_samples: Option<Vec<u8>>,
     cars: Vec<CarFile>,
@@ -102,6 +108,8 @@ impl Source {
         Ok(Self {
             textures,
             shaders,
+            characters: std::fs::read(root.join(CHARACTERS)).ok(),
+            figures: Mutex::new(HashMap::new()),
             shared_samples,
             cars: list_cars(&root.join(VEHICLES))?,
             root: root.to_owned(),
@@ -163,6 +171,25 @@ impl Source {
             localised_text(self.texts.as_deref()?, pack.name)
         };
         files.iter().map(|file| name(file)).collect()
+    }
+
+    /// The text with string id `id` in the English table, as the game spells it (`SILVER METALLIC`); `None` when the
+    /// install has no table that reads or the table lacks the id.
+    pub fn text(&self, id: u32) -> Option<String> {
+        localised_text(self.texts.as_deref()?, id)
+    }
+
+    /// The paint surfaces of every body level of the car in `file` and which colour each takes, read without decoding the
+    /// meshes or the textures.
+    pub fn paint_surfaces_of(&self, file: &CarFile) -> Result<Vec<Vec<PaintSurface>>> {
+        let data = std::fs::read(&file.path).with_context(|| format!("reading {}", file.path.display()))?;
+        let bundle = Bundle::parse(&data)?;
+        let spec = find_spec(&bundle).context("the bundle has no vehicle graphics spec")?;
+        let mut pool = Pool::new();
+        pool.add(bundle.clone());
+        pool.add(Bundle::parse(&self.textures)?);
+        pool.add(Bundle::parse(&self.shaders)?);
+        Ok(paint_surfaces(&pool, spec)?)
     }
 
     /// The signature and the paint picture of the car in `file`, read without decoding its other textures.
@@ -242,8 +269,7 @@ impl Source {
             None
         });
         let mut hinged = crate::hinges::read(&bundle, &pool, spec, &vehicle);
-        // The body without the driver the bundle draws: the classes of the hinged parts lose the driver's meshes with it.
-        let wheel = steering_wheel(&bundle);
+        // The body without the driver the bundle bakes into it: the classes of the hinged parts lose the driver's meshes with it.
         let drivers = vehicle.body.first().map(driver_meshes).unwrap_or_default();
         if let Some(hinged) = hinged.as_mut() {
             for &at in drivers.iter().rev() {
@@ -252,57 +278,46 @@ impl Source {
                 }
             }
         }
-        take_driver(&mut vehicle, wheel);
+        remove_baked_driver(&mut vehicle);
         Ok(SourceCar { vehicle, textures, paints: car_paints, collision, hinged, lamps })
     }
 
-    /// Whether the bundle of `file` draws a driver.
-    fn draws_driver(&self, file: &CarFile) -> bool {
-        let Ok(data) = std::fs::read(&file.path) else { return false };
-        let (Ok(bundle), Ok(textures), Ok(shaders)) =
-            (Bundle::parse(&data), Bundle::parse(&self.textures), Bundle::parse(&self.shaders))
-        else {
-            return false;
-        };
-        let mut pool = Pool::new();
-        pool.add(bundle.clone());
-        pool.add(textures);
-        pool.add(shaders);
-        has_driver(&pool, &bundle)
+    /// Whether the install has the character bundle the drivers are in.
+    pub fn has_characters(&self) -> bool {
+        self.characters.is_some()
     }
 
-    /// The driver figure of the install: the one the first bundle that draws a driver has (one does, the police Explorer's;
-    /// the 2012 game has no driver in any other car), `None` when no bundle does or the figure cannot be read. Scans the
-    /// bundles on the rayon pool it is called on.
-    pub fn find_driver(&self) -> Option<DriverFigure> {
-        let file = self.cars.par_iter().find_first(|file| self.draws_driver(file))?;
-        match self.read_driver(file) {
-            Ok(figure) => figure,
+    /// The driver figure of the character `key` (the key a car's driver setup names), read on the first ask and kept: every car
+    /// of a run shares the two characters. `None` when the install has no character bundle or the figure does not read.
+    pub fn driver_figure(&self, key: u32) -> Option<Arc<DriverFigure>> {
+        let mut known = self.figures.lock().ok()?;
+        if let Some(found) = known.get(&key) {
+            return found.clone();
+        }
+        let figure = match self.read_driver(key) {
+            Ok(figure) => Some(Arc::new(figure)),
             Err(error) => {
-                log::warn!("{}: the driver does not read: {error:#}", file.path.display());
+                log::warn!("the driver {key:X} does not read: {error:#}");
                 None
             }
-        }
+        };
+        known.insert(key, figure.clone());
+        figure
     }
 
-    fn read_driver(&self, file: &CarFile) -> Result<Option<DriverFigure>> {
-        let data = std::fs::read(&file.path).with_context(|| format!("reading {}", file.path.display()))?;
-        let bundle = Bundle::parse(&data)?;
-        let spec = find_spec(&bundle).context("the bundle has no vehicle graphics spec")?;
+    fn read_driver(&self, key: u32) -> Result<DriverFigure> {
+        let characters = self.characters.as_deref().context("the install has no character bundle")?;
         let mut pool = Pool::new();
-        pool.add(bundle.clone());
-        pool.add(Bundle::parse(&self.textures)?);
+        pool.add(Bundle::parse(characters)?);
         pool.add(Bundle::parse(&self.shaders)?);
-        let mut vehicle = load(&pool, spec)?;
-        let Some(driver) = take_driver(&mut vehicle, steering_wheel(&bundle)) else { return Ok(None) };
+        let driver = load_driver(&pool, key)?;
         let mut textures = HashMap::new();
-        for mesh in &driver.meshes {
-            let Some(id) = mesh.appearance.diffuse_texture else { continue };
-            if pool.contains(id) && !textures.contains_key(&id) {
+        for id in driver.textures() {
+            if pool.contains(id) {
                 textures.insert(id, load_texture(&pool, id)?);
             }
         }
-        Ok(Some(DriverFigure { driver, textures }))
+        Ok(DriverFigure { driver, textures })
     }
 }
 

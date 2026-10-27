@@ -46,6 +46,7 @@ mod source;
 mod stamp;
 pub mod stats;
 mod textures;
+mod two_colour;
 mod variants;
 mod vehicle_list;
 mod vfx;

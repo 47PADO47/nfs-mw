@@ -150,6 +150,39 @@ pub fn display_names(raw: &[Option<String>]) -> Vec<Option<String>> {
     shown.iter().map(|name| name.clone().filter(once)).collect()
 }
 
+/// The longest name the shop takes (the manifest's limit).
+const MAX_NAME: usize = 32;
+
+/// The names of the two-colour liveries of one car as the shop shows them: like [`display_names`], but a name the game gives to
+/// several packs is kept and numbered after its first (`Silver Metallic`, `Silver Metallic 2`), because those packs differ in
+/// their colours. A name that is missing, odd or too long is `None`: that livery is numbered.
+pub fn distinct_names(raw: &[Option<String>]) -> Vec<Option<String>> {
+    let mut seen: Vec<(String, usize)> = Vec::new();
+    raw.iter()
+        .map(|name| {
+            let name = name.as_deref().map(title_case)?;
+            if name.is_empty() || !name.chars().all(|c| c.is_alphanumeric() || c == ' ') {
+                return None;
+            }
+            let times = match seen.iter_mut().find(|(known, _)| *known == name) {
+                Some((_, times)) => {
+                    *times += 1;
+                    *times
+                }
+                None => {
+                    seen.push((name.clone(), 1));
+                    1
+                }
+            };
+            let full = match times {
+                1 => name,
+                n => format!("{name} {n}"),
+            };
+            (full.chars().count() <= MAX_NAME).then_some(full)
+        })
+        .collect()
+}
+
 /// `SILVER METALLIC` as `Silver Metallic`.
 fn title_case(text: &str) -> String {
     let word = |word: &str| {
@@ -314,5 +347,14 @@ mod tests {
         assert_eq!(repeated, vec![Some("Hero".to_owned()), None, None]);
         assert_eq!(display_names(&[None, Some(String::new()), Some("A\"B".into())]), vec![None, None, None]);
         assert_eq!(display_names(&raw(&["SILVER METALLIC"])), raw(&["Silver Metallic"]));
+    }
+
+    #[test]
+    fn two_colour_names_keep_a_repeated_name_and_number_it() {
+        let raw = |names: &[&str]| names.iter().map(|name| Some((*name).to_owned())).collect::<Vec<_>>();
+        let found = distinct_names(&raw(&["SILVER METALLIC", "RED GLOSS", "SILVER METALLIC", "silver metallic"]));
+        assert_eq!(found, raw(&["Silver Metallic", "Red Gloss", "Silver Metallic 2", "Silver Metallic 3"]));
+        let odd = distinct_names(&[None, Some(String::new()), Some("A\"B".into()), Some("X".repeat(40))]);
+        assert_eq!(odd, vec![None, None, None, None]);
     }
 }

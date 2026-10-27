@@ -7,7 +7,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use chameleon_bundle::Bundle;
-use chameleon_vehicle::{Cabin, Lod, PaintPackGroup, PoliceMarks, VehiclePaint, read_stats, steering_wheel};
+use chameleon_vehicle::{Lod, PaintPackGroup, PoliceMarks, VehiclePaint, driver_setup, read_stats};
 use rayon::prelude::*;
 
 use crate::config::{Config, Role};
@@ -15,9 +15,9 @@ use crate::emit::{CarEntry, CarFiles, ModFolder};
 use crate::fit::Fit;
 use crate::police::PoliceRole;
 use crate::shared::SharedSet;
-use crate::source::{CarFile, DriverFigure, Source, SourceCar};
+use crate::source::{CarFile, Source, SourceCar};
 use crate::stats::ImportedStats;
-use crate::{brands, cameras, convert, names, nitrous, paints, sounds, variants, wheels};
+use crate::{brands, cameras, convert, names, nitrous, paints, sounds, two_colour, variants, wheels};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
 const MAX_THREADS: usize = 6;
@@ -99,13 +99,12 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     }
     let folder = ModFolder::create(out)?;
     let shared = SharedSet::open(source, config);
-    // Every car seats the same figure (the 2012 game draws a driver in one car only), so it is read once, up front.
-    let driver = source.find_driver();
-    if driver.is_none() {
-        log::warn!("the 2012 install has no driver that can be read: the cars have none");
+    // Every car sits one of the install's characters at the seat its bundle names; the figures are read once, when first asked.
+    if !source.has_characters() {
+        log::warn!("the 2012 install has no character bundle: the cars have no driver");
     }
     let results: Vec<Result<ImportedCar>> =
-        wanted.par_iter().map(|car| import_car(source, car, config, &folder, &shared, driver.as_ref())).collect();
+        wanted.par_iter().map(|car| import_car(source, car, config, &folder, &shared)).collect();
     write_nitrous(source, out);
     let makes: Vec<&str> =
         wanted.iter().zip(&results).filter(|(_, done)| done.is_ok()).map(|(car, _)| car.make.as_str()).collect();
@@ -166,7 +165,6 @@ fn import_car(
     config: &Config,
     folder: &ModFolder,
     shared: &SharedSet,
-    figure: Option<&DriverFigure>,
 ) -> Result<ImportedCar> {
     let mut car = source.load(named.file)?;
     // What the car is comes from its own bundle; the user's multipliers, if any, change it below.
@@ -183,9 +181,13 @@ fn import_car(
     car_stats.axle_z = placed.axles;
     placed.seat_hubs(&mut car.vehicle);
     let fit = Fit::own(placed.layout);
-    let driver = seat_driver(&mut car, &bytes, figure);
-    let livery_names = variants::livery_names(source, named.file, &named.liveries);
-    let pictures = variants::pictures(source, &car, &named.id, &named.liveries, &livery_names);
+    let driver = seat_driver(source, &mut car, &bytes);
+    // A car with two-colour paint packs offers each as a livery (and takes the texture coordinates of their pictures); any
+    // other car offers the pictures of its livery bundles, or its own.
+    let pictures = two_colour::apply(source, named.file, &mut car, &named.id).unwrap_or_else(|| {
+        let livery_names = variants::livery_names(source, named.file, &named.liveries);
+        variants::pictures(source, &car, &named.id, &named.liveries, &livery_names)
+    });
     let options = convert::Options {
         max_texture_size: config.max_texture_size,
         liveries: pictures.iter().map(|(choice, picture)| (choice.texture.clone(), picture.clone())).collect(),
@@ -263,15 +265,15 @@ fn offered_paints(source: &Source, named: &Named, own: &[VehiclePaint]) -> Vec<V
     all
 }
 
-/// The install's driver seated at the steering wheel of `car` (the bundle `bytes`), with the figure's textures added to the
-/// car's. `None` when there is no figure, or the car's bundle has no steering wheel to seat it at (the SWAT van and two
-/// supercars): the car has no driver then.
-fn seat_driver(car: &mut SourceCar, bytes: &[u8], figure: Option<&DriverFigure>) -> Option<Lod> {
-    let figure = figure?;
-    let wheel = steering_wheel(&Bundle::parse(bytes).ok()?)?;
-    let cabin = Cabin::of(car.vehicle.body.first()?, wheel);
+/// The driver of `car` (the bundle `bytes`): the character its driver setup names, seated where the setup says, at every level
+/// of detail, with the figure's textures added to the car's. `None` when the car has no driver (the BMW 1M, whose setup
+/// marks no seat), or the install has no figure for its character.
+fn seat_driver(source: &Source, car: &mut SourceCar, bytes: &[u8]) -> Option<Vec<Lod>> {
+    let setup = driver_setup(&Bundle::parse(bytes).ok()?)?;
+    let seat = setup.seat?;
+    let figure = source.driver_figure(setup.character)?;
     car.textures.extend(figure.textures.iter().map(|(id, texture)| (*id, texture.clone())));
-    Some(figure.driver.seated(&cabin))
+    Some(figure.driver.seated(seat))
 }
 
 #[cfg(test)]

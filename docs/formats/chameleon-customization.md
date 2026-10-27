@@ -12,6 +12,8 @@ rims, spoilers, roof scoops, body kits, hoods or window tints to choose from**. 
 (its own bundle) whose paint surface draws one picture, laid out for artwork, over the paint colour: the bundle is the same
 car with that one texture replaced ([Liveries](#liveries)). Only the 36 bundles with a `_Livery` paint technique draw a
 livery picture; the other bundles' paint surfaces take a flat colour (or, for the `TwoPaintMask` techniques, a mask).
+Twelve vehicles also have **two-colour paint packs**: each pack is a pair of the car's paints, the second colour covering
+the stripes, roofs and lower panels ([Two-colour paint](#two-colour-paint)).
 
 | Item | In the 2012 game | Evidence |
 |---|---|---|
@@ -141,9 +143,9 @@ picture, and six have a picture of their own in the bundle (the two Ford F-150 S
 for one panel next to plain paint surfaces; the Bentley, the Bugatti Veyron Grand Sport Vitesse and the Porsche 918 Spyder
 for the body). A vehicle with one bundle has no alternative to choose from, but its picture is how the game dresses the car, so
 the importer offers the picture of a single bundle as `Livery 1` when the `Livery` surfaces are most of the car's paint
-(`liveries::own_picture`: the 918 Spyder, the Bentley, the Lancia Delta, the Veyron Grand Sport Vitesse and the police
+(`liveries::own_picture`: the 918 Spyder, the Bentley, the Lancia Delta and the police
 vehicles but the SWAT van), and the car wears it from the start (the shop can take it off). A picture on one panel next to plain paint (the Raptor,
-the Gallardo) is laid out for that panel alone and a `TwoPaintMask` picture is a mask, so neither is offered. The techniques and textures are
+the Gallardo) is laid out for that panel alone and a `TwoPaintMask` picture is a mask, so neither is offered; the Veyron GSV, whose picture repeats over its second-colour surfaces, offers its [two-colour packs](#two-colour-paint) instead. The techniques and textures are
 **[verified]**; what the shared picture shows is **[unconfirmed]**.
 
 ## Paint packs
@@ -159,7 +161,7 @@ has a type import for each structure). Reader: `libs/chameleon-vehicle/src/paint
 | group | +0x0C | the group's id, which the list entry names | [verified] |
 | group | +0x14, +0x18 | count of packs, then that many offsets of packs | [verified] |
 | pack | +0x0C | id of a `VehiclePaint` record of the vehicle's bundle (a plain colour), else 0 | [verified]: all 273 plain colour packs of 83 bundles name a record of their vehicle's bundle |
-| pack | +0x10 | on a two-colour pack, a number (`0x10E35F` and on, in sequence) that is the id of no resource of the install; 0 on a plain colour | [unconfirmed] meaning |
+| pack | +0x10 | on a two-colour pack, the id of a `Genesys.Gen.ColourGroup` of the vehicle's bundle (`0x10E35F` and on, in sequence), a pair of paints ([Two-colour paint](#two-colour-paint)); 0 on the other packs | [verified]: 62 packs of 12 vehicles name a group of their bundle |
 | pack | +0x14 | the pack's own number, in sequence within a group | [unconfirmed] |
 | pack | +0x18 | an image id, the swatch | [unconfirmed] |
 | pack | +0x1C | on a livery pack, the id of a Genesys object that is in the bundle of that livery and in no other bundle of the vehicle; else 0 | [verified]: 25 packs of 25 liveries |
@@ -177,13 +179,82 @@ Three kinds of vehicle, by their packs **[verified]**:
   order differs between vehicles (the M3 GTR lists the bundles `2277252, 2277210, 2277224, 2277238, 393276`, the R34
   `2255934, 2255901, 2255912, 2255923, 2076524`, `HERO` last in both). The bundle holds one paint record, the colour behind
   the picture.
-- **A two-colour pack** (nine vehicles: the Veyron Super Sport and Grand Sport Vitesse, the BMW M3 E92, the Challenger SRT8
-  392, the Ford GT, the Boss 302, the Cobra 427, the Caterham R500, the Ariel Atom): +0x0C is 0 and +0x10 is set. The bundle
-  holds more paint records than the group has packs (the Veyron SS: 12 and 5), so a pack is probably a pair of records; **how
-  the pair is chosen is not found** [unconfirmed]. The importer takes these vehicles' paints in the order of the bundle.
+- **A two-colour pack** (twelve vehicles, [below](#two-colour-paint)): +0x10 is set. On nine of them (the Veyron Super Sport
+  and Grand Sport Vitesse, the BMW M3 E92, the Challenger SRT8 392, the Ford GT, the Boss 302, the Cobra 427, the Caterham R500,
+  the Ariel Atom) +0x0C is 0; the other three (the Shelby GT500, the Trans Am, the Charger R/T) name a plain colour there too,
+  which is the first paint of the pair or a colour of the same name. The bundle holds more paint records than the group has
+  packs (the Veyron SS: 12 and 5) because a pack is a pair of records.
 
-The text table also names the swatches' colours, which the importer does not use: a saved garage selection stores the paint's
-name, and the importer's names (finish and hex colour) predate this finding.
+The text table also names the swatches' colours, which the importer uses for the names of the two-colour liveries and does not
+use for the paints: a saved garage selection stores the paint's name, and the importer's names (finish and hex colour) predate
+this finding.
+
+## Two-colour paint
+
+**The colour groups.** Every car bundle holds a `Genesys.Gen.VehicleColourPalette` object (type id `0x2AA0`): a list of
+`VehiclePaint` handles and, for 17 of the 93 bundles, a table of `Genesys.Gen.ColourGroup` structures **[verified]**. The
+palette's header holds the offset of the list of paints (+0x10, with the count in the byte at +0x19), the offset of the table
+of groups (+0x14), and the count of groups in the byte at +0x18 (the list of a car with no group is its paints). A group is
+0x28 bytes, laid out inline like the other Genesys structures, with these fields (the type resource names them by hash, so
+they are read by offset; `libs/chameleon-vehicle/src/colour_palette.rs`):
+
+| Offset | Field | Evidence |
+|---|---|---|
+| +0x0C | handle of the **first paint**, a `VehiclePaint` of the bundle (the import table has a handle import at the slot; its resource key is the paint's own number, `VehiclePaint::id`) | [verified]: every handle of the 12 vehicles names a record of the bundle |
+| +0x14 | handle of the **second paint** | [verified] |
+| +0x1C | a third handle, never set | [verified] |
+| +0x24 | the group's id, which the pack's +0x10 holds | [verified] |
+
+A pack names its group by the id: Veyron Super Sport, `SILVER METALLIC`: group `0x10E35F`, paints `12462A` (`#646166`,
+metallic) and `163181` (`#323232`, metallic). A palette holds a group or two that no pack names (the Veyron's `1631A6`, the
+Caterham's `10E369`, the police vehicles' only group): they are not offered in the shop. The pack's name is the first
+paint's in most cases (`BLUE METALLIC` is a blue first paint with a white second, `SILVER METALLIC` a silver one with a dark
+grey second), but not always (the Atom's `RED GLOSS` is a black first paint and a red second), so **the pair is not "body
+colour plus accent"**; which of the two is the colour the name says is not needed, because the surfaces say which they take.
+The palette's own first paint (+0x10's list) is not always a pack's first (the Ford GT's is a paint no pack lists), so the
+default of a new car is not read from it; that the game shows the first pack of a vehicle is **[unconfirmed]**.
+
+**The surfaces.** The body-paint techniques with `TwoPaint` in their name draw the pair; the body of a car may mix them with
+plain ones **[verified]** (technique of each paint mesh of the finest level, all 93 bundles):
+
+| Technique | Takes | How |
+|---|---|---|
+| `BodyPaint`, `_Lightmap` | the first colour | `PbrPaintDiffuseColour` |
+| `BodyPaint_TwoPaint` | the first or the second colour, per mesh | the material's `mPaintColourIndex` (a float in `gMaterialCB`, the only constant of the material: 0 or 1) selects it |
+| `BodyPaint_TwoPaint_Livery` | the same, with a picture laid over by its alpha | the Veyron GSV's (index 1, a 128 x 128 BC3 picture whose coordinates repeat 20 times, probably a weave **[unconfirmed]**) and the police vehicles' |
+| `BodyPaint_TwoPaintMask`, `_Lightmap` | both, by a texture | the `DiffuseTextureSampler` texture at the first texture coordinates: second colour where its green channel is 1 |
+
+The pixel shaders (disassembled with `D3DDisassemble` from the DXBC in `SHADERS.BNDL`, programs `01010008D16ABE7E`,
+`01010008CBE14B3A`) compute the paint colour as `PbrPaintDiffuseColour + PbrPaintSecondaryDiffuseColour * amount`, `amount`
+being `mPaintColourIndex` or the mask's green; the specular colour likewise (`PbrPaintSpecularColour + PbrPaintSecondarySpecularColour * amount`).
+The game must therefore feed the secondary constants with the *difference* of the pair's colours (a black second colour such
+as the GSV's `#050505` roof would otherwise do nothing, and a bright one would overexpose) **[unconfirmed]**: the importer blends.
+Masks are 64 x 128 to 2048 x 256 BC1 (the Caterham's BC3), unsigned-normalised, and binary in the green channel (nearly all
+texels 0 or 255), and the surfaces' coordinates repeat (the Cobra's go from -1.9 to 3.5) **[verified]**. The shader of a
+`TwoPaint` mesh never samples its first texture coordinates, and on four of the five cars measured they are no layout for a
+picture (they run past +-25, overlap the other colour's mesh, or are one value), so a picture can only give such a mesh its
+colour by pointing all its vertices at one place.
+
+**The twelve vehicles** **[verified]** (file number, packs; surfaces of the finest level):
+
+| Vehicle | Packs | Surfaces |
+|---|---|---|
+| Veyron 16.4 Super Sport (122692) | 5 | `TwoPaint`: 8,531 triangles first, 3,865 second; a 72-triangle plain lightmap panel |
+| Veyron Grand Sport Vitesse (2076005) | 6 | `TwoPaint_Livery`, index 1: 4,241 triangles; plain: 1,508 |
+| BMW M3 E92 (122682) | 6 | `TwoPaint`: 12,706 first, 320 second; plain lightmap panel 258 |
+| Dodge Challenger SRT8 392 (122704) | 7 | `TwoPaintMask` 64 x 256 on all the paint |
+| Ford GT (122714) | 5 | `TwoPaintMask` 1024 x 128 (10,867); plain 4,693 |
+| Ford Mustang Boss 302 (122716) | 4 | `TwoPaintMask` 1024 x 512 (1,867); plain 5,973 |
+| Shelby Cobra 427 (1085576) | 5 | `TwoPaintMask` 64 x 128 on all the paint |
+| Caterham Superlight R500 (393001) | 4 | plain 4,535; `TwoPaintMask` 1024 x 256 BC3 (159); `TwoPaint` second (1,432) |
+| Ariel Atom 500 V8 (1160082) | 4 | `TwoPaint`: 5,239 first, 780 second |
+| Shelby Mustang GT500 1967 (2196334) | 4 | `TwoPaintMask` 2048 x 256 on all the paint |
+| Pontiac Firebird Trans Am (2196399) | 5 | `TwoPaintMask` 1024 x 512 |
+| Dodge Charger R/T 1970 (2196466) | 7 | `TwoPaint`: 5,893 first, 714 second |
+
+Five more packs (the paint pack group `0x183F0F`) name colour groups of a vehicle the list has no bundle for. The police vehicles and the
+Corvette Z06 have a group (`TwoPaint_Livery` surfaces) and no pack to name it. The McLaren MP4-12C and F1 LM have plain
+colours only: their paint surfaces are plain `BodyPaint`, so they have no second colour to show **[verified]**.
 
 ## Cars the list has twice
 
@@ -256,22 +327,53 @@ colours as the paints to use without a livery. 93 bundles make 67 cars: 73 vehic
 the ones they had (ids are made from the object name in file order, and the lead is the earlier file of every pair); the 20
 livery bundles and the 6 second vehicles had ids of their own before that no longer exist.
 
+**Two-colour packs become liveries** (`src/two_colour.rs`; `libs/chameleon-vehicle/src/{colour_palette,paint_surface,two_colour}.rs`).
+A car whose vehicle has packs that name a colour group (`PaintPackGroup::two_colour_packs`: the pair of the group's two
+paints, their float4 at 0x30) gets one livery per such pack, in the shop's order, named by the pack's text (`SILVER METALLIC`
+as `Silver Metallic`; a name two packs share is numbered, `Silver Metallic 2`; `Livery <n>` where the table has no name). The
+picture of each is baked at conversion time into `<ID>_LIV<n>` (BC1) and the car's paint meshes get the texture coordinates
+that pick their colour out of it, which is the same for every pack:
+
+- A car with no mask (Veyron SS, M3 E92, Atom, Charger, and the GSV, whose weave picture is dropped) has a picture of 8 x 4
+  texels, the first colour in the left block and the second in the right, and every vertex of a first-colour mesh is
+  pointed at the middle of the left block, of a second-colour mesh at the middle of the right one. A mesh's coordinates are
+  constant, so the picture is never minified and has one mip level.
+- A car with a mask (Cobra, Challenger, Ford GT, Boss 302, Caterham, GT500, Trans Am) has a picture of the mask's size:
+  each texel is the first colour where the mask's green channel is 0 and the second where it is 1, blended in linear light
+  and encoded as sRGB (the end points of a BC1 block are the two colours, so a block takes the nearest of its four
+  blends), with the full mip chain of the mask's size. The mask meshes keep their coordinates. The other paint meshes
+  (plain, first colour) are pointed at a 4 x 4 block of the mask that is 0 (and the second-colour meshes at one that is 1);
+  where the mask has no such block, the nearest is set to it (a few texels).
+- The picture is opaque, so while a livery is on, the player's paint is hidden; the car wears its first pack as its stock
+  look (`default_livery = 0`) and `No livery` gives the plain paints. The metallic finish of the game's paints is not baked
+  in (flat colours), nor is the specular colour.
+
+Which mesh takes which colour comes from the car's own bundle (`paint_surfaces`: the technique and, for `TwoPaint`, the
+material's index; for a mask, the texture of its diffuse sampler), matched to the loaded paint meshes by order, technique and
+triangle count at every level of the body (a car where it does not line up keeps its plain paints and the log says so). A
+car with several masks or with a plain `_Livery` picture is not handled. 62 packs of 12 vehicles become liveries (the
+install test `two_colour_packs_name_a_pair_of_their_cars_paints` counts them).
+
 **The default paint is the pack's first colour.** The paints of a vehicle whose pack lists plain colours (`PaintPackGroup::paint_order`)
 come first, in the pack's order, then the bundle's other paints in its own order; so the car starts in the colour the shop lists
-first. That this is the colour the 2012 game shows the vehicle in is **[unconfirmed]**. The nine vehicles with two-colour packs
-keep the order of the bundle.
+first. That this is the colour the 2012 game shows the vehicle in is **[unconfirmed]**. The vehicles with two-colour packs keep
+that order for their paints (the nine whose packs name no plain colour, the bundle's), and start in their first pack's livery.
 
 ## Open questions
 
 - The meaning of the colours at 0x10 and 0x20, the eight settings at 0x7C and the flags at 0xA0 (clearcoat, scratch and
   specular settings of the shader parameters are the candidates).
-- The fields of `PaintPack` at +0x10, +0x14 and +0x18, and how a two-colour pack picks its pair of paint records (nine
-  vehicles); until then those vehicles are one colour all over, as the importer paints them.
+- The fields of `PaintPack` at +0x14 and +0x18 (the pack's own number and an image id), and the third paint slot of a colour
+  group (+0x1C, never set).
+- Whether the game feeds the secondary paint constants with the difference of the pair's colours (the importer blends), and
+  how it shades the second colour (the importer bakes flat colours; the weave of the GSV's `TwoPaint_Livery` surfaces is dropped).
+- Why a palette keeps a group or two that no pack names (the Veyron's `1631A6`), and which paint is the palette's first.
 - Whether the first pack of a group is the colour the 2012 game shows a vehicle in, and which paints of a bundle that no pack
   lists the game never offers (the importer offers them after the packs').
 - The names of the paints: the `Name` field of the record is 0, and the pack's name (`SILVER METALLIC`, `ORANGE METALLIC`) is
   in the text table. The importer names a paint by finish and hex colour, so a saved selection keeps working.
 - The language of the `Type` values (solid and metallic are readings of the data).
 - What the shared picture of the other `_Livery` bundles is, and which of those pictures cover a whole body.
-- What a `TwoPaintMask` picture draws (a stripe or a roof in the second colour): the Cobra, the Challenger, the Ford GT, the
-  Boss 302, the GT500, the Trans Am and the Caterham have one, and none is offered as a livery.
+- What a `TwoPaintMask` picture looks like in the 2012 game (stripes, a roof, a lower panel in the second colour): the
+  importer bakes it as the shader reads it (the Cobra, the Challenger, the Ford GT, the Boss 302, the GT500, the Trans Am and
+  the Caterham have one), but the result has not been compared with the game's own screenshots.

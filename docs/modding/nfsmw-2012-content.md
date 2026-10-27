@@ -139,10 +139,10 @@ table instead ([car-stats.md](car-stats.md)).
 |---|---|
 | Body, interior, lamps, mirrors (finest of 3 levels, 5,000 to 36,000 triangles) | `<ID>_KIT00_BODY_A..D` (the car's own folder), in car space (+x forward, +y left, +z up), with the 2012 shape unchanged: only the axes are permuted and the car is centred on its wheelbase (`src/fit.rs`) |
 | Tyre, brake disc, rim and caliper | one `<ID>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled; the game draws it at the four hubs the car's `[wheels]` table gives ([The wheels](#the-wheels)) |
-| Driver | the 2012 game's one driver figure (the police Explorer's), seated at the steering wheel of the car: `<ID>_KIT00_DRIVER_A..D`, drawn while driving ([The driver](#the-driver)) |
+| Driver | the character the car's bundle sets up (one of the 2012 game's two seated people, `CHARACTERS/ALL_CHARS.BNDL`), at the seat the bundle gives, with its textures: `<ID>_KIT00_DRIVER_A..D`, drawn while driving ([The driver](#the-driver)) |
 | Diffuse maps (BC1, BC3) | the car's `TEXTURES.BIN` as DXT1 and DXT5, cut to `max_texture_size` |
 | Paint surfaces | the placeholder `<ID>_SKIN1` with light material `CARSKIN`, which the game swaps for the paint the player picks. Their texture coordinates are the 2012 car's own |
-| Liveries | the paint picture of each bundle of a vehicle that has several, or of the only bundle of a car that wears one (2048 x 1024 BC1, cut to `max_texture_size`): the vehicle's own bundle first, then its liveries in vehicle list order, as `<ID>_LIV1` to `<ID>_LIV5` in the car's `TEXTURES.BIN` and the `liveries` list of its `[customization]` table. A livery bundle is the car with that one texture replaced; one that is not (another body, no picture) is converted as a car of its own. The liveries are named by the vehicle's paint pack (`libs/chameleon-vehicle/src/paint_pack.rs`, the text table's `HERO`, `RACE`, ...), and the car wears the first as its stock look (`default_livery = 0`). Vehicles of the list that are one car under two vehicle ids (the same name; 6 of them) are one car, led by the one with liveries, then the one with most paints, and lend it their paints (`src/vehicle_list.rs`, `src/liveries.rs`, `src/fold.rs`, `src/variants.rs`) |
+| Liveries | the paint picture of each bundle of a vehicle that has several, or of the only bundle of a car that wears one (2048 x 1024 BC1, cut to `max_texture_size`): the vehicle's own bundle first, then its liveries in vehicle list order, as `<ID>_LIV1` to `<ID>_LIV5` in the car's `TEXTURES.BIN` and the `liveries` list of its `[customization]` table. A livery bundle is the car with that one texture replaced; one that is not (another body, no picture) is converted as a car of its own. The liveries are named by the vehicle's paint pack (`libs/chameleon-vehicle/src/paint_pack.rs`, the text table's `HERO`, `RACE`, ...), and the car wears the first as its stock look (`default_livery = 0`). The twelve vehicles with two-colour paint packs (62 packs) get one livery per pack, a baked picture of the pair of colours, named by the pack (`src/two_colour.rs`, `libs/chameleon-vehicle/src/{colour_palette,paint_surface,two_colour}.rs`; see Limits). Vehicles of the list that are one car under two vehicle ids (the same name; 6 of them) are one car, led by the one with liveries, then the one with most paints, and lend it their paints (`src/vehicle_list.rs`, `src/liveries.rs`, `src/fold.rs`, `src/variants.rs`) |
 | Paints | the `VehiclePaint` records of the car's bundle (`libs/chameleon-vehicle/src/paint.rs`): the colour, and the finish from the record's type, written as the `[customization]` table of the manifest, repeated colours dropped; the ones the vehicle's paint pack lists come first in the pack's order, so the default paint is the pack's first (`src/paints.rs`) |
 | Stats | the car's own stats, read from its Genesys handling definition ([chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md)) and written as the `[stats]` table of its manifest: mass (body and wheels), weight distribution and centre-of-gravity height from the axles and rigid bodies, wheelbase, track and tyre size, the torque curve (at most 16 points, knots kept) with its idle and limiter, the gearbox and final drive, the drive layout and differential locks, the tyres' peak grip, the brake torque of each axle, the design top speed (the game solves the air drag from it) and the nitrous strength as `nitrous_boost`; then the `[performance]` multipliers (`src/stats.rs`, `src/performance.rs`) |
 | Engine | the car's own sound graphs ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)): the Ginsu voices as `.GIN` files, the idle and whine loops as WAVs, each layer with its curves of rpm, load and speed in the `[engine_sound]` table (`src/graph_voices.rs`, `src/graph_voices/speed.rs`; the player's engine sound and the gearbox whine only, the electric car's motor loops with a `rate` curve of the speed, and `shift_clunk = false` for a car with no gear change sound); a car without those graphs gets the looping samples of its bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), except the turbo's whistle, one 16-bit WAV per layer at one level, with the rpm each stands for (`src/engine.rs`, `src/sample.rs`) |
@@ -210,10 +210,18 @@ Then what the conversion does not do:
 - **Paint names.** The 2012 records carry no names; a paint is named by its finish and colour (`Metallic #AD2B2C`). The game's
   own names (`SILVER METALLIC`) are in the paint packs and the text table, and are not used yet: a paint's name is what a saved
   selection stores, so renaming would break the My Cars slots that hold a paint.
-- **Two-colour cars.** Nine vehicles have paint packs of two colours (the Veyron Super Sport and Grand Sport Vitesse, the BMW M3 E92,
-  the Challenger SRT8 392, the Ford GT, the Boss 302, the Cobra 427, the Caterham R500, the Ariel Atom): their bundles hold more paint
-  records than the group has packs (the Veyron SS: 12 and 5), and the pairing is not found in the install (`PaintPack::two_paint` names something no resource holds), so
-  they are painted in one colour all over and offered the bundle's paints in the bundle's order, not the pack's.
+- **Two-colour cars are liveries.** Twelve vehicles have paint packs of two colours (the Veyron Super Sport and Grand Sport Vitesse,
+  the BMW M3 E92, the Challenger SRT8 392, the Ford GT, the Boss 302, the Cobra 427, the Caterham R500, the Ariel Atom, the Shelby GT500, the
+  Pontiac Trans Am and the Dodge Charger R/T): a pack names a pair of the car's paints, and the second colour covers the stripes, roofs
+  and lower panels (whole meshes, or where a mask texture says). Each pack is a livery of the car, 62 in all, named by the game's
+  name of the pack (`Silver Metallic`, `Red Gloss`; a name two packs share is numbered, `Silver Metallic 2`), whose picture is the
+  pair of colours baked at conversion time (`<ID>_LIV<n>`: the mask of the car blended in the two colours, or two blocks of colour
+  for a car with no mask, the paint meshes pointed at the right one; [the format](../formats/chameleon-customization.md#two-colour-paint)).
+  The car wears its first pack from the start and `No livery` gives the plain paints. The picture is opaque flat colour: the
+  metallic finish, the specular colour and the Veyron GSV's weave on its second-colour surfaces are not carried over, and a
+  livery hides the paint the player picks while it is on. The GSV's old `Livery 1` (that weave picture over the whole car) is gone.
+  Not checked against the 2012 game's own look: the bake follows the shader as read. The McLaren MP4-12C and F1 LM have no second
+  colour in the install (plain paint surfaces), so they are offered their colours only.
 - **Normal, specular and effect maps are dropped**: the 2005 car shader has its own lighting.
 - **Names.** The mod gives every car a display name and a brand. The garage lists the car under both
   (`scenes/world/garage.rs`); the other screens that name cars were not checked.
@@ -226,9 +234,10 @@ Then what the conversion does not do:
   over the paint colour by their alpha, so an opaque livery hides the paint the player picks. Every car with a livery wears its
   first one (the picture of the vehicle's own bundle) from the start; the shop's `No livery` choice takes it off and leaves the
   plain paints and finishes. A car with a single bundle offers its picture as `Livery 1` when the paint surfaces
-  that draw a `Livery` technique make up most of its paint (the 918 Spyder, the Bentley, the Lancia Delta, the Veyron Grand
-  Sport Vitesse and four of the five police vehicles); a picture on one panel next to plain paint (the Raptor, the Gallardo),
-  a `TwoPaintMask` picture (a mask of the second colour, not a livery) and the SWAT van's are not offered.
+  that draw a `Livery` technique make up most of its paint (the 918 Spyder, the Bentley, the Lancia Delta and four of the
+  five police vehicles); a picture on one panel next to plain paint (the Raptor, the Gallardo), a `TwoPaintMask` picture (a mask
+  of the second colour, not a livery; the cars that have one offer their two-colour packs instead, see above) and the SWAT van's are
+  not offered.
   Older conversions made each livery bundle a car of its own (20 more cars with generated ids) and the second vehicle id of a car
   another one (6 more, the R34 GT-R with plain paint among them): those ids are gone after the next conversion, while the ids of
   the other 67 cars are unchanged. A My Cars slot of a car that is gone stays in the list and says its car is not installed.
@@ -350,26 +359,31 @@ not a drive: the Venom was looked at in a render (`nfsmw view-car HENVENOMGT12 -
 
 ## The driver
 
-The 2012 game draws a person in **one** car, the police Explorer: a seated figure (362 vertices) with its hands on the wheel,
-as a body mesh of its own. The other 92 bundles have none ([chameleon-vehicle.md](../formats/chameleon-vehicle.md#the-driver)).
-The conversion takes that figure out of the Explorer's body and gives **every car with a steering wheel bone** (90 of the 93
-bundles) a copy of it as its driver: the solid `<ID>_KIT00_DRIVER_A..D`, which the game draws in the cockpit when the car is
-driven (not in the garage or the shop), with a part of its own (`<ID>_DRIVER`, slot `DRIVER`) that the game adds to its parts
-database with the body and the wheel ([car-customization.md](car-customization.md#the-files-of-a-car)). A mod car with no such
-solid has no driver.
+Every car of the 2012 game but the BMW 1M has a driver: each car bundle sets one up (`Vehicle_DriverSetup`: which of the two
+characters of `CHARACTERS/ALL_CHARS.BNDL` sits in the car, and the seat's position in the car's space), and the characters are
+seated figures, skinned models in the pose of their rest skeleton ([chameleon-vehicle.md](../formats/chameleon-vehicle.md#the-driver)).
+The conversion gives each of **92 of the 93 bundles** the solid `<ID>_KIT00_DRIVER_A..D`, which the game draws in the cockpit
+when the car is driven (not in the garage or the shop), with a part of its own (`<ID>_DRIVER`, slot `DRIVER`) that the game
+adds to its parts database with the body and the wheel ([car-customization.md](car-customization.md#the-files-of-a-car)). A
+mod car with no such solid has no driver.
 
-- **Placed by the car's own wheel.** The figure is modelled around the Explorer's `SteeringWheel` bone, so it is moved to the
-  bone of each car (hands on the wheel, wherever the car puts it, left, right or in the middle), then through the same
-  transform as the body. Where the roof (or an open car's roll hoop) over the seat is too low for its head, the seat goes
-  down by up to 12 cm and then the figure shrinks to at least 85%; in a low car it shrinks, not sinks, when the soles would
-  go through the floor.
-- **Looks.** The figure's own colours (skin and dark grey clothes, an 8 x 8 texture in the car's `TEXTURES.BIN`), matte.
-- **Not done.** The Explorer, the only car that draws its own, loses the body mesh to the solid (the body no longer holds it).
-  The SWAT van, the Zonda R and the Huayra have no steering wheel bone, so no driver. The figure's pose is the Explorer's (upright,
-  hands at the wheel): a sports car's seat is lower and more reclined, and the data does not say by how much; the head and
-  feet of the low cars are fitted, not posed. Nothing has been seen in a running game; the converter's tests and the
-  reader's install test (`cargo test -p chameleon-vehicle --lib driver -- --ignored`, the figure inside every car's
-  body) check the numbers.
+- **Placed by the bundle's own seat.** The character is moved by the seat the car's setup gives (no rotation, no scale), then
+  through the same transform as the body, so the driver sits where the 2012 game seats it: left, right (the DB5, the R34, the
+  Lancia Delta) or in the middle (the BAC Mono, the F1 LM), hands out to the wheel, in the open cockpits of the Atom, the Cobra
+  and the Mono as well as under a roof. `src/source.rs` reads each character once (`Source::driver_figure`),
+  `src/import.rs` seats it per car. No height fitting is done: the data places the head under the roof of 81 of the 92 cars and
+  just above the low windscreen of the others.
+- **Levels of detail.** The character has five levels (4,600 vertices down to 470); the solids `A` and `B` take the finest, `C` the
+  second and `D` the third, as the body does.
+- **Looks.** The character's own diffuse map (a 2048 x 1024 BC1 picture cut to `max_texture_size`, named
+  after the texture's id in the car's `TEXTURES.BIN`), matte. The normal and specular maps are not carried.
+- **Not done.** The BMW 1M (Lightning McQueen's body) has no seat in its setup (19, 19, 19), so no driver. The Explorer's body
+  bakes a driver of its own (362 vertices, the same posture); the conversion takes it out so the car has the one driver. The
+  figure is **static**: the rest pose, hands out on the wheel, with no steering animation (the character has an animation list
+  of 28 clips that was not decoded), and no seat belt or harness mesh was looked for. Nothing has been seen in a running game;
+  the reader's install test (`cargo test -p chameleon-vehicle --lib driver -- --ignored`, with `CHAMELEON_GAME_DIR` or
+  `MW2012_GAME_DIR`: every car sets a driver up, the head under the body's top, the soles above the ground, the figure in the
+  body's box) checks the numbers.
 
 ## The 2012 cameras
 
@@ -410,7 +424,10 @@ multipliers of the test's `config.toml` make them, nitrous, gear ratios) and tha
 `NFSMW_GAME_DIR=<2005 install> cargo test -p nfsmw rescan` checks that content added after start-up reaches the copies of the
 install that are already open. The test `brands` converts a BAC, a Bentley, a Koenigsegg and a Porsche and checks that each brand got a manifest the game's parser reads and a 300 x 150 RGBA PNG with its logo drawn (`cargo test -p nfsmw-2012-content --test brands -- --ignored`).
 `CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-bundle -p chameleon-vehicle --
---ignored` loads every car of the install. To look at a car without opening a window:
+--ignored` loads every car of the install; its `two_colour_tests` count the 62 two-colour packs of 12 vehicles, check that the paint
+surfaces line up with the loaded meshes of all 93 bundles and bake a picture for each mask; the mod's `two_colour::tests::the_twelve_two_colour_vehicles_become_liveries` (`MW2012_GAME_DIR`, `-p nfsmw-2012-content --lib -- --ignored`) checks the 62 liveries of the 12 cars. To look at a two-colour car's livery:
+`nfsmw view-car <ID> --part vinyl=2 --screenshot out.png --muted` (the liveries are among the vinyls, `<ID>` a converted car). To look at a car
+without opening a window:
 
 ```
 nfsmw view-car POR911CARR12 --screenshot out.png --muted

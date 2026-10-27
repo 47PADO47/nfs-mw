@@ -26,11 +26,12 @@ const MAX_PACKS: usize = 256;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PaintPack {
     /// The id of the `VehiclePaint` record of a plain colour (+0x0C), which the vehicle's bundle holds; 0 for a livery
-    /// pack and for a two-colour pack **[verified]**: all 273 plain colour packs of the install name a record of their
-    /// vehicle's bundle.
+    /// pack and for the two-colour packs of nine vehicles **[verified]**: all 273 plain colour packs of the install name a
+    /// record of their vehicle's bundle. (The packs of three more vehicles name a plain colour and a pair.)
     pub paint: u32,
-    /// +0x10: 0 on a plain colour, a number the install has no resource for on a two-colour pack (the vehicles with a
-    /// `TwoPaint` surface) **[unconfirmed]**.
+    /// +0x10: 0 on a pack with no pair of colours; else the id of a `Genesys.Gen.ColourGroup` of the vehicle's bundle, the
+    /// pair of paints of a two-colour pack (`crate::colour_groups`, [`PaintPackGroup::two_colour_packs`]) **[verified]**:
+    /// 62 packs of 12 vehicles name a group of their vehicle's bundle.
     pub two_paint: u32,
     /// +0x14: the pack's own number, in sequence within a group **[unconfirmed]**.
     pub id: u32,

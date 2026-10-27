@@ -26,8 +26,9 @@ fn the_five_vehicles_with_liveries_are_five_cars_with_five_liveries_each() {
     names.sort_unstable();
     assert!(names.windows(2).all(|pair| pair[0] != pair[1]), "a car is listed twice: {names:?}");
 
-    // The cars with five liveries are the five vehicles that have them; a car with one is dressed by its own bundle.
-    let with: Vec<_> = report.imported.iter().filter(|car| car.liveries == 5).collect();
+    // The five vehicles that have real liveries (the two-colour packs of other cars are liveries too, in their own test).
+    const REAL: [&str; 5] = ["BMWM3E46GT01", "LAMDIABLOS95", "POR911GT208", "NIS350Z06", "NISSKYLINE99"];
+    let with: Vec<_> = report.imported.iter().filter(|car| REAL.contains(&car.id.as_str())).collect();
     assert_eq!(with.len(), 5, "{with:?}");
     let mut names: Vec<&str> = with.iter().map(|car| car.name.as_str()).collect();
     names.sort_unstable();
