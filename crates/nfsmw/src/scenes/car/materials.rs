@@ -136,7 +136,6 @@ impl CarMaterials {
                         *range = facing - *minimum;
                     }
                 }
-                }
                 material.background_actor = background_actor && shading == CarShading::Glossy;
                 Some((hash, renderer.create_glossy_material(&material)))
             })
