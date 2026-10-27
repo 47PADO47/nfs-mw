@@ -110,13 +110,21 @@ fn a_livery_lays_its_picture_over_the_body_paint() {
     let catalog = Inventory::load(&game).unwrap().catalog(&game, CAR).unwrap();
     let liveries = &catalog.choices[Category::Vinyl as usize];
     let labels: Vec<&str> = liveries.iter().map(|choice| choice.label.as_str()).collect();
-    assert_eq!(labels, ["Livery 1", "Livery 2", "Livery 3", "Livery 4", "Livery 5"]);
+    assert_eq!(
+        labels,
+        ["Hero", "Race", "Street", "Abstract", "Urban", "No livery"],
+        "the game's names, then the plain paint"
+    );
     assert!(liveries.iter().all(|choice| catalog.vinyl_remaps[&choice.hash] == 0), "no recolourable channel");
-    assert_eq!(catalog.choices[Category::Paint as usize].len(), 1, "the added paint is the one choice");
+    assert_eq!(
+        catalog.choices[Category::Paint as usize].len(),
+        7,
+        "its own paint and the six of the plain R34 vehicle"
+    );
 
     let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
     let skin = bstring_hash(&format!("{CAR}_SKIN1"));
-    let paint = catalog.choices[Category::Paint as usize][0].hash;
+    let paint = catalog.choices[Category::Paint as usize].last().unwrap().hash;
     let drawn = |livery: Option<u32>, paint: Option<u32>| {
         let mut selection = Selection::default();
         selection.parts[Category::Vinyl as usize] = livery;
@@ -126,8 +134,10 @@ fn a_livery_lays_its_picture_over_the_body_paint() {
         model.textures[&skin].clone()
     };
 
-    let flat = drawn(None, None);
+    let flat = drawn(Some(custom::no_livery_hash(CAR)), None);
     assert_eq!((flat.width, flat.height), (4, 4), "no livery: the flat paint");
+    let stock = drawn(None, None);
+    assert_eq!((stock.width, stock.height), (1024, 512), "the car wears its first livery as its stock look");
     // The first livery has transparent texels: the paint shows through, so another paint changes the skin.
     let (clear_a, clear_b) = (drawn(Some(liveries[0].hash), None), drawn(Some(liveries[0].hash), Some(paint)));
     assert_eq!((clear_a.width, clear_a.height), (1024, 512));

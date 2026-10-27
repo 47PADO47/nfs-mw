@@ -70,6 +70,25 @@ pub(crate) fn slots() -> Result<Vec<Slot>> {
     Ok(slots)
 }
 
+/// What the My Cars list calls the car `car`: its name, behind the maker's when the name does not start with it (a mod car
+/// is `Porsche 911 Carrera S 2012`, not `Porsche Porsche 911 Carrera S 2012`).
+pub(crate) fn car_label(car: &super::Car) -> String {
+    let (maker, name) = (car.manufacturer.trim(), car.name.trim());
+    let starts_with_maker = name.get(..maker.len()).is_some_and(|head| head.eq_ignore_ascii_case(maker));
+    if maker.is_empty() || starts_with_maker {
+        return name.to_owned();
+    }
+    format!("{maker} {name}")
+}
+
+/// What the My Cars list shows for `slot`: its label, or the name of the car where the label is only the car's folder (slots
+/// made in the world's garage and the ones migrated from the old presets are labelled with the folder, which for a mod car
+/// is an id like `POR911CARR12`).
+pub(crate) fn display_label(slot: &Slot, model: &Model) -> String {
+    let named = model.cars.iter().find(|car| car.folder.eq_ignore_ascii_case(slot.label.trim()));
+    named.map_or_else(|| slot.label.clone(), car_label)
+}
+
 pub(crate) fn folder<'a>(slot: &Slot, model: &'a Model) -> Option<&'a str> {
     model
         .cars
@@ -125,8 +144,12 @@ pub(crate) fn delete(id: &str) -> Result<()> {
     store.write(&path()?)
 }
 
-pub(crate) fn save_world_slot(selection: &Selection, id: Option<&str>) -> Result<String> {
-    let Some(id) = id else { return create(selection, &selection.car) };
+pub(crate) fn save_world_slot(selection: &Selection, id: Option<&str>, model: &Model) -> Result<String> {
+    let Some(id) = id else {
+        let label =
+            model.cars.iter().find(|car| car.folder == selection.car).map_or_else(|| selection.car.clone(), car_label);
+        return create(selection, &label);
+    };
     let slot = slots()?.into_iter().find(|slot| slot.id == id).context("The driven custom car slot was deleted")?;
     save(id, selection, &slot.label)?;
     Ok(id.to_owned())

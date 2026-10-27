@@ -39,9 +39,24 @@ pub fn choices(paints: &[VehiclePaint]) -> Vec<PaintChoice> {
     out
 }
 
+/// `paints` with the ones the vehicle's paint pack names first, in the pack's order, then the others in the order of the
+/// bundle. The pack is the shop's list, and its first colour is taken as the car's default paint (that this is the 2012
+/// game's choice is not confirmed); `order` holds the `VehiclePaint` ids of the pack's plain colours.
+pub fn in_pack_order(paints: &[VehiclePaint], order: &[u32]) -> Vec<VehiclePaint> {
+    let mut taken = vec![false; paints.len()];
+    let mut out = Vec::with_capacity(paints.len());
+    for id in order {
+        let Some(at) = paints.iter().zip(&taken).position(|(paint, done)| paint.id == *id && !*done) else { continue };
+        taken[at] = true;
+        out.push(paints[at]);
+    }
+    out.extend(paints.iter().zip(&taken).filter(|(_, done)| !**done).map(|(paint, _)| *paint));
+    out
+}
+
 /// The `[customization]` table for `choices` and `liveries`, to follow the other keys of a car manifest. Empty when there
 /// is no paint, which leaves the car with none of its own (a table needs a paint). `dressed` is the position of the livery
-/// the car wears until the player changes it (a police car's markings).
+/// the car wears until the player changes it (its first, or a police car's markings).
 pub fn manifest_table(choices: &[PaintChoice], liveries: &[LiveryChoice], dressed: Option<usize>) -> String {
     if choices.is_empty() {
         return String::new();
@@ -146,5 +161,23 @@ mod tests {
         assert!(!manifest_table(&paints, &liveries, None).contains("default_livery"));
         assert!(!manifest_table(&paints, &liveries, Some(2)).contains("default_livery"), "past the end");
         assert!(!manifest_table(&paints, &[], Some(0)).contains("default_livery"), "no liveries");
+    }
+
+    fn paint_with_id(id: u32, diffuse: [f32; 3]) -> VehiclePaint {
+        VehiclePaint { id, ..paint(diffuse, 0) }
+    }
+
+    #[test]
+    fn the_packs_colours_come_first_in_the_packs_order_and_the_rest_keep_the_bundles() {
+        let paints = [
+            paint_with_id(1, [1.0, 0.0, 0.0]),
+            paint_with_id(2, [0.0, 1.0, 0.0]),
+            paint_with_id(3, [0.0, 0.0, 1.0]),
+            paint_with_id(4, [1.0, 1.0, 0.0]),
+        ];
+        let ids = |found: Vec<VehiclePaint>| found.iter().map(|paint| paint.id).collect::<Vec<_>>();
+        assert_eq!(ids(in_pack_order(&paints, &[3, 1])), vec![3, 1, 2, 4]);
+        assert_eq!(ids(in_pack_order(&paints, &[])), vec![1, 2, 3, 4], "no pack: the order of the bundle");
+        assert_eq!(ids(in_pack_order(&paints, &[9, 2, 2])), vec![2, 1, 3, 4], "unknown and repeated ids are skipped");
     }
 }

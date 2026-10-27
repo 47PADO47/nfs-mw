@@ -55,3 +55,36 @@ fn migration_preserves_legacy_payload_and_delete_survives_reopen() {
     assert_eq!(std::fs::read(&legacy).unwrap(), original);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+fn car(folder: &str, manufacturer: &str, name: &str) -> crate::garage::Car {
+    crate::garage::Car {
+        folder: folder.into(),
+        manufacturer: manufacturer.into(),
+        name: name.into(),
+        ..Default::default()
+    }
+}
+
+fn slot(label: &str) -> Slot {
+    Slot { id: "slot-1".into(), label: label.into(), car: "POR911CARR12".into(), vehicle_key: None }
+}
+
+#[test]
+fn a_car_is_labelled_with_its_maker_unless_its_name_starts_with_it() {
+    assert_eq!(car_label(&car("A", "Porsche", "Porsche 911 Carrera S 2012")), "Porsche 911 Carrera S 2012");
+    assert_eq!(car_label(&car("A", "Chevrolet", "Cobalt SS")), "Chevrolet Cobalt SS");
+    assert_eq!(car_label(&car("A", "", "Cobalt SS")), "Cobalt SS");
+}
+
+#[test]
+fn a_slot_labelled_with_a_car_folder_shows_the_name_of_the_car() {
+    let model = Model { cars: vec![car("POR911CARR12", "Porsche", "Porsche 911 Carrera S 2012")], ..Model::default() };
+    assert_eq!(display_label(&slot("POR911CARR12"), &model), "Porsche 911 Carrera S 2012");
+    assert_eq!(display_label(&slot("por911carr12"), &model), "Porsche 911 Carrera S 2012");
+    assert_eq!(
+        display_label(&slot("Weekend track car"), &model),
+        "Weekend track car",
+        "a label the player chose stays"
+    );
+    assert_eq!(display_label(&slot("GONEFOLDER"), &model), "GONEFOLDER", "a car that is not installed keeps its label");
+}

@@ -1,6 +1,6 @@
 //! MyCarsManager's five-by-two array and the original add-car selector.
 
-use super::super::inspection::{manufacturer, model_logo};
+use super::super::inspection::{manufacturer, pictures};
 use super::super::{GarageUi, Page, Request, chrome};
 use crate::frontend::logic::{Cx, Footer, ScreenLogic};
 use crate::garage::{Category, MenuEvent, Selection, menu_rows::Row};
@@ -209,13 +209,16 @@ impl Manager {
         let model = self.handle.model();
         self.handle.header(cx, self.page);
         super::super::details::bars(cx, &model);
-        if let Some(car) = model.selected()
-            && let Some(object) = cx.object(0xb05d_d708)
-        {
-            let logo = model_logo(cx, &car.physics_name);
-            cx.rt.set_texture(object, logo);
+        if let Some(car) = model.selected() {
+            let (maker, name) = pictures(cx, car);
+            for (hash, texture) in [(0x3e01_ad1d, maker), (0xb05d_d708, name)] {
+                if let Some(object) = cx.object(hash) {
+                    cx.rt.set_texture(object, texture);
+                }
+            }
         }
         if self.page == Page::Manager {
+            hide_sample_names(cx);
             let base = self.first_row * 5;
             self.refresh_scrollbar(cx);
             for (index, object) in self.objects.iter().copied().enumerate() {
@@ -257,26 +260,14 @@ impl Manager {
             return;
         };
         chrome::selection(cx, &car.name, self.picked + 1, self.len());
-        let (maker, texture) = crate::frontend::car_title::pictures(cx.assets, &car.folder)
-            .unwrap_or_else(|| (manufacturer(cx, &car.manufacturer), model_logo(cx, &car.physics_name)));
+        let (maker, texture) = pictures(cx, car);
         for (name, texture) in [(0x3e01_ad1d, maker), (0xb05d_d708, texture)] {
             if let Some(object) = cx.object(name) {
                 cx.rt.set_hidden(object, false);
                 cx.rt.set_texture(object, texture);
             }
         }
-        let names: Vec<_> = cx
-            .rt
-            .package(cx.package)
-            .into_iter()
-            .flat_map(|package| package.objects.iter().enumerate())
-            .filter(|(_, object)| matches!(object.name_hash, 0xd6d3_2016 | 0x79d6_e45c))
-            .map(|(index, _)| ObjectRef { package: cx.package, index })
-            .collect();
-        for object in names {
-            cx.rt.set_hidden(object, true);
-            cx.rt.set_text(object, String::new());
-        }
+        hide_sample_names(cx);
         cx.hide(0xd0f7_c7cc, car.unavailable.is_none());
         cx.text_object(0x2d25_b2c4, car.unavailable.as_deref().unwrap_or_default());
     }
@@ -429,5 +420,22 @@ impl ScreenLogic for Manager {
             Page::Manager => Footer::GarageManager { add: self.slot(self.picked).is_none() },
             _ => Footer::GarageManager { add: true },
         }
+    }
+}
+
+/// Hide the two name strings of the `Car_Select` package: they hold the sample text `temp123` and `tempXXX`, and the screens
+/// name a car with the two pictures instead (`inspection::pictures`).
+fn hide_sample_names(cx: &mut Cx) {
+    let names: Vec<_> = cx
+        .rt
+        .package(cx.package)
+        .into_iter()
+        .flat_map(|package| package.objects.iter().enumerate())
+        .filter(|(_, object)| matches!(object.name_hash, 0xd6d3_2016 | 0x79d6_e45c))
+        .map(|(index, _)| ObjectRef { package: cx.package, index })
+        .collect();
+    for object in names {
+        cx.rt.set_hidden(object, true);
+        cx.rt.set_text(object, String::new());
     }
 }

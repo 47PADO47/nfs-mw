@@ -17,7 +17,7 @@ livery picture; the other bundles' paint surfaces take a flat colour (or, for th
 |---|---|---|
 | Body paint colours | 1 to 15 `VehiclePaint` records per car bundle (443 records in the 93 cars; 396 after dropping a colour and finish a car repeats; 90 distinct paint ids) | [verified] |
 | Paint finishes | solid (`Type` 0, 214 records) and metallic (`Type` 1, 228 records); one record has a secondary (pearlescent) colour | [verified] counts, [unconfirmed] the names of the two types |
-| Liveries | separate vehicle list entries with the same vehicle id and another `LiveryID`: 5 vehicles have 5 entries each (the car and 4 liveries); each has a bundle, which differs from the car's own in one texture (the paint picture) and the ids that name it | [verified] |
+| Liveries | separate vehicle list entries with the same vehicle id and another `LiveryID`: 5 vehicles have 5 entries each (the car and 4 liveries); each has a bundle, which differs from the car's own in one texture (the paint picture) and the ids that name it; named `HERO` (the vehicle's own), `RACE`, `STREET`, `ABSTRACT`, `URBAN` by the vehicle's [paint pack](#paint-packs) | [verified] |
 | Rims, tyres, brake discs, calipers | one model each per car, as the wheel entry of the graphics spec; no alternatives | [verified] |
 | Spoiler | an animation of a part of the body (`<Car>_SpoilerAnimation`, driven by speed), not a choice | [verified] resource, [unconfirmed] which cars have it |
 | Vinyls, decals, body kits, hoods, roof scoops, window tint | none: no resource, no UI binding, no string in `NFS13.exe` | [verified] searches, see below |
@@ -69,9 +69,8 @@ colour as the paint and the type as the finish **[verified]**.
 - **The car's bundle** holds its `VehiclePaint` objects (1 to 15). Records repeat between cars: 90 distinct ids in 443
   records.
 - **`GAMELOGIC/GAMEPLAY.BNDL`** holds the lists the game offers: types `Genesys.Gen.PaintPack` (six fields) and
-  `Genesys.Gen.PaintPackGroup`, and one object (`0x17D1C0`, 23 KB) with the groups **[verified]**. A pack entry names a
-  `VehiclePaint` object, a paint id, the swatch image and a second image (`0x124631`, `0x1632A0`, `0x1B8BA1`, `0x1B8CCC` in
-  the first entry) **[verified]**; the field meanings are **[unconfirmed]**.
+  `Genesys.Gen.PaintPackGroup`, and one object (`0x17D1C0`, 23 KB) with the groups **[verified]**. A group is the list of colours
+  or liveries the shop offers a vehicle, in the shop's order; its fields are in [Paint packs](#paint-packs).
 - **`VEHICLES/VEHICLELIST.BNDL`** holds the vehicle list, one `VehicleList` resource (type `0x105`, 13,072 bytes): a 0x20-byte
   header (entry count 110 at +0x04, offset of the first entry 0x20 at +0x0C, offset of a trailing table at +0x10), then 110
   entries of 0x70 bytes: vehicle id (+0x00), `LiveryID` (+0x04), the paint pack group (+0x34, `0x17D5xx` or `0x22Bxxx`) and
@@ -97,11 +96,14 @@ bundles and no other file **[verified]**. 73 vehicle ids own the 93 bundles: 68 
 | 2076524 | Nissan Skyline R34 GT-R 1999 | 2076524, 2255901, 2255912, 2255923, 2255934 |
 
 The entries of one vehicle are identical in every other field of the list (the name and image fields are the same), so the
-game has no per-livery name in the list. Its text tables have the word "LIVERIES" (a shop category) and the sentence that a
-bodyshop does not remove the livery, and no livery names **[verified]** (`UI/LANGUAGE/0001.BNDL`). The game's rollout code
-selects among the entries (`NumAvailableLiveries`, `AvailableLiveryId`, `AvailableLivery`) **[code]**. Other cars share a
-name with an unrelated vehicle id (the Skyline R34 is also vehicle 2196131, a different car with no livery technique): the
-vehicle id, not the car's name, is what groups bundles.
+list holds no per-livery name; the names are in the vehicle's paint pack ([Paint packs](#paint-packs)): `HERO` (the vehicle's own
+bundle) and four of `RACE`, `STREET`, `ABSTRACT` and `URBAN` **[verified]**. The game's rollout code selects among the entries
+(`NumAvailableLiveries`, `AvailableLiveryId`, `AvailableLivery`) **[code]**, and `GLOBALCONFIG.BNDL` has a
+`Genesys.Gen.Online.LiveryUnlockConfig` object with 20 `UnlockImageMap` entries (four per vehicle of five) **[verified]**
+count, **[unconfirmed]** that they are the four liveries each vehicle unlocks online besides `HERO`. The game has no liveries
+for any other vehicle: the Bugatti Veyron Super Sport and the McLaren MP4-12C and F1 LM have colours and no livery, and the
+Veyron Grand Sport Vitesse has the one picture of [the other `_Livery` bundles](#liveries) **[verified]** (see
+[Cars the list has twice](#cars-the-list-has-twice) for the vehicle ids that share a name).
 
 **How a livery bundle differs from the vehicle's own.** The five groups were compared resource by resource (821, 777, 808,
 756 and 779 resources per bundle) **[verified]**:
@@ -144,6 +146,68 @@ vehicles but the SWAT van), and the car wears it from the start (the shop can ta
 the Gallardo) is laid out for that panel alone and a `TwoPaintMask` picture is a mask, so neither is offered. The techniques and textures are
 **[verified]**; what the shared picture shows is **[unconfirmed]**.
 
+## Paint packs
+
+`GAMELOGIC/GAMEPLAY.BNDL` holds one Genesys object (`0x17D1C0`, 23 KB) whose root lists 67 `Genesys.Gen.PaintPackGroup`
+structures, each with the `Genesys.Gen.PaintPack` structures of the choices the shop offers a vehicle, **in the order the shop
+lists them** **[verified]**. A vehicle list entry names its group at +0x34 (0 for the police vehicles and for the second vehicle id of five cars: see
+[Cars the list has twice](#cars-the-list-has-twice)). The structures sit inline in the object and the pointers between them are offsets in its main block (the import table
+has a type import for each structure). Reader: `libs/chameleon-vehicle/src/paint_pack.rs`.
+
+| Structure | Offset | Field | Evidence |
+|---|---|---|---|
+| group | +0x0C | the group's id, which the list entry names | [verified] |
+| group | +0x14, +0x18 | count of packs, then that many offsets of packs | [verified] |
+| pack | +0x0C | id of a `VehiclePaint` record of the vehicle's bundle (a plain colour), else 0 | [verified]: all 273 plain colour packs of 83 bundles name a record of their vehicle's bundle |
+| pack | +0x10 | on a two-colour pack, a number (`0x10E35F` and on, in sequence) that is the id of no resource of the install; 0 on a plain colour | [unconfirmed] meaning |
+| pack | +0x14 | the pack's own number, in sequence within a group | [unconfirmed] |
+| pack | +0x18 | an image id, the swatch | [unconfirmed] |
+| pack | +0x1C | on a livery pack, the id of a Genesys object that is in the bundle of that livery and in no other bundle of the vehicle; else 0 | [verified]: 25 packs of 25 liveries |
+| pack | +0x20 | the string id of the pack's name in the text table (`UI/LANGUAGE/0001.BNDL`) | [verified] |
+
+Three kinds of vehicle, by their packs **[verified]**:
+
+- **A plain colour pack per colour** (the fields at +0x0C set). The group has one pack per colour the shop offers, 3 to 9 of
+  them, in the shop's order; the vehicle's bundle holds those paint records and sometimes a few more that no pack lists (the
+  McLaren MP4-12C: 8 records, 7 packs, the first the orange `1F0577`). The pack's name is the colour's: `SILVER METALLIC`,
+  `GREY GLOSS`, `ORANGE METALLIC`, `CARBON`.
+- **A pack per livery** (the five vehicles of [Liveries](#liveries)): five packs, no colour, each with the livery object of one
+  of the five bundles, so the bundle of a livery is known by the pack that names an object it holds. The names are the same
+  five strings for the five vehicles, `HERO` (the vehicle's own bundle), `RACE`, `STREET`, `ABSTRACT` and `URBAN`, and their
+  order differs between vehicles (the M3 GTR lists the bundles `2277252, 2277210, 2277224, 2277238, 393276`, the R34
+  `2255934, 2255901, 2255912, 2255923, 2076524`, `HERO` last in both). The bundle holds one paint record, the colour behind
+  the picture.
+- **A two-colour pack** (nine vehicles: the Veyron Super Sport and Grand Sport Vitesse, the BMW M3 E92, the Challenger SRT8
+  392, the Ford GT, the Boss 302, the Cobra 427, the Caterham R500, the Ariel Atom): +0x0C is 0 and +0x10 is set. The bundle
+  holds more paint records than the group has packs (the Veyron SS: 12 and 5), so a pack is probably a pair of records; **how
+  the pair is chosen is not found** [unconfirmed]. The importer takes these vehicles' paints in the order of the bundle.
+
+The text table also names the swatches' colours, which the importer does not use: a saved garage selection stores the paint's
+name, and the importer's names (finish and hex colour) predate this finding.
+
+## Cars the list has twice
+
+The list names five cars under two vehicle ids, and one more under two with a different body. The second vehicle is the same
+car with its group 0 and one paint record where the first holds the player's 4 to 10 **[verified]**; why it exists (the version
+an event gives its AI car is a reading) is **[unconfirmed]**. Most resources are shared by id and byte-identical (783 of 821 for
+the Porsche, 812 of 831 for the Mercedes) and the rest are re-keyed: the Genesys objects, the graphics spec and the vehicle sounds
+of every pair, and for the Porsche also seven textures, ten renderables and four models, with the same meshes (9,586 and 118
+triangles in both). The paint counts are:
+
+| Car | Vehicle ids (file numbers) | Paint records |
+|---|---|---|
+| Porsche 911 Carrera S 2012 | 1085007, 1467186 | 9 and 1 |
+| Mercedes-Benz SL 65 AMG Black Series 2009 | 122769, 1467179 | 4 and 1 |
+| Maserati GranTurismo MC Stradale 2011 | 122757, 1467172 | 6 and 1 |
+| Ford F-150 SVT Raptor 2011 | 300097, 1467164 | 6 and 1 |
+| Caterham Superlight R500 2008 | 393001, 1467156 | 10 and 1 |
+| Nissan Skyline R34 GT-R 1999 | 2076524 (with the four liveries), 2196131 | 1 and 6 |
+
+The R34 pair differs more: 14,356 and 10,696 triangles in the body, 651 resources in common of 779 and 804, and different
+values in the list's rollout and stat fields. The 2196131 bundle is the car in plain paint, the 2076524 group the car with
+its liveries. No other object name is shared by two vehicles of the install (the police vehicles have none), which is how the importer
+tells a car under two ids from two cars.
+
 ## What the game does not have
 
 Searched for in the strings of `NFS13.exe` (Ghidra) and in every string of the non-texture resources of one car bundle (the
@@ -176,21 +240,38 @@ vehicle id (`src/liveries.rs`, pure): the base is the entry without a livery (or
 first. A livery bundle is folded into the base when it is the same car: the same meshes at every level of the body (counts
 of vertices and triangles) and a paint picture on both (every paint surface of the finest level drawing the same texture).
 The base's picture and the livery pictures are written into the base car's `TEXTURES.BIN` as `<ID>_LIV1` to `<ID>_LIV5` (BC1
-stays DXT1, cut to the texture size limit) and listed as `liveries = [{ name = "Livery 1", texture = "<ID>_LIV1" }, ...]` in
-the car's `[customization]` table, in list order, the vehicle's own bundle first. One car is made per vehicle: 93 bundles make
-73 cars. A livery that does not match its base, or a bundle the list does not mention, is converted as a car of its own, as
-before. The shop lays a chosen picture over the car's paint by its alpha, as the game's shader does. The ids of the 73 base
-cars are the ones they had (ids are made from the object name in file order, and the livery bundles come last in file order);
-the 20 livery bundles had ids of their own before (the base's id with a counter) that no longer exist.
+stays DXT1, cut to the texture size limit) and listed as `liveries = [{ name = "Hero", texture = "<ID>_LIV1" }, ...]` in
+the car's `[customization]` table, in list order, the vehicle's own bundle first. A livery is named by the pack that names its
+bundle ([Paint packs](#paint-packs), `src/variants.rs`), the text table's `HERO` as `Hero`; where a pack does not name it, or two
+of the car's names would be alike, it is `Livery <n>`. The car wears its first livery as its stock look
+(`default_livery = 0`), and the shop's `No livery` choice gives the plain paint, with every other livery beside it. A livery that
+does not match its base, or a bundle the list does not mention, is converted as a car of its own. The shop lays a chosen
+picture over the car's paint by its alpha, as the game's shader does.
+
+**A car under two vehicle ids is one car** (`src/fold.rs`, pure; [Cars the list has twice](#cars-the-list-has-twice)). Vehicles
+whose bundles have the same object name (a police vehicle never) are folded: the vehicle with liveries leads, else the one with
+most paint records, else the earlier in the list; the others lend the lead their paint records, which are added after its own
+and dropped where a colour and finish repeat. So the R34 GT-R is one car with its five liveries and the plain paint's six
+colours as the paints to use without a livery. 93 bundles make 67 cars: 73 vehicle ids, less the 6 folded. The ids of the 67 are
+the ones they had (ids are made from the object name in file order, and the lead is the earlier file of every pair); the 20
+livery bundles and the 6 second vehicles had ids of their own before that no longer exist.
+
+**The default paint is the pack's first colour.** The paints of a vehicle whose pack lists plain colours (`PaintPackGroup::paint_order`)
+come first, in the pack's order, then the bundle's other paints in its own order; so the car starts in the colour the shop lists
+first. That this is the colour the 2012 game shows the vehicle in is **[unconfirmed]**. The nine vehicles with two-colour packs
+keep the order of the bundle.
 
 ## Open questions
 
 - The meaning of the colours at 0x10 and 0x20, the eight settings at 0x7C and the flags at 0xA0 (clearcoat, scratch and
   specular settings of the shader parameters are the candidates).
-- The fields of `PaintPack` and the paint pack group of each vehicle, and so which of a bundle's paints a given rollout
-  offers. The importer offers all of the bundle's.
-- The names of the paints: the `Name` field is 0, so the game must take them from a string table keyed by the colour id or
-  the family; the importer names a paint by finish and hex colour.
+- The fields of `PaintPack` at +0x10, +0x14 and +0x18, and how a two-colour pack picks its pair of paint records (nine
+  vehicles); until then those vehicles are one colour all over, as the importer paints them.
+- Whether the first pack of a group is the colour the 2012 game shows a vehicle in, and which paints of a bundle that no pack
+  lists the game never offers (the importer offers them after the packs').
+- The names of the paints: the `Name` field of the record is 0, and the pack's name (`SILVER METALLIC`, `ORANGE METALLIC`) is
+  in the text table. The importer names a paint by finish and hex colour, so a saved selection keeps working.
 - The language of the `Type` values (solid and metallic are readings of the data).
 - What the shared picture of the other `_Livery` bundles is, and which of those pictures cover a whole body.
-- The names the game gives its liveries: none is in the vehicle list or the text tables, so the importer numbers them.
+- What a `TwoPaintMask` picture draws (a stripe or a roof in the second colour): the Cobra, the Challenger, the Ford GT, the
+  Boss 302, the GT500, the Trans Am and the Caterham have one, and none is offered as a livery.

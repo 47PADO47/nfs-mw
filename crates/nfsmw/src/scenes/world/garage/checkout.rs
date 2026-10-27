@@ -17,7 +17,8 @@ impl WorldScene {
         // Complete all fallible assembly before charging or touching the native record.
         self.preview_garage_session(renderer, selection.clone())?;
         let Some(handle) = session.handle else {
-            let id = crate::garage::my_cars::save_world_slot(&selection, self.garage.custom_slot.as_deref())?;
+            let id =
+                crate::garage::my_cars::save_world_slot(&selection, self.garage.custom_slot.as_deref(), &self.garage)?;
             self.garage.custom_slot = Some(id);
             self.career.garage = None;
             self.garage.shop = false;
