@@ -130,6 +130,9 @@ impl ModFolder {
         for (name, bytes) in files {
             std::fs::write(folder.join(name), bytes)?;
         }
+        if let Some(ignition) = &effects.ignition {
+            std::fs::write(folder.join("IGNITION.WAV"), ignition)?;
+        }
         Ok(table)
     }
 }

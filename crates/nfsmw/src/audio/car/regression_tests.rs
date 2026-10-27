@@ -32,6 +32,7 @@ fn contact() -> CarContact {
 fn state(car: &str, input: CarInput, ticks: Vec<CarSoundTick>) -> CarSoundState {
     CarSoundState {
         nitrous_fx: None,
+        engine: Default::default(),
         telemetry: CarAudioTelemetry::default(),
         car: car.into(),
         upgrades: SoundUpgrades::default(),

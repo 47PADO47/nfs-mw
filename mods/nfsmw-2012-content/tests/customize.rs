@@ -113,6 +113,7 @@ fn customization_of(text: &str) -> custom::Customization {
             .map(|livery| custom::Livery { name: livery.name.clone(), texture: livery.texture.clone() })
             .collect(),
         default_livery: table.default_livery,
+        plate: None,
     }
 }
 

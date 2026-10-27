@@ -94,6 +94,7 @@ mod scene_hud;
 mod scene_space;
 mod scenery_groups;
 mod session_rules;
+mod status_line;
 use session_rules::ViewSource;
 mod shadow_feed;
 mod simulation;
@@ -299,6 +300,8 @@ pub struct WorldScene {
     exhaust_flames: bool,
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
+    /// The tire smoke variant the player chose, if it is a mod's (`scene_effects.rs`).
+    tire_smoke_variant: Option<std::sync::Arc<blackbox_modding::content::TireSmokeProfile>>,
     rain: crate::weather::rain::Rain,
     /// The wind each player view hands to the scenery sway (`docs/specs/scenery-sway.md`).
     wind: crate::weather::wind::Wind,

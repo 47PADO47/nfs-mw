@@ -15,6 +15,7 @@ mod career;
 pub mod commands;
 mod config;
 mod content;
+mod engine;
 mod hud;
 mod i18n;
 mod input;
@@ -26,6 +27,7 @@ mod races;
 pub mod settings;
 mod time;
 pub mod ui;
+mod variants;
 mod vehicles;
 mod world;
 
@@ -39,6 +41,8 @@ mod career_tests;
 mod commands_tests;
 #[cfg(test)]
 mod config_tests;
+#[cfg(test)]
+mod engine_tests;
 #[cfg(test)]
 mod input_tests;
 #[cfg(test)]
@@ -91,6 +95,7 @@ pub fn interfaces() -> Interfaces {
         .add_i18n(Rc::new(i18n::I18nPort))
         .add_settings(Rc::new(settings::SettingsPort(bridge.clone())))
         .add_vehicles(Rc::new(vehicles::VehiclesPort(bridge.clone())))
+        .add_engine(Rc::new(engine::EnginePort(bridge.clone())))
         .add_hud(Rc::new(hud::HudPort(bridge.clone())))
         .add_camera(Rc::new(camera::CameraPort(bridge.clone())))
         .add_audio(Rc::new(audio::AudioPort))

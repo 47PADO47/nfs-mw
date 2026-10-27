@@ -88,6 +88,9 @@ mod road_reflections;
 pub use road_reflections::{RoadReflectionResolution, RoadReflections};
 #[cfg(test)]
 mod renderer_tests;
+mod smoke_color;
+#[cfg(test)]
+mod smoke_color_tests;
 mod smoke_quality;
 #[cfg(test)]
 mod smoke_quality_tests;
@@ -145,6 +148,7 @@ pub use post::{PostAa, PostBloom, PostTonemap, VisualTreatment, post_effects};
 pub use radio_hud::RadioHudStyle;
 pub use ray_tracing::RayTracingLevel;
 pub use renderer::RendererKind;
+pub use smoke_color::{PALETTE as SMOKE_PALETTE, SmokeColor, SmokeColorMode, SmokeTint};
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
 pub use speed_trail_style::SpeedTrailStyle;
@@ -232,6 +236,9 @@ pub struct Settings {
     pub no_rev_limiter: bool,
     /// Optional smoke presentation quality; standard retains the default cost and look.
     pub smoke_quality: SmokeQuality,
+    /// How the tire smoke is coloured (`Off`: white, as the game draws it) and with what.
+    pub smoke_color_mode: SmokeColorMode,
+    pub smoke_color: SmokeColor,
     /// Draw bounded, ground-following tire marks.
     pub skid_marks: bool,
     /// Collision particles, using the selected stock or experimental style.
@@ -393,6 +400,8 @@ impl From<Partial> for Settings {
             traffic_avoidance: p.traffic_avoidance.unwrap_or(traffic_avoidance::DEFAULT_TRAFFIC_AVOIDANCE),
             cop_health_bars: p.cop_health_bars.unwrap_or(DEFAULT_COP_HEALTH_BARS),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
+            smoke_color_mode: p.smoke_color_mode.unwrap_or_default(),
+            smoke_color: p.smoke_color.unwrap_or_default(),
             skid_marks: p.skid_marks.unwrap_or(true),
             collision_sparks: p.collision_sparks.unwrap_or(false),
             spark_style: p.spark_style.unwrap_or_default(),

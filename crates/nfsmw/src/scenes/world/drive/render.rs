@@ -25,6 +25,7 @@ impl Drive {
                         LampState { brake: self.brake_lamp, broken: sim.lamp_damage(), ..Default::default() }
                             .brake_surfaces_on(),
                     ],
+                    reverse: sim.telemetry().gear < 0,
                     detail,
                     glass: self.cracked.mask(),
                     broken_lights: sim.lamp_damage(),

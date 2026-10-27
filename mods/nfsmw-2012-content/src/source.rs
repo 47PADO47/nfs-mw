@@ -80,6 +80,8 @@ pub struct Source {
     packs: Vec<PaintPackGroup>,
     /// The main block of the English text table, which names the packs; `None` when the install has none that reads.
     texts: Option<Vec<u8>>,
+    /// The default licence plate texts and the game packs that choose among them; `None` when the install has none that read.
+    plates: Option<crate::plate::Plates>,
 }
 
 /// A bundle's car as far as liveries are concerned: what it is, and the picture its paint surfaces draw.
@@ -116,6 +118,7 @@ impl Source {
             list,
             packs,
             texts,
+            plates: crate::plate::Plates::read(root),
         })
     }
 
@@ -153,6 +156,13 @@ impl Source {
     pub fn pack_group(&self, file: &CarFile) -> Option<&PaintPackGroup> {
         let entry = self.list.iter().find(|entry| entry.file() == file.number)?;
         self.packs.iter().find(|group| entry.group != 0 && group.id == entry.group)
+    }
+
+    /// The licence plate text the car in `file` wears by default: the text of the game pack its vehicle list entry names
+    /// (`crate::plate`). `None` when the install's texts or list do not read.
+    pub fn plate_text(&self, file: &CarFile) -> Option<String> {
+        let entry = self.list.iter().find(|entry| entry.file() == file.number)?;
+        Some(self.plates.as_ref()?.text(entry.pack))
     }
 
     /// The paints of the car in `file`, read without decoding the rest of its bundle; none when it does not read.

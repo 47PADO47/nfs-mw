@@ -83,12 +83,7 @@ impl Scene for Pausable {
         self.advance_scene(renderer, input, dt);
     }
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
-        if !self.concealed() {
-            return self.inner.frame(aspect);
-        }
-        // The scene still takes its frame (its camera and physics read the aspect ratio), but nothing is drawn.
-        let _ = self.inner.frame(aspect);
-        (flat_frame(), &[] as &[Instance])
+        self.scene_frame(aspect)
     }
 
     // The rear-view mirror is the driving scene's, so the wrapper must pass it on: without this the HUD mirror
@@ -139,16 +134,8 @@ impl Scene for Pausable {
         self.inner.ready()
     }
 
-    /// A frozen or concealed world does not move on its own: the camera and the instances are what the picture is. A
-    /// pending refresh of its effect buffers changes renderer state, so that frame is not still.
     fn menu_frame(&self) -> bool {
-        if self.effects_dirty {
-            return false;
-        }
-        if self.concealed() || (self.paused.get() && !self.inner.runs_while_paused()) {
-            return true;
-        }
-        self.inner.menu_frame()
+        self.still_frame()
     }
     fn race_staging(&self) -> bool {
         self.inner.race_staging()
@@ -194,8 +181,14 @@ impl Scene for Pausable {
     fn set_mod_blips(&mut self, blips: &[crate::hud::MapBlip]) {
         self.inner.set_mod_blips(blips);
     }
-    fn set_nitrous_fx(&mut self, fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>) {
-        self.inner.set_nitrous_fx(fx);
+    fn set_effect_variants(&mut self, variants: &crate::effect_variants::EffectVariants) {
+        self.inner.set_effect_variants(variants);
+    }
+    fn engine_readout(&mut self) -> Option<crate::engine_switch::EngineReadout> {
+        self.inner.engine_readout()
+    }
+    fn engine_command(&mut self, command: crate::engine_switch::EngineCommand) {
+        self.inner.engine_command(command);
     }
 
     fn set_waypoint(&mut self, target: Option<[f32; 2]>) -> bool {
@@ -220,6 +213,10 @@ impl Scene for Pausable {
 
     fn repair_player(&mut self) -> bool {
         self.inner.repair_player()
+    }
+
+    fn add_player_nitrous(&mut self, amount: f32) -> bool {
+        self.inner.add_player_nitrous(amount)
     }
 
     fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {

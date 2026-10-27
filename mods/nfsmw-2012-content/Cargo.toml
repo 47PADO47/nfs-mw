@@ -21,6 +21,7 @@ blackbox-tpk.workspace = true
 chameleon-bundle.workspace = true
 chameleon-camera = { workspace = true, features = ["serde"] }
 chameleon-effects.workspace = true
+chameleon-engine-state.workspace = true
 chameleon-gfx.workspace = true
 chameleon-sound-graph.workspace = true
 chameleon-vehicle.workspace = true

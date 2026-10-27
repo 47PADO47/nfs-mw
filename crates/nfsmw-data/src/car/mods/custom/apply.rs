@@ -25,6 +25,24 @@ pub fn apply(
     lod: usize,
     model: &mut CarModel,
 ) -> Result<()> {
+    apply_choices(dir, folder, custom, selection, lod, model)?;
+    let Some(plate) = &custom.plate else { return Ok(()) };
+    // A sheet that cannot be drawn leaves the plate as authored: a car is still a car.
+    if let Err(error) = super::plate::apply(dir, folder, plate, selection.plate.as_deref(), model) {
+        log::warn!("{folder}: its plate is not drawn: {error:#}");
+    }
+    Ok(())
+}
+
+/// The paint, parts, tints, vinyl or livery of `selection` on `model`; the plate is drawn after them by [`apply`].
+fn apply_choices(
+    dir: &GameDir,
+    folder: &str,
+    custom: &Customization,
+    selection: &Selection,
+    lod: usize,
+    model: &mut CarModel,
+) -> Result<()> {
     let chosen = |category: Category| selection.parts[category as usize];
     let paint = chosen_paint(folder, custom, chosen(Category::Paint))?;
     set_paint(folder, paint, model);

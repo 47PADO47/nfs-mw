@@ -8,6 +8,7 @@ mod breaker_camera;
 mod car_detail;
 mod cinematic;
 mod clock;
+mod engine_switch;
 mod extra_options;
 mod grid;
 mod sabotage;
@@ -24,6 +25,7 @@ mod input;
 #[cfg(test)]
 mod lamp_tests;
 mod look;
+mod mod_feed;
 mod new;
 mod nis_pose;
 mod original_camera;
@@ -144,6 +146,8 @@ pub struct Drive {
     breaker_barred: bool,
     /// The engine is sabotaged by the scripted chase: no throttle (`sabotage.rs`).
     sabotaged: bool,
+    /// The engine switch a mod holds (`bb.engine`, `engine_switch.rs`): running unless a mod stopped it.
+    engine: crate::engine_switch::EngineSwitch,
     /// The car stands on a race grid before GO: its body is held (`grid.rs`).
     gridded: bool,
     /// Drag launches cancel their bonus when shifting; ordinary race launches pause its timer.
@@ -404,6 +408,11 @@ impl Drive {
             true => gauges.rpm,
             false => self.hud_visual_rpm(t.idle, t.red_line, gauges.rpm),
         };
+        // An engine a mod has stopped shows no revs.
+        let rpm = match self.engine.is_running() {
+            true => rpm,
+            false => 0.0,
+        };
         Some(crate::hud::HudState {
             minimap: Some(crate::hud::MapPosition {
                 position: [pose.position.x, pose.position.y],
@@ -436,7 +445,9 @@ impl Drive {
             self.sound.clear();
             return None;
         }
-        Some(self.sound.state(&self.car_name, &self.telemetry, self.performance))
+        let mut state = self.sound.state(&self.car_name, &self.telemetry, self.performance);
+        state.engine = self.engine_audio();
+        Some(state)
     }
 
     pub(super) fn speedbreaker_active(&self) -> bool {

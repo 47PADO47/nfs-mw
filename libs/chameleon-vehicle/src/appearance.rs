@@ -14,7 +14,8 @@ pub enum SurfaceKind {
     Wheel,
     Tyre,
     Other,
-    /// One lit piece of a lamp lens, with the end and side of the car it sits on (`lamps::split_lenses`).
+    /// One lit piece of a lamp, with the end and side of the car it sits on and the circuit that lights it
+    /// (`lamp_pieces`): a piece of a lens or a set of triangles of a lamp interior.
     Lamp(LampSurface),
 }
 
@@ -33,11 +34,37 @@ pub enum LampSide {
     Centre,
 }
 
-/// The place of a lit lamp surface.
+/// The lamp circuit that lights a surface: one channel of the lit pattern the 2012 shaders read
+/// (`docs/formats/chameleon-lamps.md`, "Lamp circuits"). The order is the order of the channels, red to alpha, with the
+/// brake first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LampCircuit {
+    /// Brake lamps, lit while the brake is held (red channel).
+    Brake,
+    /// Head lamps and daytime strips, lit with the headlights (green channel).
+    Head,
+    /// Reverse lamps, lit in reverse gear (blue channel).
+    Reverse,
+    /// Tail lamps, lit with the headlights (alpha channel).
+    Tail,
+}
+
+impl LampCircuit {
+    /// The end of the car the circuit's lamps are at: the head lamps are at the front, every other circuit at the rear.
+    pub const fn end(self) -> LampEnd {
+        match self {
+            Self::Head => LampEnd::Front,
+            _ => LampEnd::Rear,
+        }
+    }
+}
+
+/// The place and circuit of a lit lamp surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LampSurface {
     pub end: LampEnd,
     pub side: LampSide,
+    pub circuit: LampCircuit,
 }
 
 /// How a mesh looks, reduced to what an older engine can draw.

@@ -38,6 +38,7 @@ fn read(source: &Source, file: &CarFile, rpm: Option<(f32, f32)>) -> Result<CarS
     let graphs = chameleon_sound_graph::SoundGraphs::read(&bundle);
     let mut found = effects::of(&bundle, &samples, source.shared_samples());
     found.files.no_clunk = effects::has_no_gear_change(&graphs);
+    found.files.ignition = crate::ignition::wav(&bundle, source.shared_samples());
     let engine = rpm.filter(|&(idle, redline)| idle > 0.0 && redline > idle).and_then(|(idle, redline)| {
         let mut layers = crate::graph_voices::build(&bundle, &graphs, &samples);
         if layers.is_empty() {

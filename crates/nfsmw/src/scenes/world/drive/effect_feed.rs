@@ -40,6 +40,13 @@ impl Drive {
     }
 }
 
+impl Drive {
+    /// Load the pictures of the tire smoke variant when it changed, and free the ones of a variant that went.
+    pub fn maintain_tire_smoke(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir) {
+        self.effects.load_variant(renderer, dir);
+    }
+}
+
 /// What the flames need of the car after a physics step.
 pub(super) fn car_state(pose: &CarPose, t: &Telemetry, velocity: Vec3, throttle: f32) -> CarState {
     CarState { to_world: pose.transform(), velocity, gear: t.gear, throttle, nitrous: t.nos_burning }

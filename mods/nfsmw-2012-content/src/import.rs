@@ -106,6 +106,9 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     let results: Vec<Result<ImportedCar>> =
         wanted.par_iter().map(|car| import_car(source, car, config, &folder, &shared)).collect();
     write_nitrous(source, out);
+    crate::ignition::write_shared(source, out);
+    crate::tire_smoke::write_variant(source, out);
+    crate::spark_assets::write(source, out);
     let makes: Vec<&str> =
         wanted.iter().zip(&results).filter(|(_, done)| done.is_ok()).map(|(car, _)| car.make.as_str()).collect();
     let written = brands::write_all(source, &folder, &makes);
@@ -220,7 +223,8 @@ fn import_car(
             &paints::choices(&colours),
             &pictures.iter().map(|(choice, _)| choice.clone()).collect::<Vec<_>>(),
             dressed,
-        ) + &built.damage_parts
+        ) + &plate_table(source, named, &built, !colours.is_empty())
+            + &built.damage_parts
             + &placed.manifest_table(),
     };
     let files = CarFiles {
@@ -249,6 +253,15 @@ fn import_car(
         triangles: built.triangles,
         liveries: pictures.len(),
     })
+}
+
+/// The `[customization.plate]` table of `named`: its glyph sheet and the text of its game pack (`plate.rs`). Empty for a car
+/// with no plate, and for one with no `[customization]` table to hold it (`has_table`: a table needs a paint).
+fn plate_table(source: &Source, named: &Named, built: &convert::Built, has_table: bool) -> String {
+    if !built.plate || !has_table {
+        return String::new();
+    }
+    crate::plate::manifest_table(source.plate_text(named.file).as_deref(), &crate::plate::picture_name(&named.id))
 }
 
 /// The paints the shop offers `named`: those of its own bundle (`own`), in the order of its vehicle's paint pack (the first is

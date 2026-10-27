@@ -50,6 +50,7 @@ default-members = [
     "libs/chameleon-bundle",
     "libs/chameleon-camera",
     "libs/chameleon-effects",
+    "libs/chameleon-engine-state",
     "libs/chameleon-gfx",
     "libs/chameleon-sound-graph",
     "libs/chameleon-text",
@@ -76,6 +77,7 @@ blackbox-trace = { path = "libs/blackbox-trace" }
 chameleon-bundle = { path = "libs/chameleon-bundle" }
 chameleon-camera = { path = "libs/chameleon-camera" }
 chameleon-effects = { path = "libs/chameleon-effects" }
+chameleon-engine-state = { path = "libs/chameleon-engine-state" }
 chameleon-gfx = { path = "libs/chameleon-gfx" }
 chameleon-sound-graph = { path = "libs/chameleon-sound-graph" }
 chameleon-vehicle = { path = "libs/chameleon-vehicle" }

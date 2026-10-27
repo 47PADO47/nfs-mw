@@ -28,6 +28,7 @@ impl Drive {
     /// Sample input once per render frame; presses wait for the next physics tick.
     pub fn prepare_frame(&mut self, actions: &ActionState, dt: f32) {
         self.frame_input = self.remote_input.unwrap_or_else(|| DriveInput::from_actions(actions, self.wheel));
+        self.engine.step(dt);
         if self.script.is_none() && self.cinematic_input.is_none() {
             self.presses.note(&self.frame_input);
         }
@@ -103,7 +104,8 @@ impl Drive {
         .cinematic(self.cinematic_input)
         .during_arrest(self.arrested)
         .on_grid(self.gridded)
-        .sabotaged(self.sabotaged);
+        .sabotaged(self.sabotaged)
+        .engine_stopped(!self.engine.is_running());
         let assist = self.assist_aim.filter(|_| self.cinematic_input.is_none() && !self.arrested);
         let input = Self::assisted(assist, sim, input);
         if input.pop {

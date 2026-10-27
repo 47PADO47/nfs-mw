@@ -178,6 +178,8 @@ pub fn partial_of(s: &Settings) -> Partial {
         traffic_avoidance: Some(s.traffic_avoidance),
         cop_health_bars: Some(s.cop_health_bars),
         smoke_quality: Some(s.smoke_quality),
+        smoke_color_mode: Some(s.smoke_color_mode),
+        smoke_color: Some(s.smoke_color),
         skid_marks: Some(s.skid_marks),
         collision_sparks: Some(s.collision_sparks),
         spark_style: Some(s.spark_style),

@@ -48,6 +48,8 @@ pub(super) fn register(dir: &GameDir, mods: &[ModDir]) -> usize {
     for refused in &rejected {
         log::warn!("mod {}: car {} is not added: {}", refused.owner, refused.folder, refused.reason);
     }
+    // The plate texts the player typed are kept beside the profile's save (`garage/plates.rs`).
+    custom::plate::set_source(crate::garage::plates::text_for);
     for car in &cars {
         log::info!("mod {}: car {} added", car.owner, car.folder);
         if let Some(own) = customizations.remove(&car.folder) {
@@ -295,6 +297,20 @@ fn customization_of(table: &blackbox_modding::content::Customization) -> custom:
             .map(|livery| custom::Livery { name: livery.name.clone(), texture: livery.texture.clone() })
             .collect(),
         default_livery: table.default_livery,
+        plate: table.plate.as_ref().map(plate_of),
+    }
+}
+
+/// The manifest's `[customization.plate]` as the game's own plate.
+fn plate_of(table: &blackbox_modding::content::Plate) -> custom::Plate {
+    custom::Plate {
+        text: table.text.clone(),
+        picture: table.picture.clone(),
+        glyphs: table.glyphs.clone(),
+        columns: table.columns,
+        rows: table.rows,
+        slots: table.slots,
+        aliases: table.aliases.clone(),
     }
 }
 

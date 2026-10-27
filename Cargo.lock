@@ -2080,7 +2080,18 @@ dependencies = [
 name = "chameleon-effects"
 version = "0.1.0"
 dependencies = [
+ "blackbox-tpk",
  "chameleon-bundle",
+ "chameleon-gfx",
+ "png",
+]
+
+[[package]]
+name = "chameleon-engine-state"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "chameleon-sound-graph",
 ]
 
 [[package]]
@@ -4269,6 +4280,7 @@ dependencies = [
  "chameleon-bundle",
  "chameleon-camera",
  "chameleon-effects",
+ "chameleon-engine-state",
  "chameleon-gfx",
  "chameleon-sound-graph",
  "chameleon-vehicle",

@@ -120,6 +120,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         traffic_avoidance: field(&table, origin, "traffic_avoidance", boolean),
         cop_health_bars: field(&table, origin, "cop_health_bars", boolean),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
+        smoke_color_mode: field(&table, origin, "smoke_color_mode", |v| super::SmokeColorMode::from_str(text_of(v)?)),
+        smoke_color: field(&table, origin, "smoke_color", |v| super::SmokeColor::from_str(text_of(v)?)),
         skid_marks: field(&table, origin, "skid_marks", boolean),
         collision_sparks: field(&table, origin, "collision_sparks", boolean),
         spark_style: field(&table, origin, "spark_style", |v| super::SparkStyle::from_str(text_of(v)?)),

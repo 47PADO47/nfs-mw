@@ -62,6 +62,7 @@ fn replay(speedbreaker: bool) {
             }
             let state = CarSoundState {
                 nitrous_fx: None,
+                engine: Default::default(),
                 car: "LANCEREVO8".into(),
                 upgrades: Default::default(),
                 input: latest.0,

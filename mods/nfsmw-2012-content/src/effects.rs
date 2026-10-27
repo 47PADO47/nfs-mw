@@ -51,6 +51,9 @@ pub struct EffectFiles {
     pub pops: Vec<Vec<u8>>,
     /// The car has no gear change in its sound (an electric car): it does not clunk into gear. See [`has_no_gear_change`].
     pub no_clunk: bool,
+    /// The car's own start-up sound as a WAV (`ignition.rs`), written as `IGNITION.WAV` for the engine auto-stop. It is not
+    /// named in the manifest: the mod plays it by its path.
+    pub ignition: Option<Vec<u8>>,
 }
 
 impl EffectFiles {
@@ -95,6 +98,7 @@ pub fn of(bundle: &Bundle, samples: &[Sample], shared: Option<&[u8]>) -> Found {
             backfire: shot_files(&backfire),
             pops: shot_files(&pops),
             no_clunk: false,
+            ignition: None,
         },
         not_engine,
     }

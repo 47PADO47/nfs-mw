@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 use super::ffi::{self, HostTable};
 use super::{
-    Audio, Camera, Commands, Content, Hud, I18n, Input, Interface, Map, Menus, ModConfig, ModResult, Settings, Time,
-    Ui, Vehicles, World,
+    Audio, Camera, Commands, Content, Engine, Hud, I18n, Input, Interface, Map, Menus, ModConfig, ModResult, Settings,
+    Time, Ui, Vehicles, World,
 };
 use crate::abi::{
     AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_AUDIO, IFACE_AUDIO_VERSION,
@@ -17,6 +17,7 @@ use crate::abi::{
     IFACE_SETTINGS_VERSION, IFACE_TIME, IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES,
     IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
 };
+use crate::abi::{IFACE_ENGINE, IFACE_ENGINE_VERSION};
 
 /// The longest message the host takes in one line (ADR 0005 section 4). Longer text is cut at a character boundary.
 pub const MAX_MESSAGE_BYTES: usize = 1024;
@@ -132,6 +133,12 @@ impl Ctx {
     pub fn content(&self) -> Option<Content> {
         let iface = self.query_interface(IFACE_CONTENT, IFACE_CONTENT_VERSION.0, IFACE_CONTENT_VERSION.1)?;
         Some(Content::new(ffi::content::read(iface)))
+    }
+
+    /// The engine interface (`bb.engine`), when the host offers it: the player's pedals, and the engine's switch.
+    pub fn engine(&self) -> Option<Engine> {
+        let iface = self.query_interface(IFACE_ENGINE, IFACE_ENGINE_VERSION.0, IFACE_ENGINE_VERSION.1)?;
+        Some(Engine::new(ffi::engine::read(iface)))
     }
 
     /// The time-of-day interface (`bb.time`), when the host offers it.

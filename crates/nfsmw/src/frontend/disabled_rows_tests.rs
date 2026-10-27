@@ -46,7 +46,10 @@ fn the_other_rows_are_always_enabled() {
     for s in [settings(true), settings(false)] {
         for category in [Category::Audio, Category::Video, Category::Gameplay, Category::Player, Category::Discord] {
             for row in rows(category, &crate::settings::test_caps::native()) {
-                if !matches!(row.setting, Setting::MaxFps | Setting::Renderer(_) | Setting::Graphics(_)) {
+                if !matches!(
+                    row.setting,
+                    Setting::MaxFps | Setting::SmokeColor | Setting::Renderer(_) | Setting::Graphics(_)
+                ) {
                     assert!(row.setting.enabled(&s), "{:?}", row.setting);
                 }
             }

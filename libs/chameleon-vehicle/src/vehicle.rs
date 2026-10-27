@@ -7,6 +7,7 @@ use chameleon_gfx::{Material, Model, Renderable, Shader, Texture, Vertex, Vertex
 
 use crate::appearance::Appearance;
 use crate::error::{Error, Result};
+use crate::lamp_pieces::EmissiveMap;
 use crate::spec::GraphicsSpec;
 
 /// One draw of a car part: its geometry and how it looks.
@@ -102,15 +103,15 @@ fn renderable_meshes(pool: &Pool, surfaces: &Surfaces, lod: u64) -> Result<Lod> 
         if !in_range {
             return Err(Error::Spec(format!("a mesh of renderable {lod:016X} indexes past its vertices")));
         }
-        meshes.extend(crate::lamps::split_lenses(PartMesh { vertices, triangles, appearance }));
+        meshes.extend(crate::lamp_pieces::split(PartMesh { vertices, triangles, appearance }, surface.2.as_ref()));
     }
     Ok(meshes)
 }
 
 /// The vertex layout and the look of each material seen so far: a car's meshes share a few dozen materials across its
 /// levels of detail and its wheels, and each costs three inflates and a parse the first time.
-/// A material's vertex layout and look.
-pub(crate) type Surface = Rc<(VertexDescriptor, Appearance)>;
+/// A material's vertex layout, look and, for a lamp material, its lit pattern.
+pub(crate) type Surface = Rc<(VertexDescriptor, Appearance, Option<EmissiveMap>)>;
 
 #[derive(Default)]
 pub(crate) struct Surfaces {
@@ -129,8 +130,9 @@ impl Surfaces {
     }
 }
 
-/// The vertex layout and the look of a material, or `None` when the material's shader has no layout we can read.
-fn surface(pool: &Pool, material: u64) -> Result<Option<(VertexDescriptor, Appearance)>> {
+/// The vertex layout, the look and the lit pattern of a material, or `None` when the material's shader has no layout we
+/// can read.
+fn surface(pool: &Pool, material: u64) -> Result<Option<(VertexDescriptor, Appearance, Option<EmissiveMap>)>> {
     let resource = expect(pool, material, ResourceKind::Material)?;
     let material = Material::parse(&resource.blocks[0], &resource.imports)?;
     let shader_resource = expect(pool, material.shader, ResourceKind::Shader)?;
@@ -139,5 +141,20 @@ fn surface(pool: &Pool, material: u64) -> Result<Option<(VertexDescriptor, Appea
     let Some(descriptor_id) = shader.vertex_descriptor else { return Ok(None) };
     let descriptor = expect(pool, descriptor_id, ResourceKind::VertexDescriptor)?;
     let descriptor = VertexDescriptor::parse(&descriptor.blocks[0])?;
-    Ok(Some((descriptor, Appearance::new(&shader, &material))))
+    let appearance = Appearance::new(&shader, &material);
+    let map = lit_pattern(pool, &shader, &material, &appearance);
+    Ok(Some((descriptor, appearance, map)))
+}
+
+/// The lit pattern of a lamp material (`Refraction` or `EmissiveFourChannel`): the picture its emissive sampler reads.
+/// `None` for any other material, and for a pattern that does not decode (the lamp then keeps its end's circuit).
+fn lit_pattern(pool: &Pool, shader: &Shader, material: &Material, appearance: &Appearance) -> Option<EmissiveMap> {
+    let lamp = appearance.technique.contains("Refraction") || appearance.technique.contains("EmissiveFourChannel");
+    if !lamp {
+        return None;
+    }
+    let slot =
+        ["LightmapLightsTextureSampler", "EmissiveTextureSampler"].iter().find_map(|name| shader.sampler_slot(name))?;
+    let texture = load_texture(pool, *material.textures.get(slot)?).ok()?;
+    EmissiveMap::new(&texture)
 }

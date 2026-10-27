@@ -29,6 +29,7 @@ impl WorldScene {
         let drive = self.players.lead_mut()?;
         let hud = drive.hud_state()?;
         let (position, heading, speed) = (drive.position(), drive.heading(), drive.speed());
+        let impact = drive.mod_impact();
         let sim = drive.sim_mut()?;
         let velocity = sim.effect_velocity();
         let damage = sim.events.as_ref().map_or(0.0, |events| damage_fraction(&events.damage));
@@ -44,6 +45,10 @@ impl WorldScene {
                 false => 0.0,
             },
             damage,
+            slip_angle: sim.slip_to_left(),
+            steering: sim.steering_to_left(),
+            impact,
+            on_ground: sim.on_ground(),
         })
     }
 
@@ -95,6 +100,14 @@ impl WorldScene {
         true
     }
 
+    /// Add nitrous to the car's tank. Refused without a car or without a nitrous system.
+    pub(super) fn add_player_nitrous_to(&mut self, amount: f32) -> bool {
+        let Some(drive) = self.players.lead_mut() else {
+            return false;
+        };
+        drive.add_nitrous(amount)
+    }
+
     /// Set the traffic count and the cop share, keeping the lights and avoidance settings as they are.
     pub(super) fn set_traffic_density_to(&mut self, cars: u32, cop_share: u8) {
         let setting = TrafficSettings { cars, cop_share: Percent(cop_share), ..self.traffic_setting };
@@ -111,5 +124,33 @@ impl WorldScene {
             return false;
         };
         traffic.spawn_traffic_at(at, heading, focus, collision, surfaces)
+    }
+}
+
+impl WorldScene {
+    /// The player's engine and pedals as the mods read them (`bb.engine`). `None` while no car is driven.
+    pub(super) fn engine_state(&mut self) -> Option<crate::engine_switch::EngineReadout> {
+        let free_roam = self.free_roam();
+        let drive = self.players.lead()?;
+        let mut state = drive.engine_state();
+        state.free_roam = free_roam;
+        Some(crate::engine_switch::EngineReadout { state, car: drive.car_name.clone() })
+    }
+
+    /// A mod's request of the player's engine switch (`bb.engine`).
+    pub(super) fn engine_request(&mut self, command: crate::engine_switch::EngineCommand) {
+        if let Some(drive) = self.players.lead_mut() {
+            drive.engine_apply(command);
+        }
+    }
+
+    /// Whether the player drives free of any event: no race (running or queued), no chase or arrest, no cutscene, no
+    /// garage and the chase camera on the car. The rules a mod keeps for free driving (an engine that stops when the car
+    /// stands still) apply only then.
+    fn free_roam(&self) -> bool {
+        let event = self.race.is_some() || self.queued_race.is_some();
+        let cutscene = self.story_movie.is_playing() || self.nis.is_playing();
+        let police = self.traffic.as_ref().is_some_and(|traffic| traffic.is_pursuing() || traffic.arrest_active());
+        !event && !cutscene && !police && !self.garage_open && self.view == View::Chase
     }
 }

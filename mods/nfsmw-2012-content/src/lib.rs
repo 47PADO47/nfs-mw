@@ -18,9 +18,12 @@ mod cameras;
 mod collision;
 pub mod config;
 mod convert;
+mod drift_nitrous;
+mod effect_variants;
 mod effects;
 mod emit;
 mod engine;
+mod engine_stop;
 mod fit;
 #[cfg(test)]
 mod fit_real;
@@ -28,8 +31,10 @@ mod fold;
 mod graph_voices;
 mod graphs;
 mod hinges;
+mod ignition;
 pub mod import;
 pub mod job;
+mod lamp_surfaces;
 mod liveries;
 mod logo;
 mod markers;
@@ -38,14 +43,17 @@ pub mod nitrous;
 mod paints;
 pub mod performance;
 mod pipes;
+mod plate;
 mod police;
 mod sample;
 mod shared;
 mod sounds;
 mod source;
+mod spark_assets;
 mod stamp;
 pub mod stats;
 mod textures;
+mod tire_smoke;
 mod two_colour;
 mod variants;
 mod vehicle_list;
@@ -97,10 +105,16 @@ impl Mod for NfsmwContent {
             }
             Ok(Start::UpToDate { cars }) => {
                 add_nitrous_variant(ctx);
+                effect_variants::add_all(ctx);
+                drift_nitrous::register(ctx);
+                engine_stop::register(ctx, &mod_dir);
                 ctx.log(Level::Info, &format!("nfsmw-2012-content: {cars} cars are ready"));
             }
             Ok(Start::Started { job, live }) => {
                 add_nitrous_variant(ctx);
+                effect_variants::add_all(ctx);
+                drift_nitrous::register(ctx);
+                engine_stop::register(ctx, &mod_dir);
                 ctx.log(Level::Info, "nfsmw-2012-content: converting the 2012 cars in the background");
                 state.job = Some(job);
                 state.live = live;
@@ -110,7 +124,9 @@ impl Mod for NfsmwContent {
         Ok(state)
     }
 
-    fn event(&mut self, ctx: &mut Ctx, _event: &Event<'_>) {
+    fn event(&mut self, ctx: &mut Ctx, event: &Event<'_>) {
+        drift_nitrous::event(ctx, event);
+        engine_stop::event(ctx, event);
         let Some(finished) = self.job.as_ref().and_then(Job::poll) else { return };
         self.job = None;
         match finished {

@@ -328,6 +328,8 @@ impl Settings {
             tire_smoke: Some(self.tire_smoke),
             skid_marks: Some(self.skid_marks),
             smoke_quality: Some(self.smoke_quality),
+            smoke_color_mode: Some(self.smoke_color_mode),
+            smoke_color: Some(self.smoke_color),
             collision_sparks: Some(self.collision_sparks),
             spark_style: Some(self.spark_style),
             speed_trails: Some(self.speed_trails),

@@ -30,6 +30,7 @@ pub use ambient::{RoadContext, RoadTerrain};
 pub use telemetry::CarAudioTelemetry;
 mod contact;
 mod contacts;
+mod engine_start;
 pub(super) mod impacts;
 mod nitrous_fx;
 mod own_engine;
@@ -85,6 +86,8 @@ pub struct CarSoundState {
     pub view: super::AudioView,
     /// The effects of the nitrous variant the player chose, if it is a mod's: its sounds are played by `nitrous_fx`.
     pub nitrous_fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
+    /// The engine switch of a mod (`bb.engine`): whether the engine is silent, and the start sound to play now.
+    pub engine: crate::engine_switch::EngineAudio,
 }
 
 /// The mixers, the voices and the sound set of one car.
@@ -135,6 +138,8 @@ struct DriveFrame<'a> {
     sim_dt: f32,
     delay: f32,
     nitrous_fx: Option<&'a std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
+    /// A mod has stopped the engine: it is silent.
+    engine_stopped: bool,
 }
 
 impl Drop for CarAudio {
@@ -224,6 +229,9 @@ impl Audio {
         }
         let Some(mut car) = slot.take() else { return };
         let dt = if dt.is_finite() { dt.max(0.0) } else { 0.0 };
+        if let Some(start) = state.engine.start.as_ref() {
+            engine_start::play(self, start);
+        }
         if state.ticks.is_empty() {
             self.advance_car(
                 &mut car,
@@ -237,6 +245,7 @@ impl Audio {
                     sim_dt: 0.0,
                     delay: 0.0,
                     nitrous_fx: state.nitrous_fx.as_ref(),
+                    engine_stopped: state.engine.stopped,
                 },
             );
             *slot = Some(car);
@@ -256,6 +265,7 @@ impl Audio {
                     sim_dt: tick.sim_dt,
                     delay: i as f32 * delta,
                     nitrous_fx: state.nitrous_fx.as_ref(),
+                    engine_stopped: state.engine.stopped,
                 },
             );
         }

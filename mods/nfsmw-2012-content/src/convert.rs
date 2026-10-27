@@ -14,10 +14,11 @@ use anyhow::{Context, Result, bail};
 use blackbox_hash::bstring_hash;
 use blackbox_solid::{GroupSource, PositionMarker, SolidSource, Vertex, write_geometry_pack};
 use blackbox_tpk::write_tpk;
-use chameleon_vehicle::{LampEnd, LampSide, LampSurface, Lod, PartMesh, SurfaceKind};
+use chameleon_vehicle::{Lod, PartMesh, SurfaceKind};
 
 use crate::fit::{Fit, to_car_space};
 use crate::hinges;
+use crate::lamp_surfaces;
 use crate::markers;
 use crate::pipes;
 use crate::source::SourceCar;
@@ -41,6 +42,8 @@ pub struct Built {
     pub bounds: Vec<u8>,
     /// The `[[damage_parts]]` tables of the car's manifest, empty when it has no hinged part (`crate::hinges`).
     pub damage_parts: String,
+    /// The car has a licence plate whose glyph sheet is in `TEXTURES.BIN` as `<FOLDER>_PLATE` (`crate::plate`).
+    pub plate: bool,
 }
 
 pub struct Options {
@@ -121,7 +124,14 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
     let textures = write_tpk(folder, &palette.into_textures()).context("writing TEXTURES.BIN")?;
     let collision = crate::collision::build(car, &body, folder)?;
     log::debug!("{folder}: bounds from the {:?}, half dimensions {:?}", collision.basis, collision.half);
-    Ok(Built { geometry, textures, triangles, bounds: collision.bytes, damage_parts })
+    Ok(Built {
+        geometry,
+        textures,
+        triangles,
+        bounds: collision.bytes,
+        damage_parts,
+        plate: crate::plate::present(car),
+    })
 }
 
 /// Cut the hinged parts out of the finest body solids (`A` and `B`, which share the finest level) into solids of their
@@ -303,31 +313,41 @@ fn normalised(v: [f32; 3]) -> [f32; 3] {
     [v[0] / length, v[1] / length, v[2] / length]
 }
 
-/// The placeholder texture of the game's lamps that a lens piece is drawn with. The front centre has none: it follows the
-/// left lamp, and the head lamps of both sides look the same.
-fn lamp_placeholder(surface: LampSurface) -> &'static str {
-    match (surface.end, surface.side) {
-        (LampEnd::Front, LampSide::Right) => "HEADLIGHT_RIGHT",
-        (LampEnd::Front, _) => "HEADLIGHT_LEFT",
-        (LampEnd::Rear, LampSide::Left) => "BRAKELIGHT_LEFT",
-        (LampEnd::Rear, LampSide::Right) => "BRAKELIGHT_RIGHT",
-        (LampEnd::Rear, LampSide::Centre) => "BRAKELIGHT_CENTRE",
+/// The glyph sheet of the car's licence plate under the name the car's manifest gives it (`crate::plate::picture_name`), when
+/// `mesh` is the plate and its sheet can be carried over.
+fn plate_sheet(
+    mesh: &PartMesh,
+    car: &SourceCar,
+    folder: &str,
+    options: &Options,
+    palette: &mut Palette,
+) -> Option<String> {
+    let appearance = &mesh.appearance;
+    if !chameleon_vehicle::is_plate_technique(&appearance.technique) {
+        return None;
     }
+    let sheet = car.textures.get(&appearance.diffuse_texture?)?;
+    palette.add_map(&crate::plate::picture_name(folder), sheet, options.max_texture_size, false)
 }
 
 /// The 2005 texture and light material that stand in for a 2012 surface.
 fn look(mesh: &PartMesh, car: &SourceCar, folder: &str, options: &Options, palette: &mut Palette) -> Look {
     let appearance = &mesh.appearance;
+    // The licence plate: its glyph sheet is a texture of the car's own, which the game draws again with the typed text.
+    if let Some(sheet) = plate_sheet(mesh, car, folder, options, palette) {
+        return Look { texture: sheet, light_material: "SHINYPLASTIC", flags: 0x4180 };
+    }
     match appearance.kind {
         // The paint placeholder: the game swaps in the colour the player picked.
         SurfaceKind::Paint => {
             Look { texture: format!("{folder}_SKIN1"), light_material: "CARSKIN", flags: PAINT_FLAGS }
         }
         SurfaceKind::Glass => Look { texture: palette.add_glass(), light_material: "WINDSHIELD", flags: 0x4180 },
-        // A lit lens strip: the game's lamp placeholder, which it swaps for the car's own lit or unlit texture.
+        // A lit lens strip or lamp interior: the game's lamp placeholder of its circuit, which it swaps for the car's own
+        // lit or unlit texture (`lamp_surfaces.rs`).
         SurfaceKind::Lamp(surface) => {
             palette.add_lamp_states(folder);
-            Look { texture: lamp_placeholder(surface).to_owned(), light_material: "MATTEPLASTIC", flags: 0x4180 }
+            Look { texture: lamp_surfaces::placeholder(surface), light_material: "MATTEPLASTIC", flags: 0x4180 }
         }
         kind => {
             let (light_material, fallback) = match kind {

@@ -331,7 +331,7 @@ impl Entry {
 
 /// The colour at age fraction `t`: red, green and blue times the brightness, clamped to a byte, and the alpha curve's value. A
 /// particle is dead when its age fraction reaches 1 and the curves start over there, so the end is sampled just before it.
-fn colour_at(gradient: &Gradient, t: f32) -> [u8; 4] {
+pub(crate) fn colour_at(gradient: &Gradient, t: f32) -> [u8; 4] {
     let t = t.min(LAST_MOMENT);
     let [r, g, b, bright] = gradient.colour_at(t);
     let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
@@ -340,7 +340,7 @@ fn colour_at(gradient: &Gradient, t: f32) -> [u8; 4] {
 
 /// The points along the life to sample the curves at: every knot of the curves, and 0 and 1. While there are more than
 /// `most`, the interior one that the line between its neighbours misses least (over everything `sample` returns) is dropped.
-fn choose_keys(knots: &[f32], most: usize, sample: impl Fn(f32) -> [f32; 5]) -> Vec<f32> {
+pub(crate) fn choose_keys(knots: &[f32], most: usize, sample: impl Fn(f32) -> [f32; 5]) -> Vec<f32> {
     let mut points: Vec<f32> = knots.iter().map(|k| k.clamp(0.0, 1.0)).chain([0.0, 1.0]).collect();
     points.sort_by(f32::total_cmp);
     points.dedup_by(|a, b| (*a - *b).abs() < 1.0e-3);

@@ -12,7 +12,7 @@ use crate::error::Result;
 use crate::hinged::HingedPart;
 use crate::skeleton::Skeleton;
 use crate::spec::GraphicsSpec;
-use crate::vehicle::{Surfaces, expect};
+use crate::vehicle::{Surface, Surfaces, expect};
 
 /// For each level of detail of the body, each mesh of [`crate::Vehicle::body`] and each of its triangles: the index of
 /// the part in `parts` that the triangle belongs to, or `None` for the rest of the body.
@@ -47,7 +47,7 @@ pub fn body_parts(pool: &Pool, spec: u64, skeleton: &Skeleton, parts: &[HingedPa
             let find = |wanted: u8| descriptor.elements.iter().find(|e| e.usage() == wanted && e.index() == 0);
             let (Some(bones), Some(weights)) = (find(usage::BONES), find(usage::WEIGHTS)) else {
                 let classes = vec![None; triangles.len()];
-                meshes.extend(split_like_lenses(descriptor, bytes, &surface.1, triangles, classes));
+                meshes.extend(split_like_lamps(descriptor, bytes, &surface, triangles, classes));
                 continue;
             };
             let vertices = bytes.len() / stride.max(1);
@@ -62,26 +62,27 @@ pub fn body_parts(pool: &Pool, spec: u64, skeleton: &Skeleton, parts: &[HingedPa
             };
             let classes: Vec<Option<usize>> =
                 triangles.iter().map(|tri| triangle_part(tri, &skin, &owner, parts.len())).collect();
-            meshes.extend(split_like_lenses(descriptor, bytes, &surface.1, triangles, classes));
+            meshes.extend(split_like_lamps(descriptor, bytes, &surface, triangles, classes));
         }
         levels.push(meshes);
     }
     Ok(levels)
 }
 
-/// The classes of one mesh as the meshes `load` makes of it: a lens (`Refraction` glass) is one mesh per connected piece
-/// (`lamps::split_lenses`), any other mesh is one.
-fn split_like_lenses(
+/// The classes of one mesh as the meshes `load` makes of it: a lens (`Refraction` glass) is one mesh per connected piece and
+/// circuit and the lamp interiors (`EmissiveFourChannel`) one per circuit and side besides the rest (`lamp_pieces.rs`),
+/// any other mesh is one.
+fn split_like_lamps(
     descriptor: &chameleon_gfx::VertexDescriptor,
     bytes: &[u8],
-    appearance: &crate::Appearance,
+    surface: &Surface,
     triangles: Vec<[u32; 3]>,
     classes: Vec<Option<usize>>,
 ) -> Vec<Vec<Option<usize>>> {
     let Ok(vertices) = descriptor.decode(bytes) else { return vec![classes] };
-    let mesh = crate::PartMesh { vertices, triangles, appearance: appearance.clone() };
-    match crate::lamps::lens_groups(&mesh) {
-        Some(groups) => groups.iter().map(|ids| ids.iter().map(|&at| classes[at]).collect()).collect(),
+    let mesh = crate::PartMesh { vertices, triangles, appearance: surface.1.clone() };
+    match crate::lamp_pieces::lamp_groups(&mesh, surface.2.as_ref()) {
+        Some(groups) => groups.iter().map(|group| group.triangles.iter().map(|&at| classes[at]).collect()).collect(),
         None => vec![classes],
     }
 }

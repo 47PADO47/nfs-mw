@@ -23,7 +23,7 @@ fn ids_and_versions_are_locked() {
     );
     assert_eq!(
         [IFACE_VEHICLES_VERSION, IFACE_HUD_VERSION, IFACE_CAMERA_VERSION, IFACE_AUDIO_VERSION, IFACE_WORLD_VERSION],
-        [(1, 0), (1, 0), (1, 1), (1, 0), (1, 0)]
+        [(1, 1), (1, 0), (1, 1), (1, 0), (1, 0)]
     );
     assert_eq!(IFACE_UI, "bb.ui");
     assert_eq!(IFACE_UI_VERSION, (1, 1));
@@ -52,13 +52,14 @@ fn ui_table_and_prim() {
 #[test]
 fn vehicles_table_and_state() {
     assert_eq!(size_of::<BbVec3>(), 12);
-    assert_eq!(size_of::<BbVehicles>(), 48);
+    assert_eq!(size_of::<BbVehicles>(), 56);
     assert_eq!(offset_of!(BbVehicles, ctx), 8);
     assert_eq!(offset_of!(BbVehicles, state), 16);
     assert_eq!(offset_of!(BbVehicles, teleport), 24);
     assert_eq!(offset_of!(BbVehicles, repair), 32);
     assert_eq!(offset_of!(BbVehicles, spawn_traffic), 40);
-    assert_eq!(size_of::<BbVehicleState>(), 52);
+    assert_eq!(offset_of!(BbVehicles, add_nos), 48);
+    assert_eq!(size_of::<BbVehicleState>(), 68);
     assert_eq!(offset_of!(BbVehicleState, gear), 4);
     assert_eq!(offset_of!(BbVehicleState, position), 8);
     assert_eq!(offset_of!(BbVehicleState, velocity), 20);
@@ -67,6 +68,11 @@ fn vehicles_table_and_state() {
     assert_eq!(offset_of!(BbVehicleState, rpm), 40);
     assert_eq!(offset_of!(BbVehicleState, nos), 44);
     assert_eq!(offset_of!(BbVehicleState, damage), 48);
+    // 1.1 appends these four; the 1.0 fields above stay where they were.
+    assert_eq!(offset_of!(BbVehicleState, slip_angle), 52);
+    assert_eq!(offset_of!(BbVehicleState, steering), 56);
+    assert_eq!(offset_of!(BbVehicleState, impact), 60);
+    assert_eq!(offset_of!(BbVehicleState, on_ground), 64);
 }
 
 #[test]

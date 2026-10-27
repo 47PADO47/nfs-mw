@@ -80,6 +80,8 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             .chain([
                 row(Setting::TireSmoke, Title::Key("options-tire-smoke")),
                 row(Setting::SmokeQuality, Title::Key("options-smoke-quality")),
+                row(Setting::SmokeColorMode, Title::Key("options-smoke-color-mode")),
+                row(Setting::SmokeColor, Title::Key("options-smoke-color")),
                 row(Setting::SkidMarks, Title::Key("options-skid-marks")),
                 row(Setting::CollisionSparks, Title::Key("options-collision-sparks")),
                 row(Setting::SpeedTrails, Title::Key("options-speed-trails")),

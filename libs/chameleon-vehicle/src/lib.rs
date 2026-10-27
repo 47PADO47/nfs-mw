@@ -10,17 +10,21 @@ mod appearance;
 mod arch;
 mod collision;
 mod colour_palette;
+mod drift;
+mod drift_model;
 mod driver;
 mod error;
 mod genesys;
 mod hinged;
 mod hsm;
+mod lamp_pieces;
 mod lamps;
 mod manufacturer;
 mod name;
 mod paint;
 mod paint_pack;
 mod paint_surface;
+mod plate;
 mod police;
 mod skeleton;
 mod skin;
@@ -30,6 +34,8 @@ mod two_colour;
 mod vehicle;
 mod wing;
 
+#[cfg(test)]
+mod drift_tests;
 #[cfg(test)]
 mod driver_tests;
 #[cfg(test)]
@@ -42,10 +48,12 @@ mod two_colour_tests;
 pub use active_aero::{
     AttachedMotion, FlapMotion, SpoilerMotion, VentMotion, attached_motions, flap_motions, spoiler_motion, vent_motions,
 };
-pub use appearance::{Appearance, LampEnd, LampSide, LampSurface, SurfaceKind};
+pub use appearance::{Appearance, LampCircuit, LampEnd, LampSide, LampSurface, SurfaceKind};
 pub use arch::{TyreVolume, intrusion, prefer_other};
 pub use collision::{PolySoup, load_poly_soup};
 pub use colour_palette::{ColourGroup, TwoColourPack, colour_groups};
+pub use drift::{DriftNitrous, DriftPayout, DriftPhysics, TANK_UNITS, read_drift_nitrous, read_drift_physics};
+pub use drift_model::{DriftInput, DriftModel, DriftOutput, DriftParams, DriftSummary, HIT_ENDS};
 pub use driver::{Driver, DriverSetup, driver_meshes, driver_setup, is_driver, load_driver, remove_baked_driver};
 pub use error::{Error, Result};
 pub use hinged::{HingedPart, hinged_parts};
@@ -56,6 +64,11 @@ pub use name::vehicle_name;
 pub use paint::{VehiclePaint, paints};
 pub use paint_pack::{PaintPack, PaintPackGroup, paint_packs};
 pub use paint_surface::{PaintBlend, PaintSurface, paint_surfaces};
+pub use plate::{
+    BLANK as PLATE_BLANK, COLUMNS as PLATE_COLUMNS, GLYPHS as PLATE_GLYPHS, GamePack, ROWS as PLATE_ROWS,
+    SLOTS as PLATE_SLOTS, cells as plate_cells, default_for as plate_default_for, default_texts as plate_default_texts,
+    game_packs, is_plate_technique, registration as plate_registration,
+};
 pub use police::{PoliceMarks, police_marks};
 pub use skeleton::{Bone, Skeleton, bone_hash};
 pub use skin::{BodyParts, body_parts};

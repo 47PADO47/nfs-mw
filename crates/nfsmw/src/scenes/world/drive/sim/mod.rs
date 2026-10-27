@@ -421,6 +421,7 @@ mod contact_damage;
 mod hud;
 mod impact_effects;
 mod lights;
+mod mod_feed;
 mod pair;
 mod pair_dispatch;
 mod performance;

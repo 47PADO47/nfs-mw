@@ -90,7 +90,7 @@ pub struct EffectProfile {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct RawEffect {
-    on: String,
+    on: Option<String>,
     texture: String,
     blend: Option<String>,
     grid: Option<u8>,
@@ -124,20 +124,31 @@ fn within(value: Option<f32>, default: f32, low: f32, high: f32, field: &'static
     Ok(value)
 }
 
-/// Check the effects of a profile.
+/// Check the effects of a nitrous profile: each says when it plays (`on`).
 pub(super) fn check(raw: Vec<RawEffect>) -> Result<Vec<EffectProfile>, ContentError> {
     if raw.len() > MAX_EFFECTS {
         return Err(ContentError::Field { field: "effect", reason: "a profile has at most 16 effects" });
     }
-    raw.into_iter().map(effect).collect()
+    raw.into_iter().map(|raw| effect(raw, true)).collect()
 }
 
-fn effect(raw: RawEffect) -> Result<EffectProfile, ContentError> {
-    let on = match raw.on.as_str() {
-        "start" => EffectOn::Start,
-        "burn" => EffectOn::Burn,
-        "pop" => EffectOn::Pop,
-        _ => return Err(ContentError::Field { field: "effect.on", reason: "start, burn or pop" }),
+/// Check the particle layers of a profile of another kind of effect (`[[layer]]`, the tire smoke's): the same keys, with no
+/// `on` (a layer plays while its effect does, which is `EffectOn::Burn` here), and at most `most` of them.
+pub(super) fn check_layers(raw: Vec<RawEffect>, most: usize) -> Result<Vec<EffectProfile>, ContentError> {
+    if raw.len() > most {
+        return Err(ContentError::Field { field: "layer", reason: "more layers than this effect takes" });
+    }
+    raw.into_iter().map(|raw| effect(raw, false)).collect()
+}
+
+fn effect(raw: RawEffect, needs_on: bool) -> Result<EffectProfile, ContentError> {
+    let on = match (raw.on.as_deref(), needs_on) {
+        (Some("start"), true) => EffectOn::Start,
+        (Some("burn"), true) => EffectOn::Burn,
+        (Some("pop"), true) => EffectOn::Pop,
+        (None, false) => EffectOn::Burn,
+        (_, true) => return Err(ContentError::Field { field: "effect.on", reason: "start, burn or pop" }),
+        (_, false) => return Err(ContentError::Field { field: "layer.on", reason: "a layer has no `on`" }),
     };
     let additive = match raw.blend.as_deref() {
         None | Some("additive") => true,

@@ -350,6 +350,17 @@ impl Vehicle {
         self.powertrain.nos.capacity = 1.0;
     }
 
+    /// Add `amount` of a full tank to the nitrous, up to a full tank, for a game rule that pays nitrous (a drift, a near miss).
+    /// A car with no nitrous system keeps none. Returns whether the car took it: it has a tank and `amount` is above zero.
+    pub fn add_nitrous(&mut self, amount: f32) -> bool {
+        if !self.powertrain.has_nos() || !amount.is_finite() || amount <= 0.0 {
+            return false;
+        }
+        let nos = &mut self.powertrain.nos;
+        nos.capacity = (nos.capacity + amount).min(1.0);
+        true
+    }
+
     /// Nitrous tank level 0..1.
     pub fn nos_level(&self) -> f32 {
         self.powertrain.nos.capacity

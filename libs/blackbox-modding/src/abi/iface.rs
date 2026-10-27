@@ -10,6 +10,7 @@ mod camera;
 mod commands;
 mod config;
 mod content;
+mod engine;
 mod hud;
 mod i18n;
 mod input;
@@ -21,6 +22,8 @@ mod ui;
 mod vehicles;
 mod world;
 
+#[cfg(test)]
+mod engine_tests;
 #[cfg(test)]
 mod tests;
 
@@ -35,6 +38,10 @@ pub use camera::{
 pub use commands::{BbCommandCallbackFn, BbCommands, BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn};
 pub use config::{BB_CONFIG_FILE, BB_CONFIG_MAIN, BbConfig, BbConfigReadFn, BbConfigSourcesFn};
 pub use content::{BbContent, BbContentRescanFn};
+pub use engine::{
+    BB_ENGINE_OFF, BB_ENGINE_RUNNING, BB_ENGINE_STARTING, BbEngine, BbEngineCarFn, BbEngineStartFn, BbEngineState,
+    BbEngineStateFn, BbEngineStopFn,
+};
 pub use hud::{BB_HUD_BIG, BB_HUD_INFO, BB_HUD_WARNING, BbHud, BbHudHideFn, BbHudMessageFn};
 pub use i18n::{BB_I18N_INT, BB_I18N_TEXT, BbI18n, BbI18nArg, BbI18nGenerationFn, BbI18nLocaleFn, BbI18nTextFn};
 pub use input::{BbHotkeyFn, BbInput, BbInputRegisterFn, BbInputUnregisterFn};
@@ -53,8 +60,8 @@ pub use ui::{
     BbUiTokens, BbUiUnregisterThemeFn,
 };
 pub use vehicles::{
-    BbVec3, BbVehicleRepairFn, BbVehicleSpawnTrafficFn, BbVehicleState, BbVehicleStateFn, BbVehicleTeleportFn,
-    BbVehicles,
+    BbVec3, BbVehicleAddNosFn, BbVehicleRepairFn, BbVehicleSpawnTrafficFn, BbVehicleState, BbVehicleStateFn,
+    BbVehicleTeleportFn, BbVehicles,
 };
 pub use world::{BbWorld, BbWorldSetRainFn, BbWorldSetTrafficFn, BbWorldTextFn};
 
@@ -108,7 +115,7 @@ pub const IFACE_SETTINGS_VERSION: (u16, u16) = (1, 0);
 /// Id of the vehicles interface: read and move the player's car.
 pub const IFACE_VEHICLES: &str = "bb.vehicles";
 /// The version the host implements for [`IFACE_VEHICLES`], as `(major, minor)`.
-pub const IFACE_VEHICLES_VERSION: (u16, u16) = (1, 0);
+pub const IFACE_VEHICLES_VERSION: (u16, u16) = (1, 1);
 
 /// Id of the HUD interface: a centred message and hiding it.
 pub const IFACE_HUD: &str = "bb.hud";
@@ -144,3 +151,8 @@ pub const IFACE_WORLD_VERSION: (u16, u16) = (1, 0);
 pub const IFACE_CONFIG: &str = "bb.config";
 /// The version the host implements for [`IFACE_CONFIG`], as `(major, minor)`.
 pub const IFACE_CONFIG_VERSION: (u16, u16) = (1, 0);
+
+/// Id of the engine interface: read the player's pedals and switch the player's engine off and on.
+pub const IFACE_ENGINE: &str = "bb.engine";
+/// The version the host implements for [`IFACE_ENGINE`], as `(major, minor)`.
+pub const IFACE_ENGINE_VERSION: (u16, u16) = (1, 0);

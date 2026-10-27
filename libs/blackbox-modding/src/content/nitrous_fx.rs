@@ -42,16 +42,15 @@ use super::ContentError;
 use super::engine_sound::is_sound_path;
 use super::nitrous_effects::{self as effects, EffectProfile, RawEffect};
 
+pub use super::variant::PROFILE_FILE;
+use super::variant::{self, NITROUS};
+
 /// The folder under a mod's `files/` that holds the variants' files.
-pub const NITROUS_FOLDER: &str = "NITROUS";
-/// The name of a variant's profile file.
-pub const PROFILE_FILE: &str = "profile.toml";
-/// The only format number this version reads.
-pub const FORMAT: u32 = 1;
+pub const NITROUS_FOLDER: &str = NITROUS.folder;
 
 /// The path of the profile of variant `value` in the install's layout (the overlay of the mod's `files/` folder).
 pub fn profile_path(value: &str) -> String {
-    format!("{NITROUS_FOLDER}/{}/{PROFILE_FILE}", value.to_ascii_uppercase())
+    NITROUS.profile_path(value)
 }
 
 /// The sounds of a variant.
@@ -152,9 +151,7 @@ const UNIT_RANGE: std::ops::RangeInclusive<f32> = 0.0..=1.0;
 /// know or another format number is refused with the reason.
 pub fn parse(text: &str) -> Result<NitrousProfile, ContentError> {
     let raw: Raw = toml::from_str(text).map_err(|error| ContentError::Parse(error.to_string()))?;
-    if raw.format != FORMAT {
-        return Err(ContentError::Field { field: "format", reason: "only format 1 is read" });
-    }
+    variant::check_format(raw.format)?;
     Ok(NitrousProfile {
         audio: raw.audio.map(audio).transpose()?,
         flame: raw.flame.map(flame).transpose()?,

@@ -20,6 +20,11 @@ impl Audio {
         car.engine.set_redline_sample_available(sample_available);
         // Keep the recording-range ratio separate from the dynamic mixer's pitch.
         let input = CarInput { pitch_multiplier: 1.0, ..*frame.input };
+        // A mod has stopped the engine: it takes no throttle and no nitrous.
+        let input = match frame.engine_stopped {
+            true => CarInput { throttle: 0.0, nos_active: false, ..input },
+            false => input,
+        };
         let out = car.engine.update(frame.dt, &input);
         let mut commands = std::mem::take(&mut car.commands);
         commands.clear();
@@ -53,6 +58,16 @@ impl Audio {
         car.levels.environment.wet_supported = wet_supported;
         if let Some(handle) = car.handle.as_ref() {
             handle.set_wet_gain(car.levels.environment.ginsu_wet as f32 / 32767.0);
+        }
+        if frame.engine_stopped {
+            // ...and it is silent: the engine voices, the sample layer, the sparks and the turbo.
+            let levels = &mut car.levels;
+            levels.engine_volume = 0.0;
+            levels.engine_samples = 0.0;
+            levels.sparks = 0.0;
+            levels.turbo_spool = 0.0;
+            levels.turbo_blowoff_first = 0.0;
+            levels.turbo_blowoff_other = 0.0;
         }
         let levels = car.levels;
         if let Some(own_engine) = car.own_engine.as_mut() {

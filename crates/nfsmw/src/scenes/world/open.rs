@@ -275,6 +275,7 @@ impl WorldScene {
                 exhaust_flames: false,
                 spark_style: crate::settings::SparkStyle::OriginalPc,
                 smoke_quality: crate::settings::SmokeQuality::Standard,
+                tire_smoke_variant: None,
                 rain,
                 wind,
                 wet_road: Default::default(),

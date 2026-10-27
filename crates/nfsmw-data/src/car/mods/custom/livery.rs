@@ -18,7 +18,7 @@ use crate::car::CarModel;
 use crate::car::customization::{Catalog, Category, Choice};
 
 /// The textures of `wanted` (by name hash) that the car's own `TEXTURES.BIN` holds. No such file: none.
-fn own_textures(dir: &GameDir, folder: &str, wanted: &HashSet<u32>) -> Result<HashMap<u32, Texture>> {
+pub(super) fn own_textures(dir: &GameDir, folder: &str, wanted: &HashSet<u32>) -> Result<HashMap<u32, Texture>> {
     let path = format!("CARS/{folder}/TEXTURES.BIN");
     if !dir.exists(&path) {
         return Ok(HashMap::new());

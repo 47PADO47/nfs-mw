@@ -82,6 +82,9 @@ pub struct Selection {
     pub vinyl_color_parts: [Option<u32>; 3],
     /// Installed decal part identities, in native zone/position order (slots 83–130).
     pub decals: [[Option<u32>; 8]; 6],
+    /// The text the player typed on the car's licence plate (`[customization.plate]` of a mod car); `None` keeps the car's own
+    /// text. Not a part: it has no price and the original game's saves cannot hold it, so it is kept beside the save.
+    pub plate: Option<String>,
 }
 
 impl Selection {
@@ -91,6 +94,7 @@ impl Selection {
             && self.vinyl_colors.iter().all(Option::is_none)
             && self.vinyl_color_parts.iter().all(Option::is_none)
             && self.decals.iter().flatten().all(Option::is_none)
+            && self.plate.is_none()
     }
 }
 

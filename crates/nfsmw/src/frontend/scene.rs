@@ -395,6 +395,9 @@ mod audio_forwarding;
 #[path = "pausable_update.rs"]
 mod scene_update;
 
+#[path = "pausable_frame.rs"]
+mod frame_forwarding;
+
 #[path = "pausable_scene.rs"]
 mod forwarding;
 

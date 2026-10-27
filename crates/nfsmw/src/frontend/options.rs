@@ -47,6 +47,8 @@ pub enum Setting {
     CopHealthBars,
     RearViewMirror,
     SmokeQuality,
+    SmokeColorMode,
+    SmokeColor,
     Transmission,
     Camera,
     Discord,
@@ -224,7 +226,8 @@ impl Setting {
             Setting::Custom(row) => super::custom_race::options::enabled(row),
             Setting::Graphics(setting) => setting.enabled(s),
             Setting::Post(PostSetting::Aa) => !s.upscaler.upscaler().is_temporal(),
-            Setting::SmokeQuality => s.tire_smoke,
+            Setting::SmokeQuality | Setting::SmokeColorMode => s.tire_smoke,
+            Setting::SmokeColor => s.tire_smoke && s.smoke_color_mode != crate::settings::SmokeColorMode::Off,
             // The time played and the join invite are part of the Discord presence, so they are dimmed while that is off.
             Setting::DiscordTimePlayed | Setting::DiscordJoin => s.discord,
             Setting::CustomHud(setting) => setting.enabled(s),
@@ -416,6 +419,26 @@ impl Setting {
                     SmokeQuality::High => SmokeQuality::Standard,
                 };
                 changed.smoke_quality = Some(s.smoke_quality);
+            }
+            Setting::SmokeColorMode => {
+                let steps = crate::settings::SmokeColorMode::ALL.len();
+                for _ in 0..(match forward {
+                    true => 1,
+                    false => steps - 1,
+                }) {
+                    s.smoke_color_mode = s.smoke_color_mode.next();
+                }
+                changed.smoke_color_mode = Some(s.smoke_color_mode);
+            }
+            Setting::SmokeColor => {
+                let steps = crate::settings::SMOKE_PALETTE.len();
+                for _ in 0..(match forward {
+                    true => 1,
+                    false => steps - 1,
+                }) {
+                    s.smoke_color = s.smoke_color.next();
+                }
+                changed.smoke_color = Some(s.smoke_color);
             }
         }
         before != *s

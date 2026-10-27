@@ -201,7 +201,7 @@ mod tests {
     use super::*;
 
     fn entry(vehicle: u32, livery: u32) -> ListEntry {
-        ListEntry { vehicle, livery, group: 0 }
+        ListEntry { vehicle, livery, group: 0, pack: 0 }
     }
 
     #[test]

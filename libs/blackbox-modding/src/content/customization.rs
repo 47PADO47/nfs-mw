@@ -9,6 +9,7 @@
 use serde::Deserialize;
 
 use super::ContentError;
+use super::plate::{self, Plate};
 
 /// Most body paints, window tints, rim paints, parts and vinyls a car lists (per kind).
 pub const MAX_PER_KIND: usize = 64;
@@ -132,6 +133,8 @@ pub struct Customization {
     /// The position in `liveries` of the livery the car wears until the player changes it (a police car's markings); `None`:
     /// the plain paint.
     pub default_livery: Option<usize>,
+    /// The licence plate the car can change the text of, `[customization.plate]`. `None`: the car has no such plate.
+    pub plate: Option<Plate>,
 }
 
 #[derive(Deserialize)]
@@ -159,6 +162,8 @@ pub(super) struct Raw {
     liveries: Vec<RawLivery>,
     #[serde(default)]
     default_livery: Option<usize>,
+    #[serde(default)]
+    plate: Option<plate::Raw>,
 }
 
 #[derive(Deserialize)]
@@ -298,6 +303,7 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<Customization>, ContentEr
         vinyl_colors,
         liveries,
         default_livery: raw.default_livery,
+        plate: plate::check(raw.plate)?,
     };
     no_repeats(&result)?;
     Ok(Some(result))

@@ -29,6 +29,7 @@ mod manufacturer_tests;
 mod music;
 mod nitrous_effects;
 mod nitrous_fx;
+mod plate;
 mod racers;
 #[cfg(test)]
 mod racers_tests;
@@ -36,10 +37,15 @@ mod scenery;
 #[cfg(test)]
 mod scenery_tests;
 mod shared_sound;
+mod spark_gate;
+mod spark_variant;
 mod stats;
 #[cfg(test)]
 mod tests;
+mod tire_smoke;
+mod variant;
 mod wheels;
+mod xenon_variant;
 
 pub use car::{CarManifest, Role, parse as parse_car};
 pub use cop::{CopClass, CopWave, DEFAULT_CHANCE, DEFAULT_COUNT, MAX_CHANCE, MAX_COUNT};
@@ -63,11 +69,25 @@ pub use nitrous_fx::{
     AudioProfile, BurnFollower, BurnStep, FlameProfile, NITROUS_FOLDER, NitrousProfile, PROFILE_FILE, ScreenProfile,
     parse as parse_nitrous_profile, profile_path as nitrous_profile_path,
 };
+pub use plate::{MAX_CELLS as MAX_PLATE_CELLS, MAX_SLOTS as MAX_PLATE_SLOTS, Plate};
 pub use racers::{RacersSection, parse as parse_racers};
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};
 pub use shared_sound::SharedSound;
+pub use spark_gate::{HitChannel, HitGate, ScrapeChannel, ScrapeGate};
+pub use spark_variant::{
+    MAX_SPARK_COUNT, MAX_SPARK_KEYS, MAX_SPARK_LAYERS, SPARKS_FOLDER, SparkKind, SparkLayer, SparksProfile,
+    parse as parse_sparks_profile, sparks_profile_path,
+};
 pub use stats::{Drive, Stats};
+pub use tire_smoke::{
+    MAX_LAYERS as MAX_SMOKE_LAYERS, TIRESMOKE_FOLDER, TireSmokeProfile, parse as parse_tire_smoke_profile,
+    tire_smoke_profile_path,
+};
+pub use variant::{COLLISION_SPARKS, FORMAT, NITROUS, TIRE_SMOKE, VariantKind, XENON_SPARKS};
 pub use wheels::{Tyre, WheelLayout};
+pub use xenon_variant::{
+    MAX_XENON_SPARKS, XENON_FOLDER, XenonProfile, XenonSpark, parse as parse_xenon_profile, xenon_profile_path,
+};
 
 /// The folder inside a mod that holds one car manifest per car.
 pub const CARS_FOLDER: &str = "cars";

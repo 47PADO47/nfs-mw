@@ -13,7 +13,7 @@ use tint::{apply_flame_profile, tint_blue};
 mod load;
 mod scale;
 mod trigger;
-mod variant;
+pub(in crate::scenes::world) mod variant;
 
 use blackbox_gfx::RenderBackend;
 use blackbox_modding::content::FlameProfile;

@@ -45,6 +45,8 @@ pub const TRAFFIC_LIGHTS: &str = "NFSMW_TRAFFIC_LIGHTS";
 pub const TRAFFIC_AVOIDANCE: &str = "NFSMW_TRAFFIC_AVOIDANCE";
 pub const COP_HEALTH_BARS: &str = "NFSMW_COP_HEALTH_BARS";
 pub const SMOKE_QUALITY: &str = "NFSMW_SMOKE_QUALITY";
+pub const SMOKE_COLOR_MODE: &str = "NFSMW_SMOKE_COLOR_MODE";
+pub const SMOKE_COLOR: &str = "NFSMW_SMOKE_COLOR";
 pub const SKID_MARKS: &str = "NFSMW_SKID_MARKS";
 pub const COLLISION_SPARKS: &str = "NFSMW_COLLISION_SPARKS";
 pub const SPARK_STYLE: &str = "NFSMW_SPARK_STYLE";
@@ -153,6 +155,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         traffic_avoidance: value(&get, TRAFFIC_AVOIDANCE, parse_bool),
         cop_health_bars: value(&get, COP_HEALTH_BARS, parse_bool),
         smoke_quality: value(&get, SMOKE_QUALITY, SmokeQuality::from_str),
+        smoke_color_mode: value(&get, SMOKE_COLOR_MODE, super::SmokeColorMode::from_str),
+        smoke_color: value(&get, SMOKE_COLOR, super::SmokeColor::from_str),
         skid_marks: value(&get, SKID_MARKS, parse_bool),
         collision_sparks: value(&get, COLLISION_SPARKS, parse_bool),
         spark_style: value(&get, SPARK_STYLE, super::SparkStyle::from_str),

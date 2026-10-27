@@ -20,6 +20,9 @@ mod config;
 #[cfg(test)]
 mod config_tests;
 mod content;
+mod engine;
+#[cfg(test)]
+mod engine_tests;
 mod hud;
 #[cfg(test)]
 mod hud_tests;
@@ -68,6 +71,7 @@ pub(crate) use camera::attach as attach_camera;
 pub(crate) use commands::attach as attach_commands;
 pub(crate) use config::attach as attach_config;
 pub(crate) use content::attach as attach_content;
+pub(crate) use engine::attach as attach_engine;
 pub(crate) use hud::attach as attach_hud;
 pub(crate) use i18n::attach as attach_i18n;
 pub(crate) use input::attach as attach_input;
@@ -86,6 +90,7 @@ pub use camera_view::{ViewHandlers, ViewInput, ViewPose, ViewSpec};
 pub use commands::{CommandHandler, CommandsBackend};
 pub use config::ConfigBackend;
 pub use content::ContentBackend;
+pub use engine::{EngineBackend, EnginePhase, EngineState};
 pub use hud::{HudBackend, MAX_MESSAGE_SECS, MessageStyle};
 pub use i18n::{I18nArg, I18nBackend, MAX_ARGS as MAX_I18N_ARGS};
 pub use input::{HotkeyHandler, InputBackend};

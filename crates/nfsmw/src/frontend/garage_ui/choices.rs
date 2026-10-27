@@ -176,6 +176,13 @@ fn visual(model: &Model, backroom: bool) -> Vec<Item> {
     ));
     if !backroom {
         result.push(Item::page("Numbers", 0x45a1_c644, Page::Numbers, Row::Number(0).enabled(model)));
+        // A mod car with a licence plate it can change (the page has no icon of its own: it takes the Numbers one).
+        let plated = |car: &crate::garage::Car| {
+            nfsmw_data::car::mods::custom::of(&car.folder).is_some_and(|own| own.plate.is_some())
+        };
+        if model.selected().is_some_and(plated) {
+            result.push(Item::page("License Plate", 0x45a1_c644, Page::Plate, true));
+        }
     }
     result.push(Item::page(
         "Custom Gauges",

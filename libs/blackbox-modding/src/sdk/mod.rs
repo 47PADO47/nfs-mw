@@ -28,6 +28,7 @@ mod commands;
 mod config;
 mod content;
 mod ctx;
+mod engine;
 mod error;
 mod event;
 #[doc(hidden)]
@@ -55,6 +56,7 @@ pub use commands::Commands;
 pub use config::ModConfig;
 pub use content::Content;
 pub use ctx::{Ctx, Level, MAX_MESSAGE_BYTES};
+pub use engine::{Engine, EnginePhase, EngineState};
 pub use error::{Error, ModResult};
 pub use event::{Collider, Event, Role};
 pub use handle::{
