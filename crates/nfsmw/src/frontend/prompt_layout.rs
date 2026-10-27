@@ -23,7 +23,9 @@ pub struct Frame {
 
 impl Frame {
     pub fn find(tree: &UiTree, name: &str, footer: Footer) -> Option<Self> {
-        if footer.is_garage() {
+        // The garage's Add New Car page is the car select package, whose footer group sits at the screen's centre with its bar
+        // far below: it takes the bar's place as the custom race's car select does.
+        if footer.is_garage() && !name.eq_ignore_ascii_case(screen::CAR_SELECT) {
             let main = name.eq_ignore_ascii_case("CustomizeMain.fng")
                 || name.to_ascii_lowercase().starts_with("customizecategory");
             let groups = match main {
@@ -48,7 +50,7 @@ impl Frame {
             "safehousereputationoverview.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
             // The custom race's screens (`custom_race/`); the career's car lot keeps the package's own footer.
             "track_select.fng" | "track_options.fng" | "showcase.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
-            "car_select.fng" if footer.is_custom_car_select() => (0x84BC_F2B5, 0x3D3B_C1AC),
+            "car_select.fng" if footer.is_custom_car_select() || footer.is_garage() => (0x84BC_F2B5, 0x3D3B_C1AC),
             "mainmenu.fng" | "mainmenu_sub.fng" | "mc_profilemanager.fng" => (0x17B1_F254, 0xC6AF_DD7E),
             // The profile list's footer group is empty and sits below its panel: the hints go where its Back button was,
             // inside the panel's footer.
