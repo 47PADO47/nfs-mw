@@ -40,6 +40,22 @@ The game menu's existing Enhanced style is the normal entry point. No new preset
 family or redundant quality switch is introduced. Older custom settings keep it
 off until selected. Settings save the override and balance independently.
 
+Traffic and police paint families (`TRAFFIC_` and `COP_`) receive a restrained
+coated finish, including fixed-livery cars that cannot be repainted. The authored
+textures, reflection strengths and material identities stay intact. This uses the
+existing shared environment fill with its authored diffuse-light response.
+Precoloured traffic atlases keep their authored diffuse energy instead of the
+player-car material's linear-albedo fill uplift. Indirect and upper/lower strength
+controls retain their existing captured-light behaviour.
+Traffic is still limited by the shared capture, rather than per-vehicle probes.
+Background vehicles keep filtered cubemap reflections without the player's nearby
+placement correction or sharp RT/screen-space reflection pass. Only identified
+body paint receives the restrained coated finish. Other traffic materials keep
+their authored response, except `DULLPLASTIC` cargo/trim which explicitly removes
+specular/reflection layers and clearcoat. Its diffuse ramps are capped at unity
+to remove the authored 1.2x boost on already-coloured cargo atlases. This policy
+is limited to background vehicles; player-car material and indirect-light response are unchanged.
+
 ## References
 
 The SH diffuse irradiance principle is described in

@@ -58,6 +58,8 @@ fn mesh_draw(r: &mut Renderer, desc: GlossyMaterial, baked: u8, blend: BlendMode
     vec![Instance::new(mesh.finish().upload(r, "surface receiver"), Mat4::IDENTITY)]
 }
 
+#[path = "actor_tests.rs"]
+mod actors;
 #[path = "chrome_tests.rs"]
 mod chrome;
 #[path = "layer_tests.rs"]

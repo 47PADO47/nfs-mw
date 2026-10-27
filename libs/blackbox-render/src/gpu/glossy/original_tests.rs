@@ -39,6 +39,7 @@ impl Fixture {
     fn new(model: GlossyModel) -> Self {
         Self {
             material: GlossyMaterial {
+                background_actor: false,
                 model,
                 surface: None,
                 diffuse_min: [0.1, 0.12, 0.14, 0.7],

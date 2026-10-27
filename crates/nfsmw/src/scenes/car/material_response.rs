@@ -7,6 +7,15 @@ pub(super) fn response(material: &LightMaterial) -> Option<GlossySurface> {
     Some(GlossySurface { roughness, coat, kind })
 }
 
+/// Traffic atlases share this matte material between cargo and chassis parts.
+pub(super) fn scene_response(material: &LightMaterial) -> Option<GlossySurface> {
+    if material.name == "DULLPLASTIC" {
+        return Some(GlossySurface { roughness: 0.85, coat: 0.0, kind: SurfaceKind::Diffuse });
+    }
+    // Keep traffic glass, tyres, trim and atlas artwork on their authored response.
+    None
+}
+
 fn classify(name: &str) -> Option<(f32, f32, SurfaceKind)> {
     use SurfaceKind::*;
     Some(match name {
@@ -35,6 +44,7 @@ mod tests {
         assert_eq!(classify("CARBONFIBER2").unwrap().2, SurfaceKind::Composite);
         assert_eq!(classify("MAGCHROME").unwrap().2, SurfaceKind::Conductor);
         assert_eq!(classify("RUBBER").unwrap().2, SurfaceKind::Rubber);
+        assert!(classify("DULLPLASTIC").is_none(), "traffic cargo policy must not change subject materials");
         for name in ["HEADLIGHTGLASS", "BRAKELIGHT", "CHAR_RUBBER", "MOD_UNKNOWN"] {
             assert!(classify(name).is_none(), "{name}");
         }

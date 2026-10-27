@@ -84,6 +84,7 @@ impl Appearance {
 }
 
 pub struct CarRig {
+    background_actor: bool,
     detail_radius: f32,
     /// Default instance identity; actors that share the uploaded rig supply their own identity.
     car: u32,
@@ -103,7 +104,8 @@ impl CarRig {
         self.model.set_body_color(rgb)?;
         self.clear_glass(renderer);
         let shading = self.appearance.get_mut().shading;
-        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &self.swaps(), shading, sun);
+        let (parts, meshes, materials) =
+            upload_parts(renderer, &self.model, &self.swaps(), shading, sun, self.background_actor);
         std::mem::replace(self.appearance.get_mut(), Appearance { parts, meshes, materials, shading })
             .release(renderer);
         Ok(())
@@ -116,11 +118,34 @@ impl CarRig {
         shading: CarShading,
         to_sun: Vec3,
     ) -> Self {
+        Self::upload_lighting(renderer, car, model, shading, to_sun, false)
+    }
+
+    /// Background actors use scene light rather than the player-centred irradiance probe.
+    pub fn upload_traffic(
+        renderer: &mut dyn RenderBackend,
+        car: u32,
+        model: CarModel,
+        shading: CarShading,
+        to_sun: Vec3,
+    ) -> Self {
+        Self::upload_lighting(renderer, car, model, shading, to_sun, true)
+    }
+
+    fn upload_lighting(
+        renderer: &mut dyn RenderBackend,
+        car: u32,
+        model: CarModel,
+        shading: CarShading,
+        to_sun: Vec3,
+        background_actor: bool,
+    ) -> Self {
         let swaps = model.swaps.clone();
-        let (parts, meshes, materials) = upload_parts(renderer, &model, &swaps, shading, to_sun);
+        let (parts, meshes, materials) = upload_parts(renderer, &model, &swaps, shading, to_sun, background_actor);
         let lights = CarLights::for_model(&model);
         let flares = super::super::car_light_flares::CarLightFlares::upload(renderer, &model);
         Self {
+            background_actor,
             detail_radius: super::car_detail::radius(&model),
             car,
             model,
@@ -144,7 +169,8 @@ impl CarRig {
         }
         self.clear_glass(renderer);
         let swaps = self.swaps();
-        let (parts, meshes, materials) = upload_parts(renderer, &self.model, &swaps, shading, to_sun);
+        let (parts, meshes, materials) =
+            upload_parts(renderer, &self.model, &swaps, shading, to_sun, self.background_actor);
         let mut appearance = self.appearance.borrow_mut();
         let replacements = appearance
             .parts
