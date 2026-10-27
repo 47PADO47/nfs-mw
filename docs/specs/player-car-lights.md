@@ -47,7 +47,9 @@ do not add arbitrary zone-to-lamp thresholds outside those authored actions.
 The ordinary native head-flare base is one for both traffic and other cars.
 The inspected suppression branch checks the cinematic `INIS` singleton, not
 an hour-of-day threshold; explicit light-on flags can override that base.
-The remake's custom day clock and its headlight hotkey remain extensions.
+The remake starts player headlights on independently of its custom day clock.
+The headlight hotkey remains an optional manual toggle and its state is not
+overwritten by clock changes.
 Do not invent an original night switch from the sun phase or clock hour.
 
 The native point-admission helper tests six view-frustum planes. It is not a

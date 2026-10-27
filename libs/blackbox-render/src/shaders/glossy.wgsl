@@ -167,8 +167,9 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
 
     let diff = material.diffuse_min + material.diffuse_range * f;
     let spec = material.specular_min.xyz + material.specular_range.xyz * pow(f, material.params.x);
-    let finish_on = material.surface.w > 0.5 && shadow_data.environment.w > 0.5;
-    let layered = finish_on && material.surface.w > 1.5;
+    let emissive = material.surface.w > 11.5;
+    let finish_on = material.surface.w > 0.5 && shadow_data.environment.w > 0.5 && !emissive;
+    let layered = finish_on && material.surface.w > 1.5 && !emissive;
     var diffuse_rgb = occlusion * light * diff.rgb * tex.rgb;
     if finish_on {
         diffuse_rgb = surface_diffuse(occlusion * direct * diff.rgb * tex.rgb,
@@ -249,6 +250,22 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         let coat_env = select(env, sharp_env, finish_on);
         out.rgb = out.rgb * (1.0 - fresnel * 0.4 * coat_scale)
             + coat_env * fresnel * 0.4 * coat_scale * reflection_intensity + rig.color[0].xyz * coat * coat_scale;
+    }
+    if emissive {
+        // The original art is encoded colour. Restrict the experiment to its brightest
+        // features, then combine light in linear space before returning to the scene encoding.
+        let source = paint_linear(tex.rgb);
+        let strength = smoothstep(0.22, 0.7, max(source.r, max(source.g, source.b)));
+        var base = paint_linear(out.rgb);
+        var emission = source * strength * 0.6;
+        if material.surface.w > 12.5 {
+            // Preserve neutral/white details; only warm red artwork gets a redder lamp response.
+            let red_mask = strength * smoothstep(0.04, 0.30, tex.r - tex.g);
+            let red_base = vec3<f32>(base.r, min(base.g, base.r * 0.12), min(base.b, base.r * 0.04));
+            base = mix(base, red_base, red_mask * 0.65);
+            emission = vec3<f32>(source.r, source.r * 0.015, source.r * 0.005) * red_mask * 0.4;
+        }
+        out.rgb = paint_encoded(base + emission);
     }
     out.texture_alpha = tex.a;
     out.alpha = tex.a * surface_alpha;

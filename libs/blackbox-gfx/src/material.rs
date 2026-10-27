@@ -91,6 +91,10 @@ pub enum SurfaceKind {
     Diffuse = 10,
     /// Coloured reflective body finish; unlike bare metal it uses the composite skin colour.
     TintedChrome = 11,
+    /// Experimental self-lit surface, with emission derived from bright texture features.
+    Emissive = 12,
+    /// Red lamp body, distinct from a white headlamp emitter.
+    EmissiveRed = 13,
 }
 
 /// Shading constants of one material. Each ramp runs from its `min` where the surface is seen

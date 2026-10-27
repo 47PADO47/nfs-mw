@@ -178,6 +178,10 @@ impl CarRig {
         &self.flares
     }
 
+    pub fn enhanced_lamps(&self) -> bool {
+        self.appearance.borrow().materials.enhanced_lamps()
+    }
+
     /// The model the rig was uploaded from.
     pub fn model(&self) -> &CarModel {
         &self.model
@@ -336,7 +340,9 @@ fn changed_textures(before: &TextureSwaps, after: &TextureSwaps) -> HashSet<u32>
         .keys()
         .chain(after.map.keys())
         .copied()
-        .filter(|&hash| before.resolve(hash) != after.resolve(hash))
+        .filter(|&hash| {
+            before.resolve(hash) != after.resolve(hash) || before.lamp_is_on(hash) != after.lamp_is_on(hash)
+        })
         .collect()
 }
 

@@ -6,6 +6,7 @@ use nfsmw_data::car::{CarModel, lights::FlareProfile};
 
 use super::car_lights::{CarLights, Kind, LampState};
 pub(super) mod emergency;
+mod enhanced;
 mod intensity;
 
 #[derive(Clone)]
@@ -19,6 +20,7 @@ struct Profile {
 pub struct CarLightFlares {
     profiles: Vec<Profile>,
     textures: Vec<TextureHandle>,
+    enhanced_texture: Option<TextureHandle>,
 }
 
 #[derive(Clone, Copy)]
@@ -61,6 +63,11 @@ impl CarLightFlares {
                 };
                 set.profiles.push(Profile { kind, spec: spec.clone(), texture: handle });
             }
+        }
+        if std::env::var_os("NFSMW_EXPERIMENTAL_LAMPS").is_some_and(|v| v == "1") {
+            let texture = enhanced::upload(renderer);
+            set.textures.push(texture);
+            set.enhanced_texture = Some(texture);
         }
         set
     }
@@ -109,6 +116,12 @@ impl CarLightFlares {
         let right = forward.cross(Vec3::Z).normalize_or(Vec3::Y);
         let up = right.cross(forward).normalize_or(Vec3::Z);
         let samples = intensity::samples(lamps, state);
+        if !tails_only
+            && state.enhanced
+            && let Some(texture) = self.enhanced_texture
+        {
+            enhanced::draw(texture, samples.clone(), frames.clone(), view, focal, out);
+        }
         for profile in &self.profiles {
             if tails_only && profile.kind != Kind::Tail {
                 continue;

@@ -16,6 +16,7 @@ impl TrailerCar {
         let state = LampState {
             broken: self.sim.lamp_damage(),
             headlights: true,
+            enhanced: self.rig.enhanced_lamps(),
             brake: self.sim.lamp_brake(),
             reverse: self.sim.telemetry().gear < 0,
             ..Default::default()

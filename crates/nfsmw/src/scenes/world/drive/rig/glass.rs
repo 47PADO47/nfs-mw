@@ -9,11 +9,12 @@ use std::collections::BTreeSet;
 pub struct SurfaceDamage {
     glass: u16,
     brakes: u8,
+    heads: u8,
 }
 
 impl SurfaceDamage {
     pub fn new(glass: u16, broken_lights: u32) -> Self {
-        Self { glass: glass & 0x3ff, brakes: ((broken_lights >> 3) & 7) as u8 }
+        Self { glass: glass & 0x3ff, brakes: ((broken_lights >> 3) & 7) as u8, heads: (broken_lights & 3) as u8 }
     }
 }
 
@@ -54,14 +55,16 @@ impl CarRig {
             if variants.contains_key(&mask) {
                 continue;
             }
+            let appearance = self.appearance.borrow();
+            let heads = u32::from(mask.heads) * u32::from(appearance.materials.enhanced_lamps());
             let swaps = self
                 .swaps_for((0..10).filter(|zone| mask.glass & (1 << zone) != 0))
+                .with_broken_head_lights(heads)
                 .with_broken_brake_lights(u32::from(mask.brakes) << 3);
             // Compare with brakes ON so a broken side is relevant even if it is OFF at this draw.
             let before = self.swaps().with_lamp_state(true, true, &self.model.textures);
             let after = swaps.clone().with_lamp_state(true, true, &self.model.textures);
             let affected = affected_solids(&self.model, &changed_textures(&before, &after));
-            let appearance = self.appearance.borrow();
             set_lighting(renderer, appearance.shading, to_sun);
             let (parts, meshes) = upload_solids(renderer, &self.model, &swaps, &appearance.materials, Some(&affected));
             variants.insert(

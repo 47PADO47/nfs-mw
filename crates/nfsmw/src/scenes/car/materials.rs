@@ -5,7 +5,8 @@
 use std::collections::{HashMap, HashSet};
 
 use blackbox_gfx::{
-    BlendMode, GlossyMaterial, GlossyMaterialHandle, GlossyModel, RenderBackend, Shading, TextureHandle,
+    BlendMode, GlossyMaterial, GlossyMaterialHandle, GlossyModel, GlossySurface, RenderBackend, Shading, SurfaceKind,
+    TextureHandle,
 };
 use blackbox_scene::{MaterialLookup, Sidedness, blend_mode, upload_texture};
 use glam::Vec3;
@@ -17,12 +18,20 @@ use crate::settings::CarShading;
 
 const WINDSHIELD: u32 = blackbox_hash::bstring_hash("WINDSHIELD");
 
+fn lamp_surface_allowed(name: &str) -> bool {
+    !name.contains("HEADLIGHT_GLASS") && !name.contains("BRAKELIGHT_GLASS")
+}
+
 pub struct CarMaterials {
     uploaded: HashMap<u32, (TextureHandle, BlendMode)>,
     /// Which faces each texture's surfaces draw, by name hash.
     sides: HashMap<u32, Sidedness>,
     /// The glossy material of each light material the car uses, by name hash.
     glossy: HashMap<u32, GlossyMaterialHandle>,
+    lamp_glossy: HashMap<u32, GlossyMaterialHandle>,
+    lamp_fallback: Option<GlossyMaterialHandle>,
+    brake_glossy: HashMap<u32, GlossyMaterialHandle>,
+    brake_fallback: Option<GlossyMaterialHandle>,
     /// For light materials the car tables do not know; `None` with simple shading.
     fallback: Option<GlossyMaterialHandle>,
     /// The light material that stands in for `CARSKIN`.
@@ -44,7 +53,18 @@ impl CarMaterials {
         let paint = model.paint.as_ref().and_then(|p| p.light_material);
         set_lighting(renderer, shading, to_sun);
         if shading == CarShading::Simple {
-            return Self { uploaded, sides, glossy: HashMap::new(), fallback: None, paint, window_tint: None };
+            return Self {
+                uploaded,
+                sides,
+                glossy: HashMap::new(),
+                lamp_glossy: HashMap::new(),
+                lamp_fallback: None,
+                brake_glossy: HashMap::new(),
+                brake_fallback: None,
+                fallback: None,
+                paint,
+                window_tint: None,
+            };
         }
         let rig = match shading.is_original() {
             true => super::original_lighting::gameplay(to_sun, 1.0),
@@ -65,7 +85,8 @@ impl CarMaterials {
             .chain(window_tint)
             .collect();
         let glossy = used
-            .into_iter()
+            .iter()
+            .copied()
             .filter_map(|hash| {
                 let material = model.light_materials.get(&hash)?;
                 let mut material = match shading.is_original() {
@@ -83,7 +104,40 @@ impl CarMaterials {
             .collect();
         let fallback =
             Some(renderer.create_glossy_material(&GlossyMaterial { model: model_kind, ..Default::default() }));
-        Self { uploaded, sides, glossy, fallback, paint, window_tint }
+        let enabled =
+            shading == CarShading::Glossy && std::env::var_os("NFSMW_EXPERIMENTAL_LAMPS").is_some_and(|v| v == "1");
+        let mut lamp_glossy = HashMap::new();
+        let mut lamp_fallback = None;
+        let mut brake_glossy = HashMap::new();
+        let mut brake_fallback = None;
+        if enabled {
+            let surface = Some(GlossySurface { kind: SurfaceKind::Emissive, roughness: 0.2, coat: 0.0 });
+            let red = Some(GlossySurface { kind: SurfaceKind::EmissiveRed, roughness: 0.2, coat: 0.0 });
+            for hash in used {
+                if let Some(authored) = model.light_materials.get(&hash) {
+                    let mut desc = glossy_material(authored);
+                    desc.surface = surface;
+                    lamp_glossy.insert(hash, renderer.create_glossy_material(&desc));
+                    desc.surface = red;
+                    brake_glossy.insert(hash, renderer.create_glossy_material(&desc));
+                }
+            }
+            lamp_fallback = Some(renderer.create_glossy_material(&GlossyMaterial { surface, ..Default::default() }));
+            brake_fallback =
+                Some(renderer.create_glossy_material(&GlossyMaterial { surface: red, ..Default::default() }));
+        }
+        Self {
+            uploaded,
+            sides,
+            glossy,
+            lamp_glossy,
+            lamp_fallback,
+            brake_glossy,
+            brake_fallback,
+            fallback,
+            paint,
+            window_tint,
+        }
     }
 
     /// The uploaded texture with this name hash, if the car draws it.
@@ -96,14 +150,37 @@ impl CarMaterials {
         for (handle, _) in self.uploaded.into_values() {
             renderer.destroy_texture(handle);
         }
-        for handle in self.glossy.into_values().chain(self.fallback) {
+        for handle in self
+            .glossy
+            .into_values()
+            .chain(self.fallback)
+            .chain(self.lamp_glossy.into_values())
+            .chain(self.lamp_fallback)
+            .chain(self.brake_glossy.into_values())
+            .chain(self.brake_fallback)
+        {
             renderer.destroy_glossy_material(handle);
         }
     }
 
+    pub fn enhanced_lamps(&self) -> bool {
+        self.lamp_fallback.is_some()
+    }
+
+    pub fn enhanced_lamps_for(&self, name: &str) -> bool {
+        self.enhanced_lamps() && lamp_surface_allowed(name)
+    }
+
     /// The lookup for one placement (left brakes show the mirrored caliper).
     pub fn for_placement<'a>(&'a self, swaps: &'a TextureSwaps, left_brake: bool) -> Lookup<'a> {
-        Lookup { materials: self, swaps, left_brake }
+        Lookup { materials: self, swaps, left_brake, lamp_surface: true }
+    }
+
+    /// Lamp glass sometimes reuses a lamp body texture slot; keep the cover non-emissive.
+    pub fn for_solid<'a>(&'a self, swaps: &'a TextureSwaps, left_brake: bool, name: &str) -> Lookup<'a> {
+        let mut lookup = self.for_placement(swaps, left_brake);
+        lookup.lamp_surface = lamp_surface_allowed(name);
+        lookup
     }
 }
 
@@ -122,9 +199,28 @@ pub struct Lookup<'a> {
     materials: &'a CarMaterials,
     swaps: &'a TextureSwaps,
     left_brake: bool,
+    lamp_surface: bool,
 }
 
 impl MaterialLookup for Lookup<'_> {
+    fn texture_shading(&self, texture_hash: u32, light_material_hash: Option<u32>) -> Option<Shading> {
+        if !self.lamp_surface || !self.swaps.lamp_is_on(texture_hash) {
+            return None;
+        }
+        let (materials, fallback) = match TextureSwaps::is_brake_lamp(texture_hash) {
+            true => (&self.materials.brake_glossy, self.materials.brake_fallback?),
+            false => (&self.materials.lamp_glossy, self.materials.lamp_fallback?),
+        };
+        let Some(light_material_hash) = light_material_hash else {
+            return Some(Shading::Glossy(fallback));
+        };
+        let hash = match light_material_hash {
+            CARSKIN => self.materials.paint.unwrap_or(light_material_hash),
+            WINDSHIELD => self.materials.window_tint.unwrap_or(light_material_hash),
+            _ => light_material_hash,
+        };
+        Some(Shading::Glossy(materials.get(&hash).copied().unwrap_or(fallback)))
+    }
     fn material(&self, texture_hash: u32) -> Option<(TextureHandle, BlendMode)> {
         // A replacement the packs don't have falls back to the placeholder itself.
         let swapped = self.swaps.resolve_for(texture_hash, self.left_brake);
