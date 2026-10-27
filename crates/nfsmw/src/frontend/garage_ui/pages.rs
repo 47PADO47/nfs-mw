@@ -215,7 +215,7 @@ impl Page {
         }
         match self {
             Self::Manager => "mycarsmanager",
-            Self::AddCar => "car_select",
+            Self::AddCar => "career_car_select",
             Self::Main => "customize_customizemain",
             Self::Categories { section: Section::Parts, .. } => "customize_customizecategory_2049",
             Self::Categories { section: Section::Performance, .. } => "customize_customizecategory_2050",
