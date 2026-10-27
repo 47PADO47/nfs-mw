@@ -3,8 +3,6 @@
 A Rust rewrite of **Need for Speed: Most Wanted** (2005, PC v1.3 / Black Edition) that reads all game
 data at runtime from **your own install**. This repository contains no game files and no decompiled code.
 
-**Status: milestone 3 done; milestone 4 (engine foundation) next.**
-
 - **Install:** finds and checks your copy of the game.
 - **Data:** decodes the data containers (bChunk, JDLZ, HUFF) and reads cars, texture packs and the streamed
   city.
@@ -129,6 +127,35 @@ intensity and a live split comparison. Start with `nfsmw play --ao medium`; it n
 LAN play has its own keys (`net_name`, `net_port`, `net_snapshot_hz`, `net_interp_delay`, `net_show_stats`,
 `net_identity_file`) and console commands (`net.host`, `net.connect`, `net.stats`, `net.sim`, ...); the main menu's LAN icon
 opens its menu ([LAN front end](docs/specs/multiplayer/frontend.md)).
+
+## Mods
+
+The game loads native mods from one folder per mod under its config folder (`%APPDATA%\nfsmw\config\mods\<id>\` on
+Windows, `~/.config/nfsmw/mods/<id>/` on Linux). A mod holds a `mod.toml`, its library and, optionally, files that are
+layered over your install and cars that are added to the game. Mods run with your privileges, so install only ones you
+trust. `--no-mods` (or `mods = "off"` in `config.toml`) loads none. How to write and use mods:
+[docs/modding/README.md](docs/modding/README.md).
+
+### The NFS: Most Wanted (2012) cars
+
+`nfsmw-2012-content` adds the cars of **NFS: Most Wanted (2012)** to this game, converted on your PC from your own
+2012 install (nothing from either game is in the repository). To use it:
+
+1. Build it: `cargo build --release -p nfsmw-2012-content`.
+2. Put `mods/nfsmw-2012-content/mod.toml` and the built library (`nfsmw_2012_content.dll`, `libnfsmw_2012_content.so` or
+   `libnfsmw_2012_content.dylib`, from `target/release/`) in `%APPDATA%\nfsmw\config\mods\nfsmw-2012-content\`
+   (`~/.config/nfsmw/mods/nfsmw-2012-content/` on Linux).
+3. Start the game once; the mod writes a commented `config.toml` next to its `mod.toml`.
+4. Set your 2012 install in it and start the game again:
+
+   ```toml
+   source = 'D:\Need For Speed Most Wanted 2012'
+   ```
+
+The cars are converted in the background (a few seconds to a minute, 360 MB written into the mod's folder) and then show
+up in the garage and the career, with their own paints, liveries, sounds and camera views. Without a `source` the
+mod adds nothing. Settings, what is converted and the known limits:
+[docs/modding/nfsmw-2012-content.md](docs/modding/nfsmw-2012-content.md).
 
 ## Repository
 
