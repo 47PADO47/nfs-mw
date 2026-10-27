@@ -23,7 +23,7 @@ fn converted(source: &Path) -> PathBuf {
     std::fs::create_dir_all(&dir).unwrap();
     let source = source.to_string_lossy().replace('\\', "/");
     std::fs::write(dir.join("config.toml"), format!("source = '{source}'\ncars = ['{CAR}']\n")).unwrap();
-    let Start::Started { job: running, .. } = job::start(&dir).unwrap() else { panic!("the first start converts") };
+    let Start::Started { job: running, .. } = job::start(&dir, None).unwrap() else { panic!("the first start converts") };
     let started = Instant::now();
     let finished = loop {
         if let Some(finished) = running.poll() {
