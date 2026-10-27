@@ -29,6 +29,7 @@ impl Drive {
                     detail,
                     glass: self.cracked.mask(),
                     broken_lights: sim.lamp_damage(),
+                    steering: sim.steering_input(),
                 },
                 out,
             );

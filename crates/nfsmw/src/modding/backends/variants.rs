@@ -11,7 +11,7 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use blackbox_modding::content::{COLLISION_SPARKS, ContentError, NITROUS, TIRE_SMOKE, VariantKind, XENON_SPARKS};
+use blackbox_modding::content::{COLLISION_SPARKS, ContentError, NITROUS, TIRE_SMOKE, VariantKind, WIND, XENON_SPARKS};
 
 use super::bridge::Bridge;
 use super::settings::{self, ORIGINAL};
@@ -61,8 +61,16 @@ pub const XENON_SPARKS_KIND: EffectKind = EffectKind {
     original: "options-xenon-spark-variant-original",
 };
 
+/// The wind: the loops that play with the car's speed (the game's own are the `FX_WIND` module of its sound banks).
+pub const WIND_KIND: EffectKind = EffectKind {
+    variant: WIND,
+    name: "wind",
+    label: "options-wind-variant",
+    original: "options-wind-variant-original",
+};
+
 /// Every kind the game offers variants of. A new kind is added here.
-pub const KINDS: [EffectKind; 4] = [NITROUS_KIND, TIRE_SMOKE_KIND, COLLISION_SPARKS_KIND, XENON_SPARKS_KIND];
+pub const KINDS: [EffectKind; 5] = [NITROUS_KIND, TIRE_SMOKE_KIND, COLLISION_SPARKS_KIND, XENON_SPARKS_KIND, WIND_KIND];
 
 /// The variant of a kind in effect: the chosen value, and the mod that provides it (`None` for the game's own "Original").
 #[derive(Debug, Clone, PartialEq, Eq)]

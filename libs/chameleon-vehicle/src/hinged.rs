@@ -18,6 +18,7 @@ const MAX_NAME: usize = 64;
 /// Bytes of one `DamageThreshold` and the offset of its fraction.
 const THRESHOLD_SIZE: usize = 24;
 const THRESHOLD_VALUE: usize = 0x10;
+const THRESHOLD_TARGET: usize = 0x14;
 
 /// One hinged part.
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +37,8 @@ pub struct HingedPart {
     pub mass_kg: f32,
     /// The zone damage fractions (0 to 1) at which the part changes state, in the order the file gives them.
     pub thresholds: Vec<f32>,
+    /// The fraction of the zone's damage clip each step plays to (0 to 1), one per threshold **[unconfirmed meaning]**.
+    pub targets: Vec<f32>,
 }
 
 /// The hinged parts of a car bundle whose bone the car's skeleton has. A car with no damage behaviour, or no skeleton,
@@ -54,7 +57,8 @@ pub fn hinged_parts(bundle: &Bundle) -> Result<Vec<HingedPart>> {
             centre: object.floats::<3>(at + 0x40)?,
             limits: [object.floats::<2>(at + 0x10)?, object.floats::<2>(at + 0x20)?, object.floats::<2>(at + 0x30)?],
             mass_kg: object.f32(at + 0xA8)?,
-            thresholds: thresholds(&object, at)?,
+            thresholds: thresholds(&object, at, THRESHOLD_VALUE)?,
+            targets: thresholds(&object, at, THRESHOLD_TARGET)?,
             name,
         });
     }
@@ -70,9 +74,9 @@ fn name(object: &Object, at: usize) -> Result<String> {
     String::from_utf8(bytes[..end].to_vec()).map_err(|_| Error::Spec("a part name is not text".into()))
 }
 
-/// The fractions: an absolute offset at `+0xAC` and a count at `+0xB2`.
-fn thresholds(object: &Object, at: usize) -> Result<Vec<f32>> {
+/// One float of each step: an absolute offset at `+0xAC` and a count at `+0xB2`; `field` is the float's offset in a step.
+fn thresholds(object: &Object, at: usize, field: usize) -> Result<Vec<f32>> {
     let table = object.u32(at + 0xAC)? as usize;
     let count = usize::from(object.u16(at + 0xB2)?);
-    (0..count).map(|n| object.f32(table + n * THRESHOLD_SIZE + THRESHOLD_VALUE)).collect()
+    (0..count).map(|n| object.f32(table + n * THRESHOLD_SIZE + field)).collect()
 }

@@ -50,6 +50,8 @@ pub struct Hinge {
     pub angle: f32,
     /// The zone damage fractions at which the stages start, ascending.
     pub stages: Vec<f32>,
+    /// The degrees turned at each stage (one per stage); empty: `angle` times the share of stages reached.
+    pub stage_angles: Vec<f32>,
     pub detach_at: Option<f32>,
     /// Whether the part can leave the car at all.
     pub detach: bool,
@@ -109,6 +111,9 @@ impl Hinge {
             return 0.0;
         }
         let reached = self.stages.iter().filter(|&&stage| fraction >= stage).count();
+        if self.stage_angles.len() == self.stages.len() {
+            return reached.checked_sub(1).map_or(0.0, |last| self.stage_angles[last]);
+        }
         self.angle * reached as f32 / self.stages.len().max(1) as f32
     }
 
@@ -258,6 +263,7 @@ mod tests {
             axis: [0.0, 1.0, 0.0],
             angle: -15.0,
             stages: vec![0.04, 0.05, 0.5],
+            stage_angles: Vec::new(),
             detach_at: None,
             detach: false,
             mass_kg: 40.0,
@@ -277,6 +283,17 @@ mod tests {
         assert_eq!(hinge.pose(1.0 / 3.0), Pose::Turned(-10.0));
         assert_eq!(hinge.pose(2.0 / 3.0), Pose::Turned(-15.0));
         assert_eq!(hinge.pose(0.045), Pose::Turned(-5.0));
+    }
+
+    #[test]
+    fn stage_angles_name_the_turn_of_each_stage() {
+        let hinge = Hinge { stage_angles: vec![0.0, -2.0, -9.0], ..bonnet() };
+        assert_eq!(hinge.swing(0.0), 0.0);
+        assert_eq!(hinge.swing(0.045), 0.0, "the first stage turns it by its own 0");
+        assert_eq!(hinge.swing(1.0 / 3.0), -2.0);
+        assert_eq!(hinge.swing(1.0), -9.0);
+        let even = Hinge { stage_angles: vec![1.0], ..bonnet() };
+        assert_eq!(even.swing(1.0), -15.0, "a list of another length is ignored");
     }
 
     #[test]

@@ -183,6 +183,12 @@ fn visual(model: &Model, backroom: bool) -> Vec<Item> {
         if model.selected().is_some_and(plated) {
             result.push(Item::page("License Plate", 0x45a1_c644, Page::Plate, true));
         }
+        // A plate that offers designs: the background behind its glyphs (it takes the Numbers icon as well).
+        let designed =
+            |car: &crate::garage::Car| car.parts.as_ref().is_some_and(|catalog| !catalog.plate_designs.is_empty());
+        if model.selected().is_some_and(designed) {
+            result.push(Item::page("Plate Design", 0x45a1_c644, Page::PlateDesign, true));
+        }
     }
     result.push(Item::page(
         "Custom Gauges",

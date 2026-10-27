@@ -29,6 +29,7 @@ mod save_format;
 mod saves;
 mod scenes;
 mod settings;
+mod traffic_requests;
 mod ui;
 mod viewer;
 // The renderer does not call the weather model yet; it is tested on its own.

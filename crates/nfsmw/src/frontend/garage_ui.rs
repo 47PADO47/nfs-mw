@@ -12,6 +12,7 @@ mod numbers;
 mod pages;
 mod palette;
 mod plate;
+mod plate_design;
 pub(super) mod prompts;
 mod table;
 #[cfg(test)]
@@ -187,6 +188,7 @@ impl GarageUi {
         match page {
             Page::Numbers => Box::new(numbers::Numbers::new(self.clone())),
             Page::Plate => Box::new(plate::PlateEntry::new(self.clone())),
+            Page::PlateDesign => Box::new(plate_design::PlateDesigns::new(self.clone())),
             Page::Paint { .. } | Page::GaugeColors { .. } => Box::new(palette::Palette::new(self.clone(), page)),
             Page::Tuning
             | Page::Cart { .. }

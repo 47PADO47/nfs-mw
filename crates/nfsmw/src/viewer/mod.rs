@@ -95,6 +95,8 @@ pub trait Scene {
     fn add_player_nitrous(&mut self, _amount: f32) -> bool {
         false
     }
+    /// Turn the drift assist of the player's car on or off (`bb.vehicles` 1.2). Does nothing without a car.
+    fn set_player_drift_assist(&mut self, _on: bool) {}
     /// Keep `cars` computer-driven cars on the road, `cop_share` percent of them patrol cops.
     fn set_traffic_density(&mut self, _cars: u32, _cop_share: u8) {}
     /// Put a traffic car on the road at `at` (x, y), facing `heading`. Returns whether a car was placed.

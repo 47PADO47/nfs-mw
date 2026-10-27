@@ -23,6 +23,7 @@ mod error;
 mod interior;
 #[cfg(test)]
 mod interior_tests;
+mod lamp_flares;
 mod manufacturer;
 #[cfg(test)]
 mod manufacturer_tests;
@@ -43,8 +44,12 @@ mod stats;
 #[cfg(test)]
 mod tests;
 mod tire_smoke;
+mod traffic;
+#[cfg(test)]
+mod traffic_tests;
 mod variant;
 mod wheels;
+mod wind_fx;
 mod xenon_variant;
 
 pub use car::{CarManifest, Role, parse as parse_car};
@@ -62,6 +67,10 @@ pub use engine_sound::{
 };
 pub use error::ContentError;
 pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, parse as parse_interior};
+pub use lamp_flares::{
+    LampFlare, LampLit, LampSide, LightBar, MAX_BARS as MAX_LIGHT_BARS, MAX_FLARES as MAX_LAMP_FLARES,
+    MAX_PATTERN as MAX_LIGHT_PATTERN, SirenColour, Sprite as LampSprite,
+};
 pub use manufacturer::{Manufacturer, brand_key, parse as parse_manufacturer};
 pub use music::{MusicSection, parse as parse_music};
 pub use nitrous_effects::{EffectOn, EffectProfile, MAX_EFFECTS};
@@ -78,13 +87,17 @@ pub use spark_variant::{
     MAX_SPARK_COUNT, MAX_SPARK_KEYS, MAX_SPARK_LAYERS, SPARKS_FOLDER, SparkKind, SparkLayer, SparksProfile,
     parse as parse_sparks_profile, sparks_profile_path,
 };
-pub use stats::{Drive, Stats};
+pub use stats::{DriftStats, Drive, Stats};
 pub use tire_smoke::{
     MAX_LAYERS as MAX_SMOKE_LAYERS, TIRESMOKE_FOLDER, TireSmokeProfile, parse as parse_tire_smoke_profile,
     tire_smoke_profile_path,
 };
-pub use variant::{COLLISION_SPARKS, FORMAT, NITROUS, TIRE_SMOKE, VariantKind, XENON_SPARKS};
+pub use traffic::{MAX_INSTANCES as MAX_TRAFFIC_INSTANCES, MAX_WEIGHT as MAX_TRAFFIC_WEIGHT, Traffic, TrafficClass};
+pub use variant::{COLLISION_SPARKS, FORMAT, NITROUS, TIRE_SMOKE, VariantKind, WIND, XENON_SPARKS};
 pub use wheels::{Tyre, WheelLayout};
+pub use wind_fx::{
+    MAX_LAYERS as MAX_WIND_LAYERS, WIND_FOLDER, WindLayer, WindProfile, parse as parse_wind_profile, wind_profile_path,
+};
 pub use xenon_variant::{
     MAX_XENON_SPARKS, XENON_FOLDER, XenonProfile, XenonSpark, parse as parse_xenon_profile, xenon_profile_path,
 };

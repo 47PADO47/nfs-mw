@@ -26,6 +26,7 @@ pub(crate) mod settings;
 #[cfg(all(test, feature = "host"))]
 mod settings_tests;
 pub(crate) mod time;
+pub(crate) mod traffic;
 pub(crate) mod ui;
 #[cfg(all(test, feature = "host"))]
 mod ui_tests;

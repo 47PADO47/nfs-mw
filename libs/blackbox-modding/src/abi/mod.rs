@@ -54,10 +54,10 @@ pub use iface::{
     BB_CAMERA_SUPER_FAR, BB_HUD_BIG, BB_HUD_INFO, BB_HUD_WARNING, BbAudio, BbAudioPlayFn, BbCamera,
     BbCameraAvailableFn, BbCameraGetFn, BbCameraInput, BbCameraPose, BbCameraRegisterViewFn, BbCameraSelectViewFn,
     BbCameraSetModeFn, BbCameraState, BbCameraUnregisterViewFn, BbCameraUpdateFn, BbCameraView, BbHud, BbHudHideFn,
-    BbHudMessageFn, BbVec3, BbVehicleAddNosFn, BbVehicleRepairFn, BbVehicleSpawnTrafficFn, BbVehicleState,
-    BbVehicleStateFn, BbVehicleTeleportFn, BbVehicles, BbWorld, BbWorldSetRainFn, BbWorldSetTrafficFn, BbWorldTextFn,
-    IFACE_AUDIO, IFACE_AUDIO_VERSION, IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_HUD, IFACE_HUD_VERSION, IFACE_VEHICLES,
-    IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
+    BbHudMessageFn, BbVec3, BbVehicleAddNosFn, BbVehicleRepairFn, BbVehicleSetDriftAssistFn, BbVehicleSpawnTrafficFn,
+    BbVehicleState, BbVehicleStateFn, BbVehicleTeleportFn, BbVehicles, BbWorld, BbWorldSetRainFn, BbWorldSetTrafficFn,
+    BbWorldTextFn, IFACE_AUDIO, IFACE_AUDIO_VERSION, IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_HUD, IFACE_HUD_VERSION,
+    IFACE_VEHICLES, IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
 };
 pub use iface::{
     BB_CONFIG_FILE, BB_CONFIG_MAIN, BbConfig, BbConfigReadFn, BbConfigSourcesFn, IFACE_CONFIG, IFACE_CONFIG_VERSION,
@@ -84,6 +84,7 @@ pub use iface::{
     BbSettings, BbSettingsAddOptionFn, BbSettingsGetFn, BbSettingsRemoveOptionFn, IFACE_SETTINGS,
     IFACE_SETTINGS_VERSION,
 };
+pub use iface::{BB_TRAFFIC_FIELD, BbTraffic, BbTrafficListFn, BbTrafficSpawnFn, IFACE_TRAFFIC, IFACE_TRAFFIC_VERSION};
 pub use iface::{
     BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn, BbUiSetTokensFn,
     BbUiTokens, BbUiUnregisterThemeFn, IFACE_UI, IFACE_UI_VERSION,

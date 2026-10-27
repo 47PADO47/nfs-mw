@@ -14,8 +14,8 @@ use std::sync::Arc;
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
 use blackbox_modding::content::{
-    NitrousProfile, SparksProfile, TireSmokeProfile, XenonProfile, parse_nitrous_profile, parse_sparks_profile,
-    parse_tire_smoke_profile, parse_xenon_profile,
+    NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile, parse_nitrous_profile,
+    parse_sparks_profile, parse_tire_smoke_profile, parse_wind_profile, parse_xenon_profile,
 };
 use blackbox_modding::host::{HotkeyHandler, OptionsModel};
 use blackbox_ui::ThemeId;
@@ -31,7 +31,7 @@ use super::menus::MenuRow;
 use super::settings::{self, OptionHandler};
 use super::time::{self, Clock, ClockRequest};
 use super::ui::UiRecord;
-use super::variants::{COLLISION_SPARKS_KIND, CacheCell, NITROUS_KIND, TIRE_SMOKE_KIND, XENON_SPARKS_KIND};
+use super::variants::{COLLISION_SPARKS_KIND, CacheCell, NITROUS_KIND, TIRE_SMOKE_KIND, WIND_KIND, XENON_SPARKS_KIND};
 use super::world::{self, WorldRequest};
 use crate::devtools::Console;
 use crate::effect_variants::EffectVariants;
@@ -80,6 +80,8 @@ pub struct Bridge {
     /// The same for the collision spark variant (`collision_sparks_profile`) and the restored spark variant (`xenon_sparks_profile`).
     pub(super) collision_sparks_cache: CacheCell<SparksProfile>,
     pub(super) xenon_sparks_cache: CacheCell<XenonProfile>,
+    /// The same for the wind variant (`wind_profile`).
+    pub(super) wind_cache: CacheCell<WindProfile>,
     /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
     pub(super) ui_themes: RefCell<Vec<UiRecord>>,
     /// The mod theme the player chose on the Mods page, or `None` for the built-in style (`ui.rs`). The theme sync
@@ -123,6 +125,7 @@ impl Bridge {
             tire_smoke_cache: RefCell::default(),
             collision_sparks_cache: RefCell::default(),
             xenon_sparks_cache: RefCell::default(),
+            wind_cache: RefCell::default(),
             ui_themes: RefCell::default(),
             ui_theme_choice: Cell::new(None),
             store,
@@ -185,6 +188,11 @@ impl Bridge {
         self.variant_profile(&XENON_SPARKS_KIND, &self.xenon_sparks_cache, parse_xenon_profile)
     }
 
+    /// The wind variant the player chose, when it is a mod's: `WIND/<value>/profile.toml`.
+    pub fn wind_profile(&self) -> Option<Arc<WindProfile>> {
+        self.variant_profile(&WIND_KIND, &self.wind_cache, parse_wind_profile)
+    }
+
     /// The profiles of every kind of variant the player chose, for the scene (`EffectVariants`). A new kind adds its field here.
     pub fn effect_variants(&self) -> EffectVariants {
         EffectVariants {
@@ -192,6 +200,7 @@ impl Bridge {
             tire_smoke: self.tire_smoke_profile(),
             collision_sparks: self.collision_sparks_profile(),
             xenon_sparks: self.xenon_sparks_profile(),
+            wind: self.wind_profile(),
         }
     }
 

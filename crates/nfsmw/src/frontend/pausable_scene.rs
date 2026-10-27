@@ -219,6 +219,10 @@ impl Scene for Pausable {
         self.inner.add_player_nitrous(amount)
     }
 
+    fn set_player_drift_assist(&mut self, on: bool) {
+        self.inner.set_player_drift_assist(on);
+    }
+
     fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {
         self.inner.set_traffic_density(cars, cop_share);
     }

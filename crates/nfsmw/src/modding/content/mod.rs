@@ -8,6 +8,7 @@
 mod cars;
 mod engine_layers;
 pub mod interior;
+mod lamp_flares;
 pub(crate) mod manufacturers;
 mod music;
 mod racers;

@@ -2060,6 +2060,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "chameleon-anim"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "chameleon-bundle"
 version = "0.1.0"
 dependencies = [
@@ -2104,6 +2112,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "chameleon-postfx"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+]
+
+[[package]]
 name = "chameleon-sound-graph"
 version = "0.1.0"
 dependencies = [
@@ -2124,6 +2139,7 @@ dependencies = [
 name = "chameleon-vehicle"
 version = "0.1.0"
 dependencies = [
+ "chameleon-anim",
  "chameleon-bundle",
  "chameleon-gfx",
  "thiserror 2.0.21",
@@ -4282,6 +4298,7 @@ dependencies = [
  "chameleon-effects",
  "chameleon-engine-state",
  "chameleon-gfx",
+ "chameleon-postfx",
  "chameleon-sound-graph",
  "chameleon-vehicle",
  "ea-audio",
@@ -4338,6 +4355,7 @@ dependencies = [
  "glam 0.34.1",
  "log",
  "serde",
+ "toml 0.9.12+spec-1.1.0",
 ]
 
 [[package]]

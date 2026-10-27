@@ -22,10 +22,15 @@ pub(crate) enum Kind {
     ModBoth(String),
     /// A mod car that only the cops drive, with its unit.
     ModPolice(String),
+    /// A mod car that is only traffic, with its traffic unit.
+    ModTraffic(String),
 }
 
 /// The kind of a mod car.
 pub(crate) fn mod_kind(car: &ModCar) -> Kind {
+    if let (None, false, Some(unit)) = (&car.cop, car.player, &car.traffic) {
+        return Kind::ModTraffic(unit.describe());
+    }
     match (&car.cop, car.player) {
         (None, _) => Kind::ModPlayer,
         (Some(unit), true) => Kind::ModBoth(unit.describe()),
@@ -71,12 +76,17 @@ pub(crate) fn render(entries: Vec<(String, Kind)>) -> String {
         Kind::ModPolice(unit) => Some(format!(" [{unit}]")),
         _ => None,
     };
-    let sections: [(&str, String); 6] = [
+    let traffic = |kind: &Kind| match kind {
+        Kind::ModTraffic(unit) => Some(format!(" [{unit}]")),
+        _ => None,
+    };
+    let sections: [(&str, String); 7] = [
         ("racing cars", join(&plain(Kind::Racing), &entries)),
         ("police cars", join(&plain(Kind::Police), &entries)),
         ("mod player cars", join(&plain(Kind::ModPlayer), &entries)),
         ("mod police cars (cop only)", join(&police, &entries)),
         ("mod cars that are both player and police", join(&tagged, &entries)),
+        ("mod traffic cars", join(&traffic, &entries)),
         ("other folders", join(&plain(Kind::Other), &entries)),
     ];
     let lines: Vec<String> = sections
@@ -99,6 +109,7 @@ mod tests {
             ("FASTCOUPE".to_owned(), Kind::ModPlayer),
             ("SUVCOP".to_owned(), Kind::ModPolice("heavy, heat 6 x2 @80%".to_owned())),
             ("DUAL".to_owned(), Kind::ModBoth("patrol, heat 1 x2 @10%".to_owned())),
+            ("HATCH_TR".to_owned(), Kind::ModTraffic("compact, weight 20, no limit, x1, every pattern".to_owned())),
         ];
         let text = render(entries);
         let lines: Vec<&str> = text.lines().collect();
@@ -107,7 +118,8 @@ mod tests {
         assert_eq!(lines[2], "mod player cars: FASTCOUPE");
         assert_eq!(lines[3], "mod police cars (cop only): SUVCOP [heavy, heat 6 x2 @80%]");
         assert_eq!(lines[4], "mod cars that are both player and police: DUAL [patrol, heat 1 x2 @10%]");
-        assert_eq!(lines.len(), 5, "a category with no car has no line");
+        assert_eq!(lines[5], "mod traffic cars: HATCH_TR [compact, weight 20, no limit, x1, every pattern]");
+        assert_eq!(lines.len(), 6, "a category with no car has no line");
     }
 
     #[test]

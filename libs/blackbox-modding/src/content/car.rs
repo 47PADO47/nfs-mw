@@ -6,7 +6,9 @@ use super::cop::{self, CopClass, CopWave};
 use super::customization::{self, Customization};
 use super::damage_parts::{self, DamagePart, Wing};
 use super::engine_sound::{self, CarEffects, EngineSound};
+use super::lamp_flares::{self, LampFlare, LightBar};
 use super::stats::{self, Stats};
+use super::traffic::{self, Traffic};
 use super::wheels::{self, WheelLayout};
 use super::{ContentError, is_id};
 
@@ -19,12 +21,21 @@ pub enum Role {
     Cop,
     /// Both.
     Both,
+    /// Drives the roads as ordinary traffic, with the numbers of the `[traffic]` table ([`CarManifest::traffic`]); nobody
+    /// drives or chases with it.
+    Traffic,
 }
 
 impl Role {
     /// Whether the car is a player car.
     pub fn is_player(self) -> bool {
         matches!(self, Self::Player | Self::Both)
+    }
+
+    /// Whether the car is traffic only. A car of another role may be traffic too: it has a `[traffic]` table
+    /// ([`CarManifest::traffic`]).
+    pub fn is_traffic(self) -> bool {
+        matches!(self, Self::Traffic)
     }
 
     /// Whether the car is a cop car.
@@ -67,6 +78,13 @@ pub struct CarManifest {
     pub wheels: Option<WheelLayout>,
     /// The machine that plays the keyed animations of the parts with tracks (`[wing]`).
     pub wing: Option<Wing>,
+    /// The flares and glows the car's lamps are drawn with (`[[lamp_flare]]`). Empty: the lamp markers and the game's flares.
+    pub lamp_flares: Vec<LampFlare>,
+    /// The siren lamps of the car's light bar (`[[light_bar]]`). Empty: the `COPLIGHT*` markers, if any.
+    pub light_bars: Vec<LightBar>,
+    /// How the car joins the game's traffic (`role = "traffic"`, or a `[traffic]` table next to another role). `None`: it is
+    /// not traffic.
+    pub traffic: Option<Traffic>,
 }
 
 /// The file as serde reads it. Unknown keys are an error, so a key the game does not support (an `[override]`
@@ -98,6 +116,12 @@ struct Raw {
     #[serde(default)]
     wheels: Option<wheels::Raw>,
     wing: Option<damage_parts::RawWing>,
+    #[serde(default)]
+    lamp_flare: Option<Vec<lamp_flares::RawFlare>>,
+    #[serde(default)]
+    light_bar: Option<Vec<lamp_flares::RawBar>>,
+    #[serde(default)]
+    traffic: Option<traffic::Raw>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -107,6 +131,7 @@ enum RawRole {
     Player,
     Cop,
     Both,
+    Traffic,
 }
 
 impl From<RawRole> for Role {
@@ -115,6 +140,7 @@ impl From<RawRole> for Role {
             RawRole::Player => Role::Player,
             RawRole::Cop => Role::Cop,
             RawRole::Both => Role::Both,
+            RawRole::Traffic => Role::Traffic,
         }
     }
 }
@@ -145,6 +171,9 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     let damage_parts = damage_parts::check(raw.damage_parts)?;
     let wheels = wheels::check(raw.wheels)?;
     let wing = damage_parts::check_wing(raw.wing, &damage_parts)?;
+    let lamp_flares = lamp_flares::check_flares(raw.lamp_flare)?;
+    let light_bars = lamp_flares::check_bars(raw.light_bar)?;
+    let traffic = traffic::check(raw.traffic, role.is_traffic())?;
     Ok(CarManifest {
         id: stem.to_ascii_uppercase(),
         role,
@@ -160,6 +189,9 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
         damage_parts,
         wheels,
         wing,
+        lamp_flares,
+        light_bars,
+        traffic,
     })
 }
 

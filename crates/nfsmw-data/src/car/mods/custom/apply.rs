@@ -28,7 +28,9 @@ pub fn apply(
     apply_choices(dir, folder, custom, selection, lod, model)?;
     let Some(plate) = &custom.plate else { return Ok(()) };
     // A sheet that cannot be drawn leaves the plate as authored: a car is still a car.
-    if let Err(error) = super::plate::apply(dir, folder, plate, selection.plate.as_deref(), model) {
+    if let Err(error) =
+        super::plate::apply(dir, folder, plate, selection.plate.as_deref(), selection.plate_design.as_deref(), model)
+    {
         log::warn!("{folder}: its plate is not drawn: {error:#}");
     }
     Ok(())

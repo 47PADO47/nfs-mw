@@ -39,6 +39,9 @@ pub const COLLISION_SPARKS: VariantKind = VariantKind { option: "collision_spark
 /// The restored spark variants (`xenon_variant`): the line sparks of the Restored (Experimental) spark style.
 pub const XENON_SPARKS: VariantKind = VariantKind { option: "xenon_spark_variant", folder: "XENON" };
 
+/// The wind variants (`wind_fx`): the loops that play with the car's speed.
+pub const WIND: VariantKind = VariantKind { option: "wind_variant", folder: "WIND" };
+
 /// Refuse a profile whose `format` is not the one this version reads.
 pub(super) fn check_format(format: u32) -> Result<(), ContentError> {
     if format != FORMAT {
@@ -59,7 +62,7 @@ mod tests {
 
     #[test]
     fn the_kinds_have_distinct_options_and_folders() {
-        let kinds = [NITROUS, TIRE_SMOKE, COLLISION_SPARKS, XENON_SPARKS];
+        let kinds = [NITROUS, TIRE_SMOKE, COLLISION_SPARKS, XENON_SPARKS, WIND];
         for (at, kind) in kinds.iter().enumerate() {
             for other in &kinds[at + 1..] {
                 assert_ne!(kind.option, other.option);
@@ -68,6 +71,7 @@ mod tests {
         }
         assert_eq!(COLLISION_SPARKS.profile_path("mw2012"), "SPARKS/MW2012/profile.toml");
         assert_eq!(XENON_SPARKS.profile_path("mw2012"), "XENON/MW2012/profile.toml");
+        assert_eq!(WIND.profile_path("mw2012"), "WIND/MW2012/profile.toml");
     }
 
     #[test]

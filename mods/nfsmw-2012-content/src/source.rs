@@ -8,9 +8,9 @@ use anyhow::{Context, Result, bail};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_gfx::Texture;
 use chameleon_vehicle::{
-    Driver, Lamps, PaintPackGroup, PaintSurface, PoliceMarks, PolySoup, Vehicle, VehiclePaint, driver_meshes,
-    find_spec, load, load_driver, load_poly_soup, load_texture, localised_text, paint_packs, paint_surfaces, paints,
-    police_marks, read_lamps, remove_baked_driver, vehicle_name,
+    Driver, DriverRig, Lamps, PaintPackGroup, PaintSurface, PoliceMarks, PolySoup, Vehicle, VehiclePaint,
+    driver_meshes, find_spec, load, load_driver, load_poly_soup, load_rig, load_texture, localised_text, paint_packs,
+    paint_surfaces, paints, police_marks, read_lamps, remove_baked_driver, vehicle_name,
 };
 
 use crate::liveries::{self, Signature};
@@ -58,6 +58,8 @@ pub struct SourceCar {
 /// in its [`SourceCar::vehicle`]: the character its driver setup names takes its place there, as in every other car.
 pub struct DriverFigure {
     pub driver: Driver,
+    /// The figure's skeleton, clips and skin, when they read: without them the driver stays in its seated pose.
+    pub rig: Option<DriverRig>,
     pub textures: HashMap<u64, Texture>,
 }
 
@@ -122,6 +124,17 @@ impl Source {
         })
     }
 
+    /// The install's folder.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// The bundles every vehicle bundle needs besides its own: the shared vehicle textures and the shaders. For a reader that
+    /// loads a bundle of its own kind (a traffic or a low-detail bundle) into a pool.
+    pub fn shared_bundles(&self) -> (&[u8], &[u8]) {
+        (&self.textures, &self.shaders)
+    }
+
     /// A file of the install, by its path under the install's folder.
     pub fn read_file(&self, rel: &str) -> Result<Vec<u8>> {
         let path = self.root.join(rel);
@@ -163,6 +176,11 @@ impl Source {
     pub fn plate_text(&self, file: &CarFile) -> Option<String> {
         let entry = self.list.iter().find(|entry| entry.file() == file.number)?;
         Some(self.plates.as_ref()?.text(entry.pack))
+    }
+
+    /// The licence plate texts, game packs and designs of the install (`crate::plate`); `None` when they do not read.
+    pub fn plates(&self) -> Option<&crate::plate::Plates> {
+        self.plates.as_ref()
     }
 
     /// The paints of the car in `file`, read without decoding the rest of its bundle; none when it does not read.
@@ -327,7 +345,14 @@ impl Source {
                 textures.insert(id, load_texture(&pool, id)?);
             }
         }
-        Ok(DriverFigure { driver, textures })
+        let rig = match load_rig(&pool, key) {
+            Ok(rig) => Some(rig),
+            Err(error) => {
+                log::warn!("the driver {key:X} cannot be posed, it stays seated: {error:#}");
+                None
+            }
+        };
+        Ok(DriverFigure { driver, rig, textures })
     }
 }
 

@@ -58,6 +58,7 @@ fn register(game: &GameDir, mod_dir: &Path) {
         stats: CarStats::from(&manifest.stats),
         engine_sound: None,
         car_effects: None,
+        traffic: None,
     };
     let (cars, rejected) = car_mods::register(&tables.types, &[spec]);
     assert!(rejected.is_empty(), "{rejected:?}");

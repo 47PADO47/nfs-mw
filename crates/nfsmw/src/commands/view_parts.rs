@@ -1,6 +1,7 @@
 //! `view-car --part paint=12 --part vinyl=30`: the car with parts of the auto shop picked by number, to look at a car's
 //! paint and liveries without starting the world. The numbers are the ones the `parts` console command lists.
-//! `--part plate=TEXT` puts a text on the licence plate of a car that has one (a mod car with `[customization.plate]`).
+//! `--part plate=TEXT` puts a text on the licence plate of a car that has one (a mod car with `[customization.plate]`), and
+//! `--part plate-design=ID` a design behind its glyphs (the id of the car's `designs` index; `none` is the plain plate).
 
 use anyhow::{Context, Result, bail};
 use game_install::GameDir;
@@ -22,6 +23,14 @@ fn category(key: &str) -> Option<Category> {
     })
 }
 
+/// The plate design id a `--part plate-design=` value names: `none` (or nothing) is the plain plate, whose id is empty.
+fn design_id(value: &str) -> String {
+    match value.eq_ignore_ascii_case("none") {
+        true => String::new(),
+        false => value.to_owned(),
+    }
+}
+
 /// The selection `parts` ask for on the car in `folder`: each is `category=number`, with the number counted from 1 as
 /// the `parts` console command lists them.
 pub(super) fn selection(dir: &GameDir, folder: &str, parts: &[String]) -> Result<Selection> {
@@ -38,9 +47,13 @@ pub(super) fn selection(dir: &GameDir, folder: &str, parts: &[String]) -> Result
             selection.plate = Some(number.to_owned());
             continue;
         }
+        if key == "plate-design" {
+            selection.plate_design = Some(design_id(number));
+            continue;
+        }
         let Some(category) = category(key) else {
             bail!(
-                "--part {part}: the category is body, spoiler, hood, roof, rims, paint, tint, rimpaint, vinyl or plate"
+                "--part {part}: the category is body, spoiler, hood, roof, rims, paint, tint, rimpaint, vinyl, plate or plate-design"
             );
         };
         let choice = number
@@ -63,5 +76,12 @@ mod tests {
         assert_eq!(category("vinyl"), Some(Category::Vinyl));
         assert_eq!(category("rimpaint"), Some(Category::RimPaint));
         assert_eq!(category("wings"), None);
+    }
+
+    #[test]
+    fn the_plain_plate_is_the_design_none() {
+        assert_eq!(design_id("none"), "");
+        assert_eq!(design_id("NONE"), "");
+        assert_eq!(design_id("1863272"), "1863272");
     }
 }

@@ -10,9 +10,12 @@ mod appearance;
 mod arch;
 mod collision;
 mod colour_palette;
+mod corona_records;
+mod damage_clip;
 mod drift;
 mod drift_model;
 mod driver;
+mod driver_rig;
 mod error;
 mod genesys;
 mod hinged;
@@ -25,17 +28,24 @@ mod paint;
 mod paint_pack;
 mod paint_surface;
 mod plate;
+mod plate_design;
 mod police;
 mod skeleton;
 mod skin;
+mod slide;
 mod spec;
 mod stats;
+mod traffic;
 mod two_colour;
 mod vehicle;
 mod wing;
 
 #[cfg(test)]
+mod damage_clip_tests;
+#[cfg(test)]
 mod drift_tests;
+#[cfg(test)]
+mod driver_rig_tests;
 #[cfg(test)]
 mod driver_tests;
 #[cfg(test)]
@@ -52,9 +62,12 @@ pub use appearance::{Appearance, LampCircuit, LampEnd, LampSide, LampSurface, Su
 pub use arch::{TyreVolume, intrusion, prefer_other};
 pub use collision::{PolySoup, load_poly_soup};
 pub use colour_palette::{ColourGroup, TwoColourPack, colour_groups};
+pub use corona_records::{CoronaRecord, read_corona_records};
+pub use damage_clip::{BREAK_STEP_M, BonePose, BoneTrack, DamageClip, damage_clips};
 pub use drift::{DriftNitrous, DriftPayout, DriftPhysics, TANK_UNITS, read_drift_nitrous, read_drift_physics};
 pub use drift_model::{DriftInput, DriftModel, DriftOutput, DriftParams, DriftSummary, HIT_ENDS};
 pub use driver::{Driver, DriverSetup, driver_meshes, driver_setup, is_driver, load_driver, remove_baked_driver};
+pub use driver_rig::{DriverPose, DriverRig, Grips, LOOK_BACK_CLIP, STEERING_CLIP, driver_grips, load_rig};
 pub use error::{Error, Result};
 pub use hinged::{HingedPart, hinged_parts};
 pub use hsm::{DriveSpec, Guard, Threshold};
@@ -69,11 +82,18 @@ pub use plate::{
     SLOTS as PLATE_SLOTS, cells as plate_cells, default_for as plate_default_for, default_texts as plate_default_texts,
     game_packs, is_plate_technique, registration as plate_registration,
 };
+pub use plate_design::{
+    Area as PlateArea, DESIGN_PICTURES as PLATE_DESIGN_PICTURES, PlateDesign, STRIP_ASPECT as PLATE_STRIP_ASPECT,
+    design_band as plate_design_band, design_picture as plate_design_picture,
+    design_picture_path as plate_design_picture_path, design_plate as plate_design_plate, plate_designs,
+};
 pub use police::{PoliceMarks, police_marks};
 pub use skeleton::{Bone, Skeleton, bone_hash};
 pub use skin::{BodyParts, body_parts};
+pub use slide::{DriftHandling, read_drift_handling};
 pub use spec::{GraphicsSpec, WheelSpec, find_spec};
 pub use stats::{TorqueKnot, VehicleStats, WheelStats, read_stats};
+pub use traffic::{TrafficName, traffic_name};
 pub use two_colour::{Mask, Sheet};
 pub use vehicle::{Lod, PartMesh, Vehicle, Wheel, load, load_texture};
 pub use wing::{WingBoneTrack, WingMachine, WingParams, wing_machine};

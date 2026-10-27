@@ -19,10 +19,15 @@ pub(crate) const SETUP: &str = "Genesys.Gen.Vehicle_DriverSetup";
 const SEAT_AT: usize = 0x10;
 const CHARACTER_AT: usize = 0x24;
 const BELTS_AT: usize = 0x42;
+/// Where the locator group ids of the gear lever and of the two hand grips on the wheel, and the key of the car's own grip
+/// pose clip sit in the object (`docs/formats/chameleon-driver-animation.md`).
+const SHIFTER_AT: usize = 0x2C;
+const GRIPS_AT: usize = 0x30;
+const POSE_AT: usize = 0x50;
 /// A seat further than this from the car's origin, on any axis, is no seat: the one car without a driver says 19.
 const MAX_SEAT: f32 = 10.0;
 /// Where a `CharacterSpec` keeps the import of its model.
-const MODEL_AT: u32 = 0x20;
+pub(crate) const MODEL_AT: u32 = 0x20;
 /// The end of the technique name of the material of the driver baked into a body.
 const BAKED_TECHNIQUE: &str = "_Driver";
 
@@ -36,6 +41,12 @@ pub struct DriverSetup {
     /// The number of seat belt bones the car sets up: 3 for a belt, 4 for a racing harness. The figure with the harness
     /// goes with the 4.
     pub belts: u16,
+    /// The id of the locator group (in the car's spec) of the gear lever the driver's hand goes to; 0 for a car with none.
+    pub shifter_group: u32,
+    /// The id of the locator group of the two hand grips on the steering wheel (left and right hand); 0 for a car with none.
+    pub grip_group: u32,
+    /// The low word of the id of the clip of the character's animation list that poses the hands for this car's wheel.
+    pub pose_clip: u32,
 }
 
 impl DriverSetup {
@@ -46,6 +57,9 @@ impl DriverSetup {
             character: object.u32(base + CHARACTER_AT)?,
             seat: seat.iter().all(|c| c.abs() < MAX_SEAT).then_some(seat),
             belts: object.u16(base + BELTS_AT)?,
+            shifter_group: object.u32(base + SHIFTER_AT)?,
+            grip_group: object.u32(base + GRIPS_AT)?,
+            pose_clip: object.u32(base + POSE_AT)?,
         })
     }
 }

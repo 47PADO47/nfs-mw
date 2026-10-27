@@ -8,6 +8,8 @@
 
 use chameleon_vehicle::VehicleStats;
 
+use crate::drift_stats::DriftKeys;
+
 /// Most points of the torque curve the manifest allows.
 const MAX_POINTS: usize = 16;
 /// Closest a sampled point may come to a knot of the curve, as a share of the curve's span.
@@ -51,6 +53,8 @@ pub struct ImportedStats {
     pub brake_torque_nm: [f32; 2],
     /// Extra torque while nitrous burns; 0 when the car has none.
     pub nitrous_boost: f32,
+    /// The car's drift numbers (`drift_*` keys), set by the importer from the car's handling; `None` writes no key.
+    pub drift: Option<DriftKeys>,
 }
 
 impl ImportedStats {
@@ -95,6 +99,7 @@ impl ImportedStats {
             tire_grip: car.tire_grip.map(|grip| grip.clamp(GRIP.0, GRIP.1)),
             brake_torque_nm: car.brake_torque_nm.map(|nm| nm.clamp(BRAKE.0, BRAKE.1)),
             nitrous_boost: (car.nitrous_strength - 1.0).clamp(0.0, 3.0),
+            drift: None,
         }
     }
 
@@ -136,6 +141,9 @@ impl ImportedStats {
         if nitrous {
             line("nitrous_boost", number(self.nitrous_boost));
         }
+        if let Some(drift) = &self.drift {
+            text.push_str(&drift.lines());
+        }
         text
     }
 
@@ -165,7 +173,7 @@ impl ImportedStats {
 }
 
 /// A number as the manifest writes it: four decimals at most, always with a decimal point.
-fn number(value: f32) -> String {
+pub(crate) fn number(value: f32) -> String {
     let rounded = (value * 10_000.0).round() / 10_000.0;
     format!("{rounded:?}")
 }

@@ -160,6 +160,53 @@ fn a_stats_number_outside_its_range_is_refused_with_its_name() {
 }
 
 #[test]
+fn the_drift_keys_are_optional_and_checked() {
+    assert_eq!(car("").unwrap().stats.drift, DriftStats::default());
+    let drift = car("[stats]
+drift_enter_speed_ms = 12.0
+drift_enter_angle_deg = 8.5
+drift_exit_angle_deg = 4.0
+drift_max_angle_deg = 45.0
+drift_yaw_torque_nm = 37500.0
+")
+    .unwrap()
+    .stats
+    .drift;
+    assert_eq!(
+        drift,
+        DriftStats {
+            enter_speed: 12.0,
+            enter_angle_deg: 8.5,
+            exit_angle_deg: 4.0,
+            max_angle_deg: 45.0,
+            yaw_torque_nm: 37_500.0
+        }
+    );
+    let car_stats = blackbox_vehicle::stats::CarStats::from(
+        &car("[stats]
+drift_yaw_torque_nm = 1000.0
+")
+        .unwrap()
+        .stats,
+    );
+    assert_eq!(car_stats.drift.yaw_torque_nm, 1000.0);
+    for text in [
+        "drift_enter_angle_deg = 40.0",
+        "drift_yaw_torque_nm = -1.0",
+        "drift_enter_angle_deg = 4.0
+drift_exit_angle_deg = 5.0",
+    ] {
+        let error = car(&format!(
+            "[stats]
+{text}
+"
+        ))
+        .unwrap_err();
+        assert!(matches!(error, ContentError::Field { .. }), "{error}");
+    }
+}
+
+#[test]
 fn stats_that_contradict_each_other_are_refused() {
     let redline = car("[stats]
 idle_rpm = 2000.0

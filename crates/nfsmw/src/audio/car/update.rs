@@ -151,14 +151,13 @@ impl Audio {
         );
         let ambient_levels = car.mixer.as_ref().map_or_else(Default::default, CarMixer::ambient);
         car.ambient.update_rain(self, view, ambient_levels.rain, frame.dt);
-        car.ambient.update_with_context(
-            self,
-            &input,
-            &commands,
-            car.mixer.as_ref().map_or_else(Default::default, CarMixer::ambient),
-            frame.dt,
-            frame.telemetry.road.as_ref(),
-        );
+        // A mod's wind variant plays its own loops; the game's wind module then plays no left, right or rumble sound.
+        let mut wind_levels = car.mixer.as_ref().map_or_else(Default::default, CarMixer::ambient);
+        if car.wind.update(self, frame.wind_fx, input.speed) {
+            let [left_azimuth, right_azimuth, _, _, _, pitch] = wind_levels.wind;
+            wind_levels.wind = [left_azimuth, right_azimuth, 0, 0, 0, pitch];
+        }
+        car.ambient.update_with_context(self, &input, &commands, wind_levels, frame.dt, frame.telemetry.road.as_ref());
         let power_levels = car.mixer.as_ref().map(CarMixer::power);
         let power_frame = power_effects::PowerFrame {
             physics_rpm: out.physics_rpm,

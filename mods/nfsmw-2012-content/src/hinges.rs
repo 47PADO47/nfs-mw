@@ -13,13 +13,17 @@ use blackbox_solid::{GroupSource, SolidSource, Vertex};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_vehicle::{
     DriveSpec, Guard, HingedPart, Skeleton, SpoilerMotion, Vehicle, WingBoneTrack, WingMachine, attached_motions,
-    body_parts, flap_motions, hinged_parts, spoiler_motion, vent_motions, wing_machine,
+    body_parts, damage_clips, flap_motions, hinged_parts, spoiler_motion, vent_motions, wing_machine,
 };
+
+use crate::damage_model::{self, PartDamage};
 
 use crate::fit::{Fit, to_car_space};
 
 /// Most thresholds a manifest entry may hold (`blackbox_modding::content::MAX_STAGES`).
 const MAX_STAGES: usize = 8;
+/// Most parts a manifest may list (`blackbox_modding::content::MAX_DAMAGE_PARTS`).
+const MAX_PARTS: usize = 64;
 
 /// The hinged parts of a car and which of the finest body level's triangles belong to each.
 #[derive(Debug, Clone, PartialEq)]
@@ -54,6 +58,8 @@ pub struct Part {
     pub drives: Vec<DriveSpec>,
     /// The keys the wing machine's animations give the part.
     pub tracks: Vec<WingBoneTrack>,
+    /// What the car's damage clips say about the part: its turn at the three panel levels and when it breaks off.
+    pub damage: Option<PartDamage>,
 }
 
 /// The name of the bone of an active spoiler, and the zone code (the rear) it is given when the car has no record of it.
@@ -76,6 +82,8 @@ struct Moving {
 pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Option<Hinged> {
     let mut parts = hinged_parts(bundle).ok()?;
     let skeleton = Skeleton::read(bundle)?;
+    let clips = damage_clips(bundle);
+    let real_bones: Vec<usize> = parts.iter().map(|part| part.bone).collect();
     let motion = spoiler_motion(bundle, &skeleton);
     let machine = wing_machine(bundle, &skeleton);
     // The spoiler and the other bones its animation moves, each with the motion it plays.
@@ -149,6 +157,7 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
             limits: [[0.0; 2]; 3],
             mass_kg: SPOILER_MASS_KG,
             thresholds: Vec::new(),
+            targets: Vec::new(),
         });
     }
     let mut wing_bones: Vec<usize> = machine.iter().flat_map(|m| m.tracks.iter().map(|t| t.bone)).collect();
@@ -169,8 +178,14 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
             limits: [[0.0; 2]; 3],
             mass_kg: SPOILER_MASS_KG,
             thresholds: Vec::new(),
+            targets: Vec::new(),
         });
     }
+    let known: Vec<usize> = parts.iter().map(|part| part.bone).collect();
+    let room = MAX_PARTS.saturating_sub(parts.len());
+    parts.extend(damage_model::pieces(&clips, &skeleton, &known, room));
+    let breaking: Vec<usize> =
+        clips.iter().flat_map(|clip| clip.tracks.iter().filter(|t| t.break_key().is_some()).map(|t| t.bone)).collect();
     let active_bones: Vec<usize> = moving.iter().map(|mover| mover.bone).chain(wing_bones.iter().copied()).collect();
     let levels = body_parts(pool, spec, &skeleton, &parts).ok()?;
     let finest = levels.into_iter().next()?;
@@ -183,7 +198,9 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
     let mut counts = vec![0usize; parts.len()];
     finest.iter().flatten().flatten().for_each(|&part| counts[part] += 1);
     let keep: Vec<usize> = (0..parts.len())
-        .filter(|&at| (counts[at] > 0 || wing_bones.contains(&parts[at].bone)) && usable(&parts[at], &active_bones))
+        .filter(|&at| {
+            (counts[at] > 0 || wing_bones.contains(&parts[at].bone)) && usable(&parts[at], &active_bones, &breaking)
+        })
         .collect();
     if keep.is_empty() {
         return None;
@@ -200,10 +217,19 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 wing_bones.contains(&part.bone).then_some(up).filter(|up| wing_bones.contains(up))
             });
             let parent = ride.and_then(|bone| parts.iter().find(|known| known.bone == bone));
+            let tracks: Vec<WingBoneTrack> =
+                machine.iter().flat_map(|m| m.tracks.iter().filter(|t| t.bone == part.bone).cloned()).collect();
+            let damage = damage_model::part_damage(&clips, &skeleton, &real_bones, part.bone, part.zone);
+            // A piece that turns with the part it sits on turns about that part's hinge.
+            let still = moves.is_some() || !tracks.is_empty();
+            let hinge = match damage.is_some_and(|d| d.swing.is_some()) && !still {
+                true => damage_model::carrier(&skeleton, &real_bones, part.bone),
+                false => part.bone,
+            };
             Part {
                 name: part.name.clone(),
                 zone: part.zone,
-                pivot: skeleton.bones[part.bone].position,
+                pivot: skeleton.bones[hinge].position,
                 limits: part.limits,
                 thresholds: part.thresholds.clone(),
                 mass_kg: part.mass_kg,
@@ -211,16 +237,18 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 delay: moves.and_then(|mover| mover.delay),
                 drives: moves.map(|mover| mover.drives.clone()).unwrap_or_default(),
                 parent: parent.map(|known| label(&known.name)),
-                tracks: machine.iter().flat_map(|m| m.tracks.iter().filter(|t| t.bone == part.bone).cloned()).collect(),
+                tracks,
+                damage,
             }
         })
         .collect();
     Some(Hinged { parts, wing: machine, classes })
 }
 
-/// A part the game can play: a zone it knows and a range to swing through, or the active spoiler (`spoiler` is its bone).
-fn usable(part: &HingedPart, active_bones: &[usize]) -> bool {
-    zones(part.zone).is_some() && (swing(&part.limits).is_some() || active_bones.contains(&part.bone))
+/// A part the game can play: a zone it knows and a range to swing through, the active spoiler, or a piece that breaks off.
+fn usable(part: &HingedPart, active_bones: &[usize], breaking: &[usize]) -> bool {
+    let moves = swing(&part.limits).is_some() || active_bones.contains(&part.bone) || breaking.contains(&part.bone);
+    zones(part.zone).is_some() && moves
 }
 
 /// The name of a flap the spoiler's animation moves: which side it moves to (the engine's x is to the left), else its number.

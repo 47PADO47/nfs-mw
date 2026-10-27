@@ -53,6 +53,9 @@ pub struct Options {
     /// The driver seated in the car at every level of detail, finest first, in the 2012 engine's space like the body; its
     /// textures are among `car.textures`.
     pub driver: Option<Vec<Lod>>,
+    /// The driver posed for the steering and the look back (`crate::driver_poses`), in the same space; empty for a car without
+    /// a driver.
+    pub driver_poses: Vec<crate::driver_poses::BakedPose>,
 }
 
 /// Where a mesh's surface gets its look from in the 2005 car shader.
@@ -115,6 +118,16 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
         add_solids(&mut solids, &format!("{folder}_KIT00_DRIVER"), driver, &driver_parts, &mut |mesh| {
             // Clothes and skin do not shine.
             Look { light_material: "MATTEPLASTIC", ..look(mesh, car, folder, options, &mut palette) }
+        })?;
+    }
+    for pose in &options.driver_poses {
+        let no_markers = |_: usize| Vec::new();
+        let pose_parts = Parts { transform: &body, markers: &no_markers };
+        let stem = format!("{folder}_KIT00_DRIVER_{}", pose.suffix);
+        let letters = crate::driver_poses::POSED_LETTERS;
+        add_levels(&mut solids, &stem, &pose.lods, &pose_parts, letters, &mut |mesh| Look {
+            light_material: "MATTEPLASTIC",
+            ..look(mesh, car, folder, options, &mut palette)
         })?;
     }
     let geometry = write_geometry_pack(&solids).context("writing GEOMETRY.BIN")?;
@@ -205,8 +218,20 @@ fn add_solids(
     parts: &Parts,
     look: &mut dyn FnMut(&PartMesh) -> Look,
 ) -> Result<()> {
+    add_levels(out, stem, lods, parts, LOD_LETTERS.len(), look)
+}
+
+/// [`add_solids`] for the first `letters` of the levels only (the poses of the driver have `A` and `B`).
+fn add_levels(
+    out: &mut Vec<SolidSource>,
+    stem: &str,
+    lods: &[Lod],
+    parts: &Parts,
+    letters: usize,
+    look: &mut dyn FnMut(&PartMesh) -> Look,
+) -> Result<()> {
     let mut built: Vec<(usize, SolidSource)> = Vec::new();
-    for (at, (letter, wanted)) in LOD_LETTERS.iter().zip(LOD_SOURCE).enumerate() {
+    for (at, (letter, wanted)) in LOD_LETTERS.iter().zip(LOD_SOURCE).enumerate().take(letters) {
         let Some((level, lod)) = pick_lod(lods, wanted) else { bail!("{stem}: no level of detail fits one solid") };
         let name = format!("{stem}_{letter}");
         let mut solid = match built.iter().find(|(known, _)| *known == level) {

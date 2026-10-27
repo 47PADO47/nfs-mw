@@ -70,6 +70,22 @@ fn nitrous_is_queued_for_the_scene_and_needs_a_car() {
 }
 
 #[test]
+fn the_drift_assist_is_queued_for_the_scene_and_needs_a_car() {
+    let (bridge, port) = port();
+    bridge.sync(&mut Recorder::without_clock());
+    assert_eq!(port.set_drift_assist("example.a", true), Err(BB_ERR_NOT_READY));
+    assert!(bridge.world_requests.borrow().is_empty(), "a refused call queues nothing");
+
+    bridge.sync(&mut Recorder::driving([0.0; 3], 0.0));
+    port.set_drift_assist("example.a", true).expect("a car is driven");
+    port.set_drift_assist("example.a", false).expect("a car is driven");
+    let requests = std::mem::take(&mut *bridge.world_requests.borrow_mut());
+    let mut scene = Recorder::driving([0.0; 3], 0.0);
+    apply(requests, &mut scene);
+    assert_eq!(scene.drift_assist, vec![true, false]);
+}
+
+#[test]
 fn a_move_and_a_repair_reach_the_scene_in_order() {
     let (bridge, port) = port();
     bridge.sync(&mut Recorder::driving([0.0; 3], 0.0));

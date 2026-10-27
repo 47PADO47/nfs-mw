@@ -9,26 +9,26 @@ pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
     for (part, stem) in hinged.parts.iter().zip(stems) {
         let Some(zones) = zones(part.zone) else { continue };
         let still = part.active.is_some() || !part.tracks.is_empty();
-        let Some((axis, angle)) = swing(&part.limits).or(still.then_some((0, 0.0))) else { continue };
-        let mut direction = [0.0f32; 3];
-        direction[axis] = 1.0;
-        let axis = to_car_space(direction);
+        let Some(turn) = turn_of(part, still) else { continue };
+        let (axis, angle, stages) = (to_car_space(turn.axis), turn.angle, turn.stages);
         let pivot = fit.apply(to_car_space(part.pivot));
-        let mut stages: Vec<f32> = part.thresholds.iter().map(|t| t.clamp(0.0, 1.0)).collect();
-        stages.sort_by(f32::total_cmp);
-        stages.truncate(MAX_STAGES);
         let name = label(&part.name);
         let zone_list: Vec<String> = zones.iter().map(|zone| format!("\"{zone}\"")).collect();
         text.push_str("\n[[damage_parts]]\n");
         text.push_str(&format!("name = \"{name}\"\nmodel = \"{stem}\"\n"));
         text.push_str(&format!("zones = [{}]\n", zone_list.join(", ")));
         text.push_str(&format!("pivot = [{:.5}, {:.5}, {:.5}]\n", pivot[0], pivot[1], pivot[2]));
-        text.push_str(&format!("axis = [{:.1}, {:.1}, {:.1}]\nangle = {angle:.2}\n", axis[0], axis[1], axis[2]));
+        text.push_str(&format!("axis = [{:.4}, {:.4}, {:.4}]\nangle = {angle:.2}\n", axis[0], axis[1], axis[2]));
         text.push_str(&format!("mass_kg = {:.1}\n", part.mass_kg.clamp(0.5, 5000.0)));
         if !stages.is_empty() {
             let list: Vec<String> = stages.iter().map(|s| format!("{s:.4}")).collect();
             text.push_str(&format!("stages = [{}]\n", list.join(", ")));
         }
+        if !turn.stage_angles.is_empty() {
+            let list: Vec<String> = turn.stage_angles.iter().map(|a| format!("{a:.3}")).collect();
+            text.push_str(&format!("stage_angles = [{}]\n", list.join(", ")));
+        }
+        text.push_str(&release_text(part.damage.map(|damage| damage.release)));
         if let Some(parent) = &part.parent {
             text.push_str(&format!("parent = \"{parent}\"\n"));
         }
@@ -46,6 +46,40 @@ pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
         text.push_str(&wing_table(machine));
     }
     text
+}
+
+/// How a part turns with the damage, in the 2012 space.
+struct Turn {
+    axis: [f32; 3],
+    angle: f32,
+    stages: Vec<f32>,
+    /// The turn at each stage; empty when the stages turn the part evenly.
+    stage_angles: Vec<f32>,
+}
+
+/// The turn of `part`: from the car's damage clip at the three panel levels when it turns by it (a part that the speed moves
+/// does not turn by damage), else from the range of its damage object swept over its ladder. `None` for a part nothing turns.
+fn turn_of(part: &Part, still: bool) -> Option<Turn> {
+    if let Some(swing) = part.damage.and_then(|damage| damage.swing).filter(|_| !still) {
+        let (stages, stage_angles) = (damage_model::STAGES.to_vec(), swing.angles.to_vec());
+        return Some(Turn { axis: swing.axis, angle: swing.angles[2], stages, stage_angles });
+    }
+    let (index, angle) = swing(&part.limits).or((still || part.damage.is_some()).then_some((0, 0.0)))?;
+    let mut axis = [0.0f32; 3];
+    axis[index] = 1.0;
+    let mut stages: Vec<f32> = part.thresholds.iter().map(|t| t.clamp(0.0, 1.0)).collect();
+    stages.sort_by(f32::total_cmp);
+    stages.truncate(MAX_STAGES);
+    Some(Turn { axis, angle, stages, stage_angles: Vec::new() })
+}
+
+/// The release lines of a part: where it falls off, or that it never does; nothing for the game's default.
+fn release_text(release: Option<damage_model::Release>) -> String {
+    match release {
+        Some(damage_model::Release::At(at)) => format!("detach_at = {at:.4}\n"),
+        Some(damage_model::Release::Never) => "detach = false\n".to_owned(),
+        _ => String::new(),
+    }
 }
 
 /// The manifest name of an input of the data, `None` for one the game does not offer (the cop lights).

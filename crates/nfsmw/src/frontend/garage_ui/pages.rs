@@ -52,6 +52,8 @@ pub enum Page {
     Numbers,
     /// The text of a mod car's licence plate (`plate.rs`).
     Plate,
+    /// The design behind the glyphs of a mod car's licence plate (`plate_design.rs`).
+    PlateDesign,
     DecalZones {
         backroom: bool,
     },
@@ -135,6 +137,7 @@ impl Page {
             Self::Delete
             | Self::Leave
             | Self::Plate
+            | Self::PlateDesign
             | Self::Checkout { .. }
             | Self::MaxPerformance
             | Self::InsufficientFunds => "Dialog.fng",
@@ -189,6 +192,7 @@ impl Page {
             Self::GaugeColors { .. } => "Gauge Color".into(),
             Self::Numbers => "Numbers".into(),
             Self::Plate => "License Plate".into(),
+            Self::PlateDesign => "Plate Design".into(),
             Self::Tuning => "Performance Tuning".into(),
             Self::Cart { .. } => "Shopping Cart".into(),
             Self::Checkout { .. } => "Checkout".into(),

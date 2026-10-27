@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use blackbox_modding::content::{NitrousProfile, SparksProfile, TireSmokeProfile, XenonProfile};
+use blackbox_modding::content::{NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile};
 
 /// The profiles of the variants in effect, one field per kind.
 #[derive(Debug, Clone, Default)]
@@ -21,6 +21,8 @@ pub struct EffectVariants {
     pub collision_sparks: Option<Arc<SparksProfile>>,
     /// The line sparks of the Restored spark style (`XENON/<value>/profile.toml`). Sparks only: no contrail, no streaks.
     pub xenon_sparks: Option<Arc<XenonProfile>>,
+    /// The loops of the wind (`WIND/<value>/profile.toml`), played by the car's sound in place of the game's own wind.
+    pub wind: Option<Arc<WindProfile>>,
 }
 
 #[cfg(test)]
@@ -31,7 +33,7 @@ mod tests {
     fn without_a_mod_every_kind_is_the_games_own() {
         let variants = EffectVariants::default();
         assert!(variants.nitrous.is_none() && variants.tire_smoke.is_none());
-        assert!(variants.collision_sparks.is_none() && variants.xenon_sparks.is_none());
+        assert!(variants.collision_sparks.is_none() && variants.xenon_sparks.is_none() && variants.wind.is_none());
     }
 
     #[test]

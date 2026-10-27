@@ -47,6 +47,7 @@ fn stats() -> ImportedStats {
         tire_grip: [1.5, 1.5],
         brake_torque_nm: [1500.0, 1200.0],
         nitrous_boost: 0.9,
+        drift: None,
     }
 }
 

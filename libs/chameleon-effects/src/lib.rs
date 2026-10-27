@@ -6,6 +6,7 @@
 //! parameters are understood have typed readers in [`decode`] (and [`wheel`] for the wheel spawner).
 
 pub mod collision;
+pub mod corona;
 pub mod decode;
 pub mod ops;
 pub mod wheel;

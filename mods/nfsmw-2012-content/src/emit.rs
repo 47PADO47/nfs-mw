@@ -223,6 +223,7 @@ mod tests {
                 tire_grip: [1.5, 1.4],
                 brake_torque_nm: [1300.0, 1350.0],
                 nitrous_boost: 0.9,
+                drift: None,
             },
             customization: "
 [customization]

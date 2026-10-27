@@ -26,6 +26,7 @@ mod nfsmw_pursuit;
 mod races;
 pub mod settings;
 mod time;
+mod traffic;
 pub mod ui;
 mod variants;
 mod vehicles;
@@ -57,6 +58,8 @@ mod settings_tests;
 pub(crate) mod support;
 #[cfg(test)]
 mod time_tests;
+#[cfg(test)]
+mod traffic_tests;
 #[cfg(test)]
 mod ui_tests;
 #[cfg(test)]
@@ -96,6 +99,7 @@ pub fn interfaces() -> Interfaces {
         .add_settings(Rc::new(settings::SettingsPort(bridge.clone())))
         .add_vehicles(Rc::new(vehicles::VehiclesPort(bridge.clone())))
         .add_engine(Rc::new(engine::EnginePort(bridge.clone())))
+        .add_traffic(Rc::new(traffic::TrafficPort(bridge.clone())))
         .add_hud(Rc::new(hud::HudPort(bridge.clone())))
         .add_camera(Rc::new(camera::CameraPort(bridge.clone())))
         .add_audio(Rc::new(audio::AudioPort))

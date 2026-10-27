@@ -42,8 +42,16 @@ pub const XENON_SPARKS: Kind = Kind {
     value_label: crate::spark_assets::LABEL,
 };
 
+/// The wind of the speed (`wind_assets.rs`): the loops the 2012 game plays with the car's speed.
+pub const WIND: Kind = Kind {
+    option: "wind_variant",
+    label: "Wind variant",
+    value: crate::wind_assets::VARIANT,
+    value_label: crate::wind_assets::LABEL,
+};
+
 /// Every kind this mod adds a value to, besides the nitrous.
-pub const ALL: [&Kind; 3] = [&TIRE_SMOKE, &COLLISION_SPARKS, &XENON_SPARKS];
+pub const ALL: [&Kind; 4] = [&TIRE_SMOKE, &COLLISION_SPARKS, &XENON_SPARKS, &WIND];
 
 /// Add the value of every kind. A game without `bb.settings` keeps its own effects.
 pub fn add_all(ctx: &Ctx) {
@@ -83,5 +91,12 @@ mod tests {
         assert_eq!(folder(GAME_SPARKS.folder, COLLISION_SPARKS.value), crate::spark_assets::SPARKS_FOLDER);
         assert_eq!(folder(GAME_XENON.folder, XENON_SPARKS.value), crate::spark_assets::XENON_FOLDER);
         assert!(XENON_SPARKS.label.contains("sparks only"), "the menu says what the variant leaves out");
+    }
+
+    #[test]
+    fn the_wind_option_is_the_games_and_names_the_folder_the_mod_writes() {
+        assert_eq!(WIND.option, blackbox_modding::content::WIND.option);
+        let folder = format!("{}/{}", blackbox_modding::content::WIND.folder, WIND.value.to_ascii_uppercase());
+        assert_eq!(folder, "WIND/MW2012");
     }
 }

@@ -85,6 +85,10 @@ pub struct Selection {
     /// The text the player typed on the car's licence plate (`[customization.plate]` of a mod car); `None` keeps the car's own
     /// text. Not a part: it has no price and the original game's saves cannot hold it, so it is kept beside the save.
     pub plate: Option<String>,
+    /// The id of the plate design the player picked for the car (`designs` of `[customization.plate]`); `None` keeps the car's
+    /// own (the one the player kept, else the manifest's default), and the empty id is the plain plate. Kept beside the save
+    /// like `plate`, and not a part either.
+    pub plate_design: Option<String>,
 }
 
 impl Selection {
@@ -95,6 +99,7 @@ impl Selection {
             && self.vinyl_color_parts.iter().all(Option::is_none)
             && self.decals.iter().flatten().all(Option::is_none)
             && self.plate.is_none()
+            && self.plate_design.is_none()
     }
 }
 
@@ -104,6 +109,15 @@ pub struct Choice {
     pub label: String,
     pub language_hash: Option<u32>,
     pub carbon: bool,
+}
+
+/// One plate design the garage offers a mod car (`custom::plate_design`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlateDesignChoice {
+    pub id: String,
+    pub name: String,
+    /// A category label, for the designs that come in groups.
+    pub group: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -133,6 +147,8 @@ pub struct Catalog {
     pub number_choices: [Vec<Choice>; 2],
     /// A mod car whose rim paint works on the wheels it ships with, with or without aftermarket rims.
     pub custom_rim_paint: bool,
+    /// The plate designs a mod car offers, in the order of its index; empty for a car without any.
+    pub plate_designs: Vec<PlateDesignChoice>,
 }
 
 /// Shared geometry identities and tables are read once, then reused for each selected car.

@@ -23,6 +23,7 @@ struct FakeVehicles {
     moves: RefCell<Vec<([f32; 3], f32)>>,
     repairs: RefCell<u32>,
     nos: RefCell<Vec<f32>>,
+    assist: RefCell<Vec<bool>>,
 }
 
 impl VehiclesBackend for FakeVehicles {
@@ -46,6 +47,11 @@ impl VehiclesBackend for FakeVehicles {
 
     fn add_nos(&self, _owner: &str, amount: f32) -> BackendResult<()> {
         self.nos.borrow_mut().push(amount);
+        Ok(())
+    }
+
+    fn set_drift_assist(&self, _owner: &str, on: bool) -> BackendResult<()> {
+        self.assist.borrow_mut().push(on);
         Ok(())
     }
 }
@@ -170,10 +176,22 @@ fn add_nos_reaches_the_backend_for_a_part_of_a_tank_and_nothing_else() {
 }
 
 #[test]
-fn the_table_says_it_is_1_1() {
+fn set_drift_assist_reaches_the_backend_as_a_flag() {
+    let _scope = callback_on_main();
+    let (fake, attached) = fixture();
+    let table = table_of(&attached);
+    let set = table.set_drift_assist.expect("set_drift_assist is offered");
+    assert_eq!(unsafe { set(table.ctx, 1) }, BB_OK);
+    assert_eq!(unsafe { set(table.ctx, 0) }, BB_OK);
+    assert_eq!(unsafe { set(table.ctx, 7) }, BB_OK);
+    assert_eq!(*fake.assist.borrow(), vec![true, false, true]);
+}
+
+#[test]
+fn the_table_says_it_is_1_2() {
     let (_fake, attached) = fixture();
     let table = table_of(&attached);
-    assert_eq!((table.head.major, table.head.minor), (1, 1));
+    assert_eq!((table.head.major, table.head.minor), (1, 2));
     assert_eq!(table.head.size as usize, size_of::<BbVehicles>());
 }
 

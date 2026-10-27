@@ -10,7 +10,8 @@ use crate::modding::cop_rows::{with_heat_overrides, without_models};
 use crate::scenes::world::WorldScene;
 
 pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
-    const USAGE: &str = "usage: traffic <count>|off|status|sirens|warmup <seconds>";
+    const USAGE: &str =
+        "usage: traffic <count>|off|status|cars|spawn <car> [metres] [oncoming]|sirens|warmup <seconds>";
     let focus = scene.traffic_focus();
     if scene.traffic.is_none() {
         return Err("this track has no road network".into());
@@ -36,6 +37,11 @@ pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[
             let traffic = scene.traffic.as_ref().ok_or(USAGE)?;
             Ok(traffic.siren_status())
         }
+        ["cars"] => {
+            let traffic = scene.traffic.as_ref().ok_or(USAGE)?;
+            Ok(traffic.mod_traffic_status())
+        }
+        ["spawn", car, rest @ ..] => spawn_car(scene, focus, car, rest),
         [count] => {
             let count: usize = count.parse().map_err(|_| format!("{count:?} is not a number ({USAGE})"))?;
             // Until the traffic setting changes, this count replaces it.
@@ -44,6 +50,36 @@ pub(in crate::scenes::world) fn traffic_command(scene: &mut WorldScene, args: &[
         }
         _ => Err(USAGE.into()),
     }
+}
+
+/// `traffic spawn <car> [metres] [oncoming]`: asks for the traffic car `car` (a mod's traffic car, or the `pvehicle` of one of the
+/// game's) that many metres ahead of the player, 30 by default, heading the way the player faces or, with `oncoming`, towards
+/// the player. It is placed on the nearest lane that can take a car as soon as its model is loaded (a few seconds the first
+/// time), whatever the traffic density is.
+fn spawn_car(scene: &mut WorldScene, focus: super::Focus, car: &str, rest: &[&str]) -> Result<String, String> {
+    let mut metres = 30.0_f32;
+    let mut oncoming = false;
+    for word in rest {
+        if *word == "oncoming" {
+            oncoming = true;
+            continue;
+        }
+        metres = word.parse().map_err(|_| format!("{word:?} is not a distance in metres, or `oncoming`"))?;
+    }
+    if !metres.is_finite() || metres.abs() > 1000.0 {
+        return Err("the distance is from -1000 to 1000 metres".into());
+    }
+    let cars = nfsmw_data::car::list(&scene.dir);
+    let name = nfsmw_data::car::pick_folder(&cars, car).unwrap_or(car).to_owned();
+    let at = [focus.position[0] + focus.heading.cos() * metres, focus.position[1] + focus.heading.sin() * metres];
+    let turn = match oncoming {
+        true => std::f32::consts::PI,
+        false => 0.0,
+    };
+    if !crate::traffic_requests::push(&name, at, focus.heading + turn) {
+        return Err("too many cars are waiting to be placed".into());
+    }
+    Ok(format!("{name} is asked for {metres:.0} m ahead; it is placed when its model is loaded"))
 }
 
 /// `pursuit <heat>|off|status|911|heli`: cops chase the player with the wave of that heat level; `heli` sends the helicopter

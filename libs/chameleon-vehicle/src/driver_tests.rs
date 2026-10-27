@@ -33,13 +33,24 @@ fn object(seat: [f32; 3], character: u32, belts: u16) -> Object {
     }
     main[0x24..0x28].copy_from_slice(&character.to_le_bytes());
     main[0x42..0x44].copy_from_slice(&belts.to_le_bytes());
+    main[0x2C..0x30].copy_from_slice(&0x1779e3u32.to_le_bytes());
+    main[0x30..0x34].copy_from_slice(&0x1779e2u32.to_le_bytes());
+    main[0x50..0x54].copy_from_slice(&0x1779c7u32.to_le_bytes());
     Object { main, structs: vec![(SETUP.to_owned(), 0)] }
 }
 
 #[test]
 fn the_setup_is_read_by_its_offsets() {
     let setup = DriverSetup::of(&object([0.29, -0.739, -0.222], 0x17785D, 4)).unwrap();
-    assert_eq!(setup, DriverSetup { character: 0x17785D, seat: Some([0.29, -0.739, -0.222]), belts: 4 });
+    let expected = DriverSetup {
+        character: 0x17785D,
+        seat: Some([0.29, -0.739, -0.222]),
+        belts: 4,
+        shifter_group: 0x1779e3,
+        grip_group: 0x1779e2,
+        pose_clip: 0x1779c7,
+    };
+    assert_eq!(setup, expected);
 }
 
 #[test]

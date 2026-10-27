@@ -21,7 +21,7 @@ supported = ["nfsmw"]
 "bb.engine" = "1.0"
 "bb.hud" = "1.0"
 "bb.settings" = "1.0"
-"bb.vehicles" = "1.1"
+"bb.vehicles" = "1.2"
 
 [library]
 windows = "nfsmw_2012_content.dll"

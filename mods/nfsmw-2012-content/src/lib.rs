@@ -18,7 +18,10 @@ mod cameras;
 mod collision;
 pub mod config;
 mod convert;
+mod damage_model;
 mod drift_nitrous;
+mod drift_stats;
+mod driver_poses;
 mod effect_variants;
 mod effects;
 mod emit;
@@ -34,16 +37,20 @@ mod hinges;
 mod ignition;
 pub mod import;
 pub mod job;
+mod lamp_coronas;
 mod lamp_surfaces;
 mod liveries;
 mod logo;
+mod low_detail;
 mod markers;
 mod names;
 pub mod nitrous;
+mod nitrous_screen;
 mod paints;
 pub mod performance;
 mod pipes;
 mod plate;
+mod plate_designs;
 mod police;
 mod sample;
 mod shared;
@@ -54,12 +61,14 @@ mod stamp;
 pub mod stats;
 mod textures;
 mod tire_smoke;
+mod traffic;
 mod two_colour;
 mod variants;
 mod vehicle_list;
 mod vfx;
 mod vfx_profile;
 mod wheels;
+mod wind_assets;
 
 use std::path::PathBuf;
 
@@ -163,7 +172,11 @@ impl NfsmwContent {
     /// A run is over: say what it did, and make its cars available.
     fn finish(&self, ctx: &Ctx, report: &import::Report) {
         let (done, left_out) = (report.imported.len(), report.skipped.len());
-        ctx.log(Level::Info, &format!("nfsmw-2012-content: converted {done} cars, {left_out} left out"));
+        let traffic = report.traffic.len();
+        ctx.log(
+            Level::Info,
+            &format!("nfsmw-2012-content: converted {done} cars and {traffic} traffic cars, {left_out} left out"),
+        );
         for (car, reason) in &report.skipped {
             ctx.log(Level::Warn, &format!("nfsmw-2012-content: {car} is left out: {reason}"));
         }

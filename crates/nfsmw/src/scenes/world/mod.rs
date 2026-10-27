@@ -57,6 +57,7 @@ pub mod net;
 #[cfg(feature = "multiplayer")]
 pub mod net_client;
 mod nis;
+mod nitrous_screen;
 mod photo_shot;
 pub mod players;
 mod tail_light_trails;
@@ -277,7 +278,9 @@ pub struct WorldScene {
     /// The effects of the nitrous variant the player chose, if it is a mod's (`scene_effects.rs`), and the follower of the
     /// burn that fades its screen effects.
     nitrous_fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
-    nitrous_burn: blackbox_modding::content::BurnFollower,
+    /// The loops of the wind variant the player chose, if it is a mod's (`scene_effects.rs`): the car's sound plays them.
+    wind_fx: Option<std::sync::Arc<blackbox_modding::content::WindProfile>>,
+    nitrous_screen: nitrous_screen::NitrousScreen,
     /// The career being played, if any, and what it asks of the front end (`career/`).
     career: career::WorldCareer,
     /// The scenery groups switched on (`scenery_groups.rs`); the career opens and closes the region gates through it.

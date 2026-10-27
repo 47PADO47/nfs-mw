@@ -108,6 +108,13 @@ impl WorldScene {
         drive.add_nitrous(amount)
     }
 
+    /// Turn the drift assist of the player's car on or off. Does nothing without a car.
+    pub(super) fn set_player_drift_assist_to(&mut self, on: bool) {
+        if let Some(drive) = self.players.lead_mut() {
+            drive.set_drift_assist(on);
+        }
+    }
+
     /// Set the traffic count and the cop share, keeping the lights and avoidance settings as they are.
     pub(super) fn set_traffic_density_to(&mut self, cars: u32, cop_share: u8) {
         let setting = TrafficSettings { cars, cop_share: Percent(cop_share), ..self.traffic_setting };

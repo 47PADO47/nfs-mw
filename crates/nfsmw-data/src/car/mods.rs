@@ -15,15 +15,22 @@ use crate::pursuit::HEAT_LEVELS;
 
 pub mod cop;
 pub mod custom;
+pub mod driver_poses;
 mod engine;
 pub mod hinged;
+pub mod lamp_flares;
 pub(super) mod parts;
+pub mod traffic;
 pub mod wheel_layout;
 pub use blackbox_vehicle::stats::{CarStats, Drive};
 pub use cop::{
     COP_CHANCE, COP_COUNT, CopDamage, CopKind, CopUnit, CopWave, add_cop_rows, cop_cars, cop_kind, cop_unit, is_cop_car,
 };
 pub use engine::{CarEffects, CurveInput, EngineLayer, EngineSound, LayerCurve, LayerKind, LayerPitch, SharedSound};
+pub use traffic::{
+    TrafficClass, TrafficRule, TrafficUnit, is_traffic_car, traffic_cars, traffic_generation, traffic_rules,
+    traffic_unit,
+};
 
 /// A mod's request for one car, with the facts the caller has checked against the install.
 #[derive(Debug, Clone, PartialEq)]
@@ -40,6 +47,8 @@ pub struct CarSpec {
     pub player: bool,
     /// The car's police unit (its class and wave entries), or `None` for a car that is not a cop. Levels are not checked yet.
     pub cop: Option<CopUnit>,
+    /// How the car joins the traffic, or `None` for a car that is not traffic.
+    pub traffic: Option<TrafficUnit>,
     /// Whether the mod's own `files/` folder holds `CARS/<folder>/GEOMETRY.BIN`.
     pub geometry_in_mod: bool,
     /// What the car is: its mass, engine, gearbox, tyres and brakes, from which its physics are built.
@@ -61,6 +70,8 @@ pub struct ModCar {
     pub player: bool,
     /// The car's police unit, or `None` for a car that is not a cop.
     pub cop: Option<CopUnit>,
+    /// How the car joins the traffic, or `None` for a car that is not traffic.
+    pub traffic: Option<TrafficUnit>,
     /// What the car is: its physics are built from these, not from any stock car's.
     pub stats: CarStats,
     /// The car's own engine loops, if the mod gives them.
@@ -138,6 +149,7 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
         manufacturer: spec.manufacturer.clone(),
         player: spec.player,
         cop: spec.cop.clone(),
+        traffic: spec.traffic.clone(),
         stats: spec.stats.clone(),
         engine_sound: spec.engine_sound.clone(),
         car_effects: spec.car_effects.clone(),
@@ -147,10 +159,12 @@ fn admit(types: &[CarTypeInfo], cars: &[ModCar], spec: &CarSpec) -> Result<ModCa
 
 /// The car table entry of a mod car, made from the car's own request: its folder is its type name and the prefix of
 /// its solids, and its type hash is the hash of that name. A car that only chases (a cop role without the player role)
-/// is a police type (usage 1, the stock cops' own); any other is a racer (usage 0): a car that is also a player car has
-/// to be in the player's lists, which list racers, and it drives as a cop by its unit.
+/// is a police type (usage 1, the stock cops' own), and a car that is only traffic a traffic type (usage 2, the stock
+/// traffic cars' own); any other is a racer (usage 0): a car that is also a player car has to be in the player's lists,
+/// which list racers, and it drives as a cop or as traffic by its unit.
 fn car_type_of(spec: &CarSpec, index: usize) -> CarTypeInfo {
     let cop_only = spec.cop.is_some() && !spec.player;
+    let traffic_only = spec.traffic.is_some() && !spec.player && spec.cop.is_none();
     CarTypeInfo {
         type_name: spec.folder.clone(),
         base_model_name: spec.folder.clone(),
@@ -158,7 +172,11 @@ fn car_type_of(spec: &CarSpec, index: usize) -> CarTypeInfo {
         manufacturer: spec.manufacturer.clone().unwrap_or_default(),
         type_name_hash: blackbox_hash::bstring_hash(&spec.folder),
         index: i32::try_from(index).unwrap_or(i32::MAX),
-        usage_type: i32::from(cop_only),
+        usage_type: match (cop_only, traffic_only) {
+            (true, _) => 1,
+            (_, true) => 2,
+            _ => 0,
+        },
         default_skin_number: 1,
         skinnable: true,
         default_base_paint: 0,

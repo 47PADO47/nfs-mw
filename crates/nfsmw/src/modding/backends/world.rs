@@ -21,6 +21,8 @@ pub enum WorldRequest {
     Repair,
     /// Add this part of a full tank to the player's nitrous (`bb.vehicles` 1.1 add_nos).
     AddNos(f32),
+    /// Turn the physics' drift assist of the player's car on or off (`bb.vehicles` 1.2 set_drift_assist).
+    DriftAssist(bool),
     /// Show this gameplay camera.
     Camera(CameraMode),
     /// Keep it raining (`always`), or leave it to the weather, at `amount`.
@@ -68,6 +70,7 @@ pub fn apply(requests: Vec<WorldRequest>, scene: &mut dyn Scene) {
             WorldRequest::AddNos(amount) => {
                 scene.add_player_nitrous(amount);
             }
+            WorldRequest::DriftAssist(on) => scene.set_player_drift_assist(on),
             WorldRequest::Camera(mode) => scene.set_camera_mode(mode),
             WorldRequest::Rain { always, amount } => scene.set_rain(always, amount),
             WorldRequest::SpawnTraffic { at, heading } => {

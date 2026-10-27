@@ -39,8 +39,8 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("pos", "show where the camera or the car is"),
     ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),
     (
-        "traffic <count>|off|status|sirens|warmup <s>",
-        "keep <count> computer-driven cars on the road around you; off removes them; sirens lists the police cars' siren states; warmup: a screenshot run simulates <s> seconds first",
+        "traffic <count>|off|status|cars|spawn <car> [metres] [oncoming]|sirens|warmup <s>",
+        "keep <count> computer-driven cars on the road around you; off removes them; cars lists the traffic cars mods add; spawn puts one of them <metres> ahead; sirens lists the police cars' siren states; warmup: a screenshot run simulates <s> seconds first",
     ),
     ("tire-effects [status|clear|smoke on/off|marks on/off]", "tire visual controls and bounded resource counts"),
     ("vehicle-effects [status|clear]", "collision spark and speed-trail resource counts"),

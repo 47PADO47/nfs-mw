@@ -425,6 +425,10 @@ impl Scene for WorldScene {
         self.add_player_nitrous_to(amount)
     }
 
+    fn set_player_drift_assist(&mut self, on: bool) {
+        self.set_player_drift_assist_to(on);
+    }
+
     fn repair_player(&mut self) -> bool {
         self.repair_player_car()
     }

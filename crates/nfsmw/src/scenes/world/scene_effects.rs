@@ -42,6 +42,7 @@ impl WorldScene {
     pub(super) fn scene_set_effect_variants(&mut self, variants: &crate::effect_variants::EffectVariants) {
         self.scene_set_nitrous_fx(variants.nitrous.clone());
         self.tire_smoke_variant = variants.tire_smoke.clone();
+        self.wind_fx = variants.wind.clone();
         if let Some(drive) = self.players.lead_mut() {
             drive.effects.set_variant(variants.tire_smoke.clone());
             drive.vehicle_effects.set_spark_variant(variants.xenon_sparks.clone());

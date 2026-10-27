@@ -55,6 +55,7 @@ pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<
         induction: pvehicle.follow("induction").map(Fields).map(induction).unwrap_or_default(),
         nos: pvehicle.follow("nos").map(Fields).map(nos).unwrap_or_default(),
         aero: aero(chassis_fields),
+        drift: blackbox_vehicle::DriftTuning::GENERIC,
     };
     let reactions = AiCollisionReactions::read(db, pvehicle).map(Arc::new);
     Ok(CarPhysics {

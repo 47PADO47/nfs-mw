@@ -26,6 +26,8 @@ pub(crate) struct Recorder {
     pub moves: Vec<([f32; 2], f32)>,
     pub repairs: u32,
     pub nitrous: Vec<f32>,
+    /// The drift assist switches the scene was told, in order.
+    pub drift_assist: Vec<bool>,
     pub camera_mode: Option<CameraMode>,
     pub rain: Option<(bool, f32)>,
     pub traffic: Option<(u32, u8)>,
@@ -130,6 +132,10 @@ impl Scene for Recorder {
     fn add_player_nitrous(&mut self, amount: f32) -> bool {
         self.nitrous.push(amount);
         self.car.is_some()
+    }
+
+    fn set_player_drift_assist(&mut self, on: bool) {
+        self.drift_assist.push(on);
     }
 
     fn set_camera_mode(&mut self, mode: CameraMode) {

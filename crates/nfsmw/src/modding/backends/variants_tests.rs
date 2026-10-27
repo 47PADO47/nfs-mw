@@ -206,3 +206,46 @@ fn the_restored_spark_profile_is_read_through_its_own_folder_and_a_refused_one_i
     assert!(bridge.effect_variants().xenon_sparks.is_none());
     let _ = std::fs::remove_dir_all(&root);
 }
+
+const WIND_PROFILE: &str = "format = 1
+[[layer]]
+file = \"WIND/MYMOD/W1.WAV\"
+rate = 1.3
+gain = [[0.0, 0.0], [60.0, 1.0]]
+";
+
+#[test]
+fn the_wind_profile_is_read_through_its_own_folder_and_a_refused_one_is_none() {
+    assert_eq!(WIND_KIND.variant.option, "wind_variant");
+    assert_eq!(WIND_KIND.variant.folder, "WIND");
+    assert!(KINDS.iter().any(|kind| kind.variant.option == "wind_variant"));
+    let (bridge, store, port) = setup();
+    let (root, dir) = install_with_kind("wind", &WIND_KIND, WIND_PROFILE);
+    bridge.set_install(dir);
+    assert!(bridge.wind_profile().is_none(), "the original: nothing is read");
+    port.add_option("mymod", &spec(&WIND_KIND, "mymod"), None).unwrap();
+    change(&bridge, visible(&bridge)[0], true);
+    assert_eq!(store.saved_text("nfsmw", "option_wind_variant").as_deref(), Some("mymod"));
+    let profile = bridge.wind_profile().expect("the mod's profile");
+    assert_eq!((profile.layers.len(), profile.layers[0].rate), (1, 1.3));
+    assert!(Arc::ptr_eq(&profile, &bridge.effect_variants().wind.unwrap()));
+    assert!(bridge.collision_sparks_profile().is_none(), "the other kinds are untouched");
+    let _ = std::fs::remove_dir_all(&root);
+
+    let (bridge, _, port) = setup();
+    let (root, dir) = install_with_kind(
+        "wind-bad",
+        &WIND_KIND,
+        "format = 1
+[[layer]]
+file = \"A.MP3\"
+gain = [[0.0, 1.0], [1.0, 1.0]]
+",
+    );
+    bridge.set_install(dir);
+    port.add_option("mymod", &spec(&WIND_KIND, "mymod"), None).unwrap();
+    change(&bridge, visible(&bridge)[0], true);
+    assert!(bridge.wind_profile().is_none(), "a file that is not a WAV is refused: the game's wind plays");
+    assert!(bridge.effect_variants().wind.is_none());
+    let _ = std::fs::remove_dir_all(&root);
+}

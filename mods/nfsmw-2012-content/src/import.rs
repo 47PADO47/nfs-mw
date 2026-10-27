@@ -7,12 +7,15 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use chameleon_bundle::Bundle;
-use chameleon_vehicle::{Lod, PaintPackGroup, PoliceMarks, VehiclePaint, driver_setup, read_stats};
+use chameleon_vehicle::{
+    Lod, PaintPackGroup, PoliceMarks, VehiclePaint, driver_setup, read_drift_handling, read_stats,
+};
 use rayon::prelude::*;
 
 use crate::config::{Config, Role};
+use crate::drift_stats::DriftKeys;
 use crate::emit::{CarEntry, CarFiles, ModFolder};
-use crate::fit::Fit;
+use crate::fit::{Fit, to_car_space};
 use crate::police::PoliceRole;
 use crate::shared::SharedSet;
 use crate::source::{CarFile, Source, SourceCar};
@@ -28,6 +31,8 @@ pub struct Report {
     pub imported: Vec<ImportedCar>,
     /// Cars left out and why.
     pub skipped: Vec<(String, String)>,
+    /// The traffic cars (`traffic.rs`), which are not in `imported`: they have no liveries, paints or sounds of their own.
+    pub traffic: Vec<ImportedCar>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -94,7 +99,8 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
         })
         .filter(|car| config.wants(&car.id, &car.display))
         .collect();
-    if wanted.is_empty() {
+    // A selection of only traffic cars (`cars = ["traffic"]`) matches no player car, and is still a selection.
+    if wanted.is_empty() && !config.traffic {
         bail!("no car of the 2012 install matches the settings");
     }
     let folder = ModFolder::create(out)?;
@@ -109,10 +115,13 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     crate::ignition::write_shared(source, out);
     crate::tire_smoke::write_variant(source, out);
     crate::spark_assets::write(source, out);
+    crate::wind_assets::write(source, out);
     let makes: Vec<&str> =
         wanted.iter().zip(&results).filter(|(_, done)| done.is_ok()).map(|(car, _)| car.make.as_str()).collect();
     let written = brands::write_all(source, &folder, &makes);
     log::info!("{written} brand logos written");
+    // The plate designs, one set for every car (their manifests name its index).
+    crate::plate_designs::write(source, &folder);
     shared.write(folder.root())?;
     let mut report = Report::default();
     for (car, result) in wanted.iter().zip(results) {
@@ -120,6 +129,11 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
             Ok(done) => report.imported.push(done),
             Err(error) => report.skipped.push((format!("{} {}", car.id, car.display), format!("{error:#}"))),
         }
+    }
+    // The 2012 traffic cars, when the setting is on.
+    crate::traffic::import_all(source, config, folder.root(), &mut report);
+    if report.imported.is_empty() && report.traffic.is_empty() && report.skipped.is_empty() {
+        bail!("no car of the 2012 install matches the settings");
     }
     Ok(report)
 }
@@ -129,6 +143,7 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
 fn write_nitrous(source: &Source, out: &Path) {
     let mut found = nitrous::find_in(&source.game_logic_bundles()).unwrap_or_default();
     found.effects = nitrous::find_effects(source);
+    found.screen = crate::nitrous_screen::find(source);
     if found.is_empty() {
         log::warn!("the 2012 install has no nitrous sounds or effects that can be read: the nitrous variant has none");
         return;
@@ -185,19 +200,39 @@ fn import_car(
     placed.seat_hubs(&mut car.vehicle);
     let fit = Fit::own(placed.layout);
     let driver = seat_driver(source, &mut car, &bytes);
+    let driver_poses = crate::driver_poses::bake(source, &bytes);
     // A car with two-colour paint packs offers each as a livery (and takes the texture coordinates of their pictures); any
     // other car offers the pictures of its livery bundles, or its own.
     let pictures = two_colour::apply(source, named.file, &mut car, &named.id).unwrap_or_else(|| {
         let livery_names = variants::livery_names(source, named.file, &named.liveries);
         variants::pictures(source, &car, &named.id, &named.liveries, &livery_names)
     });
-    let options = convert::Options {
+    // The mid-detail level of the car's low-detail bundle becomes its `C` level (`low_detail.rs`); a car with liveries keeps its own.
+    if pictures.is_empty() {
+        crate::low_detail::add_mid(source, named.file, &mut car);
+    }
+    // The 2012 coronas become the lamp sprites of the car and, on a police car, its light bar (`lamp_coronas.rs`); their pictures
+    // go into the car's texture pack with the liveries.
+    let coronas = crate::lamp_coronas::build(
+        &|rel| source.install_file(rel),
+        &bytes,
+        &car.lamps,
+        &|p| fit.apply(to_car_space(p)),
+        &named.id,
+    );
+    let mut options = convert::Options {
         max_texture_size: config.max_texture_size,
         liveries: pictures.iter().map(|(choice, picture)| (choice.texture.clone(), picture.clone())).collect(),
         driver,
+        driver_poses,
     };
+    if let Some(coronas) = &coronas {
+        options.liveries.extend(coronas.sprites.iter().cloned());
+    }
     let built = convert::build(&car, &fit, &named.id, &options)?;
     let mut stats = ImportedStats::of(&car_stats);
+    // How the car slides, for the drift assist of the "2012 drifting" setting; a car whose data does not read keeps the generic.
+    stats.drift = read_drift_handling(&Bundle::parse(&bytes)?).ok().map(|handling| DriftKeys::of(&handling));
     config.tuning().for_car(&named.id, &named.display).apply(&mut stats);
     let rpm = Some((stats.idle_rpm, stats.redline_rpm));
     let sounds = sounds::of(source, named.file, &named.id, config, rpm);
@@ -225,7 +260,8 @@ fn import_car(
             dressed,
         ) + &plate_table(source, named, &built, !colours.is_empty())
             + &built.damage_parts
-            + &placed.manifest_table(),
+            + &placed.manifest_table()
+            + coronas.as_ref().map_or("", |coronas| coronas.manifest.as_str()),
     };
     let files = CarFiles {
         geometry: &built.geometry,
@@ -261,7 +297,9 @@ fn plate_table(source: &Source, named: &Named, built: &convert::Built, has_table
     if !built.plate || !has_table {
         return String::new();
     }
+    // The designs the car's plate offers are the shared set (`plate_designs.rs`): its table names the index.
     crate::plate::manifest_table(source.plate_text(named.file).as_deref(), &crate::plate::picture_name(&named.id))
+        + &crate::plate_designs::manifest_keys(source)
 }
 
 /// The paints the shop offers `named`: those of its own bundle (`own`), in the order of its vehicle's paint pack (the first is

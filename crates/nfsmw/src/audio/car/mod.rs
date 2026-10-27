@@ -37,6 +37,7 @@ mod own_engine;
 mod own_sfx;
 pub(super) mod transmission;
 pub(super) mod tyres;
+mod wind_fx;
 pub use contact::{CarContact, ContactSource, ContactVehicle};
 
 /// Every physics state since the previous audio update, in simulation order.
@@ -86,6 +87,8 @@ pub struct CarSoundState {
     pub view: super::AudioView,
     /// The effects of the nitrous variant the player chose, if it is a mod's: its sounds are played by `nitrous_fx`.
     pub nitrous_fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
+    /// The loops of the wind variant the player chose, if it is a mod's: played by `wind_fx` in place of the game's wind.
+    pub wind_fx: Option<std::sync::Arc<blackbox_modding::content::WindProfile>>,
     /// The engine switch of a mod (`bb.engine`): whether the engine is silent, and the start sound to play now.
     pub engine: crate::engine_switch::EngineAudio,
 }
@@ -125,6 +128,8 @@ pub(super) struct CarAudio {
     power: power_effects::PowerPlayback,
     /// The sounds of a mod's nitrous variant (`nitrous_fx.rs`).
     nitrous: nitrous_fx::NitrousVoice,
+    /// The loops of a mod's wind variant (`wind_fx.rs`).
+    wind: wind_fx::WindVoice,
     pub(super) event_delay: f32,
 }
 
@@ -138,6 +143,7 @@ struct DriveFrame<'a> {
     sim_dt: f32,
     delay: f32,
     nitrous_fx: Option<&'a std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
+    wind_fx: Option<&'a std::sync::Arc<blackbox_modding::content::WindProfile>>,
     /// A mod has stopped the engine: it is silent.
     engine_stopped: bool,
 }
@@ -245,6 +251,7 @@ impl Audio {
                     sim_dt: 0.0,
                     delay: 0.0,
                     nitrous_fx: state.nitrous_fx.as_ref(),
+                    wind_fx: state.wind_fx.as_ref(),
                     engine_stopped: state.engine.stopped,
                 },
             );
@@ -265,6 +272,7 @@ impl Audio {
                     sim_dt: tick.sim_dt,
                     delay: i as f32 * delta,
                     nitrous_fx: state.nitrous_fx.as_ref(),
+                    wind_fx: state.wind_fx.as_ref(),
                     engine_stopped: state.engine.stopped,
                 },
             );
@@ -352,6 +360,7 @@ impl Audio {
             transmission: transmission::TransmissionPlayback::default(),
             power: power_effects::PowerPlayback::default(),
             nitrous: nitrous_fx::NitrousVoice::default(),
+            wind: wind_fx::WindVoice::default(),
             event_delay: 0.0,
         })
     }
