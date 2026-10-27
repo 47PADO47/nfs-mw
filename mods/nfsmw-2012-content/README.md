@@ -23,15 +23,16 @@ wheels sit at plus and minus half the car's wheelbase with the model centred on 
 1. Build the mod and copy it into the game's mods folder with one command, from the repository folder:
 
    ```sh
-   cargo install-mod
+   cargo install-mod nfsmw-2012-content
    ```
 
    It runs `cargo build --release -p nfsmw-2012-content` and puts `mod.toml` and the built library in
    `%APPDATA%\nfsmw\config\mods\nfsmw-2012-content\` (`~/.config/nfsmw/mods/nfsmw-2012-content/` on Linux; see
    [Using mods](../../docs/modding/README.md#using-mods)); nothing else in that folder is touched, so the mod's own
    `config.toml` and converted cars stay. Run it again after every change to the mod, with the game closed (a running
-   game holds the library). `cargo install-mod --debug` installs a debug build and `--dir PATH` another folder; a build
-   by hand with `cargo build --release -p nfsmw-2012-content` and a copy of `mod.toml` and the library works too.
+   game holds the library). `cargo install-mods` installs every mod the workspace builds, `--debug` installs a debug
+   build and `--dir MODS_FOLDER` another mods folder; a build by hand with `cargo build --release -p nfsmw-2012-content`
+   and a copy of `mod.toml` and the library works too.
 2. Start the game once. The mod writes a commented `config.toml` next to its `mod.toml` (it does not, when the game's own
    config file already has a `[mods.nfsmw-2012-content]` table).
 3. Put the folder of your 2012 install in it and start the game again:

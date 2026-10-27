@@ -142,8 +142,8 @@ trust. `--no-mods` (or `mods = "off"` in `config.toml`) loads none. How to write
 2012 install (nothing from either game is in the repository). To use it:
 
 1. Build it and copy it into the game's mods folder (`%APPDATA%\nfsmw\config\mods\nfsmw-2012-content\`, or
-   `~/.config/nfsmw/mods/nfsmw-2012-content/` on Linux) with `cargo install-mod`. Run it again after a change, with the
-   game closed.
+   `~/.config/nfsmw/mods/nfsmw-2012-content/` on Linux) with `cargo install-mod nfsmw-2012-content` (`cargo install-mods`
+   does every mod of the workspace). Run it again after a change, with the game closed.
 2. Start the game once; the mod writes a commented `config.toml` next to its `mod.toml`.
 3. Set your 2012 install in it and start the game again:
 
