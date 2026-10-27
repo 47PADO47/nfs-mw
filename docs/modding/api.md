@@ -219,6 +219,7 @@ mod), then the functions below in this order. Every function takes `ctx` first a
 | `bb.hud` (1.0) | `message(text, style, secs)`, `hide()` |
 | `bb.camera` (1.0) | `get(out)`, `set_mode(mode)` |
 | `bb.audio` (1.0) | `play(bank, event, volume, out_id)` |
+| `bb.config` (1.0) | `read(sink, sink_user)`, `sources(out)` |
 | `bb.world` (1.0) | `track(sink, sink_user)`, `section(sink, sink_user)`, `set_rain(always, amount)`, `set_traffic(cars, cop_share)` |
 
 `bb.time`'s "set speed" is `set_day_length`, the day-length form of the table above. `bb.map`'s blip is
@@ -249,6 +250,8 @@ length), `fov` (degrees, vertical) at 32. The modes are `BB_CAMERA_CHASE` 0, `BB
 
 `bb.world` (ids `IFACE_WORLD`, version `IFACE_WORLD_VERSION`). `BbWorld` is 48 bytes: `head` at 0, `ctx` at 8, `track` at 16,
 `section` at 24, `set_rain` at 32, `set_traffic` at 40. A cop share above 100 percent is refused.
+
+`bb.config` (ids `IFACE_CONFIG`, version `IFACE_CONFIG_VERSION`) is described in [api-config.md](api-config.md): `BbConfig` is 32 bytes, `read` at 16, `sources` at 24.
 
 Layouts of the five are locked by `abi/iface/tests.rs`.
 
