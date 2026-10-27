@@ -82,7 +82,7 @@ pub(crate) fn expect(pool: &Pool, id: u64, kind: ResourceKind) -> Result<chamele
 }
 
 /// The meshes of every level of a model, most detailed first.
-fn model_lods(pool: &Pool, surfaces: &Surfaces, model: u64) -> Result<Vec<Lod>> {
+pub(crate) fn model_lods(pool: &Pool, surfaces: &Surfaces, model: u64) -> Result<Vec<Lod>> {
     let resource = expect(pool, model, ResourceKind::Model)?;
     let model = Model::parse(&resource.blocks[0], &resource.imports)?;
     model.lods.iter().map(|&lod| renderable_meshes(pool, surfaces, lod)).collect()

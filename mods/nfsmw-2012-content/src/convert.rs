@@ -47,8 +47,9 @@ pub struct Options {
     pub max_texture_size: u32,
     /// The liveries of the car: each picture and the name it takes in the car's `TEXTURES.BIN`.
     pub liveries: Vec<(String, chameleon_gfx::Texture)>,
-    /// The driver seated in the car, in the 2012 engine's space like the body; its textures are among `car.textures`.
-    pub driver: Option<Lod>,
+    /// The driver seated in the car at every level of detail, finest first, in the 2012 engine's space like the body; its
+    /// textures are among `car.textures`.
+    pub driver: Option<Vec<Lod>>,
 }
 
 /// Where a mesh's surface gets its look from in the 2005 car shader.
@@ -108,16 +109,10 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
     if let Some(driver) = &options.driver {
         let no_markers = |_: usize| Vec::new();
         let driver_parts = Parts { transform: &body, markers: &no_markers };
-        add_solids(
-            &mut solids,
-            &format!("{folder}_KIT00_DRIVER"),
-            std::slice::from_ref(driver),
-            &driver_parts,
-            &mut |mesh| {
-                // Clothes and skin do not shine.
-                Look { light_material: "MATTEPLASTIC", ..look(mesh, car, folder, options, &mut palette) }
-            },
-        )?;
+        add_solids(&mut solids, &format!("{folder}_KIT00_DRIVER"), driver, &driver_parts, &mut |mesh| {
+            // Clothes and skin do not shine.
+            Look { light_material: "MATTEPLASTIC", ..look(mesh, car, folder, options, &mut palette) }
+        })?;
     }
     let geometry = write_geometry_pack(&solids).context("writing GEOMETRY.BIN")?;
     for (name, picture) in &options.liveries {

@@ -35,7 +35,7 @@ manifest's file name). A solid it does not find is not drawn, and a car with nei
 |---|---|
 | `<ID>_KIT00_BODY_A` to `_D` | the body, with the glass, lamps and interior, the tail pipe markers ([Tail pipes](#tail-pipes)) and the lamp markers ([car-lamps.md](car-lamps.md)) |
 | `<ID>_KIT00_FRONT_TIRE_A` to `_D` | one wheel solid: tyre, rim, brake disc and caliper, axle along y, rim face at y = 0, as the game's wheels are modelled; the car draws it at all four corners and the game turns it for the left side |
-| `<ID>_KIT00_DRIVER_A` to `_D` | optional: the driver, drawn in the cockpit while the car is driven (never in the garage or the shop), modelled in car space like the body, seated at the steering wheel with the hands on it; without it the car has no driver |
+| `<ID>_KIT00_DRIVER_A` to `_D` | optional: the driver, drawn in the cockpit while the car is driven (never in the garage or the shop), modelled in car space like the body, seated where the car's seat is (the 2012 content mod puts the game's own seated character there, [nfsmw-2012-content.md](nfsmw-2012-content.md#the-driver)); without it the car has no driver |
 
 The letters are the levels of detail, `A` the finest; `E` is not looked for, and a level a car lacks draws nothing at that
 distance, so A and B are the finest the player sees. The paint placeholder texture is `<ID>_SKIN1`, on the paint surfaces.

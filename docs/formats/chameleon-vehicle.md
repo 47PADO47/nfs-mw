@@ -70,22 +70,67 @@ meshes are 0.327 m in radius and its body is 0.74 as tall as the real car: the M
 
 ## The driver
 
-One bundle draws a person: the police Explorer (`Ford_ExplorerInterceptor_2011`, 510072) has a body mesh (362 vertices,
-389 triangles, finest level only) whose material technique is `VehicleNFS13_Body_Driver`, a 4x4-block colour swatch (8 x 8
-pixels, 4 mips: skin and dark grey clothes) as its texture. It is a seated figure facing forward, hands on the wheel, the
-feet on the pedals; **no other of the 93 bundles has a material of that technique** **[verified]**, and `CHARACTERS/ALL_CHARS.BNDL`
-holds the cut-scene people, not a figure in a car. The figure is modelled around its car's steering wheel bone (`SteeringWheel`,
-the skeleton of [chameleon-hinged-parts.md](chameleon-hinged-parts.md); at (0.456, 1.055, 0.552) in the Explorer): the hands are at
-the bone, the head 0.49 above it, the soles 0.61 below it. 90 bundles have the bone (x 0.25 to 0.46 on the left, -0.35 and -0.37 on
-the right-hand-drive DB5 and R34, 0.00 on the BAC Mono and the F1 LM, which seat in the middle); the SWAT van, the Zonda R and
-the Huayra have none. `chameleon_vehicle::driver` carries the figure to another car by its bone and fits it to the room the car
-has (the highest vertex of the body over the seat, 0.1 to 0.8 m behind the wheel and 0.25 m either side: the roof, or an
-open car's roll hoop): the seat goes down by at most 0.12 m and then the figure shrinks to at least 85% about the bone, until its
-head is 5 cm under that height; and it shrinks, not sinks, when the soles would be under 0.1 m from the ground. Low cars
-(the Countach, the Diablo, the Cobra) get the smaller figures, the Explorer none. Every converted car has the
-figure as its driver solid ([the mod](../modding/nfsmw-2012-content.md#the-driver)). **[unconfirmed]**: that the seat of
-a sports car is where the Explorer's is relative to the wheel (the data has no seat position), and the look: nothing was
-drawn in a running game.
+Every car but the BMW 1M shows a driver: a seated person, one of two shared characters, placed by a small object in the car's bundle. The
+figures are not in the car bundles (only one bundle bakes a copy of one into its body, see the end of the section).
+
+**The setup object.** Each of the 93 `VEH_*_HI` bundles holds one Genesys object with a structure of type
+`Genesys.Gen.Vehicle_DriverSetup` (its field `SeatBeltBoneOffset` is a second type, one per belt bone) **[verified]**. Offsets
+from the start of the structure; the field names are hashed, so these are by position:
+
+| Offset | Type | Field |
+|---|---|---|
+| 0x10 | f32 x 3 | the seat: where the character's origin goes in the car's space (x left, y up, z forward), metres. (19, 19, 19) means no driver (only the BMW 1M, 2196065, whose body is Lightning McQueen's) |
+| 0x24 | u32 | the key of the `CharacterSpec` that sits in the car: 0x3D8E in 61 bundles, 0x17785D in 32 |
+| 0x28, 0x2C, 0x30, 0x50 | u32 | the object's own key, and keys of other resources (animation or pose records; the seven looked up are in no bundle of the install) **[unconfirmed]** |
+| 0x34, 0x38 | f32 | 0.05 and 0.095 (0x38 is 0.05 in three cars and 0.18 in the BAC Mono) **[unconfirmed]** |
+| 0x3C | u32 | offset of the belt records (0x60) |
+| 0x42 | u16 | the number of belt bones: 3 with character 0x3D8E, 4 with 0x17785D **[verified]** (the 4 are the racing harness: `HarnessTopRight`) |
+
+The belt records (0x30 bytes each from 0x60) hold an offset (+0x10) and three angles in degrees (+0x20) per belt bone, zero for
+most; they set the seat belt or harness up on the character's bones **[unconfirmed]**. In the 89 cars that have a steering wheel
+bone and a seat, the seat's x is the bone's x to within 7 cm (0.00 in the BAC Mono, which seats in the middle, negative in the
+right-hand-drive DB5 and R34) except in the Lancia Delta Integrale, whose bone is at +0.34 and whose seat at -0.34; its z is
+0.21 to 0.51 m behind the bone; its y is -0.09 (the SWAT van's is +0.27) to -0.80 (the character's origin is at its seat, its
+hips at +0.96).
+
+**The characters.** `CHARACTERS/ALL_CHARS.BNDL` (the only file of the folder; the executable names it, `CharacterSpecResourceType`,
+`HCCharacterSpec`) holds three `CharacterSpec` resources (type 0x209, class 1 ids 0x3D8D, 0x3D8E and 0x17785D) that share one
+skeleton and one animation list. A spec is 96 bytes with three imports: the skeleton (+0x04), the animation list (+0x08) and the
+model (+0x20) **[verified]**. The models have five levels of detail (switch distances 0, 200, 400, 600, 800, 1000 m, as stored
+squared):
+
+| Key | Model | Vertices per level | Diffuse (BC1) |
+|---|---|---|---|
+| 0x3D8E | 0xE6DEF161 | 4,458; 2,159; 1,341; 860; 433 | 0x177881, 2048 x 1024 |
+| 0x17785D | 0xEE0B3878 | 4,632; 2,495; 1,347; 916; 472 | 0x17786F, 2048 x 1024 |
+| 0x3D8D | 0xAB2342BC | 8,155; 2,919; 1,592; 1,184; 575 | 0x177879, 1024 x 1024 (no car sets it up) |
+
+One mesh per level, material technique `CharacterNew_Opaque_Textured_Normal_Spec_VertexAO` (samplers normal, diffuse, specular
+in that order, so the diffuse is material texture 1; the normal map is 2048 x 2048, the specular 256 x 256), skinned
+(`gBoneMatrices4Weights`) **[verified]**. `chameleon_vehicle::load_driver` reads one with the car loader's own model, material
+and vertex readers. The positions are the **rest pose, which is the seated pose**: x within 0.27 of the middle, y 0.78 to 1.84,
+z -0.44 (the back) to 1.00 (the feet) **[verified]**, with the hands out on the wheel at z 0.5. The skeleton has 46 bones, among
+them `SeatbeltBottomRight`, `SeatbeltBottomLeft`, `SeatbeltTop`, `HarnessTopRight` (the executable spells these four), `Neck`,
+`Head`, `LeftHand`, `RightHand` and `Hips` (found by their hashes). The animation list (201,584 bytes) holds 28 clips by its
+header **[unconfirmed]**; they were not decoded.
+
+**Placement.** The car's driver is the character's rest-pose mesh moved by the seat, with no rotation and no scale
+(`Driver::seated`). The geometry agrees **[verified]**: over the 92 cars with a seat, the head is under the highest point of the
+body over the seat (the roof; an open car's windscreen or roll hoop) by 0.00 to 0.37 m in 81 cars, and above it by 0.03 to 0.32 m
+in the other 11 (the open Cobra and BAC Mono by 0.27 and 0.32, the rest by 0.03 to 0.06); the soles are -0.02 to 1.05 m above the
+ground (1.05 is a tall van, the Atom's are at 0.04); and nothing pokes out of the body sideways or lengthways. The test
+`every_car_seats_a_character_inside_its_body` asserts the head under the body's top, the soles above the ground, and the
+figure's box in the body's, for every car. That the game uses the seat as it is (no per-car rotation or scale) and that the
+hands are posed on the wheel by an animation (the steering) are **[unconfirmed]**: the 28 clips were not read and the game was
+not run. Nothing was drawn.
+
+**The baked driver.** One bundle, the police Explorer (`Ford_ExplorerInterceptor_2011`, 510072), also draws a 362-vertex
+(389-triangle, finest level only) seated figure as a body mesh whose material technique ends in `Driver`
+(`VehicleNFS13_Body_Driver`; a 4x4-block colour swatch of 8 x 8 pixels as its texture). It is the same posture as the seated
+0x3D8E character to within 0.2 m on every side of its box **[verified]**, so it is a baked copy of it, probably for the AI
+police car, which needs no animated figure **[unconfirmed]**. `remove_baked_driver` takes it out of the body so the car does
+not draw two. The earlier reading of the format took this one figure for the only driver of the game and moved it to the other
+cars by their steering wheel bone; that was wrong.
 
 ## The car's name
 
