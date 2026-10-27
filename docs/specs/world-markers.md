@@ -8,27 +8,15 @@ entry is a stub. The stored zones are in [formats/gameplay-races.md](../formats/
 **Evidence tags** as in [docs/README.md](../README.md#evidence-tags). **[verified]** = read from the install's
 gameplay data (the reader `crates/nfsmw-data/src/gameplay`) or checked in the running game; **[unconfirmed]** = a
 choice of this rewrite with no evidence yet from the original. Nothing here is read from `speed.exe` or the decomp
-in this pass: the marker's look and the box test's axes were **not** looked up in Ghidra.
+in this pass: the box test's axes were **not** looked up in Ghidra. World icon assets have since been checked separately.
 
-## 1. What is on the ground
+## 1. World icon presentation
 
-Each entry zone gets a flat disc on the road, centred on the zone.
-
-- **Size.** The auto shop and safe house zones are spheres of their stored `Radius`, 6 or 7 m **[verified]**
-  (format doc section 7). The disc has that radius. A race start has no stored size; its entry sphere is 6 m
-  **[unconfirmed]**, the same as the interiors' usual radius, and the disc is drawn at that radius too.
-- **Height.** The disc is laid 0.15 m above the zone centre, so it does not fight the road for depth **[unconfirmed]**.
-- **Colour.** The colour of the zone's icon on the map: the shop's yellow, the car lot's blue, the safe house's green
-  and the races' amber, the tints `blip_rgba` gives each style ([hud-minimap.md](hud-minimap.md) section 7). A disc and
-  the icon that marks it read as one place **[unconfirmed]**; the original's blip icons are textures, so these are the
-  rewrite's tints, not numbers read from the game.
-- **Which discs.** A race the career has not opened (`career_race_locked`) has no icon on the map and no disc on the
-  road; opening it brings both **[unconfirmed]**. Outside a career every race has them.
-- **Fade.** Opacity is `PEAK` (0.45) at the centre and 0 at the rim, a fan of 24 triangles; the rim is at the
-  zone's radius **[unconfirmed]**. The centre breathes: the peak drops by up to 30 % over a 2 s period
-  **[unconfirmed]**.
-- **Drawing.** Discs go in the effect layer's surface overlays, alpha blended, only while the car drives in the
-  chase view. Zones whose centre is more than 250 m from the car are not drawn **[unconfirmed]**.
+The placeholder coloured discs have been replaced by installed world icon
+geometry and particle groups. The retail type-to-asset table, current
+placement approximation and remaining uncertainties are documented in
+[world-activity-icons.md](world-activity-icons.md). Trigger radius still
+controls the entry test; it does not scale the world icon.
 
 ## 2. Which zones there are
 

@@ -50,13 +50,22 @@ pub struct Marker {
 /// Unsupported roles and invalid positions cannot produce environment lights.
 pub fn markers(solid: &Solid) -> Vec<Marker> {
     let pivot = Vec3::from_slice(&solid.transform[12..15]);
+    let min = Vec3::from_array(solid.bounds_min);
+    let max = Vec3::from_array(solid.bounds_max);
+    let bounds_valid = min.is_finite() && max.is_finite() && min.cmple(max).all() && min != max;
     solid
         .markers
         .iter()
         .filter_map(|marker| {
             let kind = Kind::from_parameter(marker.int_param)?;
             let position = Vec3::from_array(marker.translation()) - pivot;
-            position.is_finite().then_some(Marker { position, kind })
+            if !position.is_finite() {
+                return None;
+            }
+            if bounds_valid && (min - position).max(position - max).max(Vec3::ZERO).length_squared() > 100.0 {
+                return None;
+            }
+            Some(Marker { position, kind })
         })
         .collect()
 }

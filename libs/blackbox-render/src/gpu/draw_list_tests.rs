@@ -54,6 +54,7 @@ fn test_meshes() -> Vec<Option<TestMesh>> {
         Some(TestMesh::new(vec![
             draw(BlendMode::Opaque, Shading::Lit, Some(1)),
             draw(BlendMode::AlphaBlend, Shading::Prelit, None),
+            draw(BlendMode::Subtractive, Shading::Prelit, Some(1)),
             draw(BlendMode::Opaque, glossy(2), Some(2)),
             draw(BlendMode::Additive, Shading::Sky, Some(7)),
             draw(BlendMode::AlphaTest, Shading::Lit, Some(2)),

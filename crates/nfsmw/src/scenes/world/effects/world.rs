@@ -10,6 +10,15 @@ impl WorldScene {
         let _trace = blackbox_trace::scope("World: effects / uploads");
         let lens = self.gameplay_lens(self.physics_aspect);
         let (position, forward, fov) = (lens.position, lens.forward, lens.fov_y_degrees);
+        let icons = self.activity_icons(position);
+        let icon_placements = entry_marks::placements(&icons);
+        self.ambient_fx.maintain(
+            renderer,
+            &self.dir,
+            self.physics.database(),
+            self.residency.emitter_placements().chain(icon_placements.iter().map(|(key, placement)| (*key, placement))),
+            position,
+        );
         let flare_view = super::super::car_light_flares::FlareView {
             camera: position,
             forward,
@@ -20,12 +29,12 @@ impl WorldScene {
         self.car_damage_fx.maintain(renderer, &self.dir);
         self.impact_fx.maintain(renderer, &self.dir);
         let cutscene = self.cutscene_playing();
-        let shut_races = self.shut_race_zones();
         let environment = self.environment_effects(renderer);
         let rain = self.rain_effects(position);
         let Some(drive) = self.players.lead_mut() else {
             let mut layer = EffectLayer::default();
             layer.textured.extend(environment);
+            self.ambient_fx.textured(position, forward, &mut layer.textured);
             self.object_fx.textured(position, forward, &mut layer.textured);
             self.car_damage_fx.textured(position, forward, &mut layer.textured);
             self.impact_fx.textured(forward, &mut layer.textured);
@@ -52,7 +61,6 @@ impl WorldScene {
         self.heli_wash.load(renderer, &self.dir, self.physics.database());
         self.finish_flares.maintain(renderer, &self.dir, self.physics.database());
         drive.effects.retain_sections(|s| self.residency.collision().pack(s).is_some());
-        let car = drive.position();
         let (pose, bounds) = drive.spark_body();
         drive.vehicle_effects.set_body(pose, bounds);
         let (lamps, flares, lamp_frame, lamp_state) = drive.lamp_source();
@@ -66,10 +74,6 @@ impl WorldScene {
         }
         let layer = drive.effects.build(position, forward);
         layer.textured.extend(environment);
-        // No entry discs during a race or a cutscene: the garages and the other races' starts are not offered then.
-        if self.view == View::Chase && self.race.is_none() && !cutscene {
-            entry_marks::push_discs(&self.entry.zones, car, self.clock, &shut_races, &mut layer.surfaces);
-        }
         // A cutscene shows the trail only when it is asked for: the world stands still under it, so a trail from the
         // drive before it would hang in the air.
         let show_trails = self.view == View::Chase && (!cutscene || self.tuning.xenon_effects.nis_contrails);
@@ -98,6 +102,7 @@ impl WorldScene {
         self.explosions.textured(position, forward, &mut layer.textured);
         self.heli_wash.textured(position, forward, &mut layer.textured);
         self.finish_flares.textured(position, forward, &mut layer.textured);
+        self.ambient_fx.textured(position, forward, &mut layer.textured);
         self.object_fx.textured(position, forward, &mut layer.textured);
         self.car_damage_fx.textured(position, forward, &mut layer.textured);
         self.impact_fx.textured(forward, &mut layer.textured);

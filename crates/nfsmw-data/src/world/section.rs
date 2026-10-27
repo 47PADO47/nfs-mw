@@ -22,9 +22,12 @@ pub struct SectionData {
     pub decoded: Vec<Option<Vec<u8>>>,
     /// Animated textures (water, signals) defined in this section.
     pub anims: Vec<TextureAnim>,
+    pub scrolls: Vec<blackbox_tpk::TextureScroll>,
     pub scenery: Vec<ScenerySection>,
     /// Physics placements, joined to scenery by override hooks.
     pub spawners: Vec<blackbox_scenery::ObjectSpawner>,
+    /// Authored world particle groups and their trigger records.
+    pub emitters: Vec<super::emitter_placements::Placement>,
     /// The section's static collision (`docs/formats/collision.md`); map tiles have one.
     pub collision: Vec<CollisionPack>,
     /// What the receiver let a loader thread compute from this section ([`super::Streamer::set_prepare`]); the
@@ -91,9 +94,23 @@ pub fn parse_section(index: usize, bytes: &[u8]) -> Result<SectionData> {
     let spawners = blackbox_scenery::read_object_spawners(bytes, &blackbox_scenery::layout::MOST_WANTED.spawners)
         .context("physics placements")?;
     let anims = blackbox_tpk::read_texture_anims(bytes);
+    let scrolls = blackbox_tpk::read_texture_scrolls(bytes);
+    let emitters = super::emitter_placements::read(bytes).context("world emitter placements")?;
     let collision = blackbox_collision::read_collision_packs(bytes).context("collision")?;
     let decoded = vec![None; textures.len()];
-    Ok(SectionData { index, solids, textures, decoded, anims, scenery, spawners, collision, prepared: None })
+    Ok(SectionData {
+        index,
+        solids,
+        textures,
+        decoded,
+        anims,
+        scrolls,
+        scenery,
+        spawners,
+        emitters,
+        collision,
+        prepared: None,
+    })
 }
 
 /// Read and parse one section from the open stream file.
@@ -201,8 +218,10 @@ mod tests {
             decoded: Vec::new(),
             textures,
             anims: Vec::new(),
+            scrolls: Vec::new(),
             scenery: Vec::new(),
             spawners: Vec::new(),
+            emitters: Vec::new(),
             collision: Vec::new(),
             prepared: None,
         }

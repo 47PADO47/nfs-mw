@@ -36,6 +36,10 @@ fn middle(zone: &TrackZone) -> Vec3 {
 }
 
 impl super::super::TrafficWorld {
+    /// Authored hiding-zone centres in render space, for world icon placement.
+    pub(in crate::scenes::world) fn hiding_icon_positions(&self) -> impl Iterator<Item = Vec3> + '_ {
+        self.police.hidden_zones.iter().map(|zone| super::super::super::space::to_render(middle(zone).to_array()))
+    }
     /// Tells the police how tall the player's car is (half its height, metres), so its feet can be found.
     pub fn note_player_height(&mut self, half_height: f32) {
         self.police.hiding.half_height = half_height;

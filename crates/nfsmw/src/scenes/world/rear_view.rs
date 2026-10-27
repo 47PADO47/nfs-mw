@@ -42,6 +42,8 @@ impl WorldScene {
         );
         let scenery = self.rear_visible.len();
         self.residency.props().fragment_instances(&mut self.rear_visible);
+        self.mesh_animations.place(&self.residency, &mut self.rear_visible);
+        self.residency.animate_simple_models(&mut self.rear_visible, self.clock);
         if self.original_sky {
             self.residency.sky.place(
                 &self.residency.shared,

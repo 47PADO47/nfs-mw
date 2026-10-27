@@ -94,6 +94,7 @@ impl WorldScene {
         let props = self.residency.props();
         feed.statics.value.push_props(props, &mut feed.casters);
         props.fragment_instances(&mut feed.casters);
+        self.mesh_animations.place(&self.residency, &mut feed.casters);
         if let Some(traffic) = &self.traffic {
             feed.casters.extend_from_slice(feed.cars.get(traffic, cars::User::Shadows));
         }

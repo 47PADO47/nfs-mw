@@ -49,7 +49,7 @@ impl Renderer {
             );
         }
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let bind_group = self.diffuse_group(&view, None);
+        let bind_group = self.diffuse_group(&view, None, None);
         let slot = self.textures.insert(bind_group);
         self.texture_views.insert(slot, view);
         TextureHandle::from_raw(slot)
@@ -61,6 +61,7 @@ impl Renderer {
             self.planar_receivers.retain(|&receiver| receiver != handle.raw());
             self.textures.remove(handle.raw());
             self.texture_views.remove(&handle.raw());
+            self.texture_scrolls.remove(&handle.raw());
             self.redirects.forget(handle.raw());
             if let Some(rt) = &mut self.ray_reflections {
                 rt.remove_texture(handle.raw());
@@ -79,5 +80,29 @@ impl Renderer {
                 self.redirects.remove(from.raw());
             }
         }
+    }
+
+    pub fn set_texture_uv_offset(&mut self, handle: TextureHandle, offset: [f32; 2]) {
+        let Some(view) = self.texture_views.get(&handle.raw()) else { return };
+        if !self.texture_scrolls.contains_key(&handle.raw()) {
+            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("texture UV offset"),
+                size: 16,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            let projected = self
+                .projected
+                .as_ref()
+                .filter(|_| self.planar_receivers.contains(&handle.raw()))
+                .map(|capture| (capture.output(), capture.receiver_matrix));
+            let group = self.diffuse_group(view, projected, Some(&buffer));
+            self.texture_scrolls.insert(handle.raw(), buffer);
+            if let Some(slot) = self.textures.get_mut(handle.raw()) {
+                *slot = group;
+            }
+        }
+        let words = [offset[0], offset[1], 0.0, 0.0];
+        self.queue.write_buffer(&self.texture_scrolls[&handle.raw()], 0, bytemuck::cast_slice(&words));
     }
 }

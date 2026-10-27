@@ -112,6 +112,9 @@ pub trait RenderBackend {
     /// Draw `to` wherever `from` is used, or stop redirecting `from` when `to` is `None`.
     fn redirect_texture(&mut self, from: TextureHandle, to: Option<TextureHandle>);
 
+    /// Set the authored diffuse UV translation, in texture repeats.
+    fn set_texture_uv_offset(&mut self, _texture: TextureHandle, _offset: [f32; 2]) {}
+
     fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle;
     fn destroy_mesh(&mut self, handle: MeshHandle);
 

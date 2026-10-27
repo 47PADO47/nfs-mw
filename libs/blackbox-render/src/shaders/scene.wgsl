@@ -56,6 +56,7 @@ struct PlanarReceiver { projection: mat4x4<f32>, options: vec4<f32> };
 @group(1) @binding(2) var planar_image: texture_2d<f32>;
 @group(1) @binding(3) var planar_sampler: sampler;
 @group(1) @binding(4) var<uniform> planar: PlanarReceiver;
+@group(1) @binding(5) var<uniform> texture_scroll: vec4<f32>;
 
 struct VsIn {
     @location(0) position: vec3<f32>,
@@ -108,7 +109,7 @@ fn vs_main(v: VsIn, placed: InstanceIn) -> VsOut {
 
 fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
     if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
-    let texel = textureSampleBias(diffuse, diffuse_sampler, in.uv, globals.fog_range.z);
+    let texel = textureSampleBias(diffuse, diffuse_sampler, in.uv + texture_scroll.xy, globals.fog_range.z);
     if WORLD_KIND > 0u && globals.light_dir.w > 0.5 {
         return world_pixel(in, texel, receive_ao);
     }

@@ -263,6 +263,11 @@ impl RenderBackend for Renderer {
         Renderer::redirect_texture(self, from, to);
     }
 
+    fn set_texture_uv_offset(&mut self, texture: TextureHandle, offset: [f32; 2]) {
+        self.touch_scene();
+        Renderer::set_texture_uv_offset(self, texture, offset);
+    }
+
     fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle {
         self.touch_scene();
         Renderer::create_mesh(self, desc)

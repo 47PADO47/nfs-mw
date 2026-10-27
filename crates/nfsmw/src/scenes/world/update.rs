@@ -185,6 +185,7 @@ impl WorldScene {
         drop(trace);
         let trace = blackbox_trace::scope("World: update / sky, day and animation");
         self.clock += sim_dt * self.tuning.animation_speed;
+        self.mesh_animations.advance(sim_dt * self.tuning.animation_speed, &self.residency);
         self.environment_lights.blink.advance(sim_dt);
         self.update_sky(renderer);
 

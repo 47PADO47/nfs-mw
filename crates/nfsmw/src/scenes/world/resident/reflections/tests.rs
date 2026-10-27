@@ -46,7 +46,9 @@ fn data() -> SectionData {
         solids: vec![],
         textures: vec![],
         anims: vec![],
+        scrolls: vec![],
         spawners: vec![],
+        emitters: vec![],
         collision: vec![],
         prepared: None,
         scenery: vec![ScenerySection {

@@ -163,6 +163,14 @@ impl WorldScene {
                 &Frustum::from_view_proj(&camera.view_proj),
                 &mut self.reflection_faces[face],
             );
+            let from = self.reflection_faces[face].len();
+            self.mesh_animations.place(&self.residency, &mut self.reflection_faces[face]);
+            self.residency.animate_simple_models(&mut self.reflection_faces[face], self.clock);
+            if far.is_some() {
+                let tail = self.reflection_faces[face].split_off(from);
+                self.reflection_faces[face]
+                    .extend(tail.into_iter().filter(|item| within(origin, item.transform.w_axis.truncate(), far)));
+            }
             if self.original_sky {
                 self.residency.sky.place(
                     &self.residency.shared,

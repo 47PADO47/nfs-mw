@@ -29,7 +29,7 @@ impl Renderer {
                     .as_ref()
                     .filter(|_| self.planar_receivers.contains(&slot))
                     .map(|capture| (capture.output(), capture.receiver_matrix));
-                (slot, self.diffuse_group(view, projected))
+                (slot, self.diffuse_group(view, projected, self.texture_scrolls.get(&slot)))
             })
             .collect();
         for (slot, group) in groups {

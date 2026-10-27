@@ -85,9 +85,35 @@ pub fn blend_mode(t: Option<&Texture>) -> BlendMode {
     match t.alpha_blend {
         1 => BlendMode::AlphaBlend,
         2 => BlendMode::Additive,
-        // Subtractive and overbright are rare; approximate until the effects are decoded.
-        3 | 4 => BlendMode::AlphaBlend,
+        3 => BlendMode::Subtractive,
+        // Overbright remains approximate until its render state is decoded.
+        4 => BlendMode::AlphaBlend,
         _ if t.alpha_usage == AlphaUsage::PunchThrough => BlendMode::AlphaTest,
         _ => BlendMode::Opaque,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subtractive_texture_uses_its_own_mode() {
+        let texture = Texture {
+            name: String::new(),
+            name_hash: 0,
+            width: 1,
+            height: 1,
+            mip_levels: 1,
+            format: TpkFormat::Dxt3,
+            compression_type: 0,
+            alpha_usage: AlphaUsage::Modulated,
+            alpha_sorting: true,
+            alpha_blend: 3,
+            flags: 0,
+            data: Vec::new(),
+            palette: Vec::new(),
+        };
+        assert_eq!(blend_mode(Some(&texture)), BlendMode::Subtractive);
     }
 }

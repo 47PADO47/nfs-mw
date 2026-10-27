@@ -75,6 +75,7 @@ pub enum BlendKind {
     Opaque,
     AlphaTest,
     AlphaBlend,
+    Subtractive,
     Additive,
 }
 
@@ -84,6 +85,7 @@ impl From<BlendMode> for BlendKind {
             BlendMode::Opaque => Self::Opaque,
             BlendMode::AlphaTest => Self::AlphaTest,
             BlendMode::AlphaBlend => Self::AlphaBlend,
+            BlendMode::Subtractive => Self::Subtractive,
             BlendMode::Additive => Self::Additive,
         }
     }
@@ -241,6 +243,7 @@ impl Material for BlackboxMaterial {
             BlendKind::Opaque => bevy_material::AlphaMode::Opaque,
             BlendKind::AlphaTest => bevy_material::AlphaMode::Mask(0.5),
             BlendKind::AlphaBlend => bevy_material::AlphaMode::Blend,
+            BlendKind::Subtractive => bevy_material::AlphaMode::Blend,
             BlendKind::Additive => bevy_material::AlphaMode::Add,
         }
     }
@@ -318,6 +321,20 @@ impl Material for BlackboxMaterial {
         match blend {
             BlendKind::Opaque | BlendKind::AlphaTest => target.blend = None,
             BlendKind::AlphaBlend => target.blend = Some(BlendState::ALPHA_BLENDING),
+            BlendKind::Subtractive => {
+                target.blend = Some(BlendState {
+                    color: BlendComponent {
+                        src_factor: BlendFactor::Zero,
+                        dst_factor: BlendFactor::OneMinusSrc,
+                        operation: BlendOperation::Add,
+                    },
+                    alpha: BlendComponent {
+                        src_factor: BlendFactor::Zero,
+                        dst_factor: BlendFactor::OneMinusSrc,
+                        operation: BlendOperation::Add,
+                    },
+                })
+            }
             BlendKind::Additive => target.blend = Some(ADDITIVE),
         }
         if let Some(depth) = descriptor.depth_stencil.as_mut() {

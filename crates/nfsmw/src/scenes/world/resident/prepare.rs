@@ -179,8 +179,10 @@ mod tests {
             textures: Vec::new(),
             decoded: Vec::new(),
             anims: Vec::new(),
+            scrolls: Vec::new(),
             scenery: Vec::new(),
             spawners: Vec::new(),
+            emitters: Vec::new(),
             collision: Vec::new(),
             prepared: None,
         };
@@ -200,8 +202,10 @@ mod tests {
             textures: Vec::new(),
             decoded: Vec::new(),
             anims: Vec::new(),
+            scrolls: Vec::new(),
             scenery: Vec::new(),
             spawners: Vec::new(),
+            emitters: Vec::new(),
             collision: Vec::new(),
             prepared: None,
         };

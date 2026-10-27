@@ -68,6 +68,20 @@ fn capture(r: &mut Renderer, parts: &[Instance], receivers: &[TextureHandle]) {
 
 #[test]
 #[ignore = "requires selected GPU"]
+fn subtractive_decal_preserves_black_and_darkens_bright_pixels() {
+    let _gpu = test_support::serial();
+    let mut r = Renderer::headless((64, 64), test_support::options()).expect("selected GPU required");
+    let triangle = [[-1.0, -1.0, 0.0], [-1.0, 3.0, 0.0], [3.0, -1.0, 0.0]];
+    for (shade, expected) in [(0, 51), (128, 25), (255, 0)] {
+        let tex = texture(&mut r, [shade, shade, shade, 255]);
+        let decal = mesh(&mut r, &triangle, tex, BlendMode::Subtractive, true);
+        r.render(&frame(false), &[Instance::new(decal, Mat4::IDENTITY)]).unwrap();
+        pixel(&r.read_output().unwrap().unwrap(), [32, 32], [0, expected, 0]);
+    }
+}
+
+#[test]
+#[ignore = "requires selected GPU"]
 fn planar_capture_preserves_floor_alpha_geometry_and_empty_background() {
     let _gpu = test_support::serial();
     let mut r = Renderer::headless((64, 64), test_support::options()).expect("selected GPU required");

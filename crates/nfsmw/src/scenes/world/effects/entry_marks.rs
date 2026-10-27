@@ -1,164 +1,227 @@
-//! The ground markers of the entry zones: a coloured disc on the road at each auto shop, safe house and race start near
-//! the car. The disc is brightest at its centre, fades to nothing at its edge, and breathes slowly. The look is
-//! `[unconfirmed]` (`docs/specs/world-markers.md` section 1); the size is the zone's radius, the colour the colour of
-//! the zone's map icon.
+//! Installed world-icon geometry and particle groups; see world-activity-icons.md.
+use blackbox_attrib::vlt_hash;
+use blackbox_gfx::{Instance, InstanceKey};
+use blackbox_hash::bstring_hash;
+use glam::{Mat4, Vec3};
+use nfsmw_data::gameplay::RaceType;
+use nfsmw_data::world::emitter_placements::Placement;
 
-use std::f32::consts::TAU;
+use super::super::entry_zones::{EntryZones, ZoneKind};
+use super::super::resident::SectionResources;
 
-use blackbox_gfx::EffectVertex;
-use glam::Vec3;
+pub(in crate::scenes::world) const DRAW_RANGE: f32 = 250.0;
+const ID_NAMESPACE: usize = usize::MAX - 1;
 
-use super::super::entry_zones::{EntryZones, Zone, ZoneKind};
-use crate::frontend::world_map::control::blip_rgba;
-use crate::hud::{AUTO_SHOP, CAR_LOT, RACE_SPRINT, SAFE_HOUSE};
+#[derive(Clone, Copy)]
+struct Icon {
+    model: &'static str,
+    group: &'static str,
+}
 
-/// Zones whose centre is further than this from the car are not drawn, metres.
-pub const DRAW_RANGE: f32 = 250.0;
-/// Segments round each disc.
-const SEGMENTS: usize = 24;
-/// How far above the zone's centre the disc is laid, metres, so it does not fight the road for depth.
-const LIFT: f32 = 0.15;
-/// The opacity at the centre of a disc, 0..1, and how much the pulse lowers it.
-const PEAK: f32 = 0.45;
-const PULSE_DEPTH: f32 = 0.3;
-/// Seconds for one breath of the pulse.
-const PULSE_PERIOD: f32 = 2.0;
-
-/// The disc's colour: the colour of the zone's icon on the map, so a disc and the icon that marks it read as one place.
-/// Every race type's icon has the races' colour.
-pub fn colour(kind: ZoneKind) -> [u8; 3] {
-    let style = match kind {
-        ZoneKind::AutoShop => AUTO_SHOP,
-        ZoneKind::SafeHouse => SAFE_HOUSE,
-        ZoneKind::CarLot => CAR_LOT,
-        ZoneKind::Race => RACE_SPRINT,
+fn icon(kind: ZoneKind, race: Option<RaceType>) -> Option<Icon> {
+    let (model, group) = match kind {
+        ZoneKind::AutoShop => ("CHECKPOINT_GEOMETRY_CHOPSHOP_00", "fxgame_icongrp_chop"),
+        ZoneKind::SafeHouse => ("CHECKPOINT_GEOMETRY_SAFEHOUSE_00", "fxgame_icongrp_safe"),
+        ZoneKind::CarLot => ("CHECKPOINT_GEOMETRY_CARLOT_00", "fxgame_icongrp_lot"),
+        ZoneKind::Race => match race? {
+            RaceType::Sprint => ("CHECKPOINT_GEOMETRY_SPRINT_00", "fxgame_icongrp_sprint"),
+            RaceType::Circuit => ("CHECKPOINT_GEOMETRY_CIRCUIT_00", "fxgame_icongrp_circuit"),
+            RaceType::Drag => ("CHECKPOINT_GEOMETRY_DRAG_00", "fxgame_icongrp_drag"),
+            RaceType::Knockout => ("CHECKPOINT_GEOMETRY_KNOCKOUT_00", "fxgame_icongrp_lapk"),
+            RaceType::Tollbooth => ("CHECKPOINT_GEOMETRY_TOLLBOOTH_00", "fxgame_icongrp_tollb"),
+            RaceType::SpeedTrap => ("CHECKPOINT_GEOMETRY_SPEEDTRAP_00", "fxgame_icongrp_speedt"),
+            _ => return None,
+        },
     };
-    let [r, g, b, _] = blip_rgba(style);
-    [r, g, b]
+    Some(Icon { model, group })
 }
 
-/// The opacity of the discs at `clock` seconds: `PEAK` lowered by the pulse, 0..1.
-pub fn peak_opacity(clock: f32) -> f32 {
-    let breath = 0.5 - 0.5 * (clock * TAU / PULSE_PERIOD).cos();
-    PEAK * (1.0 - PULSE_DEPTH * breath)
-}
+const HIDDEN: Icon = Icon { model: "CHECKPOINT_GEOMETRY_HIDECAR_00", group: "fxgame_icongrp_hidecar" };
 
-/// Append the discs of the zones within [`DRAW_RANGE`] of `car` to `out` (surface overlays, alpha blended), except those
-/// of the races named in `shut`: a race the career has not opened has no icon on the map and no disc on the road.
-pub fn push_discs(zones: &EntryZones, car: Vec3, clock: f32, shut: &[String], out: &mut Vec<EffectVertex>) {
-    let peak = peak_opacity(clock);
-    for zone in zones.near(car, DRAW_RANGE) {
-        if zone.kind == ZoneKind::Race && shut.contains(&zone.name) {
-            continue;
+impl super::super::WorldScene {
+    pub(in crate::scenes::world) fn activity_icons(&self, camera: Vec3) -> Vec<VisibleIcon> {
+        let car = self.players.lead().map_or(camera, |drive| drive.position());
+        let pursuing = self.traffic.as_ref().is_some_and(|traffic| traffic.is_pursuing());
+        let hiding = self.traffic.iter().filter(|_| pursuing).flat_map(|traffic| traffic.hiding_icon_positions());
+        let entries = self.race.is_none() && !self.cutscene_playing() && !pursuing;
+        let mut icons = collect(&self.entry.zones, car, &self.shut_race_zones(), entries, hiding);
+        for item in &mut icons {
+            let p = item.position;
+            if let Some(height) =
+                super::super::space::ground_below(self.residency.collision(), p.x, p.y, p.z + 5.0, p.z - 10.0)
+            {
+                item.position.z = height;
+            }
         }
-        push_disc(zone, peak, out);
+        icons
     }
 }
 
-/// One disc: a fan of triangles from the centre (at `peak` opacity) to a rim that is clear.
-fn push_disc(zone: &Zone, peak: f32, out: &mut Vec<EffectVertex>) {
-    let [r, g, b] = colour(zone.kind);
-    // Render space is z up: the disc lies in the x, y plane.
-    let centre = zone.centre + Vec3::Z * LIFT;
-    let centre_vertex = EffectVertex {
-        position: centre.to_array(),
-        color: [r, g, b, (peak * 255.0) as u8],
-        uv: [0.5, 0.5],
-        detail: [0.0; 2],
-    };
-    let rim = |i: usize| {
-        let angle = TAU * i as f32 / SEGMENTS as f32;
-        let (sin, cos) = angle.sin_cos();
-        let at = centre + Vec3::new(cos * zone.radius, sin * zone.radius, 0.0);
-        EffectVertex {
-            position: at.to_array(),
-            color: [r, g, b, 0],
-            uv: [0.5 + 0.5 * cos, 0.5 + 0.5 * sin],
-            detail: [0.0; 2],
+/// A stable icon identity and its location, shared by geometry and particles.
+#[derive(Clone)]
+pub(in crate::scenes::world) struct VisibleIcon {
+    id: usize,
+    position: Vec3,
+    icon: Icon,
+}
+
+pub(in crate::scenes::world) fn collect(
+    zones: &EntryZones,
+    car: Vec3,
+    shut: &[String],
+    show_entries: bool,
+    hiding: impl Iterator<Item = Vec3>,
+) -> Vec<VisibleIcon> {
+    let mut result = Vec::new();
+    if show_entries {
+        for (id, zone) in zones.zones.iter().enumerate() {
+            if zone.centre.distance_squared(car) > DRAW_RANGE * DRAW_RANGE {
+                continue;
+            }
+            if zone.kind == ZoneKind::Race && shut.contains(&zone.name) {
+                continue;
+            }
+            if let Some(icon) = icon(zone.kind, zone.race_type) {
+                result.push(VisibleIcon { id, position: zone.centre, icon });
+            }
         }
-    };
-    for i in 0..SEGMENTS {
-        out.push(centre_vertex);
-        out.push(rim(i));
-        out.push(rim(i + 1));
+    }
+    let first_hiding = zones.zones.len();
+    for (i, position) in hiding.enumerate() {
+        if position.distance_squared(car) <= DRAW_RANGE * DRAW_RANGE {
+            result.push(VisibleIcon { id: first_hiding + i, position, icon: HIDDEN });
+        }
+    }
+    result
+}
+
+pub(in crate::scenes::world) fn placements(icons: &[VisibleIcon]) -> Vec<((usize, usize), Placement)> {
+    icons
+        .iter()
+        .map(|item| {
+            (
+                (ID_NAMESPACE, item.id),
+                Placement {
+                    group: vlt_hash(item.icon.group),
+                    section: 1,
+                    matrix: Mat4::from_translation(item.position).to_cols_array(),
+                    triggers: Vec::new(),
+                },
+            )
+        })
+        .collect()
+}
+
+pub(in crate::scenes::world) fn geometry(icons: &[VisibleIcon], resources: &SectionResources, out: &mut Vec<Instance>) {
+    for item in icons {
+        let Some((mesh, _, _)) = resources.meshes.get(&bstring_hash(item.icon.model)) else { continue };
+        out.push(Instance::keyed(
+            *mesh,
+            Mat4::from_translation(item.position),
+            InstanceKey::new(0x7fff_fffc, item.id as u32),
+        ));
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::entry_zones::Zone;
     use super::*;
 
     #[test]
-    fn the_disc_is_brightest_at_its_centre_and_clear_at_its_rim() {
-        let zone = Zone {
-            kind: ZoneKind::SafeHouse,
-            name: "zone".to_string(),
-            centre: Vec3::ZERO,
+    fn icon_table_selects_matching_stock_assets() {
+        let sprint = icon(ZoneKind::Race, Some(RaceType::Sprint)).unwrap();
+        assert_eq!(sprint.model, "CHECKPOINT_GEOMETRY_SPRINT_00");
+        assert_eq!(sprint.group, "fxgame_icongrp_sprint");
+        assert!(icon(ZoneKind::Race, None).is_none());
+        assert_eq!(icon(ZoneKind::SafeHouse, None).unwrap().group, "fxgame_icongrp_safe");
+    }
+
+    #[test]
+    fn locked_events_and_distant_icons_are_excluded() {
+        let zone = |name: &str, position| Zone {
+            kind: ZoneKind::Race,
+            race_type: Some(RaceType::Circuit),
+            name: name.into(),
+            centre: position,
             radius: 6.0,
             respawn: None,
         };
-        let mut out = Vec::new();
-        push_disc(&zone, 0.5, &mut out);
-        assert_eq!(out.len(), SEGMENTS * 3, "one triangle per segment");
-        let alpha_at = |v: &EffectVertex| v.color[3];
-        assert!(out.iter().step_by(3).all(|v| alpha_at(v) == 127), "the centre is the peak");
-        for rim in out.chunks(3).flat_map(|t| [t[1], t[2]]) {
-            assert_eq!(alpha_at(&rim), 0, "the rim is clear");
-            let distance = Vec3::from(rim.position).with_z(0.0).length();
-            assert!((distance - 6.0).abs() < 1e-4, "the rim is the zone's radius: {distance}");
-        }
+        let zones =
+            EntryZones { zones: vec![zone("locked", Vec3::ZERO), zone("far", Vec3::X * 300.0)], ..Default::default() };
+        assert!(collect(&zones, Vec3::ZERO, &["locked".into()], true, std::iter::empty()).is_empty());
     }
 
     #[test]
-    fn the_disc_is_laid_just_above_the_ground_at_the_zone_centre() {
-        let zone = Zone {
-            kind: ZoneKind::AutoShop,
-            name: "zone".to_string(),
-            centre: Vec3::new(3.0, -2.0, 10.0),
-            radius: 7.0,
-            respawn: None,
-        };
-        let mut out = Vec::new();
-        push_disc(&zone, 0.6, &mut out);
-        assert_eq!(out[0].position, [3.0, -2.0, 10.0 + LIFT], "render space: z is up");
-        assert_eq!(&out[0].color[..3], &[0xff, 0xed, 0x00], "the auto shop icon's yellow");
-    }
-
-    #[test]
-    fn the_pulse_breathes_between_the_full_peak_and_the_lower_one() {
-        let high = peak_opacity(0.0);
-        let low = peak_opacity(PULSE_PERIOD / 2.0);
-        assert!((high - PEAK).abs() < 1e-6, "{high}");
-        assert!((low - PEAK * (1.0 - PULSE_DEPTH)).abs() < 1e-6, "{low}");
-    }
-
-    #[test]
-    fn a_disc_wears_the_colour_of_its_map_icon() {
-        use crate::hud::{RACE_DRAG, SAFE_HOUSE_TINT};
-        let [r, g, b, _] = blip_rgba(RACE_DRAG);
-        assert_eq!(colour(ZoneKind::Race), [r, g, b], "every race type's icon has the races' colour");
-        assert_ne!(colour(ZoneKind::Race), [255, 255, 255], "a race disc is not white");
-        assert_eq!(colour(ZoneKind::SafeHouse), SAFE_HOUSE_TINT[..3]);
-    }
-
-    #[test]
-    fn a_race_the_career_keeps_shut_gets_no_disc() {
-        let zone =
-            |kind, name: &str| Zone { kind, name: name.to_string(), centre: Vec3::ZERO, radius: 6.0, respawn: None };
+    fn particles_do_not_require_the_model() {
         let zones = EntryZones {
-            zones: vec![zone(ZoneKind::Race, "open"), zone(ZoneKind::Race, "shut"), zone(ZoneKind::SafeHouse, "shut")],
+            zones: vec![Zone {
+                kind: ZoneKind::SafeHouse,
+                race_type: None,
+                name: "safe".into(),
+                centre: Vec3::X,
+                radius: 6.0,
+                respawn: None,
+            }],
             ..Default::default()
         };
-        let mut out = Vec::new();
-        push_discs(&zones, Vec3::ZERO, 0.0, &["shut".to_string()], &mut out);
-        assert_eq!(out.len(), 2 * SEGMENTS * 3, "the open race and the safe house of the same name keep theirs");
+        let icons = collect(&zones, Vec3::ZERO, &[], true, std::iter::empty());
+        assert_eq!(placements(&icons).len(), 1);
+        let mut meshes = Vec::new();
+        geometry(&icons, &SectionResources::default(), &mut meshes);
+        assert!(meshes.is_empty());
     }
 
     #[test]
-    fn only_the_zones_in_range_are_drawn() {
-        let zones = EntryZones::default();
+    fn model_is_drawn_without_a_particle_asset() {
+        let zones = EntryZones {
+            zones: vec![Zone {
+                kind: ZoneKind::SafeHouse,
+                race_type: None,
+                name: "safe".into(),
+                centre: Vec3::X,
+                radius: 6.0,
+                respawn: None,
+            }],
+            ..Default::default()
+        };
+        let icons = collect(&zones, Vec3::ZERO, &[], true, std::iter::empty());
+        let mut resources = SectionResources::default();
+        let mesh = blackbox_gfx::MeshHandle::from_raw(7);
+        resources.meshes.insert(
+            bstring_hash("CHECKPOINT_GEOMETRY_SAFEHOUSE_00"),
+            (mesh, blackbox_scenery::LodModel { num_polys: 1, density: 1.0 }, Default::default()),
+        );
         let mut out = Vec::new();
-        push_discs(&zones, Vec3::ZERO, 0.0, &[], &mut out);
-        assert!(out.is_empty(), "no zones, nothing drawn");
+        geometry(&icons, &resources, &mut out);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].mesh, mesh);
+        assert_eq!(out[0].transform.w_axis.truncate(), Vec3::X);
+    }
+
+    #[test]
+    #[ignore = "needs installed InGameA and attributes"]
+    fn installed_activity_icon_models_and_groups_resolve() {
+        let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
+        let assets = nfsmw_data::world::load_global_textures(&dir).unwrap();
+        let db = nfsmw_data::shared::attributes(&dir).unwrap();
+        let icons = [
+            icon(ZoneKind::AutoShop, None).unwrap(),
+            icon(ZoneKind::SafeHouse, None).unwrap(),
+            icon(ZoneKind::CarLot, None).unwrap(),
+            icon(ZoneKind::Race, Some(RaceType::Sprint)).unwrap(),
+            icon(ZoneKind::Race, Some(RaceType::Circuit)).unwrap(),
+            icon(ZoneKind::Race, Some(RaceType::Drag)).unwrap(),
+            icon(ZoneKind::Race, Some(RaceType::Knockout)).unwrap(),
+            icon(ZoneKind::Race, Some(RaceType::Tollbooth)).unwrap(),
+            icon(ZoneKind::Race, Some(RaceType::SpeedTrap)).unwrap(),
+            HIDDEN,
+        ];
+        for icon in icons {
+            assert!(assets.solids.iter().any(|solid| solid.name_hash == bstring_hash(icon.model)), "{}", icon.model);
+            let group = db.collection_by_key(vlt_hash("emittergroup"), vlt_hash(icon.group)).expect(icon.group);
+            assert!(group.get_f32("FarClip").is_some(), "{} requires a far clip", icon.group);
+            assert!(!nfsmw_data::car::exhaust::group_emitters(&db, group).is_empty(), "{}", icon.group);
+        }
     }
 }

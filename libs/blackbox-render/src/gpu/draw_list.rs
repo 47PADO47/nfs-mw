@@ -20,7 +20,7 @@ use crate::{BlendMode, DrawRange, Instance, Shading, TextureHandle};
 
 /// One bucket per (blend, shading) pair, in draw order.
 pub(super) const BUCKETS: usize = BLEND_ORDER.len() * SHADINGS.len();
-const _: () = assert!(BUCKETS <= 32);
+const _: () = assert!(BUCKETS < u64::BITS as usize);
 
 /// The (blend, shading) pairs in draw order: blend modes outermost, shadings inside. The position of a
 /// pair is its bucket index.

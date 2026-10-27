@@ -326,6 +326,7 @@ impl WorldScene {
         let helicopter = helicopter.map(|(at, _, _)| Vec3::from_array(space::to_physics(at)));
         self.heli_wash.step(STEP, helicopter, self.residency.collision());
         self.finish_flares.step(STEP);
+        self.ambient_fx.step(STEP);
         self.record_original_camera();
         let _trace = blackbox_trace::scope("World: physics / prop lifetimes, moments and break icons");
         let view = self.rules_lens(self.physics_aspect).view_proj();

@@ -154,6 +154,7 @@ pub struct Renderer {
     /// Texture bind groups. Slot 0 is the white fallback.
     textures: slots::Slots<wgpu::BindGroup>,
     texture_views: std::collections::HashMap<usize, wgpu::TextureView>,
+    texture_scrolls: std::collections::HashMap<usize, wgpu::Buffer>,
     meshes: slots::Slots<meshes::GpuMesh>,
     instances: instances::InstanceBuffer,
     effects: effects::Effects,

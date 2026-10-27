@@ -196,3 +196,39 @@ fn scene_filtering_changes_live_and_round_trips_retained_materials() {
     r.destroy_texture(texture);
     assert_eq!(r.resource_counts(), original_counts);
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn texture_scroll_changes_pixels_and_survives_sampler_rebuild() {
+    let _guard = test_support::serial();
+    let mut r = Renderer::headless((64, 64), test_support::options()).expect("selected GPU required");
+    let levels = striped_mips();
+    let texture = r.create_texture(&TextureDesc {
+        label: "scroll stripes",
+        width: 128,
+        height: 128,
+        format: PixelFormat::Rgba8,
+        mips: levels.iter().map(Vec::as_slice).collect(),
+    });
+    let mesh = mesh(&mut r, texture, Shading::Prelit);
+    let instances = [Instance::new(mesh, Mat4::IDENTITY)];
+    r.set_texture_filtering(TextureFiltering::Anisotropic8);
+    r.render(&frame(), &instances).unwrap();
+    let before = r.read_output().unwrap().unwrap();
+    r.set_texture_uv_offset(texture, [0.0, 0.0625]);
+    r.render(&frame(), &instances).unwrap();
+    let shifted = r.read_output().unwrap().unwrap();
+    assert_ne!(before, shifted);
+    r.set_texture_filtering(TextureFiltering::Trilinear);
+    r.set_texture_filtering(TextureFiltering::Anisotropic8);
+    r.render(&frame(), &instances).unwrap();
+    assert_eq!(shifted, r.read_output().unwrap().unwrap());
+    r.set_texture_uv_offset(texture, [0.0, 0.0]);
+    r.render(&frame(), &instances).unwrap();
+    let unshifted = r.read_output().unwrap().unwrap();
+    r.set_texture_uv_offset(texture, [0.0, 1.0]);
+    r.render(&frame(), &instances).unwrap();
+    assert_eq!(unshifted, r.read_output().unwrap().unwrap());
+    r.destroy_mesh(mesh);
+    r.destroy_texture(texture);
+}

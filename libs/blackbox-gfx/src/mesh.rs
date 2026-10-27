@@ -20,6 +20,8 @@ pub enum BlendMode {
     AlphaTest,
     /// Standard alpha blending, drawn after everything opaque.
     AlphaBlend,
+    /// Multiply the destination by one minus source RGB, for subtractive decals.
+    Subtractive,
     /// `src * alpha + dest`: lights, glows. Drawn last.
     Additive,
 }
