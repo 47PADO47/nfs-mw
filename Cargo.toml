@@ -48,6 +48,7 @@ default-members = [
     "libs/blackbox-ui",
     "libs/blackbox-vehicle",
     "libs/chameleon-bundle",
+    "libs/chameleon-camera",
     "libs/chameleon-effects",
     "libs/chameleon-gfx",
     "libs/chameleon-sound-graph",
