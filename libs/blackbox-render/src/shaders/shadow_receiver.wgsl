@@ -7,6 +7,7 @@ struct ShadowData {
     texels: vec4<f32>, depth_spans: vec4<f32>, softness: vec4<f32>, contact: vec4<f32>,
     ambient: vec4<f32>, environment: vec4<f32>, world: vec4<f32>, debug: vec4<f32>,
     projected: vec4<f32>, resolutions: vec4<f32>, cloud: vec4<f32>,
+    world_light: array<vec4<f32>, 9>,
 };
 @group(SHADOW_GROUP) @binding(1) var<uniform> shadow_data: ShadowData;
 @group(SHADOW_GROUP) @binding(2) var shadow_map: texture_depth_2d_array;
@@ -34,6 +35,19 @@ fn cloud_visibility(world: vec3<f32>) -> f32 {
     let d = textureLoad(cloud_shadow_map, clamp(base+vec2(1,1), vec2(0), vec2(255)), 0).r;
     let t = mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
     return mix(1.0, t, smoothstep(0.0, 0.04, edge) * smoothstep(0.05, 0.15, sun.z));
+}
+
+// Low-frequency sky colour and direction, normalized to the authored ambient energy.
+// Keep baked occlusion and AO; this global field does not know local sky visibility.
+fn world_environment(normal: vec3<f32>) -> vec3<f32> {
+    if shadow_data.world.w <= 0.0 { return vec3(1.0); }
+    let n = normal / max(length(normal), 1e-6);
+    let basis = array<f32,9>(0.282095,0.488603*n.y,0.488603*n.z,0.488603*n.x,
+        1.092548*n.x*n.y,1.092548*n.y*n.z,0.315392*(3.0*n.z*n.z-1.0),
+        1.092548*n.x*n.z,0.546274*(n.x*n.x-n.y*n.y));
+    var irradiance = vec3(0.0);
+    for (var i=0u; i<9u; i++) { irradiance += shadow_data.world_light[i].xyz*basis[i]; }
+    return mix(vec3(1.0),clamp(irradiance,vec3(0.45),vec3(1.65)),shadow_data.world.w);
 }
 
 fn shadow_size(cascade: u32) -> f32 {

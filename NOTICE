@@ -414,6 +414,12 @@ rustyAC CSP rendering research (GPL-3.0-or-later, reference only):
 https://github.com/thesupersupersigma/rustyAC/blob/master/docs/csp/rendering_config.md
 No implementation code copied. Source footprints, GGX PDF LOD and cube-edge filtering independently implemented.
 
+Directional world ambient lighting
+----------------------------------
+Google Filament (Apache-2.0), spherical-harmonic diffuse irradiance theory:
+https://google.github.io/filament/Filament.html#lighting/imagebasedlights/irradianceenvironmentmaps
+Independent implementation using this renderer's analytic sky and SH basis; no external code copied.
+
 Enhanced exhaust appearance
 --------------------------
 THREE.Fire by mattatz, Copyright (c) 2015 mattatz, MIT.

@@ -205,8 +205,15 @@ impl Renderer {
             u8::from(settings.world_ambient && stats.supported) as f32,
             settings.world_ambient_share,
             settings.world_ambient_tint,
-            0.0,
+            match settings.world_skylight && settings.shadow_projection.is_none() {
+                true => settings.world_skylight_strength,
+                false => 0.0,
+            },
         ];
+        if params.world[3] > 0.0 {
+            params.world_light =
+                super::world_light::coefficients(frame, self.sky.as_ref().map(|sky| sky.lighting_state()));
+        }
         params.debug[0] = match stats.supported {
             true => settings.lighting_debug as u32 as f32,
             false => 0.0,

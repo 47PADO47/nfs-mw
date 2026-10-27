@@ -23,6 +23,7 @@ pub(super) struct Params {
     pub projected: [f32; 4],
     pub resolutions: [f32; 4],
     pub cloud: [f32; 4],
+    pub world_light: [[f32; 4]; 9],
 }
 
 /// Snap step per cascade in texels. Coarser steps move the map origin by at most half a step, which
@@ -153,6 +154,7 @@ pub(super) fn fit_with_grid(
             projected: [0.0; 4],
             resolutions,
             cloud: [0.0; 4],
+            world_light: [[0.0; 4]; 9],
         },
         count,
     })
