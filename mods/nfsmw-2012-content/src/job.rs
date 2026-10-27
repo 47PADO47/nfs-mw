@@ -18,7 +18,7 @@ use crate::stamp;
 
 const STAGING: &str = ".staging";
 /// The folders the game reads, which a promotion replaces together.
-const CONTENT: [&str; 2] = ["files", "cars"];
+const CONTENT: [&str; 3] = ["files", "cars", "manufacturers"];
 
 /// A conversion running on its own thread.
 pub struct Job {

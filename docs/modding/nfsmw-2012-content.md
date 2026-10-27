@@ -112,6 +112,7 @@ table instead ([car-stats.md](car-stats.md)).
 | Glass and lamp lenses | a translucent tint texture with light material `WINDSHIELD` |
 | Untextured surfaces | a flat colour texture from the material's diffuse colour (dark grey when it has none) |
 | Normals | recomputed from the triangles |
+| Brand logos | the manufacturer table of the vehicle list and the logo pictures under `UI/IMAGES/STREAMED/` ([chameleon-manufacturers.md](../formats/chameleon-manufacturers.md)): for each distinct brand of the converted cars that the table names (Bentley, BAC, Koenigsegg, Pagani, Marussia, Ariel, Tesla, SRT, Shelby, Land Rover and the others, 32 of the 33 brands of the install; the cars' `NFS` brand has none), `manufacturers/<id>.toml` (`name` is the car's brand, `override = false`) and the logo as `files/UI/MAKERS/<ID>.PNG`: the picture cut to its visible part, scaled to fit with a margin (at most 2x) and centred on a transparent 300 x 150 RGBA canvas, in its own colours. The game's own logo of a brand it already has (Porsche, BMW, Subaru) wins over it; a brand with no logo has no file, and the game draws its name (`src/brands.rs`, `src/logo.rs`, [api-content.md](api-content.md#manufacturers)) |
 
 Levels of detail: the game draws nothing for a level a car lacks, so A and B are the finest body, C and D the coarser
 ones. The vertex limit of one solid (60,000) can force a coarser level. The manifest also carries `role`, a display name
@@ -124,8 +125,8 @@ ones. The vertex limit of one solid (60,000) can force a coarser level. The mani
   right, starts the conversion thread and returns.
 - **The conversion** runs on a pool of all cores but one (at most six), one car per task, and builds into `.staging/`. It
   never writes where the game reads. The fingerprint is written last, so a run cut short is thrown away.
-- **When it is done** (the mod sees it in its frame events: the worker cannot call the host) the mod moves `.staging/files`
-  and `.staging/cars` into place and calls `bb.content.rescan()`. The host adds the mod's `files/` as a *late layer* of the
+- **When it is done** (the mod sees it in its frame events: the worker cannot call the host) the mod moves `.staging/files`,
+  `.staging/cars` and `.staging/manufacturers` into place and calls `bb.content.rescan()`. The host adds the mod's `files/` as a *late layer* of the
   install, which every copy of the install shares, including the ones the scenes already hold, and publishes the cars its
   `cars/` folder declares; the car tables list them from then on. See [api-content.md](api-content.md#content-registries-bbcontent).
 - If content was already live at start (a rerun after a change), the finished conversion is promoted at the next start
@@ -158,7 +159,7 @@ Then what the conversion does not do:
   converted. The sets were not compared with how the cars drive in a window.
 - **Collision is fitted, not copied.** The 2012 damage objects (hinged parts, per-zone thresholds: not decoded), headlight
   beams, brake discs (they are part of the wheel) and spoiler and mirror animation are not converted. The lamps are:
-  markers from the lamp locators, but no reverse lamp (the 2012 files have no record for one) and flat lit colours
+  markers from the lamp locators (head, brake, centre brake and reverse lamps) and flat lit colours
   ([car-lamps.md](car-lamps.md)). The sets were not compared with how the cars drive in a window.
 - **Tail pipes are the car's own** (1, 2, 3 or 4 a car, in the places the 2012 game has them: the 918 Spyder's on top of the rear deck, the Viper's at the sides). The BMW 1M's bundle holds pipes 0.3 m beyond its body (the body is the *Cars* tie-in model's), and one unnamed bundle (122706) has no effect records, so it gets pipes derived from its body. The effects that follow the nitrous (afterburn, bit 14) and the 2012 flame shapes are not used: the game's own flame emitters play at the pipes.
 - **Paint names.** The 2012 records carry no names; a paint is named by its finish and colour (`Metallic #AD2B2C`).
@@ -279,7 +280,7 @@ wheels against the model's own wheel mesh: before the table, 21 of the 93 bundle
 
 ## Tests
 
-`cargo test -p nfsmw-2012-content` runs the unit tests (settings, ids, fitting, textures, promotion and fingerprint, the
+`cargo test -p nfsmw-2012-content` runs the unit tests (settings, ids, fitting, textures, brand matching and logo canvas, promotion and fingerprint, the
 manifest the mod writes against the game's parser). With `MW2012_GAME_DIR=<2012 install>` set, `cargo test -p
 nfsmw-2012-content -- --ignored` converts a car through the background job (checking that its seven hinged parts are cut out of the body without losing a triangle), reads it back with the game's readers, and
 converts every car with the time it takes. The test `customize` also needs `NFSMW_GAME_DIR=<2005 install>`, because the
@@ -289,7 +290,8 @@ that it has tail pipes, that its physics are built from its own `[stats]` and it
 multipliers of the test's `config.toml` make them, nitrous, gear ratios) and that its engine loops are readable WAVs:
 `cargo test -p nfsmw-2012-content --test customize -- --ignored --nocapture`.
 `NFSMW_GAME_DIR=<2005 install> cargo test -p nfsmw rescan` checks that content added after start-up reaches the copies of the
-install that are already open. `CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-bundle -p chameleon-vehicle --
+install that are already open. The test `brands` converts a BAC, a Bentley, a Koenigsegg and a Porsche and checks that each brand got a manifest the game's parser reads and a 300 x 150 RGBA PNG with its logo drawn (`cargo test -p nfsmw-2012-content --test brands -- --ignored`).
+`CHAMELEON_GAME_DIR=<2012 install> cargo test -p chameleon-bundle -p chameleon-vehicle --
 --ignored` loads every car of the install. To look at a car without opening a window:
 
 ```

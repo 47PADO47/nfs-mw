@@ -17,7 +17,7 @@ use crate::police::PoliceRole;
 use crate::shared::SharedSet;
 use crate::source::{CarFile, Source};
 use crate::stats::ImportedStats;
-use crate::{convert, names, nitrous, paints, sounds, variants, wheels};
+use crate::{brands, convert, names, nitrous, paints, sounds, variants, wheels};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
 const MAX_THREADS: usize = 6;
@@ -92,6 +92,10 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     let results: Vec<Result<ImportedCar>> =
         wanted.par_iter().map(|car| import_car(source, car, config, &folder, &shared)).collect();
     write_nitrous(source, out);
+    let makes: Vec<&str> =
+        wanted.iter().zip(&results).filter(|(_, done)| done.is_ok()).map(|(car, _)| car.make.as_str()).collect();
+    let written = brands::write_all(source, &folder, &makes);
+    log::info!("{written} brand logos written");
     shared.write(folder.root())?;
     let mut report = Report::default();
     for (car, result) in wanted.iter().zip(results) {

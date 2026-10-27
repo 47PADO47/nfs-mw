@@ -7,17 +7,21 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the conversion changes what it writes for the same input.
-const CONVERSION: u32 = 13;
+const CONVERSION: u32 = 14;
+/// Bump when the brand logos (`brands.rs`, `logo.rs`) change for the same input.
+const BRANDS: u32 = 1;
 pub const FILE: &str = ".import-stamp";
 
 /// The fingerprint for these settings and the install: the settings, the converter's version, and the names, sizes and
 /// modification times of the source files.
 pub fn of(config: &Config, source: &Path) -> String {
-    let mut parts = vec![format!("conversion {CONVERSION}"), format!("{config:?}")];
+    let mut parts = vec![format!("conversion {CONVERSION}"), format!("brands {BRANDS}"), format!("{config:?}")];
     let mut sources = vec![
         fingerprint(&source.join("VEHICLES/VEHICLETEX.BNDL")),
         fingerprint(&source.join("SHADERS.BNDL")),
         fingerprint(&source.join("GLOBALEFFECTS.BNDL")),
+        fingerprint(&source.join("VEHICLES/VEHICLELIST.BNDL")),
+        fingerprint(&source.join("UI/LANGUAGE/0001.BNDL")),
     ];
     for entry in fs::read_dir(source.join("GAMELOGIC")).into_iter().flatten().flatten() {
         sources.push(fingerprint(&entry.path()));

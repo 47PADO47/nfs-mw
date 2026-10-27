@@ -1,5 +1,6 @@
 //! Writing the mod's generated content: one `cars/<id>.toml` per car and the car files under `files/CARS/<ID>/`, next to
-//! the mod's `mod.toml`. The game reads both folders after the mod has loaded (`docs/modding/api-content.md`, "Cars").
+//! the mod's `mod.toml`, and the `manufacturers/` of the brands (`brands.rs`). The game reads these folders after the mod
+//! has loaded (`docs/modding/api-content.md`, "Cars", "Manufacturers").
 
 use std::path::{Path, PathBuf};
 
@@ -51,9 +52,9 @@ pub struct ModFolder {
 
 impl ModFolder {
     /// Start a fresh set of generated content in `root`: the folders an earlier run wrote (`files/`, `cars/`) are
-    /// cleared. Both belong to the generator; nothing else of the mod folder is touched.
+    /// cleared, with `manufacturers/`. They belong to the generator; nothing else of the mod folder is touched.
     pub fn create(root: &Path) -> Result<Self> {
-        for part in ["files", "cars"] {
+        for part in ["files", "cars", "manufacturers"] {
             let path = root.join(part);
             if path.exists() {
                 std::fs::remove_dir_all(&path).with_context(|| format!("clearing {}", path.display()))?;

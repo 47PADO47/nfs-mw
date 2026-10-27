@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 chameleon-bundle.workspace = true
+texture2ddecoder.workspace = true
 thiserror.workspace = true
 
 [lints]

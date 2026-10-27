@@ -12,6 +12,7 @@
 //! `bb.content`, and everything the game opens after that (the garage, the career) lists the cars. Later starts find
 //! the content ready and convert nothing, unless the settings or the installs changed.
 
+mod brands;
 mod collision;
 pub mod config;
 mod convert;
@@ -27,6 +28,7 @@ mod hinges;
 pub mod import;
 pub mod job;
 mod liveries;
+mod logo;
 mod markers;
 mod names;
 pub mod nitrous;

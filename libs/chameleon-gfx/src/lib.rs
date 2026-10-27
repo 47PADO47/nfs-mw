@@ -12,6 +12,7 @@ mod error;
 mod material;
 mod model;
 mod renderable;
+mod rgba;
 mod shader;
 mod texture;
 mod vertex;
