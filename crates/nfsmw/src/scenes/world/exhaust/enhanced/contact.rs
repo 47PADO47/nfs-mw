@@ -75,7 +75,7 @@ pub(super) fn apply(
     let flicker =
         0.88 + 0.08 * (volume.time * 23.0 + volume.seed).sin() + 0.04 * (volume.time * 41.0 + volume.seed * 3.0).sin();
     let mut colour = [255, 170, 80, 0];
-    if volume.blue {
+    if volume.blue || volume.appearance.hot_core > 0.0 {
         let mix = ((height - 0.05) / 0.4).clamp(0.0, 1.0);
         for i in 0..3 {
             colour[i] = (f32::from(root[i]) * (1.0 - mix) + f32::from(tail[i]) * mix) as u8;

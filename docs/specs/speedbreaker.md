@@ -49,11 +49,13 @@ The original values were read from the PC executable and checked against the
 meter routines. Mod option keys are separate configuration inputs and do not
 identify AttribSys fields.
 
-The meter processes button edges once per loaded render frame, with the input
-flag `DriveInput::speedbreaker` and the speedometer speed. Recharge uses that
-frame's simulation delta; depletion uses its real delta. Frames that produce
-no physics tick still consume real-time charge. The garage and unavailable
-local road data freeze both meter and clock progression.
+The meter processes button edges and depletion once per loaded render frame,
+before selecting the clock target and handling effects, with the input flag
+`DriveInput::speedbreaker` and the speedometer speed. Passive recharge uses each
+completed physics tick's speedometer speed and simulation delta. Depletion uses
+real frame time, including frames without a physics tick. The garage and
+unavailable local road data freeze both meter and clock progression. This
+remake scheduling policy does not establish exact original exhaustion cadence.
 
 ## 3. Global time and vehicle effects [decomp]
 
@@ -65,19 +67,17 @@ uses this simulation clock; charge depletion still uses the real clock.
 The multiplier transition flag remains set through the return to normal speed.
 Separate cinematic time overrides and multiplayer mode are outside this meter.
 
-The remake integrates the linear ramp over each frame, then feeds the resulting
-simulation delta to the shared 60 Hz accumulator. Player, AI, props, contacts,
-police timers, rain, scenery animation and day progression use this clock.
-Chase-camera frame input is scaled before accumulation across fixed ticks.
-The generic GameSpeed setting remains a separate multiplier. Screenshot batches
-use six fixed-step durations as a synthetic real frame, so scripts advance
-deterministically through the same shared clock without wall-time dependence.
-These integration choices have synthetic frame-rate and transition coverage;
-they have not been compared against a live PC driving capture.
-The final PC scheduler audit found an architectural difference: the original
-updates the multiplier once per 60 Hz real-time tick, then advances physics by
-that tick's duration times the final multiplier. The remake's frame integral
-and fixed simulation-time accumulator are not equivalent during Speedbreaker.
+The remake keeps a shared real-time cadence: 60 Hz by default, with 144 Hz as
+an explicit offline comparison setting. Each completed tick updates the physics
+multiplier and supplies its final scaled delta to player cars, AI, props, contacts,
+police and race timers. Full Speedbreaker therefore gives 60 updates with delta
+1/240, or 144 updates with delta 1/576. Rendering FPS does not select this cadence.
+
+A continuous frame ramp remains available for camera/frame presentation. Physical
+tick scaling uses the original repeated single-precision endpoint update, rather
+than the area under that ramp. The generic GameSpeed/moment scale is separate.
+Screenshot batches use a bounded real-time slice; network sessions force the
+existing unscaled 60-Hz contract. See [shared physics clock](shared-physics-clock.md).
 
 The PC begin/end event also sets the player's collision mass override to twice
 the original mass while active and clears the override on exit. The reference

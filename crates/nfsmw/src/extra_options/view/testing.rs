@@ -1,5 +1,25 @@
 use super::*;
-pub(super) fn show(ui: &mut egui::Ui, state: &mut State, actions: &mut Vec<Action>) {
+pub(super) fn show(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings, actions: &mut Vec<Action>) {
+    ui.label("Physics update rate");
+    let before = settings.physics_rate_hz;
+    egui::ComboBox::from_id_salt("physics_update_rate")
+        .selected_text(crate::settings::physics_rate::label(settings.physics_rate_hz))
+        .show_ui(ui, |ui| {
+            for rate in [60, 144] {
+                ui.selectable_value(&mut settings.physics_rate_hz, rate, crate::settings::physics_rate::label(rate));
+            }
+        });
+    ui.small("Rendering FPS is independent. The 144 Hz comparison mode changes numerical handling.");
+    ui.small("This preference is saved. Multiplayer always uses 60 Hz.");
+    if before != settings.physics_rate_hz {
+        state.message = Settings::save(&crate::settings::Partial {
+            physics_rate_hz: Some(settings.physics_rate_hz),
+            ..Default::default()
+        })
+        .err()
+        .map(|e| e.to_string());
+    }
+    ui.separator();
     if let Some(mut env) = state.environment {
         ui.collapsing("Weather and time · same controls as F8", |ui| {
             let before = env;
@@ -67,5 +87,5 @@ pub(super) fn show(ui: &mut egui::Ui, state: &mut State, actions: &mut Vec<Actio
     if ui.button("Clear all testing overrides").clicked() {
         actions.push(Action::Clear);
     }
-    ui.small("Use a free-roam test session. Gameplay overrides are unavailable with a loaded career or a multiplayer session.");
+    ui.small("Available in local career and free roam. Overrides last for this session; career progress still saves normally. Multiplayer and co-op are unavailable.");
 }

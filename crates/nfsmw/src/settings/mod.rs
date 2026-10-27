@@ -28,6 +28,8 @@ pub mod eatrax;
 mod effective;
 mod exhaust_style;
 pub use exhaust_style::ExhaustStyle;
+mod backfire_style;
+pub use backfire_style::BackfireStyle;
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
@@ -56,6 +58,7 @@ mod hud_layout;
 #[cfg(test)]
 mod hud_layout_tests;
 mod language;
+mod load;
 mod minimap;
 pub mod mods;
 pub mod motion_blur;
@@ -63,6 +66,8 @@ pub mod motion_blur;
 mod motion_blur_tests;
 pub mod net;
 mod partial;
+pub mod physics_rate;
+pub use physics_rate::{DEFAULT_PHYSICS_RATE_HZ, parse_physics_rate};
 pub mod pursuit_options;
 pub use pursuit_options::PursuitOptions;
 mod post;
@@ -216,6 +221,7 @@ pub struct Settings {
     pub rain_amount: Percent,
     /// The physics clock multiplier, 0.1 to 4 (Extra Options `GameSpeed`).
     pub game_speed: f32,
+    pub physics_rate_hz: u32,
     /// The world animation rate, 0.1 to 4 (Extra Options `WorldAnimationSpeed`).
     pub animation_speed: f32,
     /// The player car's model scale, 0.25 to 4 (Extra Options `CarScale`).
@@ -237,7 +243,10 @@ pub struct Settings {
     /// Flames at the tail pipes: gear-change blow-off and lift-off backfire. Nothing is loaded when off.
     pub exhaust_flames: bool,
     pub enhanced_exhaust: bool,
+    /// Enhanced lamp surfaces and marker glow in custom car shading.
+    pub enhanced_lamps: bool,
     pub exhaust_style: ExhaustStyle,
+    pub backfire_style: BackfireStyle,
     /// Show turn signals on cars while steering (a rewrite extension, off by default).
     pub turn_signals: bool,
     /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
@@ -375,6 +384,7 @@ impl From<Partial> for Settings {
             always_rain: p.always_rain.unwrap_or(DEFAULT_ALWAYS_RAIN),
             rain_amount: p.rain_amount.unwrap_or(DEFAULT_RAIN_AMOUNT),
             game_speed: p.game_speed.unwrap_or(DEFAULT_GAME_SPEED).clamp(0.1, 4.0),
+            physics_rate_hz: physics_rate::resolve(p.physics_rate_hz),
             animation_speed: p.animation_speed.unwrap_or(DEFAULT_ANIMATION_SPEED).clamp(0.1, 4.0),
             show_hud_on_look_back: p.show_hud_on_look_back.unwrap_or(DEFAULT_SHOW_HUD_ON_LOOK_BACK),
             car_scale: p.car_scale.unwrap_or(DEFAULT_CAR_SCALE).clamp(0.25, 4.0),
@@ -390,7 +400,9 @@ impl From<Partial> for Settings {
             speed_trail_style: p.speed_trail_style.unwrap_or_default(),
             exhaust_flames: p.exhaust_flames.unwrap_or(true),
             enhanced_exhaust: p.enhanced_exhaust.unwrap_or(false),
+            enhanced_lamps: p.enhanced_lamps.unwrap_or(false),
             exhaust_style: p.exhaust_style.unwrap_or_default(),
+            backfire_style: p.backfire_style.unwrap_or_default(),
             turn_signals: p.turn_signals.unwrap_or(false),
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
             discord: p.discord.unwrap_or(true),
@@ -415,7 +427,7 @@ impl From<Partial> for Settings {
             visual_treatment: p.visual_treatment.unwrap_or_default(),
             reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
             reflection_cube_size: p.reflection_cube_size.unwrap_or_default(),
-            reflection_mirror_size: p.reflection_mirror_size.unwrap_or_default(),
+            reflection_mirror_size: p.reflection_mirror_size.unwrap_or(ReflectionSize::Auto),
             reflection_pow2: p.reflection_pow2.unwrap_or(false),
             mirror_tint: p.mirror_tint.unwrap_or_default(),
             reflection_extra: reflection_extra::ReflectionExtra::from_partial(&p),
@@ -456,36 +468,6 @@ impl Settings {
     /// What a steering wheel's extra controls are switched on.
     pub fn wheel_options(&self) -> WheelOptions {
         WheelOptions { manual_clutch: self.manual_clutch, h_shifter: self.h_shifter }
-    }
-
-    /// The per-user config file (it may not exist yet).
-    pub fn config_path() -> Option<std::path::PathBuf> {
-        game_install::config_file_path(&nfsmw_data::game::SPEC)
-    }
-
-    /// Writes the settings a layer sets to the config file, keeping its other keys.
-    pub fn save(changes: &Partial) -> anyhow::Result<std::path::PathBuf> {
-        let path = Self::config_path().ok_or_else(|| anyhow::anyhow!("there is no per-user config folder"))?;
-        write_file(&path, changes)?;
-        Ok(path)
-    }
-
-    /// Resolve the settings: `cli` over the process environment over the config file over the defaults.
-    pub fn load(cli: Partial) -> Self {
-        let env = env::read(|name| std::env::var(name).ok());
-        let config = game_install::config_file_path(&nfsmw_data::game::SPEC);
-        let file = config.as_deref().map(file::read).unwrap_or_default();
-        let extra = match config.as_deref().and_then(std::path::Path::parent) {
-            Some(dir) => extra_options::read(&dir.join(extra_options::FILE_NAME)),
-            None => Partial::default(),
-        };
-        let speedbreaker = match config.as_deref().and_then(std::path::Path::parent) {
-            Some(dir) => speedbreaker::read(&dir.join(speedbreaker::FILE_NAME)),
-            None => SpeedbreakerTuning::default(),
-        };
-        let mut settings: Self = cli.or(env).or(file).or(extra).into();
-        settings.speedbreaker = speedbreaker;
-        settings
     }
 }
 

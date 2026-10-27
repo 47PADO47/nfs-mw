@@ -55,6 +55,11 @@ impl WorldScene {
         appearance.set_style(self.tuning.exhaust_style);
         drive.flames.set_appearance(&appearance);
         drive.flames.set_preview(self.garage_open && !self.garage.shop && self.garage.exhaust_preview);
+        drive.flames.set_backfire(
+            self.tuning.backfire_style,
+            self.garage.backfire_preview.take(),
+            self.garage_open && !self.garage.shop,
+        );
         let rendered_pose = drive.pose().transform();
         drive.flames.set_render_pose(rendered_pose);
         self.explosions.load(renderer, &self.dir, self.physics.database());

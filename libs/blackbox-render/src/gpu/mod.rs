@@ -87,6 +87,7 @@ mod view_capture;
 #[cfg(test)]
 mod view_capture_tests;
 mod window;
+mod world_light;
 #[cfg(test)]
 mod world_material_tests;
 

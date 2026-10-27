@@ -2,24 +2,27 @@
 
 /// A car with no wheel down and nothing within this many metres below it is falling.
 pub const PROBE: f32 = 30.0;
-/// ...for this many physics steps in a row has fallen off the map.
+/// Legacy 60 Hz test interval.
+#[cfg(test)]
 const STEPS: u32 = 45;
+const SECONDS: f64 = 0.75;
 /// ...or it is this far under the last road it stood on (metres).
 const BELOW_ROAD: f32 = 80.0;
 
 #[derive(Debug, Default)]
 pub struct FallWatch {
-    falling_steps: u32,
+    falling_seconds: f64,
 }
 
 impl FallWatch {
     pub fn reset(&mut self) {
-        self.falling_steps = 0;
+        self.falling_seconds = 0.0;
     }
 
     /// Account for `steps` physics steps. `nothing_below` is only asked for when no wheel is down.
     /// `last_road_height` is the height of the last road the car stood on. True once the car has
     /// fallen off the map.
+    #[cfg(test)]
     pub fn update(
         &mut self,
         wheels_down: usize,
@@ -28,15 +31,26 @@ impl FallWatch {
         last_road_height: Option<f32>,
         nothing_below: impl FnOnce() -> bool,
     ) -> bool {
+        self.update_with_delta(wheels_down, steps as f32 / 60.0, height, last_road_height, nothing_below)
+    }
+
+    pub fn update_with_delta(
+        &mut self,
+        wheels_down: usize,
+        dt: f32,
+        height: f32,
+        last_road_height: Option<f32>,
+        nothing_below: impl FnOnce() -> bool,
+    ) -> bool {
         if wheels_down > 0 {
-            self.falling_steps = 0;
-        } else if steps > 0 {
-            self.falling_steps = if nothing_below() { self.falling_steps + steps } else { 0 };
+            self.falling_seconds = 0.0;
+        } else if dt.is_finite() && dt > 0.0 {
+            self.falling_seconds = if nothing_below() { self.falling_seconds + f64::from(dt) } else { 0.0 };
         }
         let under_the_road = last_road_height.is_some_and(|h| height < h - BELOW_ROAD);
-        let fallen = self.falling_steps >= STEPS || under_the_road;
+        let fallen = self.falling_seconds >= SECONDS || under_the_road;
         if fallen {
-            self.falling_steps = 0;
+            self.falling_seconds = 0.0;
         }
         fallen
     }
@@ -45,6 +59,18 @@ impl FallWatch {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_fall_guard_uses_simulation_seconds_at_normal_and_slowed_rates() {
+        for rate in [60, 144, 240, 576] {
+            let mut watch = FallWatch::default();
+            let expected = rate * 3 / 4;
+            for _ in 0..expected - 1 {
+                assert!(!watch.update_with_delta(0, 1.0 / rate as f32, 140.0, None, || true), "rate {rate}");
+            }
+            assert!(watch.update_with_delta(0, 1.0 / rate as f32, 140.0, None, || true), "rate {rate}");
+        }
+    }
 
     #[test]
     fn a_car_in_the_air_over_the_road_has_not_fallen() {

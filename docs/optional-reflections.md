@@ -40,5 +40,10 @@ Materials and the Video menu. The six faces use the same edge length (16 to 1024
 changing output resolution or upscaling does not change a selected fixed size.
 Legacy percentage/Auto configs still load without changing their appearance.
 F8 displays their resolved dimensions, including old power-of-two rounding;
-selecting an explicit size replaces the legacy rule. Rear-view mirror sizing is
-independent and retains its existing options.
+selecting an explicit size replaces the legacy rule. Rear-view mirror sizing is independent.
+
+The rear-view capture defaults to Auto, with width following the mirror glass.
+Video options and F8 offer Auto (targets one-sixth of output height), 128 px, 256 px, 360 px and 512 px. Fixed heights may be limited by maximum texture width.
+Larger captures can cost more GPU time. Existing saved `reflection_mirror_size` values remain
+effective. Values outside the menu choices are shown as Custom until changed. This changes capture resolution; it does not
+add SMAA to the mirror or reproduce the Xbox cubemap path.

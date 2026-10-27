@@ -40,12 +40,10 @@ impl WorldScene {
             // One line for the whole message: its serial is past every banner's.
             return Some(Message { serial: RESULT_SERIAL, text: card.title() });
         }
-        let banner = &session.banner;
-        let counting = banner.count.is_some();
-        if matches!(session.stage, Stage::Results { .. } | Stage::PostRace { .. }) || banner.left <= 0.0 || counting {
+        if matches!(session.stage, Stage::Results { .. } | Stage::PostRace { .. }) {
             return None;
         }
-        Some(Message { serial: banner.serial, text: banner.text.clone() })
+        banner_message(&session.banner, &session.launch_banner)
     }
 
     /// What the HUD package shows of the race: the place, lap, clock, progress and the countdown step.
@@ -134,5 +132,37 @@ impl WorldScene {
         if let Some(card) = self.race_card() {
             crate::hud::show_race_card(ctx, &card);
         }
+    }
+}
+
+fn banner_message(banner: &super::Banner, launch: &super::Banner) -> Option<Message> {
+    if launch.left > 0.0 && launch.serial == banner.serial && (banner.count.is_some() || banner.left <= 0.0) {
+        return Some(Message { serial: launch.serial, text: launch.text.clone() });
+    }
+    if banner.left <= 0.0 || banner.count.is_some() {
+        return None;
+    }
+    Some(Message { serial: banner.serial, text: banner.text.clone() })
+}
+
+#[cfg(test)]
+mod launch_tests {
+    use super::super::Banner;
+    use super::*;
+
+    #[test]
+    fn a_launch_message_coexists_with_go_and_yields_to_a_later_race_notice() {
+        let mut banner = Banner { count: Some(Count::Go), left: 3.0, serial: 5, ..Default::default() };
+        let mut launch = Banner { text: "launch".into(), left: 3.2, serial: 5, ..Default::default() };
+        assert_eq!(banner_message(&banner, &launch), Some(Message { serial: 5, text: "launch".into() }));
+        assert_eq!(banner.count, Some(Count::Go));
+        banner.count = None;
+        banner.text = "checkpoint".into();
+        banner.serial = 6;
+        assert_eq!(banner_message(&banner, &launch), Some(Message { serial: 6, text: "checkpoint".into() }));
+        banner.left = 0.0;
+        assert_eq!(banner_message(&banner, &launch), None, "an expired newer notice must not revive the launch");
+        launch.left = 0.0;
+        assert_eq!(banner_message(&banner, &launch), None);
     }
 }

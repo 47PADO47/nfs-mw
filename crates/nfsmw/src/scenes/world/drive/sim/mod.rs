@@ -62,6 +62,8 @@ pub struct CarSim {
     pub(in crate::scenes::world) collision_racer: bool,
     previous_contact_pose: BodyPose,
     before_velocity: Vec3,
+    /// Simulation seconds of the last step, including its shared-world responses.
+    step_delta: f32,
     /// Uninterrupted NPC regular-brake time for the original FX admission task.
     brake_lamp_age: f32,
     ground_reference: blackbox_collision::ground_reference::GroundReferenceCache,
@@ -80,6 +82,8 @@ pub struct CarSim {
     sound_identity: u64,
     /// The wall contacts of the last step, kept so the step does not allocate (`walls::resolve_into`).
     wall_scratch: Vec<WallContact>,
+    /// Body-phase contacts retained until the response phase publishes them.
+    pending_body_impact: Impact,
     /// What the last step did to the car, for the police radio (`memo.rs`).
     memo: memo::StepMemo,
 }
@@ -108,6 +112,7 @@ impl CarSim {
             vehicle,
             cinematic_controls: None,
             reset_collision: Default::default(),
+            pending_body_impact: Impact::default(),
             prop_struck: false,
             smacked: Vec::new(),
             pivot: physics.bounds.pivot,
@@ -129,6 +134,7 @@ impl CarSim {
             collision_racer: false,
             previous_contact_pose: (Vec3::ZERO, Quat::IDENTITY),
             before_velocity: Vec3::ZERO,
+            step_delta: FIXED_STEP,
             brake_lamp_age: 0.0,
             ground_reference: Default::default(),
             wheel_ground: Default::default(),
@@ -297,13 +303,6 @@ impl CarSim {
         })
     }
 
-    /// Stops the body dead: the brakes alone let a car creep down a slope, and a grid car must not move before GO.
-    pub fn hold_still(&mut self) {
-        let body = self.vehicle.body_mut();
-        body.linear_velocity = Vec3::ZERO;
-        body.angular_velocity = Vec3::ZERO;
-    }
-
     /// The dot product of the car's up vector with the world's.
     pub fn up_dot(&self) -> f32 {
         self.vehicle.rotation().y_axis.y
@@ -423,6 +422,7 @@ mod lights;
 mod pair;
 mod pair_dispatch;
 mod performance;
+mod race_launch;
 mod sound_contacts;
 mod step;
 mod terrain;

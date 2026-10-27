@@ -91,6 +91,10 @@ pub enum SurfaceKind {
     Diffuse = 10,
     /// Coloured reflective body finish; unlike bare metal it uses the composite skin colour.
     TintedChrome = 11,
+    /// Experimental self-lit surface, with emission derived from bright texture features.
+    Emissive = 12,
+    /// Red lamp body, distinct from a white headlamp emitter.
+    EmissiveRed = 13,
 }
 
 /// Shading constants of one material. Each ramp runs from its `min` where the surface is seen
@@ -98,6 +102,9 @@ pub enum SurfaceKind {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GlossyMaterial {
     pub model: GlossyModel,
+    /// Preserve authored diffuse response and skip primary-subject reflection correction.
+    /// Suitable for background actors that share the reflection capture.
+    pub background_actor: bool,
     /// Optional Custom-only surface response. None preserves the legacy equations.
     pub surface: Option<GlossySurface>,
     /// RGBA multiplier of the lit texture; alpha scales the highlight and the reflection, and
@@ -120,6 +127,7 @@ impl Default for GlossyMaterial {
     fn default() -> Self {
         Self {
             model: GlossyModel::Custom,
+            background_actor: false,
             surface: None,
             diffuse_min: [1.0; 4],
             diffuse_range: [0.0; 4],

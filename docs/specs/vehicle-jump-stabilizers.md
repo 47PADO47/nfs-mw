@@ -97,6 +97,24 @@ These torques consume the supplied saved plane. They can be implemented
 independently of the world query, with synthetic plane/vector comparisons,
 without claiming the query or complete original jump behavior is reproduced.
 
+## Arithmetic boundaries
+
+Vector rotations and alignment dot products add the Z and Y products before
+the X product. Passive damping converts the saved world angular velocity with
+that order, then rotates its body-space torque with the same order. Generic
+matrix multiplication can change the recovered local angular velocity.
+
+Unit cross products compute the cross vector, then sum squared components as
+`(x*x + y*y) + z*z`. A squared length at or below 0.000001 returns zero.
+Otherwise multiply by the reciprocal square root of that squared length.
+Preserve these single-precision product, sum and reciprocal boundaries.
+
+For each alignment correction, form the scalar in this order:
+`((((dot - 1) * mass) * speed_weight) * altitude_weight) * axis_gain`.
+Accumulate passive torque first, then pitch, then roll. Combining pitch and
+roll before adding passive changes rounding. These are arithmetic contracts,
+not additional tuning or changes to the physical force model.
+
 ## Validation boundary
 
 The game selects the reference tire integrator and supplied racer jump tuning.

@@ -64,3 +64,36 @@ fn turning_braking_and_collision_have_identical_complete_traces_at_every_frame_r
         assert_eq!(trace(fps), expected, "{fps} FPS");
     }
 }
+
+#[test]
+fn articulation_velocity_reaches_the_same_ticks_driving_response() {
+    fn response(early: bool) -> (Vec3, Vec3) {
+        let ground = FlatGround::new(5.0);
+        let (mut tractor, mut trailer, coupling) = rig(&ground, 12.0);
+        trailer.body_mut().linear_velocity = Vec3::ZERO;
+        let input = DriveInput { throttle: 0.8, steer: 0.3, ..Default::default() };
+        let a = tractor.begin_step_with_delta(STEP, &input, false, None);
+        let b = trailer.begin_step_with_delta(STEP, &DriveInput::default(), false, None);
+        tractor.begin_body(&a, None);
+        trailer.begin_body(&b, None);
+        tractor.finish_body(&a, &ground, None);
+        trailer.finish_body(&b, &ground, None);
+        let before = tractor.body().linear_velocity;
+        if early {
+            coupling.resolve_with_delta(STEP, &mut tractor, &mut trailer);
+        }
+        let response_velocity = tractor.body().linear_velocity;
+        tractor.integration().run(&a, &ground, None);
+        trailer.integration().run(&b, &ground, None);
+        let force = tractor.body().pending_force();
+        if !early {
+            coupling.resolve_with_delta(STEP, &mut tractor, &mut trailer);
+        }
+        assert!((tractor.body().linear_velocity - before).length() > 0.1, "the hitch must transfer velocity");
+        (response_velocity, force)
+    }
+    let early = response(true);
+    let late = response(false);
+    assert!((early.0 - late.0).length() > 0.1, "the response must receive the articulation impulse");
+    assert!((early.1 - late.1).length() > 0.1, "postponing the hitch must change this tick's generated forces");
+}

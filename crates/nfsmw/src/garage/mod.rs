@@ -7,6 +7,8 @@ mod color_parts;
 mod controls;
 mod exhaust;
 pub use exhaust::ExhaustSelection;
+mod backfire;
+pub use backfire::BackfireEvent;
 #[cfg(test)]
 mod interaction_tests;
 mod menu;
@@ -168,6 +170,7 @@ pub struct Model {
     pub preview: bool,
     /// Cosmetic flame preview while the F6 world is frozen; never stored in a car preset.
     pub exhaust_preview: bool,
+    pub backfire_preview: Option<BackfireEvent>,
     pub(super) exhaust_style_dirty: bool,
     /// Only a real garage session owns a config destination; standalone UI models remain side-effect free.
     pub(crate) exhaust_style_path: Option<std::path::PathBuf>,

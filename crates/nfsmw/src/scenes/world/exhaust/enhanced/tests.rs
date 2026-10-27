@@ -17,7 +17,7 @@ fn effect() -> Enhanced {
 #[test]
 fn flame_roots_follow_the_installed_pipe_axis_without_world_space_gaps() {
     let mut effect = effect();
-    effect.step(1.0 / 60.0, &state(true), 0.0);
+    effect.step(1.0 / 60.0, &state(true), None);
     let pipe = Mat4::from_rotation_translation(
         glam::Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
         Vec3::new(-2.0, 0.5, 0.3),
@@ -38,14 +38,14 @@ fn nitrous_response_is_time_based_and_reset_does_not_leave_a_flame() {
     let mut a = effect();
     let mut b = effect();
     for _ in 0..60 {
-        a.step(1.0 / 60.0, &state(true), 0.0);
+        a.step(1.0 / 60.0, &state(true), None);
     }
     for _ in 0..144 {
-        b.step(1.0 / 144.0, &state(true), 0.0);
+        b.step(1.0 / 144.0, &state(true), None);
     }
     assert!((a.nitrous - b.nitrous).abs() < 1e-5);
     for _ in 0..30 {
-        a.step(1.0 / 60.0, &state(false), 0.0);
+        a.step(1.0 / 60.0, &state(false), None);
     }
     let mut out = Vec::new();
     a.geometry(&[Mat4::IDENTITY], &mut out);
@@ -58,7 +58,7 @@ fn nitrous_response_is_time_based_and_reset_does_not_leave_a_flame() {
 #[test]
 fn selecting_original_falls_back_and_backfire_stays_orange() {
     let mut effect = effect();
-    effect.step(0.02, &state(false), 1.0);
+    effect.step(0.02, &state(false), Some(crate::garage::BackfireEvent::Pop));
     let mut volumes = Vec::new();
     effect.geometry(&[Mat4::IDENTITY], &mut volumes);
     assert_eq!(volumes.len(), 1);
@@ -70,17 +70,17 @@ fn selecting_original_falls_back_and_backfire_stays_orange() {
 #[test]
 fn each_ignition_changes_the_flow_seed_without_reseeding_a_held_burst() {
     let mut effect = effect();
-    effect.step(0.02, &state(true), 0.0);
+    effect.step(0.02, &state(true), None);
     let first = effect.seed;
     for _ in 0..120 {
-        effect.step(1.0 / 60.0, &state(true), 0.0);
+        effect.step(1.0 / 60.0, &state(true), None);
     }
     assert_eq!(effect.seed, first);
-    effect.step(0.02, &state(false), 0.0);
-    effect.step(0.02, &state(true), 0.0);
+    effect.step(0.02, &state(false), None);
+    effect.step(0.02, &state(true), None);
     assert_ne!(effect.seed, first);
     effect.disconnect();
-    effect.step(0.02, &state(true), 0.0);
+    effect.step(0.02, &state(true), None);
     assert_ne!(effect.seed, first);
 }
 
@@ -90,9 +90,9 @@ fn nitrous_flow_accelerates_with_vehicle_speed_without_changing_activation() {
     let mut fast = effect();
     let mut car = state(true);
     car.velocity = Vec3::ZERO;
-    slow.step(0.1, &car, 0.0);
+    slow.step(0.1, &car, None);
     car.velocity = Vec3::Z * 80.0;
-    fast.step(0.1, &car, 0.0);
+    fast.step(0.1, &car, None);
     assert!(fast.time > slow.time);
     assert_eq!(fast.nitrous, slow.nitrous);
     assert_eq!(fast.seed, slow.seed);
@@ -115,7 +115,7 @@ fn upward_curl_follows_world_up_and_customization_keeps_the_root_attached() {
     let mut car = state(true);
     car.velocity = Vec3::ZERO;
     car.to_world = Mat4::from_rotation_x(0.4);
-    effect.step(0.1, &car, 0.0);
+    effect.step(0.1, &car, None);
     let pipe = Mat4::from_rotation_y(-std::f32::consts::FRAC_PI_2);
     let mut volumes = Vec::new();
     effect.geometry(&[pipe], &mut volumes);
@@ -142,7 +142,7 @@ fn upward_curl_follows_world_up_and_customization_keeps_the_root_attached() {
 #[test]
 fn garage_preview_emits_without_nitrous_and_stops_when_disabled() {
     let mut effect = effect();
-    effect.step(0.1, &state(false), 0.0);
+    effect.step(0.1, &state(false), None);
     effect.set_preview(true);
     let mut volumes = Vec::new();
     effect.geometry(&[Mat4::IDENTITY], &mut volumes);

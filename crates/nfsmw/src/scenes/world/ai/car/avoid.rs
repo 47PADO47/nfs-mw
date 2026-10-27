@@ -23,6 +23,7 @@ const HONK_RANGE: f32 = 20.0;
 pub(super) struct Avoid {
     /// The `traffic_avoidance` setting: when off, the car never changes lane.
     enabled: bool,
+    think_delta: Option<f32>,
     blocked: Blocked,
     change: LaneChange,
     /// How long the car has waited for an oncoming car at its green line (`stop::yield_to_oncoming`).
@@ -30,6 +31,13 @@ pub(super) struct Avoid {
 }
 
 impl Avoid {
+    pub(super) fn set_think_delta(&mut self, dt: f32) {
+        self.think_delta = Some(dt);
+    }
+
+    fn delta(&self) -> f32 {
+        self.think_delta.unwrap_or(THINK_PERIOD)
+    }
     pub(super) fn changing_lanes(&self) -> Option<(usize, usize)> {
         match self.change.phase {
             Phase::Moving { from, to, .. } => Some((from, to)),
@@ -75,7 +83,15 @@ impl Avoid {
             self.crossing = Crossing::default();
             return stop;
         };
-        Some(yield_to_oncoming(&lights, net, stop, approach, &mut self.crossing, THINK_PERIOD, others))
+        Some(yield_to_oncoming(
+            &lights,
+            net,
+            stop,
+            approach,
+            &mut self.crossing,
+            self.think_delta.unwrap_or(THINK_PERIOD),
+            others,
+        ))
     }
 
     /// Runs the lane rules for one think, before the car's speed is decided: the blocked clock runs, and the car may
@@ -94,7 +110,7 @@ impl Avoid {
         }
         let forward = Vec3::new(body.forward.x, 0.0, body.forward.y);
         let speed = body.velocity.dot(forward).abs();
-        self.blocked.tick(THINK_PERIOD, blocked, speed);
+        self.blocked.tick(self.delta(), blocked, speed);
         let profile = travel_profile(net, nav.segment, nav.node_ind, true);
         let lanes = blackbox_roads::forward_traffic_lanes(&profile);
         if !lanes.contains(&nav.lane) {
@@ -110,7 +126,7 @@ impl Avoid {
         let half_width = |lane: usize| profile.zones.get(lane).map_or(0.0, |z| z.width * 0.5) + body.half_width;
         let clear = |lane: usize| lane_clear(relative.clone(), lateral_of(lane), half_width(lane), speed);
         let situation =
-            Situation { blocked, may_change: self.blocked.may_change_lane(speed), speed, metres: speed * THINK_PERIOD };
+            Situation { blocked, may_change: self.blocked.may_change_lane(speed), speed, metres: speed * self.delta() };
         let Command::Move(lane) = self.change.update(situation, adjacent_lanes(&lanes, nav.lane), clear) else {
             return;
         };

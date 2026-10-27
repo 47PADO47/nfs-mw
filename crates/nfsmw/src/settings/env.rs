@@ -57,6 +57,7 @@ pub const DISCORD_TIME_PLAYED: &str = "NFSMW_DISCORD_TIME_PLAYED";
 pub const DISCORD_JOIN: &str = "NFSMW_DISCORD_JOIN";
 pub const MODS: &str = "NFSMW_MODS";
 pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
+pub const PHYSICS_RATE_HZ: &str = "NFSMW_PHYSICS_RATE_HZ";
 pub const CAMERA_MODE: &str = "NFSMW_CAMERA_MODE";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
 pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
@@ -108,6 +109,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         always_rain: None,
         rain_amount: None,
         game_speed: None,
+        physics_rate_hz: value(&get, PHYSICS_RATE_HZ, super::parse_physics_rate),
         animation_speed: None,
         car_scale: None,
         headlights_key: None,
@@ -158,7 +160,9 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         speed_trail_style: value(&get, SPEED_TRAIL_STYLE, super::SpeedTrailStyle::from_str),
         exhaust_flames: value(&get, EXHAUST_FLAMES, parse_bool),
         enhanced_exhaust: value(&get, "NFSMW_ENHANCED_EXHAUST", parse_bool),
+        enhanced_lamps: None,
         exhaust_style: None,
+        backfire_style: None,
         turn_signals: None,
         rear_view_mirror: value(&get, REAR_VIEW_MIRROR, parse_bool),
         discord: value(&get, DISCORD, parse_bool),

@@ -167,6 +167,16 @@ impl Renderer {
         }
         self.encode_shadows(encoder, frame, instances);
         self.encode_cascade_history(encoder, frame);
+        if self.experiments.cloud_shadows
+            && self.sky.as_ref().is_some_and(|sky| sky.cloud_shadow_active())
+            && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. })
+            && (-frame.light_dir).normalize_or_zero().z > 0.05
+        {
+            let globals = self.scene_globals(frame, None, false, false);
+            let sky = self.sky.as_mut().expect("active cloud sky");
+            sky.prepare(&self.device, &self.queue, self.targets.color_format(), self.pipeline_cache.as_ref());
+            sky.prepare_cloud_shadow(&self.device, &self.queue, encoder, &self.shared.shadows.cloud, globals);
+        }
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 3);
         }

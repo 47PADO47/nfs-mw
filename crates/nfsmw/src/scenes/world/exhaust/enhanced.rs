@@ -1,6 +1,8 @@
 //! Appearance from THREE.Fire (MIT); triggers remain the installed game's triggers.
 use blackbox_gfx::{FlameAppearance, FlameVolume, PixelFormat, RenderBackend, TextureDesc, TextureHandle};
 use glam::{Mat4, Vec3};
+mod burst;
+mod burst_render;
 mod contact;
 mod motion;
 
@@ -23,7 +25,10 @@ pub(super) struct Enhanced {
     preview: Option<std::time::Instant>,
     time: f32,
     nitrous: f32,
-    burst: f32,
+    pub backfire_style: crate::settings::BackfireStyle,
+    bursts: burst::Bursts,
+    visual_bursts: Option<burst::Bursts>,
+    burst_preview: Option<(std::time::Instant, burst::Bursts)>,
     pose: Mat4,
     ignition: u32,
     was_burning: bool,
@@ -36,6 +41,10 @@ impl Enhanced {
     pub fn advance_visual(&mut self, dt: f32, pose: Mat4) {
         if dt <= 0.0 {
             return;
+        }
+        match &mut self.visual_bursts {
+            Some(bursts) => bursts.advance(dt),
+            None => self.visual_bursts = Some(self.bursts.clone()),
         }
         let position = pose.transform_point3(Vec3::ZERO);
         let velocity = self.visual_position.map_or(self.velocity, |previous| {
@@ -103,7 +112,24 @@ impl Enhanced {
         }
     }
 
-    pub fn step(&mut self, dt: f32, car: &super::CarState, burst: f32) {
+    pub fn step(&mut self, dt: f32, car: &super::CarState, event: Option<crate::garage::BackfireEvent>) {
+        self.bursts.advance(dt);
+        match car.nitrous {
+            true => {
+                self.bursts.clear();
+                if let Some(bursts) = &mut self.visual_bursts {
+                    bursts.clear();
+                }
+            }
+            false => {
+                if let Some(event) = event {
+                    self.bursts.trigger(event, &self.backfire_style);
+                    if let Some(bursts) = &mut self.visual_bursts {
+                        bursts.trigger(event, &self.backfire_style);
+                    }
+                }
+            }
+        }
         self.velocity = car.velocity;
         self.motion.step(dt, car.to_world, car.velocity);
         if car.nitrous && !self.was_burning {
@@ -129,7 +155,6 @@ impl Enhanced {
             false => 25.0,
         };
         self.nitrous += (target - self.nitrous) * (1.0 - (-response * dt).exp());
-        self.burst = burst;
     }
 
     pub fn age(&mut self, dt: f32) {
@@ -138,7 +163,7 @@ impl Enhanced {
         }
         self.time += dt;
         self.nitrous *= (-25.0 * dt).exp();
-        self.burst = 0.0;
+        self.bursts.advance(dt);
     }
 
     pub fn disconnect(&mut self) {
@@ -150,7 +175,20 @@ impl Enhanced {
         self.motion = motion::Motion::default();
         self.was_burning = false;
         self.nitrous = 0.0;
-        self.burst = 0.0;
+        self.bursts.clear();
+        self.visual_bursts = None;
+        self.burst_preview = None;
+    }
+
+    pub fn preview_backfire(&mut self, event: crate::garage::BackfireEvent) {
+        let mut bursts = self.burst_preview.take().map(|(_, bursts)| bursts).unwrap_or_default();
+        bursts.clear();
+        bursts.trigger(event, &self.backfire_style);
+        self.burst_preview = Some((std::time::Instant::now(), bursts));
+    }
+
+    pub fn clear_backfire_preview(&mut self) {
+        self.burst_preview = None;
     }
 
     pub fn geometry(&self, pipes: &[Mat4], out: &mut Vec<FlameVolume>) -> bool {
@@ -161,11 +199,20 @@ impl Enhanced {
             true => 0.0,
             false => motion.speed,
         };
+        if self.burst_preview.is_some() && self.preview.is_none() {
+            return self.burst_geometry(pipes, texture, motion, out);
+        }
         let blue = self.preview.is_some() || nitrous > 0.01;
+        if !blue {
+            return self.burst_geometry(pipes, texture, motion, out);
+        }
+        if !self.was_burning && self.preview.is_none() {
+            self.burst_geometry(pipes, texture, motion, out);
+        }
         let strength = match (self.preview.is_some(), blue) {
             (true, _) => 1.0,
             (false, true) => nitrous,
-            _ => self.burst,
+            _ => 0.0,
         };
         let time = self.preview.map_or(self.visual_time.unwrap_or(self.time) * 3.0, |started| {
             started.elapsed().as_secs_f32() * 3.0 * 2.0 * f32::from(self.appearance.authored().flow) / 100.0
@@ -279,7 +326,11 @@ impl Enhanced {
         start: usize,
     ) {
         for volume in &mut layer.flames[start..] {
-            contact::apply(world, volume, &mut layer.glows, self.appearance.root, self.appearance.tail);
+            let (root, tail) = match volume.blue {
+                true => (self.appearance.root, self.appearance.tail),
+                false => (self.backfire_style.root, self.backfire_style.tail),
+            };
+            contact::apply(world, volume, &mut layer.glows, root, tail);
         }
     }
 }

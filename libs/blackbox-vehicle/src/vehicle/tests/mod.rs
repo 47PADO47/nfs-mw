@@ -2,14 +2,20 @@
 
 mod assists;
 mod basics;
+mod countdown_controls;
 mod driving;
 mod feel;
+mod force_boundaries;
 mod hitch;
+mod jump_replay;
 mod manual;
 mod parity_audit;
+mod phases;
 mod puncture;
 mod rev_limit;
 mod robustness;
+mod settle;
+mod settle_replay;
 mod simple_chassis;
 mod tuning;
 mod wheel;

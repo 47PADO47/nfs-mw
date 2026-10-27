@@ -108,6 +108,108 @@ fn counts(backend: &NullBackend) -> (usize, usize, usize) {
 }
 
 #[test]
+#[ignore = "requires installed Supra"]
+fn installed_lamp_glass_does_not_emit_through_shared_body_slot() {
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let model = nfsmw_data::car::load_driving(
+        &dir,
+        "SUPRA",
+        &nfsmw_data::car::LoadOptions { lod: 'A', all_parts: false, preset: None },
+    )
+    .unwrap();
+    let mut backend = NullBackend::new(crate::settings::test_caps::native())
+        .with_mesh_tracking()
+        .with_glossy_tracking()
+        .with_normal_tracking();
+    let rig = CarRig::upload(&mut backend, keys::next_car(), model, CarShading::GlossyLamps, Vec3::Z);
+    assert!(rig.appearance.borrow().materials.enhanced_lamps());
+    let appearance = rig.appearance.borrow();
+    let mut seen = false;
+    for part in appearance.parts.iter().filter(|p| p.lod == 0 && !p.damaged) {
+        let solid = &rig.model.solids[&part.placement.solid];
+        if !solid.name.contains("HEADLIGHT_GLASS") {
+            continue;
+        }
+        for (group, draw) in solid
+            .groups
+            .iter()
+            .filter(|g| g.diffuse_texture(solid).is_none_or(|h| !rig.model.swaps.hidden.contains(&h)))
+            .zip(&backend.mesh_draws[&part.lamps[1]])
+        {
+            if group.diffuse_texture(solid) != Some(hash("HEADLIGHT_LEFT")) {
+                continue;
+            }
+            let Shading::Glossy(material) = draw.shading else { panic!("glossy glass expected") };
+            assert_ne!(
+                backend.glossy_materials[&material].surface.map(|s| s.kind),
+                Some(blackbox_gfx::SurfaceKind::Emissive)
+            );
+            seen = true;
+        }
+    }
+    assert!(seen, "a placed Supra glass mesh must use the headlight body slot");
+    drop(appearance);
+    rig.release(&mut backend);
+}
+
+#[test]
+#[ignore = "requires installed BMW"]
+fn installed_experimental_head_damage_is_per_actor_and_repairs() {
+    let mut backend = NullBackend::new(crate::settings::test_caps::native())
+        .with_mesh_tracking()
+        .with_texture_tracking()
+        .with_glossy_tracking()
+        .with_normal_tracking();
+    let rig = CarRig::upload(&mut backend, keys::next_car(), model(), CarShading::GlossyLamps, Vec3::Z);
+    assert!(rig.appearance.borrow().materials.enhanced_lamps());
+    let intact_swaps = rig.swaps().with_lamp_state(true, true, &rig.model.textures);
+    let left_swaps = rig.swaps().with_broken_head_lights(1).with_lamp_state(true, true, &rig.model.textures);
+    assert!(intact_swaps.lamp_is_on(hash("HEADLIGHT_LEFT")));
+    assert!(!left_swaps.lamp_is_on(hash("HEADLIGHT_LEFT")));
+    assert!(left_swaps.lamp_is_on(hash("HEADLIGHT_RIGHT")));
+    rig.prepare_surfaces(&mut backend, &BTreeSet::from([SurfaceDamage::new(0, 1)]), Vec3::Z);
+    let intact = draw(&rig, 7, 0, 0, [true, true]);
+    let broken = draw(&rig, 8, 0, 1, [true, true]);
+    assert!(assert_materials(&rig, &backend, 7, &intact, &intact_swaps) > 0);
+    assert!(assert_materials(&rig, &backend, 8, &broken, &left_swaps) > 0);
+    let appearance = rig.appearance.borrow();
+    let part = appearance
+        .parts
+        .iter()
+        .find(|part| {
+            part.lod == 0
+                && !part.damaged
+                && rig.model.solids[&part.placement.solid].groups.iter().any(|g| {
+                    g.diffuse_texture(&rig.model.solids[&part.placement.solid]) == Some(hash("HEADLIGHT_LEFT"))
+                })
+        })
+        .expect("BMW must have a left headlight slot");
+    let solid = &rig.model.solids[&part.placement.solid];
+    let group_index = solid
+        .groups
+        .iter()
+        .filter(|g| g.diffuse_texture(solid).is_none_or(|h| !rig.swaps().hidden.contains(&h)))
+        .position(|g| g.diffuse_texture(solid) == Some(hash("HEADLIGHT_LEFT")))
+        .unwrap();
+    let surface = |drawn: &[Instance], actor| {
+        let instance = drawn.iter().find(|i| i.key == keys::car_part(actor, part.key)).unwrap();
+        let Shading::Glossy(material) = backend.mesh_draws[&instance.mesh][group_index].shading else {
+            panic!("glossy lamp expected")
+        };
+        backend.glossy_materials[&material].surface.map(|s| s.kind)
+    };
+    assert_eq!(surface(&intact, 7), Some(blackbox_gfx::SurfaceKind::Emissive));
+    assert_ne!(surface(&broken, 8), Some(blackbox_gfx::SurfaceKind::Emissive));
+    drop(appearance);
+    assert!(intact.iter().zip(&broken).any(|(a, b)| a.mesh != b.mesh));
+    rig.prepare_surfaces(&mut backend, &BTreeSet::new(), Vec3::Z);
+    let repaired = draw(&rig, 8, 0, 0, [true, true]);
+    assert_eq!(intact.iter().map(|i| i.mesh).collect::<Vec<_>>(), repaired.iter().map(|i| i.mesh).collect::<Vec<_>>());
+    rig.release(&mut backend);
+    assert_eq!(counts(&backend), (0, 0, 0));
+}
+
+#[test]
 #[ignore = "requires installed car geometry/textures (set NFSMW_GAME_DIR)"]
 fn installed_surface_variants_isolate_actors_combine_glass_and_retire() {
     let mut backend = NullBackend::new(crate::settings::test_caps::native())

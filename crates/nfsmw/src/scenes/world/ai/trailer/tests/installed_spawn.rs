@@ -183,7 +183,7 @@ fn installed_loaded_trucks_spawn_on_highway_without_contact_or_cargo_release() {
             props.step(&ground, STEP);
             let input = DriveInput { throttle: 0.15, ..DriveInput::default() };
             let a = tractor.step(&input, &ground, Some((&collision, &mut props)));
-            // Same step/event/contact order as TrafficWorld, retaining the world's damage trace.
+            // Standalone body fixture, retaining the world's damage trace.
             let b = trailer.sim.step(&DriveInput::default(), &ground, Some((&collision, &mut props)));
             trailer.coupling.update_hitch(&tractor, &trailer.sim);
             for (body, impact) in [("tractor", a), ("trailer", b)] {
@@ -198,7 +198,8 @@ fn installed_loaded_trucks_spawn_on_highway_without_contact_or_cargo_release() {
             let view = tractor.pose().position;
             cargo::update(&mut tractor, &tractor_model.rig, &mut props, &data, view);
             trailer.update_events(&mut props, &data, view);
-            trailer.sync_contacts(&mut tractor);
+            trailer.resolve_articulation(&mut tractor);
+            trailer.sync_contacts();
             max_gap = max_gap.max(trailer.coupling.gap(&tractor, &trailer.sim));
             for (i, sim) in [&tractor, &trailer.sim].into_iter().enumerate() {
                 assert!(sim.is_finite(), "{name} body {i} tick {tick}");

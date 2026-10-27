@@ -37,6 +37,8 @@ pub struct FlameAppearance {
     pub tail_tint: Vec3,
     pub density: f32,
     pub turbulence: f32,
+    /// Warm flash shading with a luminous core; zero retains the reference lookup.
+    pub hot_core: f32,
     /// Combined tip displacement. The first 35% stays straight; the rest bends quadratically.
     pub bend: Vec3,
     /// Optional contact plane in local coordinates, with signed distance in world metres.
@@ -56,6 +58,7 @@ impl Default for FlameAppearance {
             tail_tint: Vec3::ONE,
             density: 1.0,
             turbulence: 1.0,
+            hot_core: 0.0,
             bend: Vec3::ZERO,
             contact_plane: Vec4::ZERO,
             radial_scale: 1.0,

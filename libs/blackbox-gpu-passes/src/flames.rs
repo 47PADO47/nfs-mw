@@ -158,6 +158,7 @@ impl Flames {
                 || !a.contact_plane.is_finite()
                 || !a.density.is_finite()
                 || !a.turbulence.is_finite()
+                || !a.hot_core.is_finite()
                 || !a.radial_scale.is_finite()
                 || a.root_color.iter().chain(a.tail_color.iter()).any(|c| !c.is_finite())
             {
@@ -175,7 +176,7 @@ impl Flames {
                 ],
                 root: a.root_tint.max(glam::Vec3::ZERO).extend(a.density.clamp(0.0, 4.0)).to_array(),
                 tail: a.tail_tint.max(glam::Vec3::ZERO).extend(a.turbulence.clamp(0.0, 2.0)).to_array(),
-                shape: [a.bend.x, a.bend.z, a.radial_scale.clamp(1.0, 16.0), 0.0],
+                shape: [a.bend.x, a.bend.z, a.radial_scale.clamp(1.0, 16.0), a.hot_core.clamp(0.0, 1.0)],
                 root_color: a.root_color,
                 tail_color: a.tail_color,
                 contact_plane: a.contact_plane.to_array(),

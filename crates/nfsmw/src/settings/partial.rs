@@ -91,6 +91,7 @@ pub struct Partial {
     pub rain_amount: Option<Percent>,
     /// `GameSpeed`: the multiplier of the physics clock (1 is the original speed).
     pub game_speed: Option<f32>,
+    pub physics_rate_hz: Option<u32>,
     /// `WorldAnimationSpeed`: the multiplier of the world animation clock (1 is the original rate).
     pub animation_speed: Option<f32>,
     pub car_scale: Option<f32>,
@@ -109,7 +110,9 @@ pub struct Partial {
     pub speed_trail_style: Option<super::SpeedTrailStyle>,
     pub exhaust_flames: Option<bool>,
     pub enhanced_exhaust: Option<bool>,
+    pub enhanced_lamps: Option<bool>,
     pub exhaust_style: Option<super::ExhaustStyle>,
+    pub backfire_style: Option<super::BackfireStyle>,
     /// Show turn signals on cars while steering (`[Gameplay] ShowTurnSignals`); off by default.
     pub turn_signals: Option<bool>,
     pub rear_view_mirror: Option<bool>,
@@ -231,6 +234,7 @@ impl Partial {
             always_rain: self.always_rain.or(lower.always_rain),
             rain_amount: self.rain_amount.or(lower.rain_amount),
             game_speed: self.game_speed.or(lower.game_speed),
+            physics_rate_hz: self.physics_rate_hz.or(lower.physics_rate_hz),
             animation_speed: self.animation_speed.or(lower.animation_speed),
             car_scale: self.car_scale.or(lower.car_scale),
             no_rev_limiter: self.no_rev_limiter.or(lower.no_rev_limiter),
@@ -246,7 +250,9 @@ impl Partial {
             speed_trail_style: self.speed_trail_style.or(lower.speed_trail_style),
             exhaust_flames: self.exhaust_flames.or(lower.exhaust_flames),
             enhanced_exhaust: self.enhanced_exhaust.or(lower.enhanced_exhaust),
+            enhanced_lamps: self.enhanced_lamps.or(lower.enhanced_lamps),
             exhaust_style: self.exhaust_style.or(lower.exhaust_style),
+            backfire_style: self.backfire_style.or(lower.backfire_style),
             turn_signals: self.turn_signals.or(lower.turn_signals),
             rear_view_mirror: self.rear_view_mirror.or(lower.rear_view_mirror),
             discord: self.discord.or(lower.discord),

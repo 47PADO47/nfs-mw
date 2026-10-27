@@ -38,7 +38,7 @@ fn installed_released_trailer_rolls_like_a_brake_free_body_while_its_tractor_bra
                 &data.surfaces,
             );
             reference.sim.step(&DriveInput::default(), &ground, Some((&collision, &mut reference_props)));
-            actual.sync_contacts(&mut tractor);
+            actual.sync_contacts();
             assert!(!actual.is_hitched(), "{name} must stay released");
             let (a, b) = (actual.sim.body(), reference.sim.body());
             assert_eq!(a.position, b.position, "{name} tick {tick}: extra braking displaced the trailer");

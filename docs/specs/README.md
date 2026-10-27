@@ -6,6 +6,8 @@ before the Rust implementation. Required wherever the only source is decompiled 
 
 Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
 
+Player countdown follow-up: [clutch state and comparison boundaries](player-countdown-drivetrain.md).
+
 Driving extensions: [performance-upgrades.md](performance-upgrades.md),
 [speedbreaker.md](speedbreaker.md), [vehicle-jump-stabilizers.md](vehicle-jump-stabilizers.md),
 and [vehicle-ground-reference.md](vehicle-ground-reference.md) (persistent body terrain queries).
@@ -179,6 +181,12 @@ remaining clock, geometry, context and live-comparison limits.
 
 ## Vehicles
 
+- [player-launch.md](player-launch.md): configurable player race staging, launch-band strength, timed peak torque and traction assistance.
+- [vehicle-tire-capture-corrections.md](vehicle-tire-capture-corrections.md): near-zero patch friction and locked-wheel direction history from exact tire-call replay.
+- [player-timestep.md](player-timestep.md): explicit per-car integration delta and body-probe timing, prerequisites for the shared clock.
+- [shared-physics-clock.md](shared-physics-clock.md): steady 60/144 Hz offline cadence, per-tick Speedbreaker deltas and network 60-Hz isolation.
+- [player-driving-parity.md](player-driving-parity.md): verified human steering-range correction,
+  gameplay-profile calibration and remaining modded-PC comparison boundaries.
 - [vehicle-decomp-audit.md](vehicle-decomp-audit.md): the port's vehicle physics checked against the PC decompilation, with the
   corrections it implies.
 

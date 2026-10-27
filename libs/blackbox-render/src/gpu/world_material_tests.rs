@@ -11,6 +11,42 @@ use super::{Renderer, test_support};
 
 const COLOR: [u8; 4] = [191, 128, 64, 102];
 
+#[test]
+#[ignore = "needs a GPU"]
+fn directional_world_ambient_changes_diffuse_but_preserves_unlit_and_zero_strength() {
+    let _gpu = test_support::serial();
+    let mut renderer = renderer();
+    let mut frame = frame();
+    let light = frame.surface_light.as_mut().unwrap();
+    light.ambient = [0.3; 3];
+    light.ambient_alpha = 1.0;
+    light.diffuse = [0.0; 3];
+    let base = renderer.render_experiments();
+    for shading in [Shading::World, Shading::Tree, Shading::WorldNoFog, Shading::WorldPrelit] {
+        let before = capture(&mut renderer, &frame, shading, BlendMode::Opaque, COLOR, [0.0, 0.0, 1.0]);
+        renderer.set_render_experiments(RenderExperiments {
+            world_skylight: true,
+            world_skylight_strength: 0.0,
+            ..base
+        });
+        let zero = capture(&mut renderer, &frame, shading, BlendMode::Opaque, COLOR, [0.0, 0.0, 1.0]);
+        assert_eq!(before.pixel(32, 32), zero.pixel(32, 32));
+        renderer.set_render_experiments(RenderExperiments { world_skylight: true, ..base });
+        let enhanced = capture(&mut renderer, &frame, shading, BlendMode::Opaque, COLOR, [0.0, 0.0, 1.0]);
+        if matches!(shading, Shading::WorldNoFog | Shading::WorldPrelit) {
+            assert_eq!(before.pixel(32, 32), enhanced.pixel(32, 32), "unlit family");
+        }
+        if matches!(shading, Shading::World | Shading::Tree) {
+            let down = capture(&mut renderer, &frame, shading, BlendMode::Opaque, COLOR, [0.0, 0.0, -1.0]);
+            assert_ne!(enhanced.pixel(32, 32), down.pixel(32, 32), "directional ambient");
+            assert_ne!(before.pixel(32, 32), enhanced.pixel(32, 32));
+        }
+        renderer.set_render_experiments(base);
+        let restored = capture(&mut renderer, &frame, shading, BlendMode::Opaque, COLOR, [0.0, 0.0, 1.0]);
+        assert_eq!(before.pixel(32, 32), restored.pixel(32, 32));
+    }
+}
+
 fn renderer() -> Renderer {
     let mut renderer = Renderer::headless((64, 64), test_support::options())
         .expect("the selected GPU API must be available for an original-material fixture");

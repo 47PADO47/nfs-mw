@@ -74,6 +74,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
                 .on_hover_text("Matches direct car light to the world's sun and cloud lighting. Does not dim environment light a second time.");
             controls::checkbox(ui, &mut lab.options.car_skylight, "Environment indirect light", defaults.car_skylight)
                 .on_hover_text("Replaces fixed fill lights with broad lighting from the local environment capture, including roofs and nearby scenery.");
+            ui.small("Traffic retains authored diffuse lighting with shared environment fill. Paint-only finish tuning keeps glass, trim and cargo separate.");
             ui.add_enabled_ui(lab.options.car_skylight, |ui| {
                 controls::slider(ui, &mut lab.options.sky_strength, 0.0..=2.0, "Upper environment / sky", defaults.sky_strength);
                 controls::slider(ui, &mut lab.options.ground_strength, 0.0..=2.0, "Lower environment / ground", defaults.ground_strength);

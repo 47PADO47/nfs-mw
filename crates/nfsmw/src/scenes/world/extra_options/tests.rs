@@ -1,5 +1,6 @@
 use super::*;
 use crate::viewer::Scene;
+mod career_tests;
 #[test]
 #[ignore = "requires installed cars, roads and world attributes"]
 fn installed_extra_options_preserve_views_pause_and_teleport_without_editing_density() {

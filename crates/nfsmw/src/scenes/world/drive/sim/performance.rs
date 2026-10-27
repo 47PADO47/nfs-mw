@@ -81,3 +81,7 @@ mod tests {
         assert_eq!(assist.collision_mass_scale, Some(4.0));
     }
 }
+
+#[cfg(test)]
+#[path = "performance_consumer_tests.rs"]
+mod consumer_tests;

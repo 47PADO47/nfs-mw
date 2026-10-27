@@ -58,6 +58,7 @@ struct Material {
     // x = specular power, y = envmap min, z = envmap range, w = envmap power
     params: vec4<f32>,
     surface: vec4<f32>, // roughness, coat scale, reflection intensity, SurfaceKind
+    lighting: vec4<f32>, // x = background actor; authored diffuse response, no local reflection correction
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -154,6 +155,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     let main_view = globals.fog_range.w < 0.5;
     var visibility = 1.0;
     if main_view && in.receives_shadow != 0u { visibility = direct_visibility(in.world, receiver, in.clip.xy); }
+    visibility *= cloud_visibility(in.world);
     var ao = 1.0;
     if receive_ao && main_view { ao = ambient_visibility(in.clip.xy); }
     var indirect = rig.ambient.xyz;
@@ -166,10 +168,11 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
 
     let diff = material.diffuse_min + material.diffuse_range * f;
     let spec = material.specular_min.xyz + material.specular_range.xyz * pow(f, material.params.x);
-    let finish_on = material.surface.w > 0.5 && shadow_data.environment.w > 0.5;
-    let layered = finish_on && material.surface.w > 1.5;
+    let emissive = material.surface.w > 11.5;
+    let finish_on = material.surface.w > 0.5 && shadow_data.environment.w > 0.5 && !emissive;
+    let layered = finish_on && material.surface.w > 1.5 && !emissive;
     var diffuse_rgb = occlusion * light * diff.rgb * tex.rgb;
-    if finish_on {
+    if finish_on && material.lighting.x < 0.5 {
         diffuse_rgb = surface_diffuse(occlusion * direct * diff.rgb * tex.rgb,
             indirect * ao, diff.rgb * tex.rgb, occlusion);
     }
@@ -187,7 +190,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     // Environment reflection of the view vector mirrored about the normal.
     let reflected = 2.0 * f * n - v;
     var probe_ray = reflected;
-    if finish_on { probe_ray = probe_direction(in.world, reflected, material.surface.x); }
+    if finish_on && material.lighting.x < 0.5 { probe_ray = probe_direction(in.world, reflected, material.surface.x); }
     let sharp_env = sharp_environment(in.world, n, reflected, textureSampleLevel(env_map, env_sampler, probe_ray, 0.0).rgb);
     var env = sharp_env;
     var sun_specular = glint * spec;
@@ -238,7 +241,8 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
                 * (paint_linear(coat_env) * fresnel * reflection_intensity + coat_sun));
         }
     }
-    if !layered && !rough_paint && shadow_data.options.w > 0.5 && coat_scale > 0.0 {
+    if !layered && !rough_paint && shadow_data.options.w > 0.5 && coat_scale > 0.0
+        && (material.lighting.x < 0.5 || finish_on) {
         let fresnel = 0.04 + 0.96 * pow(1.0 - saturate(dot(n, v)), 5.0);
         let h = normalize(v + rig.to_light[0].xyz);
         let ndh = saturate(dot(n, h));
@@ -248,6 +252,22 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         let coat_env = select(env, sharp_env, finish_on);
         out.rgb = out.rgb * (1.0 - fresnel * 0.4 * coat_scale)
             + coat_env * fresnel * 0.4 * coat_scale * reflection_intensity + rig.color[0].xyz * coat * coat_scale;
+    }
+    if emissive {
+        // The original art is encoded colour. Restrict the experiment to its brightest
+        // features, then combine light in linear space before returning to the scene encoding.
+        let source = paint_linear(tex.rgb);
+        let strength = smoothstep(0.22, 0.7, max(source.r, max(source.g, source.b)));
+        var base = paint_linear(out.rgb);
+        var emission = source * strength * 0.6;
+        if material.surface.w > 12.5 {
+            // Preserve neutral/white details; only warm red artwork gets a redder lamp response.
+            let red_mask = strength * smoothstep(0.04, 0.30, tex.r - tex.g);
+            let red_base = vec3<f32>(base.r, min(base.g, base.r * 0.12), min(base.b, base.r * 0.04));
+            base = mix(base, red_base, red_mask * 0.65);
+            emission = vec3<f32>(source.r, source.r * 0.015, source.r * 0.005) * red_mask * 0.4;
+        }
+        out.rgb = paint_encoded(base + emission);
     }
     out.texture_alpha = tex.a;
     out.alpha = tex.a * surface_alpha;
@@ -357,6 +377,7 @@ fn original_pixel(in: VsOut, tex: vec4<f32>) -> Shaded {
             visibility = car_direct_visibility(in.world, receiver_normal(in.world, in.normal), in.clip.xy);
         }
     }
+    visibility *= mix(1.0, cloud_visibility(in.world), 0.35);
     var out: Shaded;
     let raw = (diff.rgb * tex.rgb + highlight * diff.a * spec.rgb * visibility) * visibility
         + env * spec.a * diff.a * environment_gain;

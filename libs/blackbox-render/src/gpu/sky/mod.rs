@@ -2,6 +2,7 @@
 
 mod cloud_map;
 mod cloud_schedule;
+pub(super) mod cloud_shadow;
 mod noise;
 mod pipeline;
 #[cfg(test)]
@@ -35,6 +36,7 @@ pub(super) struct Sky {
     shader: wgpu::ShaderModule,
     enhanced_shader: wgpu::ShaderModule,
     cloud_map: cloud_map::CloudMap,
+    cloud_shadow: cloud_shadow::CloudShadow,
     noise: wgpu::TextureView,
     detail: wgpu::TextureView,
     weather: wgpu::TextureView,
@@ -52,6 +54,10 @@ pub(super) struct Sky {
 }
 
 impl Sky {
+    pub(super) fn lighting_state(&self) -> SkyState {
+        self.state
+    }
+
     fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -60,6 +66,7 @@ impl Sky {
     ) -> Self {
         let material_layout = pipeline::material_layout(device);
         let cloud_map = cloud_map::CloudMap::new(device);
+        let cloud_shadow = cloud_shadow::CloudShadow::new(device, globals, &material_layout);
         let store = instance_store::supported(device);
         let instances = store.then(|| instance_store::layout(device));
         // The cloud map follows the instance store's group, when there is one.
@@ -104,6 +111,7 @@ impl Sky {
             shader,
             enhanced_shader,
             cloud_map,
+            cloud_shadow,
             noise,
             detail,
             weather,
@@ -233,6 +241,29 @@ impl Sky {
 }
 
 impl Sky {
+    pub(super) fn cloud_shadow_active(&self) -> bool {
+        self.state.enhanced
+            && self.state.cloud_coverage > 0.005
+            && self.materials.iter_indexed().any(|(_, m)| m.kind == blackbox_gfx::SkyLayerKind::Base)
+    }
+
+    pub(super) fn prepare_cloud_shadow(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        mut globals: super::resources::Globals,
+    ) {
+        let Some(material) = self.materials.iter_mut().find(|m| m.kind == blackbox_gfx::SkyLayerKind::Base) else {
+            return;
+        };
+        globals.camera_pos[0] = cloud_shadow::anchor(globals.camera_pos[0]);
+        globals.camera_pos[1] = cloud_shadow::anchor(globals.camera_pos[1]);
+        globals.camera_pos[2] = 0.0;
+        self.cloud_shadow.encode(device, queue, encoder, target, &material.bind_group, &globals);
+    }
+
     pub(super) fn prepare_clouds(
         &mut self,
         device: &wgpu::Device,

@@ -8,7 +8,7 @@ use super::population::view_distance;
 
 use crate::audio::traffic::{TrafficFrame, TrafficSound};
 use crate::scenes::world::drive::walls::Cast;
-use crate::scenes::world::drive::{CarSim, PairContact, STEP};
+use crate::scenes::world::drive::{CarSim, PairContact};
 
 /// Eye height of a cop and of the player, in metres above the body's centre.
 const EYE: Vec3 = Vec3::new(0.0, 0.5, 0.0);
@@ -83,9 +83,16 @@ impl TrafficWorld {
     /// Lets the cars hit each other and the player's car (`player`). A tractor and the trailer hitched to it do
     /// not hit each other; a trailer that came loose is a body like any other. Also decides the sounds of the step:
     /// an authored whoosh for a close pass. Autonomous horns belong to the audio producer.
+    #[cfg(test)]
     pub fn collide(&mut self, mut player: Option<&mut CarSim>) {
+        self.collide_pairs(player.as_deref_mut());
+        self.observe_completed_step(player);
+    }
+
+    /// Shared pair pass. Completed world and wheel observations belong to `observe_completed_step`.
+    pub fn collide_pairs(&mut self, mut player: Option<&mut CarSim>) {
         self.touches.clear();
-        self.hit_timer = (self.hit_timer - STEP).max(0.0);
+        self.hit_timer = (self.hit_timer - self.step_delta).max(0.0);
         for car in &mut self.cars {
             car.tick_quiet();
         }
@@ -209,7 +216,7 @@ impl TrafficWorld {
             .map(|hit| self.cars[hit.owner].key())
             .collect();
         self.police.traffic_impacts(traffic_impacts);
-        self.player_hits.tick(STEP);
+        self.player_hits.tick(self.step_delta);
         self.player_hits.note(traffic_hits.iter().map(|&(owner, _)| owner));
         for hit in &hits {
             if hit.by_player {
@@ -234,14 +241,7 @@ impl TrafficWorld {
             let Some(duration) = car.take_honk(distance) else { continue };
             self.sounds.push(TrafficSound::Horn { emitter: car.audio_emitter().id, duration });
         }
-        if let Some(player) = player.as_deref_mut() {
-            self.strikes.property |= player.take_prop_struck();
-            let smacked = player.take_smacked();
-            self.note_smacked(&smacked);
-            self.spike_player(player);
-            self.watch_player(player);
-        }
-        self.tick_speech_watch(STEP);
+        self.tick_speech_watch(self.step_delta);
         for pass in passes.drain(..) {
             self.note_pass(pass.owner, pass.relative_speed);
             let car = &mut self.cars[pass.owner];
@@ -255,11 +255,23 @@ impl TrafficWorld {
             }
         }
         self.passes = passes;
+    }
+
+    /// Observe completed contacts and wheel state once, after body response and articulation.
+    /// Pair damage and causality retain the snapshots captured by `collide` before each impulse.
+    pub fn observe_completed_step(&mut self, mut player: Option<&mut CarSim>) {
+        if let Some(player) = player.as_deref_mut() {
+            self.strikes.property |= player.take_prop_struck();
+            let smacked = player.take_smacked();
+            self.note_smacked(&smacked);
+            self.spike_player(player);
+            self.watch_player(player);
+        }
         if let Some(player) = player.as_deref() {
             let body = player.body();
             use crate::scenes::world::space;
             self.sounds.push(TrafficSound::Frame(TrafficFrame {
-                dt: STEP,
+                dt: self.step_delta,
                 listener_position: space::to_render(body.position.to_array()),
                 listener_forward: space::to_render((body.orientation * Vec3::Z).to_array()),
                 listener_velocity: space::to_render(body.linear_velocity.to_array()),
