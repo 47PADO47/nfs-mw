@@ -6,6 +6,9 @@
 //! draws a copy of the sheet whose first `slots` cells hold the glyphs of the text, centred, and the blank glyph (the space
 //! of `glyphs`) in the slots the text leaves empty. This module checks the schema only; whether the sheet exists is for the
 //! game to decide.
+//!
+//! A plate may also name an index of **designs** (`designs`, a file shared by every car that names it): backgrounds the player
+//! picks to put behind the glyphs. The index and its pictures are read by the game, not here.
 
 use std::collections::BTreeMap;
 
@@ -35,6 +38,11 @@ pub struct Plate {
     pub slots: u32,
     /// Typed characters that are drawn as another glyph (`0` as `O`), as pairs of (typed, drawn).
     pub aliases: Vec<(char, char)>,
+    /// The index file of the plate designs the car offers, a path under the mod's `files/` folder that the car shares with
+    /// every other car naming it (docs/modding/car-customization.md, "Plate designs"). `None`: the plate has no designs.
+    pub designs: Option<String>,
+    /// The id of the design the car wears until the player picks one. `None`: the plain sheet.
+    pub default_design: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -49,6 +57,10 @@ pub(super) struct Raw {
     slots: u32,
     #[serde(default)]
     aliases: BTreeMap<String, String>,
+    #[serde(default)]
+    designs: Option<String>,
+    #[serde(default)]
+    default_design: Option<String>,
 }
 
 fn field(field: &'static str, reason: &'static str) -> ContentError {
@@ -92,6 +104,19 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<Plate>, ContentError> {
             return Err(field("customization.plate.text", "the text fits the slots and has no control character"));
         }
     }
+    if raw.designs.as_deref().is_some_and(|path| !design_path(path)) {
+        return Err(field(
+            "customization.plate.designs",
+            "a .toml path under files/: letters, digits, _ - . and /, no .. and no drive",
+        ));
+    }
+    if raw.default_design.as_deref().is_some_and(|id| raw.designs.is_none() || !design_id(id)) {
+        return Err(field(
+            "customization.plate.default_design",
+            "the id of a design (letters, digits, _ and -, at most 64) and a `designs` file to hold it",
+        ));
+    }
+    let designs = raw.designs;
     Ok(Some(Plate {
         text: raw.text,
         picture: raw.picture,
@@ -100,7 +125,28 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<Plate>, ContentError> {
         rows: raw.rows,
         slots: raw.slots,
         aliases,
+        designs,
+        default_design: raw.default_design,
     }))
+}
+
+/// Longest design index path and longest design id, in bytes.
+const MAX_PATH_BYTES: usize = 128;
+const MAX_ID_BYTES: usize = 64;
+
+/// Whether `path` is a plate design index: a `.toml` file under `files/`, with no way out of the folder.
+fn design_path(path: &str) -> bool {
+    let ok_char = |byte: u8| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'/');
+    path.len() <= MAX_PATH_BYTES
+        && path.to_ascii_lowercase().ends_with(".toml")
+        && path.bytes().all(ok_char)
+        && path.split('/').all(|part| !part.is_empty() && !part.starts_with('.'))
+}
+
+/// Whether `id` is a plate design id: letters, digits, `_` and `-`.
+fn design_id(id: &str) -> bool {
+    let ok_char = |byte: u8| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-';
+    !id.is_empty() && id.len() <= MAX_ID_BYTES && id.bytes().all(ok_char)
 }
 
 /// One alias: a typed character and the glyph of the sheet it is drawn as.

@@ -58,6 +58,8 @@ fn a_car_wears_the_text_of_its_game_pack_on_a_sheet_of_its_own() {
         rows: table.rows,
         slots: table.slots,
         aliases: table.aliases.clone(),
+        designs: table.designs.clone(),
+        default_design: table.default_design.clone(),
     };
     let drawn = plate.compose(sheet, "VELOCITY").unwrap();
     assert_eq!((drawn.width, drawn.height, drawn.mip_levels), (512, 512, 10));

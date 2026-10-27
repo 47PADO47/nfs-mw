@@ -118,20 +118,11 @@ cell `n`. The reader's `cells(text)` and `registration(text)` do the same steps,
 
 ## The plate designs of Autolog (not on the car mesh)
 
-The game also has **plate designs**: 666 backgrounds the player earns online and picks in Autolog ("Pick your License Plate",
-the property `LicensePlateId`) **[code]**. They are one object of type `Genesys.Gen.Online.LicensePlate` in
-`GAMEPLAY.BNDL` (`0x148ECD`): an array of 666 pointers at +0x18, each to a 32-byte structure **[verified]**:
-
-| Offset | Type | Field | Evidence |
-|---|---|---|---|
-| +0x0C | u32 | the design's picture: the number of `UI/IMAGES/STREAMED/<id>.BNDL`, a 512 x 256 BC3 picture of a plate over a photograph of a car | [verified] on the first three |
-| +0x10 | u32 | another id (no text of that id) | [unconfirmed] meaning |
-| +0x14 | u32 | `Name`: the string id of the design's name (`START ME UP`, `RUNNING IN`, `TAKEDOWN`) | [verified] on three |
-| +0x18 | u32 | the id of the game pack that unlocks it (`0x42E7`, `0x2045BB`, ...) | [verified] values |
-
-The pictures are interface images (the garage list and the car's plate in Autolog), and no car bundle holds one. Whether the
-3D plate's backing, which is part of the car's body, takes the design is **[unconfirmed]**; the content mod does not use the
-designs.
+The game also has **plate designs**: 666 backgrounds the player earns online and picks in Autolog (the property `LicensePlateId`),
+one object of type `Genesys.Gen.Online.LicensePlate` in `GAMEPLAY.BNDL`. Each is a 512 x 256 interface picture of a plate over a
+photograph, a name and a game pack **[verified]**; they are interface images, no car bundle holds one, and the 3D plate's
+glyph quads take none of it. The records, the 469 distinct pictures, the unlock data and what is not stored (category, country,
+glyph colour, a default) are in [chameleon-plate-designs.md](chameleon-plate-designs.md).
 
 ## What the content mod does with it
 
@@ -139,7 +130,9 @@ For each car with a plate mesh the mod writes the glyph sheet into the car's `TE
 and a `[customization.plate]` table in the car's manifest: the default text of its pack, the layout of the sheet (9 x 4,
 the 36 glyphs, 8 slots, `0` drawn as `O`) and the sheet's name. The game draws the sheet again with the text the player
 types ([car-customization.md](../modding/car-customization.md#license-plates)); it does not read the executable. How the
-mod finds the text: `mods/nfsmw-2012-content/src/plate.rs`.
+mod finds the text: `mods/nfsmw-2012-content/src/plate.rs`. The designs are one shared set written once for all cars
+(`src/plate_designs.rs`, [chameleon-plate-designs.md](chameleon-plate-designs.md#what-the-content-mod-writes)); the car's table names
+their index.
 
 ## Not verified
 

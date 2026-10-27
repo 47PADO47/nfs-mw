@@ -9,8 +9,8 @@ use std::path::Path;
 
 use chameleon_bundle::Bundle;
 use chameleon_vehicle::{
-    GamePack, PLATE_COLUMNS, PLATE_GLYPHS, PLATE_ROWS, PLATE_SLOTS, game_packs, is_plate_technique, plate_default_for,
-    plate_default_texts, plate_registration,
+    GamePack, PLATE_COLUMNS, PLATE_GLYPHS, PLATE_ROWS, PLATE_SLOTS, PlateDesign, game_packs, is_plate_technique,
+    plate_default_for, plate_default_texts, plate_designs, plate_registration,
 };
 
 use crate::source::SourceCar;
@@ -25,6 +25,8 @@ const GAMEPLAY: &str = "GAMELOGIC/GAMEPLAY.BNDL";
 pub struct Plates {
     packs: Vec<GamePack>,
     texts: [String; 5],
+    /// The plate designs of Autolog, in the order of the game's list (`crate::plate_designs`); empty when they do not read.
+    designs: Vec<PlateDesign>,
 }
 
 impl Plates {
@@ -44,15 +46,28 @@ impl Plates {
     fn try_read(root: &Path) -> Option<Self> {
         let texts = plate_default_texts(&std::fs::read(root.join(EXECUTABLE)).ok()?)?;
         let gameplay = std::fs::read(root.join(GAMEPLAY)).ok()?;
-        let packs = game_packs(&Bundle::parse(&gameplay).ok()?).ok()?;
-        Some(Self { packs, texts })
+        let bundle = Bundle::parse(&gameplay).ok()?;
+        let packs = game_packs(&bundle).ok()?;
+        // The designs are an extra: an install whose list does not read still has its texts.
+        let designs = plate_designs(&bundle).unwrap_or_default();
+        Some(Self { packs, texts, designs })
     }
 
     /// The text a car wears by default when its vehicle list entry names the game pack `pack` (`GamePackID`): the text of the
     /// pack, as the plate keeps it. A pack the gameplay bundle does not list counts as the base game.
     pub fn text(&self, pack: u32) -> String {
-        let number = self.packs.iter().find(|candidate| candidate.id == pack).map_or(0, |found| found.number);
-        plate_registration(plate_default_for(&self.texts, number))
+        plate_registration(plate_default_for(&self.texts, self.pack_number(pack)))
+    }
+
+    /// The plate designs of the install, in the order of the game's list.
+    pub fn designs(&self) -> &[PlateDesign] {
+        &self.designs
+    }
+
+    /// The number of the game pack with id `pack` (0 for the base game, 1 to 4 for the DLC packs); a pack the gameplay bundle
+    /// does not list counts as the base game.
+    pub fn pack_number(&self, pack: u32) -> u16 {
+        self.packs.iter().find(|candidate| candidate.id == pack).map_or(0, |found| found.number)
     }
 }
 
@@ -93,7 +108,7 @@ mod tests {
         let packs = [(0, 0x42E7), (1, 0x2045BB), (2, 0x21836A), (3, 0x2184B4), (4, 0x2184B5)]
             .map(|(number, id)| GamePack { id, number })
             .to_vec();
-        Plates { packs, texts }
+        Plates { packs, texts, designs: Vec::new() }
     }
 
     #[test]

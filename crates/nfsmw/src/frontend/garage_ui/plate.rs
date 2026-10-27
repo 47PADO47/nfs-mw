@@ -174,6 +174,7 @@ mod tests {
             rows: 4,
             slots: 8,
             aliases: vec![('0', 'O')],
+            ..Default::default()
         }
     }
 

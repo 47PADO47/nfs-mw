@@ -72,3 +72,36 @@ fn the_picture_is_a_texture_name_and_a_key_the_table_does_not_know_refuses_the_c
     assert!(car(&table("").replace("FASTCOUPE_PLATE", "bad name")).is_err());
     assert!(car(&table("colour = 1\n")).is_err());
 }
+
+#[test]
+fn a_plate_has_no_designs_unless_it_names_an_index() {
+    let found = plate("");
+    assert_eq!((found.designs, found.default_design), (None, None));
+}
+
+#[test]
+fn the_designs_index_and_the_default_design_are_read() {
+    let found = plate("designs = \"PLATES/MW2012/DESIGNS.TOML\"\ndefault_design = \"1863272\"\n");
+    assert_eq!(found.designs.as_deref(), Some("PLATES/MW2012/DESIGNS.TOML"));
+    assert_eq!(found.default_design.as_deref(), Some("1863272"));
+}
+
+#[test]
+fn the_designs_index_stays_inside_the_files_folder_and_is_a_toml_file() {
+    for bad in ["../x.toml", "A/../x.toml", "/x.toml", "A//x.toml", "A/.hidden.toml", "x.png", "C:/x.toml", "a b.toml"]
+    {
+        assert!(car(&table(&format!("designs = \"{bad}\"\n"))).is_err(), "{bad}");
+    }
+    assert!(car(&table("designs = \"plates/set-1/index_2.toml\"\n")).is_ok());
+    assert!(car(&table(&format!("designs = \"{}.toml\"\n", "a".repeat(125)))).is_err(), "too long");
+}
+
+#[test]
+fn a_default_design_needs_an_index_and_a_plain_id() {
+    assert!(car(&table("default_design = \"A\"\n")).is_err(), "no index to hold it");
+    let index = "designs = \"P/D.toml\"\n";
+    assert!(car(&table(&format!("{index}default_design = \"has space\"\n"))).is_err());
+    assert!(car(&table(&format!("{index}default_design = \"\"\n"))).is_err());
+    assert!(car(&table(&format!("{index}default_design = \"{}\"\n", "x".repeat(65)))).is_err());
+    assert!(car(&table(&format!("{index}default_design = \"START-ME_UP9\"\n"))).is_ok());
+}

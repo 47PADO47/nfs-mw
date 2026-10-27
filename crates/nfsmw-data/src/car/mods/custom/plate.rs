@@ -13,6 +13,7 @@ use blackbox_tpk::{AlphaUsage, PixelFormat, Texture, decode_rgba8};
 use game_install::GameDir;
 
 use super::Plate;
+use super::plate_design::{self, Ground};
 use crate::car::CarModel;
 
 impl Plate {
@@ -50,15 +51,42 @@ impl Plate {
     /// The sheet drawn again with `text` in its first cells, with a full chain of mip levels. `picture` is the sheet as the
     /// car's `TEXTURES.BIN` holds it.
     pub fn compose(&self, picture: &Texture, text: &str) -> Result<Texture> {
+        self.compose_with(picture, picture, Some(text), None)
+    }
+
+    /// Like [`Plate::compose`], with a design behind the glyphs. `picture` is the car's sheet (its name and size are the
+    /// result's), `glyphs` the sheet the glyph cells are copied from (the same size; `picture` itself unless the design brings
+    /// its own), `text` `None` for the cells as the sheet has them, and `ground` the design's picture, if any.
+    pub fn compose_with(
+        &self,
+        picture: &Texture,
+        glyphs: &Texture,
+        text: Option<&str>,
+        ground: Option<&Ground>,
+    ) -> Result<Texture> {
         let (width, height) = (picture.width as usize, picture.height as usize);
-        let (columns, rows) = (self.columns as usize, self.rows as usize);
+        let (columns, rows, slots) = (self.columns as usize, self.rows as usize, self.slots as usize);
         ensure!(width >= columns && height >= rows, "the plate sheet is smaller than its cells");
-        let sheet = decode_rgba8(picture).context("the plate sheet cannot be decoded")?;
+        ensure!(slots <= columns * rows, "the plate shows more characters than its sheet has cells");
+        ensure!(
+            (glyphs.width, glyphs.height) == (picture.width, picture.height),
+            "the glyph sheet of the design is not the size of the car's"
+        );
+        let sheet = decode_rgba8(glyphs).context("the plate sheet cannot be decoded")?;
         let mut pixels = sheet.clone();
-        for (slot, source) in self.cells(text).into_iter().enumerate() {
+        let shown = match text {
+            Some(text) => self.cells(text),
+            None => (0..slots).collect(),
+        };
+        let mut targets = Vec::with_capacity(slots);
+        for (slot, source) in shown.into_iter().enumerate() {
             let target = cell_rect(slot, columns, rows, width, height);
             let from = cell_rect(source, columns, rows, width, height);
             copy_cell(&sheet, &mut pixels, width, from, target);
+            targets.push(target);
+        }
+        if let Some((ground, levels)) = ground.zip(plate_design::levels(&sheet)) {
+            plate_design::lay_on_ground(&mut pixels, width, &targets, levels, ground);
         }
         Ok(with_mips(picture, pixels))
     }
@@ -161,21 +189,62 @@ pub fn stored(folder: &str) -> Option<String> {
     SOURCE.get().and_then(|source| source(folder))
 }
 
-/// Draw the car's plate on `model` with the text it wears: `picked` (a preview in the garage), else the one the player kept
-/// ([`stored`]), else the manifest's. A car whose sheet is missing from its `TEXTURES.BIN` keeps the sheet as authored.
+/// Where the player's plate designs are kept, as [`set_source`] does for the texts: a function from a car's folder to the id
+/// of the design picked for it (the empty id is the plain plate, picked on purpose).
+static DESIGN_SOURCE: OnceLock<fn(&str) -> Option<String>> = OnceLock::new();
+
+/// Set where the player's plate designs are read from. The first call wins.
+pub fn set_design_source(source: fn(&str) -> Option<String>) {
+    let _ = DESIGN_SOURCE.set(source);
+}
+
+/// The design the player kept for the car in `folder`, if any.
+pub fn stored_design(folder: &str) -> Option<String> {
+    DESIGN_SOURCE.get().and_then(|source| source(folder))
+}
+
+impl Plate {
+    /// The design the car wears: the one picked (a preview in the garage), else the one the player kept, else the manifest's
+    /// default. An empty id is the plain plate, which is also what `None` means when the plate has no default.
+    pub fn design_worn(&self, picked: Option<&str>, kept: Option<&str>) -> Option<String> {
+        self.designs.as_ref()?;
+        let id = picked.or(kept).or(self.default_design.as_deref())?;
+        (!id.is_empty()).then(|| id.to_owned())
+    }
+}
+
+/// Draw the car's plate on `model` with the text and the design it wears: `picked` and `picked_design` (a preview in the
+/// garage), else the ones the player kept ([`stored`], [`stored_design`]), else the manifest's. A car whose sheet is missing
+/// from its `TEXTURES.BIN` keeps the sheet as authored; a design that cannot be drawn is left out (the text still shows).
 pub(super) fn apply(
     dir: &GameDir,
     folder: &str,
     plate: &Plate,
     picked: Option<&str>,
+    picked_design: Option<&str>,
     model: &mut CarModel,
 ) -> Result<()> {
     let kept = stored(folder);
-    let Some(text) = plate.worn(picked.or(kept.as_deref())) else { return Ok(()) };
+    let text = plate.worn(picked.or(kept.as_deref()));
+    let kept_design = stored_design(folder);
+    let design = plate.design_worn(picked_design, kept_design.as_deref());
+    let ground = design.as_deref().and_then(|id| {
+        plate_design::ground(dir, plate, id)
+            .map_err(|error| log::warn!("{folder}: the plate design {id:?} is not drawn: {error:#}"))
+            .ok()
+    });
+    if text.is_none() && ground.is_none() {
+        return Ok(());
+    }
     let wanted = blackbox_hash::bstring_hash(&plate.picture);
     let found = super::livery::own_textures(dir, folder, &std::collections::HashSet::from([wanted]))?;
     let picture = found.get(&wanted).context("the plate sheet is missing from TEXTURES.BIN")?;
-    let drawn = plate.compose(picture, text)?;
+    let glyphs = ground.as_ref().and_then(|ground| ground.glyphs.as_ref()).unwrap_or(picture);
+    let drawn = plate.compose_with(picture, glyphs, text, ground.as_ref()).or_else(|error| {
+        // A design glyph sheet of another size is the one thing that is the design's fault: the car's sheet draws it.
+        log::warn!("{folder}: the plate design is not drawn: {error:#}");
+        plate.compose_with(picture, picture, text, None)
+    })?;
     model.textures.insert(drawn.name_hash, drawn);
     Ok(())
 }
