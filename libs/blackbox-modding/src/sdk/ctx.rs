@@ -6,16 +6,16 @@ use std::rc::Rc;
 
 use super::ffi::{self, HostTable};
 use super::{
-    Audio, Camera, Commands, Content, Hud, I18n, Input, Interface, Map, Menus, ModResult, Settings, Time, Ui, Vehicles,
-    World,
+    Audio, Camera, Commands, Content, Hud, I18n, Input, Interface, Map, Menus, ModConfig, ModResult, Settings, Time, Ui,
+    Vehicles, World,
 };
 use crate::abi::{
     AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_AUDIO, IFACE_AUDIO_VERSION,
-    IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_CONTENT, IFACE_CONTENT_VERSION,
-    IFACE_HUD, IFACE_HUD_VERSION, IFACE_I18N, IFACE_I18N_VERSION, IFACE_INPUT, IFACE_INPUT_VERSION, IFACE_MAP,
-    IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_SETTINGS, IFACE_SETTINGS_VERSION, IFACE_TIME,
-    IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES, IFACE_VEHICLES_VERSION, IFACE_WORLD,
-    IFACE_WORLD_VERSION,
+    IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_COMMANDS, IFACE_COMMANDS_VERSION, IFACE_CONFIG, IFACE_CONFIG_VERSION,
+    IFACE_CONTENT, IFACE_CONTENT_VERSION, IFACE_HUD, IFACE_HUD_VERSION, IFACE_I18N, IFACE_I18N_VERSION, IFACE_INPUT,
+    IFACE_INPUT_VERSION, IFACE_MAP, IFACE_MAP_VERSION, IFACE_MENUS, IFACE_MENUS_VERSION, IFACE_SETTINGS,
+    IFACE_SETTINGS_VERSION, IFACE_TIME, IFACE_TIME_VERSION, IFACE_UI, IFACE_UI_VERSION, IFACE_VEHICLES,
+    IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
 };
 
 /// The longest message the host takes in one line (ADR 0005 section 4). Longer text is cut at a character boundary.
@@ -69,8 +69,8 @@ impl Ctx {
         ffi::game_id(self.host)
     }
 
-    /// The folder of this mod: where its `mod.toml` is. The mod may keep its settings there (`config.toml`) and write
-    /// the content it generates (`files/`, `cars/`): the host reads those after the mod has loaded, so what a mod
+    /// The folder of this mod: where its `mod.toml` is. The mod's settings are read through [`Ctx::config`]. The content it
+    /// generates (`files/`, `cars/`) is written here: the host reads those after the mod has loaded, so what a mod
     /// writes in `Mod::load` is part of the game's content for this run.
     pub fn mod_dir(&self) -> ModResult<std::path::PathBuf> {
         ffi::mod_dir(self.host).map(std::path::PathBuf::from)
@@ -174,6 +174,13 @@ impl Ctx {
     pub fn world(&self) -> Option<World> {
         let iface = self.query_interface(IFACE_WORLD, IFACE_WORLD_VERSION.0, IFACE_WORLD_VERSION.1)?;
         Some(World::new(ffi::world::read(iface)))
+    }
+
+    /// The configuration interface (`bb.config`), when the host offers it: the mod's own config file merged with its table in
+    /// the game's main config. Read it in `Mod::load`; the text does not change while the mod runs.
+    pub fn config(&self) -> Option<ModConfig> {
+        let iface = self.query_interface(IFACE_CONFIG, IFACE_CONFIG_VERSION.0, IFACE_CONFIG_VERSION.1)?;
+        Some(ModConfig::new(ffi::config::read(iface)))
     }
 
     /// The translation interface (`bb.i18n`), when the host offers it.

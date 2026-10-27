@@ -82,6 +82,9 @@ pub use iface::{
 pub use iface::{BbContent, BbContentRescanFn, IFACE_CONTENT, IFACE_CONTENT_VERSION};
 pub use module::{
     BB_EVENT_CANCEL, BB_EVENT_CONTINUE, BbDestroyFn, BbEvent, BbEventResult, BbModApi, BbModCreateFn, BbModInfo,
+pub use iface::{
+    BB_CONFIG_FILE, BB_CONFIG_MAIN, BbConfig, BbConfigReadFn, BbConfigSourcesFn, IFACE_CONFIG, IFACE_CONFIG_VERSION,
+};
     BbModInfoFn, BbOnEventFn, MOD_CREATE_SYMBOL, MOD_INFO_SYMBOL,
 };
 pub use size::has_field;

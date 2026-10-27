@@ -196,3 +196,16 @@ fn settings_table_and_option() {
     assert_eq!(offset_of!(BbSettings, get), 32);
     assert_eq!([BB_SETTING_TOGGLE, BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY], [0, 1, 0]);
 }
+
+#[test]
+fn config_table_and_sources() {
+    assert_eq!(IFACE_CONFIG, "bb.config");
+    assert_eq!(IFACE_CONFIG_VERSION, (1, 0));
+    assert_eq!(size_of::<BbConfig>(), 32);
+    assert_eq!(align_of::<BbConfig>(), 8);
+    assert_eq!(offset_of!(BbConfig, head), 0);
+    assert_eq!(offset_of!(BbConfig, ctx), 8);
+    assert_eq!(offset_of!(BbConfig, read), 16);
+    assert_eq!(offset_of!(BbConfig, sources), 24);
+    assert_eq!([BB_CONFIG_FILE, BB_CONFIG_MAIN], [1, 2]);
+}

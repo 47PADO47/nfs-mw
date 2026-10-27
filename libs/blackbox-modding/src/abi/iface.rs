@@ -8,6 +8,7 @@
 mod audio;
 mod camera;
 mod commands;
+mod config;
 mod content;
 mod hud;
 mod i18n;
@@ -31,6 +32,7 @@ pub use camera::{
 pub use commands::{BbCommandCallbackFn, BbCommands, BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn};
 pub use content::{BbContent, BbContentRescanFn};
 pub use hud::{BB_HUD_BIG, BB_HUD_INFO, BB_HUD_WARNING, BbHud, BbHudHideFn, BbHudMessageFn};
+pub use config::{BB_CONFIG_FILE, BB_CONFIG_MAIN, BbConfig, BbConfigReadFn, BbConfigSourcesFn};
 pub use i18n::{BB_I18N_INT, BB_I18N_TEXT, BbI18n, BbI18nArg, BbI18nGenerationFn, BbI18nLocaleFn, BbI18nTextFn};
 pub use input::{BbHotkeyFn, BbInput, BbInputRegisterFn, BbInputUnregisterFn};
 pub use map::{BbBlip, BbMap, BbMapAddFn, BbMapRemoveFn, BbMapUpdateFn, BbRgba};
@@ -134,3 +136,8 @@ pub const IFACE_I18N_VERSION: (u16, u16) = (1, 0);
 pub const IFACE_WORLD: &str = "bb.world";
 /// The version the host implements for [`IFACE_WORLD`], as `(major, minor)`.
 pub const IFACE_WORLD_VERSION: (u16, u16) = (1, 0);
+
+/// Id of the configuration interface: the mod's own config file merged with its table in the game's main config.
+pub const IFACE_CONFIG: &str = "bb.config";
+/// The version the host implements for [`IFACE_CONFIG`], as `(major, minor)`.
+pub const IFACE_CONFIG_VERSION: (u16, u16) = (1, 0);

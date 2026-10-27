@@ -25,6 +25,7 @@ compile_error!("blackbox-modding mods must be built with panic = \"unwind\"; a p
 mod audio;
 mod camera;
 mod commands;
+mod config;
 mod content;
 mod ctx;
 mod error;
@@ -51,6 +52,7 @@ pub use crate::declare_mod;
 pub use audio::Audio;
 pub use camera::{Camera, CameraKind, CameraState};
 pub use commands::Commands;
+pub use config::ModConfig;
 pub use content::Content;
 pub use ctx::{Ctx, Level, MAX_MESSAGE_BYTES};
 pub use error::{Error, ModResult};

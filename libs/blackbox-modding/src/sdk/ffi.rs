@@ -9,6 +9,7 @@
 pub(crate) mod audio;
 pub(crate) mod camera;
 pub(crate) mod commands;
+pub(crate) mod config;
 pub(crate) mod content;
 mod event;
 pub(crate) mod hud;
