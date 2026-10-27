@@ -67,6 +67,8 @@ pub const BRAKE_LEFT: &str = "BRAKE_GLOBAL_LEFT";
 pub struct TextureSwaps {
     lamps: HashMap<u32, [u32; 2]>,
     broken_brakes: u32,
+    broken_heads: u32,
+    lit_lamps: HashSet<u32>,
     /// Placeholder hash → texture hash to draw instead.
     pub map: HashMap<u32, u32>,
     /// Placeholders whose groups are not drawn.
@@ -74,6 +76,19 @@ pub struct TextureSwaps {
 }
 
 impl TextureSwaps {
+    /// True for an enabled lamp with authored ON art.
+    pub fn lamp_is_on(&self, placeholder: u32) -> bool {
+        self.lit_lamps.contains(&placeholder)
+    }
+    /// Lamp body slots whose ON state represents braking.
+    pub fn is_brake_lamp(placeholder: u32) -> bool {
+        ["BRAKELIGHT_LEFT", "BRAKELIGHT_RIGHT", "BRAKELIGHT_CENTRE"].map(bstring_hash).contains(&placeholder)
+    }
+    /// Suppress each broken headlight independently when selecting lamp textures.
+    pub fn with_broken_head_lights(mut self, broken: u32) -> Self {
+        self.broken_heads = broken & 3;
+        self
+    }
     /// Original per-side brake damage; head surface substitutions stay independent.
     pub fn with_broken_brake_lights(mut self, broken: u32) -> Self {
         self.broken_brakes = broken & 56;
@@ -106,8 +121,22 @@ impl TextureSwaps {
                     _ => 0,
                 };
                 let enabled = enabled && self.broken_brakes & brake_bit == 0;
+                let head_bit = match (kind == "HEADLIGHT", *side) {
+                    (true, "LEFT") => 1,
+                    (true, "RIGHT") => 2,
+                    _ => 0,
+                };
+                let enabled = enabled && self.broken_heads & head_bit == 0;
                 let placeholder = bstring_hash(&format!("{kind}_{side}"));
                 let Some(states) = self.lamps.get(&placeholder) else { continue };
+                self.lit_lamps.remove(&placeholder);
+                if enabled
+                    && kind != "HEADLIGHT_GLASS"
+                    && kind != "BRAKELIGHT_GLASS"
+                    && textures.contains_key(&states[1])
+                {
+                    self.lit_lamps.insert(placeholder);
+                }
                 let wanted = states[usize::from(enabled)];
                 if textures.contains_key(&wanted) {
                     self.map.insert(placeholder, wanted);
@@ -161,7 +190,14 @@ impl TextureSwaps {
                 lamps.insert(bstring_hash(&format!("{kind}_{side}")), states);
             }
         }
-        Self { map, lamps, hidden: DECAL_PLACEHOLDERS.iter().map(|n| bstring_hash(n)).collect(), broken_brakes: 0 }
+        Self {
+            map,
+            lamps,
+            hidden: DECAL_PLACEHOLDERS.iter().map(|n| bstring_hash(n)).collect(),
+            broken_brakes: 0,
+            broken_heads: 0,
+            lit_lamps: HashSet::new(),
+        }
     }
 
     /// Show the cracked-window texture on these texture hashes (window placeholders or window solids' diffuse
@@ -187,6 +223,55 @@ impl TextureSwaps {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn texture() -> blackbox_tpk::Texture {
+        blackbox_tpk::Texture {
+            name: String::new(),
+            name_hash: 0,
+            width: 1,
+            height: 1,
+            mip_levels: 1,
+            format: blackbox_tpk::PixelFormat::Argb8888,
+            compression_type: 32,
+            alpha_usage: blackbox_tpk::AlphaUsage::None,
+            alpha_sorting: false,
+            alpha_blend: 0,
+            flags: 0,
+            data: vec![0; 4],
+            palette: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn experimental_lamp_states_follow_independent_damage_and_missing_art() {
+        let textures = ["HEADLIGHT", "BRAKELIGHT"]
+            .into_iter()
+            .flat_map(|kind| {
+                ["ON", "OFF"].map(move |state| (bstring_hash(&format!("CAR_KIT00_{kind}_{state}")), texture()))
+            })
+            .collect::<HashMap<_, _>>();
+        let base = TextureSwaps::for_car("CAR");
+        let state =
+            base.clone().with_broken_head_lights(1).with_broken_brake_lights(16).with_lamp_state(true, true, &textures);
+        for (name, expected) in [
+            ("HEADLIGHT_LEFT", false),
+            ("HEADLIGHT_RIGHT", true),
+            ("BRAKELIGHT_LEFT", true),
+            ("BRAKELIGHT_RIGHT", false),
+            ("BRAKELIGHT_CENTRE", true),
+        ] {
+            assert_eq!(state.lamp_is_on(bstring_hash(name)), expected, "{name}");
+        }
+        assert_eq!(state.resolve(bstring_hash("HEADLIGHT_LEFT")), bstring_hash("CAR_KIT00_HEADLIGHT_OFF"));
+        let repaired = base.clone().with_lamp_state(true, true, &textures);
+        assert!(repaired.lamp_is_on(bstring_hash("HEADLIGHT_LEFT")));
+        let mut missing = textures;
+        missing.remove(&bstring_hash("CAR_KIT00_HEADLIGHT_OFF"));
+        let fallback = base.with_lamp_state(true, true, &missing);
+        assert!(fallback.lamp_is_on(bstring_hash("HEADLIGHT_LEFT")));
+        let broken = fallback.with_broken_head_lights(1).with_lamp_state(true, true, &missing);
+        assert!(!broken.lamp_is_on(bstring_hash("HEADLIGHT_LEFT")));
+    }
 
     #[test]
     fn stock_swaps() {

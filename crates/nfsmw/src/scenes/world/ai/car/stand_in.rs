@@ -9,7 +9,7 @@ use glam::Vec3;
 
 use super::{AiCar, Ctx, Role};
 use crate::scenes::world::ai::racer::RACER_THINK_STEPS;
-use crate::scenes::world::drive::{STEP, WorldGround};
+use crate::scenes::world::drive::WorldGround;
 use crate::scenes::world::road::Spawn;
 
 /// Seconds a racer stays off (or back on) the loaded world before it switches to (or from) its stand-in.
@@ -50,7 +50,7 @@ impl AiCar {
         if !eligible || self.is_wrecked() {
             return self.stand_in.active;
         }
-        if !self.stand_in.wants_switch(on_world, STEP) {
+        if !self.stand_in.wants_switch(on_world, self.step_delta) {
             return self.stand_in.active;
         }
         if !self.stand_in.active {
@@ -76,18 +76,20 @@ impl AiCar {
         ctx: &mut Ctx<'_, R>,
         collision: &blackbox_collision::CollisionWorld,
     ) {
+        self.think_elapsed += self.step_delta;
         if (self.steps + self.stagger).is_multiple_of(RACER_THINK_STEPS) {
             self.think(ctx, collision);
         }
         let Role::Racer(racer) = &self.role else { return };
-        let speed = racer.stand_in_speed(self.stand_in.speed, self.speed, STEP);
+        let speed = racer.stand_in_speed(self.stand_in.speed, self.speed, self.step_delta);
         let road = self.physics_position() - Vec3::Y * self.sim.ride_lift();
-        let (moved, forward) = stand_in_move(road, self.target, speed * STEP);
+        let (moved, forward) = stand_in_move(road, self.target, speed * self.step_delta);
         self.sim.place_kinematic(moved, forward, speed);
         self.stand_in.speed = speed;
         self.previous = self.current;
         self.current = self.sim.pose();
         self.steps += 1;
+        self.elapsed += self.step_delta;
     }
 }
 

@@ -156,6 +156,7 @@ impl WorldScene {
         let speed = if prepared.rolling { prepared.initial_speed } else { 0.0 };
         let player_spawn = plan[0].spawn;
         if let Some(drive) = self.players.lead_mut() {
+            drive.set_launch_mode(race.race_type == Some(RaceType::Drag));
             drive.place_exactly(player_spawn, speed);
             drive.hold_on_grid(!prepared.rolling);
         }
@@ -240,6 +241,7 @@ impl WorldScene {
             lane: Default::default(),
             log_clock: 0.0,
             banner: Banner::default(),
+            launch_banner: Banner::default(),
             lap_mark: 0.0,
             result: None,
             report: None,

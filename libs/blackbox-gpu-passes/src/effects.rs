@@ -43,6 +43,7 @@ pub struct ShadowReceiver<'a> {
 }
 
 pub struct Effects {
+    flames: crate::flames::Flames,
     batches: [Batch; 4],
     shader: wgpu::ShaderModule,
     layout: wgpu::PipelineLayout,
@@ -93,6 +94,7 @@ impl Effects {
             immediate_size: 0,
         });
         let mut effects = Self {
+            flames: crate::flames::Flames::new(device, bindings, cache),
             batches: std::array::from_fn(|_| Batch::new(device)),
             shader,
             layout,
@@ -112,6 +114,7 @@ impl Effects {
     /// Draw into `format` from now on, building its pipelines the first time.
     pub fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
         self.format = format;
+        self.flames.use_format(device, format);
         self.soft.use_format(device, format);
         self.textured.use_format(device, format);
         if !self.pipelines.contains_key(&format) {
@@ -182,6 +185,7 @@ impl Effects {
 
     /// Replace the layer drawn by every following [`Self::draw`], until replaced again.
     pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layer: &EffectLayer) {
+        self.flames.upload(device, queue, &layer.flames);
         self.detailed = layer.detailed_particles;
         self.soft_distance = layer.soft_distance;
         self.textured.upload(device, queue, &layer.textured);
@@ -253,6 +257,18 @@ impl Effects {
         let batch = &self.batches[1];
         pass.set_vertex_buffer(0, batch.buffer().slice(..));
         pass.draw(0..batch.count(), 0..1);
+    }
+
+    /// Draw emissive volumes against completed scene depth, after the ordinary passes end.
+    pub fn draw_flames<'t>(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        draw: &SoftDraw<'_>,
+        texture: impl Fn(TextureHandle) -> Option<&'t wgpu::BindGroup>,
+    ) {
+        self.flames.draw(device, queue, encoder, draw, texture);
     }
 
     /// Allocated surface-overlay capacity in vertices.

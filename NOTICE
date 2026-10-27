@@ -413,3 +413,21 @@ https://google.github.io/filament/main/filament.html
 rustyAC CSP rendering research (GPL-3.0-or-later, reference only):
 https://github.com/thesupersupersigma/rustyAC/blob/master/docs/csp/rendering_config.md
 No implementation code copied. Source footprints, GGX PDF LOD and cube-edge filtering independently implemented.
+
+Directional world ambient lighting
+----------------------------------
+Google Filament (Apache-2.0), spherical-harmonic diffuse irradiance theory:
+https://google.github.io/filament/Filament.html#lighting/imagebasedlights/irradianceenvironmentmaps
+Independent implementation using this renderer's analytic sky and SH basis; no external code copied.
+
+Enhanced exhaust appearance
+--------------------------
+THREE.Fire by mattatz, Copyright (c) 2015 mattatz, MIT.
+https://github.com/mattatz/THREE.Fire
+The volumetric flame WGSL ports FireShader.js; assets/effects/three-fire.png
+is the unmodified Fire.png lookup. License: libs/blackbox-gpu-passes/LICENSE-THREE-FIRE.
+Simplex noise: Ashima Arts, Copyright (C) 2011, and Stefan Gustavson,
+Copyright (C) 2011-2016, MIT. https://github.com/ashima/webgl-noise
+License: libs/blackbox-gpu-passes/LICENSE-FLAME-NOISE.
+Pyrotechnique by Elodin Systems (Apache-2.0) was a visual/workflow reference only:
+https://github.com/elodin-sys/pyrotechnique . No code or assets copied.

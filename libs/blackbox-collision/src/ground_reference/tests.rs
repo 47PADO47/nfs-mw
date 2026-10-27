@@ -137,6 +137,26 @@ fn independent_wheel_faces_share_candidates_and_retain_planes_on_edge_misses() {
 }
 
 #[test]
+fn wheel_face_query_respects_adjacent_tolerance_and_reuse() {
+    let threshold = f32::from_bits(0x3e922248);
+    let mut s = settings();
+    s.minimum_vertical_separation = threshold;
+    s.preserve_face = false;
+    s.reuse_face = false;
+    let candidates = [face(0.0, 0, 11)];
+    let mut cache = GroundFaceCache::default();
+    s.vertical_tolerance = threshold;
+    assert!(!cache.update([0.0, 0.0, 0.0], &candidates, &s).valid);
+    s.vertical_tolerance = f32::from_bits(threshold.to_bits() + 1);
+    assert!(cache.update([0.0, 0.0, 0.0], &candidates, &s).valid);
+    s.vertical_tolerance = threshold;
+    s.reuse_face = true;
+    assert!(cache.update([0.0, 0.0, 0.0], &[], &s).valid);
+    s.reuse_face = false;
+    assert!(!cache.update([0.0, 0.0, 0.0], &candidates, &s).valid);
+}
+
+#[test]
 fn original_global_point_query_upright_tilted_and_filter_vectors() {
     let settings = PointQuerySettings {
         cache: GroundReferenceSettings { instance_exclusion: 0, reuse_face: false, ..settings() },

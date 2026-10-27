@@ -28,7 +28,7 @@ pub fn show(ctx: &egui::Context, open: &mut bool, state: &mut State, settings: &
                 }
                 ui.add_enabled_ui(state.local_allowed, |ui| match state.tab {
                     0 => camera::show(ui, state, settings, &mut actions),
-                    1 => testing::show(ui, state, &mut actions),
+                    1 => testing::show(ui, state, settings, &mut actions),
                     2 => places::show(ui, state, &mut actions),
                     _ => profiles(ui, state, &mut actions),
                 });

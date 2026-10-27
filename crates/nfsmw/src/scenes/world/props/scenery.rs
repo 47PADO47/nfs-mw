@@ -279,7 +279,12 @@ impl PropWorld {
         }
     }
 
+    #[cfg(test)]
     pub fn update_scenery(&mut self, data: &PhysicsData) -> Vec<StopArea> {
+        self.update_scenery_with_delta(super::super::drive::STEP, data)
+    }
+
+    pub fn update_scenery_with_delta(&mut self, dt: f32, data: &PhysicsData) -> Vec<StopArea> {
         let mut events = std::mem::take(&mut self.scenery.ready);
         let mut out = std::mem::take(&mut self.scenery.drained);
         for (&id, model) in &mut self.scenery.models {
@@ -292,7 +297,7 @@ impl PropWorld {
             }
             out.clear();
             let result = player
-                .advance(&sequence.package, f64::from(super::super::drive::STEP))
+                .advance(&sequence.package, f64::from(dt))
                 .map_err(anyhow::Error::from)
                 .and_then(|_| drain(sequence, player, None, &mut out));
             if let Err(error) = result {

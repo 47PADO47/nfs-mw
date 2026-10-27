@@ -11,7 +11,7 @@ use glam::Vec3;
 
 use crate::audio::{Crash, EventLog, WorldEvent};
 use crate::scenes::world::ai::TrafficWorld;
-use crate::scenes::world::drive::{CarSim, STEP, StepMemo};
+use crate::scenes::world::drive::{CarSim, StepMemo};
 
 /// A wall or prop hit that took less than this much speed (metres per second) cannot be a crash or a remark: it is not
 /// logged, so a scrape does not fill the log.
@@ -203,7 +203,7 @@ impl TrafficWorld {
             Some(ground) => body.position.y - ground - player.half_extents().y,
             None => body.position.y - watch.takeoff_y,
         };
-        let Some((altitude, secs)) = watch.air.step(grounded, altitude, STEP) else { return };
+        let Some((altitude, secs)) = watch.air.step(grounded, altitude, self.step_delta) else { return };
         self.note_speech(WorldEvent::Airborne { altitude, secs });
     }
 

@@ -316,6 +316,9 @@ pub trait Scene {
     fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         None
     }
+    /// The engine controller's visual RPM, as a fraction of idle..redline, for player 0 or 1.
+    /// `None` clears feedback when the voice is stopped or unavailable.
+    fn note_car_visual_rpm(&mut self, _player: usize, _fraction: Option<f32>) {}
     /// The chase the cops run this frame, for the pursuit music and the speech; `None` without one.
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         None

@@ -46,8 +46,26 @@ impl Vehicle {
         self.retirement.object_collision = true;
     }
 
+    pub(super) fn retired(&self) -> bool {
+        self.retirement.delay.is_some()
+    }
+
+    pub(super) fn reference_sleep_contacts(&self, corners: usize) -> Option<usize> {
+        if self.retirement.object_collision || self.staging() {
+            return None;
+        }
+        let supported_sleep = self.retirement.delay.is_some_and(|delay| self.retirement.supported_time >= delay);
+        if self.wheels_on_ground > 0 && !supported_sleep {
+            return None;
+        }
+        Some(corners + self.wheels_on_ground)
+    }
+
     /// Finish once after external object/world contacts; repeated pose sync does not advance time.
     pub fn finish_retirement_contacts(&mut self) {
+        if self.tire_integration == crate::tires::TireIntegration::Reference {
+            return;
+        }
         let Some(delay) = self.retirement.delay else { return };
         if !std::mem::take(&mut self.retirement.pending)
             || self.retirement.supported_time < delay

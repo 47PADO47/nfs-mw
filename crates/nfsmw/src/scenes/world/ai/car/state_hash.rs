@@ -20,6 +20,11 @@ impl AiCar {
             Role::Racer(_) => 2,
         });
         hash.u32(self.steps);
+        hash.f32(self.step_delta);
+        hash.f32(self.elapsed);
+        hash.f32(self.think_elapsed);
+        hash.f32(self.think_delta);
+        hash.bool(self.has_thought);
         hash.u32(self.stagger);
         self.driver.visit_state(&mut |word| hash.u32(word));
         if let Role::Cop(cop) = &self.role {

@@ -126,3 +126,28 @@ fn a_pole_receives_the_incoming_impulse_before_an_authored_wall() {
     assert!(impact.rigid > 0, "the authored wall must still constrain the car afterwards");
     assert!(car.is_finite());
 }
+
+#[test]
+fn completed_player_observation_reports_this_ticks_property_contact_once() {
+    use crate::scenes::world::ai::TrafficWorld;
+    let network = blackbox_roads::RoadNetwork { nodes: vec![], segments: vec![], profiles: vec![], roads: vec![] };
+    let mut traffic = TrafficWorld::new(network);
+    let collision = nearby_wall();
+    let mut props = PropWorld::default();
+    props.add_tile(0, &mut [attached_pole()]);
+    let mut car = sim();
+    car.vehicle.body_mut().place(Vec3::ZERO, Quat::IDENTITY);
+    car.vehicle.body_mut().linear_velocity = Vec3::Z * 30.0;
+    let start = car.begin_step_with_delta(FIXED_STEP, &DriveInput::default(), true, Some(&mut props));
+    car.begin_body(&start, Some(&collision));
+    traffic.collide_pairs(Some(&mut car));
+    assert!(!traffic.take_strikes().property, "pair observation must not invent a property contact");
+    car.finish_body(&start, &NoGround, Some((&collision, &mut props)));
+    car.integration().run(&start, &NoGround, Some(&collision));
+    let impact = car.end_step(&start, &NoGround, Some((&collision, &mut props)));
+    assert!(impact.contacts.iter().any(|c| c.kind == walls::ContactKind::PropMovable));
+    traffic.observe_completed_step(Some(&mut car));
+    assert!(traffic.take_strikes().property, "current body contacts must reach pursuit in the same tick");
+    traffic.observe_completed_step(Some(&mut car));
+    assert!(!traffic.take_strikes().property, "a consumed contact must not be counted twice");
+}

@@ -143,7 +143,7 @@ impl super::TrafficWorld {
                 true => previous.limit,
                 false => forward_speed,
             },
-            dt: super::cop::THINK_PERIOD,
+            dt: car.next_think_delta(self.step_delta),
         };
         let performance = self.pursuit.as_ref()?.performance();
         let mut target = goal_aims::target_state(player, &performance, forward_speed);

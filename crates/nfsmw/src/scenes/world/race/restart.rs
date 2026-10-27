@@ -118,6 +118,7 @@ mod tests {
             lane: Default::default(),
             log_clock: 0.0,
             banner: Banner::default(),
+            launch_banner: Banner::default(),
             lap_mark: 0.0,
             result: None,
             report: None,

@@ -118,14 +118,17 @@ Boost (the torque multiplier is `1 + boost`):
 if rpm >= spool_rpm:
     r      = ramp(rpm, spool_rpm, RED_LINE)
     boost  = r * high + (1 - r) * low
-    target_psi = spool * PSI * ramp(boost, 0, max(high, low))
+    target_psi = (ramp(boost, 0, max(high, low)) * PSI) * spool
 elif VACUUM < 0:
     d      = ramp(rpm, IDLE, spool_rpm)
     boost  = d * VACUUM
-    target_psi = d * -PSI * ramp(-boost, 0, max(high, low))
+    target_psi = -((ramp(-boost, 0, max(high, low)) * PSI) * d)
 else boost = 0 ; target_psi = 0
 induction_boost = boost * spool
-psi moves toward target_psi at 20 psi/s
+step = 20 * dT
+if psi > target_psi: psi = max(psi - step, target_psi)
+if psi < target_psi: psi = min(psi + step, target_psi)
+# At most one branch moves the value; equal values retain its sign.
 ```
 
 A supercharger (`SPOOL = 0`) has `spool_rpm = IDLE`, so it boosts across the whole range. [decomp]
@@ -199,9 +202,11 @@ angle  = clamp(target, prev - rate*dT, prev + rate*dT)                     # deg
 ```
 
 The averages use 0.55 s and 0.15 s windows at 60 Hz. The input value used for the average and coefficient
-lookups is first run through a 21-point remap table that flattens small stick deflection (default
-"medium": `-1, -0.736, -0.542, -0.4, -0.292, -0.214, -0.16, -0.123, -0.078, -0.036, 0, ...` mirrored; the
-other sets are in the source and are less aggressive near the centre). Racing wheels use a separate range
+lookups is first run through the PC's selected 21-point history remap table:
+`-1, -0.712, -0.453, -0.303, -0.216, -0.148, -0.116, -0.080, -0.061, -0.034, 0, ...` mirrored.
+The raw target input is unchanged. Descriptor inspection, isolated numeric execution
+and passive player observations confirm this PC selection; see
+[player driving parity](player-driving-parity.md). Racing wheels use a separate range
 table (`[45, 15, 11, 8, 7, 7, ...]`) or full range if speed-insensitive. Speed-breaker (the slow-motion
 "game breaker" effect) lerps the angle toward `steer * 60` degrees. AI steering is `45 deg * tires.STEERING
 * input` (no shaping). Left/right wheel angles come from an Ackermann calculation (not specified here:

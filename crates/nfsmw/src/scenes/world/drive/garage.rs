@@ -42,7 +42,9 @@ impl Drive {
         self.flames.set_performance(package);
         if let Some(sim) = &self.sim {
             self.telemetry = sim.telemetry();
+            self.gauges.snap(sim.gauge_sample());
         }
+        self.clear_visual_rpm();
     }
 
     pub(in crate::scenes::world) fn recolor(

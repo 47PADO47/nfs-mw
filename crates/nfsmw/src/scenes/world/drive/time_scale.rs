@@ -1,4 +1,4 @@
-//! Global Speedbreaker clock ramp, integrated over real time without changing the fixed tick.
+//! Global Speedbreaker ramp, integrated over exact real-time tick/frame segments.
 
 use super::Drive;
 use crate::input::{Action, ActionState};
@@ -6,12 +6,13 @@ use crate::input::{Action, ActionState};
 #[derive(Debug, Clone, Copy)]
 pub(in crate::scenes::world) struct SpeedbreakerClock {
     multiplier: f64,
+    physics_multiplier: f32,
     dilation: crate::settings::speedbreaker::Dilation,
 }
 
 impl Default for SpeedbreakerClock {
     fn default() -> Self {
-        Self { multiplier: 1.0, dilation: crate::settings::speedbreaker::Dilation::default() }
+        Self { multiplier: 1.0, physics_multiplier: 1.0, dilation: crate::settings::speedbreaker::Dilation::default() }
     }
 }
 
@@ -23,6 +24,31 @@ impl SpeedbreakerClock {
 
     /// Simulation seconds over this frame, including the linear entry/exit ramp.
     pub fn advance(&mut self, active: bool, real_dt: f32) -> f32 {
+        self.advance_f64(active, f64::from(real_dt)) as f32
+    }
+
+    /// Clear local dilation when session rules require the unscaled network timeline.
+    pub fn reset(&mut self) {
+        self.multiplier = 1.0;
+        self.physics_multiplier = 1.0;
+    }
+
+    /// Original PC ordering: update the stored float multiplier, then scale this whole physics period.
+    pub fn advance_tick(&mut self, active: bool, real_period: f32) -> f32 {
+        if !real_period.is_finite() || real_period <= 0.0 {
+            return 0.0;
+        }
+        let (target, rate) = match active {
+            true => (self.dilation.target, self.dilation.enter_rate),
+            false => (1.0, self.dilation.exit_rate),
+        };
+        let change = rate * real_period;
+        self.physics_multiplier += (target - self.physics_multiplier).clamp(-change, change);
+        real_period * self.physics_multiplier
+    }
+
+    /// Exact continuous integral for frame-level camera, look and visual time, separate from physics ticks.
+    pub fn advance_f64(&mut self, active: bool, real_dt: f64) -> f64 {
         if !real_dt.is_finite() || real_dt <= 0.0 {
             return 0.0;
         }
@@ -30,12 +56,12 @@ impl SpeedbreakerClock {
             true => (f64::from(self.dilation.target), f64::from(self.dilation.enter_rate)),
             false => (1.0, f64::from(self.dilation.exit_rate)),
         };
-        let dt = f64::from(real_dt);
+        let dt = real_dt;
         let ramp = dt.min((target - self.multiplier).abs() / rate);
         let before = self.multiplier;
         let change = rate * ramp;
         self.multiplier += (target - self.multiplier).clamp(-change, change);
-        (((before + self.multiplier) * 0.5) * ramp + target * (dt - ramp)) as f32
+        ((before + self.multiplier) * 0.5) * ramp + target * (dt - ramp)
     }
 }
 
@@ -51,10 +77,10 @@ impl Drive {
     }
 
     /// Meter/button edges run every loaded frame, including frames with no 60 Hz tick.
-    pub fn prepare_time(&mut self) -> bool {
-        if self.arrested || self.breaker_barred || self.cinematic_input.is_some() {
+    pub fn prepare_time(&mut self, real_dt: f32) -> bool {
+        let blocked = self.arrested || self.breaker_barred || self.cinematic_input.is_some();
+        if blocked {
             self.breaker.cancel();
-            return false;
         }
         if self.request.is_some() || self.sim.is_none() || (self.batch_run && self.script_finished()) {
             return false;
@@ -64,33 +90,29 @@ impl Drive {
             .as_ref()
             .map_or(self.frame_input.speedbreaker, |run| run.script.input_at(run.time).speedbreaker);
         let speed = self.sim.as_ref().map_or(0.0, |sim| sim.speedbreaker_speed());
-        self.breaker.step(held, speed, 0.0, 0.0);
-        self.breaker.active()
-    }
-
-    /// Recharge uses simulation time; depletion uses the unscaled real frame delta.
-    pub fn finish_time(&mut self, input: &ActionState, sim_dt: f32, real_dt: f32) {
-        if self.request.is_some() || self.sim.is_none() || (self.batch_run && self.script_finished()) {
-            return;
-        }
-        let held = self
-            .script
-            .as_ref()
-            .map_or(self.frame_input.speedbreaker, |run| run.script.input_at(run.time).speedbreaker);
-        let speed = self.sim.as_ref().map_or(0.0, |sim| sim.speedbreaker_speed());
-        let active = self.breaker.step(
-            held && !self.arrested && !self.breaker_barred && self.cinematic_input.is_none(),
-            if self.arrested { 0.0 } else { speed },
-            sim_dt,
-            real_dt,
-        );
-        self.breaker_camera.update(active, real_dt);
+        let real_dt = match real_dt.is_finite() && real_dt > 0.0 {
+            true => real_dt,
+            false => 0.0,
+        };
+        let active = match blocked {
+            true => false,
+            false => self.breaker.step(held, speed, 0.0, real_dt),
+        };
         if let Some(sim) = self.sim.as_mut() {
             sim.set_nos_recharge(!active);
             sim.set_speedbreaker_effect(active, &self.breaker.tuning().physics);
         }
+        active
+    }
+
+    /// Frame presentation reads the resolved meter state without changing gameplay activity.
+    pub fn finish_visual_time(&mut self, input: &ActionState, frame_sim_dt: f32, real_dt: f32) {
+        if self.request.is_some() || self.sim.is_none() || (self.batch_run && self.script_finished()) {
+            return;
+        }
+        self.breaker_camera.update(self.breaker.active(), real_dt);
         let scale = match real_dt > 0.0 {
-            true => sim_dt / real_dt,
+            true => frame_sim_dt / real_dt,
             false => 0.0,
         };
         self.look.note((input.value(Action::LookX) * scale, input.value(Action::LookY) * scale));
@@ -148,3 +170,8 @@ mod tests {
         assert!((SpeedbreakerClock::default().advance(false, 2.0) - 2.0).abs() < 1e-6);
     }
 }
+
+#[cfg(test)]
+mod consumer_tests;
+#[cfg(test)]
+mod scaled_tests;

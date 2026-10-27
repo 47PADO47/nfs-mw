@@ -178,6 +178,18 @@ impl CarScene {
     fn upload(&mut self, renderer: &mut dyn RenderBackend) {
         self.shading = self.wanted_shading;
         let materials = CarMaterials::upload(renderer, &self.model, self.shading, -LIGHT_DIR);
+        let mut swaps = match materials.enhanced_lamps() {
+            true => self.model.swaps.clone().with_lamp_state(true, false, &self.model.textures),
+            false => self.model.swaps.clone(),
+        };
+        if materials.enhanced_lamps() {
+            for kind in ["HEADLIGHT_GLASS", "BRAKELIGHT_GLASS"] {
+                for side in ["LEFT", "RIGHT", "CENTRE"] {
+                    let hash = blackbox_hash::bstring_hash(&format!("{kind}_{side}"));
+                    swaps.map.insert(hash, self.model.swaps.resolve(hash));
+                }
+            }
+        }
         let mut cache: HashMap<(u32, bool), Option<MeshHandle>> = HashMap::new();
         let world = self.to_world();
         for (part, p) in self.model.placements.iter().enumerate() {
@@ -185,7 +197,7 @@ impl CarScene {
                 continue;
             }
             let mesh = *cache.entry((p.solid, p.left_brake)).or_insert_with(|| {
-                let lookup = materials.for_placement(&self.model.swaps, p.left_brake);
+                let lookup = materials.for_solid(&swaps, p.left_brake, &self.model.solids[&p.solid].name);
                 upload_solid(renderer, &self.model.solids[&p.solid], &lookup, self.solid_shading)
             });
             if let Some(mesh) = mesh {

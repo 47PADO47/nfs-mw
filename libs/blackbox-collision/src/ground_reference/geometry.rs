@@ -37,6 +37,11 @@ pub(super) fn height(point: Vec3, normal: Vec3, query: Vec3) -> f32 {
     point[1] - ((query[0] - point[0]) * normal[0] + (query[2] - point[2]) * normal[2]) / normal[1]
 }
 
+/// Signed plane distance retains the original Z/Y-then-X accumulation order.
+pub(super) fn separation(point: Vec3, query: Vec3, normal: Vec3) -> f32 {
+    ((point[2] - query[2]) * normal[2] + (point[1] - query[1]) * normal[1]) + (point[0] - query[0]) * normal[0]
+}
+
 /// Horizontal box and infinite-edge-line cylinder tests; no vertical cutoff.
 pub(super) fn overlaps(pts: [Vec3; 3], center: Vec3, radius: f32, epsilon: f32) -> bool {
     for axis in [0, 2] {
@@ -64,4 +69,13 @@ pub(super) fn overlaps(pts: [Vec3; 3], center: Vec3, radius: f32, epsilon: f32) 
         }
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn separation_matches_an_independent_original_instruction_fixture() {
+        let actual = super::separation([0.1, 0.1, 0.3], [0.0; 3], [0.2, 0.96, 0.17]);
+        assert_eq!(actual.to_bits(), 0x3e2b020c);
+    }
 }

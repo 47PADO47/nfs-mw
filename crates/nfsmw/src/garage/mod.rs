@@ -5,6 +5,10 @@ mod catalog_snapshot;
 pub use catalog_snapshot::CatalogSnapshot;
 mod color_parts;
 mod controls;
+mod exhaust;
+pub use exhaust::ExhaustSelection;
+mod backfire;
+pub use backfire::BackfireEvent;
 #[cfg(test)]
 mod interaction_tests;
 mod menu;
@@ -103,6 +107,7 @@ pub struct Selection {
     pub tuning: nfsmw_data::car::physics::tuning::TuningSelection,
     pub parts: nfsmw_data::car::customization::Selection,
     pub gauges: GaugeSelection,
+    pub exhaust: ExhaustSelection,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -173,6 +178,12 @@ pub struct Model {
     pub menu_row: usize,
     pub(super) menu_scroll: bool,
     pub preview: bool,
+    /// Cosmetic flame preview while the F6 world is frozen; never stored in a car preset.
+    pub exhaust_preview: bool,
+    pub backfire_preview: Option<BackfireEvent>,
+    pub(super) exhaust_style_dirty: bool,
+    /// Only a real garage session owns a config destination; standalone UI models remain side-effect free.
+    pub(crate) exhaust_style_path: Option<std::path::PathBuf>,
     pub options_tab: OptionsTab,
     pub category: Category,
     pub cars: Vec<Car>,
@@ -190,7 +201,9 @@ impl Model {
     }
 
     pub fn select(&mut self, car: String) {
+        let style = self.draft.exhaust.style();
         self.draft = Selection { car, ..Selection::default() };
+        self.draft.exhaust.set_style(style);
         self.message = None;
     }
 

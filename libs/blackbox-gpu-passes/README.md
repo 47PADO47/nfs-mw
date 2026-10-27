@@ -1,5 +1,11 @@
 # blackbox-gpu-passes
 
+`Effects::draw_flames` integrates the optional `EffectLayer::flames` volumes
+against the finished scene depth. It follows the ordinary effects/soft-particle
+passes and resolves caller-owned textures like `draw_textured`. The WGSL and
+lookup port THREE.Fire (MIT), using webgl-noise (MIT); both notices are retained
+in `LICENSE-THREE-FIRE` and `LICENSE-FLAME-NOISE`.
+
 Reusable wgpu passes for EA Black Box game renderers: the 2D UI layer, the world effect layer (surface
 overlays, particles, streaks, glows, textured effects), depth-aware soft particles, a fullscreen-filter helper
 and AMD's FSR 1. License: MIT OR Apache-2.0 (the FSR 1 shader keeps AMD's MIT notice; see the repository's

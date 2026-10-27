@@ -25,6 +25,14 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     let mut put = |key: &str, value: Value| {
         table.insert(key.to_owned(), value);
     };
+    if let Some(style) = changes.exhaust_style {
+        style.validate()?;
+        put("exhaust_style", Value::try_from(style)?);
+    }
+    if let Some(style) = changes.backfire_style {
+        style.validate()?;
+        put("backfire_style", Value::try_from(style)?);
+    }
     if let Some(v) = traffic {
         put("traffic_tuning", v);
     }
@@ -154,6 +162,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.speed_trail_style {
         put("speed_trail_style", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.enhanced_lamps {
+        put("enhanced_lamps", Value::Boolean(v));
+    }
+    if let Some(v) = changes.enhanced_exhaust {
+        put("enhanced_exhaust", Value::Boolean(v));
+    }
     if let Some(v) = changes.exhaust_flames {
         put("exhaust_flames", Value::Boolean(v));
     }
@@ -186,6 +200,10 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     }
     if let Some(v) = changes.transmission {
         put("transmission", Value::String(v.to_string()));
+    }
+    if let Some(v) = changes.physics_rate_hz {
+        anyhow::ensure!(matches!(v, 60 | 144), "physics_rate_hz must be 60 or 144");
+        put("physics_rate_hz", Value::Integer(i64::from(v)));
     }
     if let Some(v) = changes.minimap {
         put("minimap", Value::String(v.to_string()));

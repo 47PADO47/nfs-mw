@@ -50,6 +50,18 @@ impl SpeedBreaker {
         self.meter = (self.meter + sim_dt * DRIFT_RECHARGE_RATE * drift.scale * strength).clamp(0.0, 1.0);
     }
 
+    /// Passive charge from one completed tick's speedometer speed and simulation delta.
+    pub fn charge_passive(&mut self, speed_mps: f32, sim_dt: f32) {
+        if self.active || !sim_dt.is_finite() || sim_dt <= 0.0 || speed_mps < self.tuning.min_speed {
+            return;
+        }
+        if let Some(passive) = self.tuning.passive
+            && speed_mps > passive.min_speed
+        {
+            self.meter = (self.meter + sim_dt / passive.seconds).min(1.0);
+        }
+    }
+
     /// Toggle on a press, then update using distinct simulation and real deltas.
     /// The caller supplies speedometer speed and handles world clock scaling.
     pub fn step(&mut self, held: bool, speed_mps: f32, sim_dt: f32, real_dt: f32) -> bool {
@@ -72,11 +84,7 @@ impl SpeedBreaker {
             }
             return self.active;
         }
-        if let Some(passive) = self.tuning.passive
-            && speed_mps > passive.min_speed
-        {
-            self.meter = (self.meter + sim_dt / passive.seconds).min(1.0);
-        }
+        self.charge_passive(speed_mps, sim_dt);
         false
     }
 }

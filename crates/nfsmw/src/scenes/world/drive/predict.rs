@@ -18,6 +18,7 @@ pub struct DriveSave {
     previous: CarPose,
     current: CarPose,
     telemetry: Telemetry,
+    gauges: super::gauges::GaugeHistory,
 }
 
 impl Drive {
@@ -41,7 +42,13 @@ impl Drive {
     /// The car's state for [`Drive::predict_restore`]; `None` before the car stands on a road.
     pub(in crate::scenes::world) fn predict_save(&self) -> Option<DriveSave> {
         let sim = self.sim.as_ref()?;
-        Some(DriveSave { sim: sim.save(), previous: self.previous, current: self.current, telemetry: self.telemetry })
+        Some(DriveSave {
+            sim: sim.save(),
+            previous: self.previous,
+            current: self.current,
+            telemetry: self.telemetry,
+            gauges: self.gauges,
+        })
     }
 
     pub(in crate::scenes::world) fn predict_restore(&mut self, saved: &DriveSave) {
@@ -50,6 +57,8 @@ impl Drive {
         self.previous = saved.previous;
         self.current = saved.current;
         self.telemetry = saved.telemetry;
+        self.gauges = saved.gauges;
+        self.clear_visual_rpm();
     }
 
     /// The reduced motion of the car (render space), `None` before it stands on a road.
@@ -65,6 +74,8 @@ impl Drive {
         self.current = sim.pose();
         self.previous = self.current;
         self.telemetry = sim.telemetry();
+        self.gauges.snap(sim.gauge_sample());
+        self.clear_visual_rpm();
     }
 
     /// What the player's devices ask of the car this frame, with the wheel's options: a client sends it as its input.

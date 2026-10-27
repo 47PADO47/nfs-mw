@@ -44,7 +44,8 @@ impl WallSteering {
 
 impl Vehicle {
     /// Queue a resolved static-world contact using its velocities before the response.
-    /// Call between steps; prop/object and ground contacts must use their own callbacks.
+    /// Call before chassis response, including the same tick's body-contact phase.
+    /// Prop/object and ground contacts must use their own callbacks.
     pub fn notify_wall_contact(&mut self, point: Vec3, normal: Vec3, closing_velocity: Vec3, body_velocity: Vec3) {
         let c = self.wall_steering_config;
         if c.yaw_gain == 0.0

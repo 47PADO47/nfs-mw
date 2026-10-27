@@ -125,6 +125,14 @@ Anything (engine, suspension, drag, scripted pushes) adds to the accumulators th
 [decomp]; each call also wakes a sleeping body, sets the "moved" flag (`status 0x40`) and detaches the
 body from the world if it was pinned:
 
+All four helpers first reject the frozen state (state 2). A rejected call leaves
+velocities, force, torque and state unchanged. For awake or sleeping bodies,
+even a zero vector admits the call and wakes the body before accumulating it.
+Do not use vector magnitude as a wake condition. Original full-method instruction
+replay verifies the force, torque, combined and lever-arm variants across all
+three states with zero and nonzero inputs. This body-method rule is separate
+from vehicle task pause/admission and chassis sleep decisions.
+
 ```
 apply_force(F)            : force  += F
 apply_torque(T)           : torque += T
@@ -174,8 +182,13 @@ sleep = sum < SLEEP_VELOCITY  and  contact_points > 2
 where `contact_points` = ground contact points found this tick (§4.2) **plus, for vehicles, the number of
 wheels on the ground**. A vehicle additionally refuses to sleep if it is animating, had an object (car) hit
 this tick, or has wheels on the ground (unless a destroyed non-player has more than half its wheels
-supported for `>= 2 s`; see [wreck-motion.md](wreck-motion.md)) [decomp]. A sleeping body is not integrated and has its
-velocity zeroed; any `apply_*` call, or a hit by an awake body, wakes it (`state = 0`).
+supported for `>= 2 s`; see [wreck-motion.md](wreck-motion.md)) [decomp]. The sleep
+decision only sets state 1. It preserves current velocities and pending force/
+torque. If the body remains asleep until the next begin-frame callback, that
+callback clears velocities and accumulators without integrating or adding gravity.
+Any admitted `apply_*` call, including a zero vector, or a hit by an awake body,
+wakes it (`state = 0`). A force callback before the next begin therefore preserves
+the current small velocities and integrates the pending force normally.
 Sleeping bodies still refresh their ground height query each tick. A body created inactive starts asleep.
 
 Clamping, drag and sleep constants (`300`, `30`, `1.225`, `0.5`, `4`) are hard-coded [decomp].
@@ -452,41 +465,8 @@ Constants: flip time 4 s, cookie spacing 2 m, dots 0.5, altitude limits 6 m and 
 
 ## 9. AttribSys fields read
 
-`rigidbodyspecs` (one record per vehicle class, reached through the vehicle's `rigidbodyspecs` link in
-`pvehicle`). Vector4 fields use `.xyz` unless noted. "(b)" = body axes (x right, y up, z forward).
-
-| Field | Type | Unit / meaning |
-|---|---|---|
-| `GRAVITY` | float | m/s²; added as `GRAVITY*mass` to `force.y` each tick |
-| `CG` | vec4 | m, body-space COG offset |
-| `DRAG` | vec4 | unitless quadratic coefficients per body axis (b); zero vector disables |
-| `DRAG_ANGULAR` | vec4 | unitless per axis (b); zero disables |
-| `NATURAL_ANGULAR_DAMPING` | float | not read by the rigid body |
-| `SLEEP_VELOCITY` | float | m/s; compared with `|v| + |w|*radius` |
-| `COLLISION_BOX_PAD` | vec4 | m, added to the default/box half dimensions |
-| `DEFAULT_COL_BOX` | string key | `SPHERE` or box |
-| `BASE_MATERIAL` | string key | surface of the default primitive |
-| `NO_GROUND_COLLISIONS`, `NO_WORLD_COLLISIONS`, `NO_OBJ_COLLISIONS` | bool | disable that class |
-| `INSTANCE_COLLISIONS_3D` | bool | selects the ground algorithm (§4.2) |
-| `IMMOBILE_OBJECT_COLLISIONS` | bool | body never moves in car-vs-object hits |
-| `GROUND_FRICTION[0..1]` | float | static, kinetic coefficients (kinetic clamped to <= static) |
-| `GROUND_ELASTICITY` | vec4 | restitution per body axis (b) |
-| `GROUND_MOMENT_SCALE` | vec4 | inertia multiplier per axis (b) in ground hits |
-| `WALL_FRICTION[0..1]` | float | static, kinetic, vs barriers and world objects |
-| `WALL_ELASTICITY` | vec4 | restitution per axis (b) vs barriers and world objects |
-| `WORLD_MOMENT_SCALE` | vec4 | inertia multiplier per axis (b) in world hits |
-| `OBJ_FRICTION[0..1]` | float | static, kinetic, car-vs-object |
-| `OBJ_ELASTICITY` | vec4 | restitution per axis (b), car-vs-object |
-| `OBJ_MOMENT_SCALE` | vec4 | `.xyz` inertia multiplier; `.w` mass multiplier if `> 0` |
-
-`pvehicle`: `MASS` (kg), `TENSOR_SCALE` (vec4, per-axis multiplier of the box tensor), `rigidbodyspecs`
-(link), `BEHAVIOR_MECHANIC_RIGIDBODY` / `_RESET` / `_SUSPENSION` (which behaviours to instantiate),
-`BEHAVIOR_ORDER`. `collisionreactions`: `FRONT_REACTION`, `FRONTSIDE_REACTION`, `REAR_REACTION`,
-`REARSIDE_REACTION` (each a six-float record). `aivehicle`: `PlayerCollisions`, `PlayerCollisionsDefault`.
-Surface (`SimSurface` class, shared with tire grip): `GROUND_FRICTION`, `WORLD_FRICTION` (float
-multipliers on the friction pair). Other game objects: `NO_CAR_EFFECT` (bool) on smackable attributes.
-Track-path zone data (`RESET_TO_POINT`, `GUIDED_RESET`) comes from the track path chunk, see
-[world.md](../formats/world.md).
+See [rigid-body attributes](vehicle-rigid-body-attributes.md) for field types,
+units and the linked vehicle, collision-reaction and surface records.
 
 ## How to check it
 

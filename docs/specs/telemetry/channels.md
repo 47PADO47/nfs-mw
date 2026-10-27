@@ -141,7 +141,7 @@ From `DayClock` in `crates/nfsmw/src/scenes/world/day.rs`. The curves are in `nf
 |---|---|---|---|---|
 | `clock.hour` | T 1 | hours, float 0 to 24 | `DayClock::hour()` | built |
 | `clock.seconds_per_hour` | S 1 | real seconds per game hour (10 to 3600 when set) | `DayClock` config | built |
-| `clock.lights_on` | S 1, E on switch | bool | `DayClock::lights_on()` | built |
+| `clock.lights_on` | S 1, E on switch | bool | time-derived `day_night::lights_on`; not the player headlight state | built |
 | `clock.sun_phase` | S 1 | the sun phase for the hour | `DayClock::sun_phase()` | built |
 | `clock.running` | S 1 | bool, false while paused or loading (zero `sim_dt`) | the `sim_dt` the clock receives | built |
 
