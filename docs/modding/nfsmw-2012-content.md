@@ -320,6 +320,25 @@ wheels against the model's own wheel mesh: before the table, 21 of the 93 bundle
 2 cm (the largest is 1.4 cm). This checks the numbers the game is given, and the Venom was also looked at in a render
 (`nfsmw view-car HENVENOMGT12 --yaw 90 --screenshot out.png --muted`).
 
+## The 2012 cameras
+
+Every converted car also gets the 2012 game's cameras as three **extra camera views** ([api-world.md](api-world.md#camera),
+`bb.camera` 1.1): **2012 Chase**, **2012 Bonnet** and **2012 Bumper**. Press **C** (the camera hotkey) past the game's own
+cameras to reach them, or pick one in the options' Camera row; the choice is saved as
+`camera_mode = "extra:nfsmw-2012-content/chase"` (and `bonnet`, `bumper`). On a car the mod did not convert, the views do not fit
+and the game keeps its own cameras.
+
+While a car is converted, the mod reads the cameras of its bundle with
+[`chameleon-camera`](../formats/chameleon-camera.md) and writes them next to the car's files (`files/CARS/<ID>/CAMERAS.TOML`, with
+the nose of the converted body, which anchors the bumper camera). In the game the mod steps that library's model once per frame with the
+presented car (position, axes, speed, steering, pedals, yaw rate, ground contact, hits) and the host draws from the pose it
+answers; the bonnet and bumper views hide the car's own body. The per-car values (the chase offset and height, the look-at point, the
+pull-back and field of view with speed, the roll, the braking pitch, the shake) come from each car's own 2012 data; **how the
+2012 game turns them into a camera is not known from its executable** (nothing of its camera code was found), so the model is built
+from the data and every behaviour is **[unconfirmed]** in the format doc. The mounted cameras' numbers are offsets from an anchor
+the data does not name: the mod anchors the bonnet camera at the car's origin and the bumper camera at its nose. None of this has
+been seen in a running game yet; the nine tests of the model and the install tests of the reader check the numbers, not the look.
+
 ## Tests
 
 `cargo test -p nfsmw-2012-content` runs the unit tests (settings, ids, fitting, textures, brand matching and logo canvas, promotion and fingerprint, the
