@@ -115,6 +115,9 @@ pub struct Customization {
     /// The colours of the vinyl channels. Empty: [`DEFAULT_VINYL_COLORS`].
     pub vinyl_colors: Vec<VinylColor>,
     pub liveries: Vec<Livery>,
+    /// The position in `liveries` of the one the car wears until the player picks a vinyl or a livery: a police car's
+    /// markings. `None`: the plain paint.
+    pub default_livery: Option<usize>,
 }
 
 /// The vinyl channel colours of a car that lists none of its own: name and sRGB colour.

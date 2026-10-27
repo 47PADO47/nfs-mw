@@ -10,7 +10,7 @@
 
 use std::collections::HashSet;
 
-use chameleon_vehicle::{SurfaceKind, Vehicle};
+use chameleon_vehicle::{PartMesh, SurfaceKind, Vehicle};
 
 use crate::vehicle_list::ListEntry;
 
@@ -86,6 +86,26 @@ fn picture_of(vehicle: &Vehicle) -> Option<u64> {
     let mut paint = finest.iter().filter(|mesh| mesh.appearance.kind == SurfaceKind::Paint);
     let first = paint.next()?.appearance.diffuse_texture?;
     paint.all(|mesh| mesh.appearance.diffuse_texture == Some(first)).then_some(first)
+}
+
+/// The picture of a car's own bundle as a livery to offer: the picture its `Livery` paint surfaces draw, when they make up most
+/// of the car's paint. A surface of another technique draws a flat colour or a mask (`TwoPaintMask`, whose picture says where
+/// the second colour goes), and a livery on one panel next to plain paint surfaces is laid out for that panel alone, so
+/// neither is a picture for the whole body. Where the livery surfaces draw several pictures, the one with the most triangles.
+pub fn own_picture(vehicle: &Vehicle) -> Option<u64> {
+    let finest = vehicle.body.first()?;
+    let paint: Vec<&PartMesh> = finest.iter().filter(|mesh| mesh.appearance.kind == SurfaceKind::Paint).collect();
+    let total: usize = paint.iter().map(|mesh| mesh.triangles.len()).sum();
+    let mut drawn: Vec<(u64, usize)> = Vec::new();
+    for mesh in paint.iter().filter(|mesh| mesh.appearance.technique.contains("Livery")) {
+        let Some(picture) = mesh.appearance.diffuse_texture else { continue };
+        match drawn.iter_mut().find(|(known, _)| *known == picture) {
+            Some((_, triangles)) => *triangles += mesh.triangles.len(),
+            None => drawn.push((picture, mesh.triangles.len())),
+        }
+    }
+    let (picture, triangles) = drawn.into_iter().max_by_key(|&(_, triangles)| triangles)?;
+    (triangles * 2 > total).then_some(picture)
 }
 
 /// Whether `livery` is the car of `base` in another picture: both have a picture, and the bodies have the same meshes.
@@ -201,6 +221,28 @@ mod tests {
         let bare = car(vec![mesh(SurfaceKind::Paint, Some(7), 4), mesh(SurfaceKind::Paint, None, 1)]);
         assert_eq!(signature(&bare).picture, None, "a paint surface without a picture");
         assert_eq!(signature(&car(vec![mesh(SurfaceKind::Body, Some(7), 4)])).picture, None, "no paint surface");
+    }
+
+    fn livery_mesh(texture: Option<u64>, triangles: usize) -> PartMesh {
+        let mut mesh = mesh(SurfaceKind::Paint, texture, triangles);
+        mesh.appearance.technique = "VehicleNFS13_BodyPaint_Livery".into();
+        mesh
+    }
+
+    #[test]
+    fn the_own_picture_is_the_one_the_livery_surfaces_draw_when_they_are_most_of_the_paint() {
+        assert_eq!(own_picture(&car(vec![livery_mesh(Some(7), 10), livery_mesh(Some(7), 4)])), Some(7));
+        let panels = car(vec![livery_mesh(Some(7), 10), livery_mesh(Some(8), 4), mesh(SurfaceKind::Body, None, 50)]);
+        assert_eq!(own_picture(&panels), Some(7), "the picture with the most triangles, bodies do not count");
+    }
+
+    #[test]
+    fn a_picture_on_a_minor_panel_or_a_mask_is_no_livery() {
+        let panel = car(vec![livery_mesh(Some(7), 4), mesh(SurfaceKind::Paint, None, 20)]);
+        assert_eq!(own_picture(&panel), None, "a panel next to plain paint");
+        let mask = car(vec![mesh(SurfaceKind::Paint, Some(7), 10)]);
+        assert_eq!(own_picture(&mask), None, "a technique that is no livery");
+        assert_eq!(own_picture(&car(vec![livery_mesh(None, 10)])), None, "no picture");
     }
 
     #[test]

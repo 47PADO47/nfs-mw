@@ -129,6 +129,9 @@ pub struct Customization {
     pub vinyl_colors: Vec<VinylColor>,
     /// The liveries, offered with the vinyls.
     pub liveries: Vec<Livery>,
+    /// The position in `liveries` of the livery the car wears until the player changes it (a police car's markings); `None`:
+    /// the plain paint.
+    pub default_livery: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -154,6 +157,8 @@ pub(super) struct Raw {
     vinyl_colors: Vec<RawColor>,
     #[serde(default)]
     liveries: Vec<RawLivery>,
+    #[serde(default)]
+    default_livery: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -225,6 +230,9 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<Customization>, ContentEr
     if default_paint >= raw.paints.len() {
         return Err(field("customization.default_paint", "the default paint is a position in paints"));
     }
+    if raw.default_livery.is_some_and(|position| position >= raw.liveries.len()) {
+        return Err(field("customization.default_livery", "the default livery is a position in liveries"));
+    }
     let paints = raw
         .paints
         .into_iter()
@@ -289,6 +297,7 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<Customization>, ContentEr
         vinyls,
         vinyl_colors,
         liveries,
+        default_livery: raw.default_livery,
     };
     no_repeats(&result)?;
     Ok(Some(result))

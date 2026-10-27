@@ -137,8 +137,11 @@ texture coordinates, **so the paint surfaces of these cars are laid out for artw
 group: four draw a shared 1024 x 1024 BC3 picture that is not in their bundle (it is in `VEHICLETEX.BNDL`), one a 32 x 32
 picture, and six have a picture of their own in the bundle (the two Ford F-150 SVT Raptor bundles and the Lamborghini Gallardo
 for one panel next to plain paint surfaces; the Bentley, the Bugatti Veyron Grand Sport Vitesse and the Porsche 918 Spyder
-for the body). A vehicle with one bundle has no alternative to choose from, so the importer offers none of these: they stay
-flat paint, and whether the car's own picture should be its default look is not decided. The techniques and textures are
+for the body). A vehicle with one bundle has no alternative to choose from, but its picture is how the game dresses the car, so
+the importer offers the picture of a single bundle as `Livery 1` when the `Livery` surfaces are most of the car's paint
+(`liveries::own_picture`: the 918 Spyder, the Bentley, the Lancia Delta, the Veyron Grand Sport Vitesse and the police
+vehicles but the SWAT van), and a police car wears it from the start. A picture on one panel next to plain paint (the Raptor,
+the Gallardo) is laid out for that panel alone and a `TwoPaintMask` picture is a mask, so neither is offered. The techniques and textures are
 **[verified]**; what the shared picture shows is **[unconfirmed]**.
 
 ## What the game does not have

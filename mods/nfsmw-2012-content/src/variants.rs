@@ -62,13 +62,14 @@ fn split<'a>(source: &Source, base: &CarFile, candidates: Vec<&'a CarFile>) -> (
 }
 
 /// The liveries of the car `car` in `folder`: the picture of its own bundle first, then those of `files`, each with the
-/// choice that names it. A car with no `files` offers none (its own picture alone is not a choice). A bundle whose
-/// picture cannot be carried over is left out, and the others keep their numbers.
+/// choice that names it. A car whose own picture is a livery ([`liveries::own_picture`]) offers it even with no `files`: it
+/// is how the 2012 game dresses the car (a police car's markings, the Porsche 918 Spyder's stripes). A bundle whose picture
+/// cannot be carried over is left out, and the others keep their numbers.
 pub fn pictures(source: &Source, car: &SourceCar, folder: &str, files: &[&CarFile]) -> Vec<(LiveryChoice, Texture)> {
-    if files.is_empty() {
+    let own = liveries::own_picture(&car.vehicle).and_then(|id| car.textures.get(&id).cloned());
+    if files.is_empty() && own.is_none() {
         return Vec::new();
     }
-    let own = liveries::signature(&car.vehicle).picture.and_then(|id| car.textures.get(&id).cloned());
     let mut all = vec![own];
     for file in files {
         all.push(source.livery_view(file).ok().and_then(|view| view.picture));

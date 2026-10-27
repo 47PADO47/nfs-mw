@@ -40,12 +40,17 @@ pub fn choices(paints: &[VehiclePaint]) -> Vec<PaintChoice> {
 }
 
 /// The `[customization]` table for `choices` and `liveries`, to follow the other keys of a car manifest. Empty when there
-/// is no paint, which leaves the car with none of its own (a table needs a paint).
-pub fn manifest_table(choices: &[PaintChoice], liveries: &[LiveryChoice]) -> String {
+/// is no paint, which leaves the car with none of its own (a table needs a paint). `dressed` is the position of the livery
+/// the car wears until the player changes it (a police car's markings).
+pub fn manifest_table(choices: &[PaintChoice], liveries: &[LiveryChoice], dressed: Option<usize>) -> String {
     if choices.is_empty() {
         return String::new();
     }
-    let mut text = String::from("\n[customization]\ndefault_paint = 0\npaints = [\n");
+    let mut text = String::from("\n[customization]\ndefault_paint = 0\n");
+    if let Some(position) = dressed.filter(|position| *position < liveries.len()) {
+        text.push_str(&format!("default_livery = {position}\n"));
+    }
+    text.push_str("paints = [\n");
     for choice in choices {
         let [r, g, b] = choice.color;
         let finish = if choice.metallic { "metallic" } else { "gloss" };
@@ -93,7 +98,7 @@ mod tests {
 
     #[test]
     fn the_table_is_valid_and_the_game_accepts_it() {
-        let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 1), paint([0.0, 0.0, 1.0], 0)]), &[]);
+        let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 1), paint([0.0, 0.0, 1.0], 0)]), &[], None);
         let text = format!("name = \"Test car\"\n{table}");
         let manifest = blackbox_modding::content::parse_car("testcar", &text).unwrap();
         let own = manifest.customization.unwrap();
@@ -104,15 +109,15 @@ mod tests {
 
     #[test]
     fn a_car_without_paints_has_no_table() {
-        assert_eq!(manifest_table(&[], &[]), "");
+        assert_eq!(manifest_table(&[], &[], None), "");
         let livery = LiveryChoice { name: "Livery 1".into(), texture: "X_LIV1".into() };
-        assert_eq!(manifest_table(&[], &[livery]), "", "a table needs a paint, and liveries do not make one");
+        assert_eq!(manifest_table(&[], &[livery], None), "", "a table needs a paint, and liveries do not make one");
     }
 
     #[test]
     fn liveries_follow_the_paints_and_the_game_accepts_them() {
         let liveries = [crate::liveries::choice("TESTCAR", 0), crate::liveries::choice("TESTCAR", 1)];
-        let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 0)]), &liveries);
+        let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 0)]), &liveries, None);
         let text = format!("name = \"Test car\"\n{table}");
         let own = blackbox_modding::content::parse_car("testcar", &text).unwrap().customization.unwrap();
         assert_eq!(own.paints.len(), 1);
@@ -123,7 +128,23 @@ mod tests {
 
     #[test]
     fn a_car_without_liveries_writes_no_livery_key() {
-        let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 0)]), &[]);
+        let table = manifest_table(&choices(&[paint([0.4, 0.02, 0.02], 0)]), &[], None);
         assert!(!table.contains("liveries"));
+    }
+
+    #[test]
+    fn a_car_can_wear_one_of_its_liveries() {
+        let liveries = [crate::liveries::choice("TESTCAR", 0), crate::liveries::choice("TESTCAR", 1)];
+        let paints = choices(&[paint([0.4, 0.02, 0.02], 0)]);
+        let table = manifest_table(&paints, &liveries, Some(1));
+        let text = format!(
+            "name = \"Test car\"
+{table}"
+        );
+        let own = blackbox_modding::content::parse_car("testcar", &text).unwrap().customization.unwrap();
+        assert_eq!(own.default_livery, Some(1));
+        assert!(!manifest_table(&paints, &liveries, None).contains("default_livery"));
+        assert!(!manifest_table(&paints, &liveries, Some(2)).contains("default_livery"), "past the end");
+        assert!(!manifest_table(&paints, &[], Some(0)).contains("default_livery"), "no liveries");
     }
 }

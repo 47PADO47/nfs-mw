@@ -191,9 +191,9 @@ fn the_glow_burns_for_as_long_as_the_nitrous_does_and_stays_on_the_pipe() {
     let set = build(&[], &[Spec::glow().emitter(256, 2)], &[]).unwrap();
     assert!(set.has_burn && !set.has_pop);
     let glow = profile(&set).effects.remove(0);
-    assert_eq!((glow.duration, glow.rate), (0.0, 5.0));
+    assert_eq!((glow.duration, glow.rate), (0.0, GLOW_MIN_RATE), "a steady stream, not the flicker of the data's 5");
     assert!((glow.rate_per_speed - 1.0 / 60.0).abs() < 1e-6, "the term is read as the movement of a frame");
-    assert_eq!((glow.speed, glow.spread), (0.0, 0.0), "it does not move");
+    assert_eq!((glow.speed, glow.spread), (GLOW_PLUME.0, GLOW_PLUME.1), "it streams out of the pipe along its axis");
     assert!(glow.additive && glow.grid == 0);
     assert_eq!(glow.texture, "NITROUS/MW2012/GLOW.PNG");
     assert_eq!((glow.damping, glow.inherit), (0.0, 1.0), "it rides with the car, as the references show it");
@@ -243,7 +243,7 @@ fn each_picture_is_written_once_and_a_different_one_gets_its_own_name() {
     .unwrap();
     let names: Vec<&str> = set.pictures.iter().map(|(name, _)| name.as_str()).collect();
     assert_eq!(names, ["SMOKE.PNG", "SMOKE2.PNG", "FLAME.PNG", "GLOW.PNG", "DUST.PNG"]);
-    assert_eq!(profile(&set).effects.len(), 7);
+    assert_eq!(profile(&set).effects.len(), 8, "the glow has a core as well");
 }
 
 #[test]
@@ -277,4 +277,33 @@ fn the_keys_keep_the_ends_and_drop_the_point_the_curves_miss_least() {
     assert_eq!(choose_keys(&[0.0, 0.1, 0.3, 0.7, 1.0], 4, sample), [0.0, 0.1, 0.7, 1.0]);
     assert_eq!(choose_keys(&[0.0, 0.1, 0.3, 0.7, 1.0], 12, sample).len(), 5, "with room, every knot is a key");
     assert_eq!(choose_keys(&[], 4, |_| [0.0; 5]), [0.0, 1.0], "the ends are always keys");
+}
+
+#[test]
+fn a_flame_with_no_speed_of_its_own_jets_out_of_the_pipe_and_a_dust_cloud_stays() {
+    let mut still = Spec::flame();
+    still.velocity = 0.0;
+    let mut dust = Spec::flame();
+    dust.velocity = 0.0;
+    let set = build(&[], &[], &[still.emitter(512, 1), dust.emitter(128, 1)]).unwrap();
+    let effects = profile(&set).effects;
+    assert_eq!((effects[0].speed, effects[0].spread, effects[0].speed_variance), FLAME_JET);
+    assert_eq!((effects[1].speed, effects[1].spread), (0.0, 0.0), "the small sparks stay at the pipe");
+}
+
+#[test]
+fn the_glow_is_kept_compact_and_has_a_bright_core_of_its_own() {
+    let mut growing = Spec::glow();
+    growing.radius = (4.0, 4.0);
+    let set = build(&[], &[growing.emitter(256, 2)], &[]).unwrap();
+    let effects = profile(&set).effects;
+    assert_eq!(effects.len(), 2);
+    assert!(effects[0].size.iter().all(|s| *s <= GLOW_MAX_WIDTH), "{:?}", effects[0].size);
+    assert!(effects[0].size.iter().any(|s| (*s - GLOW_MAX_WIDTH).abs() < 1e-6), "it reaches the cap");
+    let core = &effects[1];
+    assert_eq!((core.on, core.texture.as_str()), (EffectOn::Burn, "NITROUS/MW2012/GLOW.PNG"));
+    assert_eq!((core.speed, core.inherit, core.duration), (0.0, 1.0, 0.0), "it stays at the pipe for the whole burn");
+    assert_eq!(core.size, CORE_WIDTH);
+    let bright = core.colors[1];
+    assert!(bright[0] > 100 && bright[2] > 200 && bright[3] == CORE_ALPHA[0], "lightened towards white: {bright:?}");
 }

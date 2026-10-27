@@ -97,7 +97,7 @@ table instead ([car-stats.md](car-stats.md)).
 | Tyre, brake disc, rim and caliper | one `<ID>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled; the game draws it at the four hubs the car's `[stats]` give |
 | Diffuse maps (BC1, BC3) | the car's `TEXTURES.BIN` as DXT1 and DXT5, cut to `max_texture_size` |
 | Paint surfaces | the placeholder `<ID>_SKIN1` with light material `CARSKIN`, which the game swaps for the paint the player picks. Their texture coordinates are the 2012 car's own |
-| Liveries | the paint picture of each bundle of a vehicle that has several (2048 x 1024 BC1, cut to `max_texture_size`): the vehicle's own bundle first, then its liveries in vehicle list order, as `<ID>_LIV1` to `<ID>_LIV5` in the car's `TEXTURES.BIN` and the `liveries` list of its `[customization]` table. A livery bundle is the car with that one texture replaced; one that is not (another body, no picture) is converted as a car of its own (`src/vehicle_list.rs`, `src/liveries.rs`, `src/variants.rs`) |
+| Liveries | the paint picture of each bundle of a vehicle that has several, or of the only bundle of a car that wears one (2048 x 1024 BC1, cut to `max_texture_size`): the vehicle's own bundle first, then its liveries in vehicle list order, as `<ID>_LIV1` to `<ID>_LIV5` in the car's `TEXTURES.BIN` and the `liveries` list of its `[customization]` table. A livery bundle is the car with that one texture replaced; one that is not (another body, no picture) is converted as a car of its own (`src/vehicle_list.rs`, `src/liveries.rs`, `src/variants.rs`) |
 | Paints | the `VehiclePaint` records of the car's bundle (`libs/chameleon-vehicle/src/paint.rs`): the colour, and the finish from the record's type, written as the `[customization]` table of the manifest, repeated colours dropped (`src/paints.rs`) |
 | Stats | the car's own stats, read from its Genesys handling definition ([chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md)) and written as the `[stats]` table of its manifest: mass (body and wheels), weight distribution and centre-of-gravity height from the axles and rigid bodies, wheelbase, track and tyre size, the torque curve (at most 16 points, knots kept) with its idle and limiter, the gearbox and final drive, the drive layout and differential locks, the tyres' peak grip, the brake torque of each axle, the design top speed (the game solves the air drag from it) and the nitrous strength as `nitrous_boost`; then the `[performance]` multipliers (`src/stats.rs`, `src/performance.rs`) |
 | Engine | the car's own sound graphs ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)): the Ginsu voices as `.GIN` files, the idle and whine loops as WAVs, each layer with its curves of rpm, load and speed in the `[engine_sound]` table (`src/graph_voices.rs`); a car without those graphs gets the looping samples of its bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), except the turbo's whistle, one 16-bit WAV per layer at one level, with the rpm each stands for (`src/engine.rs`, `src/sample.rs`) |
@@ -167,9 +167,12 @@ Then what the conversion does not do:
   (`scenes/world/garage.rs`); the other screens that name cars were not checked.
 - **Liveries are numbered, and the picture is all there is.** The 2012 game names its liveries with images, not text, so the
   shop calls them `Livery 1` to `Livery 5`; a livery changes only the paint picture, as in the 2012 game. The pictures are laid
-  over the paint colour by their alpha, so an opaque livery hides the paint the player picks. The car has no livery until the
-  player picks one (its stock look is the flat paint, not the vehicle's own bundle's picture). Eleven other bundles have a
-  livery technique with a shared or partial picture; they have no alternative to choose from and stay flat paint.
+  over the paint colour by their alpha, so an opaque livery hides the paint the player picks. A car has no livery until the
+  player picks one (its stock look is the flat paint, not the vehicle's own bundle's picture), except a police car, which
+  wears its own picture from the start. A car with a single bundle offers its picture as `Livery 1` when the paint surfaces
+  that draw a `Livery` technique make up most of its paint (the 918 Spyder, the Bentley, the Lancia Delta, the Veyron Grand
+  Sport Vitesse and four of the five police vehicles); a picture on one panel next to plain paint (the Raptor, the Gallardo),
+  a `TwoPaintMask` picture (a mask of the second colour, not a livery) and the SWAT van's are not offered.
   Older conversions made each livery bundle a car of its own (20 more cars with generated ids): those ids are gone after the
   next conversion, while the ids of the other 73 cars are unchanged.
 - **Traffic and low-detail bundles** (`_TR`, `_LO`) are not imported.

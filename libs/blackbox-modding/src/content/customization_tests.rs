@@ -120,3 +120,14 @@ fn the_livery_list_is_capped_like_the_others() {
     assert!(car(&with_table(&list(64))).is_ok());
     assert!(car(&with_table(&list(65))).is_err());
 }
+
+#[test]
+fn a_car_may_wear_one_of_its_liveries_from_the_start() {
+    let paint = "paints = [{ name = \"Red\", color = [1, 2, 3] }]\n";
+    let liveries = "liveries = [{ name = \"A\", texture = \"TA\" }, { name = \"B\", texture = \"TB\" }]\n";
+    let dressed = |position: &str| car(&with_table(&format!("{paint}{liveries}default_livery = {position}\n")));
+    assert_eq!(dressed("1").unwrap().customization.unwrap().default_livery, Some(1));
+    assert!(dressed("2").is_err(), "past the end of the liveries");
+    assert_eq!(car(&with_table(&format!("{paint}{liveries}"))).unwrap().customization.unwrap().default_livery, None);
+    assert!(car(&with_table(&format!("{paint}default_livery = 0\n"))).is_err(), "no liveries to wear");
+}

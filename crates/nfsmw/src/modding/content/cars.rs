@@ -294,6 +294,7 @@ fn customization_of(table: &blackbox_modding::content::Customization) -> custom:
             .iter()
             .map(|livery| custom::Livery { name: livery.name.clone(), texture: livery.texture.clone() })
             .collect(),
+        default_livery: table.default_livery,
     }
 }
 

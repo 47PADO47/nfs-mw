@@ -13,6 +13,10 @@
 //! | `inherit`, `inherit_variance` | the velocity inheritance range; an emitter whose particles follow it takes all of it |
 //! | `angle_range` | the starting rotation range |
 //!
+//! What the rewrite adds against the 2012 screenshots, which the decoded numbers do not give (each is a constant below, none is
+//! read from the install): the flames and the glow leave the pipe along its axis (a sideways pipe flames sideways), the glow is
+//! kept compact and has a small bright core (the 2012 game blooms it), and the glow spawns steadily at rest.
+//!
 //! What is not carried over, because it is not decoded or the host cannot play it: the wind and the turbulence of the motion,
 //! the spawn offset ("shell"), the random scale channels, the spin, the sprite's draw scale (a sprite is taken to be twice its radius
 //! wide), how the flipbook picks its frame (it plays once over the life), the blend (decided here from the brightness and the
@@ -61,6 +65,26 @@ fn draw_scale(rate_param: u8) -> f32 {
         _ => 2.0,
     }
 }
+/// The widest a burning glow is drawn, metres. The effect grows it to 5.6 m by the end of its life, which in the 2012 game is
+/// behind the car (the glow is left in the world there); riding with the car it would be a blue fog round the whole of it, where
+/// the screenshots show a compact glow at each pipe. **Chosen against the screenshots, not decoded.**
+const GLOW_MAX_WIDTH: f32 = 1.2;
+/// The least spawn rate of a burning glow, a second: the data's own rate at rest (5) is a flicker once the glow stays small.
+const GLOW_MIN_RATE: f32 = 30.0;
+/// How the sprites leave the pipe when the effect gives them no speed of their own: metres a second along the pipe's axis, the
+/// cone's width in degrees, and how much of the speed is random. A flame jets out (the pop and the start burst), the glow
+/// streams out in a short plume. The effect files put these sprites at the pipe's origin, which buries them in the body of a
+/// car whose pipe points sideways and glues them to the pipe's end; the screenshots show fire coming out of the pipe.
+/// **Chosen against the screenshots, not decoded.**
+const FLAME_JET: (f32, f32, f32) = (4.0, 14.0, 0.5);
+const GLOW_PLUME: (f32, f32, f32) = (3.0, 10.0, 0.4);
+/// The core of the glow, the bright centre the 2012 game's bloom makes of it: its width in metres at the key points, the share
+/// of the way to white its colour is lightened by, its alpha at the two middle keys, and its life in seconds at most.
+/// **Chosen against the screenshots, not decoded.**
+const CORE_WIDTH: [f32; 4] = [0.2, 0.32, 0.36, 0.3];
+const CORE_WHITE: f32 = 0.75;
+const CORE_ALPHA: [u8; 2] = [235, 190];
+const CORE_LIFE: f32 = 0.25;
 /// The emitters whose spawn rate is scaled by a parameter of this index or above are the smoke puffs of the start and the pop;
 /// by the order of the effect's inputs (`Transform`, `Velocity`, `ColourOverride`, `PreCrashVelocity`, `Intensity`,
 /// `ImpactClosingVelocity`, ...) those are the crash and impact inputs, which are zero when driving. **Inferred, not read**:
@@ -99,6 +123,9 @@ pub fn build(start: &[Emitter], burn: &[Emitter], pop: &[Emitter]) -> Option<Eff
             let Some(entry) = Entry::of(moment, emitter, sibling) else { continue };
             let file = add_picture(&mut set, moment, emitter);
             set.toml.push_str(&entry.toml(&file));
+            if moment == Moment::Burn {
+                set.toml.push_str(&entry.core().toml(&file));
+            }
             set.has_burn |= moment == Moment::Burn;
             set.has_pop |= moment == Moment::Pop;
         }
@@ -203,19 +230,27 @@ impl Entry {
         let inherit = fx.inherit().filter(|_| !follows);
         let share = if follows { 1.0 } else { inherit.map_or(0.0, |i| i.max).clamp(0.0, 1.0) };
         let flame = emitter.flipbook && emitter.picture.width >= FLAME_WIDTH;
+        let (speed, spread, speed_variance) = match (top > 0.0, on, flame) {
+            (true, ..) => (top.min(50.0), 180.0, 1.0),
+            (false, Moment::Burn, _) => GLOW_PLUME,
+            (false, _, true) => FLAME_JET,
+            (false, _, false) => (0.0, 0.0, 0.0),
+        };
+        let widest = if on == Moment::Burn { GLOW_MAX_WIDTH } else { 20.0 };
+        let min_rate = if on == Moment::Burn { GLOW_MIN_RATE } else { 0.0 };
         Some(Entry {
             on,
             additive: on == Moment::Burn || emitter.flipbook || brightness,
             grid: if flame { FLAME_GRID } else { 0 },
             // The flipbook plays once over a particle's life.
             fps: (f32::from(FLAME_GRID).powi(2) / longest).round().clamp(1.0, 255.0) as u8,
-            rate: cone.base_rate.clamp(0.0, 500.0),
+            rate: cone.base_rate.clamp(min_rate, 500.0),
             rate_per_speed: (cone.rate_per_speed / MOVEMENT_FRAMES_PER_SECOND).clamp(0.0, 100.0),
             life: longest.min(10.0),
             life_variance: ((longest - life.min) / longest).clamp(0.0, 1.0),
-            speed: top.min(50.0),
-            speed_variance: if top > 0.0 { 1.0 } else { 0.0 },
-            spread: if top > 0.0 { 180.0 } else { 0.0 },
+            speed,
+            speed_variance,
+            spread,
             lift: fx.motion().map_or(0.0, |m| m.lift).clamp(-50.0, 50.0),
             // A following particle's own velocity is the emitter's, which the motion's damping does not touch.
             damping: if follows { 0.0 } else { fx.motion().map_or(0.0, |m| m.drag).clamp(0.0, 1.0) },
@@ -225,12 +260,37 @@ impl Entry {
                 _ => 0.0,
             },
             angle_range: fx.rotation().map_or(0.0, |r| ((r.max - r.min).abs() * DEGREES_PER_ROTATION_UNIT).min(360.0)),
-            size: keys.iter().map(|key| width(*key).clamp(0.0, 20.0)).collect(),
+            size: keys.iter().map(|key| width(*key).clamp(0.0, widest)).collect(),
             colors: keys.iter().map(|key| colour_at(&gradient, *key)).collect(),
             spin: fx.rotation().map_or(0.0, |r| (r.spin.abs() * DEGREES_PER_ROTATION_UNIT).min(3600.0)),
             keys,
             duration: duration.clamp(0.0, 10.0),
         })
+    }
+
+    /// The bright centre of a burning glow: the same picture, a small sprite of the glow's own colour lightened towards white.
+    fn core(&self) -> Entry {
+        let peak = self.colors.iter().max_by_key(|c| c[3]).copied().unwrap_or([255; 4]);
+        let lighten = |value: u8| (f32::from(value) + (255.0 - f32::from(value)) * CORE_WHITE).round() as u8;
+        let tint = [lighten(peak[0]), lighten(peak[1]), lighten(peak[2])];
+        let at = |alpha: u8| [tint[0], tint[1], tint[2], alpha];
+        Entry {
+            rate_per_speed: 0.0,
+            life: self.life.min(CORE_LIFE),
+            life_variance: 0.3,
+            speed: 0.0,
+            speed_variance: 0.0,
+            spread: 0.0,
+            lift: 0.0,
+            damping: 0.0,
+            inherit: 1.0,
+            inherit_variance: 0.0,
+            keys: vec![0.0, 0.1, 0.5, 1.0],
+            size: CORE_WIDTH.to_vec(),
+            colors: vec![at(0), at(CORE_ALPHA[0]), at(CORE_ALPHA[1]), at(0)],
+            spin: self.spin / 2.0,
+            ..self.clone()
+        }
     }
 
     fn toml(&self, texture: &str) -> String {

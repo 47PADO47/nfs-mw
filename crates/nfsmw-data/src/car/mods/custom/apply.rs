@@ -58,14 +58,25 @@ pub fn apply(
         let base = base.context("the shared rim material is missing")?;
         crate::car::rim_paint::recolour(model, base, rim.color);
     }
-    if let Some(hash) = chosen(Category::Vinyl) {
-        // The shop lists liveries with the vinyls: the hash says which kind it is.
-        match pick(folder, Kind::Livery, &custom.liveries, |l| &l.name, hash) {
-            Some(livery) => super::livery::apply(dir, folder, livery, model)?,
-            None => set_vinyl(dir, folder, custom, selection, hash, model)?,
-        }
+    let Some(hash) = chosen(Category::Vinyl) else {
+        dress(dir, folder, custom, model);
+        return Ok(());
+    };
+    // The shop lists liveries with the vinyls: the hash says which kind it is.
+    match pick(folder, Kind::Livery, &custom.liveries, |l| &l.name, hash) {
+        Some(livery) => super::livery::apply(dir, folder, livery, model)?,
+        None => set_vinyl(dir, folder, custom, selection, hash, model)?,
     }
     Ok(())
+}
+
+/// The car wears the livery its manifest says it has from the start, when the player picked no vinyl. A picture that cannot be
+/// drawn leaves the plain paint: a car is still a car.
+fn dress(dir: &GameDir, folder: &str, custom: &Customization, model: &mut CarModel) {
+    let Some(livery) = custom.default_livery.and_then(|position| custom.liveries.get(position)) else { return };
+    if let Err(error) = super::livery::apply(dir, folder, livery, model) {
+        log::warn!("{folder}: its livery {:?} is not drawn: {error:#}", livery.name);
+    }
 }
 
 fn chosen_paint<'a>(folder: &str, custom: &'a Customization, hash: Option<u32>) -> Result<&'a CustomPaint> {
