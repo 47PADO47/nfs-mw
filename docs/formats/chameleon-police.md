@@ -35,9 +35,10 @@ A police vehicle has two `VehicleVfxBehaviour` objects: its ordinary lamp record
 [chameleon-lamps.md](chameleon-lamps.md)) and the siren records, `<Car>_Cop_Coronas`. The Charger's holds 8 coronas, each on
 its own locator group, all on **state bit 3** (the vehicle's second switch, bit 3 of the light-state word), mode 0, colour
 factor (1, 1, 1, 1); the SWAT van's second object holds 8 more on bit 3. The colour of a light is in the referenced `Corona`
-object, not in the record. The siren lamps are therefore the bit-3 coronas of the second object **[verified]**; which are red
-and which blue was not read **[unconfirmed]**. The converter does not use them yet, so a converted police car has no light bar
-([cop-cars.md](../modding/cop-cars.md#what-is-not-done)).
+object, not in the record. The siren lamps are therefore the bit-3 coronas of the second object **[verified]**; each also names a
+flash pattern, and the objects' glow colours say which lamps are red and which blue (the Charger: three blue, three red and two
+small strobes of both colours; counts per car, the patterns and the colours are in [chameleon-corona.md](chameleon-corona.md#flash-patterns-verified)).
+The converter turns them into the `[[light_bar]]` of a converted police car ([cop-cars.md](../modding/cop-cars.md#the-light-bar)).
 
 ## The role table of the game's logic [verified, meaning unconfirmed]
 

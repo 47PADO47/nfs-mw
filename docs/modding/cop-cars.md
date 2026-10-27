@@ -72,7 +72,7 @@ Code: `libs/blackbox-modding/src/content/cop.rs` (schema, checks, tests in `cop_
 | Rep for a wreck | `RepPointsForDestroying` of its class at every level (`pursuit::rep_table`) |
 | Chase radio | the class: `heavy` is called as a Rhino (sport utility) unit, `pursuit` as a super pursuit unit, `patrol` as an ordinary car (`audio/chase/radio/tables.rs`, `vehicle_of`) |
 | Cost to the state | a `heavy` car counts as a support car (450) like the SUVs; the others as patrol cars (250) (`ai/police/costs.rs`) |
-| Light bar | the light bar flares are driven by the model's `COPLIGHTRED` and `COPLIGHTBLUE` markers ([car-lamps.md](car-lamps.md)), so a car whose body solid has them flashes; the particle light groups of a stock cop are keyed by its `ecar` record, which a mod car does not have, so it gets none |
+| Light bar | the `[[light_bar]]` tables of its manifest: one siren lamp each, with a place, colour, sprite and a flash pattern, flashing while its emergency lights are on ([below](#the-light-bar)); a car without them is lit by its `COPLIGHT*` markers ([car-lamps.md](car-lamps.md)) with the shared red and blue pulses; the particle light groups of a stock cop are keyed by its `ecar` record, which a mod car does not have, so it gets none |
 | Sirens, speech | the siren sounds and the dispatch speech are shared, not per car |
 
 ### Class defaults
@@ -89,6 +89,44 @@ to the 2005 game's own range (its cop cars have 5 to 10 hit points), but they ar
 The camera distance beyond which hits are ignored is 35 m and the front and rear zones scale hits by 0.5, for all three.
 The collision with the player uses the game's default reaction, not the cop sets (`collisionreactions` of the original).
 
+## The light bar
+
+The original flashes a cop's lights from two things: the `COPLIGHT*` markers of its model, which get the game's red and blue
+flare profiles pulsed by one shared timing (`car_light_flares/emergency.rs`), and the particle groups of its `ecar` record. Both
+run while the cop's emergency lights are on (`AiCar::emergency_lights`: a live cop or roadblock car that is not arrested and not
+fleeing). A mod cop car can give its own bar with `[[light_bar]]` tables, one per siren lamp (the checks are in
+`libs/blackbox-modding/src/content/lamp_flares.rs`):
+
+```toml
+[[light_bar]]
+siren = "blue"                   # red, blue or white: which emergency light switches and breaks the lamp
+pattern = "000090000900009000"   # one digit 0 to 9 per step: the brightness in ninths, played in a loop
+step_seconds = 0.125             # how long a step lasts (0.005 to 2)
+phase_seconds = 0.0              # where in the loop the lamp starts (default 0)
+sprite = "MYCAR_CORONA0"         # a texture of the car's own TEXTURES.BIN, drawn additively
+position = [-0.3, 0.45, 1.4]     # the car's space, metres
+direction = [0.0, 0.0, 1.0]      # not used: a siren lamp is seen from every side (the key is required, as for a flare)
+colour = [0.2, 0.55, 1.0]        # the tint, 0 to 1
+alpha = [0.5, 1.0]               # the brightness at the near and the far distance of `range`
+radius = [0.2, 0.9]              # metres at the near and the far distance
+range = [8.0, 100.0]             # metres
+falloff = 0.0
+```
+
+The look keys are those of [`[[lamp_flare]]`](car-lamps.md#lamp-flares-and-glows). The lamp's brightness is the pattern's step at
+the car's lamp clock (`LampState::time`, the same clock the marker flares use, offset by the car's own phase) times the look; it is
+dark when the emergency lights are off or the lamp's colour bit is broken (a blue lamp is broken with the blue bit, white with
+white). Up to 32 siren lamps a car. A car that gives any `[[light_bar]]` is not drawn with the markers' siren flares
+(`COPLIGHTRED`, `COPLIGHTBLUE`, `COPLIGHTWHITE`, the bright and the orange ones): the bar is the car's whole siren. A player-driven
+mod car does not flash: only the cops the game drives have emergency lights.
+
+**The 2012 cars.** The five police vehicles of the [2012 mod](../../mods/nfsmw-2012-content/README.md#police-cars) get a bar from
+their `<Car>_Cop_Coronas` records: 8 lamps on the Charger, the Corvette and the SWAT van, 19 on the Crown Victoria, 20 on the
+Explorer. Each lamp's place is its locator group's, its colour the glow of its corona object (blue or red), and its pattern the
+record's flash pattern baked at its shortest step: three long-pattern lamps of each colour flash in triples that run along the bar
+(0.125 s steps over five 16-second cycles) and two small lamps strobe in alternation (0.034 s steps); the data is in
+[chameleon-corona.md](../formats/chameleon-corona.md#flash-patterns-verified).
+
 ## The developer tools
 
 - `garage` (world and car viewers) lists every car folder by category: racing cars, police cars, **mod player cars**, **mod police
@@ -103,8 +141,9 @@ The collision with the player uses the game's default reaction, not the cop sets
 ## What is not done
 
 - **A flying unit** (a mod helicopter) and a **replacement for the support cars** (the heavy SUVs, the cross car).
-- **Per-car light bar particle groups.** A mod cop gets the flares of its `COPLIGHT*` markers only. The 2012 mod does not write
-  the markers yet ([mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md#police-cars)).
+- **Per-car light bar particle groups.** A mod cop has the sprites of its `[[light_bar]]` tables (or the flares of its `COPLIGHT*`
+  markers), not the particle groups of a stock cop's `ecar` record. The 2012 bars are an approximation of the 2012 look and were not
+  seen in a window ([the light bar](#the-light-bar)).
 - **Collision reactions** (pit and roadblock weights) are the default ones.
 - **The race waves**: a mod cop is not in `racetable` rows.
 - Nothing was driven or listened to: the checks are unit tests of the manifest, the wave rows and the class tables, and the
