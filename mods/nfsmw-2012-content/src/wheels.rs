@@ -1,10 +1,11 @@
 //! Where a 2012 car's wheels are, carried into the car's manifest (`[wheels]`) so the game draws them on the model's hubs.
 //!
-//! The hubs come from the car's graphics spec. One car (the Venom GT Spyder) has front hubs that lie behind its doors,
-//! which no car can have; for an axle whose hubs are not under the body's own front or rear, the axle the vehicle info
-//! gives is used instead. Everything else (height, track, tyre size) is measured from the hub and the wheel's mesh.
+//! The hubs come from the car's graphics spec. For an axle whose hubs are not under the body's own front or rear (the
+//! Venom GT Spyder's front hubs lie behind its doors), or where the body has no arch for the tyre but has one at the axle
+//! the vehicle info gives (the BMW 1M, whose body is another car's; the E46 GTR's rear), that axle is used instead.
+//! Everything else (height, track, tyre size) is measured from the hub and the wheel's mesh.
 
-use chameleon_vehicle::Vehicle;
+use chameleon_vehicle::{TyreVolume, Vehicle, prefer_other};
 
 use crate::fit::{Layout, measure_on, to_car_space};
 
@@ -54,6 +55,19 @@ fn tyre(vehicle: &Vehicle, wheel: usize, axle_x: f32) -> Option<Tyre> {
     })
 }
 
+/// The tyre of `wheel` as the arch test sees it: where the hub is and how big the wheel's mesh is.
+fn tyre_volume(vehicle: &Vehicle, wheel: usize) -> Option<TyreVolume> {
+    let hub = vehicle.wheels.get(wheel)?.position;
+    let (lateral_in, lateral_out) = extent(vehicle, wheel, 0)?;
+    let (low, high) = extent(vehicle, wheel, 1)?;
+    Some(TyreVolume {
+        lateral: hub[0].abs(),
+        height: hub[1],
+        radius: (high - low) / 2.0,
+        half_width: (lateral_out - lateral_in) / 2.0,
+    })
+}
+
 /// Whether an axle at `x` can be under a body that runs from `rear_end` to `front_end` (`front` for the front axle).
 fn plausible(x: f32, front: bool, rear_end: f32, front_end: f32) -> bool {
     let overhang = if front { front_end - x } else { x - rear_end };
@@ -73,22 +87,27 @@ pub fn place(vehicle: &Vehicle, body: (f32, f32), info_axles: [f32; 2]) -> Optio
     });
     let hub_x = |wheel: usize| to_car_space(vehicle.wheels[wheel].position)[0];
     let hubs = [(hub_x(order[0]) + hub_x(order[1])) / 2.0, (hub_x(order[2]) + hub_x(order[3])) / 2.0];
-    let mut axles = hubs;
-    for (end, axle) in axles.iter_mut().enumerate() {
-        if plausible(*axle, end == 0, body.0, body.1) {
-            continue;
-        }
-        if !plausible(info_axles[end], end == 0, body.0, body.1) {
-            return None;
-        }
-        log::warn!(
-            "the hubs of the {} axle lie outside the body: the vehicle info's axle is used",
-            ["front", "rear"][end]
-        );
-        *axle = info_axles[end];
-    }
     let left = |pair: [usize; 2]| pair.into_iter().find(|&wheel| vehicle.wheels[wheel].position[0] > 0.0);
     let (front_wheel, rear_wheel) = (left([order[0], order[1]])?, left([order[2], order[3]])?);
+    let mut axles = hubs;
+    for (end, axle) in axles.iter_mut().enumerate() {
+        let wheel = [front_wheel, rear_wheel][end];
+        let side = if end == 0 { "front" } else { "rear" };
+        if !plausible(*axle, end == 0, body.0, body.1) {
+            if !plausible(info_axles[end], end == 0, body.0, body.1) {
+                return None;
+            }
+            log::warn!("the hubs of the {side} axle lie outside the body: the vehicle info's axle is used");
+            *axle = info_axles[end];
+            continue;
+        }
+        let Some(volume) = tyre_volume(vehicle, wheel) else { continue };
+        let Some(lod) = vehicle.body.first() else { continue };
+        if plausible(info_axles[end], end == 0, body.0, body.1) && prefer_other(lod, &volume, *axle, info_axles[end]) {
+            log::warn!("the body has no arch at the hubs of the {side} axle: the vehicle info's axle is used");
+            *axle = info_axles[end];
+        }
+    }
     Some(Placed {
         layout: measure_on(vehicle, Some(axles))?,
         front: tyre(vehicle, front_wheel, axles[0])?,
@@ -98,6 +117,16 @@ pub fn place(vehicle: &Vehicle, body: (f32, f32), info_axles: [f32; 2]) -> Optio
 }
 
 impl Placed {
+    /// Move the hubs of `vehicle` onto the axles this layout uses, so what is built from the hubs afterwards (the tyres'
+    /// collision boxes) agrees with the `[wheels]` table where an axle was taken from the vehicle info.
+    pub fn seat_hubs(&self, vehicle: &mut Vehicle) {
+        let middle = (self.axles[0] + self.axles[1]) / 2.0;
+        for wheel in &mut vehicle.wheels {
+            let end = usize::from(to_car_space(wheel.position)[0] <= middle);
+            wheel.position[2] = self.axles[end];
+        }
+    }
+
     /// The `[wheels]` tables of the manifest: the tyres as the model has them once the car is centred on its wheelbase.
     pub fn manifest_table(&self) -> String {
         let mid = self.layout.x_mid;
@@ -129,6 +158,75 @@ mod tests {
         assert!(plausible(-1.5, false, -2.33, 2.33));
         assert!(!plausible(0.125, true, -2.33, 2.33));
         assert!(!plausible(3.0, true, -2.33, 2.33), "past the nose");
+    }
+
+    fn mesh(points: &[[f32; 3]]) -> chameleon_vehicle::PartMesh {
+        chameleon_vehicle::PartMesh {
+            vertices: points
+                .iter()
+                .map(|&position| chameleon_gfx::Vertex { position, color: [255; 4], uv: [0.0; 2] })
+                .collect(),
+            triangles: Vec::new(),
+            appearance: chameleon_vehicle::Appearance {
+                kind: chameleon_vehicle::SurfaceKind::Body,
+                technique: String::new(),
+                diffuse_texture: None,
+                diffuse_colour: None,
+                alpha_test: false,
+            },
+        }
+    }
+
+    /// A car whose body has a panel lying across the tyre at each of `panels` (z along the car), and whose hubs are at
+    /// 1.4 and -1.2.
+    fn car_with_panels(panels: &[f32]) -> Vehicle {
+        let tyre = vec![vec![mesh(&[[0.12, 0.0, 0.33], [-0.12, 0.0, -0.33], [0.0, 0.33, 0.0], [0.0, -0.33, 0.0]])]];
+        let wheel = |x: f32, z: f32| chameleon_vehicle::Wheel {
+            name: String::new(),
+            position: [x, 0.33, z],
+            lods: tyre.clone(),
+        };
+        let panel = |z: f32| (0..40).map(move |n| [0.76, 0.33 + 0.001 * n as f32, z]);
+        let points: Vec<[f32; 3]> = panels.iter().flat_map(|&z| panel(z)).collect();
+        Vehicle {
+            body: vec![vec![mesh(&points)]],
+            wheels: vec![wheel(0.76, 1.4), wheel(-0.76, 1.4), wheel(0.76, -1.2), wheel(-0.76, -1.2)],
+        }
+    }
+
+    #[test]
+    fn an_axle_whose_hubs_are_inside_the_body_goes_to_where_the_body_has_its_arch() {
+        // Panels where the hubs are, none at the vehicle info's axles (1.0 and -0.9): the body's arches are there.
+        let placed = place(&car_with_panels(&[1.4, -1.2]), (-1.8, 1.8), [1.0, -0.9]).unwrap();
+        assert_eq!(placed.axles, [1.0, -0.9]);
+        assert_eq!(placed.front.x, 1.0);
+    }
+
+    #[test]
+    fn hubs_with_room_in_the_body_stay_where_the_spec_puts_them() {
+        let placed = place(&car_with_panels(&[]), (-1.8, 1.8), [1.0, -0.9]).unwrap();
+        assert_eq!(placed.axles, [1.4, -1.2]);
+        let blocked_both = place(&car_with_panels(&[1.4, -1.2, 1.0, -0.9]), (-1.8, 1.8), [1.0, -0.9]).unwrap();
+        assert_eq!(blocked_both.axles, [1.4, -1.2], "no arch at either place: the spec's hubs");
+    }
+
+    #[test]
+    fn the_hubs_are_seated_on_the_axles() {
+        let wheel = |position: [f32; 3]| chameleon_vehicle::Wheel { name: String::new(), position, lods: Vec::new() };
+        let mut vehicle = Vehicle {
+            body: Vec::new(),
+            wheels: vec![
+                wheel([0.76, 0.3, 1.42]),
+                wheel([-0.76, 0.3, 1.42]),
+                wheel([0.76, 0.3, -1.24]),
+                wheel([-0.76, 0.3, -1.24]),
+            ],
+        };
+        let tyre = Tyre { x: 1.0, z: 0.3, face: 0.9, radius: 0.33, width: 0.25 };
+        let layout = Layout { wheelbase: 1.96, x_mid: 0.05, track: 0.9, hub_z: 0.3, radius: 0.33 };
+        Placed { layout, front: tyre, rear: tyre, axles: [1.035, -0.925] }.seat_hubs(&mut vehicle);
+        let seated: Vec<f32> = vehicle.wheels.iter().map(|wheel| wheel.position[2]).collect();
+        assert_eq!(seated, [1.035, 1.035, -0.925, -0.925]);
     }
 
     #[test]
