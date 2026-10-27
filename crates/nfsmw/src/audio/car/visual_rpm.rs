@@ -54,6 +54,7 @@ mod tests {
         let dir = game_install::GameDir::open(std::path::PathBuf::from(path)).unwrap();
         let mut audio = Audio::replay(dir, 48_000);
         let state = |car: &str, rpm_pct: f32| CarSoundState {
+            nitrous_fx: None,
             car: car.into(),
             upgrades: Default::default(),
             telemetry: Default::default(),

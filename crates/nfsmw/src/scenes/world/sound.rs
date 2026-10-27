@@ -147,6 +147,7 @@ mod tests {
     fn a_frame_spanning_go_retains_each_ticks_pre_race_phase() {
         use crate::audio::{CarSoundState, CarSoundTick};
         let mut state = CarSoundState {
+            nitrous_fx: None,
             car: "fixture".into(),
             upgrades: Default::default(),
             input: Default::default(),

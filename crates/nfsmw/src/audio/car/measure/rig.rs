@@ -133,6 +133,7 @@ impl Rig {
             let from = u64::from(index as u32) * u64::from(RATE) / u64::from(FPS);
             let to = u64::from(index as u32 + 1) * u64::from(RATE) / u64::from(FPS);
             let tick = CarSoundTick {
+                sim_dt: dt,
                 telemetry: CarAudioTelemetry { forward_speed: frame.input.speed, ..Default::default() },
                 input: frame.input,
                 contacts: frame.contacts.clone(),
