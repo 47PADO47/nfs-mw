@@ -9,12 +9,19 @@
 //! is built from the data's structure names and values, not from the executable, so it is **[unconfirmed]** (the doc
 //! lists each reading). This crate takes a parsed [`chameleon_bundle::Bundle`] and never opens files.
 
+mod chase;
+mod effects;
 mod error;
 mod genesys;
+mod math;
+mod motion;
 mod params;
 mod read;
 
+pub use chase::ChaseCamera;
+pub use effects::{AccelFilter, ImpactState};
 pub use error::{Error, Result};
+pub use motion::{CameraOptions, CameraPose, CameraView, CarMotion, MAX_DT};
 pub use params::{
     AccelMovement, CameraRoll, CarCameras, DecelPitch, ExternalCamera, ExternalGlobals, GradientAdjustments,
     HighSpeedShake, ImpactShake, Lens, MountedCamera, RearView, SpeedMovement, Vec3, YawSpring, from_data_axes,
