@@ -23,10 +23,19 @@ wheels sit at plus and minus half the car's wheelbase with the model centred on 
    library (`nfsmw_2012_content.dll`, `libnfsmw_2012_content.so` or `libnfsmw_2012_content.dylib` from `target/release/`)
    in one folder under the game's mods folder, for example `%APPDATA%\nfsmw\config\mods\nfsmw-2012-content\` (see
    [Using mods](README.md#using-mods)).
-2. Start the game once. The mod writes a commented `config.toml` next to its `mod.toml`.
+2. Start the game once. The mod writes a commented `config.toml` next to its `mod.toml` (it does not, when the game's own
+   config file already has a `[mods.nfsmw-2012-content]` table).
 3. Put the folder of your 2012 install in it and start the game again:
 
    ```toml
+   source = 'D:\Need For Speed Most Wanted 2012'
+   ```
+
+   Or, if you keep all your settings in the game's config file, put it there instead (see
+   [Where the settings live](#where-the-settings-live)):
+
+   ```toml
+   [mods.nfsmw-2012-content]
    source = 'D:\Need For Speed Most Wanted 2012'
    ```
 
@@ -49,7 +58,40 @@ The performance upgrades and **nitrous** work on the car's own stats; the cars h
 treats a car is in [car-customization.md](car-customization.md), how it drives in [car-stats.md](car-stats.md), how it sounds
 in [car-sound.md](car-sound.md); this page is the mod's settings and what the conversion writes.
 
-### Settings (`config.toml` in the mod's folder)
+### Where the settings live
+
+The settings come from the host's `bb.config` ([api-config.md](api-config.md)), which merges two places, either of which may be
+missing:
+
+1. `config.toml` in the mod's folder (next to `mod.toml`);
+2. the table `[mods.nfsmw-2012-content]` in the game's own config file (`%APPDATA%\nfsmw\config\config.toml` on Windows,
+   `~/.config/nfsmw/config.toml` on Linux), with the sub-tables written as `[mods.nfsmw-2012-content.performance]`,
+   `[mods.nfsmw-2012-content.police]` and `[mods.nfsmw-2012-content.car.POR911CARR12]`.
+
+The same keys work in both. A key in the game's config file wins over the same key in `config.toml`; tables merge key by key
+and a list (`cars`, `exclude`, `add`) in the game's config file replaces the whole list of `config.toml`. For example, with
+`config.toml` as the mod wrote it and this in the game's config file:
+
+```toml
+[mods.nfsmw-2012-content]
+source = 'D:\Need For Speed Most Wanted 2012'
+role = "both"
+
+[mods.nfsmw-2012-content.performance]
+power = 1.05
+
+[mods.nfsmw-2012-content.car."Aston Martin"]
+grip = 1.05
+```
+
+the mod runs with that `source`, `role` and `power`, and with every other value of `config.toml`. The game's config file must
+hold `[mods]` as a table: if it has the older line `mods = "all"`, change it to a `[mods]` table with `mode = "all"` (the
+[mod mode](api-config.md#the-modsid-table) has both forms), since TOML does not allow a key and a table of one name. The
+mod writes its commented template only when neither place has settings. The import fingerprint (`.import-stamp`) is made from
+the merged settings, so a change in either place converts the cars again at the next start. Both places are read when the game
+starts; a change needs a restart.
+
+### Settings (the keys of either place)
 
 Every key is optional. An unknown key is an error and no car is added, so a typo is not silently ignored.
 
