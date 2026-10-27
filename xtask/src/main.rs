@@ -7,6 +7,7 @@
 //! - `size-check [--staged]`: refuse source and doc files over 500 lines.
 //! - `img-diff A.png B.png [--out DIFF.png]`: compare two screenshots (mean, p99 and max difference).
 //! - `install-hooks`: point git at `.githooks/` so the pre-commit hook runs.
+//! - `install-mod [ID] [--debug] [--dir PATH]`: build a mod of the workspace and copy it into the game's mods folder.
 //! - `run bevy|trace [-- GAME ARGS]`: launch the game on the Bevy renderer, with Tracy profiling for `trace`.
 //!
 //! Without `--staged` a check covers every tracked file plus untracked files that
@@ -17,6 +18,7 @@
 mod git;
 mod i18n;
 mod imgdiff;
+mod install_mod;
 mod leak;
 mod run;
 mod size;
@@ -36,6 +38,7 @@ fn main() -> ExitCode {
         Some("i18n-check") => i18n::run(),
         Some("size-check") => size::run(staged),
         Some("img-diff") => imgdiff::run(&args[1..]),
+        Some("install-mod") => install_mod::run(&args[1..]),
         Some("run") => run::run(&args[1..]),
         Some("install-hooks") => git::git(&["config", "core.hooksPath", ".githooks"]).map(|_| {
             eprintln!("git hooks installed (core.hooksPath = .githooks)");
@@ -43,7 +46,7 @@ fn main() -> ExitCode {
         }),
         _ => {
             eprintln!(
-                "usage: cargo xtask <check | leak-check | size-check | i18n-check> [--staged] | img-diff A.png B.png | install-hooks | run <bevy | trace> [-- GAME ARGS]"
+                "usage: cargo xtask <check | leak-check | size-check | i18n-check> [--staged] | img-diff A.png B.png | install-hooks | install-mod [ID] [--debug] [--dir PATH] | run <bevy | trace> [-- GAME ARGS]"
             );
             return ExitCode::from(2);
         }

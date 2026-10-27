@@ -1,5 +1,6 @@
 [alias]
 xtask = "run --quiet --package xtask --"
+install-mod = "xtask install-mod"
 
 # Bevy setup guide, fast compiles (Windows MSVC). rust-lld ships with rustup and links much faster than link.exe.
 # -Zshare-generics needs nightly (rust-toolchain.toml).
