@@ -158,6 +158,12 @@ the radius gives, a flame 2.0), the rate term per speed (read as the movement of
 with the car instead of being left behind (the file says: world particles with 0.8 to 0.9 of the car's velocity and a drag of
 0.75 a step, which would be a trail of large sprites that neither screenshot shows).
 
+A render with the glow left behind as the file says was a wide blue wash over the road and the car, so the glow still rides. To keep it
+like the references (a compact blue disc with a bright centre in each pipe, a blue plume out of a side exit) the rewrite also caps
+its width at 1.2 m (the file grows it to 5.6 m), gives it a small lightened core sprite (the 2012 bloom), and lets the flames and the
+glow leave the pipe along its axis at a few metres a second (the file has them at the pipe's origin, which buries them in the body
+of a side exit and glues them to the pipe's end). None of the four is decoded.
+
 ## Decoded and not
 
 Decoded with evidence: the structure, the operation table, the spawn rate and its window, lifetime, the radius and its curve,

@@ -59,6 +59,7 @@ fn loaded(effects: Vec<EffectProfile>, flame: Option<FlameProfile>) -> Variant {
         lanes,
         start_t: f32::INFINITY,
         pop_t: f32::INFINITY,
+        pop_lit: false,
         handed: Vec::new(),
     });
     variant
@@ -218,6 +219,36 @@ fn the_profiles_keys_angle_and_variances_reach_the_emitter() {
         (spec.initial_angle_range, spec.inherit, spec.inherit_variance, spec.life_variance),
         (360.0, 0.9, 0.1, 0.5)
     );
+}
+
+#[test]
+fn a_pop_effect_plays_its_duration_after_the_games_short_flame_has_gone() {
+    let mut burst = effect(EffectOn::Pop);
+    burst.duration = 0.3;
+    let mut variant = loaded(vec![burst], None);
+    run_with(&mut variant, 0.04, &car(false, 0.0), 1.0);
+    let lit = alive(&variant, EffectOn::Pop);
+    assert!(lit > 0);
+    // The game's flame is out; the burst goes on spawning for the rest of its duration.
+    run_with(&mut variant, 0.1, &car(false, 0.0), 0.0);
+    assert!(alive(&variant, EffectOn::Pop) > lit, "still spawning");
+    run_with(&mut variant, 1.0, &car(false, 0.0), 0.0);
+    assert_eq!(alive(&variant, EffectOn::Pop), 0, "over after its duration and the particles' lives");
+}
+
+#[test]
+fn a_pop_burst_is_cut_short_by_the_pedal_and_restarts_at_the_next_flame() {
+    let mut burst = effect(EffectOn::Pop);
+    burst.duration = 0.3;
+    let mut variant = loaded(vec![burst], None);
+    run_with(&mut variant, 0.02, &car(false, 0.0), 1.0);
+    run_with(&mut variant, 0.02, &car(false, 1.0), 0.0);
+    let cut = alive(&variant, EffectOn::Pop);
+    run_with(&mut variant, 0.05, &car(false, 0.0), 0.0);
+    assert!(alive(&variant, EffectOn::Pop) <= cut, "the pedal ended it, and nothing lights it again");
+    run_with(&mut variant, 0.6, &car(false, 0.0), 0.0);
+    run_with(&mut variant, 0.02, &car(false, 0.0), 1.0);
+    assert!(alive(&variant, EffectOn::Pop) > 0, "a new flame is a new burst");
 }
 
 #[test]

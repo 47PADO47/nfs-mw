@@ -43,8 +43,11 @@ struct Loaded {
     lanes: Vec<VariantLane>,
     /// Seconds left of the start effects.
     start_t: f32,
-    /// Seconds since the game's own pop flame began, `f32::INFINITY` while there is none.
+    /// Seconds since the game's own pop flame began, `f32::INFINITY` while there is none. It keeps counting after the game's
+    /// short flame has gone, as long as the pedal stays up and the nitrous off: a pop effect plays out its whole duration.
     pop_t: f32,
+    /// The game's own pop flame was lit in the latest step.
+    pop_lit: bool,
     /// The batches handed to the layer by the latest `geometry`: the lane, the texture and the layer's index.
     handed: Vec<(usize, TextureHandle, usize)>,
 }
@@ -123,8 +126,15 @@ impl Variant {
             });
         }
         let textures = textures.into_iter().map(|(_, _, texture)| texture).collect();
-        self.loaded =
-            Some(Loaded { profile, textures, lanes, start_t: f32::INFINITY, pop_t: f32::INFINITY, handed: Vec::new() });
+        self.loaded = Some(Loaded {
+            profile,
+            textures,
+            lanes,
+            start_t: f32::INFINITY,
+            pop_t: f32::INFINITY,
+            pop_lit: false,
+            handed: Vec::new(),
+        });
     }
 
     /// Whether the game's own blue nitrous flame is not drawn: a loaded burn effect stands in for it.
@@ -150,18 +160,22 @@ impl Variant {
     /// (bit 14) needs the pedal up and the nitrous off.
     pub(super) fn step(&mut self, dt: f32, car: &CarState, pipes: &[Mat4], pop: f32) {
         let Some(loaded) = self.loaded.as_mut() else { return };
-        let pop = pop > 0.0 && !car.nitrous && car.throttle <= PEDAL_DOWN;
+        let allowed = !car.nitrous && car.throttle <= PEDAL_DOWN;
+        let lit = pop > 0.0 && allowed;
         // Time since each moment began; it restarts at the edge that begins it.
         loaded.start_t = match (car.nitrous, loaded.start_t.is_finite()) {
             (false, _) => f32::INFINITY,
             (true, false) => 0.0,
             (true, true) => loaded.start_t + dt,
         };
-        loaded.pop_t = match (pop, loaded.pop_t.is_finite()) {
-            (false, _) => f32::INFINITY,
-            (true, false) => 0.0,
-            (true, true) => loaded.pop_t + dt,
+        // A pop begins when the game's flame lights and goes on after it, until the pedal or the nitrous ends it.
+        loaded.pop_t = match (allowed, lit && !loaded.pop_lit, loaded.pop_t.is_finite()) {
+            (false, _, _) => f32::INFINITY,
+            (true, true, _) => 0.0,
+            (true, false, true) => loaded.pop_t + dt,
+            (true, false, false) => f32::INFINITY,
         };
+        loaded.pop_lit = lit;
         let (start_t, pop_t) = (loaded.start_t, loaded.pop_t);
         let speed = car.velocity.length();
         for lane in &mut loaded.lanes {
@@ -170,6 +184,8 @@ impl Variant {
             let on = match lane.on {
                 EffectOn::Start => within(start_t),
                 EffectOn::Burn => car.nitrous,
+                // An effect with a duration plays it out from the pop's start; one without lasts as long as the flame does.
+                EffectOn::Pop if lane.duration <= 0.0 => lit,
                 EffectOn::Pop => within(pop_t),
             };
             let intensity = spawn_intensity(lane.rate, lane.rate_per_speed, speed);
@@ -191,6 +207,7 @@ impl Variant {
         let Some(loaded) = self.loaded.as_mut() else { return };
         loaded.start_t = f32::INFINITY;
         loaded.pop_t = f32::INFINITY;
+        loaded.pop_lit = false;
         for emitter in loaded.lanes.iter_mut().flat_map(|lane| lane.lane.emitters.iter_mut()) {
             if emitter.is_empty() {
                 continue;
