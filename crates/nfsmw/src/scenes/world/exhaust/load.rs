@@ -113,7 +113,8 @@ impl Lane {
             .iter()
             .enumerate()
             .map(|(pipe, source)| {
-                let mut emitter = Emitter::new(source.spec().clone(), BLUE_SEED + (self.texture * 16 + pipe) as u64);
+                let spec = super::scale::compact_nitrous(source.spec());
+                let mut emitter = Emitter::new(spec, BLUE_SEED + (self.texture * 16 + pipe) as u64);
                 emitter.set_limit(EMITTER_LIMIT);
                 emitter
             })

@@ -308,6 +308,7 @@ fn car_effects_of(sound: &blackbox_modding::content::CarEffects) -> CarEffects {
         turbo_blowoff: sound.turbo_blowoff.clone(),
         backfire: sound.backfire.clone(),
         pops: sound.pops.clone(),
+        no_clunk: sound.no_clunk,
         shared: shared_sound_of(&sound.shared),
     }
 }

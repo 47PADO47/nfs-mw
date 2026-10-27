@@ -11,6 +11,7 @@ mod enhanced;
 mod tint;
 use tint::{apply_flame_profile, tint_blue};
 mod load;
+mod scale;
 mod trigger;
 mod variant;
 

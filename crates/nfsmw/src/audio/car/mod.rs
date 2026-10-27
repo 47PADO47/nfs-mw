@@ -262,9 +262,13 @@ impl Audio {
         *slot = Some(car);
     }
 
-    /// The pops of the car's sputter since the last call (0 without a car, a sample layer or sputters).
+    /// The pops of the car's sputter since the last call (0 without a car, a sample layer or sputters). A car a mod added
+    /// has no sample layer: its backfire and pops (`own_sfx`) are counted in its place.
     pub fn take_sputter_pops(&mut self) -> u32 {
-        self.car.as_mut().and_then(|car| car.aems.as_mut()).map_or(0, AemsLayer::take_pops)
+        let Some(car) = self.car.as_mut() else { return 0 };
+        let sputter = car.aems.as_mut().map_or(0, AemsLayer::take_pops);
+        let own = car.own_sfx.as_mut().map_or(0, own_sfx::OwnSfx::take_bangs);
+        sputter + own
     }
 
     /// The sound set of the car, its Ginsu voice (a car of the game only) and the lowest frequency of its loops.
@@ -352,8 +356,11 @@ impl Audio {
             return Ok((None, None));
         }
         let engine = self.start_mod_engine(name)?;
-        let sfx = nfsmw_data::car::mods::car_effects(name).and_then(|effects| self.start_own_sfx(name, effects));
-        Ok((Some(engine), sfx))
+        // A car with no recordings still decides its lift-offs, so that they light its tail pipes.
+        let silent = nfsmw_data::car::mods::CarEffects::default();
+        let effects = nfsmw_data::car::mods::car_effects(name).unwrap_or(&silent);
+        let sfx = self.start_own_sfx(name, effects);
+        Ok((Some(engine), Some(sfx)))
     }
 }
 

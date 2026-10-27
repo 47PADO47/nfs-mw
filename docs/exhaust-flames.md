@@ -34,6 +34,13 @@ The usual order applies: command line, then environment, then the config file, t
 The existing blue nitrous tint from main is retained: it swaps red and blue
 of each particle. This is a host approximation, not a measured original-game colour.
 
+The burning nitrous is drawn **smaller than the group's data** (`exhaust/scale.rs`): sprites at half the width and
+leaving the pipe at 15 % of the speed, so the glow ends under a metre from the pipe instead of filling the view behind the
+car. The 2012 game's nitrous is a small glow in each pipe, 0.3 m wide growing to 0.7 m at its brightest
+([chameleon-nitrous.md](formats/chameleon-nitrous.md)); the 2005 group (a 0.45 m fire and a glow growing to 1.5 m, thrown out at
+16 m/s) is far bigger. The two factors are the rewrite's own, set by eye; the blow-off and the backfire keep the group's numbers.
+The "NFS Most Wanted 2012" nitrous variant keeps its glow to 0.7 m, the width its effect file gives at the peak of the alpha.
+
 ## When it flames
 
 | Trigger | What you see | Needs |
@@ -46,7 +53,10 @@ The engine upgrade level follows the installed garage performance package; `exha
 can override it for diagnostics. Nitrous and backfire do not depend on that level. The backfire follows
 the pops the sample layer's sputter module plays
 ([engine sound](specs/engine-sound-aems.md)): about five over a couple of seconds after a lift-off at high
-revs, none at a steady throttle. A pop with the pedal down is not shown. The original draws no flame for
+revs, none at a steady throttle. A car a mod added (the converted 2012 cars) has no sample layer and so no sputter module:
+the backfire and the pops its own sound logic decides at a lift-off (`audio/car/own_sfx/logic.rs`: a backfire at 3 to 25 % of
+the lift-offs by revs, one to three pops after it, now and then a lone pop) report the same pop notices, each when its sound
+plays, with or without a recording for it. A pop with the pedal down is not shown. The original draws no flame for
 the sputters; this link is the rewrite's own. Cars with no pipe markers (some cop and service vehicles) show
 nothing.
 

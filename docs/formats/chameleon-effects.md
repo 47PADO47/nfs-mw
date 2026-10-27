@@ -160,9 +160,11 @@ with the car instead of being left behind (the file says: world particles with 0
 
 A render with the glow left behind as the file says was a wide blue wash over the road and the car, so the glow still rides. To keep it
 like the references (a compact blue disc with a bright centre in each pipe, a blue plume out of a side exit) the rewrite also caps
-its width at 1.2 m (the file grows it to 5.6 m), gives it a small lightened core sprite (the 2012 bloom), and lets the flames and the
-glow leave the pipe along its axis at a few metres a second (the file has them at the pipe's origin, which buries them in the body
-of a side exit and glues them to the pipe's end). None of the four is decoded.
+its width at 0.7 m (the width the file gives it at the peak of its alpha; it grows it to 5.6 m by the end of its life, when in the
+2012 game it is a faint wash left behind, which a first render with a 1.2 m cap showed as far too big: the burning glow of the 2012
+game is small), gives it a small lightened core sprite (the 2012 bloom), and lets the flames leave the pipe along its axis at a few
+metres a second and the glow at 1 m/s (the file has them at the pipe's origin, which buries them in the body of a side exit and
+glues them to the pipe's end). None of the four is decoded.
 
 ## Decoded and not
 
