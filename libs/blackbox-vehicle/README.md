@@ -38,9 +38,13 @@ println!("{:.1} m/s in gear {}", car.forward_speed(), car.gear());
 - **Gear ids:** 0 reverse, 1 neutral, 2 first, ... `GEAR_RATIO` and `GEAR_EFFICIENCY` are indexed by gear id.
   Ratios are used as magnitudes; reverse flips the sign itself.
 - **Step:** `Vehicle::step(dt, &InputState, &dyn Ground)`, `dt = FIXED_STEP = 1/60`. The tuning (springs,
-  damper blow-off, tire relaxation, clutch gains) assumes 60 Hz; other steps are accepted but untested.
-  A zero, negative or NaN `dt` is ignored. Forces computed in a step move the body in the next one, so
+  damper blow-off, tire relaxation, clutch gains) assumes 60 Hz; 144 Hz and scaled-delta regressions
+  check selected contracts without establishing original-game trajectory parity.
+  A nonpositive or nonfinite `dt` is ignored. Forces computed in a step move the body in the next one, so
   positions lag forces by one step.
+- **Shared contacts:** hosts can call `begin_body_step`, resolve shared pairs, call
+  `finish_body_step`, then `respond_step`. Finish all bodies before any response.
+  `step` composes these same phases for a standalone car.
 - **Angles inside the tire code** are turns (1.0 = 360 degrees) as in the spec; `WheelState` reports radians.
 
 ## Modules
@@ -151,9 +155,10 @@ profile; see [tire profiles](../../docs/specs/vehicle-tire-profiles.md) and
    force and torque, which froze a freshly landed car off its resting ride height.
 8. **The speed limiter** tapers the throttle from the unclamped speedometer; the spec clamps the speedometer
    to the limiter, which would make the taper unreachable.
-9. **Conflicting tables in the spec:** the steering range coefficient uses the `[1, 1.05, 1.1, 1.2, 1.3, 1.4]`
-   table of the steering section (the input section lists `[1, 1, 1.1, 1.2, 1.25, 1.35]`), and the input
-   remap uses the "medium" set of the input section (the steering section lists a milder one).
+9. **PC steering tables:** verified separate consumers select range multipliers
+   `[1, 1, 1.1, 1.2, 1.25, 1.35]` and the PC partial-input history curve headed by
+   `[-1, -0.712, -0.453, ...]`. Rate multipliers remain separate. Original numeric
+   vectors and passive player callbacks resolve the earlier conflicting-spec choice.
    `max_slip` uses 71 m/s as the top of its ramp in every gear.
 10. **Hard-turn hold beats the post-collision limit.** In the spec's order the "held full lock keeps
     `last_max`" rule runs after the collision scaling and undoes it; kept as written.
@@ -225,6 +230,11 @@ mirrored turns, nitrous, the handbrake, a slope, a ledge, a flipped car, bit-exa
 NaN and infinite inputs, and random input across six drivetrain layouts.
 
 License: MIT OR Apache-2.0.
+
+Race launch assistance is opt-in through `Vehicle::set_launch_config`. The caller
+supplies all game constants, staging state and the explicit `Vehicle::launch`
+trigger. Generic vehicles and AI retain disabled defaults. The shared band,
+timer, engine and traction rules are in [the launch contract](../../docs/specs/player-launch.md).
 
 `Vehicle::set_coasting_tires` selects a caller-configured loaded-tire response
 without powered slip or handbrake. It uses direct ordinary brakes and axle torque,

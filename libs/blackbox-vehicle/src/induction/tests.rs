@@ -82,3 +82,24 @@ fn full_boost_is_zero_for_none() {
     assert_eq!(InductionSpec::default().full_boost(5000.0, 1000.0, 7000.0), 0.0);
     assert!(turbo().full_boost(7000.0, 1000.0, 7000.0) > 0.4);
 }
+
+#[test]
+fn gauge_target_preserves_positive_and_vacuum_product_order() {
+    for (rpm, psi, expected) in [(5300.0, 3.2, 0x4043e940), (1700.0, -0.4, 0xbe82aaaa)] {
+        let mut state = Induction { spool: 0.37, boost: 0.0, psi };
+        state.update(&turbo(), &input(rpm, 1.0));
+        assert_eq!(state.psi.to_bits(), expected, "rpm {rpm}");
+    }
+}
+
+#[test]
+fn gauge_reaches_target_without_readding_delta_and_keeps_equal_zero_sign() {
+    let mut state = Induction { spool: 0.37, boost: 0.0, psi: 0.125 };
+    state.update(&turbo(), &input(1000.0, 0.0));
+    assert_eq!(state.psi.to_bits(), (-0.0_f32).to_bits());
+    state.update(&turbo(), &input(1000.0, 0.0));
+    assert_eq!(state.psi.to_bits(), (-0.0_f32).to_bits());
+    state.psi = 0.0;
+    state.update(&turbo(), &input(1000.0, 0.0));
+    assert_eq!(state.psi.to_bits(), 0.0_f32.to_bits());
+}

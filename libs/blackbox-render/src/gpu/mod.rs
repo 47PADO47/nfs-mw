@@ -20,6 +20,8 @@ mod draw_mask;
 mod effect_shadow_tests;
 mod effects;
 mod filtering;
+#[cfg(test)]
+mod flame_tests;
 mod frame;
 mod frame_globals;
 mod glossy;
@@ -85,6 +87,7 @@ mod view_capture;
 #[cfg(test)]
 mod view_capture_tests;
 mod window;
+mod world_light;
 #[cfg(test)]
 mod world_material_tests;
 

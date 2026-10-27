@@ -42,14 +42,18 @@ pub struct ShiftEvent {
 
 impl ShiftEvent {
     /// Note the gear of this step: a change raises an up-shift (+1) or a down-shift (-1) event.
-    pub fn note_gear(&mut self, gear: i32) {
-        let Some(previous) = self.gear.replace(gear) else { return };
+    pub fn note_gear(&mut self, gear: i32) -> bool {
+        let Some(previous) = self.gear.replace(gear) else { return false };
+        if gear == previous {
+            return false;
+        }
         if gear > previous {
             self.shifting = 1.0;
         }
         if gear < previous {
             self.shifting = -1.0;
         }
+        true
     }
 
     /// Run the decay of one step. Without a timing, a forward gear and speed the event is dropped at once.

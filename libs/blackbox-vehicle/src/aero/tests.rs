@@ -1,5 +1,20 @@
 use super::*;
 
+#[test]
+fn reference_downforce_multiplies_speed_and_coefficient_first() {
+    let reference = downforce_base(0.7, 0.27, 0.78, 0.3, true);
+    let regularized = downforce_base(0.7, 0.27, 0.78, 0.3, false);
+    assert_eq!(reference.to_bits(), 0x42b0e76e);
+    assert_ne!(reference.to_bits(), regularized.to_bits());
+}
+
+#[test]
+fn reference_forwardness_adds_z_and_y_first() {
+    let velocity = Vec3::new(0.1, 0.7, 0.7);
+    let direction = Vec3::new(0.2, 0.3, 0.4);
+    assert_eq!(reference_forward_dot(velocity, direction, 2.7).to_bits(), 0x3e416c17);
+}
+
 fn spec() -> AeroSpec {
     AeroSpec { drag_coefficient: 0.4, aero_coefficient: 0.005, aero_cg: 50.0, ..AeroSpec::default() }
 }

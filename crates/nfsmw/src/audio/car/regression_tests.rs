@@ -67,7 +67,13 @@ fn installed_authored_scrape_is_audible_reuses_its_voice_and_releases() {
     let mut recorded = Vec::new();
     for i in 0..180 {
         let contacts = if i < 60 { vec![contact()] } else { vec![] };
-        let tick = CarSoundTick { telemetry: CarAudioTelemetry::default(), input, contacts, surface: 0 };
+        let tick = CarSoundTick {
+            sim_dt: blackbox_vehicle::FIXED_STEP,
+            telemetry: CarAudioTelemetry::default(),
+            input,
+            contacts,
+            surface: 0,
+        };
         audio.drive_car(Some(&state("BMWM3GTR", input, vec![tick])), 1.0 / 60.0);
         recorded.extend_from_slice(audio.render_replay(800));
         let count = audio.car.as_ref().unwrap().contacts.active_count();
@@ -112,6 +118,7 @@ fn replay(rate: u32, fps: u32, car: &str) -> (capture::Levels, u64) {
                 ..Default::default()
             };
             ticks.push(CarSoundTick {
+                sim_dt: blackbox_vehicle::FIXED_STEP,
                 telemetry: CarAudioTelemetry::default(),
                 input: latest,
                 contacts: vec![],
@@ -290,7 +297,13 @@ fn tyre_landing(compression: f32) -> capture::Levels {
             Some(&state(
                 "BMWM3GTR",
                 input,
-                vec![CarSoundTick { telemetry: CarAudioTelemetry::default(), input, contacts: vec![], surface: 0 }],
+                vec![CarSoundTick {
+                    sim_dt: blackbox_vehicle::FIXED_STEP,
+                    telemetry: CarAudioTelemetry::default(),
+                    input,
+                    contacts: vec![],
+                    surface: 0,
+                }],
             )),
             1.0 / 60.0,
         );
@@ -305,6 +318,7 @@ fn tyre_landing(compression: f32) -> capture::Levels {
             "BMWM3GTR",
             grounded,
             vec![CarSoundTick {
+                sim_dt: blackbox_vehicle::FIXED_STEP,
                 telemetry: CarAudioTelemetry::default(),
                 input: grounded,
                 contacts: vec![],
@@ -322,6 +336,7 @@ fn tyre_landing(compression: f32) -> capture::Levels {
                 "BMWM3GTR",
                 grounded,
                 vec![CarSoundTick {
+                    sim_dt: blackbox_vehicle::FIXED_STEP,
                     telemetry: CarAudioTelemetry::default(),
                     input: grounded,
                     contacts: vec![],

@@ -6,7 +6,10 @@ The seven original profile slots are Bumper, Hood, Close, Far, SuperFar, Drift
 and Pursuit. They resolve the car's inherited `ecar.CameraInfo_*` references;
 they are not constructed from guessed collection names. Ordinary hotkey cycling
 respects the fullscreen `SELECTABLE` flags. Direct selection keeps all seven
-profiles available. The existing custom Chase and Dynamic FOV controllers remain
+profiles available. An install may drop a profile: the remastered install has
+no `superfar` collection and leaves every car's `CameraInfo_SuperFar` unset. That
+slot then takes the Far profile's values and is unselectable, so the cycle skips
+it and direct selection still gets a camera. The existing custom Chase and Dynamic FOV controllers remain
 independent, including the user's Chase default.
 
 The implementation and evidence are split by contract:

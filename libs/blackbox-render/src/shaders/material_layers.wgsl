@@ -25,16 +25,17 @@ fn layered_material(n: vec3<f32>, v: vec3<f32>, sun: vec3<f32>, base: vec3<f32>,
     albedo: vec3<f32>, opacity: f32, visibility: f32, occlusion: f32,
     uv: vec2<f32>, sharp: vec3<f32>, world: vec3<f32>) -> vec4<f32> {
     let kind = u32(material.surface.w + 0.1);
+    if kind == 10u { return vec4<f32>(base, opacity); }
     let roughness = material.surface.x;
     let nv = saturate(dot(n, v));
-    let reflected = probe_direction(world, reflect(-v, n), roughness);
+    var reflected = reflect(-v, n);
+    if material.lighting.x < 0.5 { reflected = probe_direction(world, reflected, roughness); }
     let variation = flake_variation(uv);
     var environment = layer_environment(reflected, roughness, sharp);
     if roughness < 0.4 && kind != 6u {
         let screen = hybrid_environment(world, n, reflected, paint_encoded(environment));
         environment = mix(environment, paint_linear(screen), 1.0 - smoothstep(0.15, 0.4, roughness));
     }
-    if kind == 10u { return vec4<f32>(base, opacity); }
     var coat = 0.0;
     if shadow_data.options.w > 0.5 { coat = material.surface.y; }
     var f0 = vec3<f32>(mix(0.04, 0.015, coat));

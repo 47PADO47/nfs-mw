@@ -132,6 +132,7 @@ pub struct TrafficWorld {
     /// The signals of the junctions and the simulated seconds on their clock.
     signals: SignalController,
     signal_time: f32,
+    step_delta: f32,
     /// The real traffic-light props that serve the approaches, and the debug switch (`signal_props.rs`).
     signal_lamps: signal_props::SignalLamps,
     /// Cars stop for the lights (the `traffic_lights` setting).
@@ -232,7 +233,7 @@ pub struct TrafficWorld {
     world_moment: bool,
     /// When the step integrates the cars on several threads, and the starts of their steps by car index (`parallel.rs`).
     parallel: parallel::Parallel,
-    starts: Vec<Option<super::drive::StepStart>>,
+    starts: Vec<Option<car::AiStep>>,
     /// The hits and close passes of the collision step (`collide.rs`).
     hits: Vec<collide::Hit>,
     passes: Vec<collide::Pass>,
@@ -256,6 +257,7 @@ impl TrafficWorld {
             water: Default::default(),
             signals: SignalController::new(&network),
             signal_time: 0.0,
+            step_delta: super::drive::STEP,
             signal_lamps: signal_props::SignalLamps::default(),
             lights_on: false,
             avoidance: false,

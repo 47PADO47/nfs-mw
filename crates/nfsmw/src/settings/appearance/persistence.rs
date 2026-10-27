@@ -17,7 +17,7 @@ macro_rules! lighting {
     }
 }
 lighting! {
-    enhanced_sky: bool,
+    enhanced_sky: bool, cloud_shadows: bool,
     enhanced_wet_surfaces: bool, puddle_coverage: f32, puddle_scale: f32, water_ripples: f32,
     road_reflection_range: f32, road_reflection_fade: f32,
     ray_texture_quality: u32,
@@ -29,6 +29,7 @@ lighting! {
     original_world_materials: bool, sun_shadows: bool, cascade_temporal: bool, far_shadows: bool, far_shadow_scale: f32, contact_shadows: bool, clearcoat: bool, paint_response: bool,
     local_reflection_correction: bool, weather_car_lighting: bool,
     car_skylight: bool, world_ambient: bool, world_ambient_share: f32, world_ambient_tint: f32,
+    world_skylight: bool, world_skylight_strength: f32,
     indirect_strength: f32, sky_strength: f32, ground_strength: f32, soft_shadows: bool, dense_shadow_filter: bool, near_shadow_focus: bool, original_shadows: bool,
     cached_shadows: bool, wide_shadow_detail: bool, shadow_detail_resolution: u32, cached_reflections: bool, screen_reflections: bool,
     sun_angle: f32, shadow_resolution: u32, shadow_distance: f32, shadow_caster_min_radius: f32, shadow_filter: f32, contact_length: f32,

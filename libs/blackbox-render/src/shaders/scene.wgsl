@@ -122,7 +122,7 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
     if receive_ao && FOG && globals.fog_range.w < 0.5 { ao = ambient_visibility(in.clip.xy); }
     if PRELIT {
         lit = min(base.rgb * 2.0, vec3<f32>(1.0));
-        if FOG { lit *= prelit_illumination(in.color.rgb, receiver, ao, scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow)); }
+        if FOG { lit *= prelit_illumination(in.color.rgb, receiver, ao, scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) * cloud_visibility(in.world)); }
     } else {
         let n = normalize(in.normal);
         let diffuse_light = max(dot(n, -globals.light_dir.xyz), 0.0);
@@ -132,7 +132,7 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
         let on = globals.surface_ambient.w > 0.5;
         let ambient = select(vec3<f32>(0.35), globals.surface_ambient.xyz, on);
         let diffuse = select(vec3<f32>(0.65), globals.surface_diffuse.xyz, on);
-        lit = base.rgb * (ambient * ao + diffuse * diffuse_light * scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) + back_light * ao);
+        lit = base.rgb * (ambient * world_environment(n) * ao + diffuse * diffuse_light * scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) * cloud_visibility(in.world) + back_light * ao);
     }
     let distance = length(in.world - globals.camera_pos.xyz);
     var fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
@@ -149,12 +149,12 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
 // ambient light instead of applying a second full-strength sun shadow over it. No albedo unbaking.
 fn prelit_illumination(authored: vec3<f32>, normal: vec3<f32>, ao: f32, visibility: f32) -> vec3<f32> {
     if shadow_data.world.x < 0.5 {
-        return vec3<f32>(pow(0.35 * ao + 0.65 * visibility, 1.0 / 2.2));
+        return pow(0.35 * ao * world_environment(normal) + vec3(0.65 * visibility), vec3(1.0 / 2.2));
     }
     let baked_luma = dot(max(authored * 2.0, vec3<f32>(0.0)), vec3<f32>(0.2126, 0.7152, 0.0722));
     let baked_shade = 1.0 - smoothstep(0.2, 0.9, baked_luma);
     let ambient_share = mix(shadow_data.world.y, 0.9, baked_shade);
-    var illumination = vec3<f32>(ambient_share * ao + (1.0 - ambient_share) * visibility);
+    var illumination = ambient_share * ao * world_environment(normal) + vec3((1.0 - ambient_share) * visibility);
     if globals.surface_ambient.w > 0.5 {
         let ambient = max(globals.surface_ambient.xyz, vec3<f32>(0.0));
         let luma = dot(ambient, vec3<f32>(0.2126, 0.7152, 0.0722));

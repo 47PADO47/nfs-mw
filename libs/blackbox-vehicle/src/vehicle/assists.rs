@@ -11,6 +11,7 @@ impl Vehicle {
     /// Starts the step on every tire and applies the assists. Call before the drive torque is added.
     pub(super) fn begin_tires(&mut self, speed: f32) {
         let mut scales = StepScales::new(speed, self.powertrain.gear() == GEAR_REVERSE);
+        scales.traction_scale += self.launch.traction_addition();
         if self.tire_integration == crate::tires::TireIntegration::Regularized {
             scales.max_slip = StepScales::new(speed, false).max_slip;
         }
@@ -91,5 +92,9 @@ impl Vehicle {
             );
         }
         self.update_drift(dt, speed, angular_velocity);
+        let staging_scale = self.launch.staging_traction_scale();
+        for tire in &mut self.tires {
+            tire.traction_boost *= staging_scale;
+        }
     }
 }

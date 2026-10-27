@@ -50,6 +50,7 @@ pub(super) const GEAR: &str = "3rdPersonGear";
 /// The objects of the package the HUD drives, found once.
 pub struct HudBinding {
     gauge_colors: super::gauge_colors::Binding,
+    launch_needle: super::launch_needle::LaunchNeedle,
     police: super::police::Binding,
     race: super::race::Binding,
     leaderboard: super::leaderboard::Binding,
@@ -105,6 +106,7 @@ impl HudBinding {
     pub fn new(rt: &mut Runtime, package: PackageId) -> Self {
         let mut b = Self {
             gauge_colors: super::gauge_colors::Binding::new(rt, package),
+            launch_needle: Default::default(),
             police: super::police::Binding::new(rt, package),
             race: super::race::Binding::new(rt, package),
             leaderboard: super::leaderboard::Binding::new(rt, package),
@@ -252,6 +254,7 @@ impl HudBinding {
     pub fn finish_frame(&mut self, rt: &mut Runtime, s: &HudState) {
         self.pursuit_meter.finish_frame(rt, s.pursuit);
         self.gauge_colors.apply(rt, s.gauge_colors);
+        self.launch_needle.apply(rt, self.needle, s.perfect_launch_range, s.gauge_colors[1]);
     }
 
     fn speedometer(&self, rt: &mut Runtime, s: &HudState) {

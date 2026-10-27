@@ -34,13 +34,10 @@ impl Renderer {
         target: &wgpu::TextureView,
         depth: &wgpu::TextureView,
         frame: &crate::FrameParams,
+        globals: &wgpu::BindGroup,
     ) {
-        let soft = SoftDraw {
-            target,
-            depth,
-            globals: &self.shared.bindings.globals_bind_group,
-            inverse_view_proj: self.world_to_clip(frame).inverse(),
-        };
+        let soft = SoftDraw { target, depth, globals, inverse_view_proj: self.world_to_clip(frame).inverse() };
         self.effects.draw_soft(&self.device, &self.queue, encoder, &soft);
+        self.effects.draw_flames(&self.device, &self.queue, encoder, &soft, |t| self.textures.get(t.raw()));
     }
 }

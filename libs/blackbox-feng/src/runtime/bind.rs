@@ -174,6 +174,11 @@ impl Runtime {
         Some(s.data.alpha().clamp(0, 255) as u8)
     }
 
+    /// The current object colour and alpha, after its scripts have run.
+    pub fn colour_rgba(&self, o: ObjectRef) -> Option<[u8; 4]> {
+        Some(self.object(o)?.data.colour_rgba())
+    }
+
     /// Sets the colour (red, green, blue) of the object.
     pub fn set_colour(&mut self, o: ObjectRef, rgb: [u8; 3]) {
         self.edit(o, |s| {

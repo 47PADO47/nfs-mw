@@ -6,6 +6,7 @@ use crate::scenes::world::StateHasher;
 impl CopState {
     pub(in crate::scenes::world::ai) fn hash_into(&self, hash: &mut StateHasher) {
         self.close.hash_into(hash);
+        hash.f32(self.think_delta);
         self.road_nos.hash_into(hash);
         self.governor.visit_state(&mut |word| hash.u32(word));
         self.stuck.visit_state(&mut |word| hash.u32(word));

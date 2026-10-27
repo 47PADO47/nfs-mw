@@ -10,6 +10,7 @@ mod drive_assists;
 mod example;
 mod integration;
 mod jump;
+mod launch;
 mod maneuver;
 mod reconfigure;
 mod retirement;
@@ -17,6 +18,7 @@ mod rolling_chassis;
 mod settle;
 mod simple_chassis;
 mod spec;
+mod staging;
 mod state;
 mod step;
 mod wall_steering;
@@ -60,6 +62,7 @@ pub struct Vehicle {
     rolling_chassis: Option<RollingChassisConfig>,
     coasting_tires: Option<crate::tires::CoastingTireResponse>,
     retirement: retirement::Retirement,
+    launch: crate::launch::LaunchState,
     /// Calibration hook: hold the front wheels at these angles instead of steering (a replay of a
     /// recorded drive). `None` in play.
     pub forced_wheel_angles: Option<crate::steering::WheelAngles>,
@@ -134,6 +137,7 @@ impl Vehicle {
             rolling_chassis: None,
             coasting_tires: None,
             retirement: Default::default(),
+            launch: Default::default(),
             forced_wheel_angles: None,
             disabled: false,
             can_recharge_nos: true,
@@ -235,6 +239,8 @@ impl Vehicle {
     }
 
     fn reset_dynamics(&mut self) {
+        self.launch.reset();
+        self.powertrain.set_launch_context(false, 0.0);
         self.simple_max_steering = self.simple_chassis.map_or(0.0, |c| c.steering_range[0]);
         self.wall_steering = wall_steering::WallSteering::default();
         self.jump_state = JumpState::default();

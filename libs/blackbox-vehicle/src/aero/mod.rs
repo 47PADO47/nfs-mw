@@ -59,6 +59,26 @@ pub struct AeroForces {
 
 /// Computes drag and downforce. `front_z` and `rear_z` are the body-frame z of the front and rear axles.
 pub fn forces(spec: &AeroSpec, i: &AeroInput, front_z: f32, rear_z: f32) -> AeroForces {
+    forces_with_policy(spec, i, front_z, rear_z, false)
+}
+
+pub(crate) fn reference_forces(spec: &AeroSpec, i: &AeroInput, front_z: f32, rear_z: f32) -> AeroForces {
+    forces_with_policy(spec, i, front_z, rear_z, true)
+}
+
+fn downforce_base(speed: f32, coefficient: f32, forwardness: f32, upness: f32, reference: bool) -> f32 {
+    match reference {
+        true => (((speed * coefficient) * 2000.0) * forwardness) * upness,
+        false => upness * forwardness * speed * 2.0 * coefficient * 1000.0,
+    }
+}
+
+fn reference_forward_dot(velocity: Vec3, forward: Vec3, speed: f32) -> f32 {
+    let direction = velocity * (1.0 / speed);
+    (direction.z * forward.z + direction.y * forward.y) + direction.x * forward.x
+}
+
+fn forces_with_policy(spec: &AeroSpec, i: &AeroInput, front_z: f32, rear_z: f32, reference: bool) -> AeroForces {
     let mut out = AeroForces::default();
     let speed = i.linear_velocity.length();
     let tuning = i.tuning.clamp(-1.0, 1.0);
@@ -77,9 +97,13 @@ pub fn forces(spec: &AeroSpec, i: &AeroInput, front_z: f32, rear_z: f32) -> Aero
         let up = i.rotation.y_axis;
         let forward = i.rotation.z_axis;
         let upness = if i.ground_effect >= 0.5 { 1.0 } else { up.y.max(0.0) };
-        let move_dir = if speed > 1e-4 { i.linear_velocity / speed } else { forward };
-        let forwardness = move_dir.dot(forward).max(0.0).sqrt().max(0.4);
-        let mut downforce = upness * forwardness * speed * 2.0 * spec.aero_coefficient * 1000.0;
+        let forward_dot = match (reference, speed > 1e-4) {
+            (true, true) => reference_forward_dot(i.linear_velocity, forward, speed),
+            (_, true) => (i.linear_velocity / speed).dot(forward),
+            _ => forward.dot(forward),
+        };
+        let forwardness = forward_dot.max(0.0).sqrt().max(0.4);
+        let mut downforce = downforce_base(speed, spec.aero_coefficient, forwardness, upness, reference);
         if !i.any_wheel_on_ground {
             downforce *= spec.airborne_scale;
         }

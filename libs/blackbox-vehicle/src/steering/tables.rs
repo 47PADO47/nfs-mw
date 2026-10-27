@@ -13,7 +13,7 @@ pub const RANGE_WHEEL: [f32; 10] = [45.0, 15.0, 11.0, 8.0, 7.0, 7.0, 7.0, 7.0, 7
 /// Speed factor of both the braking widening and the steering rate.
 pub const STEER_SPEED: [f32; 10] = [1.0, 1.0, 1.0, 0.56, 0.5, 0.35, 0.3, 0.3, 0.3, 0.3];
 /// Range multiplier against the recent average input magnitude 0..1.
-pub const RANGE_COEF: [f32; 6] = [1.0, 1.05, 1.1, 1.2, 1.3, 1.4];
+pub const RANGE_COEF: [f32; 6] = [1.0, 1.0, 1.1, 1.2, 1.25, 1.35];
 /// Rate multiplier against the input speed 0..10 per second.
 pub const INPUT_SPEED_COEF: [f32; 6] = [1.0, 1.05, 1.1, 1.5, 2.2, 3.1];
 /// Rate multiplier against the recent average input magnitude 0..1.
@@ -21,9 +21,9 @@ pub const INPUT_COEF: [f32; 6] = [1.0, 1.05, 1.1, 1.2, 1.3, 1.4];
 /// Post-collision blend against seconds since the hit: `(seconds, blend)`.
 pub const COLLISION_BLEND: [(f32, f32); 4] = [(0.0, 0.2), (0.2, 0.5), (0.5, 0.7), (0.7, 1.0)];
 /// Input remap over -1..1 (21 points); the first 11 entries, the rest mirror them.
-const REMAP_HALF: [f32; 11] = [-1.0, -0.736, -0.542, -0.4, -0.292, -0.214, -0.16, -0.123, -0.078, -0.036, 0.0];
+const REMAP_HALF: [f32; 11] = [-1.0, -0.712, -0.453, -0.303, -0.216, -0.148, -0.116, -0.08, -0.061, -0.034, 0.0];
 
-/// The 21-point remap that flattens small stick deflections (the "medium" set).
+/// The PC human-steering history remap; the target angle still uses raw input.
 pub fn input_remap() -> [f32; 21] {
     let mut t = [0.0; 21];
     for (i, v) in REMAP_HALF.iter().enumerate() {

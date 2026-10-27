@@ -47,6 +47,7 @@ impl Clutch {
     /// Opens the clutch from any state, also while it is re-engaging: a pedal pressed by the driver.
     pub fn hold_open(&mut self) {
         self.state = ClutchState::Disengaged;
+        self.timer = 0.0;
     }
 
     /// Only acts from `Disengaged`; engages at once when `time <= 0`.
@@ -64,10 +65,9 @@ impl Clutch {
 
     /// Counts the engage timer down.
     pub fn update(&mut self, dt: f32) {
-        if self.state == ClutchState::Engaging {
+        if self.timer > 0.0 {
             self.timer -= dt;
             if self.timer <= 0.0 {
-                self.timer = 0.0;
                 self.state = ClutchState::Engaged;
             }
         }
@@ -119,5 +119,15 @@ mod tests {
         c.disengage();
         c.engage(0.0);
         assert!(c.is_engaged());
+    }
+
+    #[test]
+    fn a_positive_timer_advances_outside_engaging_and_retains_its_crossing_value() {
+        let mut c = Clutch { state: ClutchState::Disengaged, timer: 0.01, engage_time: 0.05 };
+        c.update(0.02);
+        assert_eq!(c.state, ClutchState::Engaged);
+        assert_eq!(c.timer, -0.01);
+        c.update(1.0);
+        assert_eq!(c.timer, -0.01);
     }
 }

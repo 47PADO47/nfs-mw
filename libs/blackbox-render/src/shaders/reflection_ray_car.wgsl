@@ -1,5 +1,6 @@
 // One geometry ray for sharp car reflections. Rough lobes retain their filtered probe.
 fn sharp_environment(world:vec3<f32>,normal:vec3<f32>,direction:vec3<f32>,fallback:vec3<f32>)->vec3<f32> {
+    if material.lighting.x > 0.5 { return fallback; }
     // Preserve the reconstructed Original PC response and its optional SSR setting.
     if material.specular_min.w>0.5 { return fallback; }
     if globals.fog_range.w>0.5 || rt_control.scene.x==0u || rt_control.tuning.z<=0.0 { return fallback; }
@@ -13,6 +14,7 @@ fn sharp_environment(world:vec3<f32>,normal:vec3<f32>,direction:vec3<f32>,fallba
 
 // Sharp geometry was evaluated once before the material's roughness filtering.
 fn hybrid_environment(world:vec3<f32>,normal:vec3<f32>,direction:vec3<f32>,fallback:vec3<f32>)->vec3<f32> {
+    if material.lighting.x > 0.5 { return fallback; }
     if material.specular_min.w>0.5 { return screen_environment(world,normal,direction,fallback); }
     return fallback;
 }

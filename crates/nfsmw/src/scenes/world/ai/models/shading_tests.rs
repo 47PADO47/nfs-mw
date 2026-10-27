@@ -76,6 +76,12 @@ fn installed_shared_traffic_rigs_switch_mode_without_actor_reset() {
             _ => GlossyModel::Custom,
         };
         assert!(renderer.glossy_materials.values().all(|material| material.model == family));
+        assert!(
+            renderer
+                .glossy_materials
+                .values()
+                .all(|material| material.background_actor == (mode == CarShading::Glossy))
+        );
         let resources = (renderer.mesh_labels.len(), renderer.glossy_materials.len(), renderer.lighting_updates);
         traffic.reshade(&mut renderer, mode, Vec3::X, &mut props);
         assert_eq!(

@@ -60,6 +60,54 @@ fn steering_is_symmetric() {
 }
 
 #[test]
+fn human_range_matches_original_pc_full_lock_vectors() {
+    // Isolated original-PC maximum-steering outputs; see player-driving-parity.md.
+    for (speed, expected) in [(10.0, 38.8125), (40.0, 11.981_25), (80.0, 5.231_25)] {
+        for direction in [-1.0, 1.0] {
+            let angle = settle(speed, direction);
+            assert!((angle - direction * expected).abs() < 1e-4, "speed {speed}: {angle}");
+        }
+    }
+}
+
+#[test]
+fn small_pad_input_stays_on_original_flat_range_segment() {
+    // Raw 0.2 records 0.061 in the history: the original range multiplier is still one.
+    for direction in [-1.0, 1.0] {
+        let angle = settle(40.0, direction * 0.2);
+        assert!((angle - direction * 1.775).abs() < 1e-4, "angle {angle}");
+    }
+}
+
+#[test]
+fn speed_sensitive_wheel_matches_original_partial_history_range() {
+    let mut steering = Steering::default();
+    let mut i = input(0.8, 40.0);
+    i.device = SteeringDevice::WheelSpeedSensitive;
+    for _ in 0..120 {
+        steering.update(&i);
+    }
+    // Original maximum 12.8125 degrees, multiplied by raw input 0.8.
+    assert!((steering.angle() - 10.25).abs() < 1e-4, "angle {}", steering.angle());
+}
+
+#[test]
+fn human_range_keeps_original_tuning_endpoint_multipliers() {
+    // Original full-history range at 40 m/s, with the verified 0.8/1.2 tuning factors.
+    for (tuning, expected) in [(-1.0, 9.585), (0.0, 11.981_25), (1.0, 14.377_5)] {
+        for direction in [-1.0, 1.0] {
+            let mut steering = Steering::default();
+            let mut i = input(direction, 40.0);
+            i.tuning = tuning;
+            for _ in 0..120 {
+                steering.update(&i);
+            }
+            assert!((steering.angle() - direction * expected).abs() < 1e-4, "tuning {tuning}");
+        }
+    }
+}
+
+#[test]
 fn braking_widens_the_angle() {
     let mut coast = Steering::default();
     let mut brake = Steering::default();
@@ -138,6 +186,71 @@ fn remap_table_is_odd_and_flat_near_the_centre() {
 }
 
 #[test]
+fn partial_pad_history_matches_original_pc_remap_vectors() {
+    // Outputs of the selected PC lookup routine, not values derived from the Rust table.
+    for (raw, expected) in [
+        (-1.1, -1.0),
+        (-0.95, -0.856),
+        (-0.8, -0.453),
+        (-0.45, -0.132),
+        (-0.2, -0.061),
+        (0.0, 0.0),
+        (0.15, 0.0475),
+        (0.4, 0.116),
+        (0.8, 0.453),
+        (1.1, 1.0),
+    ] {
+        let mut steering = Steering::default();
+        steering.update(&input(raw, 0.0));
+        assert!((steering.average_input() - expected).abs() < 1e-6, "raw {raw}");
+    }
+}
+
+#[test]
+fn partial_pad_transients_match_original_at_normal_and_slowed_tick_deltas() {
+    // Complete original human-steering routine with fixed 40 m/s, neutral tuning and no rear slip.
+    // The smaller dt values are observed at 144 Hz, normally and at full Speedbreaker.
+    let cases = [
+        (1.0 / 60.0, [3.55, 3.55, 3.55, 3.55, 3.55, -3.55, -3.55, -3.55, -3.55, -3.55, 0.0, 0.0]),
+        (
+            1.0 / 144.0,
+            [3.448_75, 3.55, 3.55, 3.55, 3.55, 0.001_236_09, -3.514_19, -3.55, -3.55, -3.55, -0.101_249_75, 0.0],
+        ),
+        (
+            1.0 / 576.0,
+            [
+                0.862_187_5,
+                1.749_378_4,
+                2.636_569_3,
+                3.523_76,
+                3.55,
+                2.662_809,
+                1.783_952_4,
+                0.911_049_07,
+                0.042_610_66,
+                -0.822_355_03,
+                0.0,
+                0.0,
+            ],
+        ),
+    ];
+    for (dt, expected) in cases {
+        let mut steering = Steering::default();
+        for (step, expected_angle) in expected.into_iter().enumerate() {
+            let raw = match step {
+                0..5 => 0.4,
+                5..10 => -0.4,
+                _ => 0.0,
+            };
+            let mut i = input(raw, 40.0);
+            i.dt = dt;
+            let angle = steering.update(&i);
+            assert!((angle - expected_angle).abs() < 1e-4, "dt {dt}, step {step}: {angle}");
+        }
+    }
+}
+
+#[test]
 fn output_is_always_bounded() {
     let mut s = Steering::default();
     for k in 0..1000 {
@@ -153,13 +266,13 @@ fn partial_input_uses_previous_remap_and_averages_rate_coefficients() {
     // First derivative is 0.4 / dt = 24: coefficient 3.1, previous magnitude average 0.
     let first = s.update(&input(0.4, 0.0));
     assert!((first - 9.3).abs() < 1e-4, "first {first}");
-    // Last remapped input is 0.16; a change to raw 0.2 gives 2.4/s, coefficient 1.06.
-    // The recorded mean is (3.1 + 1.06)/2, rather than lookup(mean derivatives).
+    // Original PC: last remapped input 0.116, raw 0.2 gives 5.04/s, coefficient 1.308.
+    // The recorded mean is (3.1 + 1.308)/2, rather than lookup(mean derivatives).
     let mut i = input(0.2, 0.0);
     i.tire_steering = 0.1;
     let second = s.update(&i);
-    let rate = 180.0 * 0.1 * ((3.1 + 1.06) / 2.0) * 1.04;
-    assert!((second - (first - rate * DT)).abs() < 1e-4, "second {second}");
+    // Independent original rate helper: 408.224884 degrees/s before tire steering.
+    assert!((second - 8.619_625).abs() < 1e-4, "second {second}");
 }
 
 #[test]

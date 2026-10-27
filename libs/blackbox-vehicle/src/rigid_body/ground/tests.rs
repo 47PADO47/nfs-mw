@@ -4,6 +4,23 @@ use crate::rigid_body::{ContactParams, FrictionState, PlaneContact, RigidBodySpe
 use glam::Quat;
 
 #[test]
+fn plane_projection_rejects_the_original_near_tangent_cancellation_control() {
+    let mut body = RigidBody::new(1000.0, Vec3::new(1.0, 1.0, 2.0), Vec3::ONE, RigidBodySpec::default());
+    let velocity = Vec3::new(14.0, -0.000001, -13.125);
+    body.linear_velocity = velocity;
+    let plane = PlaneContact {
+        point: Vec3::ZERO,
+        normal: Vec3::new(0.6, 0.48, 0.64),
+        friction_static: 0.0,
+        friction_kinetic: 0.0,
+    };
+    let params = ContactParams { restitution: 0.0, inertia_scale: Vec3::ONE };
+    assert!(body.react_plane(&plane, &params).is_none());
+    assert_eq!(body.linear_velocity, velocity);
+    assert_eq!(body.angular_velocity, Vec3::ZERO);
+}
+
+#[test]
 fn support_points_at_or_above_the_ceiling_still_query_the_original_minimum_tolerance() {
     struct Recorder(std::cell::Cell<Option<(Vec3, f32)>>);
     impl Ground for Recorder {

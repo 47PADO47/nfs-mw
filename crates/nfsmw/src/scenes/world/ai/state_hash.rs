@@ -6,6 +6,7 @@ use crate::scenes::world::StateHasher;
 
 impl TrafficWorld {
     pub(in crate::scenes::world) fn hash_into(&self, hash: &mut StateHasher) {
+        hash.f32(self.step_delta);
         let rng = &self.rng;
         for stream in [&rng.nav, &rng.population, &rng.police, &rng.roadblock, &rng.air] {
             hash.u64(stream.0);

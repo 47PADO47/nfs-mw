@@ -33,3 +33,23 @@ left to the caller, who uses `RigidBody::react_plane` with the collision library
   - A car with any wheel on the ground never sleeps (as specified); the vehicle wakes a sleeping body on
     throttle or handbrake.
   - The source of the car collision half-dimensions is the caller choice (`VehicleSpec::dimension`).
+
+## Force state guards, 2026-10-26
+
+The force-helper section of the spec was clarified before implementing frozen
+guards in all four public force/torque methods. Thirty isolated original-PC
+instruction cases cover combined resolve, force, torque and lever-arm methods
+in awake, sleeping and frozen states, with zero and nonzero vectors. Every
+frozen case leaves the complete volatile body record unchanged. All zero-vector
+sleeping cases wake. No original code or private numeric fixtures are included.
+
+These checks establish individual body methods. They do not establish a live
+sleep transition, engine/chassis task admission, attachment-side gameplay
+events or a complete settling trajectory.
+
+Original vehicle sleep-decision replay covers fifteen animation, collision,
+support-time, contact and velocity controls. A separate original body-end trace
+executes the real sleep decision and state write with ground refresh and drag
+declared external boundaries. It sets the sleeping state while preserving all
+current velocity and pending-force components. The implementation now defers
+velocity clearing to the next sleeping begin, as the body integration spec states.

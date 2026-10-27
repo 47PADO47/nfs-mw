@@ -14,6 +14,7 @@ mod installed;
 mod lifetime;
 mod native_parity;
 mod object_eligibility;
+mod phases;
 mod placement;
 mod sounds;
 mod support;

@@ -11,7 +11,7 @@ pub const FEATURES: &[Feature] = &[
         name: "Sky and clouds",
         origin: "Authored PC layers or independent Enhanced atmosphere and cloud volume on native",
         coverage: "Partial / enhancement",
-        gap: "Full night lighting, cloud shadows on scenery and Bevy Enhanced sky",
+        gap: "Full night lighting and Bevy Enhanced sky",
     },
     Feature {
         name: "World / car geometry detail",

@@ -11,6 +11,10 @@ struct Trace {
 }
 
 fn run(frame_times: impl IntoIterator<Item = f32>) -> Trace {
+    run_at(frame_times, 60, 1.0)
+}
+
+fn run_at(frame_times: impl IntoIterator<Item = f32>, rate: u32, scale: f32) -> Trace {
     let ground = FlatGround::new(5.0);
     let mut cars = [sim(), sim(), sim()];
     for (car, (x, heading, speed)) in
@@ -25,12 +29,17 @@ fn run(frame_times: impl IntoIterator<Item = f32>) -> Trace {
     super::reactions::install(&mut cars[1]);
     cars[2].collision_racer = true;
     let mut clock = FixedClock::default();
+    clock.set_rate_hz(rate);
     let mut trace = Trace { steps: 0, states: Vec::new(), hits: Vec::new() };
     for dt in frame_times {
-        for _ in 0..clock.advance(dt) {
-            for car in &mut cars {
-                car.step(&DriveInput::default(), &ground, None);
-            }
+        for period in clock.advance_real(dt) {
+            let starts = cars.each_mut().map(|car| {
+                let start = car.begin_step_with_delta(period * scale, &DriveInput::default(), false, None);
+                car.begin_body(&start, None);
+                start
+            });
+            // Body-pair impulses must precede this tick's engine and suspension response.
+            // Every render grouping uses the same shared timeline as the world scene.
             for i in 0..cars.len() {
                 let (head, tail) = cars.split_at_mut(i + 1);
                 for (offset, other) in tail.iter_mut().enumerate() {
@@ -38,6 +47,13 @@ fn run(frame_times: impl IntoIterator<Item = f32>) -> Trace {
                         trace.hits.push((trace.steps, i, i + 1 + offset, hit.impulse.to_bits()));
                     }
                 }
+            }
+            for (car, start) in cars.iter_mut().zip(&starts) {
+                car.finish_body(start, &ground, None);
+            }
+            for (car, start) in cars.iter_mut().zip(&starts) {
+                car.integration().run(start, &ground, None);
+                car.end_step(start, &ground, None);
             }
             for car in &cars {
                 let body = car.body();
@@ -56,6 +72,21 @@ fn run(frame_times: impl IntoIterator<Item = f32>) -> Trace {
         }
     }
     trace
+}
+
+#[test]
+fn shared_real_ticks_keep_contacts_identical_during_slow_motion_and_comparison_cadence() {
+    for rate in [60, 144] {
+        for scale in [1.0, 0.25] {
+            let reference = run_at(std::iter::repeat_n(1.0 / 60.0, 360), rate, scale);
+            assert_eq!(reference.steps, rate * 6);
+            assert!(!reference.hits.is_empty(), "the scaled scenario must exercise contacts");
+            for fps in [5, 30, 60, 144, 360] {
+                let trace = run_at(std::iter::repeat_n(1.0 / fps as f32, fps * 6), rate, scale);
+                assert_eq!(trace, reference, "rate {rate}, scale {scale}, render FPS {fps}");
+            }
+        }
+    }
 }
 
 #[test]

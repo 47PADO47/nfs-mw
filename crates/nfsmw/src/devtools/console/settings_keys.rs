@@ -1,7 +1,7 @@
 //! The keys the console's `get` and `set` know, in the order `get` lists them.
 
 /// Every setting the console can show, by its key.
-pub(super) const KEYS: [&str; 118] = [
+pub(super) const KEYS: [&str; 119] = [
     "traffic_preset",
     "traffic_population",
     "traffic_density",
@@ -49,6 +49,7 @@ pub(super) const KEYS: [&str; 118] = [
     "speed_trails",
     "speed_trail_style",
     "exhaust_flames",
+    "enhanced_exhaust",
     "turn_signals",
     "cop_health_bars",
     "transmission",

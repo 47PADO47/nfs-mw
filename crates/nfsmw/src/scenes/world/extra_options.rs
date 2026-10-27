@@ -7,32 +7,16 @@ use blackbox_gfx::RenderBackend;
 use glam::Vec3;
 
 impl WorldScene {
+    pub(super) fn extra_options_allowed(&self) -> bool {
+        self.rules.time_scale_allowed && !self.players.has_guests()
+    }
+
     pub(super) fn extra_action(&mut self, renderer: &mut dyn RenderBackend, action: Action) -> Result<()> {
-        ensure!(
-            self.rules.time_scale_allowed && !self.players.has_guests(),
-            "Extra options require local single player"
-        );
+        ensure!(self.extra_options_allowed(), "Extra options require local single player");
         ensure!(
             !self.garage_open && !self.nis.is_playing() && !self.story_movie.is_playing(),
             "Close the shop or cinematic first"
         );
-        if !matches!(
-            action,
-            Action::Center
-                | Action::Freecam
-                | Action::SaveBookmark
-                | Action::LoadBookmark(_)
-                | Action::DeleteBookmark(_)
-                | Action::Reload
-                | Action::Clear
-                | Action::SaveLocation
-                | Action::DeleteLocation(_)
-        ) {
-            ensure!(
-                !crate::career::CareerHandle::shared().is_active(),
-                "Use a free-roam test session outside career for gameplay overrides"
-            );
-        }
         match action {
             Action::Environment(value) => {
                 if self.extra.restore_environment.is_none() {
@@ -231,8 +215,11 @@ impl WorldScene {
         None
     }
     pub(super) fn prepare_extra(&mut self) {
-        self.extra.local_allowed = self.rules.time_scale_allowed && !self.players.has_guests();
+        self.extra.local_allowed = self.extra_options_allowed();
         if !self.extra.local_allowed {
+            if self.extra.testing.active() {
+                self.extra.message = Some("Testing overrides require local single player".into());
+            }
             if let Some(env) = self.extra.restore_environment.take() {
                 self.configure_environment(env);
             }
@@ -242,19 +229,6 @@ impl WorldScene {
                 self.view = View::Chase;
             }
             self.extra.freecam = false;
-        }
-        let mut gameplay = self.extra.testing.clone();
-        gameplay.paused = false;
-        if (!self.rules.time_scale_allowed
-            || self.players.has_guests()
-            || crate::career::CareerHandle::shared().is_active())
-            && gameplay.active()
-        {
-            let paused = self.extra.testing.paused;
-            self.extra.testing = Default::default();
-            self.extra.testing.paused = paused;
-            self.extra.message =
-                Some("Gameplay overrides require a local free-roam test session outside career".into());
         }
         let locked = self.extra.testing.lock_heat.then_some(self.extra.testing.heat);
         if locked != self.extra.applied_heat {

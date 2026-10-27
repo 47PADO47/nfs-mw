@@ -2,6 +2,64 @@ use super::*;
 use crate::{engine::ClutchState, induction::InductionSpec, math::rpm_to_rad, nos::NosSpec};
 
 #[test]
+fn upshift_gate_uses_signed_slip_and_individual_contacts() {
+    for slip in [-100.0, 0.0, 3.999, 4.0, 100.0] {
+        for grounded in [[true; 4], [true, true, true, false]] {
+            let mut p = Powertrain::new(tests::engine(), tests::trans(), Default::default(), Default::default(), 0.33);
+            p.omega_trans = rpm_to_rad(p.shift_points.up[GEAR_FIRST] + 10.0);
+            p.refresh_shift_potential();
+            let mut av = [0.0; 4];
+            p.tick_with_loaded_wheels(
+                &mut TickInput {
+                    dt: crate::FIXED_STEP,
+                    gas: 1.0,
+                    nos_held: false,
+                    can_recharge_nos: true,
+                    blown: false,
+                    automatic: true,
+                    speed: 10.0,
+                    wheel_av: &mut av,
+                    grounded,
+                    drifting: false,
+                    drive_slip: 0.0,
+                    max_wheel_slip: slip,
+                    induction_tuning: 0.0,
+                    nos_tuning: 0.0,
+                    clutch_pedal: None,
+                },
+                0,
+            );
+            assert_eq!(p.gear(), GEAR_FIRST + usize::from(slip < 4.0 && grounded.iter().all(|g| *g)));
+        }
+    }
+}
+
+#[test]
+fn engine_coupling_uses_loaded_count_independently_of_compressed_wheels() {
+    let mut initial = Powertrain::new(tests::engine(), tests::trans(), Default::default(), Default::default(), 0.33);
+    initial.gear = GEAR_FIRST + 1;
+    initial.omega = rpm_to_rad(6000.0);
+    initial.clutch.disengage();
+    initial.clutch.engage(0.25);
+    let mut speeds = Vec::new();
+    for loaded_wheels in [0, 4] {
+        let mut p = initial.clone();
+        let mut av = [0.0; 4];
+        p.torque_loop(&mut super::torque_loop::LoopCtx {
+            dt: crate::FIXED_STEP,
+            av: &mut av,
+            grounded: [true; 4],
+            loaded_wheels,
+            drive_slip: 0.0,
+            speed: 0.0,
+        });
+        assert_eq!(p.wheel_writes(), [false; 4], "compressed wheels must not receive a free-wheel clamp");
+        speeds.push(p.omega);
+    }
+    assert!(speeds[0] > speeds[1], "no loaded wheels reduces road coupling without clearing contacts");
+}
+
+#[test]
 fn cached_peak_torque_matches_original_raw_sample_vectors() {
     for (torque, idle, max, redline, boost, peak, rpm) in [
         (vec![100.0, 150.0, 200.0, 250.0, 300.0], 1000.0, 9000.0, 7000.0, 0.0, 300.0, 7000.0),
@@ -49,6 +107,7 @@ fn clutch_reengagement_transfers_flywheel_torque_without_an_engine_peak_cap() {
         dt: crate::FIXED_STEP,
         av: &mut av,
         grounded: [true; 4],
+        loaded_wheels: 4,
         drive_slip: 0.0,
         speed: 0.0,
     });
@@ -167,4 +226,43 @@ fn unrelated_hardware_preserves_running_induction_and_nitrous_burn_or_cooldown()
         assert_eq!(p.nos.capacity, before.2);
         assert_eq!((p.nos.engaged, p.nos.boost), (0.0, 1.0));
     }
+}
+
+#[test]
+fn transmission_speed_preserves_ratio_before_wheel_speed_rounding() {
+    for torque_split in [0.0, 0.5, 1.0] {
+        let engine = crate::engine::EngineSpec { torque: vec![0.0; 9], ..tests::engine() };
+        let trans = TransmissionSpec { torque_split, ..tests::trans() };
+        let mut p = Powertrain::new(engine, trans, Default::default(), Default::default(), 0.33);
+        p.clutch.disengage();
+        let mut av = [2.1; 4];
+        p.torque_loop(&mut super::torque_loop::LoopCtx {
+            dt: crate::FIXED_STEP,
+            av: &mut av,
+            grounded: [true; 4],
+            loaded_wheels: 4,
+            drive_slip: 0.0,
+            speed: 0.0,
+        });
+        assert_eq!(p.omega_trans.to_bits(), 0x42ed3f2b, "drive split {torque_split}");
+    }
+}
+
+#[test]
+fn drive_torque_preserves_efficiency_before_ratio_rounding() {
+    let mut trans = tests::trans();
+    trans.gear_efficiency.fill(1.1);
+    let mut p = Powertrain::new(tests::engine(), trans, Default::default(), Default::default(), 0.33);
+    p.throttle = 1.0;
+    p.omega_trans = p.engine.idle_rad();
+    let mut av = [0.0; 4];
+    let torque = p.torque_loop(&mut super::torque_loop::LoopCtx {
+        dt: crate::FIXED_STEP,
+        av: &mut av,
+        grounded: [true; 4],
+        loaded_wheels: 0,
+        drive_slip: 0.0,
+        speed: 0.0,
+    });
+    assert_eq!(torque.to_bits(), 0x455f7bba);
 }

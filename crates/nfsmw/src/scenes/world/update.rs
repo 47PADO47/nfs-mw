@@ -235,6 +235,10 @@ impl WorldScene {
             );
         }
         let trace = blackbox_trace::scope("World: update / effects uploads");
+        if let Some(drive) = self.players.lead_mut() {
+            let pose = drive.pose().transform();
+            drive.flames.advance_visual(sim_dt, pose);
+        }
         self.upload_effects(renderer);
         self.original_shadows = renderer.render_experiments().original_shadows;
         drop(trace);

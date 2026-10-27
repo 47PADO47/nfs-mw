@@ -191,11 +191,9 @@ impl Scene for Pausable {
     fn set_time_held(&mut self, held: bool) {
         self.inner.set_time_held(held);
     }
-
     fn set_mod_blips(&mut self, blips: &[crate::hud::MapBlip]) {
         self.inner.set_mod_blips(blips);
     }
-
     fn set_nitrous_fx(&mut self, fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>) {
         self.inner.set_nitrous_fx(fx);
     }
@@ -290,6 +288,13 @@ impl Scene for Pausable {
 
     fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.paused_second_car_sound()
+    }
+    fn note_car_visual_rpm(&mut self, player: usize, fraction: Option<f32>) {
+        let fraction = match self.paused.get() || self.concealed() {
+            true => None,
+            false => fraction,
+        };
+        self.inner.note_car_visual_rpm(player, fraction);
     }
 
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {

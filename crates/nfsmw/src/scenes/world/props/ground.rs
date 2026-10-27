@@ -17,13 +17,12 @@ pub(super) fn step(
     dt: f32,
     contacts: &mut Vec<GroundContact>,
 ) -> Option<GroundContact> {
+    contacts.clear();
     if prop.attached || prop.rigid.state != BodyState::Awake {
         return None;
     }
-    contacts.clear();
     contacts.extend(points(prop).filter_map(|point| prop.rigid.ground_contact(point, ground, dt)).take(16));
     prop.rigid.resolve_ground(contacts);
-    prop.rigid.update_sleep(contacts.len());
     contacts.iter().find(|c| c.impulse_delta_v > 0.0).copied()
 }
 

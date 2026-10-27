@@ -77,9 +77,7 @@ impl Scene {
         }
         let mut bytes = [0u8; bindings::MATERIAL_STRIDE];
         if let Some(packed) = packed {
-            assert_eq!(packed.len(), 96);
-            bytes[..96].copy_from_slice(packed);
-            bytes[96..100].copy_from_slice(&1.0f32.to_le_bytes());
+            bytes.copy_from_slice(packed);
         }
         queue.write_buffer(&self.bindings.materials, (handle * bindings::MATERIAL_STRIDE) as u64, &bytes);
     }

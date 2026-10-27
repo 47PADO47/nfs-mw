@@ -1,6 +1,6 @@
 //! Independent selected-face history over an externally prepared candidate list.
 use super::{GroundFace, GroundPlane, GroundReferenceSettings, geometry};
-use crate::math::{Vec3, dot, sub};
+use crate::math::Vec3;
 
 #[derive(Clone, Debug, Default)]
 pub struct GroundFaceCache {
@@ -82,5 +82,5 @@ pub(super) fn select(
     if !same {
         plane.normal = geometry::normal(face.triangle.pts, settings.maximum_normal_y);
     }
-    plane.separation = dot(sub(face.triangle.pts[0], position), plane.normal);
+    plane.separation = geometry::separation(face.triangle.pts[0], position, plane.normal);
 }

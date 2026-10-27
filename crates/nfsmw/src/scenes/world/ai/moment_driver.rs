@@ -11,19 +11,36 @@ use super::TrafficWorld;
 use super::car::Ctx;
 use super::racer::RacerState;
 use super::traffic::CarState;
-use crate::scenes::world::drive::{DriveInput, STEP};
+use crate::scenes::world::drive::DriveInput;
 
 pub(in crate::scenes::world) struct MomentDriver {
     nav: RoadNav,
     racer: RacerState,
     driver: Driver,
     ticks: u32,
+    elapsed: f32,
+    think_elapsed: f32,
     request: DriveRequest,
 }
 
 impl TrafficWorld {
+    #[cfg(test)]
     pub(in crate::scenes::world) fn moment_input(
         &mut self,
+        state: &mut Option<MomentDriver>,
+        body: Body,
+        view: VehicleView,
+        performance: Performance,
+        ai: AiVehicle,
+        mass: f32,
+    ) -> DriveInput {
+        self.moment_input_with_delta(crate::scenes::world::drive::STEP, state, body, view, performance, ai, mass)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::scenes::world) fn moment_input_with_delta(
+        &mut self,
+        dt: f32,
         state: &mut Option<MomentDriver>,
         body: Body,
         view: VehicleView,
@@ -47,6 +64,8 @@ impl TrafficWorld {
                 racer,
                 driver: Driver::new(ControllerKind::Pid, false),
                 ticks: 0,
+                elapsed: 0.0,
+                think_elapsed: super::cop::THINK_STEPS as f32 * dt,
                 request: DriveRequest { target: body.position, speed: view.planar_speed, flags: DriveFlags::FULL },
             });
         }
@@ -71,11 +90,15 @@ impl TrafficWorld {
                 tractor: false,
                 stop: None,
             };
+            state.racer.set_think_delta(state.think_elapsed);
+            state.think_elapsed = 0.0;
             let think = state.racer.think(&mut ctx, &mut state.nav, &car, bodies.iter().map(|(body, _)| *body));
             state.request = DriveRequest { target: think.target, speed: think.speed, flags: DriveFlags::FULL };
         }
-        let controls = state.driver.step(&view, &state.request, STEP, state.ticks as f32 * STEP);
+        let controls = state.driver.step(&view, &state.request, dt, state.elapsed);
         state.ticks += 1;
+        state.elapsed += dt;
+        state.think_elapsed += dt;
         let gear_select = controls.gear.map(|gear| match gear {
             GearRequest::Reverse => GEAR_REVERSE,
             GearRequest::First => GEAR_FIRST,

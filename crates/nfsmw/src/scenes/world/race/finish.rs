@@ -120,6 +120,7 @@ impl WorldScene {
         self.traffic_manual = session.previous_traffic;
         if let Some(drive) = self.players.lead_mut() {
             drive.hold_on_grid(false);
+            drive.set_launch_mode(false);
             drive.set_steer_assist(None);
         }
     }

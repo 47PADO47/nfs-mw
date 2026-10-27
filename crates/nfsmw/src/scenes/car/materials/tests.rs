@@ -55,7 +55,7 @@ fn installed_original_car_materials_resolve_paint_glass_and_custom_parts() {
                             true => original_material(authored, expected_model),
                             false => glossy_material(authored),
                         };
-                        if mode == CarShading::Glossy && Some(actual_hash) == materials.paint && model.paintable {
+                        if mode == CarShading::Glossy && Some(actual_hash) == materials.paint {
                             expected.surface = model.paint.as_ref().and_then(super::super::paint_surface::response);
                         }
                         if mode == CarShading::Glossy && Some(actual_hash) != materials.paint {

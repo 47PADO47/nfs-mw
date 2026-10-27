@@ -31,6 +31,21 @@ fn a_restored_car_steps_exactly_as_it_did() {
 }
 
 #[test]
+fn restore_keeps_the_delta_used_for_the_saved_acceleration() {
+    let ground = FlatGround::new(5.0);
+    let mut car = sim();
+    assert!(car.place_moving(&ground, Spawn { position: Vec3::new(100.0, 50.0, 5.0), heading: 0.0 }, 15.0));
+    car.body_mut().apply_force(Vec3::X * 1000.0);
+    car.step_with_delta(1.0 / 144.0, &input(0), &ground, None);
+    let acceleration = car.camera_acceleration();
+    assert!(acceleration.length() > 0.0, "the saved step must exercise acceleration");
+    let saved = car.save();
+    car.step_with_delta(1.0 / 576.0, &input(1), &ground, None);
+    car.restore(&saved);
+    assert_eq!(car.camera_acceleration(), acceleration);
+}
+
+#[test]
 fn a_motion_written_into_the_car_reads_back() {
     let ground = FlatGround::new(5.0);
     let mut car = sim();

@@ -415,3 +415,33 @@ fn gauge_colors_survive_script_updates_preserve_alpha_and_restore_authored_rgb()
     let restored = rt.tree(id).nodes.iter().find(|n| n.index == needle.index).unwrap().colour;
     assert_eq!(&restored[..3], &original[..3]);
 }
+
+#[test]
+fn launch_needle_complements_current_gauge_color_and_restores_it_without_flicker() {
+    let (mut rt, id, mut binding) = setup();
+    let needle = rt.find(id, fe_hash_upper("3rdPersonNeedle")).unwrap();
+    let original = rt.colour_rgba(needle).unwrap();
+    let mut state =
+        HudState { perfect_launch_range: true, gauge_colors: [None, Some([100, 220, 30]), None], ..Default::default() };
+    for _ in 0..3 {
+        binding.apply(&mut rt, &state);
+        rt.update(1.0 / 144.0);
+        rt.set_alpha(needle, 123);
+        binding.finish_frame(&mut rt, &state);
+        assert_eq!(rt.colour_rgba(needle), Some([155, 35, 225, 255]));
+    }
+    state.gauge_colors[1] = Some([10, 20, 30]);
+    binding.finish_frame(&mut rt, &state);
+    assert_eq!(rt.colour_rgba(needle), Some([245, 235, 225, 255]));
+    state.perfect_launch_range = false;
+    binding.finish_frame(&mut rt, &state);
+    assert_eq!(rt.colour_rgba(needle), Some([10, 20, 30, 255]));
+    state.perfect_launch_range = true;
+    binding.finish_frame(&mut rt, &state);
+    state.gauge_colors[1] = None;
+    binding.finish_frame(&mut rt, &state);
+    assert_eq!(rt.colour_rgba(needle), Some([!original[0], !original[1], !original[2], 255]));
+    state.perfect_launch_range = false;
+    binding.finish_frame(&mut rt, &state);
+    assert_eq!(rt.colour_rgba(needle), Some([original[0], original[1], original[2], 255]));
+}

@@ -33,18 +33,18 @@ pub struct SpringInput {
 }
 
 pub fn spring_force(a: &AxleConstants, i: &SpringInput) -> f32 {
-    let mut rise = (i.c_new - i.c_old) / i.dt;
+    let mut rise = (i.c_new - i.c_old) * (1.0 / i.dt);
     if a.valving > 1e-6 && a.digression < 1.0 && rise.abs() > a.valving {
         rise = rise.signum() * a.valving * (rise.abs() / a.valving).powf(a.digression);
     }
-    let spring = i.c_new * a.spring * (1.0 + i.c_new * a.progression);
+    let spring = ((1.0 + i.c_new * a.progression) * a.spring) * i.c_new;
     let mut damper = rise * if rise > 0.0 { a.shock } else { a.shock_ext };
-    if i.blowout > 0.0 && damper > i.blowout * 9.81 * i.mass {
+    if damper > i.blowout * 9.81 * i.mass {
         damper = 0.0;
     }
     let roll = (i.c_left_old - i.c_right_old) * a.sway;
     let sway = if i.side == Side::Left { roll } else { -roll };
-    (damper + spring + sway).max(0.0)
+    (damper + sway + spring).max(0.0)
 }
 
 #[cfg(test)]
@@ -82,8 +82,28 @@ mod tests {
             side: Side::Left,
             dt: 1.0 / 60.0,
             mass: 1500.0,
-            blowout: 0.0,
+            blowout: 1000.0,
         }
+    }
+
+    #[test]
+    fn progressive_spring_preserves_product_rounding() {
+        let mut a = axle();
+        a.spring = 125_000.0;
+        a.progression = 1.0;
+        a.shock = 5_000.0;
+        a.sway = 0.0;
+        assert_eq!(spring_force(&a, &input(0.03, 0.04)).to_bits(), 0x46001fff);
+    }
+
+    #[test]
+    fn compression_speed_preserves_rounded_reciprocal() {
+        let mut a = axle();
+        a.spring = 100_000.0;
+        a.progression = 1.0;
+        a.shock = 7_000.0;
+        a.sway = 0.0;
+        assert_eq!(spring_force(&a, &input(0.01, 0.06)).to_bits(), 0x46d5bffe);
     }
 
     #[test]
@@ -144,5 +164,17 @@ mod tests {
         let with = spring_force(&a, &hard);
         let spring_only = 0.05 * a.spring;
         assert!((with - spring_only).abs() < 1.0, "damper should be vented: {with} vs {spring_only}");
+    }
+
+    #[test]
+    fn zero_blowout_vents_compression_damping_but_keeps_rebound_damping() {
+        let a = axle();
+        let mut compressed = input(0.04, 0.05);
+        compressed.blowout = 0.0;
+        let rest = spring_force(&a, &input(0.05, 0.05));
+        assert_eq!(spring_force(&a, &compressed), rest);
+        let mut extending = input(0.06, 0.05);
+        extending.blowout = 0.0;
+        assert!(spring_force(&a, &extending) < rest);
     }
 }

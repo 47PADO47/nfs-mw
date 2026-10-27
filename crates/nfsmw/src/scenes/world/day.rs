@@ -1,5 +1,5 @@
-//! The world's day-night clock. It counts the simulated time, sets the sun for the hour of day, and switches the
-//! player's headlights at the clock's lights-on and lights-off hours. The curves are in `nfsmw_data::day_night`.
+//! The world's day-night clock. It counts simulated time and sets the sun for the hour of day.
+//! The curves are in `nfsmw_data::day_night`; player headlights are controlled independently.
 //! Not yet done: the sky colour (the sky model, a later epic) and the world's own lights.
 
 use nfsmw_data::day_night::{self, DayNightConfig};
@@ -15,8 +15,6 @@ pub(super) struct DayClock {
     sun_mode: crate::viewer::SunMode,
     phase: f64,
     direction: f64,
-    /// The lights state last applied to the drive, so a manual headlight toggle holds until the next switch.
-    lights: Option<bool>,
     /// A mod has held the hour (`bb.time` freeze). The clock stops as it does for the lab's freeze.
     held: bool,
     /// Manual hour seeks also move Enhanced clouds, independently of simulation time.
@@ -31,7 +29,6 @@ impl DayClock {
             sun_mode: Default::default(),
             phase: 0.5,
             direction: 1.0,
-            lights: None,
             held: false,
             cloud_seek_seconds: 0.0,
         }
@@ -123,18 +120,6 @@ impl DayClock {
         }
         day_night::sun_phase(self.hour(), &self.cfg, sun_phase_limit(0))
     }
-
-    /// Whether the lights are on at the hour.
-    pub(super) fn lights_on(&self) -> bool {
-        day_night::lights_on(self.hour(), &self.cfg)
-    }
-
-    /// Records the lights state and reports whether it changed since the last switch.
-    pub(super) fn lights_changed(&mut self, on: bool) -> bool {
-        let changed = self.lights != Some(on);
-        self.lights = Some(on);
-        changed
-    }
 }
 
 impl WorldScene {
@@ -144,20 +129,11 @@ impl WorldScene {
         self.reflection_last = None;
     }
 
-    /// Moves the day clock on by `sim_dt`, sets the sun for the hour, and switches the headlights when the clock
-    /// crosses the lights-on or lights-off hour. A drive that is not yet placed keeps its own state.
+    /// Move the day clock and update the sun, without changing player headlights.
     pub(super) fn update_day(&mut self, sim_dt: f32, frozen: bool) {
         let held = frozen || self.day.held();
         self.day.update(sim_dt, held);
         self.sun.set_phase(self.day.sun_phase());
-        let on = self.day.lights_on();
-        let Some(drive) = self.players.lead_mut() else {
-            return;
-        };
-        if !self.day.lights_changed(on) {
-            return;
-        }
-        drive.set_headlights(on);
     }
 }
 
@@ -169,6 +145,49 @@ mod tests {
     /// The default config: 150 real seconds per game hour, starting at noon.
     fn clock() -> DayClock {
         DayClock::new(DayNightConfig::default())
+    }
+
+    #[test]
+    #[ignore = "requires installed cars and world data"]
+    fn installed_headlights_start_on_and_ignore_clock_changes_after_manual_toggle() {
+        use crate::viewer::Scene;
+        let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap();
+        let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+        let mut scene = WorldScene::open(
+            &dir,
+            super::super::Options {
+                at: None,
+                height: 30.0,
+                heading: 0.0,
+                pitch: 0.0,
+                fog_distance: 1000.0,
+                wait_for_load: false,
+                drive: None,
+            },
+        )
+        .unwrap();
+        let mut renderer = crate::app::test_backend::NullBackend::new(crate::settings::test_caps::native());
+        let car =
+            scene.garage.cars.iter().find(|c| c.category == crate::garage::Category::Racing).unwrap().folder.clone();
+        scene.apply_garage_selection(&mut renderer, crate::garage::Selection { car, ..Default::default() }).unwrap();
+        assert!(scene.players.lead().unwrap().headlights, "new player headlights start on");
+        for hour in [12.0, 22.0, 6.0] {
+            let mut environment = scene.day.environment();
+            environment.hour = hour;
+            scene.configure_day(environment);
+            scene.update_day(100.0, false);
+            assert!(scene.players.lead().unwrap().headlights, "clock must not turn headlights off at {hour}");
+        }
+        assert!(!scene.players.lead_mut().unwrap().toggle_headlights());
+        for hour in [12.0, 22.0, 6.0] {
+            let mut environment = scene.day.environment();
+            environment.hour = hour;
+            scene.configure_day(environment);
+            scene.update_day(100.0, false);
+            assert!(!scene.players.lead().unwrap().headlights, "clock must preserve the manual off state at {hour}");
+        }
+        assert!(scene.players.lead_mut().unwrap().toggle_headlights());
+        scene.close(&mut renderer);
     }
 
     #[test]
@@ -197,9 +216,9 @@ mod tests {
     #[test]
     fn freezing_holds_lighting_and_resume_does_not_catch_up() {
         let mut day = clock();
-        let before = (day.hour(), day.sun_phase(), day.lights_on());
+        let before = (day.hour(), day.sun_phase());
         day.update(600.0, true);
-        assert_eq!((day.hour(), day.sun_phase(), day.lights_on()), before);
+        assert_eq!((day.hour(), day.sun_phase()), before);
         day.update(1.0, false);
         let mut expected = clock();
         expected.advance(1.0);
@@ -292,7 +311,6 @@ mod control_tests {
         assert_eq!(day.hour(), 3.0);
         day.configure(crate::viewer::Environment { hour: 22.0, seconds_per_hour: 60.0, ..Default::default() });
         assert_eq!(day.hour(), 22.0);
-        assert!(day.lights_on());
         day.update(600.0, true);
         assert_eq!(day.hour(), 22.0);
         day.update(120.0, false);

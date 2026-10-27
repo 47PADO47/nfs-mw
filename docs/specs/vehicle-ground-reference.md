@@ -80,6 +80,13 @@ There is no added edge epsilon. Normalize the face normal, orient it upward,
 and cap its vertical component at 0.9999 without renormalizing. A zero cross
 product supplies world-up before the cap.
 
+Evaluate the retained plane's signed separation by subtracting the query from
+the selected face's first vertex, multiplying each coordinate by its normal,
+then adding Z/Y before X. Preserve this order in both prepared-list and global
+query paths. The generic vector dot product and normal normalization retain
+their existing arithmetic. Exact original-instruction fixtures and a live
+candidate/cache replay verify this scalar order; no terrain tolerance changes.
+
 Cache whether the prior face was valid. If a search misses, preserve that face
 when requested and previously valid, but clear the active surface reference.
 Otherwise mark the face invalid and write separation minus one while retaining

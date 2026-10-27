@@ -21,7 +21,13 @@ fn installed_speedbreaker_attenuates_actual_engine_pcm_and_restores_it_at_high_f
                 let until = (frame + 1) * 60 / fps;
                 let mut ticks = Vec::new();
                 while tick < until {
-                    ticks.push(CarSoundTick { telemetry: Default::default(), input, contacts: vec![], surface: 0 });
+                    ticks.push(CarSoundTick {
+                        sim_dt: blackbox_vehicle::FIXED_STEP,
+                        telemetry: Default::default(),
+                        input,
+                        contacts: vec![],
+                        surface: 0,
+                    });
                     tick += 1;
                 }
                 let mut state = CarSoundState {

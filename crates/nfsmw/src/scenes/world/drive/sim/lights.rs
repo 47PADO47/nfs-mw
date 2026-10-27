@@ -2,12 +2,12 @@
 use super::CarSim;
 
 impl CarSim {
-    pub(super) fn advance_lamps(&mut self, brake: f32) {
+    pub(super) fn advance_lamps(&mut self, brake: f32, dt: f32) {
         if self.collision_role.player {
             return;
         }
         self.brake_lamp_age = match brake > 0.0 {
-            true => self.brake_lamp_age + blackbox_vehicle::FIXED_STEP,
+            true => self.brake_lamp_age + dt,
             false => 0.0,
         };
     }

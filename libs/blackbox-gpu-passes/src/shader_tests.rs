@@ -2,7 +2,8 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 6] = [
+const SHADERS: [(&str, &str); 7] = [
+    ("flames", concat!(include_str!("shaders/flame_noise.wgsl"), include_str!("shaders/flames.wgsl"))),
     ("ui", include_str!("shaders/ui.wgsl")),
     ("ui_mask", include_str!("shaders/ui_mask.wgsl")),
     ("ui_picture", include_str!("shaders/ui_picture.wgsl")),
