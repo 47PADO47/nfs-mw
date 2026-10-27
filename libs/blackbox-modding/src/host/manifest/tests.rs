@@ -169,3 +169,20 @@ fn load_hints_are_sorted_and_deduplicated() {
     let manifest = parse(&text).expect("hints");
     assert_eq!(manifest.load_after, vec!["a.mod".to_owned(), "b.mod".to_owned()]);
 }
+
+#[test]
+fn the_config_key_defaults_to_none_and_names_a_file_in_the_folder() {
+    assert_eq!(parse(MINIMAL).unwrap().config, None);
+    let named = MINIMAL.replace("[mod]", "[mod]\nconfig = \"settings/mine.toml\"");
+    assert_eq!(parse(&named).unwrap().config.as_deref(), Some("settings/mine.toml"));
+}
+
+#[test]
+fn a_config_path_that_leaves_the_folder_is_refused() {
+    for bad in ["../x.toml", "/etc/x.toml", "C:/x.toml", "a\\b.toml", "a/../../x.toml", "", "a//b.toml"] {
+        // A TOML literal string, so the backslash case reaches the check as a backslash.
+        let text = MINIMAL.replace("[mod]", &format!("[mod]\nconfig = '{bad}'"));
+        let error = parse(&text).unwrap_err();
+        assert!(matches!(error, ManifestError::InvalidConfig { .. }), "{bad:?}: {error}");
+    }
+}

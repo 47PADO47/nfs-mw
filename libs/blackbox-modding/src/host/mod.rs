@@ -16,6 +16,7 @@
 //! - [`registry`]: the interfaces the host offers, and the per-mod tables it builds for them.
 //! - `table`: the host table of each mod, `query_interface`, and the trampolines behind the interface tables.
 
+pub mod config;
 pub mod discovery;
 pub mod fault;
 pub mod gate;
@@ -32,8 +33,11 @@ pub mod runtime;
 mod table;
 
 #[cfg(test)]
+mod config_tests;
+#[cfg(test)]
 pub(crate) mod test_support;
 
+pub use config::{ConfigError, Effective};
 pub use discovery::{Candidate, Discovery, check_offer, discover};
 pub use fault::{FaultCounter, QUARANTINE_AFTER};
 pub use loader::{LoadError, Module};
