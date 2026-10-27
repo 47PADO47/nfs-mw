@@ -83,8 +83,12 @@ fn show_race(cx: &mut Cx, track: &Track) {
     cx.text_object(OPPONENTS, &track.opponents.to_string());
 }
 
-/// The textures of a car's manufacturer logo and model-name picture; the generic logos stand in for a missing one.
+/// The textures of a car's manufacturer logo and model-name picture; the generic logos stand in for a missing one, and a mod
+/// car has pictures drawn from its name (`car_title`).
 pub(crate) fn logo_textures(assets: &crate::ui::UiAssets, car: &PoolCar) -> (u32, u32) {
+    if let Some(pictures) = crate::frontend::car_title::pictures(assets, &car.folder) {
+        return pictures;
+    }
     let logo = |name: String, generic: &str| {
         let hash = fe_hash_upper(&name);
         match assets.texture(hash) {
@@ -97,7 +101,6 @@ pub(crate) fn logo_textures(assets: &crate::ui::UiAssets, car: &PoolCar) -> (u32
 
 fn show_car(cx: &mut Cx, car: &PoolCar, pool: &CarPool) {
     let (maker, model) = logo_textures(cx.assets, car);
-    crate::frontend::car_title::show(cx, &car.folder);
     set_texture(cx, MANUFACTURER_LOGO, maker);
     set_texture(cx, MODEL_LOGO, model);
     let [top, handling, acceleration] = match car.stats {

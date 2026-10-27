@@ -198,7 +198,6 @@ impl CarSelect {
             return self.show_empty(cx);
         };
         cx.rt.post_to_package(cx.package, NO_CARS_OFF);
-        crate::frontend::car_title::show(cx, &entry.car.folder);
         let (maker, model) = logo_textures(cx.assets, &entry.car);
         for (name, texture) in [(MAKER_LOGO, maker), (MODEL_LOGO, model)] {
             if let Some(o) = cx.object(name) {
