@@ -1,7 +1,8 @@
 # The NFS: Most Wanted (2012) content mod
 
-`nfsmw-2012-content` adds the cars of **NFS: Most Wanted (2012)** to this game: 73 more cars to choose from (the install has 93 car bundles; 20 are
-liveries of other cars, which the shop offers as liveries), with their
+`nfsmw-2012-content` adds the cars of **NFS: Most Wanted (2012)** to this game: 67 more cars to choose from (the install has 93 car bundles; 20 are
+liveries of other cars, which the shop offers as liveries, and 6 are a car the vehicle list has under a second vehicle id, which
+the shop offers as paints of the one car), with their
 own bodies, interiors, glass, lamps, wheels, textures, paints, stats, collision and sounds. The 2012 game runs on a
 different engine (Criterion's Chameleon, not Black Box), so the cars are converted, not copied. It is a native mod like
 [`hello`](examples.md), the only mod of the repository that is built with the workspace:
@@ -52,8 +53,9 @@ the mod folder, or set `mods = off` / use `--no-mods`.
 What the shop offers for a car's looks is the car's own: the **paints of its 2012 bundle**, 1 to 15 per car, and, for the five
 cars the 2012 game ships in several liveries, **the liveries** (no vinyls, rims, spoilers or tints:
 [chameleon-customization.md](../formats/chameleon-customization.md)). The 2012 game lists a livery as a vehicle of its own, with
-a bundle of its own; the mod makes one car of a vehicle and lists the pictures of its bundles as `Livery 1` to `Livery 5` in the
-shop's vinyl category ([car-customization.md](car-customization.md#liveries)).
+a bundle of its own; the mod makes one car of a vehicle and lists the pictures of its bundles, named as the 2012 game names them
+(`Hero`, `Race`, `Street`, `Abstract`, `Urban`), in the shop's vinyl category ([car-customization.md](car-customization.md#liveries)).
+The car wears its first livery as its stock look, and the shop's `No livery` choice gives the plain paint.
 The performance upgrades and **nitrous** work on the car's own stats; the cars have nitrous from the factory. How the shop
 treats a car is in [car-customization.md](car-customization.md), how it drives in [car-stats.md](car-stats.md), how it sounds
 in [car-sound.md](car-sound.md); this page is the mod's settings and what the conversion writes.
@@ -136,13 +138,14 @@ table instead ([car-stats.md](car-stats.md)).
 | 2012 | In the game |
 |---|---|
 | Body, interior, lamps, mirrors (finest of 3 levels, 5,000 to 36,000 triangles) | `<ID>_KIT00_BODY_A..D` (the car's own folder), in car space (+x forward, +y left, +z up), with the 2012 shape unchanged: only the axes are permuted and the car is centred on its wheelbase (`src/fit.rs`) |
-| Tyre, brake disc, rim and caliper | one `<ID>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled; the game draws it at the four hubs the car's `[stats]` give |
+| Tyre, brake disc, rim and caliper | one `<ID>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled; the game draws it at the four hubs the car's `[wheels]` table gives ([The wheels](#the-wheels)) |
+| Driver | the 2012 game's one driver figure (the police Explorer's), seated at the steering wheel of the car: `<ID>_KIT00_DRIVER_A..D`, drawn while driving ([The driver](#the-driver)) |
 | Diffuse maps (BC1, BC3) | the car's `TEXTURES.BIN` as DXT1 and DXT5, cut to `max_texture_size` |
 | Paint surfaces | the placeholder `<ID>_SKIN1` with light material `CARSKIN`, which the game swaps for the paint the player picks. Their texture coordinates are the 2012 car's own |
-| Liveries | the paint picture of each bundle of a vehicle that has several, or of the only bundle of a car that wears one (2048 x 1024 BC1, cut to `max_texture_size`): the vehicle's own bundle first, then its liveries in vehicle list order, as `<ID>_LIV1` to `<ID>_LIV5` in the car's `TEXTURES.BIN` and the `liveries` list of its `[customization]` table. A livery bundle is the car with that one texture replaced; one that is not (another body, no picture) is converted as a car of its own (`src/vehicle_list.rs`, `src/liveries.rs`, `src/variants.rs`) |
-| Paints | the `VehiclePaint` records of the car's bundle (`libs/chameleon-vehicle/src/paint.rs`): the colour, and the finish from the record's type, written as the `[customization]` table of the manifest, repeated colours dropped (`src/paints.rs`) |
+| Liveries | the paint picture of each bundle of a vehicle that has several, or of the only bundle of a car that wears one (2048 x 1024 BC1, cut to `max_texture_size`): the vehicle's own bundle first, then its liveries in vehicle list order, as `<ID>_LIV1` to `<ID>_LIV5` in the car's `TEXTURES.BIN` and the `liveries` list of its `[customization]` table. A livery bundle is the car with that one texture replaced; one that is not (another body, no picture) is converted as a car of its own. The liveries are named by the vehicle's paint pack (`libs/chameleon-vehicle/src/paint_pack.rs`, the text table's `HERO`, `RACE`, ...), and the car wears the first as its stock look (`default_livery = 0`). Vehicles of the list that are one car under two vehicle ids (the same name; 6 of them) are one car, led by the one with liveries, then the one with most paints, and lend it their paints (`src/vehicle_list.rs`, `src/liveries.rs`, `src/fold.rs`, `src/variants.rs`) |
+| Paints | the `VehiclePaint` records of the car's bundle (`libs/chameleon-vehicle/src/paint.rs`): the colour, and the finish from the record's type, written as the `[customization]` table of the manifest, repeated colours dropped; the ones the vehicle's paint pack lists come first in the pack's order, so the default paint is the pack's first (`src/paints.rs`) |
 | Stats | the car's own stats, read from its Genesys handling definition ([chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md)) and written as the `[stats]` table of its manifest: mass (body and wheels), weight distribution and centre-of-gravity height from the axles and rigid bodies, wheelbase, track and tyre size, the torque curve (at most 16 points, knots kept) with its idle and limiter, the gearbox and final drive, the drive layout and differential locks, the tyres' peak grip, the brake torque of each axle, the design top speed (the game solves the air drag from it) and the nitrous strength as `nitrous_boost`; then the `[performance]` multipliers (`src/stats.rs`, `src/performance.rs`) |
-| Engine | the car's own sound graphs ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)): the Ginsu voices as `.GIN` files, the idle and whine loops as WAVs, each layer with its curves of rpm, load and speed in the `[engine_sound]` table (`src/graph_voices.rs`); a car without those graphs gets the looping samples of its bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), except the turbo's whistle, one 16-bit WAV per layer at one level, with the rpm each stands for (`src/engine.rs`, `src/sample.rs`) |
+| Engine | the car's own sound graphs ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)): the Ginsu voices as `.GIN` files, the idle and whine loops as WAVs, each layer with its curves of rpm, load and speed in the `[engine_sound]` table (`src/graph_voices.rs`, `src/graph_voices/speed.rs`; the player's engine sound and the gearbox whine only, the electric car's motor loops with a `rate` curve of the speed, and `shift_clunk = false` for a car with no gear change sound); a car without those graphs gets the looping samples of its bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), except the turbo's whistle, one 16-bit WAV per layer at one level, with the rpm each stands for (`src/engine.rs`, `src/sample.rs`) |
 | Shifts, turbo, backfire, pops | the samples that the car's sound graphs play for the live values `GetPlayerNormalisedGearChangeTimeElapsed`, `BackfireGain`, `GetPopProbability`/`PopGain`, `NormalisedTurboRPM`/`TurboToneGain` and `TurboBlowoffGain` (the last two also use the shared `VEHICLES/WAVES.BNDL`), as WAVs and a `[car_sound]` table (`src/graphs.rs`, `src/effects.rs`). A car with no such graph has no such sound |
 | Shared body hits, scrapes, pops | the first selector of the `Player Vehicle Collision Small`/`Medium`/`Big` graphs and the three samples of `Player Vehicle Scraping` (`SOUND/METALCAR.BNDL`), and the pops each car's graphs import from `VEHICLES/WAVES.BNDL`, written **once** under `files/SOUND/MODSHARED/` and named by every car's `[car_sound.shared]` (`src/shared.rs`). Evidence: [chameleon-shared-sounds.md](../formats/chameleon-shared-sounds.md) |
 | Collision mesh and tyres | `files/CARS/<ID>/BOUNDS.BIN`: the car's own collision bounds, fitted to the poly soup of its bundle (the body's real extents, 166 to 256 triangles) and to the box of each tyre, through the same transform as the body: a root box, a lower body box, a cabin box, front and roof corner spheres and the silhouette the car rolls on. The one bundle without a collision mesh (the SWAT van) is fitted to its visible body. Format and what the 2012 game holds: [car-collision.md](car-collision.md), [chameleon-collision.md](../formats/chameleon-collision.md) (`src/collision.rs`) |
@@ -204,20 +207,31 @@ Then what the conversion does not do:
   markers from the lamp locators (head, brake, centre brake and reverse lamps) and flat lit colours
   ([car-lamps.md](car-lamps.md)). The sets were not compared with how the cars drive in a window.
 - **Tail pipes are the car's own** (1, 2, 3 or 4 a car, in the places the 2012 game has them: the 918 Spyder's on top of the rear deck, the Viper's at the sides). The BMW 1M's bundle holds pipes 0.3 m beyond its body (the body is the *Cars* tie-in model's), and one unnamed bundle (122706) has no effect records, so it gets pipes derived from its body. The effects that follow the nitrous (afterburn, bit 14) and the 2012 flame shapes are not used: the game's own flame emitters play at the pipes.
-- **Paint names.** The 2012 records carry no names; a paint is named by its finish and colour (`Metallic #AD2B2C`).
+- **Paint names.** The 2012 records carry no names; a paint is named by its finish and colour (`Metallic #AD2B2C`). The game's
+  own names (`SILVER METALLIC`) are in the paint packs and the text table, and are not used yet: a paint's name is what a saved
+  selection stores, so renaming would break the My Cars slots that hold a paint.
+- **Two-colour cars.** Nine vehicles have paint packs of two colours (the Veyron Super Sport and Grand Sport Vitesse, the BMW M3 E92,
+  the Challenger SRT8 392, the Ford GT, the Boss 302, the Cobra 427, the Caterham R500, the Ariel Atom): their bundles hold more paint
+  records than the group has packs (the Veyron SS: 12 and 5), and the pairing is not found in the install (`PaintPack::two_paint` names something no resource holds), so
+  they are painted in one colour all over and offered the bundle's paints in the bundle's order, not the pack's.
 - **Normal, specular and effect maps are dropped**: the 2005 car shader has its own lighting.
 - **Names.** The mod gives every car a display name and a brand. The garage lists the car under both
   (`scenes/world/garage.rs`); the other screens that name cars were not checked.
-- **Liveries are numbered, and the picture is all there is.** The 2012 game names its liveries with images, not text, so the
-  shop calls them `Livery 1` to `Livery 5`; a livery changes only the paint picture, as in the 2012 game. The pictures are laid
+- **Liveries are the game's own, five for five cars.** The 2012 game has liveries for five vehicles only (the BMW M3 E46 GTR, the
+  Lamborghini Diablo SV, the Porsche 911 GT2, the Nissan 350Z and the Skyline R34 GT-R: the stock `Hero` and four it unlocks online;
+  it has no others, not for the Bugatti or the McLaren). The shop calls them by the names of the 2012 game's paint packs (`Hero`,
+  `Race`, `Street`, `Abstract`, `Urban`; `Livery 1` and so on where a pack does not name one, which also keeps the numbered names
+  of older conversions out of the way: a saved livery of the old names is no longer found); a livery changes only the paint
+  picture, as in the 2012 game. The pictures are laid
   over the paint colour by their alpha, so an opaque livery hides the paint the player picks. Every car with a livery wears its
   first one (the picture of the vehicle's own bundle) from the start; the shop's `No livery` choice takes it off and leaves the
   plain paints and finishes. A car with a single bundle offers its picture as `Livery 1` when the paint surfaces
   that draw a `Livery` technique make up most of its paint (the 918 Spyder, the Bentley, the Lancia Delta, the Veyron Grand
   Sport Vitesse and four of the five police vehicles); a picture on one panel next to plain paint (the Raptor, the Gallardo),
   a `TwoPaintMask` picture (a mask of the second colour, not a livery) and the SWAT van's are not offered.
-  Older conversions made each livery bundle a car of its own (20 more cars with generated ids): those ids are gone after the
-  next conversion, while the ids of the other 73 cars are unchanged.
+  Older conversions made each livery bundle a car of its own (20 more cars with generated ids) and the second vehicle id of a car
+  another one (6 more, the R34 GT-R with plain paint among them): those ids are gone after the next conversion, while the ids of
+  the other 67 cars are unchanged. A My Cars slot of a car that is gone stays in the list and says its car is not installed.
 - **Traffic and low-detail bundles** (`_TR`, `_LO`) are not imported.
 - A screen the game has open when the conversion finishes keeps the car list it built; open it again to see the cars.
 
@@ -307,31 +321,74 @@ data's ([car-damage-parts.md](car-damage-parts.md#falling-off)); the units and t
 
 ## The wheels
 
-The wheel hubs come from the car's graphics spec; the tyre's height, width and reach come from its wheel mesh; the converter
-writes them as the car's `[wheels]` table ([car-stats.md](car-stats.md#where-the-wheels-are-drawn-wheels)), and the stats'
-wheelbase and weight distribution are those of the same hubs, so the body, the physics and the drawn wheels agree. The wheels are
-taken by their place and not their name (a few cars name them the wrong way round). One car has hubs that cannot be right: the
-Venom GT Spyder's front hubs lie behind its doors (z 0.125 against a body from -2.33 to 2.33, and a front arch at 1.3). An axle
-whose hubs are more than 30% of the body's length from its end is taken from the vehicle info's axle instead (1.3 for the
-Venom), which the arches of the body confirm. With the real install, `cargo test -p nfsmw-2012-content --lib fit_real --
---ignored --nocapture` tabulates, for every car, the largest error (centre, height, outer and inner face, radius) of the drawn
-wheels against the model's own wheel mesh: before the table, 21 of the 93 bundles were off by more than 2 cm (the Venom by
-59 cm, the BMW 1M by 35 cm, the E46 GTR by 7 cm, the Lancia Delta by 6 cm and twelve more by 2 to 5 cm); with it all are within
-2 cm (the largest is 1.4 cm). This checks the numbers the game is given, and the Venom was also looked at in a render
-(`nfsmw view-car HENVENOMGT12 --yaw 90 --screenshot out.png --muted`).
+The wheel hubs come from the car's graphics spec; the tyre's height, width and reach come from its wheel mesh; the
+converter writes them as the car's `[wheels]` table ([car-stats.md](car-stats.md#where-the-wheels-are-drawn-wheels)), and the
+stats' wheelbase and weight distribution are those of the same axles, so the body, the physics and the drawn wheels agree. The
+wheels are taken by their place and not their name (a few cars name them the wrong way round).
+
+An axle is where the **body's arch** is. On all but four cars the spec's hubs, the vehicle info's axles and the arches agree
+([chameleon-vehicle.md](../formats/chameleon-vehicle.md#hubs-and-the-bodys-arches)). Where they do not, the converter tests the
+tyre against the body (`chameleon_vehicle::prefer_other`: the body's vertices inside the tyre at the hub and at the info's axle)
+and takes the axle that has room for it:
+
+- the **BMW 1M** (`BMW1M12`): its spec and info are the 1M's but its body is Lightning McQueen's, 3.5 m long against the 1M's
+  4.3, so its tyres at the 1M's hubs (1.42 and -1.24) sat 0.4 m ahead of and behind the body's arches and had the body through
+  them; at the info's axles (1.035 and -0.925) the arches are clear. This was the misplaced wheels;
+- the **Venom GT Spyder**'s front hubs (behind its doors, z 0.125; its arch is at 1.3) and the **E46 GTR**'s rear hubs (10 cm
+  behind the arch). An axle whose hubs are more than 30% of the body's length from its end is taken from the vehicle info
+  without the test (the Venom), as before;
+- every other car keeps its hubs: a car with no arch clear at the info's axle (the Lancia Delta's body holds liner vertices at
+  both) is not moved.
+
+The tyres' collision boxes follow the same axles (the hubs of the car are moved onto them before the bounds are fitted). With
+the real install, `cargo test -p nfsmw-2012-content --lib fit_real -- --ignored --nocapture` tabulates, for every car, the
+largest error (centre, height, outer and inner face, radius) of the drawn wheels against the model's own wheel mesh at the
+axle used: with all of them within 2 cm (the largest is 1.4 cm). `cargo test -p chameleon-vehicle --lib arch --
+--ignored` (with `CHAMELEON_GAME_DIR`) checks that exactly those four axles move. This checks the numbers the game is given,
+not a drive: the Venom was looked at in a render (`nfsmw view-car HENVENOMGT12 --yaw 90 --screenshot out.png --muted`), the
+1M and the E46 were not.
+
+## The driver
+
+The 2012 game draws a person in **one** car, the police Explorer: a seated figure (362 vertices) with its hands on the wheel,
+as a body mesh of its own. The other 92 bundles have none ([chameleon-vehicle.md](../formats/chameleon-vehicle.md#the-driver)).
+The conversion takes that figure out of the Explorer's body and gives **every car with a steering wheel bone** (90 of the 93
+bundles) a copy of it as its driver: the solid `<ID>_KIT00_DRIVER_A..D`, which the game draws in the cockpit when the car is
+driven (not in the garage or the shop), with a part of its own (`<ID>_DRIVER`, slot `DRIVER`) that the game adds to its parts
+database with the body and the wheel ([car-customization.md](car-customization.md#the-files-of-a-car)). A mod car with no such
+solid has no driver.
+
+- **Placed by the car's own wheel.** The figure is modelled around the Explorer's `SteeringWheel` bone, so it is moved to the
+  bone of each car (hands on the wheel, wherever the car puts it, left, right or in the middle), then through the same
+  transform as the body. Where the roof (or an open car's roll hoop) over the seat is too low for its head, the seat goes
+  down by up to 12 cm and then the figure shrinks to at least 85%; in a low car it shrinks, not sinks, when the soles would
+  go through the floor.
+- **Looks.** The figure's own colours (skin and dark grey clothes, an 8 x 8 texture in the car's `TEXTURES.BIN`), matte.
+- **Not done.** The Explorer, the only car that draws its own, loses the body mesh to the solid (the body no longer holds it).
+  The SWAT van, the Zonda R and the Huayra have no steering wheel bone, so no driver. The figure's pose is the Explorer's (upright,
+  hands at the wheel): a sports car's seat is lower and more reclined, and the data does not say by how much; the head and
+  feet of the low cars are fitted, not posed. Nothing has been seen in a running game; the converter's tests and the
+  reader's install test (`cargo test -p chameleon-vehicle --lib driver -- --ignored`, the figure inside every car's
+  body) check the numbers.
 
 ## The 2012 cameras
 
 Every converted car also gets the 2012 game's cameras as three **extra camera views** ([api-world.md](api-world.md#camera),
 `bb.camera` 1.1): **2012 Chase**, **2012 Bonnet** and **2012 Bumper**. Press **C** (the camera hotkey) past the game's own
-cameras to reach them, or pick one in the options' Camera row; the choice is saved as
+cameras to reach them, or pick one in the options' Camera row (on the Player page and on the Gameplay page, which is also the
+pause menu's, so the view can be switched in a running race); the choice is saved as
 `camera_mode = "extra:nfsmw-2012-content/chase"` (and `bonnet`, `bumper`). On a car the mod did not convert, the views do not fit
 and the game keeps its own cameras.
 
 While a car is converted, the mod reads the cameras of its bundle with
 [`chameleon-camera`](../formats/chameleon-camera.md) and writes them next to the car's files (`files/CARS/<ID>/CAMERAS.TOML`, with
-the nose of the converted body, which anchors the bumper camera). In the game the mod steps that library's model once per frame with the
-presented car (position, axes, speed, steering, pedals, yaw rate, ground contact, hits) and the host draws from the pose it
+the nose of the converted body, which anchors the bumper camera; the chase and bonnet offsets are shortened by how far the
+conversion moved the car's origin to the middle of its axles, `CarCameras::move_origin_forward`). **A car converted before the
+cameras were kept has no such file, and the views then do not fit it (the game keeps its own camera, which looks like the
+views having no effect): the conversion version was bumped for this, so the cars are converted again on the first start after
+the update and the views appear at the start after that.** The mod logs `no 2012 cameras` for a car without the file. In the game the mod steps that library's model once per frame with the
+presented car (the position and axes of the car model, whose origin is the data's: on the ground between the axles, and not the
+physics body's centre of gravity; speed, steering, pedals, yaw rate, ground contact, hits) and the host draws from the pose it
 answers; the bonnet and bumper views hide the car's own body. The per-car values (the chase offset and height, the look-at point, the
 pull-back and field of view with speed, the roll, the braking pitch, the shake) come from each car's own 2012 data; **how the
 2012 game turns them into a camera is not known from its executable** (nothing of its camera code was found), so the model is built

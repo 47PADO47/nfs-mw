@@ -35,14 +35,15 @@ manifest's file name). A solid it does not find is not drawn, and a car with nei
 |---|---|
 | `<ID>_KIT00_BODY_A` to `_D` | the body, with the glass, lamps and interior, the tail pipe markers ([Tail pipes](#tail-pipes)) and the lamp markers ([car-lamps.md](car-lamps.md)) |
 | `<ID>_KIT00_FRONT_TIRE_A` to `_D` | one wheel solid: tyre, rim, brake disc and caliper, axle along y, rim face at y = 0, as the game's wheels are modelled; the car draws it at all four corners and the game turns it for the left side |
+| `<ID>_KIT00_DRIVER_A` to `_D` | optional: the driver, drawn in the cockpit while the car is driven (never in the garage or the shop), modelled in car space like the body, seated at the steering wheel with the hands on it; without it the car has no driver |
 
 The letters are the levels of detail, `A` the finest; `E` is not looked for, and a level a car lacks draws nothing at that
 distance, so A and B are the finest the player sees. The paint placeholder texture is `<ID>_SKIN1`, on the paint surfaces.
 Solids are in car space (+x forward, +y left, +z up), centred on the wheelbase: the wheels sit at plus and minus half the
 `wheelbase_m` of `[stats]` ([car-stats.md](car-stats.md)).
 
-The game finds these through two parts it adds to its parts database for the car (`car/mods/parts.rs`): the body and the wheel,
-each of the car's own type, with these solids as their models. Nothing else is added: the car has no brake part (the wheel
+The game finds these through three parts it adds to its parts database for the car (`car/mods/parts.rs`): the body, the wheel
+and the driver, each of the car's own type, with these solids as their models (a part whose solid the car lacks draws nothing). Nothing else is added: the car has no brake part (the wheel
 solid holds the discs), no hood, spoiler, roof, damage overlay, decal or window tint part, and its paint, rims and tints are
 the choices of its `[customization]` table. The 2005 parts database allows 256 car and part-group names, about 106 of which
 the game uses, so a game that publishes more than about 150 mod cars leaves the later ones without a body part (the log says
@@ -182,7 +183,8 @@ car, 396 in the 93 bundles), and `liveries`: that is all the 2012 game offers fo
 roof scoops or tints to choose; [chameleon-customization.md](../formats/chameleon-customization.md)). The paint texture
 coordinates of a converted car are the 2012 car's own. The 2012 game ships five vehicles (the BMW M3 GTR, Lamborghini Diablo SV,
 Porsche 911 GT2, Nissan 350Z and Nissan Skyline R34) in five liveries each, a bundle per livery; the mod makes one car of each
-and lists the five pictures as `Livery 1` to `Livery 5` (73 cars from 93 bundles). A car whose own bundle draws one livery
+and lists the five pictures under the names of the 2012 game (`Hero`, `Race`, `Street`, `Abstract`, `Urban`; 67 cars from 93
+bundles, the 2012 list having six cars under two vehicle ids). A car whose own bundle draws one livery
 picture over most of its paint, with no other bundle to choose from (the Porsche 918 Spyder, the Bentley, the Lancia Delta, the
 Bugatti Veyron Grand Sport Vitesse, and the police cars: the Dodge Charger and the Crown Victoria, the Ford Explorer
 Interceptor and the Corvette), lists that picture as `Livery 1`; every car with a livery wears its first one from the start

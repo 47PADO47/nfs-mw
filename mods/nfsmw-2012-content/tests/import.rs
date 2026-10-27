@@ -145,7 +145,10 @@ fn every_car_converts_and_how_long_it_takes() {
     }
     let report = last.unwrap();
     assert!(report.skipped.is_empty(), "skipped: {:?}", report.skipped);
-    assert!(report.imported.len() > 70, "93 bundles, 20 of them liveries folded into their cars");
+    assert!(
+        report.imported.len() > 60,
+        "93 bundles: 20 are liveries folded into their cars, 6 the same car under two ids"
+    );
     // Every manifest passes the game's checks and carries the car's own paints, and nothing else for its looks.
     let mut paints = 0;
     for entry in std::fs::read_dir(dir.join("cars")).unwrap().flatten() {

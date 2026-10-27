@@ -3,8 +3,10 @@
 //!
 //! The body keeps the 2012 shape, moved onto the wheel layout the car is fitted to by [`Fit`]. The wheel is one solid
 //! (tyre, rim, brake disc and caliper) made the way the game expects a "right-hand" wheel: axle along y, rim face at
-//! y = 0, tyre running to +y. The game turns it for the left side. Every solid and texture is named after the car's own
-//! folder (`<FOLDER>_KIT00_BODY_A`, `<FOLDER>_SKIN1`), and the paint surfaces keep the car's own texture coordinates.
+//! y = 0, tyre running to +y. The game turns it for the left side. The driver, when the car has one, is a solid of its
+//! own (`<FOLDER>_KIT00_DRIVER_A..D`) that the game draws in the cockpit while the car is driven. Every solid and texture
+//! is named after the car's own folder (`<FOLDER>_KIT00_BODY_A`, `<FOLDER>_SKIN1`), and the paint surfaces keep the car's
+//! own texture coordinates.
 
 use std::collections::HashMap;
 
@@ -45,6 +47,8 @@ pub struct Options {
     pub max_texture_size: u32,
     /// The liveries of the car: each picture and the name it takes in the car's `TEXTURES.BIN`.
     pub liveries: Vec<(String, chameleon_gfx::Texture)>,
+    /// The driver seated in the car, in the 2012 engine's space like the body; its textures are among `car.textures`.
+    pub driver: Option<Lod>,
 }
 
 /// Where a mesh's surface gets its look from in the 2005 car shader.
@@ -101,6 +105,20 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
     add_solids(&mut solids, &format!("{folder}_KIT00_FRONT_TIRE"), &wheel.lods, &wheel_parts, &mut |mesh| {
         look(mesh, car, folder, options, &mut palette)
     })?;
+    if let Some(driver) = &options.driver {
+        let no_markers = |_: usize| Vec::new();
+        let driver_parts = Parts { transform: &body, markers: &no_markers };
+        add_solids(
+            &mut solids,
+            &format!("{folder}_KIT00_DRIVER"),
+            std::slice::from_ref(driver),
+            &driver_parts,
+            &mut |mesh| {
+                // Clothes and skin do not shine.
+                Look { light_material: "MATTEPLASTIC", ..look(mesh, car, folder, options, &mut palette) }
+            },
+        )?;
+    }
     let geometry = write_geometry_pack(&solids).context("writing GEOMETRY.BIN")?;
     for (name, picture) in &options.liveries {
         palette.add_map(name, picture, options.max_texture_size, false);

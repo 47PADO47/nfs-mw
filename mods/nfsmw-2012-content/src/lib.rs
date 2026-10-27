@@ -24,6 +24,7 @@ mod engine;
 mod fit;
 #[cfg(test)]
 mod fit_real;
+mod fold;
 mod graph_voices;
 mod graphs;
 mod hinges;

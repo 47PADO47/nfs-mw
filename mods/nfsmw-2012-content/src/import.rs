@@ -7,7 +7,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use chameleon_bundle::Bundle;
-use chameleon_vehicle::{PoliceMarks, read_stats};
+use chameleon_vehicle::{Cabin, Lod, PaintPackGroup, PoliceMarks, VehiclePaint, read_stats, steering_wheel};
 use rayon::prelude::*;
 
 use crate::config::{Config, Role};
@@ -15,7 +15,7 @@ use crate::emit::{CarEntry, CarFiles, ModFolder};
 use crate::fit::Fit;
 use crate::police::PoliceRole;
 use crate::shared::SharedSet;
-use crate::source::{CarFile, Source};
+use crate::source::{CarFile, DriverFigure, Source, SourceCar};
 use crate::stats::ImportedStats;
 use crate::{brands, cameras, convert, names, nitrous, paints, sounds, variants, wheels};
 
@@ -52,6 +52,8 @@ struct Named<'a> {
     marks: PoliceMarks,
     /// The bundles of the car's liveries, which are not cars of their own.
     liveries: Vec<&'a CarFile>,
+    /// The bundles of the vehicles that are this car under another vehicle id, which lend it their paints.
+    also: Vec<&'a CarFile>,
 }
 
 /// How many threads to convert on: all the cores but one, between one and [`MAX_THREADS`].
@@ -74,12 +76,20 @@ pub fn run(config: &Config, source_root: &Path, out: &Path, threads: usize) -> R
 }
 
 fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
-    // A livery bundle is a variant of its vehicle's car, not a car: only the vehicles' own bundles are converted.
-    let plan = variants::plan(source);
-    let wanted: Vec<Named> = named(source)
+    // A livery bundle is a variant of its vehicle's car, not a car: only the vehicles' own bundles are converted. A car the
+    // list has under two vehicle ids is one car (a police car is never folded: it has its own marks and names).
+    let every = named(source);
+    let name_of = |number: u32| {
+        let car = every.iter().find(|car| car.file.number == number)?;
+        (!car.marks.is_police()).then(|| car.display.clone())
+    };
+    let plan = variants::plan(source, &name_of);
+    let wanted: Vec<Named> = every
         .into_iter()
         .filter_map(|mut car| {
-            car.liveries = plan.iter().find(|planned| planned.file.number == car.file.number)?.liveries.clone();
+            let planned = plan.iter().find(|planned| planned.file.number == car.file.number)?;
+            car.liveries = planned.liveries.clone();
+            car.also = planned.also.clone();
             Some(car)
         })
         .filter(|car| config.wants(&car.id, &car.display))
@@ -89,8 +99,13 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     }
     let folder = ModFolder::create(out)?;
     let shared = SharedSet::open(source, config);
+    // Every car seats the same figure (the 2012 game draws a driver in one car only), so it is read once, up front.
+    let driver = source.find_driver();
+    if driver.is_none() {
+        log::warn!("the 2012 install has no driver that can be read: the cars have none");
+    }
     let results: Vec<Result<ImportedCar>> =
-        wanted.par_iter().map(|car| import_car(source, car, config, &folder, &shared)).collect();
+        wanted.par_iter().map(|car| import_car(source, car, config, &folder, &shared, driver.as_ref())).collect();
     write_nitrous(source, out);
     let makes: Vec<&str> =
         wanted.iter().zip(&results).filter(|(_, done)| done.is_ok()).map(|(car, _)| car.make.as_str()).collect();
@@ -132,7 +147,15 @@ fn named(source: &Source) -> Vec<Named<'_>> {
         let name = names::car_name(object.as_deref(), file.number);
         let id = names::unique_id(&name.id, &taken);
         taken.push(id.clone());
-        cars.push(Named { file, id, display: name.display, make: name.make, marks, liveries: Vec::new() });
+        cars.push(Named {
+            file,
+            id,
+            display: name.display,
+            make: name.make,
+            marks,
+            liveries: Vec::new(),
+            also: Vec::new(),
+        });
     }
     cars
 }
@@ -143,8 +166,9 @@ fn import_car(
     config: &Config,
     folder: &ModFolder,
     shared: &SharedSet,
+    figure: Option<&DriverFigure>,
 ) -> Result<ImportedCar> {
-    let car = source.load(named.file)?;
+    let mut car = source.load(named.file)?;
     // What the car is comes from its own bundle; the user's multipliers, if any, change it below.
     let bytes = source.bundle_bytes(named.file)?;
     let mut car_stats = read_stats(&Bundle::parse(&bytes)?).context("the stats of the car could not be read")?;
@@ -157,11 +181,15 @@ fn import_car(
         .context("the wheel layout of the car could not be measured")?;
     // The stats' wheelbase and weight distribution are those of the hubs the wheels are drawn on.
     car_stats.axle_z = placed.axles;
+    placed.seat_hubs(&mut car.vehicle);
     let fit = Fit::own(placed.layout);
-    let pictures = variants::pictures(source, &car, &named.id, &named.liveries);
+    let driver = seat_driver(&mut car, &bytes, figure);
+    let livery_names = variants::livery_names(source, named.file, &named.liveries);
+    let pictures = variants::pictures(source, &car, &named.id, &named.liveries, &livery_names);
     let options = convert::Options {
         max_texture_size: config.max_texture_size,
         liveries: pictures.iter().map(|(choice, picture)| (choice.texture.clone(), picture.clone())).collect(),
+        driver,
     };
     let built = convert::build(&car, &fit, &named.id, &options)?;
     let mut stats = ImportedStats::of(&car_stats);
@@ -172,9 +200,10 @@ fn import_car(
         .police
         .is_police(&named.id, &named.display, &named.marks)
         .then(|| config.police.plan(&named.id, &named.display, &named.marks));
-    // A car wears the livery its own bundle draws (the first one) from the start; the shop can take it off.
-    let own = crate::liveries::choice(&named.id, 0);
-    let dressed = pictures.iter().position(|(choice, _)| *choice == own);
+    // A car with liveries wears the first one from the start, as its stock look: its own bundle's, which the 2012 game dresses
+    // it in. The shop can take it off (a plain colour) or change it.
+    let dressed = (!pictures.is_empty()).then_some(0);
+    let colours = offered_paints(source, named, &car.paints);
     let entry = CarEntry {
         id: named.id.clone(),
         name: named.display.clone(),
@@ -186,7 +215,7 @@ fn import_car(
         police,
         stats,
         customization: paints::manifest_table(
-            &paints::choices(&car.paints),
+            &paints::choices(&colours),
             &pictures.iter().map(|(choice, _)| choice.clone()).collect::<Vec<_>>(),
             dressed,
         ) + &built.damage_parts
@@ -204,9 +233,11 @@ fn import_car(
     if let Err(error) = shared.add_to_car(folder, &named.id, &bytes) {
         log::warn!("{}: no shared sounds: {error:#}", named.id);
     }
-    // The car's own 2012 cameras; the bumper camera starts at the converted body's nose.
-    let nose = front_end - (placed.axles[0] + placed.axles[1]) / 2.0;
-    if let Err(error) = cameras::write(folder, &named.id, &bytes, nose) {
+    // The car's own 2012 cameras, measured from the converted car's origin (the middle of its axles); the bumper camera
+    // starts at the converted body's nose.
+    let middle = (placed.axles[0] + placed.axles[1]) / 2.0;
+    let nose = front_end - middle;
+    if let Err(error) = cameras::write(folder, &named.id, &bytes, nose, middle) {
         log::warn!("{}: no 2012 cameras: {error:#}", named.id);
     }
     Ok(ImportedCar {
@@ -216,6 +247,31 @@ fn import_car(
         triangles: built.triangles,
         liveries: pictures.len(),
     })
+}
+
+/// The paints the shop offers `named`: those of its own bundle (`own`), in the order of its vehicle's paint pack (the first is
+/// the default paint), then those of the bundles of the other vehicles that are the same car, each in the order of its own.
+fn offered_paints(source: &Source, named: &Named, own: &[VehiclePaint]) -> Vec<VehiclePaint> {
+    let in_order = |file: &CarFile, list: &[VehiclePaint]| {
+        let order = source.pack_group(file).map(PaintPackGroup::paint_order).unwrap_or_default();
+        paints::in_pack_order(list, &order)
+    };
+    let mut all = in_order(named.file, own);
+    for &file in &named.also {
+        all.extend(in_order(file, &source.paints_of(file)));
+    }
+    all
+}
+
+/// The install's driver seated at the steering wheel of `car` (the bundle `bytes`), with the figure's textures added to the
+/// car's. `None` when there is no figure, or the car's bundle has no steering wheel to seat it at (the SWAT van and two
+/// supercars): the car has no driver then.
+fn seat_driver(car: &mut SourceCar, bytes: &[u8], figure: Option<&DriverFigure>) -> Option<Lod> {
+    let figure = figure?;
+    let wheel = steering_wheel(&Bundle::parse(bytes).ok()?)?;
+    let cabin = Cabin::of(car.vehicle.body.first()?, wheel);
+    car.textures.extend(figure.textures.iter().map(|(id, texture)| (*id, texture.clone())));
+    Some(figure.driver.seated(&cabin))
 }
 
 #[cfg(test)]

@@ -153,7 +153,8 @@ fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
     let driving = nfsmw_data::car::load_driving(&game, CAR, &options).unwrap();
     let levels: Vec<usize> = driving.driving_lods.levels.iter().map(|l| l.level).collect();
     assert_eq!(levels, [1, 2, 3], "levels B to D");
-    assert!(driving.driving_lods.levels.iter().all(|l| l.placements.len() == 5));
+    // Body, driver and four wheels: the driver is drawn while the car is driven.
+    assert!(driving.driving_lods.levels.iter().all(|l| l.placements.len() == 6));
     println!("type names: {}", tables.parts.type_names().len());
 
     // The garage offers the car the paints of its own bundle, and none of the parts a stock car has.
