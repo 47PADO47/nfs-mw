@@ -75,14 +75,24 @@ pub struct Views {
     pub views: [View; 7],
 }
 
-/// Loads the seven views. Returns `None` if the class or any of the seven collections is missing.
+/// Loads the seven views. Returns `None` if the default view's collection is missing or any collection is unreadable;
+/// a view whose collection an install dropped (the remastered install has no `superfar`) takes the default view's
+/// values and stays out of the hotkey cycle, see [`fill_missing`].
 pub fn load(db: &Database) -> Option<Views> {
     let class = vlt_hash(CLASS);
-    let views = VIEWS
-        .iter()
-        .map(|&(_, key)| db.collection_by_key(class, key).and_then(|c| read_view(&c)))
-        .collect::<Option<Vec<_>>>()?;
-    Some(Views { views: views.try_into().ok()? })
+    let mut found = [None; 7];
+    for (slot, &(_, key)) in found.iter_mut().zip(&VIEWS) {
+        let Some(collection) = db.collection_by_key(class, key) else { continue };
+        *slot = Some(read_view(&collection)?);
+    }
+    Some(Views { views: fill_missing(found)? })
+}
+
+/// The views with each absent one replaced by the default view, made unselectable so the hotkey cycle skips it while a
+/// direct choice of it still gets a working camera. `None` if the default view itself is absent.
+fn fill_missing(found: [Option<View>; 7]) -> Option<[View; 7]> {
+    let default = found[DEFAULT_INDEX]?;
+    Some(found.map(|view| view.unwrap_or(View { selectable: [false; 2], ..default })))
 }
 
 /// The seven views selected by the car's actual inherited `ecar` references.
@@ -136,6 +146,38 @@ mod tests {
         }
     }
 
+    fn view(fov: f32, selectable: bool) -> View {
+        View {
+            fov: [fov; 2],
+            height: [1.7; 2],
+            lag: [-4.0; 2],
+            angle: [10.0; 2],
+            stiffness: [1.0; 2],
+            lat_offset: [0.0; 2],
+            tilting: [true; 2],
+            selectable: [selectable; 2],
+        }
+    }
+
+    #[test]
+    fn an_absent_view_takes_the_default_view_outside_the_cycle() {
+        let mut found: [Option<View>; 7] = std::array::from_fn(|i| Some(view(80.0 + i as f32, true)));
+        found[4] = None;
+        let views = fill_missing(found).expect("filled views");
+        assert_eq!(views[4], View { selectable: [false; 2], ..views[DEFAULT_INDEX] });
+        assert!(views[4].fov == views[DEFAULT_INDEX].fov);
+        for i in [0, 1, 2, 3, 5, 6] {
+            assert_eq!(Some(views[i]), found[i], "present view {i} is kept");
+        }
+    }
+
+    #[test]
+    fn without_the_default_view_there_is_nothing_to_fill_from() {
+        let mut found: [Option<View>; 7] = std::array::from_fn(|_| Some(view(90.0, true)));
+        found[DEFAULT_INDEX] = None;
+        assert_eq!(fill_missing(found), None);
+    }
+
     #[test]
     fn the_optional_pair_interpolation_helper_is_linear() {
         assert_eq!(View::at([78.0, 90.0], 0.0), 78.0);
@@ -174,7 +216,12 @@ mod tests {
             let name = car.name().expect("ecar collection name");
             let loaded = load_car(&db, name).expect("car camera views");
             for (index, field) in CAR_FIELDS.iter().enumerate() {
-                let profile = car.follow(field).expect("installed camera reference resolves");
+                // The remastered install leaves `CameraInfo_SuperFar` unset: that slot keeps the unselectable filler.
+                let Some(profile) = car.follow(field) else {
+                    assert_eq!(*field, "CameraInfo_SuperFar", "{name}: {field}");
+                    assert_eq!(loaded.views[index].selectable, [false; 2], "{name}: {field}");
+                    continue;
+                };
                 let expected = read_view(&profile).expect("all eight paired profile fields");
                 assert_eq!(loaded.views[index], expected, "{name}: {field}");
                 references += 1;
