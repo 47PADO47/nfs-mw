@@ -8,9 +8,7 @@ use crate::skin::Skin;
 
 mod roles;
 
-pub use roles::{
-    DEFAULT_CAUTION, DEFAULT_DANGER, DEFAULT_INFO, DEFAULT_SUCCESS, OVERLAY_ALPHA, ResolvedRoles, Roles, SCRIM_ALPHA,
-};
+pub use roles::{ResolvedRoles, Roles};
 
 /// The skin keys the tokens are written under. Components read these, never a theme's own name.
 pub mod keys {
