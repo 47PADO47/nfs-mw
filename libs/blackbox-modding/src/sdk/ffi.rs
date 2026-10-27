@@ -28,6 +28,8 @@ pub(crate) mod ui;
 mod ui_tests;
 pub(crate) mod vehicles;
 pub(crate) mod world;
+#[cfg(all(test, feature = "host"))]
+mod config_tests;
 
 use core::ffi::c_void;
 use core::mem::{offset_of, size_of};

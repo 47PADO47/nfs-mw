@@ -12,9 +12,13 @@ mod audio;
 #[cfg(test)]
 mod audio_tests;
 mod camera;
+mod camera_view;
 #[cfg(test)]
 mod camera_tests;
 mod commands;
+mod config;
+#[cfg(test)]
+mod config_tests;
 mod content;
 mod hud;
 #[cfg(test)]
@@ -57,11 +61,12 @@ use crate::abi::{
 };
 
 use super::offer::HostOffer;
-use super::registry::InterfaceRegistry;
+use super::registry::{HostCtx, InterfaceRegistry, ModPlace};
 
 pub(crate) use audio::attach as attach_audio;
 pub(crate) use camera::attach as attach_camera;
 pub(crate) use commands::attach as attach_commands;
+pub(crate) use config::attach as attach_config;
 pub(crate) use content::attach as attach_content;
 pub(crate) use hud::attach as attach_hud;
 pub(crate) use i18n::attach as attach_i18n;
@@ -77,7 +82,9 @@ pub(crate) use world::attach as attach_world;
 
 pub use audio::AudioBackend;
 pub use camera::{CameraBackend, CameraKind, CameraState};
+pub use camera_view::{ViewHandlers, ViewInput, ViewPose, ViewSpec};
 pub use commands::{CommandHandler, CommandsBackend};
+pub use config::ConfigBackend;
 pub use content::ContentBackend;
 pub use hud::{HudBackend, MAX_MESSAGE_SECS, MessageStyle};
 pub use i18n::{I18nArg, I18nBackend, MAX_ARGS as MAX_I18N_ARGS};
@@ -97,6 +104,8 @@ pub type BackendResult<T> = Result<T, BbStatus>;
 /// interface tables already handed to this mod.
 struct CallState {
     mod_id: String,
+    /// The mod's folder and the manifest's `config` value: where `bb.config` reads the mod's own file.
+    place: ModPlace,
     registry: Rc<InterfaceRegistry>,
     attached: RefCell<Vec<Attached>>,
 }
@@ -110,7 +119,7 @@ impl CallState {
         if let Some((header, (have_major, have_minor))) = known {
             return (have_major == major && have_minor >= min_minor).then_some(header);
         }
-        let built = self.registry.build(&self.mod_id, id, major, min_minor)?;
+        let built = self.registry.build_in(&HostCtx::new(&self.mod_id, &self.place), id, major, min_minor)?;
         let header = built.header();
         self.attached.borrow_mut().push(built);
         Some(header)
@@ -129,8 +138,20 @@ pub(crate) struct HostTable {
 impl HostTable {
     /// Build the table for mod `mod_id` living in `mod_dir`, answering with the identity of `offer` and the interfaces
     /// of `registry`.
-    pub(crate) fn new(mod_id: &str, mod_dir: &Path, offer: &HostOffer, registry: Rc<InterfaceRegistry>) -> Self {
-        let state = Box::new(CallState { mod_id: mod_id.to_owned(), registry, attached: RefCell::new(Vec::new()) });
+    pub(crate) fn new(
+        mod_id: &str,
+        mod_dir: &Path,
+        config_file: Option<&str>,
+        offer: &HostOffer,
+        registry: Rc<InterfaceRegistry>,
+    ) -> Self {
+        let place = ModPlace { dir: mod_dir.to_owned(), config_file: config_file.map(str::to_owned) };
+        let state = Box::new(CallState {
+            mod_id: mod_id.to_owned(),
+            place,
+            registry,
+            attached: RefCell::new(Vec::new()),
+        });
         let strings = Box::new([
             offer.game_id.clone(),
             offer.game_version.clone(),
