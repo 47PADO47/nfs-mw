@@ -99,7 +99,7 @@ fn the_manifests_file_replaces_config_toml() {
     scratch.write("mod/config.toml", b"a = 'default'\n");
     scratch.write("mod/mine.toml", b"a = 'mine'\n");
     let attached = attach_config(FakeGame::new(None), "example.a", dir, Some("mine.toml".into()));
-    assert_eq!(read_text(table_of(&attached)).1.trim(), "a = 'mine'");
+    assert_eq!(read_text(table_of(&attached)).1.trim(), "a = \"mine\"");
 }
 
 #[test]
