@@ -337,7 +337,7 @@ pull-back and field of view with speed, the roll, the braking pitch, the shake) 
 2012 game turns them into a camera is not known from its executable** (nothing of its camera code was found), so the model is built
 from the data and every behaviour is **[unconfirmed]** in the format doc. The mounted cameras' numbers are offsets from an anchor
 the data does not name: the mod anchors the bonnet camera at the car's origin and the bumper camera at its nose. None of this has
-been seen in a running game yet; the nine tests of the model and the install tests of the reader check the numbers, not the look.
+been seen in a running game yet; the model's tests and the reader's install tests check the numbers, not the look.
 
 ## Tests
 
