@@ -63,5 +63,5 @@ pub use skin::Skin;
 pub use slot::SlotId;
 pub use theme::{Theme, ThemeId};
 pub use themes::{ThemeError, Themes};
-pub use tokens::{Tokens, keys as token_keys};
+pub use tokens::{ResolvedRoles, Roles, Tokens, keys as token_keys};
 pub use tree::{NodeKind, UiNode, UiTree};
