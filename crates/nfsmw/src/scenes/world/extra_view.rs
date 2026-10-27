@@ -107,7 +107,8 @@ impl WorldScene {
     pub(super) fn extra_view_lens(&self, aspect: f32) -> Option<Lens> {
         self.active_extra_view()?;
         let pose = self.extra_view.pose?;
-        let (eye, forward, up) = (Vec3::from_array(pose.position), Vec3::from_array(pose.forward), Vec3::from_array(pose.up));
+        let (eye, forward, up) =
+            (Vec3::from_array(pose.position), Vec3::from_array(pose.forward), Vec3::from_array(pose.up));
         let fov = pose.fov.clamp(20.0, 150.0);
         let mut lens = Lens::look_at(eye, eye + forward, fov, NEAR, aspect);
         lens.view = glam::camera::rh::view::look_at_mat4(eye, eye + forward, up);

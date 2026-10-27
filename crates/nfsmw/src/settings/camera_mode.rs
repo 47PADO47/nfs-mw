@@ -119,7 +119,9 @@ impl fmt::Display for CameraMode {
             Self::Drift => "drift",
             Self::Pursuit => "pursuit",
             // Every extra key was made from its path in this process; the fallback keeps the file parsable.
-            Self::Extra(key) => return write!(f, "extra:{}", key.path().unwrap_or_else(|| format!("unknown/{:08x}", key.0))),
+            Self::Extra(key) => {
+                return write!(f, "extra:{}", key.path().unwrap_or_else(|| format!("unknown/{:08x}", key.0)));
+            }
         })
     }
 }

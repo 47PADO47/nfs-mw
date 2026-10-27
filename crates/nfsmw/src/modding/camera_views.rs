@@ -55,7 +55,13 @@ pub fn register(owner: &str, spec: &ViewSpec<'_>, handlers: ViewHandlers) -> Res
         registry.next += 1;
         let handle = registry.next;
         let name = if spec.name.is_empty() { spec.id } else { spec.name };
-        registry.views.push(Entry { handle, key, owner: owner.to_owned(), name: name.to_owned(), handlers: Rc::new(handlers) });
+        registry.views.push(Entry {
+            handle,
+            key,
+            owner: owner.to_owned(),
+            name: name.to_owned(),
+            handlers: Rc::new(handlers),
+        });
         Ok(handle)
     })
 }
@@ -98,7 +104,8 @@ pub fn name_of(key: ViewKey) -> Option<String> {
 }
 
 fn handlers_of(key: ViewKey) -> Option<Rc<ViewHandlers>> {
-    REGISTRY.with(|registry| registry.borrow().views.iter().find(|view| view.key == key).map(|view| view.handlers.clone()))
+    REGISTRY
+        .with(|registry| registry.borrow().views.iter().find(|view| view.key == key).map(|view| view.handlers.clone()))
 }
 
 /// Whether the view is registered and fits the car `car`.
@@ -125,7 +132,13 @@ mod tests {
         ViewHandlers {
             available: Box::new(move |car| car == fits),
             update: Box::new(|input| {
-                Some(ViewPose { position: input.position, forward: input.forward, up: input.up, fov: 50.0, hide_car: false })
+                Some(ViewPose {
+                    position: input.position,
+                    forward: input.forward,
+                    up: input.up,
+                    fov: 50.0,
+                    hide_car: false,
+                })
             }),
         }
     }
