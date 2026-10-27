@@ -25,6 +25,13 @@ impl Drive {
         (strongest / FULL_HIT_SPEED).clamp(0.0, 1.0)
     }
 
+    /// Turn the physics' drift assist on or off. A car that is not on the road yet keeps the assist off.
+    pub(in crate::scenes::world) fn set_drift_assist(&mut self, on: bool) {
+        if let Some(sim) = self.sim.as_mut() {
+            sim.set_drift_assist(on);
+        }
+    }
+
     /// Add `amount` of a full tank to the nitrous (a rule a mod runs pays it). Returns whether the car has a tank to fill.
     pub(in crate::scenes::world) fn add_nitrous(&mut self, amount: f32) -> bool {
         let Some(sim) = self.sim.as_mut() else {

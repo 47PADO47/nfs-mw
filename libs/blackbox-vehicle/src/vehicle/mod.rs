@@ -6,6 +6,7 @@ mod burnout;
 mod coasting;
 mod contact;
 mod drift;
+mod drift_assist;
 mod drive_assists;
 mod example;
 mod integration;
@@ -27,6 +28,7 @@ mod wheels;
 #[cfg(test)]
 mod tests;
 
+pub use drift_assist::DriftTuning;
 pub use jump::{
     AlignmentConfig, GroundReference, JumpConfig, JumpForces, JumpInput, JumpState, LandingConfig, PassiveConfig,
 };
@@ -99,6 +101,7 @@ pub struct Vehicle {
     yaw_control: f32,
     burnout: burnout::Burnout,
     drift: drift::Drift,
+    assist: drift_assist::Assist,
     body_slip: f32,
     collided: bool,
     time: f32,
@@ -168,6 +171,7 @@ impl Vehicle {
             yaw_control: 1.0,
             burnout: burnout::Burnout::default(),
             drift: drift::Drift::default(),
+            assist: Default::default(),
             body_slip: 0.0,
             collided: false,
             time: 0.0,
@@ -263,6 +267,7 @@ impl Vehicle {
         self.yaw_control = 1.0;
         self.burnout = burnout::Burnout::default();
         self.drift = drift::Drift::default();
+        self.assist.reset();
         self.body_slip = 0.0;
         self.collided = false;
     }

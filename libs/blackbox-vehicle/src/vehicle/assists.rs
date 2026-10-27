@@ -92,6 +92,7 @@ impl Vehicle {
             );
         }
         self.update_drift(dt, speed, angular_velocity);
+        self.update_drift_assist(dt);
         let staging_scale = self.launch.staging_traction_scale();
         for tire in &mut self.tires {
             tire.traction_boost *= staging_scale;

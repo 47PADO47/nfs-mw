@@ -1,4 +1,5 @@
-//! The car's dynamics as the mods read them and its nitrous tank as they fill it (`bb.vehicles` 1.1, see `drive/mod_feed.rs`).
+//! The car's dynamics as the mods read them, its nitrous tank as they fill it and its drift assist as they switch it
+//! (`bb.vehicles` 1.1 and 1.2, see `drive/mod_feed.rs`).
 
 use super::CarSim;
 
@@ -17,6 +18,11 @@ impl CarSim {
     /// At least one wheel touches the ground.
     pub(in crate::scenes::world) fn on_ground(&self) -> bool {
         self.vehicle.wheels_on_ground() > 0
+    }
+
+    /// Turn the physics' drift assist on or off (`bb.vehicles` 1.2).
+    pub(in crate::scenes::world) fn set_drift_assist(&mut self, on: bool) {
+        self.vehicle.set_drift_assist(on);
     }
 
     /// Add `amount` of a full tank to the nitrous; whether the car has a nitrous system.

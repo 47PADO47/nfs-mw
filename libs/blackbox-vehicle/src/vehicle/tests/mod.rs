@@ -3,6 +3,7 @@
 mod assists;
 mod basics;
 mod countdown_controls;
+mod drift_assist;
 mod driving;
 mod feel;
 mod force_boundaries;

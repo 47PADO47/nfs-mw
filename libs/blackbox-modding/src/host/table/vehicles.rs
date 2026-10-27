@@ -7,7 +7,8 @@ use std::rc::Rc;
 use super::BackendResult;
 use super::slot::{Attached, Slot, guard, slot_of, write_prefixed};
 use crate::abi::{
-    BB_ERR_ARG, BbIface, BbStatus, BbVec3, BbVehicleState, BbVehicles, IFACE_VEHICLES, IFACE_VEHICLES_VERSION,
+    BB_ERR_ARG, BB_ERR_UNSUPPORTED, BbIface, BbStatus, BbVec3, BbVehicleState, BbVehicles, IFACE_VEHICLES,
+    IFACE_VEHICLES_VERSION,
 };
 
 /// The player's car as the game reports it. Units as in [`BbVehicleState`].
@@ -52,6 +53,11 @@ pub trait VehiclesBackend {
     /// Add `amount` of a full tank (already checked to be finite and 0 to 1) to the player's nitrous, up to a full tank. A car
     /// without a nitrous system ignores it. Queued like a repair (1.1).
     fn add_nos(&self, owner: &str, amount: f32) -> BackendResult<()>;
+    /// Turn the drift assist of the player's car on or off (1.2). Queued like a repair. A game without the assist keeps the default,
+    /// which answers `BB_ERR_UNSUPPORTED`.
+    fn set_drift_assist(&self, _owner: &str, _on: bool) -> BackendResult<()> {
+        Err(BB_ERR_UNSUPPORTED)
+    }
 }
 
 /// Build the `bb.vehicles` table for `owner`, backed by `backend`.
@@ -69,6 +75,7 @@ pub(crate) fn attach(backend: Rc<dyn VehiclesBackend>, owner: &str) -> Attached 
         repair: Some(repair),
         spawn_traffic: Some(spawn_traffic),
         add_nos: Some(add_nos),
+        set_drift_assist: Some(set_drift_assist),
     });
     // Nothing the mod registers stays in the game, so unloading removes nothing; the release keeps the slot alive.
     let kept = slot.clone();
@@ -147,6 +154,15 @@ unsafe extern "C" fn add_nos(ctx: *mut c_void, amount: f32) -> BbStatus {
             return Err(BB_ERR_ARG);
         }
         slot.backend.add_nos(&slot.owner, amount)
+    })
+}
+
+/// `set_drift_assist`: queue the assist of the player's car on (any non-zero value) or off.
+unsafe extern "C" fn set_drift_assist(ctx: *mut c_void, enabled: u32) -> BbStatus {
+    guard(|| {
+        // SAFETY: `ctx` is this table's slot (see `slot_of`).
+        let slot = unsafe { slot_of::<dyn VehiclesBackend>(ctx)? };
+        slot.backend.set_drift_assist(&slot.owner, enabled != 0)
     })
 }
 

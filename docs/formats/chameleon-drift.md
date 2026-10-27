@@ -2,7 +2,7 @@
 
 In the 2012 game a drift fills the nitrous tank ("Earn Nitrous by drifting" is a line of its text tables). This page holds what
 the install's data says about it: when the physics calls a slide a drift, what a drift pays, and what the HUD says. The
-rule built from it is `chameleon_vehicle::DriftModel`; the setting that turns it on in the 2005 game is "2012 drift nitrous"
+rule built from it is `chameleon_vehicle::DriftModel`; the setting that turns it on in the 2005 game is "2012 drifting" (it also turns on the drift physics, [below](#the-sliding-physics))
 ([nitrous-variants.md](../modding/nitrous-variants.md) has the other nitrous option, [api-world.md](../modding/api-world.md#vehicles-and-the-player)
 the calls the mod uses). Everything was measured on the 2012 install (v1.4.0.0) with the bundle reader
 ([chameleon-bundle.md](chameleon-bundle.md)), the Genesys reading of [chameleon-vehicle-stats.md](chameleon-vehicle-stats.md), and
@@ -112,6 +112,53 @@ and the data names no other rule. The tank is clamped by the host. `DriftParams:
 nitrous; `read_drift_physics` and `read_drift_nitrous` read a car's own numbers. The model is pure (no clock, no car); the
 callers are the mod `nfsmw-2012-content` (`drift_nitrous.rs`) and the tests.
 
+## The sliding physics
+
+The nitrous above only pays for a drift; making a car drift is the physics. Two things were looked at: what the 2012 data says
+about how a car slides, and why the converted cars do not slide in the 2005 engine's physics.
+
+**What the data holds.** The handling definition's `DriftBehaviour` has four more structures than the two read above, and
+there is a `HandbrakeAbility`. `chameleon_vehicle::read_drift_handling` reads the numbers below; the layout is **[verified]**
+(93 of 93 cars), every meaning is **[unconfirmed]**: no code that reads these structures was found in `NFS13.exe` (its field
+names are hashes, the executable has almost no names), so the meanings are from the ranges over the cars and nothing more.
+
+| Structure and offset | Values over the 93 cars | Reading |
+|---|---|---|
+| `Other +0x18` | 40 (71 cars), 45 (19), 55 (1), 0 (2) | the largest slip angle the drift physics works to, degrees |
+| `Yaw_torque +0x24` | 6,000 to 60,000, median 41,500; no relation to the car's mass (the 500 kg BAC Mono 20,000, the 1,500 kg Lexus LFA 42,000) | a yaw torque, N m: the strongest of four |
+| `Yaw_torque +0x30, +0x34, +0x38` | about 0.35, 0.2 and 0.04 of the first (Carrera 18,125 / 10,625 / 1,875; 918 12,500 / 7,750 / 1,500) | the weaker steps of the same torque, perhaps at larger angles |
+| `HandbrakeAbility +0x10` | 300 to 1,800, median 1,200; the Lexus LFA 1,800 and BAC Mono 575 equal their front brake torque | the handbrake's brake torque, N m (the same size as the brake torques) |
+| `HandbrakeAbility +0x14` | 200 to 750, median 400 | a second torque |
+| `HandbrakeAbility +0x18 .. +0x28` | 0.3 to 0.6, 0.5 to 1.25, 115 to 180, 30 (90 cars), 0 to 0.15 | not read (times and grip shares, by their size) |
+| `Side_force` | 0.012 to 0.022, 4 to 18, 0.5 to 2, 0.3, 0.025, 2.5 to 16, 10 to 15.5, 75 to 100 | not read |
+| `Drift_scale` | 5 to 7, 0.5 to 0.6, 0.45 to 1, 0.1 to 1.65, 0.3 to 0.8, 1.2 to 2 | not read |
+| `Other` (the rest) | 0.2 to 0.4, 0.015 to 0.075, 0 to 5, 1 to 2.5, -1, -0.7 to -0.1, 10 to 50, 90 or 180, 3 to 6, 0 to 18 | not read |
+| `Tyre.Lateral_Grip_Curve` (3 a tyre), `Long_Grip_Curve` (4 a tyre), `Lateral_Slip_Factors` (2), `Long_Slip_Factors` (2) | four floats each; a lateral curve is like `0.45, 3.25, 45, 0.5` (the third 45 in most, the fourth always 0.5) | the curves of the tyre against slip and surface; only the first long-grip value (the peak friction) is used by the importer |
+
+The slip falloff after the peak, the tyre curves against slip angle, and the force `Side_force` and `Drift_scale` add were
+**not decoded**: their numbers are authored per car and the meaning of four floats a curve is not in the data.
+
+**Why the 918 does not drift (measured).** The Porsche 918 Spyder (`VEH_1085830`, the concept) is converted as a 1,598 kg car at
+50 percent front weight with 600 N m at 3,000 rpm, drive to all four wheels (`Differentials` 0, 0.5, 0.25, 0.5: a quarter of
+the torque to the front, both differentials half locked) and tyres of 1.35 (front) and 1.25 (rear) peak friction. The game's
+physics build raises a rear that holds less than the front to 1.1 times it. A unit simulation
+(`libs/blackbox-vehicle/src/stats/drift_tests.rs`, the same physics the game drives) with the handbrake held for 1.2 s and
+the wheel half turned, at 72 and 100 km/h, gives a peak slip angle of **2.8 to 6 degrees**; the 2005 engine's own drift
+(`vehicle/drift.rs`) is entered at **12 degrees** and the 918's 2012 trigger is 8.5, so no drift state is ever reached. At full
+lock the car sits on a knife edge: 10.9 degrees for 0.43 s at 100 km/h, but 25 degrees and a spin at 72 km/h (a 911-like
+rear-drive car, 1,397 kg at 38 percent front weight, spins to 23 degrees at 100 km/h); a front weight of 40 percent, or a grip of 1.8 on both axles, tips it the other way. The drive
+layout is not the reason (the same car with rear drive gives 10.5 degrees): the 2005 physics has no assist that sustains a slide,
+and the 2012 data has the numbers of one (the yaw torque above) that the importer did not use.
+
+**The drift assist (the rewrite's own model).** `blackbox_vehicle::Vehicle::set_drift_assist` is a small layer driven by the
+same slide rule as `DriftModel` (speed, enter and exit angle, 0.25 s hold) with the car's own numbers: it pushes the nose with
+a yaw torque while the handbrake is held with the wheel turned, holds the slip angle that the steering asks for (full lock asks
+half the largest angle) with a damped yaw torque and lets the rear tyres keep 0.75 of their grip. Its strength is a yaw
+acceleration, the car's `Yaw_torque +0x24` over the yaw inertia of the body the physics builds (kept between 3 and 10 rad/s^2;
+the 918 comes to 6.2). With it, the same 918 and script gives **12 to 13 degrees held for about 3 s** at half lock and 20 degrees
+at full lock, and a straight wheel ends the drift in 1.5 s. How the 2012 game does this is **not known**; the model is built so
+that its numbers are the data's where the data names one.
+
 ## What is not known
 
 - The unit of the minimum speed (mph is assumed from the other sources' numbers) and whether the gain is a second, a metre or a
@@ -120,6 +167,8 @@ callers are the mod `nfsmw-2012-content` (`drift_nitrous.rs`) and the tests.
 - What the stock nitrous (`+0x74`) is: its flags are 0 for every source but the donut. The setting uses the burn nitrous.
 - Which fields of `Drift_trigger` and `Drift_exit` besides the three read are rules (they are 0 or a constant in nearly all cars).
 - What the HUD does with the message beyond the text (position, colour, the bar flash).
+- What the sliding structures (`Side_force`, `Drift_scale`, the rest of `Other`, the tyre curves) do in the 2012 physics, and
+  whether `Yaw_torque` is a torque on the body or a gain (the assist takes it as a torque).
 - Whether the drift detection of the nitrous is the physics' `DriftBehaviour` state or a separate test; the model follows the
   physics' numbers, since they are the only ones the data names for entering and leaving a drift.
 

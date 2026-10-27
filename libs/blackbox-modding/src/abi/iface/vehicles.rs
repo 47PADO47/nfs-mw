@@ -1,7 +1,8 @@
-//! `bb.vehicles` 1.1: the player's car, read and moved (catalogue: docs/modding/api-world.md#vehicles-and-the-player).
+//! `bb.vehicles` 1.2: the player's car, read and moved (catalogue: docs/modding/api-world.md#vehicles-and-the-player).
 //!
 //! 1.1 appends to the state the slip angle, the steering, the strongest hit and the ground contact of the car, and appends
-//! `add_nos` to the table. A mod built against 1.0 reads the 1.0 fields of the same struct and never sees the table grow.
+//! `add_nos` to the table. 1.2 appends `set_drift_assist`. A mod built against 1.0 reads the 1.0 fields of the same struct and
+//! never sees the table grow.
 //!
 //! Only the player's car is offered in 1.0. Other vehicles (traffic, cops, racers) need handles of their own and come in a
 //! later minor. `spawn_traffic` is reserved: the game places traffic ahead of the player and has no call to spawn one at a
@@ -80,6 +81,11 @@ pub type BbVehicleSpawnTrafficFn =
 /// `repair`. A car without a nitrous system ignores it.
 pub type BbVehicleAddNosFn = unsafe extern "C" fn(ctx: *mut c_void, amount: f32) -> BbStatus;
 
+/// `set_drift_assist` (1.2): turn the drift assist of the player's car on (non-zero) or off (zero). The assist is a physics
+/// layer that makes a slide easy to start with the handbrake and to hold with the wheel; it is off until a mod asks. Queued,
+/// like `repair`, and it stays on across cars and until the mod turns it off.
+pub type BbVehicleSetDriftAssistFn = unsafe extern "C" fn(ctx: *mut c_void, enabled: u32) -> BbStatus;
+
 /// The `bb.vehicles` table. Field order is part of the ABI; new fields are appended.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -98,4 +104,6 @@ pub struct BbVehicles {
     pub spawn_traffic: Option<BbVehicleSpawnTrafficFn>,
     /// Add nitrous to the player's car (1.1).
     pub add_nos: Option<BbVehicleAddNosFn>,
+    /// Turn the drift assist on or off (1.2).
+    pub set_drift_assist: Option<BbVehicleSetDriftAssistFn>,
 }

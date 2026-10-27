@@ -70,6 +70,12 @@ impl VehiclesBackend for VehiclesPort {
         Ok(())
     }
 
+    fn set_drift_assist(&self, _owner: &str, on: bool) -> BackendResult<()> {
+        self.car()?;
+        self.0.world_requests.borrow_mut().push(WorldRequest::DriftAssist(on));
+        Ok(())
+    }
+
     fn spawn_traffic(&self, _owner: &str, position: [f32; 3], heading: f32) -> BackendResult<u64> {
         self.world()?;
         // The road is found from the horizontal position, as for a teleport; the height is not used.

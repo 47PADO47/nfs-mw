@@ -65,6 +65,13 @@ impl Vehicles {
         host_vehicles::add_nos(&self.fns, amount)
     }
 
+    /// Turn the drift assist of the player's car on or off: a physics layer that makes a slide easy to start with the handbrake
+    /// and to hold with the wheel. It is off until a mod asks, applies to whatever car the player drives, and stays as set. The
+    /// change is made after the mods run. Needs `bb.vehicles` 1.2 (`Unsupported` on an older host).
+    pub fn set_drift_assist(&self, on: bool) -> ModResult<()> {
+        host_vehicles::set_drift_assist(&self.fns, on)
+    }
+
     /// Spawn a traffic car near `position`. The host answers `Unsupported` in 1.0 (see the catalogue).
     pub fn spawn_traffic(&self, position: [f32; 3], heading: f32) -> ModResult<VehicleId> {
         host_vehicles::spawn_traffic(&self.fns, position, heading).map(VehicleId::from_raw)
