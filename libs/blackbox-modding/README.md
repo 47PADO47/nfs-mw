@@ -11,10 +11,11 @@ Features:
   locked by snapshot tests.
 - `sdk`: the `Mod` trait, `declare_mod!`, the panic guard, the typed `Event`, and the host-table wrappers (logging,
   game id, interface query, and `ctx.commands()`, `ctx.input()`, `ctx.time()`, `ctx.map()`, `ctx.vehicles()`,
-  `ctx.hud()`, `ctx.camera()`, `ctx.audio()`, `ctx.world()`).
+  `ctx.hud()`, `ctx.camera()`, `ctx.audio()`, `ctx.world()`, `ctx.config()`).
 - `host`: the loader, the dispatcher (`dispatch` and `dispatch_event`), and the `InterfaceRegistry` that gives each mod
   its `bb.commands`, `bb.input`, `bb.time`, `bb.map`, `bb.menus`, `bb.vehicles`, `bb.hud`, `bb.camera`, `bb.audio` and
-  `bb.world` tables from the game's backend traits.
+  `bb.world` tables from the game's backend traits, and `bb.config`: the mod's own config file (`config.toml`, or the
+  manifest's `config` key) merged under the game's table for the mod ([api-config.md](../../docs/modding/api-config.md)).
 
 The crate is engine-generic: no game names, paths or defaults. `unsafe` is allowed only in `abi` and
 `sdk::ffi`, and in the host table modules (`host::table`, `host::loader`).

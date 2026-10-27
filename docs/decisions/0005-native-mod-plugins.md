@@ -81,7 +81,7 @@ a new interface id suffix, so two majors can be offered side by side during a de
 
 **Interfaces are the capability unit.** Everything beyond logging comes from `query_interface`, by a string id
 such as `bb.commands`, `bb.events`, `bb.input`, `bb.time`, `bb.map`, `bb.menus`, `bb.settings`, `bb.content`, `bb.vehicles`,
-`bb.hud`, `bb.audio`, `bb.camera`, `bb.world`, and, for the game-specific extension, `nfsmw.career`,
+`bb.hud`, `bb.audio`, `bb.camera`, `bb.world`, `bb.config`, and, for the game-specific extension, `nfsmw.career`,
 `nfsmw.pursuit`, `nfsmw.races`. An interface table is one `BbIface` header plus its function pointers. The ids
 of `bb.*` belong to `blackbox-modding` and mean the same in every Black Box game; the ids of `nfsmw.*` belong to
 `nfsmw-modding`. A game offers the `bb.*` interfaces it can implement and none it cannot: asking for an absent
@@ -317,7 +317,10 @@ anything. There is no sandbox and the project does not claim one. Therefore:
   validates positions, speeds and results itself, and never accepts "mod-reported" values. Anti-cheat is out
   of scope.
 - Per-mod opt-in: the setting `mods = off | allowlist | all` (default `all` for mods in the folder) with
-  `mods.allowed = ["id", ...]`, and `mods.disabled = [...]`, in the layered settings (CLI > env > TOML). The
+  `mods.allowed = ["id", ...]`, and `mods.disabled = [...]`, in the layered settings (CLI > env > TOML). *Note (config
+  interface):* the built form of the list keys is `mods_allowlist` and `mods_disabled`, and, since `bb.config`, also
+  `allowlist` and `disabled` inside a `[mods]` table next to `mode` and the mods' own `[mods.<id>]` tables, where they win
+  over the older keys ([docs/modding/api-config.md](../modding/api-config.md)). The
   flag **`--no-mods`** (and env `NFSMW_NO_MODS=1`) loads none, including content-only mods, and is the first
   step for any bug report.
 - The startup log lists each loaded mod with id, version and the SHA-256 of its library (the workspace already

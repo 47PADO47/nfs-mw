@@ -35,7 +35,7 @@ Options and on the pause menu's. A row is a toggle (on or off), a slider (from `
 a step of 0 meaning a tenth of the range), a list (one of its texts), or a button (pressed, calls back with 0).
 A player's change goes to the row, is saved, and calls the mod's callback with the new value. A mod reads and sets
 a row's value with `get` and `set` (`set` saves but does not call back). Values are saved per mod in the config file
-under `[mod_values."<id>"]`, one key per row name. The table is not `[mods.<id>]`: `mods` is the mod mode key.
+under `[mod_values."<id>"]`, one key per row name. The table is not `[mods.<id>]`: that is the mod's own configuration ([api-config.md](api-config.md)), which the mod writes, while a row value is saved state the player changed.
 Rows the mod does not remove are removed when it unloads. The SDK wrapper is `ctx.menus()`: `toggle`, `slider`,
 `list` and `button` take a Rust closure for the row's changes, and `get`, `set` and `unregister` take the row's id.
 Not yet: pages of their own, read-only text rows, sub-pages, and disabling or hiding a row.

@@ -32,6 +32,8 @@ A switch never changes a running mod. It edits the config file, and the change t
 | `allowlist` | `mods_allowlist`, the list of ids that may load | its id is in the list |
 | `off` | nothing: the page is not listed, since no mod is scanned | not applicable |
 
+- When the config file has a `[mods]` table (`docs/modding/api-config.md`) the list is written inside it (`disabled`, `allowlist`),
+  where it wins over the legacy key; the `[mods.<id>]` tables of the mods' own settings are left as they were.
 - The list is written with the other keys of the file left as they were, as the other settings are
   (`settings/write.rs`). The key is written even when the list is empty, so the file says what is switched off.
 - A switch that cannot be saved (no config folder, an unwritable file, a broken TOML file) changes nothing and logs a
