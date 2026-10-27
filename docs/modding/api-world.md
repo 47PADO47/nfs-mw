@@ -72,7 +72,7 @@ catalogue ([translations.md](translations.md)); characters the font lacks are dr
 
 ## Game interaction
 
-Status of the five interfaces (ids `bb.vehicles`, `bb.hud`, `bb.camera`, `bb.audio`, `bb.world`, all 1.0). The rows below
+Status of the five interfaces (ids `bb.vehicles`, `bb.hud`, `bb.camera` (1.1), `bb.audio`, `bb.world`, all 1.0 otherwise). The rows below
 say what each delivers; the rest of each table is still the plan. A call the game cannot serve answers
 `BB_ERR_UNSUPPORTED`, and a call that needs a world or a car answers `BB_ERR_NOT_READY` while none is loaded.
 The wire layouts are in [api.md](api.md#wire-numbers-abi-01).
@@ -163,6 +163,29 @@ and there is no way to stop a one-shot yet. **Open:** the lookup by event name (
 **Delivered (1.0):** `get` reads the camera the player sees (position, forward, vertical field of view, and the view);
 `set_mode` changes to one of the nine gameplay views (`BB_CAMERA_*`), queued. The free camera is not a gameplay view:
 it is **open**, with `override_pose`, `release`, `shake`, the field-of-view scale and the photo path.
+
+**Delivered (1.1): extra views.** A mod adds cameras of its own with `register_view`. The game lists them after its own
+gameplay views: the camera hotkey (**C**) steps through the built-in views and then through the extra views that fit the
+car, and the Camera row of the options menu (and the developer tools' combo) lists them by name. The choice is saved in the
+config as `camera_mode = "extra:<mod id>/<view id>"`; while the mod is not loaded, or the view does not fit the car (its
+`available` answers no), the game draws the chase camera and keeps the setting. Pressing the hotkey onto an extra view shows
+its name for two seconds.
+
+While an extra view is the player's view the host calls its `update` once per rendered frame, on the main thread, after the
+car has moved and before the frame's camera is read, with a `BbCameraInput` (the lead car's presented body: position, forward
+and up axes, velocity, angular velocity, speed, steering, throttle, brake, ground contact, the strength of a hit this frame,
+the car's id, and a reset flag for the first frame after the view was chosen or the car jumped). The mod answers a pose
+(position, forward, up, vertical field of view, and a flag to hide the player's car for a camera inside it). Any other status
+keeps the chase camera for the frame. All vectors are render space (x forward, y left, z up, metres), the same as the vehicle
+state. The camera model, its smoothing and its per-car data belong to the mod: the 2012 content mod does it with
+[`chameleon-camera`](../formats/chameleon-camera.md).
+
+| Entry | Signature sketch | Scope | Implemented in |
+|---|---|---|---|
+| Register | `camera.register_view(id, name, impl CameraView) -> Result<CameraViewId>`: `id` is plain and unique in the mod, `name` is what the setting shows | G | `modding/camera_views.rs`, `modding/backends/camera.rs` |
+| View trait | `CameraView::available(&mut self, car: &str) -> bool` (default yes), `CameraView::update(&mut self, &CameraInput) -> Option<CameraPose>` | G | `libs/blackbox-modding/src/sdk/camera.rs` |
+| Unregister | `camera.unregister_view(CameraViewId)`; unloading the mod does it | G | same |
+| Choose | `camera.select_view(CameraViewId)` **W**, queued like `set_mode` | G | `scenes/world/extra_view.rs` |
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
