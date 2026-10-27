@@ -63,8 +63,8 @@ fn draw(feed: &CustomFeed, frame: &Frame, cx: &LayoutCx<'_>) -> Drawn {
         return Drawn::default();
     }
     let motion = Motion::for_settings(&feed.settings);
-    let frame = place::cleared(HudBox::new(feed.screen, feed.settings.scale), &feed.settings);
-    let mut parts = Parts::new(cx, frame, &feed.settings);
+    let area = place::cleared(HudBox::new(feed.screen, feed.settings.scale), &feed.settings);
+    let mut parts = Parts::new(cx, area, &feed.settings);
     let hud = &feed.hud;
     let count = hud.race.and_then(|race| race.count);
     // The top-left column: the intro card until the countdown starts, else the entry card and the chips.

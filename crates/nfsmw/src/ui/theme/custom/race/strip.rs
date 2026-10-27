@@ -174,8 +174,8 @@ fn draw(feed: &CustomFeed, frame: &Frame, cx: &LayoutCx<'_>) -> Drawn {
         return Drawn::default();
     }
     let Some(model) = StripModel::of(&feed.hud, Detail::of(&feed.settings)) else { return Drawn::default() };
-    let frame = place::cleared(HudBox::new(feed.screen, feed.settings.scale), &feed.settings);
-    let mut parts = Parts::new(cx, frame, &feed.settings);
+    let area = place::cleared(HudBox::new(feed.screen, feed.settings.scale), &feed.settings);
+    let mut parts = Parts::new(cx, area, &feed.settings);
     parts.fade(fade);
     let widths = cell_widths(&model);
     let total = widths.iter().sum::<f32>() + SPACE * (widths.len() - 1) as f32 + 2.0 * PAD;
