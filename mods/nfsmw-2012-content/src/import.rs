@@ -17,7 +17,7 @@ use crate::police::PoliceRole;
 use crate::shared::SharedSet;
 use crate::source::{CarFile, Source};
 use crate::stats::ImportedStats;
-use crate::{brands, convert, names, nitrous, paints, sounds, variants, wheels};
+use crate::{brands, cameras, convert, names, nitrous, paints, sounds, variants, wheels};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
 const MAX_THREADS: usize = 6;
@@ -203,6 +203,11 @@ fn import_car(
     // The shared sounds are named after the car is written; a car that cannot name them is still a car.
     if let Err(error) = shared.add_to_car(folder, &named.id, &bytes) {
         log::warn!("{}: no shared sounds: {error:#}", named.id);
+    }
+    // The car's own 2012 cameras; the bumper camera starts at the converted body's nose.
+    let nose = front_end - (placed.axles[0] + placed.axles[1]) / 2.0;
+    if let Err(error) = cameras::write(folder, &named.id, &bytes, nose) {
+        log::warn!("{}: no 2012 cameras: {error:#}", named.id);
     }
     Ok(ImportedCar {
         id: named.id.clone(),

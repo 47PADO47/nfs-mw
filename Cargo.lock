@@ -2068,6 +2068,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "chameleon-camera"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "chameleon-effects"
 version = "0.1.0"
 dependencies = [
@@ -4258,6 +4267,7 @@ dependencies = [
  "blackbox-solid",
  "blackbox-tpk",
  "chameleon-bundle",
+ "chameleon-camera",
  "chameleon-effects",
  "chameleon-gfx",
  "chameleon-sound-graph",

@@ -14,6 +14,7 @@
 //! the content ready and convert nothing, unless the settings or the installs changed.
 
 mod brands;
+mod cameras;
 mod collision;
 pub mod config;
 mod convert;
@@ -71,6 +72,7 @@ impl Mod for NfsmwContent {
             return Ok(Self { mod_dir: PathBuf::new(), job: None, live: false });
         };
         let mut state = Self { mod_dir: mod_dir.clone(), job: None, live: false };
+        cameras::register(ctx, &mod_dir);
         let supplied = match supplied_config(ctx) {
             Ok(supplied) => supplied,
             Err(error) => {

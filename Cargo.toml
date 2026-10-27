@@ -74,6 +74,7 @@ rayon = "=1.11.0"
 blackbox-trace = { path = "libs/blackbox-trace" }
 # Engine-generic libraries (libs/)
 chameleon-bundle = { path = "libs/chameleon-bundle" }
+chameleon-camera = { path = "libs/chameleon-camera" }
 chameleon-effects = { path = "libs/chameleon-effects" }
 chameleon-gfx = { path = "libs/chameleon-gfx" }
 chameleon-sound-graph = { path = "libs/chameleon-sound-graph" }
