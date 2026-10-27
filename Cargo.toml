@@ -51,6 +51,7 @@ default-members = [
     "libs/chameleon-effects",
     "libs/chameleon-gfx",
     "libs/chameleon-sound-graph",
+    "libs/chameleon-text",
     "libs/chameleon-vehicle",
     "libs/ini-tuning",
     "libs/ea-audio",

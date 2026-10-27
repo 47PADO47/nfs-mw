@@ -2093,6 +2093,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "chameleon-text"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "chameleon-vehicle"
 version = "0.1.0"
 dependencies = [

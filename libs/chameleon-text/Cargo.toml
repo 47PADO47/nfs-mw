@@ -1,0 +1,17 @@
+[package]
+name = "chameleon-text"
+description = "Localised string tables of the Chameleon engine: reads and writes the LocalisedText resource (UI/LANGUAGE bundles)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+
+[dev-dependencies]
+chameleon-bundle.workspace = true
+
+[lints]
+workspace = true
