@@ -16,8 +16,8 @@ use super::targets::write_mask;
 use crate::{BlendMode, GlossyMaterialHandle, Shading, Vertex};
 
 /// Draw order: opaque and alpha-tested first, blended last.
-pub(super) const BLEND_ORDER: [BlendMode; 4] =
-    [BlendMode::Opaque, BlendMode::AlphaTest, BlendMode::AlphaBlend, BlendMode::Additive];
+pub(super) const BLEND_ORDER: [BlendMode; 5] =
+    [BlendMode::Opaque, BlendMode::AlphaTest, BlendMode::AlphaBlend, BlendMode::Subtractive, BlendMode::Additive];
 pub(super) const SHADINGS: [Shading; 8] = [
     Shading::Lit,
     Shading::Prelit,
@@ -89,6 +89,19 @@ const ADDITIVE: wgpu::BlendState = wgpu::BlendState {
         operation: wgpu::BlendOperation::Add,
     },
     alpha: wgpu::BlendComponent::OVER,
+};
+
+pub(super) const SUBTRACTIVE: wgpu::BlendState = wgpu::BlendState {
+    color: wgpu::BlendComponent {
+        src_factor: wgpu::BlendFactor::Zero,
+        dst_factor: wgpu::BlendFactor::OneMinusSrc,
+        operation: wgpu::BlendOperation::Add,
+    },
+    alpha: wgpu::BlendComponent {
+        src_factor: wgpu::BlendFactor::Zero,
+        dst_factor: wgpu::BlendFactor::OneMinusSrc,
+        operation: wgpu::BlendOperation::Add,
+    },
 };
 
 pub(super) const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
@@ -263,6 +276,7 @@ impl Pipelines {
             BlendMode::Opaque => ("fs_opaque", None, true),
             BlendMode::AlphaTest => ("fs_alpha_test", None, true),
             BlendMode::AlphaBlend => ("fs_blend", Some(wgpu::BlendState::ALPHA_BLENDING), false),
+            BlendMode::Subtractive => ("fs_blend", Some(SUBTRACTIVE), false),
             BlendMode::Additive => ("fs_blend", Some(ADDITIVE), false),
         };
         let label = match (prepared, clip) {

@@ -23,6 +23,7 @@ mod format;
 mod info;
 pub mod layout;
 mod reader;
+mod scroll;
 mod texture;
 mod writer;
 
@@ -34,6 +35,7 @@ pub use decode::{decode_mip_rgba8, decode_rgba8, decode_rgba8_cutout, mip_level_
 pub use error::{Error, Result};
 pub use format::{AlphaUsage, PixelFormat};
 pub use reader::{read_texture_packs, read_texture_packs_filtered, read_texture_packs_ranged};
+pub use scroll::{TextureScroll, read_texture_scrolls};
 pub use texture::{Texture, TexturePack};
 pub use writer::{
     DEFAULT_RENDERING_ORDER, MAX_DIMENSION, MAX_STORED_NAME, PackForm, TextureSource, WriteError, WriteOptions,

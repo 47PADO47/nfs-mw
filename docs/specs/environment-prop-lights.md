@@ -35,6 +35,14 @@ Examples include `XS_CHEVRCNRA_1_00`, `XS_MEDIANPOLE_1B_00`,
 `XS_MEDIANPOLEGREEN_1B_CK_00`, and `XO_TRAFFICLIGHTC_1B_00` **[verified]**.
 This is a bounded inventory, not proof that all installed files use these roles.
 
+One stock median-pole solid contains a second marker approximately 138 metres
+outside its local bounds. Applying it to a placed pole puts a stray amber flare
+inside the campus parking garage. The other 20 markers in the audited files lie
+within 0.1 metres of their solids' bounds. As a remake-side data safeguard,
+exclude markers more than 10 metres outside valid local solid bounds. This
+threshold is a conservative repair, not a verified original-game rule. If
+bounds are invalid or empty, do not use them to discard a marker.
+
 The three shared blink channels accumulate world elapsed time. Each toggles
 when its accumulator is strictly greater than 0.5, 0.4 or 0.45 seconds,
 respectively, then resets that accumulator to zero. Initial static state is off.

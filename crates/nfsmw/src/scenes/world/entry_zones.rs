@@ -39,6 +39,8 @@ impl ZoneKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Zone {
     pub kind: ZoneKind,
+    /// Installed event icon category; place zones have no race category.
+    pub race_type: Option<nfsmw_data::gameplay::RaceType>,
     /// The collection name, for the log.
     pub name: String,
     pub centre: Vec3,
@@ -68,6 +70,7 @@ impl EntryZones {
             };
             Zone {
                 kind,
+                race_type: None,
                 name: m.name.clone(),
                 centre: render(m.position),
                 radius: m.radius,
@@ -77,6 +80,7 @@ impl EntryZones {
         let races =
             data.races.iter().filter_map(|race| race.start.map(|start| (race, start))).map(|(race, start)| Zone {
                 kind: ZoneKind::Race,
+                race_type: race.race_type,
                 name: race.name.clone(),
                 centre: render(start.position),
                 radius: RACE_RADIUS,

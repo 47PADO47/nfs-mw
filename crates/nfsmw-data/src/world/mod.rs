@@ -8,12 +8,14 @@
 //! sets stay loaded and tiles stream independently.
 
 mod assets;
+pub mod emitter_placements;
 pub mod explosion_fx;
 pub mod finish_fx;
 mod globals;
 pub mod heli_sheet;
 mod index;
 pub mod lights;
+pub mod mesh_animation;
 pub mod moment;
 pub mod object_fx;
 mod props;

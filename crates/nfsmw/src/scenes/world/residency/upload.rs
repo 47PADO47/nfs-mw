@@ -41,7 +41,9 @@ impl Residency {
 
     fn upload_tile(&mut self, renderer: &mut dyn RenderBackend, mut data: SectionData) {
         let mut resources = SectionResources::with_texture_detail(self.texture_discard.unwrap_or(0));
+        resources.emitters = std::mem::take(&mut data.emitters);
         resources.anims = std::mem::take(&mut data.anims);
+        resources.scrolls = std::mem::take(&mut data.scrolls);
         resources.upload_textures(renderer, &data);
         resources.upload_meshes(renderer, &data, &self.shared);
         // What a loader thread could work out without the meshes is already in `data`; the rest joins it to them.
@@ -77,8 +79,10 @@ mod tests {
             textures: Vec::new(),
             decoded: Vec::new(),
             anims: Vec::new(),
+            scrolls: Vec::new(),
             scenery: Vec::new(),
             spawners: Vec::new(),
+            emitters: Vec::new(),
             collision: Vec::new(),
             prepared: None,
         }

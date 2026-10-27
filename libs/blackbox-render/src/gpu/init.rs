@@ -369,6 +369,7 @@ fn assemble(
         pipelines,
         textures: Slots::new(),
         texture_views: Default::default(),
+        texture_scrolls: Default::default(),
         meshes: Slots::new(),
         instances,
         effects,

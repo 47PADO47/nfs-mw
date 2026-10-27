@@ -37,6 +37,7 @@ impl WorldScene {
         self.explosions.release(renderer);
         self.heli_wash.release(renderer);
         self.finish_flares.release(renderer);
+        self.ambient_fx.release(renderer);
         self.object_fx.release(renderer);
         self.car_damage_fx.release(renderer);
         self.impact_fx.release(renderer);

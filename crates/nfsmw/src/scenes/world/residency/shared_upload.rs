@@ -118,6 +118,8 @@ impl SharedUpload {
                 let anims = std::mem::take(&mut self.globals.anims);
                 self.shared.anims.extend(anims);
                 self.shared.anims.extend(self.pending.iter().flat_map(|d| d.anims.iter().cloned()));
+                self.shared.scrolls.extend(self.pending.iter().flat_map(|d| d.scrolls.iter().copied()));
+                self.shared.emitters.extend(self.pending.iter().flat_map(|d| d.emitters.iter().cloned()));
                 self.stage = Stage::Meshes;
                 self.next = 0;
             }
@@ -235,8 +237,10 @@ mod tests {
             textures: Vec::new(),
             decoded: Vec::new(),
             anims: Vec::new(),
+            scrolls: Vec::new(),
             scenery: Vec::new(),
             spawners: Vec::new(),
+            emitters: Vec::new(),
             collision: Vec::new(),
             prepared: None,
         }

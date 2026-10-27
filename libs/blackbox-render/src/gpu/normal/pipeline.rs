@@ -12,7 +12,7 @@ use blackbox_gfx::BlendMode;
 
 /// One pipeline per blend mode in `BLEND_ORDER`, for each face setting built so far, in [`FACES`] order: the
 /// two-sided set first, the culling sets once a single-sided draw exists.
-pub(in crate::gpu) type FaceSets = Vec<[wgpu::RenderPipeline; 4]>;
+pub(in crate::gpu) type FaceSets = Vec<[wgpu::RenderPipeline; BLEND_ORDER.len()]>;
 
 /// Add the face settings `sets` lacks: the two-sided set, and with `culled` the culling sets. `make` builds the
 /// pipeline of one blend mode and face setting; the missing ones are built on worker threads (see
@@ -34,7 +34,8 @@ pub(in crate::gpu) fn fill_faces(
     let mut built = parallel::build(&keys, |&(face, mode)| make(mode, face)).into_iter();
     for _ in missing {
         let set: Vec<wgpu::RenderPipeline> = built.by_ref().take(BLEND_ORDER.len()).collect();
-        let Ok(set) = set.try_into() else { return };
+        let set =
+            set.try_into().unwrap_or_else(|_: Vec<wgpu::RenderPipeline>| unreachable!("one pipeline per blend mode"));
         sets.push(set);
     }
 }
@@ -144,6 +145,7 @@ pub(in crate::gpu) fn create(
         BlendMode::Opaque => ("fs_opaque", None, true),
         BlendMode::AlphaTest => ("fs_alpha_test", None, true),
         BlendMode::AlphaBlend => ("fs_blend", Some(wgpu::BlendState::ALPHA_BLENDING), false),
+        BlendMode::Subtractive => ("fs_blend", Some(crate::gpu::pipelines::SUBTRACTIVE), false),
         BlendMode::Additive => (
             "fs_blend",
             Some(wgpu::BlendState {

@@ -11,6 +11,7 @@ pub(super) struct Bindings {
     disabled: wgpu::Buffer,
     /// The projection every receiver of the current planar capture samples with. Rewritten, never recreated.
     projection: wgpu::Buffer,
+    scroll_zero: wgpu::Buffer,
     /// Receiver groups with the planar image off, keyed by the receiver's own view.
     defaults: BindCache<wgpu::TextureView, wgpu::BindGroup>,
     /// Receiver groups sampling a planar image, keyed by the receiver's view and that image.
@@ -33,7 +34,7 @@ pub(super) fn layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     };
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("diffuse and planar receiver"),
-        entries: &std::array::from_fn::<_, 5, _>(|binding| wgpu::BindGroupLayoutEntry {
+        entries: &std::array::from_fn::<_, 6, _>(|binding| wgpu::BindGroupLayoutEntry {
             binding: binding as u32,
             visibility: wgpu::ShaderStages::FRAGMENT,
             ty: match binding {
@@ -77,11 +78,17 @@ impl Bindings {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let scroll_zero = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("zero texture scroll"),
+            contents: &[0; 16],
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
         Self {
             fallback,
             sampler,
             disabled,
             projection,
+            scroll_zero,
             defaults: BindCache::default(),
             enabled: BindCache::default(),
             built_with: None,
@@ -111,12 +118,27 @@ impl Bindings {
         sampler: &wgpu::Sampler,
         diffuse: &wgpu::TextureView,
         image: Option<&wgpu::TextureView>,
+        scroll: Option<&wgpu::Buffer>,
     ) -> wgpu::BindGroup {
+        if let Some(scroll) = scroll {
+            let inputs = match image {
+                Some(image) => Inputs { diffuse, image, params: &self.projection, scroll },
+                None => Inputs { diffuse, image: &self.fallback, params: &self.disabled, scroll },
+            };
+            return build_group(device, layout, sampler, &self.sampler, inputs);
+        }
         let Some(image) = image else {
-            let make = || build_group(device, layout, sampler, &self.sampler, diffuse, &self.fallback, &self.disabled);
+            let make = || {
+                let inputs =
+                    Inputs { diffuse, image: &self.fallback, params: &self.disabled, scroll: &self.scroll_zero };
+                build_group(device, layout, sampler, &self.sampler, inputs)
+            };
             return self.defaults.get_or_insert_with(diffuse, &self.fallback, make).clone();
         };
-        let make = || build_group(device, layout, sampler, &self.sampler, diffuse, image, &self.projection);
+        let make = || {
+            let inputs = Inputs { diffuse, image, params: &self.projection, scroll: &self.scroll_zero };
+            build_group(device, layout, sampler, &self.sampler, inputs)
+        };
         self.enabled.get_or_insert_with(diffuse, image, make).clone()
     }
 }
@@ -129,15 +151,23 @@ fn projection_words(matrix: Mat4) -> [f32; 20] {
     words
 }
 
+/// What one receiver group binds besides the samplers: the diffuse view, the planar image with its parameters, and
+/// the UV scroll.
+struct Inputs<'a> {
+    diffuse: &'a wgpu::TextureView,
+    image: &'a wgpu::TextureView,
+    params: &'a wgpu::Buffer,
+    scroll: &'a wgpu::Buffer,
+}
+
 fn build_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
     sampler: &wgpu::Sampler,
     planar_sampler: &wgpu::Sampler,
-    diffuse: &wgpu::TextureView,
-    image: &wgpu::TextureView,
-    params: &wgpu::Buffer,
+    inputs: Inputs<'_>,
 ) -> wgpu::BindGroup {
+    let Inputs { diffuse, image, params, scroll } = inputs;
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("diffuse and planar receiver"),
         layout,
@@ -147,6 +177,7 @@ fn build_group(
             wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(image) },
             wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(planar_sampler) },
             wgpu::BindGroupEntry { binding: 4, resource: params.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 5, resource: scroll.as_entire_binding() },
         ],
     })
 }
@@ -157,6 +188,7 @@ impl Renderer {
         &self,
         diffuse: &wgpu::TextureView,
         projected: Option<(&wgpu::TextureView, Mat4)>,
+        scroll: Option<&wgpu::Buffer>,
     ) -> wgpu::BindGroup {
         let planar = &self.shared.planar;
         let (image, params) = match projected {
@@ -167,7 +199,14 @@ impl Renderer {
             None => (&planar.fallback, &planar.disabled),
         };
         let bindings = &self.shared.bindings;
-        build_group(&self.device, &bindings.texture_layout, &bindings.sampler, &planar.sampler, diffuse, image, params)
+        let scroll = scroll.unwrap_or(&planar.scroll_zero);
+        build_group(
+            &self.device,
+            &bindings.texture_layout,
+            &bindings.sampler,
+            &planar.sampler,
+            Inputs { diffuse, image, params, scroll },
+        )
     }
 
     pub(super) fn clear_planar_receivers(&mut self) {
@@ -179,7 +218,14 @@ impl Renderer {
             let Some(view) = self.texture_views.get(&handle) else { continue };
             let bindings = &self.shared.bindings;
             let layout = &bindings.texture_layout;
-            let group = self.shared.planar.receiver_group(&self.device, layout, &bindings.sampler, view, None);
+            let group = self.shared.planar.receiver_group(
+                &self.device,
+                layout,
+                &bindings.sampler,
+                view,
+                None,
+                self.texture_scrolls.get(&handle),
+            );
             if let Some(slot) = self.textures.get_mut(handle) {
                 *slot = group;
             }
@@ -204,6 +250,7 @@ impl Renderer {
                 &bindings.sampler,
                 view,
                 Some(image),
+                self.texture_scrolls.get(&handle.raw()),
             );
             if let Some(slot) = self.textures.get_mut(handle.raw()) {
                 *slot = group;

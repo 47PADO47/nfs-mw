@@ -66,6 +66,7 @@ impl WorldScene {
         let track = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
             .map_err(|error| log::warn!("track parameter maps unavailable: {error:#}"))
             .ok();
+        let mesh_animations = mesh_animation::MeshAnimations::load(dir, track.as_deref());
         let rain = track
             .as_deref()
             .map(crate::weather::rain::Rain::read)
@@ -280,6 +281,8 @@ impl WorldScene {
                 explosions: Default::default(),
                 heli_wash: Default::default(),
                 finish_flares: Default::default(),
+                ambient_fx: Default::default(),
+                mesh_animations,
                 object_fx: Default::default(),
                 car_damage_fx: Default::default(),
                 impact_fx: Default::default(),

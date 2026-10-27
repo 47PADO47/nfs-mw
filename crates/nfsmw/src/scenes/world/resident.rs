@@ -102,6 +102,7 @@ pub struct MeshTraits {
 /// Textures and meshes of a section, by name hash.
 #[derive(Default)]
 pub struct SectionResources {
+    pub(super) emitters: Vec<nfsmw_data::world::emitter_placements::Placement>,
     pub(super) texture_discard: u32,
     /// Authored road-view placements; never mixed into the player or shadow feed.
     pub(super) reflection_placed: Vec<ReflectionPlaced>,
@@ -120,6 +121,7 @@ pub struct SectionResources {
     pub(super) mesh_bounds: HashMap<u32, Aabb>,
     /// Animated textures defined here; frames may live here or in the shared sets.
     pub anims: Vec<blackbox_tpk::TextureAnim>,
+    pub(super) scrolls: Vec<blackbox_tpk::TextureScroll>,
     /// The cull data of the `Placed` list the residency keeps beside these resources, built on the first sweep after
     /// the list is final (`cull.rs`).
     pub(super) cull: std::cell::OnceCell<TileCull>,
@@ -227,6 +229,11 @@ impl SectionResources {
     /// changed since the last call is left alone.
     pub fn animate(&self, renderer: &mut dyn RenderBackend, seconds: f32, fallback: &SectionResources) {
         let texture = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).map(|m| m.0);
+        for scroll in &self.scrolls {
+            if let Some(handle) = texture(scroll.name_hash) {
+                renderer.set_texture_uv_offset(handle, scroll.offset(seconds));
+            }
+        }
         let mut shown = self.shown_frames.borrow_mut();
         shown.resize(self.anims.len(), None);
         for (anim, shown) in self.anims.iter().zip(shown.iter_mut()) {

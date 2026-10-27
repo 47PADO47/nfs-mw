@@ -187,6 +187,12 @@ fn authored_window_mapping_matches_independent_pc_shader_pixels() {
     ];
     for (index, label, center, right) in expected {
         let image = capture(&mut renderer, &fixture(index), BlendMode::Opaque);
+        assert!(
+            renderer.window.as_ref().unwrap().pipelines.values().any(|faces| {
+                !faces.is_empty() && faces.iter().all(|set| set.len() == super::super::pipelines::BLEND_ORDER.len())
+            }),
+            "window material pipelines remain resident for every blend mode"
+        );
         assert_rgb(&image, 32, center, label);
         assert_rgb(&image, 48, right, label);
     }

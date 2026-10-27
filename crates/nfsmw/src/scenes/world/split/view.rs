@@ -105,6 +105,10 @@ impl WorldScene {
             out,
         );
         self.residency.props().fragment_instances(out);
+        self.mesh_animations.place(&self.residency, out);
+        self.residency.animate_simple_models(out, self.clock);
+        let icons = self.activity_icons(lens.position);
+        crate::scenes::world::effects::entry_marks::geometry(&icons, &self.residency.shared, out);
         if self.original_sky {
             self.residency.sky.place(&self.residency.shared, out, lens.position, crate::scenes::world::sky::View::Main);
         }

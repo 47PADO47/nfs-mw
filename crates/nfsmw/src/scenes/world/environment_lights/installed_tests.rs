@@ -26,13 +26,17 @@ fn installed_environment_lights_use_authored_markers_profiles_and_global_texture
     let data = nfsmw_data::world::parse_section(i, &bytes).unwrap();
     for (name, kind, count) in [
         ("XS_CHEVRCNRA_1_00", Kind::AmberBlink, 1),
-        ("XS_MEDIANPOLER_1B_00", Kind::AmberBlink, 2),
+        ("XS_MEDIANPOLER_1B_00", Kind::AmberBlink, 1),
         ("XS_MEDIANPOLEGREEN_1B_CK_00", Kind::GreenBlink, 1),
         ("XO_TRAFFICLIGHTC_1B_00", Kind::RedBlink, 1),
         ("XO_CATSEYEORANGE_1A_00", Kind::Orange, 1),
     ] {
         let solid = data.solids.iter().find(|s| s.name == name).unwrap();
         let markers = nfsmw_data::world::lights::markers(solid);
+        if name == "XS_MEDIANPOLER_1B_00" {
+            assert_eq!(solid.markers.len(), 2, "the stock solid contains the stray marker");
+            assert!(markers.iter().all(|marker| marker.position.length() < 10.0));
+        }
         assert_eq!(markers.len(), count, "{name}");
         assert!(markers.iter().all(|m| m.kind == kind));
         let mut renderer =

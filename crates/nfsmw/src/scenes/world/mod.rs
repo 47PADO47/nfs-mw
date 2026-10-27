@@ -1,5 +1,6 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 mod ai;
+mod ambient_fx;
 mod breaker_icons;
 mod breaker_visuals;
 mod camera_choice;
@@ -33,6 +34,7 @@ mod finish_flares;
 mod frame;
 mod frame_systems;
 mod garage;
+mod mesh_animation;
 pub(crate) use garage::catalog as garage_catalog;
 pub(crate) use garage::native_my_car_handle;
 mod gps;
@@ -306,6 +308,8 @@ pub struct WorldScene {
     heli_wash: heli_wash::HeliWash,
     /// The flares at the running race's finish line (`finish_flares.rs`).
     finish_flares: finish_flares::FinishFlares,
+    ambient_fx: ambient_fx::AmbientFx,
+    mesh_animations: mesh_animation::MeshAnimations,
     object_fx: prop_effects::ObjectFx,
     car_damage_fx: damage_effects::DamageEffects,
     impact_fx: impact_effects::ImpactEffects,
