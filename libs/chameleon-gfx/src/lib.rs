@@ -5,6 +5,9 @@
 //! for cars).
 
 mod bytes;
+mod dds;
+#[cfg(test)]
+mod dds_tests;
 mod error;
 mod material;
 mod model;
