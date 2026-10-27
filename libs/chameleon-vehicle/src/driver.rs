@@ -1,13 +1,15 @@
 //! The driver of a 2012 car. Spec: `docs/formats/chameleon-vehicle.md` ("The driver").
 //!
 //! Every car bundle holds a `Vehicle_DriverSetup` Genesys object: which character sits in the car (the key of a
-//! `CharacterSpec` of the shared character bundle) and where its seat is. The characters are two seated figures, a
+//! `CharacterSpec` of the shared character bundle) and where its seat is. The characters are three seated figures (two
+//! civilians and the police officer, which the police cars seat instead of the one their setup names, `driver_cop.rs`), a
 //! skinned model at five levels of detail, modelled in the pose of their rest skeleton around the seat, so a car's driver
 //! is the figure moved by the car's seat position and nothing else ([`Driver::seated`]). One bundle (the police Explorer)
-//! also bakes a copy of that figure into its body; [`remove_baked_driver`] takes it out so the car does not draw two.
+//! also bakes a copy of the officer into its body; [`remove_baked_driver`] takes it out so the car does not draw two.
 
 use chameleon_bundle::{Bundle, Pool, ResourceId, ResourceKind};
 
+use crate::driver_cop::{COP_CHARACTER, police_flag};
 use crate::error::{Error, Result};
 use crate::genesys::{Object, TypeNames, find_object};
 use crate::vehicle::{Surfaces, expect, model_lods};
@@ -34,8 +36,13 @@ const BAKED_TECHNIQUE: &str = "_Driver";
 /// What a car's bundle says about its driver.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DriverSetup {
-    /// The key of the `CharacterSpec` of the figure that sits in the car (in the character bundle, class 1 ids).
+    /// The key of the `CharacterSpec` of the figure that sits in the car (in the character bundle, class 1 ids): the officer
+    /// ([`COP_CHARACTER`]) in a police car, else the character the setup names.
     pub character: u32,
+    /// The key the setup object itself names (the same civilian character in a police car as in the others).
+    pub named_character: u32,
+    /// Whether the car is a police car, which seats the officer whatever the setup names.
+    pub cop: bool,
     /// Where the figure's origin goes (engine space: x left, y up, z forward), metres; `None` when the car has no driver.
     pub seat: Option<[f32; 3]>,
     /// The number of seat belt bones the car sets up: 3 for a belt, 4 for a racing harness. The figure with the harness
@@ -53,8 +60,11 @@ impl DriverSetup {
     pub(crate) fn of(object: &Object) -> Result<Self> {
         let base = object.at(SETUP, 0).ok_or_else(|| Error::Spec(format!("the object has no {SETUP}")))?;
         let seat = object.floats::<3>(base + SEAT_AT)?;
+        let named_character = object.u32(base + CHARACTER_AT)?;
         Ok(Self {
-            character: object.u32(base + CHARACTER_AT)?,
+            character: named_character,
+            named_character,
+            cop: false,
             seat: seat.iter().all(|c| c.abs() < MAX_SEAT).then_some(seat),
             belts: object.u16(base + BELTS_AT)?,
             shifter_group: object.u32(base + SHIFTER_AT)?,
@@ -62,13 +72,24 @@ impl DriverSetup {
             pose_clip: object.u32(base + POSE_AT)?,
         })
     }
+
+    /// The setup of a car that is (or is not) a police car: the officer sits in it when it is.
+    pub(crate) fn policed(mut self, cop: bool) -> Self {
+        self.cop = cop;
+        if cop {
+            self.character = COP_CHARACTER;
+        }
+        self
+    }
 }
 
-/// The driver setup of a car bundle; `None` when the bundle has none that reads.
+/// The driver setup of a car bundle, with the character the game seats in it (the officer for a police car); `None` when the
+/// bundle has none that reads.
 pub fn driver_setup(bundle: &Bundle) -> Option<DriverSetup> {
     let types = TypeNames::read(bundle).ok()?;
     let object = find_object(bundle, &types, SETUP).ok()?;
-    DriverSetup::of(&object).ok()
+    let setup = DriverSetup::of(&object).ok()?;
+    Some(setup.policed(police_flag(bundle, &types).unwrap_or(false)))
 }
 
 /// A driver figure at every level of detail, around its own origin (the seat), with the textures its meshes draw named in
@@ -80,7 +101,7 @@ pub struct Driver {
     pub lods: Vec<Lod>,
 }
 
-/// The figure of the character `character`. `pool` must hold the character bundle and the shader bundle.
+/// The figure of the character `character` ([`DriverSetup::character`]). `pool` must hold the character bundle and the shader bundle.
 pub fn load_driver(pool: &Pool, character: u32) -> Result<Driver> {
     let id = ResourceId::from_parts(character, 0, 0, 1).0;
     let spec = expect(pool, id, ResourceKind::CharacterSpec)?;

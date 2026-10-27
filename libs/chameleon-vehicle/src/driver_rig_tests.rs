@@ -106,12 +106,12 @@ fn read(dir: &std::path::Path, rel: &str) -> Vec<u8> {
     std::fs::read(dir.join(rel)).unwrap_or_else(|error| panic!("{rel}: {error}"))
 }
 
-/// Both characters load with a skin for every vertex of every level; every vertex's weights add to about 255 (or are all zero) and
+/// All three characters (the officer too) load with a skin for every vertex of every level; every vertex's weights add to about 255 (or are all zero) and
 /// name bones of the skeleton; the unposed skeleton leaves the figure where the model has it; and in every car with grips the
 /// hands reach them at both full locks.
 #[test]
 #[ignore = "reads the game install (CHAMELEON_GAME_DIR or MW2012_GAME_DIR)"]
-fn the_two_characters_pose_and_reach_the_wheels_of_all_cars() {
+fn the_three_characters_pose_and_reach_the_wheels_of_all_cars() {
     let Some(dir) = install() else { return };
     let characters = read(&dir, "CHARACTERS/ALL_CHARS.BNDL");
     let shaders = read(&dir, "SHADERS.BNDL");

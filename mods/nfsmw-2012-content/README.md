@@ -149,7 +149,7 @@ table instead ([car-stats.md](../../docs/modding/car-stats.md)).
 |---|---|
 | Body, interior, lamps, mirrors (finest of 3 levels, 5,000 to 36,000 triangles) | `<ID>_KIT00_BODY_A..D` (the car's own folder), in car space (+x forward, +y left, +z up), with the 2012 shape unchanged: only the axes are permuted and the car is centred on its wheelbase (`src/fit.rs`) |
 | Tyre, brake disc, rim and caliper | one `<ID>_KIT00_FRONT_TIRE_A..D` solid, rim face at y = 0, as the game's wheels are modelled; the game draws it at the four hubs the car's `[wheels]` table gives ([The wheels](#the-wheels)) |
-| Driver | the character the car's bundle sets up (one of the 2012 game's two seated people, `CHARACTERS/ALL_CHARS.BNDL`), at the seat the bundle gives, with its textures: `<ID>_KIT00_DRIVER_A..D`, drawn while driving ([The driver](#the-driver)) |
+| Driver | the character the 2012 game seats in the car (a civilian of `CHARACTERS/ALL_CHARS.BNDL`, the police officer in a police car), at the seat the bundle gives, with its textures: `<ID>_KIT00_DRIVER_A..D`, drawn while driving ([The driver](#the-driver)) |
 | Diffuse maps (BC1, BC3) | the car's `TEXTURES.BIN` as DXT1 and DXT5, cut to `max_texture_size` |
 | Paint surfaces | the placeholder `<ID>_SKIN1` with light material `CARSKIN`, which the game swaps for the paint the player picks. Their texture coordinates are the 2012 car's own |
 | Liveries | the paint picture of each bundle of a vehicle that has several, or of the only bundle of a car that wears one (2048 x 1024 BC1, cut to `max_texture_size`): the vehicle's own bundle first, then its liveries in vehicle list order, as `<ID>_LIV1` to `<ID>_LIV5` in the car's `TEXTURES.BIN` and the `liveries` list of its `[customization]` table. A livery bundle is the car with that one texture replaced; one that is not (another body, no picture) is converted as a car of its own. The liveries are named by the vehicle's paint pack (`libs/chameleon-vehicle/src/paint_pack.rs`, the text table's `HERO`, `RACE`, ...), and the car wears the first as its stock look (`default_livery = 0`). The twelve vehicles with two-colour paint packs (62 packs) get one livery per pack, a baked picture of the pair of colours, named by the pack (`src/two_colour.rs`, `libs/chameleon-vehicle/src/{colour_palette,paint_surface,two_colour}.rs`; see Limits). Vehicles of the list that are one car under two vehicle ids (the same name; 6 of them) are one car, led by the one with liveries, then the one with most paints, and lend it their paints (`src/vehicle_list.rs`, `src/liveries.rs`, `src/fold.rs`, `src/variants.rs`) |
@@ -382,8 +382,8 @@ not a drive: the Venom was looked at in a render (`nfsmw view-car HENVENOMGT12 -
 
 ## The driver
 
-Every car of the 2012 game but the BMW 1M has a driver: each car bundle sets one up (`Vehicle_DriverSetup`: which of the two
-characters of `CHARACTERS/ALL_CHARS.BNDL` sits in the car, and the seat's position in the car's space), and the characters are
+Every car of the 2012 game but the BMW 1M has a driver: each car bundle sets one up (`Vehicle_DriverSetup`: which character of
+`CHARACTERS/ALL_CHARS.BNDL` sits in the car and the seat; the five police cars seat the police officer instead, [the officer](../../docs/formats/chameleon-vehicle.md#the-officer)), and the characters are
 seated figures, skinned models in the pose of their rest skeleton ([chameleon-vehicle.md](../../docs/formats/chameleon-vehicle.md#the-driver)).
 The conversion gives each of **92 of the 93 bundles** the solid `<ID>_KIT00_DRIVER_A..D`, which the game draws in the cockpit
 when the car is driven (not in the garage or the shop), with a part of its own (`<ID>_DRIVER`, slot `DRIVER`) that the game
@@ -397,10 +397,10 @@ mod car with no such solid has no driver.
   `src/import.rs` seats it per car. No height fitting is done: the data places the head under the roof of 81 of the 92 cars and
   just above the low windscreen of the others.
 - **Levels of detail.** The character has five levels (4,600 vertices down to 470); `A` and `B` take the finest, `C` the second, `D` the third.
-- **Looks.** The character's own diffuse map (a 2048 x 1024 BC1 picture cut to `max_texture_size`, named
+- **Looks.** The character's own diffuse map (a 2048 x 1024 BC1 picture, 1024 x 1024 for the officer, cut to `max_texture_size`, named
   after the texture's id in the car's `TEXTURES.BIN`), matte. The normal and specular maps are not carried.
 - **Not done.** The BMW 1M (Lightning McQueen's body) has no seat in its setup (19, 19, 19), so no driver. The Explorer's body
-  bakes a driver of its own (362 vertices, the same posture); the conversion takes it out so the car has the one driver. The
+  bakes a driver of its own (362 vertices, the officer's posture); the conversion takes it out so the car has the one driver. The
   driver moves with the steering and looks back in reverse ([driver poses](#the-drivers-poses)); the seat belt and harness setup
   of the bundle is not applied. Nothing has been seen in a running game; the reader's install test (`cargo test -p chameleon-vehicle --lib driver -- --ignored`, with `CHAMELEON_GAME_DIR` or
   `MW2012_GAME_DIR`: every car sets a driver up, the head under the body's top, the soles above the ground, the figure in the

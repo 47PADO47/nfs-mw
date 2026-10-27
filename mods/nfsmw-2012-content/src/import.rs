@@ -316,7 +316,7 @@ fn offered_paints(source: &Source, named: &Named, own: &[VehiclePaint]) -> Vec<V
     all
 }
 
-/// The driver of `car` (the bundle `bytes`): the character its driver setup names, seated where the setup says, at every level
+/// The driver of `car` (the bundle `bytes`): the character the game seats in it (the officer in a police car), seated where the setup says, at every level
 /// of detail, with the figure's textures added to the car's. `None` when the car has no driver (the BMW 1M, whose setup
 /// marks no seat), or the install has no figure for its character.
 fn seat_driver(source: &Source, car: &mut SourceCar, bytes: &[u8]) -> Option<Vec<Lod>> {

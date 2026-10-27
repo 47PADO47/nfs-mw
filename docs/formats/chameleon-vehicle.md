@@ -70,8 +70,8 @@ meshes are 0.327 m in radius and its body is 0.74 as tall as the real car: the M
 
 ## The driver
 
-Every car but the BMW 1M shows a driver: a seated person, one of two shared characters, placed by a small object in the car's bundle. The
-figures are not in the car bundles (only one bundle bakes a copy of one into its body, see the end of the section).
+Every car but the BMW 1M shows a driver: a seated person, one of three shared characters (two civilians and the police officer), placed by a small object in the car's bundle. The
+figures are not in the car bundles (only one bundle bakes a copy of the officer into its body, see the end of the section).
 
 **The setup object.** Each of the 93 `VEH_*_HI` bundles holds one Genesys object with a structure of type
 `Genesys.Gen.Vehicle_DriverSetup` (its field `SeatBeltBoneOffset` is a second type, one per belt bone) **[verified]**. Offsets
@@ -80,7 +80,7 @@ from the start of the structure; the field names are hashed, so these are by pos
 | Offset | Type | Field |
 |---|---|---|
 | 0x10 | f32 x 3 | the seat: where the character's origin goes in the car's space (x left, y up, z forward), metres. (19, 19, 19) means no driver (only the BMW 1M, 2196065, whose body is Lightning McQueen's) |
-| 0x24 | u32 | the key of the `CharacterSpec` that sits in the car: 0x3D8E in 61 bundles, 0x17785D in 32 |
+| 0x24 | u32 | the key of the `CharacterSpec` the setup names: 0x3D8E in 61 bundles, 0x17785D in 32. **The five police bundles name 0x3D8E too, but the game seats the officer in them** ([the officer](#the-officer)) |
 | 0x28 | u32 | the object's own key |
 | 0x2C | u32 | the id of a **locator group** of the car's spec (one locator: the gear lever); 0 in 28 cars |
 | 0x30 | u32 | the id of a locator group of the car's spec with **two locators: the left and right hand grips on the wheel** (the middle of the two is within 20 cm of the `SteeringWheel` bone and they are 31 to 50 cm apart in all 91 cars that have them) **[verified]** |
@@ -106,7 +106,7 @@ squared):
 |---|---|---|---|
 | 0x3D8E | 0xE6DEF161 | 4,458; 2,159; 1,341; 860; 433 | 0x177881, 2048 x 1024 |
 | 0x17785D | 0xEE0B3878 | 4,632; 2,495; 1,347; 916; 472 | 0x17786F, 2048 x 1024 |
-| 0x3D8D | 0xAB2342BC | 8,155; 2,919; 1,592; 1,184; 575 | 0x177879, 1024 x 1024 (no car sets it up) |
+| 0x3D8D | 0xAB2342BC | 8,155; 2,919; 1,592; 1,184; 575 | 0x177878, 1024 x 1024: **the police officer** (no setup names it, [below](#the-officer)) |
 
 One mesh per level, material technique `CharacterNew_Opaque_Textured_Normal_Spec_VertexAO` (samplers normal, diffuse, specular
 in that order, so the diffuse is material texture 1; the normal map is 2048 x 2048, the specular 256 x 256), skinned
@@ -127,11 +127,30 @@ figure's box in the body's, for every car. That the game uses the seat as it is 
 **[unconfirmed]**. The game animates the figure: it scrubs a steering clip and reaches the hands to the grips above
 ([chameleon-driver-animation.md](chameleon-driver-animation.md) **[exe]**). Nothing of the game was run.
 
+**The officer.** The third character is a police officer (the diffuse map has two police badges, a tie and a dark uniform;
+the other two wear jeans) **[verified]**. No setup and no other object of the install names its key, and it is not a setup
+object's choice: the game picks it from a flag on the car's vehicle object. That object (a `Genesys.Gen.VehicleComponent`
+structure) holds the handle of the driver setup at +0x2C, and a byte at **+0x8E** that is 1 in the five police bundles (the
+same five that `police_marks` finds) and 0 in the other 88 **[verified]**; its word at +0x88 is 1 in every civilian car and 2 to 6 in
+the police cars (SWAT van 2, Corvette 4, Explorer 5, Crown Victoria and Charger 6; read as a class or tier,
+**[unconfirmed]**). The executable's choice reads the byte first **[exe]** (`NFS13.exe` `FUN_0059ea70`: byte set gives key
+0x3D8D; clear gives the key stored in the setup at +0x24, and 0x3D8E if that is 0; its caller `FUN_00593ac0`, which sets a car up
+for drawing, queues the key, and `FUN_00531cf0` asks the character bundle for the three keys). So every police car, the SWAT van too, has the one
+officer: no car-by-car or class-by-class choice exists in the data. The setup keeps its own key (`named_character`),
+the belt count (3: the belt goes with the officer) and the seat, grip group and pose clip of the car, so the officer is placed,
+posed and reaches the wheel exactly as a civilian: the three characters import **the same skeleton (0x1777E6, 46 bones) and the same
+animation list (0x1777E8, 28 clips)**, and the officer's skin names bones 0 to 45; the rest pose reproduces its mesh to 1 mm. The officer is
+3 cm shorter than the civilians (head at y 1.803 against 1.835) and has the most detailed face (8,155 vertices at the finest
+level). `driver_setup` applies the flag: `DriverSetup::character` is the key the game seats (0x3D8D, `COP_CHARACTER`, for a
+police car), `named_character` the setup's own, `cop` the flag. The test `every_car_seats_a_character_inside_its_body` checks the
+five.
+
 **The baked driver.** One bundle, the police Explorer (`Ford_ExplorerInterceptor_2011`, 510072), also draws a 362-vertex
 (389-triangle, finest level only) seated figure as a body mesh whose material technique ends in `Driver`
 (`VehicleNFS13_Body_Driver`; a 4x4-block colour swatch of 8 x 8 pixels as its texture). It is the same posture as the seated
-0x3D8E character to within 0.2 m on every side of its box **[verified]**, so it is a baked copy of it, probably for the AI
-police car, which needs no animated figure **[unconfirmed]**. `remove_baked_driver` takes it out of the body so the car does
+officer to within 0.2 m on every side of its box, and nearer to the officer than to the 0x3D8E civilian (its left edge is at x
+0.2008 against the officer's 0.2009 and the civilian's 0.1908; its head at y 1.549 against 1.559 and 1.591) **[verified]**, so it is
+a decimated baked copy of the officer, probably for the AI police car, which needs no animated figure **[unconfirmed]**. `remove_baked_driver` takes it out of the body so the car does
 not draw two. The earlier reading of the format took this one figure for the only driver of the game and moved it to the other
 cars by their steering wheel bone; that was wrong.
 

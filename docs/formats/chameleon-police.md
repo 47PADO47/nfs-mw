@@ -40,6 +40,16 @@ flash pattern, and the objects' glow colours say which lamps are red and which b
 small strobes of both colours; counts per car, the patterns and the colours are in [chameleon-corona.md](chameleon-corona.md#flash-patterns-verified)).
 The converter turns them into the `[[light_bar]]` of a converted police car ([cop-cars.md](../modding/cop-cars.md#the-light-bar)).
 
+## The driver of a police car [verified, exe]
+
+The five police bundles' `Vehicle_DriverSetup` objects name the civilian character 0x3D8E like the other cars, but the game seats
+the **police officer**, character 0x3D8D of `CHARACTERS/ALL_CHARS.BNDL` (a uniform, two badges and a tie on its texture; the only
+character no setup names). It picks him from a byte at +0x8E of the vehicle object that references the setup, which is 1 in exactly
+these five bundles and 0 in the other 88. One officer for every police car, the SWAT van too; the officer shares the civilians'
+skeleton and animation list, so the converted cars pose him like any driver. Details, offsets and the executable's choice:
+[chameleon-vehicle.md](chameleon-vehicle.md#the-officer). The converter's reader (`chameleon_vehicle::driver_setup`) applies it.
+The Explorer's body also bakes a low-polygon copy of him.
+
 ## The role table of the game's logic [verified, meaning unconfirmed]
 
 `GAMELOGIC/GAMEPLAY.BNDL` holds a Genesys object (`0x46194`, 18,160 bytes) with 118 records of 116 bytes: a vehicle id at +88

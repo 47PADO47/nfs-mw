@@ -55,7 +55,7 @@ pub struct SourceCar {
 }
 
 /// A driver figure of the install with the textures its meshes draw. The driver a bundle bakes into its body (one does) is not
-/// in its [`SourceCar::vehicle`]: the character its driver setup names takes its place there, as in every other car.
+/// in its [`SourceCar::vehicle`]: the character the game seats in it (the officer in a police car) takes its place there, as in every other car.
 pub struct DriverFigure {
     pub driver: Driver,
     /// The figure's skeleton, clips and skin, when they read: without them the driver stays in its seated pose.
@@ -315,8 +315,8 @@ impl Source {
         self.characters.is_some()
     }
 
-    /// The driver figure of the character `key` (the key a car's driver setup names), read on the first ask and kept: every car
-    /// of a run shares the two characters. `None` when the install has no character bundle or the figure does not read.
+    /// The driver figure of the character `key` (`DriverSetup::character`: the civilian a car's setup names, or the officer of a
+    /// police car), read on the first ask and kept: every car of a run shares the three characters. `None` when the install has no character bundle or the figure does not read.
     pub fn driver_figure(&self, key: u32) -> Option<Arc<DriverFigure>> {
         let mut known = self.figures.lock().ok()?;
         if let Some(found) = known.get(&key) {

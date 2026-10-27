@@ -7,6 +7,7 @@ use chameleon_bundle::{Bundle, Pool};
 use chameleon_gfx::Vertex;
 
 use crate::driver::{DriverSetup, SETUP};
+use crate::driver_cop::COP_CHARACTER;
 use crate::genesys::Object;
 use crate::{Appearance, Driver, Lod, PartMesh, SurfaceKind, Vehicle};
 use crate::{driver_meshes, driver_setup, is_driver, load, load_driver, load_texture, remove_baked_driver};
@@ -44,6 +45,8 @@ fn the_setup_is_read_by_its_offsets() {
     let setup = DriverSetup::of(&object([0.29, -0.739, -0.222], 0x17785D, 4)).unwrap();
     let expected = DriverSetup {
         character: 0x17785D,
+        named_character: 0x17785D,
+        cop: false,
         seat: Some([0.29, -0.739, -0.222]),
         belts: 4,
         shifter_group: 0x1779e3,
@@ -51,6 +54,21 @@ fn the_setup_is_read_by_its_offsets() {
         pose_clip: 0x1779c7,
     };
     assert_eq!(setup, expected);
+}
+
+#[test]
+fn a_police_car_seats_the_officer_whatever_its_setup_names() {
+    let named = DriverSetup::of(&object([0.4, -0.5, 0.1], 0x3D8E, 3)).unwrap();
+    let cop = named.policed(true);
+    assert_eq!((cop.character, cop.named_character, cop.cop), (COP_CHARACTER, 0x3D8E, true));
+    assert_eq!(COP_CHARACTER, 0x3D8D);
+    assert_eq!(
+        (cop.seat, cop.belts, cop.grip_group),
+        (named.seat, named.belts, named.grip_group),
+        "only the figure changes"
+    );
+    let civilian = named.policed(false);
+    assert_eq!((civilian.character, civilian.cop), (0x3D8E, false));
 }
 
 #[test]
@@ -134,9 +152,10 @@ fn extent(lod: &Lod) -> ([f32; 3], [f32; 3]) {
     (low, high)
 }
 
-/// Every one of the 93 cars of the install sets a driver up; the two characters read with their textures; seated at the
-/// car's seat the figure is inside the car's body (head under the highest point of the body, soles on the floor), and
-/// the one figure a body bakes in (the Explorer's) is where the seated character is.
+/// Every one of the 93 cars of the install sets a driver up; the three characters (two civilians and the officer of the
+/// police cars) read with their textures; seated at the car's seat the figure is inside the car's body (head under the
+/// highest point of the body, soles on the floor), and the one figure a body bakes in (the Explorer's) is where the seated
+/// officer is.
 #[test]
 #[ignore = "reads the game install (CHAMELEON_GAME_DIR or MW2012_GAME_DIR)"]
 fn every_car_seats_a_character_inside_its_body() {
@@ -148,7 +167,7 @@ fn every_car_seats_a_character_inside_its_body() {
     character_pool.add(Bundle::parse(&characters).unwrap());
     character_pool.add(Bundle::parse(&shaders).unwrap());
     let mut figures = std::collections::HashMap::new();
-    let (mut cars, mut without, mut baked) = (0, Vec::new(), Vec::new());
+    let (mut cars, mut without, mut baked, mut cops) = (0, Vec::new(), Vec::new(), Vec::new());
     for entry in std::fs::read_dir(dir.join("VEHICLES")).unwrap().flatten() {
         let file = entry.file_name().to_string_lossy().to_uppercase();
         if !(file.starts_with("VEH_") && file.ends_with("_HI.BNDL")) {
@@ -158,8 +177,17 @@ fn every_car_seats_a_character_inside_its_body() {
         let bundle = Bundle::parse(&data).unwrap();
         let setup = driver_setup(&bundle).unwrap_or_else(|| panic!("{file}: no driver setup"));
         cars += 1;
-        // The harness (4 belt bones) goes with the second character, the belt (3) with the first.
-        assert_eq!(setup.belts == 4, setup.character == 0x17785D, "{file}: {setup:?}");
+        // The harness (4 belt bones) goes with the second character, the belt (3) with the first; the officer wears the belt.
+        assert_eq!(setup.belts == 4, setup.named_character == 0x17785D, "{file}: {setup:?}");
+        assert_eq!(setup.cop, setup.character == COP_CHARACTER, "{file}: {setup:?}");
+        assert_eq!(
+            setup.cop,
+            crate::police_marks(&bundle).is_police(),
+            "{file}: the police flag and the police marks agree"
+        );
+        if setup.cop {
+            cops.push(file.clone());
+        }
         let Some(seat) = setup.seat else {
             without.push(file);
             continue;
@@ -203,8 +231,9 @@ fn every_car_seats_a_character_inside_its_body() {
         }
     }
     assert_eq!(cars, 93);
-    assert_eq!(figures.len(), 2, "two characters sit in the cars");
+    assert_eq!(figures.len(), 3, "two civilians and the officer sit in the cars");
+    assert_eq!(cops.len(), 5, "five police cars seat the officer: {cops:?}");
     assert_eq!(without.len(), 1, "one car (the BMW 1M, with Lightning McQueen's body) has no driver: {without:?}");
     assert_eq!(baked.len(), 1, "one car bakes its driver into the body: {baked:?}");
-    println!("{cars} cars; no driver: {without:?}; baked: {baked:?}");
+    println!("{cars} cars; no driver: {without:?}; baked: {baked:?}; officer: {cops:?}");
 }

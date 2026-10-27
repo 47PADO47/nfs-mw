@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the conversion changes what it writes for the same input.
-const CONVERSION: u32 = 19;
+const CONVERSION: u32 = 20;
 /// Bump when the brand logos (`brands.rs`, `logo.rs`) change for the same input.
 const BRANDS: u32 = 1;
 pub const FILE: &str = ".import-stamp";

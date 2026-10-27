@@ -15,6 +15,7 @@ mod damage_clip;
 mod drift;
 mod drift_model;
 mod driver;
+mod driver_cop;
 mod driver_rig;
 mod error;
 mod genesys;
@@ -67,6 +68,7 @@ pub use damage_clip::{BREAK_STEP_M, BonePose, BoneTrack, DamageClip, damage_clip
 pub use drift::{DriftNitrous, DriftPayout, DriftPhysics, TANK_UNITS, read_drift_nitrous, read_drift_physics};
 pub use drift_model::{DriftInput, DriftModel, DriftOutput, DriftParams, DriftSummary, HIT_ENDS};
 pub use driver::{Driver, DriverSetup, driver_meshes, driver_setup, is_driver, load_driver, remove_baked_driver};
+pub use driver_cop::COP_CHARACTER;
 pub use driver_rig::{DriverPose, DriverRig, Grips, LOOK_BACK_CLIP, STEERING_CLIP, driver_grips, load_rig};
 pub use error::{Error, Result};
 pub use hinged::{HingedPart, hinged_parts};
