@@ -1,14 +1,14 @@
 # Custom HUD map: implementation notes
 
-How PR 7b builds the centred translucent map of the Custom HUD 2026 (the design is `docs/specs/custom-hud/map.md` and
+How PR 7b builds the translucent map of the Custom HUD 2026 (centred across the screen, at the top since the placement change) (the design is `docs/specs/custom-hud/map.md` and
 `fair-knowledge.md`; ADR 0013). This page records what the road data has, the rules the code follows, and what is
 not done yet.
 
 Code:
 
 - `crates/nfsmw/src/hud/map_roads/`: the roads as simplified polylines in a uniform grid, built on the scene side.
-- `crates/nfsmw/src/ui/theme/custom/map/`: the map component (modes, memory, view, picture, icons, roads, marks, draw,
-  chip).
+- `crates/nfsmw/src/ui/theme/custom/map/`: the map component (modes, place, backdrop, memory, view, picture, icons,
+  roads, marks, draw, chip).
 - `crates/nfsmw/src/hud/map_picture.rs`: the game's map tiles and calibration for the picture (section 9).
 - `crates/nfsmw/src/hud/map_keys.rs`: the map's keys applied to the live settings.
 - `crates/nfsmw/src/input/bindings.rs` (`hud_map`): the default bindings.
@@ -87,11 +87,20 @@ and draw a plain crossing. The turning ones are dropped.
 | Mode | Draws |
 |---|---|
 | Off | nothing |
-| Compact | a small overlay, an ellipse of 15.5% by 11.5% of the box height for 200 m, at 0.7 of `map_opacity`; and the turn-cue chip under the top centre: an arrow (straight, left, right, U-turn) and the distance, rounded to 10 m, or to 50 ft below 1000 ft and 0.1 mi above |
-| Centered | the overlay: an ellipse of 23% by 17% of the box height for 300 m, at `map_opacity` |
-| Expanded | 33% by 24.5% for 600 m, at `max(map_opacity, min(map_opacity + 0.25, 0.85))`, plus paths (roads only) and the stretch of the route already driven (at half the route's alpha) |
+| Compact | a small overlay, an ellipse of 15.5% by 7.75% of the box height for 200 m, at 0.7 of `map_opacity`; and the turn-cue chip under the top centre: an arrow (straight, left, right, U-turn) and the distance, rounded to 10 m, or to 50 ft below 1000 ft and 0.1 mi above |
+| Centered | the overlay: an ellipse of 23% by 11.5% of the box height for 300 m, at `map_opacity` |
+| Expanded | 33% by 16.5% for 600 m, at `max(map_opacity, min(map_opacity + 0.25, 0.85))`, plus paths (roads only) and the stretch of the route already driven (at half the route's alpha) |
 
 The metres are for the roads; with the game's picture the view is 2.4 times wider (section 9).
+
+**Placement** (`map/place.rs`, `docs/specs/custom-hud/map.md` section 2). The ellipse hangs from the safe area's top (3.5% of
+the screen's height from the edge) and is centred across the content box; the half-axes are fractions of the box's height,
+the vertical one half the horizontal. The horizontal one is held back to leave `240 * scale + 6` units to each side for the
+top columns, down to 50 units, and the vertical one follows. `top_clearance(settings, frame)` is the map's height plus 6
+units for the settled mode (0 when off). `HudBox::with_top_clearance` carries it: `HudBox::place` moves a top-centre
+element down by it (the race strip, the banner lines, the turn chip), and `place_clear` pushes a card only as far as the
+band needs (the countdown, the end card). The LAN countdown and vote shift down together by the same rule. The settings
+name `centered` is kept: it means centred across the screen.
 
 - The view radius is the base over `map_zoom`; it is what the ellipse's horizontal half-axis shows. The last 12% of
   the mean radius fades the roads, the route and the marks to nothing.
@@ -108,8 +117,8 @@ The metres are for the roads; with the game's picture the view is 2.4 times wide
 Back to front, depths far behind the HUD's other elements (`DEFAULT_Z` is 1): roads (60), route (59), marks (58), the
 player's arrow (57). Line widths are in HUD units times the HUD scale, the same on screen at every zoom.
 
-- **Route:** `HudState::route.path`, nav (signal yellow), three units, the stretch ahead of the car at the roads' opacity plus 0.4.
-- **Race route:** `HudState::race_route` (section 3), nav yellow, three units, under the GPS route. The stretch ahead of
+- **Route:** `HudState::route.path`, `guide` (signal yellow in the built-in palette), three units, the stretch ahead of the car at the roads' opacity plus 0.4.
+- **Race route:** `HudState::race_route` (section 3), `guide`, three units, under the GPS route. The stretch ahead of
   the player is at the route's alpha and the stretch already driven this lap at half of it; without the player's
   place on the route (no `race_info.remaining_m`) the whole lap is bright. Centered and Expanded both draw it.
 - **Race:** the next gate (`race_info.next_gate`) as a nav ring held inside the ellipse's edge when out of view; the
@@ -120,8 +129,12 @@ player's arrow (57). Line widths are in HUD units times the HUD scale, the same 
   cops as solid danger dots; the helicopter only while it has the player in sight; the police's last-known place as a
   hollow danger ring in Search and Cooldown only, fading from 0.8 to 0 over 20 s of age; roadblocks only once
   dispatch has reported them.
-- Colours are the `custom.*` tokens, so the palette and high contrast apply; with high contrast the main roads get a
-  dark under-stroke one unit wider.
+- **Colours are the active theme's tokens** (`theme.line`, `line_minor`, `line_faint`, `guide`, `success`, `caution`,
+  `danger`, `info`, `primary`, `secondary`, `scrim`, `overlay`), read with `Tokens::colour_in` (the neutral default when a
+  skin lacks the key); no colour is fixed in `map/` or `full_map/` (a test scans the sources). `UiThemes::refresh_skin`
+  passes the theme's roles through `custom/tokens/roles.rs`, so the colour-vision palette and high contrast apply on
+  top. With high contrast the main roads get a dark under-stroke (`overlay`) one unit wider.
+- **Plate:** a subtle ellipse of the theme's `scrim` at 35% of its alpha behind the roads (`map/backdrop.rs`, depth 61).
 
 ## 6. Keys
 
@@ -165,6 +178,11 @@ draws with this map's pieces rather than its own:
 
 The refactor that shared them (`mark_parts`, `ring`, `road_look`) changes nothing the HUD map draws; its tests are
 unchanged.
+
+**Backdrop.** `chrome::backdrop` draws the theme's `scrim` over the whole window (depth 70) and the theme's `overlay`
+plate under the picture's square (depth 69.5), both at the open fade `FullMapMemory::open` (eased over `Motion::map_mode`,
+reset when the map closes). This replaces the single `surface` ground at 0.92 of its alpha, which dimmed the scene by about
+55% and did not tell the full map from the HUD's. The numbers are in [map.md](custom-hud/map.md) section 11.
 
 ## 9. The game's picture and icons
 
