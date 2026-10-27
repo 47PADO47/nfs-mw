@@ -19,6 +19,7 @@ pub const fn from_data_axes(v: Vec3) -> Vec3 {
 
 /// The cameras of one car (`VehicleCameraContainer`).
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CarCameras {
     pub external: ExternalCamera,
     pub globals: ExternalGlobals,
@@ -33,6 +34,7 @@ pub struct CarCameras {
 /// The chase ("gameplay external") camera of one car. Per-car values: `focus`, `ground_pivot`, `position`, the
 /// speed movement, the height change, the roll, the deceleration pitch and `lag_s`.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExternalCamera {
     /// Per-axis response `[forward, left, up]` (1.0, 0.55, 0.09 in all 93 cars). **[unconfirmed]** role.
     pub response: Vec3,
@@ -70,6 +72,7 @@ impl ExternalCamera {
 
 /// `Speed_based_movement`: what the camera does as the car speeds up.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpeedMovement {
     /// -1.0 in 84 cars (-0.6 to 0). **[unconfirmed]**: metres the camera moves along the car's forward axis at full
     /// speed (negative = further back).
@@ -85,6 +88,7 @@ pub struct SpeedMovement {
 
 /// `High_Speed_Shake`.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HighSpeedShake {
     /// 1.2 (1.3 in ten cars). **[unconfirmed]**: strength of the shake at full speed.
     pub amplitude: f32,
@@ -99,6 +103,7 @@ pub struct HighSpeedShake {
 
 /// `Acceleration_movement`: ten numbers; the roles below are **[unconfirmed]** readings.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AccelMovement {
     /// -2 (-1.9, -2.5): degrees of pitch at full acceleration.
     pub pitch_deg: f32,
@@ -124,6 +129,7 @@ pub struct AccelMovement {
 
 /// `Camera_Roll`: six numbers; roles **[unconfirmed]**.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CameraRoll {
     /// 2.5. Role unknown.
     pub param_10: f32,
@@ -141,6 +147,7 @@ pub struct CameraRoll {
 
 /// `Yaw_spring_modification`: six numbers, identical in all 93 cars; roles **[unconfirmed]**.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct YawSpring {
     /// 0.01 m/s: the speed the spring starts to change at.
     pub speed_min: f32,
@@ -158,6 +165,7 @@ pub struct YawSpring {
 
 /// `Deceleration_Pitch_Change`: four numbers; roles **[unconfirmed]**.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DecelPitch {
     /// 12 (11): the fastest the pitch changes, degrees per second.
     pub rate_deg_s: f32,
@@ -171,6 +179,7 @@ pub struct DecelPitch {
 
 /// `CameraGameplayExternalGlobals`: shared by the cars (identical in all 93).
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExternalGlobals {
     pub impact_shake: ImpactShake,
     pub lens: Lens,
@@ -179,6 +188,7 @@ pub struct ExternalGlobals {
 /// `Impact_shake`: the shake after a collision. Triples are per rotation axis in the **file's** order
 /// `[pitch, yaw, roll]` (x, y, z of the data), not host axes. Roles **[unconfirmed]**.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ImpactShake {
     /// (10, 10, 50): angular frequency in rad/s.
     pub frequency: [f32; 3],
@@ -193,6 +203,7 @@ pub struct ImpactShake {
 
 /// `LensProperties`.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Lens {
     /// 90. **[unconfirmed]**: a field of view in degrees (the largest the lens allows?); the model does not use it.
     pub fov_deg: f32,
@@ -203,12 +214,14 @@ pub struct Lens {
 /// `CameraGameplayGradientAdjustments`: two `Params`, 0.5 each in all cars. **[unconfirmed]**: the share of the
 /// car's pitch the chase camera takes on when the car climbs (`[0]`) and descends (`[1]`).
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GradientAdjustments {
     pub pitch_follow: [f32; 2],
 }
 
 /// The bonnet and the bumper camera: one structure (`CameraGameplayBonnet`, `CameraGameplayBumper`).
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MountedCamera {
     /// (1.0, 0.5, 0.7) in all cars, as `[forward, left, up]`. **[unconfirmed]** role; unused by the model.
     pub response: Vec3,
@@ -245,6 +258,7 @@ impl MountedCamera {
 /// `CameraRearView` and its globals: the camera of the rear-view mirror. **[unconfirmed]** reading: 3.3333 is the
 /// mirror's aspect ratio (width over height), 400 its width in pixels and 60 its field of view.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RearView {
     /// (0, 0.9, 0) in the data (x left, y up, z forward), so `[0, 0, 0.9]` here **[unconfirmed]**: the camera's
     /// offset; the model reads `up` as a height above the car's rear end.

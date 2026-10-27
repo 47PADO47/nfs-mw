@@ -9,7 +9,12 @@ publish.workspace = true
 
 [dependencies]
 chameleon-bundle.workspace = true
+serde = { workspace = true, optional = true }
 thiserror.workspace = true
+
+[features]
+# Derive Serialize and Deserialize on the parameter types, so a host can keep them between runs.
+serde = ["dep:serde"]
 
 [lints]
 workspace = true
