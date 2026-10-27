@@ -1,0 +1,15 @@
+[package]
+name = "chameleon-engine-state"
+description = "The engine on/off state of a car of the Chameleon engine (NFS Most Wanted 2012): a standstill auto-stop and restart model, and the car's ignition sound sequence."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+chameleon-bundle.workspace = true
+chameleon-sound-graph.workspace = true
+
+[lints]
+workspace = true
