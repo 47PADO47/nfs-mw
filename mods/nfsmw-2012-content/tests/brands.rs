@@ -35,7 +35,9 @@ fn brands_the_2005_game_lacks_get_a_manufacturer_with_their_2012_logo() {
         return;
     };
     let dir = mod_folder(&PathBuf::from(source));
-    let Start::Started { job: running, .. } = job::start(&dir, None).unwrap() else { panic!("the first start must convert") };
+    let Start::Started { job: running, .. } = job::start(&dir, None).unwrap() else {
+        panic!("the first start must convert")
+    };
     let started = Instant::now();
     let report = loop {
         if let Some(finished) = running.poll() {

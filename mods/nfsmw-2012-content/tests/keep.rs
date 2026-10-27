@@ -23,7 +23,9 @@ fn convert_the_cars_and_keep_them() {
     let ids: Vec<String> = cars.split(',').map(|id| format!("'{id}'")).collect();
     std::fs::write(dir.join("config.toml"), format!("source = '{source}'\ncars = [{}]\n", ids.join(", "))).unwrap();
     std::fs::write(dir.join("mod.toml"), MOD_TOML).unwrap();
-    let Start::Started { job: running, .. } = job::start(&dir, None).unwrap() else { panic!("the first start converts") };
+    let Start::Started { job: running, .. } = job::start(&dir, None).unwrap() else {
+        panic!("the first start converts")
+    };
     let started = Instant::now();
     let finished = loop {
         if let Some(finished) = running.poll() {

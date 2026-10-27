@@ -118,7 +118,9 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
 
     assert!(matches!(job::start(&dir, None).unwrap(), Start::UpToDate { cars: 1 }));
     std::fs::write(dir.join("config.toml"), "source = 'nowhere'\n").unwrap();
-    let Start::Started { job: second, live } = job::start(&dir, None).unwrap() else { panic!("a changed setting converts") };
+    let Start::Started { job: second, live } = job::start(&dir, None).unwrap() else {
+        panic!("a changed setting converts")
+    };
     assert!(live, "content from the first run is live now, so the new run waits for the next start");
     assert!(matches!(wait(&second), Finished::Failed(_)), "a missing install is a failure, not a crash");
     assert!(dir.join("files").is_dir(), "a failed run leaves the content as it was");

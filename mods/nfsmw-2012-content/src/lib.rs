@@ -88,7 +88,9 @@ impl Mod for NfsmwContent {
                 let place = format!("{}{made}, {elsewhere}", config.display());
                 ctx.log(
                     Level::Info,
-                    &format!("nfsmw-2012-content: no 2012 install is set. Put `source = '<folder>'` in {place} and restart"),
+                    &format!(
+                        "nfsmw-2012-content: no 2012 install is set. Put `source = '<folder>'` in {place} and restart"
+                    ),
                 );
             }
             Ok(Start::UpToDate { cars }) => {
