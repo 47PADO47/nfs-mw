@@ -81,7 +81,7 @@ fn exhaust_presets_round_trip_reject_invalid_ranges_and_accept_legacy_setups() {
     selection.exhaust.density = 999;
     assert!(encode(&selection).is_err());
     let mut invalid: toml::Value = toml::from_str(&text).unwrap();
-    invalid["exhaust"]["density"] = toml::Value::Integer(999);
+    invalid["exhaust"].as_table_mut().unwrap().insert("density".into(), toml::Value::Integer(999));
     assert!(decode(&toml::to_string(&invalid).unwrap(), &model).is_err());
 }
 
