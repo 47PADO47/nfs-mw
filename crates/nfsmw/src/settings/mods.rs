@@ -3,6 +3,26 @@
 //!
 //! `mods` is a layer like the others: command line > environment > config file > defaults. The lists are lists, and
 //! [`super::Settings`] and [`super::Partial`] are `Copy`, so the lists are read from the config file here instead.
+//!
+//! The `mods` key has two shapes (docs/modding/api-config.md):
+//!
+//! ```toml
+//! mods = "all"                  # the legacy string: the mode only
+//! mods_allowlist = ["a.mod"]    # the legacy lists
+//!
+//! [mods]                        # the table: the mode, the lists, and one table per mod
+//! mode = "allowlist"
+//! allowlist = ["a.mod"]
+//! disabled = ["b.mod"]
+//! [mods.a-mod]                  # the configuration of the mod `a-mod` (`bb.config`)
+//! key = "value"
+//! ```
+//!
+//! A key and a table cannot share a name in TOML, so a file has one shape or the other. The precedence rule for the lists
+//! is: **the table's `allowlist` and `disabled` win over the legacy `mods_allowlist` and `mods_disabled`**; a legacy list is
+//! used only when the table has no such key (or `mods` is the string). The mode has one source, `mods`, whichever shape.
+//! Writers keep the shape they find: the mod manager writes `mods.allowlist` / `mods.disabled` into a `[mods]` table and
+//! the legacy keys otherwise, and neither touches the `[mods.<id>]` tables.
 
 use std::path::Path;
 use std::str::FromStr;
@@ -16,6 +36,14 @@ use super::{Partial, Settings, env, file};
 pub const ALLOWLIST_KEY: &str = "mods_allowlist";
 /// The config key of the mods switched off in the mod manager (`mods = all`).
 pub const DISABLED_KEY: &str = "mods_disabled";
+/// The key of the mod mode, and of the table that holds the mode, the lists and the mods' own tables.
+pub const MODS_KEY: &str = "mods";
+/// The mode inside the `[mods]` table.
+const MODE_KEY: &str = "mode";
+/// The allowlist inside the `[mods]` table (the same list as [`ALLOWLIST_KEY`]).
+pub const TABLE_ALLOWLIST_KEY: &str = "allowlist";
+/// The switched-off list inside the `[mods]` table (the same list as [`DISABLED_KEY`]).
+pub const TABLE_DISABLED_KEY: &str = "disabled";
 
 /// Which mods may load: `off` loads none, `allowlist` only the ids in `mods_allowlist`, `all` every mod in the folders.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -74,15 +102,53 @@ pub fn read_list(path: &Path, key: &str) -> Vec<String> {
     parse_list(&text, key)
 }
 
-/// The string items of the list `key` in `text`; anything else is skipped.
+/// The key inside the `[mods]` table that holds the same list as the legacy `key`.
+fn table_key(key: &str) -> Option<&'static str> {
+    match key {
+        ALLOWLIST_KEY => Some(TABLE_ALLOWLIST_KEY),
+        DISABLED_KEY => Some(TABLE_DISABLED_KEY),
+        _ => None,
+    }
+}
+
+/// The string items of the list `key` (`mods_allowlist` or `mods_disabled`) in `text`; anything else is skipped. The list
+/// in the `[mods]` table (`allowlist`, `disabled`) wins when the table has it; otherwise the legacy key is read.
 pub fn parse_list(text: &str, key: &str) -> Vec<String> {
     let Ok(table) = text.parse::<Table>() else {
         return Vec::new();
     };
-    let Some(items) = table.get(key).and_then(Value::as_array) else {
+    let in_table = table_key(key).and_then(|inner| table.get(MODS_KEY)?.as_table()?.get(inner)?.as_array());
+    let Some(items) = in_table.or_else(|| table.get(key).and_then(Value::as_array)) else {
         return Vec::new();
     };
     items.iter().filter_map(|item| item.as_str().map(str::to_owned)).collect()
+}
+
+/// The mode `mods` sets in a parsed config file, in either shape. A bad value is reported and ignored; a `[mods]` table with
+/// no `mode` sets none.
+pub fn read_mode(table: &Table, origin: &str) -> Option<ModsMode> {
+    let value = match table.get(MODS_KEY)? {
+        Value::Table(inner) => inner.get(MODE_KEY)?,
+        other => other,
+    };
+    let Some(text) = value.as_str() else {
+        log::warn!("{origin}: ignoring the mods mode: expected a string");
+        return None;
+    };
+    text.parse().map_err(|e| log::warn!("{origin}: ignoring the mods mode: {e}")).ok()
+}
+
+/// The configuration the config file text keeps for mod `id`: the table `[mods.<id>]`, as its own keys. `None` when `mods`
+/// is not a table (the legacy string), the table has no such mod, or the text is not TOML. The id is the exact key, so a
+/// mod id with dots is written quoted: `[mods."my.mod"]`.
+pub fn mod_section(text: &str, id: &str) -> Option<Table> {
+    let table: Table = text.parse().ok()?;
+    section_in(&table, id).cloned()
+}
+
+/// [`mod_section`] over a config file that is already parsed.
+pub fn section_in<'a>(table: &'a Table, id: &str) -> Option<&'a Table> {
+    table.get(MODS_KEY)?.as_table()?.get(id)?.as_table()
 }
 
 /// The text of the file after the list `key` is set to `items` (empty text is an empty file). Every other key is left
@@ -90,6 +156,11 @@ pub fn parse_list(text: &str, key: &str) -> Vec<String> {
 pub fn merge_list(existing: &str, key: &str, items: &[String]) -> Result<String> {
     let mut table: Table = existing.parse().context("the config file is not valid TOML")?;
     let array = items.iter().map(|item| Value::String(item.clone())).collect();
+    // A `[mods]` table keeps its lists inside it, where they win over the legacy keys; the string shape keeps the legacy key.
+    if let (Some(inner), Some(Value::Table(mods))) = (table_key(key), table.get_mut(MODS_KEY)) {
+        mods.insert(inner.to_owned(), Value::Array(array));
+        return toml::to_string(&table).context("serializing the config file");
+    }
     table.insert(key.to_owned(), Value::Array(array));
     toml::to_string(&table).context("serializing the config file")
 }

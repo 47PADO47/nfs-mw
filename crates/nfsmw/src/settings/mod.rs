@@ -487,6 +487,9 @@ impl Settings {
 mod tests;
 
 #[cfg(test)]
+mod mods_tests;
+
+#[cfg(test)]
 mod xenon_effects_tests;
 
 mod world_tuning;
