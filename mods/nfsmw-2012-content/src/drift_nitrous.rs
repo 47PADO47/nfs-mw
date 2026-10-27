@@ -1,6 +1,13 @@
-//! The 2012 game's drift nitrous as a Gameplay setting: "2012 drift nitrous", off by default.
+//! The 2012 game's drifting as a Gameplay setting: "2012 drifting", off by default. It covers the nitrous a drift earns and
+//! the drift physics.
 //!
-//! In NFS Most Wanted (2012) a drift fills the nitrous tank. The rule, its numbers and where they are in the install are
+//! **Physics.** While the setting is on, the mod keeps the drift assist of the player's car on (`bb.vehicles` 1.2
+//! `set_drift_assist`, re-sent every scene tick so it follows a change of car): the handbrake and a turned wheel start a
+//! slide, the wheel holds its angle and the rear tyres let go part of their grip. The car's own numbers (when a slide is a
+//! drift, the largest angle, the yaw torque) are keys of its `[stats]` (`drift_stats.rs`). Turning the setting off turns
+//! the assist off. A game without `bb.vehicles` 1.2 answers `Unsupported` and the car drives as it did.
+//!
+//! **Nitrous.** In NFS Most Wanted (2012) a drift fills the nitrous tank. The rule, its numbers and where they are in the install are
 //! `chameleon-vehicle`'s ([`chameleon_vehicle::DriftModel`], docs/formats/chameleon-drift.md). While the setting is on, this
 //! module steps that model once a scene tick with what `bb.vehicles` (1.1) says of the player's car, whatever car it is, and
 //! pays the nitrous it earned into the car's tank with `add_nos`. While a drift pays, it shows the 2012 text for it
@@ -19,10 +26,11 @@ use chameleon_vehicle::{DriftInput, DriftModel, DriftParams, DriftPhysics, read_
 
 use crate::config::{self, Config};
 
-/// The option's id, as the game saves it under `[mod_values.nfsmw]`.
+/// The option's id, as the game saves it under `[mod_values.nfsmw]`. It kept the id it had when the setting only paid nitrous,
+/// so a saved choice still applies.
 pub const OPTION: &str = "drift_nitrous";
 /// What the Gameplay page shows.
-pub const LABEL: &str = "2012 drift nitrous";
+pub const LABEL: &str = "2012 drifting";
 /// Seconds between two refreshes of the HUD text, and how long one stays up (a little longer, so it does not blink).
 const MESSAGE_EVERY: f32 = 0.2;
 const MESSAGE_LASTS: f32 = 0.6;
@@ -109,7 +117,11 @@ pub fn register(ctx: &Ctx) {
     let Some(settings) = ctx.settings() else {
         return;
     };
-    let added = settings.add_toggle(OPTION, LABEL, false, |_ctx, on| {
+    let added = settings.add_toggle(OPTION, LABEL, false, |ctx, on| {
+        if !on && let Some(vehicles) = ctx.vehicles() {
+            // The assist goes off now; while the setting is on, every tick sends it on again.
+            let _ = vehicles.set_drift_assist(false);
+        }
         RUNTIME.with(|runtime| {
             let mut runtime = runtime.borrow_mut();
             runtime.on = on;
@@ -157,6 +169,10 @@ fn tick(ctx: &Ctx, dt: f32) {
         return;
     };
     let vehicles = ctx.vehicles();
+    if let Some(vehicles) = vehicles.as_ref() {
+        // Not ready without a car, unsupported before `bb.vehicles` 1.2: both leave the car as it was.
+        let _ = vehicles.set_drift_assist(true);
+    }
     let stepped = vehicles.as_ref().and_then(|vehicles| vehicles.player().ok()).map(|car| feed.tick(&car, dt));
     if stepped.is_none() {
         // No car, or a game without `bb.vehicles` 1.1: nothing is read, and a drift in progress is forgotten.

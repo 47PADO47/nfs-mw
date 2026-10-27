@@ -17,11 +17,11 @@ they are found.
 | Effect | What the data holds | Status |
 |---|---|---|
 | Sounds | a looping sample over the burn, a one-shot after it, a one-shot at the start, in `GAMELOGIC/HL_*.BNDL` | [verified] samples and loop flags; roles [unconfirmed] |
-| Post effects (vignette, bloom, colour grade) | `POSTFX.BNDL`: a state bound to `UsingNitrous` and one to `InOverdrive`, with keyframes and colour cubes | [verified] values; field names [unconfirmed] |
+| Post effects (vignette, bloom, colour grade) | `POSTFX.BNDL`: a state bound to `UsingNitrous` and one to `InOverdrive`, with keyframes, colour cubes and a blend time; read by `libs/chameleon-postfx`, played as the variant's `[screen]` vignette, grade and fades | [verified] values; field names and the byte order of the cubes [unconfirmed] |
 | Post effect fades | the sequence of the sound set blends a post effect state in and out | times read, meaning [unconfirmed] |
 | HUD | the `NitrousViewModel` signals in the executable | [exe]; the HUD movies are not read |
 | Tail pipe effects (start burst, blue glow, pop-off flame) | `SpotEffect` records of every car name the effects; their emitters, pictures and the glow's colour are in `GLOBALEFFECTS.BNDL` | [verified]: which effect, its emitters, pictures, glow colour; the emitters' programs (rates, lifetimes, speeds) are not decoded |
-| Camera (field of view, shake) | no type or value that names the nitrous | not found |
+| Camera (field of view, shake, pull-back) | no type or value that names the nitrous; the camera is the executable's | not found |
 | Speed lines, motion blur | no type or value that names the nitrous | not found |
 
 ## Sounds **[verified]**
@@ -86,9 +86,30 @@ overdrive keeps the grey vignette and brightens the bloom.
 
 Colour cubes (`0x52`, 16x16x16 entries of 3 bytes after a 16-byte header, 12,304 bytes). The nitrous cube (`0x789F`) is not
 the identity: grey (index 8,8,8) reads 128, 147, 157 in its stored byte order, and the primaries are pulled towards each
-other (pure red 37, 34, 223). The overdrive cube (`0x78A0`) **is** the identity. The default state's cube (`0x78F1`) is also
-a grade. The byte order of the stored colours (blue first, as the identity cube's pure red `0, 0, 255` shows) makes the
-nitrous grade a **warm** shift of the greys: red up, blue down **[unconfirmed]**.
+other (pure red 37, 34, 223). The overdrive cube (`0x78A0`) **is** the identity, and so is the default state's cube
+(`0x78F1`) along the grey diagonal (an earlier reading called it a grade; only the diagonal was looked at again).
+
+**The byte order of an entry is blue, green, red [unconfirmed]**, which makes the nitrous grade a warm shift of the greys.
+The evidence: the identity cube's pure red reads `0, 0, 255`, and the other grade cubes then look right: the heat cube
+(`0x789D`, grey 138, 183, 202) is orange and the cooldown cube (`0x7898`, grey 154, 138, 116) is blue. The grey diagonal of
+the nitrous cube (red, green, blue, 0 to 255, at positions 2, 4, 6, 8, 10, 12, 14 of 15): (27, 27, 32), (65, 64, 69), (114,
+107, 103), (157, 147, 128), (193, 184, 161), (224, 218, 200), (249, 248, 243). The shadows go a little down, the mids up
+and warm, the highlights stay white. A straight line per channel over positions 3 to 12 (`ColourCube::grade`, tested on the
+install) gives a **tint (1.138, 1.092, 0.887)** and a **contrast 1.056** about mid grey; a cube bends where a tint and a
+contrast cannot (the white end of the line is a little yellow).
+
+**The state objects** (main block, offsets from its start): `+0xE8` is a float that differs per state, **0 for the default, 2
+for the nitrous, the overdrive, the wreck and the escape, 3 for the cooldown, 20 for the heat**, and `+0xEC` is 1 in all.
+Read as the seconds the state takes to blend in **[unconfirmed]**: a heat grade that builds up over 20 s and a cooldown over
+3 s fit what the game does. The expression string starts at `+0xF8`. The variant uses 2 s for the way in and the way out.
+
+**What the numbers do on the screen [unconfirmed]**, from the executable's names (`VignetteOuterColour`, `kVignetteOuterRgbPlusAdd`)
+and the values: the vignette is a *darkening* at the edge. The outer colour is what the edge is multiplied by (a grey 0.45 by
+default, nearly black teal 0.037, 0.114, 0.089 in the nitrous), and the second pair (0.7, 0.555 by default, 0.459, 0.522 in
+the nitrous) is where it starts, as a share of the screen: smaller is tighter. The variant takes the mean of the pair as the
+distance from the centre where the edge starts to darken (0.49), and the outer colour as the multiplier at the corners.
+The bloom colour (blue 0.6, 0.83, 1.0) and the rest of the keyframe have no control in the renderer: the bloom is the player's
+own post setting. The sequence's second state (`0x162049`) and its times are below.
 
 The post effect is also blended by the burn sequence: its `PostFXSequenceItem` and `PostFxOverrideSequenceItem` items name a
 second state (`0x162049`, keyframe `0x16204A`, in `HL_31208.BNDL`) with a vignette of (0.5, 0.501), (0.85, 1.0), a colour of
@@ -97,9 +118,11 @@ the burn) and 0.75 and 0.25 (at its start): read as *start the blend at, for how
 state objects hold the pair 2.0, 1.0 (nitrous and overdrive) next to their expression, read as a blend time and a weight
 **[unconfirmed]**.
 
-**What the 2005 game here can do with it:** nothing yet. Its renderer takes a vignette that adds light and a radial blur
-(`blackbox_gfx::FocusFilter`); the 2012 vignette darkens and the bloom and the grade are not controls of the renderer. The
-values are kept here so that a renderer that grows those controls can read them.
+**What the 2005 game here can do with it:** the native renderer takes a `FocusFilter` with a vignette that adds light, a radial
+blur and a **grade** (`ScreenGrade`: a darkening, tinted vignette, a colour multiplier and a contrast), which is what the
+variant's `[screen]` section drives ([nitrous-variants.md](../modding/nitrous-variants.md)). Not expressible: the bloom
+tint and its numbers, the depth of field, the stereo part, the colour cube as a cube, and the vignette's angle and sharpness
+(the numbers at `+0x64`).
 
 ## Tail pipe effects **[verified]**
 
@@ -155,6 +178,9 @@ the light and the heat haze (`0x24F2F`, refraction sprite). The mod turns what i
 
 ## HUD **[exe]**
 
+The mode graph of `GAMELOGIC/GAMEMODES.BNDL` (kind `0x501`) runs a "Run Nitrous HUD" node and the widget group `Hud.Bounty.Nitrous`
+(and one for `PersistentPostFX`, `Widget.PostEffects.PostFX.PostFXPrepared`): the bar is a widget of the UI movies.
+
 `NFS13.exe` has a `NitrousViewModel` (the HUD's data source) with these signals: `NitrousAmount` ("the current nitrous
 amount"), `NitrousHighest` ("the highest nitrous amount since the player started using nitrous"), `UsingNitrous`, a
 "nitrous punch" flag, `InOverdrive`, and `NitrousReadyPulse` ("cycles from 0-1 over an interval that decreases with the
@@ -166,8 +192,12 @@ so the look of the bar and its flash is unknown.
 - **The effect's parameter array**, the flipbook cell rule, the blends and the lights: see [chameleon-effects.md](chameleon-effects.md#decoded-and-not).
 - **Camera.** The car bundles have `CameraGameplayExternal` (with `Speed_based_movement.High_Speed_Shake`,
   `Acceleration_movement`, `Camera_Roll`) and `CameraGameplayExternalGlobals.LensProperties`; none of them names the nitrous.
-  The executable has "The FOV of the Gameplay External camera" and "Max Fov", "Min Fov" in a debug table. A field of view or
-  shake that follows the nitrous is not in the data read.
+  The executable has "The FOV of the Gameplay External camera" and "Max Fov", "Min Fov" in a debug table (`GameplayExternalFOV`,
+  `DrivingBehaviourFOV`, `MinimumFOV`, `MaximumFOV`). A field of view, shake or pull-back that follows the nitrous is not in
+  the data read: the strings of `GAMELOGIC/`, `POSTFX.BNDL`, `CAMERAS.BNDL`, `GLOBALCONFIG.BNDL`, `UICONFIG.BNDL` and the
+  game mode graphs hold `NitrousState` only in the sound sequences, the post effect states, the HUD and the gameplay
+  parameters (`NitrousParameters`, the drain and the earnings). If the camera reacts, the executable does it. The variant's
+  field of view, pull-back and shake are therefore the rewrite's own numbers.
 - **Speed lines and motion blur.** `MotionBlurAmounts` is a shader constant of the executable; nothing ties it to the nitrous.
 - **Underglow, heat shimmer.** Nothing in the data.
 

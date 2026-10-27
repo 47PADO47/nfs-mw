@@ -68,10 +68,12 @@ impl PostChain {
         }
     }
 
-    /// Apply the scene's screen effects: the radial blur comes into the chain while its strength is above zero,
-    /// and every pass takes the settings.
+    /// Apply the scene's screen effects: the radial blur comes into the chain while its strength is above zero, the
+    /// grade while it is not neutral, and every pass takes the settings.
     pub(in crate::gpu) fn set_focus_filter(&mut self, device: &wgpu::Device, settings: FocusFilter) {
-        self.set_radial_blur(device, settings.sanitized().radial_blur > 0.0);
+        let clean = settings.sanitized();
+        self.set_radial_blur(device, clean.radial_blur > 0.0);
+        self.set_grade(device, !clean.grade.is_neutral());
         for pass in &mut self.passes {
             pass.set_focus(settings);
         }

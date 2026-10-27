@@ -12,6 +12,8 @@ use crate::{Antialiasing, PostSettings, Tonemap};
 mod focus_tests;
 #[path = "fusion_tests.rs"]
 mod fusion_tests;
+#[path = "grade_tests.rs"]
+mod grade_tests;
 #[path = "treatment_tests.rs"]
 mod treatment_tests;
 

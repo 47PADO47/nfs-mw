@@ -31,6 +31,7 @@ mod fsr1_tests;
 mod fsr3;
 mod fusion;
 mod fxaa;
+mod grade;
 mod plan;
 mod radial_blur;
 #[cfg(test)]

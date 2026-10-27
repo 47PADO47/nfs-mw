@@ -49,7 +49,7 @@ pub use capture::{RgbaImage, ViewCaptureUi};
 pub use display::{DisplaySettings, DisplayStatus, HdrMode};
 pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, FlameAppearance, FlameVolume, TexturedEffect};
 pub use error::RenderError;
-pub use focus::FocusFilter;
+pub use focus::{FocusFilter, ScreenGrade};
 pub use frame::{
     Fog, FrameParams, FrameStatus, Instance, InstanceKey, Projection, Scattering, SceneReuse, ShadowFlags, SurfaceLight,
 };
