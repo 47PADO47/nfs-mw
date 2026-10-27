@@ -62,6 +62,13 @@ pub(super) fn offer(dir: &GameDir, folder: &str, custom: &Customization, catalog
         // A livery carries its own colours: no vinyl colour channel to recolour.
         catalog.vinyl_remaps.insert(hash, 0);
     }
+    // A car that wears a livery from the start can take it off: the plain paint, shown with the other liveries.
+    if custom.default_livery.is_some() {
+        let hash = super::no_livery_hash(folder);
+        let label = super::NO_LIVERY.to_owned();
+        catalog.choices[Category::Vinyl as usize].push(Choice { hash, label, language_hash: None, carbon: false });
+        catalog.vinyl_remaps.insert(hash, 0);
+    }
     Ok(())
 }
 

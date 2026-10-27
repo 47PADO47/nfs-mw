@@ -125,3 +125,13 @@ fn the_garage_catalogue_of_a_car_with_a_table_has_only_its_own_choices() {
     selection.rim_color = Some([1, 2, 3]);
     catalog.validate(&selection).unwrap();
 }
+
+#[test]
+fn a_car_that_wears_a_livery_can_take_it_off_and_the_choice_is_priced_like_the_others() {
+    let mut dressed = car();
+    dressed.default_livery = Some(0);
+    let none = no_livery_hash("DRESSEDCAR");
+    assert_ne!(none, part_hash("DRESSEDCAR", Kind::Livery, "Livery 1"));
+    assert!(hashes("DRESSEDCAR", &dressed).contains(&none));
+    assert!(!hashes("DRESSEDCAR", &car()).contains(&none), "a car with no default livery has no such choice");
+}

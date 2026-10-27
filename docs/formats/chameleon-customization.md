@@ -140,7 +140,7 @@ for one panel next to plain paint surfaces; the Bentley, the Bugatti Veyron Gran
 for the body). A vehicle with one bundle has no alternative to choose from, but its picture is how the game dresses the car, so
 the importer offers the picture of a single bundle as `Livery 1` when the `Livery` surfaces are most of the car's paint
 (`liveries::own_picture`: the 918 Spyder, the Bentley, the Lancia Delta, the Veyron Grand Sport Vitesse and the police
-vehicles but the SWAT van), and a police car wears it from the start. A picture on one panel next to plain paint (the Raptor,
+vehicles but the SWAT van), and the car wears it from the start (the shop can take it off). A picture on one panel next to plain paint (the Raptor,
 the Gallardo) is laid out for that panel alone and a `TwoPaintMask` picture is a mask, so neither is offered. The techniques and textures are
 **[verified]**; what the shared picture shows is **[unconfirmed]**.
 

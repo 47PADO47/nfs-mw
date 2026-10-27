@@ -168,9 +168,9 @@ fn import_car(
         .police
         .is_police(&named.id, &named.display, &named.marks)
         .then(|| config.police.plan(&named.id, &named.display, &named.marks));
-    // A police car wears the markings its bundle draws (the livery picture of its own bundle, the first one) from the start.
+    // A car wears the livery its own bundle draws (the first one) from the start; the shop can take it off.
     let own = crate::liveries::choice(&named.id, 0);
-    let dressed = police.as_ref().and_then(|_| pictures.iter().position(|(choice, _)| *choice == own));
+    let dressed = pictures.iter().position(|(choice, _)| *choice == own);
     let entry = CarEntry {
         id: named.id.clone(),
         name: named.display.clone(),

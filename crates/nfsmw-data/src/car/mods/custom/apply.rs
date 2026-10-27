@@ -62,6 +62,10 @@ pub fn apply(
         dress(dir, folder, custom, model);
         return Ok(());
     };
+    // Taking the livery off keeps the plain paint.
+    if hash == super::no_livery_hash(folder) {
+        return Ok(());
+    }
     // The shop lists liveries with the vinyls: the hash says which kind it is.
     match pick(folder, Kind::Livery, &custom.liveries, |l| &l.name, hash) {
         Some(livery) => super::livery::apply(dir, folder, livery, model)?,

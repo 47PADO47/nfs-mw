@@ -74,8 +74,11 @@ the car id, without a brand none). `nfsmw_data::car::mods::titled` is the one pl
 shows for a car, and the screens built on the `Car_Select` package (the garage's Add New Car page, the car lot, the custom race's
 car select, Quick Play, the Showcase) name a mod car with two pictures drawn from that brand and name: the game names a stock car
 with its maker's logo and a picture of its model name, and the package's own sample pictures read `tp` and `temp350`
-(`frontend/car_title.rs`, `ui/name_picture.rs`). The maker's slot shows the brand (clear for a car with none) and the model's slot
-the name less the brand in front of it.
+(`frontend/car_title.rs`, `ui/name_picture.rs`). The maker's slot shows the brand's logo when there is one, and the brand written
+out when there is none (clear for a car with none); the model's slot shows the name less the brand in front of it. A brand has a
+logo when the game already has one of that name (compared ignoring case, spaces and punctuation: a mod car of brand `subaru`
+shows Subaru's logo) or when a mod declares one ([Manufacturers](api-content.md#manufacturers), which can also replace the
+game's logo of a brand).
 
 **The developer tools.** The F12 `parts` command and the F6 garage panel list and apply a mod car's own choices (paints, rim
 paints, tints, rims, spoilers, scoops, vinyls, and the liveries among the vinyls) from the same catalogue as the auto shop
@@ -128,7 +131,7 @@ liveries = [{ name = "Livery 1", texture = "FASTCOUPE_LIV1" }]       # a picture
 | `vinyls` | `bitmap` and `mask` are texture names in the car's own `VINYLS.BIN` (a texture pack; `PREVINYL.BIN` is read too). The mask's red channel is the opacity. `channels` (0 to 3) says how many of the bitmap's red, green and blue weights are colour channels the player can recolour; 0 keeps the bitmap's own colours. |
 | `vinyl_colors` | The colours the channels can take, for all three channels. |
 | `liveries` | `texture` is a texture name in the car's own `TEXTURES.BIN`, in the layout of the car's paint surfaces. See [Liveries](#liveries). |
-| `default_livery` | A position in `liveries`: the livery the car wears until the player picks a vinyl or a livery, as a police car wears its markings. Left out, the car starts in its plain paint. |
+| `default_livery` | A position in `liveries`: the livery the car wears until the player picks a vinyl or a livery. The shop lists a `No livery` choice with the liveries, which takes it off and leaves the plain paint (and the paints and finishes the player picks). Left out, the car starts in its plain paint. |
 
 - A name is 1 to 32 characters, with no control character, and unique within its list. Models and textures are letters,
   digits, `_` and `-`, up to 56 bytes. A list has at most 64 entries. A wrong value, or a key the table does not know,
@@ -167,7 +170,8 @@ name. A livery is drawn on every paint surface of the car (they all share one te
 shows only where the picture is transparent.
 
 A car that gives `default_livery` wears that livery from the start, in the garage, the shop and the world, wherever the car is
-built without a vinyl choice (a cop car that spawns in a pursuit, a car of the traffic). A livery whose picture cannot be read
+built without a vinyl choice (a cop car that spawns in a pursuit, a car of the traffic). Picking `No livery` in the shop is a
+choice too, so the car then has the plain paint. A livery whose picture cannot be read
 leaves the plain paint and the log says so. The car's vinyl and livery list (the garage's *Vinyls & Liveries* page) is the
 way to take another look.
 
@@ -181,7 +185,8 @@ Porsche 911 GT2, Nissan 350Z and Nissan Skyline R34) in five liveries each, a bu
 and lists the five pictures as `Livery 1` to `Livery 5` (73 cars from 93 bundles). A car whose own bundle draws one livery
 picture over most of its paint, with no other bundle to choose from (the Porsche 918 Spyder, the Bentley, the Lancia Delta, the
 Bugatti Veyron Grand Sport Vitesse, and the police cars: the Dodge Charger and the Crown Victoria, the Ford Explorer
-Interceptor and the Corvette), lists that picture as `Livery 1`; a police car wears it from the start (`default_livery = 0`).
+Interceptor and the Corvette), lists that picture as `Livery 1`; every car with a livery wears its first one from the start
+(`default_livery = 0`), and the player can pick `No livery` to use the paints and finishes instead.
 
 ### Tail pipes
 

@@ -167,9 +167,9 @@ Then what the conversion does not do:
   (`scenes/world/garage.rs`); the other screens that name cars were not checked.
 - **Liveries are numbered, and the picture is all there is.** The 2012 game names its liveries with images, not text, so the
   shop calls them `Livery 1` to `Livery 5`; a livery changes only the paint picture, as in the 2012 game. The pictures are laid
-  over the paint colour by their alpha, so an opaque livery hides the paint the player picks. A car has no livery until the
-  player picks one (its stock look is the flat paint, not the vehicle's own bundle's picture), except a police car, which
-  wears its own picture from the start. A car with a single bundle offers its picture as `Livery 1` when the paint surfaces
+  over the paint colour by their alpha, so an opaque livery hides the paint the player picks. Every car with a livery wears its
+  first one (the picture of the vehicle's own bundle) from the start; the shop's `No livery` choice takes it off and leaves the
+  plain paints and finishes. A car with a single bundle offers its picture as `Livery 1` when the paint surfaces
   that draw a `Livery` technique make up most of its paint (the 918 Spyder, the Bentley, the Lancia Delta, the Veyron Grand
   Sport Vitesse and four of the five police vehicles); a picture on one panel next to plain paint (the Raptor, the Gallardo),
   a `TwoPaintMask` picture (a mask of the second colour, not a livery) and the SWAT van's are not offered.

@@ -171,6 +171,14 @@ pub fn part_hash(folder: &str, kind: Kind, name: &str) -> u32 {
     bstring_hash(&format!("{}.{}.{}", folder.to_ascii_uppercase(), kind.tag(), name.to_ascii_uppercase()))
 }
 
+/// The name of the choice that takes off the livery a car wears from the start (`default_livery`): the plain paint.
+pub const NO_LIVERY: &str = "No livery";
+
+/// The hash of the car's [`NO_LIVERY`] choice.
+pub fn no_livery_hash(folder: &str) -> u32 {
+    part_hash(folder, Kind::Livery, NO_LIVERY)
+}
+
 /// The entry of `items` that `hash` stands for.
 pub fn pick<'a, T>(folder: &str, kind: Kind, items: &'a [T], name: impl Fn(&T) -> &str, hash: u32) -> Option<&'a T> {
     items.iter().find(|item| part_hash(folder, kind, name(item)) == hash)
@@ -214,6 +222,9 @@ fn hashes(folder: &str, custom: &Customization) -> Vec<u32> {
     all.extend(custom.roof_scoops.iter().map(|e| part_hash(folder, Kind::RoofScoop, &e.name)));
     all.extend(custom.vinyls.iter().map(|e| part_hash(folder, Kind::Vinyl, &e.name)));
     all.extend(custom.liveries.iter().map(|e| part_hash(folder, Kind::Livery, &e.name)));
+    if custom.default_livery.is_some() {
+        all.push(no_livery_hash(folder));
+    }
     all
 }
 
