@@ -9,8 +9,9 @@ pub(super) fn upload_parts(
     swaps: &TextureSwaps,
     shading: CarShading,
     to_sun: Vec3,
+    background_actor: bool,
 ) -> (Vec<Part>, Vec<(u32, MeshHandle)>, CarMaterials) {
-    let materials = CarMaterials::upload(renderer, model, shading, to_sun);
+    let materials = CarMaterials::upload_with_background_policy(renderer, model, shading, to_sun, background_actor);
     let (parts, meshes) = upload_solids(renderer, model, swaps, &materials, None);
     (parts, meshes, materials)
 }

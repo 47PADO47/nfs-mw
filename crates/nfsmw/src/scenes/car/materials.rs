@@ -17,6 +17,10 @@ use crate::settings::CarShading;
 
 const WINDSHIELD: u32 = blackbox_hash::bstring_hash("WINDSHIELD");
 
+#[cfg(test)]
+#[path = "materials/traffic_tests.rs"]
+mod traffic_tests;
+
 pub struct CarMaterials {
     uploaded: HashMap<u32, (TextureHandle, BlendMode)>,
     /// Which faces each texture's surfaces draw, by name hash.
@@ -34,6 +38,16 @@ impl CarMaterials {
     /// Upload the car's textures and, for glossy shading, its light materials, lighting the rig by a sun
     /// that is in direction `to_sun` from the car.
     pub fn upload(renderer: &mut dyn RenderBackend, model: &CarModel, shading: CarShading, to_sun: Vec3) -> Self {
+        Self::upload_with_background_policy(renderer, model, shading, to_sun, false)
+    }
+
+    pub fn upload_with_background_policy(
+        renderer: &mut dyn RenderBackend,
+        model: &CarModel,
+        shading: CarShading,
+        to_sun: Vec3,
+        background_actor: bool,
+    ) -> Self {
         let uploaded = model
             .textures
             .iter()
@@ -72,17 +86,35 @@ impl CarMaterials {
                     true => original_material(material, model_kind),
                     false => glossy_material(material),
                 };
-                if shading == CarShading::Glossy && Some(hash) == paint && model.paintable {
+                if shading == CarShading::Glossy && Some(hash) == paint {
                     material.surface = model.paint.as_ref().and_then(super::paint_surface::response);
                 }
                 if shading == CarShading::Glossy && Some(hash) != paint {
-                    material.surface = super::material_response::response(&model.light_materials[&hash]);
+                    material.surface = match background_actor {
+                        true => super::material_response::scene_response(&model.light_materials[&hash]),
+                        false => super::material_response::response(&model.light_materials[&hash]),
+                    };
                 }
+                if background_actor
+                    && shading == CarShading::Glossy
+                    && model.light_materials[&hash].name == "DULLPLASTIC"
+                {
+                    // Cargo atlases already contain their colour; avoid the authored 1.2x diffuse boost.
+                    for (minimum, range) in material.diffuse_min[..3].iter_mut().zip(&mut material.diffuse_range[..3]) {
+                        let facing = (*minimum + *range).clamp(0.0, 1.0);
+                        *minimum = minimum.clamp(0.0, 1.0);
+                        *range = facing - *minimum;
+                    }
+                }
+                material.background_actor = background_actor && shading == CarShading::Glossy;
                 Some((hash, renderer.create_glossy_material(&material)))
             })
             .collect();
-        let fallback =
-            Some(renderer.create_glossy_material(&GlossyMaterial { model: model_kind, ..Default::default() }));
+        let fallback = Some(renderer.create_glossy_material(&GlossyMaterial {
+            model: model_kind,
+            background_actor: background_actor && shading == CarShading::Glossy,
+            ..Default::default()
+        }));
         Self { uploaded, sides, glossy, fallback, paint, window_tint }
     }
 
