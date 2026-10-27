@@ -6,8 +6,8 @@ use core::ptr::null_mut;
 
 use super::{read_or, status_result};
 use crate::abi::{
-    BbVec3, BbVehicleRepairFn, BbVehicleSpawnTrafficFn, BbVehicleState, BbVehicleStateFn, BbVehicleTeleportFn,
-    BbVehicles,
+    BbVec3, BbVehicleAddNosFn, BbVehicleRepairFn, BbVehicleSpawnTrafficFn, BbVehicleState, BbVehicleStateFn,
+    BbVehicleTeleportFn, BbVehicles,
 };
 use crate::sdk::{Error, Interface, ModResult, VehicleState};
 
@@ -19,6 +19,7 @@ pub(crate) struct VehiclesFns {
     teleport: Option<BbVehicleTeleportFn>,
     repair: Option<BbVehicleRepairFn>,
     spawn_traffic: Option<BbVehicleSpawnTrafficFn>,
+    add_nos: Option<BbVehicleAddNosFn>,
 }
 
 /// Read the `bb.vehicles` table the host offered.
@@ -31,6 +32,7 @@ pub(crate) fn read(iface: Interface) -> VehiclesFns {
             teleport: read_or(&iface, offset_of!(BbVehicles, teleport), None),
             repair: read_or(&iface, offset_of!(BbVehicles, repair), None),
             spawn_traffic: read_or(&iface, offset_of!(BbVehicles, spawn_traffic), None),
+            add_nos: read_or(&iface, offset_of!(BbVehicles, add_nos), None),
         }
     }
 }
@@ -50,6 +52,10 @@ pub(crate) fn state(fns: &VehiclesFns) -> ModResult<VehicleState> {
         rpm: raw.rpm,
         nos: raw.nos,
         damage: raw.damage,
+        slip_angle: raw.slip_angle,
+        steering: raw.steering,
+        impact: raw.impact,
+        on_ground: raw.on_ground != 0,
     })
 }
 
@@ -66,6 +72,13 @@ pub(crate) fn repair(fns: &VehiclesFns) -> ModResult<()> {
     let repair = fns.repair.ok_or(Error::Unsupported)?;
     // SAFETY: as for `teleport`.
     status_result(unsafe { repair(fns.ctx) })
+}
+
+/// Queue nitrous for the player's car.
+pub(crate) fn add_nos(fns: &VehiclesFns, amount: f32) -> ModResult<()> {
+    let add = fns.add_nos.ok_or(Error::Unsupported)?;
+    // SAFETY: the table is valid while the mod is loaded; the argument is a plain value.
+    status_result(unsafe { add(fns.ctx, amount) })
 }
 
 /// Spawn a traffic car near `position`; returns the raw handle.

@@ -29,6 +29,14 @@ pub struct VehicleState {
     pub nos: f32,
     /// Damage, 0 to 1.
     pub damage: f32,
+    /// Body slip angle, radians, positive when the car moves to the left of its heading (1.1).
+    pub slip_angle: f32,
+    /// Steering, -1 to 1, positive to the left (1.1).
+    pub steering: f32,
+    /// The strongest hit of the latest physics step, 0 to 1 (1.1).
+    pub impact: f32,
+    /// At least one wheel touches the ground (1.1).
+    pub on_ground: bool,
 }
 
 /// What the game implements for `bb.vehicles`. `owner` is the id of the mod that made the call.
@@ -41,6 +49,9 @@ pub trait VehiclesBackend {
     fn repair(&self, owner: &str) -> BackendResult<()>;
     /// Spawn a traffic car near `position`. Returns its handle. The game answers `BB_ERR_UNSUPPORTED` until it can.
     fn spawn_traffic(&self, owner: &str, position: [f32; 3], heading: f32) -> BackendResult<u64>;
+    /// Add `amount` of a full tank (already checked to be finite and 0 to 1) to the player's nitrous, up to a full tank. A car
+    /// without a nitrous system ignores it. Queued like a repair (1.1).
+    fn add_nos(&self, owner: &str, amount: f32) -> BackendResult<()>;
 }
 
 /// Build the `bb.vehicles` table for `owner`, backed by `backend`.
@@ -57,6 +68,7 @@ pub(crate) fn attach(backend: Rc<dyn VehiclesBackend>, owner: &str) -> Attached 
         teleport: Some(teleport),
         repair: Some(repair),
         spawn_traffic: Some(spawn_traffic),
+        add_nos: Some(add_nos),
     });
     // Nothing the mod registers stays in the game, so unloading removes nothing; the release keeps the slot alive.
     let kept = slot.clone();
@@ -97,6 +109,10 @@ unsafe extern "C" fn state(ctx: *mut c_void, out: *mut BbVehicleState) -> BbStat
             rpm: car.rpm,
             nos: car.nos,
             damage: car.damage,
+            slip_angle: car.slip_angle,
+            steering: car.steering,
+            impact: car.impact,
+            on_ground: u32::from(car.on_ground),
         };
         // SAFETY: `out` is the mod's struct; `write_prefixed` checks its size word before it writes.
         unsafe { write_prefixed(out, &wire) }
@@ -119,6 +135,18 @@ unsafe extern "C" fn repair(ctx: *mut c_void) -> BbStatus {
         // SAFETY: `ctx` is this table's slot (see `slot_of`).
         let slot = unsafe { slot_of::<dyn VehiclesBackend>(ctx)? };
         slot.backend.repair(&slot.owner)
+    })
+}
+
+/// `add_nos`: queue nitrous for the player's car. The amount is a part of a full tank, finite and 0 to 1.
+unsafe extern "C" fn add_nos(ctx: *mut c_void, amount: f32) -> BbStatus {
+    guard(|| {
+        // SAFETY: `ctx` is this table's slot (see `slot_of`).
+        let slot = unsafe { slot_of::<dyn VehiclesBackend>(ctx)? };
+        if !(0.0..=1.0).contains(&finite(amount)?) {
+            return Err(BB_ERR_ARG);
+        }
+        slot.backend.add_nos(&slot.owner, amount)
     })
 }
 

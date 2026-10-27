@@ -35,6 +35,38 @@ fn the_state_is_the_car_read_at_the_sync() {
     assert_eq!(state.velocity, [20.0, 0.0, 0.0]);
     assert_eq!((state.gear, state.rpm, state.speed), (3, 3500.0, 20.0));
     assert_eq!((state.heading, state.nos, state.damage), (1.0, 0.25, 0.0));
+    assert_eq!((state.slip_angle, state.steering, state.impact, state.on_ground), (0.0, 0.0, 0.0, true));
+}
+
+#[test]
+fn the_dynamics_of_the_car_reach_the_mods_as_the_scene_reports_them() {
+    let (bridge, port) = port();
+    let mut scene = Recorder::driving([0.0; 3], 0.0);
+    if let Some(car) = scene.car.as_mut() {
+        car.slip_angle = 0.3;
+        car.steering = -0.5;
+        car.impact = 0.8;
+        car.on_ground = false;
+    }
+    bridge.sync(&mut scene);
+    let state = port.state("example.a").expect("a car is driven");
+    assert_eq!((state.slip_angle, state.steering, state.impact, state.on_ground), (0.3, -0.5, 0.8, false));
+}
+
+#[test]
+fn nitrous_is_queued_for_the_scene_and_needs_a_car() {
+    let (bridge, port) = port();
+    bridge.sync(&mut Recorder::without_clock());
+    assert_eq!(port.add_nos("example.a", 0.1), Err(BB_ERR_NOT_READY));
+    assert!(bridge.world_requests.borrow().is_empty(), "a refused call queues nothing");
+
+    bridge.sync(&mut Recorder::driving([0.0; 3], 0.0));
+    port.add_nos("example.a", 0.1).expect("a car is driven");
+    port.add_nos("example.a", 0.25).expect("a car is driven");
+    let requests = std::mem::take(&mut *bridge.world_requests.borrow_mut());
+    let mut scene = Recorder::driving([0.0; 3], 0.0);
+    apply(requests, &mut scene);
+    assert_eq!(scene.nitrous, vec![0.1, 0.25]);
 }
 
 #[test]
