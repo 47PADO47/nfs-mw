@@ -15,9 +15,11 @@ mod value;
 
 pub use curve::{Curve, Point};
 pub use ginsu::GinsuResource;
-pub use graphs::{SoundGraphs, ginsu_resource};
+pub use graphs::{Group, SoundGraphs, ginsu_resource};
 pub use sequence::{GinsuItem, Item, ItemKind, MixerItem, Sequence, WaveItem};
 pub use value::{Fade, Modulator};
 
+#[cfg(test)]
+mod dump_tests;
 #[cfg(test)]
 mod real_tests;

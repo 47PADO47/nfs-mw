@@ -6,8 +6,10 @@
 //!   idle loop, each active in a window of the audible engine speed with fades at its ends;
 //! - the **engine load** sequence: mixer items that set the gain of each Ginsu voice's channel by a curve of the load
 //!   (the voices fade into one another as the throttle opens);
-//! - the **transmission speed** sequence: five whine loops, each active in a window of the car's speed and played at the
-//!   speed over the speed it was recorded at.
+//! - the **transmission speed** sequences (`speed`): the gearbox whine of the transmission-whine object (five loops, each
+//!   active in a window of the car's speed, played at the speed over the speed it was recorded at, louder with the
+//!   throttle or off it) and, for an electric or hybrid car, the **motor** sequence of the player's engine sound (loops
+//!   whose pitch follows a curve of the car's speed).
 //!
 //! Each becomes one layer of the car's `[engine_sound]` with curves over the engine's own inputs: the audible engine
 //! speed is taken to span idle to redline, so its windows are written as a fraction of the way from idle (the two ends of
@@ -29,11 +31,6 @@ const LOAD_SAMPLES: usize = 17;
 const FADE_STEPS: usize = 6;
 /// Most layers a car gets (what the car manifest allows).
 const MAX_LAYERS: usize = 12;
-/// The level of the transmission whine loops next to the rest of the engine, a factor on the gain the graph gives them. By the
-/// graph alone (a gain of 0.6 on a channel at -16 dB) they sound 6 dB under the whole engine at a spectral centroid of 1 to
-/// 3 kHz, which made the converted cars much brighter than the cars of the game (centroid at the limiter 745 Hz against 470
-/// to 580 Hz for the stock cars, measured); at this factor the whine is a detail 15 dB under the engine.
-const WHINE_BALANCE: f32 = 0.35;
 /// The largest level of a curve point (what the car manifest allows).
 const MAX_LEVEL: f32 = 8.0;
 
@@ -66,7 +63,6 @@ impl Domain {
 /// The layers of the engine the sound graphs describe, or none.
 pub fn build(bundle: &Bundle, graphs: &SoundGraphs, samples: &[Sample]) -> Vec<Layer> {
     let mut layers = Vec::new();
-    // A car with no Ginsu voice (the electric one) has the whine loops of its transmission alone: they are its motor.
     if let Some(engine) = engine_sequence(graphs) {
         let domain = Domain::Rpm { lo: engine.lo, hi: engine.hi };
         for item in &engine.items {
@@ -78,13 +74,9 @@ pub fn build(bundle: &Bundle, graphs: &SoundGraphs, samples: &[Sample]) -> Vec<L
             layers.extend(layer);
         }
     }
-    for whine in graphs.driven_by(WHINE_SPEED).filter(|sequence| sequence.items.len() > 1) {
-        for item in &whine.items {
-            if let ItemKind::Wave(wave) = &item.kind {
-                layers.extend(loop_layer(graphs, samples, item, wave, Domain::Speed, whine));
-            }
-        }
-    }
+    // The loops the car's speed drives: the gearbox whine, and the motor of an electric or hybrid car. The electric car
+    // has no Ginsu voice, so its motor is its whole engine.
+    layers.extend(speed::layers(graphs, samples));
     layers.truncate(MAX_LAYERS);
     layers
 }
@@ -137,15 +129,8 @@ fn loop_layer(
     let sample = samples.iter().find(|sample| wave.waves.first() == Some(&sample.id) && sample.looped)?;
     let gain = [window_curve(item, sequence, domain)?];
     let level = if wave.gain.follows_input() { 1.0 } else { wave.gain.base };
-    let balance = if matches!(domain, Domain::Speed) { WHINE_BALANCE } else { 1.0 };
-    let volume = round(level * channel_gain(graphs, wave.mixer) * balance);
-    let pitch = match (wave.tracks_driver, domain) {
-        (true, Domain::Speed) if wave.pitch.base > 0.0 => {
-            format!(", pitch = {{ input = \"speed_mph\", reference = {:?} }}", wave.pitch.base)
-        }
-        _ => String::new(),
-    };
-    let fields = format!("volume = {volume:?}, gain = [{}]{pitch}", gain.join(", "));
+    let volume = round(level * channel_gain(graphs, wave.mixer));
+    let fields = format!("volume = {volume:?}, gain = [{}]", gain.join(", "));
     Some(Layer {
         rpm: 0.0,
         wav: wav_bytes(&sample.samples, sample.rate, 1.0),
@@ -192,7 +177,13 @@ fn sequence_value(sequence: &Sequence, domain: Domain, value: f32) -> f32 {
 
 /// The curve of the engine load that the mixer item of `channel` gives, as TOML.
 fn load_curve(graphs: &SoundGraphs, channel: u64) -> Option<String> {
-    let (_, item) = graphs.mixer_items(ENGINE_LOAD, channel).next()?;
+    driver_curve(graphs, ENGINE_LOAD, channel)
+}
+
+/// The curve over a 0 to 1 driver (`ENGINE_LOAD`, the gas pedal) that the mixer item of `channel` in a sequence driven by
+/// `driver` gives, as a curve of the manifest's `load` input.
+fn driver_curve(graphs: &SoundGraphs, driver: &str, channel: u64) -> Option<String> {
+    let (_, item) = graphs.mixer_items(driver, channel).next()?;
     let modulator: &Modulator = item.gains.first()?;
     let points = (0..LOAD_SAMPLES)
         .map(|step| {
@@ -226,6 +217,8 @@ fn curve_toml(input: &str, points: &[(f32, f32)]) -> String {
     let list: Vec<String> = points.iter().map(|(x, y)| format!("[{x:?}, {y:?}]")).collect();
     format!("{{ input = \"{input}\", points = [{}] }}", list.join(", "))
 }
+
+mod speed;
 
 #[cfg(test)]
 mod real_tests;

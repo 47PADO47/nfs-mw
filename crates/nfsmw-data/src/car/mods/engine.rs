@@ -60,6 +60,8 @@ pub struct EngineLayer {
     /// The curves that multiply into the layer's volume; empty for a layer mixed by `rpm`.
     pub gain: Vec<LayerCurve>,
     pub pitch: Option<LayerPitch>,
+    /// A curve that is the playback rate itself (1 is the recording's own speed); it takes the place of `pitch`.
+    pub rate: Option<LayerCurve>,
     /// For a Ginsu layer: the frequencies from idle to redline.
     pub span: Option<(f32, f32)>,
     pub volume: f32,
@@ -68,7 +70,16 @@ pub struct EngineLayer {
 impl EngineLayer {
     /// A layer mixed by the engine speed it was recorded at.
     pub fn classic(file: impl Into<String>, rpm: f32) -> Self {
-        Self { file: file.into(), rpm, kind: LayerKind::Loop, gain: Vec::new(), pitch: None, span: None, volume: 1.0 }
+        Self {
+            file: file.into(),
+            rpm,
+            kind: LayerKind::Loop,
+            gain: Vec::new(),
+            pitch: None,
+            rate: None,
+            span: None,
+            volume: 1.0,
+        }
     }
 }
 
@@ -101,6 +112,8 @@ pub struct CarEffects {
     pub turbo_blowoff: Vec<String>,
     pub backfire: Vec<String>,
     pub pops: Vec<String>,
+    /// The car makes no gear clunk: a gear change is silent unless `shift` names recordings (an electric car).
+    pub no_clunk: bool,
     /// The recordings the mod's cars share.
     pub shared: SharedSound,
 }

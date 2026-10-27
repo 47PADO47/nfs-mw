@@ -142,3 +142,45 @@ fn a_converted_ginsu_voice_runs_in_the_ginsu_synthesiser_at_every_frequency_of_i
         }
     }
 }
+
+const TESLA: &str = "VEHICLES/VEH_1085764_HI.BNDL";
+
+fn read_car(file: &str) -> Option<SoundGraphs> {
+    let dir = std::env::var_os("MW2012_GAME_DIR")?;
+    let bytes = std::fs::read(std::path::Path::new(&dir).join(file)).ok()?;
+    Some(SoundGraphs::read(&Bundle::parse(&bytes).unwrap()))
+}
+
+#[test]
+#[ignore = "needs the 2012 install"]
+fn the_electric_car_has_two_motor_loops_in_its_player_engine_and_no_engine_speed_sequence() {
+    let Some(graphs) = read_car(TESLA) else { return };
+    let player = graphs.player_engine().expect("the player's engine sound");
+    let speed: Vec<_> = graphs.sequences_in(player).filter(|s| s.driven_by("GetTransmissionSpeedMph")).collect();
+    assert_eq!(speed.len(), 1, "the motor sequence");
+    let waves = speed[0].items.iter().filter(|item| matches!(item.kind, ItemKind::Wave(_))).count();
+    assert_eq!(waves, 2);
+    for item in &speed[0].items {
+        let ItemKind::Wave(wave) = &item.kind else { continue };
+        assert!(!wave.tracks_driver && !wave.pitch.curve.is_empty(), "the pitch is a curve over the window");
+        assert!(wave.pitch.expression.is_empty());
+    }
+    assert!(graphs.sequences_in(player).all(|s| !s.driven_by("GetPlayerAudibleRPM")), "no combustion engine");
+    assert!(graphs.sequences_in(player).all(|s| !s.driven_by("GearChangeTimeElapsed")), "no gear change");
+    // The opponents' engine sound has its own copy of the motor, which is not the player's.
+    let all = graphs.driven_by("GetTransmissionSpeedMph").count();
+    assert!(all > speed.len() + 1, "{all} speed-driven sequences in the bundle");
+    let whine = graphs.group_of("TransmissionWhine").expect("the gearbox whine object");
+    assert_eq!(graphs.sequences_in(whine).filter(|s| s.driven_by("GetTransmissionSpeedMph")).count(), 1);
+}
+
+#[test]
+#[ignore = "needs the 2012 install"]
+fn a_combustion_car_has_no_motor_in_its_player_engine_and_the_same_gearbox_whine() {
+    let Some(graphs) = read_car(PORSCHE) else { return };
+    let player = graphs.player_engine().expect("the player's engine sound");
+    assert!(graphs.sequences_in(player).all(|s| !s.driven_by("GetTransmissionSpeedMph")));
+    assert_eq!(graphs.sequences_in(player).filter(|s| s.driven_by("GetPlayerAudibleRPM")).count(), 2);
+    let whine = graphs.group_of("TransmissionWhine").expect("the gearbox whine object");
+    assert_eq!(graphs.sequences_in(whine).filter(|s| s.items.len() == 5).count(), 1);
+}

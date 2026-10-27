@@ -5,6 +5,8 @@
 
 mod dsp;
 #[cfg(test)]
+mod electric;
+#[cfg(test)]
 mod real_tests;
 #[cfg(test)]
 mod regression;

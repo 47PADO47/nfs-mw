@@ -12,7 +12,7 @@ What a mod car sounds like is made of four things, and the manifest can replace 
 | Sound | The car's own | Without one |
 |---|---|---|
 | Engine | `[engine_sound]` loops | the **built-in engine**, below |
-| Gear shifts, turbo whistle and blow-off, backfires, pops | `[car_sound]` recordings | **silent**, except the gear clunk below |
+| Gear shifts, turbo whistle and blow-off, backfires, pops | `[car_sound]` recordings | **silent**, except the gear clunk below (which `shift_clunk = false` silences) |
 | Collisions and scrapes | the mod's shared recordings, `[car_sound.shared]` | the game-wide banks |
 | Skids, nitrous, road noise, wind | none: shared by every car | always plays, from the game-wide banks |
 
@@ -77,6 +77,7 @@ picked at random each time. A file that cannot be read is left out, and the log 
 |---|---|---|
 | `shift` | at every gear change | at the moment the engine mixer asks for the gear clunk, at its level; **replaces** the shared clunk |
 | `shift_up`, `shift_down` | at an up or a down shift | each falls back to `shift`; one given alone leaves the other direction to `shift` |
+| `shift_clunk` | (a flag, `true` by default) | `shift_clunk = false` makes a gear change **silent** when the car has no `shift` recording for it, instead of the class-wide clunk of the game's gear bank; an electric car has no gear to clunk into. It is a table of its own: a car may have it with no list |
 | `turbo_whine` | loops, from the lowest spool to the highest | all play at once, silent until the turbo spools; mixed along the spool in equal power and sped up from 0.8 to 1.4 times as it spools |
 | `turbo_blowoff` | when the throttle is lifted with the turbo spooled | louder with more spool; the spool drops to 40 percent |
 | `backfire` | when the throttle is lifted at high engine speed | likelier with the revs: one in five at idle speed, seven in ten at the limiter |
@@ -87,6 +88,11 @@ engine is turning (0.9 seconds up, 0.6 down); a "lift-off" is the engine mixer's
 released more than 55 percent of the way from idle to the limiter, in a gear above first, with no shift under way). When a
 recording plays, and how loud, is chosen here (`crates/nfsmw/src/audio/car/own_sfx.rs`); the 2012 game decides it in sound
 graphs ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)).
+
+**The flames follow the same rules.** A car of the game lights its tail pipes at each pop of its sample layer's sputter; a mod
+car has no sample layer, so each backfire and each pop decided here lights the pipes (`exhaust-flames.md`) at the moment its
+sound would play, **whether or not the car has a recording for it**: a car with an empty `backfire` and `pops` list still
+backfires in flames, and so does a car with no `[car_sound]` table at all.
 
 
 ### The shared sounds: `[car_sound.shared]`
@@ -149,6 +155,10 @@ layers = [
   mixed by `rpm` among themselves as before, so the two kinds can share a car.
 - `pitch = { input, reference }` plays the layer at the input over `reference` (from 0.25 to 4 times its own speed). A layer
   without it plays at its own speed (a curve layer) or at the engine's rpm over its own (a layer mixed by `rpm`).
+- `rate = { input, points }` is a curve of an input (`rpm`, `load` or `speed_mph`, 2 to 32 points like a `gain` curve, `y` from 0
+  to 8) that **is** the layer's playback rate, 1 being the recording's own speed (the host clamps it to 0.25 to 4). It is for a
+  pitch that is not proportional to an input, such as an electric motor's whine that rises quickly and levels off, and it takes
+  the place of `pitch`. Only a layer with `gain` curves has one.
 - `kind = "ginsu"` makes the file a `.GIN` granular engine recording (the format of the 2005 game's `.gin`), played by the
   game's Ginsu synthesiser at the frequency `span` gives the engine speed: `span[0]` at idle, `span[1]` at the limiter.
   It needs `gain` and `span`; the rest of the table is as for a loop.
@@ -158,9 +168,16 @@ layers = [
 
 The 2012 game builds a car's engine in **sound graphs** ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)):
 three Ginsu voices (granular recordings, crossfaded by the engine load), an idle loop that hands over to them just above
-idle, and five whine loops driven by the car's speed. The 2012 mod reads those sequences from each car's bundle and writes
-them as layers with curves: the Ginsu resources become `.GIN` files, the loops WAV files, the windows and the load
-curves `gain` curves, the whine's reference speed `pitch`. A car whose bundle has no such sequence falls back to the older
+idle, and the gearbox whine, five loops driven by the car's speed that the gas pedal crossfades. The 2012 mod reads those
+sequences from each car's bundle, **those of the player's engine sound and the whine object only** (the bundle's second engine
+sound is the opponents' and is never read), and writes them as layers with curves: the Ginsu resources become `.GIN` files, the
+loops WAV files, the windows, the load curves and the gas curves `gain` curves, the whine's reference speed `pitch`.
+
+**An electric or hybrid car** has a **motor** besides: a transmission-speed sequence in the player's engine sound whose loops
+play at a rate that is a curve of the car's speed (`rate`) and, for the hybrid, swell and fade by the speed through a mixer
+item. The **Tesla Roadster** has nothing else: no Ginsu voice, no idle loop, no gear change, pop, backfire or turbo sequence.
+It is written as the two motor loops (rate 1 to 2.2 and 0.8 to 1.2 over their windows of 0 to 150 and 5 to 200 mph) at the
+graph's gain, the gearbox whine 26 dB under them, and `shift_clunk = false`: no combustion sound, no idle, no gear shifts. A car whose bundle has no such sequence falls back to the older
 **approximation**: it takes **the looping recordings of each car's bundle**
 ([chameleon-sound.md](../formats/chameleon-sound.md)), measures the pitch of each, calls the lowest one the idle, and gives
 every other loop the rpm that its pitch stands for (the idle rpm times its pitch over the lowest pitch). Loops that would
@@ -189,7 +206,8 @@ names no material, skid, glass break or tyre burst in the shared bundles, so tho
 `own_engine_sound = false` in the mod's `config.toml` writes no recordings, the shared ones included: the cars play the
 built-in engine and have only the game-wide sounds.
 
-**What was not verified.** No recording has been listened to in the game: the checks are that the files are written, that the
+**What was not verified.** The Tesla's DSP chain (four mixer channels whose gains the motor sequence sets by the speed, and
+the tracked-harmonic plug-ins) is not ported; if it synthesises a tone, the 2012 car has it besides the two loops. No recording has been listened to in the game: the checks are that the files are written, that the
 manifests parse, that the Ginsu files decode and that the mixing and trigger logic passes its unit tests and a headless
 render. The windows' direction, the audible-speed range taken as idle to redline, the curve tangents, the fade shapes, the
 whine's reference speed and which of the two Ginsu sets plays are readings of the data
@@ -251,8 +269,11 @@ The causes, in the order they were found:
    items 250 rpm above the bottom of its range and is silent at idle (-55.8 dB); the converter takes the first set that
    sounds at the bottom of the range.
 7. **The electric car** (Tesla Roadster) has no Ginsu voice: its old engine was the five whine loops spread by pitch over an
-   idle of 500 rpm and a redline of 14,000. It now plays the whine loops by the car's speed, as its graph does, at the level
-   of the other cars; it is silent at standstill.
+   idle of 500 rpm and a redline of 14,000. It was then played by the whine loops alone, at a fixed pitch (the converter
+   read no pitch curve), with the opponents' copy of its motor on top, and the shared gear clunk at every one of its two
+   gears. It now plays the two motor loops of its player engine sound by their pitch curves of the car's speed, the gearbox
+   whine under them, and no clunk (`measure/electric.rs`: the pitch rises with the speed, the level holds, a drive through six
+   shifts has no burst). The motor plays from standstill, as its graph's window does (0 mph, no fade).
 8. **Scrape**: the mod's shared scrape was 9 dB louder than the same scrape of the cars of the game (average -17.5 dB against
    -26.5, peak -4.4 against -16.5 dB): `SCRAPE_LEVEL` is 0.35. A hit peaks as high as the hit of the cars of the game (-2.5 dB) and
    its 500 ms level is 3 to 5 dB higher (the recordings are longer); that is left as it is.
@@ -272,7 +293,8 @@ The cars by how their engine is made (73 conversions; the livery bundles of a ca
 | Three Ginsu voices, an idle loop and five whine loops | 69 | the graphs' own engine, level set as above |
 | The same plus a tenth layer (a second idle loop of the hybrid) | 2 (Porsche 918 Spyder, both) | as above |
 | Two Ginsu voices | 1 (Mercedes SLS AMG 2010) | as above |
-| No Ginsu voice, whine loops by speed | 1 (Tesla Roadster) | the whine loops are the motor |
+| No Ginsu voice, motor loops by speed | 1 (Tesla Roadster) | two motor loops with a rate curve of the speed, the whine under them, no clunk |
+| Three Ginsu voices, an idle loop, a motor and the whine | the hybrid (the bundles of the Porsche 918 Spyder that have a motor sequence) | the graphs' engine, plus the motor loop with its speed curves |
 | Pitch heuristic (the bundle has no engine graph) | 0 | kept for a car that has none |
 | Built-in engine (`own_engine_sound = false`, or a car with no table) | 0 of the converted cars | six-cylinder loops, level set as above; between two of its loops the level dips up to 6 dB where they are out of phase |
 

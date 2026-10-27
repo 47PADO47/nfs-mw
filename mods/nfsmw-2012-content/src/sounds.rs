@@ -35,9 +35,10 @@ fn read(source: &Source, file: &CarFile, rpm: Option<(f32, f32)>) -> Result<CarS
     let bytes = source.bundle_bytes(file)?;
     let bundle = Bundle::parse(&bytes)?;
     let samples = sample::read_all(&bundle);
-    let found = effects::of(&bundle, &samples, source.shared_samples());
+    let graphs = chameleon_sound_graph::SoundGraphs::read(&bundle);
+    let mut found = effects::of(&bundle, &samples, source.shared_samples());
+    found.files.no_clunk = effects::has_no_gear_change(&graphs);
     let engine = rpm.filter(|&(idle, redline)| idle > 0.0 && redline > idle).and_then(|(idle, redline)| {
-        let graphs = chameleon_sound_graph::SoundGraphs::read(&bundle);
         let mut layers = crate::graph_voices::build(&bundle, &graphs, &samples);
         if layers.is_empty() {
             layers = engine::layers(engine::loops(&samples, &found.not_engine), idle, redline);

@@ -55,3 +55,34 @@ fn a_car_with_nothing_has_no_effects() {
     assert!(EffectFiles::default().is_empty());
     assert!(!EffectFiles { pops: vec![vec![1]], ..Default::default() }.is_empty());
 }
+
+fn graphs_of_a_car(gear_change: bool) -> SoundGraphs {
+    use chameleon_sound_graph::{Group, Sequence};
+
+    let sequence = |id: u64, driver: &str| Sequence { id, driver: driver.into(), lo: 0.0, hi: 1.0, items: Vec::new() };
+    let mut sequences = vec![sequence(1, "Players.LocalPlayer.GetPlayerEngineLoad")];
+    let mut handles = vec![1];
+    if gear_change {
+        sequences.push(sequence(2, "LocalPlayer.GetPlayerNormalisedGearChangeTimeElapsed"));
+        handles.push(2);
+    }
+    // The opponents' engine sound has a gear change of its own, which is not the player's.
+    sequences.push(sequence(3, "LocalPlayer.GetPlayerNormalisedGearChangeTimeElapsed"));
+    let groups = vec![
+        Group { class: "EngineSound2".into(), id: 10, handles },
+        Group { class: "EngineSound2".into(), id: 11, handles: vec![3] },
+    ];
+    SoundGraphs { sequences, groups, ..SoundGraphs::default() }
+}
+
+#[test]
+fn a_car_whose_player_engine_has_no_gear_change_does_not_clunk() {
+    assert!(has_no_gear_change(&graphs_of_a_car(false)));
+    assert!(!has_no_gear_change(&graphs_of_a_car(true)));
+    assert!(!has_no_gear_change(&SoundGraphs::default()), "a bundle with no engine sound object keeps the clunk");
+}
+
+#[test]
+fn no_clunk_alone_is_an_effect_the_car_has() {
+    assert!(!EffectFiles { no_clunk: true, ..Default::default() }.is_empty());
+}

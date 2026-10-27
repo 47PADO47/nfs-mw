@@ -35,6 +35,9 @@ pub struct Layer {
     /// What the layer's playback rate follows; a layer without it plays at its own speed (curve layers) or at the
     /// engine's rpm over its own (layers mixed by `rpm`).
     pub pitch: Option<Pitch>,
+    /// A curve of an input that is the layer's playback rate itself (1 plays the recording at its own speed), for a pitch
+    /// that is not proportional to an input. It takes the place of `pitch`. Only a layer with `gain` curves has one.
+    pub rate: Option<Curve>,
     /// For a Ginsu layer: the frequencies its recording is played at from idle to redline.
     pub span: Option<(f32, f32)>,
     /// A fixed level the curves are scaled by.
@@ -44,7 +47,16 @@ pub struct Layer {
 impl Layer {
     /// A layer mixed by the engine speed it was recorded at.
     pub fn classic(file: impl Into<String>, rpm: f32) -> Self {
-        Self { file: file.into(), rpm, kind: LayerKind::Loop, gain: Vec::new(), pitch: None, span: None, volume: 1.0 }
+        Self {
+            file: file.into(),
+            rpm,
+            kind: LayerKind::Loop,
+            gain: Vec::new(),
+            pitch: None,
+            rate: None,
+            span: None,
+            volume: 1.0,
+        }
     }
 }
 
@@ -78,6 +90,8 @@ struct RawLayer {
     gain: Vec<RawCurve>,
     #[serde(default)]
     pitch: Option<RawPitch>,
+    #[serde(default)]
+    rate: Option<RawCurve>,
     #[serde(default)]
     span: Option<[f32; 2]>,
     #[serde(default)]
@@ -150,7 +164,14 @@ fn check_layer(layer: RawLayer) -> Result<Layer, ContentError> {
         return Err(field("engine_sound.layers.volume", "a layer's volume is a number from 0 to 8"));
     }
     let pitch = engine_curves::check_pitch(layer.pitch)?;
-    Ok(Layer { file: layer.file, rpm, kind: layer.kind, gain, pitch, span, volume })
+    let rate = match layer.rate {
+        None => None,
+        Some(_) if gain.is_empty() => {
+            return Err(field("engine_sound.layers.rate", "a rate curve needs gain curves"));
+        }
+        Some(raw) => engine_curves::check_curves(vec![raw])?.into_iter().next(),
+    };
+    Ok(Layer { file: layer.file, rpm, kind: layer.kind, gain, pitch, rate, span, volume })
 }
 
 /// A relative path of the install's layout that names a `.WAV` file: letters, digits, `_`, `-`, `.` and `/`, no `..`.
@@ -192,6 +213,9 @@ pub struct CarEffects {
     pub backfire: Vec<String>,
     /// Short bangs that follow a backfire.
     pub pops: Vec<String>,
+    /// `shift_clunk = false`: the car makes no gear clunk of the game's class-wide bank when it has no `shift`
+    /// recording of its own (an electric car has no gears to clunk). By default a car without `shift` clunks.
+    pub no_clunk: bool,
     /// The recordings every car of a mod shares (`[car_sound.shared]`): body hits, scrapes and pops.
     pub shared: super::shared_sound::SharedSound,
 }
@@ -221,10 +245,12 @@ pub(super) struct RawEffects {
     #[serde(default)]
     pops: Vec<String>,
     #[serde(default)]
+    shift_clunk: Option<bool>,
+    #[serde(default)]
     shared: super::shared_sound::RawShared,
 }
 
-/// Check the table. A table that names no file is the same as no table.
+/// Check the table. A table that names no file and changes no behaviour is the same as no table.
 pub(super) fn check_effects(raw: Option<RawEffects>) -> Result<Option<CarEffects>, ContentError> {
     let Some(raw) = raw else { return Ok(None) };
     let list = |name: &'static str, files: Vec<String>| -> Result<Vec<String>, ContentError> {
@@ -244,6 +270,7 @@ pub(super) fn check_effects(raw: Option<RawEffects>) -> Result<Option<CarEffects
         turbo_blowoff: list("car_sound.turbo_blowoff", raw.turbo_blowoff)?,
         backfire: list("car_sound.backfire", raw.backfire)?,
         pops: list("car_sound.pops", raw.pops)?,
+        no_clunk: raw.shift_clunk == Some(false),
         shared: super::shared_sound::check(raw.shared)?,
     };
     Ok((!effects.is_empty()).then_some(effects))
@@ -281,6 +308,15 @@ mod tests {
         assert_eq!((got.backfire.len(), got.pops.len(), got.turbo_blowoff.len()), (1, 1, 1));
         let only = effects("[car_sound]\nbackfire = [\"SOUND/A/B.WAV\"]\n").unwrap().unwrap();
         assert!(only.shift.is_empty() && only.pops.is_empty() && !only.backfire.is_empty());
+    }
+
+    #[test]
+    fn a_car_can_ask_for_no_gear_clunk_and_that_alone_is_a_table() {
+        let quiet = effects("[car_sound]\nshift_clunk = false\n").unwrap().unwrap();
+        assert!(quiet.no_clunk && quiet.shift.is_empty());
+        assert_eq!(effects("[car_sound]\nshift_clunk = true\n").unwrap(), None, "the default changes nothing");
+        let own = effects("[car_sound]\nshift = [\"SOUND/A/S.WAV\"]\n").unwrap().unwrap();
+        assert!(!own.no_clunk);
     }
 
     #[test]
