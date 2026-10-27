@@ -121,32 +121,24 @@ impl Bindings {
         scroll: Option<&wgpu::Buffer>,
     ) -> wgpu::BindGroup {
         if let Some(scroll) = scroll {
-            return match image {
-                Some(image) => {
-                    build_group(device, layout, sampler, &self.sampler, diffuse, image, &self.projection, scroll)
-                }
-                None => {
-                    build_group(device, layout, sampler, &self.sampler, diffuse, &self.fallback, &self.disabled, scroll)
-                }
+            let inputs = match image {
+                Some(image) => Inputs { diffuse, image, params: &self.projection, scroll },
+                None => Inputs { diffuse, image: &self.fallback, params: &self.disabled, scroll },
             };
+            return build_group(device, layout, sampler, &self.sampler, inputs);
         }
         let Some(image) = image else {
             let make = || {
-                build_group(
-                    device,
-                    layout,
-                    sampler,
-                    &self.sampler,
-                    diffuse,
-                    &self.fallback,
-                    &self.disabled,
-                    &self.scroll_zero,
-                )
+                let inputs =
+                    Inputs { diffuse, image: &self.fallback, params: &self.disabled, scroll: &self.scroll_zero };
+                build_group(device, layout, sampler, &self.sampler, inputs)
             };
             return self.defaults.get_or_insert_with(diffuse, &self.fallback, make).clone();
         };
-        let make =
-            || build_group(device, layout, sampler, &self.sampler, diffuse, image, &self.projection, &self.scroll_zero);
+        let make = || {
+            let inputs = Inputs { diffuse, image, params: &self.projection, scroll: &self.scroll_zero };
+            build_group(device, layout, sampler, &self.sampler, inputs)
+        };
         self.enabled.get_or_insert_with(diffuse, image, make).clone()
     }
 }
@@ -159,16 +151,23 @@ fn projection_words(matrix: Mat4) -> [f32; 20] {
     words
 }
 
+/// What one receiver group binds besides the samplers: the diffuse view, the planar image with its parameters, and
+/// the UV scroll.
+struct Inputs<'a> {
+    diffuse: &'a wgpu::TextureView,
+    image: &'a wgpu::TextureView,
+    params: &'a wgpu::Buffer,
+    scroll: &'a wgpu::Buffer,
+}
+
 fn build_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
     sampler: &wgpu::Sampler,
     planar_sampler: &wgpu::Sampler,
-    diffuse: &wgpu::TextureView,
-    image: &wgpu::TextureView,
-    params: &wgpu::Buffer,
-    scroll: &wgpu::Buffer,
+    inputs: Inputs<'_>,
 ) -> wgpu::BindGroup {
+    let Inputs { diffuse, image, params, scroll } = inputs;
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("diffuse and planar receiver"),
         layout,
@@ -200,15 +199,13 @@ impl Renderer {
             None => (&planar.fallback, &planar.disabled),
         };
         let bindings = &self.shared.bindings;
+        let scroll = scroll.unwrap_or(&planar.scroll_zero);
         build_group(
             &self.device,
             &bindings.texture_layout,
             &bindings.sampler,
             &planar.sampler,
-            diffuse,
-            image,
-            params,
-            scroll.unwrap_or(&planar.scroll_zero),
+            Inputs { diffuse, image, params, scroll },
         )
     }
 
