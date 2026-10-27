@@ -193,3 +193,18 @@ fn only_two_gradient_params_are_accepted() {
         STRUCTS.iter().filter(|(_, at)| *at != 0x490).map(|(name, at)| ((*name).to_owned(), *at)).collect();
     assert!(parse_container(&Object::new(porsche_block(), one)).is_err());
 }
+
+#[test]
+fn moving_the_origin_forward_shortens_the_chase_and_bonnet_offsets_only() {
+    let before = porsche_cameras();
+    let mut after = before.clone();
+    after.move_origin_forward(0.2);
+    let moved = |a: [f32; 3], b: [f32; 3]| (a[0] - b[0] - 0.2).abs() < 1e-6 && a[1..] == b[1..];
+    assert!(moved(before.external.position, after.external.position));
+    assert!(moved(before.external.focus, after.external.focus));
+    assert!(moved(before.external.ground_pivot, after.external.ground_pivot));
+    assert!(moved(before.bonnet.eye, after.bonnet.eye));
+    assert!(moved(before.bonnet.target, after.bonnet.target));
+    assert_eq!(before.bumper, after.bumper, "the bumper camera is anchored by the host");
+    assert_eq!(before.rear_view, after.rear_view);
+}

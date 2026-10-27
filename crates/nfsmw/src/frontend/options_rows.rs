@@ -11,6 +11,8 @@ use blackbox_gfx::Capabilities;
 
 /// The original's Rearview Mirror row title (`OPT_GAMEPLAY_REARVIEW`).
 const LABEL_REARVIEW: u32 = 0x85A6_CE05;
+/// The original's Camera row title.
+const LABEL_CAMERA: u32 = 0xF6CC_DC5F;
 
 /// The rows of a category on a renderer with these capabilities. A row the renderer cannot do (the temporal
 /// upscalers' quality mode) is left out; ray tracing is always listed, dimmed and reading "Unavailable" on a
@@ -99,12 +101,14 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::RearViewMirror, Title::Label(LABEL_REARVIEW)),
             row(Setting::TurnSignals, Title::Key("options-turn-signals")),
             row(Setting::CopHealthBars, Title::Key("options-cop-health-bars")),
+            // The same row as the Player page's, so the camera can be switched from the pause menu's gameplay options too.
+            row(Setting::Camera, Title::Label(LABEL_CAMERA)),
             // The general game options live here; the original has no label that names the language row.
             row(Setting::Language, Title::Key("options-language")),
         ],
         Category::Player => vec![
             row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
-            row(Setting::Camera, Title::Label(0xF6CC_DC5F)),
+            row(Setting::Camera, Title::Label(LABEL_CAMERA)),
             row(Setting::Hud, Title::Label(0xAC14_8579)),
         ],
         Category::Controls => {

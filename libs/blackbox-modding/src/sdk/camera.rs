@@ -92,7 +92,7 @@ pub struct CameraInput<'a> {
     pub impact: f32,
     /// Whether the wheels touch the ground.
     pub grounded: bool,
-    /// The car's body origin, metres.
+    /// The origin of the car model (on the ground between the axles), metres.
     pub position: [f32; 3],
     /// The car's forward axis, unit length.
     pub forward: [f32; 3],

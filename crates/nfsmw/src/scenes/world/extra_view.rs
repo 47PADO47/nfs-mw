@@ -52,6 +52,8 @@ impl WorldScene {
 
     /// Step the player's extra view for this frame. Call after the car has moved.
     pub(super) fn update_extra_view(&mut self, dt: f32) {
+        // The camera setting offers the views that fit this car.
+        camera_views::set_player_car(self.players.lead().map(|drive| drive.car_name.as_str()));
         let Some(key) = self.active_extra_view() else {
             self.extra_view = ExtraViewState::default();
             return;

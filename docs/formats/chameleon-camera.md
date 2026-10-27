@@ -39,6 +39,10 @@ degrees. The reader converts every position and per-axis triple once (`from_data
 of `Impact_shake` are kept in the file's order `[pitch, yaw, roll]` (they are not positions). Speeds the file gives are
 miles per hour **[unconfirmed units, fit by the Tesla Roadster: 125 mph is its limit]**.
 
+The offsets are from the car's origin in the file, on the ground. A host that moves the model's origin (the 2012 content mod
+centres a car on its wheelbase) calls `CarCameras::move_origin_forward` so the chase and bonnet offsets follow, and drives the
+model with that origin, not with the body's centre of gravity, which is half a metre higher.
+
 ## The types [verified]
 
 Offsets are in the structure, counting its 12-byte head (two zero words and the type hash); sizes are the type's.

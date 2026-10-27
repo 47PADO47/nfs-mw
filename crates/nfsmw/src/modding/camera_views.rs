@@ -30,6 +30,8 @@ struct Registry {
 
 thread_local! {
     static REGISTRY: RefCell<Registry> = RefCell::new(Registry::default());
+    /// The car the world last drew the player in, so the camera setting can offer the views that fit it.
+    static PLAYER_CAR: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 /// A registered view as the camera setting lists it.
@@ -96,6 +98,43 @@ pub fn all() -> Vec<ViewInfo> {
 /// Every camera the setting can hold: the built-in ones, then the registered extra views.
 pub fn choices() -> Vec<CameraMode> {
     CameraMode::ALL.into_iter().chain(all().into_iter().map(|view| CameraMode::Extra(view.key))).collect()
+}
+
+/// Remember the car the player drives (`None` when there is none), for [`fitting_choices`].
+pub fn set_player_car(car: Option<&str>) {
+    PLAYER_CAR.with(|known| {
+        let mut known = known.borrow_mut();
+        if known.as_deref() == car {
+            return;
+        }
+        *known = car.map(str::to_owned);
+    });
+}
+
+/// The cameras the setting can switch among now: the built-in ones, then the extra views that fit the car the player
+/// drives (all of them while no car is known). `current` stays in the list even when it does not fit, so a switch from it
+/// goes to its neighbour.
+pub fn fitting_choices(current: CameraMode) -> Vec<CameraMode> {
+    let car = PLAYER_CAR.with(|known| known.borrow().clone());
+    let fits = |key: ViewKey| car.as_deref().is_none_or(|car| available(key, car));
+    CameraMode::ALL
+        .into_iter()
+        .chain(all().into_iter().map(|view| CameraMode::Extra(view.key)).filter(|mode| match mode {
+            CameraMode::Extra(key) => fits(*key) || *mode == current,
+            _ => true,
+        }))
+        .collect()
+}
+
+/// The camera after `current` in [`fitting_choices`], or before it when `forward` is false; wraps round.
+pub fn step_choice(current: CameraMode, forward: bool) -> CameraMode {
+    let choices = fitting_choices(current);
+    let at = choices.iter().position(|mode| *mode == current).unwrap_or(0);
+    let next = match forward {
+        true => (at + 1) % choices.len(),
+        false => (at + choices.len() - 1) % choices.len(),
+    };
+    choices[next]
 }
 
 /// The name of a view, if it is registered.
@@ -189,6 +228,27 @@ mod tests {
         unregister("tests.avail", handle).unwrap();
         assert!(!available(key, "CARA"));
         assert_eq!(update(key, &input("CARA")), None);
+    }
+
+    #[test]
+    fn the_setting_switches_among_the_views_that_fit_the_players_car() {
+        let fits = register("tests.fit", &ViewSpec { id: "fits", name: "Fits" }, handlers("CARA")).unwrap();
+        let other = register("tests.fit", &ViewSpec { id: "other", name: "Other" }, handlers("CARB")).unwrap();
+        let (fits, other) = (key_of("tests.fit", fits).unwrap(), key_of("tests.fit", other).unwrap());
+        let (fits, other) = (CameraMode::Extra(fits), CameraMode::Extra(other));
+        set_player_car(None);
+        assert!(fitting_choices(CameraMode::Chase).contains(&fits), "without a car every view is offered");
+        assert!(fitting_choices(CameraMode::Chase).contains(&other));
+        set_player_car(Some("CARA"));
+        let choices = fitting_choices(CameraMode::Chase);
+        assert_eq!(&choices[..CameraMode::ALL.len()], &CameraMode::ALL);
+        assert!(choices.contains(&fits) && !choices.contains(&other));
+        assert!(fitting_choices(other).contains(&other), "the view in use stays so the switch can leave it");
+        assert_eq!(step_choice(CameraMode::Pursuit, true), fits);
+        assert_eq!(step_choice(fits, true), CameraMode::Chase, "past the last view it wraps to the first camera");
+        assert_eq!(step_choice(CameraMode::Chase, false), fits, "backwards from the first camera is the last view");
+        assert_eq!(step_choice(other, true), CameraMode::Chase);
+        set_player_car(None);
     }
 
     #[test]

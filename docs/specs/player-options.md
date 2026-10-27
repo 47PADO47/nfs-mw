@@ -23,6 +23,11 @@ their values or the remaining controls' behavior. Custom camera values stay
 available through the existing setting; this routing change does not change
 camera cycling or the user's stored choice.
 
+The Gameplay page, which is also the pause menu's gameplay page, repeats the Camera row (the same label, setting and
+saving as the Player page's) after Cop Health Bars, so the view can be switched in a running race: the setting is read
+every frame, the world follows it at once, and the C hotkey and both rows stay in step. The row steps through the game's
+nine cameras and then the extra views mods registered (`bb.camera` 1.1) that fit the car being driven.
+
 Only implemented controls appear. Race information, split time, score and
 leaderboard controls from the original Player screen remain absent until
 their corresponding behavior exists. Single-player routing does not expose

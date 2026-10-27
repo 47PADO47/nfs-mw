@@ -16,6 +16,7 @@ blackbox_modding = "0.1"
 supported = ["nfsmw"]
 
 [optional.interfaces]
+"bb.camera" = "1.1"
 "bb.content" = "1.0"
 "bb.settings" = "1.0"
 

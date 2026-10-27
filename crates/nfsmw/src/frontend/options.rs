@@ -388,9 +388,8 @@ impl Setting {
                 changed.transmission = Some(s.transmission);
             }
             Setting::Camera => {
-                let choices = crate::modding::camera_views::choices();
-                let at = choices.iter().position(|m| *m == s.camera_mode).unwrap_or(0);
-                s.camera_mode = choices[cycle(at, choices.len(), forward)];
+                // The game's cameras, then the mods' views that fit the car being driven.
+                s.camera_mode = crate::modding::camera_views::step_choice(s.camera_mode, forward);
                 changed.camera_mode = Some(s.camera_mode);
             }
             Setting::MaxFps => {
