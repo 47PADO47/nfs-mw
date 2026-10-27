@@ -11,7 +11,7 @@ Options, then HUD (after Player, in the main menu's and the pause menu's categor
 order, with the map's orientation (the `minimap` setting, North up or Heading up) and the speed units after the map's
 zoom. Numbers step in fixed amounts and stop at their ends (scale by 0.05; opacity, text size and the 0 to 1 rows by
 0.1; map opacity by 0.05; map zoom by 0.25); the camera shake, speed FOV intensity and HUD volume rows are sliders.
-Choices cycle; switches flip. The map mode row offers off, compact (a small, fainter map and the turn-cue chip) and centered; the expanded view
+Choices cycle; switches flip. The map mode row offers off, compact (a small, fainter map and the turn-cue chip) and centered (the map at the top centre of the screen; the name is kept from when it was in the middle); the expanded view
 stays the `MapExpand` action's. Picking a preset applies its six options at once. Every row applies on the next frame and is
 written to the `[custom_hud]` table when the page is left, and a saved profile keeps the table too.
 
@@ -23,7 +23,7 @@ contrast"); under another style it says that most rows are for the Custom style.
 [custom_hud]
 preset = "balanced"        # minimal, balanced or advanced
 scale = 1.0                # 0.75 to 1.5
-map_mode = "centered"      # off, compact, centered or expanded
+map_mode = "centered"      # off, compact, centered (top centre) or expanded
 camera_shake = 0.5         # 0 (none) to 1 (as it is)
 ```
 

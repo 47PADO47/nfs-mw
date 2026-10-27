@@ -132,3 +132,10 @@ existing presenter draws it.**
   must check this against each screen.
 - The exact Original source for `Career` screens and `TrackSelect`. The mapping in the spec is marked where it
   is not yet confirmed in the code.
+
+## Amendment (2026-10-27): colour roles
+
+`Tokens` gained optional colour roles (`line`, `line_minor`, `line_faint`, `guide`, `success`, `caution`, `danger`, `info`,
+`scrim`, `overlay`), written to the skin under `theme.*` and derived from the five core colours when a theme leaves them
+unset, so the Original floor and every mod theme still resolve a full set and the `bb.ui` ABI is unchanged. See
+[ui-themes-tokens.md](../specs/ui-themes-tokens.md) "Colour roles".

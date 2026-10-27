@@ -8,7 +8,7 @@ behaviour of each part is in [specs/custom-hud/](specs/custom-hud/README.md), th
 
 A fast, understated street-racing HUD, for the **Custom** UI style (`ui_style = custom`):
 
-- a **centred, translucent map**, drawn from the game's own map picture and icons, as the signature element;
+- a **translucent map at the top centre**, drawn from the game's own map picture and icons, as the signature element;
 - a wide, horizontal speed readout with a small gear and a restrained nitrous bar, never a round speedometer;
 - layouts that follow the mode: quiet in free roam, precise in a race, urgent in a pursuit;
 - dark translucent surfaces, thin lines, one accent.
@@ -38,6 +38,12 @@ Deviations from the first draft of this page: `caution` is a deeper orange than 
 read as the route; the police blue has no token, it is the cop icon's light bar. High contrast, the colour-vision
 palettes and the opacity limits are in [specs/custom-hud/visual-identity.md](specs/custom-hud/visual-identity.md).
 
+**The map's colours are the theme's, not these.** The map draws in the active theme's tokens (`theme.line`, `guide`,
+`success`, `caution`, `danger`, `info`, `scrim`, `overlay`, [specs/ui-themes-tokens.md](specs/ui-themes-tokens.md)). The
+built-in palettes declare them with the values above, so the default look is the table's; another theme, or a mod theme
+whose roles derive from its five colours, brings its own. The colour-vision palette and high contrast still replace the
+meaning hues and the neutrals on top of the theme.
+
 ## 3. Type
 
 The face is chosen by role (`numeric`, `label`, `label wide`) and resolved from the **fonts installed on the player's
@@ -61,26 +67,28 @@ A unit is 2.25 px at 1080p. Numbers are tabular, so a value does not shift as it
 - Squared plates with a thin top rule; no rounded cards, no bevels, no glow. Bars are flat.
 - The HUD is laid out in a 16:9 **content box** inside a safe area, so 21:9 and 32:9 keep the groups together
   ([specs/custom-hud/layout.md](specs/custom-hud/layout.md)). Scale is 0.75 to 1.5.
-- Free roam: the cluster bottom right, the map in the middle, notifications on the left. A race adds the strip at the
-  top centre and the leaderboard top right. A pursuit adds the panel top right and the edge arrows.
+- Free roam: the cluster bottom right, the map at the top centre, notifications on the left. A race adds the strip at the
+  top centre, under the map, and the leaderboard top right. A pursuit adds the panel top right and the edge arrows.
 
 ## 5. The map
 
-The map is the one element drawn over the middle of the view. Its modes and sizes (1080p):
+The map is the one element drawn over the 3D view, at the top centre with the safe area's padding (3.5% of the height)
+and never below the upper part of the screen. Its modes and sizes (1080p; every overlay is half as tall as wide):
 
 | Mode | Overlay | Also |
 |---|---|---|
 | `off` | none | |
-| `compact` | 340 px wide, faint | the turn-cue chip at the top centre |
-| `centered` (default) | 500 px wide | |
+| `compact` | 340 px wide, faint | the turn-cue chip under it |
+| `centered` (default) | 500 px wide | the name means centred across the screen |
 | `expanded` | 710 px wide, more opaque | the whole route |
 
 - **The picture.** The tiles of the game's minimap file, as the install has them (the stage's map, or a race's own
   map). The tiles are additive: black is transparent, so only roads and water show over the world. The overlay fades
-  to nothing at its elliptical edge. It has no backdrop yet, so its thin lines are faint over a bright street.
+  to nothing at its elliptical edge. A subtle plate in the theme's scrim colour lies behind it so thin lines stay readable over a bright street; the
+  full-screen map (M) has a much stronger scrim and plate that dim the whole scene.
 - **The icons.** The checkpoints, racers, race starts, shops, safe houses, cops and the helicopter, and the player's
   arrow, are the game's own icons (`HUD_SingleRace.fng`). A kind with no game icon (a roadblock, the last-known place)
-  is a thin shape. The route is signal yellow.
+  is a thin shape. The route is the theme's guide colour (signal yellow in the built-in palette).
 - **Orientation.** Heading-up or north-up, by the `minimap` setting; the arrow stays upright when the map turns.
 - **Fair knowledge.** Police are marked only as the player can know them
   ([specs/custom-hud/fair-knowledge.md](specs/custom-hud/fair-knowledge.md)).

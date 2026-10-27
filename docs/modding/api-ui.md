@@ -22,7 +22,10 @@ in the live game (T12). A player picks a mod theme on the Mods page (see [Select
   `border` and `muted` colours (`[r, g, b, a]`), and its `radius` and `padding` in FEng units (never negative). While the
   theme is active the game merges them into the skin its components read (`theme.*` keys). A theme that declares tokens
   also gets the game's token-driven components (the radio card today; the Custom HUD's components as they land) for each
-  slot it does not name. A theme without tokens keeps the Original look for those slots.
+  slot it does not name. A theme without tokens keeps the Original look for those slots. The game also derives the
+  theme's colour roles (a map's roads and route, the meaning colours, a scrim and an overlay) from these five colours, so the
+  Custom map and the full-screen map draw in the theme's palette; a mod cannot set the roles directly yet
+  ([ui-themes-tokens.md](../specs/ui-themes-tokens.md) "Colour roles").
 
 ## Primitives
 
