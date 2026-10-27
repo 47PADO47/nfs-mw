@@ -49,7 +49,7 @@ impl Supplied {
 }
 
 /// A commented settings file with the defaults: what the mod writes into its folder when it finds none.
-pub const DEFAULT_CONFIG: &str = "# Settings of the NFS: Most Wanted (2012) cars mod (docs/modding/nfsmw-2012-content.md). Restart the game after a change.
+pub const DEFAULT_CONFIG: &str = "# Settings of the NFS: Most Wanted (2012) cars mod (mods/nfsmw-2012-content/README.md). Restart the game after a change.
 # The same keys work under [mods.nfsmw-2012-content] in the game's own config file, which wins over this file key by key.
 
 # Folder of your own NFS Most Wanted (2012) install. Without it no car is added.
@@ -87,7 +87,7 @@ own_engine_sound = true
 
 # The police cars of the 2012 game (the Crown Victoria and Charger cops, the Explorer Interceptor, the Corvette Z06 and the SWAT
 # van: read from their bundles) are added as police cars: they chase you in the cop waves and are not in your garage. Their
-# levels follow the kind of car (docs/modding/nfsmw-2012-content.md, \"Police cars\"). Every key is optional:
+# levels follow the kind of car (mods/nfsmw-2012-content/README.md, \"Police cars\"). Every key is optional:
 # [police]
 # auto = true                 # false: no car is a police car unless `add` names it
 # add = [\"Camaro\"]           # more cars to make police cars (ids or name fragments)

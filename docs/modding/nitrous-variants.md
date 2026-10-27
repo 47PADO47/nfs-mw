@@ -2,7 +2,7 @@
 
 The gameplay settings have a **Nitrous variant** option. Its only value in the game is **Original**: the nitrous of the 2005
 game, exactly as it plays. A mod can add variants to it with [`bb.settings`](api-settings.md); the one in the repository,
-[`nfsmw-2012-content`](nfsmw-2012-content.md), adds **NFS Most Wanted 2012**. While no mod adds a value, the option has one value
+[`nfsmw-2012-content`](../../mods/nfsmw-2012-content/README.md), adds **NFS Most Wanted 2012**. While no mod adds a value, the option has one value
 and is not shown, so the menu is as it was. With a variant added, the row shows and the player steps through the values; the
 choice is saved with the other settings (`[mod_values.nfsmw] option_nitrous_variant`).
 

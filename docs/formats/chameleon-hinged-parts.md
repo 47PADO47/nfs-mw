@@ -125,7 +125,7 @@ The 911 has no `BootHinge` (its engine is behind). Each car lists only the parts
 - `chameleon_vehicle::hinged_parts(bundle)` reads the parts (name, bone, zone, centre, ranges, mass, ladder);
   `Skeleton::read` the bones; `body_parts(pool, spec, skeleton, parts)` the triangle classes of every level of the body,
   aligned with `Vehicle::body`.
-- The 2012 content mod ([nfsmw-2012-content.md](../modding/nfsmw-2012-content.md#hinged-parts)) cuts those triangles out of
+- The 2012 content mod ([mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md#hinged-parts)) cuts those triangles out of
   the finest body solid into one solid per part and writes a `[[damage_parts]]` table per part
   ([car-damage-parts.md](../modding/car-damage-parts.md)). It condenses the three ranges into the one largest swing (the
   axis and end with the largest magnitude) and keeps the ladder as the stages.

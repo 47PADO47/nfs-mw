@@ -14,7 +14,7 @@ other halves of a car are on their own pages:
 | [car-damage-parts.md](car-damage-parts.md) | `[[damage_parts]]`: bonnet, bumpers, mirrors and doors that turn or fall off as the car is damaged |
 | [car-lamps.md](car-lamps.md) | the lamp markers and lamp textures: flares and lit surfaces of the head, brake and reverse lamps |
 
-The [2012 cars mod](nfsmw-2012-content.md) is the worked example, and its settings are on its own page.
+The [2012 cars mod](../../mods/nfsmw-2012-content/README.md) is the worked example, and its settings are on its own page.
 
 ## The files of a car
 
@@ -35,7 +35,7 @@ manifest's file name). A solid it does not find is not drawn, and a car with nei
 |---|---|
 | `<ID>_KIT00_BODY_A` to `_D` | the body, with the glass, lamps and interior, the tail pipe markers ([Tail pipes](#tail-pipes)) and the lamp markers ([car-lamps.md](car-lamps.md)) |
 | `<ID>_KIT00_FRONT_TIRE_A` to `_D` | one wheel solid: tyre, rim, brake disc and caliper, axle along y, rim face at y = 0, as the game's wheels are modelled; the car draws it at all four corners and the game turns it for the left side |
-| `<ID>_KIT00_DRIVER_A` to `_D` | optional: the driver, drawn in the cockpit while the car is driven (never in the garage or the shop), modelled in car space like the body, seated where the car's seat is (the 2012 content mod puts the game's own seated character there, [nfsmw-2012-content.md](nfsmw-2012-content.md#the-driver)); without it the car has no driver |
+| `<ID>_KIT00_DRIVER_A` to `_D` | optional: the driver, drawn in the cockpit while the car is driven (never in the garage or the shop), modelled in car space like the body, seated where the car's seat is (the 2012 content mod puts the game's own seated character there, [mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md#the-driver)); without it the car has no driver |
 
 The letters are the levels of detail, `A` the finest; `E` is not looked for, and a level a car lacks draws nothing at that
 distance, so A and B are the finest the player sees. The paint placeholder texture is `<ID>_SKIN1`, on the paint surfaces.
@@ -178,7 +178,7 @@ way to take another look.
 
 ### The 2012 cars
 
-The [2012 mod](nfsmw-2012-content.md) fills `paints`, with the colour records of each car's own bundle (1 to 15 per
+The [2012 mod](../../mods/nfsmw-2012-content/README.md) fills `paints`, with the colour records of each car's own bundle (1 to 15 per
 car, 396 in the 93 bundles), and `liveries`: that is all the 2012 game offers for a car's looks (no vinyls, rims, spoilers,
 roof scoops or tints to choose; [chameleon-customization.md](../formats/chameleon-customization.md)). The paint texture
 coordinates of a converted car are the 2012 car's own. The 2012 game ships five vehicles (the BMW M3 GTR, Lamborghini Diablo SV,
@@ -201,7 +201,7 @@ pipes derived from its body's shape.
 
 ## Using it
 
-1. Add the car (a mod with a `cars/<id>.toml`, or the [2012 mod](nfsmw-2012-content.md)).
+1. Add the car (a mod with a `cars/<id>.toml`, or the [2012 mod](../../mods/nfsmw-2012-content/README.md)).
 2. Start the game, open the garage or the shop (a safe house or an auto shop in the world, My Cars in the main menu) and
    pick the car. The paints and parts its `[customization]` table lists, and the performance upgrades, are on the usual screens.
 3. To change how the car drives, edit its `[stats]` table ([car-stats.md](car-stats.md); for the 2012 cars, the
@@ -223,4 +223,4 @@ pipes derived from its body's shape.
   garage catalogue and paint of one). The other parts of the table (rim paints, tints, rims, spoilers, roof scoops, vinyls)
   are covered by unit tests only, because no 2012 car uses them; a mod that does has to check them on its car.
 - **Not played.** Nobody has driven the converted cars or used their shop in a window: the checks are the conversion of
-  all 93 cars and the tests named on [nfsmw-2012-content.md](nfsmw-2012-content.md#tests).
+  all 93 cars and the tests named on [mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md#tests).

@@ -104,7 +104,7 @@ The collision with the player uses the game's default reaction, not the cop sets
 
 - **A flying unit** (a mod helicopter) and a **replacement for the support cars** (the heavy SUVs, the cross car).
 - **Per-car light bar particle groups.** A mod cop gets the flares of its `COPLIGHT*` markers only. The 2012 mod does not write
-  the markers yet ([nfsmw-2012-content.md](nfsmw-2012-content.md#police-cars)).
+  the markers yet ([mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md#police-cars)).
 - **Collision reactions** (pit and roadblock weights) are the default ones.
 - **The race waves**: a mod cop is not in `racetable` rows.
 - Nothing was driven or listened to: the checks are unit tests of the manifest, the wave rows and the class tables, and the

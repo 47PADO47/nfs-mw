@@ -5,25 +5,33 @@ liveries of other cars, which the shop offers as liveries, and 6 are a car the v
 the shop offers as paints of the one car), with their
 own bodies, interiors, glass, lamps, wheels, textures, paints, stats, collision and sounds. The 2012 game runs on a
 different engine (Criterion's Chameleon, not Black Box), so the cars are converted, not copied. It is a native mod like
-[`hello`](examples.md), the only mod of the repository that is built with the workspace:
-[`mods/nfsmw-2012-content`](../../mods/nfsmw-2012-content). The readers behind it are the three `libs/chameleon-*` crates
-(formats: [chameleon-bundle](../formats/chameleon-bundle.md), [chameleon-gfx](../formats/chameleon-gfx.md),
-[chameleon-vehicle](../formats/chameleon-vehicle.md)).
+[`hello`](../../docs/modding/examples.md), the only mod of the repository that is built with the workspace:
+[`mods/nfsmw-2012-content`](.). The readers behind it are the three `libs/chameleon-*` crates
+(formats: [chameleon-bundle](../../docs/formats/chameleon-bundle.md), [chameleon-gfx](../../docs/formats/chameleon-gfx.md),
+[chameleon-vehicle](../../docs/formats/chameleon-vehicle.md)).
 
 **Nothing from either game is in the repository or in a release.** The cars are made on your machine, in the background
 while the game runs, from your own 2012 install. Without one the mod adds nothing and the game is unaffected.
 
-Each converted car is a car of its own ([api-content.md](api-content.md#cars)): one more entry in the car list, named by its
+Each converted car is a car of its own ([api-content.md](../../docs/modding/api-content.md#cars)): one more entry in the car list, named by its
 folder, with its own geometry, textures, collision bounds, stats and sounds. **Nothing is taken from a car of the 2005 game,
 and the conversion does not read the 2005 install at all.** The body is not stretched onto a stock wheel layout, and the
 wheels sit at plus and minus half the car's wheelbase with the model centred on it.
 
 ## Using it
 
-1. Build the mod (`cargo build --release -p nfsmw-2012-content`) and put `mods/nfsmw-2012-content/mod.toml` and the built
-   library (`nfsmw_2012_content.dll`, `libnfsmw_2012_content.so` or `libnfsmw_2012_content.dylib` from `target/release/`)
-   in one folder under the game's mods folder, for example `%APPDATA%\nfsmw\config\mods\nfsmw-2012-content\` (see
-   [Using mods](README.md#using-mods)).
+1. Build the mod and copy it into the game's mods folder with one command, from the repository folder:
+
+   ```sh
+   cargo install-mod
+   ```
+
+   It runs `cargo build --release -p nfsmw-2012-content` and puts `mod.toml` and the built library in
+   `%APPDATA%\nfsmw\config\mods\nfsmw-2012-content\` (`~/.config/nfsmw/mods/nfsmw-2012-content/` on Linux; see
+   [Using mods](../../docs/modding/README.md#using-mods)); nothing else in that folder is touched, so the mod's own
+   `config.toml` and converted cars stay. Run it again after every change to the mod, with the game closed (a running
+   game holds the library). `cargo install-mod --debug` installs a debug build and `--dir PATH` another folder; a build
+   by hand with `cargo build --release -p nfsmw-2012-content` and a copy of `mod.toml` and the library works too.
 2. Start the game once. The mod writes a commented `config.toml` next to its `mod.toml` (it does not, when the game's own
    config file already has a `[mods.nfsmw-2012-content]` table).
 3. Put the folder of your 2012 install in it and start the game again:
@@ -52,17 +60,17 @@ the mod folder, or set `mods = off` / use `--no-mods`.
 
 What the shop offers for a car's looks is the car's own: the **paints of its 2012 bundle**, 1 to 15 per car, and, for the five
 cars the 2012 game ships in several liveries, **the liveries** (no vinyls, rims, spoilers or tints:
-[chameleon-customization.md](../formats/chameleon-customization.md)). The 2012 game lists a livery as a vehicle of its own, with
+[chameleon-customization.md](../../docs/formats/chameleon-customization.md)). The 2012 game lists a livery as a vehicle of its own, with
 a bundle of its own; the mod makes one car of a vehicle and lists the pictures of its bundles, named as the 2012 game names them
-(`Hero`, `Race`, `Street`, `Abstract`, `Urban`), in the shop's vinyl category ([car-customization.md](car-customization.md#liveries)).
+(`Hero`, `Race`, `Street`, `Abstract`, `Urban`), in the shop's vinyl category ([car-customization.md](../../docs/modding/car-customization.md#liveries)).
 The car wears its first livery as its stock look, and the shop's `No livery` choice gives the plain paint.
 The performance upgrades and **nitrous** work on the car's own stats; the cars have nitrous from the factory. How the shop
-treats a car is in [car-customization.md](car-customization.md), how it drives in [car-stats.md](car-stats.md), how it sounds
-in [car-sound.md](car-sound.md); this page is the mod's settings and what the conversion writes.
+treats a car is in [car-customization.md](../../docs/modding/car-customization.md), how it drives in [car-stats.md](../../docs/modding/car-stats.md), how it sounds
+in [car-sound.md](../../docs/modding/car-sound.md); this page is the mod's settings and what the conversion writes.
 
 ### Where the settings live
 
-The settings come from the host's `bb.config` ([api-config.md](api-config.md)), which merges two places, either of which may be
+The settings come from the host's `bb.config` ([api-config.md](../../docs/modding/api-config.md)), which merges two places, either of which may be
 missing:
 
 1. `config.toml` in the mod's folder (next to `mod.toml`);
@@ -88,7 +96,7 @@ grip = 1.05
 
 the mod runs with that `source`, `role` and `power`, and with every other value of `config.toml`. The game's config file must
 hold `[mods]` as a table: if it has the older line `mods = "all"`, change it to a `[mods]` table with `mode = "all"` (the
-[mod mode](api-config.md#the-modsid-table) has both forms), since TOML does not allow a key and a table of one name. The
+[mod mode](../../docs/modding/api-config.md#the-modsid-table) has both forms), since TOML does not allow a key and a table of one name. The
 mod writes its commented template only when neither place has settings. The import fingerprint (`.import-stamp`) is made from
 the merged settings, so a change in either place converts the cars again at the next start. Both places are read when the game
 starts; a change needs a restart.
@@ -105,8 +113,8 @@ Every key is optional. An unknown key is an error and no car is added, so a typo
 | `max_texture_size` | Longest texture side, a power of two from 16 to 4096 (default 1024); bigger maps lose their top mips |
 | `role` | `"player"` (default), `"cop"` or `"both"`: who can use the cars that are not police cars (the police cars have their own setting, `[police]`) |
 | `[police]` | Which cars are police cars and where they chase: `auto` (default `true`), `add`, `remove`, `role`, and `[police.car.<id or name fragment>]` with `class`, `heat` and `cop` entries ([Police cars](#police-cars)) |
-| `own_engine_sound` | `true` (default): each car gets the recordings of its own 2012 bundle, written into the mod folder as WAVs (`files/SOUND/MODENGINE/<ID>/`): its engine loops, and its gear shifts, turbo whistle and blow-off, backfires and pops. `false` writes none (the shared recordings included): the cars play the game's built-in engine and have only the game-wide sounds. An approximation, see [car-sound.md](car-sound.md#the-2012-cars-recordings) |
-| `[performance]` | Optional multipliers on the stats read from each car's own 2012 data: `power` (torque at every engine speed), `mass`, `grip` (tyre friction), `brakes` (brake torque), `nitrous_power` (the extra torque of the nitrous), all 1.0 by default, and `nitrous` (`true` by default: the car keeps the nitrous its 2012 data gives it; `false` removes it). The mod applies them when it writes the car, so the game only sees the resulting absolute `[stats]` table ([car-stats.md](car-stats.md)); a car whose settings are left alone is exactly the imported 2012 car. Ranges: `power`, `mass`, `brakes` 0.25 to 4, `grip` 0.25 to 3, `nitrous_power` 0 to 4; results are clamped to the ranges of `[stats]` |
+| `own_engine_sound` | `true` (default): each car gets the recordings of its own 2012 bundle, written into the mod folder as WAVs (`files/SOUND/MODENGINE/<ID>/`): its engine loops, and its gear shifts, turbo whistle and blow-off, backfires and pops. `false` writes none (the shared recordings included): the cars play the game's built-in engine and have only the game-wide sounds. An approximation, see [car-sound.md](../../docs/modding/car-sound.md#the-2012-cars-recordings) |
+| `[performance]` | Optional multipliers on the stats read from each car's own 2012 data: `power` (torque at every engine speed), `mass`, `grip` (tyre friction), `brakes` (brake torque), `nitrous_power` (the extra torque of the nitrous), all 1.0 by default, and `nitrous` (`true` by default: the car keeps the nitrous its 2012 data gives it; `false` removes it). The mod applies them when it writes the car, so the game only sees the resulting absolute `[stats]` table ([car-stats.md](../../docs/modding/car-stats.md)); a car whose settings are left alone is exactly the imported 2012 car. Ranges: `power`, `mass`, `brakes` 0.25 to 4, `grip` 0.25 to 3, `nitrous_power` 0 to 4; results are clamped to the ranges of `[stats]` |
 | `[car.<id or name fragment>]` | The same keys for one car or a make, changing only the keys it lists: `[car.POR911CARR12]`, `[car.Lamborghini]`. The tables apply in the order of their names over `[performance]`. |
 
 The police cars of the install get a name from their siren corona object when their behaviour objects carry no model year
@@ -131,7 +139,7 @@ grip = 1.05
 ```
 
 A name with a space is written in quotes, as in the last table. Absolute values for a car of your own go in its `[stats]`
-table instead ([car-stats.md](car-stats.md)).
+table instead ([car-stats.md](../../docs/modding/car-stats.md)).
 
 ## What is converted
 
@@ -144,20 +152,20 @@ table instead ([car-stats.md](car-stats.md)).
 | Paint surfaces | the placeholder `<ID>_SKIN1` with light material `CARSKIN`, which the game swaps for the paint the player picks. Their texture coordinates are the 2012 car's own |
 | Liveries | the paint picture of each bundle of a vehicle that has several, or of the only bundle of a car that wears one (2048 x 1024 BC1, cut to `max_texture_size`): the vehicle's own bundle first, then its liveries in vehicle list order, as `<ID>_LIV1` to `<ID>_LIV5` in the car's `TEXTURES.BIN` and the `liveries` list of its `[customization]` table. A livery bundle is the car with that one texture replaced; one that is not (another body, no picture) is converted as a car of its own. The liveries are named by the vehicle's paint pack (`libs/chameleon-vehicle/src/paint_pack.rs`, the text table's `HERO`, `RACE`, ...), and the car wears the first as its stock look (`default_livery = 0`). The twelve vehicles with two-colour paint packs (62 packs) get one livery per pack, a baked picture of the pair of colours, named by the pack (`src/two_colour.rs`, `libs/chameleon-vehicle/src/{colour_palette,paint_surface,two_colour}.rs`; see Limits). Vehicles of the list that are one car under two vehicle ids (the same name; 6 of them) are one car, led by the one with liveries, then the one with most paints, and lend it their paints (`src/vehicle_list.rs`, `src/liveries.rs`, `src/fold.rs`, `src/variants.rs`) |
 | Paints | the `VehiclePaint` records of the car's bundle (`libs/chameleon-vehicle/src/paint.rs`): the colour, and the finish from the record's type, written as the `[customization]` table of the manifest, repeated colours dropped; the ones the vehicle's paint pack lists come first in the pack's order, so the default paint is the pack's first (`src/paints.rs`) |
-| Stats | the car's own stats, read from its Genesys handling definition ([chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md)) and written as the `[stats]` table of its manifest: mass (body and wheels), weight distribution and centre-of-gravity height from the axles and rigid bodies, wheelbase, track and tyre size, the torque curve (at most 16 points, knots kept) with its idle and limiter, the gearbox and final drive, the drive layout and differential locks, the tyres' peak grip, the brake torque of each axle, the design top speed (the game solves the air drag from it) and the nitrous strength as `nitrous_boost`; then the `[performance]` multipliers (`src/stats.rs`, `src/performance.rs`) |
-| Engine | the car's own sound graphs ([chameleon-sound-graph.md](../formats/chameleon-sound-graph.md)): the Ginsu voices as `.GIN` files, the idle and whine loops as WAVs, each layer with its curves of rpm, load and speed in the `[engine_sound]` table (`src/graph_voices.rs`, `src/graph_voices/speed.rs`; the player's engine sound and the gearbox whine only, the electric car's motor loops with a `rate` curve of the speed, and `shift_clunk = false` for a car with no gear change sound); a car without those graphs gets the looping samples of its bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../formats/chameleon-sound.md)), except the turbo's whistle, one 16-bit WAV per layer at one level, with the rpm each stands for (`src/engine.rs`, `src/sample.rs`) |
+| Stats | the car's own stats, read from its Genesys handling definition ([chameleon-vehicle-stats.md](../../docs/formats/chameleon-vehicle-stats.md)) and written as the `[stats]` table of its manifest: mass (body and wheels), weight distribution and centre-of-gravity height from the axles and rigid bodies, wheelbase, track and tyre size, the torque curve (at most 16 points, knots kept) with its idle and limiter, the gearbox and final drive, the drive layout and differential locks, the tyres' peak grip, the brake torque of each axle, the design top speed (the game solves the air drag from it) and the nitrous strength as `nitrous_boost`; then the `[performance]` multipliers (`src/stats.rs`, `src/performance.rs`) |
+| Engine | the car's own sound graphs ([chameleon-sound-graph.md](../../docs/formats/chameleon-sound-graph.md)): the Ginsu voices as `.GIN` files, the idle and whine loops as WAVs, each layer with its curves of rpm, load and speed in the `[engine_sound]` table (`src/graph_voices.rs`, `src/graph_voices/speed.rs`; the player's engine sound and the gearbox whine only, the electric car's motor loops with a `rate` curve of the speed, and `shift_clunk = false` for a car with no gear change sound); a car without those graphs gets the looping samples of its bundle (decoded from the `SPS` streams inside them, see [chameleon-sound.md](../../docs/formats/chameleon-sound.md)), except the turbo's whistle, one 16-bit WAV per layer at one level, with the rpm each stands for (`src/engine.rs`, `src/sample.rs`) |
 | Shifts, turbo, backfire, pops | the samples that the car's sound graphs play for the live values `GetPlayerNormalisedGearChangeTimeElapsed`, `BackfireGain`, `GetPopProbability`/`PopGain`, `NormalisedTurboRPM`/`TurboToneGain` and `TurboBlowoffGain` (the last two also use the shared `VEHICLES/WAVES.BNDL`), as WAVs and a `[car_sound]` table (`src/graphs.rs`, `src/effects.rs`). A car with no such graph has no such sound |
-| Shared body hits, scrapes, pops | the first selector of the `Player Vehicle Collision Small`/`Medium`/`Big` graphs and the three samples of `Player Vehicle Scraping` (`SOUND/METALCAR.BNDL`), and the pops each car's graphs import from `VEHICLES/WAVES.BNDL`, written **once** under `files/SOUND/MODSHARED/` and named by every car's `[car_sound.shared]` (`src/shared.rs`). Evidence: [chameleon-shared-sounds.md](../formats/chameleon-shared-sounds.md) |
-| Collision mesh and tyres | `files/CARS/<ID>/BOUNDS.BIN`: the car's own collision bounds, fitted to the poly soup of its bundle (the body's real extents, 166 to 256 triangles) and to the box of each tyre, through the same transform as the body: a root box, a lower body box, a cabin box, front and roof corner spheres and the silhouette the car rolls on. The one bundle without a collision mesh (the SWAT van) is fitted to its visible body. Format and what the 2012 game holds: [car-collision.md](car-collision.md), [chameleon-collision.md](../formats/chameleon-collision.md) (`src/collision.rs`) |
+| Shared body hits, scrapes, pops | the first selector of the `Player Vehicle Collision Small`/`Medium`/`Big` graphs and the three samples of `Player Vehicle Scraping` (`SOUND/METALCAR.BNDL`), and the pops each car's graphs import from `VEHICLES/WAVES.BNDL`, written **once** under `files/SOUND/MODSHARED/` and named by every car's `[car_sound.shared]` (`src/shared.rs`). Evidence: [chameleon-shared-sounds.md](../../docs/formats/chameleon-shared-sounds.md) |
+| Collision mesh and tyres | `files/CARS/<ID>/BOUNDS.BIN`: the car's own collision bounds, fitted to the poly soup of its bundle (the body's real extents, 166 to 256 triangles) and to the box of each tyre, through the same transform as the body: a root box, a lower body box, a cabin box, front and roof corner spheres and the silhouette the car rolls on. The one bundle without a collision mesh (the SWAT van) is fitted to its visible body. Format and what the 2012 game holds: [car-collision.md](../../docs/modding/car-collision.md), [chameleon-collision.md](../../docs/formats/chameleon-collision.md) (`src/collision.rs`) |
 | Hinged parts | The parts the car's damage object lists (bonnet, bumpers, mirrors, doors, boot, as the car has them): cut out of the finest body solids into `<ID>_KIT00_<PART>_A` and `_B`, and a `[[damage_parts]]` table per part in the manifest ([below](#hinged-parts)) (`src/hinges.rs`) |
-| Markers | `EXHAUST`, `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous and pop flames start), one per tail pipe, on `<ID>_KIT00_BODY_A..D`: the locators of the groups the car's nitrous spot effects name, facing the way the locator faces, mirrored when the effect says so; a car with no nitrous effect (the Tesla, the SWAT van) has none and so no flame (`src/pipes.rs`, [chameleon-exhaust.md](../formats/chameleon-exhaust.md)); a car whose bundle has no effect records at all (one) gets pipes derived from its body, at the rear face, low (`src/markers.rs`). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
-| Nitrous sounds | the burn loop, the end sound and the start sound of the 2012 heat level sound set (`GAMELOGIC/HL_*.BNDL`, found by the expression `NitrousState.UsingNitrous` and the trigger `NITROUS_POSTFX_OFF`), as stereo WAV files in `files/NITROUS/MW2012/` with a `profile.toml`, and the value **NFS Most Wanted 2012** of the gameplay setting "Nitrous variant" (`bb.settings`), offered when a 2012 install is set. The post effects, flames, camera and HUD of the 2012 nitrous are not played; see [nitrous-variants.md](nitrous-variants.md) and [chameleon-nitrous.md](../formats/chameleon-nitrous.md) (`src/nitrous.rs`) |
-| Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The lamp markers `LEFT_HEADLIGHT`, `RIGHT_HEADLIGHT`, `LEFT_BRAKELIGHT`, `RIGHT_BRAKELIGHT` and `BRAKELIGHT_CENTRE` are the car's own lamp locators, picked by its lamp records ([car-lamps.md](car-lamps.md)). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
-| Lamp surfaces | the lit strips of the 2012 lamps, split by piece, drawn with the game's lamp placeholders, and the car's own `<ID>_KIT00_HEADLIGHT_ON`/`_OFF` and `_BRAKELIGHT_ON`/`_OFF` textures (flat colours); the lamp interiors are dark grey ([car-lamps.md](car-lamps.md)) |
+| Markers | `EXHAUST`, `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous and pop flames start), one per tail pipe, on `<ID>_KIT00_BODY_A..D`: the locators of the groups the car's nitrous spot effects name, facing the way the locator faces, mirrored when the effect says so; a car with no nitrous effect (the Tesla, the SWAT van) has none and so no flame (`src/pipes.rs`, [chameleon-exhaust.md](../../docs/formats/chameleon-exhaust.md)); a car whose bundle has no effect records at all (one) gets pipes derived from its body, at the rear face, low (`src/markers.rs`). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
+| Nitrous sounds | the burn loop, the end sound and the start sound of the 2012 heat level sound set (`GAMELOGIC/HL_*.BNDL`, found by the expression `NitrousState.UsingNitrous` and the trigger `NITROUS_POSTFX_OFF`), as stereo WAV files in `files/NITROUS/MW2012/` with a `profile.toml`, and the value **NFS Most Wanted 2012** of the gameplay setting "Nitrous variant" (`bb.settings`), offered when a 2012 install is set. The post effects, flames, camera and HUD of the 2012 nitrous are not played; see [nitrous-variants.md](../../docs/modding/nitrous-variants.md) and [chameleon-nitrous.md](../../docs/formats/chameleon-nitrous.md) (`src/nitrous.rs`) |
+| Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The lamp markers `LEFT_HEADLIGHT`, `RIGHT_HEADLIGHT`, `LEFT_BRAKELIGHT`, `RIGHT_BRAKELIGHT` and `BRAKELIGHT_CENTRE` are the car's own lamp locators, picked by its lamp records ([car-lamps.md](../../docs/modding/car-lamps.md)). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
+| Lamp surfaces | the lit strips of the 2012 lamps, split by piece, drawn with the game's lamp placeholders, and the car's own `<ID>_KIT00_HEADLIGHT_ON`/`_OFF` and `_BRAKELIGHT_ON`/`_OFF` textures (flat colours); the lamp interiors are dark grey ([car-lamps.md](../../docs/modding/car-lamps.md)) |
 | Glass and lamp lenses | a translucent tint texture with light material `WINDSHIELD` |
 | Untextured surfaces | a flat colour texture from the material's diffuse colour (dark grey when it has none) |
 | Normals | recomputed from the triangles |
-| Brand logos | the manufacturer table of the vehicle list and the logo pictures under `UI/IMAGES/STREAMED/` ([chameleon-manufacturers.md](../formats/chameleon-manufacturers.md)): for each distinct brand of the converted cars that the table names (Bentley, BAC, Koenigsegg, Pagani, Marussia, Ariel, Tesla, SRT, Shelby, Land Rover and the others, 32 of the 33 brands of the install; the cars' `NFS` brand has none), `manufacturers/<id>.toml` (`name` is the car's brand, `override = false`) and the logo as `files/UI/MAKERS/<ID>.PNG`: the picture cut to its visible part, scaled to fit with a margin (at most 2x) and centred on a transparent 300 x 150 RGBA canvas, in its own colours. The game's own logo of a brand it already has (Porsche, BMW, Subaru) wins over it; a brand with no logo has no file, and the game draws its name (`src/brands.rs`, `src/logo.rs`, [api-content.md](api-content.md#manufacturers)) |
+| Brand logos | the manufacturer table of the vehicle list and the logo pictures under `UI/IMAGES/STREAMED/` ([chameleon-manufacturers.md](../../docs/formats/chameleon-manufacturers.md)): for each distinct brand of the converted cars that the table names (Bentley, BAC, Koenigsegg, Pagani, Marussia, Ariel, Tesla, SRT, Shelby, Land Rover and the others, 32 of the 33 brands of the install; the cars' `NFS` brand has none), `manufacturers/<id>.toml` (`name` is the car's brand, `override = false`) and the logo as `files/UI/MAKERS/<ID>.PNG`: the picture cut to its visible part, scaled to fit with a margin (at most 2x) and centred on a transparent 300 x 150 RGBA canvas, in its own colours. The game's own logo of a brand it already has (Porsche, BMW, Subaru) wins over it; a brand with no logo has no file, and the game draws its name (`src/brands.rs`, `src/logo.rs`, [api-content.md](../../docs/modding/api-content.md#manufacturers)) |
 
 Levels of detail: the game draws nothing for a level a car lacks, so A and B are the finest body, C and D the coarser
 ones. The vertex limit of one solid (60,000) can force a coarser level. The manifest also carries `role`, a display name
@@ -165,7 +173,7 @@ ones. The vertex limit of one solid (60,000) can force a coarser level. The mani
 
 ## How it works with the host
 
-- **At load** the mod learns its own folder from the host table (`ctx.mod_dir()`, see [api.md](api.md#lifecycle)). It
+- **At load** the mod learns its own folder from the host table (`ctx.mod_dir()`, see [api.md](../../docs/modding/api.md#lifecycle)). It
   promotes a finished conversion left by an earlier start, reads `config.toml`, and, unless the content on disk is still
   right, starts the conversion thread and returns.
 - **The conversion** runs on a pool of all cores but one (at most six), one car per task, and builds into `.staging/`. It
@@ -173,7 +181,7 @@ ones. The vertex limit of one solid (60,000) can force a coarser level. The mani
 - **When it is done** (the mod sees it in its frame events: the worker cannot call the host) the mod moves `.staging/files`,
   `.staging/cars` and `.staging/manufacturers` into place and calls `bb.content.rescan()`. The host adds the mod's `files/` as a *late layer* of the
   install, which every copy of the install shares, including the ones the scenes already hold, and publishes the cars its
-  `cars/` folder declares; the car tables list them from then on. See [api-content.md](api-content.md#content-registries-bbcontent).
+  `cars/` folder declares; the car tables list them from then on. See [api-content.md](../../docs/modding/api-content.md#content-registries-bbcontent).
 - If content was already live at start (a rerun after a change), the finished conversion is promoted at the next start
   instead, because the game has indexed the folder.
 
@@ -183,19 +191,19 @@ What was **not verified** comes first, because it limits everything else:
 
 - **Nothing has been driven or listened to.** The checks are the conversion of all 93 cars, the game's parser and readers
   accepting what was written, and unit tests. No converted car has been driven by a person, and no recording has been heard
-  in the game ([car-sound.md](car-sound.md#the-2012-cars-recordings)).
+  in the game ([car-sound.md](../../docs/modding/car-sound.md#the-2012-cars-recordings)).
 - **The 2012 stats are a reading of the data.** The layout of the handling definition is verified on all 93 cars, but several
-  meanings are listed as unconfirmed in [chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md): the torque
+  meanings are listed as unconfirmed in [chameleon-vehicle-stats.md](../../docs/formats/chameleon-vehicle-stats.md): the torque
   spline's interpolation, the differential fields that decide the drive layout and the locks, the tyre grip curves, the
   top-speed fields and the nitrous strength. The tyre grip scale of the game's builder is a calibration that has not been
-  checked on a skidpad ([car-stats.md](car-stats.md#stats-stats-in-the-car-manifest)).
+  checked on a skidpad ([car-stats.md](../../docs/modding/car-stats.md#stats-stats-in-the-car-manifest)).
 
 Then what the conversion does not do:
 
 - **Handling is each car's own, approximately.** Mass, engine, gearbox, tyre grip and brakes are the 2012 car's numbers;
   springs, dampers, steering, downforce, the handbrake, gear efficiency and engine braking are the engine's generic values,
   because the 2012 files give them in units that are not decoded. Damage numbers are the shared racing table
-  ([car-collision.md](car-collision.md#damage)); the HUD is the game's own.
+  ([car-collision.md](../../docs/modding/car-collision.md#damage)); the HUD is the game's own.
 - **No vinyls, rims, spoilers, scoops, tints, body kits or hoods**: the 2012 game has none to offer, so the shop lists only
   the paints. The performance bars of the shop are computed from each car's stats.
 - **Collision is fitted, not copied.** The 2012 damage objects' zone numbers and crumple animations (not decoded; the hinged
@@ -205,7 +213,7 @@ Then what the conversion does not do:
 - **Collision is fitted, not copied.** The 2012 damage objects (hinged parts, per-zone thresholds: not decoded), headlight
   beams, brake discs (they are part of the wheel) and spoiler and mirror animation are not converted. The lamps are:
   markers from the lamp locators (head, brake, centre brake and reverse lamps) and flat lit colours
-  ([car-lamps.md](car-lamps.md)). The sets were not compared with how the cars drive in a window.
+  ([car-lamps.md](../../docs/modding/car-lamps.md)). The sets were not compared with how the cars drive in a window.
 - **Tail pipes are the car's own** (1, 2, 3 or 4 a car, in the places the 2012 game has them: the 918 Spyder's on top of the rear deck, the Viper's at the sides). The BMW 1M's bundle holds pipes 0.3 m beyond its body (the body is the *Cars* tie-in model's), and one unnamed bundle (122706) has no effect records, so it gets pipes derived from its body. The effects that follow the nitrous (afterburn, bit 14) and the 2012 flame shapes are not used: the game's own flame emitters play at the pipes.
 - **Paint names.** The 2012 records carry no names; a paint is named by its finish and colour (`Metallic #AD2B2C`). The game's
   own names (`SILVER METALLIC`) are in the paint packs and the text table, and are not used yet: a paint's name is what a saved
@@ -216,7 +224,7 @@ Then what the conversion does not do:
   and lower panels (whole meshes, or where a mask texture says). Each pack is a livery of the car, 62 in all, named by the game's
   name of the pack (`Silver Metallic`, `Red Gloss`; a name two packs share is numbered, `Silver Metallic 2`), whose picture is the
   pair of colours baked at conversion time (`<ID>_LIV<n>`: the mask of the car blended in the two colours, or two blocks of colour
-  for a car with no mask, the paint meshes pointed at the right one; [the format](../formats/chameleon-customization.md#two-colour-paint)).
+  for a car with no mask, the paint meshes pointed at the right one; [the format](../../docs/formats/chameleon-customization.md#two-colour-paint)).
   The car wears its first pack from the start and `No livery` gives the plain paints. The picture is opaque flat colour: the
   metallic finish, the specular colour and the Veyron GSV's weave on its second-colour surfaces are not carried over, and a
   livery hides the paint the player picks while it is on. The GSV's old `Livery 1` (that weave picture over the whole car) is gone.
@@ -249,7 +257,7 @@ Then what the conversion does not do:
 Five of the install's 93 bundles are the 2012 game's **police vehicles**, and they are converted as police cars of the 2005 game
 (`role = "cop"`, not in the garage, in the cop waves) instead of player cars. They are found by what their bundle holds, not by
 a list: a siren corona object (`<Car>_Cop_Coronas`), a `LightBarHinge` part, or the SWAT van's name
-([evidence](../formats/chameleon-police.md)); no other bundle has any of them, and none of the five is in a list of cars the
+([evidence](../../docs/formats/chameleon-police.md)); no other bundle has any of them, and none of the five is in a list of cars the
 player may be given.
 
 | Car (the mod's display name) | Class | Default levels: `heat count @chance` |
@@ -261,7 +269,7 @@ player may be given.
 | NFS Swat Van 2012 | heavy | `8 x1 @30`, `9 x2 @40`, `10 x2 @50` |
 
 **These levels are a design, not 2012 data.** The 2012 install's heat levels (40 behaviour records with their own tiers) were not
-decoded, and nothing found ties a police vehicle to a level ([chameleon-police.md](../formats/chameleon-police.md#what-is-not-in-the-install-in-a-form-that-was-decoded)).
+decoded, and nothing found ties a police vehicle to a level ([chameleon-police.md](../../docs/formats/chameleon-police.md#what-is-not-in-the-install-in-a-form-that-was-decoded)).
 The table follows the kind of car and the 2005 game's own waves: the patrol sedan and the muscle car at the low levels (heat 1
 is four mid-size cops), the sport utility with the numbers of the 2005 patrol SUV at heat 6 and 7 (`x2 @80`, `x6 @90`), the sports
 car from heat 5, the van at the top. A police car that no row fits (one you `add`) is a patrol car in every level with 2 cars at
@@ -296,10 +304,10 @@ the manifest against the game's parser.
 ## Hinged parts
 
 The 2012 body is one skinned model, and its damage object names the parts that hang on hinges, each after a bone of the
-car's skeleton ([chameleon-hinged-parts.md](../formats/chameleon-hinged-parts.md)). The conversion gives each part the
+car's skeleton ([chameleon-hinged-parts.md](../../docs/formats/chameleon-hinged-parts.md)). The conversion gives each part the
 triangles weighted to its bone and the bones below it, and cuts them out of the finest body solid (`_A` and `_B`, which share
 the finest level) into a solid of their own; vertices, normals and materials are those of the body, so an intact car draws as
-before. Per part it writes a `[[damage_parts]]` table ([car-damage-parts.md](car-damage-parts.md)):
+before. Per part it writes a `[[damage_parts]]` table ([car-damage-parts.md](../../docs/modding/car-damage-parts.md)):
 
 | Table key | From the 2012 data |
 |---|---|
@@ -313,8 +321,8 @@ before. Per part it writes a `[[damage_parts]]` table ([car-damage-parts.md](car
 The cars whose spoiler is a plain speed state (the bone `SpoilerHinge`, 10 bundles of 8 models: 911 Carrera S, 918 Spyder
 2013 and Concept Study, LFA, SL65 AMG, SLS AMG, LP700-4 and Panamera Turbo S) get a part `Spoiler` the same way, whether or not their damage object lists
 it, with a `[damage_parts.active]` table decoded from the 2012 state machine and animation: the open and close speeds, the
-time, the slide and the turn ([chameleon-active-aero.md](../formats/chameleon-active-aero.md)); the Panamera's side flaps are
-parts that hang from its spoiler (`parent`). The **McLaren and the Venom** get the `[wing]` machine without a top-speed animation, with their own speeds (120 and 80 mph) and brake hold; the **Huayra** gets four flaps with `[[damage_parts.drive]]` tables (turning, speed bands, rear brake). Both rest on assumptions, listed in [chameleon-active-aero.md](../formats/chameleon-active-aero.md#the-mclaren-the-venom-and-the-huayra).
+time, the slide and the turn ([chameleon-active-aero.md](../../docs/formats/chameleon-active-aero.md)); the Panamera's side flaps are
+parts that hang from its spoiler (`parent`). The **McLaren and the Venom** get the `[wing]` machine without a top-speed animation, with their own speeds (120 and 80 mph) and brake hold; the **Huayra** gets four flaps with `[[damage_parts.drive]]` tables (turning, speed bands, rear brake). Both rest on assumptions, listed in [chameleon-active-aero.md](../../docs/formats/chameleon-active-aero.md#the-mclaren-the-venom-and-the-huayra).
 
 The **Agera R** gets two flaps that open above 70 mph with the gas pressed (`gas = true`); the **air vents** of the 918 Concept
 Study, the LP700-4, the Marussia B2 and the Aventador J become `AirVentN` parts with the waits of the 2012 timed transitions
@@ -326,17 +334,17 @@ On the 911 that is 8 parts, the 7 of its damage object with 12,119 of the 30,908
 SWAT van has no skeleton, and two cars have a skin of all-zero weights). Limits: the coarser body levels (`C`, `D`) are not
 skinned and keep the parts in the body, so a damaged car far away looks intact; the 2012 ranges are a few degrees, so the
 parts hang slightly (the bonnet lifts by up to 15 degrees) until they fall off, which is the game's rule, not the 2012
-data's ([car-damage-parts.md](car-damage-parts.md#falling-off)); the units and the meaning of the ladder are inferred. Nothing has been seen in a running game.
+data's ([car-damage-parts.md](../../docs/modding/car-damage-parts.md#falling-off)); the units and the meaning of the ladder are inferred. Nothing has been seen in a running game.
 
 ## The wheels
 
 The wheel hubs come from the car's graphics spec; the tyre's height, width and reach come from its wheel mesh; the
-converter writes them as the car's `[wheels]` table ([car-stats.md](car-stats.md#where-the-wheels-are-drawn-wheels)), and the
+converter writes them as the car's `[wheels]` table ([car-stats.md](../../docs/modding/car-stats.md#where-the-wheels-are-drawn-wheels)), and the
 stats' wheelbase and weight distribution are those of the same axles, so the body, the physics and the drawn wheels agree. The
 wheels are taken by their place and not their name (a few cars name them the wrong way round).
 
 An axle is where the **body's arch** is. On all but four cars the spec's hubs, the vehicle info's axles and the arches agree
-([chameleon-vehicle.md](../formats/chameleon-vehicle.md#hubs-and-the-bodys-arches)). Where they do not, the converter tests the
+([chameleon-vehicle.md](../../docs/formats/chameleon-vehicle.md#hubs-and-the-bodys-arches)). Where they do not, the converter tests the
 tyre against the body (`chameleon_vehicle::prefer_other`: the body's vertices inside the tyre at the hub and at the info's axle)
 and takes the axle that has room for it:
 
@@ -361,10 +369,10 @@ not a drive: the Venom was looked at in a render (`nfsmw view-car HENVENOMGT12 -
 
 Every car of the 2012 game but the BMW 1M has a driver: each car bundle sets one up (`Vehicle_DriverSetup`: which of the two
 characters of `CHARACTERS/ALL_CHARS.BNDL` sits in the car, and the seat's position in the car's space), and the characters are
-seated figures, skinned models in the pose of their rest skeleton ([chameleon-vehicle.md](../formats/chameleon-vehicle.md#the-driver)).
+seated figures, skinned models in the pose of their rest skeleton ([chameleon-vehicle.md](../../docs/formats/chameleon-vehicle.md#the-driver)).
 The conversion gives each of **92 of the 93 bundles** the solid `<ID>_KIT00_DRIVER_A..D`, which the game draws in the cockpit
 when the car is driven (not in the garage or the shop), with a part of its own (`<ID>_DRIVER`, slot `DRIVER`) that the game
-adds to its parts database with the body and the wheel ([car-customization.md](car-customization.md#the-files-of-a-car)). A
+adds to its parts database with the body and the wheel ([car-customization.md](../../docs/modding/car-customization.md#the-files-of-a-car)). A
 mod car with no such solid has no driver.
 
 - **Placed by the bundle's own seat.** The character is moved by the seat the car's setup gives (no rotation, no scale), then
@@ -387,7 +395,7 @@ mod car with no such solid has no driver.
 
 ## The 2012 cameras
 
-Every converted car also gets the 2012 game's cameras as three **extra camera views** ([api-world.md](api-world.md#camera),
+Every converted car also gets the 2012 game's cameras as three **extra camera views** ([api-world.md](../../docs/modding/api-world.md#camera),
 `bb.camera` 1.1): **2012 Chase**, **2012 Bonnet** and **2012 Bumper**. Press **C** (the camera hotkey) past the game's own
 cameras to reach them, or pick one in the options' Camera row (on the Player page and on the Gameplay page, which is also the
 pause menu's, so the view can be switched in a running race); the choice is saved as
@@ -395,7 +403,7 @@ pause menu's, so the view can be switched in a running race); the choice is save
 and the game keeps its own cameras.
 
 While a car is converted, the mod reads the cameras of its bundle with
-[`chameleon-camera`](../formats/chameleon-camera.md) and writes them next to the car's files (`files/CARS/<ID>/CAMERAS.TOML`, with
+[`chameleon-camera`](../../docs/formats/chameleon-camera.md) and writes them next to the car's files (`files/CARS/<ID>/CAMERAS.TOML`, with
 the nose of the converted body, which anchors the bumper camera; the chase and bonnet offsets are shortened by how far the
 conversion moved the car's origin to the middle of its axles, `CarCameras::move_origin_forward`). **A car converted before the
 cameras were kept has no such file, and the views then do not fit it (the game keeps its own camera, which looks like the

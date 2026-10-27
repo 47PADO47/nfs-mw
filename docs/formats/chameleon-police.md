@@ -58,7 +58,7 @@ which matches the bundle marks.
   select screen of the 2012 game has pictures per cop tier and per racer tier (`UI/IMAGES/CARSELECT/COPTIER<n>.BNDL` and
   `RACERTIER<n>`, from `FUN_006579a0`) **[exe]**.
 - **Which levels a vehicle appears at.** Nothing decoded ties a police vehicle to a heat level, so the mod's waves are a
-  design ([nfsmw-2012-content.md](../modding/nfsmw-2012-content.md#police-cars)).
+  design ([mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md#police-cars)).
 - **The car-select cop mode.** `CarSelectViewModel.IsCopCarSelect` and the online `VEHICLE_TYPE_COP` exist **[exe]**; the
   police vehicles are probably what the player drives in its Interceptor game mode **[unconfirmed]**. The 2005 game has no such mode, so the
   converted police cars are `role = "cop"` by default and `role = "both"` is a setting.

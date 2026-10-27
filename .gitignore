@@ -64,6 +64,7 @@
 # Mods (ADR 0005 section 8): manifests, sources and translation catalogues only; a built library is never committed
 !/mods/*/Cargo.toml
 !/mods/*/mod.toml
+!/mods/*/README.md
 !/mods/*/src/**/*.rs
 !/mods/*/tests/**/*.rs
 !/mods/*/lang/**/*.ftl

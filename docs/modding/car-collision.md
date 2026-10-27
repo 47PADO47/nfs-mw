@@ -70,7 +70,7 @@ either ([formats/chameleon-collision.md](../formats/chameleon-collision.md#damag
 ## Making one
 
 - **The 2012 content mod** writes one for each of its 93 cars from the car's own collision mesh in its 2012 bundle, with the
-  tyres, and the visible body for the one car without a mesh ([nfsmw-2012-content.md](nfsmw-2012-content.md)). The 2012 game
+  tyres, and the visible body for the one car without a mesh ([mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md)). The 2012 game
   has no impact-point geometry to take over: [formats/chameleon-collision.md](../formats/chameleon-collision.md).
 - **Any other mod** builds the set from points sampled on its car (its collision mesh, or the vertices of its body, plus the
   tyres) with `blackbox_collision::fit_body(name_hash, &points, &FitOptions::default())` and writes it with

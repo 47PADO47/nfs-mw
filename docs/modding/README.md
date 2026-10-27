@@ -39,7 +39,7 @@ when the module is new.
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
-| [nfsmw-2012-content.md](nfsmw-2012-content.md) | The `nfsmw-2012-content` mod: the 73 cars of NFS: Most Wanted (2012) (93 bundles, 20 of them liveries), converted in the background from your own install named in the mod's `config.toml`: settings, what is converted, limits |
+| [mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md) | The `nfsmw-2012-content` mod: the 73 cars of NFS: Most Wanted (2012) (93 bundles, 20 of them liveries), converted in the background from your own install named in the mod's `config.toml`: settings, what is converted, limits |
 
 ## Two layers
 

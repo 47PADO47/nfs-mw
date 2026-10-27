@@ -50,7 +50,7 @@ that shows a flat surface (the 2012 mod uses `MATTEPLASTIC`).
 
 ## The 2012 cars
 
-The [2012 mod](nfsmw-2012-content.md) fills both from each car's own 2012 data
+The [2012 mod](../../mods/nfsmw-2012-content/README.md) fills both from each car's own 2012 data
 ([chameleon-lamps.md](../formats/chameleon-lamps.md)):
 
 - **Markers.** The 2012 game places its lamps with *locators* (numbered placements) and *lamp records* that name a

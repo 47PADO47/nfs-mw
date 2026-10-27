@@ -1,4 +1,4 @@
-# Adds the cars of NFS Most Wanted (2012) (docs/modding/nfsmw-2012-content.md). Put the folder of your 2012 install in
+# Adds the cars of NFS Most Wanted (2012) (mods/nfsmw-2012-content/README.md). Put the folder of your 2012 install in
 # config.toml (the mod writes a commented one the first time the game starts) and restart: the cars are converted in
 # the background, once, and are in the garage and the career as soon as they are ready.
 

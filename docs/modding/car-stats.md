@@ -155,7 +155,7 @@ effects follow the same hubs. The table changes nothing of the physics, which st
 
 ## The 2012 cars' stats
 
-The [2012 mod](nfsmw-2012-content.md) writes a `[stats]` table for each car, read from the car's own handling definition
+The [2012 mod](../../mods/nfsmw-2012-content/README.md) writes a `[stats]` table for each car, read from the car's own handling definition
 ([chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md)): mass, weight distribution, wheelbase, track, tyre size,
 the torque curve, the gearbox, the drive layout, the tyres' peak grip, the brake torque, the design top speed and the nitrous
 strength. It leaves out what the 2012 data gives in units that are not decoded (springs, dampers, steering, downforce, the

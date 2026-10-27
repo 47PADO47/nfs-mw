@@ -176,7 +176,7 @@ flaps are parts of their own that hang from it. The Agera's flaps follow the gas
 Venom use the same `[wing]` machine without a top-speed animation, and the Huayra's flaps are played by `[[damage_parts.drive]]`
 tables; both rest on assumptions listed in [chameleon-active-aero.md](../formats/chameleon-active-aero.md).
 
-The [2012 mod](nfsmw-2012-content.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data.
+The [2012 mod](../../mods/nfsmw-2012-content/README.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data.
 A 2012 part turns through a few degrees at most, so its stages are small steps. The mod writes the part's own mass and no
 `detach_at`: the 2012 data names no release level, so the default applies, which comes from the 2012 ladder of the part (its
 last step, and not before half the damage): the 911's bonnet (last step 0.5) and mirrors (0.2, raised to 0.5) come off with

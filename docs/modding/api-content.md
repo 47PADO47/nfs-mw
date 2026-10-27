@@ -92,7 +92,7 @@ holds absolute values.)
 Rules:
 
 - A mod may write its `cars/` and `files/` folders in `Mod::load` (it finds its folder with `ctx.mod_dir()`): the game
-  reads them after every mod has loaded. The [2012 content mod](nfsmw-2012-content.md) does, on a worker thread, and calls
+  reads them after every mod has loaded. The [2012 content mod](../../mods/nfsmw-2012-content/README.md) does, on a worker thread, and calls
   `bb.content` when it is done.
 - The car id is the file name in upper case (`FASTCOUPE`; 1 to 32 letters, digits, `_` or `-`). Its `GEOMETRY.BIN` must be in the mod's own `files/` folder, not
   only in the install (`Reason::NoGeometry`).
