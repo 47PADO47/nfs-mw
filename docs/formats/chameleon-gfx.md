@@ -19,9 +19,62 @@ packed (no row padding).
 | 0x2D | u8 | mip levels (1024 x 1024 has 11) |
 
 The size of mip *n* is `ceil(w/4) * ceil(h/4) * 8` bytes for BC1 and BC4, `* 16` for the other block formats, with `w`
-and `h` halved *n* times and never below 1. A 1024 x 1024 BC1 texture with 11 mips is 699,136 bytes, as stored. The 53
+and `h` halved *n* times and never below 1. A 1024 x 1024 BC1 texture with 11 mips is 699,064 bytes of pixels; the graphics block is that rounded up to a
+multiple of 128 bytes (699,136), see below. The 53
 textures of `VEHICLETEX.BNDL` are 512 to 2048 pixels on a side; there are no sRGB format numbers, so diffuse and data
 maps are told apart by the sampler that uses them, not by the format.
+
+### Padding of the graphics block **[verified]**
+
+The graphics block of a texture is the pixels rounded **up to a multiple of 128 bytes**, the padding being zeros at
+the end: an 8 x 8 BC1 texture with 4 mips is 56 bytes of pixels in a 128-byte block, a 1024 x 1024 BC3 with 11 mips is
+1,398,128 bytes in 1,398,144. This holds for all 53 textures of `VEHICLETEX.BNDL` (the install test asserts it) and
+for 82 BC1/BC3 textures read with a Python probe from that bundle, `GLOBALTEXTUREDICTIONARY.BNDL` and three `MAPS`
+bundles: 8 fit exactly, 74 are padded, none is longer or shorter. Seven textures in uncompressed formats (six RGBA8, one
+R8) were not checked. Use `Texture::slice_size()` for the pixel bytes, not the block's length.
+
+### Exporting a texture as `.dds` **[verified]**
+
+The pixels are already in `.dds` order (the mips of a slice largest first, slices one after the other, tightly packed),
+so a `.dds` file is a header plus the pixel bytes. `Texture::to_dds()` writes one; the layout is Microsoft's public DDS
+format, the numbers below are what it writes:
+
+| Field | Value |
+|---|---|
+| magic, size | `DDS `, 124 |
+| flags | CAPS, HEIGHT, WIDTH, PIXELFORMAT (0x1007), plus MIPMAPCOUNT (0x20000) when there is more than one mip, plus LINEARSIZE (0x80000) for block formats or PITCH (0x8) for uncompressed ones |
+| height, width | from the texture header (the header is written height first, then width) |
+| pitch or linear size | bytes of the top mip for block formats (`ceil(w/4) * ceil(h/4) * block bytes`), the row pitch for uncompressed |
+| mip count | the texture's, at offset 0x1C |
+| pixel format | size 32, flags FOURCC (0x4), code `DXT1`, `DXT3` or `DXT5` for DXGI 71, 74 and 77 of a single slice; `DX10` for everything else |
+| caps | TEXTURE (0x1000), plus COMPLEX (0x8) and MIPMAP (0x400000) when there is more than one mip |
+| DX10 extension (20 bytes) | DXGI format (the texture's own number, so sRGB variants and BC4/BC5/BC7 survive), dimension 3 (2D), misc 0, array size, alpha mode 0 |
+
+Volume textures (depth above 1) are refused; arrays are written as a 2D array, and a cube map would show as six slices.
+The dat-to-dds tool (below) writes the legacy header only and only for BC1 and BC3; the export here covers every
+format `PixelFormat` names. All 53 shared car textures export with the expected size (`128 + pixel bytes`) and header
+fields (`dds_tests::the_shared_car_textures_export`, run with `CHAMELEON_GAME_DIR`).
+
+### What the community tool does **[community]**
+
+YzENT's [Chameleon-dat-to-dds](https://github.com/YzENT/Chameleon-dat-to-dds) (no license, so only its facts are used)
+takes the `.dat` files of the bundle unpacker: for a texture the main block `<id>.dat` is the header and block 1
+`<id>_texture.dat` the pixels (the unpacker's name for block 1 of a PC texture). It builds a `.dds` from three header
+fields and a fixed template. The offsets it reads, per game:
+
+| Game | Format | Width | Height | Mips | Format codes it accepts |
+|---|---|---|---|---|---|
+| Most Wanted 2012 (32-bit) | byte at 0x1C | u16 at 0x24 | u16 at 0x26 | byte at 0x2D | 0x47 (71, BC1) and 0x4D (77, BC3) |
+| Hot Pursuit 2010 | u32 at 0x0C | u16 at 0x12 | u16 at 0x10 | byte at 0x19 | the 4 bytes are copied as the FourCC, so they must already read `DXT1`/`DXT5` |
+| Hot Pursuit Remastered (64-bit) | byte at 0x2C | u16 at 0x36 | u16 at 0x34 | byte at 0x3D | 0x47 and 0x4D |
+
+The Most Wanted row matches this doc's texture header (format at 0x1C, width 0x24, height 0x26, mips 0x2D) **[verified]**.
+The Hot Pursuit rows could not be checked (no such install). In the tool's Hot Pursuit code the value at the *first*
+offset goes into the `.dds` height slot, the opposite order of its Most Wanted code: either those games store height
+first, or the tool is only right for square textures **[unconfirmed]**. Its template is a 128-byte header with flags
+0x1007 (no MIPMAPCOUNT or LINEARSIZE flag although the count is written) and caps 0x1002; readers that ignore the flags
+open it. Its source says RGBA and BGRA textures are not supported, and it skips anything that is not DXT1/DXT5. It pairs
+headers and pixel files by sorted directory order, which only works when every texture has both files.
 
 ## VertexDescriptor (type 0x03)
 
