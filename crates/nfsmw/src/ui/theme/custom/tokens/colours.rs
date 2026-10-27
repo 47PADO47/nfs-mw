@@ -156,6 +156,18 @@ fn hues(palette: HudPalette) -> Hues {
     }
 }
 
+/// The high-contrast counterpart of a theme's meaning hue: the spec's tuned hue where the theme uses the default
+/// palette's own, else the theme's hue moved [`BRIGHTEN`] of the way to white.
+pub fn high_contrast_hue(hue: [u8; 4]) -> [u8; 4] {
+    let tuned = [
+        (DEFAULT_HUES.nav, HIGH_CONTRAST_HUES.nav),
+        (DEFAULT_HUES.success, HIGH_CONTRAST_HUES.success),
+        (DEFAULT_HUES.caution, HIGH_CONTRAST_HUES.caution),
+        (DEFAULT_HUES.danger, HIGH_CONTRAST_HUES.danger),
+    ];
+    tuned.iter().find(|(default, _)| *default == hue).map_or_else(|| brighten(hue), |(_, high)| *high)
+}
+
 /// Every hue of `hues` moved [`BRIGHTEN`] of the way to white.
 fn brightened(hues: Hues) -> Hues {
     Hues {

@@ -16,14 +16,17 @@
 //!
 //! - [`colours`]: the brief's palette, high contrast and the colour-vision palettes.
 //! - [`motion`]: the transition durations and motion reduction.
+//! - [`roles`]: the theme's colour roles under the player's colour-vision palette and high contrast.
 
 mod colours;
 mod motion;
+mod roles;
 #[cfg(test)]
 mod tests;
 
 pub use colours::{Colours, SIGNAL};
 pub use motion::{Motion, ramp};
+pub use roles::roles_skin;
 
 use blackbox_ui::Skin;
 
