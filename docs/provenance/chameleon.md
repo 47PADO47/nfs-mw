@@ -5,6 +5,9 @@ Covers [`libs/chameleon-bundle`](../../libs/chameleon-bundle), [`libs/chameleon-
 Specs: [formats/chameleon-bundle.md](../formats/chameleon-bundle.md), [formats/chameleon-gfx.md](../formats/chameleon-gfx.md),
 [formats/chameleon-vehicle.md](../formats/chameleon-vehicle.md). Process: [licensing.md](../licensing.md).
 
+The later additions (string tables, `.dds` export, header streams, ids and the full type registry), the findings log and
+the community tools they were checked against are in [chameleon-tools.md](chameleon-tools.md).
+
 These crates are **format readers**: they follow the format docs and contain no behaviour taken from decompiled code.
 
 ## Sources
