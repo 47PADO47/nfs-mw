@@ -54,6 +54,10 @@ pub(super) struct Sky {
 }
 
 impl Sky {
+    pub(super) fn lighting_state(&self) -> SkyState {
+        self.state
+    }
+
     fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,

@@ -33,9 +33,23 @@ pub(super) struct MaterialUniform {
     pub params: [f32; 4],
     /// roughness, coat, reflection intensity, SurfaceKind tag (zero disables).
     pub surface: [f32; 4],
+    pub lighting: [f32; 4],
 }
 
 impl MaterialUniform {
+    /// RT hit storage has an independent live marker instead of raster lighting policy.
+    pub(super) fn ray_hit(&self) -> [[f32; 4]; 7] {
+        [
+            self.diffuse_min,
+            self.diffuse_range,
+            self.specular_min,
+            self.specular_range,
+            self.params,
+            self.surface,
+            [1.0, 0.0, 0.0, 0.0],
+        ]
+    }
+
     /// Legacy materials retain their exponent control; opted-in surfaces have independent intensity.
     pub(super) fn new(m: &GlossyMaterial, brightness: f32) -> Self {
         let [r, g, b] = m.specular_min;
@@ -45,6 +59,12 @@ impl MaterialUniform {
             false => m.envmap_power * brightness,
         };
         Self {
+            lighting: [
+                u8::from(m.background_actor && m.model == blackbox_gfx::GlossyModel::Custom) as f32,
+                0.0,
+                0.0,
+                0.0,
+            ],
             diffuse_min: m.diffuse_min,
             diffuse_range: m.diffuse_range,
             specular_min: [
@@ -80,10 +100,41 @@ mod tests {
     use crate::{DirectionalLight, GlossyMaterial, LightingRig};
 
     #[test]
+    fn ray_hit_layout_keeps_material_terms_and_uses_its_own_live_marker() {
+        for background_actor in [false, true] {
+            let material = MaterialUniform::new(&GlossyMaterial { background_actor, ..Default::default() }, 1.0);
+            let hit = material.ray_hit();
+            assert_eq!(std::mem::size_of_val(&hit), crate::gpu::ray_reflections::bindings::MATERIAL_STRIDE);
+            assert_eq!(
+                hit[..6],
+                [
+                    material.diffuse_min,
+                    material.diffuse_range,
+                    material.specular_min,
+                    material.specular_range,
+                    material.params,
+                    material.surface
+                ]
+            );
+            assert_eq!(hit[6], [1.0, 0.0, 0.0, 0.0]);
+        }
+    }
+
+    #[test]
     fn blocks_match_the_wgsl_layout() {
-        // Seven vec4 and six vec4: every member is 16-byte aligned, so no padding is needed.
+        // Both blocks contain seven vec4; every member is 16-byte aligned.
         assert_eq!(std::mem::size_of::<RigUniform>(), 112);
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 96);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 112);
+    }
+
+    #[test]
+    fn background_actor_is_explicit_and_does_not_change_original_models() {
+        let mut material = GlossyMaterial { background_actor: true, ..Default::default() };
+        assert_eq!(MaterialUniform::new(&material, 1.0).lighting[0], 1.0);
+        for model in [blackbox_gfx::GlossyModel::VertexLit, blackbox_gfx::GlossyModel::Shadowed] {
+            material.model = model;
+            assert_eq!(MaterialUniform::new(&material, 1.0).lighting[0], 0.0);
+        }
     }
 
     #[test]

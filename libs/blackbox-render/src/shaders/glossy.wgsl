@@ -58,6 +58,7 @@ struct Material {
     // x = specular power, y = envmap min, z = envmap range, w = envmap power
     params: vec4<f32>,
     surface: vec4<f32>, // roughness, coat scale, reflection intensity, SurfaceKind
+    lighting: vec4<f32>, // x = background actor; authored diffuse response, no local reflection correction
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -171,7 +172,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     let finish_on = material.surface.w > 0.5 && shadow_data.environment.w > 0.5 && !emissive;
     let layered = finish_on && material.surface.w > 1.5 && !emissive;
     var diffuse_rgb = occlusion * light * diff.rgb * tex.rgb;
-    if finish_on {
+    if finish_on && material.lighting.x < 0.5 {
         diffuse_rgb = surface_diffuse(occlusion * direct * diff.rgb * tex.rgb,
             indirect * ao, diff.rgb * tex.rgb, occlusion);
     }
@@ -189,7 +190,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     // Environment reflection of the view vector mirrored about the normal.
     let reflected = 2.0 * f * n - v;
     var probe_ray = reflected;
-    if finish_on { probe_ray = probe_direction(in.world, reflected, material.surface.x); }
+    if finish_on && material.lighting.x < 0.5 { probe_ray = probe_direction(in.world, reflected, material.surface.x); }
     let sharp_env = sharp_environment(in.world, n, reflected, textureSampleLevel(env_map, env_sampler, probe_ray, 0.0).rgb);
     var env = sharp_env;
     var sun_specular = glint * spec;
@@ -240,7 +241,8 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
                 * (paint_linear(coat_env) * fresnel * reflection_intensity + coat_sun));
         }
     }
-    if !layered && !rough_paint && shadow_data.options.w > 0.5 && coat_scale > 0.0 {
+    if !layered && !rough_paint && shadow_data.options.w > 0.5 && coat_scale > 0.0
+        && (material.lighting.x < 0.5 || finish_on) {
         let fresnel = 0.04 + 0.96 * pow(1.0 - saturate(dot(n, v)), 5.0);
         let h = normalize(v + rig.to_light[0].xyz);
         let ndh = saturate(dot(n, h));
