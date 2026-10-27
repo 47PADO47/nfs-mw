@@ -118,7 +118,7 @@ options-reflection-detail-view = Main View
 options-reflection-content = Reflection Content
 options-reflection-content-restored = Restored
 options-reflection-distance = Reflection Distance
-options-mirror-size = Mirror Reflection Size
+options-mirror-size = Mirror Image Height
 options-mirror-tint = Mirror Tint
 options-mirror-tint-stock = Stock
 

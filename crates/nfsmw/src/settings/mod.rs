@@ -424,7 +424,7 @@ impl From<Partial> for Settings {
             visual_treatment: p.visual_treatment.unwrap_or_default(),
             reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
             reflection_cube_size: p.reflection_cube_size.unwrap_or_default(),
-            reflection_mirror_size: p.reflection_mirror_size.unwrap_or_default(),
+            reflection_mirror_size: p.reflection_mirror_size.unwrap_or(ReflectionSize::Auto),
             reflection_pow2: p.reflection_pow2.unwrap_or(false),
             mirror_tint: p.mirror_tint.unwrap_or_default(),
             reflection_extra: reflection_extra::ReflectionExtra::from_partial(&p),
