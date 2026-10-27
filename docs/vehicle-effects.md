@@ -93,6 +93,22 @@ shadows = false                # sparks and trail take the sun's shadow (native 
 `nis_contrails` off, no trail shows in a cutscene. `shadows` needs Shadows on in Options; the Bevy renderer ignores it.
 Source of the options: [the restoration mod page](mods/nfsmw_xenoneffects.md).
 
+## Spark variants from mods
+
+Two gameplay options, hidden until a mod adds a value ([effect-variants.md](modding/effect-variants.md)), change what the sparks are
+thrown with; **Original** is everything above, unchanged. `nfsmw-2012-content` adds **NFS Most Wanted 2012** to both.
+
+- **Collision spark variant (Original PC)** (`option_collision_spark_variant`): in the Original PC style, a vehicle's impacts and scrapes
+  throw the mod's sparks (streaks along the velocity, flashes and dust sprites, with an overbright colour) in place of the install's
+  particle groups. The strength of an impact follows the closing speed and scales the count and the speed; a scrape's follows the
+  sliding speed and scales the rate. Props, and any channel the mod gives no sparks for, keep the install's groups.
+- **Restored spark variant (sparks only)** (`option_xenon_spark_variant`): in the Restored (Experimental) style, the two line
+  sparks take the mod's numbers (velocity, gravity, length, width, bounce, colour, count) and the same strength rules. **The wind
+  contrail and the speed streaks are not part of it**: the 2012 game has neither, so the variant leaves them as they are.
+
+The `[xenon_effects]` tuning still applies to the restored variant (`spark_intensity`, `max_sparks`); `spark_rate` does not, since a
+variant scrape throws its own particles a second. Format and evidence: [effect-variants-sparks-xenon.md](modding/effect-variants-sparks-xenon.md).
+
 Behavior and evidence: [PC particles](specs/pc-collision-particles.md),
 [source-owned contact effects](specs/source-contact-effects.md),
 [effect inventory](specs/vehicle-visual-effects.md),

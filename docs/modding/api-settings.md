@@ -13,8 +13,10 @@ in the game window.
 - **Option.** A row of the settings page with an id (`a-z`, `0-9`, `_`, `.`, `-`; at most 128 bytes), a label and a kind.
 - **Kind.** `List` (one of several values; each value has an id, which is saved, and a label) or `Toggle` (on or off).
 - **Menu.** Only the gameplay settings take options in this delivery (`BB_SETTING_MENU_GAMEPLAY`).
-- **The game's own options.** The game declares its options by id and kind. `nitrous_variant` is a list with one value,
-  `original` ("Original"); see [nitrous-variants.md](nitrous-variants.md). The game's other gameplay rows (`hud_layout`,
+- **The game's own options.** The game declares its options by id and kind. `nitrous_variant`, `tire_smoke_variant`, `collision_spark_variant` and `xenon_spark_variant` are lists
+  with one value, `original` ("Original"): one such option for every kind of effect that has variants; see
+  [effect-variants.md](effect-variants.md) (the mechanism, the profile of each kind and how to add a kind) and
+  [nitrous-variants.md](nitrous-variants.md). The game's other gameplay rows (`hud_layout`,
   `ui_style`, `ui_theme`, `speed_units`, `minimap`, `language`, `rear_view_mirror`, `turn_signals`, `cop_health_bars`) are
   declared too, so that a clash of kinds is seen, but their values are the game's own and a mod cannot add to them.
 
@@ -34,8 +36,8 @@ before.
 ### Visibility
 
 A **list with one value is not shown** in the menu; a list with more than one value is shown. A toggle is always shown. This is
-the one rule for every list: the game's "Nitrous variant" has the single value "Original" until a mod adds another, so it is
-invisible without such a mod.
+the one rule for every list: the game's "Nitrous variant", "Tire smoke variant", "Collision spark variant" and "Restored spark variant" have the single value "Original" until a
+mod adds another, so they are invisible without such a mod.
 
 ### The chosen value
 

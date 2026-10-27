@@ -23,7 +23,7 @@ the stripes, roofs and lower panels ([Two-colour paint](#two-colour-paint)).
 | Rims, tyres, brake discs, calipers | one model each per car, as the wheel entry of the graphics spec; no alternatives | [verified] |
 | Spoiler | an animation of a part of the body (`<Car>_SpoilerAnimation`, driven by speed), not a choice | [verified] resource, [unconfirmed] which cars have it |
 | Vinyls, decals, body kits, hoods, roof scoops, window tint | none: no resource, no UI binding, no string in `NFS13.exe` | [verified] searches, see below |
-| Licence plate | global list (`LicensePlatesManager`), a player choice, not per car; the body has a `Licenseplate` shader technique | [code] |
+| Licence plate | the text is the player's (default by game pack, five strings in the executable), the design a global list (`LicensePlatesManager`); not per car. The body has a `Licenseplate` material and an eight-quad plate mesh: [chameleon-plate.md](chameleon-plate.md) | [verified] defaults, mesh and sheet; [code] rules |
 | Performance mods | `PowerTrain`, `Nitrous`, `Body`, `Chassis`, `Tyre` upgrade lists per car (`CarUpgrade`); not looks | [code] |
 
 ## The paint record
@@ -75,7 +75,7 @@ colour as the paint and the type as the finish **[verified]**.
   or liveries the shop offers a vehicle, in the shop's order; its fields are in [Paint packs](#paint-packs).
 - **`VEHICLES/VEHICLELIST.BNDL`** holds the vehicle list, one `VehicleList` resource (type `0x105`, 13,072 bytes): a 0x20-byte
   header (entry count 110 at +0x04, offset of the first entry 0x20 at +0x0C, offset of a trailing table at +0x10), then 110
-  entries of 0x70 bytes: vehicle id (+0x00), `LiveryID` (+0x04), the paint pack group (+0x34, `0x17D5xx` or `0x22Bxxx`) and
+  entries of 0x70 bytes: vehicle id (+0x00), `LiveryID` (+0x04), the game pack (`GamePackID`, +0x2C, [chameleon-plate.md](chameleon-plate.md)), the paint pack group (+0x34, `0x17D5xx` or `0x22Bxxx`) and
   the rollout numbers, and the upgrade records **[verified]**. (An earlier note here said 116 entries; the header and the
   trailing table say 110.) 93 of the 110 entries have a bundle in `VEHICLES/`; the other 17 are vehicles the install has no
   `VEH_<n>_HI.BNDL` for **[verified]**. `VehicleListEntry` is registered in `NFS13.exe` with the fields `LiveryID`, `GamePackID`,

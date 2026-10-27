@@ -65,6 +65,7 @@ table. The table and the files in the car's folder are the whole source:
 | **Liveries** | yes, listed with the vinyls | `liveries`: whole-body pictures in the car's own `TEXTURES.BIN` ([Liveries](#liveries)) |
 | Performance upgrades (engine, transmission, tires, brakes, suspension, induction, nitrous) | yes, three levels each | steps of the car's own `[stats]` ([car-stats.md](car-stats.md#upgrades)) |
 | Nitrous | yes: from the factory (`nitrous = true`), or bought as a kit | [car-stats.md](car-stats.md#nitrous) |
+| License plate text | yes, free, not in the cart | `[customization.plate]`: a glyph sheet and a plate mesh; the text is kept beside the save ([License plates](#license-plates)) |
 | Body kits, hoods, manufacturer decals, door numbers | no | a mod car has no such parts; a mod that wants a body variant adds another car |
 
 A car that gives no `[customization]` table offers the shop nothing of its own: its paint is what its textures hold and the
@@ -198,6 +199,55 @@ flame. The flame emitters themselves are the game's default `ecar` effect group.
 and the 2012 mod writes one marker for each of a car's pipes from them ([chameleon-exhaust.md](../formats/chameleon-exhaust.md)),
 none for a car without a pipe (an electric car boosts with no flame). Only a car whose bundle has no effect records gets
 pipes derived from its body's shape.
+
+### License plates
+
+A car can carry a licence plate whose text the player types. The plate is a **glyph sheet** (a texture of the car's own
+`TEXTURES.BIN`, `columns` by `rows` equal cells, one glyph each) and a mesh of `slots` quads, side by side, in the body solid:
+quad `n` is mapped to cell `n` of the sheet, so the sheet as authored shows its first glyphs. To show a text the game draws a
+copy of the sheet whose first `slots` cells hold the glyphs of the text, centred, with the blank glyph (the space of the
+sheet) in the slots the text leaves empty. The table is `[customization.plate]`:
+
+```toml
+[customization.plate]
+text = "NEED4SPD"                                   # what the car wears until the player types another (optional)
+picture = "FASTCOUPE_PLATE"                         # the glyph sheet, in TEXTURES.BIN
+glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ 123456789"     # the glyph of each cell, row by row; the space is the blank
+columns = 9
+rows = 4
+slots = 8                                           # characters the plate shows
+aliases = { "0" = "O" }                             # typed characters drawn as another glyph (optional)
+```
+
+| Key | Meaning |
+|---|---|
+| `picture` | A texture name of the car's own `TEXTURES.BIN`; DXT1, DXT3, DXT5 or a 32-bit texture. A sheet that is missing or cannot be decoded leaves the plate as authored, and the log says so. |
+| `glyphs` | `columns * rows` printable ASCII characters (at most 256 cells), each once, **including the space**, which is the blank glyph. Upper case only: a typed letter is made upper case first. |
+| `columns`, `rows`, `slots` | The cells of the sheet and the quads of the plate. Cell `n` is column `n % columns`, row `n / columns`; the first `slots` cells are the ones the plate quads show. `slots` is 1 to 16. |
+| `aliases` | A typed character and the glyph it is drawn as, one character each (`"0" = "O"`); the typed character is not a glyph itself. |
+| `text` | The car's default text, at most `slots` characters. Left out, the sheet as authored is the default. |
+
+- A typed character that is neither a glyph nor an alias is drawn as a space. A text longer than `slots` is cut.
+- The **player's text** is kept per car and per profile, beside the save, not in it ([below](#where-the-text-is-kept)), and is
+  typed in the garage: Visual, **License Plate** (a keyboard prompt like the alias name; the letters and digits the sheet has,
+  at most `slots`; an empty text goes back to `text`). Typing costs nothing and is not part of the cart.
+- `nfsmw view-car FASTCOUPE --part plate=VELOCITY --screenshot out.png --muted` shows a car with a text on its plate.
+
+#### Where the text is kept
+
+The original game's save has no place for a plate text, and a mod car's record in it already depends on the mod's car
+folder, so the text is **not** written into the save: it is in the profile's own data folder, `plates.toml` next to
+`my-cars.toml` (a guest has `plates-guest.toml` in the settings folder):
+
+```toml
+[plates]
+POR911CARR12 = "MY PLATE"
+```
+
+The key is the car folder in upper case: one text for each car model of the profile, not for each copy of it in the garage.
+A profile without the file, and every save of the original game, wear the manifest's texts; the file never changes the save,
+so saves stay compatible both ways. `garage/plates.rs` reads and writes it; `custom::plate::set_source` is how the car builder
+asks for the text.
 
 ## Using it
 

@@ -84,6 +84,17 @@ The wire layouts are in [api.md](api.md#wire-numbers-abi-01).
 **Delivered (1.0):** the player's car, and a traffic spawn at a point (below). `state` reads a snapshot taken at the start of the frame (position, velocity,
 heading, speed, rpm, gear, nitrous, damage), `teleport` queues a move to the road nearest the horizontal position (the
 height is not used), and `repair` queues a repair. Both queued calls run after the mods, like the other world changes.
+**Delivered (1.1): the car's dynamics and `add_nos`.** `state` also reads the body slip angle (`slip_angle`, radians, positive when
+the car moves to the left of its heading, 0 below 1 m/s), the steering (`steering`, -1 to 1, positive to the left), the
+strongest hit of the latest physics step against the world or an object (`impact`, 0 to 1, a closing speed of 20 m/s or more
+is 1; the ground does not count, and the same hit is reported until the physics steps again), and the ground contact
+(`on_ground`, at least one wheel down). `add_nos(amount)` adds a part of a full tank (0 to 1, finite, else `BB_ERR_ARG`) to the
+player's nitrous, up to a full tank. It is queued like `repair`, so the tank has it after the mods ran; a car with no nitrous
+system ignores it (the HUD's `nos` reads 0 for such a car); no car answers `BB_ERR_NOT_READY`. The state is size-prefixed
+and `add_nos` is appended to the table, so a mod built for 1.0 reads the 1.0 fields and never sees the table grow; a mod that
+wants the new calls asks for 1.1 (`"bb.vehicles" = "1.1"` in `[optional.interfaces]`). The host implements it in
+`scenes/world/drive/mod_feed.rs` (hit, tank), `scenes/world/mod_hooks.rs` (the state) and `modding/backends/vehicles.rs`; the
+2012 drift nitrous ([chameleon-drift.md](../formats/chameleon-drift.md)) is its first user.
 **Delivered (1.0, `spawn_traffic`):** a traffic car at a point. The call answers a handle and queues the spawn; the scene
 places it in the same frame, after the mods have run (`WorldRequest::SpawnTraffic`, `Scene::spawn_traffic_at`, and
 `TrafficWorld::spawn_traffic_at`). The car is a random loaded traffic model on the nearest lane that can take a car, with
@@ -94,7 +105,7 @@ logged, not returned, and the handle does not yet name a car (no tracking, so no
 loaded until the manager asks for one, so an early spawn can be refused. The traffic density (`set_traffic`) is in `bb.world`, below.
 
 **Open:** handles for other vehicles (traffic, cops, racers) and every call on them, `despawn`, `set_player_car`, the
-AI goals, `near`, `set_velocity`, `add_nos` and `set_nos`, `set_tuning`, `damage`, lights, horn and siren.
+AI goals, `near`, `set_velocity`, `set_nos`, `set_tuning`, `damage`, lights, horn and siren.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
@@ -102,7 +113,7 @@ AI goals, `near`, `set_velocity`, `add_nos` and `set_nos`, `set_tuning`, `damage
 | State | `vehicles.state(VehicleId) -> Result<VehicleState { pos: Vec3, heading: f32, velocity: Vec3, speed_kph: f32, rpm: f32, gear: i8, nos: f32, on_ground: bool, damage: f32, role: Role, car_id }>` | G | `scenes/world/drive/`, `ai/car.rs`; HUD numbers from `hud/state.rs` |
 | Teleport | `vehicles.teleport(VehicleId, pos: Vec3, heading: f32)` **W**; the player is put on the nearest road like `reset` | G | `scenes/world/commands.rs` (`tp`, `reset`) |
 | Set velocity | `vehicles.set_velocity(VehicleId, v: Vec3)` **W** | G | `libs/blackbox-vehicle` state via the drive module |
-| Add NOS | `vehicles.add_nos(VehicleId, amount: f32)`, `set_nos`, `set_infinite_nos(bool)` **W** | G | `scenes/world/drive/` |
+| Add NOS | `vehicles.add_nos(amount: f32)` (delivered in 1.1: the player's car only, `Vehicles::add_nos` in the SDK), `set_nos`, `set_infinite_nos(bool)` **W** | G | `scenes/world/drive/mod_feed.rs`, `libs/blackbox-vehicle` (`Vehicle::add_nitrous`) |
 | Repair | `vehicles.repair(VehicleId)`, `vehicles.damage(VehicleId, zone: u8, severity: u8)` **W** | G | `commands.rs` (`repair`, `damage`), `libs/blackbox-damage` |
 | Tune physics | `vehicles.set_tuning(VehicleId, Tuning { grip_scale, power_scale, mass_scale, top_speed_scale })` **W**, scaling the car's real values, reset by `None` | G | `libs/blackbox-vehicle`, `nfsmw-data/src/car/physics.rs` |
 | Spawn | `vehicles.spawn(SpawnDesc { car: CarId, role: Player or Traffic or Cop or Racer, pos: Vec3, heading: f32, ai: Default or Idle or Chase(VehicleId), colour: Option<Rgba> }) -> Result<VehicleId>` **W** | G | `scenes/world/ai/spawn.rs`, `ai/manager.rs`, `ai/car.rs`; player role via `drive` |
