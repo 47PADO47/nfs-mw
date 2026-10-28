@@ -323,7 +323,14 @@ impl Renderer {
         self.effects.use_format(&self.device, format);
         if let Some(sky) = &mut self.sky {
             sky.prepare(&self.device, &self.queue, format, self.pipeline_cache.as_ref());
-            sky.prepare_clouds(&self.device, encoder, &self.shared.bindings.globals_layout, &bind_group, &globals);
+            sky.prepare_clouds(
+                &self.device,
+                encoder,
+                &self.shared.bindings.globals_layout,
+                &bind_group,
+                &globals,
+                self.timing.as_mut(),
+            );
         }
         if self.experiments.original_world_materials && !projected {
             self.prepare_normal(frame, format, culled);

@@ -20,6 +20,8 @@ fn hybrid_environment(world:vec3<f32>,normal:vec3<f32>,direction:vec3<f32>,fallb
 }
 
 // Secondary glossy hits use the existing probe rather than recursively tracing a mirror.
+// Cars keep their independent hit shading; road redraws can reuse exact current pixels.
+fn rt_screen_radiance(position:vec3<f32>)->vec4<f32> { return vec4(0.0); }
 fn rt_hit_environment(position:vec3<f32>,direction:vec3<f32>,roughness:f32)->vec3<f32> {
     let ray=probe_direction(position,direction,roughness);
     let sharp=textureSampleLevel(env_map,env_sampler,ray,0.0).rgb;

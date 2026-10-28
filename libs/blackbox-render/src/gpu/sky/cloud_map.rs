@@ -74,9 +74,10 @@ impl CloudMap {
         encoder: &mut wgpu::CommandEncoder,
         shader: &wgpu::ShaderModule,
         bindings: [(&wgpu::BindGroupLayout, &wgpu::BindGroup); 2],
-        globals: &Globals,
-        state: blackbox_gfx::SkyState,
+        frame: (&Globals, blackbox_gfx::SkyState),
+        mut timing: Option<&mut super::super::timing::Timing>,
     ) {
+        let (globals, state) = frame;
         let key = Key {
             scroll: state.scroll * state.sky_wind_speed,
             coverage: state.cloud_coverage,
@@ -125,6 +126,9 @@ impl CloudMap {
                 cache: None,
             })
         });
+        if let Some(timing) = timing.as_mut() {
+            timing.stamp(encoder, 8);
+        }
         let load = match rebuild {
             Rebuild::Full => wgpu::LoadOp::Clear(wgpu::Color::BLACK),
             Rebuild::Band(_) => wgpu::LoadOp::Load,
@@ -146,6 +150,10 @@ impl CloudMap {
         let (y, height) = rebuild.rows(SIZE.1);
         pass.set_scissor_rect(0, y, SIZE.0, height);
         pass.draw(0..3, 0..1);
+        drop(pass);
+        if let Some(timing) = timing {
+            timing.stamp(encoder, 9);
+        }
         if rebuild == Rebuild::Full {
             self.origin = origin;
         }

@@ -271,6 +271,7 @@ impl Sky {
         globals_layout: &wgpu::BindGroupLayout,
         globals_group: &wgpu::BindGroup,
         globals: &super::resources::Globals,
+        timing: Option<&mut super::timing::Timing>,
     ) {
         if !self.state.enhanced {
             return;
@@ -283,8 +284,8 @@ impl Sky {
             encoder,
             &self.enhanced_shader,
             [(globals_layout, globals_group), (&self.material_layout, &material.bind_group)],
-            globals,
-            self.state,
+            (globals, self.state),
+            timing,
         );
     }
 }

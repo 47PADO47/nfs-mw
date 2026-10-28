@@ -135,7 +135,8 @@ fn clouds(ray: vec3<f32>, sun: vec3<f32>, coverage: f32, pixel: vec2<f32>) -> ve
     var radiance = vec3(0.0);
     let daylight = smoothstep(-0.12, 0.18, sun.z);
     let sky_fill = mix(vec3(0.48, 0.56, 0.68), vec3(0.48, 0.51, 0.55), coverage);
-    let alignment = dot(ray, sun);
+    let phases = cloud_phases(dot(ray, sun));
+    let sunlight = sun_colour(sun)*5.0;
     for (var i = 0u; i < u32(steps); i++) {
         let p = origin + ray * (entry + (f32(i) + phase) * step_size);
         let footprint = max(step_size, length(p-origin) * 0.0041);
@@ -145,9 +146,9 @@ fn clouds(ray: vec3<f32>, sun: vec3<f32>, coverage: f32, pixel: vec2<f32>) -> ve
             for (var light_step = 0u; light_step < LIGHT_STEPS; light_step++) {
                 optical_depth += density(p + sun * ((f32(light_step)+0.5)*LIGHT_STEP), coverage, max(footprint, LIGHT_STEP)) * LIGHT_STEP;
             }
-            let direct = cloud_scattering(optical_depth, alignment);
+            let direct = cloud_scattering(optical_depth, phases);
             let height = clamp((p.z-CLOUD_BOTTOM)/CLOUD_THICKNESS, 0.0, 1.0);
-            let light = sky_fill * mix(0.3, 0.6, height) + sun_colour(sun)*direct*5.0;
+            let light = sky_fill * mix(0.3, 0.6, height) + sunlight*direct;
             let opacity = 1.0-exp(-d*step_size*10.0);
             radiance += transmittance * opacity * light * daylight;
             transmittance *= 1.0 - opacity;
