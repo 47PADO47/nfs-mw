@@ -35,10 +35,14 @@ fn middle(zone: &TrackZone) -> Vec3 {
     from_zone_space(sum / zone.polygon.len().max(1) as f32, zone.elevation)
 }
 
+fn icon_position(zone: &TrackZone) -> Vec3 {
+    super::super::super::space::to_render(from_zone_space(zone.position, zone.elevation).to_array())
+}
+
 impl super::super::TrafficWorld {
     /// Authored hiding-zone centres in render space, for world icon placement.
     pub(in crate::scenes::world) fn hiding_icon_positions(&self) -> impl Iterator<Item = Vec3> + '_ {
-        self.police.hidden_zones.iter().map(|zone| super::super::super::space::to_render(middle(zone).to_array()))
+        self.police.hidden_zones.iter().map(icon_position)
     }
     /// Tells the police how tall the player's car is (half its height, metres), so its feet can be found.
     pub fn note_player_height(&mut self, half_height: f32) {
@@ -114,5 +118,27 @@ impl super::super::TrafficWorld {
             latch.how_hidden().map_or("-".to_owned(), |f| format!("{f:.2}")),
         ));
         lines.join("\n")
+    }
+}
+
+#[cfg(test)]
+mod icon_tests {
+    use super::*;
+
+    #[test]
+    fn hiding_icon_uses_authored_anchor_not_polygon_average() {
+        let zone = TrackZone {
+            kind: 8,
+            position: Vec2::new(12.0, 23.0),
+            direction: Vec2::X,
+            elevation: 147.8,
+            visit_info: 0,
+            data: [0; 4],
+            bbox_min: Vec2::ZERO,
+            bbox_max: Vec2::splat(100.0),
+            polygon: vec![Vec2::ZERO, Vec2::new(100.0, 0.0), Vec2::splat(100.0)],
+        };
+        assert_eq!(icon_position(&zone), Vec3::new(12.0, 23.0, 147.8));
+        assert_ne!(icon_position(&zone), super::super::super::super::space::to_render(middle(&zone).to_array()));
     }
 }
