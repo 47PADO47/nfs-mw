@@ -196,7 +196,7 @@ fn is_path(path: &str, extension: &str) -> bool {
 /// The car's own recordings of the sounds besides its engine (`[car_sound]`). Every list is optional; a list left out is
 /// silence for that effect. The files are 16-bit PCM WAV, mono or stereo, in the mod's `files/` folder under the
 /// install's paths (`SOUND/...`). A list with several files is variants: one is picked at random each time.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct CarEffects {
     /// Played at every gear change that `shift_up` or `shift_down` does not cover.
     pub shift: Vec<String>,
@@ -218,6 +218,11 @@ pub struct CarEffects {
     pub no_clunk: bool,
     /// The recordings every car of a mod shares (`[car_sound.shared]`): body hits, scrapes and pops.
     pub shared: super::shared_sound::SharedSound,
+    /// `shift_trigger = "gear"`: the shift recordings play at every change of the gear number (up or down by comparing
+    /// the numbers, no minimum engine speed) instead of when the engine mixer asks for a gear clunk.
+    pub shift_on_gear: bool,
+    /// `[car_sound.overrun]`: the accumulator backfire, which replaces the core backfire rule when present.
+    pub overrun: Option<super::overrun_sound::Overrun>,
 }
 
 impl CarEffects {
@@ -248,6 +253,20 @@ pub(super) struct RawEffects {
     shift_clunk: Option<bool>,
     #[serde(default)]
     shared: super::shared_sound::RawShared,
+    #[serde(default)]
+    shift_trigger: Option<ShiftTrigger>,
+    #[serde(default)]
+    overrun: Option<super::overrun_sound::RawOverrun>,
+}
+
+/// What sets off the shift recordings (`shift_trigger`).
+#[derive(Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum ShiftTrigger {
+    /// The engine mixer's gear clunk (the default).
+    Mixer,
+    /// Every change of the gear number.
+    Gear,
 }
 
 /// Check the table. A table that names no file and changes no behaviour is the same as no table.
@@ -272,6 +291,8 @@ pub(super) fn check_effects(raw: Option<RawEffects>) -> Result<Option<CarEffects
         pops: list("car_sound.pops", raw.pops)?,
         no_clunk: raw.shift_clunk == Some(false),
         shared: super::shared_sound::check(raw.shared)?,
+        shift_on_gear: raw.shift_trigger == Some(ShiftTrigger::Gear),
+        overrun: super::overrun_sound::check(raw.overrun)?,
     };
     Ok((!effects.is_empty()).then_some(effects))
 }
@@ -317,6 +338,17 @@ mod tests {
         assert_eq!(effects("[car_sound]\nshift_clunk = true\n").unwrap(), None, "the default changes nothing");
         let own = effects("[car_sound]\nshift = [\"SOUND/A/S.WAV\"]\n").unwrap().unwrap();
         assert!(!own.no_clunk);
+    }
+
+    #[test]
+    fn the_shift_trigger_is_the_mixer_unless_the_gear_is_asked_for() {
+        let table = |trigger: &str| format!("[car_sound]\nshift_trigger = \"{trigger}\"\n");
+        assert_eq!(effects(&table("mixer")).unwrap(), None, "the default changes nothing");
+        let on_gear = effects(&table("gear")).unwrap().unwrap();
+        assert!(on_gear.shift_on_gear && on_gear.shift.is_empty());
+        assert!(effects(&table("clutch")).is_err());
+        let own = effects("[car_sound]\nshift_up = [\"SOUND/A/U.WAV\"]\n").unwrap().unwrap();
+        assert!(!own.shift_on_gear);
     }
 
     #[test]
