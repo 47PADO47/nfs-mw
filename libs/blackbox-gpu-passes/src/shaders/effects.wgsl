@@ -91,7 +91,7 @@ fn streak_color(in: VsOut) -> vec4<f32> {
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
     // Additive light disappears into fog; blending toward the fog colour would emit luminous fog.
-    return vec4<f32>(in.color.rgb * (1.0 - fog) * receive_shadow(in.world, in.clip, in.shadowed), in.color.a * mask);
+    return vec4<f32>(in.color.rgb * in.brightness * (1.0 - fog) * receive_shadow(in.world, in.clip, in.shadowed), in.color.a * mask);
 }
 
 @fragment
