@@ -2,7 +2,7 @@
 
 In the 2012 game a drift fills the nitrous tank ("Earn Nitrous by drifting" is a line of its text tables). This page holds what
 the install's data says about it: when the physics calls a slide a drift, what a drift pays, and what the HUD says. The
-rule built from it is `chameleon_vehicle::DriftModel`; the setting that turns it on in the 2005 game is "2012 drifting" (it also turns on the drift physics, [below](#the-sliding-physics))
+rule built from it is `chameleon_vehicle::DriftModel`; the mod `nfsmw-2012-content` runs it, always and only while the player drives one of its converted cars (it also turns on the drift physics for those cars, [below](#the-sliding-physics))
 ([nitrous-variants.md](../modding/nitrous-variants.md) has the other nitrous option, [api-world.md](../modding/api-world.md#vehicles-and-the-player)
 the calls the mod uses). Everything was measured on the 2012 install (v1.4.0.0) with the bundle reader
 ([chameleon-bundle.md](chameleon-bundle.md)), the Genesys reading of [chameleon-vehicle-stats.md](chameleon-vehicle-stats.md), and
@@ -164,7 +164,7 @@ that its numbers are the data's where the data names one.
 - The unit of the minimum speed (mph is assumed from the other sources' numbers) and whether the gain is a second, a metre or a
   drift. No function that reads `NitrousParameters` was found in the executable (its field names are hashes, and the
   executable has almost no names), so the meaning of the fields is from the values and from the text tables.
-- What the stock nitrous (`+0x74`) is: its flags are 0 for every source but the donut. The setting uses the burn nitrous.
+- What the stock nitrous (`+0x74`) is: its flags are 0 for every source but the donut. The mod uses the burn nitrous.
 - Which fields of `Drift_trigger` and `Drift_exit` besides the three read are rules (they are 0 or a constant in nearly all cars).
 - What the HUD does with the message beyond the text (position, colour, the bar flash).
 - What the sliding structures (`Side_force`, `Drift_scale`, the rest of `Other`, the tyre curves) do in the 2012 physics, and

@@ -173,7 +173,7 @@ notifications (`hud/notify/output.rs`) but no mod call for it.
 
 ## What the rewrite does
 
-With **2012 drifting** on the mod does what [chameleon-drift.md](chameleon-drift.md) says: the sliding physics, the nitrous and
+In a 2012 car the mod does what [chameleon-drift.md](chameleon-drift.md) says: the sliding physics, the nitrous and
 the "DRIFTING {distance}" line. The effects above are either not in the data (camera, post effects, haptics, a free-roam score),
 or are the host's own responses to slip (smoke, marks, squeal) that the mod API cannot change. Nothing was added for them on
 purpose: each would be an invention, not the 2012 game.

@@ -1,18 +1,21 @@
-//! The 2012 game's drifting as a Gameplay setting: "2012 drifting", off by default. It covers the nitrous a drift earns and
-//! the drift physics.
+//! The 2012 game's drifting, for the 2012 cars: always on, with no setting. It covers the nitrous a drift earns and the drift
+//! physics, and it applies only while the player drives one of this mod's converted cars ([`crate::drift_cars`]: the id the
+//! game reports for the player's car, `bb.engine`, against the mod's `cars/` manifests). A stock car or a car of another mod
+//! drives as it always did, and so does the same save after a switch of cars. Traffic and police cars are never read: the
+//! rules follow the player's car only.
 //!
-//! **Physics.** While the setting is on, the mod keeps the drift assist of the player's car on (`bb.vehicles` 1.2
+//! **Physics.** While the player's car is a 2012 car, the mod keeps its drift assist on (`bb.vehicles` 1.2
 //! `set_drift_assist`, re-sent every scene tick so it follows a change of car): the handbrake and a turned wheel start a
 //! slide, the wheel holds its angle and the rear tyres let go part of their grip. The car's own numbers (when a slide is a
-//! drift, the largest angle, the yaw torque) are keys of its `[stats]` (`drift_stats.rs`). Turning the setting off turns
-//! the assist off. A game without `bb.vehicles` 1.2 answers `Unsupported` and the car drives as it did.
+//! drift, the largest angle, the yaw torque) are keys of its `[stats]` (`drift_stats.rs`). In any other car the mod sends
+//! `false` every tick. A game without `bb.vehicles` 1.2 answers `Unsupported` and the car drives as it did.
 //!
 //! **Nitrous.** In NFS Most Wanted (2012) a drift fills the nitrous tank. The rule, its numbers and where they are in the install are
-//! `chameleon-vehicle`'s ([`chameleon_vehicle::DriftModel`], docs/formats/chameleon-drift.md). While the setting is on, this
-//! module steps that model once a scene tick with what `bb.vehicles` (1.1) says of the player's car, whatever car it is, and
-//! pays the nitrous it earned into the car's tank with `add_nos`. While a drift pays, it shows the 2012 text for it
-//! ("DRIFTING" and the distance) on the HUD message line (`bb.hud`). With the setting off, or on a game without `bb.vehicles`
-//! 1.1, nothing is read and nothing is changed.
+//! `chameleon-vehicle`'s ([`chameleon_vehicle::DriftModel`], docs/formats/chameleon-drift.md). While the player drives a 2012
+//! car, this module steps that model once a scene tick with what `bb.vehicles` (1.1) says of the car and pays the nitrous it
+//! earned into the car's tank with `add_nos`. While a drift pays, it shows the 2012 text for it ("DRIFTING" and the distance)
+//! on the HUD message line (`bb.hud`). In any other car, or on a game without `bb.engine` or `bb.vehicles` 1.1, nothing is
+//! read and no nitrous is paid.
 //!
 //! The numbers are the install's when it can be read: the payout of the burn nitrous comes from the first car bundle of the
 //! 2012 install (it is the same in all 93 cars), the physics of a drift are the median car's.
@@ -25,12 +28,8 @@ use chameleon_bundle::Bundle;
 use chameleon_vehicle::{DriftInput, DriftModel, DriftParams, DriftPhysics, read_drift_nitrous};
 
 use crate::config::{self, Config};
+use crate::drift_cars::KnownCars;
 
-/// The option's id, as the game saves it under `[mod_values.nfsmw]`. It kept the id it had when the setting only paid nitrous,
-/// so a saved choice still applies.
-pub const OPTION: &str = "drift_nitrous";
-/// What the Gameplay page shows.
-pub const LABEL: &str = "2012 drifting";
 /// Seconds between two refreshes of the HUD text, and how long one stays up (a little longer, so it does not blink).
 const MESSAGE_EVERY: f32 = 0.2;
 const MESSAGE_LASTS: f32 = 0.6;
@@ -55,7 +54,7 @@ impl Feed {
         Self { model: DriftModel::new(params), since_message: MESSAGE_EVERY }
     }
 
-    /// Forget the drift in progress (the setting went off, the car or the world went away).
+    /// Forget the drift in progress (the car changed to another make, or the world went away).
     pub fn reset(&mut self) {
         self.model.reset();
         self.since_message = MESSAGE_EVERY;
@@ -101,8 +100,8 @@ pub fn params_from_install(source: &Path) -> Option<DriftParams> {
 /// What the module keeps between ticks.
 #[derive(Default)]
 struct Runtime {
-    on: bool,
     source: Option<PathBuf>,
+    cars: Option<KnownCars>,
     feed: Option<Feed>,
 }
 
@@ -111,35 +110,13 @@ thread_local! {
     static RUNTIME: RefCell<Runtime> = RefCell::new(Runtime::default());
 }
 
-/// Add the setting to the Gameplay page. Offered only when a 2012 install is set (the caller checks), on a game with
-/// `bb.settings`.
-pub fn register(ctx: &Ctx) {
-    let Some(settings) = ctx.settings() else {
-        return;
-    };
-    let added = settings.add_toggle(OPTION, LABEL, false, |ctx, on| {
-        if !on && let Some(vehicles) = ctx.vehicles() {
-            // The assist goes off now; while the setting is on, every tick sends it on again.
-            let _ = vehicles.set_drift_assist(false);
-        }
-        RUNTIME.with(|runtime| {
-            let mut runtime = runtime.borrow_mut();
-            runtime.on = on;
-            if let Some(feed) = runtime.feed.as_mut() {
-                feed.reset();
-            }
-        });
-    });
-    if let Err(error) = added {
-        ctx.log(Level::Warn, &format!("nfsmw-2012-content: the drift nitrous option is not added: {error}"));
-        return;
-    }
-    let saved = settings.get(OPTION).is_ok_and(|value| value == "on");
+/// Start following the player's car. Called only when a 2012 install is set (the caller checks); it needs no setting.
+pub fn register(ctx: &Ctx, mod_dir: &Path) {
     let source = source_of(ctx);
     RUNTIME.with(|runtime| {
         let mut runtime = runtime.borrow_mut();
-        runtime.on = saved;
         runtime.source = source;
+        runtime.cars = Some(KnownCars::new(mod_dir));
     });
 }
 
@@ -164,15 +141,32 @@ pub fn event(ctx: &mut Ctx, event: &Event<'_>) {
     }
 }
 
-fn tick(ctx: &Ctx, dt: f32) {
-    let Some(mut feed) = RUNTIME.with(|runtime| take_feed(&mut runtime.borrow_mut(), ctx)) else {
-        return;
+/// Whether the player drives one of the mod's cars now. `false` without `bb.engine` (no way to tell), without a car, or
+/// before [`register`].
+fn player_is_2012(runtime: &mut Runtime, ctx: &Ctx) -> bool {
+    let Some(cars) = runtime.cars.as_mut() else {
+        return false;
     };
+    let Some(engine) = ctx.engine() else {
+        return false;
+    };
+    let Ok(car) = engine.car() else {
+        return false;
+    };
+    cars.contains(&car)
+}
+
+fn tick(ctx: &Ctx, dt: f32) {
+    let is_2012 = RUNTIME.with(|runtime| player_is_2012(&mut runtime.borrow_mut(), ctx));
     let vehicles = ctx.vehicles();
     if let Some(vehicles) = vehicles.as_ref() {
-        // Not ready without a car, unsupported before `bb.vehicles` 1.2: both leave the car as it was.
-        let _ = vehicles.set_drift_assist(true);
+        // Sent every tick, true or false, so the assist follows the car: off in a stock car, on in a 2012 one. Not ready
+        // without a car, unsupported before `bb.vehicles` 1.2: both leave the car as it was.
+        let _ = vehicles.set_drift_assist(is_2012);
     }
+    let Some(mut feed) = RUNTIME.with(|runtime| take_feed(&mut runtime.borrow_mut(), ctx, is_2012)) else {
+        return;
+    };
     let stepped = vehicles.as_ref().and_then(|vehicles| vehicles.player().ok()).map(|car| feed.tick(&car, dt));
     if stepped.is_none() {
         // No car, or a game without `bb.vehicles` 1.1: nothing is read, and a drift in progress is forgotten.
@@ -192,10 +186,10 @@ fn tick(ctx: &Ctx, dt: f32) {
     }
 }
 
-/// The feed to step, built the first time the setting is on; `None` while it is off. A feed that was running when the setting
-/// went off is reset and kept.
-fn take_feed(runtime: &mut Runtime, ctx: &Ctx) -> Option<Feed> {
-    if !runtime.on {
+/// The feed to step, built the first time the player drives a 2012 car; `None` while the car is another make. A feed that was
+/// running when the car changed is reset and kept.
+fn take_feed(runtime: &mut Runtime, ctx: &Ctx, is_2012: bool) -> Option<Feed> {
+    if !is_2012 {
         if let Some(feed) = runtime.feed.as_mut() {
             feed.reset();
         }

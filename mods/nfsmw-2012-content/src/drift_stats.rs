@@ -1,6 +1,6 @@
 //! A 2012 car's drift numbers as `[stats]` keys (`drift_*`, docs/modding/car-stats.md): when a slide is a drift, the largest
 //! angle its physics works to and the yaw torque that holds a drift. The game reads them only while the drift assist is on
-//! (the "2012 drifting" setting, `drift_nitrous.rs`), so a car with the setting off is what it was without them. The numbers
+//! (on only for the mod's own cars, `drift_nitrous.rs`), so a stock car is what it was without them. The numbers
 //! are read by `chameleon_vehicle::read_drift_handling` (docs/formats/chameleon-drift.md).
 
 use chameleon_vehicle::DriftHandling;
