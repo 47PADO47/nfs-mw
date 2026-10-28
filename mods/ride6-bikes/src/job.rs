@@ -8,6 +8,8 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::thread::{self, JoinHandle};
 
@@ -18,13 +20,16 @@ use crate::config::{self, Config};
 use crate::stamp;
 
 const STAGING: &str = ".staging";
+/// The rider's riding style: 1 is the plain one (`ride6-rider-import --style`).
+const RIDING_STYLE: u8 = 1;
 /// The folders the game reads, which a promotion replaces together.
 const CONTENT: [&str; 2] = ["files", "cars"];
 
 /// An import running on its own thread.
 pub struct Job {
     receiver: Receiver<Result<Report>>,
-    _thread: JoinHandle<()>,
+    cancel: Arc<AtomicBool>,
+    thread: Option<JoinHandle<()>>,
 }
 
 /// What the mod found at start-up.
@@ -41,6 +46,17 @@ pub enum Start {
 pub enum Finished {
     Done(Report),
     Failed(String),
+}
+
+/// The game unloads the mod's library when it closes, and a thread still running in it would then run unloaded code: the
+/// job is stopped before its next bike and waited for.
+impl Drop for Job {
+    fn drop(&mut self) {
+        self.cancel.store(true, Ordering::Relaxed);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
 }
 
 impl Job {
@@ -61,13 +77,15 @@ struct Inputs {
     physics: PathBuf,
     tyre_tables: Option<PathBuf>,
     sound: Option<PathBuf>,
+    rider: Option<PathBuf>,
 }
 
 impl Inputs {
     fn of(config: &Config, source: PathBuf) -> Self {
         let physics = config.physics_dir(&source);
         let tyre_tables = config.tyre_dir(&physics);
-        Self { source, physics, tyre_tables, sound: config.sound.clone() }
+        let rider = config.rider_dir(&source);
+        Self { source, physics, tyre_tables, sound: config.sound.clone(), rider }
     }
 }
 
@@ -84,7 +102,7 @@ pub fn start(mod_dir: &Path, supplied: Option<&config::Supplied>) -> Result<Star
     let inputs = Inputs::of(&config, source);
     let (found, _) = batch::discover(&inputs.source)?;
     let dirs: Vec<PathBuf> = found.into_iter().map(|bike| bike.dir).collect();
-    let stamp = stamp::of(&config, &dirs, &inputs.physics, inputs.sound.as_deref());
+    let stamp = stamp::of(&config, &dirs, &inputs.physics, inputs.sound.as_deref(), inputs.rider.as_deref());
     if stamp::is_current(mod_dir, &stamp) {
         return Ok(Start::UpToDate { cars: count_cars(mod_dir) });
     }
@@ -95,22 +113,25 @@ pub fn start(mod_dir: &Path, supplied: Option<&config::Supplied>) -> Result<Star
 
 fn spawn(max_texture: u32, inputs: Inputs, mod_dir: PathBuf, stamp: String) -> Result<Job> {
     let (sender, receiver) = channel();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let stop = Arc::clone(&cancel);
     let thread = thread::Builder::new()
         .name(config::MOD_ID.to_owned())
+        .stack_size(batch::STACK_BYTES)
         .spawn(move || {
             let staging = mod_dir.join(STAGING);
             let _ = fs::remove_dir_all(&staging);
-            let result = build(max_texture, &inputs, &staging, &stamp);
+            let result = build(max_texture, &inputs, &staging, &stamp, &stop);
             if result.is_err() {
                 let _ = fs::remove_dir_all(&staging);
             }
             let _ = sender.send(result);
         })
         .context("starting the import thread")?;
-    Ok(Job { receiver, _thread: thread })
+    Ok(Job { receiver, cancel, thread: Some(thread) })
 }
 
-fn build(max_texture: u32, inputs: &Inputs, staging: &Path, stamp: &str) -> Result<Report> {
+fn build(max_texture: u32, inputs: &Inputs, staging: &Path, stamp: &str, cancel: &AtomicBool) -> Result<Report> {
     let input = batch::Input {
         source: &inputs.source,
         physics: &inputs.physics,
@@ -118,9 +139,14 @@ fn build(max_texture: u32, inputs: &Inputs, staging: &Path, stamp: &str) -> Resu
         sound: inputs.sound.as_deref(),
         max_texture,
         threads: batch::default_threads(),
+        cancel,
     };
     fs::create_dir_all(staging).with_context(|| format!("creating {}", staging.display()))?;
-    let report = batch::run(&input, staging)?;
+    let mut report = batch::run(&input, staging)?;
+    if let Some(rider) = &inputs.rider {
+        let files = staging.join("files").join("RIDER");
+        report.rider_failed = crate::rider::import(rider, &files, RIDING_STYLE).err().map(|error| format!("{error:#}"));
+    }
     // The stamp is written last: a staging folder without one was cut short and is thrown away.
     stamp::save(staging, stamp).context("saving the import stamp")?;
     Ok(report)

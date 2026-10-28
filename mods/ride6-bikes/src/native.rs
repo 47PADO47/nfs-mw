@@ -82,6 +82,12 @@ impl Ride6Bikes {
         for (bike, reason) in &report.skipped {
             ctx.log(Level::Warn, &format!("ride6-bikes: {bike} is left out: {reason}"));
         }
+        if let Some(reason) = &report.rider_failed {
+            ctx.log(
+                Level::Warn,
+                &format!("ride6-bikes: the rider is not converted, the bikes are ridden by nobody: {reason}"),
+            );
+        }
         if self.live {
             ctx.log(Level::Info, "ride6-bikes: the new bikes replace the old ones at the next start");
             return;

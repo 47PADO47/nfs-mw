@@ -7,7 +7,8 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::thread;
 
 use anyhow::{Context, Result};
 use serde_json::Value;
@@ -28,6 +29,8 @@ pub struct Input<'a> {
     pub max_texture: u32,
     /// Bikes imported at the same time (each holds its meshes in memory).
     pub threads: usize,
+    /// Set to stop the run before its next bike (the game is closing, and its library is about to be unloaded).
+    pub cancel: &'a AtomicBool,
 }
 
 /// What a run did.
@@ -37,7 +40,13 @@ pub struct Report {
     pub imported: Vec<(String, String)>,
     /// `(vehicle id or folder, reason)` of each bike left out.
     pub skipped: Vec<Skipped>,
+    /// Why the rider was not converted, when it was asked for and failed (the bikes are still imported).
+    pub rider_failed: Option<String>,
 }
+
+/// The stack of an import thread: the converter holds a bike's pictures and meshes in frames of its own, and a thread of the
+/// game's host gets no more than the default 2 MB from the platform.
+pub const STACK_BYTES: usize = 64 * 1024 * 1024;
 
 /// A bike left out: its vehicle id (or folder) and the reason.
 pub type Skipped = (String, String);
@@ -85,10 +94,13 @@ pub fn run(input: &Input<'_>, out: &Path) -> Result<Report> {
     let work: Vec<(&Found, &String)> = found.iter().zip(&ids).collect();
     let report = Mutex::new(Report { skipped: unreadable, ..Report::default() });
     let next = AtomicUsize::new(0);
-    std::thread::scope(|scope| {
+    thread::scope(|scope| -> Result<()> {
         for _ in 0..input.threads.max(1) {
-            scope.spawn(|| {
+            let worker = thread::Builder::new().stack_size(STACK_BYTES).spawn_scoped(scope, || {
                 loop {
+                    if input.cancel.load(Ordering::Relaxed) {
+                        return;
+                    }
                     let at = next.fetch_add(1, Ordering::Relaxed);
                     let Some((bike, car)) = work.get(at) else { return };
                     let result = import_guarded(bike, car, input, out);
@@ -99,8 +111,11 @@ pub fn run(input: &Input<'_>, out: &Path) -> Result<Report> {
                     }
                 }
             });
+            worker.context("starting an import thread")?;
         }
-    });
+        Ok(())
+    })?;
+    anyhow::ensure!(!input.cancel.load(Ordering::Relaxed), "the import was stopped");
     let mut report = report.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
     report.imported.sort();
     report.skipped.sort();
@@ -181,7 +196,16 @@ mod tests {
         bike(&dir, "cleaned", r#"{"vehicle": "KTM_450-SMR-2022"}"#, false);
         bike(&dir, "broken", r#"{"vehicle": "Honda_CBR600RR-2018"}"#, true);
         bike(&dir, "worse", "x", false);
-        let input = Input { source: &dir, physics: &dir, tyre_tables: None, sound: None, max_texture: 256, threads: 2 };
+        let cancel = AtomicBool::new(false);
+        let input = Input {
+            source: &dir,
+            physics: &dir,
+            tyre_tables: None,
+            sound: None,
+            max_texture: 256,
+            threads: 2,
+            cancel: &cancel,
+        };
         let report = run(&input, &out).unwrap();
         assert!(report.imported.is_empty());
         let skipped: Vec<&str> = report.skipped.iter().map(|(vehicle, _)| vehicle.as_str()).collect();
@@ -189,6 +213,26 @@ mod tests {
         let reason = |vehicle: &str| report.skipped.iter().find(|(v, _)| v == vehicle).unwrap().1.clone();
         assert!(reason("KTM_450-SMR-2022").contains("glb folder is missing"));
         assert!(!reason("Honda_CBR600RR-2018").is_empty());
+        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::remove_dir_all(&out).unwrap();
+    }
+
+    #[test]
+    fn a_stopped_run_imports_no_further_bike_and_says_so() {
+        let dir = temp("stopped");
+        let out = temp("stopped-out");
+        bike(&dir, "a", r#"{"vehicle": "Aprilia_RS-250-2001"}"#, true);
+        let cancel = AtomicBool::new(true);
+        let input = Input {
+            source: &dir,
+            physics: &dir,
+            tyre_tables: None,
+            sound: None,
+            max_texture: 256,
+            threads: 1,
+            cancel: &cancel,
+        };
+        assert!(run(&input, &out).is_err());
         std::fs::remove_dir_all(&dir).unwrap();
         std::fs::remove_dir_all(&out).unwrap();
     }
