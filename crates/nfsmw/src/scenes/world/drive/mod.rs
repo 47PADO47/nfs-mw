@@ -129,6 +129,7 @@ pub struct Drive {
     pub vehicle_effects: VehicleEffects,
     pub flames: ExhaustFlames,
     pub tail_trails: super::tail_light_trails::TailLightTrails,
+    tail_style: crate::settings::TailTrailStyle,
     rig: CarRig,
     physics: CarPhysics,
     sim: Option<CarSim>,
@@ -228,6 +229,7 @@ impl Drive {
             broken: self.sim.as_ref().map_or(0, |s| s.lamp_damage()),
             emergency: 0,
             brake: self.brake_lamp,
+            nos_glow: self.nos_glow(),
             reverse,
             steer: self.steer_lamp,
             headlights: self.headlights && !dark,
@@ -303,6 +305,10 @@ impl Drive {
     /// Speed along the car, m/s (negative in reverse).
     pub fn speed(&self) -> f32 {
         self.telemetry.speed_mps
+    }
+
+    pub(in crate::scenes::world) fn nos_burning(&self) -> bool {
+        self.telemetry.nos_burning
     }
 
     /// Whether the nitrous burns now (the physics' state at the last step).

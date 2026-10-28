@@ -111,9 +111,20 @@ impl TextureSwaps {
 
     /// Select existing authored textures. Absent variants retain the current replacement.
     pub fn with_lamp_state(
+        self,
+        headlights: bool,
+        braking: bool,
+        textures: &HashMap<u32, blackbox_tpk::Texture>,
+    ) -> Self {
+        self.with_visual_lamp_state(headlights, braking, false, textures)
+    }
+
+    /// Cosmetic rear illumination never enables the centre brake slot.
+    pub fn with_visual_lamp_state(
         mut self,
         headlights: bool,
         braking: bool,
+        rear_glow: bool,
         textures: &HashMap<u32, blackbox_tpk::Texture>,
     ) -> Self {
         for (kind, enabled, sides) in [
@@ -125,6 +136,8 @@ impl TextureSwaps {
             ("TAILLIGHT", headlights, &["LEFT", "RIGHT", "CENTRE"][..]),
         ] {
             for side in sides {
+                let enabled = enabled
+                    || (rear_glow && (kind.starts_with("BRAKELIGHT") || kind == "TAILLIGHT") && *side != "CENTRE");
                 let brake_bit = match (kind.starts_with("BRAKELIGHT") || kind == "TAILLIGHT", *side) {
                     (true, "LEFT") => 8,
                     (true, "RIGHT") => 16,
@@ -365,6 +378,47 @@ mod tests {
         assert!(
             !stock.lamp_is_on(bstring_hash("REVERSELIGHT_CENTRE")) && !stock.lamp_is_on(bstring_hash("TAILLIGHT_LEFT"))
         );
+    }
+
+    #[test]
+    fn nos_rear_glow_leaves_centre_off_and_respects_broken_sides() {
+        let textures = ["ON", "OFF"]
+            .map(|state| (bstring_hash(&format!("CAR_KIT00_BRAKELIGHT_{state}")), texture()))
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+        let swaps = TextureSwaps::for_car("CAR")
+            .with_broken_brake_lights(8)
+            .with_visual_lamp_state(false, false, true, &textures);
+        assert!(!swaps.lamp_is_on(bstring_hash("BRAKELIGHT_LEFT")));
+        assert!(swaps.lamp_is_on(bstring_hash("BRAKELIGHT_RIGHT")));
+        assert!(!swaps.lamp_is_on(bstring_hash("BRAKELIGHT_CENTRE")));
+        assert_eq!(swaps.resolve(bstring_hash("BRAKELIGHT_CENTRE")), bstring_hash("CAR_KIT00_BRAKELIGHT_OFF"));
+        let braking = swaps.with_visual_lamp_state(false, true, true, &textures);
+        assert!(braking.lamp_is_on(bstring_hash("BRAKELIGHT_CENTRE")));
+    }
+
+    #[test]
+    fn nos_side_lamps_and_reverse_lamps_are_independent() {
+        let textures = ["BRAKELIGHT", "TAILLIGHT", "REVERSELIGHT"]
+            .into_iter()
+            .flat_map(|kind| {
+                ["ON", "OFF"].map(move |state| (bstring_hash(&format!("CAR_KIT00_{kind}_{state}")), texture()))
+            })
+            .collect::<HashMap<_, _>>();
+        for reverse in [false, true] {
+            for nos in [false, true] {
+                let swaps = TextureSwaps::for_car("CAR")
+                    .with_broken_brake_lights(8)
+                    .with_visual_lamp_state(false, false, nos, &textures)
+                    .with_reverse_state(reverse, &textures);
+                assert_eq!(swaps.lamp_is_on(bstring_hash("REVERSELIGHT_CENTRE")), reverse);
+                assert_eq!(swaps.lamp_is_on(bstring_hash("BRAKELIGHT_RIGHT")), nos);
+                assert_eq!(swaps.lamp_is_on(bstring_hash("TAILLIGHT_RIGHT")), nos);
+                assert!(!swaps.lamp_is_on(bstring_hash("BRAKELIGHT_CENTRE")));
+                assert!(!swaps.lamp_is_on(bstring_hash("TAILLIGHT_CENTRE")));
+                assert!(!swaps.lamp_is_on(bstring_hash("TAILLIGHT_LEFT")));
+            }
+        }
     }
 
     #[test]

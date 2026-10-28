@@ -2,6 +2,20 @@
 use super::*;
 
 impl Drive {
+    pub(in crate::scenes::world) fn set_tail_style(&mut self, style: crate::settings::TailTrailStyle) {
+        self.tail_style = style;
+    }
+    pub(super) fn nos_glow(&self) -> f32 {
+        if self.tail_trails.preview_active() {
+            return self.tail_style.lamp_level(self.tail_trails.speed())
+                * self.tail_trails.fade()
+                * self.tail_trails.engagement(self.tail_style.engagement);
+        }
+        if !self.nos_burning() {
+            return 0.0;
+        }
+        self.tail_style.lamp_level(self.speed()) * self.tail_trails.engagement(self.tail_style.engagement)
+    }
     /// Append the car's instances.
     pub fn instances(&self, out: &mut Vec<blackbox_render::Instance>) {
         self.instances_with_detail(None, out);
@@ -21,6 +35,7 @@ impl Drive {
                 DrawOptions {
                     damage: sim.events.as_ref().map(|e| e.source_levels()),
                     car: crate::scenes::world::keys::PLAYER_CAR,
+                    nos_lamps: !dark && self.nos_glow() > 0.0,
                     lamps: [
                         self.headlights && !dark,
                         LampState { brake: self.brake_lamp, broken: sim.lamp_damage(), dark, ..Default::default() }

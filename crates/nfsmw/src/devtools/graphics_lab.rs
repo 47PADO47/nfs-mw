@@ -34,6 +34,7 @@ use blackbox_gfx::{AoQuality, ExperimentStats, LightingDebug, ReflectionQuality,
 pub struct GraphicsLab {
     pub(super) recorder: super::trace::Recorder,
     pub open: bool,
+    tail_preview: Option<crate::settings::TailPreview>,
     options: RenderExperiments,
     startup_options: Option<RenderExperiments>,
     tab: profiles::Tab,
@@ -95,6 +96,7 @@ impl Default for GraphicsLab {
                 Ok("diagnostics") => profiles::Tab::Diagnostics,
                 _ => profiles::Tab::Look,
             },
+            tail_preview: None,
             save_requested: false,
             disk: Default::default(),
             profile_path: Settings::config_path(),
@@ -239,6 +241,10 @@ impl GraphicsLab {
 fn apply(mut lab: ResMut<GraphicsLab>, settings: Res<Settings>, mut host: NonSendMut<Host>) {
     let _trace = blackbox_trace::scope("Diagnostics: apply graphics lab");
     pursuit::apply(&mut lab, &mut host);
+    if !lab.open || !settings.tail_trail_style.enabled || !settings.tail_trail_style.enhanced {
+        lab.tail_preview = None;
+    }
+    host.scene.set_tail_preview(lab.tail_preview);
     let Some(renderer) = host.renderer.as_mut() else { return };
     renderer.set_render_experiments(settings.appearance.lighting);
     lab.caps = Some(*renderer.capabilities());

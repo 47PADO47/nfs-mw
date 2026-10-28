@@ -14,6 +14,7 @@ pub struct DrawOptions<'a> {
     pub lamps: [bool; 2],
     /// The gear is reverse: a mod car's reverse lamp surfaces light.
     pub reverse: bool,
+    pub nos_lamps: bool,
     pub detail: Option<&'a DetailView>,
     pub glass: u16,
     pub broken_lights: u32,
@@ -27,6 +28,7 @@ impl Default for DrawOptions<'_> {
             car: 0,
             lamps: [true, false],
             reverse: false,
+            nos_lamps: false,
             detail: None,
             glass: 0,
             broken_lights: 0,

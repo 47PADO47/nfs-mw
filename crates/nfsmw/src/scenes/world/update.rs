@@ -32,8 +32,11 @@ impl WorldScene {
         // The garage, a playing NIS scene and a playing story movie freeze the world: no input reaches it and no time
         // passes in it.
         let idle = ActionState::default();
-        let frozen =
-            self.extra.testing.paused || self.garage_open || self.nis.is_playing() || self.story_movie.is_playing();
+        let frozen = self.extra.testing.paused
+            || self.garage_open
+            || self.nis.is_playing()
+            || self.story_movie.is_playing()
+            || self.players.lead().is_some_and(|drive| drive.tail_trails.preview_active());
         let camera_input = input.clone();
         let input = match frozen {
             true => &idle,
@@ -62,6 +65,7 @@ impl WorldScene {
             drive.set_damaged_windows(renderer, self.sun.to_sun());
             drive.set_car_scale(self.tuning.car_scale);
             drive.vehicle_effects.set_tuning(self.tuning.xenon_effects);
+            drive.set_tail_style(self.tuning.tail_trail_style);
             drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
             drive.set_look_back(input.pressed(Action::LookBack));
         }
@@ -239,6 +243,8 @@ impl WorldScene {
         if let Some(drive) = self.players.lead_mut() {
             let pose = drive.pose().transform();
             drive.flames.advance_visual(sim_dt, pose);
+            let style = self.tuning.tail_trail_style;
+            drive.tail_trails.advance_visual(sim_dt, pose, style.enabled && style.enhanced);
         }
         self.upload_effects(renderer);
         self.original_shadows = renderer.render_experiments().original_shadows;

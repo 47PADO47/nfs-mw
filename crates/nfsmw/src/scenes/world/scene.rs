@@ -191,6 +191,11 @@ impl Scene for WorldScene {
         self.rain.configure(always, amount);
     }
 
+    fn set_tail_preview(&mut self, preview: Option<crate::settings::TailPreview>) {
+        if let Some(drive) = self.players.lead_mut() {
+            drive.tail_trails.set_preview(preview);
+        }
+    }
     fn set_world_tuning(&mut self, tuning: crate::settings::WorldTuning) {
         self.tuning = tuning;
     }
@@ -481,7 +486,6 @@ impl Scene for WorldScene {
     fn siren_frame(&mut self, dt: f32) -> Option<crate::audio::SirenFrame> {
         self.traffic.as_mut()?.siren_frame(dt)
     }
-
     fn note_police_speech(&mut self, phase: Option<blackbox_pursuit::siren::Phase>) {
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.note_police_speech(phase);
