@@ -92,6 +92,12 @@ impl VehicleEffects {
         self.pc.clear();
     }
 
+    /// The restored spark variant a mod gives (`XENON/<value>/profile.toml`), or `None` for the install's sparks. It plays in the
+    /// Restored (Experimental) style only; the wind contrail and the view streaks have no variant.
+    pub fn set_spark_variant(&mut self, variant: Option<std::sync::Arc<blackbox_modding::content::XenonProfile>>) {
+        self.sparks.set_variant(variant);
+    }
+
     /// Applies the caps now: the oldest particles above a lowered cap go.
     pub fn set_tuning(&mut self, tuning: XenonEffects) {
         if self.tuning == tuning {

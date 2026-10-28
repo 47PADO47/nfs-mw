@@ -300,3 +300,39 @@ fn bad_wings_and_tracks_are_refused() {
         assert!(car(&text).is_err(), "accepted: {text}");
     }
 }
+
+#[test]
+fn a_part_can_name_the_turn_of_each_stage() {
+    let text = ONE.replace("detach_at = 0.9", "stage_angles = [-1.0, -4.0, -9.0]");
+    let part = &car(&text).unwrap().damage_parts[0];
+    assert_eq!(part.stage_angles, vec![-1.0, -4.0, -9.0]);
+    assert!(car(ONE).unwrap().damage_parts[0].stage_angles.is_empty(), "left out: an even share of angle");
+    let short = ONE.replace("detach_at = 0.9", "stage_angles = [-1.0, -4.0]");
+    assert!(car(&short).is_err(), "one angle per stage");
+    let wild = ONE.replace("detach_at = 0.9", "stage_angles = [-1.0, -4.0, 400.0]");
+    assert!(car(&wild).is_err(), "within 180 degrees");
+}
+
+#[test]
+fn a_car_may_list_many_pieces_up_to_the_limit() {
+    let piece = ONE.replace("angle = -15.0", "angle = 0.0");
+    let many: String = (0..MAX_DAMAGE_PARTS).map(|n| piece.replace("Bonnet", &format!("Piece{n}"))).collect();
+    assert_eq!(car(&many).unwrap().damage_parts.len(), MAX_DAMAGE_PARTS);
+    const { assert!(MAX_DAMAGE_PARTS >= 32, "room for the pieces of a 2012 car") };
+}
+
+#[test]
+fn a_part_may_turn_with_the_steering_and_nothing_else() {
+    let wheel = format!("{ONE}\n[damage_parts.steering]\nlock_degrees = 450.0\n");
+    let part = &car(&wheel).unwrap().damage_parts[0];
+    assert_eq!(part.steering, Some(SteeredPart { lock_degrees: 450.0 }));
+    assert!(car(ONE).unwrap().damage_parts[0].steering.is_none());
+    for bad in ["0.0", "-90.0", "2000.0", "nan"] {
+        let text = format!("{ONE}\n[damage_parts.steering]\nlock_degrees = {bad}\n");
+        assert!(car(&text).is_err(), "lock_degrees {bad}");
+    }
+    let unknown = format!("{ONE}\n[damage_parts.steering]\nlock_degrees = 90.0\nratio = 2\n");
+    assert!(car(&unknown).is_err(), "an unknown key is refused");
+    let moving = format!("{wheel}\n[damage_parts.active]\noffset = [0.0, 0.0, 0.1]\nabove_mph = 50.0\nseconds = 0.5\n");
+    assert!(car(&moving).is_err(), "a part is steered or follows the speed");
+}

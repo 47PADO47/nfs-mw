@@ -12,8 +12,12 @@ const OFFSCREEN_DISTANCE: [f32; 11] = [130.0, 120.0, 110.0, 100.0, 90.0, 80.0, 7
 const OFFSCREEN_TIME: [f32; 11] = [12.0, 10.0, 9.0, 8.0, 7.0, 6.5, 6.0, 5.5, 5.0, 4.5, 4.0];
 /// A pursuit takes a quarter of the traffic away.
 pub const PURSUIT_DENSITY_SCALE: f32 = 0.75;
-/// Type records the manager looks at.
-const MAX_RECORDS: usize = 10;
+/// Type records the install's patterns have at most: the original reads ten (the data has up to six).
+pub const STOCK_RECORDS: usize = 10;
+/// The most records that mod traffic cars add to a pattern, after the install's own (`mod_traffic.rs`).
+pub const MAX_MOD_RECORDS: usize = 64;
+/// Type records the manager looks at: the install's, then the mods'.
+const MAX_RECORDS: usize = STOCK_RECORDS + MAX_MOD_RECORDS;
 
 fn table(values: &[f32; 11], density: f32) -> f32 {
     let at = density.clamp(0.0, 1.0) * 10.0;

@@ -25,6 +25,9 @@ pub(crate) struct Recorder {
     pub track: Option<WorldInfo>,
     pub moves: Vec<([f32; 2], f32)>,
     pub repairs: u32,
+    pub nitrous: Vec<f32>,
+    /// The drift assist switches the scene was told, in order.
+    pub drift_assist: Vec<bool>,
     pub camera_mode: Option<CameraMode>,
     pub rain: Option<(bool, f32)>,
     pub traffic: Option<(u32, u8)>,
@@ -53,6 +56,10 @@ impl Recorder {
             gear: 3,
             nos: 0.25,
             damage: 0.0,
+            slip_angle: 0.0,
+            steering: 0.0,
+            impact: 0.0,
+            on_ground: true,
         };
         let camera = CameraReadout {
             mode: CameraMode::Chase,
@@ -120,6 +127,15 @@ impl Scene for Recorder {
     fn repair_player(&mut self) -> bool {
         self.repairs += 1;
         self.car.is_some()
+    }
+
+    fn add_player_nitrous(&mut self, amount: f32) -> bool {
+        self.nitrous.push(amount);
+        self.car.is_some()
+    }
+
+    fn set_player_drift_assist(&mut self, on: bool) {
+        self.drift_assist.push(on);
     }
 
     fn set_camera_mode(&mut self, mode: CameraMode) {

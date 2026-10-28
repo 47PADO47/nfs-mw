@@ -40,6 +40,25 @@ fn a_layer_with_curves_needs_no_rpm_and_keeps_its_curves_pitch_and_volume() {
 }
 
 #[test]
+fn a_rate_curve_is_kept_for_a_layer_with_gain_curves_and_refused_without() {
+    let speed = "gain = [ { input = \"speed_mph\", points = [[0.0, 1.0], [150.0, 1.0]] } ]";
+    let text = format!(
+        "{{ file = \"SOUND/M.WAV\", {speed}, rate = {{ input = \"speed_mph\", points = [[0.0, 1.0], [60.0, 2.0]] }} }}"
+    );
+    let layer = parse(&text).unwrap().layers.remove(0);
+    let rate = layer.rate.expect("the rate curve");
+    assert_eq!((rate.input, rate.points.clone()), (Input::SpeedMph, vec![(0.0, 1.0), (60.0, 2.0)]));
+    assert_eq!(rate.eval(30.0), 1.5);
+    let loose =
+        "{ file = \"SOUND/M.WAV\", rpm = 900.0, rate = { input = \"speed_mph\", points = [[0.0, 1.0], [60.0, 2.0]] } }";
+    assert!(parse(loose).is_err(), "a layer mixed by rpm has no rate curve");
+    let reversed = format!(
+        "{{ file = \"SOUND/M.WAV\", {speed}, rate = {{ input = \"speed_mph\", points = [[60.0, 1.0], [0.0, 2.0]] }} }}"
+    );
+    assert!(parse(&reversed).is_err());
+}
+
+#[test]
 fn a_ginsu_layer_is_a_gin_file_with_a_span() {
     let text = format!("{{ file = \"SOUND/G0.GIN\", kind = \"ginsu\", span = [1790.0, 7500.0], {RISE} }}");
     let layer = parse(&text).unwrap().layers.remove(0);

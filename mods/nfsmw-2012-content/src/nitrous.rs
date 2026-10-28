@@ -38,11 +38,13 @@ pub struct Found {
     pub end: Option<StereoSample>,
     /// The particle effects and their pictures, when the install gives them.
     pub effects: Option<EffectSet>,
+    /// The screen of the nitrous (`nitrous_screen`): the vignette, the grade and the camera.
+    pub screen: Option<crate::nitrous_screen::Screen>,
 }
 
 impl Found {
     pub fn is_empty(&self) -> bool {
-        !self.has_sounds() && self.effects.is_none()
+        !self.has_sounds() && self.effects.is_none() && self.screen.is_none()
     }
 
     fn has_sounds(&self) -> bool {
@@ -90,7 +92,7 @@ fn assign(burn: Vec<StereoSample>, ignite: Vec<StereoSample>) -> Found {
     let looped = burn.iter().find(|sample| sample.looped).cloned();
     let end = burn.iter().find(|sample| !sample.looped).cloned();
     let start = ignite.into_iter().find(|sample| !sample.looped);
-    Found { start, looped, end, effects: None }
+    Found { start, looped, end, effects: None, screen: None }
 }
 
 fn contains(haystack: &[u8], needle: &[u8]) -> bool {
@@ -126,6 +128,9 @@ pub fn profile_text(found: &Found) -> String {
     }
     if found.has_sounds() {
         text.push_str("replace_original = true\n");
+    }
+    if let Some(screen) = &found.screen {
+        text.push_str(&crate::nitrous_screen::section(screen));
     }
     let Some(effects) = &found.effects else { return text };
     // The 2012 effects stand in for the game's blue nitrous flame and for its blow-off and backfire flame.

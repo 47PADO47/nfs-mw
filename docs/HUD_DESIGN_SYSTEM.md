@@ -28,7 +28,8 @@ One graphite base and one accent. The tokens are the `custom.*` skin keys
 | `surface` | `#10161D`, 0.60 | the translucent plate behind text |
 | `surface_raised` | `#171F28`, 0.75 | urgent information, a selected row |
 | `rule` | `#7C8995`, 0.35 | separators, empty tracks |
-| `nav` (and the accent) | `#F4B942` | the route, the player's action, the active choice |
+| `accent` | the HUD theme's `secondary`: the Bevy cyan `#78DCFF`, the Remastered gold `#FFC850` | a plate's top line, a menu's selection bar, chevrons, slider fills, the gear box edge |
+| `nav` | `#F4B942` | the route, the next checkpoint, a distance to go |
 | `success` | `#7DCEA0` | escaped, confirmed |
 | `caution` | `#E8873A` | a general warning |
 | `danger` | `#F04452` | the police red, the red line |
@@ -37,6 +38,15 @@ One graphite base and one accent. The tokens are the `custom.*` skin keys
 Deviations from the first draft of this page: `caution` is a deeper orange than the signal yellow, so a warning is not
 read as the route; the police blue has no token, it is the cop icon's light bar. High contrast, the colour-vision
 palettes and the opacity limits are in [specs/custom-hud/visual-identity.md](specs/custom-hud/visual-identity.md).
+
+**The accent is the player's HUD theme.** Every Custom surface, the menus included, takes its accent from the one skin
+key `custom.accent`, which `UiThemes::refresh_skin` fills from the chosen HUD theme (Options, HUD theme); no component
+names a colour. `nav` is not the accent: it keeps the signal yellow in either theme because it means the route.
+
+**Icons are not a palette's choice.** A menu entry that has a picture (the main menu, the option categories, the pause
+menu, the safe house, the career and race menus) shows it in every theme; a list where some entries have one gives them
+all the room for one, and an entry without one draws the pictogram of the HUD's own icon set. Every notice carries its
+pictogram beside the text, and no state is told by colour alone.
 
 **The map's colours are the theme's, not these.** The map draws in the active theme's tokens (`theme.line`, `guide`,
 `success`, `caution`, `danger`, `info`, `scrim`, `overlay`, [specs/ui-themes-tokens.md](specs/ui-themes-tokens.md)). The
@@ -93,6 +103,10 @@ and never below the upper part of the screen. Its modes and sizes (1080p; every 
 - **Fair knowledge.** Police are marked only as the player can know them
   ([specs/custom-hud/fair-knowledge.md](specs/custom-hud/fair-knowledge.md)).
 - **Without tiles.** An install with no minimap files draws the road network as strokes instead.
+- **The full-screen map (M).** The picture is the game's world map of the stage (or the running race's own, with its
+  route) and every blip, car, helicopter and checkpoint is the game's icon texture, the same files the Remastered map
+  draws; nothing of it is drawn by hand. Custom adds the chrome (the title and tabs, the legend and card, the footer)
+  and the GPS route's strokes, on a themed veil, scrim and plate.
 
 Details: [specs/custom-hud/map.md](specs/custom-hud/map.md) and
 [specs/custom-hud-map-impl.md](specs/custom-hud-map-impl.md).

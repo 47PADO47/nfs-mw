@@ -63,7 +63,7 @@ fn toggles_flip_and_cycle_and_record_the_change() {
 fn every_category_has_rows() {
     assert_eq!(rows(Category::Audio, &crate::settings::test_caps::native()).len(), 5);
     assert!(rows(Category::Video, &crate::settings::test_caps::native()).len() < 40);
-    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 9);
+    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 10);
     assert_eq!(rows(Category::Player, &crate::settings::test_caps::native()).len(), 3);
     assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 8);
     assert_eq!(rows(Category::Discord, &crate::settings::test_caps::native()).len(), 3);
@@ -113,6 +113,27 @@ fn smoke_quality_cycles_and_records_only_its_selection() {
     assert_eq!(changes, Partial { smoke_quality: Some(SmokeQuality::High), ..Partial::default() });
     Setting::SmokeQuality.step(&mut s, &mut changes, false);
     assert_eq!(Setting::SmokeQuality.data(&s), Data::Text("Standard".into()));
+}
+#[test]
+fn smoke_colour_rows_cycle_both_ways_and_record_only_their_selection() {
+    use crate::settings::{SmokeColor, SmokeColorMode};
+    let (mut s, mut changes) = (defaults(), Partial::default());
+    assert!(!Setting::SmokeColor.enabled(&s), "the colour waits for a mode that uses it");
+    assert_eq!(Setting::SmokeColorMode.data(&s), Data::Text("Off".into()));
+    Setting::SmokeColorMode.step(&mut s, &mut changes, true);
+    assert_eq!((s.smoke_color_mode, changes.smoke_color_mode), (SmokeColorMode::Solid, Some(SmokeColorMode::Solid)));
+    assert!(Setting::SmokeColor.enabled(&s));
+    Setting::SmokeColorMode.step(&mut s, &mut changes, false);
+    assert_eq!(s.smoke_color_mode, SmokeColorMode::Off, "back one step");
+    Setting::SmokeColorMode.step(&mut s, &mut changes, false);
+    assert_eq!(s.smoke_color_mode, SmokeColorMode::Slip, "and round the other way");
+    Setting::SmokeColor.step(&mut s, &mut changes, true);
+    assert_eq!(Setting::SmokeColor.data(&s), Data::Text("Orange".into()));
+    assert_eq!(changes.smoke_color.map(|c| c.to_string()).as_deref(), Some("orange"));
+    Setting::SmokeColor.step(&mut s, &mut changes, false);
+    assert_eq!(s.smoke_color, SmokeColor::default());
+    s.tire_smoke = false;
+    assert!(!Setting::SmokeColorMode.enabled(&s), "no smoke, no colour");
 }
 #[test]
 fn minimap_menu_cycles_both_directions_and_records_the_selection() {

@@ -18,6 +18,7 @@
 use std::collections::BTreeSet;
 
 use chameleon_bundle::Bundle;
+use chameleon_sound_graph::SoundGraphs;
 
 use crate::engine::pitch_of;
 use crate::graphs::Graphs;
@@ -48,6 +49,11 @@ pub struct EffectFiles {
     pub turbo_blowoff: Vec<Vec<u8>>,
     pub backfire: Vec<Vec<u8>>,
     pub pops: Vec<Vec<u8>>,
+    /// The car has no gear change in its sound (an electric car): it does not clunk into gear. See [`has_no_gear_change`].
+    pub no_clunk: bool,
+    /// The car's own start-up sound as a WAV (`ignition.rs`), written as `IGNITION.WAV` for the engine auto-stop. It is not
+    /// named in the manifest: the mod plays it by its path.
+    pub ignition: Option<Vec<u8>>,
 }
 
 impl EffectFiles {
@@ -91,9 +97,19 @@ pub fn of(bundle: &Bundle, samples: &[Sample], shared: Option<&[u8]>) -> Found {
             turbo_blowoff: shot_files(&blowoff),
             backfire: shot_files(&backfire),
             pops: shot_files(&pops),
+            no_clunk: false,
+            ignition: None,
         },
         not_engine,
     }
+}
+
+/// Whether the car's player engine sound plays nothing for a gear change: no sequence of it reads the gear change time. An
+/// electric car's does not, and the game's class-wide gear clunk would be the one sound of a gear it does not have. A bundle
+/// with no engine sound object of the player is not told, and keeps the clunk.
+pub fn has_no_gear_change(graphs: &SoundGraphs) -> bool {
+    let Some(engine) = graphs.player_engine() else { return false };
+    !graphs.sequences_in(engine).any(|sequence| sequence.driven_by(SHIFT))
 }
 
 /// The samples of `samples` whose ids are in `ids`, in the order of `samples`.

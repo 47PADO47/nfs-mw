@@ -13,43 +13,64 @@
 //! `bb.content`, and everything the game opens after that (the garage, the career) lists the cars. Later starts find
 //! the content ready and convert nothing, unless the settings or the installs changed.
 
+mod body_panels;
 mod brands;
 mod cameras;
 mod collision;
 pub mod config;
 mod convert;
+mod damage_model;
+mod drift_cars;
+mod drift_nitrous;
+mod drift_stats;
+mod driver_poses;
+mod effect_variants;
 mod effects;
 mod emit;
 mod engine;
+mod engine_stop;
 mod fit;
 #[cfg(test)]
 mod fit_real;
+mod fold;
 mod graph_voices;
 mod graphs;
 mod hinges;
+mod ignition;
 pub mod import;
 pub mod job;
+mod lamp_coronas;
+mod lamp_surfaces;
 mod liveries;
 mod logo;
+mod low_detail;
 mod markers;
 mod names;
 pub mod nitrous;
+mod nitrous_screen;
 mod paints;
 pub mod performance;
 mod pipes;
+mod plate;
+mod plate_designs;
 mod police;
 mod sample;
 mod shared;
 mod sounds;
 mod source;
+mod spark_assets;
 mod stamp;
 pub mod stats;
 mod textures;
+mod tire_smoke;
+mod traffic;
+mod two_colour;
 mod variants;
 mod vehicle_list;
 mod vfx;
 mod vfx_profile;
 mod wheels;
+mod wind_assets;
 
 use std::path::PathBuf;
 
@@ -95,10 +116,16 @@ impl Mod for NfsmwContent {
             }
             Ok(Start::UpToDate { cars }) => {
                 add_nitrous_variant(ctx);
+                effect_variants::add_all(ctx);
+                drift_nitrous::register(ctx, &mod_dir);
+                engine_stop::register(ctx, &mod_dir);
                 ctx.log(Level::Info, &format!("nfsmw-2012-content: {cars} cars are ready"));
             }
             Ok(Start::Started { job, live }) => {
                 add_nitrous_variant(ctx);
+                effect_variants::add_all(ctx);
+                drift_nitrous::register(ctx, &mod_dir);
+                engine_stop::register(ctx, &mod_dir);
                 ctx.log(Level::Info, "nfsmw-2012-content: converting the 2012 cars in the background");
                 state.job = Some(job);
                 state.live = live;
@@ -108,7 +135,9 @@ impl Mod for NfsmwContent {
         Ok(state)
     }
 
-    fn event(&mut self, ctx: &mut Ctx, _event: &Event<'_>) {
+    fn event(&mut self, ctx: &mut Ctx, event: &Event<'_>) {
+        drift_nitrous::event(ctx, event);
+        engine_stop::event(ctx, event);
         let Some(finished) = self.job.as_ref().and_then(Job::poll) else { return };
         self.job = None;
         match finished {
@@ -145,7 +174,11 @@ impl NfsmwContent {
     /// A run is over: say what it did, and make its cars available.
     fn finish(&self, ctx: &Ctx, report: &import::Report) {
         let (done, left_out) = (report.imported.len(), report.skipped.len());
-        ctx.log(Level::Info, &format!("nfsmw-2012-content: converted {done} cars, {left_out} left out"));
+        let traffic = report.traffic.len();
+        ctx.log(
+            Level::Info,
+            &format!("nfsmw-2012-content: converted {done} cars and {traffic} traffic cars, {left_out} left out"),
+        );
         for (car, reason) in &report.skipped {
             ctx.log(Level::Warn, &format!("nfsmw-2012-content: {car} is left out: {reason}"));
         }

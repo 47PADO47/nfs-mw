@@ -238,3 +238,30 @@ fn the_nitrous_burns_only_when_the_button_does_something() {
     run(&mut v, &InputState { nos: true, ..Default::default() }, 0.2);
     assert!(!v.nos_burning());
 }
+
+#[test]
+fn added_nitrous_tops_up_the_tank_and_stops_at_full() {
+    let g = flat();
+    let mut v = Vehicle::new(VehicleSpec::example());
+    v.place_moving(Vec3::new(0.0, REST_Y, 0.0), identity(), 25.0);
+    for _ in 0..(3.0 / FIXED_STEP) as usize {
+        v.step(FIXED_STEP, &InputState { nos: true, ..throttle() }, &g);
+    }
+    let tank = v.nos_level();
+    assert!(tank < 0.6, "the tank was drained: {tank}");
+    assert!(v.add_nitrous(0.1));
+    assert!((v.nos_level() - (tank + 0.1)).abs() < 1e-6);
+    assert!(v.add_nitrous(5.0));
+    assert_eq!(v.nos_level(), 1.0, "a full tank is the most");
+    assert!(!v.add_nitrous(-0.1) && !v.add_nitrous(f32::NAN) && !v.add_nitrous(0.0), "nothing to add");
+}
+
+#[test]
+fn a_car_without_a_nitrous_system_takes_no_nitrous() {
+    let mut spec = VehicleSpec::example();
+    spec.nos.nos_capacity = 0.0;
+    let mut v = Vehicle::new(spec);
+    assert!(!v.has_nos());
+    assert!(!v.add_nitrous(0.5));
+    assert_eq!(v.nos_level(), 0.0);
+}

@@ -28,6 +28,7 @@ impl Drive {
     /// Sample input once per render frame; presses wait for the next physics tick.
     pub fn prepare_frame(&mut self, actions: &ActionState, dt: f32) {
         self.frame_input = self.remote_input.unwrap_or_else(|| DriveInput::from_actions(actions, self.wheel));
+        self.engine.step(dt);
         if self.script.is_none() && self.cinematic_input.is_none() {
             self.presses.note(&self.frame_input);
         }
@@ -91,6 +92,8 @@ impl Drive {
         let sim = self.sim.as_mut()?;
         sim.cinematic_control(self.cinematic_input.is_some());
         sim.set_automatic(self.transmission.is_automatic() || self.cinematic_input.is_some());
+        // An engine that is off or cranking holds the gearbox in neutral (`engine_switch.rs`).
+        sim.set_neutral_hold(!self.engine.is_running());
         let input = match self.script.as_mut() {
             Some(run) => {
                 let input = run.script.input_after(run.time, run.previous_time);
@@ -103,7 +106,8 @@ impl Drive {
         .cinematic(self.cinematic_input)
         .during_arrest(self.arrested)
         .on_grid(self.gridded)
-        .sabotaged(self.sabotaged);
+        .sabotaged(self.sabotaged)
+        .engine_stopped(!self.engine.is_running());
         let assist = self.assist_aim.filter(|_| self.cinematic_input.is_none() && !self.arrested);
         let input = Self::assisted(assist, sim, input);
         if input.pop {
@@ -162,7 +166,10 @@ impl Drive {
         self.current = pose;
         self.telemetry = telemetry;
         self.gauges.push(gauge);
-        self.brake_lamp = sim.lamp_brake();
+        self.brake_lamp = match self.engine.is_running() {
+            true => sim.lamp_brake(),
+            false => 0.0,
+        };
         let (strength, speed, slip) = sim.drift_charge();
         self.breaker.charge_drift(strength, speed, slip, dt);
         if !self.arrested {

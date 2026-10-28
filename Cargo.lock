@@ -2060,6 +2060,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "chameleon-anim"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "chameleon-bundle"
 version = "0.1.0"
 dependencies = [
@@ -2080,7 +2088,18 @@ dependencies = [
 name = "chameleon-effects"
 version = "0.1.0"
 dependencies = [
+ "blackbox-tpk",
  "chameleon-bundle",
+ "chameleon-gfx",
+ "png",
+]
+
+[[package]]
+name = "chameleon-engine-state"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "chameleon-sound-graph",
 ]
 
 [[package]]
@@ -2090,6 +2109,13 @@ dependencies = [
  "chameleon-bundle",
  "texture2ddecoder",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "chameleon-postfx"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
 ]
 
 [[package]]
@@ -2113,6 +2139,7 @@ dependencies = [
 name = "chameleon-vehicle"
 version = "0.1.0"
 dependencies = [
+ "chameleon-anim",
  "chameleon-bundle",
  "chameleon-gfx",
  "thiserror 2.0.21",
@@ -4269,7 +4296,9 @@ dependencies = [
  "chameleon-bundle",
  "chameleon-camera",
  "chameleon-effects",
+ "chameleon-engine-state",
  "chameleon-gfx",
+ "chameleon-postfx",
  "chameleon-sound-graph",
  "chameleon-vehicle",
  "ea-audio",
@@ -4326,6 +4355,7 @@ dependencies = [
  "glam 0.34.1",
  "log",
  "serde",
+ "toml 0.9.12+spec-1.1.0",
 ]
 
 [[package]]

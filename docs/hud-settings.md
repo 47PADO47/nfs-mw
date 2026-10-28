@@ -57,6 +57,9 @@ in the log and only that key is ignored; the others still apply. A config file w
 
 The map's orientation is not a key of the table: it is the existing `minimap` setting (`fixed`, `rotating`, `off`).
 The speed unit is the existing `speed_units` setting.
+The accent colour of every Custom surface, the menus included, is the **HUD theme** (`ui_theme`: `bevy` cyan or
+`remastered` gold, the HUD theme row of the options), not a key of the table; the route and the checkpoints stay the
+signal yellow ([HUD_DESIGN_SYSTEM.md](HUD_DESIGN_SYSTEM.md) section 2).
 
 ## Presets
 

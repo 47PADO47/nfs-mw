@@ -13,6 +13,8 @@ fn render(dir: GameDir, contacts: Vec<CarContact>) -> Vec<f32> {
     let input = CarInput::default();
     let mut state = CarSoundState {
         nitrous_fx: None,
+        wind_fx: None,
+        engine: Default::default(),
         telemetry: Default::default(),
         car: "BMWM3GTR".into(),
         upgrades: Default::default(),

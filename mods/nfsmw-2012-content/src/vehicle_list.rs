@@ -1,14 +1,18 @@
 //! The 2012 vehicle list (`VEHICLES/VEHICLELIST.BNDL`): which vehicles exist and which entries are liveries of another.
 //!
 //! The list is one resource of type `VehicleList`. Its main block starts with a 0x20-byte header (the count of entries at
-//! +0x04, the offset of the first entry at +0x0C) and holds one 0x70-byte record per entry. Only the first two fields of
-//! a record are read here: the vehicle id (+0x00) and the `LiveryID` (+0x04). A vehicle with liveries has one entry per
-//! livery, all with the same vehicle id (`docs/formats/chameleon-customization.md`).
+//! +0x04, the offset of the first entry at +0x0C) and holds one 0x70-byte record per entry. Only four fields of a record
+//! are read here: the vehicle id (+0x00), the `LiveryID` (+0x04), the game pack (+0x2C) and the paint pack group (+0x34).
+//! A vehicle with liveries has one entry per livery, all with the same vehicle id (`docs/formats/chameleon-customization.md`).
 
 use chameleon_bundle::{Bundle, ResourceKind};
 
 /// Bytes of one entry.
 const STRIDE: usize = 0x70;
+/// Where an entry names its paint pack group.
+const GROUP: usize = 0x34;
+/// Where an entry names its game pack (`GamePackID`): the base game or one of the four DLC packs.
+const PACK: usize = 0x2C;
 /// More entries than this is not a vehicle list (the install has 110).
 const MAX_ENTRIES: usize = 4096;
 
@@ -18,6 +22,12 @@ pub struct ListEntry {
     pub vehicle: u32,
     /// The `LiveryID`: 0 or the vehicle id for the vehicle itself, another number for a livery.
     pub livery: u32,
+    /// The id of the entry's paint pack group (`chameleon_vehicle::PaintPackGroup`): the colours and liveries the shop
+    /// offers. 0 for a vehicle with none (the police vehicles).
+    pub group: u32,
+    /// The id of the entry's game pack (`GamePackID`, +0x2C), which chooses the default licence plate text
+    /// (`chameleon_vehicle::GamePack`): `0x42E7` is the base game.
+    pub pack: u32,
 }
 
 impl ListEntry {
@@ -59,7 +69,12 @@ fn entries(block: &[u8]) -> Option<Vec<ListEntry>> {
     (0..count)
         .map(|n| {
             let at = first + n * STRIDE;
-            Some(ListEntry { vehicle: word(at)?, livery: word(at + 4)? })
+            Some(ListEntry {
+                vehicle: word(at)?,
+                livery: word(at + 4)?,
+                group: word(at + GROUP)?,
+                pack: word(at + PACK)?,
+            })
         })
         .collect()
 }
@@ -86,21 +101,37 @@ mod tests {
     fn entries_are_read_in_order() {
         let found = entries(&block(&[(10, 0), (20, 20), (20, 99)])).unwrap();
         assert_eq!(found.len(), 3);
-        assert_eq!(found[2], ListEntry { vehicle: 20, livery: 99 });
+        assert_eq!(found[2], ListEntry { vehicle: 20, livery: 99, group: 0, pack: 0 });
+    }
+
+    #[test]
+    fn an_entry_names_its_paint_pack_group() {
+        let mut data = block(&[(10, 0), (20, 99)]);
+        data[0x20 + STRIDE + GROUP..0x20 + STRIDE + GROUP + 4].copy_from_slice(&0x0017_d589_u32.to_le_bytes());
+        let found = entries(&data).unwrap();
+        assert_eq!((found[0].group, found[1].group), (0, 0x0017_d589));
+    }
+
+    #[test]
+    fn an_entry_names_its_game_pack() {
+        let mut data = block(&[(10, 0), (20, 99)]);
+        data[0x20 + STRIDE + PACK..0x20 + STRIDE + PACK + 4].copy_from_slice(&0x0021_84b5_u32.to_le_bytes());
+        let found = entries(&data).unwrap();
+        assert_eq!((found[0].pack, found[1].pack), (0, 0x0021_84b5));
     }
 
     #[test]
     fn the_bundle_number_is_the_livery_id_or_the_vehicle_id() {
-        assert_eq!(ListEntry { vehicle: 10, livery: 0 }.file(), 10);
-        assert_eq!(ListEntry { vehicle: 20, livery: 20 }.file(), 20);
-        assert_eq!(ListEntry { vehicle: 20, livery: 99 }.file(), 99);
+        assert_eq!(ListEntry { vehicle: 10, livery: 0, group: 0, pack: 0 }.file(), 10);
+        assert_eq!(ListEntry { vehicle: 20, livery: 20, group: 0, pack: 0 }.file(), 20);
+        assert_eq!(ListEntry { vehicle: 20, livery: 99, group: 0, pack: 0 }.file(), 99);
     }
 
     #[test]
     fn only_an_entry_without_a_livery_id_or_with_its_own_is_the_vehicle() {
-        assert!(ListEntry { vehicle: 10, livery: 0 }.is_base());
-        assert!(ListEntry { vehicle: 20, livery: 20 }.is_base());
-        assert!(!ListEntry { vehicle: 20, livery: 99 }.is_base());
+        assert!(ListEntry { vehicle: 10, livery: 0, group: 0, pack: 0 }.is_base());
+        assert!(ListEntry { vehicle: 20, livery: 20, group: 0, pack: 0 }.is_base());
+        assert!(!ListEntry { vehicle: 20, livery: 99, group: 0, pack: 0 }.is_base());
     }
 
     #[test]

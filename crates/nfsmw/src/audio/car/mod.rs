@@ -30,12 +30,14 @@ pub use ambient::{RoadContext, RoadTerrain};
 pub use telemetry::CarAudioTelemetry;
 mod contact;
 mod contacts;
+mod engine_start;
 pub(super) mod impacts;
 mod nitrous_fx;
 mod own_engine;
 mod own_sfx;
 pub(super) mod transmission;
 pub(super) mod tyres;
+mod wind_fx;
 pub use contact::{CarContact, ContactSource, ContactVehicle};
 
 /// Every physics state since the previous audio update, in simulation order.
@@ -85,6 +87,10 @@ pub struct CarSoundState {
     pub view: super::AudioView,
     /// The effects of the nitrous variant the player chose, if it is a mod's: its sounds are played by `nitrous_fx`.
     pub nitrous_fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
+    /// The loops of the wind variant the player chose, if it is a mod's: played by `wind_fx` in place of the game's wind.
+    pub wind_fx: Option<std::sync::Arc<blackbox_modding::content::WindProfile>>,
+    /// The engine switch of a mod (`bb.engine`): whether the engine is silent, and the start sound to play now.
+    pub engine: crate::engine_switch::EngineAudio,
 }
 
 /// The mixers, the voices and the sound set of one car.
@@ -122,6 +128,8 @@ pub(super) struct CarAudio {
     power: power_effects::PowerPlayback,
     /// The sounds of a mod's nitrous variant (`nitrous_fx.rs`).
     nitrous: nitrous_fx::NitrousVoice,
+    /// The loops of a mod's wind variant (`wind_fx.rs`).
+    wind: wind_fx::WindVoice,
     pub(super) event_delay: f32,
 }
 
@@ -135,6 +143,9 @@ struct DriveFrame<'a> {
     sim_dt: f32,
     delay: f32,
     nitrous_fx: Option<&'a std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
+    wind_fx: Option<&'a std::sync::Arc<blackbox_modding::content::WindProfile>>,
+    /// A mod has stopped the engine: it is silent.
+    engine_stopped: bool,
 }
 
 impl Drop for CarAudio {
@@ -224,6 +235,9 @@ impl Audio {
         }
         let Some(mut car) = slot.take() else { return };
         let dt = if dt.is_finite() { dt.max(0.0) } else { 0.0 };
+        if let Some(start) = state.engine.start.as_ref() {
+            engine_start::play(self, start);
+        }
         if state.ticks.is_empty() {
             self.advance_car(
                 &mut car,
@@ -237,6 +251,8 @@ impl Audio {
                     sim_dt: 0.0,
                     delay: 0.0,
                     nitrous_fx: state.nitrous_fx.as_ref(),
+                    wind_fx: state.wind_fx.as_ref(),
+                    engine_stopped: state.engine.stopped,
                 },
             );
             *slot = Some(car);
@@ -256,15 +272,21 @@ impl Audio {
                     sim_dt: tick.sim_dt,
                     delay: i as f32 * delta,
                     nitrous_fx: state.nitrous_fx.as_ref(),
+                    wind_fx: state.wind_fx.as_ref(),
+                    engine_stopped: state.engine.stopped,
                 },
             );
         }
         *slot = Some(car);
     }
 
-    /// The pops of the car's sputter since the last call (0 without a car, a sample layer or sputters).
+    /// The pops of the car's sputter since the last call (0 without a car, a sample layer or sputters). A car a mod added
+    /// has no sample layer: its backfire and pops (`own_sfx`) are counted in its place.
     pub fn take_sputter_pops(&mut self) -> u32 {
-        self.car.as_mut().and_then(|car| car.aems.as_mut()).map_or(0, AemsLayer::take_pops)
+        let Some(car) = self.car.as_mut() else { return 0 };
+        let sputter = car.aems.as_mut().map_or(0, AemsLayer::take_pops);
+        let own = car.own_sfx.as_mut().map_or(0, own_sfx::OwnSfx::take_bangs);
+        sputter + own
     }
 
     /// The sound set of the car, its Ginsu voice (a car of the game only) and the lowest frequency of its loops.
@@ -338,6 +360,7 @@ impl Audio {
             transmission: transmission::TransmissionPlayback::default(),
             power: power_effects::PowerPlayback::default(),
             nitrous: nitrous_fx::NitrousVoice::default(),
+            wind: wind_fx::WindVoice::default(),
             event_delay: 0.0,
         })
     }
@@ -352,8 +375,11 @@ impl Audio {
             return Ok((None, None));
         }
         let engine = self.start_mod_engine(name)?;
-        let sfx = nfsmw_data::car::mods::car_effects(name).and_then(|effects| self.start_own_sfx(name, effects));
-        Ok((Some(engine), sfx))
+        // A car with no recordings still decides its lift-offs, so that they light its tail pipes.
+        let silent = nfsmw_data::car::mods::CarEffects::default();
+        let effects = nfsmw_data::car::mods::car_effects(name).unwrap_or(&silent);
+        let sfx = self.start_own_sfx(name, effects);
+        Ok((Some(engine), Some(sfx)))
     }
 }
 

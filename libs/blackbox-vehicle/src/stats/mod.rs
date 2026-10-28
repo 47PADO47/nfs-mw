@@ -24,6 +24,28 @@ pub enum Drive {
     All,
 }
 
+/// How a car drifts when the drift assist is on ([`crate::Vehicle::set_drift_assist`]). The default is the generic car: it
+/// is what a car whose stats say nothing about drifting gets.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DriftStats {
+    /// A slide counts as a drift from this speed along the car, m/s.
+    pub enter_speed: f32,
+    /// ... and from this slip angle, degrees.
+    pub enter_angle_deg: f32,
+    /// A drift ends once the slip stays under this angle, degrees.
+    pub exit_angle_deg: f32,
+    /// The largest slip angle the assist asks for, degrees; full steering lock holds half of it.
+    pub max_angle_deg: f32,
+    /// The yaw torque that holds a drift, N m. 0 is the generic strength.
+    pub yaw_torque_nm: f32,
+}
+
+impl Default for DriftStats {
+    fn default() -> Self {
+        Self { enter_speed: 10.0, enter_angle_deg: 7.5, exit_angle_deg: 3.0, max_angle_deg: 40.0, yaw_torque_nm: 0.0 }
+    }
+}
+
 /// A car's stats. Axle pairs are `[front, rear]`. All units are SI unless a name says otherwise.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CarStats {
@@ -78,6 +100,8 @@ pub struct CarStats {
     /// Extra torque while nitrous burns, as a fraction of the engine's, and the burn time of a full tank, s.
     pub nitrous_boost: f32,
     pub nitrous_seconds: f32,
+    /// How the car drifts when the drift assist is on. Nothing else reads it.
+    pub drift: DriftStats,
 }
 
 impl Default for CarStats {
@@ -127,6 +151,7 @@ impl Default for CarStats {
             nitrous: false,
             nitrous_boost: 0.5,
             nitrous_seconds: 5.0,
+            drift: DriftStats::default(),
         }
     }
 }
@@ -165,5 +190,7 @@ impl VehicleSpec {
     }
 }
 
+#[cfg(test)]
+mod drift_tests;
 #[cfg(test)]
 mod tests;

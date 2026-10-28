@@ -55,6 +55,8 @@ mod tests {
         let mut audio = Audio::replay(dir, 48_000);
         let state = |car: &str, rpm_pct: f32| CarSoundState {
             nitrous_fx: None,
+            wind_fx: None,
+            engine: Default::default(),
             car: car.into(),
             upgrades: Default::default(),
             telemetry: Default::default(),

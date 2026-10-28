@@ -76,6 +76,7 @@ impl WorldScene {
         if let Some(drive) = self.players.lead_mut() {
             drive.effects.set_enabled(self.tire_effects[0], self.tire_effects[1]);
             drive.effects.set_quality(self.smoke_quality);
+            drive.effects.set_variant(self.tire_smoke_variant.clone());
             drive.vehicle_effects.set_enabled(self.vehicle_effects[0], car_trails);
             drive.vehicle_effects.set_style(self.spark_style);
             drive.flames.set_enabled(self.exhaust_flames);

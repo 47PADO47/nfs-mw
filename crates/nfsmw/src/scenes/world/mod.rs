@@ -57,6 +57,7 @@ pub mod net;
 #[cfg(feature = "multiplayer")]
 pub mod net_client;
 mod nis;
+mod nitrous_screen;
 mod photo_shot;
 pub mod players;
 mod tail_light_trails;
@@ -94,6 +95,7 @@ mod scene_hud;
 mod scene_space;
 mod scenery_groups;
 mod session_rules;
+mod status_line;
 use session_rules::ViewSource;
 mod shadow_feed;
 mod simulation;
@@ -276,7 +278,9 @@ pub struct WorldScene {
     /// The effects of the nitrous variant the player chose, if it is a mod's (`scene_effects.rs`), and the follower of the
     /// burn that fades its screen effects.
     nitrous_fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
-    nitrous_burn: blackbox_modding::content::BurnFollower,
+    /// The loops of the wind variant the player chose, if it is a mod's (`scene_effects.rs`): the car's sound plays them.
+    wind_fx: Option<std::sync::Arc<blackbox_modding::content::WindProfile>>,
+    nitrous_screen: nitrous_screen::NitrousScreen,
     /// The career being played, if any, and what it asks of the front end (`career/`).
     career: career::WorldCareer,
     /// The scenery groups switched on (`scenery_groups.rs`); the career opens and closes the region gates through it.
@@ -299,6 +303,8 @@ pub struct WorldScene {
     exhaust_flames: bool,
     spark_style: crate::settings::SparkStyle,
     smoke_quality: crate::settings::SmokeQuality,
+    /// The tire smoke variant the player chose, if it is a mod's (`scene_effects.rs`).
+    tire_smoke_variant: Option<std::sync::Arc<blackbox_modding::content::TireSmokeProfile>>,
     rain: crate::weather::rain::Rain,
     /// The wind each player view hands to the scenery sway (`docs/specs/scenery-sway.md`).
     wind: crate::weather::wind::Wind,

@@ -10,7 +10,7 @@
 //! `layout` does the frame's work, as the other Custom components do: it reads the feed and lays every part out at its
 //! fade, and `build` emits what `layout` made. With no notice and no chip it emits nothing.
 
-mod icon;
+pub(super) mod icon;
 mod lane;
 mod stack;
 #[cfg(test)]

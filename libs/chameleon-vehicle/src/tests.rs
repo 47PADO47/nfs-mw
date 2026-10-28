@@ -175,3 +175,61 @@ fn the_huayra_flaps_are_guarded_animations() {
     let skeleton = crate::Skeleton::read(&bundle).unwrap();
     assert_eq!(crate::flap_motions(&bundle, &skeleton).len(), 4, "four flap bones");
 }
+
+#[test]
+#[ignore = "reads the game install (CHAMELEON_GAME_DIR)"]
+fn every_plain_colour_pack_names_a_paint_of_its_cars_bundle() {
+    let Some(dir) = std::env::var_os("CHAMELEON_GAME_DIR") else { return };
+    let dir = Path::new(&dir);
+    let gameplay = std::fs::read(dir.join("GAMELOGIC/GAMEPLAY.BNDL")).unwrap();
+    let groups = crate::paint_packs(&Bundle::parse(&gameplay).unwrap()).unwrap();
+    assert_eq!(groups.len(), 67, "the groups of the checked install");
+    let list = std::fs::read(dir.join("VEHICLES/VEHICLELIST.BNDL")).unwrap();
+    let list = Bundle::parse(&list).unwrap();
+    let index = list.entries().iter().position(|entry| entry.kind == chameleon_bundle::ResourceKind::VehicleList.id());
+    let block = list.resource(index.unwrap()).unwrap().blocks[0].clone();
+    let word = |at: usize| u32::from_le_bytes(block[at..at + 4].try_into().unwrap());
+    let (mut checked, mut colours) = (0, 0);
+    for n in 0..word(4) as usize {
+        let at = word(12) as usize + n * 0x70;
+        let (vehicle, livery, group) = (word(at), word(at + 4), word(at + 0x34));
+        let path = dir.join(format!("VEHICLES/VEH_{}_HI.BNDL", if livery == 0 { vehicle } else { livery }));
+        let (Ok(data), Some(group)) = (std::fs::read(path), groups.iter().find(|g| g.id == group)) else { continue };
+        let ids: Vec<u32> = crate::paints(&Bundle::parse(&data).unwrap()).iter().map(|paint| paint.id).collect();
+        for pack in group.packs.iter().filter(|pack| pack.paint != 0) {
+            assert!(ids.contains(&pack.paint), "vehicle {vehicle}: pack paint {:x} is not in the bundle", pack.paint);
+            colours += 1;
+        }
+        checked += 1;
+    }
+    println!("{checked} bundles checked, {colours} plain colour packs");
+    assert!(colours > 250);
+}
+
+#[test]
+#[ignore = "reads the game install (CHAMELEON_GAME_DIR)"]
+fn every_livery_pack_names_the_bundle_of_one_livery() {
+    let Some(dir) = std::env::var_os("CHAMELEON_GAME_DIR") else { return };
+    let dir = Path::new(&dir);
+    let gameplay = std::fs::read(dir.join("GAMELOGIC/GAMEPLAY.BNDL")).unwrap();
+    let groups = crate::paint_packs(&Bundle::parse(&gameplay).unwrap()).unwrap();
+    // The five vehicles with liveries: the group of each, and the five bundles of the vehicle.
+    let vehicles: [(u32, [u32; 5]); 5] = [
+        (0x22_bf92, [393276, 2277210, 2277224, 2277238, 2277252]),
+        (0x22_c07c, [2076339, 2277456, 2277467, 2277478, 2277489]),
+        (0x22_c004, [2076399, 2277332, 2277344, 2277356, 2277368]),
+        (0x22_be8d, [2076462, 2255945, 2255956, 2255967, 2255978]),
+        (0x22_6a03, [2076524, 2255901, 2255912, 2255923, 2255934]),
+    ];
+    for (id, files) in vehicles {
+        let group = groups.iter().find(|group| group.id == id).unwrap();
+        assert_eq!(group.packs.len(), 5);
+        let mut seen = Vec::new();
+        for file in files {
+            let data = std::fs::read(dir.join(format!("VEHICLES/VEH_{file}_HI.BNDL"))).unwrap();
+            let pack = group.livery_of(&Bundle::parse(&data).unwrap()).unwrap_or_else(|| panic!("{file}: no pack"));
+            assert!(!seen.contains(&pack.id), "{file}: its pack is another bundle's too");
+            seen.push(pack.id);
+        }
+    }
+}

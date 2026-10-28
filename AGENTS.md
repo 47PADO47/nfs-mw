@@ -104,5 +104,6 @@ for enhancements. Fill in every section.
 |---|---|
 | `cargo xtask check` | Leak-check (no game data, binaries, decomp output) + file-size check (500-line limit) |
 | `cargo xtask install-hooks` | Install the pre-commit hook that runs `cargo xtask check` |
+| `cargo install-mod <mod>` / `cargo install-mods` | Build a mod of `mods/` (or every mod the workspace builds) and copy it into the game's mods folder |
 | `cargo deny check licenses` | Verify all dependency licenses are allowed |
 | `python tools/chunkdump.py <file>` | Dump the bChunk tree of a game data file |

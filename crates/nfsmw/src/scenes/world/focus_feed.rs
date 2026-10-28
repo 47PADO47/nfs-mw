@@ -12,17 +12,17 @@ impl WorldScene {
         }
     }
 
-    /// The screen effects of a mod's nitrous variant, added to the filter: its vignette and radial blur follow the burn
-    /// with the profile's fades. Without a variant the filter is left as it is.
+    /// The screen effects of a mod's nitrous variant, added to the filter: its vignette, radial blur and grade follow the
+    /// burn with the profile's fades (the camera takes the same level, `camera_choice.rs`). The radial blur is the motion
+    /// blur setting's too: off draws none, and the strength scales it. Without a variant the filter is left as it is.
     fn add_nitrous_screen(&mut self, focus: &mut blackbox_gfx::FocusFilter, sim_dt: f32) {
-        let Some(screen) = self.nitrous_fx.as_deref().and_then(|profile| profile.screen) else {
-            self.nitrous_burn = Default::default();
-            return;
-        };
+        let screen = self.nitrous_fx.as_deref().and_then(|profile| profile.screen);
         let burning = self.players.lead().is_some_and(|drive| drive.nitrous_burning());
-        let step = self.nitrous_burn.step(burning, screen.fade_in, screen.fade_out, sim_dt);
-        focus.vignette = focus.vignette.max(screen.vignette * step.level);
-        focus.radial_blur = focus.radial_blur.max(screen.radial_blur * step.level);
+        let level = self.nitrous_screen.step(screen, burning, sim_dt);
+        let Some(screen) = screen else { return };
+        focus.vignette = focus.vignette.max(screen.vignette * level);
+        focus.radial_blur = focus.radial_blur.max(self.tuning.motion_blur.radial_blur(screen.radial_blur * level));
+        focus.grade = super::nitrous_screen::grade_for(&screen, level);
     }
 
     /// Builds this frame's focus filter and gives it to the renderer.

@@ -26,6 +26,7 @@ pub(super) fn layer_of(layer: &ManifestLayer) -> EngineLayer {
         },
         gain: layer.gain.iter().map(curve).collect(),
         pitch: layer.pitch.map(|pitch| LayerPitch { input: input(pitch.input), reference: pitch.reference }),
+        rate: layer.rate.as_ref().map(curve),
         span: layer.span,
         volume: layer.volume,
     }

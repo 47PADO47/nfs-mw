@@ -47,6 +47,16 @@ fn rise(values: &[f32]) -> f32 {
     if spread > 0.0 { cross / spread } else { 0.0 }
 }
 
+/// Whether the car's whole engine is a motor: loops with a playback-rate curve and no Ginsu voice (the Tesla Roadster).
+fn is_electric(car: &str) -> bool {
+    use nfsmw_data::car::mods::LayerKind;
+
+    nfsmw_data::car::mods::engine_sound(car).is_some_and(|sound| {
+        sound.layers.iter().all(|layer| layer.kind == LayerKind::Loop)
+            && sound.layers.iter().any(|layer| layer.rate.is_some())
+    })
+}
+
 /// The checks every converted car must pass; the failures come back as lines.
 fn check(car: &str, m: &Metrics) -> Vec<String> {
     let mut failures = Vec::new();
@@ -78,9 +88,11 @@ fn check(car: &str, m: &Metrics) -> Vec<String> {
     }
     let centroids: Vec<f32> = STEPS.iter().map(|step| m.get(&steady_key(1.0, *step, "centroid"))).collect();
     need(rise(&centroids) >= 0.0, format!("the sound gets duller with the revs ({:.2})", rise(&centroids)));
+    // An electric motor's whine is higher than an engine's, and rises with the speed: it is judged by its own limit.
+    let limit = if is_electric(car) { 4000.0 } else { 1800.0 };
     need(
-        m.get("sweep.centroid_last") <= 1800.0,
-        format!("hisses at the limiter: centroid {:.0} Hz", m.get("sweep.centroid_last")),
+        m.get("sweep.centroid_last") <= limit,
+        format!("hisses at the limiter: centroid {:.0} Hz, not at most {limit:.0}", m.get("sweep.centroid_last")),
     );
     need(
         m.get("start.sfx.peak") <= -8.0,

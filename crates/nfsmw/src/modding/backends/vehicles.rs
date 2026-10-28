@@ -1,5 +1,5 @@
-//! `bb.vehicles`: the player's car and traffic. The state is the bridge's copy of the car this frame; a move, a repair and a
-//! traffic spawn are queued as a [`WorldRequest`] and made on the scene after the mods have run. A spawn is placed on the
+//! `bb.vehicles`: the player's car and traffic. The state is the bridge's copy of the car this frame; a move, a repair, nitrous for the tank
+//! and a traffic spawn are queued as a [`WorldRequest`] and made on the scene after the mods have run. A spawn is placed on the
 //! road nearest the point; the handle it answers is the mod's id for it (the car is not tracked yet, so there is no despawn).
 
 use std::rc::Rc;
@@ -43,6 +43,10 @@ impl VehiclesBackend for VehiclesPort {
             rpm: car.rpm,
             nos: car.nos,
             damage: car.damage,
+            slip_angle: car.slip_angle,
+            steering: car.steering,
+            impact: car.impact,
+            on_ground: car.on_ground,
         })
     }
 
@@ -57,6 +61,18 @@ impl VehiclesBackend for VehiclesPort {
     fn repair(&self, _owner: &str) -> BackendResult<()> {
         self.car()?;
         self.0.world_requests.borrow_mut().push(WorldRequest::Repair);
+        Ok(())
+    }
+
+    fn add_nos(&self, _owner: &str, amount: f32) -> BackendResult<()> {
+        self.car()?;
+        self.0.world_requests.borrow_mut().push(WorldRequest::AddNos(amount));
+        Ok(())
+    }
+
+    fn set_drift_assist(&self, _owner: &str, on: bool) -> BackendResult<()> {
+        self.car()?;
+        self.0.world_requests.borrow_mut().push(WorldRequest::DriftAssist(on));
         Ok(())
     }
 

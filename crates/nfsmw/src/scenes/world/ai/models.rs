@@ -48,7 +48,12 @@ pub(super) fn folders(cars: &[String], vehicle: &str, lineage: &[String]) -> Vec
 
 /// Installed class IDs; missing fields remain explicitly unavailable.
 fn audio_profile(db: &blackbox_attrib::Database, vehicle: &str) -> crate::audio::traffic::TrafficProfile {
-    let collection = db.collection("pvehicle", &vehicle.to_ascii_lowercase());
+    // A mod traffic car has no record of its own: its class names the game's traffic car whose horn, engine and drive-by
+    // sounds it uses (`car::mods::TrafficClass::sound_record`). Nothing else is taken from that record.
+    let collection = db.collection("pvehicle", &vehicle.to_ascii_lowercase()).or_else(|| {
+        let unit = nfsmw_data::car::mods::traffic_unit(vehicle)?;
+        db.collection("pvehicle", unit.class.sound_record())
+    });
     crate::audio::traffic::TrafficProfile {
         horn: collection.as_ref().and_then(|c| c.get_u32("HornType")),
         engine: collection.as_ref().and_then(|c| c.get_u32("TrafficEngType")),

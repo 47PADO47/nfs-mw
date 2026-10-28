@@ -1,0 +1,17 @@
+[package]
+name = "chameleon-anim"
+description = "Skeletal animation of the Chameleon engine (NFS Most Wanted 2012): skeletons with their rest pose, animation clips and animation lists, a pose sampler, and the skinned character models they move."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+
+[dev-dependencies]
+chameleon-bundle.workspace = true
+
+[lints]
+workspace = true

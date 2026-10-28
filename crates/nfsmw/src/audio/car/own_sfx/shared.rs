@@ -118,6 +118,7 @@ impl SharedSfx {
         }
     }
 
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.impacts.iter().all(Vec::is_empty) && self.scrapes.is_empty()
     }

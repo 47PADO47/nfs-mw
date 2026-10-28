@@ -108,6 +108,13 @@ controller navigation. The legacy F6 widgets retain their pointer controls.
 The existing camera modes have their existing behavior; this contribution does
 not establish camera parity.
 
+A mod car whose manifest has a `[customization.plate]` also gets a collapsed **License plate** row in Appearance: a text field
+(applied on Enter or when it loses focus; the characters the car's glyph sheet draws, at most its slots) and, when the plate offers
+designs, a design chooser. Other cars show no row. The console has the same for the car being driven: `plate [TEXT|reset]` and
+`plate-design [ID|name|none|list [filter]|reset]` (`this car has no plate` otherwise). Both are session-only like the rest of F6;
+the normal garage's License Plate and Plate Design pages keep a text and a design in `plates.toml`
+([plates](modding/car-customization.md#license-plates)).
+
 Console captures can select the same identities with `parts paint <index>` and
 `parts tint <index>`; `parts` lists available choices and `stock` restores each
 category. Existing saved presets retain their original five model-part slots;

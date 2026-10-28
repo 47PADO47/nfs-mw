@@ -4,7 +4,8 @@ Where NFS: Most Wanted (2012) keeps the base stats of each of its 93 cars, and h
 [`libs/chameleon-vehicle`](../../libs/chameleon-vehicle/src/stats.rs) reads them. The containers are in
 [chameleon-bundle.md](chameleon-bundle.md), the graphics side of a car in [chameleon-vehicle.md](chameleon-vehicle.md).
 Evidence tags: **[verified]** is checked on the install (v1.4.0.0) with the Rust reader or a scratch script, **[exe]** is
-a string or table of `NFS13.exe`, **[unconfirmed]** is read off the data and not proven by code.
+a string or table of `NFS13.exe`, **[unconfirmed]** is read off the data and not proven by code. The tyre structure was
+dumped for the drift work and the numbers per car are listed in [chameleon-drift.md](chameleon-drift.md#the-sliding-physics).
 
 ## Short answer
 
@@ -171,7 +172,8 @@ nitrous burns; the strongest cars have the weakest nitrous. The tank is in `Gene
 |---|---|---|
 | Suspension (`SuspensionWheel`, `WheelSuspensionConstraint`, `…SpringConstraint`) | handling definition | values like 5, 0.09, -1.5 and 0.35, 2, 0.08, whose units are not known |
 | Steering curve (`SteeringBehaviour`, 28 floats) | handling definition | no field names |
-| Drift, donut, handbrake abilities; hard-driving assists | handling definition | gameplay layers, not base stats |
+| Donut ability; hard-driving assists | handling definition | gameplay layers, not base stats |
+| Drift physics beyond the entry and exit (`Side_force`, `Drift_scale`, most of `Other`), the handbrake's other numbers | handling definition | meaning not known; the ones read are in [chameleon-drift.md](chameleon-drift.md#the-sliding-physics) |
 | Tyre slip factors and the other grip curves | `Tyre` | meaning of the curves |
 | Rigid-body inertia, damping | physical definition | the mod uses the engine's own |
 | Upgrades (`PerformanceUpgrades`, 8,304 bytes, 192 imports in the Porsche's bundle; `VehicleCategoryInfo`) | handling definition, `VEHICLELIST.BNDL` | the shop of this game builds its steps from the car's own stats instead |
@@ -207,9 +209,10 @@ Genesys handling objects was not found or read**: the layout above is from the d
 | `front_tire_grip`, `rear_tire_grip` | the peak of the long-grip curves |
 | `front_brake_torque_nm`, `rear_brake_torque_nm` | `BrakeBehaviour` |
 | `nitrous`, `nitrous_boost` | strength - 1 |
+| `drift_enter_speed_ms`, `drift_enter_angle_deg`, `drift_exit_angle_deg`, `drift_max_angle_deg`, `drift_yaw_torque_nm` | `DriftBehaviour` (`Drift_trigger`, `Drift_exit`, `Other +0x18`, `Yaw_torque +0x24`); inert unless a mod turns the drift assist on ([chameleon-drift.md](chameleon-drift.md#the-sliding-physics)) |
 
 Left out, so the game's generic values apply: springs and dampers (derived from the mass on each wheel), steering, downforce,
-the handbrake, gear efficiency and engine braking.
+the handbrake (its torque is read, `HandbrakeAbility +0x10`, but not written: it would change a car with the drift setting off), gear efficiency and engine braking.
 
 ## Checks
 

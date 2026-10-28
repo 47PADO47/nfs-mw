@@ -35,9 +35,20 @@ A police vehicle has two `VehicleVfxBehaviour` objects: its ordinary lamp record
 [chameleon-lamps.md](chameleon-lamps.md)) and the siren records, `<Car>_Cop_Coronas`. The Charger's holds 8 coronas, each on
 its own locator group, all on **state bit 3** (the vehicle's second switch, bit 3 of the light-state word), mode 0, colour
 factor (1, 1, 1, 1); the SWAT van's second object holds 8 more on bit 3. The colour of a light is in the referenced `Corona`
-object, not in the record. The siren lamps are therefore the bit-3 coronas of the second object **[verified]**; which are red
-and which blue was not read **[unconfirmed]**. The converter does not use them yet, so a converted police car has no light bar
-([cop-cars.md](../modding/cop-cars.md#what-is-not-done)).
+object, not in the record. The siren lamps are therefore the bit-3 coronas of the second object **[verified]**; each also names a
+flash pattern, and the objects' glow colours say which lamps are red and which blue (the Charger: three blue, three red and two
+small strobes of both colours; counts per car, the patterns and the colours are in [chameleon-corona.md](chameleon-corona.md#flash-patterns-verified)).
+The converter turns them into the `[[light_bar]]` of a converted police car ([cop-cars.md](../modding/cop-cars.md#the-light-bar)).
+
+## The driver of a police car [verified, exe]
+
+The five police bundles' `Vehicle_DriverSetup` objects name the civilian character 0x3D8E like the other cars, but the game seats
+the **police officer**, character 0x3D8D of `CHARACTERS/ALL_CHARS.BNDL` (a uniform, two badges and a tie on its texture; the only
+character no setup names). It picks him from a byte at +0x8E of the vehicle object that references the setup, which is 1 in exactly
+these five bundles and 0 in the other 88. One officer for every police car, the SWAT van too; the officer shares the civilians'
+skeleton and animation list, so the converted cars pose him like any driver. Details, offsets and the executable's choice:
+[chameleon-vehicle.md](chameleon-vehicle.md#the-officer). The converter's reader (`chameleon_vehicle::driver_setup`) applies it.
+The Explorer's body also bakes a low-polygon copy of him.
 
 ## The role table of the game's logic [verified, meaning unconfirmed]
 
@@ -58,7 +69,7 @@ which matches the bundle marks.
   select screen of the 2012 game has pictures per cop tier and per racer tier (`UI/IMAGES/CARSELECT/COPTIER<n>.BNDL` and
   `RACERTIER<n>`, from `FUN_006579a0`) **[exe]**.
 - **Which levels a vehicle appears at.** Nothing decoded ties a police vehicle to a heat level, so the mod's waves are a
-  design ([nfsmw-2012-content.md](../modding/nfsmw-2012-content.md#police-cars)).
+  design ([mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md#police-cars)).
 - **The car-select cop mode.** `CarSelectViewModel.IsCopCarSelect` and the online `VEHICLE_TYPE_COP` exist **[exe]**; the
   police vehicles are probably what the player drives in its Interceptor game mode **[unconfirmed]**. The 2005 game has no such mode, so the
   converted police cars are `role = "cop"` by default and `role = "both"` is a setting.

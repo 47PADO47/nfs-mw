@@ -35,6 +35,25 @@ impl WorldScene {
         self.nitrous_fx = fx;
     }
 
+    /// The effect variants the player chose (`docs/modding/effect-variants.md`), given every frame: the nitrous as it always was,
+    /// the tire smoke takes its profile and loads its pictures at the next frame (`maintain_tire_smoke`). `None` is the game's
+    /// own, and nothing here changes then. Another kind of variant adds its own lines here, and a field of the scene when a car
+    /// spawned later has to get it too.
+    pub(super) fn scene_set_effect_variants(&mut self, variants: &crate::effect_variants::EffectVariants) {
+        self.scene_set_nitrous_fx(variants.nitrous.clone());
+        self.tire_smoke_variant = variants.tire_smoke.clone();
+        self.wind_fx = variants.wind.clone();
+        if let Some(drive) = self.players.lead_mut() {
+            drive.effects.set_variant(variants.tire_smoke.clone());
+            drive.vehicle_effects.set_spark_variant(variants.xenon_sparks.clone());
+        }
+        // Each spark variant plays in its own spark style: the collision sparks replace the install's particle groups of the
+        // Original PC style, the restored sparks (given to the car above) the line sparks of the Restored style. The other style
+        // keeps the install's.
+        let original = self.spark_style == crate::settings::SparkStyle::OriginalPc;
+        self.impact_fx.set_variant(variants.collision_sparks.clone().filter(|_| original));
+    }
+
     pub(super) fn scene_set_exhaust_flames(&mut self, on: bool) {
         self.exhaust_flames = on;
         if let Some(drive) = self.players.lead_mut() {

@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use blackbox_gfx::{Instance, MeshHandle, RenderBackend, Shading};
 use blackbox_scene::upload_solid;
 use glam::{Mat4, Quat, Vec3};
+use nfsmw_data::car::mods::driver_poses as poses;
 use nfsmw_data::car::mods::hinged::{self, Hinge, Pose};
 use nfsmw_data::car::{CarModel, TextureSwaps, WheelPose};
 
@@ -59,7 +60,8 @@ impl CarPose {
 /// One uploaded part: which placement of the model it is.
 struct Part {
     mesh: MeshHandle,
-    lamps: [MeshHandle; 4],
+    /// The part for each lamp state: headlights (bit 0), brake (bit 1), reverse gear (bit 2).
+    lamps: [MeshHandle; 8],
     placement: nfsmw_data::car::Placement,
     key: usize,
     lod: usize,
@@ -99,6 +101,8 @@ pub struct CarRig {
     glass: RefCell<std::collections::BTreeMap<SurfaceDamage, glass::GlassVariant>>,
     /// The hinged parts of a mod car, which turn or fall off as its zones are damaged.
     hinges: Option<std::sync::Arc<Vec<Hinge>>>,
+    /// How many steering poses of the driver a mod car ships, and whether it has the look back (`driver_poses`).
+    driver_poses: (usize, bool),
 }
 
 impl CarRig {
@@ -147,6 +151,7 @@ impl CarRig {
         let (parts, meshes, materials) = upload_parts(renderer, &model, &swaps, shading, to_sun, background_actor);
         let lights = CarLights::for_model(&model);
         let hinges = nfsmw_data::car::mods::hinged::of(&model.name);
+        let driver_poses = (poses::steer_count(&model.placements), poses::has_back(&model.placements));
         let flares = super::super::car_light_flares::CarLightFlares::upload(renderer, &model);
         Self {
             background_actor,
@@ -159,6 +164,7 @@ impl CarRig {
             scale: 1.0,
             glass: RefCell::default(),
             hinges,
+            driver_poses,
         }
     }
 
@@ -280,7 +286,8 @@ impl CarRig {
         draw: super::DrawOptions<'_>,
         out: &mut Vec<Instance>,
     ) {
-        let super::DrawOptions { car, lamps, detail, glass, broken_lights, damage } = draw;
+        let super::DrawOptions { car, lamps, reverse, detail, glass, broken_lights, damage, steering } = draw;
+        let driver_pose = poses::slot_for(steering, reverse, self.driver_poses.0, self.driver_poses.1);
         let damage_slots = damage
             .filter(|_| self.model.driving_lods.damage.enabled)
             .map_or(0, nfsmw_data::car::damage_parts::damaged_slots);
@@ -293,7 +300,7 @@ impl CarRig {
                 car == keys::PLAYER_CAR,
             )
         });
-        let state = usize::from(lamps[0]) | (usize::from(lamps[1]) << 1);
+        let state = usize::from(lamps[0]) | (usize::from(lamps[1]) << 1) | (usize::from(reverse) << 2);
         let world = pose.transform() * Mat4::from_scale(Vec3::splat(self.scale));
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
@@ -317,6 +324,10 @@ impl CarRig {
             if hidden.is_some_and(|hidden| hidden.contains(&placement.slot)) {
                 continue;
             }
+            // A posed driver: only the pose the steering is nearest to is drawn.
+            if poses::is_pose(placement.slot) && driver_pose != Some(placement.slot) {
+                continue;
+            }
             if nfsmw_data::car::damage::is_corner_overlay(placement.slot) && !revealed.contains(&placement.slot) {
                 continue;
             }
@@ -330,7 +341,8 @@ impl CarRig {
             let local = match self.hinge_pose(placement.slot, revealed) {
                 Some((_, Pose::Gone, _)) => continue,
                 Some((hinge, Pose::Turned(degrees), amount)) => {
-                    hinge.transform_with(degrees, amount, hinged::Blend::from_marks(revealed).as_ref()) * local
+                    let moved = hinge.transform_with(degrees, amount, hinged::Blend::from_marks(revealed).as_ref());
+                    moved * hinge.steered(steering) * local
                 }
                 None => local,
             };

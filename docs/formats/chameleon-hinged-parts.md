@@ -22,10 +22,11 @@ on the ground between the wheels.
   to a bone below it in the skeleton, are the part **[verified]**: the 911's bonnet is 418 triangles of the finest level,
   its front bumper 4,912, mirrors 709 each, rear bumper 3,090, doors 1,136 and 1,146.
 - The ranges are small: bonnet -15 to 0 degrees, bumpers 2 to 5, mirrors -15 to 15, doors -1 to 1. A part swings a little on
-  its hinge; **nothing in the data detaches a part** **[unconfirmed: no field was found that does]**.
-- The same skeleton and skin carry the 2012 body's **crumple**: the behaviour imports a 19,504-byte `AnimationList` of 8
-  animations over the 37 bones, one per damage zone **[unconfirmed]**. That is a deformation by bones, not by mesh swaps,
-  and it is not read by this repo.
+  its hinge; no field of the `Bodypart` detaches it.
+- The same skeleton and skin carry the 2012 body's **crumple and breakage**: the behaviour imports an `AnimationList` of 8 clips over the
+  bones, one per damage zone, with a turn, a slide and a "broken" scalar per bone and 21 keys over the zone's damage. Pieces (bumpers,
+  mirrors, glass, lamps) go at damage fractions fixed by the clips. That is a deformation by bones, not by mesh swaps:
+  [chameleon-damage.md](chameleon-damage.md) **[verified]**, read by `damage_clips`.
 
 ## `Bodypart` (`Genesys.Gen.VehicleDamageBehaviour.Bodypart`, 192 bytes)
 
@@ -46,7 +47,8 @@ u16 at +0x30, 7 on the 911), then one `DamageThreshold` (24 bytes) per ladder st
 | +0xB0 | u16 | the zone code (below) | **[verified]** by the headlight hinges |
 | +0xB2 | u16 | the number of thresholds | **[verified]** |
 
-A `DamageThreshold` has an object id at +0x0C (0 on the 911) and an f32 at +0x10, a damage fraction from 0 to 1. The 911's
+A `DamageThreshold` has an object id at +0x0C (0 on the 911), an f32 at +0x10, a damage fraction from 0 to 1, and a second f32 at +0x14, a
+fraction from 0 to 1 too (`HingedPart::targets`; see [chameleon-damage.md](chameleon-damage.md#the-ladders-bodypartdamagethreshold)). The 911's
 ladders: bonnet 0.04, 0.05, 0.5; front and rear bumper 0.04, 0.05, 0.5, 0.75; mirrors 0.0, 0.09, 0.1, 0.19, 0.2; doors 0.4,
 1.0. What a step does is not decoded: a part with more steps has more states, and the last one is the most damaged
 **[unconfirmed]**.
@@ -125,7 +127,7 @@ The 911 has no `BootHinge` (its engine is behind). Each car lists only the parts
 - `chameleon_vehicle::hinged_parts(bundle)` reads the parts (name, bone, zone, centre, ranges, mass, ladder);
   `Skeleton::read` the bones; `body_parts(pool, spec, skeleton, parts)` the triangle classes of every level of the body,
   aligned with `Vehicle::body`.
-- The 2012 content mod ([nfsmw-2012-content.md](../modding/nfsmw-2012-content.md#hinged-parts)) cuts those triangles out of
+- The 2012 content mod ([mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md#hinged-parts)) cuts those triangles out of
   the finest body solid into one solid per part and writes a `[[damage_parts]]` table per part
   ([car-damage-parts.md](../modding/car-damage-parts.md)). It condenses the three ranges into the one largest swing (the
   axis and end with the largest magnitude) and keeps the ladder as the stages.
@@ -142,9 +144,8 @@ the spoiler's triangles, and the animation of the spoiler state machine moves it
   family is `Rear_Bumper_Hinge` at 0x00fae80c **[exe]**, and the table that registers the damage types (hash and type id
   pairs, 0x00f95bbc to 0x00f95be0) has no code reference, so no function that reads a `Bodypart` was found. The meaning of
   the ranges (degrees, per axis), the three triples and the ladder is inferred.
-- Whether a part ever **detaches** in the 2012 game, and what each ladder step does. The repo makes its 2012 parts fall off by
-  its own rule ([car-damage-parts.md](../modding/car-damage-parts.md#falling-off)): the last step of the ladder, not before
-  half the damage, or a wreck.
-- The 8 damage animations of the `AnimationList` (0x0C4DA5 on the 911), the `DamageSequence` effects (one `Handle` per zone)
-  and the `SpotEffect` list (empty on the 911).
+- Whether a part ever **detaches** in the 2012 game, and what each ladder step does. The repo makes its 2012 parts fall off where
+  their zone's damage clip breaks their piece ([chameleon-damage.md](chameleon-damage.md)), or never when it does not
+  ([car-damage-parts.md](../modding/car-damage-parts.md#falling-off)).
+- The `DamageSequence` effects (one `Handle` per zone) and the `SpotEffect` list: empty on all 93 cars.
 - Coarser body levels: no skin, so no part can be cut from them.

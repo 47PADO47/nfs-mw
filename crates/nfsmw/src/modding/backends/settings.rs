@@ -18,13 +18,15 @@ use blackbox_modding::host::{
 use toml::Value;
 
 use super::bridge::Bridge;
+use super::variants::KINDS;
 
 /// The owner the game keeps its own saved values under (also the mod theme choice, `ui.rs`).
 const STORE_OWNER: &str = "nfsmw";
 
-/// The id of the nitrous variant option.
+/// The id of the nitrous variant option (the tests name it; the game goes through `variants::KINDS`).
+#[cfg(test)]
 pub const NITROUS_VARIANT: &str = "nitrous_variant";
-/// The value id of the 2005 game's own nitrous effects: the only value the game itself provides.
+/// The value id of the 2005 game's own effect: the only value of an effect variant option that the game itself provides.
 pub const ORIGINAL: &str = "original";
 
 /// The `bb.settings` port of the game: one per mod table, sharing the bridge.
@@ -38,16 +40,14 @@ pub struct OptionHandler {
     pub on_change: Rc<SettingHandler>,
 }
 
-/// The options the game has before any mod is loaded. The nitrous variant is the game's own list with its one value.
+/// The options the game has before any mod is loaded. The variant of each kind of effect is the game's own list with its one
+/// value, "Original" (`variants::KINDS`).
 pub fn builtin() -> Vec<OptionDef> {
-    let nitrous = OptionDef::game_list(
-        NITROUS_VARIANT,
-        "options-nitrous-variant",
-        &[(ORIGINAL, "options-nitrous-variant-original")],
-    );
+    let variants =
+        KINDS.iter().map(|kind| OptionDef::game_list(kind.variant.option, kind.label, &[(ORIGINAL, kind.original)]));
     let lists = ["hud_layout", "ui_style", "ui_theme", "speed_units", "minimap", "language"];
     let toggles = ["rear_view_mirror", "turn_signals", "cop_health_bars"];
-    let mut options = vec![nitrous];
+    let mut options: Vec<OptionDef> = variants.collect();
     options.extend(lists.iter().map(|id| OptionDef::fixed(id, OptionKind::List)));
     options.extend(toggles.iter().map(|id| OptionDef::fixed(id, OptionKind::Toggle)));
     options
@@ -118,18 +118,10 @@ pub fn chosen(bridge: &Bridge, option: &str) -> Option<String> {
     Some(value)
 }
 
-/// The nitrous variant in effect: the chosen value, and the mod that provides it (`None` for the game's own "Original").
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VariantChoice {
-    pub value: String,
-    pub owner: Option<String>,
-}
-
-/// The nitrous variant the player chose. Without a mod that adds one, it is always the original.
-pub fn nitrous_variant(bridge: &Bridge) -> VariantChoice {
-    let value = chosen(bridge, NITROUS_VARIANT).unwrap_or_else(|| ORIGINAL.to_owned());
-    let owner = bridge.options.borrow().value_owner(NITROUS_VARIANT, &value).map(str::to_owned);
-    VariantChoice { value, owner }
+/// The nitrous variant the player chose, as the tests ask for it.
+#[cfg(test)]
+pub fn nitrous_variant(bridge: &Bridge) -> super::variants::VariantChoice {
+    super::variants::choice(bridge, &super::variants::NITROUS_KIND)
 }
 
 /// An option as the Gameplay page shows it.

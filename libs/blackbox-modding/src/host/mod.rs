@@ -59,3 +59,5 @@ pub use table::{
     MenuRowSpec, MenusBackend, MessageStyle, SettingHandler, SettingsBackend, TimeBackend, UiBackend, UiPrim, UiRect,
     UiThemeSpec, UiTokens, VehicleState, VehiclesBackend, ViewHandlers, ViewInput, ViewPose, ViewSpec, WorldBackend,
 };
+pub use table::{EngineBackend, EnginePhase, EngineState};
+pub use table::{TrafficBackend, TrafficCarInfo};

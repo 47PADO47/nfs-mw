@@ -240,6 +240,10 @@ fn load_with(
     let mut driving_lods = DrivingLods { traffic: car_type.usage_type == 2, levels: extra, damage, damage_fx };
     // A mod car's hinged parts are solids of its own that its body does not hold (docs/modding/car-damage-parts.md).
     mods::hinged::add(car, lod, &pool, &mut placements, &mut driving_lods.levels);
+    // ... and its driver posed for the steering and the reverse gear, when it ships them (docs/modding/car-customization.md).
+    if driver {
+        mods::driver_poses::add(car, lod, &pool, &mut placements, &mut driving_lods.levels);
+    }
     let used: HashSet<u32> = placements
         .iter()
         .chain(driving_lods.levels.iter().chain(&driving_lods.damage.levels).flat_map(|l| &l.placements))

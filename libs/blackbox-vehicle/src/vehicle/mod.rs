@@ -6,6 +6,7 @@ mod burnout;
 mod coasting;
 mod contact;
 mod drift;
+mod drift_assist;
 mod drive_assists;
 mod example;
 mod integration;
@@ -27,6 +28,7 @@ mod wheels;
 #[cfg(test)]
 mod tests;
 
+pub use drift_assist::DriftTuning;
 pub use jump::{
     AlignmentConfig, GroundReference, JumpConfig, JumpForces, JumpInput, JumpState, LandingConfig, PassiveConfig,
 };
@@ -99,6 +101,7 @@ pub struct Vehicle {
     yaw_control: f32,
     burnout: burnout::Burnout,
     drift: drift::Drift,
+    assist: drift_assist::Assist,
     body_slip: f32,
     collided: bool,
     time: f32,
@@ -168,6 +171,7 @@ impl Vehicle {
             yaw_control: 1.0,
             burnout: burnout::Burnout::default(),
             drift: drift::Drift::default(),
+            assist: Default::default(),
             body_slip: 0.0,
             collided: false,
             time: 0.0,
@@ -263,6 +267,7 @@ impl Vehicle {
         self.yaw_control = 1.0;
         self.burnout = burnout::Burnout::default();
         self.drift = drift::Drift::default();
+        self.assist.reset();
         self.body_slip = 0.0;
         self.collided = false;
     }
@@ -348,6 +353,17 @@ impl Vehicle {
     /// Fill the installed nitrous tank without changing its performance specification.
     pub fn refill_nitrous(&mut self) {
         self.powertrain.nos.capacity = 1.0;
+    }
+
+    /// Add `amount` of a full tank to the nitrous, up to a full tank, for a game rule that pays nitrous (a drift, a near miss).
+    /// A car with no nitrous system keeps none. Returns whether the car took it: it has a tank and `amount` is above zero.
+    pub fn add_nitrous(&mut self, amount: f32) -> bool {
+        if !self.powertrain.has_nos() || !amount.is_finite() || amount <= 0.0 {
+            return false;
+        }
+        let nos = &mut self.powertrain.nos;
+        nos.capacity = (nos.capacity + amount).min(1.0);
+        true
     }
 
     /// Nitrous tank level 0..1.
@@ -436,5 +452,11 @@ impl Vehicle {
     /// Shifts to `gear` (gear id: 0 reverse, 1 neutral, 2 first, ...), for manual control.
     pub fn shift_to(&mut self, gear: usize) -> bool {
         self.powertrain.shift(gear)
+    }
+
+    /// Holds the gearbox in neutral, or lets it go (`Powertrain::set_neutral_hold`): while held, no gear request and no
+    /// automatic reverse is taken.
+    pub fn set_neutral_hold(&mut self, on: bool) {
+        self.powertrain.set_neutral_hold(on);
     }
 }

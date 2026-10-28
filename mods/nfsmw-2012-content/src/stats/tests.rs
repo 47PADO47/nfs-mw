@@ -138,6 +138,29 @@ fn numbers_are_written_with_a_decimal_point_and_without_noise() {
     assert_eq!(number(304.1), "304.1");
 }
 
+#[test]
+fn the_gears_of_a_table_are_valid_whatever_the_bundle_holds() {
+    assert_eq!(valid_gears(&[3.91, 2.29, 1.55, 1.0, 0.71]), vec![3.91, 2.29, 1.55, 1.0, 0.71], "a good list is kept");
+    assert_eq!(valid_gears(&[3.0, 3.0, 2.0]), vec![3.0, 2.0], "a repeated ratio is left out");
+    assert_eq!(valid_gears(&[3.0, 3.5, 2.0, 2.5, 1.0]), vec![3.0, 2.0, 1.0], "a gear that rises is left out");
+    assert_eq!(
+        valid_gears(&[0.0, 3.0, f32::NAN, -2.0, 11.0, 1.0]),
+        vec![3.0, 1.0],
+        "zero, negative, odd and huge ratios"
+    );
+    let twelve: Vec<f32> = (0..12).map(|n| 4.0 - 0.25 * n as f32).collect();
+    assert_eq!(valid_gears(&twelve).len(), MAX_GEARS, "the game takes ten gears at most");
+    assert!(valid_gears(&[]).is_empty() && valid_gears(&[0.0]).is_empty());
+}
+
+#[test]
+fn a_car_always_has_forward_gears_that_fall_and_a_reverse() {
+    let stats = ImportedStats::of(&porsche());
+    assert!(!stats.gear_ratios.is_empty() && stats.gear_ratios.windows(2).all(|pair| pair[1] < pair[0]));
+    assert!(stats.gear_ratios.iter().all(|ratio| (GEAR_RATIO.0..=GEAR_RATIO.1).contains(ratio)));
+    assert!((RATIO.0..=RATIO.1).contains(&stats.reverse_ratio) && (RATIO.0..=RATIO.1).contains(&stats.final_drive));
+}
+
 /// Every car of the real install converts to a manifest the game accepts (set `CHAMELEON_GAME_DIR`).
 #[test]
 #[ignore = "reads the 2012 install (CHAMELEON_GAME_DIR)"]

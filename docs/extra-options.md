@@ -71,3 +71,13 @@ The console shares this state: `extra camera` / `extra testing` lists values;
 `extra camera auto_center off` saves a preference, while
 `extra testing traffic_off on` applies a session override. Unknown keys and
 invalid values are rejected. `extra clear` restores the normal testing state.
+
+## Spark variants from mods
+
+The collision sparks and the restored (Xenon) sparks have the same kind of mod variant as the nitrous and the tire smoke: a
+**Collision spark variant** and a **Restored spark variant (sparks only)** row in the Gameplay options, shown only when a mod adds
+a value (the 2012 content mod adds **NFS Most Wanted 2012**). They are not Extra options and are saved as
+`option_collision_spark_variant` and `option_xenon_spark_variant` under `[mod_values.nfsmw]`. The `[xenon_effects]` tuning of
+[vehicle-effects.md](vehicle-effects.md#tuning-config-file-only) still applies to the restored variant (`spark_intensity`,
+`max_sparks`); the wind contrail and speed streaks are not part of any variant. See
+[effect-variants-sparks-xenon.md](modding/effect-variants-sparks-xenon.md).

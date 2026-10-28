@@ -79,6 +79,9 @@ pub struct Stats {
     pub nitrous: bool,
     pub nitrous_boost: f32,
     pub nitrous_seconds: f32,
+    /// How the car drifts while the drift assist is on (a mod turns it on, `bb.vehicles` 1.2). The assist is off in the
+    /// game by default, so these keys change nothing until a mod asks for it.
+    pub drift: DriftStats,
 }
 
 impl Default for Stats {
@@ -128,9 +131,13 @@ impl Default for Stats {
             nitrous: false,
             nitrous_boost: 0.5,
             nitrous_seconds: 5.0,
+            drift: DriftStats::default(),
         }
     }
 }
+
+/// The drift assist's numbers of a car, in the units of the manifest.
+pub use blackbox_vehicle::stats::DriftStats;
 
 /// The table as serde reads it. Unknown keys are an error, like everywhere in a car manifest.
 #[derive(Deserialize, Default)]
@@ -176,6 +183,11 @@ pub(super) struct Raw {
     nitrous: Option<bool>,
     nitrous_boost: Option<f32>,
     nitrous_seconds: Option<f32>,
+    drift_enter_speed_ms: Option<f32>,
+    drift_enter_angle_deg: Option<f32>,
+    drift_exit_angle_deg: Option<f32>,
+    drift_max_angle_deg: Option<f32>,
+    drift_yaw_torque_nm: Option<f32>,
 }
 
 #[derive(Deserialize, Clone, Copy)]
@@ -203,6 +215,7 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Stats, ContentError> {
     let Some(raw) = raw else { return Ok(Stats::default()) };
     let d = Stats::default();
     let r = ranged;
+    let drift = drift(&raw, d.drift)?;
     let stats = Stats {
         mass_kg: r(raw.mass_kg, d.mass_kg, "stats.mass_kg", 200.0, 40_000.0)?,
         front_weight_pct: r(raw.front_weight_pct, d.front_weight_pct, "stats.front_weight_pct", 20.0, 80.0)?,
@@ -268,9 +281,29 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Stats, ContentError> {
         nitrous: raw.nitrous.unwrap_or(d.nitrous),
         nitrous_boost: r(raw.nitrous_boost, d.nitrous_boost, "stats.nitrous_boost", 0.0, 3.0)?,
         nitrous_seconds: r(raw.nitrous_seconds, d.nitrous_seconds, "stats.nitrous_seconds", 0.5, 30.0)?,
+        drift,
     };
     relations(&stats)?;
     Ok(stats)
+}
+
+/// The drift keys: a speed, three angles and a torque, each inside its range, the exit angle under the enter angle.
+fn drift(raw: &Raw, d: DriftStats) -> Result<DriftStats, ContentError> {
+    let r = ranged;
+    let drift = DriftStats {
+        enter_speed: r(raw.drift_enter_speed_ms, d.enter_speed, "stats.drift_enter_speed_ms", 2.0, 60.0)?,
+        enter_angle_deg: r(raw.drift_enter_angle_deg, d.enter_angle_deg, "stats.drift_enter_angle_deg", 2.0, 30.0)?,
+        exit_angle_deg: r(raw.drift_exit_angle_deg, d.exit_angle_deg, "stats.drift_exit_angle_deg", 1.0, 20.0)?,
+        max_angle_deg: r(raw.drift_max_angle_deg, d.max_angle_deg, "stats.drift_max_angle_deg", 10.0, 70.0)?,
+        yaw_torque_nm: r(raw.drift_yaw_torque_nm, d.yaw_torque_nm, "stats.drift_yaw_torque_nm", 0.0, 200_000.0)?,
+    };
+    if drift.exit_angle_deg >= drift.enter_angle_deg {
+        return Err(ContentError::Field {
+            field: "stats.drift_exit_angle_deg",
+            reason: "the exit angle is under the enter angle",
+        });
+    }
+    Ok(drift)
 }
 
 /// The torque curve: 2 to 16 points, rpm rising, torque from 0 to 6000 N m, some torque above 0.
@@ -364,6 +397,7 @@ impl From<&Stats> for blackbox_vehicle::stats::CarStats {
             nitrous: stats.nitrous,
             nitrous_boost: stats.nitrous_boost,
             nitrous_seconds: stats.nitrous_seconds,
+            drift: stats.drift,
         }
     }
 }

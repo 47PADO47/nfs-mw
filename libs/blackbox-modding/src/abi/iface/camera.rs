@@ -83,7 +83,7 @@ pub struct BbCameraInput {
     pub grounded: u32,
     /// Padding, zero.
     pub pad: u32,
-    /// The car's body origin, metres.
+    /// The origin of the car model (on the ground between the axles), metres.
     pub position: BbVec3,
     /// The car's forward axis, unit length.
     pub forward: BbVec3,

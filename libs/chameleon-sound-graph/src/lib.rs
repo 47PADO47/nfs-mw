@@ -11,13 +11,23 @@ mod curve;
 mod ginsu;
 mod graphs;
 mod sequence;
+mod speed_sounds;
 mod value;
+mod wind;
 
 pub use curve::{Curve, Point};
 pub use ginsu::GinsuResource;
-pub use graphs::{SoundGraphs, ginsu_resource};
+pub use graphs::{Group, SoundGraphs, ginsu_resource};
 pub use sequence::{GinsuItem, Item, ItemKind, MixerItem, Sequence, WaveItem};
+pub use speed_sounds::{FlybyLayer, SpeedSoundSet, WindLayer, WorldLayer};
 pub use value::{Fade, Modulator};
+pub use wind::PLAYER_SPEED;
 
 #[cfg(test)]
+mod dump_tests;
+#[cfg(test)]
 mod real_tests;
+#[cfg(test)]
+mod speed_dump_tests;
+#[cfg(test)]
+mod speed_real_tests;

@@ -2,8 +2,9 @@
 
 Part of the [modding catalogue](README.md). A car a mod adds ([api-content.md](api-content.md#cars)) lights its own lamps:
 the flares of its head and brake lamps and the lit or unlit look of its lamp surfaces come from its own files. Nothing is
-taken from a stock car, and a mod car needs no `ecar` record. There is no manifest table for lamps: the contract is
-**markers on the body solid** and **placeholder textures**, the same two things the game's own cars use.
+taken from a stock car, and a mod car needs no `ecar` record. By default the contract is **markers on the body solid** and
+**placeholder textures**, the same two things the game's own cars use; a car that wants its own flare sprites, sizes and colours
+adds `[[lamp_flare]]` tables ([below](#lamp-flares-and-glows)).
 
 ## Lamp markers
 
@@ -27,30 +28,78 @@ of the lamp, brightest straight on) and its x axis points up, as on the game's o
   ([vehicle-lamp-damage.md](../specs/vehicle-lamp-damage.md)). Two markers of one name at different places are two lamps
   (a cluster); closer than 1 cm they are one.
 - The flares use the game-wide flare profiles (`light_flares_cg` of the gameplay database: size, colour, texture), the same
-  for every car. A mod car cannot change the colour or size of its flares; it chooses where they are and which way they face.
+  for every car. A mod car with no `[[lamp_flare]]` table cannot change the colour or size of its flares; it chooses where they are and
+  which way they face. With the table it gives them itself ([below](#lamp-flares-and-glows)).
 - Turn signals are drawn by the game from the head and brake lamp markers, when the `turn_signals` setting is on; a car
   needs no marker for them.
 - A car with none of these markers has no flares. It still drives and shows its lamp surfaces.
 
+## Lamp flares and glows
+
+A car can describe its own flares instead of using the game's shared profiles, with `[[lamp_flare]]` tables in its manifest
+(`libs/blackbox-modding/src/content/lamp_flares.rs`). A flare is one sprite at one place that shows while its lamp is lit:
+
+```toml
+[[lamp_flare]]
+state = "brake"                  # head, tail, brake, reverse or always
+side = "left"                    # left, right or centre (default): which lamp a damage bit puts out
+sprite = "MYCAR_FLARE0"          # a texture of the car's own TEXTURES.BIN, drawn additively
+position = [-2.0, 0.6, 0.75]     # the car's space: +x forward, +y left, +z up, metres
+direction = [-1.0, 0.0, 0.0]     # the way the lamp shines (any length but zero)
+colour = [1.0, 0.1, 0.05]        # the sprite's tint, 0 to 1 (default white)
+alpha = [0.4, 1.0]               # the brightness at the near and the far distance of `range` (0 to 4; default 1, 1)
+radius = [0.15, 0.6]             # the sprite's radius in metres at the near and the far distance (0 to 50)
+range = [8.0, 100.0]             # the two distances, metres (default 2 and 100); between them the values change in a line
+falloff = 1.0                    # the exponent of the cosine of the angle off the axis the brightness is multiplied by (0 to 16;
+                                 # 0: full brightness at every angle in front of the lamp; default 1)
+z_bias = 0.0                     # metres towards the eye (0 to 2)
+```
+
+- **When it is lit.** `head`: the headlights are on. `tail`: with the headlights (the rear lamps). `brake`: the brake is held.
+  `reverse`: the car reverses. `always`. A lamp whose damage bit is set is out: left head 1, right head 2, centre head 4, left
+  brake or tail 8, right 16, centre 32, left reverse 64, right 128 (a centre reverse lamp has none), the same bits the markers have.
+- **What replaces what.** A car that gives flares of a kind (`head`, `tail` or `brake`, `reverse`) is not drawn with the game's
+  profile flares at the markers of that kind; the other kinds keep theirs. A car with no `[[lamp_flare]]` is unchanged. The markers
+  still name the lamps for damage and the lamp surfaces.
+- **Size and distance.** A sprite is a camera-facing square whose half side is `radius`, interpolated between the near and far
+  distance of `range` (the ends hold beyond); it is not drawn at 400 m or more, from behind the lamp (the cosine of the angle off its axis is not positive) or within
+  0.3 m of the camera plane. Up to 96 flares a car; the sprite names are checked to be a texture name, not that the car has it:
+  a flare whose texture the car lacks is not drawn.
+- **Pictures.** Additive: the sprite's colour is the light, black is nothing. The game's own `HEADLIGHTFLAREINNER`, `OUTER` and
+  `HEADLIGHTGLOW` are in the shared pack the car does not search; give the car its own.
+
+Code: `crates/nfsmw/src/scenes/world/car_light_flares/mod_lamps.rs` (the drawing), `crates/nfsmw-data/src/car/mods/lamp_flares.rs`
+(what the game keeps), `crates/nfsmw/src/modding/content/lamp_flares.rs` (manifest to game).
+
+The siren lamps of a police car are `[[light_bar]]` tables, the same look plus a flash pattern:
+[cop-cars.md](cop-cars.md#the-light-bar).
+
 ## Lamp surfaces
 
 A lamp's surface changes with its state through placeholder textures. A group of a solid whose diffuse texture is named
-`HEADLIGHT_LEFT`, `HEADLIGHT_RIGHT`, `BRAKELIGHT_LEFT`, `BRAKELIGHT_RIGHT` or `BRAKELIGHT_CENTRE` is drawn with the car's
-own texture for the lamp's state, found by name in the car's `TEXTURES.BIN`:
+`HEADLIGHT_LEFT`, `HEADLIGHT_RIGHT`, `BRAKELIGHT_LEFT`, `_RIGHT`, `_CENTRE`, `TAILLIGHT_LEFT`, `_RIGHT`, `_CENTRE` or
+`REVERSELIGHT_LEFT`, `_RIGHT`, `_CENTRE` is drawn with the car's own texture for the lamp's state, found by name in the
+car's `TEXTURES.BIN`:
 
 | Texture | Is drawn when |
 |---|---|
 | `<ID>_KIT00_HEADLIGHT_ON`, `<ID>_KIT00_HEADLIGHT_OFF` | the head lamps are on, off (a car starts with them on) |
 | `<ID>_KIT00_BRAKELIGHT_ON`, `<ID>_KIT00_BRAKELIGHT_OFF` | the brake is held, not held (starts off) |
+| `<ID>_KIT00_TAILLIGHT_ON`, `<ID>_KIT00_TAILLIGHT_OFF` | the head lamps are on, off (starts on): the tail lamps burn with them |
+| `<ID>_KIT00_REVERSELIGHT_ON`, `<ID>_KIT00_REVERSELIGHT_OFF` | the gear is reverse, not (starts off) |
 
-A state whose texture the car does not have keeps the other one. A broken brake lamp stays dark while the others light up.
-`<ID>` is the car's folder in upper case. The two states of the head lamps and of the brake lamps are shared by all their
-placeholders, so the left and right lamps of one kind look the same. Every placeholder group should use a light material
-that shows a flat surface (the 2012 mod uses `MATTEPLASTIC`).
+A state whose texture the car does not have keeps the other one. A broken brake lamp stays dark while the others light up;
+the tail lamps share the damage bit of the brake lamp of their side, and the reverse lamps have none. `<ID>` is the car's
+folder in upper case. The two states of each kind are shared by all its placeholders, so the left and right lamps of one
+kind look the same. Every placeholder group should use a light material that shows a flat surface (the 2012 mod uses
+`MATTEPLASTIC`). The head, brake and tail slots are the game's own (a stock car's lamps use the first two); the tail and
+reverse slots are an extension a mod car can use, and the game's own cars never name them. With the **Enhanced vehicle lamps**
+shading ([experimental lamp surface](../specs/experimental-lamp-surface.md)) a lit slot also glows: red for the brake and
+tail slots, white for the others.
 
 ## The 2012 cars
 
-The [2012 mod](nfsmw-2012-content.md) fills both from each car's own 2012 data
+The [2012 mod](../../mods/nfsmw-2012-content/README.md) fills both from each car's own 2012 data
 ([chameleon-lamps.md](../formats/chameleon-lamps.md)):
 
 - **Markers.** The 2012 game places its lamps with *locators* (numbered placements) and *lamp records* that name a
@@ -65,22 +114,43 @@ The [2012 mod](nfsmw-2012-content.md) fills both from each car's own 2012 data
   `LEFT_REVERSE` and `RIGHT_REVERSE` at each place and its mirror image, or one `CENTRE_REVERSE` for a lamp on the centre
   plane. The Porsche 918 Spyder gets a single centre lamp at (-2.31, 0, 0.31), low at the rear face. The four cars with no
   such record (Cobra 427, Audi A1, Huayra, one unnamed bundle) have no reverse flare.
-- **Surfaces.** The 2012 lamp strips (`Refraction` shader) are split into connected pieces, each given the placeholder of its
-  end and side (front pieces `HEADLIGHT_LEFT` or `_RIGHT`, a front piece on the centre plane follows the left; rear pieces
-  `BRAKELIGHT_LEFT`, `_RIGHT` or `_CENTRE`), and the car gets four flat textures: a warm white and a dark grey-blue for
-  the head lamps, a red and a dark red for the brake lamps. The pattern of the 2012 strips (an emissive map) is not carried
-  over. The lamp interiors and reflectors (`Emissive` shaders) are drawn dark grey instead of the pale default they had.
+- **Surfaces.** The 2012 shaders light a lamp from a *lit pattern*, a picture whose four channels are four lamp circuits:
+  red the brake, green the head lamps, blue the reverse lamps, alpha the tail lamps
+  ([chameleon-lamps.md](../formats/chameleon-lamps.md#lamp-circuits-verified-by-data)). The mod reads it per triangle
+  (`lamp_pieces.rs` of `chameleon-vehicle`) and gives each lit piece the placeholder of its circuit and side: the
+  `Refraction` lens strips are cut into connected pieces and again by circuit, and the triangles of the lamp interiors (the LED
+  rows, the 918 Spyder's whole reverse bar) that a circuit lights are cut out of the interior mesh. A piece's side is its place
+  (a front piece on the centre plane follows the left). The car gets eight flat textures (`lamp_surfaces.rs`): warm white
+  and dark grey-blue for the head lamps, bright red and dark red for the brake lamps, deep red and dark red for the tail lamps,
+  white and dark grey for the reverse lamps. The dots and strips of the 2012 pattern are not carried over, only which
+  triangles each circuit lights. The rest of the lamp interiors and reflectors is drawn dark grey.
+- **Flares and glows.** Each lamp record names a `Corona` object, whose glow layer (a flare layer when it has none) gives the sprite
+  of a `[[lamp_flare]]`: the layer's own picture, converted into the car's textures (`<ID>_CORONA0`, ...), its hue, its radius and
+  brightness evaluated at 8 m and 100 m, and an angle falloff fitted to the corona's angle curve. Front records of bits 0, 4, 6, 7 are
+  `head`, rear bit 1 `brake`, rear bits 0 and 7 `tail`, rear bit 2 `reverse`; a lamp that is not visible on its axis (a beam)
+  and the fog lamps are left out. Each locator and its mirror image give a lamp, as for the markers (`lamp_coronas.rs`,
+  [chameleon-corona.md](../formats/chameleon-corona.md)). The brightness is relative and the sizes are the executable's units, which
+  were not traced to the screen, so the look is an approximation of the 2012 game's that was not compared in a window.
 - The head and brake lamp **glass** (a clear head lamp cover, the red rear covers) is the car's blue-grey glass tint.
 
 ## Limits
 
 - Any lamp that is not a head, brake or reverse lamp has no marker on the converted cars: the amber position and turn lamps,
-  the fog lamps (bit 3) and the tail records of bits 0 and 7 when the car has brake records. The reverse lamp has a flare but
-  no lit surface: the game has no reverse placeholder texture, so the white strips of a 2012 lens or lightmap stay as they are.
-- The flares are the game's shared profiles: the 2012 coronas' colours (amber position lamps, xenon blue), sizes and shapes
-  are not used.
+  the fog lamps (bit 3) and the tail records of bits 0 and 7 when the car has brake records. Their surfaces are lit only when
+  the lit pattern puts them on one of the four circuits; the number plate lamps (a grey lightmap on other meshes) and the
+  plain `Emissive` interior lights are not.
+- The flares of a car without `[[lamp_flare]]` tables are the game's shared profiles; the converted 2012 cars use the 2012 coronas' hues
+  and sizes, with the limits of the Flares and glows bullet above: the beams, the flare ghost chains and the second to fourth view lists
+  of a corona are not used.
 - The 2012 road lights (the spot a lamp throws on the road) are not used: the game's headlight beam applies to every car.
-- A lit state is a flat colour. A car whose lamps have a pattern (LED strips) shows the same colour over the whole piece.
-- The head lamp flares of a car with several lamp groups on one side are the first two of its records, not a chosen pair.
-- A converted car was looked at in the garage view (headlights on, brake off) and in the world while reversing (the 918
-  Spyder's white reverse flare); its markers and textures are also checked in the files and by the unit tests of the lamp code.
+- A lit state is a flat colour over every triangle a circuit lights, however small the 2012 lit dots were inside it: an LED
+  row is one lit bar. The colours are the same for every car; the 2012 colour constants (xenon blue, HDR intensities) are not used.
+- The red channel is the brake and the alpha channel the tail by their brightness and the shader's colour names, not by the
+  light-state code; a car whose artist swapped them would light its tail lamps with the brake.
+- The marker flares of a car with several lamp groups on one side are the first two of its records, not a chosen pair; the converted
+  cars draw their `[[lamp_flare]]` sprites at every group instead (at most 96 a car, in record order).
+- The flares do not follow the lit surface: a lamp that is small on the car (the 918 Spyder's 30 cm reverse bar) has the size its
+  corona object gives, which is not measured against the surface.
+- The lit surfaces and the placeholders are checked on the real data (the 918 Spyder's reverse bar is cut out as a centre
+  piece low at the rear, the 911 has brake and reverse lens pieces at the rear corners) and by the unit tests of the lamp
+  code; the look in the world with the lamps lit was not yet checked with a screenshot.

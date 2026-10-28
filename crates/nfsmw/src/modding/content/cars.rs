@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use blackbox_modding::content::{CARS_FOLDER, CarManifest, CopClass, parse_car};
+use blackbox_modding::content::{CARS_FOLDER, CarManifest, CopClass, Traffic, TrafficClass, parse_car};
 use game_install::{GameDir, Provider};
 use nfsmw_data::car::CarTables;
 use nfsmw_data::car::mods::custom;
@@ -12,7 +12,7 @@ use nfsmw_data::car::mods::hinged;
 use nfsmw_data::car::mods::wheel_layout;
 use nfsmw_data::car::mods::{
     self as car_mods, COP_CHANCE, COP_COUNT, CarEffects, CarSpec, CarStats, CopKind, CopUnit, CopWave, EngineSound,
-    SharedSound,
+    SharedSound, TrafficUnit,
 };
 use nfsmw_data::pursuit::HEAT_LEVELS;
 
@@ -48,6 +48,9 @@ pub(super) fn register(dir: &GameDir, mods: &[ModDir]) -> usize {
     for refused in &rejected {
         log::warn!("mod {}: car {} is not added: {}", refused.owner, refused.folder, refused.reason);
     }
+    // The plate texts the player typed are kept beside the profile's save (`garage/plates.rs`).
+    custom::plate::set_source(crate::garage::plates::text_for);
+    custom::plate::set_design_source(crate::garage::plates::design_for);
     for car in &cars {
         log::info!("mod {}: car {} added", car.owner, car.folder);
         if let Some(own) = customizations.remove(&car.folder) {
@@ -71,6 +74,9 @@ fn publish_hinges(mods: &[ModDir], car: &car_mods::ModCar) {
         let Ok(text) = std::fs::read_to_string(&path) else { return };
         let Ok(manifest) = parse_car(stem, &text) else { return };
         hinged::publish(&car.folder, hinges_of(&manifest.damage_parts, manifest.wing.as_ref()));
+        if let Some(lamps) = super::lamp_flares::lamps_of(&manifest) {
+            nfsmw_data::car::mods::lamp_flares::publish(&car.folder, lamps);
+        }
         if let Some(layout) = &manifest.wheels {
             wheel_layout::publish(&car.folder, wheel_layout_of(layout));
         }
@@ -134,6 +140,7 @@ fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
         axis: part.axis,
         angle: part.angle,
         stages: part.stages.clone(),
+        stage_angles: part.stage_angles.clone(),
         detach_at: part.detach_at,
         detach: part.detach,
         mass_kg: part.mass_kg,
@@ -158,6 +165,7 @@ fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
             .collect(),
         drives: part.drives.iter().map(drive_of).collect(),
         wing: None,
+        steering: part.steering.map(|wheel| hinged::Steering { lock_degrees: wheel.lock_degrees }),
     }
 }
 
@@ -222,6 +230,7 @@ fn read_spec(dir: &GameDir, owner: &str, path: &Path) -> Result<(CarSpec, Option
     let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
     let manifest = parse_car(stem, &text).map_err(|error| error.to_string())?;
     let cop = manifest.role.is_cop().then(|| cop_unit(&manifest));
+    let traffic = manifest.traffic.as_ref().map(traffic_unit);
     let stats = CarStats::from(&manifest.stats);
     let geometry = format!("CARS/{}/GEOMETRY.BIN", manifest.id);
     let geometry_in_mod = matches!(dir.provider(&geometry), Some(Provider::Overlay(id)) if id == owner);
@@ -233,6 +242,7 @@ fn read_spec(dir: &GameDir, owner: &str, path: &Path) -> Result<(CarSpec, Option
         manufacturer: manifest.manufacturer,
         player: manifest.role.is_player(),
         cop,
+        traffic,
         geometry_in_mod,
         stats,
         engine_sound: manifest.engine_sound.as_ref().map(engine_sound_of),
@@ -295,6 +305,22 @@ fn customization_of(table: &blackbox_modding::content::Customization) -> custom:
             .map(|livery| custom::Livery { name: livery.name.clone(), texture: livery.texture.clone() })
             .collect(),
         default_livery: table.default_livery,
+        plate: table.plate.as_ref().map(plate_of),
+    }
+}
+
+/// The manifest's `[customization.plate]` as the game's own plate.
+fn plate_of(table: &blackbox_modding::content::Plate) -> custom::Plate {
+    custom::Plate {
+        text: table.text.clone(),
+        picture: table.picture.clone(),
+        glyphs: table.glyphs.clone(),
+        columns: table.columns,
+        rows: table.rows,
+        slots: table.slots,
+        aliases: table.aliases.clone(),
+        designs: table.designs.clone(),
+        default_design: table.default_design.clone(),
     }
 }
 
@@ -308,6 +334,7 @@ fn car_effects_of(sound: &blackbox_modding::content::CarEffects) -> CarEffects {
         turbo_blowoff: sound.turbo_blowoff.clone(),
         backfire: sound.backfire.clone(),
         pops: sound.pops.clone(),
+        no_clunk: sound.no_clunk,
         shared: shared_sound_of(&sound.shared),
     }
 }
@@ -346,4 +373,26 @@ fn cop_unit(manifest: &CarManifest) -> CopUnit {
     }
     let waves = manifest.waves.iter().map(|w| CopWave { heat: w.heat, count: w.count, chance: w.chance }).collect();
     CopUnit { kind, waves }
+}
+
+/// The traffic entry of a manifest as the game's own: the numbers of a rule in the traffic patterns it appears in.
+fn traffic_unit(traffic: &Traffic) -> TrafficUnit {
+    let class = match traffic.class {
+        TrafficClass::Compact => car_mods::TrafficClass::Compact,
+        TrafficClass::Sedan => car_mods::TrafficClass::Sedan,
+        TrafficClass::Coupe => car_mods::TrafficClass::Coupe,
+        TrafficClass::Suv => car_mods::TrafficClass::Suv,
+        TrafficClass::Pickup => car_mods::TrafficClass::Pickup,
+        TrafficClass::Van => car_mods::TrafficClass::Van,
+        TrafficClass::Truck => car_mods::TrafficClass::Truck,
+        TrafficClass::Bus => car_mods::TrafficClass::Bus,
+        TrafficClass::Taxi => car_mods::TrafficClass::Taxi,
+    };
+    TrafficUnit {
+        class,
+        weight: traffic.weight,
+        max_instances: traffic.max_instances,
+        speed_factor: traffic.speed_factor,
+        patterns: traffic.patterns.clone(),
+    }
 }

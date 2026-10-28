@@ -1,23 +1,26 @@
 //! The Custom full-screen world map (the `WorldMapChrome` slot, `docs/specs/custom-hud/menus.md` section 3): the whole
 //! map drawn by the theme, as the Remastered theme does, so the FEng map screen runs underneath for its logic and is not
-//! presented (`frontend/plugin.rs`). It reuses the centred map's drawing (`custom/map`): the road polylines of
-//! `hud/map_roads`, the road look, the route, the mark shapes and the player's arrow.
+//! presented (`frontend/plugin.rs`). The map itself is the game's: the picture of the career stage's map (or the running
+//! race's own) and the game's icon textures for the blips, the cars and the checkpoint, the same files the Remastered map
+//! draws ([`art`]). Custom brings the chrome round them and the GPS route's strokes.
 //!
 //! The frontend fills [`FullMapCell`] each frame the map is open with a [`FullMapSnapshot`]: the frontend's map frame
-//! (the tab, the camera, the focused blip, the cursor, the blips, the player, and the roads, the GPS route and the
-//! city's calibration it read at open), the footer hints with the player's bindings, and the window's aspect. The
-//! component draws nothing without it.
+//! (the tab, the camera, the focused blip, the cursor, the blips, the cars, and the GPS route and the city's calibration
+//! it read at open), the footer hints with the player's bindings, and the window's aspect. The component draws nothing
+//! without it.
 //!
 //! Back to front: the backdrop over the frozen world (a scrim over the whole window and a strong plate under the map's
-//! picture, faded in as the map opens), the roads, the GPS route, the current tab's marks and the route's
-//! end, the players' arrows, the cursor, then the chrome (the title with the tabs and the zoom, the legend, the focused
+//! picture, faded in as the map opens), the picture with its veil, the GPS route, the current tab's blips, the cars and
+//! the route's end as icons, the cursor, then the chrome (the title with the tabs and the zoom, the legend, the focused
 //! blip's card and the footer).
 //!
-//! - [`fit`]: the projection from the world through the frontend's camera to the screen.
-//! - [`places`]: the marks and the legend's rows as data, under the frontend's filter.
+//! - [`art`]: the picture and the icons.
+//! - [`fit`]: the projection from the world through the frontend's camera to the screen, for the route.
+//! - [`places`]: the focused blip and the legend's rows as data, under the frontend's filter.
 //! - [`chrome`]: the backdrop, the title and tabs, the legend.
 //! - [`card`]: the cursor and the focused blip's card.
 
+pub mod art;
 #[cfg(test)]
 mod backdrop_tests;
 pub mod card;
@@ -29,27 +32,20 @@ mod tests;
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use blackbox_minimap::Calibration;
 use blackbox_ui::{Clip, Component, DrawList, LayoutCx, Polylines, Rect, token_keys};
 use glam::Vec2;
 
-use super::map::draw::{Stage, arrow, colour, draw_marks, route_lines};
+use super::map::draw::{Stage, colour, route_lines};
 use super::map::modes::ease;
-use super::map::roads::{LocalSet, road_lines};
-use super::map::view::MapView;
-use super::map::{ARROW_Z, DRIVEN_SHARE, MARK_Z, ROAD_Z, ROUTE_Z, road_look};
+use super::map::{DRIVEN_SHARE, ROUTE_Z};
 use super::menu::footer_parts;
 use super::menu::layout::MenuFrame;
 use super::menu::look::MenuLook;
-use super::tokens::{Motion, fade, keys, ramp};
-use crate::frontend::world_map::{PlayerMark, WorldMapFrame};
-use crate::hud::MapRoadsHandle;
+use super::tokens::{Motion, fade, ramp};
+use crate::frontend::world_map::WorldMapFrame;
 use crate::ui::theme::MenuHint;
 
-/// The roads' opacity on the full map, and their detail (1 draws the paths too).
-pub const ROAD_OPACITY: f32 = 0.85;
-pub const ROAD_DETAIL: f32 = 1.0;
-/// The marks, the route and the arrows are drawn this much larger than the menus' scale; the roads keep it.
+/// The cursor and the route are drawn this much larger than the menus' scale.
 pub const MARK_SCALE: f32 = 1.6;
 
 /// One frame of the open map, as the Custom theme draws it.
@@ -62,40 +58,20 @@ pub struct FullMapSnapshot {
     pub aspect: f32,
 }
 
-/// What the map keeps between frames: the roads in view (queried again only when the view moves or zooms enough, by
-/// the centred map's cache rule), and the calibration fitted to a network when the map has none of its own.
+/// What the map keeps between frames: when it was first drawn since it opened, which the backdrop and the art fade in
+/// from.
 #[derive(Debug, Default)]
 pub struct FullMapMemory {
-    local: LocalSet,
-    fit: Option<(MapRoadsHandle, Option<Calibration>)>,
-    /// When the map was first drawn since it opened, on the layout clock (`LayoutCx::time_s`): the backdrop fades in
-    /// from then.
+    /// When the map was first drawn since it opened, on the layout clock (`LayoutCx::time_s`).
     opened_at: Option<f32>,
 }
 
 impl FullMapMemory {
     /// How open the map is at `now`, 0 to 1: the first frame is 0, and it is 1 once `duration` seconds have passed, eased
-    /// like the HUD map's mode change. The backdrop fades in with it.
+    /// like the HUD map's mode change. The backdrop and the art fade in with it.
     pub fn open(&mut self, now: f32, duration: f32) -> f32 {
         let since = *self.opened_at.get_or_insert(now);
         ease(ramp(now - since, duration))
-    }
-
-    /// The calibration that places the world on the map: the city's, else one fitted to the roads (computed once per
-    /// network), else `None`.
-    fn calibration(&mut self, map: &WorldMapFrame) -> Option<Calibration> {
-        if map.calibration.is_some() {
-            return map.calibration;
-        }
-        let roads = map.roads.as_ref()?;
-        if let Some((source, known)) = &self.fit
-            && source.same(roads)
-        {
-            return *known;
-        }
-        let fitted = fit::fitted(roads.roads());
-        self.fit = Some((roads.clone(), fitted));
-        fitted
     }
 }
 
@@ -116,7 +92,7 @@ impl FullMapCell {
         *lock(&self.snapshot) = Some(snapshot);
     }
 
-    /// Marks the map closed, so the component draws nothing, and lets the roads it kept go.
+    /// Marks the map closed, so the component draws nothing, and lets the opening it kept go.
     pub(crate) fn clear(&self) {
         *lock(&self.snapshot) = None;
         *lock(&self.memory) = FullMapMemory::default();
@@ -187,10 +163,13 @@ fn compose(snapshot: &FullMapSnapshot, memory: &mut FullMapMemory, cx: &LayoutCx
     let frame = MenuFrame::new(snapshot.aspect, look.text_size());
     let open = memory.open(cx.time_s, Motion::of(look.reduce_motion()).mode_change);
     layers.back.extend(chrome::backdrop(frame.window(), open, cx));
-    if let Some(calibration) = memory.calibration(map) {
-        let view = fit::view(calibration, map.session.camera);
-        world(map, &view, &frame, memory, cx, (&mut *layers.lines, &mut *layers.front));
-    }
+    art::picture(map, open, cx, layers.back);
+    route(map, &frame, open, cx, layers.lines);
+    let icons = (frame.scale(), open);
+    art::blips(map, icons, frame.window(), cx, layers.front);
+    art::live(map, icons, frame.window(), cx, layers.front);
+    art::route_end(map, icons, cx, layers.front);
+    art::cars(map, icons, frame.window(), cx, layers.front);
     card::cursor(map, frame.scale() * MARK_SCALE, cx, layers.front);
     chrome::title(map, &frame, cx, layers.front);
     if map.session.legend_open {
@@ -200,52 +179,19 @@ fn compose(snapshot: &FullMapSnapshot, memory: &mut FullMapMemory, cx: &LayoutCx
     layers.front.extend(footer_parts(&snapshot.hints, frame, cx));
 }
 
-/// What lies on the map under `view`: the roads in the window, the GPS route, the current tab's marks and the route's
-/// end, and the players' arrows.
-fn world(
-    map: &WorldMapFrame,
-    view: &MapView,
-    frame: &MenuFrame,
-    memory: &mut FullMapMemory,
-    cx: &LayoutCx<'_>,
-    (lines, front): (&mut Polylines, &mut Vec<Box<dyn Component>>),
-) {
+/// The GPS route's strokes on the picture, in the guide colour, the stretch behind the car dimmer. Nothing without the
+/// route or the city's calibration, which places it.
+fn route(map: &WorldMapFrame, frame: &MenuFrame, open: f32, cx: &LayoutCx<'_>, lines: &mut Polylines) {
+    let (Some(route), Some(calibration)) = (&map.route, map.calibration) else { return };
+    let view = fit::view(calibration, map.session.camera);
     let window = frame.window();
-    let clip = Clip::Rect(window);
     let radii = Vec2::new(window.w, window.h) / 2.0;
-    let scale = frame.scale() * MARK_SCALE;
-    let stage = Stage { view, clip, band: 0.0, radii, scale };
-    if let Some(roads) = &map.roads {
-        // The window's half diagonal, in metres: every road in the window is inside it.
-        let reach = radii.length() / view.scale.max(f32::EPSILON);
-        memory.local.refresh(roads, view.car, reach);
-        let high_contrast = cx.skin.colour(keys::OUTLINE).is_some();
-        let look = road_look(cx, high_contrast, (ROAD_OPACITY, ROAD_DETAIL), frame.scale());
-        road_lines(roads, &memory.local, view, (clip, 0.0), &look, ROAD_Z, lines);
-    }
-    if let Some(route) = &map.route {
-        let ahead = colour(cx, token_keys::GUIDE);
-        // Without the player's place the whole route is ahead: it is split at its start.
-        let car = match map.player_mark {
-            Some(_) => map.player,
-            None => route.path.first().copied().unwrap_or(route.target),
-        };
-        route_lines(route, car, &stage, (ahead, fade(ahead, DRIVEN_SHARE)), ROUTE_Z, lines);
-    }
-    draw_marks(&places::marks(map), &stage, (1.0, MARK_Z), None, cx, front);
-    let edge = colour(cx, token_keys::OVERLAY);
-    let second = (colour(cx, token_keys::LINE_MINOR), edge);
-    let first = (colour(cx, token_keys::PRIMARY), edge);
-    for (mark, tones) in [(map.second_mark, second), (map.player_mark, first)] {
-        let Some(mark) = mark else { continue };
-        let at = fit::on_screen(map.session.camera, mark.map);
-        let strokes = arrow(at, bearing_direction(mark), scale, tones, ARROW_Z);
-        front.extend(strokes.into_iter().map(|line| Box::new(line) as Box<dyn Component>));
-    }
-}
-
-/// The screen direction of a car mark's bearing (degrees clockwise from up the picture).
-fn bearing_direction(mark: PlayerMark) -> Vec2 {
-    let (sin, cos) = mark.bearing.to_radians().sin_cos();
-    Vec2::new(sin, -cos)
+    let stage = Stage { view: &view, clip: Clip::Rect(window), band: 0.0, radii, scale: frame.scale() * MARK_SCALE };
+    let ahead = fade(colour(cx, token_keys::GUIDE), open);
+    // Without the player's place the whole route is ahead: it is split at its start.
+    let car = match map.player_mark {
+        Some(_) => map.player,
+        None => route.path.first().copied().unwrap_or(route.target),
+    };
+    route_lines(route, car, &stage, (ahead, fade(ahead, DRIVEN_SHARE)), ROUTE_Z, lines);
 }

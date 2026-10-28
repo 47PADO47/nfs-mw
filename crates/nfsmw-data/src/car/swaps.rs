@@ -80,9 +80,18 @@ impl TextureSwaps {
     pub fn lamp_is_on(&self, placeholder: u32) -> bool {
         self.lit_lamps.contains(&placeholder)
     }
-    /// Lamp body slots whose ON state represents braking.
+    /// Lamp body slots whose ON state is a red lamp: the brake lamps and a mod car's tail lamps.
     pub fn is_brake_lamp(placeholder: u32) -> bool {
-        ["BRAKELIGHT_LEFT", "BRAKELIGHT_RIGHT", "BRAKELIGHT_CENTRE"].map(bstring_hash).contains(&placeholder)
+        [
+            "BRAKELIGHT_LEFT",
+            "BRAKELIGHT_RIGHT",
+            "BRAKELIGHT_CENTRE",
+            "TAILLIGHT_LEFT",
+            "TAILLIGHT_RIGHT",
+            "TAILLIGHT_CENTRE",
+        ]
+        .map(bstring_hash)
+        .contains(&placeholder)
     }
     /// Suppress each broken headlight independently when selecting lamp textures.
     pub fn with_broken_head_lights(mut self, broken: u32) -> Self {
@@ -112,9 +121,11 @@ impl TextureSwaps {
             ("HEADLIGHT_GLASS", true, &["LEFT", "RIGHT"][..]),
             ("BRAKELIGHT", braking, &["LEFT", "RIGHT", "CENTRE"][..]),
             ("BRAKELIGHT_GLASS", braking, &["LEFT", "RIGHT", "CENTRE"][..]),
+            // A mod car's tail lamps burn with the headlights and share the housing, so the damage, of the brake lamps.
+            ("TAILLIGHT", headlights, &["LEFT", "RIGHT", "CENTRE"][..]),
         ] {
             for side in sides {
-                let brake_bit = match (kind.starts_with("BRAKELIGHT"), *side) {
+                let brake_bit = match (kind.starts_with("BRAKELIGHT") || kind == "TAILLIGHT", *side) {
                     (true, "LEFT") => 8,
                     (true, "RIGHT") => 16,
                     (true, "CENTRE") => 32,
@@ -146,6 +157,25 @@ impl TextureSwaps {
         self
     }
 
+    /// Select the reverse lamp textures of a mod car: `<car>_KIT00_REVERSELIGHT_ON` while the gear is reverse, `_OFF`
+    /// otherwise. The game's own cars have no such placeholder, so for them nothing changes. A missing state texture keeps
+    /// the current replacement, as for the other lamps; the reverse lamps have no damage bit.
+    pub fn with_reverse_state(mut self, reversing: bool, textures: &HashMap<u32, blackbox_tpk::Texture>) -> Self {
+        for side in ["LEFT", "RIGHT", "CENTRE"] {
+            let placeholder = bstring_hash(&format!("REVERSELIGHT_{side}"));
+            let Some(states) = self.lamps.get(&placeholder) else { continue };
+            self.lit_lamps.remove(&placeholder);
+            if reversing && textures.contains_key(&states[1]) {
+                self.lit_lamps.insert(placeholder);
+            }
+            let wanted = states[usize::from(reversing)];
+            if textures.contains_key(&wanted) {
+                self.map.insert(placeholder, wanted);
+            }
+        }
+        self
+    }
+
     /// Stock swaps for a car type. Traffic (usage 2) shares the global tire atlas;
     /// the original placeholder is based on the type's base model name, not its folder.
     pub fn for_car_type(base_model_name: &str, usage_type: i32) -> Self {
@@ -171,9 +201,13 @@ impl TextureSwaps {
             swap(&format!("HEADLIGHT_{side}"), &headlight);
             swap(&format!("HEADLIGHT_GLASS_{side}"), "WINDOW_FRONT");
         }
+        let taillight = format!("{car}_KIT00_TAILLIGHT_ON");
+        let reverselight = format!("{car}_KIT00_REVERSELIGHT_OFF");
         for side in ["LEFT", "RIGHT", "CENTRE"] {
             swap(&format!("BRAKELIGHT_{side}"), &brakelight);
             swap(&format!("BRAKELIGHT_GLASS_{side}"), &brakelight_glass);
+            swap(&format!("TAILLIGHT_{side}"), &taillight);
+            swap(&format!("REVERSELIGHT_{side}"), &reverselight);
         }
         for window in WINDOWS {
             swap(window, "WINDOW_FRONT");
@@ -184,6 +218,8 @@ impl TextureSwaps {
             ("HEADLIGHT_GLASS", &["LEFT", "RIGHT"][..]),
             ("BRAKELIGHT", &["LEFT", "RIGHT", "CENTRE"][..]),
             ("BRAKELIGHT_GLASS", &["LEFT", "RIGHT", "CENTRE"][..]),
+            ("TAILLIGHT", &["LEFT", "RIGHT", "CENTRE"][..]),
+            ("REVERSELIGHT", &["LEFT", "RIGHT", "CENTRE"][..]),
         ] {
             let states = ["OFF", "ON"].map(|state| bstring_hash(&format!("{car}_KIT00_{kind}_{state}")));
             for side in sides {
@@ -271,6 +307,64 @@ mod tests {
         assert!(fallback.lamp_is_on(bstring_hash("HEADLIGHT_LEFT")));
         let broken = fallback.with_broken_head_lights(1).with_lamp_state(true, true, &missing);
         assert!(!broken.lamp_is_on(bstring_hash("HEADLIGHT_LEFT")));
+    }
+
+    fn state_textures() -> HashMap<u32, blackbox_tpk::Texture> {
+        ["HEADLIGHT", "BRAKELIGHT", "TAILLIGHT", "REVERSELIGHT"]
+            .into_iter()
+            .flat_map(|kind| {
+                ["ON", "OFF"].map(move |state| (bstring_hash(&format!("CAR_KIT00_{kind}_{state}")), texture()))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_mod_cars_tail_lamps_follow_the_headlights_and_share_the_brake_damage() {
+        let textures = state_textures();
+        let base = TextureSwaps::for_car("CAR");
+        let dark = base.clone().with_lamp_state(false, false, &textures);
+        let night = base.clone().with_lamp_state(true, false, &textures);
+        for side in ["LEFT", "RIGHT", "CENTRE"] {
+            let placeholder = bstring_hash(&format!("TAILLIGHT_{side}"));
+            assert!(!dark.lamp_is_on(placeholder) && night.lamp_is_on(placeholder), "{side}");
+            assert_eq!(dark.resolve(placeholder), bstring_hash("CAR_KIT00_TAILLIGHT_OFF"));
+            assert_eq!(night.resolve(placeholder), bstring_hash("CAR_KIT00_TAILLIGHT_ON"));
+        }
+        let broken = base.with_broken_brake_lights(8).with_lamp_state(true, false, &textures);
+        assert!(!broken.lamp_is_on(bstring_hash("TAILLIGHT_LEFT")));
+        assert!(broken.lamp_is_on(bstring_hash("TAILLIGHT_RIGHT")));
+        assert!(TextureSwaps::is_brake_lamp(bstring_hash("TAILLIGHT_LEFT")), "the tail lamps light red");
+    }
+
+    #[test]
+    fn a_mod_cars_reverse_lamps_follow_the_gear_alone() {
+        let textures = state_textures();
+        let base = TextureSwaps::for_car("CAR");
+        let forward = base.clone().with_lamp_state(true, true, &textures).with_reverse_state(false, &textures);
+        let reverse = base.clone().with_lamp_state(false, false, &textures).with_reverse_state(true, &textures);
+        for side in ["LEFT", "RIGHT", "CENTRE"] {
+            let placeholder = bstring_hash(&format!("REVERSELIGHT_{side}"));
+            assert!(!forward.lamp_is_on(placeholder) && reverse.lamp_is_on(placeholder), "{side}");
+            assert_eq!(forward.resolve(placeholder), bstring_hash("CAR_KIT00_REVERSELIGHT_OFF"));
+            assert_eq!(reverse.resolve(placeholder), bstring_hash("CAR_KIT00_REVERSELIGHT_ON"));
+        }
+        assert!(!TextureSwaps::is_brake_lamp(bstring_hash("REVERSELIGHT_CENTRE")), "the reverse lamps light white");
+        let mut missing = textures;
+        missing.remove(&bstring_hash("CAR_KIT00_REVERSELIGHT_ON"));
+        let fallback = base.with_reverse_state(true, &missing);
+        assert!(!fallback.lamp_is_on(bstring_hash("REVERSELIGHT_CENTRE")), "no lit art, no emission");
+        assert_eq!(fallback.resolve(bstring_hash("REVERSELIGHT_CENTRE")), bstring_hash("CAR_KIT00_REVERSELIGHT_OFF"));
+    }
+
+    #[test]
+    fn the_game_s_own_cars_are_not_changed_by_the_new_lamp_states() {
+        let textures: HashMap<u32, blackbox_tpk::Texture> = HashMap::new();
+        let stock = TextureSwaps::for_car("BMWM3GTR")
+            .with_lamp_state(true, true, &textures)
+            .with_reverse_state(true, &textures);
+        assert!(
+            !stock.lamp_is_on(bstring_hash("REVERSELIGHT_CENTRE")) && !stock.lamp_is_on(bstring_hash("TAILLIGHT_LEFT"))
+        );
     }
 
     #[test]

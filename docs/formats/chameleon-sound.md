@@ -90,7 +90,7 @@ repeat the counts on a third and a fourth (`src/effects/real_tests.rs`):
 | Live value the graph reads | Samples it plays | Evidence for the effect |
 |---|---|---|
 | `Players.LocalPlayer.GetPlayerAudibleRPM`, `...EntityEngineSound[..].GetAudibleRPM` | two 1.6 to 1.8 s loops (`17f5f7`, `17f5f8`; Porsche: `1d1c7a`, `1d1c7b`, 41 Hz fundamentals) | the engine's own idle loops |
-| `RaceCars.Entities[..].GetTransmissionSpeedMph` | five loops, 0.4 to 3.5 s | transmission speed: by its name the transmission's whine |
+| `RaceCars.Entities[..].GetTransmissionSpeedMph` | five loops, 0.4 to 3.5 s (the gearbox whine, the same on every car); the electric and hybrid cars have a second sequence of this value in the player's engine sound with one or two more loops, the motor ([chameleon-sound-graph.md](chameleon-sound-graph.md#the-electric-motor)) | transmission speed: by its name the transmission's whine |
 | `RaceCars.Entities[..].GetReverseTransSpeedMph` | one 0.8 s loop at 24 kHz (`23104`) | reverse gear whine |
 | `LocalPlayer.GetPlayerNormalisedGearChangeTimeElapsed` (five graphs, each with `EngineSound[#].Lfo`) | six one-shots of 0.14 to 0.36 s (`d4a9f` to `d4aa4`): two groups, of four and of two, each behind a selector node | played during a gear change, timed by the elapsed gear change; **up and down are not told apart** |
 | `RaceCars.EngineSound[#].ShuntLfo` | twelve one-shots of 0.09 to 0.36 s | the engine shunt on throttle changes; not exported |

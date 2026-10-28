@@ -125,6 +125,7 @@ impl WorldScene {
         }
         state.telemetry.environment = Some(state.view.environment);
         state.nitrous_fx = self.nitrous_fx.clone();
+        state.wind_fx = self.wind_fx.clone();
         state
     }
 }
@@ -148,6 +149,8 @@ mod tests {
         use crate::audio::{CarSoundState, CarSoundTick};
         let mut state = CarSoundState {
             nitrous_fx: None,
+            wind_fx: None,
+            engine: Default::default(),
             car: "fixture".into(),
             upgrades: Default::default(),
             input: Default::default(),

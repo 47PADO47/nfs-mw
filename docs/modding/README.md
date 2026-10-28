@@ -26,20 +26,23 @@ when the module is new.
 | [api-world.md](api-world.md) | Map blips and the world map, menus, game interaction (vehicles, player, HUD, audio, camera, world) |
 | [api-config.md](api-config.md) | Configuration (`bb.config`): a mod's settings from its own file, from the game's main config, or both; the `config` key of `mod.toml`; the `[mods.<id>]` table; the merge rules |
 | [api-settings.md](api-settings.md) | Settings (`bb.settings`): add an option to the gameplay settings or values to the game's own, the merge rules, when a list is hidden |
+| [effect-variants.md](effect-variants.md) | The "<kind> variant" options (nitrous, tire smoke, collision sparks, restored sparks): how a mod adds a value, `<KIND>/<ID>/profile.toml`, the tire smoke profile, and a checklist for adding a kind |
+| [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) | The collision spark and restored (Xenon) spark variants: `SPARKS/<ID>/` and `XENON/<ID>/` profiles, the strength gates of impacts and scrapes, what the game keeps of its own (the restored variant is the sparks only: no contrail, no streaks) |
 | [nitrous-variants.md](nitrous-variants.md) | The "Nitrous variant" option, a variant's `profile.toml` (sounds, flame tint, screen effects) and how a mod adds one |
 | [api-ui.md](api-ui.md) | UI themes (`bb.ui`): named themes, the slot numbers, the draw primitives, the SDK |
+| [api-traffic.md](api-traffic.md) | Traffic cars: `role = "traffic"` and the `[traffic]` table (class, weight, limit, speed, patterns), how the traffic manager picks them, the `traffic` console commands, `bb.traffic` |
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
 | [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paints, rims, spoilers, vinyls), the `[customization]` table of a car manifest, and the files a mod's own car needs |
 | [car-stats.md](car-stats.md) | The `[stats]` table of a car manifest (mass, engine, gearbox, tyres, brakes, nitrous in SI units), the upgrade levels, the shop's bars |
 | [car-sound.md](car-sound.md) | The `[engine_sound]` and `[car_sound]` tables of a car manifest: the car's own engine loops, the built-in engine, shifts, turbo, backfire and pops |
-| [cop-cars.md](cop-cars.md) | Police cars in mods: `role = "cop"`, the `[[cop]]` wave entries (count and chance per heat level), the unit class, how the original assigns cops to heat levels, what each system gives a mod cop car, the developer tools |
-| [car-lamps.md](car-lamps.md) | The lamps of a mod car: the head, brake and reverse lamp markers on its body solid, the lamp placeholder textures, what the 2012 cars get |
+| [cop-cars.md](cop-cars.md) | Police cars in mods: `role = "cop"`, the `[[cop]]` wave entries (count and chance per heat level), the unit class, the `[[light_bar]]` siren lamps and their flash patterns, how the original assigns cops to heat levels, what each system gives a mod cop car, the developer tools |
+| [car-lamps.md](car-lamps.md) | The lamps of a mod car: the head, brake and reverse lamp markers on its body solid, the `[[lamp_flare]]` sprites (picture, size, colour, angle and distance fall-off, lit state), the lamp placeholder textures (head, brake, tail, reverse), what the 2012 cars get |
 | [car-collision.md](car-collision.md) | The collision and impact geometry of a mod car: its `BOUNDS.BIN` (what it holds, what the game checks), the damage zones and numbers, how to make one |
 | [car-damage-parts.md](car-damage-parts.md) | The hinged parts of a mod car (`[[damage_parts]]`): solids that turn on a hinge or fall off as the zones around them are damaged |
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
-| [nfsmw-2012-content.md](nfsmw-2012-content.md) | The `nfsmw-2012-content` mod: the 73 cars of NFS: Most Wanted (2012) (93 bundles, 20 of them liveries), converted in the background from your own install named in the mod's `config.toml`: settings, what is converted, limits |
+| [mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md) | The `nfsmw-2012-content` mod: the 73 cars of NFS: Most Wanted (2012) (93 bundles, 20 of them liveries), converted in the background from your own install named in the mod's `config.toml`: settings, what is converted, limits |
 
 ## Two layers
 
@@ -122,8 +125,10 @@ role = "both"
 | Map blips, world-map markers | `bb.map` | [api-world.md](api-world.md#map-blips-and-the-world-map) |
 | Extend menus | `bb.menus` | [api-world.md](api-world.md#menus) |
 | Read the mod's own settings (its file, and its table in the game's config) | `bb.config` | [api-config.md](api-config.md) |
-| Add a gameplay setting, or a value to one (a nitrous variant) | `bb.settings` | [api-settings.md](api-settings.md), [nitrous-variants.md](nitrous-variants.md) |
+| Add a gameplay setting, or a value to one (a nitrous or tire smoke variant) | `bb.settings` | [api-settings.md](api-settings.md), [effect-variants.md](effect-variants.md), [nitrous-variants.md](nitrous-variants.md) |
 | Interact with the game (player car, spawn traffic and cops, HUD message, sound, camera) | `bb.vehicles`, `bb.hud`, `bb.audio`, `bb.camera`, `bb.world` | [api-world.md](api-world.md#game-interaction) |
+| Read the driver's pedals, switch the player's engine off and start it with a sound | `bb.engine` | [api-engine.md](api-engine.md) |
+| Add traffic cars to the roads; list them and place one at a point | `bb.content` (`role = "traffic"`), `bb.traffic` | [api-traffic.md](api-traffic.md) |
 | Add cars (player and cop) | `bb.content` | [api-content.md](api-content.md#cars) |
 | Add music, fonts, scenery and map packs | `bb.content`, VFS overlay | [api-content.md](api-content.md) |
 | Add interiors | `bb.content`, `bb.map` | [api-content.md](api-content.md#interiors) |

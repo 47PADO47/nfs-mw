@@ -19,6 +19,9 @@ the settings screen saves the choice through the existing config writer.
 | Smoke | `tire_smoke = true` | `NFSMW_TIRE_SMOKE=on` or `off` | `--tire-smoke` / `--no-tire-smoke` |
 | Marks | `skid_marks = true` | `NFSMW_SKID_MARKS=on` or `off` | `--skid-marks` / `--no-skid-marks` |
 | Smoke quality | `smoke_quality = "standard"` | `NFSMW_SMOKE_QUALITY=standard` or `high` | `--smoke-quality standard` / `--smoke-quality high` |
+| Smoke colour mode | `smoke_color_mode = "off"` | `NFSMW_SMOKE_COLOR_MODE=off`, `solid`, `rainbow`, `speed` or `slip` | (none) |
+| Smoke colour | `smoke_color = "red"` or `"#ff8800"` | `NFSMW_SMOKE_COLOR=orange` or `#ff8800` | (none) |
+| Smoke variant (a mod's) | `[mod_values.nfsmw] option_tire_smoke_variant = "mw2012"` | (none) | (none) |
 
 In the F12 console, `get tire_smoke`, `set tire_smoke off`, `set skid_marks off`
 and their `on` counterparts read or change the same settings. Changes last for the run.
@@ -31,6 +34,42 @@ returns to the default. Changing quality clears smoke while retaining marks. The
 mode adds rendering work and does not simulate particle collisions or volumetric lighting.
 Smoke Quality in the main and pause menus' Video options selects Standard or High
 and saves the selection when leaving the settings screen.
+
+## Colourful smoke
+
+The smoke is white by default. **Smoke Color Mode** in the Video options (main and pause menus) and `smoke_color_mode` colour it,
+and **Smoke Color** and `smoke_color` say with what. Both apply to the game's own smoke and to a mod's tire smoke variant (below)
+and are saved with the other settings when the settings screen is left; they do not change the physics, the amount of smoke
+or the number of particles.
+
+| Mode | The smoke is |
+|---|---|
+| `off` (default) | as it was: the game's own grey white (or the variant's own colours) |
+| `solid` | the chosen colour |
+| `rainbow` | a hue that turns with time (0.35 turns a second) and along the ground (0.12 turns a metre), so a trail shows the colours one after another; the chosen colour is not used |
+| `speed` | from its own colour to the chosen one as the car speeds up, reaching it at 60 m/s |
+| `slip` | from its own colour to the chosen one as the wheel's smoke (its slip) goes from 0 to 1 |
+
+The colour is one of the palette (`red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `purple`, `pink`; the menu steps through
+it) or any `#rrggbb` written in the config file (`smoke_color = "#ff8800"`; the menu then shows the hex value and steps on from the
+nearest palette colour). In the console, `get smoke_color_mode`, `set smoke_color_mode rainbow`, `set smoke_color #00ff88` read
+and change the same settings for the run (`smoke_color_mode rainbow` is a shorthand). The settings reach the scene in `WorldTuning::smoke_tint`, like the other
+world settings. The colour is chosen per sprite while the
+quads are built (`scenes/world/effects/tint.rs`, pure functions with tests): the game's smoke keeps one number per puff (the
+speed or slip it was born with) and a variant's sprites use the car's speed or slip now, so nothing is allocated per particle.
+The alpha is never touched, so the smoke fades as it did.
+
+## Tire smoke variants
+
+The gameplay settings have a **Tire smoke variant** option whose only value in the game is **Original**: the smoke described
+above. A mod adds values to it ([effect-variants.md](modding/effect-variants.md)); `nfsmw-2012-content` adds **NFS Most Wanted
+2012**, the smoke of the 2012 game's tarmac, converted from the player's own install ([chameleon-effects.md](formats/chameleon-effects.md#wheel-effects-tyre-smoke)).
+With a variant chosen, the game's procedural puffs are not drawn: each layer of the variant's profile is an emitter at every
+wheel that smokes, on the road under it, with the mod's own pictures, and the wheel's smoke (the physics' slip intensity, 0 to 1)
+multiplies its spawn rate, so the **Tire Smoke** switch, wetness, the free camera and the reset still act as above. The particles
+come from `blackbox-particles` (up to 128 live ones for each layer at each wheel, no allocation per particle, one textured batch
+per layer), so the **Smoke Quality** setting does not change a variant. If the variant's files cannot be read the game's own smoke
+is drawn.
 
 ## Lifetime and limits
 

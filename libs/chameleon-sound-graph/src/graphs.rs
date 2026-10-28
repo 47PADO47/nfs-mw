@@ -21,6 +21,8 @@ const GINSU_ITEM: &str = "Genesys.Gen.GinsuSequenceItem";
 const MIXER_ITEM: &str = "Genesys.Gen.MixerChannelSequenceItem";
 const MIXER_VALUE: &str = "MixerChannelDoubleValue";
 const MIXER_CHANNEL: &str = "Genesys.Gen.MixerChannel";
+/// The classes that gather sequences into one sound: the engine sound of an entity and the transmission whine.
+const GROUP_CLASSES: [&str; 2] = ["EngineSound2", "TransmissionWhine"];
 /// Most items of a sequence and most values of a mixer item.
 const MAX_ITEMS: usize = 256;
 /// Bytes of one value of a mixer item.
@@ -28,10 +30,30 @@ const MIXER_VALUE_SIZE: usize = 36;
 /// A fade of no length.
 const NO_FADE: Fade = Fade { shape: 1.0, span: 0.0 };
 
+/// An object that gathers sequences into one sound: an engine sound (`EngineSound2`, one for the local player and one for
+/// the opponents and traffic) or the transmission whine. It names the resources it uses by handle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Group {
+    /// The class name without its namespace (`EngineSound2`, `TransmissionWhine`).
+    pub class: String,
+    pub id: u64,
+    /// The resources it points at (sequences, mixer channels, DSP objects), by id.
+    pub handles: Vec<u64>,
+}
+
+impl Group {
+    /// Whether the group points at the resource `id`.
+    pub fn holds(&self, id: u64) -> bool {
+        self.handles.contains(&id)
+    }
+}
+
 /// The sequences and mixer channels of one car bundle.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SoundGraphs {
     pub sequences: Vec<Sequence>,
+    /// The engine sounds and transmission whines, in the order of the bundle.
+    pub groups: Vec<Group>,
     /// The base gain of each mixer channel, by resource id.
     pub channel_gains: HashMap<u64, f32>,
 }
@@ -55,7 +77,12 @@ impl SoundGraphs {
                 MIXER_CHANNEL => {
                     graphs.channel_gains.extend(f32_at(view.block, 48).map(|gain| (entry.id, gain)));
                 }
-                _ => {}
+                class => {
+                    let short = class.rsplit('.').next().unwrap_or(class);
+                    if GROUP_CLASSES.contains(&short) {
+                        graphs.groups.push(view.group(short));
+                    }
+                }
             }
         }
         graphs
@@ -64,6 +91,25 @@ impl SoundGraphs {
     /// The sequences whose driver contains `name`.
     pub fn driven_by<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Sequence> + 'a {
         self.sequences.iter().filter(move |sequence| sequence.driven_by(name))
+    }
+
+    /// The engine sound of the local player: the `EngineSound2` that holds a sequence driven by a `LocalPlayer` value. A
+    /// bundle has a second one for the opponents and the traffic. `None` when the bundle has no engine sound object.
+    pub fn player_engine(&self) -> Option<&Group> {
+        self.groups
+            .iter()
+            .filter(|group| group.class == "EngineSound2")
+            .find(|group| self.sequences_in(group).any(|sequence| sequence.driver.contains("LocalPlayer.")))
+    }
+
+    /// The group of class `class` (`TransmissionWhine`), the first of the bundle.
+    pub fn group_of(&self, class: &str) -> Option<&Group> {
+        self.groups.iter().find(|group| group.class == class)
+    }
+
+    /// The sequences `group` points at.
+    pub fn sequences_in<'a>(&'a self, group: &'a Group) -> impl Iterator<Item = &'a Sequence> + 'a {
+        self.sequences.iter().filter(move |sequence| group.holds(sequence.id))
     }
 
     /// The mixer items on `channel` among the sequences driven by `name`, with the sequence they are in.
@@ -88,7 +134,7 @@ pub fn ginsu_resource(bundle: &Bundle, id: u64) -> Option<GinsuResource> {
 }
 
 /// The names of the type resources: the zero-terminated string 8 bytes past the offset held at 0x20.
-fn type_names(bundle: &Bundle, kind: u32) -> HashMap<u64, String> {
+pub(crate) fn type_names(bundle: &Bundle, kind: u32) -> HashMap<u64, String> {
     let mut names = HashMap::new();
     for (index, entry) in bundle.entries().iter().enumerate() {
         if entry.kind != kind {
@@ -130,6 +176,13 @@ impl<'a> View<'a> {
         }
         let class = classes.get(&0)?.clone();
         Some(Self { id, block: &resource.blocks[0], class, classes, handles })
+    }
+
+    /// The group this object is: the class and every resource it points at, in the order of the object.
+    fn group(&self, class: &str) -> Group {
+        let mut by_offset: Vec<(usize, u64)> = self.handles.iter().map(|(&at, &id)| (at, id)).collect();
+        by_offset.sort_unstable();
+        Group { class: class.to_owned(), id: self.id, handles: by_offset.into_iter().map(|(_, id)| id).collect() }
     }
 
     fn handle(&self, at: usize) -> u64 {

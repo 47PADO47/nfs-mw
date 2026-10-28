@@ -134,7 +134,7 @@ fn maker(source: &Source, entry: &Manufacturer, names: &[u8]) -> Option<Maker> {
 }
 
 /// The main block of the text table in the bundle `data`.
-fn text_block(data: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn text_block(data: &[u8]) -> Option<Vec<u8>> {
     let bundle = Bundle::parse(data).ok()?;
     let kind = ResourceKind::LocalisedText.id();
     let index = bundle.entries().iter().position(|entry| entry.kind == kind)?;

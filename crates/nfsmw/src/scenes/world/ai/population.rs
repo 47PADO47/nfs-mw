@@ -162,6 +162,7 @@ impl TrafficWorld {
         if self.world_moment {
             return;
         }
+        self.serve_asked_cars(tick, focus, collision, surfaces);
         if self.needs_patrol() && self.spawn_patrol(focus, collision, surfaces) {
             return;
         }
@@ -179,6 +180,8 @@ impl TrafficWorld {
             });
         let mut changed = !self.timers.started() && self.patterns.as_ref().is_some_and(|p| p.current().is_some());
         if let Some(patterns) = self.patterns.as_mut() {
+            // The traffic cars the mods add join each pattern's list; a rescan that adds some makes the rules again.
+            changed |= patterns.refresh_mod(nfsmw_data::car::mods::traffic_generation(), super::mod_traffic::rules_for);
             changed |= patterns.select(at);
         }
         if changed {

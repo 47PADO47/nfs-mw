@@ -128,5 +128,52 @@ pub fn lift_off(spool: f32, rpm_pct: f32, rng: &mut Rng) -> LiftOff {
     LiftOff { blowoff, backfire, pops }
 }
 
+/// Most bangs that wait to light the tail pipes at once (a lift-off makes four at most).
+const MAX_BANGS: usize = 16;
+
+/// The bangs of lift-offs that have not lit the tail pipes yet. The game's own cars have a sputter module whose pops light
+/// the pipes (`take_sputter_pops`); a mod car has none, so its backfire and pops, which [`lift_off`] decides, do it: each
+/// bang waits as long as its sound is held back, then is due once.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Bangs {
+    /// Seconds until each waiting bang.
+    waiting: Vec<f32>,
+    /// Bangs whose time has come since the last [`Bangs::take`].
+    due: u32,
+}
+
+impl Bangs {
+    /// A bang `delay` seconds from now.
+    pub fn queue(&mut self, delay: f32) {
+        if self.waiting.len() >= MAX_BANGS {
+            return;
+        }
+        let delay = match delay.is_finite() {
+            true => delay.max(0.0),
+            false => 0.0,
+        };
+        self.waiting.push(delay);
+    }
+
+    /// Let `dt` seconds pass: the bangs whose time is up become due.
+    pub fn advance(&mut self, dt: f32) {
+        let dt = match dt.is_finite() {
+            true => dt.max(0.0),
+            false => 0.0,
+        };
+        let before = self.waiting.len();
+        for left in &mut self.waiting {
+            *left -= dt;
+        }
+        self.waiting.retain(|left| *left > 0.0);
+        self.due += (before - self.waiting.len()) as u32;
+    }
+
+    /// The bangs that became due since the last call.
+    pub fn take(&mut self) -> u32 {
+        std::mem::take(&mut self.due)
+    }
+}
+
 #[cfg(test)]
 mod tests;

@@ -30,7 +30,8 @@
 //!
 //! - [`menu`]: the menus, drawn from the lists the frontend publishes ([`MenuListCell`]), and the LAN page ([`LanCell`]).
 //! - [`lan_hud`]: the LAN session's HUD pieces.
-//! - [`full_map`]: the full-screen world map (`WorldMapChrome`), drawn with the centred map's roads, routes and marks.
+//! - [`full_map`]: the full-screen world map (`WorldMapChrome`): the game's own map picture and icon textures, with the
+//!   Custom chrome and the GPS route round them.
 //!
 //! Kept for the other looks: [`drive_feed`], the drive state the Remastered theme reads ([`DriveFeedCell`]); [`skin`],
 //! the map's icons.

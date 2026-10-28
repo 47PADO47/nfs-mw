@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+chameleon-anim.workspace = true
 chameleon-bundle.workspace = true
 chameleon-gfx.workspace = true
 thiserror.workspace = true

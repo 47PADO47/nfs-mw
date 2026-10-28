@@ -84,6 +84,8 @@ fn the_manifest_table_carries_the_swing_in_car_space() {
         delay: None,
         drives: Vec::new(),
         tracks: Vec::new(),
+        damage: None,
+        steering: None,
     };
     let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
     let text = manifest_tables(&hinged, &["CAR_KIT00_BONNET".into()], &Fit::own(layout));
@@ -125,6 +127,8 @@ fn an_active_spoiler_writes_its_movement_and_needs_no_damage_swing() {
         delay: None,
         drives: Vec::new(),
         tracks: Vec::new(),
+        damage: None,
+        steering: None,
     };
     let hinged = Hinged { parts: vec![part.clone()], wing: None, classes: Vec::new() };
     let text = manifest_tables(&hinged, &["CAR_KIT00_SPOILER".into()], &Fit::own(layout));
@@ -154,7 +158,8 @@ fn the_911_has_hinged_parts_and_an_active_spoiler() {
     let car = source.load(file).unwrap();
     let hinged = car.hinged.as_ref().expect("the 911 has hinged parts");
     let names: Vec<&str> = hinged.parts.iter().map(|part| part.name.as_str()).collect();
-    assert_eq!(hinged.parts.len(), 8, "{names:?}");
+    // The 8 parts of its damage object and spoiler, and the pieces its damage clips break (lamps, glass, bumper lips) and the steering wheel.
+    assert_eq!(hinged.parts.len(), 23, "{names:?}");
     let spoiler = hinged.parts.iter().find(|part| part.name == "SpoilerHinge").expect("the spoiler");
     let motion = spoiler.active.expect("it moves");
     assert_eq!((motion.above_mph, motion.below_mph), (70.0, 40.0));
@@ -202,6 +207,8 @@ fn the_manifest_names_the_part_a_flap_hangs_from() {
         delay: None,
         drives: Vec::new(),
         tracks: Vec::new(),
+        damage: None,
+        steering: None,
     };
     let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
     let text = manifest_tables(&hinged, &["CAR_KIT00_SPOILER_FLAP_LEFT".into()], &Fit::own(layout));
@@ -329,4 +336,81 @@ fn the_huayra_writes_four_flaps_with_their_drives_and_the_game_accepts_them() {
         right_turn.open.iter().any(|t| t.op == blackbox_modding::content::DriveOp::Gt && t.value == 0.3),
         "{right_turn:?}"
     );
+}
+
+fn damaged(damage: PartDamage) -> Part {
+    Part {
+        name: "FrontBumperHinge".into(),
+        zone: 1,
+        pivot: [0.56, 0.66, 1.85],
+        limits: [[0.0; 2]; 3],
+        thresholds: vec![0.04, 0.05, 0.5, 0.75],
+        mass_kg: 50.0,
+        active: None,
+        parent: None,
+        delay: None,
+        drives: Vec::new(),
+        tracks: Vec::new(),
+        damage: Some(damage),
+        steering: None,
+    }
+}
+
+fn written(part: Part) -> toml::Table {
+    let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
+    let text = manifest_tables(&hinged, &["CAR_KIT00_FRONT_BUMPER".into()], &Fit::own(layout()));
+    blackbox_modding::content::parse_car("CAR", &text).unwrap_or_else(|e| panic!("the game refuses it: {e}\n{text}"));
+    toml::from_str(&text).unwrap()
+}
+
+#[test]
+fn the_damage_clip_writes_the_turn_of_each_level_and_where_the_part_breaks_off() {
+    use crate::damage_model::{Release, Swing};
+    let swing = Swing { axis: [1.0, 0.0, 0.0], angles: [-3.0, -6.0, -9.0] };
+    let table = written(damaged(PartDamage { swing: Some(swing), release: Release::At(0.75) }));
+    let entry = &table["damage_parts"][0];
+    assert_eq!(entry["angle"].as_float(), Some(-9.0), "the last level");
+    assert_eq!(entry["axis"][1].as_float(), Some(1.0), "the engine's left is the game's y");
+    let stages: Vec<f64> = entry["stages"].as_array().unwrap().iter().filter_map(|s| s.as_float()).collect();
+    assert_eq!(stages.len(), 3, "the clip's levels replace the ladder of the damage object: {stages:?}");
+    assert_eq!(entry["stage_angles"][1].as_float(), Some(-6.0));
+    assert_eq!(entry["detach_at"].as_float(), Some(0.75));
+    let stays = written(damaged(PartDamage { swing: Some(swing), release: Release::Never }));
+    assert_eq!(stays["damage_parts"][0]["detach"].as_bool(), Some(false));
+    assert!(stays["damage_parts"][0].get("detach_at").is_none());
+}
+
+#[test]
+fn a_piece_that_only_breaks_off_is_written_without_a_turn() {
+    use crate::damage_model::Release;
+    let table = written(damaged(PartDamage { swing: None, release: Release::At(0.25) }));
+    let entry = &table["damage_parts"][0];
+    assert_eq!(entry["angle"].as_float(), Some(0.0));
+    assert!(entry.get("stage_angles").is_none());
+    assert_eq!(entry["detach_at"].as_float(), Some(0.25));
+    let default = written(damaged(PartDamage { swing: None, release: Release::Default }));
+    assert!(
+        default["damage_parts"][0].get("detach_at").is_none() && default["damage_parts"][0].get("detach").is_none()
+    );
+}
+
+#[test]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+fn the_911_breaks_pieces_off_by_its_clips_and_the_game_accepts_the_tables() {
+    let Some((hinged, manifest)) = manifest_of(1085007) else { return };
+    let parts = &manifest.damage_parts;
+    let find = |name: &str| parts.iter().find(|part| part.name == name);
+    assert_eq!(find("FrontBumper").unwrap().detach_at, Some(1.0), "the bumper drops at full damage");
+    assert!(!find("Bonnet").unwrap().detach, "the bonnet only tilts");
+    assert_eq!(find("LeftMirror").unwrap().detach_at, Some(0.25));
+    assert!(
+        parts.iter().any(|part| part.name.starts_with("Piece") && part.detach_at == Some(0.25)),
+        "lamps break at 0.25"
+    );
+    let pieces = parts.iter().filter(|part| part.name.starts_with("Piece")).count();
+    assert!(
+        pieces >= 6 && hinged.parts.len() >= parts.len(),
+        "lamps, glass and lips of the bumpers are parts of their own: {pieces}"
+    );
+    assert!(parts.len() <= blackbox_modding::content::MAX_DAMAGE_PARTS);
 }

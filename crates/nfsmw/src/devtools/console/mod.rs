@@ -21,6 +21,8 @@ mod parse;
 mod settings_cmd;
 mod settings_keys;
 #[cfg(test)]
+mod smoke_color_tests;
+#[cfg(test)]
 mod smoke_quality_sync_tests;
 #[cfg(test)]
 mod tire_sync_tests;

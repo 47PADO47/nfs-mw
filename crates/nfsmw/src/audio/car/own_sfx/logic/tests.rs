@@ -94,3 +94,33 @@ fn a_backfire_is_likelier_at_high_revs_and_is_followed_by_pops() {
         assert!(lift.backfire.is_none_or(|volume| (0.5..=1.0).contains(&volume)));
     }
 }
+
+#[test]
+fn a_bang_is_due_once_when_its_delay_has_passed() {
+    let mut bangs = Bangs::default();
+    bangs.queue(0.0);
+    bangs.queue(0.2);
+    bangs.advance(0.01);
+    assert_eq!(bangs.take(), 1, "the bang with no delay is due at the next step");
+    assert_eq!(bangs.take(), 0, "and only once");
+    bangs.advance(0.1);
+    assert_eq!(bangs.take(), 0);
+    bangs.advance(0.1);
+    assert_eq!(bangs.take(), 1);
+    bangs.advance(1.0);
+    assert_eq!(bangs.take(), 0);
+}
+
+#[test]
+fn bangs_ignore_bad_delays_and_never_pile_up() {
+    let mut bangs = Bangs::default();
+    bangs.queue(f32::NAN);
+    bangs.queue(-1.0);
+    bangs.advance(f32::NAN);
+    assert_eq!(bangs.take(), 2, "a bad delay is no delay");
+    for _ in 0..100 {
+        bangs.queue(10.0);
+    }
+    bangs.advance(11.0);
+    assert!(bangs.take() <= 16);
+}

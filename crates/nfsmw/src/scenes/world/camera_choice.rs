@@ -46,9 +46,12 @@ impl WorldScene {
             .original_body(true)
             .and_then(|body| self.original_camera.lens(body, aspect, true))
             .unwrap_or_else(|| self.car_lens(drive, drive.camera(), aspect));
+        // The nitrous variant's camera (`nitrous_screen.rs`): the field of view and the shake on every camera, the pull-back
+        // on the chase camera only. The rules' lens below is not touched: the nudge is for the picture.
+        let nudge = self.nitrous_screen.camera();
         match crate::viewer::camera::original::index_of(self.camera_mode) {
-            None => self.constrain_custom_camera(lens, aspect, true),
-            Some(_) => lens,
+            None => nudge.apply(self.constrain_custom_camera(lens, aspect, true), aspect, true),
+            Some(_) => nudge.apply(lens, aspect, false),
         }
     }
 

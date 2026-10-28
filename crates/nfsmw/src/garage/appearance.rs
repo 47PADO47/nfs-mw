@@ -53,6 +53,7 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
     });
     ui.collapsing("Rim paint", |ui| rims(ui, model, &catalog));
     ui.collapsing("Gauges", |ui| gauges(ui, model, &catalog, settings));
+    super::plate_edit::show(ui, model, &catalog);
     if ui.button("Restore stock appearance").clicked() {
         for category in [Category::Paint, Category::WindowTint, Category::RimPaint, Category::Vinyl] {
             model.draft.parts.parts[category as usize] = None;

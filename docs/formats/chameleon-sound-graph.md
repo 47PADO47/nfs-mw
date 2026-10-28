@@ -86,7 +86,7 @@ types; only the Porsche's values were read in detail.
 A modulator with **no expression and no curve** gives its `base` (the whine loops' gain 0.6, the idle loop's 0.5). One with
 an expression or a curve maps the live value `v`: `t = clamp((v - in_min) / (in_max - in_min))`, `y = curve(t)` (or `t`
 with no curve), result `scale * (out_min + (out_max - out_min) * y)`. An empty expression reads the sequence's own driver
-value. The Porsche's engine-load mixer curves span `out` 0 to 2 and 0 to 4, so a curve value above 1 is a gain boost.
+value (for a transmission-speed item with a curve, the position in the item's window, [below](#the-electric-motor)). The Porsche's engine-load mixer curves span `out` 0 to 2 and 0 to 4, so a curve value above 1 is a gain boost.
 
 A curve is a list of points with tangents, drawn as cubic Bezier segments. This reader takes a tangent as the **fraction
 of the segment's width and height** at which the handle sits (`a + (tx * width, ty * height)` for the right handle of
@@ -120,6 +120,24 @@ different parent buses (`7347f` and `7343b`). Both are in the engine's list. One
 the exterior, or two layers that both play; nothing in the data says. The converter takes **the first in the bundle**.
 Two sequences driven by `RaceCars.EntityEngineSound["Id"].GetAudibleRPM` (opponents and traffic: two Ginsu voices and idle
 loops, whose engine-load sequence sets DSP parameters, not gains) are not used.
+
+## Whose sequences they are: `EngineSound2` and `TransmissionWhine` **[verified]**
+
+A bundle holds the sequences of several sounds, and a car sounds like the player's, not like the sum of them. Two kinds
+of object gather sequences by handle (`SoundGraphs::groups`, `libs/chameleon-sound-graph`):
+
+| Class | Per bundle | Holds |
+|---|---|---|
+| `Genesys.Gen.EngineSound2` (260 bytes, handles at 0x0c to 0x1bc) | two | the engine sound of **the local player** (the one that holds a sequence driven by a `LocalPlayer.` value: the engine load, the speed, the audible engine speed, the gear change time, `GetNormalisedRPM`, ...), and of **the opponents and traffic** (`EntityEngineSound`, `GetDistanceToListener`, `GetSpeedMph`: two Ginsu voices and idle loops, the same sequences on every car) |
+| `Genesys.Gen.Vehicles.Sound.TransmissionWhine` (112 bytes) | one | the **gas** sequence (`GetPlayerGas`), the **whine** sequence (`GetTransmissionSpeedMph`, five loops) and the **reverse** whine (`GetReverseTransSpeedMph`) |
+
+All 93 car bundles have both kinds. The whine object's ids are the **same on every car** (`d672d`, `d6751`, `11f220`: a
+template instance copied into each bundle), so the gearbox whine is one set of five loops that every car has. What differs
+between cars is the player's `EngineSound2`: a combustion car holds two sets of audible-speed sequences (the Ginsu voices
+and the idle loop) and the gear change sequences; the **Tesla Roadster** holds neither, and holds a transmission-speed
+sequence of its own, the motor ([below](#the-electric-motor)). A sequence in the opponents' engine sound is never played
+for the player: an older reading took every transmission-speed sequence of the bundle and so played the Tesla's motor twice
+(the player's and the opponents' copy, whose channels differ).
 
 ## The Ginsu resource (kind 0x80) **[verified]**
 
@@ -166,6 +184,39 @@ The three loops of the first three rows rise with their bases within a factor of
 speed the loop was recorded at"; the last two do not fit (a harmonic is stronger than the fundamental, or the base of that
 item means something else). The rule is therefore **[inferred, weakly supported]**; nothing was listened to.
 
+**The gas pedal crossfades the whine [verified structure].** The whine object's gas sequence (`GetPlayerGas`, 0 to 1) holds
+two mixer items on the channels the loops play on: the three loops of the first channel (`d66f1`) follow (0, 0) (0.32, 0.03)
+(0.75, 1) (1, 1) and the two of the second (`d672a`) the opposite, (0, 1) (0.32, 1) (0.75, 0) (1, 0). So the gearbox is heard
+on the throttle with the first set and off it with the second, which the converter writes as `load` curves on the loops.
+Each loop has a channel gain of 0.16 and an item gain of 0.6: against the Tesla's motor (gain 2, channel 1) the whine is 26 dB
+under it.
+
+## The electric motor **[verified structure, inferred reading of the curves]**
+
+The Tesla Roadster (`VEH_1085764`) has no Ginsu resource (the bundle holds 16 samples), no audible-speed sequence, no gear
+change, pop, backfire or turbo sequence. Its player engine sound holds one transmission-speed sequence (`17f7a6`, range 0
+to 170 mph) with two **wave items** that are the whole sound:
+
+| Item | Window (mph) | Loop | Gain | Pitch (playback rate) |
+|---|---|---|---|---|
+| 1 | 0 to 150, hard edges | `17f7a4` | 2 on a channel of 1 | 1 to 2.2 by a curve: (0, 0) (0.39, 0.8) (1, 0.99) |
+| 2 | 5 to 200, hard edges | `17f868` | 2 on a channel of 1 | 0.8 to 1.2 by a curve: (0, 0) (0.54, 1) (1, 1) |
+
+The pitch modulators have no expression and a curve: **the curve is read over the item's window**, `t = 0` at the window's
+low end and 1 at its high end **[inferred]**, so loop 1 plays at its own speed standing, at 1.96 times it at 59 mph and at 2.2
+times at 150 mph, and loop 2 at 0.8 up to 1.2 times by 111 mph. The reading is supported by a second car that uses the same
+loop `17f7a4` (a hybrid, `VEH_1085830`, next to its Ginsu engine): its item, window 5 to 150 with a fade-out of 50 and a
+pitch of 1.8 to 2.8 by the same kind of curve, is accompanied by a **mixer item on the loop's own channel** (window 5 to 150)
+whose curve is (0, 0) (0.52, 0.985) (1, 0): over the window the motor swells from nothing at 5 mph to a peak near 80 mph and
+falls to nothing at 150, which only makes sense with the curve read over the item's own window. The same reading is used for
+the mixer curve (`speed_mph` points in the manifest).
+
+The sequence also has mixer items for four channels (`b381c`, `73504`, `7504`, `87ee3`) whose curves are over the speed
+(`b381c`: 0.4 at standstill, 1 at 55 mph, 0 from 120; `73504`: 0 to 0.96 at 80 mph and 0.38 from 140). No wave plays on them:
+they are the channels of the engine's DSP chain (the tracked-harmonic and sub-harmoniser plug-ins, [below](#the-dsp-enginesound2)),
+which are **not ported**. If those plug-ins synthesise a tone that rises with the speed, the Tesla in the 2012 game has it in
+addition to the two loops; the data does not say.
+
 ## The DSP: `EngineSound2` **[partly decoded, not ported]**
 
 `Genesys.Gen.EngineSound2` (260 bytes, `170aa5` for the Porsche) is the car's engine sound **container**, not a
@@ -182,12 +233,77 @@ There is **no additive harmonic oscillator**, so there is nothing to port as a s
 harmonics needs per-channel filters in the audio mixer. This is not implemented: the mod car plays the Ginsu voices and
 loops unfiltered.
 
+## The sound of speed **[verified data, inferred reading]**
+
+Two places hold what the 2012 game plays as the car goes faster; only the second is audible.
+
+**`SpeedSoundSet` (`SOUND/SPEEDSOUNDS.BNDL`, read by `SpeedSoundSet` in `speed_sounds.rs`).** The bundle has one such object (a
+scan of the 2,021 `.BNDL` of the install finds no other) and five samples. The object (396 bytes) holds, inline and in this
+order: two `WindLayer` (68 bytes: four sample slots of 8 bytes at +12, an id at +44 and five floats from +48), four `WorldLayer`
+(36 bytes: an id, an array of samples behind an offset at +16, three floats from +20, the sample count as a `u16` at +32), two
+`FlybyLayer` (28 bytes: an id, an array at +16, a float at +20, the count at +24), then an id and eleven floats. Field names are
+hashed; the values in type-record order:
+
+| Part | Values |
+|---|---|
+| `WindLayer` 1 | 1.0, 250, 0, 0.3, 249 |
+| `WindLayer` 2 | 0.55, 250, 0, 0.45, 249 |
+| `WorldLayer` 1 to 4 | (0.75, 0.8, 0.45), (0.75, 0.8, 0.45), (1.0, 0.2, 0.984), (1.0, 0.1, 0.964) |
+| `FlybyLayer` 1, 2 | 37.79 and 5.613, two samples each (`7a25`, `7a26` and `7a27`, `7a28`) |
+| the set | 0.531, 0.95, 240, 0.718, 0.148, 0.65, 110, 0.707, 0.6, 0.25, 150 |
+
+**Every sample slot of both wind layers and of all four world layers names the same sample, `79ff`: 100 ms of digital silence**
+(mean level -91 dB, a 248-byte stream). So the wind layers of the shipped game play nothing and `SpeedSoundSet.WindLayer` is not
+where the wind is. What the numbers mean (they look like gains against speeds near 250 mph) is **[unknown]**; the four flyby
+samples (0.84, 0.62, 1.11 and 0.75 s, broadband whooshes, the same as the passbys other cars make) are not the player's wind.
+
+**The wind that is heard: the sequence `87ea6` of `SOUND/GLOBAL.BNDL` [verified].** It is driven by `LocalPlayer.GetPlayerSpeed`
+(range 0 to 180) and holds 38 items; `SoundGraphs::wind_sequence` finds it as the speed-driven sequence with the most wave items
+(two others with the same driver are the prop collision, which has no wave item, and a smaller sequence that also reads the
+throttle and `EngineOn`). 15 items are wave items, loops in windows of the
+speed on mixer channels with a base gain; the others are mixer items that set the gain of channels of other sounds. The loops
+(all 2.9 to 4.0 s, mono, looping from 0; the left and right of a pair are different recordings on two channels):
+
+| Window (speed) | Fades in, out | Loops (channel gain) | Gain | Rate |
+|---|---|---|---|---|
+| 45 to 90 | 20, 20 | `182159` (0.1465), `18215a` (0.1452) | 1.5, times the channel's mixer item below | 1 |
+| 70 to 138 | 20, 40 | `1821e4`, `1821e5` (0.1465, 0.1452) | 1 | 1.3 |
+| 100 to 250 | 40, none | `1821e6`, `1821e7` (0.1465, 0.1452) | 1.5 | 2 |
+| 45 to 250 | none | `182182` (0.3548) and `182183` (0.3548) | a curve (0, 0) (0.19, 0.23) (0.41, 1) (1, 1); `182183` over 70 to 200 | 1 |
+| 45 to 250 | none | `182186` (0.1865), `182187` (0.1826) | a curve (0, 0.23) (0.15, 0.57) (0.35, 1) (1, 1) | 1 |
+| 45 to 250 | none | `182186` again (0.128) | a curve (0, 0) (0.28, 1) (1, 1) | 1 |
+| 45 to 250, **in the air** | none | `182182`, `182183` (0.50) | `TimeInAir`, 0 to 2.5 s over the first 6.5 percent | 1 |
+| 45 to 250, **muted** | none | `182280`, `18227e` (0.0001) | | 1 |
+
+The mixer items of the sequence for the channels of the first three rows (window 40 to 250) multiply the loops by a curve (0, 0)
+(0.29, 1) (1, 1) along that window, so they reach their full gain at about 101 mph. The loops are noise: `182159` has most of its
+energy at 200 to 1000 Hz and falls away above 2 kHz, `1821e4` is broader (to 8 kHz), `1821e6` sits at 0.5 to 2 kHz, `182182` is a
+rumble (most energy under 200 Hz), `182186` a flat hiss and the muted pair bright air (4 to 15 kHz); each measured with band
+filters on the decoded loop.
+
+- **Speed unit [unconfirmed].** The value has no unit in its name (the whine's is `GetTransmissionSpeedMph`). The sequence's range
+  of 0 to 180 clamps the live value, so windows that reach 250 never get there; mph is the reading that suits a car's top speed.
+- **Reading of a modulator [inferred].** A modulator with the default input range (0, 1) and no expression is read along the item's
+  window (0 at its low end), as for the electric motor; one with another range (`182183`: 70 to 200) is read against the speed
+  itself.
+- **No dependence on the camera, the windows or the roof [verified negative].** No expression or string of the 57 sequences and
+  the other graph objects of `GLOBAL.BNDL` names a camera, an interior, a cockpit, a window or a convertible (searched, no hit); the
+  engine switch (`EngineOn`) gates other channels, the canyon and tunnel flags other sequences. The wind is the same for every car
+  and every view. The loops that swell in the air (`TimeInAir`) are the only other input.
+- Levels were not heard: the loops are mastered near full scale (mean -12 to -16 dB), so the channel gains (0.13 to 0.35) and the
+  item gains set the level.
+
+The mod writes the eleven playable loops as a wind variant ([effect-variants.md](../modding/effect-variants.md)), the level of each at
+every speed (the window, the item's curve and the channel's curve multiplied) from 0 to 180 in steps of 5 mph; the two in the air
+and the two muted are not written.
+
 ## What is not decoded **[unknown]**
 
 - the second modulator array of a wave item (`216`: it holds `GetEngineHeat` on the Porsche's grain item), the two
   enums and the two bools of a modulator, the item enum at 32;
 - the gear-change, pop, backfire, turbo, shunt and LFO sequences' behaviour (the mod still picks their samples by the live
   values they read, [chameleon-sound.md](chameleon-sound.md));
+- the gear change, pop, backfire and turbo sequences of the opponents' engine sound (not played for the player);
 - DSP parameter curves (the `GainParam` and `DspParam` values), the `EngineOn` and `RevLimitGain` gates, the entity
   (opponent) engine set;
 - how the game maps the engine's own rpm onto the audible range (only the accessor's form is known).

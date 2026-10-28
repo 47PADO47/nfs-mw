@@ -29,9 +29,10 @@
 //! on = "burn"                   # "start", "burn" or "pop"
 //! texture = "NITROUS/MW2012/GLOW.PNG"
 //!
-//! [screen]                     # screen effects that follow the burn
+//! [screen]                     # screen and camera effects that follow the burn, see `nitrous_screen`
 //! vignette = 0.2                # strength 0 to 1 at full effect
 //! radial_blur = 0.3             # strength 0 to 1 at full effect
+//! fov = 8.0                     # degrees added to the chase camera's field of view
 //! fade_in = 0.25                # seconds to reach full effect
 //! fade_out = 1.0                # seconds to leave it
 //! ```
@@ -42,16 +43,19 @@ use super::ContentError;
 use super::engine_sound::is_sound_path;
 use super::nitrous_effects::{self as effects, EffectProfile, RawEffect};
 
+pub use super::variant::PROFILE_FILE;
+use super::variant::{self, NITROUS};
+
+#[path = "nitrous_screen.rs"]
+mod screen;
+pub use screen::ScreenProfile;
+
 /// The folder under a mod's `files/` that holds the variants' files.
-pub const NITROUS_FOLDER: &str = "NITROUS";
-/// The name of a variant's profile file.
-pub const PROFILE_FILE: &str = "profile.toml";
-/// The only format number this version reads.
-pub const FORMAT: u32 = 1;
+pub const NITROUS_FOLDER: &str = NITROUS.folder;
 
 /// The path of the profile of variant `value` in the install's layout (the overlay of the mod's `files/` folder).
 pub fn profile_path(value: &str) -> String {
-    format!("{NITROUS_FOLDER}/{}/{PROFILE_FILE}", value.to_ascii_uppercase())
+    NITROUS.profile_path(value)
 }
 
 /// The sounds of a variant.
@@ -81,15 +85,6 @@ pub struct FlameProfile {
     pub replace_pop: bool,
 }
 
-/// The screen effects that follow the burn.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ScreenProfile {
-    pub vignette: f32,
-    pub radial_blur: f32,
-    pub fade_in: f32,
-    pub fade_out: f32,
-}
-
 /// A variant's effects.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct NitrousProfile {
@@ -106,7 +101,7 @@ struct Raw {
     format: u32,
     audio: Option<RawAudio>,
     flame: Option<RawFlame>,
-    screen: Option<RawScreen>,
+    screen: Option<screen::RawScreen>,
     #[serde(default)]
     effect: Vec<RawEffect>,
 }
@@ -135,15 +130,6 @@ struct RawFlame {
     replace_pop: Option<bool>,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawScreen {
-    vignette: Option<f32>,
-    radial_blur: Option<f32>,
-    fade_in: Option<f32>,
-    fade_out: Option<f32>,
-}
-
 const GAIN_RANGE: std::ops::RangeInclusive<f32> = 0.0..=4.0;
 const FADE_RANGE: std::ops::RangeInclusive<f32> = 0.0..=10.0;
 const UNIT_RANGE: std::ops::RangeInclusive<f32> = 0.0..=1.0;
@@ -152,13 +138,11 @@ const UNIT_RANGE: std::ops::RangeInclusive<f32> = 0.0..=1.0;
 /// know or another format number is refused with the reason.
 pub fn parse(text: &str) -> Result<NitrousProfile, ContentError> {
     let raw: Raw = toml::from_str(text).map_err(|error| ContentError::Parse(error.to_string()))?;
-    if raw.format != FORMAT {
-        return Err(ContentError::Field { field: "format", reason: "only format 1 is read" });
-    }
+    variant::check_format(raw.format)?;
     Ok(NitrousProfile {
         audio: raw.audio.map(audio).transpose()?,
         flame: raw.flame.map(flame).transpose()?,
-        screen: raw.screen.map(screen).transpose()?,
+        screen: raw.screen.map(screen::parse).transpose()?,
         effects: effects::check(raw.effect)?,
     })
 }
@@ -215,15 +199,6 @@ fn flame(raw: RawFlame) -> Result<FlameProfile, ContentError> {
         gain: within(raw.gain, 1.0, &GAIN_RANGE, "flame.gain")?,
         replace_burn: raw.replace_burn.unwrap_or(false),
         replace_pop: raw.replace_pop.unwrap_or(false),
-    })
-}
-
-fn screen(raw: RawScreen) -> Result<ScreenProfile, ContentError> {
-    Ok(ScreenProfile {
-        vignette: within(raw.vignette, 0.0, &UNIT_RANGE, "screen.vignette")?,
-        radial_blur: within(raw.radial_blur, 0.0, &UNIT_RANGE, "screen.radial_blur")?,
-        fade_in: within(raw.fade_in, 0.25, &FADE_RANGE, "screen.fade_in")?,
-        fade_out: within(raw.fade_out, 0.5, &FADE_RANGE, "screen.fade_out")?,
     })
 }
 

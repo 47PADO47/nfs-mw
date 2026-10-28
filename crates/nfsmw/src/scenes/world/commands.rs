@@ -1,5 +1,5 @@
 //! The world viewer's console commands: `drive`, `reset`, `repair`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug`,
-//! `race`, `nis`, `movie`, `story`, `session` and `coop`.
+//! `race`, `nis`, `movie`, `story`, `session`, `coop`, `plate` and `plate-design`.
 
 use blackbox_gfx::RenderBackend;
 use glam::Vec3;
@@ -30,6 +30,14 @@ pub(super) const LIST: &[(&str, &str)] = &[
         "parts [stock|<body|spoiler|hood|roof|rims> <stock|index> ...]",
         "list or select the active car's installed model parts; indices start at 1",
     ),
+    (
+        "plate [TEXT|reset]",
+        "the licence plate text of a car that has a plate (a mod car); for this session. No argument: show it; reset: the car's own",
+    ),
+    (
+        "plate-design [ID|name|none|list [filter]|reset]",
+        "the design behind the glyphs of a plate that offers designs; for this session. none: the plain plate; list: the designs",
+    ),
     ("repair", "clear the car's visible damage and punctured tires"),
     (
         "damage <zone> <severity 0-6> [glass]",
@@ -39,8 +47,8 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("pos", "show where the camera or the car is"),
     ("props [radius]", "list the props with collision near the car or camera (default 30 m)"),
     (
-        "traffic <count>|off|status|sirens|warmup <s>",
-        "keep <count> computer-driven cars on the road around you; off removes them; sirens lists the police cars' siren states; warmup: a screenshot run simulates <s> seconds first",
+        "traffic <count>|off|status|cars|spawn <car> [metres] [oncoming]|sirens|warmup <s>",
+        "keep <count> computer-driven cars on the road around you; off removes them; cars lists the traffic cars mods add; spawn puts one of them <metres> ahead; sirens lists the police cars' siren states; warmup: a screenshot run simulates <s> seconds first",
     ),
     ("tire-effects [status|clear|smoke on/off|marks on/off]", "tire visual controls and bounded resource counts"),
     ("vehicle-effects [status|clear]", "collision spark and speed-trail resource counts"),
@@ -97,6 +105,8 @@ pub(super) fn run(
         "freecam" if args.is_empty() => Ok(scene.toggle_view().to_owned()),
         "garage" if args.is_empty() => Ok(crate::devtools::car_list::garage_list(&scene.dir)),
         "parts" => super::garage::command::run(scene, renderer, args),
+        "plate" => super::garage::plate_command::plate_text(scene, renderer, args),
+        "plate-design" => super::garage::plate_command::plate_design(scene, renderer, args),
         "coop" => super::players::command::coop(scene, renderer, args),
         "pos" if args.is_empty() => Ok(pos(scene)),
         "props" => props(scene, args),

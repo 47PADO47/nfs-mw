@@ -1,20 +1,19 @@
-//! Tests for the Custom full-screen map: the projection, the marks and the legend under the frontend's filter, and what
-//! the component builds from a fixed snapshot, with no game data and no GPU.
+//! Tests for the Custom full-screen map: the projection, the legend under the frontend's filter, the game's own picture
+//! and icons it draws, and what the component builds from a fixed snapshot, with no game data and no GPU.
 
+use blackbox_feng::resource_handle;
 use blackbox_minimap::Calibration;
-use blackbox_ui::{BuildCx, DrawList, LayoutCx, Rect, Skin, Theme, UiNode};
+use blackbox_ui::{BuildCx, DrawList, LayoutCx, NodeKind, Rect, Skin, Theme, UiNode};
 use glam::Vec2;
 
-use super::fit::{self, FIT_MARGIN};
-use super::places::{self, kind_of};
+use super::fit;
+use super::places;
 use super::{FullMapCell, FullMapSnapshot};
-use crate::frontend::world_map::{Camera, Chrome, Filter, PlacedBlip, PlayerMark, WorldMap, WorldMapFrame};
-use crate::hud::{
-    AUTO_SHOP, CAR_LOT, MapRoad, MapRoads, MapRoadsHandle, NavRoute, RACE_SPRINT, ROADBLOCK, RoadClass, SAFE_HOUSE,
-};
+use crate::frontend::world_map::control::{CHECKPOINT_ICON, icon_name};
+use crate::frontend::world_map::{Camera, Chrome, Filter, LiveBlip, PlacedBlip, PlayerMark, WorldMap, WorldMapFrame};
+use crate::hud::{AUTO_SHOP, COP, HELICOPTER, NavRoute, RACE_SPRINT, ROADBLOCK, SAFE_HOUSE};
 use crate::input::Action;
 use crate::ui::prompts::Prompt;
-use crate::ui::theme::custom::map::marks::MarkKind;
 use crate::ui::theme::custom::menu::MenuLook;
 use crate::ui::theme::custom::tokens::{self, CustomLook};
 use crate::ui::theme::custom::{CustomFeedCell, CustomTheme, RadioFeedCell, palette};
@@ -30,11 +29,6 @@ fn close(a: Vec2, b: Vec2) {
 
 fn blip(style: &'static str, world: [f32; 2]) -> PlacedBlip {
     PlacedBlip { style, world, map: CITY.to_map(world) }
-}
-
-fn roads(lines: Vec<Vec<[f32; 2]>>) -> MapRoadsHandle {
-    let roads = lines.into_iter().map(|points| MapRoad { class: RoadClass::Main, points }).collect();
-    MapRoadsHandle::new(MapRoads::from_roads(roads))
 }
 
 fn map(filter: Filter, attached: Option<usize>) -> WorldMapFrame {
@@ -114,31 +108,86 @@ fn a_world_point_lands_where_the_frontend_picks_its_blip() {
     close(fit::cursor_on_screen([0.5, 0.5]), Vec2::ZERO);
 }
 
-#[test]
-fn a_network_without_a_calibration_is_fitted_into_the_middle_of_the_picture() {
-    let network = roads(vec![vec![[0.0, 0.0], [1000.0, 0.0]], vec![[0.0, 0.0], [0.0, 500.0]]]);
-    let fitted = fit::fitted(network.roads()).expect("the network has an extent");
-    let middle = fitted.to_map([500.0, 250.0]);
-    close(Vec2::from(middle), Vec2::splat(0.5));
-    let left = fitted.to_map([0.0, 250.0])[0];
-    assert!((left - FIT_MARGIN / (1.0 + 2.0 * FIT_MARGIN)).abs() < 1e-5, "the margin is kept: {left}");
-    assert_eq!(fit::fitted(&MapRoads::default()), None, "no roads, no fit");
-    assert_eq!(fit::fitted(roads(vec![vec![[5.0, 5.0], [5.0, 5.0]]]).roads()), None, "a point has no extent");
+/// How many nodes draw the picture `file`'s texture.
+fn drawing(nodes: &[UiNode], file: &str) -> usize {
+    let texture = resource_handle(file);
+    nodes.iter().filter(|node| matches!(node.kind, NodeKind::Image { texture: t, .. } if t == texture)).count()
 }
 
 #[test]
-fn the_marks_are_the_current_tabs_blips_and_the_routes_end() {
-    let kinds = |filter| places::marks(&map(filter, None)).iter().map(|mark| mark.kind).collect::<Vec<_>>();
-    assert_eq!(kinds(Filter::Locations), [MarkKind::SafeHouse, MarkKind::Shop]);
-    assert_eq!(kinds(Filter::Races), [MarkKind::Race]);
-    assert_eq!(kinds(Filter::Pursuit), [MarkKind::Roadblock]);
+fn the_current_tabs_blips_are_the_games_own_icons() {
+    let icons = |filter| built(Some(snapshot(map(filter, None))));
+    let locations = icons(Filter::Locations);
+    assert_eq!(drawing(&locations, icon_name(SAFE_HOUSE)), 2, "the blip and the legend's row");
+    assert_eq!(drawing(&locations, icon_name(AUTO_SHOP)), 2);
+    assert_eq!(drawing(&locations, icon_name(RACE_SPRINT)), 0, "a race is not on the Locations tab");
+    let races = icons(Filter::Races);
+    assert!(drawing(&races, icon_name(RACE_SPRINT)) >= 2, "the sprint and the legend's rows");
+    assert_eq!(drawing(&races, icon_name(SAFE_HOUSE)), 0, "a location is not on the Races tab");
+    let pursuit = icons(Filter::Pursuit);
+    assert!(drawing(&pursuit, icon_name(ROADBLOCK)) >= 1, "the roadblock draws the game's event icon");
+}
+
+#[test]
+fn the_blips_icon_lies_where_the_cursor_picks_it() {
+    let camera = Camera::at_level(2, [0.35, 0.4]);
+    let mut frame = map(Filter::Locations, None);
+    frame.session.camera = camera;
+    let nodes = built(Some(snapshot(frame.clone())));
+    let texture = resource_handle(icon_name(SAFE_HOUSE));
+    let node = nodes
+        .iter()
+        .find(|node| {
+            matches!(node.kind, NodeKind::Image { texture: t, .. } if t == texture) && node.world.w_axis.z > 10.0
+        })
+        .expect("the blip's icon");
+    let expected = fit::on_screen(camera, frame.blips[0].map);
+    close(node.world.w_axis.truncate().truncate(), expected);
+}
+
+#[test]
+fn the_picture_is_the_games_map_and_follows_the_camera_and_the_race_picture_replaces_it() {
+    let mut frame = map(Filter::Locations, None);
+    frame.texture = "World_Map_Test.tga";
+    let picture = |frame: &WorldMapFrame| built(Some(snapshot(frame.clone())));
+    let nodes = picture(&frame);
+    assert_eq!(drawing(&nodes, "World_Map_Test.tga"), 1, "the career stage's map is drawn once");
+    let side = |nodes: &[UiNode], file: &str| {
+        let texture = resource_handle(file);
+        let node = nodes.iter().find(|node| matches!(node.kind, NodeKind::Image { texture: t, .. } if t == texture));
+        node.map(|node| node.world.x_axis.truncate().length())
+    };
+    assert_eq!(side(&nodes, "World_Map_Test.tga").map(f32::round), Some(480.0), "the screen's height at Zoom All");
+    frame.session.camera = Camera::at_level(1, [0.5, 0.5]);
+    assert_eq!(side(&picture(&frame), "World_Map_Test.tga").map(f32::round), Some(960.0), "twice as large at level 1");
+    frame.event_picture = Some(77);
+    let race = picture(&frame);
+    assert_eq!(drawing(&race, "World_Map_Test.tga"), 0, "the race's own picture replaces the stage's");
+    assert!(race.iter().any(|node| matches!(node.kind, NodeKind::Image { texture: 77, .. })));
+}
+
+#[test]
+fn the_cars_and_the_helicopter_are_the_games_icons_too() {
+    let mut frame = map(Filter::Locations, None);
+    frame.live = vec![
+        LiveBlip { style: COP, map: [0.4, 0.4], bearing: 0.0, chasing: true },
+        LiveBlip { style: HELICOPTER, map: [0.6, 0.6], bearing: 90.0, chasing: false },
+    ];
+    let nodes = built(Some(snapshot(frame)));
+    assert!(drawing(&nodes, "Minimap_Icon_Car.tga") >= 3, "the cop, the player's car and the legend's");
+    assert_eq!(drawing(&nodes, crate::frontend::world_map::control::HELICOPTER_ICON), 1);
+}
+
+#[test]
+fn the_routes_end_is_the_checkpoint_icon_and_needs_the_calibration() {
     let route = NavRoute { path: vec![[0.0, 0.0], [300.0, 0.0]], target: [300.0, 0.0], next_turn: None };
-    let routed = WorldMapFrame { route: Some(route), ..map(Filter::Locations, None) };
-    let marks = places::marks(&routed);
-    let last = marks.last().expect("the route's end");
-    assert_eq!((last.kind, last.at), (MarkKind::Target, [300.0, 0.0]));
-    assert_eq!(places::marks(&routed)[0].at, [-300.0, 200.0], "a blip is marked at its world place");
-    assert_eq!(kind_of(CAR_LOT), MarkKind::Shop);
+    let routed = WorldMapFrame { route: Some(route.clone()), ..map(Filter::Locations, None) };
+    let bare = built(Some(snapshot(map(Filter::Locations, None))));
+    let nodes = built(Some(snapshot(routed.clone())));
+    assert_eq!(drawing(&nodes, CHECKPOINT_ICON), drawing(&bare, CHECKPOINT_ICON) + 1);
+    assert!(nodes.len() > bare.len(), "the route's strokes and its end draw");
+    let lost = WorldMapFrame { calibration: None, ..routed };
+    assert_eq!(drawing(&built(Some(snapshot(lost))), CHECKPOINT_ICON), drawing(&bare, CHECKPOINT_ICON));
 }
 
 #[test]
@@ -148,7 +197,6 @@ fn the_legend_rows_are_the_tabs_styles_with_their_counts() {
     assert_eq!(named, [("Auto shop", 1), ("Safe house", 1), ("Car lot", 0)]);
     let races = places::legend_rows(&map(Filter::Races, None));
     assert_eq!(races.len(), Filter::Races.styles().len());
-    assert!(races.iter().all(|row| row.kind == MarkKind::Race));
     assert_eq!(races.iter().find(|row| row.style == RACE_SPRINT).map(|row| row.count), Some(1));
 }
 
@@ -191,20 +239,4 @@ fn the_focused_blip_has_a_card_with_its_distance_from_the_player() {
     assert!(!texts(&unfocused).contains(&"1.0 km"), "no card without a focused blip");
     let nowhere = WorldMapFrame { player_mark: None, ..map(Filter::Locations, Some(1)) };
     assert!(!texts(&built(Some(snapshot(nowhere)))).contains(&"1.0 km"), "no distance without the player's place");
-}
-
-#[test]
-fn the_roads_and_the_route_add_their_strokes() {
-    let bare = built(Some(snapshot(map(Filter::Locations, None)))).len();
-    let network = roads(vec![vec![[-500.0, 0.0], [500.0, 0.0]], vec![[0.0, -500.0], [0.0, 500.0]]]);
-    let with_roads = WorldMapFrame { roads: Some(network.clone()), ..map(Filter::Locations, None) };
-    let roaded = built(Some(snapshot(with_roads.clone()))).len();
-    assert!(roaded > bare, "the roads draw");
-    let route = NavRoute { path: vec![[0.0, 0.0], [0.0, 300.0]], target: [0.0, 300.0], next_turn: None };
-    let routed = WorldMapFrame { route: Some(route), ..with_roads };
-    assert!(built(Some(snapshot(routed))).len() > roaded, "the route and its end draw");
-    // Without the city's calibration the network is fitted to the screen, so its roads still draw.
-    let fitted = WorldMapFrame { calibration: None, roads: Some(network), ..map(Filter::Locations, None) };
-    let unfitted = WorldMapFrame { calibration: None, ..map(Filter::Locations, None) };
-    assert!(built(Some(snapshot(fitted))).len() > built(Some(snapshot(unfitted))).len());
 }

@@ -29,6 +29,8 @@ pub struct VehicleSpec {
     pub induction: InductionSpec,
     pub nos: NosSpec,
     pub aero: AeroSpec,
+    /// What the optional drift assist (`Vehicle::set_drift_assist`) holds this car to; unused while the assist is off.
+    pub drift: super::DriftTuning,
 }
 
 /// The player tuning sliders, each a plain number as the spec uses it.

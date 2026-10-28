@@ -31,6 +31,19 @@ pub struct CarCameras {
     pub object_key: u32,
 }
 
+impl CarCameras {
+    /// Measure the chase and the bonnet camera from a car model whose origin is `forward` metres ahead of the data's
+    /// origin (a host that centres the car on its wheelbase moves it): every forward offset gets smaller by that much.
+    /// The bumper camera is left alone, its anchor being the host's own measure of the model's nose.
+    pub fn move_origin_forward(&mut self, forward: f32) {
+        self.external.position[0] -= forward;
+        self.external.focus[0] -= forward;
+        self.external.ground_pivot[0] -= forward;
+        self.bonnet.eye[0] -= forward;
+        self.bonnet.target[0] -= forward;
+    }
+}
+
 /// The chase ("gameplay external") camera of one car. Per-car values: `focus`, `ground_pivot`, `position`, the
 /// speed movement, the height change, the roll, the deceleration pitch and `lag_s`.
 #[derive(Debug, Clone, PartialEq)]

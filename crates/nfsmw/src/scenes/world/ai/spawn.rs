@@ -75,6 +75,11 @@ impl TrafficWorld {
             Pick::Traffic(i) => &self.models[i],
             Pick::Patrol(i) => &self.cop_models[i].model,
         };
+        // A mod traffic car cruises at its speed factor times the pattern's speeds.
+        let cruise = match pick {
+            Pick::Traffic(_) => super::mod_traffic::scaled(cruise, &model.name),
+            Pick::Patrol(_) => cruise,
+        };
         let occupied = self.population_slots(focus);
         let rng = &mut self.rng.population;
         let probe = match pick {
@@ -216,6 +221,21 @@ impl TrafficWorld {
         if self.models.is_empty() {
             return false;
         }
+        let index = self.rng.population.index(self.models.len());
+        self.spawn_model_at(index, at, heading, focus, collision, surfaces)
+    }
+
+    /// As [`Self::spawn_traffic_at`], with the traffic model at `index` of the loaded models (a car a mod or the console asked
+    /// for by name, `mod_traffic.rs`).
+    pub(super) fn spawn_model_at(
+        &mut self,
+        index: usize,
+        at: [f32; 2],
+        heading: f32,
+        focus: Focus,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) -> bool {
         let distance = (at[0] - focus.position[0]).hypot(at[1] - focus.position[1]);
         if distance < MIN_FOCUS_GAP {
             log::warn!(
@@ -224,7 +244,6 @@ impl TrafficWorld {
                 at[1]
             );
         }
-        let index = self.rng.population.index(self.models.len());
         let physics_at = Vec3::from(space::to_physics(Vec3::new(at[0], at[1], 0.0)));
         let dir = Vec3::from(space::to_physics(Vec3::new(heading.cos(), heading.sin(), 0.0)));
         let mut nav = RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter::default());
@@ -251,7 +270,7 @@ impl TrafficWorld {
             START_LOOK_AHEAD,
             &mut self.rng.population,
         );
-        let cruise = Cruise::default();
+        let cruise = super::mod_traffic::scaled(Cruise::default(), &model.name);
         let start = Start {
             stagger: (self.rng.population.next_f32() * 10.0) as u32,
             speed: START_SPEED_FACTOR * cruise.street.min(cruise.highway),

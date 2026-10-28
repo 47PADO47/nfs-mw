@@ -272,24 +272,29 @@ The design is `docs/specs/custom-hud/menus.md` section 3 (the `WorldMapChrome` r
   (`world_map::control::hints`) and the window's aspect. Remastered's cell gets the same frame. The frame carries the
   roads, the GPS route and the city's calibration, read from the HUD state at open with the blips (`control::open`); the
   map opens only from free roam (the M key), before the world freezes, so no extra resource is needed.
-- **Placement** (`fit.rs`). World to picture (`Calibration::to_map`), picture to view (the frontend's `Camera`: four
-  zoom levels and a pan), view to the full-screen picture square (`Picture::FULL`, the window's height, centred). The
-  composition is a north-up `MapView` (the centred map's projection), so roads, route and marks project like the HUD map,
-  and a place lands where the cursor picks its blip. Without a calibration the network's bounds are fitted into the
-  picture with a 5% margin (computed once per network).
-- **What is drawn**, back to front: the surface ground at 0.92 over the window; the roads in the centred map's look at
-  0.85 with paths, cached by its local-set rule over the window's half diagonal; the GPS route in nav cyan, the stretch
-  behind the player at half alpha; the current tab's places as the centred map's marks (shops and car lots a dot, safe
-  houses a square, races a diamond, roadblocks a bar) and the route's end; the players' arrows; a ring on the focused
-  place or a cross at the pointer; then the chrome. Marks and arrows are 1.6 times the menus' scale.
+- **Placement** (`fit.rs`, `art.rs`). The picture and the icons are placed from the frontend's picture coordinates
+  (`PlacedBlip::map`, `PlayerMark::map`, `LiveBlip::map`, 0..1 on the picture) through the camera (four zoom levels and a
+  pan) onto the full-screen picture square (`Picture::FULL`, the window's height, centred), the placement the cursor
+  picks blips by, so an icon lies where it is found. Only the GPS route's strokes need the world: world to picture
+  (`Calibration::to_map`) and on through the same camera, as a north-up `MapView`.
+- **What is drawn**, back to front: the theme's scrim over the window and its overlay plate under the picture's square
+  (faded in as the map opens); the game's picture (`WorldMapFrame::texture`, the career stage's, or the running race's
+  `event_picture`) sized by the zoom, tinted by `theme.line`, with a veil of `theme.scrim` at 40% of its alpha; the GPS
+  route in the guide colour, the stretch behind the player at half alpha; the current tab's blips as the game's icon
+  textures in the game's tints (`control::icon_name`, `blip_rgba`, the same files and tints Remastered draws, the focused
+  one larger); the racers, police cars and checkpoint of `WorldMapFrame::live` turned to their bearing (`LiveBlip::icon`,
+  `rgba`), the helicopter over them; the route's end as the checkpoint icon in the guide colour; the players' cars as
+  `Minimap_Icon_Car` (the second player's in the `info` colour); a ring on the focused place or a cross at the pointer;
+  then the chrome. The roads are the picture's: nothing of the map is stroked by hand but the route.
 - **Chrome.** "MAP" in the spaced face with the three tabs under it (the current one bright on an accent rule) and the
   zoom at the top right; the legend plate at the right (the player, the GPS route when there is one, each style of the
-  tab with its mark and how many are on the map, the focused style in the accent colour, the empty line when the tab has
-  none; the legend key hides it); the focused place's card at the bottom left (its mark and name, its distance only when
+  tab with its icon and how many are on the map, the focused style in the accent colour, the empty line when the tab has
+  none; the legend key hides it); the focused place's card at the bottom left (its icon and name, its distance only when
   the player's place is known, and how to set the GPS); the menus' footer (`menu::footer_parts`).
-- **Not drawn.** The racers, cops and helicopter of `WorldMapFrame::live`: the Custom map marks police only from what
-  the player knows (`fair-knowledge.md`), and the frame carries no sighting data. The open animation.
-- **Tests.** `custom/full_map/tests.rs`: the projection and its agreement with the frontend's picking, the network fit,
-  the marks and legend rows under each tab, the slot claimed, a closed map drawing nothing, the legend key, the focused
-  card, the roads and route strokes. `ui/theme/tests.rs`: Custom is `Chrome::Drawn`. `frontend/world_map/overlay.rs`:
-  the frame carries the roads, the route and the calibration until the map closes. Remastered's map tests are unchanged.
+- **Not drawn.** The roads of the HUD state and the network fit of earlier versions: the frame still carries `roads`
+  (read at open), but the Custom map no longer draws them; the picture has them.
+- **Tests.** `custom/full_map/tests.rs`: the projection and its agreement with the frontend's picking, the legend rows
+  under each tab, the picture (its size under the zoom, the race picture replacing it), the blips', cars', helicopter's
+  and route end's icon textures, the slot claimed, a closed map drawing nothing, the legend key, the focused card.
+  `ui/theme/tests.rs`: Custom is `Chrome::Drawn`. `frontend/world_map/overlay.rs`: the frame carries the roads, the route
+  and the calibration until the map closes. Remastered's map tests are unchanged.

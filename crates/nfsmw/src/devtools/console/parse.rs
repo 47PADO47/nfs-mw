@@ -42,7 +42,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 69] = [
+pub const BUILT_IN: [(&str, &str); 71] = [
     ("trace start [seconds]|stop|mark [label]|status", "performance trace; F9 record/stop, F10 bookmark"),
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
@@ -70,6 +70,11 @@ pub const BUILT_IN: [(&str, &str); 69] = [
         "car shading: original PC families, custom glossy or simple",
     ),
     ("smoke_quality <standard|high>", "change tire smoke presentation quality"),
+    ("smoke_color_mode <off|solid|rainbow|speed|slip>", "colour the tire smoke (off: white)"),
+    (
+        "smoke_color <name|#rrggbb>",
+        "the colour of the tire smoke: red, orange, yellow, green, cyan, blue, purple, pink or hex",
+    ),
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
     ("post_tonemap <off|aces>", "filmic tone mapping (darkens the image)"),
     ("post_bloom <off|low|medium|high>", "glow around bright areas"),
@@ -124,7 +129,7 @@ pub const BUILT_IN: [(&str, &str); 69] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 38] = [
+const SET_SHORTHANDS: [&str; 40] = [
     "fps",
     "renderer",
     "vsync",
@@ -141,6 +146,8 @@ const SET_SHORTHANDS: [&str; 38] = [
     "speed_trail_style",
     "exhaust_flames",
     "smoke_quality",
+    "smoke_color_mode",
+    "smoke_color",
     "car_shading",
     "graphics_preset",
     "hud_layout",

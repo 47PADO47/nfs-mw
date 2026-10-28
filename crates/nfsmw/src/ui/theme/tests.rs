@@ -256,11 +256,13 @@ fn the_custom_tokens_follow_the_look_and_take_their_accent_from_the_theme() {
     let mut themes = super::UiThemes::build();
     themes.select(UiStyle::Custom);
     assert_eq!(themes.skin.colour(keys::TEXT), Some(Colours::BRIEF.text));
-    assert_eq!(
+    assert_eq!(themes.skin.colour(keys::ACCENT), Some(palette::bevy().secondary), "the Bevy theme's cyan");
+    assert_ne!(
         themes.skin.colour(keys::ACCENT),
-        Some(super::custom::tokens::SIGNAL),
-        "the Bevy theme takes the signal yellow"
+        themes.skin.colour(keys::NAV),
+        "the accent follows the theme, the route stays the signal yellow"
     );
+    assert_eq!(themes.skin.colour(keys::NAV), Some(super::custom::tokens::SIGNAL));
     themes.set_ui_theme(UiTheme::Remastered);
     assert_eq!(themes.skin.colour(keys::ACCENT), Some(palette::remastered().secondary), "the Remastered gold");
     themes.set_custom_look(CustomLook { palette: HudPalette::Deuteranopia, high_contrast: true });

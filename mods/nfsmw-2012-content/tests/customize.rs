@@ -76,6 +76,7 @@ fn register(game: &GameDir, mod_dir: &Path) -> CarStats {
         stats: stats.clone(),
         engine_sound: manifest.get("engine_sound").map(engine_sound_of),
         car_effects: None,
+        traffic: None,
     };
     let (cars, rejected) = car_mods::register(&tables.types, &[spec]);
     assert!(rejected.is_empty(), "{rejected:?}");
@@ -113,6 +114,7 @@ fn customization_of(text: &str) -> custom::Customization {
             .map(|livery| custom::Livery { name: livery.name.clone(), texture: livery.texture.clone() })
             .collect(),
         default_livery: table.default_livery,
+        plate: None,
     }
 }
 
@@ -153,7 +155,16 @@ fn a_converted_car_takes_its_own_paints_flames_and_tuning() {
     let driving = nfsmw_data::car::load_driving(&game, CAR, &options).unwrap();
     let levels: Vec<usize> = driving.driving_lods.levels.iter().map(|l| l.level).collect();
     assert_eq!(levels, [1, 2, 3], "levels B to D");
-    assert!(driving.driving_lods.levels.iter().all(|l| l.placements.len() == 5));
+    // Body, driver and four wheels: the driver is drawn while the car is driven. Level B has the driver's 7 steering poses and
+    // the look back instead of the plain driver (`driver_poses`), the coarser levels the plain driver.
+    assert!(driving.driving_lods.levels.iter().all(|l| l.placements.len() == if l.level == 1 { 13 } else { 6 }));
+    let poses = |placements: &[nfsmw_data::car::Placement]| {
+        placements.iter().filter(|p| nfsmw_data::car::mods::driver_poses::is_pose(p.slot)).count()
+    };
+    assert_eq!(poses(&driving.placements), 8, "seven steering poses and the look back at level A");
+    assert_eq!(nfsmw_data::car::mods::driver_poses::steer_count(&driving.placements), 7);
+    assert!(nfsmw_data::car::mods::driver_poses::has_back(&driving.placements));
+    assert_eq!(poses(&stock.placements), 0, "the garage car has no driver");
     println!("type names: {}", tables.parts.type_names().len());
 
     // The garage offers the car the paints of its own bundle, and none of the parts a stock car has.

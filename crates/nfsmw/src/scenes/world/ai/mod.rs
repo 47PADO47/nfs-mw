@@ -28,6 +28,7 @@ mod inspect;
 pub(in crate::scenes::world) mod installed_support;
 mod lamps;
 mod manager;
+mod mod_traffic;
 mod model_loader;
 mod models;
 mod moment_driver;

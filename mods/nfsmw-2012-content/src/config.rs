@@ -49,7 +49,7 @@ impl Supplied {
 }
 
 /// A commented settings file with the defaults: what the mod writes into its folder when it finds none.
-pub const DEFAULT_CONFIG: &str = "# Settings of the NFS: Most Wanted (2012) cars mod (docs/modding/nfsmw-2012-content.md). Restart the game after a change.
+pub const DEFAULT_CONFIG: &str = "# Settings of the NFS: Most Wanted (2012) cars mod (mods/nfsmw-2012-content/README.md). Restart the game after a change.
 # The same keys work under [mods.nfsmw-2012-content] in the game's own config file, which wins over this file key by key.
 
 # Folder of your own NFS Most Wanted (2012) install. Without it no car is added.
@@ -73,6 +73,11 @@ role = \"player\"
 # mod's folder. false gives the cars no recordings: they play the game's built-in engine and have no other car sounds.
 own_engine_sound = true
 
+# Add the 2012 game's eleven traffic cars (Audi A3, Dodge Ram 1500, GMC Topkick, ...) to the roads, among the game's own
+# traffic. They are cars of their own (ids ending in _TR) that nobody drives. false adds none. The cars, exclude and
+# max_texture_size keys apply to them (the name of each has \"traffic\" in it).
+traffic = true
+
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
 # weight, grip the tyres, brakes the brake torque (0.25 to 4 each, grip 0.25 to 3), nitrous_power the extra torque of
@@ -87,7 +92,7 @@ own_engine_sound = true
 
 # The police cars of the 2012 game (the Crown Victoria and Charger cops, the Explorer Interceptor, the Corvette Z06 and the SWAT
 # van: read from their bundles) are added as police cars: they chase you in the cop waves and are not in your garage. Their
-# levels follow the kind of car (docs/modding/nfsmw-2012-content.md, \"Police cars\"). Every key is optional:
+# levels follow the kind of car (mods/nfsmw-2012-content/README.md, \"Police cars\"). Every key is optional:
 # [police]
 # auto = true                 # false: no car is a police car unless `add` names it
 # add = [\"Camaro\"]           # more cars to make police cars (ids or name fragments)
@@ -164,6 +169,8 @@ pub struct Config {
     pub role: Role,
     /// Whether each car gets the recordings of its 2012 bundle (engine loops, shifts, turbo, backfire, pops).
     pub own_engine_sound: bool,
+    /// Whether the 2012 game's traffic cars are added as traffic cars (`traffic.rs`).
+    pub traffic: bool,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -181,6 +188,7 @@ impl Default for Config {
             max_texture_size: 1024,
             role: Role::Player,
             own_engine_sound: true,
+            traffic: true,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),

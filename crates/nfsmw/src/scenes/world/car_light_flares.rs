@@ -8,6 +8,7 @@ use super::car_lights::{CarLights, Kind, LampState};
 pub(super) mod emergency;
 mod enhanced;
 mod intensity;
+mod mod_lamps;
 
 #[derive(Clone)]
 struct Profile {
@@ -21,6 +22,8 @@ pub struct CarLightFlares {
     profiles: Vec<Profile>,
     textures: Vec<TextureHandle>,
     enhanced_texture: Option<TextureHandle>,
+    /// The sprites a mod car describes itself; empty for every other car.
+    mod_lamps: mod_lamps::ModLamps,
 }
 
 #[derive(Clone, Copy)]
@@ -67,11 +70,12 @@ impl CarLightFlares {
         let texture = enhanced::upload(renderer);
         set.textures.push(texture);
         set.enhanced_texture = Some(texture);
+        set.mod_lamps = mod_lamps::ModLamps::upload(renderer, model);
         set
     }
 
     pub fn release(self, renderer: &mut dyn RenderBackend) {
-        for texture in self.textures {
+        for texture in self.textures.into_iter().chain(self.mod_lamps.textures()) {
             renderer.destroy_texture(texture);
         }
     }
@@ -120,8 +124,15 @@ impl CarLightFlares {
         {
             enhanced::draw(texture, samples.clone(), frames.clone(), view, focal, out);
         }
+        if !tails_only {
+            self.mod_lamps.draw(state, frames.clone(), view, out);
+        }
         for profile in &self.profiles {
             if tails_only && profile.kind != Kind::Tail {
+                continue;
+            }
+            // A mod car draws the kinds of lamp it gives sprites for itself (`mod_lamps.rs`).
+            if self.mod_lamps.covers(profile.kind) {
                 continue;
             }
             let mut vertices = Vec::new();

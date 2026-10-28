@@ -70,7 +70,7 @@ either ([formats/chameleon-collision.md](../formats/chameleon-collision.md#damag
 ## Making one
 
 - **The 2012 content mod** writes one for each of its 93 cars from the car's own collision mesh in its 2012 bundle, with the
-  tyres, and the visible body for the one car without a mesh ([nfsmw-2012-content.md](nfsmw-2012-content.md)). The 2012 game
+  tyres, and the visible body for the one car without a mesh ([mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md)). The 2012 game
   has no impact-point geometry to take over: [formats/chameleon-collision.md](../formats/chameleon-collision.md).
 - **Any other mod** builds the set from points sampled on its car (its collision mesh, or the vertices of its body, plus the
   tyres) with `blackbox_collision::fit_body(name_hash, &points, &FitOptions::default())` and writes it with
@@ -92,8 +92,10 @@ CarEventSpec::racing_defaults() -> CarEventSpec;
 
 ## Not done
 
-- Per-car damage numbers: the 2012 bundles hold per-car damage objects, but their zone numbers are not decoded
-  ([formats/chameleon-collision.md](../formats/chameleon-collision.md#damage-and-impact)), so every converted car takes the shared table. Their hinged parts are decoded and played ([car-damage-parts.md](car-damage-parts.md)).
+- Per-car hit-to-damage numbers: the 2012 game has none per car that were found (its tables are global and not decoded,
+  [formats/chameleon-damage.md](../formats/chameleon-damage.md#the-global-tables-not-decoded)), so every converted car takes the shared table.
+  What breaks when is the 2012 car's own: its hinged parts and breakable pieces follow its damage clips ([car-damage-parts.md](car-damage-parts.md#the-2012-cars)).
+- Vertex-level dents: the 2012 data has none (the crumple is the bones of the skinned body); a rigid part tilts, nothing bends.
 - The set was not compared with how the cars drive in the game with a window: the checks are the numbers (every one of the 93 sets is a
   valid vehicle body whose box holds the visible body to within 0.22 m) and the unit tests, not a run.
 - Rear corner spheres, wheel spheres and a separate hood or door collision are not part of the layout; the stock sets have none.

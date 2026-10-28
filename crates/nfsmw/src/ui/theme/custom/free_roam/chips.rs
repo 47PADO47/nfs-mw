@@ -82,7 +82,7 @@ fn entry_card(parts: &mut Parts<'_>, rect: Rect, entry: &EntryPrompt, key: Optio
 
 /// A discovery chip in `rect`: the kind over the name, the distance at the right.
 fn chip_card(parts: &mut Parts<'_>, rect: Rect, chip: &Chip, feed: &CustomFeed) {
-    parts.plate(rect, PlateStyle::SURFACE.with_accent(keys::NAV));
+    parts.plate(rect, PlateStyle::SURFACE.with_accent(keys::ACCENT));
     let s = parts.scale();
     let (top, bottom) = halves(rect);
     let (heading, name) = chip_words(chip);

@@ -13,7 +13,10 @@ use std::sync::Arc;
 
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
-use blackbox_modding::content::{NitrousProfile, nitrous_profile_path, parse_nitrous_profile};
+use blackbox_modding::content::{
+    NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile, parse_nitrous_profile,
+    parse_sparks_profile, parse_tire_smoke_profile, parse_wind_profile, parse_xenon_profile,
+};
 use blackbox_modding::host::{HotkeyHandler, OptionsModel};
 use blackbox_ui::ThemeId;
 use game_install::GameDir;
@@ -28,19 +31,11 @@ use super::menus::MenuRow;
 use super::settings::{self, OptionHandler};
 use super::time::{self, Clock, ClockRequest};
 use super::ui::UiRecord;
+use super::variants::{COLLISION_SPARKS_KIND, CacheCell, NITROUS_KIND, TIRE_SMOKE_KIND, WIND_KIND, XENON_SPARKS_KIND};
 use super::world::{self, WorldRequest};
 use crate::devtools::Console;
+use crate::effect_variants::EffectVariants;
 use crate::viewer::{CameraReadout, PlayerCar, Scene, WorldInfo};
-
-/// How many frames pass before a profile that was not found is looked for again.
-const PROFILE_RETRY_CALLS: u32 = 300;
-
-/// The nitrous profile read for the chosen value, and when to look again if it was missing.
-pub(super) struct NitrousCache {
-    value: String,
-    profile: Option<Arc<NitrousProfile>>,
-    retry_in: u32,
-}
 
 pub struct Bridge {
     /// The last handle given out. Handles start at 1; 0 means none.
@@ -57,6 +52,10 @@ pub struct Bridge {
     pub(super) clock_requests: RefCell<Vec<ClockRequest>>,
     /// The player's car as the mods see it this frame, or `None` when no car is driven.
     pub(super) vehicle: Cell<Option<PlayerCar>>,
+    /// The player's engine, pedals and car id as the mods see them this frame (`bb.engine`), or `None` when no car is driven.
+    pub(super) engine: RefCell<Option<crate::engine_switch::EngineReadout>>,
+    /// The mod that stopped the engine and has not started it again: the engine runs when that mod unloads.
+    pub(super) engine_holder: RefCell<Option<String>>,
     /// The camera as the mods see it this frame, or `None` where the scene has none.
     pub(super) camera: Cell<Option<CameraReadout>>,
     /// The track and the district this frame, or `None` where no world is loaded.
@@ -75,7 +74,14 @@ pub struct Bridge {
     /// The chosen value of each option read so far, so the config file is not read every frame.
     pub(super) option_choices: RefCell<HashMap<String, String>>,
     /// The profile of the nitrous variant in effect, read from the install once per chosen value (`nitrous_profile`).
-    pub(super) nitrous_cache: RefCell<Option<NitrousCache>>,
+    pub(super) nitrous_cache: CacheCell<NitrousProfile>,
+    /// The same for the tire smoke variant (`tire_smoke_profile`).
+    pub(super) tire_smoke_cache: CacheCell<TireSmokeProfile>,
+    /// The same for the collision spark variant (`collision_sparks_profile`) and the restored spark variant (`xenon_sparks_profile`).
+    pub(super) collision_sparks_cache: CacheCell<SparksProfile>,
+    pub(super) xenon_sparks_cache: CacheCell<XenonProfile>,
+    /// The same for the wind variant (`wind_profile`).
+    pub(super) wind_cache: CacheCell<WindProfile>,
     /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
     pub(super) ui_themes: RefCell<Vec<UiRecord>>,
     /// The mod theme the player chose on the Mods page, or `None` for the built-in style (`ui.rs`). The theme sync
@@ -105,6 +111,8 @@ impl Bridge {
             clock: Cell::new(None),
             clock_requests: RefCell::default(),
             vehicle: Cell::new(None),
+            engine: RefCell::default(),
+            engine_holder: RefCell::default(),
             camera: Cell::new(None),
             world: RefCell::default(),
             world_requests: RefCell::default(),
@@ -114,6 +122,10 @@ impl Bridge {
             option_handlers: RefCell::default(),
             option_choices: RefCell::default(),
             nitrous_cache: RefCell::default(),
+            tire_smoke_cache: RefCell::default(),
+            collision_sparks_cache: RefCell::default(),
+            xenon_sparks_cache: RefCell::default(),
+            wind_cache: RefCell::default(),
             ui_themes: RefCell::default(),
             ui_theme_choice: Cell::new(None),
             store,
@@ -156,36 +168,47 @@ impl Bridge {
         nfsmw_data::shared::attributes(dir).map_err(|_| blackbox_modding::abi::BB_ERR_HOST)
     }
 
-    /// The effects of the nitrous variant the player chose, when it is a mod's: the profile the mod keeps in its `files/`
-    /// folder (`NITROUS/<value>/profile.toml`), read through the install's layers once for each chosen value. `None` for the
-    /// game's own "Original", for a variant whose mod is not loaded, and for a profile that is missing or refused (a warning
-    /// says why), so the game's nitrous is then exactly as it was.
+    /// The effects of the nitrous variant the player chose, when it is a mod's (`variant_profile`): `NITROUS/<value>/profile.toml`.
     pub fn nitrous_profile(&self) -> Option<Arc<NitrousProfile>> {
-        let choice = settings::nitrous_variant(self);
-        choice.owner.as_ref()?;
-        let mut cache = self.nitrous_cache.borrow_mut();
-        let mut first = true;
-        if let Some(cached) = cache.as_mut()
-            && cached.value == choice.value
-        {
-            // A profile that was not there is looked for again every so often: the mod may still be converting it.
-            cached.retry_in = cached.retry_in.saturating_sub(1);
-            if cached.profile.is_some() || cached.retry_in > 0 {
-                return cached.profile.clone();
-            }
-            first = false;
+        self.variant_profile(&NITROUS_KIND, &self.nitrous_cache, parse_nitrous_profile)
+    }
+
+    /// The look of the tire smoke variant the player chose, when it is a mod's: `TIRESMOKE/<value>/profile.toml`.
+    pub fn tire_smoke_profile(&self) -> Option<Arc<TireSmokeProfile>> {
+        self.variant_profile(&TIRE_SMOKE_KIND, &self.tire_smoke_cache, parse_tire_smoke_profile)
+    }
+
+    /// The collision sparks of the variant the player chose, when it is a mod's: `SPARKS/<value>/profile.toml`.
+    pub fn collision_sparks_profile(&self) -> Option<Arc<SparksProfile>> {
+        self.variant_profile(&COLLISION_SPARKS_KIND, &self.collision_sparks_cache, parse_sparks_profile)
+    }
+
+    /// The restored line sparks of the variant the player chose, when it is a mod's: `XENON/<value>/profile.toml`.
+    pub fn xenon_sparks_profile(&self) -> Option<Arc<XenonProfile>> {
+        self.variant_profile(&XENON_SPARKS_KIND, &self.xenon_sparks_cache, parse_xenon_profile)
+    }
+
+    /// The wind variant the player chose, when it is a mod's: `WIND/<value>/profile.toml`.
+    pub fn wind_profile(&self) -> Option<Arc<WindProfile>> {
+        self.variant_profile(&WIND_KIND, &self.wind_cache, parse_wind_profile)
+    }
+
+    /// The profiles of every kind of variant the player chose, for the scene (`EffectVariants`). A new kind adds its field here.
+    pub fn effect_variants(&self) -> EffectVariants {
+        EffectVariants {
+            nitrous: self.nitrous_profile(),
+            tire_smoke: self.tire_smoke_profile(),
+            collision_sparks: self.collision_sparks_profile(),
+            xenon_sparks: self.xenon_sparks_profile(),
+            wind: self.wind_profile(),
         }
-        let dir = self.install()?;
-        let (profile, found) = read_profile(&dir, &choice.value, first);
-        let retry_in = if found { u32::MAX } else { PROFILE_RETRY_CALLS };
-        *cache = Some(NitrousCache { value: choice.value, profile: profile.clone(), retry_in });
-        profile
     }
 
     /// Copy the scene's clock, car, camera and track in, so the mods read this frame's state. Called before the mods run.
     pub fn sync(&self, scene: &mut dyn Scene) {
         self.clock.set(time::read(scene));
         self.vehicle.set(scene.player_car());
+        *self.engine.borrow_mut() = scene.engine_readout();
         self.camera.set(scene.camera_readout());
         *self.world.borrow_mut() = scene.world_info();
     }
@@ -213,31 +236,8 @@ impl Bridge {
         let requests = std::mem::take(&mut *self.world_requests.borrow_mut());
         world::apply(requests, scene);
         scene.set_mod_blips(&map::minimap_blips(self));
-        scene.set_nitrous_fx(self.nitrous_profile());
+        scene.set_effect_variants(&self.effect_variants());
         let lines = std::mem::take(&mut *self.queued_lines.borrow_mut());
         console.queue_lines(lines);
-    }
-}
-
-/// The profile of variant `value`, read and checked, and whether the file was there. A failure is a warning (when `warn`),
-/// and the variant then has no effects.
-fn read_profile(dir: &GameDir, value: &str, warn: bool) -> (Option<Arc<NitrousProfile>>, bool) {
-    let path = nitrous_profile_path(value);
-    let bytes = match dir.read(&path) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            if warn {
-                log::warn!("the nitrous variant {value:?} has no profile ({path}): {error}; the game's nitrous plays");
-            }
-            return (None, false);
-        }
-    };
-    let text = String::from_utf8_lossy(&bytes);
-    match parse_nitrous_profile(&text) {
-        Ok(profile) => (Some(Arc::new(profile)), true),
-        Err(error) => {
-            log::warn!("the nitrous variant {value:?}: {path} is refused: {error}; the game's nitrous plays");
-            (None, true)
-        }
     }
 }

@@ -18,21 +18,61 @@ pub enum Page {
     Manager,
     AddCar,
     Main,
-    Categories { section: Section, backroom: bool },
-    Choices { row: Row, backroom: bool },
-    RimBrands { backroom: bool },
-    Rims { brand: u32, radius: u32, backroom: bool },
-    Spoilers { group: u8, backroom: bool },
-    VinylGroups { backroom: bool },
-    Vinyls { group: u8, backroom: bool },
-    Paint { color: usize, backroom: bool },
+    Categories {
+        section: Section,
+        backroom: bool,
+    },
+    Choices {
+        row: Row,
+        backroom: bool,
+    },
+    RimBrands {
+        backroom: bool,
+    },
+    Rims {
+        brand: u32,
+        radius: u32,
+        backroom: bool,
+    },
+    Spoilers {
+        group: u8,
+        backroom: bool,
+    },
+    VinylGroups {
+        backroom: bool,
+    },
+    Vinyls {
+        group: u8,
+        backroom: bool,
+    },
+    Paint {
+        color: usize,
+        backroom: bool,
+    },
     Numbers,
-    DecalZones { backroom: bool },
-    DecalSlots { zone: usize, backroom: bool },
-    GaugeColors { backroom: bool },
+    /// The text of a mod car's licence plate (`plate.rs`).
+    Plate,
+    /// The design behind the glyphs of a mod car's licence plate (`plate_design.rs`).
+    PlateDesign,
+    DecalZones {
+        backroom: bool,
+    },
+    DecalSlots {
+        zone: usize,
+        backroom: bool,
+    },
+    GaugeColors {
+        backroom: bool,
+    },
     Tuning,
-    Cart { backroom: bool, quick: bool },
-    Checkout { backroom: bool, quick: bool },
+    Cart {
+        backroom: bool,
+        quick: bool,
+    },
+    Checkout {
+        backroom: bool,
+        quick: bool,
+    },
     MaxPerformance,
     TuningDiscard,
     TuningError,
@@ -94,9 +134,13 @@ impl Page {
             Self::Cart { backroom: true, .. } => "ShoppingCart_BACKROOM.fng",
             Self::Cart { quick: true, .. } => "ShoppingCart_QR.fng",
             Self::Cart { .. } => "ShoppingCart.fng",
-            Self::Delete | Self::Leave | Self::Checkout { .. } | Self::MaxPerformance | Self::InsufficientFunds => {
-                "Dialog.fng"
-            }
+            Self::Delete
+            | Self::Leave
+            | Self::Plate
+            | Self::PlateDesign
+            | Self::Checkout { .. }
+            | Self::MaxPerformance
+            | Self::InsufficientFunds => "Dialog.fng",
             Self::TuningDiscard | Self::TuningError => "InGameDialog.fng",
             Self::Showcase => "Showcase.fng",
         }
@@ -147,6 +191,8 @@ impl Page {
             Self::DecalSlots { zone, .. } => nfsmw_data::car::customization::DecalZone::ALL[zone].label().into(),
             Self::GaugeColors { .. } => "Gauge Color".into(),
             Self::Numbers => "Numbers".into(),
+            Self::Plate => "License Plate".into(),
+            Self::PlateDesign => "Plate Design".into(),
             Self::Tuning => "Performance Tuning".into(),
             Self::Cart { .. } => "Shopping Cart".into(),
             Self::Checkout { .. } => "Checkout".into(),

@@ -4,7 +4,7 @@ The 2012 game keeps the recordings that every car shares in two bundles of the i
 (kind `0x15`). The sample layout (kind `0x81`, an `SPS` stream behind a 128-byte header) and the graph imports are in
 [chameleon-sound.md](chameleon-sound.md). Everything here was measured on the 2012 install (v1.4.0.0) with the reader of
 `mods/nfsmw-2012-content` (`src/shared/`). For the evidence tags see [README.md](../README.md#evidence-tags). The
-conversion that uses it is in [nfsmw-2012-content.md](../modding/nfsmw-2012-content.md), the manifest that carries the
+conversion that uses it is in [mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md), the manifest that carries the
 result in [car-sound.md](../modding/car-sound.md#the-shared-sounds-car_soundshared).
 
 ## What the two bundles hold **[measured]**

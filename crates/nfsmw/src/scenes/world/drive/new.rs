@@ -54,6 +54,7 @@ impl Drive {
             arrested: false,
             breaker_barred: false,
             sabotaged: false,
+            engine: Default::default(),
             gridded: false,
             launch_cancel_on_shift: false,
             assist_aim: None,

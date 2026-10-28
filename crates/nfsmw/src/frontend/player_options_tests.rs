@@ -16,12 +16,30 @@ fn camera_transmission_and_gauges_belong_to_player_in_native_order() {
     assert_eq!(player[1].title, Title::Label(0xF6CC_DC5F));
     for category in [Category::Audio, Category::Video, Category::Gameplay, Category::Controls, Category::Discord] {
         assert!(
-            !rows(category, &caps)
-                .iter()
-                .any(|row| matches!(row.setting, Setting::Transmission | Setting::Camera | Setting::Hud)),
+            !rows(category, &caps).iter().any(|row| matches!(row.setting, Setting::Transmission | Setting::Hud)),
             "{category:?}"
         );
     }
+    for category in [Category::Audio, Category::Video, Category::Controls, Category::Discord] {
+        assert!(!rows(category, &caps).iter().any(|row| row.setting == Setting::Camera), "{category:?}");
+    }
+}
+
+#[test]
+fn the_gameplay_page_also_switches_the_camera_and_keeps_it_in_the_settings() {
+    let caps = test_caps::native();
+    let gameplay = rows(Category::Gameplay, &caps);
+    let camera = gameplay.iter().find(|row| row.setting == Setting::Camera).expect("a Camera row on Gameplay");
+    assert_eq!(camera.title, Title::Label(0xF6CC_DC5F), "it reads as the Player page's row");
+    let mut settings = crate::settings::Settings::from(crate::settings::Partial::default());
+    let mut changed = crate::settings::Partial::default();
+    assert_eq!(settings.camera_mode, CameraMode::Chase);
+    Setting::Camera.step(&mut settings, &mut changed, true);
+    assert_eq!(settings.camera_mode, CameraMode::DynamicFov);
+    assert_eq!(changed.camera_mode, Some(CameraMode::DynamicFov), "the change is recorded, so it is saved");
+    Setting::Camera.step(&mut settings, &mut changed, false);
+    Setting::Camera.step(&mut settings, &mut changed, false);
+    assert_eq!(settings.camera_mode, CameraMode::Pursuit, "backwards from the first camera wraps to the last");
 }
 
 #[test]

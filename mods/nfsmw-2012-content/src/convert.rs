@@ -3,8 +3,10 @@
 //!
 //! The body keeps the 2012 shape, moved onto the wheel layout the car is fitted to by [`Fit`]. The wheel is one solid
 //! (tyre, rim, brake disc and caliper) made the way the game expects a "right-hand" wheel: axle along y, rim face at
-//! y = 0, tyre running to +y. The game turns it for the left side. Every solid and texture is named after the car's own
-//! folder (`<FOLDER>_KIT00_BODY_A`, `<FOLDER>_SKIN1`), and the paint surfaces keep the car's own texture coordinates.
+//! y = 0, tyre running to +y. The game turns it for the left side. The driver, when the car has one, is a solid of its
+//! own (`<FOLDER>_KIT00_DRIVER_A..D`) that the game draws in the cockpit while the car is driven. Every solid and texture
+//! is named after the car's own folder (`<FOLDER>_KIT00_BODY_A`, `<FOLDER>_SKIN1`), and the paint surfaces keep the car's
+//! own texture coordinates.
 
 use std::collections::HashMap;
 
@@ -12,10 +14,11 @@ use anyhow::{Context, Result, bail};
 use blackbox_hash::bstring_hash;
 use blackbox_solid::{GroupSource, PositionMarker, SolidSource, Vertex, write_geometry_pack};
 use blackbox_tpk::write_tpk;
-use chameleon_vehicle::{LampEnd, LampSide, LampSurface, Lod, PartMesh, SurfaceKind};
+use chameleon_vehicle::{Lod, PartMesh, SurfaceKind};
 
 use crate::fit::{Fit, to_car_space};
 use crate::hinges;
+use crate::lamp_surfaces;
 use crate::markers;
 use crate::pipes;
 use crate::source::SourceCar;
@@ -39,12 +42,20 @@ pub struct Built {
     pub bounds: Vec<u8>,
     /// The `[[damage_parts]]` tables of the car's manifest, empty when it has no hinged part (`crate::hinges`).
     pub damage_parts: String,
+    /// The car has a licence plate whose glyph sheet is in `TEXTURES.BIN` as `<FOLDER>_PLATE` (`crate::plate`).
+    pub plate: bool,
 }
 
 pub struct Options {
     pub max_texture_size: u32,
     /// The liveries of the car: each picture and the name it takes in the car's `TEXTURES.BIN`.
     pub liveries: Vec<(String, chameleon_gfx::Texture)>,
+    /// The driver seated in the car at every level of detail, finest first, in the 2012 engine's space like the body; its
+    /// textures are among `car.textures`.
+    pub driver: Option<Vec<Lod>>,
+    /// The driver posed for the steering and the look back (`crate::driver_poses`), in the same space; empty for a car without
+    /// a driver.
+    pub driver_poses: Vec<crate::driver_poses::BakedPose>,
 }
 
 /// Where a mesh's surface gets its look from in the 2005 car shader.
@@ -101,6 +112,24 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
     add_solids(&mut solids, &format!("{folder}_KIT00_FRONT_TIRE"), &wheel.lods, &wheel_parts, &mut |mesh| {
         look(mesh, car, folder, options, &mut palette)
     })?;
+    if let Some(driver) = &options.driver {
+        let no_markers = |_: usize| Vec::new();
+        let driver_parts = Parts { transform: &body, markers: &no_markers };
+        add_solids(&mut solids, &format!("{folder}_KIT00_DRIVER"), driver, &driver_parts, &mut |mesh| {
+            // Clothes and skin do not shine.
+            Look { light_material: "MATTEPLASTIC", ..look(mesh, car, folder, options, &mut palette) }
+        })?;
+    }
+    for pose in &options.driver_poses {
+        let no_markers = |_: usize| Vec::new();
+        let pose_parts = Parts { transform: &body, markers: &no_markers };
+        let stem = format!("{folder}_KIT00_DRIVER_{}", pose.suffix);
+        let letters = crate::driver_poses::POSED_LETTERS;
+        add_levels(&mut solids, &stem, &pose.lods, &pose_parts, letters, &mut |mesh| Look {
+            light_material: "MATTEPLASTIC",
+            ..look(mesh, car, folder, options, &mut palette)
+        })?;
+    }
     let geometry = write_geometry_pack(&solids).context("writing GEOMETRY.BIN")?;
     for (name, picture) in &options.liveries {
         palette.add_map(name, picture, options.max_texture_size, false);
@@ -108,7 +137,14 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
     let textures = write_tpk(folder, &palette.into_textures()).context("writing TEXTURES.BIN")?;
     let collision = crate::collision::build(car, &body, folder)?;
     log::debug!("{folder}: bounds from the {:?}, half dimensions {:?}", collision.basis, collision.half);
-    Ok(Built { geometry, textures, triangles, bounds: collision.bytes, damage_parts })
+    Ok(Built {
+        geometry,
+        textures,
+        triangles,
+        bounds: collision.bytes,
+        damage_parts,
+        plate: crate::plate::present(car),
+    })
 }
 
 /// Cut the hinged parts out of the finest body solids (`A` and `B`, which share the finest level) into solids of their
@@ -182,8 +218,20 @@ fn add_solids(
     parts: &Parts,
     look: &mut dyn FnMut(&PartMesh) -> Look,
 ) -> Result<()> {
+    add_levels(out, stem, lods, parts, LOD_LETTERS.len(), look)
+}
+
+/// [`add_solids`] for the first `letters` of the levels only (the poses of the driver have `A` and `B`).
+fn add_levels(
+    out: &mut Vec<SolidSource>,
+    stem: &str,
+    lods: &[Lod],
+    parts: &Parts,
+    letters: usize,
+    look: &mut dyn FnMut(&PartMesh) -> Look,
+) -> Result<()> {
     let mut built: Vec<(usize, SolidSource)> = Vec::new();
-    for (at, (letter, wanted)) in LOD_LETTERS.iter().zip(LOD_SOURCE).enumerate() {
+    for (at, (letter, wanted)) in LOD_LETTERS.iter().zip(LOD_SOURCE).enumerate().take(letters) {
         let Some((level, lod)) = pick_lod(lods, wanted) else { bail!("{stem}: no level of detail fits one solid") };
         let name = format!("{stem}_{letter}");
         let mut solid = match built.iter().find(|(known, _)| *known == level) {
@@ -290,31 +338,41 @@ fn normalised(v: [f32; 3]) -> [f32; 3] {
     [v[0] / length, v[1] / length, v[2] / length]
 }
 
-/// The placeholder texture of the game's lamps that a lens piece is drawn with. The front centre has none: it follows the
-/// left lamp, and the head lamps of both sides look the same.
-fn lamp_placeholder(surface: LampSurface) -> &'static str {
-    match (surface.end, surface.side) {
-        (LampEnd::Front, LampSide::Right) => "HEADLIGHT_RIGHT",
-        (LampEnd::Front, _) => "HEADLIGHT_LEFT",
-        (LampEnd::Rear, LampSide::Left) => "BRAKELIGHT_LEFT",
-        (LampEnd::Rear, LampSide::Right) => "BRAKELIGHT_RIGHT",
-        (LampEnd::Rear, LampSide::Centre) => "BRAKELIGHT_CENTRE",
+/// The glyph sheet of the car's licence plate under the name the car's manifest gives it (`crate::plate::picture_name`), when
+/// `mesh` is the plate and its sheet can be carried over.
+fn plate_sheet(
+    mesh: &PartMesh,
+    car: &SourceCar,
+    folder: &str,
+    options: &Options,
+    palette: &mut Palette,
+) -> Option<String> {
+    let appearance = &mesh.appearance;
+    if !chameleon_vehicle::is_plate_technique(&appearance.technique) {
+        return None;
     }
+    let sheet = car.textures.get(&appearance.diffuse_texture?)?;
+    palette.add_map(&crate::plate::picture_name(folder), sheet, options.max_texture_size, false)
 }
 
 /// The 2005 texture and light material that stand in for a 2012 surface.
 fn look(mesh: &PartMesh, car: &SourceCar, folder: &str, options: &Options, palette: &mut Palette) -> Look {
     let appearance = &mesh.appearance;
+    // The licence plate: its glyph sheet is a texture of the car's own, which the game draws again with the typed text.
+    if let Some(sheet) = plate_sheet(mesh, car, folder, options, palette) {
+        return Look { texture: sheet, light_material: "SHINYPLASTIC", flags: 0x4180 };
+    }
     match appearance.kind {
         // The paint placeholder: the game swaps in the colour the player picked.
         SurfaceKind::Paint => {
             Look { texture: format!("{folder}_SKIN1"), light_material: "CARSKIN", flags: PAINT_FLAGS }
         }
         SurfaceKind::Glass => Look { texture: palette.add_glass(), light_material: "WINDSHIELD", flags: 0x4180 },
-        // A lit lens strip: the game's lamp placeholder, which it swaps for the car's own lit or unlit texture.
+        // A lit lens strip or lamp interior: the game's lamp placeholder of its circuit, which it swaps for the car's own
+        // lit or unlit texture (`lamp_surfaces.rs`).
         SurfaceKind::Lamp(surface) => {
             palette.add_lamp_states(folder);
-            Look { texture: lamp_placeholder(surface).to_owned(), light_material: "MATTEPLASTIC", flags: 0x4180 }
+            Look { texture: lamp_surfaces::placeholder(surface), light_material: "MATTEPLASTIC", flags: 0x4180 }
         }
         kind => {
             let (light_material, fallback) = match kind {

@@ -121,10 +121,76 @@ pub struct LiveryChoice {
     pub texture: String,
 }
 
-/// The choice for the livery at `position` (0 is the car's own bundle) of the car in `folder`. The 2012 game names its
-/// liveries with pictures, not text, so they are numbered in list order.
+/// The numbered choice for the livery at `position` (0 is the car's own bundle) of the car in `folder`, in list order: the
+/// name of a livery the game does not name (the paint packs name them, see [`named_choice`]).
 pub fn choice(folder: &str, position: usize) -> LiveryChoice {
     LiveryChoice { name: format!("Livery {}", position + 1), texture: format!("{folder}_LIV{}", position + 1) }
+}
+
+/// The choice for the livery at `position` as [`choice`] makes it, but named `name` when the game names it. The picture is
+/// named by the position either way.
+pub fn named_choice(folder: &str, position: usize, name: Option<&str>) -> LiveryChoice {
+    let numbered = choice(folder, position);
+    match name {
+        Some(name) => LiveryChoice { name: name.to_owned(), ..numbered },
+        None => numbered,
+    }
+}
+
+/// The names of the liveries of one car as the shop shows them, from the text table's upper case (`HERO` is `Hero`). The
+/// shop tells the choices of a car apart by name, so a name that is empty, odd or used twice is `None`: that livery is
+/// numbered.
+pub fn display_names(raw: &[Option<String>]) -> Vec<Option<String>> {
+    let shown: Vec<Option<String>> = raw
+        .iter()
+        .map(|name| name.as_deref().map(title_case))
+        .map(|name| name.filter(|name| !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == ' ')))
+        .collect();
+    let once = |name: &String| shown.iter().filter(|other| other.as_ref() == Some(name)).count() == 1;
+    shown.iter().map(|name| name.clone().filter(once)).collect()
+}
+
+/// The longest name the shop takes (the manifest's limit).
+const MAX_NAME: usize = 32;
+
+/// The names of the two-colour liveries of one car as the shop shows them: like [`display_names`], but a name the game gives to
+/// several packs is kept and numbered after its first (`Silver Metallic`, `Silver Metallic 2`), because those packs differ in
+/// their colours. A name that is missing, odd or too long is `None`: that livery is numbered.
+pub fn distinct_names(raw: &[Option<String>]) -> Vec<Option<String>> {
+    let mut seen: Vec<(String, usize)> = Vec::new();
+    raw.iter()
+        .map(|name| {
+            let name = name.as_deref().map(title_case)?;
+            if name.is_empty() || !name.chars().all(|c| c.is_alphanumeric() || c == ' ') {
+                return None;
+            }
+            let times = match seen.iter_mut().find(|(known, _)| *known == name) {
+                Some((_, times)) => {
+                    *times += 1;
+                    *times
+                }
+                None => {
+                    seen.push((name.clone(), 1));
+                    1
+                }
+            };
+            let full = match times {
+                1 => name,
+                n => format!("{name} {n}"),
+            };
+            (full.chars().count() <= MAX_NAME).then_some(full)
+        })
+        .collect()
+}
+
+/// `SILVER METALLIC` as `Silver Metallic`.
+fn title_case(text: &str) -> String {
+    let word = |word: &str| {
+        let mut letters = word.chars();
+        let first = letters.next().map(|first| first.to_uppercase().collect::<String>());
+        first.unwrap_or_default() + &letters.as_str().to_lowercase()
+    };
+    text.split_whitespace().map(word).collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]
@@ -135,7 +201,7 @@ mod tests {
     use super::*;
 
     fn entry(vehicle: u32, livery: u32) -> ListEntry {
-        ListEntry { vehicle, livery }
+        ListEntry { vehicle, livery, group: 0, pack: 0 }
     }
 
     #[test]
@@ -264,5 +330,31 @@ mod tests {
         assert_eq!(first, LiveryChoice { name: "Livery 1".into(), texture: "NISSKYLINER9_LIV1".into() });
         assert_eq!(choice("X", 4).name, "Livery 5");
         assert!(first.texture.len() <= 56);
+    }
+
+    #[test]
+    fn a_named_livery_keeps_the_picture_of_its_position() {
+        let hero = named_choice("NISSKYLINER9", 0, Some("Hero"));
+        assert_eq!(hero, LiveryChoice { name: "Hero".into(), texture: "NISSKYLINER9_LIV1".into() });
+        assert_eq!(named_choice("X", 2, None), choice("X", 2));
+    }
+
+    #[test]
+    fn the_games_names_are_title_cased_and_a_repeated_or_odd_one_is_dropped() {
+        let raw = |names: &[&str]| names.iter().map(|name| Some((*name).to_owned())).collect::<Vec<_>>();
+        assert_eq!(display_names(&raw(&["HERO", "RACE", "STREET"])), raw(&["Hero", "Race", "Street"]));
+        let repeated = display_names(&raw(&["HERO", "RACE", "race"]));
+        assert_eq!(repeated, vec![Some("Hero".to_owned()), None, None]);
+        assert_eq!(display_names(&[None, Some(String::new()), Some("A\"B".into())]), vec![None, None, None]);
+        assert_eq!(display_names(&raw(&["SILVER METALLIC"])), raw(&["Silver Metallic"]));
+    }
+
+    #[test]
+    fn two_colour_names_keep_a_repeated_name_and_number_it() {
+        let raw = |names: &[&str]| names.iter().map(|name| Some((*name).to_owned())).collect::<Vec<_>>();
+        let found = distinct_names(&raw(&["SILVER METALLIC", "RED GLOSS", "SILVER METALLIC", "silver metallic"]));
+        assert_eq!(found, raw(&["Silver Metallic", "Red Gloss", "Silver Metallic 2", "Silver Metallic 3"]));
+        let odd = distinct_names(&[None, Some(String::new()), Some("A\"B".into()), Some("X".repeat(40))]);
+        assert_eq!(odd, vec![None, None, None, None]);
     }
 }

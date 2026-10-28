@@ -6,14 +6,11 @@
 //! beams a lamp throws on the road). Each record names the group it sits at and the bit of the vehicle's light-state word
 //! that switches it on. Which bit means what is documented in the spec; this module only reads.
 //!
-//! The lamp lens meshes (`Refraction` shader) are also split here: one mesh holds every lit strip of a car, and each
-//! connected piece is one lamp ([`split_lenses`]).
-
-use std::collections::HashMap;
+//! The lamp lens meshes (`Refraction` shader) are also split: one mesh holds every lit strip of a car, and each
+//! connected piece is one lamp ([`split_lenses`], `lamp_pieces.rs`).
 
 use chameleon_bundle::Bundle;
 
-use crate::appearance::{LampEnd, LampSide, LampSurface, SurfaceKind};
 use crate::error::{Error, Result};
 use crate::genesys::{Object, TypeNames, find_object};
 use crate::spec::find_spec;
@@ -203,127 +200,16 @@ fn spots(object: &Object) -> Result<Vec<SpotEffect>> {
 }
 
 /// Replace each lens mesh (the `Refraction` shader) by one mesh per connected piece, each marked as a lamp surface of the
-/// end and side of the car it sits on. Other meshes are returned as they are.
+/// end and side of the car it sits on, lit by the circuit of its end (head at the front, brake at the rear). Other meshes
+/// are returned as they are. [`crate::load`] also reads the lit pattern of the lens and cuts the lamp interiors
+/// (`lamp_pieces.rs`); this is the cut without the pattern.
 pub fn split_lenses(mesh: PartMesh) -> Vec<PartMesh> {
-    let Some(groups) = lens_groups(&mesh) else { return vec![mesh] };
-    groups
-        .iter()
-        .map(|ids| {
-            let triangles: Vec<[u32; 3]> = ids.iter().map(|&at| mesh.triangles[at]).collect();
-            piece(&mesh, &triangles)
-        })
-        .collect()
-}
-
-/// The pieces [`split_lenses`] makes of `mesh`, each as the positions (in `mesh.triangles`, in order) of its triangles,
-/// in the order the pieces come out. `None` for a mesh that is not a lens, which stays one mesh. The skin of the body
-/// (`skin.rs`) follows the same split so that its triangle classes line up with the meshes.
-pub(crate) fn lens_groups(mesh: &PartMesh) -> Option<Vec<Vec<usize>>> {
-    let is_lens = mesh.appearance.kind == SurfaceKind::Glass && mesh.appearance.technique.contains("Refraction");
-    if !is_lens || mesh.triangles.is_empty() {
-        return None;
-    }
-    let mut pieces: HashMap<usize, Vec<usize>> = HashMap::new();
-    let root = components(mesh);
-    for (at, triangle) in mesh.triangles.iter().enumerate() {
-        pieces.entry(root[triangle[0] as usize]).or_default().push(at);
-    }
-    let mut roots: Vec<usize> = pieces.keys().copied().collect();
-    roots.sort_unstable();
-    Some(roots.into_iter().map(|key| pieces.remove(&key).unwrap_or_default()).collect())
-}
-
-/// For each vertex, a number shared by every vertex of its connected piece (vertices at one place are one).
-fn components(mesh: &PartMesh) -> Vec<usize> {
-    let key = |p: [f32; 3]| p.map(|c| (c * 1000.0).round() as i64);
-    let mut places: HashMap<[i64; 3], usize> = HashMap::new();
-    let place: Vec<usize> = mesh
-        .vertices
-        .iter()
-        .map(|v| {
-            let next = places.len();
-            *places.entry(key(v.position)).or_insert(next)
-        })
-        .collect();
-    let mut parent: Vec<usize> = (0..places.len()).collect();
-    fn find(parent: &mut [usize], mut x: usize) -> usize {
-        while parent[x] != x {
-            parent[x] = parent[parent[x]];
-            x = parent[x];
-        }
-        x
-    }
-    for triangle in &mesh.triangles {
-        let [a, b, c] = triangle.map(|v| place[v as usize]);
-        for other in [b, c] {
-            let (ra, ro) = (find(&mut parent, a), find(&mut parent, other));
-            parent[ro] = ra;
-        }
-    }
-    place.iter().map(|&p| find(&mut parent, p)).collect()
-}
-
-/// One piece of a lens as a mesh of its own, with compact vertices and the lamp surface its place says.
-fn piece(mesh: &PartMesh, triangles: &[[u32; 3]]) -> PartMesh {
-    let mut remap: HashMap<u32, u32> = HashMap::new();
-    let mut vertices = Vec::new();
-    let mut out = Vec::with_capacity(triangles.len());
-    for triangle in triangles {
-        out.push(triangle.map(|v| {
-            *remap.entry(v).or_insert_with(|| {
-                vertices.push(mesh.vertices[v as usize]);
-                (vertices.len() - 1) as u32
-            })
-        }));
-    }
-    let n = vertices.len() as f32;
-    let mean = |axis: usize| vertices.iter().map(|v| v.position[axis]).sum::<f32>() / n;
-    let surface = lamp_surface(mean(0), mean(2));
-    let mut appearance = mesh.appearance.clone();
-    appearance.kind = SurfaceKind::Lamp(surface);
-    PartMesh { vertices, triangles: out, appearance }
-}
-
-/// Half the width of the strip along the centre plane that counts as the middle of the car, metres.
-const CENTRE_BAND: f32 = 0.12;
-
-/// The end and side of a lamp piece centred at `x` (left) and `z` (forward) of the engine's vehicle space.
-fn lamp_surface(x: f32, z: f32) -> LampSurface {
-    let end = if z >= 0.0 { LampEnd::Front } else { LampEnd::Rear };
-    let side = match x {
-        x if x > CENTRE_BAND => LampSide::Left,
-        x if x < -CENTRE_BAND => LampSide::Right,
-        _ => LampSide::Centre,
-    };
-    LampSurface { end, side }
+    crate::lamp_pieces::split(mesh, None)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::appearance::Appearance;
-    use chameleon_gfx::Vertex;
-
-    fn vertex(position: [f32; 3]) -> Vertex {
-        Vertex { position, color: [255; 4], uv: [0.0; 2] }
-    }
-
-    fn lens(triangles: &[[[f32; 3]; 3]]) -> PartMesh {
-        let vertices: Vec<Vertex> = triangles.iter().flatten().map(|&p| vertex(p)).collect();
-        let triangles = (0..triangles.len() as u32).map(|t| [3 * t, 3 * t + 1, 3 * t + 2]).collect();
-        let appearance = Appearance {
-            kind: SurfaceKind::Glass,
-            technique: "VehicleNFS13_Refraction".into(),
-            diffuse_texture: None,
-            diffuse_colour: None,
-            alpha_test: false,
-        };
-        PartMesh { vertices, triangles, appearance }
-    }
-
-    fn strip(x: f32, z: f32) -> [[f32; 3]; 3] {
-        [[x, 0.7, z], [x + 0.1, 0.7, z], [x, 0.7, z + 0.1]]
-    }
 
     #[test]
     fn a_locator_with_no_rotation_shines_forward_and_one_turned_half_a_circle_shines_back() {
@@ -331,33 +217,6 @@ mod tests {
         let behind = Locator { rotation: [0.0, 1.0, 0.0, 0.0], position: [0.0; 3] };
         assert_eq!(ahead.forward(), [0.0, 0.0, 1.0]);
         assert_eq!(behind.forward(), [0.0, 0.0, -1.0]);
-    }
-
-    #[test]
-    fn a_lens_splits_into_its_pieces_with_a_place_each() {
-        // Front left, front right and a rear centre strip, apart from each other.
-        let pieces = split_lenses(lens(&[strip(0.5, 2.0), strip(-0.6, 2.0), strip(-0.05, -2.0)]));
-        assert_eq!(pieces.len(), 3);
-        let surfaces: Vec<SurfaceKind> = pieces.iter().map(|p| p.appearance.kind).collect();
-        let lamp = |end, side| SurfaceKind::Lamp(LampSurface { end, side });
-        assert!(surfaces.contains(&lamp(LampEnd::Front, LampSide::Left)));
-        assert!(surfaces.contains(&lamp(LampEnd::Front, LampSide::Right)));
-        assert!(surfaces.contains(&lamp(LampEnd::Rear, LampSide::Centre)));
-        assert!(pieces.iter().all(|p| p.triangles.len() == 1 && p.vertices.len() == 3));
-    }
-
-    #[test]
-    fn triangles_that_share_a_corner_stay_one_piece() {
-        let a = [[0.5, 0.7, 2.0], [0.6, 0.7, 2.0], [0.5, 0.7, 2.1]];
-        let b = [[0.6, 0.7, 2.0], [0.7, 0.7, 2.0], [0.6, 0.7, 2.1]];
-        assert_eq!(split_lenses(lens(&[a, b])).len(), 1);
-    }
-
-    #[test]
-    fn other_meshes_are_left_alone() {
-        let mut mesh = lens(&[strip(0.5, 2.0)]);
-        mesh.appearance.technique = "VehicleNFS13_Glass".into();
-        assert_eq!(split_lenses(mesh.clone()), vec![mesh]);
     }
 
     #[test]

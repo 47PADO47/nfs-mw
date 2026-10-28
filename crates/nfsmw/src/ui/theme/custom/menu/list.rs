@@ -3,12 +3,13 @@
 //! scroll track when the list is longer than a screenful, the description line and the footer's hints.
 //!
 //! A row is its label in the neutral face, in the secondary text colour. The selected row is in the primary colour on
-//! a raised plate with an accent bar on its left; a disabled row is the secondary colour at half alpha.
+//! a raised plate with an accent bar on its left; a disabled row is the secondary colour at half alpha. A list whose
+//! entries have pictures draws each one before its label (`picture.rs`).
 
 use blackbox_ui::Rect;
 
 use super::layout::{self, BAR_WIDTH};
-use super::{Align, Parts};
+use super::{Align, Parts, picture};
 use crate::ui::raster_text::{CUSTOM_LABEL_FONT_KEY, width_units};
 use crate::ui::theme::custom::plate::PlateStyle;
 use crate::ui::theme::custom::text::{Label, Sizing, size};
@@ -62,6 +63,8 @@ impl Parts<'_, '_> {
     pub(super) fn list(&mut self, list: &MenuList, plate_y: Option<f32>) {
         let frame = self.frame();
         let wide = list.has_values();
+        // The room a picture takes before every label, when the list has pictures (`picture.rs`).
+        let pictures = picture::shift(list, frame.scale());
         self.scrim(list.style, wide);
         self.title(&list.title);
         if let Some(y) = plate_y {
@@ -73,9 +76,13 @@ impl Parts<'_, '_> {
             let selected = row == list.selected;
             let y = frame.row_y(i);
             let (colour, alpha) = row_colour(entry, selected);
-            let fit = fitted(&entry.label, frame.label_room(wide), frame.sizing());
+            if pictures > 0.0 {
+                self.picture(entry, y);
+            }
+            let room = (frame.label_room(wide) - pictures).max(0.0);
+            let fit = fitted(&entry.label, room, frame.sizing());
             let label = Label::label(entry.label.clone(), fit).colour(colour).opacity(alpha);
-            self.text(label, (frame.text_left(), y), Align::Left);
+            self.text(label, (frame.text_left() + pictures, y), Align::Left);
             if !wide {
                 continue;
             }

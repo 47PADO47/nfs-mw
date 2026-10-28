@@ -22,7 +22,7 @@
 
 use glam::Vec3;
 
-use super::{CarStats, Drive};
+use super::{CarStats, DriftStats, Drive};
 use crate::aero::AeroSpec;
 use crate::brakes::{BRAKING_TORQUE_SCALE, BrakeSpec, EBRAKING_TORQUE_SCALE};
 use crate::drivetrain::TransmissionSpec;
@@ -30,10 +30,10 @@ use crate::engine::EngineSpec;
 use crate::induction::InductionSpec;
 use crate::math::{FT_LB_TO_NM, LB_IN_TO_N_M, RPM_PER_RAD_S, inch_to_m};
 use crate::nos::NosSpec;
-use crate::rigid_body::{ObjectMaterial, RigidBodySpec};
+use crate::rigid_body::{ObjectMaterial, RigidBody, RigidBodySpec};
 use crate::suspension::ChassisSpec;
 use crate::tires::TireSpec;
-use crate::vehicle::VehicleSpec;
+use crate::vehicle::{DriftTuning, VehicleSpec};
 
 /// Torque samples the engine table gets, evenly spaced from idle to its last rpm.
 pub const SAMPLES: usize = 16;
@@ -86,11 +86,35 @@ pub(super) fn spec(stats: &CarStats, dimension: Vec3) -> VehicleSpec {
             aero_cg: aero_cg(stats),
             ..AeroSpec::default()
         },
+        drift: DriftTuning::GENERIC,
     };
     if let Some(top_speed) = stats.top_speed {
         spec.aero.drag_coefficient = solve_drag(&spec, top_speed);
     }
+    spec.drift = drift(&stats.drift, &spec);
     spec
+}
+
+/// The strongest and the weakest yaw acceleration a car's own drift torque may make, rad/s^2.
+const YAW_ACCEL_RANGE: (f32, f32) = (3.0, 10.0);
+
+/// The drift assist's tuning of a car: the stats' numbers in radians, and the torque as the yaw acceleration it makes on the
+/// body this physics builds (the stats say a torque, the assist works in accelerations so that it holds any inertia).
+fn drift(stats: &DriftStats, spec: &VehicleSpec) -> DriftTuning {
+    let generic = DriftTuning::GENERIC;
+    let inertia = RigidBody::new(spec.mass, spec.dimension, spec.tensor_scale, spec.body).inertia().y;
+    let yaw_accel = match stats.yaw_torque_nm > 0.0 && inertia > 0.0 {
+        true => (stats.yaw_torque_nm / inertia).clamp(YAW_ACCEL_RANGE.0, YAW_ACCEL_RANGE.1),
+        false => generic.yaw_accel,
+    };
+    DriftTuning {
+        enter_speed: stats.enter_speed,
+        enter_angle: stats.enter_angle_deg.to_radians(),
+        exit_angle: stats.exit_angle_deg.to_radians(),
+        max_angle: stats.max_angle_deg.to_radians(),
+        yaw_accel,
+        rear_grip: generic.rear_grip,
+    }
 }
 
 fn chassis(stats: &CarStats, dimension: Vec3) -> ChassisSpec {

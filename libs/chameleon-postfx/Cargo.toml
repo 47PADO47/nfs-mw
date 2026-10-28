@@ -1,0 +1,14 @@
+[package]
+name = "chameleon-postfx"
+description = "Post effect states of the Chameleon engine (NFS Most Wanted 2012): the keyframes (vignette, bloom, general), the colour cubes and the states that bind them to a live value, read from the bytes of their resources."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+chameleon-bundle.workspace = true
+
+[lints]
+workspace = true

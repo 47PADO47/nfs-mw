@@ -21,6 +21,8 @@ mod parts;
 mod performance;
 #[cfg(test)]
 mod performance_tests;
+pub(crate) mod plate_edit;
+pub(crate) mod plates;
 pub(crate) mod presets;
 pub(crate) mod pricing;
 #[cfg(test)]

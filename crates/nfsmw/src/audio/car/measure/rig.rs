@@ -141,6 +141,8 @@ impl Rig {
             };
             let state = CarSoundState {
                 nitrous_fx: None,
+                wind_fx: None,
+                engine: Default::default(),
                 telemetry: tick.telemetry,
                 car: car.into(),
                 upgrades: SoundUpgrades::default(),

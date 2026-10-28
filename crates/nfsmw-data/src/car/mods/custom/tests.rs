@@ -16,6 +16,7 @@ fn car() -> Customization {
         vinyl_colors: Vec::new(),
         liveries: vec![Livery { name: "Livery 1".into(), texture: "TESTCAR_LIV1".into() }],
         default_livery: None,
+        plate: None,
     }
 }
 

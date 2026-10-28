@@ -2,13 +2,15 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result, bail};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_gfx::Texture;
 use chameleon_vehicle::{
-    Lamps, PoliceMarks, PolySoup, Vehicle, VehiclePaint, find_spec, load, load_poly_soup, load_texture, paints,
-    police_marks, read_lamps, vehicle_name,
+    Driver, DriverRig, Lamps, PaintPackGroup, PaintSurface, PoliceMarks, PolySoup, Vehicle, VehiclePaint,
+    driver_meshes, find_spec, load, load_driver, load_poly_soup, load_rig, load_texture, localised_text, paint_packs,
+    paint_surfaces, paints, police_marks, read_lamps, remove_baked_driver, vehicle_name,
 };
 
 use crate::liveries::{self, Signature};
@@ -18,7 +20,13 @@ const VEHICLES: &str = "VEHICLES";
 const SHARED_TEXTURES: &str = "VEHICLES/VEHICLETEX.BNDL";
 /// The vehicle list: which bundles are the same vehicle in another livery.
 const VEHICLE_LIST: &str = "VEHICLES/VEHICLELIST.BNDL";
+/// The paint packs: which colours and liveries each vehicle of the list is offered in, and the names of them.
+const PAINT_PACKS: &str = "GAMELOGIC/GAMEPLAY.BNDL";
+/// The English text tables, where the packs' names are.
+const TEXTS: &str = "UI/LANGUAGE/0001.BNDL";
 const SHADERS: &str = "SHADERS.BNDL";
+/// The people of the game: the figures that sit in the cars; optional.
+const CHARACTERS: &str = "CHARACTERS/ALL_CHARS.BNDL";
 const GAME_LOGIC: &str = "GAMELOGIC";
 /// The one-shots the cars share (the turbo's blow-off is one); optional.
 const SHARED_SAMPLES: &str = "VEHICLES/WAVES.BNDL";
@@ -46,10 +54,23 @@ pub struct SourceCar {
     pub lamps: Lamps,
 }
 
+/// A driver figure of the install with the textures its meshes draw. The driver a bundle bakes into its body (one does) is not
+/// in its [`SourceCar::vehicle`]: the character the game seats in it (the officer in a police car) takes its place there, as in every other car.
+pub struct DriverFigure {
+    pub driver: Driver,
+    /// The figure's skeleton, clips and skin, when they read: without them the driver stays in its seated pose.
+    pub rig: Option<DriverRig>,
+    pub textures: HashMap<u64, Texture>,
+}
+
 /// An opened 2012 install. The shared bundles stay in memory; each car's bundle is read when it is loaded.
 pub struct Source {
     textures: Vec<u8>,
     shaders: Vec<u8>,
+    /// The character bundle, when the install has one.
+    characters: Option<Vec<u8>>,
+    /// The driver figures read so far, by character key (`None` for one that does not read).
+    figures: Mutex<HashMap<u32, Option<Arc<DriverFigure>>>>,
     /// The shared sample bundle, when the install has one that can be read.
     shared_samples: Option<Vec<u8>>,
     cars: Vec<CarFile>,
@@ -57,6 +78,12 @@ pub struct Source {
     root: PathBuf,
     /// The entries of the vehicle list; empty when the install has none that reads.
     list: Vec<ListEntry>,
+    /// The paint pack groups: the colours and liveries each vehicle is offered in; empty when the install has none that reads.
+    packs: Vec<PaintPackGroup>,
+    /// The main block of the English text table, which names the packs; `None` when the install has none that reads.
+    texts: Option<Vec<u8>>,
+    /// The default licence plate texts and the game packs that choose among them; `None` when the install has none that read.
+    plates: Option<crate::plate::Plates>,
 }
 
 /// A bundle's car as far as liveries are concerned: what it is, and the picture its paint surfaces draw.
@@ -80,14 +107,32 @@ impl Source {
         let shared_samples = std::fs::read(root.join(SHARED_SAMPLES)).ok();
         let list = std::fs::read(root.join(VEHICLE_LIST)).ok().and_then(|data| vehicle_list::read(&data));
         let list = list.unwrap_or_default();
+        let packs = read_packs(&root.join(PAINT_PACKS));
+        let texts = std::fs::read(root.join(TEXTS)).ok().and_then(|data| crate::brands::text_block(&data));
         Ok(Self {
             textures,
             shaders,
+            characters: std::fs::read(root.join(CHARACTERS)).ok(),
+            figures: Mutex::new(HashMap::new()),
             shared_samples,
             cars: list_cars(&root.join(VEHICLES))?,
             root: root.to_owned(),
             list,
+            packs,
+            texts,
+            plates: crate::plate::Plates::read(root),
         })
+    }
+
+    /// The install's folder.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// The bundles every vehicle bundle needs besides its own: the shared vehicle textures and the shaders. For a reader that
+    /// loads a bundle of its own kind (a traffic or a low-detail bundle) into a pool.
+    pub fn shared_bundles(&self) -> (&[u8], &[u8]) {
+        (&self.textures, &self.shaders)
     }
 
     /// A file of the install, by its path under the install's folder.
@@ -117,6 +162,75 @@ impl Source {
     /// livery of another and every bundle is a car.
     pub fn list(&self) -> &[ListEntry] {
         &self.list
+    }
+
+    /// The paint pack group of the vehicle whose bundle is `file`: the one its vehicle list entry names. `None` for a vehicle
+    /// with no group (the police vehicles) and when the install's packs do not read.
+    pub fn pack_group(&self, file: &CarFile) -> Option<&PaintPackGroup> {
+        let entry = self.list.iter().find(|entry| entry.file() == file.number)?;
+        self.packs.iter().find(|group| entry.group != 0 && group.id == entry.group)
+    }
+
+    /// The licence plate text the car in `file` wears by default: the text of the game pack its vehicle list entry names
+    /// (`crate::plate`). `None` when the install's texts or list do not read.
+    pub fn plate_text(&self, file: &CarFile) -> Option<String> {
+        let entry = self.list.iter().find(|entry| entry.file() == file.number)?;
+        Some(self.plates.as_ref()?.text(entry.pack))
+    }
+
+    /// The licence plate texts, game packs and designs of the install (`crate::plate`); `None` when they do not read.
+    pub fn plates(&self) -> Option<&crate::plate::Plates> {
+        self.plates.as_ref()
+    }
+
+    /// The paints of the car in `file`, read without decoding the rest of its bundle; none when it does not read.
+    pub fn paints_of(&self, file: &CarFile) -> Vec<VehiclePaint> {
+        let Ok(data) = std::fs::read(&file.path) else { return Vec::new() };
+        Bundle::parse(&data).map(|bundle| paints(&bundle)).unwrap_or_default()
+    }
+
+    /// The names the game gives the liveries in `files` (the vehicle's own bundle first), as its text table spells them
+    /// (`HERO`): the paint pack of each bundle names it. `None` for a livery the packs or the table do not name.
+    pub fn livery_names(&self, files: &[&CarFile]) -> Vec<Option<String>> {
+        let group = files.first().and_then(|file| self.pack_group(file));
+        let name = |file: &CarFile| -> Option<String> {
+            let data = std::fs::read(&file.path).ok()?;
+            let pack = group?.livery_of(&Bundle::parse(&data).ok()?)?;
+            localised_text(self.texts.as_deref()?, pack.name)
+        };
+        files.iter().map(|file| name(file)).collect()
+    }
+
+    /// The text with string id `id` in the English table, as the game spells it (`SILVER METALLIC`); `None` when the
+    /// install has no table that reads or the table lacks the id.
+    pub fn text(&self, id: u32) -> Option<String> {
+        localised_text(self.texts.as_deref()?, id)
+    }
+
+    /// The paint surfaces of every body level of the car in `file` and which colour each takes, read without decoding the
+    /// meshes or the textures.
+    pub fn paint_surfaces_of(&self, file: &CarFile) -> Result<Vec<Vec<PaintSurface>>> {
+        let data = std::fs::read(&file.path).with_context(|| format!("reading {}", file.path.display()))?;
+        let bundle = Bundle::parse(&data)?;
+        let spec = find_spec(&bundle).context("the bundle has no vehicle graphics spec")?;
+        let mut pool = Pool::new();
+        pool.add(bundle.clone());
+        pool.add(Bundle::parse(&self.textures)?);
+        pool.add(Bundle::parse(&self.shaders)?);
+        Ok(paint_surfaces(&pool, spec)?)
+    }
+
+    /// The untextured body surfaces of every body level of the car in `file` with their finish, read without decoding the
+    /// meshes or the textures.
+    pub fn plain_surfaces_of(&self, file: &CarFile) -> Result<Vec<Vec<chameleon_vehicle::PlainSurface>>> {
+        let data = std::fs::read(&file.path).with_context(|| format!("reading {}", file.path.display()))?;
+        let bundle = Bundle::parse(&data)?;
+        let spec = find_spec(&bundle).context("the bundle has no vehicle graphics spec")?;
+        let mut pool = Pool::new();
+        pool.add(bundle.clone());
+        pool.add(Bundle::parse(&self.textures)?);
+        pool.add(Bundle::parse(&self.shaders)?);
+        Ok(chameleon_vehicle::plain_surfaces(&pool, spec)?)
     }
 
     /// The signature and the paint picture of the car in `file`, read without decoding its other textures.
@@ -182,7 +296,7 @@ impl Source {
         pool.add(bundle.clone());
         pool.add(Bundle::parse(&self.textures)?);
         pool.add(Bundle::parse(&self.shaders)?);
-        let vehicle = load(&pool, spec)?;
+        let mut vehicle = load(&pool, spec)?;
         let mut textures = HashMap::new();
         for mesh in vehicle.all_meshes() {
             let Some(id) = mesh.appearance.diffuse_texture else { continue };
@@ -195,8 +309,63 @@ impl Source {
             log::warn!("{}: the collision mesh does not read: {error}", file.path.display());
             None
         });
-        let hinged = crate::hinges::read(&bundle, &pool, spec, &vehicle);
+        let mut hinged = crate::hinges::read(&bundle, &pool, spec, &vehicle);
+        // The body without the driver the bundle bakes into it: the classes of the hinged parts lose the driver's meshes with it.
+        let drivers = vehicle.body.first().map(driver_meshes).unwrap_or_default();
+        if let Some(hinged) = hinged.as_mut() {
+            for &at in drivers.iter().rev() {
+                if at < hinged.classes.len() {
+                    hinged.classes.remove(at);
+                }
+            }
+        }
+        remove_baked_driver(&mut vehicle);
         Ok(SourceCar { vehicle, textures, paints: car_paints, collision, hinged, lamps })
+    }
+
+    /// Whether the install has the character bundle the drivers are in.
+    pub fn has_characters(&self) -> bool {
+        self.characters.is_some()
+    }
+
+    /// The driver figure of the character `key` (`DriverSetup::character`: the civilian a car's setup names, or the officer of a
+    /// police car), read on the first ask and kept: every car of a run shares the three characters. `None` when the install has no character bundle or the figure does not read.
+    pub fn driver_figure(&self, key: u32) -> Option<Arc<DriverFigure>> {
+        let mut known = self.figures.lock().ok()?;
+        if let Some(found) = known.get(&key) {
+            return found.clone();
+        }
+        let figure = match self.read_driver(key) {
+            Ok(figure) => Some(Arc::new(figure)),
+            Err(error) => {
+                log::warn!("the driver {key:X} does not read: {error:#}");
+                None
+            }
+        };
+        known.insert(key, figure.clone());
+        figure
+    }
+
+    fn read_driver(&self, key: u32) -> Result<DriverFigure> {
+        let characters = self.characters.as_deref().context("the install has no character bundle")?;
+        let mut pool = Pool::new();
+        pool.add(Bundle::parse(characters)?);
+        pool.add(Bundle::parse(&self.shaders)?);
+        let driver = load_driver(&pool, key)?;
+        let mut textures = HashMap::new();
+        for id in driver.textures() {
+            if pool.contains(id) {
+                textures.insert(id, load_texture(&pool, id)?);
+            }
+        }
+        let rig = match load_rig(&pool, key) {
+            Ok(rig) => Some(rig),
+            Err(error) => {
+                log::warn!("the driver {key:X} cannot be posed, it stays seated: {error:#}");
+                None
+            }
+        };
+        Ok(DriverFigure { driver, rig, textures })
     }
 }
 
@@ -210,4 +379,14 @@ fn list_cars(dir: &Path) -> Result<Vec<CarFile>> {
     }
     cars.sort_by_key(|car| car.number);
     Ok(cars)
+}
+
+/// The paint pack groups in the gameplay bundle at `path`; none, with a warning, when it does not read.
+fn read_packs(path: &Path) -> Vec<PaintPackGroup> {
+    let Ok(data) = std::fs::read(path) else { return Vec::new() };
+    let groups = Bundle::parse(&data).map_err(chameleon_vehicle::Error::from).and_then(|bundle| paint_packs(&bundle));
+    groups.unwrap_or_else(|error| {
+        log::warn!("{}: the paint packs do not read: {error}", path.display());
+        Vec::new()
+    })
 }

@@ -74,19 +74,38 @@ fn a_converted_car_has_its_own_lamp_markers_and_lamp_surfaces() {
     }
     assert!(!find("LEFT_EXHAUST").is_empty(), "the tail pipes are still there");
 
-    // The lens strips use the game's lamp placeholders, so the game lights them with the car's state textures.
-    let placeholders =
-        ["HEADLIGHT_LEFT", "HEADLIGHT_RIGHT", "BRAKELIGHT_LEFT", "BRAKELIGHT_RIGHT", "BRAKELIGHT_CENTRE"];
+    // The lens strips and the lit triangles of the lamp interiors use the lamp placeholders of their circuit, so the game
+    // lights them with the car's state textures: the Porsche's reverse lamps are blue-channel strips at the rear corners.
+    let placeholders = [
+        "HEADLIGHT_LEFT",
+        "HEADLIGHT_RIGHT",
+        "BRAKELIGHT_LEFT",
+        "BRAKELIGHT_RIGHT",
+        "BRAKELIGHT_CENTRE",
+        "TAILLIGHT_LEFT",
+        "REVERSELIGHT_LEFT",
+        "REVERSELIGHT_RIGHT",
+    ];
     let used: Vec<&str> =
         placeholders.into_iter().filter(|name| body.texture_hashes.contains(&bstring_hash(name))).collect();
     println!("lamp placeholders in the body: {used:?}");
     assert!(used.contains(&"HEADLIGHT_LEFT") && used.contains(&"BRAKELIGHT_LEFT"), "{used:?}");
+    assert!(used.contains(&"REVERSELIGHT_LEFT") && used.contains(&"REVERSELIGHT_RIGHT"), "{used:?}");
 
     let textures = std::fs::read(folder.join("TEXTURES.BIN")).unwrap();
     let packs = blackbox_tpk::read_texture_packs(&textures).unwrap();
     // The pack stores a name in 24 bytes, so the game finds a texture by the hash of its full name.
     let names: Vec<u32> = packs.iter().flat_map(|pack| pack.textures.iter().map(|t| t.name_hash)).collect();
-    for state in ["HEADLIGHT_ON", "HEADLIGHT_OFF", "BRAKELIGHT_ON", "BRAKELIGHT_OFF"] {
+    for state in [
+        "HEADLIGHT_ON",
+        "HEADLIGHT_OFF",
+        "BRAKELIGHT_ON",
+        "BRAKELIGHT_OFF",
+        "TAILLIGHT_ON",
+        "TAILLIGHT_OFF",
+        "REVERSELIGHT_ON",
+        "REVERSELIGHT_OFF",
+    ] {
         let wanted = format!("{CAR}_KIT00_{state}");
         assert!(names.contains(&bstring_hash(&wanted)), "no texture {wanted}");
     }

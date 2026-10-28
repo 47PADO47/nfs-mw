@@ -57,6 +57,16 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
         }
     }
     assert!(solids.iter().all(|solid| !solid.groups.is_empty()));
+    // A car with a driver also has the driver posed for the steering and the look back, at the two finest levels.
+    if solids.iter().any(|solid| solid.name == format!("{}_KIT00_DRIVER_A", car.id)) {
+        for pose in ["S0", "S1", "S2", "S3", "S4", "S5", "S6", "BACK"] {
+            for letter in ['A', 'B'] {
+                let name = format!("{}_KIT00_DRIVER_{pose}_{letter}", car.id);
+                assert!(solids.iter().any(|solid| solid.name == name), "no solid named {name}");
+            }
+        }
+        assert!(!solids.iter().any(|solid| solid.name == format!("{}_KIT00_DRIVER_S0_C", car.id)));
+    }
 
     let textures = std::fs::read(folder.join("TEXTURES.BIN")).unwrap();
     let packs = blackbox_tpk::read_texture_packs(&textures).unwrap();
@@ -71,7 +81,8 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
 
     // The hinged parts: the 911 has seven, each its own solid at the two finest levels, cut out of the body.
     let parsed_car = blackbox_modding::content::parse_car(&car.id, &manifest).expect("the game's parser takes it");
-    assert_eq!(parsed_car.damage_parts.len(), 8, "bonnet, bumpers, mirrors, front doors and the active spoiler");
+    // Bonnet, bumpers, mirrors, front doors and the active spoiler, the pieces its damage clips break and the steering wheel.
+    assert_eq!(parsed_car.damage_parts.len(), 23);
     let spoiler = parsed_car.damage_parts.iter().find(|part| part.active.is_some()).expect("the 911's spoiler moves");
     let active = spoiler.active.unwrap();
     assert_eq!((active.above_mph, active.below_mph), (70.0, 40.0));
@@ -145,7 +156,10 @@ fn every_car_converts_and_how_long_it_takes() {
     }
     let report = last.unwrap();
     assert!(report.skipped.is_empty(), "skipped: {:?}", report.skipped);
-    assert!(report.imported.len() > 70, "93 bundles, 20 of them liveries folded into their cars");
+    assert!(
+        report.imported.len() > 60,
+        "93 bundles: 20 are liveries folded into their cars, 6 the same car under two ids"
+    );
     // Every manifest passes the game's checks and carries the car's own paints, and nothing else for its looks.
     let mut paints = 0;
     for entry in std::fs::read_dir(dir.join("cars")).unwrap().flatten() {
@@ -155,6 +169,9 @@ fn every_car_converts_and_how_long_it_takes() {
         let own = manifest.customization.unwrap_or_else(|| panic!("{stem} has no paints"));
         assert!(own.rims.is_empty() && own.spoilers.is_empty() && own.vinyls.is_empty() && own.tints.is_empty());
         paints += own.paints.len();
+        if manifest.traffic.is_some() {
+            continue; // a traffic car has no sounds of its own
+        }
         // Every car names the shared sounds, and the files they name are written once.
         let shared = manifest.car_sound.map(|sound| sound.shared).unwrap_or_default();
         assert_eq!((shared.impact_big.len(), shared.scrape.len()), (12, 3), "{stem}");

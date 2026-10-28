@@ -84,6 +84,7 @@ pub const NAMES: [&str; 78] = [
 ];
 
 pub const EMITTER_CONE_PLUS: u8 = 0;
+pub const EMITTER_WHEEL: u8 = 5;
 pub const INITIALISE_2D_ROTATION: u8 = 10;
 pub const INITIALISE_AGE_AND_LIFETIME: u8 = 12;
 pub const INITIALISE_AND_SUBMIT_LIGHT: u8 = 14;
@@ -100,6 +101,7 @@ pub const RENDER_SPRITE_UV_DISTORTION: u8 = 40;
 pub const UPDATE_AND_SUBMIT_LIGHT: u8 = 48;
 pub const UPDATE_PARAMETRIC_RADIUS: u8 = 60;
 pub const UPDATE_POS_VEL: u8 = 61;
+pub const UPDATE_POS_VEL_WITH_BOUNCE_PLANE: u8 = 62;
 
 /// The name of operation `id`.
 pub fn name(id: u8) -> Option<&'static str> {

@@ -249,7 +249,8 @@ impl WorldScene {
                 race_mods: Default::default(),
                 mod_blips: Vec::new(),
                 nitrous_fx: None,
-                nitrous_burn: Default::default(),
+                wind_fx: None,
+                nitrous_screen: Default::default(),
                 career: Default::default(),
                 scenery_groups: scenery_groups::SceneryGroups::new(group_table),
                 entry: entry::Entry {
@@ -275,6 +276,7 @@ impl WorldScene {
                 exhaust_flames: false,
                 spark_style: crate::settings::SparkStyle::OriginalPc,
                 smoke_quality: crate::settings::SmokeQuality::Standard,
+                tire_smoke_variant: None,
                 rain,
                 wind,
                 wet_road: Default::default(),

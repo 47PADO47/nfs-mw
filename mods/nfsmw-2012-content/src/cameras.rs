@@ -7,11 +7,15 @@
 //!
 //! The mounted cameras' numbers are offsets from an anchor the 2012 data does not name (the format doc); the mod anchors the
 //! bonnet camera at the car's origin and the bumper camera at the nose, which it measures on the converted body.
+//!
+//! The file is written by the conversion, so cars converted before the cameras were kept have none until the conversion
+//! runs again (`stamp.rs` bumps its version for that). The views fit a car only while its file is there.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use blackbox_modding::sdk::{Camera, CameraInput, CameraPose, CameraView as HostView, Ctx, Level};
@@ -33,31 +37,60 @@ struct Saved {
 }
 
 /// Write the cameras of the 2012 car in `bundle` for the converted car `id`. `nose` is how far in front of the car's origin
-/// the converted body ends, metres.
-pub fn write(folder: &ModFolder, id: &str, bundle: &[u8], nose: f32) -> Result<()> {
-    let cameras = read_cameras(&Bundle::parse(bundle)?).context("the cameras of the car could not be read")?;
+/// the converted body ends and `middle` how far ahead of the 2012 origin the converted car's origin is, metres: the
+/// conversion centres the car on its wheelbase, and the cameras are measured from the origin the game drives.
+pub fn write(folder: &ModFolder, id: &str, bundle: &[u8], nose: f32, middle: f32) -> Result<()> {
+    let mut cameras = read_cameras(&Bundle::parse(bundle)?).context("the cameras of the car could not be read")?;
+    cameras.move_origin_forward(middle);
     let text = toml::to_string(&Saved { bumper_anchor: [nose, 0.0, 0.0], cameras })?;
     let path = folder.root().join("files").join("CARS").join(id).join(FILE);
     std::fs::write(&path, text).with_context(|| format!("{} could not be written", path.display()))
 }
 
-/// The cameras of the converted cars, read from the mod's folder the first time a car asks.
+/// How long a car without a readable file is left alone before the folder is looked at again: the conversion may be
+/// writing the cars while the game runs.
+const RECHECK: Duration = Duration::from_secs(5);
+
+/// What was found for a car.
+enum Known {
+    Found(Rc<Saved>),
+    /// No readable file, as of this moment.
+    Missing(Instant),
+}
+
+/// The cameras of the converted cars, read from the mod's folder when a car asks.
 struct Cars {
     cars_dir: PathBuf,
-    loaded: HashMap<String, Option<Rc<Saved>>>,
+    loaded: HashMap<String, Known>,
 }
 
 impl Cars {
     fn get(&mut self, car: &str) -> Option<Rc<Saved>> {
-        if let Some(known) = self.loaded.get(car) {
-            return known.clone();
+        match self.loaded.get(car) {
+            Some(Known::Found(saved)) => return Some(saved.clone()),
+            Some(Known::Missing(at)) if at.elapsed() < RECHECK => return None,
+            _ => {}
         }
-        let read = std::fs::read_to_string(self.cars_dir.join(car).join(FILE))
-            .ok()
-            .and_then(|text| toml::from_str::<Saved>(&text).ok())
-            .map(Rc::new);
-        self.loaded.insert(car.to_owned(), read.clone());
-        read
+        let first = !self.loaded.contains_key(car);
+        let path = self.cars_dir.join(car).join(FILE);
+        let read = std::fs::read_to_string(&path)
+            .map_err(|error| error.to_string())
+            .and_then(|text| toml::from_str::<Saved>(&text).map_err(|error| format!("it is not readable: {error}")));
+        let saved = match read {
+            Ok(saved) => Rc::new(saved),
+            Err(reason) => {
+                if first {
+                    let place = path.display();
+                    log::info!(
+                        "{car}: no 2012 cameras in {place} ({reason}); a car converted by an older mod has none"
+                    );
+                }
+                self.loaded.insert(car.to_owned(), Known::Missing(Instant::now()));
+                return None;
+            }
+        };
+        self.loaded.insert(car.to_owned(), Known::Found(saved.clone()));
+        Some(saved)
     }
 }
 
@@ -172,6 +205,23 @@ mod tests {
         let mut view = View2012 { which: CameraView::Chase, cars, state: None };
         assert!(!view.available("NOCAR"));
         assert_eq!(view.update(&input("NOCAR", [0.0; 3])), None);
+    }
+
+    #[test]
+    fn an_unreadable_file_is_no_cameras_and_is_looked_at_again_later() {
+        let dir = std::env::temp_dir().join(format!("nfsmw2012-cameras-bad-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("BADCAR")).unwrap();
+        std::fs::write(dir.join("BADCAR").join(FILE), "this is not a camera file").unwrap();
+        let mut cars = Cars { cars_dir: dir.clone(), loaded: HashMap::new() };
+        assert!(cars.get("BADCAR").is_none());
+        assert!(matches!(cars.loaded.get("BADCAR"), Some(Known::Missing(_))), "the miss is remembered");
+        // A miss older than the recheck time is read again; the file is still bad, so it is a miss again.
+        let long_ago = Instant::now().checked_sub(RECHECK * 2).unwrap_or_else(Instant::now);
+        cars.loaded.insert("BADCAR".into(), Known::Missing(long_ago));
+        assert!(cars.get("BADCAR").is_none());
+        let Some(Known::Missing(at)) = cars.loaded.get("BADCAR") else { panic!("still a miss") };
+        assert!(at.elapsed() < RECHECK, "the check was made again");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

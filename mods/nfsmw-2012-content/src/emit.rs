@@ -130,6 +130,9 @@ impl ModFolder {
         for (name, bytes) in files {
             std::fs::write(folder.join(name), bytes)?;
         }
+        if let Some(ignition) = &effects.ignition {
+            std::fs::write(folder.join("IGNITION.WAV"), ignition)?;
+        }
         Ok(table)
     }
 }
@@ -157,6 +160,9 @@ fn effects_table<'a>(id: &str, effects: &'a EffectFiles) -> (String, Vec<(String
             files.push((name, wav.as_slice()));
         }
         table.push_str(&format!("{key} = [{}]\n", paths.join(", ")));
+    }
+    if effects.no_clunk {
+        table.push_str("shift_clunk = false\n");
     }
     if table.is_empty() {
         return (table, files);
@@ -217,6 +223,7 @@ mod tests {
                 tire_grip: [1.5, 1.4],
                 brake_torque_nm: [1300.0, 1350.0],
                 nitrous_boost: 0.9,
+                drift: None,
             },
             customization: "
 [customization]
@@ -253,6 +260,22 @@ paints = [{ name = \"Red\", color = [200, 0, 0] }]
         assert_eq!(names, ["SHIFT0.WAV", "SHIFT1.WAV", "BACKFIRE0.WAV"]);
         assert_eq!(files[2].1, [3]);
         assert_eq!(effects_table("MYCAR", &EffectFiles::default()), (String::new(), Vec::new()));
+    }
+
+    #[test]
+    fn a_car_with_no_gear_change_says_so_and_that_alone_is_a_table() {
+        let electric = EffectFiles { no_clunk: true, ..EffectFiles::default() };
+        let (table, files) = effects_table("EVCAR", &electric);
+        let parsed: toml::Table = toml::from_str(&table).unwrap();
+        assert_eq!(parsed["car_sound"]["shift_clunk"].as_bool(), Some(false));
+        assert!(files.is_empty());
+        let both = EffectFiles { no_clunk: true, pops: vec![vec![1]], ..EffectFiles::default() };
+        let parsed: toml::Table = toml::from_str(&effects_table("EVCAR", &both).0).unwrap();
+        assert_eq!(parsed["car_sound"].as_table().unwrap().len(), 2);
+        let normal: toml::Table =
+            toml::from_str(&effects_table("CAR", &EffectFiles { pops: vec![vec![1]], ..Default::default() }).0)
+                .unwrap();
+        assert!(normal["car_sound"].get("shift_clunk").is_none());
     }
 
     #[test]

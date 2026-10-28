@@ -12,6 +12,8 @@ use blackbox_hash::bstring_hash;
 pub mod apply;
 pub mod catalog;
 pub mod livery;
+pub mod plate;
+pub mod plate_design;
 #[cfg(test)]
 mod tests;
 
@@ -87,6 +89,28 @@ pub struct Vinyl {
     pub channels: u8,
 }
 
+/// A licence plate whose text the car can change: a glyph sheet of the car's own `TEXTURES.BIN` (`[customization.plate]`).
+/// [`Plate::compose`] draws the sheet again with a text.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Plate {
+    /// The text the car wears until the player picks one. `None`: the sheet as authored.
+    pub text: Option<String>,
+    /// The glyph sheet's texture in the car's `TEXTURES.BIN`.
+    pub picture: String,
+    /// The glyph of each cell, row by row; `columns * rows` of them, one of them the space (the blank).
+    pub glyphs: Vec<char>,
+    pub columns: u32,
+    pub rows: u32,
+    /// Characters the plate shows at once.
+    pub slots: u32,
+    /// Typed characters drawn as another glyph: `(typed, drawn)`.
+    pub aliases: Vec<(char, char)>,
+    /// The index of the plate designs the car offers: a path under the mod's `files/` ([`plate_design`]). `None`: no designs.
+    pub designs: Option<String>,
+    /// The id of the design the car wears until the player picks one. `None`: the plain sheet.
+    pub default_design: Option<String>,
+}
+
 /// A whole-body picture in the layout of the car's paint surfaces: `texture` is a texture of the car's own
 /// `TEXTURES.BIN`. It is offered with the vinyls ([`livery`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,6 +142,8 @@ pub struct Customization {
     /// The position in `liveries` of the one the car wears until the player picks a vinyl or a livery: a police car's
     /// markings. `None`: the plain paint.
     pub default_livery: Option<usize>,
+    /// The licence plate the player can type a text on; `None`: the car has none.
+    pub plate: Option<Plate>,
 }
 
 /// The vinyl channel colours of a car that lists none of its own: name and sRGB colour.

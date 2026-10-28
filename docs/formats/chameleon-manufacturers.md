@@ -5,7 +5,7 @@ pictures of the car select. Measured on the 2012 install (v1.4.0.0) with the bun
 ([chameleon-bundle.md](chameleon-bundle.md)), by reading every texture under `UI/IMAGES/` and by `NFS13.exe` in Ghidra.
 Evidence tags: [README.md](../README.md#evidence-tags). Readers: `chameleon-vehicle::manufacturers` (the table),
 `chameleon-vehicle::localised_text` (a name), `chameleon-gfx::Texture::to_rgba8` (the picture). The mod that uses them is
-[nfsmw-2012-content](../modding/nfsmw-2012-content.md) (`brands.rs`).
+[nfsmw-2012-content](../../mods/nfsmw-2012-content/README.md) (`brands.rs`).
 
 ## Where they are
 

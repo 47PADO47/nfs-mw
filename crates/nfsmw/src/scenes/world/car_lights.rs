@@ -72,12 +72,14 @@ pub struct LampState {
     pub turn_signals: bool,
     /// Simulated seconds, for the blinking.
     pub time: f32,
+    /// Every lamp is dark whatever the rest says: the engine is off (`bb.engine`). Off for every car in the stock game.
+    pub dark: bool,
 }
 
 impl LampState {
     /// The cached shared brake surfaces cannot remain ON when every original brake bit is broken.
     pub fn brake_surfaces_on(self) -> bool {
-        self.brake > 0.0 && self.broken & 56 != 56
+        self.brake > 0.0 && self.broken & 56 != 56 && !self.dark
     }
 }
 
@@ -174,7 +176,7 @@ impl CarLights {
     }
 
     #[cfg(test)]
-    fn new(lamps: Vec<Lamp>) -> Self {
+    pub(in crate::scenes::world) fn new(lamps: Vec<Lamp>) -> Self {
         Self { lamps }
     }
 }
@@ -182,7 +184,7 @@ impl CarLights {
 /// The optional indicator extension never substitutes for native head/brake/reverse/emergency lights.
 fn look(kind: Kind, state: LampState) -> Option<(f32, [f32; 4], f32)> {
     let Kind::Signal(left) = kind else { return None };
-    if !state.turn_signals {
+    if !state.turn_signals || state.dark {
         return None;
     }
     let steer = if state.steer.is_nan() { 0.0 } else { state.steer.clamp(-1.0, 1.0) };

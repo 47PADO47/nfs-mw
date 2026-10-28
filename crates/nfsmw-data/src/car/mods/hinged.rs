@@ -17,12 +17,14 @@ use crate::car::{LodAssembly, Placement};
 mod active;
 mod debris;
 mod drive;
+mod steering;
 mod wing;
 pub use active::{Active, Deployment, MPS_TO_MPH, deploy_in, deploy_mark};
 pub use debris::{DEBRIS_SOUND, Motion, Parent, debris_bounds, debris_dynamics, debris_motion, part_axis, part_frame};
 pub use drive::{
     Drive, DriveState, Input as DriveInput, Inputs as DriveInputs, MAX_DRIVES, Op as DriveOp, Test as DriveTest,
 };
+pub use steering::Steering;
 pub use wing::{Blend, SLOTS, Sample, Wing, WingState, WingTrack};
 
 /// The first slot number of the hinged parts: part `n` of a car is slot `HINGED_SLOT + n`. The slots of the parts
@@ -50,6 +52,8 @@ pub struct Hinge {
     pub angle: f32,
     /// The zone damage fractions at which the stages start, ascending.
     pub stages: Vec<f32>,
+    /// The degrees turned at each stage (one per stage); empty: `angle` times the share of stages reached.
+    pub stage_angles: Vec<f32>,
     pub detach_at: Option<f32>,
     /// Whether the part can leave the car at all.
     pub detach: bool,
@@ -66,6 +70,8 @@ pub struct Hinge {
     pub drives: Vec<Drive>,
     /// The wing machine of the car (the same on every part it moves).
     pub wing: Option<Wing>,
+    /// How the steering turns the part, for a steering wheel (`[damage_parts.steering]`).
+    pub steering: Option<Steering>,
 }
 
 /// A part a hinged part hangs from, as far as its movement goes.
@@ -109,6 +115,9 @@ impl Hinge {
             return 0.0;
         }
         let reached = self.stages.iter().filter(|&&stage| fraction >= stage).count();
+        if self.stage_angles.len() == self.stages.len() {
+            return reached.checked_sub(1).map_or(0.0, |last| self.stage_angles[last]);
+        }
         self.angle * reached as f32 / self.stages.len().max(1) as f32
     }
 
@@ -149,6 +158,13 @@ impl Hinge {
             .iter()
             .fold(Mat4::IDENTITY, |chain, up| chain * motion(up.active.as_ref(), &up.tracks, up.pivot));
         self.turn(degrees) * carried * motion(self.active.as_ref(), &self.tracks, self.pivot)
+    }
+
+    /// The turn the steering gives the part at `steering` (-1 to 1, positive to the right): the identity for a part the steering
+    /// does not turn. It is applied to the part where it was modelled, before the damage and the speed move it.
+    pub fn steered(&self, steering: f32) -> Mat4 {
+        let Some(wheel) = self.steering else { return Mat4::IDENTITY };
+        self.turn(wheel.angle(steering))
     }
 
     /// The transform of the part turned by `degrees` about its hinge line, in the car's solid space.
@@ -258,6 +274,7 @@ mod tests {
             axis: [0.0, 1.0, 0.0],
             angle: -15.0,
             stages: vec![0.04, 0.05, 0.5],
+            stage_angles: Vec::new(),
             detach_at: None,
             detach: false,
             mass_kg: 40.0,
@@ -266,6 +283,7 @@ mod tests {
             tracks: Vec::new(),
             drives: Vec::new(),
             wing: None,
+            steering: None,
         }
     }
 
@@ -277,6 +295,17 @@ mod tests {
         assert_eq!(hinge.pose(1.0 / 3.0), Pose::Turned(-10.0));
         assert_eq!(hinge.pose(2.0 / 3.0), Pose::Turned(-15.0));
         assert_eq!(hinge.pose(0.045), Pose::Turned(-5.0));
+    }
+
+    #[test]
+    fn stage_angles_name_the_turn_of_each_stage() {
+        let hinge = Hinge { stage_angles: vec![0.0, -2.0, -9.0], ..bonnet() };
+        assert_eq!(hinge.swing(0.0), 0.0);
+        assert_eq!(hinge.swing(0.045), 0.0, "the first stage turns it by its own 0");
+        assert_eq!(hinge.swing(1.0 / 3.0), -2.0);
+        assert_eq!(hinge.swing(1.0), -9.0);
+        let even = Hinge { stage_angles: vec![1.0], ..bonnet() };
+        assert_eq!(even.swing(1.0), -15.0, "a list of another length is ignored");
     }
 
     #[test]

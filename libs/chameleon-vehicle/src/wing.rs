@@ -4,13 +4,17 @@
 //! Two graphs of the state machine data are read as the same machine:
 //!
 //! - the Veyron's, with five animations (states `Handling Anim`, `Brake Anim`, `Brake from Handling Anim`,
-//!   `Brake from Top Speed Anim`, `Top Speed Anim`) and the numbers the executable's code tests (speeds of 125, 140 and 200
-//!   mph and a 0.4 second wait), checked against the data;
+//!   `Brake from Top Speed Anim`, `Top Speed Anim`) and the numbers the executable's code tests: speeds of 125, 140 and 200
+//!   mph, the 0.4 second hold of the brake and the 0.25 second cross-fade are literals of the executable (the speeds are
+//!   vector constants copied at start-up, the hold and the fade immediates of its update routines) and equal the data's
+//!   conditions **[confirmed in the executable]**;
 //! - the McLaren's and the Venom's, the same graph without the top-speed states (`Spoiler Up Anim`, `Brake Anim`,
 //!   `Brake From Speed Anim`), whose numbers are read from the data: the speed that opens the wing is the condition that is
 //!   a single speed test, the speed that lets the brake open it is the speed test of the condition that is the brake and a
-//!   speed, and the brake hold is the timed transition. That a graph of this shape is played by the same machine as the
-//!   Veyron's is an assumption (no executable class of its own was found).
+//!   speed, and the brake hold is the timed transition (0.4 s in the data, as in the Veyron's code). The Veyron's class
+//!   cannot be what plays them: it keeps five clocks and tests 140, 125 and 200 mph, and neither 120 nor 80 mph is a
+//!   constant of the executable. That a graph of this shape is played by the same state table is therefore an assumption
+//!   **[unconfirmed]**: the executable's generic condition evaluator, which would read the data, was not found.
 
 use chameleon_bundle::{Bundle, ResourceKind};
 
@@ -34,7 +38,7 @@ const OPEN_MPH: f32 = 140.0;
 const BRAKE_MPH: f32 = 125.0;
 const TOP_MPH: f32 = 200.0;
 const BRAKE_HOLD_SECONDS: f32 = 0.4;
-/// The cross-fade of the machine's code (assumed for the graphs whose code was not found).
+/// The cross-fade of the Veyron's code (an immediate of its update routine); assumed for the graphs whose code was not found.
 const FADE_SECONDS: f32 = 0.25;
 /// The length given to the clocks of a machine with fewer than five animations.
 const UNUSED_SECONDS: f32 = 1.0;

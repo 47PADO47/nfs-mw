@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the conversion changes what it writes for the same input.
-const CONVERSION: u32 = 14;
+const CONVERSION: u32 = 21;
 /// Bump when the brand logos (`brands.rs`, `logo.rs`) change for the same input.
 const BRANDS: u32 = 1;
 pub const FILE: &str = ".import-stamp";
@@ -28,7 +28,9 @@ pub fn of(config: &Config, source: &Path) -> String {
     }
     for entry in fs::read_dir(source.join("VEHICLES")).into_iter().flatten().flatten() {
         let name = entry.file_name().to_string_lossy().to_ascii_uppercase();
-        if name.starts_with("VEH_") && name.ends_with("_HI.BNDL") {
+        // The car bundles, the traffic bundles (`traffic.rs`) and the low-detail ones (`low_detail.rs`).
+        let is_vehicle = ["_HI.BNDL", "_TR.BNDL", "_LO.BNDL"].iter().any(|suffix| name.ends_with(suffix));
+        if name.starts_with("VEH_") && is_vehicle {
             sources.push(fingerprint(&entry.path()));
         }
     }

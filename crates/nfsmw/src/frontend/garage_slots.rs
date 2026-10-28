@@ -10,7 +10,8 @@ impl GarageScene {
             .iter()
             .filter_map(|slot| Some((slot.id.clone(), my_cars::folder(slot, &self.model)?.to_owned())))
             .collect();
-        self.model.custom_slots = slots.into_iter().map(|slot| (slot.id, slot.label)).collect();
+        self.model.custom_slots =
+            slots.into_iter().map(|slot| (slot.id.clone(), my_cars::display_label(&slot, &self.model))).collect();
         self.model.custom_slot_limit = my_cars::slot_limit()?;
         Ok(())
     }
@@ -32,11 +33,7 @@ impl GarageScene {
     }
 
     pub(super) fn persist_slot(&mut self, selection: &Selection) -> Result<()> {
-        let label = self
-            .model
-            .selected()
-            .map(|car| format!("{} {}", car.manufacturer, car.name))
-            .unwrap_or_else(|| selection.car.clone());
+        let label = self.model.selected().map_or_else(|| selection.car.clone(), my_cars::car_label);
         if let Some(id) = &self.model.custom_slot {
             let slot =
                 my_cars::slots()?.into_iter().find(|slot| slot.id == *id).context("Custom car slot is missing")?;

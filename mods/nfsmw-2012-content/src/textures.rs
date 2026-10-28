@@ -67,12 +67,12 @@ impl Palette {
 }
 
 impl Palette {
-    /// Add the lit and unlit textures of the head and brake lamps of the car in `folder` (once), under the names the game
-    /// swaps its lamp placeholders for (`<FOLDER>_KIT00_HEADLIGHT_ON`, `_OFF`, `_BRAKELIGHT_ON`, `_OFF`). They are flat
-    /// colours: the 2012 lamps are lit strips whose pattern is not carried over.
+    /// Add the lit and unlit textures of the lamps of the car in `folder` (once), under the names the game swaps its lamp
+    /// placeholders for (`<FOLDER>_KIT00_HEADLIGHT_ON`, `_OFF`, and the same for `BRAKELIGHT`, `TAILLIGHT` and
+    /// `REVERSELIGHT`, `lamp_surfaces.rs`). They are flat colours: the 2012 lamps are lit patterns of dots and strips whose
+    /// pattern is not carried over, only which triangles each circuit lights.
     pub fn add_lamp_states(&mut self, folder: &str) {
-        for (kind, off, on) in [("HEADLIGHT", [38, 42, 48], [255, 244, 214]), ("BRAKELIGHT", [56, 8, 8], [255, 24, 16])]
-        {
+        for (_, kind, off, on) in crate::lamp_surfaces::LOOKS {
             for (state, [r, g, b]) in [("OFF", off), ("ON", on)] {
                 let name = format!("{folder}_KIT00_{kind}_{state}");
                 if self.names.contains_key(&name) {
@@ -194,14 +194,16 @@ mod tests {
     }
 
     #[test]
-    fn the_lamp_states_are_four_textures_named_for_the_car() {
+    fn the_lamp_states_are_eight_textures_named_for_the_car() {
         let mut palette = Palette::default();
         palette.add_lamp_states("POR911");
         palette.add_lamp_states("POR911");
         let names: Vec<String> = palette.into_textures().iter().map(|t| t.name.clone()).collect();
-        for name in ["HEADLIGHT_ON", "HEADLIGHT_OFF", "BRAKELIGHT_ON", "BRAKELIGHT_OFF"] {
-            assert!(names.contains(&format!("POR911_KIT00_{name}")), "{names:?}");
+        for kind in ["HEADLIGHT", "BRAKELIGHT", "TAILLIGHT", "REVERSELIGHT"] {
+            for state in ["ON", "OFF"] {
+                assert!(names.contains(&format!("POR911_KIT00_{kind}_{state}")), "{names:?}");
+            }
         }
-        assert_eq!(names.len(), 4);
+        assert_eq!(names.len(), 8);
     }
 }

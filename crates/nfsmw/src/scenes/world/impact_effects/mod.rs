@@ -1,5 +1,6 @@
 //! Source-owned native PC contact particles; independent of audio and damage sequencers.
 mod contact;
+mod variant;
 use super::{space, vehicle_effects::pc_sparks::PcSparks};
 use blackbox_attrib::{Database, vlt_hash};
 use blackbox_gfx::{BlendMode, RenderBackend, TextureHandle, TexturedEffect};
@@ -26,6 +27,8 @@ pub struct ImpactEffects {
     profiles: HashMap<(u32, u32), (u64, SourceEffects)>,
     banks: BTreeMap<u64, Bank>,
     textures: HashMap<u32, (TextureHandle, BlendMode)>,
+    /// The collision spark variant a mod gives, for vehicles (`variant.rs`).
+    variant: variant::SparkVariantFx,
     pending: BTreeSet<u32>,
     missing: BTreeSet<u32>,
     pub accepted: u64,
@@ -36,6 +39,7 @@ pub struct ImpactEffects {
 impl ImpactEffects {
     pub fn clear(&mut self) {
         self.banks.clear();
+        self.variant.clear();
         self.pending.clear();
     }
     pub fn status(&self) -> String {
@@ -47,6 +51,11 @@ impl ImpactEffects {
             self.banks.len(),
             self.accepted
         )
+    }
+    /// The collision spark variant a mod gives (`SPARKS/<value>/profile.toml`), or `None` for the install's groups. Its pictures
+    /// load at the next `maintain`.
+    pub fn set_variant(&mut self, profile: Option<std::sync::Arc<blackbox_modding::content::SparksProfile>>) {
+        self.variant.set_wanted(profile);
     }
     pub fn set_enabled(&mut self, enabled: bool) {
         self.disabled = !enabled;
@@ -60,6 +69,8 @@ impl ImpactEffects {
             return;
         }
         self.clock = self.clock.wrapping_add(1);
+        self.variant.age(dt);
+        let vehicle = vlt_hash("pvehicle");
         for bank in self.banks.values_mut() {
             bank.particles.age(dt);
             bank.timeout -= dt;
@@ -101,18 +112,35 @@ impl ImpactEffects {
                 .then(|| profile.pick(Action::Detached, c.surface))
                 .flatten()
                 .and_then(|link| link.hit(c.closing.length_squared(), c.closing.length()).map(|i| (link, i)));
-            let (hit, scrape) = actions(c.kind, c.bottom);
+            let (hit, scrape_action) = actions(c.kind, c.bottom);
             let impact = if c.bottom { c.closing.length() } else { c.delta_v };
-            let accepted_hit = detached.or_else(|| {
+            let mut accepted_hit = detached.or_else(|| {
                 profile
                     .pick(hit, c.surface)
                     .and_then(|link| link.hit(c.closing.length_squared(), impact).map(|i| (link, i)))
             });
-            let scrape = if detached.is_none() {
-                profile.pick(scrape, c.surface).and_then(|link| link.scrape(c.sliding.length()).map(|i| (link, i)))
+            let mut scrape = if detached.is_none() {
+                profile
+                    .pick(scrape_action, c.surface)
+                    .and_then(|link| link.scrape(c.sliding.length()).map(|i| (link, i)))
             } else {
                 None
             };
+            // A collision spark variant plays a vehicle's contact from its profile where it has a channel for it, and the
+            // install's group is then not thrown as well. A contact with a wall or a prop is played by the profile's own
+            // gates (`variant/trigger.rs`); the install's acceptance (above) decides only the ground and bottom contacts.
+            if contact.source.class == vehicle {
+                let installed = |taken: Option<(Link, f32)>| taken.map(|(link, _)| link);
+                let (hit_cull, scrape_cull) =
+                    variant::culls(profile, (hit, scrape_action), &c, (installed(accepted_hit), installed(scrape)));
+                let (took_hit, took_scrape) = self.variant.play(contact.owner, &c, hit_cull, scrape_cull, camera);
+                if took_hit {
+                    accepted_hit = None;
+                }
+                if took_scrape {
+                    scrape = None;
+                }
+            }
             if !self.banks.contains_key(&contact.owner) {
                 if self.banks.len() >= 64 || (accepted_hit.is_none() && scrape.is_none()) {
                     continue;
@@ -140,12 +168,14 @@ impl ImpactEffects {
                 bank.particles.stop_scrape();
             }
         }
+        self.variant.finish(dt);
         for bank in self.banks.values_mut() {
             bank.particles.update(dt);
         }
         self.banks.retain(|_, bank| bank.timeout >= 0.0 || bank.particles.len() != 0 || bank.particles.pending());
     }
     pub fn maintain(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir) {
+        self.variant.maintain(renderer, dir);
         let wanted: Vec<_> = self
             .pending
             .iter()
@@ -174,8 +204,10 @@ impl ImpactEffects {
         for bank in self.banks.values() {
             bank.particles.geometry(forward, &self.textures, out);
         }
+        self.variant.textured(forward, out);
     }
     pub fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        self.variant.release(renderer);
         self.banks.clear();
         self.profiles.clear();
         self.pending.clear();

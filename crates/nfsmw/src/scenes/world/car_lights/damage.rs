@@ -41,6 +41,14 @@ mod tests {
     }
 
     #[test]
+    fn a_dark_car_has_no_lit_brake_surface() {
+        use crate::scenes::world::car_lights::LampState;
+        let lit = LampState { headlights: true, brake: 1.0, ..Default::default() };
+        assert!(lit.brake_surfaces_on());
+        assert!(!LampState { dark: true, ..lit }.brake_surfaces_on());
+    }
+
+    #[test]
     fn opposite_sides_remain_independent_and_bright_police_markers_share_color_flags() {
         assert_eq!(marker_flags(bstring_hash("LEFT_HEADLIGHT")), 1);
         assert_eq!(marker_flags(bstring_hash("RIGHT_HEADLIGHT")), 2);

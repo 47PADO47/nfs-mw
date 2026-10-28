@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use blackbox_gfx::EffectVertex;
+use blackbox_modding::content::XenonProfile;
 use glam::{Quat, Vec3};
 use nfsmw_data::vehicle_effects::{CollisionEffects, SparkLink};
 
@@ -13,6 +15,8 @@ use crate::settings::XenonEffects;
 #[cfg(test)]
 #[path = "spark_tests.rs"]
 mod tests;
+mod variant;
+use variant::Played;
 
 pub(super) struct Sparks {
     particles: VecDeque<Particle>,
@@ -21,6 +25,10 @@ pub(super) struct Sparks {
     owner_velocity: Vec3,
     carry: f32,
     pub emitted: u64,
+    /// The restored spark variant the player chose, if it is a mod's (`variant.rs`): its numbers play in place of the install's.
+    variant: Option<Arc<XenonProfile>>,
+    /// The part of a particle a variant's scrape still owes each of the two spark populations.
+    variant_carry: [f32; 2],
 }
 
 struct Flash {
@@ -39,6 +47,8 @@ impl Default for Sparks {
             owner_velocity: Vec3::ZERO,
             carry: 0.0,
             emitted: 0,
+            variant: None,
+            variant_carry: [0.0; 2],
         }
     }
 }
@@ -103,8 +113,9 @@ impl Sparks {
         tuning: &XenonEffects,
         dt: f32,
     ) {
-        let mut hit: Option<(&VisualContact, SparkLink, f32)> = None;
-        let mut scrape: Option<(&VisualContact, SparkLink, f32)> = None;
+        let chosen = self.variant.clone();
+        let mut hit: Option<(&VisualContact, SparkLink, f32, Option<Played>)> = None;
+        let mut scrape: Option<(&VisualContact, SparkLink, f32, Option<Played>)> = None;
         for c in contacts {
             let Some(surface) = c.surface else { continue };
             if !c.point.is_finite()
@@ -117,28 +128,32 @@ impl Sparks {
             }
             let normal_speed = c.velocity.dot(c.normal);
             let sliding = (c.velocity - c.normal * normal_speed).length();
+            // A variant's channel is played on any surface (a wall of any material), the profile's gate says how hard.
             if -normal_speed > 1.0
                 && c.impulse_delta_v > 0.0
-                && let Some(link) = pick(surface, true)
+                && let Some(link) = pick(surface, true).or_else(|| variant::stand_in(chosen.as_deref(), true))
             {
-                let strength = intensity(link, c.impulse_delta_v, false);
-                if strength > hit.map_or(0.0, |(_, _, s)| s) {
-                    hit = Some((c, link, strength));
+                let (link, strength, played) = variant::hit(chosen.as_deref(), link, -normal_speed, c.impulse_delta_v);
+                if strength > hit.as_ref().map_or(0.0, |(_, _, s, _)| *s) {
+                    hit = Some((c, link, strength, played));
                 }
             }
-            if sliding > 1.0
-                && normal_speed <= 0.1
-                && let Some(link) = pick(surface, false)
-                && sliding >= link.min
+            if normal_speed <= 0.1
+                && let Some(link) = pick(surface, false).or_else(|| variant::stand_in(chosen.as_deref(), false))
             {
-                let strength = intensity(link, sliding, true);
-                if strength > scrape.map_or(0.0, |(_, _, s)| s) {
-                    scrape = Some((c, link, strength));
+                let (link, strength, played) = variant::scrape(chosen.as_deref(), link, sliding);
+                // The install's scrape needs more than 1 m/s and its link's minimum; a variant's, only its own gate.
+                let accepted = played.is_some() || (sliding > 1.0 && sliding >= link.min);
+                if accepted && strength > scrape.as_ref().map_or(0.0, |(_, _, s, _)| *s) {
+                    scrape = Some((c, link, strength, played));
                 }
             }
         }
-        if let Some((c, link, strength)) = hit {
-            self.spawn(c, link, 1, true, tuning);
+        if let Some((c, link, strength, played)) = hit {
+            match played {
+                Some(played) => self.spawn_variant(c, &played, true, tuning, dt),
+                None => self.spawn(c, link, 1, true, tuning),
+            }
             if let Some(style) = link.styles.into_iter().flatten().next() {
                 if self.flashes.len() == 16 {
                     self.flashes.pop_front();
@@ -153,15 +168,21 @@ impl Sparks {
             self.disconnect();
             return;
         }
-        let Some((c, link, strength)) = scrape else {
+        let Some((c, link, strength, played)) = scrape else {
             self.disconnect();
             return;
         };
-        // The restoration forces the spark intensity to its configured value; weak scrapes do not reduce density.
-        self.carry = (self.carry + tuning.spark_rate * dt).min(4.0);
-        let dispatches = self.carry.floor() as usize;
-        self.carry -= dispatches as f32;
-        self.spawn(c, link, dispatches, false, tuning);
+        match played {
+            // A variant's scrape throws particles a second at its strength, so it does not use the dispatch clock.
+            Some(played) => self.spawn_variant(c, &played, false, tuning, dt),
+            None => {
+                // The restoration forces the spark intensity to its configured value; weak scrapes do not reduce density.
+                self.carry = (self.carry + tuning.spark_rate * dt).min(4.0);
+                let dispatches = self.carry.floor() as usize;
+                self.carry -= dispatches as f32;
+                self.spawn(c, link, dispatches, false, tuning);
+            }
+        }
         if let Some(style) = link.styles.into_iter().flatten().next() {
             self.scrape_flash = Some(Flash {
                 point: space::to_render(c.point.to_array()) + space::to_render(c.normal.to_array()) * 0.04,

@@ -34,6 +34,13 @@ The usual order applies: command line, then environment, then the config file, t
 The existing blue nitrous tint from main is retained: it swaps red and blue
 of each particle. This is a host approximation, not a measured original-game colour.
 
+The burning nitrous is drawn **smaller than the group's data** (`exhaust/scale.rs`): sprites at 30 % of the width and
+leaving the pipe at 8 % of the speed, so the glow ends well under a metre from the pipe instead of filling the view behind the
+car. The 2012 game's nitrous is a small glow in each pipe, 0.3 m wide growing to 0.7 m at its brightest
+([chameleon-nitrous.md](formats/chameleon-nitrous.md)); the 2005 group (a 0.45 m fire and a glow growing to 1.5 m, thrown out at
+16 m/s) is far bigger. The two factors are the rewrite's own, set by eye; the blow-off and the backfire keep the group's numbers.
+The "NFS Most Wanted 2012" nitrous variant keeps its glow to 0.7 m, the width its effect file gives at the peak of the alpha.
+
 ## When it flames
 
 | Trigger | What you see | Needs |
@@ -46,9 +53,34 @@ The engine upgrade level follows the installed garage performance package; `exha
 can override it for diagnostics. Nitrous and backfire do not depend on that level. The backfire follows
 the pops the sample layer's sputter module plays
 ([engine sound](specs/engine-sound-aems.md)): about five over a couple of seconds after a lift-off at high
-revs, none at a steady throttle. A pop with the pedal down is not shown. The original draws no flame for
-the sputters; this link is the rewrite's own. Cars with no pipe markers (some cop and service vehicles) show
+revs, none at a steady throttle. A car a mod added (the converted 2012 cars) has no sample layer and so no sputter module:
+the backfire and the pops its own sound logic decides at a lift-off (`audio/car/own_sfx/logic.rs`: a backfire at 3 to 25 % of
+the lift-offs by revs, one to three pops after it, now and then a lone pop) report the same pop notices, each when its sound
+plays, with or without a recording for it. A pop with the pedal down is not shown on the game's own cars. The original draws no
+flame for the sputters; this link is the rewrite's own. Cars with no pipe markers (some cop and service vehicles) show
 nothing.
+
+## Cars a mod added (the converted 2012 cars)
+
+They flamed hardly at all, for three reasons, and the host now treats them apart (`exhaust/trigger.rs` `MOD_*`, `step.rs`,
+`load.rs`); the game's own cars are unchanged:
+
+- **No shift flame.** A mod car has no `ecar` record, so it takes the class-wide `default` one, which has the `NOSEffect` group
+  but no `ShiftSpeed` / `ShiftAngle`; a shift event with no timing is dropped at once (section above). It now falls back on the
+  racers' timing (8 and 2.25, a flame of 0.28 s at full strength) when its record has none, and its engine level counts as
+  one that allows the blow-off. It flames at every **up-shift made under power** (throttle at least 0.35, above 10 m/s); a
+  down-shift or an up-shift off the pedal has none (the lift-off has its pops).
+- **A pop flame of 0.06 s at half strength** is four physics steps, easy to miss in a capture and not enough for the denser
+  emitters. A mod car's pop now flames for 0.15 s at full strength, for **every** pop its sound reports, whatever the pedal does
+  by the time the bang is due (the bangs are delayed 0.12 s or more after the lift).
+- **A variant's pop effect hid the game's flame.** `replace_pop` (the "NFS Most Wanted 2012" nitrous variant) hides the game's
+  orange flame, but the variant's pop effect plays with the pedal up only, so a shift flame under power vanished. The game's
+  flame is now hidden only while the pedal is up. The default Original variant has no replacement and always shows the flames.
+
+Not the cause: the nitrous shrink (`scale.rs`) changes the blue lanes only; the orange lanes keep the group's numbers (a fire
+of 0.35 to 0.45 m thrown at 6 m/s for 0.075 s, and the glow). The size and speed of these flames are the stock cars'; the
+pipes are the car's own nitrous locators (`mods/nfsmw-2012-content/src/pipes.rs`). The pop chance of the sound logic (3 to 25 %
+of the lift-offs by revs) is unchanged: the flames follow the pops that play. Only the sound and the pop gain decide how often.
 
 ## Console
 
@@ -72,7 +104,13 @@ D="3:brake=1;1.5:throttle=1,steer=0.5;0.5:throttle=1,steer=0.12"   # back out of
 nfsmw view-world --drive --drive-script "$D;0.05:pop" --screenshot pop.png
 ```
 
-A scripted screenshot run has no sound, so the `pop` key of the script stands for a sputter pop; the blow-off needs a gear change above 10 m/s. The log prints
+A scripted screenshot run has no sound, so the `pop` key of the script stands for a sputter pop; the blow-off needs a gear change above 10 m/s.
+To see a converted car's shift flame (offscreen, muted; the `up` key shifts up at the start of its segment, under power):
+
+```sh
+nfsmw view-world --drive POR911CARR12 --drive-script "3:throttle=1;0.1:throttle=1,up;1:throttle=1"   --screenshot shift.png --screenshot-count 12 --screenshot-interval 0.05 --screenshot-delay 3 --muted
+```
+ The log prints
 `exhaust flames ...` once a second of a scripted run. Unit tests cover the shift timer, the backfire gate,
 the budgets, the setting's layers, the console and the menu rows; the real-install tests read the pipes,
 the group and the textures of every car (`cargo test --release -p nfsmw-data -- --ignored`) and check the

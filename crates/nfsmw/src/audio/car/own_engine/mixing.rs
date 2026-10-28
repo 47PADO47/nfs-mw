@@ -63,9 +63,12 @@ pub fn mix_inputs(sound: &EngineSound, inputs: &EngineInputs) -> Vec<LayerMix> {
 
 fn by_curves(layer: &EngineLayer, inputs: &EngineInputs) -> LayerMix {
     let gain = layer.gain.iter().fold(layer.volume, |gain, curve| gain * curve.eval(inputs.read(curve.input)));
-    let rate = layer
-        .pitch
-        .map_or(1.0, |pitch| (inputs.read(pitch.input) / pitch.reference).clamp(FOLLOW_RANGE.0, FOLLOW_RANGE.1));
+    let rate = match (&layer.rate, layer.pitch) {
+        (Some(curve), _) => curve.eval(inputs.read(curve.input)),
+        (None, Some(pitch)) => inputs.read(pitch.input) / pitch.reference,
+        (None, None) => 1.0,
+    }
+    .clamp(FOLLOW_RANGE.0, FOLLOW_RANGE.1);
     let frequency = match (layer.kind, layer.span) {
         (LayerKind::Ginsu, Some((low, high))) => low + inputs.rpm.clamp(0.0, 1.0) * (high - low),
         _ => 0.0,
@@ -141,6 +144,24 @@ mod tests {
         assert_eq!(mix_inputs(&engine, &at(0.9, 1.0, 400.0))[0].rate, FOLLOW_RANGE.1);
         assert_eq!(mix_inputs(&engine, &at(0.9, 1.0, 1.0))[0].rate, FOLLOW_RANGE.0);
         assert_eq!(mix_inputs(&engine, &at(0.9, 1.0, 5.0))[0].gain, 0.0, "below its window");
+    }
+
+    #[test]
+    fn a_rate_curve_is_the_playback_rate_and_takes_the_place_of_a_pitch_rule() {
+        let mut motor = curved("M.WAV", vec![curve(CurveInput::SpeedMph, &[(0.0, 1.0), (150.0, 1.0)])]);
+        motor.rate = Some(curve(CurveInput::SpeedMph, &[(0.0, 1.0), (60.0, 2.0), (150.0, 2.2)]));
+        motor.pitch = Some(LayerPitch { input: CurveInput::SpeedMph, reference: 40.0 });
+        let engine = sound(vec![motor]);
+        let rate = |mph: f32| mix_inputs(&engine, &at(0.0, 0.0, mph))[0].rate;
+        assert_eq!(rate(0.0), 1.0, "a standing car plays the recording at its own speed");
+        assert!((rate(30.0) - 1.5).abs() < 1e-6);
+        assert!(rate(60.0) > rate(30.0) && rate(150.0) > rate(60.0), "the motor rises with the speed");
+        assert!((rate(300.0) - 2.2).abs() < 1e-6, "flat after the last point");
+        let mut wild = curved("M.WAV", vec![curve(CurveInput::SpeedMph, &[(0.0, 1.0), (10.0, 1.0)])]);
+        wild.rate = Some(curve(CurveInput::SpeedMph, &[(0.0, 0.0), (10.0, 8.0)]));
+        let wild = sound(vec![wild]);
+        assert_eq!(mix_inputs(&wild, &at(0.0, 0.0, 0.0))[0].rate, FOLLOW_RANGE.0);
+        assert_eq!(mix_inputs(&wild, &at(0.0, 0.0, 10.0))[0].rate, FOLLOW_RANGE.1);
     }
 
     #[test]

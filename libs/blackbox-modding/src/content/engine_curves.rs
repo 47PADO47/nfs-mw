@@ -10,7 +10,12 @@
 //!            { input = "load", points = [[0.0, 0.0], [1.0, 1.0]] } ] }
 //! { file = "SOUND/MODENGINE/MYCAR/W0.WAV", gain = [ { input = "speed_mph", points = [[10.0, 0.0], [40.0, 1.0]] } ],
 //!   pitch = { input = "speed_mph", reference = 40.0 } }
+//! { file = "SOUND/MODENGINE/MYCAR/M0.WAV", gain = [ { input = "speed_mph", points = [[0.0, 1.0], [150.0, 1.0]] } ],
+//!   rate = { input = "speed_mph", points = [[0.0, 1.0], [60.0, 2.0], [150.0, 2.2]] } }
 //! ```
+//!
+//! `pitch` plays a layer at an input over a reference; `rate` is a curve of an input that gives the playback rate itself
+//! (an electric motor's whine rises quickly at first, then levels off), and takes the place of `pitch`.
 
 use serde::Deserialize;
 

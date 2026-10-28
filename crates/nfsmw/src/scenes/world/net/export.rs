@@ -111,7 +111,7 @@ fn players(scene: &WorldScene, catalog: &CarCatalog, out: &mut Vec<EntityView>) 
         if drive.brake_lamp > BRAKING {
             flags |= FLAG_BRAKING;
         }
-        if drive.headlights {
+        if drive.headlights && !drive.lights_dark() {
             flags |= FLAG_HEADLIGHTS;
         }
         let mut view = view(EntityId::from(player.id.0), EntityKind::PlayerCar, &motion, 0, flags);

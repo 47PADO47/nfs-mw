@@ -1,3 +1,4 @@
+mod neutral_hold;
 mod reconfigure;
 #[cfg(test)]
 mod rpm_tests;
@@ -80,6 +81,8 @@ pub struct Powertrain {
     pub(super) drive_torque: f32,
     pub(super) engine_braking: bool,
     pub(super) wheel_written: [bool; 4],
+    /// The gearbox is held in neutral (`neutral_hold.rs`).
+    neutral_hold: bool,
 }
 
 impl Powertrain {
@@ -117,6 +120,7 @@ impl Powertrain {
             drive_torque: 0.0,
             engine_braking: false,
             wheel_written: [false; 4],
+            neutral_hold: false,
             engine,
             trans,
             induction_spec,
@@ -270,6 +274,9 @@ impl Powertrain {
         if new_gear > self.trans.top_gear() || new_gear == self.gear {
             return false;
         }
+        if self.neutral_hold && new_gear != GEAR_NEUTRAL {
+            return false;
+        }
         let delay = self.trans.shift_speed * self.trans.ratio(new_gear);
         self.shift_timer = if new_gear < self.gear { delay * 0.25 } else { delay };
         self.gear = new_gear;
@@ -421,7 +428,7 @@ impl Powertrain {
     }
 
     fn auto_shift(&mut self, i: &TickInput<'_>) {
-        if self.gear == GEAR_REVERSE || self.shifting() || self.sport_timer > 0.0 {
+        if self.gear == GEAR_REVERSE || self.neutral_hold || self.shifting() || self.sport_timer > 0.0 {
             return;
         }
         if self.gear == GEAR_NEUTRAL {

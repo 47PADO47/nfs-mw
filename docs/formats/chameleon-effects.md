@@ -103,7 +103,7 @@ the render block, 0.5 and 0.5) is the middle **[exe]**.
 Each step the position gains `velocity * dt` and the velocity becomes `velocity * (1 - drag)` **at every step, whatever its
 length or `dt`**, plus `drag * wind_blend` towards the wind, plus `lift * dt` upwards, plus a random kick of up to
 `turbulence * dt` on each axis. At 0x0C lift, 0x10 drag, 0x14 wind blend, 0x18 turbulence; bytes at 0x1C and 0x1D index `P`
-for the scales of the lift and the turbulence. A drag of 0.75 leaves a quarter of the velocity after each step.
+for the scales of the lift and the turbulence. A drag of 0.75 leaves a quarter of the velocity after each step. **Possibly wrong**: the bounce-plane variant of this operation (`UpdatePosVelWithBouncePlane`, [chameleon-collision-effects.md](chameleon-collision-effects.md#updateposvelwithbounceplane-62-exe-for-the-use-map-for-the-offsets)) computes `pow(1 - drag, dt)` in the disassembly, i.e. a share lost every second; this operation was not re-read for it.
 
 ### `ParametricSetColourGradient` (28) **[exe]**
 
@@ -127,7 +127,7 @@ is 1, so the sheet plays once over the particle's life; otherwise it is the firs
 random offset per particle. The renderer turns the value into a cell of the sheet; the 5 x 5 grid of the flame sheet is read off
 the picture.
 
-### `UpdateBindings` (51) and the parameter array **[exe]**, contents not evaluated
+### `UpdateBindings` (51) and the parameter array **[exe]**, contents not evaluated (the bindings are read since: see the collision effects below)
 
 Every emitter starts with this task. It fills the effect's parameter array `P`: for each of four bindings it takes a source
 (a time, the length of the effect's `Velocity` input or of a position difference, a scalar input, a constant, ...; the selector
@@ -149,6 +149,89 @@ A camera-facing sprite with the effect's material (the first texture is the pict
 cell from `ParametricSetSubUV` (29): its rule is not decoded; the flame sheet is 5 x 5 cells, read off the picture. The
 distortion variant refracts what is behind it (heat haze). The blend of a material is a shader technique and is not read.
 
+## Wheel effects (tyre smoke)
+
+The surfaces of the road (`HAWAII/SURFACELIST.BNDL`) name effects for a tyre. A `SurfaceType` object (kind `0x15`,
+type `Genesys.Gen.SurfaceType`) has three effect references, at +0x0C, +0x14 and +0x1C **[data]**. +0x0C differs by surface (a
+grey-blue smoke for the tarmac types, brown dust for dirt, sand and gravel), +0x14 is the same effect for every road surface (it
+is named by about thirty types) and +0x1C is one of two spark effects (a dry and a wet one: orange sparks and a small bright
+sprite). Field names are hashed and are not in the executable's strings, so which field is the tyre smoke is **[infer]** from
+this: the effect at +0x14 is the one that has seven smoke emitters, is on every road surface and does not change with the
+surface. The `SurfaceVfx` objects (+0x118 to +0x148) name the effects of impacts and scrapes, one of which is the
+`EmitterWheelContacts` effect `0x7C950` (one sprite emitter, 0.4 to 0.5 s); they are not used. The mod finds the effect by the
+count of references (`tire_smoke::find_effect`); no id is written in its code.
+
+The wheel operations are `EmitterWheel` (5), `EmitterWheelContacts` (6) and `UpdateBindings_Wheel` (52). The reader is
+[`libs/chameleon-effects/src/wheel.rs`](../../libs/chameleon-effects/src/wheel.rs) (`Emitter::wheel`, `Emitter::bounce_drag`).
+
+### `EmitterWheel` (5), 0x7C bytes **[exe]** for the use, **[map]** for the offsets
+
+The execute function (`0x0044FB20`) was decompiled. The runtime copy of the block has four floats added in front and one
+accumulator after the rate; counting the nine slot references that are in both gives the offsets of the file:
+
+| At | Field |
+|---|---|
+| 0x00, 0x04 | the squared distance range of the wheel from a reference position in which it spawns (`[0, FLT_MAX]`) |
+| 0x08, 0x0C | the camera distance the rate fades out over, near and far (`[10, 150]`; `[10, 65]` or `[0, 65]` on the smaller emitters); the shape of the fade is not decoded |
+| 0x10, 0x14 | the speed of a new particle, a range in m/s (`[0.125, 0.5]`); its direction is built from the angle fields below and the road, not decoded |
+| 0x28, 0x2C | the angle around the axle, degrees (`[0, 360]`: all round the tyre; `[145, 160]` and `[-45, -45]` for the emitters that spray to one side) |
+| 0x30, 0x34 | where on the tyre a particle starts, as a share of the wheel radius (`[0.9, 1.2]`) |
+| 0x38, 0x3C | and across the tread as a share of half its width (`[-1, 1]` is all of it) |
+| 0x40, 0x44 | the height above the road, a range in metres, times an effect parameter (`[0.01, 0.04]`; `[-0.2, -0.15]` for the grit) |
+| 0x6C, 0x70, 0x74 | rates: `w * (rate + rate_per_speed * speed)` particles a second, where `rate` is 0x74 and `rate_per_speed` is 0x70, or 0x6C when 0x70 is 0 (the first emitter has 18 and 2) |
+| 0x78..0x7B | bytes: the index into the effect's parameter array `P` of the rate scale (1, 5, 6 or 7), of the speed scale, of the height scale, and a quality gate |
+
+`w` is a float of the wheel's binding record (it is read at +0x64 of it) and is not decoded; a tyre that smokes more has a larger
+`w`. `speed` is the larger of the car's speed and the speed of the tyre's contact patch (so a spinning tyre on the spot smokes).
+The rate is also multiplied by `P[rate index]` and by the camera fade. `UpdateBindings_Wheel` (116 bytes) fills `P` for the
+emitter from four sources chosen by a byte each (inputs of the wheel's record, the ratio of its first input to a constant, a
+flag, or a computed value) run through response curves; the curves are not evaluated, so `P` is taken as 1 (and the rewrite
+scales the rates down, see below). The seven emitters use different `P` (1, 7, 6, 5, 5, 5, 6): they are the smoke of different
+slip regimes, and the rewrite plays them all at the same time.
+
+### The seven emitters of the road smoke **[data]**
+
+All are `RenderSpriteSubUV` sprites with a random cell of a sheet (`ParametricSetSubUV` with its byte at +0x10 zero and the
+random-offset byte at +0x11 one: the cell is picked at birth and kept) and the gradient's `ColourOverride` byte set (the colour
+the effect is given replaces the gradient's colour; the alpha is the effect's). The pictures are BC3: `512 x 512`, four puffs of
+grey smoke in a 2 x 2 sheet (emitters 0 to 2), and `512 x 256`, eight puffs in a 4 x 2 sheet (emitters 3 to 6; the sheets are
+read off the pictures).
+
+| # | Rate a second (+ per m/s) | Life (s) | Radius (m), times the curve | Notes |
+|---|---|---|---|---|
+| 0 | 18 (+2) | 0.75 to 1.0 | 1.0 to 1.25; 0.25 at birth, 0.75 at 0.15 of the life, 1.0 at the end | alpha 0 to 0.31 at 0.09, 0.22 at 0.48, 0 at the end; takes the car's velocity; spins 0.25 turns a second |
+| 1 | 10 | 3 to 4 | 1.0 to 2.5; 0.2, 0.4 at 0.2, 0.8 | alpha up to 0.87; takes 0.8 to 1.0 of the velocity |
+| 2 | 10 (+1) | 4 to 6 | 1.5 to 3.0; 0.2, 0.75 at 0.3, 2.32 | alpha up to 0.89; takes 0.65 to 0.85 of the velocity; a faint cloud left behind |
+| 3 | 32 (+4) | 1.0 to 1.75 | 0.3 to 0.6; 0.25, 0.5 at 0.125, 1.5 | starts on one side of the tyre, 0.6 to 0.8 of the half width |
+| 4 | 480 | 0.125 to 0.16 | 0.1 to 0.125 | grit: the only one with turbulence (5); left out of the rewrite |
+| 5 | 48 (+4) | 0.8 to 1.25 | 0.85 to 1.25; 0.35, 0.65 at 0.25, 1.25 | speed 3 m/s, to the side |
+| 6 | 48 (+5) | 0.8 to 1.25 | the same as 5 | the same as 5 under another `P` |
+
+The gradient colour is blue-grey, `(0.456, 0.503, 0.604)` at a brightness of 2.0 falling to about `(0.33, 0.37, 0.45)` at 0.5
+(`ParametricSetColourGradient`; a brightness above 1 clamps), which the override replaces. A sprite is drawn `2 x radius x curve`
+wide. The motion is `UpdatePosVelWithBouncePlane` (62), a 0x40 byte block: the particle bounces on the road plane, and the
+number at +0x34 (0.025 for emitter 0, 0.125 for 1, 0.25 for 2, 0.5 for 5) is, read as the per-step drag of `UpdatePosVel`, what
+leaves the clouds where the tyre made them **[infer]**; the others (a vertical acceleration at +0x2C, 0.8 at +0x30) are not read.
+
+### In the rewrite (`mods/nfsmw-2012-content/src/tire_smoke.rs`)
+
+The mod writes a `TIRESMOKE/MW2012/profile.toml` ([effect-variants.md](../modding/effect-variants.md)) with a layer for each of
+emitters 0, 1, 2, 3 and 5 (6 repeats 5; 4 is grit): the picture, the blend (alpha), `life`, the width over the life
+(`2 x mean radius x curve`, at most 8 m), the colour and alpha at the keys, `inherit`, `damping` (the bounce plane's number at
++0x34), the angle range and spin of the rotation, the spawn rate and the speed range. The 4 x 2 sheet is written as a 4 x 4 sheet
+with its two rows again, because the profile's sheets are square. **Not decoded or not carried**: `P` and `w` (the host's own
+wheel smoke, the slip of the vehicle library, stands for `w`), the angles around the tyre and the start on the tread (a puff starts
+at the contact patch, on a cone of 90 degrees), the camera fade, the colour override (the layers carry the gradient's colour) and
+the sprite draw scale (taken as 1). **Chosen, not decoded**: all rates are multiplied by 0.25 (the seven emitters at their full
+rates fill the screen; the file scales each by an unevaluated `P`), a rise of 0.25 m/s2, the 8 m width cap, and leaving out the
+grit.
+
+### Collision effects: `EmitterCollisionMesh` (1), the bounce plane (19, 62), `RenderSpriteVelocity` (41), the bindings (51)
+
+The spawner that throws sparks and dust from the collision mesh of the object that was hit, the bounce, the spark streak and the
+four bindings that turn the effect's inputs into `P[1..4]` (so the response curves are now known: `P[n] = curve(source) + bias`)
+are decoded in [chameleon-collision-effects.md](chameleon-collision-effects.md); the readers are `libs/chameleon-effects/src/collision.rs`.
+
 ## Calibration against the screenshots of the game
 
 Two screenshots of the 2012 game (the burning glow at the pipes of the 918 Spyder, and the start burst of orange fire at the
@@ -160,9 +243,11 @@ with the car instead of being left behind (the file says: world particles with 0
 
 A render with the glow left behind as the file says was a wide blue wash over the road and the car, so the glow still rides. To keep it
 like the references (a compact blue disc with a bright centre in each pipe, a blue plume out of a side exit) the rewrite also caps
-its width at 1.2 m (the file grows it to 5.6 m), gives it a small lightened core sprite (the 2012 bloom), and lets the flames and the
-glow leave the pipe along its axis at a few metres a second (the file has them at the pipe's origin, which buries them in the body
-of a side exit and glues them to the pipe's end). None of the four is decoded.
+its width at 0.7 m (the width the file gives it at the peak of its alpha; it grows it to 5.6 m by the end of its life, when in the
+2012 game it is a faint wash left behind, which a first render with a 1.2 m cap showed as far too big: the burning glow of the 2012
+game is small), gives it a small lightened core sprite (the 2012 bloom), and lets the flames leave the pipe along its axis at a few
+metres a second and the glow at 1 m/s (the file has them at the pipe's origin, which buries them in the body of a side exit and
+glues them to the pipe's end). None of the four is decoded.
 
 ## Decoded and not
 

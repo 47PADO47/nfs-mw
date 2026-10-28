@@ -35,6 +35,17 @@ options-hud-style = HUD style
 options-hud-theme = HUD theme
 options-nitrous-variant = Nitrous variant
 options-nitrous-variant-original = Original
+options-tire-smoke-variant = Tire smoke variant
+options-tire-smoke-variant-original = Original
+# The collision sparks of the Original PC spark style, and the line sparks of the Restored (Experimental) style. The restored
+# variant is the sparks only: the wind contrail and the speed streaks have no variant.
+options-collision-spark-variant = Collision spark variant (Original PC)
+options-collision-spark-variant-original = Original
+options-xenon-spark-variant = Restored spark variant (sparks only)
+options-xenon-spark-variant-original = Original
+# The wind of the speed: the game's own is the 2005 wind module; a mod may add loops that play with the car's speed.
+options-wind-variant = Wind variant
+options-wind-variant-original = Original
 options-speed-units = Speed units
 options-speed-units-metric = Metric (km/h)
 options-speed-units-imperial = Imperial (mph)

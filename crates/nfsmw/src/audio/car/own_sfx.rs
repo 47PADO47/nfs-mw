@@ -2,8 +2,9 @@
 //! recordings (`[car_sound]`, docs/modding/car-sound.md, "Other sounds"). A car plays nothing that it does not
 //! have: a missing list is silence for that effect, never another car's sound.
 //!
-//! The shifts take the place of the shared gear clunk when the car has them; the rest are the car's alone, since the
-//! shared banks have nothing for a car without a record of its own. When they play is the game's own simple rules
+//! The shifts take the place of the shared gear clunk when the car has them (a car with `shift_clunk = false` has no
+//! clunk at all); the rest are the car's alone, since the shared banks have nothing for a car without a record of its
+//! own. When they play is the game's own simple rules
 //! ([`logic`]): the shift when the engine mixer asks for a gear clunk, the rest when the throttle is lifted at high
 //! engine speed or, for the whistle, as the turbo spools.
 
@@ -63,22 +64,29 @@ pub struct OwnSfx {
     rng: logic::Rng,
     /// The body hits and scrapes from the recordings the mod's cars share.
     shared: shared::SharedSfx,
+    /// The backfire and the pops of the lift-offs, waiting to light the tail pipes. They are decided whether or not the car
+    /// has a recording for them: the flames do not need the sound.
+    bangs: logic::Bangs,
+    /// The car makes no gear clunk of the game's class-wide bank: a shift it has no recording for is silent.
+    no_clunk: bool,
 }
 
 impl OwnSfx {
-    /// Whether the car has any sound to play.
-    pub fn is_empty(&self) -> bool {
-        self.shots.iter().all(Vec::is_empty) && self.whine.is_empty() && self.shared.is_empty()
+    /// The bangs of the car's lift-offs that came due since the last call (the tail pipes flame for them).
+    pub fn take_bangs(&mut self) -> u32 {
+        self.bangs.take()
     }
 
     /// One frame: take over the gear clunks from `commands` when the car has its own, follow the turbo, and play what a
     /// lifted throttle sets off.
     pub fn drive(&mut self, audio: &mut Audio, frame: &SfxFrame, commands: &mut Vec<SoundCommand>) {
         self.shared.tick(frame.dt);
+        self.bangs.advance(frame.dt);
         commands.retain(|command| {
             let SoundCommand::Play { sound: SoundRef::GearClunk { up }, volume, .. } = *command else { return true };
             let list = if up { SHIFT_UP } else { SHIFT_DOWN };
-            !self.shot(audio, list, volume, frame.delay)
+            let played = self.shot(audio, list, volume, frame.delay);
+            !(played || self.no_clunk)
         });
         if !self.whine.is_empty() || !self.shots[BLOWOFF].is_empty() {
             self.follow_turbo(frame);
@@ -109,9 +117,11 @@ impl OwnSfx {
         }
         if let Some(volume) = lift.backfire {
             self.shot(audio, BACKFIRE, volume, frame.delay);
+            self.bangs.queue(0.0);
         }
         for pop in lift.pops {
             self.shot(audio, POPS, pop.volume, frame.delay + pop.delay);
+            self.bangs.queue(pop.delay);
         }
     }
 
@@ -147,8 +157,8 @@ impl Drop for OwnSfx {
 
 impl Audio {
     /// Read the recordings of mod car `name` and start its whistle loops, silent. A file that cannot be read is left
-    /// out, and the log says why; `None` when nothing is left to play.
-    pub(super) fn start_own_sfx(&mut self, name: &str, effects: &CarEffects) -> Option<OwnSfx> {
+    /// out, and the log says why. A car with nothing to play still gets the effects: its lift-offs light its tail pipes.
+    pub(super) fn start_own_sfx(&mut self, name: &str, effects: &CarEffects) -> OwnSfx {
         // The car's own pops, else the ones its sound graph names in the mod's shared recordings.
         let pops = if effects.pops.is_empty() { &effects.shared.pops } else { &effects.pops };
         let shots = [
@@ -169,8 +179,15 @@ impl Audio {
         }
         let shared = self.read_shared(name, &effects.shared);
         let seed = name.bytes().fold(0x9e37_79b9u32, |seed, byte| seed.rotate_left(5) ^ u32::from(byte));
-        let sfx = OwnSfx { shots, whine, spool: 0.0, rng: logic::Rng::new(seed), shared };
-        (!sfx.is_empty()).then_some(sfx)
+        OwnSfx {
+            shots,
+            whine,
+            spool: 0.0,
+            rng: logic::Rng::new(seed),
+            shared,
+            bangs: logic::Bangs::default(),
+            no_clunk: effects.no_clunk,
+        }
     }
 
     fn read_shots(&mut self, name: &str, what: &str, files: &[String]) -> Vec<StaticSoundData> {

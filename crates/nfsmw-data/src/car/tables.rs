@@ -213,7 +213,7 @@ mod tests {
         assert_eq!(tables.parts.model_hash(&wheel, 1), Some(bstring_hash("MODCAR_KIT00_FRONT_TIRE_B")));
         // Nothing else is filled, and the other car's parts are its own.
         let filled: Vec<usize> = (0..slots.len()).filter(|&s| slots[s].is_some()).collect();
-        assert_eq!(filled, [slot::BODY, slot::FRONT_WHEEL]);
+        assert_eq!(filled, [slot::BODY, slot::DRIVER, slot::FRONT_WHEEL]);
         let other = super::super::stock_parts(&tables, &cars[1]);
         assert_eq!(
             tables.parts.model_hash(&other[slot::BODY].unwrap(), 0),
@@ -233,8 +233,8 @@ mod tests {
         let two = [mod_car("ONECAR"), mod_car("TWOCAR")];
         let grown = tables_for(Arc::clone(&stock), &two);
         assert!(!Arc::ptr_eq(&first, &grown));
-        assert_eq!(grown.parts.parts().len(), 4);
-        assert_eq!(first.parts.parts().len(), 2);
+        assert_eq!(grown.parts.parts().len(), 6);
+        assert_eq!(first.parts.parts().len(), 3);
     }
 
     #[test]

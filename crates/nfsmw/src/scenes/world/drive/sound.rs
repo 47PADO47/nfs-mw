@@ -87,6 +87,8 @@ impl SoundFeed {
     pub fn state(&mut self, car: &str, _t: &Telemetry, performance: PerformancePackage) -> CarSoundState {
         CarSoundState {
             nitrous_fx: None,
+            wind_fx: None,
+            engine: Default::default(),
             telemetry: self.telemetry,
             car: car.to_owned(),
             upgrades: sound_upgrades(performance),

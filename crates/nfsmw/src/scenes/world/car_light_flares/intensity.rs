@@ -38,11 +38,34 @@ pub(super) fn samples(lamps: &CarLights, state: LampState) -> impl Iterator<Item
                 Kind::SirenOrange => 1.0,
                 Kind::Signal(_) => 0.0,
             };
-            let intensity = match lamp.flags & state.broken != 0 {
+            let intensity = match lamp.flags & state.broken != 0 || state.dark {
                 true => 0.0,
                 false => intensity,
             };
             Some((lamp, intensity))
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn lights() -> CarLights {
+        let lamps = [Kind::Head, Kind::Tail, Kind::CentreBrake, Kind::Reverse].map(|kind| Lamp {
+            direction: glam::Vec3::X,
+            at: glam::Vec3::ZERO,
+            kind,
+            flags: 0,
+        });
+        CarLights::new(lamps.to_vec())
+    }
+
+    #[test]
+    fn a_dark_car_shines_no_lamp_not_even_the_tail_glow() {
+        let lit = LampState { headlights: true, reverse: true, ..Default::default() };
+        let levels = |state| samples(&lights(), state).map(|(_, level)| level).collect::<Vec<_>>();
+        assert_eq!(levels(lit), [1.0, 0.5, 0.0, 1.0], "head, the tail's resting glow, no brake, reverse");
+        assert!(levels(LampState { dark: true, brake: 1.0, ..lit }).iter().all(|level| *level == 0.0));
+    }
 }

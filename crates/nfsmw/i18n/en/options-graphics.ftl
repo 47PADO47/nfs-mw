@@ -126,6 +126,8 @@ options-mirror-tint-stock = Stock
 
 options-tire-smoke = Tire Smoke
 options-smoke-quality = Smoke Quality
+options-smoke-color-mode = Smoke Color Mode
+options-smoke-color = Smoke Color
 options-skid-marks = Skid Marks
 options-collision-sparks = Collision Sparks
 options-sparks-restored = Restored (Experimental)

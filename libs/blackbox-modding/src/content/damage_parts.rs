@@ -20,7 +20,7 @@ use play::{RawDrive, RawTrack, check_drive, check_track};
 pub(in crate::content) use play::{RawWing, check_wing};
 
 /// Most hinged parts a car lists.
-pub const MAX_DAMAGE_PARTS: usize = 16;
+pub const MAX_DAMAGE_PARTS: usize = 64;
 /// Most stages of one part.
 pub const MAX_STAGES: usize = 8;
 /// The mass of a part that gives none, in kg, and the range a mass may have.
@@ -110,6 +110,18 @@ pub struct Active {
     pub delay: Option<(f32, f32)>,
 }
 
+/// A part the steering turns (`[damage_parts.steering]`): a steering wheel. It turns about the part's `pivot` and `axis` by the
+/// steering input (-1 full left to 1 full right) times `lock_degrees`, positive (right-handed about the axis) to the right: the
+/// axis points forward from the driver's eye, so a positive turn is clockwise as the driver sees it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Steering {
+    /// The degrees the part turns at full steering, each way.
+    pub lock_degrees: f32,
+}
+
+/// The most degrees a steered part may turn at full steering (three turns each way).
+pub const MAX_LOCK_DEGREES: f32 = 1080.0;
+
 /// A checked `[[damage_parts]]` entry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DamagePart {
@@ -127,6 +139,9 @@ pub struct DamagePart {
     /// The zone damage (0 to 1, ascending) at which each stage starts. The part has turned `angle` times the share of
     /// stages passed. Left out: one stage at the first damage.
     pub stages: Vec<f32>,
+    /// The degrees the part has turned at each stage (one per stage), when the stages do not turn it evenly. Empty: it has
+    /// turned `angle` times the share of stages passed.
+    pub stage_angles: Vec<f32>,
     /// The zone damage (above 0, at most 1) from which the part falls off. `None` (with `detach` true): the last stage,
     /// but not before half the damage the zone can take (`DamagePart::release_level` in the game).
     pub detach_at: Option<f32>,
@@ -143,6 +158,14 @@ pub struct DamagePart {
     pub tracks: Vec<Track>,
     /// The conditions that play the part's `active` movement (`[[damage_parts.drive]]`), empty for none.
     pub drives: Vec<Drive>,
+    /// The turn the steering gives the part, if it is a steering wheel (`[damage_parts.steering]`).
+    pub steering: Option<Steering>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawSteering {
+    lock_degrees: f32,
 }
 
 #[derive(Deserialize)]
@@ -178,6 +201,8 @@ pub(super) struct Raw {
     #[serde(default)]
     stages: Vec<f32>,
     #[serde(default)]
+    stage_angles: Vec<f32>,
+    #[serde(default)]
     detach_at: Option<f32>,
     #[serde(default)]
     detach: Option<bool>,
@@ -191,6 +216,8 @@ pub(super) struct Raw {
     track: Vec<RawTrack>,
     #[serde(default)]
     drive: Vec<RawDrive>,
+    #[serde(default)]
+    steering: Option<RawSteering>,
 }
 
 fn field(reason: &'static str) -> ContentError {
@@ -209,7 +236,7 @@ fn is_model(text: &str) -> bool {
 pub(super) fn check(raw: Option<Vec<Raw>>) -> Result<Vec<DamagePart>, ContentError> {
     let Some(raw) = raw else { return Ok(Vec::new()) };
     if raw.len() > MAX_DAMAGE_PARTS {
-        return Err(field("a car lists at most 16 parts"));
+        return Err(field("a car lists at most 64 parts"));
     }
     let mut parts: Vec<DamagePart> = Vec::with_capacity(raw.len());
     for entry in raw {
@@ -293,7 +320,15 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
     if (0..WING_SLOTS).any(|slot| tracks.iter().filter(|track| track.slot == slot).count() > 1) {
         return Err(field("a part has one track per wing animation"));
     }
+    let steering = raw.steering.map(check_steering).transpose()?;
+    if steering.is_some() && (active.is_some() || !tracks.is_empty() || !drives.is_empty()) {
+        return Err(field("a part turns with the steering or moves with the speed or the wing, not both"));
+    }
     let stages = if raw.stages.is_empty() { vec![0.0] } else { raw.stages };
+    let angles_ok = raw.stage_angles.iter().all(|a| a.is_finite() && a.abs() <= 180.0);
+    if !angles_ok || (!raw.stage_angles.is_empty() && raw.stage_angles.len() != stages.len()) {
+        return Err(field("stage_angles is one angle of up to 180 degrees per stage"));
+    }
     let axis = raw.axis.map(|c| c / length);
     Ok(DamagePart {
         name,
@@ -303,6 +338,7 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
         axis,
         angle: raw.angle,
         stages,
+        stage_angles: raw.stage_angles,
         detach_at: raw.detach_at,
         detach,
         mass_kg,
@@ -310,7 +346,16 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
         parent: raw.parent.map(|name| name.trim().to_owned()),
         tracks,
         drives,
+        steering,
     })
+}
+
+fn check_steering(raw: RawSteering) -> Result<Steering, ContentError> {
+    let lock = raw.lock_degrees;
+    if !lock.is_finite() || !(1.0..=MAX_LOCK_DEGREES).contains(&lock) {
+        return Err(field("lock_degrees is the turn at full steering, 1 to 1080 degrees"));
+    }
+    Ok(Steering { lock_degrees: lock })
 }
 
 fn check_active(raw: RawActive) -> Result<Active, ContentError> {

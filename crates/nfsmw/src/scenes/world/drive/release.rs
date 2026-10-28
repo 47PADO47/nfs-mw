@@ -9,6 +9,8 @@ impl Drive {
     pub(in crate::scenes::world) fn release(mut self, renderer: &mut dyn RenderBackend) {
         self.flames.unload();
         self.flames.release(renderer);
+        self.effects.unload_variant();
+        self.effects.release(renderer);
         self.rig.release(renderer);
     }
 }

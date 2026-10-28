@@ -15,7 +15,7 @@ Everything here was measured on the 2012 install (v1.4.0.0, `NFS13.exe`): all 2,
 | Path | Contents |
 |---|---|
 | `VEHICLES/VEH_<n>_HI.BNDL` | One car at full detail: body, wheels, materials, a few textures, gameplay objects (93 files) |
-| `VEHICLES/VEH_<n>_LO.BNDL` | The same car at low detail (93 files); `_TR` files are traffic cars |
+| `VEHICLES/VEH_<n>_LO.BNDL` | The same car for the distance (93 files, [chameleon-traffic.md](chameleon-traffic.md#low-detail-bundles-_lo)); the 11 `VEH_<n>_TR.BNDL` files are traffic cars ([chameleon-traffic.md](chameleon-traffic.md)) |
 | `VEHICLES/VEHICLETEX.BNDL` | 53 textures shared by the cars (27 BC1, 26 BC3) |
 | `VEHICLES/VEHICLELIST.BNDL` | The vehicle list and the gameplay database types (`VehicleListResourceType`, Genesys objects) |
 | `SHADERS.BNDL`, `SHADERS0/1.BNDL` | Shader programs, vertex layouts and sampler tables; the three files are quality variants with the same ids |
