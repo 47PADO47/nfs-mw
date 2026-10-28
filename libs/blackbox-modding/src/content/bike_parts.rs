@@ -2,11 +2,13 @@
 //! the lean controller, the fall and the wheelie assist. Same units as `blackbox_vehicle::bike::BikeSpec` (see `bike.rs`).
 
 use blackbox_vehicle::bike::{
-    AbsSpec, BrakeSpec, Coupling as CouplingSpec, DamperSpec, EngineSpec, FallSpec, Hydraulic as HydraulicSpec,
-    LeanSpec, PitchParams, Progressive as ProgressiveSpec, SteeringSpec, SuspensionSpec, TransmissionSpec, WheelieSpec,
-    choices,
+    AbsSpec, BrakeSpec, Coupling as CouplingSpec, DamperSpec, EngineSpec, FallSpec, FeatherSpec,
+    Hydraulic as HydraulicSpec, LeanSpec, Progressive as ProgressiveSpec, SteeringSpec, SuspensionSpec,
+    TransmissionSpec,
 };
 use serde::Deserialize;
+
+pub use super::bike_wheelie::{Pitch, Wheelie};
 
 fn pairs(points: &[[f32; 2]]) -> Vec<(f32, f32)> {
     points.iter().map(|&[x, y]| (x, y)).collect()
@@ -181,11 +183,16 @@ pub struct Transmission {
     pub final_ratio: f32,
     /// The share of the engine torque that reaches the wheel.
     pub efficiency: f32,
-    /// The engine speed, as a share of the rev limit, at which the automatic changes up under throttle.
-    pub up_shift: f32,
-    /// ... and below which it changes down. Left out (the default): the model's choice, `choices::DOWN_SHIFT_SHARE`.
+    /// The tolerances per gear that scale the torque the generated change points compare (`ride6-gearbox-auto.md`).
+    pub up_tolerance: Vec<f32>,
+    pub down_tolerance: Vec<f32>,
+    /// The hold-offs of the automatic changes, each `[factor, linearity]`; 0 (the default) for none.
     #[serde(default)]
-    pub down_shift: Option<f32>,
+    pub prevent_up_lean: [f32; 2],
+    #[serde(default)]
+    pub prevent_down_lean: [f32; 2],
+    #[serde(default)]
+    pub prevent_down_throttle: [f32; 2],
     /// How long a change up and a change down take, s.
     pub up_shift_time_s: f32,
     pub down_shift_time_s: f32,
@@ -211,6 +218,40 @@ pub struct Transmission {
     pub feather_factor: f32,
     #[serde(default)]
     pub feather_max_factor: f32,
+    /// The rest of the feathering controller (the constructor defaults when left out).
+    #[serde(default)]
+    pub feather: Feather,
+    /// The launch clutch without feathering: the shares of the rev limit between which it comes in.
+    #[serde(default)]
+    pub launch_rpm: [f32; 2],
+}
+
+/// The feathering controller of a start (`[bike.transmission.feather]`).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Feather {
+    pub target_tolerance: f32,
+    pub exit_tolerance: f32,
+    pub throttle_cap: f32,
+    pub min_slip: f32,
+    pub delta_time_s: f32,
+    pub rpm_raise: f32,
+    pub release_factor: f32,
+}
+
+impl Default for Feather {
+    fn default() -> Self {
+        let d = FeatherSpec::default();
+        Self {
+            target_tolerance: d.target_tolerance,
+            exit_tolerance: d.exit_tolerance,
+            throttle_cap: d.throttle_cap,
+            min_slip: d.min_slip,
+            delta_time_s: d.delta_time,
+            rpm_raise: d.rpm_raise,
+            release_factor: d.release_factor,
+        }
+    }
 }
 
 impl Transmission {
@@ -219,8 +260,11 @@ impl Transmission {
             gears: self.gears.clone(),
             final_ratio: self.final_ratio,
             efficiency: self.efficiency,
-            up_shift: self.up_shift,
-            down_shift: self.down_shift.unwrap_or(choices::DOWN_SHIFT_SHARE),
+            up_tolerance: self.up_tolerance.clone(),
+            down_tolerance: self.down_tolerance.clone(),
+            prevent_up_lean: self.prevent_up_lean,
+            prevent_down_lean: self.prevent_down_lean,
+            prevent_down_throttle: self.prevent_down_throttle,
             up_shift_time: self.up_shift_time_s,
             down_shift_time: self.down_shift_time_s,
             blip_throttle: self.blip_throttle,
@@ -230,6 +274,16 @@ impl Transmission {
             release_speed: self.release_speed_mps,
             feather_factor: self.feather_factor,
             feather_max_factor: self.feather_max_factor,
+            feather: FeatherSpec {
+                target_tolerance: self.feather.target_tolerance,
+                exit_tolerance: self.feather.exit_tolerance,
+                throttle_cap: self.feather.throttle_cap,
+                min_slip: self.feather.min_slip,
+                delta_time: self.feather.delta_time_s,
+                rpm_raise: self.feather.rpm_raise,
+                release_factor: self.feather.release_factor,
+            },
+            launch_rpm: self.launch_rpm,
             clutch_max_factor: self.clutch_max_factor,
         }
     }
@@ -384,6 +438,15 @@ pub struct Fall {
     pub speed_direction_rad: f32,
     pub angular_speed: f32,
     pub min_speed_mps: f32,
+    /// The block-fall assist (a ratio of 0, the default, switches it off).
+    #[serde(default)]
+    pub block_ratio: f32,
+    #[serde(default)]
+    pub block_min_speed_mps: f32,
+    #[serde(default)]
+    pub block_time_s: f32,
+    #[serde(default)]
+    pub block_wait_s: f32,
 }
 
 impl Fall {
@@ -394,79 +457,10 @@ impl Fall {
             speed_direction: self.speed_direction_rad,
             angular_speed: self.angular_speed,
             min_speed: self.min_speed_mps,
-        }
-    }
-}
-
-/// One parameter set of the wheelie and stoppie assist (`[bike.wheelie.wheelie]`, `[bike.wheelie.stoppie]`).
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Pitch {
-    pub deadzone: f32,
-    pub max_angle_rad: f32,
-    pub speed_ramp_mps: [f32; 2],
-    #[serde(default)]
-    pub help_speed: Vec<[f32; 2]>,
-    pub lean_help: [f32; 2],
-    pub lookahead_s: f32,
-    pub min_speed_mps: f32,
-    pub acceleration: f32,
-    pub acceleration_time_s: f32,
-    pub ground_range_m: [f32; 2],
-    pub lean_limit_rad: f32,
-    pub lean_pitch_range_rad: [f32; 2],
-}
-
-impl Pitch {
-    fn to_spec(&self) -> PitchParams {
-        PitchParams {
-            deadzone: self.deadzone,
-            max_angle: self.max_angle_rad,
-            speed_ramp: self.speed_ramp_mps,
-            help_speed: pairs(&self.help_speed),
-            lean_help: self.lean_help,
-            lookahead: self.lookahead_s,
-            min_speed: self.min_speed_mps,
-            acceleration: self.acceleration,
-            acceleration_time: self.acceleration_time_s,
-            ground_range: self.ground_range_m,
-            lean_limit: self.lean_limit_rad,
-            lean_pitch_range: self.lean_pitch_range_rad,
-        }
-    }
-}
-
-/// The wheelie and stoppie assist and the rider help around it (`[bike.wheelie]`). A range of `[0, 0]` switches a part off.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Wheelie {
-    pub wheelie: Pitch,
-    pub stoppie: Pitch,
-    /// The lift angle in rad over which the throttle is cut, while the rider is not asking for a wheelie and while he is, and
-    /// the lift speed in rad/s over which it is cut.
-    #[serde(default)]
-    pub throttle_pitch_rad: [f32; 2],
-    #[serde(default)]
-    pub forced_throttle_pitch_rad: [f32; 2],
-    #[serde(default)]
-    pub throttle_pitch_speed: [f32; 2],
-    /// The same for the front brake against a stoppie.
-    #[serde(default)]
-    pub brake_pitch_rad: [f32; 2],
-    #[serde(default)]
-    pub brake_pitch_speed: [f32; 2],
-}
-
-impl Wheelie {
-    pub(super) fn to_spec(&self) -> WheelieSpec {
-        WheelieSpec {
-            wheelie: self.wheelie.to_spec(),
-            stoppie: self.stoppie.to_spec(),
-            throttle_pitch: self.throttle_pitch_rad,
-            forced_throttle_pitch: self.forced_throttle_pitch_rad,
-            throttle_pitch_speed: self.throttle_pitch_speed,
-            brake_pitch: self.brake_pitch_rad,
-            brake_pitch_speed: self.brake_pitch_speed,
+            block_ratio: self.block_ratio,
+            block_min_speed: self.block_min_speed_mps,
+            block_time: self.block_time_s,
+            block_wait: self.block_wait_s,
         }
     }
 }

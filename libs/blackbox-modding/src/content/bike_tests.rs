@@ -1,4 +1,4 @@
-use blackbox_vehicle::bike::{BikeSpec, choices};
+use blackbox_vehicle::bike::BikeSpec;
 
 use super::*;
 
@@ -58,7 +58,7 @@ fn table() -> String {
     format!(
         "[bike]\ndrag = 0.15\ngyro_roll_scale = 1.0\ngyro_yaw_scale = 1.0\n\
          [bike.chassis]\nmass_kg = 113.0\nrider_mass_kg = 70.0\nrider_offset_m = [0.0, 0.4, -0.05]\n\
-         rider_forward_shift_m = [0.0, 0.0, 0.1]\nrider_backward_shift_m = [0.0, 0.0, -0.1]\nrider_weight_rate = 6.0\n\
+         rider_forward_shift_m = [0.0, 0.0, 0.1]\nrider_backward_shift_m = [0.0, 0.0, -0.1]\nrider_weight_rate = 6.0\nrider_k_n_per_m = 20000.0\nrider_damp = 5000.0\n\
          half_dimensions_m = [0.42, 0.64, 1.06]\ntensor_scale = [0.4, 0.45, 0.2]\n\
          cg_height_m = 0.62\nfront_weight = 0.5\nwheelbase_m = 1.47\nrake_rad = 0.4537856\ntrail_m = 0.105\n\
          {front}{rear}\
@@ -79,16 +79,20 @@ fn table() -> String {
          friction_torque_nm = 12.0\nfriction_curve = [[0.0, 0.0], [1.0, 1.0], [1.5, 2.0]]\nidle_rpm = 2300.0\n\
          max_rpm = 11000.0\nmoi_kgm2 = 0.015\nthrottle_at_idle = 0.15\nlimiter_cut_time_s = 0.02\n\
          [bike.transmission]\ngears = [2.1, 1.65, 1.35, 1.12, 0.96]\nfinal_ratio = 7.2\nefficiency = 1.0\n\
-         up_shift = 0.9\ndown_shift = 0.45\nup_shift_time_s = 0.06\ndown_shift_time_s = 0.15\nblip_throttle = 0.3\n\
+         up_tolerance = [1.0, 1.0, 1.0, 1.0, 1.0]\ndown_tolerance = [0.4, 0.9, 1.0, 1.0, 1.0]\n\
+         prevent_up_lean = [0.5, 30.0]\nprevent_down_lean = [0.5, 50.0]\nprevent_down_throttle = [1.0, 0.5]\nup_shift_time_s = 0.06\ndown_shift_time_s = 0.15\nblip_throttle = 0.3\n\
          clutch_linearity = 1.0\nclutch_max_factor = 1.0\nslipper_range_nm = [25.0, 40.0]\nslipper_intensity = 1.0\n\
-         release_speed_mps = 13.888889\nfeather_factor = 0.85\nfeather_max_factor = 0.7\n\
+         release_speed_mps = 13.888889\nfeather_factor = 0.85\nfeather_max_factor = 0.7\nlaunch_rpm = [0.4, 0.98]\n\
+         [bike.transmission.feather]\ndelta_time_s = 0.05\n\
          [bike.brakes]\nfront_force_n = 1800.0\nrear_force_n = 1000.0\njoined_factor = 1.0\n\
          [bike.brakes.abs]\nfront_intensity = 1.0\nrear_intensity = 1.0\nspeed_range_mps = [2.7777777, 6.9444447]\n\
          front_slip = [-0.3, -0.5]\nrear_slip = [-0.5, -1.0]\n\
          [bike.steering]\nmax_angle_rad = 0.7\nresponse = 1000.0\ndamping_ratio = 3.0\nmax_lean_rad = 1.2217305\n\
          {LEAN}\
          [bike.fall]\nlean_rad = 1.2217305\npitch_rad = 1.134464\nspeed_direction_rad = 1.4835299\n\
-         angular_speed = 4.4\nmin_speed_mps = 2.7777777\n\
+         angular_speed = 4.4\nmin_speed_mps = 2.7777777\nblock_ratio = 0.975\nblock_min_speed_mps = 11.111111\n\
+         block_time_s = 1.0\nblock_wait_s = 5.0\n\
+         [bike.tcs]\nslip = [0.09, 0.2]\nspeed_range_mps = [0.0, 1.3888889]\n\
          [bike.wheelie]\nthrottle_pitch_rad = [0.0, 0.0698132]\nforced_throttle_pitch_rad = [0.5759587, 0.7853982]\n\
          throttle_pitch_speed = [0.2, 0.6]\nbrake_pitch_rad = [0.0, 0.0698132]\nbrake_pitch_speed = [0.0, 0.6]\n\
          [bike.wheelie.wheelie]\n{PITCH}\
@@ -169,6 +173,15 @@ fn the_table_converts_to_the_spec_the_dynamics_take() {
     let (assist, expected) = (spec.wheelie.as_ref().unwrap(), example.wheelie.as_ref().unwrap());
     assert_eq!(assist.wheelie.deadzone, expected.wheelie.deadzone);
     assert_eq!(assist.wheelie.acceleration, expected.wheelie.acceleration);
+    assert_eq!(spec.transmission.up_tolerance, example.transmission.up_tolerance);
+    assert_eq!(spec.transmission.down_tolerance, example.transmission.down_tolerance);
+    assert_eq!(spec.transmission.prevent_down_throttle, example.transmission.prevent_down_throttle);
+    assert_eq!(spec.transmission.feather.delta_time, example.transmission.feather.delta_time);
+    assert_eq!(spec.transmission.feather.exit_tolerance, example.transmission.feather.exit_tolerance);
+    assert_eq!(spec.fall.block_ratio, example.fall.block_ratio);
+    assert_eq!((spec.chassis.rider_k, spec.chassis.rider_damp), (20_000.0, 5_000.0));
+    assert_eq!(spec.tcs.expect("the traction control").slip, [0.09, 0.2]);
+    assert_eq!(spec.front.rolling_slip_linearity, 1.0, "the exponent defaults to 1");
     assert_eq!(spec.gyro_roll_scale, example.gyro_roll_scale);
     assert_eq!(spec.drag, example.drag);
     assert_eq!(spec.total_mass(), 113.0 + 70.0);
@@ -183,13 +196,6 @@ fn a_bike_without_a_rider_or_a_wheelie_assist_is_a_bike_without_them() {
     assert_eq!(spec.chassis.rider_mass, 0.0, "no rider unless the manifest says so");
     assert!(spec.wheelie.is_none());
     assert_eq!(spec.total_mass(), 113.0);
-}
-
-#[test]
-fn a_down_shift_point_that_is_left_out_is_the_models_choice() {
-    let text = bike_car().replace("down_shift = 0.45\n", "");
-    let spec = BikeSpec::from(&bike(&text).unwrap().bike.unwrap());
-    assert_eq!(spec.transmission.down_shift, choices::DOWN_SHIFT_SHARE);
 }
 
 #[test]
@@ -273,7 +279,7 @@ fn the_curves_have_to_rise_or_fall() {
     let cases = [
         ("[2300.0, 0.7], [5000.0, 0.85]", "[5000.0, 0.7], [2300.0, 0.85]", "bike.engine.torque_curve"),
         ("gears = [2.1, 1.65", "gears = [1.5, 1.65", "bike.transmission.gears"),
-        ("down_shift = 0.45", "down_shift = 0.95", "bike.transmission.down_shift"),
+        ("down_tolerance = [0.4", "down_tolerance = [40.0", "bike.transmission.down_tolerance"),
         ("[[0.0, 2.8], [1.0, 1.97]]", "[[1.0, 2.8], [0.0, 1.97]]", "bike.rear_suspension.leverage"),
         ("g_tuning = [[0.0, 1.0], [1.1, 0.9]]", "g_tuning = [[1.1, 1.0], [0.0, 0.9]]", "bike.steering.lean"),
     ];
@@ -335,4 +341,46 @@ fn a_stats_table_on_a_bike_is_not_read() {
     let text = format!("{}[stats]\nmass_kg = 200.0\n", bike_car());
     let manifest = bike(&text).unwrap();
     assert_eq!(manifest.stats, Stats::default());
+}
+
+const THERMAL: &str = "[bike.front.thermal]\nsections_dependency = 1.0\nsections_angle_rad = 1.0\ninitial_thickness = 1.1\n\
+    min_temperature_c = 0.0\nmax_temperature_c = 200.0\nasphalt_importance = 1.0\nwear_length_m = 5000.0\nuniform = true\n\
+    static_time_scale = 1.0\ndynamic_time_scale = 1.0\ndecay_distance_factor = 1.0\nwear_intensity = 1.0\n\
+    [[bike.front.thermal.sections]]\nefficiency_limit = 0.9\nstatic_coef = 0.009\ndynamic_coef = 0.02\n\
+    lat_slip_coef = 0.00001\nlong_slip_coef = 0.00001\nrolling_coef = 0.0002\n\
+    temperature_to_efficiency = [[60.3, 0.975], [90.1, 1.0]]\nwear_to_efficiency = [[0.1, 0.985], [1.0, 0.94]]\n\
+    temperature_to_wear = [[88.0, 0.95], [150.0, 0.0]]\n";
+
+#[test]
+fn a_tyre_with_a_thermal_table_converts_to_the_thermal_spec() {
+    let text = bike_car().replacen("[bike.rear]", &format!("{THERMAL}[bike.rear]"), 1);
+    let spec = BikeSpec::from(&bike(&text).unwrap().bike.unwrap());
+    let thermal = spec.front.thermal.expect("the thermal table");
+    assert_eq!(thermal.sections.len(), 1);
+    assert_eq!(thermal.sections[0].temperature_to_efficiency, vec![(60.3, 0.975), (90.1, 1.0)]);
+    assert!(thermal.uniform && spec.rear.thermal.is_none());
+    let bad = text.replace("max_temperature_c = 200.0", "max_temperature_c = -5.0");
+    assert!(matches!(bike(&bad), Err(ContentError::Field { field: "bike.front.thermal", .. })));
+}
+
+#[test]
+fn the_rider_help_table_and_the_target_filter_are_read_and_default_to_the_reference_constructor() {
+    let plain = bike(&bike_car()).unwrap().bike.unwrap().wheelie.unwrap().to_spec();
+    assert!(plain.help.auto_rider.is_none() && plain.help.launch_speed == 0.0);
+    assert_eq!((plain.help.throttle_multiplier, plain.help.intensity), (1.0, 1.0));
+    assert_eq!((plain.wheelie.filter_timescale, plain.wheelie.terrain_influence), (0.0, 0.0));
+    let text = bike_car().replace(
+        "[bike.wheelie.wheelie]",
+        "[bike.wheelie.help]\nlaunch_speed_mps = 5.5\nlaunch_throttle_multiplier = 0.0\nthrottle_pitch_electronic = true\n\
+         weight_deadzone = 0.75\n[bike.wheelie.help.auto_rider]\nwheelie_range_rad = [0.06, 0.07]\n\
+         throttle_curve = [[0.0, 0.0], [0.1, 1.0]]\nengage_speed = 5.0\n[bike.wheelie.wheelie]\n\
+         terrain_influence = 1.0\ntarget_filter_timescale = 2.5\n",
+    );
+    let spec = bike(&text).unwrap().bike.unwrap().wheelie.unwrap().to_spec();
+    assert_eq!((spec.help.launch_speed, spec.help.launch_throttle_multiplier), (5.5, 0.0));
+    assert!(spec.help.throttle_pitch_electronic && !spec.help.brake_pitch_electronic);
+    assert_eq!(spec.help.weight_deadzone, 0.75);
+    let auto = spec.help.auto_rider.expect("the auto-rider");
+    assert_eq!((auto.wheelie_range, auto.engage_speed, auto.throttle_curve.len()), ([0.06, 0.07], 5.0, 2));
+    assert_eq!((spec.wheelie.terrain_influence, spec.wheelie.filter_timescale), (1.0, 2.5));
 }

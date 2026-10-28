@@ -12,10 +12,12 @@
 //! ranges are in `bike_check.rs` and `bike_check_parts.rs`; they catch typing mistakes (a wheel of 3 m, a rake of 26
 //! radians), not unusual bikes.
 
-use blackbox_vehicle::bike::{BikeSpec, ChassisSpec, Mf94, WheelSpec};
+use blackbox_vehicle::bike::{BikeSpec, ChassisSpec, Mf94, TcsSpec, WheelSpec};
 use serde::Deserialize;
 
 pub use super::bike_parts::{Brakes, Damper, Engine, Fall, Steering, Suspension, Transmission, Wheelie};
+pub use super::bike_rider::Rider;
+pub use super::bike_thermal::Thermal;
 
 /// Number of coefficients of the three sets of the Magic Formula 94: `a0..a10, a111, a112, a12, a13`, `b0..b10`, `c0..c17`.
 pub const MF_A: usize = 15;
@@ -36,9 +38,16 @@ pub struct Bike {
     pub brakes: Brakes,
     pub steering: Steering,
     pub fall: Fall,
+    /// Where the rider sits as the weight, the lean and the speed change, and how his body is held to the bike
+    /// (`[bike.rider]`); left out for a rider who only shifts along the bike with the weight.
+    #[serde(default)]
+    pub rider: Rider,
     /// The wheelie and stoppie assist (`[bike.wheelie]`); left out for a bike without one.
     #[serde(default)]
     pub wheelie: Option<Wheelie>,
+    /// The traction control (`[bike.tcs]`); left out for a bike without one.
+    #[serde(default)]
+    pub tcs: Option<Tcs>,
     /// The scales of the gyroscopic roll and yaw torques of the wheels; 0 (the default) switches one off.
     #[serde(default)]
     pub gyro_roll_scale: f32,
@@ -46,6 +55,15 @@ pub struct Bike {
     pub gyro_yaw_scale: f32,
     /// The quadratic air drag coefficient: the drag force is `drag * v^2` newtons, `v` in m/s.
     pub drag: f32,
+}
+
+/// The traction control (`[bike.tcs]`): the slip ratios between which it cuts the throttle, and the speeds in m/s over which it
+/// comes in.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Tcs {
+    pub slip: [f32; 2],
+    pub speed_range_mps: [f32; 2],
 }
 
 /// Frame, mass and steering geometry (`[bike.chassis]`).
@@ -68,6 +86,11 @@ pub struct Chassis {
     /// How fast the rider's weight input moves, per second; 0 (the default) for at once.
     #[serde(default)]
     pub rider_weight_rate: f32,
+    /// The spring (N/m) and damper (N s/m) that hold the rider to the bike; 0 (the default) for a rider rigid on it.
+    #[serde(default)]
+    pub rider_k_n_per_m: f32,
+    #[serde(default)]
+    pub rider_damp: f32,
     /// Half extents of the body box in m (x right, y up, z forward): its bounding radius, and the derived stats.
     pub half_dimensions_m: [f32; 3],
     /// The radius of gyration squared (m^2) about x (pitch), y (yaw) and z (roll): the inertia is this times the total mass.
@@ -137,6 +160,14 @@ pub struct Wheel {
     pub tyre: Tyre,
     /// Rolling resistance as a share of the load: a constant, a part per m/s and a part per (m/s)^2.
     pub rolling: [f32; 3],
+    /// The slip term of the rolling resistance: its factor (0, the default: none) and the exponent of the lateral slip.
+    #[serde(default)]
+    pub rolling_slip: f32,
+    #[serde(default = "one")]
+    pub rolling_slip_linearity: f32,
+    /// The temperature and wear of the tread (`[bike.front.thermal]`); left out for a tyre at its best.
+    #[serde(default)]
+    pub thermal: Option<Thermal>,
     /// The largest lateral force as a multiple of the load: informational (the shop's stats), the tyre curve decides.
     pub lateral_grip_limit: f32,
     /// Radial stiffness of the tyre, N/m; it shares the ground penetration with the suspension. 0 (the default): rigid.
@@ -157,6 +188,10 @@ pub struct Wheel {
     pub rest_speed_threshold_mps: f32,
 }
 
+fn one() -> f32 {
+    1.0
+}
+
 fn wheel_spec(wheel: &Wheel) -> WheelSpec {
     WheelSpec {
         radius: wheel.radius_m,
@@ -166,6 +201,9 @@ fn wheel_spec(wheel: &Wheel) -> WheelSpec {
         inertia: wheel.inertia_kgm2,
         tyre: Mf94 { a: wheel.tyre.a, b: wheel.tyre.b, c: wheel.tyre.c },
         rolling: wheel.rolling,
+        rolling_slip: wheel.rolling_slip,
+        rolling_slip_linearity: wheel.rolling_slip_linearity,
+        thermal: wheel.thermal.as_ref().map(Thermal::to_spec),
         lateral_grip_limit: wheel.lateral_grip_limit,
         tire_stiffness: wheel.tire_stiffness_n_per_m,
         max_tire_deformation: wheel.max_tire_deformation_m,
@@ -184,6 +222,8 @@ fn chassis_spec(chassis: &Chassis) -> ChassisSpec {
         rider_forward_shift: chassis.rider_forward_shift_m.into(),
         rider_backward_shift: chassis.rider_backward_shift_m.into(),
         rider_weight_rate: chassis.rider_weight_rate,
+        rider_k: chassis.rider_k_n_per_m,
+        rider_damp: chassis.rider_damp,
         half_dimensions: chassis.half_dimensions_m.into(),
         tensor_scale: chassis.tensor_scale.into(),
         cg_height: chassis.cg_height_m,
@@ -199,6 +239,7 @@ impl From<&Bike> for BikeSpec {
     fn from(bike: &Bike) -> Self {
         Self {
             chassis: chassis_spec(&bike.chassis),
+            rider: bike.rider.to_spec(),
             front: wheel_spec(&bike.front),
             rear: wheel_spec(&bike.rear),
             front_suspension: bike.front_suspension.to_spec(),
@@ -209,6 +250,7 @@ impl From<&Bike> for BikeSpec {
             steering: bike.steering.to_spec(),
             fall: bike.fall.to_spec(),
             wheelie: bike.wheelie.as_ref().map(Wheelie::to_spec),
+            tcs: bike.tcs.map(|tcs| TcsSpec { slip: tcs.slip, speed_range: tcs.speed_range_mps }),
             gyro_roll_scale: bike.gyro_roll_scale,
             gyro_yaw_scale: bike.gyro_yaw_scale,
             drag: bike.drag,

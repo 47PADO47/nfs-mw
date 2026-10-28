@@ -70,7 +70,8 @@ fn tyre(raw: RawTyre, fields: [&'static str; 5], bike: bool) -> Result<Tyre, Con
         z_m: ranged(raw.z_m, z, 0.05, 1.0)?,
         face_m,
         radius_m: ranged(raw.radius_m, radius, 0.15, 0.8)?,
-        width_m: ranged(raw.width_m, width, 0.1, 0.8)?,
+        // A bike's tyre can be narrower than any car's: the front tyre of a trail bike is 90 mm (the bike table allows 0.03 m).
+        width_m: ranged(raw.width_m, width, if bike { 0.03 } else { 0.1 }, 0.8)?,
     })
 }
 
@@ -144,6 +145,32 @@ width_m = 0.346
     fn a_number_out_of_range_names_its_key() {
         let error = layout(&GOOD.replace("0.358", "3.0")).unwrap_err();
         assert!(matches!(error, ContentError::Field { field: "wheels.rear.radius_m", .. }), "{error}");
+    }
+
+    #[test]
+    fn a_bike_may_have_a_narrow_tyre_and_a_car_may_not() {
+        let narrow = GOOD.replace("0.264", "0.09");
+        let error = layout(&narrow).unwrap_err();
+        assert!(matches!(error, ContentError::Field { field: "wheels.front.width_m", .. }), "{error}");
+        let layout = layout_of(
+            &narrow
+                .replace(
+                    "face_m = 0.932
+",
+                    "",
+                )
+                .replace(
+                    "face_m = 0.983
+",
+                    "",
+                ),
+            true,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(layout.front.width_m, 0.09);
+        let too_narrow = GOOD.replace("0.264", "0.02");
+        assert!(layout_of(&too_narrow, true).is_err());
     }
 
     #[test]

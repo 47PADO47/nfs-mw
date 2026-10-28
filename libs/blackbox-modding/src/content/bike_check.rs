@@ -41,6 +41,11 @@ pub(super) fn check(bike: Option<Bike>) -> Result<Option<Bike>, ContentError> {
     if let Some(wheelie) = &bike.wheelie {
         parts::wheelie(wheelie)?;
     }
+    if let Some(tcs) = &bike.tcs {
+        all_ranged(&tcs.slip, "bike.tcs.slip", 0.0, 5.0)?;
+        all_ranged(&tcs.speed_range_mps, "bike.tcs.speed_range_mps", 0.0, 100.0)?;
+    }
+    bike.rider.check()?;
     ranged(bike.gyro_roll_scale, "bike.gyro_roll_scale", 0.0, 10.0)?;
     ranged(bike.gyro_yaw_scale, "bike.gyro_yaw_scale", 0.0, 10.0)?;
     ranged(bike.drag, "bike.drag", 0.0, 3.0)?;
@@ -54,6 +59,8 @@ fn chassis(chassis: &Chassis) -> Result<(), ContentError> {
     all_ranged(&chassis.rider_forward_shift_m, "bike.chassis.rider_forward_shift_m", -1.0, 1.0)?;
     all_ranged(&chassis.rider_backward_shift_m, "bike.chassis.rider_backward_shift_m", -1.0, 1.0)?;
     ranged(chassis.rider_weight_rate, "bike.chassis.rider_weight_rate", 0.0, 100.0)?;
+    ranged(chassis.rider_k_n_per_m, "bike.chassis.rider_k_n_per_m", 0.0, 1.0e7)?;
+    ranged(chassis.rider_damp, "bike.chassis.rider_damp", 0.0, 1.0e6)?;
     for half in chassis.half_dimensions_m {
         ranged(half, "bike.chassis.half_dimensions_m", 0.05, 5.0)?;
     }
@@ -79,6 +86,7 @@ struct WheelKeys {
     rolling: &'static str,
     grip: &'static str,
     tyre: &'static str,
+    thermal: &'static str,
     stiffness: &'static str,
     deformation: &'static str,
     shape: &'static str,
@@ -94,6 +102,7 @@ const WHEEL_FRONT: WheelKeys = WheelKeys {
     rolling: "bike.front.rolling",
     grip: "bike.front.lateral_grip_limit",
     tyre: "bike.front.tyre",
+    thermal: "bike.front.thermal",
     stiffness: "bike.front.tire_stiffness_n_per_m",
     deformation: "bike.front.max_tire_deformation_m",
     shape: "bike.front.compression_shape_factor",
@@ -109,6 +118,7 @@ const WHEEL_REAR: WheelKeys = WheelKeys {
     rolling: "bike.rear.rolling",
     grip: "bike.rear.lateral_grip_limit",
     tyre: "bike.rear.tyre",
+    thermal: "bike.rear.thermal",
     stiffness: "bike.rear.tire_stiffness_n_per_m",
     deformation: "bike.rear.max_tire_deformation_m",
     shape: "bike.rear.compression_shape_factor",
@@ -130,6 +140,11 @@ fn wheel(wheel: &Wheel, keys: WheelKeys) -> Result<(), ContentError> {
         ranged(value, keys.rolling, low, high)?;
     }
     ranged(wheel.lateral_grip_limit, keys.grip, 0.3, 4.0)?;
+    ranged(wheel.rolling_slip, keys.rolling, 0.0, 10.0)?;
+    ranged(wheel.rolling_slip_linearity, keys.rolling, 0.0, 10.0)?;
+    if let Some(thermal) = &wheel.thermal {
+        thermal.check(keys.thermal)?;
+    }
     ranged(wheel.tire_stiffness_n_per_m, keys.stiffness, 0.0, 10_000_000.0)?;
     ranged(wheel.max_tire_deformation_m, keys.deformation, 0.0, 0.2)?;
     ranged(wheel.compression_shape_factor, keys.shape, 0.0, 1.0)?;

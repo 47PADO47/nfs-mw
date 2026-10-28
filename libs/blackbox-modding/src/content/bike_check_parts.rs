@@ -59,19 +59,36 @@ pub(super) fn transmission(transmission: &Transmission) -> Result<(), ContentErr
     if gears.is_empty() || gears.len() > 10 {
         return Err(field(name, "a bike has 1 to 10 forward gears"));
     }
-    all_ranged(gears, name, 0.2, 10.0)?;
+    all_ranged(gears, name, 0.2, 20.0)?;
     if gears.windows(2).any(|pair| pair[1] >= pair[0]) {
         return Err(field(name, "each gear is lower than the gear before it"));
     }
     ranged(transmission.final_ratio, "bike.transmission.final_ratio", 0.5, 30.0)?;
     ranged(transmission.efficiency, "bike.transmission.efficiency", 0.5, 1.0)?;
-    ranged(transmission.up_shift, "bike.transmission.up_shift", 0.3, 1.0)?;
-    if let Some(down) = transmission.down_shift {
-        ranged(down, "bike.transmission.down_shift", 0.1, 0.9)?;
-        if down >= transmission.up_shift {
-            return Err(field("bike.transmission.down_shift", "the down-shift point is under the up-shift point"));
+    for (list, name) in [
+        (&transmission.up_tolerance, "bike.transmission.up_tolerance"),
+        (&transmission.down_tolerance, "bike.transmission.down_tolerance"),
+    ] {
+        if list.len() > gears.len() {
+            return Err(field(name, "no more tolerances than gears"));
         }
+        all_ranged(list, name, 0.1, 10.0)?;
     }
+    let holds =
+        [transmission.prevent_up_lean, transmission.prevent_down_lean, transmission.prevent_down_throttle].concat();
+    all_ranged(&holds, "bike.transmission.prevent_up_lean", 0.0, 100.0)?;
+    all_ranged(&transmission.launch_rpm, "bike.transmission.launch_rpm", 0.0, 1.5)?;
+    let feather = &transmission.feather;
+    let numbers = [
+        feather.target_tolerance,
+        feather.exit_tolerance,
+        feather.throttle_cap,
+        feather.min_slip,
+        feather.rpm_raise,
+        feather.release_factor,
+    ];
+    all_ranged(&numbers, "bike.transmission.feather", 0.0, 10.0)?;
+    ranged(feather.delta_time_s, "bike.transmission.feather", 0.0001, 1.0)?;
     ranged(transmission.up_shift_time_s, "bike.transmission.up_shift_time_s", 0.0, 2.0)?;
     ranged(transmission.down_shift_time_s, "bike.transmission.down_shift_time_s", 0.0, 2.0)?;
     ranged(transmission.blip_throttle, "bike.transmission.blip_throttle", 0.0, 1.0)?;
@@ -143,6 +160,10 @@ pub(super) fn fall(fall: &Fall) -> Result<(), ContentError> {
     ranged(fall.speed_direction_rad, "bike.fall.speed_direction_rad", 0.2, 3.2)?;
     ranged(fall.angular_speed, "bike.fall.angular_speed", 0.5, 30.0)?;
     ranged(fall.min_speed_mps, "bike.fall.min_speed_mps", 0.0, 100.0)?;
+    ranged(fall.block_ratio, "bike.fall.block_ratio", 0.0, 1.0)?;
+    ranged(fall.block_min_speed_mps, "bike.fall.block_min_speed_mps", 0.0, 100.0)?;
+    ranged(fall.block_time_s, "bike.fall.block_time_s", 0.0, 60.0)?;
+    ranged(fall.block_wait_s, "bike.fall.block_wait_s", 0.0, 600.0)?;
     Ok(())
 }
 

@@ -8,9 +8,13 @@
 mod bike;
 mod bike_check;
 mod bike_check_parts;
+mod bike_help;
 mod bike_parts;
+mod bike_rider;
 #[cfg(test)]
 mod bike_tests;
+mod bike_thermal;
+mod bike_wheelie;
 mod car;
 mod cop;
 #[cfg(test)]
@@ -61,8 +65,8 @@ mod xenon_variant;
 
 pub use bike::{
     Bike, Brakes as BikeBrakes, Chassis as BikeChassis, Damper as BikeDamper, Engine as BikeEngine, MF_A, MF_B, MF_C,
-    Steering as BikeSteering, Suspension as BikeSuspension, Transmission as BikeTransmission, Tyre as BikeTyre,
-    Wheel as BikeWheel,
+    Rider as BikeRider, Steering as BikeSteering, Suspension as BikeSuspension, Transmission as BikeTransmission,
+    Tyre as BikeTyre, Wheel as BikeWheel,
 };
 pub use car::{CarManifest, Kind as CarKind, Role, parse as parse_car};
 pub use cop::{CopClass, CopWave, DEFAULT_CHANCE, DEFAULT_COUNT, MAX_CHANCE, MAX_COUNT};
