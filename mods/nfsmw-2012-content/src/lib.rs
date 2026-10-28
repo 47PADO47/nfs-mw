@@ -13,12 +13,14 @@
 //! `bb.content`, and everything the game opens after that (the garage, the career) lists the cars. Later starts find
 //! the content ready and convert nothing, unless the settings or the installs changed.
 
+mod body_panels;
 mod brands;
 mod cameras;
 mod collision;
 pub mod config;
 mod convert;
 mod damage_model;
+mod drift_cars;
 mod drift_nitrous;
 mod drift_stats;
 mod driver_poses;
@@ -115,14 +117,14 @@ impl Mod for NfsmwContent {
             Ok(Start::UpToDate { cars }) => {
                 add_nitrous_variant(ctx);
                 effect_variants::add_all(ctx);
-                drift_nitrous::register(ctx);
+                drift_nitrous::register(ctx, &mod_dir);
                 engine_stop::register(ctx, &mod_dir);
                 ctx.log(Level::Info, &format!("nfsmw-2012-content: {cars} cars are ready"));
             }
             Ok(Start::Started { job, live }) => {
                 add_nitrous_variant(ctx);
                 effect_variants::add_all(ctx);
-                drift_nitrous::register(ctx);
+                drift_nitrous::register(ctx, &mod_dir);
                 engine_stop::register(ctx, &mod_dir);
                 ctx.log(Level::Info, "nfsmw-2012-content: converting the 2012 cars in the background");
                 state.job = Some(job);

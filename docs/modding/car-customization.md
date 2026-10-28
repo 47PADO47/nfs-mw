@@ -237,6 +237,14 @@ default_design = "1863272"                          # the design it wears until 
 - The **player's text** is kept per car and per profile, beside the save, not in it ([below](#where-the-text-and-the-design-are-kept)), and is
   typed in the garage: Visual, **License Plate** (a keyboard prompt like the alias name; the letters and digits the sheet has,
   at most `slots`; an empty text goes back to `text`). Typing costs nothing and is not part of the cart.
+- **Only for a car that has a plate.** The garage lists License Plate under Visual only for a car whose manifest has a
+  `[customization.plate]` (the catalogue's `plate` flag), and Plate Design only when that plate also has `designs` that offer at
+  least one design. A stock car, and a mod car with no plate table, list neither.
+- **The developer tools.** The F6 garage's Appearance tab has a *License plate* row for the same cars: a text field (applied on
+  Enter or when the field loses focus) and, if the plate offers designs, a design chooser. The console has `plate [TEXT|reset]` and
+  `plate-design [ID|name|none|list [filter]|reset]` for the car being driven. All of them apply to the car at once with the
+  garage's rules (the sheet's characters, at most `slots`), for **the session only** like the rest of F6 (they do not write
+  `plates.toml`; the garage pages do). On a car without a plate the commands answer `this car has no plate` and the F6 row is not shown.
 - `nfsmw view-car FASTCOUPE --part plate=VELOCITY --screenshot out.png --muted` shows a car with a text on its plate.
 
 ### Plate designs

@@ -57,7 +57,8 @@ pub use cop::{CopClass, CopWave, DEFAULT_CHANCE, DEFAULT_COUNT, MAX_CHANCE, MAX_
 pub use customization::{Customization, Finish, Livery, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
 pub use damage_parts::{
     Active as ActivePart, DEFAULT_MASS_KG, DamagePart, Drive as PartDrive, DriveInput, DriveOp, DriveTest,
-    MAX_DAMAGE_PARTS, MAX_DRIVES, MAX_STAGES, Track as WingTrack, WING_SLOTS, Wing, Zone as DamageZone,
+    MAX_DAMAGE_PARTS, MAX_DRIVES, MAX_LOCK_DEGREES, MAX_STAGES, Steering as SteeredPart, Track as WingTrack,
+    WING_SLOTS, Wing, Zone as DamageZone,
 };
 pub use engine_curves::{
     Curve as EngineCurve, Input as EngineInput, LayerKind as EngineLayerKind, Pitch as EnginePitch,

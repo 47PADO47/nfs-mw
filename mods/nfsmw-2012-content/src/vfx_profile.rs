@@ -65,11 +65,11 @@ fn draw_scale(rate_param: u8) -> f32 {
         _ => 2.0,
     }
 }
-/// The widest a burning glow is drawn, metres: the width the effect gives it at the peak of its alpha (0.7 m, from 0.3 m at birth).
+/// The widest a burning glow is drawn, metres: the width the effect gives it at the peak of its alpha (0.7 m in the data, drawn at 0.45 m: the rewrite shrinks it further).
 /// The effect grows it to 5.6 m by the end of its life, which in the 2012 game is behind the car (the glow is left in the world
 /// there, fading); riding with the car it would be a blue fog round the whole of it, where the screenshots show a small glow in
 /// each pipe. **Read for the peak, capped there by choice.**
-const GLOW_MAX_WIDTH: f32 = 0.7;
+const GLOW_MAX_WIDTH: f32 = 0.45;
 /// The least spawn rate of a burning glow, a second: the data's own rate at rest (5) is a flicker once the glow stays small.
 const GLOW_MIN_RATE: f32 = 30.0;
 /// How the sprites leave the pipe when the effect gives them no speed of their own: metres a second along the pipe's axis, the

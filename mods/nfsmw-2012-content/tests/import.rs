@@ -81,8 +81,8 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
 
     // The hinged parts: the 911 has seven, each its own solid at the two finest levels, cut out of the body.
     let parsed_car = blackbox_modding::content::parse_car(&car.id, &manifest).expect("the game's parser takes it");
-    // Bonnet, bumpers, mirrors, front doors and the active spoiler, and the pieces its damage clips break.
-    assert_eq!(parsed_car.damage_parts.len(), 22);
+    // Bonnet, bumpers, mirrors, front doors and the active spoiler, the pieces its damage clips break and the steering wheel.
+    assert_eq!(parsed_car.damage_parts.len(), 23);
     let spoiler = parsed_car.damage_parts.iter().find(|part| part.active.is_some()).expect("the 911's spoiler moves");
     let active = spoiler.active.unwrap();
     assert_eq!((active.above_mph, active.below_mph), (70.0, 40.0));

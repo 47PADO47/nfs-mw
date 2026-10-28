@@ -214,6 +214,23 @@ colour plus accent"**; which of the two is the colour the name says is not neede
 The palette's own first paint (+0x10's list) is not always a pack's first (the Ford GT's is a paint no pack lists), so the
 default of a new car is not read from it; that the game shows the first pack of a vehicle is **[unconfirmed]**.
 
+**The Atom's pairs run the other way.** On every other vehicle the first paint changes from pack to pack and the second is a
+fixed trim (a black roof, a dark grey lower body), or both change. All four of the Atom's packs have the same first paint,
+`#0C0C0C`, and only the second one changes (`RED GLOSS` `#AD2B2C`, `YELLOW GLOSS`, `ORANGE GLOSS`, `GREEN GLOSS`), and its
+big `TwoPaint` surface (5,239 triangles, the nose, the side panels and the tail) takes the first paint: read as the data says,
+a pack is a black car with a few coloured parts (780 triangles: the chevron on the nose, the roll hoop trim) **[verified]**.
+The shop sells the pack by the second colour, so the importer swaps such a pair (a vehicle whose packs share one first paint
+and differ in the second) and the Atom wears the pack's colour on its body with the black as the trim. Whether the 2012 game
+draws it black is **[unconfirmed]**. The swap alone left the car black: the Atom's panels (the nose, the floor and the
+wheel arches: 5,071 and 3,168 triangles) are not paint at all but untextured `VehicleNFS13_Body` surfaces, whose material has
+seven float4 parameters in name order (clearcoat fresnel, clearcoat specular, diffuse colour, roughness, scuff colour, scuff
+settings, specular colour **[verified]** on the Atom's seven) and here a black diffuse colour (0.003 to 0.006), a dim specular
+colour and a roughness of 0.1 to 0.5; its seats (roughness 0.75), chrome (specular 0.88) and tubular frame (fixed bronze) are
+other values. The importer makes the black, smooth, non-metal surfaces of a vehicle that sells its second paint paint surfaces
+(`body_panels.rs`, reader `libs/chameleon-vehicle/src/body_finish.rs`), so the panels wear the pack's colour and the player's
+paint, and the black is left on the nose strip, the seats and the wings **[unconfirmed]** that the 2012 game paints them.
+Importer: `mods/nfsmw-2012-content/src/two_colour.rs`.
+
 **The surfaces.** The body-paint techniques with `TwoPaint` in their name draw the pair; the body of a car may mix them with
 plain ones **[verified]** (technique of each paint mesh of the finest level, all 93 bundles):
 

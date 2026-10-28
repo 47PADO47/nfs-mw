@@ -231,7 +231,7 @@ fn import_car(
     }
     let built = convert::build(&car, &fit, &named.id, &options)?;
     let mut stats = ImportedStats::of(&car_stats);
-    // How the car slides, for the drift assist of the "2012 drifting" setting; a car whose data does not read keeps the generic.
+    // How the car slides, for the drift assist of the 2012 cars (`drift_nitrous.rs`); a car whose data does not read keeps the generic.
     stats.drift = read_drift_handling(&Bundle::parse(&bytes)?).ok().map(|handling| DriftKeys::of(&handling));
     config.tuning().for_car(&named.id, &named.display).apply(&mut stats);
     let rpm = Some((stats.idle_rpm, stats.redline_rpm));

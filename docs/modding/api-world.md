@@ -94,10 +94,11 @@ system ignores it (the HUD's `nos` reads 0 for such a car); no car answers `BB_E
 and `add_nos` is appended to the table, so a mod built for 1.0 reads the 1.0 fields and never sees the table grow; a mod that
 wants the new calls asks for 1.1 (`"bb.vehicles" = "1.1"` in `[optional.interfaces]`). The host implements it in
 `scenes/world/drive/mod_feed.rs` (hit, tank), `scenes/world/mod_hooks.rs` (the state) and `modding/backends/vehicles.rs`; the
-2012 drifting ([chameleon-drift.md](../formats/chameleon-drift.md)) is its first user.
+the 2012 drift nitrous ([chameleon-drift.md](../formats/chameleon-drift.md)) is its first user.
 **Delivered (1.2): the drift assist.** `set_drift_assist(enabled)` turns a physics layer of the player's car on or off. It is
 queued like `repair` and stays as set: it follows a change of car only if the mod sends it again (the 2012 mod sends it on every
-scene tick while its setting is on), and a car that is replaced starts with it off. The call answers `BB_ERR_NOT_READY` with no
+scene tick: `true` while the player drives one of its own cars, `false` in any other; it tells the car from `bb.engine` `car()`,
+so `bb.vehicles` needed no identity field), and a car that is replaced starts with it off. The call answers `BB_ERR_NOT_READY` with no
 car and `BB_ERR_UNSUPPORTED` on a host older than 1.2 (the SDK maps the missing table field to `Unsupported`). With the assist
 off the physics is bit for bit what it was. With it on (`libs/blackbox-vehicle`, `Vehicle::set_drift_assist`):
 **entry**, the handbrake pulled with the wheel turned (more than 0.15) at the car's drift speed (10 m/s) pushes the nose round

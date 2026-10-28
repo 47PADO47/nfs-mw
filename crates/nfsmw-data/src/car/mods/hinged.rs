@@ -17,12 +17,14 @@ use crate::car::{LodAssembly, Placement};
 mod active;
 mod debris;
 mod drive;
+mod steering;
 mod wing;
 pub use active::{Active, Deployment, MPS_TO_MPH, deploy_in, deploy_mark};
 pub use debris::{DEBRIS_SOUND, Motion, Parent, debris_bounds, debris_dynamics, debris_motion, part_axis, part_frame};
 pub use drive::{
     Drive, DriveState, Input as DriveInput, Inputs as DriveInputs, MAX_DRIVES, Op as DriveOp, Test as DriveTest,
 };
+pub use steering::Steering;
 pub use wing::{Blend, SLOTS, Sample, Wing, WingState, WingTrack};
 
 /// The first slot number of the hinged parts: part `n` of a car is slot `HINGED_SLOT + n`. The slots of the parts
@@ -68,6 +70,8 @@ pub struct Hinge {
     pub drives: Vec<Drive>,
     /// The wing machine of the car (the same on every part it moves).
     pub wing: Option<Wing>,
+    /// How the steering turns the part, for a steering wheel (`[damage_parts.steering]`).
+    pub steering: Option<Steering>,
 }
 
 /// A part a hinged part hangs from, as far as its movement goes.
@@ -154,6 +158,13 @@ impl Hinge {
             .iter()
             .fold(Mat4::IDENTITY, |chain, up| chain * motion(up.active.as_ref(), &up.tracks, up.pivot));
         self.turn(degrees) * carried * motion(self.active.as_ref(), &self.tracks, self.pivot)
+    }
+
+    /// The turn the steering gives the part at `steering` (-1 to 1, positive to the right): the identity for a part the steering
+    /// does not turn. It is applied to the part where it was modelled, before the damage and the speed move it.
+    pub fn steered(&self, steering: f32) -> Mat4 {
+        let Some(wheel) = self.steering else { return Mat4::IDENTITY };
+        self.turn(wheel.angle(steering))
     }
 
     /// The transform of the part turned by `degrees` about its hinge line, in the car's solid space.
@@ -272,6 +283,7 @@ mod tests {
             tracks: Vec::new(),
             drives: Vec::new(),
             wing: None,
+            steering: None,
         }
     }
 

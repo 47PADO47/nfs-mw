@@ -220,6 +220,19 @@ impl Source {
         Ok(paint_surfaces(&pool, spec)?)
     }
 
+    /// The untextured body surfaces of every body level of the car in `file` with their finish, read without decoding the
+    /// meshes or the textures.
+    pub fn plain_surfaces_of(&self, file: &CarFile) -> Result<Vec<Vec<chameleon_vehicle::PlainSurface>>> {
+        let data = std::fs::read(&file.path).with_context(|| format!("reading {}", file.path.display()))?;
+        let bundle = Bundle::parse(&data)?;
+        let spec = find_spec(&bundle).context("the bundle has no vehicle graphics spec")?;
+        let mut pool = Pool::new();
+        pool.add(bundle.clone());
+        pool.add(Bundle::parse(&self.textures)?);
+        pool.add(Bundle::parse(&self.shaders)?);
+        Ok(chameleon_vehicle::plain_surfaces(&pool, spec)?)
+    }
+
     /// The signature and the paint picture of the car in `file`, read without decoding its other textures.
     pub fn livery_view(&self, file: &CarFile) -> Result<LiveryView> {
         let data = std::fs::read(&file.path).with_context(|| format!("reading {}", file.path.display()))?;

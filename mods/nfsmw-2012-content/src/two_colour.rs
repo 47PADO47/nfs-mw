@@ -27,6 +27,8 @@ pub fn apply(
     folder: &str,
 ) -> Option<Vec<(LiveryChoice, Texture)>> {
     let packs = packs_of(source, file, car)?;
+    let sells_second = sells_second(&packs);
+    let packs = body_colour_first(packs);
     let surfaces = match source.paint_surfaces_of(file) {
         Ok(surfaces) => surfaces,
         Err(error) => {
@@ -45,6 +47,16 @@ pub fn apply(
         return None;
     };
     place(&mut car.vehicle.body, &surfaces, &sheet);
+    if sells_second {
+        // The car's body panels are plain black surfaces in the data: they wear the pack's colour too (`body_panels.rs`).
+        match source.plain_surfaces_of(file) {
+            Ok(plain) => {
+                let panels = crate::body_panels::paint(&mut car.vehicle.body, &plain, &sheet);
+                log::info!("{folder}: {panels} black body surfaces take the colour of the pack");
+            }
+            Err(error) => log::warn!("{folder}: the plain body surfaces do not read, the panels stay black: {error:#}"),
+        }
+    }
     let raw: Vec<Option<String>> = packs.iter().map(|pack| source.text(pack.name)).collect();
     let names = liveries::distinct_names(&raw);
     let pictures = packs
@@ -66,6 +78,31 @@ fn packs_of(source: &Source, file: &CarFile, car: &SourceCar) -> Option<Vec<TwoC
     let pairs = chameleon_vehicle::colour_groups(&bundle).ok()?;
     let packs: Vec<TwoColourPack> = group.two_colour_packs(&pairs, &car.paints).into_iter().flatten().collect();
     (!packs.is_empty()).then_some(packs)
+}
+
+/// How far two colours may differ (per linear channel) and still be one colour of the shop.
+const SAME_COLOUR: f32 = 1e-3;
+
+/// Whether the shop sells the second paint of the packs as the colour of the vehicle: every pack has the same first paint and
+/// only the second one changes (the Ariel Atom's four packs are a fixed `#0C0C0C` and a red, yellow, orange or green one, named
+/// by that second colour). A vehicle whose first paint changes, or whose packs are one or all the same (nothing says which
+/// colour is the sold one), is not. The 2012 data names no colour of a pack but through its text, so this reads the pairs
+/// alone **[unconfirmed]**.
+fn sells_second(packs: &[TwoColourPack]) -> bool {
+    let same = |a: [f32; 3], b: [f32; 3]| (0..3).all(|i| (a[i] - b[i]).abs() <= SAME_COLOUR);
+    let Some(head) = packs.first() else { return false };
+    let fixed_first = packs.iter().all(|pack| same(pack.first, head.first));
+    let varied_second = packs.iter().any(|pack| !same(pack.second, head.second));
+    fixed_first && varied_second
+}
+
+/// The packs with the colour the shop sells on the big surfaces: the pair of a vehicle that [`sells_second`] is swapped, so the
+/// body takes the pack's colour where the 2012 data has it black and the black is the trim. The other packs are as they are.
+fn body_colour_first(packs: Vec<TwoColourPack>) -> Vec<TwoColourPack> {
+    if !sells_second(&packs) {
+        return packs;
+    }
+    packs.into_iter().map(|pack| TwoColourPack { first: pack.second, second: pack.first, ..pack }).collect()
 }
 
 /// Whether the paint meshes of `level` are the paint surfaces `surfaces`, one by one in order (the same technique and
@@ -213,6 +250,72 @@ mod tests {
             liveries += pictures.len();
         }
         assert_eq!((cars, liveries), (12, 62));
+    }
+
+    fn pack(name: u32, first: [f32; 3], second: [f32; 3]) -> TwoColourPack {
+        TwoColourPack { name, first, second }
+    }
+
+    const BLACK: [f32; 3] = [0.0037, 0.0037, 0.0037];
+    const RED: [f32; 3] = [0.418, 0.024, 0.025];
+    const GREEN: [f32; 3] = [0.105, 0.366, 0.030];
+
+    #[test]
+    fn a_vehicle_whose_packs_share_the_first_paint_sells_the_second_as_the_colour() {
+        let packs = vec![pack(1, BLACK, RED), pack(2, BLACK, GREEN)];
+        let found = body_colour_first(packs);
+        assert_eq!((found[0].first, found[0].second), (RED, BLACK));
+        assert_eq!((found[1].first, found[1].second), (GREEN, BLACK));
+        assert_eq!((found[0].name, found[1].name), (1, 2), "the names stay with their packs");
+    }
+
+    #[test]
+    fn a_vehicle_whose_first_paint_changes_keeps_its_pairs() {
+        // A colour in front and a fixed black behind (the BMW M3's packs), and a first paint that varies in one pack only.
+        let m3 = vec![pack(1, RED, BLACK), pack(2, GREEN, BLACK)];
+        assert_eq!(body_colour_first(m3.clone()), m3);
+        let mixed = vec![pack(1, BLACK, RED), pack(2, GREEN, RED)];
+        assert_eq!(body_colour_first(mixed.clone()), mixed);
+    }
+
+    #[test]
+    fn packs_that_say_nothing_about_which_colour_is_sold_keep_their_pairs() {
+        let one = vec![pack(1, BLACK, RED)];
+        assert_eq!(body_colour_first(one.clone()), one, "a single pack");
+        let same = vec![pack(1, BLACK, RED), pack(2, BLACK, RED)];
+        assert_eq!(body_colour_first(same.clone()), same, "the same pair twice");
+        assert!(body_colour_first(Vec::new()).is_empty());
+    }
+
+    /// The Ariel Atom wears the colour its pack names on its big surfaces and keeps its black as the trim (set `MW2012_GAME_DIR`).
+    #[test]
+    #[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+    fn the_atom_is_not_black_by_default() {
+        let Some(root) = std::env::var_os("MW2012_GAME_DIR") else { return };
+        let source = Source::open(std::path::Path::new(&root)).unwrap();
+        let file = source.cars().iter().find(|file| file.path.to_string_lossy().contains("1160082_HI")).unwrap();
+        let car = source.load(file).unwrap();
+        let packs = packs_of(&source, file, &car).unwrap();
+        assert!(sells_second(&packs));
+        let packs = body_colour_first(packs);
+        assert_eq!(packs.len(), 4);
+        let first = packs[0];
+        assert!(
+            first.first[0] > 0.2 && first.first[0] > 5.0 * first.first[1],
+            "the first pack is red: {:?}",
+            first.first
+        );
+        assert!(first.second.iter().all(|channel| *channel < 0.01), "its trim is black: {:?}", first.second);
+        assert!(packs.iter().all(|pack| pack.second == first.second), "every pack has the same black trim");
+        // Its black panels (the wheel arches and the nose, the floor and the pods) are painted with the pack's colour too, its
+        // seats, chrome and frame are not.
+        let mut car = source.load(file).unwrap();
+        let paint_meshes = |car: &SourceCar| {
+            car.vehicle.body[0].iter().filter(|mesh| mesh.appearance.kind == SurfaceKind::Paint).count()
+        };
+        let before = paint_meshes(&car);
+        apply(&source, file, &mut car, "ATOM").unwrap();
+        assert_eq!(paint_meshes(&car), before + 2, "two plain surfaces became paint");
     }
 
     #[test]

@@ -165,6 +165,7 @@ fn hinge_of(part: &blackbox_modding::content::DamagePart) -> hinged::Hinge {
             .collect(),
         drives: part.drives.iter().map(drive_of).collect(),
         wing: None,
+        steering: part.steering.map(|wheel| hinged::Steering { lock_degrees: wheel.lock_degrees }),
     }
 }
 
