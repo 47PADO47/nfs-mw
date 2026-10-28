@@ -118,6 +118,9 @@ pub enum Action {
     MapOrientation,
     /// HUD button: hide or show the whole HUD for the session (the `hud` setting, not saved).
     ToggleHud,
+    /// Driving axis, -1..1: forward is positive. A bike's rider shifts his weight back (negative: wheelie) or forward
+    /// (positive: stoppie). A car does not read it.
+    RiderWeight,
 }
 
 impl Action {
@@ -186,6 +189,7 @@ impl Action {
             "map_zoom_out",
             "map_orientation",
             "toggle_hud",
+            "rider_weight",
         ];
         NAMES[self.index()]
     }
@@ -197,7 +201,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 63] = [
+    pub const ALL: [Action; 64] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -261,6 +265,7 @@ impl Action {
         Action::MapZoomOut,
         Action::MapOrientation,
         Action::ToggleHud,
+        Action::RiderWeight,
     ];
 
     /// Actions that still work while the UI has the keyboard.

@@ -200,7 +200,7 @@ impl RiderRig {
     fn update(&mut self, renderer: &mut dyn RenderBackend, steer: f32) {
         let steering = self.steering.map(|(axis, point)| Steering { axis, point, angle: steer });
         let targets = pose::rider_targets(&self.attach, &self.frame, steering);
-        let shift = self.frame.to_rider.transform_vector3(Vec3::X * self.smoothed.shift());
+        let body = pose::body(&self.frame, self.smoothed.shift(), self.smoothed.rotation());
         let params = param_values(&self.graph.param_names, &self.smoothed.values());
         let skeleton = &self.pack.skeleton;
         let animated = pose::animate(
@@ -209,7 +209,7 @@ impl RiderRig {
             &self.graph,
             (&params, self.time),
             &self.resolved,
-            (&targets, shift),
+            (&targets, body),
         );
         let component = match animated {
             Ok(component) => component,

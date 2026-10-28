@@ -35,7 +35,7 @@ fn section(action: Action) -> Section {
         Throttle | Brake | Steer | Handbrake | ShiftUp | ShiftDown | GearReverse | GearNeutral | Gear1 | Gear2
         | Gear3 | Gear4 | Gear5 | Gear6 | Gear7 | Clutch | Nos | Speedbreaker | ResetCar | ToggleCamera
         | CycleCamera | ToggleHeadlights | LookBack | Garage | Interact | DismissNotification | MapMode | MapExpand
-        | MapZoomIn | MapZoomOut | MapOrientation | ToggleHud => Section::Driving,
+        | MapZoomIn | MapZoomOut | MapOrientation | ToggleHud | RiderWeight => Section::Driving,
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuButton1 | MenuButton2
         | MenuButton3 | MenuZoomIn | MenuZoomOut | MenuTriggerLeft | MenuTriggerRight | MenuQuit | Click => {
@@ -110,6 +110,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         MapZoomOut => ("HUD map: zoom out", ""),
         MapOrientation => ("HUD map: north-up / heading-up", ""),
         ToggleHud => ("Hide / show the HUD", ""),
+        RiderWeight => ("Rider weight forward (bikes: stoppie)", "Rider weight back (bikes: wheelie)"),
         RadioNext => ("Radio: next song", ""),
         RadioPrevious => ("Radio: previous song", ""),
     }

@@ -140,6 +140,7 @@ impl BikeRide {
             true => BikeInput { throttle: 0.0, front_brake: 1.0, rear_brake: 1.0, steer: 0.0 },
             false => command(input),
         };
+        self.bike.set_weight(start.weight);
         self.bike.respond(start.delta, &rider, ground);
         match self.bike.fallen() {
             true => self.lie(start.delta, ground),
@@ -208,8 +209,10 @@ impl BikeRide {
         let behind = chassis.front_weight * chassis.wheelbase;
         let ahead = chassis.wheelbase - behind;
         let nose = (self.bike.orientation() * Vec3::Z).y.clamp(-1.0, 1.0);
+        let body = self.bike.rider_rotation();
         RiderSample {
-            lean: self.bike.lean(),
+            // The rider's lean is the bike's and his body's own against it.
+            lean: self.bike.lean() + body.roll_right(),
             max_lean: spec.steering.max_lean,
             speed: self.bike.forward_speed(),
             throttle: self.controls.gas,
@@ -220,6 +223,8 @@ impl BikeRide {
             stoppie_limit: ahead.atan2(chassis.cg_height),
             front_down: self.bike.wheel(FRONT).on_ground,
             rear_down: self.bike.wheel(REAR).on_ground,
+            offset: self.bike.rider_offset(),
+            rotation: Vec3::new(body.roll_right(), body.pitch_up(), body.yaw_right()),
         }
     }
 

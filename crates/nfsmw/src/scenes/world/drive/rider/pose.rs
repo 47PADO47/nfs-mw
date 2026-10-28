@@ -10,7 +10,7 @@
 //! [`Frame`] joins them; the handlebar turns the grips about the steering axis of the model's front wheel.
 
 use blackbox_skeleton::{Clip, Graph, Skeleton, Transform, TwoBoneChain, apply_two_bone};
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Quat, Vec3};
 
 use super::attach::Attach;
 
@@ -106,26 +106,55 @@ pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>)
         .collect()
 }
 
-/// Move the bone `bone` by `shift` (a vector in the rider's component space) without turning it: the translation of the
-/// local transform changes by the shift as seen from the bone's parent.
-fn shift_bone(
+/// How the rider's body sits on the bike beyond the authored pose: his centre of mass moved by `shift` (a vector in the rider's
+/// component space, metres) and his body turned by `rotation` (a rotation in the same space) about the bone that carries it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Body {
+    pub shift: Vec3,
+    pub rotation: Quat,
+}
+
+impl Body {
+    /// The body as authored: not moved, not turned.
+    pub const REST: Self = Self { shift: Vec3::ZERO, rotation: Quat::IDENTITY };
+}
+
+/// The body of the rider from the physics: `shift` is his displacement from the rest place in the car's axes (x forward,
+/// y left, z up) and `rotation` his body's turn against the bike's (roll to the right, pitch nose up, yaw to the right,
+/// radians). In the car's axes (a right-handed frame with x forward, y left, z up) a roll to the right is a turn about +x, a
+/// pitch nose-up a turn about -y and a yaw to the right a turn about -z.
+pub fn body(frame: &Frame, shift: Vec3, rotation: Vec3) -> Body {
+    let turn = Vec3::new(rotation.x, -rotation.y, -rotation.z);
+    let in_rider = frame.to_rider.transform_vector3(turn);
+    let rotation = match in_rider.is_finite() {
+        true => Quat::from_scaled_axis(in_rider),
+        false => Quat::IDENTITY,
+    };
+    Body { shift: frame.to_rider.transform_vector3(shift), rotation }
+}
+
+/// Move the bone `bone` by `body.shift` and turn it by `body.rotation` about its own place, without moving its parent: the
+/// local transform changes so that the bone's component transform is the shifted and turned one, and what hangs on it follows.
+fn move_bone(
     skeleton: &Skeleton,
     local: &mut [Transform],
     bone: usize,
-    shift: Vec3,
+    body: Body,
 ) -> Result<(), blackbox_skeleton::Error> {
     let mut component = Vec::new();
     skeleton.component_transforms(local, &mut component)?;
-    let in_parent = match skeleton.bones()[bone].parent {
-        Some(parent) => component[parent].rotation.inverse() * shift,
-        None => shift,
+    let parent_rotation = match skeleton.bones()[bone].parent {
+        Some(parent) => component[parent].rotation,
+        None => Quat::IDENTITY,
     };
-    local[bone].translation += in_parent;
+    local[bone].translation += parent_rotation.inverse() * body.shift;
+    local[bone].rotation =
+        (parent_rotation.inverse() * body.rotation * parent_rotation * local[bone].rotation).normalize();
     Ok(())
 }
 
-/// The component transforms of the rider for one frame: the graph's pose at `time` for `params`, the shift of the body
-/// (`shift`, rider space), then each limb's tip brought to its target plus the limb's offset. `targets` come from
+/// The component transforms of the rider for one frame: the graph's pose at `time` for `params`, the shift and turn of the body
+/// (`body`, rider space), then each limb's tip brought to its target plus the limb's offset. `targets` come from
 /// [`rider_targets`].
 pub fn animate(
     skeleton: &Skeleton,
@@ -133,11 +162,11 @@ pub fn animate(
     graph: &Graph,
     (params, time): (&[f32], f32),
     resolved: &Resolved,
-    (targets, shift): (&[Vec3], Vec3),
+    (targets, body): (&[Vec3], Body),
 ) -> Result<Vec<Transform>, blackbox_skeleton::Error> {
     let mut pose = graph.evaluate(skeleton, clips, params, time);
-    if shift != Vec3::ZERO {
-        shift_bone(skeleton, &mut pose.local, resolved.shift_bone, shift)?;
+    if body != Body::REST {
+        move_bone(skeleton, &mut pose.local, resolved.shift_bone, body)?;
     }
     let mut component = Vec::new();
     skeleton.component_transforms(&pose.local, &mut component)?;
@@ -248,7 +277,7 @@ mod tests {
         // Reachable: the shoulder is 0.4 m above the root's origin and the arm 0.6 m long.
         let target = Vec3::new(0.2, 0.1, 0.8);
         let wanted = target + resolved.limbs[0].offset;
-        let component = animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[target], Vec3::ZERO)).unwrap();
+        let component = animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[target], Body::REST)).unwrap();
         assert!(component[4].translation.distance(wanted) < 1e-3, "{:?} vs {wanted:?}", component[4].translation);
         // The bones keep their lengths.
         assert!((component[3].translation.distance(component[2].translation) - 0.3).abs() < 1e-3);
@@ -261,7 +290,7 @@ mod tests {
         let skeleton = skeleton();
         let resolved = Resolved::new(&attach(), &skeleton).unwrap();
         let component =
-            animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[Vec3::new(3.0, 0.0, 0.4)], Vec3::ZERO))
+            animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[Vec3::new(3.0, 0.0, 0.4)], Body::REST))
                 .unwrap();
         let shoulder = component[2].translation;
         let hand = component[4].translation;
@@ -276,9 +305,16 @@ mod tests {
         let mut attach = attach();
         attach.limbs.clear();
         let resolved = Resolved::new(&attach, &skeleton).unwrap();
-        let rest = animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[], Vec3::ZERO)).unwrap();
-        let shifted =
-            animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[], Vec3::new(0.0, -0.05, 0.0))).unwrap();
+        let rest = animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[], Body::REST)).unwrap();
+        let shifted = animate(
+            &skeleton,
+            &clips,
+            &graph,
+            (&[], 0.0),
+            &resolved,
+            (&[], Body { shift: Vec3::new(0.0, -0.05, 0.0), ..Body::REST }),
+        )
+        .unwrap();
         assert!(shifted[1].translation.distance(rest[1].translation + Vec3::new(0.0, -0.05, 0.0)) < 1e-6);
         assert!(shifted[4].translation.distance(rest[4].translation + Vec3::new(0.0, -0.05, 0.0)) < 1e-6);
         assert!(shifted[5].translation.distance(rest[5].translation) < 1e-6, "the pole is on the root");
@@ -289,9 +325,84 @@ mod tests {
         let (graph, clips) = graph();
         let skeleton = skeleton();
         let resolved = Resolved::new(&attach(), &skeleton).unwrap();
-        let none = animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[], Vec3::ZERO)).unwrap();
+        let none = animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[], Body::REST)).unwrap();
         let mut at_rest = Vec::new();
         skeleton.component_transforms(&skeleton.rest_pose().local, &mut at_rest).unwrap();
         assert!(none[4].translation.distance(at_rest[4].translation) < 1e-6);
+    }
+
+    /// A rider whose root is `pelvis` > `spine` and one bone far out to the left (+y of the car's frame).
+    fn arm_skeleton() -> Skeleton {
+        let bone = |name: &str, parent: Option<usize>, t: Vec3| Bone {
+            name: name.into(),
+            parent,
+            rest: Transform::from_rt(Quat::IDENTITY, t),
+        };
+        Skeleton::new(vec![
+            bone("root", None, Vec3::ZERO),
+            bone("pelvis", Some(0), Vec3::new(0.0, 0.0, 0.1)),
+            bone("hand_l", Some(1), Vec3::new(0.0, 0.5, 0.0)),
+            bone("hand_r", Some(1), Vec3::new(0.0, -0.5, 0.0)),
+            bone("head", Some(1), Vec3::new(0.0, 0.0, 0.6)),
+        ])
+        .unwrap()
+    }
+
+    fn arm_pose(body: Body) -> Vec<Transform> {
+        let (graph, clips) = graph();
+        let skeleton = arm_skeleton();
+        let resolved = Resolved { limbs: Vec::new(), shift_bone: 1 };
+        animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[], body)).unwrap()
+    }
+
+    /// The car's own frame in the rider's space for the tests: the identity.
+    fn plain_frame() -> Frame {
+        Frame::new(&Transform::IDENTITY, Vec3::ZERO)
+    }
+
+    #[test]
+    fn hanging_off_to_the_inside_moves_the_body_and_its_bones_that_way_and_mirrors() {
+        let rest = arm_pose(Body::REST);
+        // 10 cm to the right (car axes: y is left, so -y), and the same to the left.
+        let right = arm_pose(body(&plain_frame(), Vec3::new(0.0, -0.1, 0.0), Vec3::ZERO));
+        let left = arm_pose(body(&plain_frame(), Vec3::new(0.0, 0.1, 0.0), Vec3::ZERO));
+        for bone in [1, 2, 3, 4] {
+            let moved = right[bone].translation - rest[bone].translation;
+            assert!(moved.distance(Vec3::new(0.0, -0.1, 0.0)) < 1e-6, "bone {bone}: {moved:?}");
+            let mirrored = left[bone].translation - rest[bone].translation;
+            assert!((moved + mirrored).length() < 1e-6, "mirror image");
+        }
+        assert_eq!(right[0].translation, rest[0].translation, "the root stays on the seat");
+    }
+
+    #[test]
+    fn the_body_turned_to_the_right_swings_the_head_to_the_right_about_the_pelvis() {
+        let rest = arm_pose(Body::REST);
+        let right = arm_pose(body(&plain_frame(), Vec3::ZERO, Vec3::new(0.2, 0.0, 0.0)));
+        let left = arm_pose(body(&plain_frame(), Vec3::ZERO, Vec3::new(-0.2, 0.0, 0.0)));
+        // The pelvis stays where it is; the head (0.6 m above it) moves toward -y (right) by about 0.6 sin(0.2).
+        assert!(right[1].translation.distance(rest[1].translation) < 1e-6);
+        let swing = right[4].translation - rest[4].translation;
+        assert!(swing.y < -0.1 && (swing.y + 0.6 * 0.2_f32.sin()).abs() < 1e-5, "{swing:?}");
+        let other = left[4].translation - rest[4].translation;
+        assert!((swing.y + other.y).abs() < 1e-6 && (swing.z - other.z).abs() < 1e-6, "mirror image");
+        // The arms swing about the pelvis too: the left hand rises, the right one drops, when the body rolls to the right.
+        assert!(right[2].translation.z > rest[2].translation.z && right[3].translation.z < rest[3].translation.z);
+    }
+
+    #[test]
+    fn a_pitch_or_a_yaw_turns_about_the_axes_of_the_cars_frame() {
+        let rest = arm_pose(Body::REST);
+        // Nose up: the head goes back (-x of the car).
+        let up = arm_pose(body(&plain_frame(), Vec3::ZERO, Vec3::new(0.0, 0.2, 0.0)));
+        assert!(up[4].translation.x < rest[4].translation.x - 0.05, "{:?}", up[4].translation);
+        // Yaw to the right: the left hand (+y) moves forward and the right hand back.
+        let yaw = arm_pose(body(&plain_frame(), Vec3::ZERO, Vec3::new(0.0, 0.0, 0.2)));
+        assert!(
+            yaw[2].translation.x > rest[2].translation.x + 0.05 && yaw[3].translation.x < rest[3].translation.x - 0.05
+        );
+        // A body that is not moved or turned is the rest pose.
+        assert_eq!(body(&plain_frame(), Vec3::ZERO, Vec3::ZERO).rotation, Quat::IDENTITY);
+        assert_eq!(body(&plain_frame(), Vec3::ZERO, Vec3::splat(f32::NAN)).rotation, Quat::IDENTITY);
     }
 }

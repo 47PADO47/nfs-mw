@@ -5,6 +5,8 @@ use super::*;
 #[derive(Debug, Clone, Copy)]
 pub(in crate::scenes::world) struct StepStart {
     pub(super) input: InputState,
+    /// The rider's weight the player asks, -1 (back) to 1 (forward): only a bike's ride reads it.
+    pub(super) weight: f32,
     pub(super) delta: f32,
     /// `None` without a collision world: the car then only meets the road.
     pub(super) terrain: Option<TerrainQuery>,
@@ -65,7 +67,7 @@ impl CarSim {
         props: Option<&mut PropWorld>,
     ) -> StepStart {
         if !dt.is_finite() || dt <= 0.0 {
-            return StepStart { input: input.to_vehicle(), delta: dt, terrain: None };
+            return StepStart { input: input.to_vehicle(), weight: input.weight, delta: dt, terrain: None };
         }
         self.step_delta = dt;
         self.pull_bike();
@@ -74,6 +76,7 @@ impl CarSim {
         // Taken before explosions: they can wake a sleeping body. Body begin refreshes this captured query.
         let terrain = has_world.then(|| self.terrain_query());
         self.before_velocity = self.vehicle.body().linear_velocity;
+        let weight = input.weight;
         let input = input.to_vehicle();
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
         if let (Some(props), Some(events)) = (props, &self.events) {
@@ -85,7 +88,7 @@ impl CarSim {
                 self.vehicle.tire_damage.puncture(wheel);
             }
         }
-        StepStart { input, delta: dt, terrain }
+        StepStart { input, weight, delta: dt, terrain }
     }
 
     /// Resolves world contacts and body drag after the shared pair pass, before driving response.

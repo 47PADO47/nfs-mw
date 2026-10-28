@@ -46,6 +46,8 @@ impl DriveInput {
             throttle: axis(input.throttle, 0.0, 1.0),
             brake: axis(input.brake, 0.0, 1.0),
             steer: axis(input.steer, -1.0, 1.0),
+            // The rider's weight is not part of `InputState`: a network seat does not shift it.
+            weight: 0.0,
             handbrake: axis(input.handbrake, 0.0, 1.0) >= HANDBRAKE_ON,
             nos: input.nos,
             speedbreaker: false,

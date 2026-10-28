@@ -5,6 +5,8 @@
 //! Every constant that is not in `attach.json` is one of the named limits below; the numbers of the data (the speed from
 //! which the rider tucks, the smoothing rates, the shift ranges) come from the file.
 
+use glam::Vec3;
+
 use super::attach::{Inertia, Inputs};
 
 /// A slower step than this (s) does not move the filters: it is a pause, not time.
@@ -14,7 +16,7 @@ const MAX_STEP: f32 = 0.1;
 /// are in radians, metres per second and units of 0 to 1.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct RiderSample {
-    /// The bike's lean from upright, positive to the right.
+    /// The rider's lean from upright (the bike's plus his body's own against it), positive to the right.
     pub lean: f32,
     /// The steepest lean the bike model allows: the rider's lean is the bike's over this.
     pub max_lean: f32,
@@ -31,6 +33,11 @@ pub struct RiderSample {
     pub stoppie_limit: f32,
     pub front_down: bool,
     pub rear_down: bool,
+    /// Where the rider's centre of mass is from his rest place, in the bike's physics axes (x right, y up, z forward), metres:
+    /// the place the weight, the lean and the speed ask for plus how far his spring has let him move.
+    pub offset: Vec3,
+    /// His body against the bike's attitude: roll to the right, pitch nose up and yaw to the right, radians.
+    pub rotation: Vec3,
 }
 
 impl RiderSample {
@@ -93,9 +100,11 @@ pub struct Values {
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Smoothed {
     values: Values,
-    /// The rider's displacement along the bike (m): negative back, positive forward.
-    shift: f32,
-    last_speed: Option<f32>,
+    /// The rider's displacement from his rest place in the car's axes (x forward, y left, z up), metres, after the clamp to the
+    /// ranges of the animation and the smoothing.
+    shift: Vec3,
+    /// His body's turn against the bike's: roll to the right, pitch nose up, yaw to the right (rad).
+    rotation: Vec3,
 }
 
 impl Smoothed {
@@ -118,33 +127,40 @@ impl Smoothed {
         v.wheelie = follow(v.wheelie, sample.wheelie(), inputs.wheelie_rate, dt);
         v.stoppie = follow(v.stoppie, sample.stoppie(), inputs.stoppie_rate, dt);
         v.speed_kmh = speed;
-        // The shift: back under acceleration, forward under braking, by the acceleration along the bike.
-        let acceleration = self.last_speed.map_or(0.0, |last| (sample.speed - last) / dt);
-        self.last_speed = Some(sample.speed);
-        self.shift = follow(self.shift, shift_target(acceleration, inertia), inertia.rate, dt);
+        // The shift: the rider's displacement from the physics, held to the ranges of the animation's inertia input.
+        let target = shift_target(sample.offset, inertia);
+        self.shift += (target - self.shift) * (1.0 - (-inertia.rate * dt).exp());
+        self.rotation = match sample.rotation.is_finite() {
+            true => sample.rotation,
+            false => Vec3::ZERO,
+        };
     }
 
     pub fn values(&self) -> Values {
         self.values
     }
 
-    /// The rider's displacement along the bike, metres, positive forward.
-    pub fn shift(&self) -> f32 {
+    /// The rider's displacement from his rest place in the car's axes (x forward, y left, z up), metres.
+    pub fn shift(&self) -> Vec3 {
         self.shift
+    }
+
+    /// His body's turn against the bike's: roll to the right, pitch nose up, yaw to the right (rad). The physics already
+    /// filters it (the rider's body is a spring and a damper), so it is not smoothed again.
+    pub fn rotation(&self) -> Vec3 {
+        self.rotation
     }
 }
 
-/// Where the rider's shift along the bike goes for the acceleration `a` (m/s^2, positive forward): back by up to the
-/// data's range (`min[0]`) as the acceleration reaches the full one, forward by up to `braking_m` as the braking does.
-pub fn shift_target(a: f32, inertia: &Inertia) -> f32 {
-    if inertia.full_acceleration <= f32::EPSILON || !a.is_finite() {
-        return 0.0;
+/// Where the rider's shift goes for the displacement `offset` of his centre of mass (the bike's physics axes: x right, y up,
+/// z forward, metres): the same vector in the car's axes (x forward, y left, z up), held to the range of the animation's
+/// inertia input (`inertia.min` to `inertia.max`, the blueprint's `InertiaDisplacement_RidingMin/Max`).
+pub fn shift_target(offset: Vec3, inertia: &Inertia) -> Vec3 {
+    if !offset.is_finite() {
+        return Vec3::ZERO;
     }
-    let share = (a / inertia.full_acceleration).clamp(-1.0, 1.0);
-    match share >= 0.0 {
-        true => share * inertia.min[0],
-        false => -share * inertia.braking_m,
-    }
+    let car = Vec3::new(offset.z, -offset.x, offset.y);
+    car.clamp(Vec3::from_array(inertia.min), Vec3::from_array(inertia.max))
 }
 
 #[cfg(test)]
@@ -160,8 +176,8 @@ mod tests {
             bone: "pelvis".into(),
             min: [-0.06, -0.15, -0.04],
             max: [0.0, 0.15, 0.2],
-            braking_m: 0.06,
-            full_acceleration: 10.0,
+            braking_m: 0.0,
+            full_acceleration: 0.0,
             rate: 4.0,
         }
     }
@@ -264,27 +280,52 @@ mod tests {
     }
 
     #[test]
-    fn acceleration_moves_the_rider_back_and_braking_forward_within_the_ranges() {
+    fn the_displacement_is_taken_into_the_cars_axes_and_held_to_the_ranges_of_the_data() {
         let inertia = inertia();
-        assert_eq!(shift_target(0.0, &inertia), 0.0);
-        assert!((shift_target(10.0, &inertia) + 0.06).abs() < 1e-6);
-        assert!((shift_target(50.0, &inertia) + 0.06).abs() < 1e-6, "held to the range");
-        assert!((shift_target(-5.0, &inertia) - 0.03).abs() < 1e-6);
-        assert!((shift_target(-50.0, &inertia) - 0.06).abs() < 1e-6);
-        assert_eq!(shift_target(f32::NAN, &inertia), 0.0);
-        // Over a run: speeding up leans the rider back, then braking sends him forward.
-        let mut smoothed = Smoothed::default();
-        let mut speed = 10.0;
-        for _ in 0..120 {
-            speed += 8.0 / 60.0;
-            smoothed.step(&RiderSample { speed, ..sample() }, &inputs(), &inertia, 1.0 / 60.0);
+        assert_eq!(shift_target(Vec3::ZERO, &inertia), Vec3::ZERO);
+        // The physics axes are x right, y up, z forward: back 3 cm, 10 cm to the right, 5 cm up.
+        let shift = shift_target(Vec3::new(0.10, 0.05, -0.03), &inertia);
+        assert!(shift.distance(Vec3::new(-0.03, -0.10, 0.05)) < 1e-6, "{shift:?}");
+        // The ranges: forward from -6 cm to 0, sideways 15 cm either way, up from -4 cm to 20 cm.
+        assert_eq!(shift_target(Vec3::new(0.0, 0.0, 0.2), &inertia).x, 0.0, "forward is not asked for");
+        assert_eq!(shift_target(Vec3::new(0.0, 0.0, -0.2), &inertia).x, -0.06);
+        assert_eq!(shift_target(Vec3::new(-0.5, 0.0, 0.0), &inertia).y, 0.15);
+        assert_eq!(shift_target(Vec3::new(0.5, 0.0, 0.0), &inertia).y, -0.15);
+        assert_eq!(shift_target(Vec3::new(0.0, -0.3, 0.0), &inertia).z, -0.04);
+        assert_eq!(shift_target(Vec3::new(0.0, 0.9, 0.0), &inertia).z, 0.2);
+        assert_eq!(shift_target(Vec3::splat(f32::NAN), &inertia), Vec3::ZERO);
+    }
+
+    #[test]
+    fn the_turn_of_the_body_is_passed_on_as_the_physics_has_it() {
+        let turned = RiderSample { rotation: Vec3::new(0.1, -0.05, 0.02), ..sample() };
+        assert_eq!(run(&turned, 0.1).rotation(), Vec3::new(0.1, -0.05, 0.02));
+        let bad = RiderSample { rotation: Vec3::splat(f32::NAN), ..sample() };
+        assert_eq!(run(&bad, 0.1).rotation(), Vec3::ZERO);
+    }
+
+    #[test]
+    fn the_shift_is_the_mirror_image_for_the_other_side() {
+        let inertia = inertia();
+        let right = shift_target(Vec3::new(0.08, -0.02, -0.01), &inertia);
+        let left = shift_target(Vec3::new(-0.08, -0.02, -0.01), &inertia);
+        assert!((right.y + left.y).abs() < 1e-7);
+        assert_eq!((right.x, right.z), (left.x, left.z));
+    }
+
+    #[test]
+    fn the_shift_follows_the_riders_place_at_the_rate_of_the_data() {
+        let hanging = RiderSample { offset: Vec3::new(0.1, -0.02, -0.04), ..sample() };
+        let after_a_tick = run(&hanging, 1.0 / 60.0).shift();
+        let settled = run(&hanging, 3.0).shift();
+        assert!(settled.distance(Vec3::new(-0.04, -0.1, -0.02)) < 1e-4, "{settled:?}");
+        assert!(after_a_tick.length() > 0.0 && after_a_tick.length() < settled.length() * 0.2, "{after_a_tick:?}");
+        // Back in its place he comes home.
+        let mut smoothed = run(&hanging, 3.0);
+        for _ in 0..180 {
+            smoothed.step(&sample(), &inputs(), &inertia(), 1.0 / 60.0);
         }
-        assert!(smoothed.shift() < -0.02, "{}", smoothed.shift());
-        for _ in 0..120 {
-            speed -= 8.0 / 60.0;
-            smoothed.step(&RiderSample { speed, ..sample() }, &inputs(), &inertia, 1.0 / 60.0);
-        }
-        assert!(smoothed.shift() > 0.02, "{}", smoothed.shift());
+        assert!(smoothed.shift().length() < 1e-3);
     }
 
     #[test]

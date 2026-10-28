@@ -21,6 +21,8 @@ mod presentation;
 #[cfg(test)]
 mod presentation_tests;
 mod remap;
+#[cfg(test)]
+mod rider_weight_tests;
 mod slots;
 mod snapshot;
 mod split;

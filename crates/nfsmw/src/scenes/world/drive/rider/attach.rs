@@ -62,21 +62,22 @@ pub struct Inputs {
     pub stoppie_rate: f32,
 }
 
-/// The rider's body shifting under acceleration and braking.
+/// The rider's body shifting with the physics: his displacement from the rest place, held to a range and smoothed.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Inertia {
-    /// The rider bone that moves (it carries the legs, the spine and so the arms and head).
+    /// The rider bone that moves (it carries the legs, the spine and so the arms and head) and that his body's turning turns.
     pub bone: String,
-    /// The range of the displacement in the bike's axes (forward, left, up), metres. The forward minimum is the shift
-    /// back under full acceleration.
+    /// The range of the displacement in the car's axes (forward, left, up), metres: the animation's `InertiaDisplacement`
+    /// input is held to it.
     pub min: [f32; 3],
-    /// The upper end of the range. Not used yet: the body shifts along the bike only, and the forward maximum (0) is the
-    /// rest place.
-    #[allow(dead_code)]
     pub max: [f32; 3],
-    /// The shift forward under full braking, metres.
+    /// Unused since the shift follows the physics (it was a modelling choice for a body without one): files written before
+    /// that still carry them.
+    #[serde(default)]
+    #[allow(dead_code)]
     pub braking_m: f32,
-    /// The acceleration (m/s^2) that gives the full shift.
+    #[serde(default)]
+    #[allow(dead_code)]
     pub full_acceleration: f32,
     /// The rate (1/s) at which the shift follows.
     pub rate: f32,

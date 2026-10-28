@@ -23,6 +23,7 @@ mod retirement;
 mod simple_chassis;
 mod timestep;
 mod traffic_placement;
+mod tricks;
 
 fn sim() -> CarSim {
     let spec = VehicleSpec::example();
