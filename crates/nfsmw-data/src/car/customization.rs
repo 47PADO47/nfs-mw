@@ -147,6 +147,9 @@ pub struct Catalog {
     pub number_choices: [Vec<Choice>; 2],
     /// A mod car whose rim paint works on the wheels it ships with, with or without aftermarket rims.
     pub custom_rim_paint: bool,
+    /// A mod car whose manifest has a `[customization.plate]`: it wears a licence plate the garage can change. False for a
+    /// stock car and for a mod car with no plate table.
+    pub plate: bool,
     /// The plate designs a mod car offers, in the order of its index; empty for a car without any.
     pub plate_designs: Vec<PlateDesignChoice>,
 }

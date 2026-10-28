@@ -12,7 +12,9 @@ and a `[customization.plate]` table with the text, the 9 x 4 layout, 8 slots and
 the cars keep the sheet as drawn (`ABCDEFGH`) and can still be retyped. In the garage, **Visual, License Plate** is a keyboard
 prompt (letters and digits the sheet has, up to 8; empty goes back to the car's text); the text is kept per car and profile in
 `plates.toml` beside the save, which the original game's saves never see ([car-customization.md](../modding/car-customization.md#license-plates)).
-`nfsmw view-car <ID> --part plate=TEXT` shows a text. Not checked in a window: the drawing of a typed text on the car.
+`nfsmw view-car <ID> --part plate=TEXT` shows a text. The garage lists License Plate and Plate Design only for a car that has the
+plate table (and designs), never for a stock car. The F6 garage (Appearance, License plate) and the console commands `plate` and
+`plate-design` change the plate of the car being driven for the session only. Not checked in a window: the drawing of a typed text on the car.
 
 **Plate designs.** The 2012 game's 666 Autolog designs (469 pictures of 512 x 256: a name, a game pack and a picture each; no category, country
 or glyph colour in the data) are written **once** for all cars, as `files/PLATES/MW2012/DESIGNS.TOML` (the index) and `DESIGNS.BIN`

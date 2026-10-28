@@ -2,7 +2,7 @@
 
 use super::{Page, Section};
 use crate::garage::{Model, menu_rows::Row};
-use nfsmw_data::car::customization::Category as Part;
+use nfsmw_data::car::customization::{Catalog, Category as Part};
 use nfsmw_data::car::physics::PerformanceCategory as Hardware;
 
 mod availability;
@@ -176,19 +176,7 @@ fn visual(model: &Model, backroom: bool) -> Vec<Item> {
     ));
     if !backroom {
         result.push(Item::page("Numbers", 0x45a1_c644, Page::Numbers, Row::Number(0).enabled(model)));
-        // A mod car with a licence plate it can change (the page has no icon of its own: it takes the Numbers one).
-        let plated = |car: &crate::garage::Car| {
-            nfsmw_data::car::mods::custom::of(&car.folder).is_some_and(|own| own.plate.is_some())
-        };
-        if model.selected().is_some_and(plated) {
-            result.push(Item::page("License Plate", 0x45a1_c644, Page::Plate, true));
-        }
-        // A plate that offers designs: the background behind its glyphs (it takes the Numbers icon as well).
-        let designed =
-            |car: &crate::garage::Car| car.parts.as_ref().is_some_and(|catalog| !catalog.plate_designs.is_empty());
-        if model.selected().is_some_and(designed) {
-            result.push(Item::page("Plate Design", 0x45a1_c644, Page::PlateDesign, true));
-        }
+        result.extend(plate_pages(model.selected().and_then(|car| car.parts.as_deref())));
     }
     result.push(Item::page(
         "Custom Gauges",
@@ -199,6 +187,18 @@ fn visual(model: &Model, backroom: bool) -> Vec<Item> {
         Page::Choices { row: Row::Gauge, backroom },
         true,
     ));
+    result
+}
+
+/// The licence plate entries of the Visual category, from the car's catalogue: "License Plate" only for a car whose manifest has
+/// a `[customization.plate]`, and "Plate Design" only when that plate also offers designs. A stock car lists neither. The pages
+/// have no icon of their own: they take the Numbers one.
+fn plate_pages(catalog: Option<&Catalog>) -> Vec<Item> {
+    let Some(catalog) = catalog.filter(|catalog| catalog.plate) else { return Vec::new() };
+    let mut result = vec![Item::page("License Plate", 0x45a1_c644, Page::Plate, true)];
+    if !catalog.plate_designs.is_empty() {
+        result.push(Item::page("Plate Design", 0x45a1_c644, Page::PlateDesign, true));
+    }
     result
 }
 
@@ -439,3 +439,7 @@ pub(super) fn positions(model: &Model, zone: usize) -> usize {
     let body = model.draft.parts.parts[Part::Body as usize].or(catalog.stock[Part::Body as usize]);
     body.and_then(|body| catalog.decals[zone].body_positions.get(&body)).copied().unwrap_or(0)
 }
+
+#[cfg(test)]
+#[path = "choices/plate_tests.rs"]
+mod plate_tests;

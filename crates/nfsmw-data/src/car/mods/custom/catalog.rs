@@ -47,6 +47,7 @@ pub fn catalog(dir: &GameDir, folder: &str, custom: &Customization) -> Result<Ca
     vinyls(dir, folder, custom, &mut catalog)?;
     super::livery::offer(dir, folder, custom, &mut catalog)?;
     if let Some(plate) = &custom.plate {
+        catalog.plate = true;
         catalog.plate_designs = super::plate_design::offered(dir, folder, plate);
     }
     for list in [Category::Wheels, Category::Spoiler, Category::Roof, Category::WindowTint, Category::Vinyl] {

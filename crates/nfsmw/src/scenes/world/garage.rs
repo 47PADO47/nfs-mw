@@ -19,6 +19,7 @@ pub(super) mod command;
 mod names;
 mod pause_tuning;
 mod persistence;
+pub(super) mod plate_command;
 mod quote;
 mod records;
 pub(super) mod session;
