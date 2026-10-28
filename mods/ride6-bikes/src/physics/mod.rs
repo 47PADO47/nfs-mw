@@ -16,15 +16,18 @@ pub mod damping;
 pub mod defaults;
 pub mod engine;
 pub mod node;
-pub mod shift;
+pub mod rider_table;
 pub mod steering;
 pub mod suspension;
+pub mod tcs;
+pub mod thermal;
 pub mod toml_text;
 pub mod transmission;
 pub mod units;
 pub mod vehicle;
 pub mod wheel;
 pub mod wheelie;
+pub mod wheelie_help;
 
 use anyhow::Result;
 
@@ -97,17 +100,20 @@ impl Geometry {
 pub fn bike_table(vehicle: &Vehicle, geometry: &Geometry) -> Result<(String, Vec<String>)> {
     let mut t = Toml::new();
     chassis::write(&mut t, vehicle, geometry)?;
+    rider_table::write(&mut t, vehicle)?;
     for side in [Side::Front, Side::Rear] {
         wheel::write(&mut t, vehicle, side, geometry.tyre(side))?;
+        thermal::write(&mut t, vehicle, side)?;
     }
     for side in [Side::Front, Side::Rear] {
         suspension::write(&mut t, vehicle, side)?;
     }
     let engine = engine::EngineData::read(vehicle)?;
     engine::write(&mut t, &engine);
-    transmission::write(&mut t, vehicle, &engine)?;
+    transmission::write(&mut t, vehicle)?;
     brakes::write(&mut t, vehicle)?;
     steering::write(&mut t, vehicle, geometry)?;
     wheelie::write(&mut t, vehicle)?;
+    tcs::write(&mut t, vehicle)?;
     Ok(t.into_parts())
 }

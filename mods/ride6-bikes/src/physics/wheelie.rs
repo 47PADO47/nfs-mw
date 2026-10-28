@@ -13,6 +13,7 @@ use super::steering::fall_lean_rad;
 use super::toml_text::Toml;
 use super::units::{metres_per_second, radians};
 use super::vehicle::Vehicle;
+use super::wheelie_help;
 
 /// An `FVector2D` of degrees as radians.
 fn radians_pair(range: [f64; 2]) -> [f64; 2] {
@@ -23,8 +24,10 @@ pub fn write(t: &mut Toml, vehicle: &Vehicle) -> Result<()> {
     let Some(control) = vehicle.element("WheelieControl")? else { return Ok(()) };
     let handler = handler(vehicle)?;
     t.table("bike.wheelie");
-    if let Some(help) = vehicle.element("RiderHelp")? {
-        rider_help(t, &help)?;
+    let help = vehicle.element("RiderHelp")?;
+    if let Some(help) = &help {
+        rider_help(t, help)?;
+        wheelie_help::write(t, vehicle, help)?;
     }
     let (wheelie_lean, stoppie_lean) = (lean_tuning(&handler, "Wheelie")?, lean_tuning(&handler, "Stoppie")?);
     if wheelie_lean.is_none() || stoppie_lean.is_none() {
@@ -89,6 +92,10 @@ fn pitch(t: &mut Toml, vehicle: &Vehicle, table: &str, set: &Pitch<'_>, inert_li
     t.num("acceleration", params.f_or("Acceleration", default::ACCELERATION)?);
     t.num("acceleration_time_s", params.f_or("AccelerationTime", default::ACCELERATION_TIME)?);
     t.nums("ground_range_m", &params.xy_or("GroundDistanceFactorRange", default::GROUND_RANGE)?);
+    t.num("terrain_influence", params.f_or("TerrainInclinationInfluence", default::TERRAIN_INFLUENCE)?);
+    let filtered = params.flag_or("bFilterTargetAngle", default::FILTER_TARGET)?;
+    let timescale = params.f_or("timescale", default::FILTER_TIMESCALE)?;
+    t.num("target_filter_timescale", if filtered { timescale } else { 0.0 });
     match set.lean {
         Some((limit, range)) => {
             t.num("lean_limit_rad", radians(limit));

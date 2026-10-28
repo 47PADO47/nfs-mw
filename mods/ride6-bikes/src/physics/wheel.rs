@@ -44,6 +44,8 @@ pub fn write(t: &mut Toml, vehicle: &Vehicle, side: Side, geometry: &TyreGeometr
             row.f("RollingResistanceSqrVelocity")?,
         ],
     );
+    t.num("rolling_slip", row.f("RollingResistanceSlip")?);
+    t.num("rolling_slip_linearity", row.f("RollingResistanceSlipLinearity")?);
     t.num("lateral_grip_limit", wheel.f("LateralGripLimit")?);
     t.num("tire_stiffness_n_per_m", wheel.f("TireStiffness")?);
     t.num("max_tire_deformation_m", metres(wheel.f("MaxTireDeformation")?));

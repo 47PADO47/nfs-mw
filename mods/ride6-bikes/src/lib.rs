@@ -13,19 +13,28 @@
 #![cfg_attr(test, recursion_limit = "512")]
 
 pub mod bake;
+pub mod batch;
 pub mod bike_table;
 pub mod build;
+pub mod cli;
+pub mod config;
 pub mod exports;
 pub mod fork;
 pub mod front_end;
 pub mod glb;
+pub mod job;
 pub mod layout;
 pub mod manifest;
 pub mod manifest_sound;
+pub mod naming;
+mod native;
 pub mod partfile;
 pub mod physics;
+pub mod pipeline;
 pub mod rider;
 pub mod shading;
 pub mod solids;
 pub mod sound;
+pub mod stamp;
+pub mod summary;
 pub mod textures;

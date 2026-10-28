@@ -134,6 +134,43 @@ impl Vehicle {
             if let Some(model) = model {
                 self.ensure(&model, tyre_tables)?;
             }
+            self.complete_sections(&path, tyre_tables)?;
+        }
+        Ok(())
+    }
+
+    /// Load the tread strips of a tyre, and the curves they link, that the file does not link from `tyre_tables`.
+    fn complete_sections(&mut self, tyre: &str, tyre_tables: Option<&Path>) -> Result<()> {
+        let sections: Vec<String> = self
+            .linked
+            .get(&key(tyre))
+            .and_then(|entry| entry.get("Properties"))
+            .and_then(|p| p.get("TireSections"))
+            .and_then(Value::as_array)
+            .map(|list| {
+                list.iter().filter_map(|s| s.get("ObjectPath").and_then(Value::as_str).map(str::to_owned)).collect()
+            })
+            .unwrap_or_default();
+        for section in sections {
+            self.ensure(&section, tyre_tables)?;
+            let curves: Vec<String> = self
+                .linked
+                .get(&key(&section))
+                .and_then(|entry| entry.get("Properties"))
+                .and_then(Value::as_object)
+                .map(|props| {
+                    props
+                        .values()
+                        .filter_map(|v| {
+                            v.get("ExternalCurve").and_then(|c| c.get("ObjectPath")).and_then(Value::as_str)
+                        })
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default();
+            for curve in curves {
+                self.ensure(&curve, tyre_tables)?;
+            }
         }
         Ok(())
     }

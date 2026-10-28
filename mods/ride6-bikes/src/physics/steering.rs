@@ -64,6 +64,12 @@ pub fn write(t: &mut Toml, vehicle: &Vehicle, geometry: &Geometry) -> Result<()>
     t.num("speed_direction_rad", radians(handler.f("FallSpeedDirAngleLimit")?));
     t.num("angular_speed", handler.f("FallAngularSpeedLimit")?);
     t.num("min_speed_mps", metres_per_second(handler.f("FallMinSpeed")?));
+    if handler.flag_or("BlockFallActive", false)? && handler.f("BlockFallLeanLimitRatio")? > 0.0 {
+        t.num("block_ratio", handler.f("BlockFallLeanLimitRatio")?);
+        t.num("block_min_speed_mps", metres_per_second(handler.f("BlockFallLeanLimitMinSpeedKmh")?));
+        t.num("block_time_s", handler.f("BlockFallTimeLimit")?);
+        t.num("block_wait_s", handler.f("BlockFallReEnableWaitTimeLimit")?);
+    }
     Ok(())
 }
 

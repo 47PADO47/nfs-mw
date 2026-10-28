@@ -17,6 +17,7 @@ use crate::textures::{Palette, Picture, TexStore};
 /// Bit of the texture info `Flags` byte that makes a texture's surfaces two-sided.
 const TWO_SIDED: u8 = 0x02;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Options {
     /// The longest side of the body's textures, pixels; the wheels' are half of it and the discs' a quarter.
     pub max_texture: u32,

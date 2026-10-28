@@ -46,7 +46,19 @@ fn leverage(vehicle: &Vehicle, s: &Node<'_>) -> Result<Option<Vec<[f64; 2]>>> {
     let Some(node) = s.get("SuspensionLeverageRatio") else { return Ok(None) };
     let Some(curve) = runtime_curve(vehicle, &node)? else { return Ok(None) };
     let points: Vec<[f64; 2]> = curve.polyline().into_iter().map(|[share, ratio]| [share, ratio.max(1.0)]).collect();
-    Ok(Some(simplify(points, MAX_LEVERAGE_POINTS)))
+    Ok(Some(simplify(clip_to_travel(points), MAX_LEVERAGE_POINTS)))
+}
+
+/// The curve up to the full travel (share 1): a curve of the data may run past it (a Superveloce's to 2.06), and the travel
+/// ends at 1, so the rest is never read. The point at 1 is interpolated on the segment that crosses it.
+fn clip_to_travel(points: Vec<[f64; 2]>) -> Vec<[f64; 2]> {
+    let Some(past) = points.iter().position(|point| point[0] > 1.0) else { return points };
+    let mut clipped = points[..past].to_vec();
+    let Some(before) = clipped.last().copied().filter(|before| before[0] < 1.0) else { return clipped };
+    let after = points[past];
+    let along = (1.0 - before[0]) / (after[0] - before[0]);
+    clipped.push([1.0, before[1] + along * (after[1] - before[1])]);
+    clipped
 }
 
 /// The progressive term of the main spring: written only when its factor is not 0 (0 is a linear spring).
@@ -113,4 +125,23 @@ fn coupling(t: &mut Toml, vehicle: &Vehicle, name: &str, s: &Node<'_>) -> Result
         t.nums(&format!("{key}_range"), &range);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clip_to_travel;
+
+    #[test]
+    fn a_curve_past_the_travel_ends_at_the_travel() {
+        let clipped = clip_to_travel(vec![[0.0, 2.0], [0.5, 1.8], [2.0, 1.2]]);
+        assert_eq!(clipped.len(), 3);
+        assert_eq!(clipped[2][0], 1.0);
+        assert!((clipped[2][1] - 1.6).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_curve_inside_the_travel_is_kept() {
+        let points = vec![[0.0, 2.0], [1.0, 1.5]];
+        assert_eq!(clip_to_travel(points.clone()), points);
+    }
 }

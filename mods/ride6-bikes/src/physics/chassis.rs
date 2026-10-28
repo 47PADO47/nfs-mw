@@ -86,5 +86,7 @@ fn rider(t: &mut Toml, vehicle: &Vehicle) -> Result<()> {
         bail!("{}: the deprecated input rates are not supported", weight.path());
     }
     t.num("rider_weight_rate", weight.f("InputRate")?);
+    t.num("rider_k_n_per_m", rider.f_or("RiderK", defaults::RIDER_K)?);
+    t.num("rider_damp", rider.f_or("RiderDamp", defaults::RIDER_DAMP)?);
     Ok(())
 }

@@ -75,7 +75,27 @@ pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'
 }
 
 /// Write the mod's files into `mod_dir`: `mod.toml`, `cars/<id>.toml` and `files/CARS/<ID>/`.
-pub fn write(
+pub fn write(mod_dir: &Path, folder: &str, names: (&str, &str), built: &Built, tables: &Tables<'_>) -> Result<()> {
+    write_car(mod_dir, folder, names, built, tables)?;
+    write_mod_toml(mod_dir)
+}
+
+/// Write one car: `files/CARS/<ID>/` and `cars/<id>.toml`, not `mod.toml` (a batch writes that once, so that cars written
+/// side by side by several threads do not race on it).
+pub fn write_car(mod_dir: &Path, folder: &str, names: (&str, &str), built: &Built, tables: &Tables<'_>) -> Result<()> {
+    let id = folder.to_ascii_uppercase();
+    let car_dir = mod_dir.join("files").join("CARS").join(&id);
+    std::fs::create_dir_all(&car_dir).with_context(|| format!("creating {}", car_dir.display()))?;
+    for (file, bytes) in
+        [("GEOMETRY.BIN", &built.geometry), ("TEXTURES.BIN", &built.textures), ("BOUNDS.BIN", &built.bounds)]
+    {
+        std::fs::write(car_dir.join(file), bytes).with_context(|| format!("writing {file}"))?;
+    }
+    write_car_manifest(mod_dir, folder, names, built, tables)
+}
+
+/// Write `cars/<id>.toml` only (the car's files are not touched).
+pub fn write_car_manifest(
     mod_dir: &Path,
     folder: &str,
     (name, manufacturer): (&str, &str),
@@ -83,18 +103,35 @@ pub fn write(
     tables: &Tables<'_>,
 ) -> Result<()> {
     let id = folder.to_ascii_uppercase();
-    let car_dir = mod_dir.join("files").join("CARS").join(&id);
-    std::fs::create_dir_all(&car_dir).with_context(|| format!("creating {}", car_dir.display()))?;
     std::fs::create_dir_all(mod_dir.join("cars"))?;
-    for (file, bytes) in
-        [("GEOMETRY.BIN", &built.geometry), ("TEXTURES.BIN", &built.textures), ("BOUNDS.BIN", &built.bounds)]
-    {
-        std::fs::write(car_dir.join(file), bytes).with_context(|| format!("writing {file}"))?;
-    }
     let manifest = mod_dir.join("cars").join(format!("{}.toml", id.to_ascii_lowercase()));
     std::fs::write(manifest, car_toml(name, manufacturer, built, tables))?;
-    std::fs::write(mod_dir.join("mod.toml"), MOD_TOML)?;
     Ok(())
+}
+
+/// Write the content-only `mod.toml`, unless the folder has one already: the mod's own folder has a `mod.toml` that declares
+/// its native library (`mods/ride6-bikes/mod.toml`), which the importer must not replace.
+pub fn write_mod_toml(mod_dir: &Path) -> Result<()> {
+    std::fs::create_dir_all(mod_dir)?;
+    let file = mod_dir.join("mod.toml");
+    if file.exists() {
+        return Ok(());
+    }
+    std::fs::write(file, MOD_TOML)?;
+    Ok(())
+}
+
+/// Write `mod.toml` and `cars/<id>.toml` only (the car's files are not touched): what `remanifest` does when the physics
+/// data is converted again.
+pub fn write_manifest(
+    mod_dir: &Path,
+    folder: &str,
+    names: (&str, &str),
+    built: &Built,
+    tables: &Tables<'_>,
+) -> Result<()> {
+    write_car_manifest(mod_dir, folder, names, built, tables)?;
+    write_mod_toml(mod_dir)
 }
 
 #[cfg(test)]

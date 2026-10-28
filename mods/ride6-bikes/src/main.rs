@@ -12,11 +12,10 @@ use anyhow::Result;
 use clap::Parser;
 
 use ride6_bikes::bake::Options;
-use ride6_bikes::bike_table;
-use ride6_bikes::build::build;
-use ride6_bikes::manifest::{self, Tables};
-use ride6_bikes::manifest_sound;
+use ride6_bikes::cli;
+use ride6_bikes::naming;
 use ride6_bikes::partfile::PartTable;
+use ride6_bikes::pipeline::{Request, import_bike};
 use ride6_bikes::sound;
 
 #[derive(Parser)]
@@ -26,9 +25,10 @@ struct Args {
     bike: PathBuf,
     /// The mod folder to write: `mod.toml`, `cars/` and `files/CARS/`.
     mod_dir: PathBuf,
-    /// The car's folder name under CARS/ (upper case, up to 32 letters, digits, `_` or `-`).
-    #[arg(long, default_value = "KTM450")]
-    car: String,
+    /// The car's folder name under CARS/ (upper case, up to 32 letters, digits, `_` or `-`). Default: derived from the
+    /// vehicle id by the rule of `ride6-bike-import ids` (`docs/modding/ride6-bikes-batch.md`).
+    #[arg(long)]
+    car: Option<String>,
     /// The garage name of the car (default: the vehicle id with spaces).
     #[arg(long)]
     name: Option<String>,
@@ -61,55 +61,49 @@ struct Args {
 
 fn run(args: &Args) -> Result<()> {
     let table = PartTable::read(&args.bike)?;
-    let name = args.name.clone().unwrap_or_else(|| table.vehicle.replace(['_', '-'], " "));
-    let manufacturer =
-        args.manufacturer.clone().unwrap_or_else(|| table.vehicle.split('_').next().unwrap_or("").to_owned());
+    let car = args.car.clone().unwrap_or_else(|| naming::default_id(&table.vehicle));
     let options = Options {
         max_texture: args.max_texture,
         ao_floor: args.ao_floor.clamp(0.0, 1.0),
         normal_maps: args.normal_maps,
         flip_green: args.flip_green,
     };
-    let built = build(&args.bike, &args.car, options)?;
-    let bike = bike_table::read(&args.physics, args.tyre_tables.as_deref(), &table.vehicle, &built)?;
-    let sound_tables = match &args.sound_dir {
-        Some(dir) => Some(manifest_sound::read_tables(dir, &args.car)?),
-        None => None,
+    let request = Request {
+        bike: &args.bike,
+        mod_dir: &args.mod_dir,
+        car: &car,
+        name: args.name.as_deref(),
+        manufacturer: args.manufacturer.as_deref(),
+        options,
+        physics: &args.physics,
+        tyre_tables: args.tyre_tables.as_deref(),
+        sound_dir: args.sound_dir.as_deref(),
+        sound_required: true,
+        write_mod_toml: true,
     };
-    let tables = Tables { bike: &bike, sound: sound_tables.as_deref() };
-    manifest::write(&args.mod_dir, &args.car, (&name, &manufacturer), &built, &tables)?;
-    if let Some(dir) = &args.sound_dir {
-        let copied = manifest_sound::copy_files(dir, &args.mod_dir, &args.car)?;
-        println!("{}: sound tables joined to the manifest, {copied} sound files copied", args.car);
+    let outcome = import_bike(&request)?;
+    if let Some(copied) = outcome.sound_files {
+        println!("{car}: sound tables joined to the manifest, {copied} sound files copied");
     }
-    for note in &bike.notes {
-        println!("{}: note: {note}", args.car);
+    for note in &outcome.notes {
+        println!("{car}: note: {note}");
     }
-    println!(
-        "{}: {} triangles in the body, bounds half dimensions {:?} m, front hub {:?} r {:.3}, rear hub {:?} r {:.3}, \
-         {} bytes of geometry, {} of textures",
-        args.car,
-        built.triangles,
-        built.half,
-        built.front.hub,
-        built.front.radius,
-        built.rear.hub,
-        built.rear.radius,
-        built.geometry.len(),
-        built.textures.len()
-    );
-    println!("{}: front end (the finest level): {}", args.car, built.front_end);
+    println!("{car}: {}", outcome.summary);
+    println!("{car}: front end (the finest level): {}", outcome.front_end);
     Ok(())
 }
 
 /// The sound commands are words in front of their own arguments: `ride6-bike-import sound <options>` builds a bike's
 /// sound files and manifest tables, `ride6-bike-import extract-bnk <bank> <folder>` splits a sound bank
-/// (`docs/modding/ride6-bikes-sound.md`). Anything else is the importer proper.
+/// (`docs/modding/ride6-bikes-sound.md`), `ids` names a set of bikes and `remanifest` converts a bike's physics again
+/// (`docs/modding/ride6-bikes-batch.md`). Anything else is the importer proper.
 fn sound_command(argv: &[String]) -> Option<Result<()>> {
     let rest = argv.get(2..)?;
     match argv.get(1)?.as_str() {
         "sound" => Some(sound::cli::run(rest)),
         "extract-bnk" => Some(sound::cli::extract_bnk(rest)),
+        "ids" => Some(cli::ids(rest)),
+        "remanifest" => Some(cli::remanifest(rest)),
         _ => None,
     }
 }

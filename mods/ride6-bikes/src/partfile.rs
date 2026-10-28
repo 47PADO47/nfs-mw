@@ -94,6 +94,9 @@ pub struct Material {
 
 pub struct PartTable {
     pub vehicle: String,
+    /// The physics asset the game's `PHYSICS` table names for the bike (`/PhysicsRide6/.../KTM_450SMR_2022.KTM_450SMR_2022`):
+    /// the physics dump's file is found by its name, which does not always repeat the vehicle id. Left out by older files.
+    pub physics_asset: Option<String>,
     pub parts: Vec<Part>,
     pub materials: HashMap<String, Material>,
     /// Tyre size codes (`120-60-17`) of the `front` and `back` wheel.
@@ -226,6 +229,14 @@ impl Material {
 }
 
 impl PartTable {
+    /// The name the physics dump's file for this bike is looked up by: the physics asset's own name when the file has it, else
+    /// the vehicle id.
+    pub fn physics_name(&self) -> String {
+        let Some(asset) = &self.physics_asset else { return self.vehicle.clone() };
+        let last = asset.rsplit('/').next().unwrap_or(asset);
+        last.split('.').next().unwrap_or(last).to_owned()
+    }
+
     pub fn parse(text: &str) -> Result<Self> {
         let doc: Value = serde_json::from_str(text).context("parts.json is not JSON")?;
         let schema = doc.get("schema").and_then(Value::as_u64).unwrap_or(0);
@@ -233,6 +244,7 @@ impl PartTable {
             bail!("parts.json schema {schema} is not supported (this importer reads schema 1)");
         }
         let vehicle = string(&doc, "vehicle").context("no vehicle")?;
+        let physics_asset = string(&doc, "physics_asset");
         let parts = doc
             .get("parts")
             .and_then(Value::as_array)
@@ -256,7 +268,7 @@ impl PartTable {
             .map(|map| map.iter().filter_map(|(side, size)| Some((side.clone(), size.as_str()?.to_owned()))).collect())
             .unwrap_or_default();
         let front_end = read_rules(doc.get("front_end"));
-        Ok(Self { vehicle, parts, materials, tyre_sizes, bones, front_end })
+        Ok(Self { vehicle, physics_asset, parts, materials, tyre_sizes, bones, front_end })
     }
 
     pub fn read(dir: &Path) -> Result<Self> {
@@ -307,6 +319,18 @@ mod tests {
         "mat_t": {"blend_mode": "BLEND_Masked", "clip": 0.3333, "tex": {"BaseColorOpacity - Texture": "/Game/x/tyre_d.0"}, "switch": {"BaseColorOpacity - Source": true}}
       }
     }"#;
+
+    #[test]
+    fn the_physics_file_is_looked_up_by_the_assets_name_when_the_table_has_one() {
+        let table = PartTable::parse(SAMPLE).unwrap();
+        assert_eq!(table.physics_name(), "TEST_BIKE");
+        let text = SAMPLE.replacen(
+            "\"vehicle\": \"TEST_BIKE\",",
+            "\"vehicle\": \"TEST_BIKE\", \"physics_asset\": \"/PhysicsRide6/Physics/V/KTM/KTM_450SMR_2022.KTM_450SMR_2022\",",
+            1,
+        );
+        assert_eq!(PartTable::parse(&text).unwrap().physics_name(), "KTM_450SMR_2022");
+    }
 
     #[test]
     fn a_table_reads_parts_materials_and_bones() {

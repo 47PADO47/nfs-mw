@@ -28,6 +28,15 @@ impl Toml {
         let _ = writeln!(self.text, "[{name}]");
     }
 
+    /// A `[[name]]` header: a new element of an array of tables.
+    pub fn table_array(&mut self, name: &str) {
+        let _ = writeln!(self.text, "\n[[{name}]]");
+    }
+
+    pub fn flag(&mut self, key: &str, value: bool) {
+        let _ = writeln!(self.text, "{key} = {value}");
+    }
+
     /// A comment line.
     pub fn comment(&mut self, line: &str) {
         let _ = writeln!(self.text, "# {line}");
