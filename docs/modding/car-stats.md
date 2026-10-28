@@ -177,7 +177,7 @@ The [2012 mod](../../mods/nfsmw-2012-content/README.md) writes a `[stats]` table
 the torque curve, the gearbox, the drive layout, the tyres' peak grip, the brake torque, the design top speed and the nitrous
 strength. It leaves out what the 2012 data gives in units that are not decoded (springs, dampers, steering, downforce, the
 handbrake, gear efficiency, engine braking), so those take the generic values above. It also writes the [drift keys](#the-drift-keys)
-from the car's `DriftBehaviour` (inert unless the "2012 drifting" setting turns the assist on).
+from the car's `DriftBehaviour` (inert unless a mod turns the assist on, as the 2012 content mod does for its own cars only).
 
 **What was not verified.** Several meanings in the 2012 files are marked **[unconfirmed]** in
 [chameleon-vehicle-stats.md](../formats/chameleon-vehicle-stats.md): the torque spline's interpolation, the differential

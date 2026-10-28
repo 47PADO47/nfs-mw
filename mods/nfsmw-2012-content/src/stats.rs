@@ -26,6 +26,10 @@ const MASS: (f32, f32) = (200.0, 40_000.0);
 const GRIP: (f32, f32) = (0.3, 3.0);
 const BRAKE: (f32, f32) = (100.0, 20_000.0);
 const TORQUE: (f32, f32) = (0.0, 6_000.0);
+/// The range of a forward gear ratio, the reverse ratio and the final drive, and the most forward gears.
+const GEAR_RATIO: (f32, f32) = (0.2, 10.0);
+const RATIO: (f32, f32) = (0.5, 10.0);
+const MAX_GEARS: usize = 10;
 
 /// A car's stats in the manifest's units and keys.
 #[derive(Debug, Clone, PartialEq)]
@@ -89,9 +93,9 @@ impl ImportedStats {
             idle_rpm: lowest.max(IDLE_FLOOR_RPM),
             redline_rpm: redline,
             torque_curve: sample_curve(car),
-            gear_ratios: car.gear_ratios.clone(),
-            reverse_ratio: car.reverse_ratio,
-            final_drive: car.final_drive,
+            gear_ratios: valid_gears(&car.gear_ratios),
+            reverse_ratio: car.reverse_ratio.clamp(RATIO.0, RATIO.1),
+            final_drive: car.final_drive.clamp(RATIO.0, RATIO.1),
             drive,
             front_torque_share: share,
             diff_lock: [car.differentials[1].clamp(0.0, 1.0), car.differentials[3].clamp(0.0, 1.0)],
@@ -176,6 +180,26 @@ impl ImportedStats {
 pub(crate) fn number(value: f32) -> String {
     let rounded = (value * 10_000.0).round() / 10_000.0;
     format!("{rounded:?}")
+}
+
+/// The forward gears the game's gearbox accepts out of the bundle's: finite ratios inside the game's range, each strictly
+/// lower than the gear before it (a gear that is not is left out), at most [`MAX_GEARS`]. The table is refused whole when its
+/// gears do not fall, and a car with no gear in it would sit in neutral.
+pub(crate) fn valid_gears(ratios: &[f32]) -> Vec<f32> {
+    let mut out: Vec<f32> = Vec::with_capacity(ratios.len().min(MAX_GEARS));
+    for &ratio in ratios {
+        if out.len() == MAX_GEARS {
+            break;
+        }
+        if !ratio.is_finite() || !(GEAR_RATIO.0..=GEAR_RATIO.1).contains(&ratio) {
+            continue;
+        }
+        if out.last().is_some_and(|&last| ratio >= last) {
+            continue;
+        }
+        out.push(ratio);
+    }
+    out
 }
 
 /// The drive of a car from the share of the torque its differential structure sends to the front axle.
