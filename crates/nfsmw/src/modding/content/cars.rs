@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use blackbox_modding::content::{CARS_FOLDER, CarManifest, CopClass, Traffic, TrafficClass, parse_car};
+use blackbox_vehicle::bike::BikeSpec;
 use game_install::{GameDir, Provider};
 use nfsmw_data::car::CarTables;
 use nfsmw_data::car::mods::custom;
@@ -79,6 +80,9 @@ fn publish_hinges(mods: &[ModDir], car: &car_mods::ModCar) {
         }
         if let Some(layout) = &manifest.wheels {
             wheel_layout::publish(&car.folder, wheel_layout_of(layout));
+        }
+        if let Some(bike) = &manifest.bike {
+            car_mods::bike::publish(&car.folder, BikeSpec::from(bike));
         }
         return;
     }
@@ -231,7 +235,11 @@ fn read_spec(dir: &GameDir, owner: &str, path: &Path) -> Result<(CarSpec, Option
     let manifest = parse_car(stem, &text).map_err(|error| error.to_string())?;
     let cop = manifest.role.is_cop().then(|| cop_unit(&manifest));
     let traffic = manifest.traffic.as_ref().map(traffic_unit);
-    let stats = CarStats::from(&manifest.stats);
+    // A bike has no `[stats]`: the lists read the stats its two-wheel data gives (`docs/modding/bikes.md`).
+    let stats = match &manifest.bike {
+        Some(bike) => car_mods::bike::derived_stats(&BikeSpec::from(bike)),
+        None => CarStats::from(&manifest.stats),
+    };
     let geometry = format!("CARS/{}/GEOMETRY.BIN", manifest.id);
     let geometry_in_mod = matches!(dir.provider(&geometry), Some(Provider::Overlay(id)) if id == owner);
     let own = manifest.customization.as_ref().map(customization_of);
@@ -336,6 +344,25 @@ fn car_effects_of(sound: &blackbox_modding::content::CarEffects) -> CarEffects {
         pops: sound.pops.clone(),
         no_clunk: sound.no_clunk,
         shared: shared_sound_of(&sound.shared),
+        shift_on_gear: sound.shift_on_gear,
+        overrun: sound.overrun.map(overrun_of),
+    }
+}
+
+/// The manifest's `[car_sound.overrun]` as the game's accumulator backfire numbers.
+fn overrun_of(table: blackbox_modding::content::CarOverrun) -> car_mods::Overrun {
+    car_mods::Overrun {
+        accumulator_rate: table.accumulator_rate,
+        throttle_arm: table.throttle_arm,
+        throttle_fire: table.throttle_fire,
+        window_seconds: table.window_seconds,
+        flame_delay: table.flame_delay,
+        flame_min_rpm: table.flame_min_rpm,
+        bang_audio_threshold: table.bang_audio_threshold,
+        bang_effect_threshold: table.bang_effect_threshold,
+        flame_effect_threshold: table.flame_effect_threshold,
+        probability_closed: table.probability_closed,
+        probability_open: table.probability_open,
     }
 }
 

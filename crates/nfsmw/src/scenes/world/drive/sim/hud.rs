@@ -18,23 +18,36 @@ const G: f32 = 9.806_65;
 
 impl CarSim {
     pub(in crate::scenes::world::drive) fn gauge_sample(&self) -> super::super::gauges::GaugeSample {
-        super::super::gauges::GaugeSample { rpm: self.vehicle.powertrain().rpm_display(), speed: self.vehicle.speed() }
+        let rpm = match &self.ride {
+            Some(_) => self.engine_rpm(),
+            None => self.vehicle.powertrain().rpm_display(),
+        };
+        super::super::gauges::GaugeSample { rpm, speed: self.vehicle.speed() }
     }
 
     /// The extra telemetry of the car for the HUD.
     pub fn hud_telemetry(&self) -> HudTelemetry {
         let vehicle = &self.vehicle;
+        let lateral_g = lateral_g(
+            vehicle.rotation(),
+            vehicle.linear_velocity(),
+            vehicle.angular_velocity(),
+            self.wheels_down() > 0,
+        );
+        if self.ride.is_some() {
+            return HudTelemetry {
+                nos_burning: false,
+                shift_up_rpm: None,
+                throttle: self.controls().gas.clamp(0.0, 1.0),
+                lateral_g,
+            };
+        }
         let powertrain = vehicle.powertrain();
         HudTelemetry {
             nos_burning: vehicle.nos_burning(),
             shift_up_rpm: shift_up_rpm(&powertrain.shift_points().up, powertrain.gear(), powertrain.top_gear()),
             throttle: powertrain.throttle().clamp(0.0, 1.0),
-            lateral_g: lateral_g(
-                vehicle.rotation(),
-                vehicle.linear_velocity(),
-                vehicle.angular_velocity(),
-                vehicle.wheels_on_ground() > 0,
-            ),
+            lateral_g,
         }
     }
 

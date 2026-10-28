@@ -185,6 +185,7 @@ fn cop_model(renderer: &mut NullBackend, name: &str, player: Performance) -> Cop
         geometry: None,
         events: None,
         reactions: None,
+        bike: None,
     };
     let model = CarModel {
         driving_lods: Default::default(),

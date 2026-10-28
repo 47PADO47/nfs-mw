@@ -63,6 +63,7 @@ impl WorldScene {
         drive.flames.set_enhanced(self.tuning.enhanced_exhaust && renderer.info().renderer == "blackbox");
         drive.maintain_flames(renderer, &self.dir, self.physics.database());
         drive.maintain_tire_smoke(renderer, &self.dir);
+        drive.maintain_rider(renderer, &self.dir);
         drive.effects.set_tint(self.tuning.smoke_tint);
         let mut appearance = self.garage.applied.exhaust.clone();
         appearance.set_style(self.tuning.exhaust_style);

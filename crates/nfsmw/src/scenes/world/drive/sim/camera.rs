@@ -16,7 +16,7 @@ impl CarSim {
         let rotation = body.rotation();
         let cg = body.cog();
         let position = body.position + rotation * Vec3::new(0.0, cg.y, cg.z);
-        let grounded = self.vehicle.wheels_on_ground() > 0;
+        let grounded = self.wheels_down() > 0;
         let drift = crate::viewer::camera::original::drift(self.vehicle.slip_angle(), self.vehicle.speed(), grounded);
         BodyInput {
             position: space::to_render(position.to_array()),
@@ -30,7 +30,7 @@ impl CarSim {
             top_speed: self.vehicle.powertrain().max_speed(),
             gear: self.original_camera_gear(),
             grounded,
-            nos_engaged: self.vehicle.nos_burning(),
+            nos_engaged: self.ride.is_none() && self.vehicle.nos_burning(),
             // Timeline owns the real-time impact timer and nearby-body contribution.
             collision_damping: 0.0,
             drift,
@@ -41,16 +41,23 @@ impl CarSim {
     }
 
     pub fn original_camera_overrev(&self) -> bool {
-        let engine = self.vehicle.powertrain().engine_spec();
-        self.vehicle.rpm() > engine.red_line - 500.0
+        let red_line = match &self.ride {
+            Some(_) => self.max_rpm(),
+            None => self.vehicle.powertrain().engine_spec().red_line,
+        };
+        self.engine_rpm() > red_line - 500.0
     }
 
     pub fn original_camera_gear(&self) -> i32 {
-        self.vehicle.gear() as i32
+        match &self.ride {
+            // The camera counts gears as the gearbox ids do: reverse 0, neutral 1, first 2.
+            Some(ride) => ride.bike.gear() as i32 + 1,
+            None => self.vehicle.gear() as i32,
+        }
     }
 
     pub fn original_camera_braking(&self) -> bool {
-        let controls = self.vehicle.controls();
+        let controls = self.controls();
         controls.brake > 0.0 || controls.handbrake > 0.0
     }
 
@@ -93,6 +100,7 @@ mod tests {
                 geometry: None,
                 events: None,
                 reactions: None,
+                bike: None,
             },
             [0.2; 4],
         );

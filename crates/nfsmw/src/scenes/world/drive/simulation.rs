@@ -165,6 +165,7 @@ impl Drive {
         self.previous = self.current;
         self.current = pose;
         self.telemetry = telemetry;
+        self.rider.step(sim.rider_sample(), dt);
         self.gauges.push(gauge);
         self.brake_lamp = match self.engine.is_running() {
             true => sim.lamp_brake(),

@@ -33,7 +33,7 @@ impl CarSim {
             .iter()
             .filter(|c| c.impulse_delta_v > 0.0)
             .map(|c| {
-                let bottom = self.vehicle.wheels_on_ground() > 2 && rot.y_axis.dot(c.normal) > 0.2;
+                let bottom = self.wheels_down() > 2 && rot.y_axis.dot(c.normal) > 0.2;
                 let mut raw = RawContact::ground(c, body.linear_velocity);
                 raw.point = if bottom { bottom_point } else { c.point };
                 raw.bottom = bottom;

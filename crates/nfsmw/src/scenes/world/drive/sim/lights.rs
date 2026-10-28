@@ -14,7 +14,7 @@ impl CarSim {
 
     pub fn lamp_brake(&self) -> f32 {
         let on = match self.collision_role.player {
-            true => self.vehicle.controls().brake > 0.0,
+            true => self.controls().brake > 0.0,
             false => self.brake_lamp_age > 0.5,
         };
         f32::from(u8::from(on))
@@ -22,17 +22,17 @@ impl CarSim {
 
     /// The steering, -1 to 1, positive to the right.
     pub fn steering_input(&self) -> f32 {
-        self.vehicle.controls().steering
+        self.controls().steering
     }
 
     /// How hard the throttle is pressed, 0 to 1.
     pub fn gas_pedal(&self) -> f32 {
-        self.vehicle.controls().gas
+        self.controls().gas
     }
 
     /// How hard the brake is pressed, 0 to 1.
     pub fn brake_pedal(&self) -> f32 {
-        self.vehicle.controls().brake
+        self.controls().brake
     }
 
     pub fn lamp_damage(&self) -> u32 {

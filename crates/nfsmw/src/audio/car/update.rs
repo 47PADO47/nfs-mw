@@ -36,6 +36,7 @@ impl Audio {
                 lift_off: out.events.engine_off_sweetener,
                 dt: frame.dt,
                 delay: frame.delay,
+                gear: input.gear,
             };
             sfx.drive(self, &sfx_frame, &mut commands);
         }
