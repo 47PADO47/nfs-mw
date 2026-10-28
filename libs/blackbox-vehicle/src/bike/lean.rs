@@ -7,6 +7,8 @@
 //! angle that gives the front wheel that slip. `Bike` applies the roll torque (within a limit) and steers the handlebar.
 
 use super::choices;
+use glam::Vec3;
+
 use super::curve::{curve, factor, ramp};
 use super::filter::{SecondOrder, step_acceleration};
 use super::magic::Mf94;
@@ -36,6 +38,8 @@ pub struct LeanInput {
     pub cg_height: f32,
     /// The share of the weight on the front wheel.
     pub front_share: f32,
+    /// The most the target lean may be (rad): the block-fall assist's hold; infinite when it is off.
+    pub target_cap: f32,
     pub dt: f32,
 }
 
@@ -50,6 +54,8 @@ pub struct LeanPlan {
     pub torque: f32,
     /// The side force wanted at the front tyre (N, positive to the right).
     pub front_force: f32,
+    /// Whether the cap held the target back.
+    pub capped: bool,
 }
 
 /// The state of the controller's filters.
@@ -99,7 +105,8 @@ impl Lean {
             * factor(&spec.time_scale_speed, input.speed.abs())
             * factor(&spec.time_scale_input, input.stick.clamp(-1.0, 1.0))
             * sensitivity;
-        let target = self.target.step(wanted, spec.target_k, spec.target_damping_ratio, input.dt * scale);
+        let free = self.target.step(wanted, spec.target_k, spec.target_damping_ratio, input.dt * scale);
+        let target = free.clamp(-input.target_cap, input.target_cap);
         let ratio = spec.damping_ratio * spec.damping_multiplier;
         // The spec's `a = -K (theta - target) - 2 z sqrt(K) theta'`, realised over the step by its exact solution (the damping
         // term alone is unstable held over a 60 Hz step: `filter::step_acceleration`).
@@ -112,15 +119,15 @@ impl Lean {
         if choices::LEAN_FORCE_INCLUDES_TURN_FORCE {
             front_force += input.front_share * input.mass * 9.81 * input.lean.tan();
         }
-        LeanPlan { limit, target, acceleration: accel, torque, front_force }
+        LeanPlan { limit, target, acceleration: accel, torque, front_force, capped: target != free }
     }
 }
 
-/// The slip angle (rad, positive when the patch moves to the right) at which a tyre at load `fz_kn` and camber `gamma_deg`
+/// The wheel's `Slip.y` (rad as the model reads it, positive when the patch moves to the right) at which a tyre at load `fz_kn` and camber `gamma_deg`
 /// pushes sideways with `wanted` newtons (positive to the right). Beyond the peak of the curve it is the slip of the peak.
 pub fn slip_for_force(tyre: &Mf94, fz_kn: f32, gamma_deg: f32, wanted: f32) -> f32 {
     let p = peaks(tyre, fz_kn, gamma_deg);
-    let (mut low, mut high) = (p.y_negative.asin().to_degrees(), p.y_positive.asin().to_degrees());
+    let (mut low, mut high) = (p.y_negative.to_degrees(), p.y_positive.to_degrees());
     let force = |alpha: f32| tyre.lateral(fz_kn.max(0.01), alpha, gamma_deg);
     // The formula's force is positive for a positive slip angle; the tyre pushes against the patch's motion.
     let target = (-wanted).clamp(force(low), force(high));
@@ -134,20 +141,19 @@ pub fn slip_for_force(tyre: &Mf94, fz_kn: f32, gamma_deg: f32, wanted: f32) -> f
     (0.5 * (low + high)).to_radians()
 }
 
-/// The handlebar angle (rad) at which the wheel's heading has the angle `wanted` (rad, from the bike's heading) in the plane
-/// of the ground. `heading_of` gives that angle for a handlebar angle; it is monotone near the answer.
-pub fn solve_steer(wanted: f32, max_angle: f32, heading_of: impl Fn(f32) -> f32) -> f32 {
-    const EPSILON: f32 = 1e-3;
-    let mut steer = wanted.clamp(-max_angle, max_angle);
-    for _ in 0..5 {
-        let here = heading_of(steer);
-        let slope = (heading_of(steer + EPSILON) - here) / EPSILON;
-        if slope.abs() < 1e-3 {
-            break;
-        }
-        steer = (steer + (wanted - here) / slope).clamp(-max_angle, max_angle);
+/// The handlebar angle (rad, positive right) for a front contact that moves with `velocity` in the chassis frame (x right, y up,
+/// z forward), a steering axis `axis` (unit, same frame, pointing up and back) and the wanted lateral slip `slip_y`
+/// (`ride6-lean-controller.md`, step 3, `0x145158890`): the velocity without its component along the axis is the wheel's
+/// direction of travel; the wanted heading is that direction turned to the left by the slip; the angle is the heading of that
+/// vector projected along the steering axis onto the chassis' horizontal plane.
+pub fn handlebar_angle(velocity: Vec3, axis: Vec3, slip_y: f32) -> f32 {
+    let Some(direction) = (velocity - axis * velocity.dot(axis)).try_normalize() else { return 0.0 };
+    let heading = direction - axis.cross(direction) * slip_y;
+    if axis.y.abs() < 1e-3 {
+        return 0.0;
     }
-    steer
+    let flat = heading - axis * (heading.y / axis.y);
+    flat.x.atan2(flat.z)
 }
 
 /// The handlebar angle the controller aims at (rad): the plan's angle, blended to the stick's direct mapping at a walking pace.

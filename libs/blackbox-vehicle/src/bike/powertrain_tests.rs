@@ -4,7 +4,7 @@ use crate::bike::BikeSpec;
 const DT: f32 = 1.0 / 60.0;
 
 fn input(throttle: f32, wheel_spin: f32) -> DriveInput {
-    DriveInput { throttle, wheel_spin, speed: wheel_spin * 0.32, dt: DT }
+    DriveInput { throttle, wheel_spin, speed: wheel_spin * 0.32, radius: 0.32, lean: 0.0, traction_cut: 0.0, dt: DT }
 }
 
 /// One step with the wheel held at `spin` (a stand-in for a wheel the bike's mass keeps turning).
@@ -17,7 +17,7 @@ fn step(train: &mut Powertrain, spec: &BikeSpec, throttle: f32, spin: f32) -> Dr
 #[test]
 fn a_standing_start_slips_the_clutch_and_drives_the_wheel_in_first_gear() {
     let spec = BikeSpec::example();
-    let mut train = Powertrain::new(&spec.engine);
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
     let mut torque = 0.0;
     for _ in 0..30 {
         torque = step(&mut train, &spec, 1.0, 0.0).torque;
@@ -31,7 +31,7 @@ fn a_standing_start_slips_the_clutch_and_drives_the_wheel_in_first_gear() {
 #[test]
 fn a_closed_throttle_at_a_standstill_does_nothing_and_idles() {
     let spec = BikeSpec::example();
-    let mut train = Powertrain::new(&spec.engine);
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
     for _ in 0..60 {
         assert!(step(&mut train, &spec, 0.0, 0.0).torque.abs() < 1.0);
     }
@@ -41,8 +41,8 @@ fn a_closed_throttle_at_a_standstill_does_nothing_and_idles() {
 #[test]
 fn a_closed_throttle_at_speed_brakes_with_the_engine() {
     let spec = BikeSpec::example();
-    let mut train = Powertrain::new(&spec.engine);
-    train.match_speed(&spec.engine, &spec.transmission, 60.0);
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    train.match_speed(&spec.engine, &spec.transmission, 60.0, 0.32);
     let drive = step(&mut train, &spec, 0.0, 60.0);
     assert!(drive.torque < 0.0, "{drive:?}");
     // The clutch is locked, so the engine's inertia is part of what the wheel turns.
@@ -52,8 +52,8 @@ fn a_closed_throttle_at_speed_brakes_with_the_engine() {
 #[test]
 fn a_locked_engine_turns_with_the_wheel() {
     let spec = BikeSpec::example();
-    let mut train = Powertrain::new(&spec.engine);
-    train.match_speed(&spec.engine, &spec.transmission, 80.0);
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    train.match_speed(&spec.engine, &spec.transmission, 80.0, 0.32);
     let gear = train.gear();
     step(&mut train, &spec, 0.5, 80.0);
     let ratio = spec.transmission.gears[gear - 1] * spec.transmission.final_ratio;
@@ -64,8 +64,8 @@ fn a_locked_engine_turns_with_the_wheel() {
 #[test]
 fn the_box_changes_up_as_the_wheel_speeds_up_and_the_drive_is_cut_for_the_change() {
     let spec = BikeSpec::example();
-    let mut train = Powertrain::new(&spec.engine);
-    train.match_speed(&spec.engine, &spec.transmission, 5.0);
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    train.match_speed(&spec.engine, &spec.transmission, 5.0, 0.32);
     let mut spin = 5.0;
     let mut cut = false;
     for _ in 0..1200 {
@@ -80,12 +80,12 @@ fn the_box_changes_up_as_the_wheel_speeds_up_and_the_drive_is_cut_for_the_change
 #[test]
 fn the_box_changes_down_when_the_wheel_slows() {
     let spec = BikeSpec::example();
-    let mut train = Powertrain::new(&spec.engine);
-    train.match_speed(&spec.engine, &spec.transmission, 70.0);
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    train.match_speed(&spec.engine, &spec.transmission, 130.0, 0.32);
     let high = train.gear();
-    let mut spin: f32 = 70.0;
+    let mut spin: f32 = 130.0;
     for _ in 0..600 {
-        spin = (spin - 0.2).max(8.0);
+        spin = (spin - 0.4).max(8.0);
         step(&mut train, &spec, 0.0, spin);
     }
     assert!(train.gear() < high, "{} {high}", train.gear());
@@ -94,10 +94,10 @@ fn the_box_changes_down_when_the_wheel_slows() {
 #[test]
 fn the_rev_limiter_cuts_the_throttle_in_turn() {
     let spec = BikeSpec::example();
-    let mut train = Powertrain::new(&spec.engine);
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
     let top = spec.transmission.gears.len() - 1;
     let spin = spec.engine.max_rpm * TAU / 60.0 / (spec.transmission.gears[top] * spec.transmission.final_ratio);
-    train.match_speed(&spec.engine, &spec.transmission, spin * 1.05);
+    train.match_speed(&spec.engine, &spec.transmission, spin * 1.05, 0.32);
     let torques: Vec<f32> = (0..12).map(|_| step(&mut train, &spec, 1.0, spin * 1.05).torque).collect();
     assert!(torques.iter().any(|&t| t < 0.0), "{torques:?}");
     assert!(torques.iter().any(|&t| t > 0.0), "{torques:?}");
@@ -106,8 +106,8 @@ fn the_rev_limiter_cuts_the_throttle_in_turn() {
 #[test]
 fn the_clutch_closes_again_after_a_change_instead_of_at_once() {
     let spec = BikeSpec::example();
-    let mut train = Powertrain::new(&spec.engine);
-    train.match_speed(&spec.engine, &spec.transmission, 5.0);
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    train.match_speed(&spec.engine, &spec.transmission, 5.0, 0.32);
     let mut spin = 5.0;
     let mut worst: f32 = 0.0;
     for _ in 0..1200 {

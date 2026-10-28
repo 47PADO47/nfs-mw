@@ -9,6 +9,7 @@ use std::f32::consts::TAU;
 
 use super::choices;
 use super::curve::{curve, ramp};
+use super::gearbox::{Gearbox, peak_torque_rpm};
 use super::spec::{EngineSpec, TransmissionSpec};
 
 /// What the powertrain asks of the rear wheel for this step.
@@ -40,6 +41,11 @@ pub struct Powertrain {
     /// Whether the change under way is a change down (it blips the throttle).
     blip: bool,
     pending: Option<Pending>,
+    gearbox: Gearbox,
+    /// How long the feathering controller has been acting (s); 0 when it is not.
+    feather_timer: f32,
+    /// Whether a start from a standstill is under way (the launch clutch acts).
+    starting: bool,
 }
 
 /// What the wheel's solve needs to hand back to the powertrain.
@@ -65,16 +71,12 @@ fn smooth_sign(x: f32, width: f32) -> f32 {
 }
 
 impl Powertrain {
-    pub fn new(engine: &EngineSpec) -> Self {
-        let peak_rpm = engine.torque_curve.iter().fold((0.0, f32::MIN), |best, &(rpm, share)| match share > best.1 {
-            true => (rpm, share),
-            false => best,
-        });
+    pub fn new(engine: &EngineSpec, transmission: &TransmissionSpec) -> Self {
         Self {
             gear: 0,
             speed: rpm_to_rad(engine.idle_rpm),
             shift_timer: 0.0,
-            peak_rpm: peak_rpm.0,
+            peak_rpm: peak_torque_rpm(engine),
             locked: false,
             engage: 1.0,
             slipper: 0.0,
@@ -83,6 +85,9 @@ impl Powertrain {
             limiter_cut: false,
             blip: false,
             pending: None,
+            gearbox: Gearbox::generate(engine, transmission),
+            feather_timer: 0.0,
+            starting: false,
         }
     }
 
@@ -105,15 +110,9 @@ impl Powertrain {
         transmission.gears.get(gear).copied().unwrap_or(1.0) * transmission.final_ratio
     }
 
-    /// Match the engine and the gear to a road speed (the bike starts already moving).
-    pub fn match_speed(&mut self, engine: &EngineSpec, transmission: &TransmissionSpec, wheel_spin: f32) {
-        self.gear = 0;
-        for index in 0..transmission.gears.len() {
-            self.gear = index;
-            if wheel_rpm(transmission, index, wheel_spin) < transmission.up_shift * engine.max_rpm {
-                break;
-            }
-        }
+    /// Match the engine and the gear to a road speed (the bike starts already moving) on a rear wheel of radius `radius`.
+    pub fn match_speed(&mut self, engine: &EngineSpec, transmission: &TransmissionSpec, wheel_spin: f32, radius: f32) {
+        self.gear = self.gearbox.gear_for_speed(engine, transmission, wheel_spin * radius, radius);
         let coupled = wheel_rpm(transmission, self.gear, wheel_spin);
         self.speed = rpm_to_rad(coupled.max(engine.idle_rpm));
         self.locked = coupled >= engine.idle_rpm;
@@ -122,6 +121,8 @@ impl Powertrain {
         self.slipper = 0.0;
         self.transmitted = 0.0;
         self.pending = None;
+        self.feather_timer = 0.0;
+        self.starting = false;
     }
 
     /// The engine's torque at the crankshaft (N m) for a throttle, at its present speed.
@@ -136,6 +137,26 @@ impl Powertrain {
         let drag = engine.friction_torque * drag_factor;
         let closed = -drag;
         closed + (peak - closed) * throttle
+    }
+
+    /// The traction control scales the throttle about the zero-torque point (`ride6-engine-drivetrain.md`, "Engine torque").
+    fn traction_control(&self, engine: &EngineSpec, throttle: f32, cut: f32) -> f32 {
+        let rpm = self.rpm();
+        let peak = engine.peak_torque * curve(&engine.torque_curve, rpm);
+        let share = (rpm / engine.max_rpm).max(0.0);
+        let factor = match engine.friction_curve.is_empty() {
+            true => share,
+            false => curve(&engine.friction_curve, share),
+        };
+        let drag = engine.friction_torque * factor;
+        let zero = match peak + drag > 0.0 {
+            true => drag / (peak + drag),
+            false => 1.0,
+        };
+        match throttle > zero {
+            true => zero + (throttle - zero) * (1.0 - cut.clamp(0.0, 1.0)),
+            false => throttle,
+        }
     }
 
     /// The throttle the engine sees: the rider's, the floor below the idle speed, the blip of a change down and the cut of
@@ -175,6 +196,11 @@ pub struct DriveInput {
     pub wheel_spin: f32,
     /// The road speed (m/s).
     pub speed: f32,
+    /// The effective radius of the rear wheel (m) and the lean as a share of the lean limit (0 upright, 1 at the limit).
+    pub radius: f32,
+    pub lean: f32,
+    /// How much the traction control cuts the throttle, 0 to 1.
+    pub traction_cut: f32,
     pub dt: f32,
 }
 
@@ -190,14 +216,13 @@ impl Powertrain {
         if self.shift_timer <= 0.0 {
             self.engage = (self.engage + dt / choices::CLUTCH_ENGAGE_TIME).min(1.0);
         }
-        let ratio = Self::ratio(transmission, self.gear);
-        let coupled_speed = (input.wheel_spin * ratio).max(0.0);
-        self.change_gear(engine, transmission, input.throttle, coupled_speed);
+        self.change_gear(engine, transmission, input);
         let ratio = Self::ratio(transmission, self.gear);
         let coupled_speed = (input.wheel_spin * ratio).max(0.0);
         let throttle = self.throttle(engine, transmission, input.throttle, dt);
+        let throttle = self.traction_control(engine, throttle, input.traction_cut);
         let torque = self.engine_torque(engine, throttle);
-        let engagement = self.engagement(engine, transmission, input);
+        let engagement = self.engagement(engine, transmission, input, torque, rad_to_rpm(coupled_speed));
         let capacity = engagement * transmission.clutch_max_factor * engine.peak_torque;
         if capacity <= 0.0 {
             self.locked = false;
@@ -241,26 +266,21 @@ impl Powertrain {
     }
 
     /// The clutch's engagement, 0 (open) to 1 (locked): the rider's lever (open for a change), the launch, the slipper and
-    /// the return after a change.
-    fn engagement(&mut self, engine: &EngineSpec, transmission: &TransmissionSpec, input: &DriveInput) -> f32 {
+    /// the return after a change. `torque` is the engine's torque now and `coupled_rpm` the engine speed the wheel forces.
+    fn engagement(
+        &mut self,
+        engine: &EngineSpec,
+        transmission: &TransmissionSpec,
+        input: &DriveInput,
+        torque: f32,
+        coupled_rpm: f32,
+    ) -> f32 {
         let mut lever: f32 = 0.0;
         if self.shifting() && choices::CLUTCH_OPEN_DURING_SHIFT {
             lever = 1.0;
         }
         lever = lever.max(1.0 - self.engage);
-        if transmission.release_speed > 0.0 && input.speed < transmission.release_speed {
-            let by_speed = (input.speed / transmission.release_speed).clamp(0.0, 1.0);
-            let mut feather = transmission.feather_factor * self.peak_rpm;
-            if transmission.feather_max_factor > 0.0 {
-                feather = feather.min(transmission.feather_max_factor * engine.max_rpm);
-            }
-            let feather = feather.max(engine.idle_rpm * choices::LAUNCH_ENGAGE_START_FACTOR + 1.0);
-            let by_engine = match choices::LAUNCH_ENGAGEMENT_FROM_ENGINE_SPEED {
-                true => ramp(self.rpm(), [engine.idle_rpm * choices::LAUNCH_ENGAGE_START_FACTOR, feather]),
-                false => 0.0,
-            };
-            lever = lever.max(1.0 - by_speed.max(by_engine));
-        }
+        lever = lever.max(self.launch(engine, transmission, input, lever, torque, coupled_rpm));
         let back = (-self.transmitted).max(0.0);
         let target = ramp(back, transmission.slipper_range) * transmission.slipper_intensity;
         self.slipper = target.max(self.slipper - choices::SLIPPER_FALL_RATE * input.dt);
@@ -268,23 +288,92 @@ impl Powertrain {
         (1.0 - open).powf(transmission.clutch_linearity.max(0.01))
     }
 
-    /// The automatic gearbox: change up under throttle above the up-shift speed of the engine, down below the down-shift one.
-    fn change_gear(&mut self, engine: &EngineSpec, transmission: &TransmissionSpec, throttle: f32, coupled_speed: f32) {
-        if self.shifting() {
+    /// The clutch input of a start: the feathering controller when the data has one (`feather_factor` above 0), else the plain
+    /// launch clutch that comes in with the engine speed and goes with the road speed (`ride6-gearbox-auto.md`, section 3).
+    fn launch(
+        &mut self,
+        engine: &EngineSpec,
+        transmission: &TransmissionSpec,
+        input: &DriveInput,
+        clutch: f32,
+        torque: f32,
+        coupled_rpm: f32,
+    ) -> f32 {
+        let kmh = input.speed * 3.6;
+        // Without the throttle the clutch is pulled and the start is over: at a standstill that holds the engine at its idle,
+        // and a start that is let go of (`ride6-gearbox-auto.md`: the clutch goes to 1 and the starting sequence is reset).
+        if input.throttle <= 0.0 && (self.starting || input.speed < choices::START_SPEED) {
+            self.starting = false;
+            self.feather_timer = 0.0;
+            return 1.0;
+        }
+        if input.throttle > 0.0 && input.speed < choices::START_SPEED {
+            self.starting = true;
+        }
+        if !self.starting || (transmission.release_speed > 0.0 && input.speed >= transmission.release_speed) {
+            self.starting = false;
+            self.feather_timer = 0.0;
+            return 0.0;
+        }
+        if transmission.feather_factor <= 0.0 {
+            let [low, high] = transmission.launch_rpm;
+            let by_engine = 1.0 - ramp(self.rpm(), [low * engine.max_rpm, high * engine.max_rpm]);
+            let by_speed = match transmission.release_speed > 0.0 {
+                true => 1.0 - ramp(kmh, [0.0, transmission.release_speed * 3.6]),
+                false => 1.0,
+            };
+            return by_engine * by_speed;
+        }
+        let f = &transmission.feather;
+        let reach =
+            (engine.max_rpm * transmission.feather_max_factor + self.peak_rpm * transmission.feather_factor).max(1.0);
+        let slip = (self.rpm() - coupled_rpm) / reach;
+        let normalised = self.rpm() / reach;
+        let wanted = slip > f.min_slip || normalised <= f.target_tolerance || self.feather_timer > 0.0;
+        if input.throttle <= 0.0 || clutch >= 1.0 || !wanted {
+            self.feather_timer = 0.0;
+            return 0.0;
+        }
+        let reference = coupled_rpm.max(engine.idle_rpm);
+        if self.feather_timer > 0.3 && slip < 0.01 && reference / reach >= f.exit_tolerance {
+            self.feather_timer = 0.0;
+            return 0.0;
+        }
+        self.feather_timer = self.feather_timer.max(1e-3) + input.dt;
+        // The clutch torque that lets the engine gain `target` rad/s over the correction step, as a share of the most the
+        // clutch carries, turned into an input through the linearity.
+        let capacity = (transmission.clutch_max_factor * engine.peak_torque).max(1e-6);
+        let step = f.delta_time.max(1e-4);
+        let target = (reach - self.rpm()) * f.rpm_raise * TAU / 60.0;
+        let after = self.speed + step * torque / engine.moi.max(1e-4);
+        let coupled = rpm_to_rad(coupled_rpm);
+        let needed = (after - coupled).signum() * (step * torque - engine.moi * target) / (capacity * step);
+        let request = 1.0 - needed.max(0.0).powf(1.0 / transmission.clutch_linearity.max(0.01));
+        let release = (1.0 - reference * f.release_factor / reach).clamp(0.0, 1.0);
+        (release * request).clamp(0.0, 1.0)
+    }
+
+    /// The automatic gearbox: change up when the road speed passes the speed at which the engine would reach the change-up
+    /// point in the present gear, down when it falls below that of the change-down point in the gear before
+    /// (`ride6-gearbox-auto.md`, section 2). Lean holds the changes back, the throttle holds the change down back.
+    fn change_gear(&mut self, engine: &EngineSpec, transmission: &TransmissionSpec, input: &DriveInput) {
+        if self.shifting() || self.feather_timer > 0.0 {
             return;
         }
-        let coupled = rad_to_rpm(coupled_speed);
-        let last = transmission.gears.len().saturating_sub(1);
-        if self.gear < last
-            && throttle > choices::UP_SHIFT_MIN_THROTTLE
-            && coupled > transmission.up_shift * engine.max_rpm
-        {
+        let lean = input.lean.clamp(0.0, 1.0);
+        let held = |pair: [f32; 2], value: f32| pair[0] * value.powf(pair[1]);
+        let hold_up = held(transmission.prevent_up_lean, lean);
+        let hold_down = (held(transmission.prevent_down_lean, lean)
+            + held(transmission.prevent_down_throttle, input.throttle.clamp(0.0, 1.0)))
+        .clamp(0.0, 1.0);
+        let speed = input.speed.abs();
+        if self.gearbox.wants_up(engine, transmission, self.gear, speed, input.radius, hold_up) {
             self.gear += 1;
             self.shift_timer = transmission.up_shift_time;
             self.blip = false;
             return;
         }
-        if self.gear > 0 && coupled < transmission.down_shift * engine.max_rpm {
+        if self.gearbox.wants_down(engine, transmission, self.gear, speed, input.radius, hold_down) {
             self.gear -= 1;
             self.shift_timer = transmission.down_shift_time;
             self.blip = true;

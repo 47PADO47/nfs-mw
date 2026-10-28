@@ -99,10 +99,15 @@ pub struct TransmissionSpec {
     pub final_ratio: f32,
     /// The share of the engine torque that reaches the wheel.
     pub efficiency: f32,
-    /// The engine speed, as a share of the rev limit, at which the automatic changes up under throttle.
-    pub up_shift: f32,
-    /// The engine speed, as a share of the rev limit, below which it changes down.
-    pub down_shift: f32,
+    /// The tolerances (per gear) that scale the torque the generated change points compare: the next gear has to win by this
+    /// factor (up) or lose by it (down). Shorter lists count as 1.
+    pub up_tolerance: Vec<f32>,
+    pub down_tolerance: Vec<f32>,
+    /// The hold-offs of the automatic changes, each `(factor, linearity)` of `normalised^linearity x factor`: lean holds the
+    /// change up back, lean and the throttle hold the change down back.
+    pub prevent_up_lean: [f32; 2],
+    pub prevent_down_lean: [f32; 2],
+    pub prevent_down_throttle: [f32; 2],
     /// How long a change up and a change down take (s).
     pub up_shift_time: f32,
     pub down_shift_time: f32,
@@ -119,6 +124,86 @@ pub struct TransmissionSpec {
     /// rev limit.
     pub feather_factor: f32,
     pub feather_max_factor: f32,
+    pub feather: FeatherSpec,
+    /// The launch clutch when there is no feathering: the shares of the rev limit between which it comes in.
+    pub launch_rpm: [f32; 2],
     /// The most torque the clutch carries, as a multiple of the engine's peak torque.
     pub clutch_max_factor: f32,
+}
+
+/// The feathering controller of a start (`docs/specs/ride6-gearbox-auto.md`, section 3). `Default` is the constructor default.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FeatherSpec {
+    /// The normalised engine speed at or below which it acts, and above which (with the wheel caught up) it stops.
+    pub target_tolerance: f32,
+    pub exit_tolerance: f32,
+    /// The most throttle the controller lets through.
+    pub throttle_cap: f32,
+    /// The normalised slip above which it acts.
+    pub min_slip: f32,
+    /// The correction step (s).
+    pub delta_time: f32,
+    /// How fast the engine is asked to climb towards the target speed, and how fast the clutch comes back as the wheel
+    /// catches up.
+    pub rpm_raise: f32,
+    pub release_factor: f32,
+}
+
+impl Default for FeatherSpec {
+    fn default() -> Self {
+        Self {
+            target_tolerance: 0.6,
+            exit_tolerance: 0.8,
+            throttle_cap: 1.0,
+            min_slip: 0.1,
+            delta_time: 0.01,
+            rpm_raise: 0.05,
+            release_factor: 1.0,
+        }
+    }
+}
+
+/// One strip of the tread (`docs/specs/ride6-tyre-thermal.md`): its heating, cooling and wear constants and the curves that
+/// turn its temperature and wear into grip. A missing curve counts as 1.
+#[derive(Clone, Debug, Default)]
+pub struct TyreSection {
+    /// The lowest efficiency the strip may give.
+    pub efficiency_limit: f32,
+    /// Cooling towards the road and air temperature, heating from sliding, heating per unit of lateral and longitudinal slip
+    /// work, heating from rolling resistance.
+    pub static_coef: f32,
+    pub dynamic_coef: f32,
+    pub lat_slip_coef: f32,
+    pub long_slip_coef: f32,
+    pub rolling_coef: f32,
+    /// `(deg C, wear rate)`, `(wear, efficiency)` and `(deg C, efficiency)`.
+    pub temperature_to_wear: Vec<(f32, f32)>,
+    pub wear_to_efficiency: Vec<(f32, f32)>,
+    pub temperature_to_efficiency: Vec<(f32, f32)>,
+}
+
+/// The temperature and wear of a tyre (`docs/specs/ride6-tyre-thermal.md`).
+#[derive(Clone, Debug, Default)]
+pub struct TyreThermal {
+    /// The strips of the tread, left to right.
+    pub sections: Vec<TyreSection>,
+    /// How far across the tread the load spreads over the strips: the dependency and the half-span (rad) of their centres.
+    pub sections_dependency: f32,
+    pub sections_angle: f32,
+    /// The heat transfer between neighbouring strips (0: none).
+    pub heat_transfer: f32,
+    /// The thickness of a new tread, the temperature the tyre starts at (and its floor), and its ceiling (deg C).
+    pub initial_thickness: f32,
+    pub min_temperature: f32,
+    pub max_temperature: f32,
+    /// How much of the steady temperature is the road's, against the air's.
+    pub asphalt_importance: f32,
+    /// The distance (m) over which a loaded strip keeps the fraction `rate` of its tread.
+    pub wear_length: f32,
+    /// Every strip takes the mean temperature and thickness after each step.
+    pub uniform: bool,
+    pub static_time_scale: f32,
+    pub dynamic_time_scale: f32,
+    pub decay_distance_factor: f32,
+    pub wear_intensity: f32,
 }

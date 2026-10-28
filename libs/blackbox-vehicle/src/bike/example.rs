@@ -3,9 +3,11 @@
 use glam::Vec3;
 
 use super::magic::Mf94;
+use super::rider_spec::RiderSpec;
 use super::spec::{
-    AbsSpec, BikeSpec, BrakeSpec, ChassisSpec, Coupling, DamperSpec, EngineSpec, FallSpec, Hydraulic, LeanSpec,
-    PitchParams, Progressive, SteeringSpec, SuspensionSpec, TransmissionSpec, WheelSpec, WheelieSpec,
+    AbsSpec, AutoRiderSpec, BikeSpec, BrakeSpec, ChassisSpec, Coupling, DamperSpec, EngineSpec, FallSpec, FeatherSpec,
+    Hydraulic, LeanSpec, PitchParams, Progressive, RiderHelpSpec, SteeringSpec, SuspensionSpec, TcsSpec,
+    TransmissionSpec, TyreSection, TyreThermal, WheelSpec, WheelieSpec,
 };
 
 fn tyre(peak: f32) -> Mf94 {
@@ -27,6 +29,39 @@ fn tyre(peak: f32) -> Mf94 {
     Mf94 { a, b, c: [0.0; 18] }
 }
 
+fn section() -> TyreSection {
+    TyreSection {
+        efficiency_limit: 0.9,
+        static_coef: 0.009,
+        dynamic_coef: 0.02,
+        lat_slip_coef: 1e-5,
+        long_slip_coef: 1e-5,
+        rolling_coef: 0.0002,
+        temperature_to_wear: vec![(88.0, 0.95), (105.0, 0.945), (150.0, 0.0)],
+        wear_to_efficiency: vec![(0.1, 0.985), (0.49, 0.985), (0.855, 0.98), (0.917, 0.968), (1.0, 0.94)],
+        temperature_to_efficiency: vec![(60.3, 0.975), (90.1, 1.0), (105.0, 1.0), (115.0, 0.975)],
+    }
+}
+
+fn thermal() -> TyreThermal {
+    TyreThermal {
+        sections: vec![section(), section(), section()],
+        sections_dependency: 1.0,
+        sections_angle: 1.0,
+        heat_transfer: 0.0,
+        initial_thickness: 1.1,
+        min_temperature: 0.0,
+        max_temperature: 200.0,
+        asphalt_importance: 1.0,
+        wear_length: 5000.0,
+        uniform: true,
+        static_time_scale: 1.0,
+        dynamic_time_scale: 1.0,
+        decay_distance_factor: 1.0,
+        wear_intensity: 1.0,
+    }
+}
+
 fn wheel(tyre: Mf94, mass: f32) -> WheelSpec {
     WheelSpec {
         radius: 0.32,
@@ -36,6 +71,9 @@ fn wheel(tyre: Mf94, mass: f32) -> WheelSpec {
         inertia: 0.65,
         tyre,
         rolling: [0.02, 0.0004, 0.000_001],
+        rolling_slip: 0.2,
+        rolling_slip_linearity: 1.0,
+        thermal: Some(thermal()),
         lateral_grip_limit: 1.25,
         tire_stiffness: 400_000.0,
         max_tire_deformation: 0.03,
@@ -73,6 +111,30 @@ fn lean() -> LeanSpec {
     }
 }
 
+/// The rider help of the example bike: the throttle cut relaxes below 20 km/h, the cuts act through the engine, and the
+/// auto-rider moves the weight against a lift of 3.6 to 4 degrees.
+fn rider_help() -> RiderHelpSpec {
+    RiderHelpSpec {
+        launch_speed: 20.0 / 3.6,
+        launch_throttle_multiplier: 0.0,
+        throttle_pitch_electronic: true,
+        throttle_speed_electronic: true,
+        intensity: 1.0,
+        weight_deadzone: 0.75,
+        lookahead: 0.2,
+        auto_rider: Some(AutoRiderSpec {
+            wheelie_range: [3.6_f32.to_radians(), 4.0_f32.to_radians()],
+            stoppie_range: [3.6_f32.to_radians(), 4.0_f32.to_radians()],
+            throttle_curve: vec![(0.0, 0.0), (0.1, 1.0)],
+            brake_curve: vec![(0.0, 0.0), (0.1, -1.0)],
+            engage_speed: 5.0,
+            manual_engage_speed: 5.0,
+            ..AutoRiderSpec::default()
+        }),
+        ..RiderHelpSpec::default()
+    }
+}
+
 fn pitch(deadzone: f32, max_angle: f32, lookahead: f32) -> PitchParams {
     PitchParams {
         deadzone,
@@ -87,6 +149,8 @@ fn pitch(deadzone: f32, max_angle: f32, lookahead: f32) -> PitchParams {
         ground_range: [0.0, 1.0],
         lean_limit: 1.0_f32.to_radians(),
         lean_pitch_range: [0.0, 40.0_f32.to_radians()],
+        terrain_influence: 1.0,
+        filter_timescale: 0.0,
     }
 }
 
@@ -103,11 +167,14 @@ impl BikeSpec {
             rebound_threshold: 0.3,
         };
         Self {
+            rider: RiderSpec::default(),
             chassis: ChassisSpec {
                 mass: 113.0,
                 rider_mass: 70.0,
                 rider_offset: Vec3::new(0.0, 0.4, -0.05),
                 rider_weight_rate: 6.0,
+                rider_k: 20_000.0,
+                rider_damp: 5_000.0,
                 rider_forward_shift: Vec3::new(0.0, 0.0, 0.1),
                 rider_backward_shift: Vec3::new(0.0, 0.0, -0.1),
                 half_dimensions: Vec3::new(0.42, 0.64, 1.06),
@@ -180,8 +247,11 @@ impl BikeSpec {
                 gears: vec![2.1, 1.65, 1.35, 1.12, 0.96],
                 final_ratio: 7.2,
                 efficiency: 1.0,
-                up_shift: 0.9,
-                down_shift: 0.45,
+                up_tolerance: vec![1.0; 5],
+                down_tolerance: vec![0.4, 0.9, 1.0, 1.0, 1.0],
+                prevent_up_lean: [0.5, 30.0],
+                prevent_down_lean: [0.5, 50.0],
+                prevent_down_throttle: [1.0, 0.5],
                 up_shift_time: 0.06,
                 down_shift_time: 0.15,
                 blip_throttle: 0.3,
@@ -191,6 +261,8 @@ impl BikeSpec {
                 release_speed: 50.0 / 3.6,
                 feather_factor: 0.85,
                 feather_max_factor: 0.7,
+                feather: FeatherSpec { delta_time: 0.05, ..FeatherSpec::default() },
+                launch_rpm: [0.4, 0.98],
                 clutch_max_factor: 1.0,
             },
             brakes: BrakeSpec {
@@ -220,16 +292,22 @@ impl BikeSpec {
                 speed_direction: 85.0_f32.to_radians(),
                 angular_speed: 4.4,
                 min_speed: 10.0 / 3.6,
+                block_ratio: 0.975,
+                block_min_speed: 40.0 / 3.6,
+                block_time: 1.0,
+                block_wait: 5.0,
             },
             wheelie: Some(WheelieSpec {
                 wheelie: pitch(0.3, 35.0, 0.0),
-                stoppie: pitch(0.95, 45.0, 1.0),
+                stoppie: PitchParams { terrain_influence: 0.0, filter_timescale: 2.5, ..pitch(0.95, 45.0, 1.0) },
                 throttle_pitch: [0.0, 4.0_f32.to_radians()],
                 forced_throttle_pitch: [33.0_f32.to_radians(), 45.0_f32.to_radians()],
                 throttle_pitch_speed: [0.2, 0.6],
                 brake_pitch: [0.0, 4.0_f32.to_radians()],
                 brake_pitch_speed: [0.0, 0.6],
+                help: rider_help(),
             }),
+            tcs: Some(TcsSpec { slip: [0.09, 0.2], speed_range: [0.0, 5.0 / 3.6] }),
             gyro_roll_scale: 1.0,
             gyro_yaw_scale: 1.0,
             drag: 0.15,

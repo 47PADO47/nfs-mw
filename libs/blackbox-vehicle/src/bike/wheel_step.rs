@@ -4,6 +4,7 @@
 use glam::Vec3;
 
 use super::powertrain::Drive;
+use super::thermal;
 use super::tyre::{self, TyreInput};
 use super::{Bike, FRONT, choices, geometry, wheel};
 use crate::ground::Ground;
@@ -70,6 +71,10 @@ impl Bike {
             let state = &mut self.wheels[index];
             state.release(free_total - rest, free_speed);
             state.spin = tyre::spin_in_air(wheel_spec, spin, drive_torque, brake, extra, dt);
+            if let Some(thermal) = &wheel_spec.thermal {
+                let work = thermal::Work { spin: state.spin, ..thermal::Work::default() };
+                self.thermal[index].step(thermal, &work, dt);
+            }
             return;
         };
         // The ground penetration, shared between the tyre and the suspension.
@@ -108,6 +113,7 @@ impl Bike {
             spin,
             camber,
             compression: deformation,
+            efficiency: self.thermal[index].efficiency(),
             grip: contact.surface,
         };
         let (drive_torque, extra) = match index {
@@ -116,10 +122,34 @@ impl Bike {
         };
         let (new_spin, output) =
             tyre::advance_wheel(wheel_spec, &input, drive_torque, brake, extra, index == FRONT, dt);
-        let rolling = tyre::rolling_resistance(wheel_spec, load, input.v_long);
-        let force =
-            contact.normal * load + frame.forward * (output.longitudinal + rolling) + frame.right * output.lateral;
+        // The rolling resistance acts against the velocity of the whole bike, at the contact (above 1 m/s).
+        let vehicle_velocity = self.body.linear_velocity;
+        let vehicle_speed = vehicle_velocity.length();
+        let rolling = tyre::rolling_resistance(wheel_spec, load, vehicle_speed, output.slip_y);
+        let against = match vehicle_speed > 1.0 {
+            true => -vehicle_velocity / vehicle_speed,
+            false => Vec3::ZERO,
+        };
+        let force = contact.normal * load
+            + frame.forward * output.longitudinal
+            + frame.right * output.lateral
+            + against * rolling;
         self.body.apply_force_at(force, contact.point);
+        if let Some(thermal) = &wheel_spec.thermal {
+            let radius = tyre::effective_radius(wheel_spec, camber, deformation);
+            let work = thermal::Work {
+                load,
+                normalised_x: output.normalised_x,
+                normalised_y: output.normalised_y,
+                rolling,
+                camber,
+                slip_speed: radius * new_spin - input.v_long,
+                contact_speed: velocity.length(),
+                spin: new_spin,
+                in_contact: true,
+            };
+            self.thermal[index].step(thermal, &work, dt);
+        }
         let state = &mut self.wheels[index];
         state.compression = total - rest;
         state.compression_speed = speed;

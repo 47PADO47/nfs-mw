@@ -1,4 +1,5 @@
-//! The Magic Formula 94 tyre model (Pacejka, "Tyre and Vehicle Dynamics", appendix 3, the Bakker–Pacejka form).
+//! The Magic Formula 94 tyre model (Pacejka, "Tyre and Vehicle Dynamics", appendix 3, the Bakker–Pacejka form), evaluated as
+//! the reference game's tyre model object does (`docs/specs/ride6-tyre-mf94.md`).
 //!
 //! The coefficients keep their published units: vertical load in kN, slip angle and camber in degrees, longitudinal
 //! slip in percent, forces in N and the self-aligning moment in N m. The three sets are the lateral force
@@ -18,27 +19,109 @@ pub struct Mf94 {
     pub c: [f32; 18],
 }
 
-const A_111: usize = 11;
-const A_112: usize = 12;
-const A_12: usize = 13;
-const A_13: usize = 14;
+/// Below this load (kN) every coefficient is zero (the binary's guard).
+const MIN_LOAD: f32 = 1e-8;
 
-/// `D sin(C atan(B x - E (B x - atan(B x))))`.
-fn magic(b: f32, c: f32, d: f32, e: f32, x: f32) -> f32 {
-    let bx = b * x;
-    d * (c * (bx - e * (bx - bx.atan())).atan()).sin()
+/// The six parameters of the shape function `u = B (x + Sh)`, `F = D sin(C atan(E atan(u) + (1 - E) u)) + Sv`.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Shape {
+    pub b: f32,
+    pub c: f32,
+    pub d: f32,
+    pub e: f32,
+    pub sh: f32,
+    pub sv: f32,
 }
 
-/// The stiffness factor `B = BCD / (C D)`, 0 when the peak vanishes.
-fn stiffness(bcd: f32, c: f32, d: f32) -> f32 {
-    let denominator = c * d;
-    if denominator.abs() < 1e-6 {
-        return 0.0;
+impl Shape {
+    /// The stiffness factor `B = BCD / (C D)`, 0 when the peak vanishes (the formula would divide by zero).
+    fn new(bcd: f32, c: f32, d: f32, e: f32, sh: f32, sv: f32) -> Self {
+        let denominator = c * d;
+        let b = match denominator.abs() < 1e-6 {
+            true => 0.0,
+            false => bcd / denominator,
+        };
+        Self { b, c, d, e, sh, sv }
     }
-    bcd / denominator
+
+    /// The force at the slip `x` (percent, or degrees), shift and vertical shift included.
+    pub fn force(&self, x: f32) -> f32 {
+        let u = self.b * (x + self.sh);
+        let y = self.e * u.atan() + (1.0 - self.e) * u;
+        self.d * (self.c * y.atan()).sin() + self.sv
+    }
+
+    /// The slip, without the shift, at which the pure force peaks: the positive root of
+    /// `E atan(B x) + (1 - E) B x = tan(pi / (2 C))`. 0 when there is no peak (`C <= 1`, no stiffness, no root).
+    pub fn peak_offset(&self) -> f32 {
+        if self.c <= 1.0 || self.b <= 0.0 {
+            return 0.0;
+        }
+        let target = (std::f32::consts::PI / (2.0 * self.c)).tan();
+        let f = |x: f32| self.e * (self.b * x).atan() + (1.0 - self.e) * self.b * x - target;
+        let mut high = 1.0 / self.b;
+        for _ in 0..40 {
+            if f(high) > 0.0 {
+                break;
+            }
+            high *= 2.0;
+        }
+        if f(high) <= 0.0 {
+            return 0.0;
+        }
+        let mut low = 0.0;
+        for _ in 0..40 {
+            let middle = 0.5 * (low + high);
+            match f(middle) < 0.0 {
+                true => low = middle,
+                false => high = middle,
+            }
+        }
+        0.5 * (low + high)
+    }
 }
 
 impl Mf94 {
+    /// The shape of the longitudinal force at load `fz_kn`.
+    pub fn longitudinal_shape(&self, fz_kn: f32) -> Shape {
+        if fz_kn < MIN_LOAD {
+            return Shape::default();
+        }
+        let b = &self.b;
+        let d = (b[1] * fz_kn + b[2]) * fz_kn;
+        let bcd = (b[3] * fz_kn * fz_kn + b[4] * fz_kn) * (-b[5] * fz_kn).exp();
+        let e = b[6] * fz_kn * fz_kn + b[7] * fz_kn + b[8];
+        Shape::new(bcd, b[0], d, e, b[9] * fz_kn + b[10], 0.0)
+    }
+
+    /// The shape of the lateral force at load `fz_kn` and camber `gamma_deg`.
+    pub fn lateral_shape(&self, fz_kn: f32, gamma_deg: f32) -> Shape {
+        if fz_kn < MIN_LOAD {
+            return Shape::default();
+        }
+        let a = &self.a;
+        let d = (a[1] * fz_kn + a[2]) * fz_kn;
+        let bcd = a[3] * (2.0 * (fz_kn / a[4].max(1e-6)).atan()).sin() * (1.0 - gamma_deg.abs() * a[5]);
+        let e = a[6] * fz_kn + a[7];
+        let sh = a[8] * gamma_deg + a[9] * fz_kn + a[10];
+        let sv = ((a[11] * fz_kn + a[12]) * gamma_deg + a[13]) * fz_kn + a[14];
+        Shape::new(bcd, a[0], d, e, sh, sv)
+    }
+
+    /// The shape of the self-aligning moment at load `fz_kn` and camber `gamma_deg`.
+    pub fn aligning_shape(&self, fz_kn: f32, gamma_deg: f32) -> Shape {
+        if fz_kn < MIN_LOAD {
+            return Shape::default();
+        }
+        let k = &self.c;
+        let d = k[1] * fz_kn * fz_kn + k[2] * fz_kn;
+        let bcd = (-k[5] * fz_kn).exp() * (k[3] * fz_kn * fz_kn + k[4] * fz_kn) * (1.0 - k[6] * gamma_deg.abs());
+        let e = (k[7] * fz_kn * fz_kn + k[8] * fz_kn + k[9]) * (1.0 - k[10] * gamma_deg.abs());
+        let sh = k[11] * gamma_deg + k[12] * fz_kn + k[13];
+        let sv = (k[14] * fz_kn * fz_kn + k[15] * fz_kn) * gamma_deg + k[16] * fz_kn + k[17];
+        Shape::new(bcd, k[0], d, e, sh, sv)
+    }
+
     /// The peak lateral force `D` (N) at `fz_kn`.
     pub fn lateral_peak(&self, fz_kn: f32) -> f32 {
         (self.a[1] * fz_kn + self.a[2]) * fz_kn
@@ -46,14 +129,7 @@ impl Mf94 {
 
     /// The lateral force (N) at vertical load `fz_kn`, slip angle `alpha_deg` and camber `gamma_deg`.
     pub fn lateral(&self, fz_kn: f32, alpha_deg: f32, gamma_deg: f32) -> f32 {
-        let a = &self.a;
-        let c = a[0];
-        let d = self.lateral_peak(fz_kn);
-        let bcd = a[3] * (2.0 * (fz_kn / a[4].max(1e-6)).atan()).sin() * (1.0 - a[5] * gamma_deg.abs());
-        let e = (a[6] * fz_kn + a[7]).min(1.0);
-        let sh = a[8] * gamma_deg + a[9] * fz_kn + a[10];
-        let sv = a[A_12] * fz_kn + a[A_13] + (a[A_111] * fz_kn + a[A_112]) * gamma_deg * fz_kn;
-        magic(stiffness(bcd, c, d), c, d, e, alpha_deg + sh) + sv
+        self.lateral_shape(fz_kn, gamma_deg).force(alpha_deg)
     }
 
     /// The peak longitudinal force `D` (N) at `fz_kn`.
@@ -63,25 +139,12 @@ impl Mf94 {
 
     /// The longitudinal force (N) at vertical load `fz_kn` and slip ratio `slip_percent`.
     pub fn longitudinal(&self, fz_kn: f32, slip_percent: f32) -> f32 {
-        let b = &self.b;
-        let c = b[0];
-        let d = self.longitudinal_peak(fz_kn);
-        let bcd = (b[3] * fz_kn * fz_kn + b[4] * fz_kn) * (-b[5] * fz_kn).exp();
-        let e = (b[6] * fz_kn * fz_kn + b[7] * fz_kn + b[8]).min(1.0);
-        let sh = b[9] * fz_kn + b[10];
-        magic(stiffness(bcd, c, d), c, d, e, slip_percent + sh)
+        self.longitudinal_shape(fz_kn).force(slip_percent)
     }
 
     /// The self-aligning moment (N m) at vertical load `fz_kn`, slip angle `alpha_deg` and camber `gamma_deg`.
     pub fn aligning(&self, fz_kn: f32, alpha_deg: f32, gamma_deg: f32) -> f32 {
-        let k = &self.c;
-        let c = k[0];
-        let d = (k[1] * fz_kn + k[2]) * fz_kn;
-        let bcd = (k[3] * fz_kn * fz_kn + k[4] * fz_kn) * (1.0 - k[6] * gamma_deg.abs()) * (-k[5] * fz_kn).exp();
-        let e = ((k[7] * fz_kn * fz_kn + k[8] * fz_kn + k[9]) * (1.0 - k[10] * gamma_deg.abs())).min(1.0);
-        let sh = k[11] * gamma_deg + k[12] * fz_kn + k[13];
-        let sv = (k[14] * fz_kn * fz_kn + k[15] * fz_kn) * gamma_deg + k[16] * fz_kn + k[17];
-        magic(stiffness(bcd, c, d), c, d, e, alpha_deg + sh) + sv
+        self.aligning_shape(fz_kn, gamma_deg).force(alpha_deg)
     }
 }
 
@@ -136,7 +199,7 @@ pub(crate) mod tests {
     #[test]
     fn a_vertical_shift_gives_camber_thrust() {
         let mut tyre = road_tyre();
-        tyre.a[A_111] = 2.0;
+        tyre.a[11] = 2.0;
         assert!(tyre.lateral(2.0, 0.0, 30.0) > 0.0);
         assert_eq!(road_tyre().lateral(2.0, 0.0, 30.0), 0.0);
     }

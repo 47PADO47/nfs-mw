@@ -3,16 +3,6 @@
 //! it as open (`docs/specs/vehicle-two-wheel.md`, `docs/specs/vehicle-two-wheel-parameters.md`). When a fact turns up, change
 //! the constant here and nowhere else.
 
-/// The engine speed, as a share of the rev limit, below which the automatic gearbox changes down, when a bike does not
-/// state one. Open in `ride6-engine-drivetrain.md` ("Automatic shifting": the comparison and the use of the tolerances were
-/// not located). It is a little under the engine speed an upshift at the up-shift point leaves behind in the next gear, so the
-/// box does not hunt.
-pub const DOWN_SHIFT_SHARE: f32 = 0.45;
-
-/// The throttle above which the automatic box changes up (open, same section). A closed or nearly closed throttle holds the
-/// gear, as a rider coasting would.
-pub const UP_SHIFT_MIN_THROTTLE: f32 = 0.3;
-
 /// The clutch is open for the whole of a gear change and engaged afterwards (open: the data's `ClutchTimingOnGearChange`
 /// ramps the clutch out and back in over fractions of the change, but the exact ramps are not pinned down). The engine runs
 /// free during the change, as the drive is cut.
@@ -21,16 +11,6 @@ pub const CLUTCH_OPEN_DURING_SHIFT: bool = true;
 /// The time the clutch takes to engage again after a gear change (s). Open, with `CLUTCH_OPEN_DURING_SHIFT`: without a ramp
 /// the engine and the wheel would be forced to one speed in a single step. About the time of a change up.
 pub const CLUTCH_ENGAGE_TIME: f32 = 0.06;
-
-/// Whether the launch clutch is engaged by engine speed (a feathering rider holds the engine near a speed while the bike
-/// gets going). Open: the feathering control law was not read (`ride6-engine-drivetrain.md`, "Launch clutch"); the target
-/// engine speed is recovered (`feather_factor` and `feather_max_factor` of the spec). The engagement is the larger of the
-/// share of the way the engine is from idle to that speed and the share of the release speed the bike has reached.
-pub const LAUNCH_ENGAGEMENT_FROM_ENGINE_SPEED: bool = true;
-
-/// The engine speed, as a multiple of the idle speed, at which the launch clutch starts to take up the drive. Open (same
-/// section); the data's `MinRPMSpeedScaleRange` tops out at 1.1. The margin keeps an idling engine from dragging the bike.
-pub const LAUNCH_ENGAGE_START_FACTOR: f32 = 1.1;
 
 /// How fast the slipper clutch closes again once the back torque is gone (1/s). Open: `SlipperClutchFilterSpeed` is a
 /// constructor default that was not listed.
@@ -56,10 +36,14 @@ pub const LEAN_FORCE_INCLUDES_TURN_FORCE: bool = true;
 /// default of 1 (recovered, `ride6-suspension.md`, "Unset C++ defaults").
 pub const LATERAL_GRIP_TOLERANCE: f32 = 1.0;
 
-/// Efficiency of the tyre (temperature and wear are not integrated: open, `ride6-tyre.md` section 7) and the share of the
-/// efficiency loss that goes to the longitudinal force (`UTireData::TireEfficiencyBalance` default, recovered).
-pub const TYRE_EFFICIENCY: f32 = 1.0;
+/// The share of the efficiency loss that goes to the longitudinal force: the `TireEfficiencyBalance` constructor default of the
+/// tyre data (recovered, `ride6-tyre-thermal.md` section 1; the lateral force gets the rest).
 pub const TYRE_EFFICIENCY_BALANCE: f32 = 0.5;
+
+/// The air and the road temperature (deg C) the tyre cools towards. Open: the track and the weather set them and no default was
+/// found (`ride6-tyre-thermal.md` section 1). A mild day with a road a little warmer than the air.
+pub const AIR_TEMPERATURE: f32 = 20.0;
+pub const ASPHALT_TEMPERATURE: f32 = 30.0;
 
 /// The runtime multiplier of the slip correction (wet and burnout surfaces change it; 1 on a dry road).
 pub const SLIP_CORRECTION_MULTIPLIER: f32 = 1.0;
@@ -77,23 +61,35 @@ pub const BRAKE_COUPLING_SIGN: f32 = -1.0;
 /// the minimum speed of the spec. Open: the exact tests are inferred (`ride6-lean-controller.md`, "Fall detection").
 pub const LEAN_AND_PITCH_FALL_AT_ANY_SPEED: bool = true;
 
-/// The rider help that cuts the throttle when the front lifts and eases the front brake when the rear does is a linear ramp
-/// of the lift angle and of its speed between the two numbers of each range, as the weight control of the same element is.
-/// Open: its own formulas were not read (`ride6-rider-help.md`, "Rider help"). The lift angle is the angle of the line through
-/// the hubs from the ground (no estimate of the pitch from the body).
-pub const RIDER_HELP_RAMPS_ARE_LINEAR: bool = true;
-
-/// Rolling resistance has no slip term (`RollingResistanceSlip` of the tyre row): the model's formula was not read.
-pub const ROLLING_HAS_SLIP_TERM: bool = false;
-
 /// Numerical guard: slower than this (m/s) the bike counts as standing for the tests that divide by the speed.
 pub const STANDING_SPEED: f32 = 0.5;
 
-/// Whether the rider leads the handlebar by the time constant of its filter (`Bike::lead_the_handlebar`). Open: the reference
-/// steers the front wheel along the direction of its own contact point through a lagging handlebar filter (`K` 1000, ratio 3:
-/// a time constant of 0.18 s), and without a stabiliser (the stability help is off for the stock bike) such a wheel pushes the
-/// nose of a braking bike round: the front tyre is stiffer than the rear one when the weight is forward, the lag makes the
-/// front force add to the yaw instead of damping it, and the bike spins out within a second of an ordinary stop. What keeps
-/// the reference stable (a finer step, a tyre relaxation, a rider term) was not recovered, so the rider here advances the
-/// handlebar's input by the filter's own time constant. The value is derived from the filter, not tuned.
-pub const HANDLEBAR_LEAD: bool = true;
+/// The road speed (m/s) below which the bike counts as being at a start: with the throttle shut the clutch is pulled (the engine
+/// idles), with it open the launch clutch acts. Open: `InStartingSequence` and the neutral logic of the handler were read but
+/// not written up (`ride6-gearbox-auto.md`, section 2).
+pub const START_SPEED: f32 = 1.0;
+
+/// The least lean limit (rad) the rider's place divides the target lean by, so a limit that has not been planned yet (0) asks for
+/// no lean shift rather than a division by zero. Numerical guard.
+pub const MIN_LEAN_LIMIT: f32 = 0.05;
+
+/// Which side the normalised lean that places the rider is on: the sign of the binary's target lean is that of the stick, and
+/// the stick to the right is a lean to the right in this model, so a positive lean shifts the rider by the lateral offset of the
+/// data as it stands (x toward the right for a positive x). Open: the binary does not say which side its positive lean is; the
+/// data is consistent with it (a supermoto's lateral offset puts the rider on the outside of the lean, upright over the bike,
+/// and a scooter's on the inside) (`ride6-rider-body-aero.md`, "Target place").
+pub const POSITIVE_LEAN_IS_RIGHT: bool = true;
+
+/// The lateral weight input moves at the rate of the longitudinal one (`InputData.WeightLongitudinal.InputRate`). Open: the
+/// lateral channel's own rate was not read.
+pub const LATERAL_WEIGHT_RATE_IS_LONGITUDINAL: bool = true;
+
+/// The rider's spring error is the plain difference between the asked-for place and his place. The binary's newer formulation
+/// (`bUseNewRiderDelta`, set by every bike) measures it as an arc about the bike's centre of gravity; for the few centimetres
+/// the rider moves the two differ by well under a millimetre, so the linear difference stands in.
+pub const RIDER_DELTA_IS_LINEAR: bool = true;
+
+/// How the posture changes the air drag: the multiplier is the drag curve of the rider's posture (his tuck, 0 to 1) over its
+/// value upright, applied to the whole drag. Open: the binary builds a drag force on the rider from `DragCurve`, `DragScale` and
+/// `DragScaleCurve` in a function that was not read; the bike's own drag coefficient stays the measured upright one.
+pub const RIDER_DRAG_RELATIVE_TO_UPRIGHT: bool = true;

@@ -1,28 +1,42 @@
-//! The wheelie and stoppie control (`docs/specs/ride6-rider-help.md`): a pitch torque that holds the bike at the pitch the
-//! rider's weight asks for, so a wheelie settles at its angle instead of flipping.
+//! The wheelie and stoppie control (`docs/specs/ride6-tricks.md`, sections 1 to 3): a pure pitch torque that holds the bike at
+//! the pitch the rider's weight and pedal ask for, so a wheelie settles at its angle instead of flipping.
+//!
+//! Angles are nose-up positive here; the reference works in the opposite sign and its torque follows, so the two are
+//! mirror images and give the same motion.
 
 use super::curve::{factor, ramp};
 use super::spec::{PitchParams, WheelieSpec};
 
+/// The pedal that must stay below this (0 to 1) for the other lift to be asked: a wheelie needs the front brake below it and
+/// a stoppie the throttle (`ride6-tricks.md`, section 1).
+pub const FREE_PEDAL: f32 = 0.1;
+
+/// `MaxAngleFactorInputTuning`: how the strength of the pedal and lever (0 to 1) scales the target angle. The data of no bike
+/// sets it; this is the constructor default, a straight line from 0 to 1.
+pub const INPUT_FACTOR_RANGE: [f32; 2] = [0.0, 1.0];
+
 /// What the assist is given.
 #[derive(Clone, Copy, Debug)]
 pub struct PitchInput {
-    /// The rider's longitudinal weight, -1 (back) to 1 (forward).
+    /// The rider's longitudinal weight as the player asks it, -1 (back) to 1 (forward).
     pub weight: f32,
+    /// The throttle and the front brake (0 to 1) after the rider help's direct interventions.
     pub throttle: f32,
     pub front_brake: f32,
-    /// The pitch (rad, positive nose up) and its rate (rad/s).
+    /// The pitch of the body (rad, positive nose up) and its rate (rad/s).
     pub pitch: f32,
     pub pitch_rate: f32,
+    /// The road's inclination along the heading (rad, positive uphill).
+    pub terrain: f32,
     /// The speed along the bike (m/s) and the normalised lean (0 upright, 1 at the lean limit).
     pub speed: f32,
     pub normalised_lean: f32,
     pub front_on_ground: bool,
     pub rear_on_ground: bool,
-    /// The height (m) of the wheel the assist raises over the ground.
-    pub gap: f32,
     /// The pitch inertia of the bike without the rider (kg m^2): the help torque is scaled by it.
     pub inertia: f32,
+    /// The step (s).
+    pub dt: f32,
 }
 
 /// The lever travel the rider asks the assist for, -1 (a wheelie at full) to 1 (a stoppie at full), after the dead zones.
@@ -34,163 +48,107 @@ pub fn target_position(spec: &WheelieSpec, weight: f32) -> f32 {
     }
 }
 
+/// The time-optimal bang-bang plan from a state `(x, v)` to rest at `target` with an acceleration of at most `a`: the total
+/// time (signed: negative when the plan starts by decelerating) and the time of the switch. `(0, 0)` when there is no plan.
+fn plan(x: f32, v: f32, a: f32, target: f32) -> (f32, f32) {
+    const NONE: f32 = 1000.0;
+    // The best plan whose first leg accelerates by `a` (negative `a`: the other way).
+    let leg = |a: f32| -> (f32, f32) {
+        let v2 = 2.0 * v * v;
+        let disc = (target - x) * a * 4.0 + v2;
+        if disc < 0.0 {
+            return (NONE, 0.0);
+        }
+        let root = disc.sqrt();
+        let candidate = |s: f32| -> (f32, f32) {
+            let total = (s - v) / a;
+            let switch = (a * total - v) / (a + a) + 1e-5;
+            match total < 0.0 || switch < 0.0 || total < switch {
+                true => (NONE, 0.0),
+                false => (total, switch),
+            }
+        };
+        let (up, down) = (candidate(root), candidate(-root));
+        match down.0 <= up.0 {
+            true => down,
+            false => up,
+        }
+    };
+    let (plus, minus) = (leg(a), leg(-a));
+    match minus.0 <= plus.0 {
+        true if minus.0 >= NONE => (0.0, 0.0),
+        true => (-minus.0, minus.1),
+        false => (plus.0, plus.1),
+    }
+}
+
+/// The angular acceleration (rad/s^2) the tracker commands for a state `(x, v)` heading for `target` (all along one sign
+/// convention): the bang-bang plan's acceleration, averaged over `window` seconds so the switch is smooth.
+pub fn track(x: f32, v: f32, target: f32, limit: f32, window: f32) -> f32 {
+    if window <= 0.0 || limit <= 0.0 {
+        return 0.0;
+    }
+    let (total, switch) = plan(x, v, limit, target);
+    if total == 0.0 {
+        return 0.0;
+    }
+    let (time, a) = match total < 0.0 {
+        true => (-total, -limit),
+        false => (total, limit),
+    };
+    // The plan ends inside the window: the average over its own length; a switch inside the window: over the window.
+    match (window < time, switch <= window) {
+        (true, false) => a,
+        (true, true) => (2.0 * switch / window - 1.0) * a,
+        (false, _) => (2.0 * switch / time - 1.0) * a,
+    }
+}
+
+/// A value moving from `from` towards `to` with a square-root approach: it covers the distance at a speed that falls as the
+/// square root of what is left. `step` is the rate times the time.
+pub fn approach(from: f32, to: f32, step: f32) -> f32 {
+    let left = from - to;
+    let d = left.abs().sqrt() - step;
+    match d > 0.0 {
+        true => to + left.signum() * d * d,
+        false => to,
+    }
+}
+
 /// The pitch torque (N m, positive raises the nose) that holds the pitch at the angle asked for; 0 when the assist is off.
 pub fn torque(spec: &WheelieSpec, input: &PitchInput) -> f32 {
     let position = target_position(spec, input.weight);
     if position == 0.0 {
         return 0.0;
     }
-    let (params, grounded, free_lever): (&PitchParams, bool, bool) = match position < 0.0 {
-        // A wheelie: the rear tyre must be on the road and the brake off.
-        true => (&spec.wheelie, input.rear_on_ground, input.front_brake < 0.1),
-        // A stoppie: the front tyre on the road and the throttle off.
-        false => (&spec.stoppie, input.front_on_ground, input.throttle < 0.1),
+    let wheelie = position < 0.0;
+    let (params, grounded, free_lever, pedal): (&PitchParams, bool, bool, f32) = match wheelie {
+        // A wheelie: the rear tyre must be on the road and the front brake off; the throttle sets the strength.
+        true => (&spec.wheelie, input.rear_on_ground, input.front_brake < FREE_PEDAL, input.throttle),
+        // A stoppie: the front tyre on the road and the throttle off; the front brake sets the strength.
+        false => (&spec.stoppie, input.front_on_ground, input.throttle < FREE_PEDAL, input.front_brake),
     };
     if !grounded || !free_lever || input.speed.abs() < params.min_speed {
         return 0.0;
     }
-    // A wheelie (negative position) raises the nose (positive pitch), a stoppie lowers it.
-    let target = -position * ramp(input.speed.abs(), params.speed_ramp) * params.max_angle;
-    let current = input.pitch + input.pitch_rate * params.lookahead;
-    let error = target - current;
-    let acceleration = params.acceleration;
-    let wanted_rate = error.signum() * (2.0 * acceleration * error.abs()).sqrt();
-    let command =
-        ((wanted_rate - input.pitch_rate) / params.acceleration_time.max(1e-3)).clamp(-acceleration, acceleration);
+    // The strength of the request is the lever times the pedal; with the pedal released the target is level.
+    let strength = (position * pedal).abs().min(1.0);
+    let scale = INPUT_FACTOR_RANGE[0] + (INPUT_FACTOR_RANGE[1] - INPUT_FACTOR_RANGE[0]) * strength;
+    let reach = scale * ramp(input.speed.abs(), params.speed_ramp) * params.max_angle;
+    let target = -position.signum() * reach;
+    let current = input.pitch - input.terrain * params.terrain_influence + input.pitch_rate * params.lookahead;
+    let aim = match params.filter_timescale > 0.0 {
+        true => approach(current, target, params.filter_timescale * input.dt),
+        false => target,
+    };
+    let command = track(current, input.pitch_rate, aim, params.acceleration, params.acceleration_time);
     let lean_help = 1.0 - ramp(input.normalised_lean.abs(), params.lean_help);
-    let ground_help = 1.0 - ramp(input.gap.max(0.0), params.ground_range);
+    // The height of the grounded wheel above the road is nothing while it carries load.
+    let ground_help = 1.0 - ramp(0.0, params.ground_range);
     let help = lean_help * ground_help * factor(&params.help_speed, input.speed.abs());
     input.inertia * command * help
 }
 
-/// A range that is `[0, 0]` is off.
-fn ramp_on(x: f32, range: [f32; 2]) -> f32 {
-    match range == [0.0, 0.0] {
-        true => 0.0,
-        false => ramp(x, range),
-    }
-}
-
-/// The share of the throttle the rider help lets through when the front lifts: the lift angle (rad, positive nose up) and
-/// the speed it lifts at (rad/s). While the rider asks for a wheelie the angle range of the forced wheelie applies.
-pub fn throttle_factor(spec: &WheelieSpec, lift: f32, lift_speed: f32, wheelie_asked: bool) -> f32 {
-    let range = match wheelie_asked {
-        true => spec.forced_throttle_pitch,
-        false => spec.throttle_pitch,
-    };
-    1.0 - ramp_on(lift, range).max(ramp_on(lift_speed, spec.throttle_pitch_speed))
-}
-
-/// The share of the front brake the rider help lets through when the rear lifts (the nose going down).
-pub fn brake_factor(spec: &WheelieSpec, lift: f32, lift_speed: f32) -> f32 {
-    1.0 - ramp_on(-lift, spec.brake_pitch).max(ramp_on(-lift_speed, spec.brake_pitch_speed))
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::bike::BikeSpec;
-
-    fn input(weight: f32, pitch: f32, rate: f32) -> PitchInput {
-        PitchInput {
-            weight,
-            throttle: 0.5,
-            front_brake: 0.0,
-            pitch,
-            pitch_rate: rate,
-            speed: 10.0,
-            normalised_lean: 0.0,
-            front_on_ground: true,
-            rear_on_ground: true,
-            gap: 0.0,
-            inertia: 80.0,
-        }
-    }
-
-    fn spec() -> WheelieSpec {
-        BikeSpec::example().wheelie.unwrap()
-    }
-
-    #[test]
-    fn the_dead_zones_swallow_a_small_lever_travel() {
-        let s = spec();
-        assert_eq!(target_position(&s, 0.0), 0.0);
-        assert_eq!(target_position(&s, -0.2), 0.0);
-        assert!(target_position(&s, -0.65) < 0.0 && target_position(&s, -0.65) > -1.0);
-        assert_eq!(target_position(&s, 0.9), 0.0);
-        assert_eq!(target_position(&s, 1.0), 1.0);
-        assert_eq!(target_position(&s, -1.0), -1.0);
-    }
-
-    #[test]
-    fn weight_back_raises_the_nose_and_weight_forward_lowers_it() {
-        let s = spec();
-        assert!(torque(&s, &input(-1.0, 0.0, 0.0)) > 0.0);
-        let stoppie = PitchInput { throttle: 0.0, ..input(1.0, 0.0, 0.0) };
-        assert!(torque(&s, &stoppie) < 0.0);
-    }
-
-    #[test]
-    fn the_assist_holds_the_angle_it_was_asked_for() {
-        let s = spec();
-        let target = s.wheelie.max_angle;
-        // At the target and at rest the torque is nothing; above it the nose is pulled down.
-        assert!(torque(&s, &input(-1.0, target, 0.0)).abs() < 1.0);
-        assert!(torque(&s, &input(-1.0, target + 0.2, 0.0)) < 0.0);
-    }
-
-    #[test]
-    fn the_assist_needs_the_right_wheel_on_the_road_and_the_pedal_free() {
-        let s = spec();
-        assert_eq!(torque(&s, &PitchInput { rear_on_ground: false, ..input(-1.0, 0.0, 0.0) }), 0.0);
-        assert_eq!(torque(&s, &PitchInput { front_brake: 0.5, ..input(-1.0, 0.0, 0.0) }), 0.0);
-        assert_eq!(torque(&s, &PitchInput { throttle: 0.5, ..input(1.0, 0.0, 0.0) }), 0.0);
-    }
-
-    #[test]
-    fn the_assist_fades_when_leaned_over_and_is_off_at_a_crawl() {
-        let s = spec();
-        let upright = torque(&s, &input(-1.0, 0.0, 0.0));
-        assert!(torque(&s, &PitchInput { normalised_lean: 1.0, ..input(-1.0, 0.0, 0.0) }) < upright * 0.01);
-        assert!(torque(&s, &PitchInput { speed: 0.0, ..input(-1.0, 0.0, 0.0) }).abs() < 1e-3);
-    }
-
-    #[test]
-    fn the_torque_is_bounded_by_the_accelerations_the_tracker_allows() {
-        let s = spec();
-        let t = torque(&s, &input(-1.0, -1.0, -5.0));
-        assert!(t.abs() <= 80.0 * s.wheelie.acceleration + 1e-3);
-    }
-
-    #[test]
-    fn the_throttle_is_cut_as_the_front_lifts_and_the_front_brake_as_the_rear_does() {
-        let s = spec();
-        assert_eq!(throttle_factor(&s, 0.0, 0.0, false), 1.0);
-        assert!(throttle_factor(&s, 0.04, 0.0, false) < 1.0);
-        assert!(throttle_factor(&s, 0.2, 0.0, false) < 1e-6);
-        // Asked for a wheelie, the throttle holds until the forced range.
-        assert_eq!(throttle_factor(&s, 0.2, 0.0, true), 1.0);
-        assert!(throttle_factor(&s, 0.8, 0.0, true) < 1e-6);
-        assert!(throttle_factor(&s, 0.0, 0.5, false) < 1.0);
-        assert_eq!(brake_factor(&s, 0.0, 0.0), 1.0);
-        assert!(brake_factor(&s, -0.05, 0.0) < 1.0);
-        assert!(brake_factor(&s, 0.3, 0.0) == 1.0);
-    }
-
-    #[test]
-    fn a_zero_range_is_off() {
-        let mut s = spec();
-        s.throttle_pitch = [0.0, 0.0];
-        s.throttle_pitch_speed = [0.0, 0.0];
-        assert_eq!(throttle_factor(&s, 0.5, 1.0, false), 1.0);
-    }
-
-    #[test]
-    fn the_help_fades_as_the_lifted_wheel_rises() {
-        let s = spec();
-        let low = torque(&s, &PitchInput { gap: 0.0, ..input(-1.0, 0.0, 0.0) });
-        let high = torque(&s, &PitchInput { gap: 0.8, ..input(-1.0, 0.0, 0.0) });
-        assert!(high > 0.0 && high < low * 0.3, "{low} {high}");
-        assert!(torque(&s, &PitchInput { gap: 1.2, ..input(-1.0, 0.0, 0.0) }).abs() < 1e-3);
-    }
-}
+#[path = "pitch_assist_tests.rs"]
+mod tests;

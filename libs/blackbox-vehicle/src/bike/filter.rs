@@ -67,20 +67,6 @@ pub fn acceleration(x: f32, v: f32, k: f32, ratio: f32) -> f32 {
     -k * x - 2.0 * ratio * k.max(0.0).sqrt() * v
 }
 
-/// The time constant (s) of the slowest decaying mode of the filter: the inverse of its slow pole when over-damped, of the real
-/// part of its poles otherwise. 0 for a filter that has no stiffness (it passes its input at once).
-pub fn slow_time_constant(k: f32, ratio: f32) -> f32 {
-    if k.is_nan() || k <= 0.0 || ratio.is_nan() || ratio <= 0.0 {
-        return 0.0;
-    }
-    let w = k.sqrt();
-    let rate = match ratio > 1.0 {
-        true => w * (ratio - (ratio * ratio - 1.0).sqrt()),
-        false => w * ratio,
-    };
-    1.0 / rate.max(f32::EPSILON)
-}
-
 /// The constant acceleration that carries a spring-damper at offset `x` and speed `v` to the speed the exact solution of
 /// `x'' = -K x - 2 z sqrt(K) x'` has after `dt`. Evaluating [`acceleration`] once per step and holding it over the step is
 /// unstable as soon as `2 z sqrt(K) dt` exceeds 2 (the lean controller's `K = 1000`, `z = 3.6` at 60 Hz gives 3.8); this one
@@ -145,14 +131,6 @@ mod tests {
             v += a * dt;
         }
         assert!(x.abs() < 1e-3 && v.abs() < 1e-2, "{x} {v}");
-    }
-
-    #[test]
-    fn the_slow_time_constant_is_that_of_the_slow_pole() {
-        // K = 1000, z = 3: poles at -5.4 and -185 per second.
-        assert!((slow_time_constant(1000.0, 3.0) - 0.1847).abs() < 1e-3);
-        assert!((slow_time_constant(400.0, 0.5) - 0.1).abs() < 1e-6);
-        assert_eq!(slow_time_constant(0.0, 3.0), 0.0);
     }
 
     #[test]

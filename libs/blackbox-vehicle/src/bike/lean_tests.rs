@@ -1,3 +1,5 @@
+use glam::Vec3;
+
 use super::*;
 use crate::bike::BikeSpec;
 
@@ -17,6 +19,7 @@ fn input(stick: f32, lean: f32, speed: f32) -> LeanInput {
         mass: 183.0,
         cg_height: 0.8,
         front_share: 0.5,
+        target_cap: f32::MAX,
         dt: DT,
     }
 }
@@ -100,10 +103,18 @@ fn the_slip_for_a_force_beyond_the_peak_is_the_slip_of_the_peak() {
 }
 
 #[test]
-fn the_steer_solve_finds_the_angle_of_a_linear_geometry() {
-    let steer = solve_steer(0.45, 0.7, |delta| 0.9 * delta);
-    assert!((steer - 0.5).abs() < 1e-3);
-    assert_eq!(solve_steer(5.0, 0.7, |delta| delta), 0.7);
+fn the_closed_form_handlebar_steers_the_wheel_to_the_direction_of_travel_less_the_slip() {
+    let axis = Vec3::new(0.0, 26.0_f32.to_radians().cos(), -26.0_f32.to_radians().sin());
+    // Straight ahead with no slip: no steering. A push to the left (slip) first steers left, and a patch moving to the right
+    // steers right.
+    assert!(handlebar_angle(Vec3::new(0.0, 0.0, 20.0), axis, 0.0).abs() < 1e-5);
+    assert!(handlebar_angle(Vec3::new(0.0, 0.0, 20.0), axis, 0.05) < -0.03);
+    assert!(handlebar_angle(Vec3::new(1.0, 0.0, 20.0), axis, 0.0) > 0.03);
+    // Mirrored.
+    let right = handlebar_angle(Vec3::new(1.0, 0.0, 20.0), axis, 0.02);
+    let left = handlebar_angle(Vec3::new(-1.0, 0.0, 20.0), axis, -0.02);
+    assert!((right + left).abs() < 1e-5);
+    assert_eq!(handlebar_angle(Vec3::ZERO, axis, 0.1), 0.0);
 }
 
 #[test]
@@ -113,4 +124,17 @@ fn the_handlebar_goes_to_the_stick_at_a_walking_pace_and_to_the_controller_at_sp
     assert!((blend_to_stick(&steering, 10.0, 0.5, -0.3) + 0.3).abs() < 1e-6);
     let half = blend_to_stick(&steering, 3.0, 0.0, 0.4);
     assert!((half - 0.2).abs() < 1e-6);
+}
+
+#[test]
+fn the_block_fall_cap_holds_the_target_lean_back() {
+    let steering = BikeSpec::example().steering;
+    let mut lean = Lean::new();
+    let mut plan = LeanPlan::default();
+    for _ in 0..300 {
+        plan = lean.plan(&steering, &LeanInput { target_cap: 0.2, ..input(1.0, 0.0, 20.0) });
+    }
+    assert!(plan.capped && (plan.target - 0.2).abs() < 1e-6, "{plan:?}");
+    let free = Lean::new().plan(&steering, &input(0.0, 0.0, 20.0));
+    assert!(!free.capped);
 }

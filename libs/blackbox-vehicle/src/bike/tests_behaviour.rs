@@ -1,7 +1,7 @@
 //! The behaviour of the final model on flat ground: mass and inertia, the rider, the prescribed lean, the suspension with
 //! the tyre in series, the engine and the rider help. These tests were written without running them.
 
-use glam::Quat;
+use glam::{Quat, Vec3};
 
 use super::{Bike, BikeInput, BikeSpec, FRONT, REAR};
 use crate::FIXED_STEP;
@@ -145,8 +145,12 @@ fn coasting_slows_the_bike_down_with_the_engine_the_air_and_the_tyres() {
 fn weight_back_and_the_throttle_lift_the_front_wheel_to_a_wheelie() {
     let (mut bike, ground) = bike_at(10.0);
     bike.set_weight(-1.0);
-    run(&mut bike, &ground, 4.0, &BikeInput { throttle: 0.7, ..Default::default() });
-    assert!(bike.pitch() > 0.1, "{}", bike.pitch());
+    let mut highest: f32 = 0.0;
+    for _ in 0..(4.0 / FIXED_STEP) as usize {
+        bike.step(FIXED_STEP, &BikeInput { throttle: 0.7, ..Default::default() }, &ground);
+        highest = highest.max(bike.pitch());
+    }
+    assert!(highest > 0.1, "{highest}");
     assert!(!bike.fallen());
 }
 
@@ -160,4 +164,64 @@ fn a_bike_rolled_over_is_fallen_and_placing_it_again_stands_the_rider_up() {
     assert!(bike.fallen());
     assert!(bike.place_on_ground(&ground, 0.0, 0.0, 2.0, 0.0));
     assert!(!bike.fallen());
+}
+
+#[test]
+fn saturated_braking_in_a_held_turn_keeps_the_bike_up_and_pointing_where_it_was() {
+    let (mut bike, ground) = bike_at(25.0);
+    run(&mut bike, &ground, 3.0, &BikeInput { throttle: 0.3, steer: 0.4, ..Default::default() });
+    assert!(!bike.fallen());
+    let brake = BikeInput { front_brake: 1.0, rear_brake: 1.0, steer: 0.4, ..Default::default() };
+    for _ in 0..(3.0 / FIXED_STEP) as usize {
+        bike.step(FIXED_STEP, &brake, &ground);
+        assert!(!bike.fallen(), "fell at speed {}", bike.forward_speed());
+    }
+    assert!(bike.forward_speed() < 20.0);
+}
+
+#[test]
+fn saturated_braking_in_a_straight_line_does_not_yaw_the_bike_round() {
+    let (mut bike, ground) = bike_at(30.0);
+    let brake = BikeInput { front_brake: 1.0, rear_brake: 1.0, ..Default::default() };
+    run(&mut bike, &ground, 4.0, &brake);
+    let forward = bike.orientation() * Vec3::Z;
+    assert!(forward.z > 0.9 && !bike.fallen(), "{forward}");
+}
+
+#[test]
+fn the_traction_control_keeps_the_rear_wheel_from_spinning_up_on_a_start() {
+    let worst_slip = |tcs: bool| {
+        let mut spec = BikeSpec::example();
+        if !tcs {
+            spec.tcs = None;
+        }
+        let ground = FlatGround::new(0.0);
+        let mut bike = Bike::new(spec);
+        assert!(bike.place_on_ground(&ground, 0.0, 0.0, 2.0, 0.0));
+        let input = BikeInput { throttle: 1.0, ..Default::default() };
+        let mut worst: f32 = 0.0;
+        for _ in 0..(3.0 / FIXED_STEP) as usize {
+            bike.step(FIXED_STEP, &input, &ground);
+            if bike.forward_speed() > 3.0 {
+                worst = worst.max(bike.wheel(REAR).slip_ratio);
+            }
+        }
+        worst
+    };
+    assert!(worst_slip(true) <= worst_slip(false) + 1e-3, "{} {}", worst_slip(true), worst_slip(false));
+}
+
+#[test]
+fn the_riders_spring_lets_him_lag_a_hard_acceleration_and_come_back() {
+    // Without the auto-rider, which moves the weight forward under the throttle and would hide the lag.
+    let mut spec = BikeSpec::example();
+    spec.wheelie.as_mut().unwrap().help.auto_rider = None;
+    let ground = FlatGround::new(0.0);
+    let mut bike = Bike::new(spec);
+    assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, 0.0));
+    run(&mut bike, &ground, 0.5, &BikeInput::default());
+    let rest = bike.body().cog().z;
+    run(&mut bike, &ground, 1.0, &BikeInput { throttle: 0.6, ..Default::default() });
+    // Pushed back by the acceleration, the combined centre of gravity moves backwards of its place.
+    assert!(bike.body().cog().z < rest, "{} {rest}", bike.body().cog().z);
 }
