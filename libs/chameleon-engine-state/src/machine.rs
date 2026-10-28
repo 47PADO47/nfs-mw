@@ -9,7 +9,7 @@ pub enum Phase {
     Running { still: f32 },
     /// Switched off by the rule.
     Off,
-    /// Cranking after a press of the throttle; `left` seconds to go.
+    /// Cranking after a press of the throttle or of the reverse; `left` seconds to go.
     Starting { left: f32 },
 }
 
@@ -20,7 +20,8 @@ pub enum Event {
     None,
     /// The engine just switched off.
     Stopped,
-    /// The throttle was pressed with the engine off: the ignition starts, and the engine runs after `seconds`.
+    /// The throttle was pressed, or the reverse was asked for, with the engine off: the ignition starts, and the engine
+    /// runs after `seconds`.
     Cranking { seconds: f32 },
     /// The cranking is over, the engine runs.
     Running,
@@ -38,6 +39,9 @@ pub struct Input {
     pub speed: f32,
     /// The driver's throttle pedal, 0 to 1, whether or not the engine is running.
     pub throttle: f32,
+    /// The driver's brake pedal, 0 to 1. At a standstill a fresh press of it is the reverse (see
+    /// [`EngineParams::restart_brake`]).
+    pub brake: f32,
     /// Whether the rule applies now (free driving: no race, no pursuit).
     pub active: bool,
 }
@@ -47,12 +51,14 @@ pub struct Input {
 pub struct EngineMachine {
     params: EngineParams,
     phase: Phase,
+    /// The brake was pressed in the last step: a restart wants a fresh press, not a pedal held since the stop.
+    brake_down: bool,
 }
 
 impl EngineMachine {
     /// A machine with a running engine.
     pub fn new(params: EngineParams) -> Self {
-        Self { params: params.sanitised(), phase: Phase::Running { still: 0.0 } }
+        Self { params: params.sanitised(), phase: Phase::Running { still: 0.0 }, brake_down: false }
     }
 
     pub fn params(&self) -> &EngineParams {
@@ -71,6 +77,7 @@ impl EngineMachine {
     /// Put the machine back to a running engine with the clock at zero.
     pub fn reset(&mut self) {
         self.phase = Phase::Running { still: 0.0 };
+        self.brake_down = false;
     }
 
     /// One step of `input.dt` seconds.
@@ -88,6 +95,10 @@ impl EngineMachine {
             };
         }
         let pressed = input.throttle >= self.params.restart_throttle;
+        // The reverse: a fresh brake press at a standstill with no throttle. The automatic box selects reverse that way.
+        let brake_now = input.brake >= self.params.restart_brake;
+        let reverse = brake_now && !self.brake_down && !pressed && input.speed < self.params.reverse_speed;
+        self.brake_down = brake_now;
         match self.phase {
             Phase::Running { still } => {
                 let standing = input.speed.abs() < self.params.still_speed && !pressed;
@@ -103,7 +114,7 @@ impl EngineMachine {
                 Event::Stopped
             }
             Phase::Off => {
-                if !pressed {
+                if !pressed && !reverse {
                     return Event::None;
                 }
                 self.phase = Phase::Starting { left: self.params.crank_seconds };

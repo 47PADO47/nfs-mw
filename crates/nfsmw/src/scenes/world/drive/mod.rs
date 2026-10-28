@@ -222,16 +222,18 @@ impl Drive {
     /// the effect layer meanwhile).
     /// The car's lamps, with the car frame and what lights them. Copied, so the caller can hold the effect layer.
     pub fn lamp_source(&self) -> (CarLights, super::car_light_flares::CarLightFlares, Mat4, LampState) {
-        let reverse = self.sim.as_ref().is_some_and(|s| s.telemetry().gear < 0);
+        let dark = self.lights_dark();
+        let reverse = self.sim.as_ref().is_some_and(|s| s.telemetry().gear < 0) && !dark;
         let state = LampState {
             broken: self.sim.as_ref().map_or(0, |s| s.lamp_damage()),
             emergency: 0,
             brake: self.brake_lamp,
             reverse,
             steer: self.steer_lamp,
-            headlights: self.headlights,
+            headlights: self.headlights && !dark,
             enhanced: self.rig.enhanced_lamps(),
             turn_signals: false,
+            dark,
             time: self.lamp_time,
         };
         (self.rig.lights().clone(), self.rig.flares().clone(), self.pose().transform(), state)

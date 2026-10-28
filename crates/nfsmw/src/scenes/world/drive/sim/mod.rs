@@ -418,6 +418,7 @@ fn next_sound_identity() -> u64 {
 mod ai;
 mod camera;
 mod contact_damage;
+mod engine_off;
 mod hud;
 mod impact_effects;
 mod lights;

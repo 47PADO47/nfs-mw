@@ -453,4 +453,10 @@ impl Vehicle {
     pub fn shift_to(&mut self, gear: usize) -> bool {
         self.powertrain.shift(gear)
     }
+
+    /// Holds the gearbox in neutral, or lets it go (`Powertrain::set_neutral_hold`): while held, no gear request and no
+    /// automatic reverse is taken.
+    pub fn set_neutral_hold(&mut self, on: bool) {
+        self.powertrain.set_neutral_hold(on);
+    }
 }

@@ -6,7 +6,7 @@ use super::Vehicle;
 use crate::aero::{self, AeroInput};
 use crate::drivetrain::{GEAR_FIRST, GEAR_REVERSE, TickInput};
 use crate::ground::Ground;
-use crate::input::{GearRequest, InputContext, InputState, shape};
+use crate::input::{ControlConfig, GearRequest, InputContext, InputState, shape};
 use crate::math::clamp_signed;
 use crate::rigid_body::BodyState;
 use crate::steering::{SteeringDevice, SteeringInput, ackermann};
@@ -138,7 +138,12 @@ impl Vehicle {
         // The player's shift action precedes auto-reverse. Shape from the gear
         // actually accepted by the gearbox, including reverse exit this tick.
         let mut pedals = *input;
-        if !self.disabled && (self.config.automatic || input.gear_select.is_none()) {
+        // A gearbox held in neutral (an engine that is off) takes no gear request and no automatic reverse.
+        let held = self.powertrain.neutral_held();
+        if held {
+            pedals.gear_select = None;
+        }
+        if !self.disabled && !held && (self.config.automatic || input.gear_select.is_none()) {
             let dir = i32::from(input.shift_up) - i32::from(input.shift_down);
             let desired =
                 (self.powertrain.gear() as i64 + i64::from(dir)).clamp(1, self.powertrain.top_gear() as i64) as usize;
@@ -149,7 +154,8 @@ impl Vehicle {
         pedals.shift_up = false;
         pedals.shift_down = false;
         let ctx = InputContext { forward_speed, gear: self.powertrain.gear(), disabled: self.disabled };
-        let controls = shape(&pedals, &self.config, &ctx);
+        let config = ControlConfig { auto_reverse: self.config.auto_reverse && !held, ..self.config };
+        let controls = shape(&pedals, &config, &ctx);
         match controls.gear_request {
             Some(GearRequest::Reverse) => {
                 self.powertrain.shift(GEAR_REVERSE);

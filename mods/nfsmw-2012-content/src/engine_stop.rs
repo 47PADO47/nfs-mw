@@ -1,6 +1,8 @@
 //! The engine auto-stop of the 2012 game, as a gameplay setting (`docs/formats/chameleon-engine-state.md`,
 //! `docs/modding/api-engine.md`). With **2012 engine auto-stop** on, a car that stands still for a few seconds while the
-//! player drives free of any event switches its engine off, and the throttle starts it again with the car's start-up sound.
+//! player drives free of any event switches its engine off, and the throttle (or a fresh press of the brake, which asks for
+//! reverse from a stop) starts it again with the car's start-up sound. The game holds the gearbox in neutral and the lights
+//! dark while the engine is off or cranking (`bb.engine`).
 //!
 //! The rule is `chameleon-engine-state`'s machine; the game does the switching through `bb.engine` (no throttle, no revs,
 //! no engine sound while the engine is off). The setting is off by default, so the game plays as it did.
@@ -38,6 +40,7 @@ pub struct Sample {
     pub dt: f32,
     pub speed: f32,
     pub throttle: f32,
+    pub brake: f32,
     pub free_roam: bool,
 }
 
@@ -76,7 +79,13 @@ impl Controller {
             self.machine.reset();
             return (!was_running).then_some(Action::Resume);
         }
-        let input = Input { dt: sample.dt, speed: sample.speed, throttle: sample.throttle, active: sample.free_roam };
+        let input = Input {
+            dt: sample.dt,
+            speed: sample.speed,
+            throttle: sample.throttle,
+            brake: sample.brake,
+            active: sample.free_roam,
+        };
         match self.machine.step(input) {
             Event::Stopped => Some(Action::Stop),
             Event::Cranking { seconds } => Some(Action::Start { sound: self.sound.clone(), seconds }),
@@ -136,7 +145,13 @@ impl EngineStop {
         }
         let Some(engine) = ctx.engine() else { return };
         let (Ok(state), Ok(car)) = (engine.state(), engine.car()) else { return };
-        let sample = Sample { dt: dt_sim, speed: state.speed, throttle: state.throttle, free_roam: state.free_roam };
+        let sample = Sample {
+            dt: dt_sim,
+            speed: state.speed,
+            throttle: state.throttle,
+            brake: state.brake,
+            free_roam: state.free_roam,
+        };
         let files = &self.files;
         let own = |car: &str| files.join(ignition::car_path(car)).is_file();
         let Some(action) = self.controller.step(self.enabled.get(), sample, &car, own) else { return };

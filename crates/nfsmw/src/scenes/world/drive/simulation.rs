@@ -92,6 +92,8 @@ impl Drive {
         let sim = self.sim.as_mut()?;
         sim.cinematic_control(self.cinematic_input.is_some());
         sim.set_automatic(self.transmission.is_automatic() || self.cinematic_input.is_some());
+        // An engine that is off or cranking holds the gearbox in neutral (`engine_switch.rs`).
+        sim.set_neutral_hold(!self.engine.is_running());
         let input = match self.script.as_mut() {
             Some(run) => {
                 let input = run.script.input_after(run.time, run.previous_time);
@@ -164,7 +166,10 @@ impl Drive {
         self.current = pose;
         self.telemetry = telemetry;
         self.gauges.push(gauge);
-        self.brake_lamp = sim.lamp_brake();
+        self.brake_lamp = match self.engine.is_running() {
+            true => sim.lamp_brake(),
+            false => 0.0,
+        };
         let (strength, speed, slip) = sim.drift_charge();
         self.breaker.charge_drift(strength, speed, slip, dt);
         if !self.arrested {

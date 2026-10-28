@@ -6,11 +6,11 @@ use crate::ignition;
 const DT: f32 = 0.1;
 
 fn controller() -> Controller {
-    Controller::new(EngineParams { idle_seconds: 1.0, still_speed: 0.5, restart_throttle: 0.1, crank_seconds: 0.45 })
+    Controller::new(EngineParams { idle_seconds: 1.0, crank_seconds: 0.45, ..EngineParams::default() })
 }
 
 fn idle() -> Sample {
-    Sample { dt: DT, speed: 0.0, throttle: 0.0, free_roam: true }
+    Sample { dt: DT, speed: 0.0, throttle: 0.0, brake: 0.0, free_roam: true }
 }
 
 fn own(car: &str) -> bool {
@@ -72,4 +72,16 @@ fn a_new_car_starts_with_a_running_engine() {
     run(&mut controller, true, idle(), "POR911CARR12", 12);
     assert_eq!(run(&mut controller, true, idle(), "BMWM3GTR", 1), [Action::Resume]);
     assert!(run(&mut controller, true, idle(), "BMWM3GTR", 5).is_empty(), "and its clock starts again");
+}
+
+#[test]
+fn a_fresh_brake_press_from_a_stop_starts_the_engine_like_the_throttle() {
+    let mut controller = controller();
+    run(&mut controller, true, idle(), "POR911CARR12", 12);
+    let brake = Sample { brake: 1.0, ..idle() };
+    assert_eq!(
+        run(&mut controller, true, brake, "POR911CARR12", 4),
+        [Action::Start { sound: "SOUND/MODENGINE/POR911CARR12/IGNITION.WAV".to_owned(), seconds: 0.45 }],
+        "one start with the car's ignition sound"
+    );
 }

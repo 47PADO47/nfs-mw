@@ -16,14 +16,23 @@ when to stop is the mod's.
 
 While the switch is off (`stop`, until `start` has run its delay) the player's car:
 
-- takes **no throttle and no nitrous** (the steering, the brakes, the handbrake and the gear requests go on, so the car coasts
-  and can be braked and steered);
+- takes **no throttle and no nitrous** (the steering, the brakes and the handbrake go on, so the car coasts and can be braked
+  and steered);
+- has its **gearbox in neutral** (N on the HUD, no drive torque), held through the whole stop and the cranking: the gear keys,
+  the shift buttons, the automatic box and the brake's automatic reverse are refused, so the brake only brakes. When the engine
+  runs again the hold ends: an automatic box takes first on its own (or reverse, if the brake is held and asks for it); a manual
+  box stays in N until the driver picks a gear;
+- has **all lights dark**: headlights, tail, brake and reverse lamps, running and glow lamps, the flares and coronas, the lit
+  lamp surfaces and the optional indicators. The headlights switch keeps its position and the lights return with the running
+  engine;
 - shows **no revs** (the tachometer reads 0, and `bb.vehicles` `state().rpm` with it);
 - makes **no engine sound**: the engine voices, the sample layer, the spark chatter and the turbo are silent. Tyres, wind,
   hits and the gearbox are not touched.
 
 Nothing else changes: the physics, the camera, the HUD's other numbers and the AI are as they were. A game with no mod that
-calls `stop` is exactly as it was: the switch is idle until used.
+calls `stop` is exactly as it was: the switch is idle until used (the gearbox hold and the dark lights are off for a running
+engine). Nothing in the ABI changed for this: the hold and the lights follow the same phase (`Off` and `Starting` hold and
+darken, `Running` does not).
 
 ## Calls
 
@@ -73,6 +82,8 @@ queue a `WorldRequest::Engine` that `Scene::engine_command` makes. The scene's s
 | Part | Where |
 |---|---|
 | throttle and nitrous cut | `scenes/world/drive/engine_switch.rs` (`DriveInput::engine_stopped`, applied in `simulation.rs` next to the story chase's sabotage) |
+| gearbox held in N | `simulation.rs` sets `CarSim::set_neutral_hold(!running)` each step; `Vehicle::set_neutral_hold` and `Powertrain::set_neutral_hold` (`libs/blackbox-vehicle`, `drivetrain/powertrain/neutral_hold.rs`) refuse every gear and `vehicle/step.rs` turns the automatic reverse off while held |
+| lights dark | `Drive::lights_dark`; `LampState::dark` (`car_lights.rs`) zeroes the native flares (`intensity.rs`), the mod car's sprites (`mod_lamps.rs`) and the indicators, and `render.rs` / `lamp_source` draw the unlit surface variants; the brake lamp and the network headlight flag follow |
 | tachometer at 0 | `Drive::hud_state` |
 | engine silent, start sound once | `CarSoundState::engine` (`EngineAudio`), `audio/car/update.rs` (levels), `audio/car/engine_start.rs` (the one-shot) |
 | `free_roam` | `scenes/world/mod_hooks.rs` |
@@ -89,5 +100,8 @@ mod built before loads as it did (ADR 0005 sections 1 and 7).
 
 Online sessions (the call should be denied for a peer, like the other **W** calls), an engine switch for cars other than the
 player's, a stall that the game itself decides (a flooded engine, water), and a start that the player must hold the key for.
+The pedals the state reports are the throttle and the brake only: a reverse asked for with a gear key or a down-shift while
+the engine is off (the box refuses it) is not visible to a mod, so only the throttle and the brake's reverse restart the
+2012 auto-stop. A `reverse` field would be an append to `BbEngineState` and a minor bump (1.1).
 Creep on a car whose engine is off (the drive only cuts the throttle; the car's idle torque is the physics' own) was not
 checked in a window.

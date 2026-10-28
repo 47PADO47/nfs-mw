@@ -55,6 +55,16 @@ fn a_flare_follows_the_state_of_its_lamp() {
 }
 
 #[test]
+fn a_dark_car_lights_nothing_even_the_always_lit_lamps() {
+    let lit = LampState { headlights: true, brake: 1.0, reverse: true, ..Default::default() };
+    let dark = LampState { dark: true, ..lit };
+    for lit_kind in [Lit::Head, Lit::Tail, Lit::Brake, Lit::Reverse, Lit::Always] {
+        assert_eq!(flare_level(&flare(lit_kind, Side::Left), dark), 0.0, "{lit_kind:?}");
+    }
+    assert_eq!(flare_level(&flare(Lit::Head, Side::Left), lit), 1.0, "the same state with the engine running");
+}
+
+#[test]
 fn a_broken_lamp_puts_out_only_its_own_side() {
     let state = LampState { headlights: true, broken: 1, ..Default::default() };
     assert_eq!(flare_level(&flare(Lit::Head, Side::Left), state), 0.0);

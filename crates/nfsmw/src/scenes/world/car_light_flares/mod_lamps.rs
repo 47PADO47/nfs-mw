@@ -131,6 +131,9 @@ impl ModLamps {
 
 /// How lit a flare is: the lamp's state, 0 when the lamp's damage bit is set.
 fn flare_level(flare: &Flare, state: LampState) -> f32 {
+    if state.dark {
+        return 0.0;
+    }
     let side = |bits: [u32; 3]| match flare.side {
         Side::Left => bits[0],
         Side::Right => bits[1],

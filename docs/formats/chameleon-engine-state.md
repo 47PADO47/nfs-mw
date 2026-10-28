@@ -111,12 +111,32 @@ still), **Off**, and **Starting** (cranking, with the time left).
 | Idle time before the engine stops | `idle_seconds` = 5.0 s | [unconfirmed] ("a few seconds") |
 | The brake pedal | does not count: a car held on the brake still stops | [unconfirmed] |
 | Restart input | the throttle at or above `restart_throttle` = 0.1 | [unconfirmed] |
+| Restart by reverse | a **fresh** brake press (at or above `restart_brake` = 0.1, after a step below it) with no throttle and a speed below `reverse_speed` = 2.5 m/s starts it like the throttle; 2.5 is where the game's own brake-to-reverse takes over. A pedal held since the stop does not, or a car held at a light would restart at once | [unconfirmed] |
 | Cranking | `crank_seconds` = 0.6 s from the press to the running engine (the Porsche's ignition sample is 0.591 s) | length [verified] for the Porsche, the wait [unconfirmed] |
 | Start-up sound | the car's own ignition sample if it has one, else the first car's in the install, else a generated whirr | see above |
 | Where it applies | only in free driving: no race (running or queued), no pursuit, no arrest, no cutscene, no garage | [unconfirmed]; the 2012 game's behaviour in races and chases is not known, so the mod never stops the engine there |
 | Rule stops applying while off | the engine runs at once, with no sound | design |
 
-A step reports `Stopped`, `Cranking { seconds }`, `Running` or `Resumed`; tests are in `tests.rs`.
+A step reports `Stopped`, `Cranking { seconds }`, `Running` or `Resumed`; tests are in `tests.rs`. The model knows nothing of
+the gearbox or the lights: the game does both from the engine switch (below).
+
+### What the game does with the engine off **[design]**
+
+The phases `Off` and `Starting` (anything but `Running`) have three effects besides the silence, all in the game and none
+read from the 2012 data:
+
+- **Lights dark.** Headlights, tail, brake and reverse lamps, running and glow lamps, the flares, the lamp surfaces (the lit
+  pieces of the lamp circuits) and the optional indicators are all off; the headlights switch keeps its position and the lights
+  come back when the engine runs.
+- **Neutral.** The gearbox goes to N (the HUD shows it) and is held there through the stop and the cranking: no drive torque,
+  and no gear is taken, neither from a gear key, a shift button, the automatic box nor the brake's automatic reverse (the
+  brake only brakes). When the engine runs the hold ends: an automatic box takes first by itself, or reverse if the brake is
+  still held (it was the reverse that started the engine); a manual box **stays in N** until the driver picks a gear (the
+  brake's automatic reverse still works from N, as in the stock game).
+- **No throttle and no nitrous** (see [api-engine.md](../modding/api-engine.md)).
+
+Not covered: a reverse that is asked for with a gear key or a down-shift (only the brake pedal starts the engine; `bb.engine`
+does not report gear requests).
 
 ## Reading the data again
 

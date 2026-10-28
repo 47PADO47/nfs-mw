@@ -1,5 +1,7 @@
 //! The engine switch of the player's car (`bb.engine`, `crate::engine_switch`). An engine that a mod has stopped takes no
-//! throttle and no nitrous, shows no revs and makes no sound; the steering, the brakes and everything else go on.
+//! throttle and no nitrous, shows no revs, makes no sound and lights nothing (`lights_dark`), and its gearbox is held in
+//! neutral (`Drive::begin_physics_step_with_delta` sets the hold, `Powertrain::set_neutral_hold` keeps it); the steering and
+//! the brakes go on.
 
 use super::{Drive, DriveInput};
 use crate::engine_switch::{EngineAudio, EngineCommand};
@@ -21,6 +23,13 @@ impl Drive {
         }
     }
 
+    /// Whether the car's lights are dark: an engine that is off or cranking lights nothing (headlights, tail, brake and reverse
+    /// lamps, the running and glow lamps, the flares and the lit lamp surfaces). The headlights switch keeps its position and
+    /// the lights come back with the running engine.
+    pub(in crate::scenes::world) fn lights_dark(&self) -> bool {
+        !self.engine.is_running()
+    }
+
     /// What the car's sound needs of the switch this frame: whether the engine is silent, and the start sound once.
     pub(super) fn engine_audio(&mut self) -> EngineAudio {
         self.engine.audio()
@@ -28,8 +37,8 @@ impl Drive {
 }
 
 impl DriveInput {
-    /// The input of a car whose engine is off: no throttle and no nitrous, the steering, the brakes and the gear
-    /// requests stay.
+    /// The input of a car whose engine is off: no throttle and no nitrous, the steering and the brakes stay (the gear
+    /// requests stay too, but the gearbox is held in neutral and refuses them).
     pub(super) fn engine_stopped(self, stopped: bool) -> Self {
         if !stopped {
             return self;
