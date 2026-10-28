@@ -12,12 +12,23 @@ impl WorldScene {
         let (position, forward, fov) = (lens.position, lens.forward, lens.fov_y_degrees);
         let icons = self.activity_icons(position);
         let icon_placements = entry_marks::placements(&icons);
+        let mut interests = vec![(position, forward)];
+        if let Some(guest) = self.guest_lens(self.physics_aspect) {
+            interests.push((guest.position, guest.forward));
+        }
+        let actors: Vec<_> = self
+            .players
+            .iter()
+            .filter(|player| !player.parked)
+            .map(|player| player.drive.world_effect_interest())
+            .collect();
         self.ambient_fx.maintain(
             renderer,
             &self.dir,
             self.physics.database(),
             self.residency.emitter_placements().chain(icon_placements.iter().map(|(key, placement)| (*key, placement))),
-            position,
+            &interests,
+            &actors,
         );
         let flare_view = super::super::car_light_flares::FlareView {
             camera: position,
