@@ -96,6 +96,22 @@ A drive moves the part from rest to its full pose at a constant rate over the mo
 back once its close tests hold; a part with several drives is out as far as the furthest. `steering` is -1 to 1, positive to the
 right. Not together with `gas`, a vent's waits or tracks.
 
+### `[damage_parts.steering]`
+
+A part the steering turns, such as a steering wheel (`angle = 0`, `detach = false`; not together with `active`, `drive` or
+`track`):
+
+```toml
+[damage_parts.steering]
+lock_degrees = 400.0     # the turn at full steering, each way (1 to 1080)
+```
+
+Every frame the part is turned about its `pivot` and `axis` by the car's steering control (-1 full left to 1 full right: the value
+the driver's pose is picked by, [car-customization.md](car-customization.md#the-drivers-poses)) times `lock_degrees`. It is
+continuous, not stepped, and the angle is right-handed about `axis`, so point `axis` away from the driver (forward): a positive
+steering, to the right, then turns the wheel clockwise as the driver sees it. The turn is applied to the part where it was modelled,
+before the damage and the speed move it. Cars the game draws without a steering input (traffic, cops) show the wheel straight.
+
 ### `[wing]` and `[[damage_parts.track]]`
 
 A car with parts that several keyed animations move has a `[wing]` table, the machine that plays five animations (slot 0 to 4)
@@ -178,6 +194,11 @@ flaps are parts of their own that hang from it. The Agera's flaps follow the gas
 Venom use the same `[wing]` machine without a top-speed animation, and the Huayra's flaps are played by `[[damage_parts.drive]]`
 tables; their numbers are the data's, the state table and the playback are partly unconfirmed, item by item in [chameleon-active-aero.md](../formats/chameleon-active-aero.md#second-pass-what-the-data-and-the-executable-confirm).
 
+The 2012 cars also get a `SteeringWheel` part with a `[damage_parts.steering]` table: the triangles of the body skinned to the
+`SteeringWheel` bone, cut out as `<ID>_KIT00_STEERING_WHEEL_A` and `_B` (85 of the 93 cars; on the others the wheel stays in the
+body). Its axis is the column found from the wheel's own shape and `lock_degrees` is the number the handling object keeps for the
+wheel (400 on most cars, 300 on a few), see [chameleon-driver-animation.md](../formats/chameleon-driver-animation.md#the-steering-wheel).
+
 The [2012 mod](../../mods/nfsmw-2012-content/README.md#hinged-parts) writes these tables for its cars from the 2012 game's own damage data
 ([chameleon-damage.md](../formats/chameleon-damage.md)): the damage clip of each zone says how far a part's bone turns at a third, two
 thirds and all of the zone's damage (`stages = [0.33, 0.66, 1.0]` with `stage_angles`: a few degrees, the bonnet about 9) and the first
@@ -195,7 +216,8 @@ part with no clip keeps the ladder of its damage object as its stages and the de
 
 ## Code
 
-- Schema: `libs/blackbox-modding/src/content/damage_parts.rs` (`CarManifest::damage_parts`).
+- Schema: `libs/blackbox-modding/src/content/damage_parts.rs` (`CarManifest::damage_parts`); the steering turn is
+  `crates/nfsmw-data/src/car/mods/hinged/steering.rs` (`Steering::angle`, `Hinge::steered`), applied in `CarRig::instances_detail`.
 - Registry and pose: `crates/nfsmw-data/src/car/mods/hinged.rs` (`publish`, `of`, `Hinge::pose`, `Hinge::turn`, `add`), published by
   `crates/nfsmw/src/modding/content/cars.rs`; the parts are added to the assembled car in `car::load_with`.
 - Drawing: `CarRig::instances_detail` (`scenes/world/drive/rig.rs`); the zone levels reach it in the set of revealed slots

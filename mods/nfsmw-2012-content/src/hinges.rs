@@ -13,7 +13,7 @@ use blackbox_solid::{GroupSource, SolidSource, Vertex};
 use chameleon_bundle::{Bundle, Pool};
 use chameleon_vehicle::{
     DriveSpec, Guard, HingedPart, Skeleton, SpoilerMotion, Vehicle, WingBoneTrack, WingMachine, attached_motions,
-    body_parts, damage_clips, flap_motions, hinged_parts, spoiler_motion, vent_motions, wing_machine,
+    body_parts, damage_clips, flap_motions, hinged_parts, lock_degrees, spoiler_motion, vent_motions, wing_machine,
 };
 
 use crate::damage_model::{self, PartDamage};
@@ -60,6 +60,8 @@ pub struct Part {
     pub tracks: Vec<WingBoneTrack>,
     /// What the car's damage clips say about the part: its turn at the three panel levels and when it breaks off.
     pub damage: Option<PartDamage>,
+    /// How the steering turns the part: the steering wheel (`wheel.rs`). Its `pivot` is the middle of the rim.
+    pub steering: Option<Wheel>,
 }
 
 /// The name of the bone of an active spoiler, and the zone code (the rear) it is given when the car has no record of it.
@@ -181,12 +183,15 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
             targets: Vec::new(),
         });
     }
+    // The steering wheel is cut out of the body and turned by the steering, with the lock angle the car's data gives.
+    let wheel_bone = wheel::add_part(&mut parts, &skeleton);
     let known: Vec<usize> = parts.iter().map(|part| part.bone).collect();
     let room = MAX_PARTS.saturating_sub(parts.len());
     parts.extend(damage_model::pieces(&clips, &skeleton, &known, room));
     let breaking: Vec<usize> =
         clips.iter().flat_map(|clip| clip.tracks.iter().filter(|t| t.break_key().is_some()).map(|t| t.bone)).collect();
-    let active_bones: Vec<usize> = moving.iter().map(|mover| mover.bone).chain(wing_bones.iter().copied()).collect();
+    let active_bones: Vec<usize> =
+        moving.iter().map(|mover| mover.bone).chain(wing_bones.iter().copied()).chain(wheel_bone).collect();
     let levels = body_parts(pool, spec, &skeleton, &parts).ok()?;
     let finest = levels.into_iter().next()?;
     let body = vehicle.body.first()?;
@@ -197,9 +202,14 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
     }
     let mut counts = vec![0usize; parts.len()];
     finest.iter().flatten().flatten().for_each(|&part| counts[part] += 1);
+    // The wheel needs a flat disc of triangles to find its column in; without one it stays in the body.
+    let wheel_at = parts.iter().position(|part| Some(part.bone) == wheel_bone);
+    let turning = wheel_at.and_then(|at| wheel::frame(vehicle, &finest, at, lock_degrees(bundle)));
     let keep: Vec<usize> = (0..parts.len())
         .filter(|&at| {
-            (counts[at] > 0 || wing_bones.contains(&parts[at].bone)) && usable(&parts[at], &active_bones, &breaking)
+            (counts[at] > 0 || wing_bones.contains(&parts[at].bone))
+                && usable(&parts[at], &active_bones, &breaking)
+                && (Some(at) != wheel_at || turning.is_some())
         })
         .collect();
     if keep.is_empty() {
@@ -226,10 +236,11 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 true => damage_model::carrier(&skeleton, &real_bones, part.bone),
                 false => part.bone,
             };
+            let steering = turning.filter(|_| Some(at) == wheel_at);
             Part {
                 name: part.name.clone(),
                 zone: part.zone,
-                pivot: skeleton.bones[hinge].position,
+                pivot: steering.map_or(skeleton.bones[hinge].position, |(frame, _)| frame.pivot),
                 limits: part.limits,
                 thresholds: part.thresholds.clone(),
                 mass_kg: part.mass_kg,
@@ -239,6 +250,7 @@ pub fn read(bundle: &Bundle, pool: &Pool, spec: u64, vehicle: &Vehicle) -> Optio
                 parent: parent.map(|known| label(&known.name)),
                 tracks,
                 damage,
+                steering: steering.map(|(_, wheel)| wheel),
             }
         })
         .collect();
@@ -397,8 +409,10 @@ fn subset(group: &GroupSource, classes: &[Option<usize>], wanted: Option<usize>)
 }
 
 mod manifest;
+mod wheel;
 pub use manifest::manifest_tables;
 use manifest::{convertible, flap_name};
+pub use wheel::Wheel;
 
 #[cfg(test)]
 mod tests;

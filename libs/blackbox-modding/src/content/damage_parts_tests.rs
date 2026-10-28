@@ -320,3 +320,19 @@ fn a_car_may_list_many_pieces_up_to_the_limit() {
     assert_eq!(car(&many).unwrap().damage_parts.len(), MAX_DAMAGE_PARTS);
     const { assert!(MAX_DAMAGE_PARTS >= 32, "room for the pieces of a 2012 car") };
 }
+
+#[test]
+fn a_part_may_turn_with_the_steering_and_nothing_else() {
+    let wheel = format!("{ONE}\n[damage_parts.steering]\nlock_degrees = 450.0\n");
+    let part = &car(&wheel).unwrap().damage_parts[0];
+    assert_eq!(part.steering, Some(SteeredPart { lock_degrees: 450.0 }));
+    assert!(car(ONE).unwrap().damage_parts[0].steering.is_none());
+    for bad in ["0.0", "-90.0", "2000.0", "nan"] {
+        let text = format!("{ONE}\n[damage_parts.steering]\nlock_degrees = {bad}\n");
+        assert!(car(&text).is_err(), "lock_degrees {bad}");
+    }
+    let unknown = format!("{ONE}\n[damage_parts.steering]\nlock_degrees = 90.0\nratio = 2\n");
+    assert!(car(&unknown).is_err(), "an unknown key is refused");
+    let moving = format!("{wheel}\n[damage_parts.active]\noffset = [0.0, 0.0, 0.1]\nabove_mph = 50.0\nseconds = 0.5\n");
+    assert!(car(&moving).is_err(), "a part is steered or follows the speed");
+}

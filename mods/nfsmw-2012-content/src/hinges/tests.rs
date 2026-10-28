@@ -85,6 +85,7 @@ fn the_manifest_table_carries_the_swing_in_car_space() {
         drives: Vec::new(),
         tracks: Vec::new(),
         damage: None,
+        steering: None,
     };
     let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
     let text = manifest_tables(&hinged, &["CAR_KIT00_BONNET".into()], &Fit::own(layout));
@@ -127,6 +128,7 @@ fn an_active_spoiler_writes_its_movement_and_needs_no_damage_swing() {
         drives: Vec::new(),
         tracks: Vec::new(),
         damage: None,
+        steering: None,
     };
     let hinged = Hinged { parts: vec![part.clone()], wing: None, classes: Vec::new() };
     let text = manifest_tables(&hinged, &["CAR_KIT00_SPOILER".into()], &Fit::own(layout));
@@ -156,8 +158,8 @@ fn the_911_has_hinged_parts_and_an_active_spoiler() {
     let car = source.load(file).unwrap();
     let hinged = car.hinged.as_ref().expect("the 911 has hinged parts");
     let names: Vec<&str> = hinged.parts.iter().map(|part| part.name.as_str()).collect();
-    // The 8 parts of its damage object and spoiler, and the pieces its damage clips break (lamps, glass, bumper lips).
-    assert_eq!(hinged.parts.len(), 22, "{names:?}");
+    // The 8 parts of its damage object and spoiler, and the pieces its damage clips break (lamps, glass, bumper lips) and the steering wheel.
+    assert_eq!(hinged.parts.len(), 23, "{names:?}");
     let spoiler = hinged.parts.iter().find(|part| part.name == "SpoilerHinge").expect("the spoiler");
     let motion = spoiler.active.expect("it moves");
     assert_eq!((motion.above_mph, motion.below_mph), (70.0, 40.0));
@@ -206,6 +208,7 @@ fn the_manifest_names_the_part_a_flap_hangs_from() {
         drives: Vec::new(),
         tracks: Vec::new(),
         damage: None,
+        steering: None,
     };
     let hinged = Hinged { parts: vec![part], wing: None, classes: Vec::new() };
     let text = manifest_tables(&hinged, &["CAR_KIT00_SPOILER_FLAP_LEFT".into()], &Fit::own(layout));
@@ -349,6 +352,7 @@ fn damaged(damage: PartDamage) -> Part {
         drives: Vec::new(),
         tracks: Vec::new(),
         damage: Some(damage),
+        steering: None,
     }
 }
 

@@ -7,6 +7,10 @@ use super::*;
 pub fn manifest_tables(hinged: &Hinged, stems: &[String], fit: &Fit) -> String {
     let mut text = String::new();
     for (part, stem) in hinged.parts.iter().zip(stems) {
+        if let Some(wheel) = &part.steering {
+            text.push_str(&wheel::table(part, wheel, stem, fit));
+            continue;
+        }
         let Some(zones) = zones(part.zone) else { continue };
         let still = part.active.is_some() || !part.tracks.is_empty();
         let Some(turn) = turn_of(part, still) else { continue };

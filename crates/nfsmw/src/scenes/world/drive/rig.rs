@@ -341,7 +341,8 @@ impl CarRig {
             let local = match self.hinge_pose(placement.slot, revealed) {
                 Some((_, Pose::Gone, _)) => continue,
                 Some((hinge, Pose::Turned(degrees), amount)) => {
-                    hinge.transform_with(degrees, amount, hinged::Blend::from_marks(revealed).as_ref()) * local
+                    let moved = hinge.transform_with(degrees, amount, hinged::Blend::from_marks(revealed).as_ref());
+                    moved * hinge.steered(steering) * local
                 }
                 None => local,
             };

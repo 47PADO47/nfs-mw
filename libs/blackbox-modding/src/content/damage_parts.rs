@@ -110,6 +110,18 @@ pub struct Active {
     pub delay: Option<(f32, f32)>,
 }
 
+/// A part the steering turns (`[damage_parts.steering]`): a steering wheel. It turns about the part's `pivot` and `axis` by the
+/// steering input (-1 full left to 1 full right) times `lock_degrees`, positive (right-handed about the axis) to the right: the
+/// axis points forward from the driver's eye, so a positive turn is clockwise as the driver sees it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Steering {
+    /// The degrees the part turns at full steering, each way.
+    pub lock_degrees: f32,
+}
+
+/// The most degrees a steered part may turn at full steering (three turns each way).
+pub const MAX_LOCK_DEGREES: f32 = 1080.0;
+
 /// A checked `[[damage_parts]]` entry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DamagePart {
@@ -146,6 +158,14 @@ pub struct DamagePart {
     pub tracks: Vec<Track>,
     /// The conditions that play the part's `active` movement (`[[damage_parts.drive]]`), empty for none.
     pub drives: Vec<Drive>,
+    /// The turn the steering gives the part, if it is a steering wheel (`[damage_parts.steering]`).
+    pub steering: Option<Steering>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawSteering {
+    lock_degrees: f32,
 }
 
 #[derive(Deserialize)]
@@ -196,6 +216,8 @@ pub(super) struct Raw {
     track: Vec<RawTrack>,
     #[serde(default)]
     drive: Vec<RawDrive>,
+    #[serde(default)]
+    steering: Option<RawSteering>,
 }
 
 fn field(reason: &'static str) -> ContentError {
@@ -298,6 +320,10 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
     if (0..WING_SLOTS).any(|slot| tracks.iter().filter(|track| track.slot == slot).count() > 1) {
         return Err(field("a part has one track per wing animation"));
     }
+    let steering = raw.steering.map(check_steering).transpose()?;
+    if steering.is_some() && (active.is_some() || !tracks.is_empty() || !drives.is_empty()) {
+        return Err(field("a part turns with the steering or moves with the speed or the wing, not both"));
+    }
     let stages = if raw.stages.is_empty() { vec![0.0] } else { raw.stages };
     let angles_ok = raw.stage_angles.iter().all(|a| a.is_finite() && a.abs() <= 180.0);
     if !angles_ok || (!raw.stage_angles.is_empty() && raw.stage_angles.len() != stages.len()) {
@@ -320,7 +346,16 @@ fn check_one(raw: Raw) -> Result<DamagePart, ContentError> {
         parent: raw.parent.map(|name| name.trim().to_owned()),
         tracks,
         drives,
+        steering,
     })
+}
+
+fn check_steering(raw: RawSteering) -> Result<Steering, ContentError> {
+    let lock = raw.lock_degrees;
+    if !lock.is_finite() || !(1.0..=MAX_LOCK_DEGREES).contains(&lock) {
+        return Err(field("lock_degrees is the turn at full steering, 1 to 1080 degrees"));
+    }
+    Ok(Steering { lock_degrees: lock })
 }
 
 fn check_active(raw: RawActive) -> Result<Active, ContentError> {

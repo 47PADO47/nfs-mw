@@ -168,13 +168,38 @@ Install tests (`CHAMELEON_GAME_DIR` or `MW2012_GAME_DIR`, `--ignored`): `cargo t
 (skin weights, the rest pose reproduces the model within a millimetre, the hands reach the grips of all 91 cars to 0.3 mm at both locks,
 the head travels 2 mm to 12 cm between the locks).
 
+## The steering wheel
+
+The wheel mesh is the part of the body skinned to the skeleton's `SteeringWheel` bone (bone hash 0xCC7082F3). The converter cuts it out
+of the finest body solid (`<ID>_KIT00_STEERING_WHEEL_A`, `_B`) and the host turns it with the steering (`[damage_parts.steering]`,
+[car-damage-parts.md](../modding/car-damage-parts.md#damage_partssteering)). What the data gives and what it does not:
+
+- **The mesh** **[verified]**: on 85 of the 93 cars the bone owns 150 to 1170 triangles of the finest body level; on three it owns none,
+  on one it owns more than a wheel (the shape is not a flat disc), two cars have no usable skin and two have no such bone; those keep the wheel in the body.
+- **The axis** is not stored (the car's `SteeringWheelBehaviour` object is a name and nothing else, and the bone's rotation is not
+  the column's). It is read from the mesh: the wheel is a flat disc, and the direction its vertices vary least in is the column
+  (`chameleon_vehicle::wheel_frame`). On the 85 cars it points forward (z at least 0.87 in the engine's space) and is at a right angle
+  to the line between the driver's two grips (cosine at most 0.06) **[verified]**. The pivot is the middle of the rim's box in that
+  plane, at most 16 cm from the bone **[verified]**.
+- **The lock angle**: the handling object's `SteeringWheelPhysics` structure has a float at +0x70: 400.0 on most cars and 300.0 on
+  a few, so a per-car number **[verified]** whose meaning (degrees of the wheel at full lock, each way) is **[unconfirmed]**; it is used
+  as such, and a car without it would get 450.
+- **The direction**: positive steering is to the right, as for the driver's pose (the last key of the steering clip is full right), and
+  the axis points forward, so a right turn is clockwise as the driver sees it.
+
+Not done: the hands do not shuffle or follow the rim (the baked poses reach fixed grips), the wheel has no smoothing of its own (the
+control value is what the driver's pose uses), and the coarser levels of detail keep the wheel in the body.
+
+Install tests: `cargo test -p chameleon-vehicle steering_wheel -- --ignored`, `cargo test -p nfsmw-2012-content wheel -- --ignored`.
+
 ## Not decoded, not verified
 
 - **The names of the clips**, and which flag of the machine each state tests: the input record is built by code that was not
   found. The roles above are from the bones.
 - **The reference key** (u16 at +0x36, 10 in the steering clip) and tables 0, 3 and 6 of a clip; the per-clip weights.
 - **The per-car pose clips and the circle.** The game applies the clip of +0x50 and the hands move round the wheel circle as the wheel
-  turns; the hands here are reached to the fixed grips instead, since the wheel of the converted car does not turn.
+  turns; the hands here are reached to the fixed grips instead. The converted car's wheel does turn ([below](#the-steering-wheel)),
+  so the rim moves under the hands, which stay at their grips (the wheel is round); the hands do not follow its spokes.
 - **The belt records**: the command layout is read, the rotation order and frame are not.
 - **The rate**: one clip-second per second is the executable's, at the physics tick; the host draws the pose of the steering
   input of the frame.
