@@ -115,6 +115,7 @@ pub struct Partial {
     pub enhanced_lamps: Option<bool>,
     pub exhaust_style: Option<super::ExhaustStyle>,
     pub backfire_style: Option<super::BackfireStyle>,
+    pub tail_trail_style: Option<super::TailTrailStyle>,
     /// Show turn signals on cars while steering (`[Gameplay] ShowTurnSignals`); off by default.
     pub turn_signals: Option<bool>,
     pub rear_view_mirror: Option<bool>,
@@ -257,6 +258,7 @@ impl Partial {
             enhanced_lamps: self.enhanced_lamps.or(lower.enhanced_lamps),
             exhaust_style: self.exhaust_style.or(lower.exhaust_style),
             backfire_style: self.backfire_style.or(lower.backfire_style),
+            tail_trail_style: self.tail_trail_style.or(lower.tail_trail_style),
             turn_signals: self.turn_signals.or(lower.turn_signals),
             rear_view_mirror: self.rear_view_mirror.or(lower.rear_view_mirror),
             discord: self.discord.or(lower.discord),

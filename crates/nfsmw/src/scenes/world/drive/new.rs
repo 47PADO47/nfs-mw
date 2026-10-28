@@ -40,6 +40,7 @@ impl Drive {
             vehicle_effects: VehicleEffects::new(visuals),
             flames: ExhaustFlames::default(),
             tail_trails: Default::default(),
+            tail_style: Default::default(),
             performance: Default::default(),
             tuning: Default::default(),
             tunings: Default::default(),

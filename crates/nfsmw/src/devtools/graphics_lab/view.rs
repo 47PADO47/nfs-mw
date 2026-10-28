@@ -68,7 +68,7 @@ pub(super) fn show(
                                 .on_hover_text("Uses a depth-aware hierarchy for distant samples. Disable for direct-depth comparison.");
                         });
                         ui.small("Spatial methods use spatial filtering only. xegtao-temporal uses half-resolution history with motion and disocclusion rejection.");
-                        effects::show(ui, settings);
+                        effects::show(ui, settings, &mut lab.tail_preview);
                     }
                     profiles::Tab::Environment => environment::show(ui,lab,settings),
                     profiles::Tab::Diagnostics => {

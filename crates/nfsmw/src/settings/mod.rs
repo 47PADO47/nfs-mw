@@ -30,6 +30,8 @@ mod exhaust_style;
 pub use exhaust_style::ExhaustStyle;
 mod backfire_style;
 pub use backfire_style::BackfireStyle;
+mod tail_trail_style;
+pub use tail_trail_style::{TailPreview, TailTrailStyle, TrailPreset, TrailShape};
 mod env;
 #[cfg(test)]
 mod exhaust_flames_tests;
@@ -254,6 +256,7 @@ pub struct Settings {
     pub enhanced_lamps: bool,
     pub exhaust_style: ExhaustStyle,
     pub backfire_style: BackfireStyle,
+    pub tail_trail_style: TailTrailStyle,
     /// Show turn signals on cars while steering (a rewrite extension, off by default).
     pub turn_signals: bool,
     /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
@@ -412,6 +415,7 @@ impl From<Partial> for Settings {
             enhanced_lamps: p.enhanced_lamps.unwrap_or(false),
             exhaust_style: p.exhaust_style.unwrap_or_default(),
             backfire_style: p.backfire_style.unwrap_or_default(),
+            tail_trail_style: p.tail_trail_style.unwrap_or_default(),
             turn_signals: p.turn_signals.unwrap_or(false),
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
             discord: p.discord.unwrap_or(true),

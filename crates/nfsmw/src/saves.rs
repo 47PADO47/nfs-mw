@@ -190,6 +190,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         enhanced_lamps: Some(s.enhanced_lamps),
         exhaust_style: Some(s.exhaust_style),
         backfire_style: Some(s.backfire_style),
+        tail_trail_style: Some(s.tail_trail_style),
         turn_signals: Some(s.turn_signals),
         rear_view_mirror: Some(s.rear_view_mirror),
         discord: Some(s.discord),

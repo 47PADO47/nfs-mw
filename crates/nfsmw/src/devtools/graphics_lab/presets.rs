@@ -185,6 +185,7 @@ pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
     settings.enhanced_lamps = snapshot.enhanced_lamps;
     settings.exhaust_style = snapshot.exhaust_style;
     settings.backfire_style = snapshot.backfire_style;
+    settings.tail_trail_style = snapshot.tail_trail_style;
 }
 
 pub(super) fn restore_appearance(settings: &mut Settings, snapshot: &Settings) {

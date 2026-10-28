@@ -408,6 +408,7 @@ pub trait Scene {
     /// Rain on every track, and its amount (0 to 1). Scenes without a road ignore it.
     fn set_rain(&mut self, _always: bool, _amount: f32) {}
     /// The world's speeds: the physics clock and the animation clock run at these multiples of the original rates. Scenes without a world ignore it.
+    fn set_tail_preview(&mut self, _preview: Option<crate::settings::TailPreview>) {}
     fn set_world_tuning(&mut self, _tuning: crate::settings::WorldTuning) {}
     /// A picture to show over the window this frame, if any.
     fn fullscreen(&mut self) -> Option<Fullscreen> {

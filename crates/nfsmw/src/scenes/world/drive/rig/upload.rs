@@ -26,11 +26,11 @@ pub(super) fn upload_solids(
     only: Option<&HashSet<u32>>,
 ) -> (Vec<Part>, Vec<(u32, MeshHandle)>) {
     let mut cache: HashMap<(u32, bool, u8), Option<MeshHandle>> = HashMap::new();
-    // A state is the headlights (bit 0), the brake (bit 1) and the reverse gear (bit 2), which only a mod car draws.
-    let variants: [_; 8] = std::array::from_fn(|state| {
+    // Independent headlight, brake, reverse and cosmetic NOS bits. Equivalent material states share a mesh.
+    let variants: [_; 16] = std::array::from_fn(|state| {
         swaps
             .clone()
-            .with_lamp_state(state & 1 != 0, state & 2 != 0, &model.textures)
+            .with_visual_lamp_state(state & 1 != 0, state & 2 != 0, state & 8 != 0, &model.textures)
             .with_reverse_state(state & 4 != 0, &model.textures)
     });
     let mut parts = Vec::new();
@@ -60,10 +60,22 @@ pub(super) fn upload_solids(
                 let reverse = variants[0].resolve_for(hash, p.left_brake)
                     != variants[4].resolve_for(hash, p.left_brake)
                     || (lamp_material && variants[0].lamp_is_on(hash) != variants[4].lamp_is_on(hash));
-                mask | u8::from(head) | (u8::from(brake) << 1) | (u8::from(reverse) << 2)
+                let rear = variants[0].resolve_for(hash, p.left_brake) != variants[8].resolve_for(hash, p.left_brake)
+                    || (lamp_material && variants[0].lamp_is_on(hash) != variants[8].lamp_is_on(hash));
+                mask | u8::from(head) | (u8::from(brake) << 1) | (u8::from(reverse) << 2) | (u8::from(rear) << 3)
             });
-            let lamps: [_; 8] = std::array::from_fn(|state| {
-                *cache.entry((p.solid, p.left_brake, state as u8 & relevant)).or_insert_with(|| {
+            let lamps: [_; 16] = std::array::from_fn(|state| {
+                let canonical = (0..state)
+                    .find(|&other| {
+                        solid.groups.iter().filter_map(|g| g.diffuse_texture(solid)).all(|hash| {
+                            variants[state].resolve_for(hash, p.left_brake)
+                                == variants[other].resolve_for(hash, p.left_brake)
+                                && (!lamp_material
+                                    || variants[state].lamp_is_on(hash) == variants[other].lamp_is_on(hash))
+                        })
+                    })
+                    .unwrap_or(state);
+                *cache.entry((p.solid, p.left_brake, canonical as u8 & relevant)).or_insert_with(|| {
                     let lookup = materials.for_solid(&variants[state], p.left_brake, &solid.name);
                     upload_solid(renderer, solid, &lookup, Shading::Lit)
                 })

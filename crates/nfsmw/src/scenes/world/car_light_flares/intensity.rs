@@ -21,7 +21,7 @@ pub(super) fn samples(lamps: &CarLights, state: LampState) -> impl Iterator<Item
                 }
                 Kind::Tail => match state.brake > 0.0 {
                     true => 1.0,
-                    false => 0.5,
+                    false => 0.5 + 0.5 * state.nos_glow.clamp(0.0, 2.0),
                 },
                 Kind::CentreBrake => f32::from(u8::from(state.brake > 0.0)),
                 Kind::Reverse => f32::from(u8::from(state.reverse)),

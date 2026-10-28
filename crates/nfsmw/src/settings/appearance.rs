@@ -375,6 +375,7 @@ impl Settings {
             enhanced_lamps: Some(self.enhanced_lamps),
             exhaust_style: Some(self.exhaust_style),
             backfire_style: Some(self.backfire_style),
+            tail_trail_style: Some(self.tail_trail_style),
             ..self.appearance_layer()
         }
     }

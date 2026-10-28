@@ -82,11 +82,12 @@ impl WorldScene {
         let (pose, bounds) = drive.spark_body();
         drive.vehicle_effects.set_body(pose, bounds);
         let (lamps, flares, lamp_frame, lamp_state) = drive.lamp_source();
-        let trails_visible = self.view == View::Chase
-            && crate::viewer::camera::original::renders_car(
-                self.camera_mode,
-                drive.camera_looking_back(self.camera_mode),
-            );
+        let trails_visible = drive.tail_trails.preview_active()
+            || self.view == View::Chase
+                && crate::viewer::camera::original::renders_car(
+                    self.camera_mode,
+                    drive.camera_looking_back(self.camera_mode),
+                );
         if !trails_visible {
             drive.tail_trails.clear();
         }
@@ -98,8 +99,28 @@ impl WorldScene {
         drive.vehicle_effects.geometry(position, forward, show_trails, &mut layer.streaks);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
         flares.draw(&lamps, lamp_frame, lamp_state, flare_view, &mut layer.textured);
-        if trails_visible {
-            flares.draw_trails(&lamps, &drive.tail_trails, lamp_frame, lamp_state, flare_view, &mut layer.textured);
+        let style = self.tuning.tail_trail_style;
+        if trails_visible && style.enabled {
+            match style.enhanced {
+                true => flares.draw_smooth_trails(
+                    &lamps,
+                    &drive.tail_trails,
+                    lamp_frame,
+                    lamp_state,
+                    flare_view,
+                    style,
+                    bounds,
+                    layer,
+                ),
+                false => flares.draw_trails(
+                    &lamps,
+                    &drive.tail_trails,
+                    lamp_frame,
+                    lamp_state,
+                    flare_view,
+                    &mut layer.textured,
+                ),
+            }
         }
         rain.append(layer);
         if let Some(traffic) = &self.traffic {

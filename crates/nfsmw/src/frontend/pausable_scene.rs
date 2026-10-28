@@ -235,15 +235,15 @@ impl Scene for Pausable {
         self.inner.set_rain(always, amount);
         self.effects_dirty = true;
     }
-
+    fn set_tail_preview(&mut self, preview: Option<crate::settings::TailPreview>) {
+        self.inner.set_tail_preview(preview);
+    }
     fn set_world_tuning(&mut self, tuning: crate::settings::WorldTuning) {
         self.inner.set_world_tuning(tuning);
     }
-
     fn set_camera_mode(&mut self, mode: crate::settings::CameraMode) {
         self.inner.set_camera_mode(mode);
     }
-
     fn next_camera_mode(&self, current: crate::settings::CameraMode) -> crate::settings::CameraMode {
         self.inner.next_camera_mode(current)
     }

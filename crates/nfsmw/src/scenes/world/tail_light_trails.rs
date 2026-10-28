@@ -3,16 +3,26 @@
 
 use glam::Mat4;
 
+mod preview;
+mod smooth;
+
 const SLOTS: usize = 3;
 const DIVISIONS: usize = 8;
 
 #[cfg(test)]
 mod installed_tests;
+#[cfg(test)]
+mod preview_visual;
+#[cfg(test)]
+mod visual_tests;
 
 #[derive(Default)]
 pub struct TailLightTrails {
     poses: Option<[Mat4; SLOTS]>,
     active: bool,
+    speed: f32,
+    smooth: smooth::Smooth,
+    preview: Option<(crate::settings::TailPreview, std::time::Instant)>,
 }
 
 impl TailLightTrails {
@@ -26,6 +36,37 @@ impl TailLightTrails {
         poses.rotate_left(1);
         poses[SLOTS - 1] = pose;
         self.active = nos_burning && speed.abs() > 0.2;
+        self.speed = speed.abs();
+    }
+
+    /// Presentation time is already scaled for pause and Speedbreaker.
+    pub fn advance_visual(&mut self, dt: f32, pose: Mat4, enabled: bool) {
+        if !enabled {
+            self.smooth = Default::default();
+            return;
+        }
+        if let Some((config, start)) = self.preview {
+            self.smooth.preview(pose, config, start.elapsed().as_secs_f64());
+            return;
+        }
+        self.smooth.advance(dt, pose, self.active);
+    }
+
+    pub fn path(&self, lamp: glam::Vec3, length: u16, exposure: u16) -> Vec<glam::Vec3> {
+        self.smooth.path(lamp, length, exposure)
+    }
+
+    pub fn engagement(&self, amount: u16) -> f32 {
+        self.smooth.engagement(amount)
+    }
+    pub fn fade(&self) -> f32 {
+        self.smooth.fade()
+    }
+    pub fn speed(&self) -> f32 {
+        self.preview.map_or(self.speed, |(config, _)| f32::from(config.speed_kmh) / 3.6)
+    }
+    pub fn time(&self) -> f32 {
+        self.smooth.time()
     }
 
     pub fn clear(&mut self) {

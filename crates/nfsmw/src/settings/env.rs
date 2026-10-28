@@ -167,6 +167,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         enhanced_lamps: None,
         exhaust_style: None,
         backfire_style: None,
+        tail_trail_style: None,
         turn_signals: None,
         rear_view_mirror: value(&get, REAR_VIEW_MIRROR, parse_bool),
         discord: value(&get, DISCORD, parse_bool),

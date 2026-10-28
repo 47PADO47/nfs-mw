@@ -3,6 +3,9 @@
 //! All are depth tested and drawn before the UI without writing depth.
 //! The caller owns geometry, sorting, lifetime and budgets; buffers are reused across frames.
 
+mod exclude;
+mod ribbon;
+
 use glam::{Mat4, Vec3, Vec4};
 
 use crate::{BlendMode, TextureHandle};
@@ -76,7 +79,8 @@ pub struct EffectVertex {
     pub uv: [f32; 2],
     /// Procedural particles: age in seconds and stable variation seed.
     /// Textured particles: positive RGBA brightness multiplier in X (zero defaults to one), unused Y.
-    /// Streaks and glows: X unused; a Y of one takes the sun's shadow in the native renderer (the Bevy renderer ignores it).
+    /// Streaks: positive emission multiplier in X (zero defaults to one); glows ignore X.
+    /// Streaks and glows: a Y of one takes the sun's shadow in the native renderer (Bevy ignores it).
     pub detail: [f32; 2],
 }
 
