@@ -1,11 +1,14 @@
 //! The parameters of a two-wheeled vehicle, in SI units and in the physics space of the crate: x right, y up, z forward.
 //!
-//! Every field is a plain number the caller fills from its own data. `BikeSpec::example` is a generic 450 cc
-//! supermoto-class bike for tests and examples; it is not any game's data.
+//! Every field is a plain number the caller fills from its own data. `BikeSpec::example` (in `example.rs`) is a generic
+//! 450 cc supermoto-class bike for tests and examples; it is not any game's data.
 
 use glam::Vec3;
 
 use super::magic::Mf94;
+pub use super::spec_parts::{
+    Coupling, DamperSpec, EngineSpec, Hydraulic, Progressive, SuspensionSpec, TransmissionSpec,
+};
 
 /// The whole bike.
 #[derive(Clone, Debug)]
@@ -19,24 +22,37 @@ pub struct BikeSpec {
     pub transmission: TransmissionSpec,
     pub brakes: BrakeSpec,
     pub steering: SteeringSpec,
-    /// The unitless quadratic drag coefficient along the bike, as `RigidBodySpec::drag` takes it.
+    pub fall: FallSpec,
+    /// The wheelie and stoppie assist; `None` for a bike without one.
+    pub wheelie: Option<WheelieSpec>,
+    /// The scales of the gyroscopic roll torque (yaw rate) and yaw torque (roll rate) of the wheels; 0 switches one off.
+    pub gyro_roll_scale: f32,
+    pub gyro_yaw_scale: f32,
+    /// The quadratic air drag coefficient: the drag force is `drag * v^2` (N, v in m/s).
     pub drag: f32,
 }
 
 /// Frame, mass and steering geometry.
 #[derive(Clone, Debug)]
 pub struct ChassisSpec {
-    /// The bike without the rider (kg).
+    /// The bike without the rider, wheels included (kg).
     pub mass: f32,
-    /// The rider's mass, carried at the rider's own height (kg); 0 for a bike without one.
+    /// The rider's mass (kg); 0 for a bike without one.
     pub rider_mass: f32,
-    /// Half extents of the body box (m): the inertia and the drag area come from it.
+    /// Where the rider's centre of mass sits, from the bike's own centre of gravity (m; x right, y up, z forward).
+    pub rider_offset: Vec3,
+    /// How far the rider moves from there when the weight is fully forward and fully back (m).
+    pub rider_forward_shift: Vec3,
+    pub rider_backward_shift: Vec3,
+    /// How fast the rider's weight input moves (per second); 0 for at once.
+    pub rider_weight_rate: f32,
+    /// Half extents of the body box (m): its bounding radius, and the derived stats of a host.
     pub half_dimensions: Vec3,
-    /// Scale of the box inertia about x (pitch), y (yaw) and z (roll).
+    /// Radius of gyration squared (m^2) about x (pitch), y (yaw) and z (roll): the inertia is this times the total mass.
     pub tensor_scale: Vec3,
-    /// Height of the centre of gravity above the ground at rest (m).
+    /// Height of the bike's own centre of gravity above the ground at rest (m).
     pub cg_height: f32,
-    /// Share of the weight on the front wheel at rest, 0 to 1.
+    /// Share of the bike's weight (without the rider) on the front wheel at rest, 0 to 1.
     pub front_weight: f32,
     /// Distance between the wheel centres at rest (m).
     pub wheelbase: f32,
@@ -62,183 +78,163 @@ pub struct WheelSpec {
     pub tyre: Mf94,
     /// Rolling resistance as a share of the load: a constant, a part per m/s and a part per (m/s)^2.
     pub rolling: [f32; 3],
-    /// The largest lateral force as a multiple of the load.
+    /// The largest lateral force as a multiple of the load: informational (derived stats), the tyre curve decides.
     pub lateral_grip_limit: f32,
+    /// Radial stiffness of the tyre (N/m): it shares the ground penetration with the suspension. 0 for a rigid tyre.
+    pub tire_stiffness: f32,
+    /// The most the tyre deforms before the suspension takes the rest (m).
+    pub max_tire_deformation: f32,
+    /// How much of the tyre's deformation shortens its effective radius (0 to 1).
+    pub compression_shape_factor: f32,
+    /// The damping of the combined slip at speed and at rest, and the speed (m/s) over which one gives way to the other.
+    pub slip_correction: f32,
+    pub rest_slip_correction: f32,
+    pub rest_speed_threshold: f32,
 }
 
-/// A fork or a shock with its damper.
-#[derive(Clone, Debug)]
-pub struct SuspensionSpec {
-    /// The length the suspension can compress over from its fully extended state (m).
-    pub max_travel: f32,
-    /// Spring rate at the shock (N/m).
-    pub spring: f32,
-    /// Stiffness of the stop that holds the suspension at full extension (N/m).
-    pub top_out_stiffness: f32,
-    pub damper: DamperSpec,
-    /// `(share of travel, ratio)` of wheel travel to shock travel; empty for a direct (fork) acting spring.
-    pub leverage: Vec<(f32, f32)>,
-}
-
-/// Two-slope damper: the slow slope up to a threshold speed, the fast slope beyond it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct DamperSpec {
-    pub slow_bump: f32,
-    pub fast_bump: f32,
-    pub bump_threshold: f32,
-    pub slow_rebound: f32,
-    pub fast_rebound: f32,
-    pub rebound_threshold: f32,
-}
-
-#[derive(Clone, Debug)]
-pub struct EngineSpec {
-    /// The peak torque (N m) the torque curve's factors multiply.
-    pub peak_torque: f32,
-    /// `(rpm, share of the peak)`, rpm rising.
-    pub torque_curve: Vec<(f32, f32)>,
-    /// Drag of the closed throttle at the rev limit (N m); it grows with the speed of the engine.
-    pub friction_torque: f32,
-    pub idle_rpm: f32,
-    pub max_rpm: f32,
-}
-
-#[derive(Clone, Debug)]
-pub struct TransmissionSpec {
-    /// Forward gear ratios, first gear first.
-    pub gears: Vec<f32>,
-    /// The ratio between the gearbox output and the rear wheel, chain included.
-    pub final_ratio: f32,
-    /// The share of the engine torque that reaches the wheel.
-    pub efficiency: f32,
-    /// The engine speed, as a share of the rev limit, at which the automatic changes up under full throttle.
-    pub up_shift: f32,
-    /// The engine speed, as a share of the rev limit, below which it changes down.
-    pub down_shift: f32,
+/// An anti-lock brake: the share of the brake it takes away from a wheel whose slip nears the force peak.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct AbsSpec {
+    /// How hard it acts on each wheel, 0 to 1; 0 for none.
+    pub front_intensity: f32,
+    pub rear_intensity: f32,
+    /// The speed (m/s) over which it fades in.
+    pub speed_range: [f32; 2],
+    /// The normalised slip ratio (-1 is the force peak) at which it starts to act and at which it acts fully.
+    pub front_slip: [f32; 2],
+    pub rear_slip: [f32; 2],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BrakeSpec {
-    /// The braking force of both brakes together at the tyre patches (N).
-    pub force: f32,
-    /// The share of it the front brake takes.
-    pub front_share: f32,
+    /// The force of the front brake and of the rear brake at the tyre patch at full lever (N).
+    pub front_force: f32,
+    pub rear_force: f32,
+    /// The linked brakes: the rear is at least `joined_factor` times the front. When either of the two other factors is
+    /// above 0 they replace it: front and rear are those shares of the larger lever.
+    pub joined_factor: f32,
+    pub joined_front: f32,
+    pub joined_rear: f32,
+    pub abs: AbsSpec,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// The rider's lean controller (`docs/specs/ride6-lean-controller.md`).
+#[derive(Clone, Debug)]
+pub struct LeanSpec {
+    /// Stiffness (1/s^2) and damping ratio of the roll spring-damper towards the target lean, and the multiplier of the
+    /// ratio for the bike's weight and size.
+    pub k: f32,
+    pub damping_ratio: f32,
+    pub damping_multiplier: f32,
+    /// The filters of the stick and of the target lean: stiffness and damping ratio.
+    pub steer_k: f32,
+    pub steer_damping_ratio: f32,
+    pub target_k: f32,
+    pub target_damping_ratio: f32,
+    /// The speed of the target lean's filter, and what its time scale falls with the lean, with the distance to the target,
+    /// with the speed `(m/s, factor)` and with the stick `(stick, factor)`. Empty curves have no effect.
+    pub time_scale: f32,
+    pub time_scale_attenuation: f32,
+    pub time_scale_sensitivity: f32,
+    pub time_scale_speed: Vec<(f32, f32)>,
+    pub time_scale_input: Vec<(f32, f32)>,
+    /// The lean limit's factor against the lateral acceleration in g: `(g, factor)`.
+    pub g_tuning: Vec<(f32, f32)>,
+    /// The heading error (rad) at which the skid starts to cut the lean limit and at which it cuts fully, the exponent of
+    /// the ramp, and the cut against the speed `(m/s, cut)`.
+    pub skid_range: [f32; 2],
+    pub skid_linearity: f32,
+    pub skid_reduction: Vec<(f32, f32)>,
+    /// The lean limit at a standstill (rad) and the speed (m/s) below which it blends in.
+    pub stopped_limit: f32,
+    pub stopped_speed: f32,
+    /// The speeds (m/s) between which the handlebar goes from the stick to the controller.
+    pub blend_range: [f32; 2],
+    /// The weight of the rider in the roll inertia.
+    pub rider_mass_scale: f32,
+    /// The lean help: the share of the gap between the front tyre's side force and the wanted one it closes, against the speed
+    /// `(m/s, share)` (empty for no help), and the share of the tyre's lateral peak it may add.
+    pub help_speed: Vec<(f32, f32)>,
+    pub help_limit: f32,
+}
+
+#[derive(Clone, Debug)]
 pub struct SteeringSpec {
     /// The handlebar's lock to each side (rad).
     pub max_angle: f32,
-    /// The stiffness of the handlebar's response to the controller (1/s^2) and its damping (1/s).
+    /// The handlebar filter: stiffness (1/s^2) and damping ratio.
     pub response: f32,
-    pub damping: f32,
-    /// The steepest lean the controller asks for (rad).
+    pub damping_ratio: f32,
+    /// The upper bound of the lean limit (rad).
     pub max_lean: f32,
-    /// How fast the controller pulls the lean to its target (rad/s): the natural frequency of a critically damped response.
-    pub lean_response: f32,
+    pub lean: LeanSpec,
+}
+
+/// When the rider has lost the bike.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FallSpec {
+    /// The lean and the pitch (rad), the angle between the velocity and the heading (rad) and the angular speed (rad/s)
+    /// beyond which the bike has fallen; the last two only above `min_speed` (m/s).
+    pub lean: f32,
+    pub pitch: f32,
+    pub speed_direction: f32,
+    pub angular_speed: f32,
+    pub min_speed: f32,
+}
+
+/// The wheelie and stoppie assist: one parameter set for each, and the rider help that cuts the throttle when the front
+/// lifts and eases the front brake when the rear does. A range of `[0, 0]` switches the part off.
+#[derive(Clone, Debug)]
+pub struct WheelieSpec {
+    pub wheelie: PitchParams,
+    pub stoppie: PitchParams,
+    /// The lift angle (rad) over which the throttle is cut, when the rider is not asking for a wheelie and when he is, and
+    /// the lift speed (rad/s) over which it is cut.
+    pub throttle_pitch: [f32; 2],
+    pub forced_throttle_pitch: [f32; 2],
+    pub throttle_pitch_speed: [f32; 2],
+    /// The same for the front brake against a stoppie (nose down: the angle and speed of the nose going down).
+    pub brake_pitch: [f32; 2],
+    pub brake_pitch_speed: [f32; 2],
+}
+
+#[derive(Clone, Debug)]
+pub struct PitchParams {
+    /// The lever travel (0 to 1) the rider must pass before the assist acts.
+    pub deadzone: f32,
+    /// The pitch (rad) a full lever holds.
+    pub max_angle: f32,
+    /// The speeds (m/s) over which the angle fades in.
+    pub speed_ramp: [f32; 2],
+    /// The assist's strength against the speed `(m/s, factor)`; empty for 1.
+    pub help_speed: Vec<(f32, f32)>,
+    /// The normalised lean at which the assist starts to fade and at which it is gone.
+    pub lean_help: [f32; 2],
+    /// How far ahead (s) the pitch is looked at, along its speed.
+    pub lookahead: f32,
+    /// The speed (m/s) below which the assist is off, the largest pitch acceleration it asks for (rad/s^2), the time (s) it
+    /// takes to reach it, and the height (m) of the lifted wheel over which the help fades out.
+    pub min_speed: f32,
+    pub acceleration: f32,
+    pub acceleration_time: f32,
+    pub ground_range: [f32; 2],
+    /// The lean limit (rad) a full pitch brings, over the pitch range (rad) it is blended in.
+    pub lean_limit: f32,
+    pub lean_pitch_range: [f32; 2],
 }
 
 impl BikeSpec {
-    /// A generic 450 cc supermoto-class bike: about 110 kg, a 1.47 m wheelbase, 17 inch wheels, a 5-speed box.
-    pub fn example() -> Self {
-        let tyre = |peak: f32| {
-            let mut a = [0.0; 15];
-            a[0] = 1.2;
-            a[1] = -10.0;
-            a[2] = peak;
-            a[3] = 1200.0;
-            a[4] = 6.0;
-            a[5] = 0.002;
-            a[8] = -0.01;
-            let mut b = [0.0; 11];
-            b[0] = 1.5;
-            b[1] = -10.0;
-            b[2] = 1250.0;
-            b[4] = 200.0;
-            b[6] = -0.1;
-            b[8] = 0.1;
-            Mf94 { a, b, c: [0.0; 18] }
-        };
-        let wheel = |tyre: Mf94, mass: f32| WheelSpec {
-            radius: 0.32,
-            width: 0.12,
-            toroid_factor: 0.7,
-            mass,
-            inertia: 0.65,
-            tyre,
-            rolling: [0.02, 0.0004, 0.000_001],
-            lateral_grip_limit: 1.25,
-        };
-        let damper = DamperSpec {
-            slow_bump: 1600.0,
-            fast_bump: 1250.0,
-            bump_threshold: 0.3,
-            slow_rebound: 2400.0,
-            fast_rebound: 1650.0,
-            rebound_threshold: 0.3,
-        };
-        Self {
-            chassis: ChassisSpec {
-                mass: 110.0,
-                rider_mass: 0.0,
-                half_dimensions: Vec3::new(0.42, 0.64, 1.06),
-                tensor_scale: Vec3::new(0.4, 0.45, 0.2),
-                cg_height: 0.62,
-                front_weight: 0.5,
-                wheelbase: 1.47,
-                rake: 26.0_f32.to_radians(),
-                trail: 0.105,
-            },
-            front: wheel(tyre(1330.0), 17.0),
-            rear: wheel(tyre(1360.0), 19.0),
-            front_suspension: SuspensionSpec {
-                max_travel: 0.28,
-                spring: 8800.0,
-                top_out_stiffness: 3800.0,
-                damper,
-                leverage: Vec::new(),
-            },
-            rear_suspension: SuspensionSpec {
-                max_travel: 0.26,
-                spring: 48000.0,
-                top_out_stiffness: 17000.0,
-                damper: DamperSpec {
-                    slow_bump: 7500.0,
-                    slow_rebound: 10500.0,
-                    bump_threshold: 0.2,
-                    rebound_threshold: 0.2,
-                    ..damper
-                },
-                leverage: vec![(0.0, 2.8), (1.0, 1.97)],
-            },
-            engine: EngineSpec {
-                peak_torque: 46.0,
-                torque_curve: vec![(2300.0, 0.7), (5000.0, 0.85), (7500.0, 1.0), (9500.0, 0.9), (11000.0, 0.7)],
-                friction_torque: 12.0,
-                idle_rpm: 2300.0,
-                max_rpm: 11000.0,
-            },
-            transmission: TransmissionSpec {
-                gears: vec![2.1, 1.65, 1.35, 1.12, 0.96],
-                final_ratio: 7.2,
-                efficiency: 0.92,
-                up_shift: 0.9,
-                down_shift: 0.45,
-            },
-            brakes: BrakeSpec { force: 1800.0, front_share: 0.65 },
-            steering: SteeringSpec {
-                max_angle: 0.7,
-                response: 600.0,
-                damping: 40.0,
-                max_lean: 55.0_f32.to_radians(),
-                lean_response: 7.0,
-            },
-            drag: 0.15,
-        }
+    /// The total mass the rigid body carries (kg): the bike, wheels included, and the rider.
+    pub fn total_mass(&self) -> f32 {
+        self.chassis.mass + self.chassis.rider_mass
     }
 
-    /// The total mass the rigid body carries (kg).
-    pub fn total_mass(&self) -> f32 {
-        self.chassis.mass + self.chassis.rider_mass + self.front.mass + self.rear.mass
+    /// The share of the total weight on the front wheel at rest, with the rider at his rest position.
+    pub fn front_share(&self) -> f32 {
+        let chassis = &self.chassis;
+        let total = self.total_mass().max(f32::EPSILON);
+        let bike_z = chassis.wheelbase * (chassis.front_weight - 0.5);
+        let z = (chassis.mass * bike_z + chassis.rider_mass * (bike_z + chassis.rider_offset.z)) / total;
+        0.5 + z / chassis.wheelbase.max(f32::EPSILON)
     }
 }

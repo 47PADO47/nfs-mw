@@ -1,9 +1,10 @@
 //! Two-wheeled vehicle dynamics: a rigid body on a fork and a swingarm, two round tyres with the Magic Formula 94, an
-//! engine with an automatic gearbox, and a rider's balance that leans the bike to where the stick points.
+//! engine with a clutch and an automatic gearbox, and a rider who prescribes the lean and steers the front tyre to
+//! the force that lean needs.
 //!
 //! The model is described in `docs/specs/vehicle-two-wheel.md`. It is a full rigid body in the physics space of the crate
-//! (x right, y up, z forward), so the lean, the weight transfer under braking and acceleration, and a slide of either
-//! wheel come out of the forces rather than being scripted.
+//! (x right, y up, z forward), so the weight transfer under braking and acceleration, and a slide of either wheel come out of
+//! the forces; only the roll of the bike is prescribed (and realised by a bounded torque), as the rider's controller does.
 //!
 //! ```
 //! use blackbox_vehicle::bike::{Bike, BikeInput, BikeSpec};
@@ -20,18 +21,32 @@
 //! assert!(bike.lean().abs() < 0.05);
 //! ```
 
-mod controller;
+mod brakes;
+pub mod choices;
+mod curve;
+mod example;
+mod filter;
+mod frame;
 mod geometry;
+mod handling;
+mod lean;
 mod magic;
+mod peaks;
+mod pitch_assist;
 mod powertrain;
+mod rider;
 mod spec;
+mod spec_parts;
 mod suspension;
 mod tyre;
 mod wheel;
+mod wheel_step;
 
+pub use frame::RestPose;
 pub use magic::Mf94;
 pub use spec::{
-    BikeSpec, BrakeSpec, ChassisSpec, DamperSpec, EngineSpec, SteeringSpec, SuspensionSpec, TransmissionSpec, WheelSpec,
+    AbsSpec, BikeSpec, BrakeSpec, ChassisSpec, Coupling, DamperSpec, EngineSpec, FallSpec, Hydraulic, LeanSpec,
+    PitchParams, Progressive, SteeringSpec, SuspensionSpec, TransmissionSpec, WheelSpec, WheelieSpec,
 };
 pub use tyre::{TyreInput, TyreOutput};
 pub use wheel::WheelState;
@@ -39,24 +54,21 @@ pub use wheel::WheelState;
 use glam::{Quat, Vec3};
 
 use crate::ground::Ground;
-use crate::rigid_body::{RigidBody, RigidBodySpec};
-use controller::Balance;
+use crate::rigid_body::{RigidBody, RigidBodySpec, box_inertia};
+use brakes::AntiLock;
+use filter::SecondOrder;
 use geometry::Geometry;
-use powertrain::Powertrain;
+use lean::{Lean, LeanPlan};
+use powertrain::{DriveInput, Powertrain};
+use rider::RiderWeight;
 use suspension::Suspension;
 
 /// Front wheel first.
 pub const FRONT: usize = 0;
 pub const REAR: usize = 1;
 
-/// A lean beyond this (rad) is a fall: the rider lets go.
-const FALL_LEAN: f32 = 1.4;
-/// Speeds below this (m/s) the rider's feet hold the bike upright.
-const STAND_SPEED: f32 = 2.5;
-/// How fast the rider's feet pull the lean back (rad/s).
-const STAND_RESPONSE: f32 = 4.0;
-
-/// What the rider asks of the bike, each 0 to 1 except the stick, which is -1 (left) to 1 (right).
+/// What the rider asks of the bike, each 0 to 1 except the stick, which is -1 (left) to 1 (right). The rider's weight
+/// (back to forward) is set with [`Bike::set_weight`].
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BikeInput {
     pub throttle: f32,
@@ -74,9 +86,16 @@ pub struct Bike {
     suspension: [Suspension; 2],
     powertrain: Powertrain,
     wheels: [WheelState; 2],
-    steer: f32,
-    steer_rate: f32,
+    /// The handlebar angle, through its filter.
+    steer: SecondOrder,
+    lean: Lean,
+    plan: LeanPlan,
+    weight: RiderWeight,
+    weight_input: f32,
+    antilock: AntiLock,
     fallen: bool,
+    /// The handlebar angle the controller aimed at in the last step (for the rider's lead).
+    aim_before: Option<f32>,
 }
 
 impl Bike {
@@ -85,16 +104,20 @@ impl Bike {
         let geometry = Geometry::new(chassis, &spec.front, &spec.rear);
         let mass = spec.total_mass();
         let gravity = -9.81;
-        let cg_z = chassis.wheelbase * (chassis.front_weight - 0.5);
-        let body_spec = RigidBodySpec {
-            gravity,
-            cg: Vec3::new(0.0, chassis.cg_height, cg_z),
-            drag: Vec3::new(0.0, 0.0, spec.drag),
-            ..RigidBodySpec::default()
-        };
-        let body = RigidBody::new(mass, chassis.half_dimensions, chassis.tensor_scale, body_spec);
-        let front_load = chassis.front_weight * mass * -gravity - spec.front.mass * -gravity;
-        let rear_load = (1.0 - chassis.front_weight) * mass * -gravity - spec.rear.mass * -gravity;
+        let body_spec = RigidBodySpec { gravity, cg: rider::combined_cog(chassis, 0.0), ..RigidBodySpec::default() };
+        // The inertia is the radius of gyration squared times the total mass; the body takes it as a scale of its box.
+        let half = chassis.half_dimensions.max(Vec3::splat(0.001));
+        let box_moments = box_inertia(mass.max(f32::EPSILON), half);
+        let wanted = chassis.tensor_scale * mass;
+        let scale = Vec3::new(
+            wanted.x / box_moments.x.max(f32::EPSILON),
+            wanted.y / box_moments.y.max(f32::EPSILON),
+            wanted.z / box_moments.z.max(f32::EPSILON),
+        );
+        let body = RigidBody::new(mass, half, scale, body_spec);
+        let share = spec.front_share();
+        let front_load = (share * mass - spec.front.mass) * -gravity;
+        let rear_load = ((1.0 - share) * mass - spec.rear.mass) * -gravity;
         let suspension = [
             Suspension::new(spec.front_suspension.clone(), front_load.max(0.0) * geometry.axis.y),
             Suspension::new(spec.rear_suspension.clone(), rear_load.max(0.0)),
@@ -107,14 +130,31 @@ impl Bike {
             suspension,
             powertrain,
             wheels: [WheelState::default(), WheelState::default()],
-            steer: 0.0,
-            steer_rate: 0.0,
+            steer: SecondOrder::new(0.0),
+            lean: Lean::new(),
+            plan: LeanPlan::default(),
+            weight: RiderWeight::new(),
+            weight_input: 0.0,
+            antilock: AntiLock::default(),
             fallen: false,
+            aim_before: None,
         }
     }
 
     pub fn spec(&self) -> &BikeSpec {
         &self.spec
+    }
+
+    /// The rigid body that carries the bike (frame, engine, wheels and rider together). Its origin is on the ground midway
+    /// between the contact patches at rest; its centre of gravity is that of the bike and the rider, and moves with the
+    /// rider's weight.
+    pub fn body(&self) -> &RigidBody {
+        &self.body
+    }
+
+    /// The rigid body, for a host that moves the bike by contacts of its own (a wall, another body).
+    pub fn body_mut(&mut self) -> &mut RigidBody {
+        &mut self.body
     }
 
     /// Stand the bike on the ground below `(x, z)`, facing `yaw`; the search starts at height `top`. False if there is no
@@ -128,170 +168,102 @@ impl Bike {
         let Some(hit) = ground.hit(Vec3::new(x, top, z), Vec3::NEG_Y, 100.0) else { return false };
         let orientation = Quat::from_rotation_y(yaw);
         self.body.place(Vec3::new(x, top - hit.distance, z), orientation);
+        self.body.set_cog(rider::combined_cog(&self.spec.chassis, 0.0));
         self.body.linear_velocity = orientation * Vec3::new(0.0, 0.0, speed);
         self.body.angular_velocity = Vec3::ZERO;
         self.wheels = [WheelState::default(), WheelState::default()];
         let spin = speed / self.spec.rear.radius;
         self.wheels[FRONT].spin = speed / self.spec.front.radius;
         self.wheels[REAR].spin = spin;
-        self.steer = 0.0;
-        self.steer_rate = 0.0;
+        self.steer.reset(0.0);
+        self.aim_before = None;
+        self.lean.reset();
+        self.plan = LeanPlan::default();
+        self.weight.reset();
+        self.antilock.reset();
         self.fallen = false;
         self.powertrain = Powertrain::new(&self.spec.engine);
         self.powertrain.match_speed(&self.spec.engine, &self.spec.transmission, spin);
         true
     }
 
-    /// Advance the bike by `dt` seconds.
+    /// The rider's weight on the bike, -1 (fully back) to 1 (fully forward). It moves the combined centre of gravity and
+    /// asks the wheelie and stoppie control for a pitch.
+    pub fn set_weight(&mut self, weight: f32) {
+        self.weight_input = match weight.is_finite() {
+            true => weight.clamp(-1.0, 1.0),
+            false => 0.0,
+        };
+    }
+
+    /// Advance the bike by `dt` seconds: [`Bike::begin_body`], then [`Bike::respond`].
     pub fn step(&mut self, dt: f32, input: &BikeInput, ground: &dyn Ground) {
+        self.begin_body(dt);
+        self.respond(dt, input, ground);
+    }
+
+    /// The first half of a step: integrate the forces of the previous step into the body. A host that resolves contacts of
+    /// its own (walls, other bodies) between the two halves does so on [`Bike::body_mut`].
+    pub fn begin_body(&mut self, dt: f32) {
         if !dt.is_finite() || dt <= 0.0 {
             return;
         }
         self.body.begin_frame(dt);
+    }
+
+    /// The second half of a step: the rider, the engine, the tyres and the suspension work out the forces that move the
+    /// body in the next step.
+    pub fn respond(&mut self, dt: f32, input: &BikeInput, ground: &dyn Ground) {
+        if !dt.is_finite() || dt <= 0.0 {
+            return;
+        }
         let rotation = self.body.rotation();
         let forward = rotation * Vec3::Z;
         let speed = self.body.linear_velocity.dot(forward);
-        let lean = lean_of(rotation);
-        self.fallen |= lean.abs() > FALL_LEAN;
-        let stick = if self.fallen { 0.0 } else { input.steer };
-        self.steer_handlebar(dt, speed, lean, -self.body.angular_velocity.dot(forward), stick);
-        let drive = self.drive_torque(input, dt);
-        for index in [FRONT, REAR] {
-            self.step_wheel(index, dt, input, drive, ground);
-        }
-        self.hold_upright(speed, lean);
-        self.body.apply_drag();
-    }
-
-    /// The handlebar's response to the balance controller.
-    fn steer_handlebar(&mut self, dt: f32, speed: f32, lean: f32, lean_rate: f32, stick: f32) {
-        let steering = self.spec.steering;
-        let chassis = &self.spec.chassis;
-        let balance = Balance {
-            speed,
-            lean,
-            lean_rate,
-            mass: self.body.mass(),
-            cg_height: chassis.cg_height,
-            wheelbase: chassis.wheelbase,
-            roll_inertia: self.body.inertia().z,
-            gravity: 9.81,
+        self.check_fall(speed);
+        self.shift_weight(dt);
+        let (throttle_help, brake_help) = self.help_factors();
+        let throttle = match self.fallen {
+            true => 0.0,
+            false => input.throttle.clamp(0.0, 1.0) * throttle_help,
         };
-        let grip = self.spec.front.lateral_grip_limit.min(self.spec.rear.lateral_grip_limit);
-        let target = controller::target_lean(&steering, stick, grip);
-        let command = controller::handlebar(&steering, &balance, target, stick);
-        let acceleration = steering.response * (command - self.steer) - steering.damping * self.steer_rate;
-        self.steer_rate += acceleration * dt;
-        self.steer = (self.steer + self.steer_rate * dt).clamp(-steering.max_angle, steering.max_angle);
-    }
-
-    /// The rider's feet: a torque about the bike's length that holds it up when it is too slow to be balanced by steering.
-    fn hold_upright(&mut self, speed: f32, lean: f32) {
-        let share = (1.0 - speed.abs() / STAND_SPEED).clamp(0.0, 1.0);
-        if share == 0.0 || self.fallen {
-            return;
-        }
-        let forward = self.body.rotation() * Vec3::Z;
-        let tip = self.body.mass() * 9.81 * self.spec.chassis.cg_height * lean.sin();
-        let rate = -self.body.angular_velocity.dot(forward);
-        let height = self.spec.chassis.cg_height;
-        let inertia = self.body.inertia().z + self.body.mass() * height * height;
-        // Cancel the tipping, then pull the lean back with a critically damped response of its own.
-        let hold = inertia * (STAND_RESPONSE * STAND_RESPONSE * lean + 2.0 * STAND_RESPONSE * rate);
-        self.body.apply_torque(forward * (share * (tip + hold)));
-    }
-
-    fn drive_torque(&mut self, input: &BikeInput, dt: f32) -> f32 {
-        let throttle = if self.fallen { 0.0 } else { input.throttle.clamp(0.0, 1.0) };
-        let spin = self.wheels[REAR].spin;
-        self.powertrain.step(&self.spec.engine, &self.spec.transmission, throttle, spin, dt)
-    }
-
-    /// The pose of a wheel for a suspension compression: the hub in the world, the unit axle and heading, and the
-    /// suspension axis.
-    fn pose(&self, index: usize, compression: f32) -> wheel::Pose {
-        let rotation = self.body.rotation();
-        let (hub, turn) = match index {
-            FRONT => self.geometry.front_pose(self.steer, compression),
-            _ => self.geometry.rear_pose(compression),
-        };
-        let axis = if index == FRONT { self.geometry.axis } else { Vec3::Y };
-        wheel::Pose {
-            hub: self.body.position + rotation * hub,
-            axle: rotation * (turn * Vec3::X),
-            heading: rotation * (turn * Vec3::Z),
-            axis: rotation * axis,
-        }
-    }
-
-    fn step_wheel(&mut self, index: usize, dt: f32, input: &BikeInput, drive: f32, ground: &dyn Ground) {
-        let wheel_spec = if index == FRONT { &self.spec.front } else { &self.spec.rear };
-        let travel = &self.suspension[index];
-        let limits = (travel.rest_extension(), travel.rest_compression() + wheel::OVER_TRAVEL);
-        let contact =
-            wheel::settle(|c| self.pose(index, c), wheel_spec, ground, self.wheels[index].compression, limits);
-        let spin = self.wheels[index].spin;
-        let brake = self.brake_torque(index, input);
-        let drive = if index == REAR { drive } else { 0.0 };
-        let state = &mut self.wheels[index];
-        let Some(contact) = contact else {
-            state.release(limits.0);
-            state.spin = tyre::spin_in_air(wheel_spec, spin, drive, brake, dt);
-            return;
-        };
-        state.compression = contact.compression;
-        let velocity = self.body.point_velocity(contact.point);
-        // The frame moves towards the ground at the rate the suspension compresses.
-        let speed = -velocity.dot(contact.normal) / contact.axis_cosine.max(0.3);
-        let weight = wheel_spec.mass * 9.81;
-        let cosine = contact.axis_cosine.max(0.3);
-        let mass = self.axial_mass(contact.point, contact.normal) * cosine * cosine;
-        let suspension_force = self.suspension[index].force(contact.compression, speed, dt, mass);
-        let load = (suspension_force / contact.axis_cosine.max(0.3) + weight).max(0.0);
-        let frame = wheel::ground_frame(contact.normal, contact.heading);
-        let camber = geometry::camber(contact.axle, contact.normal);
-        let input = TyreInput {
-            load,
-            v_long: velocity.dot(frame.forward),
-            v_lat: velocity.dot(frame.right),
-            spin,
-            camber,
-            grip: contact.surface,
-        };
-        let (new_spin, output) = tyre::advance_wheel(wheel_spec, &input, drive, brake, dt);
-        let rolling = tyre::rolling_resistance(wheel_spec, load, input.v_long);
-        let force =
-            contact.normal * load + frame.forward * (output.longitudinal + rolling) + frame.right * output.lateral;
-        self.body.apply_force_at(force, contact.point);
-        let state = &mut self.wheels[index];
-        state.on_ground = true;
-        state.load = load;
-        state.contact = contact.point;
-        state.normal = contact.normal;
-        state.force = force;
-        state.slip_angle = output.slip_angle;
-        state.slip_ratio = output.slip_ratio;
-        state.camber = camber;
-        state.surface_tag = contact.surface.tag;
-        state.spin = new_spin;
-    }
-
-    /// The mass the body presents to a push along `direction` at the world point `point` (kg): the whole mass for a push
-    /// through the centre of gravity, less for one that also turns the body.
-    fn axial_mass(&self, point: Vec3, direction: Vec3) -> f32 {
-        let lever = (point - self.body.world_cog()).cross(direction);
-        let turning = lever.dot(self.body.inv_world_tensor() * lever);
-        1.0 / (1.0 / self.body.mass() + turning)
-    }
-
-    /// The brake torque on a wheel (N m): the share of the brake force the wheel's lever takes, times its radius.
-    fn brake_torque(&self, index: usize, input: &BikeInput) -> f32 {
         let brakes = self.spec.brakes;
-        let (lever, share, radius) = match index {
-            FRONT => (input.front_brake, brakes.front_share, self.spec.front.radius),
-            _ => (input.rear_brake, 1.0 - brakes.front_share, self.spec.rear.radius),
+        let (front_lever, rear_lever) = brakes::joined(
+            &brakes,
+            input.front_brake.clamp(0.0, 1.0) * brake_help,
+            input.rear_brake,
+            speed.abs() > choices::STANDING_SPEED,
+        );
+        let (abs_front, abs_rear) = self.antilock.multipliers();
+        let brake = [
+            brakes::torque(&brakes, true, front_lever, abs_front, self.spec.front.radius),
+            brakes::torque(&brakes, false, rear_lever, abs_rear, self.spec.rear.radius),
+        ];
+        let stick = match self.fallen {
+            true => 0.0,
+            false => input.steer,
         };
-        lever.clamp(0.0, 1.0) * brakes.force * share * radius
+        self.steer_handlebar(dt, speed, stick);
+        let drive = self.powertrain.drive(
+            &self.spec.engine,
+            &self.spec.transmission,
+            &DriveInput { throttle, wheel_spin: self.wheels[REAR].spin, speed: speed.abs(), dt },
+        );
+        for index in [FRONT, REAR] {
+            let applied = match index {
+                REAR => drive,
+                _ => powertrain::Drive::default(),
+            };
+            self.step_wheel(index, dt, brake[index], applied, ground);
+        }
+        self.powertrain.finish(&self.spec.engine, self.wheels[REAR].spin, dt);
+        let normalised = |w: &WheelState| match w.on_ground {
+            true => w.normalised_x,
+            false => 0.0,
+        };
+        let (front_slip, rear_slip) = (normalised(&self.wheels[FRONT]), normalised(&self.wheels[REAR]));
+        self.antilock.update(&brakes.abs, speed, front_slip, rear_slip, dt);
+        self.apply_rider_and_air(input, speed);
     }
 
     pub fn position(&self) -> Vec3 {
@@ -316,9 +288,23 @@ impl Bike {
         lean_of(self.body.rotation())
     }
 
+    /// The pitch (rad), positive when the nose is up.
+    pub fn pitch(&self) -> f32 {
+        pitch_of(self.body.rotation())
+    }
+
+    /// The lean limit the rider's controller used in the last step, and the target lean it aimed at (rad, positive right).
+    pub fn lean_limit(&self) -> f32 {
+        self.plan.limit
+    }
+
+    pub fn target_lean(&self) -> f32 {
+        self.plan.target
+    }
+
     /// The handlebar angle (rad), positive right.
     pub fn steer_angle(&self) -> f32 {
-        self.steer
+        self.steer.output()
     }
 
     pub fn rpm(&self) -> f32 {
@@ -342,16 +328,13 @@ impl Bike {
         self.fallen
     }
 
-    /// The pose of the front wheel assembly now, for drawing: the hub in the world and its orientation.
+    /// The pose of a wheel assembly now, for drawing: the hub in the world and its orientation.
     pub fn wheel_pose(&self, index: usize) -> (Vec3, Quat) {
         let pose = self.pose(index, self.wheels[index.min(REAR)].compression);
-        let rotation = self.body.rotation();
-        let local = rotation.transpose();
         let (_, turn) = match index {
-            FRONT => self.geometry.front_pose(self.steer, 0.0),
+            FRONT => self.geometry.front_pose(self.steer.output(), 0.0),
             _ => self.geometry.rear_pose(0.0),
         };
-        let _ = local;
         (pose.hub, self.body.orientation * turn)
     }
 }
@@ -363,5 +346,12 @@ fn lean_of(rotation: glam::Mat3) -> f32 {
     (-up.x).atan2(up.y)
 }
 
+/// The pitch (rad) of a body: positive when its forward axis points above the horizon.
+fn pitch_of(rotation: glam::Mat3) -> f32 {
+    (rotation * Vec3::Z).y.clamp(-1.0, 1.0).asin()
+}
+
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_behaviour;

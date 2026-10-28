@@ -71,17 +71,33 @@ pub struct WheelState {
     pub slip_ratio: f32,
     pub camber: f32,
     pub surface_tag: u32,
+    /// How fast the suspension compresses (m/s).
+    pub compression_speed: f32,
+    /// How far the load squashes the tyre (m).
+    pub tyre_compression: f32,
+    /// The longitudinal slip normalised to the force peaks (-1 at the braking peak).
+    pub normalised_x: f32,
+    /// The self-aligning moment of the tyre (N m); 0 for the rear wheel.
+    pub aligning: f32,
+    /// The tyre's longitudinal force (N) and the unit direction of its side force on the ground.
+    pub traction: f32,
+    pub side: Vec3,
 }
 
 impl WheelState {
     /// The wheel has left the ground: the suspension hangs at `compression` and nothing pushes on the tyre.
-    pub fn release(&mut self, compression: f32) {
+    pub fn release(&mut self, compression: f32, speed: f32) {
         self.compression = compression;
+        self.compression_speed = speed;
         self.on_ground = false;
         self.load = 0.0;
         self.force = Vec3::ZERO;
         self.slip_angle = 0.0;
         self.slip_ratio = 0.0;
+        self.tyre_compression = 0.0;
+        self.normalised_x = 0.0;
+        self.aligning = 0.0;
+        self.traction = 0.0;
     }
 }
 
@@ -194,7 +210,7 @@ mod tests {
     #[test]
     fn releasing_a_wheel_clears_its_forces() {
         let mut state = WheelState { on_ground: true, load: 1000.0, force: Vec3::Y, ..Default::default() };
-        state.release(-0.05);
+        state.release(-0.05, 0.0);
         assert!(!state.on_ground && state.load == 0.0 && state.force == Vec3::ZERO);
         assert_eq!(state.compression, -0.05);
     }

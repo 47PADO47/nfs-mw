@@ -1,11 +1,12 @@
-//! The force one tyre puts on the ground, and the spin of its wheel.
+//! The force one tyre puts on the ground, and the spin of its wheel (`docs/specs/ride6-tyre.md`).
+//!
+//! The slip is the slip speed over the total speed of the contact patch (smoothed below 1 m/s); the two pure forces of the
+//! Magic Formula are joined by the normalised-slip rule with the tyre's own peak slips, not by a friction ellipse.
 
+use super::choices;
+use super::peaks::{Peaks, peaks};
 use super::spec::WheelSpec;
 use crate::ground::SurfaceGrip;
-
-/// Slower than this (m/s) the slip is worked out against this speed, so a rolling wheel at a standstill does not divide
-/// by zero. A numerical guard, not a tuning value.
-const MIN_SLIP_SPEED: f32 = 1.0;
 
 /// What the tyre sees this step.
 #[derive(Clone, Copy, Debug)]
@@ -19,6 +20,8 @@ pub struct TyreInput {
     pub spin: f32,
     /// The lean of the wheel from the ground normal, positive towards the right (rad).
     pub camber: f32,
+    /// How far the tyre is squashed by the load (m).
+    pub compression: f32,
     pub grip: SurfaceGrip,
 }
 
@@ -29,38 +32,118 @@ pub struct TyreOutput {
     pub longitudinal: f32,
     /// Across it (N), positive to the right.
     pub lateral: f32,
-    /// The slip angle (rad, positive when the patch moves to the right) and the slip ratio (1 = 100 percent).
+    /// The slip angle (rad, positive when the patch moves to the right) and the slip ratio (1 = 100 percent), both against
+    /// the total speed of the patch.
     pub slip_angle: f32,
     pub slip_ratio: f32,
+    /// The longitudinal slip normalised to the force peaks: -1 at the braking peak, 0 at none, 1 at the driving peak.
+    pub normalised_x: f32,
+    /// The self-aligning moment (N m); 0 for a wheel that does not steer.
+    pub aligning: f32,
 }
 
-/// The force of the tyre on the road. Longitudinal and lateral forces come from the Magic Formula at the same load; the
-/// pair is held inside the friction ellipse of their peaks, and the lateral force inside the tyre's lateral grip limit.
-pub fn forces(wheel: &WheelSpec, input: &TyreInput) -> TyreOutput {
+/// What does not change with the spin of the wheel: computed once for the solve of the spin.
+#[derive(Clone, Copy, Debug)]
+pub struct Prepared {
+    fz_kn: f32,
+    gamma_deg: f32,
+    peaks: Peaks,
+    radius: f32,
+    correction: f32,
+}
+
+/// The effective rolling radius (m): the radius less what the lean takes off a round tread and what the load squashes.
+pub fn effective_radius(wheel: &WheelSpec, camber: f32, compression: f32) -> f32 {
+    let shoulder = 0.5 * (1.0 - camber.cos().abs()) * wheel.toroid_factor * wheel.width;
+    (wheel.radius - shoulder - wheel.compression_shape_factor * compression).max(wheel.radius * 0.5)
+}
+
+/// The factor that takes the slip speed to the slip below 1 m/s of patch speed: a smoothstep from 0.0297 at rest to 1.
+pub fn low_speed_factor(speed: f32) -> f32 {
+    let u = 0.99 * speed.clamp(0.0, 1.0) + 0.01;
+    (3.0 - 2.0 * u) * u
+}
+
+pub fn prepare(wheel: &WheelSpec, input: &TyreInput) -> Prepared {
+    let fz_kn = input.load * 1e-3;
+    // The formula's camber thrust follows the sign of the camber it is given: a bike leaning right is pushed right, so the
+    // camber is negated.
+    let gamma_deg = -input.camber.to_degrees();
+    let speed = input.v_long.hypot(input.v_lat);
+    let blend = match wheel.rest_speed_threshold > 0.0 {
+        true => (speed / wheel.rest_speed_threshold).clamp(0.0, 1.0),
+        false => 1.0,
+    };
+    Prepared {
+        fz_kn,
+        gamma_deg,
+        peaks: peaks(&wheel.tyre, fz_kn, gamma_deg),
+        radius: effective_radius(wheel, input.camber, input.compression),
+        correction: wheel.rest_slip_correction + (wheel.slip_correction - wheel.rest_slip_correction) * blend,
+    }
+}
+
+/// The sign of `x`, 0 for 0.
+fn sign(x: f32) -> f32 {
+    match x == 0.0 {
+        true => 0.0,
+        false => x.signum(),
+    }
+}
+
+/// `1 + 2 min(c, share) (e - 1)`: the grip lost to the efficiency of the tyre grows with how near the limit it works.
+fn efficiency_factor(c: f32, share: f32, efficiency: f32) -> f32 {
+    1.0 + 2.0 * c.min(share) * (efficiency - 1.0)
+}
+
+/// The force of the tyre on the road at the spin `spin` of the wheel.
+pub fn forces_at(wheel: &WheelSpec, input: &TyreInput, prepared: &Prepared, spin: f32, steered: bool) -> TyreOutput {
     if input.load <= 0.0 {
         return TyreOutput::default();
     }
-    let fz = input.load * 1e-3;
-    let reference = input.v_long.abs().max(MIN_SLIP_SPEED);
-    let slip_ratio = (input.spin * wheel.radius - input.v_long) / reference;
-    let slip_angle = input.v_lat.atan2(reference);
-    // The formula's slip angle is positive for a force that opposes a rightward patch speed, and its camber thrust
-    // follows the sign of the camber it is given: a bike leaning right is pushed right, so the camber is negated.
-    let tyre = &wheel.tyre;
-    let mut fx = tyre.longitudinal(fz, slip_ratio * 100.0) * input.grip.drive;
-    let mut fy = -tyre.lateral(fz, slip_angle.to_degrees(), -input.camber.to_degrees()) * input.grip.lateral;
-    let (peak_x, peak_y) = (tyre.longitudinal_peak(fz) * input.grip.drive, tyre.lateral_peak(fz) * input.grip.lateral);
-    if peak_x > 1.0 && peak_y > 1.0 {
-        let used = (fx / peak_x).powi(2) + (fy / peak_y).powi(2);
-        if used > 1.0 {
-            let scale = used.sqrt().recip();
-            fx *= scale;
-            fy *= scale;
+    let slip_speed = prepared.radius * spin - input.v_long;
+    let speed = input.v_long.hypot(input.v_lat);
+    let (slip_x, slip_y) = match speed > 1.0 {
+        true => (slip_speed / speed, input.v_lat / speed),
+        false => {
+            let k = low_speed_factor(speed);
+            (k * slip_speed, k * input.v_lat)
         }
+    };
+    let slip_y = slip_y.clamp(-1.0, 1.0);
+    let alpha = slip_y.asin();
+    let p = &prepared.peaks;
+    let span_x = (p.x_positive - p.x_negative).max(1e-4);
+    let span_y = (p.y_positive - p.y_negative).max(1e-4);
+    let nx = 2.0 * (slip_x - p.x_negative) / span_x - 1.0;
+    let ny = 2.0 * (slip_y - p.y_negative) / span_y - 1.0;
+    let combined = nx.hypot(ny) / (nx.abs() * choices::SLIP_CORRECTION_MULTIPLIER * prepared.correction + 1.0);
+    let mut output = TyreOutput { slip_angle: alpha, slip_ratio: slip_x, normalised_x: nx, ..TyreOutput::default() };
+    if combined <= 1e-8 {
+        return output;
     }
-    let limit = wheel.lateral_grip_limit * input.load;
-    fy = fy.clamp(-limit, limit);
-    TyreOutput { longitudinal: fx, lateral: fy, slip_angle, slip_ratio }
+    let tyre = &wheel.tyre;
+    let effective_x = (combined * sign(nx) * 0.5 + 0.5) * span_x + p.x_negative;
+    // The slip angle is the arcsine of a sine: a combined slip far past the peaks must not leave the arcsine's domain.
+    let effective_y = ((combined * sign(ny) * 0.5 + 0.5) * span_y + p.y_negative).clamp(-1.0, 1.0);
+    let fx0 = tyre.longitudinal(prepared.fz_kn, effective_x * 100.0) * input.grip.drive;
+    // The formula's slip angle is positive for a force that opposes a rightward patch speed.
+    let fy0 = -tyre.lateral(prepared.fz_kn, effective_y.asin().to_degrees(), prepared.gamma_deg) * input.grip.lateral;
+    let balance = choices::TYRE_EFFICIENCY_BALANCE;
+    output.longitudinal =
+        fx0 * (nx.abs() / combined).min(1.0) * efficiency_factor(combined, balance, choices::TYRE_EFFICIENCY);
+    output.lateral =
+        fy0 * (ny.abs() / combined).min(1.0) * efficiency_factor(combined, 1.0 - balance, choices::TYRE_EFFICIENCY);
+    if steered {
+        output.aligning = tyre.aligning(prepared.fz_kn, alpha.to_degrees(), prepared.gamma_deg) * input.grip.lateral;
+    }
+    output
+}
+
+/// The force of the tyre on the road at the spin of the input (the tests' shortcut).
+#[cfg(test)]
+fn forces(wheel: &WheelSpec, input: &TyreInput) -> TyreOutput {
+    forces_at(wheel, input, &prepare(wheel, input), input.spin, false)
 }
 
 /// The rolling resistance (N), opposing the motion.
@@ -79,16 +162,26 @@ const SPIN_SEARCH: f32 = 20.0;
 
 /// Advance the wheel by `dt` and return its new spin with the tyre forces at that spin.
 ///
-/// The wheel obeys `I dw/dt = drive - brake - R Fx(w)`. At a crawl the slip ratio is very sensitive to the spin, so an
-/// explicit step overshoots and flips the force every step; the equation is solved for the new spin instead. The residual
-/// is negative far below the answer and positive far above it (the tyre force is bounded), so a bisection always finds a
-/// root. `input.spin` is the spin at the start of the step.
-pub fn advance_wheel(wheel: &WheelSpec, input: &TyreInput, drive: f32, brake: f32, dt: f32) -> (f32, TyreOutput) {
-    let inertia = wheel.inertia.max(1e-3);
+/// The wheel obeys `I dw/dt = drive - brake - R Fx(w)`, `I` being the wheel's inertia plus `extra_inertia` (the engine's, seen
+/// through a locked clutch). At a crawl the slip is very sensitive to the spin, so an explicit step overshoots and flips the
+/// force every step; the equation is solved for the new spin instead. The residual is negative far below the answer and
+/// positive far above it (the tyre force is bounded), so a bisection always finds a root. `input.spin` is the spin at the
+/// start of the step.
+pub fn advance_wheel(
+    wheel: &WheelSpec,
+    input: &TyreInput,
+    drive: f32,
+    brake: f32,
+    extra_inertia: f32,
+    steered: bool,
+    dt: f32,
+) -> (f32, TyreOutput) {
+    let inertia = (wheel.inertia + extra_inertia).max(1e-3);
+    let prepared = prepare(wheel, input);
     let residual = |spin: f32| {
-        let output = forces(wheel, &TyreInput { spin, ..*input });
+        let output = forces_at(wheel, input, &prepared, spin, steered);
         let braking = brake.abs() * (spin / BRAKE_FADE_SPIN).tanh();
-        (spin - input.spin - dt / inertia * (drive - braking - output.longitudinal * wheel.radius), output)
+        (spin - input.spin - dt / inertia * (drive - braking - output.longitudinal * prepared.radius), output)
     };
     let reach = SPIN_SEARCH
         + dt / inertia
@@ -106,8 +199,8 @@ pub fn advance_wheel(wheel: &WheelSpec, input: &TyreInput, drive: f32, brake: f3
 }
 
 /// The spin of a wheel with no ground under it: the drive and the brake only.
-pub fn spin_in_air(wheel: &WheelSpec, spin: f32, drive: f32, brake: f32, dt: f32) -> f32 {
-    let inertia = wheel.inertia.max(1e-3);
+pub fn spin_in_air(wheel: &WheelSpec, spin: f32, drive: f32, brake: f32, extra_inertia: f32, dt: f32) -> f32 {
+    let inertia = (wheel.inertia + extra_inertia).max(1e-3);
     let free = spin + drive / inertia * dt;
     let braking = brake.abs() / inertia * dt;
     if free.abs() <= braking {
@@ -122,7 +215,7 @@ mod tests {
     use crate::bike::BikeSpec;
 
     fn input(spin: f32, v_long: f32, v_lat: f32, camber: f32) -> TyreInput {
-        TyreInput { load: 2000.0, v_long, v_lat, spin, camber, grip: SurfaceGrip::DEFAULT }
+        TyreInput { load: 2000.0, v_long, v_lat, spin, camber, compression: 0.0, grip: SurfaceGrip::DEFAULT }
     }
 
     #[test]
@@ -143,24 +236,72 @@ mod tests {
     fn a_spinning_wheel_drives_forwards_and_a_locked_one_brakes() {
         let wheel = BikeSpec::example().rear;
         assert!(forces(&wheel, &input(25.0 / wheel.radius, 20.0, 0.0, 0.0)).longitudinal > 0.0);
-        assert!(forces(&wheel, &input(0.0, 20.0, 0.0, 0.0)).longitudinal < 0.0);
+        let locked = forces(&wheel, &input(0.0, 20.0, 0.0, 0.0));
+        assert!(locked.longitudinal < 0.0 && locked.normalised_x < -1.0);
     }
 
     #[test]
     fn a_bike_leaning_right_is_pushed_right_by_camber() {
         let mut wheel = BikeSpec::example().front;
         wheel.tyre.a[11] = 2.0;
-        let out = forces(&wheel, &input(20.0 / wheel.radius, 20.0, 0.0, 30.0_f32.to_radians()));
+        // A leaned tyre rolls on a smaller radius, so the spin for no longitudinal slip is the speed over that radius (at
+        // the nominal radius the wheel would be braking, and the normalised combination would mix that into the sideways
+        // force).
+        let camber = 30.0_f32.to_radians();
+        let rolling = 20.0 / effective_radius(&wheel, camber, 0.0);
+        let out = forces(&wheel, &input(rolling, 20.0, 0.0, camber));
         assert!(out.lateral > 0.0, "{out:?}");
     }
 
     #[test]
-    fn the_combined_force_stays_inside_the_ellipse() {
+    fn a_lateral_slip_takes_longitudinal_force_away() {
         let wheel = BikeSpec::example().rear;
-        let out = forces(&wheel, &input(40.0 / wheel.radius, 20.0, 4.0, 0.0));
-        let fz = 2.0;
-        let (px, py) = (wheel.tyre.longitudinal_peak(fz), wheel.tyre.lateral_peak(fz));
-        assert!((out.longitudinal / px).powi(2) + (out.lateral / py).powi(2) <= 1.001);
+        let spin = 22.0 / wheel.radius;
+        let straight = forces(&wheel, &input(spin, 20.0, 0.0, 0.0));
+        let sliding = forces(&wheel, &input(spin, 20.0, 3.0, 0.0));
+        assert!(sliding.longitudinal.abs() < straight.longitudinal.abs(), "{straight:?} {sliding:?}");
+        assert!(sliding.lateral.abs() > 100.0);
+    }
+
+    #[test]
+    fn the_pure_forces_reach_the_peak_of_the_formula() {
+        let wheel = BikeSpec::example().rear;
+        let peak = wheel.tyre.longitudinal_peak(2.0);
+        let driving = (1..300)
+            .map(|n| forces(&wheel, &input((20.0 + n as f32 * 0.1) / wheel.radius, 20.0, 0.0, 0.0)).longitudinal)
+            .fold(0.0, f32::max);
+        assert!(driving > 0.9 * peak && driving < 1.05 * peak, "{driving} {peak}");
+    }
+
+    #[test]
+    fn the_low_speed_factor_is_a_smoothstep_from_rest_to_one_metre_per_second() {
+        assert!((low_speed_factor(0.0) - 0.0298).abs() < 1e-4);
+        assert_eq!(low_speed_factor(1.0), 1.0);
+        assert!(low_speed_factor(0.5) > low_speed_factor(0.2));
+        assert_eq!(low_speed_factor(5.0), 1.0);
+    }
+
+    #[test]
+    fn a_leaned_round_tyre_rolls_on_a_smaller_radius_and_a_squashed_one_too() {
+        let wheel = BikeSpec::example().front;
+        let upright = effective_radius(&wheel, 0.0, 0.0);
+        assert!((upright - wheel.radius).abs() < 1e-6);
+        assert!(effective_radius(&wheel, 0.6, 0.0) < upright);
+        assert!((upright - effective_radius(&wheel, 0.0, 0.01) - 0.01 * wheel.compression_shape_factor).abs() < 1e-6);
+    }
+
+    #[test]
+    fn only_a_steered_wheel_has_an_aligning_moment() {
+        let mut wheel = BikeSpec::example().front;
+        wheel.tyre.c[0] = 2.0;
+        wheel.tyre.c[1] = -1.5;
+        wheel.tyre.c[2] = -10.0;
+        wheel.tyre.c[3] = -0.3;
+        wheel.tyre.c[4] = -10.0;
+        let i = input(20.0 / wheel.radius, 20.0, 1.0, 0.0);
+        let prepared = prepare(&wheel, &i);
+        assert_eq!(forces_at(&wheel, &i, &prepared, i.spin, false).aligning, 0.0);
+        assert!(forces_at(&wheel, &i, &prepared, i.spin, true).aligning != 0.0);
     }
 
     #[test]
@@ -176,7 +317,7 @@ mod tests {
         let wheel = BikeSpec::example().front;
         let mut spin = 30.0;
         for _ in 0..600 {
-            spin = spin_in_air(&wheel, spin, 0.0, 200.0, 1.0 / 60.0);
+            spin = spin_in_air(&wheel, spin, 0.0, 200.0, 0.0, 1.0 / 60.0);
         }
         assert_eq!(spin, 0.0);
     }
@@ -186,7 +327,7 @@ mod tests {
         let wheel = BikeSpec::example().rear;
         let mut spin = 0.0;
         for _ in 0..120 {
-            spin = advance_wheel(&wheel, &input(spin, 15.0, 0.0, 0.0), 0.0, 0.0, 1.0 / 60.0).0;
+            spin = advance_wheel(&wheel, &input(spin, 15.0, 0.0, 0.0), 0.0, 0.0, 0.0, false, 1.0 / 60.0).0;
         }
         assert!((spin * wheel.radius - 15.0).abs() < 0.3, "{}", spin * wheel.radius);
     }
@@ -197,7 +338,7 @@ mod tests {
         let mut spin = 3.0;
         let mut worst: f32 = 0.0;
         for _ in 0..60 {
-            let (next, out) = advance_wheel(&wheel, &input(spin, 0.05, 0.0, 0.0), 0.0, 0.0, 1.0 / 60.0);
+            let (next, out) = advance_wheel(&wheel, &input(spin, 0.05, 0.0, 0.0), 0.0, 0.0, 0.0, false, 1.0 / 60.0);
             spin = next;
             worst = worst.max(spin.abs());
             assert!(out.longitudinal.is_finite());
@@ -210,9 +351,20 @@ mod tests {
         let wheel = BikeSpec::example().front;
         let (mut spin, mut last) = (20.0 / wheel.radius, TyreOutput::default());
         for _ in 0..120 {
-            (spin, last) = advance_wheel(&wheel, &input(spin, 20.0, 0.0, 0.0), 0.0, 900.0, 1.0 / 60.0);
+            (spin, last) = advance_wheel(&wheel, &input(spin, 20.0, 0.0, 0.0), 0.0, 900.0, 0.0, false, 1.0 / 60.0);
         }
         assert!(spin < 0.5 * 20.0 / wheel.radius, "{spin}");
         assert!(last.longitudinal < -500.0, "{last:?}");
+    }
+
+    #[test]
+    fn extra_inertia_slows_the_spin_up() {
+        let wheel = BikeSpec::example().rear;
+        // Rolling at 20 m/s: against a held road (speed 0) the tyre force pulls a spinning wheel down, and the lighter wheel
+        // falls faster, which is not the spin-up this tests.
+        let rolling = input(20.0 / wheel.radius, 20.0, 0.0, 0.0);
+        let light = advance_wheel(&wheel, &rolling, 100.0, 0.0, 0.0, false, 1.0 / 60.0).0;
+        let heavy = advance_wheel(&wheel, &rolling, 100.0, 0.0, 3.0, false, 1.0 / 60.0).0;
+        assert!(heavy < light);
     }
 }
