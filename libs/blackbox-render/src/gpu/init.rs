@@ -8,15 +8,15 @@ use crate::caps::native_capabilities;
 use crate::{Backend, DEFAULT_RENDER_SCALE, PixelFormat, RenderError, RendererOptions, TextureDesc};
 use blackbox_gfx::{BackendInfo, GraphicsApi, GraphicsSettings};
 
-#[cfg(all(windows, feature = "streamline"))]
+#[cfg(all(windows, feature = "streamline", streamline_sdk))]
 type DlssRuntime = Option<super::dlss::Runtime>;
-#[cfg(not(all(windows, feature = "streamline")))]
+#[cfg(not(all(windows, feature = "streamline", streamline_sdk)))]
 type DlssRuntime = ();
 
 fn create_instance(desc: wgpu::InstanceDescriptor, backend: Backend) -> (wgpu::Instance, DlssRuntime) {
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     let mut desc = desc;
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     if matches!(backend, Backend::Auto | Backend::Vulkan | Backend::Dx12) {
         match super::dlss::Runtime::create(&mut desc, backend == Backend::Dx12) {
             Ok((instance, runtime)) => return (instance, Some(runtime)),
@@ -28,7 +28,7 @@ fn create_instance(desc: wgpu::InstanceDescriptor, backend: Backend) -> (wgpu::I
 }
 
 fn attach_dlss(renderer: &mut Renderer, runtime: DlssRuntime) {
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     {
         renderer.dlss = runtime;
         if let Some(runtime) = &mut renderer.dlss {
@@ -42,7 +42,7 @@ fn attach_dlss(renderer: &mut Renderer, runtime: DlssRuntime) {
             }
         }
     }
-    #[cfg(not(all(windows, feature = "streamline")))]
+    #[cfg(not(all(windows, feature = "streamline", streamline_sdk)))]
     let _ = (renderer, runtime);
 }
 
@@ -75,13 +75,13 @@ where
 {
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle().with_display_handle(Box::new(display));
     desc.backends = wgpu_backends(options.backend);
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     let hwnd = window.window_handle().ok().and_then(|handle| match handle.as_raw() {
         raw_window_handle::RawWindowHandle::Win32(handle) => Some(handle.hwnd.get()),
         _ => None,
     });
     let (instance, dlss) = create_instance(desc, options.backend);
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     let mut dlss = dlss;
     let surface = instance.create_surface(window).map_err(|e| RenderError::Surface(e.to_string()))?;
 
@@ -98,11 +98,11 @@ where
     }
     let mailbox = caps.present_modes.contains(&wgpu::PresentMode::Mailbox);
     // The native Direct3D 12 swapchain of the DLSS path knows only the vsync and tearing modes.
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     let mailbox = mailbox && options.backend != Backend::Dx12;
     // Mailbox only once the caller asks for it (`Renderer::set_mailbox`).
     config.present_mode = super::output::present_mode(options.vsync, false);
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     let dx12 = {
         if let Some(runtime) = &mut dlss {
             runtime.check(&device, &queue);
@@ -114,9 +114,9 @@ where
             _ => None,
         }
     };
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     let native = dx12.is_some();
-    #[cfg(not(all(windows, feature = "streamline")))]
+    #[cfg(not(all(windows, feature = "streamline", streamline_sdk)))]
     let native = false;
     if !native {
         // Copies from and to the swapchain let a still frame show the kept scene image again (`reuse.rs`).
@@ -134,7 +134,7 @@ where
             config,
             mailbox,
             wants_mailbox: false,
-            #[cfg(all(windows, feature = "streamline"))]
+            #[cfg(all(windows, feature = "streamline", streamline_sdk))]
             dx12,
         },
         &adapter,
@@ -321,9 +321,9 @@ fn assemble(
     let activity = super::activity::Monitor::new(matches!(output, Output::Window { .. }));
     let ray_reflections = super::ray_reflections::Scene::new(&device, &queue);
     let mut renderer = Renderer {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         dlss: None,
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         presentation: Default::default(),
         adapter: adapter.clone(),
         display,

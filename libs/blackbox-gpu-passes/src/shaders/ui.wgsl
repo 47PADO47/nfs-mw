@@ -75,7 +75,10 @@ struct CoveredUi {
 }
 fn covered(c: vec4<f32>, color: vec4<f32>) -> CoveredUi {
     let additive = c.a == 0.0;
-    let alpha = clamp(select(c.a, max(c.r, max(c.g, c.b)), additive), 0.0, 1.0);
+    let opacity = clamp(select(c.a, max(c.r, max(c.g, c.b)), additive), 0.0, 1.0);
+    // Preserve very soft edges while giving visible translucent HUD layers strong protection
+    // from scene interpolation. This changes only the FG mask, not real-frame UI blending.
+    let alpha = select(opacity, max(opacity, 0.9), opacity > 0.05);
     var out: CoveredUi;
     out.color = color;
     out.coverage = vec4(alpha);

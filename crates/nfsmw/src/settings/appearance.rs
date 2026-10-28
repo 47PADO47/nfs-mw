@@ -80,6 +80,38 @@ impl Quality {
         crate::i18n::text(id, &crate::i18n::Args::new())
     }
 }
+/// User-selected DLSS Super Resolution model; frame generation chooses its own model.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DlssModel {
+    #[default]
+    #[serde(alias = "current")]
+    Auto,
+    K,
+    L,
+    M,
+}
+impl DlssModel {
+    pub const ALL: [Self; 4] = [Self::Auto, Self::K, Self::L, Self::M];
+    pub const fn sdk_value(self) -> u32 {
+        match self {
+            Self::Auto => 0,
+            Self::K => 11,
+            Self::L => 12,
+            Self::M => 13,
+        }
+    }
+}
+impl std::fmt::Display for DlssModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Auto => "Auto",
+            Self::K => "Preset K",
+            Self::L => "Preset L",
+            Self::M => "Preset M",
+        })
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Appearance {
     pub display: display::DisplayTuning,
@@ -87,6 +119,8 @@ pub struct Appearance {
     pub quality: Quality,
     pub lighting: RenderExperiments,
     pub treatment_strength: Option<f32>,
+    pub vignette: f32,
+    pub dlss_model: DlssModel,
 }
 impl Default for Appearance {
     fn default() -> Self {
@@ -95,6 +129,8 @@ impl Default for Appearance {
             style: Default::default(),
             quality: Default::default(),
             treatment_strength: None,
+            vignette: 0.0,
+            dlss_model: DlssModel::Auto,
             lighting: RenderExperiments { original_world_materials: true, ..Default::default() },
         }
     }

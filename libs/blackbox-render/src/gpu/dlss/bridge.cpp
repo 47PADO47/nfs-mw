@@ -173,24 +173,25 @@ extern "C" void bb_sl_test_window_destroy(intptr_t window) {
     DestroyWindow(reinterpret_cast<HWND>(window));
 }
 
-static sl::DLSSOptions options(uint32_t mode, uint32_t width, uint32_t height) {
+static sl::DLSSOptions options(uint32_t mode, uint32_t width, uint32_t height, uint32_t model) {
     sl::DLSSOptions result{};
     result.mode = static_cast<sl::DLSSMode>(mode);
     result.outputWidth = width;
     result.outputHeight = height;
     result.colorBuffersHDR = sl::Boolean::eTrue;
     result.useAutoExposure = sl::Boolean::eTrue;
-    // Explicitly select the DLSS 4.5 second-generation transformer for every supported mode.
-    result.dlaaPreset = sl::DLSSPreset::ePresetM;
-    result.qualityPreset = sl::DLSSPreset::ePresetM;
-    result.balancedPreset = sl::DLSSPreset::ePresetM;
-    result.performancePreset = sl::DLSSPreset::ePresetM;
-    result.ultraPerformancePreset = sl::DLSSPreset::ePresetL;
+    // SDK default follows NVIDIA's selection per quality mode, including future updates.
+    const auto selected = model >= 11 && model <= 13 ? static_cast<sl::DLSSPreset>(model) : sl::DLSSPreset::eDefault;
+    result.dlaaPreset = selected;
+    result.qualityPreset = selected;
+    result.balancedPreset = selected;
+    result.performancePreset = selected;
+    result.ultraPerformancePreset = selected;
     return result;
 }
 
-extern "C" int bb_sl_size(uint32_t mode, uint32_t width, uint32_t height, uint32_t* render_size) {
-    auto opt = options(mode, width, height);
+extern "C" int bb_sl_size(uint32_t mode, uint32_t width, uint32_t height, uint32_t model, uint32_t* render_size) {
+    auto opt = options(mode, width, height, model);
     sl::DLSSOptimalSettings settings{};
     PFun_slDLSSGetOptimalSettings* function{};
     auto result = p_slGetFeatureFunction(sl::kFeatureDLSS, "slDLSSGetOptimalSettings", reinterpret_cast<void*&>(function));
@@ -207,7 +208,7 @@ struct Image {
 struct Frame {
     float projection[16], inverse_projection[16], reprojection[16], inverse_reprojection[16], camera_to_world[16];
     float jitter[2], near_plane, fov, delta_ms;
-    uint32_t mode, reset;
+    uint32_t mode, reset, model;
 };
 
 static sl::Result common_constants(const Image* images, const Frame* frame) {
@@ -242,7 +243,7 @@ static sl::Result common_constants(const Image* images, const Frame* frame) {
 }
 
 extern "C" int bb_sl_evaluate(void* command, const Image* images, const Frame* frame) {
-    auto opt = options(frame->mode, images[3].width, images[3].height);
+    auto opt = options(frame->mode, images[3].width, images[3].height, frame->model);
     PFun_slDLSSSetOptions* function{};
     auto result = p_slGetFeatureFunction(sl::kFeatureDLSS, "slDLSSSetOptions", reinterpret_cast<void*&>(function));
     if (result == sl::Result::eOk) result = function(viewport, opt);

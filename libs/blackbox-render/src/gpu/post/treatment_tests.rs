@@ -86,7 +86,7 @@ fn check(backend: wgpu::Backends) {
         gpu.run(&mut chain, (16, 16), flat).iter().all(|&p| near(p, [111, 82, 65, 255], 2)),
         "clearing replacements restores the unchanged authored profile"
     );
-    // A missing profile bypasses grading, and gain-map orientation follows the original UV flip.
+    // A missing profile bypasses grading; authored screen gain is neutralized independently of the profile.
     chain.set_treatment(&gpu.device, None);
     chain.set_effects(&gpu.device, settings(true));
     assert!(chain.names().is_empty(), "missing profile adds no colour pass");
@@ -111,8 +111,7 @@ fn check(backend: wgpu::Backends) {
     );
     chain.set_effects(&gpu.device, settings(true));
     let image = gpu.run(&mut chain, (16, 16), "return vec4<f32>(0.4,0.4,0.4,1.0);");
-    assert!(near(image[0], [77, 77, 77, 255], 1), "top samples bottom gain: {:?}", image[0]);
-    assert!(near(image[15 * 16], [26, 26, 26, 255], 1), "bottom samples top gain: {:?}", image[15 * 16]);
+    assert!(image.iter().all(|&pixel| near(pixel, [102, 102, 102, 255], 1)), "screen gain is neutral");
     chain.set_treatment(
         &gpu.device,
         Some(treatment::Profile {

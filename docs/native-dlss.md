@@ -1,6 +1,6 @@
 # Native renderer DLSS
 
-The optional `native-dlss` game feature integrates NVIDIA Streamline 2.14.16 with
+The default `native-dlss` game feature integrates NVIDIA Streamline 2.14.16 with
 the BlackBox renderer on Windows with Vulkan or Direct3D 12. It supports Super Resolution, DLAA,
 Reflex and fixed-multiplier DLSS Frame Generation. Ray Reconstruction is not included.
 
@@ -10,8 +10,13 @@ Download the official [Streamline SDK 2.14.16 release](https://github.com/NVIDIA
 Set `STREAMLINE_SDK` to its extracted root when building:
 
 ```text
-cargo build --release -p nfsmw --features native-dlss
+cargo build --release -p nfsmw
 ```
+
+On Windows, default builds without `STREAMLINE_SDK` still compile, but print a
+warning and do not provide DLSS. Set the SDK path when producing a DLSS-enabled
+release. Native-only builds using `--no-default-features` must explicitly enable
+`native-dlss`. Other operating systems build normally without the NVIDIA bridge.
 
 The feature compiles a small C++17 bridge against the SDK headers. The DLLs are
 runtime dependencies, not files in this repository. Follow NVIDIA's distribution
@@ -28,6 +33,15 @@ the executable, or set `STREAMLINE_PLUGIN_DIR` to their absolute directory:
 - `nvngx_dlss.dll`
 - `nvngx_dlssg.dll`
 
+For a Windows release, build with `native-dlss`, place the executable in a staged
+release directory, then run `tools/package-streamline.ps1 -SdkDirectory <SDK>
+-ReleaseDirectory <release>`. The helper checks NVIDIA signatures and copies
+the production runtime and its notices; it refuses to replace existing files.
+The SDK's NVIDIA RTX and Reflex licenses have separate distribution conditions.
+Review those terms for the release and ship the notices with the binaries. The
+runtime remains proprietary; it is not relicensed under the project's MIT/Apache
+terms. This helper does not publish a release or establish license compliance.
+
 The loader checks the interposer's Authenticode signature and NVIDIA signer.
 Streamline validates its plugins. Logs go to the temporary directory's
 `blackbox-streamline` subdirectory. The loader and plugins with thread-exit callbacks
@@ -39,9 +53,8 @@ DLSS after a renderer has been destroyed. Window resizing retains the renderer
 and supports DLSS normally.
 
 Select the BlackBox renderer and Vulkan or DX12, then choose DLSS in graphics options.
-Quality modes use the SDK's optimal dimensions. Native selects DLAA. Preset M
-selects the DLSS 4.5 second-generation transformer for DLAA, Quality, Balanced
-and Performance; Ultra Performance uses preset L. The UI is drawn at output
+Quality modes use the SDK's optimal dimensions. Native selects DLAA. Auto uses
+the SDK's default preset for each mode; the NVIDIA App may override it. The UI is drawn at output
 resolution after DLSS, bloom, tone mapping and other post effects. Captures and
 rear-view mirrors use their existing independent, non-temporal paths.
 Offscreen-only renderers do not advertise DLSS: Streamline needs presentation
@@ -77,6 +90,11 @@ Reflex sleep runs before time/input sampling, with one frame token shared by
 simulation, submission, present, SR and generation. The in-game frame limit is
 passed to Reflex instead of running a second software limiter.
 
+F8 Video exposes the DLSS upscaling model: Auto (NVIDIA's default per quality
+mode), K, L, and M. This controls Super Resolution and DLAA, not Frame Generation.
+The NVIDIA driver or app may override the requested model. The bundled Streamline
+DLSS-G API does not expose a frame-generation model preset.
+
 The post-processed scene is rendered into a full-resolution HUDless target.
 The HUD and debug UI render into a separate transparent color target;
 `kBufferTypeHUDLessColor` and a separate `kBufferTypeUIAlpha` mask are tagged through
@@ -85,11 +103,20 @@ over generated scene frames. Coverage is accumulated per UI draw before HDR
 conversion, independently of colour blending: additive glyphs over translucent
 panels must not inherit only the panel opacity. Additive coverage uses the
 maximum premultiplied gamma RGB channel; ordinary UI uses its alpha. It is
-independent of HDR UI-white calibration. Premultiplied alpha and additive UI
+independent of HDR UI-white calibration. Visible per-draw coverage above 0.05
+is raised to at least 0.9 in the generation mask; real-frame UI colour and
+blend are unchanged. This deliberately trades exact translucent coverage for
+more stable UI. Fine edges and other HUD elements still need visual checks.
+Premultiplied alpha and additive UI
 retain the renderer's real-frame composition. Moving HUD elements
 still require visual checks. The implementation follows NVIDIA's
 [Frame Generation](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/ProgrammingGuideDLSS_G.md)
 and [Reflex](https://github.com/NVIDIA-RTX/Streamline/blob/v2.14.16/docs/ProgrammingGuideReflex.md) guides.
+
+The original Visual Treatment screen-gain map always uses unit gain. During
+active generation the separate user vignette is suppressed and returns when
+generation stops. Other treatment operations remain active. The separate
+vignette applies to main-view captures but never to secondary views such as mirrors.
 
 HDR tone mapping and UI blending remain in linear BT.709 scRGB, including scene
 white, UI white and peak calibration. A final composition pass converts BT.709

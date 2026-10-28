@@ -13,7 +13,7 @@ pub(super) enum Output {
         /// Without vsync, present through `Mailbox` where offered instead of the platform's own no-vsync mode
         /// (`Immediate` where offered, which tears). Off until [`super::Renderer::set_mailbox`] asks for it.
         wants_mailbox: bool,
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         dx12: Option<super::dlss::dx12::Surface>,
     },
     /// A texture nothing presents; the frame ends up in it. No window system is involved.
@@ -57,7 +57,7 @@ impl Output {
     }
 
     pub(super) fn configure(&mut self, device: &wgpu::Device) {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if let Self::Window { dx12: Some(native), config, .. } = self {
             native.configure(device, config);
             return;
@@ -111,7 +111,7 @@ impl Output {
     /// swapchain only takes part when the surface allowed both usages; the native Direct3D 12 swapchain never does.
     pub(super) fn copyable(&self) -> bool {
         let Self::Window { config, .. } = self else { return true };
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if matches!(self, Self::Window { dx12: Some(_), .. }) {
             return false;
         }
@@ -141,7 +141,7 @@ impl super::Renderer {
     /// How many frames the presentation engine may queue ahead of the display: 2 (the default) keeps the GPU busy,
     /// 1 shows each frame sooner at the cost of stalls when the CPU is late. Clamped to 1..=2.
     pub fn set_max_frame_latency(&mut self, frames: u32) {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.suspend(&self.device);
         }
@@ -151,7 +151,7 @@ impl super::Renderer {
     /// Without vsync, present through `Mailbox` (no tearing; the newest frame at each refresh) where the surface
     /// offers it, instead of the platform's own no-vsync mode. Off by default.
     pub fn set_mailbox(&mut self, wanted: bool) {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.suspend(&self.device);
         }

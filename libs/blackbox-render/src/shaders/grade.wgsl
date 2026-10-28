@@ -4,6 +4,7 @@
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let original = textureLoad(src, vec2<i32>(in.clip.xy), 0);
+    if all(params.a.xyz == vec3<f32>(1.0)) && all(params.b == vec4<f32>(1.0)) { return original; }
     var rgb = original.rgb * params.b.xyz;
     rgb = (rgb - vec3<f32>(0.5)) * params.b.w + vec3<f32>(0.5);
     let reach = length(in.uv - vec2<f32>(0.5)) * 1.41421356;

@@ -39,7 +39,7 @@ impl Renderer {
 impl Drop for Renderer {
     fn drop(&mut self) {
         self.save_pipeline_cache();
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
             self.presentation.suspend(&self.device);

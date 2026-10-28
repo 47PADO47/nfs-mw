@@ -50,6 +50,12 @@ while the blur is on, so it costs nothing otherwise (see [speed effects](specs/s
 three off the scene is drawn straight into the window; bloom and tone mapping draw it in a 16-bit float
 image (twice the memory and bandwidth), FXAA alone in the window's own format.
 
+The native F8 Look tab also offers a separate vignette intensity slider. It
+darkens the scene edges without changing the HUD. Its default is off, and it is
+suppressed during active DLSS Frame Generation to avoid interpolation artifacts,
+and excluded from the rear-view mirror. The original treatment screen-gain map
+is neutral so its embedded vignette does not stack with this setting.
+
 A scene can also hand the renderer a **grade** with the same per-frame screen effects (`FocusFilter::grade`, a
 `ScreenGrade`): a darkening vignette that multiplies the frame towards a colour at the screen edge, a colour multiplier
 and a contrast about mid grey. It is not a setting: only a mod's nitrous variant uses it today

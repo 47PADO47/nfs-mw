@@ -23,7 +23,7 @@ impl Renderer {
         self.refresh_display(false);
         // A still frame shows the kept scene image and draws only the UI (`reuse.rs`).
         let reuse = self.begin_reuse();
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.render_start();
             self.prepare_generation(frame);
@@ -66,14 +66,14 @@ impl Renderer {
             false => 0.0,
         };
         self.performance.cpu_render_ms = (submit_started.elapsed().as_secs_f32() * 1000.0 - waited).max(0.0);
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.marker(3);
             self.presentation.marker(4);
         }
         let present_started = std::time::Instant::now();
         let _present_trace = blackbox_trace::scope("Wait: present / FG dispatch");
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if let super::output::Output::Window { dx12: Some(native), config, .. } = &self.output {
             native.present(
                 &self.device,
@@ -86,7 +86,7 @@ impl Renderer {
             // Nothing presents a headless frame, so let the device retire finished work itself.
             None => drop(self.device.poll(wgpu::PollType::Poll)),
         }
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.marker(5);
             self.presentation.finish();
@@ -105,21 +105,29 @@ impl Renderer {
         targets: Option<&SceneTargets>,
         output: &wgpu::TextureView,
         size: (u32, u32),
+        secondary_view: bool,
     ) {
         let _trace = blackbox_trace::scope("Renderer CPU: post-processing / upscaling");
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             // Parallel cube faces may own the frame prefix, including the TLAS build.
             // Native DLSS submits this encoder internally, so that prefix must reach the queue first.
             self.flush_captures();
         }
         let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
+        let frame_generation = targets.is_none() && self.presentation.status.generation_active;
+        #[cfg(not(all(windows, feature = "streamline", streamline_sdk)))]
+        let frame_generation = false;
         let ctx = PassContext {
             device: &self.device,
             queue: &self.queue,
             scene,
             output_size: size,
             temporal: self.temporal.current(),
+            frame_generation,
+            secondary_view,
+            dlss_model: self.graphics.dlss_model,
         };
         if self.experiments.lighting_debug != blackbox_gfx::LightingDebug::Off
             && self.info.api != blackbox_gfx::GraphicsApi::Gl

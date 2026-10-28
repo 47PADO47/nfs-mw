@@ -59,6 +59,7 @@ pub enum PostEffect {
     SceneTreatment,
     Bloom,
     Tonemap,
+    Vignette,
     Fxaa,
 }
 
@@ -79,6 +80,8 @@ pub struct PostSettings {
     pub colour_treatment: f32,
     /// Optional parameter replacements; authored profile curves and gain are retained.
     pub colour_treatment_override: Option<crate::ColourTreatmentOverride>,
+    /// Separate screen-edge darkening, zero disables it.
+    pub vignette: f32,
     pub tonemap: Tonemap,
     /// Linear scale applied before the tone-mapping curve ([`MIN_EXPOSURE`]..=[`MAX_EXPOSURE`]; 1.0 is neutral).
     pub exposure: f32,
@@ -94,6 +97,7 @@ impl Default for PostSettings {
         Self {
             colour_treatment: 0.0,
             colour_treatment_override: None,
+            vignette: 0.0,
             tonemap: Tonemap::Off,
             exposure: 1.0,
             bloom_intensity: 0.0,
@@ -114,6 +118,7 @@ impl PostSettings {
         Self {
             colour_treatment: pick(self.colour_treatment, 0.0, 0.0, 1.0),
             colour_treatment_override: self.colour_treatment_override.filter(|value| value.is_valid()),
+            vignette: pick(self.vignette, 0.0, 0.0, 1.0),
             exposure: pick(self.exposure, defaults.exposure, MIN_EXPOSURE, MAX_EXPOSURE),
             bloom_intensity: pick(self.bloom_intensity, defaults.bloom_intensity, 0.0, MAX_BLOOM_INTENSITY),
             bloom_threshold: pick(self.bloom_threshold, defaults.bloom_threshold, 0.0, MAX_BLOOM_THRESHOLD),
@@ -138,6 +143,9 @@ impl PostSettings {
         }
         if self.tonemap != Tonemap::Off {
             effects.push(PostEffect::Tonemap);
+        }
+        if self.vignette > 0.0 {
+            effects.push(PostEffect::Vignette);
         }
         if self.antialiasing == Antialiasing::Fxaa {
             effects.push(PostEffect::Fxaa);

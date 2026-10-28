@@ -42,6 +42,9 @@ mod tests;
 mod tonemap;
 mod treatment;
 mod treatment_composite;
+mod vignette;
+#[cfg(test)]
+mod vignette_tests;
 
 use super::sized::SizedPair;
 use super::targets::FrameTargets;
@@ -71,6 +74,12 @@ pub(super) struct PassContext<'a> {
     pub output_size: (u32, u32),
     /// The jitter and matrices of the frame when a temporal upscaler works on it, else `None`.
     pub temporal: Option<&'a TemporalFrame>,
+    /// Whether this output is being submitted to frame generation.
+    pub frame_generation: bool,
+    /// A secondary view such as the rear-view mirror, not a capture of the main view.
+    pub secondary_view: bool,
+    #[allow(dead_code, reason = "used by the optional Windows Streamline pass")]
+    pub dlss_model: u32,
 }
 
 /// The image a pass reads and the one it writes.
