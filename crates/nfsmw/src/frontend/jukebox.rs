@@ -3,9 +3,9 @@
 //! saved as they are made (`settings::eatrax`); the radio reads them when it loads.
 //!
 //! Buttons (the package's messages): Up and Down move the highlight (with Re-Order on, they move the song); Left and
-//! Right turn the page; Accept cycles the mode of the highlighted song; Re-Order (PAD_BUTTON5) turns re-order on and
-//! off; L1 and R1 set the order to random or sequential; Prev (PAD_BUTTON4) moves the highlight up; Back leaves for the
-//! audio options. The mapping of Re-Order, Prev and the order line is the port's reading (spec section 8).
+//! Right change the mode of the highlighted song; Accept exits; Grab (PAD_BUTTON5) turns re-order on and
+//! off; L1 and R1 set the order to random or sequential; Preview (PAD_BUTTON4) plays the selected song; Back leaves for
+//! the audio options. The recorded modded reference supplies the Preview/Grab controls (spec section 12).
 
 use std::sync::OnceLock;
 
@@ -13,11 +13,11 @@ use blackbox_feng::ids::{
     PAD_ACCEPT, PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_LTRIGGER, PAD_RIGHT, PAD_RTRIGGER, PAD_UP,
 };
 use game_install::GameDir;
-use glam::{Vec2, Vec3};
+use glam::Vec2;
 use nfsmw_data::music::Song;
 
 use super::ids::{SCRIPT_HIGHLIGHT, SCRIPT_UNHIGHLIGHT, screen};
-use super::logic::{Args, Category, Command, Cx, ListScreen, Pick, ScreenLogic, wheel_as_rows};
+use super::logic::{Args, Category, Command, Cx, Footer, ListScreen, Pick, ScreenLogic, wheel_as_rows};
 use crate::i18n::t;
 use crate::settings::eatrax::{Jukebox, Mode};
 use crate::ui::theme::remastered::menu::layout::window_start;
@@ -26,6 +26,13 @@ use crate::ui::{Text, UiAssets};
 
 /// The songs of the install's list, read once when the front end starts (`prime`). Empty when the install has none.
 static SONGS: OnceLock<Vec<Song>> = OnceLock::new();
+
+impl super::flow::Frontend {
+    /// Preview ownership ends even when an external screen switch clears the jukebox.
+    pub fn jukebox_active(&self) -> bool {
+        self.screens.top().is_some_and(|name| name.eq_ignore_ascii_case(screen::EA_TRAX_JUKEBOX))
+    }
+}
 
 /// Reads the song list for the jukebox. Called once, when the front end is built; a failure leaves the jukebox empty.
 pub fn prime(dir: &GameDir) {
@@ -51,20 +58,15 @@ pub const ROWS: usize = 4;
 /// fourth row's title object is named as an album in the package, and is still the title), the album and the number.
 const ARTIST: [u32; ROWS] = [0x6664_6FC4, 0x6664_6FC5, 0x6664_6FC6, 0x6664_6FC7];
 const TITLE: [u32; ROWS] = [0x2890_C8AF, 0x2890_C8B0, 0x2890_C8B1, 0x2890_C8B2];
+const MODE: [u32; ROWS] = [0xF3EB_DC4E, 0xF3EB_DC4F, 0xF3EB_DC50, 0xF3EB_DC51];
 const ALBUM: [u32; ROWS] = [0x77BD_189E, 0x77BD_189F, 0x77BD_18A0, 0x77BD_18A1];
 const NUMBER: [u32; ROWS] = [0xE454_E9A5, 0xE454_E9A6, 0xE454_E9A7, 0xE454_E9A8];
-/// The footer labels the package draws, with the message each click on them sends. The package has no answer to a mouse
-/// release on them, so the screen takes the click by the label's place (box centre: its origin, a little to the right; half
-/// size below).
-const FOOTER: [(u32, u32); 4] =
-    [(0xD7A4_BD15, PAD_BACK), (0xB941_39F4, PAD_ACCEPT), (0x1F7F_2DE0, RE_ORDER), (0xD8A2_7BE6, PREV)];
-const FOOTER_HALF: Vec2 = Vec2::new(40.0, 14.0);
 /// The play-order line between the L1 and R1 arrows.
 const ORDER_LINE: u32 = 0xCA74_A2FA;
 
 /// The messages the jukebox answers, all from the package (the pad messages, and `PAD_BUTTON4` and `PAD_BUTTON5` for the
 /// two keys the package sends with them).
-const PREV: u32 = PAD_BUTTON0 + 4;
+const PREVIEW: u32 = PAD_BUTTON0 + 4;
 const RE_ORDER: u32 = PAD_BUTTON0 + 5;
 
 /// What a press changed, so the screen knows what to redraw and save.
@@ -75,6 +77,8 @@ pub enum Action {
     Moved,
     /// The jukebox changed; the screen redraws and saves it.
     Saved,
+    /// Preview this song's index in the installed list, independently of table order and enabled mode.
+    Preview(usize),
     /// Leave for the audio options.
     Leave,
 }
@@ -84,22 +88,27 @@ pub enum Action {
 pub struct State {
     pub jukebox: Jukebox,
     pub selected: usize,
+    pub first: usize,
     pub reorder: bool,
 }
 
 impl State {
     pub fn new(jukebox: Jukebox) -> Self {
-        Self { jukebox, selected: 0, reorder: false }
+        Self { jukebox, selected: 0, first: 0, reorder: false }
     }
 
-    /// The page the highlight is on, from the first row.
+    /// The first visible row of the four-row window.
     pub fn page_start(&self) -> usize {
-        self.selected / ROWS * ROWS
+        self.first
     }
 
-    /// The last page's first row.
-    fn last_page_start(&self) -> usize {
-        self.jukebox.len().saturating_sub(1) / ROWS * ROWS
+    fn follow(&mut self) {
+        if self.selected < self.first {
+            self.first = self.selected;
+        }
+        if self.selected >= self.first + ROWS {
+            self.first = self.selected + 1 - ROWS;
+        }
     }
 
     /// Answers one message. Returns what changed.
@@ -107,11 +116,16 @@ impl State {
         match message {
             PAD_UP => self.step(-1),
             PAD_DOWN => self.step(1),
-            PREV => self.select(-1),
-            PAD_LEFT => self.page(-1),
-            PAD_RIGHT => self.page(1),
-            PAD_ACCEPT => self.cycle(),
+            PREVIEW => {
+                self.jukebox.entries().get(self.selected).map_or(Action::Nothing, |entry| Action::Preview(entry.song))
+            }
+            PAD_LEFT => self.cycle(-1),
+            PAD_RIGHT => self.cycle(1),
+            PAD_ACCEPT => Action::Leave,
             RE_ORDER => {
+                if self.jukebox.is_empty() {
+                    return Action::Nothing;
+                }
                 self.reorder = !self.reorder;
                 Action::Moved
             }
@@ -137,6 +151,7 @@ impl State {
             return Action::Nothing;
         }
         self.selected = to;
+        self.follow();
         Action::Saved
     }
 
@@ -151,30 +166,22 @@ impl State {
             return Action::Nothing;
         }
         self.selected = to;
+        self.follow();
         Action::Moved
     }
 
-    /// Turns the page by `delta` pages (not while re-ordering).
-    fn page(&mut self, delta: isize) -> Action {
+    /// Changes the selected mode in either direction.
+    fn cycle(&mut self, delta: isize) -> Action {
         if self.reorder || self.jukebox.is_empty() {
             return Action::Nothing;
         }
-        let pages = self.last_page_start() / ROWS;
-        let page = (self.page_start() / ROWS).saturating_add_signed(delta).min(pages);
-        let to = page * ROWS;
-        if to == self.page_start() {
-            return Action::Nothing;
+        let count = match delta < 0 {
+            true => 3,
+            false => 1,
+        };
+        for _ in 0..count {
+            self.jukebox.cycle(self.selected);
         }
-        self.selected = to;
-        Action::Moved
-    }
-
-    /// The mode button: the highlighted song's mode goes on to the next one.
-    fn cycle(&mut self) -> Action {
-        if self.jukebox.is_empty() {
-            return Action::Nothing;
-        }
-        self.jukebox.cycle(self.selected);
         Action::Saved
     }
 }
@@ -184,20 +191,15 @@ pub fn number(pos: usize) -> String {
     format!("{:02}", pos + 1)
 }
 
-/// The title line of a row: the title, then the mode in brackets, with a mark on the highlighted row while re-ordering.
-pub fn title_line(title: &str, mode: &str, mark: bool) -> String {
+/// The title line, marked on the highlighted row while re-ordering.
+pub fn title_line(title: &str, _mode: &str, mark: bool) -> String {
     let prefix = if mark { "> " } else { "" };
-    format!("{prefix}{title} [{mode}]")
+    format!("{prefix}{title}")
 }
 
-/// The word the screen shows for a song's mode: the game's "Off" and "Menu" (`JUKEBOX_PLAY_OFF`, `JUKEBOX_PLAY_FRONTEND`);
-/// its "Racing" and "All" read otherwise than the screen's words, so in game and both are the setting's own words.
+/// The installed jukebox's mode labels: Off, Menu, Racing and All.
 pub fn mode_text(mode: Mode) -> String {
-    match mode {
-        Mode::Off => Text::Game(0x9CCE_9F86).show(),
-        Mode::Menu => Text::Game(0x5278_C50B).show(),
-        Mode::InGame | Mode::Both => mode.label(),
-    }
+    mode.label()
 }
 
 /// The order line's word: the game's "Random" or "Sequential" (`JUKEBOX_RANDOM`, `JUKEBOX_INORDER`).
@@ -212,6 +214,7 @@ pub struct JukeboxLogic {
     /// Whether a list look draws the playlist (`Cx::screen_list_look`), and the song its window starts at.
     vertical: bool,
     top: usize,
+    leaving: bool,
 }
 
 impl JukeboxLogic {
@@ -219,7 +222,7 @@ impl JukeboxLogic {
     pub fn new() -> Self {
         let songs: &'static [Song] = SONGS.get().map_or(&[], Vec::as_slice);
         let defaults = Jukebox::defaults_for(songs);
-        Self { songs, state: State::new(Jukebox::load(&defaults)), vertical: false, top: 0 }
+        Self { songs, state: State::new(Jukebox::load(&defaults)), vertical: false, top: 0, leaving: false }
     }
 
     fn fill(&self, cx: &mut Cx) {
@@ -239,16 +242,38 @@ impl JukeboxLogic {
                     let mark = selected && self.state.reorder;
                     set_text(cx, TITLE[slot], &title_line(&song.title, &mode_text(entry.mode), mark));
                     set_text(cx, ALBUM[slot], &song.album);
+                    set_text(cx, MODE[slot], &mode_text(entry.mode));
                     script(cx, TITLE[slot], if selected { SCRIPT_HIGHLIGHT } else { SCRIPT_UNHIGHLIGHT });
                 }
                 _ => {
-                    for name in [NUMBER[slot], ARTIST[slot], TITLE[slot], ALBUM[slot]] {
+                    for name in [NUMBER[slot], ARTIST[slot], TITLE[slot], ALBUM[slot], MODE[slot]] {
                         set_text(cx, name, "");
                     }
                 }
             }
         }
         set_text(cx, ORDER_LINE, &order_word(self.state.jukebox.random).show());
+        self.scrollbar(cx);
+    }
+
+    fn scrollbar(&self, cx: &mut Cx) {
+        let tree = cx.rt.tree(cx.package);
+        let Some(root) = tree.nodes.iter().find(|n| n.name_hash == 0xA808_E057).map(|n| n.index) else { return };
+        let object = |hash| {
+            tree.nodes
+                .iter()
+                .find(|n| n.parent == Some(root) && n.name_hash == hash)
+                .map(|n| blackbox_feng::ObjectRef { package: cx.package, index: n.index })
+        };
+        let (Some(track), Some(handle)) = (object(0x688A_1551), object(0x3FBB_7A4E)) else { return };
+        let (Some(pos), Some(size), Some(handle_size)) = (cx.rt.position(track), cx.rt.size(track), cx.rt.size(handle))
+        else {
+            return;
+        };
+        let range = (size.y.abs() - handle_size.y.abs()).max(0.0);
+        let last = self.state.jukebox.len().saturating_sub(ROWS);
+        let fraction = if last == 0 { 0.0 } else { self.state.first as f32 / last as f32 };
+        cx.rt.set_position_xy(handle, pos.x, pos.y - range * 0.5 + range * fraction);
     }
 
     /// Writes the choices to the file. A failure is logged; the screen keeps the choices for this session.
@@ -289,14 +314,19 @@ impl ScreenLogic for JukeboxLogic {
         self.vertical
     }
 
+    fn footer(&self) -> Footer {
+        Footer::Jukebox { reorder: self.state.reorder, has_songs: !self.state.jukebox.is_empty() }
+    }
+
     fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
-        if self.state.reorder || self.state.jukebox.is_empty() {
+        if self.leaving || self.state.reorder || self.state.jukebox.is_empty() {
             return;
         }
         self.state.selected = row.min(self.state.jukebox.len() - 1);
+        self.state.follow();
         match pick {
             Pick::Hover => self.fill(cx),
-            Pick::Press(..) => self.act_pointer(cx, PAD_ACCEPT),
+            Pick::Press(..) => self.act_pointer(cx, PAD_RIGHT),
         }
     }
 
@@ -357,16 +387,18 @@ impl ScreenLogic for JukeboxLogic {
         if self.vertical {
             return false;
         }
-        let tree = cx.rt.tree(cx.package);
-        for (name, message) in FOOTER {
-            let Some(label) = tree.nodes.iter().find(|n| n.name_hash == name) else { continue };
-            let centre = label.world.transform_point3(Vec3::ZERO).truncate() + Vec2::new(20.0, 0.0);
-            if (point - centre).abs().cmple(FOOTER_HALF).all() {
-                self.act_pointer(cx, message);
-                return true;
-            }
+        if self.leaving {
+            return true;
         }
-        false
+        // The presentation hides these native PC footer groups. Consume their raw targets so
+        // the generic pointer fallback cannot activate an invisible package action.
+        let Some(target) = cx.rt.mouse_target_at(cx.package, point, super::ids::MOUSE_LEFT_RELEASED) else {
+            return false;
+        };
+        let Some(object) = cx.rt.package(cx.package).and_then(|p| p.objects.get(target.index)) else {
+            return false;
+        };
+        [0x01BC_FC29, 0xD646_3100, 0x73DC_B662, 0xC0A3_2823].contains(&object.name_hash)
     }
 }
 
@@ -381,117 +413,38 @@ impl JukeboxLogic {
     }
 
     fn act(&mut self, cx: &mut Cx, message: u32) {
+        if self.leaving {
+            if message == super::ids::EXIT_COMPLETE {
+                self.return_to_categories(cx);
+            }
+            return;
+        }
+        if message == PAD_ACCEPT && !self.vertical {
+            self.leaving = true;
+            return;
+        }
         match self.state.press(message) {
             Action::Nothing => {}
             Action::Moved => self.fill(cx),
             Action::Saved => {
                 self.save();
+                cx.send(Command::JukeboxChanged(self.state.jukebox.clone()));
                 self.fill(cx);
             }
-            Action::Leave => {
-                self.save();
-                let args = Args { options: true, category: Category::Audio, ..Args::default() };
-                cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), args));
-            }
+            Action::Preview(song) => cx.send(Command::JukeboxPreview(Some(song))),
+            Action::Leave => self.return_to_categories(cx),
         }
+    }
+
+    fn return_to_categories(&self, cx: &mut Cx) {
+        self.save();
+        cx.send(Command::JukeboxPreview(None));
+        cx.send(Command::JukeboxChanged(self.state.jukebox.clone()));
+        let args = Args { options: true, category: Category::Audio, ..Args::default() };
+        cx.send(Command::Switch(screen::MAIN_MENU_SUB.into(), args));
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Ten songs: all on in the menus, the even ones in game too.
-    fn state(songs: usize) -> State {
-        let playable: Vec<(bool, bool)> = (0..songs).map(|n| (true, n % 2 == 0)).collect();
-        State::new(Jukebox::defaults(&playable))
-    }
-
-    #[test]
-    fn accept_cycles_the_highlighted_song_and_saves() {
-        let mut s = state(10);
-        assert_eq!(s.press(PAD_ACCEPT), Action::Saved);
-        assert_eq!(s.jukebox.mode_of(0), Some(Mode::Off), "song 0 is both; the mode after both is off");
-    }
-
-    #[test]
-    fn accept_on_an_empty_table_does_nothing() {
-        let mut s = state(0);
-        assert_eq!(s.press(PAD_ACCEPT), Action::Nothing);
-        assert_eq!(s.press(PAD_DOWN), Action::Nothing);
-    }
-
-    #[test]
-    fn up_and_down_move_the_highlight_within_the_table() {
-        let mut s = state(10);
-        assert_eq!(s.press(PAD_UP), Action::Nothing, "already at the top");
-        assert_eq!(s.press(PAD_DOWN), Action::Moved);
-        assert_eq!(s.selected, 1);
-        for _ in 0..20 {
-            s.press(PAD_DOWN);
-        }
-        assert_eq!(s.selected, 9, "stops at the last song");
-    }
-
-    #[test]
-    fn the_arrows_turn_the_pages_of_four() {
-        let mut s = state(10);
-        assert_eq!(s.press(PAD_RIGHT), Action::Moved);
-        assert_eq!(s.selected, 4);
-        assert_eq!(s.press(PAD_RIGHT), Action::Moved);
-        assert_eq!(s.selected, 8);
-        assert_eq!(s.press(PAD_RIGHT), Action::Nothing, "the last page is already shown");
-        assert_eq!(s.press(PAD_LEFT), Action::Moved);
-        assert_eq!(s.selected, 4);
-    }
-
-    #[test]
-    fn with_re_order_on_the_arrows_move_the_song_and_its_place_follows() {
-        let mut s = state(10);
-        s.press(PAD_DOWN);
-        assert_eq!(s.press(RE_ORDER), Action::Moved);
-        assert!(s.reorder);
-        assert_eq!(s.press(PAD_UP), Action::Saved);
-        assert_eq!(s.selected, 0);
-        assert_eq!(s.jukebox.entries()[0].song, 1, "song 1 moved above song 0");
-        assert_eq!(s.press(PAD_LEFT), Action::Nothing, "no page turn while re-ordering");
-    }
-
-    #[test]
-    fn l1_and_r1_set_the_order_and_save() {
-        let mut s = state(3);
-        assert!(!s.jukebox.random);
-        assert_eq!(s.press(PAD_LTRIGGER), Action::Saved);
-        assert!(s.jukebox.random);
-        assert_eq!(s.press(PAD_RTRIGGER), Action::Saved);
-        assert!(!s.jukebox.random);
-    }
-
-    #[test]
-    fn prev_moves_up_even_while_re_ordering() {
-        let mut s = state(10);
-        s.press(PAD_DOWN);
-        s.press(PAD_DOWN);
-        s.press(RE_ORDER);
-        assert_eq!(s.press(PREV), Action::Moved);
-        assert_eq!(s.selected, 1);
-        assert_eq!(s.jukebox.entries()[2].song, 2, "Prev does not move a song");
-    }
-
-    #[test]
-    fn back_leaves() {
-        let mut s = state(3);
-        assert_eq!(s.press(PAD_BACK), Action::Leave);
-    }
-
-    #[test]
-    fn the_row_text_is_the_number_and_the_mode() {
-        assert_eq!(number(0), "01");
-        assert_eq!(number(11), "12");
-        assert_eq!(title_line("Tilted", &mode_text(Mode::Both), false), "Tilted [Both]");
-        assert_eq!(title_line("Tilted", "Off", true), "> Tilted [Off]");
-        assert_eq!(mode_text(Mode::Off), Text::Game(0x9CCE_9F86).show(), "the game's Off");
-        assert_eq!(order_word(true), Text::Game(0xA9C9_C8F7), "the game's Random");
-        assert_eq!(order_word(false), Text::Game(0x4CA3_6B89), "the game's Sequential");
-    }
-}
+#[path = "jukebox_tests.rs"]
+mod tests;

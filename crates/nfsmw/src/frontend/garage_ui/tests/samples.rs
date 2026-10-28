@@ -71,3 +71,36 @@ fn installed_garage_category_status_is_empty_and_unset_numbers_only_show_install
         assert_eq!(tree.nodes.iter().find(|node| node.name_hash == hash).unwrap().text.as_deref(), Some("-"));
     }
 }
+
+#[test]
+#[ignore = "requires installed garage marker scripts"]
+fn batch12_garage_status_markers_are_drawable_for_installed_cart_and_locked_items() {
+    for row in [Row::Part(super::Part::Body), Row::Gauge] {
+        let mut initial = model();
+        initial.cars[0].parts.as_mut().unwrap().gauge_skins.push(1);
+        let mut h = Harness::open(Page::Choices { row, backroom: false }, initial);
+        for (hash, texture) in [(0xd058_2feb, 0x696a_e039), (0xcffb_7033, 0xf057_4bb2)] {
+            if hash == 0xcffb_7033 {
+                h.model.selection_locked = true;
+                h.ui.sync(&h.model);
+                h.run(0, 60);
+            }
+            let tree = shown(&h);
+            let node = tree.nodes.iter().find(|n| n.name_hash == hash).unwrap();
+            assert!(node.visible && node.world_colour[3] > 0, "marker {hash:08x} must draw after native reveal");
+            assert!(node.world.x_axis.length() > 0.01 && node.world.y_axis.length() > 0.01);
+            assert!(matches!(node.kind, NodeKind::Image { texture: actual, .. } if actual == texture));
+        }
+        h.model.selection_locked = false;
+        h.ui.sync(&h.model);
+        h.press(pad::RIGHT);
+        let tree = shown(&h);
+        assert!(!tree.nodes.iter().find(|n| n.name_hash == 0xd058_2feb).unwrap().visible);
+        h.ui.add_to_cart();
+        h.run(0, 60);
+        let tree = shown(&h);
+        let node = tree.nodes.iter().find(|n| n.name_hash == 0xd058_2feb).unwrap();
+        assert!(node.visible && node.world_colour[3] > 0);
+        assert!(matches!(node.kind, NodeKind::Image { texture: 0x1a77_7e25, .. }));
+    }
+}

@@ -12,6 +12,8 @@ use std::sync::Arc;
 const FRAME: f32 = 1.0 / 60.0;
 #[path = "click_tests.rs"]
 mod click_tests;
+#[path = "controls_playtest.rs"]
+mod controls_playtest;
 mod custom_race_screen_tests;
 #[path = "garage_entry_tests.rs"]
 mod garage_entry_tests;
@@ -266,21 +268,6 @@ fn the_quit_button_of_the_main_menu_asks_first() {
 }
 
 #[test]
-fn a_click_focuses_the_visible_button_under_the_pointer() {
-    use glam::Vec3;
-    let Some(mut h) = Harness::open(screen::MAIN_MENU, Args::default()) else { return };
-    h.wait(1.0);
-    let tree = h.screens.trees().pop().unwrap();
-    let visible = |b: &blackbox_feng::ObjectRef| tree.nodes.iter().any(|n| n.index == b.index && n.visible);
-    let button = h.screens.top_buttons().into_iter().find(visible).expect("the main menu shows a button");
-    let node = tree.nodes.iter().find(|n| n.index == button.index).unwrap();
-    let centre = node.world.transform_point3(Vec3::ZERO).truncate();
-    assert!(h.screens.focus_button_at(centre), "the centre of a visible button is on it");
-    assert_eq!(h.screens.focused_button(), Some(button));
-    assert!(!h.screens.focus_button_at(glam::Vec2::new(-600.0, 0.0)), "far off every button");
-}
-
-#[test]
 fn a_category_opens_its_rows_and_a_row_changes_a_setting_at_once() {
     let Some(mut h) = Harness::open(screen::MAIN_MENU_SUB, Args { options: true, ..Args::default() }) else { return };
     h.wait(1.0);
@@ -498,3 +485,9 @@ fn main_and_pause_minimap_options_apply_and_request_a_save() {
         assert!(h.said(&Command::SaveSettings));
     }
 }
+
+#[path = "animation_input_playtest.rs"]
+mod animation_input_playtest;
+
+#[path = "pause_background_playtest.rs"]
+mod pause_background_playtest;

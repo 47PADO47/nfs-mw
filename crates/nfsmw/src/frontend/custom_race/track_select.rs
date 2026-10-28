@@ -257,6 +257,10 @@ fn record_text(mode: Mode, metric: bool, event: &str) -> String {
 }
 
 impl ScreenLogic for TrackSelect {
+    fn accepts_input(&self) -> bool {
+        !self.leaving
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.take_board(cx);
         self.refresh(cx);

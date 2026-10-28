@@ -40,7 +40,7 @@ pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
             Ok("speech stopped, queue cleared".into())
         }
         ["reset"] => {
-            speech.dispatcher_mut().reset();
+            speech.dispatcher_mut().clear_history_and_pending();
             Ok("speech history and queue cleared".into())
         }
         _ => Err(format!("usage: {USAGE}")),

@@ -2,7 +2,7 @@
 //! career menu's Start New Career. The original asks for the name with the keyboard group of `MC_Main.fng` (`Enter name:`);
 //! the PC reads the typed text, which this notice shows as it is typed. Accept takes the name, Back leaves.
 
-use blackbox_feng::ids::PAD_BACK;
+use blackbox_feng::{ids::PAD_BACK, runtime::pad};
 use nfsmw_career::savefile::state::ALIAS_MAX_CHARS;
 
 use super::career_screens::save::{list_aliases, next_alias};
@@ -82,6 +82,14 @@ impl NameEntry {
         cx.send(Command::Pop);
         cx.send(self.purpose.command(self.text.clone()));
     }
+
+    fn submit(&self, cx: &mut Cx) {
+        let before = cx.commands.len();
+        self.accept(cx);
+        if matches!(cx.commands.get(before), Some(Command::Pop)) {
+            crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
+        }
+    }
 }
 
 /// Whether a typed character can be part of an alias: letters, digits, `_` and `-` (no space, which the list hides).
@@ -95,10 +103,13 @@ impl ScreenLogic for NameEntry {
         confirm::prepare_notice(cx);
         set_text(cx, ids::HEADER_TEXT, &Text::Game(HEADER));
         self.refresh(cx);
+        cx.rt.set_input_enabled(cx.package, false);
     }
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
         self.vertical = cx.list_look();
+        // The notice's authored Accept dismisses before the host can reject an empty name.
+        cx.rt.set_input_enabled(cx.package, false);
     }
 
     fn vertical(&self) -> bool {
@@ -126,11 +137,18 @@ impl ScreenLogic for NameEntry {
 
     fn pick_row(&mut self, cx: &mut Cx, _row: usize, pick: Pick) {
         if matches!(pick, Pick::Press(..)) {
-            let before = cx.commands.len();
-            self.accept(cx);
-            if matches!(cx.commands.get(before), Some(Command::Pop)) {
-                crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
-            }
+            self.submit(cx);
+        }
+    }
+
+    fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
+        if bits & pad::BACK != 0 {
+            crate::audio::menu::request(PAD_BACK);
+            cx.send(Command::Pop);
+            return;
+        }
+        if bits & (pad::ACCEPT | pad::START) != 0 {
+            self.submit(cx);
         }
     }
 

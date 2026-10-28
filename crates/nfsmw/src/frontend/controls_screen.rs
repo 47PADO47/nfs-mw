@@ -16,7 +16,7 @@ use crate::input::{Action, Bindings, Control, hud_labels};
 
 use super::controls_layout::{self, Layout, ROW_COUNT};
 use super::ids::screen;
-use super::logic::{Args, Command, Cx, ListScreen, Pick, ScreenLogic, wheel_as_rows};
+use super::logic::{Args, Command, Cx, Footer, ListScreen, Pick, ScreenLogic, wheel_as_rows};
 use crate::i18n::{self, t};
 use crate::ui::theme::remastered::menu::layout::window_start;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue};
@@ -54,10 +54,8 @@ pub const HUD_ROWS: [Control; 7] = [
 /// `GAME_ACTION_NOS` is not used: its English text reads `N20`.
 const LABELS: [u32; ROW_COUNT] =
     [0x90B4_1FD0, 0x8DE9_E91A, 0x9054_2A63, 0x9B48_3E56, 0xB771_2E95, 0x4B22_DF6B, 0x0000_C62E, 0xB39C_462B];
-/// The list's title, "Controls" (`OPT_CONTROLLER`).
-const TITLE: u32 = 0x04DC_6DB5;
 /// Shown in every key field until the screen gets the bindings (the original shows the key names there).
-const KEY_PLACEHOLDER: &str = "---";
+pub(super) const KEY_PLACEHOLDER: &str = "---";
 
 /// The rows of the list: the package's eight, and in a list look the HUD's after them.
 fn row_count(list_look: bool) -> usize {
@@ -131,7 +129,24 @@ fn set_text(cx: &mut Cx, guid: u32, text: &str) {
 /// Focuses the package's button of a cell; a HUD row's cell leaves the package's focus where it was.
 fn focus(cx: &mut Cx, layout: &Layout, cell: Cell) {
     let Some(o) = cell.guid(layout).and_then(|guid| by_guid(cx, guid)) else { return };
-    cx.rt.focus_button(o);
+    if cx.rt.current_button(cx.package) != Some(o) {
+        cx.rt.focus_button(o);
+    }
+}
+
+/// These fields have no native lose-focus response. Restore every departed field explicitly.
+fn sync_highlights(cx: &mut Cx, layout: &Layout) {
+    let current = cx.rt.current_button(cx.package);
+    for guid in layout.primary.into_iter().chain(layout.secondary) {
+        let Some(object) = by_guid(cx, guid) else { continue };
+        let script = match current == Some(object) {
+            true => super::ids::SCRIPT_HIGHLIGHT,
+            false => super::ids::SCRIPT_UNHIGHLIGHT,
+        };
+        if cx.rt.script_of(object) != Some(script) {
+            cx.rt.run_script(object, script);
+        }
+    }
 }
 
 /// The cell one step away from `from` in a direction, clamped to a list of `rows` rows.
@@ -166,7 +181,7 @@ fn key_name(key: KeyCode) -> String {
 }
 
 /// What a slot says while the next key pressed will be bound to it.
-fn waiting_text() -> String {
+pub(super) fn waiting_text() -> String {
     t!("keys-waiting").to_uppercase()
 }
 
@@ -198,6 +213,8 @@ pub struct ControlsLogic {
     cell: Cell,
     /// The first row of the list's window.
     top: usize,
+    controller: bool,
+    capturing: bool,
 }
 
 impl ControlsLogic {
@@ -210,6 +227,8 @@ impl ControlsLogic {
             vertical: false,
             cell: Cell { row: 0, slot: 0 },
             top: 0,
+            controller: false,
+            capturing: false,
         }
     }
 
@@ -232,9 +251,26 @@ impl ControlsLogic {
             false => focused(cx, self.layout),
         }
     }
+
+    fn remap(&self, control: Control, slot: usize) -> Command {
+        if self.controller {
+            return Command::RemapController(control, slot);
+        }
+        Command::Remap(control, slot)
+    }
+
+    fn switch_page(&mut self, cx: &mut Cx) {
+        self.controller = !self.controller;
+        self.shown.clear();
+        self.tick(cx, 0.0);
+    }
 }
 
 impl ScreenLogic for ControlsLogic {
+    fn accepts_input(&self) -> bool {
+        !self.capturing
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.screen_list_look(ListScreen::Controls);
         let layout = self.layout;
@@ -251,6 +287,9 @@ impl ScreenLogic for ControlsLogic {
     }
 
     fn pick_row(&mut self, cx: &mut Cx, row: usize, pick: Pick) {
+        if self.capturing {
+            return;
+        }
         let slot = match pick {
             Pick::Hover => self.cell.slot,
             Pick::Press(_, along) => usize::from(along >= 0.5),
@@ -261,7 +300,7 @@ impl ScreenLogic for ControlsLogic {
             return;
         }
         let Some(control) = control(self.cell.row) else { return };
-        cx.send(Command::Remap(control, self.cell.slot));
+        cx.send(self.remap(control, self.cell.slot));
         crate::audio::menu::request(blackbox_feng::ids::BUTTON_PRESSED);
     }
 
@@ -282,7 +321,7 @@ impl ScreenLogic for ControlsLogic {
             .collect();
         let style = if self.args.pause { MenuStyle::Pause } else { MenuStyle::Sub };
         Some(MenuList {
-            title: i18n::game_or_error(TITLE),
+            title: super::controls_pages::title(self.controller),
             message: String::new(),
             entries,
             selected: self.cell.row,
@@ -302,23 +341,37 @@ impl ScreenLogic for ControlsLogic {
         {
             self.cell = cell;
         }
+        sync_highlights(cx, self.layout);
+        cx.text_object(0x4e11_cf90, &super::controls_pages::title(self.controller));
         self.top = self.first();
-        if self.shown.as_slice() == cx.key_texts {
+        let texts = super::controls_pages::fields(cx.key_texts, self.controller);
+        self.capturing = texts.iter().flatten().any(|text| super::controls_pages::waiting(text));
+        if self.shown.as_slice() == texts {
             return;
         }
         let layout = self.layout;
-        for (row, texts) in cx.key_texts.iter().enumerate().take(ROW_COUNT) {
-            set_text(cx, layout.primary_text[row], &texts[0]);
-            set_text(cx, layout.secondary_text[row], &texts[1]);
+        for (row, text) in texts.iter().enumerate().take(ROW_COUNT) {
+            set_text(cx, layout.primary_text[row], &text[0]);
+            set_text(cx, layout.secondary_text[row], &text[1]);
         }
-        self.shown = cx.key_texts.to_vec();
+        self.shown = texts.to_vec();
     }
 
     fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        if self.capturing {
+            return;
+        }
         wheel_as_rows(self, cx, steps);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
+        if self.capturing {
+            return;
+        }
+        if matches!(message, blackbox_feng::ids::PAD_LTRIGGER | blackbox_feng::ids::PAD_RTRIGGER) {
+            self.switch_page(cx);
+            return;
+        }
         let layout = self.layout;
         // The hint says "press ENTER to re-map". The pad accept reaches the field as its release (`BUTTON_RELEASED`),
         // and a mouse click as its press.
@@ -326,7 +379,7 @@ impl ScreenLogic for ControlsLogic {
             if let Some(cell) = self.pressed_cell(cx)
                 && let Some(control) = control(cell.row)
             {
-                cx.send(Command::Remap(control, cell.slot));
+                cx.send(self.remap(control, cell.slot));
             }
             return;
         }
@@ -338,6 +391,25 @@ impl ScreenLogic for ControlsLogic {
         let Some(to) = step(from, message, row_count(self.vertical)) else { return };
         self.cell = to;
         focus(cx, layout, to);
+    }
+
+    fn click(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {
+        if self.capturing {
+            return true;
+        }
+        let arrows: Vec<_> = [0xd1cd_a594, 0x9345_e4a7].into_iter().filter_map(|hash| cx.object(hash)).collect();
+        if cx.rt.object_at(&arrows, point).is_none() {
+            return false;
+        }
+        self.switch_page(cx);
+        true
+    }
+
+    fn footer(&self) -> Footer {
+        if self.capturing {
+            return Footer::ControlsCapture;
+        }
+        Footer::ControlsPages
     }
 }
 

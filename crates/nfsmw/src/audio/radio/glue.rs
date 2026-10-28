@@ -22,6 +22,26 @@ const MAP: &str = "SOUND/PFDATA/MW_Music.mpf";
 const STREAMS: &str = "SOUND/PFDATA/MW_Music.mus";
 
 impl Audio {
+    /// Plays a temporary EA Trax selection, or restores the paused menu song when the jukebox closes.
+    pub fn preview_eatrax(&mut self, song: Option<usize>) -> Result<(), String> {
+        let Some(song) = song else {
+            if let RadioSlot::Ready(radio) = &mut self.radio {
+                radio.end_preview();
+            }
+            return Ok(());
+        };
+        let (radio, music) = self.radio_and_music()?;
+        let music = music.ok_or_else(|| "there is no sound device".to_owned())?;
+        radio.preview(song, music)
+    }
+
+    /// Updates a loaded radio immediately; an unloaded one reads the saved table on first use.
+    pub fn apply_jukebox(&mut self, jukebox: &Jukebox) {
+        if let RadioSlot::Ready(radio) = &mut self.radio {
+            radio.set_jukebox(jukebox);
+        }
+    }
+
     /// The radio, loading it the first time (the songs from the attribute database, the map from the install).
     pub(in crate::audio) fn radio(&mut self) -> Result<&mut Radio, String> {
         if matches!(self.radio, RadioSlot::Unloaded) {

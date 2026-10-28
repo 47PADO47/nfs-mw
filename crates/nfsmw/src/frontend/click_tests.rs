@@ -16,6 +16,14 @@ mod navigation_screen_tests;
 
 #[path = "menu_audio_tests.rs"]
 mod menu_audio_tests;
+#[path = "name_entry_playtest.rs"]
+mod name_entry_playtest;
+
+#[path = "settings_input_playtest.rs"]
+mod settings_input_playtest;
+
+#[path = "repeat_input_tests.rs"]
+mod repeat_input_tests;
 
 impl Harness {
     /// A click at a point of the screen, as the front end hands it over; false when the screen does not take it.
@@ -74,10 +82,19 @@ fn a_click_selects_an_option_row_and_its_arrows_change_it() {
 fn the_footer_hint_under_a_click_names_its_action() {
     use crate::input::{Action, Bindings, InputDevice};
     use glam::Vec3;
-    let Some(h) = Harness::open(screen::OPTIONS, Args { category: Category::Video, ..Args::default() }) else { return };
+    let Some(mut h) = Harness::open(screen::OPTIONS, Args { category: Category::Video, ..Args::default() }) else {
+        return;
+    };
     let (bindings, device) = (Bindings::default(), InputDevice::Xbox);
     let tree = h.screens.presented_trees(&bindings, device).pop().unwrap();
     let done = tree.nodes.iter().find(|n| n.text.as_deref() == Some("Done")).expect("the options footer says Done");
+    assert!(!done.visible, "the incoming footer starts hidden");
+    let point = done.world.transform_point3(Vec3::ZERO).truncate();
+    assert_eq!(h.screens.hint_at(point, &bindings, device), None, "hidden Done cannot be clicked");
+    h.wait(1.0);
+    let tree = h.screens.presented_trees(&bindings, device).pop().unwrap();
+    let done = tree.nodes.iter().find(|n| n.text.as_deref() == Some("Done")).expect("the options footer says Done");
+    assert!(done.visible, "the settled footer is visible");
     let point = done.world.transform_point3(Vec3::ZERO).truncate();
     assert_eq!(h.screens.hint_at(point, &bindings, device), Some(Action::MenuBack), "Done is back");
     assert_eq!(h.screens.hint_at(glam::Vec2::new(-600.0, 0.0), &bindings, device), None, "far off the footer");
@@ -144,4 +161,66 @@ fn the_gps_dialog_answers_only_on_yes_or_no() {
     assert!(h.click(no));
     assert!(!h.commands.contains(&route), "No sets no route");
     assert_ne!(h.screens.top(), Some(screen::DIALOG), "No closes the dialog");
+}
+
+#[test]
+#[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
+fn dialog_release_cancel_and_reopen_keep_the_parent_safe() {
+    use crate::frontend::confirm::{Confirm, ConfirmLogic};
+    use crate::ui::Text;
+    let mut h = Harness::open(screen::OPTIONS, Args { category: Category::Video, ..Args::default() })
+        .expect("installed menu packages");
+    h.wait(1.5);
+    h.press(pad::DOWN);
+    h.wait(0.5);
+    assert!(h.node("RIGHT_ARROW_2").1, "the second Video row must be selected before opening the dialog");
+    assert!(!h.node("RIGHT_ARROW_1").1);
+    let focus = h.screens.focused_button();
+    let settings = h.settings;
+    let commands_before = h.commands.len();
+    let route = Command::SetWaypoint([1.0, 2.0]);
+    let open = |h: &mut Harness| {
+        let confirm = Confirm::new(Text::Literal("Activate GPS?".into()), route.clone());
+        let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
+        h.commands.extend(h.screens.open_with(screen::DIALOG, Box::new(ConfirmLogic::new(confirm)), false, &mut env));
+        assert_eq!(h.screens.top(), Some(screen::DIALOG));
+    };
+
+    open(&mut h);
+    h.run(pad::ACCEPT, 120);
+    assert_eq!(h.screens.top(), Some(screen::DIALOG), "held opening Accept must not answer");
+    assert!(!h.said(&route));
+    assert_eq!(h.commands.len(), commands_before);
+    h.run(0, 3);
+    h.press(pad::BACK);
+    h.wait(0.5);
+    assert_eq!(h.screens.top(), Some(screen::OPTIONS));
+    assert_eq!(h.screens.focused_button(), focus);
+    assert!(h.node("RIGHT_ARROW_2").1, "Back restores the selected Video row");
+    assert!(!h.node("RIGHT_ARROW_1").1);
+    assert_eq!(h.settings, settings);
+    assert!(!h.said(&route));
+    assert_eq!(h.commands.len(), commands_before);
+
+    open(&mut h);
+    h.wait(0.5);
+    h.press(pad::ACCEPT);
+    h.wait(0.5);
+    assert_eq!(h.screens.top(), Some(screen::OPTIONS), "default Accept takes No");
+    assert!(!h.said(&route));
+    assert_eq!(h.settings, settings);
+    assert_eq!(h.commands.len(), commands_before);
+
+    open(&mut h);
+    h.wait(0.5);
+    h.press(pad::LEFT);
+    h.run(pad::ACCEPT, 120);
+    assert_eq!(h.screens.top(), Some(screen::OPTIONS));
+    assert_eq!(h.commands.iter().filter(|command| **command == route).count(), 1);
+    assert_eq!(h.commands.len(), commands_before + 1, "only Yes may emit a command");
+    assert_eq!(h.settings, settings, "held Accept must not reach the parent");
+    h.run(0, 3);
+    assert_eq!(h.screens.focused_button(), focus);
+    assert!(h.node("RIGHT_ARROW_2").1, "Yes restores the selected Video row");
+    assert!(!h.node("RIGHT_ARROW_1").1);
 }

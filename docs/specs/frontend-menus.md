@@ -254,6 +254,16 @@ and `FILLBAR_SLIDER_n` (images), with `TITLE_MASTER` and `DATA_MASTER` fixing th
 screen shows at most 9 rows (10 from the pause menu). Rows are added in order; a row is a *toggle* (a title and a
 data string that cycles through values) or a *slider*.
 
+- **Scrollbar [PC observed, modded reference; policy ours].** The recorded Player page shows no bar, while a
+  recorded overflowing Video page shows one. The remake's Player row count differs from the reference. On the
+  native main options page, hide the scrollbar group when all rows fit; keep it available on overflow. This does
+  not establish original thumb motion or unmodified PC behavior.
+- **Scrollbar arrows [PC observed, modded reference; pointer policy ours].** Recorded overflowing Video windows
+  show both authored arrow glyphs. Keep these arrows on overflowing native main Options pages, within their own
+  scrollbar parent. A click on a drawn arrow moves selection one row in its direction, using the existing wrap
+  policy; it does not change a setting. Use the image's transformed bounds and inherited visibility, alpha and
+  depth. Short lists, absent arrows and leaving screens do not accept these clicks. Preserve authored transitions.
+  Original pointer behavior and exact edge dimming remain unverified.
 - **Selection.** `PAD_UP` / `PAD_DOWN` select the previous / next enabled row with wrap-around; the selected row's
   objects play `HIGHLIGHT` (`0x249DB7B7`), the previous row's `UNHIGHLIGHT` (`0x7AB5521A`); disabled rows play
   `DISABLE`. When there are more rows than fit the list scrolls and the cursor object plays `POSn` for the row
@@ -261,8 +271,10 @@ data string that cycles through values) or a *slider*.
 - **Toggle row.** Left or right flips or cycles the value; the title and the data string are language labels
   (`FEngSetLanguageHash`). Booleans show `On` (`0x417B2604`) / `Off` (`0x70DFE5C2`).
 - **Slider row.** A value in 0..1 moves by 0.1 per press (`min`, `max`, `increment`). The fill bar width is
-  `range * (value - min) / (max - min)` (range = the width of the slider base, 164), and its right UV edge is
-  set to the same width; the data string shows the integer value. The value is applied at once (audio volumes
+  `range * (value - min) / (max - min)` (range = the width of the slider base, 164). The fill preserves its
+  texture's repeat pitch: its horizontal UV span is the fill width divided by the texture width. The recorded
+  modded-PC Audio page shows segmented bars; installed main and pause packages use the same fill texture. The value
+  is applied at once (audio volumes
   update the mixer on every press).
 - **Accept and back.** The package answers `PAD_ACCEPT` with its leave animation; `PAD_BACK` reaches the game, which
   asks to confirm when something changed (a two-button dialog, restoring the old values on yes) and otherwise posts
@@ -431,9 +443,16 @@ objects do answer `MOUSE_LEFT_RELEASED` in the package data (for example the juk
 nearest ancestor that does. The screen posts the release to that object (`Screens::release_at`). A button still takes
 the click first, as before (`focus_button_at`).
 
-**EA Trax jukebox footer (ours).** The footer labels are not buttons either. The jukebox takes a click on a footer
-label by its place: Back (`PAD_BACK`), Accept (`PAD_ACCEPT`), Re-order (`RE_ORDER`) and Preview (`PREV`), each a box
-of 40 x 14 units from the label's origin. Leaving saves the jukebox, so a click on Back is not in the tests.
+**EA Trax jukebox footer (ours).** Device-aware replacement hints route their actions through the normal pointer
+handler. Native hint art is suppressed, and the jukebox consumes hidden native footer targets so they cannot fire
+through the package fallback. The remake's Previous action does not implement Preview; see [EA Trax](eatrax-jukebox.md).
+
+**Tuning row focus (ours).** The tuning screen applies each native row label's HIGHLIGHT or UNHIGHLIGHT script
+explicitly. Departed rows restore their native unselected color; disabled-row alpha remains controlled by eligibility.
+Reapplying the current row during an idle tick must not restart focus or its sound. This addresses only selection
+state from UI-020, not the reported slider layering, missing darkening, Help layout or Back animation.
+The later [tuning Help/exit lifecycle](tuning-ui-lifecycle.md) addresses double wrapping, native footer reappearance
+after Help, and clean Cancel/Accept/Start exit completion. Its validation limits remain separate from focus repair.
 
 **Sources.** Ghidra: `"Credits.fng"` is pushed at `0x00532DF4` and `0x00545683`; `"CreditsArea"` is only a string
 (`0x0089DB18`), not a referenced symbol. `speed.exe` has no function names, so the roll code was not located.

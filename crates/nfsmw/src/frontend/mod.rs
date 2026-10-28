@@ -12,7 +12,9 @@ mod career_screens;
 // The challenge series screen (`docs/specs/challenge-series.md`); the world records its wins.
 pub(crate) mod challenge_series;
 mod confirm;
+mod controller_remap;
 mod controls_layout;
+mod controls_pages;
 mod controls_screen;
 mod credits;
 mod disabled;

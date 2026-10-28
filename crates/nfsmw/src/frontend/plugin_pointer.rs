@@ -51,6 +51,9 @@ pub(super) fn press_at(
         Some(Action::MenuButton1) => return Press::Button((pad::BUTTON0 << 1) | (pad::BUTTON0 << 5)),
         Some(Action::MenuButton2) => return Press::Button(pad::BUTTON0 << 4),
         Some(Action::MenuButton3) => return Press::Button(pad::BUTTON0),
+        Some(Action::JukeboxGrab) => return Press::Button(pad::BUTTON0 << 5),
+        Some(Action::MenuTriggerLeft) => return Press::Button(pad::LTRIGGER),
+        Some(Action::MenuTriggerRight) => return Press::Button(pad::RTRIGGER),
         _ => {}
     }
     if let Some(commands) = fe.screens.click(point, env) {
@@ -64,3 +67,7 @@ pub(super) fn press_at(
     }
     Press::Nothing
 }
+
+#[cfg(test)]
+#[path = "plugin_pointer_jukebox_tests.rs"]
+mod jukebox_tests;

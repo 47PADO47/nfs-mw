@@ -102,6 +102,9 @@ be scoped to each screen: the quick-race brief uses the same hash for Randomize.
 The primary PC footer label object is `0xbfa25765`: Add uses label `0xc2598bd8`,
 Edit uses `0xc9847935`. `PAD_BUTTON5` requests a Yes/No delete dialog; only Yes
 deletes the selected record. `PAD_BUTTON0` opens Showcase for an actual car.
+**[observed, modded PC capture]** The manager's Add tile offers only Back and Add New Car.
+Saved-car selection restores Delete Car and Showcase; Add must not inspect the previous car.
+The separate stock-car selector retains Showcase for its real preview.
 Back returns to Main Menu and saves a changed stable through the save flow.
 The original postpones a newly selected car's load until a 0.25-second delay.
 
@@ -430,9 +433,9 @@ The negative and positive images are `FILLBAR_LEFT_SLIDER_n` and
 have signed widths -82 and +82; the authored fill placeholders have widths -38
 and +38. Full travel uses the base range, not the placeholder width. Each fill's
 signed width is its base width times its active half-range fraction. Its origin
-stays at the base's signed top-left plus (2, -12); changing the negative width
-therefore keeps its physical right edge fixed. Texture U ends at signed fill
-width divided by the installed fill texture width. Preserve the other UV edges,
+uses the installed fill's inner edge and Y position; changing the negative width
+therefore keeps its physical right edge fixed. Texture U ends at the absolute fill
+width divided by the installed fill texture width, since signed geometry already mirrors the left half. Preserve the other UV edges,
 the fill height and the base geometry; hide the unused half at zero.
 The generic widget formats an optional `OPTION_DATA_n` value from 0.0 through
 10.0. Both installed PC packages omit these data strings; their visual control
@@ -486,7 +489,7 @@ Original Sound responses must reach the existing menu-audio event sink. Avoid
 an extra controller-generated accept/back sound when that response already
 played it. Missing sound or animation evidence is not a verified parity pass.
 
-## Validation requirements
+## Validation requirements ([retained return](garage-retained-return.md))
 
 Package parsing and synthetic routing tests establish identities and state
 transitions. Installed renders must additionally cover My Cars, all three main

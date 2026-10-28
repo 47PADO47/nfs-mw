@@ -4,6 +4,25 @@ use super::{Harness, Page, model};
 use crate::garage::Selection;
 use blackbox_feng::{NodeKind, fe_hash_upper, runtime::pad};
 
+/// Sample the package's own focus response: the selected marker is a separate native cursor.
+fn native_cursor(focused: u32) -> blackbox_feng::UiNode {
+    use crate::ui::{Catalog, SCREEN_FILES};
+    use game_install::GameDir;
+    static PACKAGE: std::sync::OnceLock<blackbox_feng::Package> = std::sync::OnceLock::new();
+    let package = PACKAGE.get_or_init(|| {
+        let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+        Catalog::load(&dir, &SCREEN_FILES).find("MyCarsManager.fng").unwrap().clone()
+    });
+    let mut runtime = crate::ui::runtime();
+    let id = runtime.load(package.clone());
+    runtime.update(2.0);
+    let object = runtime.find_guid(id, focused).unwrap();
+    runtime.focus_button(object);
+    runtime.update(1.0 / 60.0);
+    runtime.update(1.0 / 60.0);
+    runtime.tree(id).nodes.into_iter().find(|node| node.name_hash == 0x0674_5352).unwrap()
+}
+
 fn selection(index: usize) -> Selection {
     let car = match index % 2 {
         0 => "BMWM3GTR",
@@ -20,6 +39,8 @@ fn window(h: &Harness, first: usize, selected: usize) {
         .unwrap()
         .tree
         .clone();
+    let focused = h.screens.focused_button().expect("one native manager tile takes focus");
+    let mut selected_guid = None;
     for slot in 0..10 {
         let hash = fe_hash_upper(&format!("CAR_ICON_{}", slot + 1));
         let node = tree.nodes.iter().find(|node| node.name_hash == hash).unwrap();
@@ -34,8 +55,31 @@ fn window(h: &Harness, first: usize, selected: usize) {
             _ => fe_hash_upper("CARSELECT_MANUFACTURER_FORD"),
         };
         assert!(matches!(node.kind, NodeKind::Image { texture: actual, .. } if actual == texture));
-        assert_eq!(node.colour[..3] == [255, 174, 64], index == selected, "selected native tile {index}");
+        assert_eq!(node.index == focused.index, index == selected, "selected native tile {index}");
+        if index == selected {
+            assert!(node.world_colour[3] > 0 && tree.draw_order.contains(&node.index));
+            selected_guid = Some(node.guid);
+        }
     }
+    let cursor = tree.nodes.iter().find(|node| node.name_hash == 0x0674_5352).unwrap();
+    let expected = native_cursor(selected_guid.expect("the selected tile is in the visible window"));
+    assert!(cursor.visible && cursor.world_colour[3] > 0, "the native selection marker remains visible");
+    assert_eq!(cursor.position, expected.position, "the authored cursor tracks the visible selected tile");
+    assert_eq!(cursor.colour, expected.colour, "selection keeps the native cursor color");
+    assert!(
+        tree.draw_order.iter().any(|&index| {
+            let mut at = Some(index);
+            for _ in 0..tree.nodes.len() {
+                let Some(index) = at else { break };
+                if index == cursor.index {
+                    return true;
+                }
+                at = tree.nodes[index].parent;
+            }
+            false
+        }),
+        "the native selection marker has actual drawn artwork"
+    );
     let heading = tree.nodes.iter().find(|node| node.name_hash == 0x5e7b_09c9).unwrap();
     assert_eq!(heading.text.as_deref(), Some(format!("Saved {selected}").as_str()));
     assert_eq!(h.model.custom_slot.as_deref(), Some(format!("saved{selected}").as_str()));

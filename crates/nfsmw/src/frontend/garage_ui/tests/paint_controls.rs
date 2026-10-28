@@ -187,3 +187,133 @@ fn installed_garage_paint_horizontal_navigation_wraps_each_native_twenty_column_
         assert_eq!(h.model.draft.parts.parts[Part::Paint as usize], Some(expected));
     }
 }
+
+#[test]
+#[ignore = "requires installed gauge palette package"]
+fn batch12_gauge_entry_and_channel_changes_preserve_unedited_colors() {
+    let mut initial = model();
+    let catalog = initial.cars[0].parts.as_mut().unwrap();
+    catalog.gauge_skins.push(1);
+    for (channel, palette) in catalog.color_palettes.iter_mut().enumerate() {
+        *palette = (0..2)
+            .map(|index| ColorChoice {
+                hash: 100 + channel as u32 * 10 + index,
+                rgb: [20 + channel as u8 * 10, index as u8 * 80, 120],
+                upgrade_level: 0,
+            })
+            .collect();
+    }
+    initial.draft.gauges.skin = 1;
+    let before = initial.draft.gauges.clone();
+    let mut h = Harness::open(Page::GaugeColors { backroom: false }, initial);
+    assert_eq!(h.model.draft.gauges, before, "opening colors cannot apply all first swatches");
+    for button in [pad::RIGHT, pad::RIGHT, pad::LEFT, pad::LEFT] {
+        h.press(button);
+        assert_eq!(h.model.draft.gauges, before, "selecting a channel only changes focus");
+    }
+    h.press(pad::DOWN);
+    assert_eq!(h.model.draft.gauges.backing, before.backing);
+    assert_eq!(h.model.draft.gauges.digits, before.digits);
+    assert_eq!(h.model.draft.gauges.color_parts, [None, Some(141), None]);
+    let tree = h.screens.trees().pop().unwrap();
+    let gear = tree.nodes.iter().find(|n| n.name_hash == 0xb845_89be).unwrap();
+    assert!(gear.visible && gear.world_colour[3] > 0, "the native gear sample remains visible");
+    let characters_before = gear.colour;
+    h.press(pad::RIGHT);
+    h.press(pad::DOWN);
+    let tree = h.screens.trees().pop().unwrap();
+    let gear = tree.nodes.iter().find(|n| n.name_hash == 0xb845_89be).unwrap();
+    assert_ne!(gear.colour[..3], characters_before[..3], "Characters updates the gear sample too");
+    assert_eq!(h.model.draft.gauges.color_parts, [None, Some(141), Some(151)]);
+    assert!(h.saved.is_empty());
+}
+
+#[test]
+#[ignore = "requires installed native garage focus scripts"]
+fn batch12_garage_idle_focus_clocks_advance_and_new_selection_restarts_its_own_script() {
+    use crate::frontend::{garage_ui::GarageUi, logic::Cx};
+    use crate::settings::{Partial, Settings, test_caps};
+    use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
+    use blackbox_feng::ids::PAD_RIGHT;
+    use game_install::GameDir;
+
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    let catalog = Catalog::load(&dir, &SCREEN_FILES);
+    let mut native_tracks = 0;
+    for page in [Page::Paint { color: 1, backroom: false }, Page::Numbers, Page::Manager] {
+        let mut initial = fixed_rim_palette();
+        initial.custom_slots = vec![("one".into(), "First car".into()), ("two".into(), "Second car".into())];
+        initial.custom_slot_cars =
+            initial.custom_slots.iter().map(|(id, _)| (id.clone(), initial.draft.car.clone())).collect();
+        let ui = GarageUi::new();
+        ui.sync(&initial);
+        let mut logic = ui.logic(page);
+        let mut runtime = crate::ui::runtime();
+        let package = runtime.load(catalog.find(page.package()).unwrap().clone());
+        runtime.update(2.0);
+        let mut settings = Settings::from(Partial::default());
+        let mut changed = Partial::default();
+        let mut commands = Vec::new();
+        let mut memory = Default::default();
+        let mut cx = Cx {
+            rt: &mut runtime,
+            package,
+            assets: &assets,
+            settings: &mut settings,
+            changed: &mut changed,
+            caps: test_caps::native(),
+            commands: &mut commands,
+            memory: &mut memory,
+            key_texts: &[],
+            world_map: None,
+            mods: None,
+            name: page.package(),
+        };
+        logic.start(&mut cx);
+        cx.rt.update(1.0 / 60.0);
+        let first = cx.rt.current_button(package).expect("native focused garage control");
+        cx.rt.take_outgoing();
+        for _ in 0..5 {
+            logic.tick(&mut cx, 1.0 / 60.0);
+            cx.rt.update(1.0 / 60.0);
+        }
+        assert_eq!(cx.rt.current_button(package), Some(first));
+        assert!(
+            !cx.rt.take_outgoing().iter().any(|event| matches!(
+                event,
+                blackbox_feng::runtime::Outgoing::Sound { message: 0xabc0_8912 | 0x55d1_e635, .. }
+            )),
+            "{page:?}: idle refresh must not emit repeated gain/lose-focus requests"
+        );
+        let state = cx.rt.object(first).unwrap();
+        assert!(state.time > 0, "{page:?}: idle refresh must not restart native focus at tick zero");
+        let first_authored = state.scripts.iter().any(|script| script.id == crate::frontend::ids::SCRIPT_HIGHLIGHT);
+        if first_authored {
+            native_tracks += 1;
+            assert_eq!(cx.rt.script_of(first), Some(crate::frontend::ids::SCRIPT_HIGHLIGHT));
+        }
+        logic.message(&mut cx, PAD_RIGHT);
+        let second = cx.rt.current_button(package).unwrap();
+        assert_ne!(second, first, "{page:?}: a new selection still changes native focus");
+        let second_authored = cx
+            .rt
+            .object(second)
+            .unwrap()
+            .scripts
+            .iter()
+            .any(|script| script.id == crate::frontend::ids::SCRIPT_HIGHLIGHT);
+        if second_authored {
+            assert_eq!(cx.rt.script_of(second), Some(crate::frontend::ids::SCRIPT_HIGHLIGHT));
+            assert_eq!(cx.rt.object(second).unwrap().time, 0, "{page:?}: the new focus starts its own script");
+        }
+        if first_authored {
+            assert_eq!(cx.rt.script_of(first), Some(crate::frontend::ids::SCRIPT_UNHIGHLIGHT));
+        }
+        cx.rt.update(1.0 / 60.0);
+        logic.tick(&mut cx, 1.0 / 60.0);
+        cx.rt.update(1.0 / 60.0);
+        assert!(cx.rt.object(second).unwrap().time > 0, "{page:?}: the new highlight can animate");
+    }
+    assert!(native_tracks > 0, "the fixture must exercise authored native highlight tracks");
+}

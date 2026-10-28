@@ -46,6 +46,7 @@ impl Plugin for AudioPlugin {
             ),
         );
         super::speech::add_systems(app);
+        super::eatrax_preview::add_systems(app);
     }
 }
 
@@ -101,7 +102,7 @@ fn play_menu_sounds(mut audio: NonSendMut<Audio>, time: Res<Time>) {
 }
 
 /// The scene's car plays its engine.
-fn drive_car(
+pub(super) fn drive_car(
     mut host: NonSendMut<Host>,
     time: Res<Time>,
     mut music: ResMut<MusicInput>,
@@ -119,6 +120,8 @@ fn drive_car(
         audio.stop_explosion();
         audio.stop_world_effect_audio();
         audio.stop_nis();
+        audio.stop_police_radio();
+        *music = MusicInput::default();
     }
     let car = host.scene.car_sound();
     audio.drive_car(car.as_ref(), time.delta_secs());
@@ -165,15 +168,19 @@ fn drive_car(
         host.scene.note_sputters(pops);
     }
     // The pause menu freezes the car (no sound) but the game goes on, and so does the radio.
-    let driving = car.is_some() || host.scene.paused();
+    let paused = host.scene.paused();
+    let driving = car.is_some() || paused;
     // The chase of the world reaches the music and the speech; the pursuit music takes the songs' place while a chase
     // is on and for a while after it.
     let chase = host.scene.pursuit_feed();
-    audio.follow_roam(host.scene.roam_feed());
-    audio.follow_chase(&mut music, chase.as_ref(), host.scene.pursuit_ended(), time.delta_secs());
+    if !paused {
+        audio.follow_roam(host.scene.roam_feed());
+    }
+    let speech_dt = if paused { 0.0 } else { time.delta_secs() };
+    audio.follow_chase(&mut music, chase.as_ref(), host.scene.pursuit_ended(), speech_dt);
     host.scene.note_police_speech(audio.police_speech_phase());
     // The dispatcher's 911 report was said: the world starts the call.
-    if let Some(secs) = audio.take_911_call() {
+    if !paused && let Some(secs) = audio.take_911_call() {
         host.scene.start_911_call(secs);
     }
     let songs_free = audio.update_interactive(&music.state(), driving, time.delta_secs());

@@ -116,3 +116,33 @@ fn a_scene_that_fails_to_start_is_released_and_the_window_keeps_its_scene() {
     assert_eq!(host.scene.title(), "menu");
     assert_eq!(host.scene_changes, 0);
 }
+
+#[test]
+fn batch12_scene_changes_clear_gameplay_focus_without_changing_settings() {
+    use blackbox_gfx::FocusFilter;
+
+    let log = Log::default();
+    let backend = NullBackend::new(test_caps::native());
+    let resources = backend.resources.clone();
+    let settings =
+        Settings::from(Partial { motion_blur: Some(true), motion_blur_strength: Some(1.7), ..Default::default() });
+    let mut host = Host::new(Probe::boxed("menu", &log), &settings, None);
+    host.renderer = Some(Box::new(backend));
+    let gameplay = FocusFilter { radial_blur: 0.8, vignette: 0.6, radial_centre: [0.4, 0.6], ..Default::default() };
+    for _ in 0..3 {
+        host.replace_scene_parking_old(Probe::boxed("world", &log)).unwrap();
+        host.renderer.as_mut().unwrap().set_focus_filter(gameplay);
+        assert_eq!(resources.lock().unwrap().focus_filter, gameplay);
+        assert!(host.restore_parked_menu());
+        assert_eq!(
+            resources.lock().unwrap().focus_filter,
+            FocusFilter::default(),
+            "parked menu inherited gameplay effects"
+        );
+    }
+    host.renderer.as_mut().unwrap().set_focus_filter(gameplay);
+    host.replace_scene(Probe::boxed("fresh menu", &log)).unwrap();
+    assert_eq!(resources.lock().unwrap().focus_filter, FocusFilter::default(), "fresh menu inherited gameplay effects");
+    assert!(settings.motion_blur);
+    assert_eq!(settings.motion_blur_strength, 1.7);
+}

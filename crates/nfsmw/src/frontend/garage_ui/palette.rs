@@ -136,7 +136,9 @@ impl Palette {
             if self.color() == 0 && catalog.paint_families.get(&choice.hash) != Some(family) {
                 continue;
             }
-            let Some(rgb) = catalog.colors.get(&choice.hash).copied() else { continue };
+            let Some(rgb) = catalog.colors.get(&choice.hash).copied() else {
+                continue;
+            };
             self.colors.push(Swatch { hash: Some(choice.hash), rgb, option: index + 1 });
         }
         let selected = match self.color() {
@@ -167,6 +169,7 @@ impl Palette {
             cx.rt.set_hidden(object, swatch.is_none());
             if let Some(swatch) = swatch {
                 cx.rt.set_colour_rgba(object, [swatch.rgb[0], swatch.rgb[1], swatch.rgb[2], 255]);
+                chrome::native_focus(cx, object, base + index == self.picked);
             }
         }
         let family = self.family_label();
@@ -216,7 +219,9 @@ impl Palette {
                 ),
             }
         }
-        if let Some(object) = self.objects.get(self.picked % count).copied() {
+        if let Some(object) = self.objects.get(self.picked % count).copied()
+            && cx.rt.current_button(cx.package) != Some(object)
+        {
             cx.rt.focus_button(object);
         }
     }
@@ -238,7 +243,9 @@ impl Palette {
     }
 
     fn choose(&mut self, cx: &mut Cx, at: usize) {
-        let Some(swatch) = self.colors.get(at) else { return };
+        let Some(swatch) = self.colors.get(at) else {
+            return;
+        };
         self.picked = at;
         let color = self.color();
         let mut state = self.handle.0.lock().unwrap();
@@ -282,7 +289,9 @@ impl Palette {
             self.choose(cx, (self.picked + 20).min(self.colors.len() - 1));
             return;
         }
-        let Some(next) = self.picked.checked_add_signed(by).filter(|next| *next < self.colors.len()) else { return };
+        let Some(next) = self.picked.checked_add_signed(by).filter(|next| *next < self.colors.len()) else {
+            return;
+        };
         self.choose(cx, next);
     }
 
@@ -295,10 +304,10 @@ impl Palette {
             self.channel = (self.channel as isize + by).rem_euclid(self.channels as isize) as usize;
             self.rebuild(cx);
             self.picked = self.cursors[self.channel].min(self.colors.len().saturating_sub(1));
-            self.choose(cx, self.picked);
             if let Some(layers) = &mut self.layers {
                 layers.select(cx, layers.first() + self.channel);
             }
+            self.refresh(cx);
             return;
         }
         let next = (self.family as isize + by).rem_euclid(self.families.len() as isize) as usize;
@@ -351,7 +360,6 @@ impl ScreenLogic for Palette {
                 self.channel = channel;
                 self.rebuild(cx);
                 self.cursors[channel] = self.picked;
-                self.choose(cx, self.picked);
             }
             self.channel = 0;
             self.rebuild(cx);
@@ -464,8 +472,12 @@ impl ScreenLogic for Palette {
                 return true;
             }
         }
-        let Some(hit) = cx.rt.object_at(&self.objects, point) else { return false };
-        let Some(index) = self.objects.iter().position(|object| *object == hit) else { return false };
+        let Some(hit) = cx.rt.object_at(&self.objects, point) else {
+            return false;
+        };
+        let Some(index) = self.objects.iter().position(|object| *object == hit) else {
+            return false;
+        };
         let count = self.objects.len().max(1);
         self.choose(cx, self.picked / count * count + index);
         true

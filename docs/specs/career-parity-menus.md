@@ -62,6 +62,12 @@ free `PLAYER` name, Backspace deletes, typed letters, digits, `_` and `-` are ad
 names of up to 31 characters without a space; the original game lists only names shorter than 8, `career-save-screens.md` section 2), Enter accepts, Escape leaves. A name that
 exists (compared without case) is refused with a notice. **[ours]**
 
+**Empty-name rejection [ours, playtest correction 2026-10-27].** The name-entry controller validates Accept before
+allowing the notice package to dismiss itself. Empty and unsupported whitespace input must retain the drawn prompt,
+typed buffer and usable Back action. Native package button processing stays disabled for this text-entry controller;
+the host handles Accept/Start and Back while authored entrance/highlight scripts still run. A valid submission emits
+one creation command, even across a held Accept. This is a robustness policy, not a claim of original invalid-name UI.
+
 The old rows "Save Alias" and "Load Alias" (the settings alias of `saves.rs`) are gone from the alias manager: it is the career
 profile's manager now. **[ours]**
 

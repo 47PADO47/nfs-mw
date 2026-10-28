@@ -14,7 +14,7 @@ pub(in crate::frontend) fn hints(footer: Footer, bindings: &Bindings, device: In
         view_cart.0 = vec![crate::ui::prompts::Prompt::Key("4".into())];
     }
     let result = match footer {
-        Footer::GarageManager { add } => {
+        Footer::GarageManager { add, showcase: can_showcase } => {
             let label = match add {
                 true => L::AddNewCar,
                 false => L::CustomizeCar,
@@ -23,7 +23,9 @@ pub(in crate::frontend) fn hints(footer: Footer, bindings: &Bindings, device: In
             if !add {
                 hints.push(hint(Action::MenuButton1, L::DeleteCar));
             }
-            hints.push(showcase);
+            if can_showcase {
+                hints.push(showcase);
+            }
             hints
         }
         Footer::GarageMain { shop } => {
@@ -68,13 +70,14 @@ pub(in crate::frontend) fn hints(footer: Footer, bindings: &Bindings, device: In
             hint(Action::MenuAccept, L::Accept),
             hint(Action::MenuButton1, L::Help),
         ],
+        Footer::GarageTuningHelp => vec![hint(Action::MenuBack, L::Hide)],
         _ => return None,
     };
     Some(result)
 }
 
 /// The package's PC/console captions are replaced by the shared binding-aware footer.
-pub(in crate::frontend) fn hide_legacy(tree: &mut blackbox_feng::UiTree) {
+pub(in crate::frontend) fn hide_legacy(tree: &mut blackbox_feng::UiTree, footer: Footer) {
     let roots = [
         0xc0a3_2823,
         0x18a4_384f,
@@ -99,7 +102,10 @@ pub(in crate::frontend) fn hide_legacy(tree: &mut blackbox_feng::UiTree) {
     let clear_all = crate::i18n::game(CLEAR_ALL);
     let mut hidden = vec![false; tree.nodes.len()];
     for (index, node) in tree.nodes.iter().enumerate() {
-        hidden[index] = roots.contains(&node.name_hash);
+        // Help's close animation re-enables these complete, separately rooted PC hints.
+        let tuning_pc = matches!(footer, Footer::GarageTuning | Footer::GarageTuningHelp)
+            && [0xd9e6_3061, 0x9502_d148, 0x5232_50e9, 0x64bc_dff2].contains(&node.name_hash);
+        hidden[index] = roots.contains(&node.name_hash) || tuning_pc;
         if node.name_hash == 0xe795_717d
             && tree.nodes.iter().any(|sibling| {
                 sibling.parent == node.parent

@@ -14,6 +14,7 @@ pub(in crate::audio) mod feeder;
 mod glue;
 pub mod input;
 mod playlist;
+mod preview;
 mod state;
 pub(in crate::audio) mod stream;
 #[cfg(test)]
@@ -82,6 +83,8 @@ pub struct Radio {
     /// Started by the player outside the game: plays on until `radio off` or driving starts.
     manual: bool,
     playing: Option<Playing>,
+    /// A jukebox preview pauses the prior song without consuming its playlist/history position.
+    preview: Option<preview::Snapshot>,
     /// The song on the air is held (paused); cleared whenever it stops.
     paused: bool,
     /// The interactive soundtrack owns the music transport this frame.
@@ -122,6 +125,7 @@ impl Radio {
             driving: false,
             manual: false,
             playing: None,
+            preview: None,
             paused: false,
             held: false,
             history: Vec::new(),
@@ -305,6 +309,10 @@ impl Radio {
     /// paused song stays where it is and goes on only when the player resumes it. `menus` is true while the main
     /// menu is up: the radio plays there too, from the front-end list.
     pub fn update_held(&mut self, driving: bool, menus: bool, held: bool, audible: bool, music: &mut impl Player) {
+        if self.preview.is_some() {
+            self.update_preview();
+            return;
+        }
         self.held = held;
         if driving != self.driving {
             self.driving = driving;

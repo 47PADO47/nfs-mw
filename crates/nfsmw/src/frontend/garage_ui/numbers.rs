@@ -31,7 +31,7 @@ impl Numbers {
             let text = self.digits[digit].map(|value| value.to_string()).unwrap_or_else(|| "-".into());
             cx.rt.set_text(object, text);
             chrome::focus(cx, object, digit == self.active);
-            if digit == self.active {
+            if digit == self.active && cx.rt.current_button(cx.package) != Some(object) {
                 cx.rt.focus_button(object);
             }
         }
@@ -127,7 +127,9 @@ impl ScreenLogic for Numbers {
         }
     }
     fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
-        let Some(hit) = cx.rt.object_at(&self.objects, point) else { return false };
+        let Some(hit) = cx.rt.object_at(&self.objects, point) else {
+            return false;
+        };
         self.active = self.objects.iter().position(|object| *object == hit).unwrap_or(0);
         self.refresh(cx);
         true

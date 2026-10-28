@@ -4,6 +4,9 @@ This audit covers the Original UI and its shared host: package loading, pointer
 selection, modal return, camera state, car rendering and menu sound delivery.
 Custom options and alternate HUDs remain supported extensions.
 
+The [2026-10-27 playtest backlog](ui-parity-playtest.md) records open settings, EA Trax, garage and career-name
+failures in the test build. Earlier fixes below do not close those reports, including inconsistent held D-pad input.
+
 ## Confirmed defects
 
 - **Wrong icon action:** native carousel clicks could change package button focus

@@ -19,16 +19,20 @@ use super::world_map::WorldMapFrame;
 use crate::ui::theme::{DEFAULT_ASPECT, ElementId};
 use crate::ui::{Catalog, UiAssets};
 
+mod aspect;
 mod command;
 mod geometry;
+mod input_gate;
 mod layers;
 mod load;
+mod pause_background;
 mod pose;
 mod shown;
 #[cfg(test)]
 mod shown_tests;
 mod start;
 mod text;
+mod trace;
 mod vertical;
 
 pub use geometry::ListGeometry;
@@ -50,6 +54,8 @@ struct Screen {
 }
 
 pub struct Screens {
+    /// Optional capture telemetry. No tree or event data is built when disabled.
+    trace: Option<trace::Trace>,
     runtime: Runtime,
     language: crate::ui::LanguageWatch,
     catalog: Catalog,
@@ -83,6 +89,7 @@ impl Screens {
     pub fn new(catalog: Catalog, assets: Arc<UiAssets>) -> Self {
         let runtime = crate::ui::runtime();
         Self {
+            trace: trace::Trace::from_environment(),
             runtime,
             language: crate::ui::LanguageWatch::default(),
             catalog,
@@ -98,11 +105,6 @@ impl Screens {
             last_pad: 0,
             start_press: None,
         }
-    }
-
-    /// Sets the window's width over its height, for the vertical menus' places.
-    pub fn set_aspect(&mut self, aspect: f32) {
-        self.aspect = aspect;
     }
 
     /// Sets the key names the controls list shows this frame (`controls_screen::key_texts`).
@@ -125,6 +127,7 @@ impl Screens {
         while let Some(s) = self.stack.pop() {
             self.runtime.unload(s.id);
         }
+        self.trace_stack("clear");
     }
 
     /// Loads a screen on top of the stack; `replace` first unloads the one that is there. Commands the new
@@ -160,6 +163,7 @@ impl Screens {
         if replace && let Some(old) = self.stack.pop() {
             self.runtime.unload(old.id);
         }
+        self.open_pause_background(name);
         let missing = self.assets.missing_resources(&package);
         if !missing.is_empty() {
             log::debug!("{name}: resources without a texture or font: {missing:?}");
@@ -182,8 +186,10 @@ impl Screens {
             name: &file_name,
         };
         logic.start(&mut cx);
+        aspect::bind(cx.rt, cx.package, cx.name, self.aspect);
         let shown = shown::Shown::default();
         self.stack.push(Screen { id, name: file_name, logic, slot, look, pose, shown });
+        self.trace_stack("open");
         self.await_release = true;
         self.give_control();
         commands
@@ -195,9 +201,10 @@ impl Screens {
         if let Some(old) = self.stack.pop() {
             self.runtime.unload(old.id);
         }
+        self.trace_stack("pop");
         self.await_release = true;
         self.give_control();
-        let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
+        let Self { runtime, assets, stack, memory, key_texts, world_map, aspect, .. } = self;
         let Some(top) = stack.last_mut() else { return Vec::new() };
         runtime.set_input_enabled(top.id, true);
         let (settings, changed, caps, mods) = (&mut *env.settings, &mut *env.changed, env.caps, env.mods);
@@ -217,6 +224,7 @@ impl Screens {
             name: &top.name,
         };
         top.logic.resume(&mut cx);
+        aspect::bind(cx.rt, cx.package, cx.name, *aspect);
         commands
     }
 
@@ -224,22 +232,28 @@ impl Screens {
     fn give_control(&mut self) {
         let top = self.stack.last().map(|s| s.id);
         for s in &self.stack {
-            self.runtime.set_control(s.id, !self.await_release && Some(s.id) == top);
+            self.runtime.set_control(s.id, !self.await_release && Some(s.id) == top && s.logic.accepts_input());
         }
     }
 
     /// Advances the runtime by `dt` seconds with the pad `mask`, hands the screens what their packages sent, and
     /// returns what the screens ask for that is not about the stack itself.
     pub fn update(&mut self, dt: f32, mask: u32, env: &mut Env) -> Vec<Command> {
+        let host_pad = mask;
         if self.await_release && mask == 0 {
             self.await_release = false;
             self.give_control();
         }
+        // Host logic owns pending transitions as well as the package's authored input switches.
+        self.give_control();
         let mask = match self.stack.last().is_some_and(|top| top.logic.rotate_pad()) {
             true => vertical::vertical_pad(mask),
             false => mask,
         };
-        let mask = if self.await_release { 0 } else { mask };
+        let mask = if self.top_accepts_input() { mask } else { 0 };
+        if let Some(trace) = self.trace.as_mut() {
+            trace.begin_frame(dt, host_pad, mask, self.await_release);
+        }
         let pressed = mask & !self.last_pad;
         self.last_pad = mask;
         self.runtime.set_pad_mask(mask);
@@ -251,8 +265,13 @@ impl Screens {
         }
         self.deliver_start_press(env, &mut commands);
         let outgoing = self.runtime.take_outgoing();
+        if let Some(trace) = self.trace.as_mut() {
+            trace.outgoing(&outgoing);
+        }
         crate::audio::menu::request_batch(outgoing.iter().filter_map(|out| match out {
-            Outgoing::Sound { message, package, .. } => Some((*package, *message)),
+            Outgoing::Sound { message, package, .. } if self.sound_allowed(*package, *message) => {
+                Some((*package, *message))
+            }
             _ => None,
         }));
         for out in outgoing {
@@ -271,7 +290,9 @@ impl Screens {
         for id in ids {
             self.deliver_tick(id, dt, env, &mut commands);
         }
-        self.apply_stack_commands(commands, env)
+        let commands = self.apply_stack_commands(commands, env);
+        self.trace_sample();
+        commands
     }
 
     /// Runs `call` on the logic of the screen of `package`, with the context it works in.
@@ -348,6 +369,9 @@ impl Screens {
 
     /// Posts a message straight to an object of the top screen (a mouse click, a hot key).
     pub fn post_to_top(&mut self, name_hash: u32, message: u32) {
+        if !self.top_accepts_input() {
+            return;
+        }
         let Some(top) = self.stack.last() else { return };
         let target = self.runtime.find(top.id, name_hash);
         self.runtime.post(top.id, message, target);
@@ -356,7 +380,7 @@ impl Screens {
     /// Focuses the button of the top screen under a point of the FEng screen (640 x 480, origin at the centre).
     /// Returns false when no button is there.
     pub fn focus_button_at(&mut self, point: Vec2) -> bool {
-        if self.top_is_vertical() {
+        if !self.top_accepts_input() || self.top_is_vertical() {
             return false;
         }
         let Some(top) = self.stack.last() else { return false };
@@ -368,7 +392,7 @@ impl Screens {
     /// Sends a mouse release of `message` to the object of the top screen under a point, when one answers it.
     /// Returns whether a message was sent.
     pub fn release_at(&mut self, point: Vec2, message: u32) -> bool {
-        if self.top_is_vertical() {
+        if !self.top_accepts_input() || self.top_is_vertical() {
             return false;
         }
         let Some(top) = self.stack.last() else { return false };
@@ -423,6 +447,9 @@ impl Screens {
         env: &mut Env,
         act: impl FnOnce(&mut dyn ScreenLogic, &mut Cx) -> bool,
     ) -> Option<(bool, Vec<Command>)> {
+        if !self.top_accepts_input() {
+            return None;
+        }
         let Self { runtime, assets, stack, memory, key_texts, world_map, .. } = self;
         let screen = stack.last_mut()?;
         let (settings, changed, caps, mods) = (&mut *env.settings, &mut *env.changed, env.caps, env.mods);

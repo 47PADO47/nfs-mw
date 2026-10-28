@@ -110,16 +110,59 @@ impl MenuPlayer {
 
     /// Starts trigger `id` in the mixer group `group`.
     fn start_in(&mut self, audio: &mut Audio, id: i32, group: Group) {
+        let (bank, class, index) = target(id);
+        let words = [index, 32767, 4096, 0];
+        let group_name = match group {
+            Group::Sfx => "Sfx",
+            Group::Hud => "Hud",
+            Group::Music => "Music",
+            Group::Engine => "Engine",
+        };
         if self.unavailable.contains(&id) {
+            audio.trace.record(super::trace::Record {
+                event: "menu_trigger",
+                trigger: Some(id),
+                group: Some(group_name),
+                bank,
+                class,
+                params: &words,
+                success: Some(false),
+                detail: "cached unavailable",
+                logical_ms: audio.trace.now_ms(),
+                ..Default::default()
+            });
             return;
         }
-        let (bank, class, index) = target(id);
         self.seed = self.seed.wrapping_add(1);
         match EffectModule::load(audio, bank, class, self.seed) {
             Ok(module) => {
-                self.active.push(Running { module, words: [index, 32767, 4096, 0], age: 0.0, released: false, group })
+                audio.trace.record(super::trace::Record {
+                    event: "menu_trigger",
+                    instance: module.trace_instance(),
+                    trigger: Some(id),
+                    group: Some(group_name),
+                    bank,
+                    class,
+                    params: &words,
+                    success: Some(true),
+                    logical_ms: audio.trace.now_ms(),
+                    ..Default::default()
+                });
+                self.active.push(Running { module, words, age: 0.0, released: false, group })
             }
             Err(error) => {
+                audio.trace.record(super::trace::Record {
+                    event: "menu_trigger",
+                    trigger: Some(id),
+                    group: Some(group_name),
+                    bank,
+                    class,
+                    params: &words,
+                    success: Some(false),
+                    detail: &error,
+                    logical_ms: audio.trace.now_ms(),
+                    ..Default::default()
+                });
                 self.unavailable.insert(id);
                 log::warn!("menu sound {id}: {error}");
             }

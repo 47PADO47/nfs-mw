@@ -7,6 +7,9 @@ use crate::frontend::logic::Sub;
 impl IconMenu {
     /// Posts the leave message: the package plays its leave scripts and sends `EXIT_COMPLETE` when they are done.
     pub(super) fn leave(&mut self, cx: &mut Cx, pending: Pending) {
+        if !self.reacts {
+            return;
+        }
         if self.vertical {
             return self.act(cx, pending);
         }
@@ -17,6 +20,9 @@ impl IconMenu {
 
     /// Plays the package's own leave timing (the event handler's forward script) instead of the leave message.
     pub(super) fn leave_by_script(&mut self, cx: &mut Cx, pending: Pending) {
+        if !self.reacts {
+            return;
+        }
         if self.vertical {
             return self.act(cx, pending);
         }
@@ -92,6 +98,13 @@ impl IconMenu {
             (Kind::Pause, Pending::Pressed(Id::Resume | Id::ResumeRace)) => cx.send(Command::Resume),
             (Kind::Pause, Pending::Pressed(Id::PerformanceTuning)) => cx.send(Command::OpenTuning),
             (Kind::Pause, Pending::Pressed(Id::EndCoop)) => cx.send(Command::EndCoop),
+            (Kind::Pause, Pending::Pressed(Id::JumpToSafeHouse)) => {
+                let question = match self.args.pause_ctx.pursuit {
+                    true => 0x15A1_B5A9,
+                    false => 0x6925_D0BE,
+                };
+                cx.send(Command::Confirm(Confirm::new(crate::ui::Text::Game(question), Command::JumpToSafeHouse)));
+            }
             (Kind::Pause, Pending::Pressed(Id::SafeHouseBlacklist(stage))) => {
                 let args = Args { safehouse: true, pause: true, rival: stage, ..self.args };
                 // The Remastered look has no overview page: its Blacklist is the list of rivals.
@@ -146,7 +159,7 @@ impl IconMenu {
         let id = self.icons[i].id;
         // Dialogs and profile lists overlay the retained menu. Do not run its leave scripts: No/Back must preserve its
         // header and brackets as well as its icons and input, as for the pause quit/restart questions.
-        if (self.pause() && matches!(id, Id::Quit(_) | Id::RestartRace))
+        if (self.pause() && matches!(id, Id::Quit(_) | Id::RestartRace | Id::JumpToSafeHouse))
             || matches!(
                 (self.kind, id),
                 (Kind::SafeHouse, Id::SafeHouseResume)

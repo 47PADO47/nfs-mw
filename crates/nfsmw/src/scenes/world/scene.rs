@@ -308,18 +308,15 @@ impl Scene for WorldScene {
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.audio_state()
     }
-
     fn radio_on_menus(&self) -> bool {
         self.garage_backdrop.is_some()
     }
-
     fn second_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.guest_audio_state()
     }
     fn note_car_visual_rpm(&mut self, player: usize, fraction: Option<f32>) {
         self.accept_car_visual_rpm(player, fraction);
     }
-
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
         std::mem::take(&mut self.common_sounds)
     }
@@ -459,6 +456,9 @@ impl Scene for WorldScene {
     }
     fn race_active(&self) -> bool {
         self.race_in_progress()
+    }
+    fn prepare_safe_house(&mut self) -> bool {
+        self.prepare_safe_house_jump()
     }
     fn restart_race(&mut self) -> bool {
         self.restart_race_now()

@@ -1,14 +1,19 @@
 //! Normal garage controls against the actual installed packages, without save I/O.
 
 mod add_header;
+mod animation_input;
 mod decal_filter;
 mod filter_pointer;
+mod footer_layout;
 mod harness;
 mod manager_visual;
 mod manager_window;
 mod paint_controls;
+mod return_state;
 mod samples;
 mod specialized;
+mod tuning_help;
+mod tuning_prompts;
 
 use super::{Page, Section};
 use crate::garage::{MenuEvent, menu_rows::Row};

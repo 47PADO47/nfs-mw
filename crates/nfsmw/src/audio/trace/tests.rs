@@ -14,6 +14,11 @@ fn json_escapes_paths_and_control_characters_and_preserves_words() {
     assert!(line.contains("\"params\":[-32767, 4096]"));
     assert!(line.contains("\"success\":false"));
     assert!(line.contains("\"inputs\":[null,null,"));
+    assert!(line.contains("\"trigger\":null,\"group\":null"));
+    let tagged = Record { trigger: Some(4), group: Some("Sfx\"\\"), ..Default::default() }.json(8, 2.0);
+    let decoded: serde_json::Value = serde_json::from_str(&tagged).unwrap();
+    assert_eq!(decoded["trigger"], 4);
+    assert_eq!(decoded["group"], "Sfx\"\\");
 }
 
 #[test]

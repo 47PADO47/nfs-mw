@@ -55,6 +55,13 @@ impl Manager {
         self.handle.model().custom_slots.get(index).cloned()
     }
 
+    fn can_showcase(&self) -> bool {
+        match self.page {
+            Page::AddCar => self.picked < self.len(),
+            _ => self.slot(self.picked).is_some(),
+        }
+    }
+
     fn choose(&mut self, cx: &mut Cx, index: usize) {
         if index >= self.len() {
             return;
@@ -94,7 +101,9 @@ impl Manager {
         let index = match by {
             -1 | 1 => start + (column as isize + by).rem_euclid((len - start).min(5) as isize) as usize,
             -5 | 5 => {
-                let Some(row) = (self.picked / 5).checked_add_signed(by / 5) else { return };
+                let Some(row) = (self.picked / 5).checked_add_signed(by / 5) else {
+                    return;
+                };
                 if row * 5 >= len {
                     return;
                 }
@@ -161,8 +170,12 @@ impl Manager {
         }
         let mut controls = Vec::new();
         for (name, by) in [("scrollbar_Arrow_1", -5), ("scrollbar_Arrow_2", 5)] {
-            let Some(group) = cx.named(name) else { continue };
-            let Some(package) = cx.rt.package(cx.package) else { continue };
+            let Some(group) = cx.named(name) else {
+                continue;
+            };
+            let Some(package) = cx.rt.package(cx.package) else {
+                continue;
+            };
             let guid = package.objects[group.index].guid;
             controls.push((group, by));
             controls.extend(
@@ -175,8 +188,12 @@ impl Manager {
             );
         }
         let objects: Vec<_> = controls.iter().map(|(object, _)| *object).collect();
-        let Some(hit) = cx.rt.object_at(&objects, point) else { return false };
-        let Some((_, by)) = controls.iter().find(|(object, _)| *object == hit) else { return false };
+        let Some(hit) = cx.rt.object_at(&objects, point) else {
+            return false;
+        };
+        let Some((_, by)) = controls.iter().find(|(object, _)| *object == hit) else {
+            return false;
+        };
         self.shift(cx, *by);
         true
     }
@@ -185,12 +202,16 @@ impl Manager {
         let (Some(backing), Some(handle)) = (cx.named("scrollbar_Backing"), cx.named("scrollbar_Handle")) else {
             return false;
         };
-        let Some(hit) = cx.rt.object_at(&[backing, handle], point) else { return false };
+        let Some(hit) = cx.rt.object_at(&[backing, handle], point) else {
+            return false;
+        };
         if hit == handle {
             self.accept();
             return true;
         }
-        let Some(quad) = cx.rt.object_quad(handle) else { return false };
+        let Some(quad) = cx.rt.object_quad(handle) else {
+            return false;
+        };
         let edges = [(-0.5, -0.5), (0.5, -0.5), (-0.5, 0.5), (0.5, 0.5)]
             .map(|(x, y)| quad.transform_point3(glam::Vec3::new(x, y, 0.0)).y);
         let top = edges.into_iter().fold(f32::INFINITY, f32::min);
@@ -236,7 +257,7 @@ impl Manager {
                 };
                 cx.rt.set_texture(object, texture);
                 chrome::focus(cx, object, at == self.picked);
-                if at == self.picked {
+                if at == self.picked && cx.rt.current_button(cx.package) != Some(object) {
                     cx.rt.focus_button(object);
                 }
             }
@@ -380,7 +401,7 @@ impl ScreenLogic for Manager {
         if bits & (pad::BUTTON0 << 5) != 0 && self.slot(self.picked).is_some() {
             self.handle.request(Request::Push(Page::Delete));
         }
-        if bits & pad::BUTTON0 != 0 {
+        if bits & pad::BUTTON0 != 0 && self.can_showcase() {
             self.handle.request(Request::Push(Page::Showcase));
         }
     }
@@ -388,8 +409,12 @@ impl ScreenLogic for Manager {
         if self.click_scrollbar(cx, point) {
             return true;
         }
-        let Some(hit) = cx.rt.object_at(&self.objects, point) else { return false };
-        let Some(index) = self.objects.iter().position(|object| *object == hit) else { return false };
+        let Some(hit) = cx.rt.object_at(&self.objects, point) else {
+            return false;
+        };
+        let Some(index) = self.objects.iter().position(|object| *object == hit) else {
+            return false;
+        };
         let index = self.first_row * 5 + index;
         if index == self.picked {
             self.accept();
@@ -417,8 +442,10 @@ impl ScreenLogic for Manager {
     }
     fn footer(&self) -> Footer {
         match self.page {
-            Page::Manager => Footer::GarageManager { add: self.slot(self.picked).is_none() },
-            _ => Footer::GarageManager { add: true },
+            Page::Manager => {
+                Footer::GarageManager { add: self.slot(self.picked).is_none(), showcase: self.can_showcase() }
+            }
+            _ => Footer::GarageManager { add: true, showcase: self.can_showcase() },
         }
     }
 }

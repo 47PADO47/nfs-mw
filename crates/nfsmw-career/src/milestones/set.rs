@@ -139,6 +139,13 @@ impl MilestoneSet {
         self.summary.clear();
     }
 
+    /// Abandon a pursuit for the safe house: discard unbanked milestones and pursuit statistics without rewards.
+    pub fn abandon_pursuit(&mut self) -> usize {
+        let reverted = self.revert_at_stake();
+        self.start_pursuit();
+        reverted
+    }
+
     /// The end of a player pursuit (section 3.6), taking the result from `economy::pursuit`.
     ///
     /// - Escaped (not busted): the cop manager's escape counter goes to `pursuits_in_a_row` and the evasion time to
@@ -218,3 +225,7 @@ pub fn pay_banked(record: &mut CareerRecord, banked: &[Banked]) -> u32 {
     }
     record.bounty
 }
+
+#[cfg(test)]
+#[path = "abandon_tests.rs"]
+mod abandon_tests;

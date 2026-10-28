@@ -235,6 +235,10 @@ impl Carousel {
 }
 
 impl ScreenLogic for Carousel {
+    fn accepts_input(&self) -> bool {
+        !self.leaving
+    }
+
     fn covers_screens(&self) -> bool {
         true
     }
@@ -295,6 +299,7 @@ impl ScreenLogic for Carousel {
     }
 
     fn resume(&mut self, cx: &mut Cx) {
+        chrome::restore(cx);
         if self.row() == Some(crate::garage::menu_rows::Row::Gauge) {
             super::gauge_preview::show(cx);
         }

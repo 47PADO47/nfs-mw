@@ -59,6 +59,7 @@ struct State {
     view: Option<crate::garage::View>,
     section: Option<Section>,
     failure: u64,
+    tuning_discard: bool,
 }
 
 /// Screens share one session, but do not own persistence or career money.
