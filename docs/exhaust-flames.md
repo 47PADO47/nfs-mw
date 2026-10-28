@@ -56,7 +56,7 @@ the pops the sample layer's sputter module plays
 revs, none at a steady throttle. A car a mod added (the converted 2012 cars) has no sample layer and so no sputter module:
 the backfire and the pops its own sound logic decides at a lift-off (`audio/car/own_sfx/logic.rs`: a backfire at 3 to 25 % of
 the lift-offs by revs, one to three pops after it, now and then a lone pop) report the same pop notices, each when its sound
-plays, with or without a recording for it. A pop with the pedal down is not shown on the game's own cars. The original draws no
+plays, with or without a recording for it. A mod car with a `[car_sound.overrun]` table ([car-sound.md](modding/car-sound.md#the-overrun-backfire-car_soundoverrun)) decides its bangs by a charge instead: a strong bang, the pops after it and a burning flame light the pipes, a weak bang does not. A pop with the pedal down is not shown on the game's own cars. The original draws no
 flame for the sputters; this link is the rewrite's own. Cars with no pipe markers (some cop and service vehicles) show
 nothing.
 

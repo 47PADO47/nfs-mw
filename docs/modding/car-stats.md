@@ -1,6 +1,7 @@
 # Stats of a mod car: `[stats]`, upgrades, bars and nitrous
 
-Part of the [modding catalogue](README.md). A car a mod adds ([api-content.md](api-content.md#cars)) is a car of its own: it
+Part of the [modding catalogue](README.md). (A two-wheeled mod car, `kind = "bike"`, has no `[stats]`: it is described by its
+`[bike]` table, [bikes.md](bikes.md).) A car a mod adds ([api-content.md](api-content.md#cars)) is a car of its own: it
 inherits nothing from the 2005 game's cars. What it weighs, how its engine pulls, how its gearbox is spaced, what grip its
 tyres have and how hard it brakes is in its manifest, in absolute SI units, and the game builds the car's physics from that
 table, from the collision bounds in the car's own `BOUNDS.BIN` ([car-collision.md](car-collision.md)) and from the engine's
@@ -166,7 +167,8 @@ x_m = -1.4025
 # ... the same five keys
 ```
 
-Every key of both axles is required when the table is there, and the front axle is ahead of the rear. The game draws the
+Every key of both axles is required when the table is there (a bike's table leaves `face_m` out, [bikes.md](bikes.md#the-files-of-a-bike)),
+and the front axle is ahead of the rear. The game draws the
 wheel solid (the car's `FRONT_TIRE`) scaled to each axle's radius and width; the wheel's brake, skid marks and damage
 effects follow the same hubs. The table changes nothing of the physics, which stay `[stats]`.
 
