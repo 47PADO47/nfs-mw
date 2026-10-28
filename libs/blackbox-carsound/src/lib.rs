@@ -11,6 +11,7 @@ mod engine;
 mod input;
 mod interp;
 mod math;
+pub mod overrun;
 mod rng;
 pub mod synth;
 mod tuning;
