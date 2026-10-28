@@ -21,7 +21,7 @@ use super::{CarState, EMITTER_LIMIT, Lane, SpriteTexture};
 const SEED: u64 = 0x4e49_5452;
 /// The throttle above which the pedal is down. The 2012 game sets the pop's light-state bit (14) only when the pedal bit (8)
 /// and the nitrous start bit (9) are clear, so a pop effect never plays with the pedal pressed.
-const PEDAL_DOWN: f32 = 0.05;
+pub(super) const PEDAL_DOWN: f32 = 0.05;
 
 /// One effect of the profile at every pipe.
 struct VariantLane {

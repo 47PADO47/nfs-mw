@@ -84,13 +84,29 @@ fn read(renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &
         fx.shift_angle,
         fx.engine_upgrades
     );
-    Some(Active::new(
-        pipes,
-        lanes,
-        textures,
-        ShiftTiming { speed: fx.shift_speed, angle: fx.shift_angle },
-        fx.engine_upgrades,
-    ))
+    let mod_car = nfsmw_data::car::mods::is_mod_car(&model.name);
+    let timing = match mod_car {
+        true => mod_timing(fx.shift_speed, fx.shift_angle),
+        false => ShiftTiming { speed: fx.shift_speed, angle: fx.shift_angle },
+    };
+    // A mod car has no `pvehicle` record to say how many engine levels it has: its blow-off is always allowed.
+    let engine_upgrades = match mod_car {
+        true => 0,
+        false => fx.engine_upgrades,
+    };
+    let mut active = Active::new(pipes, lanes, textures, timing, engine_upgrades);
+    active.mod_car = mod_car;
+    Some(active)
+}
+
+/// The shift timing of a mod car: the one its `ecar` record gives, or the racers' when that has none (the class-wide
+/// `default` record, which every mod car falls back on, has no shift timing, so the blow-off would never show).
+pub(super) fn mod_timing(speed: f32, angle: f32) -> ShiftTiming {
+    let timing = ShiftTiming { speed, angle };
+    match timing.duration() > 0.0 {
+        true => timing,
+        false => super::trigger::MOD_SHIFT_TIMING,
+    }
 }
 
 /// The emitters of group emitter `index` at each of `pipes` pipes, drawn with texture `texture`.
@@ -140,6 +156,7 @@ impl Active {
             textures,
             timing,
             engine_upgrades,
+            mod_car: false,
             shift: Default::default(),
             backfire: Default::default(),
             intensity: 0.0,

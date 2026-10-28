@@ -7,9 +7,9 @@
 use blackbox_particles::EmitterSpec;
 
 /// The factor on the width of the nitrous sprites.
-pub(super) const NITROUS_SIZE: f32 = 0.5;
+pub(super) const NITROUS_SIZE: f32 = 0.3;
 /// The factor on the speed the nitrous sprites leave the pipe at. The glow's drag (quadratic) keeps its reach under a metre.
-pub(super) const NITROUS_REACH: f32 = 0.15;
+pub(super) const NITROUS_REACH: f32 = 0.08;
 
 /// `spec` for the burning nitrous: narrower sprites that stay nearer the pipe.
 pub(super) fn compact_nitrous(spec: &EmitterSpec) -> EmitterSpec {
@@ -38,9 +38,9 @@ mod tests {
             ..EmitterSpec::default()
         };
         let small = compact_nitrous(&spec);
-        assert_eq!(small.size, [0.0, 0.2, 0.5, 0.75]);
-        assert!((small.speed - 2.4).abs() < 1e-5);
-        assert!((small.velocity_start - Vec3::new(0.15, 0.3, 0.45)).length() < 1e-6);
+        assert!(small.size.iter().zip([0.0, 0.12, 0.3, 0.45]).all(|(a, b)| (a - b).abs() < 1e-6));
+        assert!((small.speed - 1.28).abs() < 1e-5);
+        assert!((small.velocity_start - Vec3::new(0.08, 0.16, 0.24)).length() < 1e-6);
         assert_eq!((small.rate, small.life), (50.0, 0.5));
         assert_eq!(spec.size[3], 1.5, "the source is untouched");
     }

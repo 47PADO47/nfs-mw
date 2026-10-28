@@ -43,8 +43,14 @@ pub struct ShiftEvent {
 impl ShiftEvent {
     /// Note the gear of this step: a change raises an up-shift (+1) or a down-shift (-1) event.
     pub fn note_gear(&mut self, gear: i32) -> bool {
+        self.note_gear_where(gear, |_| true)
+    }
+
+    /// Like [`Self::note_gear`], but a change raises its event only if `allowed(up)` says so (`up` is true for an
+    /// up-shift). The gear is noted either way; the result is whether an event was raised.
+    pub fn note_gear_where(&mut self, gear: i32, allowed: impl Fn(bool) -> bool) -> bool {
         let Some(previous) = self.gear.replace(gear) else { return false };
-        if gear == previous {
+        if gear == previous || !allowed(gear > previous) {
             return false;
         }
         if gear > previous {
@@ -88,6 +94,17 @@ pub const BACKFIRE_INTENSITY: f32 = 0.5;
 /// Throttle below which the driver is off the pedal, so that a pop is a lift-off backfire.
 pub const LIFT_OFF_THROTTLE: f32 = 0.15;
 
+/// How a car added by a mod flames. Its sounds decide when it pops and shifts (the host has no sputter module for it) and it
+/// has no `ecar` record of its own, so the host's flames are made plainly visible: a flame that outlasts a few frames at a
+/// 30 Hz capture, at full strength, for every pop and for every up-shift made under power.
+pub const MOD_BACKFIRE_SECONDS: f32 = 0.15;
+pub const MOD_BACKFIRE_INTENSITY: f32 = 1.0;
+/// The shift blow-off timing of the game's racers (`ShiftSpeed` 8, `ShiftAngle` 2.25): the class-wide `default` `ecar` record
+/// that a mod car falls back on has neither, which would turn the shift flame off for good.
+pub const MOD_SHIFT_TIMING: ShiftTiming = ShiftTiming { speed: 8.0, angle: 2.25 };
+/// Throttle above which an up-shift of a mod car is made under power and blows off.
+pub const MOD_SHIFT_LOAD: f32 = 0.35;
+
 /// The flame a sputter pop leaves: it runs a short time and a new pop restarts it.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Backfire {
@@ -96,11 +113,17 @@ pub struct Backfire {
 
 impl Backfire {
     /// Note the pops of this step: they start the flame when the driver is off the throttle in a forward gear.
+    #[cfg(test)]
     pub fn pops(&mut self, pops: u32, throttle: f32, gear: i32) {
+        self.pops_for(pops, throttle, gear, BACKFIRE_SECONDS);
+    }
+
+    /// [`Self::pops`] with a flame that lasts `seconds`.
+    pub fn pops_for(&mut self, pops: u32, throttle: f32, gear: i32, seconds: f32) {
         if pops == 0 || throttle >= LIFT_OFF_THROTTLE || !is_forward(gear) {
             return;
         }
-        self.start();
+        self.left = seconds;
     }
 
     /// Light the flame whatever the driver does (the console's `pop`).
@@ -124,12 +147,18 @@ impl Backfire {
 
 /// How strongly the pipes spawn this step, 0 for quiet: full for a running shift event on an engine that allows
 /// it, [`BACKFIRE_INTENSITY`] for a backfire alone.
+#[cfg(test)]
 pub fn flame_intensity(blowoff: bool, shift: &ShiftEvent, backfire: &Backfire) -> f32 {
+    flame_intensity_with(blowoff, shift, backfire, BACKFIRE_INTENSITY)
+}
+
+/// [`flame_intensity`] with a backfire of `backfire_intensity`.
+pub fn flame_intensity_with(blowoff: bool, shift: &ShiftEvent, backfire: &Backfire, backfire_intensity: f32) -> f32 {
     if blowoff && shift.active() {
         return 1.0;
     }
     match backfire.active() {
-        true => BACKFIRE_INTENSITY,
+        true => backfire_intensity,
         false => 0.0,
     }
 }
@@ -265,5 +294,36 @@ mod tests {
         assert_eq!(flame_intensity(false, &ShiftEvent::default(), &back), BACKFIRE_INTENSITY);
         back.reset();
         assert!(!back.active());
+    }
+
+    #[test]
+    fn a_gated_shift_raises_its_event_only_when_allowed_and_still_notes_the_gear() {
+        let mut shift = ShiftEvent::default();
+        shift.note_gear(2);
+        assert!(!shift.note_gear_where(3, |_| false), "refused");
+        assert!(!shift.active());
+        assert!(!shift.note_gear_where(3, |_| true), "the gear was noted, so 3 to 3 is no change");
+        assert!(shift.note_gear_where(4, |up| up));
+        assert!(shift.active());
+        assert!(!shift.note_gear_where(3, |up| up), "a down-shift is refused by an up-only gate");
+        assert!(shift.shifting > 0.0, "the running up-shift is kept");
+    }
+
+    #[test]
+    fn a_mod_car_pop_flame_is_longer_and_the_throttle_gate_still_applies() {
+        let mut back = Backfire::default();
+        back.pops_for(1, 0.0, 3, MOD_BACKFIRE_SECONDS);
+        assert_eq!(back, Backfire { left: MOD_BACKFIRE_SECONDS });
+        const { assert!(MOD_BACKFIRE_SECONDS > 2.0 * BACKFIRE_SECONDS) };
+        assert_eq!(flame_intensity_with(false, &ShiftEvent::default(), &back, MOD_BACKFIRE_INTENSITY), 1.0);
+        let mut quiet = Backfire::default();
+        quiet.pops_for(1, 1.0, 3, MOD_BACKFIRE_SECONDS);
+        assert!(!quiet.active());
+    }
+
+    #[test]
+    fn the_fallback_shift_timing_of_a_mod_car_is_the_racers() {
+        assert_eq!(MOD_SHIFT_TIMING, RACER);
+        assert!(MOD_SHIFT_TIMING.duration() > 0.25);
     }
 }

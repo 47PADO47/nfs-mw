@@ -12,6 +12,7 @@ mod tint;
 use tint::{apply_flame_profile, tint_blue};
 mod load;
 mod scale;
+mod step;
 mod trigger;
 pub(in crate::scenes::world) mod variant;
 
@@ -21,7 +22,7 @@ use blackbox_particles::{Emitter, Frame};
 use blackbox_render::{BlendMode, EffectLayer, EffectVertex, TextureHandle, TexturedEffect};
 use glam::{Mat4, Vec3};
 
-use trigger::{Backfire, ShiftEvent, ShiftTiming, blowoff_allowed, flame_intensity};
+use trigger::{Backfire, ShiftEvent, ShiftTiming};
 
 /// Most tail pipes that flame, and most live particles of one pipe's emitter (spec 8.4).
 pub const MAX_PIPES: usize = 4;
@@ -72,6 +73,8 @@ struct Active {
     textures: Vec<SpriteTexture>,
     timing: ShiftTiming,
     engine_upgrades: i32,
+    /// The car was added by a mod: its pops and shifts flame plainly (see `trigger::MOD_BACKFIRE_SECONDS`).
+    mod_car: bool,
     shift: ShiftEvent,
     backfire: Backfire,
     /// How strongly the pipes spawned in the latest step, 0 when quiet.
@@ -154,46 +157,6 @@ impl Active {
             true => &self.lanes[index],
             false => &self.blue[index - self.lanes.len()],
         }
-    }
-
-    /// One physics step: the shift event and the backfire, then every pipe's emitters (spawning while the pipes
-    /// flame). A step with nothing flaming and nothing alive does no more than that.
-    fn step(&mut self, dt: f32, car: &CarState, pops: u32, forced: bool, engine_level: i32, replaced: (bool, bool)) {
-        let shifted = self.shift.note_gear(car.gear);
-        self.shift.advance(dt, car.gear, car.velocity.length(), self.timing);
-        self.backfire.pops(pops, car.throttle, car.gear);
-        if forced {
-            self.backfire.start();
-        }
-        let blowoff = blowoff_allowed(engine_level, self.engine_upgrades);
-        self.intensity = flame_intensity(blowoff, &self.shift, &self.backfire);
-        self.backfire.advance(dt);
-        self.nitrous = car.nitrous;
-        let event = match forced || (pops > 0 && car.throttle < trigger::LIFT_OFF_THROTTLE && car.gear >= 1) {
-            true => Some(crate::garage::BackfireEvent::Pop),
-            false => match shifted && blowoff && self.shift.active() {
-                true => Some(crate::garage::BackfireEvent::Shift),
-                false => None,
-            },
-        };
-        self.enhanced.step(dt, car, event);
-        if self.intensity == 0.0 && !self.nitrous && self.live == 0 {
-            return;
-        }
-        // The burning nitrous flames blue in place of the orange blow-off and backfire.
-        // A variant's effects can stand in for the game's flames (`variant.rs`): then they spawn nothing.
-        let orange = if self.nitrous || replaced.1 { 0.0 } else { self.intensity };
-        let blue = if self.nitrous && !replaced.0 { 1.0 } else { 0.0 };
-        for (lanes, intensity) in [(&mut self.lanes, orange), (&mut self.blue, blue)] {
-            for lane in lanes {
-                for (emitter, pipe) in lane.emitters.iter_mut().zip(&self.pipes) {
-                    emitter.set_enabled(intensity > 0.0);
-                    let frame = Frame { to_world: car.to_world * *pipe, inherit_velocity: car.velocity, intensity };
-                    emitter.step(dt, &frame);
-                }
-            }
-        }
-        self.live = self.live();
     }
 
     fn age(&mut self, dt: f32) {
@@ -490,5 +453,7 @@ impl ExhaustFlames {
     }
 }
 
+#[cfg(test)]
+mod mod_car_tests;
 #[cfg(test)]
 mod tests;
