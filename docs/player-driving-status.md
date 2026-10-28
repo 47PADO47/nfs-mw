@@ -391,5 +391,25 @@ Longer routes, complete world contacts, raw-input shaping, live floating-point
 precision and runtime tire descriptor selection remain outside its verified
 boundary. A later M3 GTR steering-only diagnostic closely matches the recorded
 steering angle, but supplies recorded body motion and rear slip as inputs. It
-does not compare the car's resulting path or establish a cause for the reported
-side-to-side handling impression.
+does not compare the car's resulting path.
+
+## Retained M3 response follow-up
+
+The 2026-10-28 follow-up uses 717 complete response boundaries from the separately
+audited prefix of the interrupted M3 recording. The full recording remains
+invalid. Each response supplies recorded body, tire and world state; only
+steering history carries between responses. This is not a trajectory test.
+
+Two arithmetic corrections preserve the original stored steering-history sum
+and Z/Y-before-X wheel-load projection. No handling attributes are retuned.
+Original-instruction synthetic probes check the isolated arithmetic contracts.
+In the retained response comparison, exact steering angles increase from
+385 to 500 of 717, and the maximum angle residual falls from 0.000286103 to
+0.0000114441 degrees. Exact wheel loads increase from 2,411 to 2,579 of 2,868.
+All compared engine outputs, terrain query positions and selected planes still
+match. Query tolerances and some load, tire-force and body-response fields
+retain differences. Maximum body force/torque component residuals remain
+1.23828125 N and 1.10888672 Nm. These are measurements, not acceptance limits.
+
+Timestamp expiry, runtime input/descriptor selection, live floating-point
+precision and between-tick world contacts remain open.

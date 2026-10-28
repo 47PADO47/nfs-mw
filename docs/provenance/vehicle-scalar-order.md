@@ -1,5 +1,12 @@
 # Vehicle force scalar order
 
+The 2026-10-28 original-PC instruction-block replay confirms Z/Y-before-X projection
+for the reference wheel-load factor. A 54-case synthetic block comparison
+distinguishes it from the prior grouping. The original-style and modded PC
+executables have identical wheel-force code in the inspected range. The first
+retained M3 front-wheel load difference matches the corrected order exactly.
+Other input and response differences remain separate.
+
 Date: 2026-10-26. Sources: original PC executable behavior inspection,
 retained player-vehicle boundaries and existing remake source. No restricted
 implementation or captured game data is included here.

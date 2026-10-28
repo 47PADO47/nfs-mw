@@ -13,6 +13,10 @@ fn reference_forward_speed(velocity: Vec3, direction: Vec3) -> f32 {
     (velocity.x * direction.x + velocity.z * direction.z) + velocity.y * direction.y
 }
 
+fn reference_load_projection(flat: Vec3, normal: Vec3) -> f32 {
+    (flat.z * normal.z + flat.y * normal.y) + flat.x * normal.x
+}
+
 fn query_tolerance(velocity: Vec3, dt: f32, radius: f32, height: f32, reference: bool) -> f32 {
     let down = (-velocity.y * dt).max(0.0);
     let horizontal = Vec3::new(velocity.x, 0.0, velocity.z).length() * dt;
@@ -103,7 +107,10 @@ impl Vehicle {
                 let flat = (f.cross(n)).cross(f);
                 let upness = match self.rolling_chassis.is_some_and(|config| config.load_from_up) {
                     true => n.dot(up),
-                    false => flat.dot(n),
+                    false => match self.tires[i].integration {
+                        crate::tires::TireIntegration::Reference => reference_load_projection(flat, n),
+                        crate::tires::TireIntegration::Regularized => flat.dot(n),
+                    },
                 };
                 let load = (4.0 * upness - 3.0).max(0.3) * f_spring;
                 let lat_dir = {
@@ -165,6 +172,12 @@ impl Vehicle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reference_load_projection_adds_z_and_y_first() {
+        let projection = reference_load_projection(Vec3::new(0.87, 0.87, 0.31), Vec3::new(0.3, 0.8, 0.4));
+        assert_eq!((4.0 * projection - 3.0).to_bits(), 0x3fa978d8);
+    }
 
     #[test]
     fn forward_projection_preserves_xz_before_y_rounding() {
