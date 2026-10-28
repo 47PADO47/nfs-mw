@@ -90,9 +90,9 @@ impl Renderer {
         effect.previous_from_current = effect.previous.map_or(Mat4::IDENTITY, |f| f.view * frame.view.inverse());
         let previous = effect.previous.filter(|_| !effect.reset).map_or(frame.view_proj(), |f| f.view_proj());
         let motion = TemporalFrame {
-            #[cfg(all(windows, feature = "streamline"))]
+            #[cfg(all(windows, feature = "streamline", streamline_sdk))]
             projection: frame.projection.matrix(),
-            #[cfg(all(windows, feature = "streamline"))]
+            #[cfg(all(windows, feature = "streamline", streamline_sdk))]
             camera_to_world: frame.view.inverse(),
             jitter,
             jitter_matrix: super::jitter_matrix(fsr3_wgpu::jitter::projection_offset_ndc(

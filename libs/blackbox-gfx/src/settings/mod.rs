@@ -53,6 +53,8 @@ pub struct GraphicsSettings {
     pub upscaler: Upscaler,
     /// Sets the render size of a temporal upscaler.
     pub upscale_quality: UpscaleQuality,
+    /// DLSS SR model (0 uses the NVIDIA default, 11-13 select K/L/M).
+    pub dlss_model: u32,
     /// Render size relative to the output, for the spatial upscalers ([`MIN_RENDER_SCALE`]..=[`MAX_RENDER_SCALE`]).
     pub render_scale: f32,
     /// RCAS sharpness of FSR 1, 0.0..=1.0.
@@ -76,6 +78,7 @@ impl Default for GraphicsSettings {
             shadows: ShadowQuality::Off,
             upscaler: Upscaler::default(),
             upscale_quality: UpscaleQuality::default(),
+            dlss_model: 0,
             render_scale: DEFAULT_RENDER_SCALE,
             upscale_sharpness: DEFAULT_UPSCALE_SHARPNESS,
             ray_tracing: RayTracing::Off,
@@ -88,6 +91,10 @@ impl GraphicsSettings {
     pub fn sanitized(self) -> Self {
         Self {
             post: self.post.sanitized(),
+            dlss_model: match self.dlss_model {
+                11..=13 => self.dlss_model,
+                _ => 0,
+            },
             ao: self.ao.sanitized(),
             render_scale: clamp_render_scale(self.render_scale),
             upscale_sharpness: clamp_upscale_sharpness(self.upscale_sharpness),

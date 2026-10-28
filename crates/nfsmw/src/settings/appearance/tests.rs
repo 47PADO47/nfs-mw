@@ -119,6 +119,8 @@ fn custom_overrides_survive_a_round_trip_and_quality_selection() {
     s.appearance.lighting.local_reflection_correction = false;
     s.appearance.lighting.weather_car_lighting = false;
     s.appearance.treatment_strength = Some(0.73);
+    s.appearance.vignette = 0.42;
+    s.appearance.dlss_model = DlssModel::K;
     s.appearance.lighting.freeze_sun = true;
     s.appearance.lighting.lighting_debug = blackbox_gfx::LightingDebug::Cascades;
     assert_eq!(s.visual_style(), VisualStyle::Custom);
@@ -137,6 +139,10 @@ value=7
     let mut loaded = Settings::from(super::super::file::parse(&text, "test"));
     assert_eq!(loaded.post_aa, PostAa::Smaa);
     assert_eq!(loaded.appearance.treatment_strength, Some(0.73));
+    assert_eq!(loaded.appearance.vignette, 0.42);
+    assert_eq!(loaded.appearance.dlss_model, DlssModel::K);
+    assert_eq!(loaded.graphics().dlss_model, 11);
+    assert_eq!(loaded.graphics().post.vignette, 0.42);
     assert_eq!(loaded.appearance.lighting.sky_strength, 0.41);
     assert_eq!(loaded.appearance.lighting.indirect_strength, 1.3);
     assert!(loaded.appearance.lighting.cached_reflections && loaded.appearance.lighting.screen_reflections);
@@ -151,6 +157,15 @@ value=7
     assert!(loaded.appearance.lighting.cached_reflections && loaded.appearance.lighting.screen_reflections);
     assert_eq!(loaded.appearance.treatment_strength, Some(0.73));
     assert!((loaded.graphics().post.colour_treatment - 0.73).abs() < 1e-6);
+}
+
+#[test]
+fn dlss_model_auto_migrates_the_previous_current_name() {
+    let old: toml::Value = toml::from_str("version = 1\ndlss_model = 'current'\n").unwrap();
+    let settings = Appearance::read(&old, "test").unwrap();
+    assert_eq!(settings.dlss_model, DlssModel::Auto);
+    assert_eq!(settings.value().unwrap()["dlss_model"].as_str(), Some("auto"));
+    assert_eq!(Appearance::default().dlss_model.sdk_value(), 0);
 }
 #[test]
 fn legacy_preferences_load_without_auto_applying_a_style() {

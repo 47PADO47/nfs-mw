@@ -129,13 +129,14 @@ fn appearance(ui: &mut egui::Ui, settings: &mut Settings) {
     if ui.add(egui::Slider::new(&mut strength, 0.0..=1.0).text("Treatment strength")).changed() {
         settings.appearance.treatment_strength = Some(strength);
     }
+    ui.add(egui::Slider::new(&mut settings.appearance.vignette, 0.0..=1.0).text("Vignette intensity"));
+    ui.small("The vignette is disabled while DLSS Frame Generation is active to avoid artifacts.");
+    ui.small("Visual Treatment's original vignette is disabled; use the separate slider above.");
     if settings.visual_treatment == VisualTreatment::Reference {
         ui.small(
             "Supplied mod override: RGB 0.68 / 0.62 / 0.03; colour bloom 0.75; Saturation 0.80; black bloom 0.40.",
         );
-        ui.small(
-            "Uses installed curves and gain map. Saturation 0.80 retains 80% source colour before bloom and gain.",
-        );
+        ui.small("Uses installed curves. Saturation 0.80 retains 80% source colour before bloom.");
     }
     ui.small("Original midday profile only. Tunnel/pursuit look selection and original Over Bright remain incomplete; current bloom and ACES are custom.");
 }

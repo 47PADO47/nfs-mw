@@ -104,7 +104,7 @@ native-dlss = ["blackbox-render/streamline"]
 mimalloc = ["dep:mimalloc"]
 # The Bevy renderer and the FSR 3 upscaler are in the default build. `--no-default-features` leaves them out: the game
 # is then the native renderer alone (FSR 1 is its best upscaler) and never compiles bevy_render.
-default = ["renderer-bevy", "fsr3", "mimalloc", "multiplayer"]
+default = ["renderer-bevy", "fsr3", "mimalloc", "multiplayer", "native-dlss"]
 # LAN multiplayer (docs/specs/multiplayer/game-wiring.md): `--host`, `--connect`, `--dedicated`, `--discover`, the
 # listen server's thread and the client mode of the world. Off, the game is single player and compiles no netcode.
 multiplayer = ["dep:nfsmw-server", "dep:ctrlc", "blackbox-net-core/netcode"]

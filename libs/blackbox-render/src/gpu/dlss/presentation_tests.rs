@@ -70,6 +70,18 @@ pub(super) fn exercise(
             })
             .collect(),
     });
+    renderer.set_scene_treatment(
+        Some(&blackbox_gfx::ColourTreatment {
+            tint: [1.0; 3],
+            luminance: [1.0 / 3.0; 3],
+            desaturation: 1.0,
+            black_intensity: 0.0,
+            colour_intensity: 0.0,
+            black_curve: [0.0; 4],
+            colour_curve: [0.0; 4],
+        }),
+        None,
+    );
     for hdr in [blackbox_gfx::HdrMode::Off, blackbox_gfx::HdrMode::Auto] {
         renderer.set_display_settings(blackbox_gfx::DisplaySettings { hdr, ..Default::default() });
         eprintln!("Presentation display: {:?}", renderer.display_status());
@@ -78,6 +90,29 @@ pub(super) fn exercise(
             let before_rendered = renderer.frame_performance().rendered_frames;
             let mut saw_generated_present = false;
             for index in 0..32 {
+                // Look and quality presets change post-processing, AO and reflection settings during DLSS-G.
+                if generated == 1 && (8..24).contains(&index) {
+                    let mut settings = GraphicsSettings {
+                        upscaler: Upscaler::Dlss,
+                        upscale_quality: UpscaleQuality::Native,
+                        ao: AoSettings {
+                            method: AoMethod::TemporalXeGtao,
+                            quality: AoQuality::Medium,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    };
+                    settings.post.colour_treatment = if index % 2 == 0 { 1.0 } else { 0.0 };
+                    settings.ao.quality = if index % 2 == 0 { AoQuality::High } else { AoQuality::Medium };
+                    settings.reflections = if index % 2 == 0 {
+                        blackbox_gfx::ReflectionQuality::High
+                    } else {
+                        blackbox_gfx::ReflectionQuality::Low
+                    };
+                    settings.dlss_model = [0, 11, 12, 13][index % 4];
+                    renderer.apply_graphics(&settings);
+                    assert!(renderer.latency_status().generation_active, "quality changes must not restart DLSS-G");
+                }
                 // HDR swapchain transitions can return focus to another desktop window.
                 // The SDK intentionally suppresses interpolation without a focused test window.
                 window.visible();

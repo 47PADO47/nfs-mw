@@ -1,9 +1,12 @@
 fn main() {
     println!("cargo:rerun-if-env-changed=STREAMLINE_SDK");
+    println!("cargo:rustc-check-cfg=cfg(streamline_sdk)");
     #[cfg(feature = "streamline")]
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
-        let sdk = std::env::var("STREAMLINE_SDK")
-            .expect("streamline requires STREAMLINE_SDK pointing to NVIDIA Streamline SDK 2.14.16");
+        let Ok(sdk) = std::env::var("STREAMLINE_SDK") else {
+            println!("cargo:warning=STREAMLINE_SDK is not set; native DLSS is unavailable in this build");
+            return;
+        };
         println!("cargo:rerun-if-changed=src/gpu/dlss/bridge.cpp");
         println!("cargo:rerun-if-changed=src/gpu/dlss/presentation.cpp");
         println!("cargo:rerun-if-changed=src/gpu/dlss/dx12.cpp");
@@ -17,6 +20,7 @@ fn main() {
             .include(format!("{sdk}/include"))
             .file("src/gpu/dlss/bridge.cpp")
             .compile("blackbox_streamline");
+        println!("cargo:rustc-cfg=streamline_sdk");
         println!("cargo:rustc-link-lib=wintrust");
         println!("cargo:rustc-link-lib=crypt32");
     }

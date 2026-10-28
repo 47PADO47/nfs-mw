@@ -80,3 +80,19 @@ fn the_fill_draw_gives_the_camera_motion_of_a_still_point_whatever_the_jitter() 
     let filled = fill_vector(jitter * current, current, previous, point);
     assert!((filled - direct).abs().max_element() < 1e-4, "{filled} vs {direct}");
 }
+
+#[test]
+fn sky_direction_tracks_rotation_but_not_translation() {
+    let projection = Projection::PerspectiveInfiniteReverse { fov_y: 1.0, aspect: 16.0 / 9.0, near: 0.1 }.matrix();
+    let current = camera();
+    let jittered = jitter_matrix(Vec2::new(0.003, -0.002)) * current;
+    let direction = Mat4::from_cols_array(&super::motion::inverse(jittered)) * Vec4::new(0.2, -0.1, 0.0, 1.0);
+    let direction = direction.truncate().extend(0.0);
+    let moved =
+        projection * glam::camera::rh::view::look_at_mat4(Vec3::new(3.0, -5.0, 1.0), Vec3::new(3.0, 5.0, 1.0), Vec3::Z);
+    let turned =
+        projection * glam::camera::rh::view::look_at_mat4(Vec3::new(0.0, -5.0, 1.0), Vec3::new(1.0, 5.0, 1.0), Vec3::Z);
+    let at = ndc(current * direction);
+    assert!((ndc(moved * direction) - at).length() < 1e-6);
+    assert!((ndc(turned * direction) - at).length() > 0.01);
+}

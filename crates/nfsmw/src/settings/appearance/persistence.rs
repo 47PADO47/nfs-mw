@@ -42,6 +42,8 @@ struct Stored {
     style: VisualStyle,
     quality: Quality,
     treatment_strength: Option<f32>,
+    vignette: f32,
+    dlss_model: DlssModel,
     lighting: Lighting,
 }
 impl Default for Stored {
@@ -52,6 +54,8 @@ impl Default for Stored {
             style: VisualStyle::Custom,
             quality: Quality::High,
             treatment_strength: None,
+            vignette: 0.0,
+            dlss_model: DlssModel::Auto,
             lighting: Default::default(),
         }
     }
@@ -77,6 +81,11 @@ pub(super) fn read(value: &toml::Value, origin: &str) -> Option<Appearance> {
         style: stored.style,
         quality: stored.quality,
         treatment_strength: stored.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
+        vignette: match stored.vignette.is_finite() {
+            true => stored.vignette.clamp(0.0, 1.0),
+            false => 0.0,
+        },
+        dlss_model: stored.dlss_model,
         lighting: blackbox_gfx::RenderExperiments { original_world_materials: true, ..lighting },
     })
 }
@@ -87,6 +96,11 @@ pub(super) fn value(value: Appearance) -> anyhow::Result<toml::Value> {
         style: value.style,
         quality: value.quality,
         treatment_strength: value.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
+        vignette: match value.vignette.is_finite() {
+            true => value.vignette.clamp(0.0, 1.0),
+            false => 0.0,
+        },
+        dlss_model: value.dlss_model,
         lighting: value.lighting.sanitized().into(),
     })?)
 }

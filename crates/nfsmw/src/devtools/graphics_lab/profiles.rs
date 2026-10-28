@@ -72,6 +72,7 @@ pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             settings.post_tonemap = defaults.post_tonemap;
             settings.visual_treatment = defaults.visual_treatment;
             settings.appearance.treatment_strength = None;
+            settings.appearance.vignette = defaults.appearance.vignette;
         }
         Tab::Lighting => {
             let reflections = (lab.options.cached_reflections, lab.options.screen_reflections);

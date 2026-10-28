@@ -34,6 +34,7 @@ impl Settings {
             render_scale: self.render_scale.factor(),
             upscale_sharpness: self.upscale_sharpness.amplitude(),
             upscale_quality: self.upscale_quality.mode(),
+            dlss_model: self.appearance.dlss_model.sdk_value(),
             ray_tracing: self.ray_tracing.level(),
             ao: AoSettings {
                 quality: self.ao,

@@ -55,6 +55,23 @@ fn clear_frame(color: [f32; 3]) -> FrameParams {
     }
 }
 
+#[test]
+#[ignore = "needs a GPU"]
+fn vignette_affects_main_capture_but_not_the_mirror() {
+    let _gpu = test_support::serial();
+    let mut renderer = test_support::headless((64, 36)).expect("mirror adapter");
+    let frame = clear_frame([0.8, 0.8, 0.8]);
+    let main_before = renderer.capture(64, 36, &frame, &[]).unwrap();
+    let id = renderer.request_view_capture([64, 36], &frame, &[]).unwrap();
+    let mirror_before = poll_until_ready(&mut renderer, id).expect("mirror baseline");
+    renderer.set_post_effects(blackbox_gfx::PostSettings { vignette: 1.0, ..Default::default() });
+    let main_after = renderer.capture(64, 36, &frame, &[]).unwrap();
+    let id = renderer.request_view_capture([64, 36], &frame, &[]).unwrap();
+    let mirror_after = poll_until_ready(&mut renderer, id).expect("mirror with vignette enabled");
+    assert!(main_after[0] + 20 < main_before[0], "the main capture retains the vignette");
+    assert_eq!(mirror_after.rgba, mirror_before.rgba, "the mirror must not receive the vignette");
+}
+
 /// Poll `id` until its picture is ready, at most 200 times. `None` if it never was.
 fn poll_until_ready(backend: &mut dyn RenderBackend, id: CaptureId) -> Option<RgbaImage> {
     for _ in 0..200 {

@@ -12,7 +12,7 @@ mod cull;
 #[cfg(test)]
 mod cull_tests;
 mod display;
-#[cfg(all(windows, feature = "streamline"))]
+#[cfg(all(windows, feature = "streamline", streamline_sdk))]
 mod dlss;
 mod draw_list;
 mod draw_mask;
@@ -99,9 +99,9 @@ use crate::{RenderError, RendererOptions, clamp_render_scale, scaled_size};
 use targets::{HDR_FORMAT, SceneInputs, SceneTargets};
 
 pub struct Renderer {
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     dlss: Option<dlss::Runtime>,
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     presentation: dlss::presentation::Presentation,
     adapter: wgpu::Adapter,
     display: display::Display,
@@ -239,7 +239,7 @@ impl Renderer {
         if width == 0 || height == 0 {
             return;
         }
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.suspend(&self.device);
         }
@@ -313,9 +313,11 @@ impl Renderer {
             true => output,
             false => scaled_size(output, self.render_scale),
         };
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         let render = match temporal && self.upscaler() == crate::Upscaler::Dlss {
-            true => dlss::render_size(self.graphics.upscale_quality, output).unwrap_or(render),
+            true => {
+                dlss::render_size(self.graphics.upscale_quality, output, self.graphics.dlss_model).unwrap_or(render)
+            }
             false => render,
         };
         targets::plan_scene(&SceneInputs {
@@ -340,6 +342,11 @@ impl Renderer {
         if self.targets.matches(&plan) {
             return;
         }
+        // Streamline may still use the old depth and motion images during asynchronous present.
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
+        if self.dlss.is_some() {
+            self.presentation.suspend(&self.device);
+        }
         self.targets = SceneTargets::new(&self.device, &plan);
         self.temporal.stop();
         if plan.direct {
@@ -349,7 +356,7 @@ impl Renderer {
 
     /// Turn vertical sync on or off without recreating the renderer.
     pub fn set_vsync(&mut self, vsync: bool) {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.suspend(&self.device);
         }

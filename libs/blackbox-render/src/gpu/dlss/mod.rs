@@ -123,6 +123,6 @@ pub(super) fn mode(quality: UpscaleQuality) -> u32 {
     }
 }
 
-pub(super) fn render_size(quality: UpscaleQuality, output: (u32, u32)) -> Option<(u32, u32)> {
-    native::optimal_size(mode(quality), output)
+pub(super) fn render_size(quality: UpscaleQuality, output: (u32, u32), model: u32) -> Option<(u32, u32)> {
+    native::optimal_size(mode(quality), output, model)
 }

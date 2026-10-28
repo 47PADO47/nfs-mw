@@ -173,7 +173,7 @@ impl Renderer {
         self.encode_reflections(&mut encoder, false);
         self.encode_irradiance(&mut encoder);
         self.encode_scene_mode(&mut encoder, Some(&capture.scene), &capture.view, frame, instances, true, None);
-        self.encode_post(&mut encoder, Some(&capture.scene), &capture.view, (width, height));
+        self.encode_post(&mut encoder, Some(&capture.scene), &capture.view, (width, height), true);
         let composed = match ui {
             Some(target) => self.ui.compose_picture(
                 &self.device,

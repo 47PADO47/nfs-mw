@@ -97,13 +97,16 @@ fn vs_fill(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
 fn fs_fill(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let texel = vec2<i32>(frag.xy);
     let depth = textureLoad(depth_texture, texel, 0);
-    // Nothing was drawn here (the sky): no motion and no coverage, as the cleared target of an object draw.
-    if depth <= 0.0 {
-        return vec4<f32>(0.0);
-    }
     let size = vec2<f32>(textureDimensions(depth_texture));
     let ndc = vec2<f32>(frag.x / size.x * 2.0 - 1.0, 1.0 - frag.y / size.y * 2.0);
     let h = camera.inverse * vec4<f32>(ndc, depth, 1.0);
+    // Reverse-Z depth zero is a direction at infinity. Project it without translation
+    // so camera rotation moves the sky, while AO still sees no surface coverage.
+    if depth <= 0.0 {
+        let direction = vec4<f32>(h.xyz, 0.0);
+        let sky_motion = motion_between(camera.current * direction, camera.previous * direction);
+        return vec4<f32>(sky_motion.xy, 0.0, 0.0);
+    }
     if abs(h.w) < 1e-20 {
         return vec4<f32>(0.0);
     }
