@@ -25,6 +25,9 @@ pub struct CarPhysics {
     pub geometry: Option<Arc<CarGeometry>>,
     pub events: Option<Arc<CarEventSpec>>,
     pub reactions: Option<Arc<AiCollisionReactions>>,
+    /// The two-wheel dynamics of a bike. `Some`: the car is a bike and `spec` is only the body that stands in for it in the
+    /// game's wall and object contacts.
+    pub bike: Option<super::BikePhysics>,
 }
 
 /// The physics of car type `type_name` (e.g. `BMWM3GTR`), read from `db` (`attributes.bin`).
@@ -66,6 +69,7 @@ pub fn car_physics(db: &Database, type_name: &str, bounds: CarBounds) -> Result<
         geometry: None,
         events: None,
         reactions,
+        bike: None,
         tire_integration: blackbox_vehicle::tires::TireIntegration::Reference,
         jump_config: super::jump_config(),
     })

@@ -13,6 +13,7 @@ use blackbox_carparts::CarTypeInfo;
 
 use crate::pursuit::HEAT_LEVELS;
 
+pub mod bike;
 pub mod cop;
 pub mod custom;
 pub mod driver_poses;
@@ -26,7 +27,9 @@ pub use blackbox_vehicle::stats::{CarStats, Drive};
 pub use cop::{
     COP_CHANCE, COP_COUNT, CopDamage, CopKind, CopUnit, CopWave, add_cop_rows, cop_cars, cop_kind, cop_unit, is_cop_car,
 };
-pub use engine::{CarEffects, CurveInput, EngineLayer, EngineSound, LayerCurve, LayerKind, LayerPitch, SharedSound};
+pub use engine::{
+    CarEffects, CurveInput, EngineLayer, EngineSound, LayerCurve, LayerKind, LayerPitch, Overrun, SharedSound,
+};
 pub use traffic::{
     TrafficClass, TrafficRule, TrafficUnit, is_traffic_car, traffic_cars, traffic_generation, traffic_rules,
     traffic_unit,
