@@ -10,10 +10,13 @@ use nfsmw_data::world::mesh_animation::{Entity, Instance as Placement, WorldAnim
 
 use super::residency::Residency;
 
+mod playback;
+use playback::Playback;
+
 struct AnimatedInstance {
     placement: Placement,
     entities: Vec<Entity>,
-    elapsed: f32,
+    controllers: Vec<Option<Playback>>,
 }
 
 #[derive(Default)]
@@ -56,17 +59,23 @@ impl MeshAnimations {
         }
         let mut instances = Vec::new();
         for placement in data.instances {
-            if placement.flags != 0x28
-                || placement.track != 0
-                || placement.direction != 0
-                || placement.start_trigger != 0
-                || placement.stop_trigger != 0
-                || !placement.speed.is_finite()
-            {
+            if placement.track != 0 || placement.flags & 0x600 != 0 {
                 continue;
             }
             let Some(entities) = data.trees.get(&placement.tree) else { continue };
-            instances.push(AnimatedInstance { placement, entities: entities.clone(), elapsed: 0.0 });
+            let controllers = entities
+                .iter()
+                .map(|entity| {
+                    let mut frames = None;
+                    for (bit, suffix) in [(1, b"_t"), (2, b"_q"), (4, b"_s")] {
+                        if entity.flags & bit != 0 {
+                            frames = Some(clips.get(&bstring_hash_continue(entity.animation, suffix))?.frames);
+                        }
+                    }
+                    Playback::new(&placement, f32::from(frames?))
+                })
+                .collect();
+            instances.push(AnimatedInstance { placement, entities: entities.clone(), controllers });
         }
         log::info!("world animations: {} instances, {} channels", instances.len(), clips.len());
         Ok(Self { skeleton: Some(skeleton), clips, instances })
@@ -78,8 +87,9 @@ impl MeshAnimations {
         }
         for item in &mut self.instances {
             if residency.animation_section_visible(item.placement.section) {
-                let speed = if item.placement.speed == 0.0 { 1.0 } else { item.placement.speed };
-                item.elapsed += dt * speed;
+                for controller in item.controllers.iter_mut().flatten() {
+                    controller.advance(dt);
+                }
             }
         }
     }
@@ -95,7 +105,10 @@ impl MeshAnimations {
                 let local = if entity.name == item.placement.tree {
                     Some(Mat4::from_cols_array(&item.placement.matrix))
                 } else if entity.animation != 0 {
-                    self.sample(entity, skeleton, item.elapsed)
+                    item.controllers[entity_index]
+                        .as_ref()
+                        .filter(|c| c.visible())
+                        .and_then(|c| self.sample(entity, skeleton, c.frame / 30.0))
                 } else {
                     Some(Mat4::from_cols_array(&entity.matrix))
                 };
@@ -138,7 +151,7 @@ impl MeshAnimations {
             if !duration.is_finite() || duration <= 0.0 {
                 return None;
             }
-            clip.sample(seconds.rem_euclid(duration), &mut dofs);
+            clip.sample(seconds * 30.0 / clip.fps, &mut dofs);
         }
         let pose = Pose::from_dofs(&dofs);
         skeleton.world(&pose).get(1).copied()
@@ -209,7 +222,9 @@ mod tests {
             assert!(first.iter().any(|instance| instance.mesh == mesh), "airliner part {suffix} must be placed");
         }
         for item in &mut scene.mesh_animations.instances {
-            item.elapsed += 1.0;
+            for controller in item.controllers.iter_mut().flatten() {
+                controller.advance(1.0);
+            }
         }
         let mut second = Vec::new();
         scene.mesh_animations.place(&scene.residency, &mut second);
