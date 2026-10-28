@@ -12,8 +12,14 @@ pub enum GroupProblem {
         index: u16,
         vertices: usize,
     },
-    /// The effect needs vertices wider than the 36-byte layout this writer produces (skinned, tangents, second UV).
+    /// The effect needs vertices this writer does not produce (skinned, or the 44-byte second-UV layout).
     WideEffect(u32),
+    /// A tangent effect needs one tangent per vertex, and any other effect takes none.
+    Tangents {
+        effect_id: u32,
+        tangents: usize,
+        vertices: usize,
+    },
     /// The light material is neither 0xFF (none) nor an entry of the solid's light-material list.
     LightMaterialOutOfRange {
         light_material: u8,

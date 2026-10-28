@@ -17,9 +17,11 @@ pub const IDENTITY: [f32; 16] = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.
 
 /// One material of a solid: a triangle list with its own vertices, drawn with one effect and texture set.
 ///
-/// Only the plain 36-byte vertex layout is written, so `effect_id` must not be one of the wide ones: 1 and 3
-/// (tangents, 60 bytes), 2 (skinned, 60) and 19 (second UV, 44) are refused. The ids that are safe are the ones the
-/// install uses with 36-byte vertices: 4 ([`CAR_EFFECT_ID`], every stock car group), 0, 5 and 6 (world shaders).
+/// The plain 36-byte vertex layout is written for most effect ids. The tangent effects of the layout (1 and 3 in
+/// version 0x16: normal-mapped surfaces) take 60-byte vertices and need [`GroupSource::tangents`], one per vertex; the
+/// second UV set of such a vertex is written as a copy of its first. Skinned effects (2) and the 44-byte second-UV
+/// effect (19) are refused. The ids that are safe with 36-byte vertices are the ones the install uses that way: 4
+/// ([`CAR_EFFECT_ID`], every stock car group), 0, 5 and 6 (world shaders).
 /// Consecutive groups with the same effect id share one vertex buffer on disk; the writer takes care of that.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GroupSource {
@@ -37,6 +39,8 @@ pub struct GroupSource {
     /// the stock files have; add-on cars made with other tools can differ.
     pub bounds: Option<([f32; 3], [f32; 3])>,
     pub vertices: Vec<Vertex>,
+    /// Tangent xyz and handedness of each vertex, for the tangent effects only (empty for every other group).
+    pub tangents: Vec<[f32; 4]>,
     /// Triangle list. Indices count from this group's own first vertex.
     pub indices: Vec<u16>,
 }
@@ -52,6 +56,7 @@ impl GroupSource {
             material_name: None,
             bounds: None,
             vertices,
+            tangents: Vec::new(),
             indices,
         }
     }

@@ -75,11 +75,14 @@ fn group_problem(group: &GroupSource, lights: usize, layout: &SolidLayout) -> Op
     if group.indices.len() % 3 != 0 {
         return Some(GroupProblem::PartialTriangle(group.indices.len()));
     }
-    let wide = layout.tangent_effects.contains(&group.effect_id)
-        || layout.skinned_effects.contains(&group.effect_id)
-        || group.effect_id == SECOND_UV_EFFECT;
+    let wide = layout.skinned_effects.contains(&group.effect_id) || group.effect_id == SECOND_UV_EFFECT;
     if wide {
         return Some(GroupProblem::WideEffect(group.effect_id));
+    }
+    let wanted = if layout.tangent_effects.contains(&group.effect_id) { group.vertices.len() } else { 0 };
+    if group.tangents.len() != wanted {
+        let (effect_id, tangents, vertices) = (group.effect_id, group.tangents.len(), group.vertices.len());
+        return Some(GroupProblem::Tangents { effect_id, tangents, vertices });
     }
     if group.light_material != 0xFF && usize::from(group.light_material) >= lights {
         return Some(GroupProblem::LightMaterialOutOfRange { light_material: group.light_material, listed: lights });
