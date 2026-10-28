@@ -46,9 +46,10 @@ Solids are in car space (+x forward, +y left, +z up), centred on the wheelbase: 
 The game finds these through three parts it adds to its parts database for the car (`car/mods/parts.rs`): the body, the wheel
 and the driver, each of the car's own type, with these solids as their models (a part whose solid the car lacks draws nothing). Nothing else is added: the car has no brake part (the wheel
 solid holds the discs), no hood, spoiler, roof, damage overlay, decal or window tint part, and its paint, rims and tints are
-the choices of its `[customization]` table. The 2005 parts database allows 256 car and part-group names, about 106 of which
-the game uses, so a game that publishes more than about 150 mod cars leaves the later ones without a body part (the log says
-so). Hand-made cars must use the names above: the 2012 mod writes exactly these, and its real-install test loads them.
+the choices of its `[customization]` table. The stored 2005 parts database allows 256 car and part-group names (the game uses
+106), which would have left every mod car after the 150th without a body part; the engine's in-memory copy has wide indices, so
+this is no longer a limit for hundreds of cars ([capacity](../specs/car-parts-capacity.md),
+[api-content.md](api-content.md#parts-database-capacity)). Hand-made cars must use the names above: the 2012 mod writes exactly these, and its real-install test loads them.
 
 ## What the shop offers a mod car
 

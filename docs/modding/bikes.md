@@ -11,9 +11,9 @@ read are derived from `[bike]`). Every number of the dynamics is a key of the ta
 none**: a bike with a number left out is refused with the key named, because a made-up number is a number nobody measured. Three
 kinds of key may be left out: those whose zero (or empty list) means the feature is not there (`rider_mass_kg`, `leverage`,
 `hydraulic`, `coupling`, `progressive`, `tire_stiffness_n_per_m`, `abs`, the gyroscopic scales, the slipper, the launch slip, the
-lean help, the tuning curves); `transmission.down_shift` (the model's choice,
-`blackbox_vehicle::bike::choices::DOWN_SHIFT_SHARE`, because the reference game's decision is not recovered); and the
-`[bike.wheelie]` table as a whole. The keys map one to one to `blackbox_vehicle::bike::BikeSpec`
+lean help, the tuning curves, the rider's spring, the block-fall assist, `rolling_slip`); the tables `[bike.wheelie]`,
+`[bike.tcs]` and `[bike.front.thermal]`/`[bike.rear.thermal]` as a whole; and the constructor defaults of the feathering
+controller (`[bike.transmission.feather]`). The keys map one to one to `blackbox_vehicle::bike::BikeSpec`
 (`impl From<&Bike> for BikeSpec`, `libs/blackbox-modding/src/content/bike.rs` and `bike_parts.rs`); the meaning of each is in
 [vehicle-two-wheel.md](../specs/vehicle-two-wheel.md) and how a RIDE 6 bike fills them in
 [vehicle-two-wheel-parameters.md](../specs/vehicle-two-wheel-parameters.md).
@@ -48,6 +48,8 @@ rider_offset_m = [0.0, 0.4, -0.05]        # optional: the rider's centre of mass
 rider_forward_shift_m = [0.0, 0.0, 0.1]   # optional: where the weight moves at full forward / full back
 rider_backward_shift_m = [0.0, 0.0, -0.1]
 rider_weight_rate = 6.0        # optional (at once): per second
+rider_k_n_per_m = 20000.0      # optional (rigid): the spring and the damper that hold the rider to the bike
+rider_damp = 5000.0
 half_dimensions_m = [0.42, 0.64, 1.06]    # the body box: bounding radius, derived stats
 tensor_scale = [0.4, 0.45, 0.2]           # radius of gyration squared (m^2) about x (pitch), y (yaw), z (roll); I = scale x total mass
 cg_height_m = 0.62             # the bike's own centre of gravity
@@ -55,13 +57,44 @@ front_weight = 0.5             # share of the bike's weight on the front wheel a
 wheelbase_m = 1.47
 rake_rad = 0.4538              # steering-head angle from the vertical
 trail_m = 0.105
+
+Where the rider sits and how his body is held (optional; every key has the default of the reference game's constructor, a rider
+who only shifts along the bike with the weight is the empty table; `docs/specs/ride6-rider-body-aero.md`). Offsets in m, x right,
+y up, z forward; speeds in m/s:
+
+```toml
+[bike.rider]
+base_offset_m = [0.0, 0.0, 0.0]            # added to the rest place always
+lateral_offset_m = [-0.12, 0.0, 0.0]       # at full lean or lateral weight: x with the side of the lean, y and z with its size
+stopped_forward_offset_m = [0.0, 0.0, 0.0] # these three replace the moving ones below stopped_speed_range_mps
+stopped_backward_offset_m = [0.0, 0.0, 0.0]
+stopped_lateral_offset_m = [-0.25, 0.0, 0.0]
+stopped_speed_range_mps = [0.0, 0.0]       # all stopped below the first, all moving above the second; (0, 0): never stopped
+weight_influence = 0.0                     # how much the lateral weight input asks for the lateral shift (default 1)
+lean_influence = 1.0                       # how much the planned lean over the lean limit does (default 0)
+damp_speed_range_mps = [11.111112, 16.666668]  # the damper goes from damp_multiplier to 1 over this range
+damp_multiplier = 1.0
+correct_gravity = true                     # raise the spring's rest place so the rider does not sag
+inertia_scale = [0.28, 0.19, 0.23]         # m^2 x mass, pitch, yaw, roll
+angular_k_n_m_per_rad = 2500.0             # 0 (default): the rider's body is rigid on the frame
+angular_damp = 250.0
+angular_damp_chassis_factor = 0.0          # 0: the damper works against the world, 1: against the bike
+torque_scale = [1.0, 1.0, 1.0]             # per axis, the torque of his body on the bike (fades in over 0..5 km/h)
+drag_scale = 1.25
+drag_curve = [[0.0, 1.2], [1.0, 0.65]]     # [tuck 0..1, factor]; the drag is scaled by curve(tuck) / curve(0)
+```
+
+The library takes the lateral weight (`Bike::set_weight_lateral`) and the tuck (`Bike::set_tuck`); the game does not wire a key
+for the first and the auto tuck-in for the second yet. The lean already moves a rider whose `lean_influence` is above 0.
 [bike.front]
 radius_m = 0.32
 width_m = 0.12
 toroid_factor = 0.7            # 0 flat tread, 1 round tyre
 mass_kg = 17.0
 inertia_kgm2 = 0.65
-rolling = [0.02, 0.0004, 0.000001]       # share of the load: constant, per m/s, per (m/s)^2
+rolling = [0.02, 0.0004, 0.000001]       # share of the load: constant, per m/s, per (m/s)^2 (of the speed of the whole bike)
+rolling_slip = 0.2             # optional (0): ... plus this times the lateral slip to the power ...
+rolling_slip_linearity = 1.0   # optional (1)
 lateral_grip_limit = 1.25      # informational (derived stats); the tyre curve decides the force
 tire_stiffness_n_per_m = 400000.0        # optional (0, rigid): radial stiffness, in series with the suspension
 max_tire_deformation_m = 0.03            # optional
@@ -69,6 +102,11 @@ compression_shape_factor = 1.0           # optional (0): how much the tyre's squ
 slip_correction = 0.05         # optional (0): combined-slip damping at speed ...
 rest_slip_correction = 0.25    # ... and at rest, over rest_speed_threshold_mps
 rest_speed_threshold_mps = 6.94
+# [bike.front.thermal]         # optional: the temperature and wear of the tread (ride6-tyre-thermal.md)
+# sections_dependency, sections_angle_rad, heat_transfer (0), initial_thickness, min_temperature_c, max_temperature_c,
+# asphalt_importance, wear_length_m, uniform, static_time_scale, dynamic_time_scale, decay_distance_factor, wear_intensity,
+# then one [[bike.front.thermal.sections]] per strip: efficiency_limit, static_coef, dynamic_coef, lat_slip_coef,
+# long_slip_coef, rolling_coef and the curves temperature_to_wear, wear_to_efficiency, temperature_to_efficiency
 [bike.front.tyre]              # Magic Formula 94 coefficients, in the units of the published formula
 a = [1.2, -10.0, 1330.0, 1200.0, 6.0, 0.002, 0.0, 0.0, -0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]   # a0..a10, a111, a112, a12, a13
 b = [1.5, -10.0, 1250.0, 0.0, 200.0, 0.0, -0.1, 0.0, 0.1, 0.0, 0.0]                           # b0..b10
@@ -112,8 +150,11 @@ limiter_cut_time_s = 0.02      # the limiter cuts and restores the fuel in turn
 gears = [2.1, 1.65, 1.35, 1.12, 0.96]    # first gear first, falling
 final_ratio = 7.2              # gearbox output to the rear wheel, chain included
 efficiency = 1.0
-up_shift = 0.9                 # share of the rev limit at which the automatic changes up under throttle
-down_shift = 0.45              # optional (the model's choice): ... and below which it changes down
+up_tolerance = [1.0, 1.0, 1.0, 1.0, 1.0]      # per gear: the automatic gearbox generates its change points from the torque curve and the
+down_tolerance = [0.4, 0.9, 1.0, 1.0, 1.0]     # ratios; these scale the torques it compares (ride6-gearbox-auto.md)
+prevent_up_lean = [0.5, 30.0]  # optional: [factor, linearity] hold-offs of the changes (lean, throttle)
+prevent_down_lean = [0.5, 50.0]
+prevent_down_throttle = [1.0, 0.5]
 up_shift_time_s = 0.06
 down_shift_time_s = 0.15
 blip_throttle = 0.3            # optional (0): throttle blip on a change down
@@ -124,6 +165,9 @@ slipper_intensity = 1.0
 release_speed_mps = 13.9       # optional (0): road speed above which a start is over
 feather_factor = 0.85          # optional: launch engine speed, x the rpm of peak torque, at most feather_max_factor x max_rpm
 feather_max_factor = 0.7
+launch_rpm = [0.4, 0.98]       # optional: the launch clutch without feathering, shares of the rev limit
+[bike.transmission.feather]    # optional (the constructor defaults): the feathering controller of a start
+delta_time_s = 0.05            # also target_tolerance, exit_tolerance, throttle_cap, min_slip, rpm_raise, release_factor
 [bike.brakes]
 front_force_n = 1880.0         # force at the tyre patch at full lever
 rear_force_n = 1000.0
@@ -168,10 +212,24 @@ pitch_rad = 1.1345
 speed_direction_rad = 1.4835
 angular_speed = 4.4
 min_speed_mps = 2.78
+block_ratio = 0.975            # optional (off): the block-fall assist holds the target lean to this share of lean_rad ...
+block_min_speed_mps = 11.1     # ... above this speed, for block_time_s, then waits block_wait_s
+block_time_s = 1.0
+block_wait_s = 5.0
+[bike.tcs]                     # optional: the traction control
+slip = [0.09, 0.2]             # slip ratios where it starts to cut the throttle and where it cuts it fully
+speed_range_mps = [0.0, 1.39]  # the speeds over which it comes in
 # [bike.wheelie] (optional): wheelie and stoppie assist and the rider help. [bike.wheelie.wheelie] and [bike.wheelie.stoppie]
 # have deadzone, max_angle_rad, speed_ramp_mps, help_speed, lean_help, lookahead_s, min_speed_mps, acceleration,
 # acceleration_time_s, ground_range_m, lean_limit_rad, lean_pitch_range_rad; [bike.wheelie] itself has
 # throttle_pitch_rad, forced_throttle_pitch_rad, throttle_pitch_speed, brake_pitch_rad, brake_pitch_speed (a [0, 0] range is off).
+# The two parameter sets also take terrain_influence (the share of the road's slope taken off the pitch) and
+# target_filter_timescale (1/s; 0: the target angle is not filtered).
+# [bike.wheelie.help] (optional, every key optional): launch_speed_mps, launch_throttle_pitch_rad, launch_throttle_multiplier,
+# throttle_multiplier, forced_brake_pitch_rad, brake_multiplier, throttle_pitch_electronic, throttle_speed_electronic,
+# brake_pitch_electronic, brake_speed_electronic, intensity, weight_deadzone, lookahead_s; and [bike.wheelie.help.auto_rider]:
+# wheelie_range_rad, stoppie_range_rad, multiplier, pitch_speed_range, throttle_curve, throttle_gain, brake_curve, brake_gain,
+# engage_speed, manual_engage_speed. Without the auto_rider table the weight is the player's. Meaning: docs/specs/ride6-tricks.md.
 ```
 
 The numbers above are the generic example bike of the library (`BikeSpec::example`, a 450 cc supermoto-class machine with its
@@ -206,15 +264,17 @@ are wide: they catch a wheel of 3 m, not an unusual bike.
 | `engine.peak_torque_nm`, `friction_torque_nm`, `moi_kgm2` | 1 to 1500 N m, 0 to 500 N m, 0.0005 to 5 kg m^2 |
 | `engine.idle_rpm`, `max_rpm`, `limiter_cut_time_s` | 300 to 3000, 1500 to 20000, the limit above the idle; 0.001 to 1 s |
 | `engine.torque_curve`, `friction_curve` | 2 to 32 points, rpm rising (to above the idle for the torque), share 0 to 2, factor 0 to 10 |
-| `transmission.gears` | 1 to 10 ratios, 0.2 to 10, each lower than the one before |
+| `transmission.gears` | 1 to 10 ratios, 0.2 to 20, each lower than the one before |
 | `transmission.final_ratio`, `efficiency` | 0.5 to 30, 0.5 to 1 |
-| `transmission.up_shift`, `down_shift` | 0.3 to 1, 0.1 to 0.9, the down-shift point below the up-shift point |
+| `transmission.up_tolerance`, `down_tolerance`, `prevent_*`, `launch_rpm` | up to one per gear, 0.1 to 10; 0 to 100; 0 to 1.5 |
 | `transmission.*_shift_time_s`, `clutch_linearity`, `clutch_max_factor` | 0 to 2 s, 0.1 to 10, 0.1 to 20 |
 | `brakes.front_force_n`, `rear_force_n` | 0 to 30000 N, together at least 100 N |
 | `steering.max_angle_rad`, `response`, `damping_ratio` | 0.1 to 1.5 rad, 1 to 10^6, 0 to 20 |
 | `steering.max_lean_rad` | 0.2 to 1.3 rad |
 | `steering.lean.*` | stiffnesses 1 to 10^6, damping ratios 0 to 20, curves up to 32 points with the first number rising |
 | `fall.lean_rad`, `pitch_rad`, `speed_direction_rad`, `angular_speed` | 0.2 to 1.5, 0.2 to 1.5, 0.2 to 3.2, 0.5 to 30 |
+| `fall.block_*` | ratio 0 to 1, speed 0 to 100 m/s, times 0 to 60 s and 0 to 600 s |
+| `*.thermal`, `*.rolling_slip`, `chassis.rider_k_n_per_m`, `rider_damp`, `tcs` | 1 to 9 strips with curves of up to 32 points, temperatures -100 to 1000 deg C; 0 to 10; 0 to 10^7 N/m, 0 to 10^6 N s/m; slips 0 to 5 |
 
 A bike is also refused when:
 
@@ -256,6 +316,7 @@ the ground, and the bike's body origin (midway between the contact patches) is m
 | Throttle | the throttle (cut by the rider help when the front lifts, if `[bike.wheelie]` is there) |
 | Brake pedal | the front and the rear brake together (and the linked brakes of `joined_factor`) |
 | Handbrake | the rear brake alone (the input layer has one brake axis, so the front brake alone has no key) |
+| Rider weight (`rider_weight` axis) | forward / back: a stoppie under the front brake, a wheelie under the throttle (below) |
 | Steering | the stick: the rider's lean controller prescribes the lean the stick points to and picks the handlebar angle that makes the front tyre give the side force it needs (counter-steering included) |
 | Gear shift keys, gear keys, clutch | not read: the gearbox is automatic |
 | Nitrous | not read: a bike has none |
@@ -272,8 +333,17 @@ Behaviour specific to bikes:
   the car's own `[engine_sound]` or the built-in engine.
 - **Wheels on the ground.** Systems that count wheels read a bike's two wheels as four (each counts twice): both down is "all
   four", one down is "two", so the airborne and fall checks and the audio mixer work unchanged.
-- **Rider weight and wheelies.** The library takes the rider's weight (`Bike::set_weight`); the game does not wire a key to it
-  yet, so a wheelie or a stoppie only happens by the power or the brakes, held in check by the rider help.
+- **Rider weight, wheelies and stoppies.** Only a bike does them ([ride6-tricks.md](../specs/ride6-tricks.md)); a car has no such
+  input. The `rider_weight` action is an axis, -1 (back) to 1 (forward): **G / Numpad 8** forward, **V / Numpad 2** back, or the
+  pad's right stick up / down (the stick that shifts a car's gears; a bike's gearbox is automatic). For a **wheelie**: be above
+  15 km/h (the data's `MinSpeed`), hold the weight back beyond the auto-rider's dead zone (the dead zone of the help is 0.3, the
+  auto-rider lets the player have the weight beyond 0.75, so push the lever firmly) and open the throttle in a low gear: the
+  front lifts, the help holds the angle the lever and the throttle ask for (up to 35 degrees at full lever and throttle, and the
+  rider help cuts the power through the engine beyond 33 to 45 degrees). For a **stoppie**: weight fully forward beyond 0.95, the
+  throttle shut and the brake pedal down: the rear lifts and the help holds up to 45 degrees; the rider help eases the front brake
+  if it goes further. With the weight left alone the auto-rider keeps the bike down: forward under the throttle, back under the
+  brake, and against any lift beyond about 4 degrees. The weight does not travel on the network (a network seat sends none).
+  Rebind the axis with the `[bindings]` table (`rider_weight`).
 
 ## Not done
 

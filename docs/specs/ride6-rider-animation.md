@@ -115,7 +115,7 @@ Mapping from this project's bike state (`blackbox-vehicle::bike`, physics space 
 
 | Parameter | Value |
 |---|---|
-| `lean` | bike roll angle divided by the rider's maximum lean (the steepest lean the bike model allows): signed, clamped to [-1, 1]; positive = to the right |
+| `lean` | the **rider's** roll (the bike's roll plus his body's own against it, `RiderRotation::roll_right`, which lags the bike's roll by the angular spring of [ride6-rider-body-aero.md](ride6-rider-body-aero.md)) divided by the rider's maximum lean (the steepest lean the bike model allows): signed, clamped to [-1, 1]; positive = to the right |
 | `speed_kmh` | forward speed in m/s times 3.6 |
 | `tuck` | 0 below `SpeedThresholdBasedOnBike` (140 km/h for a motard) rising to 1 at full throttle above it, smoothed at 6 s^-1, times (1 - braking) (the shape of `TuckedIn_Alpha`: throttle held, brake released, no wheelie) |
 | `wheelie` | front wheel lift: pitch of the body nose-up divided by the bike's wheelie limit, 0..1 |
@@ -162,15 +162,30 @@ bike frame by `rider_root_in_bike`, the bike frame to the model's frame by the d
 (-0.42, 0.37, 0.8), `LeftHandIKLocationOffset` (0.42, -0.37, 0.8), rotation offsets (1.2, 0.5, 5.0) / (1.2, 0.5, -2.5),
 foot gear offsets) are tuning of the full-body solver and are not applied.
 
-## 7. Weight shift, braking, throttle
+## 7. Weight shift, hang-off, torso turn
 
-`InertiaDisplacement` moves pelvis and head by the class ranges of section 3, smoothed at `InertiaDisplacement_SmoothSpeed`
-4. Implemented along the bike only (`drive/rider/params.rs`, `pose.rs`): the acceleration along the bike (the change of
-forward speed per physics step) over `full_acceleration` (clamped to -1..1) shifts the rider's pelvis bone, and with it the
-legs, spine, arms and head before the IK, by `share * min.forward` (back, up to 6 cm, from the data's riding range) when
-accelerating and by `-share * braking_m` (forward) when braking, following at `rate`. The sideways and vertical ranges and
-the user's own weight shift (`RiderWeightX/Y`) are not used; there are no finger or wrist layers, bump layers or leg-out
-layers.
+The blueprint's `InertiaDisplacement` input is the rider's displacement from the physics (`FRiderComponent`: the target place
+of the weight, the lean and the speed plus the sag and lag of his spring, in the bike's axes). The blueprint holds it to the
+ranges `InertiaDisplacement_RidingMin/Max` and smooths it at `InertiaDisplacement_SmoothSpeed` 4, then moves pelvis and head
+with it. This project does the same from its own physics (`drive/rider/params.rs`, `pose.rs`):
+
+- `RiderSample::offset` = `Bike::rider_offset()` (physics axes x right, y up, z forward, metres) = the place the weight, the
+  lean and the speed ask for plus his spring's deflection. It is taken into the car's axes (forward, left, up) and **held to the
+  data's range**: forward from -6 cm to 0 (the rider only moves back; the blueprint's range has no forward part), sideways
+  +-15 cm, up from -4 to +20 cm (`attach.json` `inertia.min/max`, from the class defaults). It follows at 4 per second
+  (`inertia.rate`). The lateral part is the **hang-off**: for a bike whose `LateralOffset` follows the lean (the supermoto) the
+  pelvis, and with it the legs, the spine, the arms and the head, moves with the lean; with the lateral weight input it moves
+  to the side asked for.
+- `RiderSample::rotation` = the rider's body against the bike's attitude (roll, pitch, yaw), from the angular spring-damper. The
+  pose turns the pelvis bone (and what hangs on it: spine, arms, head, legs) by it about its own place **before** the IK, so
+  the torso lags the bike's roll in a change of lean and settles on it in a held turn. The hands and feet are then brought to
+  the grips and pegs by the two-bone IK as before.
+- Braking and acceleration are in the physics: the spring's sag under the felt acceleration moves the displacement along the
+  bike (3 cm of lag per g of acceleration for the KTM); the old rule of the acceleration over one g with a 6 cm forward shift
+  under braking is gone.
+
+Not done: the head's own inertia multipliers (`InertiaDisplacement_HeadMultiplier` pitch 5, roll -2: their unit was not
+recovered), the sideways knee and leg-out layers, the user's own weight shift (`RiderWeightX/Y`), finger, wrist and bump layers.
 
 ## 8. What is data and what is a choice
 
@@ -187,8 +202,10 @@ layers.
 | The shake weight `ramp(10..220) * 0.4` | Choice: `AddNoise_Start/StartEnd/EndStart/End` and `Min/MaxAmount` give a more elaborate curve |
 | The wheelie left/right blend by the lean | Choice |
 | Two-bone IK in place of PBIK, and the IK target offsets | Choice |
-| Inertia: along the bike only; `full_acceleration` 9.81 m/s^2 (one g); the forward shift under braking 6 cm (the data's riding range only goes backwards, 0 to -6 cm; the braking range is mirrored) | Choice (`attach.rs` constants `INERTIA_FULL_ACCELERATION`, `INERTIA_BRAKING_M`); the 6 cm, the 15 cm sideways and the 4 to 20 cm vertical ranges and rate 4 are data (`InertiaDisplacement_RidingMin/Max`, `_SmoothSpeed`) |
-| `wheelie`, `stoppie` = the nose pitch over the pitch at which the centre of gravity stands over the rear (front) tyre patch, `atan(b / h)` (`atan(a / h)`), while that wheel is off the ground; the road slope is not taken off the pitch | Choice: published rigid-body statics from the bike data (`front_weight`, `wheelbase`, `cg_height`); the native `BikeWheelie` input is not read |
+| Inertia displacement: the physics' rider offset, held to the ranges back 6 cm, sideways 15 cm, down 4 / up 20 cm, following at 4 per second | Data (`InertiaDisplacement_RidingMin/Max`, `_SmoothSpeed`) and the physics of `FRiderComponent` (recovered, [ride6-rider-body-aero.md](ride6-rider-body-aero.md)); replaces the former choices (acceleration over one g, a 6 cm forward shift under braking) |
+| Hang-off (the lateral shift with the lean or the lateral weight), the torso's lag behind the bike's roll | Physics ([B], `FRiderComponent` target place and angular spring); the pose applies them at the pelvis (the bone that carries the body) |
+| `lean` of the graph = the rider's roll (the bike's plus his body's own) | Physics; the normalisation by the bike's steepest lean stays a choice |
+| `wheelie`, `stoppie` = the nose pitch over the pitch at which the combined centre of gravity (with the rider's real place) stands over the rear (front) tyre patch, `atan(b / h)` (`atan(a / h)`), while that wheel is off the ground; the road slope is not taken off the pitch | Choice: published rigid-body statics from the bike data (`front_weight`, `wheelbase`, `cg_height`); the native `BikeWheelie` input is not read |
 | Smoothing rates: lean 4/s, tuck 6/s, wheelie 3/s, stoppie 3/s | Choice for lean (the blueprint's 4, 2, 3, 4 are not tied to variables), tuck (the table above) and wheelie (the `Wheelie/ Stoppie` function smooths at 3); data for stoppie (speed 3) |
 | Level of detail 0 of the suit, boots, helmet and visor; the arms mesh is not drawn | Choice (`parts.rs`, `LEVEL`; `parts.json` `drawn`) |
 | The rider is drawn two-sided and with the engine's lit shading | Choice |
@@ -199,7 +216,12 @@ layers.
 - `BikeType` and `RidingStyle` of chassis 369: not found in the bike's data assets. `KTM_450-SMR-2022` has a camera
   container under `data/cameras/Containers/motard/`, which suggests type 2; the physics tuning assets do not name it.
 - Eight ACL-compressed clips (standing wheelie, drift, entry; see the format note).
-- Fuzzy-logic smoothing of the native inputs, bump and imbalance layers, finger and wrist layers, pre-turn leg-out,
-  knee/ground traces, look back, start/stop state machine and the get-on animation. The clips for them are in the pack.
-- A check on a moving bike: the rider is wired into the game (section 5 of
-  [ride6-rider-render-integration.md](ride6-rider-render-integration.md)) but nothing has been built or run yet.
+- The native fuzzy-logic layer of the animation instance (`RiderLean_Polished`, `TuckedIn_Alpha`, `BikeWheelie`, `BikeStoppie`
+  and the smoothing of the native inputs): it lives in native code of the animation instance (`IgnitionMotorbikeRiderAnimInstance`),
+  which was not decompiled in this round (the analysis instance was not available); the choices for them in section 8 (lean
+  smoothing 4 per second, tuck 6, wheelie 3, the wheelie/stoppie triangle from the statics) stay. They are the next
+  reverse-engineering target.
+- Bump and imbalance layers, finger and wrist layers, pre-turn leg-out, knee/ground traces, look back, start/stop state
+  machine and the get-on animation. The clips for them are in the pack.
+- A check on a moving bike with the rider's physics in the loop: the unit tests of the sample, the smoothing and the pose pass,
+  but nothing was rendered.

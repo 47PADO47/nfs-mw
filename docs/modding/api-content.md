@@ -132,6 +132,21 @@ without a valid one, with the reason in the log. What it holds and how to write 
 and its gear shifts, turbo whistle and blow-off, backfires and pops (`[car_sound]`, else silence). Collisions, skids,
 nitrous and the road share the game-wide banks. See [car-sound.md](car-sound.md).
 
+#### Parts database capacity
+
+Every mod car adds parts to the game's parts database (`car/mods/parts.rs`): a body, a front wheel and a driver (a bike also a
+rear wheel, a fork and a handlebar group), under one type name of its own, the folder. The stored database has fields too narrow
+for many cars: its type index is a byte (256 car types and groups, the game's own use 106, so **150 mod cars**), its string
+offsets and model-table indices 16 bits (the game uses 26,480 of 262,140 string bytes and 543 of 65,535 model tables, and a bike
+costs about 132 string bytes and 6 model tables). The type-name table was the first to fill: a game with more than 150 mod cars
+left the later ones without a body part (and the log said so). The mod limit is now far higher: the engine keeps the decoded
+database with wide indices (type index 16 bits, string offset and model table 32 bits), which the repository never writes back,
+so the 93 cars of the 2012 mod and the 317 bikes of the RIDE 6 mod (410 cars, 2,460 parts) all get theirs, tested on the real
+database. The analysis, the measured sizes and the alternatives that were rejected are in
+[car-parts-capacity.md](../specs/car-parts-capacity.md). The attribute tables keep their stored widths (a mod car adds no
+attributes). Other per-car tables outside the parts database (garage lists, career slots, the network catalogue) were not
+checked at that many cars.
+
 Known gaps: body kits and hoods (a mod car has none), and a code form (`content.cars().register(..)`) are not built.
 
 | Entry | Signature sketch | Scope | Implemented in |

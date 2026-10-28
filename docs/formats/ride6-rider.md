@@ -143,7 +143,7 @@ rider skeleton's own names. Frames are the car's (x forward, y left, z up), metr
 | `targets[]` | `{name, position, steers}`: the points the limbs reach for (bike frame); `steers` grips turn about the front wheel's steering axis with the handlebar, pegs do not. |
 | `limbs[]` | `{name, root, mid, tip, pole, target, tip_offset}`: two-bone IK on the rider bones; the tip is brought to the target plus `tip_offset` (rider space), the vector from the target to the tip in the reference pose, so the authored placement of the hand on the grip is kept. The middle joint bends towards the pole bone's place in the animated pose. |
 | `inputs` | `tuck_speed_kmh` (speed from which the rider tucks), `tuck_rate`, `lean_rate`, `wheelie_rate`, `stoppie_rate` (1/s smoothing). |
-| `inertia` | `bone` (the rider bone shifted), `min`/`max` (range, bike axes forward, left, up), `braking_m`, `full_acceleration`, `rate`. |
+| `inertia` | `bone` (the rider bone that is shifted and turned), `min`/`max` (the range the rider's displacement from the physics is held to, car axes forward, left, up, metres: the blueprint's `InertiaDisplacement_RidingMin/Max`), `rate` (1/s). `braking_m` and `full_acceleration` of older files are ignored. |
 
 Where each number comes from is in [ride6-rider-animation.md](../specs/ride6-rider-animation.md), section 8.
 

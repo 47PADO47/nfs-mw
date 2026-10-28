@@ -1,12 +1,33 @@
 # RIDE 6 bikes (`mods/ride6-bikes`)
 
-Part of the [modding catalogue](README.md). A content-only mod that adds bikes of the user's own RIDE 6 install to NFS:
-Most Wanted as mod cars ([api-content.md](api-content.md#cars)). The repository holds the converter and the manifests
+Part of the [modding catalogue](README.md). A native mod (like the [2012 cars mod](../../mods/nfsmw-2012-content/README.md)) that adds bikes of the user's own RIDE 6
+install to NFS: Most Wanted as mod cars ([api-content.md](api-content.md#cars)). `cargo install-mod ride6-bikes` builds and
+installs it, `source = '<exports folder>'` in its `config.toml` points it at the exports, and it imports every bike in the
+background ([the native mod](#the-native-mod)); the importer is also the `ride6-bike-import` command line. The repository holds the converter and the manifests
 only: the exported parts, the converted files (`files/`, `cars/`) and the textures come from the user's install, stay on
 their machine and are never committed (the `.gitignore` whitelist does not list them). See
 [licensing.md](../licensing.md). The materials the converter reads are described in
 [ride6-materials.md](../formats/ride6-materials.md); the two-wheel physics in
 [vehicle-two-wheel.md](../specs/vehicle-two-wheel.md).
+
+## The native mod
+
+`mods/ride6-bikes` is a library (`cdylib` and `rlib`, `src/native.rs` with `declare_mod!`) and the importer commands. It is modelled on
+`nfsmw-2012-content` (`lib.rs`, `config.rs`, `job.rs`, `stamp.rs`); [mods/ride6-bikes/README.md](../../mods/ride6-bikes/README.md)
+has the three steps (`cargo install-mod ride6-bikes`, set `source`, start the game, then `nfsmw view-world --drive <CARID>`).
+
+| Part | Does |
+|---|---|
+| `config.rs` | the settings from `bb.config` (the mod's `config.toml` merged with `[mods.ride6-bikes]` of the game's config): `source` (the exporter's output, one folder per bike with `parts.json`, `glb/`, `tex/`), `physics` (the physics dump; default a `physics`, `physdump` or `physdump-all` folder inside `source`), `tyre_tables`, `sound` (the `sound` command's output; a bike with tables there gets them), `max_texture`; a commented template is written the first time |
+| `batch.rs` | finds the bike folders, assigns the car ids to the whole set ([ride6-bikes-batch.md](ride6-bikes-batch.md#car-ids-and-names)), imports each (a few at a time, `pipeline::import_bike`, the code of the command line) and reports each bike imported or left out with the reason; a panic of the converter on one bike is a reason, not the end of the run |
+| `job.rs` | runs the batch on a background thread into `.staging/`; a first run is promoted by renaming (`files/`, `cars/`) and announced with `ctx.content().rescan()`; a run that ends while content is already live is promoted at the next start |
+| `stamp.rs` | `.import-stamp`: the settings, the converter's version and the names, sizes and times of every `parts.json`, physics file and sound table; a start with the same stamp converts nothing |
+| `native.rs` | `Mod::load` (read the settings, log an info line telling where to put `source` when it is unset, start or skip the job) and `Mod::event` (poll the job, log the result) |
+
+The bikes need the exporter's folders to still have their meshes (`glb/`): a folder without them is listed as left out. The
+physics file of a bike is found by the name of the physics asset that `parts.json` records (`physics_asset`; the vehicle id when
+an older file lacks it). `mod.toml` declares the library (`[library]`) like the 2012 mod's; the importer never replaces a
+`mod.toml` that exists.
 
 ## Data flow
 
@@ -23,7 +44,8 @@ RIDE 6 install ──R6ToolPhys physdump (the user's tool)──▶ <physics dum
 [--sound-dir <dir>] [--car KTM450] [--name ..] [--manufacturer ..] [--max-texture 2048] [--ao-floor 0.3] [--normal-maps]
 [--flip-green]`, then `nfsmw --mods-dir <folder with ride6-bikes/> view-car KTM450`. The physics options are
 [below](#the-physics-dump-import-bike). The converter needs neither the game nor the exporter's tools, only the two
-folders; a second bike is a second folder and a second `--car`. The output is deterministic: no random
+folders; a second bike is a second folder and a second `--car` (left out, the id is derived from the vehicle id by
+the rule of [the batch page](ride6-bikes-batch.md#car-ids-and-names)). The output is deterministic: no random
 numbers, ordered maps, a deterministic DXT encoder and JDLZ writer.
 
 ## The exporter script (not in the repository)
@@ -248,7 +270,12 @@ where the manifest has one number and the data has a curve or several values, th
 
 | Item | What the importer does | Why |
 |---|---|---|
-| `up_shift`, `down_shift` | The handler's change points are generated as in [ride6-gearbox-auto.md](../specs/ride6-gearbox-auto.md) section 1 (they reproduce the table there); the manifest takes the **lowest** change-up share over the gears and the lowest change-down share, the latter converted to the engine speed in the gear the bike is in (`point * G(n+1) / G(n)`). A one-speed bike gets `up_shift = 1` and no `down_shift`. | the manifest has one number each; the lowest never changes gear sooner than the reference does |
+| `transmission.up_tolerance`, `down_tolerance` | `GearChangePoints[].ChangeUpTolerance`, `ChangeDownTolerance` of the gear rows. The library generates the change points from the torque curve and the ratios as the handler does ([ride6-gearbox-auto.md](../specs/ride6-gearbox-auto.md) section 1) and compares the road speed with them (section 2); the hold-offs (`prevent_*`) and the launch clutch (`feather`, `launch_rpm`) come from the handler's `PreventGear*`, `ClutchFeatheringOnStart` and `Cluctch*RPMPercentage` fields | nothing is reduced any more: the decision is the handler's own |
+| `bike.front.thermal`, `bike.rear.thermal` | the tyre's `Decay`, its `TireSections` (strips and their curves, sampled to 16 points) and the `TireWear` element ([ride6-tyre-thermal.md](../specs/ride6-tyre-thermal.md)); left out when the tyre lists no strips | fact |
+| `rolling_slip`, `rolling_slip_linearity` | `RollingResistanceSlip`, `...SlipLinearity` of the road row | fact |
+| `chassis.rider_k_n_per_m`, `rider_damp` | `Rider.RiderK`, `RiderDamp` (constructor defaults 20000, 5000) | fact / default |
+| `bike.tcs` | the TCS element's `TCSSlipThresholdsDry`, `TCSSpeedThresholds` | fact |
+| `fall.block_*` | `BlockFallLeanLimitRatio`, `...MinSpeedKmh`, `BlockFallTimeLimit`, `BlockFallReEnableWaitTimeLimit` when `BlockFallActive` | fact |
 | `max_lean_rad`, `fall.lean_rad` | `FallLeanLimitAirborne` (70 degrees on every bike) | the ground fall limit is a run-time value from the grip; the model's lean limit is `atan` of the grip, well under 70 degrees |
 | `lean.damping_multiplier` | the formula of the parameters spec, evaluated at rest (KTM about 1.012) | the handler recomputes it every tick from the bike's size; two operands are inferred |
 | `lean.help_limit` | the output of `LeanHelpLimitSpeedTuning` at the top of its range (1 or 0.99) | one number in the manifest, a speed curve in the data |
@@ -311,9 +338,9 @@ done, in the order of fidelity:
   state, not in the tables read), the clear-coat look.
 - The car scene's normal-material route (the engine side).
 - Sound, lamps and damage parts.
-- Other bikes: a bike is a vehicle id for the script; the importer has no bike-specific table. Bikes with a mono-arm swingarm,
-  a different number of brake discs (the part table lists one disc mesh per wheel) or a chain guard that is a separate part
-  are untested.
+- Other bikes: all of the install is imported by [the batch](ride6-bikes-batch.md) (`import_all.py`): the importer has no
+  bike-specific table, a bike is a vehicle id for the script. Bikes with a mono-arm swingarm, a different number of brake discs
+  (the part table lists one disc mesh per wheel) or a chain guard that is a separate part are untested.
 
 ## Status and what remains
 

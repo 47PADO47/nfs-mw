@@ -44,8 +44,8 @@ mirrored scenery and reflection views).
 Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags),
 [scenery-lod.md](scenery-lod.md) (level of detail), [scenery-sway.md](scenery-sway.md) (trees, bushes and
 boats swaying in the wind), [visible-sections.md](visible-sections.md) (which world
-sections are loaded and drawn) and [car-assembly.md](car-assembly.md) (stock parts, wheels, brakes, paint,
-texture swaps, the car shader) and vehicle physics: [vehicle-engine-drivetrain.md](vehicle-engine-drivetrain.md),
+sections are loaded and drawn), [car-assembly.md](car-assembly.md) (stock parts, wheels, brakes, paint,
+texture swaps, the car shader), [car-parts-capacity.md](car-parts-capacity.md) (how many mod cars the parts database takes) and vehicle physics: [vehicle-engine-drivetrain.md](vehicle-engine-drivetrain.md),
 [vehicle-input-induction-brakes.md](vehicle-input-induction-brakes.md),
 [vehicle-manual-shifting.md](vehicle-manual-shifting.md) (the transmission setting, manual mode, the limiter),
 [vehicle-suspension-tires.md](vehicle-suspension-tires.md),

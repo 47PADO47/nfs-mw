@@ -29,6 +29,11 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 | `chassis.rider_offset_m` | handler `Rider.COMOffset` | cm to m, axes; from the bike's own centre of gravity (the rider sits `CGPosition.z + COMOffset.z` high) | fact; the origin is [I] |
 | `chassis.rider_forward_shift_m`, `..._backward_shift_m` | `Rider.ForwardOffset` (set by no asset: 0), `Rider.BackwardOffset` | cm to m, axes | fact / default (an `FVector` starts at 0) |
 | `chassis.rider_weight_rate` | `InputData.WeightLongitudinal.InputRate` | per second | fact |
+| `rider.base_offset`, `lateral_offset`, `stopped_*_offset`, `stopped_speed_range` | `Rider.BaseOffset`, `LateralOffset`, `StoppedForward/Backward/LateralOffset`, `StoppedSpeedRange` | cm to m, axes swapped (x forward, y right, z up) to (x right, y up, z forward); km/h to m/s | fact ([ride6-rider-body-aero.md](ride6-rider-body-aero.md), "Target place"); `StoppedSpeed` is not read by the game |
+| `rider.weight_influence`, `lean_influence` | `Rider.WeightInfluence`, `LeanInfluence` | none | fact; defaults 1 and 0 |
+| `rider.damp_speed_range`, `damp_multiplier`, `correct_gravity` | `Rider.DampSpeedRange`, `DampMultiplier`, `bCorrectCOMOffsetWithGravity` | km/h to m/s | fact; defaults (40, 60), 1 |
+| `rider.inertia_scale`, `angular_k`, `angular_damp`, `angular_damp_chassis_factor`, `torque_scale` | `Rider.InertiaTensorScale`, `RiderAngularK`, `RiderAngularDamp`, `RiderAngularDampChassisFactor`, `TorqueAppliedOnBikeMultiplier` | scales (x roll, y pitch, z yaw) to (pitch, yaw, roll) | fact; defaults (1, 1, 1), 1000, 100, 1, (1, 1, 1) |
+| `rider.drag_scale`, `drag_curve` | `Rider.DragScale`, `DragScaleCurve` | none | the posture factor `curve(tuck) / curve(0)` is a choice (the drag force was not read) |
 | `chassis.half_dimensions_m` | the converted body's bounds | none | mesh |
 | `chassis.tensor_scale` | `CHASSIS.InertiaTensorScale` (x roll, y pitch, z yaw) | reorder to (pitch, yaw, roll) = (Y, Z, X) | fact |
 | `chassis.cg_height_m`, `front_weight`, `wheelbase_m` | `CGPosition.z`, `WeightBalance`, `Skeleton.OverrideWheelBase` | cm to m, none, cm to m | fact; `WeightBalance` is a reading |
@@ -53,7 +58,7 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 | `engine.idle_rpm`, `.max_rpm`, `.limiter_cut_time_s` | `MinRPM` (else `MinRPMLimit`), `MaxRPM`, the mean of `EngineLimiter[0]...DurationRange` | none | fact |
 | `transmission.gears`, `.final_ratio` | `ForwardGears[].Ratio`, `FinalRatio` | none | fact |
 | `transmission.efficiency` | none found in the binary | 1.0 | default |
-| `transmission.up_shift`, `.down_shift` | the points the handler generates from the torque curve, the ratios and `GearChangePoints[].Change{Up,Down}Tolerance` ([gearbox spec](ride6-gearbox-auto.md) section 1) | the lowest change-up share over the gears; the lowest change-down share, each as a share of the rev limit in the gear the bike is in | fact for the points; **choice** for the reduction to one number each |
+| `transmission.up_tolerance`, `.down_tolerance` (and the hold-offs, `feather`, `launch_rpm`) | `GearChangePoints[].Change{Up,Down}Tolerance`; the library generates the change points ([gearbox spec](ride6-gearbox-auto.md) sections 1 and 2) | none | fact |
 | `transmission.up_shift_time_s`, `.down_shift_time_s`, `.blip_throttle` | handler `GearUpChangeTime`, `GearDownChangeTime`, `BlipperThrottleOnShift` | none | fact |
 | `transmission.clutch_linearity`, `.clutch_max_factor` | `Transmission.ClutchLinearity`; the C++ default `ClutchMaxTorqueFactor` | none; 1 | fact / default |
 | `transmission.slipper_range_nm`, `.slipper_intensity` | `SlipperClutchDeltaTorqueRange`, `SlipperClutchMaxIntensity` | Unreal units to N m (/10000) | fact |
@@ -74,6 +79,9 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 | `steering.lean.rider_mass_scale`, `.help_speed`, `.help_limit` | `RiderMassScale`; `LeanHelpFactorSpeedTuning` (km/h); `LeanHelpLimitSpeedTuning` output at the top of its range | km/h to m/s | fact; `help_limit` is one number where the data has a speed curve |
 | `fall.pitch_rad`, `.speed_direction_rad`, `.angular_speed`, `.min_speed_mps` | `FallPitchLimit`, `FallSpeedDirAngleLimit`, `FallAngularSpeedLimit`, `FallMinSpeed` | deg to rad; km/h to m/s | fact |
 | `wheelie.wheelie.*`, `.stoppie.*` | `WheelieParams`, `StoppieParams` (unset fields: the constructor defaults of the [rider-help spec](ride6-rider-help.md)); `lean_limit_rad`, `lean_pitch_range_rad` from the handler's `WheelieLeanLimitTuning`, `StoppieLeanLimitTuning` | deg to rad, km/h to m/s | fact / default |
+| `wheelie.wheelie.terrain_influence`, `.stoppie.terrain_influence`, `.target_filter_timescale` | `TerrainInclinationInfluence` (default 0), `bFilterTargetAngle` (default true) with `timescale` (default 10) | none (0 = no filter) | fact / default |
+| `wheelie.help.*` | `URiderHelpVehicleElement`: `AutoRiderLaunchSpeedThreshold`, `LaunchWheelieThrottleControl`, `LaunchThrottleControlMultiplier`, `AutoRiderThrottleControlMultiplier`, `AutoRiderForcedStoppieBrakeControl`, `AutoRiderBrakeControlMultiplier`, the four `bEnable...ElectronicModulation` flags (throttle ones only with `bApplyEngineThrottleModulation`), `AutoRiderIntensity`, `WeightLongitudinalInputDeadzone`, `AutoRiderLookaheadTime` | deg to rad, km/h to m/s | fact / default ([ride6-tricks.md](ride6-tricks.md)) |
+| `wheelie.help.auto_rider.*` | `AutoRiderWheelie/StoppieWeightControl`, `AutoRiderWeightControlMultiplier`, `PitchSpeedWeightControl`, `AutoRiderWeightControlOnThrottle/BrakeTuning` (curves) and their multipliers, `AutoRiderPositionEngageSpeed`, `ManualPositionEngageSpeed`; only with `bEnableRiderHelpWeightControl` | deg to rad | fact / default |
 | `wheelie.throttle_pitch_rad`, `.forced_throttle_pitch_rad`, `.throttle_pitch_speed`, `.brake_pitch_rad`, `.brake_pitch_speed` | rider help `AutoRiderWheelieThrottleControl`, `...ForcedWheelie...`, `PitchSpeedWheelieThrottleControl`, `AutoRiderStoppieBrakeControl`, `PitchSpeedStoppieBrakeControl` | deg to rad | fact |
 
 **The lean damping multiplier.** The handler's tick (function `0x1450e0480`, build `5.6.1-1697004`) sets
@@ -86,8 +94,8 @@ structure is read; the two operands are inferred: `J = I_x_scale (M + m_r) + m_r
 KTM it is about 1.012 (the whole range is 1 to 1.5, so a wrong operand moves the damping ratio by a few percent at most).
 
 Not carried (no key in the manifest): the TCS, ECU, fuel and tyre-wear elements, tyre temperature and wear, the stability
-help, the lean help's reductions, the swingarm's arc, `LeanHelpBalance`, `MaxAngleFactorInputTuning`,
-`HelpIntensityTorqueTuning`, the `timescale` of the wheelie parameters, the rider's spring constants and the rider's drag.
+help, the lean help's reductions, the swingarm's arc, `LeanHelpBalance`, `MaxAngleFactorInputTuning` (the constructor default 0 to 1 is built in),
+`HelpIntensityTorqueTuning`, the rider's spring constants and the rider's drag.
 
 **KTM 450 SMR 2022 in these units** (for tests): total mass 183 kg; `I_roll = 36.6`, `I_pitch = 73.2`, `I_yaw = 82.35 kg m^2`;
 cg height 0.67 m; wheelbase 1.45 m; rake 26.1 deg; trail 0.105 m; front travel 0.285 m, spring 9000 N/m, rear travel 0.266 m,

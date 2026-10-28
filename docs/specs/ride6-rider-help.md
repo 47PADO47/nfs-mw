@@ -1,5 +1,10 @@
 # RIDE 6 wheelie, stoppie, rider help, ABS and traction control (clean-room spec)
 
+**The wheelie control, the rider help's throttle and brake interventions and its auto-rider are specified completely in
+[ride6-tricks.md](ride6-tricks.md)**, which corrects the first reading below (the help is scaled by the pedal, the tracker is
+the time-optimal plan, the speed curve is read at km/h, the pitch is the body's). This page keeps the overview and the
+ABS, TCS and ECU parts.
+
 Data: [ride6-physics-elements.md](../formats/ride6-physics-elements.md). Mapping to our model:
 [vehicle-two-wheel-parameters.md](vehicle-two-wheel-parameters.md). Sources: [provenance](../provenance/ride6-physics.md).
 Tags: **[B]** read from the binary, **[I]** inferred from the structure and the field names, **[D]** data only. The
@@ -124,6 +129,5 @@ wheelie angle and lean). All of them are products of 0..1 ramps over the listed 
 
 ## What was not recovered
 
-The exact weight-control target function of the rider help, the ramp functions of the TCS/ECU/ABS (the ranges are the
-data; the interpolation is linear between them unless the asset gives a curve), the torque arm of the wheelie help and
-the application point of its torque.
+The ramp functions of the TCS/ECU/ABS (the ranges are the data; the interpolation is linear between them unless the asset
+gives a curve). The wheelie help has no arm: its torque is pure (see [ride6-tricks.md](ride6-tricks.md)).

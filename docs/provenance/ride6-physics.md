@@ -99,3 +99,37 @@ headless copy. Specs: [ride6-tyre-mf94](../specs/ride6-tyre-mf94.md), [ride6-tyr
 
 Not found: writers of `TimeOverLimit`, `NoGear*ChangeTimer`, `ClutchFeatheringTimer`; the forced downshift under braking; the
 second and third reference-speed correction modes were read only far enough to know the KTM does not use them.
+
+## Round 5 additions (the rider component)
+
+Read against the user's GUI Ghidra instance (read-only queries; decompilation of the functions listed, written to a private
+folder outside the repository). Spec: [ride6-rider-body-aero](../specs/ride6-rider-body-aero.md). `FRiderComponent` sits at
+`0xF00` of the input handler; the component's own offsets are those of the SDK dump.
+
+| Topic | Functions (rva) | How verified |
+|---|---|---|
+| Target place: base, longitudinal and lateral offsets, the stopped blend, the lean and weight influences | `0x1450f7c50` | field offsets matched to the SDK layout; the blend range, the lerps and the signs read line by line |
+| Rider body: spring, damper speed blend, gravity correction, reaction force, angular spring, reaction torque and its 0..5 km/h fade | `0x1450f5900` (called with the component and the step); error vector `0x1450cc510` (`bUseNewRiderDelta`) | structure read line by line; the unit constant 10000 at `0x148f94f98`, 0.036 at `0x149e3fc18` |
+| Normalised target lean placing the rider | `0x1450d7520` (writes `0xc3c`), `0x1450d8f10` (writes the target lean `0xc18`) | arithmetic read: `2 ramp(target; -L, L) - 1` |
+| Combined centre of gravity, its height above the contact line and its lean | `0x1450f2500` | mass fractions and the contact-line geometry read; the simple branch recomputed |
+| Constructor defaults of the component | `0x1450bb350` | the stores of `20000`, `5000`, `1000`, `100`, `1`, the damping range 40..60, the rotation limit 90, `WeightInfluence 1` |
+| `StoppedSpeed` unused | a scan of the physics module for the field's offset in the handler | no instruction reads it |
+
+Not read: the rider's own air drag force (`DragCurve`, `DragScale`, `DragScaleCurve`), the lateral weight channel's rate and the
+native animation-instance logic (`IgnitionMotorbikeRiderAnimInstance`).
+
+## Round 4 additions (wheelies and stoppies)
+
+Read in the user's Ghidra instance (read-only queries; the decompiler output was read, never stored) and the Dumper-7 layouts.
+Specified in [ride6-tricks.md](../specs/ride6-tricks.md).
+
+| Topic | Functions |
+|---|---|
+| Wheelie control: input position, conditions, target angle, help factors, torque | `0x145136ea0`, `0x145122dc0`, `0x145100f80` (pedal x lever, speed in km/h, lean ramp, gap of the grounded wheel's suspension, torque `help x a_cmd x Mass x InertiaTensorScale.y x 10000` about the rotated Y axis) |
+| Time-optimal tracker | `0x145137060` (window average), `0x1450f1290` (the plan: roots, switch time, sign); parameter defaults `0x1450b3fa0` (terrain influence 0, target filter on, timescale 10) |
+| Rider help tick, interventions | `0x14510cbb0` (applies them), `0x145126b40` (pitch estimate, asked flags), `0x145110010` throttle (tail at `0x14511003a`), `0x145105b30` brake (tail at `0x145105b6b`), `0x145147cf0` (engine modulation), `0x145174a10` (fading modulator); defaults `0x1450fda20` |
+| Auto-rider weight | `0x1450ff610`, `0x145110af0` (player's weight, rest position from throttle and brake curves) |
+| IMU wheelie angle, pitch speed, g-force | `0x14513c2cc` (`IMU.WheelieAngle`, `PitchSpeed`, `GForce`); `CurrentWheelieAngle` is the body's pitch, written in `0x1450e0480` |
+
+`FTrickInputTuning`, `FTrickHelpTuning` and `UTrickHelpVehicleElement` belong to the monster-truck handler (`UMonsterTruckInputHandler`);
+no bike uses them. How a device reaches `Actions.WeightLongitudinal` is outside the physics module and was not recovered.
