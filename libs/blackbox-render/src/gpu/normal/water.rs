@@ -137,6 +137,9 @@ impl Renderer {
         if let Some(ray) = &mut normal.ray {
             ray.enabled = self.experiments.ray_road_reflections;
         }
+        if let Some(timing) = &mut self.timing {
+            timing.stamp(encoder, 10);
+        }
         let previous = normal.water.screen.color.clone();
         normal.water.screen.capture(&self.device, encoder, target, depth);
         if normal.water.screen.color != previous {
@@ -182,6 +185,10 @@ impl Renderer {
                 &self.shared.shadows.fallback,
                 store,
             );
+        }
+        drop(pass);
+        if let Some(timing) = &mut self.timing {
+            timing.stamp(encoder, 11);
         }
     }
 }

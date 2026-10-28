@@ -15,10 +15,10 @@ struct Slot {
 pub(super) struct Timing {
     slots: Vec<Slot>,
     active: Option<usize>,
-    used: [bool; 8],
+    used: [bool; 12],
     next: usize,
     period: f32,
-    pub latest: Option<[f32; 4]>,
+    pub latest: Option<[f32; 6]>,
     pub completed: u64,
 }
 
@@ -32,17 +32,17 @@ impl Timing {
                 queries: device.create_query_set(&wgpu::QuerySetDescriptor {
                     label: Some("lab GPU timings"),
                     ty: wgpu::QueryType::Timestamp,
-                    count: 8,
+                    count: 12,
                 }),
                 resolved: device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("lab resolved timestamps"),
-                    size: 64,
+                    size: 96,
                     usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
                     mapped_at_creation: false,
                 }),
                 readback: device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("lab timestamp readback"),
-                    size: 64,
+                    size: 96,
                     usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
                     mapped_at_creation: false,
                 }),
@@ -52,7 +52,7 @@ impl Timing {
         Some(Self {
             slots,
             active: None,
-            used: [false; 8],
+            used: [false; 12],
             next: 0,
             period: queue.get_timestamp_period(),
             latest: None,
@@ -75,8 +75,8 @@ impl Timing {
                 && let Ok(mapped) = slot.readback.slice(..).get_mapped_range()
             {
                 let ticks: &[u64] = bytemuck::cast_slice(&mapped);
-                let mut sample = [0.0; 4];
-                for i in 0..4 {
+                let mut sample = [0.0; 6];
+                for i in 0..6 {
                     sample[i] = ticks[i * 2 + 1].saturating_sub(ticks[i * 2]) as f32 * self.period / 1_000_000.0;
                 }
                 self.latest = Some(sample);
@@ -89,6 +89,8 @@ impl Timing {
                         ("shadows", sample[1].into()),
                         ("surface_prepass", sample[2].into()),
                         ("ambient_occlusion", sample[3].into()),
+                        ("cloud_lighting", sample[4].into()),
+                        ("road_reflections", sample[5].into()),
                     ],
                 );
             }
@@ -98,7 +100,7 @@ impl Timing {
         self.active = (0..self.slots.len())
             .map(|i| (self.next + i) % self.slots.len())
             .find(|&i| self.slots[i].state.load(Ordering::Acquire) == 0);
-        self.used = [false; 8];
+        self.used = [false; 12];
         self.stamp(encoder, 0);
     }
 
@@ -111,14 +113,14 @@ impl Timing {
     pub(super) fn finish(&mut self, encoder: &mut wgpu::CommandEncoder) {
         let Some(active) = self.active else { return };
         self.stamp(encoder, 1);
-        for i in 2..8 {
+        for i in 2..12 {
             if !self.used[i] {
                 self.stamp(encoder, i);
             }
         }
         let slot = &self.slots[active];
-        encoder.resolve_query_set(&slot.queries, 0..8, &slot.resolved, 0);
-        encoder.copy_buffer_to_buffer(&slot.resolved, 0, &slot.readback, 0, 64);
+        encoder.resolve_query_set(&slot.queries, 0..12, &slot.resolved, 0);
+        encoder.copy_buffer_to_buffer(&slot.resolved, 0, &slot.readback, 0, 96);
     }
 
     pub(super) fn submitted(&mut self) {
