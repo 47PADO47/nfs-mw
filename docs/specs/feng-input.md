@@ -60,6 +60,13 @@ shorter held count of its bits reaches the repeat time: **20 frames (320 ticks) 
 the following ones** (a case that repeated once is remembered as *fast* until it is released). After a repeat the
 bits' held counts drop by the repeat time, so the next one comes a repeat time later.
 
+**Host release contract [ours].** A released direction clears its fast-repeat state even if its package lacks control
+or has input disabled. This prevents an old hold from shortening a later hold's initial delay.
+
+**High render rates [ours].** A positive host frame can advance zero whole authored ticks. Such a frame is not a
+release: a direction still held retains its fast-repeat state even when its held counter is zero just after a repeat.
+Only absent required input bits reset that state. This preserves the tick-based cadence above the UI tick rate.
+
 On firing, with `msg` the case's message:
 
 1. `current` exists and has a response for `msg`: queue `msg` to `current`. The focus then moves by geometry

@@ -58,7 +58,7 @@ fn lerp(param: ParamType, base: &[u32; 4], a: &[u32; 4], b: &[u32; 4], t: f32) -
                 let sin = angle.sin();
                 ((qa * (angle * (1.0 - t)).sin()) + (qb * (angle * t).sin())) * (1.0 / sin)
             } else {
-                (qa + (qb * qa) * t).normalize()
+                (qa * (1.0 - t) + qb * t).normalize()
             };
             let q = quat(base) * q;
             out = [q.x.to_bits(), q.y.to_bits(), q.z.to_bits(), q.w.to_bits()];
@@ -128,7 +128,6 @@ pub fn evaluate(track: &Track, t: i32) -> Option<[u32; 4]> {
                         frac = 0.0;
                     }
                 }
-                2 => {}
                 _ => {
                     if let Some(p) = prev.filter(|_| t < key.time) {
                         let div = (key.time - p.time) as f32;
@@ -153,6 +152,12 @@ pub fn evaluate(track: &Track, t: i32) -> Option<[u32; 4]> {
 pub fn setup_move_to(tracks: &mut [Track], words: &[u32]) {
     for t in tracks.iter_mut().filter(|t| t.interp == Interp::MoveTo) {
         let Some(first) = t.keys.first_mut() else { continue };
+        if t.param == ParamType::Quat {
+            let current = std::array::from_fn(|i| words.get(t.offset + i).copied().unwrap_or(0));
+            let delta = quat(&t.base.value).inverse() * quat(&current);
+            first.value = [delta.x.to_bits(), delta.y.to_bits(), delta.z.to_bits(), delta.w.to_bits()];
+            continue;
+        }
         for i in 0..t.param.components() {
             let cur = words.get(t.offset + i).copied().unwrap_or(0);
             first.value[i] = if t.param.is_integer() {
@@ -231,6 +236,55 @@ mod tests {
         assert!((end.to_axis_angle().1 - 1.0).abs() < 1e-4);
     }
 
+    fn quat_words(q: Quat) -> [u32; 4] {
+        [q.x.to_bits(), q.y.to_bits(), q.z.to_bits(), q.w.to_bits()]
+    }
+
+    fn assert_rotation(actual: Quat, expected: Quat) {
+        assert!((actual.length() - 1.0).abs() < 1e-5, "not normalized: {actual:?}");
+        assert!((actual.dot(expected).abs() - 1.0).abs() < 1e-6, "{actual:?} != {expected:?}");
+    }
+
+    #[test]
+    fn equal_rotation_keys_remain_constant() {
+        let q = Quat::from_rotation_z(0.7);
+        let t = track(
+            ParamType::Quat,
+            Interp::Linear,
+            quat_words(Quat::IDENTITY),
+            vec![(0, quat_words(q)), (100, quat_words(q))],
+        );
+        for time in [0, 25, 50, 75, 100] {
+            assert_rotation(quat(&evaluate(&t, time).unwrap()), q);
+        }
+    }
+
+    #[test]
+    fn near_equal_rotation_keys_blend_and_compose_with_base() {
+        let base = Quat::from_rotation_x(0.6);
+        let a = Quat::from_rotation_z(0.7);
+        let b = Quat::from_rotation_z(0.74);
+        let t =
+            track(ParamType::Quat, Interp::Linear, quat_words(base), vec![(0, quat_words(a)), (100, quat_words(b))]);
+        for (time, angle) in [(0, 0.7), (25, 0.71), (50, 0.72), (75, 0.73), (100, 0.74)] {
+            assert_rotation(quat(&evaluate(&t, time).unwrap()), base * Quat::from_rotation_z(angle));
+        }
+    }
+
+    #[test]
+    fn opposite_quaternion_signs_represent_the_same_rotation() {
+        let q = Quat::from_rotation_y(0.7);
+        let t = track(
+            ParamType::Quat,
+            Interp::Linear,
+            quat_words(Quat::IDENTITY),
+            vec![(0, quat_words(q)), (100, quat_words(-q))],
+        );
+        for time in [0, 25, 50, 75, 100] {
+            assert_rotation(quat(&evaluate(&t, time).unwrap()), q);
+        }
+    }
+
     #[test]
     fn unsupported_tracks_do_nothing() {
         let t = track(ParamType::Float, Interp::Unsupported, fl(1.0), vec![(0, fl(1.0))]);
@@ -245,6 +299,101 @@ mod tests {
         setup_move_to(&mut tracks, &words);
         assert_eq!(f(tracks[0].keys[0].value[0]), 15.0);
         assert_eq!(f(evaluate(&tracks[0], 0).unwrap()[0]), 25.0);
+    }
+
+    #[test]
+    fn quaternion_move_to_starts_at_current_rotation_and_preserves_other_data() {
+        for base in [Quat::IDENTITY, Quat::from_rotation_x(0.6)] {
+            let current = Quat::from_rotation_z(0.9);
+            let final_delta = Quat::from_rotation_y(0.5);
+            let mut rotation = track(
+                ParamType::Quat,
+                Interp::MoveTo,
+                quat_words(base),
+                vec![(0, quat_words(Quat::IDENTITY)), (100, quat_words(final_delta))],
+            );
+            rotation.offset = 2;
+            let untouched = track(
+                ParamType::Quat,
+                Interp::Linear,
+                quat_words(base),
+                vec![(0, quat_words(current)), (100, quat_words(final_delta))],
+            );
+            let mut tracks = vec![rotation, untouched];
+            let current_words = quat_words(current);
+            let words = [123, 456, current_words[0], current_words[1], current_words[2], current_words[3], 789];
+            let original_words = words;
+            let untouched_first = tracks[1].keys[0].value;
+            let untouched_last = tracks[1].keys[1].value;
+            setup_move_to(&mut tracks, &words);
+            assert_eq!(words, original_words);
+            assert_eq!(tracks[0].keys[1].value, quat_words(final_delta));
+            assert_eq!(tracks[1].keys[0].value, untouched_first);
+            assert_eq!(tracks[1].keys[1].value, untouched_last);
+            for time in [0, 50, 100] {
+                let actual = quat(&evaluate(&tracks[0], time).unwrap());
+                assert!(actual.is_finite());
+                assert!((actual.length() - 1.0).abs() < 1e-5, "time {time}: {actual:?}");
+            }
+            assert_rotation(quat(&evaluate(&tracks[0], 0).unwrap()), current);
+            assert_rotation(quat(&evaluate(&tracks[0], 100).unwrap()), base * final_delta);
+        }
+        let mut integer = track(ParamType::Int, Interp::MoveTo, [10, 0, 0, 0], vec![(0, [0; 4]), (100, [5, 0, 0, 0])]);
+        integer.offset = 1;
+        let mut tracks = [integer];
+        setup_move_to(&mut tracks, &[99, 25, 77]);
+        assert_eq!(tracks[0].keys[0].value[0], 15);
+        assert_eq!(evaluate(&tracks[0], 0).unwrap()[0], 25);
+        assert_eq!(tracks[0].keys[1].value[0], 5);
+    }
+
+    #[test]
+    fn ping_pong_linear_and_move_to_blend_in_both_directions() {
+        for interp in [Interp::Linear, Interp::MoveTo] {
+            let mut t = track(ParamType::Float, interp, fl(10.0), vec![(0, fl(0.0)), (100, fl(20.0))]);
+            t.action = 2;
+            t.length = 100;
+            for (time, expected) in [
+                (0, 10.0),
+                (25, 15.0),
+                (50, 20.0),
+                (75, 25.0),
+                (100, 30.0),
+                (125, 25.0),
+                (150, 20.0),
+                (175, 15.0),
+                (200, 10.0),
+            ] {
+                assert_eq!(f(evaluate(&t, time).unwrap()[0]), expected, "time {time}");
+            }
+        }
+    }
+
+    #[test]
+    fn ping_pong_reflected_near_equal_quaternions_compose_with_base() {
+        let base = Quat::from_rotation_x(0.6);
+        let a = Quat::from_rotation_z(0.7);
+        let b = Quat::from_rotation_z(0.74);
+        let mut t =
+            track(ParamType::Quat, Interp::Linear, quat_words(base), vec![(0, quat_words(a)), (100, quat_words(b))]);
+        t.action = 2;
+        t.length = 100;
+        assert_rotation(quat(&evaluate(&t, 150).unwrap()), base * Quat::from_rotation_z(0.72));
+    }
+
+    #[test]
+    fn ping_pong_steps_and_clamp_and_loop_controls() {
+        let mut step = track(ParamType::Int, Interp::None, [7, 0, 0, 0], vec![(0, [1, 0, 0, 0]), (100, [2, 0, 0, 0])]);
+        step.action = 2;
+        step.length = 100;
+        for (time, value) in [(25, 1), (100, 2), (150, 1), (200, 1)] {
+            assert_eq!(evaluate(&step, time).unwrap()[0], value);
+        }
+        let mut t = track(ParamType::Float, Interp::Linear, fl(10.0), vec![(0, fl(0.0)), (100, fl(20.0))]);
+        t.length = 100;
+        assert_eq!(f(evaluate(&t, 150).unwrap()[0]), 30.0);
+        t.action = 1;
+        assert_eq!(f(evaluate(&t, 50).unwrap()[0]), 20.0);
     }
 
     #[test]
