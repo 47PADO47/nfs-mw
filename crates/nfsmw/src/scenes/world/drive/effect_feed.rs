@@ -8,6 +8,10 @@ use super::{CarPose, Drive};
 use crate::scenes::world::exhaust::CarState;
 
 impl Drive {
+    pub(in crate::scenes::world) fn world_effect_interest(&self) -> Vec3 {
+        self.position() + self.sim.as_ref().map_or(Vec3::ZERO, |sim| sim.effect_velocity()) * 0.15
+    }
+
     pub fn spark_body(&self) -> (super::CarPose, nfsmw_data::car::physics::CarBounds) {
         (self.pose(), self.physics.bounds)
     }

@@ -25,9 +25,7 @@ rotation, scale and translation. Evaluate in that order.
 
 For the ordinary free-roam track records, flags 0x28 select forward looping;
 elapsed time is multiplied by the instance speed (zero uses one), and a
-visible section advances the clock. This implementation admits that verified
-subset only. Triggered, track-specific, ranged, reverse and delayed motion
-need their own behavior and tests. The track's ordinary records use flag 0x28,
+visible section advances the clock. The controller behavior for other flags is specified below. The track's ordinary records use flag 0x28,
 no trigger, no track restriction and no direction. Missing models or channels
 must not produce fabricated geometry. The airliner's three channel names also
 identify their individual `_10`, `_11` and `_12` solids, while their common
@@ -38,3 +36,41 @@ The separate simple-model animation runs continuously at 50 degrees per second.
 `XB_DONUTSIGNB_1B_BK_00` rotates around local Z and
 `XO_WINDMILL_BLADE_1B_JG_00` around local Y. The animation is applied to
 matching solid meshes; the donut's breakable prop sequence is separate.
+
+## PC playback controller
+
+Static inspection of the retail PC controller confirms the following rules.
+This establishes code behavior, not a matched runtime capture.
+
+- Evaluation uses frames at 30 Hz. Multiply elapsed seconds by speed (zero
+  selects one). Each entity owns its controller and channel duration.
+- Zero flags select linear looping (0x28). Linear 0x8 wins over ping-pong
+  0x10; neither selects linear. Loop is 0x20, reverse-linear is 0x1000.
+- Inline frame ranges are unsigned 16-bit values at instance offsets 28/30.
+  Flag 0x40 selects them; both range endpoints are multiplied by speed.
+  The controller starts at frame zero, including reverse/ranged playback.
+- Delay values are seconds. Initialization enables both master and loop delay
+  flags. Master delay precedes local delay, and both are bypassed at/after the
+  end frame. Crossing a delay adds the elapsed-delay remainder to evaluation;
+  it does not apply direction or endpoint processing on that tick.
+- Endpoint crossing is strict. Linear looping corrects one range length per
+  update; non-looping clamps to the endpoint but retains playing state.
+  Ping-pong reflects the forward overshoot, switches direction, and clamps at
+  the beginning on the reverse crossing. Reverse crossings reset loop delay.
+- A start or stop trigger hash forces ping-pong and triggered flags (0x810),
+  disabling linear. Triggered ping-pong pauses at each crossed endpoint.
+  Instances with a start trigger or track direction begin stopped; others play.
+- The inspected PC scenario initializer creates only the generic NIS controller.
+  The trigger-zone and forward/reverse-track slots remain empty. Their fields
+  alone do not establish autonomous game-world activation to reproduce.
+- Track filters admit either of two inclusive byte ranges of track number modulo
+  100 (low pair: min in bits 8..15, max in 0..7; high pair: min in 24..31,
+  max in 16..23). Track direction is separate from reverse-linear playback.
+
+All eleven inspected L2RA instances use ordinary loops; the advanced modes are
+covered with synthetic controller tests. Random start/delay flags and generic
+NIS world-control delivery are not validated by this game-world-only work.
+
+Track-restricted placements remain omitted when the remake has no verified
+numeric original track identity. Random phase/delay flags are also not admitted.
+Neither restriction removes an instance from the inspected stock L2RA track.

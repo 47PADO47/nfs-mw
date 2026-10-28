@@ -22,7 +22,7 @@ mod triggers;
 pub use bins::{Bin, bins};
 pub use cop_spawns::CopSpawn;
 pub use final_race::{EventMarker, FinalRaceMarkers};
-pub use markers::{ActivityKind, ActivityMarker};
+pub use markers::{ActivityKind, ActivityMarker, EngageMarker};
 pub use milestones::{
     BountyJump, Milestone, MilestoneType, RivalRequirements, SpeedTrap, bounty_jumps, milestone_types, milestones,
     rival_requirements, speed_traps,
@@ -53,6 +53,8 @@ const CLASS: &str = "gameplay";
 /// Everything read from the `gameplay` class that this module covers.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct GameplayData {
+    /// Authored free-roam race entry positions, linked by TargetActivity.
+    pub engages: Vec<EngageMarker>,
     /// Every race and challenge (non-template collections with a `racestart`), in database order.
     pub races: Vec<Race>,
     /// Every box trigger (collections that inherit `boxtrigger`): race finish lines and checkpoints, among others.
@@ -132,6 +134,7 @@ impl GameplayData {
     /// Read a database that holds `attributes.bin` and `gameplay.bin` (see [`load`]).
     pub fn from_database(db: &Database) -> Self {
         Self {
+            engages: markers::engages(db),
             races: races::races(db),
             triggers: triggers::triggers(db),
             spheres: triggers::spheres(db),

@@ -14,7 +14,7 @@ in this pass: the box test's axes were **not** looked up in Ghidra. World icon a
 
 The placeholder coloured discs have been replaced by installed world icon
 geometry and particle groups. The retail type-to-asset table, current
-placement approximation and remaining uncertainties are documented in
+placement rules and remaining uncertainties are documented in
 [world-activity-icons.md](world-activity-icons.md). Trigger radius still
 controls the entry test; it does not scale the world icon.
 
@@ -24,7 +24,7 @@ controls the entry test; it does not scale the world icon.
 |---|---|---|---|
 | Auto shop (8) | sphere, stored radius | `ZoneType = customshop` | **[verified]** count; radius per zone |
 | Safe house (4) | sphere, stored radius | `ZoneType = safehouse` | **[verified]** count; radius per zone |
-| Race start (255 with a `racestart`) | sphere, 6 m at the start grid | `racestart` of each race | **[verified]** count; radius **[unconfirmed]** |
+| Race entry | sphere, authored radius and position | `engagetrigger`, linked by `TargetActivity` | **[exe]** icon placement; synthetic data without engage records retains the old 6 m grid fallback |
 
 The stored box triggers are **not** entries. The install has 2,332 box triggers, and every name read is a race's own
 route: checkpoints (`checkpoint`, `ai_cp`, `time_bonus_checkpoint`, the tollbooth `challenge_tollbooth_`), finish lines
@@ -32,7 +32,8 @@ route: checkpoints (`checkpoint`, `ai_cp`, `time_bonus_checkpoint`, the tollboot
 `10_4_2_finishline`), the `gpstarget` and the `lose_trigger` **[verified]** (a count of the names in the `boxtrigger`
 class, this pass). None is a place to enter, so the zone list holds spheres only.
 
-The race start is the "event" position; this rewrite has no other event kind.
+The race grid and free-roam event entry are distinct positions. The latter
+supplies the icon and drive-over zone; the grid is used when the race starts.
 
 ## 3. The drive-over test
 
