@@ -1799,6 +1799,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-skeleton"
+version = "0.1.0"
+dependencies = [
+ "glam 0.34.1",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-smaa"
 version = "0.1.0"
 dependencies = [
@@ -4241,6 +4251,7 @@ dependencies = [
  "blackbox-scene",
  "blackbox-scenery",
  "blackbox-sequence",
+ "blackbox-skeleton",
  "blackbox-solid",
  "blackbox-speedfx",
  "blackbox-streaming",
@@ -5460,10 +5471,14 @@ dependencies = [
  "blackbox-attrib",
  "blackbox-collision",
  "blackbox-hash",
+ "blackbox-modding",
+ "blackbox-skeleton",
  "blackbox-solid",
  "blackbox-tpk",
  "clap",
+ "glam 0.34.1",
  "png",
+ "serde",
  "serde_json",
 ]
 
