@@ -113,3 +113,44 @@ fn add(parts: &mut PartsDb, car: &CarTypeInfo) -> Result<()> {
     parts.push_parts(&news).with_context(|| format!("adding the parts of {folder}"))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use blackbox_carparts::PartQuery;
+
+    use super::*;
+
+    fn car(folder: &str) -> CarTypeInfo {
+        CarTypeInfo {
+            type_name: folder.to_owned(),
+            base_model_name: folder.to_owned(),
+            geometry_filename: format!("CARS\\{folder}\\GEOMETRY.BIN"),
+            manufacturer: String::new(),
+            type_name_hash: bstring_hash(folder),
+            index: 0,
+            usage_type: 0,
+            default_skin_number: 1,
+            skinnable: true,
+            default_base_paint: 0,
+        }
+    }
+
+    /// The stored parts database names at most 256 car types and groups (a byte), and the game uses about 106; the in-memory
+    /// database does not stop there, so a game with the 93 cars of the 2012 mod and the 317 bikes of the RIDE 6 mod
+    /// (410 mod cars, 2,460 parts) gives every car its body, wheel and driver (docs/specs/car-parts-capacity.md).
+    #[test]
+    fn four_hundred_mod_cars_all_get_their_parts() {
+        let mut db = PartsDb::default();
+        let cars: Vec<CarTypeInfo> = (0..410).map(|i| car(&format!("MODCAR{i:03}"))).collect();
+        extend(&mut db, &cars);
+        assert_eq!(db.parts().len(), 410 * 3);
+        assert_eq!(db.type_names().len(), 410);
+        for car in &cars {
+            let body = db.find(&PartQuery::new(LAYOUT.slots[slot::BODY].part_id, car.type_name_hash)).unwrap();
+            assert_eq!(db.type_name_hash(body), car.type_name_hash);
+            assert_eq!(db.model_hash(body, 3), Some(bstring_hash(&format!("{}_KIT00_BODY_D", car.type_name))));
+            let wheel = db.find(&PartQuery::new(LAYOUT.slots[slot::FRONT_WHEEL].part_id, car.type_name_hash)).unwrap();
+            assert_eq!(db.model_hash(wheel, 0), Some(bstring_hash(&format!("{}_KIT00_FRONT_TIRE_A", car.type_name))));
+        }
+    }
+}

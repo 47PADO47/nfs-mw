@@ -99,51 +99,60 @@ fn a_level_beyond_the_three_bits_is_refused() {
 }
 
 #[test]
-fn the_type_name_table_is_a_byte_wide_index() {
+fn the_type_name_table_is_not_limited_to_a_byte() {
     let mut db = db();
-    // The pack has 2 type names; 254 more fill the 256 an 8-bit index reaches.
-    for i in 0..254u32 {
+    let stock = db.parts().to_vec();
+    // The stored record keeps the type index in a byte (256 car types and groups); in memory it is 16 bits wide, so a
+    // game with far more mod cars than that keeps a body part for every one.
+    for i in 0..600u32 {
         let mut new = body(&[1], &[]);
         new.type_name_hash = 0x1000 + i;
         new.name = "X";
         db.push_part(&new).unwrap();
     }
-    assert_eq!(db.type_names().len(), 256);
-    let (parts, strings, models) = (db.parts().len(), db.strings.len(), db.model_tables.len());
-    let mut over = body(&[1], &[]);
-    over.type_name_hash = 0xFFFF;
-    assert!(matches!(db.push_part(&over), Err(Error::Full("type-name"))));
-    // A refusal changes nothing; a known type still goes in.
-    assert_eq!((db.parts().len(), db.strings.len(), db.model_tables.len()), (parts, strings, models));
-    over.type_name_hash = 0x1000;
-    let last = db.push_part(&over).unwrap();
-    assert_eq!(db.type_name_hash(&last), 0x1000);
-    assert_eq!(last.type_index, 2);
+    assert_eq!(db.type_names().len(), 602);
+    let last = db.find(&PartQuery::new(23, 0x1000 + 599)).unwrap();
+    assert_eq!(last.type_index, 601);
+    assert_eq!(db.type_name_hash(last), 0x1000 + 599);
+    assert_eq!(db.name(last), "X");
+    let first = db.find(&PartQuery::new(23, 0x1000)).unwrap();
+    assert_eq!(first.type_index, 2);
+    // An existing type name is reused, and the stock parts are still first and unchanged.
+    let mut again = body(&[1], &[]);
+    again.type_name_hash = 0x1000;
+    again.part_id = 67;
+    assert_eq!(db.push_part(&again).unwrap().type_index, 2);
+    assert_eq!(&db.parts()[..stock.len()], &stock[..]);
 }
 
 #[test]
-fn a_full_string_table_is_refused_not_wrapped() {
+fn a_string_table_past_the_stored_width_still_addresses_every_name() {
     let mut db = db();
     let mut new = body(&[1], &[]);
-    // 4-byte units: offsets reach 65534 units, about 262 kB.
-    db.strings.resize(65_535 * 4, 0);
-    assert!(matches!(db.push_part(&new), Err(Error::Full("string"))));
-    db.strings.truncate(65_533 * 4);
-    new.name = "LAST";
-    let ok = db.push_part(&new).unwrap();
-    assert_eq!(db.name(&ok), "LAST");
+    // 4-byte units: a 16-bit offset reaches 262 kB, about 4,500 names of a mod car's size on top of the game's own.
+    db.strings.resize(70_000 * 4, 0);
+    new.name = "BEYOND";
+    let part = db.push_part(&new).unwrap();
+    assert!(part.name_offset > u32::from(u16::MAX));
+    assert_eq!(db.name(&part), "BEYOND");
 }
 
 #[test]
-fn a_full_model_or_attribute_table_is_refused() {
+fn the_model_tables_past_the_stored_width_still_resolve() {
     let mut db = db();
     db.model_tables.resize(
-        usize::from(u16::MAX),
+        usize::from(u16::MAX) + 10,
         crate::parts::ModelTable { templated: false, middle: None, entries: Vec::new() },
     );
-    assert!(matches!(db.push_part(&body(&[1], &[])), Err(Error::Full("model"))));
+    let solid = bstring_hash("MODCAR_KIT00_BODY_A");
+    let part = db.push_part(&body(&[solid], &[])).unwrap();
+    assert!(part.model_table > u32::from(u16::MAX));
+    assert_eq!(db.model_hash(&part, 0), Some(solid));
+}
 
-    let mut db = self::db();
+#[test]
+fn a_full_attribute_table_is_refused() {
+    let mut db = db();
     db.attributes.resize(i16::MAX as usize, (1, 1));
     assert!(matches!(db.push_part(&body(&[1], &[(9, 9)])), Err(Error::Full("attribute"))));
     // A pair that is already stored needs no room.
@@ -168,16 +177,17 @@ fn a_group_goes_in_whole_or_not_at_all() {
     assert_eq!(stored.len(), 2);
     assert_eq!(db.parts().len(), parts + 2);
 
-    // The second of the pair does not fit (the model table is full after the first): nothing stays.
+    // The second of the pair does not fit (the attribute lists are full and it needs one): nothing stays.
     let mut db = self::db();
-    db.model_tables.resize(
-        usize::from(u16::MAX) - 1,
-        crate::parts::ModelTable { templated: false, middle: None, entries: Vec::new() },
-    );
-    let mut other = body(&one, &name);
+    db.attribute_lists.resize(usize::from(u16::MAX) * 2, 0);
+    let mut other = body(&one, &[]);
     other.type_name_hash = 0xABCD;
-    let before = (db.strings.len(), db.parts().len(), db.type_names().len(), db.attributes.len());
-    assert!(matches!(db.push_parts(&[other, wheel]), Err(Error::Full("model"))));
-    assert_eq!((db.strings.len(), db.parts().len(), db.type_names().len(), db.attributes.len()), before);
-    assert_eq!(db.model_tables.len(), usize::from(u16::MAX) - 1);
+    let mut wheel = body(&two, &name);
+    wheel.part_id = 67;
+    wheel.name = "MODCAR_WHEEL";
+    let before =
+        (db.strings.len(), db.parts().len(), db.type_names().len(), db.attributes.len(), db.model_tables.len());
+    assert!(matches!(db.push_parts(&[other, wheel]), Err(Error::Full("attribute list"))));
+    let after = (db.strings.len(), db.parts().len(), db.type_names().len(), db.attributes.len(), db.model_tables.len());
+    assert_eq!(after, before);
 }
