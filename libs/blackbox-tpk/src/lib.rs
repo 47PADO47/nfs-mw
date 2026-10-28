@@ -13,11 +13,14 @@
 //! version 5 (NFS: Most Wanted, PC). Other versions fail with
 //! [`Error::UnsupportedVersion`] until their layout is added.
 //!
+//! [`TextureSource::from_rgba`] builds a texture from RGBA8 pixels with a mip chain and a small DXT1/DXT5 encoder.
+//!
 //! [`write_tpk`] goes the other way: it builds a version 5 pack (the car `TEXTURES.BIN` form, or the plain form)
 //! from [`TextureSource`]s, and the result reads back to the same textures.
 
 mod anim;
 mod decode;
+mod encode;
 mod error;
 mod format;
 mod info;
@@ -32,6 +35,7 @@ mod tests;
 
 pub use anim::{TextureAnim, read_texture_anims};
 pub use decode::{decode_mip_rgba8, decode_rgba8, decode_rgba8_cutout, mip_level_size};
+pub use encode::{Level, encode_level, full_mip_count, halve, mip_chain};
 pub use error::{Error, Result};
 pub use format::{AlphaUsage, PixelFormat};
 pub use reader::{read_texture_packs, read_texture_packs_filtered, read_texture_packs_ranged};
