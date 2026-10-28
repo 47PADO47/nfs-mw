@@ -1,0 +1,16 @@
+# Bikes of the user's own RIDE 6 install, converted by `ride6-bike-import` (mods/ride6-bikes/README.md).
+# A content-only mod: it holds `cars/` and `files/` and no library. The generated files belong to the user's install
+# of RIDE 6 and are never committed.
+
+[mod]
+id = "ride6-bikes"
+name = "RIDE 6 bikes"
+version = "0.1.0"
+authors = ["nfs-mw contributors"]
+license = "MIT OR Apache-2.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["nfsmw"]

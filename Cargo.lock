@@ -5453,6 +5453,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
+name = "ride6-bikes"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blackbox-attrib",
+ "blackbox-collision",
+ "blackbox-hash",
+ "blackbox-solid",
+ "blackbox-tpk",
+ "clap",
+ "png",
+ "serde_json",
+]
+
+[[package]]
 name = "ron"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

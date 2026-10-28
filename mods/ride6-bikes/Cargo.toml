@@ -1,0 +1,26 @@
+[package]
+name = "ride6-bikes"
+description = "Content mod: bikes of the user's own RIDE 6 install, converted from glTF exports into mod cars of NFS: Most Wanted (2005)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "ride6-bike-import"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+blackbox-attrib.workspace = true
+blackbox-collision.workspace = true
+blackbox-hash.workspace = true
+blackbox-solid.workspace = true
+blackbox-tpk.workspace = true
+clap.workspace = true
+png.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

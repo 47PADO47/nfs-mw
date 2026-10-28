@@ -5,7 +5,7 @@ resolver = "3"
 # crates/ the NFS:MW game itself.
 # mods/nfsmw-2012-content is the one mod built with the workspace. The example mods (mods/hello and mods/lang-pack)
 # are not members: mods/hello is its own workspace and is built on demand (`cargo build --manifest-path mods/hello/Cargo.toml`).
-members = ["libs/*", "crates/*", "xtask", "mods/nfsmw-2012-content"]
+members = ["libs/*", "crates/*", "xtask", "mods/nfsmw-2012-content", "mods/ride6-bikes"]
 # Every lib except the optional Bevy renderer, so a plain `cargo build` at the root never compiles bevy_render
 # (`--workspace` and `-p blackbox-bevy-render` still reach it). Add new libs here.
 default-members = [
@@ -200,6 +200,7 @@ pollster = "0.4"
 raw-window-handle = "0.6"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 sha2 = "0.10"
 # Multiplayer transport security and hand-off (blackbox-net-core features `netcode` and `handoff`; docs/rust-stack.md).
 # Versions match what snow itself pulls, so each crypto crate is compiled once.
