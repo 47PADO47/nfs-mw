@@ -118,6 +118,18 @@ pub(super) fn material_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             },
             count: None,
         },
+        wgpu::BindGroupLayoutEntry {
+            binding: 13,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Depth,
+                view_dimension: wgpu::TextureViewDimension::D2Array,
+                multisampled: false,
+            },
+            count: None,
+        },
+        uniform(14),
+        uniform(15),
     ];
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("normal scenery material"),

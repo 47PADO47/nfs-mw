@@ -86,6 +86,11 @@ fn trace_environment(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,bias:f32,ran
     }
     let hit=rayQueryGetCommittedIntersection(&query);
     if hit.kind==0u { return RtHit(vec3(0.0),world,0.0,false); }
+    let position=origin+ray*hit.t;
+    // An exact current-frame raster hit already contains its complete material and lighting.
+    // Resolve it before texture/normal/shadow work that would be overwritten by screen reuse.
+    let screen=rt_screen_radiance(position);
+    if screen.w>=1.0 { return RtHit(screen.rgb,position,hit.t,true); }
     let triangle=rt_triangles[hit.instance_custom_data+hit.primitive_index];
     let bary=vec3(1.0-hit.barycentrics.x-hit.barycentrics.y,hit.barycentrics);
     let a=rt_vertices[triangle.x]; let b=rt_vertices[triangle.y]; let c=rt_vertices[triangle.z];
@@ -109,7 +114,6 @@ fn trace_environment(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,bias:f32,ran
         }
     }
     let n=normalize(transpose(mat3x3(hit.world_to_object[0],hit.world_to_object[1],hit.world_to_object[2]))*local_n);
-    let position=origin+ray*hit.t;
     let tex=rt_tex(triangle,bary,lod);
     let kind=((triangle.w>>16u)&255u)|((triangle.w>>26u)<<8u);
     var radiance=2.0*tex.rgb*colour.rgb;
@@ -120,5 +124,5 @@ fn trace_environment(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,bias:f32,ran
         radiance=2.0*tex.rgb*(ambient*colour.rgb+diffuse*max(dot(n,-globals.light_dir.xyz),0.0)*visible);
     }
     if kind>=3u { radiance=rt_glossy_hit(rt_materials[kind-3u],tex.rgb,colour,n,-ray,position); }
-    return RtHit(radiance,position,hit.t,true);
+    return RtHit(mix(radiance,screen.rgb,screen.w),position,hit.t,true);
 }

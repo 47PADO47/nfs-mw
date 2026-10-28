@@ -8,6 +8,10 @@ pub(super) struct Water {
     pub environment: wgpu::TextureView,
     pub filtered_environment: wgpu::TextureView,
     pub base_environment: wgpu::TextureView,
+    pub probe_depth: wgpu::TextureView,
+    pub base_probe_depth: wgpu::TextureView,
+    pub probe_origin: wgpu::Buffer,
+    pub sky: wgpu::Buffer,
     pub sampler: wgpu::Sampler,
 }
 impl Water {
@@ -32,12 +36,35 @@ impl Water {
             contents: bytemuck::cast_slice(&[0.0f32; 4]),
             usage: wgpu::BufferUsages::UNIFORM,
         });
+        let probe_depth = device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("absent road probe depth"),
+                size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 6 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            })
+            .create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2Array),
+                ..Default::default()
+            });
         Self {
             screen: Screen::new(device),
-            disabled,
+            disabled: disabled.clone(),
             base_environment: environment.clone(),
             filtered_environment: environment.clone(),
             environment,
+            base_probe_depth: probe_depth.clone(),
+            probe_depth,
+            probe_origin: disabled.clone(),
+            sky: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("absent road background colours"),
+                contents: bytemuck::cast_slice(&[0.0_f32; 24]),
+                usage: wgpu::BufferUsages::UNIFORM,
+            }),
             sampler: device.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some("road reflection clamp"),
                 mag_filter: wgpu::FilterMode::Linear,

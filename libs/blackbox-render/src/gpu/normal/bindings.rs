@@ -60,6 +60,21 @@ pub(super) fn material_group(
                 false => &water.base_environment,
             }),
         },
+        wgpu::BindGroupEntry {
+            binding: 13,
+            resource: wgpu::BindingResource::TextureView(match active {
+                true => &water.probe_depth,
+                false => &water.base_probe_depth,
+            }),
+        },
+        wgpu::BindGroupEntry {
+            binding: 14,
+            resource: match active {
+                true => water.probe_origin.as_entire_binding(),
+                false => water.disabled.as_entire_binding(),
+            },
+        },
+        wgpu::BindGroupEntry { binding: 15, resource: water.sky.as_entire_binding() },
     ];
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("normal scenery material"),

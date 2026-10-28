@@ -6,6 +6,8 @@ mod ray_pass;
 #[cfg(test)]
 mod reflect_tests;
 #[cfg(test)]
+mod road_probe_tests;
+#[cfg(test)]
 mod surface_boundary_tests;
 #[cfg(test)]
 mod tests;
@@ -81,10 +83,11 @@ impl Normal {
             label: Some("normal scenery shader"),
             source: wgpu::ShaderSource::Wgsl(
                 format!(
-                    "{}\n{}\n{}",
+                    "{}\n{}\n{}\n{}",
                     instance_view::instance_source(include_str!("../../shaders/normal.wgsl"), store.then_some(3)),
                     include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"),
-                    include_str!("../../shaders/road_reflection.wgsl")
+                    include_str!("../../shaders/road_reflection.wgsl"),
+                    include_str!("../../shaders/road_probe.wgsl")
                 )
                 .into(),
             ),
@@ -263,14 +266,22 @@ impl Renderer {
         }
         let environment = self.glossy.as_ref().map(|g| g.road_environment());
         let Some(normal) = &mut self.normal else { return };
-        if let Some((environment, base, filtered)) = environment {
+        if let Some(([environment, base, filtered, depth], [origin, sky])) = environment {
             if normal.water.base_environment != base {
                 normal.water.base_environment = base;
                 normal.rebind_water(&self.device);
             }
-            if normal.water.environment != environment || normal.water.filtered_environment != filtered {
+            if normal.water.environment != environment
+                || normal.water.filtered_environment != filtered
+                || normal.water.probe_depth != depth
+                || normal.water.probe_origin != origin
+                || normal.water.sky != sky
+            {
                 normal.water.environment = environment;
                 normal.water.filtered_environment = filtered;
+                normal.water.probe_depth = depth;
+                normal.water.probe_origin = origin;
+                normal.water.sky = sky;
                 for material in normal.materials.iter_mut() {
                     material.water_group = None;
                 }
