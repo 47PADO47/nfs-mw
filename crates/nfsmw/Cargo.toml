@@ -97,6 +97,10 @@ arboard = { version = "3.7", default-features = false }
 open = "5.4"
 epaint_default_fonts = "0.36.2"
 
+[build-dependencies]
+# The executable's icon resource (build.rs), Windows only.
+winres = "0.1"
+
 [features]
 native-dlss = ["blackbox-render/streamline"]
 # mimalloc as the global allocator (src/main.rs): 3-5 % less CPU per frame than the system allocator in the world frame cost

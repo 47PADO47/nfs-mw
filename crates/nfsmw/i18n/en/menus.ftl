@@ -33,8 +33,10 @@ menus-jukebox-reordering = { $order }, re-order on
 menus-presence-playing = Playing NFS: Most Wanted
 # The line while the player is seated in a LAN game.
 menus-presence-lan = In a LAN game
-# The window's title, refreshed each second: $scene is the scene's name, $renderer the graphics backend, $fps the frames
-# of the last second, and $status the scene's own status (empty, or starting with " - ").
-menus-window-title = { $scene } - { $renderer } - { $fps } fps{ $status }
+# The game's name, the window's title until the first refresh.
+menus-game-title = Need for Speed Most Wanted
+# The window's title, refreshed each second: the game's name, then $scene (the scene's name), $renderer (the graphics
+# backend), $fps (the frames of the last second), and $status the scene's own status (empty, or starting with " - ").
+menus-window-title = { menus-game-title } - { $scene } - { $renderer } - { $fps } fps{ $status }
 # Player 1's name in a co-op session when no career profile is loaded.
 menus-player-fallback = Player
