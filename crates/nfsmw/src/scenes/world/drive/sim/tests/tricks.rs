@@ -97,5 +97,6 @@ fn a_bikes_abs_level_changes_how_hard_the_front_brake_can_work() {
         }
         25.0 - bike.rider_sample().expect("a bike").speed
     };
-    assert!(slowed(4) > slowed(0) + 1.0, "level 0 brakes harder than level 1");
+    // (With the bike's step divided into sub-steps the anti-lock follows the slip more closely and costs less than at 60 Hz.)
+    assert!(slowed(4) > slowed(0) + 0.3, "level 0 brakes harder than level 1");
 }

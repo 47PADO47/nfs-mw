@@ -27,12 +27,20 @@ use super::super::rider::RiderSample;
 use super::step::StepStart;
 use super::{CarSim, MAX_VISIBLE_TRAVEL, Telemetry};
 
+/// The share of the stick the rider gives the bike's lean controller (a modelling choice, `docs/specs/ride6-feel-round8.md`, section 4). The
+/// full stick of the reference asks for the lean limit, the edge of the front tyre's grip; a key or a stick pushed to its end holds it
+/// for as long as it is held, and this model's bike held there falls within seconds on many bikes (a weave the tyres cannot take). 0.8 is the
+/// largest share that 287 of the 288 bikes of the install held for 10 s at every speed from 8 to 40 m/s.
+const STICK_SHARE: f32 = 0.8;
+
 /// A bike that lost its rider lies this long before it is stood up again (s). A modelling choice (`ride6-rider-fall.md`): the
 /// reference lets the rider get up, walk to the bike and raise it, which takes longer and is not modelled.
 const GET_UP_AFTER: f32 = 2.0;
 /// ... and only once it has come to a stop slower than this (m/s). The bike slides on its collision box until the ground's friction
 /// stops it: nothing else slows it.
 const GET_UP_SPEED: f32 = 1.5;
+/// The drift angle is 0 below this speed (m/s): the direction of a velocity that small means nothing. A modelling choice.
+const DRIFT_MIN_SPEED: f32 = 2.0;
 
 /// The two-wheel dynamics of a bike and what joins them to the four-wheel body double.
 #[derive(Debug, Clone)]
@@ -241,6 +249,21 @@ impl BikeRide {
             rear_down: self.bike.wheel(REAR).on_ground,
             offset: self.bike.rider_offset(),
             rotation: Vec3::new(body.roll_right(), body.pitch_up(), body.yaw_right()),
+            weight: self.bike.rider_weight(),
+            steer: self.controls.steering,
+            drift_deg: self.drift_angle_deg(),
+        }
+    }
+
+    /// The angle between the bike's path and its heading, degrees, positive when the heading is to the right of the path
+    /// (the blueprint's `VehicleDriftAngleDeg`); 0 below walking pace, where the direction of the velocity means nothing.
+    fn drift_angle_deg(&self) -> f32 {
+        let velocity = self.bike.velocity();
+        let orientation = self.bike.orientation();
+        let (forward, right) = (velocity.dot(orientation * Vec3::Z), velocity.dot(orientation * Vec3::X));
+        match velocity.length() > DRIFT_MIN_SPEED {
+            true => (-right).atan2(forward).to_degrees(),
+            false => 0.0,
         }
     }
 
@@ -370,7 +393,7 @@ pub(super) fn command(input: &InputState) -> BikeInput {
         throttle: unit(input.throttle),
         front_brake: unit(input.brake),
         rear_brake: unit(input.brake).max(unit(input.handbrake)),
-        steer: signed_unit(input.steer),
+        steer: signed_unit(input.steer) * STICK_SHARE,
     }
 }
 

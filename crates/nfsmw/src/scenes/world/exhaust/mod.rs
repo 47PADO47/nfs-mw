@@ -75,6 +75,8 @@ struct Active {
     engine_upgrades: i32,
     /// The car was added by a mod: its pops and shifts flame plainly (see `trigger::MOD_BACKFIRE_SECONDS`).
     mod_car: bool,
+    /// The car is a bike: smaller flames, and a down-shift off the pedal flicks (`trigger::bike_shift_flames`).
+    bike: bool,
     shift: ShiftEvent,
     backfire: Backfire,
     /// How strongly the pipes spawned in the latest step, 0 when quiet.

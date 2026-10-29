@@ -1,98 +1,148 @@
 //! Leaning the rider forward when his arms cannot reach the grips.
 //!
 //! The animation is authored for one bike (the reference pose has the hands on that bike's grips). Another bike's grips can be
-//! farther from the seat than the arms are long, and the two-bone solve then stretches the arm towards the grip and stops short.
-//! The original solves hands and body together with a full-body IK that moves the spine; this does the one part of that which
-//! matters here: it turns the body forward about the pelvis (the bone the shift moves), by just the angle that brings the
-//! shoulders of the limbs that are too short to their goals, one angle for all limbs, in the least-squares sense.
+//! farther from the seat than the arms are long (a racer's clip-ons are below the hips), and the two-bone solve then stretches
+//! the arm towards the grip and stops short. The original solves hands and body together with a full-body IK that moves the
+//! spine; this does the part of that which matters here: it turns the spine forward about its own joints, one angle split evenly
+//! over them, by the smallest angle that brings every shoulder within [`REACH_FRACTION`] of its arm's length of the grip; the
+//! neck and head turn back against it so he keeps looking ahead. The pelvis stays on the seat and the legs are not moved by it.
 //!
-//! The two numbers below are modelling choices, not data: [`REACH_FRACTION`] keeps the elbow a little bent where the arm could
-//! just reach, and [`MAX_LEAN`] stops the body from folding over for a grip that is absurdly far (the contacts file is already
-//! held to [`super::contacts::MAX_REACH_M`]).
+//! The numbers below are modelling choices, not data: [`REACH_FRACTION`] leaves the elbow bent about 20 degrees where the arm
+//! could just reach, [`MAX_LEAN`] stops the body from folding over for a grip that is absurdly far (the contacts file is already
+//! held to `contacts::MAX_REACH_M`), and [`STEP`] is the search's resolution before it is refined.
 
-use blackbox_skeleton::Transform;
-use glam::Vec3;
+use blackbox_skeleton::{Error, Skeleton, Transform};
+use glam::{Quat, Vec3};
 
-use super::pose::Resolved;
+use super::attach::Torso;
 
 /// The part of its length a limb is asked to stretch to before the body leans for it.
-pub const REACH_FRACTION: f32 = 0.95;
-/// The most the body leans forward to reach, radians (about 29 degrees).
-pub const MAX_LEAN: f32 = 0.5;
+pub const REACH_FRACTION: f32 = 0.93;
+/// The most the body leans forward to reach, radians (about 72 degrees: the crouch of a racing bike).
+pub const MAX_LEAN: f32 = 1.25;
+/// The search's step, radians.
+pub const STEP: f32 = 0.05;
 
-/// The forward lean (radians, 0 to [`MAX_LEAN`]) about `axis` (unit, rider space, a positive turn takes the top of the body
-/// forward; zero for no lean) through the shift bone that brings every limb whose goal is out of reach as near as one angle can.
-/// `component` are the rider's component transforms, `targets` the places the limbs reach for (as for the solve).
-pub fn lean(resolved: &Resolved, component: &[Transform], targets: &[Vec3], axis: Vec3) -> f32 {
-    if axis == Vec3::ZERO {
-        return 0.0;
+/// The bones of the torso, found in the rider's skeleton.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TorsoBones {
+    /// The spine, root to tip.
+    pub lean: Vec<usize>,
+    /// The neck and head, root to tip.
+    pub head: Vec<usize>,
+    /// The part of the lean the head bones turn back by, in all.
+    pub head_share: f32,
+}
+
+impl TorsoBones {
+    /// Finds the bones `torso` names; says which one is missing.
+    pub fn new(torso: &Torso, skeleton: &Skeleton) -> Result<Self, String> {
+        let find = |names: &[String]| -> Result<Vec<usize>, String> {
+            names
+                .iter()
+                .map(|name| skeleton.find(name).ok_or_else(|| format!("the rider has no bone {name}")))
+                .collect()
+        };
+        Ok(Self { lean: find(&torso.lean)?, head: find(&torso.head)?, head_share: torso.head_share })
     }
-    let pivot = component[resolved.shift_bone].translation;
-    let (mut wanted, mut moved) = (0.0_f32, 0.0_f32);
-    for limb in &resolved.limbs {
-        let Some(target) = targets.get(limb.target) else { continue };
-        let at = |bone: usize| component[bone].translation;
-        let (root, mid, tip) = (at(limb.chain.root), at(limb.chain.mid), at(limb.chain.tip));
-        let to_goal = *target + limb.offset - root;
-        let excess = to_goal.length() - REACH_FRACTION * (mid.distance(root) + tip.distance(mid));
-        if !excess.is_finite() || excess <= 0.0 {
-            continue;
+}
+
+/// An arm to bring to its grip: the shoulder bone, the arm's length and the place the tip is to be.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Goal {
+    pub root: usize,
+    pub length: f32,
+    pub tip: Vec3,
+}
+
+/// Turn the torso of the pose `local` forward by `angle` (radians, about `axis`, unit, in rider space; a positive turn takes the
+/// top of the body forward): each spine bone turns about its own joint by an equal share, the head bones back by `head_share` of
+/// the whole in all. The turns are about one axis, so they add up along the chain whatever order they are made in, and each
+/// bone's local rotation can be worked out from the pose before any of them.
+pub fn bend(
+    skeleton: &Skeleton,
+    local: &mut [Transform],
+    torso: &TorsoBones,
+    axis: Vec3,
+    angle: f32,
+) -> Result<(), Error> {
+    let mut component = Vec::new();
+    skeleton.component_transforms(local, &mut component)?;
+    let mut turn = |bone: usize, share: f32| {
+        let parent = skeleton.bones()[bone].parent.map_or(Quat::IDENTITY, |p| component[p].rotation);
+        let about = Quat::from_axis_angle(axis, share);
+        local[bone].rotation = (parent.inverse() * about * parent * local[bone].rotation).normalize();
+    };
+    for &bone in &torso.lean {
+        turn(bone, angle / torso.lean.len() as f32);
+    }
+    for &bone in &torso.head {
+        turn(bone, -angle * torso.head_share / torso.head.len() as f32);
+    }
+    Ok(())
+}
+
+/// How far the worst arm still falls short of reaching its grip with the torso leaned by `angle`: the largest of the distance from
+/// a shoulder to its goal minus [`REACH_FRACTION`] of the arm's length (zero or less: every arm reaches).
+fn shortfall(
+    skeleton: &Skeleton,
+    local: &[Transform],
+    (torso, axis): (&TorsoBones, Vec3),
+    goals: &[Goal],
+    angle: f32,
+) -> Result<f32, Error> {
+    let mut turned = local.to_vec();
+    bend(skeleton, &mut turned, torso, axis, angle)?;
+    let mut component = Vec::new();
+    skeleton.component_transforms(&turned, &mut component)?;
+    Ok(goals
+        .iter()
+        .map(|g| component[g.root].translation.distance(g.tip) - REACH_FRACTION * g.length)
+        .fold(f32::MIN, f32::max))
+}
+
+/// The forward lean (radians, 0 to [`MAX_LEAN`]) of the torso of the pose `local` about `axis` (unit, rider space; zero for no
+/// lean) that brings every arm of `goals` within reach of its grip: 0 when they all can already, the smallest such angle
+/// otherwise, and the angle that comes nearest when none does.
+pub fn solve(
+    skeleton: &Skeleton,
+    local: &[Transform],
+    torso: &TorsoBones,
+    axis: Vec3,
+    goals: &[Goal],
+) -> Result<f32, Error> {
+    if axis == Vec3::ZERO || goals.is_empty() {
+        return Ok(0.0);
+    }
+    let missing = |angle: f32| shortfall(skeleton, local, (torso, axis), goals, angle);
+    let at_rest = missing(0.0)?;
+    if !at_rest.is_finite() || at_rest <= 0.0 {
+        return Ok(0.0);
+    }
+    let (mut before, mut nearest) = (0.0_f32, (at_rest, 0.0_f32));
+    for n in 1..=(MAX_LEAN / STEP).ceil() as usize {
+        let angle = (n as f32 * STEP).min(MAX_LEAN);
+        let short = missing(angle)?;
+        if short <= 0.0 {
+            // The first angle that reaches: refine between it and the one before.
+            let (mut low, mut high) = (before, angle);
+            for _ in 0..12 {
+                let middle = 0.5 * (low + high);
+                match missing(middle)? <= 0.0 {
+                    true => high = middle,
+                    false => low = middle,
+                }
+            }
+            return Ok(high);
         }
-        // A turn of one radian about the axis moves the root by `axis x (root - pivot)`.
-        let step = axis.cross(root - pivot);
-        wanted += (to_goal.normalize_or_zero() * excess).dot(step);
-        moved += step.dot(step);
+        if short < nearest.0 {
+            nearest = (short, angle);
+        }
+        before = angle;
     }
-    if moved < 1e-6 {
-        return 0.0;
-    }
-    (wanted / moved).clamp(0.0, MAX_LEAN)
+    Ok(nearest.1)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use blackbox_skeleton::TwoBoneChain;
-
-    use super::super::pose::Limb;
-
-    /// A rider reduced to a pivot (0) and one arm, straight up from a root 0.5 m above the pivot, whose two bones are 0.3 m long. Forward is +x,
-    /// and the lean axis +y takes the top of the body forward.
-    fn arm() -> (Resolved, Vec<Transform>) {
-        let at = |x: f32, z: f32| Transform::from_rt(glam::Quat::IDENTITY, Vec3::new(x, 0.0, z));
-        let limb = Limb { chain: TwoBoneChain { root: 1, mid: 2, tip: 3 }, pole: 0, target: 0, offset: Vec3::ZERO };
-        (Resolved { limbs: vec![limb], shift_bone: 0 }, vec![at(0.0, 0.0), at(0.0, 0.5), at(0.0, 0.8), at(0.0, 1.1)])
-    }
-
-    #[test]
-    fn a_goal_the_arm_can_reach_needs_no_lean() {
-        let (resolved, component) = arm();
-        // The arm is 0.6 m long; the goal is 0.5 m from the shoulder.
-        assert_eq!(lean(&resolved, &component, &[Vec3::new(0.5, 0.0, 0.5)], Vec3::Y), 0.0);
-        // No axis, no lean.
-        assert_eq!(lean(&resolved, &component, &[Vec3::new(2.0, 0.0, 0.5)], Vec3::ZERO), 0.0);
-        // A limb with no target is left alone.
-        assert_eq!(lean(&resolved, &component, &[], Vec3::Y), 0.0);
-    }
-
-    #[test]
-    fn a_goal_too_far_ahead_is_closed_by_leaning_the_shoulder_forward() {
-        let (resolved, component) = arm();
-        // The goal is 0.65 m ahead of the shoulder: 0.08 m beyond 0.95 of the arm's 0.6 m. The shoulder is 0.5 m above the
-        // pivot, so a turn of 0.08 / 0.5 radians brings it there.
-        let angle = lean(&resolved, &component, &[Vec3::new(0.65, 0.0, 0.5)], Vec3::Y);
-        assert!((angle - 0.16).abs() < 1e-4, "{angle}");
-        // The shoulder, turned by that angle about the pivot, is that much nearer the goal.
-        let turned = glam::Quat::from_axis_angle(Vec3::Y, angle) * Vec3::new(0.0, 0.0, 0.5);
-        assert!((Vec3::new(0.65, 0.0, 0.5).distance(turned) - 0.57).abs() < 5e-3, "{turned:?}");
-    }
-
-    #[test]
-    fn the_lean_is_held_to_its_limit_and_never_goes_backwards() {
-        let (resolved, component) = arm();
-        assert_eq!(lean(&resolved, &component, &[Vec3::new(1.4, 0.0, 0.5)], Vec3::Y), MAX_LEAN);
-        // A goal out of reach behind the rider would need a lean back: not taken.
-        assert_eq!(lean(&resolved, &component, &[Vec3::new(-0.9, 0.0, 0.5)], Vec3::Y), 0.0);
-        assert_eq!(lean(&resolved, &component, &[Vec3::splat(f32::NAN)], Vec3::Y), 0.0);
-    }
-}
+#[path = "reach_tests.rs"]
+mod tests;

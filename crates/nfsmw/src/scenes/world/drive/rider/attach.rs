@@ -33,6 +33,10 @@ pub struct Hubs {
 pub struct Target {
     pub name: String,
     pub position: [f32; 3],
+    /// Its turn as a quaternion `x, y, z, w` in the same frame: the frame the hand or foot rests in. Files written before the
+    /// turn was recorded have none.
+    #[serde(default)]
+    pub rotation: Option<[f32; 4]>,
     /// Whether it turns with the handlebar (a grip) or stays on the frame (a peg).
     pub steers: bool,
 }
@@ -48,6 +52,29 @@ pub struct Limb {
     pub pole: String,
     pub target: String,
     pub tip_offset: [f32; 3],
+    /// Where the tip bone sits in the target's own frame (a hand against its grip, a foot against its peg): the target's frame
+    /// composed with this is the tip's place and turn. Files written before the targets had a turn have none and use
+    /// `tip_offset`.
+    #[serde(default)]
+    pub tip_frame: Option<Rigid>,
+}
+
+/// The bones the body leans forward with when the arms cannot reach the grips, and the bones that turn back to keep the head up.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Torso {
+    /// The spine, root to tip: the lean is split evenly over them, each turning about its own joint.
+    pub lean: Vec<String>,
+    /// The neck and head, turned back by `head_share` of the lean in all.
+    pub head: Vec<String>,
+    pub head_share: f32,
+}
+
+/// The rider's seat contact: the bones whose skin rests on the seat and how far it sinks into it.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SeatRig {
+    pub bones: Vec<String>,
+    /// Metres the lowest skinned point sinks below the seat's top.
+    pub sink: f32,
 }
 
 /// The rider's body shifting with the physics: his displacement from the rest place, held to a range and smoothed.
@@ -79,6 +106,16 @@ pub struct Attach {
     pub targets: Vec<Target>,
     pub limbs: Vec<Limb>,
     pub inertia: Inertia,
+    /// How the body bends to reach (`None`: it only shifts).
+    #[serde(default)]
+    pub torso: Option<Torso>,
+    /// What rests on the seat (`None`: the rider is not sat on a surface).
+    #[serde(default)]
+    pub seat: Option<SeatRig>,
+    /// The top of this bike's seat along its centre line, `[x, z]` samples in the bike skeleton's frame, x ascending (from the
+    /// bike's `contacts.json`; empty: unknown).
+    #[serde(default)]
+    pub seat_surface: Vec<[f32; 2]>,
 }
 
 impl Attach {
@@ -115,7 +152,8 @@ pub(super) mod tests {
         ],
         "limbs": [
             {"name": "left_arm", "root": "upperarm_l", "mid": "lowerarm_l", "tip": "hand_l", "pole": "PV_arm_l",
-             "target": "left_grip", "tip_offset": [0.01, 0.0, -0.02]}
+             "target": "left_grip", "tip_offset": [0.01, 0.0, -0.02],
+             "tip_frame": {"translation": [0.0, 0.0, 0.0], "rotation": [0.0, 0.0, 0.0, 1.0]}}
         ],
         "inputs": {"tuck_speed_kmh": 140.0},
         "inertia": {"bone": "pelvis", "min": [-0.06, -0.15, -0.04], "max": [0.0, 0.15, 0.2], "braking_m": 0.06,

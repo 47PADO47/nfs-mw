@@ -50,6 +50,9 @@ pub struct Contacts {
     pub targets: Vec<Target>,
     #[serde(default)]
     pub correction: Option<Correction>,
+    /// The seat's top along the centre line (`[x, z]`, x ascending), measured on the bike's mesh by the converter.
+    #[serde(default)]
+    pub seat_surface: Vec<[f32; 2]>,
 }
 
 fn finite(values: &[f32]) -> bool {
@@ -72,9 +75,21 @@ impl Contacts {
         ensure!(seat.rotation.iter().any(|c| c.abs() > 1e-6), "the seat has no rotation");
         ensure!(finite(&self.hubs.front) && finite(&self.hubs.rear), "a hub is not finite");
         ensure!(self.hubs.front[0] > self.hubs.rear[0], "the front hub is not ahead of the rear one");
+        for point in &self.seat_surface {
+            ensure!(finite(point), "a point of the seat's surface is not finite");
+        }
+        ensure!(
+            self.seat_surface.windows(2).all(|w| w[0][0] < w[1][0]),
+            "the seat's surface is not in order along the bike"
+        );
         let seat = Vec3::from_array(seat.translation);
         for target in &self.targets {
             ensure!(finite(&target.position), "target {} is not finite", target.name);
+            ensure!(
+                target.rotation.is_none_or(|q| finite(&q) && q.iter().any(|c| c.abs() > 1e-6)),
+                "target {} has no usable turn",
+                target.name
+            );
             let reach = Vec3::from_array(target.position).distance(seat);
             ensure!(reach <= MAX_REACH_M, "target {} is {reach:.2} m from the seat", target.name);
         }
@@ -88,6 +103,7 @@ impl Attach {
     pub fn with_contacts(mut self, contacts: &Contacts) -> Result<Self> {
         self.rider_root_in_bike = contacts.rider_root_in_bike;
         self.hubs = contacts.hubs;
+        self.seat_surface.clone_from(&contacts.seat_surface);
         for target in &contacts.targets {
             match self.target_index(&target.name) {
                 Some(at) => self.targets[at] = target.clone(),

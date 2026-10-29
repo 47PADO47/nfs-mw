@@ -26,6 +26,8 @@ pub(super) struct Enhanced {
     time: f32,
     nitrous: f32,
     pub backfire_style: crate::settings::BackfireStyle,
+    /// The car is a bike: its bursts are drawn at `BIKE_FLAME_SCALE` of their size.
+    pub bike: bool,
     bursts: burst::Bursts,
     visual_bursts: Option<burst::Bursts>,
     burst_preview: Option<(std::time::Instant, burst::Bursts)>,

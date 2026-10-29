@@ -64,6 +64,8 @@ impl WorldScene {
         drive.maintain_flames(renderer, &self.dir, self.physics.database());
         drive.maintain_tire_smoke(renderer, &self.dir);
         drive.maintain_rider(renderer, &self.dir);
+        let arrested = self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active());
+        drive.set_rider_hidden(arrested);
         drive.effects.set_tint(self.tuning.smoke_tint);
         let mut appearance = self.garage.applied.exhaust.clone();
         appearance.set_style(self.tuning.exhaust_style);

@@ -17,11 +17,16 @@ mod contacts;
 mod fall;
 mod fall_file;
 mod fall_space;
+#[cfg(test)]
+mod fit_tests;
 mod params;
 mod parts;
 mod pose;
+#[cfg(test)]
+mod probe_tests;
 mod reach;
 mod script;
+mod seat;
 
 use std::collections::HashMap;
 
@@ -51,8 +56,8 @@ pub fn folders(car: &str) -> [String; 2] {
 }
 
 /// The graph's parameters by name: the names are the ones the animation spec gives (`lean`, `speed_kmh`, `tuck`, `wheelie`,
-/// `stoppie`, and `wheelie_alpha`, `wheelie_direction`, `stoppie_time` for the tricks); a parameter the graph has and this
-/// does not know is 0.
+/// `stoppie`, and `wheelie_alpha`, `wheelie_direction`, `stoppie_time` for the tricks, `standing`, `steer`, `standing_entry`
+/// for the standing wheelie and `drift` for the drift poses); a parameter the graph has and this does not know is 0.
 pub fn param_values(names: &[String], values: &Values) -> Vec<f32> {
     names
         .iter()
@@ -65,6 +70,10 @@ pub fn param_values(names: &[String], values: &Values) -> Vec<f32> {
             "wheelie_alpha" => values.wheelie_alpha,
             "wheelie_direction" => values.wheelie_direction,
             "stoppie_time" => values.stoppie_time,
+            "standing" => values.standing,
+            "steer" => values.steer,
+            "standing_entry" => values.standing_entry,
+            "drift" => values.drift,
             _ => 0.0,
         })
         .collect()
@@ -130,7 +139,8 @@ impl RiderRig {
         let pack = Pack::parse(&read("rider.bbsk")?).context("rider.bbsk")?;
         let graph: Graph = serde_json::from_slice(&read("graph.json")?).context("graph.json")?;
         graph.validate(&pack.clips, &pack.skeleton).context("graph.json does not fit rider.bbsk")?;
-        let resolved = Resolved::new(&attach, &pack.skeleton).map_err(anyhow::Error::msg)?;
+        let mut resolved = Resolved::new(&attach, &pack.skeleton).map_err(anyhow::Error::msg)?;
+        resolved.seat = seat::Seat::new(&attach, &pack);
         let entries = parts::parse_entries(&read("parts.json")?)?;
         let corners = model.corners.as_ref().context("the car has no wheel mounts")?;
         let (front, rear) = (corners[0], corners[2]);
@@ -182,10 +192,14 @@ impl RiderRig {
             });
         }
         log::info!(
-            "rider: {} meshes, {} pictures, {} bones from {folder}",
+            "rider: {} meshes, {} pictures, {} bones from {folder}; {}",
             gpu_parts.len(),
             textures.len(),
-            pack.skeleton.len()
+            pack.skeleton.len(),
+            match resolved.seat.is_some() {
+                true => "sat on the bike's seat",
+                false => "no seat surface for this bike: he sits at the socket",
+            }
         );
         Ok(Some(Self {
             pack,
@@ -221,14 +235,9 @@ impl RiderRig {
         let body = pose::body(&self.frame, self.smoothed.shift(), self.smoothed.rotation());
         let params = param_values(&self.graph.param_names, &self.smoothed.values());
         let skeleton = &self.pack.skeleton;
-        let animated = pose::animate(
-            skeleton,
-            &self.pack.clips,
-            &self.graph,
-            (&params, self.time),
-            &self.resolved,
-            (&targets, body),
-        );
+        let goals = pose::Goals { targets: &targets, body, frame: &self.frame };
+        let animated =
+            pose::animate(skeleton, &self.pack.clips, &self.graph, (&params, self.time), &self.resolved, &goals);
         let component = match animated {
             Ok(component) => component,
             Err(error) => {
@@ -302,6 +311,8 @@ enum State {
 #[derive(Default)]
 pub struct Rider {
     state: State,
+    /// The rider is not drawn: the arrest scene plays the player's bike on its own, and the rider is not part of it.
+    hidden: bool,
 }
 
 impl Rider {
@@ -350,8 +361,16 @@ impl Rider {
         }
     }
 
+    /// Hide the rider (the arrest scene) or show him again.
+    pub fn set_hidden(&mut self, hidden: bool) {
+        self.hidden = hidden;
+    }
+
     /// Append the rider's instances for the bike at `pose`.
     pub fn instances(&self, pose: &CarPose, out: &mut Vec<Instance>) {
+        if self.hidden {
+            return;
+        }
         if let State::Ready(rig) = &self.state {
             rig.instances(pose.transform(), out);
         }
@@ -385,13 +404,32 @@ mod tests {
             wheelie_alpha: 0.5,
             wheelie_direction: -1.0,
             stoppie_time: 0.375,
+            standing: 0.625,
+            steer: -0.875,
+            standing_entry: 0.1875,
+            drift: 0.0625,
         };
-        let names: Vec<String> =
-            ["speed_kmh", "lean", "mystery", "stoppie", "tuck", "wheelie", "wheelie_alpha", "stoppie_time"]
-                .iter()
-                .map(|s| (*s).to_owned())
-                .collect();
-        assert_eq!(param_values(&names, &values), vec![90.0, -0.5, 0.0, 0.125, 0.25, 0.75, 0.5, 0.375]);
+        let names: Vec<String> = [
+            "speed_kmh",
+            "lean",
+            "mystery",
+            "stoppie",
+            "tuck",
+            "wheelie",
+            "wheelie_alpha",
+            "stoppie_time",
+            "standing",
+            "steer",
+            "standing_entry",
+            "drift",
+        ]
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect();
+        assert_eq!(
+            param_values(&names, &values),
+            vec![90.0, -0.5, 0.0, 0.125, 0.25, 0.75, 0.5, 0.375, 0.625, -0.875, 0.1875, 0.0625]
+        );
         assert!(param_values(&[], &values).is_empty());
     }
 

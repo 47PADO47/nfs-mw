@@ -72,10 +72,10 @@ fn the_hands_and_feet_of_two_bikes_are_aimed_at_their_own_controls() {
     let (own, shared) = (rider_targets(&cruiser, &frame(&cruiser), None), rider_targets(&rig, &frame(&rig), None));
     let grip = cruiser.target_index("left_grip").unwrap();
     // In rider space the target is the bike's point seen from the rider's root: the cruiser's grip is not the sample's.
-    assert!(own[grip].distance(shared[rig.target_index("left_grip").unwrap()]) > 0.1);
+    assert!(own[grip].position.distance(shared[rig.target_index("left_grip").unwrap()].position) > 0.1);
     // Seen from the rider (his root on the seat turned to face forward) the cruiser's left grip is 0.30 m ahead of the seat,
     // 0.45 m to the left and 0.40 m up: the rider's own axes are x left, -y forward, z up.
-    assert!(own[grip].distance(Vec3::new(0.45, -0.30, 0.40)) < 1e-5, "{:?}", own[grip]);
+    assert!(own[grip].position.distance(Vec3::new(0.45, -0.30, 0.40)) < 1e-5, "{:?}", own[grip]);
 }
 
 #[test]

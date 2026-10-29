@@ -105,6 +105,24 @@ pub const MOD_SHIFT_TIMING: ShiftTiming = ShiftTiming { speed: 8.0, angle: 2.25 
 /// Throttle above which an up-shift of a mod car is made under power and blows off.
 pub const MOD_SHIFT_LOAD: f32 = 0.35;
 
+/// How a bike's flames differ from a mod car's: smaller and shorter, and a down-shift flicks too (`scale.rs::compact_bike`).
+/// The factor on the size, reach and pipe volume of the group's emitters: a modelling choice, not data. A motorcycle's silencer
+/// outlet is about 40 to 50 mm across against 70 to 100 mm for a car's tail pipe, and a bike's pop is a flick a hand long, so
+/// the car's 0.28 m flame of a pop (`enhanced/burst.rs`) becomes about 0.11 m.
+pub const BIKE_FLAME_SCALE: f32 = 0.4;
+/// The pitch time of a bike's shift flame: 8 degrees per second over 1 degree is 0.125 s, about half of the racers'
+/// 0.28 s (`MOD_SHIFT_TIMING`). A choice: the flick of a bike is short.
+pub const BIKE_SHIFT_TIMING: ShiftTiming = ShiftTiming { speed: 8.0, angle: 1.0 };
+
+/// Whether a gear change of a bike flames: an up-shift made under power blows off like a mod car's (`MOD_SHIFT_LOAD`), and a
+/// down-shift with the pedal up flicks (the pops the rider's blip leaves in the pipe). A down-shift under power does not.
+pub fn bike_shift_flames(up: bool, throttle: f32) -> bool {
+    match up {
+        true => throttle >= MOD_SHIFT_LOAD,
+        false => throttle < LIFT_OFF_THROTTLE,
+    }
+}
+
 /// The flame a sputter pop leaves: it runs a short time and a new pop restarts it.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Backfire {
@@ -319,6 +337,16 @@ mod tests {
         let mut quiet = Backfire::default();
         quiet.pops_for(1, 1.0, 3, MOD_BACKFIRE_SECONDS);
         assert!(!quiet.active());
+    }
+
+    #[test]
+    fn a_bike_flicks_at_an_up_shift_under_power_and_a_down_shift_off_the_pedal() {
+        assert!(bike_shift_flames(true, 1.0));
+        assert!(!bike_shift_flames(true, 0.0), "an up-shift off the pedal has no blow-off");
+        assert!(bike_shift_flames(false, 0.0));
+        assert!(!bike_shift_flames(false, 1.0), "a down-shift under power does not flame");
+        assert!(BIKE_SHIFT_TIMING.duration() < MOD_SHIFT_TIMING.duration());
+        assert!(BIKE_SHIFT_TIMING.duration() > 0.1, "{}", BIKE_SHIFT_TIMING.duration());
     }
 
     #[test]

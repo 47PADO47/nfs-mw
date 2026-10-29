@@ -77,7 +77,7 @@ fn what_a_contact_does_to_the_double_the_bike_takes() {
 fn the_pedals_and_the_stick_become_the_riders_levers() {
     let input = InputState { throttle: 0.5, brake: 0.3, steer: -2.0, ..Default::default() };
     let rider = command(&input);
-    assert_eq!(rider, BikeInput { throttle: 0.5, front_brake: 0.3, rear_brake: 0.3, steer: -1.0 });
+    assert_eq!(rider, BikeInput { throttle: 0.5, front_brake: 0.3, rear_brake: 0.3, steer: -0.8 });
     // The handbrake is the rear brake alone.
     let handbrake = command(&InputState { handbrake: 1.0, ..Default::default() });
     assert_eq!((handbrake.front_brake, handbrake.rear_brake), (0.0, 1.0));

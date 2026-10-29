@@ -33,7 +33,8 @@ fn falling() -> (CarSim, FlatGround) {
     assert!(sim.place_moving(&ground, spawn(), 25.0));
     step(&mut sim, &ground, 1.0);
     assert!(!sim.rider_off());
-    sim.vehicle.body_mut().angular_velocity = Vec3::new(0.0, 0.0, 4.0);
+    // (4 rad/s no longer tips it: the lean help, run at the game's sub-step, rights the bike.)
+    sim.vehicle.body_mut().angular_velocity = Vec3::new(0.0, 0.0, 10.0);
     (sim, ground)
 }
 
@@ -88,7 +89,7 @@ fn the_bike_is_stood_up_with_its_rider_when_it_has_lain_still() {
     // ... and he can fall again.
     assert!(sim.place_moving(&ground, spawn(), 25.0));
     step(&mut sim, &ground, 1.0);
-    sim.vehicle.body_mut().angular_velocity = Vec3::new(0.0, 0.0, 4.0);
+    sim.vehicle.body_mut().angular_velocity = Vec3::new(0.0, 0.0, 10.0);
     step(&mut sim, &ground, 2.0);
     assert!(sim.rider_off() || sim.take_rider_release().is_some());
 }

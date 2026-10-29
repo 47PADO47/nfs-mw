@@ -1,5 +1,6 @@
-//! The rider's pose for one frame: the animation graph, the body's shift, then the hands on the grips and the feet on the
-//! pegs by two-bone IK (`docs/specs/ride6-rider-animation.md`, sections 5 to 7).
+//! The rider's pose for one frame: the animation graph, the body sat on the seat and leaned to the grips, then the hands on the
+//! grips and the feet on the pegs by two-bone IK (`docs/specs/ride6-rider-animation.md`, sections 5 to 7;
+//! `docs/specs/ride6-rider-render-integration.md`, section 8).
 //!
 //! Three frames are in play, all with the axes of the car (x forward, y left, z up):
 //!
@@ -13,6 +14,8 @@ use blackbox_skeleton::{Clip, Graph, Skeleton, Transform, TwoBoneChain, apply_tw
 use glam::{Mat4, Quat, Vec3};
 
 use super::attach::Attach;
+use super::reach::{self, Goal, TorsoBones};
+use super::seat::Seat;
 
 /// The frames the rider is placed in.
 #[derive(Debug, Clone, Copy)]
@@ -21,6 +24,11 @@ pub struct Frame {
     pub to_model: Mat4,
     /// The model's frame to the rider's component space.
     pub to_rider: Mat4,
+    /// The rider's component space to the bike skeleton's frame (the seat's turn and place): where `attach.json` and the seat's
+    /// surface are measured.
+    pub to_bike: Mat4,
+    /// The turn of [`Self::to_rider`].
+    pub rider_turn: Quat,
     /// The move from the bike skeleton's frame to the model's.
     pub offset: Vec3,
 }
@@ -28,9 +36,20 @@ pub struct Frame {
 impl Frame {
     /// The frame of a rider whose root sits at `seat` of the bike skeleton, with the skeleton `offset` from the model.
     pub fn new(seat: &Transform, offset: Vec3) -> Self {
-        let to_model =
-            Mat4::from_translation(offset) * Mat4::from_rotation_translation(seat.rotation, seat.translation);
-        Self { to_model, to_rider: to_model.inverse(), offset }
+        let to_bike = Mat4::from_rotation_translation(seat.rotation, seat.translation);
+        let to_model = Mat4::from_translation(offset) * to_bike;
+        Self { to_model, to_rider: to_model.inverse(), to_bike, rider_turn: seat.rotation.inverse(), offset }
+    }
+
+    /// The axis in the rider's component space about which a forward lean of the body is a positive turn (the car's left, so
+    /// the top of the body goes forward).
+    pub fn lean_axis(&self) -> Vec3 {
+        self.to_rider.transform_vector3(Vec3::Y).normalize_or_zero()
+    }
+
+    /// Up, as a direction of the rider's component space.
+    pub fn up(&self) -> Vec3 {
+        self.to_rider.transform_vector3(Vec3::Z).normalize_or_zero()
     }
 }
 
@@ -41,8 +60,12 @@ pub struct Limb {
     pub pole: usize,
     /// The index of the target (in `Attach::targets`) it reaches for.
     pub target: usize,
-    /// Where the tip sits against the target in the authored pose, rider space.
+    /// Where the tip sits against the target in the authored pose, rider space: used when the target has no turn.
     pub offset: Vec3,
+    /// Where the tip sits in the target's own frame (a hand on its grip socket, a foot against its peg socket).
+    pub frame: Option<Transform>,
+    /// Whether the limb's root hangs on the bones the body leans with (an arm does, a leg does not).
+    pub on_torso: bool,
 }
 
 /// The names of `attach.json` resolved against the rider's skeleton.
@@ -51,25 +74,33 @@ pub struct Resolved {
     pub limbs: Vec<Limb>,
     /// The bone the body's shift moves.
     pub shift_bone: usize,
+    /// The bones the body leans with to reach the grips, if the file names them.
+    pub torso: Option<TorsoBones>,
+    /// The buttocks' contact with the seat, if the file and the bike have what it needs.
+    pub seat: Option<Seat>,
 }
 
 impl Resolved {
     /// Finds every bone and target the file names; says which one is missing.
     pub fn new(attach: &Attach, skeleton: &Skeleton) -> Result<Self, String> {
         let bone = |name: &str| skeleton.find(name).ok_or_else(|| format!("the rider has no bone {name}"));
+        let torso = attach.torso.as_ref().map(|torso| TorsoBones::new(torso, skeleton)).transpose()?;
         let mut limbs = Vec::new();
         for limb in &attach.limbs {
             let target = attach.target_index(&limb.target).ok_or_else(|| {
                 format!("limb {} reaches for {}, which attach.json does not place", limb.name, limb.target)
             })?;
+            let chain = TwoBoneChain { root: bone(&limb.root)?, mid: bone(&limb.mid)?, tip: bone(&limb.tip)? };
             limbs.push(Limb {
-                chain: TwoBoneChain { root: bone(&limb.root)?, mid: bone(&limb.mid)?, tip: bone(&limb.tip)? },
+                chain,
                 pole: bone(&limb.pole)?,
                 target,
                 offset: Vec3::from_array(limb.tip_offset),
+                frame: limb.tip_frame.map(|frame| frame.transform()),
+                on_torso: torso.as_ref().is_some_and(|t| t.lean.iter().any(|&b| skeleton.is_descendant(chain.root, b))),
             });
         }
-        Ok(Self { limbs, shift_bone: bone(&attach.inertia.bone)? })
+        Ok(Self { limbs, shift_bone: bone(&attach.inertia.bone)?, torso, seat: None })
     }
 }
 
@@ -91,19 +122,46 @@ impl Steering {
     }
 }
 
+/// A point a limb reaches for, in the rider's component space: where it is and, if the bike's file gives it, how it is turned.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Placed {
+    pub position: Vec3,
+    pub rotation: Option<Quat>,
+}
+
 /// Where each target of `attach` is now, in the rider's component space: the grips turned with the handlebar, the pegs where
 /// they are.
-pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>) -> Vec<Vec3> {
+pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>) -> Vec<Placed> {
     let turn = steering.map_or(Mat4::IDENTITY, |s| s.matrix());
+    let turned = steering.map_or(Quat::IDENTITY, |s| Quat::from_axis_angle(s.axis, s.angle));
     attach
         .targets
         .iter()
         .map(|target| {
             let in_model = Vec3::from_array(target.position) + frame.offset;
-            let moved = if target.steers { turn.transform_point3(in_model) } else { in_model };
-            frame.to_rider.transform_point3(moved)
+            let moved = match target.steers {
+                true => turn.transform_point3(in_model),
+                false => in_model,
+            };
+            let rotation = target.rotation.map(|[x, y, z, w]| {
+                let own = Quat::from_xyzw(x, y, z, w).normalize();
+                let in_model = match target.steers {
+                    true => turned * own,
+                    false => own,
+                };
+                frame.rider_turn * in_model
+            });
+            Placed { position: frame.to_rider.transform_point3(moved), rotation }
         })
         .collect()
+}
+
+/// Where the tip of `limb` is to be for its target `placed`, and the turn it takes there (`None`: the arm's own).
+pub fn tip_goal(limb: &Limb, placed: &Placed) -> (Vec3, Option<Quat>) {
+    match (limb.frame, placed.rotation) {
+        (Some(frame), Some(turn)) => (placed.position + turn * frame.translation, Some(turn * frame.rotation)),
+        _ => (placed.position + limb.offset, None),
+    }
 }
 
 /// How the rider's body sits on the bike beyond the authored pose: his centre of mass moved by `shift` (a vector in the rider's
@@ -112,14 +170,11 @@ pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>)
 pub struct Body {
     pub shift: Vec3,
     pub rotation: Quat,
-    /// The axis in the rider's component space about which a forward lean of the body is a positive turn (the car's left, so
-    /// the top of the body goes forward). Zero for a body that does not lean to reach: see [`super::reach`].
-    pub lean_axis: Vec3,
 }
 
 impl Body {
     /// The body as authored: not moved, not turned.
-    pub const REST: Self = Self { shift: Vec3::ZERO, rotation: Quat::IDENTITY, lean_axis: Vec3::ZERO };
+    pub const REST: Self = Self { shift: Vec3::ZERO, rotation: Quat::IDENTITY };
 }
 
 /// The body of the rider from the physics: `shift` is his displacement from the rest place in the car's axes (x forward,
@@ -133,8 +188,7 @@ pub fn body(frame: &Frame, shift: Vec3, rotation: Vec3) -> Body {
         true => Quat::from_scaled_axis(in_rider),
         false => Quat::IDENTITY,
     };
-    let lean_axis = frame.to_rider.transform_vector3(Vec3::Y).normalize_or_zero();
-    Body { shift: frame.to_rider.transform_vector3(shift), rotation, lean_axis }
+    Body { shift: frame.to_rider.transform_vector3(shift), rotation }
 }
 
 /// Move the bone `bone` by `body.shift` and turn it by `body.rotation` about its own place, without moving its parent: the
@@ -157,264 +211,71 @@ fn move_bone(
     Ok(())
 }
 
-/// The component transforms of the rider for one frame: the graph's pose at `time` for `params`, the shift and turn of the body
-/// (`body`, rider space), then each limb's tip brought to its target plus the limb's offset. `targets` come from
-/// [`rider_targets`].
+/// What the pose is to meet: where the limbs reach, how the body moves and the frames that join the rider to the bike.
+#[derive(Debug, Clone, Copy)]
+pub struct Goals<'a> {
+    /// From [`rider_targets`].
+    pub targets: &'a [Placed],
+    pub body: Body,
+    pub frame: &'a Frame,
+}
+
+/// The component transforms of the rider for one frame: the graph's pose at `time` for `params`, the body lowered onto the seat,
+/// shifted and turned by the physics, leaned forward until the arms reach, then each limb's tip brought to its target.
 pub fn animate(
     skeleton: &Skeleton,
     clips: &[Clip],
     graph: &Graph,
     (params, time): (&[f32], f32),
     resolved: &Resolved,
-    (targets, body): (&[Vec3], Body),
+    goals: &Goals,
 ) -> Result<Vec<Transform>, blackbox_skeleton::Error> {
     let mut pose = graph.evaluate(skeleton, clips, params, time);
+    let mut component = Vec::new();
+    let mut body = goals.body;
+    // Sat on the seat of this bike: the buttocks rest on its surface whatever height the skeleton's socket is at.
+    if let Some(seat) = &resolved.seat {
+        skeleton.component_transforms(&pose.local, &mut component)?;
+        if let Some(drop) = seat.drop(&component, &goals.frame.to_bike) {
+            body.shift -= goals.frame.up() * drop;
+        }
+    }
     if body != Body::REST {
         move_bone(skeleton, &mut pose.local, resolved.shift_bone, body)?;
     }
-    let mut component = Vec::new();
     skeleton.component_transforms(&pose.local, &mut component)?;
     // A bike whose grips are farther than the arms reach (a racer's low bars against the upright reference pose) gets the
     // body leaned forward until they can (the full-body solve of the original does this with the spine).
-    let lean = super::reach::lean(resolved, &component, targets, body.lean_axis);
-    if lean > 0.0 {
-        let leaned = Body { rotation: Quat::from_axis_angle(body.lean_axis, lean), ..Body::REST };
-        move_bone(skeleton, &mut pose.local, resolved.shift_bone, leaned)?;
-        skeleton.component_transforms(&pose.local, &mut component)?;
+    if let Some(torso) = &resolved.torso {
+        let reach_for: Vec<Goal> = resolved
+            .limbs
+            .iter()
+            .filter(|limb| limb.on_torso)
+            .filter_map(|limb| {
+                let placed = goals.targets.get(limb.target)?;
+                let at = |bone: usize| component[bone].translation;
+                let length =
+                    at(limb.chain.mid).distance(at(limb.chain.root)) + at(limb.chain.tip).distance(at(limb.chain.mid));
+                Some(Goal { root: limb.chain.root, length, tip: tip_goal(limb, placed).0 })
+            })
+            .collect();
+        let axis = goals.frame.lean_axis();
+        let lean = reach::solve(skeleton, &pose.local, torso, axis, &reach_for)?;
+        if lean > 0.0 {
+            reach::bend(skeleton, &mut pose.local, torso, axis, lean)?;
+            skeleton.component_transforms(&pose.local, &mut component)?;
+        }
     }
     for limb in &resolved.limbs {
-        let Some(target) = targets.get(limb.target) else { continue };
+        let Some(placed) = goals.targets.get(limb.target) else { continue };
+        let (position, turn) = tip_goal(limb, placed);
         let pole = component[limb.pole].translation;
-        apply_two_bone(skeleton, &mut pose.local, limb.chain, *target + limb.offset, pole, 1.0, None)?;
+        apply_two_bone(skeleton, &mut pose.local, limb.chain, position, pole, 1.0, turn)?;
     }
     skeleton.component_transforms(&pose.local, &mut component)?;
     Ok(component)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::super::attach::tests::SAMPLE;
-    use super::*;
-    use blackbox_skeleton::{Bone, Node, TimeMode};
-    use glam::Quat;
-
-    /// A rider reduced to what the file names: a root, a pelvis, one arm (upperarm_l > lowerarm_l > hand_l, each 0.3 m up)
-    /// and its pole bone.
-    fn skeleton() -> Skeleton {
-        let up = Transform::from_rt(Quat::IDENTITY, Vec3::new(0.0, 0.0, 0.3));
-        let bone = |name: &str, parent: Option<usize>, rest: Transform| Bone { name: name.into(), parent, rest };
-        Skeleton::new(vec![
-            bone("root", None, Transform::IDENTITY),
-            bone("pelvis", Some(0), Transform::from_rt(Quat::IDENTITY, Vec3::new(0.0, 0.0, 0.1))),
-            bone("upperarm_l", Some(1), up),
-            bone("lowerarm_l", Some(2), up),
-            bone("hand_l", Some(3), up),
-            bone("PV_arm_l", Some(0), Transform::from_rt(Quat::IDENTITY, Vec3::new(0.5, 0.0, 0.3))),
-        ])
-        .unwrap()
-    }
-
-    fn graph() -> (Graph, Vec<Clip>) {
-        let clip = Clip {
-            name: "rest".into(),
-            length: 1.0,
-            tracks: Vec::new(),
-            additive: false,
-            root_motion: false,
-            notifies: Vec::new(),
-        };
-        (Graph { param_names: Vec::new(), root: Node::Clip { clip: 0, time: TimeMode::Hold } }, vec![clip])
-    }
-
-    fn attach() -> Attach {
-        Attach::parse(SAMPLE.as_bytes()).unwrap()
-    }
-
-    fn frame() -> Frame {
-        Frame::new(&attach().rider_root_in_bike.transform(), Vec3::new(0.0016, 0.0, 0.0797))
-    }
-
-    #[test]
-    fn the_names_of_the_file_are_found_in_the_skeleton_or_the_missing_one_is_named() {
-        let resolved = Resolved::new(&attach(), &skeleton()).unwrap();
-        assert_eq!(resolved.limbs.len(), 1);
-        assert_eq!(resolved.limbs[0].chain, TwoBoneChain { root: 2, mid: 3, tip: 4 });
-        assert_eq!(resolved.limbs[0].pole, 5);
-        assert_eq!(resolved.limbs[0].target, 0);
-        assert_eq!(resolved.shift_bone, 1);
-        let mut broken = attach();
-        broken.limbs[0].tip = "claw".into();
-        assert!(Resolved::new(&broken, &skeleton()).unwrap_err().contains("claw"));
-        let mut lost = attach();
-        lost.limbs[0].target = "elsewhere".into();
-        assert!(Resolved::new(&lost, &skeleton()).unwrap_err().contains("elsewhere"));
-    }
-
-    #[test]
-    fn the_frames_agree_and_undo_each_other() {
-        let frame = frame();
-        let point = Vec3::new(0.3, -0.2, 0.5);
-        assert!(frame.to_rider.transform_point3(frame.to_model.transform_point3(point)).distance(point) < 1e-5);
-        // The seat's quarter turn about z, then the move: the rider's origin is at the seat plus the offset.
-        let origin = frame.to_model.transform_point3(Vec3::ZERO);
-        assert!(origin.distance(Vec3::new(-0.34 + 0.0016, 0.0, 0.91 + 0.0797)) < 1e-5, "{origin:?}");
-    }
-
-    #[test]
-    fn a_grip_turns_with_the_handlebar_about_the_steering_axis_and_a_peg_does_not() {
-        let attach = attach();
-        let frame = frame();
-        let axis = Vec3::new(-0.4384, 0.0, 0.8988).normalize();
-        let steering = Steering { axis, point: Vec3::new(0.84, 0.0, 0.0), angle: 0.3 };
-        let straight = rider_targets(&attach, &frame, None);
-        let turned = rider_targets(&attach, &frame, Some(steering));
-        assert!(straight[1].distance(turned[1]) < 1e-6, "the peg stays");
-        assert!(straight[0].distance(turned[0]) > 0.02, "the grip moves");
-        // The grip stays as far from the axis as it was.
-        let in_model = |p: Vec3| frame.to_model.transform_point3(p);
-        let distance = |p: Vec3| (p - steering.point).cross(axis).length();
-        assert!((distance(in_model(straight[0])) - distance(in_model(turned[0]))).abs() < 1e-4);
-        // The grip is behind and above the axis point, so a turn to the left (positive) takes it to the right.
-        let moved = in_model(turned[0]) - in_model(straight[0]);
-        assert!(moved.y < 0.0, "{moved:?}");
-        let identity = Steering { angle: 0.0, ..steering };
-        assert!(rider_targets(&attach, &frame, Some(identity))[0].distance(straight[0]) < 1e-6);
-    }
-
-    #[test]
-    fn the_hand_is_brought_to_its_target_plus_the_authored_offset() {
-        let (graph, clips) = graph();
-        let skeleton = skeleton();
-        let resolved = Resolved::new(&attach(), &skeleton).unwrap();
-        // Reachable: the shoulder is 0.4 m above the root's origin and the arm 0.6 m long.
-        let target = Vec3::new(0.2, 0.1, 0.8);
-        let wanted = target + resolved.limbs[0].offset;
-        let component = animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[target], Body::REST)).unwrap();
-        assert!(component[4].translation.distance(wanted) < 1e-3, "{:?} vs {wanted:?}", component[4].translation);
-        // The bones keep their lengths.
-        assert!((component[3].translation.distance(component[2].translation) - 0.3).abs() < 1e-3);
-        assert!((component[4].translation.distance(component[3].translation) - 0.3).abs() < 1e-3);
-    }
-
-    #[test]
-    fn a_target_out_of_reach_stretches_the_arm_towards_it_without_breaking_it() {
-        let (graph, clips) = graph();
-        let skeleton = skeleton();
-        let resolved = Resolved::new(&attach(), &skeleton).unwrap();
-        let component =
-            animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[Vec3::new(3.0, 0.0, 0.4)], Body::REST))
-                .unwrap();
-        let shoulder = component[2].translation;
-        let hand = component[4].translation;
-        assert!(hand.distance(shoulder) <= 0.6 + 1e-3);
-        assert!(hand.x > shoulder.x + 0.4, "it reaches towards the target: {hand:?}");
-    }
-
-    #[test]
-    fn the_shift_moves_the_pelvis_and_what_hangs_on_it_but_not_the_pole() {
-        let (graph, clips) = graph();
-        let skeleton = skeleton();
-        let mut attach = attach();
-        attach.limbs.clear();
-        let resolved = Resolved::new(&attach, &skeleton).unwrap();
-        let rest = animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[], Body::REST)).unwrap();
-        let shifted = animate(
-            &skeleton,
-            &clips,
-            &graph,
-            (&[], 0.0),
-            &resolved,
-            (&[], Body { shift: Vec3::new(0.0, -0.05, 0.0), ..Body::REST }),
-        )
-        .unwrap();
-        assert!(shifted[1].translation.distance(rest[1].translation + Vec3::new(0.0, -0.05, 0.0)) < 1e-6);
-        assert!(shifted[4].translation.distance(rest[4].translation + Vec3::new(0.0, -0.05, 0.0)) < 1e-6);
-        assert!(shifted[5].translation.distance(rest[5].translation) < 1e-6, "the pole is on the root");
-    }
-
-    #[test]
-    fn a_target_the_file_did_not_place_leaves_the_limb_alone() {
-        let (graph, clips) = graph();
-        let skeleton = skeleton();
-        let resolved = Resolved::new(&attach(), &skeleton).unwrap();
-        let none = animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[], Body::REST)).unwrap();
-        let mut at_rest = Vec::new();
-        skeleton.component_transforms(&skeleton.rest_pose().local, &mut at_rest).unwrap();
-        assert!(none[4].translation.distance(at_rest[4].translation) < 1e-6);
-    }
-
-    /// A rider whose root is `pelvis` > `spine` and one bone far out to the left (+y of the car's frame).
-    fn arm_skeleton() -> Skeleton {
-        let bone = |name: &str, parent: Option<usize>, t: Vec3| Bone {
-            name: name.into(),
-            parent,
-            rest: Transform::from_rt(Quat::IDENTITY, t),
-        };
-        Skeleton::new(vec![
-            bone("root", None, Vec3::ZERO),
-            bone("pelvis", Some(0), Vec3::new(0.0, 0.0, 0.1)),
-            bone("hand_l", Some(1), Vec3::new(0.0, 0.5, 0.0)),
-            bone("hand_r", Some(1), Vec3::new(0.0, -0.5, 0.0)),
-            bone("head", Some(1), Vec3::new(0.0, 0.0, 0.6)),
-        ])
-        .unwrap()
-    }
-
-    fn arm_pose(body: Body) -> Vec<Transform> {
-        let (graph, clips) = graph();
-        let skeleton = arm_skeleton();
-        let resolved = Resolved { limbs: Vec::new(), shift_bone: 1 };
-        animate(&skeleton, &clips, &graph, (&[], 0.0), &resolved, (&[], body)).unwrap()
-    }
-
-    /// The car's own frame in the rider's space for the tests: the identity.
-    fn plain_frame() -> Frame {
-        Frame::new(&Transform::IDENTITY, Vec3::ZERO)
-    }
-
-    #[test]
-    fn hanging_off_to_the_inside_moves_the_body_and_its_bones_that_way_and_mirrors() {
-        let rest = arm_pose(Body::REST);
-        // 10 cm to the right (car axes: y is left, so -y), and the same to the left.
-        let right = arm_pose(body(&plain_frame(), Vec3::new(0.0, -0.1, 0.0), Vec3::ZERO));
-        let left = arm_pose(body(&plain_frame(), Vec3::new(0.0, 0.1, 0.0), Vec3::ZERO));
-        for bone in [1, 2, 3, 4] {
-            let moved = right[bone].translation - rest[bone].translation;
-            assert!(moved.distance(Vec3::new(0.0, -0.1, 0.0)) < 1e-6, "bone {bone}: {moved:?}");
-            let mirrored = left[bone].translation - rest[bone].translation;
-            assert!((moved + mirrored).length() < 1e-6, "mirror image");
-        }
-        assert_eq!(right[0].translation, rest[0].translation, "the root stays on the seat");
-    }
-
-    #[test]
-    fn the_body_turned_to_the_right_swings_the_head_to_the_right_about_the_pelvis() {
-        let rest = arm_pose(Body::REST);
-        let right = arm_pose(body(&plain_frame(), Vec3::ZERO, Vec3::new(0.2, 0.0, 0.0)));
-        let left = arm_pose(body(&plain_frame(), Vec3::ZERO, Vec3::new(-0.2, 0.0, 0.0)));
-        // The pelvis stays where it is; the head (0.6 m above it) moves toward -y (right) by about 0.6 sin(0.2).
-        assert!(right[1].translation.distance(rest[1].translation) < 1e-6);
-        let swing = right[4].translation - rest[4].translation;
-        assert!(swing.y < -0.1 && (swing.y + 0.6 * 0.2_f32.sin()).abs() < 1e-5, "{swing:?}");
-        let other = left[4].translation - rest[4].translation;
-        assert!((swing.y + other.y).abs() < 1e-6 && (swing.z - other.z).abs() < 1e-6, "mirror image");
-        // The arms swing about the pelvis too: the left hand rises, the right one drops, when the body rolls to the right.
-        assert!(right[2].translation.z > rest[2].translation.z && right[3].translation.z < rest[3].translation.z);
-    }
-
-    #[test]
-    fn a_pitch_or_a_yaw_turns_about_the_axes_of_the_cars_frame() {
-        let rest = arm_pose(Body::REST);
-        // Nose up: the head goes back (-x of the car).
-        let up = arm_pose(body(&plain_frame(), Vec3::ZERO, Vec3::new(0.0, 0.2, 0.0)));
-        assert!(up[4].translation.x < rest[4].translation.x - 0.05, "{:?}", up[4].translation);
-        // Yaw to the right: the left hand (+y) moves forward and the right hand back.
-        let yaw = arm_pose(body(&plain_frame(), Vec3::ZERO, Vec3::new(0.0, 0.0, 0.2)));
-        assert!(
-            yaw[2].translation.x > rest[2].translation.x + 0.05 && yaw[3].translation.x < rest[3].translation.x - 0.05
-        );
-        // A body that is not moved or turned is the rest pose.
-        assert_eq!(body(&plain_frame(), Vec3::ZERO, Vec3::ZERO).rotation, Quat::IDENTITY);
-        assert_eq!(body(&plain_frame(), Vec3::ZERO, Vec3::splat(f32::NAN)).rotation, Quat::IDENTITY);
-    }
-}
+#[path = "pose_tests.rs"]
+mod tests;

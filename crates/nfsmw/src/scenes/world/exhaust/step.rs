@@ -25,10 +25,15 @@ impl Active {
         replaced: (bool, bool),
     ) {
         // A mod car shifts with a flame only up and under power (a lift-off has its pops), and flames for every pop its
-        // sound makes, whatever the pedal does by the time the bang is due.
+        // sound makes, whatever the pedal does by the time the bang is due. A bike also flicks at a down-shift off the pedal.
+        let bike = self.bike;
+        let flames_at = |up: bool| match bike {
+            true => trigger::bike_shift_flames(up, car.throttle),
+            false => up && car.throttle >= trigger::MOD_SHIFT_LOAD,
+        };
         let (shifted, pop_throttle, strength) = match self.mod_car {
             true => (
-                self.shift.note_gear_where(car.gear, |up| up && car.throttle >= trigger::MOD_SHIFT_LOAD),
+                self.shift.note_gear_where(car.gear, flames_at),
                 0.0,
                 (trigger::MOD_BACKFIRE_SECONDS, trigger::MOD_BACKFIRE_INTENSITY),
             ),

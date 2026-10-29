@@ -8,7 +8,7 @@ use game_install::GameDir;
 use nfsmw_data::car::CarModel;
 use nfsmw_data::car::exhaust::{ADDITIVE_BLEND, ExhaustFx, particle_textures};
 
-use super::trigger::ShiftTiming;
+use super::trigger::{BIKE_FLAME_SCALE, BIKE_SHIFT_TIMING, ShiftTiming};
 use super::{Active, EMITTER_LIMIT, ExhaustFlames, Lane, MAX_PIPES, SpriteTexture, State};
 
 /// The first random seed of the blue lanes, apart from the orange ones.
@@ -49,6 +49,7 @@ fn read(renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &
     let mut hashes: Vec<u32> = Vec::new();
     let mut textures = Vec::new();
     let mut lanes = Vec::new();
+    let bike = nfsmw_data::car::mods::bike::is_bike(&model.name);
     let mut pipes = fx.pipes;
     pipes.truncate(MAX_PIPES);
     for (i, emitter) in fx.nitrous.iter().enumerate() {
@@ -70,7 +71,12 @@ fn read(renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &
                 textures.len() - 1
             }
         };
-        lanes.push(lane(&emitter.spec, i, pipes.len(), slot));
+        // A bike's flame is the group's at a fraction of its size (`scale::compact_bike`).
+        let spec = match bike {
+            true => super::scale::compact_bike(&emitter.spec, BIKE_FLAME_SCALE),
+            false => emitter.spec.clone(),
+        };
+        lanes.push(lane(&spec, i, pipes.len(), slot));
     }
     if lanes.is_empty() {
         return None;
@@ -85,10 +91,7 @@ fn read(renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &
         fx.engine_upgrades
     );
     let mod_car = nfsmw_data::car::mods::is_mod_car(&model.name);
-    let timing = match mod_car {
-        true => mod_timing(fx.shift_speed, fx.shift_angle),
-        false => ShiftTiming { speed: fx.shift_speed, angle: fx.shift_angle },
-    };
+    let timing = shift_timing(bike, mod_car, (fx.shift_speed, fx.shift_angle));
     // A mod car has no `pvehicle` record to say how many engine levels it has: its blow-off is always allowed.
     let engine_upgrades = match mod_car {
         true => 0,
@@ -96,7 +99,20 @@ fn read(renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &
     };
     let mut active = Active::new(pipes, lanes, textures, timing, engine_upgrades);
     active.mod_car = mod_car;
+    active.bike = bike;
+    active.enhanced.bike = bike;
     Some(active)
+}
+
+/// The shift timing a car flames with: a bike's own short one, a mod car's from its record or the racers', else the record's.
+pub(super) fn shift_timing(bike: bool, mod_car: bool, (speed, angle): (f32, f32)) -> ShiftTiming {
+    if bike {
+        return BIKE_SHIFT_TIMING;
+    }
+    match mod_car {
+        true => mod_timing(speed, angle),
+        false => ShiftTiming { speed, angle },
+    }
 }
 
 /// The shift timing of a mod car: the one its `ecar` record gives, or the racers' when that has none (the class-wide
@@ -157,6 +173,7 @@ impl Active {
             timing,
             engine_upgrades,
             mod_car: false,
+            bike: false,
             shift: Default::default(),
             backfire: Default::default(),
             intensity: 0.0,

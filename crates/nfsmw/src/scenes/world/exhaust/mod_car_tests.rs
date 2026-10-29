@@ -4,8 +4,8 @@ use blackbox_particles::EmitterSpec;
 use blackbox_render::BlendMode;
 use glam::{Mat4, Vec3, Vec4};
 
-use super::load::{lane, mod_timing};
-use super::trigger::{MOD_BACKFIRE_INTENSITY, MOD_BACKFIRE_SECONDS, MOD_SHIFT_TIMING, ShiftTiming};
+use super::load::{lane, mod_timing, shift_timing};
+use super::trigger::{BIKE_SHIFT_TIMING, MOD_BACKFIRE_INTENSITY, MOD_BACKFIRE_SECONDS, MOD_SHIFT_TIMING, ShiftTiming};
 use super::{Active, CarState, ExhaustFlames, SpriteTexture, State};
 
 const STEP: f32 = 1.0 / 60.0;
@@ -29,6 +29,15 @@ fn flames(mod_car: bool, timing: ShiftTiming, engine_upgrades: i32) -> ExhaustFl
         Active::new(vec![pipe(0.3), pipe(-0.3)], vec![lane(&spec(), 0, 2, 0)], textures, timing, engine_upgrades);
     active.mod_car = mod_car;
     ExhaustFlames { enabled: true, state: State::Ready(Box::new(active)), ..ExhaustFlames::default() }
+}
+
+/// A bike: a mod car that is a bike.
+fn bike_flames() -> ExhaustFlames {
+    let mut fx = flames(true, BIKE_SHIFT_TIMING, 0);
+    if let State::Ready(active) = &mut fx.state {
+        active.bike = true;
+    }
+    fx
 }
 
 fn active(fx: &ExhaustFlames) -> &Active {
@@ -143,4 +152,68 @@ fn only_the_nitrous_lanes_are_shrunk_the_pop_and_shift_lanes_keep_the_groups_siz
     let blue = a.blue[0].emitters[0].spec();
     assert_eq!((orange.size, orange.speed), ([0.4; 4], 6.0), "the orange lanes are the group's own");
     assert!(blue.size[1] < orange.size[1] && blue.speed < orange.speed, "the blue lanes are the compact nitrous");
+}
+
+#[test]
+fn the_timing_a_car_flames_with_is_a_bikes_own_a_mod_cars_or_the_records() {
+    assert_eq!(shift_timing(true, true, (0.0, 0.0)), BIKE_SHIFT_TIMING);
+    assert_eq!(shift_timing(true, true, (8.0, 2.25)), BIKE_SHIFT_TIMING, "a bike ignores the class record");
+    assert_eq!(shift_timing(false, true, (0.0, 0.0)), MOD_SHIFT_TIMING);
+    assert_eq!(shift_timing(false, false, (3.0, 4.0)), ShiftTiming { speed: 3.0, angle: 4.0 });
+}
+
+#[test]
+fn every_pop_of_a_bike_flames_at_its_pipe() {
+    let mut fx = bike_flames();
+    run(&mut fx, 5, &car(3, 0.0));
+    fx.note_pops(1);
+    fx.step(STEP, &car(3, 0.0));
+    assert_eq!(active(&fx).intensity, MOD_BACKFIRE_INTENSITY);
+    fx.step(STEP, &car(3, 0.0));
+    assert!(fx.live() > 0, "particles leave the pipe");
+    let mut neutral = bike_flames();
+    neutral.note_pops(1);
+    neutral.step(STEP, &car(0, 0.0));
+    assert_eq!(neutral.live(), 0, "not in neutral");
+}
+
+#[test]
+fn a_bike_flicks_at_a_down_shift_off_the_pedal_but_not_under_power() {
+    let mut lifted = bike_flames();
+    run(&mut lifted, 5, &car(4, 0.0));
+    lifted.step(STEP, &car(3, 0.0));
+    assert_eq!(active(&lifted).intensity, 1.0, "the blip flicks the pipe at once");
+    lifted.step(STEP, &car(3, 0.0));
+    assert!(lifted.live() > 0);
+
+    let mut driven = bike_flames();
+    run(&mut driven, 5, &car(4, 1.0));
+    run(&mut driven, 3, &car(3, 1.0));
+    assert_eq!(driven.live(), 0, "a down-shift under power is silent");
+}
+
+#[test]
+fn a_bike_flicks_at_an_up_shift_under_power_not_off_the_pedal() {
+    let mut driven = bike_flames();
+    run(&mut driven, 5, &car(3, 1.0));
+    driven.step(STEP, &car(4, 1.0));
+    assert_eq!(active(&driven).intensity, 1.0);
+
+    let mut lifted = bike_flames();
+    run(&mut lifted, 5, &car(3, 0.0));
+    run(&mut lifted, 3, &car(4, 0.0));
+    assert_eq!(lifted.live(), 0);
+}
+
+#[test]
+fn the_shift_flick_of_a_bike_is_shorter_than_a_mod_cars_blow_off() {
+    let mut bike = bike_flames();
+    run(&mut bike, 5, &car(4, 0.0));
+    bike.step(STEP, &car(3, 0.0));
+    let flick = flaming_steps(&mut bike, &car(3, 0.0));
+    assert!((4..=9).contains(&flick), "{flick} more steps of flame, about 0.125 s");
+    let mut car_fx = flames(true, MOD_SHIFT_TIMING, 0);
+    run(&mut car_fx, 5, &car(3, 1.0));
+    car_fx.step(STEP, &car(4, 1.0));
+    assert!(flaming_steps(&mut car_fx, &car(4, 1.0)) > flick);
 }
