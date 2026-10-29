@@ -18,6 +18,7 @@ default-members = [
     "libs/blackbox-damage",
     "libs/blackbox-carsound",
     "libs/blackbox-chunk",
+    "libs/blackbox-components",
     "libs/blackbox-collision",
     "libs/blackbox-feng",
     "libs/blackbox-gfx",
