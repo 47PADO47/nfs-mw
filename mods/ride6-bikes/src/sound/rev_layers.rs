@@ -19,6 +19,8 @@ use super::wav::{self, Pcm};
 
 /// Loops under load taken from a model: with the idle they fill the host's twelve layers.
 pub const LOOP_LAYERS: usize = 11;
+/// The highest engine speed the host accepts for a layer (`libs/blackbox-modding/src/content/engine_sound.rs`).
+pub const MAX_LAYER_RPM: f32 = 20_000.0;
 /// The range the pitch of the idle recording is looked for in, engine cycles per second.
 const IDLE_SEARCH_HZ: (f32, f32) = (6.0, 60.0);
 /// The largest difference in whole cycles, as a fraction, between an engine loop and the exhaust loop summed into it: one
@@ -108,8 +110,10 @@ pub fn build(
     let mut worst = 0.0_f32;
     let mut notes = Vec::new();
     let mut engine_only = 0;
-    for position in spread(engine.on_load.len(), loops) {
-        let stream = &engine.on_load[position];
+    // A loop above the host's highest layer speed (a model recorded for a far higher redline than the bike's) is never reached.
+    let usable: Vec<&RevStream> = engine.on_load.iter().filter(|stream| stream.rpm() <= MAX_LAYER_RPM).collect();
+    for position in spread(usable.len(), loops) {
+        let stream = usable[position];
         let partner = partner(stream, &exhaust.on_load).context("the exhaust model has no loops under load")?;
         let (a, b) = (mono(engine_audio.decode(stream.number)?)?, mono(exhaust_audio.decode(partner.number)?)?);
         let detune = (partner.cycles as f32 - stream.cycles as f32).abs() / stream.cycles as f32;

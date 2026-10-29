@@ -21,7 +21,7 @@ pub struct Overrun {
     pub throttle_fire: f32,
     /// The longest time between arming and firing for the bang to happen, seconds (0 to 10).
     pub window_seconds: f32,
-    /// Seconds of a shut throttle before the flames start (0 to 10).
+    /// Seconds of a shut throttle before the flames start (0 to 60: the data of some bikes is over 10).
     pub flame_delay: f32,
     /// Flames need an engine speed (as a fraction of the redline) at or above this.
     pub flame_min_rpm: f32,
@@ -73,7 +73,7 @@ pub(super) fn check(raw: Option<RawOverrun>) -> Result<Option<Overrun>, ContentE
         throttle_arm: unit("car_sound.overrun.throttle_arm", raw.throttle_arm)?,
         throttle_fire: unit("car_sound.overrun.throttle_fire", raw.throttle_fire)?,
         window_seconds: within("car_sound.overrun.window_seconds", raw.window_seconds, 10.0)?,
-        flame_delay: within("car_sound.overrun.flame_delay", raw.flame_delay, 10.0)?,
+        flame_delay: within("car_sound.overrun.flame_delay", raw.flame_delay, 60.0)?,
         flame_min_rpm: unit("car_sound.overrun.flame_min_rpm", raw.flame_min_rpm)?,
         bang_audio_threshold: unit("car_sound.overrun.bang_audio_threshold", raw.bang_audio_threshold)?,
         bang_effect_threshold: unit("car_sound.overrun.bang_effect_threshold", raw.bang_effect_threshold)?,
