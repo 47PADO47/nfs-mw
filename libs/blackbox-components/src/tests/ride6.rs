@@ -179,3 +179,11 @@ fn the_digest_tells_bikes_and_catalog_changes_apart() {
     let changed = super::catalog(&CATALOG.replace("1.04", "1.05"));
     assert_ne!(ktm.digest(&catalog), ktm.digest(&changed));
 }
+
+#[test]
+fn the_catalog_lists_the_names_the_game_must_bind() {
+    let used = catalog(CATALOG).used();
+    assert!(used.params.contains("engine.power") && used.parts.contains("muffler.race"));
+    assert_eq!(used.behaviours["exhaust.sound"].len(), 2);
+    assert!(used.surfaces.contains("chain"));
+}

@@ -43,7 +43,7 @@ mod tests;
 
 pub use codec::{MAX_PICKS, WIRE_VERSION, WireError};
 pub use effect::{ColourSource, Effect, Input, Op, PartId, Value};
-pub use model::{Catalog, Component, ComponentId, Condition, InputDef, Offer, Slot, SlotId, VehicleDef};
+pub use model::{Catalog, Component, ComponentId, Condition, InputDef, Offer, Slot, SlotId, Used, VehicleDef};
 pub use resolve::{Installed, Modifier, Note, ParamTable, ResolvedVehicle, SurfaceState};
 pub use selection::{Change, Pick, Selection};
 pub use validate::{Gate, Problem};

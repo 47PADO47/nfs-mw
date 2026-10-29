@@ -161,6 +161,35 @@ impl Catalog {
     pub fn iter(&self) -> impl Iterator<Item = &Component> {
         self.components.values()
     }
+
+    /// Every name the components use, for the game to check against what it can bind before the first resolve.
+    pub fn used(&self) -> Used {
+        let mut used = Used::default();
+        for effect in self.components.values().flat_map(|component| &component.effects) {
+            match effect {
+                Effect::Part { show, hide } => used.parts.extend(show.iter().chain(hide).cloned()),
+                Effect::Surface { target, .. } => {
+                    used.surfaces.insert(target.clone());
+                }
+                Effect::Param { key, .. } => {
+                    used.params.insert(key.clone());
+                }
+                Effect::Behaviour { domain, select } => {
+                    used.behaviours.entry(domain.clone()).or_default().insert(select.clone());
+                }
+            }
+        }
+        used
+    }
+}
+
+/// The part ids, surface targets, parameter keys and behaviours (by domain) a catalog uses.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Used {
+    pub parts: BTreeSet<PartId>,
+    pub surfaces: BTreeSet<String>,
+    pub params: BTreeSet<String>,
+    pub behaviours: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// A component a slot accepts, with what only this vehicle changes about it.
