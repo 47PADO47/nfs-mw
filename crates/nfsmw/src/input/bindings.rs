@@ -116,8 +116,27 @@ impl Binding {
             return s.controls.camera_deadzone.apply_mode(raw, s.controls.deadzone_mode)
                 * s.controls.camera_sensitivity.factor();
         }
+        if self.action == Action::RiderWeight {
+            return deadzone(square_gate(raw, s.pad_axis(GamepadAxis::LeftStickX)));
+        }
         deadzone(raw)
     }
+}
+
+/// A stick's `y` with its circular gate opened to a square: a stick pushed to the rim at 45 degrees reads `x` and `y` of
+/// 0.71 each, and this gives that `y` the full 1, so the weight lever reaches its end while the stick also steers. The
+/// vector keeps its direction and its length is divided by the larger of its two components; on an axis it changes
+/// nothing, and a stick that is not at the rim is scaled by its radius (never past 1).
+fn square_gate(y: f32, x: f32) -> f32 {
+    if !y.is_finite() || !x.is_finite() {
+        return 0.0;
+    }
+    let (x, y) = (x.clamp(-1.0, 1.0), y.clamp(-1.0, 1.0));
+    let larger = x.abs().max(y.abs());
+    if larger < 1e-6 {
+        return 0.0;
+    }
+    (y * x.hypot(y).min(1.0) / larger).clamp(-1.0, 1.0)
 }
 
 /// Travel of a pedal on a full-range axis: 0 released, 1 pressed.
@@ -314,6 +333,7 @@ fn driving() -> Vec<Binding> {
         Binding::new(LookBack, key(KeyCode::KeyB), 1.0),
         Binding::new(Interact, key(KeyCode::Enter), 1.0),
         Binding::new(DismissNotification, key(KeyCode::KeyX), 1.0),
+        Binding::new(AbsLevel, key(KeyCode::KeyJ), 1.0),
         Binding::new(RiderWeight, key(KeyCode::KeyG), 1.0),
         Binding::new(RiderWeight, key(KeyCode::KeyV), -1.0),
         Binding::new(RiderWeight, key(KeyCode::Numpad8), 1.0),
@@ -328,7 +348,8 @@ fn driving() -> Vec<Binding> {
         Binding::new(Speedbreaker, button(GamepadButton::West), 1.0),
         Binding::new(ShiftUp, Source::PadAxis(GamepadAxis::RightStickY), 1.0),
         Binding::new(ShiftDown, Source::PadAxis(GamepadAxis::RightStickY), -1.0),
-        Binding::new(RiderWeight, Source::PadAxis(GamepadAxis::RightStickY), 1.0),
+        Binding::new(RiderWeight, Source::PadAxis(GamepadAxis::LeftStickY), 1.0),
+        Binding::new(AbsLevel, button(GamepadButton::LeftThumb), 1.0),
         Binding::new(ResetCar, button(GamepadButton::Select), 1.0),
         Binding::new(ToggleCamera, button(GamepadButton::North), 1.0),
         Binding::new(CycleCamera, button(GamepadButton::RightTrigger), 1.0),

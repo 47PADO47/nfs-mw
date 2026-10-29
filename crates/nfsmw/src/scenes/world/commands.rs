@@ -20,7 +20,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
     ("drive [car]", "get into a car (a car folder or unique prefix); no name: the last one"),
     ("reset", "put the car back on the nearest road, facing the same way"),
     ("tp <x> <y>", "put the car on the road nearest to the map position"),
-    ("goto <x> <y> [height]", "fly the free camera to a map position"),
+    (
+        "goto <x> <y> [height] [heading pitch]",
+        "fly the free camera to a map position, optionally looking along a heading and pitch (degrees)",
+    ),
     (
         "garage",
         "list the cars of the install by category (racing, police, mod player, mod police with their heat waves); use drive <car> to get into one",
@@ -238,7 +241,7 @@ fn gps(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
 }
 
 fn goto(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
-    let usage = "goto <x> <y> [height]";
+    let usage = "goto <x> <y> [height] [heading pitch]";
     let [x, y] = numbers::<2>(args, usage)?;
     let height = match args.get(2) {
         Some(h) => h.parse::<f32>().map_err(|_| format!("{h:?} is not a number (usage: {usage})"))?,
@@ -248,6 +251,11 @@ fn goto(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
         scene.toggle_view();
     }
     scene.camera.position = Vec3::new(x, y, scene.camera.position.z);
+    if let (Some(heading), Some(pitch)) = (args.get(3), args.get(4)) {
+        let angle = |text: &&str| text.parse::<f32>().map_err(|_| format!("{text:?} is not a number (usage: {usage})"));
+        scene.camera.yaw = angle(heading)?.to_radians();
+        scene.camera.pitch = angle(pitch)?.to_radians();
+    }
     scene.cut.arm();
     // The height is settled once the new area has loaded (above its ground, as at the start).
     scene.start = [x, y];

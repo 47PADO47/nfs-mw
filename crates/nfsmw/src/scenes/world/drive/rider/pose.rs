@@ -112,11 +112,14 @@ pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>)
 pub struct Body {
     pub shift: Vec3,
     pub rotation: Quat,
+    /// The axis in the rider's component space about which a forward lean of the body is a positive turn (the car's left, so
+    /// the top of the body goes forward). Zero for a body that does not lean to reach: see [`super::reach`].
+    pub lean_axis: Vec3,
 }
 
 impl Body {
     /// The body as authored: not moved, not turned.
-    pub const REST: Self = Self { shift: Vec3::ZERO, rotation: Quat::IDENTITY };
+    pub const REST: Self = Self { shift: Vec3::ZERO, rotation: Quat::IDENTITY, lean_axis: Vec3::ZERO };
 }
 
 /// The body of the rider from the physics: `shift` is his displacement from the rest place in the car's axes (x forward,
@@ -130,7 +133,8 @@ pub fn body(frame: &Frame, shift: Vec3, rotation: Vec3) -> Body {
         true => Quat::from_scaled_axis(in_rider),
         false => Quat::IDENTITY,
     };
-    Body { shift: frame.to_rider.transform_vector3(shift), rotation }
+    let lean_axis = frame.to_rider.transform_vector3(Vec3::Y).normalize_or_zero();
+    Body { shift: frame.to_rider.transform_vector3(shift), rotation, lean_axis }
 }
 
 /// Move the bone `bone` by `body.shift` and turn it by `body.rotation` about its own place, without moving its parent: the
@@ -170,6 +174,14 @@ pub fn animate(
     }
     let mut component = Vec::new();
     skeleton.component_transforms(&pose.local, &mut component)?;
+    // A bike whose grips are farther than the arms reach (a racer's low bars against the upright reference pose) gets the
+    // body leaned forward until they can (the full-body solve of the original does this with the spine).
+    let lean = super::reach::lean(resolved, &component, targets, body.lean_axis);
+    if lean > 0.0 {
+        let leaned = Body { rotation: Quat::from_axis_angle(body.lean_axis, lean), ..Body::REST };
+        move_bone(skeleton, &mut pose.local, resolved.shift_bone, leaned)?;
+        skeleton.component_transforms(&pose.local, &mut component)?;
+    }
     for limb in &resolved.limbs {
         let Some(target) = targets.get(limb.target) else { continue };
         let pole = component[limb.pole].translation;

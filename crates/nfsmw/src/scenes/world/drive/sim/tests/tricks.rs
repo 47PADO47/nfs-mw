@@ -70,3 +70,32 @@ fn the_weight_never_reaches_the_vehicle_input() {
     let without = DriveInput { weight: 0.0, ..with };
     assert_eq!(format!("{:?}", with.to_vehicle()), format!("{:?}", without.to_vehicle()));
 }
+
+#[test]
+fn the_riders_abs_level_cycles_on_a_bike_and_a_car_has_none() {
+    let mut bike = bike_sim();
+    let level = |sim: &CarSim| sim.ride.as_ref().expect("a bike").bike.abs_level();
+    assert_eq!(level(&bike), 1.0);
+    let seen: Vec<f32> = (0..5).filter_map(|_| bike.cycle_abs_level()).collect();
+    assert_eq!(seen, vec![0.75, 0.5, 0.25, 0.0, 1.0]);
+    assert_eq!(level(&bike), 1.0);
+    assert_eq!(sim().cycle_abs_level(), None, "a car has no ABS setting to cycle");
+}
+
+#[test]
+fn a_bikes_abs_level_changes_how_hard_the_front_brake_can_work() {
+    let ground = FlatGround::new(5.0);
+    let slowed = |cycles: usize| {
+        let mut bike = bike_sim();
+        for _ in 0..cycles {
+            bike.cycle_abs_level();
+        }
+        assert!(bike.place_moving(&ground, spawn_at(0.2), 25.0));
+        let input = DriveInput { brake: 1.0, ..Default::default() };
+        for _ in 0..60 {
+            let _ = bike.step(&input, &ground, None);
+        }
+        25.0 - bike.rider_sample().expect("a bike").speed
+    };
+    assert!(slowed(4) > slowed(0) + 1.0, "level 0 brakes harder than level 1");
+}

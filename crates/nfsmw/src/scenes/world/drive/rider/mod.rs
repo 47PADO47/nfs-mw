@@ -3,7 +3,9 @@
 //! A mod gives a bike a rider with files (`docs/formats/ride6-rider.md`; a mod's `files/CARS/<ID>/RIDER/` or `files/RIDER/`):
 //! `rider.bbsk` (the skeleton, the animations and the skinned meshes), `graph.json` (the blend tree), `attach.json` (the seat,
 //! the grips, the pegs, the limbs to solve and the numbers that drive the animation), `parts.json` (which picture each mesh
-//! wears) and `textures/*.png`. A bike without `attach.json` has no rider; the game says so once and goes on.
+//! wears) and `textures/*.png`. A bike without `attach.json` has no rider; the game says so once and goes on. A bike's own
+//! `files/CARS/<ID>/RIDER/contacts.json` puts the seat, the hubs and the grip and peg points of that bike over the shared
+//! `attach.json` ([`contacts`]), so the rider reaches each bike's own controls.
 //!
 //! Each physics step feeds the rider the bike's state ([`Rider::step`]: the smoothed inputs of the graph and the clock). Each
 //! frame the rider is posed ([`pose`]: the graph, the body's shift, the hands on the grips and the feet on the pegs), skinned
@@ -11,9 +13,15 @@
 //! transform ([`Rider::instances`]). Nothing here names a game: the files say what the bones are called.
 
 mod attach;
+mod contacts;
+mod fall;
+mod fall_file;
+mod fall_space;
 mod params;
 mod parts;
 mod pose;
+mod reach;
+mod script;
 
 use std::collections::HashMap;
 
@@ -25,6 +33,7 @@ use glam::{Mat4, Vec3};
 use nfsmw_data::car::CarModel;
 
 use self::attach::Attach;
+pub use self::fall::FallStep;
 pub use self::params::RiderSample;
 use self::params::{Smoothed, Values};
 use self::pose::{Frame, Resolved, Steering};
@@ -42,7 +51,8 @@ pub fn folders(car: &str) -> [String; 2] {
 }
 
 /// The graph's parameters by name: the names are the ones the animation spec gives (`lean`, `speed_kmh`, `tuck`, `wheelie`,
-/// `stoppie`); a parameter the graph has and this does not know is 0.
+/// `stoppie`, and `wheelie_alpha`, `wheelie_direction`, `stoppie_time` for the tricks); a parameter the graph has and this
+/// does not know is 0.
 pub fn param_values(names: &[String], values: &Values) -> Vec<f32> {
     names
         .iter()
@@ -52,6 +62,9 @@ pub fn param_values(names: &[String], values: &Values) -> Vec<f32> {
             "tuck" => values.tuck,
             "wheelie" => values.wheelie,
             "stoppie" => values.stoppie,
+            "wheelie_alpha" => values.wheelie_alpha,
+            "wheelie_direction" => values.wheelie_direction,
+            "stoppie_time" => values.stoppie_time,
             _ => 0.0,
         })
         .collect()
@@ -99,6 +112,8 @@ struct RiderRig {
     normals: Vec<Vec3>,
     /// Whether an error of the animation has been logged (once).
     failed: bool,
+    /// The rider coming off the bike in a fall (`fall.rs`).
+    fall: fall::Fall,
 }
 
 impl RiderRig {
@@ -110,6 +125,8 @@ impl RiderRig {
         let read =
             |name: &str| dir.read(&format!("{folder}/{name}")).with_context(|| format!("reading {folder}/{name}"));
         let attach = Attach::parse(&read("attach.json")?)?;
+        // The bike's own seat, grips and pegs (`CARS/<ID>/RIDER/contacts.json`) over the rig's.
+        let attach = contacts::lay_over(attach, dir, &model.name);
         let pack = Pack::parse(&read("rider.bbsk")?).context("rider.bbsk")?;
         let graph: Graph = serde_json::from_slice(&read("graph.json")?).context("graph.json")?;
         graph.validate(&pack.clips, &pack.skeleton).context("graph.json does not fit rider.bbsk")?;
@@ -185,19 +202,20 @@ impl RiderRig {
             positions: Vec::new(),
             normals: Vec::new(),
             failed: false,
+            fall: fall::Fall::load(dir, &folder),
         }))
     }
 
     /// One physics step of `dt` seconds with the bike in state `sample`.
     fn step(&mut self, sample: &RiderSample, dt: f32) {
-        self.smoothed.step(sample, &self.attach.inputs, &self.attach.inertia, dt);
+        self.smoothed.step(sample, &self.attach.inertia, dt);
         if dt.is_finite() && dt > 0.0 {
             self.time += dt.min(0.1);
         }
     }
 
     /// Pose the rider with the handlebar at `steer` (rad, positive left), skin it and write the vertices to the renderer.
-    fn update(&mut self, renderer: &mut dyn RenderBackend, steer: f32) {
+    fn update(&mut self, renderer: &mut dyn RenderBackend, steer: f32, world: Mat4) {
         let steering = self.steering.map(|(axis, point)| Steering { axis, point, angle: steer });
         let targets = pose::rider_targets(&self.attach, &self.frame, steering);
         let body = pose::body(&self.frame, self.smoothed.shift(), self.smoothed.rotation());
@@ -219,6 +237,14 @@ impl RiderRig {
                     self.failed = true;
                 }
                 return;
+            }
+        };
+        // Off the bike in a fall, the pose is the ragdoll's; on it, the riding pose is remembered for the fall to begin from.
+        let component = match self.fall.pose(skeleton, &component, world * self.frame.to_model) {
+            Some(posed) => posed,
+            None => {
+                self.fall.remember(&component);
+                component
             }
         };
         for part in &mut self.parts {
@@ -247,7 +273,10 @@ impl RiderRig {
 
     /// The rider's instances for a bike at `world` (the model's frame in the world).
     fn instances(&self, world: Mat4, out: &mut Vec<Instance>) {
-        let transform = world * self.frame.to_model;
+        let transform = match self.fall.active() {
+            true => self.fall.instance(),
+            false => world * self.frame.to_model,
+        };
         for (n, part) in self.parts.iter().enumerate() {
             out.push(Instance::keyed(part.handle, transform, keys::car_part(keys::PLAYER_CAR, KEY_BASE + n)));
         }
@@ -283,6 +312,14 @@ impl Rider {
         }
     }
 
+    /// One physics step of the rider's fall (`fall.rs`): whether the bike let him go in this step, whether he is off it, and
+    /// the ground the ragdoll falls on. `pose` is where the bike is.
+    pub fn fall_step(&mut self, step: FallStep, pose: &CarPose, ground: &dyn blackbox_vehicle::Ground) {
+        if let State::Ready(rig) = &mut self.state {
+            rig.fall_step(step, pose.transform(), ground);
+        }
+    }
+
     /// Once per frame: load the rider the first time a bike is drawn, then pose, skin and upload it for the bike's pose
     /// `pose` (the front wheel's steering turns the grips).
     pub fn maintain(
@@ -309,7 +346,7 @@ impl Rider {
             };
         }
         if let State::Ready(rig) = &mut self.state {
-            rig.update(renderer, pose.wheels[0].steer);
+            rig.update(renderer, pose.wheels[0].steer, pose.transform());
         }
     }
 
@@ -339,10 +376,22 @@ mod tests {
 
     #[test]
     fn the_graph_gets_its_parameters_by_name_in_its_own_order() {
-        let values = Values { lean: -0.5, speed_kmh: 90.0, tuck: 0.25, wheelie: 0.75, stoppie: 0.125 };
+        let values = Values {
+            lean: -0.5,
+            speed_kmh: 90.0,
+            tuck: 0.25,
+            wheelie: 0.75,
+            stoppie: 0.125,
+            wheelie_alpha: 0.5,
+            wheelie_direction: -1.0,
+            stoppie_time: 0.375,
+        };
         let names: Vec<String> =
-            ["speed_kmh", "lean", "mystery", "stoppie", "tuck", "wheelie"].iter().map(|s| (*s).to_owned()).collect();
-        assert_eq!(param_values(&names, &values), vec![90.0, -0.5, 0.0, 0.125, 0.25, 0.75]);
+            ["speed_kmh", "lean", "mystery", "stoppie", "tuck", "wheelie", "wheelie_alpha", "stoppie_time"]
+                .iter()
+                .map(|s| (*s).to_owned())
+                .collect();
+        assert_eq!(param_values(&names, &values), vec![90.0, -0.5, 0.0, 0.125, 0.25, 0.75, 0.5, 0.375]);
         assert!(param_values(&[], &values).is_empty());
     }
 

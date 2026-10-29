@@ -14,7 +14,7 @@
 //! The two bodies have different origins (the bike's is on the ground between its tyres, the double's is the centre of the
 //! collision box) and share their centre of gravity, so a velocity is the same on both.
 
-use blackbox_vehicle::bike::{Bike, BikeInput, FRONT, REAR};
+use blackbox_vehicle::bike::{AbsLevelSpec, Bike, BikeInput, FRONT, REAR};
 use blackbox_vehicle::input::Controls;
 use blackbox_vehicle::math::ramp;
 use blackbox_vehicle::rigid_body::box_inertia;
@@ -27,12 +27,12 @@ use super::super::rider::RiderSample;
 use super::step::StepStart;
 use super::{CarSim, MAX_VISIBLE_TRAVEL, Telemetry};
 
-/// A fallen rider lies this long before the bike is stood up again (s). A modelling choice: the dynamics end at the fall.
+/// A bike that lost its rider lies this long before it is stood up again (s). A modelling choice (`ride6-rider-fall.md`): the
+/// reference lets the rider get up, walk to the bike and raise it, which takes longer and is not modelled.
 const GET_UP_AFTER: f32 = 2.0;
-/// ... and only once it has come to a stop slower than this (m/s).
+/// ... and only once it has come to a stop slower than this (m/s). The bike slides on its collision box until the ground's friction
+/// stops it: nothing else slows it.
 const GET_UP_SPEED: f32 = 1.5;
-/// The share of its speed a fallen bike loses each step: it slides to a stop on its side. A modelling choice.
-const SLIDE_DAMPING: f32 = 0.08;
 
 /// The two-wheel dynamics of a bike and what joins them to the four-wheel body double.
 #[derive(Debug, Clone)]
@@ -46,6 +46,8 @@ pub(in crate::scenes::world) struct BikeRide {
     spin: [f32; 2],
     /// How long the rider has been down (s).
     down: f32,
+    /// Whether the body double has the mass and the centre of gravity of the bike without its rider.
+    double_alone: bool,
 }
 
 impl BikeRide {
@@ -54,7 +56,7 @@ impl BikeRide {
         let data = physics.bike.as_ref()?;
         let bike = Bike::new((*data.spec).clone());
         let offset = physics.bounds.pivot - Vec3::new(0.0, 0.0, data.origin_x);
-        let ride = Self { bike, offset, controls: Controls::default(), spin: [0.0; 2], down: 0.0 };
+        let ride = Self { bike, offset, controls: Controls::default(), spin: [0.0; 2], down: 0.0, double_alone: false };
         ride.fit(&mut physics.spec);
         Some(ride)
     }
@@ -111,8 +113,21 @@ impl BikeRide {
 
     /// The first half of a step: the bike integrates the forces of the last one, and the double follows.
     pub(super) fn begin_body(&mut self, vehicle: &mut Vehicle, dt: f32) {
+        self.sync_double(vehicle);
         self.bike.begin_body(dt);
         self.push(vehicle);
+    }
+
+    /// The double weighs what the bike does: with the rider (the spec's mass) or, from the moment he leaves it until the bike is
+    /// placed again, without him, and its centre of gravity is the bike's.
+    pub(super) fn sync_double(&mut self, vehicle: &mut Vehicle) {
+        let alone = self.bike.rider_off();
+        if alone == self.double_alone {
+            return;
+        }
+        self.double_alone = alone;
+        vehicle.body_mut().set_mass(self.bike.body().mass());
+        self.attach(vehicle);
     }
 
     /// The end of the contacts: a fallen bike lies on its box (the double meets the ground), and the bike takes the pose the
@@ -146,13 +161,14 @@ impl BikeRide {
             true => self.lie(start.delta, ground),
             false => self.down = 0.0,
         }
+        self.sync_double(vehicle);
         self.push(vehicle);
     }
 
-    /// A rider who is down: the bike slides to a stop and, once it lies still for a while, stands up where it is.
+    /// A bike that lost its rider: it slides on its side (the double meets the ground, `finish_body`) and, once it has lain still
+    /// for a while, stands up where it is with the rider back on it.
     fn lie(&mut self, dt: f32, ground: &dyn Ground) {
         self.down += dt;
-        self.bike.body_mut().damp(SLIDE_DAMPING);
         if self.down < GET_UP_AFTER || self.bike.velocity().length() > GET_UP_SPEED {
             return;
         }
@@ -199,28 +215,28 @@ impl BikeRide {
         [pose(FRONT), pose(FRONT), pose(REAR), WheelPose::default()]
     }
 
-    /// What the rider's animation needs of the bike (`drive/rider/params.rs`). The wheelie and stoppie limits are the pitches
-    /// at which the centre of gravity stands over the rear and over the front tyre's patch: with `b` its distance from the
-    /// rear patch (the front weight share times the wheelbase), `a` from the front one and `h` its height,
-    /// `atan(b / h)` and `atan(a / h)` (rigid-body statics; the road's slope is not taken off the pitch).
+    /// What the rider's animation needs of the bike (`drive/rider/params.rs`): the inputs the reference hands its animation
+    /// blueprint (`ride6-rider-round6.md`, section 4). The wheelie and the stoppie are the height of the nose, the sine of the
+    /// pitch, while one tyre is up and the other is down.
     pub(super) fn rider_sample(&self) -> RiderSample {
         let spec = self.bike.spec();
-        let chassis = &spec.chassis;
-        let behind = chassis.front_weight * chassis.wheelbase;
-        let ahead = chassis.wheelbase - behind;
         let nose = (self.bike.orientation() * Vec3::Z).y.clamp(-1.0, 1.0);
         let body = self.bike.rider_rotation();
+        let max_lean = spec.steering.max_lean.max(f32::EPSILON);
         RiderSample {
             // The rider's lean is the bike's and his body's own against it.
             lean: self.bike.lean() + body.roll_right(),
             max_lean: spec.steering.max_lean,
+            // The blueprint's `BikeLean` (the roll) and `RiderLean` (the controller's target lean) over the steepest lean.
+            bike_lean: (self.bike.lean() / max_lean).clamp(-1.0, 1.0),
+            rider_lean: (self.bike.target_lean() / max_lean).clamp(-1.0, 1.0),
+            elevation: nose,
+            tuck_level: self.bike.tuck_level(),
             speed: self.bike.forward_speed(),
             throttle: self.controls.gas,
             front_brake: self.controls.brake,
             rear_brake: self.controls.brake.max(self.controls.handbrake),
             pitch_up: nose.asin(),
-            wheelie_limit: behind.atan2(chassis.cg_height),
-            stoppie_limit: ahead.atan2(chassis.cg_height),
             front_down: self.bike.wheel(FRONT).on_ground,
             rear_down: self.bike.wheel(REAR).on_ground,
             offset: self.bike.rider_offset(),
@@ -362,6 +378,15 @@ impl CarSim {
     /// Whether the car is a bike.
     pub fn is_bike(&self) -> bool {
         self.ride.is_some()
+    }
+
+    /// The rider switches his ABS to the next lower level (1, 0.75, 0.5, 0.25, 0, then 1 again) and the new level is returned;
+    /// `None` for a car, which has no such setting.
+    pub fn cycle_abs_level(&mut self) -> Option<f32> {
+        let ride = self.ride.as_mut()?;
+        let next = AbsLevelSpec::cycle(ride.bike.abs_level());
+        ride.bike.set_abs_level(next);
+        Some(ride.bike.abs_level())
     }
 
     /// The bike's state for its rider's animation; `None` for a car.

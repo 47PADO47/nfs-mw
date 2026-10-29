@@ -7,6 +7,7 @@
 
 use blackbox_collision::CollisionWorld;
 mod audio;
+mod bike_fall;
 mod cinematic;
 mod hits;
 pub(in crate::scenes::world) mod memo;

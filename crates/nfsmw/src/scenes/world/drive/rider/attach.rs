@@ -50,18 +50,6 @@ pub struct Limb {
     pub tip_offset: [f32; 3],
 }
 
-/// How the bike's state becomes the animation graph's inputs.
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct Inputs {
-    /// The speed from which the rider tucks in, km/h.
-    pub tuck_speed_kmh: f32,
-    /// The rates (1/s) at which the smoothed inputs follow their targets.
-    pub tuck_rate: f32,
-    pub lean_rate: f32,
-    pub wheelie_rate: f32,
-    pub stoppie_rate: f32,
-}
-
 /// The rider's body shifting with the physics: his displacement from the rest place, held to a range and smoothed.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Inertia {
@@ -90,7 +78,6 @@ pub struct Attach {
     pub hubs: Hubs,
     pub targets: Vec<Target>,
     pub limbs: Vec<Limb>,
-    pub inputs: Inputs,
     pub inertia: Inertia,
 }
 
@@ -130,7 +117,7 @@ pub(super) mod tests {
             {"name": "left_arm", "root": "upperarm_l", "mid": "lowerarm_l", "tip": "hand_l", "pole": "PV_arm_l",
              "target": "left_grip", "tip_offset": [0.01, 0.0, -0.02]}
         ],
-        "inputs": {"tuck_speed_kmh": 140.0, "tuck_rate": 6.0, "lean_rate": 4.0, "wheelie_rate": 3.0, "stoppie_rate": 3.0},
+        "inputs": {"tuck_speed_kmh": 140.0},
         "inertia": {"bone": "pelvis", "min": [-0.06, -0.15, -0.04], "max": [0.0, 0.15, 0.2], "braking_m": 0.06,
                     "full_acceleration": 9.81, "rate": 4.0}
     }"#;
@@ -143,7 +130,6 @@ pub(super) mod tests {
         assert_eq!(attach.target_index("nope"), None);
         assert!(attach.targets[0].steers && !attach.targets[1].steers);
         assert_eq!(attach.limbs[0].tip, "hand_l");
-        assert_eq!(attach.inputs.tuck_speed_kmh, 140.0);
         assert_eq!(attach.inertia.bone, "pelvis");
         // A quarter turn about z turns +x into +y.
         let seat = attach.rider_root_in_bike.transform();
