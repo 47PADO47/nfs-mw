@@ -1444,6 +1444,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-acl"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-aems"
 version = "0.1.0"
 dependencies = [
@@ -5468,6 +5475,7 @@ name = "ride6-bikes"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blackbox-acl",
  "blackbox-attrib",
  "blackbox-collision",
  "blackbox-hash",

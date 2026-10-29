@@ -10,6 +10,7 @@ members = ["libs/*", "crates/*", "xtask", "mods/nfsmw-2012-content", "mods/ride6
 # (`--workspace` and `-p blackbox-bevy-render` still reach it). Add new libs here.
 default-members = [
     "libs/blackbox-trace",
+    "libs/blackbox-acl",
     "libs/blackbox-aems",
     "libs/blackbox-anim",
     "libs/blackbox-attrib",
@@ -86,6 +87,7 @@ chameleon-gfx = { path = "libs/chameleon-gfx" }
 chameleon-postfx = { path = "libs/chameleon-postfx" }
 chameleon-sound-graph = { path = "libs/chameleon-sound-graph" }
 chameleon-vehicle = { path = "libs/chameleon-vehicle" }
+blackbox-acl = { path = "libs/blackbox-acl" }
 blackbox-aems = { path = "libs/blackbox-aems" }
 blackbox-anim = { path = "libs/blackbox-anim" }
 blackbox-attrib = { path = "libs/blackbox-attrib" }
