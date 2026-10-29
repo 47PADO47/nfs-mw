@@ -1,10 +1,26 @@
 //! The gearbox and the clutch of the `[bike]` table (`[bike.transmission]`). Same units as `blackbox_vehicle::bike::BikeSpec`.
 
-use blackbox_vehicle::bike::{ClutchControl, FeatherSpec, ForcedDownshift, TransmissionSpec};
+use blackbox_vehicle::bike::{ClutchControl, FeatherSpec, ForcedDownshift, OverLimit, TransmissionSpec};
 use serde::Deserialize;
 
 fn yes() -> bool {
     true
+}
+
+fn over_min_speed() -> f32 {
+    OverLimit::default().min_speed
+}
+
+fn over_change_time() -> f32 {
+    OverLimit::default().change_time
+}
+
+fn over_threshold() -> f32 {
+    OverLimit::default().threshold
+}
+
+fn over_share() -> f32 {
+    OverLimit::default().rpm_share
 }
 
 fn two() -> f32 {
@@ -90,6 +106,19 @@ pub struct Transmission {
     pub force_downshift_linearity: f32,
     #[serde(default)]
     pub force_downshift_speed_range_mps: [f32; 2],
+    /// The over-limit upshift (`GearChangeOverLimitEnabled`, `OverLimitMinChangeSpeed`, `OverLimitChangeTime`,
+    /// `OverLimitChangeTimeThreshold`, `OverLimitRpmPercentage`): on by default, the speed in m/s, the times in s and the share of
+    /// the rev limit; the defaults are the reference's constructor defaults.
+    #[serde(default = "yes")]
+    pub over_limit_enabled: bool,
+    #[serde(default = "over_min_speed")]
+    pub over_limit_min_speed_mps: f32,
+    #[serde(default = "over_change_time")]
+    pub over_limit_change_time_s: f32,
+    #[serde(default = "over_threshold")]
+    pub over_limit_threshold_s: f32,
+    #[serde(default = "over_share")]
+    pub over_limit_rpm_share: f32,
     /// The engine speed of a launch, as a share of the engine speed of peak torque, and the most it may be as a share of the
     /// rev limit.
     #[serde(default)]
@@ -177,6 +206,13 @@ impl Transmission {
                     factor: self.force_downshift_factor,
                     linearity: self.force_downshift_linearity,
                     speed_range: self.force_downshift_speed_range_mps,
+                },
+                over_limit: OverLimit {
+                    enabled: self.over_limit_enabled,
+                    min_speed: self.over_limit_min_speed_mps,
+                    change_time: self.over_limit_change_time_s,
+                    threshold: self.over_limit_threshold_s,
+                    rpm_share: self.over_limit_rpm_share,
                 },
             },
         }

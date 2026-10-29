@@ -8,14 +8,6 @@
 /// release follows its target in effect at once; the constant stays a rate so a slower one can be tested.
 pub const ABS_FALL_RATE: f32 = 10_000.0;
 
-/// The desired front side force is `-tau / arm` (recovered) plus the front's share of the force a steady turn needs
-/// (`m g tan(lean)`, the share being the front's weight share). The binary has no such feed-forward: it closes the roll with the
-/// front tyre and the lean help alone, so a held lean sits a fraction of a degree off its target (`ride6-chassis-round6.md`, "The
-/// roll closure"). It stays because without it this model's bike, held at the lean limit (full stick at 20 m/s), loses its front
-/// tyre after about a second and falls; every other test passes without it. Whether the cause is the model's tyre or a term not
-/// recovered was not settled.
-pub const LEAN_FORCE_INCLUDES_TURN_FORCE: bool = true;
-
 /// The factor on the arctangent of the lateral grip in the lean limit: the wheel's `LateralGripTolerance`, a constructor
 /// default of 1 (recovered, `ride6-suspension.md`, "Unset C++ defaults").
 pub const LATERAL_GRIP_TOLERANCE: f32 = 1.0;
@@ -30,3 +22,22 @@ pub const STANDING_SPEED: f32 = 0.5;
 /// The least lean limit (rad) the rider's place divides the target lean by, so a limit that has not been planned yet (0) asks for
 /// no lean shift rather than a division by zero. Numerical guard.
 pub const MIN_LEAN_LIMIT: f32 = 0.05;
+
+/// The longest sub-step (s) of a bike step. The reference game divides a vehicle step longer than the chassis' `MaxDeltaTime` into at
+/// most `MaxSubsteps` equal parts (recovered, `ride6-chassis-round7.md` section 1); the values come from the project's physics
+/// simulation settings, which are not among the files read. 1/480 s is the longest at which this model's lean loop, with the stick
+/// held at 0.8 or more, kept 287 of the 288 bikes of the sweep up for 10 s at any speed from 8 to 40 m/s (at 1/240 the loop's
+/// one-step delay made the bike weave at 2 Hz at the lean limit and fall within seconds, and a stick of 1.0 fell on a third of the
+/// bikes; `ride6-feel-round8.md`, section 3). Open.
+pub const MAX_SUBSTEP: f32 = 1.0 / 480.0;
+
+/// The most sub-steps of a step (a guard against a very long host step).
+pub const MAX_SUBSTEPS: usize = 32;
+
+/// The share of the traction control's slip window (`TCSSlipThresholdsDry`) the model uses: the control starts to cut the throttle at
+/// this share of the data's lower slip and cuts fully at this share of the upper one. A modelling choice: the reference shapes the
+/// cut by the lean and the yaw rate and its ECU element reduces the throttle by slip, wheelie angle and lean, none of which was recovered
+/// (`ride6-powertrain-round6.md`, section 13; the bikes read carry no throttle-reduction tuning), and with the data's window alone a
+/// bike launched with the stick held spins its rear up and throws itself (14 of 20 bikes of the sweep fell within 5 s); at half the
+/// window none did, at the price of half a second on the time to 100 km/h (3.8 s to 4.4 s on average).
+pub const TCS_WINDOW_SCALE: f32 = 0.5;

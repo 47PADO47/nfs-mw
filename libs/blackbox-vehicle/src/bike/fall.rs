@@ -37,6 +37,22 @@ impl Bike {
         }
     }
 
+    /// The bank of the road under the bike (rad), positive when the road is lower on the right of the heading: the sine is the tilt
+    /// of the normal (the two wheels' contact normals added) across the heading, measured on the road's plane. 0 with no wheel down.
+    pub(in crate::bike) fn terrain_slope(&self) -> f32 {
+        let down = |index: usize| self.wheels[index].on_ground.then_some(self.wheels[index].normal);
+        let normal = match (down(FRONT), down(REAR)) {
+            (Some(front), Some(rear)) => front + rear,
+            (Some(only), None) | (None, Some(only)) => only,
+            (None, None) => return 0.0,
+        };
+        let Some(normal) = normal.try_normalize() else { return 0.0 };
+        let forward = self.body.rotation() * Vec3::Z;
+        let Some(along) = (forward - normal * forward.dot(normal)).try_normalize() else { return 0.0 };
+        // normal x along points to the right of the heading in the road's plane; its vertical part is minus the bank's sine.
+        (-normal.cross(along).y).clamp(-1.0, 1.0).asin()
+    }
+
     /// The tests, once per step, in the order of the reference (the first that fires ends the run and says what kind of fall it
     /// was): the lean (for `lean_duration` on the ground, at once in the air), the pitch, the angle of the velocity to the heading
     /// (only above `min_speed`), the angular speed. A fall lets the rider go ([`Bike::take_rider_release`]).
@@ -59,7 +75,18 @@ impl Bike {
             true => airborne,
             false => ground,
         };
-        let lean = lean_of(rotation).abs();
+        let signed = lean_of(rotation);
+        // The lean the tests see is relative to the road: shifted by the bank, by the influence when the two lean the same way.
+        let slope = self.terrain_slope();
+        let shift = match signed * slope >= 0.0 {
+            true => extra.terrain_influence,
+            false => extra.terrain_reduction,
+        } * slope;
+        let shift = match extra.terrain_max_delta > 0.0 {
+            true => shift.clamp(-extra.terrain_max_delta, extra.terrain_max_delta),
+            false => shift,
+        };
+        let lean = (signed - shift).abs();
         let lean_over = match air {
             true => lean > pick(extra.airborne_lean, fall.lean),
             false => lean > self.chassis.fall_lean,

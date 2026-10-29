@@ -55,6 +55,9 @@ pub struct Powertrain {
     starting: bool,
     /// How long the front brake has been held in the forced-downshift range (see `ForcedDownshift`).
     brake_timer: f32,
+    /// The time the engine has been over the over-limit share (s) and the time since the last change began.
+    over_limit_timer: f32,
+    since_change: f32,
 }
 
 /// What the wheel's solve needs to hand back to the powertrain.
@@ -63,6 +66,8 @@ struct Pending {
     ratio: f32,
     torque: f32,
     capacity: f32,
+    /// The clutch is fully engaged: the two sides are rigidly joined and carry any torque (`ride6-engine-drivetrain.md`).
+    full: bool,
     locked: bool,
 }
 
@@ -72,11 +77,6 @@ fn rpm_to_rad(rpm: f32) -> f32 {
 
 fn rad_to_rpm(speed: f32) -> f32 {
     speed * 60.0 / TAU
-}
-
-/// The sign of `x` smoothed over `width`, so a clutch near equal speeds does not flip its torque each step.
-fn smooth_sign(x: f32, width: f32) -> f32 {
-    x / (x.abs() + width)
 }
 
 impl Powertrain {
@@ -99,6 +99,8 @@ impl Powertrain {
             feather_timer: 0.0,
             starting: false,
             brake_timer: 0.0,
+            over_limit_timer: 0.0,
+            since_change: 0.0,
         }
     }
 
@@ -136,10 +138,13 @@ impl Powertrain {
         self.feather_timer = 0.0;
         self.starting = false;
         self.brake_timer = 0.0;
+        self.over_limit_timer = 0.0;
+        self.since_change = 0.0;
     }
 
-    /// The engine's torque at the crankshaft (N m) for a throttle, at its present speed.
-    fn engine_torque(&self, engine: &EngineSpec, throttle: f32) -> f32 {
+    /// The engine's torque at the crankshaft (N m) for a throttle, at its present speed. The engine-brake reduction drops a share
+    /// of the closed-throttle drag when the rear slides (`ride6-powertrain-round6.md`, section 11).
+    fn engine_torque(&self, engine: &EngineSpec, throttle: f32, input: &DriveInput) -> f32 {
         let rpm = self.rpm();
         let peak = engine.peak_torque * curve(&engine.torque_curve, rpm);
         let share = (rpm / engine.max_rpm).max(0.0);
@@ -148,7 +153,9 @@ impl Powertrain {
             false => curve(&engine.friction_curve, share),
         };
         let drag = engine.friction_torque * drag_factor;
-        let closed = -drag;
+        let slip = (input.radius * input.wheel_spin - input.speed) / input.speed.max(0.01);
+        let reduction = engine.brake_reduction.reduction(drag_factor, input.lean, input.rear_load, slip);
+        let closed = -drag * (1.0 - reduction);
         closed + (peak - closed) * throttle
     }
 
@@ -193,6 +200,8 @@ impl Powertrain {
     /// Start a change into `gear` that takes `duration` seconds. A change of no duration is made at once.
     fn begin_shift(&mut self, gear: usize, duration: f32, up: bool) {
         self.shift_up = up;
+        self.since_change = 0.0;
+        self.over_limit_timer = 0.0;
         self.target_gear = Some(gear);
         self.shift_total = duration.max(0.0);
         self.shift_timer = self.shift_total;
@@ -243,11 +252,18 @@ pub struct DriveInput {
     pub speed: f32,
     /// The front brake lever the rider asks for (0 to 1), before the linking of the brakes.
     pub front_brake: f32,
+    /// The rear tyre's load over its load at rest.
+    pub rear_load: f32,
     /// The effective radius of the rear wheel (m) and the lean as a share of the lean limit (0 upright, 1 at the limit).
     pub radius: f32,
     pub lean: f32,
     /// How much the traction control cuts the throttle, 0 to 1.
     pub traction_cut: f32,
+    /// The rear wheel's inertia (kg m^2), the torque the road puts against its spin (the tyre's longitudinal force times the radius, N m,
+    /// positive when driving the bike) and the brake torque on it (N m), from the last step.
+    pub wheel_inertia: f32,
+    pub traction_torque: f32,
+    pub brake_torque: f32,
     pub dt: f32,
 }
 
@@ -258,6 +274,9 @@ impl Powertrain {
         let dt = input.dt;
         self.shift_timer = (self.shift_timer - dt).max(0.0);
         self.brake_timer = transmission.control.forced_downshift.timer(self.brake_timer, input.front_brake, dt);
+        self.since_change += dt;
+        self.over_limit_timer =
+            transmission.control.over_limit.timer(self.over_limit_timer, self.rpm(), engine.max_rpm, input.speed, dt);
         self.apply_due_gear(transmission);
         self.change_gear(engine, transmission, input);
         self.apply_due_gear(transmission);
@@ -265,28 +284,58 @@ impl Powertrain {
         let coupled_speed = (input.wheel_spin * ratio).max(0.0);
         let throttle = self.throttle(engine, transmission, input);
         let throttle = self.traction_control(engine, throttle, input.traction_cut);
-        let torque = self.engine_torque(engine, throttle);
+        let torque = self.engine_torque(engine, throttle, input);
         let engagement = self.engagement(engine, transmission, input, torque, rad_to_rpm(coupled_speed));
         let capacity = engagement * transmission.clutch_max_factor * engine.peak_torque;
-        if capacity <= 0.0 {
+        let efficiency = transmission.efficiency;
+        let full = engagement >= 1.0 - 1e-4;
+        // A clutch fully engaged is a rigid joint (`ride6-engine-drivetrain.md`, "Clutch and drivetrain coupling"): the engine takes the
+        // speed of the wheel at once and carries any torque. (Held to the speed at which a slipping engine would cross it, the joint
+        // chattered with the engine's small inertia.)
+        if !full {
             self.locked = false;
         }
-        let efficiency = transmission.efficiency;
-        if self.locked {
-            self.pending = Some(Pending { ratio, torque, capacity, locked: true });
-            return Drive { torque: torque * ratio * efficiency, extra_inertia: engine.moi * ratio * ratio };
-        }
-        let difference = self.speed - coupled_speed;
-        let passed = capacity * smooth_sign(difference, 1.0);
-        let before = self.speed;
-        self.speed = (self.speed + dt * (torque - passed) / engine.moi.max(1e-4)).max(0.0);
-        if (before - coupled_speed) * (self.speed - coupled_speed) < 0.0 && capacity > 0.0 {
+        if full && !self.locked && coupled_speed > 0.0 {
             self.speed = coupled_speed;
             self.locked = true;
         }
+        if self.locked {
+            self.pending = Some(Pending { ratio, torque, capacity, full, locked: true });
+            return Drive { torque: torque * ratio * efficiency, extra_inertia: engine.moi * ratio * ratio };
+        }
+        let passed =
+            self.slipping_torque(engine, (ratio, ratio * ratio * efficiency), (torque, capacity), coupled_speed, input);
+        self.speed = (self.speed + dt * (torque - passed) / engine.moi.max(1e-4)).max(0.0);
         self.transmitted = passed;
-        self.pending = Some(Pending { ratio, torque, capacity, locked: false });
+        self.pending = Some(Pending { ratio, torque, capacity, full, locked: false });
         Drive { torque: passed * ratio * efficiency, extra_inertia: 0.0 }
+    }
+
+    /// The torque (N m, on the engine side) a partly engaged clutch passes: the one that would bring the engine and the wheel side to
+    /// the same speed at the end of the step, as far as its capacity goes. Both sides are advanced by what acts on them (the engine's
+    /// torque; the wheel's road and brake torques, taken from the last step) and by the clutch torque itself, so a clutch that can
+    /// hold the two together does, and one that cannot passes its capacity, with no state of its own to chatter. `wheel_gain` is the
+    /// clutch torque's effect on the wheel side's speed over the engine's, per unit of inertia.
+    fn slipping_torque(
+        &self,
+        engine: &EngineSpec,
+        (ratio, wheel_gain): (f32, f32),
+        (torque, capacity): (f32, f32),
+        coupled_speed: f32,
+        input: &DriveInput,
+    ) -> f32 {
+        if capacity <= 0.0 {
+            return 0.0;
+        }
+        let dt = input.dt;
+        let engine_inertia = engine.moi.max(1e-4);
+        let wheel_inertia = input.wheel_inertia.max(1e-3);
+        let stopping = input.wheel_spin.abs() * wheel_inertia / dt;
+        let outside = -input.traction_torque - input.brake_torque.min(stopping).copysign(input.wheel_spin);
+        let free_engine = self.speed + dt * torque / engine_inertia;
+        let free_wheel = coupled_speed + dt * ratio * outside / wheel_inertia;
+        let gain = dt * (1.0 / engine_inertia + wheel_gain / wheel_inertia);
+        ((free_engine - free_wheel) / gain).clamp(-capacity, capacity)
     }
 
     /// The second half: the rear wheel has spun to `wheel_spin`. A locked engine follows it.
@@ -304,7 +353,7 @@ impl Powertrain {
         let passed = pending.torque - engine.moi * (new_speed - self.speed) / dt.max(1e-6);
         self.speed = new_speed;
         self.transmitted = passed;
-        if passed.abs() > pending.capacity + 1e-3 {
+        if !pending.full && passed.abs() > pending.capacity + 1e-3 {
             self.locked = false;
         }
     }
@@ -384,11 +433,14 @@ impl Powertrain {
         let wanted = slip > f.min_slip || normalised <= f.target_tolerance || self.feather_timer > 0.0;
         if clutch >= 1.0 || !wanted {
             self.feather_timer = 0.0;
+            // With nothing asking for the clutch the whole input is 0, which ends the start.
+            self.starting = clutch > 0.0;
             return 0.0;
         }
         let reference = coupled_rpm.max(engine.idle_rpm);
         if self.feather_timer > 0.3 && slip < 0.01 && reference / reach >= f.exit_tolerance {
             self.feather_timer = 0.0;
+            self.starting = clutch > 0.0;
             return 0.0;
         }
         self.feather_timer = self.feather_timer.max(1e-3) + input.dt;
@@ -402,7 +454,14 @@ impl Powertrain {
         let needed = (after - coupled).signum() * (step * torque - engine.moi * target) / (capacity * step);
         let request = 1.0 - needed.max(0.0).powf(1.0 / transmission.clutch_linearity.max(0.01));
         let release = (1.0 - reference * f.release_factor / reach).clamp(0.0, 1.0);
-        (release * request).clamp(0.0, 1.0)
+        let result = (release * request).clamp(0.0, 1.0);
+        // The controller leaves the clutch at 0 when the engine could not be held back by it any more, and a start whose
+        // whole clutch input is 0 is over (`ride6-powertrain-round6.md`, section 13).
+        if clutch.max(result) <= 0.0 {
+            self.feather_timer = 0.0;
+            self.starting = false;
+        }
+        result
     }
 
     /// The automatic gearbox: change up when the road speed passes the speed at which the engine would reach the change-up
@@ -424,7 +483,9 @@ impl Powertrain {
         .clamp(0.0, 1.0)
             - forced;
         let speed = input.speed.abs();
-        if self.gearbox.wants_up(engine, transmission, self.gear, speed, input.radius, hold_up) {
+        let over = transmission.control.over_limit.wants_up(self.over_limit_timer, self.since_change)
+            && self.gear + 1 < transmission.gears.len();
+        if over || self.gearbox.wants_up(engine, transmission, self.gear, speed, input.radius, hold_up) {
             self.begin_shift(self.gear + 1, transmission.up_shift_time, true);
             return;
         }

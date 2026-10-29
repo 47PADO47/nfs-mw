@@ -89,6 +89,8 @@ pub struct EngineSpec {
     pub throttle_at_idle: f32,
     /// How long the rev limiter cuts and restores the fuel in turn (s).
     pub limiter_cut_time: f32,
+    /// The engine-brake reduction (none by default).
+    pub brake_reduction: super::engine_brake::EngineBrakeReduction,
 }
 
 #[derive(Clone, Debug)]
@@ -131,7 +133,7 @@ pub struct TransmissionSpec {
     pub clutch_max_factor: f32,
     /// How a change moves the clutch and the throttle, the idle clutch and the slipper filter (`ClutchControl::default()`
     /// when the manifest leaves them out).
-    pub control: super::gearbox::ClutchControl,
+    pub control: super::clutch_control::ClutchControl,
 }
 
 /// The feathering controller of a start (`docs/specs/ride6-gearbox-auto.md`, section 3). `Default` is the constructor default.

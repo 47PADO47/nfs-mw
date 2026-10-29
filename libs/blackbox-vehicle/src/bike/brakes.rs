@@ -1,6 +1,7 @@
 //! The brakes: the linked levers, the torque at each wheel and the anti-lock multiplier (`docs/specs/ride6-engine-drivetrain.md`
 //! "Joined brakes", `docs/specs/ride6-rider-help.md` "ABS").
 
+use super::brake_reduction::{BrakeReduction, ReductionInput, rate_limit};
 use super::choices;
 use super::curve::ramp;
 use super::spec::{AbsSpec, BrakeSpec};
@@ -34,7 +35,15 @@ pub fn torque(spec: &BrakeSpec, front: bool, lever: f32, abs: f32, radius: f32) 
 pub struct AntiLock {
     front: f32,
     rear: f32,
+    /// The brake reduction of each wheel (`brake_reduction.rs`), 0 to 1.
+    front_cut: f32,
+    rear_cut: f32,
 }
+
+/// How fast the brake reduction rises (1/s) and falls: the reference's rate limiter rises at 10000, and `BrakeReductionFallRate`
+/// is 1000 by constructor default, set by no bike (`ride6-powertrain-round6.md`, section 5).
+const REDUCTION_RISE_RATE: f32 = 10_000.0;
+const REDUCTION_FALL_RATE: f32 = 1_000.0;
 
 impl AntiLock {
     /// Bring the releases up to date. `normalised_*` is the wheel's longitudinal slip normalised to the force peak (-1 at the
@@ -63,9 +72,18 @@ impl AntiLock {
         self.rear = rear.max(self.rear - fall);
     }
 
-    /// The multipliers of the front and rear brake torque.
+    /// Bring the brake reductions up to date (`ride6-powertrain-round6.md`, section 9).
+    pub fn update_reduction(&mut self, reduction: &BrakeReduction, input: &ReductionInput, dt: f32) {
+        let step = |current: f32, rear: bool| {
+            rate_limit(current, reduction.target(rear, input), REDUCTION_RISE_RATE, REDUCTION_FALL_RATE, dt)
+        };
+        self.front_cut = step(self.front_cut, false);
+        self.rear_cut = step(self.rear_cut, true);
+    }
+
+    /// The multipliers of the front and rear brake torque: what the anti-lock and the brake reduction each leave.
     pub fn multipliers(&self) -> (f32, f32) {
-        (1.0 - self.front, 1.0 - self.rear)
+        ((1.0 - self.front) * (1.0 - self.front_cut), (1.0 - self.rear) * (1.0 - self.rear_cut))
     }
 
     pub fn reset(&mut self) {
@@ -123,6 +141,35 @@ mod tests {
         assert_eq!(abs.multipliers(), (0.0, 0.0));
         abs.update(&spec, 20.0, 0.0, 0.0, 1.0 / 60.0);
         assert_eq!(abs.multipliers(), (1.0, 1.0));
+    }
+
+    #[test]
+    fn the_brake_reduction_takes_the_rear_brake_away_with_the_abs_and_lets_go_at_its_rate() {
+        use crate::bike::{BrakeReduction, RangeMap, WheelReduction};
+        let reduction = BrakeReduction {
+            speed: RangeMap { input: [10.0, 25.0], output: [0.0, 1.0] },
+            rear: WheelReduction {
+                intensity: 1.0,
+                load: RangeMap { input: [1.0, 0.0], output: [0.0, 0.8] },
+                throttle: RangeMap { input: [0.0, 0.05], output: [1.0, 0.0] },
+                ..WheelReduction::default()
+            },
+            ..BrakeReduction::default()
+        };
+        let input = ReductionInput { speed_kmh: 80.0, load_share: [1.0, 0.5], ..ReductionInput::default() };
+        let mut abs = AntiLock::default();
+        abs.update_reduction(&reduction, &input, 1.0 / 60.0);
+        let (front, rear) = abs.multipliers();
+        assert_eq!(front, 1.0);
+        assert!((rear - 0.6).abs() < 1e-6, "{rear}");
+        // The reduction falls at 1000 per second: gone in one step at 60 Hz.
+        abs.update_reduction(&reduction, &ReductionInput { load_share: [1.0, 1.0], ..input }, 1.0 / 60.0);
+        assert_eq!(abs.multipliers(), (1.0, 1.0));
+        // With the ABS releasing too, the two multiply.
+        let spec = BikeSpec::example().brakes.abs;
+        abs.update(&spec, 20.0, 0.0, -1.0, 1.0 / 60.0);
+        abs.update_reduction(&reduction, &input, 1.0 / 60.0);
+        assert!((abs.multipliers().1 - 0.0).abs() < 1e-6);
     }
 
     #[test]

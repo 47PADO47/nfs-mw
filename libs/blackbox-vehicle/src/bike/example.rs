@@ -9,7 +9,7 @@ use super::spec::{
     FeatherSpec, Hydraulic, LeanSpec, PitchParams, Progressive, RiderHelpSpec, SteeringSpec, SuspensionSpec, TcsSpec,
     TransmissionSpec, TyreSection, TyreThermal, WheelSpec, WheelieSpec,
 };
-use super::spec::{FallExtra, HelpExtra};
+use super::spec::{FallExtra, HelpExtra, StabilitySpec, TerrainLimit};
 
 fn tyre(peak: f32) -> Mf94 {
     let mut a = [0.0; 15];
@@ -109,6 +109,13 @@ fn lean() -> LeanSpec {
         rider_mass_scale: 1.0,
         help_speed: vec![(0.0, 0.0), (10.0 / 3.6, 0.2)],
         help_limit: 1.0,
+        stability: StabilitySpec::default(),
+        terrain: TerrainLimit {
+            speed: vec![(10.0 / 3.6, 0.0), (50.0 / 3.6, 1.0)],
+            max_angle: 15.0_f32.to_radians(),
+            increment: 0.666_667,
+            reduction: 1.0,
+        },
         help_extra: HelpExtra {
             stopped_range: [0.0, 10.0 / 3.6],
             balance_speed: vec![(10.0 / 3.6, 0.0), (30.0 / 3.6, 1.0)],
@@ -262,6 +269,12 @@ impl BikeSpec {
                 moi: 0.015,
                 throttle_at_idle: 0.15,
                 limiter_cut_time: 0.02,
+                brake_reduction: super::engine_brake::EngineBrakeReduction {
+                    factor: 1.0,
+                    load: super::brake_reduction::RangeMap { input: [1.0, 0.0], output: [1.0, 0.9] },
+                    slip: super::brake_reduction::RangeMap { input: [0.0, -0.33], output: [0.0, 1.0] },
+                    ..super::engine_brake::EngineBrakeReduction::default()
+                },
             },
             transmission: TransmissionSpec {
                 gears: vec![2.1, 1.65, 1.35, 1.12, 0.96],
@@ -284,18 +297,18 @@ impl BikeSpec {
                 feather: FeatherSpec { delta_time: 0.05, ..FeatherSpec::default() },
                 launch_rpm: [0.4, 0.98],
                 clutch_max_factor: 1.0,
-                control: super::gearbox::ClutchControl {
+                control: super::clutch_control::ClutchControl {
                     clutch_timing: [0.125, 0.2],
                     throttle_timing: [0.05, 0.9],
                     modulate_upshift_throttle: false,
-                    forced_downshift: super::gearbox::ForcedDownshift {
+                    forced_downshift: super::clutch_control::ForcedDownshift {
                         brake_range: [0.5, 1.0],
                         duration: 0.3,
                         factor: 1.0,
                         linearity: 3.0,
                         speed_range: [150.0 / 3.6, 150.0 / 3.6],
                     },
-                    ..super::gearbox::ClutchControl::default()
+                    ..super::clutch_control::ClutchControl::default()
                 },
             },
             brakes: BrakeSpec {
@@ -310,6 +323,7 @@ impl BikeSpec {
                     speed_range: [10.0 / 3.6, 25.0 / 3.6],
                     front_slip: [-0.3, -0.5],
                     rear_slip: [-0.5, -1.0],
+                    reduction: super::brake_reduction::BrakeReduction::default(),
                 },
             },
             steering: SteeringSpec {
@@ -337,6 +351,9 @@ impl BikeSpec {
                     airborne_lean: 70.0_f32.to_radians(),
                     airborne_pitch: 65.0_f32.to_radians(),
                     airborne_angular: 7.0,
+                    terrain_influence: 1.0,
+                    terrain_reduction: 1.0,
+                    terrain_max_delta: 50.0_f32.to_radians(),
                     highside_lean: 70.0_f32.to_radians(),
                 },
             },

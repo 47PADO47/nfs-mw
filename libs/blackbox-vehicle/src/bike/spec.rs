@@ -6,7 +6,7 @@
 use glam::Vec3;
 
 pub use super::abs_level::AbsLevelSpec;
-pub use super::lean::extra::{FallExtra, HelpExtra};
+pub use super::lean::extra::{FallExtra, HelpExtra, StabilitySpec, TerrainLimit};
 use super::magic::Mf94;
 pub use super::spec_parts::{
     Coupling, DamperSpec, EngineSpec, FeatherSpec, Hydraulic, Progressive, SuspensionSpec, TransmissionSpec,
@@ -121,6 +121,8 @@ pub struct AbsSpec {
     /// The normalised slip ratio (-1 is the force peak) at which it starts to act and at which it acts fully.
     pub front_slip: [f32; 2],
     pub rear_slip: [f32; 2],
+    /// The brake reduction (lean, drift, unloading, throttle); none by default.
+    pub reduction: super::brake_reduction::BrakeReduction,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -176,6 +178,10 @@ pub struct LeanSpec {
     pub help_limit: f32,
     /// The stopped blend, the force-or-couple balance and the skid cut of the help (`HelpExtra::default()` for none).
     pub help_extra: HelpExtra,
+    /// The stability help (`StabilitySpec::default()` for none).
+    pub stability: StabilitySpec,
+    /// The terrain term of the lean limit (`TerrainLimit::default()` for none).
+    pub terrain: TerrainLimit,
 }
 
 #[derive(Clone, Debug)]

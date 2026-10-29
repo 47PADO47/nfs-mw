@@ -92,9 +92,10 @@ impl Bike {
     }
 
     /// Step the anti-lock with the ABS of the bike at the rider's level (the one place the level reaches the brake).
-    pub(super) fn update_antilock(&mut self, speed: f32, normalised: [f32; 2], dt: f32) {
+    pub(super) fn update_antilock(&mut self, speed: f32, normalised: [f32; 2], throttle: f32, dt: f32) {
         let abs = self.spec.abs_level.apply(&self.spec.brakes.abs, self.abs_level);
         self.antilock.update(&abs, speed, normalised[0], normalised[1], dt);
+        self.antilock.update_reduction(&abs.reduction, &self.reduction_input(speed, throttle), dt);
     }
 }
 

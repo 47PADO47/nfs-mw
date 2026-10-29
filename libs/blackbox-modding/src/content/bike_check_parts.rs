@@ -35,6 +35,9 @@ pub(super) fn engine(engine: &Engine) -> Result<(), ContentError> {
     ranged(engine.moi_kgm2, "bike.engine.moi_kgm2", 0.0005, 5.0)?;
     ranged(engine.throttle_at_idle, "bike.engine.throttle_at_idle", 0.0, 1.0)?;
     ranged(engine.limiter_cut_time_s, "bike.engine.limiter_cut_time_s", 0.001, 1.0)?;
+    ranged(engine.brake_reduction_factor, "bike.engine.brake_reduction_factor", 0.0, 10.0)?;
+    all_ranged(&engine.brake_reduction_load, "bike.engine.brake_reduction_load", -1000.0, 1000.0)?;
+    all_ranged(&engine.brake_reduction_slip, "bike.engine.brake_reduction_slip", -1000.0, 1000.0)?;
     if engine.max_rpm <= engine.idle_rpm {
         return Err(field("bike.engine.max_rpm", "the rev limit is above the idle"));
     }
@@ -101,6 +104,10 @@ pub(super) fn transmission(transmission: &Transmission) -> Result<(), ContentErr
     all_ranged(&transmission.throttle_timing, "bike.transmission.throttle_timing", 0.0, 1.0)?;
     all_ranged(&transmission.min_rpm_speed_scale_range, "bike.transmission.min_rpm_speed_scale_range", 0.0, 10.0)?;
     ranged(transmission.slipper_filter_speed, "bike.transmission.slipper_filter_speed", 0.0, 1_000.0)?;
+    ranged(transmission.over_limit_min_speed_mps, "bike.transmission.over_limit_min_speed_mps", 0.0, 200.0)?;
+    ranged(transmission.over_limit_change_time_s, "bike.transmission.over_limit_change_time_s", 0.0, 60.0)?;
+    ranged(transmission.over_limit_threshold_s, "bike.transmission.over_limit_threshold_s", 0.0, 60.0)?;
+    ranged(transmission.over_limit_rpm_share, "bike.transmission.over_limit_rpm_share", 0.0, 1.5)?;
     all_ranged(&transmission.force_downshift_brake_range, "bike.transmission.force_downshift_brake_range", 0.0, 1.0)?;
     ranged(transmission.force_downshift_duration_s, "bike.transmission.force_downshift_duration_s", 0.0, 60.0)?;
     ranged(transmission.force_downshift_factor, "bike.transmission.force_downshift_factor", 0.0, 10.0)?;
@@ -131,7 +138,8 @@ pub(super) fn brakes(brakes: &Brakes) -> Result<(), ContentError> {
     let abs = &brakes.abs;
     all_ranged(&[abs.front_intensity, abs.rear_intensity], "bike.brakes.abs", 0.0, 1.0)?;
     all_ranged(&abs.speed_range_mps, "bike.brakes.abs", 0.0, 100.0)?;
-    all_ranged(&[abs.front_slip, abs.rear_slip].concat(), "bike.brakes.abs", -5.0, 5.0)
+    all_ranged(&[abs.front_slip, abs.rear_slip].concat(), "bike.brakes.abs", -5.0, 5.0)?;
+    abs.reduction.check()
 }
 
 fn lean(lean: &Lean) -> Result<(), ContentError> {
@@ -148,6 +156,12 @@ fn lean(lean: &Lean) -> Result<(), ContentError> {
     all_ranged(&lean.help_stopped_range_mps, name, 0.0, 100.0)?;
     all_ranged(&lean.help_skid_range_rad, name, 0.0, 3.2)?;
     ranged(lean.help_skid_linearity, name, 0.0, 20.0)?;
+    all_ranged(&lean.stability_speed_range_mps, name, 0.0, 100.0)?;
+    all_ranged(&[lean.stability_lean_influence], name, -20.0, 20.0)?;
+    all_ranged(&[lean.stability_lean_sensitivity], name, 0.0, 20.0)?;
+    ranged(lean.stability_max_lean_rad, name, 0.0, 1.5)?;
+    ranged(lean.terrain_max_angle_rad, name, 0.0, 1.6)?;
+    all_ranged(&[lean.terrain_increment, lean.terrain_reduction], name, 0.0, 10.0)?;
     let curves = [
         (&lean.time_scale_speed, (0.0, 200.0), (0.0, 10.0)),
         (&lean.time_scale_input, (-1.0, 1.0), (0.0, 10.0)),
@@ -157,6 +171,10 @@ fn lean(lean: &Lean) -> Result<(), ContentError> {
         (&lean.help_balance_speed, (0.0, 200.0), (0.0, 1.0)),
         (&lean.help_skid_reduction, (0.0, 200.0), (0.0, 1.0)),
         (&lean.help_skid_input, (-1.0, 1.0), (0.0, 1.0)),
+        (&lean.stability_speed, (0.0, 200.0), (0.0, 1.0)),
+        (&lean.terrain_speed, (0.0, 200.0), (0.0, 10.0)),
+        (&lean.stability_throttle_reduction, (0.0, 200.0), (0.0, 1.0)),
+        (&lean.stability_brake_reduction, (0.0, 200.0), (0.0, 1.0)),
     ];
     for (points, x, y) in curves {
         if !points.is_empty() {
@@ -188,6 +206,8 @@ pub(super) fn fall(fall: &Fall) -> Result<(), ContentError> {
     ranged(fall.lean_duration_s, "bike.fall.lean_duration_s", 0.0, 10.0)?;
     all_ranged(&[fall.airborne_lean_rad, fall.airborne_pitch_rad, fall.highside_lean_rad], "bike.fall", 0.0, 3.2)?;
     ranged(fall.airborne_angular_speed, "bike.fall.airborne_angular_speed", 0.0, 30.0)?;
+    all_ranged(&[fall.terrain_influence, fall.terrain_reduction], "bike.fall", 0.0, 10.0)?;
+    ranged(fall.terrain_max_delta_rad, "bike.fall.terrain_max_delta_rad", 0.0, 1.6)?;
     Ok(())
 }
 

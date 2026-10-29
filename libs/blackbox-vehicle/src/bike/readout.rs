@@ -109,3 +109,15 @@ pub(super) fn lean_of(rotation: glam::Mat3) -> f32 {
 pub(super) fn pitch_of(rotation: glam::Mat3) -> f32 {
     (rotation * Vec3::Z).y.clamp(-1.0, 1.0).asin()
 }
+
+impl Bike {
+    /// The running lean limit of the fall test (rad).
+    pub fn fall_lean_limit(&self) -> f32 {
+        self.chassis.fall_lean
+    }
+
+    /// The multipliers the anti-lock and the brake reduction leave on the front and rear brake torque (diagnostics).
+    pub fn brake_multipliers(&self) -> (f32, f32) {
+        self.antilock.multipliers()
+    }
+}

@@ -2,15 +2,18 @@
 //! the lean controller, the fall and the wheelie assist (the gearbox is in `bike_transmission.rs`). Same units as `blackbox_vehicle::bike::BikeSpec` (see `bike.rs`).
 
 use blackbox_vehicle::bike::{
-    AbsSpec, BrakeSpec, Coupling as CouplingSpec, DamperSpec, EngineSpec, FallExtra, FallSpec, HelpExtra,
-    Hydraulic as HydraulicSpec, LeanSpec, Progressive as ProgressiveSpec, SteeringSpec, SuspensionSpec,
+    AbsSpec, BrakeSpec, Coupling as CouplingSpec, DamperSpec, EngineBrakeReduction, EngineSpec, FallExtra, FallSpec,
+    Hydraulic as HydraulicSpec, Progressive as ProgressiveSpec, RangeMap, SteeringSpec, SuspensionSpec,
 };
 use serde::Deserialize;
 
+pub use super::bike_lean::Lean;
 pub use super::bike_transmission::Transmission;
 pub use super::bike_wheelie::{Pitch, Wheelie};
 
-fn pairs(points: &[[f32; 2]]) -> Vec<(f32, f32)> {
+use super::bike_lean::one;
+
+pub(super) fn pairs(points: &[[f32; 2]]) -> Vec<(f32, f32)> {
     points.iter().map(|&[x, y]| (x, y)).collect()
 }
 
@@ -155,6 +158,22 @@ pub struct Engine {
     pub throttle_at_idle: f32,
     /// How long the rev limiter cuts and restores the fuel in turn, s.
     pub limiter_cut_time_s: f32,
+    /// The engine-brake reduction (`EngineBrakeReductionFactor` and the load and slip tunings, each `[input low, input high,
+    /// output low, output high]`): a factor of 0 (the default) is none; a tuning left out gives 1 for every input.
+    #[serde(default)]
+    pub brake_reduction_factor: f32,
+    #[serde(default = "constant_one")]
+    pub brake_reduction_load: [f32; 4],
+    #[serde(default = "constant_one")]
+    pub brake_reduction_slip: [f32; 4],
+}
+
+fn constant_one() -> [f32; 4] {
+    [0.0, 0.0, 1.0, 1.0]
+}
+
+fn range_map(v: [f32; 4]) -> RangeMap {
+    RangeMap { input: [v[0], v[1]], output: [v[2], v[3]] }
 }
 
 impl Engine {
@@ -169,6 +188,12 @@ impl Engine {
             moi: self.moi_kgm2,
             throttle_at_idle: self.throttle_at_idle,
             limiter_cut_time: self.limiter_cut_time_s,
+            brake_reduction: EngineBrakeReduction {
+                factor: self.brake_reduction_factor,
+                load: range_map(self.brake_reduction_load),
+                slip: range_map(self.brake_reduction_slip),
+                ..EngineBrakeReduction::default()
+            },
         }
     }
 }
@@ -182,6 +207,8 @@ pub struct Abs {
     pub speed_range_mps: [f32; 2],
     pub front_slip: [f32; 2],
     pub rear_slip: [f32; 2],
+    /// The brake reduction (`[bike.brakes.abs.reduction]`); every term off by default.
+    pub reduction: super::bike_reduction::Reduction,
 }
 
 /// The brakes (`[bike.brakes]`).
@@ -216,70 +243,10 @@ impl Brakes {
                 speed_range: self.abs.speed_range_mps,
                 front_slip: self.abs.front_slip,
                 rear_slip: self.abs.rear_slip,
+                reduction: self.abs.reduction.to_spec(),
             },
         }
     }
-}
-
-/// The rider's lean controller (`[bike.steering.lean]`).
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Lean {
-    pub k: f32,
-    pub damping_ratio: f32,
-    pub damping_multiplier: f32,
-    pub steer_k: f32,
-    pub steer_damping_ratio: f32,
-    pub target_k: f32,
-    pub target_damping_ratio: f32,
-    pub time_scale: f32,
-    pub time_scale_attenuation: f32,
-    pub time_scale_sensitivity: f32,
-    /// `[speed in m/s, factor]` and `[stick, factor]`; empty (the default): no effect.
-    #[serde(default)]
-    pub time_scale_speed: Vec<[f32; 2]>,
-    #[serde(default)]
-    pub time_scale_input: Vec<[f32; 2]>,
-    /// `[lateral acceleration in g, factor]` of the lean limit; empty: no effect.
-    #[serde(default)]
-    pub g_tuning: Vec<[f32; 2]>,
-    /// The heading error in rad at which a skid starts to cut the lean limit and at which it cuts fully, the exponent of the
-    /// ramp, and the cut against the speed `[m/s, cut]`.
-    pub skid_range_rad: [f32; 2],
-    pub skid_linearity: f32,
-    #[serde(default)]
-    pub skid_reduction: Vec<[f32; 2]>,
-    /// The lean limit at a standstill in rad and the speed in m/s below which it blends in.
-    pub stopped_limit_rad: f32,
-    pub stopped_speed_mps: f32,
-    /// The speeds in m/s between which the handlebar goes from the stick to the controller.
-    pub blend_range_mps: [f32; 2],
-    pub rider_mass_scale: f32,
-    /// The lean help: `[speed in m/s, share of the gap to the wanted front side force it closes]` (empty, the default: no
-    /// help) and the share of the lateral peak of the tyre it may add.
-    #[serde(default)]
-    pub help_speed: Vec<[f32; 2]>,
-    #[serde(default)]
-    pub help_limit: f32,
-    /// The speeds in m/s between which the help factor goes from 1 at a standstill to its tuned value (`[0, 0]`, the default:
-    /// no blend).
-    #[serde(default)]
-    pub help_stopped_range_mps: [f32; 2],
-    /// `[speed in m/s, share]` of the help that is a force at the front contact; the rest is a couple about the centre of
-    /// gravity. Empty, the default: all of it is a force.
-    #[serde(default)]
-    pub help_balance_speed: Vec<[f32; 2]>,
-    /// The skid cut of the help factor: the heading error in rad at which it starts and at which it is full, the exponent of
-    /// the ramp, the cut against the speed `[m/s, cut]` and its factor against throttle less brake `[input, factor]`. No cut
-    /// curve, the default: no cut.
-    #[serde(default)]
-    pub help_skid_range_rad: [f32; 2],
-    #[serde(default)]
-    pub help_skid_linearity: f32,
-    #[serde(default)]
-    pub help_skid_reduction: Vec<[f32; 2]>,
-    #[serde(default)]
-    pub help_skid_input: Vec<[f32; 2]>,
 }
 
 /// The steering (`[bike.steering]`).
@@ -298,44 +265,12 @@ pub struct Steering {
 
 impl Steering {
     pub(super) fn to_spec(&self) -> SteeringSpec {
-        let l = &self.lean;
         SteeringSpec {
             max_angle: self.max_angle_rad,
             response: self.response,
             damping_ratio: self.damping_ratio,
             max_lean: self.max_lean_rad,
-            lean: LeanSpec {
-                k: l.k,
-                damping_ratio: l.damping_ratio,
-                damping_multiplier: l.damping_multiplier,
-                steer_k: l.steer_k,
-                steer_damping_ratio: l.steer_damping_ratio,
-                target_k: l.target_k,
-                target_damping_ratio: l.target_damping_ratio,
-                time_scale: l.time_scale,
-                time_scale_attenuation: l.time_scale_attenuation,
-                time_scale_sensitivity: l.time_scale_sensitivity,
-                time_scale_speed: pairs(&l.time_scale_speed),
-                time_scale_input: pairs(&l.time_scale_input),
-                g_tuning: pairs(&l.g_tuning),
-                skid_range: l.skid_range_rad,
-                skid_linearity: l.skid_linearity,
-                skid_reduction: pairs(&l.skid_reduction),
-                stopped_limit: l.stopped_limit_rad,
-                stopped_speed: l.stopped_speed_mps,
-                blend_range: l.blend_range_mps,
-                rider_mass_scale: l.rider_mass_scale,
-                help_speed: pairs(&l.help_speed),
-                help_limit: l.help_limit,
-                help_extra: HelpExtra {
-                    stopped_range: l.help_stopped_range_mps,
-                    balance_speed: pairs(&l.help_balance_speed),
-                    skid_range: l.help_skid_range_rad,
-                    skid_linearity: l.help_skid_linearity,
-                    skid_reduction: pairs(&l.help_skid_reduction),
-                    skid_input: pairs(&l.help_skid_input),
-                },
-            },
+            lean: self.lean.to_spec(),
         }
     }
 }
@@ -380,6 +315,14 @@ pub struct Fall {
     /// low side). It decides how the rider is thrown (`ride6-rider-fall.md`).
     #[serde(default)]
     pub highside_lean_rad: f32,
+    /// The road's bank moves the lean the tests see: `lean - f x bank`, `f` the influence (default 0: no term) when the two lean the
+    /// same way and the reduction (default 1) when not, the shift held to `terrain_max_delta_rad` (0: no hold).
+    #[serde(default)]
+    pub terrain_influence: f32,
+    #[serde(default = "one")]
+    pub terrain_reduction: f32,
+    #[serde(default)]
+    pub terrain_max_delta_rad: f32,
 }
 
 impl Fall {
@@ -403,6 +346,9 @@ impl Fall {
                 airborne_pitch: self.airborne_pitch_rad,
                 airborne_angular: self.airborne_angular_speed,
                 highside_lean: self.highside_lean_rad,
+                terrain_influence: self.terrain_influence,
+                terrain_reduction: self.terrain_reduction,
+                terrain_max_delta: self.terrain_max_delta_rad,
             },
         }
     }

@@ -9,7 +9,13 @@ mod bike;
 mod bike_check;
 mod bike_check_parts;
 mod bike_help;
+mod bike_lean;
 mod bike_parts;
+mod bike_reduction;
+#[cfg(test)]
+mod bike_ride_real;
+#[cfg(test)]
+mod bike_ride_sweep;
 mod bike_rider;
 #[cfg(test)]
 mod bike_tests;

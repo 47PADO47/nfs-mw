@@ -2,8 +2,7 @@
 //!
 //! The rider does not balance the bike: he prescribes its roll motion. The stick, through a filter, scales the lean limit into a
 //! target lean; a second filter smooths the target; a spring-damper pulls the lean to it, which asks for a roll acceleration
-//! and a roll torque; the torque becomes a desired side force at the front tyre (`-tau / h`, plus the force of a steady turn,
-//! see `choices.rs`); the tyre's lateral curve, inverted, turns the force into a slip angle; and the handlebar is set to the
+//! and a roll torque; the torque becomes a desired side force at the front tyre (`-tau / h`); the tyre's lateral curve, inverted, turns the force into a slip angle; and the handlebar is set to the
 //! angle that gives the front wheel that slip. `Bike` steers the handlebar and applies the lean help (`help`); no torque is applied
 //! to the body for the prescribed roll itself (`docs/specs/ride6-chassis-round6.md`).
 
@@ -33,12 +32,11 @@ pub struct LeanInput {
     pub heading_error: f32,
     /// A cap of the lean limit from a wheelie or a stoppie `(limit rad, share 0 to 1)`: the limit moves that share of the way.
     pub pitch_cut: (f32, f32),
-    /// The roll inertia of the bike and the rider together (kg m^2) and the combined centre of gravity (kg, m).
+    /// The road's bank under the bike (rad, positive when the road is lower on the right of the heading); 0 on flat ground.
+    pub terrain_slope: f32,
+    /// The roll inertia of the bike and the rider together (kg m^2) and the height of the combined centre of gravity (m).
     pub roll_inertia: f32,
-    pub mass: f32,
     pub cg_height: f32,
-    /// The share of the weight on the front wheel.
-    pub front_share: f32,
     /// The most the target lean may be (rad): the block-fall assist's hold; infinite when it is off.
     pub target_cap: f32,
     pub dt: f32,
@@ -74,6 +72,13 @@ pub fn lean_limit(steering: &SteeringSpec, input: &LeanInput) -> f32 {
     if input.speed < spec.stopped_speed {
         let share = (input.speed / spec.stopped_speed.max(1e-6)).clamp(0.0, 1.0);
         limit = spec.stopped_limit + (limit - spec.stopped_limit) * share;
+    }
+    // The road's bank: leaning into a rising road allows more, leaning off a falling one less (`ride6-chassis-round7.md`, section 4).
+    if !spec.terrain.speed.is_empty() {
+        let direction = if input.stick < 0.0 { -1.0 } else { 1.0 };
+        let held = curve(&spec.terrain.speed, input.speed.abs()) * input.terrain_slope * direction;
+        let bank = held.clamp(-spec.terrain.max_angle, spec.terrain.max_angle);
+        limit += bank * if bank <= 0.0 { spec.terrain.reduction } else { spec.terrain.increment };
     }
     limit *= factor(&spec.g_tuning, input.lateral_g.abs());
     let skid = ramp(input.heading_error.abs(), spec.skid_range).powf(spec.skid_linearity.max(0.0));
@@ -116,10 +121,7 @@ impl Lean {
         // `arm` is the distance of the front tyre's side direction from the roll axis: the height of the centre of gravity for a
         // small lean (the binary floors it at 0.05 m). The sign is that of a force to the right: a roll to the right needs a push
         // to the left first.
-        let mut front_force = -torque / input.cg_height.max(0.05);
-        if choices::LEAN_FORCE_INCLUDES_TURN_FORCE {
-            front_force += input.front_share * input.mass * 9.81 * input.lean.tan();
-        }
+        let front_force = -torque / input.cg_height.max(0.05);
         LeanPlan { limit, target, acceleration: accel, torque, front_force, capped: target != free }
     }
 }

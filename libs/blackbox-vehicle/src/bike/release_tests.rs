@@ -84,9 +84,10 @@ fn the_bike_alone_keeps_the_velocity_of_its_own_centre_of_gravity_through_the_re
         |bike: &Bike| bike.body().position + bike.body().rotation() * super::rider::bike_cog(&bike.spec().chassis);
     // The fall is noticed in the response half of a step: nothing has moved in that call, so the point and its velocity are as they
     // were at its start.
-    for _ in 0..4 {
+    for _ in 0..8 {
         let (at, moving) = (point(&bike), bike.body().point_velocity(point(&bike)));
-        bike.respond(FIXED_STEP, &BikeInput::default(), &ground);
+        // One sub-step: a longer response moves the body between its sub-steps (`choices::MAX_SUBSTEP`).
+        bike.respond(super::choices::MAX_SUBSTEP, &BikeInput::default(), &ground);
         if !bike.rider_off() {
             continue;
         }
@@ -133,7 +134,12 @@ fn placing_the_bike_again_puts_the_rider_back_with_his_mass() {
 
 #[test]
 fn a_lean_over_the_limit_is_a_low_side_and_a_velocity_against_the_heading_is_a_high_side() {
-    let (low, _) = fall_at(20.0);
+    // Rolled to 69 degrees (past the grip-following limit, about 66): the wheels stay on the road for the checks, which a roll
+    // to 80 degrees does not leave them for once the step is divided into sub-steps.
+    let (mut low, ground) = bike_at(20.0);
+    run(&mut low, &ground, 1.0);
+    low.body_mut().set_orientation(Quat::from_rotation_z(1.2));
+    until_off(&mut low, &ground);
     assert_eq!(low.fall_kind(), Some(FallKind::LowSide));
     // Turn the bike across its velocity while it stays upright and fast enough to be tested.
     // (The heading test needs a speed along the bike over its minimum, so a fast bike turned to 86 degrees from its velocity.)

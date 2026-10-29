@@ -22,9 +22,12 @@
 //! ```
 
 mod abs_level;
+mod brake_reduction;
 mod brakes;
 pub mod choices;
+mod clutch_control;
 mod curve;
+mod engine_brake;
 mod example;
 mod filter;
 mod frame;
@@ -53,8 +56,10 @@ mod tyre;
 mod wheel;
 mod wheel_step;
 
+pub use brake_reduction::{BrakeReduction, RangeMap, WheelReduction};
+pub use clutch_control::{ClutchControl, ForcedDownshift, OverLimit};
+pub use engine_brake::EngineBrakeReduction;
 pub use frame::RestPose;
-pub use gearbox::{ClutchControl, ForcedDownshift};
 pub use handling::chassis_state::Environment;
 pub use magic::Mf94;
 pub use release::{FallKind, RiderRelease, VELOCITY_FRAMES};
@@ -64,8 +69,8 @@ pub use slipstream::Slipstream;
 pub use spec::{
     AbsLevelSpec, AbsSpec, AutoRiderSpec, AutoTuckSpec, BikeSpec, BrakeSpec, ChassisSpec, Coupling, DamperSpec,
     EngineSpec, FallExtra, FallSpec, FeatherSpec, HelpExtra, Hydraulic, LeanSpec, PitchParams, Progressive,
-    RiderHelpSpec, SteeringSpec, SuspensionSpec, TcsSpec, TransmissionSpec, TyreSection, TyreThermal, WheelSpec,
-    WheelieSpec,
+    RiderHelpSpec, StabilitySpec, SteeringSpec, SuspensionSpec, TcsSpec, TerrainLimit, TransmissionSpec, TyreSection,
+    TyreThermal, WheelSpec, WheelieSpec,
 };
 pub use tyre::{TyreInput, TyreOutput};
 pub use wheel::WheelState;
@@ -130,6 +135,8 @@ pub struct Bike {
     tuck: f32,
     placement: Vec3,
     last_velocity: Vec3,
+    /// How long (s) the forces left in the body by the last sub-step stand for; 0 when there are none.
+    substep: f32,
     /// How long the block-fall assist has held the lean back, and how long it still waits (s).
     block_held: f32,
     block_wait: f32,
@@ -196,6 +203,7 @@ impl Bike {
             tuck: 0.0,
             placement: base_offset,
             last_velocity: Vec3::ZERO,
+            substep: 0.0,
             block_held: 0.0,
             block_wait: 0.0,
             antilock: AntiLock::default(),
@@ -253,6 +261,7 @@ impl Bike {
         self.weight_lateral.reset();
         self.placement = self.spec.rider.base_offset;
         self.last_velocity = self.body.linear_velocity;
+        self.substep = 0.0;
         self.remember_motion();
         self.remember_motion();
         self.block_held = 0.0;
@@ -326,19 +335,44 @@ impl Bike {
         if !dt.is_finite() || dt <= 0.0 {
             return;
         }
-        self.body.begin_frame(dt);
+        // The forces `respond` left stand for its last sub-step only; the earlier ones were integrated inside it.
+        self.body.begin_frame(if self.substep > 0.0 { self.substep.min(dt) } else { dt });
     }
 
     /// The second half of a step: the rider, the engine, the tyres and the suspension work out the forces that move the
-    /// body in the next step.
+    /// body in the next step. A step longer than `choices::MAX_SUBSTEP` is divided into equal sub-steps, as the reference game
+    /// divides a long vehicle step (`ride6-chassis-round7.md`, section 1): the body is integrated between them, and the forces
+    /// of the last one are left to `begin_body`, so the bike advances exactly `dt` per `begin_body` and `respond`.
     pub fn respond(&mut self, dt: f32, input: &BikeInput, ground: &dyn Ground) {
         if !dt.is_finite() || dt <= 0.0 {
             return;
         }
+        let count = ((dt / choices::MAX_SUBSTEP).ceil() as usize).clamp(1, choices::MAX_SUBSTEPS);
+        let step = dt / count as f32;
+        let mut integrated = 0.0;
+        for index in 0..count {
+            if index > 0 {
+                // A bike without its rider lies where the host's contacts put it: no free sub-steps for it.
+                if self.fallen {
+                    break;
+                }
+                self.body.begin_frame(step);
+                integrated += step;
+            }
+            // The fall tests run once per step (the reference's `FallCheckInterval`), before the body moves.
+            self.respond_once(step, input, ground, (index == 0).then_some(dt));
+        }
+        self.substep = dt - integrated;
+    }
+
+    /// One sub-step of [`Bike::respond`].
+    fn respond_once(&mut self, dt: f32, input: &BikeInput, ground: &dyn Ground, fall_check: Option<f32>) {
         let rotation = self.body.rotation();
         let forward = rotation * Vec3::Z;
         let speed = self.body.linear_velocity.dot(forward);
-        self.check_fall(dt, speed);
+        if let Some(interval) = fall_check {
+            self.check_fall(interval, speed);
+        }
         // A rider who is off the bike holds no lever and no bar.
         let let_go = BikeInput::default();
         let input = match self.departure.off {
@@ -371,7 +405,14 @@ impl Bike {
         }
         let share_of_limit = (lean_of(rotation).abs() / self.plan.limit.max(0.05)).min(1.0);
         let traction_cut = match &self.spec.tcs {
-            Some(tcs) => ramp(self.wheels[REAR].slip_ratio, tcs.slip) * ramp(speed.abs(), tcs.speed_range),
+            // The slip the control watches is the length of the rear wheel's slip vector (the ratio and the sine of the angle: a rear that
+            // slides sideways under power has lost its grip as much as one that spins), in a window narrowed by `choices::TCS_WINDOW_SCALE`
+            // (`ride6-feel-round8.md`, section 5).
+            Some(tcs) => {
+                let rear = &self.wheels[REAR];
+                let window = [tcs.slip[0] * choices::TCS_WINDOW_SCALE, tcs.slip[1] * choices::TCS_WINDOW_SCALE];
+                ramp(rear.slip_ratio.abs().hypot(rear.slip_angle.sin()), window) * ramp(speed.abs(), tcs.speed_range)
+            }
             None => 0.0,
         };
         // The traction control and the rider help each cut what the other leaves.
@@ -386,9 +427,13 @@ impl Bike {
                 wheel_spin: self.wheels[REAR].spin,
                 speed: speed.abs(),
                 front_brake: help.brake,
+                rear_load: self.load_share(REAR),
                 radius,
                 lean: share_of_limit,
                 traction_cut,
+                wheel_inertia: self.spec.rear.inertia,
+                traction_torque: self.wheels[REAR].traction * radius,
+                brake_torque: brake[REAR],
                 dt,
             },
         );
@@ -405,12 +450,14 @@ impl Bike {
             false => 0.0,
         };
         let (front_slip, rear_slip) = (normalised(&self.wheels[FRONT]), normalised(&self.wheels[REAR]));
-        self.update_antilock(speed, [front_slip, rear_slip], dt);
-        self.apply_rider_and_air(dt, speed, input.throttle - input.front_brake);
+        self.update_antilock(speed, [front_slip, rear_slip], input.throttle, dt);
+        self.apply_rider_and_air(dt, speed, input);
         self.remember_motion();
     }
 }
 
+#[cfg(test)]
+mod feel_tests;
 #[cfg(test)]
 mod release_tests;
 #[cfg(test)]

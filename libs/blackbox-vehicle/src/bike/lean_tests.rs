@@ -12,13 +12,12 @@ fn input(stick: f32, lean: f32, speed: f32) -> LeanInput {
         lean,
         lean_rate: 0.0,
         lateral_grip: 1.3,
+        terrain_slope: 0.0,
         lateral_g: 0.0,
         heading_error: 0.0,
         pitch_cut: (0.0, 0.0),
         roll_inertia: 47.8,
-        mass: 183.0,
         cg_height: 0.8,
-        front_share: 0.5,
         target_cap: f32::MAX,
         dt: DT,
     }
@@ -59,21 +58,20 @@ fn an_upright_bike_with_the_stick_centred_asks_for_nothing() {
 }
 
 #[test]
-fn leaning_right_asks_first_for_a_push_to_the_left_and_then_for_the_force_of_the_turn() {
+fn leaning_right_asks_first_for_a_push_to_the_left_and_nothing_once_the_lean_is_held() {
     let steering = BikeSpec::example().steering;
     let mut lean = Lean::new();
     let first = lean.plan(&steering, &input(1.0, 0.0, 20.0));
     assert!(first.acceleration > 0.0 && first.front_force < 0.0, "{first:?}");
-    // Held at the target lean, the acceleration is gone and the front wants its share of the centripetal force.
+    // Held at the target lean the acceleration is gone and so is the force: the reference asks the front for no force of the
+    // turn, the lean settles a little off its target and the error asks for it (`ride6-chassis-round7.md`, section 2).
     let mut settled = first;
     for _ in 0..600 {
         let at = settled.target;
         settled = lean.plan(&steering, &input(1.0, at, 20.0));
     }
     assert!(settled.acceleration.abs() < 0.5, "{settled:?}");
-    assert!(settled.front_force > 0.0, "{settled:?}");
-    let expected = 0.5 * 183.0 * 9.81 * settled.target.tan();
-    assert!((settled.front_force - expected).abs() < 0.1 * expected, "{} {expected}", settled.front_force);
+    assert!(settled.front_force.abs() < 50.0, "{settled:?}");
 }
 
 #[test]
@@ -167,18 +165,19 @@ fn a_skid_cuts_the_help_factor_unless_the_rider_brakes() {
 
 #[test]
 fn the_help_is_a_couple_when_slow_and_a_force_when_fast() {
-    use super::help::{balance, couple_torque};
+    use super::help::{balance, couple};
     let lean = BikeSpec::example().steering.lean;
     assert_eq!(balance(&lean, 0.5), 0.0);
     assert_eq!(balance(&lean, 2.0), 0.0);
     assert!((balance(&lean, 0.5 * (10.0 + 30.0) / 3.6) - 0.5).abs() < 1e-5);
     assert_eq!(balance(&lean, 30.0), 1.0);
-    // The couple closes the whole gap at a standstill, within the tyre's cap times the arm; none of it is left at a high speed.
-    assert!((couple_torque(1.0, 0.0, 300.0, 50.0, 1500.0, 0.8) - 250.0).abs() < 1e-3);
-    assert_eq!(couple_torque(1.0, 0.0, 5000.0, 0.0, 1500.0, 0.8), 1200.0);
-    assert_eq!(couple_torque(1.0, 0.0, -5000.0, 0.0, 1500.0, 0.8), -1200.0);
-    assert!((couple_torque(0.4, 0.0, 300.0, 50.0, 1500.0, 0.8) - 100.0).abs() < 1e-3);
-    assert_eq!(couple_torque(1.0, 1.0, 300.0, 0.0, 1500.0, 0.8), 0.0);
+    // The couple is the moment of the whole force about the centre of gravity: all of it at balance 0, none at 1.
+    let (point, cog, force) = (Vec3::new(0.0, 0.0, 0.7), Vec3::new(0.0, 0.8, 0.0), Vec3::new(100.0, 0.0, 0.0));
+    let moment = couple(point, cog, force, 0.0);
+    assert!((moment - (point - cog).cross(force)).length() < 1e-4);
+    assert!((moment.z - 80.0).abs() < 1e-3 && (moment.y - 70.0).abs() < 1e-3, "{moment}");
+    assert_eq!(couple(point, cog, force, 1.0), Vec3::ZERO);
+    assert!((couple(point, cog, force, 0.25) - moment * 0.75).length() < 1e-4);
 }
 
 #[test]
@@ -195,11 +194,12 @@ fn a_standing_bike_leaned_over_is_stood_up_by_the_help_alone() {
         bike.step(FIXED_STEP, &BikeInput::default(), &ground);
         worst = worst.max(bike.lean().abs());
     }
-    // No direct roll torque exists: the couple of the lean help is all that stands the bike up. It brings it from 4.6 degrees to
-    // within 2.4 and keeps it from falling; the tyres at a standstill leave a little jitter and offset (see the spec).
-    assert!(!bike.fallen() && worst < 0.12, "worst {worst}");
-    assert!(bike.lean().abs() < 0.05, "{}", bike.lean());
-    // Without the stopped blend and the couple (no help at a standstill) the same bike goes on falling.
+    // No roll torque exists but the moment of the lean help (below 10 km/h it is all moment): it takes the bike from 4.6 degrees to
+    // upright without jitter and without moving it (the 60 Hz chatter and the 1.5 degree residue of the first build were the step).
+    assert!(!bike.fallen() && worst < 0.09, "worst {worst}");
+    assert!(bike.lean().abs() < 0.002, "{}", bike.lean());
+    assert!(bike.position().x.abs() < 0.05 && bike.velocity().length() < 0.01);
+    // With no help at a standstill the same bike is not stood up.
     let mut spec = BikeSpec::example();
     spec.steering.lean.help_extra.stopped_range = [0.0, 0.0];
     let mut helpless = Bike::new(spec);
@@ -208,5 +208,70 @@ fn a_standing_bike_leaned_over_is_stood_up_by_the_help_alone() {
     for _ in 0..(3.0 / FIXED_STEP) as usize {
         helpless.step(FIXED_STEP, &BikeInput::default(), &ground);
     }
-    assert!(helpless.lean().abs() > bike.lean().abs() * 2.0 || helpless.fallen(), "{}", helpless.lean());
+    assert!(helpless.lean().abs() > 0.02 || helpless.fallen(), "{}", helpless.lean());
+}
+
+fn road_stability() -> crate::bike::StabilitySpec {
+    // The default, naked and sport handlers: 0.05 up to 80 km/h falling to 0 at 120, less with the lean, cut by the throttle.
+    crate::bike::StabilitySpec {
+        speed: vec![(0.0, 0.05), (80.0 / 3.6, 0.05), (120.0 / 3.6, 0.0)],
+        lean_influence: -1.0,
+        lean_sensitivity: 1.0,
+        throttle_reduction: vec![(0.0, 0.0), (0.05 / 3.6, 1.0)],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn the_stability_factor_follows_the_speed_the_lean_and_the_throttle() {
+    use super::help::{StabilityInput, desired_yaw_rate, stability_acceleration, stability_factor};
+    let spec = road_stability();
+    let at = |speed: f32, normalised_lean: f32, throttle: f32| {
+        stability_factor(&spec, &StabilityInput { speed, lean: 0.3, normalised_lean, throttle, brake: 0.0 })
+    };
+    assert!((at(10.0, 0.0, 0.0) - 0.05).abs() < 1e-6);
+    assert!((at(10.0, 0.5, 0.0) - 0.025).abs() < 1e-6, "less with the lean");
+    assert!(at(10.0, 1.0, 0.0) < 1e-6);
+    assert!((at(10.0, 0.0, 0.5) - 0.025).abs() < 1e-6, "half the throttle takes half away");
+    assert_eq!(at(10.0, 0.0, 1.0), 0.0, "the full throttle takes it all");
+    assert!(at(33.0, 0.0, 0.0) > 0.0 && at(33.0, 0.0, 0.0) < 0.05 && at(40.0, 0.0, 0.0) == 0.0);
+    assert_eq!(at(10.0, 0.0, 0.0), at(10.0, 0.0, 0.0));
+    // The yaw rate of a steady turn is g tan(lean) / v; to the right for a lean to the right.
+    let wanted = desired_yaw_rate(&spec, 0.4, 20.0);
+    assert!((wanted - 9.81 * 0.4_f32.tan() / 20.0).abs() < 1e-5 && wanted > 0.0);
+    let state = StabilityInput { speed: 20.0, lean: 0.4, normalised_lean: 0.0, throttle: 0.0, brake: 0.0 };
+    // Below the speed range there is none; inside it the factor pulls the yaw rate to the wanted one.
+    assert_eq!(stability_acceleration(&spec, 0.05, &StabilityInput { speed: 2.0, ..state }, 0.0, 1.0 / 60.0), 0.0);
+    let pull = stability_acceleration(&spec, 0.05, &state, 0.0, 1.0 / 60.0);
+    assert!((pull - 0.05 * wanted * 60.0).abs() < 1e-4, "{pull}");
+    assert!(stability_acceleration(&spec, 0.05, &state, wanted * 2.0, 1.0 / 60.0) < 0.0);
+}
+
+#[test]
+fn the_stability_help_holds_the_yaw_rate_of_a_coasting_turn_nearer_to_the_one_the_lean_needs() {
+    use crate::FIXED_STEP;
+    use crate::bike::{Bike, BikeInput};
+    use crate::ground::FlatGround;
+    let ground = FlatGround::new(0.0);
+    let error_after = |stability: bool| {
+        let mut spec = BikeSpec::example();
+        if stability {
+            spec.steering.lean.stability = road_stability();
+            spec.steering.lean.stability.uses_terrain_normal = true;
+        }
+        let mut bike = Bike::new(spec);
+        assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, 20.0));
+        let mut worst: f32 = 0.0;
+        for i in 0..(5.0 / FIXED_STEP) as usize {
+            bike.step(FIXED_STEP, &BikeInput { steer: 0.5, ..Default::default() }, &ground);
+            assert!(!bike.fallen());
+            if i > 150 {
+                let yaw_right = bike.body().angular_velocity.y;
+                worst = worst.max((yaw_right - 9.81 * bike.lean().tan() / bike.forward_speed().max(1.0)).abs());
+            }
+        }
+        worst
+    };
+    let (without, with) = (error_after(false), error_after(true));
+    assert!(with < without, "with {with} without {without}");
 }

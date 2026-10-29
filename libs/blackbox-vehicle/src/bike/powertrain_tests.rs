@@ -1,5 +1,5 @@
 use super::*;
-use crate::bike::{BikeSpec, ForcedDownshift};
+use crate::bike::{BikeSpec, ForcedDownshift, OverLimit};
 
 const DT: f32 = 1.0 / 60.0;
 
@@ -9,9 +9,13 @@ fn input(throttle: f32, wheel_spin: f32) -> DriveInput {
         wheel_spin,
         speed: wheel_spin * 0.32,
         front_brake: 0.0,
+        rear_load: 1.0,
         radius: 0.32,
         lean: 0.0,
         traction_cut: 0.0,
+        wheel_inertia: 0.7,
+        traction_torque: 0.0,
+        brake_torque: 0.0,
         dt: DT,
     }
 }
@@ -205,9 +209,46 @@ fn the_clutch_closes_again_after_a_change_instead_of_at_once() {
     assert!(worst <= limit * 1.01, "{worst} {limit}");
 }
 
+/// The torque the closed throttle puts on the wheel with the rear rolling at the road's speed or held back to `grip` of it.
+fn closed_throttle_torque(spec: &BikeSpec, grip: f32) -> f32 {
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    let spin = 60.0;
+    train.match_speed(&spec.engine, &spec.transmission, spin, 0.32);
+    // The road moves faster than the wheel's rim when the wheel is held back: speed = rim speed / grip.
+    let input = DriveInput { speed: spin * 0.32 / grip, ..input(0.0, spin) };
+    train.drive(&spec.engine, &spec.transmission, &input).torque
+}
+
 #[test]
-fn the_smooth_sign_is_odd_and_bounded() {
-    assert_eq!(smooth_sign(0.0, 1.0), 0.0);
-    assert!(smooth_sign(5.0, 1.0) < 1.0 && smooth_sign(5.0, 1.0) > 0.8);
-    assert_eq!(smooth_sign(-2.0, 1.0), -smooth_sign(2.0, 1.0));
+fn a_rear_wheel_that_slides_under_engine_braking_is_held_back_less() {
+    let spec = BikeSpec::example();
+    let rolling = closed_throttle_torque(&spec, 1.0);
+    let sliding = closed_throttle_torque(&spec, 0.8);
+    assert!(rolling < 0.0 && sliding < 0.0, "{rolling} {sliding}");
+    // A slip of -0.2 asks for 0.2 / 0.33 of the drag to go.
+    assert!(sliding.abs() < 0.5 * rolling.abs(), "{rolling} {sliding}");
+    let mut plain = BikeSpec::example();
+    plain.engine.brake_reduction = crate::bike::EngineBrakeReduction::default();
+    assert!((closed_throttle_torque(&plain, 0.8) - rolling).abs() < 1e-3);
+}
+
+#[test]
+fn an_engine_that_stays_over_its_share_of_the_limit_makes_the_box_change_up() {
+    let mut spec = BikeSpec::example();
+    let run = |spec: &BikeSpec| {
+        let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+        // First gear at 6000 rpm: well under the generated change point.
+        let spin = 6000.0 * TAU / 60.0 / (spec.transmission.gears[0] * spec.transmission.final_ratio);
+        train.match_speed(&spec.engine, &spec.transmission, spin, 0.32);
+        assert_eq!(train.gear(), 1);
+        for _ in 0..60 {
+            step(&mut train, spec, 1.0, spin);
+        }
+        train.gear()
+    };
+    spec.transmission.control.over_limit =
+        OverLimit { enabled: true, min_speed: 5.0, change_time: 0.05, threshold: 0.1, rpm_share: 0.5 };
+    assert!(run(&spec) > 1);
+    spec.transmission.control.over_limit.enabled = false;
+    assert_eq!(run(&spec), 1);
 }

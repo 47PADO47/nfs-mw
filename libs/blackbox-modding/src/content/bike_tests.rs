@@ -239,6 +239,37 @@ fn the_handlers_clutch_tuning_is_read_and_defaults_to_the_reference_constructor(
 }
 
 #[test]
+fn the_brake_reductions_and_the_over_limit_upshift_are_read_and_default_to_none() {
+    let plain = BikeSpec::from(&bike(&bike_car()).unwrap().bike.unwrap());
+    assert_eq!(plain.engine.brake_reduction.factor, 0.0);
+    assert_eq!(plain.engine.brake_reduction.load.map(0.3), 1.0);
+    assert_eq!(plain.brakes.abs.reduction.rear.intensity, 0.0);
+    assert!(plain.transmission.control.over_limit.enabled);
+    assert_eq!(plain.transmission.control.over_limit.rpm_share, 0.99);
+
+    let mut text = bike_car().replace(
+        "limiter_cut_time_s = 0.02\n",
+        "limiter_cut_time_s = 0.02\nbrake_reduction_factor = 1.0\nbrake_reduction_slip = [0.0, -0.33, 0.0, 1.0]\n",
+    );
+    text = text.replace(
+        "clutch_linearity = 1.0\n",
+        "clutch_linearity = 1.0\nover_limit_rpm_share = 0.94\nover_limit_change_time_s = 0.064\n",
+    );
+    text.push_str("[bike.brakes.abs.reduction]\nspeed_kmh = [10.0, 25.0, 0.0, 1.0]\n");
+    text.push_str("[bike.brakes.abs.reduction.rear]\nintensity = 1.0\nload = [1.0, 0.0, 0.0, 0.8]\n");
+    let spec = BikeSpec::from(&bike(&text).unwrap().bike.unwrap());
+    assert_eq!(spec.engine.brake_reduction.factor, 1.0);
+    assert!((spec.engine.brake_reduction.slip.map(-0.165) - 0.5).abs() < 1e-6);
+    assert_eq!(spec.transmission.control.over_limit.rpm_share, 0.94);
+    assert_eq!(spec.transmission.control.over_limit.change_time, 0.064);
+    let rear = spec.brakes.abs.reduction.rear;
+    assert_eq!(rear.intensity, 1.0);
+    assert!((rear.load.map(0.5) - 0.4).abs() < 1e-6);
+    assert_eq!(spec.brakes.abs.reduction.front.intensity, 0.0);
+    assert_eq!(spec.brakes.abs.reduction.speed.map(17.5), 0.5);
+}
+
+#[test]
 fn a_key_that_is_left_out_refuses_the_bike_and_is_named() {
     let keys = [
         "drag = 0.15\n",

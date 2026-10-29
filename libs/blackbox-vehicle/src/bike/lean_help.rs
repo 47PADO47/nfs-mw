@@ -5,8 +5,10 @@
 //! balance: above 30 km/h it is the force at the front contact; slower it turns into the same force's moment about the centre of
 //! gravity with no net force, which is what holds a slow or standing bike up.
 
+use glam::Vec3;
+
 use crate::bike::curve::{curve, factor, ramp};
-use crate::bike::spec::LeanSpec;
+use crate::bike::spec::{LeanSpec, StabilitySpec};
 
 /// The speeds (m/s) between which the balance goes from the couple to its tuned share, whatever the tuning: 0 at 1 m/s, 1 at 3 m/s
 /// (a recovered constant of the reference game, `ride6-chassis-round6.md`).
@@ -47,15 +49,55 @@ pub fn balance(spec: &LeanSpec, speed: f32) -> f32 {
     }
 }
 
-/// The roll torque (N m, about the forward axis, positive for a roll to the left) of the part of the help that is not a force.
-///
-/// In the reference game this part is the moment of the whole help force about the centre of gravity, `(contact - cog) x F`, that
-/// closes `share` of the gap to the torque the controller wants (its force is `F = share (F_wanted - F_tyre)`, capped by what the
-/// tyre can give, `cap`). This model realises the same roll over a 60 Hz step with the torque that closes `share` of the gap
-/// between `wanted` (the torque the controller prescribes) and `others` (what the other forces already put on the roll axis),
-/// with the same cap: a roll torque of at most `cap x arm`, `arm` the height of the centre of gravity over the contact. The moment
-/// about the vertical axis that the game's couple also has is left out.
-pub fn couple_torque(share: f32, balance: f32, wanted: f32, others: f32, cap: f32, arm: f32) -> f32 {
-    let limit = (1.0 - balance) * cap.max(0.0) * arm.abs();
-    ((1.0 - balance) * share * (wanted - others)).clamp(-limit, limit)
+/// The couple (N m, world frame) of the part of `force` (applied at the contact `point`) that is not left as a force: the moment of
+/// the whole force about the centre of gravity `cog`, times `1 - balance`. It is what the reference game applies; with the force part it
+/// makes the moment `(point - cog) x force` whatever the balance.
+pub fn couple(point: Vec3, cog: Vec3, force: Vec3, balance: f32) -> Vec3 {
+    (point - cog).cross(force) * (1.0 - balance)
+}
+
+/// What the stability help depends on this step.
+#[derive(Clone, Copy, Debug)]
+pub struct StabilityInput {
+    /// The speed (m/s, absolute) and the lean (rad, positive right).
+    pub speed: f32,
+    pub lean: f32,
+    /// The lean over its limit, -1 to 1, and the two levers.
+    pub normalised_lean: f32,
+    pub throttle: f32,
+    pub brake: f32,
+}
+
+/// The stability help factor, 0 to 1 (`ride6-chassis-round7.md`, section 3): the speed curve times the lean term, cut by the levers.
+pub fn stability_factor(spec: &StabilitySpec, input: &StabilityInput) -> f32 {
+    let lean = (input.normalised_lean.abs().powf(spec.lean_sensitivity.max(0.0)) * spec.lean_influence + 1.0).max(0.0);
+    let cut = |curve_points: &[(f32, f32)], lever: f32| (curve(curve_points, input.speed) * lever).clamp(0.0, 1.0);
+    let kept = (1.0 - cut(&spec.throttle_reduction, input.throttle)) * (1.0 - cut(&spec.brake_reduction, input.brake));
+    (curve(&spec.speed, input.speed) * lean * kept).clamp(0.0, 1.0)
+}
+
+/// The yaw rate (rad/s, positive for a turn to the right) a steady turn at `lean` needs at `speed`: `g tan(lean) / v`, the lean held
+/// to `max_lean` when that is set.
+pub fn desired_yaw_rate(spec: &StabilitySpec, lean: f32, speed: f32) -> f32 {
+    let held = match spec.max_lean > 0.0 {
+        true => lean.clamp(-spec.max_lean, spec.max_lean),
+        false => lean,
+    };
+    held.tan() * 9.81 / speed.max(1e-3)
+}
+
+/// The angular acceleration (rad/s^2, positive to the right) the help asks of the yaw: `factor (desired - actual) / dt`, in at the
+/// speed range.
+pub fn stability_acceleration(
+    spec: &StabilitySpec,
+    factor: f32,
+    input: &StabilityInput,
+    actual_yaw_rate: f32,
+    dt: f32,
+) -> f32 {
+    if input.speed <= spec.speed_range[0] {
+        return 0.0;
+    }
+    let wanted = desired_yaw_rate(spec, input.lean, input.speed);
+    factor * (wanted - actual_yaw_rate) / dt.max(0.001) * ramp(input.speed, spec.speed_range)
 }

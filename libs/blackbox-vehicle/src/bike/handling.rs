@@ -5,7 +5,7 @@ use glam::Vec3;
 
 use super::curve::ramp;
 use super::lean::{self, LeanInput};
-use super::{Bike, FRONT, REAR, choices, lean_of, rider, rider_place};
+use super::{Bike, BikeInput, FRONT, REAR, choices, lean_of, rider, rider_place};
 
 impl Bike {
     /// The rider's inputs follow their channels' rates, the place they ask for is worked out (`rider_place::place`: the weight,
@@ -103,8 +103,13 @@ impl Bike {
         };
         let fz_kn = load * 1e-3;
         let gamma_deg = -camber.to_degrees();
-        let grip = self.spec.front.tyre.lateral_peak(fz_kn) / load.max(1.0);
-        self.chassis.follow_grip(&self.spec.fall, grip.max(0.0).atan() * choices::LATERAL_GRIP_TOLERANCE);
+        // The lateral grip peak the limits use is the front tyre's at its load at rest, camber 0 (the handler's tick stores it once
+        // per step: `ride6-feel-round8.md`, section 2), not at the load of the moment.
+        let rest_front = (self.spec.front_share() * self.spec.total_mass() * 9.81).max(1.0);
+        let grip = self.spec.front.tyre.lateral_peak(rest_front * 1e-3) / rest_front;
+        // The fall limit is that grip's arctangent times the wheel's `LateralGripLimit`; the lean limit's factor is the other one,
+        // `LateralGripTolerance`.
+        self.chassis.follow_grip(&self.spec.fall, grip.max(0.0).atan() * self.spec.front.lateral_grip_limit);
         let yaw_rate = self.body.angular_velocity.dot(rotation * Vec3::Y);
         let heading_error = self.heading_error();
         let pitch = self.lift_angle();
@@ -127,13 +132,12 @@ impl Bike {
             lean: lean_angle,
             lean_rate: -self.body.angular_velocity.dot(forward),
             lateral_grip: grip,
+            terrain_slope: self.terrain_slope(),
             lateral_g: speed * yaw_rate / 9.81,
             heading_error,
             pitch_cut,
             roll_inertia: self.body.inertia().z + rider_term,
-            mass: total,
             cg_height: cog.y,
-            front_share,
             target_cap: self.block_cap(speed),
             dt,
         };
@@ -213,24 +217,57 @@ impl Bike {
         let force = side * (total - actual);
         let balance = lean::help::balance(spec, speed.abs());
         self.body.apply_force_at(force * balance, point);
-        // The rest is a roll torque about the bike's length (`lean_help::couple_torque`).
-        let forward = self.body.rotation() * Vec3::Z;
-        let wanted = -self.body.inertia().z * self.plan.acceleration;
-        let others = self.body.pending_torque().dot(forward);
-        let arm = (self.body.world_cog() - point).y;
-        let torque = lean::help::couple_torque(share, balance, wanted, others, cap, arm);
-        self.body.apply_torque(forward * torque);
+        let cog = self.body.world_cog();
+        self.body.apply_torque(lean::help::couple(point, cog, force, balance));
+    }
+
+    /// The stability help (`ride6-chassis-round7.md`, section 3): a yaw torque, about the road's up, that pulls the yaw rate towards the
+    /// one a steady turn at the present lean needs. The help is off when a wheel is off the road (the game scales it by the
+    /// wheels' distance from the ground and switches it off beyond 30 cm; here any wheel in the air counts as far).
+    fn apply_stability_help(&mut self, dt: f32, speed: f32, input: &BikeInput) {
+        let spec = &self.spec.steering.lean.stability;
+        if spec.speed.is_empty() || !self.wheels[FRONT].on_ground || !self.wheels[REAR].on_ground {
+            return;
+        }
+        let rotation = self.body.rotation();
+        let normalised = (self.plan.target / self.plan.limit.max(choices::MIN_LEAN_LIMIT)).clamp(-1.0, 1.0);
+        let state = lean::help::StabilityInput {
+            speed: speed.abs(),
+            lean: lean_of(rotation),
+            normalised_lean: normalised,
+            throttle: input.throttle,
+            brake: input.front_brake,
+        };
+        let factor = lean::help::stability_factor(spec, &state);
+        if factor <= 0.0 {
+            return;
+        }
+        // The axis: the world's up, or the up perpendicular to the line between the two contacts.
+        let line = (self.wheels[FRONT].contact - self.wheels[REAR].contact).try_normalize();
+        let axis = match (spec.uses_terrain_normal, line) {
+            (true, Some(line)) => (Vec3::Y - line * line.dot(Vec3::Y)).try_normalize().unwrap_or(Vec3::Y),
+            _ => Vec3::Y,
+        };
+        // A turn to the right is a positive rotation about the up axis (x right, y up, z forward), as in the help.
+        let yaw_right = self.body.angular_velocity.dot(axis);
+        let acceleration = lean::help::stability_acceleration(spec, factor, &state, yaw_right, dt);
+        // The torque of that angular acceleration through the inertia tensor of the body.
+        let wanted = axis * acceleration;
+        let local = rotation.transpose() * wanted;
+        self.body.apply_torque(rotation * (local * self.body.inertia()));
     }
 
     /// The torques and forces that act on the whole bike once the tyres have done their part: the lean help, the pitch assist,
     /// the gyroscopic torques, and the air drag. (The rider adds no roll torque of his own: the lean the controller prescribes is
     /// reached through the front tyre and the help only.)
-    pub(super) fn apply_rider_and_air(&mut self, dt: f32, speed: f32, pedals: f32) {
+    pub(super) fn apply_rider_and_air(&mut self, dt: f32, speed: f32, input: &BikeInput) {
+        let pedals = input.throttle - input.front_brake;
         let rotation = self.body.rotation();
         let forward = rotation * Vec3::Z;
         let up = rotation * Vec3::Y;
         if !self.fallen {
             self.apply_lean_help(speed, pedals);
+            self.apply_stability_help(dt, speed, input);
             self.apply_pitch_assist(dt, speed);
             // The spin momentum of the wheels, turned by the bike's yaw, torques the frame about its length (a yaw to the right
             // rolls it to the left); turned by its roll, it torques the frame about the vertical (a roll to the left yaws it to
