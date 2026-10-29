@@ -211,6 +211,34 @@ fn the_keys_whose_zero_means_none_may_be_left_out() {
 }
 
 #[test]
+fn the_handlers_clutch_tuning_is_read_and_defaults_to_the_reference_constructor() {
+    let plain = BikeSpec::from(&bike(&bike_car()).unwrap().bike.unwrap());
+    let control = plain.transmission.control;
+    assert_eq!(control.clutch_timing, [0.0, 0.0]);
+    assert_eq!(control.throttle_timing, [0.0, 0.0]);
+    assert!(control.modulate_upshift_throttle && control.press_at_min_rpm && !control.release_throttle);
+    assert_eq!(control.min_rpm_speed_range, [1.05, 1.1]);
+    assert_eq!(control.slipper_filter_speed, 0.0);
+    assert_eq!(control.forced_downshift.factor, 0.0);
+    assert_eq!(control.forced_downshift.linearity, 2.0);
+
+    let keys = "clutch_timing = [0.125, 0.2]\nthrottle_timing = [0.05, 0.9]\nmodulate_throttle_on_upshift = false\nrelease_throttle_on_shift = true\npress_clutch_at_min_rpm = false\nmin_rpm_speed_scale_range = [1.0, 1.2]\nslipper_filter_speed = 2.5\nforce_downshift_brake_range = [0.5, 1.0]\nforce_downshift_duration_s = 0.3\nforce_downshift_factor = 1.0\nforce_downshift_linearity = 3.0\nforce_downshift_speed_range_mps = [41.0, 41.0]\n";
+    let tuned = bike_car().replace("clutch_linearity = 1.0\n", &format!("clutch_linearity = 1.0\n{keys}"));
+    let control = BikeSpec::from(&bike(&tuned).unwrap().bike.unwrap()).transmission.control;
+    assert_eq!(control.clutch_timing, [0.125, 0.2]);
+    assert_eq!(control.throttle_timing, [0.05, 0.9]);
+    assert!(!control.modulate_upshift_throttle && control.release_throttle && !control.press_at_min_rpm);
+    assert_eq!(control.min_rpm_speed_range, [1.0, 1.2]);
+    assert_eq!(control.slipper_filter_speed, 2.5);
+    let forced = control.forced_downshift;
+    assert_eq!((forced.brake_range, forced.duration, forced.factor), ([0.5, 1.0], 0.3, 1.0));
+    assert_eq!((forced.linearity, forced.speed_range), (3.0, [41.0, 41.0]));
+
+    let bad = bike_car().replace("clutch_linearity = 1.0\n", "clutch_linearity = 1.0\nclutch_timing = [0.2, 1.5]\n");
+    assert!(bike(&bad).is_err());
+}
+
+#[test]
 fn a_key_that_is_left_out_refuses_the_bike_and_is_named() {
     let keys = [
         "drag = 0.15\n",
@@ -383,4 +411,27 @@ fn the_rider_help_table_and_the_target_filter_are_read_and_default_to_the_refere
     let auto = spec.help.auto_rider.expect("the auto-rider");
     assert_eq!((auto.wheelie_range, auto.engage_speed, auto.throttle_curve.len()), ([0.06, 0.07], 5.0, 2));
     assert_eq!((spec.wheelie.terrain_influence, spec.wheelie.filter_timescale), (1.0, 2.5));
+}
+
+#[test]
+fn the_abs_level_table_is_read_and_defaults_to_the_plain_full_level() {
+    let plain = bike(&bike_car()).unwrap().bike.unwrap();
+    let spec = BikeSpec::from(&plain);
+    assert_eq!(spec.abs_level.default, 1.0);
+    assert!(spec.abs_level.front.is_empty() && spec.abs_level.rear_enabled.is_empty());
+    let text = format!(
+        "{}
+[bike.abs_level]
+default = 0.5
+front = [[0.0, 0.1], [1.0, 1.0]]
+rear_enabled = [[0.0, 0.0], [0.5, 1.0]]
+         brake_relief = [[0.0, 1.0], [1.0, 0.0]]
+",
+        bike_car()
+    );
+    let spec = BikeSpec::from(&bike(&text).unwrap().bike.unwrap());
+    assert_eq!(spec.abs_level.default, 0.5);
+    assert_eq!(spec.abs_level.front, vec![(0.0, 0.1), (1.0, 1.0)]);
+    assert_eq!(spec.abs_level.rear_enabled.len(), 2);
+    assert_eq!(spec.abs_level.relief(0.5), 0.5);
 }

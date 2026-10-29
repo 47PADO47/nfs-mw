@@ -1,13 +1,13 @@
-//! The parts of the `[bike]` table under the wheels and in the rider's hands: suspension, engine, gearbox, brakes, steering and
-//! the lean controller, the fall and the wheelie assist. Same units as `blackbox_vehicle::bike::BikeSpec` (see `bike.rs`).
+//! The parts of the `[bike]` table under the wheels and in the rider's hands: suspension, engine, brakes, steering and
+//! the lean controller, the fall and the wheelie assist (the gearbox is in `bike_transmission.rs`). Same units as `blackbox_vehicle::bike::BikeSpec` (see `bike.rs`).
 
 use blackbox_vehicle::bike::{
-    AbsSpec, BrakeSpec, Coupling as CouplingSpec, DamperSpec, EngineSpec, FallSpec, FeatherSpec,
+    AbsSpec, BrakeSpec, Coupling as CouplingSpec, DamperSpec, EngineSpec, FallExtra, FallSpec, HelpExtra,
     Hydraulic as HydraulicSpec, LeanSpec, Progressive as ProgressiveSpec, SteeringSpec, SuspensionSpec,
-    TransmissionSpec,
 };
 use serde::Deserialize;
 
+pub use super::bike_transmission::Transmission;
 pub use super::bike_wheelie::{Pitch, Wheelie};
 
 fn pairs(points: &[[f32; 2]]) -> Vec<(f32, f32)> {
@@ -173,122 +173,6 @@ impl Engine {
     }
 }
 
-/// The gearbox and the clutch (`[bike.transmission]`).
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Transmission {
-    /// Forward gear ratios, first gear first.
-    pub gears: Vec<f32>,
-    /// The ratio between the gearbox output and the rear wheel, chain included.
-    pub final_ratio: f32,
-    /// The share of the engine torque that reaches the wheel.
-    pub efficiency: f32,
-    /// The tolerances per gear that scale the torque the generated change points compare (`ride6-gearbox-auto.md`).
-    pub up_tolerance: Vec<f32>,
-    pub down_tolerance: Vec<f32>,
-    /// The hold-offs of the automatic changes, each `[factor, linearity]`; 0 (the default) for none.
-    #[serde(default)]
-    pub prevent_up_lean: [f32; 2],
-    #[serde(default)]
-    pub prevent_down_lean: [f32; 2],
-    #[serde(default)]
-    pub prevent_down_throttle: [f32; 2],
-    /// How long a change up and a change down take, s.
-    pub up_shift_time_s: f32,
-    pub down_shift_time_s: f32,
-    /// The throttle blip on a change down; 0 (the default) for none.
-    #[serde(default)]
-    pub blip_throttle: f32,
-    /// The exponent of the clutch's engagement.
-    pub clutch_linearity: f32,
-    /// The most torque the clutch carries, as a multiple of the engine's peak torque.
-    pub clutch_max_factor: f32,
-    /// The back torque range in N m over which the slipper clutch opens, and how far it opens (0 to 1); 0 (the default) for
-    /// no slipper.
-    #[serde(default)]
-    pub slipper_range_nm: [f32; 2],
-    #[serde(default)]
-    pub slipper_intensity: f32,
-    /// The road speed in m/s above which a start is over and the clutch is locked; 0 (the default) for no launch slip.
-    #[serde(default)]
-    pub release_speed_mps: f32,
-    /// The engine speed of a launch, as a share of the engine speed of peak torque, and the most it may be as a share of the
-    /// rev limit.
-    #[serde(default)]
-    pub feather_factor: f32,
-    #[serde(default)]
-    pub feather_max_factor: f32,
-    /// The rest of the feathering controller (the constructor defaults when left out).
-    #[serde(default)]
-    pub feather: Feather,
-    /// The launch clutch without feathering: the shares of the rev limit between which it comes in.
-    #[serde(default)]
-    pub launch_rpm: [f32; 2],
-}
-
-/// The feathering controller of a start (`[bike.transmission.feather]`).
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
-#[serde(deny_unknown_fields, default)]
-pub struct Feather {
-    pub target_tolerance: f32,
-    pub exit_tolerance: f32,
-    pub throttle_cap: f32,
-    pub min_slip: f32,
-    pub delta_time_s: f32,
-    pub rpm_raise: f32,
-    pub release_factor: f32,
-}
-
-impl Default for Feather {
-    fn default() -> Self {
-        let d = FeatherSpec::default();
-        Self {
-            target_tolerance: d.target_tolerance,
-            exit_tolerance: d.exit_tolerance,
-            throttle_cap: d.throttle_cap,
-            min_slip: d.min_slip,
-            delta_time_s: d.delta_time,
-            rpm_raise: d.rpm_raise,
-            release_factor: d.release_factor,
-        }
-    }
-}
-
-impl Transmission {
-    pub(super) fn to_spec(&self) -> TransmissionSpec {
-        TransmissionSpec {
-            gears: self.gears.clone(),
-            final_ratio: self.final_ratio,
-            efficiency: self.efficiency,
-            up_tolerance: self.up_tolerance.clone(),
-            down_tolerance: self.down_tolerance.clone(),
-            prevent_up_lean: self.prevent_up_lean,
-            prevent_down_lean: self.prevent_down_lean,
-            prevent_down_throttle: self.prevent_down_throttle,
-            up_shift_time: self.up_shift_time_s,
-            down_shift_time: self.down_shift_time_s,
-            blip_throttle: self.blip_throttle,
-            clutch_linearity: self.clutch_linearity,
-            slipper_range: self.slipper_range_nm,
-            slipper_intensity: self.slipper_intensity,
-            release_speed: self.release_speed_mps,
-            feather_factor: self.feather_factor,
-            feather_max_factor: self.feather_max_factor,
-            feather: FeatherSpec {
-                target_tolerance: self.feather.target_tolerance,
-                exit_tolerance: self.feather.exit_tolerance,
-                throttle_cap: self.feather.throttle_cap,
-                min_slip: self.feather.min_slip,
-                delta_time: self.feather.delta_time_s,
-                rpm_raise: self.feather.rpm_raise,
-                release_factor: self.feather.release_factor,
-            },
-            launch_rpm: self.launch_rpm,
-            clutch_max_factor: self.clutch_max_factor,
-        }
-    }
-}
-
 /// The anti-lock brake (`[bike.brakes.abs]`); every key left out is 0 and the ABS is off.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields, default)]
@@ -377,6 +261,25 @@ pub struct Lean {
     pub help_speed: Vec<[f32; 2]>,
     #[serde(default)]
     pub help_limit: f32,
+    /// The speeds in m/s between which the help factor goes from 1 at a standstill to its tuned value (`[0, 0]`, the default:
+    /// no blend).
+    #[serde(default)]
+    pub help_stopped_range_mps: [f32; 2],
+    /// `[speed in m/s, share]` of the help that is a force at the front contact; the rest is a couple about the centre of
+    /// gravity. Empty, the default: all of it is a force.
+    #[serde(default)]
+    pub help_balance_speed: Vec<[f32; 2]>,
+    /// The skid cut of the help factor: the heading error in rad at which it starts and at which it is full, the exponent of
+    /// the ramp, the cut against the speed `[m/s, cut]` and its factor against throttle less brake `[input, factor]`. No cut
+    /// curve, the default: no cut.
+    #[serde(default)]
+    pub help_skid_range_rad: [f32; 2],
+    #[serde(default)]
+    pub help_skid_linearity: f32,
+    #[serde(default)]
+    pub help_skid_reduction: Vec<[f32; 2]>,
+    #[serde(default)]
+    pub help_skid_input: Vec<[f32; 2]>,
 }
 
 /// The steering (`[bike.steering]`).
@@ -424,6 +327,14 @@ impl Steering {
                 rider_mass_scale: l.rider_mass_scale,
                 help_speed: pairs(&l.help_speed),
                 help_limit: l.help_limit,
+                help_extra: HelpExtra {
+                    stopped_range: l.help_stopped_range_mps,
+                    balance_speed: pairs(&l.help_balance_speed),
+                    skid_range: l.help_skid_range_rad,
+                    skid_linearity: l.help_skid_linearity,
+                    skid_reduction: pairs(&l.help_skid_reduction),
+                    skid_input: pairs(&l.help_skid_input),
+                },
             },
         }
     }
@@ -447,6 +358,28 @@ pub struct Fall {
     pub block_time_s: f32,
     #[serde(default)]
     pub block_wait_s: f32,
+    /// The lean limit on the ground follows the front tyre's grip (`atan(mu)`), rising and falling by these shares of the gap per
+    /// step (default: it stays at `lean_rad`), and how long in s the lean must stay beyond it before it is a fall.
+    #[serde(default)]
+    pub lean_by_grip: bool,
+    #[serde(default)]
+    pub lean_rise: f32,
+    #[serde(default)]
+    pub lean_fall: f32,
+    #[serde(default)]
+    pub lean_duration_s: f32,
+    /// The limits with no wheel on the road: lean and pitch in rad, angular speed in rad/s (0, the default: the limits on the
+    /// ground).
+    #[serde(default)]
+    pub airborne_lean_rad: f32,
+    #[serde(default)]
+    pub airborne_pitch_rad: f32,
+    #[serde(default)]
+    pub airborne_angular_speed: f32,
+    /// A velocity against the heading with the lean under this (rad) is a high side, otherwise a low side (0, the default: always a
+    /// low side). It decides how the rider is thrown (`ride6-rider-fall.md`).
+    #[serde(default)]
+    pub highside_lean_rad: f32,
 }
 
 impl Fall {
@@ -461,6 +394,16 @@ impl Fall {
             block_min_speed: self.block_min_speed_mps,
             block_time: self.block_time_s,
             block_wait: self.block_wait_s,
+            extra: FallExtra {
+                lean_by_grip: self.lean_by_grip,
+                lean_rise: self.lean_rise,
+                lean_fall: self.lean_fall,
+                lean_duration: self.lean_duration_s,
+                airborne_lean: self.airborne_lean_rad,
+                airborne_pitch: self.airborne_pitch_rad,
+                airborne_angular: self.airborne_angular_speed,
+                highside_lean: self.highside_lean_rad,
+            },
         }
     }
 }

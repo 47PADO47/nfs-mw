@@ -3,7 +3,7 @@
 //! weight (`docs/specs/ride6-tricks.md`, sections 4 and 5). Every key is optional; a missing one takes the default of
 //! `blackbox_vehicle::bike::RiderHelpSpec` / `AutoRiderSpec`.
 
-use blackbox_vehicle::bike::{AutoRiderSpec, RiderHelpSpec};
+use blackbox_vehicle::bike::{AbsLevelSpec, AutoRiderSpec, AutoTuckSpec, RiderHelpSpec};
 use serde::Deserialize;
 
 fn pairs(points: &[[f32; 2]]) -> Vec<(f32, f32)> {
@@ -44,6 +44,27 @@ impl AutoRider {
     }
 }
 
+/// The rule that tucks the rider in on its own (`[bike.wheelie.help.auto_tuck]`; the reference's `bAutoTuckIn`).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AutoTuck {
+    pub min_speed_mps: f32,
+    pub max_normalised_lean: f32,
+    pub min_throttle: f32,
+    pub max_brake: f32,
+}
+
+impl AutoTuck {
+    fn to_spec(&self) -> AutoTuckSpec {
+        AutoTuckSpec {
+            min_speed: self.min_speed_mps,
+            max_normalised_lean: self.max_normalised_lean,
+            min_throttle: self.min_throttle,
+            max_brake: self.max_brake,
+        }
+    }
+}
+
 /// The rider help (`[bike.wheelie.help]`).
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields, default)]
@@ -62,6 +83,9 @@ pub struct RiderHelp {
     pub weight_deadzone: Option<f32>,
     pub lookahead_s: Option<f32>,
     pub auto_rider: Option<AutoRider>,
+    pub auto_tuck: Option<AutoTuck>,
+    pub tuck_raise_rate: Option<f32>,
+    pub tuck_fall_rate: Option<f32>,
 }
 
 impl RiderHelp {
@@ -82,6 +106,59 @@ impl RiderHelp {
             weight_deadzone: self.weight_deadzone.unwrap_or(b.weight_deadzone),
             lookahead: self.lookahead_s.unwrap_or(b.lookahead),
             auto_rider: self.auto_rider.as_ref().map(AutoRider::to_spec),
+            auto_tuck: self.auto_tuck.as_ref().map(AutoTuck::to_spec),
+            tuck_raise_rate: self.tuck_raise_rate.unwrap_or(b.tuck_raise_rate),
+            tuck_fall_rate: self.tuck_fall_rate.unwrap_or(b.tuck_fall_rate),
         }
+    }
+}
+
+/// The rider's ABS level (`[bike.abs_level]`): how the setting reaches the brake. Every key is optional; a curve is
+/// `[level, factor]` points. Left out: the level is the factor, the rear stays on and the brake relief is untouched.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct AbsLevel {
+    /// The level a bike starts with, 0 to 1 (default 1).
+    pub default: Option<f32>,
+    pub front: Vec<[f32; 2]>,
+    pub rear: Vec<[f32; 2]>,
+    pub rear_enabled: Vec<[f32; 2]>,
+    pub brake_relief: Vec<[f32; 2]>,
+}
+
+impl AbsLevel {
+    pub(super) fn to_spec(&self) -> AbsLevelSpec {
+        AbsLevelSpec {
+            default: self.default.unwrap_or(AbsLevelSpec::default().default).clamp(0.0, 1.0),
+            front: pairs(&self.front),
+            rear: pairs(&self.rear),
+            rear_enabled: pairs(&self.rear_enabled),
+            brake_relief: pairs(&self.brake_relief),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_tuck_rule_and_its_rates_become_the_spec() {
+        let none = RiderHelp::default().to_spec();
+        assert_eq!((none.auto_tuck, none.tuck_raise_rate, none.tuck_fall_rate), (None, 2.0, 2.0));
+        let help: RiderHelp = toml::from_str(
+            "tuck_raise_rate = 3.0\n[auto_tuck]\nmin_speed_mps = 25.0\nmax_normalised_lean = 1.0\nmin_throttle = 0.0\nmax_brake = 0.1",
+        )
+        .unwrap();
+        let spec = help.to_spec();
+        assert_eq!(spec.tuck_raise_rate, 3.0);
+        assert_eq!(
+            spec.auto_tuck,
+            Some(AutoTuckSpec { min_speed: 25.0, max_normalised_lean: 1.0, min_throttle: 0.0, max_brake: 0.1 })
+        );
+        assert!(
+            toml::from_str::<RiderHelp>("[auto_tuck]\nmin_speed_mps = 25.0").is_err(),
+            "every key of the rule is needed"
+        );
     }
 }

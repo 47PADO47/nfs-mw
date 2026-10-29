@@ -37,9 +37,12 @@ pub struct Rider {
     pub angular_damp: f32,
     pub angular_damp_chassis_factor: f32,
     pub torque_scale: [f32; 3],
-    /// The air drag of his posture: a scale and the curve over the tuck, `[tuck 0..1, factor]` points. No points: none.
+    /// The air drag of the rider himself, as a coefficient like the bike's (`F = c v^2`): the curve over his longitudinal weight
+    /// (`[weight -1..1, coefficient]` points; none: no drag of his own), times the curve over the tuck (`[tuck 0..1, factor]`
+    /// points; none: 1), times the scale.
     pub drag_scale: f32,
     pub drag_curve: Vec<[f32; 2]>,
+    pub drag_weight_curve: Vec<[f32; 2]>,
 }
 
 impl Default for Rider {
@@ -64,6 +67,7 @@ impl Default for Rider {
             torque_scale: spec.torque_scale.into(),
             drag_scale: spec.drag_scale,
             drag_curve: Vec::new(),
+            drag_weight_curve: Vec::new(),
         }
     }
 }
@@ -90,6 +94,7 @@ impl Rider {
             torque_scale: self.torque_scale.into(),
             drag_scale: self.drag_scale,
             drag_curve: self.drag_curve.iter().map(|p| (p[0], p[1])).collect(),
+            drag_weight_curve: self.drag_weight_curve.iter().map(|p| (p[0], p[1])).collect(),
         }
     }
 
@@ -115,6 +120,10 @@ impl Rider {
             ranged(point[0], "bike.rider.drag_curve", 0.0, 1.0)?;
             ranged(point[1], "bike.rider.drag_curve", 0.0, 10.0)?;
         }
+        for point in &self.drag_weight_curve {
+            ranged(point[0], "bike.rider.drag_weight_curve", -1.0, 1.0)?;
+            ranged(point[1], "bike.rider.drag_weight_curve", 0.0, 10.0)?;
+        }
         Ok(())
     }
 }
@@ -135,7 +144,7 @@ mod tests {
         let table: Rider = toml::from_str(
             "lateral_offset_m = [-0.12, 0.0, 0.0]\nlean_influence = 1.0\nweight_influence = 0.0\ncorrect_gravity = true\n\
              angular_k_n_m_per_rad = 2500.0\nangular_damp = 250.0\nangular_damp_chassis_factor = 0.0\n\
-             drag_scale = 1.25\ndrag_curve = [[0.0, 1.2], [1.0, 0.65]]\nstopped_speed_range_mps = [2.0, 6.0]",
+             drag_scale = 1.25\ndrag_curve = [[0.0, 1.2], [1.0, 0.65]]\ndrag_weight_curve = [[0.0, 0.1]]\nstopped_speed_range_mps = [2.0, 6.0]",
         )
         .unwrap();
         let spec = table.to_spec();
@@ -144,6 +153,7 @@ mod tests {
         assert!(spec.correct_gravity);
         assert_eq!((spec.angular_k, spec.angular_damp, spec.angular_damp_chassis_factor), (2500.0, 250.0, 0.0));
         assert_eq!(spec.drag_curve, vec![(0.0, 1.2), (1.0, 0.65)]);
+        assert_eq!(spec.drag_weight_curve, vec![(0.0, 0.1)]);
         assert_eq!(spec.stopped_speed_range, [2.0, 6.0]);
         table.check().unwrap();
         assert!(toml::from_str::<Rider>("lateral_offset = [0.0, 0.0, 0.0]").is_err());
@@ -156,6 +166,8 @@ mod tests {
         let table: Rider = toml::from_str("drag_curve = [[2.0, 1.0]]").unwrap();
         assert!(table.check().is_err());
         let table: Rider = toml::from_str("inertia_scale = [0.0, 0.2, 0.2]").unwrap();
+        assert!(table.check().is_err());
+        let table: Rider = toml::from_str("drag_weight_curve = [[3.0, 0.1]]").unwrap();
         assert!(table.check().is_err());
     }
 }

@@ -15,6 +15,7 @@
 use blackbox_vehicle::bike::{BikeSpec, ChassisSpec, Mf94, TcsSpec, WheelSpec};
 use serde::Deserialize;
 
+pub use super::bike_help::AbsLevel;
 pub use super::bike_parts::{Brakes, Damper, Engine, Fall, Steering, Suspension, Transmission, Wheelie};
 pub use super::bike_rider::Rider;
 pub use super::bike_thermal::Thermal;
@@ -45,6 +46,9 @@ pub struct Bike {
     /// The wheelie and stoppie assist (`[bike.wheelie]`); left out for a bike without one.
     #[serde(default)]
     pub wheelie: Option<Wheelie>,
+    /// How the rider's ABS level reaches the brake (`[bike.abs_level]`); left out: the plain level.
+    #[serde(default)]
+    pub abs_level: AbsLevel,
     /// The traction control (`[bike.tcs]`); left out for a bike without one.
     #[serde(default)]
     pub tcs: Option<Tcs>,
@@ -250,6 +254,7 @@ impl From<&Bike> for BikeSpec {
             steering: bike.steering.to_spec(),
             fall: bike.fall.to_spec(),
             wheelie: bike.wheelie.as_ref().map(Wheelie::to_spec),
+            abs_level: bike.abs_level.to_spec(),
             tcs: bike.tcs.map(|tcs| TcsSpec { slip: tcs.slip, speed_range: tcs.speed_range_mps }),
             gyro_roll_scale: bike.gyro_roll_scale,
             gyro_yaw_scale: bike.gyro_yaw_scale,

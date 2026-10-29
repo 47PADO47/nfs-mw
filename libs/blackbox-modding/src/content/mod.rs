@@ -14,6 +14,7 @@ mod bike_rider;
 #[cfg(test)]
 mod bike_tests;
 mod bike_thermal;
+mod bike_transmission;
 mod bike_wheelie;
 mod car;
 mod cop;

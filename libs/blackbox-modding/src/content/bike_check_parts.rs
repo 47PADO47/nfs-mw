@@ -97,6 +97,20 @@ pub(super) fn transmission(transmission: &Transmission) -> Result<(), ContentErr
     all_ranged(&transmission.slipper_range_nm, "bike.transmission.slipper_range_nm", 0.0, 1_000.0)?;
     ranged(transmission.slipper_intensity, "bike.transmission.slipper_intensity", 0.0, 1.0)?;
     ranged(transmission.release_speed_mps, "bike.transmission.release_speed_mps", 0.0, 100.0)?;
+    all_ranged(&transmission.clutch_timing, "bike.transmission.clutch_timing", 0.0, 1.0)?;
+    all_ranged(&transmission.throttle_timing, "bike.transmission.throttle_timing", 0.0, 1.0)?;
+    all_ranged(&transmission.min_rpm_speed_scale_range, "bike.transmission.min_rpm_speed_scale_range", 0.0, 10.0)?;
+    ranged(transmission.slipper_filter_speed, "bike.transmission.slipper_filter_speed", 0.0, 1_000.0)?;
+    all_ranged(&transmission.force_downshift_brake_range, "bike.transmission.force_downshift_brake_range", 0.0, 1.0)?;
+    ranged(transmission.force_downshift_duration_s, "bike.transmission.force_downshift_duration_s", 0.0, 60.0)?;
+    ranged(transmission.force_downshift_factor, "bike.transmission.force_downshift_factor", 0.0, 10.0)?;
+    ranged(transmission.force_downshift_linearity, "bike.transmission.force_downshift_linearity", 0.1, 10.0)?;
+    all_ranged(
+        &transmission.force_downshift_speed_range_mps,
+        "bike.transmission.force_downshift_speed_range_mps",
+        0.0,
+        500.0,
+    )?;
     ranged(transmission.feather_factor, "bike.transmission.feather_factor", 0.0, 2.0)?;
     ranged(transmission.feather_max_factor, "bike.transmission.feather_max_factor", 0.0, 1.0)?;
     Ok(())
@@ -131,12 +145,18 @@ fn lean(lean: &Lean) -> Result<(), ContentError> {
     all_ranged(&[lean.stopped_speed_mps], name, 0.0, 100.0)?;
     all_ranged(&lean.blend_range_mps, name, 0.0, 100.0)?;
     ranged(lean.help_limit, name, 0.0, 10.0)?;
+    all_ranged(&lean.help_stopped_range_mps, name, 0.0, 100.0)?;
+    all_ranged(&lean.help_skid_range_rad, name, 0.0, 3.2)?;
+    ranged(lean.help_skid_linearity, name, 0.0, 20.0)?;
     let curves = [
         (&lean.time_scale_speed, (0.0, 200.0), (0.0, 10.0)),
         (&lean.time_scale_input, (-1.0, 1.0), (0.0, 10.0)),
         (&lean.g_tuning, (0.0, 20.0), (0.0, 10.0)),
         (&lean.skid_reduction, (0.0, 200.0), (0.0, 1.0)),
         (&lean.help_speed, (0.0, 200.0), (0.0, 1.0)),
+        (&lean.help_balance_speed, (0.0, 200.0), (0.0, 1.0)),
+        (&lean.help_skid_reduction, (0.0, 200.0), (0.0, 1.0)),
+        (&lean.help_skid_input, (-1.0, 1.0), (0.0, 1.0)),
     ];
     for (points, x, y) in curves {
         if !points.is_empty() {
@@ -164,6 +184,10 @@ pub(super) fn fall(fall: &Fall) -> Result<(), ContentError> {
     ranged(fall.block_min_speed_mps, "bike.fall.block_min_speed_mps", 0.0, 100.0)?;
     ranged(fall.block_time_s, "bike.fall.block_time_s", 0.0, 60.0)?;
     ranged(fall.block_wait_s, "bike.fall.block_wait_s", 0.0, 600.0)?;
+    all_ranged(&[fall.lean_rise, fall.lean_fall], "bike.fall", 0.0, 1.0)?;
+    ranged(fall.lean_duration_s, "bike.fall.lean_duration_s", 0.0, 10.0)?;
+    all_ranged(&[fall.airborne_lean_rad, fall.airborne_pitch_rad, fall.highside_lean_rad], "bike.fall", 0.0, 3.2)?;
+    ranged(fall.airborne_angular_speed, "bike.fall.airborne_angular_speed", 0.0, 30.0)?;
     Ok(())
 }
 
