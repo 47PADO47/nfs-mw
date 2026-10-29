@@ -275,6 +275,13 @@ highside_lean_rad = 1.2217     # optional (0: never): a velocity against the hea
 [bike.tcs]                     # optional: the traction control
 slip = [0.09, 0.2]             # slip ratios where it starts to cut the throttle and where it cuts it fully
 speed_range_mps = [0.0, 1.39]  # the speeds over which it comes in
+[bike.input]                   # optional (left out: the axes follow at once): rates per second of the rider's axes
+throttle_rise = 3.0            # a key takes 1/rise s to open the throttle and 1/fall s to close it; the same for the brake levers
+throttle_fall = 5.0
+brake_rise = 3.0
+brake_fall = 5.0
+steer_rise = 25.0              # the stick away from the middle, in either direction, and back to it
+steer_fall = 6.0
 # [bike.wheelie] (optional): wheelie and stoppie assist and the rider help. [bike.wheelie.wheelie] and [bike.wheelie.stoppie]
 # have deadzone, max_angle_rad, speed_ramp_mps, help_speed, lean_help, lookahead_s, min_speed_mps, acceleration,
 # acceleration_time_s, ground_range_m, lean_limit_rad, lean_pitch_range_rad; [bike.wheelie] itself has
@@ -303,6 +310,7 @@ are wide: they catch a wheel of 3 m, not an unusual bike.
 | Key | Range |
 |---|---|
 | `drag`, `gyro_*_scale` | 0 to 3, 0 to 10 |
+| `input.*` (the six rates) | 0 to 100000 |
 | `chassis.mass_kg`, `rider_mass_kg` | 20 to 1000 kg, 0 to 300 kg |
 | `chassis.rider_offset_m`, `rider_*_shift_m`, `rider_weight_rate` | -2 to 2 m, -1 to 1 m, 0 to 100 |
 | `chassis.half_dimensions_m` (each), `tensor_scale` (each) | 0.05 to 5 m, 0.01 to 10 |

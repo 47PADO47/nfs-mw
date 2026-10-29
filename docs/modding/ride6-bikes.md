@@ -307,6 +307,7 @@ where the manifest has one number and the data has a curve or several values, th
 | `rolling_slip`, `rolling_slip_linearity` | `RollingResistanceSlip`, `...SlipLinearity` of the road row | fact |
 | `chassis.rider_k_n_per_m`, `rider_damp` | `Rider.RiderK`, `RiderDamp` (constructor defaults 20000, 5000) | fact / default |
 | `bike.tcs` | the TCS element's `TCSSlipThresholdsDry`, `TCSSpeedThresholds` | fact |
+| `bike.input` | `InputData`: `Throttle`, `Brake` (`RiseRate`, `FallRate`), `Steer` (`DeprecatedRiseRate`, `DeprecatedFallRate`, or `InputRate` with `bUseDeprecatedRate` false); a field left out is 10000 (at once); the axes' `Linearity` is not read | fact |
 | `fall.block_*` | `BlockFallLeanLimitRatio`, `...MinSpeedKmh`, `BlockFallTimeLimit`, `BlockFallReEnableWaitTimeLimit` when `BlockFallActive` | fact |
 | `max_lean_rad`, `fall.lean_rad` | `FallLeanLimitAirborne` (70 degrees on every bike) | the start of the ground fall limit and the airborne limit; on the ground the limit follows `atan` of the grip (`fall.lean_by_grip`, `lean_rise`, `lean_fall` from `FallLeanLimitUp/DownFactor`) |
 | `fall.min_speed_mps` | `FallSpeedDirAngleMinSpeed` (0 when unset) | `FallMinSpeed` gates only the rider-force tests, which the library does not have |

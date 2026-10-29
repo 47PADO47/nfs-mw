@@ -17,7 +17,8 @@ resolved data of the 319 vehicles. Tags: **[B]** read from the binary, **[D]** d
   30 m/s with both brakes, the front alone and the rear alone (distance, pitch, falls, slip).
 - `bike_stick_limit`: the largest stick (0.6 to 1.0, `RIDE6_STICKS`) a bike holds for 10 s at 8 to 40 m/s (`RIDE6_SPEEDS`) without falling.
 - `bike_sweep_extra`: keyboard-like manoeuvres at the share of the stick the game gives (0.8): a slalom at 12, 20 and 30 m/s, a corner with the
-  brake, a slow turn at 4 m/s, a start with the stick held.
+  brake (`RIDE6_LEVER=1.0` for the pedal fully down, 0.5 by default), a slow turn at 4 m/s, a start with the stick held. `RIDE6_TCS_SCALE`
+  scales the traction control's window for an experiment; the folder of manifests should carry `[bike.input]` (section 4).
 - `bike_ride_real.rs` (`bike_trace_real`, `bike_launch_trace_real`): one bike traced second by second (`RIDE6_TRACE=speed,stick`,
   `RIDE6_SCENARIO=launch|trail`, `RIDE6_KNOBS=nogyro,nohang,stiff,tcs` to switch a term off and see what it did).
 
@@ -35,6 +36,9 @@ two-strokes; no electric bike exists in the data).
 | a stick of 1.0 at 10 m/s | 105 | 5 |
 | the largest stick every bike holds for 10 s at 8 to 40 m/s | not measured | 0.8 for 287 bikes (one holds 0.7 at 40 m/s) |
 | braking from 30 m/s, both / front only / rear only | n.a. | 47 to 58 m / the same / 100 to 115 m; no fall, pitch under 0.12 rad |
+| a lever of 1.0 for 2 s at 25 m/s in a corner (stick 0.8): bikes that fall | 275 (a lever of 0.5) | 5 (round 8, with the keyboard's rates) |
+| a start at full throttle for 10 s with the stick at 0.8: bikes that fall | 263 | 17, all after 9 s (above 80 m/s) except one at 1.7 s |
+| a slalom at 12, 20 and 30 m/s at 0.8: bikes that fall | 5 | 0 |
 
 ## 2. The fall lean limit and the grip the limits use [B]
 
@@ -68,14 +72,35 @@ from 8 to 40 m/s (the table of section 1; the 288th holds 0.7 at 40 m/s), and 19
 a core per bike. The game's own `MaxDeltaTime` and `MaxSubsteps` (project settings, not found) are still open. What stays: the bike at the lean limit
 itself (stick 1.0) is marginal on a third of the bikes, and the front wheel still hops at the end of the lean range (section 7).
 
-## 4. The share of the stick the game gives [M]
+## 4. The rider's axes [D], the share of the stick [M], the brake in a lean [M]
 
-The keyboard gives -1, 0 or 1 at once (`Action::Steer` of a key) and the pad's stick is read as it is. The reference's full stick asks for the lean
-limit, the edge of the front tyre's grip, and the model's bike held there falls on a quarter of the bikes within seconds. `nfsmw`'s bike input
-(`drive/sim/bike.rs`, `STICK_SHARE`) hands the lean controller 0.8 of the stick: the largest share 287 of the 288 bikes held at every speed to 40 m/s. The consequence is a lean
-that tops out at 0.8 of the limit (about 40 degrees at 30 m/s on a sport bike, a radius of about 100 m at 108 km/h; at 10 m/s about 12 m). It is
-physical, not a tuning: the wide turn of the user's report at speed is the radius `v^2 / (g tan lean)` of a bike that cannot lean further. The
-animation's `controls.steering` keeps the full stick.
+**The axes move at the data's rates [D].** `InputData` of every bike (316 of 319 vehicles; the other two have none) gives the throttle a rise of 3
+and a fall of 5 per second, the brake the same (3 and 5), the stick a deprecated rise of 25 and fall of 6 (`bUseDeprecatedRate` is not set, so
+the constructor default, true, picks them over `InputRate` 10) and the weight channel 6. The constructor defaults are 10000 per second
+(`0x1450a5f20`), "at once". The game fed the model the keyboard's 0 or 1 at once: a key slammed the throttle open and the brake shut. Now
+`BikeSpec::input` (`InputRates`, `bike/input_axes.rs`; manifest `[bike.input]`, written by the importer's `physics/input_axes.rs`) moves the
+throttle, both brake levers and the stick at those rates over each step (a stick thrown across goes through the middle at the fall rate). The
+axes' `Linearity` (throttle 0.75, brake 0.65, one bike's throttle 2.0) was not read: the function that applies it was not found (the setup's
+copies at `0x1450e7c30` and `0x1450e9160` only move the struct). A manifest without the table keeps the axes instant (the manifests imported
+before this round need a re-import). Of itself it fixes little (a key's third of a second at the throttle or the brake changes no fall of the
+sweep alone), but it is the reference's input and it tames a start and a stop.
+
+**The share of the stick [M].** The keyboard gives -1, 0 or 1 and the pad's stick is read as it is. The reference's full stick asks for the
+lean limit, the edge of the front tyre's grip, and the model's bike held there falls on a quarter of the bikes within seconds. `nfsmw`'s bike
+input (`drive/sim/bike.rs`, `STICK_SHARE`) hands the lean controller 0.8 of the stick: the largest share 287 of the 288 bikes held at every speed
+to 40 m/s. The consequence is a lean that tops out at 0.8 of the limit (about 40 degrees at 30 m/s on a sport bike, a radius of about 100 m at
+108 km/h; at 10 m/s about 12 m). It is physical, not a tuning: the wide turn of the user's report at speed is the radius `v^2 / (g tan lean)` of a bike
+that cannot lean further. The animation's `controls.steering` keeps the full stick.
+
+**The brake in a lean [M]** (`choices::BRAKE_LEAN_RELIEF`, 0.8). The brake levers are multiplied by `1 - 0.8 (lean / limit)^2`. Why: with the
+pedal fully down in a corner (a lever of 1.0, joined brakes: the rear lever follows the front one) the bikes decelerate at about 1 g; the front tyre's
+force is spent on the brake (the front load is 2000 to 2500 N), the rear wheel unloads to 300 to 400 N and lifts or slides (slip ratio -0.15 to -0.18,
+slip angle -0.1 to -0.18 rad, with the rear ABS holding it at the longitudinal peak and the brake reduction taking most of the rear brake), and the
+bike falls inward as its speed falls (a lean of 0.7 held at 10 m/s needs more front force than the tyre has; the same fall as a stick of 1.0 at 8
+m/s). What the reference does is not recovered: its ABS releases by the pure longitudinal slip, and its front brake reduction is 0 for every bike
+read ([ride6-powertrain-round7.md](ride6-powertrain-round7.md), section 1: the front has no throttle tuning). Without the relief 15 of 20 bikes of the
+subset fall; with 0.5, 8; with 0.8, 1 (and 5 of 288 with the keyboard's rates). A stop with the bike upright (lean 0) is untouched (47 to 58 m from 30
+m/s). It should go if the reference's own relief is found. Engine braking was tested as a cause (friction torque at a tenth: no change).
 
 ## 5. The clutch [B + M]
 
@@ -120,16 +145,23 @@ on the mean time to 100 km/h (3.4 s to 3.8 s over the 288). It is the one number
 
 ## 7. What stays open (measured)
 
-- **The stick at 1.0**: 69 of 288 bikes fall within 8 s at 30 m/s (5 at 10 m/s). The cause is the lean loop at the grip limit (a weave and a hop of the
-  front wheel: `settle` finds no contact for a step at a steer of 0.03 rad and 50 degrees of lean), which the reference's loop, with the same data, does not
-  show as far as it was observed; the model's tyres have no relaxation length and the bike's plant differs somewhere not yet found.
-- **Braking in a corner** with the pedal down (a lever of 1.0 at 25 m/s, stick 0.8): the rear brake locks (slip ratio -0.17) as the rear unloads to
-  400 N and the bike high-sides when the brake is let go: 152 of 288 bikes fall in the `bike_sweep_extra` corner with the brake. The ABS releases
-  at the normalised slip of the pure longitudinal force; under lean the available longitudinal force is smaller. A lever of 0.2 is held.
-- A full-throttle start with the stick held for 10 s: 20 of 288 bikes fall late (5 to 9 s, above 40 m/s).
+- **The stick at 1.0** (the game scales a pad's end of travel to 0.8 too): 69 of 288 bikes fall within 8 s at 30 m/s (5 at 10 m/s). Findings: the bike
+  held at the lean limit sits at the peak of its tyres (slip angles of 0.07 to 0.09 rad on both, the lean 0.02 rad above its target: the closure's
+  offset), where the tyre's cornering stiffness is nil and the loop weaves at 1.5 Hz (a yaw rate of 0.1 to 0.6 rad/s) and the front wheel hops once or
+  twice a cycle (a step of the front load to 0, and to 2.5 times). Handlebar stiffness x4, finer sub-steps (1/960) and the fall limit with margin
+  each remove part of it; the front hop is not a contact-search failure (24 iterations instead of 6 change nothing). The model takes the tyre load as
+  the suspension force over the cosine of the axis against the ground normal, which at 50 degrees of lean gives a total load of 2500 N for a 1800 N
+  bike (a lateral friction component of the reaction is attributed to the normal); making the load cosine-free moves 3 of 20 bikes at 30 m/s to a
+  stick of 1.0 and changes nothing else, so it is probably also wrong, but it is not the cause. At a stick of 1.0 and 8 m/s the controller's wanted
+  front force climbs to 16 kN (the tyre's peak is 1.7 kN): the bike falls inward for want of roll authority, the steer sitting at 0.22 rad, the aim
+  saturated at the geometric steer plus the peak slip, the front tyre's force the wrong way; the rotation about the leaned steering axis gives less
+  slip on the ground as the lean grows (about its cosine), which would explain it. The reference's controller has the same formula; the difference
+  is not found.
+- A full-throttle start with the stick held for 10 s: 17 of 288 bikes fall, 16 of them after 9 s, above 80 m/s (290 km/h); one (a 2024 600) at 1.7 s.
+- Five bikes still fall in the corner with the pedal down, 0.6 to 0.8 s after the lever is let go (5.6 to 5.8 s).
 - `MaxDeltaTime`, `MaxSubsteps`: the project settings were not found; 1/480 s is the model's.
-- The front suspension's top-out and the hop of the front wheel when the load falls to 1000 N at 50 degrees of lean are not understood.
 - The clutch is a closed-form stand-in (section 5); the feathering start's end is the release speed (section 5).
-- In-game check: the scripted drive of a bike (`view-world --drive <ID> --at 985,4430`, a long `--drive-script`) runs and the bike revs, accelerates
-  and stays upright on the road; the script clock runs while the world loads, so short scripts end before the first screenshot, and the car
-  park of the default spawn faces a bus.
+- In-game check: the build runs the scripted drives of bikes (`view-world --drive <ID> --at 985,4430 --mods-dir <mods with the bike manifests>`): the
+  bike revs, moves, collides and stays upright against walls. The script clock does not follow the screenshots' (the sim runs ahead during the
+  world's load: a script of 20 s was over before the first frame, one of 60 s had not started at the 16th second), the default spawn faces a bus, and
+  the other spots tried face a wall or a toll booth, so a screenshot of a leaning bike was not obtained; the lean is checked in the sweeps.
