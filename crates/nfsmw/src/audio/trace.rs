@@ -34,6 +34,8 @@ struct Session {
 pub(super) struct Record<'a> {
     pub event: &'a str,
     pub instance: u64,
+    pub trigger: Option<i32>,
+    pub group: Option<&'a str>,
     pub bank: &'a str,
     pub class: &'a str,
     pub logical_ms: f64,
@@ -69,6 +71,18 @@ impl Record<'_> {
             self.logical_ms, self.instance
         );
         quoted(&mut out, self.event);
+        out.push_str(",\"trigger\":");
+        match self.trigger {
+            Some(v) => {
+                let _ = write!(out, "{v}");
+            }
+            None => out.push_str("null"),
+        }
+        out.push_str(",\"group\":");
+        match self.group {
+            Some(v) => quoted(&mut out, v),
+            None => out.push_str("null"),
+        }
         out.push_str(",\"bank\":");
         quoted(&mut out, self.bank);
         out.push_str(",\"class\":");

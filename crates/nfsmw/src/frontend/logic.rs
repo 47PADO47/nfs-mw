@@ -60,20 +60,8 @@ pub enum QuitTo {
     Career,
 }
 
-/// What the pause menu offers: a race is running (Resume Race and Restart instead of Resume Free Roam), where Quit
-/// goes, whether a co-op session is on (End Co-op), and whether it may end now (`coop_locked`: player 2 is racing or
-/// chased, `docs/specs/coop-career.md` section 3.2).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct PauseCtx {
-    /// The original tuning entry: absent in modes that exclude it, otherwise grey until a path is available.
-    pub tuning: Option<bool>,
-    pub race: bool,
-    pub quit: QuitTo,
-    pub coop: bool,
-    pub coop_locked: bool,
-    /// The career is being played outside a race and has entered the Blacklist: the pause menu lists Blacklist at this stage.
-    pub blacklist: Option<u8>,
-}
+mod pause;
+pub use pause::PauseCtx;
 
 pub use super::footer::Footer;
 
@@ -91,6 +79,8 @@ pub enum Command {
     /// Main menu / My Cars: customize installed cars outside the career economy.
     OpenGarage,
     OpenTuning,
+    /// Return an eligible career free-roam session to the safe house.
+    JumpToSafeHouse,
     /// Replace the top screen with another.
     Switch(String, Args),
     Push(String, Args),
@@ -205,6 +195,12 @@ pub enum Command {
     OpenGraphics,
     /// Change one slot (0 primary, 1 secondary) of a control to the next key pressed (`controls_screen.rs`).
     Remap(Control, usize),
+    /// Capture a physical controller assignment for the selected slot.
+    RemapController(Control, usize),
+    /// Preview a licensed song, or stop preview when leaving the jukebox.
+    JukeboxPreview(Option<usize>),
+    /// Apply edited song modes to the live radio.
+    JukeboxChanged(crate::settings::eatrax::Jukebox),
     /// The boot flow goes on to its next step.
     NextBootStep,
     /// Save the career being played to its profile (`MC_Main.fng`, `flow_save.rs`).
@@ -408,6 +404,11 @@ pub enum Pick {
 }
 
 pub trait ScreenLogic: Send + Sync {
+    /// Whether a transition currently permits new logical input.
+    fn accepts_input(&self) -> bool {
+        true
+    }
+
     /// Full pages keep their parent for Back without drawing it underneath; dialogs leave it visible.
     fn covers_screens(&self) -> bool {
         false

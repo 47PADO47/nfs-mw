@@ -192,3 +192,53 @@ fn a_click_on_a_hud_row_asks_for_the_key_of_the_half_it_landed_on() {
     });
     assert_eq!(remap(&commands), Some((HUD_ROWS[HUD_ROWS.len() - 1], 1)), "a row past the end is the last one");
 }
+
+#[test]
+fn batch12_controller_tab_routes_each_list_style_to_pad_remapping_and_back_to_keys() {
+    let texts = super::super::controls_pages::texts(&Bindings::default(), None, None);
+    for style in [UiStyle::Original, UiStyle::Custom, UiStyle::Remastered] {
+        let mut logic = ControlsLogic::new(PACKAGE, Args::default());
+        let commands = with_cx(style, &texts, |cx| {
+            logic.start(cx);
+            logic.message(cx, blackbox_feng::ids::PAD_RTRIGGER);
+            logic.pick_row(cx, 2, Pick::Press(Way::Stay, 0.2));
+        });
+        assert!(commands.contains(&Command::RemapController(ROWS[2], 0)), "{style:?}: {commands:?}");
+        assert!(logic.controller);
+        if let Some(list) = logic.list(&UiAssets::empty()) {
+            assert_eq!(list.title, "Controller Configuration");
+            assert_eq!(list.entries.len(), ROW_COUNT + HUD_ROWS.len());
+        }
+        let commands = with_cx(style, &texts, |cx| {
+            logic.message(cx, blackbox_feng::ids::PAD_LTRIGGER);
+            logic.pick_row(cx, 0, Pick::Press(Way::Stay, 0.8));
+        });
+        assert!(commands.contains(&Command::Remap(ROWS[0], 1)));
+        assert!(!logic.controller);
+    }
+}
+
+#[test]
+fn batch12_controller_waiting_field_is_modal_and_has_escape_capture_footer() {
+    let hint = crate::i18n::text("controls-release-input", &crate::i18n::Args::new()).to_uppercase();
+    let texts = super::super::controls_pages::texts(&Bindings::default(), None, Some((ROWS[0], 0, hint)));
+    let mut logic = ControlsLogic::new(PACKAGE, Args::default());
+    let commands = with_cx(UiStyle::Custom, &texts, |cx| {
+        logic.start(cx);
+        logic.message(cx, blackbox_feng::ids::PAD_RTRIGGER);
+        logic.tick(cx, 0.0);
+        assert!(!logic.accepts_input());
+        assert_eq!(logic.footer(), Footer::ControlsCapture);
+        logic.message(cx, PAD_BACK);
+        logic.message(cx, blackbox_feng::ids::PAD_LTRIGGER);
+        logic.pick_row(cx, 5, Pick::Press(Way::Stay, 0.8));
+        logic.scroll(cx, 1);
+    });
+    assert!(commands.is_empty());
+    assert_eq!(logic.cell, Cell { row: 0, slot: 0 });
+    assert!(logic.controller);
+    let texts = super::super::controls_pages::texts(&Bindings::default(), None, None);
+    with_cx(UiStyle::Custom, &texts, |cx| logic.tick(cx, 0.0));
+    assert!(logic.accepts_input());
+    assert_eq!(logic.footer(), Footer::ControlsPages);
+}

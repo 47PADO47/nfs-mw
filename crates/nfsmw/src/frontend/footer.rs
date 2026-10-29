@@ -5,6 +5,13 @@
 pub enum Footer {
     #[default]
     Standard,
+    ControlsPages,
+    ControlsCapture,
+    /// EA Trax changes its navigation hints while reordering.
+    Jukebox {
+        reorder: bool,
+        has_songs: bool,
+    },
     /// Only Back: the alias manager, Quick Race and profile list; also the Remastered career and safe house lists.
     BackOnly,
     /// Back then Accept: the original category, career and safe house carousels; the custom race's track list and
@@ -22,6 +29,8 @@ pub enum Footer {
     Orbit,
     GarageManager {
         add: bool,
+        /// A real selected/previewed car is available; the manager's Add tile has none.
+        showcase: bool,
     },
     GarageMain {
         shop: bool,
@@ -35,6 +44,7 @@ pub enum Footer {
         active: bool,
     },
     GarageTuning,
+    GarageTuningHelp,
     GarageNumbers,
 }
 
@@ -49,6 +59,7 @@ impl Footer {
                 | Self::GarageSelect
                 | Self::GarageCart { .. }
                 | Self::GarageTuning
+                | Self::GarageTuningHelp
                 | Self::GarageNumbers
         )
     }

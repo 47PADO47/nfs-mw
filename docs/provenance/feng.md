@@ -7,6 +7,14 @@ The game side is `crates/nfsmw/src/hud/`.
 - **Specs:** [formats/frontend.md](../formats/frontend.md) (layouts),
   [specs/feng-runtime.md](../specs/feng-runtime.md) (runtime and drawing rules),
   [formats/text.md](../formats/text.md) (string tables).
+- **Dialog presentation observation (2026-10-27):** a recorded modded-PC quit dialog shows Yes in the middle,
+  No on the right, and a visible highlight on No in the inspected frame. This supplies visual evidence for the
+  observed two-answer layout in [confirmation-dialogs](../specs/confirmation-dialogs.md); it does not establish
+  other variants, the original input sequence, or remake rendering parity. No game assets or code were copied.
+- **Options scrollbar observation (2026-10-27):** recorded modded-PC Player and Video frames show no bar on
+  Player and a bar on the overflowing Video page. Player row counts differ in the remake. The short-list policy
+  in [frontend menus](../specs/frontend-menus.md) is independently implemented; the frames do not establish
+  thumb motion or unmodified PC behavior.
 - **Sources read for the specs:**
   - [dbalatoni13/nfsmw](https://github.com/dbalatoni13/nfsmw) (CC0-1.0, decompiled): `src/Speed/Indep/Src/FEng/*`
     (`FEngine`, `FEPackage`, `FEObject`, `FEScript`, `FEKeyTrack`, `FEKeyInterp*`, `FEMessageResponse`,
@@ -52,3 +60,13 @@ The game side is `crates/nfsmw/src/hud/`.
   the unit UV square. Tests cover phase, direction, filtering borders, geometry
   and upload reuse; installed tests identify both affected stripes. Original
   PC pixel parity and unknown addressing flags have not been verified.
+
+- **Video scrollbar arrows (2026-10-27):** recorded modded-PC Video frames show both arrow glyphs on the initial
+  and scrolled windows. The host restores the arrow groups within their scrollbar parent. Clicking a drawn arrow
+  follows the remake's existing selection navigation; see [menu specification](../specs/frontend-menus.md).
+  Original pointer behavior and exact edge animation remain unverified.
+
+- **Interpolation invariants (2026-10-27) [ours]:** near-equal rotations use normalized linear interpolation,
+  preserving constant keys, quaternion sign equivalence and composition with the base rotation. Quaternion MoveTo
+  derives its starting delta from the current pose and base. Reflected ping-pong time follows the same interpolation
+  path as forward time. Synthetic invariant tests cover these corrections; no original timing or pixel parity is claimed.

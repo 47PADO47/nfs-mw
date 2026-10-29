@@ -308,16 +308,30 @@ port's record of the choice, `docs/provenance/eatrax-jukebox.md`, pass 4).
 - **File.** `eatrax_jukebox.toml`: `random = false` and `songs = [[song, mode], ...]` in table order (mode 0 off, 1
   menus, 2 in game, 3 both). A bad file is the defaults; out-of-range or repeated songs are dropped; songs the file
   leaves out follow in default order.
-- **Screen.** Four rows per page with the artist, the title (with the mode in brackets) and the album; the number of
-  the row is the table position. Up and down move the highlight. Left and right turn the page. Accept cycles the mode
-  of the highlighted song. Re-Order (PAD_BUTTON5) turns re-order on: then up and down move the song, and the highlight
-  follows it; off again, the order is kept. L1 and R1 set the order line to Random or Sequential. Prev (PAD_BUTTON4)
-  moves the highlight up. Back saves and returns to the audio category. Every change is saved at once.
-- **Radio.** The radio reads the file when it loads. The jukebox's order flag wins over the config's `shuffle` for
-  the EA Trax songs (the order is set after the custom sources). Custom tracks are not on the screen.
-- **Limits.** A change made after the radio has loaded (a drive started earlier in the session) takes effect when
-  the radio next loads, not at once. The meaning of the Prev key and of the re-order key is the port's reading of
-  section 8 [ours]. Nothing has been listened to.
+- **Screen.** Four visible rows show the artist, title, album, and mode. Up and down move the highlight and scroll the window.
+  Left and right change the selected mode. Accept saves and returns to the categories after the authored exit.
+  Its original game-side meaning remains unverified. Grab (PAD_BUTTON5) turns re-order on: then up and down move the
+  song and the highlight follows it; release keeps the order. L1 and R1 change Random/Sequential. Preview
+  (PAD_BUTTON4) requests the selected song's installed index without changing selection, order or enabled mode.
+  Back saves and returns to the audio category. Every edit is saved at once.
+- **Footer [modded-PC observed; remake bindings].** The recorded reference shows Back, Accept, Preview and Grab
+  with controller glyphs and LT/RT around play order. The remake binds X (`MenuButton2`) to Preview and a separate
+  `JukeboxGrab` action to Y/keyboard 1. It keeps the other screens' secondary-action bindings. The hints use the actual
+  current bindings. The reference is modded PC evidence; this does not establish stock-controller parity.
+- **Labels.** All four mode labels come from the installed table: `JUKEBOX_PLAY_OFF`, `JUKEBOX_PLAY_FRONTEND`,
+  `JUKEBOX_PLAY_INGAME` and `JUKEBOX_PLAY_ALL` (English Off, Menu, Racing, All). The prior custom In Game/Both labels
+  were a presentation mismatch. These names do not change the saved four-mode values.
+- **Radio.** The radio reads the file when it loads and applies edits to already-loaded lists through a frontend
+  command. The current normal song finishes; subsequent choices use the edited lists. The jukebox's order flag wins
+  over the config's `shuffle` for EA Trax. Custom tracks are not on the screen.
+- **Preview.** A preview holds the prior music stream and starts the selected licensed track through the existing
+  music decoder/mixer. It does not consume the playlist or history or change the radio's on/off setting. Another
+  Preview replaces only the preview. At song end it waits for another request. Closing the jukebox restores the prior
+  stream and its paused state; the audio service also cleans up an unexpected screen switch. Police speech, menu sounds
+  and other effects retain their separate transports. Pursuit ownership refuses a preview.
+- **Limits.** Physical input and listening comparisons remain unverified. The reported initial/default values and
+  exact original mode cycle order still require a fresh-reference profile. Existing `DefPlay` defaults remain intact;
+  no reset action is added without evidence of its intended scope and binding.
 
 ## Dead ends (don't repeat)
 
@@ -348,3 +362,5 @@ port's record of the choice, `docs/provenance/eatrax-jukebox.md`, pass 4).
    names with the pad, the song index and the list's scroll words).
 7. In game, check the key mapping (section 8) and the meaning of "Squential", L1 and R1, with the package running
    on the original.
+
+The remake uses Up and Down to scroll a four-row window. Left and Right change the selected track mode in the order Off, Menu, In Game, Both. Accept completes the authored exit without changing that mode. These controls follow the requested remake behavior; the original mode cycle order remains unverified.

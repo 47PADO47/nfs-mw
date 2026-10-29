@@ -65,7 +65,7 @@ fn installed_garage_vinyl_remaps_keep_native_identity_and_commit_all_channels_at
     h.press(pad::ACCEPT);
     let cart = h.ui.0.lock().unwrap().cart.clone();
     assert!(cart.parts.parts[Part::Vinyl as usize].is_some());
-    assert_eq!(cart.parts.vinyl_color_parts, [Some(1001), Some(1010), Some(1020)]);
+    assert_eq!(cart.parts.vinyl_color_parts, [Some(1001), None, None]);
     assert!(h.saved.is_empty());
 }
 
@@ -86,13 +86,20 @@ fn installed_garage_gauge_colors_use_the_native_layer_grid_and_cancel_without_ad
     h.press(pad::BACK);
     assert_eq!(h.top(), "CustomHUD.fng");
     assert_eq!(h.model.draft.gauges.skin, 1, "cancelled colors return to selected style");
+    assert_eq!(h.model.draft.gauges.color_parts, [None; 3], "cancelling restores every uncommitted channel");
     assert_eq!(h.ui.0.lock().unwrap().cart.gauges.skin, 0);
     h.press(pad::ACCEPT);
     assert_eq!(h.top(), "CustomHUDColor.fng", "the same style can reopen its native color grid");
+    let before = h.model.draft.gauges.clone();
+    assert_eq!(before.color_parts, [None; 3], "opening the grid does not synthesize channel edits");
     h.press(pad::ACCEPT);
     let cart = h.ui.0.lock().unwrap().cart.clone();
     assert_eq!(cart.gauges.skin, 1);
-    assert_eq!(cart.gauges.color_parts, [Some(1030), Some(1040), Some(1050)]);
+    assert_eq!(cart.gauges.color_parts, [None, Some(1040), None], "Accept applies the active needle swatch");
+    assert_eq!(cart.gauges.needle, Some([80, 80, 160]));
+    assert_eq!(cart.gauges.backing, before.backing, "the unrelated backing channel is preserved");
+    assert_eq!(cart.gauges.digits, before.digits, "the unrelated character channel is preserved");
+    assert!(h.saved.is_empty());
 }
 
 #[test]
@@ -321,14 +328,14 @@ fn installed_garage_tuning_fills_bind_native_images_and_keep_signed_center_ancho
             let width = base.size.x * fraction;
             assert!((fill.size.x - width).abs() < 0.0001, "{side} value {value}");
             assert_eq!(fill.size.y, 32.0);
-            let anchor = base.local_position.truncate() - base.size.truncate() * 0.5 + glam::Vec2::new(2.0, -12.0);
-            assert!((fill.local_position.x - width * 0.5 - anchor.x).abs() < 0.0001);
-            assert!((fill.local_position.y - fill.size.y * 0.5 - anchor.y).abs() < 0.0001);
+            let inner = base.local_position.x - base.size.x * 0.5 + 2.0 * direction;
+            assert!((fill.local_position.x - width * 0.5 - inner).abs() < 0.0001);
+            assert_eq!(fill.local_position.y, base.local_position.y);
             let blackbox_feng::NodeKind::Image { texture, uv, .. } = &fill.kind else {
                 panic!("native fill is an image")
             };
             let texture_width = h.screens.assets().texture_size(*texture).unwrap().0 as f32;
-            assert!((uv[2] - width / texture_width).abs() < 0.0001);
+            assert!((uv[2] - width.abs() / texture_width).abs() < 0.0001);
             assert_eq!([uv[0], uv[1], uv[3]], [0.0, 0.0, 1.0]);
             assert_eq!(fill.visible, fraction > 0.0);
         }

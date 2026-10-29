@@ -261,6 +261,8 @@ fn menus() -> Vec<Binding> {
         Binding::new(MenuButton2, button(GamepadButton::West), 1.0),
         Binding::new(MenuButton3, key(KeyCode::Digit3), 1.0),
         Binding::new(MenuButton3, button(GamepadButton::RightTrigger), 1.0),
+        Binding::new(JukeboxGrab, key(KeyCode::Digit1), 1.0),
+        Binding::new(JukeboxGrab, button(GamepadButton::North), 1.0),
         Binding::new(MenuZoomIn, key(KeyCode::Digit9), 1.0),
         Binding::new(MenuZoomOut, key(KeyCode::Digit0), 1.0),
         Binding::new(MenuZoomIn, button(GamepadButton::RightTrigger2), 1.0),
@@ -373,6 +375,21 @@ mod map_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn jukebox_grab_uses_y_and_has_its_own_rebindable_action() {
+        let bindings = defaults();
+        let grabbed: Vec<Source> =
+            bindings.iter().filter(|b| b.action == Action::JukeboxGrab).map(|b| b.source).collect();
+        assert_eq!(grabbed, [Source::Key(KeyCode::Digit1), Source::PadButton(GamepadButton::North)]);
+        assert_eq!(Action::parse("jukebox_grab"), Ok(Action::JukeboxGrab));
+        assert!(
+            bindings
+                .iter()
+                .any(|b| b.action == Action::MenuButton1 && b.source == Source::PadButton(GamepadButton::LeftTrigger)),
+            "other screens retain their existing secondary action"
+        );
+    }
 
     #[test]
     fn paddles_bind_the_codes_given_and_nothing_else() {

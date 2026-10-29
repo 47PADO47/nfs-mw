@@ -55,6 +55,8 @@ pub(super) mod flow_movie;
 mod flow_prologue;
 #[path = "flow_rival.rs"]
 mod flow_rival;
+#[path = "flow_safehouse.rs"]
+mod flow_safehouse;
 #[path = "flow_save.rs"]
 mod flow_save;
 #[path = "flow_series.rs"]
@@ -117,7 +119,7 @@ pub enum Stage {
 }
 
 /// Windows wider than this (width over height) get the widescreen title screen; 4:3 is 1.33.
-const WIDE_ASPECT: f32 = 1.4;
+pub(super) const WIDE_ASPECT: f32 = 1.4;
 
 #[derive(Resource)]
 pub struct Frontend {
@@ -152,6 +154,7 @@ pub struct Frontend {
     pub(super) last_mask: u32,
     /// A slot waiting for its next key (the controls screen asked; `plugin.rs` takes the key).
     pub(super) remap: Option<(Control, usize)>,
+    pub(super) controller_remap: Option<super::controller_remap::Capture>,
     /// The sidebar's hand-over, when a viewer runs the front end over its own scene (`Start::Browse`).
     pub(super) browse: Option<Browse>,
     /// Whether the scene in the window is the menu backdrop. Its car is read from the install and uploaded once, when
@@ -241,6 +244,7 @@ impl Frontend {
             save: true,
             last_mask: 0,
             remap: None,
+            controller_remap: None,
             browse: None,
             menu_in_window,
             career: CareerHandle::default(),
@@ -383,10 +387,7 @@ impl Frontend {
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;
-        let race = host.scene.race_active();
-        let blacklist = self.pause_blacklist(race);
-        let tuning = host.scene.tuning_available().filter(|_| !self.series.active && self.split.is_none());
-        let pause_ctx = PauseCtx { race, quit: self.origin, blacklist, tuning, ..flow_coop::coop_pause(host) };
+        let pause_ctx = self.pause_context(host);
         let commands = self.screens.open(PAUSE_MENU, Args { pause: true, pause_ctx, ..Args::default() }, true, env);
         self.apply(commands, host, env);
     }
@@ -418,7 +419,7 @@ impl Frontend {
     pub(super) fn apply(&mut self, commands: Vec<Command>, host: &mut Host, env: &mut Env) {
         for command in commands {
             match command {
-                Command::OpenGarage => self.open_garage(host),
+                Command::OpenGarage => self.open_garage(host, env),
                 Command::OpenTuning => self.open_tuning(host, env),
                 Command::StartFreeRoam => {
                     self.career.end_play();
@@ -442,6 +443,7 @@ impl Frontend {
                 Command::StartQuickPlay { race, car } => self.start_quick_play(race, car, host, env),
                 Command::ResumeCareer => self.resume_career(host, env),
                 Command::LeaveSafeHouse => self.leave_prelude(host, env),
+                Command::JumpToSafeHouse => self.jump_to_safe_house(host, env),
                 Command::ChallengeRival { bin } => self.challenge_rival(bin, host, env),
                 Command::LaunchEvent { event } => self.launch_event(event, host, env),
                 Command::JumpTo { x, y } => self.jump_to([x, y], host, env),
@@ -474,10 +476,10 @@ impl Frontend {
                 Command::CareerCar(action) => self.career_car_action(action, host, env),
                 Command::SaveSettings => self.save_settings(env.changed),
                 Command::OpenGraphics => self.graphics_requested = true,
-                Command::Remap(control, slot) => {
-                    log::info!("remap: waiting for a key for {control:?} slot {slot}");
-                    self.remap = Some((control, slot));
-                }
+                Command::Remap(control, slot) => super::controller_remap::begin(self, control, slot, false),
+                Command::RemapController(control, slot) => super::controller_remap::begin(self, control, slot, true),
+                Command::JukeboxPreview(song) => crate::audio::eatrax_preview::request(song),
+                Command::JukeboxChanged(jukebox) => crate::audio::eatrax_preview::changed(jukebox),
                 Command::AliasCreate(alias) => self.alias_create(&alias, host, env),
                 Command::PayBust { marker } => self.pay_bust(marker, host, env),
                 Command::RaceAnswer(answer) => self.race_answer(answer, host, env),

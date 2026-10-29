@@ -29,11 +29,17 @@ struct State {
     shown: Option<&'static str>,
     /// An intro starts at its end (`CameraRig::settled`).
     settled: bool,
+    /// A screen selected during the stage intro takes its own pose after that intro completes.
+    deferred: Option<&'static str>,
 }
 
 /// A handle on the camera. Clones share one camera.
 #[derive(Clone, Default)]
 pub struct CameraRig(Arc<Mutex<State>>);
+
+#[cfg(test)]
+#[path = "camera_rig_tests.rs"]
+mod tests;
 
 impl CameraRig {
     fn state(&self) -> MutexGuard<'_, State> {
@@ -51,6 +57,7 @@ impl CameraRig {
     pub fn reset(&self) {
         let mut state = self.state();
         (state.stage, state.motion, state.shown) = (None, None, None);
+        state.deferred = None;
     }
 
     /// A backdrop of `stage` is up. A stage that did not have the camera before plays its intro: the camera is put on
@@ -75,6 +82,7 @@ impl CameraRig {
         }
         state.motion = Some(motion);
         (state.stage, state.fresh, state.shown) = (Some(stage), true, None);
+        state.deferred = None;
     }
 
     /// The screen on top has the pose collection `screen`: the camera eases to its pose from where it is. Asking again for
@@ -87,8 +95,10 @@ impl CameraRig {
         state.shown = Some(screen);
         let first = std::mem::take(&mut state.fresh);
         if first && !state.settled {
+            state.deferred = Some(screen);
             return;
         }
+        state.deferred = None;
         let Some(goal) = state.book.as_ref().and_then(|book| book.screen(screen)) else { return };
         let settle = first && state.settled;
         if let Some(motion) = &mut state.motion {
@@ -132,6 +142,14 @@ impl CameraRig {
         let mut state = self.state();
         let Some(motion) = &mut state.motion else { return false };
         motion.advance(dt);
+        if motion.finished() {
+            let goal = state.deferred.take().and_then(|screen| state.book.as_ref()?.screen(screen));
+            if let Some(goal) = goal
+                && let Some(motion) = &mut state.motion
+            {
+                motion.retarget(&goal);
+            }
+        }
         true
     }
 

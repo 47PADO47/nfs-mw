@@ -48,6 +48,7 @@ fn status(cx: &mut Cx, installed: bool, cart: bool, locked: bool) {
     let status = cx.object(0xd058_2feb);
     if let Some(object) = status {
         cx.rt.set_hidden(object, !installed && !cart);
+        reveal_marker(cx, object, installed || cart);
         if installed {
             cx.rt.set_texture(object, 0x696a_e039);
         }
@@ -57,9 +58,23 @@ fn status(cx: &mut Cx, installed: bool, cart: bool, locked: bool) {
     }
     if let Some(object) = cx.object(0xcffb_7033) {
         cx.rt.set_hidden(object, !locked);
+        reveal_marker(cx, object, locked);
         if locked {
             cx.rt.set_texture(object, 0xf057_4bb2);
         }
+    }
+}
+
+fn reveal_marker(cx: &mut Cx, object: blackbox_feng::ObjectRef, shown: bool) {
+    let key = format!("garage:marker:{:?}:{}", object.package, object.index);
+    let previous = cx.memory.insert(key, usize::from(shown));
+    if !shown {
+        return;
+    }
+    // These native markers initialize with a zero-alpha/zero-scale hide script.
+    // Clearing set_hidden alone does not make them visible. Replay the authored reveal once.
+    if previous != Some(1) || cx.rt.script_of(object) == Some(0x7ab7_0d67) {
+        cx.rt.run_script(object, 0x0280_164f);
     }
 }
 

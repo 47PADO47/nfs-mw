@@ -17,3 +17,9 @@ prompts-adjust = Adjust
 
 # The key that shows or hides the map's legend.
 prompts-legend = Legend
+
+# EA Trax controls implemented by the remake.
+prompts-move = Move
+prompts-order = Order
+
+prompts-device = Device

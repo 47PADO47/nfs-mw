@@ -93,9 +93,3 @@ options-mods-press = Press
 # A mod's switch when the next start changes what this run did. $id is the mod's id.
 options-mods-restart-to-unload = { $id } (restart to unload)
 options-mods-restart-to-load = { $id } (restart to load)
-
-## EA Trax jukebox: where a song plays
-
-options-jukebox-menu = Menu
-options-jukebox-in-game = In game
-options-jukebox-both = Both

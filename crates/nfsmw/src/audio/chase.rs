@@ -74,6 +74,17 @@ pub(crate) fn load_air_support() -> AirSupport {
 }
 
 impl Audio {
+    /// Stops only police speech and its pending gameplay requests when the owning scene leaves.
+    pub(super) fn stop_police_radio(&mut self) {
+        if let Some(speech) = self.speech.loaded_mut() {
+            speech.silence();
+        }
+        self.set_speech_context(0, 0.0, 0.0);
+        self.chase_radio.reset_session();
+        self.chase_cues = Cues::new();
+        self.trace.note("police_session_end", "scene changed");
+    }
+
     /// The air-support switches the chase obeys from now on.
     pub fn set_air_support(&mut self, air_support: AirSupport) {
         self.air_support = air_support;
@@ -87,6 +98,10 @@ impl Audio {
         match chase {
             Some(chase) => self.set_speech_context(chase.heat as i32, chase.player_mph, chase.secs),
             None => self.set_speech_context(0, 0.0, 0.0),
+        }
+        // A paused world keeps its music context, but consumes no notices, finished lines or weather edges.
+        if dt <= 0.0 {
+            return;
         }
         self.run_chase_radio(chase, ended, dt);
         let Some(cue) = self.chase_cues.step(chase) else { return };

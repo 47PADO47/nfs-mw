@@ -17,7 +17,7 @@ use glam::Vec2;
 use super::browse::Browse;
 use super::flow::{Boot, Frontend, Stage, Start};
 use super::logic::{Command, Env};
-use super::plugin_keys::{TypedKeys, collect_typed, pad_mask, remember_key, text_mask};
+use super::plugin_keys::{TypedKeys, collect_typed, pad_mask, text_mask};
 use super::pointer::{self, feng_point};
 use super::screens::{MenuLayers, Presented};
 use super::script::{self, UiScript};
@@ -90,7 +90,7 @@ struct MapParams<'w, 's> {
     /// Split screen: the device whose Start went down, and the seats of a race (`flow_split.rs`).
     split: ResMut<'w, crate::input::SplitInput>,
     /// The connected pads, for a co-op guest on a pad.
-    pads: Query<'w, 's, Entity, With<Gamepad>>,
+    pads: Query<'w, 's, (Entity, &'static Gamepad)>,
 }
 
 /// How long a menu step may take before it is logged as a stall.
@@ -153,6 +153,7 @@ fn update(
     fe.begin(host, &mut env);
     fe.poll_garage(host, &mut env, &mut garage);
     if fe.menu_garage_requested || garage.menu_requested {
+        fe.garage_loading_frame(time.delta_secs().min(MAX_STEP), pad_mask(&actions), host, &mut env, &mut garage);
         fe.changed = changed;
         return;
     }
@@ -185,16 +186,17 @@ fn update(
     // The pointer on the screen (FEng units): a scripted run sets it (`pointer X Y`), else it is the window's.
     let pointer = fe.script.as_ref().and_then(UiScript::pointer).or_else(|| feng_point(&window));
     let device = fe.script.as_ref().and_then(|s| s.device).unwrap_or(input.device);
-    if let Some((control, slot)) = fe.remap
-        && let Some(key) = script_key.or_else(|| keys.get_just_pressed().next().copied())
-    {
-        fe.remap = None;
-        if key != KeyCode::Escape {
-            remember_key(&mut bindings, control, slot, key);
+    fe.screens.trace_device(device, input.active_pad.is_some(), input.disconnected, scripted.is_some());
+    let remapping = super::controller_remap::update(fe, &mut bindings, &keys, script_key, input.active_pad, &map.pads);
+    let controller_wait = fe.controller_remap.as_ref().map(|capture| (capture.control, capture.slot, capture.hint()));
+    fe.screens.set_key_texts(super::controls_pages::texts(&bindings, fe.remap, controller_wait));
+    let mut mask = scripted.unwrap_or_else(|| pad_mask(&actions));
+    if fe.jukebox_active() && scripted.is_none() {
+        mask &= !((pad::BUTTON0 << 1) | (pad::BUTTON0 << 5));
+        if actions.pressed(Action::JukeboxGrab) {
+            mask |= pad::BUTTON0 << 5;
         }
     }
-    fe.screens.set_key_texts(super::controls_screen::key_texts(&bindings, fe.remap));
-    let mut mask = scripted.unwrap_or_else(|| pad_mask(&actions));
     if fe.garage_ui.is_some() && (keys.pressed(KeyCode::Digit4) || script_key == Some(KeyCode::Digit4)) {
         mask |= pad::START;
     }
@@ -212,7 +214,7 @@ fn update(
     if dialog_over_map && let Some(point) = pointer {
         fe.screens.hover(point, &mut env);
     }
-    if matches!(fe.stage, Stage::Menus | Stage::Paused) || dialog_over_map {
+    if !remapping && (matches!(fe.stage, Stage::Menus | Stage::Paused) || dialog_over_map) {
         // A vertical menu follows the pointer's movement: the row under it is selected, as the keys would.
         if !on_list {
             fe.screens.hover_row(pointer, &mut env);
@@ -264,14 +266,16 @@ fn update(
         map.typed.0.clear();
     }
     // The wheel scrolls the menus a notch at a time; the fraction of a notch waits for the next frame.
-    let menus = matches!(fe.stage, Stage::Menus | Stage::Paused) && !on_list;
+    let remapping = remapping || fe.remap.is_some() || fe.controller_remap.is_some();
+    let menus = matches!(fe.stage, Stage::Menus | Stage::Paused) && !on_list && !remapping;
     let notches = super::plugin_keys::menu_wheel_steps(&actions, &mut wheel, menus);
     if notches != 0 {
         let commands = fe.screens.scroll(notches, &mut env);
         fe.apply(commands, host, &mut env);
     }
+    fe.latch |= remapping;
     if fe.latch {
-        if mask != 0 {
+        if mask != 0 || remapping {
             mask = 0;
         } else {
             fe.latch = false;
@@ -383,7 +387,9 @@ fn update(
 
     fe.last_mask = mask;
     // The input layer seats both players while a split-screen race or a co-op session (`input::coop_seats`) is on.
-    let seats = fe.split_seats().or_else(|| crate::input::coop_seats(host.scene.coop_second_device(), map.pads.iter()));
+    let seats = fe.split_seats().or_else(|| {
+        crate::input::coop_seats(host.scene.coop_second_device(), map.pads.iter().map(|(entity, _)| entity))
+    });
     if map.split.devices() != seats {
         map.split.seat(seats);
     }

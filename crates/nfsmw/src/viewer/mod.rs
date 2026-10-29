@@ -364,6 +364,10 @@ pub trait Scene {
     fn take_career_request(&mut self) -> Option<crate::career::CareerRequest> {
         None
     }
+    /// Keep driven heat and discard unbanked chase progress before the career pause shortcut unloads the world.
+    fn prepare_safe_house(&mut self) -> bool {
+        false
+    }
     /// The game is on but frozen (the pause menu is up): there is no car sound, yet the game is still being
     /// played, so the radio goes on.
     fn paused(&self) -> bool {

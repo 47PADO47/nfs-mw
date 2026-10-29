@@ -24,6 +24,9 @@ const RESTART_AFTER: f32 = 3.0;
 
 impl Radio {
     pub(super) fn transport_available(&self) -> Result<(), String> {
+        if self.preview.is_some() {
+            return Err("EA Trax is previewing a jukebox song; close the jukebox to resume radio controls".into());
+        }
         if self.held {
             return Err("EA Trax is held for pursuit music; controls return when songs resume".into());
         }

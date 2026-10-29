@@ -48,13 +48,13 @@ impl Mode {
 
     /// The word the screen shows for the mode, in the current language.
     pub fn label(self) -> String {
-        let id = match self {
-            Self::Off => "options-off",
-            Self::Menu => "options-jukebox-menu",
-            Self::InGame => "options-jukebox-in-game",
-            Self::Both => "options-jukebox-both",
+        let label = match self {
+            Self::Off => 0x9CCE_9F86,
+            Self::Menu => 0x5278_C50B,
+            Self::InGame => 0x5C1B_351C,
+            Self::Both => 0x9CCE_64C4,
         };
-        crate::i18n::text(id, &crate::i18n::Args::new())
+        crate::i18n::game_or_error(label)
     }
 
     /// The number the file keeps (the original's profile value).

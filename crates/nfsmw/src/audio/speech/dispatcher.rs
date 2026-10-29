@@ -217,10 +217,19 @@ impl Dispatcher {
         self.pending.clear();
     }
 
-    /// Withdraw every request and forget the history (the pursuit is over).
-    pub fn reset(&mut self) {
+    /// Forget queued requests and history while retaining an active line (the console's history reset).
+    pub fn clear_history_and_pending(&mut self) {
         self.pending.clear();
         self.history.clear();
+    }
+
+    /// Forget the complete playback session so an old line cannot report completion in a later world.
+    pub fn reset(&mut self) {
+        self.clear_history_and_pending();
+        self.current = None;
+        self.finished.clear();
+        self.last_sounded = None;
+        self.pursuit_secs = 0.0;
     }
 
     /// The chance that a repeated request is kept: 1 early in a pursuit, falling to 0 along the tune's ramp.

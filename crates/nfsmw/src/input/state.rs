@@ -57,6 +57,7 @@ impl ActionState {
                     | Action::MenuButton1
                     | Action::MenuButton2
                     | Action::MenuButton3
+                    | Action::JukeboxGrab
                     | Action::MenuZoomIn
                     | Action::MenuZoomOut
                     | Action::MenuTriggerLeft

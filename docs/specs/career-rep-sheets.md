@@ -15,14 +15,21 @@ The three packages (`SafeHouseRaceSheet.fng`, `SafeHouseMilestones.fng`, `SafeHo
 `FRONTEND/FrontB.lzc`) are one layout built from the same template as the custom race's track select: a title group
 `0x242657CE`, the page counter ("3 / 9": the two static strings `0x5B805EE5` and `0x2E481779` and the "/" `0xF6586F97` are
 hidden and the shadows `0x6F25A248` and `0xB2037BDC` carry the numbers), the map picture `0x0F365871`, two scroll arrows
-`0x444969FD` and `0x444969FE`, and a group `0xCA9FA6F5` of 12 icon buttons (`EVENT_ICON_n`). The package answers PAD_UP,
+`0x444969FD` and `0x444969FE`, and a group `0xCA9FA6F5` of nine icon buttons (`EVENT_ICON_1` through `EVENT_ICON_9`).
+The installed packages arrange those buttons in three columns and three rows. The earlier twelve-slot inventory was
+incorrect; it confused this layout with the challenge series' four-column grid. The package answers PAD_UP,
 PAD_DOWN, PAD_LEFT and PAD_RIGHT with a game message and Accept and Back with pad bits only.
 
-The original fills the 12 icon buttons from the rows and moves the focus between them. **[ours]** The rewrite keeps the
-focus out of the package: the group is hidden and the pad walks the rows one at a time (Left and Up back, Right and Down
-forward, wrapping at the ends), the counter shows the position, and the panel shows the selected row. Back (the pad bit
-or the footer) goes to the overview at the rival the sheet was opened for, the mouse takes the two scroll arrows and the
-wheel steps the walk. A real-install test checks that every object the sheets fill is in the package.
+The remake fills the authored slots and plays their native highlight/unhighlight scripts. Left/Right wrap within the
+current row; Up/Down move by three entries and stop at the first/last row. A row outside the three-row window scrolls
+into view. The scrollbar uses the window's share of the total row count. The native layout is verified; these navigation
+rules reuse the remake's array-scroller convention and still require a matched original-game comparison. **[ours]**
+
+Each slot reads artwork and locked/completed state from the same entry that supplies the detail panel. Empty slots,
+their vignettes and their markers are hidden. A click selects that visible entry and asks to launch only when allowed.
+The wheel and scroll arrows move one grid row. The counter, details, active icon and remembered selection share one
+index; memory is separate for each sheet/rival. Back returns to the overview at that rival. The Remastered vertical
+list keeps its one-entry navigation. Installed-package playtest regressions are in `rep_sheets/playtest.rs`.
 
 ## 2. Race events **[exe]** + **[ours]**
 
@@ -55,6 +62,8 @@ Rows are the pursuit milestones of the bin (every state), then its speed traps. 
 `BLACKLIST_PURSUIT_MILESTONES_<NN>_SHORT` and the text `BLACKLIST_PURSUIT_MILESTONES_<NN>` with `%s` replaced by the goal
 (minutes and seconds for pursuit length and evasion time, a count otherwise), `NN` being the statistic type's label field.
 A trap shows its threshold in the player's speed unit. The bounty reward is the row's bounty.
+Pursuit icons reuse the installed statistic artwork used by challenge series/rewards; traps use the speedtrap mode icon.
+The detail icon shares the selected slot's texture. Exact original icon variants remain unverified.
 
 Accept on a done row does nothing (the original plays sound 7). On an open row it asks `REP_SHEET_MILESTONE_CONFIRM`
 (`REP_SHEET_PHOTOTICKET_CONFIRM` for a trap) and, on Yes, the world starts with the car on the row's spawn point
@@ -99,3 +108,5 @@ for a beaten rival). Back from a sheet returns to that list, and from the list t
 1. The "Cop Probability" value (the script scan of the label's users is disabled in this Ghidra setup, so its code was
 not found). 2. The sheet's second row mode (every bin from the career's bin up) and what switches it. 3. The one-time bounty
 warning `blacklist_bounty_spawn_point_first_time` (its flag is not known). 4. The in-game twins' own object layout.
+5. Exact original sheet input/scroll animation and bounty/trap artwork. The repaired bounty slots use the installed
+`MAIN_ICON_BOUNTY` artwork as an explicit presentation choice; the package's circuit placeholders are not content.

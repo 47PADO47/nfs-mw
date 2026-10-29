@@ -15,6 +15,8 @@ use crate::viewer::Scene;
 #[path = "garage_inspection.rs"]
 mod inspection;
 use inspection::Inspection;
+#[path = "garage_preview_cache.rs"]
+mod previews;
 
 /// The menu's car-selection room, the normal shop and its marker-upgrade backroom.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -42,6 +44,7 @@ pub(crate) struct GarageBackdrop {
     loaded_stage: Option<Stage>,
     inspection: Inspection,
     camera: &'static str,
+    previews: previews::Previews,
 }
 
 impl GarageBackdrop {
@@ -51,6 +54,7 @@ impl GarageBackdrop {
             loaded_stage: None,
             inspection: Inspection::default(),
             camera: "",
+            previews: previews::Previews::default(),
         }
     }
 
@@ -173,6 +177,7 @@ impl Scene for GarageBackdrop {
     }
 
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        self.clear_previews(renderer);
         self.scene.close(renderer);
         self.loaded_stage = None;
     }

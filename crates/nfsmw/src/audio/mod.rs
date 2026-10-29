@@ -34,6 +34,7 @@ pub mod cell_call;
 pub mod commands;
 mod coverage;
 mod decode_worker;
+pub mod eatrax_preview;
 mod engine;
 mod explosion;
 mod fx;

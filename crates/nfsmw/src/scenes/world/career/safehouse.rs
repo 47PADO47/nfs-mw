@@ -14,6 +14,16 @@ use crate::scenes::world::WorldScene;
 use crate::scenes::world::entry_zones::ZoneKind;
 
 impl WorldScene {
+    /// The pause jump abandons a chase. It does not complete an evade, add a strike or pay pursuit rewards.
+    pub(in crate::scenes::world) fn prepare_safe_house_jump(&mut self) -> bool {
+        if !self.career.handle.is_active() || self.race_in_progress() {
+            return false;
+        }
+        self.write_driven_heat();
+        self.career.handle.with(|career| career.milestones.abandon_pursuit());
+        true
+    }
+
     /// The career's answer to a zone the car drove into, with its card up and Interact pressed. True when the career took
     /// the entry, and the caller shows nothing more; false when the career does not take it (not career mode, a race, a
     /// custom shop, or a safe house the pursuit refuses), and the caller goes on as it does outside the career.

@@ -307,8 +307,7 @@ fn a_click_on_the_credits_back_label_returns_to_the_categories() {
     assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "back from credits by mouse: {:?}", h.commands);
 }
 
-/// The jukebox's footer labels take mouse clicks: Re-order turns the order on (a mark appears on the highlighted
-/// song's title). Back is not clicked here: leaving saves the jukebox to the user's config.
+/// The replacement Re-order hint routes to the current binding, while the native page arrow still takes clicks.
 #[test]
 fn the_jukebox_footer_labels_take_mouse_clicks() {
     let (_, ea_trax) = reach(Kind::Categories { pause: false, mods: false }, Id::EaTrax);
@@ -327,39 +326,140 @@ fn the_jukebox_footer_labels_take_mouse_clicks() {
     h.press(pad::ACCEPT);
     h.wait(1.5);
     assert_eq!(h.screens.top(), Some(screen::EA_TRAX_JUKEBOX), "EA Trax: {:?}", h.commands);
-    let label = |h: &Harness, name: u32| {
-        let tree = h.screens.trees().pop().unwrap();
-        let n = tree.nodes.iter().find(|n| n.name_hash == name).expect("the footer label");
-        n.world.transform_point3(glam::Vec3::ZERO).truncate() + glam::Vec2::new(20.0, 0.0)
+    let reorder = |h: &Harness| {
+        let bindings = crate::input::Bindings::default();
+        let device = crate::input::InputDevice::Xbox;
+        let tree = h.screens.presented_trees(&bindings, device).pop().unwrap();
+        let label = tree
+            .nodes
+            .iter()
+            .find(|n| n.visible && n.text.as_deref() == Some("Re-order"))
+            .expect("visible Re-order hint");
+        let point = label.world.transform_point3(glam::Vec3::ZERO).truncate();
+        assert_eq!(h.screens.hint_at(point, &bindings, device), Some(crate::input::Action::MenuButton1));
     };
     let titles = |h: &Harness| -> Vec<String> {
         let tree = h.screens.trees().pop().unwrap();
         tree.nodes
             .iter()
-            .filter(|n| n.text.is_some() && n.text.as_deref().is_some_and(|t| t.contains('[')))
+            .filter(|n| [0x2890_C8AF, 0x2890_C8B0, 0x2890_C8B1, 0x2890_C8B2].contains(&n.name_hash))
             .filter_map(|n| n.text.clone())
             .collect()
     };
     let before = titles(&h);
-    let re_order = label(&h, 0x1F7F_2DE0);
-    let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
-    let commands = h.screens.click(re_order, &mut env).expect("the jukebox takes the click on Re-order");
-    h.commands.extend(commands);
+    reorder(&h);
+    h.press((pad::BUTTON0 << 1) | (pad::BUTTON0 << 5));
     h.wait(0.5);
     assert_ne!(titles(&h), before, "Re-order marks the highlighted song");
-    // The right arrow turns the page: the rows change. (L1 and R1 would save the jukebox, so they are not clicked here.)
-    // Re-order is on, and the arrows only turn pages with it off: turn it off again.
-    let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
-    let commands = h.screens.click(re_order, &mut env).expect("the jukebox takes the second click on Re-order");
-    h.commands.extend(commands);
+}
+
+#[test]
+#[ignore = "requires installed menu packages; set NFSMW_GAME_DIR"]
+fn installed_playtest_eatrax_save_returns_to_visible_usable_categories() {
+    const CHILD: &str = "NFSMW_JUKEBOX_RETURN_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let profile = std::env::temp_dir().join(format!("nfsmw-jukebox-return-{}-{unique}", std::process::id()));
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["frontend::tests::icon_transition_tests::installed_playtest_eatrax_save_returns_to_visible_usable_categories", "--exact", "--ignored"])
+            .env(CHILD, "1").env("BLACKBOX_PROFILE_DIR", &profile)
+            .status().expect("start isolated jukebox test");
+        assert!(status.success(), "isolated jukebox route failed");
+        assert!(
+            profile.join("nfsmw/config/eatrax_jukebox.toml").is_file(),
+            "child ran and saved inside its isolated profile"
+        );
+        return;
+    }
+    let dir =
+        game_install::GameDir::open(std::path::PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap())).unwrap();
+    crate::frontend::jukebox::prime(&dir);
+    let (_, ea_trax) = reach(Kind::Categories { pause: false, mods: false }, Id::EaTrax);
+    let mut h = Harness::open(screen::MAIN_MENU_SUB, Args { options: true, ..Args::default() }).unwrap();
+    h.wait(1.0);
+    for _ in 0..ea_trax {
+        h.press(pad::RIGHT);
+    }
     h.wait(0.5);
-    let page = titles(&h);
-    let arrow = {
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::EA_TRAX_JUKEBOX));
+    let order = |h: &Harness| {
         let tree = h.screens.trees().pop().unwrap();
-        let n = tree.nodes.iter().find(|n| n.guid == 0xF83DE && n.visible).expect("the right arrow");
-        n.world.transform_point3(glam::Vec3::ZERO).truncate()
+        let n = tree.nodes.iter().find(|n| n.name_hash == 0xCA74_A2FA && n.visible).expect("visible play-order label");
+        n.text.clone().expect("play-order text")
     };
-    assert!(h.screens.release_at(arrow, ids::MOUSE_LEFT_RELEASED), "the right arrow takes the click");
+    let before = order(&h);
+    h.press(pad::RTRIGGER);
     h.wait(0.5);
-    assert_ne!(titles(&h), page, "the right arrow turns the page");
+    let saved = order(&h);
+    assert_ne!(before, saved, "play-order change must be visible before saving");
+    let check_parent = |h: &Harness| {
+        assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB));
+        let tree = h.screens.trees().pop().unwrap();
+        assert!(
+            tree.nodes.iter().any(|n| n.visible
+                && n.world_colour[3] > 0
+                && tree.draw_order.contains(&n.index)
+                && matches!(n.kind, NodeKind::Image { texture: 0xC52C_CBF6, .. })),
+            "returned EA Trax icon is drawn"
+        );
+        assert!(
+            tree.nodes.iter().any(|n| n.name_hash == ids::ICON_TITLE
+                && n.visible
+                && n.world_colour[3] > 0
+                && n.text.as_ref().is_some_and(|s| !s.is_empty())),
+            "returned title is visible"
+        );
+        for device in [crate::input::InputDevice::Xbox, crate::input::InputDevice::Keyboard] {
+            let presented = h.screens.presented_trees(&crate::input::Bindings::default(), device);
+            let shown = presented.last().unwrap();
+            for label in ["Back", "Accept"] {
+                assert!(
+                    shown.nodes.iter().any(|n| n.visible && n.world_colour[3] > 0 && n.text.as_deref() == Some(label)),
+                    "visible {device:?} {label} footer"
+                );
+            }
+        }
+    };
+    for _ in 0..2 {
+        h.press(pad::ACCEPT);
+        h.wait(1.5);
+        check_parent(&h);
+        h.press(pad::ACCEPT);
+        h.wait(1.5);
+        assert_eq!(h.screens.top(), Some(screen::EA_TRAX_JUKEBOX), "return selection accepts EA Trax again");
+        assert_eq!(order(&h), saved, "play order survives save and reopen");
+        h.press(pad::BACK);
+        h.wait(1.5);
+        check_parent(&h);
+        h.press(pad::ACCEPT);
+        h.wait(1.5);
+        assert_eq!(h.screens.top(), Some(screen::EA_TRAX_JUKEBOX), "Back return is usable");
+        assert_eq!(order(&h), saved, "play order survives Back and reopen");
+    }
+    let bindings = crate::input::Bindings::default();
+    let device = crate::input::InputDevice::Xbox;
+    let tree = h.screens.presented_trees(&bindings, device).pop().unwrap();
+    let label =
+        tree.nodes.iter().find(|n| n.visible && n.text.as_deref() == Some("Accept")).expect("visible Accept hint");
+    let point = label.world.transform_point3(glam::Vec3::ZERO).truncate();
+    assert_eq!(h.screens.hint_at(point, &bindings, device), Some(crate::input::Action::MenuAccept));
+    let first_mode = || {
+        let file = std::fs::read_to_string(crate::settings::eatrax::path().unwrap()).unwrap();
+        let data: toml::Value = toml::from_str(&file).unwrap();
+        data["songs"].as_array().unwrap()[0].as_array().unwrap()[1].as_integer().unwrap()
+    };
+    let before_mode = first_mode();
+    h.run(pad::ACCEPT, 1);
+    assert!(h.click(point), "additional footer clicks are consumed while leaving");
+    h.run(pad::ACCEPT | pad::RTRIGGER, 100);
+    h.run(0, 3);
+    assert_eq!(first_mode(), before_mode, "held Accept does not change mode");
+    h.wait(1.5);
+    check_parent(&h);
+    h.press(pad::ACCEPT);
+    h.wait(1.5);
+    assert_eq!(h.screens.top(), Some(screen::EA_TRAX_JUKEBOX));
+    assert_eq!(order(&h), saved, "input during exit cannot change the saved order");
 }
