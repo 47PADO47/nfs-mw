@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
+blackbox-acl.workspace = true
 blackbox-attrib.workspace = true
 blackbox-collision.workspace = true
 blackbox-hash.workspace = true

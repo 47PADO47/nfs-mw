@@ -182,6 +182,11 @@ impl Translator {
         Self { input: [0.0, 1.0], output: [0.0, 1.0], linearity: 1.0, curve: None }
     }
 
+    /// Whether the translator is a plain ramp: no curve and a linearity of 1.
+    pub fn is_plain(&self) -> bool {
+        self.curve.is_none() && (self.linearity - 1.0).abs() < 1e-9
+    }
+
     /// The input range.
     pub fn input_range(&self) -> [f64; 2] {
         self.input

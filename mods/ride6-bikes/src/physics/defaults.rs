@@ -126,6 +126,12 @@ pub mod gearbox {
     pub const THROTTLE_TIMING: [f64; 2] = [0.0, 0.0];
     /// `MinRPMSpeedScaleRange`: the constructor default.
     pub const MIN_RPM_SPEED_SCALE_RANGE: [f64; 2] = [1.05, 1.1];
+    /// `OverLimitMinChangeSpeed` (km/h), `OverLimitChangeTime`, `OverLimitChangeTimeThreshold`, `OverLimitRpmPercentage`: the
+    /// constructor defaults of the input handler.
+    pub const OVER_LIMIT_MIN_SPEED_KMH: f64 = 10.0;
+    pub const OVER_LIMIT_CHANGE_TIME: f64 = 1.0;
+    pub const OVER_LIMIT_THRESHOLD: f64 = 0.5;
+    pub const OVER_LIMIT_RPM_SHARE: f64 = 0.99;
     /// `ForceGearDownChangeBrakeFactor` and `...Linearity`: the constructor defaults of the road-bike handler, 0 (off) and 2.
     pub const FORCE_DOWN_FACTOR: f64 = 0.0;
     pub const FORCE_DOWN_LINEARITY: f64 = 2.0;

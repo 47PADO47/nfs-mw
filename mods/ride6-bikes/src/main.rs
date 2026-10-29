@@ -95,13 +95,16 @@ fn run(args: &Args) -> Result<()> {
 
 /// The sound commands are words in front of their own arguments: `ride6-bike-import sound <options>` builds a bike's
 /// sound files and manifest tables, `ride6-bike-import extract-bnk <bank> <folder>` splits a sound bank
-/// (`docs/modding/ride6-bikes-sound.md`), `ids` names a set of bikes and `remanifest` converts a bike's physics again
+/// (`docs/modding/ride6-bikes-sound.md`), `pak-sound` extracts RIDE 6's sound banks with the pak reader and `sound-bikes` builds
+/// every bike's sound from them (`docs/modding/ride6-bikes-sound.md`), `ids` names a set of bikes and `remanifest` converts a bike's physics again
 /// (`docs/modding/ride6-bikes-batch.md`). Anything else is the importer proper.
 fn sound_command(argv: &[String]) -> Option<Result<()>> {
     let rest = argv.get(2..)?;
     match argv.get(1)?.as_str() {
         "sound" => Some(sound::cli::run(rest)),
         "extract-bnk" => Some(sound::cli::extract_bnk(rest)),
+        "pak-sound" => Some(sound::pak_cli::run(rest)),
+        "sound-bikes" => Some(sound::bikes_cli::run(rest)),
         "ids" => Some(cli::ids(rest)),
         "remanifest" => Some(cli::remanifest(rest)),
         "contacts" => Some(cli::contacts(rest)),

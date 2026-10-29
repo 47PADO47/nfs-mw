@@ -73,7 +73,21 @@ fn shift_timing(t: &mut Toml, handler: &Node<'_>) -> Result<()> {
     t.flag("press_clutch_at_min_rpm", handler.flag_or("PressClutchAtMinRPM", true)?);
     let range = handler.xy_or("MinRPMSpeedScaleRange", default::MIN_RPM_SPEED_SCALE_RANGE)?;
     t.nums("min_rpm_speed_scale_range", &range);
+    over_limit(t, handler)?;
     forced_downshift(t, handler)
+}
+
+/// The over-limit upshift of the handler (`docs/specs/ride6-powertrain-round6.md`, section 12); the speed is km/h in the data.
+fn over_limit(t: &mut Toml, handler: &Node<'_>) -> Result<()> {
+    t.flag("over_limit_enabled", handler.flag_or("GearChangeOverLimitEnabled", true)?);
+    t.num(
+        "over_limit_min_speed_mps",
+        metres_per_second(handler.f_or("OverLimitMinChangeSpeed", default::OVER_LIMIT_MIN_SPEED_KMH)?),
+    );
+    t.num("over_limit_change_time_s", handler.f_or("OverLimitChangeTime", default::OVER_LIMIT_CHANGE_TIME)?);
+    t.num("over_limit_threshold_s", handler.f_or("OverLimitChangeTimeThreshold", default::OVER_LIMIT_THRESHOLD)?);
+    t.num("over_limit_rpm_share", handler.f_or("OverLimitRpmPercentage", default::OVER_LIMIT_RPM_SHARE)?);
+    Ok(())
 }
 
 /// The forced downshift of the road-bike handler (`docs/specs/ride6-powertrain-round6.md`, section 8). The constructor defaults

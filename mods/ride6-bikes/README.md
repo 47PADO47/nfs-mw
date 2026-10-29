@@ -28,8 +28,8 @@ own install. Without exports the mod adds nothing and the game is unaffected.
 
    The exports come from your tools outside the repository: `bikeparts.py` for each bike and the physics dump
    ([ride6-bikes.md](../../docs/modding/ride6-bikes.md), [ride6-bikes-batch.md](../../docs/modding/ride6-bikes-batch.md)).
-   Optional keys: `rider` (the exporter's rider folder, with `RiderGP_PhysicsAsset.json` and `RiderBP.json` beside the pack for the fall's ragdoll, default a `rider` folder inside `source`; without it the bikes have no rider), `tyre_tables`, `sound` (the `sound` command's output folder: bikes with tables there get their own engine sound),
-   `max_texture`.
+   Optional keys: `rider` (the exporter's rider folder, with `RiderGP_PhysicsAsset.json` and `RiderBP.json` beside the pack for the fall's ragdoll, default a `rider` folder inside `source`; without it the bikes have no rider), `tyre_tables`, `sound` (the output folder of `sound-bikes`: bikes with tables there get RIDE 6's own engine sound), `pak_key`
+   (the key of RIDE 6's pak files for the sound extraction; default: the built-in key, see below), `max_texture`.
 3. Start the game again. The mod imports **every bike** of the folder (default stock parts, first livery) in the background
    while the game runs; nothing waits for it. When it is done the bikes are in the game; the log says how many were imported
    and lists each bike that was left out with the reason. Later starts import nothing unless the settings or the exports
@@ -44,3 +44,19 @@ own install. Without exports the mod adds nothing and the game is unaffected.
 
 The converted files are the mod's own `files/` and `cars/` folders (both belong to the converter and are git-ignored). The same
 converter is the `ride6-bike-import` command line, for one bike or for experiments.
+
+## Sound: the real engines of every bike
+
+RIDE 6's engines are made by a Crankcase REV synthesiser from recordings stored in Wwise banks inside the game's `.pak` files.
+Two commands extract them and turn them into each bike's `[engine_sound]` / `[car_sound]` tables and shared recordings
+([docs/modding/ride6-bikes-sound.md](../../docs/modding/ride6-bikes-sound.md)):
+
+```sh
+ride6-bike-import pak-sound --tool <pak reader> --usmap <ride6.usmap> --out <banks folder> --resolved <audio data folder>
+ride6-bike-import sound-bikes --bikes <source> --physics <physdump> --resolved <audio data folder>     --wwise <banks folder>/ride6/Content --out <sound folder> --vgmstream <vgmstream-cli>
+```
+
+then set `sound = '<sound folder>'` in `config.toml`. The pak files' index is encrypted; the key was **supplied by the user** (found
+at <https://cs.rin.ru/forum/viewtopic.php?f=10&t=100672>) and **verified by mounting** (1096 banks appear). The mod carries it as its
+default (`src/sound/pak_key.rs`); the environment variable `R6_AES` or the `pak_key` setting replaces it. The pak reader and
+`vgmstream-cli` are separate programs you build or download; no recording, bank or key-derived file is in the repository.

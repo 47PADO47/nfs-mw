@@ -5,7 +5,8 @@
 //! they sit, the meshes ([`glb`], [`exports`]) and pictures ([`textures`]) are baked to the 2005 car shader's inputs
 //! ([`bake`], [`shading`]), placed on the car frame ([`layout`]) and written as the car files ([`build`], [`solids`]) and
 //! the mod's manifests ([`manifest`]). The parts that steer are told from the frame by the skeleton ([`front_end`]) and
-//! written as a solid of their own ([`fork`]). The bike's physics data (a resolved JSON the user's tooling writes from the
+//! written as a solid of their own ([`fork`]). The silencers' outlets are found in their mesh and written as the tail-pipe markers of
+//! the body ([`exhaust`]). The bike's physics data (a resolved JSON the user's tooling writes from the
 //! install) is converted to the manifest's `[bike]` table by [`physics`] and [`bike_table`]; the sound tables join the
 //! manifest through [`manifest_sound`].
 
@@ -18,6 +19,7 @@ pub mod bike_table;
 pub mod build;
 pub mod cli;
 pub mod config;
+pub mod exhaust;
 pub mod exports;
 pub mod fork;
 pub mod front_end;

@@ -16,6 +16,7 @@ use blackbox_solid::{GroupSource, SolidSource, write_geometry_pack};
 use blackbox_tpk::write_tpk;
 
 use crate::bake::{Options, Surfaces};
+use crate::exhaust::{self, Pipe};
 use crate::exports::Exports;
 use crate::fork::{self, Names};
 use crate::front_end::Take;
@@ -55,6 +56,9 @@ pub struct Built {
     pub triangles: usize,
     /// What the finest level's body and fork solids hold: the check that the split of the front end took the front end.
     pub front_end: fork::Report,
+    /// The silencers' outlets in the body solid's frame; each is a tail-pipe marker of every body solid ([`exhaust`]). Empty for a
+    /// bike with no silencer mesh.
+    pub exhaust: Vec<Pipe>,
 }
 
 impl Built {
@@ -119,6 +123,7 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
         width: size(side),
     };
     let (front, rear) = (wheel(front_hub, front_heights, "front"), wheel(rear_hub, rear_heights, "back"));
+    let pipes = exhaust::stock_pipes(&table, &exports, frame)?;
 
     let mut solids = Solids { list: Vec::new(), points: Vec::new(), report: fork::Report::default() };
     let hubs = [(Role::FrontWheel, front_hub, "FRONT_TIRE"), (Role::BackWheel, rear_hub, "REAR_TIRE")];
@@ -126,7 +131,8 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
         let body = format!("{folder}_KIT00_BODY_{letter}");
         let (fork_name, bars_name) = (format!("{folder}_KIT00_FORK_{letter}"), format!("{folder}_KIT00_BARS_{letter}"));
         let names = Names { body: &body, fork: &fork_name, bars: &bars_name, car: folder };
-        let pair = fork::body_and_fork(&table, &exports, &mut surfaces, names, (frame, front_hub), level)?;
+        let mut pair = fork::body_and_fork(&table, &exports, &mut surfaces, names, (frame, front_hub), level)?;
+        pair.body.markers = exhaust::markers(&pipes);
         if n == 0 {
             solids.report = pair.report;
             // The fork's and the bars' points are relative to the front hub; the bounds are of the whole bike in the body's
@@ -152,7 +158,7 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
     let (bounds, half) = bounds(&solids.points, folder)?;
     let report = solids.report;
     let triangles = report.body_triangles + report.fork_triangles + report.bars_triangles;
-    Ok(Built { geometry, textures, bounds, half, front, rear, triangles, front_end: report })
+    Ok(Built { geometry, textures, bounds, half, front, rear, triangles, front_end: report, exhaust: pipes })
 }
 
 /// Read the part at `level` (or the finest level below it that was exported) and make its groups.
@@ -238,6 +244,7 @@ mod tests {
             rear: wheel(-0.739),
             triangles: 0,
             front_end: fork::Report::default(),
+            exhaust: Vec::new(),
         };
         assert!((built.wheelbase() - 1.4745).abs() < 1e-4);
     }

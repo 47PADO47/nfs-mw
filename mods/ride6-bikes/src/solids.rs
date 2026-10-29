@@ -118,7 +118,10 @@ pub fn part_groups(
             let uvs = triangle.map(|i| primitive.uvs[i as usize]);
             let class = match &surface.glass {
                 Some(glass) => glass::classify(&glass.picture, glass.max, uvs),
-                None => shading::classify(placer.part.kind, surface.pbr.as_deref(), uvs),
+                None => {
+                    let pictures = shading::Pictures { base: surface.base.as_deref(), pbr: surface.pbr.as_deref() };
+                    shading::classify(placer.part.kind, pictures, surface.ao_floor, uvs)
+                }
             };
             classes.entry(class).or_default().push(*triangle);
         }

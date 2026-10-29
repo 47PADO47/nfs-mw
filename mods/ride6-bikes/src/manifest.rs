@@ -149,6 +149,7 @@ mod tests {
             rear: wheel(-0.739, 0.312, 0.16),
             triangles: 0,
             front_end: Default::default(),
+            exhaust: Vec::new(),
         }
     }
 

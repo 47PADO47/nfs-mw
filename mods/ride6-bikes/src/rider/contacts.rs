@@ -75,7 +75,14 @@ impl Points {
         let targets: Vec<Value> = self
             .targets
             .iter()
-            .map(|(role, at, steers)| json!({ "name": role, "position": at.translation.to_array(), "steers": steers }))
+            .map(|(role, at, steers)| {
+                json!({
+                    "name": role,
+                    "position": at.translation.to_array(),
+                    "rotation": at.rotation.to_array(),
+                    "steers": steers,
+                })
+            })
             .collect();
         let mut out = Map::new();
         out.insert("rider_root_in_bike".to_owned(), transform_json(&self.seat));
@@ -198,6 +205,22 @@ pub fn contacts_json(parts: &Value, table: Option<&Value>) -> Result<Value> {
     Ok(Value::Object(out))
 }
 
+/// Adds `seat_surface` to `contacts` (the seat's profile under the rider, measured on the bike's exported chassis mesh), if the
+/// folder has the meshes: without them the file has no seat and the game leaves the rider where the skeleton's socket puts him.
+fn add_seat_surface(contacts: &mut Value, bike_dir: &Path) {
+    let Some(seat) = contacts.get("rider_root_in_bike").and_then(|s| floats::<3>(s.get("translation"), "seat").ok())
+    else {
+        return;
+    };
+    if !bike_dir.join("glb").is_dir() {
+        return;
+    }
+    match super::seat_surface::surface(bike_dir, Vec3::from_array(seat)) {
+        Ok(points) => contacts["seat_surface"] = json!(points),
+        Err(error) => println!("{}: no seat surface: {error:#}", bike_dir.display()),
+    }
+}
+
 /// Write `RIDER/contacts.json` into `car_dir` (`files/CARS/<ID>/`) from the bike's `parts.json` in `bike_dir`. `physics` is
 /// the physics dump folder, for the correction row. Returns whether the vehicle had a correction row.
 pub fn write(bike_dir: &Path, car_dir: &Path, physics: &Path) -> Result<bool> {
@@ -205,8 +228,9 @@ pub fn write(bike_dir: &Path, car_dir: &Path, physics: &Path) -> Result<bool> {
     let text = fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     let parts: Value = serde_json::from_str(&text).with_context(|| format!("reading {}", path.display()))?;
     let table = read_correction_table(physics);
-    let json =
+    let mut json =
         contacts_json(&parts, table.as_ref()).with_context(|| format!("contact points of {}", path.display()))?;
+    add_seat_surface(&mut json, bike_dir);
     let folder = car_dir.join("RIDER");
     fs::create_dir_all(&folder).with_context(|| format!("creating {}", folder.display()))?;
     fs::write(folder.join(FILE), serde_json::to_vec_pretty(&json)?).context("writing contacts.json")?;

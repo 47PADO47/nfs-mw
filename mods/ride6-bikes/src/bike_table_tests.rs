@@ -115,7 +115,11 @@ fn handler() -> Value {
         "LeanHelpFactorSkidInputInfluence": {"ExternalCurve": {"ObjectPath": "/PhysicsRide6/Physics/TuningCurve/Skid.0"}},
         "bOverrideFallLeanLimit": true, "bFallLeanLimitBasedOnGrip": true, "FallLeanLimitUpFactor": 0.025,
         "FallLeanLimitDownFactor": 0.01, "FallLeanLimitDuration": 0.01, "FallPitchLimitAirborne": 65.0,
-        "FallAngularSpeedLimitAirborne": 7.0
+        "FallAngularSpeedLimitAirborne": 7.0, "EnableStabilityHelp": true, "TerrainInfluenceSpeedTuning": translator([10.0, 50.0], [0.0, 1.0]),
+        "TerrainInfluenceMaxAngle": 15.0, "TerrainLeanLimitIncrementScale": 0.667, "FallLeanLimitTerrainInfluence": 1.0,
+        "FallLeanLimitMaxDelta": 50.0,
+        "StabilityHelpFactorSpeedTuning": translator([80.0, 120.0], [0.05, 0.0]), "StabilityHelpFactorLeanInfluence": -1.0,
+        "StabilityHelpFactorThrottleReduction": translator([0.0, 0.05], [0.0, 1.0]), "StabilityHelpUsesTerrainNormal": true
     });
     let gearbox = json!({
         "GearUpChangeTime": 0.05, "GearDownChangeTime": 0.2, "BlipperThrottleOnShift": 0.25,
@@ -244,6 +248,7 @@ fn manifest_text(table: &BikeTable) -> String {
         rear: wheel(&geometry().rear),
         triangles: 0,
         front_end: Default::default(),
+        exhaust: Vec::new(),
     };
     car_toml("Synth Bike", "Synth", &built, &Tables { bike: table, sound: None })
 }
@@ -375,10 +380,18 @@ fn the_manifest_reads_back_with_the_games_schema_and_the_conversions_are_exact()
     assert_eq!((lean.help_skid_range_rad, lean.help_skid_linearity), ([deg(10.0), deg(45.0)], 2.0));
     assert_eq!(lean.help_skid_reduction, vec![[0.0, 0.0], [mps(36.0), 0.5]]);
     assert_eq!(lean.help_skid_input, vec![[-0.1, 0.0], [0.0, 1.0]]);
+    assert_eq!(lean.terrain_speed, vec![[mps(10.0), 0.0], [mps(50.0), 1.0]]);
+    assert_eq!((lean.terrain_max_angle_rad, lean.terrain_increment, lean.terrain_reduction), (deg(15.0), 0.667, 1.0));
+    assert_eq!(lean.stability_speed, vec![[mps(80.0), 0.05], [mps(120.0), 0.0]]);
+    assert_eq!((lean.stability_lean_influence, lean.stability_lean_sensitivity), (-1.0, 1.0));
+    assert_eq!(lean.stability_throttle_reduction, vec![[0.0, 0.0], [mps(0.05), 1.0]]);
+    assert!(lean.stability_brake_reduction.is_empty() && lean.stability_terrain_normal);
+    assert_eq!((lean.stability_speed_range_mps, lean.stability_max_lean_rad), ([mps(10.0), mps(15.0)], deg(75.0)));
     let fall = &bike.fall;
     assert_eq!((fall.lean_rad, fall.pitch_rad, fall.speed_direction_rad), (deg(70.0), deg(65.0), deg(80.0)));
     assert_eq!((fall.angular_speed, fall.min_speed_mps), (4.4, mps(18.0)));
     assert!(fall.lean_by_grip);
+    assert_eq!((fall.terrain_influence, fall.terrain_reduction, fall.terrain_max_delta_rad), (1.0, 1.0, deg(50.0)));
     assert_eq!((fall.lean_rise, fall.lean_fall, fall.lean_duration_s), (0.025, 0.01, 0.01));
     assert_eq!(
         (fall.airborne_lean_rad, fall.airborne_pitch_rad, fall.airborne_angular_speed),

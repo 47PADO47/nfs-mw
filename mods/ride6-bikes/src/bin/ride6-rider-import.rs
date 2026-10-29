@@ -12,8 +12,8 @@ struct Args {
     input: PathBuf,
     /// Where to write (usually mods/ride6-bikes/files/RIDER).
     output: PathBuf,
-    /// Riding style: 0 knee-out lean clips, 1 plain, 2 old school.
-    #[arg(long, default_value_t = 1)]
+    /// Riding style: 0 knee-out lean clips (the default: a supermoto rider puts his inner knee out), 1 plain, 2 old school.
+    #[arg(long, default_value_t = 0)]
     style: u8,
 }
 

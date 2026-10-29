@@ -4,7 +4,8 @@
 //! Input, a folder the export tool wrote (formats in `docs/formats/ride6-rider.md`):
 //!
 //! ```text
-//! riding.r6ra         every riding animation, sampled
+//! riding.r6ra         every riding animation, sampled (and any other *.r6ra: the fall and get-up animations)
+//! acl/                 animations stored with ACL: <name>.acl and <name>.meta.json, decoded here ([`acl_clips`])
 //! skeleton.json       the rider skeleton and its sockets
 //! bike_skeleton.json  the bike's skeleton and sockets (seat, pegs, grips)
 //! meshes/*.r6rm       the skinned meshes
@@ -17,12 +18,14 @@
 //!
 //! Each bike's own seat, grips and pegs are not in that folder: `ride6-bike-import` writes them per car ([`contacts`]).
 
+pub mod acl_clips;
 pub mod attach;
 pub mod contacts;
 pub mod convert;
 pub mod graph;
 pub mod parts;
 pub mod raw;
+pub mod seat_surface;
 
 use std::fs;
 use std::path::Path;
@@ -44,7 +47,10 @@ pub fn import(input: &Path, output: &Path, riding_style: u8) -> Result<Summary> 
     let rider_json = raw::parse_skeleton(&read("skeleton.json")?)?;
     let bike_json = raw::parse_skeleton(&read("bike_skeleton.json")?)?;
     let (skeleton, sockets) = convert::skeleton(&rider_json)?;
-    let anims = raw::parse_anims(&read("riding.r6ra")?)?;
+    let (anims, undecoded) = acl_clips::collect(input, &rider_json)?;
+    for message in &undecoded {
+        eprintln!("warning: an ACL clip was left out: {message}");
+    }
     let clips = convert::clips(&anims, &skeleton)?;
 
     let mut meshes = Vec::new();

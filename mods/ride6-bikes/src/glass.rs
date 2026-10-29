@@ -10,7 +10,7 @@
 use blackbox_tpk::Level;
 
 use crate::bake::srgb_to_linear;
-use crate::textures::Picture;
+use crate::textures::{Picture, interior_points};
 
 /// The light material of clear and lightly tinted glass: the stock windows' (`WINDSHIELD`). Its diffuse alpha is the
 /// constant [`CLEAR_ALPHA`] and it reflects the environment strongly at grazing angles.
@@ -61,10 +61,10 @@ pub fn bake(picture: Level, max: f32) -> Level {
     Level { width, height, rgba }
 }
 
-/// The mean opacity of a triangle: the transmittance picture sampled at its three corners and its centre.
+/// The mean opacity of a triangle: the transmittance picture sampled at the interior points of the triangle
+/// ([`interior_points`], which never read across the border of an island or the edge of the picture).
 pub fn triangle_opacity(picture: &Picture, max: f32, uvs: [[f32; 2]; 3]) -> f32 {
-    let centre = [(uvs[0][0] + uvs[1][0] + uvs[2][0]) / 3.0, (uvs[0][1] + uvs[1][1] + uvs[2][1]) / 3.0];
-    let samples = [uvs[0], uvs[1], uvs[2], centre].map(|uv| opacity(picture.sample(uv), max));
+    let samples = interior_points(uvs).map(|uv| opacity(picture.sample(uv), max));
     samples.iter().sum::<f32>() / samples.len() as f32
 }
 

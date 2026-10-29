@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::build::{Built, Wheel};
+use crate::exhaust::Pipe;
 
 /// The file name beside `parts.json`.
 pub const FILE: &str = "built.json";
@@ -43,6 +44,9 @@ pub struct Summary {
     front: WheelSummary,
     rear: WheelSummary,
     triangles: usize,
+    /// The silencers' outlets in the body solid's frame (`exhaust.rs`); older files have none.
+    #[serde(default)]
+    exhaust: Vec<Pipe>,
 }
 
 impl Summary {
@@ -53,6 +57,7 @@ impl Summary {
             front: built.front.into(),
             rear: built.rear.into(),
             triangles: built.triangles,
+            exhaust: built.exhaust.clone(),
         }
     }
 
@@ -72,6 +77,7 @@ impl Summary {
             rear: self.rear.into(),
             triangles: self.triangles,
             front_end: Default::default(),
+            exhaust: self.exhaust,
         }
     }
 
@@ -90,6 +96,7 @@ impl Summary {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::exhaust::Side;
 
     #[test]
     fn a_summary_reads_back_the_numbers_it_was_made_from() {
@@ -103,6 +110,7 @@ mod tests {
             rear: wheel(-0.7),
             triangles: 77,
             front_end: Default::default(),
+            exhaust: vec![Pipe { side: Side::Right, at: [-0.75, -0.14, 0.75], dir: [-0.87, 0.0, 0.5] }],
         };
         let dir = std::env::temp_dir().join(format!("ride6-summary-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -113,5 +121,14 @@ mod tests {
         let back = read.into_built();
         assert_eq!((back.half, back.front, back.rear, back.triangles), (built.half, built.front, built.rear, 77));
         assert!(back.geometry.is_empty());
+        assert_eq!(back.exhaust, built.exhaust);
+    }
+
+    #[test]
+    fn a_summary_written_before_the_exhaust_was_found_has_no_pipes() {
+        let old = r#"{"vehicle":"V","half":[1,1,1],"front":{"hub":[1,0,0],"radius":0.3,"width":0.1},
+            "rear":{"hub":[-1,0,0],"radius":0.3,"width":0.1},"triangles":5}"#;
+        let summary: Summary = serde_json::from_str(old).unwrap();
+        assert!(summary.into_built().exhaust.is_empty());
     }
 }

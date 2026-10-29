@@ -4,6 +4,7 @@
 use anyhow::{Result, anyhow};
 
 use super::curve::{runtime_curve, simplify};
+use super::engine_brake::BrakeReduction;
 use super::node::Node;
 use super::toml_text::Toml;
 use super::vehicle::Vehicle;
@@ -23,6 +24,7 @@ pub struct EngineData {
     pub moi: f64,
     pub throttle_at_idle: f64,
     pub limiter_cut_time: f64,
+    pub brake_reduction: BrakeReduction,
 }
 
 impl EngineData {
@@ -58,6 +60,7 @@ impl EngineData {
             moi: engine.f("MOI")?,
             throttle_at_idle: engine.f("ThrottleAtMinimum")?,
             limiter_cut_time: (low + high) / 2.0,
+            brake_reduction: BrakeReduction::read(vehicle, &engine)?,
         })
     }
 
@@ -106,4 +109,5 @@ pub fn write(t: &mut Toml, engine: &EngineData) {
     t.num("moi_kgm2", engine.moi);
     t.num("throttle_at_idle", engine.throttle_at_idle);
     t.num("limiter_cut_time_s", engine.limiter_cut_time);
+    engine.brake_reduction.write(t);
 }

@@ -35,6 +35,28 @@ impl Picture {
     }
 }
 
+/// The points of a triangle a surface is sampled at: the lattice `(i, j, k) / 6` with `i + j + k = 6` and every index at least
+/// one, ten points in all. They stay inside the triangle, so a corner on the border of a texture island (`v = 1.0`, which
+/// wraps to the other edge of the picture) or on the next island's side is never read.
+pub fn interior_points(uvs: [[f32; 2]; 3]) -> [[f32; 2]; 10] {
+    const LATTICE: [[f32; 3]; 10] = [
+        [1.0, 1.0, 4.0],
+        [1.0, 4.0, 1.0],
+        [4.0, 1.0, 1.0],
+        [1.0, 2.0, 3.0],
+        [1.0, 3.0, 2.0],
+        [2.0, 1.0, 3.0],
+        [2.0, 3.0, 1.0],
+        [3.0, 1.0, 2.0],
+        [3.0, 2.0, 1.0],
+        [2.0, 2.0, 2.0],
+    ];
+    LATTICE.map(|[a, b, c]| {
+        let at = |axis: usize| (a * uvs[0][axis] + b * uvs[1][axis] + c * uvs[2][axis]) / 6.0;
+        [at(0), at(1)]
+    })
+}
+
 pub fn decode(png: &[u8]) -> Result<Picture> {
     let mut decoder = png::Decoder::new(Cursor::new(png));
     decoder.set_transformations(png::Transformations::normalize_to_color8());
@@ -149,6 +171,16 @@ mod tests {
         assert_eq!(picture.sample([0.75, 0.25]), [1, 2, 3, 4]);
         assert_eq!(picture.sample([1.75, -0.75]), [1, 2, 3, 4], "uv wraps in both directions");
         assert_eq!(picture.sample([0.25, 0.25]), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn the_sample_points_of_a_triangle_are_inside_it_even_on_the_border_of_the_picture() {
+        let points = interior_points([[0.0, 1.0], [0.5, 1.0], [0.0, 0.0]]);
+        assert_eq!(points.len(), 10);
+        for [u, v] in points {
+            assert!(u > 0.0 && u < 0.5 && v > 0.0 && v < 1.0, "({u}, {v}) is on the border");
+            assert!(u / 0.5 + (1.0 - v) < 1.0, "({u}, {v}) is outside the triangle");
+        }
     }
 
     #[test]

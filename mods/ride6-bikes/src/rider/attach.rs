@@ -40,6 +40,29 @@ pub const HUB_BONES: (&str, &str) = ("BONE_F_VIS_WHEEL", "BONE_B_VIS_WHEEL");
 /// speed, the pose the lean sets blend away from.
 pub const REFERENCE_CLIP: &str = "motard_CenterPose_LowSpeed";
 
+/// Whether the hands take the frame of the grip sockets exactly. They do not: `SOCKET_L_HANDLE_POSE` and `SOCKET_R_HANDLE_POSE`
+/// are close to the hand bone's frame (measured on the reference pose against the KTM's sockets: 12.6 to 15.4 degrees and 3.5 cm
+/// apart), but putting the wrist exactly on the socket moved the KTM's hands off the grips where the authored placement, which
+/// the reference pose has right for that bike, is on them. So the hands (like the feet) keep their authored frame against the
+/// socket (`tip_frame`, measured on the reference pose), which for the KTM is the pose's own placement and for another bike is
+/// that placement carried to its socket's place and turn.
+pub const HANDS_ON_SOCKET: bool = false;
+
+/// The bones the body leans forward with to reach low grips, root to tip: the spine. A **choice** (the original solves the whole
+/// body with a full-body IK): one forward lean split evenly over them.
+const TORSO_LEAN: [&str; 3] = ["spine_01", "spine_02", "spine_03"];
+/// The neck and head, turned back against the lean so he still looks ahead, by `HEAD_SHARE` of the lean in all. A **choice**.
+const TORSO_HEAD: [&str; 2] = ["neck_01", "head"];
+const HEAD_SHARE: f32 = 0.8;
+/// The bones that carry the buttocks: the vertices skinned to them rest on the seat.
+const SEAT_BONES: [&str; 3] = ["pelvis", "gluteus_Vol_l", "gluteus_Vol_r"];
+/// How far the lowest seat point sinks below the seat's top, metres. Measured on the KTM 450 SMR, the bike the reference pose and
+/// its shared `attach.json` were made for, with the rider's root on its `SOCKET_RIDER`: the game's own contact points (the vertices
+/// skinned to the seat bones, carried rigidly by the pelvis) are 4.0 cm below the surface measured on the chassis mesh (the same
+/// vertices skinned for real are 1.8 cm below it: a padded seat under a suit; the rigid points sit lower by 2.2 cm). Taken as the
+/// rule for every bike, so the KTM stays where the original placement has it and the others sit as deep.
+const SEAT_SINK_M: f32 = 0.040;
+
 /// The rider bone the inertia moves: the pelvis carries the legs, the spine and so the arms and head.
 const INERTIA_BONE: &str = "pelvis";
 
@@ -70,6 +93,15 @@ pub fn tip_offset(tip_in_pose: Vec3, seat: &Transform, target: Vec3) -> Vec3 {
     tip_in_pose - to_rider_space(seat, target)
 }
 
+/// Where the tip bone sits against its target's frame in the authored pose: the target's frame (a bike socket) seen from the
+/// rider's component space, and the tip's component transform taken into it. The runtime puts the tip at the target's new frame
+/// composed with this, so the tip keeps its authored place and turn against the target whatever way the bike turns the target.
+#[must_use]
+pub fn tip_frame(tip_in_pose: &Transform, seat: &Transform, target: &Transform) -> Transform {
+    let target_in_rider = seat.inverse().compose(*target);
+    target_in_rider.inverse().compose(*tip_in_pose)
+}
+
 /// The attachment data as JSON. All transforms are in the car frame, metres, relative to the bike skeleton's origin (the
 /// mesh origin) at the bike's rest pose; offsets and limb data are in the rider's component space. `reference` is the
 /// rider's authored pose the tip offsets are measured on ([`REFERENCE_CLIP`]).
@@ -82,21 +114,33 @@ pub fn attach_json(rider: &Skeleton, reference: &Pose, bike: &JsonSkeleton) -> R
         for bone in [root, mid, tip, pole] {
             rider.find(bone).with_context(|| format!("the rider has no bone {bone}"))?;
         }
-        let target = points.target(role)?.translation;
+        let placed = points.target(role)?;
+        let target = placed.translation;
         let tip_index = rider.find(tip).with_context(|| format!("the rider has no bone {tip}"))?;
         let offset = tip_offset(rider_component[tip_index].translation, &seat, target);
+        let measured = tip_frame(&rider_component[tip_index], &seat, &placed);
+        let on_socket = HANDS_ON_SOCKET && tip.starts_with("hand");
+        let frame = match on_socket {
+            true => Transform::IDENTITY,
+            false => measured,
+        };
         limbs.push(json!({
             "name": name, "root": root, "mid": mid, "tip": tip, "pole": pole, "target": role,
             "tip_offset": offset.to_array(),
+            "tip_frame": contacts::transform_json(&frame),
         }));
     }
-    rider.find(INERTIA_BONE).with_context(|| format!("the rider has no bone {INERTIA_BONE}"))?;
+    for bone in TORSO_LEAN.iter().chain(&TORSO_HEAD).chain(&SEAT_BONES).chain(&[INERTIA_BONE]) {
+        rider.find(bone).with_context(|| format!("the rider has no bone {bone}"))?;
+    }
     // Unreal's rider frame is (left, forward, up); the file's inertia axes are the bike's (forward, left, up).
     let to_bike = |v: [f32; 3]| [v[1], v[0], v[2]];
     let mut json = json!({
         "frame": "car: x forward, y left, z up, metres, bike rest pose, origin of the bike skeleton",
         "limbs": limbs,
         "reference_clip": REFERENCE_CLIP,
+        "torso": { "lean": TORSO_LEAN, "head": TORSO_HEAD, "head_share": HEAD_SHARE },
+        "seat": { "bones": SEAT_BONES, "sink": SEAT_SINK_M },
         "inertia": {
             "bone": INERTIA_BONE,
             "min": to_bike(INERTIA_RIDING.0),
@@ -148,6 +192,10 @@ mod tests {
     fn rider() -> Skeleton {
         let mut bones = vec![blackbox_skeleton::Bone { name: "root".into(), parent: None, rest: Transform::IDENTITY }];
         bones.push(blackbox_skeleton::Bone { name: "pelvis".into(), parent: Some(0), rest: Transform::IDENTITY });
+        // The torso, the head and the buttocks the body leans and sits with.
+        for name in TORSO_LEAN.iter().chain(&TORSO_HEAD).chain(&SEAT_BONES).filter(|name| **name != "pelvis") {
+            bones.push(blackbox_skeleton::Bone { name: (*name).into(), parent: Some(1), rest: Transform::IDENTITY });
+        }
         for (_, root, mid, tip, pole, _) in LIMBS {
             for (name, parent) in [(root, 1), (mid, bones.len()), (tip, bones.len() + 1), (pole, 0)] {
                 let rest = Transform::from_rt(Quat::IDENTITY, Vec3::new(0.0, 0.0, 0.3));
@@ -198,6 +246,25 @@ mod tests {
         assert!((json["inertia"]["min"][0].as_f64().unwrap() + 0.06).abs() < 1e-6);
         assert!((json["inertia"]["max"][1].as_f64().unwrap() - 0.15).abs() < 1e-6);
         assert!(json["rider_root_in_bike"]["translation"].is_array());
+    }
+
+    #[test]
+    fn the_tip_keeps_its_authored_place_and_turn_against_the_target() {
+        let seat = Transform::from_rt(Quat::from_rotation_z(1.0), Vec3::new(0.2, 0.1, 0.8));
+        let target = Transform::from_rt(Quat::from_rotation_x(0.4), Vec3::new(0.5, -0.3, 1.1));
+        let tip = Transform::from_rt(Quat::from_rotation_y(0.3), Vec3::new(0.05, 0.4, 0.2));
+        let frame = tip_frame(&tip, &seat, &target);
+        // The target's frame in the rider's space composed with the frame is the tip: the authored pose is kept (the KTM's hands).
+        let in_rider = seat.inverse().compose(target);
+        let back = in_rider.compose(frame);
+        assert!(back.translation.distance(tip.translation) < 1e-5 && back.rotation.angle_between(tip.rotation) < 1e-5);
+        // The hands are not put on the socket exactly (that moved the KTM's hands off its grips).
+        const { assert!(!HANDS_ON_SOCKET) };
+        let rider = rider();
+        let json = attach_json(&rider, &rider.rest_pose(), &bike()).unwrap();
+        let arm = &json["limbs"][0]["tip_frame"];
+        assert_eq!(arm["rotation"].as_array().unwrap().len(), 4);
+        assert!(json["torso"]["lean"].as_array().unwrap().len() == 3 && json["seat"]["sink"].as_f64().unwrap() > 0.0);
     }
 
     #[test]

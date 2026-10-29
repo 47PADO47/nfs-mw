@@ -86,6 +86,9 @@ fn fall_extra(t: &mut Toml, handler: &Node<'_>) -> Result<()> {
     t.num("airborne_lean_rad", radians(handler.f_or("FallLeanLimitAirborne", 0.0)?));
     t.num("airborne_pitch_rad", radians(handler.f_or("FallPitchLimitAirborne", 0.0)?));
     t.num("airborne_angular_speed", handler.f_or("FallAngularSpeedLimitAirborne", 0.0)?);
+    t.num("terrain_influence", handler.f_or("FallLeanLimitTerrainInfluence", 0.0)?);
+    t.num("terrain_reduction", handler.f_or("FallLeanLimitTerrainReduction", 1.0)?);
+    t.num("terrain_max_delta_rad", radians(handler.f_or("FallLeanLimitMaxDelta", 0.0)?));
     t.num("highside_lean_rad", radians(handler.f_or("FallHighsideLeanLimit", 0.0)?));
     Ok(())
 }
@@ -135,7 +138,9 @@ fn lean(t: &mut Toml, vehicle: &Vehicle, handler: &Node<'_>, geometry: &Geometry
     t.num("rider_mass_scale", handler.f("RiderMassScale")?);
     t.pairs("help_speed", &speed_curve(vehicle, &handler.req("LeanHelpFactorSpeedTuning")?)?);
     t.num("help_limit", help_limit(vehicle, handler)?);
-    help_extra(t, vehicle, handler)
+    help_extra(t, vehicle, handler)?;
+    terrain(t, vehicle, handler)?;
+    stability(t, vehicle, handler)
 }
 
 /// A speed curve with its outputs times `scale`.
@@ -177,4 +182,49 @@ fn help_extra(t: &mut Toml, vehicle: &Vehicle, handler: &Node<'_>) -> Result<()>
 fn help_limit(vehicle: &Vehicle, handler: &Node<'_>) -> Result<f64> {
     let translator = Translator::read(vehicle, &handler.req("LeanHelpLimitSpeedTuning")?)?;
     Ok(translator.output_range()[1])
+}
+
+/// The stability help (`ride6-chassis-round7.md`, section 3): the speed tuning, its lean term, the throttle and brake cuts, the speed
+/// range and the lean limit of the desired yaw rate. A bike whose speed tuning is 0 everywhere (the supermoto) has none.
+fn stability(t: &mut Toml, vehicle: &Vehicle, handler: &Node<'_>) -> Result<()> {
+    if !handler.flag_or("EnableStabilityHelp", false)? {
+        return Ok(());
+    }
+    let Some(node) = handler.get("StabilityHelpFactorSpeedTuning") else { return Ok(()) };
+    let Some(tuning) = Translator::read_opt(vehicle, &node)? else { return Ok(()) };
+    let [low, high] = tuning.output_range();
+    if low == 0.0 && high == 0.0 {
+        return Ok(());
+    }
+    t.pairs("stability_speed", &speed_curve(vehicle, &node)?);
+    t.num("stability_lean_influence", handler.f_or("StabilityHelpFactorLeanInfluence", 0.0)?);
+    t.num("stability_lean_sensitivity", handler.f_or("StabilityHelpFactorLeanSensitivity", 1.0)?);
+    let scale = handler.f_or("StabilityHelpFactorReductionScale", 1.0)?;
+    for (key, name) in [
+        ("stability_throttle_reduction", "StabilityHelpFactorThrottleReduction"),
+        ("stability_brake_reduction", "StabilityHelpFactorBrakeReduction"),
+    ] {
+        let Some(node) = handler.get(name) else { continue };
+        if Translator::read_opt(vehicle, &node)?.is_some() {
+            t.pairs(key, &scaled(speed_curve(vehicle, &node)?, scale));
+        }
+    }
+    let [range_low, range_high] = handler.xy_or("StabilityHelpSpeedRange", [10.0, 15.0])?;
+    t.nums("stability_speed_range_mps", &[metres_per_second(range_low), metres_per_second(range_high)]);
+    t.num("stability_max_lean_rad", radians(handler.f_or("StabilityHelpMaxLeanAngle", 75.0)?));
+    t.flag("stability_terrain_normal", handler.flag_or("StabilityHelpUsesTerrainNormal", false)?);
+    Ok(())
+}
+
+/// The terrain term of the lean limit (`ride6-chassis-round7.md`, section 4). Constructor defaults: maximum 90 degrees, both shares 1.
+fn terrain(t: &mut Toml, vehicle: &Vehicle, handler: &Node<'_>) -> Result<()> {
+    let Some(node) = handler.get("TerrainInfluenceSpeedTuning") else { return Ok(()) };
+    if Translator::read_opt(vehicle, &node)?.is_none() {
+        return Ok(());
+    }
+    t.pairs("terrain_speed", &speed_curve(vehicle, &node)?);
+    t.num("terrain_max_angle_rad", radians(handler.f_or("TerrainInfluenceMaxAngle", 90.0)?));
+    t.num("terrain_increment", handler.f_or("TerrainLeanLimitIncrementScale", 1.0)?);
+    t.num("terrain_reduction", handler.f_or("TerrainLeanLimitReductionScale", 1.0)?);
+    Ok(())
 }

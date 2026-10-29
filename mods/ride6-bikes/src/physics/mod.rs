@@ -15,6 +15,7 @@ pub mod curve;
 pub mod damping;
 pub mod defaults;
 pub mod engine;
+mod engine_brake;
 pub mod node;
 pub mod rider_table;
 pub mod steering;

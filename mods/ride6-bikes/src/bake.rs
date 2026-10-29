@@ -44,6 +44,11 @@ pub struct Surface {
     pub specular: Option<String>,
     /// The packed specular, roughness, metallic and occlusion picture, for classifying triangles.
     pub pbr: Option<Rc<Picture>>,
+    /// The base colour picture as the exporter wrote it (before the occlusion is baked in), for classifying triangles.
+    pub base: Option<Rc<Picture>>,
+    /// The floor of the occlusion factor baked into the diffuse (see [`Options::ao_floor`]); `None` when the diffuse carries
+    /// no occlusion.
+    pub ao_floor: Option<f32>,
     /// For a translucent material: the transmittance picture, from which triangles take their glass light material.
     pub glass: Option<Glass>,
 }
@@ -195,7 +200,15 @@ impl Surfaces {
         }
         let (Some(base_stem), Some(base)) = (&material.base_color, base) else {
             let grey = self.palette.add_colour([128, 128, 128]);
-            return Ok(Surface { diffuse: grey, normal: None, specular: None, pbr, glass: None });
+            return Ok(Surface {
+                diffuse: grey,
+                normal: None,
+                specular: None,
+                pbr,
+                base: None,
+                ao_floor: None,
+                glass: None,
+            });
         };
         let diffuse = format!("{car}_{}", upper(base_stem));
         let clip = material.cutout();
@@ -229,7 +242,8 @@ impl Surfaces {
                 specular = Some(name);
             }
         }
-        Ok(Surface { diffuse, normal, specular, pbr, glass: None })
+        let ao_floor = (material.pbr_has_occlusion && pbr.is_some()).then_some(self.options.ao_floor);
+        Ok(Surface { diffuse, normal, specular, pbr, base: Some(base), ao_floor, glass: None })
     }
 
     /// The glass texture of a translucent material, or `None` when it has no transmittance picture (it is then baked as an
@@ -245,7 +259,7 @@ impl Surfaces {
             self.add_level(&diffuse, level, PixelFormat::Dxt5, Alpha::Blended);
         }
         let glass = Some(Glass { picture, max });
-        Ok(Some(Surface { diffuse, normal: None, specular: None, pbr: None, glass }))
+        Ok(Some(Surface { diffuse, normal: None, specular: None, pbr: None, base: None, ao_floor: None, glass }))
     }
 
     fn add_level(&mut self, name: &str, level: Level, format: PixelFormat, alpha: Alpha) {
