@@ -16,6 +16,7 @@ pub mod damping;
 pub mod defaults;
 pub mod engine;
 mod engine_brake;
+pub mod input_axes;
 pub mod node;
 pub mod rider_table;
 pub mod steering;
@@ -116,5 +117,6 @@ pub fn bike_table(vehicle: &Vehicle, geometry: &Geometry) -> Result<(String, Vec
     steering::write(&mut t, vehicle, geometry)?;
     wheelie::write(&mut t, vehicle)?;
     tcs::write(&mut t, vehicle)?;
+    input_axes::write(&mut t, vehicle)?;
     Ok(t.into_parts())
 }
