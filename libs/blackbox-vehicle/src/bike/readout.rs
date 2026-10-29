@@ -115,9 +115,4 @@ impl Bike {
     pub fn fall_lean_limit(&self) -> f32 {
         self.chassis.fall_lean
     }
-
-    /// The multipliers the anti-lock and the brake reduction leave on the front and rear brake torque (diagnostics).
-    pub fn brake_multipliers(&self) -> (f32, f32) {
-        self.antilock.multipliers()
-    }
 }

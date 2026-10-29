@@ -41,3 +41,10 @@ pub const MAX_SUBSTEPS: usize = 32;
 /// bike launched with the stick held spins its rear up and throws itself (14 of 20 bikes of the sweep fell within 5 s); at half the
 /// window none did, at the price of half a second on the time to 100 km/h (3.8 s to 4.4 s on average).
 pub const TCS_WINDOW_SCALE: f32 = 0.5;
+
+/// How much of the brake levers a bike at its lean limit gives up: the levers are multiplied by `1 - this x (lean / limit)^2`. A
+/// modelling choice. The reference's ABS releases the front brake only by the longitudinal slip, and its brake reduction of the front
+/// wheel is 0 for every bike read (`ride6-powertrain-round7.md`, section 1), so a pedal held down in a corner takes the grip the lean
+/// needs: the rear wheel lifts or slides and the bike falls inward (15 of the 20 bikes of the subset, a lever of 1.0 at 25 m/s with the
+/// stick at 0.8). At 0.8 one of them falls; a straight stop (lean 0) is untouched. It should go if the reference's own relief is found.
+pub const BRAKE_LEAN_RELIEF: f32 = 0.8;

@@ -93,6 +93,7 @@ fn table() -> String {
          angular_speed = 4.4\nmin_speed_mps = 2.7777777\nblock_ratio = 0.975\nblock_min_speed_mps = 11.111111\n\
          block_time_s = 1.0\nblock_wait_s = 5.0\n\
          [bike.tcs]\nslip = [0.09, 0.2]\nspeed_range_mps = [0.0, 1.3888889]\n\
+         [bike.input]\nthrottle_rise = 3.0\nthrottle_fall = 5.0\nbrake_rise = 3.0\nbrake_fall = 5.0\nsteer_rise = 25.0\nsteer_fall = 6.0\n\
          [bike.wheelie]\nthrottle_pitch_rad = [0.0, 0.0698132]\nforced_throttle_pitch_rad = [0.5759587, 0.7853982]\n\
          throttle_pitch_speed = [0.2, 0.6]\nbrake_pitch_rad = [0.0, 0.0698132]\nbrake_pitch_speed = [0.0, 0.6]\n\
          [bike.wheelie.wheelie]\n{PITCH}\
@@ -182,6 +183,8 @@ fn the_table_converts_to_the_spec_the_dynamics_take() {
     assert_eq!((spec.chassis.rider_k, spec.chassis.rider_damp), (20_000.0, 5_000.0));
     assert_eq!(spec.tcs.expect("the traction control").slip, [0.09, 0.2]);
     assert_eq!(spec.front.rolling_slip_linearity, 1.0, "the exponent defaults to 1");
+    assert_eq!(spec.input.throttle, [3.0, 5.0]);
+    assert_eq!((spec.input.brake, spec.input.steer), ([3.0, 5.0], [25.0, 6.0]));
     assert_eq!(spec.gyro_roll_scale, example.gyro_roll_scale);
     assert_eq!(spec.drag, example.drag);
     assert_eq!(spec.total_mass(), 113.0 + 70.0);

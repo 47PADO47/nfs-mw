@@ -35,6 +35,8 @@ pub struct BikeSpec {
     pub abs_level: AbsLevelSpec,
     /// The traction control; `None` for a bike without one.
     pub tcs: Option<TcsSpec>,
+    /// How fast the throttle, the brake levers and the stick follow what the rider holds (`InputRates::default()`: at once).
+    pub input: super::input_axes::InputRates,
     /// The scales of the gyroscopic roll torque (yaw rate) and yaw torque (roll rate) of the wheels; 0 switches one off.
     pub gyro_roll_scale: f32,
     pub gyro_yaw_scale: f32,

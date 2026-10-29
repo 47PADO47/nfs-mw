@@ -34,6 +34,7 @@ mod frame;
 mod gearbox;
 mod geometry;
 mod handling;
+mod input_axes;
 mod lean;
 mod magic;
 mod peaks;
@@ -61,6 +62,7 @@ pub use clutch_control::{ClutchControl, ForcedDownshift, OverLimit};
 pub use engine_brake::EngineBrakeReduction;
 pub use frame::RestPose;
 pub use handling::chassis_state::Environment;
+pub use input_axes::InputRates;
 pub use magic::Mf94;
 pub use release::{FallKind, RiderRelease, VELOCITY_FRAMES};
 pub use rider_rotation::RiderRotation;
@@ -142,6 +144,8 @@ pub struct Bike {
     block_wait: f32,
     antilock: AntiLock,
     fallen: bool,
+    /// The throttle, the brake levers and the stick as they are now, after their rates.
+    held: BikeInput,
     /// The rider leaving the bike in a fall (`release.rs`).
     departure: release::Departure,
     /// The day and the running state of the fall tests.
@@ -208,6 +212,7 @@ impl Bike {
             block_wait: 0.0,
             antilock: AntiLock::default(),
             fallen: false,
+            held: BikeInput::default(),
             departure: release::Departure::default(),
         }
     }
@@ -256,6 +261,7 @@ impl Bike {
         self.trick = TrickState::default();
         self.antilock.reset();
         self.fallen = false;
+        self.held = BikeInput::default();
         self.rider_body.reset();
         self.rider_rotation.reset();
         self.weight_lateral.reset();
@@ -347,6 +353,10 @@ impl Bike {
         if !dt.is_finite() || dt <= 0.0 {
             return;
         }
+        // The axes move at the data's rates over the whole step; the sub-steps hold what they reach.
+        self.held = self.spec.input.apply(&self.held, input, dt);
+        let held = self.held;
+        let input = &held;
         let count = ((dt / choices::MAX_SUBSTEP).ceil() as usize).clamp(1, choices::MAX_SUBSTEPS);
         let step = dt / count as f32;
         let mut integrated = 0.0;
@@ -390,6 +400,11 @@ impl Bike {
         let brakes = self.spec.brakes;
         let (front_lever, rear_lever) =
             brakes::joined(&brakes, help.brake, input.rear_brake, speed.abs() > choices::STANDING_SPEED);
+        // A bike braked hard in a lean has no grip left for the lean (the front tyre's force is spent on the brake, the rear wheel is
+        // unloaded): the levers give way as the lean nears its limit (`choices::BRAKE_LEAN_RELIEF`).
+        let lean_share = (lean_of(rotation).abs() / self.plan.limit.max(choices::MIN_LEAN_LIMIT)).min(1.0);
+        let relief = 1.0 - choices::BRAKE_LEAN_RELIEF * lean_share * lean_share;
+        let (front_lever, rear_lever) = (front_lever * relief, rear_lever * relief);
         let (abs_front, abs_rear) = self.antilock.multipliers();
         let brake = [
             brakes::torque(&brakes, true, front_lever, abs_front, self.spec.front.radius),

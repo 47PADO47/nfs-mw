@@ -12,7 +12,7 @@
 //! ranges are in `bike_check.rs` and `bike_check_parts.rs`; they catch typing mistakes (a wheel of 3 m, a rake of 26
 //! radians), not unusual bikes.
 
-use blackbox_vehicle::bike::{BikeSpec, ChassisSpec, Mf94, TcsSpec, WheelSpec};
+use blackbox_vehicle::bike::{BikeSpec, ChassisSpec, InputRates, Mf94, TcsSpec, WheelSpec};
 use serde::Deserialize;
 
 pub use super::bike_help::AbsLevel;
@@ -52,6 +52,9 @@ pub struct Bike {
     /// The traction control (`[bike.tcs]`); left out for a bike without one.
     #[serde(default)]
     pub tcs: Option<Tcs>,
+    /// How fast the throttle, the brake levers and the stick follow what the rider holds (`[bike.input]`); left out: at once.
+    #[serde(default)]
+    pub input: Input,
     /// The scales of the gyroscopic roll and yaw torques of the wheels; 0 (the default) switches one off.
     #[serde(default)]
     pub gyro_roll_scale: f32,
@@ -59,6 +62,19 @@ pub struct Bike {
     pub gyro_yaw_scale: f32,
     /// The quadratic air drag coefficient: the drag force is `drag * v^2` newtons, `v` in m/s.
     pub drag: f32,
+}
+
+/// The rise and fall rates, per second, of the rider's axes (`[bike.input]`): a rise moves away from 0 (the stick: in either
+/// direction), a fall towards it. A rate of 0 (the default) follows at once. The brake rates are those of the front and the rear lever.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Input {
+    pub throttle_rise: f32,
+    pub throttle_fall: f32,
+    pub brake_rise: f32,
+    pub brake_fall: f32,
+    pub steer_rise: f32,
+    pub steer_fall: f32,
 }
 
 /// The traction control (`[bike.tcs]`): the slip ratios between which it cuts the throttle, and the speeds in m/s over which it
@@ -256,6 +272,11 @@ impl From<&Bike> for BikeSpec {
             wheelie: bike.wheelie.as_ref().map(Wheelie::to_spec),
             abs_level: bike.abs_level.to_spec(),
             tcs: bike.tcs.map(|tcs| TcsSpec { slip: tcs.slip, speed_range: tcs.speed_range_mps }),
+            input: InputRates {
+                throttle: [bike.input.throttle_rise, bike.input.throttle_fall],
+                brake: [bike.input.brake_rise, bike.input.brake_fall],
+                steer: [bike.input.steer_rise, bike.input.steer_fall],
+            },
             gyro_roll_scale: bike.gyro_roll_scale,
             gyro_yaw_scale: bike.gyro_yaw_scale,
             drag: bike.drag,

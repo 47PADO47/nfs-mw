@@ -74,20 +74,9 @@ fn run(
     bike.set_weight(weight);
     let mut log = Log { min_speed: f32::MAX, ..Default::default() };
     let mut gear = bike.gear();
-    let rates = std::env::var_os("RIDE6_RATES").is_some();
-    let mut smooth = [0.0_f32; 2];
     for step in 0..(seconds / FIXED_STEP) as usize {
         let t = step as f32 * FIXED_STEP;
-        let mut command = input(t, &bike);
-        if rates {
-            // Experiment: the data's rise and fall rates of the pedals (3 and 5 per second).
-            let follow = |now: f32, to: f32| now + (to - now).clamp(-5.0 * FIXED_STEP, 3.0 * FIXED_STEP);
-            smooth[0] = follow(smooth[0], command.throttle);
-            smooth[1] = follow(smooth[1], command.front_brake.max(command.rear_brake));
-            command.throttle = smooth[0];
-            command.front_brake = smooth[1];
-            command.rear_brake = smooth[1];
-        }
+        let command = input(t, &bike);
         bike.step(FIXED_STEP, &command, &ground);
         let speed = bike.body().linear_velocity.length();
         log.top = log.top.max(speed);
@@ -382,7 +371,11 @@ fn bike_sweep_extra() {
             let v = bike.body().linear_velocity.length();
             let braking = (3.0..5.0).contains(&t);
             let throttle = if braking { 0.0 } else { (0.25 + 0.2 * (25.0 - v)).clamp(0.0, 1.0) };
-            let lever = if braking { 0.5 } else { 0.0 };
+            let lever = if braking {
+                std::env::var("RIDE6_LEVER").ok().and_then(|v| v.parse().ok()).unwrap_or(0.5)
+            } else {
+                0.0
+            };
             BikeInput { throttle, front_brake: lever, rear_brake: lever, steer: stick }
         };
         check("trail brake 25", &run(&spec, 25.0, 8.0, 0.0, trail).1);

@@ -1,7 +1,7 @@
 //! How the bike feels to ride (`docs/specs/ride6-feel-round8.md`): a start that ends, a clutch that does not chatter, a fall limit
 //! with margin and a stick that can be held. Run on the example bike, whose numbers are those of a 450 cm3 supermoto.
 
-use super::{Bike, BikeInput, BikeSpec, REAR, choices};
+use super::{Bike, BikeInput, BikeSpec, InputRates, REAR, choices};
 use crate::FIXED_STEP;
 use crate::ground::FlatGround;
 
@@ -94,4 +94,50 @@ fn a_stick_held_at_three_quarters_does_not_throw_the_bike_at_any_speed() {
         }
         assert!(bike.lean() > 0.4, "lean {} at {speed} m/s", bike.lean());
     }
+}
+
+fn pedals_like_a_keyboard() -> BikeSpec {
+    let mut spec = BikeSpec::example();
+    spec.input = InputRates { throttle: [3.0, 5.0], brake: [3.0, 5.0], steer: [25.0, 6.0] };
+    spec
+}
+
+#[test]
+fn a_pedal_held_down_in_a_corner_does_not_throw_the_bike() {
+    // A lever of 1.0 for two seconds with the stick at three quarters: the rear wheel lifts or slides and the bike used to fall
+    // inward as the brake took the grip the lean needed (at 22 and 30 m/s, 4.9 s and 5.9 s).
+    for speed in [22.0_f32, 30.0] {
+        let ground = FlatGround::new(0.0);
+        let mut bike = Bike::new(pedals_like_a_keyboard());
+        assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, speed));
+        for step in 0..(8.0 / FIXED_STEP) as usize {
+            let t = step as f32 * FIXED_STEP;
+            let braking = (3.0..5.0).contains(&t);
+            let throttle = if braking { 0.0 } else { (0.25 + 0.2 * (speed - bike.forward_speed())).clamp(0.0, 1.0) };
+            let lever = f32::from(braking);
+            bike.step(FIXED_STEP, &BikeInput { throttle, front_brake: lever, rear_brake: lever, steer: 0.75 }, &ground);
+            assert!(!bike.fallen(), "fell at {t:.2} s from {speed} m/s");
+        }
+    }
+}
+
+#[test]
+fn the_lean_relief_leaves_a_straight_stop_alone() {
+    let (mut bike, ground) = bike_at(25.0);
+    run(&mut bike, &ground, 1.0, &BikeInput { front_brake: 1.0, rear_brake: 1.0, ..Default::default() });
+    // A bike braking upright at the limit of its tyres loses more than 8 m/s in a second.
+    assert!(bike.forward_speed() < 17.0, "{}", bike.forward_speed());
+}
+
+#[test]
+fn a_key_does_not_slam_the_throttle_open() {
+    let ground = FlatGround::new(0.0);
+    let mut bike = Bike::new(pedals_like_a_keyboard());
+    assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, 0.0));
+    // Full throttle from a standstill: after a tenth of a second the throttle the bike has is a third of the key's.
+    run(&mut bike, &ground, 0.1, &BikeInput { throttle: 1.0, ..Default::default() });
+    let quick = bike.rpm();
+    let (mut slammed, ground) = bike_at(0.0);
+    run(&mut slammed, &ground, 0.1, &BikeInput { throttle: 1.0, ..Default::default() });
+    assert!(quick < slammed.rpm(), "{quick} against {}", slammed.rpm());
 }

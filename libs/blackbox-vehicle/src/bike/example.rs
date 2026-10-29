@@ -369,6 +369,7 @@ impl BikeSpec {
             }),
             abs_level: abs_level(),
             tcs: Some(TcsSpec { slip: [0.09, 0.2], speed_range: [0.0, 5.0 / 3.6] }),
+            input: super::input_axes::InputRates::default(),
             gyro_roll_scale: 1.0,
             gyro_yaw_scale: 1.0,
             drag: 0.15,

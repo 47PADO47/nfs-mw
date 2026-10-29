@@ -134,7 +134,8 @@ fn bike_trace_real() {
             Ok("launch") => throttle = 1.0,
             _ => {}
         }
-        let input = BikeInput { throttle, front_brake: lever, rear_brake: lever, steer };
+        let share: f32 = std::env::var("RIDE6_REARSHARE").ok().and_then(|v| v.parse().ok()).unwrap_or(1.0);
+        let input = BikeInput { throttle, front_brake: lever, rear_brake: lever * share, steer };
         bike.step(FIXED_STEP, &input, &ground);
         let from: usize = std::env::var("RIDE6_FROM").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
         let every: usize = std::env::var("RIDE6_EVERY").ok().and_then(|v| v.parse().ok()).unwrap_or(15);
@@ -142,7 +143,7 @@ fn bike_trace_real() {
             let f = bike.wheel(0);
             let r = bike.wheel(1);
             println!(
-                "t{:.2} v{:.1} lean{:.3} tgt{:.3} lim{:.3} steer{:.3} fAng{:.3} rAng{:.3} fLoad{:.0} rLoad{:.0} rSlip{:.3} fCam{:.2} fFy{:.0} fall{:.3} yaw{:.3} fcomp{:.4} fcs{:.2} pitch{:.3} gear{} abs{:.2}/{:.2} nx{:.2} rspin{:.1} {}",
+                "t{:.2} v{:.1} lean{:.3} tgt{:.3} lim{:.3} steer{:.3} fAng{:.3} rAng{:.3} fLoad{:.0} rLoad{:.0} rSlip{:.3} fCam{:.2} fFy{:.0} fall{:.3} yaw{:.3} fcomp{:.4} fcs{:.2} pitch{:.3} gear{} {}",
                 (step + 1) as f32 * FIXED_STEP,
                 v,
                 bike.lean(),
@@ -162,10 +163,6 @@ fn bike_trace_real() {
                 f.compression_speed,
                 bike.pitch(),
                 bike.gear(),
-                bike.brake_multipliers().0,
-                bike.brake_multipliers().1,
-                bike.wheel(1).normalised_x,
-                bike.wheel(1).spin,
                 if bike.fallen() { "FALLEN" } else { "" }
             );
         }

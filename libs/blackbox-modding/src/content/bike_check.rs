@@ -45,6 +45,20 @@ pub(super) fn check(bike: Option<Bike>) -> Result<Option<Bike>, ContentError> {
         all_ranged(&tcs.slip, "bike.tcs.slip", 0.0, 5.0)?;
         all_ranged(&tcs.speed_range_mps, "bike.tcs.speed_range_mps", 0.0, 100.0)?;
     }
+    let input = &bike.input;
+    all_ranged(
+        &[
+            input.throttle_rise,
+            input.throttle_fall,
+            input.brake_rise,
+            input.brake_fall,
+            input.steer_rise,
+            input.steer_fall,
+        ],
+        "bike.input",
+        0.0,
+        100_000.0,
+    )?;
     bike.rider.check()?;
     ranged(bike.gyro_roll_scale, "bike.gyro_roll_scale", 0.0, 10.0)?;
     ranged(bike.gyro_yaw_scale, "bike.gyro_yaw_scale", 0.0, 10.0)?;
