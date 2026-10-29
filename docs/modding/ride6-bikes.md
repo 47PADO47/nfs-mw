@@ -195,6 +195,38 @@ levers, grips) and most of the livery front (fairing) are bars; the fork legs, t
 by two groups is copied into both and moves with its own side; the gap that opens at the steering head when the bars turn is
 at most the width of the head skin.
 
+## The exhaust flames
+
+The game lights a car's tail pipes at the markers `EXHAUST`, `LEFT_EXHAUST` and `RIGHT_EXHAUST` of its body solid; the marker's
++z axis is the way the flame shoots ([car-customization.md](car-customization.md#tail-pipes)), and a mod car with none shows no
+flame. A bike pops and blips already (its pops and shift pops are the sound's, [ride6-bikes-sound.md](ride6-bikes-sound.md)), so
+the importer writes the markers, and the game flames at them ([exhaust-flames.md](../exhaust-flames.md#bikes-the-ride-6-mod)).
+
+**Where the data comes from.** RIDE 6 has no outlet socket: the skeleton lists `SOCKET_AUDIO_EX`, a point on the centre plane a
+few centimetres behind the silencer (the KTM's is 83 cm behind the middle of the car frame and 66 cm up) that the sound is
+placed at, and `parts.json` lists the stock silencer as the part `muffler` (the header pipes, `exmanifold`, end in it and are not
+an outlet). The outlet is therefore read from the silencer's mesh (`exhaust.rs`, the finest level of detail, placed on the car
+frame like the rest of the body). Each step is a **choice** of the importer, because the data does not say where a silencer
+ends; the constants are named in the file:
+
+| Step | What it does | Value |
+|---|---|---|
+| components | vertices within 1 mm are one; triangles that share a vertex are one component (can, cap, hanger, bolt) | `WELD` 0.001 m |
+| fittings | a component under 10 percent of the largest one's area is dropped, so a bracket cannot pull the outlet | `KEEP_SHARE` 0.1 |
+| sides | the components are grouped by the area-weighted lateral position: left, right, or centre when within 3 cm of the centre plane; one group is one silencer (marker `LEFT_EXHAUST`, `RIGHT_EXHAUST`, `EXHAUST`) | `CENTRE_BAND` 0.03 m |
+| axis | the principal axis of the group's triangles (centres weighted by area, power iteration) | 100 iterations |
+| short cans | a group less than 1.5 times longer than wide is a pot or collector, not a can (the Yamaha R7's mesh holds one under the bike): dropped when the mesh has a real can, else its flame goes straight back | `MIN_ELONGATION` 1.5 |
+| direction | the axis turned to point backwards; an axis with a backward share under 0.1 (a side exit or a stack) snaps to out or up | `SIDEWAYS` 0.1 |
+| outlet | the vertices within 6 percent of the can's length (at least 5 mm) of its rear end are the cap; the outlet is their mean pushed out to the end plane | `CAP_DEPTH` 0.06, `MIN_CAP_DEPTH` 0.005 m |
+
+A bike with two silencers (the Ducati 888 SP5, the Triumph Speed Triple RS) gets a left and a right pipe, one with a single can
+on the right (the KTM) one `RIGHT_EXHAUST`, one with an underbelly pipe on the centre plane an `EXHAUST`. At most one pipe for
+each side (a stack of two cans on one side is one pipe between them); the game flames at four pipes at the most. A bike with
+no `muffler` part (2 of the 288) has no marker and shows no flame. The marker is written to all four body solids (`A` to `D`)
+and the pipes are kept in `built.json` (`exhaust`: side, position and direction in the body solid's frame; a file written
+before this has none). `remanifest` does not touch the car's files: **a bike imported before this needs the import again** for
+its markers.
+
 ## The physics: dump, import, `[bike]`
 
 A bike's behaviour is data in the plugin `PhysicsRide6` ([ride6-physics-data.md](../formats/ride6-physics-data.md)): about 320
@@ -281,6 +313,8 @@ where the manifest has one number and the data has a curve or several values, th
 | `fall.lean_duration_s`, `airborne_*` | `FallLeanLimitDuration`, `FallLeanLimitAirborne`, `FallPitchLimitAirborne`, `FallAngularSpeedLimitAirborne` | fact |
 | `fall.highside_lean_rad` | `FallHighsideLeanLimit` (70 or 50 degrees) | fact: a velocity against the heading with the lean under it is a high side ([rider fall](../specs/ride6-rider-fall.md)) |
 | `lean.help_stopped_range_mps`, `help_balance_speed` | `LeanHelpFactorStoppedSpeedRange`; `LeanHelpBalanceSpeedTuning` times `LeanHelpBalanceMultiplier` (else `LeanHelpBalance`) | fact ([chassis round 6](../specs/ride6-chassis-round6.md) section 2) |
+| `lean.stability_*` | `StabilityHelpFactorSpeedTuning` (omitted when it is 0 everywhere, as for the supermoto), `...LeanInfluence`, `...LeanSensitivity`, `...ThrottleReduction` / `...BrakeReduction` x `...ReductionScale`, `StabilityHelpSpeedRange`, `StabilityHelpMaxLeanAngle`, `StabilityHelpUsesTerrainNormal` | fact ([chassis round 7](../specs/ride6-chassis-round7.md) section 3) |
+| `lean.terrain_*`, `fall.terrain_*` | `TerrainInfluenceSpeedTuning`, `...MaxAngle`, `TerrainLeanLimitIncrementScale` / `...ReductionScale`; `FallLeanLimitTerrainInfluence` / `...Reduction`, `FallLeanLimitMaxDelta` | fact (section 4 of the same page) |
 | `lean.help_skid_*` | `LeanHelpFactorSkidRange`, `...Linearity`, `...SkidReduction` times `LeanHelpFactorReductionScale`, `...SkidInputInfluence` | fact; the throttle, brake and slip reductions are unset on every bike and not carried |
 | `lean.damping_multiplier` | the formula of the parameters spec, evaluated at rest (KTM about 1.012) | the handler recomputes it every tick from the bike's size; two operands are inferred |
 | `lean.help_limit` | the output of `LeanHelpLimitSpeedTuning` at the top of its range (1 or 0.99) | one number in the manifest, a speed curve in the data |
@@ -311,9 +345,12 @@ done, in the order of fidelity:
 
 1. **Baked path (default).** The diffuse picture is the base colour with the occlusion channel applied in linear light with a
    floor of 0.3; opacity is cut at the material's clip value (brake disc holes, chain links, sprocket teeth) with the
-   texture marked punch-through and two-sided. Each triangle takes the light material its metallic/roughness values say
-   (`CHROME`, `MAGSILVER`, `ALUMINUM`, `BRAKEDISC`, `SHINYPLASTIC`, `DULLPLASTIC`, `RUBBER`), so the shading groups of one
-   material split by surface. Textures are DXT1 (opaque) or DXT5 (cut-out) with a full mip chain, written by the
+   texture marked punch-through and two-sided. Each triangle takes the light material its metallic, roughness and base
+   colour say, read over the interior of the triangle (`CHROME`, `MAGSILVER`, `ALUMINUM` for bright neutral bare metal only;
+   `MAGGUNMETAL` for a darker (occluded) metal; `SHINYPLASTIC` / `DULLPLASTIC` for dark or coloured metal and for every
+   dielectric; `BRAKEDISC`, `RUBBER`), so the shading groups of one material split by surface. A black, gold or anodised
+   metal therefore keeps the colour of its texture instead of turning silver ([the table](../formats/ride6-materials.md#what-the-importer-keeps-and-loses)
+   has the thresholds, **[choice]**). Textures are DXT1 (opaque) or DXT5 (cut-out) with a full mip chain, written by the
    generic DXT encoder of `blackbox-tpk` ([textures.md](../formats/textures.md#building-textures-from-pixels)). Sizes: body
    textures up to 2048 px, tyres and rims 1024, discs 512, smaller pictures as stored. The livery is the mod car's paint:
    the orange of the stock livery is in the picture, not a `CARSKIN` placeholder.
@@ -378,7 +415,8 @@ Written without building; nothing here has been compiled or run.
   direction, the suit look without the arms mesh, hands on the grips); the checks are in the render integration spec.
 - **Not done:** the standing wheelie and drift poses (ACL clips), bump and leg-out layers, fingers, look back, the start
   and stop states, gloves, level of detail by distance (level 0 is drawn), the rider in ray-traced reflections, a rider
-  that falls with the bike.
+  that falls with the bike.
+
 
 ## The rider in a fall (`ride6-rider-ragdoll`)
 

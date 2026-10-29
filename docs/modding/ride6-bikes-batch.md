@@ -140,5 +140,9 @@ To add the files to bikes imported before, without converting any mesh:
 ride6-bike-import contacts <exporter output, or one bike's folder> <mod folder> --physics <dump>
 ```
 
+The silencer's outlets (the tail-pipe markers of the body solids, [ride6-bikes.md](ride6-bikes.md#the-exhaust-flames)) are read
+from the silencer mesh while the geometry is built, so a bike imported before they existed gets them only by an import again;
+`contacts` and `remanifest` do not write them.
+
 The car ids of a set are assigned as the batch import assigns them. The import stamp's conversion number went to 2 for this, so a
 mod started with the native library converts everything once more; the command above does not.

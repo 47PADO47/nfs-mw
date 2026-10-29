@@ -132,15 +132,51 @@ thresholds are named constants in `shading.rs` and `bake.rs`):
 | occlusion | diffuse darkened in linear light by `floor + (1 - floor) * occlusion`, `floor = 0.3` |
 | opacity mask, clip 0.3333 | diffuse alpha cut to 0 or 255, DXT5, alpha usage punch-through, two-sided texture |
 | translucent surface (`BLEND_TranslucentGreyTransmittance`: screen, lamp lenses) | blended glass: diffuse alpha is the opacity (below), DXT5, alpha usage modulated, alpha-sorted, one-sided, light material `WINDSHIELD` or `BRAKELIGHTGLASS` per triangle ([Translucent surfaces](#translucent-surfaces)) |
-| metallic and roughness | light material per **triangle** (its corners and centre sampled): bare metal `CHROME` below roughness 0.2, `MAGSILVER` below 0.4, else `ALUMINUM`; other surfaces `SHINYPLASTIC` below 0.4, else `DULLPLASTIC`; tyres `RUBBER`; discs `BRAKEDISC` |
+| metallic, roughness, base colour | light material per **triangle**, from the means of the packed picture and the base colour picture over ten points inside the triangle ([the choice](#the-light-material-of-a-triangle)); tyres `RUBBER`; discs `BRAKEDISC` |
 | normal map | lost, unless the tangent-space path is on (below) |
 | clear-coat layers, flakes, carbon weave | lost (the light material's gloss stands in) |
 | dirt, rain, palette recolour, tank liquid, pearlescence | not used (run-time inputs; defaults are clean) |
 
 The light-material names exist in the PC install (`RUBBER`, `MAGSILVER`, `CHROME`, `ALUMINUM`, `BRAKEDISC`, `SHINYPLASTIC`,
 `DULLPLASTIC`, among 156), checked by reading the names out of `GlobalB.lzc`. A metal texel keeps its base colour in the
-diffuse picture, but the metal's tint comes from the light material, so coloured metals (the gold of an anodised part) come
-out silver.
+diffuse picture; the light material decides how much of it the car shader shows ([next section](#the-light-material-of-a-triangle)).
+
+### The light material of a triangle
+
+**The cause of silver black metal [verified in the engine's shader and by renders].** The car scene draws the light materials
+`CHROME`, `MAGCHROME`, `MAGSILVER`, `ALUMINUM` and `BRAKEDISC` as the *conductor* surface (`material_response.rs`,
+`material_layers.wgsl`): no diffuse layer at all, the reflection of the environment times a reflectance
+`mix(0.65, base colour, 0.35)` clamped to 0.06 to 0.95. A black texel (linear 0.02) still reflects `0.65 * 0.65 = 0.42`, so
+a triangle of black or gold metal drawn with one of them is silver, whatever its texture says. (`DULLPLASTIC`, `SHINYPLASTIC`
+and every material without a surface class draw `texture * diffuse ramp` and add an environment term that their ramps
+(0.001 or 0) make nil; `MAGGUNMETAL` and `MAGSILVERGLOSS` are painted metal: texture times the diffuse ramp, plus a weak
+Fresnel reflection.) RIDE 6 shades a metal with its base colour as the reflectance, so the same black texel reflects almost
+nothing there; the installed materials cannot say that, so the choice is made per triangle.
+
+**The second cause: sampling [verified].** The first version sampled the pictures at the three corners and the centre, and
+the corner of an island that lies on `v = 1.0` wrapped to the other edge of the picture: the silencer of the KTM 450 (a
+black sleeve in the lower half of its atlas, silver brackets in the upper half) had 79 % of its triangles read as metal and
+came out silver. The samples are now ten points inside the triangle (`textures::interior_points`, the lattice `(i, j, k) / 6`
+with every index at least one).
+
+| Surface of the triangle (means over its interior) | Light material | Tag |
+|---|---|---|
+| tyre | `RUBBER` | [choice] |
+| metallic below 0.5 | `SHINYPLASTIC` below roughness 0.4, else `DULLPLASTIC` | [choice] |
+| brake disc part, metallic from 0.5 | `BRAKEDISC` | [choice] |
+| metal with base colour luminance below 0.08, or saturation from 0.30 | as a dielectric (the texture and its gloss; gold stays gold, black anodised stays black) | [choice] |
+| metal with luminance 0.08 to 0.30 | `MAGGUNMETAL` (texture, weak reflection) | [choice] |
+| metal with luminance from 0.30 | `CHROME` below roughness 0.2, `MAGSILVER` below 0.4, else `ALUMINUM` | [choice] |
+
+The luminance is that of the linear base colour times the occlusion factor the diffuse picture is baked with (`floor + (1 -
+floor) * occlusion`, floor 0.3): the conductor materials cannot be darkened per texel, and RIDE 6 applies its occlusion to
+the specular light as well, so a metal in a crevice (the engine) takes the material with a body. The bare steel and aluminium
+of the bikes measure 0.4 to 0.6 linear (sRGB 170 to 200), the chain 0.12, the black sleeve of a silencer 0.02, so the limits
+split the data at its gaps. Measured against the same bike drawn with the texture alone (`NFSMW_CAR_SHADING=simple`, same
+camera): the mean luminance error over ten regions (silencer, fork, engine, wheels, header) of the KTM 450 fell from 16.3 to 13.3
+at one yaw and 15.8 to 12.0 at another (silencer 43 to 11), the Ducati 888 SP5 from 17.0 to 16.0 (rims gold again, not
+silver), the Yamaha R7 from 13.9 to 13.0; the remaining 10 to 15 is the brighter light rig of the glossy shading (a
+`DULLPLASTIC` triangle is 14 brighter than the texture-only look on any bike) and the gloss that is kept on purpose.
 
 ### Translucent surfaces
 
@@ -182,7 +218,7 @@ opacity *o* is a picture alpha of *o* divided by the light material's alpha.
 
 - Opacity of a texel: `1 - mean(linear RGB) * Max`, the mean being the "grey" of the blend mode, linear because the picture is
   sRGB and the transmittance is a physical quantity. White gives 0.05, the red of the Yamaha 0.87, black 1.
-- A triangle takes `WINDSHIELD` (alpha 0.4) when the mean opacity at its corners and centre is at most 0.4, otherwise
+- A triangle takes `WINDSHIELD` (alpha 0.4) when the mean opacity over ten points inside it ([interior points](#the-light-material-of-a-triangle)) is at most 0.4, otherwise
   `BRAKELIGHTGLASS` (alpha 1.0), because `WINDSHIELD` cannot show more than 0.4 (the thresholds are `CLEAR_ALPHA` and
   `TINTED_ALPHA` in `glass.rs`). The texel's alpha is stored for the material its own opacity selects, so a clear texel is
   alpha 32 (0.05 / 0.4) and the Yamaha's red lens 221 (0.87; the Ducati's red 0.80 and amber 0.62).

@@ -8,6 +8,9 @@ rider's animation instance is listed as inputs only. Sources and provenance: [ri
 Files: [ride6-rider.md](../formats/ride6-rider.md). Runtime: [skeletal-animation.md](skeletal-animation.md).
 Integration into the game: [ride6-rider-render-integration.md](ride6-rider-render-integration.md).
 
+> **ACL clips** ([acl-decoder.md](acl-decoder.md)): the standing wheelie, the drift poses and the old-school centre pose, which the
+> pack lacked for want of an ACL decoder, are in it now; section 5b says how the graph uses them.
+
 > **Round 6** ([ride6-rider-round6.md](ride6-rider-round6.md), section 4) replaced the choices of sections 5 and 8 below by the
 > blueprint's own signals: the lean, tuck, wheelie and stoppie inputs of the graph, their smoothing rates and the meaning of
 > the smoothers. Where this page disagrees with it, round 6 is right.
@@ -125,6 +128,43 @@ Mapping from this project's bike state (`blackbox-vehicle::bike`, physics space 
 | `wheelie` | front wheel lift: pitch of the body nose-up divided by the bike's wheelie limit, 0..1 |
 | `stoppie` | rear wheel lift likewise |
 
+## 5b. The clips that were ACL: standing wheelie, drift, old-school centre
+
+Parameters added to the graph (after the eight of round 6, in `graph.rs`: `standing`, `steer`, `standing_entry`, `drift`; a graph
+that has none of them reads 0 and stays as it was), with the signals the blueprint computes for them [D] (`params.rs`):
+
+| Parameter | The blueprint's variable and formula |
+|---|---|
+| `standing` | `Wheelie_Standing_Alpha` = `Constant(ramp(OriginalRiderWeightY; 0.2, 0.5) * ramp(BikeWheelie; 0.2, 0.5), 3)` (for bike types other than 3): the rider stands on the pegs when he leans forward through a wheelie. Here `OriginalRiderWeightY` is the rider's longitudinal weight (`Bike::rider_weight`, -1 back to 1 forward) |
+| `standing_entry` | `Wheelie_Entry_Explicit` = `Constant(Flashback(ramp(BikeWheelie; 0.2, 0.4) * 0.5, 0.4), 4)` |
+| `steer` | `Constant(VehicleOriginalSteer, 6)` (the steering input, -1 to 1) |
+| `drift` | `Drift3BlendAlpha` = `Constant(Defuzzify([(r, r), (l, -l)], 0), 3.5)`, `r = ramp(a; 8, 20)`, `l = ramp(a; -8, -20)`, `a` the drift angle in degrees (bike types 2, 3 and 4) |
+
+The tree: `pose = ThreeWay(Drift_L, Blend(sitting pose, Standing_BS(steer, standing_entry), standing), Drift_R)(drift)`, then the
+additive shake as before. The blend space is `motard_Wheelie_Standing_BS` read from its asset [D]: steering from -1 to 1, entry from 0
+to 0.3, samples `motard_wheelie_Standing_anim` at (0, 0.3), `_L` at (-1, 0.3), `_R` at (1, 0.3023) and
+`motard_wheelie_StandingInterpolation_anim` at (0, 0).
+
+Old-school style (`RidingStyle == 2`): `SET Animations` sets `Standard_Pose = motard_old_school_standard_pose` and
+`AeroPose_* = motard_aero_pose` [D]; the graph centres its lean sets on them. Measured: the old-school lean clips' head is 34 to
+36 cm forward of the root and 56 cm up, as the old-school centre pose's (34 cm, 61 cm) and not as `CenterPose_LowSpeed`'s (21 cm,
+61 cm).
+
+What is a **choice** here: the bindings of the pins (which variable feeds the blend space's second axis, and that the standing
+wheelie weighs over the sitting pose before the drift): the blueprint binds them in cooked data that was not read; the names fit
+(`Wheelie_Entry_Explicit` is the one variable in the blend space's range, 0 to 0.5) and the structure is that of the variables; the
+sign of the drift angle (here positive when the bike's heading is to the right of its path, a drift in a right-hand turn, which
+takes `Drift_R`: the head of `motard_drift_pose_L` sits 12 cm to the rider's left, `_R` 12 cm to the right, and
+`motard_wheelie_Standing_anim_L` 10 cm to the left); the speed below which the angle is 0 (2 m/s); and the **default riding style**
+of the importer, now 0 (the knee-out lean clips `motard_Leaning_Knee_*`) in place of 1 (plain), because a supermoto rider puts his
+knee out and the data assets of the styles do not carry the index. `--style 1` and `2` pick the others.
+
+Still not driven: the knee layers (`motard_ass_knee_*` open and closed: they follow the knee-to-ground trace, which needs the road
+under the knee), `motard_leg_out_*` (pre-turn), the bump and imbalance layers, `motard_wheelie_Entry_anim` (the blueprint's
+`Wheelie_Entry` pose, stepped by `Wheelie_Entry_Explicit`: the standing blend space's interpolation pose stands for it), the
+fall and get-up clips (21 plus `race_ragdoll_FaceDown_GetUp` are in the pack for a fall that plays them: today the rider falls as
+the physics' ragdoll, [ride6-rider-fall.md](ride6-rider-fall.md)).
+
 ## 6. Attachment and IK (`rider/attach.rs`, `attach.json`)
 
 The pose is authored for a bike in its rest pose; the hands and feet are then moved to the bike's own points:
@@ -220,7 +260,8 @@ recovered), the sideways knee and leg-out layers, the user's own weight shift (`
 
 - `BikeType` and `RidingStyle` of chassis 369: not found in the bike's data assets. `KTM_450-SMR-2022` has a camera
   container under `data/cameras/Containers/motard/`, which suggests type 2; the physics tuning assets do not name it.
-- Eight ACL-compressed clips (standing wheelie, drift, entry; see the format note).
+- (The eight ACL-compressed clips are decoded now, section 5b; the wheelie entry clip, the knee, leg-out, bump and imbalance layers
+  and the fall animations are in the pack but not played.)
 - The native fuzzy-logic layer of the animation instance (`RiderLean_Polished`, `TuckedIn_Alpha`, `BikeWheelie`, `BikeStoppie`
   and the smoothing of the native inputs): it lives in native code of the animation instance (`IgnitionMotorbikeRiderAnimInstance`),
   which was not decompiled in this round (the analysis instance was not available); the choices for them in section 8 (lean

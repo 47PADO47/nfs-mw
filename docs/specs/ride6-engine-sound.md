@@ -12,20 +12,21 @@ Evidence tags: **[data]** read from a data asset; **[code]** recovered from the 
 ## 1. What is known and what is not
 
 RIDE 6 does not synthesise or crossfade engines in its own code. It feeds the numbers of section 3 to a Wwise sound
-engine as *game parameters* (RTPCs) and posts *events*; the blend of the engine loops by revs, the load layers, the
-pitch curves and the choice of a backfire recording are authored inside the Wwise banks.
+engine as *game parameters* (RTPCs) and posts *events*; the engine is made by a REV source plugin inside the Wwise banks
+(section 8) from the throttle, the rpm and the gear, and the choice of a backfire recording is a playlist inside them.
 
 | Part | Status |
 |---|---|
 | Which events a bike plays, which bank holds each, which recordings an event lists | **[data]**, all 634 chassis/variant rows |
 | The values the game sends to Wwise each frame and how they are made | **[code]**, section 3 |
 | When a gear change plays, when a backfire bang and flame happen, and their numbers | **[code]** + **[data]**, sections 4 and 5 |
-| The engine loops themselves, their rpm points, the crossfade ranges, the pitch and load curves | **not recovered**: they are inside `WwiseAudio/KTM_EXC_450.bnk`, which the game keeps in a `.pak` whose index is encrypted ([formats](../formats/ride6-audio.md#where-the-data-is)). No key was used or sought. |
-| The rule inside Wwise that picks one of the five backfire recordings | **not recovered**, same reason |
+| The engine itself | **[data]**, section 8: a Crankcase Audio REV synthesiser per bike (engine and exhaust models), whose recordings, pitches and plugin parameter curves are readable; the synthesiser's own algorithm is not |
+| The rule inside Wwise that picks one of the five backfire recordings | a random playlist of the five **[data]**; the weights are in the unparsed node parameters |
 
-So the engine layers of a converted bike need the user's own decoded recordings *and* their rpm points
-(`--layer "<rpm>:<wav>"`). Until those exist the bike plays the host's built-in engine; the manifest tables are generated
-as soon as they are supplied ([modding/ride6-bikes-sound.md](../modding/ride6-bikes-sound.md)).
+The banks became readable with the pak key the user supplied ([formats](../formats/ride6-audio.md#the-pak-key)). The first
+version of this spec, written without them, said the loops had to come from the user's own decoding and rpm
+measurements; the converter now reads them from the banks (section 8) and `sound-bikes` builds every bike's tables
+([modding/ride6-bikes-sound.md](../modding/ride6-bikes-sound.md)).
 
 ## 2. What a bike plays
 
@@ -247,7 +248,7 @@ the host's numbering); `Powertrain::shifting()` is not needed, the number changi
 
 | Choice | Reason |
 |---|---|
-| Engine layers are the user's decoded loops at rpm points the user supplies; layers of one rpm (engine and exhaust) are summed into one | The Wwise blend (section 1) is unreadable without the bank; the core mixes layers by rpm in equal power and refuses two layers of one rpm |
+| Engine layers are loops of the bike's REV models at their own pitch (section 8); the engine and exhaust loops of one pitch are summed into one layer | The host mixes up to twelve layers by engine speed in equal power and refuses two layers of one rpm; the REV synthesiser itself is not reproduced |
 | Loops are closed with a 40 ms equal-power crossfade (`SoundOptions::loop_fade_ms`) unless the WAV carries a `smpl` loop, whose body is used | A decoded loop is a clip; the game loops the whole file |
 | Engine loops keep their relative level; the loudest peaks at 0.9. One-shots are each normalised to 0.9 | The host rescales the whole engine by its own level model; the Wwise gains are unknown |
 | `shift_clunk = false` for a bike | The class-wide clunk of the 2005 cars is not a bike sound |
@@ -259,3 +260,35 @@ the host's numbering); `Powertrain::shifting()` is not needed, the number changi
 | A flame lights the pipes in 0.06 s bursts; the pops after a bang light the pipes only when the bang did | The pipes of this game take one bang at a time, no strength; 0.06 s is the length of the pipe flame of a pop (`docs/exhaust-flames.md`) |
 | The driver's throttle and the engine's throttle are the same pedal value | The host has no electronic throttle intervention for a bike |
 | The overrun rpm span is the `[engine_sound]` idle/redline of the car, else the built-in engine's | The host's `0 to 1` engine speed is relative to the span; the bike sim's own idle and redline are not passed to the audio (a request for the lead: add `idle_rpm` to `CarAudioTelemetry` for an exact fraction with the built-in engine) |
+
+## 8. The engine layers from the REV models
+
+Every bike's engine and exhaust events start one REV source sound each ([formats](../formats/ride6-audio.md#rev-engine-models)).
+A model holds 20 loops recorded under load, each a whole number of engine cycles at a known cycle frequency, 19 or 20 loops off
+load, a rev-up and a coast-down sweep, and an idle recording. **[data]** The conversion (`sound::rev_layers`, `sound::bike_sound`):
+
+1. **Pitch of a loop** = `cycles * sample_rate / frames`; **engine speed** = 120 x that, because a four-stroke has one cycle per two
+   turns **[choice, checked on data]**: the highest loop of the 293 bikes lies at 0.97 of the physics asset's redline in the median.
+2. **Eleven loops under load** of the engine model, spread evenly over its 20 (the first and the last always), are the loop
+   layers **[choice]**: the host takes at most 12 layers. Each is summed with the exhaust model's loop of the nearest number of
+   cycles, resampled (as a periodic loop, so it stays seamless) to the engine loop's length **[choice]**, level 1 to 1 as recorded
+   (the busses' gains are in the unparsed node parameters). When the cycle numbers differ by more than one in thirteen the exhaust
+   is left out of that layer **[choice]**.
+3. **The idle layer**: the idle recordings of the two models summed (the exhaust's resampled to the engine's length), closed with a
+   40 ms crossfade because it is not a whole number of cycles, at the pitch measured on it by autocorrelation. An idle with no clear
+   period (19 of 98 engines: uneven V and two-stroke idles) plays at the idle speed of the physics asset instead **[choice]**.
+4. **Levels**: all layers share one gain, so the loudest peaks at 0.9 and the others keep their recorded level (the low loops under
+   load are quiet, as the synthesiser's own are).
+5. **Not used**: the loops off load and the two sweeps (the host's mixer has no crossfade by load for layers mixed by speed and 12
+   layers leave no room for a second set); the Vorbis thump of the engine event and the plugin `0x1990002` sounds (an unidentified
+   synthesiser); the plugin's parameter curves (`Throttle`, `RPM`, `GEAR`, `GearDown` to its parameters 1, 2, 3 and 5), which drive
+   the synthesiser and have no counterpart in the host.
+6. **Effects**: `shift_up` and `shift_down` are the codec recordings (clunks and bangs) of the gear-up and gear-down events,
+   `backfire` those of the bang event, `pops` those of the exhaust event (the five to twelve crackle clips of its random playlist),
+   each normalised to a peak of 0.9 and shared between bikes by media id. The variant is `Custom` (the aftermarket exhaust; the
+   one with bangs for most bikes) unless told otherwise **[choice]**.
+
+Checked offline in the game's mixer (`measure_cars`): the KTM 450 plays at -19 dB (the stock cars -21 to -16 dB) at every engine
+speed from 10 to 100 percent with dips to -23 and -22 dB at two speeds, its fundamental follows `rpm / 120` (28.1 Hz at 10
+percent, 55.4 Hz at 50 percent, 91.6 Hz at the 11000 rpm redline), a sweep from idle to redline has no gap and no clipping.
+Nothing was listened to.

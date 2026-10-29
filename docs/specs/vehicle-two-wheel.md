@@ -140,10 +140,8 @@ velocity without its component along the steering axis is the wheel's direction 
 turned to the left by the slip, and the angle is the heading of that vector projected along the steering axis onto the chassis'
 horizontal plane (`lean::handlebar_angle`); blended to `stick x max_angle` between `blend_range`, and filtered (`response`,
 `damping_ratio`). **Lean help** adds a side force at the front contact that closes a
-share of the gap to the wanted force, within the tyre's lateral peak and the friction ellipse. The roll acceleration is then
-the help factor is 1 at a standstill and fades to the tuned value by 10 km/h, and the help is a force at the front contact only above
-10 to 30 km/h; below that it is a roll torque that closes the share `h` of the gap to the torque the controller prescribes, within the
-tyre's cap (`ride6-chassis-round6.md`, sections 1 and 2). It holds a bike that stands still. The game has no rider torque of its own.
+share of the gap to the wanted force, within the tyre's lateral peak and the friction ellipse. The help factor is 1 at a standstill and fades to the tuned value by 10 km/h, and the help is a force at the front contact only above
+10 to 30 km/h; below that it is the moment of the help force about the centre of gravity (`ride6-chassis-round6.md`, sections 1 and 2). It holds a bike that stands still. The game has no rider torque of its own.
 
 **Wheelie and stoppie** (all of it in [ride6-tricks.md](ride6-tricks.md); only a bike has any of it). Nothing lifts a wheel but
 the rigid body: the engine's thrust or the front brake unloads the other tyre, with the rider's weight where the rider component puts
@@ -186,15 +184,15 @@ the zero-torque point.
 
 | Choice | Value | Why it is open |
 |---|---|---|
-| `LEAN_FORCE_INCLUDES_TURN_FORCE` | true | the reference has no such feed-forward (a held lean sits under a degree off its target); without it this model's bike, held at the lean limit, loses its front tyre after about a second ([chassis round 6](ride6-chassis-round6.md) section 1) |
-| the compensated roll torque of the couple | `lean_help::couple_torque` | the game's couple is the moment of the help force; over a 60 Hz step it chatters at a standstill, so this model closes the same gap by torque ([chassis round 6](ride6-chassis-round6.md) section 1) |
+| `MAX_SUBSTEP` | 1/480 s (round 8; was 1/240) | the game divides a vehicle step longer than the chassis' `MaxDeltaTime` into sub-steps; the value is in project settings that were not found. At 1/60 the lean loop is unstable above 20 m/s ([chassis round 7](ride6-chassis-round7.md) section 1) |
 | `Environment::default()` | 23 / 28 deg C | a stand-in for the host's weather: the game takes them from a per-track table ([chassis round 6](ride6-chassis-round6.md) section 5) |
 | `RiderHelpSpec::default()` | the constructor defaults of the reference | what a manifest leaves out of `[bike.wheelie.help]` (recovered, [ride6-tricks.md](ride6-tricks.md)) |
 | `LATERAL_GRIP_TOLERANCE`, `TYRE_EFFICIENCY_BALANCE`, `STANDING_SPEED` | 1, 0.5, 0.5 m/s | recovered defaults (the first two), numerical guard |
 
 Gone in round 6 because the binary says: `ROLL_TORQUE_AUTHORITY` (no direct roll torque exists), `BUMP_STOP_FACTOR` (the stop is a clamp that
 zeroes the speed), `AIR_TEMPERATURE`/`ASPHALT_TEMPERATURE` (inputs of the world), `LEAN_AND_PITCH_FALL_AT_ANY_SPEED` (they are, and the angular speed too),
-`SLIP_CORRECTION_MULTIPLIER` (1 outside a burnout), `BRAKE_COUPLING_SIGN` (-1).
+`SLIP_CORRECTION_MULTIPLIER` (1 outside a burnout), `BRAKE_COUPLING_SIGN` (-1); in round 7 `LEAN_FORCE_INCLUDES_TURN_FORCE` (the 60 Hz step was the cause) and the
+compensated couple.
 
 `HANDLEBAR_LEAD` of the first build is gone: with the closed-form handlebar angle the saturated stop (a held turn under full
 brakes, and a straight stop from 30 m/s) stays stable without a lead.
@@ -206,8 +204,10 @@ yaw rate, the stability help (off for the stock bike; the pairing of its reducti
 cornering protection of the ABS element (its form is inferred, not read), the rider's tuck-in drag (the rider drag curves were not
 read), the terrain terms of the lean limit and the lean limit's brake and throttle deltas (zero by default; the reduction scale and
 the sign of the terrain inclination were not recovered), the wet rows of the tyre tables, the swingarm's arc, the forced
-deprecated brake reduction of the ABS element ([ride6-powertrain-round6.md](ride6-powertrain-round6.md) section 9) and the
-engine-brake reduction.
+weight and pitch terms of the ABS brake reduction (their product is 0 for every bike) and the non-deprecated forms of the engine-brake and
+brake reductions (no bike uses them). Round 7 ([ride6-powertrain-round7.md](ride6-powertrain-round7.md)) models the deprecated brake
+reduction, the engine-brake reduction and the over-limit upshift; the `[bike.brakes.abs.reduction]`, `[bike.engine] brake_reduction_*` and
+`[bike.transmission] over_limit_*` keys carry them.
 
 ## Recovered in round 6 (no longer choices)
 

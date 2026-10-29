@@ -155,15 +155,56 @@ from the grip *socket*, a property of the rig and of how the socket is authored,
 bike's skeleton to the model uses the bike's own hubs. A missing file keeps the rig's points (a log line says so once); an unusable
 one is logged and ignored.
 
-**Reach.** The poses are authored for the supermoto, upright. Measured with the reference pose's shoulders against the sockets of
-the 293 bikes: the KTM's arms reach their grips with 11 cm to spare; 212 of the 293 bikes have grips farther than the arm is long, by
-up to 23 cm (race bikes most: the mean excess of `-RM-` variants is 9.7 cm against 7.6 cm for the others); no bike's pegs are out of reach (legs have at least
-15 cm spare). The two-bone solve stretches a limb towards an unreachable target without breaking it (the hand is never farther
-than the limb is long from the shoulder). To close the gap `rider/reach.rs` turns the body forward about the pelvis, before the
-limbs are solved, by one angle for all limbs: the least-squares angle that brings the shoulders of the limbs whose goal is out of
-reach (past 0.95 of their length) to their goals, held to 0..0.5 rad. These two numbers are **modelling choices**, a stand-in for
-the original's full-body IK; the original also has race poses (`race/`, `BikeType` `RACING`), which are not exported yet
-([formats/ride6-rider.md](../formats/ride6-rider.md), Gaps). The KTM, whose grips are in reach, does not lean.
+**What was wrong (measured on the exported meshes, 2026-10).** Three things put a rider on a bike other than the KTM wrong:
+
+1. *The seat.* `SOCKET_RIDER` is the rider's root bone, not a point on the seat. Compared with the top of the chassis mesh's seat
+   at the socket's place it is 2.9 cm above on the BMW R 1300 GS, 5.9 on the KTM 450 SMR, 9.1 on the Honda X-ADV, 12.6 on the Yamaha
+   R7 and 14.6 on the Ducati 998R. The rider's root is also 5 cm under his pelvis bone, so the R7's hips hovered 17 cm over the seat.
+   RIDE 6's own sockets are not what it sits him by (nothing in the data of the physics, the rows of `RiderAnimationCorrection_DT`
+   or the blueprint does: the physics rider's `SaddleHeight` is 20 for all 317 bikes with a rider block); the animation's own
+   full-body solve is the part that was not traced.
+2. *The reach.* The pose is authored for the KTM, upright. The R7's grips are 10 cm above its seat and 53 cm ahead, so the shoulders
+   were 0.65 m from the grip with arms 0.53 m long. The old lean (one linearised step about the pelvis, at most 0.5 rad) closed
+   only part of it: the arm ended straight with the wrist 12 cm from the grip socket (hand bone at (0.19, 0.26, 1.03) for a socket at
+   (0.26, 0.29, 0.93)), the glove hung under and behind the grip.
+3. *The turn of the hand and foot.* The tip was aimed at `target + offset` in the rider's space and kept the forearm's turn, so a
+   bike whose grip socket is turned differently (clip-ons) got the KTM's hand placement.
+
+The eight unreadable ACL clips are not the cause: the riding poses (`motard_CenterPose_*`, `Leaning_*`) are decoded; the missing
+ones are the standing-wheelie blend space and the drift poses ([ride6-rider-animation.md](ride6-rider-animation.md), Gaps), which
+drive the rider only in those tricks (they stay replaced by the nearest decoded wheelie clips).
+
+**The fix** (`drive/rider/{seat,reach,pose}.rs`, `mods/ride6-bikes/src/rider/{seat_surface,attach,contacts}.rs`):
+
+- *Sat on the seat.* The converter measures the seat's top along the bike from the exported chassis mesh (vertical rays down on the
+  body parts at the centre line and 7 cm to each side, the highest hit below the root plus 3 cm, averaged, 2 cm apart from 30 cm
+  behind the socket to 10 cm ahead) and writes it to `contacts.json` as `seat_surface`. The game takes the vertices of the rider's skin
+  that mostly follow the seat bones (`pelvis`, `gluteus_Vol_l/r`, from `attach.json` `seat.bones`; 200 on the suit), fixes them to the
+  pelvis, and each frame lowers (or raises) the body along the bike's up axis until the lowest of them is `seat.sink` below the
+  surface. `sink` is a **choice calibrated on the KTM**: with the root on the KTM's socket the game's own points are 4.0 cm under
+  its seat, and that is taken for every bike, so the KTM stays where the original placement has it (its pelvis moves 0.07 mm) and
+  the others sit as deep. Result on the scratch set (pelvis shift from the socket's placement): R7 -6.9 cm, Ducati -6.3, X-ADV -2.7, Indian -0.8, BMW +3.7.
+  The shift is held to 20 cm; a bike with no `seat_surface` keeps the old placement.
+- *Reach by the spine.* `reach.rs` leans the spine forward about its own three joints (an equal share each) by the smallest angle at
+  which every shoulder is within 0.93 of its arm's length of the hand's goal (found by stepping 0.05 rad and bisecting, up to 1.25
+  rad), and turns the neck and head back by 0.8 of it in all. The pelvis does not turn, so the legs and the seat contact are
+  unaffected. 0.93 leaves the elbow bent 20 degrees; the KTM needs no lean (arms at 0.79). On the R7 the head ends about 40
+  degrees ahead of the pelvis's vertical with the arms bent. These constants are choices (the original solves the body with a full-body IK).
+- *Hand and foot frames.* `contacts.json` targets carry the socket's turn. `attach.json` limbs carry `tip_frame`: the tip bone's place
+  and turn in the target's frame, measured on the reference pose, so the tip is at `target frame * tip_frame` and takes that turn
+  (`apply_two_bone` with a tip rotation); for the KTM this is exactly the old `target + offset` (hands and feet agree to 0.1 mm).
+  Measured against the KTM's own sockets the hand bone's frame is 12.6 to 15.4 degrees and 3.5 cm from `SOCKET_*_HANDLE_POSE`'s and
+  the foot bone's 9.5 to 13 degrees and 8 cm from the peg socket's, which suggests the original aims the bones at the sockets with
+  small offsets (the blueprint's `HandIKLocationOffset` are 1 cm); putting the wrist exactly on the socket was tried
+  (`HANDS_ON_SOCKET`) and moved the KTM's hands off its grips, so the authored relation is kept.
+- Every limb reaches its goal to under 0.1 mm on the KTM, R7, Ducati 998R RM, X-ADV, BMW GS, Indian Challenger and Italjet Dragster
+  (`probe_tests.rs`, `fit_tests.rs`: hands and feet within 1 cm, buttocks `sink` into the seat within 5 mm, on a supermoto, a sport
+  bike and a cruiser).
+
+**Still imperfect.** The glove is where the authored relation puts it, 3.5 cm from the socket, not wrapped round the bar by a
+finger solve; the elbow and knee directions follow the rig's pole bones (no per-bike `elbow`/`knee` corrections); the spine bends
+in equal shares (no per-bone limits); the seat profile is the centre of the seat only (a bike whose tank rises under his knees
+is held by the profile's range); the tuck pose of the original (`RACING` poses) is not exported.
 
 **Not done.** The correction row is carried and not applied (knees and elbows by lean, the tank and muffler corrections, the spine
 rotators, `pole_elbow_cm`): they need the control rigs' solve, which this runtime replaces with two-bone IK. The rider does not

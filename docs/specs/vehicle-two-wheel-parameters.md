@@ -42,7 +42,7 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 | `.toroid_factor`, `.mass_kg`, `.inertia_kgm2` | `ShapeToroidFactor`, `Mass`, `Inertia` | none | fact |
 | `.tyre.a`, `.b`, `.c` | the `Tarmac` row of the tyre's grip table | `A0..A10, A111, A112, A12, A13`; `B0..B10`; `C0..C17` | fact |
 | `.rolling` | `RollingResistanceConstant`, `...Velocity`, `...SqrVelocity` of the row | none | fact |
-| `.lateral_grip_limit` | `LateralGripLimit` | none (informational: the code uses `atan` of the lateral grip, M3) | data |
+| `.lateral_grip_limit` | `LateralGripLimit` | none; the front wheel's value multiplies `atan(grip peak)` in the fall lean limit (`ride6-feel-round8.md`, section 2) | fact |
 | `.tire_stiffness_n_per_m`, `.max_tire_deformation_m`, `.compression_shape_factor` | `TireStiffness`, `MaxTireDeformation`, `TireCompressionShapeFactor` | none, cm to m, none | fact |
 | `.slip_correction`, `.rest_slip_correction`, `.rest_speed_threshold_mps` | `SlipCorrection`, `RestSlipCorrection`, `RestSpeedThreshold` | none, none, km/h to m/s | data |
 | `*_suspension.max_travel_m`, `.spring_n_per_m` | `MaxCompression` (m, at the wheel), `SpringStrength` (N/m; a **shock** rate for the rear) | none | fact |
@@ -65,6 +65,9 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 | `transmission.slipper_filter_speed` | `SlipperClutchFilterSpeed` (constructor default 0, no bike sets it) | none | fact |
 | `transmission.clutch_timing`, `.throttle_timing`, `.release_throttle_on_shift`, `.modulate_throttle_on_upshift` | handler `ClutchTimingOnGearChange`, `ThrottleTimingOnGearChange`, `ReleaseThrottleOnShift`, `ModulateThrottleOnUpShift` | none (fractions of the change) | fact ([ride6-powertrain-round6.md](ride6-powertrain-round6.md) section 1) |
 | `transmission.force_downshift_*` | handler `ForceGearDownChangeBrakeInputRange`, `...Duration`, `...Factor`, `...Linearity`, `ForceGearDownChangeSpeedInputRange` (written when the factor is not 0) | speed range km/h to m/s | fact (section 8 of the round 6 spec) |
+| `transmission.over_limit_*` | handler `GearChangeOverLimitEnabled`, `OverLimitMinChangeSpeed` (km/h to m/s), `OverLimitChangeTime`, `OverLimitChangeTimeThreshold`, `OverLimitRpmPercentage` | speed | fact ([round 7](ride6-powertrain-round7.md) section 3) |
+| `engine.brake_reduction_factor`, `.brake_reduction_load`, `.brake_reduction_slip` | `EngineBrakeReductionFactor`, `...LoadTuning`, `...SlipTuning` | none | fact (round 7 section 2) |
+| `brakes.abs.reduction.*` | `BrakeReductionSpeedTuning` and the `Front`/`RearBrakeReductionTuning` translators | none | fact (round 7 section 1) |
 | `transmission.press_clutch_at_min_rpm`, `.min_rpm_speed_scale_range` | handler `PressClutchAtMinRPM`, `MinRPMSpeedScaleRange` (constructor defaults true, 1.05 to 1.1) | none | fact (section 3) |
 | `transmission.release_speed_mps`, `.feather_factor`, `.feather_max_factor` | `ClucthReleaseVelocityRange.Y`; `ClutchFeatheringPeakTorqueRPMFactor`, `...MaxRPMFactor` (when `bEnable`) | km/h to m/s; none | fact |
 | `brakes.front_force_n` | `Brake.BrakeForce * BrakeBalance` (balance 1 for every bike; another balance is refused) | none (N at the patch, `T = F R`) | fact |
@@ -118,7 +121,7 @@ front brake 1880 N, rear brake 1000 N.
 | `InertiaTensorScale` base | **inertia = scale x total mass** (kg m^2), not a box; x roll, y pitch, z yaw; total mass includes the rider |
 | `RestCompressionOffset`, `Hydraulic*`, `ProgressiveSpring*` | static preload (m); a second progressive spring term; the progressive term of the spring law (see the suspension spec) |
 | `SlipCorrection`, `RestSlipCorrection` | combined-slip damping `1 / (abs(nx) k + 1)` with `k` blending from `SlipCorrection` to `RestSlipCorrection` at low speed [I]; the low-speed slip regularisation is a separate smoothstep (tyre spec) |
-| `LateralGripLimit` | data only; the code uses the lateral grip peak `atan(mu)` for the lean limit |
+| `LateralGripLimit` | the factor of the fall lean limit (`atan(grip peak at the rest load) x LateralGripLimit`); the lean limit takes `LateralGripTolerance` instead (`ride6-feel-round8.md`) |
 | `TireStiffness` | series radial spring splitting the ground penetration between tyre and suspension |
 | `ShapeToroidFactor`, `ShapeRadius`, `ShapeWidth` | `r_eff = R - 0.5 (1 - abs(cos camber)) factor width - compression`; radius and width from the mesh |
 | Rider mass, `COMOffset`, weights | rider 70 kg, `COMOffset (-5, 0, 40) cm` (z used in the roll inertia term), separate spring-damper mass |

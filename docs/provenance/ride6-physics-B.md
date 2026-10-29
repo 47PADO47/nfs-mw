@@ -63,3 +63,34 @@ grip multiplier. No statement here was tested in the running game (the game must
 `libs/blackbox-vehicle/src/bike/`: `lean_help.rs`, `lean_spec.rs`, `fall.rs`, `chassis_state.rs`, `handling.rs` (the help and its
 force or couple), `thermal.rs` (the day), `wheel_step.rs` (no stiff stop), `suspension.rs` (the sign), `tyre.rs` (the multiplier);
 manifest keys in `libs/blackbox-modding/src/content/bike_parts.rs`; importer in `mods/ride6-bikes/src/physics/steering.rs`.
+
+## Round 7
+
+Spec: [ride6-chassis-round7](../specs/ride6-chassis-round7.md). Same method (private headless copy, exception-table lookups).
+
+| Topic | Functions | How verified |
+|---|---|---|
+| Sub-steps of a vehicle step | `0x145147070` (pre-tick, the division of `dt`, post-tick); the two defaults at `0x14bcd2320` / `0x14bcd2324` are -1 | `ceil(dt / MaxDeltaTime)` held to `MaxSubsteps`; the chassis' `+0xF4`, `+0xF8` read through the vehicle's chassis pointer |
+| Stability help: desired yaw rate and application | `0x1450c6560`; the tan argument traced in the instructions (lean blended by the input factor, terrain shift, clamp), `|g|` the length of the body's gravity vector, speed `+0x1740`; add-torque `0x1450ff5f0` | disassembly of `0x1450c6860` to `0x1450c68fc` |
+| Terrain normal, slope, inclination | `0x1450cd860`; consumers `0x14510b180` (lean limit), `0x1450ca0a0` (fall tests) | structure read; sign fixed by the two consumers' use (see the spec) |
+| Constructor defaults used | `0x1450bbf80` (smoothing 1, min normal z -1, blend 1), `0x1450fbfa0` (terrain max 90, scales 1, stability range 10 to 15, max lean 75) | |
+| Low-speed constraints | `0x145101530` (sets the stopped state and overwrites the velocity), `0x14514a920`, `0x145130520` / `0x145132820` / `0x14512ed70` (readers of the flags) | the state needs a brake above 0.1; it zeroes the wheel spin |
+
+Data: the chassis block of the KTM asset (`StoppedSpeedThreshold` 10, `StoppedAngularSpeedThreshold` 0.2, `StoppedProjAngularSpeedThreshold` 0.05,
+`LowSpeedConstraintWheelNearGroundThreshold` 2, `VelocitySolverIterationCount` 16; no `MaxDeltaTime`) and the stability, terrain and fall
+fields of the eight handler assets. Not found: the asset holding `FPhysicsSimSettings` (class `PhysicsSimulationSettings`).
+
+Rust: `mod.rs` (`respond` / `begin_body` sub-steps), `choices.rs` (`MAX_SUBSTEP`), `handling.rs` (the moment, the stability torque),
+`lean_help.rs`, `lean_spec.rs` (`StabilitySpec`, `TerrainLimit`), `fall.rs` (`terrain_slope`), `lean.rs` (terrain term), manifest keys
+`stability_*`, `terrain_*`, `fall.terrain_*`; importer `steering.rs`.
+
+## Round 8 (what makes the bikes rideable)
+
+Spec: [ride6-feel-round8.md](../specs/ride6-feel-round8.md). Build `5.6.1-1697004`, image-relative addresses.
+
+| Topic | Functions | How verified |
+|---|---|---|
+| `LateralGripPeak` and `LongitudinalGripPeak` of the handler, written every tick | the tick `0x1450e0480` (at `0x1450e0625` and `0x1450e0635`) calls `0x14514e0a0` (longitudinal) and `0x14514d640` (lateral) with the rest load of the front wheel (`RestLoad` at handler `+0xD40`) and camber 0 | disassembly; both getters blend the dry and the wet tyre model by the wetness and multiply by `LateralGripScale` (wheel data `+0x104`) or `LongitudinalGripScale` (`+0x100`) |
+| Fall lean limit target | `0x145106701`: `atan(LateralGripPeak) x wheel data +0xF0 x 57.2958` (constant at `0x148fbaf50`), then the running value (`+0x650`, `FallLeanLimit`) moves by `FallLeanLimitUpFactor` (`+0x1E20`) or `...DownFactor` (`+0x1E24`) of the gap | disassembly; the offsets are the SDK dump's: `+0xF0` is `LateralGripLimit`, `+0xEC` `LateralGripTolerance` |
+| Lean limit base | `0x14510b19e` to `0x14510b2c3`: `atan(LateralGripPeak) x wheel data +0xEC` | disassembly |
+| Feathering start | `0x1450c0290` (the controller, re-read: `R = engine +0x384 x a + engine +0x50 x b`, `+0x384` `MaxRPM`, `+0x50` `MaxTorqueRPM`), `0x1450d7cd0` (the caller: the start ends when the whole clutch input is exactly 0), `0x1450d7000` (the automatic path: no change of gear while the start lasts) | decompilation and the SDK dump's names |

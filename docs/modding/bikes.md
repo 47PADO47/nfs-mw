@@ -149,6 +149,8 @@ max_rpm = 11000.0
 moi_kgm2 = 0.015               # rotating inertia of the engine
 throttle_at_idle = 0.15        # optional (0): least throttle below the idle
 limiter_cut_time_s = 0.02      # the limiter cuts and restores the fuel in turn
+brake_reduction_factor = 1.0   # optional (0): the engine drops its drag as the rear slides; with _load = [1.0, 0.0, 1.0, 0.9]
+brake_reduction_slip = [0.0, -0.33, 0.0, 1.0]   # and _slip, each [in low, in high, out low, out high] (left out: 1 for every input)
 [bike.transmission]
 gears = [2.1, 1.65, 1.35, 1.12, 0.96]    # first gear first, falling
 final_ratio = 7.2              # gearbox output to the rear wheel, chain included
@@ -170,6 +172,7 @@ modulate_throttle_on_upshift = false   # optional (true): no throttle timing, th
 press_clutch_at_min_rpm = true         # optional (true): the clutch is pulled as a coasting bike slows to the idle road speed
 min_rpm_speed_scale_range = [1.05, 1.1]  # optional: multiples of that speed, fully pulled to fully let go
 slipper_filter_speed = 0.0     # optional (0): filter of the slipper clutch, 0 for none
+over_limit_rpm_share = 0.94    # optional (the reference's constructor defaults): over_limit_enabled, _min_speed_mps, _change_time_s, _threshold_s, _rpm_share
 force_downshift_factor = 1.0    # optional (0 = off): hard braking at speed forces a change down; also _brake_range = [0.5, 1.0],
 force_downshift_duration_s = 0.3   # _duration_s, _linearity = 3.0 and _speed_range_mps = [41.7, 41.7]
 slipper_range_nm = [25.0, 40.0]          # optional (none): back torque over which the slipper opens
@@ -190,6 +193,14 @@ rear_intensity = 1.0
 speed_range_mps = [2.78, 6.94]
 front_slip = [-0.3, -0.5]      # normalised slip ratio (-1 is the force peak) where it starts and where it acts fully
 rear_slip = [-0.5, -1.0]
+[bike.brakes.abs.reduction]    # optional (off): the brake reduction; speed_kmh = [10.0, 25.0, 0.0, 1.0] is [in low, in high, out low, out high]
+speed_kmh = [10.0, 25.0, 0.0, 1.0]
+[bike.brakes.abs.reduction.rear]   # also .front; a term left out is 0: intensity, lean (share of the limit), drift (deg), load (over the load
+intensity = 1.0                    # at rest) and throttle, each [in low, in high, out low, out high]; the sum of lean, drift and load times
+lean = [0.0, 0.9, 0.0, 0.5]        # the throttle term is what the wheel loses
+drift = [0.0, 35.0, 0.0, 0.2]
+load = [1.0, 0.0, 0.0, 0.8]
+throttle = [0.0, 0.05, 1.0, 0.0]
 [bike.steering]
 max_angle_rad = 0.7
 response = 1000.0              # the handlebar filter: stiffness 1/s^2 ...
@@ -225,6 +236,15 @@ help_skid_range_rad = [0.1745, 0.7854]  # optional: the skid cut of the help fac
 help_skid_linearity = 2.0
 help_skid_reduction = [[0.0, 0.0], [8.33, 1.0]]   # ... cut against the speed (no curve, no cut) ...
 help_skid_input = [[-0.1, 0.0], [0.0, 1.0]]       # ... and its factor against throttle less brake (empty: 1)
+stability_speed = [[0.0, 0.05], [22.2, 0.05], [33.3, 0.0]]   # optional (no stability help): [m/s, factor]; a yaw torque towards g tan(lean) / v
+stability_lean_influence = -1.0       # the factor times max(0, |lean share|^stability_lean_sensitivity x this + 1); sensitivity default 1
+stability_throttle_reduction = [[0.0, 0.0], [0.014, 1.0]]   # [m/s, cut]: times the throttle; stability_brake_reduction likewise
+stability_speed_range_mps = [2.78, 4.17]   # default; below the first there is none
+stability_max_lean_rad = 1.309        # default; the lean the desired yaw rate is held to
+stability_terrain_normal = true       # the yaw axis is the road's up
+terrain_speed = [[2.78, 0.0], [13.9, 1.0]]   # optional: [m/s, factor] on the road's bank in the lean limit; terrain_max_angle_rad (1.571),
+terrain_increment = 0.667             # ... terrain_increment and terrain_reduction (default 1) are the shares of the bank added to the limit
+terrain_max_angle_rad = 0.2618
 [bike.abs_level]                # optional: how the rider's ABS level (key J) reaches the brake; curves are [level, factor]
 default = 1.0                   # the level a bike starts with
 front = [[0.0, 0.1], [0.25, 0.2], [0.5, 0.45], [0.75, 1.0], [1.0, 1.0]]      # factor on the front ABS intensity (empty: the level)
@@ -241,6 +261,9 @@ block_ratio = 0.975            # optional (off): the block-fall assist holds the
 block_min_speed_mps = 11.1     # ... above this speed, for block_time_s, then waits block_wait_s
 block_time_s = 1.0
 block_wait_s = 5.0
+terrain_influence = 1.0        # optional: the road's bank (rad, positive when lower on the right) shifts the lean the tests see by this share
+terrain_reduction = 1.0        # ... or this share when the bank and the lean lean opposite ways
+terrain_max_delta_rad = 0.87   # ... held to this shift (0: no hold)
 lean_by_grip = true            # optional: the ground fall lean limit follows atan(grip) (lean_rad is its start and the airborne limit) ...
 lean_rise = 0.025              # ... by this share of the gap per step when it is above ...
 lean_fall = 0.01               # ... and this when below
@@ -345,6 +368,12 @@ the table the hubs are plus and minus half the wheelbase from the origin, as hig
 the ground, and the bike's body origin (midway between the contact patches) is midway between the two hubs.
 
 `BOUNDS.BIN` is required as for any car ([car-collision.md](car-collision.md)). Its box is what walls, props and other cars hit.
+
+**Exhaust flames.** A bike pops and flicks flames like a mod car ([exhaust-flames.md](../exhaust-flames.md#bikes-the-ride-6-mod)) at
+the markers `EXHAUST`, `LEFT_EXHAUST` and `RIGHT_EXHAUST` of its body solid ([the tail pipes](car-customization.md#tail-pipes);
+the marker's z axis is the way the flame shoots), one for each silencer, in every level of detail. The flames are drawn at
+0.4 of a car's size and a down-shift with the pedal up flicks them. A bike without a marker shows no flame. The RIDE 6 importer
+finds the outlets in the silencer mesh ([ride6-bikes.md](ride6-bikes.md#the-exhaust-flames)).
 
 ## The rider
 

@@ -72,7 +72,7 @@ If `e >= 1` the clutch is locked: the engine and the wheels turn together with t
 (slowing it) and, times `G`, to the wheels, with a check that the two speeds do not cross inside the step (if they would,
 the clutch locks for that step). `T_clutch_max` follows `ClutchMaxTorqueType`/`ClutchMaxTorqueFactor` [B: `0x145157d80`]: type 0 `Factor` N m; type 1 (the C++ default, used by the KTM) `PeakTorque * Factor` with `Factor = 1`, i.e. **48 N m**; type 2 the torque that cancels the speed difference over one step (limited by the inertias); type 3 `|engine torque| * Factor`. The torque at the wheel is `T_clutch * G`
 (no efficiency factor was found), shared by the differential ratios (rear drive: 1 to the rear wheel, 0 to the front).
-`ClutchRPM` is the clutch's speed in rpm. The idle clutch (`PressClutchAtMinRPM`, `MinRPMSpeedScaleRange`) opens the clutch
+*Model (round 8, [ride6-feel-round8.md](ride6-feel-round8.md), section 5):* an engagement of 1 is a rigid joint that never unlocks by torque; a partly engaged clutch passes the torque that brings the two speeds together over the step, clamped to its capacity. `ClutchRPM` is the clutch's speed in rpm. The idle clutch (`PressClutchAtMinRPM`, `MinRPMSpeedScaleRange`) opens the clutch
 when the engine falls to the minimum rpm. Engine-brake torque is the negative `T_engine` passed through the same clutch.
 
 ## Joined brakes [B: `0x1450e0480`]

@@ -82,6 +82,23 @@ of 0.35 to 0.45 m thrown at 6 m/s for 0.075 s, and the glow). The size and speed
 pipes are the car's own nitrous locators (`mods/nfsmw-2012-content/src/pipes.rs`). The pop chance of the sound logic (3 to 25 %
 of the lift-offs by revs) is unchanged: the flames follow the pops that play. Only the sound and the pop gain decide how often.
 
+## Bikes (the RIDE 6 mod)
+
+A bike is a mod car, so it flames at its pops like one (every pop its sound reports, 0.15 s at full strength, an up-shift made
+under power), with three differences (`exhaust/trigger.rs` `BIKE_*`, `scale.rs` `compact_bike`, `load.rs` `shift_timing`, `step.rs`).
+Cars are unchanged.
+
+- **Where.** At the markers `LEFT_EXHAUST`, `RIGHT_EXHAUST` or `EXHAUST` of the bike's body solid, one for each silencer, which
+  the importer writes at the silencer's outlet ([ride6-bikes.md](modding/ride6-bikes.md#the-exhaust-flames)). A bike with two
+  silencers flames at both; a bike whose files have no marker shows no flame.
+- **How big.** The group's orange emitters at 0.4 of their size (`BIKE_FLAME_SCALE`): the sprites, the speed they leave the pipe at, the
+  accelerations that bend them and the volume they start from. The enhanced exhaust draws its burst at 0.4 as well (a car's pop
+  burst is 0.28 m long and 0.14 m wide, a bike's about 0.11 and 0.06 m). The factor is a choice: a motorcycle's outlet is far
+  smaller than a car's tail pipe and its pop is a short flick; there is no data for a bike's flame.
+- **When else.** A **down-shift with the pedal up** (above 10 m/s) flicks the pipes, like the blip of a rider changing down; a
+  down-shift under power does not. The flick lasts 0.125 s (`BIKE_SHIFT_TIMING`: 8 degrees per second over 1 degree) against 0.28 s
+  of a car's blow-off. A bike has no nitrous, so there is no blue flame.
+
 ## Console
 
 `exhaust-flames` (or `exhaust-flames status`) prints the pipes, the engine level, the live particles against

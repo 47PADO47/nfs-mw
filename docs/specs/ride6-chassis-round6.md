@@ -42,15 +42,9 @@ needs from it is not asked for but obtained from the error: the lean settles `De
 `K I Delta theta / h_cg` equals that force. For the KTM (front weight share 0.5, `I = 47.8 kg m^2`, `K = 1000`,
 `h_cg = 0.7 m`) it is `0.013 tan(theta)` rad, 0.75 degrees at 45 degrees of lean.
 
-**[M] What this project's model does.** (a) The couple part of the help (section 2) is realised as a roll torque about the bike's
-length that closes the share `h` of the gap between the torque the controller prescribes and the torque the other forces already
-put on that axis, capped by the same tyre-derived limit. Over a 60 Hz step the plain form (the moment of the help force) leaves the
-bike chattering at the step's Nyquist frequency at a standstill, because the tyre reaction that opposes it changes within the
-step; compensating the torque already on the axis removes the chatter. (b) `LEAN_FORCE_INCLUDES_TURN_FORCE` stays: the front's
-share of `m g tan(theta)` is added to `F_des`. Without it, every test passes except a bike held at the lean limit (full stick at
-20 m/s), which loses its front tyre after about a second. Whether the cause is this model's tyre or a term not recovered was not
-settled. (c) The yaw moment that the game's couple also has (`(contact - cg) x F` has a vertical component, the contact being
-ahead of the centre of gravity) is not applied.
+**This project's model** (round 7, [ride6-chassis-round7.md](ride6-chassis-round7.md)): the closure is the game's. The round-6 stand-ins (a
+compensated roll torque for the couple, the feed-forward of the turn's force) were the 60 Hz step's doing and are gone: the reference
+divides a vehicle step into sub-steps, and so does the model.
 
 ## 2. The lean help
 
@@ -196,8 +190,7 @@ cap of the target lean is `BlockFallLeanLimitRatio x BlockFallLeanLimitDeg x 0.9
 `TerrainNormalBlendFactor` when the front touches) and is reset to up when its vertical part is below `TerrainInclinationMinNormalZ`.
 The lean limit's terrain term (`ride6-lean-controller.md`, "The effective lean limit", point 5) uses the slope: `d = clamp(T_terrain(s) x slope
 x (stick >= 0 ? 1 : -1), +-TerrainInfluenceMaxAngle)`, then `+TerrainLeanLimitIncrementScale d` for `d > 0` (0.667) or `+TerrainLeanLimitReductionScale d`
-for `d <= 0`. On flat ground all of these are 0, which is what this project's model has; the sign convention of the slope was not pinned down
-well enough to write it for a banked road.
+for `d <= 0`. On flat ground all of these are 0. The sign of the slope and the model's use of it are in round 7, section 4.
 
 ### In this project's model
 
@@ -219,7 +212,7 @@ When `h_s > 0` and the speed is above `StabilityHelpSpeedRange.x`: `omega_act` i
 up direction perpendicular to the line between the two contacts when `StabilityHelpUsesTerrainNormal`), `omega_des` the yaw rate a steady
 turn at the current lean needs (**[I]**: `g tan(lean) / v`), `a = h_s (omega_des - omega_act) / dt`, scaled by `1 - gap / MaxGroundDistance`,
 soft-limited to `StabilityHelpMaxAcceleration` with a tanh, times `ramp(s; SpeedRange)`, and applied as the torque of that angular
-acceleration through the world inertia tensor. This project's model does not carry it.
+acceleration through the world inertia tensor. Round 7 confirms the desired yaw rate and carries the help ([ride6-chassis-round7.md](ride6-chassis-round7.md) section 3).
 
 ## 5. The day: air and road temperature
 
@@ -260,10 +253,5 @@ turning backward flips it.)
 
 ## 9. What stays open
 
-- Why the model's bike, held at the lean limit, needs the turn-force feed-forward (section 1).
-- The terrain terms for a banked or sloped road (sign of the slope), the airborne and off-track terms of the help, the collision alteration.
-- The desired yaw rate of the stability help (inferred).
-- The g-force of the lean limit: the game's value is the lateral part of an acceleration measured by the vehicle's IMU; the model uses
-  `v x yaw rate / g`.
-- Whether the game's physics step is finer than 60 Hz: the standing-bike chatter of section 1 suggests the reference's closure is calmer
-  with a finer step.
+Round 7 closed the turn-force feed-forward, the terrain terms, the desired yaw rate and the standing-bike chatter; what is left is listed
+in [ride6-chassis-round7.md](ride6-chassis-round7.md) section 6.

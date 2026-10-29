@@ -11,8 +11,8 @@ live in the mod's git-ignored `files/` folder ([licensing.md](../licensing.md)).
 
 RIDE 6 is Unreal Engine 5.6.1. Its `.utoc`/`.ucas` containers open without a key and need a `.usmap` mapping. The export
 tool is a small C# program on top of CUE4Parse (outside the repository; its source is the user's scratch tool
-`R6ToolRider`). It has five modes: `skeleton` (a `USkeleton` to JSON), `anims` (a list of `UAnimSequence` packages to one
-`R6RA`), `mesh` (a `USkeletalMesh` to `R6RM`), `textures` (PNG) and `bp` (a Blueprint class to pseudo-C++, used to read the
+`R6ToolRider`). It has six modes: `skeleton` (a `USkeleton` to JSON), `anims` (a list of `UAnimSequence` packages to one
+`R6RA`), `acl` (the ACL-compressed sequences of a list, raw, below), `mesh` (a `USkeletalMesh` to `R6RM`), `textures` (PNG) and `bp` (a Blueprint class to pseudo-C++, used to read the
 animation blueprint). Animations are decoded by CUE4Parse and **sampled at every source frame**; the tool does not
 invent keys.
 
@@ -60,8 +60,26 @@ without a track hold the skeleton's reference pose, so the file is dense. A sequ
 decoded by CUE4Parse into full poses (base plus difference); the importer takes the difference again against
 `base_name` at `base_frame`.
 
-74 sequences are in the file: the 93 `motard/` clips minus the starting-grid variants and minus 8 clips stored with the
-ACL codec (see Gaps), `BikeSpecificCorrection`, and the `race/` finger and wrist clips.
+`riding.r6ra` holds 74 sequences: the 93 `motard/` clips minus the starting-grid variants and minus the 8 stored with the ACL codec
+(below), `BikeSpecificCorrection`, and the `race/` finger and wrist clips. `falls.r6ra`, made the same way from the 21 fall and
+get-up sequences of `riderShared/Animations/Ragdoll/` that Unreal's own codecs store, is read in addition: the importer reads
+every `*.r6ra` of the export folder.
+
+## ACL sequences: `acl/<name>.acl` and `acl/<name>.meta.json`
+
+158 of the 700 rider sequences are stored with the Animation Compression Library; the exporter's `acl <list> <folder>` mode
+(`R6ToolRider`) writes, for each sequence of a list of packages, the compressed buffer (`FACLCompressedAnimData.CompressedByteStream`,
+the format of [acl-decoder.md](../specs/acl-decoder.md)) and a small JSON file with what the sequence has besides it:
+
+```text
+{ "name", "package", "num_frames", "length" (s), "rate_scale", "additive" (AAT_None | AAT_LocalSpaceBase | ...), "base_name",
+  "base_frame", "root_motion", "interpolation", "track_to_bone": [bone index of each track],
+  "notifies": [ { "name", "link" (Absolute | Relative), "time" } ], "codec" }
+```
+
+The importer decodes them itself (`mods/ride6-bikes/src/rider/acl_clips.rs`, the generic decoder `libs/blackbox-acl`), with the rider
+skeleton's reference pose for the tracks a clip does not animate, into the same clips the `R6RA` file holds. The folder holds the
+nine the rider pack needs: the eight riding clips listed under Gaps and `race_ragdoll_FaceDown_GetUp`. Additive ACL sequences are not supported yet.
 
 ## `R6RM`: skinned mesh
 
@@ -142,9 +160,11 @@ rider skeleton's own names. Frames are the car's (x forward, y left, z up), metr
 | `frame`, `reference_clip` | Text; the clip whose first frame the tip offsets were measured on. |
 | `rider_root_in_bike` | `{translation, rotation (x y z w)}`: the rider's root bone on the seat socket. Rider space to bike frame. |
 | `hubs` | `{front, rear}`: the hubs in the bike frame. The game moves the bike frame to its model frame (`Attach::frame_offset`: the mean difference of the hubs in x and z; the model has them from the car's `[wheels]` table or its wheelbase). |
-| `targets[]` | `{name, position, steers}`: the points the limbs reach for (bike frame); `steers` grips turn about the front wheel's steering axis with the handlebar, pegs do not. |
-| `limbs[]` | `{name, root, mid, tip, pole, target, tip_offset}`: two-bone IK on the rider bones; the tip is brought to the target plus `tip_offset` (rider space), the vector from the target to the tip in the reference pose, so the authored placement of the hand on the grip is kept. The middle joint bends towards the pole bone's place in the animated pose. |
+| `targets[]` | `{name, position, rotation, steers}` (`rotation`, x y z w: the turn of the socket's frame; older files have none): the points the limbs reach for (bike frame); `steers` grips turn about the front wheel's steering axis with the handlebar, pegs do not. |
+| `limbs[]` | `{name, root, mid, tip, pole, target, tip_offset, tip_frame}`: two-bone IK on the rider bones; `tip_frame` `{translation, rotation}` is the tip bone's place and turn in the target's own frame in the reference pose, so the tip is brought to the target's frame composed with it and takes that turn (the authored placement of the hand on the grip is kept, and follows a grip socket that another bike turns differently). Without `tip_frame`, or when the target has no `rotation`, the tip goes to the target plus `tip_offset` (rider space) and keeps the forearm's turn. The middle joint bends towards the pole bone's place in the animated pose. |
 | `inputs` | `tuck_speed_kmh` (speed from which the rider tucks), `tuck_rate`, `lean_rate`, `wheelie_rate`, `stoppie_rate` (1/s smoothing). |
+| `torso` | `{lean, head, head_share}`: the spine bones (root to tip) the body leans forward with, in equal shares, to bring the shoulders within reach of the grips, and the neck and head bones that turn back by `head_share` of the lean in all (`reach.rs`). Absent: the body does not lean. |
+| `seat` | `{bones, sink}`: the rider bones whose skin rests on the seat (the vertices that mostly follow them, carried by the first) and how far (metres) the lowest of them sinks below the seat's top. Absent: not sat on a surface. |
 | `inertia` | `bone` (the rider bone that is shifted and turned), `min`/`max` (the range the rider's displacement from the physics is held to, car axes forward, left, up, metres: the blueprint's `InertiaDisplacement_RidingMin/Max`), `rate` (1/s). `braking_m` and `full_acceleration` of older files are ignored. |
 
 Where each number comes from is in [ride6-rider-animation.md](../specs/ride6-rider-animation.md), section 8.
@@ -161,6 +181,7 @@ everything else (`limbs`, `tip_offset`, `inertia`) from the rig: a target of the
 | `version` | `1`. Another number: the file is ignored. |
 | `vehicle`, `frame` | Text. |
 | `rider_root_in_bike`, `hubs`, `targets[]` | As in `attach.json`: seat, the two hubs, and the four targets `left_grip`, `right_grip`, `left_foot`, `right_foot` (`steers` true for the grips), in the bike skeleton's frame at rest, car axes, metres. |
+| `seat_surface` | Optional: `[[x, z], ...]`, the top of the bike's seat along its centre line in the bike skeleton's frame (x ascending, 2 cm apart, from 30 cm behind the seat socket to 10 cm ahead), measured by the converter from the chassis mesh (`seat_surface.rs`). The game sits the rider on it (`seat`). Without it he sits at the socket. |
 | `correction` | Optional: the bike's row of the animation correction table: `rider_max_lean`, `aero_tank`, `lean_knee`, `lean_elbow`, `knee`, `elbow`, `muffler`, `spine_1_deg`, `spine_2_deg`, `arms_ik_spine_alpha`, `pole_elbow_cm` (3), `bike_type`, `quick_shift` (text). Read and kept; the game does not apply it yet. |
 
 The game refuses a file whose numbers are not finite, whose seat has no rotation, whose front hub is not ahead of the rear one, or
@@ -204,12 +225,12 @@ bike's frame, the spin times `angular`, the velocity first times `velocity_multi
 
 ## Gaps
 
-- **ACL clips.** Eight sequences use the ACL compression plugin and need the native `CUE4Parse-Natives` library, whose
-  sources (the ACL and RTM submodules) are not in the scratch copy: `motard_drift_pose_L/R`, `motard_old_school_standard_pose`,
-  `motard_wheelie_Entry_anim`, `motard_wheelie_Standing_anim`, `_L`, `_R` and `motard_wheelie_StandingInterpolation_anim`.
-  The standing wheelie (its blend space `motard_Wheelie_Standing_BS`: axis Steer -1..1 in 2 cells, axis 0..0.3) and the
-  drift poses are therefore not in the pack. Building the library needs the ACL sources (a download the user has not
-  approved).
+- **ACL clips** (resolved): the eight riding clips `motard_drift_pose_L/R`, `motard_old_school_standard_pose`,
+  `motard_wheelie_Entry_anim`, `motard_wheelie_Standing_anim`, `_L`, `_R` and `motard_wheelie_StandingInterpolation_anim`, and the
+  get-up `race_ragdoll_FaceDown_GetUp`, are decoded by `blackbox-acl`. The pack has **104 clips** (74 riding, 21 fall and get-up in
+  `falls.r6ra`, 9 from ACL; it had 74). The blend space `motard_Wheelie_Standing_BS` (steering -1..1 in 2 cells, entry 0..0.3 in
+  1: the standing pose at (0, 0.3), left and right at (-1, 0.3) and (1, 0.3023), the interpolation pose at (0, 0)) is a graph node
+  of the rider's blend tree; the drift poses are the ends of its three-way drift blend.
 - **Gloves** are a picture composited onto the hands by a material function; the importer copies the picture and does not
   composite it.
 - Face, eyes and goggles are not exported (the full-face helmet hides them).

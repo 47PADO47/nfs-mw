@@ -155,13 +155,13 @@ suspension** (the fork dives): `BRAKE_COUPLING_SIGN = -1` for the magnitude of t
 
 - `StartSpeed`-like constants: none; the two 1 m/s tests of section 3 are the only speeds of the start logic.
 - A torque-ramp parameter of the engine: the engine data (`FEngineData`) has none. The "torque ramp" is the wheelie help's
-  `HelpIntensityTorqueTuning` ([ride6-tricks.md](ride6-tricks.md)); the KTM leaves it at `(0, 0)`, a step at 0, so the factor is 1
-  while the engine's normalised torque is not negative and 0 under engine braking. It belongs to the wheelie code, not to the
-  powertrain, and is not applied by the library yet.
+  `HelpIntensityTorqueTuning` ([ride6-tricks.md](ride6-tricks.md)); its operand is read in round 7
+  ([ride6-powertrain-round7.md](ride6-powertrain-round7.md), section 4), and it is 1 for every bike. (This line first said it was
+  0 under engine braking; the operand is the torque curve at the engine speed, not the torque now.)
 - Engine electronics for the KTM: its `VehicleElements` list has no `ECUVehicleElement`, so `ThrottleModulationIntensity`,
   `EngineBrakeModulationIntensity` and `PowerLossIntensity` stay 1, 1 and 0 for it. The engine's own **engine-brake reduction**
   (`EngineBrakeReductionFactor` 1 with the load and slip tunings, and `bUseDeprecatedEngineBrakeReduction`) is separate and is
-  still not modelled (section 10).
+  specified in [ride6-powertrain-round7.md](ride6-powertrain-round7.md), section 2.
 
 ## 8. Forced downshift under braking [B]
 
@@ -189,7 +189,7 @@ if ForceGearDownChangeBrakeDuration < timer:
 A negative down factor `P` moves the change-down speed threshold up (`ride6-gearbox-auto.md`, section 2); at `P = -1` the downshift
 is requested whenever the lower gear would not pass the rev limit. KTM: lever range 0.5 to 1, duration 0.3, factor 1, linearity 3,
 speed range 150 to 150 km/h (a step at 150 km/h), so it acts only when braking hard from 150 km/h or faster. Constructor defaults of
-the road-bike handler: factor 0 (off), duration 0, linearity 2, ranges zero. Modelled (`ForcedDownshift` in `gearbox.rs`).
+the road-bike handler: factor 0 (off), duration 0, linearity 2, ranges zero. Modelled (`ForcedDownshift` in `clutch_control.rs`).
 
 ## 9. Brake reduction, deprecated logic [B]
 
@@ -207,16 +207,15 @@ reduction = S(speed_kmh) * I * clamp01(sum) * T_throttle(rider's throttle)
 brake multiplier is then `(1 - reduction) * (1 - abs)` with the filter of section 5. For the KTM: the **front** sets no
 `ThrottleInputTuning`, so its reduction is 0; the **rear** has speed 10 to 25 km/h to 0..1, lean 0 to 0.9 to 0..0.5, drift 0 to 35
 deg to 0..0.2, load share 1 to 0 to 0..0.8 and throttle 0 to 0.05 to 1..0, so it takes the rear brake away when the rear unloads, the
-bike leans or drifts and the throttle is shut. Whether the translators take the absolute value (`UseAbsoluteValue`) was read as true
-for lean and drift from the translator constructor's second store; not confirmed. **Not modelled**: it needs the lean share, the
-drift angle, the rear's rest load and the original throttle at the ABS update in `Bike::respond`.
+bike leans or drifts and the throttle is shut. The `UseAbsoluteValue` doubt is settled in round 7: it is true by default for the lean and drift translators and false for the others
+([ride6-powertrain-round7.md](ride6-powertrain-round7.md), section 1), where the reduction is also modelled.
 
 ## 10. Still open
 
+Sections 9 and the engine-brake reduction, the over-limit upshift and the torque ramp moved on in
+[ride6-powertrain-round7.md](ride6-powertrain-round7.md). What is left:
+
 | Item | State |
 |---|---|
-| Brake reduction (deprecated logic) | Read (section 9), not modelled: needs inputs the powertrain and `AntiLock` do not get. |
-| Engine-brake reduction `r` | Data present for the KTM (`EngineBrakeReductionFactor`, load and slip tunings), function not read. |
-| Over-limit upshift | Read (section 2), not modelled. |
 | Non-deprecated blipper, burnout, reverse, manual shifts | Read in part, no bike path uses them. |
-| Exit of the feathering start | The controller's own exit needs the wheel-side rpm to reach `0.8 R` (11 000 rpm for the KTM), which a first gear does not reach before the change point; the model also ends the start at the release speed (`ClucthReleaseVelocityRange.Y`), a bound the reference does not state for feathering. |
+| Exit of the feathering start | Round 7, section 5: the controller's own exit is implemented, but the model does not reach it before the release speed, a bound the reference does not state for feathering. |

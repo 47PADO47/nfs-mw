@@ -1,33 +1,86 @@
 # Sound of the RIDE 6 bikes: the `sound` module of `ride6-bikes`
 
-Part of the [RIDE 6 bikes mod](ride6-bikes.md) and the [car sound](car-sound.md) tables. Given the user's own decoded
-recordings and a bike's resolved audio data, it writes the bike's `files/CARS/<ID>/SOUND/*.WAV` and the
-`[engine_sound]` / `[car_sound]` tables of its manifest. What RIDE 6 does and why is in
-[specs/ride6-engine-sound.md](../specs/ride6-engine-sound.md); where the data lives in
-[formats/ride6-audio.md](../formats/ride6-audio.md).
+Part of the [RIDE 6 bikes mod](ride6-bikes.md) and the [car sound](car-sound.md) tables. Two ways in, one result: the
+`[engine_sound]` / `[car_sound]` tables of a bike's manifest and the recordings they name.
 
-## The state of the data, in one paragraph
+- **From the banks (all bikes at once).** `pak-sound` extracts RIDE 6's Wwise banks with the pak key and resolves every
+  chassis's audio data; `sound-bikes` builds the sound of every imported bike from them (the real engine recordings, the
+  gear changes, bangs and crackles). This is the main path and needs nothing else from you but the install.
+- **From your own recordings (one bike).** `sound` and `extract-bnk` (below) build a bike's sound from WAV files you decoded
+  and named by engine speed; the original path, kept for experiments.
 
-RIDE 6 plays its engines through Wwise. The events, the effect numbers and the backfire logic are readable; the engine
-loops, their rpm points and the crossfade curves are inside sound banks that the game stores in an encrypted `.pak`
-index, which this repository does not break. So the module takes the recordings **from you**: decode them from your own
-install with your own tools (below), tell the module which engine speed each loop was recorded at, and it does the rest.
-Without recordings a bike plays the built-in engine of the host.
+What RIDE 6 does and why is in [specs/ride6-engine-sound.md](../specs/ride6-engine-sound.md); where the data lives in
+[formats/ride6-audio.md](../formats/ride6-audio.md). Nothing from RIDE 6 is in the repository: the banks and every recording
+are made on your machine from your own install, under `C:\r6` or any folder you choose, never in the repository.
 
-## Decoding the recordings
+## The pak key
 
-1. Export the bike's bank `WwiseAudio/KTM_EXC_450.bnk` (engine and exhaust loops) and, for effects, the `.wem` files named
-   by the bike's events (`resolved.json`, below) with a tool that can read your install (FModel with the key you hold, or
-   any equivalent). The repository neither holds nor looks for that key.
-2. A bank with embedded media: `extract-bnk KTM_EXC_450.bnk C:\r6\audio-ktm450\wem` writes `<media id>.wem` files
-   (`sound::cli::extract_bnk`).
-3. Decode each file (cmd): `for %f in (C:\r6\audio-ktm450\wem\*.wem) do C:\r6\tools\vgmstream\vgmstream-cli.exe -o C:\r6\audio-ktm450\wav\%~nf.wav %f`.
-   Loop points come out as a `smpl` chunk, which the module uses.
-4. Listen, and note each engine loop's rpm. The recordings carry no rpm; for a single-cylinder four-stroke the firing
-   frequency in Hz is `rpm / 120`, so a pitch tracker on the loop gives it (the physics asset says idle 2300 and limit
-   11000 rpm for the KTM 450).
+RIDE 6 keeps its sound banks in `.pak` files with an AES-256 encrypted index. The key was **supplied by the user** (found in
+<https://cs.rin.ru/forum/viewtopic.php?f=10&t=100672>) and **verified by mounting** (1096 banks appear). The mod uses it by
+default (`mods/ride6-bikes/src/sound/pak_key.rs`). To use another key:
 
-Keep everything under `C:\r6` (never in the repository, never in `D:\RIDE 6`).
+- the environment variable `R6_AES` (64 hexadecimal digits, `0x` allowed), which wins; or
+- `pak_key = '...'` in the mod's `config.toml` (read by `pak-sound --config <config.toml>`); or
+- `pak-sound --pak-key <hex>`.
+
+`pak-sound --print-key-source` says which one is in use (never the key). The pak reader is an external program; the commands
+start it with `R6_AES` set to the key in use, so you do not export anything.
+
+## Extracting the banks
+
+The reader is a console tool built on CUE4Parse (Apache-2.0) with two modes, `raw <regex> <folder>` (save every file of the
+paks whose path matches) and `audiomap <folder>` (one JSON per row of the chassis audio table). The commands call it:
+
+```text
+ride6-bike-import pak-sound --tool C:\r6\tools\CUE4Parse\R6ToolSnd\bin\Release\net10.0\R6ToolSnd.exe ^
+  --usmap C:\r6\ride6.usmap --out C:\r6\sound-work\raw --resolved C:\r6\sound-work\resolved
+```
+
+`--out` receives `ride6/Content/WwiseAudio/...` (879 MB: 1096 banks, 1372 loose media); `--resolved` receives 634 files
+`<chassis>__<Stock|Custom>.json` (events, banks, media names and backfire numbers of each chassis row). `--tool` and `--usmap`
+default to `$R6_PAK_TOOL` and `$R6_USMAP`. Decoding needs `vgmstream-cli` (`--vgmstream` of `sound-bikes`, or `$VGMSTREAM_CLI`).
+
+## Building every bike's sound
+
+```text
+ride6-bike-import sound-bikes --bikes C:\r6\bikes --physics C:\r6\physdump-all ^
+  --resolved C:\r6\sound-work\resolved --wwise C:\r6\sound-work\raw\ride6\Content ^
+  --out C:\r6\sound-work\out --vgmstream C:\r6\tools\vgmstream\vgmstream-cli.exe [--variant Stock] [--only <vehicle id>]
+```
+
+For each bike folder of `--bikes` it reads the engine's idle and limiter speed from the physics file, finds the bike's engine
+and exhaust events in the banks, follows them to the REV engine models and builds the layers
+([specs/ride6-engine-sound.md](../specs/ride6-engine-sound.md#8-the-engine-layers-from-the-rev-models)), and builds the
+shift, bang and crackle lists from the gear-up, gear-down, backfire and exhaust events. It writes, in `--out`:
+
+- `files/SOUND/RIDE6/ENG/<engine>-<hash>/L<nn>_<rpm*10>.WAV`: the engine layers, **one folder per engine** (the same banks
+  serve many bikes: 293 bikes use 97 engines);
+- `files/SOUND/RIDE6/FX/<media id>.WAV`: every effect recording once (the gear-up clunks of the shared bank are decoded once for
+  all bikes);
+- `cars/<id>.sound.toml`: the tables of a bike, naming those paths (the paths are ordinary `SOUND/...` paths of the mod's
+  `files/` folder, so many cars name the same files);
+- `sound-report.md` (with `--report`): the bikes with their own sound, the bikes without and why.
+
+`--variant` picks the audio variant of a chassis: `Custom` (the default: the aftermarket exhaust, the variant of the
+reference photo and the only one with the bangs of many bikes) or `Stock`; a chassis with only the other variant uses it.
+Set the mod's `sound` setting to `--out` (`sound = 'C:\r6\sound-work\out'` in `config.toml`): the importer appends each
+bike's tables to its manifest and copies the files its tables name (`manifest_sound::copy_files`: the per-car folder and the
+shared recordings, each only when the mod folder does not hold a file of that size).
+
+Run it again after a change: an engine folder that exists is reused (delete `files/SOUND/RIDE6/ENG` to rebuild), effect
+recordings that exist are not decoded again.
+
+## By hand: decoding recordings of one bike
+
+1. Extract the bank (`pak-sound`, above, or `extract-bnk KTM_EXC_450.bnk C:\r6\audio-ktm450\wem`, which writes the embedded media
+   as `<media id>.wem`; the engine media of a bike are REV models, `PLUG` files that `vgmstream-cli -s <n>` reads one recording at
+   a time).
+2. Decode each file: `vgmstream-cli.exe -o out.wav in.wem`.
+3. Tell `sound` the engine speed of each loop. A loop of the REV models carries it: engine cycles per second times 120
+   (formats doc, "REV engine models"); for other recordings a pitch tracker gives the firing frequency, `rpm / 120` for a
+   single-cylinder four-stroke.
+
+Keep everything outside the repository and outside `D:\RIDE 6`.
 
 ## The resolved data
 
@@ -96,7 +149,12 @@ built-in engine; with the table it still lights its pipes.
 
 ## Tests
 
-`cargo test -p ride6-bikes sound::` (WAV round trip, sample formats, loops, mixing, bank splitting and its refusals, table text,
-the whole build with synthetic tones, the two commands, refusals), `cargo test -p blackbox-carsound overrun::`,
-`cargo test -p blackbox-modding overrun_sound engine_sound` and `cargo test -p nfsmw --bin nfsmw own_sfx::`. They use synthetic data only; nothing was
-built or run when this page was written.
+`cargo test -p ride6-bikes sound:: manifest_sound:: config::` (WAV round trip, sample formats, loops, mixing, bank splitting and its
+refusals, the `HIRC` objects of a synthetic bank, the REV directory, pitch measurement and resampling, the engine layers, the pak key
+order, the shared files a manifest names, table text, the whole build with synthetic tones, the commands, refusals),
+`cargo test -p blackbox-carsound overrun::`, `cargo test -p blackbox-modding overrun_sound engine_sound` and
+`cargo test -p nfsmw --bin nfsmw own_sfx::`. They use synthetic data only. On a real install the converted bike was also
+rendered offline by the game's mixer (`NFSMW_MEASURE_MOD=<mod folder> NFSMW_MEASURE_CARS=KTM450 cargo test -p nfsmw --bin nfsmw
+measure_cars -- --ignored --nocapture`) and loaded by the game (`nfsmw view-world --drive KTM450 --mods-dir <mods> --muted
+--radio --screenshot <png>`: `--radio` keeps the audio on in a screenshot run, and a missing layer then logs a warning from
+`nfsmw::audio::car::own_engine`).
