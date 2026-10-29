@@ -50,11 +50,11 @@ Facts that follow from the code and the data:
   the scooters set `LeanInfluence 1`, `WeightInfluence 0`, so the offset follows the planned lean.
 - The y offset is the only signed one: the KTM's `LateralOffset.y = -12 cm` puts the rider 12 x `lean` cm to the **left** for a
   lean to the right (the supermoto rider stays upright over a bike that leans under him: the outside of the lean in the
-  bike's frame). The scooters' +20 cm is the opposite side. The sign of the binary's positive lean is not stated; positive is
-  taken as right (the stick's sign) and the data is consistent with that (`choices.rs`: `POSITIVE_LEAN_IS_RIGHT`).
+  bike's frame). The scooters' +20 cm is the opposite side. A positive lean is a lean to the **right**: the lean angle is the
+  chassis' Unreal roll, which lowers the right side when positive ([ride6-rider-round6.md](ride6-rider-round6.md), section 3).
 - The offsets `x` and `z` follow `|s|`: leaning either way moves a race rider forward 15 cm and down 5 cm.
-- The weight inputs are the channels `WeightLongitudinal` / `WeightLateral` of `InputData` (rate 6 per second), then the
-  second-order filter `PilotWeight*K/Damp` that passes its input when `K = 0`. Nothing else in the target is rate limited
+- The weight inputs are the channels `WeightLongitudinal` (rate 6 per second for the KTM) / `WeightLateral` (rate 10000: the
+  constructor default, no asset sets it), then the second-order filter `PilotWeight*K/Damp` that passes its input when `K = 0`. Nothing else in the target is rate limited
   besides the rider's spring.
 - The target frame is the chassis frame turned by a partial inheritance of the lean target and of the velocity direction
   (`InheritTargetLean`, `InheritVelocityPitch`, `InheritVelocityYaw`, soft-limited per axis by `InheritRotationLimit`, default
@@ -66,8 +66,8 @@ Facts that follow from the code and the data:
 Translation (`0x1450f5900`): the body is a point mass `m = Rider.Mass` at `Transform.Translation`, with
 `error = target - position` (when `bCorrectCOMOffsetWithGravity`: `error -= m g / K`, so the rest place is raised by the sag
 and the rider does not sink under his own weight; all the data sets it). `bUseNewRiderDelta` (set by all data) measures the
-error as an arc about the bike's centre of gravity instead of a straight difference; for the centimetres involved the two
-differ by under a millimetre (`choices.rs`: `RIDER_DELTA_IS_LINEAR`).
+error as an arc about the chassis origin instead of a straight difference (formula in ride6-rider-round6.md, section 3; the
+two differ by under a millimetre for the centimetres involved, the arc is computed).
 
 ```
 c       = RiderDamp * lerp(DampMultiplier, 1, ramp(v; DampSpeedRange))     # defaults 20000 N/m, 5000 N s/m, (40, 60) km/h, 1
@@ -123,20 +123,19 @@ the rider's place uses the target **after** that clamp, so the hang-off follows 
 `RiderRotation`), wired in `handling.rs::shift_weight` (once per step, before the tyres). Manifest `[bike.rider]`
 (`docs/modding/bikes.md`). The rider is not a second rigid body: bike and rider are one body whose centre of gravity follows
 the combined COM above (the rider's force on the bike is internal to it); the rider's rotational torque on the bike is applied
-as a torque, with the speed fade. Named choices that remain (`choices.rs`): the sign of the positive lean, the rate of the
-lateral weight channel (that of the longitudinal one), the linear delta, and the posture factor of the drag below. Not
-recovered: the formula of the rider's own drag force, the lateral weight channel's rate, the inputs of the angular target
-(zero inheritance for all data, so unused).
+as a torque, with the speed fade. No named choice of the rider body remains in `choices.rs`
+(the sign of the lean, the lateral channel's rate, the arc error and the rider's drag are facts now). Not recovered: the inputs
+of the angular target (zero inheritance for all data, so unused).
 
 ## Air drag [B]
 
 The vehicle-level drag is `F = Cd (1 - s) g(theta) v^2` newtons opposing the velocity (`Cd = Aerodynamic.DragCoefficient`, 0.15 for
 the KTM, C++ default 0.35; no factor 2: the code constant is `-0.01` with `v` in cm/s and 100 force units per newton; `s` the
 slipstream wake, `g` = 1 unless the orientation tuning is set). Full derivation, the slipstream element and the water drag:
-[ride6-aero-drag.md](ride6-aero-drag.md). `CdA = 0.25 m^2` for the KTM (`0.5 rho CdA`, `rho = 1.2`). The rider adds drag
-(`Rider.DragCurve` `RiderAirDrag` = the constant 0.1, `DragScale` 1.25, `DragScaleCurve` 1.2 at 0 to 0.65 at 1 for the
-supermoto) and tucking in (`TuckInLevel`, rider help) lowers it; the binary builds a drag force on the rider from these in a
-function that was not read, so the model takes the posture factor `DragScaleCurve(tuck) / DragScaleCurve(0)` on the whole drag [I].
+[ride6-aero-drag.md](ride6-aero-drag.md). `CdA = 0.25 m^2` for the KTM (`0.5 rho CdA`, `rho = 1.2`). The rider adds a drag force of
+his own, `DragCurve(weight) * DragScaleCurve(tuck) * DragScale * (1 - s) |v| v` (read in round 6,
+[ride6-rider-round6.md](ride6-rider-round6.md) section 1: for the KTM `0.1 * 1.25 * 1.2` upright and `0.1 * 1.25 * 0.65` tucked,
+on top of the bike's `Cd`); the earlier posture factor on the whole drag is gone.
 Wings (`FWingData`) are empty for all road bikes.
 
 ## Gyroscopic effects

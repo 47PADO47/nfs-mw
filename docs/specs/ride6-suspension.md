@@ -123,6 +123,14 @@ brake force at the patch times `0.30` (rear) or `0.35` (front) times `f_brake` e
 `F_brake` follows the sign of `T_applied - T_back`. The brake coupling is therefore a 35 % (front) and 30 % (rear) transfer of the
 brake force into the suspension, shaped by the travel; the chain term is about 1.4 N per N m, shaped by the travel.
 
+The sign of the brake term is fixed (round 6, [ride6-chassis-round6.md](ride6-chassis-round6.md) section 8): `T_applied - T_back` is minus
+the brake and drag torque for a wheel turning forward, so braking takes load off the spring and the fork dives.
+
+## The end of the travel [B, round 6]
+
+After every step the compression is clamped to `[0, MaxCompression]` and the speed set to 0 there (an inelastic stop); the overshoot is
+stored and read by nothing that makes a force. There is no stiff bump-stop spring: [ride6-chassis-round6.md](ride6-chassis-round6.md) section 7.
+
 ## Rake and trail, camber [D + I]
 
 `Skeleton.RakeTrailOverride` (26.1 deg, 10.5 cm for the KTM) and `OverrideWheelBase` (145 cm) fix the geometry of the

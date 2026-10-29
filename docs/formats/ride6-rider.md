@@ -125,6 +125,8 @@ rejects trailing bytes.
 | `graph.json` | The blend tree, `blackbox_skeleton::Graph` serialised with serde (parameter names, then the node tree). |
 | `attach.json` | Seat, hubs, grip and peg points, the limbs to solve with IK and the numbers that drive the animation (below). |
 | `parts.json` | Which mesh wears which picture, which is translucent, which is drawn (below). |
+| `CARS/<ID>/RIDER/contacts.json` | Not written by `ride6-rider-import`: one bike's seat, hubs, grip and peg points (below). |
+| `ragdoll.json` | Not written by `ride6-rider-import` either: `ride6-rider-ragdoll` writes the rider's bodies and joints for a fall (below). |
 | `textures/*.png` | The pictures. |
 
 The game reads them from the mod's `files/CARS/<ID>/RIDER/` or `files/RIDER/`, the first folder that has an `attach.json`.
@@ -147,12 +149,58 @@ rider skeleton's own names. Frames are the car's (x forward, y left, z up), metr
 
 Where each number comes from is in [ride6-rider-animation.md](../specs/ride6-rider-animation.md), section 8.
 
+### `contacts.json` (version 1): one bike's contact points
+
+`files/CARS/<ID>/RIDER/contacts.json`, written by `ride6-bike-import` for each bike, read in addition to the rig's `attach.json`
+(a car's `RIDER/` folder needs no other file). The game takes `rider_root_in_bike`, `hubs` and `targets` from it and keeps
+everything else (`limbs`, `tip_offset`, `inertia`) from the rig: a target of the same name replaces the rig's, a limb's
+`tip_offset` (where the hand bone sits against the grip point in the authored pose) is the rig's.
+
+| Key | Content |
+|---|---|
+| `version` | `1`. Another number: the file is ignored. |
+| `vehicle`, `frame` | Text. |
+| `rider_root_in_bike`, `hubs`, `targets[]` | As in `attach.json`: seat, the two hubs, and the four targets `left_grip`, `right_grip`, `left_foot`, `right_foot` (`steers` true for the grips), in the bike skeleton's frame at rest, car axes, metres. |
+| `correction` | Optional: the bike's row of the animation correction table: `rider_max_lean`, `aero_tank`, `lean_knee`, `lean_elbow`, `knee`, `elbow`, `muffler`, `spine_1_deg`, `spine_2_deg`, `arms_ik_spine_alpha`, `pole_elbow_cm` (3), `bike_type`, `quick_shift` (text). Read and kept; the game does not apply it yet. |
+
+The game refuses a file whose numbers are not finite, whose seat has no rotation, whose front hub is not ahead of the rear one, or
+that has a target more than 1.5 m from the seat (a bound for damaged files; the 293 imported bikes have grips 0.50 to 0.74 m and
+pegs 0.46 to 0.62 m from the seat).
+
+**Where the numbers come from** (RIDE 6): every bike's skeleton has the sockets `SOCKET_RIDER` (on `BONE_CHASSIS`),
+`SOCKET_L_HANDLE_POSE` and `SOCKET_R_HANDLE_POSE` (on `BONE_L_GRIP` and `BONE_R_GRIP`), `SOCKET_LEFT_FOOT` and `SOCKET_RIGHT_FOOT`
+(on `BONE_CHASSIS`); all 293 bikes exported have all five, at places that differ from bike to bike (grips 33 to 67 cm ahead of the
+seat, pegs from 21 cm behind to 28 cm ahead of it), and nothing else in the data places the rider on a bike. The importer takes
+them from the part table's `bones{}` (the world place and turn of every bone of the chassis skeleton, glTF axes, metres) and
+`sockets{}` (a place in centimetres and a rotator on a bone, as Unreal stores them): glTF to Unreal is the swap of y and z (a turn
+`(x, y, z, w)` becomes `(-x, -z, -y, w)`), then the converter's usual Unreal to car frame. Checked on the KTM 450 SMR: all five
+sockets agree with the Unreal skeleton's to 1e-7 m (`SOCKET_L_HANDLE_POSE` at (11.76, -33.35, 113.76) cm in the chassis frame),
+so a KTM's `contacts.json` equals the seat, hubs and targets of the shared `attach.json`.
+
 ### `parts.json`
 
 `{ "parts": [ {mesh, slot, picture, translucent, drawn} ], "gloves_picture": ... }`. `mesh` is the mesh name inside the pack
 (not the file name: `suit001_male`, `SuitRacing_Male_arms`, `boots001`, `helmetRacing_default`,
 `visorClosedRacing_default`), `slot` the material slot name of the mesh, `picture` a file of `textures/`. `drawn: false`
 (the arms mesh, whose sleeves the suit already has) is not loaded. A translucent part is drawn alpha blended.
+
+### `ragdoll.json` (version 1): the rider in a fall
+
+Written by `ride6-rider-ragdoll <RiderGP_PhysicsAsset.json> <RiderBP.json> <folder>` (two JSON files of the package reader's `json`
+mode), read by `nfsmw/.../rider/fall_file.rs`. The rider's frame (x forward, y left, z up), metres, kilograms; positions, axes and
+frames are in the frame of the bone a body is on. Without the file the rider stays on a bike that falls. How it is used:
+[ride6-rider-fall.md](../specs/ride6-rider-fall.md).
+
+```text
+bodies[]   { bone, mass, radius, half_length (half the distance between the end spheres), centre [x,y,z], axis [x,y,z] }
+joints[]   { child, parent, frame_child [x,y,z,w], frame_parent [x,y,z,w], swing_z_deg, swing_y_deg, twist_deg }   (0 locked, 180 free)
+contact_friction, linear_damping, angular_damping, joint_damping (1/s)
+falls      { velocity_multiplier, high_side {additional [m/s], scale, world [m/s], angular}, low_side {...} }
+```
+
+A body is a capsule on its bone. A joint's shared point is the child bone's origin; its twist axis is the X of the constraint frames,
+`swing_z` the swing about their Z axis and `swing_y` about Y. `falls`: `v' = v + R additional + world + R (scale * R^-1 v)` in the
+bike's frame, the spin times `angular`, the velocity first times `velocity_multiplier`.
 
 ## Gaps
 

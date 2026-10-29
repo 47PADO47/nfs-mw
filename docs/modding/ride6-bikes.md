@@ -276,7 +276,12 @@ where the manifest has one number and the data has a curve or several values, th
 | `chassis.rider_k_n_per_m`, `rider_damp` | `Rider.RiderK`, `RiderDamp` (constructor defaults 20000, 5000) | fact / default |
 | `bike.tcs` | the TCS element's `TCSSlipThresholdsDry`, `TCSSpeedThresholds` | fact |
 | `fall.block_*` | `BlockFallLeanLimitRatio`, `...MinSpeedKmh`, `BlockFallTimeLimit`, `BlockFallReEnableWaitTimeLimit` when `BlockFallActive` | fact |
-| `max_lean_rad`, `fall.lean_rad` | `FallLeanLimitAirborne` (70 degrees on every bike) | the ground fall limit is a run-time value from the grip; the model's lean limit is `atan` of the grip, well under 70 degrees |
+| `max_lean_rad`, `fall.lean_rad` | `FallLeanLimitAirborne` (70 degrees on every bike) | the start of the ground fall limit and the airborne limit; on the ground the limit follows `atan` of the grip (`fall.lean_by_grip`, `lean_rise`, `lean_fall` from `FallLeanLimitUp/DownFactor`) |
+| `fall.min_speed_mps` | `FallSpeedDirAngleMinSpeed` (0 when unset) | `FallMinSpeed` gates only the rider-force tests, which the library does not have |
+| `fall.lean_duration_s`, `airborne_*` | `FallLeanLimitDuration`, `FallLeanLimitAirborne`, `FallPitchLimitAirborne`, `FallAngularSpeedLimitAirborne` | fact |
+| `fall.highside_lean_rad` | `FallHighsideLeanLimit` (70 or 50 degrees) | fact: a velocity against the heading with the lean under it is a high side ([rider fall](../specs/ride6-rider-fall.md)) |
+| `lean.help_stopped_range_mps`, `help_balance_speed` | `LeanHelpFactorStoppedSpeedRange`; `LeanHelpBalanceSpeedTuning` times `LeanHelpBalanceMultiplier` (else `LeanHelpBalance`) | fact ([chassis round 6](../specs/ride6-chassis-round6.md) section 2) |
+| `lean.help_skid_*` | `LeanHelpFactorSkidRange`, `...Linearity`, `...SkidReduction` times `LeanHelpFactorReductionScale`, `...SkidInputInfluence` | fact; the throttle, brake and slip reductions are unset on every bike and not carried |
 | `lean.damping_multiplier` | the formula of the parameters spec, evaluated at rest (KTM about 1.012) | the handler recomputes it every tick from the bike's size; two operands are inferred |
 | `lean.help_limit` | the output of `LeanHelpLimitSpeedTuning` at the top of its range (1 or 0.99) | one number in the manifest, a speed curve in the data |
 | `lean.blend_range_mps` | `SteerAlignmentRange` (2 to 4 m/s) | the lean spec names the field `LowSpeedSteerBlendRange`, which no asset sets |
@@ -315,6 +320,18 @@ done, in the order of fidelity:
    **Lost:** the normal maps (tank and plastic grain, engine casting detail, tyre sidewall relief), clear-coat layers and
    metallic flakes, tinted metals (all metals read silver), dirt, rain, the palette recolour, the occlusion strength (the
    floor is a choice), and the gloss variation inside one triangle.
+   **Glass [verified by render, choice]:** the screen and the lenses (`BLEND_TranslucentGreyTransmittance`, material
+   `mat_glass<chassis>`) are no longer baked as opaque pictures. The picture is the transmittance colour with an alpha of
+   `(1 - mean linear colour * 0.95) / light material alpha`, as a DXT5 texture of blend type 1, alpha usage modulated and
+   alpha-sorted (the stock windows' texture settings), on the light material `WINDSHIELD` (diffuse alpha 0.4) or, for
+   triangles more than 40 percent opaque (the red and amber lenses), `BRAKELIGHTGLASS` (alpha 1.0): `glass.rs`, the
+   derivation and the stock cars' data in [ride6-materials.md](../formats/ride6-materials.md#translucent-surfaces). Looked at
+   offscreen on the Yamaha YZF-R7 2022 and the Ducati 888 SP5: the screens are see-through with the instruments behind them,
+   the Ducati's headlamp shows its reflector behind a clear lens, the tail and indicator lenses are red and amber. The
+   blended group culls back faces (as on the stock cars), so a screen is seen from the front only. The white blocks seen
+   before were these glass surfaces, not the lamp material: `mat_light<chassis>` is an ordinary masked material with a grey
+   reflector picture and an opaque alpha. **Lost:** refraction, rain and scratches on the glass, the lit state of the
+   lamps, and the reflection a thin translucent surface adds on top of its transmittance.
 2. **Tangent-space path (`--normal-maps`).** The writer of `blackbox-solid` now writes the 60-byte tangent layout of effects
    1 and 3 (`GroupSource::tangents`, the second UV a copy of the first; the reader already decoded it for the world), and the
    importer writes surfaces with a normal map as effect 3 with textures diffuse, normal (DXT1) and specular, which
@@ -337,7 +354,7 @@ done, in the order of fidelity:
 - Levels of detail 4 to 7 (run-time composite material), the stock tyre brand's sidewall picture and rim colour (customization
   state, not in the tables read), the clear-coat look.
 - The car scene's normal-material route (the engine side).
-- Sound, lamps and damage parts.
+- Sound, lamp states (the lamps never light; the lens colours are the unlit ones) and damage parts.
 - Other bikes: all of the install is imported by [the batch](ride6-bikes-batch.md) (`import_all.py`): the importer has no
   bike-specific table, a bike is a vehicle id for the script. Bikes with a mono-arm swingarm, a different number of brake discs
   (the part table lists one disc mesh per wheel) or a chain guard that is a separate part are untested.
@@ -361,4 +378,12 @@ Written without building; nothing here has been compiled or run.
   direction, the suit look without the arms mesh, hands on the grips); the checks are in the render integration spec.
 - **Not done:** the standing wheelie and drift poses (ACL clips), bump and leg-out layers, fingers, look back, the start
   and stop states, gloves, level of detail by distance (level 0 is drawn), the rider in ray-traced reflections, a rider
-  that falls with the bike.
+  that falls with the bike.
+
+## The rider in a fall (`ride6-rider-ragdoll`)
+
+`ride6-rider-ragdoll <RiderGP_PhysicsAsset.json> <RiderBP.json> <mod>/files/RIDER` writes `ragdoll.json`: the 11 bodies and 10 joints of
+the rider's physics asset and the two fall configurations of his blueprint, in the rider's frame and metres
+([format](../formats/ride6-rider.md#ragdolljson-version-1-the-rider-in-a-fall), [spec](../specs/ride6-rider-fall.md)). The two inputs
+are the `json` mode of the package reader on `…/riderShared/…/RiderGP_PhysicsAsset` and on `RiderBP`; run it once next to
+`ride6-rider-import`. Without the file a rider stays on a bike that falls.

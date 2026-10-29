@@ -128,6 +128,23 @@ KTM data [D]: electronic throttle (angle and speed), pedal brake; `AutoRiderLaun
 below 20 km/h the angle cut fades out and a launch wheelie is free; wheelie cut 0 to 4 deg, forced 33 to 45 deg, speed 0.2 to 0.6
 rad/s; stoppie 0 to 4 deg and 0 to 0.6 rad/s.
 
+**ABS and a stoppie.** The ABS element (`0x1450e0240`, intensity `0x1450cac70`) has no term for the pitch or the rider help: the
+intensity is `Intensity x (1 + wet share x wet scale) x speed ramp x slip ramp`, the same in a stoppie, and the KTM has both ABS
+channels on (intensity 1, front normalised slip -0.3 to -0.5, rear -0.5 to -1, speed ramp 10 to 25 km/h). With the fall rate
+`ABSFallRate` = 10000 /s (constructor default, no bike sets it) the release is instant, so with ABS up the front brake is held near
+the force of half the peak slip and the rear lifts only if the brake force alone still unloads it (the example bike's does not:
+about 5.7 m/s^2 against 8 m/s^2 without ABS, a nose-down pitch of 0.08 rad against 0.24 rad in 1.5 s from 80 km/h). The
+rider turns ABS down in the reference: `SETTINGS_ABS` is a tuning-component entry (default level 1, steps of 0.25, up/down actions
+`ABS_Level`) whose rows, for the KTM the table `TuningComponentData_SettingsMotard5Gear`, set: the front ABS intensity times a
+curve of the level (0: 0.1, 0.25: 0.2, 0.5: 0.45, 0.75 and 1: 1); the rear intensity times a ranged multiplier from 0 to 1 over
+the level [I: the level itself]; `bRearABSEnabled` by a curve that is 0 below level 0.5 and 1 from it; the start of
+`AutoRiderStoppieBrakeControl` (the brake relief range) times a curve (1, 0.75, 0.5, 0, 0; the KTM's start is 0 already); and
+the front brake reduction's lean output, which stays 1. Other classes have their own curves (the front one at level 0 runs
+from 0.05 to 0.22). The dash shows "ABS disabled". So at level 0 the front ABS is a tenth of its intensity and the rear
+is off: a stoppie is done there. The model: `Bike::set_abs_level` (snapped to the quarter steps, default from the bike's
+`abs_level.default`), applied to the ABS spec at the one place the anti-lock is updated; a bike whose manifest states no curves
+takes the level as the factor [choice]. The game key cycles 1 -> 0.75 -> 0.5 -> 0.25 -> 0 -> 1 (section 6).
+
 ## 5. The auto-rider's weight [B: `0x1450ff610`, `0x145110af0`]
 
 The rider component's longitudinal position (-1 back to 1 forward, which moves his mass by the chassis' backward and forward
@@ -156,16 +173,21 @@ reaches `WeightLongitudinal` is the game's input layer (outside the physics modu
 
 | Input | Default | |
 |---|---|---|
-| `rider_weight` axis, forward | G, Numpad 8, pad right stick up | the stoppie side, `+1` |
-| `rider_weight` axis, back | V, Numpad 2, pad right stick down | the wheelie side, `-1` |
+| `rider_weight` axis, forward | G, Numpad 8, pad **left stick up** | the stoppie side, `+1` |
+| `rider_weight` axis, back | V, Numpad 2, pad **left stick down** | the wheelie side, `-1` |
+| `abs_level` button | J, pad left-stick click | next lower ABS level, 1 -> 0.75 -> 0.5 -> 0.25 -> 0 -> 1; logs `ABS level <n>` |
 
 A key travels the lever at once; the stick travels it in proportion (the dead zones 0.3 for a wheelie and 0.95 for a stoppie are inside the
-help). The throttle and the brake key set the strength of the trick as in section 1. A car ignores the axis. The stick is the car's gear
-shifter too; a bike's gearbox is automatic.
+help). The throttle and the brake key set the strength of the trick as in section 1. A car ignores both actions. The pad's left stick
+does steering (X) and weight (Y) together; the weight axis opens the stick's circular gate to a square (`y x min(1, r) / max(|x|, |y|)`),
+so a stick at the rim on a diagonal gives the full lever, and the input layer's dead zone is then applied unchanged (the thresholds
+0.75 and 0.95 stay reachable). The right stick stays the car's gear shifter; a bike's gearbox is automatic. The ABS level has no
+HUD notice (the game has none for a setting changed by a key; the headlights are the same): it is logged.
 
 ## Choices that remain (`choices.rs`, `docs/specs/vehicle-two-wheel.md`)
 
-The filter function of the target angle (`approach`) is inferred from its twin; the road-surface sets are not applied; the road
+The filter function of the target angle (`approach`) was read in round 6 (`0x512cb60`, [ride6-rider-round6.md](ride6-rider-round6.md)
+section 3) and is as written above; the road-surface sets are not applied; the road
 inclination comes from the contact normal of the grounded wheel; the torque ramp is not modelled; the g-force interventions and
 the auto-rider's start control and g-force variant are not modelled; the forced downshift under braking was not looked for in the
 binary (it is not on the trick path: `ride6-gearbox-auto.md` has the shift decision) and is not modelled; the mapping of devices to the weight axis is this game's own.

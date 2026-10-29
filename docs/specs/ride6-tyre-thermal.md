@@ -31,8 +31,9 @@ Tyre decay data (`UTireData.Decay`, defaults [B: `0x145146810`]): `TireSectionsD
 start temperature), `AsphaltTemperatureImportance 0.8` (KTM 1), `MaxTemperature 200`, `NominalWearDecayLength 500000`.
 `SpessLimit` is not used by the update path read here (only the efficiency floor `EfficiencyLimit` bounds the loss). [B]
 
-Inputs from the world: `AirTemperature` and `AsphaltTemperature` of the vehicle (set by the track/weather, not by the
-bike assets; no C++ default found, see the missing list in [vehicle-two-wheel-parameters.md](vehicle-two-wheel-parameters.md)),
+Inputs from the world: `AirTemperature` and `AsphaltTemperature` of the vehicle (written by the game from the weather state at race set-up and
+on each weather broadcast; the values come from a per-track, per-weather data table, no constructor default exists:
+[ride6-chassis-round6.md](ride6-chassis-round6.md) section 5),
 the `Slipstream` value ([ride6-aero-drag.md](ride6-aero-drag.md)) and `SlipstreamTemperatureFactor` (0 by default).
 
 ## 2. Section weights across the width [B: `0x145168440`]

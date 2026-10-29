@@ -131,6 +131,7 @@ thresholds are named constants in `shading.rs` and `bake.rs`):
 | base colour (sRGB) | diffuse picture, up to 2048 px for body parts, half for wheels, a quarter for discs |
 | occlusion | diffuse darkened in linear light by `floor + (1 - floor) * occlusion`, `floor = 0.3` |
 | opacity mask, clip 0.3333 | diffuse alpha cut to 0 or 255, DXT5, alpha usage punch-through, two-sided texture |
+| translucent surface (`BLEND_TranslucentGreyTransmittance`: screen, lamp lenses) | blended glass: diffuse alpha is the opacity (below), DXT5, alpha usage modulated, alpha-sorted, one-sided, light material `WINDSHIELD` or `BRAKELIGHTGLASS` per triangle ([Translucent surfaces](#translucent-surfaces)) |
 | metallic and roughness | light material per **triangle** (its corners and centre sampled): bare metal `CHROME` below roughness 0.2, `MAGSILVER` below 0.4, else `ALUMINUM`; other surfaces `SHINYPLASTIC` below 0.4, else `DULLPLASTIC`; tyres `RUBBER`; discs `BRAKEDISC` |
 | normal map | lost, unless the tangent-space path is on (below) |
 | clear-coat layers, flakes, carbon weave | lost (the light material's gloss stands in) |
@@ -140,6 +141,67 @@ The light-material names exist in the PC install (`RUBBER`, `MAGSILVER`, `CHROME
 `DULLPLASTIC`, among 156), checked by reading the names out of `GlobalB.lzc`. A metal texel keeps its base colour in the
 diffuse picture, but the metal's tint comes from the light material, so coloured metals (the gold of an anodised part) come
 out silver.
+
+### Translucent surfaces
+
+**The material [data].** The screen, the headlamp lens, the tail lens and the indicator lenses of a bike are one material,
+`mat_glass<chassis>` (`mat_glass151_001` on the Ducati 888 SP5): `BlendMode = BLEND_TranslucentGreyTransmittance`,
+`ShadingModel = MSM_ThinTranslucent`, static switches `Transmittance - Source - Texture` and `LegacyMode -
+OverrideBaseColorWithTransmittanceColor` on, `Modulation - Transmittance - Max` = 0.95 (a vector, the same in all three
+channels), `Refraction - IOR - Raster` 1.5 with a refraction normal map. Its pictures: `BaseColor - Texture` and
+`Transmittance - Texture` are the **same** picture (`glass665_001_d`, 2048 px DXT5, sRGB), `PBR - Texture` is the shared
+scratch map `vehicle_glass_scratches` (not roughness and metal), plus a rain mask and the refraction pictures. A second
+material, `mat_glassdecal`, lays the scratch decal over the screen and is skipped. The lamp bulbs and reflectors behind the
+lens are `mat_light<chassis>`, an ordinary masked material (below).
+
+**The picture [stats].** The transmittance picture is white (255, 255, 255) over most of its area, which is the clear
+screen and the clear headlamp lens, and flat colour in the islands of the tinted lenses: on the Yamaha YZF-R7 2022 a red
+(173, 0, 5) for the tail lens, on the Ducati 888 SP5 a red (203, 41, 41) and an amber (255, 123, 10) for the tail lens and the
+indicators. Sampling the picture at the vertices of the glass primitive puts the screen and the headlamp lens on white (the
+tail lens on red; the Yamaha's indicators are not glass). White means transmittance 1, so the sign is **transmittance, not
+opacity**: a white screen is clear, not a white pane. The picture's alpha is small everywhere (0 to 37 on the Yamaha, 6 to 27
+on the Ducati) and a little higher over the tinted islands; it is not the transmittance of the colour (the Ducati's red
+has linear mean 0.21, alpha 0.11), the material has no use for it that its parameters show, and the importer reads the
+colour only.
+
+**The stock cars [data].** The 2005 cars draw a window as its own shading group, effect 4, flags `0x4180`, with the
+placeholder texture `WINDOW_FRONT` (every window placeholder swaps to it; `swaps.rs`) and the light material `WINDSHIELD`.
+`WINDOW_FRONT` in the install's global pack is a 128 px DXT3 texture with alpha blend type 1 (`TEXBLEND_BLEND`), alpha usage 2
+(modulated), `ApplyAlphaSorting` set and the two-sided flag clear; its colour is a dark grey (about 49) and its alpha is 255
+nearly everywhere. The body's window frame is a second group on the same solid with `WINDOW_MASK` (8 px, opaque, black).
+The headlamp covers are groups with the light material `HEADLIGHTGLASS` (its placeholder swaps to `WINDOW_FRONT` too), the
+tail lamp covers `BRAKELIGHTGLASS` with the car's own `<CAR>_KIT00_BRAKELIGHT_GLASS_OFF` and `_ON` textures. The light
+materials' diffuse alpha, read from `GlobalB.lzc` (`diffuse_min_alpha` / `diffuse_max_alpha`): `WINDSHIELD` 0.40 / 0.40,
+`WINDOWMASK` and `CLEARPLASTIC` 0.40 / 0.40, `WINDSHIELD_TINT_L1_*` 0.55 to 0.65, `_L2_*` 0.75, `HEADLIGHTGLASS` 1.00 / 0.35,
+`BRAKELIGHTGLASS` 1.00 / 1.00; `TRAFFICWINDOWS` is 0.80 / 0.30; the rest of the car materials are not window materials (alpha 1, or a paint, pearl or character response). Rendered with
+`view-car` the stock windows and headlamp covers are see-through with the cube-map reflection on top, so the pipeline
+**does** draw smooth translucent car groups: nothing is missing in the engine.
+
+**The mapping [choice, from the data above].** The shader outputs `texture alpha * light material alpha`, so a surface of
+opacity *o* is a picture alpha of *o* divided by the light material's alpha.
+
+- Opacity of a texel: `1 - mean(linear RGB) * Max`, the mean being the "grey" of the blend mode, linear because the picture is
+  sRGB and the transmittance is a physical quantity. White gives 0.05, the red of the Yamaha 0.87, black 1.
+- A triangle takes `WINDSHIELD` (alpha 0.4) when the mean opacity at its corners and centre is at most 0.4, otherwise
+  `BRAKELIGHTGLASS` (alpha 1.0), because `WINDSHIELD` cannot show more than 0.4 (the thresholds are `CLEAR_ALPHA` and
+  `TINTED_ALPHA` in `glass.rs`). The texel's alpha is stored for the material its own opacity selects, so a clear texel is
+  alpha 32 (0.05 / 0.4) and the Yamaha's red lens 221 (0.87; the Ducati's red 0.80 and amber 0.62).
+- The colour is the picture's colour as it is (white veils the scene behind the screen by its 5 percent, which is about the
+  Fresnel reflection of glass; a red lens is red).
+- The texture is DXT5, alpha usage modulated, blend type 1, alpha-sorted, the two-sided flag clear: like the stock windows. A
+  blended group of the car effect culls back faces (`culls_blended`), so the screen is seen from the front only.
+
+Not done: refraction, the rain and scratch layers, the lens colour of a lit lamp (the lamps do not light), and the
+reflection that a thin translucent surface adds on top of its transmittance (the cube map is attenuated by the same alpha as
+the diffuse, so a clear screen shows less reflection than in the game).
+
+**Lamps.** `mat_light<chassis>` is `BLEND_Masked` with the base colour read from `BaseColor - Texture` (the *opacity source*
+switch `BaseColorOpacity - Source` is off), so the cut-out of `cutout()` does not apply and the picture's alpha is 255
+everywhere (checked: `light665_d` alpha 255 on every texel, `lights151_d` 240 to 255). Its colours are the reflector and the
+housing (grey 128 to 206 on the front lamp, the tail lamp's red (173, 0, 5) and light grey), not a white lens; the emissive
+colours are `Lights - Light<n> - EmissiveColor` (white and red) with the mask `lights_inc<chassis>`, which the importer does
+not read. What looked like a white block was the **lens** in front of the lamp: the glass material baked as an opaque
+white picture. With the lens translucent the lamp behind it shows as it is.
 
 **Tangent-space path** (`--normal-maps`): groups with a normal map become effect 3 (`WorldNormalMap`: 60-byte vertices with a
 tangent, textures diffuse, normal and specular), which `blackbox-render` already shades with `NormalModel::Bump` for the

@@ -81,11 +81,14 @@ angular_damp = 250.0
 angular_damp_chassis_factor = 0.0          # 0: the damper works against the world, 1: against the bike
 torque_scale = [1.0, 1.0, 1.0]             # per axis, the torque of his body on the bike (fades in over 0..5 km/h)
 drag_scale = 1.25
-drag_curve = [[0.0, 1.2], [1.0, 0.65]]     # [tuck 0..1, factor]; the drag is scaled by curve(tuck) / curve(0)
+drag_curve = [[0.0, 1.2], [1.0, 0.65]]     # [tuck 0..1, factor]
+drag_weight_curve = [[0.0, 0.1]]           # [weight -1..1, coefficient]; none: the rider adds no drag of his own
 ```
 
-The library takes the lateral weight (`Bike::set_weight_lateral`) and the tuck (`Bike::set_tuck`); the game does not wire a key
-for the first and the auto tuck-in for the second yet. The lean already moves a rider whose `lean_influence` is above 0.
+The rider's own air drag is `drag_weight_curve(weight) * drag_curve(tuck) * drag_scale * (1 - slipstream) * |v| v`, on top of the
+bike's `drag` (`docs/specs/ride6-rider-round6.md`, section 1). The library takes the lateral weight (`Bike::set_weight_lateral`)
+and the tuck input (`Bike::set_tuck`); the game wires no key for the first. With `[bike.wheelie.help.auto_tuck]` the bike tucks
+by itself (below). The lean already moves a rider whose `lean_influence` is above 0.
 [bike.front]
 radius_m = 0.32
 width_m = 0.12
@@ -160,6 +163,15 @@ down_shift_time_s = 0.15
 blip_throttle = 0.3            # optional (0): throttle blip on a change down
 clutch_linearity = 1.0
 clutch_max_factor = 1.0        # most torque the clutch carries, x peak torque
+clutch_timing = [0.125, 0.2]   # optional ([0, 0]): fractions of a gear change: clutch out by the first, back from the second
+throttle_timing = [0.05, 0.9]  # optional ([0, 0]): the throttle is shut between the two fractions
+release_throttle_on_shift = false      # optional (false): no throttle timing, throttle shut for the change
+modulate_throttle_on_upshift = false   # optional (true): no throttle timing, throttle follows the clutch on a change up
+press_clutch_at_min_rpm = true         # optional (true): the clutch is pulled as a coasting bike slows to the idle road speed
+min_rpm_speed_scale_range = [1.05, 1.1]  # optional: multiples of that speed, fully pulled to fully let go
+slipper_filter_speed = 0.0     # optional (0): filter of the slipper clutch, 0 for none
+force_downshift_factor = 1.0    # optional (0 = off): hard braking at speed forces a change down; also _brake_range = [0.5, 1.0],
+force_downshift_duration_s = 0.3   # _duration_s, _linearity = 3.0 and _speed_range_mps = [41.7, 41.7]
 slipper_range_nm = [25.0, 40.0]          # optional (none): back torque over which the slipper opens
 slipper_intensity = 1.0
 release_speed_mps = 13.9       # optional (0): road speed above which a start is over
@@ -206,6 +218,19 @@ blend_range_mps = [2.0, 4.0]   # below the first the handlebar follows the stick
 rider_mass_scale = 1.0
 help_speed = [[0.0, 0.0], [2.78, 0.2]]               # optional (no lean help): [m/s, share of the force gap closed]
 help_limit = 1.0
+help_stopped_range_mps = [0.0, 2.78]    # optional: between these speeds the help factor goes from 1 (standing) to help_speed's
+help_balance_speed = [[2.78, 0.0], [8.33, 1.0]]   # optional: [m/s, share of the help that is a force at the front contact; the rest
+                                        # is a roll torque]; empty: all force
+help_skid_range_rad = [0.1745, 0.7854]  # optional: the skid cut of the help factor (heading error where it starts and is full) ...
+help_skid_linearity = 2.0
+help_skid_reduction = [[0.0, 0.0], [8.33, 1.0]]   # ... cut against the speed (no curve, no cut) ...
+help_skid_input = [[-0.1, 0.0], [0.0, 1.0]]       # ... and its factor against throttle less brake (empty: 1)
+[bike.abs_level]                # optional: how the rider's ABS level (key J) reaches the brake; curves are [level, factor]
+default = 1.0                   # the level a bike starts with
+front = [[0.0, 0.1], [0.25, 0.2], [0.5, 0.45], [0.75, 1.0], [1.0, 1.0]]      # factor on the front ABS intensity (empty: the level)
+# rear = [...]                  # factor on the rear ABS intensity (empty: the level)
+rear_enabled = [[0.0, 0.0], [0.25, 0.0], [0.5, 1.0], [1.0, 1.0]]             # the rear works where this is 0.5 or more (empty: always)
+brake_relief = [[0.0, 1.0], [0.25, 0.75], [0.5, 0.5], [0.75, 0.0], [1.0, 0.0]]   # factor on the start of the stoppie help's brake relief range
 [bike.fall]
 lean_rad = 1.2217
 pitch_rad = 1.1345
@@ -216,6 +241,14 @@ block_ratio = 0.975            # optional (off): the block-fall assist holds the
 block_min_speed_mps = 11.1     # ... above this speed, for block_time_s, then waits block_wait_s
 block_time_s = 1.0
 block_wait_s = 5.0
+lean_by_grip = true            # optional: the ground fall lean limit follows atan(grip) (lean_rad is its start and the airborne limit) ...
+lean_rise = 0.025              # ... by this share of the gap per step when it is above ...
+lean_fall = 0.01               # ... and this when below
+lean_duration_s = 0.01         # the lean must stay beyond the limit this long on the ground
+airborne_lean_rad = 1.2217     # the limits with no wheel on the road (0: the ground limits)
+airborne_pitch_rad = 1.1345
+airborne_angular_speed = 7.0
+highside_lean_rad = 1.2217     # optional (0: never): a velocity against the heading with the lean under this is a high side
 [bike.tcs]                     # optional: the traction control
 slip = [0.09, 0.2]             # slip ratios where it starts to cut the throttle and where it cuts it fully
 speed_range_mps = [0.0, 1.39]  # the speeds over which it comes in
@@ -230,6 +263,9 @@ speed_range_mps = [0.0, 1.39]  # the speeds over which it comes in
 # brake_pitch_electronic, brake_speed_electronic, intensity, weight_deadzone, lookahead_s; and [bike.wheelie.help.auto_rider]:
 # wheelie_range_rad, stoppie_range_rad, multiplier, pitch_speed_range, throttle_curve, throttle_gain, brake_curve, brake_gain,
 # engage_speed, manual_engage_speed. Without the auto_rider table the weight is the player's. Meaning: docs/specs/ride6-tricks.md.
+# [bike.wheelie.help.auto_tuck] (optional; every key needed): min_speed_mps, max_normalised_lean (negative: not tested),
+# min_throttle, max_brake: the rider tucks in above that speed, under that lean, over that throttle, under that front brake.
+# [bike.wheelie.help] also takes tuck_raise_rate and tuck_fall_rate (1/s, default 2): the tuck level the animation reads.
 ```
 
 The numbers above are the generic example bike of the library (`BikeSpec::example`, a 450 cc supermoto-class machine with its
@@ -274,6 +310,7 @@ are wide: they catch a wheel of 3 m, not an unusual bike.
 | `steering.lean.*` | stiffnesses 1 to 10^6, damping ratios 0 to 20, curves up to 32 points with the first number rising |
 | `fall.lean_rad`, `pitch_rad`, `speed_direction_rad`, `angular_speed` | 0.2 to 1.5, 0.2 to 1.5, 0.2 to 3.2, 0.5 to 30 |
 | `fall.block_*` | ratio 0 to 1, speed 0 to 100 m/s, times 0 to 60 s and 0 to 600 s |
+| `fall.airborne_*_rad`, `fall.highside_lean_rad` | 0 to 3.2 |
 | `*.thermal`, `*.rolling_slip`, `chassis.rider_k_n_per_m`, `rider_damp`, `tcs` | 1 to 9 strips with curves of up to 32 points, temperatures -100 to 1000 deg C; 0 to 10; 0 to 10^7 N/m, 0 to 10^6 N s/m; slips 0 to 5 |
 
 A bike is also refused when:
@@ -309,6 +346,23 @@ the ground, and the bike's body origin (midway between the contact patches) is m
 
 `BOUNDS.BIN` is required as for any car ([car-collision.md](car-collision.md)). Its box is what walls, props and other cars hit.
 
+## The rider
+
+A bike gets a rider when the mod has rider files ([formats/ride6-rider.md](../formats/ride6-rider.md)): one **rig** shared by
+every bike (`files/RIDER/`: skeleton, animations, meshes, pictures, `attach.json`) and, per bike, **contact points**
+(`files/CARS/<ID>/RIDER/contacts.json`): the seat the rider's root sits on, the two hubs, and where his hands and feet go (the
+left and right grip, the left and right peg), in the bike's own frame. The game lays the bike's contact points over the rig's
+`attach.json`, so a sport bike's clip-ons, a cruiser's high bars and a scooter's forward footboards each get hands and feet on
+their own controls; the animation itself (the pose, the lean, the tuck) is the rig's and plays the same on every bike. A bike
+without `contacts.json` reaches the rig's own points; a rider needs only `attach.json` to be drawn. If the arms cannot reach a
+bike's grips the body leans forward until they can (at most about 29 degrees), as the original's full-body solve moves the spine.
+A `contacts.json` the game cannot use (another version, a point more than 1.5 m from the seat) is logged and ignored.
+
+`ride6-bike-import` writes `contacts.json` for every bike it imports, from the bike's skeleton in `parts.json`
+([ride6-bikes.md](ride6-bikes.md#partsjson-schema-1): `bones{}` and `sockets{}`); `ride6-bike-import contacts <exporter output>
+<mod folder> --physics <dump>` writes only those files for bikes already imported ([ride6-bikes-batch.md](
+ride6-bikes-batch.md#the-riders-contact-points-contacts)). Another game's converter writes the same file from its own skeleton.
+
 ## How it drives
 
 | Input | Bike |
@@ -316,7 +370,8 @@ the ground, and the bike's body origin (midway between the contact patches) is m
 | Throttle | the throttle (cut by the rider help when the front lifts, if `[bike.wheelie]` is there) |
 | Brake pedal | the front and the rear brake together (and the linked brakes of `joined_factor`) |
 | Handbrake | the rear brake alone (the input layer has one brake axis, so the front brake alone has no key) |
-| Rider weight (`rider_weight` axis) | forward / back: a stoppie under the front brake, a wheelie under the throttle (below) |
+| Rider weight (`rider_weight` axis) | forward / back: a stoppie under the front brake, a wheelie under the throttle (below). **Keys: G forward, V back (Numpad 8 / 2). Pad: the left stick, Y: up forward, down back, together with X steering.** |
+| ABS level (`abs_level` button) | **Key J, pad left-stick click:** each press goes to the next lower level, 1, 0.75, 0.5, 0.25, 0, then 1 again (the new level is written to the log, `ABS level 0.5`) |
 | Steering | the stick: the rider's lean controller prescribes the lean the stick points to and picks the handlebar angle that makes the front tyre give the side force it needs (counter-steering included) |
 | Gear shift keys, gear keys, clutch | not read: the gearbox is automatic |
 | Nitrous | not read: a bike has none |
@@ -325,23 +380,32 @@ the ground, and the bike's body origin (midway between the contact patches) is m
 Behaviour specific to bikes:
 
 - **No reverse.** The brake stops the bike and holds it; it never selects reverse.
-- **Falling.** A lean beyond `fall.lean_rad`, a pitch beyond `fall.pitch_rad`, or (above `fall.min_speed_mps`) a heading error or
-  angular speed beyond theirs is a fall: the rider lets go (no throttle, no steering), the bike slides to a stop on the
-  collision box and, once it has lain still for 2 s, is stood up again where it is, facing the way it did. The fall is not damage.
+- **Falling.** A lean beyond the ground limit (`fall.lean_rad`, or the grip-following one), a pitch beyond `fall.pitch_rad`, an angular
+  speed beyond `fall.angular_speed` (all at any speed), or (above `fall.min_speed_mps`) a heading error beyond its limit is a fall. The rider **leaves the bike**: his mass and his spring stop acting on it (the bike goes on under its own mass), the
+  throttle, the brakes and the bars are let go, and he is thrown as a ragdoll at the velocity the bike had two steps before (a high
+  side also throws him 1.7 m/s up; a rider without `RIDER/ragdoll.json` stays on the bike). The bike slides on its side on its
+  collision box, slowed only by the ground's friction, and once it has lain still for 2 s is stood up again where it is, facing the
+  way it did, with the rider back on it. A velocity against the heading with the lean under `fall.highside_lean_rad` is a high
+  side, otherwise a low side. The fall is not damage ([ride6-rider-fall.md](../specs/ride6-rider-fall.md)).
 - **Race grid.** The rider holds the bike with both brakes while the race is staged; there is no launch assist.
 - **Gauges and sound.** The tachometer, the gear display and the engine sound follow the bike's rpm and gear; the engine loops are
   the car's own `[engine_sound]` or the built-in engine.
 - **Wheels on the ground.** Systems that count wheels read a bike's two wheels as four (each counts twice): both down is "all
   four", one down is "two", so the airborne and fall checks and the audio mixer work unchanged.
 - **Rider weight, wheelies and stoppies.** Only a bike does them ([ride6-tricks.md](../specs/ride6-tricks.md)); a car has no such
-  input. The `rider_weight` action is an axis, -1 (back) to 1 (forward): **G / Numpad 8** forward, **V / Numpad 2** back, or the
-  pad's right stick up / down (the stick that shifts a car's gears; a bike's gearbox is automatic). For a **wheelie**: be above
+  input. The `rider_weight` action is an axis, -1 (back) to 1 (forward): **G / Numpad 8** forward, **V / Numpad 2** back, or on a
+  pad the **left stick** up / down: pull it down for the weight back (wheelie), push it up for the weight forward (stoppie), and
+  it still steers with the stick's X, so a bike can lean through a corner on one wheel (the stick's circular gate is opened to a
+  square for this axis, so a stick at the rim on the diagonal gives the full lever; the right stick is left to a car's gear
+  shifts). For a **wheelie**: be above
   15 km/h (the data's `MinSpeed`), hold the weight back beyond the auto-rider's dead zone (the dead zone of the help is 0.3, the
   auto-rider lets the player have the weight beyond 0.75, so push the lever firmly) and open the throttle in a low gear: the
   front lifts, the help holds the angle the lever and the throttle ask for (up to 35 degrees at full lever and throttle, and the
   rider help cuts the power through the engine beyond 33 to 45 degrees). For a **stoppie**: weight fully forward beyond 0.95, the
   throttle shut and the brake pedal down: the rear lifts and the help holds up to 45 degrees; the rider help eases the front brake
-  if it goes further. With the weight left alone the auto-rider keeps the bike down: forward under the throttle, back under the
+  if it goes further. **Set the ABS to 0 first** (press **J** or the left-stick click until the log says `ABS level 0`): the ABS
+  of the reference stays on through a stoppie and, at level 1, holds the front brake below the force that lifts the rear. At
+  level 0 the front ABS is down to a tenth of its intensity and the rear's is off. With the weight left alone the auto-rider keeps the bike down: forward under the throttle, back under the
   brake, and against any lift beyond about 4 degrees. The weight does not travel on the network (a network seat sends none).
   Rebind the axis with the `[bindings]` table (`rider_weight`).
 
@@ -350,7 +414,7 @@ Behaviour specific to bikes:
 Documented limits (each is a decision of the integration, not of the dynamics, and is in
 [vehicle-two-wheel-integration.md](../specs/vehicle-two-wheel-integration.md#limits)):
 
-- AI, traffic and police bikes; a rider model and its animation; a key for the rider's weight;
+- AI, traffic and police bikes; a rider model and its animation;
 - the shop's upgrade levels change nothing of a bike (they act on a four-wheel car's stats); the shop's bars are estimates from
   the derived stats;
 - no tyre damage (spike strips do not puncture a bike), no nitrous, no drift assist, no manual gearbox;

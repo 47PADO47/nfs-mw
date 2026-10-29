@@ -176,10 +176,15 @@ buying a part changes the bars, not the bike.
 
 ## The fall
 
-The dynamics end a rider's control at the fall limits of the spec (`BikeSpec::fall`: lean, pitch, heading error and angular speed; `Bike::fallen`). The integration then (a) lets the double meet the ground,
-so the bike lies on its collision box, (b) removes 8 percent of its velocities every step so it slides to a stop, and (c) after
-2 s down, once slower than 1.5 m/s, stands it up with `Bike::place_on_ground` where it lies, facing its heading. The simulation
-never stops and never leaves the world.
+The dynamics end a rider's control at the fall limits of the spec (`BikeSpec::fall`: lean, pitch, heading error and angular speed; `Bike::fallen`)
+and **the rider leaves the bike** ([ride6-rider-fall.md](ride6-rider-fall.md)): `Bike` drops his mass, his spring and his drag, lets
+the levers and the bars go, and hands him over once as a `RiderRelease` (kind of fall, place, velocity). The integration then
+(a) refits the double to the bike without him (`BikeRide::sync_double`: its mass, its inertia, its centre of gravity), (b) lets the
+double meet the ground, so the bike lies and slides on its collision box with nothing but the ground's friction to slow it, and
+(c) after 2 s down, once slower than 1.5 m/s, stands it up with `Bike::place_on_ground` where it lies, facing its heading, the
+rider back on it (the double is refitted again). The release goes to the presentation (`CarSim::take_rider_release`,
+`CarSim::rider_off`): the rider's ragdoll lives in `drive/rider/fall.rs`, never in the simulation, so a car and the network
+prediction see nothing of it. The simulation never stops and never leaves the world.
 
 ## Limits
 
@@ -200,7 +205,7 @@ touching the dynamics.
 |---|---|---|---|
 | Time a fallen rider lies before the bike is stood up | 2 s | `GET_UP_AFTER` | the dynamics end at the fall; some time on the ground is needed to read it |
 | Speed under which it is stood up | 1.5 m/s | `GET_UP_SPEED` | do not stand a bike up while it still slides |
-| Velocity lost per step while fallen | 8 percent | `SLIDE_DAMPING` | a sliding body with no friction model of its own must stop |
+| Velocity lost per step while fallen | none (it was 8 percent) | | the double's ground friction stops the bike; the old damping stopped it in a second |
 | Brake at the grid | both levers 1 | `Integration` | holds a bike, which cannot hold itself, until GO |
 | Reported `traction`, `locked` | see the table | `BikeRide::wheel_state` | the library's fields have no counterpart in the tyre model |
 | Wheels counted twice | 2 per wheel | `wheels_down` | keeps the four-wheel checks meaningful |
@@ -212,5 +217,6 @@ unknown and missing keys, arrays of the wrong length, the conversion to `BikeSpe
 face. `crates/nfsmw-data`: the registry, the derived stats, the wheel setup with and without a layout, the rig (rest pose, roll,
 steering about the axis, travel along it, the rear wheel). `crates/nfsmw` (`sim/bike_ride_tests.rs`, `sim/bike_tests.rs`): the
 double's mass, inertia and shared centre of gravity, the contact round trip, the input mapping, the stand-up, and a `CarSim` bike
-standing, accelerating, turning, braking, falling and being saved and restored on a flat road. Not tested: a drive in the real
+standing, accelerating, turning, braking, falling and being saved and restored on a flat road; `sim/bike_fall_tests.rs`: the rider handed
+over once at the fall, the double lighter without him, the bike sliding on its side and stood up with him again. Not tested: a drive in the real
 game with a real bike, collisions with walls and traffic, the garage.

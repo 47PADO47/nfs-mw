@@ -134,10 +134,13 @@ display tables [B: `0x1450f2c70`] turns the fractions into rpm (`* MaxRPM`) and 
 `speed(f MaxRPM, n)` where `n` is the current gear for upshifts and the lower gear for downshifts. The earlier note that the
 decision was not recovered and that "the tolerances scale the compared speed" is superseded.
 
-Shift timing [B: `0x1450c1660`]: `GearUpChangeTime` 0.06 s and `GearDownChangeTime` 0.15 s; during the shift the clutch input
-follows `ClutchTimingOnGearChange` (0.125 to 0.2 of the shift: ramp out and back in) and the throttle follows
-`ThrottleTimingOnGearChange` (0.05 to 0.9). Hold-offs: `PreventGearUpChangeLean*`, `GearWhenStopped`, `OverLimit*`
-(`OverLimitRpmPercentage` 0.94 of `MaxRPM`, speed above 60 km/h, for 0.064 s), `ForceGearDownChangeBrake*`.
+Shift timing [B: `0x1450d7ac0`, `0x1450cf350`; the earlier address `0x1450c1660` was wrong]: `GearUpChangeTime` 0.06 s and
+`GearDownChangeTime` 0.15 s. During the change the clutch lever is a trapezoid of its progress, 0 to 1 over the first 0.125, 1 up
+to 0.2, back to 0 at the end (`ClutchTimingOnGearChange`), the gear changes when the lever reaches 1, and the throttle is
+scaled by a similar curve of `ThrottleTimingOnGearChange` (1 to 0 over the first 0.05, shut to 0.9, back to 1): the exact curves,
+the blipper and the idle clutch are in [ride6-powertrain-round6.md](ride6-powertrain-round6.md) sections 1 to 3. Hold-offs:
+`PreventGearUpChangeLean*`, `GearWhenStopped`, `OverLimit*` (`OverLimitRpmPercentage` 0.94 of `MaxRPM`, speed above 60 km/h, for
+0.064 s; the test is in section 2 of that spec), `ForceGearDownChangeBrake*` (same spec, section 8).
 
 Launch clutch [B: `0x1450d7cd0`], when `ClutchFeatheringOnStart` is off: `clutch = max(clutch, (1 - clamp((rpm - MinPct * MaxRPM) /
 ((MaxPct - MinPct) * MaxRPM), 0, 1)) * (1 - clamp((v_kmh - R.x) / (R.y - R.x), 0, 1)))` with `MinPct = ClucthMinRPMPercentage` (**C++

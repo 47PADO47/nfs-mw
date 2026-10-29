@@ -126,3 +126,19 @@ for the 293 bikes that got as far as the exporter, in several sessions (the scri
 410 mod cars (these bikes and the 93 cars of the 2012 mod) need more parts-database entries than the stored layout holds; the
 engine now keeps them with wide indices ([car-parts-capacity.md](../specs/car-parts-capacity.md),
 [api-content.md](api-content.md#parts-database-capacity)).
+
+## The rider's contact points (`contacts`)
+
+Every bike the importer writes gets `files/CARS/<ID>/RIDER/contacts.json`: where its seat, grips and pegs are, from the sockets of
+the bike's skeleton in `parts.json`, plus its row of `RiderAnimationCorrection_DT` from the physics dump
+(`<dump>/resolved/content/assets/data/datatables/Anim/`; a dump without it, or a vehicle without a row, gives a file without
+`correction`, and the import logs a note). The shared rider rig stays in `files/RIDER/`
+([bikes.md](bikes.md#the-rider), [formats/ride6-rider.md](../formats/ride6-rider.md#contactsjson-version-1-one-bikes-contact-points)).
+To add the files to bikes imported before, without converting any mesh:
+
+```
+ride6-bike-import contacts <exporter output, or one bike's folder> <mod folder> --physics <dump>
+```
+
+The car ids of a set are assigned as the batch import assigns them. The import stamp's conversion number went to 2 for this, so a
+mod started with the native library converts everything once more; the command above does not.

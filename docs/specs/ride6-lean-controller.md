@@ -133,14 +133,15 @@ F_total  = (|F_act| < |F_ideal|) ? clamp(F_ideal, -cap, cap) : F_ideal          
 F_applied= (F_total - F_act) u                                                                # AppliedSideForce, added at the front wheel
 ```
 
-`R` and `A` come from the handlebar class: `LeanHelpFactorSpeedTuning`, reduced by throttle, brake, handbrake, front slip, rear
-slip and skid (each a translator of its quantity times `LeanHelpFactorReductionScale`, with a lean-sensitivity factor) and
-raised by `OutOfTrackLeanHelpFactorAddition` on grass, sand and kerb. KTM: speed tuning 0..10 km/h -> 0..0.2, skid range 10..45
-deg with linearity 2, 1.0 added off track, `LeanHelpBalance` 1 (speed ramp 10..30 km/h; `CurrentLeanHelpBalance` is ramped to 0
-below 3 m/s). The pairing of every reduction with its input follows the stability help below. `Fy_peak`, `Fx_peak` are the
+`R` and `A` are the **collision alteration** of the help (a reduction and an addition that follow a collision and fade), 0 without one; the
+speed, throttle, brake, slip and skid tunings form the factor `h_factor` that replaces the plain `LeanHelpFactor` of this formula, and
+the force is split into a force at the front contact and a couple by the balance. Both are in
+[ride6-chassis-round6.md](ride6-chassis-round6.md) sections 2.1 and 2.2, with the pairing of every reduction with its input (resolved
+in round 6). KTM: speed tuning 0..10 km/h -> 0..0.2 blended to 1 at a standstill, skid range 10..45 deg with linearity 2, balance 0
+below 10 km/h and 1 above 30 km/h. `Fy_peak`, `Fx_peak` are the
 peak forces of the front tyre model at its load (model virtuals `0x40`, `0x38` times the grip scales).
 
-## Stability help [B structure: `0x14510e810`, `0x1450c6560`]
+## Stability help [B structure: `0x14510e810`, `0x1450c6560`; pairing and application in round 6, [ride6-chassis-round6.md](ride6-chassis-round6.md) section 4]
 
 ```
 S0 = StabilityHelpFactorSpeedTuning(speed) * max(0, |NormalizedLean|^StabilityHelpFactorLeanSensitivity * StabilityHelpFactorLeanInfluence + 1)
@@ -169,12 +170,13 @@ tau_yaw  = -GyroscopicYawMomentumScale * (I_front w_front + I_rear w_rear) * rol
 local angular velocity (rad/s). Both scales default to 1 and the stock bikes keep them, so the earlier unknown factor `c` is
 `cos(lean)`.
 
-## Fall detection [D + I]
+## Fall detection [B, round 6]
 
-Each `FallCheckInterval` (1/60 s) the handler tests, when speed exceeds `FallMinSpeed` (10): lean beyond `FallLeanLimit`
-(and `FallLeanLimitAirborne` 70 airborne), pitch beyond `FallPitchLimit` 65, the angle between the velocity and the heading
-beyond `FallSpeedDirAngleLimit` 85 (180 airborne), the angular speed beyond `FallAngularSpeedLimit` 4.4 rad/s (7
-airborne), rider/chassis forces beyond `FallForceLimit` 2e6, collision impulses, and a highside lean beyond
-`FallHighsideLeanLimit` 70. Any of them starts the fall (`StartFall`, event `BikeInputFallenEvent`); the "block fall"
+Each `FallCheckInterval` (1/60 s) the handler tests the lean beyond `FallLeanLimit` (a running value that follows the front tyre's
+grip, `FallLeanLimitAirborne` 70 in the air), the pitch beyond `FallPitchLimit` 65, the angle between the velocity and the heading
+beyond `FallSpeedDirAngleLimit` 85 (180 airborne) **above `FallSpeedDirAngleMinSpeed`**, the angular speed beyond `FallAngularSpeedLimit`
+4.4 rad/s (7 airborne) **at any speed**, the rider's forces beyond `FallForceLimit` 2e6 (the speed gate `FallMinSpeed` 10 km/h belongs to
+these), collision impulses. Any of them starts the fall (`StartFall`, event `BikeInputFallenEvent`); the "block fall"
 assist (clamp above) keeps the lean at 97.5 % of the limit for up to `BlockFallTimeLimit` 1 s so a slide does not end the
-run, then waits `BlockFallReEnableWaitTimeLimit` 5 s. The exact tests are [I].
+run, then waits `BlockFallReEnableWaitTimeLimit` 5 s. The exact tests, their gates and the terrain terms are in
+[ride6-chassis-round6.md](ride6-chassis-round6.md) section 3.

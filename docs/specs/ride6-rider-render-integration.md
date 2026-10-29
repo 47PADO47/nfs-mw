@@ -118,3 +118,53 @@ inside the tank); steady speed with a lean left and right (the head moves to the
 visor translucent; every LOD of the suit. If the rider is mirrored or inside out, the two suspects are the winding flip
 and the sign of `y` in `ride6-rider-import`'s `convert.rs` (documented there); if it faces sideways, the
 `rider_root_in_bike` rotation was not applied.
+
+## 8. Contact points per bike (`contacts.json`, `rider/contacts.rs`, `rider/reach.rs`)
+
+Sections 5 and 6 aim the hands, feet and seat at the points of one bike's `attach.json`. With one shared rig that was the
+KTM's: on any other bike the hands, feet and seat stayed where the KTM has them. Now each bike has its own contact points.
+
+**What the original uses.** The rider is attached to the bike's own skeleton: every one of the 293 bikes exported has the sockets
+`SOCKET_RIDER` (the seat: the rider's root bone sits there), `SOCKET_L_HANDLE_POSE` and `SOCKET_R_HANDLE_POSE` (on the grip bones
+`BONE_L_GRIP` and `BONE_R_GRIP`, so they turn with the handlebar), `SOCKET_LEFT_FOOT` and `SOCKET_RIGHT_FOOT` (on `BONE_CHASSIS`),
+and each has its own place (data: the `SkeletalMeshSocket` objects of the bike skeleton asset). The animation blueprint's control
+rigs `CtrlRig_HandsIK` (inputs `hand_L/R_position`, `hand_L/R_rotation`, `hand_L/R_alpha`) and `CtrlRig_FeetCorrection` solve the
+limbs with the engine's full-body IK; where they read those inputs from is a native binding of the blueprint's property access
+that was not traced. The binary also holds the names `L_HANDLE_POS`, `R_HANDLE_POS`, `BONE_LEFT_FOOT_POS`, `BONE_RIGHT_FOOT_POS`,
+`HANDLEBAR`, `LEVER_SYS_L/R` and `SOCKET_LEFT_FOOT_GEARSHIFT`/`SOCKET_RIGHT_FOOT_GEARSHIFT` (`ride6-Win64-Shipping.exe`, build
+5.6.1-1697004, strings at `14a3fce90` to `14a3fcf00` and `14a3e6630`); no bike skeleton has bones or sockets of those names, so they
+are names of the native code's own targets (not resolved). Per vehicle the game has one more table, `RiderAnimationCorrection_DT`
+(row struct `BikeCorrection`, 364 rows, one per vehicle): `RiderMaxLean` (1.0 for all), `AeroTankCorrection`, `LeanKneeCorrection`,
+`LeanElbowCorrection`, `KneeCorrection`, `ElbowCorrection`, `MufflerCorrection`, `SpineCompensation1/2` (degrees, added to the
+spine), `ArmsIKSpineCompensationAlpha`, `TransformPVElbowCorrection` (a transform; non-identity only for `Yamaha_FZ-750-1985`: -7 cm
+in x, -10 cm in z), `BikeType` (`NOOVERRIDE` for 338 rows, `RACING` 7, `STREET` 6, `ENDURO` 6, `SCOOTER` 3) and `QuickShiftType`.
+These are **not** contact points: the blueprint turns the knee and elbow numbers into per-side values by a fuzzy blend of the lean
+(`RiderLeaning_IsLeft/IsRight/IsCenter`: the centre takes `KneeCorrection`, the leaning side `LeanKneeCorrection`; `ElbowCorrection_L/R`
+likewise) and the spine numbers into rotators (`SpineCompensation1/2_BikeSpecific`). So RIDE 6 uses **one rider rig and one pose set
+for all bikes**; the seat, grip and peg points come from the bike skeleton's sockets, and the table only adjusts knees, elbows and
+spine per vehicle.
+
+**What the importer writes.** `rider/contacts.rs` reads the part table's `bones{}` and `sockets{}`, turns the five sockets into the
+car frame and writes `files/CARS/<ID>/RIDER/contacts.json` with the seat, the hubs, the four targets and the vehicle's correction row
+([formats/ride6-rider.md](../formats/ride6-rider.md)). `attach.json` of the shared rig is written by the same code from the
+reference bike, so the two agree (the KTM's `contacts.json` equals it to 1e-7 m).
+
+**What the game does.** `contacts::lay_over` reads the car's `contacts.json` after `attach.json` and replaces the rig's seat, hubs
+and same-named targets (`Attach::with_contacts`); the limbs' `tip_offset` stays the rig's, since it is the offset of the hand bone
+from the grip *socket*, a property of the rig and of how the socket is authored, not of the bike. The frame offset that joins the
+bike's skeleton to the model uses the bike's own hubs. A missing file keeps the rig's points (a log line says so once); an unusable
+one is logged and ignored.
+
+**Reach.** The poses are authored for the supermoto, upright. Measured with the reference pose's shoulders against the sockets of
+the 293 bikes: the KTM's arms reach their grips with 11 cm to spare; 212 of the 293 bikes have grips farther than the arm is long, by
+up to 23 cm (race bikes most: the mean excess of `-RM-` variants is 9.7 cm against 7.6 cm for the others); no bike's pegs are out of reach (legs have at least
+15 cm spare). The two-bone solve stretches a limb towards an unreachable target without breaking it (the hand is never farther
+than the limb is long from the shoulder). To close the gap `rider/reach.rs` turns the body forward about the pelvis, before the
+limbs are solved, by one angle for all limbs: the least-squares angle that brings the shoulders of the limbs whose goal is out of
+reach (past 0.95 of their length) to their goals, held to 0..0.5 rad. These two numbers are **modelling choices**, a stand-in for
+the original's full-body IK; the original also has race poses (`race/`, `BikeType` `RACING`), which are not exported yet
+([formats/ride6-rider.md](../formats/ride6-rider.md), Gaps). The KTM, whose grips are in reach, does not lean.
+
+**Not done.** The correction row is carried and not applied (knees and elbows by lean, the tank and muffler corrections, the spine
+rotators, `pole_elbow_cm`): they need the control rigs' solve, which this runtime replaces with two-bone IK. The rider does not
+change pose set by `BikeType`.

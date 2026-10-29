@@ -95,7 +95,8 @@ works on input channels, not on forces. [D + I]
 - **Brake control** (`bEnableRiderHelpBrakeControl`): relieves the front brake when a stoppie grows (pitch 0 to 4 deg,
   pitch speed 0 to 0.6, g-force 1.6 to 2.0).
 - **Tuck-in** (`bAutoTuckIn`): above 90 km/h, with the lean below the maximum percentage 1, throttle above 0 and brake below
-  0.1, the rider tucks in (`TuckInPosition` 2): reduced air drag.
+  0.1, the rider tucks in: reduced air drag. Specified completely (the action, the level and what `TuckInPosition` does) in
+  [ride6-rider-round6.md](ride6-rider-round6.md), section 2; wired in the game.
 - **Lateral weight**: moves the rider to the inside of a turn from the banking angle (`LateralWeightControlBankingThresholds`
   60 and 60 percent of the lean limit), with the curve `Racing_RiderHelp_LateralWeightSteerInfluence` of the steer.
 

@@ -8,6 +8,10 @@ rider's animation instance is listed as inputs only. Sources and provenance: [ri
 Files: [ride6-rider.md](../formats/ride6-rider.md). Runtime: [skeletal-animation.md](skeletal-animation.md).
 Integration into the game: [ride6-rider-render-integration.md](ride6-rider-render-integration.md).
 
+> **Round 6** ([ride6-rider-round6.md](ride6-rider-round6.md), section 4) replaced the choices of sections 5 and 8 below by the
+> blueprint's own signals: the lean, tuck, wheelie and stoppie inputs of the graph, their smoothing rates and the meaning of
+> the smoothers. Where this page disagrees with it, round 6 is right.
+
 ## 1. The pieces
 
 - **One animation blueprint** drives every rider: `riderShared/anim_blueprints/RiderGP_racing_Master_animBlueprint`
@@ -133,7 +137,8 @@ The pose is authored for a bike in its rest pose; the hands and feet are then mo
 | left foot | `SOCKET_LEFT_FOOT` (`BONE_CHASSIS`) | (-25.73, -20.88, 42.41) | (-0.2573, 0.2088, 0.4241) |
 | right foot | `SOCKET_RIGHT_FOOT` (`BONE_CHASSIS`) | (-23.77, 19.18, 43.15) | (-0.2377, -0.1918, 0.4315) |
 
-(`attach.json` is computed from the exported bike skeleton, not from this table.) The grips sit on `BONE_HANDLE`
+(`attach.json` is computed from the exported bike skeleton, not from this table; the other bikes' own points are in each
+car's `contacts.json`, [ride6-rider-render-integration.md](ride6-rider-render-integration.md) section 8.) The grips sit on `BONE_HANDLE`
 (Unreal (29.72, 0, 100.38) cm, tilted back by the rake), so they follow the steering. How well the authored poses already
 fit, measured with the exported data (rider root on the seat socket, forward kinematics of the clip's first frame; bike
 space, cm):

@@ -141,8 +141,9 @@ turned to the left by the slip, and the angle is the heading of that vector proj
 horizontal plane (`lean::handlebar_angle`); blended to `stick x max_angle` between `blend_range`, and filtered (`response`,
 `damping_ratio`). **Lean help** adds a side force at the front contact that closes a
 share of the gap to the wanted force, within the tyre's lateral peak and the friction ellipse. The roll acceleration is then
-**realised** by a torque about the bike's length that makes up what the tyres left, within `ROLL_TORQUE_AUTHORITY` weights
-times the height of the centre of gravity; it also holds a bike that stands still.
+the help factor is 1 at a standstill and fades to the tuned value by 10 km/h, and the help is a force at the front contact only above
+10 to 30 km/h; below that it is a roll torque that closes the share `h` of the gap to the torque the controller prescribes, within the
+tyre's cap (`ride6-chassis-round6.md`, sections 1 and 2). It holds a bike that stands still. The game has no rider torque of its own.
 
 **Wheelie and stoppie** (all of it in [ride6-tricks.md](ride6-tricks.md); only a bike has any of it). Nothing lifts a wheel but
 the rigid body: the engine's thrust or the front brake unloads the other tyre, with the rider's weight where the rider component puts
@@ -185,17 +186,15 @@ the zero-torque point.
 
 | Choice | Value | Why it is open |
 |---|---|---|
-| `CLUTCH_OPEN_DURING_SHIFT`, `CLUTCH_ENGAGE_TIME` | true, 0.06 s | the data's clutch and throttle timings of a change (`ClutchTimingOnGearChange`) are ramps of fractions of the change whose exact use is not pinned down |
-| `START_SPEED` | 1 m/s | `InStartingSequence` and the neutral logic of the handler were read, not written up |
-| `SLIPPER_FALL_RATE`, `ABS_FALL_RATE` | 10, 8 per s | constructor defaults not listed |
-| `ROLL_TORQUE_AUTHORITY` | 2 weights x height | the reference closes the prescribed roll with the tyre forces, the lean help and the stability help (off for the stock bike); the pairing of the help reductions with their inputs was not recovered, so a bounded torque stands in |
-| `LEAN_FORCE_INCLUDES_TURN_FORCE` | true | the force balance of a held lean is not in the recovered equations; without the term nothing would turn this model's bike |
-| `BRAKE_COUPLING_SIGN` | -1 | the sign of `T_applied - T_back` for a braking wheel |
-| `BUMP_STOP_FACTOR` | 12 | the end of the travel is only a clamp in the reference (used for a rigid tyre) |
-| `AIR_TEMPERATURE`, `ASPHALT_TEMPERATURE` | 20, 30 deg C | the track and weather set them; no default was found |
-| `LEAN_AND_PITCH_FALL_AT_ANY_SPEED` | true | the exact fall tests are inferred |
+| `LEAN_FORCE_INCLUDES_TURN_FORCE` | true | the reference has no such feed-forward (a held lean sits under a degree off its target); without it this model's bike, held at the lean limit, loses its front tyre after about a second ([chassis round 6](ride6-chassis-round6.md) section 1) |
+| the compensated roll torque of the couple | `lean_help::couple_torque` | the game's couple is the moment of the help force; over a 60 Hz step it chatters at a standstill, so this model closes the same gap by torque ([chassis round 6](ride6-chassis-round6.md) section 1) |
+| `Environment::default()` | 23 / 28 deg C | a stand-in for the host's weather: the game takes them from a per-track table ([chassis round 6](ride6-chassis-round6.md) section 5) |
 | `RiderHelpSpec::default()` | the constructor defaults of the reference | what a manifest leaves out of `[bike.wheelie.help]` (recovered, [ride6-tricks.md](ride6-tricks.md)) |
-| `LATERAL_GRIP_TOLERANCE`, `TYRE_EFFICIENCY_BALANCE`, `SLIP_CORRECTION_MULTIPLIER`, `STANDING_SPEED` | 1, 0.5, 1, 0.5 m/s | recovered defaults (the first two), dry road, numerical guard |
+| `LATERAL_GRIP_TOLERANCE`, `TYRE_EFFICIENCY_BALANCE`, `STANDING_SPEED` | 1, 0.5, 0.5 m/s | recovered defaults (the first two), numerical guard |
+
+Gone in round 6 because the binary says: `ROLL_TORQUE_AUTHORITY` (no direct roll torque exists), `BUMP_STOP_FACTOR` (the stop is a clamp that
+zeroes the speed), `AIR_TEMPERATURE`/`ASPHALT_TEMPERATURE` (inputs of the world), `LEAN_AND_PITCH_FALL_AT_ANY_SPEED` (they are, and the angular speed too),
+`SLIP_CORRECTION_MULTIPLIER` (1 outside a burnout), `BRAKE_COUPLING_SIGN` (-1).
 
 `HANDLEBAR_LEAD` of the first build is gone: with the closed-form handlebar angle the saturated stop (a held turn under full
 brakes, and a straight stop from 30 m/s) stays stable without a lead.
@@ -207,7 +206,19 @@ yaw rate, the stability help (off for the stock bike; the pairing of its reducti
 cornering protection of the ABS element (its form is inferred, not read), the rider's tuck-in drag (the rider drag curves were not
 read), the terrain terms of the lean limit and the lean limit's brake and throttle deltas (zero by default; the reduction scale and
 the sign of the terrain inclination were not recovered), the wet rows of the tyre tables, the swingarm's arc, the forced
-downshift under braking (not on the trick path; not looked for).
+deprecated brake reduction of the ABS element ([ride6-powertrain-round6.md](ride6-powertrain-round6.md) section 9) and the
+engine-brake reduction.
+
+## Recovered in round 6 (no longer choices)
+
+`CLUTCH_OPEN_DURING_SHIFT` and `CLUTCH_ENGAGE_TIME` (the clutch lever of a change is the trapezoid of `ClutchTimingOnGearChange`, the
+gear changes when it is out, the throttle follows `ThrottleTimingOnGearChange`), `SLIPPER_FALL_RATE` (the slipper's filter speed is
+0, no filter), `START_SPEED` (the handler's two speed tests are 1 m/s, the pedal threshold 0.1), `ABS_FALL_RATE` (10000 per s: the
+release follows its target at once) and `BRAKE_COUPLING_SIGN` (-1: braking compresses the fork) are facts, with their sources in
+[ride6-powertrain-round6.md](ride6-powertrain-round6.md). The `[bike.transmission]` keys `clutch_timing`, `throttle_timing`,
+`release_throttle_on_shift`, `modulate_throttle_on_upshift`, `press_clutch_at_min_rpm`, `min_rpm_speed_scale_range` and
+`slipper_filter_speed` carry the handler's tuning, and `force_downshift_*` (brake range, duration, factor, linearity, speed range) the
+forced downshift under hard braking; a manifest that leaves them out gets the constructor defaults (the forced downshift off).
 
 ## Status and verification
 

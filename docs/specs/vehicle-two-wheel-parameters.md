@@ -62,6 +62,10 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 | `transmission.up_shift_time_s`, `.down_shift_time_s`, `.blip_throttle` | handler `GearUpChangeTime`, `GearDownChangeTime`, `BlipperThrottleOnShift` | none | fact |
 | `transmission.clutch_linearity`, `.clutch_max_factor` | `Transmission.ClutchLinearity`; the C++ default `ClutchMaxTorqueFactor` | none; 1 | fact / default |
 | `transmission.slipper_range_nm`, `.slipper_intensity` | `SlipperClutchDeltaTorqueRange`, `SlipperClutchMaxIntensity` | Unreal units to N m (/10000) | fact |
+| `transmission.slipper_filter_speed` | `SlipperClutchFilterSpeed` (constructor default 0, no bike sets it) | none | fact |
+| `transmission.clutch_timing`, `.throttle_timing`, `.release_throttle_on_shift`, `.modulate_throttle_on_upshift` | handler `ClutchTimingOnGearChange`, `ThrottleTimingOnGearChange`, `ReleaseThrottleOnShift`, `ModulateThrottleOnUpShift` | none (fractions of the change) | fact ([ride6-powertrain-round6.md](ride6-powertrain-round6.md) section 1) |
+| `transmission.force_downshift_*` | handler `ForceGearDownChangeBrakeInputRange`, `...Duration`, `...Factor`, `...Linearity`, `ForceGearDownChangeSpeedInputRange` (written when the factor is not 0) | speed range km/h to m/s | fact (section 8 of the round 6 spec) |
+| `transmission.press_clutch_at_min_rpm`, `.min_rpm_speed_scale_range` | handler `PressClutchAtMinRPM`, `MinRPMSpeedScaleRange` (constructor defaults true, 1.05 to 1.1) | none | fact (section 3) |
 | `transmission.release_speed_mps`, `.feather_factor`, `.feather_max_factor` | `ClucthReleaseVelocityRange.Y`; `ClutchFeatheringPeakTorqueRPMFactor`, `...MaxRPMFactor` (when `bEnable`) | km/h to m/s; none | fact |
 | `brakes.front_force_n` | `Brake.BrakeForce * BrakeBalance` (balance 1 for every bike; another balance is refused) | none (N at the patch, `T = F R`) | fact |
 | `brakes.rear_force_n` | `Brake.HandbrakeForce` of the wheel with `bAffectedByHandbrake` (the rear), else 0 | none | fact |
@@ -69,7 +73,7 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 | `brakes.abs.*` | the ABS element: `FrontABSTuning`/`RearABSTuning` `.Intensity` (when enabled), `NormalizedSlipTuning.InputRange`, `ABSSpeedTuning.InputRange` | km/h to m/s for the speeds | fact |
 | `steering.max_angle_rad` | `FrontWheel.SteerAngle` | deg to rad | fact |
 | `steering.response`, `.damping_ratio` | `HandlebarK`, `HandlebarDamp` | ratio `z = abs(damp)` (a positive damp is the coefficient `c = 2 sqrt(K) z`) | fact (M3) |
-| `steering.max_lean_rad`, `fall.lean_rad` | `FallLeanLimitAirborne` (70 deg for all 317 bikes) | deg to rad | **choice**: the ground limit is a run-time value (grip based); the upper bound of the lean limit is the fall lean |
+| `steering.max_lean_rad`, `fall.lean_rad` | `FallLeanLimitAirborne` (70 deg for all 317 bikes) | deg to rad | the airborne fall limit and the start of the ground limit, which follows the grip (`fall.lean_by_grip`, `lean_rise`, `lean_fall`; [chassis round 6](ride6-chassis-round6.md) section 3); the upper bound of the lean limit |
 | `steering.lean.k`, `.damping_ratio` | `LeanK`, `LeanDamp` | ratio as above | fact |
 | `steering.lean.damping_multiplier` | `LeanComponent` ranges and the bike's size | the formula after this table | structure [B], operands [I] |
 | `steering.lean.steer_k`, `.steer_damping_ratio`, `.target_k`, `.target_damping_ratio` | `SteerK/SteerDamp`, `TargetLeanAngleFilter.KValue/DampValue` | ratio as above | fact |
@@ -77,8 +81,10 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 | `steering.lean.g_tuning`, `.skid_*`, `.stopped_*` | `LeanLimitGForceTuning`; `LeanLimitSkidRange` (deg), `...Linearity`, `...Reduction` (km/h); `StoppedLeanLimit` (deg), `StoppedSpeedThreshold` (km/h) | deg to rad, km/h to m/s | fact |
 | `steering.lean.blend_range_mps` | `SteerAlignmentRange` (2 to 4) | none | the lean spec calls it `LowSpeedSteerBlendRange`; no asset sets that name |
 | `steering.lean.rider_mass_scale`, `.help_speed`, `.help_limit` | `RiderMassScale`; `LeanHelpFactorSpeedTuning` (km/h); `LeanHelpLimitSpeedTuning` output at the top of its range | km/h to m/s | fact; `help_limit` is one number where the data has a speed curve |
-| `fall.pitch_rad`, `.speed_direction_rad`, `.angular_speed`, `.min_speed_mps` | `FallPitchLimit`, `FallSpeedDirAngleLimit`, `FallAngularSpeedLimit`, `FallMinSpeed` | deg to rad; km/h to m/s | fact |
+| `fall.pitch_rad`, `.speed_direction_rad`, `.angular_speed`, `.min_speed_mps` | `FallPitchLimit`, `FallSpeedDirAngleLimit`, `FallAngularSpeedLimit`, `FallSpeedDirAngleMinSpeed` (0 when unset; `FallMinSpeed` gates only the rider-force tests) | deg to rad; km/h to m/s | fact |
+| `steering.lean.help_stopped_range_mps`, `.help_balance_speed`, `.help_skid_*` | `LeanHelpFactorStoppedSpeedRange`; `LeanHelpBalanceSpeedTuning` x `LeanHelpBalanceMultiplier`; `LeanHelpFactorSkid*` x `LeanHelpFactorReductionScale` | km/h to m/s, deg to rad | fact ([chassis round 6](ride6-chassis-round6.md) section 2) |
 | `wheelie.wheelie.*`, `.stoppie.*` | `WheelieParams`, `StoppieParams` (unset fields: the constructor defaults of the [rider-help spec](ride6-rider-help.md)); `lean_limit_rad`, `lean_pitch_range_rad` from the handler's `WheelieLeanLimitTuning`, `StoppieLeanLimitTuning` | deg to rad, km/h to m/s | fact / default |
+| `abs_level.default`, `.front`, `.rear`, `.rear_enabled`, `.brake_relief` | `SETTINGS_ABS` default (`TuningComponentEntries*`: 1) and the class's `SETTINGS_ABS_n` rows (`TuningComponentData_Settings*`): curves of the level | none | fact; absent curves: the level is the factor ([ride6-tricks.md](ride6-tricks.md)) |
 | `wheelie.wheelie.terrain_influence`, `.stoppie.terrain_influence`, `.target_filter_timescale` | `TerrainInclinationInfluence` (default 0), `bFilterTargetAngle` (default true) with `timescale` (default 10) | none (0 = no filter) | fact / default |
 | `wheelie.help.*` | `URiderHelpVehicleElement`: `AutoRiderLaunchSpeedThreshold`, `LaunchWheelieThrottleControl`, `LaunchThrottleControlMultiplier`, `AutoRiderThrottleControlMultiplier`, `AutoRiderForcedStoppieBrakeControl`, `AutoRiderBrakeControlMultiplier`, the four `bEnable...ElectronicModulation` flags (throttle ones only with `bApplyEngineThrottleModulation`), `AutoRiderIntensity`, `WeightLongitudinalInputDeadzone`, `AutoRiderLookaheadTime` | deg to rad, km/h to m/s | fact / default ([ride6-tricks.md](ride6-tricks.md)) |
 | `wheelie.help.auto_rider.*` | `AutoRiderWheelie/StoppieWeightControl`, `AutoRiderWeightControlMultiplier`, `PitchSpeedWeightControl`, `AutoRiderWeightControlOnThrottle/BrakeTuning` (curves) and their multipliers, `AutoRiderPositionEngageSpeed`, `ManualPositionEngageSpeed`; only with `bEnableRiderHelpWeightControl` | deg to rad | fact / default |
@@ -215,6 +221,10 @@ combined solver exists), the automatic shift decision with the generated change 
 and slipstream, tyre temperature/wear/efficiency (specs: [mf94](ride6-tyre-mf94.md), [thermal](ride6-tyre-thermal.md),
 [gearbox](ride6-gearbox-auto.md), [aero](ride6-aero-drag.md)).
 
+**Round 6 ([ride6-chassis-round6.md](ride6-chassis-round6.md)):** the pairing of the lean and stability help reductions with their inputs, the
+roll closure (no direct roll torque; the help's force and couple), the fall tests, the day's temperatures, the slip-correction multiplier, the end of the
+travel and the sign of the brake coupling are resolved; the arm of `F_des` and the desired yaw rate of the stability help remain as stated there.
+
 **Still open (with the addresses tried):** the forced downshift under braking (`ForceGearDownChangeBrake*`) and the writers of
 `TimeOverLimit`, `NoGear*ChangeTimer`, `ClutchFeatheringTimer` (searched near `0x1450f1c20`, `0x1450d84a0`; the SDK offsets
 `0x1858` to `0x3114` belong to a class not matched); the pairing of the four
@@ -237,9 +247,8 @@ Found in the constructors (all [B]; the bike assets override some, the KTM value
 | `FWheelData` (`0x1450fa6a0`) | `LongitudinalHelpFactor`, `LateralHelpFactor` not assigned (0 by zero-initialisation [I]; the KTM does not set them) | [ride6-tyre-mf94.md](ride6-tyre-mf94.md) section 5 |
 
 **Still missing for the bike model after this pass** (not in the assets, not found in a constructor or a writer):
-`AirTemperature` and `AsphaltTemperature` of the vehicle (world/weather inputs, used by the tyre thermal model; a model needs a
-choice, for example 20 / 30 deg C, to be stated as such); the source of `EngineData.MaxTorqueRPM` (`engine+0x50`, the start of the
+(`AirTemperature` and `AsphaltTemperature` of the vehicle: written by the game from a per-track weather table, resolved in round 6;) the source of `EngineData.MaxTorqueRPM` (`engine+0x50`, the start of the
 shift sweep and the feathering target: use the maximum of `PeakTorque * curve`, 7159 rpm for the KTM, [I]); the writers of the
 shift hold-off timers and of `TimeOverLimit`; the forced downshift under braking; the wheel's external efficiency factor
-(`wheel+0x31C`, 1 at setup) and the `SlipCorrectionMultiplier` / grip-reduction writers (wet, burnout); the rider help and lean
+(`wheel+0x31C`, 1 at setup) and the grip-reduction writers (burnout; the `SlipCorrectionMultiplier` is resolved in round 6); the rider help and lean
 items listed in section 5 (owned by the lean/stability pass).

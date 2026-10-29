@@ -103,11 +103,12 @@ PreventGearDownChangeFactor  = clamp01( PreventGearDownChangeFactor + lean^Preve
 0.5 / 50, throttle factor 1 / linearity 0.5: with the throttle open the downshift is held off (`P` near 1 puts the threshold at
 `MinRPM`).
 
-**Not recovered:** the code that raises `TimeOverLimit` and `Prevent...` resets, the `NoGear*ChangeTimer` writers and the
-forced downshift under braking (`ForceGearDownChangeBrake*`: tried the handler slots near `0x1450f1c20`, `0x1450d84a0` and the
-bike handler offsets `0x1858` to `0x3114`; the offsets of those SDK fields belong to a class whose methods I did not match). The
-neutral/stopped logic (`0x1450d84a0`: shift to 1 below `NeutralGearMaxSpeed`/`ChangeUpMinSpeed`, to neutral when stopped) is
-read but not written up (manual-clutch branch and `GearWhenStopped`).
+**Round 6 update** ([ride6-powertrain-round6.md](ride6-powertrain-round6.md)): the writers of `TimeOverLimit`, the
+`NoGear*ChangeTimer`s and the feathering timer are `0x1450f8a80` and `0x1450d7490`; the start, neutral and reverse logic of the
+automatic path is `0x1450d7000` (section 3 of that spec; `0x1450d84a0` is the manual-shift path); the timing of the clutch and
+the throttle during a change is `0x1450d7ac0`. The forced downshift under braking is in the road-bike override of the hold-off
+update (`0x145137390`) and is specified in the same spec, section 8; the prevent factors are zeroed every tick (`0x1450e0480`), so
+they are per-tick values, not accumulators.
 
 ## 3. Launch clutch and the feathering controller
 
