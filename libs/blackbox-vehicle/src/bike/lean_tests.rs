@@ -138,3 +138,75 @@ fn the_block_fall_cap_holds_the_target_lean_back() {
     let free = Lean::new().plan(&steering, &input(0.0, 0.0, 20.0));
     assert!(!free.capped);
 }
+
+#[test]
+fn the_help_factor_is_full_at_a_standstill_and_the_tuned_value_beyond_the_stopped_range() {
+    use super::help::{HelpInput, help_factor};
+    let lean = BikeSpec::example().steering.lean;
+    let at = |speed: f32| help_factor(&lean, &HelpInput { speed, heading_error: 0.0, pedals: 0.0 });
+    assert!((at(0.0) - 1.0).abs() < 1e-6);
+    assert!(at(1.0) < 1.0 && at(1.0) > 0.2, "{}", at(1.0));
+    assert!((at(10.0 / 3.6) - 0.2).abs() < 1e-5 && (at(30.0) - 0.2).abs() < 1e-5);
+    // Without the stopped blend the tuned curve stands alone.
+    let mut plain = lean;
+    plain.help_extra.stopped_range = [0.0, 0.0];
+    assert!(help_factor(&plain, &HelpInput { speed: 0.0, heading_error: 0.0, pedals: 0.0 }) < 1e-6);
+}
+
+#[test]
+fn a_skid_cuts_the_help_factor_unless_the_rider_brakes() {
+    use super::help::{HelpInput, help_factor};
+    let lean = BikeSpec::example().steering.lean;
+    let skid =
+        |pedals: f32| help_factor(&lean, &HelpInput { speed: 10.0, heading_error: 50.0_f32.to_radians(), pedals });
+    assert!(skid(0.2) < 1e-5, "{}", skid(0.2));
+    assert!((skid(-0.5) - 0.2).abs() < 1e-5, "{}", skid(-0.5));
+    let slight = help_factor(&lean, &HelpInput { speed: 10.0, heading_error: 20.0_f32.to_radians(), pedals: 0.2 });
+    assert!(slight > 0.1 && slight < 0.2, "{slight}");
+}
+
+#[test]
+fn the_help_is_a_couple_when_slow_and_a_force_when_fast() {
+    use super::help::{balance, couple_torque};
+    let lean = BikeSpec::example().steering.lean;
+    assert_eq!(balance(&lean, 0.5), 0.0);
+    assert_eq!(balance(&lean, 2.0), 0.0);
+    assert!((balance(&lean, 0.5 * (10.0 + 30.0) / 3.6) - 0.5).abs() < 1e-5);
+    assert_eq!(balance(&lean, 30.0), 1.0);
+    // The couple closes the whole gap at a standstill, within the tyre's cap times the arm; none of it is left at a high speed.
+    assert!((couple_torque(1.0, 0.0, 300.0, 50.0, 1500.0, 0.8) - 250.0).abs() < 1e-3);
+    assert_eq!(couple_torque(1.0, 0.0, 5000.0, 0.0, 1500.0, 0.8), 1200.0);
+    assert_eq!(couple_torque(1.0, 0.0, -5000.0, 0.0, 1500.0, 0.8), -1200.0);
+    assert!((couple_torque(0.4, 0.0, 300.0, 50.0, 1500.0, 0.8) - 100.0).abs() < 1e-3);
+    assert_eq!(couple_torque(1.0, 1.0, 300.0, 0.0, 1500.0, 0.8), 0.0);
+}
+
+#[test]
+fn a_standing_bike_leaned_over_is_stood_up_by_the_help_alone() {
+    use crate::FIXED_STEP;
+    use crate::bike::{Bike, BikeInput};
+    use crate::ground::FlatGround;
+    let ground = FlatGround::new(0.0);
+    let mut bike = Bike::new(BikeSpec::example());
+    assert!(bike.place_on_ground(&ground, 0.0, 0.0, 2.0, 0.0));
+    bike.body_mut().set_orientation(glam::Quat::from_rotation_z(0.08));
+    let mut worst: f32 = 0.0;
+    for _ in 0..(3.0 / FIXED_STEP) as usize {
+        bike.step(FIXED_STEP, &BikeInput::default(), &ground);
+        worst = worst.max(bike.lean().abs());
+    }
+    // No direct roll torque exists: the couple of the lean help is all that stands the bike up. It brings it from 4.6 degrees to
+    // within 2.4 and keeps it from falling; the tyres at a standstill leave a little jitter and offset (see the spec).
+    assert!(!bike.fallen() && worst < 0.12, "worst {worst}");
+    assert!(bike.lean().abs() < 0.05, "{}", bike.lean());
+    // Without the stopped blend and the couple (no help at a standstill) the same bike goes on falling.
+    let mut spec = BikeSpec::example();
+    spec.steering.lean.help_extra.stopped_range = [0.0, 0.0];
+    let mut helpless = Bike::new(spec);
+    assert!(helpless.place_on_ground(&ground, 0.0, 0.0, 2.0, 0.0));
+    helpless.body_mut().set_orientation(glam::Quat::from_rotation_z(0.08));
+    for _ in 0..(3.0 / FIXED_STEP) as usize {
+        helpless.step(FIXED_STEP, &BikeInput::default(), &ground);
+    }
+    assert!(helpless.lean().abs() > bike.lean().abs() * 2.0 || helpless.fallen(), "{}", helpless.lean());
+}

@@ -34,6 +34,23 @@ pub struct RiderHelpSpec {
     pub lookahead: f32,
     /// The auto-rider; `None` leaves the weight to the player.
     pub auto_rider: Option<AutoRiderSpec>,
+    /// The rule that tucks the rider in on its own (`bAutoTuckIn`); `None`: only a held tuck input tucks him.
+    pub auto_tuck: Option<AutoTuckSpec>,
+    /// The rates (1/s) at which the tuck level rises and falls (the input handler's `TuckInRaiseRate` and `TuckInFallRate`,
+    /// constructor defaults 2 and 2).
+    pub tuck_raise_rate: f32,
+    pub tuck_fall_rate: f32,
+}
+
+/// When the rider help tucks the rider in (`docs/specs/ride6-rider-round6.md`, section 2): faster than `min_speed` (m/s), the
+/// roll over the steepest lean under `max_normalised_lean` (a negative limit: not tested), the throttle over `min_throttle`
+/// and the front brake under `max_brake`, the player not holding the weight beyond the help's dead zone.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AutoTuckSpec {
+    pub min_speed: f32,
+    pub max_normalised_lean: f32,
+    pub min_throttle: f32,
+    pub max_brake: f32,
 }
 
 impl Default for RiderHelpSpec {
@@ -54,6 +71,9 @@ impl Default for RiderHelpSpec {
             weight_deadzone: 0.8,
             lookahead: 0.0,
             auto_rider: None,
+            auto_tuck: None,
+            tuck_raise_rate: 2.0,
+            tuck_fall_rate: 2.0,
         }
     }
 }

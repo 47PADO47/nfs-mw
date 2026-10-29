@@ -23,6 +23,14 @@ fn pitches(bike: &mut Bike, ground: &FlatGround, seconds: f32, input: &BikeInput
         .collect()
 }
 
+/// A bike at `speed` with the rider's ABS level set: the reference scales the ABS of both wheels by that level
+/// (`SETTINGS_ABS`) and keeps the ABS working through a stoppie (it has no pitch term), so a stoppie asks for it low.
+fn bike_with_abs(level: f32, speed: f32) -> (Bike, FlatGround) {
+    let (mut bike, ground) = bike_at(BikeSpec::example(), speed);
+    bike.set_abs_level(level);
+    (bike, ground)
+}
+
 fn throttle() -> BikeInput {
     BikeInput { throttle: 1.0, ..Default::default() }
 }
@@ -97,7 +105,7 @@ fn a_bike_with_no_wheelie_control_has_no_help_to_hold_it() {
 
 #[test]
 fn the_front_brake_with_the_weight_forward_lifts_the_rear_wheel_and_the_help_holds_the_stoppie() {
-    let (mut bike, ground) = bike_at(BikeSpec::example(), 22.0);
+    let (mut bike, ground) = bike_with_abs(0.0, 22.0);
     bike.set_weight(1.0);
     let input = BikeInput { front_brake: 1.0, ..Default::default() };
     let pitch = pitches(&mut bike, &ground, 1.6, &input);
@@ -108,8 +116,22 @@ fn the_front_brake_with_the_weight_forward_lifts_the_rear_wheel_and_the_help_hol
 }
 
 #[test]
+fn the_abs_stays_on_in_a_stoppie_and_with_it_the_rear_wheel_does_not_lift() {
+    // The reference's ABS has no term for the pitch: with its level up it limits the front brake through a stoppie too.
+    let lowest = |level: f32| {
+        let (mut bike, ground) = bike_with_abs(level, 22.0);
+        bike.set_weight(1.0);
+        let pitch = pitches(&mut bike, &ground, 1.6, &BikeInput { front_brake: 1.0, ..Default::default() });
+        pitch.iter().cloned().fold(f32::MAX, f32::min)
+    };
+    let (on, off) = (lowest(1.0), lowest(0.0));
+    assert!(on > off + 0.08, "ABS on {on}, off {off}");
+    assert!(on > -0.15, "{on}");
+}
+
+#[test]
 fn a_stoppie_ends_with_the_bike_upright_and_both_wheels_down() {
-    let (mut bike, ground) = bike_at(BikeSpec::example(), 22.0);
+    let (mut bike, ground) = bike_with_abs(0.0, 22.0);
     bike.set_weight(1.0);
     pitches(&mut bike, &ground, 1.2, &BikeInput { front_brake: 1.0, ..Default::default() });
     bike.set_weight(0.0);
@@ -156,4 +178,42 @@ fn the_wheelie_and_stoppie_assist_needs_the_speed_and_the_lean_room() {
     pitches(&mut straight, &ground2, 1.0, &throttle());
     assert!(!bike.fallen());
     assert!(bike.pitch() <= straight.pitch() + 0.3);
+}
+
+#[test]
+fn the_riders_abs_level_starts_full_and_snaps_to_its_steps() {
+    let (mut bike, _) = bike_at(BikeSpec::example(), 0.0);
+    assert_eq!(bike.abs_level(), 1.0);
+    bike.set_abs_level(0.6);
+    assert_eq!(bike.abs_level(), 0.5);
+    bike.set_abs_level(f32::NAN);
+    assert_eq!(bike.abs_level(), 1.0);
+    bike.set_abs_level(-3.0);
+    assert_eq!(bike.abs_level(), 0.0);
+    // A rider's setting outlives a new placement.
+    let ground = FlatGround::new(0.0);
+    assert!(bike.place_on_ground(&ground, 0.0, 0.0, 2.0, 0.0));
+    assert_eq!(bike.abs_level(), 0.0);
+}
+
+#[test]
+fn with_the_abs_level_at_zero_the_brake_is_no_longer_limited_by_the_anti_lock() {
+    let slowed = |level: f32| {
+        let (mut bike, ground) = bike_with_abs(level, 25.0);
+        pitches(&mut bike, &ground, 1.0, &BikeInput { front_brake: 1.0, rear_brake: 1.0, ..Default::default() });
+        25.0 - bike.forward_speed()
+    };
+    let (full, half, off) = (slowed(1.0), slowed(0.5), slowed(0.0));
+    assert!(off > full + 1.0, "level 0 brakes harder: {off} against {full}");
+    assert!(half >= full - 0.1 && half <= off + 0.1, "{full} {half} {off}");
+}
+
+#[test]
+fn the_rear_anti_lock_is_off_at_the_low_levels_and_the_front_keeps_a_tenth() {
+    let spec = BikeSpec::example();
+    let base = spec.brakes.abs;
+    let low = spec.abs_level.apply(&base, 0.25);
+    assert_eq!((low.rear_intensity, low.front_intensity), (0.0, base.front_intensity * 0.2));
+    let zero = spec.abs_level.apply(&base, 0.0);
+    assert!((zero.front_intensity - 0.1 * base.front_intensity).abs() < 1e-6);
 }

@@ -129,6 +129,9 @@ pub struct TransmissionSpec {
     pub launch_rpm: [f32; 2],
     /// The most torque the clutch carries, as a multiple of the engine's peak torque.
     pub clutch_max_factor: f32,
+    /// How a change moves the clutch and the throttle, the idle clutch and the slipper filter (`ClutchControl::default()`
+    /// when the manifest leaves them out).
+    pub control: super::gearbox::ClutchControl,
 }
 
 /// The feathering controller of a start (`docs/specs/ride6-gearbox-auto.md`, section 3). `Default` is the constructor default.

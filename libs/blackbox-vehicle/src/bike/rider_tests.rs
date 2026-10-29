@@ -131,6 +131,8 @@ fn tucking_in_lowers_the_air_drag_by_the_riders_drag_curve() {
     let drift = |tuck: f32| {
         let mut spec = BikeSpec::example();
         spec.rider.drag_curve = vec![(0.0, 1.2), (1.0, 0.65)];
+        spec.rider.drag_weight_curve = vec![(0.0, 0.1)];
+        spec.rider.drag_scale = 1.25;
         let ground = FlatGround::new(0.0);
         let mut bike = Bike::new(spec);
         assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, 40.0));

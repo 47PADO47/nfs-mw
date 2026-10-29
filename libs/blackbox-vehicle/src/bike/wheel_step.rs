@@ -6,7 +6,7 @@ use glam::Vec3;
 use super::powertrain::Drive;
 use super::thermal;
 use super::tyre::{self, TyreInput};
-use super::{Bike, FRONT, choices, geometry, wheel};
+use super::{Bike, FRONT, geometry, wheel};
 use crate::ground::Ground;
 
 /// The most the compression speed of a wheel state can take (m/s), so one violent step cannot poison the next.
@@ -72,7 +72,11 @@ impl Bike {
             state.release(free_total - rest, free_speed);
             state.spin = tyre::spin_in_air(wheel_spec, spin, drive_torque, brake, extra, dt);
             if let Some(thermal) = &wheel_spec.thermal {
-                let work = thermal::Work { spin: state.spin, ..thermal::Work::default() };
+                let work = thermal::Work {
+                    spin: state.spin,
+                    environment: self.chassis.environment,
+                    ..thermal::Work::default()
+                };
                 self.thermal[index].step(thermal, &work, dt);
             }
             return;
@@ -100,10 +104,9 @@ impl Bike {
         let inertia = wheel_spec.mass * (speed - speed0) / dt;
         let along_axis = spring + weight * axis_up + inertia;
         let mut load = (along_axis / cosine).max(0.0);
-        load += match wheel_spec.tire_stiffness > 0.0 {
-            true => wheel_spec.tire_stiffness * overload,
-            false => choices::BUMP_STOP_FACTOR * suspension.spec().spring * overload,
-        };
+        // The end of the travel is a hard stop that adds no force of its own (`ride6-chassis-round6.md`, "End of travel"): the tyre
+        // takes what is left over through its radial stiffness, a rigid tyre nothing.
+        load += wheel_spec.tire_stiffness.max(0.0) * overload;
         let frame = wheel::ground_frame(contact.normal, contact.heading);
         let camber = geometry::camber(contact.axle, contact.normal);
         let input = TyreInput {
@@ -147,6 +150,7 @@ impl Bike {
                 contact_speed: velocity.length(),
                 spin: new_spin,
                 in_contact: true,
+                environment: self.chassis.environment,
             };
             self.thermal[index].step(thermal, &work, dt);
         }

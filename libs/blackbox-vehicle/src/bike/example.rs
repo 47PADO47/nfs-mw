@@ -5,10 +5,11 @@ use glam::Vec3;
 use super::magic::Mf94;
 use super::rider_spec::RiderSpec;
 use super::spec::{
-    AbsSpec, AutoRiderSpec, BikeSpec, BrakeSpec, ChassisSpec, Coupling, DamperSpec, EngineSpec, FallSpec, FeatherSpec,
-    Hydraulic, LeanSpec, PitchParams, Progressive, RiderHelpSpec, SteeringSpec, SuspensionSpec, TcsSpec,
+    AbsLevelSpec, AbsSpec, AutoRiderSpec, BikeSpec, BrakeSpec, ChassisSpec, Coupling, DamperSpec, EngineSpec, FallSpec,
+    FeatherSpec, Hydraulic, LeanSpec, PitchParams, Progressive, RiderHelpSpec, SteeringSpec, SuspensionSpec, TcsSpec,
     TransmissionSpec, TyreSection, TyreThermal, WheelSpec, WheelieSpec,
 };
+use super::spec::{FallExtra, HelpExtra};
 
 fn tyre(peak: f32) -> Mf94 {
     let mut a = [0.0; 15];
@@ -108,6 +109,25 @@ fn lean() -> LeanSpec {
         rider_mass_scale: 1.0,
         help_speed: vec![(0.0, 0.0), (10.0 / 3.6, 0.2)],
         help_limit: 1.0,
+        help_extra: HelpExtra {
+            stopped_range: [0.0, 10.0 / 3.6],
+            balance_speed: vec![(10.0 / 3.6, 0.0), (30.0 / 3.6, 1.0)],
+            skid_range: [10.0_f32.to_radians(), 45.0_f32.to_radians()],
+            skid_linearity: 2.0,
+            skid_reduction: vec![(0.0, 0.0), (30.0 / 3.6, 1.0)],
+            skid_input: vec![(-0.1, 0.0), (0.0, 1.0)],
+        },
+    }
+}
+
+/// The ABS level of the example bike: the curves of the reference's 5-speed supermoto class.
+fn abs_level() -> AbsLevelSpec {
+    AbsLevelSpec {
+        default: 1.0,
+        front: vec![(0.0, 0.1), (0.25, 0.2), (0.5, 0.45), (0.75, 1.0), (1.0, 1.0)],
+        rear: Vec::new(),
+        rear_enabled: vec![(0.0, 0.0), (0.25, 0.0), (0.5, 1.0), (0.75, 1.0), (1.0, 1.0)],
+        brake_relief: vec![(0.0, 1.0), (0.25, 0.75), (0.5, 0.5), (0.75, 0.0), (1.0, 0.0)],
     }
 }
 
@@ -264,6 +284,19 @@ impl BikeSpec {
                 feather: FeatherSpec { delta_time: 0.05, ..FeatherSpec::default() },
                 launch_rpm: [0.4, 0.98],
                 clutch_max_factor: 1.0,
+                control: super::gearbox::ClutchControl {
+                    clutch_timing: [0.125, 0.2],
+                    throttle_timing: [0.05, 0.9],
+                    modulate_upshift_throttle: false,
+                    forced_downshift: super::gearbox::ForcedDownshift {
+                        brake_range: [0.5, 1.0],
+                        duration: 0.3,
+                        factor: 1.0,
+                        linearity: 3.0,
+                        speed_range: [150.0 / 3.6, 150.0 / 3.6],
+                    },
+                    ..super::gearbox::ClutchControl::default()
+                },
             },
             brakes: BrakeSpec {
                 front_force: 1800.0,
@@ -296,6 +329,16 @@ impl BikeSpec {
                 block_min_speed: 40.0 / 3.6,
                 block_time: 1.0,
                 block_wait: 5.0,
+                extra: FallExtra {
+                    lean_by_grip: true,
+                    lean_rise: 0.025,
+                    lean_fall: 0.01,
+                    lean_duration: 0.01,
+                    airborne_lean: 70.0_f32.to_radians(),
+                    airborne_pitch: 65.0_f32.to_radians(),
+                    airborne_angular: 7.0,
+                    highside_lean: 70.0_f32.to_radians(),
+                },
             },
             wheelie: Some(WheelieSpec {
                 wheelie: pitch(0.3, 35.0, 0.0),
@@ -307,6 +350,7 @@ impl BikeSpec {
                 brake_pitch_speed: [0.0, 0.6],
                 help: rider_help(),
             }),
+            abs_level: abs_level(),
             tcs: Some(TcsSpec { slip: [0.09, 0.2], speed_range: [0.0, 5.0 / 3.6] }),
             gyro_roll_scale: 1.0,
             gyro_yaw_scale: 1.0,

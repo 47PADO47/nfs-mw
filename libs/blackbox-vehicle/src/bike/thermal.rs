@@ -4,8 +4,8 @@
 //! width). Heat comes from sliding and rolling, cooling goes towards the road and air temperature, and the tread wears with the
 //! distance slid or rolled. The efficiency is the weighted mean of what each strip's temperature and wear allow.
 
-use super::choices;
 use super::curve::factor;
+use super::handling::chassis_state::Environment;
 use super::spec::{TyreSection, TyreThermal};
 
 /// What the tyre did this step.
@@ -25,6 +25,8 @@ pub struct Work {
     pub contact_speed: f32,
     pub spin: f32,
     pub in_contact: bool,
+    /// The air and road temperature this step.
+    pub environment: Environment,
 }
 
 /// The state of one tyre.
@@ -153,8 +155,7 @@ impl TyreState {
     }
 
     fn temperature_step(&mut self, spec: &TyreThermal, work: &Work, dt: f32) {
-        let air = choices::AIR_TEMPERATURE;
-        let road = choices::ASPHALT_TEMPERATURE;
+        let (air, road) = (work.environment.air, work.environment.asphalt);
         let steady = (1.0 - spec.asphalt_importance) * air + spec.asphalt_importance * road;
         let backwards = work.spin < 0.0;
         let (nx, ny, rolling) = match backwards {

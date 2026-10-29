@@ -39,10 +39,13 @@ pub struct RiderSpec {
     pub angular_damp_chassis_factor: f32,
     /// The per-axis scale of the reaction torque the rider's body puts on the bike (x pitch, y yaw, z roll).
     pub torque_scale: Vec3,
-    /// The air drag the rider adds: a multiplier of the drag and its curve over the tuck (0 upright to 1 tucked in). An empty
-    /// curve leaves the drag alone.
+    /// The air drag the rider adds, as a coefficient like the bike's own (`F = c v^2`, newtons): the product of the curve over his
+    /// longitudinal weight (`drag_weight_curve`, -1 back to 1 forward; the reference's `DragCurve`; an empty curve is 0), the
+    /// curve over the tuck (`drag_curve`, 0 upright to 1 tucked in; the reference's `DragScaleCurve`; an empty curve is 1) and
+    /// `drag_scale`.
     pub drag_scale: f32,
     pub drag_curve: Vec<(f32, f32)>,
+    pub drag_weight_curve: Vec<(f32, f32)>,
 }
 
 impl Default for RiderSpec {
@@ -66,6 +69,7 @@ impl Default for RiderSpec {
             torque_scale: Vec3::ONE,
             drag_scale: 1.0,
             drag_curve: Vec::new(),
+            drag_weight_curve: Vec::new(),
         }
     }
 }

@@ -3,7 +3,7 @@
 
 use glam::Vec3;
 
-use super::curve::{curve, ramp};
+use super::curve::{curve, factor, ramp};
 use super::rider_spec::RiderSpec;
 use super::spec::ChassisSpec;
 
@@ -45,17 +45,13 @@ pub fn place(chassis: &ChassisSpec, rider: &RiderSpec, input: &PlaceInput) -> Ve
     rider.base_offset + longitudinal + sideways
 }
 
-/// The multiplier of the air drag from the rider's posture, relative to sitting upright: the drag curve at the tuck over the
-/// curve at 0 (1 for a bike without a curve). The scale itself cancels out of the ratio.
-pub fn drag_multiplier(rider: &RiderSpec, tuck: f32) -> f32 {
-    if rider.drag_curve.is_empty() {
-        return 1.0;
-    }
-    let upright = curve(&rider.drag_curve, 0.0);
-    if upright.abs() < 1e-6 {
-        return 1.0;
-    }
-    curve(&rider.drag_curve, tuck.clamp(0.0, 1.0)) / upright
+/// The air-drag coefficient of the rider himself (`F = c v^2` newtons, opposing the velocity, times `1 - slipstream`): the
+/// reference's `DragCurve` at his longitudinal weight (the weight after the rider help), times its `DragScaleCurve` at the
+/// tuck, times `DragScale` (`docs/specs/ride6-rider-round6.md`, section 1). A curve that is not there is 0 for the first and
+/// 1 for the second, as the reference's curve evaluation defaults are.
+pub fn drag_coefficient(rider: &RiderSpec, weight: f32, tuck: f32) -> f32 {
+    let base = curve(&rider.drag_weight_curve, weight.clamp(-1.0, 1.0));
+    base * factor(&rider.drag_curve, tuck.clamp(0.0, 1.0)) * rider.drag_scale
 }
 
 #[cfg(test)]
@@ -138,14 +134,17 @@ mod tests {
     }
 
     #[test]
-    fn tucking_in_lowers_the_drag_only_with_a_curve() {
+    fn the_riders_drag_is_the_product_of_his_weight_curve_his_tuck_curve_and_the_scale() {
         let mut rider = RiderSpec::default();
-        assert_eq!(drag_multiplier(&rider, 1.0), 1.0);
+        assert_eq!(drag_coefficient(&rider, 0.0, 1.0), 0.0, "no weight curve, no drag");
+        rider.drag_weight_curve = vec![(0.0, 0.1)];
+        assert!((drag_coefficient(&rider, -1.0, 0.0) - 0.1).abs() < 1e-7, "a single point is flat");
         rider.drag_scale = 1.25;
+        assert!((drag_coefficient(&rider, 0.5, 0.0) - 0.125).abs() < 1e-7, "no tuck curve: factor 1");
         rider.drag_curve = vec![(0.0, 1.2), (1.0, 0.65)];
-        assert!((drag_multiplier(&rider, 0.0) - 1.0).abs() < 1e-6);
-        assert!((drag_multiplier(&rider, 1.0) - 0.65 / 1.2).abs() < 1e-6);
-        assert!((drag_multiplier(&rider, 0.5) - 0.925 / 1.2).abs() < 1e-6);
-        assert_eq!(drag_multiplier(&rider, 7.0), drag_multiplier(&rider, 1.0));
+        assert!((drag_coefficient(&rider, 0.0, 0.0) - 0.15).abs() < 1e-6);
+        assert!((drag_coefficient(&rider, 0.0, 1.0) - 0.08125).abs() < 1e-6);
+        assert!((drag_coefficient(&rider, 0.0, 0.5) - 0.115625).abs() < 1e-6);
+        assert_eq!(drag_coefficient(&rider, 0.0, 7.0), drag_coefficient(&rider, 0.0, 1.0));
     }
 }

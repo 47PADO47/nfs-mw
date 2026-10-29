@@ -21,6 +21,7 @@
 //! assert!(bike.lean().abs() < 0.05);
 //! ```
 
+mod abs_level;
 mod brakes;
 pub mod choices;
 mod curve;
@@ -35,6 +36,8 @@ mod magic;
 mod peaks;
 mod pitch_assist;
 mod powertrain;
+mod readout;
+mod release;
 mod rider;
 pub mod rider_place;
 mod rider_rotation;
@@ -51,14 +54,18 @@ mod wheel;
 mod wheel_step;
 
 pub use frame::RestPose;
+pub use gearbox::{ClutchControl, ForcedDownshift};
+pub use handling::chassis_state::Environment;
 pub use magic::Mf94;
+pub use release::{FallKind, RiderRelease, VELOCITY_FRAMES};
 pub use rider_rotation::RiderRotation;
 pub use rider_spec::RiderSpec;
 pub use slipstream::Slipstream;
 pub use spec::{
-    AbsSpec, AutoRiderSpec, BikeSpec, BrakeSpec, ChassisSpec, Coupling, DamperSpec, EngineSpec, FallSpec, FeatherSpec,
-    Hydraulic, LeanSpec, PitchParams, Progressive, RiderHelpSpec, SteeringSpec, SuspensionSpec, TcsSpec,
-    TransmissionSpec, TyreSection, TyreThermal, WheelSpec, WheelieSpec,
+    AbsLevelSpec, AbsSpec, AutoRiderSpec, AutoTuckSpec, BikeSpec, BrakeSpec, ChassisSpec, Coupling, DamperSpec,
+    EngineSpec, FallExtra, FallSpec, FeatherSpec, HelpExtra, Hydraulic, LeanSpec, PitchParams, Progressive,
+    RiderHelpSpec, SteeringSpec, SuspensionSpec, TcsSpec, TransmissionSpec, TyreSection, TyreThermal, WheelSpec,
+    WheelieSpec,
 };
 pub use tyre::{TyreInput, TyreOutput};
 pub use wheel::WheelState;
@@ -71,8 +78,10 @@ use brakes::AntiLock;
 use curve::ramp;
 use filter::SecondOrder;
 use geometry::Geometry;
+use handling::chassis_state::ChassisState;
 use lean::{Lean, LeanPlan};
 use powertrain::{DriveInput, Powertrain};
+use readout::{lean_of, pitch_of};
 use rider::{RiderBody, RiderWeight};
 use suspension::Suspension;
 use thermal::TyreState;
@@ -110,6 +119,7 @@ pub struct Bike {
     weight_input: f32,
     /// What the rider help keeps from step to step (`trick.rs`).
     trick: TrickState,
+    abs_level: f32,
     slipstream: f32,
     rider_body: RiderBody,
     /// The rider's body turning against the bike's attitude, his lateral weight input, the tuck, and the place the weight, the
@@ -125,6 +135,10 @@ pub struct Bike {
     block_wait: f32,
     antilock: AntiLock,
     fallen: bool,
+    /// The rider leaving the bike in a fall (`release.rs`).
+    departure: release::Departure,
+    /// The day and the running state of the fall tests.
+    chassis: ChassisState,
 }
 
 impl Bike {
@@ -159,6 +173,8 @@ impl Bike {
         let thermal = [TyreState::new(spec.front.thermal.as_ref()), TyreState::new(spec.rear.thermal.as_ref())];
         let base_offset = spec.rider.base_offset;
         Self {
+            chassis: ChassisState::new(&spec.fall),
+            abs_level: AbsLevelSpec::snap(spec.abs_level.default),
             spec,
             body,
             geometry,
@@ -184,6 +200,7 @@ impl Bike {
             block_wait: 0.0,
             antilock: AntiLock::default(),
             fallen: false,
+            departure: release::Departure::default(),
         }
     }
 
@@ -214,6 +231,7 @@ impl Bike {
         let Some(hit) = ground.hit(Vec3::new(x, top, z), Vec3::NEG_Y, 100.0) else { return false };
         let orientation = Quat::from_rotation_y(yaw);
         self.body.place(Vec3::new(x, top - hit.distance, z), orientation);
+        self.restore_rider();
         self.body.set_cog(rider::combined_cog(&self.spec.chassis, self.spec.rider.base_offset, Vec3::ZERO));
         self.body.linear_velocity = orientation * Vec3::new(0.0, 0.0, speed);
         self.body.angular_velocity = Vec3::ZERO;
@@ -235,8 +253,11 @@ impl Bike {
         self.weight_lateral.reset();
         self.placement = self.spec.rider.base_offset;
         self.last_velocity = self.body.linear_velocity;
+        self.remember_motion();
+        self.remember_motion();
         self.block_held = 0.0;
         self.block_wait = 0.0;
+        self.chassis.reset(&self.spec.fall);
         self.powertrain = Powertrain::new(&self.spec.engine, &self.spec.transmission);
         self.powertrain.match_speed(&self.spec.engine, &self.spec.transmission, spin, self.spec.rear.radius);
         true
@@ -317,9 +338,17 @@ impl Bike {
         let rotation = self.body.rotation();
         let forward = rotation * Vec3::Z;
         let speed = self.body.linear_velocity.dot(forward);
-        self.check_fall(speed);
+        self.check_fall(dt, speed);
+        // A rider who is off the bike holds no lever and no bar.
+        let let_go = BikeInput::default();
+        let input = match self.departure.off {
+            true => &let_go,
+            false => input,
+        };
         let help = self.rider_help(dt, input, speed);
-        self.shift_weight(dt);
+        if !self.departure.off {
+            self.shift_weight(dt);
+        }
         let throttle = match self.fallen {
             true => 0.0,
             false => help.throttle,
@@ -336,7 +365,10 @@ impl Bike {
             true => 0.0,
             false => input.steer,
         };
-        self.steer_handlebar(dt, speed, stick);
+        match self.departure.off {
+            true => self.free_handlebar(dt),
+            false => self.steer_handlebar(dt, speed, stick),
+        }
         let share_of_limit = (lean_of(rotation).abs() / self.plan.limit.max(0.05)).min(1.0);
         let traction_cut = match &self.spec.tcs {
             Some(tcs) => ramp(self.wheels[REAR].slip_ratio, tcs.slip) * ramp(speed.abs(), tcs.speed_range),
@@ -353,6 +385,7 @@ impl Bike {
                 throttle,
                 wheel_spin: self.wheels[REAR].spin,
                 speed: speed.abs(),
+                front_brake: help.brake,
                 radius,
                 lean: share_of_limit,
                 traction_cut,
@@ -372,115 +405,14 @@ impl Bike {
             false => 0.0,
         };
         let (front_slip, rear_slip) = (normalised(&self.wheels[FRONT]), normalised(&self.wheels[REAR]));
-        self.antilock.update(&brakes.abs, speed, front_slip, rear_slip, dt);
-        self.apply_rider_and_air(dt, speed);
-    }
-
-    pub fn position(&self) -> Vec3 {
-        self.body.position
-    }
-
-    pub fn orientation(&self) -> Quat {
-        self.body.orientation
-    }
-
-    pub fn velocity(&self) -> Vec3 {
-        self.body.linear_velocity
-    }
-
-    /// Speed along the bike (m/s).
-    pub fn forward_speed(&self) -> f32 {
-        self.body.linear_velocity.dot(self.body.rotation() * Vec3::Z)
-    }
-
-    /// The lean from upright (rad), positive when the bike leans right.
-    pub fn lean(&self) -> f32 {
-        lean_of(self.body.rotation())
-    }
-
-    /// The pitch (rad), positive when the nose is up.
-    pub fn pitch(&self) -> f32 {
-        pitch_of(self.body.rotation())
-    }
-
-    /// The lean limit the rider's controller used in the last step, and the target lean it aimed at (rad, positive right).
-    pub fn lean_limit(&self) -> f32 {
-        self.plan.limit
-    }
-
-    pub fn target_lean(&self) -> f32 {
-        self.plan.target
-    }
-
-    /// The handlebar angle (rad), positive right.
-    pub fn steer_angle(&self) -> f32 {
-        self.steer.output()
-    }
-
-    pub fn rpm(&self) -> f32 {
-        self.powertrain.rpm()
-    }
-
-    pub fn gear(&self) -> usize {
-        self.powertrain.gear()
-    }
-
-    pub fn wheel(&self, index: usize) -> &WheelState {
-        &self.wheels[index.min(REAR)]
-    }
-
-    pub fn wheels_on_ground(&self) -> usize {
-        self.wheels.iter().filter(|w| w.on_ground).count()
-    }
-
-    /// The temperature (deg C, mean of the strips), the efficiency (0 to 1) and the worn tread of wheel `index`.
-    pub fn tyre_temperature(&self, index: usize) -> f32 {
-        self.thermal[index.min(REAR)].temperature()
-    }
-
-    pub fn tyre_efficiency(&self, index: usize) -> f32 {
-        self.thermal[index.min(REAR)].efficiency()
-    }
-
-    pub fn tyre_wear(&self, index: usize) -> f32 {
-        let wheel = match index {
-            FRONT => &self.spec.front,
-            _ => &self.spec.rear,
-        };
-        match &wheel.thermal {
-            Some(thermal) => self.thermal[index.min(REAR)].wear(thermal),
-            None => 0.0,
-        }
-    }
-
-    /// Whether the rider has let go.
-    pub fn fallen(&self) -> bool {
-        self.fallen
-    }
-
-    /// The pose of a wheel assembly now, for drawing: the hub in the world and its orientation.
-    pub fn wheel_pose(&self, index: usize) -> (Vec3, Quat) {
-        let pose = self.pose(index, self.wheels[index.min(REAR)].compression);
-        let (_, turn) = match index {
-            FRONT => self.geometry.front_pose(self.steer.output(), 0.0),
-            _ => self.geometry.rear_pose(0.0),
-        };
-        (pose.hub, self.body.orientation * turn)
+        self.update_antilock(speed, [front_slip, rear_slip], dt);
+        self.apply_rider_and_air(dt, speed, input.throttle - input.front_brake);
+        self.remember_motion();
     }
 }
 
-/// The lean (rad) of a body with orientation `rotation`: positive when its top leans to its right. The world's up, seen
-/// from a body that leans right, points to the body's left.
-fn lean_of(rotation: glam::Mat3) -> f32 {
-    let up = rotation.transpose() * Vec3::Y;
-    (-up.x).atan2(up.y)
-}
-
-/// The pitch (rad) of a body: positive when its forward axis points above the horizon.
-fn pitch_of(rotation: glam::Mat3) -> f32 {
-    (rotation * Vec3::Z).y.clamp(-1.0, 1.0).asin()
-}
-
+#[cfg(test)]
+mod release_tests;
 #[cfg(test)]
 mod rider_tests;
 #[cfg(test)]

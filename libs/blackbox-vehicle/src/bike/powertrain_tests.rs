@@ -1,10 +1,19 @@
 use super::*;
-use crate::bike::BikeSpec;
+use crate::bike::{BikeSpec, ForcedDownshift};
 
 const DT: f32 = 1.0 / 60.0;
 
 fn input(throttle: f32, wheel_spin: f32) -> DriveInput {
-    DriveInput { throttle, wheel_spin, speed: wheel_spin * 0.32, radius: 0.32, lean: 0.0, traction_cut: 0.0, dt: DT }
+    DriveInput {
+        throttle,
+        wheel_spin,
+        speed: wheel_spin * 0.32,
+        front_brake: 0.0,
+        radius: 0.32,
+        lean: 0.0,
+        traction_cut: 0.0,
+        dt: DT,
+    }
 }
 
 /// One step with the wheel held at `spin` (a stand-in for a wheel the bike's mass keeps turning).
@@ -67,14 +76,87 @@ fn the_box_changes_up_as_the_wheel_speeds_up_and_the_drive_is_cut_for_the_change
     let mut train = Powertrain::new(&spec.engine, &spec.transmission);
     train.match_speed(&spec.engine, &spec.transmission, 5.0, 0.32);
     let mut spin = 5.0;
-    let mut cut = false;
+    let (mut before, mut during): (f32, f32) = (0.0, f32::MAX);
     for _ in 0..1200 {
         spin += 0.2;
+        let shifting = train.shifting();
         let drive = step(&mut train, &spec, 1.0, spin);
-        cut |= train.shifting() && drive.torque == 0.0;
+        match shifting {
+            true => during = during.min(drive.torque),
+            false => before = before.max(drive.torque),
+        }
     }
     assert!(train.gear() > 1);
-    assert!(cut);
+    // The throttle is shut along the throttle timing of the change, so the wheel gets far less than before it.
+    assert!(during < 0.5 * before, "{during} {before}");
+}
+
+#[test]
+fn the_gear_changes_when_the_clutch_is_out_not_when_the_change_starts() {
+    let spec = BikeSpec::example();
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    train.match_speed(&spec.engine, &spec.transmission, 5.0, 0.32);
+    let mut spin = 5.0;
+    for _ in 0..1200 {
+        spin += 0.2;
+        let gear = train.gear();
+        step(&mut train, &spec, 1.0, spin);
+        if !train.shifting() {
+            continue;
+        }
+        // The change has just been decided: the clutch timing (0.125 of 0.06 s) is shorter than a step, so the old gear is
+        // still in until the next step.
+        assert_eq!(train.gear(), gear);
+        step(&mut train, &spec, 1.0, spin);
+        assert_eq!(train.gear(), gear + 1);
+        return;
+    }
+    panic!("the box never changed up");
+}
+
+#[test]
+fn hard_braking_at_speed_forces_a_change_down_that_the_plain_rule_would_not_make() {
+    let mut spec = BikeSpec::example();
+    spec.transmission.control.forced_downshift = ForcedDownshift {
+        brake_range: [0.5, 1.0],
+        duration: 0.3,
+        factor: 1.0,
+        linearity: 3.0,
+        speed_range: [25.0, 25.0],
+    };
+    let radius = 0.32;
+    // 30 m/s in third: the plain rule keeps the gear, and the forced one is allowed because second would stay under the rev limit.
+    let spin = 30.0 / radius;
+    let run = |brake: f32| {
+        let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+        train.match_speed(&spec.engine, &spec.transmission, spin, radius);
+        let start = train.gear();
+        for _ in 0..60 {
+            let input = DriveInput { front_brake: brake, ..input(0.0, spin) };
+            train.drive(&spec.engine, &spec.transmission, &input);
+            train.finish(&spec.engine, spin, DT);
+        }
+        (start, train.gear())
+    };
+    let (start, plain) = run(0.0);
+    assert_eq!(start, plain);
+    let (start, forced) = run(1.0);
+    assert!(forced < start, "{start} {forced}");
+}
+
+#[test]
+fn a_rolling_bike_with_the_throttle_shut_gets_the_idle_clutch_at_the_idle_speed() {
+    let spec = BikeSpec::example();
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    // The wheel speed at which the first gear turns the engine at its idle speed.
+    let spin = spec.engine.idle_rpm * TAU / 60.0 / (spec.transmission.gears[0] * spec.transmission.final_ratio);
+    train.match_speed(&spec.engine, &spec.transmission, spin, 0.32);
+    assert_eq!(train.gear(), 1);
+    let drive = step(&mut train, &spec, 0.0, spin);
+    assert_eq!(drive, Drive::default());
+    // With the throttle open the same bike is driven.
+    let drive = step(&mut train, &spec, 1.0, spin);
+    assert!(drive.torque != 0.0, "{drive:?}");
 }
 
 #[test]

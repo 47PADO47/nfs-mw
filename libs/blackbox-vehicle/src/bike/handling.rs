@@ -1,39 +1,13 @@
-//! What the rider does to the bike each step: the fall test, the weight, the lean and handlebar, the pitch assist, the
-//! gyroscopic torque, the prescribed roll and the air drag (`docs/specs/ride6-lean-controller.md`, `ride6-rider-help.md`).
+//! What the rider does to the bike each step: the weight, the lean and handlebar, the lean help, the pitch assist, the
+//! gyroscopic torque and the air drag (the fall tests are in `fall.rs`) (`docs/specs/ride6-lean-controller.md`, `ride6-rider-help.md`).
 
 use glam::Vec3;
 
-use super::curve::{curve, ramp};
+use super::curve::ramp;
 use super::lean::{self, LeanInput};
-use super::{Bike, FRONT, REAR, choices, lean_of, pitch_of, rider, rider_place};
+use super::{Bike, FRONT, REAR, choices, lean_of, rider, rider_place};
 
 impl Bike {
-    /// The fall tests: the lean and the pitch at any speed, the angle between the velocity and the heading and the angular
-    /// speed above the minimum speed of the spec. A fallen rider stays fallen until the bike is placed again.
-    pub(super) fn check_fall(&mut self, speed: f32) {
-        if self.fallen {
-            return;
-        }
-        let rotation = self.body.rotation();
-        let fall = self.spec.fall;
-        let mut down = false;
-        if choices::LEAN_AND_PITCH_FALL_AT_ANY_SPEED || speed > fall.min_speed {
-            down = lean_of(rotation).abs() > fall.lean || pitch_of(rotation).abs() > fall.pitch;
-        }
-        if speed > fall.min_speed {
-            let forward = rotation * Vec3::Z;
-            let velocity = self.body.linear_velocity;
-            let flat_velocity = Vec3::new(velocity.x, 0.0, velocity.z);
-            let flat_forward = Vec3::new(forward.x, 0.0, forward.z);
-            let angle = match flat_velocity.length() > 1.0 && flat_forward.length() > 1e-3 {
-                true => flat_velocity.angle_between(flat_forward),
-                false => 0.0,
-            };
-            down |= angle > fall.speed_direction || self.body.angular_velocity.length() > fall.angular_speed;
-        }
-        self.fallen = down;
-    }
-
     /// The rider's inputs follow their channels' rates, the place they ask for is worked out (`rider_place::place`: the weight,
     /// the lateral weight and the planned lean over its limit, at this speed), the rider's body follows that place on its spring
     /// and turns on its angular spring, and the centre of gravity of bike and rider follows. The centre of gravity stays where it
@@ -41,7 +15,7 @@ impl Bike {
     pub(super) fn shift_weight(&mut self, dt: f32) {
         let rate = self.spec.chassis.rider_weight_rate;
         let weight = self.weight.step(self.trick.aid, rate, dt);
-        let lateral = self.weight_lateral.step(self.weight_lateral_input, rate, dt);
+        let lateral = self.weight_lateral.step(self.weight_lateral_input, rider::LATERAL_WEIGHT_RATE, dt);
         let rotation = self.body.rotation();
         let speed = self.body.linear_velocity.dot(rotation * Vec3::Z);
         let lean = (self.plan.target / self.plan.limit.max(choices::MIN_LEAN_LIMIT)).clamp(-1.0, 1.0);
@@ -56,7 +30,11 @@ impl Bike {
             true => acceleration,
             false => acceleration + Vec3::Y * 9.81,
         };
-        self.rider_body.step(&self.spec.chassis, &self.spec.rider, rotation.transpose() * felt, speed, dt);
+        // His own air drag pushes on him alone; it reaches the frame through his spring.
+        let drag = self.rider_drag_force() / self.spec.chassis.rider_mass.max(f32::EPSILON);
+        let target = rider::rider_position(&self.spec.chassis, self.placement);
+        let felt = rotation.transpose() * (felt - drag);
+        self.rider_body.step(&self.spec.chassis, &self.spec.rider, target, felt, speed, dt);
         let omega = rotation.transpose() * self.body.angular_velocity;
         let torque = self.rider_rotation.step(&self.spec.rider, self.spec.chassis.rider_mass, omega, speed, dt);
         self.body.apply_torque(rotation * torque);
@@ -68,6 +46,14 @@ impl Bike {
         let rotation = self.body.rotation();
         self.body.position += rotation * (old - new);
         self.body.set_cog(new);
+    }
+
+    /// The air drag of the rider himself (N, world frame): `c(weight, tuck) (1 - s) |v| v` against the velocity, with the
+    /// coefficient of [`rider_place::drag_coefficient`] at the weight after the rider help (`ride6-rider-round6.md`, section 1).
+    pub(super) fn rider_drag_force(&self) -> Vec3 {
+        let velocity = self.body.linear_velocity;
+        let coefficient = rider_place::drag_coefficient(&self.spec.rider, self.weight.value(), self.trick.tuck);
+        -velocity * (velocity.length() * coefficient * (1.0 - self.slipstream))
     }
 
     /// The angle (rad, positive nose up) of the line through the two hubs from the plane of the ground, less what it is at
@@ -118,14 +104,9 @@ impl Bike {
         let fz_kn = load * 1e-3;
         let gamma_deg = -camber.to_degrees();
         let grip = self.spec.front.tyre.lateral_peak(fz_kn) / load.max(1.0);
+        self.chassis.follow_grip(&self.spec.fall, grip.max(0.0).atan() * choices::LATERAL_GRIP_TOLERANCE);
         let yaw_rate = self.body.angular_velocity.dot(rotation * Vec3::Y);
-        let velocity = self.body.linear_velocity;
-        let (flat_velocity, flat_forward) =
-            (Vec3::new(velocity.x, 0.0, velocity.z), Vec3::new(forward.x, 0.0, forward.z));
-        let heading_error = match flat_velocity.length() > 1.0 && flat_forward.length() > 1e-3 {
-            true => flat_velocity.angle_between(flat_forward),
-            false => 0.0,
-        };
+        let heading_error = self.heading_error();
         let pitch = self.lift_angle();
         let pitch_cut = match &self.spec.wheelie {
             Some(assist) => {
@@ -182,7 +163,7 @@ impl Bike {
     fn block_cap(&self, speed: f32) -> f32 {
         let fall = &self.spec.fall;
         match fall.block_ratio > 0.0 && speed > fall.block_min_speed && self.block_wait <= 0.0 {
-            true => fall.block_ratio * fall.lean * 0.99,
+            true => fall.block_ratio * self.chassis.fall_lean * 0.99,
             false => f32::MAX,
         }
     }
@@ -201,15 +182,18 @@ impl Bike {
     }
 
     /// The lean help: a side force at the front tyre that pulls its side force towards the wanted one, within what the tyre can
-    /// still give (`ride6-lean-controller.md`, "Lean help"). The reductions of the help by throttle, brake and slip are not
-    /// modelled (their pairing was not recovered).
-    fn apply_lean_help(&mut self, speed: f32) {
+    /// still give (`ride6-lean-controller.md`, "Lean help"). The help factor and the split of the force into a force at the
+    /// contact and a couple about the centre of gravity are those of `ride6-chassis-round6.md`: above 30 km/h it is all force;
+    /// slower it turns into the couple, which at a standstill (factor 1) is the roll torque the controller asks for, as far as the
+    /// tyre could give it. This is the only thing besides the tyre forces that rolls the bike.
+    fn apply_lean_help(&mut self, speed: f32, pedals: f32) {
         let front = &self.wheels[FRONT];
         if !front.on_ground {
             return;
         }
         let spec = &self.spec.steering.lean;
-        let share = curve(&spec.help_speed, speed.abs()).clamp(0.0, 1.0);
+        let input = lean::help::HelpInput { speed: speed.abs(), heading_error: self.heading_error(), pedals };
+        let share = lean::help::help_factor(spec, &input);
         if share <= 0.0 {
             return;
         }
@@ -226,17 +210,27 @@ impl Bike {
             true => ideal.clamp(-cap, cap),
             false => ideal,
         };
-        self.body.apply_force_at(side * (total - actual), point);
+        let force = side * (total - actual);
+        let balance = lean::help::balance(spec, speed.abs());
+        self.body.apply_force_at(force * balance, point);
+        // The rest is a roll torque about the bike's length (`lean_help::couple_torque`).
+        let forward = self.body.rotation() * Vec3::Z;
+        let wanted = -self.body.inertia().z * self.plan.acceleration;
+        let others = self.body.pending_torque().dot(forward);
+        let arm = (self.body.world_cog() - point).y;
+        let torque = lean::help::couple_torque(share, balance, wanted, others, cap, arm);
+        self.body.apply_torque(forward * torque);
     }
 
     /// The torques and forces that act on the whole bike once the tyres have done their part: the lean help, the pitch assist,
-    /// the gyroscopic torques, the roll the rider prescribes, and the air drag.
-    pub(super) fn apply_rider_and_air(&mut self, dt: f32, speed: f32) {
+    /// the gyroscopic torques, and the air drag. (The rider adds no roll torque of his own: the lean the controller prescribes is
+    /// reached through the front tyre and the help only.)
+    pub(super) fn apply_rider_and_air(&mut self, dt: f32, speed: f32, pedals: f32) {
         let rotation = self.body.rotation();
         let forward = rotation * Vec3::Z;
         let up = rotation * Vec3::Y;
         if !self.fallen {
-            self.apply_lean_help(speed);
+            self.apply_lean_help(speed, pedals);
             self.apply_pitch_assist(dt, speed);
             // The spin momentum of the wheels, turned by the bike's yaw, torques the frame about its length (a yaw to the right
             // rolls it to the left); turned by its roll, it torques the frame about the vertical (a roll to the left yaws it to
@@ -247,15 +241,22 @@ impl Bike {
             let roll_torque = self.spec.gyro_roll_scale * lean_of(rotation).cos() * momentum * omega.dot(up);
             let yaw_torque = -self.spec.gyro_yaw_scale * momentum * omega.dot(forward);
             self.body.apply_torque(forward * roll_torque + up * yaw_torque);
-            // The rider prescribes the roll: whatever torque the tyres and the rest left, he makes up, within his strength.
-            let wanted = -self.body.inertia().z * self.plan.acceleration;
-            let missing = wanted - self.body.pending_torque().dot(forward);
-            let strength = choices::ROLL_TORQUE_AUTHORITY * self.body.mass() * 9.81 * self.body.cog().y;
-            self.body.apply_torque(forward * missing.clamp(-strength, strength));
         }
         let velocity = self.body.linear_velocity;
-        // `F = Cd (1 - s) v^2` against the velocity (`ride6-aero-drag.md`; the orientation tuning is 1 for every bike read).
-        let posture = rider_place::drag_multiplier(&self.spec.rider, self.tuck);
-        self.body.apply_force(-velocity * (velocity.length() * self.spec.drag * posture * (1.0 - self.slipstream)));
+        // `F = Cd (1 - s) v^2` against the velocity (`ride6-aero-drag.md`; the orientation tuning is 1 for every bike read),
+        // and the rider's own, which the spring hands on to the frame (`ride6-rider-round6.md`, section 1).
+        self.body.apply_force(-velocity * (velocity.length() * self.spec.drag * (1.0 - self.slipstream)));
+        if !self.departure.off {
+            self.body.apply_force(self.rider_drag_force());
+        }
     }
 }
+
+#[path = "chassis_state.rs"]
+pub(super) mod chassis_state;
+#[path = "fall.rs"]
+mod fall;
+
+#[cfg(test)]
+#[path = "chassis_tests.rs"]
+mod chassis_tests;

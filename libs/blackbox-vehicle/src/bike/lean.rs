@@ -4,7 +4,8 @@
 //! target lean; a second filter smooths the target; a spring-damper pulls the lean to it, which asks for a roll acceleration
 //! and a roll torque; the torque becomes a desired side force at the front tyre (`-tau / h`, plus the force of a steady turn,
 //! see `choices.rs`); the tyre's lateral curve, inverted, turns the force into a slip angle; and the handlebar is set to the
-//! angle that gives the front wheel that slip. `Bike` applies the roll torque (within a limit) and steers the handlebar.
+//! angle that gives the front wheel that slip. `Bike` steers the handlebar and applies the lean help (`help`); no torque is applied
+//! to the body for the prescribed roll itself (`docs/specs/ride6-chassis-round6.md`).
 
 use super::choices;
 use glam::Vec3;
@@ -162,6 +163,11 @@ pub fn blend_to_stick(steering: &SteeringSpec, speed: f32, stick: f32, controlle
     let share = ramp(speed.abs(), steering.lean.blend_range);
     direct + (controlled - direct) * share
 }
+
+#[path = "lean_spec.rs"]
+pub(super) mod extra;
+#[path = "lean_help.rs"]
+pub(super) mod help;
 
 #[cfg(test)]
 #[path = "lean_tests.rs"]

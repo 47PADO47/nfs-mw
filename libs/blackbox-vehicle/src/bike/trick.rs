@@ -7,6 +7,7 @@ use glam::Vec3;
 use super::curve::{curve, ramp};
 use super::pitch_assist::{self, FREE_PEDAL, PitchInput, approach};
 use super::spec::{RiderHelpSpec, WheelieSpec};
+use super::trick_spec::AutoTuckSpec;
 use super::{Bike, BikeInput, FRONT, REAR, lean_of, pitch_of};
 
 /// Below this the share of the weight shift counts as none (the reference compares with a small constant it does not name).
@@ -20,7 +21,18 @@ pub(super) struct TrickState {
     /// The pedals after the interventions that act on the pedal itself: they set the strength of a wheelie or a stoppie.
     pub throttle: f32,
     pub front_brake: f32,
+    /// The tuck-in action (0 or 1 for a rider who tucks in by the rule; the input's own value when it is held) that scales his
+    /// air drag, and the tuck level that follows it at the rate of the input handler and goes to the animation.
+    pub tuck: f32,
+    pub tuck_level: f32,
 }
+
+/// The rate (1/s) at which the tuck level rises while the rider tucks and falls when he does not: the constructor defaults of
+/// the input handler (`TuckInRaiseRate`, `TuckInFallRate`, both 2; no bike's data sets them).
+pub const TUCK_LEVEL_RATE: f32 = 2.0;
+
+/// The action counts as tucked above this (the reference compares the action with one half).
+pub const TUCK_THRESHOLD: f32 = 0.5;
 
 /// What the help looks at.
 #[derive(Clone, Copy, Debug)]
@@ -158,6 +170,43 @@ pub(super) fn rider_position(help: &RiderHelpSpec, s: &Situation, previous: f32,
     }
 }
 
+/// What the tuck-in rule looks at (`docs/specs/ride6-rider-round6.md`, section 2).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct TuckSituation {
+    /// The speed along the bike (m/s) and the roll over the steepest lean the model allows (-1 to 1, positive to the right).
+    pub speed: f32,
+    pub normalised_lean: f32,
+    /// The player's weight, throttle and front brake, as he asks them.
+    pub weight: f32,
+    pub throttle: f32,
+    pub front_brake: f32,
+}
+
+/// Whether the rider tucks in: a held tuck input (above one half) tucks him; otherwise, with the rule on, he tucks when he is
+/// faster than `min_speed`, the lean is under its limit (a limit under 0 switches the test off), the player does not hold the
+/// weight beyond the dead zone, the throttle is open beyond its minimum and the front brake under its maximum.
+pub(super) fn tuck_requested(auto: Option<&AutoTuckSpec>, weight_deadzone: f32, held: f32, s: &TuckSituation) -> bool {
+    if held > TUCK_THRESHOLD {
+        return true;
+    }
+    let Some(auto) = auto else { return false };
+    let leaning = auto.max_normalised_lean >= 0.0 && auto.max_normalised_lean <= s.normalised_lean.abs();
+    let held_back = weight_deadzone <= s.weight.abs();
+    !(s.speed.abs() <= auto.min_speed
+        || leaning
+        || held_back
+        || s.throttle <= auto.min_throttle
+        || auto.max_brake <= s.front_brake)
+}
+
+/// The tuck level one step on: it rises towards 1 while the action is tucked, falls towards 0 otherwise.
+pub(super) fn tuck_level(level: f32, tucked: bool, rise: f32, fall: f32, dt: f32) -> f32 {
+    match tucked {
+        true => (level + rise * dt).min(1.0),
+        false => (level - fall * dt).max(0.0),
+    }
+}
+
 impl Bike {
     /// The road's inclination along the heading (rad, positive uphill) under the grounded wheel (the front when both are down).
     fn terrain_inclination(&self) -> f32 {
@@ -208,10 +257,28 @@ impl Bike {
     pub(super) fn rider_help(&mut self, dt: f32, input: &BikeInput, speed: f32) -> Help {
         let (throttle, brake) = (input.throttle.clamp(0.0, 1.0), input.front_brake.clamp(0.0, 1.0));
         let passthrough = Help { throttle, engine_cut: 0.0, brake_pedal: brake, brake };
-        let Some(assist) = self.spec.wheelie.clone() else {
-            self.trick = TrickState { aid: self.weight_input, throttle, front_brake: brake };
+        let assist = self.spec.wheelie.clone();
+        let (auto, deadzone, rise, fall) = match &assist {
+            Some(a) => (a.help.auto_tuck, a.help.weight_deadzone, a.help.tuck_raise_rate, a.help.tuck_fall_rate),
+            None => (None, 1.0, TUCK_LEVEL_RATE, TUCK_LEVEL_RATE),
+        };
+        let max_lean = self.spec.steering.max_lean.max(f32::EPSILON);
+        let situation = TuckSituation {
+            speed,
+            normalised_lean: (lean_of(self.body.rotation()) / max_lean).clamp(-1.0, 1.0),
+            weight: self.weight_input,
+            throttle,
+            front_brake: brake,
+        };
+        let tucked = tuck_requested(auto.as_ref(), deadzone, self.tuck, &situation);
+        let tuck = f32::from(tucked);
+        let tuck_level = tuck_level(self.trick.tuck_level, tucked, rise, fall, dt);
+        let Some(mut assist) = assist else {
+            self.trick = TrickState { aid: self.weight_input, throttle, front_brake: brake, tuck, tuck_level };
             return passthrough;
         };
+        // The rider's ABS level shrinks the start of the brake relief range (`SETTINGS_ABS`, `AutoRiderStoppieBrakeControl.X`).
+        assist.brake_pitch[0] *= self.spec.abs_level.relief(self.abs_level);
         let rate = self.pitch_rate();
         let situation = Situation {
             lift: self.help_lift(assist.help.lookahead, rate),
@@ -228,8 +295,18 @@ impl Bike {
             help.brake = brake;
         }
         let aid = rider_position(&assist.help, &situation, self.trick.aid, dt);
-        self.trick = TrickState { aid, throttle: help.throttle, front_brake: help.brake_pedal };
+        self.trick = TrickState { aid, throttle: help.throttle, front_brake: help.brake_pedal, tuck, tuck_level };
         help
+    }
+
+    /// The tuck-in action now (0 upright, 1 tucked): it scales the rider's air drag by the curve of his posture.
+    pub fn tuck_action(&self) -> f32 {
+        self.trick.tuck
+    }
+
+    /// How far the rider is tucked in, 0 to 1: the action followed at the input handler's rate. The animation's `TuckedIn`.
+    pub fn tuck_level(&self) -> f32 {
+        self.trick.tuck_level
     }
 
     /// The pitch torque that holds the angle the rider's weight and pedals ask for, about the bike's right axis.

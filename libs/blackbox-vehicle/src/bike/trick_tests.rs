@@ -115,3 +115,74 @@ fn without_an_auto_rider_the_weight_is_the_players() {
     help.auto_rider = None;
     assert_eq!(rider_position(&help, &Situation { weight: 0.3, throttle: 1.0, ..situation(10.0) }, 0.0, 1.0), 0.3);
 }
+
+fn tuck_rule() -> AutoTuckSpec {
+    // The base rider help of the reference: 90 km/h, lean limit 1, any throttle, brake under 0.1.
+    AutoTuckSpec { min_speed: 90.0 / 3.6, max_normalised_lean: 1.0, min_throttle: 0.0, max_brake: 0.1 }
+}
+
+fn tucking() -> TuckSituation {
+    TuckSituation { speed: 30.0, normalised_lean: 0.2, weight: 0.0, throttle: 0.5, front_brake: 0.0 }
+}
+
+#[test]
+fn the_rider_tucks_in_when_fast_with_the_throttle_open_and_the_brake_released() {
+    let rule = tuck_rule();
+    assert!(tuck_requested(Some(&rule), 0.75, 0.0, &tucking()));
+    let slow = TuckSituation { speed: 25.0, ..tucking() };
+    assert!(!tuck_requested(Some(&rule), 0.75, 0.0, &slow), "90 km/h is the least");
+    let closed = TuckSituation { throttle: 0.0, ..tucking() };
+    assert!(!tuck_requested(Some(&rule), 0.75, 0.0, &closed), "the throttle must be open beyond its minimum");
+    let braking = TuckSituation { front_brake: 0.1, ..tucking() };
+    assert!(!tuck_requested(Some(&rule), 0.75, 0.0, &braking));
+    let leaning = TuckSituation { normalised_lean: -1.0, ..tucking() };
+    assert!(!tuck_requested(Some(&rule), 0.75, 0.0, &leaning), "the lean limit holds on either side");
+    let weight = TuckSituation { weight: -0.8, ..tucking() };
+    assert!(!tuck_requested(Some(&rule), 0.75, 0.0, &weight), "the player has the weight beyond the dead zone");
+    let free = AutoTuckSpec { max_normalised_lean: -1.0, ..rule };
+    assert!(tuck_requested(Some(&free), 0.75, 0.0, &leaning), "a negative lean limit is not tested");
+}
+
+#[test]
+fn a_held_tuck_input_tucks_him_whatever_the_rule_says_and_without_a_rule_nothing_does() {
+    let slow = TuckSituation { speed: 3.0, ..tucking() };
+    assert!(tuck_requested(None, 0.75, 1.0, &slow));
+    assert!(!tuck_requested(None, 0.75, 0.5, &slow), "one half is not above one half");
+    assert!(!tuck_requested(None, 0.75, 0.0, &tucking()));
+}
+
+#[test]
+fn the_tuck_level_follows_the_action_at_the_rate_of_the_input_handler() {
+    let mut level = 0.0;
+    for _ in 0..30 {
+        level = tuck_level(level, true, TUCK_LEVEL_RATE, TUCK_LEVEL_RATE, 1.0 / 60.0);
+    }
+    assert!((level - 1.0).abs() < 1e-5, "half a second at 2 per second: {level}");
+    level = tuck_level(level, false, 2.0, 2.0, 0.25);
+    assert!((level - 0.5).abs() < 1e-6);
+    assert_eq!(tuck_level(0.1, false, 2.0, 2.0, 1.0), 0.0);
+    assert_eq!(tuck_level(0.9, true, 2.0, 2.0, 1.0), 1.0);
+}
+
+#[test]
+fn a_bike_with_the_rule_tucks_by_itself_at_speed_and_comes_up_when_it_brakes() {
+    use crate::bike::{Bike, BikeInput};
+    use crate::ground::FlatGround;
+    let mut spec = BikeSpec::example();
+    spec.wheelie.as_mut().unwrap().help.auto_tuck = Some(tuck_rule());
+    let ground = FlatGround::new(0.0);
+    let mut bike = Bike::new(spec);
+    assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, 40.0));
+    let cruise = BikeInput { throttle: 0.6, ..Default::default() };
+    for _ in 0..120 {
+        bike.step(1.0 / 120.0, &cruise, &ground);
+    }
+    assert_eq!(bike.tuck_action(), 1.0);
+    assert!(bike.tuck_level() > 0.9, "{}", bike.tuck_level());
+    let brake = BikeInput { front_brake: 0.5, ..cruise };
+    for _ in 0..120 {
+        bike.step(1.0 / 120.0, &brake, &ground);
+    }
+    assert_eq!(bike.tuck_action(), 0.0);
+    assert!(bike.tuck_level() < 0.2, "{}", bike.tuck_level());
+}

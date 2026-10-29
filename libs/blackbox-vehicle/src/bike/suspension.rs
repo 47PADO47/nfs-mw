@@ -6,8 +6,13 @@
 //! the law that counts the compression in cm). The wheel has a mass and is integrated here when it is free; on the ground
 //! the compression follows the ground (`Bike` splits the penetration between the tyre and this).
 
-use super::choices;
 use super::spec::{DamperSpec, Progressive, SuspensionSpec};
+
+/// The sign of the brake coupling force on the suspension. Recovered: the force is `(T_applied - T_back)` of the wheel, and for a wheel
+/// turning forward under the brake that difference is minus the brake and drag torque (the wheel update writes `T_applied` as the net
+/// torque that changed its spin and `T_back` as that less the braking torque), so the force is negative: it takes load off the spring
+/// and the fork dives (`ride6-chassis-round6.md`, "Brake coupling sign").
+const BRAKE_COUPLING_SIGN: f32 = -1.0;
 
 /// A suspension with its rest state worked out: the compression the static load puts on it.
 #[derive(Clone, Debug)]
@@ -145,8 +150,7 @@ impl Suspension {
         // in 1e-2 N.
         let chain = -drive_torque * 100.0 * c.chain * remap(c.chain_range);
         let traction = -traction * c.traction * remap(c.traction_range);
-        let brake =
-            choices::BRAKE_COUPLING_SIGN * (brake_torque / radius.max(1e-3)) * c.brake * 0.01 * remap(c.brake_range);
+        let brake = BRAKE_COUPLING_SIGN * (brake_torque / radius.max(1e-3)) * c.brake * 0.01 * remap(c.brake_range);
         chain + traction + brake
     }
 

@@ -5,12 +5,14 @@
 
 use glam::Vec3;
 
+pub use super::abs_level::AbsLevelSpec;
+pub use super::lean::extra::{FallExtra, HelpExtra};
 use super::magic::Mf94;
 pub use super::spec_parts::{
     Coupling, DamperSpec, EngineSpec, FeatherSpec, Hydraulic, Progressive, SuspensionSpec, TransmissionSpec,
     TyreSection, TyreThermal,
 };
-pub use super::trick_spec::{AutoRiderSpec, RiderHelpSpec};
+pub use super::trick_spec::{AutoRiderSpec, AutoTuckSpec, RiderHelpSpec};
 
 /// The whole bike.
 #[derive(Clone, Debug)]
@@ -29,6 +31,8 @@ pub struct BikeSpec {
     pub fall: FallSpec,
     /// The wheelie and stoppie assist; `None` for a bike without one.
     pub wheelie: Option<WheelieSpec>,
+    /// How the rider's ABS level reaches the brake (`Bike::set_abs_level`).
+    pub abs_level: AbsLevelSpec,
     /// The traction control; `None` for a bike without one.
     pub tcs: Option<TcsSpec>,
     /// The scales of the gyroscopic roll torque (yaw rate) and yaw torque (roll rate) of the wheels; 0 switches one off.
@@ -170,6 +174,8 @@ pub struct LeanSpec {
     /// `(m/s, share)` (empty for no help), and the share of the tyre's lateral peak it may add.
     pub help_speed: Vec<(f32, f32)>,
     pub help_limit: f32,
+    /// The stopped blend, the force-or-couple balance and the skid cut of the help (`HelpExtra::default()` for none).
+    pub help_extra: HelpExtra,
 }
 
 #[derive(Clone, Debug)]
@@ -188,7 +194,8 @@ pub struct SteeringSpec {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FallSpec {
     /// The lean and the pitch (rad), the angle between the velocity and the heading (rad) and the angular speed (rad/s)
-    /// beyond which the bike has fallen; the last two only above `min_speed` (m/s).
+    /// beyond which the bike has fallen; the angle between the velocity and the heading only above `min_speed` (m/s) (the
+    /// lean, the pitch and the angular speed are tested at any speed).
     pub lean: f32,
     pub pitch: f32,
     pub speed_direction: f32,
@@ -200,6 +207,8 @@ pub struct FallSpec {
     pub block_min_speed: f32,
     pub block_time: f32,
     pub block_wait: f32,
+    /// The grip-following lean limit, the airborne limits and the duration (`FallExtra::default()` for none).
+    pub extra: FallExtra,
 }
 
 /// The traction control (`docs/specs/ride6-rider-help.md`): it cuts the throttle about the zero-torque point as the driven wheel's

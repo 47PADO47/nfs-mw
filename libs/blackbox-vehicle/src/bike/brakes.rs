@@ -40,10 +40,23 @@ impl AntiLock {
     /// Bring the releases up to date. `normalised_*` is the wheel's longitudinal slip normalised to the force peak (-1 at the
     /// braking peak), as the tyre reports it; a wheel in the air passes 0.
     pub fn update(&mut self, spec: &AbsSpec, speed: f32, normalised_front: f32, normalised_rear: f32, dt: f32) {
+        self.update_at(spec, speed, [normalised_front, normalised_rear], choices::ABS_FALL_RATE, dt);
+    }
+
+    /// [`AntiLock::update`] with a given fall rate (1/s). The reference filters each release with a rise rate of 10000 and the
+    /// fall rate `ABSFallRate` (also 10000 for every bike): up at once, down by the rate times the step, never past the target
+    /// (`ride6-powertrain-round6.md`, section 5).
+    pub fn update_at(
+        &mut self,
+        spec: &AbsSpec,
+        speed: f32,
+        [normalised_front, normalised_rear]: [f32; 2],
+        fall_rate: f32,
+        dt: f32,
+    ) {
         let fade = ramp(speed.abs(), spec.speed_range);
         let target = |intensity: f32, slip: [f32; 2], normalised: f32| intensity * fade * ramp(normalised, slip);
-        let fall = choices::ABS_FALL_RATE * dt;
-        // Each rises to its target at once and falls at a fixed rate.
+        let fall = fall_rate * dt;
         let front = target(spec.front_intensity, spec.front_slip, normalised_front);
         let rear = target(spec.rear_intensity, spec.rear_slip, normalised_rear);
         self.front = front.max(self.front - fall);
@@ -90,15 +103,26 @@ mod tests {
     }
 
     #[test]
-    fn anti_lock_releases_the_brake_near_the_peak_and_lets_go_slowly() {
+    fn anti_lock_releases_the_brake_near_the_peak_and_lets_go_at_the_fall_rate() {
         let spec = BikeSpec::example().brakes.abs;
         let mut abs = AntiLock::default();
         let dt = 1.0 / 60.0;
         abs.update(&spec, 20.0, -1.0, 0.0, dt);
         assert_eq!(abs.multipliers(), (0.0, 1.0));
-        abs.update(&spec, 20.0, 0.0, 0.0, dt);
+        // At a slow fall rate the release lingers; the rate is in releases per second.
+        abs.update_at(&spec, 20.0, [0.0, 0.0], 6.0, dt);
         let (front, _) = abs.multipliers();
-        assert!(front > 0.0 && front < 1.0, "{front}");
+        assert!((front - 0.1).abs() < 1e-5, "{front}");
+    }
+
+    #[test]
+    fn the_fall_rate_of_the_reference_lets_go_in_a_single_step() {
+        let spec = BikeSpec::example().brakes.abs;
+        let mut abs = AntiLock::default();
+        abs.update(&spec, 20.0, -1.0, -1.0, 1.0 / 60.0);
+        assert_eq!(abs.multipliers(), (0.0, 0.0));
+        abs.update(&spec, 20.0, 0.0, 0.0, 1.0 / 60.0);
+        assert_eq!(abs.multipliers(), (1.0, 1.0));
     }
 
     #[test]

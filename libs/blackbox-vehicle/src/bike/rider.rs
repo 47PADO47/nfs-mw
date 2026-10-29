@@ -28,6 +28,24 @@ pub fn combined_cog(chassis: &ChassisSpec, offset: Vec3, deflection: Vec3) -> Ve
 /// The most the rider's spring may let him move (m): a guard against a collision's impulse.
 const MAX_DEFLECTION: f32 = 0.3;
 
+/// The rate (1/s) at which the lateral weight channel moves: the data's `InputRate` of that channel is left at the
+/// constructor default of the input table, 10000 (`docs/specs/ride6-rider-round6.md`), which no step of a game can tell from
+/// an instant move.
+pub const LATERAL_WEIGHT_RATE: f32 = 10_000.0;
+
+/// The spring's error as the reference measures it with `bUseNewRiderDelta` (every bike's data sets it): not the straight
+/// difference from `position` to `target` but an arc about `centre` (the chassis frame's origin) -- the length of the arc
+/// between the two directions, along the tangent at `position`, plus the difference of the two distances along the
+/// radius. For a degenerate geometry (a point on the centre) it falls back to the straight difference.
+pub fn arc_error(position: Vec3, target: Vec3, centre: Vec3) -> Vec3 {
+    let (from, to) = (position - centre, target - centre);
+    let (Some(radial), Some(wanted)) = (from.try_normalize(), to.try_normalize()) else { return target - position };
+    let chord = target - position;
+    let tangent = (chord - radial * chord.dot(radial)).try_normalize().unwrap_or(Vec3::ZERO);
+    let angle = radial.cross(wanted).length().clamp(-1.0, 1.0).asin();
+    tangent * (angle * from.length()) + radial * (to.length() - from.length())
+}
+
 /// The rider as a point mass on a spring and damper (`ride6-rider-body-aero.md`): it lags the bike's acceleration.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct RiderBody {
@@ -38,9 +56,18 @@ pub struct RiderBody {
 impl RiderBody {
     /// Advance by `dt` under the bike's acceleration `acceleration` (body frame, m/s^2): the rider is pushed back by it, and
     /// the spring pulls him home. Pass the specific force (acceleration less gravity) for a rider who sags on his spring, the
-    /// plain acceleration for one whose rest place is raised to cancel the sag (`correct_gravity`). The damper is scaled by
-    /// the speed (`damp_multiplier` at the low end of the range, 1 at the high end) and applied implicitly.
-    pub fn step(&mut self, chassis: &ChassisSpec, rider: &RiderSpec, acceleration: Vec3, speed: f32, dt: f32) {
+    /// plain acceleration for one whose rest place is raised to cancel the sag (`correct_gravity`). `target` is the place the
+    /// spring pulls him to (body frame, m), which the arc error is taken at. The damper is scaled by the speed
+    /// (`damp_multiplier` at the low end of the range, 1 at the high end) and applied implicitly.
+    pub fn step(
+        &mut self,
+        chassis: &ChassisSpec,
+        rider: &RiderSpec,
+        target: Vec3,
+        acceleration: Vec3,
+        speed: f32,
+        dt: f32,
+    ) {
         if chassis.rider_k <= 0.0 || chassis.rider_mass <= 0.0 || dt <= 0.0 {
             *self = Self::default();
             return;
@@ -48,7 +75,8 @@ impl RiderBody {
         let mass = chassis.rider_mass;
         let blend = ramp(speed.abs(), rider.damp_speed_range);
         let damp = chassis.rider_damp * (rider.damp_multiplier + (1.0 - rider.damp_multiplier) * blend);
-        let pull = -self.deflection * (chassis.rider_k / mass) - acceleration;
+        let error = arc_error(target + self.deflection, target, Vec3::ZERO);
+        let pull = error * (chassis.rider_k / mass) - acceleration;
         self.speed = (self.speed + pull * dt) / (1.0 + dt * damp / mass);
         self.deflection =
             (self.deflection + self.speed * dt).clamp(Vec3::splat(-MAX_DEFLECTION), Vec3::splat(MAX_DEFLECTION));
@@ -140,32 +168,34 @@ mod tests {
     #[test]
     fn a_rider_on_a_spring_lags_the_acceleration_and_comes_home() {
         let c = BikeSpec::example().chassis;
+        let home = rider_position(&c, Vec3::ZERO);
         let spec = RiderSpec::default();
         let mut rider = RiderBody::default();
         // Accelerating forwards pushes the rider back; a settled acceleration gives a steady lag of m a / k.
         for _ in 0..600 {
-            rider.step(&c, &spec, Vec3::new(0.0, 0.0, 5.0), 10.0, 1.0 / 60.0);
+            rider.step(&c, &spec, home, Vec3::new(0.0, 0.0, 5.0), 10.0, 1.0 / 60.0);
         }
         let lag = -5.0 * c.rider_mass / c.rider_k;
         assert!((rider.deflection.z - lag).abs() < 1e-3, "{} {lag}", rider.deflection.z);
         for _ in 0..600 {
-            rider.step(&c, &spec, Vec3::ZERO, 10.0, 1.0 / 60.0);
+            rider.step(&c, &spec, home, Vec3::ZERO, 10.0, 1.0 / 60.0);
         }
         assert!(rider.deflection.length() < 1e-3);
         let mut rigid = c;
         rigid.rider_k = 0.0;
-        rider.step(&rigid, &spec, Vec3::new(0.0, 0.0, 50.0), 10.0, 1.0 / 60.0);
+        rider.step(&rigid, &spec, home, Vec3::new(0.0, 0.0, 50.0), 10.0, 1.0 / 60.0);
         assert_eq!(rider.deflection, Vec3::ZERO);
     }
 
     #[test]
     fn the_damper_stiffens_with_speed_from_its_multiplier_to_one() {
         let c = BikeSpec::example().chassis;
+        let home = rider_position(&c, Vec3::ZERO);
         let soft = RiderSpec { damp_multiplier: 0.1, ..RiderSpec::default() };
         let after = |speed: f32| {
             let mut rider = RiderBody::default();
-            rider.step(&c, &soft, Vec3::new(0.0, 0.0, 20.0), speed, 0.01);
-            rider.step(&c, &soft, Vec3::new(0.0, 0.0, 20.0), speed, 0.01);
+            rider.step(&c, &soft, home, Vec3::new(0.0, 0.0, 20.0), speed, 0.01);
+            rider.step(&c, &soft, home, Vec3::new(0.0, 0.0, 20.0), speed, 0.01);
             rider.deflection.z.abs()
         };
         // Less damping lets him move further in the same time; the range is 40 to 60 km/h.
@@ -177,16 +207,36 @@ mod tests {
     #[test]
     fn the_sag_under_his_weight_is_there_unless_the_rest_place_is_corrected() {
         let c = BikeSpec::example().chassis;
+        let home = rider_position(&c, Vec3::ZERO);
         let spec = RiderSpec::default();
         let mut sags = RiderBody::default();
         let mut held = RiderBody::default();
         for _ in 0..1200 {
             // At rest the specific force is gravity upward; the corrected rest place feels no acceleration at all.
-            sags.step(&c, &spec, Vec3::Y * 9.81, 0.0, 1.0 / 60.0);
-            held.step(&c, &spec, Vec3::ZERO, 0.0, 1.0 / 60.0);
+            sags.step(&c, &spec, home, Vec3::Y * 9.81, 0.0, 1.0 / 60.0);
+            held.step(&c, &spec, home, Vec3::ZERO, 0.0, 1.0 / 60.0);
         }
         let sag = -9.81 * c.rider_mass / c.rider_k;
         assert!((sags.deflection.y - sag).abs() < 1e-3, "{}", sags.deflection.y);
         assert!(held.deflection.length() < 1e-6);
+    }
+
+    #[test]
+    fn the_arc_error_is_the_chord_for_a_small_move_and_the_arc_for_a_turn_about_the_centre() {
+        let centre = Vec3::ZERO;
+        let target = Vec3::new(0.0, 1.0, 0.0);
+        // A move straight along the radius is the difference of the distances.
+        let along = arc_error(Vec3::new(0.0, 1.1, 0.0), target, centre);
+        assert!((along - Vec3::new(0.0, -0.1, 0.0)).length() < 1e-6, "{along:?}");
+        // A small sideways move: the chord to within the third power of its size.
+        let near = Vec3::new(0.03, 1.0, 0.0);
+        let chord = target - near;
+        assert!((arc_error(near, target, centre) - chord).length() < 1e-3);
+        // A quarter turn about the centre is an arc of a quarter circle (length pi/2), along the tangent, not the chord.
+        let side = arc_error(Vec3::new(1.0, 0.0, 0.0), target, centre);
+        assert!((side.length() - std::f32::consts::FRAC_PI_2).abs() < 1e-5, "{side:?}");
+        // At the centre there is no direction: the straight difference.
+        assert_eq!(arc_error(centre, target, centre), target);
+        assert_eq!(LATERAL_WEIGHT_RATE, 10_000.0);
     }
 }
