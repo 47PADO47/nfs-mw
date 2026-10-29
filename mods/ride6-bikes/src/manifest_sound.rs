@@ -37,23 +37,50 @@ fn copy_tree(from: &Path, to: &Path) -> Result<usize> {
     Ok(copied)
 }
 
-/// Copy `<sound_dir>/files/CARS/<ID>/SOUND` into the mod folder; nothing to do when both are the same folder. Returns the
-/// number of files copied.
-pub fn copy_files(sound_dir: &Path, mod_dir: &Path, folder: &str) -> Result<usize> {
-    let id = folder.to_ascii_uppercase();
-    let source = sound_dir.join("files").join("CARS").join(&id).join("SOUND");
-    let target = mod_dir.join("files").join("CARS").join(&id).join("SOUND");
-    if !source.is_dir() {
-        return Ok(0);
+/// The shared recordings the tables name: quoted `SOUND/...WAV` paths (the per-car files are under `CARS/`).
+fn shared_paths(tables: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (index, piece) in tables.split('"').enumerate() {
+        let is_path = index % 2 == 1 && piece.starts_with("SOUND/") && piece.to_ascii_uppercase().ends_with(".WAV");
+        if is_path && !piece.contains("..") && !out.iter().any(|known| known == piece) {
+            out.push(piece.to_owned());
+        }
     }
-    let same = match (fs::canonicalize(&source), fs::canonicalize(&target)) {
+    out
+}
+
+/// Copy the files the car's tables name from `<sound_dir>/files` into the mod folder: the car's own
+/// `CARS/<ID>/SOUND` folder, and the shared recordings (`SOUND/...`, written once for many bikes by `sound-bikes`), each
+/// only when the mod folder does not already hold a file of that size. Nothing to do when both are the same folder. Returns
+/// the number of files copied.
+pub fn copy_files(sound_dir: &Path, mod_dir: &Path, folder: &str) -> Result<usize> {
+    let same = match (fs::canonicalize(sound_dir), fs::canonicalize(mod_dir)) {
         (Ok(a), Ok(b)) => a == b,
         _ => false,
     };
     if same {
         return Ok(0);
     }
-    copy_tree(&source, &target)
+    let id = folder.to_ascii_uppercase();
+    let source = sound_dir.join("files").join("CARS").join(&id).join("SOUND");
+    let mut copied = 0;
+    if source.is_dir() {
+        copied += copy_tree(&source, &mod_dir.join("files").join("CARS").join(&id).join("SOUND"))?;
+    }
+    let Ok(tables) = read_tables(sound_dir, folder) else { return Ok(copied) };
+    for path in shared_paths(&tables) {
+        let (from, to) = (sound_dir.join("files").join(&path), mod_dir.join("files").join(&path));
+        let Ok(meta) = fs::metadata(&from) else { continue };
+        if fs::metadata(&to).is_ok_and(|have| have.len() == meta.len()) {
+            continue;
+        }
+        if let Some(parent) = to.parent() {
+            fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
+        }
+        fs::copy(&from, &to).with_context(|| format!("copying {}", from.display()))?;
+        copied += 1;
+    }
+    Ok(copied)
 }
 
 #[cfg(test)]
@@ -78,6 +105,27 @@ mod tests {
         assert_eq!(fs::read(modd.join("files/CARS/KTM450/SOUND/ENG0.WAV")).unwrap(), b"riff");
         assert_eq!(copy_files(&sound, &sound, "KTM450").unwrap(), 0);
         assert!(read_tables(&modd, "KTM450").is_err());
+        fs::remove_dir_all(sound).unwrap();
+        fs::remove_dir_all(modd).unwrap();
+    }
+
+    #[test]
+    fn shared_recordings_named_by_the_tables_are_copied_once() {
+        let (sound, modd) = (temp("shared-sound"), temp("shared-mod"));
+        fs::create_dir_all(sound.join("cars")).unwrap();
+        fs::create_dir_all(sound.join("files/SOUND/RIDE6/FX")).unwrap();
+        fs::write(sound.join("files/SOUND/RIDE6/FX/7.WAV"), b"riff7").unwrap();
+        fs::write(sound.join("files/SOUND/RIDE6/FX/8.WAV"), b"not named").unwrap();
+        let tables = "[engine_sound]
+layers = [{ file = \"SOUND/RIDE6/FX/7.WAV\", rpm = 3000.0 }]
+[car_sound]
+shift_up = [\"SOUND/RIDE6/FX/7.WAV\", \"SOUND/../x.WAV\"]
+";
+        fs::write(sound.join("cars/t.sound.toml"), tables).unwrap();
+        assert_eq!(copy_files(&sound, &modd, "T").unwrap(), 1);
+        assert_eq!(fs::read(modd.join("files/SOUND/RIDE6/FX/7.WAV")).unwrap(), b"riff7");
+        assert!(!modd.join("files/SOUND/RIDE6/FX/8.WAV").exists());
+        assert_eq!(copy_files(&sound, &modd, "T").unwrap(), 0);
         fs::remove_dir_all(sound).unwrap();
         fs::remove_dir_all(modd).unwrap();
     }

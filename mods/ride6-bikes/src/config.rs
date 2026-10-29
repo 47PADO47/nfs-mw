@@ -12,6 +12,8 @@
 //! sound = 'C:\r6\snd-out'
 //! # The exporter's rider folder (riding.r6ra, skeleton.json, meshes/, textures/; default: `rider` inside `source`).
 //! rider = 'C:\r6\bikes\rider'
+//! # The key of RIDE 6's pak files (64 hexadecimal digits) for the sound extraction commands; default: the built-in key.
+//! # pak_key = '...'
 //! # The longest side of a body texture, pixels.
 //! max_texture = 2048
 //! ```
@@ -68,6 +70,11 @@ pub const DEFAULT_CONFIG: &str = "# Settings of the RIDE 6 bikes mod (mods/ride6
 # every bike. Default: a folder called `rider` inside `source`; without one the bikes are ridden by nobody.
 # rider = 'C:\\r6\\bikes\\rider'
 
+# The key of RIDE 6's pak files, 64 hexadecimal digits, which the sound extraction commands (`pak-sound`) pass to the pak
+# reader. Left out, the mod uses its built-in key (docs/modding/ride6-bikes-sound.md); the environment variable R6_AES
+# replaces both.
+# pak_key = '0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF'
+
 # Longest side of a body texture in pixels (a power of two, 64 to 4096); wheels get half of it and discs a quarter.
 max_texture = 2048
 ";
@@ -81,12 +88,22 @@ pub struct Config {
     pub tyre_tables: Option<PathBuf>,
     pub sound: Option<PathBuf>,
     pub rider: Option<PathBuf>,
+    /// The key of RIDE 6's pak files (`sound/pak_key.rs`); `None` uses the built-in one.
+    pub pak_key: Option<String>,
     pub max_texture: u32,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { source: None, physics: None, tyre_tables: None, sound: None, rider: None, max_texture: 2048 }
+        Self {
+            source: None,
+            physics: None,
+            tyre_tables: None,
+            sound: None,
+            rider: None,
+            pak_key: None,
+            max_texture: 2048,
+        }
     }
 }
 
@@ -134,6 +151,9 @@ impl Config {
     pub fn check(&self) -> Result<()> {
         if !self.max_texture.is_power_of_two() || !(64..=4096).contains(&self.max_texture) {
             bail!("max_texture {} must be a power of two from 64 to 4096", self.max_texture);
+        }
+        if let Some(key) = &self.pak_key {
+            crate::sound::pak_key::normalize(key).context("pak_key")?;
         }
         Ok(())
     }
@@ -197,6 +217,15 @@ mod tests {
         assert!(Config::parse("sorce = 'x'").is_err());
         assert!(Config::parse("max_texture = 1000").is_err());
         assert!(Config::parse("max_texture = 32").is_err());
+    }
+
+    #[test]
+    fn the_pak_key_is_optional_and_checked() {
+        let good = format!("pak_key = '{}'", "ab".repeat(32));
+        assert_eq!(Config::parse(&good).unwrap().pak_key, Some("ab".repeat(32)));
+        assert_eq!(Config::parse("").unwrap().pak_key, None);
+        assert!(Config::parse("pak_key = 'abc'").is_err());
+        assert!(Config::parse(&format!("pak_key = '{}'", "zz".repeat(32))).is_err());
     }
 
     #[test]

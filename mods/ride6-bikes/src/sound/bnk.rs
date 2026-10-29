@@ -63,9 +63,60 @@ pub fn parse(bytes: &[u8]) -> Result<Bank> {
     Ok(Bank { version, bank_id, media })
 }
 
+/// The body of the first chunk called `tag` (`HIRC`, `DIDX`, `DATA`, ...), borrowed from the bank.
+pub fn find_chunk<'a>(bytes: &'a [u8], tag: &[u8; 4]) -> Result<Option<&'a [u8]>> {
+    let mut at = 0;
+    while at + 8 <= bytes.len() {
+        let size = word(bytes, at + 4)? as usize;
+        let start = at + 8;
+        let Some(body) = bytes.get(start..start + size) else { bail!("a chunk runs past the end of the bank") };
+        if &bytes[at..at + 4] == tag {
+            return Ok(Some(body));
+        }
+        at = start + size;
+    }
+    Ok(None)
+}
+
+/// The bytes of the embedded media `id`, borrowed from the bank; `None` when the bank does not hold it.
+pub fn media_by_id(bytes: &[u8], id: u32) -> Result<Option<&[u8]>> {
+    let (Some(index), Some(data)) = (find_chunk(bytes, b"DIDX")?, find_chunk(bytes, b"DATA")?) else { return Ok(None) };
+    ensure!(index.len().is_multiple_of(12), "DIDX is not a whole number of entries");
+    for entry in index.as_chunks::<12>().0 {
+        if word(entry, 0)? != id {
+            continue;
+        }
+        let (offset, size) = (word(entry, 4)? as usize, word(entry, 8)? as usize);
+        let Some(blob) = data.get(offset..offset + size) else { bail!("media {id} lies outside the DATA chunk") };
+        return Ok(Some(blob));
+    }
+    Ok(None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_chunk_and_a_media_are_found_by_name_and_id() {
+        let mut header = Vec::new();
+        for value in [154u32, 9] {
+            header.extend_from_slice(&value.to_le_bytes());
+        }
+        let mut index = Vec::new();
+        for value in [11u32, 0, 4, 12, 4, 3] {
+            index.extend_from_slice(&value.to_le_bytes());
+        }
+        let mut file = chunk(b"BKHD", &header);
+        file.extend(chunk(b"DIDX", &index));
+        file.extend(chunk(b"DATA", b"AAAABBB"));
+        file.extend(chunk(b"HIRC", &[1, 2, 3]));
+        assert_eq!(find_chunk(&file, b"HIRC").unwrap(), Some(&[1u8, 2, 3][..]));
+        assert_eq!(find_chunk(&file, b"STID").unwrap(), None);
+        assert_eq!(media_by_id(&file, 12).unwrap(), Some(&b"BBB"[..]));
+        assert_eq!(media_by_id(&file, 99).unwrap(), None);
+        assert_eq!(media_by_id(&chunk(b"BKHD", &header), 12).unwrap(), None);
+    }
 
     fn chunk(tag: &[u8; 4], body: &[u8]) -> Vec<u8> {
         let mut out = tag.to_vec();
