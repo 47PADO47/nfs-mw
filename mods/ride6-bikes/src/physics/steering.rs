@@ -6,7 +6,7 @@ use anyhow::Result;
 
 use super::Geometry;
 use super::chassis::handler;
-use super::curve::{Translator, simplify};
+use super::curve::{Translator, runtime_curve, simplify};
 use super::damping::damping_multiplier;
 use super::defaults;
 use super::engine::MAX_CURVE_POINTS;
@@ -27,8 +27,8 @@ pub fn damping_ratio(k: f64, damp: f64) -> f64 {
     damp / (2.0 * k.sqrt())
 }
 
-/// The lean the rider can never exceed and at which the bike counts as fallen: `FallLeanLimitAirborne`. The lean limit on
-/// the ground is a run-time value of the grip (`bFallLeanLimitBasedOnGrip`) that is not in the data.
+/// The lean the rider can never exceed and at which the bike counts as fallen in the air: `FallLeanLimitAirborne`. On the
+/// ground the limit follows the grip (`bFallLeanLimitBasedOnGrip`, the `lean_by_grip` key) and starts here.
 pub fn fall_lean_rad(handler: &Node<'_>) -> Result<f64> {
     Ok(radians(handler.f("FallLeanLimitAirborne")?))
 }
@@ -63,13 +63,30 @@ pub fn write(t: &mut Toml, vehicle: &Vehicle, geometry: &Geometry) -> Result<()>
     t.num("pitch_rad", radians(handler.f("FallPitchLimit")?));
     t.num("speed_direction_rad", radians(handler.f("FallSpeedDirAngleLimit")?));
     t.num("angular_speed", handler.f("FallAngularSpeedLimit")?);
-    t.num("min_speed_mps", metres_per_second(handler.f("FallMinSpeed")?));
+    // The speed above which the angle of the velocity to the heading is tested: `FallSpeedDirAngleMinSpeed` (0 when the asset
+    // leaves it out); `FallMinSpeed` gates only the rider-force tests, which the library does not have.
+    t.num("min_speed_mps", metres_per_second(handler.f_or("FallSpeedDirAngleMinSpeed", 0.0)?));
     if handler.flag_or("BlockFallActive", false)? && handler.f("BlockFallLeanLimitRatio")? > 0.0 {
         t.num("block_ratio", handler.f("BlockFallLeanLimitRatio")?);
         t.num("block_min_speed_mps", metres_per_second(handler.f("BlockFallLeanLimitMinSpeedKmh")?));
         t.num("block_time_s", handler.f("BlockFallTimeLimit")?);
         t.num("block_wait_s", handler.f("BlockFallReEnableWaitTimeLimit")?);
     }
+    fall_extra(t, &handler)
+}
+
+/// The grip-following lean limit, its hold time and the limits in the air (`ride6-chassis-round6.md`, "Fall tests").
+fn fall_extra(t: &mut Toml, handler: &Node<'_>) -> Result<()> {
+    if handler.flag_or("bOverrideFallLeanLimit", false)? && handler.flag_or("bFallLeanLimitBasedOnGrip", false)? {
+        t.flag("lean_by_grip", true);
+        t.num("lean_rise", handler.f_or("FallLeanLimitUpFactor", 0.0)?);
+        t.num("lean_fall", handler.f_or("FallLeanLimitDownFactor", 0.0)?);
+    }
+    t.num("lean_duration_s", handler.f_or("FallLeanLimitDuration", 0.0)?);
+    t.num("airborne_lean_rad", radians(handler.f_or("FallLeanLimitAirborne", 0.0)?));
+    t.num("airborne_pitch_rad", radians(handler.f_or("FallPitchLimitAirborne", 0.0)?));
+    t.num("airborne_angular_speed", handler.f_or("FallAngularSpeedLimitAirborne", 0.0)?);
+    t.num("highside_lean_rad", radians(handler.f_or("FallHighsideLeanLimit", 0.0)?));
     Ok(())
 }
 
@@ -118,6 +135,40 @@ fn lean(t: &mut Toml, vehicle: &Vehicle, handler: &Node<'_>, geometry: &Geometry
     t.num("rider_mass_scale", handler.f("RiderMassScale")?);
     t.pairs("help_speed", &speed_curve(vehicle, &handler.req("LeanHelpFactorSpeedTuning")?)?);
     t.num("help_limit", help_limit(vehicle, handler)?);
+    help_extra(t, vehicle, handler)
+}
+
+/// A speed curve with its outputs times `scale`.
+fn scaled(points: Vec<[f64; 2]>, scale: f64) -> Vec<[f64; 2]> {
+    points.into_iter().map(|[x, y]| [x, y * scale]).collect()
+}
+
+/// The stopped blend, the split between force and couple, and the skid cut of the lean help factor
+/// (`ride6-chassis-round6.md`, "Lean help"). A tuning the asset leaves out is left out of the manifest.
+fn help_extra(t: &mut Toml, vehicle: &Vehicle, handler: &Node<'_>) -> Result<()> {
+    let [stopped_low, stopped_high] = handler.xy_or("LeanHelpFactorStoppedSpeedRange", [0.0, 0.0])?;
+    if stopped_high > 0.0 {
+        t.nums("help_stopped_range_mps", &[metres_per_second(stopped_low), metres_per_second(stopped_high)]);
+    }
+    if handler.flag_or("bOverrideLeanHelpBalance", false)? {
+        let multiplier = handler.f_or("LeanHelpBalanceMultiplier", 1.0)?;
+        let curve = speed_curve(vehicle, &handler.req("LeanHelpBalanceSpeedTuning")?)?;
+        t.pairs("help_balance_speed", &scaled(curve, multiplier));
+    } else if handler.has("LeanHelpBalance") {
+        t.pairs("help_balance_speed", &[[0.0, handler.f("LeanHelpBalance")?]]);
+    }
+    let Some(node) = handler.get("LeanHelpFactorSkidReduction") else { return Ok(()) };
+    if Translator::read_opt(vehicle, &node)?.is_none() {
+        return Ok(());
+    }
+    let [skid_low, skid_high] = handler.xy_of("LeanHelpFactorSkidRange")?;
+    t.nums("help_skid_range_rad", &[radians(skid_low), radians(skid_high)]);
+    t.num("help_skid_linearity", handler.f_or("LeanHelpFactorSkidLinearity", 1.0)?);
+    let scale = handler.f_or("LeanHelpFactorReductionScale", 1.0)?;
+    t.pairs("help_skid_reduction", &scaled(speed_curve(vehicle, &node)?, scale));
+    let Some(input) = handler.get("LeanHelpFactorSkidInputInfluence") else { return Ok(()) };
+    let Some(curve) = runtime_curve(vehicle, &input)? else { return Ok(()) };
+    t.pairs("help_skid_input", &simplify(curve.polyline(), MAX_CURVE_POINTS));
     Ok(())
 }
 

@@ -55,6 +55,13 @@ pub fn write(t: &mut Toml, vehicle: &Vehicle) -> Result<()> {
         &to_physics_space(rider.xyz_or("TorqueAppliedOnBikeMultiplier", defaults::RIDER_UNIT_VECTOR)?),
     );
     t.num("drag_scale", rider.f_or("DragScale", defaults::RIDER_DRAG_SCALE)?);
+    // `DragCurve` is read at the rider's longitudinal weight and `DragScaleCurve` at the tuck (`ride6-rider-round6.md`,
+    // section 1). An unset curve is 0 for the first and 1 for the second, so only a curve the asset sets is written.
+    if let Some(node) = rider.get("DragCurve")
+        && let Some(curve) = curve::runtime_curve(vehicle, &node)?
+    {
+        t.pairs("drag_weight_curve", &simplify(curve.polyline(), MAX_CURVE_POINTS));
+    }
     let Some(node) = rider.get("DragScaleCurve") else { return Ok(()) };
     let Some(curve) = curve::runtime_curve(vehicle, &node)? else { return Ok(()) };
     t.pairs("drag_curve", &simplify(curve.polyline(), MAX_CURVE_POINTS));

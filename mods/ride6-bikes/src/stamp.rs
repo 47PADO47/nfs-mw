@@ -7,7 +7,8 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the importer changes what it writes for the same input.
-const CONVERSION: u32 = 1;
+/// 2: the rider's contact points per car (`RIDER/contacts.json`).
+const CONVERSION: u32 = 2;
 /// The name of the stamp file, in the mod's folder.
 pub const FILE: &str = ".import-stamp";
 
@@ -30,6 +31,8 @@ pub fn of(
         })
         .collect();
     inputs.extend(files_below(&physics.join("vehicles")));
+    inputs
+        .extend(files_below(&physics.join("resolved").join("content").join("assets").join("data").join("datatables")));
     if let Some(dir) = sound {
         inputs.extend(files_below(&dir.join("cars")));
     }

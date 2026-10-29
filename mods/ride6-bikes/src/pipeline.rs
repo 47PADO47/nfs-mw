@@ -12,6 +12,7 @@ use crate::manifest::{self, Tables};
 use crate::manifest_sound;
 use crate::naming;
 use crate::partfile::PartTable;
+use crate::rider::contacts;
 use crate::summary::Summary;
 
 /// What to import and where it goes.
@@ -69,6 +70,14 @@ pub fn import_bike(request: &Request<'_>) -> Result<Outcome> {
     };
     let tables = Tables { bike: &bike, sound: sound_tables.as_deref() };
     manifest::write_car(request.mod_dir, car, (&name, &manufacturer), &built, &tables)?;
+    let mut notes = bike.notes;
+    let car_dir = request.mod_dir.join("files").join("CARS").join(car.to_ascii_uppercase());
+    // The rider's seat, grips and pegs are the bike's own sockets; a bike without them is imported without rider contacts.
+    match contacts::write(request.bike, &car_dir, request.physics) {
+        Ok(true) => {}
+        Ok(false) => notes.push("the rider has no correction row (RiderAnimationCorrection_DT is not in the physics dump, or has no row for this vehicle)".to_owned()),
+        Err(error) => notes.push(format!("the rider's contact points are not written: {error:#}")),
+    }
     if request.write_mod_toml {
         manifest::write_mod_toml(request.mod_dir)?;
     }
@@ -88,13 +97,7 @@ pub fn import_bike(request: &Request<'_>) -> Result<Outcome> {
         built.geometry.len(),
         built.textures.len()
     );
-    Ok(Outcome {
-        vehicle: table.vehicle,
-        notes: bike.notes,
-        sound_files,
-        summary,
-        front_end: built.front_end.to_string(),
-    })
+    Ok(Outcome { vehicle: table.vehicle, notes, sound_files, summary, front_end: built.front_end.to_string() })
 }
 
 /// Whether `dir` holds the `sound` command's tables for `car`.

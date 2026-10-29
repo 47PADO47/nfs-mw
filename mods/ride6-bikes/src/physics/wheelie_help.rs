@@ -27,6 +27,11 @@ mod default {
     /// `PitchSpeedWeightControl`: a descending range, which is always 0.
     pub const PITCH_SPEED_RANGE: [f64; 2] = [0.0, -1.0];
     pub const ENGAGE_SPEED: f64 = 0.0;
+    /// `AutoTuckInMinSpeed` (km/h), `AutoTuckInMaxLeanPercentage`, `AutoTuckInMinThrottle` and `AutoTuckInMaxBrake`.
+    pub const TUCK_MIN_SPEED_KMH: f64 = 0.0;
+    pub const TUCK_MAX_LEAN: f64 = 0.5;
+    pub const TUCK_MIN_THROTTLE: f64 = 0.0;
+    pub const TUCK_MAX_BRAKE: f64 = 0.5;
 }
 
 fn radians_pair(range: [f64; 2]) -> [f64; 2] {
@@ -77,6 +82,15 @@ pub fn write(t: &mut Toml, vehicle: &Vehicle, help: &Node<'_>) -> Result<()> {
     t.num("lookahead_s", help.f_or("AutoRiderLookaheadTime", default::LOOKAHEAD)?);
     if help.flag_or("bEnableGForceWeightControl", false)? {
         t.note("the auto-rider's g-force weight control is not modelled: the pitch speed control is used");
+    }
+    if help.flag_or("bAutoTuckIn", false)? {
+        // `ride6-rider-round6.md`, section 2. The tuck position (`TuckInPosition`, `TuckInWeightLongitudinalRange`) that would also
+        // move the rider's weight is not written: a bike whose range is the default (-1, 1) leaves the weight alone.
+        t.table("bike.wheelie.help.auto_tuck");
+        t.num("min_speed_mps", metres_per_second(help.f_or("AutoTuckInMinSpeed", default::TUCK_MIN_SPEED_KMH)?));
+        t.num("max_normalised_lean", help.f_or("AutoTuckInMaxLeanPercentage", default::TUCK_MAX_LEAN)?);
+        t.num("min_throttle", help.f_or("AutoTuckInMinThrottle", default::TUCK_MIN_THROTTLE)?);
+        t.num("max_brake", help.f_or("AutoTuckInMaxBrake", default::TUCK_MAX_BRAKE)?);
     }
     if !help.flag_or("bEnableRiderHelpWeightControl", false)? {
         return Ok(());

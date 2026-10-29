@@ -8,20 +8,25 @@ use anyhow::{Context, Result};
 use blackbox_skeleton::{Graph, Node, Pack, TimeMode, Value};
 
 /// Parameter order of the graph (the names are in [`Graph::param_names`]).
-pub const PARAMS: [&str; 5] = ["lean", "speed_kmh", "tuck", "wheelie", "stoppie"];
+///
+/// `lean` is `RiderLeaning`, `tuck` `RiderTuckedIn_Alpha`, `wheelie` the entry of the wheelie pose (`BikeWheelie` held to 8 per
+/// second), `wheelie_alpha` `Wheelie_Alpha` (the minimum-to-maximum pose), `wheelie_direction` `Wheelie_Direction`, `stoppie`
+/// `Stoppie_Alpha` and `stoppie_time` the stoppie clip's time over 1.27 s (`ride6-rider-round6.md`, section 4). A graph made
+/// before the last three existed reads them as 0.
+pub const PARAMS: [&str; 8] =
+    ["lean", "speed_kmh", "tuck", "wheelie", "stoppie", "wheelie_alpha", "stoppie_time", "wheelie_direction"];
 const LEAN: usize = 0;
 const SPEED: usize = 1;
 const TUCK: usize = 2;
 const WHEELIE: usize = 3;
 const STOPPIE: usize = 4;
+const WHEELIE_ALPHA: usize = 5;
+const STOPPIE_TIME: usize = 6;
+const WHEELIE_DIRECTION: usize = 7;
 
-/// `FuzzifyRamp(BikeWheelie, 0.2, 0.4)` in `Wheelie/ Stoppie`: the wheelie pose takes over between these values.
+/// `FuzzifyRamp(BikeWheelie, 0.2, 0.4)` in `Wheelie/ Stoppie`: the wheelie pose takes over between these values. Which node
+/// the blueprint binds `Wheelie_Entry_Alpha` to is in cooked binary data; this ramp on the entry is the reading of the names.
 const WHEELIE_ENTRY_RAMP: (f32, f32) = (0.2, 0.4);
-/// `FuzzifyRamp(BikeWheelie, 0.2, 0.5)` in `Wheelie/ Stoppie`, and the default `Wheelie_Range_Min/Max`: the
-/// minimum-to-maximum wheelie pose range.
-const WHEELIE_POSE_RAMP: (f32, f32) = (0.2, 0.5);
-/// `DefineFloatRuleEx` pair in `Wheelie/ Stoppie`: `BikeStoppie <= 0` gives 0, `> 0.18` gives 1.
-const STOPPIE_RAMP: (f32, f32) = (0.0, 0.18);
 /// `Stoppie_Explicit` = stoppie value times 1.27 seconds (`MulFloat(StoppieValue, 1.27)`) into `motard_stoppie`.
 const STOPPIE_CLIP_SECONDS: f32 = 1.27;
 /// `AddNoise_Start` and `AddNoise_StartEnd` (km/h): the additive shake fades in over this speed range.
@@ -83,21 +88,21 @@ pub fn motard_graph(pack: &Pack, riding_style: u8) -> Result<Graph> {
     let riding = blend(standard, aero, Value::remap(TUCK, (0.0, 1.0), (0.0, 1.0)));
 
     // Sitting wheelie: minimum to maximum pose, left to right by the lean.
-    let wheelie_amount = Value::remap(WHEELIE, WHEELIE_POSE_RAMP, (0.0, 1.0));
+    let wheelie_amount = Value::param(WHEELIE_ALPHA);
     let side =
         |min: &str, max: &str| -> Result<Node> { Ok(blend(looped(pack, min)?, looped(pack, max)?, wheelie_amount)) };
     let wheelie_pose = blend(
         side("motard_wheelie_min_L", "motard_wheelie_max_L")?,
         side("motard_wheelie_min_R", "motard_wheelie_max_R")?,
-        Value::remap(LEAN, (-1.0, 1.0), (0.0, 1.0)),
+        Value::remap(WHEELIE_DIRECTION, (-1.0, 1.0), (0.0, 1.0)),
     );
     let with_wheelie = blend(riding, wheelie_pose, Value::remap(WHEELIE, WHEELIE_ENTRY_RAMP, (0.0, 1.0)));
 
     // Stoppie: the clip is stepped by the amount, not played.
     let stoppie_time =
-        Value::remap(STOPPIE, STOPPIE_RAMP, (0.0, STOPPIE_CLIP_SECONDS / pack_length(pack, "motard_stoppie")?));
+        Value::remap(STOPPIE_TIME, (0.0, 1.0), (0.0, STOPPIE_CLIP_SECONDS / pack_length(pack, "motard_stoppie")?));
     let stoppie_pose = node(pack, "motard_stoppie", TimeMode::Fraction(stoppie_time))?;
-    let with_stoppie = blend(with_wheelie, stoppie_pose, Value::remap(STOPPIE, STOPPIE_RAMP, (0.0, 1.0)));
+    let with_stoppie = blend(with_wheelie, stoppie_pose, Value::param(STOPPIE));
 
     // Additive shake of the body, low and high speed.
     let shake = blend(

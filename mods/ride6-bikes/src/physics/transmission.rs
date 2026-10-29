@@ -48,7 +48,9 @@ pub fn write(t: &mut Toml, vehicle: &Vehicle) -> Result<()> {
     t.num("up_shift_time_s", handler.f("GearUpChangeTime")?);
     t.num("down_shift_time_s", handler.f("GearDownChangeTime")?);
     t.num("blip_throttle", handler.f_or("BlipperThrottleOnShift", 0.0)?);
+    shift_timing(t, &handler)?;
     t.num("clutch_linearity", transmission.f("ClutchLinearity")?);
+    t.num("slipper_filter_speed", transmission.f_or("SlipperClutchFilterSpeed", default::SLIPPER_FILTER_SPEED)?);
     t.num("clutch_max_factor", defaults::CLUTCH_MAX_FACTOR);
 
     if let Some(range) = transmission.get("SlipperClutchDeltaTorqueRange") {
@@ -57,6 +59,40 @@ pub fn write(t: &mut Toml, vehicle: &Vehicle) -> Result<()> {
         t.num("slipper_intensity", transmission.f("SlipperClutchMaxIntensity")?);
     }
     launch(t, &handler)
+}
+
+/// How a change moves the clutch and the throttle and the clutch the handler pulls at the engine's idle
+/// (`docs/specs/ride6-powertrain-round6.md`, sections 1 and 3); a key the data leaves out takes the constructor default.
+fn shift_timing(t: &mut Toml, handler: &Node<'_>) -> Result<()> {
+    let clutch = handler.xy_or("ClutchTimingOnGearChange", default::CLUTCH_TIMING)?;
+    t.nums("clutch_timing", &clutch);
+    let throttle = handler.xy_or("ThrottleTimingOnGearChange", default::THROTTLE_TIMING)?;
+    t.nums("throttle_timing", &throttle);
+    t.flag("release_throttle_on_shift", handler.flag_or("ReleaseThrottleOnShift", false)?);
+    t.flag("modulate_throttle_on_upshift", handler.flag_or("ModulateThrottleOnUpShift", true)?);
+    t.flag("press_clutch_at_min_rpm", handler.flag_or("PressClutchAtMinRPM", true)?);
+    let range = handler.xy_or("MinRPMSpeedScaleRange", default::MIN_RPM_SPEED_SCALE_RANGE)?;
+    t.nums("min_rpm_speed_scale_range", &range);
+    forced_downshift(t, handler)
+}
+
+/// The forced downshift of the road-bike handler (`docs/specs/ride6-powertrain-round6.md`, section 8). The constructor defaults
+/// are a factor of 0 (off), a linearity of 2 and zero ranges; the speed range of the data is in km/h.
+fn forced_downshift(t: &mut Toml, handler: &Node<'_>) -> Result<()> {
+    let factor = handler.f_or("ForceGearDownChangeBrakeFactor", default::FORCE_DOWN_FACTOR)?;
+    if factor == 0.0 {
+        return Ok(());
+    }
+    t.nums("force_downshift_brake_range", &handler.xy_or("ForceGearDownChangeBrakeInputRange", [0.0, 0.0])?);
+    t.num("force_downshift_duration_s", handler.f_or("ForceGearDownChangeBrakeDuration", 0.0)?);
+    t.num("force_downshift_factor", factor);
+    t.num(
+        "force_downshift_linearity",
+        handler.f_or("ForceGearDownChangeBrakeLinearity", default::FORCE_DOWN_LINEARITY)?,
+    );
+    let [low, high] = handler.xy_or("ForceGearDownChangeSpeedInputRange", [0.0, 0.0])?;
+    t.nums("force_downshift_speed_range_mps", &[metres_per_second(low), metres_per_second(high)]);
+    Ok(())
 }
 
 /// A hold-off of the automatic changes: `[factor, linearity]` of the fields `{prefix}Factor` and `{prefix}Linearity`.

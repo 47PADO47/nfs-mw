@@ -8,6 +8,7 @@ use blackbox_solid::{GroupSource, Vertex};
 
 use crate::bake::Surfaces;
 use crate::front_end::Take;
+use crate::glass;
 use crate::glb::{Glb, Primitive};
 use crate::layout::direction_to_car;
 use crate::partfile::{Material, Part, PartTable};
@@ -115,7 +116,10 @@ pub fn part_groups(
         let mut classes: BTreeMap<&'static str, Vec<[u32; 3]>> = BTreeMap::new();
         for triangle in &selected {
             let uvs = triangle.map(|i| primitive.uvs[i as usize]);
-            let class = shading::classify(placer.part.kind, surface.pbr.as_deref(), uvs);
+            let class = match &surface.glass {
+                Some(glass) => glass::classify(&glass.picture, glass.max, uvs),
+                None => shading::classify(placer.part.kind, surface.pbr.as_deref(), uvs),
+            };
             classes.entry(class).or_default().push(*triangle);
         }
         for (class, triangles) in classes {

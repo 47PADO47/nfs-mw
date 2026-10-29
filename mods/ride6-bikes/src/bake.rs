@@ -11,6 +11,7 @@ use std::rc::Rc;
 use anyhow::Result;
 use blackbox_tpk::{AlphaUsage, Level, PixelFormat, TextureSource, full_mip_count};
 
+use crate::glass;
 use crate::partfile::{Kind, Material};
 use crate::textures::{Palette, Picture, TexStore};
 
@@ -43,6 +44,26 @@ pub struct Surface {
     pub specular: Option<String>,
     /// The packed specular, roughness, metallic and occlusion picture, for classifying triangles.
     pub pbr: Option<Rc<Picture>>,
+    /// For a translucent material: the transmittance picture, from which triangles take their glass light material.
+    pub glass: Option<Glass>,
+}
+
+/// The transmittance of a translucent material.
+#[derive(Clone)]
+pub struct Glass {
+    pub picture: Rc<Picture>,
+    /// `Modulation - Transmittance - Max`.
+    pub max: f32,
+}
+
+/// How a baked texture's alpha is drawn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Alpha {
+    Opaque,
+    /// Cut out at half (punch-through), two-sided.
+    CutOut,
+    /// Smooth, alpha-blended and sorted like the stock windows.
+    Blended,
 }
 
 pub struct Surfaces {
@@ -62,7 +83,7 @@ pub fn size_cap(kind: Kind, max_texture: u32) -> u32 {
     (max_texture / divisor).max(4)
 }
 
-fn srgb_to_linear(byte: u8) -> f32 {
+pub(crate) fn srgb_to_linear(byte: u8) -> f32 {
     let v = f32::from(byte) / 255.0;
     if v <= 0.040_45 {
         return v / 12.92;
@@ -167,9 +188,14 @@ impl Surfaces {
             Some(stem) => self.store.picture(stem)?,
             None => None,
         };
+        if material.is_translucent()
+            && let Some(surface) = self.bake_glass(car, material, cap)?
+        {
+            return Ok(surface);
+        }
         let (Some(base_stem), Some(base)) = (&material.base_color, base) else {
             let grey = self.palette.add_colour([128, 128, 128]);
-            return Ok(Surface { diffuse: grey, normal: None, specular: None, pbr });
+            return Ok(Surface { diffuse: grey, normal: None, specular: None, pbr, glass: None });
         };
         let diffuse = format!("{car}_{}", upper(base_stem));
         let clip = material.cutout();
@@ -177,12 +203,9 @@ impl Surfaces {
         let level = bake_diffuse(level, pbr.as_deref(), material.pbr_has_occlusion, self.options.ao_floor, clip);
         let cut_out = level.rgba.as_chunks::<4>().0.iter().any(|t| t[3] < 255);
         if !self.palette.contains(&diffuse) {
-            self.add_level(
-                &diffuse,
-                level.clone(),
-                if cut_out { PixelFormat::Dxt5 } else { PixelFormat::Dxt1 },
-                cut_out,
-            );
+            let (format, alpha) =
+                if cut_out { (PixelFormat::Dxt5, Alpha::CutOut) } else { (PixelFormat::Dxt1, Alpha::Opaque) };
+            self.add_level(&diffuse, level.clone(), format, alpha);
         }
         let (mut normal, mut specular) = (None, None);
         if self.options.normal_maps {
@@ -193,7 +216,7 @@ impl Surfaces {
                 let copy = Picture { width: picture.width, height: picture.height, rgba: picture.rgba.clone() };
                 if !self.palette.contains(&name) {
                     let level = bake_normal(copy, cap, self.options.flip_green);
-                    self.add_level(&name, level, PixelFormat::Dxt1, false);
+                    self.add_level(&name, level, PixelFormat::Dxt1, Alpha::Opaque);
                 }
                 normal = Some(name);
             }
@@ -201,20 +224,44 @@ impl Surfaces {
                 let name = format!("{car}_{}_S", upper(base_stem));
                 if !self.palette.contains(&name) {
                     let level = bake_specular(&level, &base, pbr);
-                    self.add_level(&name, level, PixelFormat::Dxt1, false);
+                    self.add_level(&name, level, PixelFormat::Dxt1, Alpha::Opaque);
                 }
                 specular = Some(name);
             }
         }
-        Ok(Surface { diffuse, normal, specular, pbr })
+        Ok(Surface { diffuse, normal, specular, pbr, glass: None })
     }
 
-    fn add_level(&mut self, name: &str, level: Level, format: PixelFormat, cut_out: bool) {
+    /// The glass texture of a translucent material, or `None` when it has no transmittance picture (it is then baked as an
+    /// ordinary surface).
+    fn bake_glass(&mut self, car: &str, material: &Material, cap: u32) -> Result<Option<Surface>> {
+        let Some(stem) = material.transmittance_picture() else { return Ok(None) };
+        let Some(picture) = self.store.picture(stem)? else { return Ok(None) };
+        let max = material.transmittance_max.unwrap_or(1.0);
+        let diffuse = format!("{car}_{}", upper(stem));
+        if !self.palette.contains(&diffuse) {
+            let copy = Picture { width: picture.width, height: picture.height, rgba: picture.rgba.clone() };
+            let level = glass::bake(copy.shrunk(cap), max);
+            self.add_level(&diffuse, level, PixelFormat::Dxt5, Alpha::Blended);
+        }
+        let glass = Some(Glass { picture, max });
+        Ok(Some(Surface { diffuse, normal: None, specular: None, pbr: None, glass }))
+    }
+
+    fn add_level(&mut self, name: &str, level: Level, format: PixelFormat, alpha: Alpha) {
         let mips = full_mip_count(level.width, level.height);
         let Some(mut source) = TextureSource::from_rgba(name, level, format, mips) else { return };
-        if cut_out {
-            source.alpha_usage = AlphaUsage::PunchThrough;
-            source.flags |= TWO_SIDED;
+        match alpha {
+            Alpha::Opaque => {}
+            Alpha::CutOut => {
+                source.alpha_usage = AlphaUsage::PunchThrough;
+                source.flags |= TWO_SIDED;
+            }
+            Alpha::Blended => {
+                source.alpha_usage = AlphaUsage::Modulated;
+                source.alpha_sorting = true;
+                source.alpha_blend = 1;
+            }
         }
         self.palette.add(source);
     }
@@ -276,6 +323,43 @@ mod tests {
         let picture = Picture { width: 1, height: 1, rgba: vec![10, 20, 250, 7] };
         let flipped = bake_normal(picture, 8, true);
         assert_eq!(flipped.rgba, vec![10, 235, 250, 255]);
+    }
+
+    fn write_png(path: &std::path::Path, width: u32, height: u32, rgba: &[u8]) {
+        let mut encoder = png::Encoder::new(std::fs::File::create(path).unwrap(), width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.write_header().unwrap().write_image_data(rgba).unwrap();
+    }
+
+    #[test]
+    fn a_translucent_material_bakes_a_blended_texture_with_the_opacity_in_the_alpha() {
+        let dir = std::env::temp_dir().join(format!("ride6-bikes-glass-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // Two texels of a 8 x 4 picture: clear on the left half, a red lens on the right.
+        let texel = |x: u32| if x < 4 { [255, 255, 255, 0] } else { [173, 0, 5, 36] };
+        let rgba: Vec<u8> = (0..32).flat_map(|i| texel(i % 8)).collect();
+        write_png(&dir.join("glass_d.png"), 8, 4, &rgba);
+        let material = Material {
+            name: "mat_glass".into(),
+            blend_mode: Some("BLEND_TranslucentGreyTransmittance".into()),
+            base_color: Some("glass_d".into()),
+            transmittance: Some("glass_d".into()),
+            transmittance_max: Some(0.95),
+            ..Material::default()
+        };
+        let mut surfaces = Surfaces::new(TexStore::open(&dir).unwrap(), Options::default());
+        let surface = surfaces.surface("CAR", &material, Kind::Body).unwrap();
+        assert_eq!(surface.diffuse, "CAR_GLASS_D");
+        assert!(surface.normal.is_none() && surface.pbr.is_none());
+        assert!((surface.glass.as_ref().unwrap().max - 0.95).abs() < 1e-6);
+        let textures = std::mem::take(&mut surfaces.palette).into_textures();
+        std::fs::remove_dir_all(&dir).unwrap();
+        let [glass] = textures.as_slice() else { panic!("{} textures", textures.len()) };
+        assert_eq!(glass.format, PixelFormat::Dxt5);
+        assert!(glass.alpha_sorting && glass.alpha_blend == 1);
+        assert_eq!(glass.alpha_usage, AlphaUsage::Modulated);
+        assert_eq!(glass.flags & TWO_SIDED, 0, "a blended surface is drawn one-sided like the stock windows");
     }
 
     #[test]

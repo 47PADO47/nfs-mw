@@ -22,6 +22,9 @@ use crate::stamp;
 const STAGING: &str = ".staging";
 /// The rider's riding style: 1 is the plain one (`ride6-rider-import --style`).
 const RIDING_STYLE: u8 = 1;
+/// The two files of the rider's export folder that make his ragdoll.
+const RAGDOLL_ASSET: &str = "RiderGP_PhysicsAsset.json";
+const RAGDOLL_BLUEPRINT: &str = "RiderBP.json";
 /// The folders the game reads, which a promotion replaces together.
 const CONTENT: [&str; 2] = ["files", "cars"];
 
@@ -131,6 +134,18 @@ fn spawn(max_texture: u32, inputs: Inputs, mod_dir: PathBuf, stamp: String) -> R
     Ok(Job { receiver, cancel, thread: Some(thread) })
 }
 
+/// The rider's pack from his export folder: the riding pack, and the fall's `ragdoll.json` when the folder also holds the two
+/// files it is made from (`RiderGP_PhysicsAsset.json`, `RiderBP.json`); without them the rider stays on a bike that falls.
+fn rider_files(export: &Path, files: &Path) -> Result<()> {
+    crate::rider::import(export, files, RIDING_STYLE)?;
+    let (asset, blueprint) = (export.join(RAGDOLL_ASSET), export.join(RAGDOLL_BLUEPRINT));
+    if !asset.is_file() || !blueprint.is_file() {
+        return Ok(());
+    }
+    crate::rider_ragdoll::import(&asset, &blueprint, files)?;
+    Ok(())
+}
+
 fn build(max_texture: u32, inputs: &Inputs, staging: &Path, stamp: &str, cancel: &AtomicBool) -> Result<Report> {
     let input = batch::Input {
         source: &inputs.source,
@@ -145,7 +160,7 @@ fn build(max_texture: u32, inputs: &Inputs, staging: &Path, stamp: &str, cancel:
     let mut report = batch::run(&input, staging)?;
     if let Some(rider) = &inputs.rider {
         let files = staging.join("files").join("RIDER");
-        report.rider_failed = crate::rider::import(rider, &files, RIDING_STYLE).err().map(|error| format!("{error:#}"));
+        report.rider_failed = rider_files(rider, &files).err().map(|error| format!("{error:#}"));
     }
     // The stamp is written last: a staging folder without one was cut short and is thrown away.
     stamp::save(staging, stamp).context("saving the import stamp")?;

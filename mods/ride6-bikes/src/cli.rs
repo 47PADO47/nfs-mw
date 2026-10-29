@@ -6,6 +6,8 @@
 //! remanifest <bike folder> <mod folder> --physics <file or dump> [--tyre-tables <dir>] [--car <ID>] [--name ..]
 //!            [--manufacturer ..] [--sound-dir <dir>]
 //!                                              write cars/<id>.toml again from built.json and the physics data
+//! contacts <source or bike folder> <mod folder> --physics <dump>
+//!                                              write files/CARS/<ID>/RIDER/contacts.json of each bike (no meshes)
 //! ```
 
 use std::path::PathBuf;
@@ -13,11 +15,13 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::Parser;
 
+use crate::batch;
 use crate::bike_table;
 use crate::manifest::{self, Tables};
 use crate::manifest_sound;
 use crate::naming;
 use crate::partfile::PartTable;
+use crate::rider::contacts as rider_contacts;
 use crate::summary::Summary;
 
 /// `ids`: the names the importer gives a set of bikes. The ids are unique within the set ([`naming::assign`]), so the whole
@@ -93,5 +97,44 @@ pub fn remanifest(args: &[String]) -> Result<()> {
         println!("{car}: note: {note}");
     }
     println!("{car}: manifest written from the physics data");
+    Ok(())
+}
+
+#[derive(Parser)]
+#[command(
+    about = "Write the rider's contact points (RIDER/contacts.json) of already imported bikes, from their parts.json"
+)]
+struct Contacts {
+    /// One bike's folder (it has a `parts.json`), or the exporter's output with one folder per bike. The car ids of a set
+    /// are assigned as the batch import assigns them.
+    source: PathBuf,
+    /// The mod folder: `files/CARS/<ID>/RIDER/contacts.json` is written for each bike; nothing else is touched.
+    mod_dir: PathBuf,
+    /// The physics dump folder (for the correction rows of `RiderAnimationCorrection_DT`).
+    #[arg(long)]
+    physics: PathBuf,
+}
+
+/// `contacts`: the contact points of bikes already imported, without converting any mesh.
+pub fn contacts(args: &[String]) -> Result<()> {
+    let args = Contacts::try_parse_from(std::iter::once("contacts".to_owned()).chain(args.iter().cloned()))?;
+    let (found, _) = match args.source.join("parts.json").is_file() {
+        true => {
+            let table = PartTable::read(&args.source)?;
+            (vec![batch::Found { dir: args.source.clone(), vehicle: table.vehicle }], Vec::new())
+        }
+        false => batch::discover(&args.source)?,
+    };
+    let vehicles: Vec<String> = found.iter().map(|f| f.vehicle.clone()).collect();
+    let ids = naming::assign(&vehicles);
+    let mut written = 0;
+    for (bike, car) in found.iter().zip(&ids) {
+        let car_dir = args.mod_dir.join("files").join("CARS").join(car.to_ascii_uppercase());
+        match rider_contacts::write(&bike.dir, &car_dir, &args.physics) {
+            Ok(_) => written += 1,
+            Err(error) => println!("{car}: contact points not written: {error:#}"),
+        }
+    }
+    println!("contact points written for {written} of {} bikes", found.len());
     Ok(())
 }

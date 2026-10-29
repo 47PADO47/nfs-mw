@@ -104,6 +104,7 @@ fn sound_command(argv: &[String]) -> Option<Result<()>> {
         "extract-bnk" => Some(sound::cli::extract_bnk(rest)),
         "ids" => Some(cli::ids(rest)),
         "remanifest" => Some(cli::remanifest(rest)),
+        "contacts" => Some(cli::contacts(rest)),
         _ => None,
     }
 }

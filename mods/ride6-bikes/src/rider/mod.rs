@@ -14,8 +14,11 @@
 //! Output, in `files/RIDER/` of the mod (never committed): `rider.bbsk` (the pack), `graph.json` (the blend tree),
 //! `attach.json` (seat, pegs, grips, the limbs to solve and the numbers that drive the animation), `parts.json` (meshes and
 //! their pictures) and the pictures.
+//!
+//! Each bike's own seat, grips and pegs are not in that folder: `ride6-bike-import` writes them per car ([`contacts`]).
 
 pub mod attach;
+pub mod contacts;
 pub mod convert;
 pub mod graph;
 pub mod parts;

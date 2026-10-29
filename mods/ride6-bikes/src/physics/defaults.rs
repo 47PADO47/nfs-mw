@@ -121,4 +121,14 @@ pub mod gearbox {
     pub const FEATHER_DELTA_TIME: f64 = 0.01;
     pub const FEATHER_RPM_RAISE: f64 = 0.05;
     pub const FEATHER_RELEASE_FACTOR: f64 = 1.0;
+    /// `ClutchTimingOnGearChange` and `ThrottleTimingOnGearChange`: the constructor default, `(0, 0)`.
+    pub const CLUTCH_TIMING: [f64; 2] = [0.0, 0.0];
+    pub const THROTTLE_TIMING: [f64; 2] = [0.0, 0.0];
+    /// `MinRPMSpeedScaleRange`: the constructor default.
+    pub const MIN_RPM_SPEED_SCALE_RANGE: [f64; 2] = [1.05, 1.1];
+    /// `ForceGearDownChangeBrakeFactor` and `...Linearity`: the constructor defaults of the road-bike handler, 0 (off) and 2.
+    pub const FORCE_DOWN_FACTOR: f64 = 0.0;
+    pub const FORCE_DOWN_LINEARITY: f64 = 2.0;
+    /// `SlipperClutchFilterSpeed`: the constructor default of the transmission data, 0 (no filter).
+    pub const SLIPPER_FILTER_SPEED: f64 = 0.0;
 }

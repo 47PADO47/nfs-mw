@@ -90,6 +90,10 @@ pub struct Material {
     pub pbr: Option<String>,
     /// The packed texture holds specular, roughness, metallic and occlusion (else the first three only).
     pub pbr_has_occlusion: bool,
+    /// The transmittance picture of a translucent material (`Transmittance - Texture`) and its `Modulation - Transmittance -
+    /// Max` (the red channel of the vector; a material that has none transmits all).
+    pub transmittance: Option<String>,
+    pub transmittance_max: Option<f32>,
 }
 
 pub struct PartTable {
@@ -210,6 +214,13 @@ fn read_material(name: &str, value: &Value) -> Material {
         normal: texture(&tex, "Normal - Texture").or_else(|| texture(&tex, "CleanNormal")),
         pbr: texture(&tex, "PBR - Texture").or_else(|| texture(&tex, "Pbr")),
         pbr_has_occlusion: switch("LegacyTexturesFormats - PBR - S_R_M_O"),
+        transmittance: texture(&tex, "Transmittance - Texture"),
+        transmittance_max: value
+            .get("vector")
+            .and_then(|v| v.get("Modulation - Transmittance - Max"))
+            .and_then(|v| v.get(0))
+            .and_then(Value::as_f64)
+            .map(|m| m as f32),
     }
 }
 
@@ -220,6 +231,18 @@ impl Material {
             return None;
         }
         self.clip
+    }
+
+    /// Whether the surface lets the scene behind it through (the screen, the lamp lenses): `BLEND_TranslucentGreyTransmittance`,
+    /// the blend mode of the thin translucent shading model.
+    pub fn is_translucent(&self) -> bool {
+        self.blend_mode.as_deref() == Some("BLEND_TranslucentGreyTransmittance")
+    }
+
+    /// The picture whose colour is the transmittance of a translucent material: its own transmittance picture, else the base
+    /// colour (the material overrides the base colour with the transmittance colour).
+    pub fn transmittance_picture(&self) -> Option<&str> {
+        self.transmittance.as_deref().or(self.base_color.as_deref())
     }
 
     /// A decal laid over glass: not part of the bike's body.

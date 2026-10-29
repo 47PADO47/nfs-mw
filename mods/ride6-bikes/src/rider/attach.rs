@@ -8,7 +8,7 @@ use blackbox_skeleton::{Pose, Skeleton, Transform};
 use glam::Vec3;
 use serde_json::{Value, json};
 
-use super::convert;
+use super::contacts;
 use super::raw::JsonSkeleton;
 
 /// The bike socket that is the seat: the rider's root bone sits there.
@@ -43,9 +43,6 @@ pub const REFERENCE_CLIP: &str = "motard_CenterPose_LowSpeed";
 /// The rider bone the inertia moves: the pelvis carries the legs, the spine and so the arms and head.
 const INERTIA_BONE: &str = "pelvis";
 
-/// `SpeedThresholdBasedOnBike` of bike type 2 (motard): the speed from which the rider tucks in, km/h. Data
-/// (`SpeedThresholdTuck-In` of the animation blueprint).
-const TUCK_SPEED_KMH: f32 = 140.0;
 /// `InertiaDisplacement_RidingMin` and `Max` of the animation blueprint, centimetres in the rider's frame of Unreal (left,
 /// forward, up) as `[left, forward, up]`, here in metres: the rider's body moves 15 cm sideways, 0 to 6 cm back and -4
 /// to 20 cm up. Data.
@@ -58,22 +55,6 @@ const INERTIA_BRAKING_M: f32 = 0.06;
 /// The acceleration that moves the rider the full distance, m/s^2. A **choice**: one g, about what a tyre of friction one
 /// can brake or accelerate at (the data's `5..40` range of the native input has no stated unit).
 const INERTIA_FULL_ACCELERATION: f32 = 9.81;
-/// Smoothing rate of `TuckedIn_Alpha`, 1/s. A **choice** (the spec's table: "smoothed at 6").
-const TUCK_RATE: f32 = 6.0;
-/// Smoothing rate of the lean the rider's clips are blended by, 1/s. A **choice**: the blueprint's four smoothing speeds
-/// (4, 2, 3, 4) are not tied to variables by the cooked data; the first is used.
-const LEAN_RATE: f32 = 4.0;
-/// Smoothing rate of the wheelie amount, 1/s. A **choice**, from the blueprint's `Wheelie/ Stoppie` function (smoothing 3).
-const WHEELIE_RATE: f32 = 3.0;
-/// Smoothing rate of `StoppieValue`, 1/s. Data: `Wheelie/ Stoppie` smooths it at speed 3.
-const STOPPIE_RATE: f32 = 3.0;
-
-fn transform_json(t: &Transform) -> Value {
-    json!({
-        "translation": t.translation.to_array(),
-        "rotation": t.rotation.to_array(),
-    })
-}
 
 /// A point of the bike's frame as a point of the rider's component space, for a rider whose root sits at `seat`.
 #[must_use]
@@ -93,33 +74,15 @@ pub fn tip_offset(tip_in_pose: Vec3, seat: &Transform, target: Vec3) -> Vec3 {
 /// mesh origin) at the bike's rest pose; offsets and limb data are in the rider's component space. `reference` is the
 /// rider's authored pose the tip offsets are measured on ([`REFERENCE_CLIP`]).
 pub fn attach_json(rider: &Skeleton, reference: &Pose, bike: &JsonSkeleton) -> Result<Value> {
-    let (bike_skeleton, sockets) = convert::skeleton(bike)?;
-    let mut component = Vec::new();
-    bike_skeleton.component_transforms(&bike_skeleton.rest_pose().local, &mut component)?;
-    let world = |name: &str| -> Result<Transform> {
-        let socket =
-            sockets.iter().find(|s| s.name == name).with_context(|| format!("the bike has no socket {name}"))?;
-        Ok(component[socket.bone].compose(socket.transform))
-    };
-    let hub = |name: &str| -> Result<Vec3> {
-        let bone = bike_skeleton.find(name).with_context(|| format!("the bike has no bone {name}"))?;
-        Ok(component[bone].translation)
-    };
-    let seat = world(SEAT_SOCKET)?;
+    let points = contacts::points(bike)?;
+    let seat = points.seat;
     let rider_component = reference.component(rider)?;
-    let mut targets = Vec::new();
-    for (role, socket, steers) in TARGETS {
-        let at = world(socket)?;
-        targets.push(json!({ "name": role, "position": at.translation.to_array(), "steers": steers }));
-    }
     let mut limbs = Vec::new();
     for (name, root, mid, tip, pole, role) in LIMBS {
         for bone in [root, mid, tip, pole] {
             rider.find(bone).with_context(|| format!("the rider has no bone {bone}"))?;
         }
-        let (_, socket, _) =
-            TARGETS.iter().find(|(r, _, _)| *r == role).with_context(|| format!("no target {role}"))?;
-        let target = world(socket)?.translation;
+        let target = points.target(role)?.translation;
         let tip_index = rider.find(tip).with_context(|| format!("the rider has no bone {tip}"))?;
         let offset = tip_offset(rider_component[tip_index].translation, &seat, target);
         limbs.push(json!({
@@ -130,20 +93,10 @@ pub fn attach_json(rider: &Skeleton, reference: &Pose, bike: &JsonSkeleton) -> R
     rider.find(INERTIA_BONE).with_context(|| format!("the rider has no bone {INERTIA_BONE}"))?;
     // Unreal's rider frame is (left, forward, up); the file's inertia axes are the bike's (forward, left, up).
     let to_bike = |v: [f32; 3]| [v[1], v[0], v[2]];
-    Ok(json!({
+    let mut json = json!({
         "frame": "car: x forward, y left, z up, metres, bike rest pose, origin of the bike skeleton",
-        "rider_root_in_bike": transform_json(&seat),
-        "hubs": { "front": hub(HUB_BONES.0)?.to_array(), "rear": hub(HUB_BONES.1)?.to_array() },
-        "targets": targets,
         "limbs": limbs,
         "reference_clip": REFERENCE_CLIP,
-        "inputs": {
-            "tuck_speed_kmh": TUCK_SPEED_KMH,
-            "tuck_rate": TUCK_RATE,
-            "lean_rate": LEAN_RATE,
-            "wheelie_rate": WHEELIE_RATE,
-            "stoppie_rate": STOPPIE_RATE,
-        },
         "inertia": {
             "bone": INERTIA_BONE,
             "min": to_bike(INERTIA_RIDING.0),
@@ -152,7 +105,11 @@ pub fn attach_json(rider: &Skeleton, reference: &Pose, bike: &JsonSkeleton) -> R
             "full_acceleration": INERTIA_FULL_ACCELERATION,
             "rate": INERTIA_RATE,
         },
-    }))
+    });
+    if let Some(map) = json.as_object_mut() {
+        map.extend(points.placement());
+    }
+    Ok(json)
 }
 
 #[cfg(test)]
@@ -236,7 +193,7 @@ mod tests {
         let (front, rear) = (json["hubs"]["front"][0].as_f64().unwrap(), json["hubs"]["rear"][0].as_f64().unwrap());
         assert!((front - 0.73).abs() < 1e-5 && (rear + 0.74).abs() < 1e-5);
         assert_eq!(json["limbs"][0]["target"], "left_grip");
-        assert_eq!(json["inputs"]["tuck_speed_kmh"], 140.0);
+        assert!(json.get("inputs").is_none(), "the smoothing rates are the animation script's, not the file's");
         // The inertia ranges are the bike's axes: the forward range is the data's (-6 cm, 0).
         assert!((json["inertia"]["min"][0].as_f64().unwrap() + 0.06).abs() < 1e-6);
         assert!((json["inertia"]["max"][1].as_f64().unwrap() - 0.15).abs() < 1e-6);
