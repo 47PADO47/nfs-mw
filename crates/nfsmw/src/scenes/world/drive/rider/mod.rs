@@ -311,6 +311,9 @@ enum State {
 #[derive(Default)]
 pub struct Rider {
     state: State,
+    /// The model the rider was loaded for: another model (a bike chosen in the garage) has other grips, pegs and seat, so the
+    /// rider is loaded again for it.
+    loaded_for: String,
     /// The rider is not drawn: the arrest scene plays the player's bike on its own, and the rider is not part of it.
     hidden: bool,
 }
@@ -340,10 +343,17 @@ impl Rider {
         model: &CarModel,
         (pose, bike): (&CarPose, bool),
     ) {
+        if self.loaded_for != model.name && !matches!(self.state, State::Unloaded) {
+            if let State::Ready(rig) = std::mem::take(&mut self.state) {
+                rig.release(renderer);
+            }
+            self.loaded_for.clear();
+        }
         if matches!(self.state, State::Unloaded) {
             if !bike {
                 return;
             }
+            self.loaded_for.clone_from(&model.name);
             self.state = match RiderRig::load(renderer, dir, model) {
                 Ok(Some(rig)) => State::Ready(Box::new(rig)),
                 Ok(None) => {
