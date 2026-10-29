@@ -8,6 +8,9 @@ Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
 
 Player countdown follow-up: [clutch state and comparison boundaries](player-countdown-drivetrain.md).
 
+Vehicle components (ADR 0014): [vehicle-components/](vehicle-components/README.md) (data model, resolution, manifest, runtime and worked
+examples for the 2005, 2012 and RIDE 6 vehicles; the plan is [plans/vehicle-components.md](../plans/vehicle-components.md)).
+
 Driving extensions: [performance-upgrades.md](performance-upgrades.md),
 [speedbreaker.md](speedbreaker.md), [vehicle-jump-stabilizers.md](vehicle-jump-stabilizers.md),
 and [vehicle-ground-reference.md](vehicle-ground-reference.md) (persistent body terrain queries).
