@@ -59,3 +59,25 @@ body, world dynamic ignored).
 The name broadcast for each kind of fall (the codes and the names were matched by their meaning, not traced); that the buffer's
 oldest entry is exactly two frames old; which of the vehicle's mass the rider takes with him; the physical-animation blend (the
 strengths and the clip choice); the get-up sequence. No statement here was tested in the running game (the game must not be launched).
+
+## Fall animation (round F)
+
+Covers [ride6-rider-fall-animation](../specs/ride6-rider-fall-animation.md). Same sources as above; the animation blueprint was read from the
+pseudo-code and JSON the scratch exporter writes (`RiderGP_racing_Master_animBlueprint`: baked state machines, the property-access library's
+source-to-destination bindings, the ubergraph's transition rules), and the executable by the same headless Ghidra procedure (a private copy of the
+project).
+
+| Topic | Where | How verified |
+|---|---|---|
+| The machines `Falling` and `Fall_Side`, their states, crossfades, clips | the blueprint's baked state machines (indices 8 and 9); a baked node number `n` is entry `449 - n` of the class's node list | the state roots resolve to the state-result nodes, their players to the clips |
+| The blend alphas | the property-access library: `RagdollSide`, `RagdollFace`, `Ragdoll_FlyingAmount`, `IsFallen_Alpha` into the `Alpha` of each blend node (11 bindings); the `AlphaScaleBias` of each two-way blend | read |
+| The rules | the ubergraph: `FallType == 2`/`3`, `RagdollFace < -0.6`, `-0.2 < RagdollFace < 0.2`, `> 0.6`, each `AND Ragdoll_isLowSpeed AND NOT Ragdoll_isFlying`; `Ragdoll()`: low speed `< 0.5`, flying `AirborneDistance > 1`, flying amount `FuzzifyRamp(., 1, 2.5)`; `IsFallen_Alpha` `SmoothFloat_Interpolate(., 3)` | read |
+| The variables' source | animation instance update `0x145b24c50`: `RagdollSpeed` = |v| times the constant at `0x148fbad68` (0.01), `RagdollFace` and `RagdollSide` the vertical parts of the owner's forward (`0x143c596d0`) and right (`0x143c066c0`) vectors, the strength multiplier written through `0x145b58090` (field `+0xb8` of the physical-animation component) | read; the constants from the data section |
+| `IsFallen` | `OnRagdollSimulationChanged` `0x145b17450` (also `0x145b15910`, `0x145b11fe0`): sets `+0x60c` to 1 or 0, copies the fall type to `+0x660`, resets the clock `+0xb24`, calls `EventFallen(f, 1 - f)` | read |
+| The component's setup | `EnableSimulation` body `0x145b43720`: physics blend weight (`+0x258`) through `0x1443502f0`, physical-animation settings (`+0x270`) through `0x145b35f50` | read |
+| The strength | the curve `Ragdoll_strength_Race`: 1,000,000 constant over 0 to 10 s; `RiderBP`: `StrengthMultiplyer` 0, `EnableConstraintBasedBlend` true, `PhysicsAssetOverride` `RiderGP_PhysicsAsset_CB` | data |
+
+Not found: the raise-bike component's durations (`BeforeGetUpDuration`, `GetUpDuration`, `RaiseBikeDuration`; no blueprint of the install overrides them, the
+constructor was not traced), the loop flags of the sequence players, the library function behind `SmoothFloat_Interpolate`, the engine's
+component-to-root-body sync (so the owner's axes are taken from the pelvis), the physics blend weight and physical-animation defaults of the ragdoll
+component's constructor. No statement was tested in the running game (it must not be launched).

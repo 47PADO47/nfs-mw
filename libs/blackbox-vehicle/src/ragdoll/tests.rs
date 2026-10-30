@@ -183,3 +183,53 @@ fn a_damped_joint_stops_spinning_a_free_one_does_not() {
     assert!(spin(4.0) < 0.05, "{}", spin(4.0));
     assert!(spin(0.0) > 0.5, "{}", spin(0.0));
 }
+
+#[test]
+fn a_driven_joint_holds_its_child_at_the_target_against_gravity_and_a_limp_one_does_not() {
+    let ground = FlatGround::new(0.0);
+    // The child stands on the parent's end, high in the air, with a bend of 60 degrees the drive has to undo.
+    let build = |driven: bool| {
+        let mut body = Ragdoll::new(&chain(FREE, 5.0, 1.0), Vec3::ZERO, Vec3::ZERO);
+        if driven {
+            body.set_drive_gain(0.5);
+            body.drive(0, Quat::from_rotation_z(0.5));
+        }
+        body
+    };
+    let mut driven = build(true);
+    run(&mut driven, 0.25, &ground);
+    assert!(driven.drive_error(0) < 0.03, "the child is at its target: {}", driven.drive_error(0));
+    assert!(driven.joint_gap(0) < 0.01 && driven.is_finite());
+    let mut limp = build(false);
+    run(&mut limp, 0.25, &ground);
+    assert!(limp.drive_error(0) == 0.0, "a limp joint has no target");
+    // The parent does not stay still either: it turns by its share of the move, the pair together keeping their total momentum.
+    assert!(driven.orientation(0).angle_between(Quat::IDENTITY) > 0.01);
+}
+
+#[test]
+fn a_drive_follows_a_moving_target_and_lets_go_when_released() {
+    let ground = FlatGround::new(0.0);
+    let mut body = Ragdoll::new(&chain(FREE, 5.0, 0.0), Vec3::ZERO, Vec3::ZERO);
+    body.set_drive_gain(0.5);
+    assert_eq!(body.joint_count(), 1);
+    for step in 0..60 {
+        body.drive(0, Quat::from_rotation_z(step as f32 * 0.01));
+        body.step(FIXED_STEP, &ground);
+    }
+    assert!(body.drive_error(0) < 0.05, "{}", body.drive_error(0));
+    body.release_drives();
+    assert_eq!(body.drive_error(0), 0.0);
+    body.drive(7, Quat::IDENTITY);
+    body.drive(0, Quat::from_xyzw(f32::NAN, 0.0, 0.0, 1.0));
+    assert_eq!(body.drive_error(0), 0.0, "a target that is not a rotation is no target");
+}
+
+#[test]
+fn with_the_gain_at_zero_a_drive_does_nothing() {
+    let ground = FlatGround::new(0.0);
+    let mut body = Ragdoll::new(&chain(FREE, 5.0, 1.0), Vec3::ZERO, Vec3::ZERO);
+    body.drive(0, Quat::IDENTITY);
+    run(&mut body, 0.1, &ground);
+    assert!(body.drive_error(0) > 0.5, "{}", body.drive_error(0));
+}

@@ -64,6 +64,27 @@ fn exports<'a>(file: &'a Value, kind: &'a str) -> impl Iterator<Item = &'a Value
     file.as_array().into_iter().flatten().filter(move |e| e["Type"] == kind)
 }
 
+/// The first shape of a kind in an asset's geometry.
+fn first<'a>(geometry: &'a Value, kind: &str) -> Option<&'a Value> {
+    geometry[kind].as_array()?.first()
+}
+
+/// A box (`FKBoxElem`: the full sizes `X`, `Y`, `Z`, cm) as the capsule that stands for it: along the box's longest side, with the mean
+/// half-size of the other two as its radius and the rest of the longest side as its straight part. A modelling choice: the physics
+/// solver of the game has capsules only; the rider's `_CB` asset gives the hands boxes. Returns the axis in the shape's frame, the
+/// radius and the straight length (cm).
+fn box_capsule(boxed: &Value) -> (Vec3, f32, f32) {
+    let sizes = [
+        (Vec3::X, number(boxed, "X").unwrap_or(0.0)),
+        (Vec3::Y, number(boxed, "Y").unwrap_or(0.0)),
+        (Vec3::Z, number(boxed, "Z").unwrap_or(0.0)),
+    ];
+    let longest = sizes.iter().copied().fold(sizes[0], |best, size| if size.1 > best.1 { size } else { best });
+    let others: Vec<f32> = sizes.iter().filter(|size| size.0 != longest.0).map(|size| size.1).collect();
+    let radius = others.iter().sum::<f32>() / 4.0;
+    (longest.0, radius, (longest.1 - 2.0 * radius).max(0.0))
+}
+
 /// The capsule bodies of the asset: mass (`MassInKgOverride`) and the first capsule of the shapes, in the rider's frame and metres.
 pub fn bodies(asset: &Value) -> Result<Vec<Body>> {
     let mut out = Vec::new();
@@ -73,19 +94,31 @@ pub fn bodies(asset: &Value) -> Result<Vec<Body>> {
         let Some(mass) = number(&props["DefaultInstance"], "MassInKgOverride") else {
             bail!("the body of {bone} has no mass (MassInKgOverride)");
         };
-        let Some(capsule) = props["AggGeom"]["SphylElems"].as_array().and_then(|shapes| shapes.first()) else {
-            bail!("the body of {bone} has no capsule");
+        let geometry = &props["AggGeom"];
+        let (shape, along, radius, length) = match first(geometry, "SphylElems") {
+            Some(capsule) => {
+                // A capsule's axis is the Z axis of its shape.
+                let (radius, length) =
+                    (number(capsule, "Radius").unwrap_or(0.0), number(capsule, "Length").unwrap_or(0.0));
+                (capsule, Vec3::Z, radius, length)
+            }
+            None => {
+                let Some(boxed) = first(geometry, "BoxElems") else {
+                    bail!("the body of {bone} has no capsule or box")
+                };
+                let (along, radius, length) = box_capsule(boxed);
+                (boxed, along, radius, length)
+            }
         };
-        let (radius, length) = (number(capsule, "Radius").unwrap_or(0.0), number(capsule, "Length").unwrap_or(0.0));
-        let centre = vector(capsule, "Center").unwrap_or([0.0; 3]);
-        let rotation = &capsule["Rotation"];
+        let centre = vector(shape, "Center").unwrap_or([0.0; 3]);
+        let rotation = &shape["Rotation"];
         let q = convert::rotator_quat(
             number(rotation, "Pitch").unwrap_or(0.0),
             number(rotation, "Yaw").unwrap_or(0.0),
             number(rotation, "Roll").unwrap_or(0.0),
         );
-        // A capsule's axis is the Z axis of its shape, in the bone's frame.
-        let axis = Quat::from_xyzw(q[0], q[1], q[2], q[3]) * Vec3::Z;
+        // The axis, in the bone's frame.
+        let axis = Quat::from_xyzw(q[0], q[1], q[2], q[3]) * along;
         out.push(Body {
             bone: bone.to_owned(),
             mass,

@@ -11,6 +11,8 @@
 //! - [`blend_space`], [`graph`]: a blend tree (`Clip`, `Blend`, `ThreeWay`, `Additive`, `Layer`, `Space`, `Select`)
 //!   whose weights are named parameters, evaluated into a pose.
 //! - [`ik`]: two-bone IK with a pole.
+//! - [`fall`]: the animation of a character thrown to the ground (launch, tumble and get-up trees and the state machine that
+//!   plays them).
 //! - [`skin`]: skinning matrices and CPU linear-blend skinning of vertex arrays.
 //! - [`pack`]: the binary container of a character (skeleton, sockets, clips, skinned meshes).
 //!
@@ -21,6 +23,7 @@ mod bytes;
 pub mod clip;
 mod clip_io;
 mod error;
+pub mod fall;
 pub mod graph;
 pub mod ik;
 pub mod pack;
@@ -32,6 +35,7 @@ pub mod transform;
 pub use blend_space::{Axis, BlendSpace, SpaceSample};
 pub use clip::{Channel, Clip, Notify, Track};
 pub use error::{Error, Result};
+pub use fall::{FallInput, FallPlayer, FallSet};
 pub use graph::{EvalContext, Graph, Node, TimeMode, Value};
 pub use ik::{TwoBoneChain, apply_two_bone};
 pub use pack::{MeshLod, Pack, Section, SkinnedMesh, Socket};

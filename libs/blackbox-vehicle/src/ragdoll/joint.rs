@@ -124,3 +124,26 @@ pub(super) fn solve_limits(bodies: &mut [Body], joint: &Joint, slack: Vec3) {
     child.rotate(child_turn);
     parent.rotate(-parent_turn);
 }
+
+/// Turn the child and the parent, each by its share, so that the child's orientation goes a fraction `gain` (0 to 1) of the way to
+/// `target`, the orientation the child should have in the parent's body frame: the stiff angular drive of a body that follows an
+/// animation.
+pub(super) fn solve_drive(bodies: &mut [Body], joint: &Joint, target: Quat, gain: f32) {
+    let (parent, child) = pair(bodies, joint.parent, joint.child);
+    let mut error = (parent.q * target) * child.q.inverse();
+    if error.w < 0.0 {
+        error = -error;
+    }
+    let turn = error.to_scaled_axis();
+    let angle = turn.length();
+    let Some(n) = turn.try_normalize() else { return };
+    let (wp, wc) = (n.dot(parent.inv_world() * n), n.dot(child.inv_world() * n));
+    let total = wp + wc;
+    if total <= 0.0 {
+        return;
+    }
+    let lambda = gain.clamp(0.0, 1.0) * angle / total;
+    let (child_turn, parent_turn) = (child.inv_world() * n * lambda, parent.inv_world() * n * lambda);
+    child.rotate(child_turn);
+    parent.rotate(-parent_turn);
+}

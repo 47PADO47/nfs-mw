@@ -51,6 +51,8 @@ pub enum TimeMode {
     Fraction(Value),
     /// Always the first frame.
     Hold,
+    /// Plays once and holds the last frame: clip time is `context time * rate`, clamped to the clip's length.
+    Once { rate: f32 },
 }
 
 /// One node of a blend tree.
@@ -113,6 +115,60 @@ impl Node {
                 match options.get(i) {
                     Some(node) => node.evaluate(ctx),
                     None => ctx.skeleton.rest_pose(),
+                }
+            }
+        }
+    }
+
+    /// The clip with the largest share of the pose at these parameters (the first on a tie), or `None` for a tree with no clip. A
+    /// state machine that moves on when the clip it plays is about to end watches this one.
+    #[must_use]
+    pub fn dominant_clip(&self, params: &[f32]) -> Option<usize> {
+        let mut shares = Vec::new();
+        self.shares(params, 1.0, &mut shares);
+        let mut best: Option<(usize, f32)> = None;
+        for (clip, share) in shares {
+            if best.is_none_or(|(_, kept)| share > kept) {
+                best = Some((clip, share));
+            }
+        }
+        best.map(|(clip, _)| clip)
+    }
+
+    /// The clips under this node with their shares of the pose, `weight` being the share of the node itself.
+    fn shares(&self, params: &[f32], weight: f32, out: &mut Vec<(usize, f32)>) {
+        if weight <= 0.0 {
+            return;
+        }
+        match self {
+            Self::Clip { clip, .. } => out.push((*clip, weight)),
+            Self::Blend { a, b, weight: w } => {
+                let k = w.eval(params).clamp(0.0, 1.0);
+                a.shares(params, weight * (1.0 - k), out);
+                b.shares(params, weight * k, out);
+            }
+            Self::ThreeWay { negative, zero, positive, param } => {
+                let p = param.eval(params).clamp(-1.0, 1.0);
+                zero.shares(params, weight * (1.0 - p.abs()), out);
+                let side = if p < 0.0 { negative } else { positive };
+                side.shares(params, weight * p.abs(), out);
+            }
+            Self::Additive { base, .. } => base.shares(params, weight, out),
+            Self::Layer { base, layer, weight: w, .. } => {
+                let k = w.eval(params).clamp(0.0, 1.0);
+                base.shares(params, weight * (1.0 - k), out);
+                layer.shares(params, weight * k, out);
+            }
+            Self::Space { space, x, y, .. } => {
+                for (i, w) in space.weights(x.eval(params), y.eval(params)) {
+                    out.push((space.samples[i].clip, weight * w));
+                }
+            }
+            Self::Select { options, index } => {
+                let last = options.len().saturating_sub(1);
+                let i = (index.eval(params).round().max(0.0) as usize).min(last);
+                if let Some(node) = options.get(i) {
+                    node.shares(params, weight, out);
                 }
             }
         }
@@ -184,6 +240,7 @@ fn clip_pose(ctx: &EvalContext, clip: usize, mode: TimeMode) -> Pose {
         TimeMode::Loop { rate } => c.sample(ctx.skeleton, ctx.time * rate, true),
         TimeMode::Fraction(v) => c.sample(ctx.skeleton, v.eval(ctx.params).clamp(0.0, 1.0) * c.length, false),
         TimeMode::Hold => c.sample(ctx.skeleton, 0.0, false),
+        TimeMode::Once { rate } => c.sample(ctx.skeleton, (ctx.time * rate).clamp(0.0, c.length), false),
     }
 }
 
@@ -197,7 +254,8 @@ fn space_pose(ctx: &EvalContext, space: &BlendSpace, x: f32, y: f32, mode: TimeM
     let mean_length: f32 = clips.iter().map(|(c, w)| c.length * w).sum();
     let phase = match mode {
         TimeMode::Loop { rate } if mean_length > 0.0 => (ctx.time * rate / mean_length).rem_euclid(1.0),
-        TimeMode::Loop { .. } | TimeMode::Hold => 0.0,
+        TimeMode::Once { rate } if mean_length > 0.0 => (ctx.time * rate / mean_length).clamp(0.0, 1.0),
+        TimeMode::Loop { .. } | TimeMode::Once { .. } | TimeMode::Hold => 0.0,
         TimeMode::Fraction(v) => v.eval(ctx.params).clamp(0.0, 1.0),
     };
     let mut accumulated = 0.0;

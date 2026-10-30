@@ -57,7 +57,7 @@ only the world. The rider's physical material is `PM_RiderRagdoll_CB`: friction 
 (minimum combine for the restitution), sleep thresholds 5 cm/s linear and 1 rad/s angular; the road's is the material default 0.7
 (`PM_T_Tarmac` sets no friction), and the two average (the default combine mode).
 
-**The physics asset** `RiderGP_PhysicsAsset` [D]: 11 bodies, each one capsule on a bone, with a mass override (kg):
+**The physics asset** `RiderGP_PhysicsAsset` [D] (the rider blueprint's mesh overrides it with `RiderGP_PhysicsAsset_CB`, 16 bodies; see the page above, section 6): 11 bodies, each one capsule on a bone, with a mass override (kg):
 pelvis 7.0, `spine_02` 20.4 (the shoulders: radius 19.2 cm), head 4.3, upper arms 4.2, lower arms 2.3, thighs 7.0, calves 4.0, 66.7 kg
 in all; and 10 joints, each with a constraint frame on the child bone (default, the bone's own) and one on the parent bone (a
 primary and a secondary axis), a cone limit (swing 1 about the frame's Z, swing 2 about its Y), a twist limit (about X) and an
@@ -74,7 +74,7 @@ angular drive:
 
 (degrees). Linear damping is the default 0.01 (the pelvis 0.02), angular damping 0.
 
-**What the game adds on top, not modelled here** [D, B]: the ragdoll is not a bare simulation. The body drives itself towards a pose
+**What the game adds on top** [D, B] (modelled in [ride6-rider-fall-animation](ride6-rider-fall-animation.md): the physical animation, the fall clips and the get-up; the walk to the bike and the raising of it are not): the ragdoll is not a bare simulation. The body drives itself towards a pose
 (`RagdollStrengthCurve` is the constant 1,000,000 [D]; the component keeps a "kinetic" and an "animation" strength and blends
 them), and the rider's animation blueprint plays a **fall animation** chosen by how he lies (flags `Ragdoll_Fall_LeftRight`,
 `Ragdoll_UpRollDown`, `Ragdoll_isFlying`, `Ragdoll_isLowSpeed`, `Ragdoll_Airbag_Alpha`, `IsFallen`; an airborne distance over 1,
@@ -139,7 +139,7 @@ A bike thrown down at 20 m/s slides several metres on its side (test: more than 
 | Blend back | 0.25 s, smoothstep, in the world | no counterpart; the reference walks the rider to the bike |
 | Pose of the bones with no body | their local transforms from the riding pose, after their parent | physical animation is not modelled |
 
-Not modelled: the physical-animation drives and the fall animations; the random rotation and the damper offsets of the launch
+Not modelled here (the drives and the animations are, in the page above): the earlier version's physical-animation drives and fall animations; the random rotation and the damper offsets of the launch
 velocity (zero in the data); the airbag; the get-up, the walk and the raising of the bike; collision of the rider with the bike, with
 props and with walls (the ragdoll meets the road only); the `FallHighsideEffect` and `FallSteerComponent` of the handler; the
 upside-down, rider-force and collision tests of the chassis page.

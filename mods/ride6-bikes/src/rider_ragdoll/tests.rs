@@ -111,3 +111,20 @@ fn the_file_is_what_the_game_reads() {
     assert_eq!(back["bodies"][1]["bone"], json!("thigh_l"));
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn a_box_is_the_capsule_along_its_longest_side_with_the_mean_half_size_of_the_others_as_its_radius() {
+    // The hand of the `_CB` asset: 9.0 x 6.2 x 8.4 cm, longest along X.
+    let hand = json!([{"Type": "SkeletalBodySetup", "Properties": {
+        "BoneName": "hand_l", "DefaultInstance": {"MassInKgOverride": 3.0},
+        "AggGeom": {"BoxElems": [{"Center": {"X": 5.0, "Y": 0.0, "Z": 0.0}, "Rotation": {"Pitch": 0.0, "Yaw": 0.0, "Roll": 0.0},
+            "X": 9.0, "Y": 6.2, "Z": 8.4}]}}}]);
+    let bodies = asset::bodies(&hand).unwrap();
+    let body = &bodies[0];
+    // The radius is (6.2 + 8.4) / 4 = 3.65 cm and the straight part the rest of the 9 cm: 1.7 cm, half of it 0.85 cm.
+    assert!((body.radius - 0.0365).abs() < 1e-6 && (body.half_length - 0.0085).abs() < 1e-6, "{body:?}");
+    assert!(body.axis.x.abs() > 0.9999, "along the bone's x: {:?}", body.axis);
+    // Neither a capsule nor a box is refused.
+    let none = json!([{"Type": "SkeletalBodySetup", "Properties": {"BoneName": "hand_l", "DefaultInstance": {"MassInKgOverride": 3.0}, "AggGeom": {}}}]);
+    assert!(asset::bodies(&none).is_err());
+}

@@ -85,6 +85,10 @@ pub struct Ragdoll {
     joints: Vec<Joint>,
     /// The room each joint still has beyond its limits (swing about Z, swing about Y, twist; rad).
     slack: Vec<Vec3>,
+    /// The orientation each joint's child is driven to, in its parent's body frame (`None`: the joint is limp), and the share of
+    /// the way to it each solver pass goes.
+    drives: Vec<Option<Quat>>,
+    drive_gain: f32,
     friction: f32,
     damping: (f32, f32),
     joint_damping: f32,
@@ -124,6 +128,8 @@ impl Ragdoll {
             .collect();
         Self {
             bodies,
+            drives: vec![None; joints.len()],
+            drive_gain: 0.0,
             joints,
             slack,
             friction: spec.friction,
@@ -162,10 +168,45 @@ impl Ragdoll {
     }
 
     fn solve_joints(&mut self) {
-        for (joint, slack) in self.joints.iter().zip(&self.slack) {
+        for ((joint, slack), drive) in self.joints.iter().zip(&self.slack).zip(&self.drives) {
             joint::solve_point(&mut self.bodies, joint);
+            if let Some(target) = drive {
+                joint::solve_drive(&mut self.bodies, joint, *target, self.drive_gain);
+            }
             joint::solve_limits(&mut self.bodies, joint, *slack);
         }
+    }
+
+    /// The number of joints the ragdoll kept (the spec's, in order, less any that name a segment it does not have).
+    pub fn joint_count(&self) -> usize {
+        self.joints.len()
+    }
+
+    /// Drive joint `i`: its child is held to the orientation `relative` in its parent's body frame, as a body that follows an
+    /// animation is. The pull of every solver pass is the share set by [`Ragdoll::set_drive_gain`]; limits and contacts still
+    /// win over it. Does nothing for a joint the ragdoll does not have.
+    pub fn drive(&mut self, i: usize, relative: Quat) {
+        if let Some(drive) = self.drives.get_mut(i) {
+            *drive = relative.is_finite().then(|| relative.normalize());
+        }
+    }
+
+    /// Let go of every drive: the ragdoll is limp again.
+    pub fn release_drives(&mut self) {
+        self.drives.iter_mut().for_each(|drive| *drive = None);
+    }
+
+    /// The share (0 to 1) of the way to its target each solver pass takes a driven joint. 0 (the default) leaves the drives off.
+    /// There are two passes in each of the 8 sub-steps of a step.
+    pub fn set_drive_gain(&mut self, gain: f32) {
+        self.drive_gain = gain.clamp(0.0, 1.0);
+    }
+
+    /// The angle (rad) joint `i`'s child is off its drive target by now; 0 for a limp joint.
+    pub fn drive_error(&self, i: usize) -> f32 {
+        let (Some(joint), Some(Some(target))) = (self.joints.get(i), self.drives.get(i)) else { return 0.0 };
+        let wanted = self.bodies[joint.parent].q * *target;
+        wanted.angle_between(self.bodies[joint.child].q)
     }
 
     /// Add to the velocity and the angular velocity of segment `i` (an impulse the host gives it, divided by its mass).

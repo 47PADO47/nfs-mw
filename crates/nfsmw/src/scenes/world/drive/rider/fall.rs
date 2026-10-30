@@ -6,13 +6,14 @@
 //! hangs on them follows its parent as it was in the riding pose, which is how a limp body moves under physical animation. When
 //! the bike is stood up again he is put back on it with a short blend. A rider without `ragdoll.json` keeps to his bike.
 
-use blackbox_skeleton::{Skeleton, Transform};
+use blackbox_skeleton::{FallSet, Pack, Skeleton, Transform};
 use blackbox_vehicle::Ground;
 use blackbox_vehicle::bike::{FallKind, RiderRelease};
 use blackbox_vehicle::ragdoll::{Joint, JointLimits, Ragdoll, RagdollSpec, Segment};
 use game_install::GameDir;
 use glam::{Mat4, Quat, Vec3};
 
+use super::fall_anim::{self, Anim, DRIVE_GAIN, DriveLink};
 use super::fall_file::{self, FallConfig, Falls, RagdollFile};
 use super::fall_space::{quat_to_physics, quat_to_render, to_physics, to_render};
 
@@ -21,23 +22,26 @@ const RETURN_TIME: f32 = 0.25;
 
 /// A body of the ragdoll and the bone it moves.
 #[derive(Debug, Clone, Copy)]
-struct Link {
-    bone: usize,
+pub struct Link {
+    pub bone: usize,
     /// The capsule's centre in the bone's frame (render axes), and the rotation from the body's frame (axis along Y, physics
     /// axes) to the bone's frame.
-    centre: Vec3,
-    axis: Quat,
+    pub centre: Vec3,
+    pub axis: Quat,
 }
 
 /// A rider in the air and on the ground.
 #[derive(Debug, Clone)]
-struct Tumble {
-    ragdoll: Ragdoll,
-    links: Vec<Link>,
-    /// The bones' local transforms in the riding pose the fall began from: what hangs on a body follows it like that.
-    locals: Vec<Transform>,
+pub struct Tumble {
+    pub ragdoll: Ragdoll,
+    pub links: Vec<Link>,
+    /// The bones' local transforms in the riding pose the fall began from: what hangs on a body follows it like that, unless an
+    /// animation says otherwise ([`Tumble::local`]).
+    pub locals: Vec<Transform>,
     /// The rider space in the render space when the fall began: where a bone with no body and no parent stays.
-    seat: Transform,
+    pub seat: Transform,
+    /// The fall animation the bodies are driven to, if the rider has one (`fall_anim.rs`).
+    pub anim: Option<Anim>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -56,6 +60,11 @@ enum State {
 #[derive(Debug, Clone, Default)]
 pub(super) struct Fall {
     file: Option<RagdollFile>,
+    /// The animation of the fall (`falls.json`); without it the rider falls limp.
+    set: Option<FallSet>,
+    /// The bike has been stood up and the rider is waiting to get back on it, and for how long (s).
+    wanted_back: bool,
+    waited: f32,
     /// The riding pose of the last frame, rider space.
     riding: Vec<Transform>,
     state: State,
@@ -68,8 +77,9 @@ impl Fall {
         Self { file, ..Self::default() }
     }
 
-    /// The fall of the rider whose files are in `folder`: its `ragdoll.json`, if it has one that reads.
-    pub fn load(dir: &GameDir, folder: &str) -> Self {
+    /// The fall of the rider whose files are in `folder`: its `ragdoll.json`, if it has one that reads, and its `falls.json` (the
+    /// animation of `pack`'s clips) if it has one that fits.
+    pub fn load(dir: &GameDir, folder: &str, pack: &Pack) -> Self {
         let name = format!("{folder}/ragdoll.json");
         if !dir.exists(&name) {
             log::info!("rider: {folder} has no ragdoll.json; the rider keeps to his bike when it falls");
@@ -77,7 +87,7 @@ impl Fall {
         }
         let file = dir.read(&name).map_err(anyhow::Error::from).and_then(|bytes| RagdollFile::parse(&bytes));
         match file {
-            Ok(file) => Self::new(Some(file)),
+            Ok(file) => Self { set: fall_anim::load_set(dir, folder, pack), ..Self::new(Some(file)) },
             Err(error) => {
                 log::warn!("rider: {name} is not used: {error:#}");
                 Self::default()
@@ -118,15 +128,32 @@ impl Fall {
         if self.riding.len() != skeleton.len() || self.is_down() {
             return false;
         }
-        let Some(tumble) = Tumble::new(file, skeleton, &self.riding, (to_world, bike), release) else { return false };
+        let set = self.set.as_ref();
+        let Some(tumble) = Tumble::new(file, set, skeleton, &self.riding, (to_world, bike), release) else {
+            return false;
+        };
         self.state = State::Down(Box::new(tumble));
+        self.wanted_back = false;
+        self.waited = 0.0;
         true
+    }
+
+    /// One step of the fall animation, before the physics step: it reads the ragdoll and sets what the joints are driven to. Does
+    /// nothing for a rider with no animation.
+    pub fn animate(&mut self, pack: &Pack, dt: f32, ground: &dyn Ground) {
+        let (Some(set), State::Down(tumble)) = (&self.set, &mut self.state) else { return };
+        tumble.animate(set, pack, dt, ground);
     }
 
     /// One physics step of the ragdoll (or of the blend back).
     pub fn step(&mut self, dt: f32, ground: &dyn Ground) {
         match &mut self.state {
-            State::Down(tumble) => tumble.ragdoll.step(dt, ground),
+            State::Down(tumble) => {
+                self.waited += if self.wanted_back { dt } else { 0.0 };
+                if !tumble.frozen() {
+                    tumble.ragdoll.step(dt, ground);
+                }
+            }
             State::Returning { progress, .. } => {
                 *progress += dt / RETURN_TIME;
                 if *progress >= 1.0 {
@@ -137,9 +164,16 @@ impl Fall {
         }
     }
 
-    /// The bike is stood up and the rider gets back on it.
+    /// The bike is stood up and the rider gets back on it: at once, or, if he is still in the fall animation, when his get-up has
+    /// played (the caller says so again every step until he is back).
     pub fn stop(&mut self, skeleton: &Skeleton) {
         let State::Down(tumble) = &self.state else { return };
+        self.wanted_back = true;
+        if !tumble.may_return(self.waited) {
+            return;
+        }
+        self.wanted_back = false;
+        self.waited = 0.0;
         let from = tumble.pose(skeleton, self.origin).into_iter().map(|t| shifted(t, self.origin)).collect();
         self.state = State::Returning { from, progress: 0.0 };
     }
@@ -187,6 +221,7 @@ impl Tumble {
     /// The ragdoll for the bodies of `file` in the riding pose `riding`, thrown as `release` says.
     fn new(
         file: &RagdollFile,
+        set: Option<&FallSet>,
         skeleton: &Skeleton,
         riding: &[Transform],
         (to_world, bike): (Mat4, Quat),
@@ -217,6 +252,7 @@ impl Tumble {
         }
         let index = |name: &str| names.iter().position(|n| *n == name);
         let mut joints = Vec::new();
+        let mut drives = Vec::new();
         for joint in &file.joints {
             let (Some(child), Some(parent)) = (index(&joint.child), index(&joint.parent)) else { continue };
             let (Some(frame_child), Some(frame_parent)) =
@@ -228,6 +264,13 @@ impl Tumble {
             // The shared point is the child bone's origin, seen from each body.
             let (p_rotation, p_origin) = bone_world(p.bone);
             let in_parent = p_rotation.inverse() * (bone_world(c.bone).1 - p_origin);
+            drives.push(DriveLink {
+                joint: joints.len(),
+                parent_bone: p.bone,
+                child_bone: c.bone,
+                parent_axis: p.axis,
+                child_axis: c.axis,
+            });
             joints.push(Joint {
                 parent,
                 child,
@@ -252,19 +295,32 @@ impl Tumble {
             ..RagdollSpec::default()
         };
         let (velocity, spin) = launch(release, &file.falls, bike);
-        let ragdoll = Ragdoll::new(&spec, velocity, spin);
-        let locals = (0..skeleton.len())
+        let mut ragdoll = Ragdoll::new(&spec, velocity, spin);
+        let locals: Vec<Transform> = (0..skeleton.len())
             .map(|i| match skeleton.bones()[i].parent {
                 Some(parent) => riding[parent].inverse().compose(riding[i]),
                 None => riding[i],
             })
             .collect();
-        Some(Self { ragdoll, links, locals, seat: Transform::from_rt(turn, seat) })
+        let anim = set.and_then(|set| {
+            // The body the others hang from is nobody's child; its bone's rest pose says which way the front and the right of the
+            // body point in the bone's frame.
+            let root = (0..links.len()).find(|&i| !file.joints.iter().any(|j| j.child == names[i]))?;
+            let rest = skeleton.rest_pose().component(skeleton).ok()?[links[root].bone].rotation.inverse();
+            Some(Anim::new(set, release.kind, &locals, drives, root, (rest * Vec3::X, rest * Vec3::NEG_Y)))
+        });
+        if anim.is_some() {
+            ragdoll.set_drive_gain(DRIVE_GAIN);
+        }
+        Some(Self { ragdoll, links, locals, seat: Transform::from_rt(turn, seat), anim })
     }
 
     /// The component transforms of the rider, relative to `origin`: the bones with a body where the body is, the others after
     /// their parents in the riding pose.
     fn pose(&self, skeleton: &Skeleton, origin: Vec3) -> Vec<Transform> {
+        if let Some(posed) = self.get_up_pose(skeleton, origin) {
+            return posed;
+        }
         let mut out: Vec<Transform> = Vec::with_capacity(skeleton.len());
         for (i, bone) in skeleton.bones().iter().enumerate() {
             let simulated = self.links.iter().position(|l| l.bone == i);
@@ -275,9 +331,9 @@ impl Tumble {
                     let centre = to_render(self.ragdoll.position(body));
                     Transform::from_rt(rotation, centre - rotation * link.centre - origin)
                 }
-                (None, Some(parent)) => out[parent].compose(self.locals[i]),
+                (None, Some(parent)) => out[parent].compose(self.local(i)),
                 (None, None) => {
-                    let placed = self.seat.compose(self.locals[i]);
+                    let placed = self.seat.compose(self.local(i));
                     Transform { translation: placed.translation - origin, ..placed }
                 }
             };
@@ -309,6 +365,7 @@ impl super::RiderRig {
         if self.fall.is_down() && !step.off {
             self.fall.stop(&self.pack.skeleton);
         }
+        self.fall.animate(&self.pack, step.dt, ground);
         self.fall.step(step.dt, ground);
     }
 }
