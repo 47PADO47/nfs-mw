@@ -12,6 +12,7 @@ use anyhow::Result;
 use blackbox_tpk::{AlphaUsage, Level, PixelFormat, TextureSource, full_mip_count};
 
 use crate::glass;
+use crate::grade::{DEFAULT_AO_FLOOR, DEFAULT_GAIN, DEFAULT_REFLECTED, Grade, lift};
 use crate::partfile::{Kind, Material};
 use crate::textures::{Palette, Picture, TexStore};
 
@@ -24,6 +25,10 @@ pub struct Options {
     pub max_texture: u32,
     /// The occlusion factor of a fully occluded texel (0 to 1): the colour is scaled by `floor + (1 - floor) * occlusion`.
     pub ao_floor: f32,
+    /// The lift of the base colour (1 to 2, 1 is none), see [`lift`](crate::grade::lift).
+    pub gain: f32,
+    /// The environment radiance a dielectric reflects, baked into its colour (0 to 1, 0 is none), see [`DEFAULT_REFLECTED`](crate::grade::DEFAULT_REFLECTED).
+    pub reflected: f32,
     /// Also write normal and specular textures and tangent vertices for the tangent-space surface shader.
     pub normal_maps: bool,
     /// Invert the green channel of the normal maps (Unreal's convention against the shader's).
@@ -32,7 +37,14 @@ pub struct Options {
 
 impl Default for Options {
     fn default() -> Self {
-        Self { max_texture: 2048, ao_floor: 0.3, normal_maps: false, flip_green: false }
+        Self {
+            max_texture: 2048,
+            ao_floor: DEFAULT_AO_FLOOR,
+            gain: DEFAULT_GAIN,
+            reflected: DEFAULT_REFLECTED,
+            normal_maps: false,
+            flip_green: false,
+        }
     }
 }
 
@@ -104,21 +116,30 @@ fn linear_to_srgb(linear: f32) -> u8 {
     ((1.055 * v.powf(1.0 / 2.4) - 0.055) * 255.0 + 0.5) as u8
 }
 
-/// The base colour with the occlusion applied in linear light and the opacity cut at `clip` (alpha 0 or 255), or
-/// opaque when `clip` is `None`. The packed picture is sampled by texture coordinate, so it may have another size.
-pub fn bake_diffuse(base: Level, pbr: Option<&Picture>, occlusion: bool, ao_floor: f32, clip: Option<f32>) -> Level {
+/// The base colour with the occlusion applied in linear light, lifted by `gain` and the opacity cut at `clip` (alpha 0 or
+/// 255), or opaque when `clip` is `None`. The packed picture is sampled by texture coordinate, so it may have another size.
+pub fn bake_diffuse(base: Level, pbr: Option<&Picture>, occlusion: bool, grade: Grade, clip: Option<f32>) -> Level {
+    let Grade { ao_floor, gain, reflected } = grade;
     let Level { width, height, mut rgba } = base;
     let threshold = clip.map(|c| (c * 255.0).round() as u8);
+    let lifted: Vec<u8> = (0..=255).map(|v| lift(v, gain)).collect();
     for y in 0..height {
         for x in 0..width {
             let at = ((y * width + x) * 4) as usize;
-            if occlusion && let Some(pbr) = pbr {
+            if let Some(pbr) = pbr {
                 let uv = [(x as f32 + 0.5) / width as f32, (y as f32 + 0.5) / height as f32];
-                let ao = f32::from(pbr.sample(uv)[3]) / 255.0;
+                let packed = pbr.sample(uv);
+                let ao = if occlusion { f32::from(packed[3]) / 255.0 } else { 1.0 };
                 let factor = ao_floor + (1.0 - ao_floor) * ao;
+                // The reflection of a dielectric: `F0 = 0.08 * specular` of the environment, none for a metal.
+                let metal = f32::from(packed[2]) / 255.0;
+                let reflection = (1.0 - metal) * 0.08 * (f32::from(packed[0]) / 255.0) * reflected;
                 for c in 0..3 {
-                    rgba[at + c] = linear_to_srgb(srgb_to_linear(rgba[at + c]) * factor);
+                    rgba[at + c] = linear_to_srgb(srgb_to_linear(rgba[at + c]) * factor + reflection);
                 }
+            }
+            for c in 0..3 {
+                rgba[at + c] = lifted[usize::from(rgba[at + c])];
             }
             rgba[at + 3] = match threshold {
                 Some(t) if rgba[at + 3] >= t => 255,
@@ -213,7 +234,13 @@ impl Surfaces {
         let diffuse = format!("{car}_{}", upper(base_stem));
         let clip = material.cutout();
         let level = Picture { width: base.width, height: base.height, rgba: base.rgba.clone() }.shrunk(cap);
-        let level = bake_diffuse(level, pbr.as_deref(), material.pbr_has_occlusion, self.options.ao_floor, clip);
+        let level = bake_diffuse(
+            level,
+            pbr.as_deref(),
+            material.pbr_has_occlusion,
+            Grade { ao_floor: self.options.ao_floor, gain: self.options.gain, reflected: self.options.reflected },
+            clip,
+        );
         let cut_out = level.rgba.as_chunks::<4>().0.iter().any(|t| t[3] < 255);
         if !self.palette.contains(&diffuse) {
             let (format, alpha) =
@@ -292,16 +319,77 @@ mod tests {
     #[test]
     fn occlusion_darkens_down_to_the_floor_and_no_occlusion_keeps_the_colour() {
         let pbr = Picture { width: 1, height: 1, rgba: vec![128, 100, 0, 0] };
-        let dark = bake_diffuse(level(2, 2, [200, 200, 200, 255]), Some(&pbr), true, 0.3, None);
+        let dark = bake_diffuse(
+            level(2, 2, [200, 200, 200, 255]),
+            Some(&pbr),
+            true,
+            Grade { ao_floor: 0.3, ..Grade::NONE },
+            None,
+        );
         // Fully occluded: 0.3 of the linear colour.
         let expected = linear_to_srgb(srgb_to_linear(200) * 0.3);
         assert_eq!(dark.rgba[0], expected);
         assert!(expected < 200 && expected > 60);
-        let kept = bake_diffuse(level(2, 2, [200, 200, 200, 255]), Some(&pbr), false, 0.3, None);
+        let kept = bake_diffuse(
+            level(2, 2, [200, 200, 200, 255]),
+            Some(&pbr),
+            false,
+            Grade { ao_floor: 0.3, ..Grade::NONE },
+            None,
+        );
         assert_eq!(kept.rgba[0], 200);
         let open = Picture { width: 1, height: 1, rgba: vec![128, 100, 0, 255] };
-        let lit = bake_diffuse(level(2, 2, [200, 200, 200, 255]), Some(&open), true, 0.3, None);
+        let lit = bake_diffuse(
+            level(2, 2, [200, 200, 200, 255]),
+            Some(&open),
+            true,
+            Grade { ao_floor: 0.3, ..Grade::NONE },
+            None,
+        );
         assert_eq!(lit.rgba[0], 200, "an unoccluded texel keeps its colour");
+    }
+
+    #[test]
+    fn the_lift_is_applied_after_the_occlusion_and_leaves_the_alpha() {
+        let pbr = Picture { width: 1, height: 1, rgba: vec![128, 100, 0, 0] };
+        let plain = bake_diffuse(
+            level(1, 1, [200, 200, 200, 255]),
+            Some(&pbr),
+            true,
+            Grade { ao_floor: 0.3, ..Grade::NONE },
+            None,
+        );
+        let lifted = bake_diffuse(
+            level(1, 1, [200, 200, 200, 77]),
+            Some(&pbr),
+            true,
+            Grade { ao_floor: 0.3, gain: 1.35, reflected: 0.0 },
+            None,
+        );
+        assert_eq!(lifted.rgba[0], lift(plain.rgba[0], 1.35));
+        assert_eq!(lifted.rgba[3], 255, "no clip value means opaque");
+        let no_pictures = bake_diffuse(
+            level(1, 1, [100, 100, 100, 255]),
+            None,
+            false,
+            Grade { ao_floor: 0.3, gain: 1.35, reflected: 0.0 },
+            None,
+        );
+        assert_eq!(no_pictures.rgba[0], lift(100, 1.35), "the lift needs no occlusion picture");
+    }
+
+    #[test]
+    fn a_dielectric_reflects_the_environment_and_a_metal_does_not() {
+        let grade = Grade { reflected: 0.5, ..Grade::NONE };
+        // Specular 0.5 (F0 = 0.04) reflecting a radiance of 0.5: 0.02 linear, which is sRGB 38 on a black texel.
+        let plastic = Picture { width: 1, height: 1, rgba: vec![128, 100, 0, 255] };
+        let lit = bake_diffuse(level(1, 1, [0, 0, 0, 255]), Some(&plastic), true, grade, None);
+        assert!((36..=40).contains(&lit.rgba[0]), "{}", lit.rgba[0]);
+        let steel = Picture { width: 1, height: 1, rgba: vec![128, 100, 255, 255] };
+        let dark = bake_diffuse(level(1, 1, [0, 0, 0, 255]), Some(&steel), true, grade, None);
+        assert_eq!(dark.rgba[0], 0, "a metal takes its reflection from the light material");
+        let none = bake_diffuse(level(1, 1, [0, 0, 0, 255]), Some(&plastic), true, Grade::NONE, None);
+        assert_eq!(none.rgba[0], 0);
     }
 
     #[test]
@@ -309,9 +397,9 @@ mod tests {
         let mut base = level(2, 1, [10, 20, 30, 0]);
         base.rgba[3] = 200;
         base.rgba[7] = 40; // 40 / 255 is below the clip of 1/3
-        let cut = bake_diffuse(base, None, false, 0.3, Some(0.3333));
+        let cut = bake_diffuse(base, None, false, Grade { ao_floor: 0.3, ..Grade::NONE }, Some(0.3333));
         assert_eq!((cut.rgba[3], cut.rgba[7]), (255, 0));
-        let opaque = bake_diffuse(level(1, 1, [1, 2, 3, 9]), None, false, 0.3, None);
+        let opaque = bake_diffuse(level(1, 1, [1, 2, 3, 9]), None, false, Grade { ao_floor: 0.3, ..Grade::NONE }, None);
         assert_eq!(opaque.rgba[3], 255, "no clip value means opaque");
     }
 

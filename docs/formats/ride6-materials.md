@@ -129,7 +129,9 @@ thresholds are named constants in `shading.rs` and `bake.rs`):
 | Unreal | 2005 car files |
 |---|---|
 | base colour (sRGB) | diffuse picture, up to 2048 px for body parts, half for wheels, a quarter for discs |
-| occlusion | diffuse darkened in linear light by `floor + (1 - floor) * occlusion`, `floor = 0.3` |
+| occlusion | diffuse darkened in linear light by `floor + (1 - floor) * occlusion`, `floor = 0.55` ([brightness](#how-bright-the-baked-bikes-are)) |
+| specular, metallic | a dielectric texel gets `(1 - metallic) * 0.08 * specular * 0.25` (linear) added: the reflection its light material does not draw ([brightness](#how-bright-the-baked-bikes-are)) |
+| lit brightness | the colour is lifted by `x * (1.35 - 0.35 x)` in the encoded domain ([brightness](#how-bright-the-baked-bikes-are)) |
 | opacity mask, clip 0.3333 | diffuse alpha cut to 0 or 255, DXT5, alpha usage punch-through, two-sided texture |
 | translucent surface (`BLEND_TranslucentGreyTransmittance`: screen, lamp lenses) | blended glass: diffuse alpha is the opacity (below), DXT5, alpha usage modulated, alpha-sorted, one-sided, light material `WINDSHIELD` or `BRAKELIGHTGLASS` per triangle ([Translucent surfaces](#translucent-surfaces)) |
 | metallic, roughness, base colour | light material per **triangle**, from the means of the packed picture and the base colour picture over ten points inside the triangle ([the choice](#the-light-material-of-a-triangle)); tyres `RUBBER`; discs `BRAKEDISC` |
@@ -169,7 +171,7 @@ with every index at least one).
 | metal with luminance from 0.30 | `CHROME` below roughness 0.2, `MAGSILVER` below 0.4, else `ALUMINUM` | [choice] |
 
 The luminance is that of the linear base colour times the occlusion factor the diffuse picture is baked with (`floor + (1 -
-floor) * occlusion`, floor 0.3): the conductor materials cannot be darkened per texel, and RIDE 6 applies its occlusion to
+floor) * occlusion`, floor 0.55): the conductor materials cannot be darkened per texel, and RIDE 6 applies its occlusion to
 the specular light as well, so a metal in a crevice (the engine) takes the material with a body. The bare steel and aluminium
 of the bikes measure 0.4 to 0.6 linear (sRGB 170 to 200), the chain 0.12, the black sleeve of a silencer 0.02, so the limits
 split the data at its gaps. Measured against the same bike drawn with the texture alone (`NFSMW_CAR_SHADING=simple`, same
@@ -177,6 +179,29 @@ camera): the mean luminance error over ten regions (silencer, fork, engine, whee
 at one yaw and 15.8 to 12.0 at another (silencer 43 to 11), the Ducati 888 SP5 from 17.0 to 16.0 (rims gold again, not
 silver), the Yamaha R7 from 13.9 to 13.0; the remaining 10 to 15 is the brighter light rig of the glossy shading (a
 `DULLPLASTIC` triangle is 14 brighter than the texture-only look on any bike) and the gloss that is kept on purpose.
+
+### How bright the baked bikes are
+
+The users reported most bikes as too dark and too black. Measured over the pixels of the bike in `view-car` (the glossy shading,
+`--yaw 130`, 18 bikes: KTM 450, Yamaha R7 and R1, Ducati 888, Monster and Panigale V4, Honda CBR600RR and NSR250, Kawasaki
+Zephyr, KZ1000R and H2, Suzuki Katana, Hayabusa and GSX-R, Aprilia RSV4, BMW S 1000 RR, MV Agusta F4, Triumph Daytona), the mean
+display luminance (0 to 255) was **49.9**, against **70.1** for ten stock cars (median 61; the dark-paint ones 50 to 56), and 31 to
+44 percent of the bike's pixels were below 25. The causes, each measured:
+
+| Cause | Measured | Verdict |
+|---|---|---|
+| baked occlusion with floor 0.3 | livery colours times 0.6 to 0.8 (KTM 0.60, R7 0.71, Ducati 0.79), engine atlas 0.4 (linear luminance); +9 percent mean luminance without it | too strong **[choice, derived]**: RIDE 6 applies the occlusion to indirect light only, and the glossy shading adds its own screen-space occlusion on top. The installed rigs give 0.46 of a surface's light as indirect light (0.40 for upward normals, 0.56 for sideways ones; the three-light rig of `lighting.rs`), so a fully occluded texel keeps `1 - 0.46`: floor **0.55** |
+| the rigs light a texture with a fraction of it | an orange livery (186, 90, 13) renders at 0.74 of its red in the viewer and 0.63 in the world; RIDE 6 shows its lit orange panels at about 1.1 times (reference photograph: panels (239, 163, 82) and (213, 109, 36), shaded (152, 70, 12)) | **[choice, measured]** lift of 1.35 in the middle tones, none at white: `x * (1.35 - 0.35 x)` on the encoded value (the shader multiplies the encoded texture by its light). The orange reaches 0.81; a hard gain of 1.5 would be needed for 1.1 and would clip every light colour |
+| a black plastic reflects nothing | `SHINYPLASTIC` and `DULLPLASTIC` have environment ramps of 0.001 and 0; RIDE 6 adds `F0 * radiance`, `F0 = 0.08 * specular` (4 percent for the picture's usual 0.5), so its black plastics are dark grey (the seat of the reference photograph is 70, its albedo 38) | **[choice]** `0.25` of a sky radiance of 1 baked into the dielectric texels (half of that desaturated the dark blue of the R7 and the orange of the KTM too much); the paint-like light materials (`REGPAINT*`, `MAGGUNMETAL`, `MAGSILVERGLOSS`) were tried as the gloss material and make the colours milky |
+| DXT1 quantisation | a flat dark grey 27 decoded to (24, 28, 24): the 565 steps are 8 in red and blue and 4 in green, so dark neutral greys went green | fixed in the encoder: blocks of at most 8 levels of spread take the end-point pair whose thirds come nearest to their mean (`blackbox-tpk`, tested) |
+| mip averaging in encoded space | 1 to 5 percent of the linear luminance of the livery atlases at mip 3 | left as it is (the stock textures are built the same way) |
+| the metal rules | `MAGGUNMETAL` for metals of 0.08 to 0.30 linear luminance keeps the texture and is not darker than the texture | no change |
+
+Result, same 18 bikes and cameras (floor 0.55, lift 1.35, reflection 0.25): mean luminance **62.4** (+25 percent; per bike
++17 to +36, the Zephyr 64 to 75, the CBR600RR 36 to 49, the R7 38 to 52), pixels below 25 from 31..44 percent to 15..31 percent; the
+dark-paint stock cars are at 50 to 56 and the median stock car at 61. Black stays black where it is black paint: the silencer of
+the KTM 450 is still black ([above](#the-light-material-of-a-triangle)). The options are `--ao-floor`, `--gain` and `--reflected`
+of the importer (`--gain 1 --reflected 0 --ao-floor 0.3` gives the earlier look).
 
 ### Translucent surfaces
 

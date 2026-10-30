@@ -52,6 +52,9 @@ pub fn full_mip_count(width: u32, height: u32) -> u32 {
     width.max(height).max(1).ilog2() + 1
 }
 
+/// The largest difference between the texels of a block, in levels of one channel, at which the block is taken as flat.
+const NEAR_FLAT_SPREAD: f32 = 8.0;
+
 /// The 565 packing of an 8-bit colour, rounding to nearest.
 fn pack565([r, g, b]: [u8; 3]) -> u16 {
     let q = |v: u8, bits: u32| {
@@ -80,10 +83,85 @@ fn block(level: &Level, bx: u32, by: u32) -> [[u8; 4]; 16] {
     out
 }
 
+/// The four colours a pair of 565 end points gives (the end points and the two thirds between them).
+fn palette_of(c0: u16, c1: u16) -> [[i32; 3]; 4] {
+    let (p0, p1) = (unpack565(c0), unpack565(c1));
+    [
+        p0.map(i32::from),
+        p1.map(i32::from),
+        std::array::from_fn(|c| (2 * i32::from(p0[c]) + i32::from(p1[c])) / 3),
+        std::array::from_fn(|c| (i32::from(p0[c]) + 2 * i32::from(p1[c])) / 3),
+    ]
+}
+
+/// The two 565 end points whose palette comes nearest to `target`, trying the 565 value below and above each channel of both
+/// end points. A flat block rounded to the nearest 565 value alone is off by up to 4 levels in red and blue and 2 in green,
+/// which turns a dark neutral grey green; the thirds of two end points reach it much closer.
+fn nearest_end_points(target: [f32; 3]) -> (u16, u16) {
+    let candidates = |value: f32, bits: u32| -> [u32; 2] {
+        let max = ((1u32 << bits) - 1) as f32;
+        let at = (value.clamp(0.0, 255.0) * max / 255.0).floor() as u32;
+        [at, (at + 1).min(max as u32)]
+    };
+    let pack = |channels: [u32; 3]| ((channels[0] << 11) | (channels[1] << 5) | channels[2]) as u16;
+    let ends: Vec<u16> = (0..8)
+        .map(|n| {
+            pack([
+                candidates(target[0], 5)[n & 1],
+                candidates(target[1], 6)[(n >> 1) & 1],
+                candidates(target[2], 5)[(n >> 2) & 1],
+            ])
+        })
+        .collect();
+    let error = |entry: &[i32; 3]| (0..3).map(|c| (entry[c] as f32 - target[c]).powi(2)).sum::<f32>();
+    let mut best = (f32::MAX, ends[0], ends[0]);
+    for &a in &ends {
+        for &b in &ends {
+            let nearest = palette_of(a, b).iter().map(error).fold(f32::MAX, f32::min);
+            if nearest < best.0 {
+                best = (nearest, a, b);
+            }
+        }
+    }
+    (best.1, best.2)
+}
+
+/// Colour half of a block whose texels all lie within a few levels of their mean: end points chosen for the mean, every texel
+/// on the palette entry nearest to it.
+fn near_flat_block(texels: &[[u8; 4]; 16], mean: [f32; 3]) -> [u8; 8] {
+    let (mut c0, mut c1) = nearest_end_points(mean);
+    if c0 < c1 {
+        std::mem::swap(&mut c0, &mut c1);
+    }
+    let palette = palette_of(c0, c1);
+    let mut indices = 0u32;
+    if c0 != c1 {
+        for (n, t) in texels.iter().enumerate() {
+            let distance = |p: &[i32; 3]| (0..3).map(|c| (p[c] - i32::from(t[c])).pow(2)).sum::<i32>();
+            let best = (0..4).min_by_key(|&k| (distance(&palette[k]), k)).unwrap_or(0);
+            indices |= (best as u32) << (2 * n);
+        }
+    }
+    let mut out = [0u8; 8];
+    out[..2].copy_from_slice(&c0.to_le_bytes());
+    out[2..4].copy_from_slice(&c1.to_le_bytes());
+    out[4..].copy_from_slice(&indices.to_le_bytes());
+    out
+}
+
 /// The 8 bytes of a DXT1 colour block (also the colour half of a DXT5 block) for the colours of `texels`.
 fn color_block(texels: &[[u8; 4]; 16]) -> [u8; 8] {
     let colors: Vec<[f32; 3]> = texels.iter().map(|t| [f32::from(t[0]), f32::from(t[1]), f32::from(t[2])]).collect();
     let mean = std::array::from_fn::<f32, 3, _>(|c| colors.iter().map(|p| p[c]).sum::<f32>() / 16.0);
+    let spread = (0..3)
+        .map(|c| {
+            let high = colors.iter().map(|p| p[c]).fold(f32::MIN, f32::max);
+            high - colors.iter().map(|p| p[c]).fold(f32::MAX, f32::min)
+        })
+        .fold(0.0, f32::max);
+    if spread <= NEAR_FLAT_SPREAD {
+        return near_flat_block(texels, mean);
+    }
     let mut cov = [[0.0f32; 3]; 3];
     for p in &colors {
         let d = [p[0] - mean[0], p[1] - mean[1], p[2] - mean[2]];
@@ -268,6 +346,20 @@ mod tests {
             TextureSource::from_rgba("T", level(8, 8, |_, _| [200, 100, 50, 255]), PixelFormat::Dxt1, 1).unwrap();
         for px in decoded(&source, 0).chunks(4) {
             assert!(px[0].abs_diff(200) <= 4 && px[1].abs_diff(100) <= 2 && px[2].abs_diff(50) <= 4, "{px:?}");
+        }
+    }
+
+    #[test]
+    fn a_flat_block_of_dark_grey_stays_grey_and_keeps_its_level() {
+        for grey in [20u8, 27, 33, 40, 55, 77, 100, 140] {
+            let source =
+                TextureSource::from_rgba("T", level(8, 8, |_, _| [grey, grey, grey, 255]), PixelFormat::Dxt1, 1)
+                    .unwrap();
+            for px in decoded(&source, 0).chunks(4) {
+                let spread = px[0].abs_diff(px[1]).max(px[1].abs_diff(px[2]));
+                assert!(spread <= 2, "grey {grey} became {px:?}");
+                assert!(px[1].abs_diff(grey) <= 2, "grey {grey} became {px:?}");
+            }
         }
     }
 
