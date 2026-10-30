@@ -32,6 +32,7 @@ mod source;
 mod state;
 mod systems;
 mod vk;
+mod weight_axis;
 
 pub use action::Action;
 pub(crate) use bindings::Source;

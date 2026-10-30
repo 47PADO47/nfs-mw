@@ -162,7 +162,8 @@ aim   = |S| <= tiny ? rest * intensity : rest + (sign(S) - rest) |S|
 then the weight follows `aim` with the square-root approach at `AutoRiderPositionEngageSpeed` (KTM 5). Within the dead zone a lift of
 4 degrees therefore sends the rider fully forward (wheelie) or back (stoppie), and with the throttle open he rests forward: to wheelie, the
 player must hold the weight beyond the dead zone (`|W| > 0.75`) and open the throttle. The raw weight, not the aid, drives
-section 1. Not modelled: the rider start position (`bEnableAutoRiderStartControl`, off by default), the g-force variant of the weight
+section 1. Who owns the weight in each state of the bike, why the lever seems dead at speed (the weight is already where the pedals put it), the
+tuck rule's lever term and what a hard stop does with it: [ride6-weight-round9.md](ride6-weight-round9.md). Not modelled: the rider start position (`bEnableAutoRiderStartControl`, off by default), the g-force variant of the weight
 control (`bEnableGForceWeightControl`, off in the data), the speed and lean curves of the rest position (none set), and the minimum
 speed `AutoRiderMinSpeed` (it zeroes an output that the weight control rewrites in the same tick).
 
@@ -180,8 +181,8 @@ reaches `WeightLongitudinal` is the game's input layer (outside the physics modu
 A key travels the lever at once; the stick travels it in proportion (the dead zones 0.3 for a wheelie and 0.95 for a stoppie are inside the
 help). The throttle and the brake key set the strength of the trick as in section 1. A car ignores both actions. The pad's left stick
 does steering (X) and weight (Y) together; the weight axis opens the stick's circular gate to a square (`y x min(1, r) / max(|x|, |y|)`),
-so a stick at the rim on a diagonal gives the full lever, and the input layer's dead zone is then applied unchanged (the thresholds
-0.75 and 0.95 stay reachable). The right stick stays the car's gear shifter; a bike's gearbox is automatic. The ABS level has no
+so a stick at the rim on a diagonal gives the full lever, then the pad's dead zone is taken off and the lever reads 1 at 0.9 of the rest
+of the travel, so the thresholds 0.75 and 0.95 are at 0.72 and 0.88 of the stick ([ride6-weight-round9.md](ride6-weight-round9.md), section 4). The right stick stays the car's gear shifter; a bike's gearbox is automatic. The ABS level has no
 HUD notice (the game has none for a setting changed by a key; the headlights are the same): it is logged.
 
 ## Choices that remain (`choices.rs`, `docs/specs/vehicle-two-wheel.md`)

@@ -282,6 +282,10 @@ brake_rise = 3.0
 brake_fall = 5.0
 steer_rise = 25.0              # the stick away from the middle, in either direction, and back to it
 steer_fall = 6.0
+[bike.reverse]                 # optional (left out: no reverse): the rider walks the bike backwards
+force_n = 2000.0               # holding the front brake with the bike standing for hold_s pushes it back with this force (N) ...
+max_speed_mps = 1.25           # ... which dies away as the speed backwards nears this (m/s), and the brakes are let go
+hold_s = 0.5
 # [bike.wheelie] (optional): wheelie and stoppie assist and the rider help. [bike.wheelie.wheelie] and [bike.wheelie.stoppie]
 # have deadzone, max_angle_rad, speed_ramp_mps, help_speed, lean_help, lookahead_s, min_speed_mps, acceleration,
 # acceleration_time_s, ground_range_m, lean_limit_rad, lean_pitch_range_rad; [bike.wheelie] itself has
@@ -295,6 +299,8 @@ steer_fall = 6.0
 # engage_speed, manual_engage_speed. Without the auto_rider table the weight is the player's. Meaning: docs/specs/ride6-tricks.md.
 # [bike.wheelie.help.auto_tuck] (optional; every key needed): min_speed_mps, max_normalised_lean (negative: not tested),
 # min_throttle, max_brake: the rider tucks in above that speed, under that lean, over that throttle, under that front brake.
+# forward_weight_tucks (optional, default true): a rider weight pushed forward beyond the dead zone still tucks him in (false: the
+# reference's rule, a weight beyond the dead zone on either side stands him up). docs/specs/ride6-weight-round9.md, section 3.
 # [bike.wheelie.help] also takes tuck_raise_rate and tuck_fall_rate (1/s, default 2): the tuck level the animation reads.
 ```
 
@@ -407,7 +413,7 @@ ride6-bikes-batch.md#the-riders-contact-points-contacts)). Another game's conver
 | Throttle | the throttle (cut by the rider help when the front lifts, if `[bike.wheelie]` is there) |
 | Brake pedal | the front and the rear brake together (and the linked brakes of `joined_factor`) |
 | Handbrake | the rear brake alone (the input layer has one brake axis, so the front brake alone has no key) |
-| Rider weight (`rider_weight` axis) | forward / back: a stoppie under the front brake, a wheelie under the throttle (below). **Keys: G forward, V back (Numpad 8 / 2). Pad: the left stick, Y: up forward, down back, together with X steering.** |
+| Rider weight (`rider_weight` axis) | forward / back: a stoppie under the front brake, a wheelie under the throttle (below). **Keys: G forward, V back (Numpad 8 / 2). Pad: the left stick, Y: up forward, down back, together with X steering; the lever reads its end at 0.9 of the stick's travel past the dead zone.** |
 | ABS level (`abs_level` button) | **Key J, pad left-stick click:** each press goes to the next lower level, 1, 0.75, 0.5, 0.25, 0, then 1 again (the new level is written to the log, `ABS level 0.5`) |
 | Steering | the stick: the rider's lean controller prescribes the lean the stick points to and picks the handlebar angle that makes the front tyre give the side force it needs (counter-steering included) |
 | Gear shift keys, gear keys, clutch | not read: the gearbox is automatic |

@@ -41,7 +41,7 @@ RIDE 6 install ──R6ToolPhys physdump (the user's tool)──▶ <physics dum
 ```
 
 **Running it.** `ride6-bike-import <bike folder> <mod folder> --physics <vehicle json or dump folder> [--tyre-tables <dir>]
-[--sound-dir <dir>] [--car KTM450] [--name ..] [--manufacturer ..] [--max-texture 2048] [--ao-floor 0.3] [--normal-maps]
+[--sound-dir <dir>] [--car KTM450] [--name ..] [--manufacturer ..] [--max-texture 2048] [--ao-floor 0.55] [--gain 1.35] [--reflected 0.25] [--normal-maps]
 [--flip-green]`, then `nfsmw --mods-dir <folder with ride6-bikes/> view-car KTM450`. The physics options are
 [below](#the-physics-dump-import-bike). The converter needs neither the game nor the exporter's tools, only the two
 folders; a second bike is a second folder and a second `--car` (left out, the id is derived from the vehicle id by
@@ -345,7 +345,8 @@ The 2005 car shader ignores normal maps, has no per-texel gloss, and the stock c
 done, in the order of fidelity:
 
 1. **Baked path (default).** The diffuse picture is the base colour with the occlusion channel applied in linear light with a
-   floor of 0.3; opacity is cut at the material's clip value (brake disc holes, chain links, sprocket teeth) with the
+   floor of 0.55, lifted by a gain of 1.35 and given the reflection a dielectric adds (0.25; the three are choices measured in
+   [how bright the baked bikes are](../formats/ride6-materials.md#how-bright-the-baked-bikes-are)); opacity is cut at the material's clip value (brake disc holes, chain links, sprocket teeth) with the
    texture marked punch-through and two-sided. Each triangle takes the light material its metallic, roughness and base
    colour say, read over the interior of the triangle (`CHROME`, `MAGSILVER`, `ALUMINUM` for bright neutral bare metal only;
    `MAGGUNMETAL` for a darker (occluded) metal; `SHINYPLASTIC` / `DULLPLASTIC` for dark or coloured metal and for every
