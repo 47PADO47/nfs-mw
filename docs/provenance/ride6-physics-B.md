@@ -94,3 +94,18 @@ Spec: [ride6-feel-round8.md](../specs/ride6-feel-round8.md). Build `5.6.1-169700
 | Fall lean limit target | `0x145106701`: `atan(LateralGripPeak) x wheel data +0xF0 x 57.2958` (constant at `0x148fbaf50`), then the running value (`+0x650`, `FallLeanLimit`) moves by `FallLeanLimitUpFactor` (`+0x1E20`) or `...DownFactor` (`+0x1E24`) of the gap | disassembly; the offsets are the SDK dump's: `+0xF0` is `LateralGripLimit`, `+0xEC` `LateralGripTolerance` |
 | Lean limit base | `0x14510b19e` to `0x14510b2c3`: `atan(LateralGripPeak) x wheel data +0xEC` | disassembly |
 | Feathering start | `0x1450c0290` (the controller, re-read: `R = engine +0x384 x a + engine +0x50 x b`, `+0x384` `MaxRPM`, `+0x50` `MaxTorqueRPM`), `0x1450d7cd0` (the caller: the start ends when the whole clutch input is exactly 0), `0x1450d7000` (the automatic path: no change of gear while the start lasts) | decompilation and the SDK dump's names |
+
+## Round 9 (the stick at its end)
+
+Spec: [ride6-feel-round9.md](../specs/ride6-feel-round9.md). Build `5.6.1-1697004`, image-relative addresses; headless Ghidra on a copy of the project.
+
+| Topic | Functions | How verified |
+|---|---|---|
+| Wanted front force divided by the cosine of the lean | `0x1450c8f70` (stores `-tau / COMHeight` in `+0xC60`, leaves it in `xmm1`), `0x1450c9320` (divides it by `max(dot(chassis right, normalised right projected on the ground plane), 0.05)`) | disassembly of both: the `XORPS` that negates `xmm1` runs before the store and the call |
+| Handlebar projected along the ground normal | `0x1450c9320` (rotates the heading and the normal `N` of the front contact into the chassis frame by the inverse of the chassis quaternion), `0x145158890` (`h - (h_z / N_z) N`, then `atan2`) | the second argument of the last call is the rotated ground normal, not the steering axis |
+| Front velocity point | `0x145157eb0` (hub position less the wheel radius along the chassis' up), `0x145124310` (the rigid body's velocity at a point) | read |
+| Tyre load | `0x145140b30` (after the suspension force `0x14514cc40`: the force is replaced by `n_s (n_s . F) / (n_s . axis)^2`, `n_s` the contact normal without its chassis-lateral part; the dot product is clamped at -0.5 by `MINSD` with the constant at `0x148fa8c58`, `-0.5`), the load stored by `0x145169380` into `+0x154` | disassembly of the call site `0x145141cfc`; the tyre call sites `0x14516f021`, `0x14516f045` read `+0x154` (not `+0x158`) |
+| The correction of the tangential suspension force at the contact | `0x145140b30` (`+0x1c8 = tyre force - (F_s - N (F_s . N))`) | read, effect not modelled |
+| Lean help neutral blend | `0x1450c3ae0` (end: `+0x4a8` to `+0x4d0` blend the point of application), force zero without the front contact (`+0xd1c`) | read |
+| Handlebar filter | `0x1450f9020` (coefficients), `0x1450f9120` (step) | read: the model's filter matches |
+| Camber | `0x145150050`: `asin(chassis right . N) + static terms` | read, not changed |

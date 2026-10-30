@@ -96,7 +96,8 @@ works on input channels, not on forces. [D + I]
   pitch speed 0 to 0.6, g-force 1.6 to 2.0).
 - **Tuck-in** (`bAutoTuckIn`): above 90 km/h, with the lean below the maximum percentage 1, throttle above 0 and brake below
   0.1, the rider tucks in: reduced air drag. Specified completely (the action, the level and what `TuckInPosition` does) in
-  [ride6-rider-round6.md](ride6-rider-round6.md), section 2; wired in the game.
+  [ride6-rider-round6.md](ride6-rider-round6.md), section 2; wired in the game. The reference cancels the tuck for a lever past the dead zone on
+  either side; this game lets a lever pushed forward tuck ([ride6-weight-round9.md](ride6-weight-round9.md), section 3).
 - **Lateral weight**: moves the rider to the inside of a turn from the banking angle (`LateralWeightControlBankingThresholds`
   60 and 60 percent of the lean limit), with the curve `Racing_RiderHelp_LateralWeightSteerInfluence` of the steer.
 

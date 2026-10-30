@@ -60,6 +60,9 @@ without a track hold the skeleton's reference pose, so the file is dense. A sequ
 decoded by CUE4Parse into full poses (base plus difference); the importer takes the difference again against
 `base_name` at `base_frame`.
 
+The export of the bike types adds `styles.r6ra` (the race, naked, scooter and enduro clips the graphs use that Unreal's codecs store) and
+the ACL ones to `acl/` (the standing wheelie and drift poses of the other sets, the enduro lean, poses and walk): 61 and 20 clips.
+
 `riding.r6ra` holds 74 sequences: the 93 `motard/` clips minus the starting-grid variants and minus the 8 stored with the ACL codec
 (below), `BikeSpecificCorrection`, and the `race/` finger and wrist clips. `falls.r6ra`, made the same way from the 21 fall and
 get-up sequences of `riderShared/Animations/Ragdoll/` that Unreal's own codecs store, is read in addition: the importer reads
@@ -140,10 +143,12 @@ rejects trailing bytes.
 | File | Content |
 |---|---|
 | `rider.bbsk` | The pack above, in the car frame (metres). |
-| `graph.json` | The blend tree, `blackbox_skeleton::Graph` serialised with serde (parameter names, then the node tree). |
+| `graph.json` | The blend tree, `blackbox_skeleton::Graph` serialised with serde (parameter names, then the node tree). The supermoto's; played by a bike whose kind is not listed in `styles.json`. |
+| `graph_<type>.json`, `styles.json` | One tree for each bike type (`race`, `naked`, `motard`, `scooter`, `enduro`) and the list that names them (below). |
 | `attach.json` | Seat, hubs, grip and peg points, the limbs to solve with IK and the numbers that drive the animation (below). |
 | `parts.json` | Which mesh wears which picture, which is translucent, which is drawn (below). |
 | `CARS/<ID>/RIDER/contacts.json` | Not written by `ride6-rider-import`: one bike's seat, hubs, grip and peg points (below). |
+| `falls.json` | The fall and get-up animation: which clip plays when a rider is thrown, blended with the ragdoll (below). |
 | `ragdoll.json` | Not written by `ride6-rider-import` either: `ride6-rider-ragdoll` writes the rider's bodies and joints for a fall (below). |
 | `textures/*.png` | The pictures. |
 
@@ -169,6 +174,22 @@ rider skeleton's own names. Frames are the car's (x forward, y left, z up), metr
 
 Where each number comes from is in [ride6-rider-animation.md](../specs/ride6-rider-animation.md), section 8.
 
+### `styles.json` (version 1): the blend tree of each kind of bike
+
+Written by `ride6-rider-import`, read by the game with the bike's `contacts.json` `style.name`
+([ride6-rider-styles.md](../specs/ride6-rider-styles.md)): a bike plays the `graph` of its kind's entry, and a bike of a kind
+without an entry, a rig without the file, or a file that does not parse plays `graph.json`.
+
+```text
+{ "version": 1, "styles": { "<name>": { "bike_type": 0..5, "graph": "graph_<name>.json", "riding_style": 0..2,
+    "reverse": { "start_seconds": [from, to], "start_speed_kmh": -1, "rate_speed_kmh": [a, b], "rate": [r_a, r_b], "loop_seconds": s } } } }
+```
+
+`graph` is a file name of the rider folder (no path). `reverse` (optional; a kind without it never walks the bike back): the start
+clip plays from `from` to `to` clip seconds once the bike's speed is below `start_speed_kmh`; the loop clip, `loop_seconds` long,
+then plays at a rate going from `r_a` at the speed `a` to `r_b` at `b` (km/h). The graph reads the walk through the parameters
+`reverse`, `reverse_start`, `reverse_loop` and `reverse_cycle`.
+
 ### `contacts.json` (version 1): one bike's contact points
 
 `files/CARS/<ID>/RIDER/contacts.json`, written by `ride6-bike-import` for each bike, read in addition to the rig's `attach.json`
@@ -182,6 +203,7 @@ everything else (`limbs`, `tip_offset`, `inertia`) from the rig: a target of the
 | `vehicle`, `frame` | Text. |
 | `rider_root_in_bike`, `hubs`, `targets[]` | As in `attach.json`: seat, the two hubs, and the four targets `left_grip`, `right_grip`, `left_foot`, `right_foot` (`steers` true for the grips), in the bike skeleton's frame at rest, car axes, metres. |
 | `seat_surface` | Optional: `[[x, z], ...]`, the top of the bike's seat along its centre line in the bike skeleton's frame (x ascending, 2 cm apart, from 30 cm behind the seat socket to 10 cm ahead), measured by the converter from the chassis mesh (`seat_surface.rs`). The game sits the rider on it (`seat`). Without it he sits at the socket. |
+| `style` | Optional: `{name, bike_type, source, input_handler}`, the kind of the bike (`race`, `naked`, `motard`, `scooter`, `enduro`), the blueprint's `BikeType`, where it came from (`correction-table`: the `EBikeTypeOverride` of the row; `input-handler`: the class of the physics asset's input handler) and that class. The game reads `name` only, to pick the graph of `styles.json`. Absent when neither source names a kind. |
 | `correction` | Optional: the bike's row of the animation correction table: `rider_max_lean`, `aero_tank`, `lean_knee`, `lean_elbow`, `knee`, `elbow`, `muffler`, `spine_1_deg`, `spine_2_deg`, `arms_ik_spine_alpha`, `pole_elbow_cm` (3), `bike_type`, `quick_shift` (text). Read and kept; the game does not apply it yet. |
 
 The game refuses a file whose numbers are not finite, whose seat has no rotation, whose front hub is not ahead of the rear one, or
@@ -205,9 +227,29 @@ so a KTM's `contacts.json` equals the seat, hubs and targets of the shared `atta
 `visorClosedRacing_default`), `slot` the material slot name of the mesh, `picture` a file of `textures/`. `drawn: false`
 (the arms mesh, whose sleeves the suit already has) is not loaded. A translucent part is drawn alpha blended.
 
+### `falls.json`: the animation of a fall
+
+Written by `ride6-rider-import` (`rider/falls.rs`) when the pack has the 21 clips of `Animations/Ragdoll/` (a pack without them gets no file, with a
+warning, and its rider falls limp); read by `nfsmw/.../rider/fall_anim.rs` as a `blackbox_skeleton::fall::FallSet`, checked against the pack's clips.
+Clips are indices into the pack, like `graph.json`'s; the trees are `blackbox_skeleton::Graph`s whose parameters are named `t` (seconds since the
+state began), `face`, `side` (the vertical parts of the front and the right of the body, -1 to 1) and `flying` (0 to 1).
+
+```text
+launches[]      { kind ("high_side", "low_side"), graph }   played once from the throw; a kind with none goes straight to the tumble
+launch_blend    seconds the tumble fades in over the end of a launch, which hands over that long before its dominant clip ends
+tumble          graph (loops: flying, sliding, rolling)
+rests[]         { face_above, face_below, graph, blend }    the get-ups, tried in order; he lies in the band when face_above < face < face_below
+low_speed       m/s under which he is still          flying_above   m above the ground over which he is airborne
+flying_ramp     [from, to] metres, the `flying` parameter     fade_rate   1/s of the fade from the riding pose
+```
+
+`TimeMode` has the variant `Once { rate }` for it (a clip plays once, then holds its last frame). The trees and numbers, and where they come from:
+[ride6-rider-fall-animation.md](../specs/ride6-rider-fall-animation.md).
+
 ### `ragdoll.json` (version 1): the rider in a fall
 
-Written by `ride6-rider-ragdoll <RiderGP_PhysicsAsset.json> <RiderBP.json> <folder>` (two JSON files of the package reader's `json`
+Written by `ride6-rider-ragdoll <RiderGP_PhysicsAsset_CB.json> <RiderBP.json> <folder>` (the `_CB` asset is the one the rider blueprint's mesh uses; the older
+`RiderGP_PhysicsAsset` has 11 bodies and also converts) (two JSON files of the package reader's `json`
 mode), read by `nfsmw/.../rider/fall_file.rs`. The rider's frame (x forward, y left, z up), metres, kilograms; positions, axes and
 frames are in the frame of the bone a body is on. Without the file the rider stays on a bike that falls. How it is used:
 [ride6-rider-fall.md](../specs/ride6-rider-fall.md).
@@ -228,7 +270,7 @@ bike's frame, the spin times `angular`, the velocity first times `velocity_multi
 - **ACL clips** (resolved): the eight riding clips `motard_drift_pose_L/R`, `motard_old_school_standard_pose`,
   `motard_wheelie_Entry_anim`, `motard_wheelie_Standing_anim`, `_L`, `_R` and `motard_wheelie_StandingInterpolation_anim`, and the
   get-up `race_ragdoll_FaceDown_GetUp`, are decoded by `blackbox-acl`. The pack has **104 clips** (74 riding, 21 fall and get-up in
-  `falls.r6ra`, 9 from ACL; it had 74). The blend space `motard_Wheelie_Standing_BS` (steering -1..1 in 2 cells, entry 0..0.3 in
+  `falls.r6ra`, 9 from ACL; it had 74), and **185** with the other bike types' clips (61 more in `styles.r6ra`, 20 from ACL). The blend space `motard_Wheelie_Standing_BS` (steering -1..1 in 2 cells, entry 0..0.3 in
   1: the standing pose at (0, 0.3), left and right at (-1, 0.3) and (1, 0.3023), the interpolation pose at (0, 0)) is a graph node
   of the rider's blend tree; the drift poses are the ends of its three-way drift blend.
 - **Gloves** are a picture composited onto the hands by a material function; the importer copies the picture and does not

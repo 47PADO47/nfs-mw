@@ -20,6 +20,7 @@ use serde_json::{Map, Value, json};
 use super::attach::{HUB_BONES, SEAT_SOCKET, TARGETS};
 use super::convert;
 use super::raw::{JsonBone, JsonSkeleton, JsonSocket};
+use super::style;
 
 /// The file name, in the car's `RIDER/` folder.
 pub const FILE: &str = "contacts.json";
@@ -205,6 +206,26 @@ pub fn contacts_json(parts: &Value, table: Option<&Value>) -> Result<Value> {
     Ok(Value::Object(out))
 }
 
+/// Adds `style` to `contacts`: the clip set of the bike's type (`style::choose`: the override of its correction row, else its
+/// input handler) with where it came from. `handler` is the class name of the bike's input handler, if its physics file is known.
+/// A bike whose type neither says gets no `style` and keeps the rig's shared graph.
+pub fn add_style(contacts: &mut Value, handler: Option<&str>) {
+    let over = contacts.get("correction").and_then(|c| c.get("bike_type")).and_then(Value::as_str);
+    let Some((set, source)) = style::choose(over, handler) else { return };
+    contacts["style"] = json!({
+        "name": set.name,
+        "bike_type": set.bike_type,
+        "source": source.name(),
+        "input_handler": handler,
+    });
+}
+
+/// The input handler class of `vehicle` in the physics dump `physics`, if the dump has the vehicle's resolved file.
+fn handler_of(physics: &Path, vehicle: &str) -> Option<String> {
+    let file = crate::bike_table::locate(physics, vehicle).ok()?;
+    style::input_handler_of(&file).ok().flatten()
+}
+
 /// Adds `seat_surface` to `contacts` (the seat's profile under the rider, measured on the bike's exported chassis mesh), if the
 /// folder has the meshes: without them the file has no seat and the game leaves the rider where the skeleton's socket puts him.
 fn add_seat_surface(contacts: &mut Value, bike_dir: &Path) {
@@ -231,6 +252,8 @@ pub fn write(bike_dir: &Path, car_dir: &Path, physics: &Path) -> Result<bool> {
     let mut json =
         contacts_json(&parts, table.as_ref()).with_context(|| format!("contact points of {}", path.display()))?;
     add_seat_surface(&mut json, bike_dir);
+    let vehicle = parts.get("vehicle").and_then(Value::as_str).unwrap_or_default();
+    add_style(&mut json, handler_of(physics, vehicle).as_deref());
     let folder = car_dir.join("RIDER");
     fs::create_dir_all(&folder).with_context(|| format!("creating {}", folder.display()))?;
     fs::write(folder.join(FILE), serde_json::to_vec_pretty(&json)?).context("writing contacts.json")?;

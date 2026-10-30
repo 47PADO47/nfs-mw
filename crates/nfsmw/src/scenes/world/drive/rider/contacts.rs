@@ -41,6 +41,13 @@ pub struct Correction {
     pub quick_shift: Option<String>,
 }
 
+/// The kind of bike the converter found this one to be (`"style": {"name": "race", ...}`): the name of an entry of the rig's
+/// `styles.json`. The rest of the object says where the converter took it from and is not read.
+#[derive(Debug, Clone, Deserialize)]
+pub struct StyleRef {
+    pub name: String,
+}
+
 /// One bike's contact points, in the bike skeleton's frame (x forward, y left, z up, metres).
 #[derive(Debug, Clone, Deserialize)]
 pub struct Contacts {
@@ -50,6 +57,9 @@ pub struct Contacts {
     pub targets: Vec<Target>,
     #[serde(default)]
     pub correction: Option<Correction>,
+    /// The kind of bike, for the rig's choice of blend tree (`style.rs`).
+    #[serde(default)]
+    pub style: Option<StyleRef>,
     /// The seat's top along the centre line (`[x, z]`, x ascending), measured on the bike's mesh by the converter.
     #[serde(default)]
     pub seat_surface: Vec<[f32; 2]>,
@@ -117,13 +127,13 @@ impl Attach {
     }
 }
 
-/// `attach` with the contacts of the car `car` laid over it, if the car has a `contacts.json`. A file that cannot be used is
-/// logged and the rig's own targets are kept.
-pub fn lay_over(attach: Attach, dir: &GameDir, car: &str) -> Attach {
+/// `attach` with the contacts of the car `car` laid over it, if the car has a `contacts.json`, and the kind of bike the file
+/// names. A file that cannot be used is logged and the rig's own targets are kept (and the bike has no kind).
+pub fn lay_over(attach: Attach, dir: &GameDir, car: &str) -> (Attach, Option<String>) {
     let path = format!("{}/contacts.json", super::folders(car)[0]);
     if !dir.exists(&path) {
         log::info!("rider: {car} has no {path}; the rider reaches the rig's shared grips and pegs");
-        return attach;
+        return (attach, None);
     }
     let merged = dir
         .read(&path)
@@ -134,11 +144,11 @@ pub fn lay_over(attach: Attach, dir: &GameDir, car: &str) -> Attach {
         Ok((merged, contacts)) => {
             let kind = contacts.correction.as_ref().and_then(|c| c.bike_type.as_deref()).unwrap_or("unknown type");
             log::info!("rider: {car} rides on its own seat, grips and pegs ({path}, {kind})");
-            merged
+            (merged, contacts.style.map(|style| style.name))
         }
         Err(error) => {
             log::warn!("rider: {path} is not used: {error:#}");
-            attach
+            (attach, None)
         }
     }
 }

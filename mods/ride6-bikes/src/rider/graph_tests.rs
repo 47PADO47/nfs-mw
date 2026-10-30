@@ -140,3 +140,99 @@ fn a_pack_without_the_acl_clips_keeps_the_older_tree() {
     // The new parameters exist and do nothing; the old-school style falls back to the shared centre pose.
     assert_eq!(x(&pack, &graph, &[("drift", 1.0), ("standing", 1.0)]), clip_x(&pack, "motard_CenterPose_LowSpeed"));
 }
+
+/// A pack with every clip of every bike type, each holding its own number as the x of the one bone's translation.
+fn pack_of_all_sets() -> Pack {
+    let mut names: Vec<&str> = graph_sets::SETS.iter().flat_map(|set| graph_sets::clip_names(set)).collect();
+    names.sort_unstable();
+    names.dedup();
+    let bone = Bone { name: "root".into(), parent: None, rest: Transform::IDENTITY };
+    let clips = names
+        .iter()
+        .enumerate()
+        .map(|(i, name)| Clip {
+            name: (*name).to_owned(),
+            length: 2.0,
+            tracks: vec![Track {
+                bone: 0,
+                rotation: Channel::None,
+                translation: Channel::Constant(Vec3::new(100.0 + i as f32, 0.0, 0.0)),
+                scale: Channel::None,
+            }],
+            additive: name.contains("Shake"),
+            root_motion: false,
+            notifies: Vec::new(),
+        })
+        .collect();
+    Pack { skeleton: Skeleton::new(vec![bone]).unwrap(), sockets: Vec::new(), clips, meshes: Vec::new() }
+}
+
+#[test]
+fn every_bike_type_has_a_graph_that_leans_with_its_own_clips() {
+    let pack = pack_of_all_sets();
+    for set in graph_sets::SETS {
+        let graph = graph_for(&pack, set, 0).unwrap();
+        graph.validate(&pack.clips, &pack.skeleton).unwrap();
+        assert_eq!(graph.param_names, PARAMS.map(str::to_owned), "{}", set.name);
+        let lean = &set.lean[0];
+        assert_eq!(x(&pack, &graph, &[]), clip_x(&pack, set.centre[0].low), "{}: centred", set.name);
+        assert_eq!(x(&pack, &graph, &[("lean", -1.0)]), clip_x(&pack, lean.low[0]), "{}: left", set.name);
+        assert_eq!(x(&pack, &graph, &[("lean", 1.0)]), clip_x(&pack, lean.low[1]), "{}: right", set.name);
+        assert_eq!(x(&pack, &graph, &[("tuck", 1.0)]), clip_x(&pack, set.centre[0].high), "{}: tucked", set.name);
+        assert_eq!(x(&pack, &graph, &[("tuck", 1.0), ("lean", 1.0)]), clip_x(&pack, lean.high[1]), "{}", set.name);
+        assert_eq!(x(&pack, &graph, &[("stoppie", 1.0)]), clip_x(&pack, set.stoppie), "{}: stoppie", set.name);
+    }
+}
+
+#[test]
+fn the_sport_bike_leans_in_the_racing_clips_and_the_supermoto_in_its_own() {
+    let pack = pack_of_all_sets();
+    let race = graph_for(&pack, &graph_sets::RACE, 0).unwrap();
+    let motard = graph_for(&pack, &graph_sets::MOTARD, 0).unwrap();
+    assert_eq!(x(&pack, &race, &[("lean", 1.0)]), clip_x(&pack, "race_Rossi_standard_Right"));
+    assert_eq!(x(&pack, &motard, &[("lean", 1.0)]), clip_x(&pack, "motard_Leaning_Knee_LowSpeed_R"));
+    // The riding styles of a type pick their own clips; a style number past the last is the last.
+    let schwantz = graph_for(&pack, &graph_sets::RACE, 2).unwrap();
+    assert_eq!(x(&pack, &schwantz, &[("lean", -1.0)]), clip_x(&pack, "race_Schwantz_standard_Left"));
+    let beyond = graph_for(&pack, &graph_sets::RACE, 9).unwrap();
+    assert_eq!(x(&pack, &beyond, &[("lean", -1.0)]), clip_x(&pack, "race_Schwantz_standard_Left"));
+}
+
+#[test]
+fn only_the_types_that_have_the_clips_get_a_drift_and_a_standing_wheelie() {
+    let pack = pack_of_all_sets();
+    let drift = |set: &ClipSet| x(&pack, &graph_for(&pack, set, 0).unwrap(), &[("drift", 1.0)]);
+    assert_eq!(drift(&graph_sets::SCOOTER), clip_x(&pack, "rider_scooter_drift_pose_R"));
+    assert_eq!(drift(&graph_sets::ENDURO), clip_x(&pack, "enduro_drift_pose_R"));
+    // Race: no drift pose, the centre pose stays.
+    assert_eq!(drift(&graph_sets::RACE), clip_x(&pack, "race_standard_pose"));
+    let standing =
+        |set: &ClipSet| x(&pack, &graph_for(&pack, set, 0).unwrap(), &[("standing", 1.0), ("standing_entry", 0.3)]);
+    assert_eq!(standing(&graph_sets::NAKED), clip_x(&pack, "naked_wheelie_Standing_anim"));
+    assert_eq!(
+        standing(&graph_sets::SCOOTER),
+        clip_x(&pack, "rider_scooter_standard_pose"),
+        "a scooter does not stand"
+    );
+}
+
+#[test]
+fn the_walk_back_plays_the_start_clip_then_the_loop() {
+    let pack = pack_of_all_sets();
+    let graph = graph_for(&pack, &graph_sets::RACE, 0).unwrap();
+    let riding = x(&pack, &graph, &[]);
+    assert_eq!(x(&pack, &graph, &[("reverse", 0.0), ("reverse_loop", 1.0)]), riding, "no walk, no change");
+    // The pose is the start clip until the loop takes over, then the loop clip, once the walk has taken the pose.
+    assert_eq!(x(&pack, &graph, &[("reverse", 1.0)]), clip_x(&pack, "race_retro"));
+    assert_eq!(x(&pack, &graph, &[("reverse", 1.0), ("reverse_loop", 1.0)]), clip_x(&pack, "race_retro_loop"));
+    let half = x(&pack, &graph, &[("reverse", 0.5)]);
+    assert!((half - (riding + clip_x(&pack, "race_retro")) / 2.0).abs() < 1e-3);
+}
+
+#[test]
+fn a_pack_missing_a_types_clips_cannot_build_its_graph_but_a_missing_walk_only_drops_the_walk() {
+    let pack = pack(&[]);
+    assert!(graph_for(&pack, &graph_sets::RACE, 0).is_err(), "the motard-only pack has no race clips");
+    let walkless = graph_for(&pack, &graph_sets::MOTARD, 0).unwrap();
+    assert_eq!(x(&pack, &walkless, &[("reverse", 1.0)]), x(&pack, &walkless, &[]));
+}

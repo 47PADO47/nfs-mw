@@ -158,3 +158,23 @@ fn the_shared_attach_file_and_the_contacts_place_the_same_bike_alike() {
         assert_eq!(shared[key], json[key], "{key}");
     }
 }
+
+#[test]
+fn the_bikes_clip_set_is_its_overrides_or_its_handlers() {
+    // The sport table row overrides to STREET: the naked set, whatever the handler says.
+    let mut json = contacts_json(&sport(), Some(&table())).unwrap();
+    add_style(&mut json, Some("Default_InputHandler"));
+    assert_eq!(json["style"]["name"], "naked");
+    assert_eq!(json["style"]["bike_type"], 1);
+    assert_eq!(json["style"]["source"], "correction-table");
+    // No row: the handler.
+    let mut json = contacts_json(&cruiser(), None).unwrap();
+    add_style(&mut json, Some("Motard_InputHandler"));
+    assert_eq!(json["style"]["name"], "motard");
+    assert_eq!(json["style"]["source"], "input-handler");
+    assert_eq!(json["style"]["input_handler"], "Motard_InputHandler");
+    // Neither: no style, the rig's shared graph.
+    let mut json = contacts_json(&cruiser(), None).unwrap();
+    add_style(&mut json, None);
+    assert!(json.get("style").is_none());
+}

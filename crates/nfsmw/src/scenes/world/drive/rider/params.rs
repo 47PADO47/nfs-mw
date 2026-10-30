@@ -8,7 +8,9 @@
 use glam::Vec3;
 
 use super::attach::Inertia;
+use super::reverse::Reverse;
 use super::script::{Constant, Flashback, Interpolate, defuzzify, fuzzy_not, fuzzy_sum, ramp};
+use super::style::Walk;
 
 /// A slower step than this (s) does not move the filters: it is a pause, not time.
 const MAX_STEP: f32 = 0.1;
@@ -104,6 +106,11 @@ impl RiderSample {
         self.speed.max(0.0) * 3.6
     }
 
+    /// The speed along the bike in km/h, negative when it rolls backwards: the blueprint's `VehicleSpeed` of the reverse walk.
+    pub fn signed_speed_kmh(&self) -> f32 {
+        self.speed * 3.6
+    }
+
     /// The harder of the two brake levers, 0 to 1.
     pub fn braking(&self) -> f32 {
         self.front_brake.max(self.rear_brake).clamp(0.0, 1.0)
@@ -150,6 +157,12 @@ pub struct Values {
     pub standing_entry: f32,
     /// `Drift3BlendAlpha`, -1 (the left drift pose) to 1 (the right one).
     pub drift: f32,
+    /// The reverse walk (`reverse.rs`): its weight, the seconds into the start clip, whether the loop has taken over, and the
+    /// loop's phase.
+    pub reverse: f32,
+    pub reverse_start: f32,
+    pub reverse_loop: f32,
+    pub reverse_cycle: f32,
 }
 
 /// The state of the blueprint's smoothers and delay lines.
@@ -225,9 +238,16 @@ pub struct Smoothed {
     shift: Vec3,
     /// His body's turn against the bike's: roll to the right, pitch nose up, yaw to the right (rad).
     rotation: Vec3,
+    /// The reverse walk's state (`reverse.rs`).
+    reverse: Reverse,
 }
 
 impl Smoothed {
+    /// Give the rider the reverse walk of his bike's kind (`None`: he never walks it back).
+    pub fn set_walk(&mut self, walk: Option<Walk>) {
+        self.reverse = Reverse::new(walk);
+    }
+
     /// Advance by `dt` seconds with the bike in state `sample`; the script carries the blueprint's own rates.
     pub fn step(&mut self, sample: &RiderSample, inertia: &Inertia, dt: f32) {
         if !(dt > 0.0 && dt.is_finite()) {
@@ -251,6 +271,7 @@ impl Smoothed {
         let standing = ramp(sample.weight, STANDING_WEIGHT.0, STANDING_WEIGHT.1)
             * ramp(wheelie, STANDING_WHEELIE.0, STANDING_WHEELIE.1);
         let entry = s.entry_delay.step(ramp(wheelie, ENTRY_RAMP.0, ENTRY_RAMP.1) * ENTRY_SCALE, ENTRY_DELAY, dt);
+        let walk = self.reverse.step(sample.signed_speed_kmh(), dt);
         self.values = Values {
             lean,
             speed_kmh: speed,
@@ -264,6 +285,10 @@ impl Smoothed {
             steer: s.steer.step(sample.steer.clamp(-1.0, 1.0), STEER_RATE, dt),
             standing_entry: s.entry.step(entry, ENTRY_RATE, dt),
             drift: s.drift.step(drift_alpha(sample.drift_deg), DRIFT_RATE, dt),
+            reverse: walk.weight,
+            reverse_start: walk.start,
+            reverse_loop: walk.looped,
+            reverse_cycle: walk.cycle,
         };
         // The shift: the rider's displacement from the physics, held to the ranges of the animation's inertia input.
         let target = shift_target(sample.offset, inertia);

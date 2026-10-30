@@ -51,6 +51,9 @@ Two things carry the name, both fed by `Actions.TuckIn`:
   `TuckInRaiseRate * dt`, else falls by `TuckInFallRate * dt`, held to 0..1. Constructor defaults **2 and 2** (no asset sets them).
   The level is what the animation reads as `TuckedIn` (`IIgnitionMotorbikeRider` slot 2, `0x5b48910`).
 
+The lever term is the reference's on both sides; this game's `forward_weight_tucks` makes a lever pushed forward tuck
+  ([ride6-weight-round9.md](ride6-weight-round9.md), section 3).
+
 Code: `AutoTuckSpec`, `tuck_requested`, `tuck_level` and `Bike::{tuck_action, tuck_level}` (`trick.rs`, `trick_spec.rs`);
 manifest `[bike.wheelie.help.auto_tuck]` (`min_speed_mps`, `max_normalised_lean`, `min_throttle`, `max_brake`). `Bike::set_tuck`
 is the player's input (held above 0.5). Wired: the bike tucks by itself in the game once its manifest has the table.

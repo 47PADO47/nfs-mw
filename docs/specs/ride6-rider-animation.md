@@ -11,6 +11,11 @@ Integration into the game: [ride6-rider-render-integration.md](ride6-rider-rende
 > **ACL clips** ([acl-decoder.md](acl-decoder.md)): the standing wheelie, the drift poses and the old-school centre pose, which the
 > pack lacked for want of an ACL decoder, are in it now; section 5b says how the graph uses them.
 
+> **Styles and reverse** ([ride6-rider-styles.md](ride6-rider-styles.md)): this page describes the supermoto's set. Every bike type has
+> its own (race, naked, motard, scooter, enduro), picked per bike from the correction table and the physics asset's input handler,
+> and the rider walks the bike backwards when it rolls back. The `ass_knee` clips of section 3 are buttock-volume corrections of the
+> suit, not knee poses.
+
 > **Round 6** ([ride6-rider-round6.md](ride6-rider-round6.md), section 4) replaced the choices of sections 5 and 8 below by the
 > blueprint's own signals: the lean, tuck, wheelie and stoppie inputs of the graph, their smoothing rates and the meaning of
 > the smoothers. Where this page disagrees with it, round 6 is right.
@@ -23,7 +28,8 @@ Integration into the game: [ride6-rider-render-integration.md](ride6-rider-rende
 - **Bike type.** The blueprint's `SET Animations` switches on an integer `BikeType`: 0 race, 1 naked, 2 **motard**, 3
   scooter, 4 enduro/motard hybrid (loads `enduro/Pose` and `motard/Leaning`), 5 naked. For type 2 it loads the clips of
   `Animations/motard/`. `RidingStyle` then picks the lean set: 0 `motard_Leaning_Knee_*`, 1 `motard_Leaning_*`, 2
-  `motard_Old_School_*`. The bike data of chassis 369 does not name its type (see section 9).
+  `motard_Old_School_*`. The type of a bike is the `EBikeTypeOverride` of its correction row, else its input handler's class: chassis 369 (`Motard_InputHandler`)
+is type 2 ([ride6-rider-styles.md](ride6-rider-styles.md), section 1).
 - **Rider skeleton** `bodies/skeletons/suit_game_Skeleton`: 81 bones. `root` > `pelvis` > `spine_01..03` > clavicles,
   arms, fingers, `neckRoot`, `neck_01`, `head`, eyes, `helmet`; legs `thigh/calf/foot/ball` plus IK copies `thigh_IK`,
   `calf_IK`, `foot_IK` (l, r); `gluteus_Vol_l/r`; pole vectors `PV_arm_l/r`, `PV_leg_l/r` (children of `root`);
@@ -258,8 +264,8 @@ recovered), the sideways knee and leg-out layers, the user's own weight shift (`
 
 ## 9. Not done
 
-- `BikeType` and `RidingStyle` of chassis 369: not found in the bike's data assets. `KTM_450-SMR-2022` has a camera
-  container under `data/cameras/Containers/motard/`, which suggests type 2; the physics tuning assets do not name it.
+- `BikeType` of chassis 369: found since: type 2, from its input handler (`Motard_InputHandler`) and the camera container under
+  `data/cameras/Containers/motard/`; `RidingStyle` is the rider's own setting and the data has no default for it.
 - (The eight ACL-compressed clips are decoded now, section 5b; the wheelie entry clip, the knee, leg-out, bump and imbalance layers
   and the fall animations are in the pack but not played.)
 - The native fuzzy-logic layer of the animation instance (`RiderLean_Polished`, `TuckedIn_Alpha`, `BikeWheelie`, `BikeStoppie`

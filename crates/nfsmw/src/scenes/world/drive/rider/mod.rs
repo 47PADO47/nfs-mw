@@ -15,6 +15,7 @@
 mod attach;
 mod contacts;
 mod fall;
+mod fall_anim;
 mod fall_file;
 mod fall_space;
 #[cfg(test)]
@@ -25,8 +26,10 @@ mod pose;
 #[cfg(test)]
 mod probe_tests;
 mod reach;
+mod reverse;
 mod script;
 mod seat;
+mod style;
 
 use std::collections::HashMap;
 
@@ -57,7 +60,8 @@ pub fn folders(car: &str) -> [String; 2] {
 
 /// The graph's parameters by name: the names are the ones the animation spec gives (`lean`, `speed_kmh`, `tuck`, `wheelie`,
 /// `stoppie`, and `wheelie_alpha`, `wheelie_direction`, `stoppie_time` for the tricks, `standing`, `steer`, `standing_entry`
-/// for the standing wheelie and `drift` for the drift poses); a parameter the graph has and this does not know is 0.
+/// for the standing wheelie, `drift` for the drift poses and `reverse`, `reverse_start`, `reverse_loop` and `reverse_cycle` for the
+/// walk back); a parameter the graph has and this does not know is 0.
 pub fn param_values(names: &[String], values: &Values) -> Vec<f32> {
     names
         .iter()
@@ -74,6 +78,10 @@ pub fn param_values(names: &[String], values: &Values) -> Vec<f32> {
             "steer" => values.steer,
             "standing_entry" => values.standing_entry,
             "drift" => values.drift,
+            "reverse" => values.reverse,
+            "reverse_start" => values.reverse_start,
+            "reverse_loop" => values.reverse_loop,
+            "reverse_cycle" => values.reverse_cycle,
             _ => 0.0,
         })
         .collect()
@@ -135,10 +143,15 @@ impl RiderRig {
             |name: &str| dir.read(&format!("{folder}/{name}")).with_context(|| format!("reading {folder}/{name}"));
         let attach = Attach::parse(&read("attach.json")?)?;
         // The bike's own seat, grips and pegs (`CARS/<ID>/RIDER/contacts.json`) over the rig's.
-        let attach = contacts::lay_over(attach, dir, &model.name);
+        let (attach, kind) = contacts::lay_over(attach, dir, &model.name);
         let pack = Pack::parse(&read("rider.bbsk")?).context("rider.bbsk")?;
-        let graph: Graph = serde_json::from_slice(&read("graph.json")?).context("graph.json")?;
-        graph.validate(&pack.clips, &pack.skeleton).context("graph.json does not fit rider.bbsk")?;
+        // The blend tree of this bike's kind (`styles.json`), else the rig's own.
+        let selection = style::select(dir, &folder, kind.as_deref());
+        let graph: Graph = serde_json::from_slice(&read(&selection.graph)?).with_context(|| selection.graph.clone())?;
+        graph
+            .validate(&pack.clips, &pack.skeleton)
+            .with_context(|| format!("{} does not fit rider.bbsk", selection.graph))?;
+        log::info!("rider: {} plays {} ({})", model.name, selection.graph, kind.as_deref().unwrap_or("no kind"));
         let mut resolved = Resolved::new(&attach, &pack.skeleton).map_err(anyhow::Error::msg)?;
         resolved.seat = seat::Seat::new(&attach, &pack);
         let entries = parts::parse_entries(&read("parts.json")?)?;
@@ -201,6 +214,9 @@ impl RiderRig {
                 false => "no seat surface for this bike: he sits at the socket",
             }
         );
+        let mut smoothed = Smoothed::default();
+        smoothed.set_walk(selection.walk);
+        let fall = fall::Fall::load(dir, &folder, &pack);
         Ok(Some(Self {
             pack,
             graph,
@@ -208,7 +224,7 @@ impl RiderRig {
             resolved,
             frame,
             steering: front.steering_axis(),
-            smoothed: Smoothed::default(),
+            smoothed,
             time: 0.0,
             parts: gpu_parts,
             textures: textures.into_values().collect(),
@@ -216,7 +232,7 @@ impl RiderRig {
             positions: Vec::new(),
             normals: Vec::new(),
             failed: false,
-            fall: fall::Fall::load(dir, &folder),
+            fall,
         }))
     }
 
@@ -418,6 +434,10 @@ mod tests {
             steer: -0.875,
             standing_entry: 0.1875,
             drift: 0.0625,
+            reverse: 0.9375,
+            reverse_start: 1.25,
+            reverse_loop: 1.0,
+            reverse_cycle: 0.4375,
         };
         let names: Vec<String> = [
             "speed_kmh",
@@ -432,13 +452,20 @@ mod tests {
             "steer",
             "standing_entry",
             "drift",
+            "reverse",
+            "reverse_start",
+            "reverse_loop",
+            "reverse_cycle",
         ]
         .iter()
         .map(|s| (*s).to_owned())
         .collect();
         assert_eq!(
             param_values(&names, &values),
-            vec![90.0, -0.5, 0.0, 0.125, 0.25, 0.75, 0.5, 0.375, 0.625, -0.875, 0.1875, 0.0625]
+            vec![
+                90.0, -0.5, 0.0, 0.125, 0.25, 0.75, 0.5, 0.375, 0.625, -0.875, 0.1875, 0.0625, 0.9375, 1.25, 1.0,
+                0.4375
+            ]
         );
         assert!(param_values(&[], &values).is_empty());
     }

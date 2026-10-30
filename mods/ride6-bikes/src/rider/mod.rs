@@ -12,20 +12,26 @@
 //! textures/*.png      the base colour pictures
 //! ```
 //!
-//! Output, in `files/RIDER/` of the mod (never committed): `rider.bbsk` (the pack), `graph.json` (the blend tree),
-//! `attach.json` (seat, pegs, grips, the limbs to solve and the numbers that drive the animation), `parts.json` (meshes and
-//! their pictures) and the pictures.
+//! Output, in `files/RIDER/` of the mod (never committed): `rider.bbsk` (the pack), `graph.json` (the supermoto's blend tree),
+//! `falls.json` (the fall and get-up animation, [`falls`]), `graph_<type>.json` (the tree of each other bike type whose clips the export has) with `styles.json` (which graph each
+//! type has and the numbers of its reverse walk), `attach.json` (seat, pegs, grips, the limbs to solve and the numbers that
+//! drive the animation), `parts.json` (meshes and their pictures) and the pictures.
 //!
-//! Each bike's own seat, grips and pegs are not in that folder: `ride6-bike-import` writes them per car ([`contacts`]).
+//! Each bike's own seat, grips and pegs, and the name of its clip set, are not in that folder: `ride6-bike-import` writes them
+//! per car ([`contacts`], [`style`]).
 
 pub mod acl_clips;
 pub mod attach;
 pub mod contacts;
 pub mod convert;
+pub mod falls;
 pub mod graph;
+pub mod graph_reverse;
+pub mod graph_sets;
 pub mod parts;
 pub mod raw;
 pub mod seat_surface;
+pub mod style;
 
 use std::fs;
 use std::path::Path;
@@ -39,6 +45,10 @@ pub struct Summary {
     pub clips: usize,
     pub meshes: usize,
     pub bytes: usize,
+    /// The bike types that have a graph of their own.
+    pub styles: Vec<&'static str>,
+    /// Whether `falls.json` (the fall and get-up animation) was written.
+    pub falls: bool,
 }
 
 /// Converts the export in `input` into `output`. `riding_style` picks the lean clips (see [`graph::motard_graph`]).
@@ -77,6 +87,8 @@ pub fn import(input: &Path, output: &Path, riding_style: u8) -> Result<Summary> 
     let pack = convert::pack(skeleton, sockets, clips, meshes);
     let graph = graph::motard_graph(&pack, riding_style)?;
     graph.validate(&pack.clips, &pack.skeleton)?;
+    let styles = write_styles(&pack, riding_style, output)?;
+    let falls = write_falls(&pack, output)?;
 
     fs::create_dir_all(output.join("textures")).context("creating the output folder")?;
     let bytes = pack.to_bytes();
@@ -85,5 +97,55 @@ pub fn import(input: &Path, output: &Path, riding_style: u8) -> Result<Summary> 
     fs::write(output.join("attach.json"), serde_json::to_vec_pretty(&attach)?)?;
     fs::write(output.join("parts.json"), serde_json::to_vec_pretty(&parts::parts_json(&names))?)?;
     parts::copy_textures(&input.join("textures"), &output.join("textures"))?;
-    Ok(Summary { bones: pack.skeleton.len(), clips: pack.clips.len(), meshes: pack.meshes.len(), bytes: bytes.len() })
+    Ok(Summary {
+        bones: pack.skeleton.len(),
+        clips: pack.clips.len(),
+        meshes: pack.meshes.len(),
+        bytes: bytes.len(),
+        styles,
+        falls,
+    })
+}
+
+/// Writes `falls.json`, the animation of the rider's fall and get-up ([`falls::fall_set`]); whether it was written. A pack without the
+/// fall clips (an export made without the `Ragdoll` folder) gets none, with a warning: the game then lets the rider fall limp.
+fn write_falls(pack: &blackbox_skeleton::Pack, output: &Path) -> Result<bool> {
+    let set = match falls::fall_set(pack).and_then(|set| {
+        set.validate(&pack.clips, &pack.skeleton)?;
+        Ok(set)
+    }) {
+        Ok(set) => set,
+        Err(error) => {
+            eprintln!("warning: no fall animation: {error:#}");
+            return Ok(false);
+        }
+    };
+    fs::create_dir_all(output).context("creating the output folder")?;
+    fs::write(output.join("falls.json"), serde_json::to_vec_pretty(&set)?)?;
+    Ok(true)
+}
+
+/// Writes `graph_<type>.json` for every bike type whose clips the pack has, and `styles.json` naming them; returns the types'
+/// names. A type with a clip missing is left out with a warning (the pack comes from an export without that type's folder).
+fn write_styles(pack: &blackbox_skeleton::Pack, riding_style: u8, output: &Path) -> Result<Vec<&'static str>> {
+    fs::create_dir_all(output).context("creating the output folder")?;
+    let mut entries = Vec::new();
+    for set in graph_sets::SETS {
+        let graph = match graph::graph_for(pack, set, riding_style).and_then(|graph| {
+            graph.validate(&pack.clips, &pack.skeleton)?;
+            Ok(graph)
+        }) {
+            Ok(graph) => graph,
+            Err(error) => {
+                eprintln!("warning: no graph for the {} bike type: {error:#}", set.name);
+                continue;
+            }
+        };
+        fs::write(output.join(style::graph_file(set)), serde_json::to_vec_pretty(&graph)?)?;
+        let walk = graph_reverse::loop_seconds(pack, &set.walk);
+        entries.push((set, style::entry(set, riding_style, walk)));
+    }
+    let table = style::table(&entries);
+    fs::write(output.join(style::FILE), serde_json::to_vec_pretty(&table)?)?;
+    Ok(entries.iter().map(|(set, _)| set.name).collect())
 }
