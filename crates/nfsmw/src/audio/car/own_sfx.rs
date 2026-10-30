@@ -44,6 +44,8 @@ const SHIFT_DOWN: usize = 1;
 const BLOWOFF: usize = 2;
 const BACKFIRE: usize = 3;
 const POPS: usize = 4;
+/// The names of those lists, for the audio trace (`NFSMW_AUDIO_TRACE`).
+const LIST_NAMES: [&str; 5] = ["shift_up", "shift_down", "turbo_blowoff", "backfire", "pops"];
 
 /// What a frame tells the effects.
 pub struct SfxFrame {
@@ -73,7 +75,7 @@ pub struct OwnSfx {
     bangs: logic::Bangs,
     /// The car makes no gear clunk of the game's class-wide bank: a shift it has no recording for is silent.
     no_clunk: bool,
-    /// The accumulator backfire of `[car_sound.overrun]`; it replaces the backfire and the lone pops of a lift-off.
+    /// The accumulator backfire of `[car_sound.overrun]`; it replaces the backfire of a lift-off (the pops stay, with its chance).
     overrun: Option<overrun::OverrunDrive>,
     /// `shift_trigger = "gear"`: the shifts play at every change of the gear number ([`gear`]).
     shift_on_gear: bool,
@@ -154,8 +156,15 @@ impl OwnSfx {
         {
             self.spool *= logic::SPOOL_AFTER_BLOWOFF;
         }
-        // The overrun table decides the backfire and what follows it; the lift-off keeps only the turbo's blow-off.
-        if self.overrun.is_some() {
+        // The overrun table decides the backfire and what follows it; the lift-off keeps the turbo's blow-off and, with the
+        // table's own chance, the pops (the crackle recordings), which light the pipes.
+        if let Some(overrun) = &self.overrun {
+            if self.rng.unit() < overrun.lift_pop_chance(frame.rpm_pct) {
+                for pop in logic::pops_after_bang(&mut self.rng) {
+                    self.shot(audio, POPS, pop.volume, frame.delay + pop.delay);
+                    self.bangs.queue(pop.delay);
+                }
+            }
             return;
         }
         if let Some(volume) = lift.backfire {
@@ -177,6 +186,12 @@ impl OwnSfx {
         }
         let delay = if delay.is_finite() { delay.max(0.0) } else { 0.0 };
         let variant = self.rng.below(count);
+        if audio.trace.enabled() {
+            audio.trace.note(
+                "own_sfx_shot",
+                &format!("{} variant {variant} volume {volume:.2} delay {delay:.2}", LIST_NAMES[list]),
+            );
+        }
         let data = self.shots[list][variant]
             .clone()
             .volume(decibels(volume * SHOT_LEVEL))

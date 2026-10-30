@@ -9,6 +9,9 @@
 //! - **Bang:** one random file of `backfire` plays at [`bang_volume`] of the bang's audio level; a bang with an effect
 //!   level also lights the tail pipes once, and the one to three pops that follow (the core meaning of `pops`) light them
 //!   too; a bang without an effect level, and its pops, are audio only.
+//! - **Lift-off pops:** a lift-off at high engine speed also sounds the `pops` on its own with the chance
+//!   [`OverrunDrive::lift_pop_chance`], whether or not the charge is enough for a bang (the charge takes seconds at the
+//!   redline to fill and every shift drains it, so a bike would otherwise hardly ever make a sound); they light the pipes.
 //! - **Flame:** plays nothing (the bank the table was made from has no flame recording for the cars that use it); a flame
 //!   with an effect level lights the pipes, once every [`FLAME_PULSE_SECONDS`] while it burns.
 
@@ -75,13 +78,21 @@ pub struct OverrunDrive {
     redline_rpm: f32,
     /// Seconds until a burning flame lights the pipes again.
     pulse_wait: f32,
+    /// The data's chance that a shut throttle bangs (`probability_closed`).
+    closed_chance: f32,
 }
 
 impl OverrunDrive {
     /// `idle_rpm` and `redline_rpm` are what the host's `0 to 1` engine speed spans, so that the engine speed over the
     /// redline (the controller's `rpm_fraction`) can be told from it. `seed` makes the bang draws repeat.
     pub fn new(table: &Overrun, idle_rpm: f32, redline_rpm: f32, seed: u32) -> Self {
-        Self { fx: OverrunBackfire::new(tuning_of(table), seed), idle_rpm, redline_rpm, pulse_wait: 0.0 }
+        Self {
+            fx: OverrunBackfire::new(tuning_of(table), seed),
+            idle_rpm,
+            redline_rpm,
+            pulse_wait: 0.0,
+            closed_chance: table.probability_closed,
+        }
     }
 
     /// The engine speed over its redline for `rpm_pct`, the host's `(rpm - idle) / (redline - idle)`.
@@ -91,6 +102,15 @@ impl OverrunDrive {
         }
         let rpm = self.idle_rpm + rpm_pct.clamp(0.0, 1.0) * (self.redline_rpm - self.idle_rpm);
         (rpm / self.redline_rpm).clamp(0.0, 1.0)
+    }
+
+    /// The chance that a lift-off at `rpm_pct` (the host's 0 to 1 engine speed) pops on its own: the data's chance that a shut
+    /// throttle bangs (`probability_closed`, 0.8 for the KTM 450) times the engine speed over the redline, so a lift near
+    /// the redline pops four times in five and one at half speed two in five. A modelling choice (spec section 8): the
+    /// crackle recordings of RIDE 6 play from a limiter state this game does not have, and the lift-off is where a bike's
+    /// pops are expected.
+    pub fn lift_pop_chance(&self, rpm_pct: f32) -> f32 {
+        (self.closed_chance * self.rpm_fraction(rpm_pct)).clamp(0.0, 1.0)
     }
 
     /// One frame of `dt` seconds. `throttle` is the throttle pedal; the host has no separate electronic throttle, so it
@@ -136,6 +156,17 @@ mod tests {
             probability_closed: 1.0,
             probability_open: 1.0,
         }
+    }
+
+    #[test]
+    fn a_lift_off_pops_by_the_data_chance_times_the_engine_speed() {
+        let fx = OverrunDrive::new(&Overrun { probability_closed: 0.8, ..table() }, 2300.0, 11000.0, 5);
+        assert!((fx.lift_pop_chance(1.0) - 0.8).abs() < 1e-6);
+        assert!(fx.lift_pop_chance(0.5) < fx.lift_pop_chance(1.0));
+        assert!(fx.lift_pop_chance(0.0) > 0.0 && fx.lift_pop_chance(0.0) < 0.2, "idle is 2300 of 11000");
+        assert_eq!(fx.lift_pop_chance(f32::NAN), 0.0);
+        let never = OverrunDrive::new(&Overrun { probability_closed: 0.0, ..table() }, 2300.0, 11000.0, 5);
+        assert_eq!(never.lift_pop_chance(1.0), 0.0);
     }
 
     fn drive(table: &Overrun) -> OverrunDrive {
