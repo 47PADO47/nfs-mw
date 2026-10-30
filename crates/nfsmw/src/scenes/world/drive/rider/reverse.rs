@@ -125,8 +125,8 @@ mod tests {
             let after = run(&mut reverse, speed, 0.1).cycle;
             (after - before).rem_euclid(1.0)
         };
-        let (slow, fast) = (cycles(-1.0), cycles(-20.0));
-        // 0.1 s at rate 1 over a 2 s loop is 0.05 of a cycle; at rate 4 it is 0.2.
+        let (slow, fast) = (cycles(-1.5), cycles(-20.0));
+        // 0.1 s at about rate 1 (just past the threshold, which is not walking yet) over a 2 s loop is 0.05 of a cycle; at rate 4 it is 0.2.
         assert!((slow - 0.05).abs() < 0.01, "{slow}");
         assert!((fast - 0.2).abs() < 0.01, "{fast}");
         assert!(cycles(-10.0) > slow && cycles(-10.0) < fast);
