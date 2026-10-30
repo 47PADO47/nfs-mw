@@ -156,6 +156,7 @@ fn the_lean_limit_rises_leaning_into_a_rising_road_and_falls_leaning_off_it() {
         pitch_cut: (0.0, 0.0),
         roll_inertia: 47.8,
         cg_height: 0.8,
+        front_arm: 1.0,
         target_cap: f32::MAX,
         dt: FIXED_STEP,
     };

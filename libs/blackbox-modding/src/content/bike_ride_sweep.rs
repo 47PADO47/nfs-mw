@@ -26,10 +26,11 @@ fn load(path: &std::path::Path) -> Option<(String, BikeSpec)> {
     if let Some(tcs) = spec.tcs.as_mut() {
         tcs.slip = [tcs.slip[0] * scale, tcs.slip[1] * scale];
     }
+    super::bike_ride_real::apply_knobs(&mut spec);
     Some((name, spec))
 }
 
-fn specs() -> Vec<(String, BikeSpec)> {
+pub(super) fn specs() -> Vec<(String, BikeSpec)> {
     let Some(dir) = std::env::var_os("RIDE6_CARS") else { return Vec::new() };
     let filter = std::env::var("RIDE6_FILTER").unwrap_or_default();
     let mut paths: Vec<_> = std::fs::read_dir(dir).expect("a readable folder").flatten().map(|e| e.path()).collect();
@@ -43,25 +44,37 @@ fn specs() -> Vec<(String, BikeSpec)> {
         .collect()
 }
 
-/// What one run observed.
-#[derive(Default)]
-struct Log {
-    fell: Option<(f32, String)>,
-    max_pitch: f32,
-    max_lean: f32,
-    lean_limit: f32,
-    peak_rear_slip: f32,
-    peak_front_slip: f32,
-    peak_rear_angle: f32,
-    peak_front_angle: f32,
-    gears: Vec<(usize, f32, f32)>,
-    t100: Option<f32>,
-    top: f32,
-    distance: f32,
-    min_speed: f32,
+/// The throttle that holds `speed` against the speed `v` the bike has: a proportional controller around 0.25 (gain `RIDE6_GAIN`,
+/// 0.2 per m/s by default), or the constant `RIDE6_THROTTLE` when it is set (a sweep with no controller to blame).
+pub(super) fn held_throttle(speed: f32, v: f32) -> f32 {
+    match std::env::var("RIDE6_THROTTLE").ok().and_then(|t| t.parse::<f32>().ok()) {
+        Some(fixed) => fixed,
+        None => {
+            let gain = std::env::var("RIDE6_GAIN").ok().and_then(|g| g.parse::<f32>().ok()).unwrap_or(0.2);
+            (0.25 + gain * (speed - v)).clamp(0.0, 1.0)
+        }
+    }
 }
 
-fn run(
+/// What one run observed.
+#[derive(Default)]
+pub(super) struct Log {
+    pub(super) fell: Option<(f32, String)>,
+    pub(super) max_pitch: f32,
+    pub(super) max_lean: f32,
+    pub(super) lean_limit: f32,
+    pub(super) peak_rear_slip: f32,
+    pub(super) peak_front_slip: f32,
+    pub(super) peak_rear_angle: f32,
+    pub(super) peak_front_angle: f32,
+    pub(super) gears: Vec<(usize, f32, f32)>,
+    pub(super) t100: Option<f32>,
+    pub(super) top: f32,
+    pub(super) distance: f32,
+    pub(super) min_speed: f32,
+}
+
+pub(super) fn run(
     spec: &BikeSpec,
     start: f32,
     seconds: f32,
@@ -317,11 +330,7 @@ fn bike_stick_limit() {
             for &stick in &sticks {
                 let hold = move |_: f32, bike: &Bike| {
                     let v = bike.body().linear_velocity.length();
-                    BikeInput {
-                        throttle: (0.25 + 0.2 * (speed - v)).clamp(0.0, 1.0),
-                        steer: stick,
-                        ..Default::default()
-                    }
+                    BikeInput { throttle: held_throttle(speed, v), steer: stick, ..Default::default() }
                 };
                 let (_, log) = run(spec, speed, 10.0, 0.0, hold);
                 if log.fell.is_none() {
@@ -349,7 +358,8 @@ fn bike_stick_limit() {
 #[test]
 #[ignore = "needs RIDE6_CARS"]
 fn bike_sweep_extra() {
-    let stick = 0.8_f32;
+    // `RIDE6_STICK` sets the share of the stick the manoeuvres use (0.8 by default, the share the game gave before round 9).
+    let stick: f32 = std::env::var("RIDE6_STICK").ok().and_then(|s| s.parse().ok()).unwrap_or(0.8);
     let mut flagged = Vec::new();
     for (name, spec) in specs() {
         let mut flags = Vec::new();
@@ -395,4 +405,44 @@ fn bike_sweep_extra() {
         }
     }
     println!("{} bikes flagged: {flagged:?}", flagged.len());
+}
+
+/// Why the bikes fall at the first stick of `RIDE6_STICKS` (1.0) and the speeds of `RIDE6_SPEEDS`: the time, the kind, the lean against
+/// the fall limit and the slip angles at the moment (one line per fall), then the count of each kind.
+#[test]
+#[ignore = "needs RIDE6_CARS"]
+fn bike_stick_falls() {
+    let list = |key: &str, default: &[f32]| -> Vec<f32> {
+        match std::env::var(key) {
+            Ok(text) => text.split(',').filter_map(|p| p.parse().ok()).collect(),
+            Err(_) => default.to_vec(),
+        }
+    };
+    let speeds = list("RIDE6_SPEEDS", &[8.0, 30.0]);
+    let stick = list("RIDE6_STICKS", &[1.0])[0];
+    let mut kinds: std::collections::BTreeMap<String, usize> = Default::default();
+    for (name, spec) in specs() {
+        for &speed in &speeds {
+            let hold = move |_: f32, bike: &Bike| {
+                let v = bike.body().linear_velocity.length();
+                BikeInput { throttle: held_throttle(speed, v), steer: stick, ..Default::default() }
+            };
+            let (bike, log) = run(&spec, speed, 10.0, 0.0, hold);
+            let Some((t, kind)) = &log.fell else { continue };
+            *kinds.entry(format!("{speed:.0} m/s {kind}")).or_default() += 1;
+            println!(
+                "{name} {speed:.0} m/s: fell {t:.1}s {kind}: lean {:.2} limit {:.2} fall limit {:.2} front angle {:.3} rear angle {:.3} speed {:.1}",
+                log.max_lean,
+                log.lean_limit,
+                bike.fall_lean_limit(),
+                log.peak_front_angle,
+                log.peak_rear_angle,
+                bike.body().linear_velocity.length()
+            );
+        }
+    }
+    println!("==== fall kinds");
+    for (kind, count) in kinds {
+        println!("{kind}: {count}");
+    }
 }

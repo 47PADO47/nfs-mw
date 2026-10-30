@@ -14,6 +14,34 @@ fn spec() -> Option<BikeSpec> {
     Some(BikeSpec::from(manifest.bike.as_ref().expect("a bike")))
 }
 
+/// `RIDE6_KNOBS=a,b`: switch a term of the model off to see what it did (shared with the sweeps).
+pub(super) fn apply_knobs(spec: &mut BikeSpec) {
+    for knob in std::env::var("RIDE6_KNOBS").unwrap_or_default().split(',') {
+        match knob {
+            "nogyro" => (spec.gyro_roll_scale, spec.gyro_yaw_scale) = (0.0, 0.0),
+            "nohang" => (spec.rider.lean_influence, spec.rider.weight_influence) = (0.0, 0.0),
+            "nohelp" => spec.steering.lean.help_limit = 0.0,
+            "noskid" => spec.steering.lean.skid_reduction.clear(),
+            "tcs" => {
+                if let Some(t) = spec.tcs.as_mut() {
+                    t.slip = [0.03, 0.1];
+                }
+            }
+            "norider" => spec.chassis.rider_mass = 0.0,
+            "nohelpspeed" => spec.steering.lean.help_speed.clear(),
+            "grip2" => {
+                spec.front.tyre.a[2] *= 1.3;
+                spec.rear.tyre.a[2] *= 1.3;
+            }
+            "noengbrake" => spec.engine.friction_torque *= 0.1,
+            "stiff" => spec.steering.response *= 4.0,
+            "nostability" => spec.steering.lean.stability.speed.clear(),
+            "nofall" => spec.fall.lean = 10.0,
+            _ => {}
+        }
+    }
+}
+
 #[test]
 #[ignore = "needs RIDE6_CAR"]
 fn bike_ride_real() {
@@ -97,29 +125,7 @@ fn bike_trace_real() {
     let (speed, steer) = (parts[0], parts[1]);
     let ground = FlatGround::new(0.0);
     let mut spec = spec;
-    for knob in std::env::var("RIDE6_KNOBS").unwrap_or_default().split(',') {
-        match knob {
-            "nogyro" => (spec.gyro_roll_scale, spec.gyro_yaw_scale) = (0.0, 0.0),
-            "nohang" => (spec.rider.lean_influence, spec.rider.weight_influence) = (0.0, 0.0),
-            "nohelp" => spec.steering.lean.help_limit = 0.0,
-            "noskid" => spec.steering.lean.skid_reduction.clear(),
-            "tcs" => {
-                if let Some(t) = spec.tcs.as_mut() {
-                    t.slip = [0.03, 0.1];
-                }
-            }
-            "norider" => spec.chassis.rider_mass = 0.0,
-            "noaligning" => {}
-            "nohelpspeed" => spec.steering.lean.help_speed.clear(),
-            "grip2" => {
-                spec.front.tyre.a[2] *= 1.3;
-                spec.rear.tyre.a[2] *= 1.3;
-            }
-            "noengbrake" => spec.engine.friction_torque *= 0.1,
-            "stiff" => spec.steering.response *= 4.0,
-            _ => {}
-        }
-    }
+    apply_knobs(&mut spec);
     let mut bike = Bike::new(spec);
     assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, speed));
     for step in 0..(6.0 / FIXED_STEP) as usize {
@@ -143,7 +149,7 @@ fn bike_trace_real() {
             let f = bike.wheel(0);
             let r = bike.wheel(1);
             println!(
-                "t{:.2} v{:.1} lean{:.3} tgt{:.3} lim{:.3} steer{:.3} fAng{:.3} rAng{:.3} fLoad{:.0} rLoad{:.0} rSlip{:.3} fCam{:.2} fFy{:.0} fall{:.3} yaw{:.3} fcomp{:.4} fcs{:.2} pitch{:.3} gear{} {}",
+                "t{:.2} v{:.1} lean{:.3} tgt{:.3} lim{:.3} steer{:.3} fAng{:.3} rAng{:.3} fLoad{:.0} rLoad{:.0} rSlip{:.3} fCam{:.2} fFy{:.0} fall{:.3} yaw{:.3} fcomp{:.4} fcs{:.2} pitch{:.3} gear{} want{:.0} rFy{:.0} {}",
                 (step + 1) as f32 * FIXED_STEP,
                 v,
                 bike.lean(),
@@ -163,6 +169,8 @@ fn bike_trace_real() {
                 f.compression_speed,
                 bike.pitch(),
                 bike.gear(),
+                bike.wanted_front_force(),
+                r.force.x,
                 if bike.fallen() { "FALLEN" } else { "" }
             );
         }
@@ -198,6 +206,32 @@ fn bike_launch_trace_real() {
                 bike.wheel(1).compression,
                 bike.pitch()
             );
+        }
+    }
+}
+
+/// The lateral force of the front and rear tyres against the slip angle at several loads and cambers (N): what the tyres can give.
+#[test]
+#[ignore = "needs RIDE6_CAR"]
+fn bike_tyre_curve_real() {
+    let Some(spec) = spec() else { return };
+    for (name, wheel) in [("front", &spec.front), ("rear", &spec.rear)] {
+        for load in [600.0_f32, 900.0, 1300.0, 2000.0] {
+            for camber_deg in [0.0_f32, 25.0, 50.0, 60.0] {
+                // The wheel feeds the formula the negated camber (a bike leaning right is pushed right).
+                let curve: Vec<f32> = [0.5_f32, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 12.0]
+                    .iter()
+                    .map(|&alpha| -wheel.tyre.lateral(load * 1e-3, alpha, -camber_deg))
+                    .collect();
+                let best = (0..400)
+                    .map(|n| -wheel.tyre.lateral(load * 1e-3, n as f32 * 0.05, -camber_deg))
+                    .fold(f32::MIN, f32::max);
+                let zero = -wheel.tyre.lateral(load * 1e-3, 0.0, -camber_deg);
+                println!(
+                    "{name} load {load:4.0} camber {camber_deg:2.0}: Fy(0) {zero:6.0} peak {best:6.0} at alpha 0.5,1,2,3,4,5,6,8,12 deg: {:?}",
+                    curve.iter().map(|f| f.round() as i32).collect::<Vec<_>>()
+                );
+            }
         }
     }
 }

@@ -14,7 +14,7 @@
 //! The two bodies have different origins (the bike's is on the ground between its tyres, the double's is the centre of the
 //! collision box) and share their centre of gravity, so a velocity is the same on both.
 
-use blackbox_vehicle::bike::{AbsLevelSpec, Bike, BikeInput, FRONT, REAR};
+use blackbox_vehicle::bike::{AbsLevelSpec, Bike, BikeInput, FRONT, REAR, choices};
 use blackbox_vehicle::input::Controls;
 use blackbox_vehicle::math::ramp;
 use blackbox_vehicle::rigid_body::box_inertia;
@@ -26,12 +26,6 @@ use nfsmw_data::car::physics::CarPhysics;
 use super::super::rider::RiderSample;
 use super::step::StepStart;
 use super::{CarSim, MAX_VISIBLE_TRAVEL, Telemetry};
-
-/// The share of the stick the rider gives the bike's lean controller (a modelling choice, `docs/specs/ride6-feel-round8.md`, section 4). The
-/// full stick of the reference asks for the lean limit, the edge of the front tyre's grip; a key or a stick pushed to its end holds it
-/// for as long as it is held, and this model's bike held there falls within seconds on many bikes (a weave the tyres cannot take). 0.8 is the
-/// largest share that 287 of the 288 bikes of the install held for 10 s at every speed from 8 to 40 m/s.
-const STICK_SHARE: f32 = 0.8;
 
 /// A bike that lost its rider lies this long before it is stood up again (s). A modelling choice (`ride6-rider-fall.md`): the
 /// reference lets the rider get up, walk to the bike and raise it, which takes longer and is not modelled.
@@ -161,7 +155,7 @@ impl BikeRide {
         // On the grid of a race the rider holds the bike with both brakes until the start.
         let rider = match vehicle.staging() {
             true => BikeInput { throttle: 0.0, front_brake: 1.0, rear_brake: 1.0, steer: 0.0 },
-            false => command(input),
+            false => command(input, self.bike.forward_speed()),
         };
         self.bike.set_weight(start.weight);
         self.bike.respond(start.delta, &rider, ground);
@@ -388,12 +382,13 @@ fn signed_unit(value: f32) -> f32 {
 /// What the rider asks of the bike for the game's input: the throttle and the stick as they are; the brake pedal pulls both
 /// brakes and the handbrake only the rear one (the input layer has one brake axis). The gearbox is automatic: the shift
 /// buttons, the gear keys and the clutch are not read.
-pub(super) fn command(input: &InputState) -> BikeInput {
+pub(super) fn command(input: &InputState, speed: f32) -> BikeInput {
     BikeInput {
         throttle: unit(input.throttle),
         front_brake: unit(input.brake),
         rear_brake: unit(input.brake).max(unit(input.handbrake)),
-        steer: signed_unit(input.steer) * STICK_SHARE,
+        // The full stick up to `choices::STICK_FULL_UNTIL` m/s, less above (`ride6-feel-round9.md`, section 4).
+        steer: signed_unit(input.steer) * choices::stick_share(speed),
     }
 }
 

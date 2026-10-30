@@ -13,6 +13,21 @@ use crate::ground::Ground;
 const MAX_STATE_SPEED: f32 = 20.0;
 /// The part of the axis' cosine below which a force along it is not trusted (a wheel lying on its side).
 const MIN_AXIS_COSINE: f32 = 0.3;
+/// The least cosine the load is divided by: the binary clamps the angle between the suspension axis and the ground normal seen from
+/// the side to 60 degrees (`0x145140b30`; `ride6-feel-round9.md`, section 2).
+const MIN_LOAD_COSINE: f32 = 0.5;
+
+/// What a force along the suspension axis (N) is worth as a load on the tyre, per newton (`ride6-feel-round9.md`, section 2): the
+/// binary points the suspension force along the ground normal seen from the side of the bike (the normal without its component
+/// across the chassis), scales it to carry the axial force, and takes the load as its part along the ground normal. That is
+/// `cos(roll) / cos(angle of the axis to that normal)`: leaning the bike takes load off the tyre for a given spring force instead of
+/// adding to it, because the lateral force of the tyre carries the rest of the axial force.
+pub(super) fn load_factor(normal: Vec3, right: Vec3, axis: Vec3) -> f32 {
+    let seen_from_the_side = normal - right * normal.dot(right);
+    let roll = seen_from_the_side.length();
+    let Some(side_normal) = seen_from_the_side.try_normalize() else { return 1.0 / MIN_AXIS_COSINE };
+    roll / side_normal.dot(axis).max(MIN_LOAD_COSINE)
+}
 
 impl Bike {
     /// The pose of a wheel for a suspension compression: the hub in the world, the unit axle and heading, and the
@@ -103,7 +118,8 @@ impl Bike {
         let spring = suspension.force(total, approach, dt, mass) + coupled;
         let inertia = wheel_spec.mass * (speed - speed0) / dt;
         let along_axis = spring + weight * axis_up + inertia;
-        let mut load = (along_axis / cosine).max(0.0);
+        let mut load =
+            (along_axis * load_factor(contact.normal, self.body.rotation() * Vec3::X, contact.axis)).max(0.0);
         // The end of the travel is a hard stop that adds no force of its own (`ride6-chassis-round6.md`, "End of travel"): the tyre
         // takes what is left over through its radial stiffness, a rigid tyre nothing.
         load += wheel_spec.tire_stiffness.max(0.0) * overload;

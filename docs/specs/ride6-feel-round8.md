@@ -145,6 +145,9 @@ on the mean time to 100 km/h (3.4 s to 3.8 s over the 288). It is the one number
 
 ## 7. What stays open (measured)
 
+> Round 9 ([ride6-feel-round9.md](ride6-feel-round9.md)) found the cause of the first item: the handlebar angle was projected along the steering axis instead of the
+> ground normal, the wanted force lacked the division by the cosine of the lean, and the tyre load grew with the lean instead of falling.
+
 - **The stick at 1.0** (the game scales a pad's end of travel to 0.8 too): 69 of 288 bikes fall within 8 s at 30 m/s (5 at 10 m/s). Findings: the bike
   held at the lean limit sits at the peak of its tyres (slip angles of 0.07 to 0.09 rad on both, the lean 0.02 rad above its target: the closure's
   offset), where the tyre's cornering stiffness is nil and the loop weaves at 1.5 Hz (a yaw rate of 0.1 to 0.6 rad/s) and the front wheel hops once or

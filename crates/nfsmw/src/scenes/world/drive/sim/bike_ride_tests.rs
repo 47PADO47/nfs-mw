@@ -76,16 +76,18 @@ fn what_a_contact_does_to_the_double_the_bike_takes() {
 #[test]
 fn the_pedals_and_the_stick_become_the_riders_levers() {
     let input = InputState { throttle: 0.5, brake: 0.3, steer: -2.0, ..Default::default() };
-    let rider = command(&input);
-    assert_eq!(rider, BikeInput { throttle: 0.5, front_brake: 0.3, rear_brake: 0.3, steer: -0.8 });
+    let rider = command(&input, 10.0);
+    assert_eq!(rider, BikeInput { throttle: 0.5, front_brake: 0.3, rear_brake: 0.3, steer: -1.0 });
+    // The full stick gives less of the lean limit at high speed.
+    assert!((command(&input, 40.0).steer + 0.9).abs() < 1e-6);
     // The handbrake is the rear brake alone.
-    let handbrake = command(&InputState { handbrake: 1.0, ..Default::default() });
+    let handbrake = command(&InputState { handbrake: 1.0, ..Default::default() }, 0.0);
     assert_eq!((handbrake.front_brake, handbrake.rear_brake), (0.0, 1.0));
     // A harder brake pedal than the handbrake wins at the rear.
-    let both = command(&InputState { brake: 0.8, handbrake: 0.5, ..Default::default() });
+    let both = command(&InputState { brake: 0.8, handbrake: 0.5, ..Default::default() }, 0.0);
     assert_eq!((both.front_brake, both.rear_brake), (0.8, 0.8));
     // Shift requests and the clutch are not read, and a number that is not a number is no input.
-    let odd = command(&InputState { throttle: f32::NAN, shift_up: true, clutch: 1.0, ..Default::default() });
+    let odd = command(&InputState { throttle: f32::NAN, shift_up: true, clutch: 1.0, ..Default::default() }, 0.0);
     assert_eq!(odd, BikeInput::default());
 }
 

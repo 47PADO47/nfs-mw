@@ -7,7 +7,7 @@
 //! to the body for the prescribed roll itself (`docs/specs/ride6-chassis-round6.md`).
 
 use super::choices;
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 
 use super::curve::{curve, factor, ramp};
 use super::filter::{SecondOrder, step_acceleration};
@@ -37,6 +37,9 @@ pub struct LeanInput {
     /// The roll inertia of the bike and the rider together (kg m^2) and the height of the combined centre of gravity (m).
     pub roll_inertia: f32,
     pub cg_height: f32,
+    /// The arm the wanted front force is divided by on top of the height: the cosine of the lean of the chassis from the front
+    /// contact's ground plane ([`lean_arm`]); 1 when the front wheel is off the ground or too slow to tell.
+    pub front_arm: f32,
     /// The most the target lean may be (rad): the block-fall assist's hold; infinite when it is off.
     pub target_cap: f32,
     pub dt: f32,
@@ -121,7 +124,7 @@ impl Lean {
         // `arm` is the distance of the front tyre's side direction from the roll axis: the height of the centre of gravity for a
         // small lean (the binary floors it at 0.05 m). The sign is that of a force to the right: a roll to the right needs a push
         // to the left first.
-        let front_force = -torque / input.cg_height.max(0.05);
+        let front_force = -torque / input.cg_height.max(0.05) / input.front_arm.max(choices::MIN_LEAN_ARM);
         LeanPlan { limit, target, acceleration: accel, torque, front_force, capped: target != free }
     }
 }
@@ -144,19 +147,28 @@ pub fn slip_for_force(tyre: &Mf94, fz_kn: f32, gamma_deg: f32, wanted: f32) -> f
     (0.5 * (low + high)).to_radians()
 }
 
-/// The handlebar angle (rad, positive right) for a front contact that moves with `velocity` in the chassis frame (x right, y up,
-/// z forward), a steering axis `axis` (unit, same frame, pointing up and back) and the wanted lateral slip `slip_y`
-/// (`ride6-lean-controller.md`, step 3, `0x145158890`): the velocity without its component along the axis is the wheel's
-/// direction of travel; the wanted heading is that direction turned to the left by the slip; the angle is the heading of that
-/// vector projected along the steering axis onto the chassis' horizontal plane.
-pub fn handlebar_angle(velocity: Vec3, axis: Vec3, slip_y: f32) -> f32 {
-    let Some(direction) = (velocity - axis * velocity.dot(axis)).try_normalize() else { return 0.0 };
-    let heading = direction - axis.cross(direction) * slip_y;
-    if axis.y.abs() < 1e-3 {
+/// The handlebar angle (rad, positive right) for a front contact that moves with the world `velocity` over ground of unit `normal`
+/// (world frame), a bike of orientation `rotation` (body to world; body frame x right, y up, z forward) and the wanted lateral slip
+/// `slip_y` (`ride6-feel-round9.md`, section 1; the binary's `0x1450c9320`, `0x145158890`): the velocity without its component along
+/// the ground normal is the wheel's direction of travel; the wanted heading is that direction turned to the left by the slip, in the
+/// plane of the ground; the angle is the heading of that vector in the chassis frame, projected **along the ground normal** onto the
+/// chassis' horizontal plane. A bike leaned by `phi` therefore needs `slip / cos(phi)` of handlebar for `slip` on the ground.
+pub fn handlebar_angle(velocity: Vec3, normal: Vec3, rotation: Mat3, slip_y: f32) -> f32 {
+    let Some(direction) = (velocity - normal * velocity.dot(normal)).try_normalize() else { return 0.0 };
+    let heading = direction - normal.cross(direction) * slip_y;
+    let to_body = rotation.transpose();
+    let (heading, up) = (to_body * heading, to_body * normal);
+    if up.y.abs() < 1e-3 {
         return 0.0;
     }
-    let flat = heading - axis * (heading.y / axis.y);
+    let flat = heading - up * (heading.y / up.y);
     flat.x.atan2(flat.z)
+}
+
+/// The share of the wanted front force the controller asks once the bike leans: the force is divided by the cosine of the lean of the
+/// chassis' right axis from the ground plane (`ride6-feel-round9.md`, section 1; `0x1450c9320`), at least [`choices::MIN_LEAN_ARM`].
+pub fn lean_arm(right: Vec3, normal: Vec3) -> f32 {
+    (1.0 - right.dot(normal).powi(2)).max(0.0).sqrt().max(choices::MIN_LEAN_ARM)
 }
 
 /// The handlebar angle the controller aims at (rad): the plan's angle, blended to the stick's direct mapping at a walking pace.

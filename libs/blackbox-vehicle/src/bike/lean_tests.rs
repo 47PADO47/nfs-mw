@@ -1,4 +1,4 @@
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 
 use super::*;
 use crate::bike::BikeSpec;
@@ -18,6 +18,7 @@ fn input(stick: f32, lean: f32, speed: f32) -> LeanInput {
         pitch_cut: (0.0, 0.0),
         roll_inertia: 47.8,
         cg_height: 0.8,
+        front_arm: 1.0,
         target_cap: f32::MAX,
         dt: DT,
     }
@@ -102,17 +103,47 @@ fn the_slip_for_a_force_beyond_the_peak_is_the_slip_of_the_peak() {
 
 #[test]
 fn the_closed_form_handlebar_steers_the_wheel_to_the_direction_of_travel_less_the_slip() {
-    let axis = Vec3::new(0.0, 26.0_f32.to_radians().cos(), -26.0_f32.to_radians().sin());
+    let (up, upright) = (Vec3::Y, Mat3::IDENTITY);
     // Straight ahead with no slip: no steering. A push to the left (slip) first steers left, and a patch moving to the right
     // steers right.
-    assert!(handlebar_angle(Vec3::new(0.0, 0.0, 20.0), axis, 0.0).abs() < 1e-5);
-    assert!(handlebar_angle(Vec3::new(0.0, 0.0, 20.0), axis, 0.05) < -0.03);
-    assert!(handlebar_angle(Vec3::new(1.0, 0.0, 20.0), axis, 0.0) > 0.03);
+    assert!(handlebar_angle(Vec3::new(0.0, 0.0, 20.0), up, upright, 0.0).abs() < 1e-5);
+    assert!(handlebar_angle(Vec3::new(0.0, 0.0, 20.0), up, upright, 0.05) < -0.03);
+    assert!(handlebar_angle(Vec3::new(1.0, 0.0, 20.0), up, upright, 0.0) > 0.03);
     // Mirrored.
-    let right = handlebar_angle(Vec3::new(1.0, 0.0, 20.0), axis, 0.02);
-    let left = handlebar_angle(Vec3::new(-1.0, 0.0, 20.0), axis, -0.02);
+    let right = handlebar_angle(Vec3::new(1.0, 0.0, 20.0), up, upright, 0.02);
+    let left = handlebar_angle(Vec3::new(-1.0, 0.0, 20.0), up, upright, -0.02);
     assert!((right + left).abs() < 1e-5);
-    assert_eq!(handlebar_angle(Vec3::ZERO, axis, 0.1), 0.0);
+    assert_eq!(handlebar_angle(Vec3::ZERO, up, upright, 0.1), 0.0);
+}
+
+#[test]
+fn a_leaned_bike_needs_the_slip_over_the_cosine_of_its_lean_of_handlebar() {
+    // The ground is flat; the bike leans right by 50 degrees (a rotation about its forward axis, z, that takes the body's up to
+    // the right of the world's).
+    let lean = 50.0_f32.to_radians();
+    let rotation = Mat3::from_rotation_z(-lean);
+    let slip = 0.1;
+    let angle = handlebar_angle(Vec3::new(0.0, 0.0, 20.0), Vec3::Y, rotation, slip);
+    // The wheel heads `slip` to the left of the travel on the ground: the handlebar turns that much over cos(lean).
+    assert!((angle + slip.atan() / lean.cos()).abs() < 2e-3, "{angle}");
+    // Upright it is the slip itself.
+    let upright = handlebar_angle(Vec3::new(0.0, 0.0, 20.0), Vec3::Y, Mat3::IDENTITY, slip);
+    assert!((upright + slip.atan()).abs() < 2e-3, "{upright}");
+}
+
+#[test]
+fn the_front_force_is_asked_over_the_cosine_of_the_lean() {
+    let up = Vec3::Y;
+    let upright = lean_arm(Vec3::X, up);
+    assert!((upright - 1.0).abs() < 1e-6);
+    let lean = 50.0_f32.to_radians();
+    let right = Vec3::new(lean.cos(), -lean.sin(), 0.0);
+    assert!((lean_arm(right, up) - lean.cos()).abs() < 1e-6);
+    assert_eq!(lean_arm(Vec3::Y, up), choices::MIN_LEAN_ARM);
+    let steering = BikeSpec::example().steering;
+    let plain = Lean::new().plan(&steering, &input(1.0, 0.0, 20.0));
+    let leaned = Lean::new().plan(&steering, &LeanInput { front_arm: 0.5, ..input(1.0, 0.0, 20.0) });
+    assert!((leaned.front_force - 2.0 * plain.front_force).abs() < 1e-2 * plain.front_force.abs().max(1.0));
 }
 
 #[test]
@@ -273,5 +304,7 @@ fn the_stability_help_holds_the_yaw_rate_of_a_coasting_turn_nearer_to_the_one_th
         worst
     };
     let (without, with) = (error_after(false), error_after(true));
-    assert!(with < without, "with {with} without {without}");
+    // Since round 9 the plain bike already holds the yaw rate of its lean to within a few hundredths of a radian per second
+    // (the handlebar geometry is the binary's), so the help is checked not to spoil it.
+    assert!(with < without + 0.005, "with {with} without {without}");
 }

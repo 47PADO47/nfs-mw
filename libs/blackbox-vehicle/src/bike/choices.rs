@@ -12,6 +12,16 @@ pub const ABS_FALL_RATE: f32 = 10_000.0;
 /// default of 1 (recovered, `ride6-suspension.md`, "Unset C++ defaults").
 pub const LATERAL_GRIP_TOLERANCE: f32 = 1.0;
 
+/// The least value of the arm the lean controller divides the wanted front force by (`lean::lean_arm`): the binary floors it at 0.05
+/// (`ride6-feel-round9.md`, section 1; `0x1450c9320`).
+pub const MIN_LEAN_ARM: f32 = 0.05;
+
+/// How far to the side (m) the rider can throw his weight to hold the bike's lean on its rear wheel alone: 0.25 m, the largest side
+/// offset any bike's rider data states (the KTM's stopped offset; most bikes state none). A modelling choice: the reference's own balance
+/// of a bike on one wheel was not found (its lean help acts at the front contact only, `0x1450c3ae0`, and is zero with the front wheel
+/// off the road), and without a torque of some kind a stick turns a wheelie over (`ride6-feel-round9.md`, section 6).
+pub const BALANCE_REACH: f32 = 0.25;
+
 /// The share of the efficiency loss that goes to the longitudinal force: the `TireEfficiencyBalance` constructor default of the
 /// tyre data (recovered, `ride6-tyre-thermal.md` section 1; the lateral force gets the rest).
 pub const TYRE_EFFICIENCY_BALANCE: f32 = 0.5;
@@ -48,3 +58,33 @@ pub const TCS_WINDOW_SCALE: f32 = 0.5;
 /// needs: the rear wheel lifts or slides and the bike falls inward (15 of the 20 bikes of the subset, a lever of 1.0 at 25 m/s with the
 /// stick at 0.8). At 0.8 one of them falls; a straight stop (lean 0) is untouched. It should go if the reference's own relief is found.
 pub const BRAKE_LEAN_RELIEF: f32 = 0.8;
+
+/// The speed (m/s) up to which a full stick is the whole of the lean limit, and the speed from which it gives only [`STICK_SHARE_AT_TOP`] of it.
+pub const STICK_FULL_UNTIL: f32 = 30.0;
+pub const STICK_REDUCED_AT: f32 = 40.0;
+/// The share of the lean limit a full stick gives from [`STICK_REDUCED_AT`] on.
+pub const STICK_SHARE_AT_TOP: f32 = 0.9;
+
+/// The share of the stick a host gives the lean controller at this speed (m/s), for a stick pushed to its end. A modelling choice: the
+/// reference's full stick asks for the whole lean limit, and since round 9 the model holds that on 285 to 288 of the 288 bikes up to 30 m/s
+/// (`ride6-feel-round9.md`, section 3); above it the 1000 cm3 sports bikes weave when the throttle moves (267 to 283 hold a full stick at 40 m/s,
+/// 274 to 284 at 50), while a stick of 0.9 was held by all 288 bikes at 30, 40 and 50 m/s with the round 8 throttle controller. So the stick has its whole range
+/// up to [`STICK_FULL_UNTIL`] and falls to [`STICK_SHARE_AT_TOP`] by [`STICK_REDUCED_AT`]. The turn's radius at those speeds (`v^2 / (g tan lean)`)
+/// is 77 m at 30 m/s and 85 m at 40 m/s for a bike of lean limit 0.87 rad with the whole limit; with 0.9 of it, 137 m at 40 m/s.
+pub fn stick_share(speed: f32) -> f32 {
+    let t = ((speed.abs() - STICK_FULL_UNTIL) / (STICK_REDUCED_AT - STICK_FULL_UNTIL)).clamp(0.0, 1.0);
+    1.0 + (STICK_SHARE_AT_TOP - 1.0) * t
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_stick_has_its_whole_range_up_to_thirty_metres_per_second_and_nine_tenths_of_it_from_forty() {
+        assert_eq!(stick_share(0.0), 1.0);
+        assert_eq!(stick_share(30.0), 1.0);
+        assert!((stick_share(35.0) - 0.95).abs() < 1e-6);
+        assert!((stick_share(40.0) - 0.9).abs() < 1e-6 && (stick_share(-80.0) - 0.9).abs() < 1e-6);
+    }
+}

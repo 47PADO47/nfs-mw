@@ -12,7 +12,7 @@
 //! ranges are in `bike_check.rs` and `bike_check_parts.rs`; they catch typing mistakes (a wheel of 3 m, a rake of 26
 //! radians), not unusual bikes.
 
-use blackbox_vehicle::bike::{BikeSpec, ChassisSpec, InputRates, Mf94, TcsSpec, WheelSpec};
+use blackbox_vehicle::bike::{BikeSpec, ChassisSpec, InputRates, Mf94, ReverseSpec, TcsSpec, WheelSpec};
 use serde::Deserialize;
 
 pub use super::bike_help::AbsLevel;
@@ -62,6 +62,19 @@ pub struct Bike {
     pub gyro_yaw_scale: f32,
     /// The quadratic air drag coefficient: the drag force is `drag * v^2` newtons, `v` in m/s.
     pub drag: f32,
+    /// Walking the bike backwards (`[bike.reverse]`); left out for a bike without a reverse.
+    #[serde(default)]
+    pub reverse: Option<Reverse>,
+}
+
+/// Reverse (`[bike.reverse]`): the rider holds the brake with the bike standing, and after `hold_s` seconds pushes it backwards
+/// with `force_n` newtons at a standstill, the force dying away as the speed backwards nears `max_speed_mps`.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Reverse {
+    pub force_n: f32,
+    pub max_speed_mps: f32,
+    pub hold_s: f32,
 }
 
 /// The rise and fall rates, per second, of the rider's axes (`[bike.input]`): a rise moves away from 0 (the stick: in either
@@ -280,6 +293,11 @@ impl From<&Bike> for BikeSpec {
             gyro_roll_scale: bike.gyro_roll_scale,
             gyro_yaw_scale: bike.gyro_yaw_scale,
             drag: bike.drag,
+            reverse: bike.reverse.map(|r| ReverseSpec {
+                force: r.force_n,
+                max_speed: r.max_speed_mps,
+                hold_time: r.hold_s,
+            }),
         }
     }
 }

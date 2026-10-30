@@ -13,6 +13,7 @@ use clap::Parser;
 
 use ride6_bikes::bake::Options;
 use ride6_bikes::cli;
+use ride6_bikes::grade;
 use ride6_bikes::naming;
 use ride6_bikes::partfile::PartTable;
 use ride6_bikes::pipeline::{Request, import_bike};
@@ -39,8 +40,15 @@ struct Args {
     #[arg(long, default_value_t = 2048)]
     max_texture: u32,
     /// The occlusion factor of a fully occluded texel (0 to 1) baked into the colour.
-    #[arg(long, default_value_t = 0.3)]
+    #[arg(long, default_value_t = grade::DEFAULT_AO_FLOOR)]
     ao_floor: f32,
+    /// The lift of the base colour (1 to 2; 1 is none): the car rigs light a texture with less than its own brightness.
+    #[arg(long, default_value_t = grade::DEFAULT_GAIN)]
+    gain: f32,
+    /// The radiance of the environment a dielectric reflects, baked into its colour (0 to 1; 0 is none): the car light
+    /// materials of a plastic reflect nothing.
+    #[arg(long, default_value_t = grade::DEFAULT_REFLECTED)]
+    reflected: f32,
     /// Also write normal and specular textures and tangent vertices (effect 3) for the tangent-space shader.
     #[arg(long)]
     normal_maps: bool,
@@ -65,6 +73,8 @@ fn run(args: &Args) -> Result<()> {
     let options = Options {
         max_texture: args.max_texture,
         ao_floor: args.ao_floor.clamp(0.0, 1.0),
+        gain: args.gain.clamp(1.0, 2.0),
+        reflected: args.reflected.clamp(0.0, 1.0),
         normal_maps: args.normal_maps,
         flip_green: args.flip_green,
     };

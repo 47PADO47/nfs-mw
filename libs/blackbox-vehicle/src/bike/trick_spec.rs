@@ -51,6 +51,10 @@ pub struct AutoTuckSpec {
     pub max_normalised_lean: f32,
     pub min_throttle: f32,
     pub max_brake: f32,
+    /// Whether a lever pushed forward beyond the dead zone leaves the tuck alone. The reference cancels the tuck for a lever beyond
+    /// the dead zone on either side (`ride6-weight-round9.md`, section 3); a game whose players push the weight forward to get
+    /// down behind the screen sets this, and only a lever pulled back (the wheelie side) cancels it.
+    pub forward_weight_tucks: bool,
 }
 
 impl Default for RiderHelpSpec {

@@ -42,6 +42,8 @@ pub struct BikeSpec {
     pub gyro_yaw_scale: f32,
     /// The quadratic air drag coefficient: the drag force is `drag * v^2` (N, v in m/s).
     pub drag: f32,
+    /// Reverse by walking the bike back; `None` for a bike without one (`super::reverse`).
+    pub reverse: Option<super::reverse::ReverseSpec>,
 }
 
 /// Frame, mass and steering geometry.

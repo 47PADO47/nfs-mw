@@ -118,7 +118,13 @@ fn without_an_auto_rider_the_weight_is_the_players() {
 
 fn tuck_rule() -> AutoTuckSpec {
     // The base rider help of the reference: 90 km/h, lean limit 1, any throttle, brake under 0.1.
-    AutoTuckSpec { min_speed: 90.0 / 3.6, max_normalised_lean: 1.0, min_throttle: 0.0, max_brake: 0.1 }
+    AutoTuckSpec {
+        min_speed: 90.0 / 3.6,
+        max_normalised_lean: 1.0,
+        min_throttle: 0.0,
+        max_brake: 0.1,
+        forward_weight_tucks: false,
+    }
 }
 
 fn tucking() -> TuckSituation {
@@ -141,6 +147,25 @@ fn the_rider_tucks_in_when_fast_with_the_throttle_open_and_the_brake_released() 
     assert!(!tuck_requested(Some(&rule), 0.75, 0.0, &weight), "the player has the weight beyond the dead zone");
     let free = AutoTuckSpec { max_normalised_lean: -1.0, ..rule };
     assert!(tuck_requested(Some(&free), 0.75, 0.0, &leaning), "a negative lean limit is not tested");
+}
+
+#[test]
+fn a_lever_pushed_forward_tucks_him_when_the_game_asks_for_it_and_one_pulled_back_never_does() {
+    let data = tuck_rule();
+    let game = AutoTuckSpec { forward_weight_tucks: true, ..data };
+    let forward = TuckSituation { weight: 1.0, ..tucking() };
+    let back = TuckSituation { weight: -1.0, ..tucking() };
+    assert!(
+        !tuck_requested(Some(&data), 0.75, 0.0, &forward),
+        "the reference's rule: beyond the dead zone on either side"
+    );
+    assert!(tuck_requested(Some(&game), 0.75, 0.0, &forward));
+    assert!(!tuck_requested(Some(&game), 0.75, 0.0, &back), "the wheelie side still hands the weight to the player");
+    let braking = TuckSituation { front_brake: 0.5, ..forward };
+    assert!(
+        !tuck_requested(Some(&game), 0.75, 0.0, &braking),
+        "a lever forward under the brake is a stoppie, not a tuck"
+    );
 }
 
 #[test]

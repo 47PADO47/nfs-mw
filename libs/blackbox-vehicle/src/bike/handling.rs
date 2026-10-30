@@ -71,14 +71,12 @@ impl Bike {
         (line.dot(normal) - at_rest).clamp(-1.0, 1.0).asin()
     }
 
-    /// The velocity of the front contact point (the hub when the wheel is in the air) in the chassis frame.
+    /// The world velocity of the point one wheel radius below the front hub along the chassis' up axis, which is where the binary reads
+    /// the front velocity for the handlebar (`0x145157eb0`: the hub less the radius along the chassis' up, not the tyre's own patch).
     fn front_velocity(&self) -> Vec3 {
-        let front = &self.wheels[FRONT];
-        let point = match front.on_ground {
-            true => front.contact,
-            false => self.pose(FRONT, front.compression).hub,
-        };
-        self.body.rotation().transpose() * self.body.point_velocity(point)
+        let hub = self.pose(FRONT, self.wheels[FRONT].compression).hub;
+        let up = self.body.rotation() * Vec3::Y;
+        self.body.point_velocity(hub - up * self.spec.front.radius)
     }
 
     /// The lean controller and the handlebar: plan the roll, turn the wanted front force into a slip angle, set the
@@ -124,6 +122,10 @@ impl Bike {
             None => (0.0, 0.0),
         };
         let steering = &self.spec.steering;
+        let front_arm = match front.on_ground && self.front_velocity().length() >= 1.0 {
+            true => lean::lean_arm(rotation * Vec3::X, front.normal),
+            false => 1.0,
+        };
         let rider_term =
             self.spec.chassis.rider_mass * steering.lean.rider_mass_scale * self.spec.chassis.rider_offset.y.powi(2);
         let input = LeanInput {
@@ -138,6 +140,7 @@ impl Bike {
             pitch_cut,
             roll_inertia: self.body.inertia().z + rider_term,
             cg_height: cog.y,
+            front_arm,
             target_cap: self.block_cap(speed),
             dt,
         };
@@ -147,7 +150,11 @@ impl Bike {
         let aim = match speed.abs() > steering.lean.blend_range[0] {
             true => {
                 let slip = lean::slip_for_force(&self.spec.front.tyre, fz_kn, gamma_deg, plan.front_force);
-                let controlled = lean::handlebar_angle(self.front_velocity(), self.geometry.axis, slip)
+                let normal = match front.on_ground {
+                    true => front.normal,
+                    false => Vec3::Y,
+                };
+                let controlled = lean::handlebar_angle(self.front_velocity(), normal, rotation, slip)
                     .clamp(-steering.max_angle, steering.max_angle);
                 lean::blend_to_stick(steering, speed, stick, controlled)
             }
@@ -221,6 +228,21 @@ impl Bike {
         self.body.apply_torque(lean::help::couple(point, cog, force, balance));
     }
 
+    /// The rider balancing the bike on its rear wheel (`ride6-feel-round9.md`, section 6): with the front wheel off the road the lean
+    /// help has no tyre to push on, and a bike on one wheel is an inverted pendulum that any stick turns over. The rider keeps it up
+    /// as a real one does, by throwing his weight to the side: the roll torque the controller asks for, as far as his mass moved by
+    /// [`choices::BALANCE_REACH`] to the side can give it.
+    fn apply_wheelie_balance(&mut self) {
+        let (front, rear) = (&self.wheels[FRONT], &self.wheels[REAR]);
+        if front.on_ground || !rear.on_ground || self.departure.off {
+            return;
+        }
+        let authority = self.spec.chassis.rider_mass * 9.81 * choices::BALANCE_REACH;
+        let torque = self.plan.torque.clamp(-authority, authority);
+        // A roll to the right is a rotation about the forward axis the other way round.
+        self.body.apply_torque(-(self.body.rotation() * Vec3::Z) * torque);
+    }
+
     /// The stability help (`ride6-chassis-round7.md`, section 3): a yaw torque, about the road's up, that pulls the yaw rate towards the
     /// one a steady turn at the present lean needs. The help is off when a wheel is off the road (the game scales it by the
     /// wheels' distance from the ground and switches it off beyond 30 cm; here any wheel in the air counts as far).
@@ -267,6 +289,7 @@ impl Bike {
         let up = rotation * Vec3::Y;
         if !self.fallen {
             self.apply_lean_help(speed, pedals);
+            self.apply_wheelie_balance();
             self.apply_stability_help(dt, speed, input);
             self.apply_pitch_assist(dt, speed);
             // The spin momentum of the wheels, turned by the bike's yaw, torques the frame about its length (a yaw to the right

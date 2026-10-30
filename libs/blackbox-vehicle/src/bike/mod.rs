@@ -42,6 +42,7 @@ mod pitch_assist;
 mod powertrain;
 mod readout;
 mod release;
+mod reverse;
 mod rider;
 pub mod rider_place;
 mod rider_rotation;
@@ -65,6 +66,7 @@ pub use handling::chassis_state::Environment;
 pub use input_axes::InputRates;
 pub use magic::Mf94;
 pub use release::{FallKind, RiderRelease, VELOCITY_FRAMES};
+pub use reverse::{ReverseDrive, ReverseSpec, ReverseState};
 pub use rider_rotation::RiderRotation;
 pub use rider_spec::RiderSpec;
 pub use slipstream::Slipstream;
@@ -150,6 +152,8 @@ pub struct Bike {
     departure: release::Departure,
     /// The day and the running state of the fall tests.
     chassis: ChassisState,
+    /// The rider holding the brake with the bike standing, to walk it backwards (`reverse.rs`).
+    reverse: ReverseState,
 }
 
 impl Bike {
@@ -214,6 +218,7 @@ impl Bike {
             fallen: false,
             held: BikeInput::default(),
             departure: release::Departure::default(),
+            reverse: ReverseState::default(),
         }
     }
 
@@ -273,6 +278,7 @@ impl Bike {
         self.block_held = 0.0;
         self.block_wait = 0.0;
         self.chassis.reset(&self.spec.fall);
+        self.reverse.reset();
         self.powertrain = Powertrain::new(&self.spec.engine, &self.spec.transmission);
         self.powertrain.match_speed(&self.spec.engine, &self.spec.transmission, spin, self.spec.rear.radius);
         true
@@ -400,6 +406,7 @@ impl Bike {
         let brakes = self.spec.brakes;
         let (front_lever, rear_lever) =
             brakes::joined(&brakes, help.brake, input.rear_brake, speed.abs() > choices::STANDING_SPEED);
+        let (front_lever, rear_lever) = self.step_reverse(dt, speed, input).levers(front_lever, rear_lever);
         // A bike braked hard in a lean has no grip left for the lean (the front tyre's force is spent on the brake, the rear wheel is
         // unloaded): the levers give way as the lean nears its limit (`choices::BRAKE_LEAN_RELIEF`).
         let lean_share = (lean_of(rotation).abs() / self.plan.limit.max(choices::MIN_LEAN_LIMIT)).min(1.0);
@@ -477,6 +484,8 @@ mod feel_tests;
 mod release_tests;
 #[cfg(test)]
 mod rider_tests;
+#[cfg(test)]
+mod round9_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

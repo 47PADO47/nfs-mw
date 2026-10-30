@@ -18,6 +18,7 @@ pub mod engine;
 mod engine_brake;
 pub mod input_axes;
 pub mod node;
+pub mod reverse;
 pub mod rider_table;
 pub mod steering;
 pub mod suspension;
@@ -118,5 +119,6 @@ pub fn bike_table(vehicle: &Vehicle, geometry: &Geometry) -> Result<(String, Vec
     wheelie::write(&mut t, vehicle)?;
     tcs::write(&mut t, vehicle)?;
     input_axes::write(&mut t, vehicle)?;
+    reverse::write(&mut t, vehicle)?;
     Ok(t.into_parts())
 }

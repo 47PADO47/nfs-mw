@@ -184,14 +184,19 @@ pub(super) struct TuckSituation {
 
 /// Whether the rider tucks in: a held tuck input (above one half) tucks him; otherwise, with the rule on, he tucks when he is
 /// faster than `min_speed`, the lean is under its limit (a limit under 0 switches the test off), the player does not hold the
-/// weight beyond the dead zone, the throttle is open beyond its minimum and the front brake under its maximum.
+/// weight beyond the dead zone (on either side, or only back with `forward_weight_tucks`), the throttle is open beyond its
+/// minimum and the front brake under its maximum.
 pub(super) fn tuck_requested(auto: Option<&AutoTuckSpec>, weight_deadzone: f32, held: f32, s: &TuckSituation) -> bool {
     if held > TUCK_THRESHOLD {
         return true;
     }
     let Some(auto) = auto else { return false };
     let leaning = auto.max_normalised_lean >= 0.0 && auto.max_normalised_lean <= s.normalised_lean.abs();
-    let held_back = weight_deadzone <= s.weight.abs();
+    let lever = match auto.forward_weight_tucks {
+        true => (-s.weight).max(0.0),
+        false => s.weight.abs(),
+    };
+    let held_back = weight_deadzone <= lever;
     !(s.speed.abs() <= auto.min_speed
         || leaning
         || held_back

@@ -35,6 +35,8 @@ pub struct Contact {
     pub compression: f32,
     /// How much of a force along the suspension axis acts along the ground normal.
     pub axis_cosine: f32,
+    /// The unit suspension axis (world frame), pointing the way compression moves the hub.
+    pub axis: Vec3,
     pub axle: Vec3,
     pub heading: Vec3,
 }
@@ -157,6 +159,7 @@ pub fn settle(
         surface: sample.surface,
         compression,
         axis_cosine: pose.axis.dot(sample.normal),
+        axis: pose.axis,
         axle: pose.axle,
         heading: pose.heading,
     })

@@ -52,6 +52,8 @@ pub struct AutoTuck {
     pub max_normalised_lean: f32,
     pub min_throttle: f32,
     pub max_brake: f32,
+    /// Whether a lever pushed forward beyond the dead zone leaves the tuck alone (default true: the game's choice, `ride6-weight-round9.md`).
+    pub forward_weight_tucks: Option<bool>,
 }
 
 impl AutoTuck {
@@ -61,6 +63,7 @@ impl AutoTuck {
             max_normalised_lean: self.max_normalised_lean,
             min_throttle: self.min_throttle,
             max_brake: self.max_brake,
+            forward_weight_tucks: self.forward_weight_tucks.unwrap_or(true),
         }
     }
 }
@@ -154,8 +157,24 @@ mod tests {
         assert_eq!(spec.tuck_raise_rate, 3.0);
         assert_eq!(
             spec.auto_tuck,
-            Some(AutoTuckSpec { min_speed: 25.0, max_normalised_lean: 1.0, min_throttle: 0.0, max_brake: 0.1 })
+            Some(AutoTuckSpec {
+                min_speed: 25.0,
+                max_normalised_lean: 1.0,
+                min_throttle: 0.0,
+                max_brake: 0.1,
+                forward_weight_tucks: true
+            })
         );
+        let strict: RiderHelp = toml::from_str(
+            "[auto_tuck]
+min_speed_mps = 25.0
+max_normalised_lean = 1.0
+min_throttle = 0.0
+max_brake = 0.1
+forward_weight_tucks = false",
+        )
+        .unwrap();
+        assert_eq!(strict.to_spec().auto_tuck.map(|rule| rule.forward_weight_tucks), Some(false));
         assert!(
             toml::from_str::<RiderHelp>("[auto_tuck]\nmin_speed_mps = 25.0").is_err(),
             "every key of the rule is needed"

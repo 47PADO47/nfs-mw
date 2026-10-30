@@ -219,3 +219,73 @@ fn the_rear_anti_lock_is_off_at_the_low_levels_and_the_front_keeps_a_tenth() {
     let zero = spec.abs_level.apply(&base, 0.0);
     assert!((zero.front_intensity - 0.1 * base.front_intensity).abs() < 1e-6);
 }
+
+/// The example bike with the rider tucking in by the rule of the base rider help (90 km/h, any throttle, the brake under 0.1), the
+/// lever pushed forward counting as a tuck (`forward_weight_tucks`) or not (the reference's own rule).
+fn tucking_bike(forward_tucks: bool) -> (Bike, FlatGround) {
+    use super::AutoTuckSpec;
+    let mut spec = BikeSpec::example();
+    spec.wheelie.as_mut().unwrap().help.auto_tuck = Some(AutoTuckSpec {
+        min_speed: 90.0 / 3.6,
+        max_normalised_lean: 1.0,
+        min_throttle: 0.0,
+        max_brake: 0.1,
+        forward_weight_tucks: forward_tucks,
+    });
+    bike_at(spec, 40.0)
+}
+
+#[test]
+fn at_speed_with_the_throttle_open_a_lever_pushed_forward_tucks_him_and_one_pulled_back_does_not() {
+    let cruise = BikeInput { throttle: 0.6, ..Default::default() };
+    for (weight, tucked) in
+        [(0.0, true), (0.5, true), (0.9, true), (1.0, true), (-0.5, true), (-0.9, false), (-1.0, false)]
+    {
+        let (mut bike, ground) = tucking_bike(true);
+        bike.set_weight(weight);
+        pitches(&mut bike, &ground, 1.0, &cruise);
+        assert_eq!(bike.tuck_action() == 1.0, tucked, "lever {weight}");
+        assert_eq!(bike.tuck_level() > 0.9, tucked, "lever {weight}: level {}", bike.tuck_level());
+    }
+    // The reference's own rule lets the lever beyond the dead zone cancel the tuck on either side.
+    let (mut bike, ground) = tucking_bike(false);
+    bike.set_weight(1.0);
+    pitches(&mut bike, &ground, 1.0, &cruise);
+    assert_eq!(bike.tuck_action(), 0.0);
+}
+
+#[test]
+fn inside_the_dead_zone_the_auto_rider_owns_the_weight_forward_under_the_throttle_and_back_under_the_brake() {
+    // Whatever the lever says within 0.75 of it: the rider help puts the weight where the pedals ask (`ride6-weight-round9.md`).
+    for lever in [-0.7, -0.3, 0.0, 0.3, 0.7] {
+        let (mut bike, ground) = bike_at(BikeSpec::example(), 25.0);
+        bike.set_weight(lever);
+        pitches(&mut bike, &ground, 1.0, &BikeInput { throttle: 0.5, ..Default::default() });
+        assert!(bike.rider_weight() > 0.95, "lever {lever}: {}", bike.rider_weight());
+        pitches(&mut bike, &ground, 1.0, &BikeInput { front_brake: 0.5, ..Default::default() });
+        assert!(bike.rider_weight() < -0.95, "lever {lever}: {}", bike.rider_weight());
+    }
+    // Beyond it the weight is the lever's, on either side, and it gets there within half a second.
+    for lever in [-1.0, -0.8, 0.8, 1.0] {
+        let (mut bike, ground) = bike_at(BikeSpec::example(), 25.0);
+        bike.set_weight(lever);
+        pitches(&mut bike, &ground, 0.5, &BikeInput { throttle: 0.2, ..Default::default() });
+        assert!((bike.rider_weight() - lever).abs() < 0.05, "lever {lever}: {}", bike.rider_weight());
+    }
+}
+
+#[test]
+fn pulling_the_lever_back_ends_the_stoppie_within_half_a_second() {
+    let (mut bike, ground) = bike_with_abs(0.0, 22.0);
+    bike.set_weight(1.0);
+    let brake = BikeInput { front_brake: 1.0, ..Default::default() };
+    let pitch = pitches(&mut bike, &ground, 1.6, &brake);
+    let up = pitch.iter().cloned().fold(f32::MAX, f32::min);
+    assert!(up < -0.15 && !bike.wheel(REAR).on_ground, "the stoppie is up: {up}");
+    bike.set_weight(0.0);
+    let after = pitches(&mut bike, &ground, 0.5, &brake);
+    assert!(!bike.fallen());
+    assert!(after[after.len() - 1] > up + 0.05, "the nose comes up again: {up} -> {}", after[after.len() - 1]);
+    // (With the brake still held the fork stays dived and the rear is only just light, as the rider help's relief keeps it.)
+    assert!(bike.pitch() > -0.12, "{}", bike.pitch());
+}

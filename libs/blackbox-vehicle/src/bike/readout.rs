@@ -41,6 +41,11 @@ impl Bike {
         self.plan.target
     }
 
+    /// The side force the lean controller wanted at the front tyre in the last step (N, positive to the right).
+    pub fn wanted_front_force(&self) -> f32 {
+        self.plan.front_force
+    }
+
     /// The handlebar angle (rad), positive right.
     pub fn steer_angle(&self) -> f32 {
         self.steer.output()
