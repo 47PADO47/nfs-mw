@@ -14,7 +14,7 @@ use super::toml_out::{self, EffectLists, LayerEntry};
 use super::wav::{self, Pcm};
 
 /// The most layers a manifest takes, files per list, and characters of a path (`libs/blackbox-modding`).
-const MAX_LAYERS: usize = 12;
+const MAX_LAYERS: usize = 24;
 const MAX_LIST: usize = 16;
 const MAX_PATH: usize = 96;
 const RPM_RANGE: std::ops::RangeInclusive<f32> = 100.0..=20_000.0;

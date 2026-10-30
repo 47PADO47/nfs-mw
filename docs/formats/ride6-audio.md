@@ -136,8 +136,9 @@ The synthesiser itself is not reproduced; its recordings are (`sound::rev`):
   physics asset's idle is 2300). The exhaust model has the same layout at nearly the same pitches.
 - Loops under load are much louder at the top of the range than at the bottom (rms 0.011 at the first loop, 0.33 at the last, for
   the KTM engine model); the loops off load are quieter (0.015 to 0.1).
-- The idle recording of 19 of the 97 engines sets built so far has no clear period (an uneven V or two-stroke idle): its
-  autocorrelation peak is under 0.2.
+- The idle recording has a clear period near the bike's own idle speed on most engines; on 32 of the 293 bikes it has none (an
+  uneven V or two-stroke idle) and the autocorrelation peak is under 0.2. Searched over the whole range instead of a band around
+  the idle speed, the period of several idles came out as a harmonic (6349 rpm for a bike that idles at 1000).
 
 ### What drives the plugin
 

@@ -54,7 +54,7 @@ and exhaust events in the banks, follows them to the REV engine models and build
 shift, bang and crackle lists from the gear-up, gear-down, backfire and exhaust events. It writes, in `--out`:
 
 - `files/SOUND/RIDE6/ENG/<engine>-<hash>/L<nn>_<rpm*10>.WAV`: the engine layers, **one folder per engine** (the same banks
-  serve many bikes: 293 bikes use 97 engines);
+  serve many bikes: 293 bikes use 98 engines); 21 layers each (the idle and the model's 20 loops under load), about 1.5 MB;
 - `files/SOUND/RIDE6/FX/<media id>.WAV`: every effect recording once (the gear-up clunks of the shared bank are decoded once for
   all bikes);
 - `cars/<id>.sound.toml`: the tables of a bike, naming those paths (the paths are ordinary `SOUND/...` paths of the mod's
@@ -158,3 +158,17 @@ rendered offline by the game's mixer (`NFSMW_MEASURE_MOD=<mod folder> NFSMW_MEAS
 measure_cars -- --ignored --nocapture`) and loaded by the game (`nfsmw view-world --drive KTM450 --mods-dir <mods> --muted
 --radio --screenshot <png>`: `--radio` keeps the audio on in a screenshot run, and a missing layer then logs a warning from
 `nfsmw::audio::car::own_engine`).
+
+### Measuring a bike's level and effects
+
+Three more ignored tests of `crates/nfsmw/src/audio/car/measure/curve.rs` render a bike offline through the game's mixer (set
+`NFSMW_GAME_DIR`, `NFSMW_MEASURE_MOD=<mod folder>`, `NFSMW_MEASURE_CARS=<car ids, comma separated>`):
+
+- `level_curve`: the engine's level at every `NFSMW_MEASURE_STEP` rpm (default 250) from idle to redline at full throttle
+  (`NFSMW_MEASURE_THROTTLE` changes it), one line `car rpm dB` each; holes in the layer set show as dips
+  ([specs/ride6-engine-sound.md](../specs/ride6-engine-sound.md#the-level-from-idle-to-redline)).
+- `lift_offs`: `NFSMW_MEASURE_LIFTS` pulls and lifts; for each lift the peak of the effects (shifts, bangs, pops) in the second
+  after it, so it shows which lifts pop.
+- `gear_changes`: the effects' peak in the 0.4 s after each change of the gear number, against the 0.4 s before.
+
+`NFSMW_AUDIO_TRACE=<file>` logs the one-shots the effects play (`own_sfx_shot`: the list, the variant, the volume).

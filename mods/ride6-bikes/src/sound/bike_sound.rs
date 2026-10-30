@@ -116,7 +116,7 @@ impl Builder {
     }
 
     fn write_layers(&self, key: &str, mut layers: EngineLayers) -> Result<Vec<LayerEntry>> {
-        rev_layers::normalise(&mut layers, ENGINE_PEAK)?;
+        rev_layers::equalise(&mut layers, ENGINE_PEAK)?;
         let dir = self.files.join("SOUND/RIDE6/ENG").join(key);
         fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
         let mut entries = Vec::new();
@@ -187,8 +187,7 @@ impl Builder {
                     &en_audio,
                     &ex_model,
                     &ex_audio,
-                    rev_layers::LOOP_LAYERS,
-                    Some(idle_rpm),
+                    &rev_layers::Plan { loops: rev_layers::LOOP_LAYERS, idle_rpm, redline_rpm },
                 );
                 let _ = (fs::remove_file(&en_file), fs::remove_file(&ex_file));
                 let layers = built?;

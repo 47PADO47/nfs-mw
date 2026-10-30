@@ -40,7 +40,7 @@ layers = [
 - A layer is a looping recording of the engine made at the engine speed `rpm`: a 16-bit PCM WAV, mono or stereo, that
   repeats over its whole length. The file is a path of the install's layout (letters, digits, `_`, `-`, `.` and `/`, up to 96
   characters, ending in `.WAV`), so it goes in the mod's `files/` folder.
-- One to twelve layers, `rpm` from 100 to 20000 (a layer with `gain` curves has none, see [Curves](#curves-layers-that-play-by-the-cars-own-inputs)), no two the same, `idle_rpm` below `redline_rpm` (both 100 to 20000). A wrong
+- One to twenty-four layers, `rpm` from 100 to 20000 (a layer with `gain` curves has none, see [Curves](#curves-layers-that-play-by-the-cars-own-inputs)), no two the same, `idle_rpm` below `redline_rpm` (both 100 to 20000). A wrong
   table refuses the car.
 - All layers play at once. Each is played at the engine's rpm over its own (so its pitch follows the engine) but never
   slower than 0.55 or faster than 1.8 times its recording, and the layers are mixed by how close the engine's rpm is
@@ -122,7 +122,10 @@ probability_open = 0.3          # ... and with the throttle fully open (0 to 1)
 
 A car with this table backfires by a **charge** instead of by the lift-off rule. All eleven keys are required numbers; a
 missing or unknown key, or a number outside its range, refuses the car. The table works with or without a `backfire` list
-(without one the car makes no bang sound and still lights its pipes); a car without the table keeps the lift-off rule.
+(without one the car makes no bang sound and still lights its pipes); a car without the table keeps the lift-off rule. A lift-off
+at high engine speed of a car with the table still sounds its `pops` on their own, with the chance `probability_closed` times the
+engine speed over the redline (0.8 times 0.83 at 8000 rpm for the KTM 450), because the charge takes seconds at the redline to
+fill and every gear change drains it, so the bangs alone would hardly ever sound; the pops light the tail pipes.
 
 - The charge (0 to 1) rises by `accumulator_rate * rpm_fraction * dt` per second while the throttle is open and falls by the
   same while it is shut; `rpm_fraction` is the engine speed over the **redline** (`rpm / redline_rpm`, so not idle based).
@@ -213,7 +216,7 @@ layers = [
 - `kind = "ginsu"` makes the file a `.GIN` granular engine recording (the format of the 2005 game's `.gin`), played by the
   game's Ginsu synthesiser at the frequency `span` gives the engine speed: `span[0]` at idle, `span[1]` at the limiter.
   It needs `gain` and `span`; the rest of the table is as for a loop.
-- Up to 12 layers.
+- Up to 24 layers.
 
 ### The 2012 cars' engine
 

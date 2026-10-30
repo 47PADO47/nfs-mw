@@ -15,7 +15,7 @@ use super::ContentError;
 use super::engine_curves::{self, Curve, LayerKind, Pitch, RawCurve, RawPitch};
 
 /// Most layers a car may have.
-pub const MAX_LAYERS: usize = 12;
+pub const MAX_LAYERS: usize = 24;
 /// Most files one list of `[car_sound]` may name.
 pub const MAX_EFFECT_FILES: usize = 16;
 
@@ -111,7 +111,7 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<EngineSound>, ContentErro
         return Err(field("engine_sound.redline_rpm", "the redline is above the idle"));
     }
     if raw.layers.is_empty() || raw.layers.len() > MAX_LAYERS {
-        return Err(field("engine_sound.layers", "a car has 1 to 8 layers"));
+        return Err(field("engine_sound.layers", "a car has 1 to 24 layers"));
     }
     let mut layers = Vec::with_capacity(raw.layers.len());
     for layer in raw.layers {

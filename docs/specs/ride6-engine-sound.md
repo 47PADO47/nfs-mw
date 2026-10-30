@@ -218,7 +218,7 @@ the core rule). Core behaviour when present, replacing the rule "backfire when t
 2. A returned bang plays one random file of `backfire` at volume `audio_level`; its `effect_level`, when set, lights the
    pipes with that strength ([exhaust-flames.md](../exhaust-flames.md)); a bang with no `effect_level` is audio only.
 3. A returned flame lights the pipes with `effect_level` when set and plays nothing (no flame recording in the KTM data).
-4. `pops` keep their core meaning (after a bang) and are not driven by this table.
+4. `pops` keep their core meaning (after a bang) and are not driven by this table; a lift-off also pops by itself (below).
 
 The core manifest reader checks the table (all eleven keys required, the ranges above, `libs/blackbox-modding`
 `content/overrun_sound.rs`) and the host plays it (`own_sfx/overrun.rs`). The generator writes it when the bike's data has
@@ -233,7 +233,8 @@ Details of the host side that the list above leaves open:
 - `rpm_fraction` is `rpm / redline_rpm` with `rpm = idle + rpm_pct * (redline - idle)` of the car's `[engine_sound]` span (the
   built-in engine's 900 to 7000 when it has none); the throttle is the pedal for both `throttle` and `raw_throttle`.
 - The core lift-off rule (a 3 to 25 percent backfire chance and its lone pops) is not run for a car with the table; the
-  turbo blow-off of the lift-off is.
+  turbo blow-off of the lift-off is, and so are **pops of their own**: a lift-off pops one to three times with the chance
+  `probability_closed * rpm_fraction` (section 8, "Pops").
 
 ### Gear-change sounds: `shift_trigger = "gear"`
 
@@ -269,26 +270,79 @@ load, a rev-up and a coast-down sweep, and an idle recording. **[data]** The con
 
 1. **Pitch of a loop** = `cycles * sample_rate / frames`; **engine speed** = 120 x that, because a four-stroke has one cycle per two
    turns **[choice, checked on data]**: the highest loop of the 293 bikes lies at 0.97 of the physics asset's redline in the median.
-2. **Eleven loops under load** of the engine model, spread evenly over its 20 (the first and the last always), are the loop
-   layers **[choice]**: the host takes at most 12 layers. Each is summed with the exhaust model's loop of the nearest number of
-   cycles, resampled (as a periodic loop, so it stays seamless) to the engine loop's length **[choice]**, level 1 to 1 as recorded
-   (the busses' gains are in the unparsed node parameters). When the cycle numbers differ by more than one in thirteen the exhaust
-   is left out of that layer **[choice]**.
-3. **The idle layer**: the idle recordings of the two models summed (the exhaust's resampled to the engine's length), closed with a
-   40 ms crossfade because it is not a whole number of cycles, at the pitch measured on it by autocorrelation. An idle with no clear
-   period (19 of 98 engines: uneven V and two-stroke idles) plays at the idle speed of the physics asset instead **[choice]**.
-4. **Levels**: all layers share one gain, so the loudest peaks at 0.9 and the others keep their recorded level (the low loops under
-   load are quiet, as the synthesiser's own are).
-5. **Not used**: the loops off load and the two sweeps (the host's mixer has no crossfade by load for layers mixed by speed and 12
-   layers leave no room for a second set); the Vorbis thump of the engine event and the plugin `0x1990002` sounds (an unidentified
-   synthesiser); the plugin's parameter curves (`Throttle`, `RPM`, `GEAR`, `GearDown` to its parameters 1, 2, 3 and 5), which drive
-   the synthesiser and have no counterpart in the host.
-6. **Effects**: `shift_up` and `shift_down` are the codec recordings (clunks and bangs) of the gear-up and gear-down events,
+2. **All of the engine model's loops under load** (up to `LOOP_LAYERS` = 20; those above the host's 20000 rpm layer limit are
+   dropped, so two bikes have 16) are layers **[choice]**. The host's `MAX_LAYERS` is 24 since this change (it was 12): the mixer
+   is a list of looping voices, two of which sound at a time, and nothing else limits it. Neighbouring loops are 3 to 12 percent
+   apart, so the crossfade between two layers is short and a mismatch between two neighbours is heard over a few percent of
+   the engine speed, not over a third of the range as with 11 loops spread over the 20 (below).
+   When fewer layers are asked for than there are loops, `rev_layers::choose` takes every loop under 40 percent of the redline
+   (up to half of the layers) and spreads the rest evenly above, because the low range is where the recordings are sparse.
+3. Each loop is **summed with the exhaust model's loop** of the nearest number of cycles, resampled (as a periodic loop, so it stays
+   seamless) to the engine loop's length **[choice]**, level 1 to 1 as recorded (the busses' gains are in the unparsed node
+   parameters). When the cycle numbers differ by more than one in thirteen the exhaust is left out of that layer **[choice]**.
+4. **The idle layer**: the idle recordings of the two models summed (the exhaust's resampled to the engine's length), closed with
+   a 40 ms crossfade because it is not a whole number of cycles. Its pitch is measured by autocorrelation **in a band of 0.6 to
+   1.6 times the bike's own idle speed**; without a clear period there (an uneven V or two-stroke idle, 32 bikes of 293) it plays at
+   the physics idle speed **[choice]**. An unrestricted search had picked a harmonic as the idle on several engines (6349 rpm
+   for a bike that idles at 1000), which left the range below the first loop with no layer of the right pitch.
+5. **Levels: every layer gets the same loudness** (root mean square), the loudest peak at 0.9 **[choice]**. The recordings differ by
+   20 dB between the low and the high loops (the synthesiser's own gain follows its throttle and load inputs); the host brings the
+   whole engine to a fixed level by predicting it from the layers' loudness and limits its correction, so with recorded levels the
+   low layers left the engine 7 to 12 dB under its level between idle and 4000 rpm (the level table below).
+6. **Tried and dropped: rotating the loops** so that neighbours are uncorrelated. Two loops played at one engine speed have a
+   fixed phase, and in opposition they cancel (10 dB on an inline four); but the phase is decided by how each voice's playback rate
+   settles when the engine starts, not by the recordings, so no rotation made the measured curve better (1.5 against 1.9 percent
+   of the points more than 3 dB under the median) and it was not kept.
+7. **Not used**: the loops off load and the two sweeps (the host's mixer has no crossfade by load for layers mixed by speed); the
+   Vorbis thump of the engine event and the plugin `0x1990002` sounds (an unidentified synthesiser); the plugin's parameter curves
+   (`Throttle`, `RPM`, `GEAR`, `GearDown` to its parameters 1, 2, 3 and 5), which drive the synthesiser and have no counterpart in
+   the host.
+8. **Effects**: `shift_up` and `shift_down` are the codec recordings (clunks and bangs) of the gear-up and gear-down events,
    `backfire` those of the bang event, `pops` those of the exhaust event (the five to twelve crackle clips of its random playlist),
    each normalised to a peak of 0.9 and shared between bikes by media id. The variant is `Custom` (the aftermarket exhaust; the
    one with bangs for most bikes) unless told otherwise **[choice]**.
 
-Checked offline in the game's mixer (`measure_cars`): the KTM 450 plays at -19 dB (the stock cars -21 to -16 dB) at every engine
-speed from 10 to 100 percent with dips to -23 and -22 dB at two speeds, its fundamental follows `rpm / 120` (28.1 Hz at 10
-percent, 55.4 Hz at 50 percent, 91.6 Hz at the 11000 rpm redline), a sweep from idle to redline has no gap and no clipping.
-Nothing was listened to.
+### The level from idle to redline
+
+Rendered offline in the game's mixer (`level_curve` in `crates/nfsmw/src/audio/car/measure/curve.rs`: full throttle held for 1.2 s at
+every 250 rpm from idle to the redline, the root mean square of the last half second, dB re full scale; the stock cars of the game
+are -21 to -16 dB over a sweep). Ten bikes of different engines, before (11 loops spread over the index, recorded levels, idle
+searched without a band) and after:
+
+| Bike | Before: lowest level, points over 3 dB under the median | Before: lowest in the low range (idle to 40 % of the top) | After: lowest level, points over 3 dB under | After: lowest in the low range |
+|---|---|---|---|---|
+| KTM 450 SMR 2022 | -22.8 dB, 1 of 35 | -22.8 dB | -21.9 dB, 0 of 35 | -19.1 dB |
+| Aprilia RSV4 R 2010 | -23.4 dB, 4 of 52 | -23.4 dB | -21.5 dB, 0 of 52 | -20.9 dB |
+| Honda NS 400 R 1985 | -21.9 dB, 0 of 38 | -21.9 dB | -19.5 dB, 0 of 38 | -19.5 dB |
+| Ducati Panigale V4 R 2019 | -27.0 dB, 10 of 61 | -27.0 dB | -21.8 dB, 0 of 61 | -19.8 dB |
+| BMW S 1000 RR 2019 | -21.7 dB, 0 of 54 | -21.7 dB | -23.2 dB, 2 of 54 | -20.5 dB |
+| Kawasaki Ninja H2 2019 | -27.5 dB, 3 of 53 | -27.5 dB | -22.0 dB, 0 of 53 | -19.9 dB |
+| Yamaha YZF R1 2008 | -27.8 dB, 6 of 55 | -19.5 dB | -25.4 dB, 7 of 55 | -19.3 dB |
+| Ducati Monster 900 1993 | -20.8 dB, 0 of 32 | -20.8 dB | -22.0 dB, 0 of 32 | -19.5 dB |
+| Suzuki RGV 250 1991 | -30.5 dB, 4 of 47 | -30.5 dB | -20.0 dB, 0 of 47 | -19.2 dB |
+| Triumph Speed Triple 2005 | -22.5 dB, 1 of 39 | -20.3 dB | -21.2 dB, 0 of 39 | -21.2 dB |
+| all ten | 29 of 466 points | | 9 of 466 points | |
+
+The range from idle to 40 percent of the top, where a rider said there was "basically no sound" at 2 to 3 thousand rpm, was 8 to 11 dB
+under the rest on the Ducati V4, the Kawasaki and the Suzuki (the lowest layer was a quiet loop or a wrongly pitched idle) and is
+within 2 dB of the median on all ten now. What remains: dips of 3 to 6 dB at the crossfade between two neighbouring layers, each
+under 250 rpm wide, on the most tonal engines (the R1 has seven points and the BMW two): two layers at one engine speed can
+oppose each other, and where they do is set when the engine starts. Nothing was listened to.
+
+### Pops
+
+The crackle clips are not played by the lift-off in RIDE 6. The layer container that holds them is gated by the game parameter
+`EngineLimiterStatus` (named by hashing the executable's strings): its volume is 1 only for a status between 1.5 and 2.5, that is
+for the **second limiter** of the physics asset (index 1: `MaxRPMScale` 0.64, `MaxSpeed` 45 on the KTM 450), a launch-control style cap.
+A bike pops there; this game has no such limiter. The bangs of the backfire system (section 5) need a charge that takes five seconds at
+the redline to fill and that every closing of the throttle drains, so a bike rarely made any sound: in a drive that pulls for 2.5 s and
+lifts, the first three lifts of the KTM 450 were silent and the bang came only after about ten seconds of pulling.
+So, as a modelling choice, **a lift-off pops on its own**: `OverrunDrive::lift_pop_chance` is the table's own chance that a shut
+throttle bangs (`probability_closed`, 0.8) times the engine speed over the redline, and a lift that draws it plays one to three crackle
+clips (the core rule's pops, 0.4 to 0.8 of the one-shot level) and lights the tail pipes. Measured in the mixer (`lift_offs`: 30 pulls of 2.5 s at 80 percent of the way to the redline, each followed by a lift): 25 to 29
+of the 30 lifts sound a crackle or a bang on the 8 bikes with an overrun table (the effects peak at -8 to -12 dBFS, the engine at -8
+to -12 dBFS); before, the first three lifts of the KTM 450 were silent and the others only when the charge allowed it. The 18 bikes of
+the 293 without an overrun table (RIDE 6 turns the backfire simulation off or uses the old system for them) keep the core rule, a few
+percent: 6 and 7 of 30 on the two of the ten (the Honda NS 400 R and the Suzuki RGV 250). The shifts sound at every change of the gear
+number (`gear_changes`: a peak of -11 dBFS after each of five changes, up and down). The game loads the sets without a warning, and a
+missing crackle file is reported by the log (`nfsmw::audio::car::own_sfx`).
