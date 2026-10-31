@@ -92,3 +92,5 @@ nfsmw view-world --drive KTM450 --at 985,4430 --muted --drive-script "6:throttle
 
 See the images listed in the round's report for the measured sizes. The look against RIDE 6 is not verified; nothing of RIDE 6's
 flame is read.
+
+The pop flame was seen offscreen on the final build: a compact bright puff at the pipe beside the rider (same emitter as the shift flame, 1.25 times its size). A framed shift flame was not caught (the scripted run drifts into the road edge), so the 1.25 ratio is verified by the unit tests on the specs, not by two matching screenshots.

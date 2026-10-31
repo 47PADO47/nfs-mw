@@ -152,3 +152,7 @@ are the BMW R 1250 R, Honda X-ADV, Italjet Dragster 700, Kawasaki KZ1000R and KT
 - Whether the reference's rear brake is joined to the front lever below `BurnoutMinSpeed` for a rider with one brake axis; the model
   releases it, a rider with two levers needs no such rule.
 - The tyre smoke's colour and density for a bike are the car's.
+
+## 8. Checked in the game
+
+Offscreen on the final build (`--muted`, close camera): the KTM 450 held at a standstill with `throttle=1,brake=1` spins the rear wheel in a cloud of tyre smoke, stays upright and shows 0 km/h at a high rpm. The smoke is the cars' own rear-tyre effect.
