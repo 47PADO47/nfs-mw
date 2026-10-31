@@ -27,7 +27,7 @@ pub fn geometry(built: &Built) -> Geometry {
 }
 
 /// A vehicle id and a file name compare equal when their letters and digits do: `KTM_450-SMR-2022` and `KTM_450SMR_2022`.
-fn squash(id: &str) -> String {
+pub(crate) fn squash(id: &str) -> String {
     id.chars().filter(char::is_ascii_alphanumeric).map(|c| c.to_ascii_lowercase()).collect()
 }
 

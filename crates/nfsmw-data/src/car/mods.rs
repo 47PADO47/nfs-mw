@@ -14,6 +14,7 @@ use blackbox_carparts::CarTypeInfo;
 use crate::pursuit::HEAT_LEVELS;
 
 pub mod bike;
+pub mod bike_camera;
 pub mod cop;
 pub mod custom;
 pub mod driver_poses;

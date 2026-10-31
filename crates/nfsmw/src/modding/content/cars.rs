@@ -84,6 +84,9 @@ fn publish_hinges(mods: &[ModDir], car: &car_mods::ModCar) {
         if let Some(bike) = &manifest.bike {
             car_mods::bike::publish(&car.folder, BikeSpec::from(bike));
         }
+        if let Some(cameras) = super::bike_camera::cameras_of(&manifest) {
+            nfsmw_data::car::mods::bike_camera::publish(&car.folder, cameras);
+        }
         return;
     }
 }

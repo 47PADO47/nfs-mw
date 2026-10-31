@@ -8,6 +8,8 @@
 //!                                              write cars/<id>.toml again from built.json and the physics data
 //! contacts <source or bike folder> <mod folder> --physics <dump>
 //!                                              write files/CARS/<ID>/RIDER/contacts.json of each bike (no meshes)
+//! cameras <source or bike folder> <mod folder> --physics <dump>
+//!                                              write the [bike.camera] tables of each bike's cars/<id>.toml (no meshes)
 //! ```
 
 use std::path::PathBuf;
@@ -17,6 +19,7 @@ use clap::Parser;
 
 use crate::batch;
 use crate::bike_table;
+use crate::camera;
 use crate::manifest::{self, Tables};
 use crate::manifest_sound;
 use crate::naming;
@@ -97,6 +100,43 @@ pub fn remanifest(args: &[String]) -> Result<()> {
         println!("{car}: note: {note}");
     }
     println!("{car}: manifest written from the physics data");
+    Ok(())
+}
+
+#[derive(Parser)]
+#[command(
+    about = "Write the [bike.camera] tables of already imported bikes' manifests, from RIDE 6's camera containers (the bikes need their RIDER/contacts.json)"
+)]
+struct Cameras {
+    /// One bike's folder (it has a `parts.json`), or the exporter's output with one folder per bike. The car ids of a set
+    /// are assigned as the batch import assigns them.
+    source: PathBuf,
+    /// The mod folder: `cars/<id>.toml` gets its `[bike.camera]` tables; nothing else is touched.
+    mod_dir: PathBuf,
+    /// The physics dump folder (it holds the camera containers).
+    #[arg(long)]
+    physics: PathBuf,
+}
+
+/// `cameras`: the camera tables of bikes already imported, without converting any mesh.
+pub fn cameras(args: &[String]) -> Result<()> {
+    let args = Cameras::try_parse_from(std::iter::once("cameras".to_owned()).chain(args.iter().cloned()))?;
+    let found = match args.source.join("parts.json").is_file() {
+        true => vec![batch::Found { dir: args.source.clone(), vehicle: PartTable::read(&args.source)?.vehicle }],
+        false => batch::discover(&args.source)?.0,
+    };
+    let vehicles: Vec<String> = found.iter().map(|f| f.vehicle.clone()).collect();
+    let ids = naming::assign(&vehicles);
+    let mut written = 0;
+    for (bike, car) in found.iter().zip(&ids) {
+        let physics_name =
+            PartTable::read(&bike.dir).map_or_else(|_| bike.vehicle.clone(), |table| table.physics_name());
+        match camera::apply(&args.mod_dir, car, &args.physics, &physics_name) {
+            Ok(()) => written += 1,
+            Err(error) => println!("{car}: camera tables not written: {error:#}"),
+        }
+    }
+    println!("camera tables written for {written} of {} bikes", found.len());
     Ok(())
 }
 

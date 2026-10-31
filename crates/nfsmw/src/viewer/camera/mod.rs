@@ -1,5 +1,6 @@
 //! Cameras. The games' worlds are Z-up.
 
+pub mod bike;
 mod chase;
 mod cut;
 #[cfg(test)]

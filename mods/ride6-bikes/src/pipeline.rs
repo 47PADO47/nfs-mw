@@ -8,6 +8,7 @@ use anyhow::Result;
 use crate::bake::Options;
 use crate::bike_table;
 use crate::build::build;
+use crate::camera;
 use crate::manifest::{self, Tables};
 use crate::manifest_sound;
 use crate::naming;
@@ -77,6 +78,12 @@ pub fn import_bike(request: &Request<'_>) -> Result<Outcome> {
         Ok(true) => {}
         Ok(false) => notes.push("the rider has no correction row (RiderAnimationCorrection_DT is not in the physics dump, or has no row for this vehicle)".to_owned()),
         Err(error) => notes.push(format!("the rider's contact points are not written: {error:#}")),
+    }
+    // The cameras need the skeleton's hubs the contact points hold, so they are written after them.
+    if let Err(error) = camera::apply(request.mod_dir, car, request.physics, &table.physics_name()) {
+        notes.push(format!(
+            "the camera tables are not written (the game derives the bike's cameras from its size): {error:#}"
+        ));
     }
     if request.write_mod_toml {
         manifest::write_mod_toml(request.mod_dir)?;
