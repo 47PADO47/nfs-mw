@@ -115,6 +115,12 @@ impl Enhanced {
     }
 
     pub fn step(&mut self, dt: f32, car: &super::CarState, event: Option<crate::garage::BackfireEvent>) {
+        self.step_sized(dt, car, event.map(|event| (event, 1.0)));
+    }
+
+    /// [`Self::step`] with the size of the burst the event starts, as a factor on its own (a bike's pop is its shift burst
+    /// at `trigger::BIKE_BACKFIRE_SCALE_OVER_SHIFT`).
+    pub fn step_sized(&mut self, dt: f32, car: &super::CarState, event: Option<(crate::garage::BackfireEvent, f32)>) {
         self.bursts.advance(dt);
         match car.nitrous {
             true => {
@@ -124,10 +130,10 @@ impl Enhanced {
                 }
             }
             false => {
-                if let Some(event) = event {
-                    self.bursts.trigger(event, &self.backfire_style);
+                if let Some((event, size)) = event {
+                    self.bursts.trigger_sized(event, &self.backfire_style, size);
                     if let Some(bursts) = &mut self.visual_bursts {
-                        bursts.trigger(event, &self.backfire_style);
+                        bursts.trigger_sized(event, &self.backfire_style, size);
                     }
                 }
             }

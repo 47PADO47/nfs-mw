@@ -8,11 +8,13 @@ use game_install::GameDir;
 use nfsmw_data::car::CarModel;
 use nfsmw_data::car::exhaust::{ADDITIVE_BLEND, ExhaustFx, particle_textures};
 
-use super::trigger::{BIKE_FLAME_SCALE, BIKE_SHIFT_TIMING, ShiftTiming};
+use super::trigger::{BIKE_BACKFIRE_SCALE, BIKE_FLAME_SCALE, BIKE_SHIFT_TIMING, ShiftTiming};
 use super::{Active, EMITTER_LIMIT, ExhaustFlames, Lane, MAX_PIPES, SpriteTexture, State};
 
 /// The first random seed of the blue lanes, apart from the orange ones.
 const BLUE_SEED: u64 = 0x424c_5545;
+/// Added to the index of a bike's pop emitters, so that their random streams are apart from the shift flame's.
+const POP_LANE_SEED: usize = 64;
 
 impl ExhaustFlames {
     /// Load the flames of `model` if the setting is on and they are not loaded: its pipes, particle group and
@@ -49,6 +51,7 @@ fn read(renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &
     let mut hashes: Vec<u32> = Vec::new();
     let mut textures = Vec::new();
     let mut lanes = Vec::new();
+    let mut pop = Vec::new();
     let bike = nfsmw_data::car::mods::bike::is_bike(&model.name);
     let mut pipes = fx.pipes;
     pipes.truncate(MAX_PIPES);
@@ -77,6 +80,11 @@ fn read(renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &
             false => emitter.spec.clone(),
         };
         lanes.push(lane(&spec, i, pipes.len(), slot));
+        // Its backfire is that flame again a little bigger (`trigger::BIKE_BACKFIRE_SCALE_OVER_SHIFT`): the same emitter.
+        if bike {
+            let big = super::scale::compact_bike(&emitter.spec, BIKE_BACKFIRE_SCALE);
+            pop.push(lane(&big, i + POP_LANE_SEED, pipes.len(), slot));
+        }
     }
     if lanes.is_empty() {
         return None;
@@ -100,6 +108,7 @@ fn read(renderer: &mut dyn RenderBackend, dir: &GameDir, db: &Database, model: &
     let mut active = Active::new(pipes, lanes, textures, timing, engine_upgrades);
     active.mod_car = mod_car;
     active.bike = bike;
+    active.pop = pop;
     active.enhanced.bike = bike;
     Some(active)
 }
@@ -174,6 +183,7 @@ impl Active {
             engine_upgrades,
             mod_car: false,
             bike: false,
+            pop: Vec::new(),
             shift: Default::default(),
             backfire: Default::default(),
             intensity: 0.0,

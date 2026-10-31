@@ -346,3 +346,5 @@ the 293 without an overrun table (RIDE 6 turns the backfire simulation off or us
 percent: 6 and 7 of 30 on the two of the ten (the Honda NS 400 R and the Suzuki RGV 250). The shifts sound at every change of the gear
 number (`gear_changes`: a peak of -11 dBFS after each of five changes, up and down). The game loads the sets without a warning, and a
 missing crackle file is reported by the log (`nfsmw::audio::car::own_sfx`).
+
+The pipes flame at these pops: one flick of the bike's shift flame, 1.25 times its size, for each pop that plays ([ride6-bike-flames.md](ride6-bike-flames.md)).

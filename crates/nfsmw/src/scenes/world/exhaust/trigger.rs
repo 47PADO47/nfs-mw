@@ -114,6 +114,28 @@ pub const BIKE_FLAME_SCALE: f32 = 0.4;
 /// 0.28 s (`MOD_SHIFT_TIMING`). A choice: the flick of a bike is short.
 pub const BIKE_SHIFT_TIMING: ShiftTiming = ShiftTiming { speed: 8.0, angle: 1.0 };
 
+/// How much bigger a bike's backfire flame is than its shift flame: 1.25, so a pop is the shift flame a quarter larger. The
+/// user's request ("the backfire flame is too much, it should be the same as the changing gear flame but multiple times and just
+/// a little bigger", asked for 20 to 30 percent); the middle of that range. There is no data for a bike's flame.
+pub const BIKE_BACKFIRE_SCALE_OVER_SHIFT: f32 = 1.25;
+/// The factor on the group's emitters for a bike's backfire flame: [`BIKE_FLAME_SCALE`] (the shift flame) times
+/// [`BIKE_BACKFIRE_SCALE_OVER_SHIFT`]. It is the same emitters, spec, shape and duration as the shift flame, only bigger.
+pub const BIKE_BACKFIRE_SCALE: f32 = BIKE_FLAME_SCALE * BIKE_BACKFIRE_SCALE_OVER_SHIFT;
+
+/// The strength of a bike's two flames this step, `(shift, pop)`: the shift flame (the blow-off or the down-shift flick, at
+/// the shift size) and the pop flame (a backfire, one flick of the same flame at [`BIKE_BACKFIRE_SCALE_OVER_SHIFT`] of its size).
+/// Both run for the shift's pitch time at full strength. A pop in progress draws in place of a shift flame, so that the two do
+/// not pile up into one oversize plume.
+pub fn bike_flame_levels(blowoff: bool, shift: &ShiftEvent, backfire: &Backfire) -> (f32, f32) {
+    if backfire.active() {
+        return (0.0, MOD_BACKFIRE_INTENSITY);
+    }
+    match blowoff && shift.active() {
+        true => (1.0, 0.0),
+        false => (0.0, 0.0),
+    }
+}
+
 /// Whether a gear change of a bike flames: an up-shift made under power blows off like a mod car's (`MOD_SHIFT_LOAD`), and a
 /// down-shift with the pedal up flicks (the pops the rider's blip leaves in the pipe). A down-shift under power does not.
 pub fn bike_shift_flames(up: bool, throttle: f32) -> bool {
@@ -146,7 +168,12 @@ impl Backfire {
 
     /// Light the flame whatever the driver does (the console's `pop`).
     pub fn start(&mut self) {
-        self.left = BACKFIRE_SECONDS;
+        self.start_for(BACKFIRE_SECONDS);
+    }
+
+    /// [`Self::start`] with a flame that lasts `seconds`.
+    pub fn start_for(&mut self, seconds: f32) {
+        self.left = seconds;
     }
 
     pub fn active(&self) -> bool {
@@ -347,6 +374,20 @@ mod tests {
         assert!(!bike_shift_flames(false, 1.0), "a down-shift under power does not flame");
         assert!(BIKE_SHIFT_TIMING.duration() < MOD_SHIFT_TIMING.duration());
         assert!(BIKE_SHIFT_TIMING.duration() > 0.1, "{}", BIKE_SHIFT_TIMING.duration());
+    }
+
+    #[test]
+    fn a_bike_pop_replaces_a_running_shift_flame_with_the_bigger_one() {
+        let (mut shift, mut back) = (ShiftEvent::default(), Backfire::default());
+        assert_eq!(bike_flame_levels(true, &shift, &back), (0.0, 0.0));
+        shift.note_gear(4);
+        shift.note_gear(3);
+        shift.advance(STEP, 3, 40.0, BIKE_SHIFT_TIMING);
+        assert_eq!(bike_flame_levels(true, &shift, &back), (1.0, 0.0), "the shift flame at the shift size");
+        assert_eq!(bike_flame_levels(false, &shift, &back), (0.0, 0.0), "no blow-off, no shift flame");
+        back.pops_for(1, 0.0, 3, BIKE_SHIFT_TIMING.duration());
+        assert_eq!(bike_flame_levels(true, &shift, &back), (0.0, 1.0), "the pop draws alone, at full strength");
+        assert_eq!(bike_flame_levels(false, &ShiftEvent::default(), &back), (0.0, 1.0));
     }
 
     #[test]

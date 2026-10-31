@@ -84,7 +84,7 @@ of the lift-offs by revs) is unchanged: the flames follow the pops that play. On
 
 ## Bikes (the RIDE 6 mod)
 
-A bike is a mod car, so it flames at its pops like one (every pop its sound reports, 0.15 s at full strength, an up-shift made
+A bike is a mod car, so it flames at its pops like one (every pop its sound reports, a flick at full strength, an up-shift made
 under power), with three differences (`exhaust/trigger.rs` `BIKE_*`, `scale.rs` `compact_bike`, `load.rs` `shift_timing`, `step.rs`).
 Cars are unchanged.
 
@@ -98,6 +98,11 @@ Cars are unchanged.
 - **When else.** A **down-shift with the pedal up** (above 10 m/s) flicks the pipes, like the blip of a rider changing down; a
   down-shift under power does not. The flick lasts 0.125 s (`BIKE_SHIFT_TIMING`: 8 degrees per second over 1 degree) against 0.28 s
   of a car's blow-off. A bike has no nitrous, so there is no blue flame.
+- **The backfire is the shift flame, repeated and a quarter bigger.** Each pop the sound plays (a bang and its one to three pops, or the
+  pops of a lift-off) is one flick of the same emitters, texture and 0.125 s as the shift flame, at `BIKE_BACKFIRE_SCALE_OVER_SHIFT` = 1.25
+  of its size (0.5 of the group's emitters against 0.4), once per pop and in step with it, instead of one long flame that every pop
+  restarted. A plain lift-off draws nothing of its own: only the pops the sound rolls light the pipes. Details, the choices and the
+  tests: [specs/ride6-bike-flames.md](specs/ride6-bike-flames.md).
 
 ## Console
 

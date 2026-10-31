@@ -5,7 +5,11 @@ use blackbox_render::BlendMode;
 use glam::{Mat4, Vec3, Vec4};
 
 use super::load::{lane, mod_timing, shift_timing};
-use super::trigger::{BIKE_SHIFT_TIMING, MOD_BACKFIRE_INTENSITY, MOD_BACKFIRE_SECONDS, MOD_SHIFT_TIMING, ShiftTiming};
+use super::scale::compact_bike;
+use super::trigger::{
+    BIKE_BACKFIRE_SCALE, BIKE_BACKFIRE_SCALE_OVER_SHIFT, BIKE_FLAME_SCALE, BIKE_SHIFT_TIMING, MOD_BACKFIRE_INTENSITY,
+    MOD_BACKFIRE_SECONDS, MOD_SHIFT_TIMING, ShiftTiming,
+};
 use super::{Active, CarState, ExhaustFlames, SpriteTexture, State};
 
 const STEP: f32 = 1.0 / 60.0;
@@ -31,13 +35,21 @@ fn flames(mod_car: bool, timing: ShiftTiming, engine_upgrades: i32) -> ExhaustFl
     ExhaustFlames { enabled: true, state: State::Ready(Box::new(active)), ..ExhaustFlames::default() }
 }
 
-/// A bike: a mod car that is a bike.
+/// A bike: a mod car that is a bike, with the shift flame's lanes at the bike's size and the pop lanes a quarter bigger.
 fn bike_flames() -> ExhaustFlames {
     let mut fx = flames(true, BIKE_SHIFT_TIMING, 0);
     if let State::Ready(active) = &mut fx.state {
         active.bike = true;
+        active.lanes = vec![lane(&compact_bike(&spec(), BIKE_FLAME_SCALE), 0, 2, 0)];
+        active.pop = vec![lane(&compact_bike(&spec(), BIKE_BACKFIRE_SCALE), 1, 2, 0)];
     }
     fx
+}
+
+/// Live particles of the shift lanes and of the pop lanes.
+fn particles(fx: &ExhaustFlames) -> (usize, usize) {
+    let count = |lanes: &[super::Lane]| lanes.iter().flat_map(|l| &l.emitters).map(|e| e.len()).sum();
+    (count(&active(fx).lanes), count(&active(fx).pop))
 }
 
 fn active(fx: &ExhaustFlames) -> &Active {
@@ -216,4 +228,107 @@ fn the_shift_flick_of_a_bike_is_shorter_than_a_mod_cars_blow_off() {
     run(&mut car_fx, 5, &car(3, 1.0));
     car_fx.step(STEP, &car(4, 1.0));
     assert!(flaming_steps(&mut car_fx, &car(4, 1.0)) > flick);
+}
+
+/// Rising edges of the flame over `steps` steps, with a pop noted at each step of `pops_at`: the flicks that were drawn, and
+/// the steps each one lasted.
+fn flicks(fx: &mut ExhaustFlames, steps: usize, pops_at: &[usize]) -> Vec<usize> {
+    let mut lengths: Vec<usize> = Vec::new();
+    let mut on = false;
+    for step in 0..steps {
+        if pops_at.contains(&step) {
+            fx.note_pops(1);
+        }
+        fx.step(STEP, &car(3, 0.0));
+        let lit = active(fx).intensity > 0.0;
+        match (lit, on) {
+            (true, false) => lengths.push(1),
+            (true, true) => *lengths.last_mut().expect("a flick") += 1,
+            (false, _) => {}
+        }
+        on = lit;
+    }
+    lengths
+}
+
+#[test]
+fn a_bike_backfire_is_the_shift_flame_a_quarter_bigger() {
+    assert_eq!(BIKE_BACKFIRE_SCALE_OVER_SHIFT, 1.25);
+    const { assert!(BIKE_BACKFIRE_SCALE_OVER_SHIFT >= 1.2 && BIKE_BACKFIRE_SCALE_OVER_SHIFT <= 1.3) };
+    let fx = bike_flames();
+    let (shift, pop) = (active(&fx).lanes[0].emitters[0].spec(), active(&fx).pop[0].emitters[0].spec());
+    for (a, b) in shift.size.iter().zip(pop.size) {
+        assert!((b - a * 1.25).abs() < 1e-6, "{a} to {b}");
+    }
+    assert!((pop.speed / shift.speed - 1.25).abs() < 1e-6);
+    assert!((pop.volume_extent - shift.volume_extent * 1.25).length() < 1e-6);
+    assert_eq!(
+        (pop.rate, pop.life, pop.keys, pop.colors),
+        (shift.rate, shift.life, shift.keys, shift.colors),
+        "same emitter"
+    );
+    assert_eq!(BIKE_BACKFIRE_SCALE, BIKE_FLAME_SCALE * BIKE_BACKFIRE_SCALE_OVER_SHIFT);
+}
+
+#[test]
+fn a_bike_pop_draws_the_bigger_lanes_and_a_shift_the_smaller_ones() {
+    let mut popped = bike_flames();
+    run(&mut popped, 5, &car(3, 0.0));
+    popped.note_pops(1);
+    run(&mut popped, 3, &car(3, 0.0));
+    let (shift, pop) = particles(&popped);
+    assert!(pop > 0 && shift == 0, "a pop spawns only the backfire lanes: {shift} and {pop}");
+
+    let mut shifted = bike_flames();
+    run(&mut shifted, 5, &car(3, 1.0));
+    run(&mut shifted, 3, &car(4, 1.0));
+    let (shift, pop) = particles(&shifted);
+    assert!(shift > 0 && pop == 0, "a shift spawns only the shift lanes: {shift} and {pop}");
+}
+
+#[test]
+fn a_bike_pop_flicks_for_exactly_as_long_as_its_shift_flame() {
+    let mut shifted = bike_flames();
+    run(&mut shifted, 5, &car(4, 0.0));
+    let shift = flicks_of_shift(&mut shifted);
+    let mut popped = bike_flames();
+    run(&mut popped, 5, &car(3, 0.0));
+    let pop = flicks(&mut popped, 40, &[0]);
+    assert_eq!(pop, vec![shift], "one pop is one flick of the shift's length");
+    assert!(shift >= 7, "{shift} steps is about 0.125 s");
+}
+
+/// The steps the flame of a down-shift off the pedal lasts, counted from the shift.
+fn flicks_of_shift(fx: &mut ExhaustFlames) -> usize {
+    let mut steps = 0;
+    for _ in 0..40 {
+        fx.step(STEP, &car(3, 0.0));
+        steps += usize::from(active(fx).intensity > 0.0);
+    }
+    steps
+}
+
+#[test]
+fn a_burst_of_pops_is_that_many_flicks_in_step_with_the_pops() {
+    // Three pops of the sound, 0.2 s apart (more than a flick): three separate flicks, each starting in the step its pop is due.
+    let mut fx = bike_flames();
+    run(&mut fx, 5, &car(3, 0.0));
+    let each = flicks(&mut fx, 60, &[0, 12, 24]);
+    assert_eq!(each.len(), 3, "{each:?}");
+    assert!(each.iter().all(|&steps| steps == each[0]), "every flick is the same length: {each:?}");
+    // Two pops closer than a flick run together, as one flame restarted.
+    let mut close = bike_flames();
+    run(&mut close, 5, &car(3, 0.0));
+    let merged = flicks(&mut close, 60, &[0, 3]);
+    assert_eq!(merged.len(), 1);
+    assert_eq!(merged[0], each[0] + 3, "restarted at the second pop");
+}
+
+#[test]
+fn a_plain_lift_off_without_a_pop_does_not_flame_a_bike() {
+    let mut fx = bike_flames();
+    run(&mut fx, 30, &car(3, 1.0));
+    run(&mut fx, 60, &car(3, 0.0));
+    assert_eq!(fx.live(), 0);
+    assert_eq!(active(&fx).intensity, 0.0);
 }

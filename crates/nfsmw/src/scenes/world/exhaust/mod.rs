@@ -70,6 +70,9 @@ struct Active {
     /// The same emitters again for the nitrous, drawn in blue (see [`tint_blue`]). Their particles keep their
     /// colour to the end of their short life when the nitrous stops.
     blue: Vec<Lane>,
+    /// A bike's backfire flame: the orange emitters again at `trigger::BIKE_BACKFIRE_SCALE`, the shift flame a little bigger. Empty
+    /// for a car.
+    pop: Vec<Lane>,
     textures: Vec<SpriteTexture>,
     timing: ShiftTiming,
     engine_upgrades: i32,
@@ -135,30 +138,38 @@ impl Default for ExhaustFlames {
     }
 }
 
-/// Lane `index` of the orange lanes followed by the blue ones. It takes the two lists, not the `Active`, so that
-/// the other fields stay free to use while the lane is borrowed.
-fn lane_of<'a>(orange: &'a mut [Lane], blue: &'a mut [Lane], index: usize) -> &'a mut Lane {
-    match index < orange.len() {
-        true => &mut orange[index],
-        false => &mut blue[index - orange.len()],
+/// Lane `index` of the orange lanes, then the blue ones, then a bike's pop ones. It takes the lists, not the `Active`, so
+/// that the other fields stay free to use while the lane is borrowed.
+fn lane_of<'a>(orange: &'a mut [Lane], blue: &'a mut [Lane], pop: &'a mut [Lane], index: usize) -> &'a mut Lane {
+    if index < orange.len() {
+        return &mut orange[index];
     }
+    let index = index - orange.len();
+    if index < blue.len() {
+        return &mut blue[index];
+    }
+    &mut pop[index - blue.len()]
 }
 
 impl Active {
     fn live(&self) -> usize {
-        self.lanes.iter().chain(&self.blue).flat_map(|l| &l.emitters).map(Emitter::len).sum()
+        self.lanes.iter().chain(&self.blue).chain(&self.pop).flat_map(|l| &l.emitters).map(Emitter::len).sum()
     }
 
-    /// The orange lanes, then the blue ones: the order the batches are numbered in.
+    /// The orange lanes, the blue ones, then a bike's pop ones: the order the batches are numbered in.
     fn lane_count(&self) -> usize {
-        self.lanes.len() + self.blue.len()
+        self.lanes.len() + self.blue.len() + self.pop.len()
     }
 
     fn lane(&self, index: usize) -> &Lane {
-        match index < self.lanes.len() {
-            true => &self.lanes[index],
-            false => &self.blue[index - self.lanes.len()],
+        if index < self.lanes.len() {
+            return &self.lanes[index];
         }
+        let index = index - self.lanes.len();
+        if index < self.blue.len() {
+            return &self.blue[index];
+        }
+        &self.pop[index - self.blue.len()]
     }
 
     fn age(&mut self, dt: f32) {
@@ -168,7 +179,9 @@ impl Active {
         if self.live == 0 {
             return;
         }
-        for emitter in self.lanes.iter_mut().chain(&mut self.blue).flat_map(|l| l.emitters.iter_mut()) {
+        for emitter in
+            self.lanes.iter_mut().chain(&mut self.blue).chain(&mut self.pop).flat_map(|l| l.emitters.iter_mut())
+        {
             emitter.set_enabled(false);
             emitter.step(dt, &Frame::default());
         }
@@ -186,7 +199,9 @@ impl Active {
     #[cfg(test)]
     fn clear(&mut self) {
         self.disconnect();
-        for emitter in self.lanes.iter_mut().chain(&mut self.blue).flat_map(|l| l.emitters.iter_mut()) {
+        for emitter in
+            self.lanes.iter_mut().chain(&mut self.blue).chain(&mut self.pop).flat_map(|l| l.emitters.iter_mut())
+        {
             emitter.clear();
         }
         self.live = 0;
@@ -196,12 +211,12 @@ impl Active {
     fn quads(&mut self, lane: usize, camera: Vec3, forward: Vec3, flame: Option<FlameProfile>) -> bool {
         let right = forward.cross(Vec3::Z).normalize_or(Vec3::X);
         let up = right.cross(forward).normalize_or(Vec3::Z);
-        let blue = lane >= self.lanes.len();
+        let blue = lane >= self.lanes.len() && lane < self.lanes.len() + self.blue.len();
         let gain = match self.textures[self.lane(lane).texture].blend {
             BlendMode::Additive => ADDITIVE_GAIN,
             _ => 1.0,
         };
-        let lane = lane_of(&mut self.lanes, &mut self.blue, lane);
+        let lane = lane_of(&mut self.lanes, &mut self.blue, &mut self.pop, lane);
         self.order.clear();
         lane.vertices.clear();
         for sprite in lane.emitters.iter().flat_map(Emitter::sprites) {
@@ -423,7 +438,8 @@ impl ExhaustFlames {
             if !active.quads(lane, camera, forward, flame) {
                 continue;
             }
-            let vertices = std::mem::take(&mut lane_of(&mut active.lanes, &mut active.blue, lane).vertices);
+            let vertices =
+                std::mem::take(&mut lane_of(&mut active.lanes, &mut active.blue, &mut active.pop, lane).vertices);
             active.handed.push((lane, handle, layer.textured.len()));
             layer.textured.push(TexturedEffect { texture: handle, blend, vertices });
         }
@@ -450,7 +466,8 @@ impl ExhaustFlames {
         let State::Ready(active) = &mut self.state else { return };
         for (lane, handle, index) in active.handed.drain(..) {
             let Some(batch) = layer.textured.get_mut(index).filter(|b| b.texture == handle) else { continue };
-            lane_of(&mut active.lanes, &mut active.blue, lane).vertices = std::mem::take(&mut batch.vertices);
+            lane_of(&mut active.lanes, &mut active.blue, &mut active.pop, lane).vertices =
+                std::mem::take(&mut batch.vertices);
         }
     }
 }
