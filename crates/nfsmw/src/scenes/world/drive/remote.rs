@@ -57,6 +57,7 @@ impl DriveInput {
             clutch: axis(input.clutch, 0.0, 1.0),
             reset: false,
             pop: false,
+            fall: None,
         }
     }
 }

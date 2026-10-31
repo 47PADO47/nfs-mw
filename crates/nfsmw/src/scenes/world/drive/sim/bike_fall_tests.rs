@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use blackbox_vehicle::FlatGround;
-use blackbox_vehicle::bike::BikeSpec;
+use blackbox_vehicle::bike::{BikeSpec, FallKind};
 use glam::Vec3;
 use nfsmw_data::car::physics::{CarBounds, CarPhysics};
 
@@ -115,6 +115,27 @@ fn the_bike_stays_down_and_ignores_the_controls_until_the_rider_has_got_up() {
     step(&mut sim, &ground, 0.5);
     assert!(!sim.rider_off() && !sim.bike_waits_for_rider(), "stood up");
     assert!(sim.up_dot() > 0.95);
+}
+
+#[test]
+fn a_scripted_fall_throws_the_rider_of_a_riding_bike_with_the_kind_asked_for() {
+    let ground = FlatGround::new(5.0);
+    let mut sim = bike_sim();
+    assert!(sim.place_moving(&ground, spawn(), 25.0));
+    step(&mut sim, &ground, 1.0);
+    assert!(!sim.rider_off());
+    sim.throw_rider(FallKind::HighSide);
+    assert!(sim.rider_off());
+    let release = sim.take_rider_release().expect("the host takes the release like any other");
+    assert_eq!(release.kind, FallKind::HighSide);
+    assert!(release.velocity.length() > 15.0, "at the bike's speed: {:?}", release.velocity);
+    // A second throw changes nothing.
+    sim.throw_rider(FallKind::LowSide);
+    assert!(sim.take_rider_release().is_none());
+    // A car has no rider to throw.
+    let mut car = CarSim::new(CarPhysics::from_stats(&Default::default(), BOUNDS), [0.2; 4]);
+    car.throw_rider(FallKind::HighSide);
+    assert!(!car.rider_off() && car.take_rider_release().is_none());
 }
 
 #[test]

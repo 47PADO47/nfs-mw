@@ -48,6 +48,7 @@ mod tests {
             clutch: 1.0,
             reset: true,
             pop: true,
+            fall: Some(blackbox_vehicle::bike::FallKind::HighSide),
         };
         let ai = DriveInput { throttle: 0.25, steer: 0.5, ..Default::default() };
         assert_eq!(player.cinematic(Some(ai)), ai);

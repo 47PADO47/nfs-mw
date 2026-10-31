@@ -55,11 +55,14 @@ runs the bike's wait as a clock (it counts only while the bike waits) and answer
 | has not begun to get up | after the bike has waited `TUMBLE_LIMIT` (8 s) |
 
 The step then goes: the bike is stood up in the next physics step, `Fall::stop` sees the bike back (`off` false) and the rider blends back
-onto it in `RETURN_TIME` (0.25 s). The get-up is not cut, the bike is not under the player's hands before it has ended.
+onto it. The get-up is not cut, the bike is not under the player's hands before it has ended. The blend takes the way he has to go at
+`RETURN_SPEED` (3 m/s), at least `RETURN_TIME` (0.25 s) and at most `RETURN_LONGEST` (2 s): the bike is stood up where it lay, which is
+metres from where he knelt, and the earlier 0.25 s blend carried him there in a fifth of a second (seen in the offscreen runs of
+[the fall page](ride6-rider-fall-animation.md), section 7: 3.5 m, now about 1.0 s). The bike is controllable from the moment it is up.
 
-**A reset by hand skips the wait.** The reset button (`DriveInput::reset`, `drive/simulation.rs`) and every other placement of the bike
+**A reset by hand skips the wait and the walk.** The reset button (`DriveInput::reset`, `drive/simulation.rs`) and every other placement of the bike
 (`place_moving`, the fall off the map, a new spawn) put the bike upright at once and clear `waiting` (`BikeRide::place`); the host sees
-`off` false and `Fall::stop` returns the rider to the bike without waiting for the clip, from wherever he is. So pressing R while the
+`off` false and `Fall::stop` returns the rider to the bike without waiting for the clip, from wherever he is, in `RETURN_TIME`. So pressing R while the
 rider is getting up is allowed to skip (the player asked for it).
 
 ## 4. Choices
@@ -69,7 +72,7 @@ rider is getting up is allowed to skip (the player asked for it).
 | Wait for a rider who has not begun to get up | `TUMBLE_LIMIT` = 8 s (the bike waits, lying still) | was 2 s after the bike was up (the old grace); the wait must outlast a slide, and only a rider stuck between the three bands (never getting still) may be put back mid-tumble. A modelling choice: the raise-bike phases' durations were not recovered |
 | Longest get-up | `GETUP_LIMIT` = 8 s from the start of the get-up | the get-up ends with its clip (the source); this only keeps a clip that never ends from holding the bike for good. Unchanged from the old `RETURN_LIMIT` |
 | Bike lies before it waits | 2 s and 1.5 m/s | unchanged ([ride6-rider-fall](ride6-rider-fall.md)) |
-| Return blend | 0.25 s | unchanged |
+| Return blend | his way at 3 m/s, 0.25 to 2 s | a modelling choice: the walk clips and phases were not recovered; was a flat 0.25 s (a pop of metres). A reset by hand keeps 0.25 s |
 
 Not modelled (as before): the walk to the bike and the raising of it. A real rider needs a few seconds for those; here the
 bike stands up where it lies the moment the get-up ends and the rider blends onto it.
@@ -86,6 +89,6 @@ bike stands up where it lies the moment the get-up ends and the rider blends ont
 `nfsmw` (`drive/rider/fall_tests.rs`): the bike is held while the get-up plays and may stand up after about the clip's length (the clip
 there is 1 s); with the bike waiting from 1 s, it is not let up before the get-up has played (the reported fault); a bike that does not
 wait does not start the clock; a rider who never begins to get up holds the waiting bike for `TUMBLE_LIMIT` and not longer; a limp rider
-or one who is not down never holds it; `stop` mid get-up (the reset button) takes the rider back at once. `drive/sim/bike_ride_tests.rs`
+or one who is not down never holds it; `stop` mid get-up (the reset button) takes the rider back at once; the return takes longer for a rider 4.5 m from the bike than for one next to it, within the limits, and a reset by hand does not. `drive/sim/bike_ride_tests.rs`
 and `bike_fall_tests.rs`: a bike that has lain still waits and stays fallen for a long time while the rider is not ready, ignores full
 throttle and stick, and is stood up (rider back on it) at the next step once he is ready; placing the bike by hand does not wait.

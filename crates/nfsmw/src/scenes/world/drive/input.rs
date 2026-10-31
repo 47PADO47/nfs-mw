@@ -1,5 +1,6 @@
 //! What the driver asks of the car this step, from the player or from a script.
 
+use blackbox_vehicle::bike::FallKind;
 use blackbox_vehicle::drivetrain::{GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE};
 
 use super::Drive;
@@ -51,6 +52,8 @@ pub struct DriveInput {
     pub reset: bool,
     /// A scripted sputter pop for the exhaust flames (`pop` in a `--drive-script`; no key does it).
     pub pop: bool,
+    /// A scripted fall (`fall=` in a `--drive-script`; no key does it): a bike throws its rider now, as this kind of fall says.
+    pub fall: Option<FallKind>,
 }
 
 /// The actions that ask for a gear by number, with the gear id each one means.
@@ -96,6 +99,7 @@ impl DriveInput {
             clutch: actions.value(Action::Clutch).clamp(0.0, 1.0),
             reset: actions.just_pressed(Action::ResetCar),
             pop: false,
+            fall: None,
         }
     }
 
@@ -103,7 +107,7 @@ impl DriveInput {
     /// steps of a frame.
     #[cfg(test)]
     pub fn held(self) -> Self {
-        Self { shift_up: false, shift_down: false, gear_select: None, reset: false, pop: false, ..self }
+        Self { shift_up: false, shift_down: false, gear_select: None, reset: false, pop: false, fall: None, ..self }
     }
 }
 

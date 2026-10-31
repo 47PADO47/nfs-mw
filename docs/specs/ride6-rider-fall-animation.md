@@ -114,7 +114,8 @@ limits; limits and contacts win over it.
 4. The fallen bike waits for the rider ([ride6-rider-getup](ride6-rider-getup.md)): once it has lain still it is stood up only when his
    get-up has played to its end (the clip's length; at most 8 s of get-up, or 8 s of waiting for one that has not begun) [M], so the bike
    is not back under the player's hands while he is still getting up. A bike put back by hand (the reset button) takes him back at once.
-   The return is the earlier blend of 0.25 s from where he stands [M]; the walk to the bike is not modelled.
+   The return is a blend from where he stands to the seat, taking the way at a jog (3 m/s, 0.25 to 2 s) [M]; the walk to the bike is
+   not modelled (see [ride6-rider-getup](ride6-rider-getup.md), section 3).
 
 A rider without `falls.json` falls limp as before; one without `ragdoll.json` keeps to his bike.
 
@@ -152,3 +153,29 @@ lower arms 5, hands 3, thighs 7, calves 5, feet 2: 108 kg) and 15 joints, with l
 neck free, knees 90/30/40). The hands are boxes, not capsules: the converter stands for a box by the capsule along its longest side with
 the mean half-size of the other two as its radius [M] (a hand of 9.0 x 6.2 x 8.4 cm becomes a capsule of radius 3.65 cm and a straight part of 1.7 cm).
 `ride6-rider-ragdoll` takes either asset; use the `_CB` one.
+
+## 7. Seen on screen (offscreen runs of a scripted crash)
+
+`--drive-script "2:throttle=1;0.02:fall=low;N:throttle=0"` crashes the bike on cue ([the script's page](../modding/drive-script.md)); a
+screenshot run plays the script out and captures its last moment, so one run is one frame: about 100 frames from 80 runs (N from 0.1 to
+12 s, low and high side, `--camera-mode far` and `superfar`, the last at 2560x1440 and cropped), in `C:/r6/shots/fall`. KTM 450, flat
+road, low side after 2 s of full throttle (seconds after the fall):
+
+| t | What is on screen |
+|---|---|
+| 0.6 | the bike is over on its side; he is still on it, being thrown |
+| 1.2 | in the air, flat out ahead of the bike, as the launch clip holds him |
+| 2.0 to 4.0 | tumbling, then sliding on his back and face down; the bike lies still 4 to 5 m behind |
+| 4.5 to 5.5 | rolling to rest (the rolling and sliding loops follow how he lies) |
+| about 5.6 | he is still enough, face down: the get-up is entered (1.0 s crossfade, then the 1.4 s clip) |
+| 5.8 to 8.0 | on hands and knees pushing up: the clip's last frame is that pose (pelvis 0.36 m, head 0.57 m [D]; the back clip ends sitting, the side clip kneeling: standing and walking are the phases not recovered) |
+| 8.05 | the bike is stood up (the get-up has played: 1.0 + 1.4 s after it began); he is still kneeling where he lay |
+| 8.1 to 9.1 | he goes back to the seat (about 1.0 s for 3.5 m) and is seated at 9.1 s; control was the bike's from 8.05 |
+
+The ragdoll follows the clips (the launch pose, the loops, the get-up), the get-up is played, the bike stays down until it has played, and the
+rider is on the bike again without a jump. What was wrong and is fixed: the bike was stood up where it lay, 4 to 5 m from where he
+knelt, and the 0.25 s return blend carried him there in a fifth of a second (a pop of metres); it now takes the way at 3 m/s
+(`RETURN_SPEED`, at most 2 s) [M]. A bike put back by hand still takes him at once. High side (2 s of throttle): thrown over the bars, face
+down and sliding at 2.5 s, up and seated by 6 s. At 69 km/h (8 s of throttle) the bike cartwheels (its own box dynamics) and
+the rider is flung clear; on the stretch of road used it ends in the verge. What stays open: the middle of the return blends a kneeling
+pose into a seated one in the air (no walk clips), and the bike's tumble at high speed is the box double's, not the animation's.

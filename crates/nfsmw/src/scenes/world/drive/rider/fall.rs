@@ -17,8 +17,14 @@ use super::fall_anim::{self, Anim, DRIVE_GAIN, DriveLink};
 use super::fall_file::{self, FallConfig, Falls, RagdollFile};
 use super::fall_space::{quat_to_physics, quat_to_render, to_physics, to_render};
 
-/// How long the rider takes to get back on the bike once it is stood up (s). A modelling choice.
+/// The shortest time the rider takes to get back on the bike once it is stood up (s). A modelling choice.
 const RETURN_TIME: f32 = 0.25;
+/// How fast he gets back to the bike from where he knelt (m/s), and the longest that takes (s). Modelling choices: the reference's rider
+/// walks to the bike and raises it (the walk clips and the phases' durations were not recovered), and here the bike is stood up where
+/// it lay, which can be several metres from where he got up; blended in [`RETURN_TIME`] that was a pop of metres in a fifth of a
+/// second (`docs/specs/ride6-rider-getup.md`, "The return"). About a jog, so the way back takes a second or two.
+const RETURN_SPEED: f32 = 3.0;
+const RETURN_LONGEST: f32 = 2.0;
 
 /// A body of the ragdoll and the bone it moves.
 #[derive(Debug, Clone, Copy)]
@@ -53,6 +59,8 @@ enum State {
     Returning {
         from: Vec<Transform>,
         progress: f32,
+        /// How long the blend takes (s): by the way he has to go ([`return_time`]).
+        duration: f32,
     },
 }
 
@@ -64,6 +72,8 @@ pub(super) struct Fall {
     set: Option<FallSet>,
     /// How long the bike has lain still waiting for the rider to get up (s).
     waited: f32,
+    /// Whether the last answer to "may the bike be stood up?" was yes: the bike was stood up for him, not put back by hand.
+    ready: bool,
     /// The riding pose of the last frame, rider space.
     riding: Vec<Transform>,
     state: State,
@@ -133,6 +143,7 @@ impl Fall {
         };
         self.state = State::Down(Box::new(tumble));
         self.waited = 0.0;
+        self.ready = false;
         true
     }
 
@@ -151,8 +162,8 @@ impl Fall {
                     tumble.ragdoll.step(dt, ground);
                 }
             }
-            State::Returning { progress, .. } => {
-                *progress += dt / RETURN_TIME;
+            State::Returning { progress, duration, .. } => {
+                *progress += dt / *duration;
                 if *progress >= 1.0 {
                     self.state = State::Riding;
                 }
@@ -167,16 +178,25 @@ impl Fall {
     pub fn bike_may_stand_up(&mut self, waiting: bool, dt: f32) -> bool {
         let State::Down(tumble) = &self.state else { return true };
         self.waited = if waiting { self.waited + dt } else { 0.0 };
-        tumble.may_return(self.waited)
+        self.ready = tumble.may_return(self.waited);
+        self.ready
     }
 
-    /// The bike is stood up: the rider gets back on it, at once. In the normal course it was stood up only when he was ready
-    /// ([`Fall::bike_may_stand_up`]); a bike put back by hand (the reset button) does not wait for his get-up.
-    pub fn stop(&mut self, skeleton: &Skeleton) {
+    /// The bike is stood up: the rider gets back on it. In the normal course it was stood up only when he was ready
+    /// ([`Fall::bike_may_stand_up`]) and he takes the time to cover the way to it, `seat` being where the bike's rider space is in the
+    /// render space ([`return_time`]); a bike put back by hand (the reset button) does not wait for his get-up, and he is on it in
+    /// [`RETURN_TIME`], from wherever he is.
+    pub fn stop(&mut self, skeleton: &Skeleton, seat: Vec3) {
         let State::Down(tumble) = &self.state else { return };
         self.waited = 0.0;
-        let from = tumble.pose(skeleton, self.origin).into_iter().map(|t| shifted(t, self.origin)).collect();
-        self.state = State::Returning { from, progress: 0.0 };
+        let from: Vec<Transform> =
+            tumble.pose(skeleton, self.origin).into_iter().map(|t| shifted(t, self.origin)).collect();
+        let pelvis = from.get(tumble.links[tumble.anim.as_ref().map_or(0, |anim| anim.root)].bone);
+        let duration = match (self.ready, pelvis) {
+            (true, Some(pelvis)) => return_time(pelvis.translation.distance(seat)),
+            _ => RETURN_TIME,
+        };
+        self.state = State::Returning { from, progress: 0.0, duration };
     }
 
     /// The component transforms of the rider off the bike this frame, if he is, relative to the point [`Fall::instance`] places
@@ -190,7 +210,7 @@ impl Fall {
                 self.origin = origin;
                 Some(tumble.pose(skeleton, origin))
             }
-            State::Returning { from, progress } => {
+            State::Returning { from, progress, .. } => {
                 let (_, turn, seat) = to_world.to_scale_rotation_translation();
                 let k = progress.clamp(0.0, 1.0);
                 let k = k * k * (3.0 - 2.0 * k);
@@ -211,6 +231,12 @@ impl Fall {
             }
         }
     }
+}
+
+/// How long the rider takes to get back on the bike from `distance` metres away (s): his way at [`RETURN_SPEED`], at least
+/// [`RETURN_TIME`] and at most [`RETURN_LONGEST`].
+pub(super) fn return_time(distance: f32) -> f32 {
+    (distance / RETURN_SPEED).clamp(RETURN_TIME, RETURN_LONGEST)
 }
 
 /// A transform of the render space moved by `origin` (the opposite of taking it relative to an origin).
@@ -366,7 +392,8 @@ impl super::RiderRig {
             log::warn!("rider: the fall could not be started (the ragdoll does not fit the rider)");
         }
         if self.fall.is_down() && !step.off {
-            self.fall.stop(&self.pack.skeleton);
+            let (_, _, seat) = (world * self.frame.to_model).to_scale_rotation_translation();
+            self.fall.stop(&self.pack.skeleton, seat);
         }
         self.fall.animate(&self.pack, step.dt, ground);
         self.fall.step(step.dt, ground);

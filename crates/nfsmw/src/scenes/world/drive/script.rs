@@ -4,10 +4,24 @@
 //! Keys: `throttle`, `brake`, `steer` (-1..1), `handbrake`, `nos` (0 or 1), `up` and `down` (a gear
 //! shift at the start of the segment), `speedbreaker` (the gameplay toggle button),
 //! `reset` (back to the nearest road at the start of it), `pop` (one sputter
-//! pop for the exhaust flames at the start of it, as the sound would report). A segment without keys coasts.
+//! pop for the exhaust flames at the start of it, as the sound would report), `fall` (`fall=low`, `fall=high` or
+//! `fall=generic`: a bike throws its rider at the start of the segment, through the path a real fall takes; a car
+//! ignores it; see `docs/modding/drive-script.md`). A segment without keys coasts.
+
+use blackbox_vehicle::bike::FallKind;
 
 use super::clock::STEP;
 use super::input::DriveInput;
+
+/// The kind of fall a `fall=` value names.
+fn fall_kind(name: &str) -> Result<FallKind, String> {
+    match name {
+        "low" | "lowside" | "low_side" => Ok(FallKind::LowSide),
+        "high" | "highside" | "high_side" => Ok(FallKind::HighSide),
+        "generic" | "other" | "1" => Ok(FallKind::Generic),
+        other => Err(format!("unknown fall {other:?} (low high generic)")),
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 struct Segment {
@@ -32,6 +46,10 @@ impl DriveScript {
             let mut input = DriveInput::default();
             for pair in keys.split(',').map(str::trim).filter(|p| !p.is_empty()) {
                 let (key, value) = pair.split_once('=').unwrap_or((pair, "1"));
+                if key.trim() == "fall" {
+                    input.fall = Some(fall_kind(value.trim())?);
+                    continue;
+                }
                 let n: f32 = value.trim().parse().map_err(|_| format!("bad value {value:?} for {key:?}"))?;
                 match key.trim() {
                     "throttle" => input.throttle = n.clamp(0.0, 1.0),
@@ -46,7 +64,7 @@ impl DriveScript {
                     "pop" => input.pop = n > 0.5,
                     other => {
                         return Err(format!(
-                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop)"
+                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop fall)"
                         ));
                     }
                 }
@@ -81,6 +99,7 @@ impl DriveScript {
                     shift_down: s.input.shift_down && first,
                     reset: s.input.reset && first,
                     pop: s.input.pop && first,
+                    fall: s.input.fall.filter(|_| first),
                     ..s.input
                 };
             }
@@ -144,6 +163,18 @@ mod tests {
         assert!(!script.input_at(0.5).pop && script.input_at(1.0).pop && !script.input_at(1.5).pop, "a pop is once");
         let script = DriveScript::parse("1:throttle;1:reset").unwrap();
         assert!(!script.input_at(0.5).reset && script.input_at(1.0).reset && !script.input_at(1.5).reset);
+    }
+
+    #[test]
+    fn a_fall_names_its_kind_and_fires_once() {
+        let script = DriveScript::parse("1:throttle;2:fall=high;1:fall=low;1:fall=generic").unwrap();
+        assert_eq!(script.input_at(0.5).fall, None);
+        assert_eq!(script.input_at(1.0).fall, Some(FallKind::HighSide));
+        assert_eq!(script.input_at(1.5).fall, None, "a fall is once, at the start of its segment");
+        assert_eq!(script.input_at(3.0).fall, Some(FallKind::LowSide));
+        assert_eq!(script.input_at(4.0).fall, Some(FallKind::Generic));
+        assert!(DriveScript::parse("1:fall=sideways").is_err());
+        assert!(DriveScript::parse("1:fall=").is_err());
     }
 
     #[test]

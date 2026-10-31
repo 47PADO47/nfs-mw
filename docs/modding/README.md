@@ -34,6 +34,7 @@ when the module is new.
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
 | [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paints, rims, spoilers, vinyls), the `[customization]` table of a car manifest, and the files a mod's own car needs |
 | [bikes.md](bikes.md) | Two-wheeled mod cars: `kind = "bike"` and the `[bike]` table (every number of the two-wheel dynamics in SI units, no defaults, the ranges), the two wheel solids, how a bike is driven (input mapping, no reverse, the fall), what is not done |
+| [drive-script.md](drive-script.md) | `--drive-script` for offscreen runs: the segment syntax, the keys, and `fall=` (throw a bike's rider now: a repeatable crash for the rider's fall and get-up) |
 | [car-stats.md](car-stats.md) | The `[stats]` table of a car manifest (mass, engine, gearbox, tyres, brakes, nitrous in SI units), the upgrade levels, the shop's bars |
 | [car-sound.md](car-sound.md) | The `[engine_sound]` and `[car_sound]` tables of a car manifest: the car's own engine loops, the built-in engine, shifts, turbo, backfire and pops |
 | [ride6-bikes-batch.md](ride6-bikes-batch.md) | Importing all 319 RIDE 6 bikes: the vehicles and their bindings, the car-id and name rule (27 characters, hash for long ids), `import_all.py`, the `ids` and `remanifest` commands, `built.json`, the report |

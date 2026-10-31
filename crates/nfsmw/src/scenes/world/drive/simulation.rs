@@ -113,6 +113,9 @@ impl Drive {
         if input.pop {
             self.flames.pop();
         }
+        if let Some(kind) = input.fall {
+            sim.throw_rider(kind);
+        }
         let start = sim.begin_step_with_delta(dt, &input, true, Some(props));
         sim.begin_body(&start, Some(collision));
         Some(DrivePhysicsStep { input, start, delta: dt })

@@ -184,7 +184,7 @@ fn standing_the_bike_up_puts_the_rider_back_on_it_with_a_short_blend() {
     let away =
         (lying[1].translation + fall.instance().transform_point3(Vec3::ZERO)).distance(seat + sitting[1].translation);
     assert!(away > 3.0, "{away}");
-    fall.stop(&skeleton);
+    fall.stop(&skeleton, seat);
     assert!(fall.active() && !fall.is_down());
     // At the start of the blend he is where he lay; half way he is between; at the end he is on the bike and the fall is over.
     let start = fall.pose(&skeleton, &sitting, seated()).expect("returning");
@@ -360,8 +360,37 @@ fn the_bike_is_held_down_while_the_get_up_plays_and_then_the_rider_gets_back_on(
     // The clip is one second long (`animated`): the bike is stood up when it has played, not before.
     assert!((0.9..1.2).contains(&waited), "the bike waits for the get-up clip's own length: {waited}");
     assert!(fall.is_down(), "he is still on the ground until the bike is up");
-    fall.stop(&pack.skeleton);
+    fall.stop(&pack.skeleton, Vec3::new(0.0, 0.0, 0.2));
     assert!(!fall.is_down() && fall.active(), "returning");
+}
+
+#[test]
+fn the_return_takes_the_time_of_the_way_to_the_bike_and_a_reset_by_hand_does_not() {
+    assert_eq!(return_time(0.0), RETURN_TIME, "never faster than the short blend");
+    assert!((return_time(3.0) - 3.0 / RETURN_SPEED).abs() < 1e-6);
+    assert_eq!(return_time(100.0), RETURN_LONGEST, "and never longer than the limit");
+    let ground = FlatGround::new(0.0);
+    // The bike is stood up for him, 4.5 m from where he knelt: he is still on his way when a short blend would have been over.
+    let (mut fall, pack) = started_animated(FallKind::LowSide, 0.5);
+    run_until_getting_up(&mut fall, &pack);
+    let mut steps = 0;
+    while !host_step(&mut fall, &pack, true) && steps < 600 {
+        steps += 1;
+    }
+    let State::Down(tumble) = &fall.state else { panic!("not down") };
+    let lying = to_render(tumble.ragdoll.centre());
+    fall.stop(&pack.skeleton, lying + Vec3::new(4.5, 0.0, 0.0));
+    fall.step(RETURN_TIME * 2.0, &ground);
+    assert!(fall.active(), "a walk of 4.5 m takes longer than a pop");
+    fall.step(RETURN_LONGEST, &ground);
+    assert!(!fall.active(), "back on the bike");
+    // The bike put back by hand before he was ready: the short blend, wherever he is.
+    let (mut fall, pack) = started_animated(FallKind::LowSide, 0.5);
+    run_until_getting_up(&mut fall, &pack);
+    assert!(!fall.bike_may_stand_up(true, FIXED_STEP));
+    fall.stop(&pack.skeleton, Vec3::new(30.0, 0.0, 0.2));
+    fall.step(RETURN_TIME * 1.1, &ground);
+    assert!(!fall.active(), "he is on it in the short blend");
 }
 
 #[test]
@@ -420,6 +449,6 @@ fn a_bike_put_back_by_hand_takes_the_rider_back_at_once_even_in_the_middle_of_th
     run_animated(&mut fall, &pack, 0.3);
     assert!(!fall.bike_may_stand_up(true, FIXED_STEP), "still getting up");
     // The reset button: the bike is placed again, whatever the rider does.
-    fall.stop(&pack.skeleton);
+    fall.stop(&pack.skeleton, Vec3::new(0.0, 0.0, 0.2));
     assert!(!fall.is_down() && fall.active(), "he is on his way back to the bike");
 }

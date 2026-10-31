@@ -3,7 +3,7 @@
 //! The dynamics hand the rider over once, at the fall ([`RiderRelease`], in physics space); the rider's body (`drive/rider/fall.rs`)
 //! takes him from there, and is told when the bike has been stood up again. A car never has either.
 
-use blackbox_vehicle::bike::RiderRelease;
+use blackbox_vehicle::bike::{FallKind, RiderRelease};
 
 use super::CarSim;
 
@@ -11,6 +11,14 @@ impl CarSim {
     /// The rider as the bike let him go in the fall that just happened, once; `None` for a car and when nobody fell.
     pub fn take_rider_release(&mut self) -> Option<RiderRelease> {
         self.ride.as_deref_mut()?.bike.take_rider_release()
+    }
+
+    /// The rider is thrown now, as `kind` says, through the path every fall takes (the release the host takes in the same step).
+    /// A scripted fall (`fall=` of a drive script); nothing for a car or a bike that has fallen already.
+    pub fn throw_rider(&mut self, kind: FallKind) {
+        if let Some(ride) = self.ride.as_deref_mut() {
+            ride.bike.throw_rider(kind);
+        }
     }
 
     /// Whether the rider is off the bike (from the fall until the bike is stood up again); false for a car.
