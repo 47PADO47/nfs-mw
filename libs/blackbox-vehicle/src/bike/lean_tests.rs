@@ -13,7 +13,7 @@ fn input(stick: f32, lean: f32, speed: f32) -> LeanInput {
         lean_rate: 0.0,
         lateral_grip: 1.3,
         terrain_slope: 0.0,
-        lateral_g: 0.0,
+        long_g: 0.0,
         heading_error: 0.0,
         pitch_cut: (0.0, 0.0),
         roll_inertia: 47.8,
@@ -34,12 +34,12 @@ fn the_lean_limit_follows_the_grip_and_is_capped_by_the_spec() {
 }
 
 #[test]
-fn the_lean_limit_falls_at_a_standstill_with_the_lateral_g_and_in_a_skid() {
+fn the_lean_limit_falls_at_a_standstill_with_the_acceleration_along_the_bike_and_in_a_skid() {
     let steering = BikeSpec::example().steering;
     let base = lean_limit(&steering, &input(1.0, 0.0, 30.0));
     assert!((lean_limit(&steering, &input(1.0, 0.0, 0.0)) - steering.lean.stopped_limit).abs() < 1e-6);
     assert!(lean_limit(&steering, &input(1.0, 0.0, 4.0)) < base);
-    assert!(lean_limit(&steering, &LeanInput { lateral_g: 1.1, ..input(1.0, 0.0, 30.0) }) < base * 0.95);
+    assert!(lean_limit(&steering, &LeanInput { long_g: 1.1, ..input(1.0, 0.0, 30.0) }) < base * 0.95);
     assert!(lean_limit(&steering, &LeanInput { heading_error: 0.9, ..input(1.0, 0.0, 30.0) }) < base);
 }
 

@@ -27,8 +27,9 @@ pub struct LeanInput {
     pub lean_rate: f32,
     /// The front tyre's lateral friction coefficient (lateral peak over load).
     pub lateral_grip: f32,
-    /// The lateral acceleration in g and the angle between the velocity and the heading (rad).
-    pub lateral_g: f32,
+    /// The acceleration along the bike in g (the reference's `IMU.GForce.Y`, `ride6-feel-round11.md`, section 2: braking and driving
+    /// take lean limit, a steady turn at a steady speed does not) and the angle between the velocity and the heading (rad).
+    pub long_g: f32,
     pub heading_error: f32,
     /// A cap of the lean limit from a wheelie or a stoppie `(limit rad, share 0 to 1)`: the limit moves that share of the way.
     pub pitch_cut: (f32, f32),
@@ -83,7 +84,7 @@ pub fn lean_limit(steering: &SteeringSpec, input: &LeanInput) -> f32 {
         let bank = held.clamp(-spec.terrain.max_angle, spec.terrain.max_angle);
         limit += bank * if bank <= 0.0 { spec.terrain.reduction } else { spec.terrain.increment };
     }
-    limit *= factor(&spec.g_tuning, input.lateral_g.abs());
+    limit *= factor(&spec.g_tuning, input.long_g.abs());
     let skid = ramp(input.heading_error.abs(), spec.skid_range).powf(spec.skid_linearity.max(0.0));
     let cut = curve(&spec.skid_reduction, input.speed.abs());
     limit *= (1.0 - cut * skid).clamp(0.0, 1.0);

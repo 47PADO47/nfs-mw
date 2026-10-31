@@ -26,6 +26,7 @@ impl Bike {
         let velocity = self.body.linear_velocity;
         let acceleration = (velocity - self.last_velocity) / dt.max(1e-6);
         self.last_velocity = velocity;
+        self.acceleration = acceleration;
         let felt = match self.spec.rider.correct_gravity {
             true => acceleration,
             false => acceleration + Vec3::Y * 9.81,
@@ -108,7 +109,6 @@ impl Bike {
         // The fall limit is that grip's arctangent times the wheel's `LateralGripLimit`; the lean limit's factor is the other one,
         // `LateralGripTolerance`.
         self.chassis.follow_grip(&self.spec.fall, grip.max(0.0).atan() * self.spec.front.lateral_grip_limit);
-        let yaw_rate = self.body.angular_velocity.dot(rotation * Vec3::Y);
         let heading_error = self.heading_error();
         let pitch = self.lift_angle();
         let pitch_cut = match &self.spec.wheelie {
@@ -135,7 +135,7 @@ impl Bike {
             lean_rate: -self.body.angular_velocity.dot(forward),
             lateral_grip: grip,
             terrain_slope: self.terrain_slope(),
-            lateral_g: speed * yaw_rate / 9.81,
+            long_g: self.acceleration.dot(forward) / 9.81,
             heading_error,
             pitch_cut,
             roll_inertia: self.body.inertia().z + rider_term,
@@ -196,23 +196,49 @@ impl Bike {
     /// still give (`ride6-lean-controller.md`, "Lean help"). The help factor and the split of the force into a force at the
     /// contact and a couple about the centre of gravity are those of `ride6-chassis-round6.md`: above 30 km/h it is all force;
     /// slower it turns into the couple, which at a standstill (factor 1) is the roll torque the controller asks for, as far as the
-    /// tyre could give it. This is the only thing besides the tyre forces that rolls the bike.
+    /// tyre could give it. Two things of the reference that rounds 8 to 10 missed (`ride6-feel-round11.md`, section 1):
+    ///
+    /// - the tyre's limit on the help is its grip at the **rest load at least** (`max(load, rest load)` in `0x1450c3ae0`), so a front
+    ///   wheel that the throttle has unloaded still has the help of a loaded one;
+    /// - with the front wheel off the road the help does not stop: the force share is 0, so all of it is the couple about the
+    ///   centre of gravity of a force at the point under the front hub, limited by the grip at the rest load (the reference fades
+    ///   it with the wheel's ground distance over 20 to 35 cm, which a wheelie never reaches; here it counts while the rear wheel is on
+    ///   the road). That is what holds a bike on its rear wheel against a stick; it replaces round 9's rider-balance torque (a
+    ///   172 N m cap of this port's own).
     fn apply_lean_help(&mut self, speed: f32, pedals: f32) {
+        let rotation = self.body.rotation();
+        let rest_front = (self.spec.front_share() * self.spec.total_mass() * 9.81).max(1.0);
         let front = &self.wheels[FRONT];
-        if !front.on_ground {
-            return;
-        }
         let spec = &self.spec.steering.lean;
+        // The contact the help acts at: the road under the tyre, or - with the front wheel in the air over a rear wheel on the road -
+        // the point one wheel radius under the hub along the chassis' up (`0x145157eb0`), in the horizontal direction of the bars' side.
+        let (side, point, traction, actual, load, balance) = match front.on_ground {
+            true => (
+                front.side,
+                front.contact,
+                front.traction,
+                front.force.dot(front.side),
+                front.load.max(rest_front),
+                lean::help::balance(spec, speed.abs()),
+            ),
+            false => {
+                if !self.wheels[REAR].on_ground || self.departure.off {
+                    return;
+                }
+                let right = rotation * Vec3::X;
+                let Some(side) = (right - Vec3::Y * right.y).try_normalize() else { return };
+                let hub = self.pose(FRONT, front.compression).hub;
+                (side, hub - rotation * Vec3::Y * self.spec.front.radius, 0.0, 0.0, rest_front, 0.0)
+            }
+        };
         let input = lean::help::HelpInput { speed: speed.abs(), heading_error: self.heading_error(), pedals };
         // A collision adds to the help for a moment (`choices::COLLISION_LEAN_HELP`).
         let share = (lean::help::help_factor(spec, &input) + self.chassis.collision_help.lean).clamp(0.0, 1.0);
         if share <= 0.0 {
             return;
         }
-        let (side, point, traction) = (front.side, front.contact, front.traction);
-        let actual = front.force.dot(side);
         let ideal = actual + share * (self.plan.front_force - actual);
-        let fz_kn = front.load * 1e-3;
+        let fz_kn = load * 1e-3;
         let tyre = &self.spec.front.tyre;
         let peak_y = tyre.lateral_peak(fz_kn).max(0.0);
         let peak_x = tyre.longitudinal_peak(fz_kn).max(1.0);
@@ -223,25 +249,9 @@ impl Bike {
             false => ideal,
         };
         let force = side * (total - actual);
-        let balance = lean::help::balance(spec, speed.abs());
         self.body.apply_force_at(force * balance, point);
         let cog = self.body.world_cog();
         self.body.apply_torque(lean::help::couple(point, cog, force, balance));
-    }
-
-    /// The rider balancing the bike on its rear wheel (`ride6-feel-round9.md`, section 6): with the front wheel off the road the lean
-    /// help has no tyre to push on, and a bike on one wheel is an inverted pendulum that any stick turns over. The rider keeps it up
-    /// as a real one does, by throwing his weight to the side: the roll torque the controller asks for, as far as his mass moved by
-    /// [`choices::BALANCE_REACH`] to the side can give it.
-    fn apply_wheelie_balance(&mut self) {
-        let (front, rear) = (&self.wheels[FRONT], &self.wheels[REAR]);
-        if front.on_ground || !rear.on_ground || self.departure.off {
-            return;
-        }
-        let authority = self.spec.chassis.rider_mass * 9.81 * choices::BALANCE_REACH;
-        let torque = self.plan.torque.clamp(-authority, authority);
-        // A roll to the right is a rotation about the forward axis the other way round.
-        self.body.apply_torque(-(self.body.rotation() * Vec3::Z) * torque);
     }
 
     /// The stability help (`ride6-chassis-round7.md`, section 3): a yaw torque, about the road's up, that pulls the yaw rate towards the
@@ -292,7 +302,6 @@ impl Bike {
         self.chassis.collision_help.fade(dt);
         if !self.fallen {
             self.apply_lean_help(speed, pedals);
-            self.apply_wheelie_balance();
             self.apply_stability_help(dt, speed, input);
             self.apply_pitch_assist(dt, speed);
             // The spin momentum of the wheels, turned by the bike's yaw, torques the frame about its length (a yaw to the right

@@ -151,7 +151,7 @@ fn the_lean_limit_rises_leaning_into_a_rising_road_and_falls_leaning_off_it() {
         lean_rate: 0.0,
         lateral_grip: 1.3,
         terrain_slope,
-        lateral_g: 0.0,
+        long_g: 0.0,
         heading_error: 0.0,
         pitch_cut: (0.0, 0.0),
         roll_inertia: 47.8,
