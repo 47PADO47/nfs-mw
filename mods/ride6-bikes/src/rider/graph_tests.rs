@@ -69,9 +69,11 @@ fn pack(without: &[&str]) -> Pack {
     Pack { skeleton: Skeleton::new(vec![bone]).unwrap(), sockets: Vec::new(), clips, meshes: Vec::new() }
 }
 
-/// The x of the bone after evaluating the graph with `set` parameters changed from 0 (speed 0: no shake).
+/// The x of the bone after evaluating the graph with `set` parameters changed from 0 (speed 0: no shake), except `straight`,
+/// which starts at 1 as the blueprint's `LeanOrStraight_Alpha` does (the upright pose; 0 is the lean sweep).
 fn x(pack: &Pack, graph: &Graph, set: &[(&str, f32)]) -> f32 {
     let mut params = vec![0.0; graph.param_names.len()];
+    params[graph.param_names.iter().position(|n| n == "straight").unwrap()] = 1.0;
     for (name, value) in set {
         params[graph.param_names.iter().position(|n| n == name).unwrap()] = *value;
     }
@@ -122,14 +124,20 @@ fn the_old_school_style_centres_on_its_own_pose() {
     let pack = pack(&[]);
     let graph = motard_graph(&pack, 2).unwrap();
     assert_eq!(x(&pack, &graph, &[]), clip_x(&pack, "motard_old_school_standard_pose"));
-    assert_eq!(x(&pack, &graph, &[("lean", -1.0)]), clip_x(&pack, "motard_Old_School_standard_L"));
+    assert_eq!(x(&pack, &graph, &[("lean", -1.0), ("straight", 0.0)]), clip_x(&pack, "motard_Old_School_standard_L"));
     // Fully tucked: the aero centre, and the aero lean clip when leaning.
     assert_eq!(x(&pack, &graph, &[("tuck", 1.0)]), clip_x(&pack, "motard_aero_pose"));
-    assert_eq!(x(&pack, &graph, &[("tuck", 1.0), ("lean", 1.0)]), clip_x(&pack, "motard_Old_School_aero_R"));
+    assert_eq!(
+        x(&pack, &graph, &[("tuck", 1.0), ("lean", 1.0), ("lean_out", 1.0), ("straight", 0.0)]),
+        clip_x(&pack, "motard_Old_School_aero_R")
+    );
     // The other styles keep the centre poses of the leaning folder.
     let plain = motard_graph(&pack, 0).unwrap();
     assert_eq!(x(&pack, &plain, &[]), clip_x(&pack, "motard_CenterPose_LowSpeed"));
-    assert_eq!(x(&pack, &plain, &[("lean", 1.0)]), clip_x(&pack, "motard_Leaning_Knee_LowSpeed_R"));
+    assert_eq!(
+        x(&pack, &plain, &[("lean", 1.0), ("lean_out", 1.0), ("straight", 0.0)]),
+        clip_x(&pack, "motard_Leaning_Knee_LowSpeed_R")
+    );
 }
 
 #[test]
@@ -176,10 +184,16 @@ fn every_bike_type_has_a_graph_that_leans_with_its_own_clips() {
         assert_eq!(graph.param_names, PARAMS.map(str::to_owned), "{}", set.name);
         let lean = &set.lean[0];
         assert_eq!(x(&pack, &graph, &[]), clip_x(&pack, set.centre[0].low), "{}: centred", set.name);
-        assert_eq!(x(&pack, &graph, &[("lean", -1.0)]), clip_x(&pack, lean.low[0]), "{}: left", set.name);
-        assert_eq!(x(&pack, &graph, &[("lean", 1.0)]), clip_x(&pack, lean.low[1]), "{}: right", set.name);
+        let leaning = |set: &[(&str, f32)]| x(&pack, &graph, &[set, &[("straight", 0.0)]].concat());
+        assert_eq!(leaning(&[("lean", -1.0)]), clip_x(&pack, lean.low[0]), "{}: left", set.name);
+        assert_eq!(leaning(&[("lean", 1.0), ("lean_out", 1.0)]), clip_x(&pack, lean.low[1]), "{}: right", set.name);
         assert_eq!(x(&pack, &graph, &[("tuck", 1.0)]), clip_x(&pack, set.centre[0].high), "{}: tucked", set.name);
-        assert_eq!(x(&pack, &graph, &[("tuck", 1.0), ("lean", 1.0)]), clip_x(&pack, lean.high[1]), "{}", set.name);
+        assert_eq!(
+            leaning(&[("tuck", 1.0), ("lean", 1.0), ("lean_out", 1.0)]),
+            clip_x(&pack, lean.high[1]),
+            "{}",
+            set.name
+        );
         assert_eq!(x(&pack, &graph, &[("stoppie", 1.0)]), clip_x(&pack, set.stoppie), "{}: stoppie", set.name);
     }
 }
@@ -189,13 +203,15 @@ fn the_sport_bike_leans_in_the_racing_clips_and_the_supermoto_in_its_own() {
     let pack = pack_of_all_sets();
     let race = graph_for(&pack, &graph_sets::RACE, 0).unwrap();
     let motard = graph_for(&pack, &graph_sets::MOTARD, 0).unwrap();
-    assert_eq!(x(&pack, &race, &[("lean", 1.0)]), clip_x(&pack, "race_Rossi_standard_Right"));
-    assert_eq!(x(&pack, &motard, &[("lean", 1.0)]), clip_x(&pack, "motard_Leaning_Knee_LowSpeed_R"));
+    let right = [("lean", 1.0), ("lean_out", 1.0), ("straight", 0.0)];
+    assert_eq!(x(&pack, &race, &right), clip_x(&pack, "race_Rossi_standard_Right"));
+    assert_eq!(x(&pack, &motard, &right), clip_x(&pack, "motard_Leaning_Knee_LowSpeed_R"));
     // The riding styles of a type pick their own clips; a style number past the last is the last.
+    let left = [("lean", -1.0), ("straight", 0.0)];
     let schwantz = graph_for(&pack, &graph_sets::RACE, 2).unwrap();
-    assert_eq!(x(&pack, &schwantz, &[("lean", -1.0)]), clip_x(&pack, "race_Schwantz_standard_Left"));
+    assert_eq!(x(&pack, &schwantz, &left), clip_x(&pack, "race_Schwantz_standard_Left"));
     let beyond = graph_for(&pack, &graph_sets::RACE, 9).unwrap();
-    assert_eq!(x(&pack, &beyond, &[("lean", -1.0)]), clip_x(&pack, "race_Schwantz_standard_Left"));
+    assert_eq!(x(&pack, &beyond, &left), clip_x(&pack, "race_Schwantz_standard_Left"));
 }
 
 #[test]

@@ -8,6 +8,8 @@
 use glam::Vec3;
 
 use super::attach::Inertia;
+use super::foot_out::{self, FootOut};
+use super::lean_pose::LeanPose;
 use super::reverse::Reverse;
 use super::script::{Constant, Flashback, Interpolate, defuzzify, fuzzy_not, fuzzy_sum, ramp};
 use super::style::Walk;
@@ -163,6 +165,12 @@ pub struct Values {
     pub reverse_start: f32,
     pub reverse_loop: f32,
     pub reverse_cycle: f32,
+    /// `RiderLean_LeftOrRight` (0 the left lean clip, 1 the right one) and `LeanOrStraight_Alpha` (1 the upright pose, 0 the
+    /// lean sweep): which of the lean poses is shown (`lean_pose.rs`).
+    pub lean_out: f32,
+    pub straight: f32,
+    /// How far each foot (left, right) is let off its peg, 0 to 1 (`foot_out.rs`).
+    pub foot_release: [f32; 2],
 }
 
 /// The state of the blueprint's smoothers and delay lines.
@@ -240,12 +248,24 @@ pub struct Smoothed {
     rotation: Vec3,
     /// The reverse walk's state (`reverse.rs`).
     reverse: Reverse,
+    /// The signals that pick the lean pose (`lean_pose.rs`).
+    lean_pose: LeanPose,
+    /// The inside foot off the peg (`foot_out.rs`).
+    foot_out: FootOut,
 }
 
 impl Smoothed {
     /// Give the rider the reverse walk of his bike's kind (`None`: he never walks it back).
     pub fn set_walk(&mut self, walk: Option<Walk>) {
         self.reverse = Reverse::new(walk);
+    }
+
+    /// Tell the rider his bike's type and the riding style of his tree (`BikeType` and `RidingStyle` of the blueprint; `None`:
+    /// unknown): the type sets how fast the lean pose crosses from one clip to the other, the two together whether the inside
+    /// foot leaves the peg in a lean.
+    pub fn set_kind(&mut self, bike_type: Option<u8>, riding_style: Option<u8>) {
+        self.lean_pose.set_bike_type(bike_type);
+        self.foot_out = FootOut::new(foot_out::applies(bike_type, riding_style));
     }
 
     /// Advance by `dt` seconds with the bike in state `sample`; the script carries the blueprint's own rates.
@@ -272,6 +292,8 @@ impl Smoothed {
             * ramp(wheelie, STANDING_WHEELIE.0, STANDING_WHEELIE.1);
         let entry = s.entry_delay.step(ramp(wheelie, ENTRY_RAMP.0, ENTRY_RAMP.1) * ENTRY_SCALE, ENTRY_DELAY, dt);
         let walk = self.reverse.step(sample.signed_speed_kmh(), dt);
+        let pose = self.lean_pose.step(sample.bike_lean, sample.steer, speed, dt);
+        let foot_release = self.foot_out.step(sample.bike_lean, dt);
         self.values = Values {
             lean,
             speed_kmh: speed,
@@ -289,6 +311,9 @@ impl Smoothed {
             reverse_start: walk.start,
             reverse_loop: walk.looped,
             reverse_cycle: walk.cycle,
+            lean_out: pose.out,
+            straight: pose.straight,
+            foot_release,
         };
         // The shift: the rider's displacement from the physics, held to the ranges of the animation's inertia input.
         let target = shift_target(sample.offset, inertia);

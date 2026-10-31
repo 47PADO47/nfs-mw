@@ -20,8 +20,6 @@ use crate::config::{self, Config};
 use crate::stamp;
 
 const STAGING: &str = ".staging";
-/// The rider's riding style: 1 is the plain one (`ride6-rider-import --style`).
-const RIDING_STYLE: u8 = 1;
 /// The two files of the rider's export folder that make his ragdoll.
 const RAGDOLL_ASSET: &str = "RiderGP_PhysicsAsset.json";
 const RAGDOLL_BLUEPRINT: &str = "RiderBP.json";
@@ -137,7 +135,7 @@ fn spawn(max_texture: u32, inputs: Inputs, mod_dir: PathBuf, stamp: String) -> R
 /// The rider's pack from his export folder: the riding pack, and the fall's `ragdoll.json` when the folder also holds the two
 /// files it is made from (`RiderGP_PhysicsAsset.json`, `RiderBP.json`); without them the rider stays on a bike that falls.
 fn rider_files(export: &Path, files: &Path) -> Result<()> {
-    crate::rider::import(export, files, RIDING_STYLE)?;
+    crate::rider::import(export, files, None)?;
     let (asset, blueprint) = (export.join(RAGDOLL_ASSET), export.join(RAGDOLL_BLUEPRINT));
     if !asset.is_file() || !blueprint.is_file() {
         return Ok(());

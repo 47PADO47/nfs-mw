@@ -27,7 +27,11 @@ use super::graph_sets::{self, ClipSet, MOTARD};
 /// The last four feed the reverse walk ([`graph_reverse`]): `reverse` is how much of the pose is the walk, `reverse_start` the
 /// seconds into the start clip, `reverse_loop` 0 while the start clip plays and 1 once the loop has taken over, and
 /// `reverse_cycle` the loop clip's phase (0 to 1).
-pub const PARAMS: [&str; 16] = [
+///
+/// The last two pick the lean pose (`docs/specs/ride6-rider-knee-foot.md`): `lean_out` is `RiderLean_LeftOrRight` (0 the left lean
+/// clip, 1 the right one) and `straight` `LeanOrStraight_Alpha` (1 the upright pose over the lean sweep). A graph made before them
+/// reads 0 for both.
+pub const PARAMS: [&str; 18] = [
     "lean",
     "speed_kmh",
     "tuck",
@@ -44,6 +48,8 @@ pub const PARAMS: [&str; 16] = [
     "reverse_start",
     "reverse_loop",
     "reverse_cycle",
+    "lean_out",
+    "straight",
 ];
 const LEAN: usize = 0;
 const SPEED: usize = 1;
@@ -58,6 +64,13 @@ const STEER: usize = 9;
 const STANDING_ENTRY: usize = 10;
 const DRIFT: usize = 11;
 const REVERSE: graph_reverse::Params = graph_reverse::Params { weight: 12, start: 13, looped: 14, cycle: 15 };
+const LEAN_OUT: usize = 16;
+const STRAIGHT: usize = 17;
+
+/// The seconds the lean clips are swept over: the blueprint evaluates the left clip at `RiderLeanLeft_Explicit = 1 - RiderLeaning`
+/// and the right one at `RiderLeanRight_Explicit = RiderLeaning + 1` seconds (`Rider_Lean_Polish`), so the clip's frame 0 is one
+/// full lean, its middle (1 s) the upright body and its last frame (2 s) the other full lean.
+const SWEEP_SECONDS: f32 = 2.0;
 
 /// `FuzzifyRamp(BikeWheelie, 0.2, 0.4)` in `Wheelie/ Stoppie`: the wheelie pose takes over between these values. Which node
 /// the blueprint binds `Wheelie_Entry_Alpha` to is in cooked binary data; this ramp on the entry is the reading of the names.
@@ -89,14 +102,25 @@ fn blend(a: Node, b: Node, weight: Value) -> Node {
     Node::Blend { a: Box::new(a), b: Box::new(b), weight }
 }
 
-/// Left, centre, right by the signed lean.
+/// The clip `name` swept by the lean: at `lean` -1 to 1 it is at `0` to `SWEEP_SECONDS` seconds (`mirrored`: at `SWEEP_SECONDS` to 0).
+fn sweep(pack: &Pack, name: &str, mirrored: bool) -> Result<Node> {
+    let clip = pack.clip_index(name).with_context(|| format!("the animation {name} is not in the pack"))?;
+    let end = SWEEP_SECONDS / pack.clips[clip].length;
+    let (from, to) = match mirrored {
+        true => (end, 0.0),
+        false => (0.0, end),
+    };
+    // `Fraction` is the clip's length times the value: the explicit time over the length, held at the clip's last frame.
+    let time = TimeMode::Fraction(Value::remap(LEAN, (-1.0, 1.0), (from, to)));
+    Ok(Node::Clip { clip, time })
+}
+
+/// The lean pose of one set (`LeaningAnimations`, `Rider_Lean_Polish`): the left and the right lean clip each swept by
+/// `RiderLeaning` (the left one backwards: `1 - lean` seconds), crossed by `RiderLean_LeftOrRight`, then crossed to the upright
+/// pose by `LeanOrStraight_Alpha`.
 fn lean_set(pack: &Pack, left: &str, centre: &str, right: &str) -> Result<Node> {
-    Ok(Node::ThreeWay {
-        negative: Box::new(looped(pack, left)?),
-        zero: Box::new(node(pack, centre, TimeMode::Hold)?),
-        positive: Box::new(looped(pack, right)?),
-        param: Value::param(LEAN),
-    })
+    let swept = blend(sweep(pack, left, true)?, sweep(pack, right, false)?, Value::param(LEAN_OUT));
+    Ok(blend(swept, node(pack, centre, TimeMode::Hold)?, Value::param(STRAIGHT)))
 }
 
 /// The supermoto's tree. `riding_style` picks the lean clips: 0 the "knee" set, 1 the plain set, 2 the old-school set (the three
@@ -209,3 +233,7 @@ fn pack_length(pack: &Pack, name: &str) -> Result<f32> {
 #[cfg(test)]
 #[path = "graph_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "graph_lean_tests.rs"]
+mod lean_tests;

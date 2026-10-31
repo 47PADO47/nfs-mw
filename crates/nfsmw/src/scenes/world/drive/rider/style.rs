@@ -34,6 +34,14 @@ pub struct Entry {
     /// Its reverse walk; a kind without one never walks the bike back.
     #[serde(default)]
     pub reverse: Option<Walk>,
+    /// The animation blueprint's `BikeType` of the kind (0 race, 1 naked, 2 motard, 3 scooter, 4 enduro, 5 bagger), when the file
+    /// says; it sets the rate of the lean pose's change (`lean_pose.rs`).
+    #[serde(default)]
+    pub bike_type: Option<u8>,
+    /// The blueprint's `RidingStyle` the kind's tree was made for (0 to 2), when the file says; the old-school style (2) takes the
+    /// inside foot off the peg of a supermoto (`foot_out.rs`).
+    #[serde(default)]
+    pub riding_style: Option<u8>,
 }
 
 /// The file.
@@ -102,11 +110,13 @@ pub const DEFAULT_GRAPH: &str = "graph.json";
 pub struct Selection {
     pub graph: String,
     pub walk: Option<Walk>,
+    pub bike_type: Option<u8>,
+    pub riding_style: Option<u8>,
 }
 
 impl Selection {
     fn default_graph() -> Self {
-        Self { graph: DEFAULT_GRAPH.to_owned(), walk: None }
+        Self { graph: DEFAULT_GRAPH.to_owned(), walk: None, bike_type: None, riding_style: None }
     }
 }
 
@@ -135,7 +145,12 @@ pub fn select(dir: &GameDir, folder: &str, kind: Option<&str>) -> Selection {
         log::warn!("rider: the {kind} style's graph {} is missing from {folder}", entry.graph);
         return Selection::default_graph();
     }
-    Selection { graph: entry.graph.clone(), walk: entry.reverse }
+    Selection {
+        graph: entry.graph.clone(),
+        walk: entry.reverse,
+        bike_type: entry.bike_type,
+        riding_style: entry.riding_style,
+    }
 }
 
 #[cfg(test)]
@@ -159,6 +174,10 @@ mod tests {
         assert_eq!(race.graph, "graph_race.json");
         assert_eq!(race.reverse.unwrap().loop_seconds, 2.2);
         assert!(styles.get("naked").unwrap().reverse.is_none());
+        assert_eq!(race.bike_type, Some(0));
+        assert_eq!(race.riding_style, Some(0));
+        assert_eq!(styles.get("naked").unwrap().bike_type, None);
+        assert_eq!(styles.get("naked").unwrap().riding_style, None);
         assert!(styles.get("cruiser").is_none());
     }
 

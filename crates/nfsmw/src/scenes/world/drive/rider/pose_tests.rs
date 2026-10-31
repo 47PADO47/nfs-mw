@@ -52,7 +52,7 @@ fn at(position: Vec3) -> Placed {
 fn run(skeleton: &Skeleton, resolved: &Resolved, targets: &[Placed], body: Body) -> Vec<Transform> {
     let (graph, clips) = graph();
     let frame = plain_frame();
-    let goals = Goals { targets, body, frame: &frame };
+    let goals = Goals { targets, body, frame: &frame, release: [0.0; 2] };
     animate(skeleton, &clips, &graph, (&[], 0.0), resolved, &goals).unwrap()
 }
 

@@ -45,7 +45,7 @@ fn probe() {
     let values = Values { speed_kmh: params_in.first().copied().unwrap_or(0.0), ..Values::default() };
     let names = &graph.param_names;
     let params = super::param_values(names, &values);
-    let goals = Goals { targets: &targets, body: Body::REST, frame: &frame };
+    let goals = Goals { targets: &targets, body: Body::REST, frame: &frame, release: [0.0; 2] };
     let mut text = String::new();
     if let Some(seat) = resolved.seat.take() {
         // The pose with the rider at the socket: how far above the seat's surface his lowest seat point is.

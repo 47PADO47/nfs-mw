@@ -20,6 +20,9 @@ mod fall_file;
 mod fall_space;
 #[cfg(test)]
 mod fit_tests;
+mod foot_out;
+mod graph_params;
+mod lean_pose;
 mod params;
 mod parts;
 mod pose;
@@ -29,7 +32,10 @@ mod reach;
 mod reverse;
 mod script;
 mod seat;
+#[cfg(test)]
+mod smooth_tests;
 mod style;
+mod view;
 
 use std::collections::HashMap;
 
@@ -42,8 +48,9 @@ use nfsmw_data::car::CarModel;
 
 use self::attach::Attach;
 pub use self::fall::FallStep;
+pub use self::graph_params::param_values;
 pub use self::params::RiderSample;
-use self::params::{Smoothed, Values};
+use self::params::Smoothed;
 use self::pose::{Frame, Resolved, Steering};
 use super::CarPose;
 use crate::scenes::world::keys;
@@ -56,35 +63,6 @@ const KEY_BASE: usize = 0x4000;
 /// the one every bike of the mod shares.
 pub fn folders(car: &str) -> [String; 2] {
     [format!("CARS/{car}/RIDER"), "RIDER".to_owned()]
-}
-
-/// The graph's parameters by name: the names are the ones the animation spec gives (`lean`, `speed_kmh`, `tuck`, `wheelie`,
-/// `stoppie`, and `wheelie_alpha`, `wheelie_direction`, `stoppie_time` for the tricks, `standing`, `steer`, `standing_entry`
-/// for the standing wheelie, `drift` for the drift poses and `reverse`, `reverse_start`, `reverse_loop` and `reverse_cycle` for the
-/// walk back); a parameter the graph has and this does not know is 0.
-pub fn param_values(names: &[String], values: &Values) -> Vec<f32> {
-    names
-        .iter()
-        .map(|name| match name.as_str() {
-            "lean" => values.lean,
-            "speed_kmh" => values.speed_kmh,
-            "tuck" => values.tuck,
-            "wheelie" => values.wheelie,
-            "stoppie" => values.stoppie,
-            "wheelie_alpha" => values.wheelie_alpha,
-            "wheelie_direction" => values.wheelie_direction,
-            "stoppie_time" => values.stoppie_time,
-            "standing" => values.standing,
-            "steer" => values.steer,
-            "standing_entry" => values.standing_entry,
-            "drift" => values.drift,
-            "reverse" => values.reverse,
-            "reverse_start" => values.reverse_start,
-            "reverse_loop" => values.reverse_loop,
-            "reverse_cycle" => values.reverse_cycle,
-            _ => 0.0,
-        })
-        .collect()
 }
 
 /// The renderer's vertices for skinned positions and normals: white, with the mesh's own texture coordinates.
@@ -131,6 +109,8 @@ struct RiderRig {
     failed: bool,
     /// The rider coming off the bike in a fall (`fall.rs`).
     fall: fall::Fall,
+    /// Where his eyes are and which meshes the first-person camera leaves out (`view.rs`).
+    view: view::EyeView,
 }
 
 impl RiderRig {
@@ -216,7 +196,11 @@ impl RiderRig {
         );
         let mut smoothed = Smoothed::default();
         smoothed.set_walk(selection.walk);
+        smoothed.set_kind(selection.bike_type, selection.riding_style);
         let fall = fall::Fall::load(dir, &folder, &pack);
+        let cameras = nfsmw_data::car::mods::bike_camera::of(&model.name);
+        let names: Vec<&str> = gpu_parts.iter().map(|part| pack.meshes[part.mesh].name.as_str()).collect();
+        let view = view::EyeView::new(cameras.as_ref().map(|set| &set.helmet), &pack.skeleton, &names);
         Ok(Some(Self {
             pack,
             graph,
@@ -233,6 +217,7 @@ impl RiderRig {
             normals: Vec::new(),
             failed: false,
             fall,
+            view,
         }))
     }
 
@@ -251,7 +236,8 @@ impl RiderRig {
         let body = pose::body(&self.frame, self.smoothed.shift(), self.smoothed.rotation());
         let params = param_values(&self.graph.param_names, &self.smoothed.values());
         let skeleton = &self.pack.skeleton;
-        let goals = pose::Goals { targets: &targets, body, frame: &self.frame };
+        let release = self.smoothed.values().foot_release;
+        let goals = pose::Goals { targets: &targets, body, frame: &self.frame, release };
         let animated =
             pose::animate(skeleton, &self.pack.clips, &self.graph, (&params, self.time), &self.resolved, &goals);
         let component = match animated {
@@ -272,6 +258,7 @@ impl RiderRig {
                 component
             }
         };
+        self.view.track(&component, self.frame.to_model, !self.fall.active());
         for part in &mut self.parts {
             let mesh = &self.pack.meshes[part.mesh];
             if skin_matrices(&component, &mesh.bone_map, &mesh.inverse_bind, &mut self.matrices).is_err() {
@@ -297,12 +284,16 @@ impl RiderRig {
     }
 
     /// The rider's instances for a bike at `world` (the model's frame in the world).
-    fn instances(&self, world: Mat4, out: &mut Vec<Instance>) {
+    fn instances(&self, world: Mat4, first_person: bool, out: &mut Vec<Instance>) {
         let transform = match self.fall.active() {
             true => self.fall.instance(),
             false => world * self.frame.to_model,
         };
         for (n, part) in self.parts.iter().enumerate() {
+            // From inside his helmet the rider's helmet and visor are not in the picture.
+            if first_person && self.view.hidden.contains(&n) {
+                continue;
+            }
             out.push(Instance::keyed(part.handle, transform, keys::car_part(keys::PLAYER_CAR, KEY_BASE + n)));
         }
     }
@@ -332,6 +323,8 @@ pub struct Rider {
     loaded_for: String,
     /// The rider is not drawn: the arrest scene plays the player's bike on its own, and the rider is not part of it.
     hidden: bool,
+    /// The camera is inside his helmet: the helmet and the visor are not drawn (`view.rs`).
+    first_person: bool,
 }
 
 impl Rider {
@@ -343,11 +336,11 @@ impl Rider {
     }
 
     /// One physics step of the rider's fall (`fall.rs`): whether the bike let him go in this step, whether he is off it, and
-    /// the ground the ragdoll falls on. `pose` is where the bike is.
-    pub fn fall_step(&mut self, step: FallStep, pose: &CarPose, ground: &dyn blackbox_vehicle::Ground) {
-        if let State::Ready(rig) = &mut self.state {
-            rig.fall_step(step, pose.transform(), ground);
-        }
+    /// the ground the ragdoll falls on. `pose` is where the bike is. True when a bike lying still may be stood up now: the rider
+    /// has got up (or there is no rider who falls).
+    pub fn fall_step(&mut self, step: FallStep, pose: &CarPose, ground: &dyn blackbox_vehicle::Ground) -> bool {
+        let State::Ready(rig) = &mut self.state else { return true };
+        rig.fall_step(step, pose.transform(), ground)
     }
 
     /// Once per frame: load the rider the first time a bike is drawn, then pose, skin and upload it for the bike's pose
@@ -392,13 +385,27 @@ impl Rider {
         self.hidden = hidden;
     }
 
+    /// Whether the camera is inside the rider's helmet, so his helmet and visor are left out of the picture.
+    pub fn set_first_person(&mut self, on: bool) {
+        self.first_person = on;
+    }
+
+    /// Where the rider's eyes are in the bike's model frame as of the last frame's pose: `None` with no rider, off the bike, or
+    /// with no eye bone to follow.
+    pub fn eye(&self) -> Option<glam::Vec3> {
+        match &self.state {
+            State::Ready(rig) => rig.view.eye(),
+            _ => None,
+        }
+    }
+
     /// Append the rider's instances for the bike at `pose`.
     pub fn instances(&self, pose: &CarPose, out: &mut Vec<Instance>) {
         if self.hidden {
             return;
         }
         if let State::Ready(rig) = &self.state {
-            rig.instances(pose.transform(), out);
+            rig.instances(pose.transform(), self.first_person, out);
         }
     }
 
@@ -417,57 +424,6 @@ mod tests {
     #[test]
     fn the_rider_files_are_looked_for_in_the_cars_folder_first() {
         assert_eq!(folders("KTM450"), ["CARS/KTM450/RIDER".to_owned(), "RIDER".to_owned()]);
-    }
-
-    #[test]
-    fn the_graph_gets_its_parameters_by_name_in_its_own_order() {
-        let values = Values {
-            lean: -0.5,
-            speed_kmh: 90.0,
-            tuck: 0.25,
-            wheelie: 0.75,
-            stoppie: 0.125,
-            wheelie_alpha: 0.5,
-            wheelie_direction: -1.0,
-            stoppie_time: 0.375,
-            standing: 0.625,
-            steer: -0.875,
-            standing_entry: 0.1875,
-            drift: 0.0625,
-            reverse: 0.9375,
-            reverse_start: 1.25,
-            reverse_loop: 1.0,
-            reverse_cycle: 0.4375,
-        };
-        let names: Vec<String> = [
-            "speed_kmh",
-            "lean",
-            "mystery",
-            "stoppie",
-            "tuck",
-            "wheelie",
-            "wheelie_alpha",
-            "stoppie_time",
-            "standing",
-            "steer",
-            "standing_entry",
-            "drift",
-            "reverse",
-            "reverse_start",
-            "reverse_loop",
-            "reverse_cycle",
-        ]
-        .iter()
-        .map(|s| (*s).to_owned())
-        .collect();
-        assert_eq!(
-            param_values(&names, &values),
-            vec![
-                90.0, -0.5, 0.0, 0.125, 0.25, 0.75, 0.5, 0.375, 0.625, -0.875, 0.1875, 0.0625, 0.9375, 1.25, 1.0,
-                0.4375
-            ]
-        );
-        assert!(param_values(&[], &values).is_empty());
     }
 
     #[test]

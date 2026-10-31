@@ -65,13 +65,14 @@ Units: speeds are compared in km/h (thresholds 120..150, 140, 200..350 only make
 
 In the `Racing` state the blueprint builds the pose from the clip sets of section 1:
 
-- **Lean.** Three clips by lean sign: left, centre, right. For the "standard" (sitting upright) set the clips are
+- **Lean.** *(Corrected in [ride6-rider-knee-foot.md](ride6-rider-knee-foot.md): the lean clips are 2 s sweeps from one full lean
+  through upright to the other, evaluated at `1 -/+ lean` seconds, not three poses blended by the size of the lean; the paragraph
+  below is the first reading.)* Three clips by lean sign: left, centre, right. For the "standard" (sitting upright) set the clips are
   `motard_Leaning_LowSpeed_L`, `motard_CenterPose_LowSpeed`, `motard_Leaning_LowSpeed_R`; for the "aero" (tucked) set
   `motard_Leaning_HighSpeed_L`, `motard_CenterPose_HighSpeed`, `..._R`. In the blueprint the variables are
   `Leaning_Standard_Left/Right`, `Standard_Pose`, `Leaning_Aero_Left/Right`, `AeroPose_Low`. The graph node
   `IgnitionAnimGraphNode_ThreeWayBlend` (negative, zero, positive, alpha) is the structure used, with `TwoWayBlend` pairs
-  below it for standard versus aero. `CenterPose_*` are 2-frame static poses; the lean clips are 2 s, 30 fps loops that
-  keep the rider moving.
+  below it for standard versus aero. `CenterPose_*` are 2-frame static poses; the lean clips are 2 s, 30 fps sweeps.
 - **Wheelie** (`Wheelie/ Stoppie` function): `motard_wheelie_min_L/R` to `motard_wheelie_max_L/R`; entry ramp
   `FuzzifyRamp(BikeWheelie, 0.2, 0.4)`; pose range 0.2 to 0.5; `Wheelie_Delay` 0.2 s.
   The standing wheelie is a blend space `motard_Wheelie_Standing_BS` (axis "Steer" -1..1, second axis 0..0.3).

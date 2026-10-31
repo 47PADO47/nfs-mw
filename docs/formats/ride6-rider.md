@@ -188,7 +188,10 @@ without an entry, a rig without the file, or a file that does not parse plays `g
 `graph` is a file name of the rider folder (no path). `reverse` (optional; a kind without it never walks the bike back): the start
 clip plays from `from` to `to` clip seconds once the bike's speed is below `start_speed_kmh`; the loop clip, `loop_seconds` long,
 then plays at a rate going from `r_a` at the speed `a` to `r_b` at `b` (km/h). The graph reads the walk through the parameters
-`reverse`, `reverse_start`, `reverse_loop` and `reverse_cycle`.
+`reverse`, `reverse_start`, `reverse_loop` and `reverse_cycle`. `riding_style` (0 to 2) is the style the tree was made for; the game
+takes the inside foot off the peg in a lean when it is 2 and `bike_type` is 2 or 4 ([ride6-rider-knee-foot.md](../specs/ride6-rider-knee-foot.md)).
+The graph's parameters end with `lean_out` (which of the two lean sweeps) and `straight` (the upright pose over the sweep); a limb
+named `left_leg` or `right_leg` in `attach.json` is the one that is let off its peg.
 
 ### `contacts.json` (version 1): one bike's contact points
 

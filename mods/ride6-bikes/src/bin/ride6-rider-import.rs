@@ -12,9 +12,10 @@ struct Args {
     input: PathBuf,
     /// Where to write (usually mods/ride6-bikes/files/RIDER).
     output: PathBuf,
-    /// Riding style: 0 knee-out lean clips (the default: a supermoto rider puts his inner knee out), 1 plain, 2 old school.
-    #[arg(long, default_value_t = 0)]
-    style: u8,
+    /// Riding style of every bike type: 0 knee out, 1 plain, 2 old school (the inside foot leaves the peg of a supermoto). Without
+    /// it each type plays its own: the supermoto the old-school style, every other type the first.
+    #[arg(long)]
+    style: Option<u8>,
 }
 
 fn main() -> Result<()> {

@@ -53,6 +53,9 @@ impl Frame {
     }
 }
 
+/// The names `attach.json` gives the rider's legs, left and right: the ones [`Goals::release`] lets off the pegs.
+const LEG_NAMES: [&str; 2] = ["left_leg", "right_leg"];
+
 /// A limb with its bones found in the rider's skeleton.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Limb {
@@ -66,6 +69,9 @@ pub struct Limb {
     pub frame: Option<Transform>,
     /// Whether the limb's root hangs on the bones the body leans with (an arm does, a leg does not).
     pub on_torso: bool,
+    /// Which entry of [`Goals::release`] lets this limb off its target: the rider's legs, left (0) and right (1), found by the
+    /// names `left_leg` and `right_leg` of `attach.json`.
+    pub release: Option<usize>,
 }
 
 /// The names of `attach.json` resolved against the rider's skeleton.
@@ -98,6 +104,7 @@ impl Resolved {
                 offset: Vec3::from_array(limb.tip_offset),
                 frame: limb.tip_frame.map(|frame| frame.transform()),
                 on_torso: torso.as_ref().is_some_and(|t| t.lean.iter().any(|&b| skeleton.is_descendant(chain.root, b))),
+                release: LEG_NAMES.iter().position(|name| *name == limb.name),
             });
         }
         Ok(Self { limbs, shift_bone: bone(&attach.inertia.bone)?, torso, seat: None })
@@ -218,6 +225,9 @@ pub struct Goals<'a> {
     pub targets: &'a [Placed],
     pub body: Body,
     pub frame: &'a Frame,
+    /// How far each leg (left, right) is let off its peg, 0 (on it) to 1 (the leg as the animation poses it): the blueprint's
+    /// `OverrideFootIK_Leaning_L/R`.
+    pub release: [f32; 2],
 }
 
 /// The component transforms of the rider for one frame: the graph's pose at `time` for `params`, the body lowered onto the seat,
@@ -270,7 +280,14 @@ pub fn animate(
         let Some(placed) = goals.targets.get(limb.target) else { continue };
         let (position, turn) = tip_goal(limb, placed);
         let pole = component[limb.pole].translation;
-        apply_two_bone(skeleton, &mut pose.local, limb.chain, position, pole, 1.0, turn)?;
+        let release = limb.release.map_or(0.0, |side| goals.release[side].clamp(0.0, 1.0));
+        let own = pose.local[limb.chain.tip].rotation;
+        apply_two_bone(skeleton, &mut pose.local, limb.chain, position, pole, 1.0 - release, turn)?;
+        if release > 0.0 {
+            // The foot's own turn comes back with the leg: the peg's turn at 0, the animation's at 1.
+            let pegged = pose.local[limb.chain.tip].rotation;
+            pose.local[limb.chain.tip].rotation = pegged.slerp(own, release);
+        }
     }
     skeleton.component_transforms(&pose.local, &mut component)?;
     Ok(component)

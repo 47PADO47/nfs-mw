@@ -54,7 +54,8 @@ bikes without a row therefore play the naked set here and may play the race set 
 ## 2. What each type plays
 
 Every type builds the same tree, with its own clips ([ride6-rider-animation.md](ride6-rider-animation.md), section 5, for the tree):
-three-way lean (left, centre, right) at low speed and at high speed, blended by the tuck; the sitting wheelie (minimum to maximum,
+the lean at low speed and at high speed, blended by the tuck (each lean is a pair of 2 s **sweeps** evaluated at the lean, not three
+poses: [ride6-rider-knee-foot.md](ride6-rider-knee-foot.md)); the sitting wheelie (minimum to maximum,
 left to right); the stoppie, stepped; the standing wheelie (a blend space of the steering and the entry) where the type has it; the
 drift poses where it has them; the reverse walk; the additive shake. The tables are `mods/ride6-bikes/src/rider/graph_sets.rs`:
 
@@ -68,8 +69,10 @@ drift poses where it has them; the reverse walk; the additive shake. The tables 
 | reverse walk | `race_retro`, `race_retro_loop` | `naked_retro`, `naked_retro_loop` | `motard_retro_both_feet`, `motard_retro_loop_R` | `rider_scooter_retro`, `_retro_loop_R` | `enduro_retro_both_feet` (ACL), `enduro_retro_loop_R` (ACL) |
 
 The Rossi, Lorenzo and Schwantz lean clips are the sport rider's styles; their bodies hang off the bike with the knee out, in the
-clip itself. A sport bike therefore leans differently from a supermoto: it hangs the inner knee and the torso to the inside in
-`race_Rossi_standard_*`, a supermoto sticks the inner leg forward in `motard_Leaning_Knee_*`.
+clip itself (the sweep's ends: the pelvis 15 cm over, the inner knee 19 cm out). A sport bike therefore leans differently from a
+supermoto: it hangs the inner knee and the torso to the inside in `race_Rossi_standard_*`; the supermoto's knee set
+(`motard_Leaning_Knee_*`) moves the pelvis 5 cm and the knee 14 cm, and only its old-school set takes the inside foot off the peg
+([ride6-rider-knee-foot.md](ride6-rider-knee-foot.md), section 4).
 
 **What the "knee" clips are**: `*_ass_knee_{L,R}_{Open,Closed}` are not knee poses. Only the two `gluteus_Vol` bones of the suit
 (the buttock volume) differ between the open and the closed clip (17 degrees); they correct the skin of the suit as the knee goes
@@ -85,9 +88,10 @@ the walk's numbers. `ride6-bike-import contacts` writes, for each bike, `contact
 blueprint's `BikeType`, where it came from (`correction-table` or `input-handler`) and the handler class. The game reads the bike's
 `style.name`, looks it up in `styles.json` and plays that graph; a bike or a rig without them plays `graph.json`.
 
-The riding style written is 0 for all (the clips of the first row of the table in section 1): a choice, as the setting is the
-rider's and the data has no default for it. `ride6-rider-import --style 1` and `--style 2` write the other two rows into every
-type's graph.
+The riding style written is 0 for every type but the supermoto (the clips of the first row of the table in section 1) and 2 for the
+supermoto (old school, the only style whose inside foot leaves the peg): a choice, as the setting is the rider's and the data has
+no default for it. `ride6-rider-import --style N` writes row N into every type's graph. Each entry of `styles.json` carries the
+style it was built for (`riding_style`) and the game reads it for the foot override.
 
 ## 4. The reverse walk (animation)
 
@@ -152,7 +156,7 @@ stays at idle. The bike keeps itself upright at walking pace as it does standing
 |---|---|
 | The clip names of each type and riding style | Data (`SET Animations`) |
 | The type = override, else the handler | Data for the override; the handler rule is an inference (18 of the 21 overrides repeat it; the engine's own default may be the camera folder's kind for five race-modified naked bikes) |
-| Riding style 0 for every bike | Choice (the setting is the rider's) |
+| Riding style 0 for every type but the supermoto (2) | Choice (the setting is the rider's); 2 for the foot out |
 | Aero centre pose = `AeroPose_Low` (`race_aeroPose_Down`, `naked_aeroPose_Down`) | Choice (the blueprint has two aero poses, low and high, chosen by a tuck variation function) |
 | Enduro poses = `enduro_standard_pose`, `enduro_aeroPose` | Inference from the order of the assignments in `SET Animations` |
 | Scooter lean set = the on-road one | Choice (the off-road set is chosen by `TrackCategoryAnimationModifier`) |
@@ -169,6 +173,7 @@ stays at idle. The bike keeps itself upright at walking pace as it does standing
   bones of the suit only), the leg-out layers (they need the bend ahead), the bump and imbalance layers of every type, the
   look-back clips, the start and stop animations of the feet (the clips of every type are in the export but not in the pack's
   graph), the leg that is down (left, right or both) and the female rider's sets (`race_F_*`).
-- The riding style as a setting: all bikes play style 0.
+- The riding style as a setting: a type plays one style (0, the supermoto 2).
+- The pre-turn leg-out and the knee-to-ground trace ([ride6-rider-knee-foot.md](ride6-rider-knee-foot.md), section 4).
 - The scooter's off-road lean set, the bagger's (type 5 is played as naked, as the blueprint does) and the endurance variants.
 - `HasReverse` and the request conditions that depend on the gear and the rear brake.

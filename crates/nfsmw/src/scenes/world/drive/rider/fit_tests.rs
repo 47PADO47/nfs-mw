@@ -149,7 +149,7 @@ fn ride(bike: &Bike, sit: bool) -> (Vec<Transform>, Vec<pose::Placed>, Frame, Re
         notifies: Vec::new(),
     };
     let graph = Graph { param_names: Vec::new(), root: Node::Clip { clip: 0, time: TimeMode::Hold } };
-    let goals = Goals { targets: &targets, body: Body::REST, frame: &frame };
+    let goals = Goals { targets: &targets, body: Body::REST, frame: &frame, release: [0.0; 2] };
     let component = pose::animate(&skeleton, &[clip], &graph, (&[], 0.0), &resolved, &goals).unwrap();
     (component, targets, frame, resolved)
 }

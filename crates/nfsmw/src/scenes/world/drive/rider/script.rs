@@ -18,6 +18,11 @@ pub fn ramp(x: f32, a: f32, b: f32) -> f32 {
     ((x - a) / width).clamp(0.0, 1.0)
 }
 
+/// `FuzzifyTrapezoid(x, a, b, c, d)`: 0 up to `a`, rising to 1 at `b`, 1 up to `c`, falling to 0 at `d`.
+pub fn trapezoid(x: f32, (a, b, c, d): (f32, f32, f32, f32)) -> f32 {
+    ramp(x, a, b).min(ramp(x, d, c))
+}
+
 /// `DefuzzifyFloatEx(rules, default)` for rules of `(weight, value)`: with the weights adding up to 1 or more, their weighted
 /// mean; below 1, the weighted values plus the rest of the unit weight on `default`.
 pub fn defuzzify(rules: &[(f32, f32)], default: f32) -> f32 {
@@ -44,6 +49,11 @@ pub fn fuzzy_not(a: f32) -> f32 {
 pub struct Interpolate(f32);
 
 impl Interpolate {
+    /// A smoother that already stands at `value` (the blueprint's variables have defaults; this one is not born at 0).
+    pub fn at(value: f32) -> Self {
+        Self(value)
+    }
+
     pub fn step(&mut self, x: f32, rate: f32, dt: f32) -> f32 {
         let left = x - self.0;
         self.0 = match rate > 0.0 && left * left >= SNAP {
@@ -116,6 +126,23 @@ mod tests {
         assert!((defuzzify(&[(0.25, 1.0)], 1.0) - 1.0).abs() < 1e-7);
         assert_eq!(defuzzify(&[], 3.0), 3.0);
         assert_eq!(defuzzify(&[(0.0, 8.0)], 3.0), 3.0);
+    }
+
+    #[test]
+    fn a_trapezoid_rises_holds_and_falls() {
+        let band = (-0.25, -0.12, 0.12, 0.25);
+        assert_eq!(trapezoid(0.0, band), 1.0);
+        assert_eq!(trapezoid(0.12, band), 1.0);
+        assert!((trapezoid(0.185, band) - 0.5).abs() < 1e-6);
+        assert!((trapezoid(-0.185, band) - 0.5).abs() < 1e-6);
+        assert_eq!(trapezoid(0.3, band), 0.0);
+        assert_eq!(trapezoid(-0.9, band), 0.0);
+    }
+
+    #[test]
+    fn a_smoother_can_start_where_the_variable_does() {
+        assert_eq!(Interpolate::at(1.0).step(1.0, 2.0, 0.1), 1.0);
+        assert!((Interpolate::at(1.0).step(0.0, 2.0, 0.1) - 0.8).abs() < 1e-6);
     }
 
     #[test]

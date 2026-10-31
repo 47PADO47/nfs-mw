@@ -38,6 +38,10 @@ pub struct ClipSet {
     pub name: &'static str,
     /// The blueprint's `BikeType` value.
     pub bike_type: u8,
+    /// The riding style a bike of this type plays when the importer is not told one (`RidingStyle`, 0 to 2): a modelling choice,
+    /// the setting is the rider's own (`docs/specs/ride6-rider-knee-foot.md`, section 4). The supermoto plays the old-school style,
+    /// the only one whose inside foot leaves the peg in a lean; every other type the first, the one with the knee out.
+    pub riding_style: u8,
     /// The lean clips of the three riding styles, by `RidingStyle`.
     pub lean: [Lean; STYLES],
     /// The centre poses of the three styles. A style whose own pose is missing from the pack uses the first entry.
@@ -68,6 +72,7 @@ const fn centre(low: &'static str, high: &'static str) -> Centre {
 pub const RACE: ClipSet = ClipSet {
     name: "race",
     bike_type: 0,
+    riding_style: 0,
     lean: [
         lean(
             ["race_Rossi_standard_Left", "race_Rossi_standard_Right"],
@@ -100,6 +105,7 @@ pub const RACE: ClipSet = ClipSet {
 pub const NAKED: ClipSet = ClipSet {
     name: "naked",
     bike_type: 1,
+    riding_style: 0,
     lean: [
         lean(
             ["naked_Balanced_Standard_Left", "naked_Balanced_Standard_Right"],
@@ -132,6 +138,7 @@ pub const NAKED: ClipSet = ClipSet {
 pub const MOTARD: ClipSet = ClipSet {
     name: "motard",
     bike_type: 2,
+    riding_style: 2,
     lean: [
         lean(
             ["motard_Leaning_Knee_LowSpeed_L", "motard_Leaning_Knee_LowSpeed_R"],
@@ -168,6 +175,7 @@ pub const MOTARD: ClipSet = ClipSet {
 pub const SCOOTER: ClipSet = ClipSet {
     name: "scooter",
     bike_type: 3,
+    riding_style: 0,
     lean: [lean(
         ["rider_scooter_Leaning_standard_L", "rider_scooter_Leaning_standard_R"],
         ["rider_scooter_Leaning_aero_L", "rider_scooter_Leaning_aero_R"],
@@ -191,6 +199,7 @@ pub const SCOOTER: ClipSet = ClipSet {
 pub const ENDURO: ClipSet = ClipSet {
     name: "enduro",
     bike_type: 4,
+    riding_style: 0,
     lean: [
         MOTARD.lean[0],
         MOTARD.lean[1],
@@ -247,6 +256,13 @@ mod tests {
             assert_eq!(by_name(set.name).map(|s| s.bike_type), Some(set.bike_type));
         }
         assert!(by_name("cruiser").is_none());
+    }
+
+    #[test]
+    fn the_supermoto_plays_the_old_school_style_and_the_other_types_the_first() {
+        assert_eq!(MOTARD.riding_style, 2);
+        assert!(SETS.iter().filter(|set| set.name != "motard").all(|set| set.riding_style == 0));
+        assert!(SETS.iter().all(|set| usize::from(set.riding_style) < STYLES));
     }
 
     #[test]

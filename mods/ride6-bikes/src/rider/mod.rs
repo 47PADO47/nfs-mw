@@ -51,8 +51,9 @@ pub struct Summary {
     pub falls: bool,
 }
 
-/// Converts the export in `input` into `output`. `riding_style` picks the lean clips (see [`graph::motard_graph`]).
-pub fn import(input: &Path, output: &Path, riding_style: u8) -> Result<Summary> {
+/// Converts the export in `input` into `output`. `riding_style` picks the lean clips of every type (see [`graph::graph_for`]);
+/// `None` gives each type its own ([`graph_sets::ClipSet::riding_style`]).
+pub fn import(input: &Path, output: &Path, riding_style: Option<u8>) -> Result<Summary> {
     let read = |name: &str| fs::read(input.join(name)).with_context(|| format!("reading {name}"));
     let rider_json = raw::parse_skeleton(&read("skeleton.json")?)?;
     let bike_json = raw::parse_skeleton(&read("bike_skeleton.json")?)?;
@@ -85,7 +86,7 @@ pub fn import(input: &Path, output: &Path, riding_style: u8) -> Result<Summary> 
         .sample(&skeleton, 0.0, false);
     let attach = attach::attach_json(&skeleton, &reference, &bike_json)?;
     let pack = convert::pack(skeleton, sockets, clips, meshes);
-    let graph = graph::motard_graph(&pack, riding_style)?;
+    let graph = graph::motard_graph(&pack, riding_style.unwrap_or(graph_sets::MOTARD.riding_style))?;
     graph.validate(&pack.clips, &pack.skeleton)?;
     let styles = write_styles(&pack, riding_style, output)?;
     let falls = write_falls(&pack, output)?;
@@ -127,10 +128,11 @@ fn write_falls(pack: &blackbox_skeleton::Pack, output: &Path) -> Result<bool> {
 
 /// Writes `graph_<type>.json` for every bike type whose clips the pack has, and `styles.json` naming them; returns the types'
 /// names. A type with a clip missing is left out with a warning (the pack comes from an export without that type's folder).
-fn write_styles(pack: &blackbox_skeleton::Pack, riding_style: u8, output: &Path) -> Result<Vec<&'static str>> {
+fn write_styles(pack: &blackbox_skeleton::Pack, riding_style: Option<u8>, output: &Path) -> Result<Vec<&'static str>> {
     fs::create_dir_all(output).context("creating the output folder")?;
     let mut entries = Vec::new();
     for set in graph_sets::SETS {
+        let riding_style = riding_style.unwrap_or(set.riding_style);
         let graph = match graph::graph_for(pack, set, riding_style).and_then(|graph| {
             graph.validate(&pack.clips, &pack.skeleton)?;
             Ok(graph)
