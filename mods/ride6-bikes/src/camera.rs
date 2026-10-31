@@ -42,6 +42,9 @@ pub const MAX_HELMET_DOWN_DEG: f64 = 10.0;
 /// The near plane of the cameras that have none in the data, m (the one RIDE 6 gives the helmet and the cockpit is 10 cm).
 pub const NEAR_M: f32 = 0.1;
 
+/// The input type of a camera modifier slot that reads the bike's lean angle.
+const LEAN_INPUT: &str = "CameraModifierInputType::Lean";
+
 /// The base containers and the bike's own, in the order a number is looked for.
 #[derive(Debug, Clone, Default)]
 pub struct Container {
@@ -221,7 +224,46 @@ fn helmet(t: &mut Toml, c: &Container, frames: Frames) -> Result<()> {
     t.num("pitch_factor", c.number(object, "PitchFactor").unwrap_or(0.0));
     t.num("roll_factor", c.number(object, "RollFactor").unwrap_or(0.0));
     t.num("follow_roll_max_deg", follow);
+    lean(t, c);
     Ok(())
+}
+
+/// The `Lean` slots of the helmet camera's modifier behaviour: how the camera moves and turns as the bike leans
+/// (`[bike.camera.helmet.lean]`). A slot maps the lean angle (degrees) between its `InputMin` and `InputMax` linearly to a share
+/// of its offsets, which are in Unreal's axes and centimetres (y to the right, the inside of a bend to the right). The bikes have
+/// two: one that shifts the camera (and tilts it) and one that turns and rolls it, with ranges of their own; the first slot of
+/// each kind is read. A bike with no such slot has a table of zeros (the game's default would not be its own).
+fn lean(t: &mut Toml, c: &Container) {
+    let slots = c.property("HelmetCameraModifierBehaviorVariable", "Slots").and_then(Value::as_array);
+    let leans = slots
+        .into_iter()
+        .flatten()
+        .filter(|slot| slot["InputType"] == LEAN_INPUT && slot["Enabled"].as_bool().unwrap_or(true));
+    let (shift, turn) = (
+        leans.clone().find(|slot| slot_has(slot, "PositionOffset", &["X", "Y", "Z"])),
+        leans.clone().find(|slot| slot_has(slot, "RotationOffset", &["Yaw", "Roll"])),
+    );
+    let range = |slot: Option<&Value>, key: &str| slot.map_or(0.0, |slot| slot[key].as_f64().unwrap_or(0.0));
+    let of = |slot: Option<&Value>, key: &str, field: &str| slot.map_or(0.0, |slot| slot_part(slot, key, field));
+    t.table("bike.camera.helmet.lean");
+    t.num("shift_from_deg", range(shift, "InputMin"));
+    t.num("shift_to_deg", range(shift, "InputMax"));
+    t.nums("shift_m", &["X", "Y", "Z"].map(|axis| of(shift, "PositionOffset", axis) / 100.0));
+    t.num("shift_pitch_deg", of(shift, "RotationOffset", "Pitch"));
+    t.num("turn_from_deg", range(turn, "InputMin"));
+    t.num("turn_to_deg", range(turn, "InputMax"));
+    t.num("turn_yaw_deg", of(turn, "RotationOffset", "Yaw"));
+    t.num("turn_roll_deg", of(turn, "RotationOffset", "Roll"));
+}
+
+/// The number `field` of the struct `key` of a modifier slot, 0 when it has none.
+fn slot_part(slot: &Value, key: &str, field: &str) -> f64 {
+    slot[key][field].as_f64().unwrap_or(0.0)
+}
+
+/// Whether a modifier slot's struct `key` has a non-zero `fields`.
+fn slot_has(slot: &Value, key: &str, fields: &[&str]) -> bool {
+    fields.iter().any(|field| slot_part(slot, key, field) != 0.0)
 }
 
 /// The text of the `[bike.camera]` tables of `vehicle`, for a model whose front hub is `front_hub_x` ahead of its origin.

@@ -53,6 +53,75 @@ pub struct Helmet {
     pub roll_factor: f32,
     /// The roll of the bike (degrees) followed beyond `roll_factor`, up to this much.
     pub follow_roll_max_deg: f32,
+    /// How the camera moves and turns as the bike leans into a bend.
+    pub lean: Lean,
+}
+
+/// What the helmet camera does with the bike's lean, on top of the roll it follows: the camera is not bolted to the leaning bike
+/// (its position keeps the bike's heading and pitch and only the followed share of its roll), it is moved by a shift that grows
+/// linearly with the lean between two angles, and turned by a second that grows between two others. RIDE 6 has them as the two
+/// `Lean` slots of the helmet camera's modifier behaviour (`docs/specs/ride6-bike-cameras.md`, section 6). The sizes are for a
+/// lean to one side: the sideways ones are toward the inside of the bend, so they flip with the lean.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Lean {
+    /// The shift grows from nothing at `shift_from_deg` of lean to all of it at `shift_to_deg`.
+    pub shift_from_deg: f32,
+    pub shift_to_deg: f32,
+    /// Ahead, toward the inside of the bend and up, m (the data's 28 cm ahead, 16 inward and 35 down at 70 degrees on most bikes).
+    pub shift_m: [f32; 3],
+    /// The look is tilted this much at the full shift, degrees, positive up.
+    pub shift_pitch_deg: f32,
+    /// The turn grows from nothing at `turn_from_deg` of lean to all of it at `turn_to_deg`.
+    pub turn_from_deg: f32,
+    pub turn_to_deg: f32,
+    /// How far the look turns toward the inside of the bend and how far the camera rolls with the lean at the full turn, degrees.
+    pub turn_yaw_deg: f32,
+    pub turn_roll_deg: f32,
+}
+
+impl Lean {
+    /// A camera that does nothing with the lean (a mount that is bolted to the bike has no use for it).
+    pub const NONE: Self = Self {
+        shift_from_deg: 0.0,
+        shift_to_deg: 0.0,
+        shift_m: [0.0; 3],
+        shift_pitch_deg: 0.0,
+        turn_from_deg: 0.0,
+        turn_to_deg: 0.0,
+        turn_yaw_deg: 0.0,
+        turn_roll_deg: 0.0,
+    };
+
+    /// What a bike whose manifest has no `[bike.camera.helmet.lean]` gets: the numbers of RIDE 6's root camera container, which
+    /// most of its bikes repeat to within a few centimetres (the Panigale V4 R has 30, 15, -35; the KTM 450 SMR 10, 15, -10).
+    pub const ROOT: Self = Self {
+        shift_from_deg: 25.0,
+        shift_to_deg: 70.0,
+        shift_m: [0.28, 0.16, -0.35],
+        shift_pitch_deg: -5.0,
+        turn_from_deg: 30.0,
+        turn_to_deg: 70.0,
+        turn_yaw_deg: 20.0,
+        turn_roll_deg: 12.0,
+    };
+
+    /// How much of the shift a lean of `lean_deg` (either side) has made, 0 to 1.
+    pub fn shift_share(&self, lean_deg: f32) -> f32 {
+        ramp(lean_deg.abs(), self.shift_from_deg, self.shift_to_deg)
+    }
+
+    /// How much of the turn a lean of `lean_deg` (either side) has made, 0 to 1.
+    pub fn turn_share(&self, lean_deg: f32) -> f32 {
+        ramp(lean_deg.abs(), self.turn_from_deg, self.turn_to_deg)
+    }
+}
+
+/// 0 below `from`, 1 above `to`, linear between (a step at `to` when the two meet or cross).
+fn ramp(value: f32, from: f32, to: f32) -> f32 {
+    if to > from {
+        return ((value - from) / (to - from)).clamp(0.0, 1.0);
+    }
+    f32::from(to > 0.0 && value >= to)
 }
 
 /// The cameras of one bike.
@@ -124,6 +193,7 @@ impl BikeCamera {
                 pitch_factor: 0.0,
                 roll_factor: 0.0,
                 follow_roll_max_deg: 0.0,
+                lean: Lean::ROOT,
             },
         }
     }
@@ -166,6 +236,19 @@ mod tests {
         assert!(small.front.position[0] > 0.6, "the front camera is ahead of the front hub");
         assert!(small.front.look_back);
         assert!(small.helmet.fixed_position[2] > small.chase_near.target_height, "the eyes are above the look point");
+    }
+
+    #[test]
+    fn the_lean_shares_grow_linearly_between_their_angles_and_flip_with_the_side() {
+        let lean = Lean::ROOT;
+        assert_eq!(lean.shift_share(0.0), 0.0);
+        assert_eq!(lean.shift_share(25.0), 0.0);
+        assert!((lean.shift_share(47.5) - 0.5).abs() < 1e-6);
+        assert_eq!(lean.shift_share(-70.0), 1.0, "the other side");
+        assert_eq!(lean.shift_share(90.0), 1.0, "no more than all of it");
+        assert!((lean.turn_share(50.0) - 0.5).abs() < 1e-6);
+        assert_eq!(Lean::NONE.shift_share(60.0), 0.0);
+        assert_eq!(Lean::NONE.turn_share(60.0), 0.0);
     }
 
     #[test]

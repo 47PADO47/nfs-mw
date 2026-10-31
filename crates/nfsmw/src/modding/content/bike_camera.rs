@@ -2,7 +2,7 @@
 //! the cameras derived from the bike's size (`nfsmw_data::car::mods::bike_camera`).
 
 use blackbox_modding::content::{BikeCamera as Table, CarManifest};
-use nfsmw_data::car::mods::bike_camera::{BikeCamera, Chase, Front, Helmet};
+use nfsmw_data::car::mods::bike_camera::{BikeCamera, Chase, Front, Helmet, Lean};
 
 /// The cameras of the bike a manifest describes; `None` for a manifest that is not a bike.
 pub(super) fn cameras_of(manifest: &CarManifest) -> Option<BikeCamera> {
@@ -50,6 +50,16 @@ fn merge(table: &Table, base: BikeCamera) -> BikeCamera {
             pitch_factor: own.pitch_factor,
             roll_factor: own.roll_factor,
             follow_roll_max_deg: own.follow_roll_max_deg,
+            lean: own.lean.map_or(Lean::ROOT, |lean| Lean {
+                shift_from_deg: lean.shift_from_deg,
+                shift_to_deg: lean.shift_to_deg,
+                shift_m: lean.shift_m,
+                shift_pitch_deg: lean.shift_pitch_deg,
+                turn_from_deg: lean.turn_from_deg,
+                turn_to_deg: lean.turn_to_deg,
+                turn_yaw_deg: lean.turn_yaw_deg,
+                turn_roll_deg: lean.turn_roll_deg,
+            }),
         }),
     }
 }
@@ -81,5 +91,22 @@ hide_meshes = [\"helmet\"]
         assert_eq!(cameras.helmet.hide_meshes, ["helmet"]);
         assert_eq!(cameras.helmet.fov, 91.5);
         assert!((cameras.chase_near.distance - 2.3 * 1.45).abs() < 1e-4, "the chase views stay derived");
+        assert_eq!(cameras.helmet.lean, Lean::ROOT, "a helmet with no lean table has the game's default");
+    }
+
+    #[test]
+    fn a_lean_table_replaces_the_default_lean() {
+        let text = "[helmet]
+fixed_position_m = [0.1, 0.0, 1.2]
+fov_deg = 91.5
+
+[helmet.lean]
+shift_from_deg = 20.0
+shift_to_deg = 70.0
+shift_m = [0.1, 0.15, -0.1]
+";
+        let lean = cameras_from(&table(text), 1.45, 0.7372).helmet.lean;
+        assert_eq!((lean.shift_from_deg, lean.shift_m), (20.0, [0.1, 0.15, -0.1]));
+        assert_eq!(lean.turn_yaw_deg, 0.0, "a key the table leaves out does nothing");
     }
 }

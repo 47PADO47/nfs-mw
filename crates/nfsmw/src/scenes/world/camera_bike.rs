@@ -56,6 +56,7 @@ impl WorldScene {
                 (eye, bike::Mount::helmet(&rig.helmet, looking_back))
             }
         };
-        Some(bike::lens(view.point(in_model), bike::Attitude::of(view.rotation), &mount, aspect))
+        let eye = mount.place(view.origin(), view.rotation, in_model);
+        Some(bike::lens(eye, bike::Attitude::of(view.rotation), &mount, aspect))
     }
 }

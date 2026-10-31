@@ -11,7 +11,7 @@
 
 use glam::{Quat, Vec3};
 use nfsmw_data::camera::{View, Views};
-use nfsmw_data::car::mods::bike_camera::{BikeCamera, Chase, Front, Helmet};
+use nfsmw_data::car::mods::bike_camera::{BikeCamera, Chase, Front, Helmet, Lean};
 
 use super::chase::{Fit, REFERENCE_DISTANCE, REFERENCE_HEIGHT};
 use super::{Lens, direction};
@@ -118,10 +118,15 @@ pub struct Mount {
     pub roll_factor: f32,
     /// The roll followed beyond `roll_factor`, degrees, up to this much.
     pub follow_roll_max_deg: f32,
+    /// Whether the camera's place is carried by the bike's heading and pitch and only the roll it follows (a camera on a pivot
+    /// that does not lean with the bike, [`Mount::place`]) rather than bolted to the leaning body.
+    pub level_position: bool,
+    /// What the camera does as the bike leans into a bend ([`Lean::NONE`]: nothing).
+    pub lean: Lean,
 }
 
 impl Mount {
-    /// The camera ahead of the bike; `look_back` flips its direction (the look-back control).
+    /// The camera ahead of the bike; `look_back` flips its direction (the look-back control). It is bolted to the body.
     pub fn front(front: &Front, look_back: bool) -> Self {
         Self {
             look_back: front.look_back != look_back,
@@ -131,10 +136,13 @@ impl Mount {
             pitch_factor: front.pitch_factor,
             roll_factor: front.roll_factor,
             follow_roll_max_deg: 0.0,
+            level_position: false,
+            lean: Lean::NONE,
         }
     }
 
-    /// The camera in the helmet; the look-back control turns it to look over the tail.
+    /// The camera in the helmet; the look-back control turns it to look over the tail. It stays upright over the bike's origin
+    /// as the bike leans ([`Mount::place`]).
     pub fn helmet(helmet: &Helmet, look_back: bool) -> Self {
         Self {
             look_back,
@@ -144,6 +152,8 @@ impl Mount {
             pitch_factor: helmet.pitch_factor,
             roll_factor: helmet.roll_factor,
             follow_roll_max_deg: helmet.follow_roll_max_deg,
+            level_position: true,
+            lean: helmet.lean,
         }
     }
 
@@ -153,18 +163,61 @@ impl Mount {
         let limit = self.follow_roll_max_deg.to_radians();
         own + (roll * (1.0 - self.roll_factor)).clamp(-limit, limit)
     }
+
+    /// The world place of the point `in_model` of the bike's model frame (whose origin is `origin` and whose attitude is
+    /// `rotation`) as this camera has it. A bolted camera has it where the body carries it. A helmet camera has it carried by the
+    /// bike's heading and pitch and only the roll it follows ([`Mount::roll`]), and moved by the lean's shift: its point is
+    /// not on the body that leans over, it is the rider's head, which stays up out of the bend (RIDE 6's helmet camera has a
+    /// `RollFactor` of 0 and a follow limit of 5 degrees: it does not roll the camera's mount with the bike). Rigidly
+    /// following the body put the eye of a bike at 60 degrees of lean 70 cm sideways and half its height, a view of the road
+    /// alone.
+    pub fn place(&self, origin: Vec3, rotation: Quat, in_model: Vec3) -> Vec3 {
+        if !self.level_position {
+            return origin + rotation * in_model;
+        }
+        let roll = Attitude::of(rotation).roll;
+        // The body's frame with the roll the camera does not follow taken out, about the bike's own forward axis.
+        let upright = rotation * Quat::from_rotation_x(self.roll(roll) - roll);
+        origin + upright * (in_model + self.lean_shift(roll))
+    }
+
+    /// The shift of the camera's point by the lean of a bike rolled by `roll` radians (right positive), in the model's frame.
+    pub fn lean_shift(&self, roll: f32) -> Vec3 {
+        let share = self.lean.shift_share(roll.to_degrees());
+        let [ahead, inward, up] = self.lean.shift_m;
+        // The model's y is to the left: the inside of a lean to the right is -y.
+        Vec3::new(ahead, -inward * side(roll), up) * share
+    }
 }
 
-/// The lens of a camera `mount`ed on a bike with attitude `bike`, at the world point `eye`.
+/// +1 for a bike rolled to the right, -1 to the left.
+fn side(roll: f32) -> f32 {
+    1.0_f32.copysign(roll)
+}
+
+/// The lens of a camera `mount`ed on a bike with attitude `bike`, at the world point `eye` (see [`Mount::place`]).
 pub fn lens(eye: Vec3, bike: Attitude, mount: &Mount, aspect: f32) -> Lens {
     // A camera bolted to the bike that looks back is tilted the other way by the bike's pitch.
     let (turn, tilt) = match mount.look_back {
         true => (std::f32::consts::PI, -bike.pitch),
         false => (0.0, bike.pitch),
     };
-    let forward = direction(bike.yaw + turn, mount.pitch_deg.to_radians() + mount.pitch_factor * tilt);
-    // The roll turns the world's up about the bike's heading: a bike leaning right tips the camera's up to the right.
-    let up = Quat::from_axis_angle(direction(bike.yaw, 0.0), mount.roll(bike.roll)) * Vec3::Z;
+    // The lean turns the look into the bend and tips it down a little (the way back is the way the bike came: not turned).
+    let lean_deg = bike.roll.to_degrees();
+    let (into_bend, down) = match mount.look_back {
+        true => (0.0, 0.0),
+        false => (
+            -side(bike.roll) * mount.lean.turn_yaw_deg.to_radians() * mount.lean.turn_share(lean_deg),
+            mount.lean.shift_pitch_deg.to_radians() * mount.lean.shift_share(lean_deg),
+        ),
+    };
+    let forward =
+        direction(bike.yaw + turn + into_bend, mount.pitch_deg.to_radians() + mount.pitch_factor * tilt + down);
+    // The roll turns the world's up about the bike's heading: a bike leaning right tips the camera's up to the right. A
+    // camera on a lean follows the lean beyond its limit by the turn's roll.
+    let with_the_lean = side(bike.roll) * mount.lean.turn_roll_deg.to_radians() * mount.lean.turn_share(lean_deg);
+    let axis = direction(bike.yaw + into_bend, 0.0);
+    let up = Quat::from_axis_angle(axis, mount.roll(bike.roll) + with_the_lean) * Vec3::Z;
     let mut lens = Lens::look_at(eye, eye + forward, vertical_fov(mount.fov), mount.near, aspect);
     lens.view = glam::camera::rh::view::look_at_mat4(eye, eye + forward, up);
     lens

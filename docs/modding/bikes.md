@@ -290,6 +290,7 @@ hold_s = 0.5
 grip = 0.05                    # factor on the rear tyre's longitudinal and lateral grip (RIDE 6: 0.05, the supermotos 0.15)
 slip_correction = 0.0          # factor on its slip correction (the constructor's 0; the supermotos 0.9)
 speed_limit_kmh = 5.0          # only below this speed (the constructor's 5)
+# also lean_limit_rad, tcs_low_speed_modulation and [bike.burnout.help] (enabled, factor, yaw_rate_rad_s, steer_filter_s, rpm_range, reduction, reduction_s, raise_rate): ride6-burnout.md
 # [bike.wheelie] (optional): wheelie and stoppie assist and the rider help. [bike.wheelie.wheelie] and [bike.wheelie.stoppie]
 # have deadzone, max_angle_rad, speed_ramp_mps, help_speed, lean_help, lookahead_s, min_speed_mps, acceleration,
 # acceleration_time_s, ground_range_m, lean_limit_rad, lean_pitch_range_rad; [bike.wheelie] itself has
@@ -317,7 +318,9 @@ fov_deg = 85.6                 # horizontal, at 16:9. [bike.camera.chase_far] ha
 #   pitch_factor and roll_factor (0 to 1: the share of the bike's pitch and roll it takes; 0 keeps the horizon).
 # [bike.camera.helmet] (inside the rider's helmet): eye_bones (the rider's bones whose middle is the eye), head_bone, head_eye_offset_m,
 #   hide_meshes (the rider's meshes not drawn from inside), fixed_position_m (without a rider), pitch_deg, fov_deg, near_m, pitch_factor,
-#   roll_factor, follow_roll_max_deg (the lean followed beyond roll_factor, up to this much). docs/specs/ride6-bike-cameras.md
+#   roll_factor, follow_roll_max_deg (the lean followed beyond roll_factor, up to this much); [bike.camera.helmet.lean] (optional, default RIDE 6's
+#   root numbers; a key left out does nothing): shift_from_deg, shift_to_deg, shift_m (ahead, inward, up), shift_pitch_deg, turn_from_deg,
+#   turn_to_deg, turn_yaw_deg, turn_roll_deg: how the camera moves and turns as the bike leans. docs/specs/ride6-bike-cameras.md
 ```
 
 The numbers above are the generic example bike of the library (`BikeSpec::example`, a 450 cc supermoto-class machine with its
@@ -453,7 +456,7 @@ Behaviour specific to bikes:
   side, otherwise a low side. The fall is not damage ([ride6-rider-fall.md](../specs/ride6-rider-fall.md)).
 - **Burnout.** Hold the **brake** (the pedal) and the **throttle** together with the bike under 5 km/h: the front brake holds the bike,
   the rear brake is let go and the rear tyre keeps `[bike.burnout].grip` (0.05) of its grip, so the rear wheel spins up on the spot in
-  under half a second, with smoke and a black mark; the bike stays within about a metre. Let the brake go and it launches with the rear
+  under half a second, with smoke and a black mark; the bike stays put (stick over: it swings round the front wheel, 45 deg/s). Let the brake go and it launches with the rear
   still spinning. The handbrake held beyond the pedal, or no front brake, is no burnout
   ([ride6-burnout.md](../specs/ride6-burnout.md)). Pad: both triggers, brake and throttle; keyboard: both keys.
 - **Race grid.** The rider holds the bike with both brakes while the race is staged; there is no launch assist.

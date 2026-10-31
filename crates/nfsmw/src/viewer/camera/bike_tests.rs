@@ -88,7 +88,26 @@ fn helmet_mount() -> Mount {
         pitch_factor: 0.25,
         roll_factor: 0.0,
         follow_roll_max_deg: 5.0,
+        level_position: true,
+        lean: Lean::NONE,
     }
+}
+
+/// The helmet camera as a bike with the game's default lean table has it.
+fn leaning_helmet() -> Mount {
+    Mount { lean: Lean::ROOT, ..helmet_mount() }
+}
+
+/// A bike at the world's origin, heading +x, rolled `degrees` to the right (positive) by the model's forward axis.
+fn rolled(degrees: f32) -> (Quat, Attitude) {
+    let rotation = Quat::from_rotation_x(degrees.to_radians());
+    (rotation, Attitude::of(rotation))
+}
+
+/// How far the camera's horizon is tipped, degrees: the angle its right-hand side is above or below the horizontal.
+fn tilt_of(lens: &Lens) -> f32 {
+    let right = lens.view.inverse().transform_vector3(Vec3::X);
+    right.z.clamp(-1.0, 1.0).asin().to_degrees().abs()
 }
 
 #[test]
@@ -196,4 +215,79 @@ fn the_obstacle_clearance_of_the_chase_camera_scales_with_the_fit() {
     camera.update(Followed { position: Vec3::ZERO, heading: 0.0, speed: 0.0 }, 1.0, |_, _| Some(0.0));
     let behind = -camera.position.x;
     assert!(behind < 2.8 && behind > 1.0, "{behind}");
+}
+
+#[test]
+fn a_bolted_camera_is_carried_by_the_whole_body_and_a_helmet_camera_only_by_the_roll_it_follows() {
+    let (rotation, _) = rolled(60.0);
+    let origin = Vec3::new(5.0, 7.0, 0.0);
+    let at = Vec3::new(0.1, 0.0, 1.4);
+    let bolted = Mount { level_position: false, ..leaning_helmet() }.place(origin, rotation, at);
+    assert!(bolted.distance(origin + rotation * at) < 1e-5, "the body's own place");
+    assert!((bolted.z - 1.4 * 60f32.to_radians().cos()).abs() < 1e-4, "half the height at 60 degrees: {bolted:?}");
+    let helmet = helmet_mount().place(origin, rotation, at);
+    // The followed 5 degrees tip the head 12 cm over (1.4 m * sin 5), nothing like the body's 1.2 m.
+    assert!((helmet.y - origin.y).abs() < 1.4 * 5f32.to_radians().sin() + 1e-3, "{helmet:?}");
+    assert!(helmet.z > 1.39 * 5f32.to_radians().cos(), "the head keeps its height: {helmet:?}");
+}
+
+#[test]
+fn the_lean_shift_goes_to_the_inside_of_the_bend_ahead_and_down_and_grows_between_its_angles() {
+    let mount = leaning_helmet();
+    assert_eq!(mount.lean_shift(0.0), Vec3::ZERO);
+    assert_eq!(mount.lean_shift(20f32.to_radians()), Vec3::ZERO, "nothing below the lower angle");
+    let right = mount.lean_shift(70f32.to_radians());
+    assert!(right.abs_diff_eq(Vec3::new(0.28, -0.16, -0.35), 1e-5), "the model's y is left: {right:?}");
+    let left = mount.lean_shift(-70f32.to_radians());
+    assert!(left.abs_diff_eq(Vec3::new(0.28, 0.16, -0.35), 1e-5), "{left:?}");
+    let half = mount.lean_shift(47.5f32.to_radians());
+    assert!(half.abs_diff_eq(right * 0.5, 1e-5), "{half:?}");
+}
+
+#[test]
+fn from_straight_to_60_degrees_of_lean_the_helmet_camera_stays_near_level_up_and_looking_ahead() {
+    let mount = leaning_helmet();
+    let at = Vec3::new(0.1, 0.0, 1.4);
+    // The most the lean table turns and rolls the camera, plus the followed roll.
+    let most_roll = mount.follow_roll_max_deg + mount.lean.turn_roll_deg;
+    for degrees in (0..=60).step_by(5).map(|d| d as f32) {
+        for side in [1.0, -1.0] {
+            let (rotation, attitude) = rolled(degrees * side);
+            let eye = mount.place(Vec3::ZERO, rotation, at);
+            let shot = lens(eye, attitude, &mount, 16.0 / 9.0);
+            let looks = shot.forward.z.asin().to_degrees();
+            assert!((-20.0..=0.0).contains(&looks), "{degrees}: it looks {looks} degrees from the horizon");
+            let turned = shot.forward.y.atan2(shot.forward.x).to_degrees().abs();
+            assert!(turned <= mount.lean.turn_yaw_deg + 1e-3, "{degrees}: turned {turned} degrees");
+            assert!(tilt_of(&shot) <= most_roll + 1e-2, "{degrees}: rolled {} degrees", tilt_of(&shot));
+            assert!(eye.z > 1.4 - 0.35 - 0.15 && eye.z < 1.4 + 0.05, "{degrees}: the eye is at {eye:?}");
+            assert!(eye.y.abs() < 0.16 + 1.4 * 5f32.to_radians().sin() + 1e-3, "{degrees}: the eye is at {eye:?}");
+            assert!(eye.x > 0.1 - 1e-3 && eye.x < 0.1 + 0.28 + 1e-3, "{degrees}: the eye is at {eye:?}");
+        }
+    }
+}
+
+#[test]
+fn a_bike_leaning_right_looks_into_the_bend_and_rolls_the_view_with_the_lean() {
+    let mount = leaning_helmet();
+    let (_, attitude) = rolled(60.0);
+    let shot = lens(Vec3::ZERO, attitude, &mount, 1.0);
+    assert!(shot.forward.y < -0.05, "a right-hand bend is to -y: {:?}", shot.forward);
+    let up = shot.view.inverse().transform_vector3(Vec3::Y);
+    assert!(up.y < -0.05, "the camera's up is tipped to the right: {up:?}");
+    let (_, left) = rolled(-60.0);
+    let other = lens(Vec3::ZERO, left, &mount, 1.0);
+    assert!(other.forward.y > 0.05 && other.view.inverse().transform_vector3(Vec3::Y).y > 0.05);
+}
+
+#[test]
+fn looking_back_does_not_turn_into_the_bend_and_the_game_default_without_a_lean_does_nothing() {
+    let mount = Mount { look_back: true, pitch_deg: 0.0, ..leaning_helmet() };
+    let (_, attitude) = rolled(60.0);
+    let back = lens(Vec3::ZERO, attitude, &mount, 1.0).forward;
+    assert!(back.distance(-Vec3::X) < 1e-5, "{back:?}");
+    let plain = Mount { lean: Lean::NONE, ..helmet_mount() };
+    let at_0 = lens(Vec3::ZERO, LEVEL, &plain, 1.0).forward;
+    let at_60 = lens(Vec3::ZERO, Attitude { roll: 1.0, ..LEVEL }, &plain, 1.0).forward;
+    assert!(at_0.distance(at_60) < 1e-6, "no lean table, no turn");
 }

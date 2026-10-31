@@ -24,14 +24,15 @@ a camera mounted on it):
 | `ThirdPersonNear`, `ThirdPersonFar` | `FieldOfView` | their fields of view (root 85.57; 90 on most bikes) |
 | `HelmetInternalCameraBehavior` | `RelativeLocation`, `RelativeRotation.Pitch`, `PitchFactor`, `RollFactor` | the camera in the helmet |
 | `Helmet`, `HelmetIgnitionNearPlaneCameraBehavior`, `GameHelmetCameraBehavior` | `FieldOfView` (root 91.49), `OverrideNearPlane` (10 cm), `FollowCameraRoll` and `MaxAngle` (5) | its optics, the near plane, how much of the lean it follows |
+| `HelmetCameraModifierBehaviorVariable` | `Slots` of input type `Lean` | how the helmet camera moves and turns as the bike leans: a shift (ahead, inward, down; a downward tilt) from 25 to 70 degrees of lean and a turn (yaw into the bend, roll) from 30 to 70 (section 6) |
 | `FrontCamInternalCameraBehavior`, `FrontCamReplay` | `RelativeLocation` (x 63 to 91 cm, z 78 to 110), `RollFactor` 0.8, `PitchFactor` 0.3; `FieldOfView` 104.5 | the camera on the front of the bike |
 
 Per class the near chase is 3.1 to 3.55 m behind the bike's origin (median 3.35) and 0.95 to 1.15 m up (the motard 1.25 to 1.29), the far
 one 4.0 m (motard 4.4, up to 4.6 on a few) and 1.15 to 1.45 m up; the helmet camera is 1.10 to 1.35 m up on a Sport or Racing bike, 1.14
 to 1.42 on a naked, 1.39 to 1.55 on a maxi enduro, 1.38 to 1.52 on a motard, and 18 cm behind to 10 cm ahead of the origin. The
 base also holds the cockpit and gauge cameras, a GoPro on the head bone, a look-back camera, per-camera noise and shake, modifier slots
-(the camera moves with the lean, a wheelie, the acceleration) and a speed-dependent pull-back (`SpeedLocalPosOffset`): none of them is used
-(section 7).
+(the camera moves with the lean, a wheelie, the acceleration, the tuck, the speed) and a speed-dependent pull-back
+(`SpeedLocalPosOffset`): only the helmet camera's lean slots are used (section 6, the rest is in section 7).
 
 ## 2. The modes on a bike
 
@@ -82,7 +83,8 @@ view empty).
 - **Place:** the middle of the rider's two eye bones (`eye_l`, `eye_r`), in the pose drawn this frame, so it follows his tuck, his lean
   into a bend, the wheelie pose and the animation (`drive/rider/view.rs`; the names are the table's `eye_bones`, with `head_bone` and
   `head_eye_offset_m` as the fallback). The eye is kept in the bike's model frame and put in the world with the bike's pose of the frame
-  the lens is made in, so the camera and the bike never differ by a frame of travel. Without a rider (a bike with no rider files,
+  the lens is made in (`Mount::place`: section 6 says how the lean enters), so the camera and the bike never differ by a frame of
+  travel. Without a rider (a bike with no rider files,
   or the rider off the bike in a fall) it is `fixed_position_m`: RIDE 6's own `RelativeLocation` (x 5 to 10 cm, z 1.2 m on a sport bike).
 - **Not drawn:** the meshes named in `hide_meshes` (`helmetRacing_default`, `visorClosedRacing_default`); his suit, gloves and boots
   are drawn, so his arms are in the picture. The near plane is the data's 10 cm.
@@ -107,11 +109,54 @@ followed beyond the factor, up to this angle" is an interpretation [C]: the data
 behaviour in the base (`GameHelmetCameraBehavior1`, 2.5 degrees) is not used. The front camera's roll follows the body 0.8 whole (a
 bike leaning 45 degrees tips the picture by 36 degrees).
 
+### 6.1 The helmet camera does not lean with the bike [D][C]
+
+The factors are of the camera's *mount*, not only of its look: a `RollFactor` of 0 means the mount does not roll with the bike, so
+the camera's place is carried by the bike's heading and pitch and only the roll it follows (`Mount::place`; `level_position`): at 60
+degrees of lean a point 1.4 m up the body is 1.2 m to the side and 0.7 m high if bolted to the body, and 1.4 m up and 12 cm to the
+side if carried like this. The first reading, the eye bone bolted to the leaning body, put the lens beside the road at half its height
+(a view of tarmac and the fairing); it is what the picture `h-lean` showed before this round. That a camera whose roll factor is 0
+is also not put by the body's roll is the reading of the factors [C]: the data has the factors and the 5 degrees, nothing says what
+the place does. The place stays the live eye of the rider (his tuck, animation and lean in the bend are in it); it is the leaning
+body's roll that is not applied to it. The data's own number for how far the head leaves the vertical is below.
+
+RIDE 6 keeps the lean of the camera in the two `Lean` slots of `HelmetCameraModifierBehaviorVariable` ([D]; per bike, the table
+`[bike.camera.helmet.lean]`, `nfsmw_data::car::mods::bike_camera::Lean`, written by the importer from the bike's own slots and else the
+root's). A slot maps the lean angle (degrees; the other inputs of the slots in the base are `Velocity`, `Wheelie`, `Acceleration`,
+`TurnAngle`, `Stoppie`, `Query`) between its `InputMin` and `InputMax` linearly to a share of its offsets:
+
+| Slot | Lean range | Offsets (Unreal, cm and degrees) | Panigale V4 R | KTM 450 SMR |
+|---|---|---|---|---|
+| shift | `InputMin` to `InputMax` | `PositionOffset` (x ahead, y right, z up), `RotationOffset.Pitch` | 25 to 70: 30, 15, -35; pitch -5 | 20 to 70: 10, 15, -10; pitch -3 |
+| turn | | `RotationOffset` yaw and roll | 30 to 70: yaw 20, roll 12 | 0 to 70: yaw 3, roll 8 |
+
+(the root container's, used by a bike that has none of its own: 25 to 70 with 28, 16, -35 and -5; 30 to 70 with yaw 20 and roll 12.)
+The camera is therefore at most 35 cm lower, 16 cm toward the inside of the bend and 28 cm ahead of where it is upright; looks 5
+degrees further down and 20 degrees into the bend; and its horizon is rolled by 12 degrees with the lean on top of the followed 5.
+What the data does not say, and is chosen [C]: the offsets are in the heading's frame (the slots' `ESlotRotationType::WorldRotation` has no
+description); the inside is the side of the lean (`AllowHorizontalFlip` is on in every slot); the yaw turns toward the inside, the roll
+is in the sense of the lean; the lean is the bike's roll angle (`CurrentLeanAnglePercentage` of the tuck slot is a fraction of its
+maximum, so the `Lean` input is in degrees; the slots' ranges stop at 70); the filters of the slots (`ErrorHalvingTime` 0.3 s for the
+shift, 0.1 s for the turn) are not applied, the bike's roll is already smooth; looking back has the shift but not the turn. A
+camera whose eye is the live rider adds the shift to the eye. The shift is the data's number for a fixed point; the stock rider's own
+hang-off in a bend is also in his eye bones, so the two may count some of the same head movement [C]: not measured, left open.
+
+Offscreen pictures of the Panigale V4 R (`C:/r6/shots/cams/h/pan-*.png`): straight, the picture is the cockpit as before; at about 35
+degrees the road ahead and the traffic are in view with the horizon level; at the hard lean of the script the horizon is in the top
+third, tipped by about 10 degrees, and the road ahead fills the rest, where the bolted camera showed the tarmac beside the bike and
+its fairing. A KTM 450 SMR leaned with a stick of 0.55 and 0.75 shows the same (`ktm-s55`, `ktm-s75`); at a full stick (1.0) it
+falls at that speed and the camera is the fixed one of the fallen bike (section 7).
+
+The bounds that follow (tests, lean 0 to 60 degrees either side): the look is between 20 degrees down and the horizon, turned at
+most 20 degrees from the heading, the horizon is tipped at most 17 degrees (5 followed and 12), and the lens is at most 35 cm below,
+16 + 12 cm sideways and 28 cm ahead of its upright place.
+
 ## 7. What is not done
 
-- The camera noise and shake of RIDE 6 (surface noise, kerbs, grass), the lean and wheelie modifier slots, the acceleration slot, the
-  speed pull-back and `WorldHeightOffset`: the game's own camera shake and noise apply (a mounted camera has none), the controller of the
-  original views has its own speed lag.
+- The camera noise and shake of RIDE 6 (surface noise, kerbs, grass), the other modifier slots (the wheelie, the acceleration, the
+  speed, the brake, the tuck: the live rider's eye already holds his tuck and lean), the speed pull-back and `WorldHeightOffset`:
+  the game's own camera shake and noise apply (a mounted camera has none), the controller of the original views has its own speed
+  lag. Only the helmet camera's two `Lean` slots are used (section 6.1), and their filters are not.
 - The cockpit camera (x -4 cm, z 1.2 m, pitch -20), the gauge camera and the GoPro have no mode of the game to sit in; an extra view of
   a mod could use them.
 - The mouse look of the helmet camera (`IgnitionSideViewCameraBehavior`: +-11 degrees yaw, +-10 pitch).
@@ -124,12 +169,15 @@ bike leaning 45 degrees tips the picture by 36 degrees).
 
 - `viewer/camera/bike_tests.rs`: the chase views and the fit scale with the wheelbase; `close` < `far` < `superfar`; heights above the
   ground; the 16:9 to 4:3 field-of-view conversion; attitude from a rotation; the lean follow (5 degrees at most for the helmet, 0.8 for the
-  front); a wheelie's quarter; the front camera is ahead of the front tyre and looks at the bike; roll direction.
+  front); a wheelie's quarter; the front camera is ahead of the front tyre and looks at the bike; roll direction; the helmet camera at
+  a lean (a bolted camera is carried by the body and a helmet one by the followed roll only; the lean shift goes inward, ahead and down;
+  from 0 to 60 degrees of lean on either side the look, turn, roll and place stay within the bounds of section 6.1; the look into the
+  bend flips with the side; looking back is not turned).
 - `drive/rider/view.rs`: the eye is the middle of the eye bones, in the model's frame; the head bone is the fallback; none off the bike;
   the helmet and visor are the hidden parts.
 - `modding/content/bike_camera.rs`, `libs/blackbox-modding` (`bike_camera.rs`), `nfsmw-data` (`mods/bike_camera.rs`): the table's schema,
-  ranges, defaults, derived cameras.
+  ranges, defaults, derived cameras, the lean table (partial tables, ramps, the root default).
 - `mods/ride6-bikes/src/camera_tests.rs`: the layers of the container, units and frames, the schema round trip, replacing a table, the
-  year match, the cap.
+  year match, the cap, the lean slots read into the lean table (and zeros for a bike with none).
 - Offscreen pictures of every mode on the KTM 450 SMR and the Ducati Panigale V4 R, leaned and straight: `C:\r6\shots\cams\`
   (`nfsmw view-world --drive KTM450 --muted --camera-mode <mode> --drive-script "..." --screenshot ...`).

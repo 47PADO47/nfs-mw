@@ -19,9 +19,9 @@ pub struct BikeView {
 }
 
 impl BikeView {
-    /// A point of the model frame in the world.
-    pub fn point(&self, in_model: Vec3) -> Vec3 {
-        self.transform.transform_point3(in_model)
+    /// The model frame's origin in the world.
+    pub fn origin(&self) -> Vec3 {
+        self.transform.transform_point3(Vec3::ZERO)
     }
 }
 

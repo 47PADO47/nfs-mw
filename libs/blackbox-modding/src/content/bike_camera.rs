@@ -96,6 +96,30 @@ pub struct Helmet {
     /// The roll of the bike (degrees) the camera follows beyond `roll_factor`, up to this much and no more; 0: none.
     #[serde(default)]
     pub follow_roll_max_deg: f32,
+    /// How the camera moves and turns as the bike leans (`[bike.camera.helmet.lean]`); left out: the game's default.
+    #[serde(default)]
+    pub lean: Option<Lean>,
+}
+
+/// What the helmet camera does as the bike leans into a bend (`[bike.camera.helmet.lean]`): it is moved by a shift that grows
+/// linearly with the lean between two angles and turned by a second that grows between two others. Every key is optional and
+/// 0 does nothing. The sideways sizes are toward the inside of the bend and flip with the side of the lean.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Lean {
+    /// The shift is nothing at `shift_from_deg` of lean and all of it at `shift_to_deg`.
+    pub shift_from_deg: f32,
+    pub shift_to_deg: f32,
+    /// The shift: ahead, toward the inside of the bend and up, m.
+    pub shift_m: [f32; 3],
+    /// The tilt of the look at the full shift, degrees, positive up.
+    pub shift_pitch_deg: f32,
+    /// The turn is nothing at `turn_from_deg` of lean and all of it at `turn_to_deg`.
+    pub turn_from_deg: f32,
+    pub turn_to_deg: f32,
+    /// At the full turn: how far the look turns toward the inside of the bend and how far the camera rolls with the lean, degrees.
+    pub turn_yaw_deg: f32,
+    pub turn_roll_deg: f32,
 }
 
 fn default_near() -> f32 {
@@ -129,6 +153,20 @@ impl Chase {
     }
 }
 
+impl Lean {
+    fn check(&self) -> Result<(), ContentError> {
+        ranged(self.shift_from_deg, "bike.camera.helmet.lean.shift_from_deg", 0.0, 90.0)?;
+        ranged(self.shift_to_deg, "bike.camera.helmet.lean.shift_to_deg", 0.0, 90.0)?;
+        all_ranged(&self.shift_m, "bike.camera.helmet.lean.shift_m", -2.0, 2.0)?;
+        ranged(self.shift_pitch_deg, "bike.camera.helmet.lean.shift_pitch_deg", -45.0, 45.0)?;
+        ranged(self.turn_from_deg, "bike.camera.helmet.lean.turn_from_deg", 0.0, 90.0)?;
+        ranged(self.turn_to_deg, "bike.camera.helmet.lean.turn_to_deg", 0.0, 90.0)?;
+        ranged(self.turn_yaw_deg, "bike.camera.helmet.lean.turn_yaw_deg", -90.0, 90.0)?;
+        ranged(self.turn_roll_deg, "bike.camera.helmet.lean.turn_roll_deg", -90.0, 90.0)?;
+        Ok(())
+    }
+}
+
 impl Camera {
     /// Refuses a number outside the range a typing mistake would leave it.
     pub(super) fn check(&self) -> Result<(), ContentError> {
@@ -155,6 +193,9 @@ impl Camera {
             ranged(helmet.pitch_factor, "bike.camera.helmet.pitch_factor", 0.0, 1.0)?;
             ranged(helmet.roll_factor, "bike.camera.helmet.roll_factor", 0.0, 1.0)?;
             ranged(helmet.follow_roll_max_deg, "bike.camera.helmet.follow_roll_max_deg", 0.0, 90.0)?;
+            if let Some(lean) = &helmet.lean {
+                lean.check()?;
+            }
         }
         Ok(())
     }
@@ -194,6 +235,16 @@ pitch_deg = -10.0
 fov_deg = 91.5
 pitch_factor = 0.25
 follow_roll_max_deg = 5.0
+
+[helmet.lean]
+shift_from_deg = 25.0
+shift_to_deg = 70.0
+shift_m = [0.3, 0.15, -0.35]
+shift_pitch_deg = -5.0
+turn_from_deg = 30.0
+turn_to_deg = 70.0
+turn_yaw_deg = 20.0
+turn_roll_deg = 12.0
 "#;
 
     const FRONT: &str = "[front]\nposition_m = [1.0, 0.0, 1.0]\nfov_deg = 90.0\n";
@@ -216,6 +267,17 @@ follow_roll_max_deg = 5.0
         let helmet = table.helmet.unwrap();
         assert_eq!(helmet.eye_bones, ["eye_l", "eye_r"]);
         assert_eq!((helmet.roll_factor, helmet.follow_roll_max_deg), (0.0, 5.0));
+        let lean = helmet.lean.expect("the lean table");
+        assert_eq!((lean.shift_m, lean.turn_yaw_deg, lean.turn_roll_deg), ([0.3, 0.15, -0.35], 20.0, 12.0));
+    }
+
+    #[test]
+    fn a_partial_lean_table_does_nothing_for_the_keys_it_leaves_out_and_a_wild_one_is_refused() {
+        let table: Camera = toml::from_str(&ALL.replace("turn_roll_deg = 12.0", "")).unwrap();
+        assert_eq!(table.helmet.as_ref().and_then(|h| h.lean).map(|l| l.turn_roll_deg), Some(0.0));
+        let table: Camera = toml::from_str(&ALL.replace("turn_yaw_deg = 20.0", "turn_yaw_deg = 200.0")).unwrap();
+        assert!(table.check().unwrap_err().to_string().contains("bike.camera.helmet.lean.turn_yaw_deg"));
+        assert!(toml::from_str::<Camera>(&ALL.replace("turn_yaw_deg", "turn_sideways_deg")).is_err());
     }
 
     #[test]

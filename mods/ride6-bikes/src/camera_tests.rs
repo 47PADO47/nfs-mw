@@ -132,6 +132,44 @@ fn a_helmet_camera_tilted_down_further_than_any_other_class_does_is_capped() {
     fs::remove_dir_all(&physics).unwrap();
 }
 
+fn lean_slot(input: &str, (from, to): (f64, f64), place: Value, turn: Value) -> Value {
+    json!({
+        "InputType": format!("CameraModifierInputType::{input}"), "InputMin": from, "InputMax": to, "Enabled": true,
+        "PositionOffset": place, "RotationOffset": turn,
+    })
+}
+
+#[test]
+fn the_lean_slots_of_the_helmet_camera_become_its_lean_table_in_metres() {
+    let physics = dump("lean");
+    let class = CONTAINERS.iter().fold(physics.clone(), |dir, part| dir.join(part)).join("Sport");
+    let none = xyz(0.0, 0.0, 0.0);
+    let angles = |pitch: f64, yaw: f64, roll: f64| json!({"Pitch": pitch, "Yaw": yaw, "Roll": roll});
+    let slots = json!([
+        lean_slot("Velocity", (0.0, 250.0), xyz(10.0, 0.0, 0.0), angles(0.0, 0.0, 0.0)),
+        lean_slot("Lean", (25.0, 70.0), xyz(30.0, 15.0, -35.0), angles(-5.0, 0.0, 0.0)),
+        lean_slot("Lean", (30.0, 70.0), none, angles(0.0, 20.0, 12.0)),
+    ]);
+    let own = json!([object("HelmetCameraModifierBehaviorVariable", json!({ "Slots": slots }))]);
+    fs::write(class.join("Ducati_Test-Bike-2020.json"), own.to_string()).unwrap();
+    let container = Container::read(&physics, "Ducati_Test_Bike-2020").unwrap();
+    let lean = parsed(&tables(&container, FRAMES, 0.73).unwrap()).helmet.unwrap().lean.expect("a lean table");
+    assert_eq!((lean.shift_from_deg, lean.shift_to_deg), (25.0, 70.0));
+    assert!(lean.shift_m.iter().zip([0.3, 0.15, -0.35]).all(|(a, b)| (a - b).abs() < 1e-6), "{:?}", lean.shift_m);
+    assert_eq!(lean.shift_pitch_deg, -5.0);
+    assert_eq!((lean.turn_from_deg, lean.turn_to_deg, lean.turn_yaw_deg, lean.turn_roll_deg), (30.0, 70.0, 20.0, 12.0));
+    fs::remove_dir_all(&physics).unwrap();
+}
+
+#[test]
+fn a_bike_with_no_lean_slot_has_a_lean_table_of_zeros() {
+    let physics = dump("nolean");
+    let container = Container::read(&physics, "Ducati_Test_Bike-2020").unwrap();
+    let lean = parsed(&tables(&container, FRAMES, 0.73).unwrap()).helmet.unwrap().lean.expect("a lean table");
+    assert_eq!((lean.shift_m, lean.shift_to_deg, lean.turn_yaw_deg, lean.turn_roll_deg), ([0.0; 3], 0.0, 0.0, 0.0));
+    fs::remove_dir_all(&physics).unwrap();
+}
+
 #[test]
 fn the_unreal_y_axis_points_right_and_the_models_left() {
     assert_eq!(Frames { offset: [0.0, 0.0] }.point([100.0, 20.0, 50.0]), [1.0, -0.2, 0.5]);

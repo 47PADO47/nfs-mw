@@ -42,6 +42,20 @@ The ambiguities, with what was done:
 - The 26 bikes with `FrontCamNoGyroInternalCameraBehavior` (roll factor 0, z 78 to 84 cm) have it for `FrontCamReplay`; the replay
   camera's data is not used.
 
+- The helmet camera's `Lean` slots are the two `Lean` entries of `HelmetCameraModifierBehaviorVariable.Slots` (the bike's own
+  array when it has one, as the class or root array otherwise; an array is replaced whole, not merged by slot). The root has 25 to 70
+  degrees with 28, 16, -35 cm and pitch -5, and 30 to 70 with yaw 20 and roll 12. 81 of the 344 containers carry their own; the
+  Panigale V4 R has 30, 15, -35 and the same turn, the KTM 450 SMR 20 to 70 with 10, 15, -10 and pitch -3, and 0 to 70 with yaw 3 and
+  roll 8. The slot's input is `CameraModifierInputType::Lean`, its range `InputMin`/`InputMax`. The data has no description of the
+  frame of the offsets, the sign of a lean, or whether `GameHelmetCameraBehavior.MaxAngle` caps the slot's roll too; the choices are
+  in section 6.1 of the spec. The other slots of that behaviour (`Velocity`: a field of view of +20 over 250 km/h and 10 cm ahead
+  below it; `Query`: the brake, 15 cm back and 10 up; the base behaviour's `Wheelie` and the tuck, a `QueryClampedRemap` of
+  `BikeInputHandler.TuckInLevel` faded out by `CurrentLeanAnglePercentage` between 0.8 and 0.4: 15 ahead, 13 down, pitch -8) are not
+  used: the live rider's eye already holds his tuck.
+- That the helmet camera's mount does not roll with the bike is the reading of `RollFactor` 0 with the 5 degree `MaxAngle`
+  (`GameHelmetCameraBehavior`): nothing else in the containers places the camera, so the container's point is a place in a frame whose
+  roll is the camera's own. Spec section 6.1.
+
 ## Tools
 
 `ride6-bike-import cameras <exporter output> <mod folder> --physics <dump>` writes the `[bike.camera]` tables of bikes already imported
