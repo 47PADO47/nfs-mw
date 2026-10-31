@@ -5,6 +5,27 @@
 //! This module checks the schema only. Whether a section number is free, and whether
 //! the mod's files exist, is for the game to decide, because only the game knows its car tables and its index.
 
+mod bike;
+mod bike_check;
+mod bike_check_parts;
+mod bike_help;
+mod bike_lean;
+mod bike_parts;
+mod bike_reduction;
+#[cfg(test)]
+mod bike_ride_hazards;
+#[cfg(test)]
+mod bike_ride_real;
+#[cfg(test)]
+mod bike_ride_sweep;
+mod bike_rider;
+#[cfg(test)]
+mod bike_tests;
+mod bike_thermal;
+mod bike_transmission;
+#[cfg(test)]
+mod bike_weight_sweep;
+mod bike_wheelie;
 mod car;
 mod cop;
 #[cfg(test)]
@@ -30,6 +51,7 @@ mod manufacturer_tests;
 mod music;
 mod nitrous_effects;
 mod nitrous_fx;
+mod overrun_sound;
 mod plate;
 mod racers;
 #[cfg(test)]
@@ -52,7 +74,12 @@ mod wheels;
 mod wind_fx;
 mod xenon_variant;
 
-pub use car::{CarManifest, Role, parse as parse_car};
+pub use bike::{
+    Bike, Brakes as BikeBrakes, Chassis as BikeChassis, Damper as BikeDamper, Engine as BikeEngine, MF_A, MF_B, MF_C,
+    Rider as BikeRider, Steering as BikeSteering, Suspension as BikeSuspension, Transmission as BikeTransmission,
+    Tyre as BikeTyre, Wheel as BikeWheel,
+};
+pub use car::{CarManifest, Kind as CarKind, Role, parse as parse_car};
 pub use cop::{CopClass, CopWave, DEFAULT_CHANCE, DEFAULT_COUNT, MAX_CHANCE, MAX_COUNT};
 pub use customization::{Customization, Finish, Livery, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
 pub use damage_parts::{
@@ -79,6 +106,7 @@ pub use nitrous_fx::{
     AudioProfile, BurnFollower, BurnStep, FlameProfile, NITROUS_FOLDER, NitrousProfile, PROFILE_FILE, ScreenProfile,
     parse as parse_nitrous_profile, profile_path as nitrous_profile_path,
 };
+pub use overrun_sound::Overrun as CarOverrun;
 pub use plate::{MAX_CELLS as MAX_PLATE_CELLS, MAX_SLOTS as MAX_PLATE_SLOTS, Plate};
 pub use racers::{RacersSection, parse as parse_racers};
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};

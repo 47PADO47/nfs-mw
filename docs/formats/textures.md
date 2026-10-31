@@ -208,3 +208,16 @@ facts it follows, read off `CARS/BMWM3GTR/TEXTURES.BIN` **[verified]** unless ma
 - The writer compresses blobs with its own JDLZ encoder (valid for the decoder, not byte-identical to EA's tools; the
   game's files also use HUFF, which is not written). Whether the game itself accepts these blobs or the plain
   form in a car `TEXTURES.BIN` is **[unconfirmed]**: only the Rust reader has been run on them.
+
+### Building textures from pixels
+
+`TextureSource::from_rgba(name, Level, format, mips)` makes a texture from RGBA8 rows: a mip chain of 2 by 2 box averages
+(an odd edge repeats its last pixel) and DXT1 (alpha dropped), DXT5 or A8R8G8B8 data. The DXT encoder is a range fit
+written for this repository: a block's end points are the extreme texels along the principal axis of its colours
+(power iteration), pulled in by a sixteenth, and each texel takes the nearest of the four palette colours; DXT5 alpha
+uses the block's extremes and the eight-value mode. A block whose texels differ by at most 8 levels in any channel is taken
+as flat: its end points are the pair of 565 values (the value below and above each channel) whose palette comes nearest to the
+block's mean, because the 565 steps (8 in red and blue, 4 in green) turn a dark neutral grey green when it is rounded to the
+nearest single value. It always writes the four-colour mode (`c0 > c1`), so a decoder
+that switches modes on the order of the end points reads it as written. Output is deterministic. Tests round-trip
+flat, two-colour and cut-out blocks through the reader's decoder.

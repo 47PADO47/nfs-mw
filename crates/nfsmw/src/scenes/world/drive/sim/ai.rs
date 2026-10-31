@@ -15,7 +15,7 @@ mod acceleration_tests;
 impl CarSim {
     /// Effective input after script, cinematic and arrest overrides; distinct from engine NOS engagement.
     pub fn nos_input(&self) -> bool {
-        self.vehicle.controls().nos
+        self.controls().nos
     }
     /// Current nitrous capability after tuning; tank level is separate telemetry.
     pub(in crate::scenes::world) fn nitrous_spec(&self) -> blackbox_vehicle::nos::NosSpec {
@@ -41,6 +41,10 @@ impl CarSim {
     /// Traffic starts supported by the road, including its bank and slope, with tangent velocity.
     /// Spec: `docs/specs/ai-traffic-spawning.md` section 12.
     pub fn place_traffic_moving(&mut self, ground: &dyn Ground, spawn: Spawn, speed: f32) -> bool {
+        // A bike is driven by a person only: traffic and the police do not place one.
+        if self.ride.is_some() {
+            return false;
+        }
         let [x, _, z] = space::to_physics(spawn.position);
         let top = spawn.position.z + 2.0;
         let Some(hit) = ground.hit(Vec3::new(x, top, z), Vec3::NEG_Y, 100.0) else { return false };
@@ -77,6 +81,10 @@ impl CarSim {
     /// fall) and level across, rolling at `speed`, with no ground under it: the stand-in of a car off the loaded world
     /// (`ai/car/stand_in.rs`). The next step does not sweep from where the car was.
     pub fn place_kinematic(&mut self, road: Vec3, forward: Vec3, speed: f32) {
+        // A bike is driven by a person only; a computer-driven car is never one.
+        if self.ride.is_some() {
+            return;
+        }
         let Some(forward) = forward.try_normalize() else { return };
         let Some(right) = Vec3::Y.cross(forward).try_normalize() else { return };
         let up = forward.cross(right);

@@ -85,6 +85,16 @@ GPUOpen-LibrariesAndSDKs/FidelityFX-SDK — https://github.com/GPUOpen-Libraries
   for the bindings. The MIT notice is kept at the top of every file in libs/fsr3-wgpu/src/shaders/. The
   upstream files are not vendored; the list is in libs/fsr3-wgpu/README.md.
 
+nfrechette/acl (Animation Compression Library) — https://github.com/nfrechette/acl — MIT
+  Copyright (c) 2017 Nicholas Frechette & Animation Compression Library contributors
+  Read at commit 3ee568542eca4428e1041908b4a644b98e7885bd (develop, 2025-09-13; compressed-track buffer revisions 9
+  and 10, ACL 2.1). Portions ported into libs/blackbox-acl: the decoder of uniformly sampled transform tracks
+  (the layout of the headers and blocks, the bit packing, the range expansion, the keyframe stripping and the
+  interpolation) rewritten in Rust from includes/acl/core/impl/compressed_headers.h and
+  includes/acl/decompression/impl/{decompression,animated_track_cache,constant_track_cache}.transform.h and the
+  headers they use. The MIT notice is kept at the top of libs/blackbox-acl/src/lib.rs. The upstream files are not
+  vendored. See docs/specs/acl-decoder.md and docs/provenance/acl-decoder.md.
+
 iryoku/smaa — https://github.com/iryoku/smaa — SMAA licence (MIT-style)
   Copyright (C) 2013 Jorge Jimenez, Jose I. Echevarria, Belen Masia, Fernando Navarro, Diego Gutierrez
   Portions ported into libs/blackbox-smaa: SMAA 1x at the HIGH preset rewritten in WGSL (src/shaders/*.wgsl)
@@ -157,6 +167,10 @@ Format readers and tools
   SpeedReflect/Nikki — https://github.com/SpeedReflect/Nikki — MIT (strings, collision, sun info).
   SpeedReflect/Binary, NFSTools/Binary — GPL-3.0 — read only.
   vgmstream — https://github.com/vgmstream/vgmstream — ISC-style (EA audio formats).
+  vgmstream (also RIDE 6 Wwise media and the Crankcase REV model container, run as a separate program by
+    mods/ride6-bikes) and CUE4Parse — https://github.com/FabianFG/CUE4Parse — Apache-2.0 (the external pak reader the
+    ride6-bikes sound commands start; not linked or copied). The pak key was supplied by the user, found at
+    https://cs.rin.ru/forum/viewtopic.php?f=10&t=100672 (docs/provenance/ride6-audio.md).
   FFmpeg (libavformat/electronicarts.c, libavcodec/vp6.c) — LGPL-2.1+ — read only (movie
     container facts: docs/provenance/video.md).
   ruffle-rs/nihav-vp6 — https://github.com/ruffle-rs/nihav-vp6 — MIT (VP6 decoder, used as a

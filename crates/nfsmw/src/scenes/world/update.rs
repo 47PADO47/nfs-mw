@@ -79,6 +79,13 @@ impl WorldScene {
             let on = drive.toggle_headlights();
             log::info!("headlights {}", if on { "on" } else { "off" });
         }
+        if input.just_pressed(Action::AbsLevel)
+            && let Some(drive) = self.players.lead_mut()
+            && let Some(level) = drive.cycle_abs_level()
+        {
+            // As the headlights: a log line, the game has no HUD notice for a setting changed by a key.
+            log::info!("ABS level {level}");
+        }
         if input.just_pressed(Action::ToggleCamera) && self.players.has_lead() {
             log::info!("{}", self.toggle_view());
         }

@@ -17,7 +17,8 @@ const HUD_COLOURS: [&str; 3] = ["ORANGE", "ORANGE", "WHITE"];
 pub fn stock_parts(t: &CarTables, car: &CarTypeInfo) -> Slots {
     let mut slots: Slots = (0..LAYOUT.slots.len())
         .map(|s| match s {
-            slot::REAR_WHEEL | slot::VINYL_LAYER => None,
+            slot::REAR_WHEEL => bike_rear_wheel(t, car),
+            slot::VINYL_LAYER => None,
             s if slot::DECAL_TEXTURES.contains(&s) => None,
             slot::BASE_PAINT => find(t, car, s, Some(car.default_base_paint), None),
             s if slot::VINYL_COLOURS.contains(&s) => {
@@ -33,6 +34,22 @@ pub fn stock_parts(t: &CarTables, car: &CarTypeInfo) -> Slots {
         .collect();
     fill_from_body(t, car, &mut slots);
     slots
+}
+
+/// The rear wheel of a bike: the car's own part, which holds the model of its rear tyre. A stock car and a four-wheel mod
+/// car have none (one wheel part serves all four corners). The front and the rear wheel slots take the same kind of part,
+/// so the rear part is found by its name (`mods/parts.rs`).
+fn bike_rear_wheel(t: &CarTables, car: &CarTypeInfo) -> Option<Part> {
+    if !super::mods::bike::is_bike(&car.type_name) {
+        return None;
+    }
+    let query = PartQuery {
+        part_id: LAYOUT.slots[slot::REAR_WHEEL].part_id,
+        type_hash: car.type_name_hash,
+        name_hash: Some(bstring_hash(&format!("{}_REAR_WHEEL", car.type_name))),
+        upgrade_level: Some(0),
+    };
+    t.parts.find(&query).copied()
 }
 
 /// The stock car with a preset's parts on top: a part hash replaces the stock part,

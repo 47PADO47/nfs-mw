@@ -59,6 +59,7 @@ fn a_tractor_uses_the_longer_following_distance_without_changing_its_physical_ma
             geometry: None,
             events: None,
             reactions: None,
+            bike: None,
         },
         [0.2; 4],
     );

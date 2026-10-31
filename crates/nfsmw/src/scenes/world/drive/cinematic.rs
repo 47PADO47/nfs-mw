@@ -38,6 +38,7 @@ mod tests {
             throttle: 1.0,
             brake: 1.0,
             steer: -1.0,
+            weight: -1.0,
             handbrake: true,
             nos: true,
             speedbreaker: true,

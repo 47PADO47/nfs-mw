@@ -23,6 +23,7 @@ mod retirement;
 mod simple_chassis;
 mod timestep;
 mod traffic_placement;
+mod tricks;
 
 fn sim() -> CarSim {
     let spec = VehicleSpec::example();
@@ -38,6 +39,7 @@ fn sim() -> CarSim {
             geometry: None,
             events: None,
             reactions: None,
+            bike: None,
         },
         [0.2; 4],
     )

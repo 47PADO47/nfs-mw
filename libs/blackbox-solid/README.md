@@ -7,8 +7,9 @@ with each group's base vertex resolved. Skinned solids (effect 2) also get each 
 (NFS: Most Wanted, PC) is implemented.
 
 `write_geometry_pack` writes the other way: a `GEOMETRY.BIN` from plain vertex and index lists (`SolidSource`,
-`GroupSource`), in the layout of the stock car files, so a converter can build car models. Only the 36-byte vertex
-layout is written. `SolidSource::from_solid` turns a parsed solid back into a source.
+`GroupSource`), in the layout of the stock car files, so a converter can build car models. The 36-byte vertex layout
+is written, and the 60-byte tangent layout for the tangent effects of the layout (a group carries its tangents);
+skinned and second-UV effects are refused. `SolidSource::from_solid` turns a parsed solid back into a source.
 
 Spec: `docs/formats/models.md`.
 

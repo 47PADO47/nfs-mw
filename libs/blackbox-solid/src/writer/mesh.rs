@@ -28,7 +28,7 @@ pub(super) fn write_mesh(w: &mut ChunkWriter, solid: &SolidSource, plan: &Plan, 
         w.leaf_aligned(ids::MESH_SHADING_GROUPS, layout.groups_align, &group_records(solid, &layout.group));
         w.leaf_aligned(ids::MESH_INDICES, layout.indices_align, &index_bytes(solid, plan));
         for run in &plan.runs {
-            let vertices = vertex_bytes(&solid.groups[run.clone()]);
+            let vertices = vertex_bytes(&solid.groups[run.clone()], layout);
             w.leaf_aligned(ids::MESH_VERTEX_BUFFER, layout.vertices_align, &vertices);
         }
         if solid.groups.iter().any(|g| g.material_name.is_some()) {
@@ -85,13 +85,31 @@ fn index_bytes(solid: &SolidSource, plan: &Plan) -> Vec<u8> {
     out
 }
 
-/// The vertices of one run of groups, in group order, 36 bytes each.
-fn vertex_bytes(run: &[GroupSource]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(run.iter().map(|g| g.vertices.len()).sum::<usize>() * BASE_VERTEX_STRIDE);
-    for v in run.iter().flat_map(|g| g.vertices.iter()) {
-        push_vertex(&mut out, v);
+/// The vertices of one run of groups, in group order: 36 bytes each, or 60 for a run of a tangent effect (the 36 bytes,
+/// the first UV again as the second set, then the tangent as four floats; the layout the reader decodes).
+fn vertex_bytes(run: &[GroupSource], layout: &SolidLayout) -> Vec<u8> {
+    let tangent = run.first().is_some_and(|g| layout.tangent_effects.contains(&g.effect_id));
+    let stride = if tangent { TANGENT_VERTEX_STRIDE } else { BASE_VERTEX_STRIDE };
+    let mut out = Vec::with_capacity(run.iter().map(|g| g.vertices.len()).sum::<usize>() * stride);
+    for group in run {
+        for (i, v) in group.vertices.iter().enumerate() {
+            push_vertex(&mut out, v);
+            if tangent {
+                push_tangent_tail(&mut out, v, group.tangents[i]);
+            }
+        }
     }
     out
+}
+
+/// Bytes of a tangent-effect vertex.
+const TANGENT_VERTEX_STRIDE: usize = 60;
+
+/// The second UV set (a copy of the first) and the tangent that follow the 36 common bytes.
+fn push_tangent_tail(out: &mut Vec<u8>, v: &Vertex, tangent: [f32; 4]) {
+    for f in v.uv.into_iter().chain(tangent) {
+        out.extend_from_slice(&f.to_le_bytes());
+    }
 }
 
 fn push_vertex(out: &mut Vec<u8>, v: &Vertex) {

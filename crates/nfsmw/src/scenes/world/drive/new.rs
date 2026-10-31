@@ -45,6 +45,7 @@ impl Drive {
             tuning: Default::default(),
             tunings: Default::default(),
             rig,
+            rider: Default::default(),
             physics,
             sim: None,
             request: Some(request),

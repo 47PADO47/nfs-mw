@@ -182,6 +182,12 @@ play/pause key), `radio_next` (`.`, media next, pad right stick click) and `radi
 D-pad itself. A press of `radio_previous` within 3 s of a song's start goes back to the song before; later it
 starts the song again. The console `radio` command does the same without keys (`radio prev|pause|resume|toggle`).
 
+Two actions are for bikes only (a car ignores them; [bikes](modding/bikes.md)): `rider_weight`, an axis for the rider's weight
+for wheelies and stoppies (G forward and V back, Numpad 8 and 2, and the pad's **left stick Y**, up forward and down back, which
+steers with X at the same time), and `abs_level`, a button that goes to the next lower ABS level, 1, 0.75, 0.5, 0.25, 0 and back
+to 1 (J, and the pad's left-stick click). For the weight axis the stick's circular gate is opened to a square, so a stick at
+the rim on a diagonal still reaches the full lever.
+
 The existing 0.75 press / 0.65 release hysteresis for digital gamepad buttons remains separate from
 analog trigger and stick response. See [the controller specification](specs/controller-settings.md)
 for implementation boundaries and verification.

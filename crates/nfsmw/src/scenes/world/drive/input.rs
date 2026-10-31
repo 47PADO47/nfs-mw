@@ -32,6 +32,9 @@ pub struct DriveInput {
     pub brake: f32,
     /// -1 (left) ..1 (right).
     pub steer: f32,
+    /// The rider's weight, -1 (back) to 1 (forward). Only a bike reads it; a car's physics step never sees it
+    /// (`to_vehicle` leaves it out).
+    pub weight: f32,
     pub handbrake: bool,
     pub nos: bool,
     /// The speed breaker button is held.
@@ -83,6 +86,7 @@ impl DriveInput {
             throttle: actions.value(Action::Throttle).clamp(0.0, 1.0),
             brake: actions.value(Action::Brake).clamp(0.0, 1.0),
             steer: actions.value(Action::Steer).clamp(-1.0, 1.0),
+            weight: actions.value(Action::RiderWeight).clamp(-1.0, 1.0),
             handbrake: actions.pressed(Action::Handbrake),
             nos: actions.pressed(Action::Nos),
             speedbreaker: actions.pressed(Action::Speedbreaker),

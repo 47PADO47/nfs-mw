@@ -286,6 +286,11 @@ impl RenderBackend for Renderer {
         Renderer::destroy_mesh(self, handle);
     }
 
+    fn update_mesh_vertices(&mut self, handle: MeshHandle, vertices: &[blackbox_gfx::Vertex]) -> bool {
+        self.touch_scene();
+        Renderer::update_mesh_vertices(self, handle, vertices)
+    }
+
     fn create_glossy_material(&mut self, material: &GlossyMaterial) -> GlossyMaterialHandle {
         self.touch_scene();
         Renderer::create_glossy_material(self, material)

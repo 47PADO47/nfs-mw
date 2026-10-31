@@ -3,7 +3,7 @@
 //! Cargo has no hook that runs after a build, so these commands do both. `install-mod <MOD>` installs one folder of `mods/`;
 //! `install-mods` installs every mod the workspace builds (the members under `mods/`, today `nfsmw-2012-content`), not the
 //! examples. A mod with a library is built first (the release profile, or `--debug`; a mod outside the workspace builds
-//! from its own manifest); a mod with no library (a language pack) is only copied. The mod's folder under the game's
+//! from its own manifest); a mod with no `cdylib` (a language pack, or a content mod with an importer) is only copied. The mod's folder under the game's
 //! config folder gets `mod.toml`, the library and each folder of the mod except `src`, `tests` and `target`; nothing else in
 //! it is touched, so the mod's own `config.toml`, `files/` and `cars/` stay.
 //!
@@ -137,7 +137,7 @@ fn install(root: &Path, id: &str, options: &Options) -> Result<bool, String> {
     };
 
     let mut library = None;
-    if source.join("Cargo.toml").is_file() {
+    if builds_library(&source) {
         library = build(root, id, &source, options.debug)?;
         if library.is_none() {
             return Ok(false);
@@ -152,6 +152,12 @@ fn install(root: &Path, id: &str, options: &Options) -> Result<bool, String> {
     copy_content(&source, &destination)?;
     eprintln!("installed {id} into {}", destination.display());
     Ok(true)
+}
+
+/// Whether the mod has a native library to build: its manifest asks for a `cdylib`. A package with only binaries (the importer
+/// of a content mod) or no manifest at all is only copied.
+fn builds_library(source: &Path) -> bool {
+    std::fs::read_to_string(source.join("Cargo.toml")).is_ok_and(|manifest| manifest.contains("cdylib"))
 }
 
 /// Build the mod and return its library, or `None` when the build failed.
@@ -257,6 +263,18 @@ mod tests {
 
     fn strings(args: &[&str]) -> Vec<String> {
         args.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn only_a_cdylib_package_is_built() {
+        let folder = std::env::temp_dir().join(format!("install-mod-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        assert!(!builds_library(&folder));
+        std::fs::write(folder.join("Cargo.toml"), "[package]\nname = \"tool\"\n").unwrap();
+        assert!(!builds_library(&folder));
+        std::fs::write(folder.join("Cargo.toml"), "[lib]\ncrate-type = [\"cdylib\"]\n").unwrap();
+        assert!(builds_library(&folder));
+        std::fs::remove_dir_all(&folder).unwrap();
     }
 
     #[test]

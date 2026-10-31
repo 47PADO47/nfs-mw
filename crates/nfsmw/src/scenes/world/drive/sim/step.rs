@@ -5,6 +5,8 @@ use super::*;
 #[derive(Debug, Clone, Copy)]
 pub(in crate::scenes::world) struct StepStart {
     pub(super) input: InputState,
+    /// The rider's weight the player asks, -1 (back) to 1 (forward): only a bike's ride reads it.
+    pub(super) weight: f32,
     pub(super) delta: f32,
     /// `None` without a collision world: the car then only meets the road.
     pub(super) terrain: Option<TerrainQuery>,
@@ -65,14 +67,16 @@ impl CarSim {
         props: Option<&mut PropWorld>,
     ) -> StepStart {
         if !dt.is_finite() || dt <= 0.0 {
-            return StepStart { input: input.to_vehicle(), delta: dt, terrain: None };
+            return StepStart { input: input.to_vehicle(), weight: input.weight, delta: dt, terrain: None };
         }
         self.step_delta = dt;
+        self.pull_bike();
         self.pending_body_impact = Impact::default();
         self.reset_collision.advance(dt);
         // Taken before explosions: they can wake a sleeping body. Body begin refreshes this captured query.
         let terrain = has_world.then(|| self.terrain_query());
         self.before_velocity = self.vehicle.body().linear_velocity;
+        let weight = input.weight;
         let input = input.to_vehicle();
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
         if let (Some(props), Some(events)) = (props, &self.events) {
@@ -84,7 +88,7 @@ impl CarSim {
                 self.vehicle.tire_damage.puncture(wheel);
             }
         }
-        StepStart { input, delta: dt, terrain }
+        StepStart { input, weight, delta: dt, terrain }
     }
 
     /// Resolves world contacts and body drag after the shared pair pass, before driving response.
@@ -126,7 +130,10 @@ impl CarSim {
             }
             None => Impact::default(),
         };
-        self.vehicle.finish_body_step(start.delta, ground);
+        match self.ride.as_deref_mut() {
+            Some(ride) => ride.finish_body(&mut self.vehicle, start.delta, ground),
+            None => self.vehicle.finish_body_step(start.delta, ground),
+        }
     }
 
     /// Publishes body contacts and driving response once both phases have completed.
@@ -151,7 +158,7 @@ impl CarSim {
         let bottom_point =
             body.position - rotation.y_axis * body.dimension().y - rotation.z_axis * (body.dimension().z * 0.75);
         impact.sounds.extend(self.vehicle.body_contacts().iter().filter(|c| c.impulse_delta_v > 0.0).map(|c| {
-            let bottom = self.vehicle.wheels_on_ground() > 2 && rotation.y_axis.dot(c.normal) > 0.2;
+            let bottom = self.wheels_down() > 2 && rotation.y_axis.dot(c.normal) > 0.2;
             crate::audio::CarContact {
                 sound_profile: 0,
                 vehicle: None,
@@ -181,8 +188,13 @@ impl CarSim {
                 events.hit(hit);
             }
         }
-        for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
-            *spin += self.vehicle.wheel(physics).angular_velocity * start.delta;
+        match self.ride.as_deref_mut() {
+            Some(ride) => ride.advance(start.delta),
+            None => {
+                for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
+                    *spin += self.vehicle.wheel(physics).angular_velocity * start.delta;
+                }
+            }
         }
         let body = self.vehicle.body();
         self.memo.record(&input, &impact, self.before_velocity, body.linear_velocity, body.mass());

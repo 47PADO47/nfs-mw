@@ -27,7 +27,8 @@ impl Renderer {
         let vertices = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(desc.label),
             contents: bytemuck::cast_slice(desc.vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            // COPY_DST lets `update_mesh_vertices` rewrite the buffer of a mesh that is skinned on the CPU.
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         // Only the authored sky and normal-map pipelines consume extra streams.
         // Ordinary world/car meshes retain their original upload footprint.
@@ -68,15 +69,7 @@ impl Renderer {
             contents: bytemuck::cast_slice(&indices[..]),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let mut min = glam::Vec3::splat(f32::INFINITY);
-        let mut max = glam::Vec3::splat(f32::NEG_INFINITY);
-        for v in desc.vertices {
-            let p = glam::Vec3::from_array(v.position);
-            min = min.min(p);
-            max = max.max(p);
-        }
-        let center = (min + max) * 0.5;
-        let radius = center.distance(max);
+        let (center, radius) = bounds(desc.vertices);
         let single_sided = desc.draws.iter().any(|draw| !draw.two_sided);
         if single_sided {
             self.pipelines.enable_culling();
@@ -97,12 +90,38 @@ impl Renderer {
         MeshHandle::from_raw(slot)
     }
 
+    /// Write new vertices into the buffer of a mesh. Fails (`false`) for a handle that is not a mesh and for a count that
+    /// differs from the one the mesh was made with. The bounding sphere is worked out again from the new positions.
+    pub fn update_mesh_vertices(&mut self, handle: MeshHandle, vertices: &[blackbox_gfx::Vertex]) -> bool {
+        let Some(mesh) = self.meshes.get_mut(handle.raw()) else { return false };
+        let bytes: &[u8] = bytemuck::cast_slice(vertices);
+        if bytes.len() as u64 != mesh.vertices.size() {
+            return false;
+        }
+        self.queue.write_buffer(&mesh.vertices, 0, bytes);
+        (mesh.center, mesh.radius) = bounds(vertices);
+        true
+    }
+
     pub fn destroy_mesh(&mut self, handle: MeshHandle) {
         self.meshes.remove(handle.raw());
         if let Some(rt) = &mut self.ray_reflections {
             rt.remove_mesh(handle.raw());
         }
     }
+}
+
+/// The centre and radius of the sphere that holds `vertices`: the middle of their box and the distance to its corner.
+fn bounds(vertices: &[blackbox_gfx::Vertex]) -> (glam::Vec3, f32) {
+    let mut min = glam::Vec3::splat(f32::INFINITY);
+    let mut max = glam::Vec3::splat(f32::NEG_INFINITY);
+    for v in vertices {
+        let p = glam::Vec3::from_array(v.position);
+        min = min.min(p);
+        max = max.max(p);
+    }
+    let center = (min + max) * 0.5;
+    (center, center.distance(max))
 }
 
 /// The indices as an index buffer holds them: an odd count gets one more index so the buffer is a whole number of

@@ -44,13 +44,13 @@ mirrored scenery and reflection views).
 Written so far: [scenery-visibility.md](scenery-visibility.md) (exclude flags),
 [scenery-lod.md](scenery-lod.md) (level of detail), [scenery-sway.md](scenery-sway.md) (trees, bushes and
 boats swaying in the wind), [visible-sections.md](visible-sections.md) (which world
-sections are loaded and drawn) and [car-assembly.md](car-assembly.md) (stock parts, wheels, brakes, paint,
-texture swaps, the car shader) and vehicle physics: [vehicle-engine-drivetrain.md](vehicle-engine-drivetrain.md),
+sections are loaded and drawn), [car-assembly.md](car-assembly.md) (stock parts, wheels, brakes, paint,
+texture swaps, the car shader), [car-parts-capacity.md](car-parts-capacity.md) (how many mod cars the parts database takes) and vehicle physics: [vehicle-engine-drivetrain.md](vehicle-engine-drivetrain.md),
 [vehicle-input-induction-brakes.md](vehicle-input-induction-brakes.md),
 [vehicle-manual-shifting.md](vehicle-manual-shifting.md) (the transmission setting, manual mode, the limiter),
 [vehicle-suspension-tires.md](vehicle-suspension-tires.md),
 [vehicle-steering-assists-aero.md](vehicle-steering-assists-aero.md) and
-[vehicle-rigid-body.md](vehicle-rigid-body.md) (and [vehicle-calibration.md](vehicle-calibration.md), the model checked against the running game); car sound: [engine-sound.md](engine-sound.md) (files, telemetry,
+[vehicle-rigid-body.md](vehicle-rigid-body.md) (and [vehicle-calibration.md](vehicle-calibration.md), the model checked against the running game); two-wheel vehicles: [vehicle-two-wheel.md](vehicle-two-wheel.md) (the dynamics) and [vehicle-two-wheel-integration.md](vehicle-two-wheel-integration.md) (the body double, the wheel rig, the input and the limits); car sound: [engine-sound.md](engine-sound.md) (files, telemetry,
 engine mix), [engine-sound-ginsu.md](engine-sound-ginsu.md) (the granular synthesiser) and
 [engine-sound-effects.md](engine-sound-effects.md) (shifting, turbo, nitrous, skids, collisions); the
 dynamic mixer: [dynamic-mixer.md](dynamic-mixer.md) (evaluating a mixer map) and

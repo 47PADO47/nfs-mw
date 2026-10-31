@@ -57,7 +57,7 @@ impl CarSim {
         other.vehicle.mark_object_contact();
         let material_a = self.vehicle.body().spec().objects;
         let material_b = other.vehicle.body().spec().objects;
-        let grounded = self.vehicle.wheels_on_ground() > 2 && other.vehicle.wheels_on_ground() > 2;
+        let grounded = self.wheels_down() > 2 && other.wheels_down() > 2;
         let hit_a = self.object_hit(
             contact.point,
             contact.normal,

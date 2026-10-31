@@ -119,13 +119,25 @@ pub fn lift_off(spool: f32, rpm_pct: f32, rng: &mut Rng) -> LiftOff {
         r if r < chance + LONE_POP_CHANCE => 1 + rng.below(2),
         _ => 0,
     };
+    LiftOff { blowoff, backfire, pops: pops_of(count, rng) }
+}
+
+/// `count` pops in time order, the first 0.12 s after the bang and each 0.05 to 0.25 s after the one before.
+fn pops_of(count: usize, rng: &mut Rng) -> Vec<Pop> {
     let mut delay = 0.12;
     let mut pops = Vec::with_capacity(count);
     for _ in 0..count {
         pops.push(Pop { delay, volume: 0.4 + 0.4 * rng.unit() });
         delay += 0.05 + 0.2 * rng.unit();
     }
-    LiftOff { blowoff, backfire, pops }
+    pops
+}
+
+/// The pops that follow a bang the overrun controller decided (`[car_sound.overrun]`): one to three, as after a core
+/// backfire. The overrun table does not drive them; they keep their core meaning (docs/modding/car-sound.md).
+pub fn pops_after_bang(rng: &mut Rng) -> Vec<Pop> {
+    let count = 1 + rng.below(3);
+    pops_of(count, rng)
 }
 
 /// Most bangs that wait to light the tail pipes at once (a lift-off makes four at most).

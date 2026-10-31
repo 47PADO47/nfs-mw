@@ -56,7 +56,7 @@ the pops the sample layer's sputter module plays
 revs, none at a steady throttle. A car a mod added (the converted 2012 cars) has no sample layer and so no sputter module:
 the backfire and the pops its own sound logic decides at a lift-off (`audio/car/own_sfx/logic.rs`: a backfire at 3 to 25 % of
 the lift-offs by revs, one to three pops after it, now and then a lone pop) report the same pop notices, each when its sound
-plays, with or without a recording for it. A pop with the pedal down is not shown on the game's own cars. The original draws no
+plays, with or without a recording for it. A mod car with a `[car_sound.overrun]` table ([car-sound.md](modding/car-sound.md#the-overrun-backfire-car_soundoverrun)) decides its bangs by a charge instead: a strong bang, the pops after it and a burning flame light the pipes, a weak bang does not. A pop with the pedal down is not shown on the game's own cars. The original draws no
 flame for the sputters; this link is the rewrite's own. Cars with no pipe markers (some cop and service vehicles) show
 nothing.
 
@@ -81,6 +81,28 @@ Not the cause: the nitrous shrink (`scale.rs`) changes the blue lanes only; the 
 of 0.35 to 0.45 m thrown at 6 m/s for 0.075 s, and the glow). The size and speed of these flames are the stock cars'; the
 pipes are the car's own nitrous locators (`mods/nfsmw-2012-content/src/pipes.rs`). The pop chance of the sound logic (3 to 25 %
 of the lift-offs by revs) is unchanged: the flames follow the pops that play. Only the sound and the pop gain decide how often.
+
+## Bikes (the RIDE 6 mod)
+
+A bike is a mod car, so it flames at its pops like one (every pop its sound reports, a flick at full strength, an up-shift made
+under power), with three differences (`exhaust/trigger.rs` `BIKE_*`, `scale.rs` `compact_bike`, `load.rs` `shift_timing`, `step.rs`).
+Cars are unchanged.
+
+- **Where.** At the markers `LEFT_EXHAUST`, `RIGHT_EXHAUST` or `EXHAUST` of the bike's body solid, one for each silencer, which
+  the importer writes at the silencer's outlet ([ride6-bikes.md](modding/ride6-bikes.md#the-exhaust-flames)). A bike with two
+  silencers flames at both; a bike whose files have no marker shows no flame.
+- **How big.** The group's orange emitters at 0.4 of their size (`BIKE_FLAME_SCALE`): the sprites, the speed they leave the pipe at, the
+  accelerations that bend them and the volume they start from. The enhanced exhaust draws its burst at 0.4 as well (a car's pop
+  burst is 0.28 m long and 0.14 m wide, a bike's about 0.11 and 0.06 m). The factor is a choice: a motorcycle's outlet is far
+  smaller than a car's tail pipe and its pop is a short flick; there is no data for a bike's flame.
+- **When else.** A **down-shift with the pedal up** (above 10 m/s) flicks the pipes, like the blip of a rider changing down; a
+  down-shift under power does not. The flick lasts 0.125 s (`BIKE_SHIFT_TIMING`: 8 degrees per second over 1 degree) against 0.28 s
+  of a car's blow-off. A bike has no nitrous, so there is no blue flame.
+- **The backfire is the shift flame, repeated and a quarter bigger.** Each pop the sound plays (a bang and its one to three pops, or the
+  pops of a lift-off) is one flick of the same emitters, texture and 0.125 s as the shift flame, at `BIKE_BACKFIRE_SCALE_OVER_SHIFT` = 1.25
+  of its size (0.5 of the group's emitters against 0.4), once per pop and in step with it, instead of one long flame that every pop
+  restarted. A plain lift-off draws nothing of its own: only the pops the sound rolls light the pipes. Details, the choices and the
+  tests: [specs/ride6-bike-flames.md](specs/ride6-bike-flames.md).
 
 ## Console
 

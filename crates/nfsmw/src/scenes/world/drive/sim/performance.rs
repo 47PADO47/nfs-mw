@@ -25,7 +25,11 @@ impl CarSim {
         (self.vehicle.drift_strength(), self.vehicle.drift_speed(), self.vehicle.slip_angle())
     }
     pub(in crate::scenes::world::drive) fn set_performance(&mut self, physics: &CarPhysics) {
-        self.vehicle.set_spec(physics.spec.clone());
+        let mut spec = physics.spec.clone();
+        if let Some(ride) = &self.ride {
+            ride.fit(&mut spec);
+        }
+        self.vehicle.set_spec(spec);
     }
     pub(in crate::scenes::world::drive) fn set_nos_recharge(&mut self, allowed: bool) {
         self.vehicle.can_recharge_nos = allowed;

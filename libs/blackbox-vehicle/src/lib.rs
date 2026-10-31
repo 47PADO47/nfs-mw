@@ -31,6 +31,7 @@
 //! ```
 
 pub mod aero;
+pub mod bike;
 pub mod brakes;
 pub mod drivetrain;
 pub mod engine;
@@ -41,6 +42,7 @@ pub mod launch;
 pub mod math;
 pub mod nos;
 pub mod performance;
+pub mod ragdoll;
 pub mod rigid_body;
 pub mod stats;
 pub mod steering;

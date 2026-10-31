@@ -40,7 +40,7 @@ layers = [
 - A layer is a looping recording of the engine made at the engine speed `rpm`: a 16-bit PCM WAV, mono or stereo, that
   repeats over its whole length. The file is a path of the install's layout (letters, digits, `_`, `-`, `.` and `/`, up to 96
   characters, ending in `.WAV`), so it goes in the mod's `files/` folder.
-- One to twelve layers, `rpm` from 100 to 20000 (a layer with `gain` curves has none, see [Curves](#curves-layers-that-play-by-the-cars-own-inputs)), no two the same, `idle_rpm` below `redline_rpm` (both 100 to 20000). A wrong
+- One to twenty-four layers, `rpm` from 100 to 20000 (a layer with `gain` curves has none, see [Curves](#curves-layers-that-play-by-the-cars-own-inputs)), no two the same, `idle_rpm` below `redline_rpm` (both 100 to 20000). A wrong
   table refuses the car.
 - All layers play at once. Each is played at the engine's rpm over its own (so its pitch follows the engine) but never
   slower than 0.55 or faster than 1.8 times its recording, and the layers are mixed by how close the engine's rpm is
@@ -77,11 +77,19 @@ picked at random each time. A file that cannot be read is left out, and the log 
 |---|---|---|
 | `shift` | at every gear change | at the moment the engine mixer asks for the gear clunk, at its level; **replaces** the shared clunk |
 | `shift_up`, `shift_down` | at an up or a down shift | each falls back to `shift`; one given alone leaves the other direction to `shift` |
+| `shift_trigger` | (`"mixer"` by default, or `"gear"`) | what sets the shifts off: `"mixer"` is the engine mixer's gear clunk, `"gear"` is every change of the gear number, see below |
 | `shift_clunk` | (a flag, `true` by default) | `shift_clunk = false` makes a gear change **silent** when the car has no `shift` recording for it, instead of the class-wide clunk of the game's gear bank; an electric car has no gear to clunk into. It is a table of its own: a car may have it with no list |
 | `turbo_whine` | loops, from the lowest spool to the highest | all play at once, silent until the turbo spools; mixed along the spool in equal power and sped up from 0.8 to 1.4 times as it spools |
 | `turbo_blowoff` | when the throttle is lifted with the turbo spooled | louder with more spool; the spool drops to 40 percent |
-| `backfire` | when the throttle is lifted at high engine speed | likelier with the revs: one in five at idle speed, seven in ten at the limiter |
+| `backfire` | when the throttle is lifted at high engine speed | likelier with the revs: 3 percent of the lifts at idle speed, a quarter at the limiter (a car with a [`[car_sound.overrun]`](#the-overrun-backfire-car_soundoverrun) table backfires by that instead) |
 | `pops` | after a backfire (two to four, a tenth of a second and more apart), or alone | a lift-off without a backfire sometimes has one or two |
+
+**`shift_trigger = "gear"`.** By default a shift plays when the engine mixer asks for the 2005 cars' gear clunk, which waits a
+little after the gear changes and ignores an up shift under 3000 rpm. With `"gear"` the shift recording plays at **every**
+change of the gear number, in the frame it happens, whatever the engine and road speed: `shift_up` when the new gear is higher
+than the last frame's, `shift_down` when it is lower (the first gear seen is not a change). The mixer's clunk is then dropped
+for a direction that has recordings; a direction with none keeps the rules of `shift_clunk` and `shift`. The recording
+plays at the full one-shot level.
 
 **These rules are the game's own, not any recording game's.** The turbo spools towards the throttle times how hard the
 engine is turning (0.9 seconds up, 0.6 down); a "lift-off" is the engine mixer's *engine off* event (the throttle
@@ -94,6 +102,52 @@ car has no sample layer, so each backfire and each pop decided here lights the p
 sound would play, **whether or not the car has a recording for it**: a car with an empty `backfire` and `pops` list still
 backfires in flames, and so does a car with no `[car_sound]` table at all.
 
+
+### The overrun backfire: `[car_sound.overrun]`
+
+```toml
+[car_sound.overrun]
+accumulator_rate = 0.2          # charge per second at the redline and full throttle (0 to 5)
+throttle_arm = 0.9              # the throttle falling through this arms a bang (0 to 1)
+throttle_fire = 0.1             # ... and falling through this fires it (0 to 1)
+window_seconds = 2.0            # the longest time between the two for a bang (0 to 10)
+flame_delay = 0.2               # seconds of a shut throttle before flames start (0 to 60)
+flame_min_rpm = 0.1             # flames need the engine speed over the redline at or above this (0 to 1)
+bang_audio_threshold = 0.95     # a bang needs a strength above this to be heard (0 to 1)
+bang_effect_threshold = 0.8     # a bang above this strength also lights the tail pipes (0 to 1)
+flame_effect_threshold = 1.0    # a flame above this strength also lights the tail pipes (0 to 1)
+probability_closed = 0.8        # chance of a loud enough bang with the throttle shut (0 to 1)
+probability_open = 0.3          # ... and with the throttle fully open (0 to 1)
+```
+
+A car with this table backfires by a **charge** instead of by the lift-off rule. All eleven keys are required numbers; a
+missing or unknown key, or a number outside its range, refuses the car. The table works with or without a `backfire` list
+(without one the car makes no bang sound and still lights its pipes); a car without the table keeps the lift-off rule. A lift-off
+at high engine speed of a car with the table still sounds its `pops` on their own, with the chance `probability_closed` times the
+engine speed over the redline (0.8 times 0.83 at 8000 rpm for the KTM 450), because the charge takes seconds at the redline to
+fill and every gear change drains it, so the bangs alone would hardly ever sound; the pops light the tail pipes.
+
+- The charge (0 to 1) rises by `accumulator_rate * rpm_fraction * dt` per second while the throttle is open and falls by the
+  same while it is shut; `rpm_fraction` is the engine speed over the **redline** (`rpm / redline_rpm`, so not idle based).
+- The throttle falling through `throttle_arm` arms a bang and starts a timer. The frame it then falls through `throttle_fire`
+  ends it: if the timer is within `window_seconds`, the bang's strength is `charge * (1 - timer / window_seconds)`. The bang
+  happens if the strength is above `bang_audio_threshold` and a draw is at most the chance, which goes from `probability_closed`
+  to `probability_open` with the driver's throttle. So a pull that fills the charge followed by a lift within a fraction of a
+  second bangs, and a slow lift or a short pull does not.
+- A bang plays one random file of `backfire` at the volume `(strength - audio threshold) / (1 - audio threshold)`. A bang above
+  `bang_effect_threshold` also lights the tail pipes, and so do the one to three `pops` after it (the pops are the core ones and
+  are not driven by this table); a bang at or under it, and its pops, are audio only.
+- With the throttle shut for `flame_delay` seconds at an engine speed of `flame_min_rpm` or more, a flame burns, of strength
+  `charge * rpm_fraction`. It plays no sound; above `flame_effect_threshold` it lights the pipes (a burst every 0.06 s, the
+  length of the pipe flame of a pop) until the throttle opens.
+- It is deterministic: the draws come from a generator seeded by the car's name. The throttle is the pedal (the game has no
+  separate electronic throttle) and the engine speed is the host's `0 to 1` span of `[engine_sound]` (or of the built-in
+  engine, 900 to 7000 rpm) turned into rpm, so a car with the table should have an `[engine_sound]` with its engine's real
+  idle and redline; without one the built-in engine's 900 and 7000 rpm are assumed.
+- The turbo blow-off of a lift-off is not changed by the table.
+
+The numbers of a RIDE 6 bike are in [specs/ride6-engine-sound.md](../specs/ride6-engine-sound.md#5-backfire). The controller
+is `blackbox_carsound::overrun` (a library, game-agnostic); the host side is `crates/nfsmw/src/audio/car/own_sfx/overrun.rs`.
 
 ### The shared sounds: `[car_sound.shared]`
 
@@ -162,7 +216,7 @@ layers = [
 - `kind = "ginsu"` makes the file a `.GIN` granular engine recording (the format of the 2005 game's `.gin`), played by the
   game's Ginsu synthesiser at the frequency `span` gives the engine speed: `span[0]` at idle, `span[1]` at the limiter.
   It needs `gain` and `span`; the rest of the table is as for a loop.
-- Up to 12 layers.
+- Up to 24 layers.
 
 ### The 2012 cars' engine
 

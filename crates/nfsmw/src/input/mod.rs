@@ -21,6 +21,8 @@ mod presentation;
 #[cfg(test)]
 mod presentation_tests;
 mod remap;
+#[cfg(test)]
+mod rider_weight_tests;
 mod slots;
 mod snapshot;
 mod split;
@@ -30,6 +32,7 @@ mod source;
 mod state;
 mod systems;
 mod vk;
+mod weight_axis;
 
 pub use action::Action;
 pub(crate) use bindings::Source;

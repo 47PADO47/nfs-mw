@@ -7,6 +7,7 @@
 
 use blackbox_collision::CollisionWorld;
 mod audio;
+mod bike_fall;
 mod cinematic;
 mod hits;
 pub(in crate::scenes::world) mod memo;
@@ -43,6 +44,8 @@ const MAX_VISIBLE_TRAVEL: f32 = 0.25;
 
 pub struct CarSim {
     vehicle: Vehicle,
+    /// The two-wheel dynamics of a bike, for which `vehicle` is a body double (`bike.rs`). `None` for a car.
+    ride: Option<Box<bike::BikeRide>>,
     cinematic_controls: Option<blackbox_vehicle::ControlConfig>,
     reset_collision: reset_collision::ResetCollision,
     /// Where the body box's centre is relative to the model's origin, in physics axes.
@@ -96,13 +99,17 @@ fn to_model_axes(v: Vec3) -> Vec3 {
 impl CarSim {
     /// `rest_height` is the height of each wheel's centre above the car model's origin when the car
     /// stands still, in the model's wheel order (the static wheel placement).
-    pub fn new(physics: CarPhysics, rest_height: [f32; 4]) -> Self {
+    pub fn new(mut physics: CarPhysics, rest_height: [f32; 4]) -> Self {
+        let ride = bike::BikeRide::new(&mut physics).map(Box::new);
         log::debug!(
             "body: half dimensions {:?}, centre {:?} above the model origin",
             physics.spec.dimension,
             physics.bounds.pivot
         );
         let mut vehicle = Vehicle::new(physics.spec);
+        if let Some(ride) = &ride {
+            ride.attach(&mut vehicle);
+        }
         vehicle.set_tire_integration(physics.tire_integration);
         vehicle.jump_config = physics.jump_config;
         if physics.tire_integration == blackbox_vehicle::tires::TireIntegration::Reference {
@@ -110,6 +117,7 @@ impl CarSim {
         }
         Self {
             vehicle,
+            ride,
             cinematic_controls: None,
             reset_collision: Default::default(),
             pending_body_impact: Impact::default(),
@@ -183,7 +191,14 @@ impl CarSim {
         // The heading is counter-clockwise from +X in the world; the library's yaw is about the up axis
         // from +z, which is the other way round.
         let top = spawn.position.z + 2.0;
-        let placed = self.vehicle.place_on_ground_moving(ground, x, z, top, -spawn.heading, speed);
+        let placed = match self.ride.as_deref_mut() {
+            Some(ride) => {
+                let placed = ride.place(ground, (x, z, top), -spawn.heading, speed);
+                ride.push(&mut self.vehicle);
+                placed
+            }
+            None => self.vehicle.place_on_ground_moving(ground, x, z, top, -spawn.heading, speed),
+        };
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
         placed
     }
@@ -206,10 +221,9 @@ impl CarSim {
     /// The wheels as the car sound reads them, in the model's wheel order (front left, front right, rear
     /// right, rear left).
     pub fn wheel_sounds(&self, surfaces: &SurfaceTable) -> [blackbox_carsound::WheelInput; 4] {
-        let v = &self.vehicle;
         std::array::from_fn(|i| {
-            let w = v.wheel(PHYSICS_WHEEL[i]);
-            let audio = v.wheel_surface_tag(PHYSICS_WHEEL[i]).map(|tag| surfaces.audio(tag));
+            let w = self.wheel_state(PHYSICS_WHEEL[i]);
+            let audio = self.wheel_surface(PHYSICS_WHEEL[i]).map(|tag| surfaces.audio(tag));
             // The tire reports how fast the patch slides over the road and how much of that is wheel spin; the
             // rest is sideways.
             let sideways = w.lateral_speed;
@@ -233,7 +247,7 @@ impl CarSim {
     /// The four wheels' contact patches on the road plane, in physics wheel order, for the spike strips (`spikes.rs`).
     pub fn wheel_patches(&self) -> [blackbox_pursuit::spikes::Patch; 4] {
         std::array::from_fn(|i| {
-            let wheel = self.vehicle.wheel(i);
+            let wheel = self.wheel_state(i);
             // The axle is the tire's lateral direction: the body's right turned by the steering, seen from above.
             let (sin, cos) = wheel.steer_angle.sin_cos();
             let axle = self.vehicle.rotation() * Vec3::new(cos, 0.0, -sin);
@@ -249,23 +263,31 @@ impl CarSim {
 
     /// Punctures tire `wheel` (physics order) on the tire model. Returns whether it was intact.
     pub fn puncture_wheel(&mut self, wheel: usize) -> bool {
+        // A bike's tyres have no damage state: a spike strip does not puncture them.
+        if self.ride.is_some() {
+            return false;
+        }
         self.vehicle.tire_damage.puncture(wheel)
     }
 
     pub fn tyre_hits(&self) -> impl Iterator<Item = (Vec3, Vec3)> + '_ {
-        (0..4).filter_map(|i| self.vehicle.wheel_ground_hit(i))
+        (0..4).filter_map(|i| self.wheel_hit(i))
     }
 
     /// The `simsurface` hash under the front left wheel, for the sounds of a landing.
     pub fn surface_tag(&self) -> Option<u32> {
-        self.vehicle.wheel_surface_tag(PHYSICS_WHEEL[0])
+        self.wheel_surface(PHYSICS_WHEEL[0])
     }
 
     /// Grounded tire visuals, in physics wheel order, using the existing skid/smoke intensities.
     pub fn tire_contacts(&self, collision: &CollisionWorld) -> [Option<Contact>; 4] {
         let pose = self.pose();
         std::array::from_fn(|i| {
-            let mut wheel = self.vehicle.wheel(i);
+            // A bike has two wheels: wheels 1 and 3 repeat them and leave no marks of their own.
+            if self.ride.is_some() && (i == 1 || i == 3) {
+                return None;
+            }
+            let mut wheel = self.wheel_state(i);
             let (sin, cos) = wheel.steer_angle.sin_cos();
             let forward = self.vehicle.rotation() * Vec3::new(sin, 0.0, cos);
             // The rear-wheel permutation is its own inverse: physics order -> model order.
@@ -291,11 +313,11 @@ impl CarSim {
     ) -> [Option<crate::scenes::world::vehicle_effects::WaterContact>; 4] {
         std::array::from_fn(|i| {
             let contact = contacts[i]?;
-            let wheel = self.vehicle.wheel(i);
+            let wheel = self.wheel_state(i);
             Some(crate::scenes::world::vehicle_effects::WaterContact {
                 point: contact.point,
                 normal: contact.normal,
-                surface: self.vehicle.wheel_surface_tag(i)?,
+                surface: self.wheel_surface(i)?,
                 slip: wheel.slip,
                 slide: wheel.lateral_speed,
                 flat: self.vehicle.tire_damage.is_blown(i),
@@ -320,6 +342,7 @@ impl CarSim {
             && v.rpm().is_finite()
             && angles.left.is_finite()
             && angles.right.is_finite()
+            && self.ride.as_ref().is_none_or(|ride| ride.is_finite())
     }
 
     /// The model's origin in physics space.
@@ -333,20 +356,23 @@ impl CarSim {
         // The model's axes (forward, left, up) are the body's z, -x and y.
         let cols = Mat3::from_cols(to_model_axes(r.z_axis), to_model_axes(-r.x_axis), to_model_axes(r.y_axis));
         let origin = self.model_origin();
-        let wheels = std::array::from_fn(|i| {
-            let w = v.wheel(PHYSICS_WHEEL[i]);
-            let centre = w.position + r.y_axis * w.radius;
-            let local = r.transpose() * (centre - origin);
-            let travel = (local.y - self.rest_height[i]).clamp(-MAX_VISIBLE_TRAVEL, MAX_VISIBLE_TRAVEL);
-            // The library steers to the right, the model to the left.
-            WheelPose { steer: -w.steer_angle, spin: self.spin[i], travel }
-        });
+        let wheels = match self.ride.as_deref() {
+            Some(ride) => ride.wheel_poses(),
+            None => std::array::from_fn(|i| {
+                let w = v.wheel(PHYSICS_WHEEL[i]);
+                let centre = w.position + r.y_axis * w.radius;
+                let local = r.transpose() * (centre - origin);
+                let travel = (local.y - self.rest_height[i]).clamp(-MAX_VISIBLE_TRAVEL, MAX_VISIBLE_TRAVEL);
+                // The library steers to the right, the model to the left.
+                WheelPose { steer: -w.steer_angle, spin: self.spin[i], travel }
+            }),
+        };
         CarPose { position: space::to_render(origin.to_array()), rotation: Quat::from_mat3(&cols), wheels }
     }
 
     /// The rolling radius of each wheel in the model's wheel order (front left, front right, rear right, rear left).
     pub fn wheel_radii(&self) -> [f32; 4] {
-        std::array::from_fn(|i| self.vehicle.wheel(PHYSICS_WHEEL[i]).radius)
+        std::array::from_fn(|i| self.wheel_state(PHYSICS_WHEEL[i]).radius)
     }
 
     /// Fill `out` with the zones whose glass is cracked, in order. `out` is cleared first and keeps its capacity,
@@ -391,6 +417,9 @@ impl CarSim {
 
     pub fn telemetry(&self) -> Telemetry {
         let v = &self.vehicle;
+        if let Some(ride) = &self.ride {
+            return ride.telemetry(v.forward_speed());
+        }
         Telemetry {
             speed_mps: v.forward_speed(),
             rpm: v.rpm(),
@@ -416,6 +445,7 @@ fn next_sound_identity() -> u64 {
 }
 
 mod ai;
+mod bike;
 mod camera;
 mod contact_damage;
 mod engine_off;
@@ -434,5 +464,9 @@ pub(in crate::scenes::world) use step::StepStart;
 pub(in crate::scenes::world) use terrain::Integration;
 mod trailer;
 
+#[cfg(test)]
+mod bike_curb_tests;
+#[cfg(test)]
+mod bike_tests;
 #[cfg(test)]
 mod tests;

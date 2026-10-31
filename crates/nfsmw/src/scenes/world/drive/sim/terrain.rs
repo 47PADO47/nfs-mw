@@ -53,7 +53,10 @@ impl CarSim {
             return;
         }
         refresh_ground_reference(&mut self.vehicle, &mut self.ground_reference, world.zip(start.terrain));
-        self.vehicle.begin_body_step(start.delta);
+        match self.ride.as_deref_mut() {
+            Some(ride) => ride.begin_body(&mut self.vehicle, start.delta),
+            None => self.vehicle.begin_body_step(start.delta),
+        }
     }
 
     pub(super) fn terrain_exclusion(&self) -> u16 {
@@ -91,6 +94,7 @@ impl CarSim {
     pub(in crate::scenes::world) fn integration(&mut self) -> Integration<'_> {
         Integration {
             vehicle: &mut self.vehicle,
+            ride: self.ride.as_deref_mut(),
             ground_reference: &mut self.ground_reference,
             wheel_ground: &mut self.wheel_ground,
             window: &mut self.ground_window,
@@ -112,6 +116,8 @@ pub(super) struct TerrainQuery {
 /// once (`ai/parallel.rs`).
 pub(in crate::scenes::world) struct Integration<'a> {
     vehicle: &'a mut Vehicle,
+    /// The two-wheel dynamics of a bike, which `vehicle` is the body double of (`bike.rs`).
+    ride: Option<&'a mut super::bike::BikeRide>,
     ground_reference: &'a mut GroundReferenceCache,
     wheel_ground: &'a mut RefCell<[GroundFaceCache; 4]>,
     /// The car's own candidate window for [`Self::run_windowed`].
@@ -126,6 +132,10 @@ impl Integration<'_> {
         ground: &dyn Ground,
         _world: Option<&CollisionWorld>,
     ) {
+        if let Some(ride) = self.ride.as_deref_mut() {
+            ride.respond(self.vehicle, start, ground);
+            return;
+        }
         step_with_ground(
             self.vehicle,
             self.ground_reference,
@@ -147,6 +157,10 @@ impl Integration<'_> {
     ) {
         let ground =
             WindowedGround { world: WorldGround { collision, surfaces }, window: RefCell::new(&mut *self.window) };
+        if let Some(ride) = self.ride.as_deref_mut() {
+            ride.respond(self.vehicle, start, &ground);
+            return;
+        }
         step_with_ground(
             self.vehicle,
             self.ground_reference,

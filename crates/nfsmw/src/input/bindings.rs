@@ -116,6 +116,9 @@ impl Binding {
             return s.controls.camera_deadzone.apply_mode(raw, s.controls.deadzone_mode)
                 * s.controls.camera_sensitivity.factor();
         }
+        if self.action == Action::RiderWeight {
+            return super::weight_axis::lever(raw, s.pad_axis(GamepadAxis::LeftStickX));
+        }
         deadzone(raw)
     }
 }
@@ -314,6 +317,11 @@ fn driving() -> Vec<Binding> {
         Binding::new(LookBack, key(KeyCode::KeyB), 1.0),
         Binding::new(Interact, key(KeyCode::Enter), 1.0),
         Binding::new(DismissNotification, key(KeyCode::KeyX), 1.0),
+        Binding::new(AbsLevel, key(KeyCode::KeyJ), 1.0),
+        Binding::new(RiderWeight, key(KeyCode::KeyG), 1.0),
+        Binding::new(RiderWeight, key(KeyCode::KeyV), -1.0),
+        Binding::new(RiderWeight, key(KeyCode::Numpad8), 1.0),
+        Binding::new(RiderWeight, key(KeyCode::Numpad2), -1.0),
         Binding::new(Throttle, Source::PadTrigger(GamepadButton::RightTrigger2), 1.0),
         Binding::new(Brake, Source::PadTrigger(GamepadButton::LeftTrigger2), 1.0),
         Binding::new(Steer, Source::PadAxis(GamepadAxis::LeftStickX), 1.0),
@@ -324,6 +332,8 @@ fn driving() -> Vec<Binding> {
         Binding::new(Speedbreaker, button(GamepadButton::West), 1.0),
         Binding::new(ShiftUp, Source::PadAxis(GamepadAxis::RightStickY), 1.0),
         Binding::new(ShiftDown, Source::PadAxis(GamepadAxis::RightStickY), -1.0),
+        Binding::new(RiderWeight, Source::PadAxis(GamepadAxis::LeftStickY), 1.0),
+        Binding::new(AbsLevel, button(GamepadButton::LeftThumb), 1.0),
         Binding::new(ResetCar, button(GamepadButton::Select), 1.0),
         Binding::new(ToggleCamera, button(GamepadButton::North), 1.0),
         Binding::new(CycleCamera, button(GamepadButton::RightTrigger), 1.0),

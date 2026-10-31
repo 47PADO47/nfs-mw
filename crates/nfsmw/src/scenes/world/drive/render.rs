@@ -49,6 +49,7 @@ impl Drive {
                 },
                 out,
             );
+            self.rider.instances(&self.render_pose(), out);
         }
     }
 }

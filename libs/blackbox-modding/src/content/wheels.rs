@@ -4,6 +4,9 @@
 //! wheels on the hubs of the model and not on hubs it works out from other numbers. A car that leaves the table out has
 //! its wheels drawn from `[stats]` (the tyres' centres at plus and minus half of the wheelbase, as high as their radius).
 //! Both axles are needed, in the car's own space (x forward, y left, z up, origin where the model's origin is).
+//!
+//! A bike has no left and right tyre: each of its two wheels is one solid centred on the plane y = 0, so `face_m` is
+//! not needed (a bike's table leaves it out, and it is 0 in the layout) and the other four keys place the two hubs.
 
 use serde::Deserialize;
 
@@ -16,7 +19,7 @@ pub struct Tyre {
     pub x_m: f32,
     /// Height of the tyre's centre above the ground the model stands on.
     pub z_m: f32,
-    /// Distance from the car's centre line to the tyre's outer face.
+    /// Distance from the car's centre line to the tyre's outer face. 0 for a bike, whose wheels are on the centre line.
     pub face_m: f32,
     pub radius_m: f32,
     pub width_m: f32,
@@ -34,7 +37,8 @@ pub struct WheelLayout {
 pub(super) struct RawTyre {
     x_m: f32,
     z_m: f32,
-    face_m: f32,
+    #[serde(default)]
+    face_m: Option<f32>,
     radius_m: f32,
     width_m: f32,
 }
@@ -53,19 +57,27 @@ fn ranged(value: f32, field: &'static str, low: f32, high: f32) -> Result<f32, C
     Ok(value)
 }
 
-fn tyre(raw: RawTyre, fields: [&'static str; 5]) -> Result<Tyre, ContentError> {
+fn tyre(raw: RawTyre, fields: [&'static str; 5], bike: bool) -> Result<Tyre, ContentError> {
     let [x, z, face, radius, width] = fields;
+    // A car needs the face of each tyre; a bike has none.
+    let face_m = match (raw.face_m, bike) {
+        (_, true) => 0.0,
+        (Some(face_m), false) => ranged(face_m, face, 0.3, 2.0)?,
+        (None, false) => return Err(ContentError::Field { field: face, reason: "a car's tyre needs face_m" }),
+    };
     Ok(Tyre {
         x_m: ranged(raw.x_m, x, -6.0, 6.0)?,
         z_m: ranged(raw.z_m, z, 0.05, 1.0)?,
-        face_m: ranged(raw.face_m, face, 0.3, 2.0)?,
+        face_m,
         radius_m: ranged(raw.radius_m, radius, 0.15, 0.8)?,
-        width_m: ranged(raw.width_m, width, 0.1, 0.8)?,
+        // A bike's tyre can be narrower than any car's: the front tyre of a trail bike is 90 mm (the bike table allows 0.03 m).
+        width_m: ranged(raw.width_m, width, if bike { 0.03 } else { 0.1 }, 0.8)?,
     })
 }
 
-/// Check the table. A car with no table has none: its wheels come from `[stats]`.
-pub(super) fn check(raw: Option<Raw>) -> Result<Option<WheelLayout>, ContentError> {
+/// Check the table. A car with no table has none: its wheels come from `[stats]` (a bike's from `[bike]`). `bike` is true
+/// for a car with `kind = "bike"`.
+pub(super) fn check(raw: Option<Raw>, bike: bool) -> Result<Option<WheelLayout>, ContentError> {
     let Some(raw) = raw else { return Ok(None) };
     let front = tyre(
         raw.front,
@@ -76,10 +88,12 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<WheelLayout>, ContentErro
             "wheels.front.radius_m",
             "wheels.front.width_m",
         ],
+        bike,
     )?;
     let rear = tyre(
         raw.rear,
         ["wheels.rear.x_m", "wheels.rear.z_m", "wheels.rear.face_m", "wheels.rear.radius_m", "wheels.rear.width_m"],
+        bike,
     )?;
     if front.x_m <= rear.x_m {
         return Err(ContentError::Field { field: "wheels.front.x_m", reason: "the front axle is ahead of the rear" });
@@ -92,10 +106,14 @@ mod tests {
     use super::*;
 
     fn layout(text: &str) -> Result<Option<WheelLayout>, ContentError> {
+        layout_of(text, false)
+    }
+
+    fn layout_of(text: &str, bike: bool) -> Result<Option<WheelLayout>, ContentError> {
         let raw: Option<Raw> = toml::from_str::<std::collections::HashMap<String, Raw>>(text)
             .map(|mut tables| tables.remove("wheels"))
             .map_err(|error| ContentError::Parse(error.to_string()))?;
-        check(raw)
+        check(raw, bike)
     }
 
     const GOOD: &str = "[wheels.front]
@@ -130,9 +148,46 @@ width_m = 0.346
     }
 
     #[test]
+    fn a_bike_may_have_a_narrow_tyre_and_a_car_may_not() {
+        let narrow = GOOD.replace("0.264", "0.09");
+        let error = layout(&narrow).unwrap_err();
+        assert!(matches!(error, ContentError::Field { field: "wheels.front.width_m", .. }), "{error}");
+        let layout = layout_of(
+            &narrow
+                .replace(
+                    "face_m = 0.932
+",
+                    "",
+                )
+                .replace(
+                    "face_m = 0.983
+",
+                    "",
+                ),
+            true,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(layout.front.width_m, 0.09);
+        let too_narrow = GOOD.replace("0.264", "0.02");
+        assert!(layout_of(&too_narrow, true).is_err());
+    }
+
+    #[test]
     fn an_axle_behind_the_other_is_refused() {
         let error = layout(&GOOD.replace("x_m = 1.3", "x_m = -2.0")).unwrap_err();
         assert!(matches!(error, ContentError::Field { field: "wheels.front.x_m", .. }), "{error}");
+    }
+
+    #[test]
+    fn a_car_needs_the_face_of_its_tyres_and_a_bike_does_not() {
+        let without = GOOD.replace("face_m = 0.932\n", "").replace("face_m = 0.983\n", "");
+        let error = layout(&without).unwrap_err();
+        assert!(matches!(error, ContentError::Field { field: "wheels.front.face_m", .. }), "{error}");
+        let layout = layout_of(&without, true).unwrap().unwrap();
+        assert_eq!((layout.front.face_m, layout.rear.face_m, layout.rear.x_m), (0.0, 0.0, -1.505));
+        // A bike that gives a face is not refused; the face is not used.
+        assert_eq!(layout_of(GOOD, true).unwrap().unwrap().front.face_m, 0.0);
     }
 
     #[test]

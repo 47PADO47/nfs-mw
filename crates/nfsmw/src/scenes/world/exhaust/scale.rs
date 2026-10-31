@@ -3,6 +3,9 @@
 //! glow in each pipe, 0.3 m wide growing to 0.7 m at the peak of its alpha (`docs/formats/chameleon-nitrous.md`), so the host
 //! draws the stock flame smaller. This is the rewrite's own choice, not a reading of the 2005 game; it changes the blue lanes
 //! only, so the blow-off and the backfire keep the group's numbers.
+//!
+//! A bike's pop and shift flames are drawn smaller too ([`compact_bike`]): the lanes of a bike are the group's orange lanes at
+//! [`BIKE_FLAME_SCALE`](super::trigger::BIKE_FLAME_SCALE) of the size, reach and pipe volume.
 
 use blackbox_particles::EmitterSpec;
 
@@ -21,10 +24,50 @@ pub(super) fn compact_nitrous(spec: &EmitterSpec) -> EmitterSpec {
     spec
 }
 
+/// `spec` for the pop and shift flame of a bike: the whole flame at `factor` of its size, so the sprites, the speed they
+/// leave the pipe at, the accelerations that bend their path and the volume they start from all shrink together and the flame
+/// keeps its shape. The life, the rate and the colours are the group's.
+pub(super) fn compact_bike(spec: &EmitterSpec, factor: f32) -> EmitterSpec {
+    let mut spec = spec.clone();
+    spec.size = spec.size.map(|width| width * factor);
+    spec.speed *= factor;
+    spec.speed_variance *= factor;
+    spec.velocity_start *= factor;
+    spec.velocity_delta *= factor;
+    spec.accel_start *= factor;
+    spec.accel_delta *= factor;
+    spec.volume_center *= factor;
+    spec.volume_extent *= factor;
+    spec
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use glam::Vec3;
+
+    #[test]
+    fn a_bike_flame_is_the_whole_emitter_at_a_fraction_of_its_size() {
+        let spec = EmitterSpec {
+            size: [0.1, 0.4, 1.0, 1.5],
+            speed: 16.0,
+            speed_variance: 2.0,
+            velocity_start: Vec3::new(1.0, 2.0, 3.0),
+            accel_delta: Vec3::splat(0.5),
+            volume_extent: Vec3::new(0.0, 0.2, 0.0),
+            rate: 50.0,
+            life: 0.5,
+            ..EmitterSpec::default()
+        };
+        let small = compact_bike(&spec, 0.4);
+        assert!(small.size.iter().zip([0.04, 0.16, 0.4, 0.6]).all(|(a, b)| (a - b).abs() < 1e-6));
+        assert!((small.speed - 6.4).abs() < 1e-5 && (small.speed_variance - 0.8).abs() < 1e-5);
+        assert!((small.velocity_start - Vec3::new(0.4, 0.8, 1.2)).length() < 1e-6);
+        assert!((small.accel_delta - Vec3::splat(0.2)).length() < 1e-6);
+        assert!((small.volume_extent - Vec3::new(0.0, 0.08, 0.0)).length() < 1e-6);
+        assert_eq!((small.rate, small.life), (50.0, 0.5), "the rate and the life are the group's");
+        assert_eq!(spec.size[3], 1.5, "the source is untouched");
+    }
 
     #[test]
     fn the_nitrous_sprites_are_narrower_and_slower_and_everything_else_is_kept() {

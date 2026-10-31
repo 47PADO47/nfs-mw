@@ -19,6 +19,7 @@ fn physics() -> CarPhysics {
         geometry: None,
         events: None,
         reactions: None,
+        bike: None,
     }
 }
 

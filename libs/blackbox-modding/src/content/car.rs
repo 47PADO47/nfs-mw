@@ -2,6 +2,8 @@
 
 use serde::Deserialize;
 
+use super::bike::Bike;
+use super::bike_check;
 use super::cop::{self, CopClass, CopWave};
 use super::customization::{self, Customization};
 use super::damage_parts::{self, DamagePart, Wing};
@@ -44,11 +46,23 @@ impl Role {
     }
 }
 
+/// What drives the car's physics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Kind {
+    /// A four-wheel car, built from `[stats]` (the default).
+    #[default]
+    Car,
+    /// A two-wheel bike, built from `[bike]`.
+    Bike,
+}
+
 /// A checked `cars/<id>.toml`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CarManifest {
     /// The car id: the file name without `.toml`, in upper case. Its folder is `files/CARS/<id>/`.
     pub id: String,
+    /// Four wheels (`[stats]`) or two (`[bike]`).
+    pub kind: Kind,
     pub role: Role,
     /// The heat levels whose cop waves may use the car: ascending, no repeats. Empty when the list was left out, which
     /// the game reads as every level. Always empty for a car that is not a cop.
@@ -64,8 +78,10 @@ pub struct CarManifest {
     /// The brand, trimmed. `None` shows no brand.
     pub manufacturer: Option<String>,
     /// What the car is (`[stats]`): its mass, engine, gearbox, tyres and brakes, in absolute units. The engine's generic
-    /// car when the table is left out.
+    /// car when the table is left out, and for a bike, which is described by `bike`.
     pub stats: Stats,
+    /// What the bike is (`[bike]`): the data of the two-wheel dynamics. `Some` exactly when `kind` is [`Kind::Bike`].
+    pub bike: Option<Bike>,
     /// The car's own engine loops (`[engine_sound]`), `None` for a car with no loops of its own.
     pub engine_sound: Option<EngineSound>,
     /// The car's own paints, rims and other parts (`[customization]`). `None`: the car offers none of its own.
@@ -93,6 +109,8 @@ pub struct CarManifest {
 #[serde(deny_unknown_fields)]
 struct Raw {
     #[serde(default)]
+    kind: RawKind,
+    #[serde(default)]
     role: RawRole,
     #[serde(default)]
     heat: Option<Vec<u32>>,
@@ -106,6 +124,8 @@ struct Raw {
     manufacturer: Option<String>,
     #[serde(default)]
     stats: Option<stats::Raw>,
+    #[serde(default)]
+    bike: Option<Bike>,
     #[serde(default)]
     engine_sound: Option<engine_sound::Raw>,
     #[serde(default)]
@@ -122,6 +142,14 @@ struct Raw {
     light_bar: Option<Vec<lamp_flares::RawBar>>,
     #[serde(default)]
     traffic: Option<traffic::Raw>,
+}
+
+#[derive(Deserialize, Default, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+enum RawKind {
+    #[default]
+    Car,
+    Bike,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -164,18 +192,41 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     let cop_class = raw.cop_class.unwrap_or_default();
     let name = checked_text(raw.name, ContentError::InvalidName)?;
     let manufacturer = checked_text(raw.manufacturer, ContentError::InvalidManufacturer)?;
-    let stats = stats::check(raw.stats)?;
+    let kind = match raw.kind {
+        RawKind::Car => Kind::Car,
+        RawKind::Bike => Kind::Bike,
+    };
+    let bike = bike_check::check(raw.bike)?;
+    match (kind, bike.is_some()) {
+        (Kind::Car, true) => return Err(ContentError::BikeWithoutKind),
+        (Kind::Bike, false) => return Err(ContentError::BikeWithoutTable),
+        _ => {}
+    }
+    // A bike is described by `[bike]`; a `[stats]` table next to it is not read.
+    let stats = match kind {
+        Kind::Car => stats::check(raw.stats)?,
+        Kind::Bike => Stats::default(),
+    };
     let engine_sound = engine_sound::check(raw.engine_sound)?;
     let customization = customization::check(raw.customization)?;
     let car_sound = engine_sound::check_effects(raw.car_sound)?;
     let damage_parts = damage_parts::check(raw.damage_parts)?;
-    let wheels = wheels::check(raw.wheels)?;
+    let wheels = wheels::check(raw.wheels, kind == Kind::Bike)?;
     let wing = damage_parts::check_wing(raw.wing, &damage_parts)?;
     let lamp_flares = lamp_flares::check_flares(raw.lamp_flare)?;
     let light_bars = lamp_flares::check_bars(raw.light_bar)?;
     let traffic = traffic::check(raw.traffic, role.is_traffic())?;
+    if kind == Kind::Bike {
+        if role != Role::Player || traffic.is_some() {
+            return Err(ContentError::BikeNotPlayer);
+        }
+        if customization.as_ref().is_some_and(|table| !table.rims.is_empty()) {
+            return Err(ContentError::BikeRims);
+        }
+    }
     Ok(CarManifest {
         id: stem.to_ascii_uppercase(),
+        kind,
         role,
         heat,
         waves,
@@ -183,6 +234,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
         name,
         manufacturer,
         stats,
+        bike,
         engine_sound,
         customization,
         car_sound,

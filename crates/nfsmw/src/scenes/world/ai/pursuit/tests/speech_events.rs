@@ -32,6 +32,7 @@ fn player_car(at: Vec3, speed: f32) -> CarSim {
             geometry: None,
             events: None,
             reactions: None,
+            bike: None,
         },
         [0.2; 4],
     );

@@ -40,6 +40,7 @@ mod presentation_tests;
 mod release;
 mod remote;
 mod render;
+mod rider;
 mod rig;
 mod road_reflection;
 mod script;
@@ -131,6 +132,8 @@ pub struct Drive {
     pub tail_trails: super::tail_light_trails::TailLightTrails,
     tail_style: crate::settings::TailTrailStyle,
     rig: CarRig,
+    /// The rider of a bike, loaded from the mod's rider files the first frame the bike is drawn (`rider/mod.rs`).
+    rider: rider::Rider,
     physics: CarPhysics,
     sim: Option<CarSim>,
     /// Set while the car waits for a road: the physics does not run.
