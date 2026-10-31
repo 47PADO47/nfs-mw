@@ -20,6 +20,7 @@ fn input(stick: f32, lean: f32, speed: f32) -> LeanInput {
         cg_height: 0.8,
         front_arm: 1.0,
         target_cap: f32::MAX,
+        burnout_limit: None,
         dt: DT,
     }
 }

@@ -68,6 +68,7 @@ impl Bike {
     /// its back rather than its side.
     pub fn notify_collision(&mut self, frontal: bool) {
         self.chassis.collision_help.collide(frontal);
+        self.burnout_collision();
     }
 
     /// What a collision has added to the lean help's factor and to the stability help's, and has not faded yet.

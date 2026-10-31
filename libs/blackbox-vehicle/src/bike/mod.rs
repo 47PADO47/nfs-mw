@@ -62,7 +62,7 @@ mod wheel;
 mod wheel_step;
 
 pub use brake_reduction::{BrakeReduction, RangeMap, WheelReduction};
-pub use burnout::BurnoutSpec;
+pub use burnout::{BurnoutSpec, HelpSpec as BurnoutHelpSpec};
 pub use clutch_control::{ClutchControl, ForcedDownshift, OverLimit};
 pub use engine_brake::EngineBrakeReduction;
 pub use frame::RestPose;
@@ -162,6 +162,8 @@ pub struct Bike {
     reverse: ReverseState,
     /// Whether the bike is in a burnout (the reference's `IsDoingBurnout`, `burnout.rs`), as of the last sub-step.
     burnout: bool,
+    /// The burnout help force's filter, throttle and collision cut (`burnout.rs`).
+    burnout_help: burnout::HelpState,
 }
 
 impl Bike {
@@ -229,6 +231,7 @@ impl Bike {
             departure: release::Departure::default(),
             reverse: ReverseState::default(),
             burnout: false,
+            burnout_help: burnout::HelpState::default(),
         }
     }
 
@@ -291,6 +294,7 @@ impl Bike {
         self.chassis.reset(&self.spec.fall);
         self.reverse.reset();
         self.burnout = false;
+        self.burnout_help = burnout::HelpState::default();
         self.powertrain = Powertrain::new(&self.spec.engine, &self.spec.transmission);
         self.powertrain.match_speed(&self.spec.engine, &self.spec.transmission, spin, self.spec.rear.radius);
         true
@@ -368,7 +372,7 @@ impl Bike {
         let (front_lever, rear_lever) =
             brakes::joined(&brakes, help.brake, input.rear_brake, speed.abs() > choices::STANDING_SPEED);
         let (front_lever, rear_lever) = self.step_reverse(dt, speed, input).levers(front_lever, rear_lever);
-        let (front_lever, rear_lever) = self.step_burnout(input, speed, (front_lever, rear_lever));
+        let (front_lever, rear_lever) = self.step_burnout(dt, input, speed, (front_lever, rear_lever));
         // A bike braked hard in a lean has no grip left for the lean (the front tyre's force is spent on the brake, the rear wheel is
         // unloaded): the levers give way as the lean nears its limit (`choices::BRAKE_LEAN_RELIEF`).
         let lean_share = (lean_of(rotation).abs() / self.plan.limit.max(choices::MIN_LEAN_LIMIT)).min(1.0);
@@ -400,9 +404,10 @@ impl Bike {
             None => 0.0,
         };
         // The traction control and the rider help each cut what the other leaves.
-        // (No cut from the traction control in a burnout: the rear wheel is meant to spin.)
-        let traction_cut = traction_cut * f32::from(!self.burnout);
+        // (In a burnout the control's cut stays, shaped by its speed window, unless the element clears `bTCSLowSpeedModulationForBurnout`.)
+        let traction_cut = self.burnout_traction_cut(traction_cut);
         let traction_cut = 1.0 - (1.0 - traction_cut) * (1.0 - help.engine_cut);
+        self.note_drive_throttle(throttle * (1.0 - traction_cut));
         let radius =
             tyre::effective_radius(&self.spec.rear, self.wheels[REAR].camber, self.wheels[REAR].tyre_compression);
         let drive = self.powertrain.drive(

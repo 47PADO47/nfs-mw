@@ -142,6 +142,7 @@ impl Bike {
             cg_height: cog.y,
             front_arm,
             target_cap: self.block_cap(speed),
+            burnout_limit: self.burnout_lean_limit(),
             dt,
         };
         let plan = self.lean.plan(steering, &input);
@@ -233,7 +234,13 @@ impl Bike {
         };
         let input = lean::help::HelpInput { speed: speed.abs(), heading_error: self.heading_error(), pedals };
         // A collision adds to the help for a moment (`choices::COLLISION_LEAN_HELP`).
-        let share = (lean::help::help_factor(spec, &input) + self.chassis.collision_help.lean).clamp(0.0, 1.0);
+        // In a burnout the help factor is 1 and the balance 0: the help is all couple (`ride6-chassis-round6.md`, sections 2.1 and 2.2).
+        let factor = match self.burnout {
+            true => 1.0,
+            false => lean::help::help_factor(spec, &input),
+        };
+        let balance = balance * f32::from(!self.burnout);
+        let share = (factor + self.chassis.collision_help.lean).clamp(0.0, 1.0);
         if share <= 0.0 {
             return;
         }
@@ -259,7 +266,7 @@ impl Bike {
     /// wheels' distance from the ground and switches it off beyond 30 cm; here any wheel in the air counts as far).
     fn apply_stability_help(&mut self, dt: f32, speed: f32, input: &BikeInput) {
         let spec = &self.spec.steering.lean.stability;
-        if spec.speed.is_empty() || !self.wheels[FRONT].on_ground || !self.wheels[REAR].on_ground {
+        if spec.speed.is_empty() || self.burnout || !self.wheels[FRONT].on_ground || !self.wheels[REAR].on_ground {
             return;
         }
         let rotation = self.body.rotation();
@@ -303,6 +310,7 @@ impl Bike {
         if !self.fallen {
             self.apply_lean_help(speed, pedals);
             self.apply_stability_help(dt, speed, input);
+            self.apply_burnout_help(dt, input.steer);
             self.apply_pitch_assist(dt, speed);
             // The spin momentum of the wheels, turned by the bike's yaw, torques the frame about its length (a yaw to the right
             // rolls it to the left); turned by its roll, it torques the frame about the vertical (a roll to the left yaws it to

@@ -158,6 +158,7 @@ fn the_lean_limit_rises_leaning_into_a_rising_road_and_falls_leaning_off_it() {
         cg_height: 0.8,
         front_arm: 1.0,
         target_cap: f32::MAX,
+        burnout_limit: None,
         dt: FIXED_STEP,
     };
     let flat = lean_limit(&steering, &input(1.0, 0.0));

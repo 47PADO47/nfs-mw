@@ -43,6 +43,8 @@ pub struct LeanInput {
     pub front_arm: f32,
     /// The most the target lean may be (rad): the block-fall assist's hold; infinite when it is off.
     pub target_cap: f32,
+    /// The burnout's lean limit (rad), which stands in place of every term of the limit while the burnout flag is set; `None` out of one.
+    pub burnout_limit: Option<f32>,
     pub dt: f32,
 }
 
@@ -71,6 +73,10 @@ pub struct Lean {
 /// The lean limit (rad) for a front tyre of friction coefficient `lateral_grip` at this speed and slide.
 pub fn lean_limit(steering: &SteeringSpec, input: &LeanInput) -> f32 {
     let spec = &steering.lean;
+    // A burnout with a lean limit of its own: that limit and nothing else (`ride6-lean-controller.md`, "The effective lean limit", case 1).
+    if let Some(limit) = input.burnout_limit {
+        return limit;
+    }
     let grip = input.lateral_grip.max(0.0).atan() * choices::LATERAL_GRIP_TOLERANCE;
     let mut limit = grip.min(steering.max_lean);
     if input.speed < spec.stopped_speed {

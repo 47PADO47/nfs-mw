@@ -99,6 +99,7 @@ fn input_at(long_g: f32) -> LeanInput {
         cg_height: 0.8,
         front_arm: 1.0,
         target_cap: f32::MAX,
+        burnout_limit: None,
         dt: FIXED_STEP,
     }
 }
