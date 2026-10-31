@@ -114,6 +114,8 @@ impl Enhanced {
         }
     }
 
+    /// Advance by `dt` with a burst of the event's own size (what the tests use; the game goes through [`Self::step_sized`]).
+    #[cfg(test)]
     pub fn step(&mut self, dt: f32, car: &super::CarState, event: Option<crate::garage::BackfireEvent>) {
         self.step_sized(dt, car, event.map(|event| (event, 1.0)));
     }

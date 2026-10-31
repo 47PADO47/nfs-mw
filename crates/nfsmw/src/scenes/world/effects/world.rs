@@ -42,6 +42,7 @@ impl WorldScene {
         let cutscene = self.cutscene_playing();
         let environment = self.environment_effects(renderer);
         let rain = self.rain_effects(position);
+        let helmet_camera = self.bike_helmet_active();
         let Some(drive) = self.players.lead_mut() else {
             let mut layer = EffectLayer::default();
             layer.textured.extend(environment);
@@ -66,6 +67,7 @@ impl WorldScene {
         drive.maintain_rider(renderer, &self.dir);
         let arrested = self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active());
         drive.set_rider_hidden(arrested);
+        drive.set_first_person(helmet_camera);
         drive.effects.set_tint(self.tuning.smoke_tint);
         let mut appearance = self.garage.applied.exhaust.clone();
         appearance.set_style(self.tuning.exhaust_style);

@@ -118,6 +118,7 @@ fn sound_command(argv: &[String]) -> Option<Result<()>> {
         "ids" => Some(cli::ids(rest)),
         "remanifest" => Some(cli::remanifest(rest)),
         "contacts" => Some(cli::contacts(rest)),
+        "cameras" => Some(cli::cameras(rest)),
         _ => None,
     }
 }

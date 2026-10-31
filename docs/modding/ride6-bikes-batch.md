@@ -180,3 +180,19 @@ from the silencer mesh while the geometry is built, so a bike imported before th
 
 The car ids of a set are assigned as the batch import assigns them. The import stamp's conversion number went to 2 for this, so a
 mod started with the native library converts everything once more; the command above does not.
+
+## The cameras (`cameras`)
+
+Every bike the importer writes gets a `[bike.camera]` table in its manifest: the two chase cameras, the camera ahead of the bike and the
+rider's helmet camera, read from RIDE 6's camera container of the bike (`<dump>/resolved/content/assets/data/cameras/Containers/`,
+with the class's and the root base container behind it) and moved from the skeleton's frame to the model's with the hubs of
+`[wheels]` and `RIDER/contacts.json`, so a bike needs its contact points first ([specs/ride6-bike-cameras.md](../specs/ride6-bike-cameras.md),
+[provenance](../provenance/ride6-bike-cameras.md)). A bike whose container is not found (a model year apart is matched; 16 of the 293 are not)
+is listed and gets cameras derived from its wheelbase by the game. To add the tables to bikes imported before, without converting any
+mesh (the command writes only the tables into `cars/<id>.toml` and replaces them if they are there):
+
+```
+ride6-bike-import cameras <exporter output, or one bike's folder> <mod folder> --physics <dump>
+```
+
+The import stamp's conversion number was not changed for this: a mod started with the native library does not convert again for it.

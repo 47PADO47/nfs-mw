@@ -6,6 +6,8 @@
 //! the mod's files exist, is for the game to decide, because only the game knows its car tables and its index.
 
 mod bike;
+mod bike_burnout;
+mod bike_camera;
 mod bike_check;
 mod bike_check_parts;
 mod bike_help;
@@ -13,7 +15,13 @@ mod bike_lean;
 mod bike_parts;
 mod bike_reduction;
 #[cfg(test)]
+mod bike_ride_burnout;
+#[cfg(test)]
+mod bike_ride_flick;
+#[cfg(test)]
 mod bike_ride_hazards;
+#[cfg(test)]
+mod bike_ride_radius;
 #[cfg(test)]
 mod bike_ride_real;
 #[cfg(test)]
@@ -75,8 +83,9 @@ mod wind_fx;
 mod xenon_variant;
 
 pub use bike::{
-    Bike, Brakes as BikeBrakes, Chassis as BikeChassis, Damper as BikeDamper, Engine as BikeEngine, MF_A, MF_B, MF_C,
-    Rider as BikeRider, Steering as BikeSteering, Suspension as BikeSuspension, Transmission as BikeTransmission,
+    Bike, Brakes as BikeBrakes, Camera as BikeCamera, CameraChase as BikeCameraChase, CameraFront as BikeCameraFront,
+    CameraHelmet as BikeCameraHelmet, Chassis as BikeChassis, Damper as BikeDamper, Engine as BikeEngine, MF_A, MF_B,
+    MF_C, Rider as BikeRider, Steering as BikeSteering, Suspension as BikeSuspension, Transmission as BikeTransmission,
     Tyre as BikeTyre, Wheel as BikeWheel,
 };
 pub use car::{CarManifest, Kind as CarKind, Role, parse as parse_car};

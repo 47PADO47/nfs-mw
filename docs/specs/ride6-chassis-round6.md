@@ -234,7 +234,7 @@ track and weather (51 tracks, 7 weather names, 298 rows) with five times of day 
 
 The wheel's runtime `SlipCorrectionMultiplier` is written in one place: the handler's per-step wheel set-up. It is **1** except in a
 burnout, where it is the handler's `BurnoutSlipCorrectionMultiplier` (0.9 for the supermoto, 1 default); the same set-up gives the rear wheel's two grip scales the
-handler's `BurnoutGripMultiplier` (0.15 for the supermoto) and 1 otherwise [B, the setters' names I]. Wet roads act through the tyre's grip tables and `WetPercentage`, not here. The model has no burnout, so 1.
+handler's `BurnoutGripMultiplier` (0.15 for the supermoto) and 1 otherwise [B, the setters' names I]. Wet roads act through the tyre's grip tables and `WetPercentage`, not here. The model has the burnout since round 11 ([ride6-burnout](ride6-burnout.md), which also corrects the default: the slip correction's constructor default is 0, not 1).
 
 ## 7. The end of the suspension travel
 

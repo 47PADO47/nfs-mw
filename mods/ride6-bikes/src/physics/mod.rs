@@ -10,6 +10,7 @@
 //! What the meshes give (the wheels' radius and width, the hubs and the body box) is passed in as [`Geometry`].
 
 pub mod brakes;
+pub mod burnout;
 pub mod chassis;
 pub mod curve;
 pub mod damping;
@@ -120,5 +121,6 @@ pub fn bike_table(vehicle: &Vehicle, geometry: &Geometry) -> Result<(String, Vec
     tcs::write(&mut t, vehicle)?;
     input_axes::write(&mut t, vehicle)?;
     reverse::write(&mut t, vehicle)?;
+    burnout::write(&mut t, vehicle)?;
     Ok(t.into_parts())
 }

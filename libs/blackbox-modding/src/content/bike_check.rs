@@ -60,6 +60,8 @@ pub(super) fn check(bike: Option<Bike>) -> Result<Option<Bike>, ContentError> {
         100_000.0,
     )?;
     bike.rider.check()?;
+    bike.camera.check()?;
+    bike.burnout.check()?;
     ranged(bike.gyro_roll_scale, "bike.gyro_roll_scale", 0.0, 10.0)?;
     ranged(bike.gyro_yaw_scale, "bike.gyro_yaw_scale", 0.0, 10.0)?;
     ranged(bike.drag, "bike.drag", 0.0, 3.0)?;

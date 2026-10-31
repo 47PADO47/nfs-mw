@@ -374,6 +374,7 @@ impl BikeSpec {
             gyro_yaw_scale: 1.0,
             drag: 0.15,
             reverse: None,
+            burnout: super::burnout::BurnoutSpec::default(),
         }
     }
 }

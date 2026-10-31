@@ -24,9 +24,11 @@
 mod abs_level;
 mod brake_reduction;
 mod brakes;
+mod burnout;
 pub mod choices;
 mod clutch_control;
 mod curve;
+mod drive_input;
 mod engine_brake;
 mod example;
 mod filter;
@@ -44,6 +46,7 @@ mod readout;
 mod release;
 mod reverse;
 mod rider;
+mod rider_inputs;
 pub mod rider_place;
 mod rider_rotation;
 mod rider_spec;
@@ -59,6 +62,7 @@ mod wheel;
 mod wheel_step;
 
 pub use brake_reduction::{BrakeReduction, RangeMap, WheelReduction};
+pub use burnout::BurnoutSpec;
 pub use clutch_control::{ClutchControl, ForcedDownshift, OverLimit};
 pub use engine_brake::EngineBrakeReduction;
 pub use frame::RestPose;
@@ -139,6 +143,8 @@ pub struct Bike {
     tuck: f32,
     placement: Vec3,
     last_velocity: Vec3,
+    /// The body's acceleration over the last sub-step (m/s^2, world frame): what the reference's IMU reads for the g-force.
+    acceleration: Vec3,
     /// How long (s) the forces left in the body by the last sub-step stand for; 0 when there are none.
     substep: f32,
     /// How long the block-fall assist has held the lean back, and how long it still waits (s).
@@ -154,6 +160,8 @@ pub struct Bike {
     chassis: ChassisState,
     /// The rider holding the brake with the bike standing, to walk it backwards (`reverse.rs`).
     reverse: ReverseState,
+    /// Whether the bike is in a burnout (the reference's `IsDoingBurnout`, `burnout.rs`), as of the last sub-step.
+    burnout: bool,
 }
 
 impl Bike {
@@ -211,6 +219,7 @@ impl Bike {
             tuck: 0.0,
             placement: base_offset,
             last_velocity: Vec3::ZERO,
+            acceleration: Vec3::ZERO,
             substep: 0.0,
             block_held: 0.0,
             block_wait: 0.0,
@@ -219,6 +228,7 @@ impl Bike {
             held: BikeInput::default(),
             departure: release::Departure::default(),
             reverse: ReverseState::default(),
+            burnout: false,
         }
     }
 
@@ -272,6 +282,7 @@ impl Bike {
         self.weight_lateral.reset();
         self.placement = self.spec.rider.base_offset;
         self.last_velocity = self.body.linear_velocity;
+        self.acceleration = Vec3::ZERO;
         self.substep = 0.0;
         self.remember_motion();
         self.remember_motion();
@@ -279,60 +290,10 @@ impl Bike {
         self.block_wait = 0.0;
         self.chassis.reset(&self.spec.fall);
         self.reverse.reset();
+        self.burnout = false;
         self.powertrain = Powertrain::new(&self.spec.engine, &self.spec.transmission);
         self.powertrain.match_speed(&self.spec.engine, &self.spec.transmission, spin, self.spec.rear.radius);
         true
-    }
-
-    /// The rider's weight on the bike, -1 (fully back) to 1 (fully forward). It moves the combined centre of gravity and
-    /// asks the wheelie and stoppie control for a pitch.
-    pub fn set_weight(&mut self, weight: f32) {
-        self.weight_input = match weight.is_finite() {
-            true => weight.clamp(-1.0, 1.0),
-            false => 0.0,
-        };
-    }
-
-    /// The rider's weight now (-1 back to 1 forward): the weight the rider help aims at after the rate limit of the input
-    /// channel. It differs from the one set with [`Bike::set_weight`] while the auto-rider has the weight.
-    pub fn rider_weight(&self) -> f32 {
-        self.weight.value()
-    }
-
-    /// The rider's lateral weight, -1 (to the left) to 1 (to the right): with the lean it asks for the hang-off (the lateral
-    /// shift of his place, `RiderSpec::weight_influence`).
-    pub fn set_weight_lateral(&mut self, weight: f32) {
-        self.weight_lateral_input = match weight.is_finite() {
-            true => weight.clamp(-1.0, 1.0),
-            false => 0.0,
-        };
-    }
-
-    /// How far the rider tucks in behind the screen, 0 (upright) to 1: it scales the air drag by the rider's drag curve.
-    pub fn set_tuck(&mut self, tuck: f32) {
-        self.tuck = match tuck.is_finite() {
-            true => tuck.clamp(0.0, 1.0),
-            false => 0.0,
-        };
-    }
-
-    /// Where the rider's centre of mass is from his rest place on the bike, in the body frame (m; x right, y up, z forward): the
-    /// place the weight, the lean and the speed ask for plus how far his spring has let him move.
-    pub fn rider_offset(&self) -> Vec3 {
-        self.placement + self.rider_body.deflection
-    }
-
-    /// The rider's body against the bike's attitude (see [`RiderRotation`]).
-    pub fn rider_rotation(&self) -> &RiderRotation {
-        &self.rider_rotation
-    }
-
-    /// The wake of a vehicle ahead, 0 to 1: the share of the air drag it takes away (see [`Slipstream`]). 0 on an empty road.
-    pub fn set_slipstream(&mut self, share: f32) {
-        self.slipstream = match share.is_finite() {
-            true => share.clamp(0.0, 1.0),
-            false => 0.0,
-        };
     }
 
     /// Advance the bike by `dt` seconds: [`Bike::begin_body`], then [`Bike::respond`].
@@ -407,6 +368,7 @@ impl Bike {
         let (front_lever, rear_lever) =
             brakes::joined(&brakes, help.brake, input.rear_brake, speed.abs() > choices::STANDING_SPEED);
         let (front_lever, rear_lever) = self.step_reverse(dt, speed, input).levers(front_lever, rear_lever);
+        let (front_lever, rear_lever) = self.step_burnout(input, speed, (front_lever, rear_lever));
         // A bike braked hard in a lean has no grip left for the lean (the front tyre's force is spent on the brake, the rear wheel is
         // unloaded): the levers give way as the lean nears its limit (`choices::BRAKE_LEAN_RELIEF`).
         let lean_share = (lean_of(rotation).abs() / self.plan.limit.max(choices::MIN_LEAN_LIMIT)).min(1.0);
@@ -438,6 +400,8 @@ impl Bike {
             None => 0.0,
         };
         // The traction control and the rider help each cut what the other leaves.
+        // (No cut from the traction control in a burnout: the rear wheel is meant to spin.)
+        let traction_cut = traction_cut * f32::from(!self.burnout);
         let traction_cut = 1.0 - (1.0 - traction_cut) * (1.0 - help.engine_cut);
         let radius =
             tyre::effective_radius(&self.spec.rear, self.wheels[REAR].camber, self.wheels[REAR].tyre_compression);
@@ -453,6 +417,7 @@ impl Bike {
                 radius,
                 lean: share_of_limit,
                 traction_cut,
+                burnout: self.burnout,
                 wheel_inertia: self.spec.rear.inertia,
                 traction_torque: self.wheels[REAR].traction * radius,
                 brake_torque: brake[REAR],
@@ -486,6 +451,8 @@ mod release_tests;
 mod rider_tests;
 #[cfg(test)]
 mod round10_tests;
+#[cfg(test)]
+mod round11_tests;
 #[cfg(test)]
 mod round9_tests;
 #[cfg(test)]

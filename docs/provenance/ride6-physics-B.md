@@ -109,3 +109,26 @@ Spec: [ride6-feel-round9.md](../specs/ride6-feel-round9.md). Build `5.6.1-169700
 | Lean help neutral blend | `0x1450c3ae0` (end: `+0x4a8` to `+0x4d0` blend the point of application), force zero without the front contact (`+0xd1c`) | read |
 | Handlebar filter | `0x1450f9020` (coefficients), `0x1450f9120` (step) | read: the model's filter matches |
 | Camber | `0x145150050`: `asin(chassis right . N) + static terms` | read, not changed |
+
+## Round 11 (the flicked stick with the throttle open, the g-force of the lean limit)
+
+Spec: [ride6-feel-round11.md](../specs/ride6-feel-round11.md). Build `5.6.1-1697004`, image-relative addresses; headless Ghidra on a private copy of the project
+(`proj-B11`), disassembly of `0x50c3ae0` to `0x50c3d40` (`R6Disasm`), decompilation of the IMU update (`R6HDecomp`), byte search of the executable for the
+displacements `0x1850` and `0x1858`.
+
+| Topic | Functions | How verified |
+|---|---|---|
+| Load the lean help's limit is worked out at | `0x1450c3ae0`, `0x1450c3b6f` to `0x1450c3beb`: with the front contact flag (wheel `+0x28`) set, the load is `max(wheel +0x154, RestLoad +0xd40)` (`RestLoad` is a pair of doubles, front first); without it, `(1 - s x k) x RestLoad.x`, `s` from the chassis' `+0x1a28` through the range at handler `+0x4e8` (or `+0x1a2c` when the range is unset), `k` at `+0x4f8` | disassembly: `MOVSS XMM0,[RBX+0x154]`, `MAXSD XMM0,[RCX+0xd40]`; the else branch calls `0x1450ba6a0` and `MULSD XMM0,[RDI+0xd40]`; the result times `[RDI+0xd5c]` is the argument of `0x145158200` (longitudinal peak) and `0x145158120` (lateral peak) |
+| The limit of the help | `0x1450c3d0b`: `cap = LeanHelpLimit (+0x4fc) x peakY x sqrt(1 - (|F_rest| x ... / peakX)^2)` where `F_rest` is the tyre force without its side part; applied only when `|actual| < |ideal|` | read; matches the model's formula, which used the load of the moment |
+| Force share without a front contact | end of `0x1450c3ae0`: `+0xd1c` (the balance) is set to 0 when `[front +0x28] == 0`; the force acts at the contact with that share, and `(1 - share) x (point - CG) x force` is added as a torque (`0x1450ff5f0`) | read: nothing returns early on a missing contact, so the help goes on as a pure couple |
+| IMU g-force | `0x14513c270` (and its chunks `0x14513c2cc`, `0x14513c78e`): chassis `+0x1850` = `-(a . R(0,1,0)) / |g|`, `+0x1858` = `(a . R(1,0,0)) / |g|`, `R` the chassis quaternion at `+0x15f0`, `a` from `0x1450d6660(chassis +0x1af0)`, `|g|` the length of the vector at `+0x1d00` | decompilation; the two constant vectors read from the image (`0x148f950b0` = (0, 1), `0x148fbb060` = (1, 0)); the chassis frame is x forward, y right, z up (round 9, `0x1450c9320`) |
+| Reader of the g-force in the lean limit | `0x14510b180`: `LeanLimitGForceTuning` (`+0x1af8`) is evaluated at `*(double*)(chassis + 0x1858)`, the absolute value when `+0x1ba0` is set | decompilation (lines around the second translator of the function) |
+| Peak lean limit curves | `LeanLimitGForceTuning*.json`: default 1 at 0 g to 0.825 at 2 g, baggers 0.87 at 1 g, supermotard 0.9 at 1.1 g | data |
+
+Not settled: the default of the absolute-value flag at `+0x1ba0` (the port takes the absolute value: braking takes lean limit like driving); the meaning of the
+flag at wheel `+0x28` is read as "the tyre touches" (the stability help uses `+0x29` for "the ray hit is known"); the values of the handler's `+0x4e8` range and
+`+0x4f8` (constructor defaults, not read), so the fade of the help with the front wheel's ground distance is not modelled.
+
+Rust: `libs/blackbox-vehicle/src/bike/handling.rs` (`apply_lean_help`, the acceleration kept by `shift_weight`), `lean.rs` (`LeanInput::long_g`), `choices.rs`
+(`STICK_SHARE_AT_TOP`), `round11_tests.rs`; harness `libs/blackbox-modding/src/content/bike_ride_flick.rs`, `bike_ride_radius.rs`; host test `drive/sim/bike_ride_tests.rs`.
+

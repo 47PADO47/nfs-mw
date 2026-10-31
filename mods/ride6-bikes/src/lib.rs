@@ -17,6 +17,7 @@ pub mod bake;
 pub mod batch;
 pub mod bike_table;
 pub mod build;
+pub mod camera;
 pub mod cli;
 pub mod config;
 pub mod exhaust;

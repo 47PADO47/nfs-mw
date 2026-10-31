@@ -42,7 +42,8 @@ impl WorldScene {
             model.car_type.as_deref().unwrap_or(&name),
         );
         self.camera_environment.views = nfsmw_data::camera::load_car(self.physics.database(), &name)
-            .or_else(|| nfsmw_data::camera::load(self.physics.database()));
+            .or_else(|| nfsmw_data::camera::load(self.physics.database()))
+            .map(|views| bike_views(&name, views));
         self.original_camera.reset();
         self.original_player_step = None;
         let rig = CarRig::upload(renderer, keys::PLAYER_CAR, model, self.car_shading, sun::to_sun());
@@ -92,4 +93,15 @@ impl WorldScene {
         }
         Ok(())
     }
+}
+
+/// The original camera's views for the car `name`: a bike's are made from its camera set (`viewer/camera/bike.rs`), a car's are
+/// the ones the data gives.
+fn bike_views(name: &str, views: nfsmw_data::camera::Views) -> nfsmw_data::camera::Views {
+    let (Some(rig), Some(spec)) = (nfsmw_data::car::mods::bike_camera::of(name), nfsmw_data::car::mods::bike::of(name))
+    else {
+        return views;
+    };
+    // The original camera's anchor is the bike's centre of gravity.
+    crate::viewer::camera::bike::views(&rig, spec.chassis.cg_height, &views)
 }

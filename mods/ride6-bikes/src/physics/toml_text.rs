@@ -46,6 +46,17 @@ impl Toml {
         let _ = writeln!(self.text, "{key} = {}", number(value));
     }
 
+    /// A string value.
+    pub fn string(&mut self, key: &str, value: &str) {
+        let _ = writeln!(self.text, "{key} = {}", quote(value));
+    }
+
+    /// A list of strings.
+    pub fn strings(&mut self, key: &str, values: &[&str]) {
+        let items: Vec<String> = values.iter().map(|value| quote(value)).collect();
+        let _ = writeln!(self.text, "{key} = [{}]", items.join(", "));
+    }
+
     pub fn nums(&mut self, key: &str, values: &[f64]) {
         let items: Vec<String> = values.iter().map(|&v| number(v)).collect();
         let _ = writeln!(self.text, "{key} = [{}]", items.join(", "));

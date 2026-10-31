@@ -3,6 +3,7 @@ mod ai;
 mod ambient_fx;
 mod breaker_icons;
 mod breaker_visuals;
+mod camera_bike;
 mod camera_choice;
 mod camera_cycle;
 mod camera_original;

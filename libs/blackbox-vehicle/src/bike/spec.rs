@@ -44,6 +44,8 @@ pub struct BikeSpec {
     pub drag: f32,
     /// Reverse by walking the bike back; `None` for a bike without one (`super::reverse`).
     pub reverse: Option<super::reverse::ReverseSpec>,
+    /// The burnout: the rear tyre's grip and slip correction with the front brake held and the throttle open (`super::burnout`).
+    pub burnout: super::burnout::BurnoutSpec,
 }
 
 /// Frame, mass and steering geometry.

@@ -286,6 +286,10 @@ steer_fall = 6.0
 force_n = 2000.0               # holding the front brake with the bike standing for hold_s pushes it back with this force (N) ...
 max_speed_mps = 1.25           # ... which dies away as the speed backwards nears this (m/s), and the brakes are let go
 hold_s = 0.5
+[bike.burnout]                 # optional (left out: the road bikes' handler): the rear tyre while the front brake and the throttle are held
+grip = 0.05                    # factor on the rear tyre's longitudinal and lateral grip (RIDE 6: 0.05, the supermotos 0.15)
+slip_correction = 0.0          # factor on its slip correction (the constructor's 0; the supermotos 0.9)
+speed_limit_kmh = 5.0          # only below this speed (the constructor's 5)
 # [bike.wheelie] (optional): wheelie and stoppie assist and the rider help. [bike.wheelie.wheelie] and [bike.wheelie.stoppie]
 # have deadzone, max_angle_rad, speed_ramp_mps, help_speed, lean_help, lookahead_s, min_speed_mps, acceleration,
 # acceleration_time_s, ground_range_m, lean_limit_rad, lean_pitch_range_rad; [bike.wheelie] itself has
@@ -302,6 +306,18 @@ hold_s = 0.5
 # forward_weight_tucks (optional, default true): a rider weight pushed forward beyond the dead zone still tucks him in (false: the
 # reference's rule, a weight beyond the dead zone on either side stands him up). docs/specs/ride6-weight-round9.md, section 3.
 # [bike.wheelie.help] also takes tuck_raise_rate and tuck_fall_rate (1/s, default 2): the tuck level the animation reads.
+
+[bike.camera.chase_near]       # optional (left out: derived from the wheelbase): the bike's cameras, in the model's frame (x forward, y left, z up)
+distance_m = 3.3               # behind the model's origin; height_m is above the ground; the camera looks at target_ahead_m, target_height_m
+height_m = 1.0
+target_ahead_m = 0.3
+target_height_m = 0.7
+fov_deg = 85.6                 # horizontal, at 16:9. [bike.camera.chase_far] has the same keys
+# [bike.camera.front] (the camera ahead of the bike): position_m, look_back (default false), pitch_deg (up positive), fov_deg, near_m (0.1),
+#   pitch_factor and roll_factor (0 to 1: the share of the bike's pitch and roll it takes; 0 keeps the horizon).
+# [bike.camera.helmet] (inside the rider's helmet): eye_bones (the rider's bones whose middle is the eye), head_bone, head_eye_offset_m,
+#   hide_meshes (the rider's meshes not drawn from inside), fixed_position_m (without a rider), pitch_deg, fov_deg, near_m, pitch_factor,
+#   roll_factor, follow_roll_max_deg (the lean followed beyond roll_factor, up to this much). docs/specs/ride6-bike-cameras.md
 ```
 
 The numbers above are the generic example bike of the library (`BikeSpec::example`, a 450 cc supermoto-class machine with its
@@ -411,17 +427,22 @@ ride6-bikes-batch.md#the-riders-contact-points-contacts)). Another game's conver
 | Input | Bike |
 |---|---|
 | Throttle | the throttle (cut by the rider help when the front lifts, if `[bike.wheelie]` is there) |
-| Brake pedal | the front and the rear brake together (and the linked brakes of `joined_factor`) |
-| Handbrake | the rear brake alone (the input layer has one brake axis, so the front brake alone has no key) |
+| Brake pedal | the front and the rear brake together (and the linked brakes of `joined_factor`); **with the throttle open and the bike under 5 km/h it is the front brake alone: a burnout (below)** |
+| Handbrake | the rear brake alone (the input layer has one brake axis, so the front brake alone has no key); held beyond the pedal it is no burnout |
 | Rider weight (`rider_weight` axis) | forward / back: a stoppie under the front brake, a wheelie under the throttle (below). **Keys: G forward, V back (Numpad 8 / 2). Pad: the left stick, Y: up forward, down back, together with X steering; the lever reads its end at 0.9 of the stick's travel past the dead zone.** |
 | ABS level (`abs_level` button) | **Key J, pad left-stick click:** each press goes to the next lower level, 1, 0.75, 0.5, 0.25, 0, then 1 again (the new level is written to the log, `ABS level 0.5`) |
 | Steering | the stick: the rider's lean controller prescribes the lean the stick points to and picks the handlebar angle that makes the front tyre give the side force it needs (counter-steering included) |
 | Gear shift keys, gear keys, clutch | not read: the gearbox is automatic |
 | Nitrous | not read: a bike has none |
 | Reset | as for a car |
+| Camera (**C**), look back (**B**) | each mode of the camera setting has a bike's own view (below); look back turns the helmet camera round and the front camera ahead |
 
 Behaviour specific to bikes:
 
+- **Cameras.** `chase` and `dynamic-fov` are made to the bike's size, `close`, `far`, `superfar`, `drift` and `pursuit` are the
+  original views with the bike's chase numbers, **`bumper` is a camera ahead of the bike looking back at it and the road** and **`hood` is
+  the rider's helmet camera, at his eyes with his helmet and visor not drawn**; the bike and its rider are drawn in every one. A bike with no
+  `[bike.camera]` gets cameras derived from its wheelbase. Cars keep the original views ([ride6-bike-cameras.md](../specs/ride6-bike-cameras.md)).
 - **No reverse.** The brake stops the bike and holds it; it never selects reverse.
 - **Falling.** A lean beyond the ground limit (`fall.lean_rad`, or the grip-following one), a pitch beyond `fall.pitch_rad`, an angular
   speed beyond `fall.angular_speed` (all at any speed), or (above `fall.min_speed_mps`) a heading error beyond its limit is a fall. The rider **leaves the bike**: his mass and his spring stop acting on it (the bike goes on under its own mass), the
@@ -430,6 +451,11 @@ Behaviour specific to bikes:
   collision box, slowed only by the ground's friction, and once it has lain still for 2 s is stood up again where it is, facing the
   way it did, with the rider back on it. A velocity against the heading with the lean under `fall.highside_lean_rad` is a high
   side, otherwise a low side. The fall is not damage ([ride6-rider-fall.md](../specs/ride6-rider-fall.md)).
+- **Burnout.** Hold the **brake** (the pedal) and the **throttle** together with the bike under 5 km/h: the front brake holds the bike,
+  the rear brake is let go and the rear tyre keeps `[bike.burnout].grip` (0.05) of its grip, so the rear wheel spins up on the spot in
+  under half a second, with smoke and a black mark; the bike stays within about a metre. Let the brake go and it launches with the rear
+  still spinning. The handbrake held beyond the pedal, or no front brake, is no burnout
+  ([ride6-burnout.md](../specs/ride6-burnout.md)). Pad: both triggers, brake and throttle; keyboard: both keys.
 - **Race grid.** The rider holds the bike with both brakes while the race is staged; there is no launch assist.
 - **Gauges and sound.** The tachometer, the gear display and the engine sound follow the bike's rpm and gear; the engine loops are
   the car's own `[engine_sound]` or the built-in engine.

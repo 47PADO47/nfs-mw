@@ -15,6 +15,8 @@
 use blackbox_vehicle::bike::{BikeSpec, ChassisSpec, InputRates, Mf94, ReverseSpec, TcsSpec, WheelSpec};
 use serde::Deserialize;
 
+pub use super::bike_burnout::Burnout;
+pub use super::bike_camera::{Camera, Chase as CameraChase, Front as CameraFront, Helmet as CameraHelmet};
 pub use super::bike_help::AbsLevel;
 pub use super::bike_parts::{Brakes, Damper, Engine, Fall, Steering, Suspension, Transmission, Wheelie};
 pub use super::bike_rider::Rider;
@@ -65,6 +67,12 @@ pub struct Bike {
     /// Walking the bike backwards (`[bike.reverse]`); left out for a bike without a reverse.
     #[serde(default)]
     pub reverse: Option<Reverse>,
+    /// The rear tyre in a burnout (`[bike.burnout]`, `bike_burnout.rs`); left out: the road bikes' handler.
+    #[serde(default)]
+    pub burnout: Burnout,
+    /// Where the game's cameras sit on the bike (`[bike.camera]`, `bike_camera.rs`); left out: derived from the wheelbase.
+    #[serde(default)]
+    pub camera: Camera,
 }
 
 /// Reverse (`[bike.reverse]`): the rider holds the brake with the bike standing, and after `hold_s` seconds pushes it backwards
@@ -298,6 +306,7 @@ impl From<&Bike> for BikeSpec {
                 max_speed: r.max_speed_mps,
                 hold_time: r.hold_s,
             }),
+            burnout: bike.burnout.to_spec(),
         }
     }
 }
