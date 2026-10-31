@@ -204,7 +204,8 @@ impl Bike {
         }
         let spec = &self.spec.steering.lean;
         let input = lean::help::HelpInput { speed: speed.abs(), heading_error: self.heading_error(), pedals };
-        let share = lean::help::help_factor(spec, &input);
+        // A collision adds to the help for a moment (`choices::COLLISION_LEAN_HELP`).
+        let share = (lean::help::help_factor(spec, &input) + self.chassis.collision_help.lean).clamp(0.0, 1.0);
         if share <= 0.0 {
             return;
         }
@@ -260,7 +261,8 @@ impl Bike {
             throttle: input.throttle,
             brake: input.front_brake,
         };
-        let factor = lean::help::stability_factor(spec, &state);
+        let factor =
+            (lean::help::stability_factor(spec, &state) + self.chassis.collision_help.stability).clamp(0.0, 1.0);
         if factor <= 0.0 {
             return;
         }
@@ -287,6 +289,7 @@ impl Bike {
         let rotation = self.body.rotation();
         let forward = rotation * Vec3::Z;
         let up = rotation * Vec3::Y;
+        self.chassis.collision_help.fade(dt);
         if !self.fallen {
             self.apply_lean_help(speed, pedals);
             self.apply_wheelie_balance();

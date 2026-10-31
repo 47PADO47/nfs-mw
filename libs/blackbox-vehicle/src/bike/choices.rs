@@ -59,6 +59,16 @@ pub const TCS_WINDOW_SCALE: f32 = 0.5;
 /// stick at 0.8). At 0.8 one of them falls; a straight stop (lean 0) is untouched. It should go if the reference's own relief is found.
 pub const BRAKE_LEAN_RELIEF: f32 = 0.8;
 
+/// What a collision adds to the help of the controllers, `(addition, fade rate per second)`: the reference's `CollisionLeanHelpAlteration` and
+/// `CollisionStabilityHelpAlteration` (`MaxHelpAddition`, `HelpAlterationFadeRate`), equal in the six road-bike input handlers of the
+/// data; the two scooters' differ (lean help 0.5 and 4, one frontal fade of 5) and are not modelled
+/// (`docs/specs/ride6-chassis-round6.md`, section 2; `ride6-feel-round10.md`, section 3). The lean help's addition is 2 (so the factor is
+/// 1 whatever its tuning) for 0.4 s; the stability help's 0.4 for 0.08 s, and 0.2 fading at 1 per second for a frontal collision. Whether the
+/// addition fades linearly is not known: a linear fade is a modelling choice.
+pub const COLLISION_LEAN_HELP: (f32, f32) = (2.0, 5.0);
+pub const COLLISION_STABILITY_HELP: (f32, f32) = (0.4, 5.0);
+pub const COLLISION_STABILITY_HELP_FRONTAL: (f32, f32) = (0.2, 1.0);
+
 /// The speed (m/s) up to which a full stick is the whole of the lean limit, and the speed from which it gives only [`STICK_SHARE_AT_TOP`] of it.
 pub const STICK_FULL_UNTIL: f32 = 30.0;
 pub const STICK_REDUCED_AT: f32 = 40.0;

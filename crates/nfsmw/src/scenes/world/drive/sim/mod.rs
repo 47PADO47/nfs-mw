@@ -465,6 +465,8 @@ pub(in crate::scenes::world) use terrain::Integration;
 mod trailer;
 
 #[cfg(test)]
+mod bike_curb_tests;
+#[cfg(test)]
 mod bike_tests;
 #[cfg(test)]
 mod tests;

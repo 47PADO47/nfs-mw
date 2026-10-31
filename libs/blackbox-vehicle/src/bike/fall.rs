@@ -53,6 +53,28 @@ impl Bike {
         (-normal.cross(along).y).clamp(-1.0, 1.0).asin()
     }
 
+    /// The rider is thrown by something outside the bike's own tests (a collision the host resolved): the bike falls as `kind` says. Does
+    /// nothing for a bike that has fallen already.
+    pub fn throw_rider(&mut self, kind: FallKind) {
+        if self.fallen {
+            return;
+        }
+        self.fallen = true;
+        self.release_rider(kind);
+    }
+
+    /// The host resolved a collision of the bike (a wall, a prop, another body) that it did not throw the rider for: the controllers' help
+    /// rises for a moment (`choices::COLLISION_LEAN_HELP`), which is what keeps a bike that was hit up. `frontal` is a hit on its front or
+    /// its back rather than its side.
+    pub fn notify_collision(&mut self, frontal: bool) {
+        self.chassis.collision_help.collide(frontal);
+    }
+
+    /// What a collision has added to the lean help's factor and to the stability help's, and has not faded yet.
+    pub fn collision_help(&self) -> (f32, f32) {
+        (self.chassis.collision_help.lean, self.chassis.collision_help.stability)
+    }
+
     /// The tests, once per step, in the order of the reference (the first that fires ends the run and says what kind of fall it
     /// was): the lean (for `lean_duration` on the ground, at once in the air), the pitch, the angle of the velocity to the heading
     /// (only above `min_speed`), the angular speed. A fall lets the rider go ([`Bike::take_rider_release`]).

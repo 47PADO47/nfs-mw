@@ -485,6 +485,8 @@ mod release_tests;
 #[cfg(test)]
 mod rider_tests;
 #[cfg(test)]
+mod round10_tests;
+#[cfg(test)]
 mod round9_tests;
 #[cfg(test)]
 mod tests;

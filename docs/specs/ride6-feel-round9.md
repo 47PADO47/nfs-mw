@@ -131,7 +131,8 @@ the kerb is 0.6 rad/s (the fork takes the step at the data's damper limit of 5 m
 the fall tests (heading error, angular speed, terrain term) do not see the step. The falls the player sees must therefore come from the host: the walls and steep
 faces of `drive/walls.rs` (probes on the body box's outline, a contact impulse written back into the bike's angular velocity by `BikeRide::pull`, and from
 there into the angular-speed test at 4.4 rad/s) or the surfaces beside the road. That path was not reproduced here (the places tried in the world had
-traffic, toll booths and no kerb); it needs a world test with a collision pack that has a kerb. Not changed.
+traffic, toll booths and no kerb); it needs a world test with a collision pack that has a kerb. Reproduced and changed in round 10
+(`ride6-feel-round10.md`): a kerb as geometry is never a wall; the falls are the contacts with the road edge's invisible walls.
 
 ## 8. In-game check (offscreen, muted)
 

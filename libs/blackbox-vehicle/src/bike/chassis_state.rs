@@ -1,6 +1,7 @@
 //! What the bike keeps from step to step apart from its filters: the day it rides in (air and road temperature) and the running
 //! state of the fall tests (`docs/specs/ride6-chassis-round6.md`).
 
+use crate::bike::choices;
 use crate::bike::spec::FallSpec;
 
 /// The day: the temperature of the air and of the road (deg C) the tyres cool towards. The game that hosts the bike sets them
@@ -19,9 +20,42 @@ impl Default for Environment {
     }
 }
 
+/// What a collision has added to the controllers' help and has not yet faded (`choices::COLLISION_LEAN_HELP`): the addition to the
+/// lean help's factor and to the stability help's, each 0 to 2.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct CollisionHelp {
+    pub lean: f32,
+    pub stability: f32,
+    /// The stability addition's fade rate (per second), that of the collision that set it.
+    stability_fade: f32,
+}
+
+impl CollisionHelp {
+    /// A collision: the additions rise to their values if they are below them; a frontal collision gives the stability help its own.
+    pub fn collide(&mut self, frontal: bool) {
+        self.lean = self.lean.max(choices::COLLISION_LEAN_HELP.0);
+        let (addition, fade) = match frontal {
+            true => choices::COLLISION_STABILITY_HELP_FRONTAL,
+            false => choices::COLLISION_STABILITY_HELP,
+        };
+        if addition >= self.stability {
+            self.stability_fade = fade;
+        }
+        self.stability = self.stability.max(addition);
+    }
+
+    /// The additions fade for `dt` seconds.
+    pub fn fade(&mut self, dt: f32) {
+        self.lean = (self.lean - choices::COLLISION_LEAN_HELP.1 * dt).max(0.0);
+        self.stability = (self.stability - self.stability_fade * dt).max(0.0);
+    }
+}
+
 /// The running state of the fall tests.
 #[derive(Clone, Copy, Debug)]
 pub struct ChassisState {
+    /// What a collision added to the controllers' help.
+    pub collision_help: CollisionHelp,
     pub environment: Environment,
     /// The lean (rad) beyond which the bike has fallen on the ground now: it follows the front tyre's grip when the spec says so.
     pub fall_lean: f32,
@@ -31,7 +65,12 @@ pub struct ChassisState {
 
 impl ChassisState {
     pub fn new(fall: &FallSpec) -> Self {
-        Self { environment: Environment::default(), fall_lean: fall.lean, fall_timer: 0.0 }
+        Self {
+            collision_help: CollisionHelp::default(),
+            environment: Environment::default(),
+            fall_lean: fall.lean,
+            fall_timer: 0.0,
+        }
     }
 
     /// Forget the lean history (a bike just placed); the day stays.

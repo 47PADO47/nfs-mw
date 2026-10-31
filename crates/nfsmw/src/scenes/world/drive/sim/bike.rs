@@ -36,6 +36,8 @@ const GET_UP_SPEED: f32 = 1.5;
 /// The drift angle is 0 below this speed (m/s): the direction of a velocity that small means nothing. A modelling choice.
 const DRIFT_MIN_SPEED: f32 = 2.0;
 
+mod contact;
+
 /// The two-wheel dynamics of a bike and what joins them to the four-wheel body double.
 #[derive(Debug, Clone)]
 pub(in crate::scenes::world) struct BikeRide {
@@ -132,13 +134,16 @@ impl BikeRide {
         self.attach(vehicle);
     }
 
-    /// The end of the contacts: a fallen bike lies on its box (the double meets the ground), and the bike takes the pose the
-    /// contacts left.
+    /// The end of the contacts: a fallen bike lies on its box (the double meets the ground) and takes the pose the contacts left; a
+    /// bike with its rider takes what they did to it as `contact.rs` says.
     pub(super) fn finish_body(&mut self, vehicle: &mut Vehicle, dt: f32, ground: &dyn Ground) {
         if self.bike.fallen() {
             vehicle.finish_body_step(dt, ground);
+            self.pull(vehicle);
+            return;
         }
-        self.pull(vehicle);
+        self.take_contacts(vehicle);
+        self.push(vehicle);
     }
 
     /// The second half of a step: the rider, the engine, the tyres and the suspension make the forces of the next step.
