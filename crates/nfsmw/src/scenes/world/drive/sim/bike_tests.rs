@@ -171,3 +171,25 @@ fn a_saved_bike_is_restored_whole() {
     sim.restore(&saved);
     assert_eq!((sim.telemetry().speed_mps, sim.telemetry().gear), (speed, gear));
 }
+
+#[test]
+fn the_brake_and_the_throttle_together_burn_the_rear_tyre_out_on_the_spot_with_smoke_and_marks() {
+    let ground = FlatGround::new(5.0);
+    let mut sim = bike_sim();
+    assert!(sim.place(&ground, spawn()));
+    let start = sim.pose().position;
+    ride(&mut sim, &ground, DriveInput { throttle: 1.0, brake: 1.0, ..DriveInput::default() }, 2.0);
+    let (front, rear) = (sim.wheel_state(0), sim.wheel_state(2));
+    assert!(rear.angular_velocity * rear.radius > 10.0, "the rear wheel spins: {}", rear.angular_velocity);
+    assert!(rear.skid > 0.9 && rear.smoke > 0.9, "skid {} smoke {}", rear.skid, rear.smoke);
+    assert!(front.skid < 0.1 && front.smoke == 0.0, "the held front wheel does not slide: {front:?}");
+    assert!((sim.pose().position - start).length() < 1.0, "the bike stays where it is held");
+    assert!(sim.is_finite() && sim.up_dot() > 0.95);
+    // The brake let go, the bike goes off with the rear still smoking and stays up.
+    ride(&mut sim, &ground, DriveInput { throttle: 1.0, ..DriveInput::default() }, 0.15);
+    let off = sim.wheel_state(2);
+    assert!(off.smoke > 0.0 && sim.telemetry().speed_mps > 0.5, "{off:?} {:?}", sim.telemetry());
+    ride(&mut sim, &ground, DriveInput { throttle: 1.0, ..DriveInput::default() }, 3.0);
+    assert!(sim.telemetry().speed_mps > 15.0 && sim.up_dot() > 0.95, "{:?}", sim.telemetry());
+    assert_eq!(sim.wheel_state(2).smoke, 0.0, "the smoke stops once the tyre grips");
+}

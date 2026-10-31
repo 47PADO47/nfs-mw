@@ -27,16 +27,11 @@ use super::super::rider::RiderSample;
 use super::step::StepStart;
 use super::{CarSim, MAX_VISIBLE_TRAVEL, Telemetry};
 
-/// A bike that lost its rider lies this long before it is stood up again (s). A modelling choice (`ride6-rider-fall.md`): the
-/// reference lets the rider get up, walk to the bike and raise it, which takes longer and is not modelled.
-const GET_UP_AFTER: f32 = 2.0;
-/// ... and only once it has come to a stop slower than this (m/s). The bike slides on its collision box until the ground's friction
-/// stops it: nothing else slows it.
-const GET_UP_SPEED: f32 = 1.5;
 /// The drift angle is 0 below this speed (m/s): the direction of a velocity that small means nothing. A modelling choice.
 const DRIFT_MIN_SPEED: f32 = 2.0;
 
 mod contact;
+mod lie;
 
 /// The two-wheel dynamics of a bike and what joins them to the four-wheel body double.
 #[derive(Debug, Clone)]
@@ -50,6 +45,10 @@ pub(in crate::scenes::world) struct BikeRide {
     spin: [f32; 2],
     /// How long the rider has been down (s).
     down: f32,
+    /// The bike has lain still long enough to be stood up and waits for its rider to be ready (`lie.rs`).
+    waiting: bool,
+    /// The rider has got up and the bike may be stood up. The host says so every step; true without a rider who gets up.
+    rider_ready: bool,
     /// Whether the body double has the mass and the centre of gravity of the bike without its rider.
     double_alone: bool,
 }
@@ -60,7 +59,16 @@ impl BikeRide {
         let data = physics.bike.as_ref()?;
         let bike = Bike::new((*data.spec).clone());
         let offset = physics.bounds.pivot - Vec3::new(0.0, 0.0, data.origin_x);
-        let ride = Self { bike, offset, controls: Controls::default(), spin: [0.0; 2], down: 0.0, double_alone: false };
+        let ride = Self {
+            bike,
+            offset,
+            controls: Controls::default(),
+            spin: [0.0; 2],
+            down: 0.0,
+            waiting: false,
+            rider_ready: true,
+            double_alone: false,
+        };
         ride.fit(&mut physics.spec);
         Some(ride)
     }
@@ -111,6 +119,7 @@ impl BikeRide {
     pub(super) fn place(&mut self, ground: &dyn Ground, at: (f32, f32, f32), yaw: f32, speed: f32) -> bool {
         self.spin = [0.0; 2];
         self.down = 0.0;
+        self.waiting = false;
         self.controls = Controls::default();
         self.bike.place_moving(ground, at.0, at.1, at.2, yaw, speed)
     }
@@ -166,25 +175,13 @@ impl BikeRide {
         self.bike.respond(start.delta, &rider, ground);
         match self.bike.fallen() {
             true => self.lie(start.delta, ground),
-            false => self.down = 0.0,
+            false => {
+                self.down = 0.0;
+                self.waiting = false;
+            }
         }
         self.sync_double(vehicle);
         self.push(vehicle);
-    }
-
-    /// A bike that lost its rider: it slides on its side (the double meets the ground, `finish_body`) and, once it has lain still
-    /// for a while, stands up where it is with the rider back on it.
-    fn lie(&mut self, dt: f32, ground: &dyn Ground) {
-        self.down += dt;
-        if self.down < GET_UP_AFTER || self.bike.velocity().length() > GET_UP_SPEED {
-            return;
-        }
-        let position = self.bike.position();
-        let forward = self.bike.orientation() * Vec3::Z;
-        let yaw = forward.x.atan2(forward.z);
-        if self.bike.place_on_ground(ground, position.x, position.z, position.y + 2.0, yaw) {
-            self.down = 0.0;
-        }
     }
 
     /// The wheels roll on.
@@ -284,10 +281,11 @@ impl BikeRide {
             _ => (spec.rear.radius, 0.0),
         };
         let rotation = Mat3::from_quat(self.bike.orientation());
-        // The slip ratio and the slip angle are taken against the speed along the bike, at least 1 m/s (the tyre model's
-        // own regularisation), so a speed in m/s is the ratio times that.
+        // The sideways slide is the slip angle against the speed along the bike, at least 1 m/s (the tyre model's own
+        // regularisation). The slide along the wheel is the tyre's own slip speed, not the slip ratio times that speed: below
+        // 1 m/s the ratio is scaled down, and a rear wheel spinning on the spot in a burnout would show no smoke and no marks.
         let along = self.bike.forward_speed().abs().max(1.0);
-        let slip = wheel.slip_ratio * along;
+        let slip = wheel.slip_speed;
         let lateral_speed = wheel.slip_angle.tan() * along;
         let slide_speed = match wheel.on_ground {
             true => slip.hypot(lateral_speed),

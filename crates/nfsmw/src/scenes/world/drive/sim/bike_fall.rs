@@ -17,6 +17,19 @@ impl CarSim {
     pub fn rider_off(&self) -> bool {
         self.ride.as_ref().is_some_and(|ride| ride.bike.rider_off())
     }
+
+    /// Whether the bike has lain still long enough to be stood up and waits for its rider to be ready (`bike/lie.rs`).
+    pub fn bike_waits_for_rider(&self) -> bool {
+        self.ride.as_ref().is_some_and(|ride| ride.waiting_for_rider())
+    }
+
+    /// The rider says whether he has got up: a fallen bike is stood up only once he has (true is the default, for a bike with no
+    /// rider who gets up). Said every step; nothing for a car.
+    pub fn set_rider_ready(&mut self, ready: bool) {
+        if let Some(ride) = self.ride.as_deref_mut() {
+            ride.set_rider_ready(ready);
+        }
+    }
 }
 
 #[cfg(test)]

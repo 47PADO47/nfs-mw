@@ -62,8 +62,7 @@ pub(super) struct Fall {
     file: Option<RagdollFile>,
     /// The animation of the fall (`falls.json`); without it the rider falls limp.
     set: Option<FallSet>,
-    /// The bike has been stood up and the rider is waiting to get back on it, and for how long (s).
-    wanted_back: bool,
+    /// How long the bike has lain still waiting for the rider to get up (s).
     waited: f32,
     /// The riding pose of the last frame, rider space.
     riding: Vec<Transform>,
@@ -133,7 +132,6 @@ impl Fall {
             return false;
         };
         self.state = State::Down(Box::new(tumble));
-        self.wanted_back = false;
         self.waited = 0.0;
         true
     }
@@ -149,7 +147,6 @@ impl Fall {
     pub fn step(&mut self, dt: f32, ground: &dyn Ground) {
         match &mut self.state {
             State::Down(tumble) => {
-                self.waited += if self.wanted_back { dt } else { 0.0 };
                 if !tumble.frozen() {
                     tumble.ragdoll.step(dt, ground);
                 }
@@ -164,15 +161,19 @@ impl Fall {
         }
     }
 
-    /// The bike is stood up and the rider gets back on it: at once, or, if he is still in the fall animation, when his get-up has
-    /// played (the caller says so again every step until he is back).
+    /// Whether the bike lying still may be stood up now (`waiting`: it is lying still and waits for him; `dt`: the step). The bike
+    /// is held down until his get-up has played, so that he is not still getting up when it is back on its wheels and the
+    /// controls are back (`docs/specs/ride6-rider-getup.md`). True when he is not down, or has no animation to wait for.
+    pub fn bike_may_stand_up(&mut self, waiting: bool, dt: f32) -> bool {
+        let State::Down(tumble) = &self.state else { return true };
+        self.waited = if waiting { self.waited + dt } else { 0.0 };
+        tumble.may_return(self.waited)
+    }
+
+    /// The bike is stood up: the rider gets back on it, at once. In the normal course it was stood up only when he was ready
+    /// ([`Fall::bike_may_stand_up`]); a bike put back by hand (the reset button) does not wait for his get-up.
     pub fn stop(&mut self, skeleton: &Skeleton) {
         let State::Down(tumble) = &self.state else { return };
-        self.wanted_back = true;
-        if !tumble.may_return(self.waited) {
-            return;
-        }
-        self.wanted_back = false;
         self.waited = 0.0;
         let from = tumble.pose(skeleton, self.origin).into_iter().map(|t| shifted(t, self.origin)).collect();
         self.state = State::Returning { from, progress: 0.0 };
@@ -344,17 +345,19 @@ impl Tumble {
 }
 
 /// What one physics step tells the rider about his fall: whether the bike let him go in this step (the release, once), whether he
-/// is off the bike, and the length of the step.
+/// is off the bike, whether the bike lies still waiting for him to get up, and the length of the step.
 pub struct FallStep {
     pub release: Option<RiderRelease>,
     pub off: bool,
+    pub waiting: bool,
     pub dt: f32,
 }
 
 impl super::RiderRig {
     /// One physics step of the fall: the rider is thrown when the bike lets him go, falls and slides while he is off it, and gets
-    /// back on when it is stood up. `world` is the bike's frame in the render space.
-    pub(super) fn fall_step(&mut self, step: FallStep, world: Mat4, ground: &dyn Ground) {
+    /// back on when it is stood up. `world` is the bike's frame in the render space. True when the bike may be stood up now (he
+    /// has got up, or is not down).
+    pub(super) fn fall_step(&mut self, step: FallStep, world: Mat4, ground: &dyn Ground) -> bool {
         let (_, bike, _) = world.to_scale_rotation_translation();
         if let Some(release) = step.release
             && self.fall.can_fall()
@@ -367,6 +370,7 @@ impl super::RiderRig {
         }
         self.fall.animate(&self.pack, step.dt, ground);
         self.fall.step(step.dt, ground);
+        self.fall.bike_may_stand_up(step.waiting, step.dt)
     }
 }
 

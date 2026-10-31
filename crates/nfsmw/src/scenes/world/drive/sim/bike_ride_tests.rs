@@ -7,6 +7,7 @@ use blackbox_vehicle::{FIXED_STEP, FlatGround};
 use glam::Quat;
 use nfsmw_data::car::physics::{BikePhysics, CarBounds};
 
+use super::lie::GET_UP_AFTER;
 use super::*;
 
 const BOUNDS: CarBounds = CarBounds { half_dimensions: Vec3::new(0.42, 0.64, 1.06), pivot: Vec3::new(0.0, 0.64, 0.05) };
@@ -78,8 +79,9 @@ fn the_pedals_and_the_stick_become_the_riders_levers() {
     let input = InputState { throttle: 0.5, brake: 0.3, steer: -2.0, ..Default::default() };
     let rider = command(&input, 10.0);
     assert_eq!(rider, BikeInput { throttle: 0.5, front_brake: 0.3, rear_brake: 0.3, steer: -1.0 });
-    // The full stick gives less of the lean limit at high speed.
-    assert!((command(&input, 40.0).steer + 0.9).abs() < 1e-6);
+    // The full stick gives the whole of the lean limit at any speed (`choices::STICK_SHARE_AT_TOP`).
+    assert!((command(&input, 40.0).steer + choices::stick_share(40.0)).abs() < 1e-6);
+    assert!((command(&input, 55.0).steer + 1.0).abs() < 1e-6);
     // The handbrake is the rear brake alone.
     let handbrake = command(&InputState { handbrake: 1.0, ..Default::default() }, 0.0);
     assert_eq!((handbrake.front_brake, handbrake.rear_brake), (0.0, 1.0));
@@ -109,6 +111,30 @@ fn a_rider_who_lay_long_enough_stands_the_bike_up_where_it_is() {
 }
 
 #[test]
+fn a_bike_that_has_lain_still_waits_for_its_rider_and_stays_down_until_he_is_ready() {
+    let (mut ride, _) = ride_and_double();
+    let ground = FlatGround::new(0.0);
+    assert!(ride.place(&ground, (4.0, 6.0, 2.0), 0.3, 0.0));
+    ride.bike.body_mut().set_orientation(Quat::from_rotation_z(-1.5) * Quat::from_rotation_y(0.3));
+    ride.bike.respond(FIXED_STEP, &BikeInput::default(), &ground);
+    assert!(ride.bike.fallen());
+    // The rider is still getting up: the bike lies as long as it takes, far past the time it lies for.
+    ride.set_rider_ready(false);
+    ride.lie(GET_UP_AFTER - 0.5, &ground);
+    assert!(!ride.waiting_for_rider(), "it has not lain still for long enough yet");
+    for _ in 0..20 {
+        ride.lie(GET_UP_AFTER, &ground);
+        assert!(ride.bike.fallen() && ride.bike.rider_off(), "the bike stays down while the rider gets up");
+        assert!(ride.waiting_for_rider());
+    }
+    // He is up: the bike is stood up at the next step, with its rider.
+    ride.set_rider_ready(true);
+    ride.lie(FIXED_STEP, &ground);
+    assert!(!ride.bike.fallen() && !ride.bike.rider_off());
+    assert!(!ride.waiting_for_rider());
+}
+
+#[test]
 fn a_rider_who_has_just_fallen_stays_down() {
     let (mut ride, _) = ride_and_double();
     let ground = FlatGround::new(0.0);
@@ -129,4 +155,48 @@ fn a_bike_in_the_air_reports_the_wheels_it_has_off_the_ground() {
     assert_eq!(ride.wheel_hit(2), None);
     let front = ride.wheel_state(1);
     assert!(!front.on_ground && front.radius == BikeSpec::example().front.radius);
+}
+
+/// The keys held at time `t` of a run that opens the throttle and flicks the steering from side to side every `half` seconds.
+fn flick_keys(t: f32, half: f32) -> Vec<bevy_input::keyboard::KeyCode> {
+    use bevy_input::keyboard::KeyCode;
+    let side = if ((t / half) as usize).is_multiple_of(2) { KeyCode::KeyD } else { KeyCode::KeyA };
+    vec![KeyCode::KeyW, side]
+}
+
+#[test]
+fn a_throttle_held_open_with_the_steering_flicked_from_side_to_side_does_not_throw_the_rider() {
+    use crate::input::{ActionState, Bindings};
+    use crate::scenes::world::drive::input::DriveInput;
+    use crate::settings::WheelOptions;
+    // A bike with the power of a big sports bike, whose front wheel comes up in the first gears.
+    let mut spec = BikeSpec::example();
+    spec.engine.peak_torque *= 2.2;
+    let mut physics = CarPhysics::from_stats(&Default::default(), BOUNDS);
+    physics.bike = Some(BikePhysics { spec: Arc::new(spec), origin_x: -0.02 });
+    let ground = FlatGround::new(0.0);
+    for (start, half) in [(0.0_f32, 0.25_f32), (0.0, 0.5), (6.0, 0.25), (12.0, 0.4), (20.0, 0.25)] {
+        let mut fitted = physics.clone();
+        let mut ride = BikeRide::new(&mut fitted).expect("a bike");
+        let mut vehicle = Vehicle::new(fitted.spec);
+        ride.attach(&mut vehicle);
+        assert!(ride.place(&ground, (0.0, 0.0, 2.0), 0.0, start));
+        ride.push(&mut vehicle);
+        let mut actions = ActionState::default();
+        let mut front_up = 0.0_f32;
+        for step in 0..(6.0 / FIXED_STEP) as usize {
+            // The keys, through the game's input layer, to the input the car takes.
+            actions.update_for_test(&Bindings::default(), &flick_keys(step as f32 * FIXED_STEP, half), &[], false);
+            let input = DriveInput::from_actions(&actions, WheelOptions::default());
+            let step_start =
+                StepStart { input: input.to_vehicle(), weight: input.weight, delta: FIXED_STEP, terrain: None };
+            ride.begin_body(&mut vehicle, FIXED_STEP);
+            ride.finish_body(&mut vehicle, FIXED_STEP, &ground);
+            ride.respond(&mut vehicle, &step_start, &ground);
+            ride.advance(FIXED_STEP);
+            front_up = front_up.max(if ride.bike.wheel(0).on_ground { 0.0 } else { FIXED_STEP });
+            assert!(!ride.bike.fallen(), "from {start} m/s, flicking every {half} s: fell at step {step}");
+        }
+        assert!(front_up > 0.0 || start > 0.0, "the front wheel never left the road from a standstill");
+    }
 }

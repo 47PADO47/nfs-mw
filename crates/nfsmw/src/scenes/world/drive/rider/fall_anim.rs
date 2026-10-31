@@ -23,11 +23,14 @@ pub const DRIVE_GAIN: f32 = 0.5;
 const GROUND_REACH: f32 = 3.0;
 /// How far above the pelvis the ground ray starts (m).
 const LOOK_ABOVE: f32 = 0.4;
-/// How long (s) after the bike is stood up the rider is let lie still before he is put back on it even if he has not yet begun to get up.
-/// A modelling choice: the bike stands up where it is, the rider may still be sliding.
-pub const RETURN_GRACE: f32 = 2.0;
-/// The longest the rider is kept off the bike after it is stood up (s), whatever he is doing. A modelling choice.
-pub const RETURN_LIMIT: f32 = 8.0;
+/// How long (s) the bike may lie still and wait for a rider who has not begun to get up (he is still sliding or rolling, or lies
+/// between the three bands of the get-up rules) before he is put back on it anyway. A modelling choice: the reference's raise-bike
+/// phases were not recovered, and a rider who never gets still must not keep the bike down for good.
+pub const TUMBLE_LIMIT: f32 = 8.0;
+/// The longest (s) the bike waits for a get-up once it has begun, whatever the clip does. A modelling choice: the get-up ends with
+/// the clip (the clip's own length is the source, [`Tumble::may_return`]); this only keeps a clip that never ends from holding the
+/// bike down for good.
+pub const GETUP_LIMIT: f32 = 8.0;
 
 /// The name `falls.json` gives a kind of fall.
 pub fn kind_name(kind: FallKind) -> &'static str {
@@ -91,6 +94,8 @@ pub struct Anim {
     pub getup: Option<GetUp>,
     /// Whether the get-up has played to its end.
     pub done: bool,
+    /// How long the get-up has been playing (s).
+    pub getup_time: f32,
 }
 
 impl Anim {
@@ -111,6 +116,7 @@ impl Anim {
             right: rest.1,
             getup: None,
             done: false,
+            getup_time: 0.0,
         }
     }
 }
@@ -134,6 +140,7 @@ impl Tumble {
         let Some(mut anim) = self.anim.take() else { return };
         let skeleton = &pack.skeleton;
         if anim.getup.is_some() {
+            anim.getup_time += dt;
             anim.player.step(set, &pack.clips, dt, FallInput::default());
             anim.target = anim.player.pose(set, skeleton, &pack.clips).local;
             anim.done = anim.player.finished(set, &pack.clips);
@@ -201,14 +208,15 @@ impl Tumble {
         anim.getup = Some(GetUp { align });
     }
 
-    /// Whether the rider may be put back on the bike after `waited` seconds of waiting for it: at once when there is no animation
-    /// to wait for, when the get-up has played, or when he has waited too long.
+    /// Whether the rider is ready for the bike to be stood up, the bike having waited `waited` seconds for him: at once when there
+    /// is no animation to wait for; once the get-up has played to its end (the clip's length decides, see `Anim::done`); or when he
+    /// has not got up in [`TUMBLE_LIMIT`] (not begun) or [`GETUP_LIMIT`] (begun).
     pub fn may_return(&self, waited: f32) -> bool {
         let Some(anim) = &self.anim else { return true };
-        match (&anim.getup, anim.done) {
-            (Some(_), done) => done || waited >= RETURN_LIMIT,
-            (None, _) => waited >= RETURN_GRACE,
+        if anim.getup.is_none() {
+            return waited >= TUMBLE_LIMIT;
         }
+        anim.done || anim.getup_time >= GETUP_LIMIT
     }
 
     /// The component transforms of the get-up (render space, relative to `origin`), if he is in it.

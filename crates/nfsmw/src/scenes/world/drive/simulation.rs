@@ -173,8 +173,10 @@ impl Drive {
         self.rider.step(sim.rider_sample(), dt);
         // The rider the bike let go of, if it did, falls and slides on the ground until the bike is stood up again.
         let release = sim.take_rider_release();
-        let fall = super::rider::FallStep { release, off: sim.rider_off(), dt };
-        self.rider.fall_step(fall, &pose, &WorldGround { collision, surfaces });
+        let fall = super::rider::FallStep { release, off: sim.rider_off(), waiting: sim.bike_waits_for_rider(), dt };
+        // The fallen bike is stood up only once the rider has got up.
+        let rider_ready = self.rider.fall_step(fall, &pose, &WorldGround { collision, surfaces });
+        sim.set_rider_ready(rider_ready);
         self.gauges.push(gauge);
         self.brake_lamp = match self.engine.is_running() {
             true => sim.lamp_brake(),

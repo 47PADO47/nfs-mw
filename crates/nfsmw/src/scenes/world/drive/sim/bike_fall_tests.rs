@@ -93,3 +93,37 @@ fn the_bike_is_stood_up_with_its_rider_when_it_has_lain_still() {
     step(&mut sim, &ground, 2.0);
     assert!(sim.rider_off() || sim.take_rider_release().is_some());
 }
+
+#[test]
+fn the_bike_stays_down_and_ignores_the_controls_until_the_rider_has_got_up() {
+    let (mut sim, ground) = falling();
+    // The rider is not ready (he is on the ground, getting up): the bike lies still, and waits.
+    sim.set_rider_ready(false);
+    step(&mut sim, &ground, 12.0);
+    assert!(sim.rider_off(), "still down after twelve seconds");
+    assert!(sim.bike_waits_for_rider(), "it has lain still and waits for him");
+    // Full throttle and the stick: a fallen bike does not take them.
+    let held = DriveInput { throttle: 1.0, steer: 1.0, ..DriveInput::default() };
+    let at = sim.pose().position;
+    for _ in 0..180 {
+        let _ = sim.step(&held, &ground, None);
+    }
+    assert!(sim.rider_off(), "the controls did not stand the bike up");
+    assert!(sim.pose().position.truncate().distance(at.truncate()) < 0.5, "it did not drive off");
+    // He is up: the bike is stood up with him.
+    sim.set_rider_ready(true);
+    step(&mut sim, &ground, 0.5);
+    assert!(!sim.rider_off() && !sim.bike_waits_for_rider(), "stood up");
+    assert!(sim.up_dot() > 0.95);
+}
+
+#[test]
+fn a_bike_put_back_by_hand_does_not_wait_for_the_rider() {
+    let (mut sim, ground) = falling();
+    sim.set_rider_ready(false);
+    step(&mut sim, &ground, 6.0);
+    assert!(sim.rider_off());
+    // The reset button places the bike again.
+    assert!(sim.place_moving(&ground, spawn(), 0.0));
+    assert!(!sim.rider_off() && !sim.bike_waits_for_rider());
+}

@@ -337,40 +337,89 @@ fn once_he_lies_still_the_get_up_plays_where_he_lies_and_the_body_is_no_longer_s
     assert!(after.iter().all(|t| t.translation.is_finite() && t.rotation.is_finite()));
 }
 
-#[test]
-fn the_bike_standing_up_waits_for_the_get_up_to_play_and_then_the_rider_gets_back_on() {
-    let (mut fall, pack) = started_animated(FallKind::LowSide, 0.5);
-    run_until_getting_up(&mut fall, &pack);
-    // The bike has been stood up: he stays down while the get-up plays.
-    fall.stop(&pack.skeleton);
-    assert!(fall.is_down(), "still getting up");
+/// One step of the rider as the host drives it: the animation, the physics, and the answer to "may the bike be stood up?" for a
+/// bike that is `waiting` for him.
+fn host_step(fall: &mut Fall, pack: &Pack, waiting: bool) -> bool {
     let ground = FlatGround::new(0.0);
-    let mut steps = 0;
-    while fall.is_down() && steps < 600 {
-        fall.animate(&pack, FIXED_STEP, &ground);
-        fall.step(FIXED_STEP, &ground);
-        fall.stop(&pack.skeleton);
-        steps += 1;
-    }
-    assert!(!fall.is_down() && fall.active(), "returning after {steps} steps");
-    let waited = steps as f32 * FIXED_STEP;
-    assert!((0.2..1.6).contains(&waited), "the get-up is a second long: {waited}");
+    fall.animate(pack, FIXED_STEP, &ground);
+    fall.step(FIXED_STEP, &ground);
+    fall.bike_may_stand_up(waiting, FIXED_STEP)
 }
 
 #[test]
-fn a_rider_who_has_not_begun_to_get_up_when_the_bike_is_stood_up_is_put_back_after_a_grace() {
-    // He never gets slow enough: the bike stands up at once.
-    let (mut fall, pack) = started_animated(FallKind::HighSide, 0.0);
-    let ground = FlatGround::new(0.0);
-    fall.stop(&pack.skeleton);
-    assert!(fall.is_down(), "he is let lie for a while");
+fn the_bike_is_held_down_while_the_get_up_plays_and_then_the_rider_gets_back_on() {
+    let (mut fall, pack) = started_animated(FallKind::LowSide, 0.5);
+    run_until_getting_up(&mut fall, &pack);
+    // The bike lies still and waits: it may not be stood up while the get-up plays.
+    assert!(!fall.bike_may_stand_up(true, FIXED_STEP), "the get-up has only begun");
     let mut steps = 0;
-    while fall.is_down() && steps < 600 {
-        fall.animate(&pack, FIXED_STEP, &ground);
-        fall.step(FIXED_STEP, &ground);
-        fall.stop(&pack.skeleton);
+    while !host_step(&mut fall, &pack, true) && steps < 600 {
         steps += 1;
     }
     let waited = steps as f32 * FIXED_STEP;
-    assert!((fall_anim::RETURN_GRACE - 0.1..fall_anim::RETURN_GRACE + 0.1).contains(&waited), "{waited}");
+    // The clip is one second long (`animated`): the bike is stood up when it has played, not before.
+    assert!((0.9..1.2).contains(&waited), "the bike waits for the get-up clip's own length: {waited}");
+    assert!(fall.is_down(), "he is still on the ground until the bike is up");
+    fall.stop(&pack.skeleton);
+    assert!(!fall.is_down() && fall.active(), "returning");
+}
+
+#[test]
+fn the_bike_is_not_stood_up_before_the_get_up_has_played_even_when_it_lies_still_first() {
+    // The reported fault: the bike stood up by its own clock (2 s after it lay still) while the rider was still getting up.
+    let (mut fall, pack) = started_animated(FallKind::HighSide, 0.5);
+    let mut standing_at = None;
+    for step in 0..(30.0 / FIXED_STEP) as usize {
+        let t = step as f32 * FIXED_STEP;
+        // The bike lies still from 1 s on and has waited for the rider since.
+        if host_step(&mut fall, &pack, t >= 1.0) && standing_at.is_none() {
+            standing_at = Some(t);
+        }
+    }
+    let t = standing_at.expect("the bike was let up");
+    let State::Down(tumble) = &fall.state else { panic!("not down") };
+    let anim = tumble.anim.as_ref().expect("animated");
+    assert!(anim.getup.is_some() && anim.done, "he was let up only after the get-up played (at {t} s)");
+}
+
+#[test]
+fn a_bike_that_does_not_yet_wait_does_not_start_the_clock() {
+    let (mut fall, pack) = started_animated(FallKind::HighSide, 0.0);
+    for _ in 0..(2.0 * fall_anim::TUMBLE_LIMIT / FIXED_STEP) as usize {
+        assert!(!host_step(&mut fall, &pack, false), "it is still sliding");
+    }
+}
+
+#[test]
+fn a_rider_who_never_begins_to_get_up_keeps_the_waiting_bike_down_until_the_limit() {
+    // He never gets slow enough.
+    let (mut fall, pack) = started_animated(FallKind::HighSide, 0.0);
+    let mut steps = 0;
+    while !host_step(&mut fall, &pack, true) && steps < 1200 {
+        steps += 1;
+    }
+    let waited = steps as f32 * FIXED_STEP;
+    let limit = fall_anim::TUMBLE_LIMIT;
+    assert!((limit - 0.1..limit + 0.1).contains(&waited), "{waited}");
+}
+
+#[test]
+fn a_rider_without_the_animation_does_not_hold_the_bike() {
+    let pack = animated(0.0).0;
+    let mut limp = Fall::new(Some(file()));
+    limp.remember(&riding(&pack.skeleton));
+    assert!(limp.start(&pack.skeleton, (seated(), Quat::IDENTITY), &release(FallKind::LowSide)));
+    assert!(limp.bike_may_stand_up(true, FIXED_STEP));
+    assert!(Fall::default().bike_may_stand_up(true, FIXED_STEP), "a rider who is not down never holds it");
+}
+
+#[test]
+fn a_bike_put_back_by_hand_takes_the_rider_back_at_once_even_in_the_middle_of_the_get_up() {
+    let (mut fall, pack) = started_animated(FallKind::LowSide, 0.5);
+    run_until_getting_up(&mut fall, &pack);
+    run_animated(&mut fall, &pack, 0.3);
+    assert!(!fall.bike_may_stand_up(true, FIXED_STEP), "still getting up");
+    // The reset button: the bike is placed again, whatever the rider does.
+    fall.stop(&pack.skeleton);
+    assert!(!fall.is_down() && fall.active(), "he is on his way back to the bike");
 }

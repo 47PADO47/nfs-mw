@@ -111,9 +111,10 @@ limits; limits and contacts win over it.
    the pelvis where it lies, set upright (the ground is taken as level) [M]: a driven free pelvis cannot stand up, and the reference leaves the
    physics at that point too (the get-up phase of the raise-bike component). The player's own crossfade (1.0 s, 0.2 s on a side) blends the
    tumble into the clip.
-4. The bike stood up (`off` false): the rider gets back on at once if he has no animation; if he is in the get-up, when the clip has played
-   (at most 8 s); if he has not begun to get up, after 2 s [M]. The return is the earlier blend of 0.25 s from where he stands [M]; the walk to
-   the bike is not modelled.
+4. The fallen bike waits for the rider ([ride6-rider-getup](ride6-rider-getup.md)): once it has lain still it is stood up only when his
+   get-up has played to its end (the clip's length; at most 8 s of get-up, or 8 s of waiting for one that has not begun) [M], so the bike
+   is not back under the player's hands while he is still getting up. A bike put back by hand (the reset button) takes him back at once.
+   The return is the earlier blend of 0.25 s from where he stands [M]; the walk to the bike is not modelled.
 
 A rider without `falls.json` falls limp as before; one without `ragdoll.json` keeps to his bike.
 
@@ -126,7 +127,7 @@ A rider without `falls.json` falls limp as before; one without `ragdoll.json` ke
 | Face and side axes | the pelvis body's, against the bone's rest orientation | the owner's transform sync was not read |
 | Airborne distance | the pelvis' height over the ground | the rider information's trace was not read |
 | Frozen get-up | aligned on the pelvis, upright | the raise-bike phases were not recovered |
-| Hold of the rider after the bike is up | get-up to its end (8 s at most), 2 s if not yet begun | the phases' durations were not recovered |
+| Hold of the bike for the rider | get-up to its end (8 s at most), 8 s if not yet begun | the phases' durations were not recovered; see [ride6-rider-getup](ride6-rider-getup.md) |
 | Hold of a clip's last frame | `TimeMode::Once` | the clips' loop flags are not in the dumps; each launch ends as its fade ends |
 
 Not modelled: the walk to the bike and the raising of it; the airbag alpha (`Ragdoll_Airbag_Alpha`, the smoothed `IsFallen`, an input of the
@@ -140,7 +141,7 @@ the impulse curves of the animation instance (`RagdollImpulseCurve`, not set in 
 and by the flying ramp, the get-up only when still, on the ground and in a band, the pose fade, the data round trip and its checks, the
 dominant clip and `TimeMode::Once`. `blackbox-vehicle`: a driven joint holds against gravity, follows a moving target, lets go, does nothing at
 gain 0. `ride6-bikes`: the clips each tree picks (against the blueprint's bindings), the get-ups by lying, the refusals of a pack without a
-clip. `nfsmw`: the bodies are driven to the animation's pose, the get-up freezes the body and lifts the pelvis, the return waits for the
+clip. `nfsmw`: the bodies are driven to the animation's pose, the get-up freezes the body and lifts the pelvis, the bike waits for the
 get-up, a rider without the set falls limp. Offscreen screenshots of a bike thrown into a wall: `docs/provenance/ride6-physics-D.md`.
 
 ## 6. The physics asset the rider really uses
