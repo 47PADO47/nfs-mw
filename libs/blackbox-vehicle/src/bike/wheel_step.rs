@@ -7,7 +7,7 @@ use super::powertrain::Drive;
 use super::thermal;
 use super::tyre::{self, TyreInput};
 use super::{Bike, FRONT, geometry, wheel};
-use crate::ground::Ground;
+use crate::ground::{Ground, SurfaceGrip};
 
 /// The most the compression speed of a wheel state can take (m/s), so one violent step cannot poison the next.
 const MAX_STATE_SPEED: f32 = 20.0;
@@ -125,6 +125,16 @@ impl Bike {
         load += wheel_spec.tire_stiffness.max(0.0) * overload;
         let frame = wheel::ground_frame(contact.normal, contact.heading);
         let camber = geometry::camber(contact.axle, contact.normal);
+        // In a burnout the rear tyre's grip and slip correction are the handler's (`burnout.rs`).
+        let (burnout_grip, slip_correction) = match index {
+            super::REAR => self.burnout_factors(),
+            _ => (1.0, 1.0),
+        };
+        let grip = SurfaceGrip {
+            drive: contact.surface.drive * burnout_grip,
+            lateral: contact.surface.lateral * burnout_grip,
+            ..contact.surface
+        };
         let input = TyreInput {
             load,
             v_long: velocity.dot(frame.forward),
@@ -133,7 +143,8 @@ impl Bike {
             camber,
             compression: deformation,
             efficiency: self.thermal[index].efficiency(),
-            grip: contact.surface,
+            grip,
+            slip_correction,
         };
         let (drive_torque, extra) = match index {
             super::REAR => (drive.torque, drive.extra_inertia),
@@ -181,6 +192,7 @@ impl Bike {
         state.force = force;
         state.slip_angle = output.slip_angle;
         state.slip_ratio = output.slip_ratio;
+        state.slip_speed = tyre::effective_radius(wheel_spec, camber, deformation) * new_spin - input.v_long;
         state.normalised_x = output.normalised_x;
         state.aligning = output.aligning;
         state.traction = output.longitudinal;

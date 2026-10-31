@@ -8,11 +8,6 @@ use super::peaks::{Peaks, peaks};
 use super::spec::WheelSpec;
 use crate::ground::SurfaceGrip;
 
-/// The runtime multiplier of the slip correction. Recovered: the reference game's wheel holds 1 at all times except in a burnout,
-/// when its input handler writes the bike's `BurnoutSlipCorrectionMultiplier` (0.9 for the supermoto handler) into the rear wheel;
-/// wet roads and other surfaces act through the tyre's grip tables, not through this factor (`ride6-chassis-round6.md`).
-const SLIP_CORRECTION_MULTIPLIER: f32 = 1.0;
-
 /// What the tyre sees this step.
 #[derive(Clone, Copy, Debug)]
 pub struct TyreInput {
@@ -30,6 +25,10 @@ pub struct TyreInput {
     /// The efficiency of the tyre from its temperature and wear (1 = a tyre at its best).
     pub efficiency: f32,
     pub grip: SurfaceGrip,
+    /// The runtime multiplier of the slip correction. Recovered: the reference game's wheel holds 1 at all times except in a burnout,
+    /// when its input handler writes the bike's `BurnoutSlipCorrectionMultiplier` (0.9 for the supermoto handler) into the rear wheel;
+    /// wet roads and other surfaces act through the tyre's grip tables, not through this factor (`ride6-chassis-round6.md`).
+    pub slip_correction: f32,
 }
 
 /// What the tyre does about it.
@@ -128,7 +127,7 @@ pub fn forces_at(wheel: &WheelSpec, input: &TyreInput, prepared: &Prepared, spin
     let span_y = (p.y_positive - p.y_negative).max(1e-4);
     let nx = 2.0 * (slip_x - p.x_negative) / span_x - 1.0;
     let ny = 2.0 * (slip_y - p.y_negative) / span_y - 1.0;
-    let combined = nx.hypot(ny) / (nx.abs() * SLIP_CORRECTION_MULTIPLIER * prepared.correction + 1.0);
+    let combined = nx.hypot(ny) / (nx.abs() * input.slip_correction * prepared.correction + 1.0);
     let mut output = TyreOutput {
         slip_angle: alpha,
         slip_ratio: slip_x,
@@ -243,6 +242,7 @@ mod tests {
             compression: 0.0,
             efficiency: 1.0,
             grip: SurfaceGrip::DEFAULT,
+            slip_correction: 1.0,
         }
     }
 

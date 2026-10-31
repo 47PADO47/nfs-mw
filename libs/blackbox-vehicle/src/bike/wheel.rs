@@ -71,6 +71,9 @@ pub struct WheelState {
     /// The tyre's slip angle (rad) and slip ratio (1 = 100 percent).
     pub slip_angle: f32,
     pub slip_ratio: f32,
+    /// How fast the tread slides over the road along the wheel (m/s): the rolling speed of the wheel less the speed of the patch. Unlike
+    /// the slip ratio it is not scaled down below 1 m/s of patch speed, so a rear wheel spinning on the spot shows its whole slide.
+    pub slip_speed: f32,
     pub camber: f32,
     pub surface_tag: u32,
     /// How fast the suspension compresses (m/s).
@@ -96,6 +99,7 @@ impl WheelState {
         self.force = Vec3::ZERO;
         self.slip_angle = 0.0;
         self.slip_ratio = 0.0;
+        self.slip_speed = 0.0;
         self.tyre_compression = 0.0;
         self.normalised_x = 0.0;
         self.aligning = 0.0;

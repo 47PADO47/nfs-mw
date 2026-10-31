@@ -13,6 +13,7 @@ fn input(throttle: f32, wheel_spin: f32) -> DriveInput {
         radius: 0.32,
         lean: 0.0,
         traction_cut: 0.0,
+        burnout: false,
         wheel_inertia: 0.7,
         traction_torque: 0.0,
         brake_torque: 0.0,
@@ -251,4 +252,67 @@ fn an_engine_that_stays_over_its_share_of_the_limit_makes_the_box_change_up() {
     assert!(run(&spec) > 1);
     spec.transmission.control.over_limit.enabled = false;
     assert_eq!(run(&spec), 1);
+}
+
+/// One step in a burnout: the wheel held at `spin`, the bike at a crawl.
+fn burn(train: &mut Powertrain, spec: &BikeSpec, throttle: f32, spin: f32) -> Drive {
+    let drive = train.drive(
+        &spec.engine,
+        &spec.transmission,
+        &DriveInput { burnout: true, speed: 0.5, ..input(throttle, spin) },
+    );
+    train.finish(&spec.engine, spin, DT);
+    drive
+}
+
+#[test]
+fn a_burnout_works_no_launch_clutch_so_the_engine_is_joined_to_the_wheel() {
+    let spec = BikeSpec::example();
+    let (mut launch, mut burnout) =
+        (Powertrain::new(&spec.engine, &spec.transmission), Powertrain::new(&spec.engine, &spec.transmission));
+    let spin = 40.0;
+    for _ in 0..30 {
+        let input = DriveInput { speed: 0.5, ..input(1.0, spin) };
+        launch.drive(&spec.engine, &spec.transmission, &input);
+        launch.finish(&spec.engine, spin, DT);
+        burn(&mut burnout, &spec, 1.0, spin);
+    }
+    // The launch clutch holds the engine near its feathering speed, away from the wheel; the burnout's clutch is engaged: the engine
+    // turns with the wheel through the first gear.
+    let joined = spin * Powertrain::ratio(&spec.transmission, 0) * 60.0 / TAU;
+    assert!((burnout.rpm() - joined).abs() < 0.05 * joined, "{} {joined}", burnout.rpm());
+    assert!((launch.rpm() - joined).abs() > 0.1 * joined, "the launch clutch slips: {} {joined}", launch.rpm());
+}
+
+#[test]
+fn a_burnout_does_not_change_up_for_the_engines_speed() {
+    let mut spec = BikeSpec::example();
+    spec.transmission.control.over_limit =
+        OverLimit { enabled: true, min_speed: 0.1, change_time: 0.05, threshold: 0.1, rpm_share: 0.5 };
+    let run = |burnout: bool| {
+        let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+        let spin = 6000.0 * TAU / 60.0 / (spec.transmission.gears[0] * spec.transmission.final_ratio);
+        train.match_speed(&spec.engine, &spec.transmission, spin, 0.32);
+        for _ in 0..60 {
+            let input = DriveInput { burnout, speed: 1.0, ..input(1.0, spin) };
+            train.drive(&spec.engine, &spec.transmission, &input);
+            train.finish(&spec.engine, spin, DT);
+        }
+        train.gear()
+    };
+    assert!(run(false) > 1, "out of a burnout the engine's speed changes the box up");
+    assert_eq!(run(true), 1, "in one it does not");
+}
+
+#[test]
+fn an_engine_turned_far_over_its_limit_stays_cut_instead_of_alternating() {
+    let spec = BikeSpec::example();
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    let mut throttles = |share: f32| -> Vec<f32> {
+        train.speed = rpm_to_rad(spec.engine.max_rpm * share);
+        (0..12).map(|_| train.throttle(&spec.engine, &spec.transmission, &input(1.0, 10.0))).collect()
+    };
+    let near = throttles(1.05);
+    assert!(near.iter().any(|&t| t > 0.0) && near.contains(&0.0), "just over the limit it alternates: {near:?}");
+    assert!(throttles(1.3).iter().all(|&t| t == 0.0), "far over it the fuel stays cut");
 }

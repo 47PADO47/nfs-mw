@@ -8,7 +8,9 @@
 
 use std::f32::consts::TAU;
 
+use super::choices;
 use super::curve::{curve, ramp};
+pub use super::drive_input::DriveInput;
 use super::gearbox::{Gearbox, peak_torque_rpm};
 use super::spec::{EngineSpec, TransmissionSpec};
 
@@ -223,6 +225,12 @@ impl Powertrain {
         if self.rpm() < engine.idle_rpm {
             throttle = throttle.max(engine.throttle_at_idle);
         }
+        if self.rpm() > engine.max_rpm * choices::OVERREV_SHARE {
+            // Well over the limit (a wheel spinning free through a locked clutch): the fuel stays cut.
+            self.limiter_timer = 0.0;
+            self.limiter_cut = true;
+            return 0.0;
+        }
         if self.rpm() > engine.max_rpm {
             self.limiter_timer += dt;
             if self.limiter_timer >= engine.limiter_cut_time {
@@ -240,31 +248,6 @@ impl Powertrain {
 /// The engine speed (rpm) that a rear wheel turning at `spin` rad/s forces in gear index `gear`.
 fn wheel_rpm(transmission: &TransmissionSpec, gear: usize, spin: f32) -> f32 {
     rad_to_rpm(spin * Powertrain::ratio(transmission, gear))
-}
-
-/// What a step of the powertrain is given.
-#[derive(Clone, Copy, Debug)]
-pub struct DriveInput {
-    pub throttle: f32,
-    /// The spin of the rear wheel (rad/s).
-    pub wheel_spin: f32,
-    /// The road speed (m/s).
-    pub speed: f32,
-    /// The front brake lever the rider asks for (0 to 1), before the linking of the brakes.
-    pub front_brake: f32,
-    /// The rear tyre's load over its load at rest.
-    pub rear_load: f32,
-    /// The effective radius of the rear wheel (m) and the lean as a share of the lean limit (0 upright, 1 at the limit).
-    pub radius: f32,
-    pub lean: f32,
-    /// How much the traction control cuts the throttle, 0 to 1.
-    pub traction_cut: f32,
-    /// The rear wheel's inertia (kg m^2), the torque the road puts against its spin (the tyre's longitudinal force times the radius, N m,
-    /// positive when driving the bike) and the brake torque on it (N m), from the last step.
-    pub wheel_inertia: f32,
-    pub traction_torque: f32,
-    pub brake_torque: f32,
-    pub dt: f32,
 }
 
 impl Powertrain {
@@ -395,6 +378,13 @@ impl Powertrain {
         // Without the throttle (at most the pedal threshold) the clutch is pulled when the bike stands or a start is let go of
         // (and the start is over); a bike that rolls with the throttle shut has the idle clutch, which pulls it as it slows
         // to the speed of the engine's idle (`ride6-powertrain-round6.md`, section 3).
+        // In a burnout the handler works no launch clutch at all: the clutch stays where the rider's lever leaves it, engaged, and the start
+        // is over (`ride6-burnout.md`, section 3).
+        if input.burnout {
+            self.starting = false;
+            self.feather_timer = 0.0;
+            return 0.0;
+        }
         if input.throttle <= PEDAL_THRESHOLD {
             let pulled = self.starting || input.speed < LOW_SPEED;
             self.starting = false;
@@ -484,7 +474,8 @@ impl Powertrain {
             - forced;
         let speed = input.speed.abs();
         let over = transmission.control.over_limit.wants_up(self.over_limit_timer, self.since_change)
-            && self.gear + 1 < transmission.gears.len();
+            && self.gear + 1 < transmission.gears.len()
+            && !input.burnout;
         if over || self.gearbox.wants_up(engine, transmission, self.gear, speed, input.radius, hold_up) {
             self.begin_shift(self.gear + 1, transmission.up_shift_time, true);
             return;

@@ -62,7 +62,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         Console => ("Developer console", ""),
         Garage => ("Garage overlay", ""),
         Throttle => ("Accelerate", ""),
-        Brake => ("Brake, then reverse", ""),
+        Brake => ("Brake, then reverse (bikes: with the throttle open at a standstill, a burnout)", ""),
         Steer => ("Steer right", "Steer left"),
         Handbrake => ("Handbrake", ""),
         ShiftUp => ("Shift up (manual transmission)", ""),
