@@ -97,6 +97,9 @@ impl Drive {
         let input = match self.script.as_mut() {
             Some(run) => {
                 let input = run.script.input_after(run.time, run.previous_time);
+                // The helmet camera's look stick of the script is stepped with the physics, so a run that is batched to
+                // its end before the first frame (a screenshot) has the head where the script's time put it.
+                self.rider.look_around(run.script.look_at(run.time), dt);
                 run.previous_time = Some(run.time);
                 run.time += dt;
                 input

@@ -6,6 +6,8 @@ use glam::{Mat4, Quat, Vec3};
 use nfsmw_data::car::mods::bike_camera::{self, BikeCamera};
 
 use super::Drive;
+use crate::input::{Action, ActionState};
+use crate::viewer::camera::head_look::HeadLook;
 
 /// Where a bike is for a camera mounted on it.
 #[derive(Debug, Clone, Copy)]
@@ -16,6 +18,8 @@ pub struct BikeView {
     pub rotation: Quat,
     /// The rider's eyes in the model frame, when the rider is on the bike and has eyes.
     pub eye: Option<Vec3>,
+    /// Where the rider's head is turned by the look stick, for the helmet camera.
+    pub head: HeadLook,
 }
 
 impl BikeView {
@@ -40,7 +44,17 @@ impl Drive {
             false => self.physics_pose(),
         };
         let eye = self.rider.eye().filter(|_| presented);
-        Some(BikeView { transform: pose.transform(), rotation: pose.rotation, eye })
+        Some(BikeView { transform: pose.transform(), rotation: pose.rotation, eye, head: self.rider.head_look() })
+    }
+
+    /// One frame of the look stick for the helmet camera of a bike: the pad's right stick (X; Y is the gear shift there). The
+    /// rider's head follows it and springs back when it is let go; a car never reads it (`bike_cameras`). `dt` is the frame's
+    /// time (0 while the world is frozen). A drive script's `look=` is stepped with the physics instead (`simulation.rs`).
+    pub fn update_head_look(&mut self, actions: &ActionState, dt: f32) {
+        if self.script.is_some() {
+            return;
+        }
+        self.rider.look_around([actions.value(Action::HeadLookX), actions.value(Action::HeadLookY)], dt);
     }
 
     /// Whether the camera is inside the rider's helmet, so his helmet and visor are left out of the picture.

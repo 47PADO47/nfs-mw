@@ -325,9 +325,21 @@ pub struct Rider {
     hidden: bool,
     /// The camera is inside his helmet: the helmet and the visor are not drawn (`view.rs`).
     first_person: bool,
+    /// Where he looks from straight ahead, turned by the player's look stick (`viewer/camera/head_look.rs`).
+    head_look: crate::viewer::camera::head_look::HeadLook,
 }
 
 impl Rider {
+    /// One frame of the look stick (`stick`: x right, y up, -1 to 1): his head follows it and springs back when it is let go.
+    pub fn look_around(&mut self, stick: [f32; 2], dt: f32) {
+        self.head_look.update(stick, dt);
+    }
+
+    /// Where his head is turned to now.
+    pub fn head_look(&self) -> crate::viewer::camera::head_look::HeadLook {
+        self.head_look
+    }
+
     /// One physics step: the bike's state (`None` for a car), `dt` seconds.
     pub fn step(&mut self, sample: Option<RiderSample>, dt: f32) {
         if let (State::Ready(rig), Some(sample)) = (&mut self.state, sample) {

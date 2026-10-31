@@ -6,7 +6,8 @@
 //! `reset` (back to the nearest road at the start of it), `pop` (one sputter
 //! pop for the exhaust flames at the start of it, as the sound would report), `fall` (`fall=low`, `fall=high` or
 //! `fall=generic`: a bike throws its rider at the start of the segment, through the path a real fall takes; a car
-//! ignores it; see `docs/modding/drive-script.md`). A segment without keys coasts.
+//! ignores it; see `docs/modding/drive-script.md`), `look` and `lookup` (the right stick's X and Y for a bike's helmet camera,
+//! -1..1, right and up positive, held for the whole segment; a camera setting, not a drive input). A segment without keys coasts.
 
 use blackbox_vehicle::bike::FallKind;
 
@@ -27,6 +28,8 @@ fn fall_kind(name: &str) -> Result<FallKind, String> {
 struct Segment {
     seconds: f32,
     input: DriveInput,
+    /// The look stick a bike's helmet camera reads, x right and y up (`look=`, `lookup=`).
+    look: [f32; 2],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +47,7 @@ impl DriveScript {
                 return Err(format!("duration {seconds} is out of range"));
             }
             let mut input = DriveInput::default();
+            let mut look = [0.0; 2];
             for pair in keys.split(',').map(str::trim).filter(|p| !p.is_empty()) {
                 let (key, value) = pair.split_once('=').unwrap_or((pair, "1"));
                 if key.trim() == "fall" {
@@ -62,14 +66,16 @@ impl DriveScript {
                     "down" => input.shift_down = n > 0.5,
                     "reset" => input.reset = n > 0.5,
                     "pop" => input.pop = n > 0.5,
+                    "look" => look[0] = n.clamp(-1.0, 1.0),
+                    "lookup" => look[1] = n.clamp(-1.0, 1.0),
                     other => {
                         return Err(format!(
-                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop fall)"
+                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop fall look lookup)"
                         ));
                     }
                 }
             }
-            segments.push(Segment { seconds, input });
+            segments.push(Segment { seconds, input, look });
         }
         if segments.is_empty() {
             return Err("the script is empty".into());
@@ -106,6 +112,18 @@ impl DriveScript {
             start += s.seconds;
         }
         DriveInput::default()
+    }
+
+    /// The look stick at `time` seconds into the script (x right, y up; at rest after the end).
+    pub fn look_at(&self, time: f32) -> [f32; 2] {
+        let mut start = 0.0;
+        for s in &self.segments {
+            if time < start + s.seconds {
+                return s.look;
+            }
+            start += s.seconds;
+        }
+        [0.0; 2]
     }
 
     pub fn finished(&self, time: f32) -> bool {
@@ -184,6 +202,18 @@ mod tests {
         assert_eq!(script.input_at(0.5).steer, -1.0);
         assert_eq!(script.input_at(1.5), DriveInput::default());
         assert!((script.duration() - 3.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_segment_holds_the_look_stick_of_the_helmet_camera_and_it_is_not_a_drive_input() {
+        let script = DriveScript::parse("1:throttle=1,look=0.5;1:look=-9,lookup=1;1").unwrap();
+        assert_eq!(script.look_at(0.5), [0.5, 0.0]);
+        assert_eq!(script.look_at(1.5), [-1.0, 1.0], "clamped to the stick's travel");
+        assert_eq!(script.look_at(2.5), [0.0, 0.0], "a segment without keys lets the stick go");
+        assert_eq!(script.look_at(9.0), [0.0, 0.0], "so does the end of the script");
+        assert_eq!(script.input_at(1.5), DriveInput::default(), "the physics never sees it");
+        assert_eq!(script.input_at(0.5).throttle, 1.0);
+        assert!(DriveScript::parse("1:look=left").is_err());
     }
 
     #[test]

@@ -14,7 +14,16 @@ use nfsmw_data::camera::{View, Views};
 use nfsmw_data::car::mods::bike_camera::{BikeCamera, Chase, Front, Helmet, Lean};
 
 use super::chase::{Fit, REFERENCE_DISTANCE, REFERENCE_HEIGHT};
+use super::head_look::HeadLook;
 use super::{Lens, direction};
+
+/// How far the helmet camera is tipped down on top of the data's own tilt (`RelativeRotation.Pitch`, -10 degrees on 312 of the 344
+/// bikes), degrees. A modelling choice that is a player's request, not RIDE 6's number: with the data's tilt alone the helmet's
+/// straight view is mostly road and sky and the bike barely shows at the bottom of the picture; this much more shows the dash,
+/// the handlebars and the tank and still leaves the horizon in the upper fifth of the frame (`docs/specs/ride6-bike-cameras.md`,
+/// section 5). The data has no larger real number to use for it: the 50 and 60 degrees of two supermotard bikes are capped
+/// (`MAX_HELMET_DOWN_DEG` of the importer) and the others range from 5 to 20.
+pub const HELMET_VIEW_DOWN_DEG: f32 = 8.0;
 
 /// The aspect the camera set's fields of view are given at (a 16:9 screen); the vertical field of view of a mounted camera is
 /// fixed from it, so a wider screen shows more at the sides.
@@ -123,6 +132,9 @@ pub struct Mount {
     pub level_position: bool,
     /// What the camera does as the bike leans into a bend ([`Lean::NONE`]: nothing).
     pub lean: Lean,
+    /// Where the rider's head is turned from straight ahead by the player's look stick ([`HeadLook`]; straight ahead for a camera
+    /// that has none).
+    pub look: HeadLook,
 }
 
 impl Mount {
@@ -138,15 +150,16 @@ impl Mount {
             follow_roll_max_deg: 0.0,
             level_position: false,
             lean: Lean::NONE,
+            look: HeadLook::default(),
         }
     }
 
     /// The camera in the helmet; the look-back control turns it to look over the tail. It stays upright over the bike's origin
-    /// as the bike leans ([`Mount::place`]).
+    /// as the bike leans ([`Mount::place`]) and looks [`HELMET_VIEW_DOWN_DEG`] further down than the data has it.
     pub fn helmet(helmet: &Helmet, look_back: bool) -> Self {
         Self {
             look_back,
-            pitch_deg: helmet.pitch_deg,
+            pitch_deg: helmet.pitch_deg - HELMET_VIEW_DOWN_DEG,
             fov: helmet.fov,
             near: helmet.near,
             pitch_factor: helmet.pitch_factor,
@@ -154,7 +167,13 @@ impl Mount {
             follow_roll_max_deg: helmet.follow_roll_max_deg,
             level_position: true,
             lean: helmet.lean,
+            look: HeadLook::default(),
         }
+    }
+
+    /// The same camera with the rider's head turned by `look` (the helmet camera only: the other cameras of a bike have no head).
+    pub fn with_head(self, look: HeadLook) -> Self {
+        Self { look, ..self }
     }
 
     /// How far the camera rolls for a bike rolled by `roll` radians: its share of it, and the bike's roll up to the follow limit.
@@ -211,8 +230,12 @@ pub fn lens(eye: Vec3, bike: Attitude, mount: &Mount, aspect: f32) -> Lens {
             mount.lean.shift_pitch_deg.to_radians() * mount.lean.shift_share(lean_deg),
         ),
     };
-    let forward =
-        direction(bike.yaw + turn + into_bend, mount.pitch_deg.to_radians() + mount.pitch_factor * tilt + down);
+    // The head's look is on top of all of it: a stick to the right turns the view clockwise whichever way it faces.
+    let (head_right, head_up) = (mount.look.right_deg().to_radians(), mount.look.up_deg().to_radians());
+    let forward = direction(
+        bike.yaw + turn + into_bend - head_right,
+        mount.pitch_deg.to_radians() + mount.pitch_factor * tilt + down + head_up,
+    );
     // The roll turns the world's up about the bike's heading: a bike leaning right tips the camera's up to the right. A
     // camera on a lean follows the lean beyond its limit by the turn's roll.
     let with_the_lean = side(bike.roll) * mount.lean.turn_roll_deg.to_radians() * mount.lean.turn_share(lean_deg);

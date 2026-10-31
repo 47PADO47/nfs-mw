@@ -21,6 +21,7 @@ A script is segments separated by `;`. Each segment is `seconds:key=value,key=va
 | `reset` | 0 or 1 | put the car back on the nearest road at the start of the segment |
 | `pop` | 0 or 1 | one sputter pop for the exhaust flames at the start of the segment |
 | `fall` | `low`, `high` or `generic` | a bike throws its rider at the start of the segment (below) |
+| `look`, `lookup` | -1 to 1 | the right stick's X (right positive) and Y (up positive) for a bike's helmet camera (`--camera-mode hood`), held for the segment; the rider's head springs to it and back; not a drive input |
 
 A key with no value is 1 (`up` is `up=1`); `fall` alone is `fall=generic`.
 

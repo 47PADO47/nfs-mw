@@ -98,7 +98,7 @@ impl Binding {
         if matches!(self.source, Source::MouseMotion { .. }) {
             value *= s.controls.mouse_sensitivity.factor();
         }
-        if s.controls.invert_camera_y && matches!(self.action, Action::LookY | Action::OrbitY) {
+        if s.controls.invert_camera_y && matches!(self.action, Action::LookY | Action::OrbitY | Action::HeadLookY) {
             value = -value;
         }
         if !value.is_finite() {
@@ -112,7 +112,10 @@ impl Binding {
             return s.controls.steering_deadzone.apply_mode(raw, s.controls.deadzone_mode)
                 * s.controls.steering_sensitivity.factor();
         }
-        if matches!(self.action, Action::LookX | Action::LookY | Action::OrbitX | Action::OrbitY) {
+        if matches!(
+            self.action,
+            Action::LookX | Action::LookY | Action::OrbitX | Action::OrbitY | Action::HeadLookX | Action::HeadLookY
+        ) {
             return s.controls.camera_deadzone.apply_mode(raw, s.controls.deadzone_mode)
                 * s.controls.camera_sensitivity.factor();
         }
@@ -333,6 +336,9 @@ fn driving() -> Vec<Binding> {
         Binding::new(ShiftUp, Source::PadAxis(GamepadAxis::RightStickY), 1.0),
         Binding::new(ShiftDown, Source::PadAxis(GamepadAxis::RightStickY), -1.0),
         Binding::new(RiderWeight, Source::PadAxis(GamepadAxis::LeftStickY), 1.0),
+        // The right stick's X turns a bike's helmet camera (it springs back); its Y stays the gear shift, so there is no pad
+        // binding for `HeadLookY`.
+        Binding::new(HeadLookX, Source::PadAxis(GamepadAxis::RightStickX), 1.0),
         Binding::new(AbsLevel, button(GamepadButton::LeftThumb), 1.0),
         Binding::new(ResetCar, button(GamepadButton::Select), 1.0),
         Binding::new(ToggleCamera, button(GamepadButton::North), 1.0),

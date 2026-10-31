@@ -44,6 +44,7 @@ config (`NFS_XtendedInput.default.ini`), so the remake and the original play ali
 | Speedbreaker | X |
 | Shift up / down | Right stick up / down (not in the free camera, where it looks) |
 | Change camera / look back | RB / LB |
+| Look around (bike helmet camera) | Right stick left / right (springs back) |
 | Reset car | Back |
 | Engage event | D-pad up (A also does, and skips a cutscene) |
 | World map | D-pad left |
@@ -187,6 +188,12 @@ for wheelies and stoppies (G forward and V back, Numpad 8 and 2, and the pad's *
 steers with X at the same time), and `abs_level`, a button that goes to the next lower ABS level, 1, 0.75, 0.5, 0.25, 0 and back
 to 1 (J, and the pad's left-stick click). For the weight axis the stick's circular gate is opened to a square, so a stick at
 the rim on a diagonal still reaches the full lever.
+
+`head_look_x` and `head_look_y` are two more axes of a bike's (a car and the other cameras ignore them): the look of the
+helmet camera, `--camera-mode hood` (right and up positive). `head_look_x` is bound to the pad's **right stick X**, with the
+camera dead zone and sensitivity; `head_look_y` has no default binding, because the right stick's Y is the gear shift there
+(bind a key or an axis to it with `[bindings]`). The head turns up to 11 degrees to either side and 10 up or down and
+springs back to straight ahead when the stick is let go ([the camera spec](specs/ride6-bike-cameras.md), section 6.2).
 
 The existing 0.75 press / 0.65 release hysteresis for digital gamepad buttons remains separate from
 analog trigger and stick response. See [the controller specification](specs/controller-settings.md)

@@ -13,6 +13,8 @@ mod config_tests;
 mod describe;
 mod device_settings;
 #[cfg(test)]
+mod head_look_tests;
+#[cfg(test)]
 mod headlights_tests;
 pub mod hud_labels;
 #[cfg(test)]

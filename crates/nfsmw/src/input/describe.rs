@@ -35,7 +35,9 @@ fn section(action: Action) -> Section {
         Throttle | Brake | Steer | Handbrake | ShiftUp | ShiftDown | GearReverse | GearNeutral | Gear1 | Gear2
         | Gear3 | Gear4 | Gear5 | Gear6 | Gear7 | Clutch | Nos | Speedbreaker | ResetCar | ToggleCamera
         | CycleCamera | ToggleHeadlights | LookBack | Garage | Interact | DismissNotification | MapMode | MapExpand
-        | MapZoomIn | MapZoomOut | MapOrientation | ToggleHud | RiderWeight | AbsLevel => Section::Driving,
+        | MapZoomIn | MapZoomOut | MapOrientation | ToggleHud | RiderWeight | AbsLevel | HeadLookX | HeadLookY => {
+            Section::Driving
+        }
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuButton1 | MenuButton2
         | MenuButton3 | MenuZoomIn | MenuZoomOut | MenuTriggerLeft | MenuTriggerRight | MenuQuit | Click => {
@@ -112,6 +114,8 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         ToggleHud => ("Hide / show the HUD", ""),
         RiderWeight => ("Rider weight forward (bikes: stoppie)", "Rider weight back (bikes: wheelie)"),
         AbsLevel => ("ABS level, next lower (bikes: 1, 0.75, 0.5, 0.25, 0, then 1)", ""),
+        HeadLookX => ("Look right (bike helmet camera)", "Look left (bike helmet camera)"),
+        HeadLookY => ("Look up (bike helmet camera)", "Look down (bike helmet camera)"),
         RadioNext => ("Radio: next song", ""),
         RadioPrevious => ("Radio: previous song", ""),
     }

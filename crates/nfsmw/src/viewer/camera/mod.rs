@@ -7,6 +7,7 @@ mod cut;
 mod depth_tests;
 mod dynamic_fov;
 mod fly;
+pub mod head_look;
 mod orbit;
 pub mod original;
 mod pursuit;

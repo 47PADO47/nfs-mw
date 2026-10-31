@@ -90,6 +90,7 @@ fn helmet_mount() -> Mount {
         follow_roll_max_deg: 5.0,
         level_position: true,
         lean: Lean::NONE,
+        look: HeadLook::default(),
     }
 }
 
@@ -246,7 +247,9 @@ fn the_lean_shift_goes_to_the_inside_of_the_bend_ahead_and_down_and_grows_betwee
 
 #[test]
 fn from_straight_to_60_degrees_of_lean_the_helmet_camera_stays_near_level_up_and_looking_ahead() {
-    let mount = leaning_helmet();
+    // The data's 10 degrees down and the player's extra tilt, with the lean's own 5 more at the end of its range.
+    let mount = Mount { pitch_deg: -10.0 - HELMET_VIEW_DOWN_DEG, ..leaning_helmet() };
+    let most_down = 10.0 + HELMET_VIEW_DOWN_DEG + mount.lean.shift_pitch_deg.abs();
     let at = Vec3::new(0.1, 0.0, 1.4);
     // The most the lean table turns and rolls the camera, plus the followed roll.
     let most_roll = mount.follow_roll_max_deg + mount.lean.turn_roll_deg;
@@ -256,7 +259,7 @@ fn from_straight_to_60_degrees_of_lean_the_helmet_camera_stays_near_level_up_and
             let eye = mount.place(Vec3::ZERO, rotation, at);
             let shot = lens(eye, attitude, &mount, 16.0 / 9.0);
             let looks = shot.forward.z.asin().to_degrees();
-            assert!((-20.0..=0.0).contains(&looks), "{degrees}: it looks {looks} degrees from the horizon");
+            assert!((-most_down - 1e-3..=0.0).contains(&looks), "{degrees}: it looks {looks} degrees from the horizon");
             let turned = shot.forward.y.atan2(shot.forward.x).to_degrees().abs();
             assert!(turned <= mount.lean.turn_yaw_deg + 1e-3, "{degrees}: turned {turned} degrees");
             assert!(tilt_of(&shot) <= most_roll + 1e-2, "{degrees}: rolled {} degrees", tilt_of(&shot));
@@ -290,4 +293,71 @@ fn looking_back_does_not_turn_into_the_bend_and_the_game_default_without_a_lean_
     let at_0 = lens(Vec3::ZERO, LEVEL, &plain, 1.0).forward;
     let at_60 = lens(Vec3::ZERO, Attitude { roll: 1.0, ..LEVEL }, &plain, 1.0).forward;
     assert!(at_0.distance(at_60) < 1e-6, "no lean table, no turn");
+}
+
+#[test]
+fn the_helmet_camera_looks_down_by_the_data_and_the_players_extra_tilt_and_keeps_the_horizon_high() {
+    let helmet = rig(1.45).helmet;
+    let mount = Mount::helmet(&helmet, false);
+    assert!((mount.pitch_deg - (helmet.pitch_deg - HELMET_VIEW_DOWN_DEG)).abs() < 1e-6, "{}", mount.pitch_deg);
+    assert!((4.0..=12.0).contains(&HELMET_VIEW_DOWN_DEG), "a modest tilt: {HELMET_VIEW_DOWN_DEG}");
+    let shot = lens(Vec3::ZERO, LEVEL, &mount, 16.0 / 9.0);
+    let down = -shot.forward.z.asin().to_degrees();
+    assert!((down - (-helmet.pitch_deg + HELMET_VIEW_DOWN_DEG)).abs() < 1e-3, "{down}");
+    // Where the horizon is in the picture, as a share of its height from the top: 0 at the top edge, 0.5 in the middle.
+    let horizon = 0.5 - 0.5 * (down.to_radians().tan()) / (shot.fov_y_degrees.to_radians() * 0.5).tan();
+    assert!((0.0..0.3).contains(&horizon), "the horizon stays in the upper part of the frame: {horizon}");
+    // The front camera and the look back keep the tilt they had.
+    assert_eq!(Mount::front(&rig(1.45).front, false).pitch_deg, rig(1.45).front.pitch_deg);
+}
+
+/// A head turned `right` and `up` degrees, as the stick would hold it for long enough.
+fn head(right: f32, up: f32) -> HeadLook {
+    let mut look = HeadLook::default();
+    for _ in 0..600 {
+        look.update([right / 11.0, up / 10.0], 1.0 / 60.0);
+    }
+    look
+}
+
+#[test]
+fn the_head_turns_the_helmet_view_clockwise_to_the_right_and_up_to_the_top_and_only_that() {
+    let mount = helmet_mount();
+    let straight = lens(Vec3::ZERO, LEVEL, &mount, 16.0 / 9.0);
+    let right = lens(Vec3::ZERO, LEVEL, &mount.with_head(head(11.0, 0.0)), 16.0 / 9.0);
+    // The world's +y is to the left of a bike heading +x: the right is -y.
+    let yaw = right.forward.y.atan2(right.forward.x).to_degrees();
+    assert!((yaw + 11.0).abs() < 0.05, "{yaw}");
+    assert!((right.forward.z - straight.forward.z).abs() < 1e-3, "the pitch is not touched");
+    let up = lens(Vec3::ZERO, LEVEL, &mount.with_head(head(0.0, 10.0)), 16.0 / 9.0);
+    assert!((up.forward.z.asin().to_degrees() - (-10.0 + 10.0)).abs() < 0.05, "{:?}", up.forward);
+    assert!(up.forward.y.abs() < 1e-4);
+    // The head does not move the eye, the field of view or the near plane.
+    assert_eq!(right.position, straight.position);
+    assert_eq!(right.fov_y_degrees, straight.fov_y_degrees);
+    let at = Vec3::new(0.1, 0.0, 1.4);
+    let (rotation, _) = rolled(40.0);
+    assert_eq!(
+        mount.place(Vec3::ZERO, rotation, at),
+        mount.with_head(head(11.0, 10.0)).place(Vec3::ZERO, rotation, at)
+    );
+}
+
+#[test]
+fn a_head_at_rest_changes_nothing_and_looking_back_still_turns_clockwise() {
+    let mount = leaning_helmet();
+    let (_, attitude) = rolled(35.0);
+    let plain = lens(Vec3::ZERO, attitude, &mount, 1.0);
+    let rested = lens(Vec3::ZERO, attitude, &mount.with_head(HeadLook::default()), 1.0);
+    assert_eq!((plain.forward, plain.view), (rested.forward, rested.view));
+    let back = Mount { look_back: true, pitch_deg: 0.0, ..helmet_mount() };
+    let turned = lens(Vec3::ZERO, LEVEL, &back.with_head(head(11.0, 0.0)), 1.0).forward;
+    // Facing -x, a clockwise turn (seen from above) swings the view toward +y.
+    assert!(turned.y > 0.15 && turned.x < -0.9, "{turned:?}");
+}
+
+#[test]
+fn the_front_camera_is_not_given_a_head_by_the_bike_it_is_mounted_on() {
+    assert_eq!(Mount::front(&rig(1.45).front, false).look, HeadLook::default());
+    assert_eq!(Mount::helmet(&rig(1.45).helmet, false).look, HeadLook::default());
 }

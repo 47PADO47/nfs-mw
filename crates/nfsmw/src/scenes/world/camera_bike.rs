@@ -53,7 +53,7 @@ impl WorldScene {
             Shot::Front => (Vec3::from_array(rig.front.position), bike::Mount::front(&rig.front, looking_back)),
             Shot::Helmet => {
                 let eye = view.eye.unwrap_or(Vec3::from_array(rig.helmet.fixed_position));
-                (eye, bike::Mount::helmet(&rig.helmet, looking_back))
+                (eye, bike::Mount::helmet(&rig.helmet, looking_back).with_head(view.head))
             }
         };
         let eye = mount.place(view.origin(), view.rotation, in_model);

@@ -68,6 +68,7 @@ impl WorldScene {
             drive.set_tail_style(self.tuning.tail_trail_style);
             drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
             drive.set_look_back(input.pressed(Action::LookBack));
+            drive.update_head_look(input, dt);
         }
         let camera_shake = self.tuning.camera_shake;
         for drive in self.players.drives_mut() {

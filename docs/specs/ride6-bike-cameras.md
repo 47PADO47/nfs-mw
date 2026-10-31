@@ -90,9 +90,20 @@ view empty).
   are drawn, so his arms are in the picture. The near plane is the data's 10 cm.
 - **Optics:** RIDE 6's 91.49284 degrees, which is exactly a 60 degree vertical field of view at 16:9 (the evidence that its fields of view are
   the horizontal ones at 16:9) [M]; held as that vertical field of view for any aspect (a wider screen shows more at the sides) [C].
-- **Look:** along the bike's heading, tilted by the data's `RelativeRotation.Pitch` (-10 degrees on most bikes) [D]. A supermotard
-  class's -50 and -60 are capped to `MAX_HELMET_DOWN_DEG` = 10 [C]: its frame of reference is not in the data and 60 degrees would show
-  the front tyre.
+- **Look:** along the bike's heading, tilted by the data's `RelativeRotation.Pitch` (-10 degrees on 312 of the 344 bikes; 23 have none,
+  and 5, 7, 15, 20, 50 and 60 occur a few times) [D] and `HELMET_VIEW_DOWN_DEG` = 8 degrees further down [C] (`viewer/camera/bike.rs`,
+  `Mount::helmet`). The extra is the player's request ("pointed a little more down so I can see more of the bike"), not RIDE 6's:
+  the data's -10 shows the road and the sky with the dash only as a strip at the bottom, and no real value gives more, since the
+  `PitchFactor` is the share of the bike's own pitch (a quarter of a wheelie), not a tilt, and the larger tilts are two supermotards'
+  whose frame of reference is not in the data (their -50 and -60 are capped to `MAX_HELMET_DOWN_DEG` = 10 [C]: 60 degrees would show
+  the front tyre). With the 8 the straight view looks 18 degrees down: the horizon is at about a fifth of the picture's height
+  from the top (the Panigale; `C:/r6/shots/cams/j/pan-straight.png`, against about a third before), the fairing, the dash and the
+  handlebars fill its lower half and the road and the traffic ahead the middle; on the KTM 450 SMR, whose cockpit sits lower, the
+  dash's top, the clocks and the bars' ends show at the bottom (`ktm-straight.png`). It is a
+  host constant, not a table value, so it applies to every bike, those already imported too; it is on top of the lean's own
+  tilt (section 6.1: the view looks at most 23 degrees down at 60 degrees of lean: at the hard lean of the script
+  the horizon is then at the top edge of the picture and tipped, where it was a fifth to a quarter down before; it is still in view at the
+  usual lean of a bend, `pan-lean.png`/`ktm-lean.png`). The front camera is not changed.
 
 ## 6. Following the bike's motion [D][C]
 
@@ -147,9 +158,38 @@ third, tipped by about 10 degrees, and the road ahead fills the rest, where the 
 its fairing. A KTM 450 SMR leaned with a stick of 0.55 and 0.75 shows the same (`ktm-s55`, `ktm-s75`); at a full stick (1.0) it
 falls at that speed and the camera is the fixed one of the fallen bike (section 7).
 
-The bounds that follow (tests, lean 0 to 60 degrees either side): the look is between 20 degrees down and the horizon, turned at
+The bounds that follow (tests, lean 0 to 60 degrees either side): the look is between 23 degrees down (10 of the data, 8 of
+section 5, 5 of the lean) and the horizon, turned at
 most 20 degrees from the heading, the horizon is tipped at most 17 degrees (5 followed and 12), and the lens is at most 35 cm below,
 16 + 12 cm sideways and 28 cm ahead of its upright place.
+
+### 6.2 Looking around with the right stick [D][C]
+
+RIDE 6's helmet camera carries a side-view behaviour (`HelmetIgnitionSideViewCameraBehavior`, in the root container, the same for
+every bike): an axis `LookRight` that turns the camera by up to **11 degrees** either way (`YawModifier.OffsetLimits` -11 to 11), an
+axis `LookUp` by up to **10 degrees** (`PitchModifier`), and a `RotatorFilterSpeed` of **4** (5 in one container, the BMW M 1000
+RR 2023's) that smooths the camera's turn to where the axis asks [D]. The cockpit camera has 13 and 10, `RotateSpringArm` is off
+everywhere. This port's player reads the two axes from `head_look_x` and `head_look_y` (`input/action.rs`) and the rider's head
+follows them (`viewer/camera/head_look.rs`, `HeadLook`):
+
+- the look aimed at is the axis's share of the limits, linear, 11 degrees of yaw and 10 of pitch at the end of the axis [D];
+- the look moves to it, and back to straight ahead when the axis is let go, by an exponential approach at the filter speed: it
+  closes the distance by `1 - exp(-4 dt)` a frame, a time constant of a quarter of a second whatever the frame rate; released,
+  it is back within a hundredth of a degree in two seconds, and does not overshoot [C]. The data names the speed and not the
+  filter; this is the usual reading of it (Unreal's `RInterpTo`) in its frame-rate independent form;
+- the look is applied to the camera's direction on top of the tilt, the lean's turn and the look-back (a stick to the right turns
+  the view clockwise from above, whichever way it faces); the eye, the field of view, the near plane and the horizon's roll are
+  untouched, and the rider's own body is not moved by it (his head stays as the animation has it, his helmet is not drawn).
+
+**What drives it.** `head_look_x` is bound to the pad's **right stick X** (`input/bindings.rs`, `driving`) with the camera dead zone
+and sensitivity of the controls settings (15 percent by default, so a resting stick does nothing). The stick's Y is **not** a look:
+the driving profile has it as the gear shift (`ShiftUp`, `ShiftDown`), also under the automatic gearbox, where the shift buttons
+are sport shifts, so pitching the head with it would shift gears. `head_look_y` therefore has no default binding (a key, a
+mouse axis or a pad axis can be bound to it in `[bindings]`; the pitch limit and its spring are as above), and the data's pitch is
+the part of the behaviour a pad does not use. The mouse look is not bound (the user asked for the stick). Only the helmet
+camera (`--camera-mode hood`) reads it: a car, the front camera, the chase cameras and the original views do not, and the
+physics never sees it. `look` and `lookup` of a `--drive-script` (`docs/modding/drive-script.md`) hold the two axes for a segment,
+for pictures.
 
 ## 7. What is not done
 
@@ -159,7 +199,8 @@ most 20 degrees from the heading, the horizon is tipped at most 17 degrees (5 fo
   lag. Only the helmet camera's two `Lean` slots are used (section 6.1), and their filters are not.
 - The cockpit camera (x -4 cm, z 1.2 m, pitch -20), the gauge camera and the GoPro have no mode of the game to sit in; an extra view of
   a mod could use them.
-- The mouse look of the helmet camera (`IgnitionSideViewCameraBehavior`: +-11 degrees yaw, +-10 pitch).
+- The helmet look has no mouse binding and the pad has none for its pitch (section 6.2); the front camera has no look (RIDE 6 has
+  no side-view behaviour for it); the cockpit camera's 13 and 10 degrees are for a camera that no mode of the game shows.
 - A bike without a container (16 of 293) has no `[bike.camera]`, and the game derives its cameras from its wheelbase
   (`BikeCamera::derived`: distances and heights as fractions of the wheelbase [C]). The dump and the containers name 47 bikes with another
   model year; the importer takes the container of the same name nearest in time, which found 31 of them.
@@ -173,6 +214,12 @@ most 20 degrees from the heading, the horizon is tipped at most 17 degrees (5 fo
   a lean (a bolted camera is carried by the body and a helmet one by the followed roll only; the lean shift goes inward, ahead and down;
   from 0 to 60 degrees of lean on either side the look, turn, roll and place stay within the bounds of section 6.1; the look into the
   bend flips with the side; looking back is not turned).
+- `viewer/camera/head_look_tests.rs`: rest, the limits (11 and 10), half a stick, the spring back within two seconds at every
+  frame rate, no overshoot, the quarter-second time constant, a frame of no time and a stick that is not a number. `bike_tests.rs`:
+  the helmet camera looks `HELMET_VIEW_DOWN_DEG` further down than the data and keeps its horizon in the top 30 percent; the head
+  turns the view clockwise to the right and up to the top, moves nothing else, does nothing at rest, also looking back.
+  `input/head_look_tests.rs`: the right stick's X is the look and its Y still shifts, the camera dead zone, the names.
+  `drive/script.rs`: `look` and `lookup`.
 - `drive/rider/view.rs`: the eye is the middle of the eye bones, in the model's frame; the head bone is the fallback; none off the bike;
   the helmet and visor are the hidden parts.
 - `modding/content/bike_camera.rs`, `libs/blackbox-modding` (`bike_camera.rs`), `nfsmw-data` (`mods/bike_camera.rs`): the table's schema,
