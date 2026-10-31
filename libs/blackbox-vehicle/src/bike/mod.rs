@@ -60,6 +60,7 @@ mod trick_spec;
 mod tyre;
 mod wheel;
 mod wheel_step;
+mod wheelie_steer;
 
 pub use brake_reduction::{BrakeReduction, RangeMap, WheelReduction};
 pub use burnout::{BurnoutSpec, HelpSpec as BurnoutHelpSpec};

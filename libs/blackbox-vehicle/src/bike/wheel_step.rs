@@ -83,8 +83,10 @@ impl Bike {
                 super::REAR => (drive.torque, drive.extra_inertia),
                 _ => (0.0, 0.0),
             };
+            let gap = wheel::air_gap(&self.pose(index, free_total - rest), wheel_spec, ground);
             let state = &mut self.wheels[index];
             state.release(free_total - rest, free_speed);
+            state.gap = gap;
             state.spin = tyre::spin_in_air(wheel_spec, spin, drive_torque, brake, extra, dt);
             if let Some(thermal) = &wheel_spec.thermal {
                 let work = thermal::Work {
@@ -186,6 +188,7 @@ impl Bike {
         state.compression_speed = speed;
         state.tyre_compression = deformation;
         state.on_ground = true;
+        state.gap = 0.0;
         state.load = load;
         state.contact = contact.point;
         state.normal = contact.normal;

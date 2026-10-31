@@ -93,6 +93,27 @@ fn share_falling_to(speed: f32, top: f32) -> f32 {
     1.0 + (top - 1.0) * t
 }
 
+/// The least lean limit (rad) a wheelie leaves the stick: the reference cuts the lean limit with the wheelie angle down to 1 degree at 40 to
+/// 45 degrees (`WheelieLeanLimitTuning`, data), which keeps a wheelie straight; here the cut stops at this limit. A modelling choice
+/// (`ride6-wheelie-steer.md`, section 3): with the data's cut a full stick at the height the wheelie assist holds (35 degrees) leans the
+/// bike 9 to 12 degrees and the heading changes by 5 to 10 degrees in 3 s, against 90 to 150 degrees on the road. 0.35 rad (20 degrees)
+/// turns the wheelie at about a third of the road's rate, and the lean help, the wheelie assist and the fall tests keep the bike up (the
+/// sweeps of the spec fall on no bike). 0 or less gives the data's cut back.
+pub const WHEELIE_LEAN_FLOOR: f32 = 0.35;
+
+/// The share of the gap between the yaw rate of a steady turn at the bike's lean and its own that the yaw torque closes in a sub-step
+/// while the front wheel is up and the rear is on the road (`wheelie_steer::apply_wheelie_yaw`): the reference's stability help has a
+/// factor for exactly this state, `StabilityHelpFactorWheelie`, whose constructor default is 0 and which no bike sets, so the
+/// reference leaves the heading of a leaned wheelie to the rear tyre. A modelling choice: 1 holds the yaw rate to the turn the lean
+/// needs; 0 switches the torque off (`ride6-wheelie-steer.md`, section 3).
+pub const WHEELIE_YAW_FACTOR: f32 = 1.0;
+
+/// The wheelie angles (rad, of the line through the hubs) over which the yaw torque of a wheelie comes in: none under the first, all over the
+/// second. A modelling choice: a front wheel that hovers a few centimetres over the road (a pitch of 0.03 to 0.05 rad, as a throttle opened
+/// with the stick flicked makes it, `ride6-feel-round11.md`, section 1.2) is a bike on the road, and a yaw torque on it made 4 bikes of 288 fall in
+/// the flick sweep; 8 to 20 degrees is under the height the wheelie assist holds (35 degrees on most bikes) with room to spare.
+pub const WHEELIE_YAW_PITCH_RANGE: [f32; 2] = [0.15, 0.35];
+
 /// How far over its limit (as a multiple of `max_rpm`) the engine may turn before the fuel stays cut instead of alternating. A modelling
 /// choice. The reference alternates the cut at the limiter (`ride6-engine-drivetrain.md`, "Rev limiter"), which averages to a positive
 /// torque when the torque curve is held flat past its end, as `curve` holds it; an engine driven from the wheel through a clutch that is

@@ -62,6 +62,9 @@ pub struct WheelState {
     /// The spin about the axle (rad/s), positive rolling forwards.
     pub spin: f32,
     pub on_ground: bool,
+    /// How far the tyre's lowest point is over the road when the wheel is in the air (m, along the road's normal); 0 on the ground. A
+    /// wheel with no road in reach reads [`NO_ROAD_GAP`].
+    pub gap: f32,
     /// The load on the tyre (N).
     pub load: f32,
     pub contact: Vec3,
@@ -95,6 +98,7 @@ impl WheelState {
         self.compression = compression;
         self.compression_speed = speed;
         self.on_ground = false;
+        self.gap = 0.0;
         self.load = 0.0;
         self.force = Vec3::ZERO;
         self.slip_angle = 0.0;
@@ -113,6 +117,15 @@ struct Sample {
     surface: SurfaceGrip,
     /// The height of the tyre's lowest point over the ground, along the ground normal (m).
     gap: f32,
+}
+
+/// The gap of a wheel with no road below it (m): far more than any threshold a rule tests.
+pub const NO_ROAD_GAP: f32 = 100.0;
+
+/// The height (m) of the lowest point of the tyre of a wheel at `pose` over the road below it: 0 when it touches or sinks into it,
+/// [`NO_ROAD_GAP`] when the road is out of reach.
+pub fn air_gap(pose: &Pose, wheel: &WheelSpec, ground: &dyn Ground) -> f32 {
+    probe(pose, wheel, ground).map_or(NO_ROAD_GAP, |sample| sample.gap.max(0.0))
 }
 
 /// The lowest point of the tyre of a wheel at `pose` and its height over the ground below it.

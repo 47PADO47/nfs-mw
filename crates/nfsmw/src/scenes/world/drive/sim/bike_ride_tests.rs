@@ -200,3 +200,91 @@ fn a_throttle_held_open_with_the_steering_flicked_from_side_to_side_does_not_thr
         assert!(front_up > 0.0 || start > 0.0, "the front wheel never left the road from a standstill");
     }
 }
+
+/// A bike with the power of a big sports bike, ridden from 12 m/s with the first `settle` seconds on `before` and then 3 s on `during`
+/// (both the inputs of a physics step, from the game's input layer); the heading it turned through in those 3 s (rad, positive to the
+/// right), the share of the time its front wheel was up, and whether the rider was thrown.
+fn wheelie_then(
+    before: impl Fn(usize) -> crate::scenes::world::drive::input::DriveInput,
+    during: impl Fn(usize) -> crate::scenes::world::drive::input::DriveInput,
+) -> (f32, f32, bool) {
+    let mut spec = BikeSpec::example();
+    spec.engine.peak_torque *= 2.2;
+    let mut physics = CarPhysics::from_stats(&Default::default(), BOUNDS);
+    physics.bike = Some(BikePhysics { spec: Arc::new(spec), origin_x: -0.02 });
+    let ground = FlatGround::new(0.0);
+    let mut ride = BikeRide::new(&mut physics).expect("a bike");
+    let mut vehicle = Vehicle::new(physics.spec);
+    ride.attach(&mut vehicle);
+    assert!(ride.place(&ground, (0.0, 0.0, 2.0), 0.0, 12.0));
+    ride.push(&mut vehicle);
+    let yaw = |ride: &BikeRide| {
+        let forward = ride.bike.orientation() * Vec3::Z;
+        forward.x.atan2(forward.z)
+    };
+    let (settle, held) = ((3.0 / FIXED_STEP) as usize, (3.0 / FIXED_STEP) as usize);
+    let (mut from, mut up) = (0.0, 0.0_f32);
+    for step in 0..settle + held {
+        let input = if step < settle { before(step) } else { during(step - settle) };
+        let step_start =
+            StepStart { input: input.to_vehicle(), weight: input.weight, delta: FIXED_STEP, terrain: None };
+        ride.begin_body(&mut vehicle, FIXED_STEP);
+        ride.finish_body(&mut vehicle, FIXED_STEP, &ground);
+        ride.respond(&mut vehicle, &step_start, &ground);
+        ride.advance(FIXED_STEP);
+        if ride.bike.fallen() {
+            return (0.0, 0.0, true);
+        }
+        if step + 1 == settle {
+            from = yaw(&ride);
+        }
+        if step >= settle {
+            up += f32::from(u8::from(!ride.bike.wheel(0).on_ground)) * FIXED_STEP;
+        }
+    }
+    (yaw(&ride) - from, up / 3.0, false)
+}
+
+#[test]
+fn a_wheelie_held_with_v_and_w_turns_with_a_and_d_through_the_input_layer() {
+    use bevy_input::keyboard::KeyCode;
+
+    use crate::input::{ActionState, Bindings};
+    use crate::scenes::world::drive::input::DriveInput;
+    use crate::settings::WheelOptions;
+    let from_keys = |keys: &[KeyCode]| {
+        let mut actions = ActionState::default();
+        actions.update_for_test(&Bindings::default(), keys, &[], false);
+        DriveInput::from_actions(&actions, WheelOptions::default())
+    };
+    // W and V: the throttle and the weight lever back, the wheelie. A and D on top: the steering.
+    let wheelie = from_keys(&[KeyCode::KeyW, KeyCode::KeyV]);
+    assert!(wheelie.throttle == 1.0 && wheelie.weight == -1.0 && wheelie.steer == 0.0);
+    let (straight, up, fell) = wheelie_then(|_| wheelie, |_| wheelie);
+    assert!(!fell && up > 0.9, "the wheelie is held: up {up}");
+    assert!(straight.abs() < 0.05, "and goes straight: {straight}");
+    for (key, side) in [(KeyCode::KeyA, -1.0_f32), (KeyCode::KeyD, 1.0)] {
+        let steered = from_keys(&[KeyCode::KeyW, KeyCode::KeyV, key]);
+        assert_eq!(steered.steer, side);
+        assert!(
+            steered.weight == -1.0 && steered.throttle == 1.0,
+            "the steering does not take the weight or the throttle"
+        );
+        let (heading, up, fell) = wheelie_then(|_| wheelie, |_| steered);
+        assert!(!fell, "{key:?}");
+        assert!(up > 0.9, "the front wheel stays up with {key:?}: {up}");
+        assert!(heading * side > 0.4, "{key:?} turned the wheelie only {heading} rad in 3 s");
+    }
+}
+
+#[test]
+fn a_wheelie_held_with_the_stick_down_and_to_the_left_turns_left() {
+    use crate::scenes::world::drive::input::DriveInput;
+    // The pad's left stick pulled back and to the left on its rim: the lever at its end and the steering about 0.7 (`input/rider_weight_tests.rs`).
+    let diagonal = std::f32::consts::FRAC_1_SQRT_2;
+    let pad = DriveInput { throttle: 1.0, steer: -diagonal, weight: -1.0, ..DriveInput::default() };
+    let wheelie = DriveInput { throttle: 1.0, weight: -1.0, ..DriveInput::default() };
+    let (heading, up, fell) = wheelie_then(|_| wheelie, |_| pad);
+    assert!(!fell && up > 0.9, "up {up}");
+    assert!(heading < -0.3, "stick down and left turned the wheelie {heading} rad in 3 s");
+}

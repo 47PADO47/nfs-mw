@@ -132,3 +132,27 @@ flag at wheel `+0x28` is read as "the tyre touches" (the stability help uses `+0
 Rust: `libs/blackbox-vehicle/src/bike/handling.rs` (`apply_lean_help`, the acceleration kept by `shift_weight`), `lean.rs` (`LeanInput::long_g`), `choices.rs`
 (`STICK_SHARE_AT_TOP`), `round11_tests.rs`; harness `libs/blackbox-modding/src/content/bike_ride_flick.rs`, `bike_ride_radius.rs`; host test `drive/sim/bike_ride_tests.rs`.
 
+
+## Wheelie steer (the stick with the front wheel up)
+
+Spec: [ride6-wheelie-steer.md](../specs/ride6-wheelie-steer.md). Build `5.6.1-1697004`, image-relative addresses; the decompilations of an earlier run of `R6HDecomp`
+on a copy of the project (`C:\r6\ghidra\out2`: `510b180`, `50cd720`, `5107c80`, `510d620`, `50f7680`, `50c8f70`, `50fb230`), the data constants read from the image
+(`148fa8bd0` = 1e-8, `148f94f1c` = 1.0, `148fa8c50` = -1.0, `148f96ed0` = pi/180, `148fbaccc` = 0.1, `148fbaf50` = 180/pi, `14bc01268` = a pair of zeroes) and
+the physics dump (`InputHandler/*.json`).
+
+| Topic | Functions | How verified |
+|---|---|---|
+| Wheelie and stoppie lean limit | end of `0x14510b180`: `limit = F(handler +0xa50, front wheel)` then `F(+0xa28, rear wheel)`, floored at `148fbaccc` (0.1 degree); `F` = `0x1450cd720` | `F` returns the limit unchanged when the tuning's `LeanLimit` (+0) is 0 or less; otherwise `lerp(limit, LeanLimit, ramp(angle; AngleRange))`, `angle` = `max(0, (CurrentWheelieAngle (+0xc58) - terrain x influence) x sign) x 180/pi` while the wheel's contact flag (+0x28) is clear, 0 with it set; sign +1 or -1 by the call `0x14515ca60` on the wheel (-1 is the constant at `148fa8c50`) |
+| Mid-air steer: weight | `0x1450f7680` (component at handler +0x1588; weight at +0x1c8, angle at +0x1cc) | product of three ramps: the front wheel's gap (`wheel +0x28` less `+0xc0`, at least 0) through +8/+0x10; `1 - ramp(abs(chassis +0x183c); +0x20/+0x28)` when +0x18 is set; `ramp(chassis +0x1828; +0x38/+0x40)` when +0x30 is set |
+| Mid-air steer: angle | same function: `clamp(SteerInputTuning(chassis +0x1798) + LateralWeightInputTuning(chassis +0x17b8), -1, 1) x steer lock of the front wheel x pi/180` | the stick is the lean controller's own (`0x14510b180` tests its sign for the terrain term); the weight and the angle are 0 and 0 when the component is disabled |
+| Mid-air steer: use | `0x1450c8f70`, after `0x1450c9320`: `angle = lerp(controller angle, +0x1754, +0x1750)` when `0x1450f7680` says the weight is over 0 | read |
+| Lean help factor of a wheelie | `0x145107c80`: front gap over the wheelie range's end (+0x28b0, default `(0, 0)`) gives `LeanHelpFactorWheelie` (+0x26e4) as the whole factor; the blend towards it runs only for a range other than the default pair (`14bc01268`); then the blend towards `LeanHelpFactorAirborne` (+0x26e0) by the chassis' distance from the ground (+0x1a28) through +0x2898/+0x28a0 | read; constructors `0x50fb230`, `0x50fbfa0` store 1.0 at +0x26e4 and +0x26e0 |
+| Stability help factor in a wheelie | `0x14510d620`: the same blend towards `StabilityHelpFactorWheelie` (+0x2e4c) with the lean help's wheelie range and **no** skip for the default pair; the constructor stores 0 there (an eight-byte store at +0x2e48: 0.1f and 0.0f) | read; with the range `(0, 0)` the blend weight is 1 whenever the gap is 0 or more, so the factor reads 0 in every state - not changed, see the spec's open items |
+| Data | `MidAirSteerComponent` identical in the eight input handlers (`GroundDistanceRange` 4.0 to 4.1, `NormalizedLeanRange` 0.4 to 0.41, `PitchSpeedRange` -0.4 to -0.3, `SteerInputTuning` -1..1 to 0.8..-0.8); `WheelieLeanLimitTuning` {`LeanLimit` 1, `AngleRange` 0 to 40 (Motard; 0 to 45 and 0 to 40 in the 288 manifests)}; no handler sets a wheelie distance range or a wheelie factor | `physdump-all/resolved/.../InputHandler/*.json` |
+
+Not settled: the polarity of the handlebar against the stick in the mid-air steer (read as positive-right for both, which makes the data a counter-steer); the sign of the pitch
+speed at `chassis +0x1828`; the unit of the gap (read as centimetres, as the handler's other distances); the unit of the wheelie lean limit (degrees, as the stopped limit).
+
+Rust: `libs/blackbox-vehicle/src/bike/wheelie_steer.rs` (`mid_air_intensity`, `mid_air_angle`, `LEAN_HELP_FACTOR_WHEELIE`, `Bike::apply_wheelie_yaw`), `handling.rs`
+(`steer_handlebar`, `apply_lean_help`, the cut in `steer_handlebar`), `wheel.rs`/`wheel_step.rs` (`WheelState::gap`), `choices.rs` (`WHEELIE_LEAN_FLOOR`, `WHEELIE_YAW_FACTOR`),
+`wheelie_steer_tests.rs`; harness `libs/blackbox-modding/src/content/bike_ride_wheelie_steer.rs`; host tests `drive/sim/bike_ride_tests.rs`.

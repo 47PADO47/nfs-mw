@@ -5,7 +5,7 @@ use glam::Vec3;
 
 use super::curve::ramp;
 use super::lean::{self, LeanInput};
-use super::{Bike, BikeInput, FRONT, REAR, choices, lean_of, rider, rider_place};
+use super::{Bike, BikeInput, FRONT, REAR, choices, lean_of, rider, rider_place, wheelie_steer};
 
 impl Bike {
     /// The rider's inputs follow their channels' rates, the place they ask for is worked out (`rider_place::place`: the weight,
@@ -117,7 +117,12 @@ impl Bike {
                     true => &assist.wheelie,
                     false => &assist.stoppie,
                 };
-                (params.lean_limit, ramp(pitch.abs(), params.lean_pitch_range))
+                // The wheelie's cut stops at `choices::WHEELIE_LEAN_FLOOR` (a choice); the stoppie's is the data's.
+                let floor = match pitch >= 0.0 {
+                    true => choices::WHEELIE_LEAN_FLOOR.max(0.0),
+                    false => 0.0,
+                };
+                (params.lean_limit.max(floor), ramp(pitch.abs(), params.lean_pitch_range))
             }
             None => (0.0, 0.0),
         };
@@ -161,6 +166,9 @@ impl Bike {
             }
             false => direct,
         };
+        // With the front wheel up the mid-air steer takes the handlebar from the controller (`wheelie_steer.rs`).
+        let weight = self.mid_air_weight();
+        let aim = aim + (wheelie_steer::mid_air_angle(stick, steering.max_angle) - aim) * weight;
         let angle = self.steer.step(aim, steering.response, steering.damping_ratio, dt);
         let limit = steering.max_angle;
         if angle.abs() > limit {
@@ -235,9 +243,11 @@ impl Bike {
         let input = lean::help::HelpInput { speed: speed.abs(), heading_error: self.heading_error(), pedals };
         // A collision adds to the help for a moment (`choices::COLLISION_LEAN_HELP`).
         // In a burnout the help factor is 1 and the balance 0: the help is all couple (`ride6-chassis-round6.md`, sections 2.1 and 2.2).
-        let factor = match self.burnout {
-            true => 1.0,
-            false => lean::help::help_factor(spec, &input),
+        // The factor is whole in a burnout and `LeanHelpFactorWheelie` with the front wheel up (`wheelie_steer.rs`).
+        let factor = match (self.burnout, front.on_ground) {
+            (true, _) => 1.0,
+            (false, false) => wheelie_steer::LEAN_HELP_FACTOR_WHEELIE,
+            (false, true) => lean::help::help_factor(spec, &input),
         };
         let balance = balance * f32::from(!self.burnout);
         let share = (factor + self.chassis.collision_help.lean).clamp(0.0, 1.0);
@@ -310,6 +320,7 @@ impl Bike {
         if !self.fallen {
             self.apply_lean_help(speed, pedals);
             self.apply_stability_help(dt, speed, input);
+            self.apply_wheelie_yaw(dt, speed);
             self.apply_burnout_help(dt, input.steer);
             self.apply_pitch_assist(dt, speed);
             // The spin momentum of the wheels, turned by the bike's yaw, torques the frame about its length (a yaw to the right
