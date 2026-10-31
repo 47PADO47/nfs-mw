@@ -57,12 +57,13 @@ retyped. The variants keep their tokens (`Yamaha YZF R1M RM 2019`).
 ```
 python -I C:\r6\tools\bikeparts\import_all.py [--only <regex on the vehicle id>] [--limit N] [--force] [--dry-run]
          [--mod <mod folder>] [--work <scratch folder>] [--importer <exe>] [--min-free-gb 30]
+         [--jobs N] [--no-server]
 ```
 
 For each vehicle (the KTM first, as a regression gate) the script: checks the bindings and the physics file, runs `bikeparts.py`
 (the exporter: `parts.json`, `glb/`, `tex/`), runs `ride6-bike-import` into the mod folder (`files/CARS/<ID>/`, `cars/<id>.toml`),
 **deletes `glb/` and `tex/`** (250 to 500 MB per bike) and keeps the small files (`parts.json`, `built.json`, `status.json`), so the
-scratch folder stays under about 1 GB per finished bike set and one bike's export at a time (a few hundred MB) is on disk. It
+scratch folder stays under about 1 GB per finished bike set and the exports of `--jobs` bikes at a time (a few hundred MB each) are on disk. It
 checks the free space of the work drive before each bike (default: stop below 30 GB). It writes `status.json` per bike, appends
 to `import-log.jsonl` and rewrites `import-report.md` after every bike, and a bike with a status is not done again unless
 `--force`, so an interrupted run resumes. The KTM's output is compared with the baseline hashes in `_baseline_ktm450.md5` and the
@@ -71,6 +72,39 @@ batch stops if they differ.
 Time on the reference PC (one run at a time; the exporter dominates): about 25 to 30 seconds of export and 5 to 7 seconds of
 import per bike, so the 288 importable bikes take under 3 hours. Disk: about 12 MB of car files per bike (3.5 GB for the 288).
 The exporter's JSON cache (`C:\r6\parts\cache`) is shared by the runs and grows by a few hundred MB.
+
+### Faster: the tool server and `--jobs`
+
+The exporter reads the install through `R6Tool` (the CUE4Parse tool `R6ToolParts`), and it used to start the tool as a new process
+for every call (one `jsonmany` per package dump, one `tex`, one `export`), each mounting the 88 encrypted paks and loading the
+`.usmap` again. The run also did one bike after the other. Three changes remove that; the results are byte for byte the same
+(the `parts.json`, `glb/` and `tex/` of a bike, `built.json`, the car's files and `cars/<id>.toml`).
+
+- **`R6Tool <game> serve <port>`** mounts the paks once and answers one request per TCP connection on `127.0.0.1:<port>` (port 0
+  picks a free one and prints `READY <port>`). A request is one line, tab separated: `jsonmany <listfile> <outdir>`,
+  `tex <listfile> <outdir> <max size>`, `export <packages;> <outdir> <Gltf2|ActorX> <quality>` (the arguments and the effects of
+  the one-shot modes), or `ping`, `stats`, `quit`. The reply is the text the one-shot mode prints, and the connection closes.
+  Requests run concurrently, one task each. Loading a package from the paks is serialised by a lock (a small share of the time:
+  `stats` prints it); mesh export, texture decoding and JSON serialisation run in parallel. `jsonmany` writes a temporary file and
+  renames it, so a reader never sees a partial JSON (the one-shot mode does the same). The one-shot modes (`list`, `names`, `grep`,
+  `export`, `jsonmany`, `tex`, `json`) work as before.
+- **`r6lib.run_tool`** sends the request to the server when the environment variable `R6_SERVER_PORT` is set and runs the tool as a
+  process otherwise (also when the server cannot be reached). `import_all.py` starts one server on a free port when the run exports
+  anything (not with `--dry-run` or `--remanifest`), waits until it answers, exports `R6_SERVER_PORT` to the exporter processes and
+  stops the server at the end, also after an error or Ctrl-C. `--no-server` keeps the process-per-call way.
+- **`--jobs N`** (default 4) does N bikes at the same time with a thread pool. The first bike always runs alone: it is the KTM
+  regression gate and it writes `mod.toml` (when the KTM is not in the run, the first bike of the run does, unless the mod folder
+  has the file). The status, log and report writes are under a lock; every bike has its own folder and its own car folder in the
+  mod; the JSON cache is shared. The importer is a process of its own per bike.
+
+The tool is outside the repository like the scripts: `C:\r6\tools\CUE4Parse\R6ToolParts\Program.cs`. Build it from a copy of the
+project folder that sits next to the CUE4Parse projects (so the running tool's `obj` is not touched), with
+`CUE4PARSE_SKIP_NATIVE=true dotnet build -c Release -o <dir>`, and point `TOOL` in `r6lib.py` (or the environment variable
+`R6_TOOL`) at the `R6Tool.exe` there.
+
+Measured on the reference PC while it was busy with other work (4 bikes, a JSON cache warmed by other bikes, per bike in all):
+about 36 s with a process per call, about 19 s with the server and `--jobs 1`, about 11 s with the server and `--jobs 4`. What
+stays is the mesh export and texture decoding of the tool itself (about 12 to 17 s of export per bike), which the jobs overlap.
 
 `ride6-bike-import ids <vehicle id>... | --file <list>` prints `vehicle id, car id, name, manufacturer` (tab-separated) for a set,
 and the script uses it as its only source of names. `ride6-bike-import` without `--car` derives the id for the one bike by rules 1 to
