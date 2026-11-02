@@ -8,6 +8,14 @@ fn pixels(r: &Renderer) -> Vec<u8> {
 fn partial(p: &[u8]) -> usize {
     p.as_chunks::<2>().0.iter().filter(|p| p[1] == 255 && p[0] > 2 && p[0] < 253).count()
 }
+/// Mean absolute visibility difference in 8-bit steps over every pixel.
+fn mean_error(a: &[u8], reference: &[u8]) -> f64 {
+    let pixels = a.as_chunks::<2>().0;
+    let total: u64 = pixels.iter().zip(reference.as_chunks::<2>().0).map(|(a, b)| u64::from(a[0].abs_diff(b[0]))).sum();
+    total as f64 / pixels.len() as f64
+}
+const TWO_RAY_MAE: f64 = 2.0;
+const TWO_RAY_FLICKER: f64 = 0.75;
 #[test]
 #[ignore = "requires Vulkan RT and BLACKBOX_RT_REFLECTIONS=1"]
 fn finite_sun_broadens_elevated_edges_and_spatial_filter_round_trips_without_history() {
@@ -70,6 +78,33 @@ fn finite_sun_broadens_elevated_edges_and_spatial_filter_round_trips_without_his
     assert!(partial(&high) > 200, "elevated blocker must produce a penumbra: {}", partial(&high));
     r.capture(320, 240, &frame, &[ground]).unwrap();
     assert_eq!(high, pixels(&r), "sample pattern is frame independent");
+    r.set_render_experiments(RenderExperiments { ray_shadow_samples: 2, ..soft });
+    assert_eq!(r.experiments.ray_shadow_samples, 2);
+    r.capture(320, 240, &frame, &[ground]).unwrap();
+    let two = pixels(&r);
+    assert!(partial(&two) > 0, "two rays still produce a soft shadow edge");
+    let two_error = mean_error(&two, &high);
+    eprintln!("two-ray MAE against eight rays: {two_error:.3}");
+    assert!(two_error < TWO_RAY_MAE, "two rays must approximate the eight-ray penumbra: {two_error:.3}");
+    r.capture(320, 240, &frame, &[ground]).unwrap();
+    assert_eq!(two, pixels(&r), "two-ray pattern is frame independent without history");
+    // With history, two-ray frames interleave into four stratified rays and converge on the reference.
+    let filtered_two = RenderExperiments { ray_shadow_samples: 2, ray_shadow_filter: 0.75, ..soft };
+    r.set_render_experiments(filtered_two);
+    r.capture(320, 240, &frame, &[ground]).unwrap();
+    let single = mean_error(&pixels(&r), &high);
+    r.set_render_experiments(RenderExperiments { ray_shadow_temporal: true, ..filtered_two });
+    let mut resolved = Vec::new();
+    for _ in 0..6 {
+        r.capture(320, 240, &frame, &[ground]).unwrap();
+        resolved.push(pixels(&r));
+    }
+    let temporal = mean_error(&resolved[5], &high);
+    let flicker = mean_error(&resolved[5], &resolved[4]);
+    eprintln!("filtered two-ray MAE single={single:.3} temporal={temporal:.3} frame-to-frame={flicker:.3}");
+    assert!(temporal <= single, "interleaved history must not lose accuracy: {temporal:.3} > {single:.3}");
+    assert!(flicker < TWO_RAY_FLICKER, "interleaved frames must resolve stably: {flicker:.3}");
+    r.set_render_experiments(soft);
     r.set_shadow_casters(Some(&[Instance::new(roof, Mat4::from_translation(Vec3::Z * 0.08))]));
     r.capture(320, 240, &frame, &[ground]).unwrap();
     let low = pixels(&r);

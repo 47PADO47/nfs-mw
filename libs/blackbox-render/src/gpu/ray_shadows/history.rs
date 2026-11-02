@@ -1,11 +1,10 @@
 //! Two unblended spatial frames only. The resolved output is never fed back into history.
 use super::{
     super::{surface::targets::Targets, temporal::EffectMotion},
-    filter,
+    Groups, filter,
 };
 use blackbox_gfx::{FrameParams, Projection, RenderExperiments};
 use glam::{Mat4, Vec3};
-use wgpu::util::DeviceExt;
 pub(in crate::gpu) struct Draw<'a> {
     pub source: &'a wgpu::TextureView,
     pub output: &'a wgpu::TextureView,
@@ -27,6 +26,11 @@ pub(in crate::gpu) struct History {
     images: [wgpu::TextureView; 2],
     index: usize,
     pipeline: wgpu::RenderPipeline,
+    layout: wgpu::BindGroupLayout,
+    /// Rewritten each frame; one buffer for the renderer's lifetime.
+    buffer: wgpu::Buffer,
+    /// Inputs keyed by source, stored history, depth, normals and motion views (two per ping-pong).
+    groups: Groups<5>,
     valid: bool,
     previous_inverse: Mat4,
     near: f32,
@@ -39,6 +43,9 @@ impl History {
         &self.images[self.index]
     }
     pub fn new(device: &wgpu::Device, size: (u32, u32)) -> Self {
+        Self::with_cache(device, size, None)
+    }
+    pub fn with_cache(device: &wgpu::Device, size: (u32, u32), cache: Option<&wgpu::PipelineCache>) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("two-frame sun resolve"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/ray_shadow_history.wgsl").into()),
@@ -73,11 +80,19 @@ impl History {
                 ],
             }),
             multiview_mask: None,
-            cache: None,
+            cache,
         });
         Self {
             images: [filter::raw(device, size), filter::raw(device, size)],
             index: 0,
+            layout: pipeline.get_bind_group_layout(0),
+            buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("sun history rejection"),
+                size: size_of::<Params>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
+            groups: Groups::default(),
             pipeline,
             valid: false,
             previous_inverse: Mat4::IDENTITY,
@@ -89,7 +104,28 @@ impl History {
     pub fn invalidate(&mut self) {
         self.valid = false;
     }
+    /// Resolve a source without a stored neighbourhood range, uploading the parameters through `encoder`.
     pub fn resolve(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder, draw: Draw<'_>) {
+        self.resolve_with(device, None, encoder, draw);
+    }
+    /// Resolve the RT spatial filter's output, whose blue/alpha hold its neighbourhood range.
+    pub fn resolve_ranged(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        draw: Draw<'_>,
+    ) {
+        self.resolve_with(device, Some(queue), encoder, draw);
+    }
+    /// `queue` writes the parameters directly and marks the source as ranged.
+    fn resolve_with(
+        &mut self,
+        device: &wgpu::Device,
+        queue: Option<&wgpu::Queue>,
+        encoder: &mut wgpu::CommandEncoder,
+        draw: Draw<'_>,
+    ) {
         let Projection::PerspectiveInfiniteReverse { near, fov_y, .. } = draw.frame.projection else {
             self.invalidate();
             return;
@@ -105,26 +141,27 @@ impl History {
         let params = Params {
             previous_inverse: self.previous_inverse.to_cols_array(),
             screen: [size.0 as f32, size.1 as f32, near, 2.0 * (fov_y * 0.5).tan() / size.1 as f32],
-            control: [u8::from(valid) as f32, 0.5, self.near, 0.0],
+            control: [u8::from(valid) as f32, 0.5, self.near, u8::from(queue.is_some()) as f32],
             jitter: [jitter.x, jitter.y, 0.0, 0.0],
         };
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("sun history rejection"),
-            contents: bytemuck::bytes_of(&params),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        upload(device, queue, encoder, &self.buffer, &params);
         let tex = |binding, view| wgpu::BindGroupEntry { binding, resource: wgpu::BindingResource::TextureView(view) };
-        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("two-frame sun inputs"),
-            layout: &self.pipeline.get_bind_group_layout(0),
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() },
-                tex(1, draw.source),
-                tex(2, &self.images[self.index]),
-                tex(3, &draw.surfaces.depth),
-                tex(4, &draw.surfaces.normals),
-                tex(5, draw.motion.map_or(draw.source, |m| &m.view)),
-            ],
+        let motion = draw.motion.map_or(draw.source, |m| &m.view);
+        let (layout, buffer, stored) = (&self.layout, &self.buffer, &self.images[self.index]);
+        let key = [draw.source, stored, &draw.surfaces.depth, &draw.surfaces.normals, motion];
+        let group = self.groups.get(key, || {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("two-frame sun inputs"),
+                layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() },
+                    tex(1, draw.source),
+                    tex(2, stored),
+                    tex(3, &draw.surfaces.depth),
+                    tex(4, &draw.surfaces.normals),
+                    tex(5, motion),
+                ],
+            })
         });
         let next = 1 - self.index;
         let attachment = |view| {
@@ -147,7 +184,7 @@ impl History {
             multiview_mask: None,
         });
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &group, &[]);
+        pass.set_bind_group(0, group, &[]);
         pass.draw(0..3, 0..1);
         drop(pass);
         self.index = next;
@@ -157,4 +194,23 @@ impl History {
         self.previous_inverse = draw.view_proj.inverse();
         self.near = near;
     }
+}
+fn upload(
+    device: &wgpu::Device,
+    queue: Option<&wgpu::Queue>,
+    encoder: &mut wgpu::CommandEncoder,
+    buffer: &wgpu::Buffer,
+    params: &Params,
+) {
+    if let Some(queue) = queue {
+        queue.write_buffer(buffer, 0, bytemuck::bytes_of(params));
+        return;
+    }
+    use wgpu::util::DeviceExt;
+    let staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("sun history rejection upload"),
+        contents: bytemuck::bytes_of(params),
+        usage: wgpu::BufferUsages::COPY_SRC,
+    });
+    encoder.copy_buffer_to_buffer(&staging, 0, buffer, 0, size_of::<Params>() as u64);
 }
