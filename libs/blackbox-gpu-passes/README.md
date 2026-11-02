@@ -82,7 +82,13 @@ drop(pass);
 // after that pass has ended: its own pass over the finished colour, sampling the finished depth
 effects.draw_soft(&device, &queue, &mut encoder, &SoftDraw {
     target: &colour, depth: &depth, globals: &bindings.globals_bind_group, inverse_view_proj,
+    camera_position, camera_cut, local_fog_shadows: None,
 });
+// optional, with the same `SoftDraw`: bounded haze volumes, then the shared local-light fog. Each `FogView`
+// (the main view, a split-screen slot, an unkeyed capture) keeps its own volume and history; the fog needs
+// compute shaders and four storage buffers per stage, and draws nothing on devices without them.
+effects.draw_light_haze(&device, &queue, &mut encoder, &soft);
+effects.draw_light_fog(&device, &queue, &mut encoder, &soft, FogView::Main);
 
 // last, at output resolution, after any post-processing and upscaling
 ui.set_layer(ui_layer);                                  // whenever it changes
