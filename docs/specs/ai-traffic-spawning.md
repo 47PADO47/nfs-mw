@@ -1,8 +1,8 @@
 # Traffic spawning: density, patterns, spawn points, removal
 
-**PC correction (2026-10-17):** the GameCube values below are not all shared
-by the installed PC reference. PC uses a 300-400 m probe band, 300 m final
-clearance and a 20-vehicle population/share budget. See
+**PC values (2026-11-02):** sections 5, 6 and 9 give the installed PC reference's
+values (a 300-400 m probe band, 300 m final clearance and a 20-vehicle
+population/share budget), with the GameCube ones beside them. See
 [traffic-presets.md](traffic-presets.md) for the current rewrite policy and
 the provenance record for direct PC checks. Other unconfirmed items remain open.
 
@@ -81,6 +81,14 @@ steps (value at index `i` for `density = i/10`, linear in between, clamped at th
 | off-screen time `T(d)` (s) | 12 | 10 | 9 | 8 | 7 | 6.5 | 6 | 5.5 | 5 | 4.5 | 4 |
 
 The more traffic is requested, the faster new cars are allowed and the sooner unseen ones are recycled.
+
+**Cop requests [PC binary].** The cop manager's request is pending while cop spawning is enabled and any of these holds:
+a scripted spawn request is queued; a roadblock request is latched; or a pursuit is due another cop (its spawn interval
+has run out, the wave still needs cars and the active cop count is below the cop cap) or has a roadblock request. Density
+is 0 meanwhile: no traffic car is added, and existing traffic is retired with the density-0 limits (12 s / 130 m). The
+pause ends when the cop is placed or no longer needed. A placement that keeps failing keeps traffic paused. The heat level
+itself is not an input to density. **Rewrite:** the wave's "due" state is held from the moment a cop is due until it is
+placed (`ai/pursuit.rs`, `ai/policy.rs`).
 
 ## 3. Which pattern is active
 
@@ -181,15 +189,15 @@ repeat up to n times, starting at cursor (cursor wraps modulo n, advanced by one
     eligible if  timer[cursor] > r.Rate  and  r.Rate > 0
     count = number of ACTIVE pool cars of r's model
     ok_max = (r.MaxInstances == 0) or (count < r.MaxInstances)
-    other = (number of pool cars) + 10 - (number of all vehicles in the world)     # unsigned
+    other = (number of pool cars) + 20 - (number of all vehicles in the world)     # unsigned (10 on GameCube)
     ok_pct = (r.Percent == 0) or (count < max(1, other * r.Percent / 100))         # integer division
     if eligible and ok_max and ok_pct:  return r.Vehicle
 return none
 ```
 
-- `other` equals 10 minus the number of vehicles that are not traffic pool cars (the player, racers, cops, trailers
-  **[unconfirmed]**). With only the player it is 9, so `Percent = 40` gives a cap of 3 cars of that type, 25 gives
-  2, 10 and 20 give 1 (the `max(1, ...)` floor).
+- `other` equals 20 (PC; 10 on GameCube) minus the number of vehicles that are not traffic pool cars (the player,
+  racers, cops, roadblock cars, the helicopter, trailers **[unconfirmed]** for the last two). With only the player it is
+  19, so `Percent = 40` gives a cap of 7 cars of that type; with eight chase cops it is 11 and the cap is 4.
 - The cursor keeps advancing after a hit, so consecutive spawns rotate through the list instead of always taking
   the first eligible entry.
 - When a car is actually spawned, the `timer[i]` of every record whose model equals the spawned car is set to 0.
@@ -201,11 +209,18 @@ return none
 **Population cap (`needs_traffic`).** A spawn is only attempted while
 
 ```
-(number of vehicles in the world) - (number of pool cars that are neither active nor loading)  <  10
+(number of vehicles in the world) - (number of pool cars that are neither active nor loading)  <  20
 ```
 
-That is, fewer than **10 active vehicles in total** (player, racers, cops, helicopters count as well as traffic;
-cars still loading count). Racers and cops therefore squeeze traffic out.
+That is, fewer than **20 active vehicles in total** on PC (10 on GameCube): the player, racers, cops, roadblock cars and
+the helicopter count as well as traffic, and cars still loading count **[PC binary; the helicopter inferred]**. Cops
+therefore squeeze traffic out: active traffic is never removed for them, but traffic is not replenished while a cop
+waits (density 0, section 2), so as traffic retires the cops take its place. With eight cops and the player at most
+eleven traffic cars remain.
+
+**Rewrite [ours].** Racers are not counted, so a race grid keeps traffic. The helicopter counts while it flies. A wave
+cop waits for a free slot of the same budget (never under the reference 20, so a low traffic setting does not starve a
+chase) and holds traffic paused while it waits. The cop cap of eight is applied separately.
 
 ## 6. Where to spawn
 
@@ -221,7 +236,7 @@ angle   = uniform(-1, 1) * 0.125 turns                     # = +-45 degrees (ang
 dir     = F rotated about the vertical axis by angle
 offset  = uniform(-1, 1) * 50
 speed   = dot(V, dir)                                      # camera speed along dir
-dist    = offset + 200 + max(speed, 0)                     # 150..250 m ahead, plus one second of camera speed
+dist    = offset + 350 + max(speed, 0)                     # PC: 300..400 m ahead, plus one second of camera speed
 spawn   = P + dir * dist
 t       = ramp(speed, 0, 50)                               # 0 at rest, 1 at 50 m/s (180 km/h)
 oncoming_chance = lerp(1.0, 0.5, t)
@@ -233,7 +248,8 @@ reject if find_collisions(position)
 accept
 ```
 
-So traffic appears roughly 150 to 250 m (more when the camera is fast) in front, within a 90 degree wedge around the
+So traffic appears roughly 300 to 400 m on PC (150 to 250 m on GameCube; more when the camera is fast) in front, within
+a 90 degree wedge around the
 view direction; a stationary camera always gets oncoming cars, a camera at 50 m/s or more gets half oncoming, half
 same-direction. The scratch cursor has navigation type "none", lane type "racing" and **no filters**, so the closest
 segment may be one that forbids traffic; `can_traffic_spawn` then rejects the attempt (no retry in the same tick).
@@ -248,9 +264,9 @@ segment may be one that forbids traffic; `can_traffic_spawn` then rejects the at
   therefore only appears on the race route.
 - **`find_collisions` (true means "blocked"):**
   - the world-height query at the position fails (nothing solid below): blocked;
-  - any traffic centre within **150 m** horizontally (squared distance below 22 500): blocked;
+  - any traffic centre within **300 m** horizontally on PC (150 m on GameCube): blocked;
   - any **active** vehicle within **20 m** horizontally (squared distance below 400): blocked.
-  The 150 m rule is the real minimum spawn distance. Two static values `225` and `300` (min/max spawn distance)
+  The 300 m rule is the real minimum spawn distance on PC. Two static values `225` and `300` (min/max spawn distance)
   exist in the class but are never read.
 
 ## 7. Creating, reusing and activating a car
@@ -371,13 +387,13 @@ presumably race start, cutscenes and resets).
 | Value | Meaning | Tag |
 |---|---|---|
 | 0.5 | frame-variable manager task rate, approximately two rendered frames | **[decomp, verified PC scheduler]** |
-| 10 | maximum number of active vehicles in the world for a spawn; also the base of the percent cap | **[decomp]** |
+| 20 | maximum number of active vehicles in the world for a spawn; also the base of the percent cap (10 on GameCube) | **[PC binary]** |
 | 10 | maximum record count read from a pattern (timers) | **[decomp]** |
 | 4 s | pattern `SpawnTime`, all patterns | **[verified]** |
-| 200 +- 50 m, plus camera speed | spawn distance ahead | **[decomp]** |
+| 350 +- 50 m, plus camera speed | spawn distance ahead (200 on GameCube) | **[PC binary]** |
 | +-45 degrees | spawn direction spread | **[decomp]** (the source has the value as 0.125 turns) |
 | 1.0 to 0.5 over 0 to 50 m/s | chance of the car facing the camera | **[decomp]** |
-| 150 m / 20 m | minimum spawn distance from a traffic centre / from an active vehicle | **[decomp]** |
+| 300 m / 20 m | minimum spawn distance from a traffic centre / from an active vehicle (150 m on GameCube) | **[PC binary]** |
 | 0.75 | density factor while a pursuit exists; start speed factor | **[decomp]** |
 | 0 / 10 / 30 / 50 % | quick-race traffic Off / Light / Medium / Heavy | **[decomp]** |
 
@@ -385,7 +401,7 @@ presumably race start, cutscenes and resets).
 `MAX_TRAFFIC`, `MIN_TRAFFIC_SPAWN_DISTANCE`, `MAX_TRAFFIC_SPAWN_DISTANCE`, `TRAFFIC_SPEED`, `TRAFFIC_LANE_CHANGES`,
 `TRAFFIC_TYPES` and `CHECK_PLAYER_BEHIND_TRAFFIC`, inherited from an earlier game's engine. Only `TRAFFIC_TYPES` has
 a value (`trafha`, `semilog`); no source read uses any of them, and a header constant `MAX_TRAFFIC_CARS = 19`
-is also unused **[verified, decomp]**. The real limits are the hard-coded ones above (10 active vehicles, 150 m).
+is also unused **[verified, decomp]**. The real limits are the hard-coded ones above (20 active vehicles and 300 m on PC).
 A rewrite may expose them as settings, but the originals are not tunable from data.
 
 **Rewrite timing:** the current manager runs every 1/30 simulated second on the shared physics clock,

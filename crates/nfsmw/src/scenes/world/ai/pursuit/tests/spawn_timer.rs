@@ -54,3 +54,16 @@ fn the_wave_asks_for_its_nominal_count_above_the_active_car_limit() {
     assert_eq!(settings.max_cops, 8);
     assert_eq!(pursuit.wanted(&settings, false), 10, "the active-car limit gates each request, not the wave");
 }
+
+#[test]
+fn a_cop_due_but_not_placed_holds_traffic_back() {
+    let (mut world, focus) = setup();
+    let (collision, surfaces) = (floor(), SurfaceTable::default());
+    assert!(world.density() > 0.0, "a chase with nothing due keeps three quarters of the traffic");
+    world.cop_models.clear();
+    world.pursuit.as_mut().unwrap().spawn_timer = -1.0;
+    world.update_pursuit(0.25, focus, &collision, &surfaces);
+    assert!(world.cars.is_empty());
+    assert!(world.cop_request_pending(), "the wave still needs a cop it could not place");
+    assert_eq!(world.density(), 0.0);
+}

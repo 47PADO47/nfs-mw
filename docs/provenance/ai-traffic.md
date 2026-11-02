@@ -212,3 +212,14 @@ Dead ends:
   pointer. The original must keep both lists non-empty during play, or the code path is not reached. **[unconfirmed]**.
 
 Next leads: spec section 8, "Next leads (removal, section 8)" (items 1 to 7).
+
+## Cop requests and the shared vehicle budget (2026-11-02)
+
+[ai-traffic-spawning.md](../specs/ai-traffic-spawning.md) sections 2 and 5. Read in the PC binary (behaviour only): the
+density routine returns 0 while the cop manager reports a pending request (a queued scripted spawn, a latched roadblock,
+or a pursuit due a cop below the cop cap); the population and share budgets compare with 20 vehicles of every kind. That
+the helicopter counts is inferred from the reference's vehicle classes. Rewrite: `TrafficWorld::cop_request_pending`
+(`ai/policy.rs`) with the wave's due state from `ai/pursuit.rs`; the helicopter counts in the population; a due wave cop
+waits for a budget slot (never under 20) with traffic paused. Racers stay out of the budget **[ours]**. Headless check:
+`pursuit::tests::spawn_timer::a_cop_due_but_not_placed_holds_traffic_back`. The spec's GameCube values in sections 5, 6
+and 9 now sit beside the PC ones.

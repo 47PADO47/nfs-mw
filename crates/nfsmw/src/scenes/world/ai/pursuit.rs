@@ -66,6 +66,8 @@ pub struct Pursuit {
     spawn_timer: f32,
     requested_missing: u32,
     fast_spawn_next: bool,
+    /// A wave cop is due and not yet placed: traffic waits while it is (`IsCopRequestPending`, `policy.rs`).
+    pub(super) cop_due: bool,
     pub(super) involved: u32,
     /// The cops still to evade and the backup that refills them (`blackbox_pursuit::backup`).
     pub(super) budget: Budget,
@@ -95,6 +97,7 @@ impl Pursuit {
             spawn_timer,
             requested_missing: 0,
             fast_spawn_next: false,
+            cop_due: false,
             involved: 0,
             support: Default::default(),
         }
@@ -155,6 +158,7 @@ impl Pursuit {
         hash.u32(self.involved);
         hash.u32(self.requested_missing);
         hash.bool(self.fast_spawn_next);
+        hash.bool(self.cop_due);
     }
 
     /// Follows the police heat level: a new level takes effect at once. Returns true when the level changed.
@@ -330,6 +334,9 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) {
+        if let Some(pursuit) = self.pursuit.as_mut() {
+            pursuit.cop_due = false;
+        }
         let Some(player) = focus.body else { return };
         if !self.police.can_begin() {
             return;
@@ -382,6 +389,12 @@ impl TrafficWorld {
             return;
         }
         let Some(pursuit) = self.pursuit.as_mut() else { return };
+        // Due until it is placed: traffic waits meanwhile, and the cop waits for a slot of the shared budget (`policy.rs`).
+        pursuit.cop_due = true;
+        if !self.vehicle_budget_has_room(focus) {
+            return;
+        }
+        let Some(pursuit) = self.pursuit.as_mut() else { return };
         // The next type of the current wave, weighted by its chance among those the wave still needs.
         let (pick, missing) = {
             let adjusted = pursuit.adjusted_wave(self.police.settings(), cooldown);
@@ -393,13 +406,17 @@ impl TrafficWorld {
             (pick_needed(&slots, |name| have(name) as u32, roll).map(|i| slots[i].name.to_owned()), missing)
         };
         pursuit.requested_missing = missing;
-        let Some(name) = pick else { return };
+        let Some(name) = pick else {
+            pursuit.cop_due = false;
+            return;
+        };
         let performance = pursuit.player;
         let spawned = match self.police.is_perp_in_sight() {
             true => self.spawn_cop(&name, focus, player.position, performance, collision, surfaces),
             false => self.spawn_search_cop(&name, focus, performance, collision, surfaces),
         };
         if spawned && let Some(p) = self.pursuit.as_mut() {
+            p.cop_due = false;
             p.joined(cooldown);
         }
     }
