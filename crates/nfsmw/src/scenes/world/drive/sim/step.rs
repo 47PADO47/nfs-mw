@@ -190,11 +190,7 @@ impl CarSim {
         }
         match self.ride.as_deref_mut() {
             Some(ride) => ride.advance(start.delta),
-            None => {
-                for (spin, &physics) in self.spin.iter_mut().zip(&PHYSICS_WHEEL) {
-                    *spin += self.vehicle.wheel(physics).angular_velocity * start.delta;
-                }
-            }
+            None => self.advance_wheel_visuals(start.delta),
         }
         let body = self.vehicle.body();
         self.memo.record(&input, &impact, self.before_velocity, body.linear_velocity, body.mass());

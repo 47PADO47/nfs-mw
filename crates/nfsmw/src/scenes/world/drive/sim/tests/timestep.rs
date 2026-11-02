@@ -38,7 +38,7 @@ fn explicit_deltas_match_direct_vehicle_motion_spin_and_acceleration() {
             car.step_with_delta(dt, &input, &ground, None);
             assert_eq!(state(&car.vehicle), state(&direct), "dt {dt}, step {step}");
             for (i, &physics) in PHYSICS_WHEEL.iter().enumerate() {
-                spin[i] += direct.wheel(physics).angular_velocity * dt;
+                spin[i] = WheelVisuals::default().roll(spin[i], direct.wheel(physics).angular_velocity, dt);
             }
             assert_eq!(car.spin, spin, "wheel animation must use the physical step interval");
             let acceleration = space::to_render(((direct.body().linear_velocity - before) / dt).to_array());

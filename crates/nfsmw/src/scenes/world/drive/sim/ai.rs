@@ -61,6 +61,7 @@ impl CarSim {
             return false;
         }
         self.spin = [0.0; 4];
+        self.drawn_steer = [0.0; 2];
         self.brake_lamp_age = 0.0;
         match speed > 0.0 {
             true => self.vehicle.place_moving(position, orientation, speed),

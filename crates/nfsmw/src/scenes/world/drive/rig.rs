@@ -47,7 +47,8 @@ impl CarPose {
             rotation: self.rotation.slerp(next.rotation, t),
             wheels: std::array::from_fn(|i| {
                 let (a, b) = (self.wheels[i], next.wheels[i]);
-                WheelPose { steer: mix(a.steer, b.steer), spin: mix(a.spin, b.spin), travel: mix(a.travel, b.travel) }
+                let spin = super::sim::roll_between(a.spin, b.spin, t);
+                WheelPose { steer: mix(a.steer, b.steer), spin, travel: mix(a.travel, b.travel) }
             }),
         }
     }
@@ -231,6 +232,11 @@ impl CarRig {
     }
 
     /// Height of each wheel's centre above the model's origin at rest (the model's wheel order).
+    /// The drawn-wheel limits of this car's `ecar` record (`sim/wheel_visuals.rs`).
+    pub fn wheel_visuals(&self) -> super::sim::WheelVisuals {
+        super::sim::WheelVisuals::from_setup(self.model.wheel_setup.as_ref())
+    }
+
     pub fn rest_heights(&self) -> [f32; 4] {
         match &self.model.corners {
             Some(corners) => std::array::from_fn(|i| corners[i].centre().z),
@@ -436,7 +442,7 @@ mod tests {
         CarPose {
             position: Vec3::new(x, 0.0, 0.0),
             rotation: Quat::from_rotation_z(yaw),
-            wheels: [WheelPose { steer: x, spin: x * 2.0, travel: 0.0 }; 4],
+            wheels: [WheelPose { steer: x, spin: x * 0.02, travel: 0.0 }; 4],
         }
     }
 
@@ -445,7 +451,7 @@ mod tests {
         let mid = pose(0.0, 0.0).lerp(&pose(10.0, 1.0), 0.5);
         assert!((mid.position.x - 5.0).abs() < 1e-5);
         assert!((mid.rotation.to_euler(glam::EulerRot::ZYX).0 - 0.5).abs() < 1e-5);
-        assert!((mid.wheels[2].steer - 5.0).abs() < 1e-5 && (mid.wheels[3].spin - 10.0).abs() < 1e-5);
+        assert!((mid.wheels[2].steer - 5.0).abs() < 1e-5 && (mid.wheels[3].spin - 0.1).abs() < 1e-5);
     }
 
     #[test]
