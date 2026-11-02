@@ -1,9 +1,8 @@
 //! Texture replacement (docs/specs/car-assembly.md §6): car solids name placeholder
 //! textures that are swapped per car before drawing.
 
-use std::collections::{HashMap, HashSet};
-
 use blackbox_hash::bstring_hash;
+use std::collections::{HashMap, HashSet};
 
 /// Decal placeholders. With no decal chosen they show the fully transparent `DEFAULTALPHA`,
 /// i.e. nothing, so their groups are hidden.
@@ -170,6 +169,33 @@ impl TextureSwaps {
         self
     }
 
+    /// Enhanced running tails reuse the two outer brake-lamp ON textures when available.
+    /// The centre brake lamp remains controlled only by braking.
+    pub fn with_running_tail_surfaces(
+        mut self,
+        headlights: bool,
+        braking: bool,
+        textures: &HashMap<u32, blackbox_tpk::Texture>,
+    ) -> Self {
+        if !headlights || braking {
+            return self;
+        }
+        let on = self.clone().with_lamp_state(headlights, true, textures);
+        for side in ["LEFT", "RIGHT"] {
+            for kind in ["BRAKELIGHT", "BRAKELIGHT_GLASS"] {
+                let placeholder = bstring_hash(&format!("{kind}_{side}"));
+                if let Some(&texture) = on.map.get(&placeholder) {
+                    self.map.insert(placeholder, texture);
+                }
+                self.lit_lamps.remove(&placeholder);
+                if on.lit_lamps.contains(&placeholder) {
+                    self.lit_lamps.insert(placeholder);
+                }
+            }
+        }
+        self
+    }
+
     /// Select the reverse lamp textures of a mod car: `<car>_KIT00_REVERSELIGHT_ON` while the gear is reverse, `_OFF`
     /// otherwise. The game's own cars have no such placeholder, so for them nothing changes. A missing state texture keeps
     /// the current replacement, as for the other lamps; the reverse lamps have no damage bit.
@@ -329,6 +355,32 @@ mod tests {
                 ["ON", "OFF"].map(move |state| (bstring_hash(&format!("CAR_KIT00_{kind}_{state}")), texture()))
             })
             .collect()
+    }
+
+    #[test]
+    fn enhanced_running_tails_keep_centre_brake_off_and_respect_damage() {
+        let textures = state_textures();
+        let state = TextureSwaps::for_car("CAR")
+            .with_broken_brake_lights(8)
+            .with_lamp_state(true, false, &textures)
+            .with_running_tail_surfaces(true, false, &textures);
+        assert!(!state.lamp_is_on(bstring_hash("BRAKELIGHT_LEFT")));
+        assert!(state.lamp_is_on(bstring_hash("BRAKELIGHT_RIGHT")));
+        assert!(!state.lamp_is_on(bstring_hash("BRAKELIGHT_CENTRE")));
+    }
+
+    #[test]
+    fn running_tails_and_nos_rear_glow_keep_the_centre_brake_independent() {
+        let textures = state_textures();
+        for (headlights, nos) in [(true, false), (false, true), (true, true)] {
+            let state = TextureSwaps::for_car("CAR")
+                .with_broken_brake_lights(8)
+                .with_visual_lamp_state(headlights, false, nos, &textures)
+                .with_running_tail_surfaces(headlights, false, &textures);
+            assert!(!state.lamp_is_on(bstring_hash("BRAKELIGHT_LEFT")));
+            assert!(state.lamp_is_on(bstring_hash("BRAKELIGHT_RIGHT")));
+            assert!(!state.lamp_is_on(bstring_hash("BRAKELIGHT_CENTRE")));
+        }
     }
 
     #[test]
