@@ -51,6 +51,12 @@ impl TrafficWorld {
                 now.insert(car.audio_emitter().id);
             }
         }
+        // Roadblock cars within the radius are engaged too (they show on the minimap) but are not chase cops to evade.
+        let near = |car: &super::AiCar| car.physics_position().distance(player.position) < backup.engagement_radius;
+        let roadblock = |car: &super::AiCar| car.is_roadblock() && !car.is_wrecked() && near(car);
+        for car in self.cars.iter_mut().filter(|car| !cooldown && roadblock(car)) {
+            car.note_engaged();
+        }
         let left = pursuit.engaged.difference(&now).count() as u32;
         pursuit.budget.note_evaded(left);
         pursuit.engaged = now;

@@ -1,5 +1,5 @@
-//! The police car's icon on the minimap (`docs/specs/hud-cop-blips.md`): a plain white icon while the car is not in a
-//! pursuit, and a light bar that cycles blue, grey, red, grey while it is.
+//! The police car's icon on the minimap (`docs/specs/hud-cop-blips.md`): a steady light grey icon while the car is not
+//! pursuing (wrecked, or sent away), and a light bar that cycles blue, grey, red, grey while it is.
 
 /// The HUD element of cop icon `index` (0..[`ICON_COUNT`]): `MMICON_COPCAR_<index>`.
 pub const ICON_COUNT: usize = 8;
@@ -11,7 +11,6 @@ pub fn icon_name(index: usize) -> String {
 /// Steps in one full cycle of the light bar. The step counter runs 1..=8.
 pub const CYCLE: u8 = 8;
 
-const WHITE: [u8; 4] = [0xff, 0xff, 0xff, 0xff];
 const BLUE: [u8; 4] = [0x00, 0x00, 0xff, 0xff];
 const RED: [u8; 4] = [0xa0, 0x00, 0x00, 0xff];
 /// The original's `0xffcccccc`, shown between the blue and the red.
@@ -31,10 +30,10 @@ pub fn pursuit_colour(step: u8) -> [u8; 4] {
     }
 }
 
-/// The icon's colour: white when the car is not pursuing, the light bar's colour when it is.
+/// The icon's colour: the original's steady light grey when the car is not pursuing, the light bar's colour when it is.
 pub fn colour(pursuing: bool, step: u8) -> [u8; 4] {
     if !pursuing {
-        return WHITE;
+        return GREY;
     }
     pursuit_colour(step)
 }

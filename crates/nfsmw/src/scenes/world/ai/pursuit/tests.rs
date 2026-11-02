@@ -49,6 +49,7 @@ mod installed_physical_catchup;
 mod installed_route;
 mod installed_spawn_drive;
 mod lockout;
+mod minimap;
 mod net_export;
 mod parallel;
 mod placement;

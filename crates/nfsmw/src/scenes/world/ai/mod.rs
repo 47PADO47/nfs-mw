@@ -28,6 +28,7 @@ mod inspect;
 pub(in crate::scenes::world) mod installed_support;
 mod lamps;
 mod manager;
+mod minimap;
 mod mod_traffic;
 mod model_loader;
 mod models;
@@ -405,24 +406,6 @@ impl TrafficWorld {
     /// Where the standing roadblocks are, in render space.
     pub fn roadblock_sites(&self) -> Vec<[f32; 2]> {
         self.roadblocks.sites()
-    }
-
-    /// The cops for the minimap (`docs/specs/hud-cop-blips.md`). A pursuit is on while the world has one.
-    pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
-        let pursuing = self.pursuit.is_some();
-        self.helicopter_blips(pursuing, out);
-        for at in self.roadblock_sites() {
-            out.push(crate::hud::MapBlip { style: crate::hud::ROADBLOCK, position: at, active: false, heading: None });
-        }
-        for car in self.cars.iter().filter(|c| c.is_live_police()) {
-            let at = car.position();
-            out.push(crate::hud::MapBlip {
-                style: crate::hud::COP,
-                position: [at.x, at.y],
-                active: pursuing && !car.is_patrol(),
-                heading: Some(car.heading()),
-            });
-        }
     }
 
     /// Appends the sprites of the cop light bars of every car.

@@ -164,3 +164,21 @@ fn whenever_a_helicopter_flies_its_blip_reaches_the_world_maps_moving_cars_at_ev
     eprintln!("the helicopter flew at heats {flew_at:?}");
     assert!(flew_at.len() >= 3, "the helicopter flew at heats {flew_at:?}");
 }
+
+#[test]
+fn the_helicopters_blip_goes_with_the_pursuit_even_while_it_flies_away() {
+    use crate::hud::HELICOPTER;
+    let mut world = chase_with_heli(5);
+    run_manager(&mut world, 200);
+    let heli_blips = |world: &TrafficWorld| {
+        let mut blips = Vec::new();
+        world.map_blips(&mut blips);
+        blips.iter().filter(|b| b.style == HELICOPTER).count()
+    };
+    assert!(world.helicopter_status().is_some(), "the helicopter flies");
+    assert_eq!(heli_blips(&world), 1, "shown in the pursuit, seen or not");
+    world.end_pursuit(blackbox_pursuit::EndReason::Evaded);
+    assert!(world.helicopter_status().is_some(), "it leaves by air");
+    assert_eq!(heli_blips(&world), 0, "but the pursuit is over: no icon");
+    assert!(world.police_intel().helicopter.is_none(), "nor on the Custom map");
+}

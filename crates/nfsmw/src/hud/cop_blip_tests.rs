@@ -27,9 +27,9 @@ fn the_step_follows_the_frame() {
 }
 
 #[test]
-fn a_car_that_is_not_pursuing_is_white_whatever_the_step() {
+fn a_car_that_is_not_pursuing_is_steady_light_grey_whatever_the_step() {
     for step in 1..=8 {
-        assert_eq!(colour(false, step), [255, 255, 255, 255]);
+        assert_eq!(colour(false, step), [204, 204, 204, 255], "the original's 0xffcccccc, never white");
     }
 }
 

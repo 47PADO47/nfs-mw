@@ -213,15 +213,10 @@ impl super::super::TrafficWorld {
         self.police.effects().fov_kick_deg
     }
 
-    /// The helicopter's minimap blip, while it flies.
-    pub(in crate::scenes::world::ai) fn helicopter_blips(&self, pursuing: bool, out: &mut Vec<crate::hud::MapBlip>) {
+    /// The helicopter's minimap blip, while it flies. The caller shows it only during the pursuit.
+    pub(in crate::scenes::world::ai) fn helicopter_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
         let Some((position, heading)) = self.police.helicopter_blip() else { return };
-        out.push(crate::hud::MapBlip {
-            style: crate::hud::HELICOPTER,
-            position,
-            active: pursuing,
-            heading: Some(heading),
-        });
+        out.push(crate::hud::MapBlip { style: crate::hud::HELICOPTER, position, active: true, heading: Some(heading) });
     }
 }
 

@@ -246,3 +246,14 @@ fn the_light_bar_moves_with_time_not_with_frames() {
     binding.apply(&mut rt, &state);
     assert_eq!(cop_colour(&rt, id), [204, 204, 204, 255]);
 }
+
+#[test]
+fn a_cop_that_is_not_pursuing_is_steady_light_grey_on_the_map() {
+    let (mut rt, id, mut binding) = setup();
+    let state = on_the_map(vec![cop([PLAYER[0] + 50.0, PLAYER[1]], false)]);
+    for _ in 0..4 {
+        binding.apply(&mut rt, &state);
+        assert_eq!(cop_colour(&rt, id), [204, 204, 204, 255], "the original's 0xffcccccc, not white");
+        binding.advance_blips(0.1);
+    }
+}

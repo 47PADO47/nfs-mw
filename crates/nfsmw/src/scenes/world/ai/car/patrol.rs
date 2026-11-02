@@ -65,6 +65,15 @@ impl AiCar {
         self.engaged = true;
     }
 
+    /// Whether the minimap flashes the car's light bar (the original's in-pursuit state): a cop chasing the player
+    /// that was not sent away, or a roadblock car. A wrecked car is not pursuing.
+    pub fn is_pursuing_on_map(&self) -> bool {
+        if self.is_wrecked() {
+            return false;
+        }
+        (self.is_cop() && !self.fleeing) || self.roadblock
+    }
+
     /// Sends the cop away (`AIVehiclePursuit::StartFlee`): its lights go off and it drives off along the traffic lanes at
     /// the search speed, like the cops that lost the player, until the patrol pass recycles it. Support cars and roadblock
     /// cars are not sent this way. Returns whether the cop now flees; a cop with no lane to follow keeps chasing.
