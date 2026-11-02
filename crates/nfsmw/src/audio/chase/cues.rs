@@ -5,6 +5,10 @@
 //!
 //! The edge is a rising one: the first frame of a chase only records the rain, so a chase that opens already raining
 //! says nothing.
+//!
+//! The original chase never asks for the weather report; it is a line of the RevisedAirSupport mod, filed under its
+//! pilot lines. So it is said only while a helicopter flies in the chase (not one that is leaving), in the pilot's
+//! voice: a rise of the rain with no helicopter says nothing.
 
 use crate::audio::PursuitFeed;
 
@@ -15,7 +19,7 @@ pub const RAIN_THRESHOLD: f32 = 0.5;
 /// A change of the chase that the speech answers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Cue {
-    /// The rain rose to `RAIN_THRESHOLD` during the chase.
+    /// The rain rose to `RAIN_THRESHOLD` during the chase, with a helicopter flying in it.
     Rain,
 }
 
@@ -39,8 +43,9 @@ impl Cues {
         };
         let now = chase.rain_intensity >= RAIN_THRESHOLD;
         let before = self.raining.replace(now);
-        match (before, now) {
-            (Some(false), true) => Some(Cue::Rain),
+        let pilot = chase.speech.heli.is_some_and(|h| h.active);
+        match (before, now, pilot) {
+            (Some(false), true, true) => Some(Cue::Rain),
             _ => None,
         }
     }

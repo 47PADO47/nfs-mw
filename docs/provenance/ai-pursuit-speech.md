@@ -42,6 +42,8 @@ Planned module: a `pursuit_speech` layer of milestone 7 that emits speech reques
   `/speed.exe` with Ghidra (behaviour only); `LostSuspect`, `Unit911Reply` and `MoreDetails` in the CC0 decomp. The install's
   speech index confirmed which speakers recorded each sentence. Result (spec section 3): ordinary cars take 3 to 8 only, the
   pilot's voice never returns to a car, the random "any cop" voice is 3 to 8. Tests: `speech::tests::voices` in `blackbox-pursuit`.
+  The weather report has no caller in `/speed.exe` (only the interface tables refer to it); the mod's line is now said by the
+  pilot and only while a helicopter flies (`audio/chase/line_tests.rs`).
 - **Checked against the game by:** pending (the spec lists a play-through checklist: opening line, stop branch, assault restart, lost-contact sequence, arrest
   bullhorn, 911 call).
 - **Known differences from the original:** none yet.
