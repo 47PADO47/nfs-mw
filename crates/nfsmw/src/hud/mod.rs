@@ -59,6 +59,8 @@ pub(crate) mod police;
 #[cfg(test)]
 mod police_install_tests;
 mod pursuit;
+#[cfg(test)]
+mod pursuit_install_tests;
 mod pursuit_meter;
 pub use police::RadarHud;
 mod pursuit_end;

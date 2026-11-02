@@ -125,7 +125,14 @@ impl Layout {
             ]),
             nitrous: find(&NITROUS),
             turbo: find(&[fe_hash_upper(TURBO_GROUP)]),
-            minimap: find(&[fe_hash_upper(GROUP), fe_hash_upper(BACKING), fe_hash_upper(ARROW)]),
+            // The helicopter's icon is a group in the package's icon group, which nothing else shows: it is a minimap
+            // root so that its picture and blades show with it once its blip unhides the group.
+            minimap: find(&[
+                fe_hash_upper(GROUP),
+                fe_hash_upper(BACKING),
+                fe_hash_upper(ARROW),
+                fe_hash_upper(super::blip_styles::HELICOPTER_GROUP),
+            ]),
             mirror: find(&MIRROR),
             radar: find(&RADAR),
             heat: find(&[0xC46A_80A9, 0xB0F6_3386]),

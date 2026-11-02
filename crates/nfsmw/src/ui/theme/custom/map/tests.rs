@@ -200,7 +200,7 @@ fn no_cop_is_marked_without_a_sighting() {
     ];
     let unseen = PoliceIntel { helicopter: Some(HelicopterIntel::new(false, [20.0, 0.0])), ..Default::default() };
     let hud = HudState { blips, ..chase(PursuitPhase::Search, unseen) };
-    assert!(kinds(&hud).is_empty(), "{:?}", kinds(&hud));
+    assert_eq!(kinds(&hud), [MarkKind::Helicopter], "only the helicopter, which flies in the chase unseeing");
     let seen = PoliceIntel {
         sightings: vec![[10.0, 0.0]],
         helicopter: Some(HelicopterIntel::new(true, [20.0, 0.0])),

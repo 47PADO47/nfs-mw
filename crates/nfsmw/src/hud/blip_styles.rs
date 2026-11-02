@@ -113,6 +113,9 @@ impl BlipStyle for GpsTarget {
     }
 }
 
+/// The helicopter's icon: a group of the helicopter picture and its spinning blades.
+pub const HELICOPTER_GROUP: &str = "HELICOPTER_ICON_GROUP";
+
 /// The police helicopter.
 pub struct Helicopter;
 
@@ -122,7 +125,7 @@ impl BlipStyle for Helicopter {
     }
 
     fn icons(&self) -> Vec<String> {
-        vec!["HELICOPTER_ICON_GROUP".to_string()]
+        vec![HELICOPTER_GROUP.to_string()]
     }
 }
 

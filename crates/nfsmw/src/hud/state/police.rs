@@ -62,14 +62,15 @@ pub struct LastKnown {
 pub struct HelicopterIntel {
     /// It has the player in sight.
     pub in_sight: bool,
-    /// Its place, render space (x, y); `None` while it does not have the player in sight.
+    /// Its place, render space (x, y). A helicopter overhead is seen and heard, so the map places it whenever it flies in
+    /// the chase; only the world markers wait for `in_sight`. `None` is a helicopter whose place is unknown.
     pub position: Option<[f32; 2]>,
 }
 
 impl HelicopterIntel {
-    /// The helicopter at `position`, given only while it has the player `in_sight`.
+    /// The helicopter at `position`, flying in the chase, with or without the player `in_sight`.
     pub fn new(in_sight: bool, position: [f32; 2]) -> Self {
-        Self { in_sight, position: in_sight.then_some(position) }
+        Self { in_sight, position: Some(position) }
     }
 }
 
@@ -98,11 +99,11 @@ mod tests {
     }
 
     #[test]
-    fn the_helicopter_is_placed_only_while_it_sees_the_player() {
+    fn the_helicopter_is_placed_whether_or_not_it_sees_the_player() {
         assert_eq!(HelicopterIntel::new(true, [7.0, 8.0]).position, Some([7.0, 8.0]));
-        let hidden = HelicopterIntel::new(false, [7.0, 8.0]);
-        assert!(!hidden.in_sight);
-        assert_eq!(hidden.position, None, "no line of sight, no place");
+        let blind = HelicopterIntel::new(false, [7.0, 8.0]);
+        assert!(!blind.in_sight);
+        assert_eq!(blind.position, Some([7.0, 8.0]), "a helicopter overhead is seen and heard");
     }
 
     #[test]

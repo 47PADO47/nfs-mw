@@ -257,3 +257,36 @@ fn a_cop_that_is_not_pursuing_is_steady_light_grey_on_the_map() {
         binding.advance_blips(0.1);
     }
 }
+
+#[test]
+fn a_helicopter_blip_places_the_helicopter_group_and_its_blades() {
+    // As in the install: the helicopter's group sits in the package's icon group with the cop icons, which no feature
+    // of the layout shows on its own.
+    const GROUP: &str = blip_styles::HELICOPTER_GROUP;
+    let mut package = minimap_tests::package();
+    package.objects.push(minimap_tests::object(ObjectKind::Group, 69, "ICONS", None, [0.0; 2]));
+    package.objects.push(minimap_tests::object(ObjectKind::Image, 60, COP_ICON, Some(69), [0.0; 2]));
+    package.objects.push(minimap_tests::object(ObjectKind::Group, 70, GROUP, Some(69), [0.0; 2]));
+    package.objects.push(minimap_tests::object(ObjectKind::Image, 71, "HELI_BLADES", Some(70), [0.0; 2]));
+    let mut rt = Runtime::new();
+    let id = rt.load(package);
+    let minimap = MinimapBinding::new(&rt, id, MAP, "MINI_MAP");
+    let mut binding = HudBinding::new(&mut rt, id).with_minimap(minimap);
+    let heli = |x: f32| MapBlip {
+        style: blip_styles::HELICOPTER,
+        position: [PLAYER[0] + x, PLAYER[1]],
+        active: true,
+        heading: None,
+    };
+    binding.apply(&mut rt, &on_the_map(vec![heli(50.0)]));
+    let tree = rt.tree(id);
+    assert!(drawn(&tree, GROUP) && drawn(&tree, "HELI_BLADES"), "the group and its blades are shown");
+    assert!(offset_from_centre(&tree, GROUP).truncate().length() > 1.0, "placed off the centre, where it flies");
+    // Far away it is held on the rim, as in the original, not hidden.
+    binding.apply(&mut rt, &on_the_map(vec![heli(700.0)]));
+    let tree = rt.tree(id);
+    assert!(drawn(&tree, GROUP), "a far helicopter is pinned to the rim");
+    assert!((offset_from_centre(&tree, GROUP).truncate().length() - RIM).abs() < 0.01);
+    binding.apply(&mut rt, &on_the_map(vec![]));
+    assert!(!drawn(&rt.tree(id), GROUP), "no blip, no helicopter");
+}
