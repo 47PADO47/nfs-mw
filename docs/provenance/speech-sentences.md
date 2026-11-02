@@ -25,7 +25,9 @@
   full choice set of the parameter at that position and the other 12 are subsets. No comparison with the running original,
   and nobody has listened to the output.
 - **Known differences from the original:** an unset parameter lets every variant through (the original has no unset
-  parameters: a zero field fits nothing); another voice says a sentence the requested speaker did not record
-  (`Options::speaker_fallback`; off gives the original's behaviour); the random choices use the game's own generator, not
+  parameters: a zero field fits nothing); the library can let another voice say a sentence the requested speaker did
+  not record (`Options::speaker_fallback`, used by the cutscene speech only; the game's chase lines turn it off since
+  2026-11-02, as in the original, after the install's speech index showed the stand-in could be the pilot or the cross voice);
+  a request with no speaker takes any voice that recorded it; the random choices use the game's own generator, not
   the library's short-term pick memory; the library's rule variables, speaker groups, record constraints and sample-cache
   length mode, which the data never uses, are not read.

@@ -3,7 +3,7 @@
 //! `NFSMW_GAME_DIR="D:/..." cargo test --release -p nfsmw speech::tests::sentences -- --ignored --nocapture`
 
 use blackbox_attrib::Database;
-use ea_audio::speech::{Assembler, Chosen, Repeats, Sentences, SpeechIndex};
+use ea_audio::speech::{Assembler, Chosen, Repeats, Sentences, SpeechIndex, Voice};
 use game_install::GameDir;
 use nfsmw_data::speech::{SpeechEvent, events};
 
@@ -183,7 +183,12 @@ fn every_pursuit_line_is_a_sentence_of_plausible_length_not_all_its_variants() {
                 let choices = bits(field);
                 params.set(field, choices[rng.below(choices.len())]);
             }
-            let speaker = if has_speaker { 1 + rng.below(9) as u16 } else { 0 };
+            // The game's lines are not said by a voice that did not record them: ask one that did.
+            let able = recorded_by(&world, id as u16);
+            let speaker = match (has_speaker, able.is_empty()) {
+                (false, _) | (true, true) => 0,
+                (true, false) => able[rng.below(able.len())],
+            };
             let numbered = params::lib_params(&name, speaker, &params);
             let mut check = Rng::new(lines as u64);
             let assembler = Assembler::new(&world.sentences, &world.index);
@@ -207,4 +212,37 @@ fn every_pursuit_line_is_a_sentence_of_plausible_length_not_all_its_variants() {
     }
     println!("{lines} lines said, the longest {longest:.1} s");
     assert!(lines > 1000, "{lines}");
+}
+
+/// The speakers that recorded a phrase of the first version of `event`'s sentence that takes the speaker's voice.
+fn recorded_by(world: &World, event: u16) -> Vec<u16> {
+    let Some(sentence) = world.sentences.sentence(event) else { return Vec::new() };
+    let Some(entry) = sentence.blocks.iter().flat_map(|b| &b.entries).find(|e| matches!(e.voice, Voice::Speaker(_)))
+    else {
+        return Vec::new();
+    };
+    let mut speakers: Vec<u16> =
+        world.index.banks_for(entry.phrase).map(|b| b.header.speaker).filter(|&s| (1..=9).contains(&s)).collect();
+    speakers.sort_unstable();
+    speakers.dedup();
+    speakers
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn a_voice_that_did_not_record_a_line_does_not_say_it() {
+    let Some(mut world) = load() else { return };
+    // A secondary cop (6) asking for the backup call (primaries and cross only) or for swarming (pilot and primaries):
+    // the original says nothing; no other voice stands in.
+    for (name, without) in [("backup_callforbu", 6u16), ("backup_callforswarming", 6), ("backup_callforbu", 1)] {
+        let id = world.id(name);
+        let numbered = params::lib_params(name, without, &SpeechParams::new());
+        assert!(!recorded_by(&world, id).contains(&without), "{name}: voice {without} recorded it");
+        assert!(
+            world.files.take(u32::from(id), without, &numbered).is_err(),
+            "{name} said by a stand-in for {without}"
+        );
+        let numbered = params::lib_params(name, 3, &SpeechParams::new());
+        assert!(world.files.take(u32::from(id), 3, &numbered).is_ok(), "{name} by primary 3");
+    }
 }

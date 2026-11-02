@@ -95,7 +95,8 @@ line; the game fills every field. **[speed.exe]**
 |---|---|---|---|
 | A parameter not set in the request | its field is 0: no take fits | **any** take fits (the test is skipped) | callers that do not know a parameter yet (the first pursuit flows) still get a line, in a random variant |
 | A parameter set to 0 | no take fits | no take fits | same as the original |
-| The speaker did not record the sentence, or no speaker was asked for | the request fails | another voice that recorded every phrase of the version says it (`Options::speaker_fallback`, on by default; off gives the original) | the rewrite's flows do not know who recorded what; a silent request is worse than another voice |
+| The speaker did not record the sentence | the request fails | the game's lines fail too (`SENTENCE_OPTIONS` in `audio/speech/lines.rs` turns `Options::speaker_fallback` off). The library's default (on) lets another voice that recorded every phrase say it; only the cutscene speech uses that | a stand-in voice can be the dispatch's, the pilot's or the cross car's: a patrol car asking for a primary-only line would be heard in the cross voice, a secondary asking for swarming in the pilot's |
+| No speaker was asked for | the request fails | a voice that recorded every phrase of the version says it, in both modes | the voiceless lines (the dispatch's quadrant and roadblock calls) ask with no speaker |
 | Randomness | the library's generator with a short-term memory of picks | the game's seeded `Rng`; repeats are avoided by the banks' memory only | not observable except as a different sequence |
 | Event number with banks but no record | not a speech event | said as one bank of the requested speaker (the console's `speech play`) | keeps the tooling working |
 
