@@ -55,6 +55,7 @@ mod parallel;
 mod placement;
 mod recycling;
 mod roadblock;
+mod roadblock_ground;
 mod search_transition;
 mod sirens;
 mod spawn_handoff;

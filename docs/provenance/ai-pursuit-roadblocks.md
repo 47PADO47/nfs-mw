@@ -54,3 +54,22 @@ The prop bounds of `XO_SpikeBelt_1b_DW_00` (one box, half extents 0.378 / 3.265 
 - A sawhorse is a body in the prop world that sleeps until reached, with a scenery model that runs the smackable's event
   sequence (`genericsmackable`) and releases its four pieces (2026-10-21; installed test). The cars of a lottery roadblock
   come first from roaming cops out of view (`roadblock/steal.rs`), then are created: the original's pool is not built.
+
+## Element heights and prop seating (2026-11-02)
+
+Spec sections 2.4 and 2.5. Read in the PC binary (Ghidra, behaviour only; the program identity was confirmed first): the
+layout frame of the roadblock builder (pitched forward, lateral axis up x forward, the facing rotation, which settles Q1),
+the per-prop ground query and the placeable's `Place` routine, which snaps the prop to the ground with its root collision
+box's half height and fails without a surface (Q5), and the placeable count limit of 13. The car reset routine fits the car
+to the ground under its wheels; only its structure was read, so the rewrite's four-contact fit is its own. The install's
+prop bounds give the strip's box half height and pivot and the sawhorse's; that the box rather than the raw origin is
+lifted is inferred from both props resting on the road only that way.
+
+Rewrite: `blackbox_pursuit::roadblock::{place, centre}` carry each edge's own height; the site keeps the navigator's 3-D
+edges and pitched forward (`RoadNav::road_edges`); `roadblock/build.rs` finds the surface within 2 m of each element point
+(then the first one up to 1000 m above), lifts a prop by `props::seat_lift` (root half height less its pivot), skips a prop
+with no surface (still counted as deployed, as the original's prop is created before it fails to place) and creates none
+past 13 standing props; each car is re-seated by `CarSim::seat_on_wheels`. The earlier two-end strip seating
+(`roadblock/seat.rs`) is removed. Headless checks: `pursuit::tests::roadblock_ground` (sites 25 m below and above the
+player and a level one: strip box bottoms within 2 cm of the road, cars standing on their road) and the layout tests in
+`blackbox_pursuit::roadblock`. Not compared with a running original.

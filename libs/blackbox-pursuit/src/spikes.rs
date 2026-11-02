@@ -15,7 +15,7 @@ pub const HALF_ACROSS: f32 = 3.265;
 pub const HALF_ALONG: f32 = 0.378;
 /// Half the strip box's height, metres. **[verified]**
 pub const HALF_HEIGHT: f32 = 0.254;
-/// How far the box centre sits above the prop's origin (the road surface under it), metres. **[verified]**
+/// How far the box centre sits above the prop's origin, metres (the box's pivot). **[verified]**
 pub const CENTRE_LIFT: f32 = 0.013;
 /// Half the tire box's width along the axle, metres (`SpikeStrip::OnCollide`). **[decomp]**
 pub const TIRE_HALF_WIDTH: f32 = 0.15;
@@ -27,7 +27,8 @@ const SWEEP_STEP: f32 = 0.05;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Strip {
     pub position: Vec2,
-    /// Height of the road surface under the strip's origin, in the caller's vertical axis.
+    /// Height of the strip's origin, in the caller's vertical axis. A placed strip's origin stands its box's half height
+    /// less [`CENTRE_LIFT`] above the road, so the box's bottom rests on the road (spec section 2.5).
     pub elevation: f32,
     pub heading: f32,
     /// Half extents of the collision box: along the facing, across it, and up.

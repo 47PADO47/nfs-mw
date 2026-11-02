@@ -123,12 +123,17 @@ impl PropCatalog {
     /// the game puts in the world itself rather than reading from a map spawner (a roadblock's sawhorse). Both come
     /// from the same tables a map placement joins, so the body behaves as a placed one. `None` when either is missing.
     pub fn placeable(&self, name: &str, smackable: &str) -> Option<(Arc<BoundsSet>, Arc<PropDynamics>)> {
-        let bounds = std::iter::once("")
-            .chain(NAME_ENDINGS)
-            .find_map(|ending| self.sets.get(&vlt_hash(&format!("{name}{ending}"))))?
-            .clone();
+        let bounds = self.bounds_of(name)?;
         let dynamics = self.dynamics.get(&vlt_hash(smackable))?.clone();
         Some((bounds, dynamics))
+    }
+
+    /// The collision bounds of the model `name`, with or without the track pack's name endings.
+    pub fn bounds_of(&self, name: &str) -> Option<Arc<BoundsSet>> {
+        std::iter::once("")
+            .chain(NAME_ENDINGS)
+            .find_map(|ending| self.sets.get(&vlt_hash(&format!("{name}{ending}"))))
+            .cloned()
     }
 
     /// Exact collision and attribute keys. Missing bounds/attributes stay missing.

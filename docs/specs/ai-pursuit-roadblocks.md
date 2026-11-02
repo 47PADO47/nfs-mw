@@ -104,6 +104,13 @@ about 0.5 means facing against the road direction.) The roadblock activity store
 test. Layouts therefore span `min_width` metres of road starting at the edge nearer to the player, with depth
 (`z`) of up to a few car lengths. [decomp]
 
+**Frame and heights [PC binary].** The forward is the road direction at the site *including its climb or fall*. The lateral
+axis is horizontal: the up vector crossed with the forward. Each offset `(x * x_scale, 0, z)` is applied in that frame, so a
+depth offset follows the road's pitch. The two edges and the centre carry the road's own height at the site, and every
+element starts at the road's height under it, not at the target's height. The facing is the forward turned about the
+vertical by `angle` turns: `x' = x cos a - z sin a`, `z' = z cos a + x sin a`, its climb kept. With side = up x forward a
+positive `x` lies to the right of the road direction; this is the rewrite's convention, so Q1 is closed.
+
 ### 2.5 Placing the elements
 
 - **Car (`kCar`)**: the next car of the list (in order: pooled cars first, then stolen cars): `ResetVehicleToRoadPos(pos,
@@ -121,12 +128,19 @@ test. Layouts therefore span `min_width` metres of road starting at the edge nea
 - After all elements: `NotifyRoadblockDeployed` (cost 500). The speech system is told the roadblock was created
   (`MReqRoadBlock(1)` "Created") or failed (`MReqRoadBlock(0)`). `AddRoadBlock` on the pursuit ends the running formation
   unless it is FOLLOW or its finisher is active. [decomp]
-- **Strip seating (rewrite).** The original reads one ground ray at the strip's position. A strip is 6.5 m across, so on
-  a banked or sloping road an end can sink below the surface. The rewrite also reads the ground a half width either side
-  along the strip's long axis (`roadblock/seat.rs`). With both ends found it stands the strip at the mean of the ends
-  (never below the centre reading) and tilts it onto the line through them; a centre more than 5 cm above that mean
-  (a crowned road) stays level at the centre height. A missing end keeps the centre reading. **[inferred]** as a fix for
-  the reported strips below the road; not confirmed in play.
+- **Prop placement [PC binary].** The world surface is found at the element's point: the face nearest that point, so the
+  right deck is chosen where roads cross; failing that, a segment from 2 m below to 1000 m above the point is tested. A
+  normal that points down is flipped, and the prop's orientation is the facing tilted onto that normal. `Place(matrix,
+  true)` snaps the prop to the ground: it reads the surface again and sets the height to the surface plus the half height
+  of the prop's root collision box, so the bottom of its box rests on the road (Q5 is closed: the boolean means "snap to the
+  ground"). If no surface is found there, the prop is not placed. At most 13 placeable props exist at once; past that a
+  roadblock's extra props are not created. Props are not settled by physics when placed. **[inferred]** that the box,
+  rather than the model origin, is lifted: with the drawn model offset by the box's pivot, both installed props then rest
+  on the road, while lifting the raw origin would float the sawhorse about half a metre.
+- **Car seating.** A car is put on the ground at its element point with its facing; its height, pitch and roll come from
+  the ground under its wheels, as a car reset does, not from one point under its centre **[PC binary: structure only; the
+  fit's maths was not decoded]**. Layouts are tight by design: sawhorses stand against cars and some cars nearly touch.
+  Elements of one roadblock are not tested against one another.
 
 ## 3. Layouts without spikes (`RoadblockCandidateList`)
 
@@ -316,15 +330,14 @@ wrecked, stops nearby cops. In the sources the whole mechanism is one message an
 
 ## Open questions
 
-- **Q1** The rotation sign of `RotateInXZ` and the handedness of the layout `x` axis (which side of the road is the near
-  edge for the player) are unverified; the rewrite follows the lib's convention (side = forward turned clockwise) and has
-  not been compared with the running original.
+- **Q1** Closed: the PC binary turns the facing as section 2.4 states and builds the lateral axis as up x forward, which is
+  the rewrite's convention. Not yet compared with a running original.
 - **Q2** The trigger-to-simulated hand-over of placeables (flag values 0x20, 4, 8, 0x20000) is partially understood; the
   rewrite tests every strip against the player's tires on each step, which gives the same result.
 - **Q3** `IPursuit::SpikesHit` has no caller in the sources read (nor in the PC binary's roadblock code). It is not run.
 - **Q4** `AIGoalHeliRoadBlock` is requested for a helicopter but has no definition; `roadblockhelichance` is 0 everywhere. The
   "helicopter spike strip" counter (225 cost to state each) exists only as a statistic: the helicopter never drops spikes.
-- **Q5** `Place(matrix, true)`: the meaning of the boolean (probably "snap/activate") is unknown.
+- **Q5** Closed: `Place(matrix, true)` snaps the prop to the ground and lifts it by its box's half height (section 2.5).
 - **Q6** That only racer-class cars carry the spikeable interface is read from the `pvehicle` damage-behaviour names (the
   racer, player and challenge-series cars use `DamageRacer`; cops and traffic do not). Spot-checked, not exhaustive. So the
   original does **not** puncture cops or traffic; the rewrite has no AI racers in free roam, so only the player is spiked.
@@ -367,6 +380,14 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
   `installed_sawhorse_breaks_into_its_four_pieces_when_a_car_hits_it`; the pieces' meshes are the shared sections']. Spike
   strips are drawn from the installed model, tilted to the ground normal, with the installed collision box; the tire box is the
   original's (0.15 m along the axle, the radius in the other two axes) swept along the step. Not seen in a running game.
+  Each prop is seated by section 2.5: the nearest surface at its element point (the element carries the road's height at
+  the site), its origin lifted so the bottom of its root collision box (half height less the box's pivot height) meets that
+  surface, the strip's tire-test box with it. A prop with no surface under it is skipped, and props past 13 live ones are not
+  created [headless: sloped-road tests]. The earlier two-end strip seating is withdrawn.
+- **Cars on their wheels [headless].** A roadblock car is first placed from the surface under its centre, then re-seated from
+  the surface under its four wheel contacts (front and rear axle, half the track either side): the pitch from the axle
+  midpoints, the roll from the side midpoints, the height from their centroid plus the car's ride lift. The fit's exact
+  maths is the rewrite's; a car that misses a wheel keeps the centre seat.
 - **Behaviour [headless].** Cars hold the brake (`AIGoalStaticRoadBlock`). A roadblock car does not look for the player; the roadblock
   sees the player within 60 m (3-D) unless a hiding spot hides it from cars, which resets the pursuit's unseen clock. Passing
   the centre marks the roadblock dodged once (the dodged and strip counts are kept for the statistics). The cheat rule (a car

@@ -4,14 +4,13 @@
 
 use blackbox_collision::CollisionWorld;
 use blackbox_pursuit::roadblock::{self, Element, Layout, NORMAL, Placed, SPIKES};
-use blackbox_pursuit::spikes::Strip;
+use blackbox_pursuit::spikes::{self, Strip};
 use blackbox_roads::{LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
 use blackbox_vehicle::Ground;
 use glam::{Mat4, Vec2, Vec3};
 use nfsmw_data::car::physics::SurfaceTable;
 use std::rc::Rc;
 
-use super::seat;
 use super::site::Site;
 use super::state::Roadblock;
 use crate::scenes::world::ai::car::{AiCar, Role, Start};
@@ -62,15 +61,28 @@ fn pick_model(world: &mut TrafficWorld, cause: Cause) -> Option<usize> {
     }
 }
 
-/// The ground height and the upward normal under a physics-space point, from a ray cast down from just above `at`.
-fn ground_under(ground: &WorldGround<'_>, at: Vec3) -> Option<(f32, Vec3)> {
-    let origin = Vec3::new(at.x, at.y + 4.0, at.z);
-    let hit = ground.hit(origin, Vec3::NEG_Y, 14.0)?;
-    let normal = match hit.normal.y < 0.0 {
-        true => -hit.normal,
-        false => hit.normal,
+/// How far above and below an element's point the nearest surface is looked for first, metres.
+const NEAR: f32 = 2.0;
+/// How far above the point the fallback search reaches, metres (the original's segment runs 1000 m up).
+const FALLBACK_REACH: f32 = 1002.0;
+/// The most placeable props (sawhorses and strips) standing at once; a roadblock's props past it are not created.
+const MAX_PLACEABLES: usize = 13;
+
+/// The world surface nearest a physics-space point that carries the road's height (spec section 2.5): the surface
+/// within `NEAR` metres of it, found going down from `NEAR` above, else the first one going up from `NEAR` below. Its
+/// height and its upward normal (a normal that points down is flipped). `None` when there is no surface there.
+fn surface_near(ground: &impl Ground, at: Vec3) -> Option<(f32, Vec3)> {
+    let up = |normal: Vec3| match normal.y < 0.0 {
+        true => -normal,
+        false => normal,
     };
-    Some((origin.y - hit.distance, normal))
+    let top = at + Vec3::Y * NEAR;
+    if let Some(hit) = ground.hit(top, Vec3::NEG_Y, 2.0 * NEAR) {
+        return Some((top.y - hit.distance, up(hit.normal)));
+    }
+    let bottom = at - Vec3::Y * NEAR;
+    let hit = ground.hit(bottom, Vec3::Y, FALLBACK_REACH)?;
+    Some((bottom.y + hit.distance, up(hit.normal)))
 }
 
 impl TrafficWorld {
@@ -148,8 +160,7 @@ impl TrafficWorld {
         }
         let mut deployed = 0;
         for slot in placed.iter().filter(|slot| slot.kind != Element::Car) {
-            deployed += 1;
-            self.place_prop(&mut block, slot, &ground, props.as_deref_mut());
+            deployed += u32::from(self.place_prop(&mut block, slot, &ground, props.as_deref_mut()));
         }
         block.standing.spike_strips = block.strips.len() as u32;
         log::info!(
@@ -225,36 +236,47 @@ impl TrafficWorld {
         let model = &self.cop_models[model].model;
         nav.half_width = model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
-        AiCar::place(model, Role::Traffic, nav, spawn, start, ground)
+        let mut car = AiCar::place(model, Role::Traffic, nav, spawn, start, ground)?;
+        // A car stands on its wheels as a reset puts it (spec 2.5); without four contacts it keeps the centre seat.
+        if !car.seat_on_wheels(ground) {
+            log::debug!("roadblock: a car at ({:.0}, {:.0}) keeps its centre seat", at.x, at.z);
+        }
+        Some(car)
     }
 
-    /// A sawhorse or a spike strip at `slot`: on the ground there, tilted to its normal.
+    /// A sawhorse or a spike strip at `slot`: on the surface nearest its point, tilted to its normal, its origin lifted so
+    /// the bottom of its collision box meets the surface (spec 2.5). With no surface there it is left out but still counts
+    /// as deployed, as the original's prop is created and then fails to place; with 13 props already standing it is not
+    /// created at all. Returns whether it counts as deployed.
     fn place_prop(
         &mut self,
         block: &mut Roadblock,
         slot: &Placed,
         ground: &WorldGround<'_>,
         props: Option<&mut PropWorld>,
-    ) {
-        let mut reading = ground_under(ground, slot.position).unwrap_or((slot.position.y, Vec3::Y));
-        let strip_half = self.roadblocks.physics.as_ref().and_then(|p| p.strip_half);
-        let mut strip = Strip::new(Vec2::new(slot.position.x, slot.position.z), reading.0, slot.heading);
-        if let Some(half) = strip_half.filter(|_| slot.kind == Element::Spike) {
-            strip = strip.with_half(half);
+    ) -> bool {
+        let standing: usize = self.roadblocks.list.iter().map(|b| b.strips.len() + b.sawhorses.len()).sum();
+        if standing + block.strips.len() + block.sawhorses.len() >= MAX_PLACEABLES {
+            log::info!("roadblock: {MAX_PLACEABLES} props already stand, one is left out");
+            return false;
         }
-        if slot.kind == Element::Spike {
-            // The strip is wide: seat it on the ground under both ends, not only under its centre.
-            let (_, across) = strip.axes();
-            let across = Vec3::new(across.x, 0.0, across.y);
-            let end = |sign: f32| ground_under(ground, slot.position + across * (sign * strip.half[1])).map(|g| g.0);
-            reading = seat::seat(reading, across, strip.half[1], [end(1.0), end(-1.0)]);
-            strip.elevation = reading.0;
-        }
-        let (height, normal) = reading;
-        let at = Vec3::new(slot.position.x, height, slot.position.z);
+        let Some((height, normal)) = surface_near(ground, slot.position) else {
+            log::info!("roadblock: no ground under a prop at ({:.0}, {:.0})", slot.position.x, slot.position.z);
+            return true;
+        };
+        let physics = self.roadblocks.physics.as_ref();
+        let lift = match slot.kind {
+            Element::Spike => physics.and_then(|p| p.strip_lift).unwrap_or(spikes::HALF_HEIGHT - spikes::CENTRE_LIFT),
+            _ => physics.and_then(|p| p.sawhorse_lift).unwrap_or(0.0),
+        };
+        let at = Vec3::new(slot.position.x, height + lift, slot.position.z);
         let frame: Mat4 = super::props::frame(at, slot.heading, normal);
         match slot.kind {
             Element::Spike => {
+                let mut strip = Strip::new(Vec2::new(at.x, at.z), at.y, slot.heading);
+                if let Some(half) = physics.and_then(|p| p.strip_half) {
+                    strip = strip.with_half(half);
+                }
                 block.strips.push(strip);
                 block.strip_frames.push(frame);
             }
@@ -262,7 +284,7 @@ impl TrafficWorld {
                 let (Some(kit), Some(physics), Some(props)) =
                     (self.roadblocks.kit.as_ref(), self.roadblocks.physics.as_ref(), props)
                 else {
-                    return;
+                    return true;
                 };
                 match kit.place_sawhorse(physics, props, frame, Rc::downgrade(&block.owner)) {
                     Some(id) => block.sawhorses.push(id),
@@ -271,5 +293,6 @@ impl TrafficWorld {
             }
             Element::Car => {}
         }
+        true
     }
 }

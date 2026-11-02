@@ -27,7 +27,7 @@ pub struct Site {
     pub centre: Vec3,
     /// The road's direction there (unit, horizontal).
     pub forward: Vec3,
-    /// The edges, the target and the direction, as the layout placer reads them.
+    /// The edges at their own heights, the target and the road's direction with its climb, as the layout placer reads them.
     pub road: Road,
     /// The road's width plus one metre (`cr_width`).
     pub cr_width: f32,
@@ -65,11 +65,11 @@ impl TrafficWorld {
             return Err("the road has no lane profile".into());
         }
         let forward = nav.forward.with_y(0.0).normalize_or_zero();
-        let section = nav.road_cross_section(&self.network);
-        let centre = nav.position;
-        let lift = |point: Vec2| Vec3::new(point.x, centre.y, point.y);
-        let road = Road { left: lift(section.left), right: lift(section.right), target, forward };
-        let cr_width = section.left.distance(section.right) + 1.0;
-        Ok(Site { centre, forward, road, cr_width })
+        // The edges keep the road's own heights there, and the layout's depth follows the road's climb (spec 2.4).
+        let [left, right] = nav.road_edges(&self.network);
+        let climb = nav.forward.try_normalize().unwrap_or(forward);
+        let road = Road { left, right, target, forward: climb };
+        let cr_width = Vec2::new(left.x - right.x, left.z - right.z).length() + 1.0;
+        Ok(Site { centre: nav.position, forward, road, cr_width })
     }
 }

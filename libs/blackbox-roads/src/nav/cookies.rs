@@ -5,6 +5,7 @@ use super::{LaneType, NavKind, RoadNav};
 use crate::lane::{lane_line_at_offsets, lane_line_from_endpoints};
 use crate::trail::{Cookie, DEFAULT_GAP, Trail, xz};
 use crate::{Bezier, RoadNetwork, lane_line, travel_profile};
+use glam::Vec3;
 
 /// Default corridor half width round a lane that is not a traffic lane, metres.
 const DEFAULT_BOUND: f32 = 2.0;
@@ -133,6 +134,11 @@ impl RoadNav {
     pub fn road_cross_section(&self, net: &RoadNetwork) -> Cookie {
         let [left, right] = self.corridor_lines(net, 0.0).map(|line| xz(line.position(self.t)));
         Cookie::new(self.position, left, right, self.curvature, self.segment)
+    }
+
+    /// The uninset drivable road edges at this cursor as points with their own spline heights: left, then right.
+    pub fn road_edges(&self, net: &RoadNetwork) -> [Vec3; 2] {
+        self.corridor_lines(net, 0.0).map(|line| line.position(self.t))
     }
 
     /// Lane bounds use the same join as the centre, so the trail cannot snap back to the node's layout.
