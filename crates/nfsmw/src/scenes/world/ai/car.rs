@@ -450,14 +450,10 @@ impl AiCar {
                 if stuck {
                     log::info!("cop: {} is stuck, reversing", self.name);
                     let gear = self.driver.start_reverse_override(RECOVERY_SECONDS, view.gear_is_reverse);
-                    let at = state.body.position;
-                    let forward = Vec3::new(state.body.forward.x, 0.0, state.body.forward.y);
-                    if self.nav.init_at_point(ctx.net, ctx.index, at, forward, false) {
-                        self.nav.preserve_offset_at(ctx.net, at);
-                        self.nav.enable_trail(ctx.net);
-                    }
                     shift(&mut self.sim, Some(gear));
                 }
+                let reversing = self.driver.reverse_override_left() > 0.0;
+                cop.recover(ctx.net, ctx.index, &mut self.nav, &state.body, stuck, reversing);
                 let aim = support_drive::aim(self.support, &player, ctx.aims.get(ctx.me).copied().flatten());
                 let nos = self.sim.nitrous_spec();
                 let think = cop.think(

@@ -15,6 +15,7 @@ impl CopState {
         hash.f32(self.last_speed);
         hash.bytes(format!("{:?}", self.path_state).as_bytes());
         hash.bool(self.ram_allowed);
+        hash.bool(self.recovering);
         let environment = self.environment;
         hash.u32(environment.level);
         hash.option_f32(environment.reaction);

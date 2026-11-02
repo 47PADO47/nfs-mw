@@ -50,3 +50,25 @@ the cop's road section and one entirely behind the cop, a vehicle whose front is
 behind the cop's position while it runs beside the cop is ignored: it is passing
 or being passed. **[PC binary]** for the rule; **[ours]** for the side extent,
 the two cars' half widths plus half a metre each.
+
+## Stuck recovery
+
+**[reference]** When a cop has pressed the throttle for 3 s and moved less than
+3 m, it reverses for 2 s at a requested 15 m/s. Its lane cursor is re-initialised
+at the car on the centre lane, with any pending path search dropped, so it does not
+drive back into what it hit. When the reverse ends, the cursor is re-initialised at
+the car again and snapped to the nearest selectable lane. The stuck test does not
+run while reversing.
+
+## Support checks
+
+The original suppresses heavy support while a roadblock remains attached. Keep
+that rule. **[native verified]** Selecting any heavy support option, including ram
+SUVs, also resets the ordinary roadblock lottery timer to 15 seconds. The delay
+must reach the dispatcher for an accepted ram request as well as for a heavy
+roadblock request. A rejected request must not repeatedly reset that timer.
+This postpones new lottery rolls; it does not cancel an already latched request.
+Synthetic/installed automatic-selection tests must distinguish a
+permitted support roll from model loading, placement admission and active driving.
+Missing SUVs or helicopters in a playtest remain unresolved until the relevant
+runtime deployment is observed; a forced deployment test is insufficient.

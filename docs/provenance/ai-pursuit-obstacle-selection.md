@@ -22,3 +22,15 @@ Specification: [obstacle selection](../specs/ai-pursuit-obstacle-selection.md).
 
 Implementation follows the behavioral specification. Native code, executable
 addresses, installed assets and private captures stay outside public changes.
+
+## Avoidable sets, alongside skip and stuck recovery (2026-11-02)
+
+Spec sections "Avoidable sets for pursuit driving" and "Stuck recovery". Read in the PC binary (behaviour only): the
+avoidable fetch skips the pursuit target and same-pursuit slotted cops only for a cop that holds a formation slot; the
+close-pursuit separation iterates the unfiltered neighbour list; the hole punch skips a vehicle whose front is behind the
+cop while it is beside it. The stuck recovery's centre-lane reset and end-of-reverse lane snap are from the CC0
+reconstruction's `GetUnstuck` action. Rewrite: the step marks slotted cops (`TrafficWorld::formation_slotted`), the cop
+think builds both sets (`cop.rs` `avoid_sets`), `blackbox_roads::trail::punch` has the alongside skip with our side
+extent, and `cop/recovery.rs` resets the cursor. Headless checks: `cop::avoid_sets_tests`,
+`trail::punch::tests::a_car_overtaking_from_behind_alongside_cuts_nothing`. The installed catch-up and road-course cases
+were run before and after; their results are recorded with the change, not here.

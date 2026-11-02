@@ -18,6 +18,7 @@ mod avoid_sets_tests;
 mod close;
 mod history;
 mod motion;
+mod recovery;
 #[cfg(test)]
 mod reinforcement_tests;
 mod road_nos;
@@ -103,6 +104,8 @@ pub struct CopState {
     close: close::Close,
     environment: Environment,
     pub(super) ram_allowed: bool,
+    /// A stuck reverse runs: its end puts the lane cursor back on a lane (`recovery.rs`).
+    recovering: bool,
     /// The cars the think in progress cuts its road corridor around, and the ones it keeps its distance from; kept so a
     /// think does not allocate.
     traffic_scratch: Vec<Body>,
@@ -174,6 +177,7 @@ impl CopState {
             close: close::Close::default(),
             environment: Environment::default(),
             ram_allowed: false,
+            recovering: false,
             traffic_scratch: Vec::new(),
             separation_scratch: Vec::new(),
             #[cfg(test)]
