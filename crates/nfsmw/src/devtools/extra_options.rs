@@ -9,7 +9,15 @@ pub(super) struct Overlay {
     pub open: bool,
     restore_capture: bool,
     active: bool,
+    /// An egui text field had the keyboard last pass: the heat keys stay off.
+    pub typing: bool,
+    /// The heat toast and when it goes (seconds of real time).
+    pub toast: Option<(String, f64)>,
 }
+/// How long the heat toast stays up, seconds.
+const TOAST_SECS: f64 = 2.5;
+/// The keys that step the testing heat (the original Extra Options' `ChangeHeatLevel` default is Page Up).
+const HEAT_KEYS: [(KeyCode, i8); 2] = [(KeyCode::PageUp, 1), (KeyCode::PageDown, -1)];
 pub(super) fn build(app: &mut App) {
     app.insert_resource(Overlay {
         open: std::env::var("NFSMW_EXTRA_OVERLAY").as_deref() == Ok("1"),
@@ -67,6 +75,9 @@ fn toggle(
         overlay.open = false;
         keys.reset(KeyCode::Escape);
     }
+    // The heat keys work while driving in local single player only: not over a menu (the pause menu, the post-race
+    // screens), not in split screen, where Page Up / Page Down are the arrow-block player's gears.
+    let driving = !host.scene.paused() && !host.scene.split_active();
     if !console.open
         && !garage.open
         && !garage.menu
@@ -89,6 +100,7 @@ fn toggle(
                 let _ = host.scene.apply_extra_option(renderer.as_mut(), Action::Center);
             }
         }
+        heat_keys(&mut keys, &mut host, driving && !overlay.typing);
     }
     overlay.sync(&mut capture, &mut focus);
     if lab.open || console.open {
@@ -97,7 +109,49 @@ fn toggle(
     }
 }
 
+/// Page Up / Page Down step the testing heat. A handled key is reset, so no binding (a gear, a menu shoulder) sees it.
+fn heat_keys(keys: &mut ButtonInput<KeyCode>, host: &mut crate::app::Host, allowed: bool) {
+    if !allowed || !host.scene.extra_options().is_some_and(|state| state.local_allowed) {
+        return;
+    }
+    for (code, delta) in HEAT_KEYS {
+        if !keys.just_pressed(code) {
+            continue;
+        }
+        keys.reset(code);
+        let Some(renderer) = host.renderer.as_mut() else { continue };
+        if let Err(e) = host.scene.apply_extra_option(renderer.as_mut(), Action::HeatStep(delta)) {
+            log::info!("heat key: {e:#}");
+        }
+    }
+}
+
+/// The heat toast, under the overrides indicator, for a short while after a heat key.
+pub(super) fn toast(
+    ctx: &egui::Context,
+    overlay: &mut Overlay,
+    state: Option<&mut crate::extra_options::State>,
+    now: f64,
+) {
+    if let Some(text) = state.and_then(|state| state.toast.take()) {
+        overlay.toast = Some((text, now + TOAST_SECS));
+    }
+    let Some((text, until)) = &overlay.toast else { return };
+    if now > *until {
+        overlay.toast = None;
+        return;
+    }
+    egui::Area::new("extra_heat_toast".into()).anchor(egui::Align2::CENTER_TOP, [0.0, 48.0]).show(ctx, |ui| {
+        egui::Frame::popup(ui.style()).show(ui, |ui| ui.strong(text.as_str()));
+    });
+}
+
 impl Overlay {
+    /// A toast is up or waiting: the UI pass must run.
+    pub(super) fn toast_up(&self) -> bool {
+        self.toast.is_some()
+    }
+
     pub(super) fn sync(&mut self, capture: &mut MouseCapture, focus: &mut UiFocus) {
         if self.open {
             if !self.active {

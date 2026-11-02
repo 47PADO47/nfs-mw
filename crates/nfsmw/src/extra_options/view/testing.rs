@@ -70,6 +70,7 @@ pub(super) fn show(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings
             actions.push(Action::EndPursuit);
         }
     });
+    super::pursuit::show(ui, state, actions);
     ui.checkbox(&mut state.testing.unlimited_nos, "Unlimited NOS · requires an installed NOS system");
     ui.checkbox(&mut state.testing.unlimited_breaker, "Unlimited Speedbreaker · normal activation rules apply");
     ui.horizontal(|ui| {

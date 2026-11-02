@@ -1,4 +1,5 @@
 //! Player preferences and explicit, session-only testing overrides for F5.
+pub mod reference;
 pub mod storage;
 pub mod view;
 use serde::{Deserialize, Serialize};
@@ -123,6 +124,16 @@ pub struct State {
     pub coordinates: [f32; 2],
     pub message: Option<String>,
     pub profiles: crate::preset_store::Picker,
+    /// The bounty places the pursuit reference can jump to (all of them), loaded once per world.
+    pub bounty_spots: Vec<reference::BountySpot>,
+    pub bounty_loaded: bool,
+    pub bounty_selected: Option<i32>,
+    /// A jump waiting for its road: the place, and the heat of the pursuit to start once the car stands there.
+    pub pending_jump: Option<(i32, Option<u8>)>,
+    /// The last reference jump that landed: the place, where the car stands (render x, y) and its heading (degrees).
+    pub landed: Option<(i32, [f32; 2], f32)>,
+    /// A short message for the on-screen toast (the heat keys), taken by the overlay.
+    pub toast: Option<String>,
 }
 #[derive(Clone)]
 pub enum Action {
@@ -145,4 +156,11 @@ pub enum Action {
     DeleteBookmark(usize),
     Reload,
     Clear,
+    /// Jump to bounty place `number` as the rap sheet does, and start a pursuit at the testing heat once there.
+    JumpToSpot {
+        number: i32,
+        pursuit: bool,
+    },
+    /// Step the testing heat (Page Up / Page Down), live in a running pursuit.
+    HeatStep(i8),
 }
