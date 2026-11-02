@@ -41,6 +41,8 @@ The detailed radar and signed meter contract is
 | `Radar_DirectionArrow` / `0x24196ad4` | Relative target direction, hidden without a target and during active pursuit. |
 | `Radar_Icon` / `0x6ccbbbf1` | Authored idle state instead of distance-dependent host alpha. |
 | LEDs / `0x69aa01e7`, `0x9f59065a` | Both installed mask windows updated; zero width without a target. |
+| Backup backing / `0x8c20a763` | Plays the backup row's scripts from the backup ETA (below, "Backup timer"). |
+| `BACKUP_TIMER` / `0xbee44775` | The backup ETA in `mm:ss.cc` while a backup is on its way. |
 
 The radar backing and group no longer receive the earlier +75/+15 unit shifts.
 Those shifts aligned the mirror-oriented initial poses in the standalone view,
@@ -60,12 +62,35 @@ size over the newly calculated fixed edge.
 | Heat arcs / `0x862824c9`, `0x4b2cbe1b` | Held hidden; the original mask-to-heat mapping is not implemented. |
 | Bounty row / `0x8674e6d4` | Held hidden until the complete bounty feed is bound. |
 | `CostToState` / `0x3ff5f33c` | No complete cost-to-state presentation. |
-| Backup timer / `0xbee44775`, `0x6a144066` | Original finite backup scheduling and countdown are not implemented. |
 | Hiding / `0x60b45523`, `0x38074901`, `0x5c2a4f20` | Hidden pending complete hiding timing/presentation. |
 | Infraction notifications | Original notification queue and authored actions remain incomplete. |
 | Radar audio/targets | Native ground selection, range, cone and per-update ramp are bound. Detector click and speed-camera selection remain absent; roll-sensitive lateral orientation remains unverified. |
 | View mode | The rear-view setting selects the detector layout. Original view-specific rear-view eligibility still needs comparison. |
 | Fades/sounds | Radar/meter transforms and transitions run from installed scripts; full HUD event and sound dispatch remains incomplete. |
+
+## Backup timer
+
+**[binary]** for the update, **[verified]** for the objects. The board has a backup row under the main board: a
+backing, and a group holding the label "BACKUP:" (language label `HUD_BACKUP`) and the timer string `BACKUP_TIMER`.
+The game drives only the backing. The backing's appear script sends, half-way through, the message that plays the
+group's appear; its leave script sends the group's leave; its looping flash script sends the flash that the group and
+the timer answer. Each HUD update during a pursuit the board receives the pursuit's backup ETA in seconds:
+
+- ETA 0 or less: the backing plays its leave script;
+- above 0 and at most 10 s: its flash script;
+- above 10 s: its appear script;
+
+each started only when it is not the one playing. While the ETA is above zero the timer shows it in the pursuit timer's
+format (`mm:ss.cc`; the original rounds to 1/4000 s first). While the board shows the cool-down, the row is not updated.
+The ETA is the pursuit's: set to `BackupCallTimer` when the backup is called, counting down while the player is seen,
+slightly negative when the backup arrives, and zeroed on entering cool-down ([ai-pursuit-heat](ai-pursuit-heat.md)).
+
+The rewrite (`crates/nfsmw/src/hud/backup_timer.rs`, fed by `PursuitHud::backup_eta`) follows this, with one
+**[inferred]** guard: the leave script is played only on a row shown in this chase, so a row that rests hidden at the
+start of a chase is not played out. Whether the original's leave on a hidden row shows anything, and what the row
+shows across a cool-down, need a capture. A co-op guest's board has no ETA yet (the global block does not carry it).
+Tests: `hud::backup_timer_tests` (synthetic) and `hud::pursuit_install_tests` (the real package's cascade to the label
+and timer).
 
 The board and cops groups still have host-managed alpha. This is not a claim
 that every original HUD message, fade, counter animation or sound is reproduced.

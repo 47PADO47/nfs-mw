@@ -4,6 +4,9 @@
 //! Game code only knows [`HudState`]: a scene returns one from `Scene::hud_state`. Nothing outside this module
 //! names FEng or the presenter, so the presentation can change (docs/decisions/0002-ui-presentation.md).
 
+mod backup_timer;
+#[cfg(test)]
+mod backup_timer_tests;
 mod bind;
 #[cfg(test)]
 mod bind_tests;

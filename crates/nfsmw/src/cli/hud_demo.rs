@@ -32,6 +32,7 @@ pub(super) fn parse_hud_demo(s: &str) -> Result<crate::hud::HudState, String> {
             cooldown: rest.get(5).is_some_and(|share| *share > 0.0),
             // The hiding mark, with this share of its latch filled (none when left out).
             hiding: rest.get(8).map(|percent| (percent / 100.0).clamp(0.0, 1.0)),
+            backup_eta: 0.0,
         }),
         // A cop this many metres away, up the road a little to the left.
         radar: rest.get(7).map(|metres| crate::hud::RadarHud { angle: 0.35, distance: *metres }),

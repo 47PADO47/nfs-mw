@@ -17,6 +17,9 @@ pub struct PursuitHud {
     /// How far the hiding spot the player is in has latched, 0 to 1, once it has started to; `None` when no spot is
     /// hiding the player (`docs/specs/pursuit-hiding.md`). The "hiding" mark shows while this is `Some`.
     pub hiding: Option<f32>,
+    /// Seconds until the called backup arrives (the pursuit's backup ETA); 0 or less when none is on its way. The board's
+    /// backup row shows it (`hud/backup_timer.rs`).
+    pub backup_eta: f32,
 }
 
 impl PursuitHud {
