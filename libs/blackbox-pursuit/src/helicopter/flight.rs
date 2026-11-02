@@ -91,7 +91,7 @@ pub struct Chopper {
     pub position: Vec3,
     pub velocity: Vec3,
     pub orientation: Quat,
-    /// The angular velocity of the last step, after smoothing (world frame, rad/s).
+    /// The angular velocity of the last step, after smoothing (world frame, rad/s; composed from the body axes).
     angular: Vec3,
     prev_velocity: Vec3,
 }
@@ -129,14 +129,17 @@ impl Chopper {
         } else {
             dv * RESPONSE_RATIO
         };
+        // The lean reads the acceleration of the last step, as the original reads it back from the body's velocity: the
+        // velocity before that step's change is kept, so the read-back is not zero.
         let measured = self.measured_acceleration(dt);
+        self.prev_velocity = self.velocity;
         self.velocity += accel * dt;
         self.position += self.velocity * dt;
         self.attitude(measured, facing, specs, dt);
-        self.prev_velocity = self.velocity;
     }
 
-    /// The acceleration of the last step, read back from the velocity change (zero for a step too short to trust).
+    /// The acceleration of the last step, read back from the velocity change over it (zero for a step too short to
+    /// trust).
     fn measured_acceleration(&self, dt: f32) -> Vec3 {
         if dt <= 0.005 {
             return Vec3::ZERO;
@@ -144,31 +147,30 @@ impl Chopper {
         (self.velocity - self.prev_velocity) / dt
     }
 
-    /// Leans the body into the acceleration and turns it to face `facing`, with the 8-step smoothing of the spec.
+    /// Leans the body into the acceleration and turns it to face `facing`, with the 8-step smoothing of the spec. The body
+    /// frame is nose +X, right -Z, up +Y: the pitch is read from the forward acceleration and turns the body about its
+    /// right axis, the roll from the side acceleration and turns it about its nose, the yaw about the vertical.
     fn attitude(&mut self, measured: Vec3, facing: Vec3, specs: &Specs, dt: f32) {
-        let inverse = self.orientation.inverse();
-        let local = inverse * measured * LEAN_LOW_PASS;
+        let local = self.orientation.inverse() * measured * LEAN_LOW_PASS;
+        let (ahead, rightward, up) = (local.x, -local.z, local.y);
         let speed = self.velocity.length();
+        let forward = self.forward();
+        let right = self.orientation * Vec3::NEG_Z;
 
-        let mut pitch = -(local.z * PITCH_LEAN) * specs.pitch_ang;
-        if local.y > 0.0 && speed > 15.0 && self.velocity.y > 0.0 {
-            pitch += local.y * CLIMB_PITCH;
+        let mut pitch = -(ahead * PITCH_LEAN) * specs.pitch_ang;
+        if up > 0.0 && speed > 15.0 && self.velocity.y > 0.0 {
+            pitch += up * CLIMB_PITCH;
         }
         let pitch = pitch.clamp(-LEAN_LIMIT, LEAN_LIMIT);
-        let forward = self.forward();
         let ideal_forward = Vec3::new(forward.x, (std::f32::consts::TAU * pitch).sin(), forward.z);
-        let torque_x = (inverse * ideal_forward.cross(forward)).x;
+        let pitch_rate = (forward.cross(ideal_forward).dot(right) * specs.pitch_align).clamp(-1.0, 1.0);
 
-        let roll = (-(local.x * ROLL_LEAN) * specs.roll_ang).clamp(-LEAN_LIMIT, LEAN_LIMIT);
-        let right = self.orientation * Vec3::NEG_Z;
+        let roll = (-(rightward * ROLL_LEAN) * specs.roll_ang).clamp(-LEAN_LIMIT, LEAN_LIMIT);
         let ideal_right = Vec3::new(right.x, (std::f32::consts::TAU * roll).sin(), right.z);
-        let torque_z = (inverse * ideal_right.cross(right)).z;
+        let roll_rate = (right.cross(ideal_right).dot(forward) * specs.roll_align).clamp(-1.0, 1.0);
 
-        let mut raw = Vec3::ZERO;
-        raw.x = (-torque_x * specs.pitch_align).clamp(-1.0, 1.0);
-        raw.z = (-torque_z * specs.roll_align).clamp(-1.0, 1.0);
-        raw.y = yaw_rate(facing, forward, specs);
-
+        let yaw = yaw_rate(facing, forward, specs);
+        let raw = right * pitch_rate + forward * roll_rate + Vec3::Y * yaw;
         self.angular = (raw + ANGULAR_OLD * self.angular) * ANGULAR_SMOOTH;
         let turn = Quat::from_scaled_axis(self.angular * dt);
         self.orientation = (turn * self.orientation).normalize();
@@ -252,6 +254,46 @@ mod tests {
             heli.step(DT, Vec3::ZERO, facing, false, &Specs::default());
         }
         assert!(heli.forward().dot(facing) > before + 0.9, "turned to within about 25 degrees");
+    }
+
+    /// The nose's height and the right side's height after `secs` of asking for `want` from rest, nose along +X.
+    fn lean_after(want: Vec3, secs: f32) -> (f32, f32) {
+        let mut heli = Chopper::new(Vec3::ZERO, 0.0);
+        for _ in 0..(secs / DT) as u32 {
+            heli.step(DT, want, Vec3::X, false, &Specs::default());
+        }
+        (heli.forward().y, (heli.orientation * Vec3::NEG_Z).y)
+    }
+
+    #[test]
+    fn speeding_up_pitches_the_nose_down_and_braking_lifts_it() {
+        let (nose, side) = lean_after(Vec3::new(30.0, 0.0, 0.0), 0.5);
+        assert!(nose < -0.02, "accelerating forward dips the nose: {nose}");
+        assert!(side.abs() < 1e-3, "and does not roll: {side}");
+        let (nose, _) = lean_after(Vec3::new(-30.0, 0.0, 0.0), 0.5);
+        assert!(nose > 0.02, "accelerating backward lifts it: {nose}");
+    }
+
+    #[test]
+    fn a_sideways_push_rolls_the_body_into_it() {
+        let right = Vec3::NEG_Z;
+        let (nose, side) = lean_after(right * 30.0, 0.5);
+        assert!(side < -0.02, "accelerating to the right drops the right side: {side}");
+        assert!(nose.abs() < 0.01, "with little pitch: {nose}");
+        let (_, side) = lean_after(-right * 30.0, 0.5);
+        assert!(side > 0.02, "to the left lifts it: {side}");
+    }
+
+    #[test]
+    fn the_lean_follows_the_body_whatever_its_heading() {
+        // Facing +Z, the same forward push (now along +Z) still dips the nose rather than rolling the body.
+        let mut heli = Chopper::new(Vec3::ZERO, std::f32::consts::FRAC_PI_2);
+        let forward = heli.forward();
+        for _ in 0..30 {
+            heli.step(DT, forward * 30.0, forward, false, &Specs::default());
+        }
+        assert!(heli.forward().y < -0.02, "nose down: {}", heli.forward().y);
+        assert!((heli.orientation * Vec3::NEG_Z).y.abs() < 1e-3, "no roll");
     }
 
     #[test]
