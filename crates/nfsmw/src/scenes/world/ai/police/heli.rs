@@ -266,8 +266,13 @@ impl Police {
             self.heli_plan.quadrant = false;
             return;
         }
-        if heli.too_far(&body) && !matches!(heli.mode, Mode::Exit(_)) {
-            heli.leave();
+        // The cop manager's out-of-play rule: out of the camera's view and far from the point ahead of the player, it is
+        // removed at once, without an exit flight, and counts as leaving the pursuit.
+        if heli.out_of_play(&body) {
+            log::info!("pursuit: the helicopter is out of play and leaves the pursuit");
+            self.heli_wait = self.heli_respawn_seconds(self.level().unwrap_or(1));
+            self.heli_plan.quadrant = false;
+            return;
         }
         self.heli = Some(heli);
     }

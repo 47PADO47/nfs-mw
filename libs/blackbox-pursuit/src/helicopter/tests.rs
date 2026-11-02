@@ -168,7 +168,22 @@ fn the_exit_reports_done_once_it_is_clear_of_the_car() {
 }
 
 #[test]
-fn a_helicopter_far_back_is_removed() {
-    let heli = Helicopter::spawn(Vec3::new(-700.0, 40.0, 0.0), 0.0, Tuning::default());
-    assert!(heli.too_far(&player()));
+fn a_helicopter_out_of_view_far_from_the_point_ahead_is_out_of_play() {
+    // The player drives along +X: the point 75 m ahead is (75, 0, 0). 650 m behind the player is 725 m from it.
+    let far_back = Helicopter::spawn(Vec3::new(-650.0, 40.0, 0.0), 0.0, Tuning::default());
+    assert!(far_back.out_of_play(&player()));
+    // 560 m ahead of the player is 485 m from the point ahead: still in play, though 560 m from the player.
+    let ahead = Helicopter::spawn(Vec3::new(560.0, 40.0, 0.0), 0.0, Tuning::default());
+    assert!(!ahead.out_of_play(&player()));
+    let near = Helicopter::spawn(Vec3::new(-500.0, 40.0, 0.0), 0.0, Tuning::default());
+    assert!(!near.out_of_play(&player()), "575 m from the point ahead");
+}
+
+#[test]
+fn a_far_helicopter_the_camera_looks_at_stays_in_play() {
+    let mut heli = Helicopter::spawn(Vec3::new(-650.0, 40.0, 0.0), 0.0, Tuning::default());
+    heli.camera = Some(camera::Camera { position: Vec3::new(10.0, 3.0, 0.0), forward: Vec3::NEG_X });
+    assert!(!heli.out_of_play(&player()), "the camera looks back at it");
+    heli.camera = Some(camera::Camera { position: Vec3::new(-10.0, 3.0, 0.0), forward: Vec3::X });
+    assert!(heli.out_of_play(&player()), "the camera looks away from it");
 }
