@@ -97,6 +97,11 @@ impl Binding {
         let mut value = raw * self.scale * if self.per_second { s.dt } else { 1.0 };
         if matches!(self.source, Source::MouseMotion { .. }) {
             value *= s.controls.mouse_sensitivity.factor();
+            // The head look is a stick (spring-loaded), so the mouse is read as the speed of its motion, not the
+            // distance of a frame: pixels per second, whatever the frame rate.
+            if matches!(self.action, Action::HeadLookX | Action::HeadLookY) {
+                value = mouse_rate(value, s.dt);
+            }
         }
         if s.controls.invert_camera_y && matches!(self.action, Action::LookY | Action::OrbitY | Action::HeadLookY) {
             value = -value;
@@ -126,6 +131,14 @@ impl Binding {
     }
 }
 
+/// A frame's mouse motion (already scaled) as a speed: per second of the frame. A frame of no time reads as no motion.
+fn mouse_rate(frame_motion: f32, dt: f32) -> f32 {
+    if !dt.is_finite() || dt <= 0.0 {
+        return 0.0;
+    }
+    frame_motion / dt
+}
+
 /// Travel of a pedal on a full-range axis: 0 released, 1 pressed.
 fn pedal_travel(raw: f32, inverted: bool) -> f32 {
     if !raw.is_finite() {
@@ -153,6 +166,11 @@ impl super::state::Bindings {
 
 /// Mouse pixels per second a fully pushed stick turns the camera by.
 const STICK_LOOK_PIXELS: f32 = 700.0;
+/// Mouse pixels per second that tip the bike's head look (`head_look_x`, `head_look_y`) to its limit: the same speed a fully
+/// pushed stick turns the free camera by, so the mouse is a stick whose deflection is the speed of the mouse. It is a modelling
+/// choice (the original has no mouse look): fast enough to reach the limit with a flick of the wrist, slow enough that a
+/// steady sweep holds half a turn. The head springs back as soon as the mouse stops (`viewer/camera/head_look.rs`).
+const MOUSE_HEAD_LOOK_PIXELS: f32 = STICK_LOOK_PIXELS;
 /// Scroll lines per second while a button is held.
 const BUTTON_ZOOM_LINES: f32 = 6.0;
 
@@ -336,9 +354,21 @@ fn driving() -> Vec<Binding> {
         Binding::new(ShiftUp, Source::PadAxis(GamepadAxis::RightStickY), 1.0),
         Binding::new(ShiftDown, Source::PadAxis(GamepadAxis::RightStickY), -1.0),
         Binding::new(RiderWeight, Source::PadAxis(GamepadAxis::LeftStickY), 1.0),
-        // The right stick's X turns a bike's helmet camera (it springs back); its Y stays the gear shift, so there is no pad
-        // binding for `HeadLookY`.
+        // The right stick's X turns a bike's helmet camera (it springs back); its Y stays the gear shift, and every pad button
+        // is taken, so there is no pad binding for `HeadLookY` (the mouse and the keys pitch the head).
         Binding::new(HeadLookX, Source::PadAxis(GamepadAxis::RightStickX), 1.0),
+        // The mouse is a stick whose deflection is its speed (`MOUSE_HEAD_LOOK_PIXELS`), under the same gate as the other mouse
+        // looks; up is negative motion, hence the negative scale of the pitch.
+        Binding::new(HeadLookX, Source::MouseMotion { y: false, gate: Gate::Look }, 1.0 / MOUSE_HEAD_LOOK_PIXELS),
+        Binding::new(HeadLookY, Source::MouseMotion { y: true, gate: Gate::Look }, -1.0 / MOUSE_HEAD_LOOK_PIXELS),
+        // The keys are a stick pushed to its end while they are held: the numpad's 4 and 6 (and the square brackets, for a
+        // keyboard without a numpad) look left and right, 9 and 3 up and down.
+        Binding::new(HeadLookX, key(KeyCode::Numpad6), 1.0),
+        Binding::new(HeadLookX, key(KeyCode::Numpad4), -1.0),
+        Binding::new(HeadLookX, key(KeyCode::BracketRight), 1.0),
+        Binding::new(HeadLookX, key(KeyCode::BracketLeft), -1.0),
+        Binding::new(HeadLookY, key(KeyCode::Numpad9), 1.0),
+        Binding::new(HeadLookY, key(KeyCode::Numpad3), -1.0),
         Binding::new(AbsLevel, button(GamepadButton::LeftThumb), 1.0),
         Binding::new(ResetCar, button(GamepadButton::Select), 1.0),
         Binding::new(ToggleCamera, button(GamepadButton::North), 1.0),

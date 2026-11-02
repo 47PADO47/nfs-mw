@@ -47,9 +47,10 @@ impl Drive {
         Some(BikeView { transform: pose.transform(), rotation: pose.rotation, eye, head: self.rider.head_look() })
     }
 
-    /// One frame of the look stick for the helmet camera of a bike: the pad's right stick (X; Y is the gear shift there). The
-    /// rider's head follows it and springs back when it is let go; a car never reads it (`bike_cameras`). `dt` is the frame's
-    /// time (0 while the world is frozen). A drive script's `look=` is stepped with the physics instead (`simulation.rs`).
+    /// One frame of the look axes for the helmet camera of a bike: the pad's right stick (X; Y is the gear shift there), the
+    /// mouse's speed and the look keys. The rider's head follows them and springs back when they are let go; a car never reads
+    /// it (`bike_cameras`). `dt` is the frame's time (0 while the world is frozen). A drive script's `look=` is stepped with
+    /// the physics instead (`simulation.rs`).
     pub fn update_head_look(&mut self, actions: &ActionState, dt: f32) {
         if self.script.is_some() {
             return;

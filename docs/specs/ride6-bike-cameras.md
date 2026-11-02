@@ -181,15 +181,40 @@ follows them (`viewer/camera/head_look.rs`, `HeadLook`):
   the view clockwise from above, whichever way it faces); the eye, the field of view, the near plane and the horizon's roll are
   untouched, and the rider's own body is not moved by it (his head stays as the animation has it, his helmet is not drawn).
 
-**What drives it.** `head_look_x` is bound to the pad's **right stick X** (`input/bindings.rs`, `driving`) with the camera dead zone
-and sensitivity of the controls settings (15 percent by default, so a resting stick does nothing). The stick's Y is **not** a look:
-the driving profile has it as the gear shift (`ShiftUp`, `ShiftDown`), also under the automatic gearbox, where the shift buttons
-are sport shifts, so pitching the head with it would shift gears. `head_look_y` therefore has no default binding (a key, a
-mouse axis or a pad axis can be bound to it in `[bindings]`; the pitch limit and its spring are as above), and the data's pitch is
-the part of the behaviour a pad does not use. The mouse look is not bound (the user asked for the stick). Only the helmet
-camera (`--camera-mode hood`) reads it: a car, the front camera, the chase cameras and the original views do not, and the
-physics never sees it. `look` and `lookup` of a `--drive-script` (`docs/modding/drive-script.md`) hold the two axes for a segment,
-for pictures.
+**What drives it** (`input/bindings.rs`, `driving`; every device feeds the same two axes, which add up and are held to -1..1):
+
+| Device | `head_look_x` (right +) | `head_look_y` (up +) |
+|---|---|---|
+| Pad | right stick X (camera dead zone and sensitivity of the controls settings; 15 percent by default, so a resting stick does nothing) | none, see below |
+| Mouse | horizontal speed | vertical speed |
+| Keyboard | Numpad 6 / Numpad 4, or `]` / `[` for a keyboard without a numpad | Numpad 9 / Numpad 3 |
+
+- **The pad's Y is not a look.** The right stick's Y is the gear shift in the driving profile (`ShiftUp`, `ShiftDown`), also under
+  the automatic gearbox, where the shift buttons are sport shifts, so pitching the head with it would shift gears; every other
+  pad button and trigger is bound, and there is no modifier mechanism in the bindings (a binding is one source and a scale). So
+  `head_look_y` has no default pad binding, and the data's pitch is reached with the mouse or the keys. A player who prefers the
+  stick can unbind the shift (`shift_up = []`, `shift_down = []`, or keys only) and bind `head_look_y = ['axis:RightStickY']`
+  in `[bindings]` (the camera dead zone and sensitivity apply to it as to the X axis).
+- **The mouse is a stick whose deflection is the speed of the mouse** [C: a modelling choice; the original has no mouse look, and
+  RIDE 6's side-view axes are stick axes]. A binding reads the pixels moved in the frame divided by the frame's time, times the
+  scale `1/700` (`MOUSE_HEAD_LOOK_PIXELS`, the 700 pixels a second a fully pushed stick turns the free camera by; negative for the
+  vertical axis, since the mouse's y grows downward), times the mouse sensitivity setting. A mouse sweeping at 700 pixels a second
+  therefore holds the stick at its end, 350 pixels a second at half, a mouse at rest is a stick at rest. The head's own filter
+  (above) does the rest: it follows the speed and **springs back to straight ahead within two seconds of the mouse stopping**,
+  like a spring-loaded head, with no state kept in the input layer (a head that stayed where the mouse put it, accumulated, would
+  need a centre key). The angle a nudge turns the head by does not depend on the
+  frame rate: the stick is the speed, the filter integrates it (a 2 pixel nudge is about 0.12 degrees at any rate from 30 to 240
+  frames a second); a flick of 300 pixels in a quarter of a second turns it about 7 degrees. It has the same gate as the other
+  mouse looks: the cursor captured (a click in the window), or the right button held.
+- **The keys** push the stick to its end while they are held (11 degrees of yaw, 10 of pitch) and release it, so the head returns.
+  The numpad's 8 and 2 are the rider's weight, so the look takes 4 and 6 beside them and 9 and 3; no other driving action is on
+  these keys.
+- In the free camera (`view-world`, F) the two axes are not read, so the mouse look that flies the free camera does not also turn
+  the rider's head.
+
+Only the helmet camera (`--camera-mode hood`) reads the look: a car, the front camera, the chase cameras and the original views
+do not, and the physics never sees it (`input/head_look_tests.rs`, `viewer/camera/bike_tests.rs`). `look` and `lookup` of a
+`--drive-script` (`docs/modding/drive-script.md`) hold the two axes for a segment, for pictures.
 
 ## 7. What is not done
 
@@ -199,7 +224,8 @@ for pictures.
   lag. Only the helmet camera's two `Lean` slots are used (section 6.1), and their filters are not.
 - The cockpit camera (x -4 cm, z 1.2 m, pitch -20), the gauge camera and the GoPro have no mode of the game to sit in; an extra view of
   a mod could use them.
-- The helmet look has no mouse binding and the pad has none for its pitch (section 6.2); the front camera has no look (RIDE 6 has
+- The helmet look's pitch has no default pad binding (section 6.2: the mouse and the keys pitch the head); the mouse and key
+  bindings are this port's choice, the original has none; the front camera has no look (RIDE 6 has
   no side-view behaviour for it); the cockpit camera's 13 and 10 degrees are for a camera that no mode of the game shows.
 - A bike without a container (16 of 293) has no `[bike.camera]`, and the game derives its cameras from its wheelbase
   (`BikeCamera::derived`: distances and heights as fractions of the wheelbase [C]). The dump and the containers name 47 bikes with another

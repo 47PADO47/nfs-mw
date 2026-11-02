@@ -438,7 +438,7 @@ ride6-bikes-batch.md#the-riders-contact-points-contacts)). Another game's conver
 | Gear shift keys, gear keys, clutch | not read: the gearbox is automatic |
 | Nitrous | not read: a bike has none |
 | Reset | as for a car |
-| Camera (**C**), look back (**B**), look (pad right stick, sideways) | each mode of the camera setting has a bike's own view (below); look back turns the helmet camera round and the front camera ahead; the stick turns the helmet camera 11 degrees either way and it springs back (the stick's Y stays the gear shift) |
+| Camera (**C**), look back (**B**), look (pad right stick, sideways; the mouse; Numpad 4 / 6 / 9 / 3 or `[` / `]`) | each mode of the camera setting has a bike's own view (below); look back turns the helmet camera round and the front camera ahead; the stick, the mouse (by its speed) or the keys turn the helmet camera 11 degrees either way and 10 up or down and it springs back (the pad stick's Y stays the gear shift, so a pad cannot pitch it) |
 
 Behaviour specific to bikes:
 

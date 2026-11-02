@@ -190,10 +190,24 @@ to 1 (J, and the pad's left-stick click). For the weight axis the stick's circul
 the rim on a diagonal still reaches the full lever.
 
 `head_look_x` and `head_look_y` are two more axes of a bike's (a car and the other cameras ignore them): the look of the
-helmet camera, `--camera-mode hood` (right and up positive). `head_look_x` is bound to the pad's **right stick X**, with the
-camera dead zone and sensitivity; `head_look_y` has no default binding, because the right stick's Y is the gear shift there
-(bind a key or an axis to it with `[bindings]`). The head turns up to 11 degrees to either side and 10 up or down and
-springs back to straight ahead when the stick is let go ([the camera spec](specs/ride6-bike-cameras.md), section 6.2).
+helmet camera, `--camera-mode hood` (right and up positive). The head turns up to 11 degrees to either side and 10 up or down
+and springs back to straight ahead when the control is let go ([the camera spec](specs/ride6-bike-cameras.md), section 6.2).
+Every device can look:
+
+| Device | `head_look_x` | `head_look_y` |
+|---|---|---|
+| Pad | right stick X, with the camera dead zone and sensitivity | none (the right stick's Y is the gear shift and every button is taken) |
+| Mouse (captured, or right button held) | `mouse:look_x` at scale `1/700` | `mouse:look_y` at scale `-1/700` |
+| Keyboard | Numpad 6 / 4, `]` / `[` | Numpad 9 / 3 |
+
+The mouse is a stick whose deflection is its speed: the scale is the stick share per pixel a second (not per frame), so
+700 pixels a second hold the stick at its end, and the head returns to centre when the mouse stops (the mouse sensitivity
+setting applies). `per_second` is not used (it is refused for the mouse, whose delta the look divides by the frame time itself).
+The keys hold the stick at its end while pressed. A pad player can pitch with the stick instead by freeing its Y from the
+gear shift: `shift_up = ['key:E']`, `shift_down = ['key:Q']`, `head_look_y = ['axis:RightStickY']` in `[bindings]`. In the
+free camera the two axes are ignored. A `[bindings]` table saved by an older build holds `head_look_x = ['axis:RightStickX']` and an
+empty `head_look_y`, which override the new defaults: `bind-reset head_look_x` and `bind-reset head_look_y` in the console (then
+`bind-save`) bring the mouse and key looks in.
 
 The existing 0.75 press / 0.65 release hysteresis for digital gamepad buttons remains separate from
 analog trigger and stick response. See [the controller specification](specs/controller-settings.md)

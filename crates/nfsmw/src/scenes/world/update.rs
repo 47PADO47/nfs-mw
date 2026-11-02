@@ -52,6 +52,9 @@ impl WorldScene {
             free_camera_input = input.clone();
             free_camera_input.consume(Action::ShiftUp);
             free_camera_input.consume(Action::ShiftDown);
+            // The mouse and the keys that look round with the free camera do not also turn the rider's head.
+            free_camera_input.consume(Action::HeadLookX);
+            free_camera_input.consume(Action::HeadLookY);
             &free_camera_input
         } else {
             input
