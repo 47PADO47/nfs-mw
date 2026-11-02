@@ -84,3 +84,12 @@ fn predicted_points_select_a_forward_crossing_without_clamping_to_the_trail_end(
     assert_eq!(closest_cookie_ahead(&cookies, Vec2::new(0.0, 70.1)), Some(24));
     assert_eq!(closest_cookie_ahead(&cookies, Vec2::new(0.0, 91.0)), None);
 }
+
+#[test]
+fn a_car_overtaking_from_behind_alongside_cuts_nothing() {
+    // Its front is still behind me and it runs in the next lane: it is passing, not in my way.
+    let mut cookies = straight_cookies();
+    let passing = Body { position: Vec3::new(2.5, 0.0, -5.0), ..body(-5.0, 30.0) };
+    assert!(punch_avoidables(&mut cookies, &body(0.0, 20.0), [passing], false, 1.0).is_none());
+    assert!(cookies.iter().all(|cookie| cookie.flags & CUT == 0));
+}

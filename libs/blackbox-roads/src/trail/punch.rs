@@ -116,6 +116,11 @@ pub fn punch_avoidables(
         if dist_ahead < -(my_extent + his_extent) {
             continue;
         }
+        // A car whose front is behind me while it runs beside me is passing or being passed: it cuts nothing.
+        let side_extent = me.half_width + a.half_width + 2.0 * CAR_MARGIN;
+        if dist_ahead + his_extent < 0.0 && relative.dot(Vec2::new(f.y, -f.x)).abs() < side_extent {
+            continue;
+        }
 
         // Where the noses meet if both keep going.
         let gap = (dist_ahead - my_extent - his_extent).max(0.0);
