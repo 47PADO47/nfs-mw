@@ -237,6 +237,8 @@ mod tests {
             camber: [0.28, 0.20],
             spoke_count: 8,
             bike: None,
+            steer_speed: None,
+            max_tire_steer: None,
         }
     }
 

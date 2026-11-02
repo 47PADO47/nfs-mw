@@ -159,3 +159,35 @@ fn a_geometry_file_with_its_solid_packs_after_the_geometry_pack_is_read() {
         assert!(solids.len() >= top_level.saturating_sub(10), "{car}: {} solids of {top_level} packs", solids.len());
     }
 }
+
+/// The cop cars' drawn-steering limits come from their `ecar` records (docs/specs/car-wheel-animation.md section 2).
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn cop_cars_carry_drawn_steering_limits() {
+    use nfsmw_data::car::{CarTables, WheelSetup};
+    let Some(dir) = install() else { return };
+    let t = CarTables::load(&dir).unwrap();
+    let cops = [
+        "copmidsize",
+        "copsporthench",
+        "copsport",
+        "copsuv",
+        "copsuvl",
+        "copghost",
+        "copgto",
+        "copgtoghost",
+        "copcross",
+    ];
+    for name in cops {
+        let Some(setup) = WheelSetup::read(&t.attributes, name) else {
+            eprintln!("{name}: no ecar record");
+            continue;
+        };
+        eprintln!("{name}: SteerSpeed {:?} deg/s, MaxTireSteer {:?} deg", setup.steer_speed, setup.max_tire_steer);
+        let speed = setup.steer_speed.unwrap_or_else(|| panic!("{name} has a SteerSpeed"));
+        let max = setup.max_tire_steer.unwrap_or_else(|| panic!("{name} has a MaxTireSteer"));
+        assert!(speed > 0.0 && (1.0..90.0).contains(&max), "{name}: {speed} {max}");
+    }
+    let player = WheelSetup::read(&t.attributes, "bmwm3gtr").expect("the M3 GTR's ecar record");
+    eprintln!("bmwm3gtr: SteerSpeed {:?} deg/s, MaxTireSteer {:?} deg", player.steer_speed, player.max_tire_steer);
+}

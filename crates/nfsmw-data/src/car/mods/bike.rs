@@ -103,6 +103,8 @@ pub fn wheel_setup(spec: &BikeSpec, layout: Option<&WheelLayout>) -> WheelSetup 
         camber: [0.0; 2],
         spoke_count: 0,
         bike: Some(BikeMount { rake: spec.chassis.rake, trail: spec.chassis.trail }),
+        steer_speed: None,
+        max_tire_steer: None,
     }
 }
 
