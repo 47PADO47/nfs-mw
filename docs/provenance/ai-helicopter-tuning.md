@@ -136,3 +136,12 @@ rolloff questions that a guess would get wrong.
 
 The installed test `installed_map_routes_the_rotor_to_the_slots_the_mixer_reads` pins these values. Words 0 to 5 and 7 to 10
 remain `[unconfirmed]` (see `audio/heli/params.rs`).
+
+**Pass 4 (2026-11-02): request, removal and lean.** Spec: [ai-helicopter-presence.md](../specs/ai-helicopter-presence.md).
+Read in `speed.exe` (Ghidra and the disassembly, behaviour only): the cop manager's update (the request is made only below
+the active-car maximum and with no roadblock latch), the pursuit's cop request (chance 0 weighs 100) and the out-of-play
+pass (600 m from 75 m ahead of the target, out of the camera's view, immediate removal). The wave spec already said 0 -> 100;
+the code had `max(1)`. The lean's axes are the rewrite's physical reading of the spec's rule; the measured-acceleration
+read-back was a rewrite bug (always zero). Tests: `helicopter::flight` and `helicopter::tests` in `blackbox-pursuit`,
+`police::heli::tests` and `pursuit::tests::air` in `nfsmw`. Not compared with a running game; the view test is the
+rewrite's own cone.

@@ -46,6 +46,9 @@ There is at most **one** helicopter at a time (`gHeliVehicle`, `HeliVehicleActiv
 
 ## 2. When it appears and leaves
 
+The request's fleet gate, the zero-chance weight, the out-of-play removal and the lean's axes are in
+[ai-helicopter-presence.md](ai-helicopter-presence.md).
+
 ### 2.1 Spawn request
 
 The cop manager asks the pursuit for the next cop type (`CopRequest`). The pursuit allows a helicopter when its heli timer

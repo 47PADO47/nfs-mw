@@ -368,12 +368,13 @@ impl TrafficWorld {
         if pursuit.spawn_timer > 0.0 {
             return;
         }
-        // The helicopter takes its turn among the wave's types (`ai/air.rs`); a pick counts as a cop spawned.
-        if self.pick_helicopter(&player, alive < wanted) || alive >= wanted {
+        // The manager asks the pursuit for its next cop type only below the active-car budget
+        // (`mNumActiveCopCars < mMaxActiveCopCars`), the helicopter included.
+        if !self.budget_has_room() {
             return;
         }
-        // The manager asks for a wave cop only below the active-car budget (`mNumActiveCopCars < mMaxActiveCopCars`).
-        if !self.budget_has_room() {
+        // The helicopter takes its turn among the wave's types (`ai/air.rs`); a pick counts as a cop spawned.
+        if self.pick_helicopter(&player, alive < wanted) || alive >= wanted {
             return;
         }
         let Some(pursuit) = self.pursuit.as_mut() else { return };

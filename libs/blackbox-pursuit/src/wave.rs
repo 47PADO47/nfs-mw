@@ -3,12 +3,21 @@
 //! at every pick, so a rise in heat (a different row) brings the types of that row.
 //! Spec: `docs/specs/ai-pursuit-cops.md` (section 4).
 
-/// One car type of a wave: its name, how many the wave wants, and its spawn weight in percent (0 counts as 1).
+/// One car type of a wave: its name, how many the wave wants, and its spawn weight in percent (0 counts as 100, see
+/// [`weight`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Slot<'a> {
     pub name: &'a str,
     pub count: u32,
     pub chance: u32,
+}
+
+/// The spawn weight of a type with `chance`: the chance itself, and 100 for a type whose chance is 0 (`CopRequest`).
+pub fn weight(chance: u32) -> u32 {
+    if chance == 0 {
+        return 100;
+    }
+    chance
 }
 
 /// The index of the slot to spawn next, or `None` when the wave has every car it wants.
@@ -17,7 +26,7 @@ pub struct Slot<'a> {
 /// A type is eligible while `have(name) < count`, and eligible types are drawn by weight.
 pub fn pick_needed(slots: &[Slot<'_>], have: impl Fn(&str) -> u32, roll: f32) -> Option<usize> {
     let weights: Vec<(usize, u32)> =
-        slots.iter().enumerate().filter(|(_, s)| have(s.name) < s.count).map(|(i, s)| (i, s.chance.max(1))).collect();
+        slots.iter().enumerate().filter(|(_, s)| have(s.name) < s.count).map(|(i, s)| (i, weight(s.chance))).collect();
     let total: u32 = weights.iter().map(|w| w.1).sum();
     if total == 0 {
         return None;
@@ -121,6 +130,16 @@ mod tests {
 
     fn heat_four() -> [Slot<'static>; 1] {
         [Slot { name: "copgtoghost", count: 8, chance: 100 }]
+    }
+
+    #[test]
+    fn a_type_with_no_chance_weighs_a_hundred() {
+        assert_eq!(weight(0), 100);
+        assert_eq!(weight(60), 60);
+        let slots = [Slot { name: "a", count: 1, chance: 0 }, Slot { name: "b", count: 1, chance: 25 }];
+        // 100 against 25: the first four fifths of the roll take the type with no chance.
+        assert_eq!(pick_needed(&slots, |_| 0, 0.79), Some(0));
+        assert_eq!(pick_needed(&slots, |_| 0, 0.81), Some(1));
     }
 
     #[test]
