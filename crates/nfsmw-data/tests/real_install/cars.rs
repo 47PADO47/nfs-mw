@@ -186,7 +186,7 @@ fn cop_cars_carry_drawn_steering_limits() {
         eprintln!("{name}: SteerSpeed {:?} deg/s, MaxTireSteer {:?} deg", setup.steer_speed, setup.max_tire_steer);
         let speed = setup.steer_speed.unwrap_or_else(|| panic!("{name} has a SteerSpeed"));
         let max = setup.max_tire_steer.unwrap_or_else(|| panic!("{name} has a MaxTireSteer"));
-        assert!(speed > 0.0 && (1.0..90.0).contains(&max), "{name}: {speed} {max}");
+        assert!(speed > 0.0 && (1.0..=90.0).contains(&max), "{name}: {speed} {max}");
     }
     let player = WheelSetup::read(&t.attributes, "bmwm3gtr").expect("the M3 GTR's ecar record");
     eprintln!("bmwm3gtr: SteerSpeed {:?} deg/s, MaxTireSteer {:?} deg", player.steer_speed, player.max_tire_steer);

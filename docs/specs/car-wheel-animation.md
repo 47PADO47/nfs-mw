@@ -34,6 +34,11 @@ It applies to every car, the player's included. [PC binary]
 
 A car whose record lacks one of the two attributes has no limit for that term **[ours]**.
 
+**Installed values [verified].** Every cop car with an `ecar` record (`copmidsize`, `copsport`, `copsporthench`, `copsuv`,
+`copsuvl`, `copghost`, `copgto`, `copgtoghost`) and the BMW M3 GTR read `SteerSpeed` 180 degrees per second and
+`MaxTireSteer` 90 degrees. The clamp therefore lies beyond the physical range of 45 to 60 degrees and only the slew
+shapes the drawn angle: a full-lock flip is drawn over about a third of a second.
+
 ## 3. Drawn roll
 
 Each update, for each wheel:
