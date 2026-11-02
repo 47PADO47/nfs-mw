@@ -411,8 +411,8 @@ impl Scene for WorldScene {
     fn move_player(&mut self, at: [f32; 2], heading: f32) -> bool {
         self.move_player_to(at, heading)
     }
-    fn jump_player(&mut self, at: [f32; 2]) -> bool {
-        self.start_at_point(at)
+    fn jump_player(&mut self, point: crate::career::JumpPoint) -> bool {
+        self.start_at_point(point)
     }
     fn start_career_event(&mut self, event: &str) -> bool {
         let options = super::race::RaceOptions { career: true, ..Default::default() };

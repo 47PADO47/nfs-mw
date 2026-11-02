@@ -202,7 +202,7 @@ fn the_milestone_rows_are_the_milestones_then_the_traps_of_the_bin() {
     assert_eq!(rows.len(), 3, "two milestones and one trap of bin 14");
     assert!(matches!(rows[0].entry, Entry::Pursuit { label: Some(6), .. }));
     assert!(matches!(rows[2].entry, Entry::Trap { threshold: 180, .. }));
-    assert_eq!(rows[0].spawn, Some([6.0, -4.0]));
+    assert_eq!(rows[0].spawn.map(|p| p.xy()), Some([6.0, -4.0]));
     assert_eq!(rows[2].spawn, None, "the trap has no spawn point in this data");
 }
 

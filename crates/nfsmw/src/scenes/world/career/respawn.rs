@@ -80,12 +80,17 @@ impl WorldScene {
         log::info!("career: the world starts at the safe house marker ({:.0}, {:.0})", at.x, at.y);
     }
 
-    /// The world starts with the car at `at` (render space x and y): a milestone's or a bounty place's spawn point from the
-    /// rap sheet's pages (`career-rapsheet-2.md` section 5). The car is put on the road nearest the point, as a respawn does.
-    pub fn start_at_point(&mut self, at: [f32; 2]) -> bool {
+    /// The world starts with the car at a milestone's or a bounty place's spawn point from the rap sheet's pages
+    /// (`career-rapsheet-2.md` section 5.1): exactly on the marker, facing its `Rotation`, stopped, as a garage exit is
+    /// put on its marker. A point without a heading puts the car on the road nearest it, as a respawn does.
+    pub fn start_at_point(&mut self, point: crate::career::JumpPoint) -> bool {
+        let at = point.xy();
         (self.camera.position.x, self.camera.position.y) = (at[0], at[1]);
         let Some(drive) = self.players.lead_mut() else { return false };
-        drive.respawn_near(at, None);
+        match point.heading {
+            Some(heading) => drive.respawn_at(crate::scenes::world::road::Spawn { position: point.at, heading }),
+            None => drive.respawn_near(at, None),
+        }
         self.career.respawn.guests_behind = true;
         log::info!("career: the car jumps to ({:.0}, {:.0})", at[0], at[1]);
         true

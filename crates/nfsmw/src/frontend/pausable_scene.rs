@@ -361,8 +361,8 @@ impl Scene for Pausable {
     fn prepare_safe_house(&mut self) -> bool {
         self.inner.prepare_safe_house()
     }
-    fn jump_player(&mut self, at: [f32; 2]) -> bool {
-        self.inner.jump_player(at)
+    fn jump_player(&mut self, point: crate::career::JumpPoint) -> bool {
+        self.inner.jump_player(point)
     }
     fn start_career_event(&mut self, event: &str) -> bool {
         self.inner.start_career_event(event)

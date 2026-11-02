@@ -53,7 +53,7 @@ pub enum Entry {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MilestoneRow {
     pub entry: Entry,
-    pub spawn: Option<[f32; 2]>,
+    pub spawn: Option<crate::career::JumpPoint>,
 }
 
 impl MilestoneRow {
@@ -87,7 +87,11 @@ pub fn milestone_rows(set: &MilestoneSet, traps: &[SpeedTrap], data: &GameplayDa
 
 fn pursuit_row(milestone: &Milestone, data: &GameplayData) -> MilestoneRow {
     let def = &milestone.def;
-    let spawn = data.milestones.iter().find(|m| m.key == def.key).and_then(|m| m.spawn).map(render_xy);
+    let spawn = data
+        .milestones
+        .iter()
+        .find(|m| m.key == def.key)
+        .and_then(|m| Some(jump_point(m.spawn?, m.spawn_rotation_deg)));
     let label = data.milestone_types.iter().find(|kind| kind.name == def.stat.name()).and_then(|kind| kind.label);
     MilestoneRow {
         entry: Entry::Pursuit {
@@ -101,8 +105,17 @@ fn pursuit_row(milestone: &Milestone, data: &GameplayData) -> MilestoneRow {
     }
 }
 
+/// The jump to a spawn marker at `physics` with its `Rotation`.
+fn jump_point(physics: glam::Vec3, rotation_deg: Option<f32>) -> crate::career::JumpPoint {
+    crate::career::JumpPoint::from_marker(physics, rotation_deg)
+}
+
 fn trap_row(trap: &SpeedTrap, data: &GameplayData) -> MilestoneRow {
-    let spawn = data.speed_traps.iter().find(|t| t.key == trap.key()).and_then(|t| t.spawn).map(render_xy);
+    let spawn = data
+        .speed_traps
+        .iter()
+        .find(|t| t.key == trap.key())
+        .and_then(|t| Some(jump_point(t.spawn?, t.spawn_rotation_deg)));
     MilestoneRow {
         entry: Entry::Trap {
             threshold: trap.threshold_kmh(),
@@ -219,12 +232,12 @@ impl Page for MilestonePage {
 
     fn ask(&self, at: usize) -> Option<Ask> {
         let row = self.rows.get(at).filter(|row| row.status() == Status::Open)?;
-        let at = row.spawn?;
+        let point = row.spawn?;
         let label = match row.entry {
             Entry::Trap { .. } => "REP_SHEET_PHOTOTICKET_CONFIRM",
             Entry::Pursuit { .. } => "REP_SHEET_MILESTONE_CONFIRM",
         };
-        Some(Ask { label: label_hash(label), then: Command::JumpTo { x: at[0], y: at[1] } })
+        Some(Ask { label: label_hash(label), then: Command::JumpTo(point) })
     }
 
     /// The sheet starts on the first milestone still to do.

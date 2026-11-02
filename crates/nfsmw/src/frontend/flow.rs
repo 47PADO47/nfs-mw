@@ -210,7 +210,7 @@ pub struct Frontend {
     /// Where the next world puts the car after the safe house menu that stood before it (`flow_loading.rs`).
     safe_house_start: flow_loading::SafeHouseStart,
     /// The point (render space) the next world starts the car at: a milestone or a bounty place of the sheets (`flow_rival.rs`).
-    jump_start: Option<[f32; 2]>,
+    jump_start: Option<crate::career::JumpPoint>,
     /// How the active theme dressed the map the last frame it was open (`plugin.rs`), for the system pointer.
     pub(in crate::frontend) map_chrome: super::world_map::Chrome,
 }
@@ -449,7 +449,7 @@ impl Frontend {
                 Command::JumpToSafeHouse => self.jump_to_safe_house(host, env),
                 Command::ChallengeRival { bin } => self.challenge_rival(bin, host, env),
                 Command::LaunchEvent { event } => self.launch_event(event, host, env),
-                Command::JumpTo { x, y } => self.jump_to([x, y], host, env),
+                Command::JumpTo(point) => self.jump_to(point, host, env),
                 Command::BlacklistStep(stepper) => self.blacklist_step(stepper, host, env),
                 Command::StartFirstDrive => self.start_first_drive(host, env),
                 Command::LeaveCarLot => self.leave_car_lot(host, env),

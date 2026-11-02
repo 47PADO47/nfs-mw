@@ -341,7 +341,7 @@ pub trait Scene {
     }
     /// The rap sheet's jump: the car goes to the point (render space x and y) and stands on the road nearest it. Returns
     /// whether there was a car to move.
-    fn jump_player(&mut self, _at: [f32; 2]) -> bool {
+    fn jump_player(&mut self, _point: crate::career::JumpPoint) -> bool {
         false
     }
     /// Starts the career event `event` (an event id) in the running world. Returns whether the race could start.

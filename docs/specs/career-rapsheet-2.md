@@ -290,6 +290,17 @@ below 13, rows 9 and up while it is below 9. Row label `BLACKLIST_BOUNTY_SPAWN_P
 with their own headings. Confirm text `REP_SHEET_BOUNTY_CONFIRM`; the jump uses the same pending-jump fields as the
 milestone page (flag `+0x111 = 1`, `+0x114 = 0`, spawn key `+0x11C`). **[exe]**
 
+### 5.1 Where a jump puts the car
+
+The jump targets are tagged car markers (`taggedcarmarker`): each `bounty_jump/<place>` collection is one itself, and a
+milestone's or speed trap's `SpawnPoint` names one. A marker has a `Position` (map coordinates) and a `Rotation`
+(degrees, inherited default 0); all 12 bounty places set their own `Rotation`. The jump puts the car exactly on the
+marker's `Position`, stopped, facing the marker's `Rotation` (physics heading `(-sin R, 0, cos R)`, the convention of
+the other markers). It is not moved to the nearest road and not turned to the road's direction. Riverfront Stadium
+(place 11, `Rotation` -102.70) leaves the car at map (939.84, -595.59) facing physics (0.975, 0, -0.220).
+**[data]** for the fields, **[runtime]** for the placement (two captures of the stock game agree with the marker's
+position and heading to within a centimetre and 0.1 degree); the routine itself was not traced.
+
 ## 6. Implementation notes for the Rust rewrite
 
 - Model the totals as functions over the stable, never stored: `bounty_total`, `evaded_total`, `busted_total`,
