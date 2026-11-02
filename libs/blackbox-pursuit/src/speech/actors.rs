@@ -17,7 +17,7 @@ pub enum Pick {
 /// What kind of voice a new actor takes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VoiceKind {
-    /// Any cop voice but the cross car's.
+    /// Any ground cop voice: primary or secondary, never the helicopter's or the cross car's.
     Any,
     Secondary,
     Cross,
@@ -138,7 +138,7 @@ impl Roster {
     /// A voice of `kind` from the free pool, taken out of it. `None` when there is none.
     pub fn take_voice(&mut self, layout: &Layout, kind: VoiceKind) -> Option<Speaker> {
         let wanted = |v: Speaker| match kind {
-            VoiceKind::Any => v != layout.cross,
+            VoiceKind::Any => layout.is_ground_voice(v),
             VoiceKind::Secondary => layout.is_secondary(v),
             VoiceKind::Cross => v == layout.cross,
         };
@@ -151,7 +151,12 @@ impl Roster {
         self.voices.retain(|&v| v != voice);
     }
 
-    pub fn free_voice(&mut self, voice: Speaker) {
+    /// Puts `voice` back into the free pool. The pool holds only the cop voices it started with, so the helicopter's
+    /// voice (or the dispatch's) never enters it and is never handed to a car.
+    pub fn free_voice(&mut self, layout: &Layout, voice: Speaker) {
+        if !layout.cop_voices().contains(&voice) {
+            return;
+        }
         if !self.voices.contains(&voice) {
             self.voices.push(voice);
         }
@@ -223,10 +228,10 @@ impl Roster {
     }
 
     /// Removes an actor, returning its voice to the pool and clearing every reference to it.
-    pub fn remove(&mut self, id: u32) -> Option<Actor> {
+    pub fn remove(&mut self, layout: &Layout, id: u32) -> Option<Actor> {
         let at = self.actors.iter().position(|a| a.id == id)?;
         let gone = self.actors.remove(at);
-        self.free_voice(gone.voice);
+        self.free_voice(layout, gone.voice);
         self.formation.retain(|&f| f != id);
         for slot in [&mut self.leader, &mut self.latest, &mut self.last_in_formation] {
             if *slot == Some(id) {
@@ -268,10 +273,10 @@ impl Roster {
     }
 
     /// Drops every actor (a reset): all voices free, all call sign pools full again.
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, layout: &Layout) {
         let voices: Vec<Speaker> = self.actors.iter().map(|a| a.voice).collect();
         for voice in voices {
-            self.free_voice(voice);
+            self.free_voice(layout, voice);
         }
         self.actors.clear();
         self.formation.clear();

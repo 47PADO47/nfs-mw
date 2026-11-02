@@ -38,6 +38,10 @@ Planned module: a `pursuit_speech` layer of milestone 7 that emits speech reques
   (one reference: the handler), `Dodged` and `BlewByCop` (a sender and a handler each). A search for the 25 mph constant found no literal, so the closing gate is the
   decompiled source's reading, not a binary check. Install: the track's parameter-map layer "Speech" (26 sets, ids -1 to 27) and the one "no" version of dispatch's
   backup reply. Not read: `MiscSpeech.cpp`'s `GetSPAMLocation` table (the decompiled copy was no longer on disk when the off-road moment was reached).
+- **Voice pass (2026-11-02):** the voice chooser, the actor removal and the forced bail-out's random voice were read in
+  `/speed.exe` with Ghidra (behaviour only); `LostSuspect`, `Unit911Reply` and `MoreDetails` in the CC0 decomp. The install's
+  speech index confirmed which speakers recorded each sentence. Result (spec section 3): ordinary cars take 3 to 8 only, the
+  pilot's voice never returns to a car, the random "any cop" voice is 3 to 8. Tests: `speech::tests::voices` in `blackbox-pursuit`.
 - **Checked against the game by:** pending (the spec lists a play-through checklist: opening line, stop branch, assault restart, lost-contact sequence, arrest
   bullhorn, 911 call).
 - **Known differences from the original:** none yet.

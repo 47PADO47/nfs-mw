@@ -97,6 +97,11 @@ TerminatePursuit(forced bail-out; game-mode driven) --> music terminal, queue cl
      (6 to 8), every other car the first of voices 3 to 8 left; **the default pool excludes voice 9, so at most six ordinary speaking
      cops** (plus the cross car). With no voice free the car has no actor.
   Actors are also dropped when their car is unspawned with a "remove" reason, and the voice returns to the pool.
+- **Voices that never go to a car** **[speed.exe: the voice chooser and the actor removal]**: an ordinary cop car only ever
+  receives a voice from 3 to 8; the cross car receives 9 only; voice 2 belongs to the helicopter actor alone. When the helicopter
+  leaves, its voice goes back to the list but the chooser never hands it out, so no car speaks with the pilot's voice in this chase
+  or a later one. The "any cop" picks made without an actor (a forced bail-out line, "lost suspect" with no last speaker, the 911
+  reply) choose uniformly from 3 to 8; the 911 "more details" line from 3 to 6. None of them picks dispatch, the pilot or the cross voice.
 - **Battalion** (what the cop calls himself): by vehicle for the SUVs (`copsuv`, `copsuvl`, `copsuvpatrol`: Rhino Units 32) and the
   super-pursuit cars (`copsport`, `copsportghost`, `copsporthench`, `copcross`: Super Pursuit 16); otherwise by the road the cop is on (region
   city: City 4, coastal: Coastal 2, college town: Rosewood 1) or random among Rosewood, Coastal, City, Alpine (1, 2, 4, 8). Dispatch is 256, air

@@ -237,9 +237,9 @@ impl Cx<'_> {
         self.say_voiceless(Line::ExtraRoadblockAverted, Params { engage: Some(engage), ..Params::default() });
     }
 
-    /// The 911 call's "more details" line, from a random one of the first four cop voices. Returns the voice.
+    /// The 911 call's "more details" line, from a random one of the first four ground cop voices. Returns the voice.
     pub fn more_details(&mut self) -> u8 {
-        let voices = self.layout.cop_voices();
+        let voices = self.layout.ground_voices();
         let voice = voices[self.rng.below(voices.len().min(4))];
         self.emit(Line::MoreDetails, voice, Params::default(), None);
         voice
@@ -249,10 +249,10 @@ impl Cx<'_> {
         self.emit(Line::Unit911Reply, voice, Params::default(), None);
     }
 
-    /// A forced bail-out line from `voice`, or from a random cop voice when the voice is 0. Returns the voice.
+    /// A forced bail-out line from `voice`, or from a random ground cop voice when the voice is 0. Returns the voice.
     pub fn misc_bailout(&mut self, voice: u8) -> u8 {
         let voice = match voice {
-            0 => self.layout.cop_voices()[self.rng.below(self.layout.cop_voices().len())],
+            0 => self.random_ground_voice(),
             v => v,
         };
         let params = Params { bailout: Some(super::params::Bailout::HighIntensity), ..Params::default() };
@@ -260,10 +260,10 @@ impl Cx<'_> {
         voice
     }
 
-    /// "Lost suspect" from the last speaker (or a random voice).
+    /// "Lost suspect" from the last speaker (or a random ground cop voice).
     pub fn misc_lost_suspect(&mut self, voice: u8) {
         let voice = match voice {
-            0 => self.layout.cop_voices()[self.rng.below(self.layout.cop_voices().len())],
+            0 => self.random_ground_voice(),
             v => v,
         };
         let params = Params { intensity: Some(self.intensity()), ..Params::default() };
