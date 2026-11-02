@@ -153,7 +153,9 @@ for each non-heli record in order: n = round(Count * want / nominal_remaining); 
 heli records are copied unchanged
 ```
 
-So early in a chase the wave is the full row (for example 4 cars at heat 1) but never more than the number of
+`max_cops` is not held to the active-car limit (8) **[PC binary]**: that limit gates each request at the manager, and
+support placement ignores it. A wave type is requested while the chase has fewer cars of that type than its scaled count;
+support vehicles do not use wave slots unless they share a wave type's model. So early in a chase the wave is the full row (for example 4 cars at heat 1) but never more than the number of
 cops still needed to finish the wave (`FullEngagementCopCount`, 5 at heat 1); in cool-down only `NumPatrolCars` cops are wanted.
 `NumCopsRequiredToEvade` also grows: when more cops are fully engaged than remain required it increases by the difference, and by one
 when the remaining count would fall below 1, and by one more when a roadblock cop is pulled into the chase.
@@ -163,9 +165,13 @@ the adjusted counts. If a type has too many, a type is picked at random weighted
 most 2 of them away: the farthest cops of that type (distance +40 m when they cannot see the player) are told to flee, but
 a cop that sees the player flees only while more than 2 cops can see the player. Support cars never flee this way.
 
-**Spawn timer:** when a cop joins a pursuit the next spawn waits `TimeBetweenFirstFourSpawn` while fewer than 3 cops have been
-involved (and not in cool-down), otherwise `TimeBetweenCopSpawn`; if 3 or more cops are still needed every second join
-uses 0.2 s ("fast spawn"). The manager spawns at most one car per pursuit per run, only while fewer than 8 cop cars are active. The
+**Spawn timer:** when a vehicle joins a pursuit the next spawn waits `TimeBetweenFirstFourSpawn` while fewer than 3 cops have
+been involved (and not in cool-down), otherwise `TimeBetweenCopSpawn`; if 3 or more cops are still needed every second join
+uses 0.2 s ("fast spawn"). **[PC binary]** Every vehicle that joins restarts the timer: a reinforcement, a patrol car that
+starts or joins the chase, a roadblock car pulled into it, a support car and the helicopter. A pursuit begins with the unit
+that initiated it, so its first reinforcement follows only after the opening interval, even at a high heat; the rapid fill
+belongs to an established chase after a heat rise or a backup arrival. A failed placement is retried on the next manager
+run and does not restart the timer. The manager spawns at most one car per pursuit per run, only while fewer than 8 cop cars are active. The
 running count of cops involved (`TotalCopsInvolved`), support cars deployed, helicopters spawned and cop cars deployed
 feed the cost-to-state totals.
 
@@ -303,6 +309,12 @@ Written after the code, to say what exists and what is approximated. Evidence ta
   sight. **[decomp]** The pool of inactive cars is not built as a pool (a car is cheap to make from its shared model; see the
   provenance); the steal rule exists as `fleet::steal` and nothing calls it, because the forced-start and roadblock-builder
   paths that use it are not built. `SpikesHit` has no caller in the original.
+- **Reinforcement timer and wave size** (`ai/pursuit.rs`): every join (start patrols, scripted chase requests, recruited
+  roadblock cars, each placed support car, the helicopter) restarts the timer through one path. A chase that starts with no
+  unit starts its timer at the opening interval instead of zero **[ours]**: the original always has an initiating unit. The
+  patrols that see the player at the start all join at once rather than one per manager run **[ours]**. The wave is not
+  scaled to the active-car limit; support cars are left out of the wave's car count. The quarter-second pursuit task step
+  of the original's timer is not modelled.
 - 911 dispatch is in ([ai-pursuit-heat](ai-pursuit-heat.md) section 5.3).
 - Not built: roadblock spawn requests, and the forced start of `pursuit N` through `SpawnPursuitCar` (340 m ahead, 15 m
   behind as the fallback).

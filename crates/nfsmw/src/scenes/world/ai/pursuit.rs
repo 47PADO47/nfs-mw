@@ -79,7 +79,10 @@ pub struct Pursuit {
 
 impl Pursuit {
     pub fn new(heat: u32, rows: Vec<HeatRow>, player: Performance) -> Self {
-        let required = rows.get(heat.max(1) as usize - 1).or(rows.last()).map_or(0, |row| row.full_engagement_cops);
+        let row = rows.get(heat.max(1) as usize - 1).or(rows.last());
+        let required = row.map_or(0, |row| row.full_engagement_cops);
+        // The timer starts at the opening interval: a new chase never fills at once (spec `ai-pursuit-cops.md` 3.2).
+        let spawn_timer = row.map_or(0.0, |row| row.time_between_first_four_spawns);
         Self {
             budget: Budget::new(required, BackupRow::default().trigger),
             backups: Vec::new(),
@@ -89,7 +92,7 @@ impl Pursuit {
             player,
             last_seen: None,
             damaged: Default::default(),
-            spawn_timer: 0.0,
+            spawn_timer,
             requested_missing: 0,
             fast_spawn_next: false,
             involved: 0,
@@ -127,8 +130,10 @@ impl Pursuit {
         self.joined(false);
     }
 
-    /// Arms the successful-join delay; unsuccessful placement never consumes the fast-spawn alternation.
-    fn joined(&mut self, cooldown: bool) {
+    /// A vehicle joined the chase (a reinforcement, a patrol, a recruited roadblock car, a support car, the helicopter):
+    /// it counts among the cops involved and restarts the reinforcement timer. Unsuccessful placement never consumes
+    /// the fast-spawn alternation.
+    pub(super) fn joined(&mut self, cooldown: bool) {
         let early = self.involved < 3 && !cooldown;
         let mut delay = self.row().map_or(0.0, |row| match early {
             true => row.time_between_first_four_spawns,
@@ -173,21 +178,19 @@ impl Pursuit {
         self.row().into_iter().flat_map(ground_cops).map(|c| (c.name.as_str(), c.count, c.chance))
     }
 
-    /// The fewest and the most cops the chase may have now. Cooling down it keeps exactly the row's patrol count; otherwise
-    /// the most is the cops still to evade (`Budget::allowed`), held to the level's cap from the Bartender file and to the
-    /// chase's cop limit (`GetAdjustedCopCounts`).
+    /// The fewest and the most cops the chase may have now (`GetAdjustedCopCounts`). Cooling down it keeps exactly the
+    /// row's patrol count; otherwise the most is the cops still to evade (`Budget::allowed`), held to the level's cap from
+    /// the Bartender file. The active-car limit is not applied here: it gates each request (`budget_has_room`).
     fn limits(&self, settings: &BartenderSettings, cooldown: bool) -> (u32, u32) {
         let Some(row) = self.row() else { return (0, 0) };
-        let limit = settings.max_cops;
         if cooldown {
-            let patrol = row.patrol_cars.min(limit);
-            return (patrol, patrol);
+            return (row.patrol_cars, row.patrol_cars);
         }
         let most = match settings.cop_cap(self.heat) {
             Some(cap) => self.budget.allowed().min(cap.max(1)),
             None => self.budget.allowed(),
         };
-        (0, most.min(limit))
+        (0, most)
     }
 
     /// How many cops the chase wants now: the wave's total held between the limits.
@@ -236,7 +239,7 @@ impl TrafficWorld {
             if car.join_pursuit(model.car, player, &self.network, &self.index)
                 && let Some(pursuit) = self.pursuit.as_mut()
             {
-                pursuit.involved += 1;
+                pursuit.joined(false);
                 self.police.ground_deployed(&car.name);
             }
         }
@@ -363,7 +366,8 @@ impl TrafficWorld {
             return;
         }
         let Some(pursuit) = self.pursuit.as_mut() else { return };
-        let alive = self.cars.iter().filter(|c| c.is_cop()).count();
+        // Support cars are not wave types and take no wave slot (spec `ai-pursuit-cops.md` 3.3).
+        let alive = self.cars.iter().filter(|c| c.is_cop() && c.support_serial().is_none()).count();
         let wanted = pursuit.wanted(self.police.settings(), cooldown);
         if pursuit.spawn_timer > 0.0 {
             return;

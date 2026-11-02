@@ -269,6 +269,11 @@ impl TrafficWorld {
                 return;
             }
             session.placed += 1;
+            // Each support car joins the chase and restarts the reinforcement timer.
+            let cooldown = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
+            if let Some(pursuit) = self.pursuit.as_mut() {
+                pursuit.joined(cooldown);
+            }
         }
         if session.placed as usize == order.cars_wanted() as usize && order.activate() && !strategy.is_heavy() {
             self.note_speech(crate::audio::WorldEvent::BackupRequested(backup_type(strategy)));

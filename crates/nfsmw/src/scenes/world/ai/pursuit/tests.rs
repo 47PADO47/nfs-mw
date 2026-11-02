@@ -59,6 +59,7 @@ mod roadblock_ground;
 mod search_transition;
 mod sirens;
 mod spawn_handoff;
+mod spawn_timer;
 mod speech_events;
 mod speech_feed;
 mod state_hash;

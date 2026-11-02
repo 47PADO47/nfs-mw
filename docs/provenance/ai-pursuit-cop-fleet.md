@@ -21,3 +21,13 @@ The camera of the rewrite is the simulation lens (the selected camera's retained
 base of the recycle rule; the spawn window now uses its eye too. Not verified in a running original: any of the above as
 a play experience, the 8-car budget on the PC build (the decompiled constants are the console build's), and how often the
 original's cop requests hit the over-budget branch.
+
+## Reinforcement timer joins and the wave size (2026-11-02)
+
+[ai-pursuit-cops.md](../specs/ai-pursuit-cops.md) section 4. Read in the PC binary (behaviour only): the pursuit's attach
+handler restarts the spawn timer for every attached vehicle (reinforcements, patrols, recruited roadblock cars, support
+cars, the helicopter); the adjusted-count routine starts its upper bound at the integer limit and never reads the
+manager's active-car limit. Rewrite: `Pursuit::joined` is the one join path; the timer of a chase with no initiating unit
+starts at the opening interval **[ours]**; `limits` drops the active-car cap; support cars do not count against the wave.
+Headless checks: `pursuit::tests::spawn_timer`. The helicopter's request gate and weighted pick are changed on another
+branch and not here.
