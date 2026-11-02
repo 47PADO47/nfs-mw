@@ -208,10 +208,10 @@ mod tests {
     }
 
     #[test]
-    fn a_racer_is_orange_and_a_cop_is_white_or_cycles_blue_grey_red_grey() {
+    fn a_racer_is_orange_and_a_cop_is_steady_grey_or_cycles_blue_grey_red_grey() {
         let car = |style, chasing| LiveBlip { style, map: [0.0; 2], bearing: 0.0, chasing };
         assert_eq!(car(RACER, false).rgba(0.0), [255, 150, 40, 255]);
-        assert_eq!(car(COP, false).rgba(0.0), [255, 255, 255, 255]);
+        assert_eq!(car(COP, false).rgba(0.0), [204, 204, 204, 255], "a cop not chasing is steady light grey");
         assert_eq!(car(HELICOPTER, false).rgba(0.0), [255; 4], "the helicopter keeps its own colours");
         assert_eq!(car(CHECKPOINT, false).rgba(0.0), [255, 160, 0, 255], "the checkpoint is orange");
         assert_eq!(car(CHECKPOINT, false).icon(), "Minimap_Icon_Circuit.tga");
