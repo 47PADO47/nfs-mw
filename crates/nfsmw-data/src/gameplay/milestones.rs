@@ -55,6 +55,8 @@ pub struct Milestone {
     /// Where the `SpawnPoint` marker stands in physics space ([`to_world`]): the place the rap sheet's jump puts the car.
     /// `None` when the key is unset or names no collection with a `Position`.
     pub spawn: Option<Vec3>,
+    /// The `SpawnPoint` marker's `Rotation`, degrees ([`super::world_heading`]): the way the jump faces the car.
+    pub spawn_rotation_deg: Option<f32>,
     /// Field `0x3B9BBFC2`. Unconfirmed: possibly the last step of a ladder; no code reads it. 0 when unset.
     pub unconfirmed_goal: f32,
     /// The step field. Unconfirmed: possibly the spacing of a ladder; no code reads it. 0 when unset.
@@ -72,6 +74,9 @@ pub struct BountyJump {
     pub number: i32,
     /// `Position` in physics space ([`to_world`]); `None` when unset.
     pub position: Option<Vec3>,
+    /// `Rotation` in degrees ([`super::world_heading`]): the way the jump faces the car (the place is a tagged car
+    /// marker, as a milestone's spawn point is). `None` when unset.
+    pub rotation_deg: Option<f32>,
 }
 
 /// One speed trap (39 in total: 3 in bins 1 to 10, 2 in bins 11 to 14, 1 in bin 15).
@@ -93,6 +98,8 @@ pub struct SpeedTrap {
     pub spawn_point: Option<u32>,
     /// Where the `SpawnPoint` marker stands in physics space ([`to_world`]); `None` when it cannot be resolved.
     pub spawn: Option<Vec3>,
+    /// The `SpawnPoint` marker's `Rotation`, degrees ([`super::world_heading`]).
+    pub spawn_rotation_deg: Option<f32>,
     /// `Radius`, metres, when the record or its parents set it (the trap's trigger size).
     pub radius: Option<f32>,
     /// Field `0x39BF8002` (25 or 30 on three traps). Unconfirmed; use not found.
@@ -161,6 +168,7 @@ pub fn bounty_jumps(db: &Database) -> Vec<BountyJump> {
             name: name_of(c),
             number: c.get_by_key(LABEL_FIELD).and_then(Value::as_i32).unwrap_or(0),
             position: c.get_vector3("Position").map(to_world),
+            rotation_deg: c.get_f32("Rotation"),
         })
         .collect();
     out.sort_by(|a, b| a.number.cmp(&b.number).then_with(|| a.name.cmp(&b.name)));
@@ -184,6 +192,10 @@ fn spawn_position(db: &Database, key: Option<u32>) -> Option<Vec3> {
     collection(db, key?)?.get_vector3("Position").map(to_world)
 }
 
+fn spawn_rotation(db: &Database, key: Option<u32>) -> Option<f32> {
+    collection(db, key?)?.get_f32("Rotation")
+}
+
 fn milestone(db: &Database, c: CollectionRef<'_>) -> Milestone {
     let name = name_of(c);
     Milestone {
@@ -195,6 +207,7 @@ fn milestone(db: &Database, c: CollectionRef<'_>) -> Milestone {
         bounty: c.get_i32("Bounty").unwrap_or(0),
         spawn_point: key_field(c, "SpawnPoint"),
         spawn: spawn_position(db, key_field(c, "SpawnPoint")),
+        spawn_rotation_deg: spawn_rotation(db, key_field(c, "SpawnPoint")),
         unconfirmed_goal: f32_by_key(c, GOAL_FIELD).unwrap_or(0.0),
         unconfirmed_step: f32_by_key(c, STEP_FIELD).unwrap_or(0.0),
         name,
@@ -211,6 +224,7 @@ fn speed_trap(db: &Database, c: CollectionRef<'_>) -> SpeedTrap {
         position: c.get_vector3("Position").map(to_world),
         spawn_point: key_field(c, "SpawnPoint"),
         spawn: spawn_position(db, key_field(c, "SpawnPoint")),
+        spawn_rotation_deg: spawn_rotation(db, key_field(c, "SpawnPoint")),
         radius: c.get_f32("Radius"),
         unconfirmed_field: c.get_by_key(TRAP_UNKNOWN_FIELD).and_then(Value::as_i32),
     }

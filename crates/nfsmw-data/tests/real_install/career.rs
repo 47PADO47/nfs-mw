@@ -314,3 +314,21 @@ fn the_free_roam_speed_traps_state_their_trigger_radius() {
     println!("RADII {radii:?}");
     assert!(radii.iter().all(Option::is_some), "every trap states a radius");
 }
+
+/// `docs/specs/career-rapsheet-2.md` section 5.1: the 12 bounty places are tagged car markers with their own `Rotation`
+/// (degrees), the way the jump faces the car; Riverfront Stadium (place 11) faces -102.70 degrees, which is the heading
+/// of the original's car after that jump. The milestones' and speed traps' spawn points are such markers too.
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_bounty_places_and_spawn_points_carry_a_rotation() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    assert_eq!(data.bounty_jumps.len(), 12);
+    assert!(data.bounty_jumps.iter().all(|jump| jump.rotation_deg.is_some() && jump.position.is_some()));
+    let riverfront = data.bounty_jumps.iter().find(|jump| jump.number == 11).expect("place 11");
+    assert!(near_opt(riverfront.rotation_deg, -102.6971), "{:?}", riverfront.rotation_deg);
+    let milestones = data.milestones.iter().filter(|m| m.spawn.is_some());
+    assert!(milestones.clone().count() > 0 && milestones.clone().all(|m| m.spawn_rotation_deg.is_some()));
+    let traps = data.speed_traps.iter().filter(|t| t.spawn.is_some());
+    assert!(traps.clone().count() > 0 && traps.clone().all(|t| t.spawn_rotation_deg.is_some()));
+}

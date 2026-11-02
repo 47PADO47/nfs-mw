@@ -57,6 +57,7 @@ fn milestone(key: u32, bin: u8, statistic: &str, bounty: i32) -> gameplay::Miles
         bounty,
         spawn_point: None,
         spawn: None,
+        spawn_rotation_deg: None,
         unconfirmed_goal: 0.0,
         unconfirmed_step: 0.0,
     }
@@ -74,6 +75,7 @@ fn trap(key: u32, bin: u8, name: &str) -> gameplay::SpeedTrap {
         spawn_point: None,
         radius: None,
         spawn: None,
+        spawn_rotation_deg: None,
         unconfirmed_field: None,
     }
 }

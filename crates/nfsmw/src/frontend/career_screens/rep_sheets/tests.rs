@@ -133,7 +133,7 @@ fn the_other_places_open_as_the_career_goes_down_the_list() {
 }
 
 fn jump(number: i32, position: Option<Vec3>) -> BountyJump {
-    BountyJump { key: number as u32, name: format!("bounty_jump/{number}"), number, position }
+    BountyJump { key: number as u32, name: format!("bounty_jump/{number}"), number, position, rotation_deg: None }
 }
 
 #[test]
@@ -176,6 +176,7 @@ fn data() -> GameplayData {
         bounty: 8_000,
         spawn_point: Some(1),
         spawn,
+        spawn_rotation_deg: None,
         unconfirmed_goal: 0.0,
         unconfirmed_step: 0.0,
     };
