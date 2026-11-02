@@ -25,6 +25,7 @@ fn primary_uses_its_shared_seek_and_failed_tracking_uses_the_published_body() {
             me: 0,
             player: None,
             aims: &[],
+            slotted: &[],
             lights: None,
         };
         let me = state(body(0.0, 20.0));

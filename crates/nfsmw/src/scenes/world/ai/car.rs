@@ -432,8 +432,13 @@ impl AiCar {
                     self.speed = 0.0;
                     return;
                 };
-                let (bodies, me) = (ctx.bodies, ctx.me);
-                let others = bodies.iter().enumerate().filter(move |&(i, _)| i != me).map(|(_, b)| b.0);
+                let (bodies, me, slotted) = (ctx.bodies, ctx.me, ctx.slotted);
+                // A slotted cop does not cut its corridor around the other slotted cops (`cop.rs` `think`).
+                let mine = slotted.get(me).copied().unwrap_or(false);
+                let others = bodies.iter().enumerate().filter(move |&(i, _)| i != me).map(move |(i, b)| {
+                    let mate = mine && b.1 && slotted.get(i).copied().unwrap_or(false);
+                    (b.0, !mate)
+                });
                 let pressing = self.controls.gas >= 0.5;
                 let stuck = cop.stuck.update(
                     self.think_delta,

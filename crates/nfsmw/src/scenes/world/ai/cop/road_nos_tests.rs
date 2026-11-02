@@ -9,8 +9,17 @@ fn a_distant_road_pursuit_uses_its_bottle_after_the_native_rest_interval() {
     let network = road();
     let index = SegmentIndex::build(&network);
     let mut rng = SplitMix(4);
-    let mut ctx =
-        Ctx { net: &network, index: &index, rng: &mut rng, bodies: &[], me: 0, player: None, aims: &[], lights: None };
+    let mut ctx = Ctx {
+        net: &network,
+        index: &index,
+        rng: &mut rng,
+        bodies: &[],
+        me: 0,
+        player: None,
+        aims: &[],
+        slotted: &[],
+        lights: None,
+    };
     let mut cop = cop(20.0);
     cop.environment(Environment { level: 5, nitrous_boost: 1.0, ..Default::default() });
     let me = state(body(0.0, 20.0));
@@ -48,8 +57,17 @@ fn returning_from_close_pursuit_resets_the_road_governor_at_the_current_speed() 
     let network = road();
     let index = SegmentIndex::build(&network);
     let mut rng = SplitMix(4);
-    let mut ctx =
-        Ctx { net: &network, index: &index, rng: &mut rng, bodies: &[], me: 0, player: None, aims: &[], lights: None };
+    let mut ctx = Ctx {
+        net: &network,
+        index: &index,
+        rng: &mut rng,
+        bodies: &[],
+        me: 0,
+        player: None,
+        aims: &[],
+        slotted: &[],
+        lights: None,
+    };
     let mut cop = cop(20.0);
     cop.environment(Environment { level: 5, ..Default::default() });
     let near = state(body(0.0, 20.0));

@@ -230,6 +230,8 @@ pub struct TrafficWorld {
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
     aims: Vec<Option<Vec3>>,
+    /// Which cars hold a formation slot this step, kept so a step does not allocate.
+    slotted: Vec<bool>,
     /// Entity-to-slot bindings retained while a formation finisher executes.
     formation_membership: std::cell::RefCell<cop_aims::Membership>,
     /// A world-moment cut holds new placements while existing cars keep simulating.
@@ -318,6 +320,7 @@ impl TrafficWorld {
             shared_bust_held: false,
             bodies: Vec::new(),
             aims: Vec::new(),
+            slotted: Vec::new(),
             formation_membership: Default::default(),
             world_moment: false,
             parallel: parallel::Parallel::default(),

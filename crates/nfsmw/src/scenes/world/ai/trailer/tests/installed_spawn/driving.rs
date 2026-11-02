@@ -107,6 +107,7 @@ fn installed_loaded_truck_drivers_have_bounded_startup_on_curved_highways() {
                     me: 0,
                     player: None,
                     aims: &[],
+                    slotted: &[],
                     lights: None,
                 };
                 car.step(&mut context, &collision, &mut props, &data.surfaces);

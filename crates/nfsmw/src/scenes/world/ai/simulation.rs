@@ -109,10 +109,13 @@ impl TrafficWorld {
             self.cop_aims(player, collision, &mut aims);
         }
         let chasers = self.secondary_assignments(target);
-        for (aim, chaser) in aims.iter_mut().zip(&chasers) {
-            // A cop sent after a secondary target drives at it (`None` is the car it chases).
+        let mut slotted = std::mem::take(&mut self.slotted);
+        self.formation_slotted(&mut slotted);
+        for ((aim, slot), chaser) in aims.iter_mut().zip(slotted.iter_mut()).zip(&chasers) {
+            // A cop sent after a secondary target drives at it (`None` is the car it chases), out of the formation.
             if chaser.is_some() {
                 *aim = None;
+                *slot = false;
             }
         }
         self.population_stats.waiting_collision = 0;
@@ -153,6 +156,7 @@ impl TrafficWorld {
                     head_on_support,
                     shared_target_road,
                     target_road: if shared_target_road { target_road } else { None },
+                    in_formation: slotted.get(me).copied().unwrap_or(false),
                 });
             }
             let mut ctx = Ctx {
@@ -166,6 +170,7 @@ impl TrafficWorld {
                     false => focus.body,
                 },
                 aims: &aims,
+                slotted: &slotted,
                 lights,
             };
             let ready = collision.resident_near(car.physics_position().to_array(), 30.0) != Some(false);
@@ -184,6 +189,7 @@ impl TrafficWorld {
         }
         self.bodies = bodies;
         self.aims = aims;
+        self.slotted = slotted;
         self.starts = starts;
     }
 

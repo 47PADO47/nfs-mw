@@ -49,8 +49,17 @@ fn an_oncoming_ram_support_car_approaches_the_current_target_before_ram_entry() 
     let network = road();
     let index = SegmentIndex::build(&network);
     let mut rng = SplitMix(4);
-    let mut ctx =
-        Ctx { net: &network, index: &index, rng: &mut rng, bodies: &[], me: 0, player: None, aims: &[], lights: None };
+    let mut ctx = Ctx {
+        net: &network,
+        index: &index,
+        rng: &mut rng,
+        bodies: &[],
+        me: 0,
+        player: None,
+        aims: &[],
+        slotted: &[],
+        lights: None,
+    };
     let me = state(Body { forward: -Vec2::Y, velocity: -Vec3::Z * 26.0, ..body(340.0, 26.0) });
     let target = Target { body: body(0.0, 60.0), aim: None };
     let mut nav = roads::at_car(&ctx, &me.body, 5).unwrap();
@@ -77,8 +86,17 @@ fn a_distant_ahead_reinforcement_follows_the_predicted_road_instead_of_a_rear_fo
     let network = road();
     let index = SegmentIndex::build(&network);
     let mut rng = SplitMix(4);
-    let mut ctx =
-        Ctx { net: &network, index: &index, rng: &mut rng, bodies: &[], me: 0, player: None, aims: &[], lights: None };
+    let mut ctx = Ctx {
+        net: &network,
+        index: &index,
+        rng: &mut rng,
+        bodies: &[],
+        me: 0,
+        player: None,
+        aims: &[],
+        slotted: &[],
+        lights: None,
+    };
     let me = state(body(150.0, 30.0));
     let target = Target { body: body(-20.0, 40.0), aim: Some(Vec3::new(2.0, 0.0, -40.0)) };
     let mut nav = roads::at_car(&ctx, &me.body, 1).unwrap();
@@ -111,8 +129,17 @@ fn a_road_cursor_at_the_lookahead_radius_behind_the_car_advances_back_in_front()
     let network = road();
     let index = SegmentIndex::build(&network);
     let mut rng = SplitMix(4);
-    let mut ctx =
-        Ctx { net: &network, index: &index, rng: &mut rng, bodies: &[], me: 0, player: None, aims: &[], lights: None };
+    let mut ctx = Ctx {
+        net: &network,
+        index: &index,
+        rng: &mut rng,
+        bodies: &[],
+        me: 0,
+        player: None,
+        aims: &[],
+        slotted: &[],
+        lights: None,
+    };
     let me = state(body(0.0, 20.0));
     let target = Target { body: body(120.0, 30.0), aim: None };
     let mut nav = roads::at_car(&ctx, &body(-look_ahead(20.0), 20.0), 1).unwrap();

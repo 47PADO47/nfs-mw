@@ -27,21 +27,26 @@ local neighbourhood before its 32-body cap: use cursor distance or twice speed,
 whichever is larger, include body extents, exclude the existing unrelated-height
 cases, and retain nearest bodies when the neighbourhood exceeds capacity. Keep
 stable input order among selected bodies. Exact original spatial-list ordering
-and formation exclusions remain separate parity boundaries.
+remains a separate parity boundary; formation exclusions follow the next section.
 
 Distant or vertically excluded bodies must not hide a nearby stationary vehicle
 or oncoming obstacle. This applies to ordinary traffic and pursuit road steering.
 It does not add arbitrary braking, remove physical contacts, or change speed caps.
 
-## Support checks
+## Avoidable sets for pursuit driving
 
-The original suppresses heavy support while a roadblock remains attached. Keep
-that rule. **[native verified]** Selecting any heavy support option, including ram
-SUVs, also resets the ordinary roadblock lottery timer to 15 seconds. The delay
-must reach the dispatcher for an accepted ram request as well as for a heavy
-roadblock request. A rejected request must not repeatedly reset that timer.
-This postpones new lottery rolls; it does not cancel an already latched request.
-Synthetic/installed automatic-selection tests must distinguish a
-permitted support roll from model loading, placement admission and active driving.
-Missing SUVs or helicopters in a playtest remain unresolved until the relevant
-runtime deployment is observed; a forced deployment test is insufficient.
+**[PC binary]** A pursuing cop uses two sets of its neighbours. The corridor set
+cuts its road corridor (road chase and the close-seek lane cursor) and contains
+every neighbouring vehicle, the pursued player included. When the cop holds a
+formation slot, the corridor set omits the pursuit target and every cop of the
+same pursuit that also holds a slot; a cop without a slot keeps all of them. The
+separation set, used by close-pursuit capsule separation, contains every
+neighbouring vehicle, the target and formation members included, unfiltered.
+Props, cones, spike strips and barriers are not vehicles and are not avoided this
+way. **[ours]** The rewrite has one pursuit: "same pursuit" is every slotted cop.
+
+**Corridor cuts: who is ignored.** Besides a vehicle more than 5 m above or below
+the cop's road section and one entirely behind the cop, a vehicle whose front is
+behind the cop's position while it runs beside the cop is ignored: it is passing
+or being passed. **[PC binary]** for the rule; **[ours]** for the side extent,
+the two cars' half widths plus half a metre each.
