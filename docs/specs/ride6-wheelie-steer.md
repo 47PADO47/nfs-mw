@@ -141,9 +141,37 @@ side by at least 0.26 rad per unit of stick in 3 s and stays up: the same test w
   effect while the front wheel is up (the term would be `I_wheel x spin x steering rate`, about 30 N m for 0.3 s at 15 m/s: a lean of a few hundredths of a radian); only the touchdown sees it.
 - **The stability help factor** reads 0 in every state if the blend of `0x14510d620` is as read (section 3.2); the model keeps the speed-curve factor of rounds 6 and 7 (a small help: 0.05 up to 80 km/h, off under the throttle).
 - **The lean help's fade with the front wheel's ground distance and the rear-up case** (round 11, section 3), and the mid-air steer for a bike with both wheels off the road, which the model gives the same bar: `mid_air_weight` works from the front gap alone.
-- **In the game** nothing was run: the harness, the unit tests and the host tests cover the chain from the keys to the bike.
+- **In the game** it was run offscreen for the first time in section 9; what the frames showed is there.
 
 ## 8. Tools
 
 `bike_ride_wheelie_steer.rs`: `bike_wheelie_steer` (`RIDE6_SPEEDS`, `RIDE6_PITCHES`, `RIDE6_STICKS`, `RIDE6_SECONDS`, `RIDE6_LEVER`, `RIDE6_CUT=<rad>` to replace the data's lean limit in the
 wheelie, `RIDE6_EACH=1` for a line per bike, `RIDE6_VERBOSE=1`), `bike_rear_camber_thrust`; the sweeps of rounds 8 to 11 for the regressions.
+
+`bike_ride_wheelie_script.rs`: `bike_wheelie_script` rides a `--drive-script` from a standstill (`RIDE6_SEGMENTS="seconds,throttle,stick,lever;..."`, `RIDE6_EVERY`) and prints the speed, pitch, lean and its limit, heading and bar angle, and when the rider let go.
+
+## 9. Seen on screen [M]
+
+The script key `weight=` (the rider weight lever, -1 back to 1 forward; [the script's page](../modding/drive-script.md)) makes a wheelie scriptable. KTM 450 and Ducati Panigale V4 R (2019), `--drive-script "2:throttle=1,weight=-1;1:throttle=1,weight=-1;N:..."`:
+a standing start with the throttle open and the lever back, 3 s straight (the front wheel is up from 1.0 s), then `steer=1` for 2 s, then `steer=-1` for 2 s; one run is one frame, ending at 3, 4, 5, 6 and 7 s
+(`--camera-mode far` and `hood`; frames in `C:/r6/shots/wheelie`, `w_*` far, `h_*` helmet). The same script in `bike_wheelie_script` gives the numbers below (KTM 450; the Panigale is alike); the game's speedometer reads 42, 58, 63 and 72 km/h at 3, 5, 6 and 7 s, a little above the model's 35, 52, 60 and 68.
+
+| t (s) | stick | speed | pitch | lean / limit | heading |
+|---|---|---|---|---|---|
+| 3.0 | 0 | 9.8 m/s | 40 deg | 0 / 0.38 rad | 0 |
+| 5.0 | +1 | 14.4 | 40 | 0.39 / 0.39 | 30 deg right |
+| 6.0 | -1 | 16.7 | 38 | 0.02 / 0.41 | 28 |
+| 7.0 | -1 | 19.0 | 38 | -0.26 / 0.40 | 16 |
+
+What the frames show:
+
+- **The front wheel is up** from 1 s and stays up through both turns (pitch 37 to 41 degrees, the wheelie assist's hold); from behind the bike shows its rear tyre only, its shadow is pitched; in the helmet view the bars and the fender are high and the road is seen under the bike.
+- **The heading follows the stick**, to the right for +1 and back for -1, the same size either way (about 15 degrees per second of full stick at 10 to 14 m/s); the scenery turns in the far and the helmet views.
+  The lean rises to the limit (0.38 rad, the floor `WHEELIE_LEAN_FLOOR` of 0.35 plus the data's cut) and no further.
+- **The bar angle** reads as a counter-steer (section 3.3): with the stick to the right the bar goes to -0.5 rad at the start (the mid-air steer's 0.8 of the lock), then falls to -0.15 rad as the lean passes 40 percent of its limit and the controller takes the bar back; with the stick to the left it goes to +0.55 rad. From behind the bar is seen end on, rolled with the bike; in the helmet view the fork and the wheel turn with it (wheel and bars stay one piece).
+- **The rider sits right**: on the seat, hands on the grips, the body leaning with the bike; no detaching, no flipping, no glitch of the pose over the 7 s on either bike.
+- **A fall at 7.5 to 8 s** in the first, longer script (4.5 s straight, 2 s each way) was not the model: the bike had run 80 m up the road into the toll plaza (a booth and barrels next to it) and the collision threw the rider; the harness with the same inputs does not fall. The frames above stop at 7 s.
+- **The helmet view in a leaning wheelie** shows the bike pushed to one side of the view (the front wheel at the right edge for +1, the bars at the left for -1) while the lean is 0.3 to 0.4 rad. That comes from how the helmet camera is carried with the lean
+  ([ride6-bike-cameras](ride6-bike-cameras.md)); it was not changed here (that page is being edited elsewhere) and is a question for the camera, not the wheelie.
+
+Nothing needed fixing from these frames. The front wheel and the handlebar angle of the far view are hard to judge (the front wheel is behind the rider); the helmet view is the clear one.

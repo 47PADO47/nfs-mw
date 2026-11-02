@@ -77,7 +77,14 @@ project).
 | The component's setup | `EnableSimulation` body `0x145b43720`: physics blend weight (`+0x258`) through `0x1443502f0`, physical-animation settings (`+0x270`) through `0x145b35f50` | read |
 | The strength | the curve `Ragdoll_strength_Race`: 1,000,000 constant over 0 to 10 s; `RiderBP`: `StrengthMultiplyer` 0, `EnableConstraintBasedBlend` true, `PhysicsAssetOverride` `RiderGP_PhysicsAsset_CB` | data |
 
-Not found: the raise-bike component's durations (`BeforeGetUpDuration`, `GetUpDuration`, `RaiseBikeDuration`; no blueprint of the install overrides them, the
-constructor was not traced), the loop flags of the sequence players, the library function behind `SmoothFloat_Interpolate`, the engine's
+Found in round 12: the raise-bike component's durations (below, "Raise-bike component"). Not found: the loop flags of the sequence players, the library function behind `SmoothFloat_Interpolate`, the engine's
 component-to-root-body sync (so the owner's axes are taken from the pelvis), the physics blend weight and physical-animation defaults of the ragdoll
 component's constructor. No statement was tested in the running game (it must not be launched).
+
+## Raise-bike component (round 12)
+
+Covers [ride6-rider-fall-animation](../specs/ride6-rider-fall-animation.md) section 8. The constructor of `UIgnitionRaiseBikeComponent` is `0x145b2b810` (image-relative; the vtable `0x14a2e7d48` is stored by it and by the destructor `0x145a334d0`), found by scanning the
+code for the address-forming instructions of the vtable. Its stores were matched to the properties of the class in the order the mapping file lists them (34 properties, the first at `+0x128`, names 8 bytes, floats and bools packed): `+0x128` "Fall"; `+0x130` 15.0 (`SafeRagdollRespawnThreshold`);
+`+0x138` 1 (`bSafeFallCheckTimerEnabled`); `+0x13c` "BeforeGetUp"; `+0x144` 1.0 (`BeforeGetUpDuration`); `+0x148` 1.0 (`BeforeGetUpDelayDuration`); `+0x14c` "GetUp"; `+0x154` 4.0 (`GetUpDuration`); `+0x164` 14.0 (`BikeRecoveryTimerDuration`); `+0x168` "BlockVolume";
+`+0x198` 1.0 (`RaiseBikeDuration`); `+0x19c` 1.0 (`BrokenBikeDuration`); `+0x1a0` 0.1 (`TimeToReachPosition`); `+0x1a4` 200.0 (`MaxReplicationErrorDistance`); `+0x1a8` 1 (`bSeamlessTransitionEnabled`). Every constant and name fits its property's type and order; the name strings were read from the data section (wide characters).
+The rider movement component's constructor is `0x145b2c000`: its animation names are left empty and `RootMotionCurveName` is set to the string "DistanceCurve". No statement was tested in the running game.

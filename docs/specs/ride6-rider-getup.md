@@ -11,10 +11,9 @@ project's model.
 The rider's component has phases **riding, fallen, before get-up, get-up, walk** (and raising the bike), each with a duration
 (`BeforeGetUpDuration`, `GetUpDuration`, `RaiseBikeDuration`, `TimeToReachPosition`) and a character-physics configuration name [S, B]. The
 bike is raised at the *end* of that sequence: the rider falls, gets up, walks to the bike and lifts it; the bike does not stand by
-itself. The durations and the walk clips were not recovered (the component is a native subobject of the pilot; its constructor defaults
-were not traced, the walk clips are not exported), see the fall-animation page, section 2. What the data does give is the get-up clips and the rule that starts them
-(a pelvis under 0.5 m/s, within 1 of the ground, lying in one of three bands): the get-up lengths are the clips' own (1.0 s on the back, 2.53 s on the
-side, the face-down clip an ACL clip) [D].
+itself. The durations were recovered in round 12 (the component's constructor defaults, [fall-animation page](ride6-rider-fall-animation.md) section 8): `BeforeGetUpDuration` 1.0 s (plus a 1.0 s delay), `GetUpDuration` 4.0 s, `RaiseBikeDuration` 1.0 s,
+`TimeToReachPosition` 0.1 s, `BikeRecoveryTimerDuration` 14 s. The component holds no animation: the standing and walking clips of a fallen rider **do not exist in the install** (searched there; the walk belongs to the rider movement component, whose clip names a blueprint not found sets), so the phases after the get-up clip cannot be played.
+What the data does give is the get-up clips and the rule that starts them (a pelvis under 0.5 m/s, within 1 of the ground, lying in one of three bands): the get-up lengths are the clips' own (1.0 s on the back, 1.4 s face down, 2.53 s on the side) [D].
 
 What follows from it, and is all this project relies on: **the bike is stood up after the rider has got up, never before.**
 
@@ -74,8 +73,9 @@ rider is getting up is allowed to skip (the player asked for it).
 | Bike lies before it waits | 2 s and 1.5 m/s | unchanged ([ride6-rider-fall](ride6-rider-fall.md)) |
 | Return blend | his way at 3 m/s, 0.25 to 2 s | a modelling choice: the walk clips and phases were not recovered; was a flat 0.25 s (a pop of metres). A reset by hand keeps 0.25 s |
 
-Not modelled (as before): the walk to the bike and the raising of it. A real rider needs a few seconds for those; here the
-bike stands up where it lies the moment the get-up ends and the rider blends onto it.
+Not modelled (as before, and now for a stated reason): the standing, the walk to the bike and the raising of it. The reference spends 4 s in the get-up phase, a walk and 1 s on the raise; here the
+bike stands up where it lies the moment the get-up clip ends and the rider blends onto it. The 4.0 s and 1.0 s are not wired in: with no standing or walking pose they would hold him on hands and knees for up to 3 s more and then slide him to the seat,
+which is an invented animation. When a standing pose and a walk exist the timeline is `BeforeGetUp` 1.0, `GetUp` 4.0, walk, `RaiseBike` 1.0 with the bike down until the raise. The reset button keeps skipping all of it.
 
 ## 5. Other ways a fallen bike could be reset, and what was checked
 

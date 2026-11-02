@@ -80,8 +80,7 @@ then 1.0 s (back), the face-down one (an ACL clip) and 2.53 s (side).
 
 What follows the get-up clip is a **raise-bike component** [S, B]: phases riding, fallen, before get-up, get-up, walk, each with a
 character-physics configuration name and a duration (`BeforeGetUpDuration`, `GetUpDuration`, `RaiseBikeDuration`, `TimeToReachPosition`),
-in which the rider walks to the bike and raises it. Those durations and the walk clips are not in the files read (the component is a native
-subobject of the pilot; its constructor defaults were not traced), and the walk clips are not exported. Not modelled.
+in which the rider walks to the bike and raises it. Its durations (the constructor's defaults: 1.0 s before the get-up, 4.0 s of get-up, 1.0 s to raise the bike, 14 s of recovery) were read in round 12, and the install holds no standing or walking clip of the fall (section 8). Not modelled.
 
 ## 3. What this project does
 
@@ -131,7 +130,7 @@ A rider without `falls.json` falls limp as before; one without `ragdoll.json` ke
 | Hold of the bike for the rider | get-up to its end (8 s at most), 8 s if not yet begun | the phases' durations were not recovered; see [ride6-rider-getup](ride6-rider-getup.md) |
 | Hold of a clip's last frame | `TimeMode::Once` | the clips' loop flags are not in the dumps; each launch ends as its fade ends |
 
-Not modelled: the walk to the bike and the raising of it; the airbag alpha (`Ragdoll_Airbag_Alpha`, the smoothed `IsFallen`, an input of the
+Not modelled (no clip for it, section 8): the standing, the walk to the bike and the raising of it; the airbag alpha (`Ragdoll_Airbag_Alpha`, the smoothed `IsFallen`, an input of the
 airbag, which the rider's graph does not use for these clips); the character-physics stances (kinematic and animation strengths, `GetUpTimeAccumulator`);
 the impulse curves of the animation instance (`RagdollImpulseCurve`, not set in the blueprint); the physics blend weight of the bodies
 (a field of the component, its constructor default was not read).
@@ -179,3 +178,26 @@ knelt, and the 0.25 s return blend carried him there in a fifth of a second (a p
 down and sliding at 2.5 s, up and seated by 6 s. At 69 km/h (8 s of throttle) the bike cartwheels (its own box dynamics) and
 the rider is flung clear; on the stretch of road used it ends in the verge. What stays open: the middle of the return blends a kneeling
 pose into a seated one in the air (no walk clips), and the bike's tumble at high speed is the box double's, not the animation's.
+
+## 8. The raise-bike sequence: what the install holds (round 12)
+
+The question was whether the clips of the standing and walking phases exist, and were only not exported. **They do not exist as clips of the get-up.** What was searched
+(the headless `R6Tool GAME_UE5_6 list <regex>` and `R6ToolRider json`, which read the user's pak files and never start the game; the class layout from `ride6.usmap`):
+
+- **Every animation package under `characters/`** (1609 by the folder names `Anim`/`Animations`): the rider's own are the 700 of `riderShared/Animations` that the exporter lists (158 ACL, 542 per-track; folders `Ragdoll` 22, `Race` 102, `naked` 69, `motard` 54,
+  `Scooter` 55, `endurance` 43, `enduro` 32, `TrafficLight` 32, the cutscene folders `HQ`, `Podium`, `Pit*`, `StartingGrid`, `EndCareer`, `FirstBoot`, ...). The names matching get-up, raise, pickup, lift, upright, stand-up, walk-to-bike, run-to-bike or recover over the whole install are 106 packages:
+  the four get-up clips of the fall (`race_ragdoll_Back_GetUp`, `_FaceDown_GetUp`, `_Side_GetUp_L`/`_R`, already in `falls.json`); `Rider_HQPro_StandUp_NFS` (5.23 s, the headquarters cutscene [by its name and folder]) and its female twin; `Endurance_RunToBike_L/R_Var1..12` (5.7 s, plus the
+  female set and `Endurance_Idle_RunToBike_L_Var1`, 11.6 s) which the animation blueprint plays in the endurance start (the variables `Endurance_Run`, `Endurance_Animation`), the mechanic's `Mech2_PitPro_WalktoBike_NFS`; the rest are trucks and a sound. The walk clips (`Rider_ChampionPresentation_walk_NFS` 13 s, `rider_EndCareer_Walk_NFS` 10.8 s, `Rider_FirstBoot_Desk_Walk_NFS`,
+  `Rider_HQPro_WalkToSit_NFS`, `..._WalkWardrobe_NFS`) are cutscene clips of the menus. No montage or composite asset exists (the names `montage`, `AM_`, `AnimComposite`: two sponsor materials), and the bikes' animation packages (`bike*_animBlueprint`, 292 of them) are blueprints, no sequence.
+- **The rider's animation blueprint has no walking or standing state**: its 570 variables have none (no locomotion speed, no walk, raise or stand flag), and the only run clips it names are the endurance ones. The fall machine ends in the four get-up states of section 1; they hold the last frame.
+- **The raise-bike component has no animation property.** `UIgnitionRaiseBikeComponent` (usmap, 34 properties) holds character-physics configuration *names*, durations, collision-channel lists and references to other components (the snap component, the character-physics component, the simplified ragdoll, the rider movement component);
+  no sequence, montage or clip. The walking is done by `UIgnitionRiderMovementComponent` (55 properties: speeds, accelerations, root-motion curve objects and the *names* `StartingRunAnim`, `StartingWalkingAnim`, `RunningAnim`, `WalkingAnim`, `StoppingRunAnim`, `StoppingWalkingAnim`, with their lengths and `bUseAnimationsToCalculateMovement`); its constructor
+  (`0x145b2c000`) leaves the names empty and sets the root-motion curve name to `DistanceCurve`; a blueprint of the pilot sets them [I], and that blueprint is not in the packages named like a rider, pilot, pawn or bike blueprint (`RiderBP`, `BaseMotorBike` and their siblings hold none of these components). None of the 700 rider clips has a
+  curve named `DistanceCurve`, so the walking clips named there are not in the rider's folder, or are not rider clips at all.
+- **The durations are native defaults** (constructor `0x145b2b810`, matched to the usmap's property order; every constant read, none guessed): `FallCharacterPhysicsConfig` "Fall", `SafeRagdollRespawnThreshold` 15, `SafeFallCheckTimer` 0, `bSafeFallCheckTimerEnabled` true, `bSkipBeforeGetupPhase` false,
+  `BeforeGetUpCharacterPhysicsConfig` "BeforeGetUp", **`BeforeGetUpDuration` 1.0 s**, `BeforeGetUpDelayDuration` 1.0 s, `GetUpCharacterPhysicsConfig` "GetUp", **`GetUpDuration` 4.0 s**, `bSnapshotPoseOnGetUp` false, **`BikeRecoveryTimerDuration` 14.0 s**, `BlockVolumeComponentTag` "BlockVolume",
+  **`RaiseBikeDuration` 1.0 s**, `BrokenBikeDuration` 1.0 s, **`TimeToReachPosition` 0.1 s**, `MaxReplicationErrorDistance` 200, `bSeamlessTransitionEnabled` true. The component is not in `RiderBP` or in `BaseMotorBike`; if a pilot blueprint overrides these, it was not found.
+
+So the sequence of the reference is: the ragdoll lies (Fall), 1.0 s before the get-up (+1.0 s delay), a 4.0 s get-up phase in which the character-physics configuration "GetUp" stands him [I: the fall machine's get-up clip is the pose he is driven to; nothing says a further clip stands him up], then the walk
+to the bike by the movement component, then 1.0 s to raise the bike, the whole inside a 14 s recovery timer. **Nothing in the install is a standing or a walking pose of the fall**, so none is modelled: it would be an invented animation. What is *not* changed for that reason: the get-up still ends on the clip's last frame
+(hands and knees, or kneeling, or sitting), and the bike is stood up when it has played ([ride6-rider-getup](ride6-rider-getup.md)); wiring the 4.0 s `GetUpDuration` and the 1.0 s raise would hold him in that pose for up to 3 s longer and then move him to the seat without a walk. The durations are kept here for the day a standing pose and a walk exist.

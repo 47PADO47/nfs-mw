@@ -16,6 +16,7 @@ A script is segments separated by `;`. Each segment is `seconds:key=value,key=va
 |---|---|---|
 | `throttle`, `brake` | 0 to 1 | pedals |
 | `steer` | -1 to 1 | left to right |
+| `weight` | -1 to 1 | a bike's rider weight lever, back (-1) to forward (1), held for the segment: what V or the pad's stick pulled back give; a wheelie needs about -1; a car ignores it |
 | `handbrake`, `nos`, `speedbreaker` | 0 or 1 | held for the segment |
 | `up`, `down` | 0 or 1 | one gear shift at the start of the segment |
 | `reset` | 0 or 1 | put the car back on the nearest road at the start of the segment |

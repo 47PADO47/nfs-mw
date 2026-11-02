@@ -7,7 +7,9 @@
 //! pop for the exhaust flames at the start of it, as the sound would report), `fall` (`fall=low`, `fall=high` or
 //! `fall=generic`: a bike throws its rider at the start of the segment, through the path a real fall takes; a car
 //! ignores it; see `docs/modding/drive-script.md`), `look` and `lookup` (the right stick's X and Y for a bike's helmet camera,
-//! -1..1, right and up positive, held for the whole segment; a camera setting, not a drive input). A segment without keys coasts.
+//! -1..1, right and up positive, held for the whole segment; a camera setting, not a drive input), `weight` (the rider's weight
+//! lever of a bike, -1 back to 1 forward, held for the segment: what V or the pad's stick pulled back give; a car ignores it).
+//! A segment without keys coasts.
 
 use blackbox_vehicle::bike::FallKind;
 
@@ -59,6 +61,7 @@ impl DriveScript {
                     "throttle" => input.throttle = n.clamp(0.0, 1.0),
                     "brake" => input.brake = n.clamp(0.0, 1.0),
                     "steer" => input.steer = n.clamp(-1.0, 1.0),
+                    "weight" => input.weight = n.clamp(-1.0, 1.0),
                     "handbrake" => input.handbrake = n > 0.5,
                     "nos" => input.nos = n > 0.5,
                     "speedbreaker" => input.speedbreaker = n > 0.5,
@@ -70,7 +73,7 @@ impl DriveScript {
                     "lookup" => look[1] = n.clamp(-1.0, 1.0),
                     other => {
                         return Err(format!(
-                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop fall look lookup)"
+                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop fall look lookup weight)"
                         ));
                     }
                 }
@@ -214,6 +217,16 @@ mod tests {
         assert_eq!(script.input_at(1.5), DriveInput::default(), "the physics never sees it");
         assert_eq!(script.input_at(0.5).throttle, 1.0);
         assert!(DriveScript::parse("1:look=left").is_err());
+    }
+
+    #[test]
+    fn a_segment_holds_the_rider_weight_lever() {
+        let script = DriveScript::parse("1:throttle=1,weight=-1;1:weight=9;1:steer=1").unwrap();
+        assert_eq!(script.input_at(0.5).weight, -1.0);
+        assert_eq!(script.input_at(1.5).weight, 1.0, "clamped to the lever's travel");
+        assert_eq!(script.input_at(2.5).weight, 0.0, "a segment without the key lets the lever go");
+        assert_eq!(script.input_at(0.5).throttle, 1.0);
+        assert!(DriveScript::parse("1:weight=back").is_err());
     }
 
     #[test]
