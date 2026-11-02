@@ -172,7 +172,7 @@ impl AiCar {
         &self.nav
     }
 
-    #[cfg(test)]
+    /// The point the car drives at (physics space) and the speed it asks for, m/s.
     pub(in crate::scenes::world::ai) fn drive_request(&self) -> (Vec3, f32) {
         (self.target, self.speed)
     }

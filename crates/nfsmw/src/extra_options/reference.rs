@@ -1,5 +1,5 @@
-//! The F5 pursuit reference: the bounty places to jump to and the testing heat the Page Up and Page Down keys step.
-//! Pure data and rules, so they can be tested without a world.
+//! The F5 pursuit reference: the bounty places to jump to, the testing heat the Page Up and Page Down keys step, and
+//! the state of the pursuit trace recorder. Pure data and rules, so they can be tested without a world.
 
 use nfsmw_data::gameplay::BountyJump;
 
@@ -98,6 +98,21 @@ pub fn heat_toast(heat: u8, applied: bool) -> String {
         text.push_str(note);
     }
     text
+}
+
+/// What the F5 panel shows of the pursuit trace recorder; the world fills it every frame.
+#[derive(Clone, Debug, Default)]
+pub struct TraceView {
+    pub recording: bool,
+    /// The folder the next session goes into.
+    pub root: Option<std::path::PathBuf>,
+    /// The folder of the session being written, or of the last one.
+    pub session: Option<std::path::PathBuf>,
+    /// Samples and events handed to the writer, records dropped, and the writer's error.
+    pub samples: u64,
+    pub events: u64,
+    pub dropped: u64,
+    pub error: Option<String>,
 }
 
 #[cfg(test)]

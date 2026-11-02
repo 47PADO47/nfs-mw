@@ -134,6 +134,7 @@ pub struct State {
     pub landed: Option<(i32, [f32; 2], f32)>,
     /// A short message for the on-screen toast (the heat keys), taken by the overlay.
     pub toast: Option<String>,
+    pub trace: reference::TraceView,
 }
 #[derive(Clone)]
 pub enum Action {
@@ -163,4 +164,6 @@ pub enum Action {
     },
     /// Step the testing heat (Page Up / Page Down), live in a running pursuit.
     HeatStep(i8),
+    /// Start or stop the pursuit trace recorder.
+    PursuitTrace(bool),
 }

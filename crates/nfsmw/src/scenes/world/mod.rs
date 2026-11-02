@@ -80,6 +80,7 @@ mod local_lights;
 mod performance_tests;
 mod prop_effects;
 mod props;
+mod pursuit_trace;
 mod race;
 #[cfg(test)]
 mod race_course_run_tests;
@@ -169,6 +170,8 @@ enum View {
 
 pub struct WorldScene {
     extra: crate::extra_options::State,
+    /// The F5 pursuit trace recorder (`pursuit_trace/`).
+    pursuit_trace: pursuit_trace::PursuitTrace,
     detail: detail::DetailState,
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,

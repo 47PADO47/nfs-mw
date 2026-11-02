@@ -73,6 +73,7 @@ mod support;
 mod tally;
 mod target_road;
 mod touches;
+pub(in crate::scenes::world) mod trace_frame;
 mod traffic;
 #[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md Â§4)
 mod traffic_events;

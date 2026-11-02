@@ -57,6 +57,7 @@ fn run_inner(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&
                 spots.iter().map(|s| crate::extra_options::reference::row_text(spots, s.number)).collect();
             return Ok(rows.join("\n"));
         }
+        ["trace", state @ ("on" | "off")] => scene.extra_action(renderer, Action::PursuitTrace(*state == "on"))?,
         [action] => {
             let action = match *action {
                 "center" => Action::Center,
@@ -77,7 +78,7 @@ fn run_inner(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&
             scene.extra_action(renderer, action)?;
         }
         _ => bail!(
-            "usage: extra camera|testing [key value] | center|freecam|refill|clear|recover|repair|pursuit|end-pursuit|heat-up|heat-down|marker|return | spots | spot <n> [jump|pursuit]"
+            "usage: extra camera|testing [key value] | center|freecam|refill|clear|recover|repair|pursuit|end-pursuit|heat-up|heat-down|marker|return | spots | spot <n> [jump|pursuit] | trace on|off"
         ),
     }
     Ok("Extra option applied".into())

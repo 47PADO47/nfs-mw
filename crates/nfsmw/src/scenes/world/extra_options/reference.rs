@@ -85,6 +85,7 @@ impl WorldScene {
             p.y,
             p.z
         );
+        self.pursuit_trace_landed(number, [p.x, p.y, p.z], heading, heat);
         let Some(heat) = heat else { return };
         if self.extra.testing.police_off {
             self.extra.message = Some("Police are disabled; the pursuit was not started".into());

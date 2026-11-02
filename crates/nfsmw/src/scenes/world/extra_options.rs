@@ -88,6 +88,7 @@ impl WorldScene {
             }
             Action::JumpToSpot { number, pursuit } => self.extra_jump_to_spot(number, pursuit)?,
             Action::HeatStep(delta) => self.extra_heat_step(delta),
+            Action::PursuitTrace(on) => self.set_pursuit_trace(on)?,
             Action::Teleport(at, heading) => self.extra_teleport(at, heading)?,
             Action::Marker => {
                 let at = self.route_blip().context("Set a GPS destination on the world map first")?.position;

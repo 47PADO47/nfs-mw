@@ -87,7 +87,7 @@ fn run_ui(
         graphics_lab: lab.open
             || extra.open
             || extra.toast_up()
-            || host.scene.extra_options().is_some_and(|s| s.toast.is_some())
+            || host.scene.extra_options().is_some_and(|s| s.toast.is_some() || s.trace.recording)
             || host.scene.extra_options().is_some_and(|s| s.testing.active() || s.restore_environment.is_some()),
         metrics: settings.show_metrics != ShowMetrics::Off,
         readout: !metrics.hud.is_empty(),
