@@ -201,3 +201,72 @@ fn local_reflections_capture_all_axes_and_follow_quality_origin_and_off() {
     .expect("Vulkan adapter");
     exercise(&mut native);
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn offscreen_light_lens_is_visible_in_reflection_capture() {
+    let _gpu = serial();
+    let mut renderer = Renderer::headless(
+        (64, 64),
+        RendererOptions {
+            backend: GraphicsApi::Vulkan,
+            vsync: false,
+            force_fallback_adapter: false,
+            pipeline_cache_dir: None,
+        },
+    )
+    .expect("Vulkan adapter");
+    let black = [0, 0, 0, 255];
+    renderer.set_environment(Environment::Faces { size: 1, faces: [&black; 6] });
+    let material = renderer.create_glossy_material(&GlossyMaterial {
+        diffuse_min: [0.0, 0.0, 0.0, 1.0],
+        diffuse_range: [0.0; 4],
+        specular_min: [0.0; 3],
+        specular_range: [0.0; 3],
+        envmap_min: 2.0,
+        envmap_range: 0.0,
+        ..Default::default()
+    });
+    let mut mirror = MeshBuilder::new();
+    mirror.state(None, BlendMode::Opaque, Shading::Glossy(material));
+    mirror.card(Vec3::new(0.0, 0.0, -1.0), 2.0, 2.0, 0.0, prelit([1.0; 3], 1.0));
+    let mirror = mirror.finish().upload(&mut renderer, "lens reflection mirror");
+    let main = [Instance::new(mirror, Mat4::IDENTITY)];
+    let frame = frame(Vec3::NEG_Y);
+    let mut layer = EffectLayer::default();
+    EffectLayer::quad(
+        &mut layer.light_lenses,
+        [
+            Vec3::new(-1.0, -8.0, -1.0),
+            Vec3::new(1.0, -8.0, -1.0),
+            Vec3::new(1.0, -8.0, 1.0),
+            Vec3::new(-1.0, -8.0, 1.0),
+        ],
+        [255, 220, 180, 255],
+    );
+    for vertex in &mut layer.light_lenses {
+        vertex.detail = [4.0, -1.0];
+    }
+    let mut samples = Vec::new();
+    let empty = EffectLayer::default();
+    for visible in [false, true] {
+        renderer.set_effects(match visible {
+            true => &layer,
+            false => &empty,
+        });
+        for _ in 0..8 {
+            renderer.set_reflection_scene(Some(ReflectionScene {
+                sun_shadows: false,
+                fade_distance: None,
+                origin: Vec3::ZERO,
+                quality: ReflectionQuality::Low,
+                frame,
+                faces: [&[]; 6],
+                refresh: ALL_FACES,
+            }));
+            renderer.render(&frame, &main).unwrap();
+        }
+        samples.push(centre(&capture(&mut renderer, &frame, &main)));
+    }
+    assert!(samples[1][0] > samples[0][0] + 20, "offscreen lens must reach the mirror: {samples:?}");
+}

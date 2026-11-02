@@ -50,6 +50,7 @@ pub struct GraphicsLab {
     render_size: [u32; 2],
     startup_quality: Option<quality::Quality>,
     startup_style: Option<crate::settings::VisualStyle>,
+    startup_local_lights: Option<String>,
     stats: ExperimentStats,
     active: bool,
     restore_capture: bool,
@@ -57,6 +58,8 @@ pub struct GraphicsLab {
     saved: Option<(RenderExperiments, Settings)>,
     environment: Option<crate::viewer::Environment>,
     environment_change: Option<crate::viewer::Environment>,
+    /// Local lamp options as they were before the full day/night cycle switched them on, restored when it ends.
+    cycle_lamp_restore: Option<environment::LampOptions>,
     traffic_status: Option<String>,
     pursuit_request: Option<u8>,
 }
@@ -108,6 +111,7 @@ impl Default for GraphicsLab {
             output_size: [0; 2],
             render_size: [0; 2],
             options,
+            startup_local_lights: std::env::var("NFSMW_LAB_LAMPS").ok(),
             startup_style: std::env::var("NFSMW_LAB_STYLE").ok().and_then(|s| s.parse().ok()),
             startup_quality: std::env::var("NFSMW_LAB_QUALITY").ok().as_deref().and_then(quality::Quality::parse),
             stats: Default::default(),
@@ -117,6 +121,7 @@ impl Default for GraphicsLab {
             saved: None,
             environment: None,
             environment_change: None,
+            cycle_lamp_restore: None,
             traffic_status: None,
             pursuit_request: None,
         }

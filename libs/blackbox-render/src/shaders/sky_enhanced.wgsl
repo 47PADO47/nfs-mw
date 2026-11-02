@@ -5,7 +5,7 @@ struct Globals {
     fog_color: vec4<f32>, fog_range: vec4<f32>, scatter_rayleigh: vec4<f32>,
     scatter_mie: vec4<f32>, to_sun: vec4<f32>, surface_ambient: vec4<f32>, surface_diffuse: vec4<f32>,
 };
-struct Material { intensity: vec4<f32>, options: vec4<f32>, appearance: vec4<f32> };
+struct Material { intensity: vec4<f32>, options: vec4<f32>, appearance: vec4<f32>, celestial: vec4<f32>, moon: vec4<f32> };
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(1) @binding(3) var<uniform> material: Material;
 @group(1) @binding(4) var cloud_noise: texture_3d<f32>;
@@ -49,6 +49,7 @@ struct Output {
 }
 
 fn sun_direction() -> vec3<f32> {
+    if material.celestial.w > 0.5 { return normalize(material.celestial.xyz); }
     if length(globals.to_sun.xyz) > 0.01 { return normalize(globals.to_sun.xyz); }
     return normalize(-globals.light_dir.xyz);
 }
@@ -79,7 +80,10 @@ fn atmosphere(ray: vec3<f32>, sun: vec3<f32>, coverage: f32) -> vec3<f32> {
     let extinction = exp(-vec3(0.045, 0.10, 0.22) * air);
     let rayleigh = 0.75 * (1.0 + mu * mu);
     let sky = vec3(0.24, 0.42, 0.72) * (vec3(1.0) - extinction) * vec3(4.8, 3.6, 2.5) * rayleigh;
-    let fog = sky_linear(globals.fog_color.rgb);
+    // The cycle's night (`moon.w`, zero otherwise) takes the horizon fog to the clear-night horizon, so a
+    // dusk-preset fog colour does not glow below a night sky.
+    let night_horizon = vec3(0.042, 0.052, 0.070);
+    let fog = mix(sky_linear(globals.fog_color.rgb), night_horizon, material.moon.w);
     let sunward = smoothstep(-0.35, 0.85, dot(normalize(vec3(ray.xy, 0.001)), normalize(vec3(sun.xy, 0.001))));
     let warm_horizon = mix(fog, vec3(0.82, 0.30, 0.09), clamp(dusk * mix(0.30, 0.85, sunward) * material.appearance.w, 0.0, 1.0));
     var colour = mix(sky, warm_horizon, horizon * 0.85);
@@ -87,7 +91,10 @@ fn atmosphere(ray: vec3<f32>, sun: vec3<f32>, coverage: f32) -> vec3<f32> {
     let mie = 0.035 * (1.0 - 0.76 * 0.76) / pow(max(1.0 + 0.76 * 0.76 - 1.52 * mu, 0.01), 1.5);
     colour += sun_colour(sun) * mie * (0.4 + 0.6 * horizon);
     colour = mix(colour, vec3(dot(colour, vec3(0.24, 0.56, 0.20))) * vec3(0.90, 0.97, 1.05), coverage * 0.55);
-    colour = mix(vec3(0.008, 0.013, 0.027), colour, daylight);
+    // Clear night should retain a subtle horizon without resembling a daytime blue sky.
+    let cycle_night = mix(vec3(0.023, 0.035, 0.060), night_horizon, horizon);
+    let night_sky = mix(vec3(0.008, 0.013, 0.027), cycle_night, material.celestial.w);
+    colour = mix(night_sky, colour, daylight);
     return mix(colour, fog, 1.0 - smoothstep(-0.12, 0.03, ray.z));
 }
 
@@ -171,7 +178,18 @@ fn clouds(ray: vec3<f32>, sun: vec3<f32>, coverage: f32, pixel: vec2<f32>) -> ve
     var cloud = textureSampleLevel(cloud_map, cloud_map_sampler, uv, 0.0);
     if ray.z < 0.015 { cloud = vec4(0.0, 0.0, 0.0, 1.0); }
     let brightness = material.appearance.z;
-    let colour = sky_output((background * cloud.a + cloud.rgb) * brightness, solar_disk(ray, sun) * cloud.a * brightness);
+    var celestial = vec3(0.0);
+    if material.moon.w > 0.0 && ray.z > 0.0 {
+        let moon = normalize(material.moon.xyz);
+        let moon_angle = acos(clamp(dot(ray, moon), -0.9999999, 0.9999999));
+        let moon_disk = (1.0 - smoothstep(0.009, 0.013, moon_angle)) * smoothstep(-0.02, 0.04, ray.z);
+        // Stable direction-space stars; clouds occlude them without screen-space swimming.
+        let cell = floor(ray * 700.0);
+        let random = fract(sin(dot(cell, vec3(12.9898, 78.233, 39.425))) * 43758.5453);
+        let star = smoothstep(0.9985, 0.9998, random) * (1.0 - smoothstep(0.15, 0.5, length(fract(ray*700.0)-vec3(0.5))));
+        celestial = (vec3(0.65,0.72,0.9)*moon_disk*0.7 + vec3(0.35,0.42,0.6)*star) * material.moon.w * cloud.a * smoothstep(0.0, 0.08, ray.z);
+    }
+    let colour = sky_output((background * cloud.a + cloud.rgb) * brightness, solar_disk(ray, sun) * cloud.a * brightness + celestial);
     return vec4(colour, 1.0);
 }
 

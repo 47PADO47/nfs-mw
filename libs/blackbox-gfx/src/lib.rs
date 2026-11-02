@@ -12,7 +12,9 @@ pub mod caps;
 pub mod capture;
 pub mod display;
 pub mod latency;
+pub mod local_light;
 pub use latency::{LatencySettings, LatencyStatus, ReflexMode};
+pub use local_light::LocalLight;
 pub mod distortion;
 pub mod effects;
 pub use distortion::{DistortionRegion, ScreenDistortion};
@@ -47,7 +49,10 @@ pub use caps::{
 };
 pub use capture::{RgbaImage, ViewCaptureUi};
 pub use display::{DisplaySettings, DisplayStatus, HdrMode};
-pub use effects::{DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, FlameAppearance, FlameVolume, TexturedEffect};
+pub use effects::{
+    DEFAULT_SOFT_DISTANCE, EffectLayer, EffectVertex, FlameAppearance, FlameVolume, FogShelter, LightHaze,
+    TexturedEffect,
+};
 pub use error::RenderError;
 pub use focus::{FocusFilter, ScreenGrade};
 pub use frame::{

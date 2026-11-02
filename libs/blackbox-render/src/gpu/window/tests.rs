@@ -206,3 +206,18 @@ fn authored_window_mapping_matches_independent_pc_shader_pixels() {
     renderer.set_render_experiments(RenderExperiments::default());
     assert_rgb(&capture(&mut renderer, &fixture(0), BlendMode::Opaque), 32, [32, 128, 255], "legacy profile fallback");
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn night_dims_authored_window_reflections_and_restores_day() {
+    let _gpu = test_support::serial();
+    let mut renderer = Renderer::headless((64, 64), test_support::options()).unwrap();
+    let day = RenderExperiments { original_world_materials: true, ..Default::default() };
+    renderer.set_render_experiments(day);
+    let before = capture(&mut renderer, &Fixture::default(), BlendMode::Opaque);
+    renderer.set_render_experiments(RenderExperiments { experimental_night: true, ..day });
+    let night = capture(&mut renderer, &Fixture::default(), BlendMode::Opaque);
+    assert!(night.pixel(32, 32).unwrap()[0] < before.pixel(32, 32).unwrap()[0]);
+    renderer.set_render_experiments(day);
+    assert_eq!(before.pixel(32, 32), capture(&mut renderer, &Fixture::default(), BlendMode::Opaque).pixel(32, 32));
+}

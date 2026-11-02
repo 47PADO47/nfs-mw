@@ -25,7 +25,7 @@ pub(super) fn classify(
         let mode = match (draw.blend, draw.shading) {
             (BlendMode::AlphaTest, Shading::Tree | Shading::WorldWindow(_)) => 2,
             (BlendMode::AlphaTest, Shading::WorldPrelit) => 3,
-            (BlendMode::AlphaTest, Shading::World | Shading::WorldNoFog) => 5,
+            (BlendMode::AlphaTest, Shading::World | Shading::WorldDistant | Shading::WorldNoFog) => 5,
             (BlendMode::AlphaTest, Shading::WorldNormal(_))
                 if surface.is_some_and(|s| s.model == NormalModel::Reflective) =>
             {

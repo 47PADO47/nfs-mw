@@ -2,7 +2,7 @@
 use blackbox_gfx::{Instance, InstanceKey, MeshHandle};
 use glam::Mat4;
 
-use super::{admits_scenery, stable_mesh};
+use super::{admits_scenery, stable_lod};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::resident::Placed;
 use crate::scenes::world::visibility::{self, NOT_A_PROP};
@@ -23,6 +23,7 @@ pub(super) struct Statics {
     pub fixed_len: usize,
     /// Placed props, sorted by mesh so the instances they push come out nearly sorted.
     props: Vec<PropCaster>,
+    swaying: Vec<Instance>,
 }
 
 impl Statics {
@@ -31,6 +32,7 @@ impl Statics {
     pub fn build<'a>(&mut self, placed: impl Iterator<Item = &'a Placed>, min_radius: f32, out: &mut Vec<Instance>) {
         out.clear();
         self.props.clear();
+        self.swaying.clear();
         for p in placed {
             if !admits_scenery(p.radius, p.prop_id, min_radius) {
                 continue;
@@ -41,17 +43,31 @@ impl Statics {
             }
             // Keep one available silhouette for the resident object's lifetime. Colour-view LOD
             // thresholds must not remove off-camera casters or substitute a foliage billboard.
-            let mesh = stable_mesh(&p.lods);
+            let lod = stable_lod(&p.lods);
             if p.prop_id != NOT_A_PROP {
+                let mesh = lod.map(|(_, mesh)| mesh);
                 self.props.push(PropCaster { id: p.prop_id, transform: p.transform, mesh, key: p.key });
                 continue;
             }
-            let Some(mesh) = mesh else { continue };
-            out.push(Instance::keyed(mesh, p.transform, p.key).with_flipped_winding(p.flip_winding()));
+            let Some((slot, mesh)) = lod else { continue };
+            let instance = Instance::keyed(mesh, p.transform, p.key).with_flipped_winding(p.flip_winding());
+            if p.sway_lods & (1 << slot) != 0 {
+                self.swaying.push(instance);
+                continue;
+            }
+            out.push(instance);
         }
         visibility::sort_by_mesh(out);
         self.fixed_len = out.len();
         self.props.sort_unstable_by_key(|c| c.mesh);
+    }
+
+    pub fn push_swaying(&self, frame: &blackbox_scenery::sway::SwayFrame, out: &mut Vec<Instance>) {
+        out.extend(self.swaying.iter().map(|rest| {
+            let mut instance = *rest;
+            instance.transform = visibility::swayed(rest.transform, frame);
+            instance
+        }));
     }
 
     /// Appends the props that are standing now, where they are drawn this frame.
@@ -62,7 +78,11 @@ impl Statics {
                 continue;
             }
             let transform = props.pose(c.id).map_or(c.transform, |(pose, _)| pose);
+            let first = out.len();
             if props.model_instances(c.id, transform, out) {
+                for instance in &mut out[first..] {
+                    instance.owner_key = c.key;
+                }
                 continue;
             }
             let Some(mesh) = c.mesh else { continue };
@@ -142,5 +162,24 @@ mod tests {
         statics.build(list.iter(), 0.0, &mut out);
         statics.build(list.iter(), 0.0, &mut out);
         assert_eq!(out.len(), 1);
+    }
+    #[test]
+    fn swaying_scenery_follows_the_visible_pose_without_rebuilding_fixed_casters() {
+        let fixed = placed(Some(1), 0, 0);
+        let mut tree = placed(Some(2), 0, 1);
+        tree.sway_lods = 1;
+        let (mut statics, mut out) = (Statics::default(), Vec::new());
+        statics.build([&fixed, &tree].into_iter(), 0.0, &mut out);
+        assert_eq!(statics.fixed_len, 1);
+        let a = blackbox_scenery::sway::SwayFrame { phase: 0.0, axis: [1.0, 0.0, 0.0] };
+        let b = blackbox_scenery::sway::SwayFrame { phase: 90.0, ..a };
+        statics.push_swaying(&a, &mut out);
+        let first = out[1];
+        out.truncate(statics.fixed_len);
+        statics.push_swaying(&b, &mut out);
+        assert_ne!(first.transform, out[1].transform);
+        assert_eq!(out[1].transform, visibility::swayed(tree.transform, &b));
+        assert_eq!(out[1].key, tree.key);
+        assert_eq!(out[0].transform, fixed.transform);
     }
 }

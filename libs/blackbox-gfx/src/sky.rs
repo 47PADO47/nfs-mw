@@ -30,6 +30,10 @@ pub struct SkyState {
     pub sky_sun_brightness: f32,
     pub sky_brightness: f32,
     pub sky_sunset_warmth: f32,
+    /// Optional celestial direction distinct from the scene light.
+    pub celestial_sun: Option<[f32; 3]>,
+    pub moon_direction: [f32; 3],
+    pub night_amount: f32,
 }
 
 impl Default for SkyState {
@@ -44,6 +48,9 @@ impl Default for SkyState {
             sky_sun_brightness: 1.0,
             sky_brightness: 1.0,
             sky_sunset_warmth: 1.0,
+            celestial_sun: None,
+            moon_direction: [0.0, 0.0, 1.0],
+            night_amount: 0.0,
         }
     }
 }
@@ -60,8 +67,18 @@ impl SkyState {
             sky_wind_speed: finite(self.sky_wind_speed, 2.0).clamp(0.0, 12.0),
             sky_sun_size: finite(self.sky_sun_size, 2.0).clamp(0.5, 3.0),
             sky_sun_brightness: finite(self.sky_sun_brightness, 1.0).clamp(0.0, 3.0),
-            sky_brightness: finite(self.sky_brightness, 1.0).clamp(0.25, 2.0),
+            sky_brightness: finite(self.sky_brightness, 1.0).clamp(0.05, 2.0),
             sky_sunset_warmth: finite(self.sky_sunset_warmth, 1.0).clamp(0.0, 2.0),
+            celestial_sun: self
+                .celestial_sun
+                .filter(|v| v.iter().all(|x| x.is_finite()) && v.iter().map(|x| x * x).sum::<f32>() > 1e-6),
+            moon_direction: match self.moon_direction.iter().all(|x| x.is_finite())
+                && self.moon_direction.iter().map(|x| x * x).sum::<f32>() > 1e-6
+            {
+                true => self.moon_direction,
+                false => [0.0, 0.0, 1.0],
+            },
+            night_amount: finite(self.night_amount, 0.0).clamp(0.0, 1.0),
             ..self
         }
     }
@@ -70,6 +87,8 @@ impl SkyState {
 /// Caller-owned optical artwork. The native pass is main-view only, before display mapping.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SunGlare {
+    /// Direction towards the drawn sun, when it differs from the scene light (`None`: opposite `light_dir`).
+    pub to_sun: Option<[f32; 3]>,
     pub layers: Vec<SunGlareLayer>,
     pub colour: [f32; 3],
     pub strength: f32,

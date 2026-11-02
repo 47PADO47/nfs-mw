@@ -95,7 +95,15 @@ impl Renderer {
         });
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
         let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height), false));
+        // A capture at another size than the window keeps its own fog state, so the main view's volume and
+        // history survive a screenshot instead of being rebuilt twice.
+        let resized = old_output.size() != (width, height) && self.fog_view.is_some();
+        let main_fog = match resized {
+            true => self.fog_view.replace(blackbox_gpu_passes::FogView::Unkeyed),
+            false => self.fog_view,
+        };
         self.submit_frame(Some(&scene), &view, (width, height), frame, instances);
+        self.fog_view = main_fog;
         let result = self.read_texture_bytes(&target, (width, height));
         self.output = old_output;
         self.post.set_display(&self.device, old_mapping);

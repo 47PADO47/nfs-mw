@@ -16,9 +16,13 @@ mod filter;
 #[cfg(test)]
 mod filter_tests;
 mod flames;
+mod fog_lights;
 mod fsr1;
 #[cfg(test)]
 mod fsr1_tests;
+mod haze;
+mod light_fog;
+pub use light_fog::FogView;
 pub mod pipeline_cache;
 mod radial_blur;
 #[cfg(test)]
@@ -54,7 +58,7 @@ pub const EFFECTS_SHADOWED_WGSL: &str = include_str!("shaders/effects_shadowed.w
 pub const EFFECTS_WGSL: &str =
     concat!(include_str!("shaders/effects.wgsl"), include_str!("shaders/effects_unshadowed.wgsl"));
 
-pub use effects::{Effects, ShadowReceiver, SoftDraw};
+pub use effects::{Effects, LocalFogShadows, ShadowReceiver, SoftDraw};
 pub use filter::{Blend, Draw, Filter, POST_COMMON_WGSL, Params, filter_source};
 pub use fsr1::{FSR1_EASU, FSR1_RCAS, Fsr1Io, Fsr1Pass, Fsr1Stage, RcasScale, fsr1_passes};
 pub use radial_blur::{RADIAL_MAX_TAPS, RadialBlur, RadialBlurIo, RadialBlurSettings};

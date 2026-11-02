@@ -207,6 +207,18 @@ pub struct StopArea {
 }
 
 impl PropWorld {
+    /// A damaged scenery placement may be hidden or replaced by separate fragments even while
+    /// its original physics pose is still available. Do not leave powered effects at that pose.
+    pub fn fixture_powered(&self, id: u32) -> bool {
+        if self.hidden(id) {
+            return false;
+        }
+        if self.scenery.models.get(&id).is_some_and(|model| model.hidden || !model.hidden_parts.is_empty()) {
+            return false;
+        }
+        !self.colliders.get(&id).and_then(|collider| collider.body.as_ref()).is_some_and(|body| body.moved)
+    }
+
     pub fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
         std::mem::take(&mut self.scenery.common_sounds)
     }

@@ -27,11 +27,11 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
                     super::controls::slider(ui, &mut lab.options.sun_angle, 0.0..=2.0, "Sun radius °", defaults.sun_angle);
                     super::controls::choice(ui, "RT mask resolution %", &mut lab.options.ray_shadow_resolution, &[50, 100], defaults.ray_shadow_resolution);
                     ui.small("50% traces one quarter of the pixels and reconstructs full-resolution visibility using depth and normals. Fine unmatched surfaces retain cascades. 100% is the quality reference.");
-                    super::controls::choice(ui, "Sun rays per pixel", &mut lab.options.ray_shadow_samples, &[4, 8, 16], defaults.ray_shadow_samples);
+                    super::controls::choice(ui, "Sun rays per pixel", &mut lab.options.ray_shadow_samples, &[2, 4, 8, 16], defaults.ray_shadow_samples);
                     super::controls::slider(ui, &mut lab.options.ray_shadow_filter, 0.0..=2.0, "RT spatial smoothing", defaults.ray_shadow_filter);
                     super::controls::checkbox(ui, &mut lab.options.ray_shadow_temporal, "Two-frame stabilization", defaults.ray_shadow_temporal)
                         .on_hover_text("Blends this frame with the previous unblended spatial estimate. Reprojects motion, rejects changed surfaces and clamps changed shadows. No older history.");
-                    ui.small("4 rays is the normal target. Surface-aware smoothing removes sample grain; 0 disables it and stabilization. Stabilization blends only two unblended frames.");
+                    ui.small("2 rays costs less but can add grain or flicker. 4 rays is the normal target. Surface-aware smoothing removes sample grain; 0 disables it and stabilization. Stabilization blends only two unblended frames.");
                 }
                 super::controls::slider(ui, &mut lab.options.ray_shadow_range, 10.0..=240.0, "RT receiver range (m)", defaults.ray_shadow_range);
                 super::controls::slider(ui, &mut lab.options.ray_shadow_length, 40.0..=800.0, "RT blocker reach (m)", defaults.ray_shadow_length);
@@ -95,6 +95,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
         });
         advanced(ui, lab, settings);
         });
+        local_lights(ui, lab, settings);
         ui.collapsing("Lighting diagnostics", |ui| {
         super::controls::checkbox(ui, &mut lab.options.freeze_sun, "Freeze sun", defaults.freeze_sun)
             .on_hover_text("Keeps the lighting phase fixed while you drive.");
@@ -176,4 +177,48 @@ fn advanced(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
         }
     }
     ui.small("World lighting uses the authored material inputs. Custom shadows and contact detail remain independent.");
+}
+
+/// Local lights: fixtures, vehicle beams, light fog and their shadow maps. Its own Lighting section, not nested under
+/// Advanced shadows, because most of it is lighting rather than shadow tuning.
+fn local_lights(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
+    let defaults = super::profiles::defaults(settings).appearance.lighting;
+    ui.collapsing("Local lights (prototype)", |ui| {
+        super::controls::checkbox(ui, &mut lab.options.local_lamps, "Tunnel fixtures", defaults.local_lamps)
+            .on_hover_text("Recognized tunnel fixtures throughout loaded scenery. Lights fade near the active budget boundary.");
+        super::controls::checkbox(ui, &mut lab.options.local_street_lights, "Street fixtures", defaults.local_street_lights)
+            .on_hover_text("Adds night lights to recognized streetlight models. Other models are not yet covered.");
+        super::controls::checkbox(ui, &mut lab.options.local_headlights, "Player headlight beams", defaults.local_headlights)
+            .on_hover_text("Uses the car's headlight switch and native lamp markers. Headlights share the local shadow budget.");
+        super::controls::checkbox(ui, &mut lab.options.local_tail_lights, "Player tail/brake light spill", defaults.local_tail_lights)
+            .on_hover_text("Adds a small red light behind the player car. It follows the light switch, braking and lamp damage.");
+        super::controls::checkbox(ui, &mut lab.options.local_traffic_headlights, "Traffic headlight beams", defaults.local_traffic_headlights)
+            .on_hover_text("Nearby traffic uses its lamp markers and damage state. Beams share the light and shadow budgets.");
+        super::controls::choice(ui, "Traffic cars with beams", &mut lab.options.local_traffic_limit, &[0, 2, 4, 6, 8], defaults.local_traffic_limit);
+        super::controls::slider(ui, &mut lab.options.local_light_distance, 80.0..=600.0, "Local light visibility distance (m)", defaults.local_light_distance)
+            .on_hover_text("Maximum camera distance for loaded tunnel and street fixtures. Higher values can increase lighting and shadow cost.");
+        super::controls::slider(ui, &mut lab.options.local_light_strength, 0.0..=5.0, "Tunnel light strength", defaults.local_light_strength);
+        super::controls::slider(ui, &mut lab.options.local_street_strength, 0.0..=5.0, "Street light strength", defaults.local_street_strength);
+        super::controls::slider(ui, &mut lab.options.local_street_glow, 0.0..=2.0, "Street lamp glow", defaults.local_street_glow)
+            .on_hover_text("Changes the visible lamp glow without changing illumination or shadow cost.");
+        super::controls::slider(ui, &mut lab.options.local_light_fog, 0.0..=4.0, "Local light fog", defaults.local_light_fog)
+            .on_hover_text("Weather-dependent illuminated air from nearby local lights. Zero disables it.");
+        super::controls::slider(ui, &mut lab.options.local_light_fog_distance, 80.0..=600.0, "Fog visibility distance (m)", defaults.local_light_fog_distance)
+            .on_hover_text("Distance over which local light illuminates fog. Fixture visibility and streaming also limit coverage.");
+        super::controls::choice(ui, "Lights affecting fog", &mut lab.options.local_light_fog_count, &[0, 2, 4, 8, 16, 24, 32, 48, 64], defaults.local_light_fog_count);
+        super::controls::choice(ui, "Fog grid quality", &mut lab.options.local_light_fog_quality, &[1, 2, 3], defaults.local_light_fog_quality);
+        ui.small("Fog grid: 1 = low, 2 = medium, 3 = high. Higher quality and light counts can increase GPU cost. Loaded fixtures limit coverage.");
+        super::controls::slider(ui, &mut lab.options.local_street_range, 10.0..=120.0, "Street light reach (m)", defaults.local_street_range);
+        super::controls::slider(ui, &mut lab.options.local_headlight_strength, 0.0..=5.0, "Headlight strength", defaults.local_headlight_strength);
+        super::controls::choice(ui, "Active light limit", &mut lab.options.local_light_limit, &[8, 16, 32, 64, 128], defaults.local_light_limit);
+        super::controls::choice(ui, "Shadowed lights", &mut lab.options.local_shadow_count, &[0, 2, 4, 8, 16], defaults.local_shadow_count);
+        super::controls::choice(ui, "Local shadow resolution", &mut lab.options.local_shadow_resolution, &[512, 1024, 2048], defaults.local_shadow_resolution);
+        super::controls::slider(ui, &mut lab.options.local_shadow_filter, 0.0..=3.0, "Local shadow softness", defaults.local_shadow_filter);
+        super::controls::slider(ui, &mut lab.options.local_shadow_distance, 20.0..=240.0, "Local shadow distance (m)", defaults.local_shadow_distance);
+        super::controls::slider(ui, &mut lab.options.local_specular_strength, 0.0..=1.0, "Local highlight strength", defaults.local_specular_strength)
+            .on_hover_text("Adds local specular highlights on reflective surfaces. Set to zero to skip their extra shading.");
+        let mib = lab.options.local_shadow_count * lab.options.local_shadow_resolution.pow(2) * 4 / (1024 * 1024);
+        ui.small(format!("Local shadow depth storage: {mib} MiB. All selected maps refresh each frame."));
+        ui.small("0 shadowed lights keeps illumination. Headlights take priority; other nearby lamps share the remaining maps. RT above controls sun shadows, not these local maps.");
+    });
 }

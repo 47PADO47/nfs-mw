@@ -170,6 +170,7 @@ fn visual_fragment_control(data: &PhysicsData, placed: &Placed) {
     let mut placed = placed.clone();
     world.add_tile(0, std::slice::from_mut(&mut placed));
     let id = placed.prop_id;
+    assert!(world.fixture_powered(id), "intact pole must keep its lamp on");
     let model = &world.scenery.models[&id];
     let parts = model.parts.as_ref().unwrap();
     let name = model
@@ -312,6 +313,7 @@ fn run(data: &PhysicsData, mut placed: Placed) -> Vec<Motion> {
         world.scenery.models[&id].hidden
     );
     let hidden_parent = world.scenery.models[&id].hidden;
+    assert!(!world.fixture_powered(id), "a released pole must not leave a powered lamp at its old position");
     if hidden_parent {
         assert_eq!(root.rigid.state, blackbox_vehicle::rigid_body::BodyState::Frozen);
         assert!(!world.colliders[&id].collidable, "a hidden parent has ended its physical simulation");
@@ -352,6 +354,7 @@ fn run(data: &PhysicsData, mut placed: Placed) -> Vec<Motion> {
     }
     assert!(world.fragments.is_empty(), "offscreen restoration must remove detached children");
     assert!(!world.scenery.models[&id].hidden, "restoration must reveal the intact pole again");
+    assert!(world.fixture_powered(id), "restored pole must regain its light");
     assert!(matrix_difference(world.pose(id).unwrap().0, placed.transform) < 0.002);
     assert!(world.colliders[&id].body.as_ref().unwrap().attached, "restored placement regains its original attachment");
     world.remove_tile(0);

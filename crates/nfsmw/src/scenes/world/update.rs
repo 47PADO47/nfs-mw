@@ -17,9 +17,11 @@ impl WorldScene {
         };
         self.update_garage_camera(input, dt);
         let options = renderer.render_experiments();
-        self.original_sky = options.original_world_materials || options.enhanced_sky;
+        self.original_sky = super::sky::uses_original_sky(&options);
         let _span = bevy_log::info_span!("world::update").entered();
         let _trace = blackbox_trace::scope("World: update");
+        self.select_cycle(options.full_day_night);
+        self.update_player_night_lights(&options);
         self.shadow_quality = renderer.graphics().shadows;
         self.detail.mirror_far = renderer.graphics().reflection_distance.mirror_far();
         // The bust's arrest scene starts before the NIS is advanced, so its first frame cuts and freezes the world.
@@ -192,9 +194,8 @@ impl WorldScene {
         self.clock += sim_dt * self.tuning.animation_speed;
         self.mesh_animations.advance(sim_dt * self.tuning.animation_speed, &self.residency);
         self.environment_lights.blink.advance(sim_dt);
-        self.update_sky(renderer);
-
         self.update_day(sim_dt, renderer.render_experiments().freeze_sun);
+        self.update_sky(renderer);
 
         self.residency.animate(renderer, self.clock);
         if self.extra.testing.paused
@@ -246,6 +247,7 @@ impl WorldScene {
             let style = self.tuning.tail_trail_style;
             drive.tail_trails.advance_visual(sim_dt, pose, style.enabled && style.enhanced);
         }
+        self.update_local_lights(renderer);
         self.upload_effects(renderer);
         self.original_shadows = renderer.render_experiments().original_shadows;
         drop(trace);
@@ -266,5 +268,41 @@ impl WorldScene {
         self.update_frame(renderer, input, dt);
         self.update_route(dt);
         self.end_hud_feed(dt);
+    }
+
+    /// Night headlights: the manual night preview forces them on and restores them after; the full cycle switches
+    /// them at dusk and dawn (`full_cycle::auto_lights`). Reads the cycle selected for this frame.
+    fn update_player_night_lights(&mut self, options: &blackbox_gfx::RenderExperiments) {
+        if options.experimental_night
+            && !options.full_day_night
+            && self.night_headlights_restore.is_none()
+            && let Some(drive) = self.players.lead_mut()
+        {
+            self.night_headlights_restore = Some(drive.headlights);
+            drive.headlights = true;
+        }
+        if (!options.experimental_night || options.full_day_night)
+            && let Some(previous) = self.night_headlights_restore.take()
+            && let Some(drive) = self.players.lead_mut()
+        {
+            drive.headlights = previous;
+        }
+        let night = self.sun.cycle().filter(|_| options.auto_player_lights).map(|c| c.night);
+        if night.is_none() {
+            self.cycle_lights_night = None;
+        }
+        if let Some(on) = super::full_cycle::auto_lights(night, self.cycle_lights_night)
+            && let Some(drive) = self.players.lead_mut()
+        {
+            drive.headlights = on;
+            self.cycle_lights_night = Some(on);
+        }
+    }
+
+    /// A new lead car starts from its own headlight state: forget what the night preview and the cycle applied to the
+    /// previous one, so the next frame applies the current side of dusk to the new car.
+    pub(super) fn reset_player_night_lights(&mut self) {
+        self.night_headlights_restore = None;
+        self.cycle_lights_night = None;
     }
 }

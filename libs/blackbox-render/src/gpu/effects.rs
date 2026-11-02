@@ -14,6 +14,14 @@ impl Renderer {
         let regions = distortion.map_or(&[][..], |d| d.regions.as_slice());
         self.post.set_distortion(&self.device, view, regions);
         self.effects.upload(&self.device, &self.queue, layer);
+        self.effects.upload_light_fog(
+            layer.light_fog,
+            &layer.fog_shelters,
+            &self.local_lights,
+            self.experiments.local_light_fog_count as usize,
+            self.experiments.local_light_fog_distance,
+            self.experiments.local_light_fog_quality,
+        );
     }
 
     /// Allocated capacities in vertices (surface, particle); counts may fall to zero while reused.
@@ -36,7 +44,23 @@ impl Renderer {
         frame: &crate::FrameParams,
         globals: &wgpu::BindGroup,
     ) {
-        let soft = SoftDraw { target, depth, globals, inverse_view_proj: self.world_to_clip(frame).inverse() };
+        let soft = SoftDraw {
+            target,
+            depth,
+            globals,
+            inverse_view_proj: self.world_to_clip(frame).inverse(),
+            camera_position: frame.camera_position,
+            camera_cut: frame.camera_cut,
+            local_fog_shadows: Some(blackbox_gpu_passes::LocalFogShadows {
+                data: &self.shared.shadows.buffer,
+                map: &self.shared.shadows.local,
+                sampler: &self.shared.shadows.sampler,
+            }),
+        };
+        self.effects.draw_light_haze(&self.device, &self.queue, encoder, &soft);
+        if let Some(view) = self.fog_view {
+            self.effects.draw_light_fog(&self.device, &self.queue, encoder, &soft, view);
+        }
         self.effects.draw_soft(&self.device, &self.queue, encoder, &soft);
         self.effects.draw_flames(&self.device, &self.queue, encoder, &soft, |t| self.textures.get(t.raw()));
     }

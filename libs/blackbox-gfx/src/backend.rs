@@ -78,6 +78,10 @@ pub trait RenderBackend {
         Default::default()
     }
     fn set_shadow_casters(&mut self, _casters: Option<&[Instance]>) {}
+    /// Up to four shadowed local spotlights; unsupported backends ignore them.
+    fn set_local_lights(&mut self, _lights: &[crate::LocalLight]) {}
+    /// Override the scene night blend; None uses the manual night option.
+    fn set_night_blend(&mut self, _blend: Option<f32>) {}
     /// Optional hardware reflection geometry, including objects outside the camera view.
     fn ray_reflections_enabled(&self) -> bool {
         false

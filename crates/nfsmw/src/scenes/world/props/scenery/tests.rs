@@ -8,6 +8,24 @@ mod poles;
 mod sawhorse;
 
 #[test]
+fn fixture_power_follows_damage_and_restoration() {
+    let mut placed = vec![super::super::tests::placement(7, Vec3::Y, 100.0, false, 0.0)];
+    let mut world = PropWorld::default();
+    world.add_tile(0, &mut placed);
+    let id = placed[0].prop_id;
+    assert!(world.fixture_powered(id));
+    world.scenery.models.get_mut(&id).unwrap().hidden_parts.insert(11);
+    assert!(!world.fixture_powered(id));
+    world.reset_model(id);
+    assert!(world.fixture_powered(id));
+    world.colliders.get_mut(&id).unwrap().body.as_mut().unwrap().moved = true;
+    assert!(!world.fixture_powered(id));
+    world.colliders.get_mut(&id).unwrap().body.as_mut().unwrap().moved = false;
+    world.scenery.models.get_mut(&id).unwrap().hidden = true;
+    assert!(!world.fixture_powered(id));
+}
+
+#[test]
 fn offscreen_release_resets_hidden_parts_and_invalidates_fragment_owners() {
     let mut placed = vec![super::super::tests::placement(7, Vec3::Y, 100.0, false, 0.0)];
     let mut world = PropWorld::default();

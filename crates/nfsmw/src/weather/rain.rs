@@ -68,6 +68,10 @@ impl Rain {
     pub fn intensity(&self) -> f32 {
         self.intensity
     }
+    /// Visible precipitation after the user's rain-amount control.
+    pub fn visible_intensity(&self) -> f32 {
+        self.intensity * self.amount
+    }
     pub fn lens(&self) -> &[super::lens::Droplet] {
         self.lens.visible(self.exposed && self.intensity > 0.0 && self.amount > 0.0)
     }

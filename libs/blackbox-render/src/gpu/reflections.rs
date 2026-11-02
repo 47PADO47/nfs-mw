@@ -246,7 +246,7 @@ impl Renderer {
         let prepared = self.prepare_cube_faces(capture, scene, faces, encoder);
         self.cover_faces(capture, faces);
         let draw = self.scene_draw();
-        let outputs = (&capture.store, &capture.faces, &capture.lists);
+        let outputs = (&capture.store, &capture.faces, &capture.lists, &self.effects, &self.shared.shadows.fallback);
         if prepared.len() < PARALLEL_FACES {
             for job in &prepared {
                 record_face(draw, outputs, encoder, job);
@@ -319,17 +319,33 @@ impl Renderer {
 const PARALLEL_FACES: usize = 2;
 
 /// What recording a face writes besides its colour pass: the cube store, the cube's faces and the faces' draw lists.
-type FaceOutputs<'a> = (&'a super::reflection_store::Store, &'a [wgpu::TextureView; 6], &'a [DrawList; 6]);
+type FaceOutputs<'a> = (
+    &'a super::reflection_store::Store,
+    &'a [wgpu::TextureView; 6],
+    &'a [DrawList; 6],
+    &'a blackbox_gpu_passes::Effects,
+    &'a wgpu::BindGroup,
+);
 
 /// Record one prepared face into `encoder`: its colour pass, then the store into its face of the cube.
 fn record_face(
     draw: SceneDraw<'_>,
-    (store, faces, lists): FaceOutputs<'_>,
+    (store, faces, lists, effects, shadows): FaceOutputs<'_>,
     encoder: &mut wgpu::CommandEncoder,
     (face, view): &(usize, PreparedView),
 ) {
     let _trace = blackbox_trace::scope("Renderer CPU: record reflection face");
-    draw.record(encoder, view, &lists[*face]);
+    {
+        // Lamp lenses close the face's own colour pass, so a face without lenses costs no extra pass.
+        let list = &lists[*face];
+        let mut pass = super::scene_pass::begin_pass(encoder, view);
+        draw.begin(&mut pass, view, list);
+        for (mode_index, mode) in super::pipelines::BLEND_ORDER.into_iter().enumerate() {
+            draw.blend_mode(&mut pass, view, list, (mode_index, mode));
+        }
+        pass.set_bind_group(0, &view.globals, &[]);
+        effects.draw_light_lenses(&mut pass, Some(shadows));
+    }
     store.draw(encoder, &faces[*face], *face);
 }
 

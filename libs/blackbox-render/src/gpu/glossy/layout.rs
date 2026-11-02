@@ -96,6 +96,16 @@ impl Layouts {
             entries: &[
                 uniform(0),
                 uniform(1),
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
                 sampled(7, wgpu::TextureSampleType::Float { filterable: false }),
                 wgpu::BindGroupLayoutEntry {
                     binding: 6,
