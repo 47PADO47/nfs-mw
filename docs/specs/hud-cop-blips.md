@@ -100,7 +100,10 @@ a filter toggle. Its car icons flash on their own counter (no in-pursuit test); 
   one step per look tick of 1/60 s (`hud::TICK_SECONDS`): the original's per-frame step at 60 frames per second. The
   world map's moving cars use the same cycle. The Custom theme's map keeps its own calmer 0.1 s step.
 - **Helicopter icon:** the layout (`hud/elements.rs`) treats the helicopter group as a minimap root, so its picture and
-  blades show with it; the blip binding hides and places the group itself. The minimap shows the helicopter whenever it
+  blades show with it; the blip binding hides and places the group itself. The feed lists a second blip at the same
+  place and heading for the sight cone (`HELICOPTER_CONE`, style `HelicopterCone` in `hud/blip_styles.rs`): active while
+  the helicopter's last sight test saw the player (its grace included), which plays the cone's tracking script, else its
+  idle one; the cone keeps the package's alpha 160 under the placement's fade. The minimap shows the helicopter whenever it
   flies in the pursuit. The Custom theme's map does too (`ui/theme/custom/map/marks.rs`;
   [custom-hud/fair-knowledge.md](custom-hud/fair-knowledge.md) rule 1).
 - **Deviations, kept on purpose or not done yet:**
@@ -109,11 +112,13 @@ a filter toggle. Its car icons flash on their own counter (no in-pursuit test); 
   - A car icon is drawn only inside the disc (`Visibility::InZone`), at the user's request; the original pins engaged cars
     to the rim. **[user]**
   - Slots go only to drawn icons; the original's eight-car cut-off (which can also drop the helicopter) is not copied.
-  - The line-of-sight cone is not bound.
+  - The cone's "seen within a quarter second" is the helicopter's own sight result with its grace.
 - **Tests:** `scenes::world::ai::pursuit::tests::minimap` (the pursuit gate, the engagement mark, the roadblock's
-  300 m reach, wrecks and fleeing cops steady, nothing after the pursuit), `pursuit::tests::air` (the helicopter's blip goes with the pursuit),
-  `hud::blips_tests` (steady grey, the helicopter group with its blades placed and rim-pinned), `hud::cop_blip_tests`, and
-  the installed `hud::pursuit_install_tests` (the real package's helicopter picture and blades show).
+  300 m reach, wrecks and fleeing cops steady, nothing after the pursuit), `pursuit::tests::air` (the helicopter's blip and its cone go with the pursuit),
+  `hud::blips_tests` (steady grey, the helicopter group with its blades placed and rim-pinned, the cone on the
+  helicopter with its scripts), `hud::cop_blip_tests`, and
+  the installed `hud::pursuit_install_tests` (the real package's helicopter picture and blades show, the cone shows with
+  them and switches scripts).
 
 ## 8. Open questions
 

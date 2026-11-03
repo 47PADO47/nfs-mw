@@ -10,6 +10,8 @@ pub const RACER: &str = "racer";
 pub const CHECKPOINT: &str = "checkpoint";
 pub const GPS: &str = "gps";
 pub const HELICOPTER: &str = "helicopter";
+/// The helicopter's line-of-sight cone, drawn with the helicopter.
+pub const HELICOPTER_CONE: &str = "helicopter_cone";
 pub const RACE_SPRINT: &str = "race_sprint";
 pub const RACE_DRAG: &str = "race_drag";
 pub const RACE_CIRCUIT: &str = "race_circuit";
@@ -129,6 +131,33 @@ impl BlipStyle for Helicopter {
     }
 }
 
+/// The helicopter's translucent line-of-sight cone (`HELICOPTER_LINE_OF_SIGHT`, 64 x 64, alpha 160 in the package).
+pub const HELICOPTER_CONE_ICON: &str = "HELICOPTER_LINE_OF_SIGHT";
+/// The cone's scripts: tracking while the helicopter has the player in sight, the package's initial one otherwise.
+pub const CONE_TRACKING: u32 = 0x55ca_fa92;
+pub const CONE_IDLE: u32 = 0x0017_44b3;
+/// The cone's own translucency (the package's alpha 160), kept under the placement's fade.
+const CONE_ALPHA: f32 = 160.0 / 255.0;
+
+/// The helicopter's sight cone: at the helicopter's place and heading, on the rim with it when it is far. Its blip is
+/// `active` while the helicopter sees the player (`docs/specs/hud-cop-blips.md` section 5).
+pub struct HelicopterCone;
+
+impl BlipStyle for HelicopterCone {
+    fn name(&self) -> &'static str {
+        HELICOPTER_CONE
+    }
+
+    fn icons(&self) -> Vec<String> {
+        vec![HELICOPTER_CONE_ICON.to_string()]
+    }
+
+    fn look(&self, blip: &MapBlip, _tick: u32) -> BlipLook {
+        let script = if blip.active { CONE_TRACKING } else { CONE_IDLE };
+        BlipLook { alpha: CONE_ALPHA, script: Some(script), ..BlipLook::PLAIN }
+    }
+}
+
 /// A pool of HUD objects named `<prefix><index>` for `index` in `0..size`: one object per blip shown at once.
 /// By default its blips are always eligible, keep the package colour and are all drawn.
 pub struct IconPool {
@@ -207,5 +236,12 @@ pub fn map_icon_styles() -> Vec<Box<dyn BlipStyle>> {
 
 /// The styles the game uses.
 pub fn builtin() -> Vec<Box<dyn BlipStyle>> {
-    vec![Box::new(Cop), Box::new(Racer), Box::new(Checkpoint), Box::new(GpsTarget), Box::new(Helicopter)]
+    vec![
+        Box::new(Cop),
+        Box::new(Racer),
+        Box::new(Checkpoint),
+        Box::new(GpsTarget),
+        Box::new(HelicopterCone),
+        Box::new(Helicopter),
+    ]
 }

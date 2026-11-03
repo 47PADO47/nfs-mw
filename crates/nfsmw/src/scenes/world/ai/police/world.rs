@@ -213,10 +213,14 @@ impl super::super::TrafficWorld {
         self.police.effects().fov_kick_deg
     }
 
-    /// The helicopter's minimap blip, while it flies. The caller shows it only during the pursuit.
+    /// The helicopter's minimap blips, while it flies: its sight cone (active while it sees the player) and its icon.
+    /// The caller shows them only during the pursuit.
     pub(in crate::scenes::world::ai) fn helicopter_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
         let Some((position, heading)) = self.police.helicopter_blip() else { return };
-        out.push(crate::hud::MapBlip { style: crate::hud::HELICOPTER, position, active: true, heading: Some(heading) });
+        let sees = self.police.helicopter_status().is_some_and(|status| status.in_sight);
+        let heading = Some(heading);
+        out.push(crate::hud::MapBlip { style: crate::hud::HELICOPTER_CONE, position, active: sees, heading });
+        out.push(crate::hud::MapBlip { style: crate::hud::HELICOPTER, position, active: true, heading });
     }
 }
 

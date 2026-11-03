@@ -8,7 +8,9 @@ use game_install::GameDir;
 use super::MapBlip;
 use super::backup_timer::{APPEAR, FLASH};
 use super::bind::HudBinding;
-use super::blip_styles::{HELICOPTER, HELICOPTER_GROUP};
+use super::blip_styles::{
+    CONE_IDLE, CONE_TRACKING, HELICOPTER, HELICOPTER_CONE, HELICOPTER_CONE_ICON, HELICOPTER_GROUP,
+};
 use super::minimap::MinimapBinding;
 use super::pursuit::PursuitHud;
 use super::state::{HudState, MapPosition};
@@ -83,4 +85,32 @@ fn the_helicopter_icon_shows_its_picture_and_blades_on_the_minimap() {
     let pictures: Vec<_> = tree.nodes.iter().filter(|n| n.parent == Some(group.index)).collect();
     assert_eq!(pictures.len(), 2, "the helicopter picture and its blades");
     assert!(pictures.iter().all(|n| n.visible), "both show with the group");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_helicopter_cone_shows_with_the_helicopter_and_plays_its_tracking_script() {
+    let Some((dir, mut rt, id)) = open() else { return };
+    let assets = UiAssets::load(&dir).unwrap();
+    let minimap = MinimapBinding::open_city(&rt, id, &dir, &assets);
+    let mut b = HudBinding::new(&mut rt, id).with_minimap(minimap);
+    let state = |sees: bool| HudState {
+        minimap: Some(MapPosition { position: [0.0, 0.0], heading: [0.0, 1.0], orientation: Orientation::North }),
+        blips: vec![
+            MapBlip { style: HELICOPTER_CONE, position: [60.0, 0.0], active: sees, heading: Some([1.0, 0.0]) },
+            MapBlip { style: HELICOPTER, position: [60.0, 0.0], active: true, heading: Some([1.0, 0.0]) },
+        ],
+        pursuit: Some(PursuitHud { secs: 40.0, ..Default::default() }),
+        ..Default::default()
+    };
+    let cone = rt.find(id, fe_hash_upper(HELICOPTER_CONE_ICON)).expect("the package's line-of-sight cone");
+    step(&mut rt, &mut b, &state(true), 0.1);
+    assert!(visible(&rt, id, fe_hash_upper(HELICOPTER_CONE_ICON)), "the cone shows with the helicopter");
+    assert_eq!(rt.script_of(cone), Some(CONE_TRACKING));
+    eprintln!("tracking colour {:?}", rt.colour_rgba(cone));
+    step(&mut rt, &mut b, &state(false), 0.1);
+    assert_eq!(rt.script_of(cone), Some(CONE_IDLE));
+    eprintln!("idle colour {:?}", rt.colour_rgba(cone));
+    step(&mut rt, &mut b, &HudState { blips: Vec::new(), ..state(false) }, 0.1);
+    assert!(!visible(&rt, id, fe_hash_upper(HELICOPTER_CONE_ICON)), "no helicopter, no cone");
 }
