@@ -52,3 +52,55 @@ fn batch12_pause_tuning_and_options_keep_one_authored_background_beneath_their_p
             .all(|screen| screen.name != "InGameBackground.fng")
     );
 }
+
+#[test]
+#[ignore = "requires installed pause artwork"]
+fn pass_a_pause_side_gradients_emit_dark_fading_vertices() {
+    use crate::ui::present::{BlackboxPresenter, Screen};
+    let mut h = Harness::open(screen::PAUSE_MENU, Args { pause: true, ..Default::default() }).unwrap();
+    h.wait(1.0);
+    let mut tree = background(&h);
+    let side = tree.nodes.iter().position(|n| n.name_hash == 0xa8de_2158).unwrap();
+    tree.draw_order = vec![side];
+    let mut out = crate::gui::UiOutput::default();
+    BlackboxPresenter::default().present(
+        &tree,
+        h.screens.assets(),
+        Screen { width: 1920.0, height: 1080.0, pixels_per_point: 1.0 },
+        &mut out,
+    );
+    let vertices = &out.layer.unwrap().meshes[0].vertices;
+    assert_eq!(vertices.len(), 4);
+    assert!(
+        vertices.iter().all(|v| v.color_rgba[..3] == [0; 3]),
+        "side gradient must darken, not whiten: {vertices:?}"
+    );
+    assert_eq!(vertices.iter().map(|v| v.color_rgba[3]).min(), Some(0));
+    assert!(vertices.iter().any(|v| v.color_rgba[3] > 0), "inner edge darkens");
+}
+
+#[test]
+#[ignore = "requires installed pause artwork and Vulkan GPU"]
+fn pass_a_gpu_pause_background_darkens_continuously_across_aspects() {
+    use crate::frontend::tests::rendered_playtest::render;
+    let mut h = Harness::open(screen::PAUSE_MENU, Args { pause: true, ..Default::default() }).unwrap();
+    h.wait(1.0);
+    for (width, height) in [(1440, 1080), (1920, 1080), (2560, 1080)] {
+        h.screens.set_aspect(width as f32 / height as f32);
+        let image = render(&background(&h), h.screens.assets(), (width, height), "pause-background");
+        for x in [0, width / 4, width / 2, width * 3 / 4, width - 1] {
+            let pixel = image.pixel(x, height / 10).unwrap();
+            assert!(
+                pixel[0] <= 53 && pixel[1] <= 104 && pixel[2] <= 155,
+                "pause must not whiten the scene: {x} {pixel:?}"
+            );
+        }
+        let centre = image.pixel(width / 2, height / 10).unwrap();
+        assert!((12..=18).contains(&centre[0]), "authored centre alpha: {centre:?}");
+        for x in [0, width - 1] {
+            assert!(image.pixel(x, height / 10).unwrap()[0] > centre[0], "side edge must fade out");
+        }
+        let shown = h.screens.presented_trees(&Bindings::default(), InputDevice::Xbox);
+        render(shown.last().unwrap(), h.screens.assets(), (width, height), "pause-controls");
+    }
+}

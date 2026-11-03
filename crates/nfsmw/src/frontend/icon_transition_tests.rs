@@ -307,7 +307,7 @@ fn a_click_on_the_credits_back_label_returns_to_the_categories() {
     assert_eq!(h.screens.top(), Some(screen::MAIN_MENU_SUB), "back from credits by mouse: {:?}", h.commands);
 }
 
-/// The replacement Re-order hint routes to the current binding, while the native page arrow still takes clicks.
+/// The replacement Grab hint routes to its dedicated binding and marks the highlighted song.
 #[test]
 fn the_jukebox_footer_labels_take_mouse_clicks() {
     let (_, ea_trax) = reach(Kind::Categories { pause: false, mods: false }, Id::EaTrax);
@@ -326,17 +326,14 @@ fn the_jukebox_footer_labels_take_mouse_clicks() {
     h.press(pad::ACCEPT);
     h.wait(1.5);
     assert_eq!(h.screens.top(), Some(screen::EA_TRAX_JUKEBOX), "EA Trax: {:?}", h.commands);
-    let reorder = |h: &Harness| {
+    let grab = |h: &Harness| {
         let bindings = crate::input::Bindings::default();
         let device = crate::input::InputDevice::Xbox;
         let tree = h.screens.presented_trees(&bindings, device).pop().unwrap();
-        let label = tree
-            .nodes
-            .iter()
-            .find(|n| n.visible && n.text.as_deref() == Some("Re-order"))
-            .expect("visible Re-order hint");
+        let label =
+            tree.nodes.iter().find(|n| n.visible && n.text.as_deref() == Some("Grab")).expect("visible Grab hint");
         let point = label.world.transform_point3(glam::Vec3::ZERO).truncate();
-        assert_eq!(h.screens.hint_at(point, &bindings, device), Some(crate::input::Action::MenuButton1));
+        assert_eq!(h.screens.hint_at(point, &bindings, device), Some(crate::input::Action::JukeboxGrab));
     };
     let titles = |h: &Harness| -> Vec<String> {
         let tree = h.screens.trees().pop().unwrap();
@@ -347,10 +344,10 @@ fn the_jukebox_footer_labels_take_mouse_clicks() {
             .collect()
     };
     let before = titles(&h);
-    reorder(&h);
-    h.press((pad::BUTTON0 << 1) | (pad::BUTTON0 << 5));
+    grab(&h);
+    h.press(pad::BUTTON0 << 5);
     h.wait(0.5);
-    assert_ne!(titles(&h), before, "Re-order marks the highlighted song");
+    assert_ne!(titles(&h), before, "Grab marks the highlighted song");
 }
 
 #[test]

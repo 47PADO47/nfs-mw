@@ -1,5 +1,4 @@
-//! The seam between a package and the code that gives it meaning: a [`ScreenLogic`] receives the messages the
-//! package sends to the game and changes the package's objects, the way the original screen classes do
+//! A [`ScreenLogic`] handles game messages from a package and changes its objects
 //! (docs/specs/frontend-menus.md, section 1).
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
@@ -479,9 +478,13 @@ pub trait ScreenLogic: Send + Sync {
         Footer::Standard
     }
 
-    /// The backdrop this screen wants right now, when it depends on what the screen shows (the Quick Play brief shows the car it
-    /// picked). `None` leaves it to the screen's look by name (`factory::look_for`).
+    /// The current backdrop, or `None` to use the package's look (`factory::look_for`).
     fn look(&self) -> Option<super::look::Look> {
+        None
+    }
+
+    /// Override the package's camera collection when this logic selects its context.
+    fn pose(&self) -> Option<&'static str> {
         None
     }
 

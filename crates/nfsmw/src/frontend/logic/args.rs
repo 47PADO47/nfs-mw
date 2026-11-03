@@ -33,6 +33,8 @@ pub struct Args {
     /// Opened from the reputation overview (`reputation_overview.rs`): the rival screens it opens show the rival the
     /// overview shows and go back to it.
     pub overview: bool,
+    /// The overview category to restore when returning from its child screen; fresh entries use Race Events.
+    pub overview_sheet: usize,
     /// In split screen, the player (0 or 1) whose Press Start and car select this is (`custom_race/press_start.rs`).
     pub player: u8,
     /// Player 2's car select of a co-op career: the car picked is seated for player 2 (`career_screens/car_select.rs`).
@@ -73,6 +75,7 @@ impl Default for Args {
             first_car: false,
             from_world: false,
             overview: false,
+            overview_sheet: 0,
             player: 0,
             coop: false,
             lan: false,

@@ -144,3 +144,50 @@ fn the_menu_hands_its_items_to_a_theme_that_draws_them_as_a_list() {
     assert_eq!(shown.entries.len(), list.len() + 1, "the greyed Rap Sheet is on the row too");
     assert!(shown.entries.iter().all(|entry| !entry.label.is_empty()), "every entry is named");
 }
+
+#[test]
+#[ignore = "requires installed safe-house menu; set NFSMW_GAME_DIR"]
+fn batch17_safehouse_wrapper_exposes_the_carousel_exit_input_gate() {
+    use crate::frontend::logic::Category;
+    use crate::settings::{Partial, Settings, test_caps};
+    use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
+    use blackbox_feng::ids::{BUTTON_PRESSED, PAD_RIGHT};
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    let catalog = Catalog::load(&dir, &SCREEN_FILES);
+    let mut rt = crate::ui::runtime();
+    let package = rt.load(catalog.find(screen::MAIN_MENU_SUB).unwrap().clone());
+    let args = Args { safehouse: true, category: Category::Audio, ..Args::default() };
+    let mut menu = SafeHouseMenu {
+        menu: IconMenu::with_icons(Kind::SafeHouse, args, safehouse_icons(&items(&CareerSettings::new_career()))),
+        totals: Totals { bounty: 0, cash: 0, career: 0 },
+    };
+    let mut settings = Settings::from(Partial::default());
+    let mut changed = Partial::default();
+    let mut commands = Vec::new();
+    let mut memory = Default::default();
+    let key_texts = Vec::<[String; 2]>::new();
+    let mut cx = Cx {
+        rt: &mut rt,
+        package,
+        assets: &assets,
+        settings: &mut settings,
+        changed: &mut changed,
+        caps: test_caps::native(),
+        commands: &mut commands,
+        memory: &mut memory,
+        key_texts: &key_texts,
+        world_map: None,
+        mods: None,
+        name: screen::MAIN_MENU_SUB,
+    };
+    menu.start(&mut cx);
+    menu.tick(&mut cx, 1.0);
+    assert!(menu.accepts_input());
+    menu.message(&mut cx, PAD_RIGHT);
+    menu.message(&mut cx, BUTTON_PRESSED);
+    assert!(!menu.menu.accepts_input(), "Blacklist starts an authored carousel exit");
+    assert!(!menu.accepts_input(), "Screens must gate pad, pointer and automatic sounds through the wrapper too");
+    menu.resume(&mut cx);
+    assert!(menu.accepts_input(), "the retained menu regains input after a child returns");
+}

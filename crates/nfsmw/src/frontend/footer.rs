@@ -6,6 +6,10 @@ pub enum Footer {
     #[default]
     Standard,
     ControlsPages,
+    ChallengeSeries {
+        can_accept: bool,
+        has_tutorial: bool,
+    },
     ControlsCapture,
     /// EA Trax changes its navigation hints while reordering.
     Jukebox {
@@ -25,8 +29,16 @@ pub enum Footer {
     CarSelect,
     /// Back only, on the custom race's car select: the car shown is locked.
     CarSelectLocked,
+    /// Owned career cars: only supported actions, with the selected car's release label.
+    CareerCarSelect {
+        accept: Option<u32>,
+        marker: bool,
+        back: bool,
+    },
     /// Back, `9 0 Zoom` and the arrows `View Car`: the Showcase.
     Orbit,
+    /// Garage chrome remains visible while catalog or preview work is pending.
+    GarageLoading,
     GarageManager {
         add: bool,
         /// A real selected/previewed car is available; the manager's Add tile has none.
@@ -52,7 +64,8 @@ impl Footer {
     pub fn is_garage(self) -> bool {
         matches!(
             self,
-            Self::GarageManager { .. }
+            Self::GarageLoading
+                | Self::GarageManager { .. }
                 | Self::GarageMain { .. }
                 | Self::GarageCategories { .. }
                 | Self::GarageParts

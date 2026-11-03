@@ -371,9 +371,12 @@ impl Frontend {
         if let Some(look) = wanted.filter(|look| *look != self.look) {
             log::info!("menu backdrop: {look:?}");
             self.look = look;
-            let scene = MenuScene::with_look(Some(self.dir.clone()), self.look.clone()).with_rig(self.camera.clone());
-            self.replace_scene(host, Box::new(scene), false);
-            self.menu_in_window = true;
+            if !host.scene.retarget_menu(self.look.clone()) {
+                let scene =
+                    MenuScene::with_look(Some(self.dir.clone()), self.look.clone()).with_rig(self.camera.clone());
+                self.replace_scene(host, Box::new(scene), false);
+                self.menu_in_window = true;
+            }
         }
         // The screen on top moves the camera to its pose, also when it comes back to the top as the one above closes.
         if let Some(pose) = self.screens.pose() {

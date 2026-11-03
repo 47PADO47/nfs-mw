@@ -44,8 +44,8 @@ impl Frontend {
     }
 
     /// The bust's payment was taken in a career: the notice first when the car was impounded (closing it opens the car
-    /// select with the impounded animation), else the car select at once. The world stays held; leaving the car select
-    /// goes to the safe house menu, whose Resume Free Roam drives again.
+    /// select with the impounded animation), else the car select at once. Resume Free Roam rebuilds the world with the
+    /// selected car after the safe house menu.
     pub(super) fn bust_paid(&mut self, marker: bool, host: &mut Host, env: &mut Env) {
         let payment = if marker { Payment::Marker } else { Payment::Cash };
         let after = self
@@ -62,15 +62,18 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
-    /// Opens the career car select over the held game, replacing the screen on top (the ticket, or the safe house menu).
+    /// Opens career car selection in the safe house, replacing the ticket or safe house menu.
     pub(super) fn open_career_car_select(&mut self, entry: CarSelectEntry, host: &mut Host, env: &mut Env) {
         self.latch = true;
         self.paused.set(true);
-        self.stage = Stage::Paused;
+        self.career.set_prelude(true);
+        self.show_backdrop(host);
+        self.stage = Stage::Menus;
         // Leaving for the free roam it leads to is a roaming start: the autosave asks for it (`leave_safe_house`).
         self.in_safe_house = true;
         let logic = Box::new(CareerCarSelectLogic::new(entry));
         let commands = self.screens.open_with(CAR_SELECT, logic, true, env);
+        self.sync_backdrop(host);
         self.apply(commands, host, env);
     }
 
@@ -91,3 +94,7 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 }
+
+#[cfg(test)]
+#[path = "flow_career_car_tests.rs"]
+mod tests;

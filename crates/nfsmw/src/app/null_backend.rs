@@ -43,6 +43,7 @@ pub struct NullBackend {
     pub reflection: Option<ReflectionSnapshot>,
     pub planar: Option<PlanarSnapshot>,
     pub shadow_casters: Option<Vec<Instance>>,
+    pub shadow_updates: usize,
     track_reflections: bool,
     size: [u32; 2],
     pub projected: Option<(FrameParams, [u32; 2], bool, Vec<Instance>)>,
@@ -96,6 +97,7 @@ impl NullBackend {
             reflection: None,
             planar: None,
             shadow_casters: None,
+            shadow_updates: 0,
             track_reflections: false,
             size: [1280, 720],
             projected: None,
@@ -230,6 +232,7 @@ impl RenderBackend for NullBackend {
         if !self.track_reflections {
             return;
         }
+        self.shadow_updates += 1;
         self.shadow_casters = casters.map(<[Instance]>::to_vec);
     }
     fn set_planar_reflection_scene(&mut self, scene: Option<blackbox_gfx::PlanarReflectionScene<'_>>) {

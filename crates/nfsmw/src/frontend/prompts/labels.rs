@@ -5,6 +5,8 @@ use crate::i18n::{self, t};
 /// What a footer hint says it does. Most are the game's own hint words; the rest are the catalogue's (`prompts-*`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HintLabel {
+    /// A context-specific caption from the installed language table.
+    Game(u32),
     Accept,
     Back,
     Quit,
@@ -50,6 +52,7 @@ impl HintLabel {
     /// The label's text in the current language.
     pub fn text(self) -> String {
         let label = match self {
+            Self::Game(label) => label,
             Self::Accept => 0x2B65_A216,         // H_ACCEPT
             Self::Back => 0x61D5_96D7,           // H_BACK
             Self::Quit => 0xC51F_BF74,           // PC_QUIT

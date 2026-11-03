@@ -95,6 +95,9 @@ pub const QUIT_CLICKED: u32 = 0x6279_9A4C;
 pub const MOUSE_LEFT_RELEASED: u32 = 0x7EAB_CA56;
 /// The package answers it by switching its buttons back on (a press switches them off while the screen leaves).
 pub const INPUT_ENABLE: u32 = 0x8CB8_1F09;
+/// `Car_Select.fng` routes these to its loading LED row (group `0x6A0831F6`): fade in, and fade out.
+pub const CAR_LOADING_SHOW: u32 = 0xA05A_328E;
+pub const CAR_LOADING_HIDE: u32 = 0x913F_A282;
 
 // Scripts.
 pub const SCRIPT_HIGHLIGHT: u32 = 0x249D_B7B7;

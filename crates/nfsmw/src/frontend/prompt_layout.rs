@@ -74,14 +74,20 @@ impl Frame {
         let (group, background) = match name.to_ascii_lowercase().as_str() {
             "pause_main.fng" => (0x2FE7_4244, 0x81B4_FAD0),
             "pause_options.fng" | "pause_pc_controller.fng" => (0xB3A6_9E89, 0x81B4_FAD0),
-            "options.fng" | "ea_trax_jukebox.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
+            "options.fng" | "ea_trax_jukebox.fng" | "challengeseries.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
             "safehousereputationoverview.fng"
             | "safehouseracesheet.fng"
             | "safehousemilestones.fng"
             | "safehousebounty.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
             // The custom race's screens (`custom_race/`); the career's car lot keeps the package's own footer.
             "track_select.fng" | "track_options.fng" | "showcase.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
-            "car_select.fng" if footer.is_custom_car_select() || footer.is_garage() => (0x84BC_F2B5, 0x3D3B_C1AC),
+            "car_select.fng"
+                if footer.is_custom_car_select()
+                    || footer.is_garage()
+                    || matches!(footer, Footer::CareerCarSelect { .. }) =>
+            {
+                (0x84BC_F2B5, 0x3D3B_C1AC)
+            }
             "mainmenu.fng" | "mainmenu_sub.fng" | "mc_profilemanager.fng" => (0x17B1_F254, 0xC6AF_DD7E),
             // The profile list's footer group is empty and sits below its panel: the hints go where its Back button was,
             // inside the panel's footer.

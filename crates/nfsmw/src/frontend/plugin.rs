@@ -153,7 +153,14 @@ fn update(
     fe.begin(host, &mut env);
     fe.poll_garage(host, &mut env, &mut garage);
     if fe.menu_garage_requested || garage.menu_requested {
-        fe.garage_loading_frame(time.delta_secs().min(MAX_STEP), pad_mask(&actions), host, &mut env, &mut garage);
+        let mut pending_mask = pad_mask(&actions);
+        if actions.just_pressed(Action::Click)
+            && feng_point(&window)
+                .is_some_and(|point| fe.screens.hint_at(point, &bindings, input.device) == Some(Action::MenuBack))
+        {
+            pending_mask |= pad::BACK;
+        }
+        fe.garage_loading_frame(time.delta_secs().min(MAX_STEP), pending_mask, host, &mut env, &mut garage);
         fe.changed = changed;
         return;
     }
@@ -377,6 +384,7 @@ fn update(
             fe.poll_startup(host, &mut env);
             fe.end_game_frame(host, &mut env);
             fe.sync_backdrop(host);
+            fe.sync_car_loading(host);
             // A menu step that stalls the frame is worth a line in the log: it says which screen it started on.
             let took = started.elapsed();
             if took >= SLOW_MENU_STEP {

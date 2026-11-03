@@ -97,6 +97,17 @@ fn game_text(label: u32) -> String {
     Text::Game(label).resolve().unwrap_or_default()
 }
 
+/// Regional crests shown in the recorded bounty grid, in spawn-point number order.
+fn place_icon(number: i32) -> Option<u32> {
+    let name = match number {
+        1..=4 => "BOUNTY_ICON_COLLEGE",
+        5..=8 => "BOUNTY_ICON_COASTAL",
+        9..=12 => "BOUNTY_ICON_ROCKPORT",
+        _ => return None,
+    };
+    Some(blackbox_feng::fe_hash_upper(name))
+}
+
 impl Page for BountyPage {
     fn len(&self) -> usize {
         self.rows.len()
@@ -110,7 +121,7 @@ impl Page for BountyPage {
     }
 
     fn icon(&self, at: usize) -> Option<u32> {
-        self.rows.get(at).map(|_| blackbox_feng::fe_hash_upper("MAIN_ICON_BOUNTY"))
+        place_icon(self.rows.get(at)?.number)
     }
 
     fn name(&self, at: usize) -> String {
@@ -145,3 +156,7 @@ impl Page for BountyPage {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "bounty_playtest.rs"]
+mod playtest;

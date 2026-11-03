@@ -99,7 +99,12 @@ pub(crate) fn logo_textures(assets: &crate::ui::UiAssets, car: &PoolCar) -> (u32
     };
     let own_maker = car.manufacturer.and_then(text::manufacturer).and_then(|name| car_title::logo_of(assets, name));
     let maker = own_maker.unwrap_or_else(|| logo(text::manufacturer_texture(car), "GENERIC_LOGO_128"));
-    (maker, logo(text::model_texture(car), "GENERIC_LOGO_256"))
+    let brand = car.manufacturer.and_then(text::manufacturer).unwrap_or_default();
+    let title = crate::car_names::display(&car.folder, brand, &[], &crate::i18n::game).0;
+    let native = text::model_texture(car);
+    let key = native.strip_prefix("SECONDARY_LOGO_").unwrap_or(&car.name);
+    let model = car_title::model_picture(assets, &[key, &car.folder], &title, brand);
+    (maker, model)
 }
 
 fn show_car(cx: &mut Cx, car: &PoolCar, pool: &CarPool) {

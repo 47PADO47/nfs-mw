@@ -6,6 +6,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 mod app;
 mod audio;
+mod car_names;
 mod career;
 mod cli;
 mod commands;

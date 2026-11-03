@@ -16,15 +16,16 @@ use nfsmw_career::economy::markers::MarkerKind;
 use nfsmw_career::stable::CareerRecord;
 
 use super::car_lot::{
-    ACCELERATION_STRIPS, CAR_NAME, HANDLING_STRIPS, Item, Key, SELL_BUTTON, Start, TOP_SPEED_STRIPS, Tab, items,
-    sell_start, set_bar, set_text, show, shown_fractions,
+    ACCELERATION_STRIPS, HANDLING_STRIPS, Item, Key, SELL_BUTTON, TOP_SPEED_STRIPS, Tab, items, set_bar, show,
+    shown_fractions,
 };
 use super::car_select_view::{LABEL_RELEASE, LABEL_USE_MARKER, draw_car, hide_header, hide_lot_lines, set_title};
 use crate::career::{Career, CareerHandle};
 use crate::frontend::confirm::{Alert, Confirm};
 use crate::frontend::ids::screen;
 use crate::frontend::logic::QuitTo;
-use crate::frontend::logic::{Args, Command, Cx, ScreenLogic, Sub};
+use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic, Sub};
+use crate::frontend::look::{CarLook, Look};
 use crate::i18n::fmt::grouped;
 use crate::ui::Text;
 
@@ -47,9 +48,8 @@ const TEXT_FEE_QUESTION: u32 = 0xcad5_722e;
 const TEXT_ADD_STRIKE: u32 = 0x0ceb_da20;
 const TEXT_STRIKE_MAX: u32 = 0xbcae_8539;
 
-/// The pad button 4 and 5 messages (`PAD_BUTTON0` + n): the strike marker and the sale.
+/// The career mode's strike marker action. Sale belongs to the lot mode.
 const PAD_STRIKE_MARKER: u32 = PAD_BUTTON0 + 4;
-const PAD_SELL: u32 = PAD_BUTTON0 + 5;
 
 /// The record of the car with this handle.
 fn record_of(career: &Career, handle: u32) -> Option<&CareerRecord> {
@@ -88,6 +88,7 @@ fn signature(career: &Career, rows: &[Item], shown: Option<u32>) -> u64 {
     let mut sig = u64::from(career.settings.cash);
     sig = sig.rotate_left(7) ^ u64::from(career.settings.car_handle);
     sig = sig.rotate_left(7) ^ rows.len() as u64;
+    sig = sig.rotate_left(1) ^ u64::from(crate::frontend::quick_play::pool::cars().is_some());
     for kind in [MarkerKind::JailFree, MarkerKind::ExtraStrike, MarkerKind::ImpoundRelease] {
         sig = sig.rotate_left(5) ^ u64::from(career.markers.count(kind));
     }
@@ -167,8 +168,11 @@ impl CareerCarSelectLogic {
         });
         hide_lot_lines(cx);
         set_title(cx);
-        set_text(cx, CAR_NAME, row.map(|item| item.name.clone()).unwrap_or_default());
-        show(cx, SELL_BUTTON, true);
+        super::car_lot_look::identity(
+            cx,
+            &super::car_lot_look::Shown { len: rows.len(), cursor: self.cursor, row, cash: career.settings.cash },
+        );
+        show(cx, SELL_BUTTON, false);
         let fractions = shown_fractions(career, row);
         set_bar(cx, &TOP_SPEED_STRIPS, fractions[0]);
         set_bar(cx, &HANDLING_STRIPS, fractions[1]);
@@ -188,10 +192,11 @@ impl CareerCarSelectLogic {
         draw_car(cx, &info, self.entry, career.settings.cash, strike_markers, release_markers);
     }
 
-    /// Moves the shown car one step (no wrap) and makes it the current car.
+    /// Moves the shown car one step, wrapping from the last car to the first and back as the original's switcher does,
+    /// and makes it the current car.
     fn move_car(&mut self, cx: &mut Cx, forward: bool) {
         let len = self.rows().len();
-        let cursor = super::car_lot::step(self.cursor, len, forward);
+        let cursor = wrap_step(self.cursor, len, forward);
         if cursor == self.cursor {
             return;
         }
@@ -267,16 +272,6 @@ impl CareerCarSelectLogic {
             .flatten();
         if let Some(command) = command {
             cx.send(command);
-        }
-    }
-
-    fn sell(&self, cx: &mut Cx) {
-        let Some(handle) = self.shown() else { return };
-        let start = CareerHandle::shared().with(|career| sell_start(career, handle)).unwrap_or(Start::Nothing);
-        match start {
-            Start::Nothing => {}
-            Start::Refused(text) => cx.send(Command::Alert(notice(text))),
-            Start::Ask(confirm) => cx.send(Command::Confirm(confirm)),
         }
     }
 
@@ -367,6 +362,7 @@ pub fn use_strike_marker(career: &mut Career, handle: u32) -> Result<(), Text> {
 
 impl ScreenLogic for CareerCarSelectLogic {
     fn start(&mut self, cx: &mut Cx) {
+        cx.rt.post_to_package(cx.package, super::car_select_view::LABEL_TITLE);
         let (original, cursor) = self
             .read(|career| {
                 let current = career.settings.car_handle;
@@ -396,12 +392,11 @@ impl ScreenLogic for CareerCarSelectLogic {
             PAD_ACCEPT => self.accept(cx),
             PAD_BACK => self.back(cx),
             PAD_STRIKE_MARKER => self.strike_marker(cx),
-            PAD_SELL => self.sell(cx),
             _ => {}
         }
     }
 
-    /// An action (a release, a sale, a marker) changes the career after the question closed: the next frame redraws.
+    /// A release or marker changes the career after the question closed: the next frame redraws.
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
         if !self.checked {
             self.checked = true;
@@ -421,8 +416,68 @@ impl ScreenLogic for CareerCarSelectLogic {
             self.fill(cx);
         }
     }
+
+    fn look(&self) -> Option<Look> {
+        let handle = self.shown()?;
+        self.read(|career| Look::SafeHouse(CarLook::of_handle(career, handle)))
+    }
+
+    fn pose(&self) -> Option<&'static str> {
+        Some("career_car_select")
+    }
+
+    fn footer(&self) -> Footer {
+        self.read(|career| {
+            let handle = self.list(career).get(self.cursor).and_then(|row| match row.key {
+                Key::Owned(handle) => Some(handle),
+                Key::Lot(_) => None,
+            });
+            let record = handle.and_then(|handle| record_of(career, handle));
+            let accept = record.map(|record| {
+                super::car_select_view::header(
+                    &car_select_info(record, handle.map_or(0, |handle| cost_of(career, handle))),
+                    CarSelectEntry::Plain,
+                    career.settings.cash,
+                    career.markers.count(MarkerKind::ImpoundRelease) > 0,
+                )
+                .accept
+            });
+            let marker = !self.coop
+                && record.is_some_and(|record| strike_marker(record, &career.markers) == StrikeMarker::Offer);
+            let back = self.coop || !record_of(career, self.original).is_some_and(back_is_blocked);
+            Footer::CareerCarSelect { accept, marker, back }
+        })
+        .unwrap_or(Footer::BackOnly)
+    }
 }
 
 #[cfg(test)]
 #[path = "car_select_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "car_select_playtest.rs"]
+mod playtest;
+
+/// One step through `len` cars that wraps at both ends. An empty list keeps 0.
+fn wrap_step(cursor: usize, len: usize, forward: bool) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    if forward {
+        return (cursor + 1) % len;
+    }
+    (cursor + len - 1) % len
+}
+
+#[cfg(test)]
+mod wrap_tests {
+    #[test]
+    fn the_car_switcher_wraps_both_ways() {
+        assert_eq!(super::wrap_step(8, 9, true), 0, "after the ninth car comes the first");
+        assert_eq!(super::wrap_step(0, 9, false), 8, "before the first car comes the last");
+        assert_eq!(super::wrap_step(3, 9, true), 4);
+        assert_eq!(super::wrap_step(0, 1, true), 0, "a single car stays put");
+        assert_eq!(super::wrap_step(0, 0, false), 0);
+    }
+}

@@ -99,9 +99,19 @@ fn batch12_garage_loading_stays_visible_and_back_requires_release() {
         fe.menu_garage_requested = true;
         fe.latch = true;
         fe.garage_loading_frame(0.2, blackbox_feng::runtime::pad::BACK, host, env, &mut overlay);
-        assert_eq!(fe.screens.top(), Some(screen::LOADING));
+        assert_eq!(fe.screens.top(), Some(crate::frontend::garage_ui::Page::Manager.package()));
         assert!(fe.menu_garage_requested && host.hold_capture);
         fe.garage_loading_frame(0.2, 0, host, env, &mut overlay);
+        let text = crate::i18n::text("garage-preview-loading-catalog", &crate::i18n::Args::new());
+        for device in [crate::input::InputDevice::Keyboard, crate::input::InputDevice::Xbox] {
+            let pages = fe.screens.presented(&crate::input::Bindings::default(), device);
+            let tree = &pages.last().unwrap().tree;
+            assert!(
+                tree.nodes.iter().any(|node| node.text.as_deref() == Some(text.as_str())),
+                "metadata loading stays within the native My Cars caption"
+            );
+            assert!(tree.nodes.iter().any(|node| node.visible && node.text.as_deref() == Some("Back")));
+        }
         fe.garage_loading_frame(0.2, blackbox_feng::runtime::pad::BACK, host, env, &mut overlay);
         assert!(!fe.menu_garage_requested && !overlay.menu_requested);
         assert_eq!(fe.screens.top(), Some(screen::MAIN_MENU));
