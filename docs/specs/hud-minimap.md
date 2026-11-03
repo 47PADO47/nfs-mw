@@ -123,8 +123,10 @@ decompilation **[inferred]**.
 Two bytes of the gameplay settings choose the minimap per situation: `ExploringMiniMapMode` (free roam, default 0)
 and `RacingMiniMapMode` (in a race, default 1). Value 0 = fixed (north up, section 4 step 7), 1 = rotating,
 2 = no minimap (the HUD feature is not even enabled). The options menu cycles through the three. Free roam
-therefore starts with the **fixed** minimap. **[decomp]** The rewrite has one setting, `minimap = fixed | rotating |
-off` (config file, `NFSMW_MINIMAP`, console `set minimap`), fixed by default.
+therefore starts with the **fixed** minimap. **[decomp]** The rewrite retains `minimap = fixed | rotating | off` as a legacy/global control (config file,
+`NFSMW_MINIMAP`, console `set minimap`). Independent persisted `free_roam_map_mode` and `race_map_mode` choices
+now select the context-specific mode. Their defaults, layering and compatibility are defined in
+[context minimap options](context-minimap-options.md).
 
 ## 7. Blips
 

@@ -49,7 +49,6 @@ options-wind-variant-original = Original
 options-speed-units = Speed units
 options-speed-units-metric = Metric (km/h)
 options-speed-units-imperial = Imperial (mph)
-options-minimap = Minimap
 options-minimap-fixed = Fixed
 options-minimap-rotating = Rotating
 options-turn-signals = Turn Signals
@@ -93,3 +92,11 @@ options-mods-press = Press
 # A mod's switch when the next start changes what this run did. $id is the mod's id.
 options-mods-restart-to-unload = { $id } (restart to unload)
 options-mods-restart-to-load = { $id } (restart to load)
+
+options-free-roam-map-mode = Free Roam Map Mode
+options-race-map-mode = Race Map Mode
+
+options-game-music-volume = Game Music Volume
+
+options-autosave = Autosave
+options-autosave-save-failed = Could not save the Autosave setting. Your previous setting is still active.

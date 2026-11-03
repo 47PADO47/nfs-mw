@@ -5,8 +5,38 @@ use std::str::FromStr;
 
 use blackbox_minimap::Orientation;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MinimapContext {
+    FreeRoam,
+    Race,
+}
+
+impl super::Settings {
+    pub fn minimap_mode(&self, context: MinimapContext) -> MinimapMode {
+        match context {
+            MinimapContext::FreeRoam => self.free_roam_map_mode.unwrap_or(self.minimap),
+            MinimapContext::Race => self.race_map_mode.unwrap_or(self.minimap),
+        }
+    }
+
+    /// The legacy/global controls still change both situations together.
+    pub fn set_global_minimap(&mut self, mode: MinimapMode) {
+        self.minimap = mode;
+        self.free_roam_map_mode = Some(mode);
+        self.race_map_mode = Some(mode);
+    }
+}
+
+impl super::Partial {
+    pub fn set_global_minimap(&mut self, mode: MinimapMode) {
+        self.minimap = Some(mode);
+        self.free_roam_map_mode = Some(mode);
+        self.race_map_mode = Some(mode);
+    }
+}
+
 /// The original keeps the minimap's mode per situation (free roam and races) as a player setting with the values
-/// 0 fixed, 1 rotating, 2 off; free roam starts fixed. This rewrite has one setting for the free roam it has.
+/// 0 fixed, 1 rotating, 2 off; free roam starts fixed and races start rotating.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum MinimapMode {
     /// North is up the screen and the arrow turns.
@@ -76,3 +106,7 @@ mod tests {
         assert_eq!(MinimapMode::Off.orientation(), None);
     }
 }
+
+#[cfg(test)]
+#[path = "minimap_context_tests.rs"]
+mod context_tests;

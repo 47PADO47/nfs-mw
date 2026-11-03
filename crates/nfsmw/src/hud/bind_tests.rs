@@ -406,8 +406,16 @@ fn gauge_colors_survive_script_updates_preserve_alpha_and_restore_authored_rgb()
     binding.finish_frame(&mut rt, &state);
     let tree = rt.tree(id);
     assert_eq!(tree.nodes.iter().find(|n| n.index == needle.index).unwrap().colour, [100, 220, 30, 123]);
-    let digits = rt.find(id, fe_hash_upper("SPEED_DIGIT_1")).unwrap();
-    assert_eq!(&tree.nodes.iter().find(|n| n.index == digits.index).unwrap().colour[..3], &[80, 180, 250]);
+    let gear = rt.find(id, fe_hash_upper("3rdPersonGear")).unwrap();
+    assert_ne!(&tree.nodes.iter().find(|n| n.index == gear.index).unwrap().colour[..3], &[80, 180, 250]);
+    for name in ["SPEED_DIGIT_1"] {
+        let object = rt.find(id, fe_hash_upper(name)).unwrap();
+        assert_ne!(&tree.nodes.iter().find(|n| n.index == object.index).unwrap().colour[..3], &[80, 180, 250]);
+    }
+    for name in ["TAC_Lines_7500", "3rdPersonSpeedUnits"] {
+        let object = rt.find(id, fe_hash_upper(name)).unwrap();
+        assert_eq!(&tree.nodes.iter().find(|n| n.index == object.index).unwrap().colour[..3], &[80, 180, 250]);
+    }
     state.gauge_colors = [None; 3];
     binding.apply(&mut rt, &state);
     rt.update(0.1);

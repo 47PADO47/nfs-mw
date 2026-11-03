@@ -10,6 +10,13 @@ pub struct WheelOptions {
     pub h_shifter: bool,
 }
 
+impl super::Settings {
+    /// What a steering wheel's extra controls are switched on.
+    pub fn wheel_options(&self) -> WheelOptions {
+        WheelOptions { manual_clutch: self.manual_clutch, h_shifter: self.h_shifter }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

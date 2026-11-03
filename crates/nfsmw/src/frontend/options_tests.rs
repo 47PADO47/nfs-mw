@@ -61,9 +61,9 @@ fn toggles_flip_and_cycle_and_record_the_change() {
 }
 #[test]
 fn every_category_has_rows() {
-    assert_eq!(rows(Category::Audio, &crate::settings::test_caps::native()).len(), 5);
+    assert_eq!(rows(Category::Audio, &crate::settings::test_caps::native()).len(), 6);
     assert!(rows(Category::Video, &crate::settings::test_caps::native()).len() < 40);
-    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 10);
+    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 12);
     assert_eq!(rows(Category::Player, &crate::settings::test_caps::native()).len(), 3);
     assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 8);
     assert_eq!(rows(Category::Discord, &crate::settings::test_caps::native()).len(), 3);
@@ -137,14 +137,18 @@ fn smoke_colour_rows_cycle_both_ways_and_record_only_their_selection() {
 }
 #[test]
 fn minimap_menu_cycles_both_directions_and_records_the_selection() {
+    use crate::settings::MinimapContext::{FreeRoam, Race};
     let (mut s, mut changes) = (defaults(), Partial::default());
+    let race = s.minimap_mode(Race);
     for mode in [MinimapMode::Rotating, MinimapMode::Off, MinimapMode::Fixed] {
-        assert!(Setting::Minimap.step(&mut s, &mut changes, true));
-        assert_eq!((s.minimap, changes.minimap), (mode, Some(mode)));
+        assert!(Setting::ContextMinimap(FreeRoam).step(&mut s, &mut changes, true));
+        assert_eq!((s.free_roam_map_mode, changes.free_roam_map_mode), (Some(mode), Some(mode)));
+        assert_eq!(s.minimap_mode(Race), race);
     }
-    assert!(Setting::Minimap.step(&mut s, &mut changes, false));
-    assert_eq!(s.minimap, MinimapMode::Off);
+    assert!(Setting::ContextMinimap(FreeRoam).step(&mut s, &mut changes, false));
+    assert_eq!(s.free_roam_map_mode, Some(MinimapMode::Off));
 }
+
 #[test]
 fn discord_toggles_record_their_changes_and_time_played_is_dimmed_while_discord_is_off() {
     let (mut s, mut changes) = (defaults(), Partial::default());
@@ -162,4 +166,50 @@ fn discord_toggles_record_their_changes_and_time_played_is_dimmed_while_discord_
     Setting::DiscordTimePlayed.step(&mut s, &mut changes, true);
     assert_eq!((s.discord_time_played, changes.discord_time_played), (false, Some(false)));
     assert_eq!(Setting::DiscordTimePlayed.data(&s), Data::Label(LABEL_OFF));
+}
+
+#[test]
+fn batch18_gameplay_map_rows_edit_contexts_independently() {
+    use crate::settings::MinimapContext::{FreeRoam, Race};
+    let offered = rows(Category::Gameplay, &crate::settings::test_caps::native());
+    assert!(offered.iter().any(|row| row.setting == Setting::ContextMinimap(FreeRoam)));
+    assert!(offered.iter().any(|row| row.setting == Setting::ContextMinimap(Race)));
+    let (mut s, mut changes) = (defaults(), Partial::default());
+    s.free_roam_map_mode = Some(MinimapMode::Fixed);
+    s.race_map_mode = Some(MinimapMode::Off);
+    assert!(Setting::ContextMinimap(FreeRoam).step(&mut s, &mut changes, true));
+    assert_eq!(s.free_roam_map_mode, Some(MinimapMode::Rotating));
+    assert_eq!(s.race_map_mode, Some(MinimapMode::Off));
+    assert_eq!(changes.free_roam_map_mode, Some(MinimapMode::Rotating));
+    assert_eq!(changes.race_map_mode, None);
+    assert_eq!(changes.minimap, None);
+    s.set_global_minimap(MinimapMode::Off);
+    changes.set_global_minimap(MinimapMode::Off);
+    assert_eq!(s.free_roam_map_mode, Some(s.minimap));
+    assert_eq!(s.race_map_mode, Some(s.minimap));
+}
+
+#[test]
+fn batch18_music_rows_edit_only_the_selected_context() {
+    let mut settings = Settings::from(Partial::default());
+    let mut changes = Partial::default();
+    let caps = crate::settings::test_caps::native();
+    let rows = rows(Category::Audio, &caps);
+    for setting in [Setting::MenuMusicVolume, Setting::GameMusicVolume] {
+        assert!(rows.iter().any(|row| row.setting == setting), "both independent Audio controls are reachable");
+    }
+    Setting::MenuMusicVolume.step(&mut settings, &mut changes, false);
+    assert_eq!((settings.menu_music_volume, settings.game_music_volume), (Percent(50), Percent(60)));
+    assert_eq!(
+        (changes.menu_music_volume, changes.game_music_volume, changes.music_volume),
+        (Some(Percent(50)), None, None)
+    );
+    Setting::GameMusicVolume.step(&mut settings, &mut changes, true);
+    assert_eq!((settings.menu_music_volume, settings.game_music_volume), (Percent(50), Percent(70)));
+}
+
+#[test]
+fn batch18_gameplay_offers_a_profile_autosave_control() {
+    let caps = crate::settings::test_caps::native();
+    assert!(rows(Category::Gameplay, &caps).iter().any(|r| r.title == Title::Key("options-autosave")));
 }
