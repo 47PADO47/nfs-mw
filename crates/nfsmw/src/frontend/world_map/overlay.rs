@@ -217,12 +217,13 @@ mod tests {
         assert_eq!(car(CHECKPOINT, false).icon(), "Minimap_Icon_Circuit.tga");
         assert_eq!(car(HELICOPTER, false).icon(), "Helicopter_Minimap_Icon.tga");
         assert_eq!(car(RACER, false).icon(), "Minimap_Icon_Car.tga");
-        // A step lasts a tenth of a second and the cycle is two steps each of blue, grey, red and grey.
-        let chase = |clock| car(COP, true).rgba(clock);
+        // A step lasts a 60th of a second and the cycle is three steps blue, one grey, three red and two grey.
+        let chase = |step: f32| car(COP, true).rgba((step + 0.5) / 60.0);
         assert_eq!(chase(0.0), [0, 0, 255, 255], "blue");
-        assert_eq!(chase(0.25), [204, 204, 204, 255], "grey");
-        assert_eq!(chase(0.45), [0xa0, 0, 0, 255], "red");
-        assert_eq!(chase(0.65), [204, 204, 204, 255], "grey again");
+        assert_eq!(chase(3.0), [204, 204, 204, 255], "grey");
+        assert_eq!(chase(4.0), [0xa0, 0, 0, 255], "red");
+        assert_eq!(chase(7.0), [204, 204, 204, 255], "grey again");
+        assert_eq!(chase(9.0), [0, 0, 255, 255], "blue again after nine steps");
     }
 
     #[test]

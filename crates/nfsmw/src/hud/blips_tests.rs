@@ -241,8 +241,8 @@ fn the_light_bar_moves_with_time_not_with_frames() {
         binding.apply(&mut rt, &state);
     }
     assert_eq!(cop_colour(&rt, id), [0, 0, 255, 255]);
-    // 0.25 s is tick 2, the third step: grey.
-    binding.advance_blips(0.25);
+    // 3.5 frames at 60 fps is tick 3, the fourth step: grey.
+    binding.advance_blips(3.5 / 60.0);
     binding.apply(&mut rt, &state);
     assert_eq!(cop_colour(&rt, id), [204, 204, 204, 255]);
 }

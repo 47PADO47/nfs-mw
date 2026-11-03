@@ -63,13 +63,13 @@ pub fn tint(kind: MarkKind, variant: u8, tick: u32, skin: &Skin) -> Option<[u8; 
     }
 }
 
-/// The cop's light bar at `step` (1 to 8): two steps of the info colour, two of the minor line tone, two of danger, two
-/// of the minor tone (the cycle of the game's own bar, in the theme's colours).
+/// The cop's light bar at `step` (0 to 8): three steps of the info colour, one of the minor line tone, three of danger,
+/// two of the minor tone (the cycle of the game's own bar, in the theme's colours).
 pub fn light_bar(step: u8, skin: &Skin) -> [u8; 4] {
-    let key = match step {
-        1 | 2 => token_keys::INFO,
-        5 | 6 => token_keys::DANGER,
-        _ => token_keys::LINE_MINOR,
+    let key = match crate::hud::cop_bar(step) {
+        crate::hud::CopBar::Blue => token_keys::INFO,
+        crate::hud::CopBar::Red => token_keys::DANGER,
+        crate::hud::CopBar::Grey => token_keys::LINE_MINOR,
     };
     Tokens::colour_in(skin, key)
 }

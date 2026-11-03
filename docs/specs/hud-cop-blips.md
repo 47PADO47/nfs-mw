@@ -96,14 +96,16 @@ a filter toggle. Its car icons flash on their own counter (no in-pursuit test); 
   no police. The standing roadblocks are listed too, as the rewrite's own icon.
 - **Mark:** `TrafficWorld::update_budget` marks the chase cops within the level's engagement radius outside cool-down,
   and the roadblock cars within 300 m at any time (section 2 item 4). Only the chase cops count for the backup budget.
-- **Colour:** `crates/nfsmw/src/hud/cop_blip.rs`: steady `#CCCCCC` when not active, else the light bar.
+- **Colour:** `crates/nfsmw/src/hud/cop_blip.rs`: steady `#CCCCCC` when not active, else the nine-step light bar,
+  one step per look tick of 1/60 s (`hud::TICK_SECONDS`): the original's per-frame step at 60 frames per second. The
+  world map's moving cars use the same cycle. The Custom theme's map keeps its own calmer 0.1 s step.
 - **Helicopter icon:** the layout (`hud/elements.rs`) treats the helicopter group as a minimap root, so its picture and
   blades show with it; the blip binding hides and places the group itself. The minimap shows the helicopter whenever it
   flies in the pursuit. The Custom theme's map does too (`ui/theme/custom/map/marks.rs`;
   [custom-hud/fair-knowledge.md](custom-hud/fair-knowledge.md) rule 1).
 - **Deviations, kept on purpose or not done yet:**
-  - The light bar runs an eight-step cycle (two blue, two grey, two red, two grey) on a 0.1 s tick, not the nine-state
-    per-update cycle: the original's update rate is not measured, and per-frame stepping flickered. **[open]**
+  - The light bar steps at a fixed 60 Hz. The original steps once per rendered frame, so its flash is faster on a faster
+    display (2.4 times at 144 Hz); the rewrite does not tie it to the frame rate.
   - A car icon is drawn only inside the disc (`Visibility::InZone`), at the user's request; the original pins engaged cars
     to the rim. **[user]**
   - Slots go only to drawn icons; the original's eight-car cut-off (which can also drop the helicopter) is not copied.

@@ -14,7 +14,7 @@ use glam::Vec2;
 use super::icons;
 use super::marks::{Mark, MarkKind};
 use super::view::{MapView, pin};
-use crate::hud::{NavRoute, RaceRoute, TICK_SECONDS};
+use crate::hud::{NavRoute, RaceRoute};
 use crate::ui::theme::custom::tokens::fade;
 
 /// The route's width at scale 1, HUD units.
@@ -49,14 +49,18 @@ pub struct Art<'a> {
 }
 
 impl Art<'_> {
-    /// The light bar's tick (`hud::TICK_SECONDS` long).
+    /// The light bar's tick ([`LIGHT_BAR_TICK_SECONDS`] long).
     fn tick(&self) -> u32 {
         if self.reduced {
             return 0;
         }
-        (self.elapsed_s.max(0.0) / TICK_SECONDS) as u32
+        (self.elapsed_s.max(0.0) / LIGHT_BAR_TICK_SECONDS) as u32
     }
 }
+
+/// The theme's own, calmer light bar step, seconds: the game's minimap steps once per frame at 60 fps
+/// (`hud::TICK_SECONDS`), which the theme's map does not copy.
+const LIGHT_BAR_TICK_SECONDS: f32 = 0.1;
 
 /// The next checkpoint's icon is this much larger than the others, so it stands out among the checkpoints.
 const NEXT_GAIN: f32 = 1.25;

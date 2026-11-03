@@ -95,7 +95,7 @@ pub use blip_styles::{
     SAFE_HOUSE_TINT,
 };
 pub use cards::{cards_routed, set_cards_routed};
-pub use cop_blip::{colour as cop_colour, step_at as cop_step_at};
+pub use cop_blip::{Bar as CopBar, bar as cop_bar, colour as cop_colour, step_at as cop_step_at};
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 pub use leaders::{
     Entry as LeaderEntry, LABEL_BUSTED, LABEL_KMH, LABEL_KNOCKED_OUT, LABEL_MPH, LeaderRow, Leaders, game_word,
