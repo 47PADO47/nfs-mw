@@ -36,8 +36,6 @@ pub(super) use roads::TargetRoad;
 /// Cops think every eighth physics step.
 pub const THINK_STEPS: u32 = 8;
 pub const THINK_PERIOD: f32 = THINK_STEPS as f32 / 60.0;
-/// The path to the player is searched again this often, seconds.
-const REPATH_PERIOD: f32 = 1.0;
 /// A cop has the skill of its constructor value.
 const SKILL: f32 = 1.0;
 /// The look-ahead follows the requested speed: 30 m at rest to 100 m at 100 m/s.
@@ -97,7 +95,6 @@ pub struct CopState {
     think_delta: f32,
     road_nos: road_nos::State,
     pub stuck: StuckDetector,
-    repath: f32,
     last_find: Vec3,
     last_speed: f32,
     path_state: Option<PathState>,
@@ -170,7 +167,6 @@ impl CopState {
             think_delta: THINK_PERIOD,
             road_nos: road_nos::State::default(),
             stuck: StuckDetector::default(),
-            repath: 0.0,
             last_find: Vec3::ZERO,
             last_speed: speed,
             path_state: None,
@@ -201,7 +197,6 @@ impl CopState {
             return;
         }
         self.environment.head_on_support = enabled;
-        self.repath = 0.0;
         self.road_nos.leave();
         self.close.leave();
     }
@@ -269,7 +264,6 @@ impl CopState {
             }
             self.road_nos.leave();
             self.close.leave();
-            self.repath = 0.0;
             return CopThink { target: target.aim.unwrap_or(target.body.position), speed: car.forward_speed.abs() };
         }
         let road_gap = road.as_ref().map_or(0.0, |road| road.gap);
@@ -325,7 +319,6 @@ impl CopState {
                 *nav = own;
                 nav.enable_trail(ctx.net);
             }
-            self.repath = 0.0;
             self.governor = SpeedGovernor::begin(car.forward_speed);
             self.last_speed = car.forward_speed;
             self.road_nos.begin();
@@ -338,16 +331,14 @@ impl CopState {
             true => target.body.position,
             false => road.as_ref().map_or(target.body.position, |r| r.seek),
         };
-        self.repath -= self.think_delta;
         let to_target = Vec3::new(goal.x - car.body.position.x, 0.0, goal.z - car.body.position.z);
-        if self.repath <= 0.0 || nav.dead_end {
-            self.repath = REPATH_PERIOD;
-            self.last_find = goal;
-            let state = nav.find_path_to(net, index, goal, None, PathType::Cop);
-            self.path_state = Some(state);
-            if state == PathState::NoWay {
-                nav.dead_end = false;
-            }
+        // The original asks for a new search on every think that has none pending; ours completes at once
+        // (spec `ai-pursuit-obstacle-selection.md`, path refresh).
+        self.last_find = goal;
+        let state = nav.find_path_to(net, index, goal, None, PathType::Cop);
+        self.path_state = Some(state);
+        if state == PathState::NoWay {
+            nav.dead_end = false;
         }
         // Keep the cursor on the forward tangent's look-ahead circle. Its
         // distance alone cannot tell whether the car has already passed it.
@@ -365,7 +356,6 @@ impl CopState {
             ) {
                 nav.preserve_offset_at(net, car.body.position);
                 nav.enable_trail(net);
-                self.repath = 0.0;
             }
         }
         let advance = motion::nav_advance(nav.position - car.body.position, nav.forward, look);
@@ -374,7 +364,15 @@ impl CopState {
         }
         // The corridor set: the target too, unless this cop holds a formation slot.
         let occlusion = nav.trail().and_then(|trail| {
-            update_occluded_position(trail, &car.body, nav.position, traffic.iter().copied(), false, nav.half_width)
+            update_occluded_position(
+                trail,
+                &car.body,
+                nav.position,
+                nav.forward,
+                traffic.iter().copied(),
+                false,
+                nav.half_width,
+            )
         });
         let curvature = match (&occlusion, nav.trail()) {
             (Some(o), Some(trail)) => {

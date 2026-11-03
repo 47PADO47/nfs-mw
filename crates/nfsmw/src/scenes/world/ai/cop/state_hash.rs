@@ -10,7 +10,6 @@ impl CopState {
         self.road_nos.hash_into(hash);
         self.governor.visit_state(&mut |word| hash.u32(word));
         self.stuck.visit_state(&mut |word| hash.u32(word));
-        hash.f32(self.repath);
         hash.vec3(self.last_find);
         hash.f32(self.last_speed);
         hash.bytes(format!("{:?}", self.path_state).as_bytes());
