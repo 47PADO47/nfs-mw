@@ -24,6 +24,12 @@
   decompiled C had the helicopter branch wrong) and the pursuit's engagement flag and in-pursuit state in the CC0 decomp,
   read for behaviour; the installed `HUD_SingleRace.fng` for the helicopter group's place in the icon group. The old
   reading of this page (a "mode 3" and category masks) was the world map's code and was corrected in the spec.
+- **Stock-game capture (2026-11-03):** a recording of the original game (stock install, one pursuit from heat 1 to 5,
+  about 14.5 minutes, 20 samples a second) of the pursuit state, the police vehicles' places and the minimap's police
+  icon objects (their hidden flags and the flash counter). It settled the engagement radius, the roadblock's own
+  reach, the flash rate (once per rendered frame) and when the helicopter and its cone show
+  ([hud-cop-blips.md](../specs/hud-cop-blips.md) sections 2, 3 and 5). Only the measured behaviour is in the spec; the
+  recording and its tools are not part of the repository.
 - **Implemented:** 2026-10-09, from the spec only (the decompiled code was not open while writing the Rust).
 - **Checked against the game by:** unit tests of the projection, the tile choice, the scroll and the blip rule
   (constructed numbers, hand-checked against the formulas); `#[ignore]` tests that read the tiles and the

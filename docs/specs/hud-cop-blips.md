@@ -10,7 +10,8 @@ in which colour, and where. The minimap itself (the picture, the placement rule,
   Provenance: [provenance/hud-minimap.md](../provenance/hud-minimap.md).
 - **Evidence tags** as in [docs/README.md](../README.md#evidence-tags). **[binary]** = read in the executable;
   **[inferred]** = a reading that a capture has not confirmed; **[package]** = the installed HUD package; **[user]** =
-  reported by the user from play.
+  reported by the user from play; **[capture]** = seen in a stock-game capture (a recording of the original game's
+  pursuit state and the icons' hidden flags, about 14.5 minutes from heat 1 to heat 5).
 - **Correction (2026-11-02).** An earlier version of this page described the world map's code (the pause map's Pursuit
   view, section 6) as the HUD minimap's. The HUD minimap has its own update, described in sections 1 to 5.
 
@@ -35,13 +36,19 @@ Each HUD update the minimap runs one police pass. **[binary]**
    wreck stays in the pass.
 3. **A car** gets an icon only if it has come within the pursuit level's full-engagement radius of the player during
    this pursuit. The pursuit marks a car so on every update while it is within that radius (3D distance; 150 m when
-   the level gives none) and the pursuit is not in cool-down; roadblock cars within the radius are marked too. The mark
-   is cleared only when the car is reset for a new life (respawned or reused), not when it wrecks, flees or leaves the
-   pursuit. **[binary]** for the gate, **[inferred]** from the decomp for when the mark is set and cleared. Cars that
-   never came that close (patrols, new searchers spawned during cool-down) are not shown.
-4. **The helicopter** is shown whenever it is an active vehicle of the pursuit and the gate is open. Neither the
+   the level gives none, 50 m at heats 1 to 7 in the stock data) and the pursuit is not in cool-down. The mark is
+   cleared only when the car is reset for a new life (respawned or reused), not when it wrecks, flees or leaves the
+   pursuit. **[binary]** for the gate, **[inferred]** from the decomp for when the mark is set and cleared,
+   **[capture]** for the radius: with these rules the number of shown car icons matched the capture in 98 % of the
+   samples (30 m: 84 %, 75 m: 90 %); a chase car stayed hidden until it came within about 50 m. Cars that never came
+   that close (patrols, new searchers spawned during cool-down) are not shown.
+4. **A roadblock** marks its own cars within a fixed **300 m** of the player, whatever the level's radius and in
+   cool-down too. The value is read from the decomp; **[capture]**: roadblocks stood 204 to 256 m from the player when they
+   appeared, and their cars showed from the first sample (a 150 m or 250 m reach would have hidden them).
+5. **The helicopter** is shown whenever it is an active vehicle of the pursuit and the gate is open. Neither the
    engagement mark nor its sight of the player gates it. It does not use a car icon and never flashes. **[binary]**
-5. At most eight cars are shown. In the original every active non-helicopter car takes one of the eight slots, shown
+   **[capture]**: shown in every sample of its two flights, chasing and leaving.
+6. At most eight cars are shown. In the original every active non-helicopter car takes one of the eight slots, shown
    or not, and the pass stops after the eighth. **[binary]**
 
 ## 3. Colour
@@ -51,6 +58,9 @@ The car's colour is set on every update. **[binary]**
 - A car that is in the pursuit (chasing, or manning a deployed roadblock) flashes its light bar from a counter that
   steps once per update and runs through nine states: three blue (`#0000FF`), one light grey (`#CCCCCC`), three dark
   red (`#A00000`), two light grey.
+- The update runs once per **rendered frame**, not per simulation step. **[capture]**: the counter moved 7 steps (mod 9)
+  per 50 ms sample in 85 % of the samples and stood still while the game was paused; a 60 Hz simulation step would
+  have moved it 3. So the cycle lasts nine frames: 150 ms at 60 frames per second.
 - A shown car that is not in the pursuit any more is **steady light grey `#CCCCCC`**, never white. That is a wrecked
   car (it leaves the pursuit when it wrecks), a car sent away and a car that fled. **[inferred]** from the in-pursuit
   state's writers.
@@ -67,7 +77,9 @@ for distance. The icon points along the vehicle's heading relative to the map. *
 
 The cone is placed with the helicopter, at the same place and heading. It plays its tracking script while the
 helicopter has seen the player within the last quarter second, otherwise its idle script; the script is set only
-when it changes. With no helicopter placed the group and the cone are hidden. **[binary]**
+when it changes. With no helicopter placed the group and the cone are hidden. **[binary]** **[capture]**: the cone was
+shown in every sample in which the helicopter's icon was, and hidden with it. The cone's two scripts are a single colour
+key each **[package]**.
 
 ## 6. The world map's Pursuit view
 
@@ -103,8 +115,9 @@ a filter toggle. Its car icons flash on their own counter (no in-pursuit test); 
 
 ## 8. Open questions
 
-1. The flash rate: whether the HUD update that steps the counter runs every frame.
-2. How long a wreck stays before it is removed (the unspawn time of a wreck out of view).
-3. A capture of a pursuit in the original with the minimap on: free roam (no icons), cops that never came close
-   (hidden), a wreck (steady grey), a fleeing cop, the helicopter at range (rim-pinned, cone states), cool-down and the
-   evade frame.
+1. How long a wreck stays before it is removed (the unspawn time of a wreck out of view).
+2. Not in the capture: the colour and the on-screen place of each icon (only the hidden flags and the flash counter were
+   recorded), the cone's two colours, a wreck's and a fleeing cop's icon, and more than eight cars at once.
+3. In the capture every police icon was also hidden, with the flash counter standing still, for 0.2 to 1 s at a time
+   (about 25 times, at all heats). The minimap was not updated then (the HUD hidden by a camera change or a menu, not
+   read further); it does not change the rules above.
