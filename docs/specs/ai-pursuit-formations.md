@@ -211,8 +211,16 @@ if no request yet:
 if request is a Leader option and a `copcross` exists (spawned or disabled): cancel it
 ```
 
-(The leader "priority" roll fires once per heat level the first time the pursuit has lasted `PriorityTime`.) The
-manager then executes a pending request (`UpdateSupportCops`):
+(The leader "priority" roll fires once per heat level the first time the pursuit has lasted `PriorityTime`.)
+
+- The sight gate comes before the check timer: while the perp is out of sight the 10 s timer keeps running down but is
+  not consumed, so an elapsed check is made on the first decision with the perp in sight again. The timer is reset
+  before the minimum-delay test, so a check that finds the delay unmet waits another 10 s.
+- `pursuit_time` is the pursuit's duration, the clock the HUD shows. It does not advance while the pursuit is cooling
+  down **[PC runtime: a recorded stock pursuit's duration stood still through each cool-down, 28 s in one of them]**,
+  so the minimum support delay, the helicopter gate and the roadblock delay all wait out the cool-down.
+
+The manager then executes a pending request (`UpdateSupportCops`):
 
 | Strategy | Cars | Goal given to each | Notes |
 |---|---|---|---|

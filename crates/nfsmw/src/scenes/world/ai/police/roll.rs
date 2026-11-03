@@ -22,24 +22,25 @@ impl Police {
         )
     }
 
-    /// The support check: after the minimum delay, the roll of this check, then the request it made.
+    /// The support check: while the player is seen, every elapsed check interval, after the minimum delay, the roll of
+    /// this check, then the request it made. The pursuit clock stands still while cooling down.
     pub(super) fn tick_support(&mut self, dt: f32, seen: bool, level: u32, random: [f32; 2]) {
         let before = self.pursuit_time;
-        self.pursuit_time += dt;
+        if self.cooldown.status() != blackbox_pursuit::CooldownStatus::CoolDown {
+            self.pursuit_time += dt;
+        }
         self.tick_rep(before, dt, seen, level);
         self.support_timer -= dt;
         // A met heavy roadblock request is active for its duration and no other ground support is rolled meanwhile.
         if self.heavy_roadblock_active(dt) {
             return;
         }
-        if self.support_busy() || self.support_requested.is_some() {
-            return;
-        }
-        if self.support_timer > 0.0 || self.pursuit_time < self.support_minimum_delay(level) {
+        // An elapsed check waits for the next sighting instead of being spent while the player is out of sight.
+        if !seen || self.support_busy() || self.support_requested.is_some() || self.support_timer > 0.0 {
             return;
         }
         self.support_timer = SUPPORT_CHECK;
-        if !seen {
+        if self.pursuit_time < self.support_minimum_delay(level) {
             return;
         }
         let Some(request) = self.support_roll(level, random) else { return };
@@ -77,5 +78,40 @@ impl Police {
     /// The ram or leader request the roll made since the last call, for the chase to take (`TrafficWorld::ask_support`).
     pub fn take_support_request(&mut self) -> Option<Request> {
         self.support_requested.take()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::tests::{sensed, view};
+    use super::*;
+    use blackbox_pursuit::CooldownStatus;
+
+    #[test]
+    fn a_check_that_elapses_out_of_sight_is_made_at_the_next_sighting() {
+        let mut police = Police::default();
+        police.begin(5);
+        police.pursuit_time = 1000.0;
+        police.tick_support(SUPPORT_CHECK + 1.0, false, 5, [0.99; 2]);
+        assert!(police.support_timer < 0.0, "an elapsed check is kept while the player is out of sight");
+        police.tick_support(0.1, true, 5, [0.99; 2]);
+        assert_eq!(police.support_timer, SUPPORT_CHECK, "and made on the first sighting");
+    }
+
+    #[test]
+    fn the_pursuit_clock_stands_still_while_cooling_down() {
+        let mut police = Police::default();
+        police.begin(5);
+        police.update(1.0, true, &view(10.0), sensed(true));
+        for _ in 0..240 {
+            police.update(0.05, true, &view(10.0), sensed(false));
+        }
+        assert_eq!(police.cooldown_status(), CooldownStatus::CoolDown);
+        let at = police.pursuit_time;
+        for _ in 0..20 {
+            police.update(0.05, true, &view(10.0), sensed(false));
+        }
+        assert_eq!(police.cooldown_status(), CooldownStatus::CoolDown);
+        assert_eq!(police.pursuit_time, at, "no pursuit time passes in the cool-down");
     }
 }

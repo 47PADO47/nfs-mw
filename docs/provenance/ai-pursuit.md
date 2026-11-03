@@ -141,3 +141,12 @@ name strings, indexed by the strategy). Float constants: `0x8eb1a8` = 150.0, `0x
 - The spawn manager constructor for its `+4` and `+8` distances (spec Q5).
 - The action vtable slots 2 to 6 (attempt, start, finish) for the ram action.
 - `FUN_00413320` (desired speed) and `FUN_00418200` (intercept).
+
+## Support check timing and the pursuit clock (2026-11-03)
+
+[ai-pursuit-formations.md](../specs/ai-pursuit-formations.md) section 6. The gate order (sight before the check timer,
+the timer reset before the minimum-delay test) was read in the PC binary (behaviour only). That the pursuit duration
+stands still during cool-down was seen in a private recording of a stock-install pursuit: the HUD duration did not move
+in any of its cool-downs. Rewrite: `Police::tick_support` (`ai/police/roll.rs`). Headless checks:
+`police::roll::tests`. Not checked: the support request times of that recording against the rewrite's rolls (the sample
+holds too few requests).
