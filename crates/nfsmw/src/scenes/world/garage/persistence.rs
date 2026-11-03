@@ -52,7 +52,7 @@ pub(super) fn save_purchase(
     profiles.write_with_extension(alias, native, "garage.toml", extension.as_bytes())
 }
 
-fn extension(
+pub(super) fn extension(
     profiles: &ProfileDir,
     alias: &str,
     handle: u32,

@@ -81,7 +81,7 @@ fn window(h: &Harness, first: usize, selected: usize) {
         "the native selection marker has actual drawn artwork"
     );
     let heading = tree.nodes.iter().find(|node| node.name_hash == 0x5e7b_09c9).unwrap();
-    assert_eq!(heading.text.as_deref(), Some(format!("Saved {selected}").as_str()));
+    assert_eq!(heading.text.as_deref(), Some(h.model.selected().unwrap().name.as_str()));
     assert_eq!(h.model.custom_slot.as_deref(), Some(format!("saved{selected}").as_str()));
     assert_eq!(h.model.draft, selection(selected), "the highlighted tile must match the current preview");
     let backing = tree.nodes.iter().find(|node| node.name_hash == 0x688a_1551).unwrap();
@@ -188,4 +188,59 @@ fn installed_garage_manager_backing_clicks_move_one_row_and_thumb_click_opens_th
     assert_eq!(h.model.draft, selection(11));
     assert_eq!(h.model.custom_slots.len(), 13);
     assert!(h.saved.is_empty());
+}
+
+#[test]
+#[ignore = "requires installed original garage packages"]
+fn batch14_my_cars_pending_preview_keeps_browsing_back_and_local_status_but_blocks_accept() {
+    use crate::garage::MenuEvent;
+    use crate::input::{Bindings, InputDevice};
+    let mut h = fixture();
+    h.model.preview_loading = true;
+    h.ui.sync(&h.model);
+    h.run(0, 3);
+    for device in [InputDevice::Keyboard, InputDevice::Xbox] {
+        let pages = h.screens.presented(&Bindings::default(), device);
+        let tree = &pages.last().unwrap().tree;
+        // R2: as in the recorded original, the caption keeps the plain car name; the empty room shows the wait.
+        let caption = tree.nodes.iter().find(|node| node.name_hash == crate::frontend::ids::ICON_TITLE).unwrap();
+        let text = caption.text.as_deref().unwrap();
+        assert!(!text.is_empty() && !text.contains("Loading"), "plain caption: {text:?}");
+        assert!(tree.nodes.iter().any(|node| node.visible && node.text.as_deref() == Some("Back")));
+        for caption in ["Customize Car", "Add New Car", "Delete Car", "Showcase"] {
+            assert!(!tree.nodes.iter().any(|node| node.visible && node.text.as_deref() == Some(caption)));
+        }
+    }
+    h.events.clear();
+    h.press(pad::ACCEPT);
+    assert_eq!(h.top(), Page::Manager.package());
+    assert!(h.events.is_empty(), "pending Accept cannot customize or save");
+    h.press(pad::RIGHT);
+    assert!(
+        h.events.iter().any(|event| matches!(event, MenuEvent::SelectSlot(id) if id == "saved12")),
+        "browsing remains available to supersede the current decode"
+    );
+    h.press(pad::BACK);
+    assert!(h.events.iter().any(|event| matches!(event, MenuEvent::Cancel)));
+    assert!(h.saved.is_empty());
+}
+
+#[test]
+#[ignore = "requires installed original garage packages"]
+fn batch14_my_cars_pending_checkout_and_leave_cannot_confirm_but_back_remains_available() {
+    for page in [Page::Checkout { backroom: false, quick: true }, Page::Leave, Page::Delete] {
+        let mut model = model();
+        model.preview_loading = true;
+        let mut h = Harness::open(Page::Main, model);
+        h.ui.request(super::super::Request::Push(page));
+        h.flush();
+        h.run(0, 90);
+        h.events.clear();
+        h.press(pad::LEFT);
+        h.press(pad::ACCEPT);
+        assert_eq!(h.top(), page.package(), "a pending Yes answer must remain on its confirmation");
+        assert!(h.saved.is_empty() && h.events.is_empty());
+        h.press(pad::BACK);
+        assert_eq!(h.top(), Page::Main.package(), "Back may still close the popup");
+    }
 }

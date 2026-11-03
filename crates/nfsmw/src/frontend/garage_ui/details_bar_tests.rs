@@ -26,3 +26,30 @@ fn installed_garage_stat_bars_preserve_base_and_place_absolute_installed_marker(
         assert_eq!(rt.position(handle).unwrap().x, 76.0, "preview changes must not move the installed-value marker");
     }
 }
+
+#[test]
+#[ignore = "requires installed native stat artwork"]
+fn batch17_lit_stat_fill_draws_above_the_dim_base_without_recoloring_artwork() {
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let catalog = crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES);
+    for name in ["CustomizePerformance.fng", "MyCarsManager.fng"] {
+        let mut rt = crate::ui::runtime();
+        let package = rt.load(catalog.find(name).unwrap().clone());
+        apply_bars(&mut rt, package, Some([0.5; 3]), Some([0.5; 3]));
+        let tree = rt.tree(package);
+        for axis in ["TOPSPEED", "HANDLING", "ACCELERATION"] {
+            let node =
+                |prefix| tree.nodes.iter().find(|n| n.name_hash == fe_hash_upper(&format!("{prefix}_{axis}"))).unwrap();
+            let base = node("BASE");
+            let fill = node("FILLBAR");
+            assert!(
+                fill.z < base.z || (fill.z == base.z && fill.index > base.index),
+                "{name}/{axis}: dim base must not paint over lit fill (base {}, fill {})",
+                base.z,
+                fill.z,
+            );
+            let original = &rt.package(package).unwrap().objects[fill.index];
+            assert_eq!(fill.colour, original.data.colour_rgba(), "keep authored lit color");
+        }
+    }
+}

@@ -101,29 +101,40 @@ fn installed_garage_manager_grid_wraps_rows_and_clamps_short_last_row_with_add_t
     }
     model.custom_slot = Some("saved0".into());
     let mut h = Harness::open(Page::Manager, model);
-    let label =
-        |h: &Harness| shown(h).nodes.iter().find(|node| node.name_hash == 0x5e7b_09c9).unwrap().text.clone().unwrap();
-    assert_eq!(label(&h), "Saved 0");
+    let selected = |h: &Harness| {
+        let tree = shown(h);
+        let text = |hash| tree.nodes.iter().find(|node| node.name_hash == hash).unwrap().text.as_deref().unwrap();
+        let index = text(0x5b80_5ee5).parse::<usize>().unwrap() - 1;
+        if text(0x5e7b_09c9) == "Add New Car" {
+            assert_eq!(index, 6, "the Add tile follows the saved cars");
+            None
+        } else {
+            assert_eq!(text(0x5e7b_09c9), h.model.selected().unwrap().name);
+            assert_eq!(h.model.custom_slot.as_deref(), Some(format!("saved{index}").as_str()));
+            Some(index)
+        }
+    };
+    assert_eq!(selected(&h), Some(0));
     h.press(pad::LEFT);
-    assert_eq!(label(&h), "Saved 4", "left wraps inside the first five-wide row");
+    assert_eq!(selected(&h), Some(4), "left wraps inside the first five-wide row");
     h.press(pad::RIGHT);
-    assert_eq!(label(&h), "Saved 0");
+    assert_eq!(selected(&h), Some(0));
     h.press(pad::UP);
-    assert_eq!(label(&h), "Saved 0", "up stops at the first row");
+    assert_eq!(selected(&h), Some(0), "up stops at the first row");
     h.press(pad::DOWN);
-    assert_eq!(label(&h), "Saved 5");
+    assert_eq!(selected(&h), Some(5));
     h.press(pad::LEFT);
-    assert_eq!(label(&h), "Add New Car", "short last row includes the Add tile");
+    assert_eq!(selected(&h), None, "short last row includes the Add tile");
     h.press(pad::RIGHT);
-    assert_eq!(label(&h), "Saved 5");
+    assert_eq!(selected(&h), Some(5));
     h.press(pad::UP);
     h.press(pad::RIGHT);
     h.press(pad::RIGHT);
-    assert_eq!(label(&h), "Saved 2");
+    assert_eq!(selected(&h), Some(2));
     h.press(pad::DOWN);
-    assert_eq!(label(&h), "Add New Car", "down clamps a missing column to the last tile");
+    assert_eq!(selected(&h), None, "down clamps a missing column to the last tile");
     h.press(pad::DOWN);
-    assert_eq!(label(&h), "Add New Car", "down stops at the final row");
+    assert_eq!(selected(&h), None, "down stops at the final row");
     assert_eq!(h.model.custom_slots.len(), 6);
     assert!(h.saved.is_empty());
 }

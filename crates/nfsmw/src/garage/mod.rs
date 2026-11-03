@@ -138,6 +138,10 @@ pub enum OptionsTab {
 
 #[derive(Clone, Default)]
 pub struct Model {
+    /// The preview is preparing on a worker; menus can browse, but cannot accept it yet.
+    pub preview_loading: bool,
+    /// One-shot scene completion consumed by the native frontend controller.
+    pub preview_update: PreviewUpdate,
     pub open_requested: bool,
     /// Career shop limits the session to the selected owned vehicle.
     pub shop: bool,
@@ -186,6 +190,14 @@ pub struct Model {
     pub parts_filter: [String; 9],
     pub message: Option<Result<String, String>>,
     pub preset_picker: crate::preset_store::Picker,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PreviewUpdate {
+    #[default]
+    None,
+    SlotReady,
+    Failed,
 }
 
 impl Model {

@@ -261,7 +261,10 @@ impl Manager {
                     cx.rt.focus_button(object);
                 }
             }
-            let label = self.slot(self.picked).map(|(_, label)| label).unwrap_or_else(|| "Add New Car".into());
+            let label = self
+                .slot(self.picked)
+                .map(|(id, label)| super::super::inspection::slot_title(&model, &id, label))
+                .unwrap_or_else(|| "Add New Car".into());
             chrome::selection(cx, &label, self.picked + 1, self.len());
             let add = self.add_tile() && self.picked == model.custom_slots.len();
             cx.hide(0x4ed1_e692, !add);
@@ -294,7 +297,7 @@ impl Manager {
     }
 
     fn accept(&mut self) {
-        if self.done {
+        if self.done || self.handle.model().preview_loading {
             return;
         }
         if self.page == Page::Manager {
@@ -347,6 +350,7 @@ impl ScreenLogic for Manager {
         self.handle.enter(self.page);
     }
     fn resume(&mut self, cx: &mut Cx) {
+        chrome::restore(cx);
         self.done = false;
         self.mode = None;
         // Showcase's global leave fades this cached manager's scrollbar parent.
@@ -364,6 +368,9 @@ impl ScreenLogic for Manager {
         }
         self.picked = self.picked.min(self.len().saturating_sub(1));
         self.refresh(cx);
+        if let Some(object) = cx.rt.current_button(cx.package) {
+            cx.rt.post(cx.package, BUTTON_HIGHLIGHT, Some(object));
+        }
         self.handle.enter(self.page);
     }
     fn message(&mut self, cx: &mut Cx, message: u32) {
@@ -375,7 +382,13 @@ impl ScreenLogic for Manager {
             PAD_RIGHT => self.shift(cx, 1),
             PAD_UP if self.page == Page::Manager => self.shift(cx, -5),
             PAD_DOWN if self.page == Page::Manager => self.shift(cx, 5),
-            PAD_ACCEPT | BUTTON_PRESSED => self.accept(),
+            PAD_ACCEPT | BUTTON_PRESSED => {
+                if self.handle.model().preview_loading {
+                    cx.rt.post_to_package(cx.package, crate::frontend::ids::INPUT_ENABLE);
+                    return;
+                }
+                self.accept();
+            }
             PAD_BACK => {
                 self.done = true;
                 if self.page == Page::AddCar {
@@ -395,7 +408,7 @@ impl ScreenLogic for Manager {
     }
     fn pad_pressed(&mut self, _cx: &mut Cx, bits: u32) {
         use blackbox_feng::runtime::pad;
-        if self.done {
+        if self.done || self.handle.model().preview_loading {
             return;
         }
         if bits & (pad::BUTTON0 << 5) != 0 && self.slot(self.picked).is_some() {
@@ -437,10 +450,29 @@ impl ScreenLogic for Manager {
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
         if self.handle.recover(cx, &mut self.failure) {
             self.done = false;
+            let model = self.handle.model();
+            if self.page == Page::Manager {
+                self.picked = model
+                    .custom_slot
+                    .as_ref()
+                    .and_then(|id| model.custom_slots.iter().position(|(slot, _)| slot == id))
+                    .unwrap_or(0);
+            }
+            if self.page == Page::AddCar {
+                self.picked = model
+                    .cars
+                    .iter()
+                    .filter(|car| car.category == Category::Racing)
+                    .position(|car| car.folder == model.draft.car)
+                    .unwrap_or(0);
+            }
         }
         self.refresh(cx);
     }
     fn footer(&self) -> Footer {
+        if self.handle.model().preview_loading {
+            return Footer::GarageLoading;
+        }
         match self.page {
             Page::Manager => {
                 Footer::GarageManager { add: self.slot(self.picked).is_none(), showcase: self.can_showcase() }

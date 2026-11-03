@@ -28,12 +28,15 @@ pub(crate) enum GarageStage {
 }
 
 impl GarageStage {
-    fn look(self) -> Look {
+    /// The look of this view in a garage opened on `home`. The original keeps the platform it has when Customize opens:
+    /// My Cars customizes in the crib, and only an auto shop entered from the world stands in the shop
+    /// (`menu-backdrop-looks.md`, "Which room the garage uses"). The marker backroom is its own platform from either.
+    fn look(self, home: Stage) -> Look {
         let car = CarLook::default_car();
-        match self {
-            Self::Cars => Look::Main,
-            Self::Customization => Look::Customization(car),
-            Self::Backroom => Look::Backroom(car),
+        match (self, home) {
+            (Self::Cars, _) | (Self::Customization, Stage::Crib) => Look::Main,
+            (Self::Customization, _) => Look::Customization(car),
+            (Self::Backroom, _) => Look::Backroom(car),
         }
     }
 }
@@ -42,20 +45,35 @@ impl GarageStage {
 pub(crate) struct GarageBackdrop {
     scene: MenuScene,
     loaded_stage: Option<Stage>,
+    /// The platform the garage was opened on: the crib for My Cars, the shop for an auto shop.
+    home: Stage,
     inspection: Inspection,
     camera: &'static str,
     previews: previews::Previews,
 }
 
 impl GarageBackdrop {
+    pub(crate) fn preview_pending(&mut self, pending: bool) {
+        if self.scene.hide_car != pending {
+            self.scene.still = None;
+        }
+        self.scene.hide_car = pending;
+    }
+
     pub(crate) fn new(dir: GameDir) -> Self {
         Self {
-            scene: MenuScene::with_look(Some(dir), GarageStage::Cars.look()),
+            scene: MenuScene { room_first: true, ..MenuScene::with_look(Some(dir), Look::Main) },
             loaded_stage: None,
+            home: Stage::Crib,
             inspection: Inspection::default(),
             camera: "",
             previews: previews::Previews::default(),
         }
+    }
+
+    /// A garage opened in an auto shop: Customize stands in the shop's own room.
+    pub(crate) fn shop(dir: GameDir) -> Self {
+        Self { home: Stage::Customization, ..Self::new(dir) }
     }
 
     /// Share the front end's mover, retaining its current pose across the car-selection and shop screens.
@@ -65,24 +83,33 @@ impl GarageBackdrop {
     }
 
     pub(crate) fn set_stage(&mut self, renderer: &mut dyn RenderBackend, stage: GarageStage) -> Result<()> {
-        let look = stage.look();
+        let look = stage.look(self.home);
         let target = look.stage();
         if self.loaded_stage == Some(target) {
             return Ok(());
         }
-        let dir = self.scene.dir.as_ref().context("Garage install is unavailable")?;
+        let dir = self.scene.dir.clone().context("Garage install is unavailable")?;
+        let dir = &dir;
         // Read before releasing the visible room, so a bad replacement leaves the current preview intact.
         let data = RoomData::read(dir, target)?;
         let room = Room::upload(renderer, &data);
         if let Some(previous) = self.scene.room.replace(room) {
             previous.destroy(renderer);
         }
-        self.scene.rig.begin(dir, target, look.camera_intro().expect("garage stages have intros"));
+        let fx = crate::frontend::room_fx::RoomFx::new(dir.clone(), data.placements().to_vec());
+        if let Some(previous) = std::mem::replace(&mut self.scene.fx, fx) {
+            previous.release(renderer);
+        }
+        let returning = (stage == GarageStage::Cars || target == self.home) && self.loaded_stage.is_some();
+        if !returning || !self.scene.rig.resume_stage(target) {
+            self.scene.rig.begin(dir, target, look.camera_intro().expect("garage stages have intros"));
+        }
         self.scene.look = look;
         if let Some(car) = &mut self.scene.car {
-            car.set_frontend_backroom(stage == GarageStage::Backroom);
+            car.set_frontend_backroom(target == Stage::Backroom);
         }
         self.scene.reflection = None;
+        self.scene.still = None;
         self.inspection = Inspection::default();
         self.camera = "";
         self.loaded_stage = Some(target);
@@ -102,6 +129,7 @@ impl GarageBackdrop {
         if let Some(car) = &mut self.scene.car {
             car.replace_model(renderer, model);
             self.scene.reflection = None;
+            self.scene.still = None;
             return Ok(());
         }
         self.scene.upload_car(renderer, model, options);
@@ -145,10 +173,19 @@ impl Scene for GarageBackdrop {
         self.scene.advance(renderer);
         self.scene.update_reflections(renderer);
         self.scene.update_car(renderer, input, dt);
+        self.scene.update_fx(renderer, dt);
         self.inspection.set_enabled(self.scene.rig.user_rotate());
         self.inspection.set_shape(self.scene.rig.screen_angle());
         if let Some(pose) = self.inspection.update(input, self.scene.rig.pose(), dt, self.scene.rig.moving()) {
             self.scene.rig.resume_from(pose);
+        }
+        if self.scene.hide_car {
+            self.scene.update_menu_casters(renderer);
+            renderer.set_planar_reflection_scene(None);
+            return;
+        }
+        if self.scene.still_unchanged_from(renderer, self.inspection.pose()) {
+            return;
         }
         self.scene.update_menu_casters(renderer);
         self.scene.update_floor_reflection_from(renderer, self.inspection.pose());
@@ -192,5 +229,24 @@ impl Scene for GarageBackdrop {
 
     fn radio_on_menus(&self) -> bool {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn my_cars_customizes_in_the_crib_and_an_auto_shop_in_the_shop() {
+        assert_eq!(GarageStage::Customization.look(Stage::Crib).stage(), Stage::Crib);
+        assert_eq!(GarageStage::Cars.look(Stage::Crib).stage(), Stage::Crib);
+        assert_eq!(GarageStage::Customization.look(Stage::Customization).stage(), Stage::Customization);
+        for home in [Stage::Crib, Stage::Customization] {
+            assert_eq!(
+                GarageStage::Backroom.look(home).stage(),
+                Stage::Backroom,
+                "the marker backroom is its own room"
+            );
+        }
     }
 }
