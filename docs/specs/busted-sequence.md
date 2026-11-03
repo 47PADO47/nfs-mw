@@ -352,9 +352,11 @@ runs were allowed in this pass); its parts have unit tests.
   HUD in the full frame, not in the HUD's viewport; the layout at other aspect ratios is not checked. The package has no
   data binding.
 - **The arrest scene chooser** (`scenes/world/ai/police/busted/arrest.rs`). Section 4.1's table: 16 scenes reachable.
-  The variant comes from a roll in `0..1`, taken from the world's seeded random source. The class is fixed at 0
-  (`ARREST_CLASS`): the original reads it through the perp car's interface, which the port does not have. The chosen
-  scene is logged and kept (`arrest_scene()`) for the NIS player. An ignored test checks that the 16 bundles exist.
+  The variant comes from a roll in `0..1`, taken from the world's seeded random source and scaled to the original's
+  draw below 0.99 before the 8 variants are counted. The class is the chase's heat cut to a whole number
+  (`class_of_heat`), as the original casts the perp's heat ([nis-player.md](nis-player.md) section 2.2) **[decomp]**:
+  heat 0 and 1 pick the low set, heat 2 and above the high set. The chosen scene is logged and kept (`arrest_scene()`)
+  for the NIS player. An ignored test checks that the 16 bundles exist.
 - **The infractions ticket** (`frontend/infractions.rs`, `Infractions.fng`). It shows this chase's count and fines, the
   unserved count and fines (0, the port has no career state), and the total due. The package has no row per infraction,
   so the offences are listed on the "Violation:" line (layout unverified). Pay with Cash and Pay with Marker send
@@ -372,9 +374,11 @@ runs were allowed in this pass); its parts have unit tests.
 - **The NIS player** (built). The arrest scene plays as a NIS in the world (`scenes/world/nis`, from the `Arrest*`
   bundles in `NIS/`). The bust flow holds the car for the arrest shot, hands the chosen scene to the player, and waits
   for the scene to end, or to be refused, before the infractions ticket (`busted/flow.rs`, `arrest_scene_over`). The
-  arrest spot is the player's pose. Open items of the player, such as the framing not checked on screen, are in
+  arrest spot is the road's cross-section midpoint at the player (section "Arrest location integration" below), stood
+  on the ground face under it as every placed scene's origin is ([nis-player.md](nis-player.md) section 5.2). Open
+  items of the player, such as the framing not checked on screen, are in
   [provenance/nis-player.md](../provenance/nis-player.md).
-- **The arrest spot** (section 4.2). The spot search is not built. The arrest uses the player's pose as its spot instead.
+- **The arrest spot** (section 4.2). Built: see "Arrest location integration" below.
 - **Career state.** Done in a career: see [busted-aftermath.md](busted-aftermath.md) (cash, strikes, impound, markers,
   the notices, the car select and the respawn). Free roam without a career has none of it and resumes driving.
 - **The race pause** (section 2 step 6c). The port has no race mode, so the race branch of the flow (it ends after the arrest shot, and

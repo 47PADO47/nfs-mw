@@ -1,4 +1,5 @@
-//! The arrest scene the bust picks: one of the 26 `Arrest*` NIS bundles, by the perp's class and a random variant. The
+//! The arrest scene the bust picks: one of the 26 `Arrest*` NIS bundles, by the perp's class (its heat) and a random
+//! variant. The
 //! rule is read from `speed.exe` (`docs/specs/busted-sequence.md` section 4.1). Only 16 of the 26 names are reachable
 //! in the chooser: the `ArrestM04`, `ArrestF23`, `ArrestM07`, `ArrestM14` and `ArrestF14` families (and `ArrestM23`,
 //! which has no bundle) are never the final scene. The world plays the picked scene as a NIS at the arrest shot
@@ -41,9 +42,23 @@ fn high_class(variant: u8) -> &'static str {
     }
 }
 
-/// The variant for a random roll in `0..1` (the roll is clamped): an even split of the 8 variants.
+/// The chooser's random draw is a number below 0.99, not below 1, before it is scaled by the 8 variants
+/// (`nis-player.md` section 2.2) [decomp]: the last variant is picked a little less often than the others.
+const ROLL_SPAN: f32 = 0.99;
+
+/// The chooser's class of a perp whose heat is `heat`: the heat cut to a whole number (`nis-player.md` section 2.2)
+/// [decomp]. Heat 0 and 1 pick the low set; heat 2 and above fall through to the high set.
+pub fn class_of_heat(heat: f32) -> u8 {
+    if !heat.is_finite() {
+        return 0;
+    }
+    heat.clamp(0.0, f32::from(u8::MAX)) as u8
+}
+
+/// The variant for a random roll in `0..1` (the roll is clamped): the roll is taken as the original's draw below 0.99
+/// ([`ROLL_SPAN`]) and scaled by the 8 variants.
 pub fn variant_from_roll(roll: f32) -> u8 {
-    let scaled = (roll.clamp(0.0, 1.0) * f32::from(VARIANTS)) as u8;
+    let scaled = (roll.clamp(0.0, 1.0) * ROLL_SPAN * f32::from(VARIANTS)) as u8;
     scaled.min(VARIANTS - 1)
 }
 
@@ -109,6 +124,7 @@ mod tests {
     fn the_roll_splits_evenly_and_stays_in_range() {
         assert_eq!(variant_from_roll(0.0), 0);
         assert_eq!(variant_from_roll(0.13), 1);
+        assert_eq!(variant_from_roll(0.126), 0, "0.126 of the 0.99 span is under one eighth");
         assert_eq!(variant_from_roll(0.99), 7);
         assert_eq!(variant_from_roll(1.0), 7, "a roll of exactly 1 is the last variant, not past it");
         assert_eq!(variant_from_roll(-3.0), 0);
@@ -120,6 +136,18 @@ mod tests {
         let roll = 0.42;
         assert_eq!(arrest_scene(0, variant_from_roll(roll)), arrest_scene(0, variant_from_roll(roll)));
         assert_eq!(arrest_scene(0, variant_from_roll(0.42)), "ArrestF18", "0.42 is variant 3, the fourth of the four");
+    }
+
+    #[test]
+    fn the_class_is_the_perps_heat_cut_to_a_whole_number() {
+        assert_eq!(class_of_heat(0.0), 0);
+        assert_eq!(class_of_heat(1.9), 1);
+        assert_eq!(class_of_heat(2.0), 2);
+        assert_eq!(class_of_heat(4.7), 4);
+        assert_eq!(class_of_heat(-1.0), 0);
+        assert_eq!(class_of_heat(f32::NAN), 0);
+        assert_eq!(arrest_scene(class_of_heat(1.5), 0), "ArrestM01", "heat 1 picks the low set");
+        assert_eq!(arrest_scene(class_of_heat(3.2), 0), "ArrestM06", "heat 3 falls through to the high set");
     }
 
     /// Each reachable name has its bundle in the install (`NIS/Scene_<name>_BundleB.bun`).

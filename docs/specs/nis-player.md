@@ -87,7 +87,8 @@ file **[unconfirmed]** ([busted-sequence.md](busted-sequence.md), section 2).
 ### 2.2 The arrest scene name **[decomp: `ChooseArrestAnimation`]**
 
 The scene depends on the perp's heat level (`IPerpetrator::GetHeat()`), and on a random pick of 0 to 7
-(a random number from the game's generator, scaled by 8 and rounded down).
+(a random number from the game's generator below 0.99, scaled by 8 and rounded down, so pick 7 comes a little less
+often than the others).
 
 | Heat | Pick 0 to 3 | Pick 4 to 6 | Pick 7 |
 |---|---|---|---|
@@ -223,8 +224,12 @@ For scene types 1 and 4 (section 6), the origin is zero and the turn is zero, so
 The scene frame is then the render frame itself, so such scenes are authored in render coordinates. **[decomp and
 [verified]: the eye of the type-4 cameras is in the render frame (section 10.2 of [nis-player-2.md](nis-player-2.md))]**
 
-The marker heading of the arrest is the value from section 2.3. Whether the arrest scene's `+y` lines up with the car's forward
-direction depends on the unit and sign of the heading (section 2.3), which are **[unconfirmed]**.
+The marker heading of the arrest is the value from section 2.3. The direction the chooser reads is the first row of the
+car's matrix, which is the car's right axis: the rigid body's forward is its third row (z) and its right its first (x)
+**[decomp: the rigid-body accessors]**. With the angle helper giving turns (`atan2(o, a)` over one turn) and the
+world-to-render conversion of section 5.1, a car whose render heading is `h` gives `1 + h` turns, so the scene's turn
+is `h` less a quarter turn and the scene's `+y` lies along the car's nose **[derived]**. The rewrite's arrest anchor
+(`Anchor::facing` with the car's heading) gives the same turn **[ours: checked by `arrest_scene_tests.rs`]**.
 
 ### 5.3 Ground under the actors **[decomp]**
 
@@ -270,6 +275,18 @@ it as animating and zeroes its speed.
 | NIS cops | `cop1`..`cop8` | `PrepareVehicles` creates NIS police cars from the special car list (one, several, a sport cop, or one of nine traffic mixes), at the origin, facing +x, with the NIS driver **[decomp]**. Its caller is **[unconfirmed]** |
 
 The special car list codes are in [nis-scenes.md](nis-scenes.md), section 6.2.
+
+The arrest bundles' channels **[verified: the 16 reachable arrests]**: each has `ZPM_Car1` and `ZPM_Cop1` only, and
+both are still poses (clips of two frames) on bone 1 of a rig that is not in the bundle. `car1` stands 1.6 to 8.1 m
+behind the scene's origin, its nose about 25 degrees off the scene's `+y`; `cop1` stands within 5 m of the origin, its
+nose along `+y`. In the eight calm arrests (the heat 0 and 1 set), the perp's clip ends within 1 m of `cop1` and more
+than 8 m from `car1`: `car1` is the perp's car and `cop1` the car the perp is put into. So the player's car is moved
+from where it stopped to `car1`'s pose, and does not stand at the origin. The rig's bone 0 is taken as the identity
+**[unconfirmed]**; a turn on it would turn every car of the scene alike.
+
+What the rewrite does **[ours]** (`nis/cop_cars.rs`): an arrest's cop channel spawns the scene's police model (the
+install's `copmidsize`; `copmidsize_nis` has no folder of its own), and borrows the nearest free police car of the chase
+only when it cannot spawn one. Other scenes borrow first, then spawn.
 
 ### 7.2 Setting up the controllers **[decomp: `CreateCarAnimationControllers`]**
 

@@ -9,6 +9,8 @@
 //! scenes, skinned models driven by their clips) are in `characters.rs`. The player is `player.rs`, its camera
 //! `camera.rs`, the console `command.rs`, and the world's side `world.rs`.
 
+#[cfg(test)]
+mod arrest_scene_tests;
 mod camera;
 mod car_memory;
 mod car_world;

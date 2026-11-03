@@ -102,3 +102,20 @@ fn an_empty_set_of_characters_adds_nothing() {
     Characters::default().instances(0.0, &Anchor::IDENTITY, &mut out);
     assert!(out.is_empty());
 }
+
+#[test]
+fn the_ground_under_a_character_is_smoothed_half_and_half() {
+    assert_eq!(smoothed_ground(None, 4.0), 4.0, "the first ground found is taken as it is");
+    assert_eq!(smoothed_ground(Some(4.0), 6.0), 5.0);
+    assert_eq!(smoothed_ground(Some(5.0), 6.0), 5.5);
+}
+
+#[test]
+fn a_character_is_raised_from_its_placement_onto_its_ground() {
+    assert_eq!(ground_raise(None, 10.0), 0.0, "no ground found: the placement stands");
+    assert!((ground_raise(Some(10.5), 10.0) - 0.5).abs() < 1e-6, "a road rising under the actor lifts it");
+    assert!((ground_raise(Some(9.5), 10.0) + 0.5).abs() < 1e-6, "a road falling away lowers it");
+    let raised = Mat4::from_translation(Vec3::new(0.0, 0.0, ground_raise(Some(12.0), 10.0)));
+    let at = part_transform(raised, Mat4::from_translation(Vec3::new(0.0, 0.0, 10.0)), Mat4::IDENTITY);
+    assert!(near(at.transform_point3(Vec3::ZERO), Vec3::new(0.0, 0.0, 12.0 + LIFT)), "the root stands on its ground");
+}

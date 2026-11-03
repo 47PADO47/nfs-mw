@@ -7,7 +7,7 @@ use glam::{Quat, Vec3};
 
 use super::car_memory::{CarMemory, first_ground_below};
 use super::cars::{self, CarSpot, Target};
-use super::cop_cars::{self, SlotKind};
+use super::cop_cars::{self, CopSource, SlotKind};
 use super::cop_wait::WAIT_LIMIT;
 use crate::scenes::world::drive::CarPose;
 use crate::scenes::world::road::Spawn;
@@ -99,13 +99,15 @@ impl WorldScene {
         log::info!("NIS {name}: no police car for cop channel(s) {channels:?} within {WAIT_LIMIT} s; they stay off");
     }
 
-    /// The police car a cop channel at `spot` takes: the nearest free one of the chase, or a car the scene spawns there.
+    /// The police car a cop channel at `spot` takes: the nearest free one of the chase, or a car the scene spawns there;
+    /// an arrest tries the spawn first (`cop_cars.rs`).
     fn link_cop(&mut self, spot: CarSpot, taken: &[usize]) -> Option<Target> {
         let (collision, _) = self.residency.world_parts();
         let surfaces = &self.physics.surfaces;
+        let source = self.nis.playing_kind().map_or(CopSource::BorrowFirst, cop_cars::cop_source);
         let traffic = self.traffic.as_mut()?;
         let borrowed = traffic.nearest_police(spot.position, taken);
-        cop_cars::choose_cop(borrowed, || {
+        cop_cars::choose_cop(source, borrowed, || {
             traffic.spawn_nis_cop(spot.position, heading_of(spot.rotation), collision, surfaces)
         })
     }

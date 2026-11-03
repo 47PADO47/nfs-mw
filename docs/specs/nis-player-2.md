@@ -36,6 +36,12 @@ When the keep-on-ground flag is on (the default), the pelvis (bone 1) is raised 
 The ground height is smoothed half-and-half with the previous height, and the root is moved vertically by the difference
 plus 5 cm. The arrest's cuffs and cop are all keep-on-ground.
 
+What the rewrite does **[ours]** (`nis/characters.rs`, `nis/world.rs`): each frame of the scene, the pelvis of each
+character is placed in render space, raised 2 m, and the first drivable face is looked for down to 6 m below that point.
+The height found is smoothed half and half with the last one (the first one is taken as it is), and the whole character
+is drawn with its root at that height plus 5 cm. A character with no ground found keeps its last height, or its
+placement before any is found. The original's first-frame query (without the 2 m raise) is folded into the same rule.
+
 ### 9.4 Shadows and the face **[decomp]**
 
 The character draws a soft shadow quad under its feet (two feet bones from the bone map), using the game's global

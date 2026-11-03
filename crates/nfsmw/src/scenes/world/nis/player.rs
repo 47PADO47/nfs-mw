@@ -298,6 +298,14 @@ impl NisPlayer {
         }
     }
 
+    /// Stands the playing scene's characters on the ground `ground(at)` gives under them (see
+    /// [`Characters::keep_on_ground`]). Does nothing when no scene plays.
+    pub fn keep_characters_on_ground(&mut self, ground: impl FnMut(glam::Vec3) -> Option<f32>) {
+        let Some(playing) = self.play.as_mut() else { return };
+        let time = playing.run.scene_time();
+        playing.characters.keep_on_ground(time, &playing.anchor, ground);
+    }
+
     /// Adds the playing scene's character instances to `out`, at the scene's time. Nothing is added when no scene plays.
     pub fn character_instances(&self, out: &mut Vec<Instance>) {
         let Some(playing) = self.play.as_ref() else { return };
@@ -352,6 +360,11 @@ impl NisPlayer {
     /// How the last scene ended, once: the next call gives `None` until another scene ends.
     pub fn take_outcome(&mut self) -> Option<NisOutcome> {
         self.outcome.take()
+    }
+
+    /// The kind of the scene that plays, if one does.
+    pub fn playing_kind(&self) -> Option<NisKind> {
+        self.play.as_ref().map(|playing| playing.kind)
     }
 
     /// The name of the scene that plays, if one does.
