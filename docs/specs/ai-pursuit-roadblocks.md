@@ -24,7 +24,8 @@ Tags: [decomp] decompiled sources; [verified] read from the install. Metres and 
 
 ## 1. Request: when a roadblock is wanted
 
-`AIPursuit::RequestRoadBlock` is called by the cop manager every run (0.5 s) for each pursuit. [decomp]
+`AIPursuit::RequestRoadBlock` is called by the cop manager every run for each pursuit. [decomp] The run's task is
+registered at 0.5 s, but on PC the manager reacts within a frame (see the observations below).
 
 ```
 refuse if busted, bailed, a roadblock already exists, or roadblock_timer >= 0
@@ -52,6 +53,18 @@ race 1 to 7: 0/0/0 except race 8 (35/0/50), race 9 (40/0/50), race 10 (50/0/50);
 `SearchModeRoadblockRadius` is 1000 m at heat 1 and 2, then 2000, 5000, 10 000, 10 000, 10 000, 3500, 4000, 5000 m for heat 3 to 10 [verified]
 (race levels were not compared).
 
+**Observed on PC [runtime].** One recorded stock pursuit from heat 1 to 5 (about 870 s):
+
+- A latched request is retried on every frame, not every 0.5 s. All 23 requests were built: 20 on the first attempt or
+  within 0.3 s, three after 1.9 to 4.7 s of failing attempts. Those three account for nearly all of the roughly 670
+  failed attempts, so a high failure count means per-frame retries, not lost requests.
+- Requests: none at heat 1, 2 at heat 2, 1 at heat 3, 9 at heat 4 and 11 at heat 5, one every 20 to 25 s on average
+  at heats 4 and 5. A roadblock stood 3 to 22 s (typically about 9 s). The next request often came within 0.1 to 3 s
+  of the previous roadblock's release: the lottery timer keeps running while a roadblock stands.
+- Built roadblocks stood 200 to 250 m in a straight line from the player (250 m along the road), 3 of 23 behind its
+  direction of travel. They had 2 to 5 cars. Spike layouts: 4 of 9 at heat 4 and 8 of 11 at heat 5 (spike chance 70 and
+  80), each with one strip, once two.
+
 ## 2. Building the roadblock (`CreateRoadBlock`)
 
 ### 2.1 Finding the spot
@@ -61,8 +74,8 @@ race 1 to 7: 0/0/0 except race 8 (35/0/50), race 9 (40/0/50), race 10 (50/0/50);
    way the target faces, and advance it **250 m** along the road (`kRoadBlockAheadDistance`). Junction choices are made by
    the nav's usual direction rule (zero preferred direction).
 3. The segment under the nav must exist, allow traffic, not be a decision (junction) segment and be at least **40 m** long,
-   and must have a lane profile with at least one zone. Otherwise fail (the request stays latched and retries next run, 0.5 s
-   later, at a different spot as the target has moved).
+   and must have a lane profile with at least one zone. Otherwise fail (the request stays latched and retries on the next run,
+   at a different spot as the target has moved).
 4. Road width: the nav's left and right edge points (`GetLeftPosition`, `GetRightPosition`) give `crW = |left - right|`;
    `cr_width = crW + 1`.
 5. Cars wanted: `widthIndex = min(int(cr_width / 4), 6)`; `MinCopsForWidth = {2, 2, 3, 3, 4, 4, 5}`;
@@ -353,7 +366,7 @@ wrecked, stops nearby cops. In the sources the whole mechanism is one message an
   `roadblock::standing` is a standing roadblock's rules (`Standing`, `reach`). `blackbox_pursuit::spikes` is the strip box and
   the tire box test.
 - The world side is `crates/nfsmw/src/scenes/world/ai/roadblock/`: `site` (the original's site checks), `build` (the layout,
-  cars and props, whole or not at all), `director` (the manager's run every 0.5 s), `props` (installed models and bodies),
+  cars and props, whole or not at all), `director` (the manager's run every second simulation step), `props` (installed models and bodies),
   `state` (the standing roadblocks).
 
 ## Rewrite status

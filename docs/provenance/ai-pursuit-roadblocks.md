@@ -73,3 +73,14 @@ past 13 standing props; each car is re-seated by `CarSim::seat_on_wheels`. The e
 (`roadblock/seat.rs`) is removed. Headless checks: `pursuit::tests::roadblock_ground` (sites 25 m below and above the
 player and a level one: strip box bottoms within 2 cm of the road, cars standing on their road) and the layout tests in
 `blackbox_pursuit::roadblock`. Not compared with a running original.
+
+## Request cadence and rates against a recorded pursuit (2026-11-03)
+
+[ai-pursuit-roadblocks.md](../specs/ai-pursuit-roadblocks.md) section 1, "Observed on PC". A private recording of one
+stock-install pursuit (heat 1 to 5, about 870 s, human driver) was reduced to roadblock requests, builds, lifetimes,
+distances and props. The large count of failed build attempts in that recording is per-frame retries of 23 latched
+requests, all of which were built; three of them account for almost every failure. The spec's "0.5 s run" wording was
+corrected to the observed per-frame cadence. The rewrite already runs the director every second simulation step, builds
+250 m along the road, and keeps the lottery timer running while a roadblock stands, so no code changed. Request rates,
+lifetimes and spike shares were compared by hand with the lottery's odds; the sample (23 roadblocks) is too small to
+test the odds themselves. No addresses, code or capture data are in the repository.
