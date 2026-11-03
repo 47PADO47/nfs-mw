@@ -2,7 +2,7 @@
 //! milestones, speed traps) and the autosave gate. Spec index: `docs/specs/career.md`.
 //!
 //! The rule state lives in `nfsmw_career` types. [`Career::profile_bytes`] writes it back over the profile file kept
-//! from the load, so everything the rules do not read (options, playlist, statistics, controller bindings, unknown
+//! from the load, so everything the rules do not read (other options, playlist, statistics, controller bindings, unknown
 //! bytes) comes out as it went in.
 //!
 //! The milestones and speed traps are stored in the milestone block, which is the first 0x4000 bytes of the settings'
@@ -132,7 +132,7 @@ impl Career {
             popups: PopupQueue::new(),
             rival_beaten: None,
             arrival_autosave: false,
-            autosave: AutosaveManager::default(),
+            autosave: AutosaveManager { option_on: profile.autosave_enabled(), ..Default::default() },
             data,
             profile,
         })
@@ -160,6 +160,7 @@ impl Career {
         if let Err(e) = self.profile.set_history(&self.history) {
             log::warn!("pursuit history not written to the profile: {e}");
         }
+        self.profile.set_autosave_enabled(self.autosave.option_on);
         self.profile.to_bytes()
     }
 
@@ -306,3 +307,6 @@ fn restored_progress(settings: &CareerSettings, data: &CareerData) -> Option<(Mi
 #[cfg(test)]
 #[path = "state_tests.rs"]
 mod tests;
+
+#[path = "autosave_option.rs"]
+mod autosave_option;

@@ -48,6 +48,10 @@ pub mod profile {
     pub const NAME: usize = 0x5A0D;
     /// Length of the profile name.
     pub const NAME_LEN: usize = 32;
+    /// The native options block (file `0x5B41`), 33 dwords.
+    pub const OPTIONS: usize = 0x5B1D;
+    /// The Autosave switch inside the native options block.
+    pub const AUTOSAVE: usize = OPTIONS + 0x14;
     /// The car stable (file `0x5BC5`).
     pub const STABLE: usize = 0x5BA1;
     /// The "career completed at least once" byte (file `0xE88D`).

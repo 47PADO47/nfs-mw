@@ -2,7 +2,7 @@
 //! (`docs/formats/career-save.md`).
 //!
 //! [`ProfileSave`] keeps the file bytes. The career blocks (settings, stable) are parsed out on demand and
-//! written back over the same bytes, so everything this crate does not understand (the options, the playlist,
+//! written back over the same bytes, so everything this crate does not understand (the other options, the playlist,
 //! the statistics, the controller bindings, the unknown bytes inside the blocks) stays verbatim. When the bytes
 //! are turned back into a file the profile MD5 and the three container checksums are recomputed, so an
 //! unchanged, consistent save comes back byte for byte.
@@ -126,6 +126,7 @@ impl ProfileSave {
     /// it before the original can load the file), and the serial and the SMS labels (see [`CareerSettings::new_career`]).
     pub fn new_blank(alias: &str) -> Result<ProfileSave, SaveError> {
         let mut buffer = vec![0u8; PROFILE_LEN];
+        buffer[profile::AUTOSAVE] = 1;
         CareerSettings::new_career().write_into_profile(&mut buffer)?;
         let stable = Stable::empty().to_bytes();
         buffer[profile::STABLE..profile::STABLE + STABLE_LEN].copy_from_slice(&stable);
@@ -206,6 +207,16 @@ impl ProfileSave {
         let mut sealed = self.clone();
         sealed.seal();
         sealed.bytes
+    }
+
+    /// The profile's Autosave preference, kept in its native options block.
+    pub fn autosave_enabled(&self) -> bool {
+        self.profile_buffer()[profile::AUTOSAVE] != 0
+    }
+
+    /// Changes only the native Autosave option. `to_bytes` recomputes the integrity values.
+    pub fn set_autosave_enabled(&mut self, enabled: bool) {
+        self.bytes[PROFILE_AT + profile::AUTOSAVE] = u8::from(enabled);
     }
 
     /// The career settings.
