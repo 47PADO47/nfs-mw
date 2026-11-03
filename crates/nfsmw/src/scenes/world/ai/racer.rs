@@ -191,9 +191,9 @@ impl RacerState {
             nav.enable_trail(net);
             self.repath = 0.0;
         }
-        let occlusion = nav
-            .trail()
-            .and_then(|trail| update_occluded_position(trail, &car.body, nav.position, traffic, false, nav.half_width));
+        let occlusion = nav.trail().and_then(|trail| {
+            update_occluded_position(trail, &car.body, nav.position, nav.forward, traffic, false, nav.half_width)
+        });
         let curvature = match (&occlusion, nav.trail()) {
             (Some(o), Some(trail)) => {
                 trail_curvature(trail.cookies(), o.current_index, car.body.position, o, nav.position, car.forward_speed)
@@ -254,9 +254,9 @@ impl RacerState {
         if gap < look {
             nav.advance_with_lookahead(net, look - gap, Vec3::ZERO, look, rng);
         }
-        let occlusion = nav
-            .trail()
-            .and_then(|trail| update_occluded_position(trail, &car.body, nav.position, traffic, false, nav.half_width));
+        let occlusion = nav.trail().and_then(|trail| {
+            update_occluded_position(trail, &car.body, nav.position, nav.forward, traffic, false, nav.half_width)
+        });
         let target = occlusion.map_or(nav.position, |o| o.position);
         let wanted = self.governor.update(car.forward_speed, self.cruise, 4.0, 0.5, self.think_delta);
         RacerThink { target, speed: wanted.min(self.cruise) }

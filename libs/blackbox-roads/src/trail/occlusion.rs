@@ -3,7 +3,7 @@
 
 use glam::{Vec2, Vec3};
 
-use super::punch::{Body, punch_avoidables};
+use super::punch::{Body, Drift, punch_avoidables};
 use super::{CUT, CUT_BEHIND, Cookie, Trail, cross, xz};
 
 #[cfg(test)]
@@ -51,12 +51,13 @@ impl Occlusion {
     }
 }
 
-/// Finds the steering target of `car` on `trail`, with the cursor at `cursor` and other cars in
-/// `avoidables`. `traffic` selects the narrower look-ahead of traffic cars.
+/// Finds the steering target of `car` on `trail`, with the cursor at `cursor` heading along `cursor_forward` and
+/// other cars in `avoidables`. `traffic` selects the narrower look-ahead of traffic cars.
 pub fn update_occluded_position(
     trail: &Trail,
     car: &Body,
     cursor: Vec3,
+    cursor_forward: Vec3,
     avoidables: impl IntoIterator<Item = Body>,
     traffic: bool,
     vehicle_half_width: f32,
@@ -90,12 +91,17 @@ pub fn update_occluded_position(
     let lateral = blended.lateral(car2);
     let out_of_bounds = vehicle_half_width + (lateral - blended.right_offset).max(blended.left_offset - lateral);
 
-    // Cut holes for the other cars in a local copy of the cookies from the current one on.
-    let mut local: Vec<Cookie> = cookies[current..].to_vec();
+    // Cut holes for the other cars in a local copy of the cookies the sweep starts at.
+    let start = n.min(cookies.len() - 1).max(current);
+    let mut local: Vec<Cookie> = cookies[start..].to_vec();
     let neighbours = super::neighbours::nearby(car, cursor, avoidables);
-    let blocker = punch_avoidables(&mut local, car, neighbours, traffic, vehicle_half_width);
-    let skip = n.saturating_sub(current).min(local.len().saturating_sub(1));
-    let sweep = sweep(&local[skip..], car2, cursor);
+    let drift = Drift {
+        offset: lateral,
+        lateral_speed: xz(car.velocity).dot(blended.right_axis()),
+        heading: xz(cursor_forward).normalize_or_zero(),
+    };
+    let blocker = punch_avoidables(&mut local, car, neighbours, traffic, vehicle_half_width, drift);
+    let sweep = sweep(&local, car2, cursor);
 
     let mut out = Occlusion {
         current: blended,
@@ -111,14 +117,14 @@ pub fn update_occluded_position(
         closing_speed: 0.0,
     };
     let Some((side, apex, cookie)) = sweep else { return Some(out) };
-    let flags = local[skip + cookie].flags;
+    let flags = local[cookie].flags;
     match flags & CUT != 0 {
         true => out.avoidable = side,
         false => out.road = side,
     }
     out.from_behind = flags & CUT_BEHIND != 0;
     out.apex = Vec3::new(apex.x, cursor.y, apex.y);
-    out.apex_width = local[skip + cookie].width();
+    out.apex_width = local[cookie].width();
     if let Some(b) = blocker {
         out.trail_speed = b.trail_speed;
         let toward = (apex - car2).try_normalize().unwrap_or(Vec2::Y);

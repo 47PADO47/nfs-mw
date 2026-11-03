@@ -7,7 +7,8 @@ fn body(z: f32, speed: f32) -> Body {
 fn straight_cookies() -> Vec<Cookie> {
     (0..=30)
         .map(|i| {
-            let z = i as f32 * 3.0;
+            // The cuts start at the sweep's first cookie, just ahead of the car.
+            let z = 1.0 + i as f32 * 3.0;
             Cookie::new(Vec3::Z * z, Vec2::new(-4.0, z), Vec2::new(4.0, z), 0.0, 0)
         })
         .collect()
@@ -16,7 +17,7 @@ fn straight_cookies() -> Vec<Cookie> {
 #[test]
 fn moving_avoidable_cuts_begin_near_the_predicted_encounter_not_the_current_body() {
     let mut cookies = straight_cookies();
-    let blocker = punch_avoidables(&mut cookies, &body(0.0, 85.0), [body(12.0, 79.0)], false, 1.0);
+    let blocker = punch_avoidables(&mut cookies, &body(0.0, 85.0), [body(12.0, 79.0)], false, 1.0, Drift::default());
     assert!(blocker.is_some(), "the slower car is a real future encounter");
     let first = cookies.iter().find(|cookie| cookie.flags & CUT != 0).expect("the encounter must cut the trail");
     // Each extent is 3.5m. The nose gap is 5m and closes at6m/s;
@@ -32,7 +33,9 @@ fn moving_avoidable_cuts_begin_near_the_predicted_encounter_not_the_current_body
 #[test]
 fn a_stationary_avoidable_still_cuts_the_nearby_road() {
     let mut cookies = straight_cookies();
-    assert!(punch_avoidables(&mut cookies, &body(0.0, 20.0), [body(12.0, 0.0)], false, 1.0).is_some());
+    assert!(
+        punch_avoidables(&mut cookies, &body(0.0, 20.0), [body(12.0, 0.0)], false, 1.0, Drift::default()).is_some()
+    );
     let first = cookies.iter().find(|cookie| cookie.flags & CUT != 0).unwrap();
     assert!(first.centre.z <= 12.0, "a stationary blocker must not be moved far ahead: {first:?}");
 }
@@ -41,7 +44,7 @@ fn a_stationary_avoidable_still_cuts_the_nearby_road() {
 fn opposing_vehicles_predict_noses_along_the_road_instead_of_the_other_body_heading() {
     let mut cookies = straight_cookies();
     let other = Body { forward: -Vec2::Y, ..body(50.0, -40.0) };
-    assert!(punch_avoidables(&mut cookies, &body(0.0, 40.0), [other], false, 1.0).is_some());
+    assert!(punch_avoidables(&mut cookies, &body(0.0, 40.0), [other], false, 1.0, Drift::default()).is_some());
     let first = cookies.iter().find(|cookie| cookie.flags & CUT != 0).unwrap();
     let predicted = 50.0 - 40.0 * (43.0 / 80.0) - 7.0;
     assert!((first.centre.z - predicted).abs() <= 3.0, "{first:?}, expected near{predicted}");
@@ -51,18 +54,18 @@ fn opposing_vehicles_predict_noses_along_the_road_instead_of_the_other_body_head
 fn equal_velocity_and_a_meeting_beyond_the_recorded_trail_do_not_create_a_nearby_cut() {
     for distance in [5.0, 12.0] {
         let mut cookies = straight_cookies();
-        punch_avoidables(&mut cookies, &body(0.0, 85.0), [body(distance, 85.0)], false, 1.0);
+        punch_avoidables(&mut cookies, &body(0.0, 85.0), [body(distance, 85.0)], false, 1.0, Drift::default());
         assert!(cookies.iter().all(|cookie| cookie.flags & CUT == 0));
     }
     let mut cookies = straight_cookies();
-    punch_avoidables(&mut cookies, &body(0.0, 85.0), [body(22.0, 79.0)], false, 1.0);
+    punch_avoidables(&mut cookies, &body(0.0, 85.0), [body(22.0, 79.0)], false, 1.0, Drift::default());
     assert!(cookies.iter().all(|cookie| cookie.flags & CUT == 0), "the predicted meeting lies beyond this trail");
 }
 
 #[test]
 fn a_nearby_closing_vehicle_retains_the_inside_flag_on_its_predicted_cut() {
     let mut cookies = straight_cookies();
-    punch_avoidables(&mut cookies, &body(0.0, 85.0), [body(5.0, 79.0)], false, 1.0);
+    punch_avoidables(&mut cookies, &body(0.0, 85.0), [body(5.0, 79.0)], false, 1.0, Drift::default());
     let cuts: Vec<_> = cookies.iter().filter(|cookie| cookie.flags & CUT != 0).collect();
     assert!(!cuts.is_empty());
     assert!(cuts.iter().all(|cookie| cookie.flags & CUT_BEHIND != 0));
@@ -73,7 +76,7 @@ fn a_nearby_closing_vehicle_retains_the_inside_flag_on_its_predicted_cut() {
 fn an_avoidable_on_another_road_height_is_ignored() {
     let mut cookies = straight_cookies();
     let other = Body { position: Vec3::new(0.0, 5.01, 12.0), ..body(12.0, 79.0) };
-    assert!(punch_avoidables(&mut cookies, &body(0.0, 85.0), [other], false, 1.0).is_none());
+    assert!(punch_avoidables(&mut cookies, &body(0.0, 85.0), [other], false, 1.0, Drift::default()).is_none());
     assert!(cookies.iter().all(|cookie| cookie.flags & CUT == 0));
 }
 
@@ -86,10 +89,46 @@ fn predicted_points_select_a_forward_crossing_without_clamping_to_the_trail_end(
 }
 
 #[test]
-fn a_car_overtaking_from_behind_alongside_cuts_nothing() {
-    // Its front is still behind me and it runs in the next lane: it is passing, not in my way.
+fn a_car_close_behind_within_my_width_cuts_nothing() {
+    // Its front is still behind me and it overlaps my width: it follows me, it is not in my way.
     let mut cookies = straight_cookies();
-    let passing = Body { position: Vec3::new(2.5, 0.0, -5.0), ..body(-5.0, 30.0) };
-    assert!(punch_avoidables(&mut cookies, &body(0.0, 20.0), [passing], false, 1.0).is_none());
+    let following = Body { position: Vec3::new(0.5, 0.0, -6.0), ..body(-6.0, 30.0) };
+    assert!(punch_avoidables(&mut cookies, &body(0.0, 20.0), [following], false, 1.0, Drift::default()).is_none());
     assert!(cookies.iter().all(|cookie| cookie.flags & CUT == 0));
+}
+
+#[test]
+fn the_side_to_pass_follows_the_predicted_offset_when_both_sides_fit() {
+    let wide = || -> Vec<Cookie> {
+        (0..=30)
+            .map(|i| {
+                let z = 1.0 + i as f32 * 3.0;
+                Cookie::new(Vec3::Z * z, Vec2::new(-10.0, z), Vec2::new(10.0, z), 0.0, 0)
+            })
+            .collect()
+    };
+    let parked = body(20.5, 0.0);
+    // Drifting right (positive lateral speed) predicts an offset right of the parked car: keep the right side open.
+    let mut cookies = wide();
+    let drifting = Drift { offset: -0.5, lateral_speed: 6.0, heading: Vec2::Y };
+    punch_avoidables(&mut cookies, &body(0.0, 20.0), [parked], false, 1.0, drifting);
+    let cut = cookies.iter().find(|cookie| cookie.flags & CUT != 0).expect("the parked car cuts");
+    assert!(cut.centre.x > 0.0, "the corridor stays on the right: {cut:?}");
+    // Without the drift the same offset keeps the left side.
+    let mut cookies = wide();
+    punch_avoidables(&mut cookies, &body(0.0, 20.0), [parked], false, 1.0, Drift { lateral_speed: 0.0, ..drifting });
+    let cut = cookies.iter().find(|cookie| cookie.flags & CUT != 0).unwrap();
+    assert!(cut.centre.x < 0.0, "the corridor stays on the left: {cut:?}");
+}
+
+#[test]
+fn traffic_cuts_for_a_closing_car_met_beyond_the_approach_limit_and_others_do_not() {
+    // A stationary car 60 m ahead of one at 10 m/s is met in about 5 s.
+    let parked = body(60.5, 0.0);
+    let mut cookies = straight_cookies();
+    assert!(punch_avoidables(&mut cookies, &body(0.0, 10.0), [parked], false, 1.0, Drift::default()).is_none());
+    assert!(cookies.iter().all(|cookie| cookie.flags & CUT == 0));
+    let mut cookies = straight_cookies();
+    punch_avoidables(&mut cookies, &body(0.0, 10.0), [parked], true, 1.0, Drift::default());
+    assert!(cookies.iter().any(|cookie| cookie.flags & CUT != 0));
 }

@@ -133,6 +133,7 @@ pub(super) fn snap<R: RandomSource>(
                     trail,
                     me,
                     nav.position,
+                    nav.forward,
                     traffic.iter().copied(),
                     false,
                     nav.half_width,

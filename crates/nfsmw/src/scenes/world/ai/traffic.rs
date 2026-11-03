@@ -171,9 +171,9 @@ pub fn think_with_delta(
     let reach = look.max(2.0 * speed);
     let position = car.body.position;
     let near = others.into_iter().filter(move |o| o.position.distance(position) < reach);
-    let occlusion = nav
-        .trail()
-        .and_then(|trail| update_occluded_position(trail, &car.body, nav.position, near, true, nav.half_width));
+    let occlusion = nav.trail().and_then(|trail| {
+        update_occluded_position(trail, &car.body, nav.position, nav.forward, near, true, nav.half_width)
+    });
     let target = occlusion.as_ref().map_or(nav.position, |o| o.position);
     let blocked = occlusion.as_ref().is_some_and(|o| o.avoidable != 0);
     Think { target, speed: compute_speed(net, nav, car, occlusion.as_ref(), cruise, dt), blocked }
