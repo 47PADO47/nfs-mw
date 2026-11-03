@@ -40,6 +40,7 @@ nfsmw view-world --drive --at 2150,1399 --no-traffic --ui-style custom --hud-sce
 | `search` | contact lost 3 s ago, the last-known place, the helicopter flying blind |
 | `cooldown` | the cool-down meter at 0.4, a hiding spot latched to 0.6 |
 | `escape` | got away at 4:05, the bounty banked |
+| `takedown` | `pursuit-active` with the takedown line up (a Civic Cruiser, 500 bounty) |
 | `critical-damage` | rear-left tyre blown, front-right punctured, heavy body damage, still driving |
 | `notify-preempt` | a Low notice (bounty) and two Medium ones (a checkpoint and a lap) up; on frame 30 a Critical one (roadblock) displaces the Low |
 | `map-centered` | free roam with a GPS route, left in 300 m then right, the map Centered |

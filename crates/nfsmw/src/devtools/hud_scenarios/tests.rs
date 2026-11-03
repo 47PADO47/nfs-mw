@@ -31,7 +31,7 @@ fn the_names_parse_back_and_are_unique() {
     let mut names: Vec<&str> = HudScenario::ALL.iter().map(|s| s.name()).collect();
     names.sort_unstable();
     names.dedup();
-    assert_eq!(names.len(), 13);
+    assert_eq!(names.len(), 14);
 }
 
 #[test]
