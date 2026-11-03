@@ -6,13 +6,14 @@ use glam::{Mat4, Quat, Vec2, Vec3};
 use super::logic::Footer;
 use super::{ids::screen, prompt_layout::Frame};
 use crate::career::CareerHandle;
-use crate::i18n::{self, t};
 use crate::input::{Action, Bindings, InputDevice};
 use crate::ui::{
     UiAssets,
     input_icons::{ATLAS, Glyph},
     prompts::{self, Prompt},
 };
+
+mod legacy;
 
 const FONT: u32 = 0x5455_70c6; // FONT_MW_BODY
 /// Half the height of a hint in its frame's units, before the fit: the keycaps are 22 high.
@@ -34,84 +35,8 @@ impl HintArea {
 /// One footer hint: its keys, its label, and the action a click on it presses (none for a pair of arrows).
 pub type Hint = (Vec<Prompt>, HintLabel, Option<Action>);
 
-/// What a footer hint says it does. Most are the game's own hint words; the rest are the catalogue's (`prompts-*`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum HintLabel {
-    Accept,
-    Back,
-    Quit,
-    Defaults,
-    ViewTutorial,
-    Showcase,
-    Zoom,
-    ViewCar,
-    Continue,
-    GameStats,
-    Select,
-    Column,
-    Remap,
-    ChangeMode,
-    ViewRival,
-    Randomize,
-    Adjust,
-    Done,
-    // The garage's own hints.
-    AddNewCar,
-    CustomizeCar,
-    DeleteCar,
-    Backroom,
-    MaxPerformance,
-    AddToCart,
-    ViewCart,
-    RemoveNumbers,
-    Remove,
-    Add,
-    Checkout,
-    ClearAll,
-    Cancel,
-    Help,
-}
-
-impl HintLabel {
-    /// The label's text in the current language.
-    pub fn text(self) -> String {
-        let label = match self {
-            Self::Accept => 0x2B65_A216,         // H_ACCEPT
-            Self::Back => 0x61D5_96D7,           // H_BACK
-            Self::Quit => 0xC51F_BF74,           // PC_QUIT
-            Self::Defaults => 0x00CA_369E,       // H_DEFAULTS
-            Self::ViewTutorial => 0xCE39_D54D,   // VIEW_TUTORIAL
-            Self::Showcase => 0xD616_E103,       // H_SHOWCASE
-            Self::Zoom => 0xC524_9616,           // PC_ZOOM
-            Self::ViewCar => 0x5DE7_9F0B,        // SHOWCASE_VIEW_CAR
-            Self::Continue => 0x8098_A54C,       // COMMON_CONTINUE
-            Self::GameStats => 0x7F73_40AF,      // COMMON_GAME_STATS
-            Self::Select => 0x3FC3_2947,         // COMMON_SELECT
-            Self::Randomize => 0x363D_108F,      // H_RANDOMIZE
-            Self::Done => 0x8CD6_BD6D,           // COMMON_DONE
-            Self::AddNewCar => 0xC259_8BD8,      // MYCAR_ADD_CAR
-            Self::CustomizeCar => 0xC984_7935,   // MYCAR_EDIT_CAR
-            Self::DeleteCar => 0xD5A1_1802,      // MYCAR_DELETE_CAR
-            Self::Backroom => 0xEE11_7BF4,       // H_BACKROOM
-            Self::MaxPerformance => 0x972C_3B80, // CM_MAX_PERF
-            Self::AddToCart => 0xCFDF_1D5A,      // H_ADD_TO_CART
-            Self::ViewCart => 0xE2DF_460A,       // H_VIEW_CART
-            Self::RemoveNumbers => 0xBE43_4A38,  // CN_REMOVE_NUMBERS
-            Self::Remove => 0x5DAB_CBC0,         // UNCHECK
-            Self::Add => 0x028F_EADD,            // CHECK
-            Self::Checkout => 0x2557_DE51,       // CSHOP_CHECKOUT
-            Self::ClearAll => CLEAR_ALL,         // CSHOP_CLEAR
-            Self::Cancel => 0x1A29_4DAD,         // COMMON_CANCEL
-            Self::Help => 0x61D8_F34F,           // H_HELP
-            Self::Column => return t!("prompts-column"),
-            Self::Remap => return t!("prompts-remap"),
-            Self::ChangeMode => return t!("prompts-change-mode"),
-            Self::ViewRival => return t!("prompts-view-rival"),
-            Self::Adjust => return t!("prompts-adjust"),
-        };
-        i18n::game_or_error(label)
-    }
-}
+mod labels;
+pub use labels::HintLabel;
 
 /// `CSHOP_CLEAR`, the cart's Clear All: the garage's own footer is told apart by it (`garage_ui::prompts::hide_legacy`).
 pub(in crate::frontend) const CLEAR_ALL: u32 = 0xA1C1_EEE2;
@@ -146,7 +71,62 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
         (action(Action::MenuAccept), L::Accept, Some(Action::MenuAccept)),
     );
     // The custom race's screens list Back before Accept, as the reference screenshots do.
+    if [screen::SAFE_HOUSE_RACE_SHEET, "SafeHouseMilestones.fng", "SafeHouseBounty.fng"]
+        .iter()
+        .any(|s| name.eq_ignore_ascii_case(s))
+    {
+        let mut hints =
+            vec![back, (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), L::Select, None)];
+        if footer == Footer::BackAccept {
+            hints.push(accept);
+        }
+        return hints;
+    }
+    if name.eq_ignore_ascii_case(screen::SAFE_HOUSE_RIVAL_BIO) {
+        return vec![(action(Action::MenuAccept), L::Continue, Some(Action::MenuAccept))];
+    }
     match footer {
+        Footer::ControlsCapture => {
+            return vec![(
+                vec![Prompt::Key(prompts::key_word(bevy_input::keyboard::KeyCode::Escape))],
+                L::Cancel,
+                None,
+            )];
+        }
+        Footer::ControlsPages => {
+            return vec![
+                back,
+                (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), L::Select, None),
+                (prompts::pair(bindings, Action::MenuLeft, Action::MenuRight, device), L::Column, None),
+                (action(Action::MenuAccept), L::Remap, Some(Action::MenuAccept)),
+                (prompts::pair(bindings, Action::MenuTriggerLeft, Action::MenuTriggerRight, device), L::Device, None),
+            ];
+        }
+        Footer::Jukebox { reorder, has_songs } => {
+            let mut hints = vec![back, accept];
+            if has_songs {
+                let label = match reorder {
+                    true => L::Move,
+                    false => L::Select,
+                };
+                hints.push((prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), label, None));
+                if !reorder {
+                    hints.push((
+                        prompts::pair(bindings, Action::MenuLeft, Action::MenuRight, device),
+                        L::ChangeMode,
+                        None,
+                    ));
+                }
+                hints.push((action(Action::JukeboxGrab), L::Grab, Some(Action::JukeboxGrab)));
+                hints.push((action(Action::MenuButton2), L::Preview, Some(Action::MenuButton2)));
+            }
+            hints.push((
+                prompts::pair(bindings, Action::MenuTriggerLeft, Action::MenuTriggerRight, device),
+                L::Order,
+                None,
+            ));
+            return hints;
+        }
         Footer::BackOnly | Footer::CarSelectLocked => return vec![back],
         Footer::BackAccept => return vec![back, accept],
         Footer::Tutorial => {
@@ -177,6 +157,7 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
         | Footer::GarageSelect
         | Footer::GarageCart { .. }
         | Footer::GarageTuning
+        | Footer::GarageTuningHelp
         | Footer::GarageNumbers => {}
     }
     // Each hint names the action a click on it presses; the pairs of arrows have none.
@@ -200,13 +181,6 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
             (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), L::Select, None),
             (prompts::pair(bindings, Action::MenuLeft, Action::MenuRight, device), L::Column, None),
             (action(Action::MenuAccept), L::Remap, Some(Action::MenuAccept)),
-            (action(Action::MenuBack), L::Back, Some(Action::MenuBack)),
-        ];
-    }
-    if is(screen::EA_TRAX_JUKEBOX) {
-        hints = vec![
-            (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), L::Select, None),
-            (action(Action::MenuAccept), L::ChangeMode, Some(Action::MenuAccept)),
             (action(Action::MenuBack), L::Back, Some(Action::MenuBack)),
         ];
     }
@@ -251,20 +225,48 @@ pub fn decorate(
 ) -> Vec<HintArea> {
     let splash = [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s));
     let pause = name.eq_ignore_ascii_case(screen::PAUSE_MENU);
-    let Some(frame) = Frame::find(tree, name, footer) else { return Vec::new() };
-    hide_legacy_hints(tree, splash, name.eq_ignore_ascii_case("Quick_Race_Brief.fng"));
+    let Some(frame) = Frame::find(tree, name, footer, assets) else { return Vec::new() };
+    let settings = [
+        screen::OPTIONS,
+        screen::PAUSE_OPTIONS,
+        screen::CONTROLS,
+        screen::PAUSE_CONTROLS,
+        screen::SAFE_HOUSE_RACE_SHEET,
+        screen::SAFE_HOUSE_MILESTONES,
+        screen::SAFE_HOUSE_BOUNTY,
+    ]
+    .iter()
+    .any(|s| name.eq_ignore_ascii_case(s));
+    legacy::hide(
+        tree,
+        splash,
+        name.eq_ignore_ascii_case("Quick_Race_Brief.fng"),
+        settings,
+        name.eq_ignore_ascii_case(screen::EA_TRAX_JUKEBOX),
+    );
     if footer.is_garage() {
-        super::garage_ui::prompts::hide_legacy(tree);
+        super::garage_ui::prompts::hide_legacy(tree, footer);
+    }
+    if name.eq_ignore_ascii_case(screen::SAFE_HOUSE_RIVAL_BIO) {
+        legacy::hide_children(tree, 0xdde3_db34);
+    }
+    if [screen::SAFE_HOUSE_RACE_SHEET, screen::SAFE_HOUSE_MILESTONES, screen::SAFE_HOUSE_BOUNTY]
+        .iter()
+        .any(|s| name.eq_ignore_ascii_case(s))
+    {
+        legacy::hide_children(tree, 0x84bc_f2b5);
+        legacy::hide_roots(tree, &[0xc0a6_849b, 0x12fd_7d4a, 0xfb80_cdac]);
     }
     let first_hint = tree.nodes.len();
     let hints: Vec<(Vec<Prompt>, String, Option<Action>)> = hint_set(name, footer, bindings, device)
         .into_iter()
         .map(|(keys, label, action)| (keys, label.text(), action))
         .collect();
-    let colour = match pause || name.eq_ignore_ascii_case(screen::PAUSE_OPTIONS) {
-        true => [255, 174, 64, 255],
-        false => [255; 4],
-    };
+    let colour =
+        match pause || [screen::PAUSE_OPTIONS, screen::PAUSE_CONTROLS].iter().any(|s| name.eq_ignore_ascii_case(s)) {
+            true => [255, 174, 64, 255],
+            false => [255; 4],
+        };
     let total: f32 = hints.iter().map(|(keys, label, _)| hint_width(keys, label, assets)).sum();
     let fit = (frame.width / total.max(1.0)).min((frame.height - 2.0) / 25.0).min(1.0);
     let mut x = match frame.centred {
@@ -274,6 +276,7 @@ pub fn decorate(
     let mut areas = Vec::new();
     for (keys, label, pressed) in hints {
         let start = x;
+        let first = tree.nodes.len();
         for key in keys {
             let key_width = prompt_width(&key, assets) * fit;
             match key {
@@ -285,14 +288,27 @@ pub fn decorate(
         text(tree, &label, x + 3.0 * fit, 0.0, fit, colour, assets);
         x += (text_width(&label, assets) + 22.0) * fit;
         if let Some(action) = pressed {
-            let half = HINT_HALF_HEIGHT * fit;
-            let a = frame.world.transform_point3(Vec3::new(start, -half, 0.0)).truncate();
-            let b = frame.world.transform_point3(Vec3::new(x, half, 0.0)).truncate();
-            areas.push(HintArea { action, min: a.min(b), max: a.max(b) });
+            areas.push((hint_area(action, frame.world, start, x, HINT_HALF_HEIGHT * fit), first..tree.nodes.len()));
         }
     }
     frame.apply(tree, first_hint);
-    areas
+    areas.into_iter().filter_map(|(area, nodes)| tree.nodes[nodes].iter().any(|n| n.visible).then_some(area)).collect()
+}
+
+#[cfg(test)]
+#[path = "prompt_hit_tests.rs"]
+mod hit_tests;
+
+fn hint_area(action: Action, world: Mat4, start: f32, end: f32, half: f32) -> HintArea {
+    let first = world.transform_point3(Vec3::new(start, -half, 0.0)).truncate();
+    let mut min = first;
+    let mut max = first;
+    for (x, y) in [(start, half), (end, -half), (end, half)] {
+        let point = world.transform_point3(Vec3::new(x, y, 0.0)).truncate();
+        min = min.min(point);
+        max = max.max(point);
+    }
+    HintArea { action, min, max }
 }
 
 fn prompt_width(prompt: &Prompt, assets: &UiAssets) -> f32 {
@@ -344,56 +360,6 @@ fn rect(tree: &mut UiTree, x: f32, y: f32, width: f32, height: f32, colour: [u8;
     n.world *= Mat4::from_scale(Vec3::new(width, height, 1.0));
     n.world_colour = colour;
     push(tree, n);
-}
-
-fn hide_legacy_hints(tree: &mut UiTree, splash: bool, brief: bool) {
-    // 0xD646_3100 is the Game Stats (and Randomize) button group.
-    // 0xB8A7_C6CE is the profile list's own Accept; 0x28FD_842D the main menu's Game Stats card header.
-    let names = [
-        0x6A21_8478,
-        0x812A_09D4,
-        0x7379_349B,
-        0x5E4D_1BDC,
-        0xD646_3100,
-        0xB8A7_C6CE,
-        0x28FD_842D,
-        super::ids::QUIT_BUTTON,
-        // The overview's legacy Back triangle is a direct footer child, outside the Back text group.
-        0x1AC9_4CA9,
-    ];
-    // The draw tree does not keep the labels its strings came from, so a package's own hint is known by the text its
-    // label has in the current language.
-    let words: Vec<String> = LEGACY_HINTS.iter().filter_map(|label| i18n::game(*label)).collect();
-    let mut hidden = vec![false; tree.nodes.len()];
-    for (i, n) in tree.nodes.iter().enumerate() {
-        let hint_text = n.text.as_deref().is_some_and(|t| words.iter().any(|word| word == t.trim()));
-        // The brief's Randomize root has the generic name "Group", shared by unrelated screens.
-        let brief_hint =
-            brief && [super::prompt_layout::BRIEF_FOOTER, super::prompt_layout::BRIEF_RANDOMIZE].contains(&n.name_hash);
-        hidden[i] = hint_text || names.contains(&n.name_hash) || brief_hint || (splash && n.name_hash == 0xC4DF_3FF2);
-    }
-    // Ancestors precede descendants in the actual packages; the parent chain also handles other orderings.
-    for i in 0..tree.nodes.len() {
-        let mut parent = tree.nodes[i].parent;
-        let mut budget = tree.nodes.len();
-        while let Some(p) = parent.filter(|p| *p < tree.nodes.len()) {
-            if hidden[p] {
-                hidden[i] = true;
-                break;
-            }
-            if budget == 0 {
-                break;
-            }
-            budget -= 1;
-            parent = tree.nodes[p].parent;
-        }
-    }
-    // The composed menu slot copies whole trees (`ui/theme/original/menu.rs`) and reads `visible`, not `draw_order`,
-    // so a hidden node is marked invisible as well as dropped from the draw order.
-    for (node, hidden) in tree.nodes.iter_mut().zip(&hidden) {
-        node.visible &= !hidden;
-    }
-    tree.draw_order.retain(|i| !hidden[*i]);
 }
 
 fn node(kind: NodeKind, x: f32, y: f32) -> UiNode {

@@ -68,6 +68,13 @@
   when thumb-drag attempts released. No continuous drag was observed. The
   session made no modifications and the recorded profile hashes were unchanged.
   This evidence applies to that installation, not every original platform.
+- **Recorded Add-tile action check (27 October 2026):** the user's continuous
+  modified-PC capture shows Back and Add New Car while the manager's Add tile
+  is selected, then Customize Car, Delete Car and Showcase on a saved car.
+  This establishes contextual prompt visibility in that installation. The
+  capture does not exercise a Showcase press on the Add tile. Rejecting that
+  unavailable preview also follows the existing actual-car-only contract;
+  installed-package regressions check the host input path and prompt switching.
 - **Implementation boundary:** implement from the written behavior and installed
   data. Reuse the shared FEng runtime, input, animation, presenter and sound
   handling. Keep the temporary F6 testing interface outside normal garage flow.
@@ -79,3 +86,11 @@
   not establish live original animation timing, camera fit, controller operation,
   economy execution or matched original/remake rendering. Those comparisons
   require separately recorded runtime evidence.
+
+## Retained carousel return correction (2026-10-27)
+
+The user reported lost garage chrome after Back. The installed regression returned from a part choice to the
+retained category screen with no drawn text, instead of its prior item/title/footer. Replaying the retained
+package's own INIT scripts and then restoring host strip/model presentation repairs this observed return. No
+translated executable code was used. Exact original return animation timing remains unverified; other garage
+presentation issues remain separate playtest reports.

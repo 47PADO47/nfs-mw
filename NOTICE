@@ -5,6 +5,12 @@ Licensed under MIT OR Apache-2.0 (see LICENSE-MIT and LICENSE-APACHE).
 This repository contains no game assets and no decompiled code. The game is read
 at runtime from the user's own installation.
 
+Optional Windows UI reference capture tools use FFmpeg as an external process and
+PyAudioWPatch as an external Python dependency. No upstream implementation is copied.
+  https://ffmpeg.org/ffmpeg-filters.html#gfxcapture
+  https://github.com/s0d3s/PyAudioWPatch
+  Setup and observation limits: docs/ui-reference-capture.md.
+
 Bevy 0.20 — MIT OR Apache-2.0 (dependency).
   https://github.com/bevyengine/bevy
   Dynamic soft shadows use Bevy's cascaded shadow maps and Gaussian PCF filtering.

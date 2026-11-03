@@ -102,6 +102,17 @@ pub struct ChaseRadio {
 }
 
 impl ChaseRadio {
+    /// A different world must not inherit queued notices, voices, 911 state or the previous chase's terminal flow.
+    /// Keep the loaded event mapping and database tuning, which belong to the audio library.
+    pub fn reset_session(&mut self) {
+        let ids = self.ids.take();
+        let tune = self.tune;
+        *self = Self::new(crate::audio::speech::random::Rng::from_clock().next_seed());
+        self.ids = ids;
+        self.tune = tune;
+        self.machine.set_tune(tune);
+    }
+
     /// The actual speech flow that drives police sirens and the formation setup gate.
     pub fn police_phase(&self) -> blackbox_pursuit::siren::Phase {
         use blackbox_pursuit::{siren::Phase, speech::Focus};
@@ -307,3 +318,10 @@ impl ChaseRadio {
 fn actor_of(talker: Talker) -> Actor {
     Actor { distance: talker.distance, on_screen: talker.in_view, line_of_sight: talker.los }
 }
+
+#[cfg(test)]
+#[path = "session_tests.rs"]
+mod session_tests;
+
+#[cfg(test)]
+mod pause_tests;

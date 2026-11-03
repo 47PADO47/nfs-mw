@@ -118,6 +118,8 @@ pub enum Action {
     MapOrientation,
     /// HUD button: hide or show the whole HUD for the session (the `hud` setting, not saved).
     ToggleHud,
+    /// EA Trax: grab/release the selected song for reordering (Y on the default controller layout).
+    JukeboxGrab,
 }
 
 impl Action {
@@ -186,6 +188,7 @@ impl Action {
             "map_zoom_out",
             "map_orientation",
             "toggle_hud",
+            "jukebox_grab",
         ];
         NAMES[self.index()]
     }
@@ -197,7 +200,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 63] = [
+    pub const ALL: [Action; 64] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -261,6 +264,7 @@ impl Action {
         Action::MapZoomOut,
         Action::MapOrientation,
         Action::ToggleHud,
+        Action::JukeboxGrab,
     ];
 
     /// Actions that still work while the UI has the keyboard.

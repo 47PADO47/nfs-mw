@@ -174,3 +174,10 @@ keys-action-map-zoom-out = Map zoom out
 keys-action-map-orientation = Map north-up / heading-up
 keys-action-toggle-hud = Show or hide the HUD
 keys-action-dismiss-notification = Dismiss a notification
+
+controls-controller-configuration = Controller Configuration
+controls-keyboard-configuration = Keyboard Configuration
+
+controls-connect-controller = Connect controller
+controls-release-input = Release controls
+controls-waiting-input = Press input

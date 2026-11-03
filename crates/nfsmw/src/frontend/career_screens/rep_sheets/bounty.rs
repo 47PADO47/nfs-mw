@@ -109,6 +109,10 @@ impl Page for BountyPage {
         }
     }
 
+    fn icon(&self, at: usize) -> Option<u32> {
+        self.rows.get(at).map(|_| blackbox_feng::fe_hash_upper("MAIN_ICON_BOUNTY"))
+    }
+
     fn name(&self, at: usize) -> String {
         self.rows.get(at).map(|row| game_text(place_key(row.number, ""))).unwrap_or_default()
     }

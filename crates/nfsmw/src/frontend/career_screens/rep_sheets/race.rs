@@ -142,6 +142,10 @@ impl Page for RacePage {
         self.rows.get(at).map_or(Status::Locked, |row| row.status)
     }
 
+    fn icon(&self, at: usize) -> Option<u32> {
+        self.rows.get(at).map(|row| text::mode_icon(row.kind))
+    }
+
     fn name(&self, at: usize) -> String {
         self.rows.get(at).map(|row| track_name(&row.event)).unwrap_or_default()
     }
@@ -226,3 +230,7 @@ fn unlock_sentence(bin: u8) -> String {
     let alias = game_text(label_hash(&text::alias_key(bin)));
     text::fill_sentence(&template, &alias, bin)
 }
+
+#[cfg(test)]
+#[path = "race_playtest.rs"]
+mod playtest;

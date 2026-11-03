@@ -41,6 +41,56 @@ fn assert_one_showcase(tree: &UiTree) {
 
 #[test]
 #[ignore = "requires installed original garage packages"]
+fn installed_garage_add_tile_hides_car_actions_and_cannot_inspect_previous_car() {
+    use crate::input::{Bindings, InputDevice};
+
+    let mut model = model();
+    model.custom_slots_enabled = true;
+    model.custom_slots.push(("saved".into(), "Saved car".into()));
+    model.custom_slot_cars.insert("saved".into(), model.draft.car.clone());
+    model.custom_slot = Some("saved".into());
+    let mut h = Harness::open(Page::Manager, model);
+    let assert_actions = |h: &Harness, car: bool| {
+        for device in [InputDevice::Keyboard, InputDevice::Xbox] {
+            let trees = h.screens.presented(&Bindings::default(), device);
+            let tree = &trees.last().unwrap().tree;
+            for caption in ["Showcase", "Delete Car"] {
+                let count = tree.nodes.iter().filter(|n| n.visible && n.text.as_deref() == Some(caption)).count();
+                assert_eq!(count, usize::from(car), "{caption} for {device:?}, selected car={car}");
+            }
+            let accept = if car { "Customize Car" } else { "Add New Car" };
+            assert!(tree.nodes.iter().any(|n| n.visible && n.text.as_deref() == Some(accept)));
+        }
+    };
+    assert_actions(&h, true);
+    h.press(pad::RIGHT);
+    h.run(0, 90);
+    assert_actions(&h, false);
+    h.press(pad::BUTTON0);
+    assert_eq!(h.top(), "MyCarsManager.fng", "Add must not inspect the previously selected car");
+    h.press(pad::LEFT);
+    h.run(0, 90);
+    assert_actions(&h, true);
+    h.press(pad::BUTTON0);
+    assert_eq!(h.top(), "Showcase.fng", "saved-car inspection remains available");
+}
+
+#[test]
+#[ignore = "requires installed original garage packages"]
+fn installed_garage_add_selector_still_offers_and_opens_showcase_for_its_preview() {
+    use crate::input::{Bindings, InputDevice};
+
+    let mut h = Harness::open(Page::AddCar, model());
+    for device in [InputDevice::Keyboard, InputDevice::Xbox] {
+        let trees = h.screens.presented(&Bindings::default(), device);
+        assert_one_showcase(&trees.last().unwrap().tree);
+    }
+    h.press(pad::BUTTON0);
+    assert_eq!(h.top(), "Showcase.fng");
+}
+
+#[test]
+#[ignore = "requires installed original garage packages"]
 fn installed_garage_manager_grid_wraps_rows_and_clamps_short_last_row_with_add_tile() {
     let mut model = model();
     model.custom_slots_enabled = true;

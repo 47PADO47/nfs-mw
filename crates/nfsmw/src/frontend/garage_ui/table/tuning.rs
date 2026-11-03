@@ -15,6 +15,7 @@ pub(super) struct Tuning {
     picked: usize,
     names: Vec<ObjectRef>,
     done: bool,
+    pending: Option<Request>,
     help: help::Help,
     failure: u64,
 }
@@ -28,6 +29,7 @@ impl Tuning {
             picked: 0,
             names: Vec::new(),
             done: false,
+            pending: None,
             help: help::Help::default(),
         }
     }
@@ -46,12 +48,19 @@ impl Tuning {
                 cx.rt.set_text(object, format!("{:.1}", value * 10.0));
             }
             if let Some(object) = self.names.get(index).copied() {
+                let script = match index == self.picked {
+                    true => crate::frontend::ids::SCRIPT_HIGHLIGHT,
+                    false => crate::frontend::ids::SCRIPT_UNHIGHLIGHT,
+                };
+                if cx.rt.script_of(object) != Some(script) {
+                    cx.rt.run_script(object, script);
+                }
                 let alpha = match row.enabled(&model) {
                     true => 255,
                     false => 75,
                 };
                 cx.rt.set_alpha(object, alpha);
-                if index == self.picked {
+                if index == self.picked && cx.rt.current_button(cx.package) != Some(object) {
                     cx.rt.focus_button(object);
                 }
             }
@@ -63,7 +72,16 @@ impl Tuning {
         }
     }
 
-    fn back(&mut self) {
+    fn leave(&mut self, cx: &mut Cx, request: Request) {
+        if self.done {
+            return;
+        }
+        self.done = true;
+        self.pending = Some(request);
+        cx.rt.post_to_package(cx.package, crate::frontend::ids::LEAVE_SCREEN);
+    }
+
+    fn back(&mut self, cx: &mut Cx) {
         if self.done {
             return;
         }
@@ -71,8 +89,7 @@ impl Tuning {
             self.handle.request(Request::Push(Page::TuningDiscard));
             return;
         }
-        self.done = true;
-        self.handle.request(Request::event(MenuEvent::Cancel));
+        self.leave(cx, Request::event(MenuEvent::Cancel));
     }
 
     fn adjust(&mut self, by: isize) {
@@ -92,11 +109,25 @@ impl ScreenLogic for Tuning {
         self.refresh(cx);
     }
     fn resume(&mut self, cx: &mut Cx) {
+        if self.done {
+            super::super::chrome::restore(cx);
+        }
         self.done = false;
+        self.pending = None;
+        let discard = std::mem::take(&mut self.handle.0.lock().unwrap().tuning_discard);
+        if discard {
+            self.leave(cx, Request::event(MenuEvent::Cancel));
+            return;
+        }
         self.refresh(cx);
     }
     fn message(&mut self, cx: &mut Cx, message: u32) {
         if self.done {
+            if message == crate::frontend::ids::EXIT_COMPLETE
+                && let Some(request) = self.pending.take()
+            {
+                self.handle.request(request);
+            }
             return;
         }
         if self.help.open {
@@ -122,20 +153,18 @@ impl ScreenLogic for Tuning {
                 self.handle.preview(Row::Profile, (current + by) % 3);
             }
             PAD_ACCEPT | BUTTON_PRESSED => {
-                self.done = true;
-                self.handle.request(Request::SaveTuning { resume: false });
+                self.leave(cx, Request::SaveTuning { resume: false });
             }
             PAD_START => {
-                self.done = true;
-                self.handle.request(Request::SaveTuning { resume: true });
+                self.leave(cx, Request::SaveTuning { resume: true });
             }
-            PAD_BACK => self.back(),
+            PAD_BACK => self.back(cx),
             _ => {}
         }
         self.refresh(cx);
     }
     fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
-        if self.help.open {
+        if self.done || self.help.open {
             return true;
         }
         let Some(object) = cx.rt.object_at(&self.names, point) else { return false };
@@ -153,11 +182,17 @@ impl ScreenLogic for Tuning {
         }
     }
     fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
+        if self.done {
+            return;
+        }
         if bits & (blackbox_feng::runtime::pad::BUTTON0 << 5) != 0 {
             self.help.toggle(cx, &self.handle.model(), self.picked);
         }
     }
     fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        if self.done {
+            return;
+        }
         if self.help.open {
             self.help.scroll(cx, -(steps as isize));
             return;
@@ -165,7 +200,10 @@ impl ScreenLogic for Tuning {
         crate::frontend::logic::wheel_as_rows(self, cx, steps);
     }
     fn footer(&self) -> Footer {
-        Footer::GarageTuning
+        match self.help.open {
+            true => Footer::GarageTuningHelp,
+            false => Footer::GarageTuning,
+        }
     }
 }
 
@@ -190,11 +228,15 @@ fn resize(cx: &mut Cx, name: &str, fraction: f32) {
         return;
     }
     let fraction = fraction.clamp(0.0, 1.0);
+    let direction = base_size.x.signum();
+    let inner = base_position.x - base_size.x * 0.5;
+    let fill_position = fill_def.data.position();
+    let margin = (fill_position.x - size.x * 0.5 - inner).abs();
     let width = base_size.x * fraction;
-    let anchor = base_position.truncate() - base_size.truncate() * 0.5 + Vec2::new(2.0, -12.0);
     cx.rt.set_size_xy(fill, width, size.y);
-    cx.rt.set_position_xy(fill, anchor.x + width * 0.5, anchor.y + size.y * 0.5);
-    uv[2] = width / texture_width;
+    cx.rt.set_position_xy(fill, inner + direction * margin + width * 0.5, fill_position.y);
+    // Negative geometry mirrors the left half. UVs still advance forwards through the segmented texture.
+    uv[2] = uv[0] + width.abs() / texture_width;
     cx.rt.set_uv(fill, uv);
     cx.rt.set_hidden(fill, fraction <= 0.0);
 }

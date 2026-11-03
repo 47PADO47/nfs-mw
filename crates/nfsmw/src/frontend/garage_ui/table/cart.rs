@@ -73,7 +73,7 @@ impl Cart {
                     if !rows::active(&state.model, &state.cart, row) {
                         cx.rt.set_alpha(object, 100);
                     }
-                    if base + index == self.picked {
+                    if base + index == self.picked && cx.rt.current_button(cx.package) != Some(object) {
                         cx.rt.focus_button(object);
                     }
                 }

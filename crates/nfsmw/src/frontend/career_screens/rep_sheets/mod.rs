@@ -3,15 +3,18 @@
 //! original's classes; `docs/specs/career-rep-sheets.md` has what the rewrite does with them.
 //!
 //! The three packages are one layout: a title, a page counter ("3 / 9"), a map picture and a panel for the selected entry.
-//! The original lets the player walk the entries with the pad (or by the 12 icon buttons), Accept asks a question and, on
+//! The original lets the player walk the entries with the pad (or by the nine icon buttons), Accept asks a question and, on
 //! Yes, leaves the menus for the entry: a race starts, a milestone or a bounty place puts the car on its spawn point.
 //! Here a [`Page`] is the rows and what they show, and [`Sheet`] is the walk, the question and the leave. Back, and the
 //! mouse, go as on the overview: Back returns to it, at the rival the sheet was opened for.
 
 mod bounty;
+mod icons;
 #[cfg(test)]
 mod install_tests;
 mod milestones;
+#[cfg(test)]
+pub(super) mod playtest;
 mod race;
 #[cfg(test)]
 mod tests;
@@ -35,10 +38,9 @@ const COUNTER_OF: u32 = 0xB203_7BDC;
 const COUNTER_STATIC: [u32; 3] = [0x5B80_5EE5, 0x2E48_1779, 0xF658_6F97];
 const EVENT_ID: u32 = 0xBBF9_70CD;
 const MAP: u32 = 0x0F36_5871;
-/// The 12 icon buttons' group (race and milestone and bounty sheets alike). The rewrite walks the entries with the pad, so
-/// the buttons stay out of the way (they would take the focus and answer nothing).
+/// The authored three-by-three icon grid shared by the sheets.
 const ICON_GRID: u32 = 0xCA9F_A6F5;
-/// The scroll arrows at the left of the panel: up to the entry before, down to the one after.
+/// The scroll arrows at the left of the panel: the previous or next grid row.
 const ARROW_UP: u32 = 0x4449_69FD;
 const ARROW_DOWN: u32 = 0x4449_69FE;
 
@@ -82,6 +84,8 @@ pub trait Page: Send + Sync {
     /// How many entries.
     fn len(&self) -> usize;
     fn status(&self, at: usize) -> Status;
+    /// Installed artwork for this entry, shared by its grid slot and detail panel.
+    fn icon(&self, at: usize) -> Option<u32>;
     /// The entry's name in the vertical list.
     fn name(&self, at: usize) -> String;
     /// The text to the right of the name in the vertical list.
@@ -151,6 +155,7 @@ struct Sheet {
     bin: u8,
     page: Box<dyn Page>,
     at: usize,
+    icons: icons::Icons,
     maps: Maps,
     zoom: Zoom,
     shown_map: Option<usize>,
@@ -170,6 +175,7 @@ impl Sheet {
             bin,
             page,
             at,
+            icons: icons::Icons::default(),
             maps: Maps::default(),
             zoom: Zoom::at(Crop::WHOLE),
             shown_map: None,
@@ -182,6 +188,10 @@ impl Sheet {
         self.page.len()
     }
 
+    fn memory_key(&self) -> String {
+        format!("rep-sheet:{:?}:{}", self.kind, self.bin)
+    }
+
     fn step(&mut self, cx: &mut Cx, by: isize) {
         if self.len() < 2 {
             return;
@@ -190,13 +200,30 @@ impl Sheet {
         self.refresh(cx);
     }
 
+    fn direction(&mut self, cx: &mut Cx, message: u32) {
+        if self.vertical {
+            let by = match message {
+                PAD_LEFT | PAD_UP => -1,
+                _ => 1,
+            };
+            return self.step(cx, by);
+        }
+        let next = icons::step(self.at, self.len(), message);
+        if next == self.at {
+            return;
+        }
+        self.at = next;
+        self.refresh(cx);
+    }
+
     /// Writes the counter and the selected entry's panel.
     fn refresh(&mut self, cx: &mut Cx) {
+        cx.memory.insert(self.memory_key(), self.at);
         for hidden in COUNTER_STATIC {
             cx.hide(hidden, true);
         }
         cx.hide(EVENT_ID, true);
-        cx.hide(ICON_GRID, true);
+        self.icons.refresh(cx, self.page.as_ref(), self.at, !self.vertical);
         let now = if self.len() == 0 { 0 } else { self.at + 1 };
         cx.text_object(COUNTER_NOW, &now.to_string());
         cx.text_object(COUNTER_OF, &self.len().to_string());
@@ -258,6 +285,7 @@ fn open_page(kind: Kind, bin: u8) -> Box<dyn Page> {
 impl ScreenLogic for Sheet {
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.screen_list_look(ListScreen::RepSheets);
+        self.at = cx.memory.get(&self.memory_key()).copied().unwrap_or(self.at).min(self.len().saturating_sub(1));
         self.start_maps();
         self.refresh(cx);
     }
@@ -267,11 +295,16 @@ impl ScreenLogic for Sheet {
         self.start_maps();
         self.page = open_page(self.kind, self.bin);
         self.at = self.at.min(self.len().saturating_sub(1));
+        self.icons.reset();
         self.refresh(cx);
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        self.vertical = cx.screen_list_look(ListScreen::RepSheets);
+        let vertical = cx.screen_list_look(ListScreen::RepSheets);
+        if self.vertical != vertical {
+            self.vertical = vertical;
+            self.refresh(cx);
+        }
         self.maps.poll(cx.assets);
         self.zoom.tick(dt);
         self.place_map(cx);
@@ -330,25 +363,34 @@ impl ScreenLogic for Sheet {
 
     // The mouse takes the two scroll arrows at the left of the panel.
     fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
+        if let Some(at) = self.icons.hit(cx, point, self.len()) {
+            self.at = at;
+            self.refresh(cx);
+            cx.press_sound(|cx| self.accept(cx));
+            return true;
+        }
         if reputation_overview::hit(cx, ARROW_UP, point) {
-            self.step(cx, -1);
+            self.direction(cx, PAD_UP);
             return true;
         }
         if reputation_overview::hit(cx, ARROW_DOWN, point) {
-            self.step(cx, 1);
+            self.direction(cx, PAD_DOWN);
             return true;
         }
         false
     }
 
     fn scroll(&mut self, cx: &mut Cx, steps: i32) {
-        self.step(cx, -(steps.signum() as isize));
+        let message = if steps > 0 { PAD_UP } else { PAD_DOWN };
+        for _ in 0..steps.unsigned_abs() {
+            self.direction(cx, message);
+        }
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
-            PAD_LEFT | PAD_UP => self.step(cx, -1),
-            PAD_RIGHT | PAD_DOWN => self.step(cx, 1),
+            PAD_LEFT | PAD_UP | PAD_RIGHT | PAD_DOWN => self.direction(cx, message),
+            crate::frontend::ids::INIT_COMPLETE => self.refresh(cx),
             PAD_BACK => {}
             _ => {}
         }

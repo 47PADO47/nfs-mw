@@ -5,6 +5,7 @@
 //! one (its bin is not reached) is greyed. Any other asks `REP_SHEET_MILESTONE_CONFIRM` (`REP_SHEET_PHOTOTICKET_CONFIRM`
 //! for a speed trap) and, on Yes, the car goes to the entry's spawn point ([`Command::JumpTo`]).
 
+use blackbox_feng::fe_hash_upper;
 use blackbox_text::label_hash;
 use glam::Vec3;
 use nfsmw_career::milestones::speedtrap::SpeedTrap;
@@ -175,6 +176,10 @@ impl Page for MilestonePage {
         self.rows.get(at).map_or(Status::Locked, MilestoneRow::status)
     }
 
+    fn icon(&self, at: usize) -> Option<u32> {
+        self.rows.get(at).map(|row| entry_icon(&row.entry))
+    }
+
     fn name(&self, at: usize) -> String {
         self.rows.get(at).map(|row| words(&row.entry, true).0).unwrap_or_default()
     }
@@ -226,4 +231,23 @@ impl Page for MilestonePage {
     fn first(&self) -> usize {
         self.rows.iter().position(|row| row.status() == Status::Open).unwrap_or(0)
     }
+}
+
+/// Reuses the installed milestone artwork already used by the challenge series and pursuit rewards.
+fn entry_icon(entry: &Entry) -> u32 {
+    let Entry::Pursuit { stat, .. } = entry else {
+        return crate::frontend::quick_play::text::mode_icon(nfsmw_data::gameplay::RaceType::SpeedTrap);
+    };
+    fe_hash_upper(match stat {
+        StatType::PursuitLength => "Milestone_Pursuit_MaxTime",
+        StatType::PursuitEvasionTime => "Milestone_Pursuit_MinTime",
+        StatType::BountyInPursuit => "Milestone_PursuitBounty",
+        StatType::CopsDestroyedInPursuit | StatType::CopsDestroyed => "Cops_TakenOut_Icon",
+        StatType::CostToStateInPursuit | StatType::CostToState => "Milestone_Cost_To_State",
+        StatType::RoadblocksDodged => "Milestone_Roadblocks",
+        StatType::CopsDamaged => "Cops_Damaged_Icon",
+        StatType::TotalInfractions => "Milestone_Infractions",
+        StatType::TireSpikesDodged => "Milestone_SpikeStrips",
+        _ => "Milestone_Main",
+    })
 }

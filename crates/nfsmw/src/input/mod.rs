@@ -17,6 +17,7 @@ mod headlights_tests;
 pub mod hud_labels;
 #[cfg(test)]
 mod interact_tests;
+mod pad_slots;
 mod presentation;
 #[cfg(test)]
 mod presentation_tests;

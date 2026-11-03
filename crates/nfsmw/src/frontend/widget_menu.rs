@@ -11,7 +11,9 @@ use super::ids::{self, screen};
 use super::logic::{Args, Command, Cx, Pick, ScreenLogic, Way};
 use super::mod_options;
 use super::options::{self, Control, Data, Row, Title};
-use super::widget_layout::{Layout, RowObjects};
+use super::widget_layout::{
+    Layout, RowObjects, draw_slider, hide_short_scrollbar, hide_unused, scrollbar_arrow_at, show_overflow_arrows,
+};
 use crate::i18n::t;
 use crate::ui::theme::MenuEntry;
 
@@ -21,9 +23,7 @@ use vertical::{control_of, data_of};
 /// Rows the screen shows at once (ten from the pause menu).
 const ROWS_ON_SCREEN: usize = 9;
 const ROWS_ON_SCREEN_PAUSED: usize = 10;
-/// Slider geometry: the fill bar's left edge sits this far in from the base, and its top this far above it
-/// (the fill image is 32 high and the base 6), and the base sits this far below the row's top.
-const FILL_INSET: Vec2 = Vec2::new(2.0, -12.0);
+/// The slider base sits this far below the row's top.
 const SLIDER_DROP: f32 = 9.5;
 pub struct WidgetMenu {
     args: Args,
@@ -170,7 +170,7 @@ impl WidgetMenu {
                     Data::Text(text) => cx.rt.set_text(data, text),
                 }
             }
-            Control::Slider(percent) => self.draw_slider(cx, r, f32::from(percent) / 100.0),
+            Control::Slider(percent) => draw_slider(cx, r, f32::from(percent) / 100.0),
         }
     }
 
@@ -198,19 +198,6 @@ impl WidgetMenu {
         for index in first..last {
             self.draw_row(cx, index, index - first);
         }
-    }
-
-    /// The fill bar is as wide as the base times the value, starting just inside the base.
-    fn draw_slider(&self, cx: &mut Cx, r: &RowObjects, value: f32) {
-        let (Some(base), Some(fill)) = (r.base, r.fill) else { return };
-        let (Some(b), Some(f)) = (cx.rt.position(base), cx.rt.size(fill)) else { return };
-        let Some(base_size) = cx.rt.size(base) else { return };
-        let width = base_size.x.abs() * value;
-        let base_tl = Vec2::new(b.x - base_size.x.abs() * 0.5, b.y - base_size.y.abs() * 0.5);
-        let tl = base_tl + FILL_INSET;
-        cx.rt.set_size_xy(fill, width, f.y);
-        cx.rt.set_position_xy(fill, tl.x + width * 0.5, tl.y + f.y * 0.5);
-        cx.rt.set_uv(fill, [0.0, 0.0, value, 1.0]);
     }
 
     /// The package focus and the highlight scripts of the data and the slider follow the selection.
@@ -363,6 +350,10 @@ impl WidgetMenu {
 const CURSOR: u32 = 0x0674_5352;
 
 impl ScreenLogic for WidgetMenu {
+    fn accepts_input(&self) -> bool {
+        !self.leaving
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.rows = match self.args.category {
             super::logic::Category::Mods => mod_options::rows(cx.mods),
@@ -376,10 +367,9 @@ impl ScreenLogic for WidgetMenu {
         self.find_rows(cx);
         // Packages supply reusable screen slots, not one object for every logical setting.
         self.on_screen = self.on_screen.min(self.objects.len());
-        // The original screens that do not apply: the defaults button and the unused parts.
-        for hidden in DEFAULTS_HINT.iter().chain(&[SCROLL_ARROW_1, SCROLL_ARROW_2]) {
-            cx.hide(*hidden, true);
-        }
+        hide_short_scrollbar(cx, self.rows.len(), self.on_screen);
+        hide_unused(cx);
+        show_overflow_arrows(cx, self.rows.len(), self.on_screen);
         let title = match (self.args.category, self.args.pause) {
             (super::logic::Category::Audio, false) => 0x3932_C2E4,
             (super::logic::Category::Video, false) => 0x4847_8029,
@@ -440,6 +430,14 @@ impl ScreenLogic for WidgetMenu {
     }
 
     fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
+        if !self.vertical
+            && !self.leaving
+            && self.rows.len() > self.window()
+            && let Some(forward) = scrollbar_arrow_at(cx, point)
+        {
+            self.move_selection(cx, forward);
+            return true;
+        }
         self.click_row(cx, point)
     }
 
@@ -465,6 +463,8 @@ impl ScreenLogic for WidgetMenu {
     /// The package's scripts write positions (the arrows' scripts hold their placeholder place); the rows are put
     /// back where the layout wants them after every update.
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
+        hide_short_scrollbar(cx, self.rows.len(), self.on_screen);
+        show_overflow_arrows(cx, self.rows.len(), self.on_screen);
         self.clock += dt;
         self.refresh(cx);
         let (first, last) = (self.top, (self.top + self.window()).min(self.rows.len()));
@@ -473,7 +473,7 @@ impl ScreenLogic for WidgetMenu {
             self.place(cx, slot);
             let (Some(row), Some(r)) = (self.rows.get(index), self.objects.get(slot)) else { continue };
             if let Control::Slider(percent) = control_of(cx, row.setting) {
-                self.draw_slider(cx, r, f32::from(percent) / 100.0);
+                draw_slider(cx, r, f32::from(percent) / 100.0);
             }
             // The package's scripts reset the title's alpha, so a disabled row is dimmed every frame.
             if !row.setting.enabled_in(cx.settings, &cx.caps) {
@@ -483,12 +483,6 @@ impl ScreenLogic for WidgetMenu {
         self.keep_selected_title_readable(cx);
     }
 }
-
-/// The hint for the defaults button (a group in one package, strings and an icon in the others), and the arrows of
-/// the player screen's list, which this logic does not use.
-const DEFAULTS_HINT: [u32; 5] = [0xD646_3100, 0x28B8_FD2F, 0x2C42_0D64, 0x3FD8_A341, 0xD9A2_2505];
-const SCROLL_ARROW_1: u32 = 0x4449_69FD;
-const SCROLL_ARROW_2: u32 = 0x4449_69FE;
 
 #[cfg(test)]
 #[path = "widget_menu_tests.rs"]

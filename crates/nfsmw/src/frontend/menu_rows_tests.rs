@@ -30,6 +30,7 @@ fn the_pause_menu_in_a_race_offers_resume_race_and_restart_and_names_its_quit() 
         coop_locked: false,
         blacklist: None,
         tuning: None,
+        ..PauseCtx::default()
     });
     assert_eq!(
         race.iter().map(|i| i.id).collect::<Vec<_>>(),
@@ -44,6 +45,7 @@ fn the_pause_menu_in_a_race_offers_resume_race_and_restart_and_names_its_quit() 
         coop_locked: false,
         blacklist: None,
         tuning: None,
+        ..PauseCtx::default()
     });
     assert_eq!(career[3].name, 0x690E_9B7C, "Quit to Career Main Menu");
 }

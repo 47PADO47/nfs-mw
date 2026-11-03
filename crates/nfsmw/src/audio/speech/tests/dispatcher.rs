@@ -390,6 +390,24 @@ fn reset_forgets_the_queue_and_the_history() {
 }
 
 #[test]
+fn batch12_session_reset_discards_finished_notices_and_old_pursuit_dropoff() {
+    let tune = SpeechTune { dropoff_ramp: [0.0, 10.0] };
+    let mut d = Dispatcher::new(vec![event(1, |e| e.enforce_dead_air = 0.0)], tune, Rng::new(7));
+    let mut voice = FakeVoice::default();
+    ask(&mut d, 1);
+    run(&mut d, &mut voice, 0.5);
+    voice.busy = false;
+    run(&mut d, &mut voice, 0.1);
+    d.set_pursuit_secs(20.0);
+    assert_eq!(d.keep_probability(), 0.0);
+    d.reset();
+    assert_eq!(d.current(), None);
+    assert!(d.take_finished().is_empty());
+    assert_eq!(d.keep_probability(), 1.0);
+    assert!(d.silent_secs() > 10.0);
+}
+
+#[test]
 fn the_pursuit_ramp_without_a_tune_never_thins() {
     let d = dispatcher(vec![]);
     assert_eq!(d.keep_probability(), 1.0);

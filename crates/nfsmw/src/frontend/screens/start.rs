@@ -13,7 +13,7 @@ impl Screens {
     /// Hands the frame's Start press to the top screen, unless the screen is still waiting for the buttons to be let go.
     pub(super) fn deliver_start_press(&mut self, env: &mut Env, out: &mut Vec<Command>) {
         let Some(device) = self.start_press.take() else { return };
-        if self.await_release {
+        if !self.top_accepts_input() {
             return;
         }
         let Some(top) = self.stack.last().map(|s| s.id) else { return };

@@ -20,6 +20,10 @@ enum State {
     Ready(Box<Speech>),
 }
 
+#[cfg(test)]
+#[path = "session_tests.rs"]
+mod session_tests;
+
 impl Default for SpeechSlot {
     fn default() -> Self {
         Self { state: State::Unloaded, volume: 0.9, context: Context::default(), pursuit_secs: 0.0 }

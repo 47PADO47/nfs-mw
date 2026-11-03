@@ -22,6 +22,8 @@ def records(path):
 def summarize(original, remake):
     native = collections.Counter()
     for record in original:
+        if record.get("kind") == "sound" and "message" in record:
+            raise ValueError("unsupported UI sound message schema; provide original module observations instead")
         module = record.get("module")
         if module:
             native[module] += 1
@@ -29,11 +31,14 @@ def summarize(original, remake):
     failures, fallbacks, first_inputs = [], [], {}
     starts = collections.Counter()
     active = set()
-    end, sequence, gaps = None, 0, 0
+    end, sequence, gaps, records_after_end = None, 0, 0, 0
     for record in remake:
+        if end is not None:
+            records_after_end += 1
         event = record.get("event")
         if event == "session_end":
-            end = record
+            if end is None:
+                end = record
             continue
         current = record.get("sequence", 0)
         if current != sequence + 1:
@@ -58,7 +63,8 @@ def summarize(original, remake):
             failures.append(record)
         if event == "fallback_command":
             fallbacks.append(record)
-    complete = bool(end and not end.get("dropped") and not end.get("write_failed") and not gaps)
+    complete = bool(end and not end.get("dropped") and not end.get("write_failed")
+                    and not gaps and not records_after_end)
     families = []
     for module in sorted(set(native) | set(inventory) | set(events)):
         implementation = inventory.get(module, {"route": "unknown", "limits": "not classified in remake inventory"})
@@ -75,7 +81,8 @@ def summarize(original, remake):
                          "original_events": native[module], "remake_events": dict(events[module]),
                          "remake_voice_starts": starts[module], "first_class_words": first_inputs.get(module)})
     return {"schema": 1, "parity": "not_established", "trace_complete": complete,
-            "sequence_gaps": gaps, "session_end": end, "families": families,
+            "sequence_gaps": gaps, "records_after_end": records_after_end,
+            "session_end": end, "families": families,
             "failures": failures[:100], "fallback_count": len(fallbacks),
             "first_fallbacks": fallbacks[:25], "active_at_last_record": len(active),
             "limits": ["Voice callback events are not counts of driving events.",

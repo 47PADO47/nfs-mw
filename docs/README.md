@@ -6,6 +6,12 @@ Runtime customization: [garage-overlay.md](garage-overlay.md).
 Normal garage coverage: [garage-parity.md](garage-parity.md).
 
 Original menu UI: [fixes and parity audit](menu-ui-parity.md).
+Live findings: [Original UI playtest backlog](ui-parity-playtest.md).
+Continuation: [UI repair handoff and validation blockers](ui-parity-handoff.md).
+Options: [recorded menu coverage and missing controls](ui-options-coverage.md).
+
+UI comparisons: [continuous reference recording](ui-reference-capture.md) and
+[opt-in remake tracing](ui-parity-tracing.md).
 
 Native physics work: [collision and destruction parity](native-physics-parity.md).
 Driving state flow: [downstream consumer audit](driving-state-audit.md).

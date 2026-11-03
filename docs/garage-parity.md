@@ -5,6 +5,9 @@ implementation is preserved for follow-up work and is not ready for a parity
 sign-off. Passing automated checks and selected screen captures do not resolve
 those playtest failures. Specific reproduction steps still need to be recorded.
 
+The [2026-10-27 playtest backlog](ui-parity-playtest.md) now lists the reported Back/UI loss, marker, text,
+highlight, sound, vignette, camera, gauge-target and loading issues. These remain open despite existing implementation.
+
 The normal garage runs the installed FEng packages through the shared game UI.
 Browsing, adding to the shopping cart and purchasing are separate actions. F6 remains
 a diagnostic overlay and never changes career cash, markers, heat or saves.

@@ -106,6 +106,29 @@ fn a_request_is_said_through_the_sink() {
 }
 
 #[test]
+fn batch12_silence_forgets_the_active_dispatcher_line_and_new_session_remains_audible() {
+    let (mut speech, log) = speech();
+    speech.set_volume(0.6);
+    assert_eq!(speech.request(1, 0), Outcome::Queued);
+    run(&mut speech, 0.5);
+    assert_eq!(speech.dispatcher().current(), Some(1));
+    assert!(log.borrow().busy);
+    assert_eq!(speech.request(3, 0), Outcome::Queued);
+    speech.silence();
+    assert!(!log.borrow().busy);
+    assert_eq!(speech.dispatcher().current(), None);
+    assert!(!speech.dispatcher().busy());
+    assert!(speech.dispatcher_mut().take_finished().is_empty());
+    run(&mut speech, 1.0);
+    assert_eq!(speech.dispatcher().history().count(1), 0, "the old line cannot repopulate reset history");
+    assert!(speech.dispatcher_mut().take_finished().is_empty());
+    assert_eq!(speech.request(1, 0), Outcome::Queued);
+    run(&mut speech, 0.5);
+    assert_eq!(log.borrow().started, [11, 11]);
+    assert_eq!(log.borrow().volume, 0.6);
+}
+
+#[test]
 fn an_interrupt_stops_the_line_in_progress_first() {
     let (mut speech, log) = speech();
     speech.request(1, 0);

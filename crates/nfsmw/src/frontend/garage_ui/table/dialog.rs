@@ -125,6 +125,11 @@ impl Dialog {
         if !yes {
             return;
         }
+        if self.page == Page::TuningDiscard {
+            // The retained tuning page owns its native leave sequence after this popup closes.
+            self.handle.0.lock().unwrap().tuning_discard = true;
+            return;
+        }
         if matches!(self.page, Page::Checkout { .. }) {
             self.handle.request(Request::Save);
             return;
@@ -156,6 +161,10 @@ impl Dialog {
 }
 
 impl ScreenLogic for Dialog {
+    fn accepts_input(&self) -> bool {
+        !self.done && self.pending.is_none()
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.refresh(cx);
     }

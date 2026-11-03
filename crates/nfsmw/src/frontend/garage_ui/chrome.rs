@@ -5,6 +5,22 @@ use crate::frontend::{ids, logic::Cx};
 use crate::garage::Model;
 use blackbox_feng::fe_hash_upper;
 
+/// A retained parent has finished its leave fade; replay its own entrance scripts on return.
+pub(super) fn restore(cx: &mut Cx) {
+    let init = fe_hash_upper("INIT");
+    let objects: Vec<_> = cx
+        .rt
+        .package(cx.package)
+        .into_iter()
+        .flat_map(|p| p.objects.iter().enumerate())
+        .filter(|(_, object)| object.scripts.iter().any(|script| script.id == init))
+        .map(|(index, _)| blackbox_feng::ObjectRef { package: cx.package, index })
+        .collect();
+    for object in objects {
+        cx.rt.run_script(object, init);
+    }
+}
+
 pub(super) fn refresh(cx: &mut Cx, page: Page, model: &Model) {
     cx.hide(0xd058_2feb, true);
     cx.hide(0xcffb_7033, true);
@@ -74,6 +90,9 @@ pub(super) fn text(cx: &mut Cx, name: &str, value: &str) {
 }
 
 pub(super) fn focus(cx: &mut Cx, object: blackbox_feng::ObjectRef, selected: bool) {
+    if native_focus(cx, object, selected) {
+        return;
+    }
     cx.rt.set_colour_rgba(
         object,
         match selected {
@@ -81,4 +100,24 @@ pub(super) fn focus(cx: &mut Cx, object: blackbox_feng::ObjectRef, selected: boo
             false => [255; 4],
         },
     );
+}
+
+/// Some garage controls expose highlight scripts without generic gain/lose-focus responses.
+pub(super) fn native_focus(cx: &mut Cx, object: blackbox_feng::ObjectRef, selected: bool) -> bool {
+    let script = match selected {
+        true => ids::SCRIPT_HIGHLIGHT,
+        false => ids::SCRIPT_UNHIGHLIGHT,
+    };
+    let authored = cx
+        .rt
+        .package(object.package)
+        .and_then(|package| package.objects.get(object.index))
+        .is_some_and(|definition| definition.scripts.iter().any(|track| track.id == script));
+    if authored {
+        if cx.rt.script_of(object) != Some(script) {
+            cx.rt.run_script(object, script);
+        }
+        return true;
+    }
+    false
 }
