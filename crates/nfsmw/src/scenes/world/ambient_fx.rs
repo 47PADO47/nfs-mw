@@ -15,6 +15,8 @@ use super::explosion_fx::{Set, build_set, draw};
 const MAX_PLACEMENTS: usize = 64;
 const MAX_EMITTERS: usize = 16;
 const PARTICLES_PER_EMITTER: usize = 128;
+/// The section number of the front end's platform files; the world's streams never place it near the player.
+const FRONTEND_SECTION: u16 = 0xa28;
 
 struct Live {
     group: u32,
@@ -26,9 +28,26 @@ struct Live {
 pub struct AmbientFx {
     sets: BTreeMap<u32, Option<Set>>,
     live: BTreeMap<(usize, usize), Live>,
+    /// Runs a front-end platform's placements (`frontend::room_fx`) rather than the world's.
+    frontend: bool,
 }
 
 impl AmbientFx {
+    /// The effects of a front-end platform file, whose untriggered placements are all in the front end's section.
+    pub fn frontend() -> Self {
+        Self { frontend: true, ..Self::default() }
+    }
+
+    fn admits(&self, placement: &Placement) -> bool {
+        if !placement.triggers.is_empty() {
+            return false;
+        }
+        if self.frontend {
+            return placement.section == FRONTEND_SECTION;
+        }
+        placement.section != 0 && placement.section != FRONTEND_SECTION
+    }
+
     pub fn maintain<'a>(
         &mut self,
         renderer: &mut dyn RenderBackend,
@@ -39,7 +58,7 @@ impl AmbientFx {
     ) {
         let mut candidates = Vec::new();
         for (id, placement) in placements {
-            if placement.section == 0 || placement.section == 0xa28 || !placement.triggers.is_empty() {
+            if !self.admits(placement) {
                 continue;
             }
             let Some(group) = db.collection_by_key(vlt_hash("emittergroup"), placement.group) else { continue };

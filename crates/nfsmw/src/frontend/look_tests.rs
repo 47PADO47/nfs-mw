@@ -100,7 +100,12 @@ fn a_bought_car_shows_the_lot_name_of_its_front_end_collection_and_keeps_its_rec
     let look = CarLook::of_profile(&profile);
     assert_eq!(look.car, "tt");
     assert_eq!(look.preset, None);
-    assert_eq!(look.record, Some(CarRecordRef { handle: 3, frontend_key: 0x193A_8BC8, vehicle_key: 0xD5C4_14E5 }));
+    let record = look.record.unwrap();
+    assert_eq!((record.handle, record.frontend_key, record.vehicle_key), (3, 0x193A_8BC8, 0xD5C4_14E5));
+    profile.with_loaded(|career| {
+        assert_eq!(record.alias.as_deref(), Some(career.alias.as_str()));
+        assert_eq!(record.customization, career.stable.customization_for_handle(3));
+    });
 }
 
 #[test]
@@ -121,7 +126,7 @@ fn a_look_with_no_record_resolves_to_its_own_names() {
 #[test]
 fn a_preset_ride_record_resolves_to_its_preset_and_car_type() {
     let Some(dir) = install() else { return };
-    let rival = CarRecordRef { handle: bstring_hash("BL15"), frontend_key: 0, vehicle_key: 0 };
+    let rival = CarRecordRef { handle: bstring_hash("BL15"), frontend_key: 0, vehicle_key: 0, ..Default::default() };
     let look = CarLook { car: String::new(), preset: None, record: Some(rival) };
     assert_eq!(look.resolve(&dir), ("GTI".to_owned(), Some("BL15".to_owned())));
 }
@@ -129,7 +134,7 @@ fn a_preset_ride_record_resolves_to_its_preset_and_car_type() {
 #[test]
 fn a_stock_record_resolves_through_the_hash_of_its_car_type() {
     let Some(dir) = install() else { return };
-    let stock = |vehicle_key| CarRecordRef { handle: 9, frontend_key: 0, vehicle_key };
+    let stock = |vehicle_key| CarRecordRef { handle: 9, frontend_key: 0, vehicle_key, ..Default::default() };
     let look = CarLook { car: String::new(), preset: None, record: Some(stock(vlt_hash("bmwm3gtr"))) };
     assert_eq!(look.resolve(&dir), ("BMWM3GTR".to_owned(), None));
     let unknown = CarLook { car: String::new(), preset: None, record: Some(stock(1)) };
@@ -139,7 +144,7 @@ fn a_stock_record_resolves_through_the_hash_of_its_car_type() {
 #[test]
 fn a_record_with_no_hash_match_falls_back_to_the_lot_name() {
     let Some(dir) = install() else { return };
-    let record = CarRecordRef { handle: 9, frontend_key: 1, vehicle_key: 2 };
+    let record = CarRecordRef { handle: 9, frontend_key: 1, vehicle_key: 2, ..Default::default() };
     let look = CarLook { car: "cobaltss".to_owned(), preset: None, record: Some(record) };
     assert_eq!(look.resolve(&dir), ("COBALTSS".to_owned(), None));
 }

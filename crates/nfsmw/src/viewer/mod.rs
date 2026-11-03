@@ -384,6 +384,10 @@ pub trait Scene {
     fn runs_while_paused(&self) -> bool {
         false
     }
+    /// Keep a menu room visible while replacing its car on the same stage.
+    fn retarget_menu(&mut self, _look: crate::frontend::Look) -> bool {
+        false
+    }
     /// A menu is up over this scene (the backdrop, or the frozen world under the pause menu or the loading screen):
     /// nothing in the picture moves unless the camera or the instances do, so the game caps the frame rate there and
     /// a frame that looks like the last one is not drawn again (`app/render/static_frame.rs`). Anything that

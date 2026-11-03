@@ -14,6 +14,7 @@ use nfsmw_data::car::{CarModel, LoadOptions};
 use super::camera_rig::CameraRig;
 use super::look::Look;
 use super::room::Room;
+use super::room_fx::RoomFx;
 use crate::input::ActionState;
 use crate::scenes::car::CarScene;
 use crate::scenes::car::FLOOR_PART;
@@ -39,9 +40,19 @@ pub struct MenuScene {
     /// What the backdrop shows (`look.rs`).
     look: Look,
     car: Option<CarScene>,
+    /// A garage keeps the old upload parked while a different preview is prepared.
+    hide_car: bool,
+    /// A menu car change leaves an empty room until the new car is uploaded, as the original's car select does.
+    awaiting_car: bool,
+    /// The room shows from the front end's camera, which keeps moving, before the first car is up: My Cars opens over
+    /// the same crib while its car list is still being read (`garage_backdrop.rs`).
+    pub(super) room_first: bool,
     shading: CarShading,
     /// The stage's room, when the install has it (`room.rs`).
     room: Option<Room>,
+    /// The room's authored particles (`room_fx.rs`), and the last frame's camera position and direction they face.
+    fx: Option<RoomFx>,
+    eye: Option<(Vec3, Vec3)>,
     /// The car's and the room's parts together, for the frame.
     parts: Vec<Instance>,
     /// The camera's rest pose (yaw, distance), which the intro settles onto.
@@ -76,6 +87,11 @@ impl MenuScene {
         self
     }
 
+    /// The car is out of the picture: a garage preview of another car, or a menu car change, is still loading.
+    fn car_hidden(&self) -> bool {
+        self.hide_car || self.awaiting_car
+    }
+
     /// Whether the front end's camera, not the orbit camera, shows this backdrop.
     fn uses_rig(&self) -> bool {
         self.look.camera_intro().is_some() && self.rig.pose().is_some()
@@ -87,7 +103,11 @@ impl MenuScene {
     /// no car, leaves the flat backdrop.
     fn staged(&mut self, renderer: &mut dyn RenderBackend, staged: Staged) {
         let Some((model, options)) = staged.car else { return };
-        self.room = staged.room.map(|data| Room::upload(renderer, &data));
+        if self.room.is_none() {
+            let fx = staged.room.as_ref().zip(self.dir.clone());
+            self.fx = fx.and_then(|(data, dir)| RoomFx::new(dir, data.placements().to_vec()));
+            self.room = staged.room.map(|data| Room::upload(renderer, &data));
+        }
         self.build = Build::Car(Box::new(model), options);
     }
 
@@ -109,7 +129,11 @@ impl MenuScene {
         self.rest = (camera.yaw, camera.distance);
         // With the front end's camera there is no intro of the orbit camera: the camera's own intro is the one.
         self.intro = if self.uses_rig() { INTRO_SECONDS } else { 0.0 };
-        self.car = Some(car);
+        if let Some(mut previous) = self.car.replace(car) {
+            previous.close(renderer);
+        }
+        self.awaiting_car = false;
+        self.still = None;
     }
 
     /// One step of the build, never blocking: takes the worker's result once it is done, then uploads the room, then the
@@ -158,8 +182,19 @@ pub(super) fn flat_frame() -> FrameParams {
 }
 
 impl MenuScene {
+    /// Advances the room's particles from the last frame's eye; nothing runs before the car is up.
+    fn update_fx(&mut self, renderer: &mut dyn RenderBackend, dt: f32) {
+        let Some((fx, (camera, forward))) = self.fx.as_mut().zip(self.eye) else { return };
+        fx.update(renderer, camera, forward, dt);
+    }
+
     fn update_car(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
-        let Some(car) = &mut self.car else { return };
+        let Some(car) = &mut self.car else {
+            if self.room_first && self.look.camera_intro().is_some() {
+                self.rig.advance(dt);
+            }
+            return;
+        };
         if self.look.camera_intro().is_some() && self.rig.advance(dt) {
             return car.update(renderer, &ActionState::default(), dt);
         }
@@ -180,6 +215,18 @@ impl MenuScene {
 }
 
 impl Scene for MenuScene {
+    fn retarget_menu(&mut self, look: Look) -> bool {
+        if self.look.stage() != look.stage() {
+            return false;
+        }
+        let Some(dir) = self.dir.clone() else { return false };
+        self.look = look;
+        self.build = Build::start(dir, self.look.clone());
+        self.awaiting_car = true;
+        self.still = None;
+        true
+    }
+
     fn set_car_shading(&mut self, shading: CarShading) {
         self.shading = shading;
         if let Some(car) = &mut self.car {
@@ -223,6 +270,10 @@ impl Scene for MenuScene {
         if let Some(room) = self.room.take() {
             room.destroy(renderer);
         }
+        if let Some(fx) = self.fx.take() {
+            fx.release(renderer);
+        }
+        self.eye = None;
         self.parts.clear();
     }
 
@@ -237,6 +288,12 @@ impl Scene for MenuScene {
         self.advance(renderer);
         self.update_reflections(renderer);
         self.update_car(renderer, input, dt);
+        self.update_fx(renderer, dt);
+        if self.awaiting_car {
+            self.update_menu_casters(renderer);
+            renderer.set_planar_reflection_scene(None);
+            return;
+        }
         // The shadow casters and the floor capture only follow the camera, the instances and the settings, so a
         // still backdrop leaves what the renderer holds from the last frame as it is.
         if self.still_unchanged(renderer) {
@@ -255,9 +312,10 @@ impl Scene for MenuScene {
         true
     }
 
-    /// The backdrop holds still: only its camera moves, and `frame` shows when it does.
+    /// The backdrop holds still: only its camera moves, and `frame` shows when it does. A room with live particles
+    /// (`room_fx.rs`) changes every frame, so its picture is not kept.
     fn menu_frame(&self) -> bool {
-        true
+        self.fx.is_none()
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
@@ -266,26 +324,39 @@ impl Scene for MenuScene {
 
     fn frame(&mut self, aspect: f32) -> (FrameParams, &[Instance]) {
         let options = fe_shadows::active();
-        let Self { car, room, parts, rig, look, .. } = self;
+        let Self { car, room, parts, rig, look, hide_car, awaiting_car, eye, room_first, .. } = self;
+        let hide_car = *hide_car || *awaiting_car;
         let has_car = car.is_some();
         let (mut params, car_parts) = match car {
             Some(car) => car.frame(aspect),
             None => (flat_frame(), &[] as &[Instance]),
         };
-        if let Some(pose) = rig.pose().filter(|_| look.camera_intro().is_some()) {
+        let posed = rig.pose().filter(|_| look.camera_intro().is_some());
+        let room_shown = has_car || (*room_first && posed.is_some());
+        if let Some(pose) = posed {
             let lens = pose.lens(aspect);
             (params.view, params.projection, params.camera_position) = (lens.view, lens.projection, lens.position);
         }
+        // The particles of the next update face this camera; the room, and so they, show once the car is there.
+        let forward = -params.view.inverse().z_axis.truncate();
+        *eye = room_shown.then_some((params.camera_position, forward));
         params.shadow_tuning = fe_shadows::tuning(options);
+        // The platform's world shaders read the front end's scenery light (`backdrop_light.rs`).
+        if let Some(light) = room.as_ref().and_then(Room::light) {
+            params.light_dir = light.light_dir;
+            params.surface_light = Some(light.surface);
+        }
         parts.clear();
         // The renderer wants instances of one mesh next to each other, and draws blended parts in the order it is given
         // them. The room has one instance per mesh and keeps its own order (`Room::instances`); the car's parts are
         // already grouped by mesh. The room goes first, so the car's glass blends over its floor. The room is drawn from
         // the car's camera, so it waits for the car.
-        if let Some(room) = room.as_ref().filter(|_| has_car) {
+        if let Some(room) = room.as_ref().filter(|_| room_shown) {
             parts.extend(room.instances().iter().map(|i| shadowed(*i, Part::Room, options.options)));
         }
-        parts.extend(car_parts.iter().map(|i| shadowed(*i, car_part(i), options.options)));
+        if !hide_car {
+            parts.extend(car_parts.iter().map(|i| shadowed(*i, car_part(i), options.options)));
+        }
         (params, parts.as_slice())
     }
 }
@@ -408,3 +479,7 @@ mod tests;
 #[cfg(test)]
 #[path = "backdrop_tests.rs"]
 mod backdrop_tests;
+
+#[cfg(test)]
+#[path = "backdrop_retarget_tests.rs"]
+mod retarget_tests;
