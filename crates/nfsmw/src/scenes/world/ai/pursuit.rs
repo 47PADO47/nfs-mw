@@ -68,6 +68,8 @@ pub struct Pursuit {
     fast_spawn_next: bool,
     /// A wave cop is due and not yet placed: traffic waits while it is (`IsCopRequestPending`, `policy.rs`).
     pub(super) cop_due: bool,
+    /// The most police vehicles the chase has had on the road at once: those not on it now are parked (`policy.rs`).
+    pub(super) fleet: u32,
     pub(super) involved: u32,
     /// The cops still to evade and the backup that refills them (`blackbox_pursuit::backup`).
     pub(super) budget: Budget,
@@ -100,6 +102,7 @@ impl Pursuit {
             requested_missing: 0,
             fast_spawn_next: false,
             cop_due: false,
+            fleet: 0,
             involved: 0,
             support: Default::default(),
         }
@@ -161,6 +164,7 @@ impl Pursuit {
         hash.u32(self.requested_missing);
         hash.bool(self.fast_spawn_next);
         hash.bool(self.cop_due);
+        hash.u32(self.fleet);
     }
 
     /// Follows the police heat level: a new level takes effect at once. Returns true when the level changed.
@@ -339,6 +343,7 @@ impl TrafficWorld {
         if let Some(pursuit) = self.pursuit.as_mut() {
             pursuit.cop_due = false;
         }
+        self.note_police_fleet();
         let Some(player) = focus.body else { return };
         if !self.police.can_begin() {
             return;

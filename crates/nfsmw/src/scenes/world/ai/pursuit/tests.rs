@@ -52,6 +52,7 @@ mod lockout;
 mod minimap;
 mod net_export;
 mod parallel;
+mod parked_police;
 mod placement;
 mod recycling;
 mod roadblock;

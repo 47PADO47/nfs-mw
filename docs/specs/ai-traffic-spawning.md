@@ -218,9 +218,21 @@ therefore squeeze traffic out: active traffic is never removed for them, but tra
 waits (density 0, section 2), so as traffic retires the cops take its place. With eight cops and the player at most
 eleven traffic cars remain.
 
-**Rewrite [ours].** Racers are not counted, so a race grid keeps traffic. The helicopter counts while it flies. A wave
-cop waits for a free slot of the same budget (never under the reference 20, so a low traffic setting does not starve a
-chase) and holds traffic paused while it waits. The cop cap of eight is applied separately.
+**Parked police vehicles [PC runtime].** "Vehicles in the world" are vehicle instances, and a police car that leaves the
+road keeps its instance: the cop manager parks it, and the next cop (a reinforcement or a roadblock car) reuses a parked
+vehicle before a new one is made. Parked police vehicles therefore keep their slots in both budgets. A recorded stock
+pursuit from heat 1 to 5 shows it: the instance total reached 20 early and stayed there, the police kept 7 vehicles at
+heats 2 and 3 with one or two of them on the road, and 10 to 13 at heats 4 and 5 with about five on the road. Traffic
+lost instances as the police took them and was capped at 6 or 7 cars at heats 4 and 5 (mean traffic 5.7, 6.4, 6.5, 4.6
+and 3.0 cars at heats 1 to 5). Traffic took a parked police slot back only a few times in the whole chase. Below that
+cap the count is set by density: the pursuit factor, the pauses of section 2 and the removal of cars left behind.
+
+**Rewrite [ours].** Racers are not counted, so a race grid keeps traffic. The helicopter counts while it flies. A chase
+remembers the most police vehicles it has had on the road at once; those not on the road now are parked and count in
+the population and share budgets. A wave cop takes a parked slot when there is one, otherwise it waits for a free slot of
+the budget (never under the reference 20, so a low traffic setting does not starve a chase) and holds traffic paused
+while it waits. The parked slots are released when the chase ends; when the original releases them is not known. The
+cop cap of eight is applied separately.
 
 ## 6. Where to spawn
 
