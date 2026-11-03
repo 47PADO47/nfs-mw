@@ -12,7 +12,7 @@ mod cull;
 #[cfg(test)]
 mod cull_tests;
 mod display;
-#[cfg(all(windows, feature = "streamline"))]
+#[cfg(all(windows, feature = "streamline", streamline_sdk))]
 mod dlss;
 mod draw_list;
 mod draw_mask;
@@ -26,6 +26,8 @@ mod frame;
 mod frame_globals;
 mod glossy;
 #[cfg(test)]
+mod haze_tests;
+#[cfg(test)]
 mod hdr_tests;
 #[cfg(test)]
 mod headless_tests;
@@ -33,6 +35,8 @@ mod init;
 mod instances;
 #[cfg(test)]
 mod lean_tests;
+#[cfg(test)]
+mod light_fog_view_tests;
 mod meshes;
 mod normal;
 mod output;
@@ -99,9 +103,9 @@ use crate::{RenderError, RendererOptions, clamp_render_scale, scaled_size};
 use targets::{HDR_FORMAT, SceneInputs, SceneTargets};
 
 pub struct Renderer {
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     dlss: Option<dlss::Runtime>,
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     presentation: dlss::presentation::Presentation,
     adapter: wgpu::Adapter,
     display: display::Display,
@@ -132,6 +136,9 @@ pub struct Renderer {
     experiments: blackbox_gfx::RenderExperiments,
     experiment_stats: blackbox_gfx::ExperimentStats,
     shadows: Option<shadows::Shadows>,
+    local_shadows: Option<shadows::local::Local>,
+    local_lights: Vec<blackbox_gfx::LocalLight>,
+    night_blend: Option<f32>,
     smaa: Option<spatial_aa::SpatialAa>,
     shadow_casters: Option<Vec<blackbox_gfx::Instance>>,
     ao: Option<ao::AmbientOcclusion>,
@@ -159,6 +166,8 @@ pub struct Renderer {
     meshes: slots::Slots<meshes::GpuMesh>,
     instances: instances::InstanceBuffer,
     effects: effects::Effects,
+    /// Whose light-fog state the colour view being recorded uses; `None` draws no light fog (the GPU mirror).
+    fog_view: Option<blackbox_gpu_passes::FogView>,
     /// Created by the first glossy call, so a renderer that never shades anything glossy pays nothing.
     glossy: Option<glossy::Glossy>,
     sky: Option<sky::Sky>,
@@ -239,7 +248,7 @@ impl Renderer {
         if width == 0 || height == 0 {
             return;
         }
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.suspend(&self.device);
         }
@@ -313,9 +322,11 @@ impl Renderer {
             true => output,
             false => scaled_size(output, self.render_scale),
         };
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         let render = match temporal && self.upscaler() == crate::Upscaler::Dlss {
-            true => dlss::render_size(self.graphics.upscale_quality, output).unwrap_or(render),
+            true => {
+                dlss::render_size(self.graphics.upscale_quality, output, self.graphics.dlss_model).unwrap_or(render)
+            }
             false => render,
         };
         targets::plan_scene(&SceneInputs {
@@ -340,6 +351,11 @@ impl Renderer {
         if self.targets.matches(&plan) {
             return;
         }
+        // Streamline may still use the old depth and motion images during asynchronous present.
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
+        if self.dlss.is_some() {
+            self.presentation.suspend(&self.device);
+        }
         self.targets = SceneTargets::new(&self.device, &plan);
         self.temporal.stop();
         if plan.direct {
@@ -349,7 +365,7 @@ impl Renderer {
 
     /// Turn vertical sync on or off without recreating the renderer.
     pub fn set_vsync(&mut self, vsync: bool) {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.suspend(&self.device);
         }

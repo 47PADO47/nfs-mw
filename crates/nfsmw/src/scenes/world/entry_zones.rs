@@ -1,6 +1,6 @@
 //! The entry zones: the places that offer a prompt when the car drives into them. These are the auto shops and safe
-//! houses (their stored spheres) and the race starts (a sphere of [`RACE_RADIUS`] at the start grid). The box triggers
-//! of the gameplay data are race checkpoints and finish lines, not entries, so none is a zone here. Spec:
+//! houses (their stored spheres) and authored race engage triggers. A start-grid sphere is retained only for
+//! data sets without engage markers. Checkpoint and finish-line box triggers are not entries. Spec:
 //! `docs/specs/world-markers.md`.
 
 use glam::Vec3;
@@ -9,8 +9,8 @@ use nfsmw_data::gameplay::{ActivityKind, GameplayData};
 use super::space;
 use crate::modding::content::interior::ModInterior;
 
-/// The radius of a race's entry sphere, metres. The data gives no size for a race start. The interior zones are 6 or
-/// 7 m, so this uses 6 m **[unconfirmed]**.
+/// Fallback race-entry radius for data sets without authored engage markers, in metres.
+/// This remake fallback is not an original-game radius.
 pub const RACE_RADIUS: f32 = 6.0;
 
 /// What a zone is, as the prompt names it.
@@ -52,6 +52,9 @@ pub struct Zone {
 /// Every entry zone of the world, in data order, and the mods' interiors (their own zones, tested after the stock ones).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EntryZones {
+    pub(super) rivals: std::collections::HashSet<String>,
+    /// Positive BinIndex thresholds for authored place icons.
+    pub(super) unlock_bins: std::collections::HashMap<String, i32>,
     pub(super) zones: Vec<Zone>,
     /// The mods' interiors: each has an entry zone in render space (`ModInterior::entry`).
     pub(super) interiors: Vec<ModInterior>,
@@ -60,7 +63,7 @@ pub struct EntryZones {
 }
 
 impl EntryZones {
-    /// The zones of the loaded gameplay data: the auto shops and safe houses, then the race starts.
+    /// The zones of the loaded gameplay data: places, then race engage triggers.
     pub fn from_data(data: &GameplayData) -> Self {
         let interiors = data.markers.iter().map(|m| {
             let kind = match m.kind {
@@ -77,16 +80,29 @@ impl EntryZones {
                 respawn: m.respawn.map(|placement| render(placement.position)),
             }
         });
-        let races =
-            data.races.iter().filter_map(|race| race.start.map(|start| (race, start))).map(|(race, start)| Zone {
+        let races = data.races.iter().filter_map(|race| {
+            let engage = data.engages.iter().find(|entry| entry.target == race.key);
+            let (position, radius) = match engage {
+                Some(entry) => (entry.position, entry.radius),
+                None if data.engages.is_empty() => (race.start?.position, RACE_RADIUS),
+                None => return None,
+            };
+            Some(Zone {
                 kind: ZoneKind::Race,
                 race_type: race.race_type,
                 name: race.name.clone(),
-                centre: render(start.position),
-                radius: RACE_RADIUS,
+                centre: render(position),
+                radius,
                 respawn: None,
-            });
+            })
+        });
         Self {
+            rivals: data.races.iter().filter(|race| race.story.boss_race).map(|race| race.name.clone()).collect(),
+            unlock_bins: data
+                .markers
+                .iter()
+                .filter_map(|marker| marker.icon_index.map(|bin| (marker.name.clone(), bin)))
+                .collect(),
             zones: interiors.chain(races).collect(),
             interiors: Vec::new(),
             career_start: data.career_start.map(|placement| render(placement.position)),

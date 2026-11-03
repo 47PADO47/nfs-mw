@@ -25,6 +25,7 @@ pub(super) fn fixture() -> (Drive, NullBackend) {
         geometry: None,
         events: None,
         reactions: None,
+        bike: None,
     };
     let model = CarModel {
         name: "TEST".into(),

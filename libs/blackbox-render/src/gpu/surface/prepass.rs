@@ -205,7 +205,10 @@ impl Prepass {
                             &self.prelit_cutout
                         }
                         BlendMode::AlphaTest
-                            if matches!(draw.shading, Shading::World | Shading::WorldNoFog | Shading::WorldPrelit) =>
+                            if matches!(
+                                draw.shading,
+                                Shading::World | Shading::WorldDistant | Shading::WorldNoFog | Shading::WorldPrelit
+                            ) =>
                         {
                             &self.world_cutout
                         }

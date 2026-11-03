@@ -56,3 +56,24 @@ fn bands_tile_the_map_rows_exactly() {
     assert_eq!(rows.iter().map(|r| r.1).sum::<u32>(), 10);
     assert!(rows.windows(2).all(|pair| pair[0].0 + pair[0].1 == pair[1].0));
 }
+
+#[test]
+fn a_celestial_sun_settles_in_steps_and_freezes_once_unlit() {
+    let (scene_sun, scene_light) = ([0.1, 0.2, 0.9, 1.0], [0.3, 0.0, -0.9]);
+    assert_eq!(sun_key(None, scene_sun, scene_light), (scene_sun, scene_light), "no cycle: the scene's own key");
+    let at = |hour: f32| {
+        let angle = (hour - 6.0) * std::f32::consts::PI / 12.0;
+        sun_key(Some([angle.cos() * 0.94, 0.34, angle.sin() * 0.94]), scene_sun, scene_light)
+    };
+    // One 60 Hz frame of the default clock (150 s per game hour).
+    let frame = 1.0 / 9000.0;
+    let mut schedule = Schedule::default();
+    let still = |hour: f32| Key { sun: at(hour).0, light: at(hour).1, ..key() };
+    schedule.plan(still(10.0), false);
+    let rebuilt = (1..=120).filter(|&i| schedule.plan(still(10.0 + i as f32 * frame), false).is_some()).count();
+    assert!(rebuilt <= 12, "a moving sun must let the map settle between steps: {rebuilt} of 120 frames");
+    assert_eq!(at(0.0), at(2.0), "below the unlit height the sun no longer changes the key");
+    assert_eq!(at(0.0).1, [0.0; 3], "the scene light (the moon at night) never reaches the march");
+    assert_ne!(at(0.0), at(12.0));
+    assert_eq!(sun_key(Some([f32::NAN; 3]), scene_sun, scene_light), at(0.0), "invalid input is the unlit key");
+}

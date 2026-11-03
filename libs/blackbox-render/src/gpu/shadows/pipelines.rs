@@ -10,6 +10,16 @@ impl Shadows {
         bias: [f32; 2],
         cache: Option<&wgpu::PipelineCache>,
     ) -> Self {
+        Self::with_layers(device, texture, bias, cache, 4)
+    }
+
+    pub(super) fn with_layers(
+        device: &wgpu::Device,
+        texture: &wgpu::BindGroupLayout,
+        bias: [f32; 2],
+        cache: Option<&wgpu::PipelineCache>,
+        layers: usize,
+    ) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("cascade matrix"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -74,7 +84,7 @@ impl Shadows {
                 cache,
             })
         };
-        let buffers: Vec<_> = (0..4)
+        let buffers: Vec<_> = (0..layers)
             .map(|_| {
                 device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("cascade matrix"),
@@ -97,7 +107,7 @@ impl Shadows {
         Self {
             grid: super::grid::Grid::default(),
             cache: super::cache::Cache::default(),
-            static_instances: (0..4).map(|_| crate::gpu::instances::InstanceBuffer::new(device)).collect(),
+            static_instances: (0..layers).map(|_| crate::gpu::instances::InstanceBuffer::new(device)).collect(),
             bias,
             opaque: make("fs_opaque"),
             cutout: make("fs_cutout"),
@@ -106,7 +116,7 @@ impl Shadows {
             prelit_cutout: make("fs_prelit_cutout"),
             buffers,
             groups,
-            instances: (0..4).map(|_| crate::gpu::instances::InstanceBuffer::new(device)).collect(),
+            instances: (0..layers).map(|_| crate::gpu::instances::InstanceBuffer::new(device)).collect(),
             bounds: Vec::new(),
             selected: Vec::new(),
             scratch: Default::default(),

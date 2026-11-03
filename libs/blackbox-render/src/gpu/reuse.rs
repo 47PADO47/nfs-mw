@@ -60,7 +60,7 @@ impl Renderer {
     /// Whether this renderer can hold a still image at all now: not under a temporal method (which accumulates
     /// frames), not with frame generation, and only when the output can be copied from and to.
     fn can_reuse(&self) -> bool {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             return false;
         }

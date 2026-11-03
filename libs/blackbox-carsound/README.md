@@ -18,6 +18,9 @@ and its banks.
   reverse whine, the turbo spool and blow-off, nitrous and its purge, a tire loop per axle, road noise per side,
   wind, landings, and which sample a collision plays (`impact`) and its scrape loop. It returns `SoundCommand`s
   naming a `SoundRef` (the effect, not the file); the game picks the bank sound.
+- **Overrun backfire.** `overrun::OverrunBackfire` decides bangs and flames of a shut throttle from a charge that builds
+  with throttle and revs and drains without (every number is a field of `OverrunTuning`); it returns strengths, the host
+  picks the recording and draws the flames.
 - **Limiter fallback.** The host calls `EngineMixer::set_redline_sample_available(false)` when the sample
   layer cannot replace the engine at the limiter. The surviving loops keep their normal level; losing a
   replacement during redlining uses the normal release fade. The tachometer still bounces. A usable layer

@@ -11,6 +11,9 @@ mod fit;
 #[cfg(test)]
 mod foliage_tests;
 mod grid;
+pub(super) mod local;
+#[cfg(test)]
+mod local_tests;
 pub(in crate::gpu) mod maps;
 #[cfg(test)]
 mod motion_tests;
@@ -119,7 +122,14 @@ impl Renderer {
                 }
                 None => {
                     let shadows = self.shadows.as_mut().expect("prepared bounds");
-                    fit::fit_with_grid(frame, settings, &shadows.bounds, &mut shadows.grid)
+                    // A moving sun steps the fit in 0.1 degree increments so cascades can be reused between
+                    // steps. Image tests, which disable the schedule, fit the exact direction.
+                    let light_dir = match shadows.stagger {
+                        true => stagger::quantized_light(frame.light_dir),
+                        false => frame.light_dir,
+                    };
+                    let frame = FrameParams { light_dir, ..*frame };
+                    fit::fit_with_grid(&frame, settings, &shadows.bounds, &mut shadows.grid)
                 }
             })
             .flatten();

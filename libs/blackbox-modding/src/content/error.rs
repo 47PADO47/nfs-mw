@@ -91,4 +91,16 @@ pub enum ContentError {
     /// A name is listed twice in `suspend`.
     #[error("suspend {0:?} is listed twice")]
     RepeatedSuspend(String),
+    /// A `[bike]` table on a car whose `kind` is not `bike`.
+    #[error("[bike] is for a bike: set kind = \"bike\"")]
+    BikeWithoutKind,
+    /// `kind = "bike"` without a `[bike]` table.
+    #[error("a bike needs its [bike] table")]
+    BikeWithoutTable,
+    /// A bike with a role other than player: AI, traffic and cop bikes are not supported.
+    #[error("a bike is a player car: role must be \"player\" and there is no [traffic] table")]
+    BikeNotPlayer,
+    /// A bike with rims: its two wheels are different solids and the shop swaps one rim for all of a car's wheels.
+    #[error("a bike has no rims to swap: leave [customization] rims out")]
+    BikeRims,
 }

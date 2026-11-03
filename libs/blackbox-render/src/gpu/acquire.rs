@@ -56,7 +56,7 @@ impl Renderer {
     /// after a frame the window had no image for (minimised, resized) the next one asks first, so a hidden window
     /// records nothing.
     pub(super) fn acquires_late(&self) -> bool {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             return false;
         }
@@ -82,7 +82,7 @@ impl Renderer {
 
     fn acquire_image(&mut self, acquire_started: std::time::Instant) -> Result<Option<Acquired>, RenderError> {
         match &self.output {
-            #[cfg(all(windows, feature = "streamline"))]
+            #[cfg(all(windows, feature = "streamline", streamline_sdk))]
             Output::Window { dx12: Some(native), .. } => Ok(Some(Acquired::View(native.view()?))),
             Output::Window { surface, config, .. } => {
                 let acquired = surface.get_current_texture();
@@ -112,7 +112,7 @@ impl Renderer {
                     wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
                     wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(None),
                     wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                        #[cfg(all(windows, feature = "streamline"))]
+                        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
                         if self.dlss.is_some() {
                             self.presentation.suspend(&self.device);
                         }

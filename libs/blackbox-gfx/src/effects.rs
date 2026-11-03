@@ -3,6 +3,9 @@
 //! All are depth tested and drawn before the UI without writing depth.
 //! The caller owns geometry, sorting, lifetime and budgets; buffers are reused across frames.
 
+mod exclude;
+mod ribbon;
+
 use glam::{Mat4, Vec3, Vec4};
 
 use crate::{BlendMode, TextureHandle};
@@ -76,17 +79,41 @@ pub struct EffectVertex {
     pub uv: [f32; 2],
     /// Procedural particles: age in seconds and stable variation seed.
     /// Textured particles: positive RGBA brightness multiplier in X (zero defaults to one), unused Y.
-    /// Streaks and glows: X unused; a Y of one takes the sun's shadow in the native renderer (the Bevy renderer ignores it).
+    /// Streaks and glows: positive emission multiplier in X (zero defaults to one).
+    /// Streaks and glows: a Y of one takes the sun's shadow. A negative Y selects a rounded lens mask.
     pub detail: [f32; 2],
 }
 
 /// World-unit distance over which an intersecting particle fades, unless the layer says otherwise.
 pub const DEFAULT_SOFT_DISTANCE: f32 = 0.3;
 
+/// A bounded illuminated-air approximation, clipped against opaque scene depth.
+#[derive(Debug, Clone, Copy)]
+pub struct LightHaze {
+    /// Unit box to world: the light is at local z=0.5, pointing toward z=-0.5.
+    pub to_world: Mat4,
+    pub color: [f32; 3],
+    pub intensity: f32,
+}
+
+/// A covered world region that reduces weather-driven fog below its ceiling.
+#[derive(Debug, Clone)]
+pub struct FogShelter {
+    pub bounds: [f32; 4],
+    pub ceiling: f32,
+    pub polygon: Vec<[f32; 2]>,
+}
+
 #[derive(Debug, Clone)]
 pub struct EffectLayer {
     /// Bounded emissive volumes, rendered against the completed scene depth.
     pub flames: Vec<FlameVolume>,
+    /// Local light scattering approximations; independent of surface illumination.
+    pub light_haze: Vec<LightHaze>,
+    /// Strength and weather density of the shared view-space light fog; zero disables it.
+    pub light_fog: [f32; 2],
+    /// Covered regions near the current view, in world XY coordinates.
+    pub fog_shelters: Vec<FogShelter>,
     /// Main-view optical distortion. Never drawn in world captures.
     pub distortion: Option<crate::ScreenDistortion>,
     /// Surface overlays with feathered edges and a subtle longitudinal pattern.
@@ -98,6 +125,8 @@ pub struct EffectLayer {
     pub streaks: Vec<EffectVertex>,
     /// Additive circular glow billboards, using the same unit-quad UV coordinates.
     pub glows: Vec<EffectVertex>,
+    /// World-space luminous lamp lenses that can also appear in reflection captures.
+    pub light_lenses: Vec<EffectVertex>,
     pub textured: Vec<TexturedEffect>,
     /// Enable evolving procedural density and depth-softened intersections for particles.
     pub detailed_particles: bool,
@@ -109,11 +138,15 @@ impl Default for EffectLayer {
     fn default() -> Self {
         Self {
             flames: Vec::new(),
+            light_haze: Vec::new(),
+            light_fog: [0.0; 2],
+            fog_shelters: Vec::new(),
             distortion: None,
             surfaces: Vec::new(),
             particles: Vec::new(),
             streaks: Vec::new(),
             glows: Vec::new(),
+            light_lenses: Vec::new(),
             textured: Vec::new(),
             detailed_particles: false,
             soft_distance: DEFAULT_SOFT_DISTANCE,
@@ -124,11 +157,15 @@ impl Default for EffectLayer {
 impl EffectLayer {
     pub fn clear(&mut self) {
         self.flames.clear();
+        self.light_haze.clear();
+        self.light_fog = [0.0; 2];
+        self.fog_shelters.clear();
         self.distortion = None;
         self.surfaces.clear();
         self.particles.clear();
         self.streaks.clear();
         self.glows.clear();
+        self.light_lenses.clear();
         self.textured.clear();
     }
 

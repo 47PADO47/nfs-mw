@@ -9,6 +9,7 @@ pub(super) struct Presentation {
     elapsed: f64,
     current: f32,
     transitioning: bool,
+    speed: blackbox_speedfx::SpeedFx,
 }
 
 impl Presentation {
@@ -16,7 +17,20 @@ impl Presentation {
         if profile.is_none() || mask.is_none() {
             log::warn!("Speedbreaker visual profile or vignette unavailable; treatment disabled");
         }
-        Self { profile, mask, active: false, elapsed: 0.0, current: 0.0, transitioning: false }
+        Self {
+            profile,
+            mask,
+            active: false,
+            elapsed: 0.0,
+            current: 0.0,
+            transitioning: false,
+            speed: blackbox_speedfx::SpeedFx::new(Default::default()),
+        }
+    }
+
+    pub fn speed_blur(&mut self, speed: f32, burning: bool, dt: f32) -> f32 {
+        self.speed.update(speed, f32::from(burning), dt);
+        self.speed.effects().blur
     }
 
     pub fn init(&self, renderer: &mut dyn RenderBackend) {

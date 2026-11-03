@@ -1,6 +1,6 @@
 # Game-world environment audit
 
-Scope: native game-world rendering at upstream base `e7d201e1`. This is a code
+Scope: native game-world rendering after the PC behavior follow-up. This is a code
 and installed-data audit, not a matched gameplay comparison.
 
 ## Fog and haze
@@ -18,8 +18,8 @@ from this difference without a reference location and draw evidence.
 The inspected PC stream has 290 emitter-library chunks with 1,535 group
 placements. Of these, 23 placements have 42 associated trigger records. The
 group keys and textures are read from the install. The prior world streamer
-did not consume these libraries. The initial implementation handles ordinary
-untriggered resident placements; its limits and remaining trigger behavior are
+did not consume these libraries. Servicing now includes triggered libraries,
+authored camera cones and player proximity crossings. Remaining limits are
 in [world-emitter-placements](specs/world-emitter-placements.md).
 The installed group names identify 577 ordinary and thick fog placements, 223
 chimney and smokestack placements, and eight small steam placements. Other
@@ -33,9 +33,20 @@ The track contains eleven entity trees, eleven instance records and thirteen
 animation-bank objects. Named channels include the airliner, blimp, cargo ship,
 sailboat and seven tower cranes. The world now connects the ordinary looping
 entities to their animation channels and meshes. The donut sign and windmill
-blades use a separate continuous rotation rule, also implemented. Triggered
-and other animation modes remain outside this initial implementation. Texture
-animation and wind sway are separate existing systems.
+blades use a separate continuous rotation rule, also implemented. Per-entity
+playback handles reverse, ping-pong, inline ranges and endpoint delays.
+The inspected PC initializes no autonomous zone/direction-trigger scenario;
+that absent original behavior is not a missing remake feature. Named ranges,
+randomized timing and track-restricted records remain outside the supported
+subset; none of the inspected stock placements require them. Texture animation
+and wind sway are separate existing systems.
+
+## Activity markers
+
+Markers use authored place and engage-zone anchors, preserve nonzero authored
+height, and apply career unlock and pursuit cooldown visibility. Hiding icons
+appear during cooldown rather than active chase. Admission distance and section
+spawn ordering remain remake policies; see [activity icons](specs/world-activity-icons.md).
 
 Do not mark any of these as visually complete without installed gameplay checks
 and comparisons to the corresponding original scene.

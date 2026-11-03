@@ -107,6 +107,7 @@ impl AiCar {
             &revealed,
             crate::scenes::world::drive::DrawOptions {
                 car: self.render_id,
+                nos_lamps: false,
                 lamps: [true, self.lamp_state().brake_surfaces_on()],
                 reverse: self.lamp_state().reverse,
                 detail,

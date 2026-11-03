@@ -23,6 +23,11 @@ blow-off and anti-roll operations after these calculations.
 
 ## Tire force
 
+Reference wheel load projects the flattened wheel-up vector onto the terrain
+normal by adding the Z and Y products before X. Apply the existing scale,
+offset and minimum load factor afterward, rounding each operation to single
+precision. The Regularized policy keeps its existing projection order.
+
 For a reference tire gripping without a locked brake, compute the angular
 acceleration feedback as `((angular_acc * radius - forward_acc) / radius) *
 wheel_inertia`, then add it to the stored torque-derived force. Round each

@@ -40,7 +40,12 @@ fn world_vertex(world: vec3<f32>, normal: vec3<f32>, color: vec3<f32>) -> WorldT
 fn world_pixel(in: VsOut, texel: vec4<f32>, receive_ao: bool) -> vec4<f32> {
     if WORLD_KIND >= 3u {
         let alpha = texel.a * in.color.a * select(1.0, 2.0, WORLD_KIND == 3u);
-        return extended_output(vec4<f32>(2.0 * texel.rgb * in.color.rgb, alpha));
+        var rgb = 2.0 * texel.rgb * in.color.rgb;
+        if NIGHT_OPAQUE && shadow_data.local_options.w > 0.0 {
+            rgb *= mix(vec3(1.0), vec3(0.30, 0.35, 0.45), shadow_data.local_options.w);
+            if globals.fog_range.w < 0.5 { rgb += shadow_data.local_options.w * 2.0 * texel.rgb * local_lighting(in.world, receiver_normal(in.world, in.normal)); }
+        }
+        return extended_output(vec4<f32>(rgb, alpha));
     }
     let receiver = receiver_normal(in.world, in.normal);
     if globals.fog_range.w < 0.5 && shadow_data.debug.x > 0.5 {
@@ -52,15 +57,19 @@ fn world_pixel(in: VsOut, texel: vec4<f32>, receive_ao: bool) -> vec4<f32> {
     if WORLD_KIND != 2u || shadow_data.projected.x < 0.5 {
         visibility = scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow);
     }
-    let light = in.world_ambient * world_environment(in.normal) * ao + in.world_diffuse * visibility * cloud_visibility(in.world);
+    var light = in.world_ambient * world_environment(in.normal) * ao + in.world_diffuse * visibility * cloud_visibility(in.world);
+    light *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
     let alpha = select(texel.a * in.color.a, texel.a, WORLD_KIND == 2u);
-    var rgb = 2.0 * texel.rgb * light + in.world_scatter;
+    var local = vec3(0.0);
+    if globals.fog_range.w < 0.5 { local = local_lighting(in.world, receiver); }
+    // Daytime in-scattering can otherwise light far scenery as if the sun were still up.
+    var rgb = 2.0 * texel.rgb * (light + local) + in.world_scatter * mix(1.0,0.035,shadow_data.local_options.w);
     if globals.scatter_rayleigh.w < 0.5 {
         let d = length(in.world - globals.camera_pos.xyz);
         let fog = clamp((d - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
-        rgb = mix(rgb, globals.fog_color.rgb, fog);
+        rgb = mix(rgb, globals.fog_color.rgb * mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w), fog);
     }
-    return extended_output(vec4<f32>(rgb, alpha));
+    return extended_output(vec4<f32>(distant_night(rgb, in.world), alpha));
 }
 
 // HDR-only extension of final RGB; intermediate authored arithmetic remains intact.

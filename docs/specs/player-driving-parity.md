@@ -1,5 +1,11 @@
 # Player driving parity corrections
 
+Steering history keeps a single-precision running sum. When replacing a sample
+in a full ring, subtract the old sample and store the sum before adding the new
+sample. Divide the stored sum by the occupied count for the mean. Recomputing
+the sum from the ring changes rounding and later steering limits. Timestamp
+expiry and the effective history duration remain separate timing contracts.
+
 Current implementation coverage, the user-reported countdown rev defect and
 remaining gaps are tracked in [player driving status](../player-driving-status.md).
 

@@ -41,7 +41,11 @@ impl Mesh {
             }
             let Some(layer) = layer else { continue };
             let kind = match draw.shading {
-                Shading::World | Shading::WorldNormal(_) | Shading::Tree => 1,
+                Shading::World
+                | Shading::WorldDistant
+                | Shading::WorldEmissive
+                | Shading::WorldNormal(_)
+                | Shading::Tree => 1,
                 Shading::Lit => 2,
                 Shading::Glossy(h) if h.raw() < super::bindings::MAX_MATERIALS => h.raw() as u32 + 3,
                 Shading::Glossy(_) => 2,

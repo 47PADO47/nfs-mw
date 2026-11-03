@@ -4,7 +4,7 @@
 pub(super) use blackbox_gpu_passes::{DEPTH_FORMAT, Globals, WorldBindings};
 
 pub(super) fn create_depth(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     if let Some(view) = super::dlss::dx12::depth(device, width, height) {
         return view;
     }

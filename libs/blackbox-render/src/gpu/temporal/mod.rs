@@ -27,9 +27,9 @@ pub(super) use motion::MotionPass;
 /// What the upscale and the motion pass need to know about the frame being drawn.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::gpu) struct TemporalFrame {
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     pub projection: Mat4,
-    #[cfg(all(windows, feature = "streamline"))]
+    #[cfg(all(windows, feature = "streamline", streamline_sdk))]
     pub camera_to_world: Mat4,
     /// The sub-pixel offset of this frame's projection, in render pixels (right and down).
     pub jitter: Vec2,
@@ -103,7 +103,7 @@ impl Renderer {
     /// are drawn between the window's frames, so they leave the history alone.
     pub(super) fn begin_temporal(&mut self, onscreen: bool, frame: &FrameParams) {
         let _trace = blackbox_trace::scope("Renderer CPU: begin temporal frame");
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.upscaler() == Upscaler::Dlss
             && self.dlss.as_ref().is_some_and(|runtime| runtime.failed.load(std::sync::atomic::Ordering::Acquire))
         {
@@ -139,9 +139,9 @@ impl Renderer {
         let previous = self.temporal.previous.replace(unjittered);
         let sharpness = self.upscale_sharpness();
         Some(TemporalFrame {
-            #[cfg(all(windows, feature = "streamline"))]
+            #[cfg(all(windows, feature = "streamline", streamline_sdk))]
             projection: frame.projection.matrix(),
-            #[cfg(all(windows, feature = "streamline"))]
+            #[cfg(all(windows, feature = "streamline", streamline_sdk))]
             camera_to_world: frame.view.inverse(),
             jitter,
             jitter_matrix: jitter_matrix(fsr3_wgpu::jitter::projection_offset_ndc(jitter, render)),

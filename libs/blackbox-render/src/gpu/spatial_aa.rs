@@ -46,9 +46,9 @@ impl Renderer {
         if onscreen && let Some(timing) = &mut self.timing {
             timing.begin(&device, &mut encoder);
         }
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         let hudless = self.generation_target(onscreen);
-        #[cfg(not(all(windows, feature = "streamline")))]
+        #[cfg(not(all(windows, feature = "streamline", streamline_sdk)))]
         let hudless: Option<wgpu::TextureView> = None;
         let given = match output {
             FrameOutput::View(view) => Some(view.clone()),
@@ -84,7 +84,7 @@ impl Renderer {
                 result => return self.skip_frame(aa, result),
             },
         };
-        self.encode_post(&mut encoder, scene, &post_view, size);
+        self.encode_post(&mut encoder, scene, &post_view, size, false);
         let output_view = match self.output_view(&mut encoder, onscreen, given.as_ref(), &mut acquired) {
             Ok(Some(view)) => view,
             result => return self.skip_frame(aa, result),
@@ -95,7 +95,7 @@ impl Renderer {
             aa.target.encode_to(&mut encoder, hudless.as_ref().unwrap_or(&output_view));
         }
         self.smaa = aa;
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if let Some(hudless) = &hudless {
             self.composite_generation(&mut encoder, hudless, &output_view);
         }

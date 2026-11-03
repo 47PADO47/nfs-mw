@@ -15,6 +15,8 @@ struct Pulse {
     seed: u32,
     lifetime: f32,
     amplitude: f32,
+    /// The factor on the burst's length and width (1 for the burst of its kind).
+    size: f32,
 }
 
 pub(super) struct Frame {
@@ -38,6 +40,11 @@ impl Bursts {
         self.live.clear();
     }
     pub fn trigger(&mut self, kind: BackfireEvent, style: &BackfireStyle) {
+        self.trigger_sized(kind, style, 1.0);
+    }
+
+    /// [`Self::trigger`] with a burst `size` times as long and wide.
+    pub fn trigger_sized(&mut self, kind: BackfireEvent, style: &BackfireStyle, size: f32) {
         if style.duration == 0 || style.size == 0 || style.brightness == 0 {
             return;
         }
@@ -61,6 +68,7 @@ impl Bursts {
             seed,
             lifetime,
             amplitude: 1.0 + (random(seed ^ 17) - 0.5) * 0.4 * variation,
+            size,
         });
     }
 
@@ -94,8 +102,8 @@ impl Bursts {
                 phase,
                 seed: random(pulse.seed ^ 31) * 19.19,
                 strength,
-                length: length * size * pulse.amplitude * (0.45 + 0.65 * expansion) * (1.0 - 0.2 * phase),
-                width: width * size * (0.7 + 0.8 * phase),
+                length: length * size * pulse.size * pulse.amplitude * (0.45 + 0.65 * expansion) * (1.0 - 0.2 * phase),
+                width: width * size * pulse.size * (0.7 + 0.8 * phase),
                 turbulence: 0.35 + 0.65 * phase,
             })
         })
@@ -117,6 +125,20 @@ mod tests {
         assert_eq!(bursts.frames(&style, 0.0).next().unwrap().seed, seed);
         bursts.advance(1.0);
         assert_eq!(bursts.frames(&style, 0.0).count(), 0);
+    }
+
+    #[test]
+    fn a_sized_burst_is_the_same_burst_that_much_longer_and_wider() {
+        let style = BackfireStyle { variation: 0, ..Default::default() };
+        let (mut plain, mut big) = (Bursts::default(), Bursts::default());
+        plain.trigger(BackfireEvent::Shift, &style);
+        big.trigger_sized(BackfireEvent::Shift, &style, 1.25);
+        let (a, b) = (plain.frames(&style, 0.0).next().unwrap(), big.frames(&style, 0.0).next().unwrap());
+        assert!((b.length / a.length - 1.25).abs() < 1e-5 && (b.width / a.width - 1.25).abs() < 1e-5);
+        assert_eq!((a.strength, a.age, a.turbulence), (b.strength, b.age, b.turbulence), "only the size changes");
+        plain.advance(0.05);
+        big.advance(0.05);
+        assert_eq!(plain.frames(&style, 0.0).count(), big.frames(&style, 0.0).count(), "and it lasts as long");
     }
 
     #[test]

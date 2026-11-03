@@ -5,6 +5,7 @@ use glam::{Mat4, Vec3};
 use nfsmw_data::car::CarModel;
 
 use super::vehicle_effects::geometry;
+mod aperture;
 mod damage;
 #[cfg(test)]
 mod mod_car_tests;
@@ -61,6 +62,8 @@ pub struct LampState {
     pub emergency: u32,
     /// The brake pedal, 0 to 1.
     pub brake: f32,
+    /// Cosmetic side-lamp illumination. Never changes brake input or the centre lamp.
+    pub nos_glow: f32,
     pub reverse: bool,
     /// Driver steering, retained in the feed; it does not control racer lamps.
     pub steer: f32,
@@ -86,6 +89,7 @@ impl LampState {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CarLights {
     lamps: Vec<Lamp>,
+    apertures: Vec<(Vec3, Vec3)>,
 }
 
 impl CarLights {
@@ -146,7 +150,8 @@ impl CarLights {
                 }
             }
         }
-        Self { lamps }
+        let apertures = aperture::collect(model, &lamps);
+        Self { lamps, apertures }
     }
 
     pub fn lamps(&self) -> &[Lamp] {
@@ -177,7 +182,7 @@ impl CarLights {
 
     #[cfg(test)]
     pub(in crate::scenes::world) fn new(lamps: Vec<Lamp>) -> Self {
-        Self { lamps }
+        Self { lamps, apertures: Vec::new() }
     }
 }
 

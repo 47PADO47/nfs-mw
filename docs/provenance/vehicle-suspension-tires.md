@@ -1,5 +1,13 @@
 # Vehicle suspension, tires, steering and aero
 
+The 2026-10-28 steering-history follow-up inspects original PC history updates
+and replays the unchanged routine with controlled timestamps that do not expire
+samples. All 44 synthetic updates match subtraction-before-addition of the
+stored running sum; seven differ from recomputing the ring sum. The behavioral
+contract in [player driving parity](../specs/player-driving-parity.md) precedes
+the independent implementation. This does not establish timestamp-expiry or
+whole-car parity. No original code or captured inputs are included here.
+
 The 2026-10-13 [driving corrections](vehicle-driving-corrections.md) supersede the older drift
 and axle traction-control omissions below, restore original airborne downforce through the
 game adapter and clarify steering history. The reference profile supersedes the

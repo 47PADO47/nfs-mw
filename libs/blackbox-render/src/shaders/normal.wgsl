@@ -103,9 +103,11 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
     if uv_offset.value.z>0.5 {
         specular *= 2.0*light.reflection.y;
         let reflection_uv = in.projected_reflection.xy/in.projected_reflection.w;
-        let sample = textureSampleBias(reflection_texture,material_sampler,reflection_uv,globals.fog_range.z);
-        reflected = sample.rgb*(2.0*spec_tex.r)*tex.a*in.ambient.a*light.reflection.x;
-        if light.reflection.z>0.5 && uv_offset.value.w>0.5 && light.water.x>0.0 { reflected=vec3(0.0); }
+        // Enhanced environment shading replaces the legacy sample completely.
+        if !(light.reflection.z>0.5 && uv_offset.value.w>0.5 && light.water.x>0.0) {
+            let sample = textureSampleBias(reflection_texture,material_sampler,reflection_uv,globals.fog_range.z);
+            reflected = sample.rgb*(2.0*spec_tex.r)*tex.a*in.ambient.a*light.reflection.x;
+        }
     }
     let plane = receiver_normal(in.world,in.normal);
     if globals.fog_range.w<0.5 && shadow_data.debug.x>0.5 {
@@ -123,11 +125,13 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
     if uv_offset.value.z>0.5 && light.wet_tuning.x>0.5 && light.water.x>0.0 {
         surface = wet_surface(in, tex, spec_tex, n, l, v, diffuse_light, q, ao, surface);
     }
-    var rgb = surface*in.extinction+in.scatter;
+    surface *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
+    if globals.fog_range.w < 0.5 { surface += 2.0*tex.rgb*local_lighting(in.world,shading_normal) + spec_tex.rgb*local_specular(in.world,shading_normal,globals.camera_pos.xyz-in.world,32.0); }
+    var rgb = surface*in.extinction+in.scatter*mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
     if globals.scatter_rayleigh.w<0.5 {
         let distance = length(in.world-globals.camera_pos.xyz);
         let fog = clamp((distance-globals.fog_range.x)/max(globals.fog_range.y-globals.fog_range.x,0.001),0.0,1.0);
-        rgb = mix(rgb,globals.fog_color.rgb,fog);
+        rgb = mix(rgb,globals.fog_color.rgb*mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w),fog);
     }
     if uv_offset.value.z>0.5 { return extended_output(vec4(rgb,1.0)); }
     return extended_output(vec4(rgb,tex.a*in.ambient.a));
@@ -182,6 +186,8 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     let pool = pooled_coverage(in.world.xy)*slope;
     let p = in.world.xy;
     let footprint = max(length(dpdx(p)),length(dpdy(p)));
+    // Finish derivatives before a pixel-dependent return. Vertical receivers are dry.
+    if damp <= 0.0 { return dry; }
     let ripple_fade = 1.0-smoothstep(0.12,0.8,footprint);
     let phase = light.water.z*0.785398163;
     let ripples = vec2(sin(dot(p,vec2(7.3,4.1))+phase),cos(dot(p,vec2(-3.7,8.9))-phase*2.0));
@@ -196,27 +202,17 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     let water_mask = mix(mask,smoothstep(0.0,0.08,mask),pool);
     let reflectance = fresnel*mix(0.3,1.0,pool)*water_mask;
     // Receiver pixel size for the road march's origin bias. Derivatives must stay in uniform control flow.
-    let world_footprint = max(length(dpdx(in.world)),length(dpdy(in.world)));
+    let world_footprint = ray_footprint;
     var filtered = vec3(0.0);
     let road_environment_path = light.reflection.z > 0.5 && uv_offset.value.w>0.5;
-    if road_environment_path {
+    if road_environment_path && reflectance > 0.0 {
         let world_n = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
         let ray = reflect(-unit(globals.camera_pos.xyz-in.world),world_n);
-        filtered = textureSampleLevel(road_environment,road_sampler,ray,0.0).rgb;
-        // A water film retains road microstructure; standing water is much smoother.
-        // Apply this to the probe fallback only, leaving traced intersections unchanged.
-        let roughness = mix(0.32,0.07,pool);
-        let lod = roughness*f32(textureNumLevels(road_filtered_environment)-1u);
-        let broad = textureSampleLevel(road_filtered_environment,road_sampler,ray,lod).rgb;
-        filtered = mix(filtered,broad,smoothstep(0.08,0.32,roughness));
-        // A pixel the mask leaves unreflective shows nothing of the traced hit, so the march is skipped. Any
-        // reflectance above zero still marches: over a dark road even a fraction of a percent shows once encoded.
-        if reflectance > 0.0 {
-            filtered = road_environment_at(in.world,world_n,ray,filtered,pool,world_footprint);
-        }
+        // Resolve the fallback only for misses or partial traced contributions.
+        filtered = road_environment_at(in.world,world_n,ray,pool,world_footprint);
     }
     // The capture taps only serve the paths that do not trace the road environment.
-    if !road_environment_path {
+    if !road_environment_path && reflectance > 0.0 {
         let uv = in.projected_reflection.xy/in.projected_reflection.w;
         let pixel = vec2(1.0)/vec2<f32>(textureDimensions(reflection_texture));
         let radius = mix(3.5,0.35,pool);
@@ -229,11 +225,15 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     }
     let shading_normal = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
     let base = 2.0*tex.rgb*(in.ambient.rgb*world_environment(shading_normal)*ao+diffuse_light*max(dot(water_n,l),0.0)*q);
-    let diffuse = wet_linear(base)*mix(1.0,0.72,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
     let power = mix(24.0,192.0,pool);
+    var local_glint = vec3(0.0);
+    if globals.fog_range.w < 0.5 {
+        local_glint = local_specular(in.world,shading_normal,globals.camera_pos.xyz-in.world,power);
+    }
+    let diffuse = wet_linear(base)*mix(1.0,0.72,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
     let h = unit(l+v);
     let glint = pow(max(dot(water_n,h),0.0),power)*(power+2.0)/50.0;
     let spec = wet_linear(light.specular.rgb)*glint*q*fresnel*water_mask;
     let env = wet_linear(filtered)*reflectance*select(0.0,1.0,light.reflection.x>0.0);
-    return mix(dry,wet_encoded(diffuse+spec+env),damp);
+    return mix(dry,wet_encoded(diffuse+spec+env+wet_linear(local_glint)*water_mask),damp);
 }

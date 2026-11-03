@@ -72,11 +72,11 @@ impl Renderer {
             (self.display.supported, self.display.pq_supported) = surface_support(surface, &self.adapter);
             self.display.support_read = Instant::now();
         }
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         let generation_requested = self.dlss.is_some()
             && self.presentation.status.max_generated_frames > 0
             && self.presentation.request.generated_frames > 0;
-        #[cfg(not(all(windows, feature = "streamline")))]
+        #[cfg(not(all(windows, feature = "streamline", streamline_sdk)))]
         let generation_requested = false;
         let pq_supported = self.display.pq_supported;
         let metadata = surface.display_hdr_info(&self.adapter);
@@ -127,7 +127,7 @@ impl Renderer {
         if config.format != format || config.color_space != color_space {
             config.format = format;
             config.color_space = color_space;
-            #[cfg(all(windows, feature = "streamline"))]
+            #[cfg(all(windows, feature = "streamline", streamline_sdk))]
             if self.dlss.is_some() {
                 self.presentation.suspend(&self.device);
             }

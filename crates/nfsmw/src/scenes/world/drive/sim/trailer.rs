@@ -8,7 +8,7 @@ use super::CarSim;
 impl CarSim {
     #[cfg(test)]
     pub fn physics_wheel_states(&self) -> [blackbox_vehicle::vehicle::WheelState; 4] {
-        std::array::from_fn(|index| self.vehicle.wheel(index))
+        std::array::from_fn(|index| self.wheel_state(index))
     }
 
     /// Original named joint node in this body's local frame.

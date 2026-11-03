@@ -89,8 +89,17 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
         ],
     );
     ui.separator();
-    ui.add_enabled_ui(lab.latency.reflex_available, |ui| {
-        choice(ui, "NVIDIA Reflex", &mut settings.reflex, &crate::settings::ReflexMode::ALL);
+    let reflex_forced = settings.frame_generation.0 > 0;
+    ui.add_enabled_ui(lab.latency.reflex_available && !reflex_forced, |ui| {
+        let mut shown = if reflex_forced && settings.reflex == crate::settings::ReflexMode::Off {
+            crate::settings::ReflexMode::On
+        } else {
+            settings.reflex
+        };
+        choice(ui, "NVIDIA Reflex", &mut shown, &crate::settings::ReflexMode::ALL);
+        if !reflex_forced {
+            settings.reflex = shown;
+        }
     });
     let modes: Vec<_> = crate::settings::FrameGeneration::ALL
         .into_iter()
@@ -113,6 +122,15 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &GraphicsLab, settings: &mut Settings
         choice(ui, "Upscale quality", &mut settings.upscale_quality, &UpscaleQuality::ALL);
     });
     ui.small("Upscale quality controls the internal 3D resolution; game output and UI keep the resolution above. Native means full-resolution rendering (DLAA with DLSS).");
+    ui.add_enabled_ui(matches!(settings.upscaler, UpscaleMode::Dlss), |ui| {
+        choice(
+            ui,
+            "DLSS upscaling model",
+            &mut settings.appearance.dlss_model,
+            &crate::settings::appearance::DlssModel::ALL,
+        );
+    });
+    ui.small("Auto follows NVIDIA's default for each quality mode. NVIDIA app overrides may take precedence. Frame generation selects its own model.");
     ui.add_enabled_ui(!effective.upscaler.upscaler().is_temporal(), |ui| {
         let default_aa = super::profiles::defaults(settings).post_aa;
         super::controls::choice(
@@ -169,6 +187,7 @@ pub(super) fn reset(settings: &mut Settings) {
     settings.show_metrics = defaults.show_metrics;
     settings.upscaler = defaults.upscaler;
     settings.upscale_quality = defaults.upscale_quality;
+    settings.appearance.dlss_model = defaults.appearance.dlss_model;
     settings.render_scale = defaults.render_scale;
     settings.upscale_sharpness = defaults.upscale_sharpness;
     settings.post_aa = super::profiles::defaults(settings).post_aa;

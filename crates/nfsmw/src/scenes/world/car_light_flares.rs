@@ -9,6 +9,7 @@ pub(super) mod emergency;
 mod enhanced;
 mod intensity;
 mod mod_lamps;
+mod trails;
 
 #[derive(Clone)]
 struct Profile {

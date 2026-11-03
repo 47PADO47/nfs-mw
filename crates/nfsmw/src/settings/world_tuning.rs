@@ -20,6 +20,7 @@ pub struct WorldTuning {
     pub enhanced_exhaust: bool,
     pub exhaust_style: ExhaustStyle,
     pub backfire_style: BackfireStyle,
+    pub tail_trail_style: TailTrailStyle,
     /// The Speedbreaker tunables (`NFSMWSpeedFixerSettings.ini`).
     pub speedbreaker: SpeedbreakerTuning,
     /// The high-speed radial blur: on or off, and its strength.
@@ -49,6 +50,7 @@ impl Default for WorldTuning {
             enhanced_exhaust: false,
             exhaust_style: ExhaustStyle::default(),
             backfire_style: BackfireStyle::default(),
+            tail_trail_style: TailTrailStyle::default(),
             speedbreaker: SpeedbreakerTuning::default(),
             motion_blur: MotionBlur::default(),
             rain_droplet_scale: 0.5,
@@ -74,6 +76,7 @@ impl From<&Settings> for WorldTuning {
             enhanced_exhaust: s.enhanced_exhaust,
             exhaust_style: s.exhaust_style,
             backfire_style: s.backfire_style,
+            tail_trail_style: s.tail_trail_style,
             speedbreaker: s.speedbreaker,
             motion_blur: MotionBlur::from(s),
             rain_droplet_scale: s.rain_droplet_scale,

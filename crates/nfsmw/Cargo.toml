@@ -58,6 +58,7 @@ blackbox-roads.workspace = true
 blackbox-scene.workspace = true
 blackbox-solid.workspace = true
 blackbox-scenery.workspace = true
+blackbox-skeleton.workspace = true
 blackbox-sequence.workspace = true
 blackbox-streaming.workspace = true
 blackbox-text.workspace = true
@@ -97,6 +98,10 @@ arboard = { version = "3.7", default-features = false }
 open = "5.4"
 epaint_default_fonts = "0.36.2"
 
+[build-dependencies]
+# The executable's icon resource (build.rs), Windows only.
+winres = "0.1"
+
 [features]
 native-dlss = ["blackbox-render/streamline"]
 # mimalloc as the global allocator (src/main.rs): 3-5 % less CPU per frame than the system allocator in the world frame cost
@@ -104,7 +109,7 @@ native-dlss = ["blackbox-render/streamline"]
 mimalloc = ["dep:mimalloc"]
 # The Bevy renderer and the FSR 3 upscaler are in the default build. `--no-default-features` leaves them out: the game
 # is then the native renderer alone (FSR 1 is its best upscaler) and never compiles bevy_render.
-default = ["renderer-bevy", "fsr3", "mimalloc", "multiplayer"]
+default = ["renderer-bevy", "fsr3", "mimalloc", "multiplayer", "native-dlss"]
 # LAN multiplayer (docs/specs/multiplayer/game-wiring.md): `--host`, `--connect`, `--dedicated`, `--discover`, the
 # listen server's thread and the client mode of the world. Off, the game is single player and compiles no netcode.
 multiplayer = ["dep:nfsmw-server", "dep:ctrlc", "blackbox-net-core/netcode"]

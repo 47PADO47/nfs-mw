@@ -91,7 +91,7 @@ fn streak_color(in: VsOut) -> vec4<f32> {
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
     // Additive light disappears into fog; blending toward the fog colour would emit luminous fog.
-    return vec4<f32>(in.color.rgb * (1.0 - fog) * receive_shadow(in.world, in.clip, in.shadowed), in.color.a * mask);
+    return vec4<f32>(in.color.rgb * in.brightness * (1.0 - fog) * receive_shadow(in.world, in.clip, in.shadowed), in.color.a * mask);
 }
 
 @fragment
@@ -110,10 +110,16 @@ fn glow_color(in: VsOut) -> vec4<f32> {
     let radius = dot(p, p);
     let edge = 1.0 - smoothstep(0.0, 1.0, radius);
     let core = exp(-radius * 12.0);
-    let mask = edge * edge * (0.25 + 0.75 * core);
+    var mask = edge * edge * (0.25 + 0.75 * core);
+    if in.shadowed < -0.5 {
+        // Rounded lens in fixture space, rather than the circular billboard mask.
+        let q = abs(p)-vec2<f32>(0.82,0.72);
+        let signed_distance = length(max(q,vec2<f32>(0.0)))+min(max(q.x,q.y),0.0)-0.12;
+        mask = 1.0-smoothstep(-0.06,0.06,signed_distance);
+    }
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
-    return vec4<f32>(in.color.rgb * (1.0 - fog) * receive_shadow(in.world, in.clip, in.shadowed), in.color.a * mask);
+    return vec4<f32>(in.color.rgb * in.brightness * (1.0 - fog) * receive_shadow(in.world, in.clip, in.shadowed), in.color.a * mask);
 }
 
 @fragment

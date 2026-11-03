@@ -48,7 +48,16 @@ fn run(device: &wgpu::Device, queue: &wgpu::Queue, chain: &mut PostChain, size: 
     });
     let view = output.create_view(&wgpu::TextureViewDescriptor::default());
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-    let ctx = PassContext { device, queue, scene: &scene, output_size: size, temporal: None };
+    let ctx = PassContext {
+        device,
+        queue,
+        scene: &scene,
+        output_size: size,
+        temporal: None,
+        frame_generation: false,
+        secondary_view: false,
+        dlss_model: 0,
+    };
     chain.encode(&ctx, &mut encoder, (&view, wgpu::TextureFormat::Rgba8Unorm));
     queue.submit([encoder.finish()]);
 }

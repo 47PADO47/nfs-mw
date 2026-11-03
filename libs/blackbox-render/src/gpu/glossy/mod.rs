@@ -123,7 +123,7 @@ impl Glossy {
         let irradiance = irradiance::Irradiance::new(device, cache);
         let screen = screen::Screen::new(device);
         let filtered = prefilter::Prefilter::new(device, cache);
-        let probe = probe::Probe::new(device);
+        let probe = probe::Probe::new(device, SKY_FACE_SIZE, faces.each_ref().map(Vec::as_slice));
         let scene = scene_group(
             device,
             &layouts,
@@ -187,14 +187,6 @@ impl Glossy {
         if let Some(filter) = &mut self.filtered {
             filter.dirty = true;
         }
-    }
-
-    pub(in crate::gpu) fn road_environment(&self) -> (wgpu::TextureView, wgpu::TextureView, wgpu::TextureView) {
-        (
-            self.environment.clone(),
-            self.static_environment.clone(),
-            self.filtered.as_ref().map_or(&self.environment, |f| &f.view).clone(),
-        )
     }
 
     pub(super) fn restore_environment(&mut self, queue: &wgpu::Queue) {
@@ -426,6 +418,7 @@ impl Renderer {
         let glossy =
             ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
         let (view, face_view) = environment_view(&self.device, &self.queue, size, &faces.map(|f| &f[..texel_bytes]));
+        self.queue.write_buffer(&glossy.probe.sky, 0, bytemuck::cast_slice(&probe::sky_colours(size, faces)));
         self.queue.write_buffer(&glossy.probe.control, 0, bytemuck::cast_slice(&[0.0_f32; 4]));
         glossy.probe.active = false;
         glossy.scene = scene_group(

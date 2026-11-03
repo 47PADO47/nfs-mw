@@ -32,11 +32,12 @@ impl RayPass {
             label: Some("wet-road RT shader"),
             source: wgpu::ShaderSource::Wgsl(
                 format!(
-                    "enable wgpu_ray_query;\n{}\n{}\n{}\n{}",
+                    "enable wgpu_ray_query;\n{}\n{}\n{}\n{}\n{}",
                     instance_view::instance_source(include_str!("../../shaders/normal.wgsl"), instances.map(|_| 3)),
                     include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"),
                     include_str!("../../shaders/ray_reflection.wgsl"),
-                    include_str!("../../shaders/ray_road.wgsl")
+                    include_str!("../../shaders/ray_road.wgsl"),
+                    include_str!("../../shaders/road_probe.wgsl")
                 )
                 .into(),
             ),

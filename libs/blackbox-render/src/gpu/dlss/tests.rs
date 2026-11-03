@@ -27,7 +27,7 @@ fn dlss_sdk_evaluates_quality_modes_and_dlaa_on_gpu() {
         };
         assert!(renderer.apply_graphics(&settings).is_exact());
         assert_eq!(renderer.post_passes()[0], "dlss");
-        let expected = super::render_size(quality, (640, 360)).expect("SDK optimal size");
+        let expected = super::render_size(quality, (640, 360), 0).expect("SDK optimal size");
         assert_eq!(renderer.render_size(), expected);
         if quality == UpscaleQuality::Native {
             assert_eq!(expected, (640, 360));

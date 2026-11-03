@@ -66,7 +66,14 @@ impl CarRig {
             let after = swaps.clone().with_lamp_state(true, true, &self.model.textures);
             let affected = affected_solids(&self.model, &changed_textures(&before, &after));
             set_lighting(renderer, appearance.shading, to_sun);
-            let (parts, meshes) = upload_solids(renderer, &self.model, &swaps, &appearance.materials, Some(&affected));
+            let (parts, meshes) = upload_solids(
+                renderer,
+                &self.model,
+                &swaps,
+                &appearance.materials,
+                Some(&affected),
+                self.background_actor,
+            );
             variants.insert(
                 mask,
                 GlassVariant { parts: parts.into_iter().map(|p| ((p.key, p.lod, p.damaged), p)).collect(), meshes },

@@ -4,15 +4,34 @@
 //! Keys: `throttle`, `brake`, `steer` (-1..1), `handbrake`, `nos` (0 or 1), `up` and `down` (a gear
 //! shift at the start of the segment), `speedbreaker` (the gameplay toggle button),
 //! `reset` (back to the nearest road at the start of it), `pop` (one sputter
-//! pop for the exhaust flames at the start of it, as the sound would report). A segment without keys coasts.
+//! pop for the exhaust flames at the start of it, as the sound would report), `fall` (`fall=low`, `fall=high` or
+//! `fall=generic`: a bike throws its rider at the start of the segment, through the path a real fall takes; a car
+//! ignores it; see `docs/modding/drive-script.md`), `look` and `lookup` (the right stick's X and Y for a bike's helmet camera,
+//! -1..1, right and up positive, held for the whole segment; a camera setting, not a drive input), `weight` (the rider's weight
+//! lever of a bike, -1 back to 1 forward, held for the segment: what V or the pad's stick pulled back give; a car ignores it).
+//! A segment without keys coasts.
+
+use blackbox_vehicle::bike::FallKind;
 
 use super::clock::STEP;
 use super::input::DriveInput;
+
+/// The kind of fall a `fall=` value names.
+fn fall_kind(name: &str) -> Result<FallKind, String> {
+    match name {
+        "low" | "lowside" | "low_side" => Ok(FallKind::LowSide),
+        "high" | "highside" | "high_side" => Ok(FallKind::HighSide),
+        "generic" | "other" | "1" => Ok(FallKind::Generic),
+        other => Err(format!("unknown fall {other:?} (low high generic)")),
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 struct Segment {
     seconds: f32,
     input: DriveInput,
+    /// The look stick a bike's helmet camera reads, x right and y up (`look=`, `lookup=`).
+    look: [f32; 2],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,13 +49,19 @@ impl DriveScript {
                 return Err(format!("duration {seconds} is out of range"));
             }
             let mut input = DriveInput::default();
+            let mut look = [0.0; 2];
             for pair in keys.split(',').map(str::trim).filter(|p| !p.is_empty()) {
                 let (key, value) = pair.split_once('=').unwrap_or((pair, "1"));
+                if key.trim() == "fall" {
+                    input.fall = Some(fall_kind(value.trim())?);
+                    continue;
+                }
                 let n: f32 = value.trim().parse().map_err(|_| format!("bad value {value:?} for {key:?}"))?;
                 match key.trim() {
                     "throttle" => input.throttle = n.clamp(0.0, 1.0),
                     "brake" => input.brake = n.clamp(0.0, 1.0),
                     "steer" => input.steer = n.clamp(-1.0, 1.0),
+                    "weight" => input.weight = n.clamp(-1.0, 1.0),
                     "handbrake" => input.handbrake = n > 0.5,
                     "nos" => input.nos = n > 0.5,
                     "speedbreaker" => input.speedbreaker = n > 0.5,
@@ -44,14 +69,16 @@ impl DriveScript {
                     "down" => input.shift_down = n > 0.5,
                     "reset" => input.reset = n > 0.5,
                     "pop" => input.pop = n > 0.5,
+                    "look" => look[0] = n.clamp(-1.0, 1.0),
+                    "lookup" => look[1] = n.clamp(-1.0, 1.0),
                     other => {
                         return Err(format!(
-                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop)"
+                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop fall look lookup weight)"
                         ));
                     }
                 }
             }
-            segments.push(Segment { seconds, input });
+            segments.push(Segment { seconds, input, look });
         }
         if segments.is_empty() {
             return Err("the script is empty".into());
@@ -81,12 +108,25 @@ impl DriveScript {
                     shift_down: s.input.shift_down && first,
                     reset: s.input.reset && first,
                     pop: s.input.pop && first,
+                    fall: s.input.fall.filter(|_| first),
                     ..s.input
                 };
             }
             start += s.seconds;
         }
         DriveInput::default()
+    }
+
+    /// The look stick at `time` seconds into the script (x right, y up; at rest after the end).
+    pub fn look_at(&self, time: f32) -> [f32; 2] {
+        let mut start = 0.0;
+        for s in &self.segments {
+            if time < start + s.seconds {
+                return s.look;
+            }
+            start += s.seconds;
+        }
+        [0.0; 2]
     }
 
     pub fn finished(&self, time: f32) -> bool {
@@ -147,12 +187,46 @@ mod tests {
     }
 
     #[test]
+    fn a_fall_names_its_kind_and_fires_once() {
+        let script = DriveScript::parse("1:throttle;2:fall=high;1:fall=low;1:fall=generic").unwrap();
+        assert_eq!(script.input_at(0.5).fall, None);
+        assert_eq!(script.input_at(1.0).fall, Some(FallKind::HighSide));
+        assert_eq!(script.input_at(1.5).fall, None, "a fall is once, at the start of its segment");
+        assert_eq!(script.input_at(3.0).fall, Some(FallKind::LowSide));
+        assert_eq!(script.input_at(4.0).fall, Some(FallKind::Generic));
+        assert!(DriveScript::parse("1:fall=sideways").is_err());
+        assert!(DriveScript::parse("1:fall=").is_err());
+    }
+
+    #[test]
     fn values_are_clamped_and_empty_segments_coast() {
         let script = DriveScript::parse("1:throttle=5,steer=-9;2").unwrap();
         assert_eq!(script.input_at(0.5).throttle, 1.0);
         assert_eq!(script.input_at(0.5).steer, -1.0);
         assert_eq!(script.input_at(1.5), DriveInput::default());
         assert!((script.duration() - 3.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_segment_holds_the_look_stick_of_the_helmet_camera_and_it_is_not_a_drive_input() {
+        let script = DriveScript::parse("1:throttle=1,look=0.5;1:look=-9,lookup=1;1").unwrap();
+        assert_eq!(script.look_at(0.5), [0.5, 0.0]);
+        assert_eq!(script.look_at(1.5), [-1.0, 1.0], "clamped to the stick's travel");
+        assert_eq!(script.look_at(2.5), [0.0, 0.0], "a segment without keys lets the stick go");
+        assert_eq!(script.look_at(9.0), [0.0, 0.0], "so does the end of the script");
+        assert_eq!(script.input_at(1.5), DriveInput::default(), "the physics never sees it");
+        assert_eq!(script.input_at(0.5).throttle, 1.0);
+        assert!(DriveScript::parse("1:look=left").is_err());
+    }
+
+    #[test]
+    fn a_segment_holds_the_rider_weight_lever() {
+        let script = DriveScript::parse("1:throttle=1,weight=-1;1:weight=9;1:steer=1").unwrap();
+        assert_eq!(script.input_at(0.5).weight, -1.0);
+        assert_eq!(script.input_at(1.5).weight, 1.0, "clamped to the lever's travel");
+        assert_eq!(script.input_at(2.5).weight, 0.0, "a segment without the key lets the lever go");
+        assert_eq!(script.input_at(0.5).throttle, 1.0);
+        assert!(DriveScript::parse("1:weight=back").is_err());
     }
 
     #[test]

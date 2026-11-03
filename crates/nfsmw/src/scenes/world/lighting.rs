@@ -11,7 +11,11 @@ impl WorldScene {
         self.time_of_day
             .as_ref()
             .and_then(|presets| {
-                nfsmw_data::time_of_day::car_specular_scale(presets, self.atmosphere.intensity(), self.sun.to_sun().z)
+                nfsmw_data::time_of_day::car_specular_scale(
+                    presets,
+                    self.atmosphere.intensity(),
+                    self.sun.preset_height(),
+                )
             })
             .unwrap_or(1.0)
     }
@@ -26,7 +30,7 @@ impl WorldScene {
         nfsmw_data::time_of_day::atmosphere(
             self.time_of_day.as_ref()?,
             self.atmosphere.intensity(),
-            self.sun.to_sun().z,
+            self.sun.preset_height(),
         )
     }
 
@@ -34,7 +38,8 @@ impl WorldScene {
     /// sun's height and authored cloud intensity. Scalar scales come from the same blended presets.
     /// `None` if the required authored inputs are missing or invalid.
     pub(super) fn scattering(&self) -> Option<blackbox_gfx::Scattering> {
-        let sun = self.sun.to_sun();
+        // The glow centres on the sun the sky draws; without the full cycle that is the scene light.
+        let sun = self.sun.visible();
         let inputs = self.atmosphere_inputs()?;
         let s = nfsmw_data::fog::scatter(
             inputs.lighting.fog_sky,
@@ -60,7 +65,7 @@ impl WorldScene {
         Some(blackbox_gfx::SurfaceLight {
             shadow_strength: nfsmw_data::time_of_day::shadows::strength(
                 self.atmosphere.intensity(),
-                self.sun.to_sun().z,
+                self.sun.preset_height(),
             ),
             ambient: inputs.lighting.ambient.map(|channel| channel.min(1.0)),
             // The common PC shader updater caps diffuse before the material's Lambert term.

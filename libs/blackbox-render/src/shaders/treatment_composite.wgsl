@@ -38,8 +38,8 @@ fn treated_colour(uv: vec2<f32>) -> vec3<f32> {
         let base = mix(vec3<f32>(dot(c, p.luminance.xyz)), c, p.strengths.x);
         let black = mix(1.0, curve(p.black_curve, local_luma), p.strengths.y);
         let colour = curve(p.colour_curve, local_luma) * p.strengths.z;
-        let screen_gain = textureSampleLevel(gain, samp, vec2<f32>(uv.x, 1.0-uv.y), 0.0).b;
-        treated = mix(c, (base * black + c * p.tint.xyz * colour) * screen_gain, p.strengths.w);
+        // The legacy screen gain embeds a vignette. The separate vignette setting owns edge darkening.
+        treated = mix(c, base * black + c * p.tint.xyz * colour, p.strengths.w);
     }
     return treated;
 }

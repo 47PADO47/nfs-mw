@@ -9,6 +9,7 @@ mod marks;
 mod profile;
 mod rain;
 mod smoke;
+mod street_lamps;
 #[cfg(test)]
 mod tests;
 pub mod tint;

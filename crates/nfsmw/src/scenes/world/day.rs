@@ -113,6 +113,11 @@ impl DayClock {
         self.seconds = 0.0;
     }
 
+    /// The full day/night cycle runs on the custom clock; the other modes would hold a phase it ignores.
+    pub(super) fn follow_custom_clock(&mut self) {
+        self.sun_mode = crate::viewer::SunMode::CustomClock;
+    }
+
     /// The sun's phase for the hour.
     pub(super) fn sun_phase(&self) -> f32 {
         if self.sun_mode != crate::viewer::SunMode::CustomClock {
@@ -125,15 +130,34 @@ impl DayClock {
 impl WorldScene {
     pub(super) fn configure_day(&mut self, value: crate::viewer::Environment) {
         self.day.configure(value);
+        // Picking another sun mode is how the lab turns the cycle off; do not force the old mode back meanwhile.
+        if value.sun_mode != crate::viewer::SunMode::CustomClock {
+            self.sun.set_cycle(None);
+        }
         self.update_day(0.0, true);
         self.reflection_last = None;
     }
 
-    /// Move the day clock and update the sun, without changing player headlights.
+    /// Move the day clock and update the sun, without changing player headlights. While the full day/night cycle is
+    /// on, the world owns the sun mode: the cycle follows the custom clock whatever mode was last selected.
     pub(super) fn update_day(&mut self, sim_dt: f32, frozen: bool) {
         let held = frozen || self.day.held();
+        let cycle = self.sun.cycle().is_some();
+        if cycle {
+            self.day.follow_custom_clock();
+        }
         self.day.update(sim_dt, held);
         self.sun.set_phase(self.day.sun_phase());
+        self.sun.set_cycle(cycle.then(|| self.day.hour()));
+    }
+
+    /// Switch the full day/night cycle on or off for this frame. Called before anything reads the sun, so shadows,
+    /// lighting, sky and automatic lights all use the same evaluation.
+    pub(super) fn select_cycle(&mut self, on: bool) {
+        if on {
+            self.day.follow_custom_clock();
+        }
+        self.sun.set_cycle(on.then(|| self.day.hour()));
     }
 }
 

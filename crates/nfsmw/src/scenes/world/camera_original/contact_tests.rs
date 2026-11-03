@@ -23,6 +23,7 @@ fn car() -> CarSim {
             geometry: None,
             events: None,
             reactions: None,
+            bike: None,
         },
         [0.2; 4],
     )

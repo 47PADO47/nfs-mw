@@ -130,7 +130,7 @@ impl Renderer {
     /// presenting it and without the GPU timing or the temporal history noticing.
     fn warm_frame(&mut self, frame: &FrameParams) {
         // Streamline presents through its own swapchain wrapper, which an image of ours cannot stand in for.
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             return;
         }

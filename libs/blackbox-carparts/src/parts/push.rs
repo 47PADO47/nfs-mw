@@ -22,7 +22,9 @@ pub struct NewPart<'a> {
     pub attributes: &'a [(u32, u32)],
 }
 
-/// Room for one more entry of a table whose index is a `u16`; `u16::MAX` stands for "none" there.
+/// Room for one more entry of the attribute-list table, whose index is a `u16`; `u16::MAX` stands for "none" there. The
+/// other tables a pushed part touches (strings, model tables, type names) are indexed wider in memory than in the stored
+/// record, so the 8- and 16-bit limits of the file do not bind them (docs/specs/car-parts-capacity.md).
 const INDEX_LIMIT: usize = u16::MAX as usize;
 /// The attribute lists store attribute indices as `i16`.
 const ATTRIBUTE_LIMIT: usize = i16::MAX as usize;
@@ -52,8 +54,9 @@ impl PartsDb {
     ///
     /// The packed tables are kept consistent: the name goes into the string table, the attributes into the attribute
     /// table (a pair that is already there is shared) and the list of them, the models into a model table of their own,
-    /// and the type name into the type-name table if it is new. When a table has no room for the entry (its index fields are
-    /// 8 or 16 bits wide) the call fails and leaves the database as it was.
+    /// and the type name into the type-name table if it is new. The part record is wider in memory than on disk (type index
+    /// 16 bits, string offset and model table 32), so a game can carry hundreds of mod cars; the attribute tables keep
+    /// their stored width. When a table has no room for the entry the call fails and leaves the database as it was.
     pub fn push_part(&mut self, new: &NewPart<'_>) -> Result<Part> {
         if new.upgrade_level > MAX_LEVEL {
             return Err(Error::OutOfRange {
@@ -64,9 +67,9 @@ impl PartsDb {
         }
         let unit = self.string_unit.max(1);
         let name_start = self.strings.len().next_multiple_of(unit);
-        let name_offset = u16_index(name_start / unit, "string")?;
+        let name_offset = wide_index(name_start / unit, "string")?;
         let type_index = self.type_index_for(new.type_name_hash)?;
-        let model_table = u16_index(self.model_tables.len(), "model")?;
+        let model_table = wide_index(self.model_tables.len(), "model")?;
 
         // Attribute indices, and the pairs that are new.
         let mut added: Vec<(u32, u32)> = Vec::new();
@@ -98,7 +101,7 @@ impl PartsDb {
         self.strings.extend_from_slice(new.name.as_bytes());
         self.strings.push(0);
         self.strings.resize(self.strings.len().next_multiple_of(unit), 0);
-        if type_index == self.type_names.len() {
+        if usize::from(type_index) == self.type_names.len() {
             self.type_names.push(new.type_name_hash);
         }
         self.attributes.extend(added);
@@ -116,7 +119,7 @@ impl PartsDb {
             group: 0,
             upgrade_level: new.upgrade_level,
             base_selector: 0,
-            type_index: type_index as u8,
+            type_index,
             name_offset,
             attribute_list,
             model_table,
@@ -147,15 +150,9 @@ impl PartsDb {
     }
 
     /// The index of `hash` in the type-name table, or the index it would get when added.
-    fn type_index_for(&self, hash: u32) -> Result<usize> {
-        if let Some(at) = self.type_names.iter().position(|&known| known == hash) {
-            return Ok(at);
-        }
-        let next = self.type_names.len();
-        if next > usize::from(u8::MAX) {
-            return Err(Error::Full("type-name"));
-        }
-        Ok(next)
+    fn type_index_for(&self, hash: u32) -> Result<u16> {
+        let index = self.type_names.iter().position(|&known| known == hash).unwrap_or(self.type_names.len());
+        u16::try_from(index).map_err(|_| Error::Full("type-name"))
     }
 }
 
@@ -167,6 +164,11 @@ struct Mark {
     model_tables: usize,
     type_names: usize,
     parts: usize,
+}
+
+/// `index` as a 32-bit in-memory table index.
+fn wide_index(index: usize, table: &'static str) -> Result<u32> {
+    u32::try_from(index).map_err(|_| Error::Full(table))
 }
 
 /// `index` as a `u16` table index, which must stay below the `u16::MAX` that means "none".

@@ -78,6 +78,10 @@ pub trait RenderBackend {
         Default::default()
     }
     fn set_shadow_casters(&mut self, _casters: Option<&[Instance]>) {}
+    /// Up to four shadowed local spotlights; unsupported backends ignore them.
+    fn set_local_lights(&mut self, _lights: &[crate::LocalLight]) {}
+    /// Override the scene night blend; None uses the manual night option.
+    fn set_night_blend(&mut self, _blend: Option<f32>) {}
     /// Optional hardware reflection geometry, including objects outside the camera view.
     fn ray_reflections_enabled(&self) -> bool {
         false
@@ -117,6 +121,16 @@ pub trait RenderBackend {
 
     fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle;
     fn destroy_mesh(&mut self, handle: MeshHandle);
+
+    /// Replace the vertices of a mesh made with [`create_mesh`](Self::create_mesh), keeping its indices and draw ranges.
+    /// For a mesh that is skinned or morphed on the CPU every frame. `vertices` must have as many entries as the mesh was
+    /// made with; the mesh's bounds follow the new positions. Returns whether the vertices were replaced: `false` means
+    /// the backend cannot update a mesh in place (the default), the handle is not a mesh, or the count differs, and the
+    /// caller makes a new mesh instead (`destroy_mesh`, `create_mesh`). Tangents and second UVs are not changed. Geometry
+    /// a backend keeps for ray tracing is not rebuilt, so such a mesh is not reflected by it.
+    fn update_mesh_vertices(&mut self, _handle: MeshHandle, _vertices: &[crate::Vertex]) -> bool {
+        false
+    }
 
     /// Register a material for [`Shading::Glossy`](crate::Shading::Glossy) draws.
     fn create_glossy_material(&mut self, material: &GlossyMaterial) -> GlossyMaterialHandle;

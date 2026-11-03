@@ -119,6 +119,8 @@ fn custom_overrides_survive_a_round_trip_and_quality_selection() {
     s.appearance.lighting.local_reflection_correction = false;
     s.appearance.lighting.weather_car_lighting = false;
     s.appearance.treatment_strength = Some(0.73);
+    s.appearance.vignette = 0.42;
+    s.appearance.dlss_model = DlssModel::K;
     s.appearance.lighting.freeze_sun = true;
     s.appearance.lighting.lighting_debug = blackbox_gfx::LightingDebug::Cascades;
     assert_eq!(s.visual_style(), VisualStyle::Custom);
@@ -137,6 +139,10 @@ value=7
     let mut loaded = Settings::from(super::super::file::parse(&text, "test"));
     assert_eq!(loaded.post_aa, PostAa::Smaa);
     assert_eq!(loaded.appearance.treatment_strength, Some(0.73));
+    assert_eq!(loaded.appearance.vignette, 0.42);
+    assert_eq!(loaded.appearance.dlss_model, DlssModel::K);
+    assert_eq!(loaded.graphics().dlss_model, 11);
+    assert_eq!(loaded.graphics().post.vignette, 0.42);
     assert_eq!(loaded.appearance.lighting.sky_strength, 0.41);
     assert_eq!(loaded.appearance.lighting.indirect_strength, 1.3);
     assert!(loaded.appearance.lighting.cached_reflections && loaded.appearance.lighting.screen_reflections);
@@ -151,6 +157,15 @@ value=7
     assert!(loaded.appearance.lighting.cached_reflections && loaded.appearance.lighting.screen_reflections);
     assert_eq!(loaded.appearance.treatment_strength, Some(0.73));
     assert!((loaded.graphics().post.colour_treatment - 0.73).abs() < 1e-6);
+}
+
+#[test]
+fn dlss_model_auto_migrates_the_previous_current_name() {
+    let old: toml::Value = toml::from_str("version = 1\ndlss_model = 'current'\n").unwrap();
+    let settings = Appearance::read(&old, "test").unwrap();
+    assert_eq!(settings.dlss_model, DlssModel::Auto);
+    assert_eq!(settings.value().unwrap()["dlss_model"].as_str(), Some("auto"));
+    assert_eq!(Appearance::default().dlss_model.sdk_value(), 0);
 }
 #[test]
 fn legacy_preferences_load_without_auto_applying_a_style() {
@@ -341,6 +356,33 @@ fn enhanced_water_tuning_round_trips_and_original_style_stays_unchanged() {
     s.appearance.lighting.ray_road_reflections = false;
     s.appearance.lighting.ray_car_reflections = true;
     s.appearance.lighting.ray_texture_quality = 3;
+    s.appearance.lighting.local_lamps = true;
+    s.appearance.lighting.local_street_lights = true;
+    s.appearance.lighting.local_headlights = true;
+    s.appearance.lighting.local_traffic_headlights = true;
+    s.appearance.lighting.local_traffic_limit = 6;
+    s.appearance.lighting.night_sky_brightness = 0.12;
+    s.appearance.lighting.experimental_night = true;
+    s.appearance.lighting.full_day_night = true;
+    s.appearance.lighting.auto_player_lights = false;
+    s.appearance.lighting.local_tail_lights = false;
+    s.appearance.lighting.local_light_distance = 550.0;
+    s.appearance.lighting.local_light_strength = 0.8;
+    s.appearance.lighting.local_street_strength = 2.4;
+    s.appearance.lighting.local_street_range = 100.0;
+    s.appearance.lighting.local_street_glow = 1.7;
+    s.appearance.lighting.local_light_fog = 3.5;
+    s.appearance.lighting.local_light_fog_distance = 450.0;
+    s.appearance.lighting.local_light_fog_quality = 3;
+    s.appearance.lighting.local_street_haze_count = 64;
+    s.appearance.lighting.local_light_fog_count = 24;
+    s.appearance.lighting.local_headlight_strength = 0.6;
+    s.appearance.lighting.local_light_limit = 32;
+    s.appearance.lighting.local_shadow_count = 16;
+    s.appearance.lighting.local_shadow_resolution = 2048;
+    s.appearance.lighting.local_shadow_filter = 2.0;
+    s.appearance.lighting.local_shadow_distance = 100.0;
+    s.appearance.lighting.local_specular_strength = 0.3;
     s.appearance.lighting.ray_sun_shadows = true;
     s.appearance.lighting.ray_soft_shadows = true;
     s.appearance.lighting.ray_shadow_temporal = true;
@@ -358,6 +400,42 @@ fn enhanced_water_tuning_round_trips_and_original_style_stays_unchanged() {
     s.appearance.lighting.ray_road_screen_reuse = 0.7;
     let stored = s.appearance.value().unwrap();
     assert_eq!(Appearance::read(&stored, "water round-trip").unwrap(), s.appearance);
+    s.appearance.lighting.ray_shadow_samples = 2;
+    let stored = s.appearance.value().unwrap();
+    assert_eq!(Appearance::read(&stored, "two-ray round-trip").unwrap().lighting.ray_shadow_samples, 2);
+    assert_eq!(
+        Appearance::read(&toml::from_str("version=1").unwrap(), "older profile").unwrap().lighting.local_street_glow,
+        1.0
+    );
+    assert_eq!(
+        Appearance::read(&toml::from_str("version=1").unwrap(), "older profile").unwrap().lighting.local_light_fog,
+        0.5
+    );
+    assert_eq!(
+        Appearance::read(&toml::from_str("version=1").unwrap(), "older profile")
+            .unwrap()
+            .lighting
+            .local_light_fog_distance,
+        200.0
+    );
+    assert_eq!(
+        Appearance::read(&toml::from_str("version=1").unwrap(), "older profile")
+            .unwrap()
+            .lighting
+            .local_light_fog_quality,
+        2
+    );
+    let older = |text: &str| Appearance::read(&toml::from_str(text).unwrap(), "older profile").unwrap().lighting;
+    assert_eq!(older("version=1").local_light_fog_count, 8, "the default fog budget is unchanged");
+    assert_eq!(
+        older("version=1\n[lighting]\nlocal_street_haze_count=48").local_light_fog_count,
+        48,
+        "a profile from before the separate budget keeps its fog light count"
+    );
+    assert_eq!(
+        older("version=1\n[lighting]\nlocal_street_haze_count=48\nlocal_light_fog_count=4").local_light_fog_count,
+        4
+    );
     s.select_visual_style(VisualStyle::OriginalPc);
     assert!(!s.appearance.lighting.enhanced_wet_surfaces);
     assert!(

@@ -1,6 +1,7 @@
 //! A car's physics data: the AttribSys classes `pvehicle` links to, read into the plain parameter
 //! structs of `blackbox-vehicle`. Field meanings and units are in `docs/specs/vehicle-*.md`.
 
+mod bike;
 mod body;
 mod bounds;
 mod chassis;
@@ -24,6 +25,7 @@ mod surface;
 pub mod tuning;
 mod wall_steering;
 
+pub use bike::BikePhysics;
 pub use body::{BodyData, WallSpec, body, rigid_body_spec, wall_spec};
 pub use bounds::{CarBounds, car_bounds, mod_bounds_file, mod_car_bounds, read_car_bounds};
 pub use chassis::{aero, chassis};

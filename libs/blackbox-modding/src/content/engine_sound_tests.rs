@@ -97,3 +97,18 @@ fn two_layers_mixed_by_one_rpm_are_refused_but_curve_layers_share_none() {
     let both = format!("{{ file = \"SOUND/A.WAV\", {RISE} }}, {{ file = \"SOUND/B.WAV\", {RISE} }}");
     assert_eq!(parse(&both).unwrap().layers.len(), 2);
 }
+
+#[test]
+fn a_car_may_have_up_to_the_most_layers_and_no_more() {
+    let layers = |count: usize| -> String {
+        (0..count)
+            .map(|n| format!("{{ file = \"SOUND/L{n}.WAV\", rpm = {}.0 }}", 1000 + 100 * n))
+            .collect::<Vec<_>>()
+            .join(
+                ",
+",
+            )
+    };
+    assert_eq!(parse(&layers(engine_sound::MAX_LAYERS)).unwrap().layers.len(), engine_sound::MAX_LAYERS);
+    assert!(parse(&layers(engine_sound::MAX_LAYERS + 1)).is_err());
+}

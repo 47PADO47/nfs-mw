@@ -57,11 +57,15 @@ fn density(p: vec3<f32>, amount: f32, footprint: f32) -> f32 {
     let broken = mix(partly, mostly, clamp(amount*2.0, 0.0, 1.0));
     let coverage = mix(broken, overcast, smoothstep(0.5, 1.0, amount)) * smoothstep(0.0, 0.3, amount);
     if coverage <= 0.001 { return 0.0; }
+    // The height profile is exactly zero above the selected cloud family. Avoid
+    // base/detail noise fetches there, including the sunlight and shadow marches.
+    let profile = cloud_height(height, mix(0.6*weather.g, 0.8, smoothstep(0.5, 1.0, amount)));
+    if profile <= 0.0 { return 0.0; }
     let base = textureSampleLevel(cloud_noise, cloud_sampler, q/25.0, clamp(log2(max(footprint * 128.0 / 25.0, 1.0)), 0.0, 2.0));
     let low_fbm = dot(base.gba, vec3(0.625, 0.25, 0.125));
     var cloud = remap_cloud(base.r, -(1.0-low_fbm), 1.0);
     cloud = remap_cloud(cloud, 1.0-coverage, 1.0) * coverage;
-    cloud *= cloud_height(height, mix(0.6*weather.g, 0.8, smoothstep(0.5, 1.0, amount)));
+    cloud *= profile;
     if cloud <= 0.0 { return 0.0; }
     let detail_position = q + vec3(wind*0.27, -wind*0.16, wind*0.035);
     let detail = textureSampleLevel(cloud_detail, cloud_sampler, detail_position/1.5, log2(max(footprint * 32.0 / 1.5, 1.0))).rgb;
@@ -74,17 +78,24 @@ fn cloud_phase(g: f32, mu: f32) -> f32 {
     return (1.0-g*g) / (12.5663706 * pow(max(1.0+g*g-2.0*g*mu, 0.001), 1.5));
 }
 
-fn cloud_scattering(optical_depth: f32, mu: f32) -> f32 {
+// The view/sun angle is invariant along a ray. Evaluate its phase terms once.
+fn cloud_phases(mu: f32) -> vec4<f32> {
+    var phases = vec4(0.0);
+    var asymmetry = 1.0;
+    for (var i = 0; i < 4; i++) {
+        phases[i] = mix(cloud_phase(-0.2*asymmetry,mu), cloud_phase(0.8*asymmetry,mu), 0.3);
+        asymmetry *= 0.2;
+    }
+    return phases;
+}
+fn cloud_scattering(optical_depth: f32, phases: vec4<f32>) -> f32 {
     var attenuation = 1.0;
     var contribution = 1.0;
-    var asymmetry = 1.0;
     var result = 0.0;
     for (var i = 0; i < 4; i++) {
-        let phase = mix(cloud_phase(-0.2*asymmetry,mu), cloud_phase(0.8*asymmetry,mu), 0.3);
-        result += contribution * phase * exp(-10.0 * optical_depth * attenuation);
+        result += contribution * phases[i] * exp(-10.0 * optical_depth * attenuation);
         attenuation *= 0.5;
         contribution *= 0.6;
-        asymmetry *= 0.2;
     }
     return result;
 }

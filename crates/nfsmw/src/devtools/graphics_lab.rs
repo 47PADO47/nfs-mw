@@ -34,6 +34,7 @@ use blackbox_gfx::{AoQuality, ExperimentStats, LightingDebug, ReflectionQuality,
 pub struct GraphicsLab {
     pub(super) recorder: super::trace::Recorder,
     pub open: bool,
+    tail_preview: Option<crate::settings::TailPreview>,
     options: RenderExperiments,
     startup_options: Option<RenderExperiments>,
     tab: profiles::Tab,
@@ -49,6 +50,7 @@ pub struct GraphicsLab {
     render_size: [u32; 2],
     startup_quality: Option<quality::Quality>,
     startup_style: Option<crate::settings::VisualStyle>,
+    startup_local_lights: Option<String>,
     stats: ExperimentStats,
     active: bool,
     restore_capture: bool,
@@ -56,6 +58,8 @@ pub struct GraphicsLab {
     saved: Option<(RenderExperiments, Settings)>,
     environment: Option<crate::viewer::Environment>,
     environment_change: Option<crate::viewer::Environment>,
+    /// Local lamp options as they were before the full day/night cycle switched them on, restored when it ends.
+    cycle_lamp_restore: Option<environment::LampOptions>,
     traffic_status: Option<String>,
     pursuit_request: Option<u8>,
 }
@@ -95,6 +99,7 @@ impl Default for GraphicsLab {
                 Ok("diagnostics") => profiles::Tab::Diagnostics,
                 _ => profiles::Tab::Look,
             },
+            tail_preview: None,
             save_requested: false,
             disk: Default::default(),
             profile_path: Settings::config_path(),
@@ -106,6 +111,7 @@ impl Default for GraphicsLab {
             output_size: [0; 2],
             render_size: [0; 2],
             options,
+            startup_local_lights: std::env::var("NFSMW_LAB_LAMPS").ok(),
             startup_style: std::env::var("NFSMW_LAB_STYLE").ok().and_then(|s| s.parse().ok()),
             startup_quality: std::env::var("NFSMW_LAB_QUALITY").ok().as_deref().and_then(quality::Quality::parse),
             stats: Default::default(),
@@ -115,6 +121,7 @@ impl Default for GraphicsLab {
             saved: None,
             environment: None,
             environment_change: None,
+            cycle_lamp_restore: None,
             traffic_status: None,
             pursuit_request: None,
         }
@@ -239,6 +246,10 @@ impl GraphicsLab {
 fn apply(mut lab: ResMut<GraphicsLab>, settings: Res<Settings>, mut host: NonSendMut<Host>) {
     let _trace = blackbox_trace::scope("Diagnostics: apply graphics lab");
     pursuit::apply(&mut lab, &mut host);
+    if !lab.open || !settings.tail_trail_style.enabled || !settings.tail_trail_style.enhanced {
+        lab.tail_preview = None;
+    }
+    host.scene.set_tail_preview(lab.tail_preview);
     let Some(renderer) = host.renderer.as_mut() else { return };
     renderer.set_render_experiments(settings.appearance.lighting);
     lab.caps = Some(*renderer.capabilities());

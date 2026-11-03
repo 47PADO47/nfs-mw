@@ -18,11 +18,14 @@ use crate::{BlendMode, GlossyMaterialHandle, Shading, Vertex};
 /// Draw order: opaque and alpha-tested first, blended last.
 pub(super) const BLEND_ORDER: [BlendMode; 5] =
     [BlendMode::Opaque, BlendMode::AlphaTest, BlendMode::AlphaBlend, BlendMode::Subtractive, BlendMode::Additive];
-pub(super) const SHADINGS: [Shading; 8] = [
+pub(super) const SHADINGS: [Shading; 11] = [
     Shading::Lit,
     Shading::Prelit,
     Shading::Sky,
     Shading::World,
+    Shading::WorldEmissive,
+    Shading::WorldDistant,
+    Shading::PrelitDistant,
     Shading::Tree,
     Shading::WorldNoFog,
     Shading::WorldPrelit,
@@ -79,7 +82,7 @@ const SET_LEN: usize = FACES.len() * BLEND_ORDER.len() * SHADINGS.len();
 /// sky, blended and alpha-tested draws keep the plain test: the prepass does not always cover them, or it samples
 /// its cutout with another LOD bias than the colour pass.
 fn equal_depth(blend: BlendMode, shading: Shading) -> bool {
-    blend == BlendMode::Opaque && matches!(shading, Shading::Lit | Shading::Prelit)
+    blend == BlendMode::Opaque && matches!(shading, Shading::Lit | Shading::Prelit | Shading::PrelitDistant)
 }
 
 const ADDITIVE: wgpu::BlendState = wgpu::BlendState {
@@ -292,7 +295,7 @@ impl Pipelines {
         };
         let prelit = !matches!(shading, Shading::Lit | Shading::Glossy(_));
         let world_kind = match shading {
-            Shading::World => 1.0,
+            Shading::World | Shading::WorldDistant | Shading::WorldEmissive => 1.0,
             Shading::Tree => 2.0,
             Shading::WorldPrelit => 3.0,
             Shading::WorldNoFog => 4.0,
@@ -300,9 +303,12 @@ impl Pipelines {
         };
         let clip_plane = f64::from(u8::from(clip));
         let constants = [
+            ("MASKED_EMISSIVE", f64::from(u8::from(shading == Shading::WorldEmissive))),
             ("PRELIT", f64::from(u8::from(prelit))),
             ("FOG", f64::from(u8::from(shading != Shading::Sky))),
             ("WORLD_KIND", world_kind),
+            ("DISTANT_SCENERY", f64::from(u8::from(matches!(shading, Shading::WorldDistant | Shading::PrelitDistant)))),
+            ("NIGHT_OPAQUE", f64::from(u8::from(blend_mode == BlendMode::Opaque))),
             ("CLIP_PLANE", clip_plane),
         ];
         // The glossy shader has its own module and layout, and only the clip override.

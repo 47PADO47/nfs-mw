@@ -179,6 +179,21 @@ fn the_motion_vectors_hold_the_camera_motion_and_the_motion_of_a_keyed_object() 
 
 #[test]
 #[ignore = "needs a GPU"]
+fn sky_motion_tracks_camera_rotation_on_the_gpu() {
+    let Some((_gpu, mut renderer)) = renderer() else { panic!("GPU unavailable") };
+    renderer.apply_graphics(&fsr3(UpscaleQuality::Native));
+    let first = frame(0.0, true);
+    renderer.render(&first, &[]).expect("render");
+    let mut turned = frame(0.0, false);
+    turned.view = Mat4::from_rotation_y(0.05) * turned.view;
+    renderer.render(&turned, &[]).expect("render");
+    let ((width, height), motion) = read_motion(&renderer);
+    let centre = motion[(height / 2 * width + width / 2) as usize];
+    assert!(centre[0].abs() > 0.01, "rotation must move the sky: {centre:?}");
+}
+
+#[test]
+#[ignore = "needs a GPU"]
 fn a_camera_cut_and_an_unkeyed_instance_have_no_motion_of_their_own() {
     let Some((_gpu, mut renderer)) = renderer() else { return };
     renderer.apply_graphics(&fsr3(UpscaleQuality::Native));

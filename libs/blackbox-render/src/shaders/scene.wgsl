@@ -4,9 +4,14 @@
 
 // Set per pipeline: pre-lit world geometry (vertex colour x 2, no sun) vs lit models.
 override PRELIT: bool = false;
+// Texture alpha is an emission mask for this opaque material.
+override MASKED_EMISSIVE: bool = false;
 // Off for the sky, which sits beyond the fog.
 override FOG: bool = true;
 override WORLD_KIND: u32 = 0u;
+override DISTANT_SCENERY: bool = false;
+// Blended artwork can be emissive; only opaque unlit surfaces receive night lighting.
+override NIGHT_OPAQUE: bool = false;
 // Set only for planar-reflection captures: discard fragments behind `globals.clip_plane`. Left off elsewhere so
 // the opaque draws of the main view keep early depth testing.
 override CLIP_PLANE: bool = false;
@@ -46,7 +51,7 @@ fn scatter_fog(colour: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
     let hg = (1.0 - g) * (1.0 - g) / (4.0 * PI_F * pow(max(1.0 + g * g - 2.0 * g * c, 1e-6), 1.5));
     let rayleigh = 3.0 / (16.0 * PI_F) * (1.0 + c * c);
     let inscatter = (br * rayleigh + bm * hg) * (vec3<f32>(1.0) - e) / sum;
-    return colour * e + inscatter;
+    return colour * e + inscatter * mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
 }
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -75,6 +80,7 @@ struct InstanceIn {
 };
 fn instance_model(i: InstanceIn) -> mat4x4<f32> { return mat4x4<f32>(i.model_0, i.model_1, i.model_2, i.model_3); }
 fn instance_receives_shadow(i: InstanceIn) -> u32 { return u32(i.shadow_flags.x); }
+fn instance_emission(i: InstanceIn) -> f32 { return i.shadow_flags.y; }
 // instance input: end
 
 struct VsOut {
@@ -87,6 +93,7 @@ struct VsOut {
     @location(5) world_diffuse: vec3<f32>,
     @location(6) world_scatter: vec3<f32>,
     @location(7) @interpolate(flat) receives_shadow: u32,
+    @location(8) @interpolate(flat) emission: f32,
 };
 
 @vertex
@@ -95,6 +102,7 @@ fn vs_main(v: VsIn, placed: InstanceIn) -> VsOut {
     let world = model * vec4<f32>(v.position, 1.0);
     var out: VsOut;
     out.receives_shadow = instance_receives_shadow(placed);
+    out.emission = instance_emission(placed);
     out.clip = globals.view_proj * world;
     out.normal = (model * vec4<f32>(v.normal, 0.0)).xyz;
     out.color = v.color_bgra.zyxw;
@@ -107,11 +115,19 @@ fn vs_main(v: VsIn, placed: InstanceIn) -> VsOut {
     return out;
 }
 
+fn material_emission(shaded: vec4<f32>, source: vec4<f32>, in: VsOut) -> vec4<f32> {
+    if !MASKED_EMISSIVE { return shaded; }
+    let distance = length(in.world - globals.camera_pos.xyz);
+    let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
+    return extended_output(vec4<f32>(shaded.rgb + source.rgb * source.a * in.emission * (1.0 - fog), shaded.a));
+}
+
 fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
     if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
-    let texel = textureSampleBias(diffuse, diffuse_sampler, in.uv + texture_scroll.xy, globals.fog_range.z);
+    let source = textureSampleBias(diffuse, diffuse_sampler, in.uv + texture_scroll.xy, globals.fog_range.z);
+    let texel = vec4<f32>(source.rgb, select(source.a, 1.0, MASKED_EMISSIVE));
     if WORLD_KIND > 0u && globals.light_dir.w > 0.5 {
-        return world_pixel(in, texel, receive_ao);
+        return material_emission(world_pixel(in, texel, receive_ao), source, in);
     }
     let base = texel * in.color;
     let receiver = receiver_normal(in.world, in.normal);
@@ -135,15 +151,25 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
         let diffuse = select(vec3<f32>(0.65), globals.surface_diffuse.xyz, on);
         lit = base.rgb * (ambient * world_environment(n) * ao + diffuse * diffuse_light * scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) * cloud_visibility(in.world) + back_light * ao);
     }
+    lit *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
+    if globals.fog_range.w < 0.5 { lit += texel.rgb*local_lighting(in.world,receiver); }
     let distance = length(in.world - globals.camera_pos.xyz);
     var fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
     if !FOG {
         fog = 0.0;
     }
     if FOG && globals.scatter_rayleigh.w > 0.5 {
-        return vec4<f32>(scatter_fog(lit, in.world), base.a);
+        return material_emission(vec4<f32>(distant_night(scatter_fog(lit, in.world), in.world), base.a), source, in);
     }
-    return vec4<f32>(mix(lit, globals.fog_color.rgb, fog), base.a);
+    return material_emission(vec4<f32>(distant_night(mix(lit, globals.fog_color.rgb * mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w), fog), in.world), base.a), source, in);
+}
+
+fn distant_night(colour: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
+    if DISTANT_SCENERY {
+        let distant = smoothstep(60.0, 180.0, distance(world, globals.camera_pos.xyz));
+        return colour * mix(1.0, 0.40, shadow_data.local_options.w * distant);
+    }
+    return colour;
 }
 
 // Baked vertex illumination already contains shade. Reserve more of dark authored art for

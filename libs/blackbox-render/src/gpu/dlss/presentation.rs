@@ -278,7 +278,7 @@ impl Renderer {
             self.presentation.status.note = "Frame generation stopped: a tagged resource format is unsupported.";
             return;
         };
-        let constants = native::frame_data(frame, 0);
+        let constants = native::frame_data(frame, 0, 0);
         // The frame's final submission executes before SL's present hook. Tagged resources remain
         // immutable through present on this same queue, including the original motion/depth buffers.
         let result = unsafe { bb_sl_tag_generation(images.as_ptr(), &constants) };

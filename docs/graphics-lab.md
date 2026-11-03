@@ -21,7 +21,11 @@ base style for later quality changes.
 
 F8 has **Video**, **Look**, **Lighting**, **Materials**, **Detail**, **Traffic**, **Effects**, **Environment** and
 **Diagnostics** tabs. Look exposes Off/Subtle/Original/Reference (mod) treatment and a continuous
-strength override. Lighting contains independent shadow and car-light controls;
+strength override. It also has a separate vignette intensity slider, off by default.
+The vignette is suppressed while DLSS Frame Generation is active; the requested
+intensity is retained and returns when generation stops. The original treatment
+screen gain map is always neutral, while the other treatment operations remain.
+Lighting contains independent shadow and car-light controls;
 Materials contains car shading, texture filtering, car reflections and road
 reflection detail/resolution; Effects contains AO tuning.
 Diagnostics lists the source, implementation coverage and missing work for each

@@ -1,0 +1,147 @@
+//! `[bike.front_suspension]` and `[bike.rear_suspension]` with their damper, progressive, hydraulic and coupling tables
+//! (`docs/specs/ride6-suspension.md`; the units are those of the data: metres, N/m, N s/m, m/s).
+
+use anyhow::Result;
+
+use super::curve::{Translator, runtime_curve, simplify};
+use super::node::Node;
+use super::toml_text::Toml;
+use super::vehicle::Vehicle;
+use super::{Side, defaults};
+
+/// The manifest's leverage curve holds up to 16 points.
+const MAX_LEVERAGE_POINTS: usize = 16;
+
+pub fn write(t: &mut Toml, vehicle: &Vehicle, side: Side) -> Result<()> {
+    let props = vehicle.props();
+    let s = props.req(side.suspension_key())?;
+    let name = format!("bike.{}_suspension", side.name());
+    t.table(&name);
+    t.num("max_travel_m", s.f("MaxCompression")?);
+    t.num("spring_n_per_m", s.f("SpringStrength")?);
+    t.num("top_out_stiffness_n_per_m", s.f("TopOutSpringStiffness")?);
+    t.num("top_out_length_m", s.f("TopOutSpringLength")?);
+    t.num("rest_offset_m", s.f("RestCompressionOffset")?);
+    t.num("max_speed_mps", s.f("SpringMaxSpeed")?);
+    if let Some(points) = leverage(vehicle, &s)? {
+        t.pairs("leverage", &points);
+    }
+
+    t.table(&format!("{name}.damper"));
+    t.num("slow_bump", s.f("DamperSlowBump")?);
+    t.num("fast_bump", s.f("DamperFastBump")?);
+    t.num("bump_threshold", s.f("DamperFastBumpThreshold")?);
+    t.num("slow_rebound", s.f("DamperSlowRebound")?);
+    t.num("fast_rebound", s.f("DamperFastRebound")?);
+    t.num("rebound_threshold", s.f("DamperFastReboundThreshold")?);
+
+    progressive(t, &name, &s)?;
+    hydraulic(t, &name, &s)?;
+    coupling(t, vehicle, &name, &s)
+}
+
+/// The wheel travel per shock travel against the share of the travel, never below 1 (the binary clamps it,
+/// `ride6-suspension.md`, "Leverage ratio"). `None` for a spring that acts on the wheel directly.
+fn leverage(vehicle: &Vehicle, s: &Node<'_>) -> Result<Option<Vec<[f64; 2]>>> {
+    let Some(node) = s.get("SuspensionLeverageRatio") else { return Ok(None) };
+    let Some(curve) = runtime_curve(vehicle, &node)? else { return Ok(None) };
+    let points: Vec<[f64; 2]> = curve.polyline().into_iter().map(|[share, ratio]| [share, ratio.max(1.0)]).collect();
+    Ok(Some(simplify(clip_to_travel(points), MAX_LEVERAGE_POINTS)))
+}
+
+/// The curve up to the full travel (share 1): a curve of the data may run past it (a Superveloce's to 2.06), and the travel
+/// ends at 1, so the rest is never read. The point at 1 is interpolated on the segment that crosses it.
+fn clip_to_travel(points: Vec<[f64; 2]>) -> Vec<[f64; 2]> {
+    let Some(past) = points.iter().position(|point| point[0] > 1.0) else { return points };
+    let mut clipped = points[..past].to_vec();
+    let Some(before) = clipped.last().copied().filter(|before| before[0] < 1.0) else { return clipped };
+    let after = points[past];
+    let along = (1.0 - before[0]) / (after[0] - before[0]);
+    clipped.push([1.0, before[1] + along * (after[1] - before[1])]);
+    clipped
+}
+
+/// The progressive term of the main spring: written only when its factor is not 0 (0 is a linear spring).
+fn progressive(t: &mut Toml, name: &str, s: &Node<'_>) -> Result<()> {
+    let factor = s.f_or("ProgressiveSpringFactor", defaults::PROGRESSIVE_FACTOR)?;
+    if factor == 0.0 {
+        return Ok(());
+    }
+    t.table(&format!("{name}.progressive"));
+    t.num("start", s.f_or("LinearSpringCompressionRatio", defaults::PROGRESSIVE_START)?);
+    t.num("factor", factor);
+    t.num("linearity", s.f_or("ProgressiveSpringLinearity", defaults::PROGRESSIVE_LINEARITY)?);
+    Ok(())
+}
+
+/// The hydraulic term: a second, progressive spring-like term.
+fn hydraulic(t: &mut Toml, name: &str, s: &Node<'_>) -> Result<()> {
+    let stiffness = s.f_or("HydraulicComponentStiffness", 0.0)?;
+    if stiffness == 0.0 {
+        return Ok(());
+    }
+    t.table(&format!("{name}.hydraulic"));
+    t.num("stiffness_n_per_m", stiffness);
+    let start = s.f_or("LinearHydraulicComponentCompressionRatio", defaults::PROGRESSIVE_START)?;
+    if start != 0.0 {
+        t.num("start", start);
+    }
+    t.num("factor", s.f_or("ProgressiveHydraulicComponentFactor", defaults::PROGRESSIVE_FACTOR)?);
+    t.num("linearity", s.f_or("ProgressiveHydraulicComponentLinearity", defaults::PROGRESSIVE_LINEARITY)?);
+    Ok(())
+}
+
+/// The value of a swingarm force's remap of the travel share at no compression and at full travel.
+fn remap(vehicle: &Vehicle, s: &Node<'_>, key: &str) -> Result<[f64; 2]> {
+    let translator = match s.get(key) {
+        Some(node) => Translator::read(vehicle, &node)?,
+        None => Translator::identity(),
+    };
+    let ends = [translator.at(defaults::REMAP_IDENTITY[0]), translator.at(defaults::REMAP_IDENTITY[1])];
+    Ok(ends)
+}
+
+/// The chain pull, traction and brake coupling into the suspension (`ride6-suspension.md`, "Chain pull, traction and brake
+/// coupling"): a table when at least one factor is not 0.
+fn coupling(t: &mut Toml, vehicle: &Vehicle, name: &str, s: &Node<'_>) -> Result<()> {
+    let terms = [
+        ("chain", "ChainPullFactor", "ChainPullFactorCompressionFactor"),
+        ("traction", "TractionInfluenceOnLoad", "TractionInfluenceOnLoadCompressionFactor"),
+        ("brake", "BrakeTorqueCouplingFactor", "BrakeTorqueCouplingCompressionFactor"),
+    ];
+    let mut rows = Vec::new();
+    for (key, factor_key, remap_key) in terms {
+        let factor = s.f_or(factor_key, defaults::FORK_SWINGARM_FACTOR)?;
+        if factor != 0.0 {
+            rows.push((key, factor, remap(vehicle, s, remap_key)?));
+        }
+    }
+    if rows.is_empty() {
+        return Ok(());
+    }
+    t.table(&format!("{name}.coupling"));
+    for (key, factor, range) in rows {
+        t.num(key, factor);
+        t.nums(&format!("{key}_range"), &range);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clip_to_travel;
+
+    #[test]
+    fn a_curve_past_the_travel_ends_at_the_travel() {
+        let clipped = clip_to_travel(vec![[0.0, 2.0], [0.5, 1.8], [2.0, 1.2]]);
+        assert_eq!(clipped.len(), 3);
+        assert_eq!(clipped[2][0], 1.0);
+        assert!((clipped[2][1] - 1.6).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_curve_inside_the_travel_is_kept() {
+        let points = vec![[0.0, 2.0], [1.0, 1.5]];
+        assert_eq!(clip_to_travel(points.clone()), points);
+    }
+}

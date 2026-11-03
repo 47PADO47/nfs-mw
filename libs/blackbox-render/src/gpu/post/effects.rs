@@ -35,6 +35,9 @@ fn build(
             PostEffect::Bloom => passes.push(Box::new(BloomPass::new(device, settings, cache))),
             PostEffect::Fxaa => passes.push(Box::new(FxaaPass::new(device, cache))),
             PostEffect::Tonemap => passes.push(Box::new(TonemapPass::new(device, settings, cache))),
+            PostEffect::Vignette => {
+                passes.push(Box::new(super::vignette::VignettePass::new(device, settings.vignette, cache)))
+            }
         }
     }
     passes

@@ -27,6 +27,7 @@ pub(super) struct Frame {
     delta_ms: f32,
     mode: u32,
     reset: u32,
+    model: u32,
 }
 
 unsafe extern "C" {
@@ -36,7 +37,7 @@ unsafe extern "C" {
     fn bb_sl_shutdown();
     fn bb_sl_release();
     fn bb_sl_supported(physical_device: *mut std::ffi::c_void) -> i32;
-    fn bb_sl_size(mode: u32, width: u32, height: u32, size: *mut u32) -> i32;
+    fn bb_sl_size(mode: u32, width: u32, height: u32, model: u32, size: *mut u32) -> i32;
     fn bb_sl_evaluate(command: *mut std::ffi::c_void, images: *const Image, frame: *const Frame) -> i32;
 }
 
@@ -83,10 +84,10 @@ pub(super) fn supported(physical_device: u64) -> bool {
     unsafe { bb_sl_supported(physical_device as *mut _) == 0 }
 }
 
-pub(super) fn optimal_size(mode: u32, output: (u32, u32)) -> Option<(u32, u32)> {
+pub(super) fn optimal_size(mode: u32, output: (u32, u32), model: u32) -> Option<(u32, u32)> {
     let mut size = [0; 2];
     // SAFETY: size is a writable two-element buffer; a supported runtime is active.
-    let result = unsafe { bb_sl_size(mode, output.0, output.1, size.as_mut_ptr()) };
+    let result = unsafe { bb_sl_size(mode, output.0, output.1, model, size.as_mut_ptr()) };
     (result == 0 && size[0] > 0 && size[1] > 0).then_some((size[0], size[1]))
 }
 
@@ -165,6 +166,7 @@ pub(super) fn evaluate(
     views: [&wgpu::TextureView; 4],
     frame: &TemporalFrame,
     mode: u32,
+    model: u32,
 ) -> Result<(), String> {
     let images = views
         .into_iter()
@@ -183,7 +185,7 @@ pub(super) fn evaluate(
             },
         }),
     );
-    let constants = frame_data(frame, mode);
+    let constants = frame_data(frame, mode, model);
     // SAFETY: resource transitions above match the tagged layouts. All resources outlive this encoder;
     // SL records only into its borrowed command buffer and restores resource layouts before returning.
     // wgpu 30 prohibits mixing its encoding API and raw commands on one encoder.
@@ -221,7 +223,7 @@ pub(super) fn evaluate(
     Ok(())
 }
 
-pub(super) fn frame_data(frame: &TemporalFrame, mode: u32) -> Frame {
+pub(super) fn frame_data(frame: &TemporalFrame, mode: u32, model: u32) -> Frame {
     let reprojection = frame.previous * frame.unjittered.inverse();
     let projection = frame.projection;
     // Column-vector glam storage equals row-major storage for SL's row-vector convention.
@@ -237,5 +239,6 @@ pub(super) fn frame_data(frame: &TemporalFrame, mode: u32) -> Frame {
         delta_ms: frame.delta_time * 1000.0,
         mode,
         reset: u32::from(frame.reset),
+        model,
     }
 }

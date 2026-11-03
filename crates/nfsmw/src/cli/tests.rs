@@ -192,3 +192,21 @@ fn the_hud_scenario_takes_a_name_and_turns_the_hud_on() {
     let both = ["nfsmw", "view-world", "--hud-scenario", "racing", "--hud-demo", "100,4000,8000,3"];
     assert!(Cli::try_parse_from(both).is_err(), "a scenario and a demo state do not mix");
 }
+
+#[test]
+fn hidden_benchmarks_accept_an_explicit_4k_target() {
+    let cli = Cli::try_parse_from([
+        "nfsmw",
+        "view-world",
+        "--bench-seconds",
+        "5",
+        "--offscreen",
+        "--screenshot-size",
+        "3840x2160",
+    ])
+    .unwrap();
+    let Some(Command::ViewWorld { view, .. }) = cli.command else { panic!("wrong command") };
+    assert_eq!(view.screenshot_size, Some([3840, 2160]));
+    assert_eq!(view.bench_seconds, Some(5.0));
+    assert!(view.screenshot.is_none());
+}

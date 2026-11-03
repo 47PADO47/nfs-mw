@@ -15,17 +15,27 @@ impl WorldScene {
     /// Refresh before captures, including frames whose simulation is paused.
     pub(super) fn update_sky(&mut self, renderer: &mut dyn RenderBackend) {
         let options = renderer.render_experiments();
-        self.original_sky = options.original_world_materials || options.enhanced_sky;
+        // Showroom and capture refreshes call this without a frame update; selecting is a no-op when unchanged.
+        self.select_cycle(options.full_day_night);
+        let celestial = self.sun.cycle();
+        renderer.set_night_blend(celestial.map(|c| c.night));
+        let night = celestial.map_or(f32::from(u8::from(options.experimental_night)), |c| c.night);
+        self.original_sky = uses_original_sky(&options);
         let mut sky = state(self.atmosphere.intensity(), self.clock);
-        sky.enhanced = options.enhanced_sky;
+        sky.enhanced = options.enhanced_sky || options.experimental_night || options.full_day_night;
+        if let Some(c) = celestial {
+            sky.celestial_sun = Some(c.sun.to_array());
+            sky.moon_direction = c.moon.to_array();
+            sky.night_amount = c.night;
+        }
         if sky.enhanced {
             sky.scroll += self.day.cloud_seek_seconds() * 0.02;
         }
         sky.sky_wind_speed = options.sky_wind_speed;
         sky.sky_sun_size = options.sky_sun_size;
-        sky.sky_sun_brightness = options.sky_sun_brightness;
-        sky.sky_brightness = options.sky_brightness;
-        sky.sky_sunset_warmth = options.sky_sunset_warmth;
+        sky.sky_sun_brightness = options.sky_sun_brightness * (1.0 - night);
+        sky.sky_brightness = options.sky_brightness * (1.0 - night) + options.night_sky_brightness * night;
+        sky.sky_sunset_warmth = options.sky_sunset_warmth * (1.0 - night);
         renderer.set_sky_state(sky);
         let appearance = [
             ("SUNMAJORRAYS", 0.16, 1.0),
@@ -46,15 +56,23 @@ impl WorldScene {
                 })
             })
             .collect();
-        let dusk = (1.0 - (-self.sun.direction().z / 0.5)).clamp(0.0, 1.0);
+        // The glare follows the drawn sun, not the scene light (which is the moon's at night in the cycle).
+        let visible = self.sun.visible();
+        let dusk = (1.0 - (visible.z / 0.5)).clamp(0.0, 1.0);
         renderer.set_sun_glare(Some(blackbox_gfx::SunGlare {
+            to_sun: celestial.map(|c| c.sun.to_array()),
             layers,
             colour: [1.0, 0.99 - 0.19 * dusk, 0.95 - 0.45 * dusk],
-            strength: options.sky_sun_brightness,
+            strength: sky.sky_sun_brightness,
             weather_visibility: (1.0 - sky.cloud_coverage).clamp(0.0, 1.0).powi(2),
             angular_radius: 0.27 * options.sky_sun_size,
         }));
     }
+}
+
+/// Whether the native sky model is drawn: for the original materials, the enhanced sky and both night modes.
+pub(super) fn uses_original_sky(options: &blackbox_gfx::RenderExperiments) -> bool {
+    options.original_world_materials || options.enhanced_sky || options.experimental_night || options.full_day_night
 }
 
 #[cfg(test)]

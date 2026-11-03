@@ -44,6 +44,7 @@ config (`NFS_XtendedInput.default.ini`), so the remake and the original play ali
 | Speedbreaker | X |
 | Shift up / down | Right stick up / down (not in the free camera, where it looks) |
 | Change camera / look back | RB / LB |
+| Look around (bike helmet camera) | Right stick left / right (springs back) |
 | Reset car | Back |
 | Engage event | D-pad up (A also does, and skips a cutscene) |
 | World map | D-pad left |
@@ -181,6 +182,32 @@ play/pause key), `radio_next` (`.`, media next, pad right stick click) and `radi
 (`,`, media previous). The pad's D-pad is left to the map and the HUD shortcuts. They work while driving and are ignored in the pause menu, which uses the
 D-pad itself. A press of `radio_previous` within 3 s of a song's start goes back to the song before; later it
 starts the song again. The console `radio` command does the same without keys (`radio prev|pause|resume|toggle`).
+
+Two actions are for bikes only (a car ignores them; [bikes](modding/bikes.md)): `rider_weight`, an axis for the rider's weight
+for wheelies and stoppies (G forward and V back, Numpad 8 and 2, and the pad's **left stick Y**, up forward and down back, which
+steers with X at the same time), and `abs_level`, a button that goes to the next lower ABS level, 1, 0.75, 0.5, 0.25, 0 and back
+to 1 (J, and the pad's left-stick click). For the weight axis the stick's circular gate is opened to a square, so a stick at
+the rim on a diagonal still reaches the full lever.
+
+`head_look_x` and `head_look_y` are two more axes of a bike's (a car and the other cameras ignore them): the look of the
+helmet camera, `--camera-mode hood` (right and up positive). The head turns up to 11 degrees to either side and 10 up or down
+and springs back to straight ahead when the control is let go ([the camera spec](specs/ride6-bike-cameras.md), section 6.2).
+Every device can look:
+
+| Device | `head_look_x` | `head_look_y` |
+|---|---|---|
+| Pad | right stick X, with the camera dead zone and sensitivity | none (the right stick's Y is the gear shift and every button is taken) |
+| Mouse (captured, or right button held) | `mouse:look_x` at scale `1/700` | `mouse:look_y` at scale `-1/700` |
+| Keyboard | Numpad 6 / 4, `]` / `[` | Numpad 9 / 3 |
+
+The mouse is a stick whose deflection is its speed: the scale is the stick share per pixel a second (not per frame), so
+700 pixels a second hold the stick at its end, and the head returns to centre when the mouse stops (the mouse sensitivity
+setting applies). `per_second` is not used (it is refused for the mouse, whose delta the look divides by the frame time itself).
+The keys hold the stick at its end while pressed. A pad player can pitch with the stick instead by freeing its Y from the
+gear shift: `shift_up = ['key:E']`, `shift_down = ['key:Q']`, `head_look_y = ['axis:RightStickY']` in `[bindings]`. In the
+free camera the two axes are ignored. A `[bindings]` table saved by an older build holds `head_look_x = ['axis:RightStickX']` and an
+empty `head_look_y`, which override the new defaults: `bind-reset head_look_x` and `bind-reset head_look_y` in the console (then
+`bind-save`) bring the mouse and key looks in.
 
 The existing 0.75 press / 0.65 release hysteresis for digital gamepad buttons remains separate from
 analog trigger and stick response. See [the controller specification](specs/controller-settings.md)

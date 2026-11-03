@@ -5,7 +5,6 @@ use crate::viewer::Environment;
 
 impl WorldScene {
     pub(super) fn environment_state(&self) -> Environment {
-        let sun = self.sun.to_sun();
         Environment {
             cloud_override: self.atmosphere.override_amount(),
             cloud_intensity: self.atmosphere.intensity(),
@@ -14,8 +13,8 @@ impl WorldScene {
             road_wetness_override: self.wet_road.override_amount,
             road_wetness: self.wet_road.amount(),
             authored_clouds: self.atmosphere.has_authored_map(),
-            sun_direction: sun.to_array(),
-            dusk_blend: nfsmw_data::time_of_day::dusk_factor(sun.z),
+            sun_direction: self.sun.visible().to_array(),
+            dusk_blend: nfsmw_data::time_of_day::dusk_factor(self.sun.preset_height()),
             ..self.day.environment()
         }
     }

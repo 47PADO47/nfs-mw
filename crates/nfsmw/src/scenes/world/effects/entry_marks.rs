@@ -37,18 +37,33 @@ fn icon(kind: ZoneKind, race: Option<RaceType>) -> Option<Icon> {
 }
 
 const HIDDEN: Icon = Icon { model: "CHECKPOINT_GEOMETRY_HIDECAR_00", group: "fxgame_icongrp_hidecar" };
+const RIVAL: Icon = Icon { model: "CHECKPOINT_GEOMETRY_RIVAL_00", group: "fxgame_icongrp_rivalr" };
 
 impl super::super::WorldScene {
     pub(in crate::scenes::world) fn activity_icons(&self, camera: Vec3) -> Vec<VisibleIcon> {
         let car = self.players.lead().map_or(camera, |drive| drive.position());
         let pursuing = self.traffic.as_ref().is_some_and(|traffic| traffic.is_pursuing());
-        let hiding = self.traffic.iter().filter(|_| pursuing).flat_map(|traffic| traffic.hiding_icon_positions());
-        let entries = self.race.is_none() && !self.cutscene_playing() && !pursuing;
+        let cooldown = pursuing
+            && self
+                .traffic
+                .as_ref()
+                .is_some_and(|traffic| traffic.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown);
+        let entries = self.race.is_none() && !self.cutscene_playing();
+        let hiding =
+            self.traffic.iter().filter(|_| entries && cooldown).flat_map(|traffic| traffic.hiding_icon_positions());
         let mut icons = collect(&self.entry.zones, car, &self.shut_race_zones(), entries, hiding);
+        let current_bin = self.career.handle.with(|career| career.blacklist.current_bin());
+        icons.retain(|item| {
+            item.kind.is_none_or(|kind| entry_visible(kind, pursuing, cooldown))
+                && unlocked(item.unlock_bin, current_bin)
+        });
         for item in &mut icons {
             let p = item.position;
+            if !needs_ground_snap(p) {
+                continue;
+            }
             if let Some(height) =
-                super::super::space::ground_below(self.residency.collision(), p.x, p.y, p.z + 5.0, p.z - 10.0)
+                super::super::space::ground_below(self.residency.collision(), p.x, p.y, 1000.0, -1000.0)
             {
                 item.position.z = height;
             }
@@ -57,12 +72,27 @@ impl super::super::WorldScene {
     }
 }
 
+fn entry_visible(kind: ZoneKind, pursuing: bool, cooldown: bool) -> bool {
+    !pursuing || (kind == ZoneKind::SafeHouse && cooldown)
+}
+
+fn unlocked(threshold: Option<i32>, current_bin: Option<u8>) -> bool {
+    let Some(current) = current_bin else { return true };
+    threshold.is_none_or(|threshold| threshold > 0 && i32::from(current) <= threshold)
+}
+
+fn needs_ground_snap(position: Vec3) -> bool {
+    position.z == 0.0
+}
+
 /// A stable icon identity and its location, shared by geometry and particles.
 #[derive(Clone)]
 pub(in crate::scenes::world) struct VisibleIcon {
     id: usize,
     position: Vec3,
     icon: Icon,
+    kind: Option<ZoneKind>,
+    unlock_bin: Option<i32>,
 }
 
 pub(in crate::scenes::world) fn collect(
@@ -81,15 +111,25 @@ pub(in crate::scenes::world) fn collect(
             if zone.kind == ZoneKind::Race && shut.contains(&zone.name) {
                 continue;
             }
-            if let Some(icon) = icon(zone.kind, zone.race_type) {
-                result.push(VisibleIcon { id, position: zone.centre, icon });
+            let asset = match zone.kind == ZoneKind::Race && zones.rivals.contains(&zone.name) {
+                true => Some(RIVAL),
+                false => icon(zone.kind, zone.race_type),
+            };
+            if let Some(icon) = asset {
+                result.push(VisibleIcon {
+                    id,
+                    position: zone.centre,
+                    icon,
+                    kind: Some(zone.kind),
+                    unlock_bin: zones.unlock_bins.get(&zone.name).copied(),
+                });
             }
         }
     }
     let first_hiding = zones.zones.len();
     for (i, position) in hiding.enumerate() {
         if position.distance_squared(car) <= DRAW_RANGE * DRAW_RANGE {
-            result.push(VisibleIcon { id: first_hiding + i, position, icon: HIDDEN });
+            result.push(VisibleIcon { id: first_hiding + i, position, icon: HIDDEN, kind: None, unlock_bin: None });
         }
     }
     result
@@ -127,6 +167,32 @@ pub(in crate::scenes::world) fn geometry(icons: &[VisibleIcon], resources: &Sect
 mod tests {
     use super::super::super::entry_zones::Zone;
     use super::*;
+
+    #[test]
+    fn pursuit_phases_keep_only_safehouse_entries_during_cooldown() {
+        for kind in [ZoneKind::Race, ZoneKind::AutoShop, ZoneKind::CarLot, ZoneKind::SafeHouse] {
+            assert!(entry_visible(kind, false, false));
+            assert!(!entry_visible(kind, true, false));
+            assert_eq!(entry_visible(kind, true, true), kind == ZoneKind::SafeHouse);
+            assert!(entry_visible(kind, false, true), "escape restores all entry kinds");
+        }
+    }
+
+    #[test]
+    fn explicit_heights_survive_and_only_zero_requests_ground() {
+        assert!(needs_ground_snap(Vec3::new(100.0, 200.0, 0.0)));
+        assert!(!needs_ground_snap(Vec3::new(100.0, 200.0, 147.8)));
+        assert!(!needs_ground_snap(Vec3::new(100.0, 200.0, -3.0)));
+    }
+
+    #[test]
+    fn gate_bin_threshold_opens_as_career_rank_decreases() {
+        assert!(!unlocked(Some(8), Some(9)));
+        assert!(unlocked(Some(8), Some(8)));
+        assert!(unlocked(Some(8), Some(1)));
+        assert!(!unlocked(Some(0), Some(1)));
+        assert!(unlocked(Some(8), None), "viewers have no career restrictions");
+    }
 
     #[test]
     fn icon_table_selects_matching_stock_assets() {
@@ -216,6 +282,7 @@ mod tests {
             icon(ZoneKind::Race, Some(RaceType::Tollbooth)).unwrap(),
             icon(ZoneKind::Race, Some(RaceType::SpeedTrap)).unwrap(),
             HIDDEN,
+            RIVAL,
         ];
         for icon in icons {
             assert!(assets.solids.iter().any(|solid| solid.name_hash == bstring_hash(icon.model)), "{}", icon.model);

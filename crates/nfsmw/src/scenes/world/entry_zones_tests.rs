@@ -108,7 +108,7 @@ fn only_the_zones_near_the_car_are_drawn() {
 
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
-fn the_install_has_eight_shops_four_safe_houses_and_a_zone_per_race_start() {
+fn the_install_has_eight_shops_four_safe_houses_and_authored_race_entries() {
     let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
     let dir = game_install::GameDir::open(std::path::PathBuf::from(root)).unwrap();
     let data = nfsmw_data::gameplay::load(&dir).unwrap();
@@ -116,5 +116,33 @@ fn the_install_has_eight_shops_four_safe_houses_and_a_zone_per_race_start() {
     let count = |kind| zones.zones.iter().filter(|z| z.kind == kind).count();
     assert_eq!(count(ZoneKind::AutoShop), 8);
     assert_eq!(count(ZoneKind::SafeHouse), 4);
-    assert_eq!(count(ZoneKind::Race), data.races.iter().filter(|r| r.start.is_some()).count());
+    assert!(!data.engages.is_empty(), "the install must expose its engage triggers");
+    assert_eq!(
+        count(ZoneKind::Race),
+        data.races.iter().filter(|r| data.engages.iter().any(|e| e.target == r.key)).count()
+    );
+    for zone in zones.zones.iter().filter(|zone| zone.kind == ZoneKind::Race) {
+        let race = data.race_named(&zone.name).unwrap();
+        let engage = data.engages.iter().find(|entry| entry.target == race.key).unwrap();
+        assert_eq!(zone.centre, super::space::to_render(engage.position.to_array()));
+    }
+}
+
+#[test]
+fn engage_position_replaces_grid_and_omits_races_without_an_entry() {
+    let start = Placement { position: stored([100.0, 10.0, 20.0]), heading_deg: 90.0 };
+    let mut missing = race("missing", Some(start));
+    missing.key = 2;
+    let mut data = data(vec![race("entered", Some(start)), missing], Vec::new());
+    data.engages.push(nfsmw_data::gameplay::EngageMarker {
+        target: 1,
+        position: stored([15.0, 20.0, 30.0]),
+        radius: 8.0,
+    });
+    let zones = EntryZones::from_data(&data);
+    assert_eq!(zones.zones.len(), 1);
+    assert_eq!(zones.zones[0].centre, Vec3::new(15.0, 20.0, 30.0));
+    assert_eq!(zones.zones[0].radius, 8.0);
+    assert!(zones.entered(Vec3::new(15.0, 20.0, 30.0)).is_some());
+    assert!(zones.entered(Vec3::new(100.0, 10.0, 20.0)).is_none());
 }

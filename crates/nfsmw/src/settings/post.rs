@@ -56,6 +56,7 @@ impl PostBloom {
 /// What the renderer is asked to run for `settings`.
 pub fn post_effects(settings: &Settings) -> PostSettings {
     PostSettings {
+        vignette: settings.appearance.vignette,
         colour_treatment_override: settings.visual_treatment.parameter_override(),
         colour_treatment: settings
             .appearance

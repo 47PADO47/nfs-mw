@@ -1,7 +1,7 @@
 //! Current-frame cloud lighting shared by all nearby views. No temporal history.
 
 use super::super::resources::Globals;
-use super::cloud_schedule::{Key, Rebuild, Schedule};
+use super::cloud_schedule::{Key, Rebuild, Schedule, sun_key};
 
 const SIZE: (u32, u32) = (1536, 384);
 
@@ -74,14 +74,16 @@ impl CloudMap {
         encoder: &mut wgpu::CommandEncoder,
         shader: &wgpu::ShaderModule,
         bindings: [(&wgpu::BindGroupLayout, &wgpu::BindGroup); 2],
-        globals: &Globals,
-        state: blackbox_gfx::SkyState,
+        frame: (&Globals, blackbox_gfx::SkyState),
+        mut timing: Option<&mut super::super::timing::Timing>,
     ) {
+        let (globals, state) = frame;
+        let (sun, light) = sun_key(state.celestial_sun, globals.to_sun, globals.light_dir[..3].try_into().unwrap());
         let key = Key {
             scroll: state.scroll * state.sky_wind_speed,
             coverage: state.cloud_coverage,
-            sun: globals.to_sun,
-            light: globals.light_dir[..3].try_into().unwrap(),
+            sun,
+            light,
             warmth: state.sky_sunset_warmth,
         };
         let origin: [f32; 3] = globals.camera_pos[..3].try_into().unwrap();
@@ -125,6 +127,9 @@ impl CloudMap {
                 cache: None,
             })
         });
+        if let Some(timing) = timing.as_mut() {
+            timing.stamp(encoder, 8);
+        }
         let load = match rebuild {
             Rebuild::Full => wgpu::LoadOp::Clear(wgpu::Color::BLACK),
             Rebuild::Band(_) => wgpu::LoadOp::Load,
@@ -146,6 +151,10 @@ impl CloudMap {
         let (y, height) = rebuild.rows(SIZE.1);
         pass.set_scissor_rect(0, y, SIZE.0, height);
         pass.draw(0..3, 0..1);
+        drop(pass);
+        if let Some(timing) = timing {
+            timing.stamp(encoder, 9);
+        }
         if rebuild == Rebuild::Full {
             self.origin = origin;
         }

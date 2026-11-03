@@ -60,8 +60,8 @@ impl CarPose {
 /// One uploaded part: which placement of the model it is.
 struct Part {
     mesh: MeshHandle,
-    /// The part for each lamp state: headlights (bit 0), brake (bit 1), reverse gear (bit 2).
-    lamps: [MeshHandle; 8],
+    /// Headlights (bit 0), brake (bit 1), reverse (bit 2), cosmetic NOS (bit 3).
+    lamps: [MeshHandle; 16],
     placement: nfsmw_data::car::Placement,
     key: usize,
     lod: usize,
@@ -286,7 +286,8 @@ impl CarRig {
         draw: super::DrawOptions<'_>,
         out: &mut Vec<Instance>,
     ) {
-        let super::DrawOptions { car, lamps, reverse, detail, glass, broken_lights, damage, steering } = draw;
+        let super::DrawOptions { car, lamps, reverse, nos_lamps, detail, glass, broken_lights, damage, steering } =
+            draw;
         let driver_pose = poses::slot_for(steering, reverse, self.driver_poses.0, self.driver_poses.1);
         let damage_slots = damage
             .filter(|_| self.model.driving_lods.damage.enabled)
@@ -300,7 +301,10 @@ impl CarRig {
                 car == keys::PLAYER_CAR,
             )
         });
-        let state = usize::from(lamps[0]) | (usize::from(lamps[1]) << 1) | (usize::from(reverse) << 2);
+        let state = usize::from(lamps[0])
+            | (usize::from(lamps[1]) << 1)
+            | (usize::from(reverse) << 2)
+            | (usize::from(nos_lamps) << 3);
         let world = pose.transform() * Mat4::from_scale(Vec3::splat(self.scale));
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));

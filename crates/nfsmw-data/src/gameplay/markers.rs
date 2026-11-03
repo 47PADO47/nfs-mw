@@ -7,7 +7,7 @@ use glam::Vec3;
 
 use super::{Placement, collection, inherits, instances, name_of, placement};
 
-/// Field `0x6CE23062` (`Int32`), set on each zone; its meaning is unconfirmed (see [`ActivityMarker::icon_index`]).
+/// BinIndex unlock threshold; see `docs/specs/world-activity-icons.md`.
 const ICON_INDEX_FIELD: u32 = 0x6CE2_3062;
 /// Field `0x2241F4CD` (`GCollectionKey`), set on each zone to its `respawn` marker (the zone's first child).
 const RESPAWN_FIELD: u32 = 0x2241_F4CD;
@@ -49,10 +49,30 @@ pub struct ActivityMarker {
     pub radius: f32,
     /// The `respawn` marker the game places the car at after this zone (its `Position` and `Rotation`).
     pub respawn: Option<Placement>,
-    /// The `Int32` in field `0x6CE23062`: 8 to 16 across the zones. Its meaning is **unconfirmed**. It is read so
-    /// callers can see it, not used as a map icon yet (the map icon of a safe house is `SAFEHOUSEINDICATOR_%d` in
-    /// `speed.exe`; the index that goes with it is not established).
+    /// BinIndex: the positive career-bin threshold at which the zone icon becomes available.
+    /// The legacy field name is retained for callers; this is not a texture index.
     pub icon_index: Option<i32>,
+}
+
+/// The authored free-roam entry of a race, independently of its starting grid.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EngageMarker {
+    pub target: u32,
+    pub position: Vec3,
+    pub radius: f32,
+}
+
+pub(crate) fn engages(db: &Database) -> Vec<EngageMarker> {
+    instances(db)
+        .filter(|c| inherits(*c, "engagetrigger"))
+        .filter_map(|c| {
+            Some(EngageMarker {
+                target: super::key_field(c, "TargetActivity")?,
+                position: placement(c).position,
+                radius: c.get_f32("Radius").unwrap_or(0.0),
+            })
+        })
+        .collect()
 }
 
 /// Every auto shop, car lot and safe house zone, in database order.

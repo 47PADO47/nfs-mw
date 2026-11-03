@@ -101,7 +101,7 @@ impl EngineSound {
 
 /// A mod car's own recordings of the sounds besides its engine (the `[car_sound]` table of the car manifest,
 /// docs/modding/car-sound.md). A list left empty is silence for that effect: the car plays no other car's sound.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct CarEffects {
     /// WAV files played at a gear change that `shift_up` or `shift_down` does not cover.
     pub shift: Vec<String>,
@@ -116,6 +116,27 @@ pub struct CarEffects {
     pub no_clunk: bool,
     /// The recordings the mod's cars share.
     pub shared: SharedSound,
+    /// The shift recordings play at every change of the gear number instead of at the engine mixer's gear clunk.
+    pub shift_on_gear: bool,
+    /// The accumulator backfire that replaces the lift-off backfire rule (`[car_sound.overrun]`).
+    pub overrun: Option<Overrun>,
+}
+
+/// The numbers of the accumulator backfire (the `[car_sound.overrun]` table, docs/modding/car-sound.md). The audio turns
+/// them into the tuning of `blackbox_carsound::overrun`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Overrun {
+    pub accumulator_rate: f32,
+    pub throttle_arm: f32,
+    pub throttle_fire: f32,
+    pub window_seconds: f32,
+    pub flame_delay: f32,
+    pub flame_min_rpm: f32,
+    pub bang_audio_threshold: f32,
+    pub bang_effect_threshold: f32,
+    pub flame_effect_threshold: f32,
+    pub probability_closed: f32,
+    pub probability_open: f32,
 }
 
 /// The recordings the cars of a mod share (the `[car_sound.shared]` table, docs/modding/car-sound.md): body hits by

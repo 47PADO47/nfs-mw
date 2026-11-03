@@ -11,6 +11,7 @@ impl Drive {
         self.flames.release(renderer);
         self.effects.unload_variant();
         self.effects.release(renderer);
+        self.rider.release(renderer);
         self.rig.release(renderer);
     }
 }

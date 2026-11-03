@@ -26,6 +26,8 @@ pub struct Instance {
     pub speed: f32,
     pub master_delay: f32,
     pub loop_delay: f32,
+    pub begin_range: u16,
+    pub end_range: u16,
     pub start_trigger: u32,
     pub stop_trigger: u32,
     pub track: u32,
@@ -110,6 +112,8 @@ impl WorldAnimations {
                             speed: f32_at(record, 16),
                             master_delay: f32_at(record, 20),
                             loop_delay: f32_at(record, 24),
+                            begin_range: u16::from_le_bytes(record[28..30].try_into()?),
+                            end_range: u16::from_le_bytes(record[30..32].try_into()?),
                             start_trigger: u32_at(record, 32),
                             stop_trigger: u32_at(record, 36),
                             track: u32_at(record, 56),
@@ -146,6 +150,11 @@ mod tests {
             .map(|a| blackbox_hash::bstring_hash(&a.name))
             .collect();
         for instance in &world.instances {
+            assert_eq!(instance.flags, 0x28, "stock track playback mode");
+            assert_eq!((instance.track, instance.direction), (0, 0));
+            assert_eq!((instance.start_trigger, instance.stop_trigger), (0, 0));
+            assert!(instance.master_delay.is_finite() && instance.master_delay >= 0.0);
+            assert!(instance.loop_delay.is_finite() && instance.loop_delay >= 0.0);
             let tree = &world.trees[&instance.tree];
             for entity in tree.iter().filter(|e| e.animation != 0) {
                 for (bit, suffix) in [(1, b"_t"), (2, b"_q"), (4, b"_s")] {
@@ -155,6 +164,10 @@ mod tests {
                 }
             }
         }
+        assert!(
+            world.instances.iter().any(|instance| instance.master_delay > 0.0),
+            "stock animation includes an authored start delay"
+        );
         let global = crate::anim::AnimObjects::load(&dir, "GLOBAL/InGameB.bun").unwrap();
         assert!(global.skeletons.iter().any(|s| s.name == "ROOT" && s.bones.len() >= 2));
     }

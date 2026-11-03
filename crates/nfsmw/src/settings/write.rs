@@ -29,6 +29,10 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
         style.validate()?;
         put("exhaust_style", Value::try_from(style)?);
     }
+    if let Some(style) = changes.tail_trail_style {
+        style.validate()?;
+        put("tail_trail_style", Value::try_from(style)?);
+    }
     if let Some(style) = changes.backfire_style {
         style.validate()?;
         put("backfire_style", Value::try_from(style)?);

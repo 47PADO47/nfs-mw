@@ -62,6 +62,18 @@ impl Gpu {
         out: (u32, u32),
         temporal: Option<&TemporalFrame>,
     ) -> Vec<[u8; 4]> {
+        self.run_with_fg(chain, size, color, out, temporal, false)
+    }
+
+    pub(super) fn run_with_fg(
+        &self,
+        chain: &mut PostChain,
+        size: (u32, u32),
+        color: wgpu::Color,
+        out: (u32, u32),
+        temporal: Option<&TemporalFrame>,
+        frame_generation: bool,
+    ) -> Vec<[u8; 4]> {
         let device = &self.device;
         let scene = match temporal {
             Some(_) => FrameTargets::with_motion(device, HDR_FORMAT, size),
@@ -92,7 +104,16 @@ impl Gpu {
             occlusion_query_set: None,
             multiview_mask: None,
         }));
-        let ctx = PassContext { device, queue: &self.queue, scene: &scene, output_size: out, temporal };
+        let ctx = PassContext {
+            device,
+            queue: &self.queue,
+            scene: &scene,
+            output_size: out,
+            temporal,
+            frame_generation,
+            secondary_view: false,
+            dlss_model: 0,
+        };
         chain.encode(&ctx, &mut encoder, (&view, OUTPUT_FORMAT));
         let row = (out.0 * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let readback = device.create_buffer(&wgpu::BufferDescriptor {
@@ -242,9 +263,9 @@ impl PostPass for Sizes {
 
 fn temporal_frame() -> TemporalFrame {
     TemporalFrame {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         projection: glam::Mat4::IDENTITY,
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         camera_to_world: glam::Mat4::IDENTITY,
         jitter: glam::Vec2::ZERO,
         jitter_matrix: glam::Mat4::IDENTITY,

@@ -236,6 +236,7 @@ fn exhaust_widgets_apply_and_reset_without_selecting_a_different_car() {
         ui.frame(Vec::new());
     }
     ui.click("Default");
+    ui.frame(Vec::new()); // Let the newly opened popup complete its layout before selecting an entry.
     let request = ui.click("Aggressive").expect("preset applies immediately");
     assert_eq!(request.car, "RACER");
     assert_eq!(request.exhaust, super::ExhaustSelection::aggressive());

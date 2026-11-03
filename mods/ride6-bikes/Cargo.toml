@@ -1,0 +1,40 @@
+[package]
+name = "ride6-bikes"
+description = "Native mod: bikes of the user's own RIDE 6 install, converted from glTF exports into mod cars of NFS: Most Wanted (2005), in the background; also the importer command line."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "ride6-bike-import"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+blackbox-acl.workspace = true
+blackbox-attrib.workspace = true
+blackbox-collision.workspace = true
+blackbox-hash.workspace = true
+blackbox-modding = { workspace = true, features = ["sdk"] }
+blackbox-skeleton.workspace = true
+blackbox-solid.workspace = true
+blackbox-tpk.workspace = true
+clap.workspace = true
+glam.workspace = true
+log.workspace = true
+png.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+# The golden test of the manifest reads it back with the content schema of the game (a library; nothing depends on the mod).
+blackbox-modding = { workspace = true, features = ["host"] }
+
+[lints]
+workspace = true

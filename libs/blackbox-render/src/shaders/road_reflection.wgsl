@@ -6,8 +6,7 @@
 @group(1) @binding(11) var road_sampler: sampler;
 @group(1) @binding(12) var road_filtered_environment: texture_cube<f32>;
 
-fn road_uv(point:vec3<f32>)->vec3<f32> {
-    let c = globals.view_proj*vec4(point,1.0);
+fn road_project(c:vec4<f32>)->vec3<f32> {
     return vec3(c.xy/max(c.w,1e-6)*vec2(0.5,-0.5)+0.5,c.w);
 }
 fn road_delta(p:vec3<f32>,size:vec2<i32>)->f32 {
@@ -18,11 +17,15 @@ fn road_delta(p:vec3<f32>,size:vec2<i32>)->f32 {
 }
 // `footprint` is the receiver's world-space pixel size. The caller takes the derivatives in uniform control
 // flow, so this march may run behind per-pixel branches (such as skipping unreflective pixels).
-fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,fallback:vec3<f32>,pool:f32,footprint:f32)->vec3<f32> {
-    if road_control.x<0.5 || globals.fog_range.w>0.5 { return fallback; }
+fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,pool:f32,footprint:f32)->vec3<f32> {
+    let roughness=mix(0.32,0.07,pool);
+    if road_control.x<0.5 || globals.fog_range.w>0.5 { return road_probe_at(world,ray,roughness); }
     // A fixed centimetre bias can hit the receiver's own depth texel on distant roads.
     let origin = world+normal*max(0.06,footprint*0.25);
     let size = vec2<i32>(textureDimensions(road_depth));
+    // Project a line once. March and refinement retain the same sample distances.
+    let clip_origin = globals.view_proj*vec4(origin,1.0);
+    let clip_ray = globals.view_proj*vec4(ray,0.0);
     var previous = 0.15;
     var previous_delta = -1e6;
     // Preserve sampling density as range increases, rather than stretching the same sparse rays.
@@ -30,19 +33,19 @@ fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,fallback:v
     for (var i=1u;i<=steps;i++) {
         let f = f32(i)/f32(steps);
         let t = 0.15+f*f*road_control.z;
-        let p = road_uv(origin+ray*t);
-        if p.z<=road_control.y || any(p.xy<=vec2(0.0)) || any(p.xy>=vec2(1.0)) { return fallback; }
+        let p = road_project(clip_origin+clip_ray*t);
+        if p.z<=road_control.y || any(p.xy<=vec2(0.0)) || any(p.xy>=vec2(1.0)) { return road_probe_at(world,ray,roughness); }
         let delta = road_delta(p,size);
         // A front-to-back crossing is necessary. A ray starting behind foreground geometry is a miss.
         if previous_delta<0.0 && delta>=0.0 {
             var low = previous; var high = t;
             for (var j=0u;j<7u;j++) {
                 let middle = (low+high)*0.5;
-                let hit = road_uv(origin+ray*middle);
+                let hit = road_project(clip_origin+clip_ray*middle);
                 if road_delta(hit,size)>=0.0 { high=middle; continue; }
                 low=middle;
             }
-            let hit = road_uv(origin+ray*high);
+            let hit = road_project(clip_origin+clip_ray*high);
             let error = road_delta(hit,size);
             let thickness = max(0.12,hit.z*0.002);
             if error>=0.0 && error<thickness {
@@ -56,10 +59,10 @@ fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,fallback:v
                     +textureSampleLevel(road_colour,road_sampler,hit.xy-pixel*vec2(radius,0.0),0.0).rgb
                     +textureSampleLevel(road_colour,road_sampler,hit.xy+pixel*vec2(0.0,radius),0.0).rgb
                     +textureSampleLevel(road_colour,road_sampler,hit.xy-pixel*vec2(0.0,radius),0.0).rgb)/8.0;
-                return mix(fallback,filtered,confidence);
+                return mix(road_probe_at(world,ray,roughness),filtered,confidence);
             }
         }
         previous=t; previous_delta=delta;
     }
-    return fallback;
+    return road_probe_at(world,ray,roughness);
 }

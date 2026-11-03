@@ -102,7 +102,7 @@ impl Renderer {
             self.post.set_temporal(None);
             return;
         }
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.upscaler() == Upscaler::Dlss {
             let Some(runtime) = &self.dlss else { return };
             let pass = super::dlss::pass::DlssPass::new(

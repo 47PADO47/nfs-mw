@@ -28,7 +28,8 @@ impl WorldScene {
     /// Builds this frame's focus filter and gives it to the renderer.
     pub(super) fn feed_focus(&mut self, renderer: &mut dyn RenderBackend, sim_dt: f32) {
         let mut focus = self.breaker_visuals.update(self.sound_speedbreaker_active, sim_dt);
-        let curve = self.traffic.as_ref().map_or(0.0, |traffic| traffic.radial_blur());
+        let (speed, burning) = self.players.lead().map_or((0.0, false), |drive| (drive.speed(), drive.nos_burning()));
+        let curve = self.breaker_visuals.speed_blur(speed, burning, sim_dt);
         focus.radial_blur = self.tuning.motion_blur.radial_blur(curve);
         self.add_nitrous_screen(&mut focus, sim_dt);
         renderer.set_focus_filter(focus);

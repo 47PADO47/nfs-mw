@@ -238,7 +238,16 @@ impl Gpu {
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         self.paint(&scene, body, &mut encoder);
-        let ctx = PassContext { device, queue: &self.queue, scene: &scene, output_size: size, temporal: None };
+        let ctx = PassContext {
+            device,
+            queue: &self.queue,
+            scene: &scene,
+            output_size: size,
+            temporal: None,
+            frame_generation: false,
+            secondary_view: false,
+            dlss_model: 0,
+        };
         chain.encode(&ctx, &mut encoder, (&view, OUTPUT_FORMAT));
         let row = (size.0 * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let readback = device.create_buffer(&wgpu::BufferDescriptor {

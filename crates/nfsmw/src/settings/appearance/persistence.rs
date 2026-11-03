@@ -18,6 +18,8 @@ macro_rules! lighting {
 }
 lighting! {
     enhanced_sky: bool, cloud_shadows: bool,
+    local_lamps: bool, local_street_lights: bool, local_headlights: bool, local_traffic_headlights: bool, local_traffic_limit: u32, experimental_night: bool, full_day_night: bool, auto_player_lights: bool, local_tail_lights: bool, night_sky_brightness: f32, local_light_distance: f32, local_light_strength: f32,
+    local_headlight_strength: f32, local_street_strength: f32, local_street_range: f32, local_street_glow: f32, local_light_fog: f32, local_light_fog_distance: f32, local_light_fog_quality: u32, local_street_haze_count: u32, local_light_fog_count: u32, local_light_limit: u32, local_shadow_count: u32, local_shadow_resolution: u32, local_shadow_filter: f32, local_shadow_distance: f32, local_specular_strength: f32,
     enhanced_wet_surfaces: bool, puddle_coverage: f32, puddle_scale: f32, water_ripples: f32,
     road_reflection_range: f32, road_reflection_fade: f32,
     ray_texture_quality: u32,
@@ -42,6 +44,8 @@ struct Stored {
     style: VisualStyle,
     quality: Quality,
     treatment_strength: Option<f32>,
+    vignette: f32,
+    dlss_model: DlssModel,
     lighting: Lighting,
 }
 impl Default for Stored {
@@ -52,6 +56,8 @@ impl Default for Stored {
             style: VisualStyle::Custom,
             quality: Quality::High,
             treatment_strength: None,
+            vignette: 0.0,
+            dlss_model: DlssModel::Auto,
             lighting: Default::default(),
         }
     }
@@ -72,11 +78,20 @@ pub(super) fn read(value: &toml::Value, origin: &str) -> Option<Appearance> {
     if stored.style == VisualStyle::OriginalPc && value.get("lighting").and_then(|v| v.get("enhanced_sky")).is_none() {
         lighting.enhanced_sky = false;
     }
+    // Profiles from before the separate fog budget set it with the street haze count.
+    if value.get("lighting").and_then(|v| v.get("local_light_fog_count")).is_none() {
+        lighting.local_light_fog_count = lighting.local_street_haze_count;
+    }
     Some(Appearance {
         display: stored.display.sanitized(),
         style: stored.style,
         quality: stored.quality,
         treatment_strength: stored.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
+        vignette: match stored.vignette.is_finite() {
+            true => stored.vignette.clamp(0.0, 1.0),
+            false => 0.0,
+        },
+        dlss_model: stored.dlss_model,
         lighting: blackbox_gfx::RenderExperiments { original_world_materials: true, ..lighting },
     })
 }
@@ -87,6 +102,11 @@ pub(super) fn value(value: Appearance) -> anyhow::Result<toml::Value> {
         style: value.style,
         quality: value.quality,
         treatment_strength: value.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
+        vignette: match value.vignette.is_finite() {
+            true => value.vignette.clamp(0.0, 1.0),
+            false => 0.0,
+        },
+        dlss_model: value.dlss_model,
         lighting: value.lighting.sanitized().into(),
     })?)
 }

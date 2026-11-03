@@ -28,7 +28,7 @@ mod tests;
 
 pub use error::{Error, Result};
 pub use materials::{LightMaterial, read_light_materials};
-pub use parts::{NewPart, Part, PartQuery, PartsDb, read_parts_db};
+pub use parts::{NewPart, Part, PartQuery, PartsDb, Sizes, read_parts_db};
 pub use presets::{PresetRide, read_preset_rides};
 pub use slots::{SlotOverride, SlotTypes, read_slot_types};
 pub use types::{CarTypeInfo, read_car_types};

@@ -17,7 +17,7 @@ impl CarSim {
 
     /// At least one wheel touches the ground.
     pub(in crate::scenes::world) fn on_ground(&self) -> bool {
-        self.vehicle.wheels_on_ground() > 0
+        self.wheels_down() > 0
     }
 
     /// Turn the physics' drift assist on or off (`bb.vehicles` 1.2).

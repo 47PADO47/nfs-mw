@@ -1444,6 +1444,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-acl"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-aems"
 version = "0.1.0"
 dependencies = [
@@ -1655,6 +1662,7 @@ name = "blackbox-modding"
 version = "0.1.0"
 dependencies = [
  "blackbox-vehicle",
+ "glam 0.34.1",
  "libloading",
  "log",
  "semver",
@@ -1795,6 +1803,16 @@ name = "blackbox-sequence"
 version = "0.1.0"
 dependencies = [
  "blackbox-carp",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-skeleton"
+version = "0.1.0"
+dependencies = [
+ "glam 0.34.1",
+ "serde",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 
@@ -4241,6 +4259,7 @@ dependencies = [
  "blackbox-scene",
  "blackbox-scenery",
  "blackbox-sequence",
+ "blackbox-skeleton",
  "blackbox-solid",
  "blackbox-speedfx",
  "blackbox-streaming",
@@ -4280,6 +4299,7 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "wgpu",
  "windows",
+ "winres",
 ]
 
 [[package]]
@@ -5453,6 +5473,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
+name = "ride6-bikes"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blackbox-acl",
+ "blackbox-attrib",
+ "blackbox-collision",
+ "blackbox-hash",
+ "blackbox-modding",
+ "blackbox-skeleton",
+ "blackbox-solid",
+ "blackbox-tpk",
+ "clap",
+ "glam 0.34.1",
+ "log",
+ "png",
+ "serde",
+ "serde_json",
+ "toml 0.9.12+spec-1.1.0",
+]
+
+[[package]]
 name = "ron"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6064,6 +6106,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e95f91fcc7a621e8b030f6aa23c71fe9838ae2fb4d8118b75602a328f5144044"
 dependencies = [
  "pin-project-lite",
+]
+
+[[package]]
+name = "toml"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -7125,6 +7176,15 @@ checksum = "7d6f32a0ff4a9f6f01231eb2059cc85479330739333e0e58cadf03b6af2cca10"
 dependencies = [
  "cfg-if",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "winres"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b68db261ef59e9e52806f688020631e987592bd83619edccda9c47d42cde4f6c"
+dependencies = [
+ "toml 0.5.11",
 ]
 
 [[package]]

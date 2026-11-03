@@ -58,7 +58,8 @@ impl ShadingKind {
             Shading::SkyLayer(_) => Self::Sky,
             Shading::Lit => Self::Lit,
             Shading::Glossy(_) => Self::Glossy,
-            Shading::World => Self::World,
+            Shading::World | Shading::WorldDistant | Shading::WorldEmissive => Self::World,
+            Shading::PrelitDistant => Self::Prelit,
             // Registration returns None on this backend. Keep externally supplied
             // unsupported handles on the same explicit legacy fallback.
             Shading::WorldNormal(_) | Shading::WorldWindow(_) => Self::Prelit,

@@ -118,6 +118,17 @@ pub enum Action {
     MapOrientation,
     /// HUD button: hide or show the whole HUD for the session (the `hud` setting, not saved).
     ToggleHud,
+    /// Driving axis, -1..1: forward is positive. A bike's rider shifts his weight back (negative: wheelie) or forward
+    /// (positive: stoppie). A car does not read it.
+    RiderWeight,
+    /// Driving button: the next lower ABS level of a bike (1, 0.75, 0.5, 0.25, 0, then 1 again). A car does not read it.
+    AbsLevel,
+    /// Driving axis, -1..1: right is positive. A bike's helmet camera looks around to that side (`viewer/camera/head_look.rs`), and
+    /// springs back to straight ahead when it is let go. A car, and a bike's other cameras, do not read it.
+    HeadLookX,
+    /// Driving axis, -1..1: up is positive. The same, tipping the helmet camera up or down. Not bound by default on a pad: the
+    /// right stick's Y is the gear shift there.
+    HeadLookY,
     /// EA Trax: grab/release the selected song for reordering (Y on the default controller layout).
     JukeboxGrab,
 }
@@ -188,6 +199,10 @@ impl Action {
             "map_zoom_out",
             "map_orientation",
             "toggle_hud",
+            "rider_weight",
+            "abs_level",
+            "head_look_x",
+            "head_look_y",
             "jukebox_grab",
         ];
         NAMES[self.index()]
@@ -200,7 +215,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 64] = [
+    pub const ALL: [Action; 68] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -264,6 +279,10 @@ impl Action {
         Action::MapZoomOut,
         Action::MapOrientation,
         Action::ToggleHud,
+        Action::RiderWeight,
+        Action::AbsLevel,
+        Action::HeadLookX,
+        Action::HeadLookY,
         Action::JukeboxGrab,
     ];
 

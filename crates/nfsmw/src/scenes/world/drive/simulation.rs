@@ -97,6 +97,9 @@ impl Drive {
         let input = match self.script.as_mut() {
             Some(run) => {
                 let input = run.script.input_after(run.time, run.previous_time);
+                // The helmet camera's look stick of the script is stepped with the physics, so a run that is batched to
+                // its end before the first frame (a screenshot) has the head where the script's time put it.
+                self.rider.look_around(run.script.look_at(run.time), dt);
                 run.previous_time = Some(run.time);
                 run.time += dt;
                 input
@@ -112,6 +115,9 @@ impl Drive {
         let input = Self::assisted(assist, sim, input);
         if input.pop {
             self.flames.pop();
+        }
+        if let Some(kind) = input.fall {
+            sim.throw_rider(kind);
         }
         let start = sim.begin_step_with_delta(dt, &input, true, Some(props));
         sim.begin_body(&start, Some(collision));
@@ -152,6 +158,11 @@ impl Drive {
         DriveStep { input, impact, delta }
     }
 
+    /// A bike's rider switches his ABS to the next lower level; returns the new level, `None` for a car.
+    pub fn cycle_abs_level(&mut self) -> Option<f32> {
+        self.sim.as_mut()?.cycle_abs_level()
+    }
+
     /// Read the final state after car/prop contacts, then emit effects, telemetry and traces.
     pub fn finish_step(&mut self, collision: &CollisionWorld, surfaces: &SurfaceTable, step: DriveStep) {
         let DriveStep { input, impact, delta: dt } = step;
@@ -165,6 +176,13 @@ impl Drive {
         self.previous = self.current;
         self.current = pose;
         self.telemetry = telemetry;
+        self.rider.step(sim.rider_sample(), dt);
+        // The rider the bike let go of, if it did, falls and slides on the ground until the bike is stood up again.
+        let release = sim.take_rider_release();
+        let fall = super::rider::FallStep { release, off: sim.rider_off(), waiting: sim.bike_waits_for_rider(), dt };
+        // The fallen bike is stood up only once the rider has got up.
+        let rider_ready = self.rider.fall_step(fall, &pose, &WorldGround { collision, surfaces });
+        sim.set_rider_ready(rider_ready);
         self.gauges.push(gauge);
         self.brake_lamp = match self.engine.is_running() {
             true => sim.lamp_brake(),

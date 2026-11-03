@@ -7,6 +7,9 @@ use bevy_input::mouse::MouseButton;
 use super::Action;
 use super::snapshot::Snapshot;
 
+#[path = "menu_bindings.rs"]
+mod menus;
+
 /// When mouse motion counts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Gate {
@@ -97,8 +100,13 @@ impl Binding {
         let mut value = raw * self.scale * if self.per_second { s.dt } else { 1.0 };
         if matches!(self.source, Source::MouseMotion { .. }) {
             value *= s.controls.mouse_sensitivity.factor();
+            // The head look is a stick (spring-loaded), so the mouse is read as the speed of its motion, not the
+            // distance of a frame: pixels per second, whatever the frame rate.
+            if matches!(self.action, Action::HeadLookX | Action::HeadLookY) {
+                value = mouse_rate(value, s.dt);
+            }
         }
-        if s.controls.invert_camera_y && matches!(self.action, Action::LookY | Action::OrbitY) {
+        if s.controls.invert_camera_y && matches!(self.action, Action::LookY | Action::OrbitY | Action::HeadLookY) {
             value = -value;
         }
         if !value.is_finite() {
@@ -112,12 +120,26 @@ impl Binding {
             return s.controls.steering_deadzone.apply_mode(raw, s.controls.deadzone_mode)
                 * s.controls.steering_sensitivity.factor();
         }
-        if matches!(self.action, Action::LookX | Action::LookY | Action::OrbitX | Action::OrbitY) {
+        if matches!(
+            self.action,
+            Action::LookX | Action::LookY | Action::OrbitX | Action::OrbitY | Action::HeadLookX | Action::HeadLookY
+        ) {
             return s.controls.camera_deadzone.apply_mode(raw, s.controls.deadzone_mode)
                 * s.controls.camera_sensitivity.factor();
         }
+        if self.action == Action::RiderWeight {
+            return super::weight_axis::lever(raw, s.pad_axis(GamepadAxis::LeftStickX));
+        }
         deadzone(raw)
     }
+}
+
+/// A frame's mouse motion (already scaled) as a speed: per second of the frame. A frame of no time reads as no motion.
+fn mouse_rate(frame_motion: f32, dt: f32) -> f32 {
+    if !dt.is_finite() || dt <= 0.0 {
+        return 0.0;
+    }
+    frame_motion / dt
 }
 
 /// Travel of a pedal on a full-range axis: 0 released, 1 pressed.
@@ -147,6 +169,11 @@ impl super::state::Bindings {
 
 /// Mouse pixels per second a fully pushed stick turns the camera by.
 const STICK_LOOK_PIXELS: f32 = 700.0;
+/// Mouse pixels per second that tip the bike's head look (`head_look_x`, `head_look_y`) to its limit: the same speed a fully
+/// pushed stick turns the free camera by, so the mouse is a stick whose deflection is the speed of the mouse. It is a modelling
+/// choice (the original has no mouse look): fast enough to reach the limit with a flick of the wrist, slow enough that a
+/// steady sweep holds half a turn. The head springs back as soon as the mouse stops (`viewer/camera/head_look.rs`).
+const MOUSE_HEAD_LOOK_PIXELS: f32 = STICK_LOOK_PIXELS;
 /// Scroll lines per second while a button is held.
 const BUTTON_ZOOM_LINES: f32 = 6.0;
 
@@ -196,7 +223,7 @@ pub fn defaults() -> Vec<Binding> {
     ]
     .into_iter()
     .chain(driving())
-    .chain(menus())
+    .chain(menus::menus())
     .chain(radio())
     .chain(hud_map())
     .collect()
@@ -218,62 +245,6 @@ fn radio() -> Vec<Binding> {
         Binding::new(RadioNext, button(GamepadButton::RightThumb), 1.0),
         Binding::new(RadioPrevious, key(KeyCode::Comma), 1.0),
         Binding::new(RadioPrevious, key(KeyCode::MediaTrackPrevious), 1.0),
-    ]
-}
-
-/// Menus: the arrows or WASD and the pad's D-pad or left stick move, Enter or Space accepts, Esc goes back,
-/// P or the pad's Start is Start, Q quits from the main menu. The pad's extra buttons follow NFS-XtendedInput:
-/// `PAD_BUTTON0`/`1` are the right/left bumper, `PAD_BUTTON4` is X, and the triggers are `PAD_RTRIGGER`/`LTRIGGER`.
-fn menus() -> Vec<Binding> {
-    use Action::*;
-    let key = Source::Key;
-    let button = Source::PadButton;
-    let stick = Source::PadAxis;
-    vec![
-        Binding::new(MenuUp, key(KeyCode::ArrowUp), 1.0),
-        Binding::new(MenuUp, key(KeyCode::KeyW), 1.0),
-        Binding::new(MenuUp, button(GamepadButton::DPadUp), 1.0),
-        Binding::new(MenuUp, stick(GamepadAxis::LeftStickY), 1.0),
-        Binding::new(MenuDown, key(KeyCode::ArrowDown), 1.0),
-        Binding::new(MenuDown, key(KeyCode::KeyS), 1.0),
-        Binding::new(MenuDown, button(GamepadButton::DPadDown), 1.0),
-        Binding::new(MenuDown, stick(GamepadAxis::LeftStickY), -1.0),
-        Binding::new(MenuLeft, key(KeyCode::ArrowLeft), 1.0),
-        Binding::new(MenuLeft, key(KeyCode::KeyA), 1.0),
-        Binding::new(MenuLeft, button(GamepadButton::DPadLeft), 1.0),
-        Binding::new(MenuLeft, stick(GamepadAxis::LeftStickX), -1.0),
-        Binding::new(MenuRight, key(KeyCode::ArrowRight), 1.0),
-        Binding::new(MenuRight, key(KeyCode::KeyD), 1.0),
-        Binding::new(MenuRight, button(GamepadButton::DPadRight), 1.0),
-        Binding::new(MenuRight, stick(GamepadAxis::LeftStickX), 1.0),
-        Binding::new(MenuAccept, key(KeyCode::Enter), 1.0),
-        Binding::new(MenuAccept, key(KeyCode::NumpadEnter), 1.0),
-        Binding::new(MenuAccept, key(KeyCode::Space), 1.0),
-        Binding::new(MenuAccept, button(GamepadButton::South), 1.0),
-        Binding::new(MenuBack, key(KeyCode::Escape), 1.0),
-        Binding::new(MenuBack, key(KeyCode::Backspace), 1.0),
-        Binding::new(MenuBack, button(GamepadButton::East), 1.0),
-        Binding::new(MenuStart, key(KeyCode::KeyP), 1.0),
-        Binding::new(MenuStart, button(GamepadButton::Start), 1.0),
-        Binding::new(MenuButton1, key(KeyCode::Digit1), 1.0),
-        Binding::new(MenuButton1, button(GamepadButton::LeftTrigger), 1.0),
-        Binding::new(MenuButton2, key(KeyCode::Digit2), 1.0),
-        Binding::new(MenuButton2, button(GamepadButton::West), 1.0),
-        Binding::new(MenuButton3, key(KeyCode::Digit3), 1.0),
-        Binding::new(MenuButton3, button(GamepadButton::RightTrigger), 1.0),
-        Binding::new(JukeboxGrab, key(KeyCode::Digit1), 1.0),
-        Binding::new(JukeboxGrab, button(GamepadButton::North), 1.0),
-        Binding::new(MenuZoomIn, key(KeyCode::Digit9), 1.0),
-        Binding::new(MenuZoomOut, key(KeyCode::Digit0), 1.0),
-        Binding::new(MenuZoomIn, button(GamepadButton::RightTrigger2), 1.0),
-        Binding::new(MenuZoomOut, button(GamepadButton::LeftTrigger2), 1.0),
-        Binding::new(MenuTriggerLeft, key(KeyCode::PageUp), 1.0),
-        Binding::new(MenuTriggerLeft, button(GamepadButton::LeftTrigger2), 1.0),
-        Binding::new(MenuTriggerRight, key(KeyCode::PageDown), 1.0),
-        Binding::new(MenuTriggerRight, button(GamepadButton::RightTrigger2), 1.0),
-        Binding::new(MenuQuit, key(KeyCode::KeyQ), 1.0),
-        Binding::new(MenuQuit, button(GamepadButton::Select), 1.0),
-        Binding::new(Click, Source::MouseButton(MouseButton::Left), 1.0),
     ]
 }
 
@@ -316,6 +287,11 @@ fn driving() -> Vec<Binding> {
         Binding::new(LookBack, key(KeyCode::KeyB), 1.0),
         Binding::new(Interact, key(KeyCode::Enter), 1.0),
         Binding::new(DismissNotification, key(KeyCode::KeyX), 1.0),
+        Binding::new(AbsLevel, key(KeyCode::KeyJ), 1.0),
+        Binding::new(RiderWeight, key(KeyCode::KeyG), 1.0),
+        Binding::new(RiderWeight, key(KeyCode::KeyV), -1.0),
+        Binding::new(RiderWeight, key(KeyCode::Numpad8), 1.0),
+        Binding::new(RiderWeight, key(KeyCode::Numpad2), -1.0),
         Binding::new(Throttle, Source::PadTrigger(GamepadButton::RightTrigger2), 1.0),
         Binding::new(Brake, Source::PadTrigger(GamepadButton::LeftTrigger2), 1.0),
         Binding::new(Steer, Source::PadAxis(GamepadAxis::LeftStickX), 1.0),
@@ -326,6 +302,23 @@ fn driving() -> Vec<Binding> {
         Binding::new(Speedbreaker, button(GamepadButton::West), 1.0),
         Binding::new(ShiftUp, Source::PadAxis(GamepadAxis::RightStickY), 1.0),
         Binding::new(ShiftDown, Source::PadAxis(GamepadAxis::RightStickY), -1.0),
+        Binding::new(RiderWeight, Source::PadAxis(GamepadAxis::LeftStickY), 1.0),
+        // The right stick's X turns a bike's helmet camera (it springs back); its Y stays the gear shift, and every pad button
+        // is taken, so there is no pad binding for `HeadLookY` (the mouse and the keys pitch the head).
+        Binding::new(HeadLookX, Source::PadAxis(GamepadAxis::RightStickX), 1.0),
+        // The mouse is a stick whose deflection is its speed (`MOUSE_HEAD_LOOK_PIXELS`), under the same gate as the other mouse
+        // looks; up is negative motion, hence the negative scale of the pitch.
+        Binding::new(HeadLookX, Source::MouseMotion { y: false, gate: Gate::Look }, 1.0 / MOUSE_HEAD_LOOK_PIXELS),
+        Binding::new(HeadLookY, Source::MouseMotion { y: true, gate: Gate::Look }, -1.0 / MOUSE_HEAD_LOOK_PIXELS),
+        // The keys are a stick pushed to its end while they are held: the numpad's 4 and 6 (and the square brackets, for a
+        // keyboard without a numpad) look left and right, 9 and 3 up and down.
+        Binding::new(HeadLookX, key(KeyCode::Numpad6), 1.0),
+        Binding::new(HeadLookX, key(KeyCode::Numpad4), -1.0),
+        Binding::new(HeadLookX, key(KeyCode::BracketRight), 1.0),
+        Binding::new(HeadLookX, key(KeyCode::BracketLeft), -1.0),
+        Binding::new(HeadLookY, key(KeyCode::Numpad9), 1.0),
+        Binding::new(HeadLookY, key(KeyCode::Numpad3), -1.0),
+        Binding::new(AbsLevel, button(GamepadButton::LeftThumb), 1.0),
         Binding::new(ResetCar, button(GamepadButton::Select), 1.0),
         Binding::new(ToggleCamera, button(GamepadButton::North), 1.0),
         Binding::new(CycleCamera, button(GamepadButton::RightTrigger), 1.0),

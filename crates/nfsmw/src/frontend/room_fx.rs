@@ -36,7 +36,8 @@ impl RoomFx {
     /// the solids alone.
     pub fn update(&mut self, renderer: &mut dyn RenderBackend, camera: Vec3, forward: Vec3, dt: f32) {
         let placements = self.placements.iter().enumerate().map(|(i, placement)| ((0, i), placement));
-        self.fx.maintain(renderer, &self.dir, &self.db, placements, camera);
+        // The platform has no actors to cross a trigger: only its untriggered placements run.
+        self.fx.maintain(renderer, &self.dir, &self.db, placements, &[(camera, forward)], &[]);
         self.fx.step(dt);
         self.layer.textured.clear();
         self.fx.textured(camera, forward, &mut self.layer.textured);

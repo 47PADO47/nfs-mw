@@ -14,6 +14,12 @@ use blackbox_gfx::{
 use super::Renderer;
 
 impl RenderBackend for Renderer {
+    fn set_night_blend(&mut self, blend: Option<f32>) {
+        self.night_blend = blend.filter(|x| x.is_finite()).map(|x| x.clamp(0.0, 1.0));
+    }
+    fn set_local_lights(&mut self, lights: &[blackbox_gfx::LocalLight]) {
+        Renderer::set_local_lights(self, lights);
+    }
     fn set_display_settings(&mut self, settings: blackbox_gfx::DisplaySettings) {
         Renderer::set_display_settings(self, settings);
     }
@@ -160,7 +166,7 @@ impl RenderBackend for Renderer {
     }
 
     fn begin_latency_frame(&mut self, settings: blackbox_gfx::LatencySettings) -> bool {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             let output_changed = (self.presentation.request.generated_frames > 0) != (settings.generated_frames > 0);
             let pacing = self.presentation.begin(settings);
@@ -173,19 +179,19 @@ impl RenderBackend for Renderer {
         false
     }
     fn end_latency_simulation(&mut self) {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.render_start();
         }
     }
     fn latency_input(&mut self) {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.marker(7);
         }
     }
     fn latency_status(&self) -> blackbox_gfx::LatencyStatus {
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             return self.presentation.status;
         }
@@ -202,17 +208,25 @@ impl RenderBackend for Renderer {
     /// temporal one, whose history supplies the samples.
     fn apply_graphics(&mut self, requested: &GraphicsSettings) -> Resolved {
         self.touch_scene();
-        #[cfg(all(windows, feature = "streamline"))]
-        if self.dlss.is_some() && *requested != self.graphics {
-            self.presentation.suspend(&self.device);
-        }
         let resolved = resolve(requested, &self.caps);
         let effective = resolved.effective;
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
+        // Changing the temporal upscaler can destroy its native resources. Other graphics changes
+        // leave the tagged inputs intact; refresh_targets separately handles a changed scene plan.
+        if self.dlss.is_some()
+            && (effective.upscaler != self.graphics.upscaler
+                || effective.upscale_quality != self.graphics.upscale_quality)
+        {
+            self.presentation.suspend(&self.device);
+        }
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if effective.upscale_quality != self.graphics.upscale_quality {
             self.post.set_temporal(None);
             self.temporal.stop();
             self.graphics.upscale_quality = effective.upscale_quality;
+        }
+        if effective.dlss_model != self.graphics.dlss_model {
+            self.temporal.stop();
         }
         Renderer::set_texture_filtering(self, effective.texture_filtering);
         Renderer::set_post_effects(self, effective.post);
@@ -228,7 +242,7 @@ impl RenderBackend for Renderer {
             self.ao = None;
         }
         self.graphics = effective;
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         self.sync_upscale_passes();
         // The settings decide which pipelines the frames need, so build them now rather than in the first frame.
         self.prewarm_windowed();
@@ -276,6 +290,11 @@ impl RenderBackend for Renderer {
     fn destroy_mesh(&mut self, handle: MeshHandle) {
         self.touch_scene();
         Renderer::destroy_mesh(self, handle);
+    }
+
+    fn update_mesh_vertices(&mut self, handle: MeshHandle, vertices: &[blackbox_gfx::Vertex]) -> bool {
+        self.touch_scene();
+        Renderer::update_mesh_vertices(self, handle, vertices)
     }
 
     fn create_glossy_material(&mut self, material: &GlossyMaterial) -> GlossyMaterialHandle {

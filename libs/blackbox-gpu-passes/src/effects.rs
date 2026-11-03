@@ -31,6 +31,17 @@ pub struct SoftDraw<'a> {
     pub globals: &'a wgpu::BindGroup,
     /// The inverse of the frame's view-projection, to rebuild world positions from depth.
     pub inverse_view_proj: glam::Mat4,
+    /// Current camera position and whether previous-frame history is invalid.
+    pub camera_position: glam::Vec3,
+    pub camera_cut: bool,
+    /// Existing local shadow maps, when the renderer supplies them.
+    pub local_fog_shadows: Option<LocalFogShadows<'a>>,
+}
+
+pub struct LocalFogShadows<'a> {
+    pub data: &'a wgpu::Buffer,
+    pub map: &'a wgpu::TextureView,
+    pub sampler: &'a wgpu::Sampler,
 }
 
 /// What lets the streaks and glows take the sun's shadow: the renderer's shadow receiver and the layout of its bind
@@ -44,7 +55,10 @@ pub struct ShadowReceiver<'a> {
 
 pub struct Effects {
     flames: crate::flames::Flames,
+    haze: crate::haze::Haze,
+    light_fog: crate::light_fog::LightFog,
     batches: [Batch; 4],
+    light_lenses: Batch,
     shader: wgpu::ShaderModule,
     layout: wgpu::PipelineLayout,
     /// Per target format, built the first time the effects are drawn into it.
@@ -95,7 +109,10 @@ impl Effects {
         });
         let mut effects = Self {
             flames: crate::flames::Flames::new(device, bindings, cache),
+            haze: crate::haze::Haze::new(device, bindings, cache),
+            light_fog: crate::light_fog::LightFog::new(device, bindings, cache),
             batches: std::array::from_fn(|_| Batch::new(device)),
+            light_lenses: Batch::new(device),
             shader,
             layout,
             pipelines: HashMap::new(),
@@ -115,6 +132,8 @@ impl Effects {
     pub fn use_format(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
         self.format = format;
         self.flames.use_format(device, format);
+        self.haze.use_format(device, format);
+        self.light_fog.use_format(device, format);
         self.soft.use_format(device, format);
         self.textured.use_format(device, format);
         if !self.pipelines.contains_key(&format) {
@@ -186,14 +205,67 @@ impl Effects {
     /// Replace the layer drawn by every following [`Self::draw`], until replaced again.
     pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layer: &EffectLayer) {
         self.flames.upload(device, queue, &layer.flames);
+        self.haze.upload(device, queue, &layer.light_haze);
         self.detailed = layer.detailed_particles;
         self.soft_distance = layer.soft_distance;
         self.textured.upload(device, queue, &layer.textured);
+        self.light_lenses.upload(device, queue, &layer.light_lenses);
         for (batch, vertices) in
             self.batches.iter_mut().zip([&layer.surfaces, &layer.particles, &layer.streaks, &layer.glows])
         {
             batch.upload(device, queue, vertices);
         }
+    }
+
+    /// Supply the scene's local lights for the optional shared fog pass.
+    pub fn upload_light_fog(
+        &mut self,
+        options: [f32; 2],
+        shelters: &[blackbox_gfx::FogShelter],
+        lights: &[blackbox_gfx::LocalLight],
+        limit: usize,
+        distance: f32,
+        quality: u32,
+    ) {
+        self.light_fog.upload(options, shelters, lights, limit, distance, quality);
+    }
+
+    /// Draw the shared local-light fog of `view` against completed scene depth. Each [`FogView`](crate::FogView)
+    /// keeps its own volume and history. Does nothing on devices without compute shaders.
+    pub fn draw_light_fog(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        draw: &SoftDraw<'_>,
+        view: crate::FogView,
+    ) {
+        self.light_fog.draw(device, queue, encoder, draw, view);
+    }
+
+    /// Whether this device can draw the shared light fog (it needs compute shaders and storage buffers).
+    pub fn light_fog_supported(&self) -> bool {
+        self.light_fog.supported()
+    }
+
+    /// GPU memory the light fog holds for its views, in bytes.
+    pub fn light_fog_bytes(&self) -> u64 {
+        self.light_fog.allocated_bytes()
+    }
+
+    /// Draw the actual lamp lenses before the scene is captured for reflections.
+    pub fn draw_light_lenses(&self, pass: &mut wgpu::RenderPass<'_>, shadows: Option<&wgpu::BindGroup>) {
+        let Some(pipelines) = self.pipelines.get(&self.format) else { return };
+        if self.light_lenses.count() == 0 {
+            return;
+        }
+        if self.shadowed {
+            let Some(shadows) = shadows else { return };
+            pass.set_bind_group(1, shadows, &[]);
+        }
+        pass.set_pipeline(&pipelines[3]);
+        pass.set_vertex_buffer(0, self.light_lenses.buffer().slice(..));
+        pass.draw(0..self.light_lenses.count(), 0..1);
     }
 
     /// Draw the surface overlays, particles, streaks and glows into a pass that has the world's colour and
@@ -269,6 +341,17 @@ impl Effects {
         texture: impl Fn(TextureHandle) -> Option<&'t wgpu::BindGroup>,
     ) {
         self.flames.draw(device, queue, encoder, draw, texture);
+    }
+
+    /// Draw bounded light haze against completed scene depth.
+    pub fn draw_light_haze(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        draw: &SoftDraw<'_>,
+    ) {
+        self.haze.draw(device, queue, encoder, draw);
     }
 
     /// Allocated surface-overlay capacity in vertices.

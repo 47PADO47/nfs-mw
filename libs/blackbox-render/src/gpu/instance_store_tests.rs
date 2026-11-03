@@ -158,10 +158,11 @@ fn store_shader_variants_validate() {
         (
             "normal",
             format!(
-                "{}\n{}\n{}",
+                "{}\n{}\n{}\n{}",
                 instance_source(include_str!("../shaders/normal.wgsl"), Some(3)),
                 receiver,
-                include_str!("../shaders/road_reflection.wgsl")
+                include_str!("../shaders/road_reflection.wgsl"),
+                include_str!("../shaders/road_probe.wgsl")
             ),
         ),
         ("window", format!("{}\n{}", instance_source(include_str!("../shaders/window.wgsl"), Some(3)), receiver)),

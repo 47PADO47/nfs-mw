@@ -23,7 +23,7 @@ impl Renderer {
         self.refresh_display(false);
         // A still frame shows the kept scene image and draws only the UI (`reuse.rs`).
         let reuse = self.begin_reuse();
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.render_start();
             self.prepare_generation(frame);
@@ -66,14 +66,14 @@ impl Renderer {
             false => 0.0,
         };
         self.performance.cpu_render_ms = (submit_started.elapsed().as_secs_f32() * 1000.0 - waited).max(0.0);
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.marker(3);
             self.presentation.marker(4);
         }
         let present_started = std::time::Instant::now();
         let _present_trace = blackbox_trace::scope("Wait: present / FG dispatch");
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if let super::output::Output::Window { dx12: Some(native), config, .. } = &self.output {
             native.present(
                 &self.device,
@@ -86,7 +86,7 @@ impl Renderer {
             // Nothing presents a headless frame, so let the device retire finished work itself.
             None => drop(self.device.poll(wgpu::PollType::Poll)),
         }
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             self.presentation.marker(5);
             self.presentation.finish();
@@ -105,21 +105,29 @@ impl Renderer {
         targets: Option<&SceneTargets>,
         output: &wgpu::TextureView,
         size: (u32, u32),
+        secondary_view: bool,
     ) {
         let _trace = blackbox_trace::scope("Renderer CPU: post-processing / upscaling");
-        #[cfg(all(windows, feature = "streamline"))]
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         if self.dlss.is_some() {
             // Parallel cube faces may own the frame prefix, including the TLAS build.
             // Native DLSS submits this encoder internally, so that prefix must reach the queue first.
             self.flush_captures();
         }
         let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
+        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
+        let frame_generation = targets.is_none() && self.presentation.status.generation_active;
+        #[cfg(not(all(windows, feature = "streamline", streamline_sdk)))]
+        let frame_generation = false;
         let ctx = PassContext {
             device: &self.device,
             queue: &self.queue,
             scene,
             output_size: size,
             temporal: self.temporal.current(),
+            frame_generation,
+            secondary_view,
+            dlss_model: self.graphics.dlss_model,
         };
         if self.experiments.lighting_debug != blackbox_gfx::LightingDebug::Off
             && self.info.api != blackbox_gfx::GraphicsApi::Gl
@@ -166,6 +174,7 @@ impl Renderer {
             timing.stamp(encoder, 2);
         }
         self.encode_shadows(encoder, frame, instances);
+        self.encode_local_shadows(encoder, frame, instances);
         self.encode_cascade_history(encoder, frame);
         if self.experiments.cloud_shadows
             && self.sky.as_ref().is_some_and(|sky| sky.cloud_shadow_active())
@@ -213,12 +222,19 @@ impl Renderer {
         // A reflection view draws no effects and no material reflections: its pass is recorded whole.
         if view.reflection {
             self.scene_draw().record(encoder, &view, &self.draw_list);
+            let mut pass = super::glossy::screen_draw::resume(encoder, &view.target, &view.depth);
+            pass.set_bind_group(0, &view.globals, &[]);
+            self.effects.draw_light_lenses(&mut pass, Some(&self.shared.shadows.fallback));
             return;
         }
         let mut pass = begin_pass(encoder, &view);
         self.scene_draw().begin(&mut pass, &view, &self.draw_list);
         for (mode_index, mode) in BLEND_ORDER.into_iter().enumerate() {
             self.scene_draw().blend_mode(&mut pass, &view, &self.draw_list, (mode_index, mode));
+            if mode == blackbox_gfx::BlendMode::AlphaTest {
+                pass.set_bind_group(0, &view.globals, &[]);
+                self.effects.draw_light_lenses(&mut pass, Some(&self.shared.shadows.fallback));
+            }
             if mode == blackbox_gfx::BlendMode::AlphaTest
                 && (view.screen || self.road_reflections_active(frame, reduced))
             {
@@ -323,7 +339,14 @@ impl Renderer {
         self.effects.use_format(&self.device, format);
         if let Some(sky) = &mut self.sky {
             sky.prepare(&self.device, &self.queue, format, self.pipeline_cache.as_ref());
-            sky.prepare_clouds(&self.device, encoder, &self.shared.bindings.globals_layout, &bind_group, &globals);
+            sky.prepare_clouds(
+                &self.device,
+                encoder,
+                &self.shared.bindings.globals_layout,
+                &bind_group,
+                &globals,
+                self.timing.as_mut(),
+            );
         }
         if self.experiments.original_world_materials && !projected {
             self.prepare_normal(frame, format, culled);
