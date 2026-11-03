@@ -174,6 +174,7 @@ pub fn effects_main_pass(
         multiview_mask: None,
     });
     pass.set_bind_group(0, &inner.bindings.globals_bind_group, &[]);
+    inner.effects.draw_light_lenses(&mut pass, None);
     inner.effects.draw(&mut pass, None);
     let textured = &inner.textured;
     inner.effects.draw_textured(&mut pass, |h| textured.get(&h.raw()));
@@ -202,6 +203,9 @@ pub fn effects_soft_pass(
         depth: &depth.attachment.texture.default_view,
         globals: &inner.bindings.globals_bind_group,
         inverse_view_proj,
+        camera_position: glam::Vec3::from_array(extracted_view.world_from_view.translation().to_array()),
+        camera_cut: false,
+        local_fog_shadows: None,
     };
     let encoder = ctx.command_encoder();
     inner.effects.draw_soft(device.wgpu_device(), &queue, encoder, &draw);

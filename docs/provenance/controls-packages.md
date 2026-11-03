@@ -37,6 +37,12 @@ secondary buttons `0x000FA366`, `0x001046DC`, `0x001046E4`, `0x001046ED`, `0x001
 
 ## Limits
 
+2026-10-27 follow-up: inspected both installed package exports again for the playtest's highlight trail. Fields
+have HIGHLIGHT and UNHIGHLIGHT scripts, but only a BUTTON_HIGHLIGHT response. No BUTTON_UNHIGHLIGHT response
+restores departed fields. The pause footer's group `0xB3A69E89` and bar `0x81B4FAD0` match pause settings.
+These are package-data observations, not recovered original executable logic. Installed runtime regressions cover
+both field layouts and the pause replacement footer; rendered/physical-input acceptance remains separate.
+
 - The pause layout is checked against the dump's positions, not drawn. The rewrite has not run the pause package
   offscreen.
 - Both packages have eight rows. The Map action (and ShiftUp) has no row (see the spec's row limit).

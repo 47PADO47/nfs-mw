@@ -45,6 +45,12 @@ The existing interpreter handles the bank's sample choice, pitch and duration.
 Keep parsed module banks cached with the audio system. Repeated navigation creates
 an independent module instance without rereading or reparsing the bank.
 
+**[ours] Diagnostic correlation.** An opt-in trace records one `menu_trigger` per serviced trigger, with its global
+ID, mixer group, bank, class and class words. A successful load records the actual module instance; failed or cached
+unavailable loads have no successful instance. An authored zero recording emits `voice_silent` for that instance.
+Its `success: false` records the existing no-voice return, not a decoder or backend failure.
+These events do not identify the UI request that queued a trigger, isolate mixed PCM, or establish perceptual parity.
+
 ## Scope and limits
 
 Initial implementation covers navigation, acceptance, back, dialog and main

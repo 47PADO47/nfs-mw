@@ -26,6 +26,8 @@ mod frame;
 mod frame_globals;
 mod glossy;
 #[cfg(test)]
+mod haze_tests;
+#[cfg(test)]
 mod hdr_tests;
 #[cfg(test)]
 mod headless_tests;
@@ -33,6 +35,8 @@ mod init;
 mod instances;
 #[cfg(test)]
 mod lean_tests;
+#[cfg(test)]
+mod light_fog_view_tests;
 mod meshes;
 mod normal;
 mod output;
@@ -132,6 +136,9 @@ pub struct Renderer {
     experiments: blackbox_gfx::RenderExperiments,
     experiment_stats: blackbox_gfx::ExperimentStats,
     shadows: Option<shadows::Shadows>,
+    local_shadows: Option<shadows::local::Local>,
+    local_lights: Vec<blackbox_gfx::LocalLight>,
+    night_blend: Option<f32>,
     smaa: Option<spatial_aa::SpatialAa>,
     shadow_casters: Option<Vec<blackbox_gfx::Instance>>,
     ao: Option<ao::AmbientOcclusion>,
@@ -159,6 +166,8 @@ pub struct Renderer {
     meshes: slots::Slots<meshes::GpuMesh>,
     instances: instances::InstanceBuffer,
     effects: effects::Effects,
+    /// Whose light-fog state the colour view being recorded uses; `None` draws no light fog (the GPU mirror).
+    fog_view: Option<blackbox_gpu_passes::FogView>,
     /// Created by the first glossy call, so a renderer that never shades anything glossy pays nothing.
     glossy: Option<glossy::Glossy>,
     sky: Option<sky::Sky>,

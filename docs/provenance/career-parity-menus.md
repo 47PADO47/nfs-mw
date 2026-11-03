@@ -183,3 +183,11 @@ alias manager's disk for Car Select and Save and no picture for Blacklist and Ra
   so the brief's controller was not found by name. Its car rule is the label `0x7C3E459E` above.
 - `FUN_0056E2B0` and `FUN_006E8DF0` are one-line getters of globals; what sets `DAT_0092612c` and `DAT_00988e04` was not
   followed (they are the online/LAN and the demo-style pause variants).
+
+## Empty-name rejection correction (2026-10-27)
+
+The user reported broken UI after submitting an empty career name. An installed-package regression retained the
+Dialog screen but lost its drawn prompt after held Accept. The host now owns submission validation on NameEntry,
+preventing the notice package from starting its dismiss animation before validation. Authored entrance/highlight
+scripts remain. Empty input stays silent; Back and valid submission retain their semantic sound triggers. This is
+an independently authored robustness policy; original invalid-name presentation has not been established.

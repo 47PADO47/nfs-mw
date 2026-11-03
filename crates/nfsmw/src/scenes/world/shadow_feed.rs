@@ -28,6 +28,8 @@ pub(super) struct ShadowFeed {
     statics: cache::Cached<statics::Statics>,
     /// The car lighting rig the renderer has.
     rig: rig::RigMemory,
+    /// Whether fixture emission was copied onto the casters last frame, so the kept static part must be reset.
+    lit: bool,
 }
 
 impl ShadowFeed {
@@ -76,7 +78,7 @@ impl WorldScene {
             self.shadow_feed.rig.send(renderer, &rig);
         }
         self.shadow_feed.fed = false;
-        if !settings.sun_shadows {
+        if !needs_casters(&settings) {
             self.shadow_feed.casters.clear();
             self.shadow_feed.statics.invalidate();
             renderer.set_shadow_casters(None);
@@ -88,11 +90,17 @@ impl WorldScene {
             settings.shadow_caster_min_radius,
             self.residency.shadow_placed(),
         );
+        let lens = self.gameplay_lens(renderer.aspect_ratio());
+        let sway = blackbox_scenery::sway::SwayFrame {
+            phase: blackbox_scenery::layout::MOST_WANTED.sway.phase(self.clock),
+            axis: self.wind.axis(0, lens.position, lens.forward).to_array(),
+        };
         let feed = &mut self.shadow_feed;
         let fixed = feed.statics.value.fixed_len;
         feed.casters.truncate(fixed);
         let props = self.residency.props();
         feed.statics.value.push_props(props, &mut feed.casters);
+        feed.statics.value.push_swaying(&sway, &mut feed.casters);
         props.fragment_instances(&mut feed.casters);
         self.mesh_animations.place(&self.residency, &mut feed.casters);
         if let Some(traffic) = &self.traffic {
@@ -103,13 +111,34 @@ impl WorldScene {
         }
         // The static casters are already sorted; only what this frame added needs it.
         visibility::sort_by_mesh(&mut feed.casters[fixed..]);
+        // Casters carry the drawn emission so a lit fixture keeps one instance slot for both passes.
+        if feed.lit {
+            feed.casters[..fixed].iter_mut().for_each(|caster| caster.emission = 0.0);
+        }
+        feed.lit = !self.fixture_emission.is_empty();
+        super::local_lights::set_instance_emission(&mut feed.casters, &self.fixture_emission);
         feed.fed = renderer.capabilities().separate_shadow_casters;
         renderer.set_shadow_casters(Some(&feed.casters));
     }
 }
 
+/// Whether any shadow map reads the caster list: the sun's, or a local light's when local shadow slots exist.
+fn needs_casters(settings: &blackbox_gfx::RenderExperiments) -> bool {
+    let local = settings.local_lamps
+        || settings.local_street_lights
+        || settings.local_headlights
+        || settings.local_traffic_headlights;
+    settings.sun_shadows || (local && settings.local_shadow_count > 0)
+}
+
+#[cfg(test)]
 fn stable_mesh<T: Copy>(lods: &[Option<T>; 4]) -> Option<T> {
-    lods.iter().flatten().next().copied()
+    stable_lod(lods).map(|(_, mesh)| mesh)
+}
+
+/// The slot and mesh of [`stable_mesh`].
+fn stable_lod<T: Copy>(lods: &[Option<T>; 4]) -> Option<(usize, T)> {
+    lods.iter().enumerate().find_map(|(slot, mesh)| mesh.map(|mesh| (slot, mesh)))
 }
 
 fn admits_scenery(radius: f32, prop_id: u32, minimum: f32) -> bool {
@@ -140,6 +169,26 @@ mod tests {
         assert_eq!(stable_mesh(&[None, None, Some(9), None]), Some(9));
         assert_eq!(stable_mesh(&[Some(7), Some(8), Some(9), None]), Some(7));
         assert_eq!(stable_mesh::<u8>(&[None; 4]), None);
+        assert_eq!(super::stable_lod(&[None, None, Some(9), None]), Some((2, 9)));
+    }
+
+    #[test]
+    fn local_lights_feed_casters_only_with_shadow_slots() {
+        let off = blackbox_gfx::RenderExperiments {
+            sun_shadows: false,
+            local_lamps: false,
+            local_street_lights: false,
+            local_headlights: false,
+            local_traffic_headlights: false,
+            experimental_night: true,
+            local_shadow_count: 8,
+            ..Default::default()
+        };
+        assert!(!super::needs_casters(&off), "night alone draws no shadow map");
+        let street = blackbox_gfx::RenderExperiments { local_street_lights: true, ..off };
+        assert!(super::needs_casters(&street));
+        assert!(!super::needs_casters(&blackbox_gfx::RenderExperiments { local_shadow_count: 0, ..street }));
+        assert!(super::needs_casters(&blackbox_gfx::RenderExperiments { sun_shadows: true, ..off }));
     }
 
     fn scenery(mesh: usize, index: u32) -> Placed {

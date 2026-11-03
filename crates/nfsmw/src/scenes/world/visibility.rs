@@ -23,6 +23,7 @@ mod tile_tests;
 
 pub use sort::sort_by_mesh;
 use sweep::Sweep;
+pub(super) use sweep::swayed;
 
 /// Screen height the LOD thresholds are tuned for (`docs/specs/scenery-lod.md`).
 pub(super) const REFERENCE_HEIGHT: f32 = 480.0;

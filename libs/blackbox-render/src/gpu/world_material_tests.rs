@@ -254,3 +254,113 @@ fn half_alpha_world_walls_survive_cutout_while_transparent_texels_still_disappea
         assert_eq!(empty.pixel(32, 32).unwrap()[..3], [0; 3], "transparent coverage stays empty");
     }
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn night_dims_opaque_unlit_surfaces_but_preserves_blended_artwork() {
+    let _gpu = test_support::serial();
+    let mut renderer = renderer();
+    let frame = frame();
+    let day = renderer.render_experiments();
+    for shading in [Shading::WorldNoFog, Shading::WorldPrelit] {
+        let before = capture(&mut renderer, &frame, shading, BlendMode::Opaque, COLOR, [0.0, 0.0, 1.0]);
+        let blended = capture(&mut renderer, &frame, shading, BlendMode::Additive, COLOR, [0.0, 0.0, 1.0]);
+        renderer.set_render_experiments(RenderExperiments { experimental_night: true, ..day });
+        let night = capture(&mut renderer, &frame, shading, BlendMode::Opaque, COLOR, [0.0, 0.0, 1.0]);
+        let night_blended = capture(&mut renderer, &frame, shading, BlendMode::Additive, COLOR, [0.0, 0.0, 1.0]);
+        assert!(night.pixel(32, 32).unwrap()[0] < before.pixel(32, 32).unwrap()[0]);
+        assert_eq!(blended.pixel(32, 32), night_blended.pixel(32, 32));
+        renderer.set_render_experiments(day);
+        assert_eq!(
+            before.pixel(32, 32),
+            capture(&mut renderer, &frame, shading, BlendMode::Opaque, COLOR, [0.0, 0.0, 1.0]).pixel(32, 32)
+        );
+    }
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn distant_scenery_matches_daylight_but_dims_more_at_night() {
+    let _gpu = test_support::serial();
+    let mut renderer = renderer();
+    let mut frame = frame();
+    frame.camera_position = Vec3::new(0.0, 0.0, -300.0);
+    let read = |renderer: &mut Renderer, shading| {
+        capture(renderer, &frame, shading, BlendMode::Opaque, COLOR, [0.0, 0.0, 1.0]).pixel(32, 32).unwrap()
+    };
+    renderer.set_night_blend(Some(0.0));
+    assert_eq!(read(&mut renderer, Shading::World), read(&mut renderer, Shading::WorldDistant));
+    renderer.set_night_blend(Some(1.0));
+    let nearby = read(&mut renderer, Shading::World);
+    let distant = read(&mut renderer, Shading::WorldDistant);
+    assert!(distant[0] < nearby[0] && distant[1] < nearby[1] && distant[2] < nearby[2]);
+    renderer.set_night_blend(Some(0.0));
+    assert_eq!(read(&mut renderer, Shading::World), read(&mut renderer, Shading::WorldDistant));
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn distant_prelit_buildings_keep_day_and_near_lighting() {
+    let _gpu = test_support::serial();
+    let mut renderer = renderer();
+    let mut near = frame();
+    let read = |renderer: &mut Renderer, frame: &FrameParams, shading| {
+        capture(renderer, frame, shading, BlendMode::Opaque, COLOR, [0.0, 0.0, 1.0]).pixel(32, 32).unwrap()
+    };
+    renderer.set_night_blend(Some(1.0));
+    assert_eq!(read(&mut renderer, &near, Shading::Prelit), read(&mut renderer, &near, Shading::PrelitDistant));
+    near.camera_position = Vec3::new(0.0, 0.0, -300.0);
+    let ordinary = read(&mut renderer, &near, Shading::Prelit);
+    let distant = read(&mut renderer, &near, Shading::PrelitDistant);
+    assert!(distant[0] < ordinary[0] && distant[1] < ordinary[1] && distant[2] < ordinary[2]);
+    renderer.set_night_blend(Some(0.0));
+    assert_eq!(read(&mut renderer, &near, Shading::Prelit), read(&mut renderer, &near, Shading::PrelitDistant));
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn masked_emissive_material_follows_instance_power() {
+    let _gpu = test_support::serial();
+    let mut r = renderer();
+    let vertices = [[-1.0, -1.0, 1.0], [-1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, -1.0, 1.0]].map(|position| Vertex {
+        position,
+        normal: [0.0, 0.0, 1.0],
+        color_bgra: [128, 128, 128, 255],
+        uv: [0.5; 2],
+    });
+    let texture = r.create_texture(&TextureDesc {
+        label: "emissive test",
+        width: 1,
+        height: 1,
+        format: PixelFormat::Rgba8,
+        mips: vec![&[128, 128, 128, 255]],
+    });
+    let mesh = r.create_mesh(&MeshDesc {
+        label: "emissive test",
+        vertices: &vertices,
+        tangents: None,
+        secondary_uvs: None,
+        indices: &[0, 1, 2, 0, 2, 3],
+        draws: vec![DrawRange {
+            first_index: 0,
+            index_count: 6,
+            base_vertex: 0,
+            texture: Some(texture),
+            blend: BlendMode::Opaque,
+            shading: Shading::WorldEmissive,
+            two_sided: true,
+        }],
+    });
+    let mut instance = Instance::new(mesh, Mat4::IDENTITY);
+    r.render(&frame(), &[instance]).unwrap();
+    let before = r.read_output().unwrap().unwrap();
+    instance.emission = 1.0;
+    r.render(&frame(), &[instance]).unwrap();
+    let after = r.read_output().unwrap().unwrap();
+    assert!(
+        after.pixel(32, 32).unwrap()[0] > before.pixel(32, 32).unwrap()[0] + 10,
+        "before={:?} after={:?}",
+        before.pixel(32, 32),
+        after.pixel(32, 32)
+    );
+}

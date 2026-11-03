@@ -151,15 +151,50 @@ fn custom_keycaps_fit_and_inherit_footer_transforms_and_visibility() {
     let raw = h.screens.trees().pop().unwrap();
     let mut bindings = Bindings::default();
     bindings.bind(crate::input::Action::MenuBack, "key:Backspace", false).unwrap();
-    for (visible, depth) in [(true, 0.0), (false, 0.0), (true, -900.0)] {
+    let mut original = raw.clone();
+    super::super::prompts::decorate(
+        &mut original,
+        screen::PAUSE_OPTIONS,
+        super::super::logic::Footer::Standard,
+        &bindings,
+        InputDevice::Keyboard,
+        &assets,
+    );
+    for (visible, depth, alpha) in [(true, 0.0, 127), (false, 0.0, 127), (true, -900.0, 127), (true, 0.0, 0)] {
         let mut raw = raw.clone();
-        let root = raw.nodes.iter_mut().find(|n| n.name_hash == 0xB3A6_9E89).unwrap();
-        root.world = glam::Mat4::from_translation(Vec3::new(0.0, 0.0, depth))
+        let root_index = raw.nodes.iter().find(|n| n.name_hash == 0xB3A6_9E89).unwrap().index;
+        let transform = glam::Mat4::from_translation(Vec3::new(17.0, -11.0, depth))
             * glam::Mat4::from_rotation_z(0.1)
-            * glam::Mat4::from_scale(Vec3::new(0.8, 0.9, 1.0))
-            * root.world;
-        root.world_colour[3] = 127;
+            * glam::Mat4::from_scale(Vec3::new(0.8, 0.9, 1.0));
+        let descendants: Vec<_> = raw
+            .nodes
+            .iter()
+            .map(|node| {
+                let mut parent = node.parent;
+                for _ in 0..raw.nodes.len() {
+                    match parent {
+                        Some(index) if index == root_index => return true,
+                        Some(index) => parent = raw.nodes.get(index).and_then(|n| n.parent),
+                        None => return false,
+                    }
+                }
+                false
+            })
+            .collect();
+        for (node, descendant) in raw.nodes.iter_mut().zip(descendants) {
+            if node.index == root_index || descendant {
+                node.world = transform * node.world;
+                node.position = transform.transform_point3(node.position);
+                node.z = node.position.z;
+            }
+        }
+        let root = &mut raw.nodes[root_index];
+        root.world_colour[3] = alpha;
         root.visible = visible;
+        let root = &raw.nodes[root_index];
+        let bar = raw.nodes.iter().find(|n| n.parent == Some(root_index) && n.name_hash == 0x81B4_FAD0).unwrap();
+        let local_bar = root.world.inverse().transform_point3(bar.world.w_axis.truncate());
+        assert!(local_bar.distance(bar.local_position) < 0.001, "bar must inherit the parent transform");
         let mut shown = raw.clone();
         super::super::prompts::decorate(
             &mut shown,
@@ -170,10 +205,42 @@ fn custom_keycaps_fit_and_inherit_footer_transforms_and_visibility() {
             &assets,
         );
         assert_footer(&raw, &shown, 0xB3A6_9E89, 0x81B4_FAD0, &assets);
+        let original_root = &original.nodes[root_index];
+        for (before, after) in original.nodes[raw.nodes.len()..].iter().zip(&shown.nodes[raw.nodes.len()..]) {
+            for corner in [Vec3::ZERO, Vec3::X, Vec3::Y] {
+                let expected = transform.transform_point3(before.world.transform_point3(corner));
+                let actual = after.world.transform_point3(corner);
+                assert!(actual.distance(expected) < 0.001, "hint must inherit the complete parent transform");
+                let local_before =
+                    original_root.world.inverse().transform_point3(before.world.transform_point3(corner));
+                let local_after = root.world.inverse().transform_point3(actual);
+                assert!(local_after.distance(local_before) < 0.001, "hint geometry must stay fixed in footer space");
+            }
+        }
+        assert_eq!(original.nodes.len(), shown.nodes.len());
         assert!(shown.nodes[raw.nodes.len()..].iter().any(|n| n.text.as_deref() == Some("Backspace")));
         let insets: Vec<_> =
             shown.nodes[raw.nodes.len()..].iter().filter(|n| n.world_colour[..3] == [0, 0, 0]).collect();
         assert_eq!(insets.len(), 5);
         assert!(insets.iter().all(|n| n.world_colour[3] < 127));
+        for device in [InputDevice::Keyboard, InputDevice::Xbox] {
+            let mut presented = raw.clone();
+            let areas = super::super::prompts::decorate(
+                &mut presented,
+                screen::PAUSE_OPTIONS,
+                super::super::logic::Footer::Standard,
+                &bindings,
+                device,
+                &assets,
+            );
+            let hints = &presented.nodes[raw.nodes.len()..];
+            if hints.iter().all(|node| !node.visible) {
+                assert!(areas.is_empty(), "invisible footer must have no actionable areas: {device:?}");
+                continue;
+            }
+            let done = hints.iter().find(|node| node.text.as_deref() == Some("Done")).unwrap();
+            let point = done.world.transform_point3(Vec3::ZERO).truncate();
+            assert!(areas.iter().any(|area| area.action == crate::input::Action::MenuBack && area.covers(point)));
+        }
     }
 }

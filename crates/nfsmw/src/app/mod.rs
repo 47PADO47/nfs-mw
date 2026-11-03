@@ -158,7 +158,7 @@ pub fn run(scene: Box<dyn Scene>, settings: &Settings, options: RunOptions) -> R
         .clone()
         .map(|path| screenshot::Plan::new(path, screenshot_delay, screenshot_count, screenshot_interval));
     let error = ErrorSlot(Arc::new(Mutex::new(None)));
-    let mut window = Window { title: scene.title(), ..Window::default() };
+    let mut window = Window { title: crate::i18n::t!("menus-game-title"), ..Window::default() };
     // Screenshots, `--offscreen` and benchmarks run in a hidden window off the desktop: they never take the focus, and
     // a benchmark measures a fixed size (`--screenshot-size`, else 1920x1080) instead of whatever the monitor is.
     let hidden = screenshot.is_some() || offscreen || bench_seconds.is_some();

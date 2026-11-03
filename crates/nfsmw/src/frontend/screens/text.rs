@@ -11,12 +11,15 @@ impl Screens {
 
     /// Hands a typed key to the top screen's logic and returns what it queued.
     pub fn type_key(&mut self, key: TextKey, env: &mut Env) -> Vec<Command> {
-        let Some((_, commands)) = self.on_top(env, |logic, cx| {
-            logic.typed(cx, key);
-            true
-        }) else {
+        // Text editing is independent of releasing the action that opened the prompt. Its Accept/Back still use
+        // the navigation latch in update; pending host transitions must reject both text and navigation.
+        let Some(top) = self.stack.last().filter(|top| top.logic.accepts_input()).map(|top| top.id) else {
             return Vec::new();
         };
+        let mut commands = Vec::new();
+        self.with_logic(top, env, &mut commands, |logic, cx| {
+            logic.typed(cx, key);
+        });
         self.apply_stack_commands(commands, env)
     }
 }

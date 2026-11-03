@@ -1,5 +1,5 @@
 enable wgpu_ray_query;
-// Central or finite-disc sun visibility. World-anchored samples have no alternating frame seed.
+// Central or finite-disc sun visibility. Samples are world-anchored; only an opt-in two-frame interleave varies them.
 struct RtVertex { position: vec4<f32>, normal: vec4<f32>, colour: vec4<f32>, uv: vec4<f32> };
 @group(0) @binding(1) var rt_scene: acceleration_structure;
 @group(0) @binding(2) var<storage,read> rt_vertices: array<RtVertex>;
@@ -55,17 +55,33 @@ fn sun_random(p:vec2<u32>,i:u32,phase:u32)->f32 {
     h=(h^(h>>16u))*2246822519u;h=h^(h>>13u);
     return f32(h&16777215u)/16777216.0;
 }
-@fragment fn fs_main(@builtin(position) pixel:vec4<f32>)->@location(0) vec4<f32> {
+fn nonzero_sign(v:vec2<f32>)->vec2<f32> { return select(vec2(-1.0),vec2(1.0),v>=vec2(0.0)); }
+fn encode_normal(n:vec3<f32>)->vec2<f32> {
+    let v=n/(abs(n.x)+abs(n.y)+abs(n.z));
+    return select((1.0-abs(v.yx))*nonzero_sign(v.xy),v.xy,v.z>=0.0);
+}
+// The filter's surface test per ray cell: camera-relative position and octahedral normal of the cell's
+// representative receiver, bit-exact, so the filter needs no depth/normal loads or reprojection per tap.
+// 0x80008000 never comes out of pack2x16snorm and marks a cell without a surface.
+fn surface_cell(world:vec3<f32>,n:vec3<f32>,valid:bool)->vec4<u32> {
+    if !valid { return vec4(0u,0u,0u,0x80008000u); }
+    return vec4(bitcast<vec3<u32>>(world-params.camera.xyz),pack2x16snorm(encode_normal(n)));
+}
+struct Traced { visibility:vec4<f32>, surface:vec4<u32> };
+fn trace(pixel:vec4<f32>)->Traced {
     let coordinate=min(vec2<i32>(pixel.xy/params.tuning.zw*params.screen.xy),vec2<i32>(params.screen.xy)-vec2(1));
     let d=textureLoad(depth,coordinate,0);
     let encoded=textureLoad(normals,coordinate,0);
     let world=unproject((vec2<f32>(coordinate)+0.5)/params.screen.xy,max(d,1e-8));
     let plane=cross(dpdx(world),dpdy(world));
-    // Missing/incomplete scenes must retain cascades, never imply unoccluded sunlight.
-    if d<=0.0 || encoded.a<0.5 || rt_control.scene.y==0u { return vec4(1.0,0.0,0.0,1.0); }
-    let weight=1.0-smoothstep(params.camera.w*0.8,params.camera.w,distance(world,params.camera.xyz));
-    if weight<=0.0 { return vec4(1.0,0.0,0.0,1.0); }
     let n=normalize(encoded.xyz*2.0-1.0);
+    var out:Traced;
+    out.visibility=vec4(1.0,0.0,0.0,1.0);
+    out.surface=surface_cell(world,n,d>0.0 && encoded.a>=0.5);
+    // Missing/incomplete scenes must retain cascades, never imply unoccluded sunlight.
+    if d<=0.0 || encoded.a<0.5 || rt_control.scene.y==0u { return out; }
+    let weight=1.0-smoothstep(params.camera.w*0.8,params.camera.w,distance(world,params.camera.xyz));
+    if weight<=0.0 { return out; }
     // Face the geometric plane toward the light for thin, two-sided foliage.
     let geometric=select(n,plane/max(length(plane),1e-6),dot(plane,plane)>1e-12);
     let normal=select(-geometric,geometric,dot(geometric,params.sun.xyz)>=0.0);
@@ -73,7 +89,8 @@ fn sun_random(p:vec2<u32>,i:u32,phase:u32)->f32 {
     let origin=world+normal*bias;
     if params.soft.x<=0.0 {
         let sample=sun_visibility_ray(origin,params.sun.xyz,bias);
-        return vec4(sample.x,weight,sample.y,1.0);
+        out.visibility=vec4(sample.x,weight,sample.y,1.0);
+        return out;
     }
     // Rotate +Z to the sun. The basis stays continuous throughout the daylight hemisphere,
     // unlike choosing a different cross-product axis at an angular threshold.
@@ -82,16 +99,30 @@ fn sun_random(p:vec2<u32>,i:u32,phase:u32)->f32 {
         -params.sun.x*params.sun.y/denominator,-params.sun.x));
     let bitangent=cross(params.sun.xyz,tangent);
     let count=u32(params.soft.y);
+    // soft.w is 0 for a frame-independent pattern. 1 or 2 interleaves two frames: each traces every second
+    // stratum of a doubled set, so temporal history combines both into twice the rays (see RayShadows::phase).
+    let interleave=u32(params.soft.w+0.5);
+    let strata=select(count,count*2u,interleave>0u);
     let lattice=bitcast<vec3<u32>>(vec3<i32>(floor(world*32.0)));
     let seed=vec2(lattice.x^(lattice.z*2246822519u),lattice.y^(lattice.z*3266489917u));
     var visible=0.0; var separation=0.0; var hits=0.0;
     for(var i=0u;i<count;i++) {
-        let radius=sqrt(sun_random(seed,i*2u+1u,u32(params.soft.w)))*params.soft.x;
-        let angle=6.28318531*(f32(i)+sun_random(seed,i*2u,u32(params.soft.w)))/f32(count);
+        let j=select(i,i*2u+interleave-1u,interleave>0u);
+        let radius=sqrt(sun_random(seed,j*2u+1u,0u))*params.soft.x;
+        let angle=6.28318531*(f32(j)+sun_random(seed,j*2u,0u))/f32(strata);
         let ray=normalize(params.sun.xyz+radius*(cos(angle)*tangent+sin(angle)*bitangent));
         let sample=sun_visibility_ray(origin,ray,bias);
         visible+=sample.x;
         if sample.x<0.5 { separation+=sample.y; hits+=1.0; }
     }
-    return vec4(visible/f32(count),weight,separation/max(hits,1.0),1.0);
+    out.visibility=vec4(visible/f32(count),weight,separation/max(hits,1.0),1.0);
+    return out;
+}
+@fragment fn fs_main(@builtin(position) pixel:vec4<f32>)->@location(0) vec4<f32> {
+    return trace(pixel).visibility;
+}
+struct Filtered { @location(0) visibility:vec4<f32>, @location(1) surface:vec4<u32> };
+@fragment fn fs_filtered(@builtin(position) pixel:vec4<f32>)->Filtered {
+    let traced=trace(pixel);
+    return Filtered(traced.visibility,traced.surface);
 }

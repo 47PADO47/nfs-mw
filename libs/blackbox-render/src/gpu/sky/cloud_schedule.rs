@@ -16,6 +16,25 @@ const BIG_SCALAR_MOVE: f32 = 0.02;
 /// moves it by hundredths at most).
 const BIG_SCROLL_MOVE: f32 = 1.0;
 
+/// Grid a separately supplied (celestial) sun is snapped to in the key, about a tenth of a degree. A sun moving with
+/// the clock then re-marches a band only when it has moved that far, so the map settles between steps.
+const SUN_STEP: f32 = 1.0 / 512.0;
+/// At or below this sun height the clouds receive no sunlight (`daylight` in `sky_enhanced.wgsl`), so the march no
+/// longer depends on the sun.
+const UNLIT_HEIGHT: f32 = -0.12;
+
+/// The sun and light entries of the key. Without a celestial sun they are the scene's, unchanged. With one, the
+/// scene light no longer reaches the march, the sun is snapped to `SUN_STEP`, and below `UNLIT_HEIGHT` it is frozen.
+pub(super) fn sun_key(celestial: Option<[f32; 3]>, to_sun: [f32; 4], light: [f32; 3]) -> ([f32; 4], [f32; 3]) {
+    let Some(sun) = celestial else { return (to_sun, light) };
+    let length = sun.iter().map(|v| v * v).sum::<f32>().sqrt();
+    if !length.is_finite() || length <= 1e-6 || sun[2] / length <= UNLIT_HEIGHT {
+        return ([0.0, 0.0, -1.0, 1.0], [0.0; 3]);
+    }
+    let snap = |v: f32| (v / length / SUN_STEP).round() * SUN_STEP;
+    ([snap(sun[0]), snap(sun[1]), snap(sun[2]), 1.0], [0.0; 3])
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(super) struct Key {
     pub scroll: f32,

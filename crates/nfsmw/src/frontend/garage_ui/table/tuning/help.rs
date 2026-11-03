@@ -69,7 +69,7 @@ fn wrap(cx: &Cx, text: &str) -> Vec<String> {
     let info = cx.object(0x46be_6be4).and_then(|object| cx.rt.string_info(object));
     let Some(info) = info else { return text.lines().map(str::to_owned).collect() };
     let Some(font) = cx.assets.font(info.font) else { return text.lines().map(str::to_owned).collect() };
-    let size = cx.assets.texture_size(font.texture_hash).unwrap_or((256, 256));
+    let size = cx.assets.texture_size(cx.assets.resolve(font.texture_hash)).unwrap_or((256, 256));
     let mut lines = Vec::new();
     for paragraph in text.split(['^', '\n']) {
         let mut line = String::new();
@@ -78,8 +78,8 @@ fn wrap(cx: &Cx, text: &str) -> Vec<String> {
                 true => word.to_owned(),
                 false => format!("{line} {word}"),
             };
-            let width = font.layout_scaled(&next, TextStyle::default(), size, cx.assets.font_scale(info.font)).width
-                * info.scale.0;
+            // Native wrapping happens before the object's animated scale is applied.
+            let width = font.layout_scaled(&next, TextStyle::default(), size, cx.assets.font_scale(info.font)).width;
             if line.is_empty() || width <= info.max_width.max(1) as f32 {
                 line = next;
                 continue;

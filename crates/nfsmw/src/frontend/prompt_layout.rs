@@ -22,7 +22,23 @@ pub struct Frame {
 }
 
 impl Frame {
-    pub fn find(tree: &UiTree, name: &str, footer: Footer) -> Option<Self> {
+    pub fn find(tree: &UiTree, name: &str, footer: Footer, assets: &crate::ui::UiAssets) -> Option<Self> {
+        if footer == Footer::GarageTuningHelp {
+            let root = tree.nodes.iter().find(|n| n.name_hash == 0x64bc_dff2)?;
+            return Some(Self::new(root, root.world, 140.0, 26.0, false));
+        }
+        if name.eq_ignore_ascii_case(screen::SAFE_HOUSE_RIVAL_BIO) {
+            let root = tree.nodes.iter().find(|n| n.name_hash == 0xdde3_db34)?;
+            let bar = tree.nodes.iter().find(|n| n.name_hash == 0xc6d9_1a27 && is_inside(tree, n, root.index))?;
+            let at = root.world.inverse().transform_point3(bar.world.w_axis.truncate());
+            let world = root.world * Mat4::from_translation(at.truncate().extend(0.0));
+            return Some(Self::new(root, world, bar.size.x.abs(), bar.size.y.abs(), false));
+        }
+        if name.eq_ignore_ascii_case(screen::CONTROLS) {
+            let root = tree.nodes.iter().find(|n| n.name_hash == 0x1b67_88be)?;
+            let world = root.world * Mat4::from_translation(Vec3::new(0.0, 215.0, 0.0));
+            return Some(Self::new(root, world, 548.0, 26.0, false));
+        }
         // The garage's Add New Car page is the car select package, whose footer group sits at the screen's centre with its bar
         // far below: it takes the bar's place as the custom race's car select does.
         if footer.is_garage() && !name.eq_ignore_ascii_case(screen::CAR_SELECT) {
@@ -36,7 +52,19 @@ impl Frame {
                 .into_iter()
                 .find_map(|hash| tree.nodes.iter().find(|node| node.name_hash == hash && node.world.w_axis.z > 0.0))?;
             let at = Vec3::new(0.0, root.world.w_axis.y, root.world.w_axis.z);
-            return Some(Self::new(root, Mat4::from_translation(at), 590.0, 26.0, false));
+            let mut left = -295.0_f32;
+            let mut right = 295.0_f32;
+            if matches!(footer, Footer::GarageCategories { .. }) {
+                if let Some((x, y0, y1)) = caption_left(tree, assets)
+                    && y1 >= at.y - 13.0
+                    && y0 <= at.y + 13.0
+                {
+                    right = right.min(x - 8.0);
+                }
+                left = left.min(right);
+            }
+            let world = Mat4::from_translation(Vec3::new((left + right) * 0.5, at.y, at.z));
+            return Some(Self::new(root, world, right - left, 26.0, false));
         }
         if [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s)) {
             let n = tree.nodes.iter().find(|n| n.name_hash == 0xC4DF_3FF2)?;
@@ -45,9 +73,12 @@ impl Frame {
         // These groups own the footer fade; the image supplies its rectangle, not its low background alpha.
         let (group, background) = match name.to_ascii_lowercase().as_str() {
             "pause_main.fng" => (0x2FE7_4244, 0x81B4_FAD0),
-            "pause_options.fng" => (0xB3A6_9E89, 0x81B4_FAD0),
-            "options.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
-            "safehousereputationoverview.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
+            "pause_options.fng" | "pause_pc_controller.fng" => (0xB3A6_9E89, 0x81B4_FAD0),
+            "options.fng" | "ea_trax_jukebox.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
+            "safehousereputationoverview.fng"
+            | "safehouseracesheet.fng"
+            | "safehousemilestones.fng"
+            | "safehousebounty.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
             // The custom race's screens (`custom_race/`); the career's car lot keeps the package's own footer.
             "track_select.fng" | "track_options.fng" | "showcase.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
             "car_select.fng" if footer.is_custom_car_select() || footer.is_garage() => (0x84BC_F2B5, 0x3D3B_C1AC),
@@ -103,4 +134,32 @@ fn is_inside(tree: &UiTree, node: &UiNode, root: usize) -> bool {
         }
     }
     false
+}
+
+/// Actual caption glyph bounds reserve space without guessing its current text length.
+pub(super) fn caption_left(tree: &UiTree, assets: &crate::ui::UiAssets) -> Option<(f32, f32, f32)> {
+    let node = tree.nodes.iter().find(|n| n.name_hash == super::ids::ICON_TITLE && n.visible)?;
+    let blackbox_feng::NodeKind::Text { font, justification, leading, max_width } = node.kind else { return None };
+    let font = assets.font(font)?;
+    let size = assets.texture_size(assets.resolve(font.texture_hash))?;
+    let layout = font.layout_scaled(
+        node.text.as_deref()?,
+        blackbox_feng::font::TextStyle { justification, leading, max_width },
+        size,
+        assets.font_scale(font.hash),
+    );
+    let squeeze = match max_width > 0 && justification & 0x10 == 0 && layout.width > max_width as f32 {
+        true => max_width as f32 / layout.width,
+        false => 1.0,
+    };
+    let mut bounds = (f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY);
+    for q in layout.quads {
+        for (x, y) in [(q.x0, q.y0), (q.x1, q.y1)] {
+            let p = node.world.transform_point3(Vec3::new(x * squeeze, y, 0.0));
+            bounds.0 = bounds.0.min(p.x);
+            bounds.1 = bounds.1.min(p.y);
+            bounds.2 = bounds.2.max(p.y);
+        }
+    }
+    bounds.0.is_finite().then_some(bounds)
 }

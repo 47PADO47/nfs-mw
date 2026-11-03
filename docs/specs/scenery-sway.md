@@ -86,8 +86,9 @@ reusing the rain's vector.
   The phase is `(clock * 45) mod 360` instead of a reset to 0, which differs from the original only by the
   fraction of one frame that the reset drops.
 - The player views sway. The rear-view mirror, reflections and environment maps do not, as in the original.
-- The casters the player view's pass adds for the sun sway with it. The fixed sun-shadow casters that the shadow
-  feed keeps between scenery changes stay at rest, and the custom cascades are an enhancement in any case.
+- Shadow casters for flagged LODs use the same sway helper and primary-view wind/clock as visible trees.
+  They are appended as moving casters; unchanged scenery retains its static cache. The custom RT scene applies
+  that pose to flagged tree instances too, without rebuilding their mesh acceleration structures.
 - The culling boxes are not grown for the sway; at 1.5 degrees the swing stays within a fraction of a unit of the
   stored boxes for most trees.
 

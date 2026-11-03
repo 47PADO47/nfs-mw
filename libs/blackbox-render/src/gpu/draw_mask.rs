@@ -10,17 +10,17 @@ use crate::{DrawRange, Shading};
 const NORMAL_SHIFT: usize = BUCKETS;
 const WINDOW_SHIFT: usize = NORMAL_SHIFT + BLEND_ORDER.len();
 const SKY_BIT: usize = WINDOW_SHIFT + BLEND_ORDER.len();
-const _: () = assert!(SKY_BIT < u64::BITS as usize);
+const _: () = assert!(SKY_BIT < u128::BITS as usize);
 
 /// The draw lists one draw goes into.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(super) struct DrawMask(u64);
+pub(super) struct DrawMask(u128);
 
 impl DrawMask {
     /// The lists `draw` goes into: every colour bucket whose blend it matches and whose shading takes it, the
     /// normal-map or window list of its blend mode, and the sky list.
     pub(super) fn of(draw: &DrawRange) -> Self {
-        let mut bits = 0u64;
+        let mut bits = 0u128;
         for (slot, (blend, shading)) in combinations().enumerate() {
             if draw.blend == blend && takes(draw.shading, shading) {
                 bits |= 1 << slot;

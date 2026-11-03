@@ -10,6 +10,40 @@ pub(super) const PERIOD: [u32; 4] = [1, 2, 4, 4];
 const DRIFT_LIMIT: f32 = 10.0;
 /// Squared sine of the largest sun rotation a stale map tolerates.
 const SUN_LIMIT: f32 = 1.0e-6;
+/// Squared sine (about one degree) of the largest sun step a far cascade may trail for one frame.
+const SUN_STEP_LIMIT: f32 = 3.0e-4;
+/// Angular step of the sun direction the cascades are fitted to: 0.1 degree in elevation and azimuth.
+const SUN_STEP: f32 = 0.1 * std::f32::consts::PI / 180.0;
+
+/// `light_dir` snapped to a fixed elevation/azimuth lattice for the cascade fit. A slowly moving sun then keeps
+/// bit-identical cascade matrices between steps, so the static-depth cache and the schedule can reuse maps. The
+/// fit itself uses the snapped direction, so maps and receivers agree and the texel grid cannot swim.
+pub(super) fn quantized_light(light_dir: Vec3) -> Vec3 {
+    let Some(sun) = (-light_dir).try_normalize() else { return light_dir };
+    let snap = |angle: f32| (angle / SUN_STEP).round() * SUN_STEP;
+    let elevation = snap(sun.z.clamp(-1.0, 1.0).asin());
+    // The azimuth is meaningless at the poles; keep the exact vertical there.
+    if elevation.cos() < 1.0e-4 {
+        return -Vec3::Z * elevation.signum();
+    }
+    let azimuth = snap(sun.y.atan2(sun.x));
+    -Vec3::new(elevation.cos() * azimuth.cos(), elevation.cos() * azimuth.sin(), elevation.sin())
+}
+
+/// Whether a far cascade whose only staleness is a small sun step waits one frame: cascade 2 refreshes on even
+/// frames, cascade 3 on odd ones, so a sun step never re-renders both far maps in the same frame.
+fn sun_deferred(cascade: usize, frame: u32) -> bool {
+    cascade >= 2 && frame % 2 != cascade as u32 % 2
+}
+
+/// How a stored map relates to the freshly fitted one.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Hold {
+    Holds,
+    /// Usable for one more frame: only the sun turned, by a small step.
+    SunStep,
+    Stale,
+}
 
 /// Whether the schedule alone refreshes `cascade` on `frame`. Offsets by cascade index spread the load.
 pub(super) fn scheduled(cascade: usize, frame: u32) -> bool {
@@ -54,7 +88,12 @@ impl Rendered {
         self.frame = frame.wrapping_add(1);
         let mut due = [true; 4];
         for (cascade, slot) in due.iter_mut().enumerate().take(count) {
-            *slot = force || scheduled(cascade, frame) || !self.holds(cascade, params);
+            let stale = match self.holds(cascade, params) {
+                Hold::Holds => false,
+                Hold::SunStep => !sun_deferred(cascade, frame),
+                Hold::Stale => true,
+            };
+            *slot = force || scheduled(cascade, frame) || stale;
             if *slot {
                 self.record(cascade, params);
                 continue;
@@ -65,20 +104,26 @@ impl Rendered {
     }
 
     /// Whether the stored map can still stand in for the freshly fitted one.
-    fn holds(&self, cascade: usize, fresh: &Params) -> bool {
+    fn holds(&self, cascade: usize, fresh: &Params) -> Hold {
         if !self.valid[cascade]
             || self.resolutions[cascade] != fresh.resolutions[cascade]
             || self.depth_spans[cascade] != fresh.depth_spans[cascade]
         {
-            return false;
+            return Hold::Stale;
         }
-        let rotation = Vec3::from_slice(&self.sun[cascade]).cross(Vec3::from_slice(&fresh.sun));
-        if rotation.length_squared() > SUN_LIMIT {
-            return false;
+        let rotation = Vec3::from_slice(&self.sun[cascade]).cross(Vec3::from_slice(&fresh.sun)).length_squared();
+        if rotation > SUN_STEP_LIMIT {
+            return Hold::Stale;
         }
         let stale = Mat4::from_cols_array(&self.matrices[cascade]);
         let fresh_matrix = Mat4::from_cols_array(&fresh.matrices[cascade]);
-        drift_texels(&stale, &fresh_matrix, fresh.resolutions[cascade]) <= DRIFT_LIMIT
+        if drift_texels(&stale, &fresh_matrix, fresh.resolutions[cascade]) > DRIFT_LIMIT {
+            return Hold::Stale;
+        }
+        match rotation > SUN_LIMIT {
+            true => Hold::SunStep,
+            false => Hold::Holds,
+        }
     }
 
     fn record(&mut self, cascade: usize, params: &Params) {
@@ -175,6 +220,50 @@ mod tests {
         assert_eq!(rendered.plan(&mut params(1.0), 4, true), [true; 4]);
         rendered.reset();
         assert_eq!(rendered.plan(&mut params(1.0), 4, false), [true; 4], "reset invalidates the maps");
+    }
+
+    #[test]
+    fn quantized_sun_holds_between_steps_and_stays_close() {
+        let base = Vec3::new(-0.932, -0.262, 0.249).normalize();
+        let held = quantized_light(-base);
+        assert!(held.angle_between(-base) <= SUN_STEP, "snapping error stays within one step");
+        // 0.002 degrees per frame: most frames keep the exact same fitted direction.
+        let same = (1..48)
+            .filter(|&step| {
+                let sun = glam::Quat::from_rotation_z(step as f32 * 0.00003) * base;
+                let previous = glam::Quat::from_rotation_z((step - 1) as f32 * 0.00003) * base;
+                quantized_light(-sun).to_array().map(f32::to_bits)
+                    == quantized_light(-previous).to_array().map(f32::to_bits)
+            })
+            .count();
+        assert!(same >= 44, "a slow sun must keep bit-identical fits: {same}");
+        assert_eq!(quantized_light(Vec3::NEG_Z), Vec3::NEG_Z);
+        assert_eq!(quantized_light(Vec3::ZERO), Vec3::ZERO);
+    }
+
+    #[test]
+    fn a_sun_step_refreshes_far_cascades_on_alternate_frames() {
+        let mut rendered = Rendered::default();
+        rendered.plan(&mut params(0.0), 4, false);
+        rendered.plan(&mut params(0.0), 4, false);
+        rendered.plan(&mut params(0.0), 4, false);
+        rendered.plan(&mut params(0.0), 4, false);
+        // Frame 4 (even): a 0.1 degree step. Cascade 2 refreshes now, cascade 3 waits one frame.
+        let step = |p: &mut Params| {
+            let sun = glam::Quat::from_rotation_x(SUN_STEP) * Vec3::NEG_Z;
+            p.sun = sun.extend(0.0).to_array();
+        };
+        let mut first = params(0.0);
+        step(&mut first);
+        assert_eq!(rendered.plan(&mut first, 4, false), [true, true, true, false]);
+        let mut second = params(0.0);
+        step(&mut second);
+        // Frame 5 (odd): cascade 1 is scheduled anyway; cascade 3 catches up, cascade 2 already holds the step.
+        assert_eq!(rendered.plan(&mut second, 4, false), [true, true, false, true], "cascade 3 catches up");
+        // A large turn still refreshes everything at once.
+        let mut turn = params(0.0);
+        turn.sun = [0.1, 0.0, -0.995, 0.0];
+        assert_eq!(rendered.plan(&mut turn, 4, false), [true; 4]);
     }
 
     #[test]

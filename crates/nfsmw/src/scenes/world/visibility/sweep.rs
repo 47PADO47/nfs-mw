@@ -256,6 +256,9 @@ impl<'a> Sweep<'a> {
             _ => transform,
         };
         if is_prop && self.props.model_instances(p.prop_id, transform, self.out) {
+            for instance in &mut self.out[start..] {
+                instance.owner_key = p.key;
+            }
             self.limit_from(start);
             return;
         }
@@ -287,7 +290,7 @@ impl<'a> Sweep<'a> {
 }
 
 /// `transform` with the wind sway turned in first, in the object's own frame: the engine's row-vector `S * M`.
-fn swayed(transform: Mat4, frame: &SwayFrame) -> Mat4 {
+pub(in crate::scenes::world) fn swayed(transform: Mat4, frame: &SwayFrame) -> Mat4 {
     let rows = [transform.x_axis, transform.y_axis, transform.z_axis].map(|axis| axis.truncate().to_array());
     let s = MOST_WANTED.sway.rotation(frame, rows, transform.w_axis.x);
     // Read as columns, the rows of `S` are its transpose, the column-vector form of the same turn.

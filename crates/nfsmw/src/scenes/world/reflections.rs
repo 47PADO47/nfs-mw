@@ -35,7 +35,9 @@ pub(super) struct CaptureStamp {
     original_shadows: bool,
     original_sky: bool,
     enhanced_sky: bool,
-    sky_tuning: [f32; 5],
+    experimental_night: bool,
+    cycle_key: [i32; 4],
+    sky_tuning: [f32; 6],
     distance: ReflectionDistance,
     lod: ReflectionLod,
     content: ReflectionContent,
@@ -68,7 +70,16 @@ impl WorldScene {
             options.sky_sun_brightness,
             options.sky_brightness,
             options.sky_sunset_warmth,
+            options.night_sky_brightness,
         ];
+        // Keep cached reflections in step with a moving sky without invalidating them every frame: refresh on light and
+        // night steps (finer through dusk and dawn) and when lamps switch.
+        let cycle = self.sun.cycle();
+        let lamps_on = options.local_lamps
+            || (options.local_street_lights
+                && options.local_street_strength > 0.0
+                && cycle.is_some_and(|c| c.night > 0.0));
+        let cycle_key = super::full_cycle::reflection_key(cycle, lamps_on);
         let origin = drive.pose().position + Vec3::Z * 0.95;
         let size = graphics.reflection_resolution.cube_face(quality.size(), renderer.surface_size()[1], PLANAR_MAX);
         let scenery = self.residency.visual_revision();
@@ -85,6 +96,8 @@ impl WorldScene {
                 || last.original_shadows != self.original_shadows
                 || last.original_sky != self.original_sky
                 || last.enhanced_sky != options.enhanced_sky
+                || last.experimental_night != options.experimental_night
+                || last.cycle_key != cycle_key
                 || last.sky_tuning != sky_tuning
         });
         let inputs = slices::Inputs {
@@ -179,6 +192,7 @@ impl WorldScene {
                     super::sky::View::Environment,
                 );
             }
+            super::local_lights::set_instance_emission(&mut self.reflection_faces[face], &self.fixture_emission);
             visibility::sort_by_mesh(&mut self.reflection_faces[face]);
         }
         renderer.set_reflection_scene(Some(ReflectionScene {
@@ -202,6 +216,8 @@ impl WorldScene {
             original_shadows: self.original_shadows,
             original_sky: self.original_sky,
             enhanced_sky: options.enhanced_sky,
+            experimental_night: options.experimental_night,
+            cycle_key,
             sky_tuning,
             distance,
             lod,

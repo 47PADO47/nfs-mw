@@ -88,6 +88,20 @@ rewrite has to draw them (or find where the original sets them) before the list 
 - `frontend::widgets::Selector<T>` and `DualValue<T>`: the two shared widgets (choice with arrows; a row with a
   value per column). Their state is tested; they are not drawn yet.
 
+## Playtest follow-up: field focus and pause footer
+
+The 2026-10-27 playtest reports accumulated field highlights (UI-025) and an empty pause controls footer (UI-027).
+Installed package inspection shows both field scripts, HIGHLIGHT and UNHIGHLIGHT, but no field response to
+BUTTON_UNHIGHLIGHT. The host must apply the unselected script to departed fields, including focus moved by native
+pad or pointer handling. Only the current field keeps HIGHLIGHT; a repeated tick must not restart its script or
+request a new focus sound. Keep keyboard slot values and remap targets independent of this presentation repair.
+
+The pause controls footer uses the same animated group and bar as pause settings. The replacement hints must
+inherit that frame and expose the existing Select, Column, Remap and Back actions with their current bindings.
+Suppress the complete old PC Back hint when composing its replacement, including its separate key image.
+Controller reassignment/page switching now has a separate remake implementation contract in
+[controller-remap-ui](controller-remap-ui.md), with its own physical-input and original-page acceptance limits.
+
 ## 5. Open questions
 
 - Does the original reject a key bound to another action, or move it as this rewrite does?

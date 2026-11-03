@@ -40,7 +40,7 @@ fn scatter_fog(colour: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
     let hg = (1.0 - g) * (1.0 - g) / (4.0 * PI_F * pow(max(1.0 + g * g - 2.0 * g * c, 1e-6), 1.5));
     let rayleigh = 3.0 / (16.0 * PI_F) * (1.0 + c * c);
     let inscatter = (br * rayleigh + bm * hg) * (vec3<f32>(1.0) - e) / sum;
-    return colour * e + inscatter;
+    return colour * e + inscatter * mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
 }
 
 // Three lights: direction towards the light (xyz), colour (xyz), then the ambient colour.
@@ -259,7 +259,8 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         let source = paint_linear(tex.rgb);
         let strength = smoothstep(0.22, 0.7, max(source.r, max(source.g, source.b)));
         var base = paint_linear(out.rgb);
-        var emission = source * strength * 0.6;
+        // Daylight keeps the original 0.6 lamp gain; only the night factor raises it to 1.25.
+        var emission = source * strength * mix(0.6, 1.25, saturate(shadow_data.local_options.w));
         if material.surface.w > 12.5 {
             // Preserve neutral/white details; only warm red artwork gets a redder lamp response.
             let red_mask = strength * smoothstep(0.04, 0.30, tex.r - tex.g);
@@ -277,13 +278,15 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         return out;
     }
 
+    if !emissive { out.rgb *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w); }
+    if globals.fog_range.w < 0.5 { out.rgb += tex.rgb*diff.rgb*local_lighting(in.world,n) + clamp(spec,vec3(0.0),vec3(1.0))*diff.a*occlusion*local_specular(in.world,n,globals.camera_pos.xyz-in.world,32.0); }
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
     if globals.scatter_rayleigh.w > 0.5 {
         out.rgb = scatter_fog(out.rgb, in.world);
         return out;
     }
-    out.rgb = mix(out.rgb, globals.fog_color.rgb, fog);
+    out.rgb = mix(out.rgb, globals.fog_color.rgb * mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w), fog);
     return out;
 }
 
@@ -379,8 +382,10 @@ fn original_pixel(in: VsOut, tex: vec4<f32>) -> Shaded {
     }
     visibility *= mix(1.0, cloud_visibility(in.world), 0.35);
     var out: Shaded;
-    let raw = (diff.rgb * tex.rgb + highlight * diff.a * spec.rgb * visibility) * visibility
+    var raw = (diff.rgb * tex.rgb + highlight * diff.a * spec.rgb * visibility) * visibility
         + env * spec.a * diff.a * environment_gain;
+    if material.surface.w<=11.5 { raw *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w); }
+    if globals.fog_range.w < 0.5 { raw += tex.rgb*clamp(material.diffuse_min.rgb+material.diffuse_range.rgb*0.5,vec3(0.05),vec3(1.0))*local_lighting(in.world,n) + spec.rgb*local_specular(in.world,n,globals.camera_pos.xyz-in.world,32.0); }
     out.rgb = clamp(raw,vec3(0.0),vec3(1.0));
     if globals.camera_pos.w>1.5 { out.rgb=max(raw,vec3(0.0)); }
     out.texture_alpha = tex.a;

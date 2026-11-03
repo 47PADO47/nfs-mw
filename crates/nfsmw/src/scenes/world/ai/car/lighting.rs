@@ -23,6 +23,52 @@ impl AiCar {
         }
     }
 
+    pub(in crate::scenes::world::ai) fn has_local_headlights(&self) -> bool {
+        let state = self.lamp_state();
+        state.headlights
+            && !state.dark
+            && self
+                .rig
+                .lights()
+                .lamps()
+                .iter()
+                .any(|lamp| lamp.kind == crate::scenes::world::car_lights::Kind::Head && lamp.flags & state.broken == 0)
+    }
+
+    pub(in crate::scenes::world::ai) fn local_headlights(
+        &self,
+        alpha: f32,
+        strength: f32,
+        out: &mut Vec<blackbox_gfx::LocalLight>,
+    ) {
+        let state = self.lamp_state();
+        if !state.headlights || state.dark {
+            return;
+        }
+        let transform = self.pose(alpha).transform();
+        for lamp in self
+            .rig
+            .lights()
+            .lamps()
+            .iter()
+            .filter(|lamp| lamp.kind == crate::scenes::world::car_lights::Kind::Head && lamp.flags & state.broken == 0)
+            .take(2)
+        {
+            let direction = transform.transform_vector3(lamp.direction).normalize_or_zero();
+            out.push(blackbox_gfx::LocalLight {
+                position: (transform.transform_point3(lamp.at) + direction * 0.16).to_array(),
+                direction: direction.to_array(),
+                casts_shadow: true,
+                shadow_exclude: None,
+                upper_plane: Some(transform.transform_vector3(Vec3::Z).normalize_or_zero().to_array()),
+                range: 45.0,
+                outer_cos: 0.80,
+                inner_cos: 0.94,
+                color: (Vec3::new(1.0, 0.96, 0.86) * strength * 1.3).to_array(),
+            });
+        }
+    }
+
     pub fn flares(&self, alpha: f32, view: FlareView, out: &mut Vec<TexturedEffect>) {
         let state = LampState { time: self.lamp_time(alpha), ..self.lamp_state() };
         self.rig.flares().draw(self.rig.lights(), self.pose(alpha).transform(), state, view, out);

@@ -87,6 +87,33 @@ fn near(point: Vec3, camera: Vec3) -> bool {
 }
 
 impl TrafficWorld {
+    /// Appends nearby traffic beams, fading both the range and count boundary.
+    pub(in crate::scenes::world) fn local_headlights(
+        &self,
+        camera: Vec3,
+        strength: f32,
+        limit: u32,
+        out: &mut Vec<blackbox_gfx::LocalLight>,
+    ) {
+        let mut nearby: Vec<_> = self
+            .cars
+            .iter()
+            .map(|car| {
+                let distance = car.pose(self.alpha).transform().w_axis.truncate().distance_squared(camera);
+                (distance, car.key(), car)
+            })
+            .filter(|(distance, _, car)| *distance < 150.0 * 150.0 && car.has_local_headlights())
+            .collect();
+        nearby.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        let limit = limit.min(8) as usize;
+        let boundary = nearby.get(limit).map_or(150.0, |(distance, _, _)| distance.sqrt());
+        for (distance, _, car) in nearby.into_iter().take(limit) {
+            let fade = ((boundary - distance.sqrt()) / 24.0).clamp(0.0, 1.0);
+            let fade = fade * fade * (3.0 - 2.0 * fade);
+            car.local_headlights(self.alpha, strength * fade, out);
+        }
+    }
+
     /// The lamp an approach shows, if any. A matched prop that is knocked over shows nothing at all.
     fn shown(&self, index: usize, props: &PropWorld) -> Option<super::signal_props::Lamp> {
         let lamp = self.signal_lamps.lamp(index)?;
@@ -127,6 +154,8 @@ impl TrafficWorld {
                 ),
                 key: blackbox_gfx::InstanceKey::TRANSIENT,
                 shadow: Default::default(),
+                emission: 0.0,
+                owner_key: blackbox_gfx::InstanceKey::TRANSIENT,
                 flip_winding: false,
             });
         }

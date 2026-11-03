@@ -34,7 +34,7 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
-    pub(in crate::frontend) fn open_garage(&mut self, host: &mut Host) {
+    pub(in crate::frontend) fn open_garage(&mut self, host: &mut Host, env: &mut Env) {
         let scene = super::super::garage_scene::GarageScene::new(self.dir.clone(), host.screenshot.is_none())
             .with_rig(self.camera.clone());
         if !self.replace_scene(host, Box::new(scene), true) {
@@ -45,6 +45,35 @@ impl Frontend {
         self.latch = true;
         self.menu_garage = true;
         self.menu_garage_requested = true;
+        let commands = self.screens.open(LOADING, Args::default(), true, env);
+        self.apply(commands, host, env);
+    }
+
+    /// Pending My Cars loads keep the native loading screen moving and allow Back after the entry press is released.
+    pub(in crate::frontend) fn garage_loading_frame(
+        &mut self,
+        dt: f32,
+        mask: u32,
+        host: &mut Host,
+        env: &mut Env,
+        overlay: &mut Overlay,
+    ) {
+        host.hold_capture = true;
+        host.cancel_handled = true;
+        host.flow_driven = true;
+        if !self.latch && mask & blackbox_feng::runtime::pad::BACK != 0 {
+            self.close_garage(host, env, overlay);
+            return;
+        }
+        if mask == 0 {
+            self.latch = false;
+        }
+        if self.screens.top() != Some(LOADING) {
+            let commands = self.screens.open(LOADING, Args::default(), true, env);
+            self.apply(commands, host, env);
+        }
+        let commands = self.screens.update(dt, 0, env);
+        self.apply(commands, host, env);
     }
 
     pub(in crate::frontend) fn poll_garage(&mut self, host: &mut Host, env: &mut Env, overlay: &mut Overlay) {

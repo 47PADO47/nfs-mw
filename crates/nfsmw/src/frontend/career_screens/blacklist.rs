@@ -32,6 +32,9 @@ use crate::i18n::fmt::grouped;
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle, MenuValue, RivalInfo, RivalStatus};
 use crate::ui::{Text, UiAssets};
 
+#[path = "blacklist_media.rs"]
+mod media;
+
 /// Objects of `SafeHouseRivalChallenge.fng` by name hash. The title group holds the rank ("blacklist %d"), the name group
 /// the rival's name, the bounty group the bounty needed, and the defeated group the stamp of a beaten rival.
 const CHALLENGE_TITLE: u32 = 0x2426_57CE;
@@ -404,6 +407,7 @@ impl BioLogic {
         cx.label_group(BIO_CAR, label_hash(&rival_key(self.bin, "CAR")));
         cx.label_group(BIO_STRENGTH, label_hash(&rival_key(self.bin, "STRENGTH")));
         cx.label_group(BIO_TEXT, label_hash(&rival_key(self.bin, "BIO")));
+        media::bind(cx, self.bin);
     }
 }
 
@@ -481,3 +485,7 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
 #[cfg(test)]
 #[path = "blacklist_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "blacklist_playtest.rs"]
+mod playtest;

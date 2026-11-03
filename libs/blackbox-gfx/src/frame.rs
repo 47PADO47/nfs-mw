@@ -82,6 +82,11 @@ pub struct Instance {
     pub key: InstanceKey,
     /// Whether it casts and receives the sun's shadow. A renderer without shadows ignores this.
     pub shadow: ShadowFlags,
+    /// Emission of materials that use an authored alpha mask.
+    pub emission: f32,
+    /// The scene object this instance belongs to: selects fixture emission power and excludes a fixture from
+    /// shadowing its own light. Detached model parts share their placement's owner.
+    pub owner_key: InstanceKey,
     /// The mesh's triangles are wound the other way round in this placement, beyond what a mirroring `transform`
     /// already does: data that stores a mirrored copy with the mirror baked into its vertices. See
     /// [`Instance::mirrored`].
@@ -96,13 +101,23 @@ impl Instance {
             transform,
             key: InstanceKey::TRANSIENT,
             shadow: ShadowFlags { cast: true, receive: true },
+            emission: 0.0,
+            owner_key: InstanceKey::TRANSIENT,
             flip_winding: false,
         }
     }
 
     /// An instance that keeps `key` from frame to frame.
     pub const fn keyed(mesh: MeshHandle, transform: Mat4, key: InstanceKey) -> Self {
-        Self { mesh, transform, key, shadow: ShadowFlags { cast: true, receive: true }, flip_winding: false }
+        Self {
+            mesh,
+            transform,
+            key,
+            shadow: ShadowFlags { cast: true, receive: true },
+            emission: 0.0,
+            owner_key: key,
+            flip_winding: false,
+        }
     }
 
     /// The same instance with these shadow flags.

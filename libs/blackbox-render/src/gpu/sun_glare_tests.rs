@@ -29,6 +29,7 @@ fn source_occlusion_weather_and_disable_control_solar_glare() {
         shadow_tuning: None,
     };
     let state = SunGlare {
+        to_sun: None,
         layers: vec![SunGlareLayer { texture, radius: 0.15, brightness: 1.0, rotation: 0.0 }],
         colour: [1.0; 3],
         strength: 1.0,
@@ -42,7 +43,7 @@ fn source_occlusion_weather_and_disable_control_solar_glare() {
     r.set_sun_glare(Some(SunGlare { weather_visibility: 0.0, ..state.clone() }));
     let clouded = r.capture(320, 200, &frame, &[]).unwrap();
     assert_eq!(lit(&clouded), 0, "overcast suppresses fallback glare");
-    r.set_sun_glare(Some(state));
+    r.set_sun_glare(Some(state.clone()));
     let mut m = MeshBuilder::new();
     m.state(None, BlendMode::Opaque, Shading::Prelit);
     m.flat_quad(
@@ -56,4 +57,10 @@ fn source_occlusion_weather_and_disable_control_solar_glare() {
     assert_eq!(visible, restored, "no delayed glare history");
     r.set_sun_glare(None);
     assert_eq!(lit(&r.capture(320, 200, &frame, &[]).unwrap()), 0, "disable clears the effect");
+    // At dusk in the full cycle the scene light already leans to the moon; the glare stays on the drawn sun.
+    let moonlit = FrameParams { light_dir: -Vec3::new(1.0, 0.0, 0.5).normalize(), ..frame };
+    r.set_sun_glare(Some(SunGlare { to_sun: Some(sun.to_array()), ..state.clone() }));
+    assert_eq!(visible, r.capture(320, 200, &moonlit, &[]).unwrap(), "the glare follows the drawn sun");
+    r.set_sun_glare(Some(SunGlare { to_sun: Some([0.0, 1.0, -0.1]), ..state }));
+    assert_eq!(lit(&r.capture(320, 200, &frame, &[]).unwrap()), 0, "a set sun hides the glare");
 }

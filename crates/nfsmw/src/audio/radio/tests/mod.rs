@@ -3,6 +3,7 @@
 mod custom;
 mod menus;
 mod playlist;
+mod preview;
 mod pursuit;
 mod radio;
 mod real;

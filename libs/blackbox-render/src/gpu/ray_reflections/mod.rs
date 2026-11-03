@@ -34,6 +34,8 @@ pub(super) struct Scene {
     camera: glam::Vec3,
     ranked_at: Option<glam::Vec3>,
     pub bindings: Bindings,
+    /// Bumped whenever `bindings` change resources, so users can keep bind groups made from them.
+    pub generation: u64,
     selected: Vec<usize>,
     arena: arena::Arena,
     offscreen: Vec<Instance>,
@@ -62,6 +64,7 @@ impl Scene {
             camera: glam::Vec3::ZERO,
             ranked_at: None,
             bindings,
+            generation: 0,
             selected: Vec::new(),
             arena: arena::Arena::default(),
             offscreen: Vec::new(),
@@ -306,6 +309,9 @@ impl Renderer {
             rt.ranked_at = None;
         }
         let changed = rt.prepare(&self.device, &self.queue, encoder, instances, &self.texture_views) || resized;
+        if changed {
+            rt.generation = rt.generation.wrapping_add(1);
+        }
         self.queue.write_buffer(
             &rt.bindings.control,
             16,

@@ -13,6 +13,9 @@ pub(super) struct ModuleTrace {
 }
 
 impl ModuleTrace {
+    pub fn instance(&self) -> u64 {
+        self.instance
+    }
     pub fn new(sink: Trace, bank: &str, class: &str) -> Self {
         let value =
             Self { instance: sink.instance(), logical_ms: sink.now_ms(), sink, bank: bank.into(), class: class.into() };
@@ -39,6 +42,7 @@ impl ModuleTrace {
             inputs,
             success,
             detail,
+            ..Default::default()
         });
     }
 }
@@ -192,6 +196,7 @@ impl Host for PartHost<'_> {
     fn play(&mut self, player: usize, entry: &SampleEntry, inputs: &PlayerInputs) -> bool {
         // Bank indexes start at one. An authored zero entry intentionally has no recording.
         if entry.kind == 0 && entry.index == 0 {
+            self.voices.trace_event("voice_silent", Some(player), Some(inputs), Some(false), "authored zero recording");
             return false;
         }
         if entry.kind != 0 {

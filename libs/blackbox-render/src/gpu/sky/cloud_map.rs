@@ -1,7 +1,7 @@
 //! Current-frame cloud lighting shared by all nearby views. No temporal history.
 
 use super::super::resources::Globals;
-use super::cloud_schedule::{Key, Rebuild, Schedule};
+use super::cloud_schedule::{Key, Rebuild, Schedule, sun_key};
 
 const SIZE: (u32, u32) = (1536, 384);
 
@@ -78,11 +78,12 @@ impl CloudMap {
         mut timing: Option<&mut super::super::timing::Timing>,
     ) {
         let (globals, state) = frame;
+        let (sun, light) = sun_key(state.celestial_sun, globals.to_sun, globals.light_dir[..3].try_into().unwrap());
         let key = Key {
             scroll: state.scroll * state.sky_wind_speed,
             coverage: state.cloud_coverage,
-            sun: globals.to_sun,
-            light: globals.light_dir[..3].try_into().unwrap(),
+            sun,
+            light,
             warmth: state.sky_sunset_warmth,
         };
         let origin: [f32; 3] = globals.camera_pos[..3].try_into().unwrap();

@@ -113,11 +113,16 @@ pub struct SectionResources {
         HashMap<(blackbox_gfx::NormalModel, [TextureHandle; 3]), blackbox_gfx::NormalMaterialHandle>,
     pub(super) window_materials: HashMap<[TextureHandle; 2], blackbox_gfx::WindowMaterialHandle>,
     pub materials: HashMap<u32, (TextureHandle, BlendMode)>,
+    masked_fixture_texture: Option<TextureHandle>,
     /// Which faces the surfaces of each texture in `materials` draw.
     pub(super) sides: HashMap<u32, Sidedness>,
     pub meshes: HashMap<u32, (MeshHandle, LodModel, MeshTraits)>,
     /// Authored environment lights owned by the same lifetime as their model mesh.
     pub(super) flare_markers: HashMap<MeshHandle, Arc<[nfsmw_data::world::lights::Marker]>>,
+    pub(super) local_fixtures: HashMap<MeshHandle, Arc<[super::local_lights::Fixture]>>,
+    /// The placed objects of this tile (or of the shared sets) that carry local-light fixtures, built on the first
+    /// light scan after the list is final (`residency/lights.rs`).
+    pub(super) fixture_places: std::cell::OnceCell<Vec<super::local_lights::FixturePlace>>,
     pub(super) mesh_bounds: HashMap<u32, Aabb>,
     /// Animated textures defined here; frames may live here or in the shared sets.
     pub anims: Vec<blackbox_tpk::TextureAnim>,
@@ -157,6 +162,11 @@ impl SectionResources {
                 false => self.texture_discard,
             };
             if let Some(handle) = upload_texture_predecoded_mips(renderer, t, pixels, discard) {
+                // Split even with street lights off: emission power, not the material, switches the glass, so
+                // turning street lights or the day/night cycle on later lights already-resident lanterns.
+                if self.masked_fixture_texture.is_none() {
+                    self.masked_fixture_texture = super::local_lights::lantern::upload(renderer, t, pixels, discard);
+                }
                 self.materials.insert(t.name_hash, (handle, blend_mode(Some(t))));
                 self.sides.insert(t.name_hash, Sidedness::of(Some(t)));
             }
@@ -178,8 +188,12 @@ impl SectionResources {
         fallback: &SectionResources,
         keep_existing: bool,
     ) {
-        let lookup = |hash: u32| self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).copied();
-        let sides = |hash: u32| self.sides.get(&hash).or_else(|| fallback.sides.get(&hash)).copied();
+        use super::local_lights::lantern;
+        let sides = |hash: u32| {
+            // A split lantern's glass faces the same way as the texture it masks.
+            let hash = if hash == lantern::MASKED_TEXTURE { lantern::TEXTURE } else { hash };
+            self.sides.get(&hash).or_else(|| fallback.sides.get(&hash)).copied()
+        };
         let mut meshes = Vec::new();
         for solid in solids {
             if keep_existing && self.meshes.contains_key(&solid.name_hash) {
@@ -188,6 +202,23 @@ impl SectionResources {
             if is_tunnel_shadow(&solid.name) {
                 continue;
             }
+            let masked_texture = match self.materials.contains_key(&lantern::TEXTURE) {
+                true => self.masked_fixture_texture,
+                false => fallback.masked_fixture_texture,
+            };
+            let original_solid = solid;
+            let split = lantern::layout(&solid.name.to_ascii_uppercase())
+                .filter(|_| masked_texture.is_some())
+                .and_then(|layout| lantern::split_glass(solid, layout));
+            let use_mask = split.is_some();
+            let solid = split.as_ref().map_or(solid, |(solid, _)| solid);
+            // Only the split glass group names the masked texture; every other group keeps its own material.
+            let lookup = |hash: u32| {
+                if use_mask && hash == lantern::MASKED_TEXTURE {
+                    return masked_texture.map(|handle| (handle, BlendMode::Opaque));
+                }
+                self.materials.get(&hash).or_else(|| fallback.materials.get(&hash)).copied()
+            };
             let mut normal_materials =
                 super::materials::normal_materials(renderer, solid, &lookup, &mut self.normal_materials);
             let windows = super::materials::window_materials(renderer, solid, &lookup, &mut self.window_materials);
@@ -196,10 +227,41 @@ impl SectionResources {
                     *material = window;
                 }
             }
+            if solid.name.to_ascii_uppercase().starts_with("PAN_") {
+                for (material, group) in normal_materials.iter_mut().zip(&solid.groups) {
+                    if group.effect_id == 0 && material.is_none() {
+                        *material = Some(Shading::WorldDistant);
+                    }
+                }
+            }
+            let name = solid.name.to_ascii_uppercase();
+            if night_building(&name) {
+                for (material, group) in normal_materials.iter_mut().zip(&solid.groups) {
+                    let opaque = group
+                        .diffuse_texture(solid)
+                        .and_then(lookup)
+                        .is_some_and(|(_, blend)| blend == BlendMode::Opaque);
+                    if material.is_none() && opaque {
+                        *material = match group.effect_id {
+                            0 => Some(Shading::WorldDistant),
+                            3 | 5 => Some(Shading::PrelitDistant),
+                            _ => None,
+                        };
+                    }
+                }
+            }
+            if let Some((_, glass_group)) = &split {
+                normal_materials[*glass_group] = Some(Shading::WorldEmissive);
+            }
             let sky = solid.name.starts_with("SKY");
             let materials = super::materials::Lookup(&lookup, sky, normal_materials, &sides);
             let shading = shading_for(&solid.name);
             if let Some(mesh) = upload_solid(renderer, solid, &materials, shading) {
+                let mut fixture = super::local_lights::Fixture::read(original_solid);
+                fixture.iter_mut().for_each(|fixture| fixture.glass = use_mask);
+                if !fixture.is_empty() {
+                    self.local_fixtures.insert(mesh, fixture.into());
+                }
                 let markers = nfsmw_data::world::lights::markers(solid);
                 if !markers.is_empty() {
                     self.flare_markers.insert(mesh, markers.into());
@@ -220,6 +282,7 @@ impl SectionResources {
         for (hash, mesh) in meshes {
             if let Some(previous) = self.meshes.insert(hash, mesh) {
                 self.flare_markers.remove(&previous.0);
+                self.local_fixtures.remove(&previous.0);
                 renderer.destroy_mesh(previous.0);
             }
         }
@@ -262,6 +325,9 @@ impl SectionResources {
     }
 
     pub fn release(self, renderer: &mut dyn RenderBackend) {
+        if let Some(texture) = self.masked_fixture_texture {
+            renderer.destroy_texture(texture);
+        }
         for (mesh, _, _) in self.meshes.into_values() {
             renderer.destroy_mesh(mesh);
         }
@@ -281,6 +347,15 @@ impl SectionResources {
 /// around the whole map; they draw without fog.
 fn shading_for(solid_name: &str) -> Shading {
     if solid_name.starts_with("SKY") { Shading::Sky } else { Shading::Prelit }
+}
+
+/// Night response for the inspected highway and downtown building families.
+fn night_building(name: &str) -> bool {
+    if name.starts_with("XB_HAPARTMENT") || name.starts_with("XB_BEACHHOTEL") || name.starts_with("XB_CITYTOWER") {
+        return true;
+    }
+    name.strip_prefix("XB_CITYMODERN")
+        .is_some_and(|suffix| suffix.as_bytes().get(..2).is_some_and(|digits| digits.iter().all(u8::is_ascii_digit)))
 }
 
 /// Scenery we can't draw correctly yet: `SKY_SPECULAR`, a sky layer textured

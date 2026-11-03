@@ -65,6 +65,8 @@ impl Default for Args {
                 coop_locked: false,
                 blacklist: None,
                 tuning: None,
+                safe_house: None,
+                pursuit: false,
             },
             custom: false,
             sequence: false,

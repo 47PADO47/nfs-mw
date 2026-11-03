@@ -85,12 +85,13 @@ The package's objects, by name hash (`nfsmw dump-screen Dialog.fng`):
 Tests: `frontend::tests::the_pause_menu_resumes_opens_the_options_and_quits` (No keeps the pause menu, Left then
 accept quits) runs against the install with `NFSMW_GAME_DIR`.
 
-## 5. Open questions
+## 5. Visual observations and open questions
 
-- Where the Yes and No buttons sit on screen (Yes in the middle, No on the right) is the rewrite's choice. The
-  original's two-answer layout is not checked against a screenshot yet.
-- The answer's focus shows no highlight; the package's own highlight script runs only when the package moves the
-  focus itself, so the highlight may be missing on the answers this logic moves.
+- **[PC observed, modded reference]** A recorded quit dialog shows Yes in the middle and No on the right,
+  with No highlighted in the inspected frame. This supports that layout for the observed two-answer variant;
+  other variants and the unmodified PC installation remain unchecked.
+- Whether the remake reproduces the observed answer highlight needs a matched rendered comparison. Check
+  the package's highlight scripts together with the focus changes made by the screen logic.
 - The original quit call also carries `0x34DC1BCF` and `0xBE34E004`. `0xBE34E004` sets the flag
   `DAT_009257EC` in `FUN_005a4820`; its readers are not traced yet.
 

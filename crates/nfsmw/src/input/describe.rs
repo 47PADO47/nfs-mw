@@ -40,9 +40,8 @@ fn section(action: Action) -> Section {
         }
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuButton1 | MenuButton2
-        | MenuButton3 | MenuZoomIn | MenuZoomOut | MenuTriggerLeft | MenuTriggerRight | MenuQuit | Click => {
-            Section::Menus
-        }
+        | MenuButton3 | JukeboxGrab | MenuZoomIn | MenuZoomOut | MenuTriggerLeft | MenuTriggerRight | MenuQuit
+        | Click => Section::Menus,
         Cancel | Console | RadioToggle | RadioNext | RadioPrevious | Map => Section::General,
     }
 }
@@ -97,6 +96,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         MenuButton1 => ("Menu button 1 (post-race: restart)", ""),
         MenuButton2 => ("Menu button 2 (win photo: race stats; tutorial)", ""),
         MenuButton3 => ("Menu button 3 (car select: showcase)", ""),
+        JukeboxGrab => ("EA Trax: grab / release song for reordering", ""),
         MenuZoomIn => ("Showcase: zoom in", ""),
         MenuZoomOut => ("Showcase: zoom out", ""),
         MenuTriggerLeft => ("Menu left shoulder (post-race: previous racer)", ""),
@@ -214,7 +214,7 @@ fn is_two_way(action: Action) -> bool {
 }
 
 /// What the player presses (or moves) to give `binding`'s action a positive (`false`) or negative (`true`) value.
-fn input_for(binding: &Binding, negative: bool) -> Option<String> {
+pub(super) fn input_for(binding: &Binding, negative: bool) -> Option<String> {
     let pushes_negative = binding.scale < 0.0;
     match binding.source {
         Source::Key(key) => (negative == pushes_negative).then(|| key_name(key)),

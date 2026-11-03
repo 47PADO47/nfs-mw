@@ -129,6 +129,8 @@ pub enum Action {
     /// Driving axis, -1..1: up is positive. The same, tipping the helmet camera up or down. Not bound by default on a pad: the
     /// right stick's Y is the gear shift there.
     HeadLookY,
+    /// EA Trax: grab/release the selected song for reordering (Y on the default controller layout).
+    JukeboxGrab,
 }
 
 impl Action {
@@ -201,6 +203,7 @@ impl Action {
             "abs_level",
             "head_look_x",
             "head_look_y",
+            "jukebox_grab",
         ];
         NAMES[self.index()]
     }
@@ -212,7 +215,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 67] = [
+    pub const ALL: [Action; 68] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -280,6 +283,7 @@ impl Action {
         Action::AbsLevel,
         Action::HeadLookX,
         Action::HeadLookY,
+        Action::JukeboxGrab,
     ];
 
     /// Actions that still work while the UI has the keyboard.

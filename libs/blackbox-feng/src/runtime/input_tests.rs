@@ -155,3 +155,38 @@ fn a_focus_move_changes_the_revision_and_a_repeated_focus_does_not() {
     rt.set_focus(id, 2);
     assert_eq!(rt.revision(id), moved, "focusing the focused button changes nothing");
 }
+
+#[test]
+fn release_while_input_is_disabled_resets_the_first_repeat_delay() {
+    for disable_control in [false, true] {
+        let (mut rt, id) = row(&[]);
+        step(&mut rt, pad::UP, 21);
+        assert_eq!(game_messages(&mut rt).len(), 2, "press and first repeat");
+        if disable_control {
+            rt.set_control(id, false);
+        }
+        if !disable_control {
+            rt.set_input_enabled(id, false);
+        }
+        step(&mut rt, 0, 1);
+        rt.set_control(id, true);
+        rt.set_input_enabled(id, true);
+        step(&mut rt, pad::UP, 1);
+        assert_eq!(game_messages(&mut rt), vec![PAD_UP], "new press is immediate");
+        step(&mut rt, pad::UP, 8);
+        assert!(game_messages(&mut rt).is_empty(), "the new hold must wait for the first repeat delay");
+        step(&mut rt, pad::UP, 12);
+        assert_eq!(game_messages(&mut rt), vec![PAD_UP], "first repeat after 320 ticks");
+    }
+}
+
+#[test]
+fn a_held_direction_keeps_fast_repeat_through_a_zero_tick_frame() {
+    let (mut rt, _) = row(&[]);
+    step(&mut rt, pad::UP, 21);
+    assert_eq!(game_messages(&mut rt).len(), 2, "press and first repeat");
+    rt.update(1.0 / 9600.0); // Positive elapsed time, but no whole authored tick yet.
+    assert!(game_messages(&mut rt).is_empty());
+    step(&mut rt, pad::UP, 8);
+    assert_eq!(game_messages(&mut rt), vec![PAD_UP], "a still-held direction keeps the fast interval");
+}

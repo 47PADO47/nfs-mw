@@ -31,8 +31,21 @@ pub(super) fn collect_typed(mut events: MessageReader<KeyboardInput>, mut typed:
 
 /// Puts a key in a slot and writes the bindings to the config file. A missing config path only keeps the change for
 /// this run.
-pub(super) fn remember_key(bindings: &mut Bindings, control: crate::input::Control, slot: usize, key: KeyCode) {
+pub(super) fn remember_key(
+    bindings: &mut Bindings,
+    control: crate::input::Control,
+    slot: usize,
+    key: KeyCode,
+    save: bool,
+) {
     bindings.set_keyboard_slot(control, slot, key);
+    save_bindings(bindings, save);
+}
+
+pub(super) fn save_bindings(bindings: &Bindings, save: bool) {
+    if !save {
+        return;
+    }
     let Some(path) = Settings::config_path() else { return };
     if let Err(e) = bindings.save_to(&path) {
         log::warn!("the key could not be saved to {}: {e:#}", path.display());

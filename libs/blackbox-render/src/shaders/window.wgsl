@@ -92,7 +92,16 @@ fn shade(v: Output) -> vec4<f32> {
     var q = 1.0;
     if globals.fog_range.w<0.5 && v.receives_shadow != 0u { q = direct_visibility(v.world,plane,v.clip.xy); }
     q *= cloud_visibility(v.world);
-    let rgb = 2.0*(tex.rgb*v.ambient+(tex.rgb*v.diffuse+2.0*tex.a*v.highlight)*q)+tex.a*reflection.rgb+v.scatter;
+    // Daytime sky reflections and in-scattering are baked into these authored windows.
+    // Reduce those two terms at night while retaining the source window pattern.
+    let night = shadow_data.local_options.w;
+    let reflected = tex.a * reflection.rgb * mix(1.0, 0.45, night);
+    let scatter = v.scatter * mix(1.0, 0.035, night);
+    var rgb = 2.0*(tex.rgb*v.ambient+(tex.rgb*v.diffuse+2.0*tex.a*v.highlight)*q)+reflected+scatter;
+    if shadow_data.local_options.w > 0.0 {
+        rgb *= mix(vec3(1.0), vec3(0.30, 0.35, 0.45), shadow_data.local_options.w);
+        if globals.fog_range.w < 0.5 { rgb += shadow_data.local_options.w*2.0*tex.rgb*local_lighting(v.world,plane); }
+    }
     return extended_output(vec4(rgb,tex.a));
 }
 @fragment fn fs_opaque(v: Output) -> @location(0) vec4<f32> { return shade(v); }

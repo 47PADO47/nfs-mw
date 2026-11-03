@@ -125,11 +125,13 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
     if uv_offset.value.z>0.5 && light.wet_tuning.x>0.5 && light.water.x>0.0 {
         surface = wet_surface(in, tex, spec_tex, n, l, v, diffuse_light, q, ao, surface);
     }
-    var rgb = surface*in.extinction+in.scatter;
+    surface *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
+    if globals.fog_range.w < 0.5 { surface += 2.0*tex.rgb*local_lighting(in.world,shading_normal) + spec_tex.rgb*local_specular(in.world,shading_normal,globals.camera_pos.xyz-in.world,32.0); }
+    var rgb = surface*in.extinction+in.scatter*mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
     if globals.scatter_rayleigh.w<0.5 {
         let distance = length(in.world-globals.camera_pos.xyz);
         let fog = clamp((distance-globals.fog_range.x)/max(globals.fog_range.y-globals.fog_range.x,0.001),0.0,1.0);
-        rgb = mix(rgb,globals.fog_color.rgb,fog);
+        rgb = mix(rgb,globals.fog_color.rgb*mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w),fog);
     }
     if uv_offset.value.z>0.5 { return extended_output(vec4(rgb,1.0)); }
     return extended_output(vec4(rgb,tex.a*in.ambient.a));
@@ -223,11 +225,15 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     }
     let shading_normal = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
     let base = 2.0*tex.rgb*(in.ambient.rgb*world_environment(shading_normal)*ao+diffuse_light*max(dot(water_n,l),0.0)*q);
-    let diffuse = wet_linear(base)*mix(1.0,0.72,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
     let power = mix(24.0,192.0,pool);
+    var local_glint = vec3(0.0);
+    if globals.fog_range.w < 0.5 {
+        local_glint = local_specular(in.world,shading_normal,globals.camera_pos.xyz-in.world,power);
+    }
+    let diffuse = wet_linear(base)*mix(1.0,0.72,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
     let h = unit(l+v);
     let glint = pow(max(dot(water_n,h),0.0),power)*(power+2.0)/50.0;
     let spec = wet_linear(light.specular.rgb)*glint*q*fresnel*water_mask;
     let env = wet_linear(filtered)*reflectance*select(0.0,1.0,light.reflection.x>0.0);
-    return mix(dry,wet_encoded(diffuse+spec+env),damp);
+    return mix(dry,wet_encoded(diffuse+spec+env+wet_linear(local_glint)*water_mask),damp);
 }

@@ -155,6 +155,10 @@ impl IconMenu {
 }
 
 impl ScreenLogic for IconMenu {
+    fn accepts_input(&self) -> bool {
+        self.reacts
+    }
+
     fn resume(&mut self, cx: &mut Cx) {
         // A retained menu regains control after its dialog/list closes, including callers that began leaving.
         self.strip.restore();

@@ -49,6 +49,7 @@ pub enum Id {
     /// The pause menu's items in a race: Resume Race and Restart.
     ResumeRace,
     RestartRace,
+    JumpToSafeHouse,
     /// The pause menu's End Co-op row, listed only while a co-op session is on (`pause_icons`); plain text label.
     EndCoop,
     /// Quit to the menu the game was started from; the name and the question follow [`QuitTo`].
@@ -187,6 +188,9 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
     }
     if let Some(stage) = ctx.blacklist {
         list.push(icon(Id::SafeHouseBlacklist(stage), 0x2C14_AC23, 0x80B9_FF9B, true));
+    }
+    if let Some(enabled) = ctx.safe_house {
+        list.push(icon(Id::JumpToSafeHouse, QUIT_TEXTURE, 0x3C14_C420, enabled));
     }
     list.push(icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true));
     if let Some(enabled) = ctx.tuning {
@@ -391,3 +395,7 @@ mod tests {
         assert!(lan.enabled, "LAN play has its menu");
     }
 }
+
+#[cfg(test)]
+#[path = "pause_playtest.rs"]
+mod pause_playtest;

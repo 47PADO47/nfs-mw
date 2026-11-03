@@ -23,6 +23,7 @@ pub(super) struct GarageScene {
     baseline: Selection,
     baseline_slot: Option<String>,
     preview_car: String,
+    rendered: Option<Selection>,
     physics: Option<PhysicsData>,
     inventory: Option<customization::Inventory>,
     backdrop: GarageBackdrop,
@@ -40,6 +41,7 @@ impl GarageScene {
             baseline: Selection::default(),
             baseline_slot: None,
             preview_car: String::new(),
+            rendered: None,
             physics: None,
             inventory: None,
             worker: None,
@@ -75,16 +77,25 @@ impl GarageScene {
             .context("Physics is loading")?
             .car_with_performance(&entry.physics_name, selection.performance)?;
         ensure!(selection.color.is_none() || entry.paintable, "This car has a fixed livery");
+        self.model.gauge_max_rpm = physics.spec.engine.max_rpm;
+        self.model.gauge_has_turbo = physics.spec.induction.kind() != blackbox_vehicle::induction::InductionKind::None;
+        if self.rendered.as_ref().is_some_and(|previous| same_geometry(previous, selection)) {
+            return Ok(());
+        }
+        self.backdrop.set_car_shading(self.shading);
+        if self.backdrop.restore_preview(renderer, selection) {
+            self.preview_car = selection.car.clone();
+            self.rendered = Some(selection.clone());
+            return Ok(());
+        }
         let options = LoadOptions { lod: 'A', all_parts: false, preset: None };
         let mut model = nfsmw_data::car::load_customized(&self.dir, &selection.car, &options, &selection.parts)?;
         if let Some(color) = selection.color {
             model.set_body_color(color)?;
         }
-        self.backdrop.set_car_shading(self.shading);
-        self.backdrop.show_model(renderer, model, options)?;
-        self.model.gauge_max_rpm = physics.spec.engine.max_rpm;
-        self.model.gauge_has_turbo = physics.spec.induction.kind() != blackbox_vehicle::induction::InductionKind::None;
+        self.backdrop.show_preview(renderer, selection, model, options)?;
         self.preview_car = selection.car.clone();
+        self.rendered = Some(selection.clone());
         Ok(())
     }
 
@@ -113,18 +124,22 @@ impl GarageScene {
         }
         self.refresh_slots()?;
         self.model.reset_draft();
+        // Select the saved car before uploading a fallback; otherwise entry uploads two complete previews.
+        let slot_error = if let Some((id, _)) = self.model.custom_slots.first().cloned() {
+            match self.select_slot(renderer, &id) {
+                Ok(()) => return Ok(()),
+                Err(error) => Some(Err(format!("Saved custom car could not be loaded: {error:#}"))),
+            }
+        } else {
+            None
+        };
         let selection = self.model.draft.clone();
-        self.discover(&selection.car)?;
         self.show_selection(renderer, &selection)?;
         self.model.applied = selection.clone();
         self.model.draft = selection.clone();
         self.baseline = selection;
         self.refresh_unlock_error(&self.model.draft.clone());
-        if let Some((id, _)) = self.model.custom_slots.first().cloned()
-            && let Err(error) = self.select_slot(renderer, &id)
-        {
-            self.model.message = Some(Err(format!("Saved custom car could not be loaded: {error:#}")));
-        }
+        self.model.message = slot_error;
         Ok(())
     }
 }
@@ -156,6 +171,7 @@ impl Scene for GarageScene {
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
         self.backdrop.close(renderer);
         self.worker = None;
+        self.rendered = None;
     }
 
     fn ready(&self) -> bool {
@@ -212,6 +228,16 @@ impl Scene for GarageScene {
     }
 
     fn begin_garage(&mut self, _renderer: &mut dyn RenderBackend) -> Result<()> {
+        ensure!(
+            self.rendered.is_some(),
+            "{}",
+            self.model
+                .message
+                .as_ref()
+                .and_then(|message| message.as_ref().err())
+                .map(String::as_str)
+                .unwrap_or("Garage preview is unavailable")
+        );
         self.baseline = self.model.applied.clone();
         self.baseline_slot = self.model.custom_slot.clone();
         let message = self.model.message.take();
@@ -221,10 +247,11 @@ impl Scene for GarageScene {
     }
 
     fn preview_garage(&mut self, renderer: &mut dyn RenderBackend, selection: Selection) -> Result<()> {
-        if selection.car != self.preview_car {
+        let different_car = selection.car != self.preview_car;
+        self.show_selection(renderer, &selection)?;
+        if different_car {
             self.model.custom_slot = None;
         }
-        self.show_selection(renderer, &selection)?;
         self.refresh_unlock_error(&selection);
         self.model.draft = selection;
         Ok(())
@@ -281,3 +308,11 @@ impl Scene for GarageScene {
 #[cfg(test)]
 #[path = "garage_scene_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "garage_initial_tests.rs"]
+mod initial_tests;
+
+fn same_geometry(previous: &Selection, next: &Selection) -> bool {
+    previous.car == next.car && previous.parts == next.parts && previous.color == next.color
+}

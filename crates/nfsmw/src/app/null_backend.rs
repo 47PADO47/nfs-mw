@@ -11,6 +11,7 @@ use blackbox_gfx::{
 
 #[derive(Default)]
 pub struct ResourceCounts {
+    pub focus_filter: blackbox_gfx::FocusFilter,
     pub meshes: usize,
     pub textures: usize,
     pub texture_destructions: usize,
@@ -182,6 +183,9 @@ impl NullBackend {
 }
 
 impl RenderBackend for NullBackend {
+    fn set_focus_filter(&mut self, filter: blackbox_gfx::FocusFilter) {
+        self.resources.lock().unwrap().focus_filter = filter;
+    }
     fn info(&self) -> &BackendInfo {
         &self.info
     }

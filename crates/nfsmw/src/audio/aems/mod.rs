@@ -109,6 +109,9 @@ pub(super) struct EffectModule {
 }
 
 impl EffectModule {
+    pub fn trace_instance(&self) -> u64 {
+        self.part.voices.trace.as_ref().map_or(0, host::ModuleTrace::instance)
+    }
     pub fn release(&mut self) {
         if !self.has_ticked {
             // No graph update has reached the host, so no voice or child object exists to release.

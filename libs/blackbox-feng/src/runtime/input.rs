@@ -79,6 +79,13 @@ impl PadState {
     fn update(&mut self, mask: u32, ticks: u32) {
         self.last = self.now;
         self.now = mask;
+        // Release resets each case even when no package can process input this frame.
+        for (case, &(a, b, _)) in DIRECTIONS.iter().enumerate() {
+            let required = (1 << a) | b.map_or(0, |bit| 1 << bit);
+            if mask & required != required {
+                self.fast &= !(1 << case);
+            }
+        }
         for bit in 0..32 {
             let m = 1 << bit;
             if self.now & m == 0 {
@@ -279,15 +286,11 @@ impl Runtime {
                 None => pad.now & (1 << a) != 0,
             };
             if !both_down {
-                self.pad.fast &= !(1 << case);
                 continue;
             }
             let repeat = if self.pad.fast & (1 << case) != 0 { FAST_REPEAT } else { FIRST_REPEAT };
             let repeating = held_for >= repeat && !just_pressed;
             if !just_pressed && !repeating {
-                if held_for == 0 {
-                    self.pad.fast &= !(1 << case);
-                }
                 continue;
             }
             if repeating {

@@ -136,6 +136,11 @@ impl<'a> Pass<'a> {
         }
         parts.clear();
         let replaced = p.prop_id != visibility::NOT_A_PROP && self.props.model_instances(p.prop_id, transform, parts);
+        if replaced {
+            for instance in parts.iter_mut() {
+                instance.owner_key = p.key;
+            }
+        }
         for (face, slot) in faces.iter_mut().zip(selected) {
             let Some(slot) = slot else { continue };
             if replaced {

@@ -53,7 +53,8 @@ fn blocker_search_is_invariant_to_light_depth_origin() {
     let pipeline = render_pipeline(&r.device, &shader, Some(wgpu::TextureFormat::Rgba8Unorm), false);
     let uniform = r.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("shadow probe params"),
-        size: std::mem::size_of::<Params>() as u64,
+        // The receiver reads the local-light block after the cascade params; it stays zeroed (no local lights).
+        size: (std::mem::size_of::<Params>() + std::mem::size_of::<super::local::Params>()) as u64,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
@@ -236,7 +237,8 @@ fn dense_wide_penumbra_adds_taps_and_switches_continuously() {
     let pipeline = render_pipeline(&r.device, &shader(source), Some(wgpu::TextureFormat::Rgba8Unorm), false);
     let uniform = r.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("penumbra probe params"),
-        size: std::mem::size_of::<Params>() as u64,
+        // The receiver reads the local-light block after the cascade params; it stays zeroed (no local lights).
+        size: (std::mem::size_of::<Params>() + std::mem::size_of::<super::local::Params>()) as u64,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });

@@ -34,6 +34,7 @@ pub(crate) mod feed;
 mod finish_flares;
 mod frame;
 mod frame_systems;
+mod full_cycle;
 mod garage;
 mod mesh_animation;
 pub(crate) use garage::catalog as garage_catalog;
@@ -73,6 +74,7 @@ pub use open::WorldLoad;
 mod damage_effects;
 mod environment_lights;
 mod impact_effects;
+mod local_lights;
 #[cfg(test)]
 mod performance_tests;
 mod prop_effects;
@@ -209,9 +211,14 @@ pub struct WorldScene {
     /// Seconds since the scene started, for texture animations.
     clock: f32,
     environment_lights: environment_lights::EnvironmentLights,
+    street_glows: Vec<(Vec3, f32, Vec3, Vec3, Vec3)>,
+    fixture_emission: local_lights::Emission,
+    local_scratch: local_lights::Scratch,
     sun: sun::Sun,
     /// The day-night clock: the hour of day, the sun for it and the lights.
     day: day::DayClock,
+    night_headlights_restore: Option<bool>,
+    cycle_lights_night: Option<bool>,
     /// The aspect ratio the physics camera uses (set by each frame).
     physics_aspect: f32,
     /// The aspect ratio of the last frame drawn (`frame.rs`), for the HUD's camera (`camera_choice.rs`).

@@ -61,6 +61,46 @@ pub struct RenderExperiments {
     /// Reconstructed authored world material families instead of legacy prelit fallback.
     pub original_world_materials: bool,
     pub sun_shadows: bool,
+    pub local_lamps: bool,
+    /// Recognized streetlight fixtures, illuminated at night.
+    pub local_street_lights: bool,
+    pub local_headlights: bool,
+    pub local_traffic_headlights: bool,
+    /// Maximum traffic cars contributing physical headlights.
+    pub local_traffic_limit: u32,
+    pub experimental_night: bool,
+    /// Optional continuous, clock-driven day and night.
+    pub full_day_night: bool,
+    /// Automatically switch the player lights at dusk and dawn.
+    pub auto_player_lights: bool,
+    /// Player tail and brake lights illuminate nearby surfaces.
+    pub local_tail_lights: bool,
+    /// Enhanced sky brightness during the experimental night mode.
+    pub night_sky_brightness: f32,
+    pub local_light_distance: f32,
+    pub local_light_strength: f32,
+    /// Streetlight brightness and physical reach, independent of tunnel fixtures.
+    pub local_street_strength: f32,
+    pub local_street_range: f32,
+    /// Apparent bulb glow, independent of the light cast on the world.
+    pub local_street_glow: f32,
+    /// Shared weather-dependent light scattering from local fixtures.
+    pub local_light_fog: f32,
+    /// View distance of the shared local-light fog in metres.
+    pub local_light_fog_distance: f32,
+    /// Shared fog-grid resolution, from 1 (low) to 3 (high).
+    pub local_light_fog_quality: u32,
+    /// Street haze volumes budget. Kept for saved profiles; the fog budget is `local_light_fog_count`.
+    pub local_street_haze_count: u32,
+    /// Maximum number of local lights contributing to the shared light fog (0 to 64).
+    pub local_light_fog_count: u32,
+    pub local_headlight_strength: f32,
+    pub local_light_limit: u32,
+    pub local_shadow_count: u32,
+    pub local_shadow_resolution: u32,
+    pub local_shadow_filter: f32,
+    pub local_shadow_distance: f32,
+    pub local_specular_strength: f32,
     /// Deterministic near-field Vulkan sun visibility, with cascades at distance.
     pub ray_sun_shadows: bool,
     /// Finite sun-disc visibility; hard rays remain an independent comparison.
@@ -164,6 +204,33 @@ impl Default for RenderExperiments {
             sky_sunset_warmth: 1.0,
             original_world_materials: false,
             sun_shadows: false,
+            local_lamps: false,
+            local_street_lights: false,
+            local_headlights: false,
+            local_traffic_headlights: false,
+            local_traffic_limit: 4,
+            experimental_night: false,
+            full_day_night: false,
+            auto_player_lights: true,
+            local_tail_lights: false,
+            night_sky_brightness: 0.18,
+            local_light_distance: 160.0,
+            local_light_strength: 1.0,
+            local_street_strength: 1.5,
+            local_street_range: 35.0,
+            local_street_glow: 1.0,
+            local_light_fog: 0.5,
+            local_light_fog_distance: 200.0,
+            local_light_fog_quality: 2,
+            local_street_haze_count: 8,
+            local_light_fog_count: 8,
+            local_headlight_strength: 1.15,
+            local_light_limit: 128,
+            local_shadow_count: 8,
+            local_shadow_resolution: 1024,
+            local_shadow_filter: 1.0,
+            local_shadow_distance: 80.0,
+            local_specular_strength: 0.15,
             cached_shadows: false,
             cached_reflections: false,
             screen_reflections: false,
@@ -206,12 +273,36 @@ impl Default for RenderExperiments {
 impl RenderExperiments {
     pub fn sanitized(self) -> Self {
         Self {
+            night_sky_brightness: finite(self.night_sky_brightness, 0.18).clamp(0.05, 0.4),
+            local_light_distance: finite(self.local_light_distance, 160.0).clamp(80.0, 600.0),
+            local_headlight_strength: finite(self.local_headlight_strength, 1.15).clamp(0.0, 5.0),
+            local_light_limit: self.local_light_limit.clamp(8, 128),
+            local_traffic_limit: self.local_traffic_limit.min(8),
+            local_shadow_count: self.local_shadow_count.min(16),
+            local_shadow_resolution: match self.local_shadow_resolution {
+                0..=512 => 512,
+                513..=1024 => 1024,
+                _ => 2048,
+            },
+            local_shadow_distance: finite(self.local_shadow_distance, 80.0).clamp(20.0, 240.0),
+            local_specular_strength: finite(self.local_specular_strength, 0.15).clamp(0.0, 1.0),
+            local_shadow_filter: finite(self.local_shadow_filter, 1.0).clamp(0.0, 3.0),
+            local_light_strength: finite(self.local_light_strength, 1.0).clamp(0.0, 5.0),
+            local_street_strength: finite(self.local_street_strength, 1.5).clamp(0.0, 5.0),
+            local_street_glow: finite(self.local_street_glow, 1.0).clamp(0.0, 2.0),
+            local_light_fog: finite(self.local_light_fog, 0.5).clamp(0.0, 4.0),
+            local_light_fog_distance: finite(self.local_light_fog_distance, 200.0).clamp(80.0, 600.0),
+            local_light_fog_quality: self.local_light_fog_quality.clamp(1, 3),
+            local_street_haze_count: self.local_street_haze_count.min(64),
+            local_light_fog_count: self.local_light_fog_count.min(64),
+            local_street_range: finite(self.local_street_range, 35.0).clamp(10.0, 120.0),
             world_skylight_strength: finite(self.world_skylight_strength, 0.65).clamp(0.0, 1.0),
             puddle_coverage: finite(self.puddle_coverage, 0.7).clamp(0.0, 1.0),
             puddle_scale: finite(self.puddle_scale, 7.0).clamp(2.0, 30.0),
             road_reflection_range: finite(self.road_reflection_range, 320.0).clamp(80.0, 800.0),
             road_reflection_fade: finite(self.road_reflection_fade, 0.65).clamp(0.1, 0.9),
             ray_shadow_samples: match self.ray_shadow_samples {
+                2 => 2,
                 0..=4 => 4,
                 5..=8 => 8,
                 _ => 16,
@@ -313,6 +404,8 @@ mod ray_shadow_tests {
         }
         .sanitized();
         assert_eq!(invalid.ray_shadow_samples, 16);
+        assert_eq!(RenderExperiments { ray_shadow_samples: 2, ..defaults }.sanitized().ray_shadow_samples, 2);
+        assert_eq!(RenderExperiments { ray_shadow_samples: 0, ..defaults }.sanitized().ray_shadow_samples, 4);
         assert_eq!(invalid.ray_shadow_resolution, 100);
         assert_eq!(invalid.far_shadow_scale, 3.0);
         let range = RenderExperiments {
@@ -331,5 +424,18 @@ mod ray_shadow_tests {
             RenderExperiments { ray_shadow_range: 900.0, ray_shadow_length: 900.0, ray_shadow_bias: 1.0, ..defaults }
                 .sanitized();
         assert_eq!((large.ray_shadow_range, large.ray_shadow_length, large.ray_shadow_bias), (240.0, 800.0, 0.05));
+    }
+}
+
+#[cfg(test)]
+mod light_fog_tests {
+    use super::RenderExperiments;
+    #[test]
+    fn the_fog_light_budget_is_bounded_and_defaults_to_the_old_haze_count() {
+        let defaults = RenderExperiments::default();
+        assert_eq!(defaults.local_light_fog_count, defaults.local_street_haze_count);
+        let large = RenderExperiments { local_light_fog_count: 500, ..defaults }.sanitized();
+        assert_eq!(large.local_light_fog_count, 64);
+        assert_eq!(RenderExperiments { local_light_fog_count: 0, ..defaults }.sanitized().local_light_fog_count, 0);
     }
 }
