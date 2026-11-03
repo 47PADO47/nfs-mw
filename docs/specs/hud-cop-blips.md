@@ -62,8 +62,11 @@ The car's colour is set on every update. **[binary]**
   per 50 ms sample in 85 % of the samples and stood still while the game was paused; a 60 Hz simulation step would
   have moved it 3. So the cycle lasts nine frames: 150 ms at 60 frames per second.
 - A shown car that is not in the pursuit any more is **steady light grey `#CCCCCC`**, never white. That is a wrecked
-  car (it leaves the pursuit when it wrecks), a car sent away and a car that fled. **[inferred]** from the in-pursuit
-  state's writers.
+  car (it leaves the pursuit when it wrecks). **[inferred]** from the in-pursuit state's writers.
+- **[decomp]** The icon pass tests two things per car: one decides whether the car is drawn at all (a car failing it is
+  hidden), the other whether its bar flashes. **[observed]** In the original a car sent away in the cool-down is not
+  drawn as a grey car, and in a capture the cars near the player in the cool-down are pursuit members or roadblock cars.
+  The remake hides a car sent away (`ai/minimap.rs`).
 - The colour's alpha is replaced by the placement fade (section 4).
 
 ## 4. Placement

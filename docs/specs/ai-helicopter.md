@@ -192,6 +192,9 @@ second = elev(work.xz) with normal n: if covered and second > work.y:
 return whether the secondary coordinate was covered
 ```
 
+**Axes of `n2`.** `n2 = (-n.y, 0, n.x)` takes `n` in sheet axes, so in world axes it is `(n.x, 0, n.z)`: no push over a
+level roof. Applied to a world normal it pushed sideways by 0.3 of the speed each step (the helicopter stalled, was dropped).
+
 **[ours]** The lead-point rule's `dir + n2` is made a unit vector again before it is scaled by the speed. Unscaled, the
 push lengthens the vector, and applied every physics step it raised the speed by its share each step (130 m/s over a roof
 in a play trace, against the 100 m/s top speed).

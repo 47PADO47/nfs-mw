@@ -188,3 +188,49 @@ fn a_far_helicopter_the_camera_looks_at_stays_in_play() {
     heli.camera = Some(camera::Camera { position: Vec3::new(-10.0, 3.0, 0.0), forward: Vec3::X, velocity: Vec3::ZERO });
     assert!(heli.out_of_play(&player()), "the camera looks away from it");
 }
+
+/// A level floor at a height, with its normal straight up (the sheet over a flat roof).
+struct Roof(f32);
+
+impl control::Heights for Roof {
+    fn elevation(&self, _x: f32, _z: f32) -> Option<f32> {
+        Some(self.0)
+    }
+
+    fn floor(&self, x: f32, z: f32) -> Option<control::Floor> {
+        self.elevation(x, z).map(|height| control::Floor { height, normal: Vec3::Y })
+    }
+}
+
+/// Chases a car driving along +x at 70 m/s from 250 m behind it for `seconds`, over `floor`; returns the helicopter.
+fn chase_over(floor: &dyn control::Heights, seconds: f32) -> (Helicopter, Player) {
+    let mut heli = Helicopter::spawn(Vec3::new(-250.0, 20.0, 0.0), 0.0, Tuning::default());
+    let dt = 1.0 / 60.0;
+    let mut p = Player { position: Vec3::ZERO, velocity: Vec3::new(70.0, 0.0, 0.0), forward: Vec3::X };
+    let mut clock = THINK_PERIOD;
+    for _ in 0..(seconds / dt) as usize {
+        clock += dt;
+        while clock >= THINK_PERIOD {
+            clock -= THINK_PERIOD;
+            heli.decide(THINK_PERIOD, &p, OPEN, &clear, floor, SEARCH);
+        }
+        heli.integrate(dt, floor);
+        p.position += p.velocity * dt;
+    }
+    (heli, p)
+}
+
+#[test]
+fn a_helicopter_from_behind_catches_a_fast_car() {
+    let (heli, p) = chase_over(&Flat(-2.0), 12.0);
+    assert!(heli.body.velocity.length() > 95.0, "top speed: {}", heli.body.velocity.length());
+    assert!(p.position.x - heli.body.position.x < 150.0, "closing: {}", p.position.x - heli.body.position.x);
+}
+
+#[test]
+fn a_level_roof_over_the_chase_does_not_push_the_helicopter_aside() {
+    let (heli, p) = chase_over(&Roof(26.0), 12.0);
+    assert!(heli.body.velocity.z.abs() < 5.0 && heli.body.position.z.abs() < 20.0, "{:?}", heli.body);
+    assert!(heli.body.velocity.x > 60.0, "it keeps up: {:?}", heli.body.velocity);
+    assert!(p.position.x - heli.body.position.x < 250.0, "closing: {}", p.position.x - heli.body.position.x);
+}

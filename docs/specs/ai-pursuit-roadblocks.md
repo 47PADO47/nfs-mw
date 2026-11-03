@@ -131,7 +131,9 @@ not a heavy roadblock's SUVs or a big cop model. Cars created inside each other 
 solver: in a play trace one SUV stood half on another. Before the cars are created, each car slot is moved just clear of
 the slots before it (0.3 m gap, the shortest way out of the overlap of the two footprints, in the road plane, at most
 4 m), using the size of the model that will stand there. Slots that do not overlap keep the layout's position, and the
-road-edge check runs on the moved slots (`ai/roadblock/spacing.rs`).
+road-edge check runs on the moved slots (`ai/roadblock/spacing.rs`). A car that would stand in a wall (a horizontal
+ray at 0.8 m from its centre to its corners and side middles meets a face steeper than 60 degrees) is moved back out
+along the wall's normal, and the spacing runs once more.
 
 **[ours] Prop tilt.** A prop is tilted to the plane through the surface at its four ends (along its facing and across
 it: the strip's half extents), not to the one face under its centre, and stands at that plane's height there, never below

@@ -184,11 +184,15 @@ fn lead_roof(position: Vec3, velocity: Vec3, work: &mut Vec3, dest: &mut Vec3, h
     Some(dir * velocity.length())
 }
 
-/// The side push of a steering rule: `n2 = (-n.y, 0, n.x) * gain * |n2 x dir|`, taken as the spec writes it, with `n2`
-/// before scaling. Zero for a zero normal, so a source without normals gets no push. [unconfirmed] this reading: the
-/// spec gives it in one line and the pool has no use site for it.
+/// The side push of a steering rule: `n2 * gain * |n2 x dir|` with `n2` the surface normal's horizontal part. The spec
+/// writes `n2 = (-n.y, 0, n.x)` with `n` in the sheet's axes (sheet `x` is world `z`, sheet `y` is world `-x`), which is
+/// `(n.x, 0, n.z)` in world axes; the normal here is already in world axes. A level surface gives no push, a slope
+/// pushes away from where it rises. Zero for a zero normal. [unconfirmed] the reading of the spec's one line.
+///
+/// Fixed: the swap was applied a second time to the world normal, so a level roof (normal straight up) pushed the
+/// helicopter sideways along one world axis by 0.3 of its speed on every physics step, and it fell behind the chase.
 fn side_push(normal: Vec3, dir: Vec3, gain: f32) -> Vec3 {
-    let p = Vec3::new(-normal.y, 0.0, normal.x);
+    let p = Vec3::new(normal.x, 0.0, normal.z);
     p * (gain * p.cross(dir).length())
 }
 
@@ -353,7 +357,7 @@ mod tests {
             &roof,
         );
         assert!(steer.y > 0.9, "steers up at the roof: {steer:?}");
-        assert!(steer.x < 0.3, "the side push turns it off the straight approach: {steer:?}");
+        assert!(steer.z.abs() < 1e-6, "a level roof gives no sideways push: {steer:?}");
     }
 
     #[test]
@@ -365,9 +369,11 @@ mod tests {
     #[test]
     fn the_side_push_is_horizontal_and_absent_without_a_normal() {
         assert_eq!(side_push(Vec3::ZERO, Vec3::X, 0.4), Vec3::ZERO);
-        let push = side_push(Vec3::Y, Vec3::Y, 0.4);
+        assert_eq!(side_push(Vec3::Y, Vec3::X, 0.4), Vec3::ZERO, "a level roof pushes nowhere");
+        // A slope rising towards -x: its normal leans to +x, and climbing straight up it is pushed off it along +x.
+        let push = side_push(Vec3::new(0.6, 0.8, 0.0), Vec3::Y, 0.4);
         assert_eq!(push.y, 0.0);
-        assert!((push.x + 0.4).abs() < 1e-5, "{push:?}");
+        assert!((push.x - 0.6 * 0.4 * 0.6).abs() < 1e-5 && push.z.abs() < 1e-6, "{push:?}");
     }
 
     #[test]

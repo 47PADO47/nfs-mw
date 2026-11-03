@@ -77,15 +77,16 @@ fn an_engaged_wreck_stays_on_the_map_steady_until_it_goes() {
 }
 
 #[test]
-fn a_cop_sent_away_stops_flashing() {
+fn a_cop_sent_away_leaves_the_map() {
     let mut world = world_with(&[10.0, 20.0, 30.0, 40.0], true);
     world.update_budget(0.1, focus());
     world.pursuit.as_mut().unwrap().budget.note_evaded(3);
     world.flee_surplus(focus(), false);
     let fleeing = world.cars.iter().filter(|c| c.is_fleeing()).count();
     assert!(fleeing > 0);
-    let steady = cops(&world).iter().filter(|b| !b.active).count();
-    assert_eq!(steady, fleeing, "the cops that left are steady");
+    let shown = cops(&world);
+    assert_eq!(shown.len(), 4 - fleeing, "the cops that left are not drawn");
+    assert!(shown.iter().all(|b| b.active), "the ones still chasing flash");
 }
 
 #[test]

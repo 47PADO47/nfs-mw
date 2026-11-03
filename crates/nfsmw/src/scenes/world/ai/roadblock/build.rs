@@ -86,6 +86,22 @@ fn surface_near(ground: &impl Ground, at: Vec3) -> Option<(f32, Vec3)> {
     Some((bottom.y + hit.distance, up(hit.normal)))
 }
 
+/// How far above the road the walls around a roadblock car are looked for, metres: about a bumper's height.
+const WALL_PROBE_HEIGHT: f32 = 0.8;
+
+/// A wall (a face or barrier standing more than 60 degrees from level) on the level segment from `from` to `to` at
+/// `height` (physics space): the fraction of the way and its horizontal normal on the side of `from`.
+fn wall_between(collision: &CollisionWorld, from: Vec2, to: Vec2, height: f32) -> Option<(f32, Vec2)> {
+    let start = Vec3::new(from.x, height, from.y);
+    let end = Vec3::new(to.x, height, to.y);
+    let options = blackbox_collision::RayOptions::default();
+    let hit =
+        collision.ray_cast_filtered(start.to_array(), end.to_array(), &options, |hit| hit.normal[1].abs() < 0.5)?;
+    let normal = Vec2::new(hit.normal[0], hit.normal[2]).normalize_or_zero();
+    let along = Vec2::new(hit.point[0], hit.point[2]).distance(from) / from.distance(to).max(1e-3);
+    Some((along, normal))
+}
+
 /// [ours] The plane of the road under a prop, from the surface at its four ends: `reach` is half its extent along its
 /// facing and across it. One face's normal under the centre can belong to a kerb or a seam, and a 6.5 m strip tilted
 /// by it sank up to half a metre into the road at one end. The height is the plane's at the centre, never below the
@@ -155,7 +171,7 @@ impl TrafficWorld {
             };
             models.push(model);
         }
-        self.space_cars(&mut placed, &models);
+        self.space_cars(&mut placed, &models, collision);
         self.check_clear(&placed, &site, target)?;
         let ground = WorldGround { collision, surfaces };
         let mut cars = Vec::new();
@@ -242,10 +258,11 @@ impl TrafficWorld {
         Ok(())
     }
 
-    /// Moves the car slots apart by the size of the model each will get (`spacing.rs`); `models` follows the car slots.
-    fn space_cars(&self, placed: &mut [Placed], models: &[usize]) {
+    /// Moves the car slots apart by the size of the model each will get, and out of the walls around them
+    /// (`spacing.rs`); `models` follows the car slots.
+    fn space_cars(&self, placed: &mut [Placed], models: &[usize], collision: &CollisionWorld) {
         let mut slots: Vec<&mut Placed> = placed.iter_mut().filter(|slot| slot.kind == Element::Car).collect();
-        let footprints: Vec<spacing::Footprint> = slots
+        let mut footprints: Vec<spacing::Footprint> = slots
             .iter()
             .zip(models)
             .map(|(slot, &model)| {
@@ -258,9 +275,22 @@ impl TrafficWorld {
                 }
             })
             .collect();
-        for (slot, centre) in slots.iter_mut().zip(spacing::separate(&footprints)) {
-            slot.position.x = centre.x;
-            slot.position.z = centre.y;
+        let height = slots.iter().map(|slot| slot.position.y).fold(f32::NEG_INFINITY, f32::max) + WALL_PROBE_HEIGHT;
+        let probe = |from: Vec2, to: Vec2| wall_between(collision, from, to, height);
+        let apply = |footprints: &mut [spacing::Footprint], centres: Vec<Vec2>| {
+            for (footprint, centre) in footprints.iter_mut().zip(centres) {
+                footprint.centre = centre;
+            }
+        };
+        let centres = spacing::separate(&footprints);
+        apply(&mut footprints, centres);
+        let centres = spacing::clear_walls(&footprints, &probe);
+        apply(&mut footprints, centres);
+        let centres = spacing::separate(&footprints);
+        apply(&mut footprints, centres);
+        for (slot, footprint) in slots.iter_mut().zip(&footprints) {
+            slot.position.x = footprint.centre.x;
+            slot.position.z = footprint.centre.y;
         }
     }
 

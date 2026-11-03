@@ -69,3 +69,17 @@ fn installed_level_rows_match_the_roadblock_and_helicopter_tables() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("; "));
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_strip_model_rests_on_the_road_with_its_lift() {
+    let Some((dir, db)) = install() else { return };
+    let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
+    let catalog = PropCatalog::new(index.prop_bounds.clone(), &db);
+    let lift = Physics::from_catalog(&catalog).strip_lift.expect("the strip has a seat lift");
+    let shared = SharedAssets::load(&dir, DEFAULT_TRACK).unwrap();
+    let model = shared.model(shared.find(SPIKE_MODEL).unwrap());
+    // The model's up axis is render z; its lowest vertex, lifted, should meet the road.
+    let bottom = model.solids.values().flat_map(|s| s.vertices.iter()).map(|v| v.position[2]).fold(f32::MAX, f32::min);
+    assert!((bottom + lift).abs() < 0.02, "the drawn strip's bottom stands {} m off the road", bottom + lift);
+}

@@ -230,7 +230,9 @@ keeping the pieces, arrow and backing aligned without changing their runtime piv
 byte), nearest first, and draws one pool object per element of a type the icon mask allows. The icon table pairs each
 type with its pool: hiding spots are type 11, `HIDING_SPOT_%d`, and `HUD_SingleRace.fng` has `HIDING_SPOT_0..7`
 (`Minimap_Icon_Hiding_Spot.tga`). The writer that switches the hiding-spot elements on was not found. **[observed]** In
-the original the hiding spots appear on the minimap while a chase cools down. The remake shows the nearest eight then.
+the original the hiding spots appear on the minimap while a chase cools down, those outside the view at its rim, and the
+pursuit breakers' icons leave it. The remake shows the nearest eight hiding spots then, pinned to the rim like the safe
+houses, and hides the breakers' icons.
 **[ours]** While a chase runs, the race starts, auto shops and car lots leave the minimap, and the safe houses show only
 in the cool-down. This is the rule of the world's entry markers (`scenes/world/hud_map_icons.rs`).
 

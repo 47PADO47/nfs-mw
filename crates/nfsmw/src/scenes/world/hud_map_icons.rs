@@ -5,13 +5,14 @@
 //! element list). The switch for a hiding spot was not traced to its writer. [observed] in the original: the hiding
 //! spots appear on the minimap while the chase cools down. [ours] The places that cannot be entered in a chase (race
 //! starts, auto shops, car lots) leave the minimap while a chase runs, and the safe houses show only in its cool-down,
-//! the rule the world's entry markers follow (`effects/entry_marks.rs`).
+//! the rule the world's entry markers follow (`effects/entry_marks.rs`). [observed] The pursuit breakers' icons leave
+//! the minimap in the cool-down, and the hiding spots outside the view stand at its rim.
 
 use glam::{Vec2, Vec3};
 
 use crate::hud::{
-    AUTO_SHOP, CAR_LOT, HIDING_SPOT, MapBlip, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT,
-    RACE_TOLLBOOTH, SAFE_HOUSE,
+    AUTO_SHOP, CAR_LOT, HIDING_SPOT, MapBlip, PURSUIT_BREAKER, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP,
+    RACE_SPRINT, RACE_TOLLBOOTH, SAFE_HOUSE,
 };
 
 /// Where the chase stands for the minimap's interior icons.
@@ -31,7 +32,7 @@ pub(super) fn shown(style: &str, chase: Chase) -> bool {
     match chase {
         Chase::None => style != HIDING_SPOT,
         Chase::Active => !ENTRIES.contains(&style) && style != SAFE_HOUSE && style != HIDING_SPOT,
-        Chase::CoolDown => !ENTRIES.contains(&style),
+        Chase::CoolDown => !ENTRIES.contains(&style) && style != PURSUIT_BREAKER,
     }
 }
 
@@ -40,13 +41,18 @@ pub(super) fn hiding_blips(spots: impl Iterator<Item = Vec3>, player: Vec3, out:
     let here = Vec2::new(player.x, player.y);
     let mut spots: Vec<Vec2> = spots.map(|p| Vec2::new(p.x, p.y)).collect();
     spots.sort_by(|a, b| a.distance_squared(here).total_cmp(&b.distance_squared(here)));
-    out.extend(spots.into_iter().map(|p| MapBlip { style: HIDING_SPOT, position: p.to_array(), active: false, heading: None }));
+    out.extend(spots.into_iter().map(|p| MapBlip {
+        style: HIDING_SPOT,
+        position: p.to_array(),
+        active: false,
+        heading: None,
+    }));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hud::{COP, PURSUIT_BREAKER};
+    use crate::hud::COP;
 
     #[test]
     fn out_of_a_chase_every_interior_shows_but_the_hiding_spots() {
@@ -68,6 +74,7 @@ mod tests {
     fn the_cool_down_brings_the_safe_houses_and_the_hiding_spots() {
         assert!(shown(SAFE_HOUSE, Chase::CoolDown) && shown(HIDING_SPOT, Chase::CoolDown));
         assert!(!shown(AUTO_SHOP, Chase::CoolDown) && !shown(RACE_SPRINT, Chase::CoolDown));
+        assert!(!shown(PURSUIT_BREAKER, Chase::CoolDown), "the breakers' icons go in the cool-down");
     }
 
     #[test]
