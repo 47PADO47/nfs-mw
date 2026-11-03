@@ -4,13 +4,16 @@ use super::{Outcome, Param, Speech, SpeechParams};
 use crate::audio::Audio;
 
 /// Usage line, for the error of a mistyped command.
-const USAGE: &str = "speech [status|flow|list|say <event> [speaker] [param=n ...]|play <event> [speaker] [param=n ...]|     bank <n> [take]|stop|reset]; params are named as in the game (car_color, direction, ...), n a bit value";
+const USAGE: &str = "speech [status|flow|lines|list|say <event> [speaker] [param=n ...]|play <event> [speaker] [param=n ...]|     bank <n> [take]|stop|reset]; params are named as in the game (car_color, direction, ...), n a bit value";
 
 /// Run `speech <args>`.
 pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
     let device = if audio.available() { "" } else { " (no sound device)" };
     if let ["flow"] = args {
         return Ok(audio.chase_flow_status());
+    }
+    if let ["lines"] = args {
+        return Ok(lines(audio));
     }
     let speech = audio.speech()?;
     match args {
@@ -45,6 +48,19 @@ pub fn command(audio: &mut Audio, args: &[&str]) -> Result<String, String> {
         }
         _ => Err(format!("usage: {USAGE}")),
     }
+}
+
+/// The chase radio's lines since the last look, one a row: what became of each, its event and the voice.
+fn lines(audio: &mut Audio) -> String {
+    let events = audio.take_radio_lines();
+    if events.is_empty() {
+        return "no chase radio lines since the last look".to_owned();
+    }
+    let rows: Vec<String> = events
+        .iter()
+        .map(|e| format!("{:?} {} (event {}) voice {}", e.stage, e.event, e.event_id, e.speaker))
+        .collect();
+    rows.join("\n")
 }
 
 /// The speaker (a bare number) and parameters (`name=value`, value decimal or `0x` hex) after an event.
