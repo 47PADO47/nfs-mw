@@ -94,8 +94,8 @@ a filter toggle. Its car icons flash on their own counter (no in-pursuit test); 
   car with the engagement mark (`AiCar::was_engaged`), wrecks included. `active` is the car's in-pursuit state
   (`AiCar::is_pursuing_on_map`: chasing and not sent away, or a roadblock car; never a wreck). With no pursuit it lists
   no police. The standing roadblocks are listed too, as the rewrite's own icon.
-- **Mark:** `TrafficWorld::update_budget` marks the chase cops and, since 2026-11-02, the roadblock cars within the
-  engagement radius outside cool-down. Only the chase cops count for the backup budget.
+- **Mark:** `TrafficWorld::update_budget` marks the chase cops within the level's engagement radius outside cool-down,
+  and the roadblock cars within 300 m at any time (section 2 item 4). Only the chase cops count for the backup budget.
 - **Colour:** `crates/nfsmw/src/hud/cop_blip.rs`: steady `#CCCCCC` when not active, else the light bar.
 - **Helicopter icon:** the layout (`hud/elements.rs`) treats the helicopter group as a minimap root, so its picture and
   blades show with it; the blip binding hides and places the group itself. The minimap shows the helicopter whenever it
@@ -108,8 +108,8 @@ a filter toggle. Its car icons flash on their own counter (no in-pursuit test); 
     to the rim. **[user]**
   - Slots go only to drawn icons; the original's eight-car cut-off (which can also drop the helicopter) is not copied.
   - The line-of-sight cone is not bound.
-- **Tests:** `scenes::world::ai::pursuit::tests::minimap` (the pursuit gate, the engagement mark, wrecks and fleeing cops
-  steady, nothing after the pursuit), `pursuit::tests::air` (the helicopter's blip goes with the pursuit),
+- **Tests:** `scenes::world::ai::pursuit::tests::minimap` (the pursuit gate, the engagement mark, the roadblock's
+  300 m reach, wrecks and fleeing cops steady, nothing after the pursuit), `pursuit::tests::air` (the helicopter's blip goes with the pursuit),
   `hud::blips_tests` (steady grey, the helicopter group with its blades placed and rim-pinned), `hud::cop_blip_tests`, and
   the installed `hud::pursuit_install_tests` (the real package's helicopter picture and blades show).
 

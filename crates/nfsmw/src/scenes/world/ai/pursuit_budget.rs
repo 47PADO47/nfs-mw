@@ -16,6 +16,9 @@ const UNSEEN_PENALTY: f32 = 40.0;
 const MOST_PER_RUN: u32 = 2;
 /// A cop that sees the player leaves only while more than this many cops do.
 const KEEP_WATCHING: u32 = 2;
+/// A roadblock marks its cars engaged within this many metres of the player, whatever the heat row's radius
+/// (`docs/specs/hud-cop-blips.md` section 2).
+const ROADBLOCK_ENGAGEMENT_RADIUS: f32 = 300.0;
 
 impl TrafficWorld {
     /// Seconds until the backup arrives, while it was called (`GetBackupETA`).
@@ -51,10 +54,10 @@ impl TrafficWorld {
                 now.insert(car.audio_emitter().id);
             }
         }
-        // Roadblock cars within the radius are engaged too (they show on the minimap) but are not chase cops to evade.
-        let near = |car: &super::AiCar| car.physics_position().distance(player.position) < backup.engagement_radius;
-        let roadblock = |car: &super::AiCar| car.is_roadblock() && !car.is_wrecked() && near(car);
-        for car in self.cars.iter_mut().filter(|car| !cooldown && roadblock(car)) {
+        // Roadblock cars are engaged too (they show on the minimap) but are not chase cops to evade. The roadblock marks
+        // its own cars within a fixed 300 m, in cool-down too, so they show as soon as it stands.
+        let near = |car: &super::AiCar| car.physics_position().distance(player.position) < ROADBLOCK_ENGAGEMENT_RADIUS;
+        for car in self.cars.iter_mut().filter(|car| car.is_roadblock() && !car.is_wrecked() && near(car)) {
             car.note_engaged();
         }
         let left = pursuit.engaged.difference(&now).count() as u32;

@@ -52,6 +52,19 @@ fn a_cop_is_shown_only_once_it_was_engaged() {
 }
 
 #[test]
+fn a_roadblock_car_is_shown_once_its_roadblock_stands_well_beyond_the_chase_radius() {
+    // The chase radius is the default 150 m here; the roadblock marks its cars within 300 m.
+    let mut world = world_with(&[10.0, 20.0], true);
+    world.cars[0].set_roadblock();
+    let mut away = focus();
+    away.body.as_mut().unwrap().position = Vec3::new(0.0, 0.0, -200.0);
+    world.update_budget(0.1, away);
+    let shown = cops(&world);
+    assert_eq!(shown.len(), 1, "only the roadblock car 210 m away; the chase cop 220 m away is not engaged");
+    assert!(world.cars[0].was_engaged() && !world.cars[1].was_engaged());
+}
+
+#[test]
 fn an_engaged_wreck_stays_on_the_map_steady_until_it_goes() {
     let mut world = world_with(&[10.0], true);
     world.update_budget(0.1, focus());
