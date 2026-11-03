@@ -21,6 +21,26 @@ const COST_PROP: u32 = 250;
 /// Cost to state of one helicopter spawned (spec 5.4).
 const COST_HELICOPTER: u32 = 2000;
 
+/// The latest cop car wrecked in a chase, as the HUD's takedown line tells it (`docs/specs/hud-pursuit-takedown.md`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Takedown {
+    /// The chase's cop cars wrecked, this one included: a new count is a new takedown.
+    pub count: u32,
+    /// The car's vehicle name, lower case (`copmidsize`).
+    pub car: String,
+    /// The destruction points of the car at the chase's heat, before the multiplier.
+    pub points: u32,
+    /// The destruction multiplier it was wrecked at, 1 to 3.
+    pub multiplier: u32,
+}
+
+impl Takedown {
+    /// The bounty it added: its points times the multiplier.
+    pub fn bounty(&self) -> u32 {
+        self.points.saturating_mul(self.multiplier)
+    }
+}
+
 /// The running totals of one chase. [`RepState::reset`] clears them when a chase starts and keeps the table.
 #[derive(Debug, Default)]
 pub(super) struct RepState {
@@ -43,6 +63,8 @@ pub(super) struct RepState {
     multiplier: u32,
     /// Seconds left in the destruction window (`DestroyCopBonusTime` from the last kill).
     window_secs: f32,
+    /// The latest cop car wrecked in the chase.
+    takedown: Option<Takedown>,
 }
 
 impl RepState {
@@ -147,6 +169,13 @@ impl Police {
         let points = self.rep.table.destroy_points(car, level);
         let window = self.rep.table.rate(level).destroy_bonus_secs;
         self.rep.wreck(points, window);
+        let (count, multiplier) = (self.rep.cops_destroyed, self.rep.multiplier);
+        self.rep.takedown = Some(Takedown { count, car: car.to_owned(), points, multiplier });
+    }
+
+    /// The latest cop car wrecked in the chase; kept after it ends until the next chase begins.
+    pub fn last_takedown(&self) -> Option<&Takedown> {
+        self.rep.takedown.as_ref()
     }
 
     /// The chase's clock moved from `before` by `dt` seconds (called as the pursuit time advances). Runs the destruction

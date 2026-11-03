@@ -134,11 +134,12 @@ pub(crate) fn bounty_row() -> Roots {
     shared(&ROOTS, || Roots::new(BOUNTY_ROW, []))
 }
 
-/// The lines over the road: the generic message group (`Hud_GenericMessage`, a checkpoint, a lap, the race-over line)
-/// and the 3-2-1-GO group. Both sit in the radar's group in the package, which no slot takes.
+/// The lines over the road: the generic message group (`Hud_GenericMessage`, a checkpoint, a lap, the race-over line,
+/// a takedown) with the icon and glow beside it, and the 3-2-1-GO group. They sit in the radar's group in the package,
+/// which no slot takes.
 pub(crate) fn banner() -> Roots {
     static ROOTS: OnceLock<Roots> = OnceLock::new();
-    shared(&ROOTS, || Roots::new([race::message_hash(), race::count_hash()], []))
+    shared(&ROOTS, || Roots::new(race::message_roots().into_iter().chain([race::count_hash()]), []))
 }
 
 /// The nitrous gauge: its group and its bar.

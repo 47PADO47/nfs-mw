@@ -151,6 +151,11 @@ impl super::super::TrafficWorld {
         self.police.cops_destroyed()
     }
 
+    /// The latest cop car wrecked in the chase, for the HUD's takedown line.
+    pub fn last_takedown(&self) -> Option<&super::Takedown> {
+        self.police.last_takedown()
+    }
+
     /// The rep points of the chase so far (normal plus destruction): the pending bounty.
     pub fn rep_points(&self) -> u32 {
         self.police.rep_points()

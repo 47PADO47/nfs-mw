@@ -86,7 +86,11 @@ impl WorldScene {
             state.events = self.hud_feed.events().to_vec();
             state.events_frame = self.hud_feed.frame();
             state.leaders = self.race_leaders();
-            state.message = self.race_message().or_else(|| self.lead_catch_up_line());
+            // The race's lines first (the original gives them the higher priority), then a cop car taken out.
+            state.message = self
+                .race_message()
+                .or_else(|| self.hud_feed.takedown_message().cloned())
+                .or_else(|| self.lead_catch_up_line());
             state.context = self.hud_context();
             state.drag = self.race.as_ref().is_some_and(|r| r.kind == RaceType::Drag);
             state.map_source = self.race.as_ref().map(|r| r.map.clone()).unwrap_or_default();

@@ -52,6 +52,8 @@ pub(in crate::scenes::world) struct HudFeed {
     before: Option<FeedSnapshot>,
     /// Seconds before another near miss may be told.
     near_miss_wait: f32,
+    /// The line for the latest cop car wrecked.
+    takedown: super::takedown::TakedownLine,
 }
 
 impl HudFeed {
@@ -87,6 +89,16 @@ impl HudFeed {
             self.events.push(HudEvent::NearMiss);
             self.near_miss_wait = NEAR_MISS_GAP;
         }
+    }
+
+    /// The frame's look at the chase's latest wrecked cop car, `dt` seconds after the last.
+    pub fn takedown(&mut self, latest: Option<&crate::scenes::world::ai::Takedown>, dt: f32) {
+        self.takedown.observe(latest, dt);
+    }
+
+    /// The takedown line while it plays.
+    pub fn takedown_message(&self) -> Option<&crate::hud::Message> {
+        self.takedown.message()
     }
 
     /// The frame's number: it changes once a frame.

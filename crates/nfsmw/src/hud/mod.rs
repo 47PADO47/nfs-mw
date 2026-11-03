@@ -81,6 +81,7 @@ pub(crate) mod skin;
 mod speedbreaker;
 pub(crate) mod split;
 mod state;
+pub(crate) mod takedown;
 mod trax;
 /// The HUD layout's viewport math. The Custom radio card (`ui/theme/custom/radio_card`) reuses its `parameters`.
 pub(crate) mod viewport;
@@ -115,6 +116,8 @@ pub use notify::{Category as NoticeCategory, ChipKind, NoticeId};
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use pursuit_end::{PursuitEndCard, SHOW_SECS as PURSUIT_END_SECS, show as show_pursuit_end};
+#[cfg(test)]
+pub use race::MessageKind;
 pub use race::{Count, Message, RaceHud};
 pub use race_card::{RaceCard, ResultCard, show as show_race_card};
 pub use radio::{Card, RadioHud};

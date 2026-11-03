@@ -70,11 +70,53 @@ impl Count {
 }
 
 /// A line the HUD shows for a few seconds (the generic message group, `Hud_GenericMessage`): a checkpoint, a lap, a bonus,
-/// the race-over message. A new `serial` starts the line again.
+/// the race-over message, a cop car taken out. A new `serial` starts the line again.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Message {
     pub serial: u32,
     pub text: String,
+    /// The script the group plays and the icon beside the line.
+    pub kind: MessageKind,
+}
+
+impl Message {
+    /// A plain line.
+    pub fn new(serial: u32, text: impl Into<String>) -> Self {
+        Self { serial, text: text.into(), kind: MessageKind::Line }
+    }
+
+    /// A cop car taken out (`docs/specs/hud-pursuit-takedown.md`).
+    pub fn takedown(serial: u32, text: impl Into<String>) -> Self {
+        Self { serial, text: text.into(), kind: MessageKind::Takedown }
+    }
+}
+
+/// How the generic message group plays a line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MessageKind {
+    /// The race's lines: the group's 3200 ms script, no icon.
+    #[default]
+    Line,
+    /// A cop car taken out: the group's 2400 ms script, and the takedown icon with its own 2400 ms script **[exe]**.
+    Takedown,
+}
+
+impl MessageKind {
+    /// The script of the group's player object, and the seconds it plays.
+    fn script(self) -> (u32, f32) {
+        match self {
+            Self::Line => (MESSAGE_SCRIPT, MESSAGE_SECS),
+            Self::Takedown => (TAKEDOWN_SCRIPT, TAKEDOWN_SECS),
+        }
+    }
+
+    /// The script of the icon beside the line: its rest script when the line has no icon.
+    fn icon_script(self) -> u32 {
+        match self {
+            Self::Line => ICON_REST,
+            Self::Takedown => TAKEDOWN_ICON_SCRIPT,
+        }
+    }
 }
 
 /// The generic message group (`0xE0BA07EC`, its child `0x32A7A521` plays the scripts) and its two strings, the shadow and
@@ -82,10 +124,19 @@ pub struct Message {
 const MESSAGE_GROUP: u32 = 0xE0BA_07EC;
 const MESSAGE_PLAYER: u32 = 0x32A7_A521;
 const MESSAGE_TEXT: u32 = 0xDA76_8EA6;
-/// The script of the group that fades the line in and out: 3200 ms, four colour keys (the length of the others is 2400,
-/// 3200, 3600 and 1200; which one the game picks for a kind of line is not read) **[unconfirmed]**.
+/// The script of the group that fades a race line in and out: 3200 ms, four colour keys (the others last 2400, 3200,
+/// 3600 and 1200 ms; which one the game picks for each race line is not read) **[unconfirmed]**.
 const MESSAGE_SCRIPT: u32 = 0xA19B_B14C;
 const MESSAGE_SECS: f32 = 3.2;
+/// The takedown line's script of the group (2400 ms) **[exe]**.
+const TAKEDOWN_SCRIPT: u32 = 0x8AB8_3EDB;
+const TAKEDOWN_SECS: f32 = 2.4;
+/// The message's icon beside the group (`Cops_TakenOut_Icon.tga` as authored) and the glow behind it, which the icon's
+/// script cues. The takedown plays the icon's 2400 ms script; any other line puts it at rest **[exe]**.
+const MESSAGE_ICON: u32 = 0x6DD7_54EC;
+const MESSAGE_GLOW: u32 = 0xCAEC_9D04;
+const TAKEDOWN_ICON_SCRIPT: u32 = 0x0013_FF94;
+const ICON_REST: u32 = 0x0016_A259;
 
 /// What the race part of the HUD shows. `None` in `HudState` means no race.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -109,11 +160,13 @@ pub(super) fn root_hashes() -> [u32; 4] {
     [INFO_GROUP, fe_hash_upper(CLOCK), fe_hash_upper(CLOCK_ICON), fe_hash_upper(POSITION_GROUP)]
 }
 
-/// The countdown group's name hash: it shows only while a step is up.
-pub(super) fn message_hash() -> u32 {
-    MESSAGE_GROUP
+/// The roots that show while a line is up: the message group, and the icon and its glow beside it (their own scripts
+/// keep them clear for a line without an icon).
+pub(super) fn message_roots() -> [u32; 3] {
+    [MESSAGE_GROUP, MESSAGE_ICON, MESSAGE_GLOW]
 }
 
+/// The countdown group's name hash: it shows only while a step is up.
 pub(super) fn count_hash() -> u32 {
     fe_hash_upper(COUNT_GROUP)
 }
@@ -147,6 +200,8 @@ pub(super) struct Binding {
     message_player: Option<ObjectRef>,
     /// The strings of the line (the object table keeps one per name, so both are found by their guid in the package).
     message_text: Vec<ObjectRef>,
+    /// The icon beside the line (the takedown's).
+    message_icon: Option<ObjectRef>,
     shown_serial: Option<u32>,
     message_left: f32,
 }
@@ -166,6 +221,7 @@ impl Binding {
             message_group: rt.find(package, MESSAGE_GROUP),
             message_player: rt.find(package, MESSAGE_PLAYER),
             message_text: named_all(rt, package, MESSAGE_TEXT),
+            message_icon: rt.find(package, MESSAGE_ICON),
             shown_serial: None,
             message_left: 0.0,
         }
@@ -191,12 +247,16 @@ impl Binding {
             return;
         }
         self.shown_serial = Some(message.serial);
-        self.message_left = MESSAGE_SECS;
+        let (script, secs) = message.kind.script();
+        self.message_left = secs;
         for text in &self.message_text {
             rt.set_text(*text, &message.text);
         }
         if let Some(player) = self.message_player {
-            rt.run_script(player, MESSAGE_SCRIPT);
+            rt.run_script(player, script);
+        }
+        if let Some(icon) = self.message_icon {
+            rt.run_script(icon, message.kind.icon_script());
         }
     }
 

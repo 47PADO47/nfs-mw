@@ -144,7 +144,7 @@ impl Layout {
             race: find(&super::race::root_hashes()),
             race_lap: find(&[super::race::lap_hash()]),
             countdown: find(&[super::race::count_hash()]),
-            message: find(&[super::race::message_hash()]),
+            message: find(&super::race::message_roots()),
             leaders: find(&[leaderboard::GROUP]),
             leader_rows: (0..ROWS)
                 .map(|k| {

@@ -99,7 +99,7 @@ use manager::TypeTimers;
 pub(super) use models::load_requested;
 pub use net_export::{NetCar, NetCarKind};
 pub use pattern::{Pattern, Patterns};
-pub use police::{PlayerView, PursuitContext};
+pub use police::{PlayerView, PursuitContext, Takedown};
 pub use population::{ModelRequest, PatrolPlan};
 #[cfg(test)]
 pub(crate) use pursuit::tests::arrest_fixture::{ArrestFixture, handbrake, open_arrest_fixture};

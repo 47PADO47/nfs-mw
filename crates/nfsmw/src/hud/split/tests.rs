@@ -168,7 +168,7 @@ fn the_countdown_and_the_message_line_show_only_while_they_run() {
     let counting = RaceHud { count: Some(Count::Three), ..race() };
     seat.apply(&mut rt, &HudState { race: Some(counting), ..Default::default() }, false);
     assert!(visible(&rt, id, guid::COUNTDOWN));
-    let line = Message { serial: 1, text: "CHECKPOINT".into() };
+    let line = Message::new(1, "CHECKPOINT");
     seat.apply(&mut rt, &HudState { race: Some(race()), message: Some(line), ..Default::default() }, false);
     assert!(visible(&rt, id, guid::MESSAGE));
     assert!(!visible(&rt, id, guid::COUNTDOWN));

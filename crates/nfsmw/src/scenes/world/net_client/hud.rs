@@ -26,7 +26,7 @@ impl WorldScene {
         }
         if let Some((line, _)) = mode.banner.as_ref() {
             let serial = SERIAL_BASE ^ (line.len() as u32);
-            state.message = Some(crate::hud::Message { serial, text: line.clone() });
+            state.message = Some(crate::hud::Message::new(serial, line.clone()));
         }
         state.second_player =
             mode.display().iter().find(|(_, drawn)| drawn.view.kind == EntityKind::PlayerCar).map(|(_, drawn)| {
