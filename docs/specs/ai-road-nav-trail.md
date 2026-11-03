@@ -129,25 +129,34 @@ pursuit target and other formation cops are skipped) the corridor of the cookies
 trail passes on one side. The routine is marked unfinished in the decomp and the constants below come from it
 as is.
 
-For avoidable `a` and own car `m`, with `F` the closest cookie's Forward:
+**[PC binary]** The cookies punched are the local copy that starts at the visibility sweep's first cookie (§4),
+not the cookie the car is on. `F` is the Forward of the cookie found at the car's position among them (normally
+the first, since the car is behind it); when none is found nothing is cut. For avoidable `a` and own car `m`:
 
 - Ignore it if its height differs from the closest cookie's by more than 5 m.
 - `his_extent = a.half_width + 0.5 + |F·a.forward| × a.half_length + |F·a.right| × a.half_width`;
   `my_extent = m.half_width + 0.5 + m.half_length`; `dist_ahead = (a − m) · F`;
-  `extent_side` and `dist_side` are the same test along the car's own right axis.
+  **[PC binary]** `extent_side = |a.right·m.right| × a.half_width + |a.forward·m.right| × a.half_length +
+  m.half_width` and `dist_side = |(a − m)·m.right|`, along the car's own right axis, with no margins.
 - Racers (and the player) treat a crossing traffic trailer (axis within 45° of crosswise, vehicle class
   trailer) as a block 6 m back with 1.8 m half extents.
 - `cut_flags = 2` (the car is "inside" the avoidable's footprint) when: for traffic or own speed < 20 m/s,
   `dist_ahead + his_extent < my_extent`; otherwise `dist_ahead − his_extent ≤ my_extent`. Ignore avoidables
-  more than `my_extent + his_extent` behind, and those behind with a clear side gap.
+  more than `my_extent + his_extent` behind, and those whose front is behind the car (`dist_ahead + his_extent <
+  0`) while `dist_side < extent_side`.
 - Time to closest approach of the two **nose points** (own nose `min(my_extent, gap)` ahead, his nose the same
   amount back, `gap = max(dist_ahead − my_extent − his_extent, 0)`) from the relative position and velocity;
-  returns 3 s when relative speed squared is below 1e-4. Cars that are not closing are ignored when farther than
-  `my_extent + his_extent` (traffic: plus `0.5 × speed + 2 × my_extent`), or when traffic is clearly beside.
-  Otherwise, unless blocked traffic, ignore when approach time ≥ 3 s.
+  returns 3 s when relative speed squared is below 1e-4. **[PC binary]** The time is signed (negative once
+  the noses separate) and is not clamped here. An inside car is cut only when the time is below 3 s. A closing
+  car is cut by traffic at any time, by other drivers only below 3 s. A car that is not closing is ignored when
+  its along-road `dist_ahead` (not the straight-line distance) exceeds `my_extent + his_extent` (traffic: plus
+  `0.5 × speed + 2 × my_extent`); within that, traffic cuts it only when `dist_side ≤ extent_side + 1`, without
+  a time limit, and other drivers only when the time is below 3 s.
 - The point of impact is the avoidable's position advanced along `F` by `trailing_speed × approach_time −
   (my_extent + his_extent)`; the closest cookie to it is the cut start. Its lateral velocity component times the
-  clamped approach time (0…1) shifts the cut position by `0.8 ×` and widens the avoidable by `0.2 ×`.
+  clamped approach time (0…1) is the drift; it shifts the cut point by `0.8 ×` the drift along the cut start's
+  right axis and widens the avoidable by `0.2 × drift × close_factor`. **[PC binary]** The widening keeps the
+  drift's sign: a drift to the left narrows the cut.
   **[verified native]** This predicted point selects the first cut even when both cars are moving quickly in
   the same direction. Do not replace it with the avoidable's current body position: a close, slower car can
   meet the pursuer much farther down the road, so a current-position cut can request an abrupt sideways turn.
@@ -157,23 +166,28 @@ For avoidable `a` and own car `m`, with `F` the closest cookie's Forward:
   consider cookie zero when the point is behind its cross-section, then consider later cookies where
   successive forward projections have opposite signs, retaining the closest squared distance. A point
   beyond all recorded cookies has no cut start. Do not restart the cut near the current avoidable body.
-  **[adapter boundary]** The implementation clips the tail in the horizontal plane after twice the
-  combined extents. The inspected PC tail expression has a coordinate discrepancy that is separate
-  from its verified first-cut prediction. This correction does not establish exact tail-rule parity.
+  **[PC binary]** The tail test measures `(impact.x − cookie.x) × F_c.x + (impact.y − cookie.y) × F_c.z`,
+  with the impact point's height in place of its second horizontal coordinate, and stops after the first
+  cookie where that plus twice the combined extents is negative. Keep this measure: on a road running along
+  the second axis it lets the cut continue through the trail while the cookies still overlap.
 - Its half width in the trail is the larger absolute projection of the footprint's two diagonals on the
-  cookie's right axis plus the widening; `close_factor = ramp(avoidable_ahead, −6, 6)` (0 when 6 m or more
-  behind the car's own cookie distance, 1 when 6 m or more ahead) scales a safety margin
-  (`close_factor`, or `0.8 × close_factor` in drag races).
-- Decide the passing side: the gaps right and left of the avoidable must be larger than `margin +
-  vehicle_half_width`; if only one fits take it, otherwise pass on the side opposite to the avoidable's
-  lateral position relative to the car's predicted offset (`own offset + approach_time × close_factor × 0.2 ×
-  lateral velocity + 2 × cross(nav forward, cookie forward)`).
+  cookie's right axis plus the widening; **[PC binary]** `close_factor = ramp(d, −6, 6)` where `d` is the
+  distance along the cut start's Forward from the car to the shifted cut point (0 when the point is 6 m or more
+  behind the car, 1 when 6 m or more ahead). It scales a safety margin (`close_factor`, or `0.8 × close_factor`
+  in one race mode; pursuit uses the former) to which the vehicle half width is added.
+- Decide the passing side once, at the cut start: the gaps right and left of the avoidable must be larger
+  than `margin + vehicle_half_width`; if only one fits take it, otherwise pass on the side opposite to the
+  avoidable's lateral position relative to the car's predicted offset (`own offset + clamped approach_time ×
+  close_factor × 0.2 × own lateral velocity + 2 × (nav forward · cut start right axis)`). **[PC binary]** The
+  own offset and lateral velocity are measured in the section the car is on (the interpolated current cookie,
+  §4); the nav forward is the lane cursor's heading.
 - For the cookies from the cut start onwards while the cookie still overlaps (the loop ends when a cookie is
   more than `2 × (my_extent + his_extent)` before the avoidable's tail): move the bound on the pass side to
   `avoidable lateral ± (half_width + vehicle half width + margin)`, keeping at least 1 m (0.1 m for traffic)
   of corridor, and set cookie flag bit 0 (plus the `cut_flags` bit 1 when applicable).
-- The closest cut that is more than `my_extent + his_extent` ahead records the avoidable's trail speed
-  (`trailing_speed`) for the occlusion step.
+- The closest cut start of an avoidable more than `my_extent + his_extent` ahead records its trail speed
+  (`trailing_speed`) for the occlusion step. **[PC binary]** This is recorded when the cut start is found,
+  whether or not the cut then overlaps the corridor.
 
 After all avoidables, cookies cut this way have their centres moved to the middle of the remaining corridor
 (`offsets = ±half remaining width`).
