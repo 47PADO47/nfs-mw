@@ -119,8 +119,11 @@ were not observed in live higher-heat testing.
   pursuing or not, and builds them only in minimap mode 3. What selects that mode
   and the cop-icon category setting is unread, so the remake's white non-pursuit
   icon and its visibility rule remain unconfirmed.
-- Correct minimap visibility and white/wreck icons; add destroyed-cop text and
-  the matching escaped-pursuit statistics presentation.
+- Correct minimap visibility and white/wreck icons. The destroyed-cop line
+  ([takedown](specs/hud-pursuit-takedown.md)) and the escape's rewards and
+  statistics screens ([escape results](specs/pursuit-escape-results.md)) follow
+  the executable and the packages; neither was compared on screen with the
+  original.
 
 The wider offence, arrest/payment/impound, escape/restored-world and radio gaps
 remain in the full coverage report. Preserve reported failures until relevant
