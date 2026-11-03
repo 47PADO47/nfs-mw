@@ -3,6 +3,7 @@
 //! swaps. Spec: docs/specs/car-assembly.md.
 
 mod assemble;
+mod carbon;
 mod color;
 pub mod cop_lights;
 pub mod customization;
@@ -210,6 +211,7 @@ fn load_with(
         }
     }
 
+    carbon::apply(t, &slots, &levels, &car_type.base_model_name, &mut pool);
     let setup = WheelSetup::for_car(&t.attributes, car_type);
     if setup.is_none() {
         log::warn!("{car}: no ecar record for {}; wheels are not placed", car_type.base_model_name);
@@ -303,6 +305,12 @@ fn load_with(
             }
             if customization.parts[customization::Category::Vinyl as usize].is_some() {
                 vinyl::apply(dir, car, t, car_type, &slots, customization, &mut model)?;
+            } else if options.preset.is_some() && model.paintable {
+                // A preset carries its livery in its own part slots (the menu's career-start M3 GTR); the empty
+                // selection must not drop it. A missing bitmap leaves the painted car rather than no car.
+                if let Err(error) = vinyl::apply(dir, car, t, car_type, &slots, customization, &mut model) {
+                    log::warn!("{car}: the preset's vinyl is not applied: {error:#}");
+                }
             }
         }
     }
