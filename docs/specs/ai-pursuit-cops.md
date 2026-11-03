@@ -222,9 +222,17 @@ was lost but before cooling down began still comes on the chase placement. **[PC
 such a cop appeared 83 m ahead of the player, while the cool-down cops after it appeared 130 to 330 m behind it and
 220 m ahead.]** The rewrite uses the same rule (`ai/pursuit.rs`).
 
-The *forced start* and the roadblock builder use other paths. A forced start (`SpawnPursuitCar`) puts the first car 340 m
-ahead of the target on the cop path (80 m when warping or when the start is a free-roam scripted pursuit); if no spot is
-found it falls back to a car 15 m behind the player (`SpawnCopCarNow`). When no free cop car exists in the pool for those
+The *forced start* and the roadblock builder use other paths. A forced start (`SpawnPursuitCar`, a chase that starts with
+no unit in it) puts the first car 340 m ahead of the target (80 m when the start follows a jump to a bounty place or a
+milestone: the pending-jump flags of [career-rapsheet-2](career-rapsheet-2.md) section 5); if no spot is found it falls
+back to a car 15 m behind the player (`SpawnCopCarNow`). The spot: a road cursor is put on the target's position heading
+the way it faces, on traffic roads with the junction connectors left out (a second try lets them in), and advanced that
+far with the target's facing as the junction preference. At 340 m the car faces on along the road and the spot must pass
+the 150 to 400 m window and the 40 m spacing of 3.2; at 80 m the direction is reversed so the car faces the player, and
+only the spacing is checked. The car stands at rest and joins the chase at once. **[exe]** At Riverfront Stadium (bounty
+place 11) the stock game's first cop stands about 65 m from the car, on the stadium road north of the junction ahead,
+facing the car **[runtime]**; the rewrite's walk takes the same road and lands about 10 m farther along it.
+**[ours]** When no free cop car exists in the pool for those
 two paths, an active cop that has been off screen for over 5 s and is more than 100 m from the view (the farthest wins) is
 **stolen**: removed from where it is and reused. A helicopter spawns 250 m behind the target on the cop path, 20 m up. **[decomp]**
 
@@ -342,8 +350,10 @@ Written after the code, to say what exists and what is approximated. Evidence ta
   scaled to the active-car limit; support cars are left out of the wave's car count. The quarter-second pursuit task step
   of the original's timer is not modelled.
 - 911 dispatch is in ([ai-pursuit-heat](ai-pursuit-heat.md) section 5.3).
-- Not built: roadblock spawn requests, and the forced start of `pursuit N` through `SpawnPursuitCar` (340 m ahead, 15 m
-  behind as the fallback).
+- The forced start (`ai/pursuit/opening.rs`): a chase that starts with no unit places its first cop by the
+  `SpawnPursuitCar` rule above, 80 m ahead facing the player after the F5 bounty jump. The steal of an off-screen cop when
+  the pool is empty is not built (the pool is not modelled).
+- Not built: roadblock spawn requests.
 
 ## Rust implementation notes
 

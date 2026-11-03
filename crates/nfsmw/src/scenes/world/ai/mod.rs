@@ -127,6 +127,8 @@ pub use model::TrafficModel;
 
 pub struct TrafficWorld {
     extra_traffic_off: bool,
+    /// The next chase starts where a jump put the player (`pursuit/opening.rs`).
+    jump_start: bool,
     water: water::Water,
     network: RoadNetwork,
     index: SegmentIndex,
@@ -280,6 +282,7 @@ impl TrafficWorld {
             cops: Default::default(),
             cars: Vec::new(),
             extra_traffic_off: false,
+            jump_start: false,
             next_entity: 0,
             rng: streams::Streams::default(),
             alpha: 0.0,

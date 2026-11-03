@@ -92,7 +92,14 @@ impl WorldScene {
             return;
         }
         let level = heat.to_string();
+        // The original's chase after a jump puts its first cop 80 m ahead, facing the car (`ai/pursuit/opening.rs`).
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.set_jump_start(true);
+        }
         let result = super::super::ai::pursuit_command(self, renderer, &[&level]);
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.set_jump_start(false);
+        }
         self.extra.message = Some(match result {
             Ok(_) => {
                 format!("Pursuit started at heat {heat} at {}", reference::row_text(&self.extra.bounty_spots, number))

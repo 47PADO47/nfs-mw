@@ -3,7 +3,10 @@
 
 use std::rc::Rc;
 
+mod opening;
 mod placement;
+
+use opening::Opening;
 
 use blackbox_collision::CollisionWorld;
 use blackbox_pursuit::EndReason;
@@ -79,6 +82,8 @@ pub struct Pursuit {
     pub(super) engaged: std::collections::HashSet<u32>,
     /// The chase's support request and the cars it took (`support`).
     pub(super) support: super::support::Session,
+    /// The forced-start placement of the first cop while no unit has joined (`pursuit/opening.rs`).
+    pub(super) opening: Option<Opening>,
 }
 
 impl Pursuit {
@@ -105,6 +110,7 @@ impl Pursuit {
             fleet: 0,
             involved: 0,
             support: Default::default(),
+            opening: None,
         }
     }
 
@@ -154,6 +160,7 @@ impl Pursuit {
             self.fast_spawn_next = !self.fast_spawn_next;
         }
         self.involved += 1;
+        self.opening = None;
         self.spawn_timer = delay;
     }
 
@@ -253,6 +260,7 @@ impl TrafficWorld {
                 self.police.ground_deployed(&car.name);
             }
         }
+        self.arm_opening();
         for name in super::support::support_models() {
             self.request_cop(name);
         }
@@ -421,7 +429,7 @@ impl TrafficWorld {
         // The placement follows the cool-down status, not the sight: a cop due in the grace before cooling down still
         // comes on the chase placement (spec `ai-pursuit-cops.md` section 3.2).
         let spawned = match cooldown {
-            false => self.spawn_cop(&name, focus, player.position, performance, collision, surfaces),
+            false => self.spawn_chase_cop(&name, focus, player.position, performance, collision, surfaces),
             true => self.spawn_search_cop(&name, focus, performance, collision, surfaces),
         };
         if spawned && let Some(p) = self.pursuit.as_mut() {

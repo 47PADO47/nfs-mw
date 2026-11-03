@@ -51,6 +51,7 @@ mod installed_spawn_drive;
 mod lockout;
 mod minimap;
 mod net_export;
+mod opening;
 mod parallel;
 mod parked_police;
 mod placement;
