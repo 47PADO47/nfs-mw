@@ -12,6 +12,7 @@ import time
 from .audio import Audio
 from .common import Timeline, digest, external_output, write_json
 from .media import Video, mux, probe
+from . import state
 
 
 def installation_identity(exe):
@@ -55,6 +56,7 @@ class Session:
         write_json(self.folder / 'session.json', self.manifest)
         try:
             self.manifest['installation'] = installation_identity(args.exe)
+            self.state_start = self._snapshot('start')
             self.hotkeys = Hotkeys()
             self.audio = Audio(self.folder, self.timeline, args.ffmpeg, args.audio_device)
             self.audio.start()
@@ -72,6 +74,16 @@ class Session:
         except BaseException:
             self.finish('startup_error')
             raise
+
+    def _snapshot(self, label):
+        """A failed copy is recorded; it must not cost the recording."""
+        if not self.args.state and not self.args.registry:
+            return None
+        try:
+            return state.snapshot(self.folder, label, self.args.state, self.args.registry)
+        except Exception as exc:
+            self.manifest.setdefault('state_errors', []).append(f'{label}: {exc}')
+            return None
 
     def _og_event(self, item):
         # Keep full private records in og-ui.jsonl; the shared timeline indexes low-volume transitions only.
@@ -139,6 +151,10 @@ class Session:
             self.hotkeys.close()
         duration = self.timeline.seconds()
         self.manifest.update(duration=duration, reason=reason, markers=self.markers)
+        start = getattr(self, 'state_start', None)
+        end = self._snapshot('end') if start is not None else None
+        if end is not None:
+            self.manifest['state_changes'] = state.changes(start, end)
         if self.video and (self.video.frames == 0 or self.video.process.returncode):
             failures.append('Video encoder failed or recorded zero frames')
         if self.audio and (self.audio.frames == 0 or self.audio.process.returncode or self.audio.error):
@@ -191,6 +207,9 @@ def main():
     parser.add_argument('--ffprobe', default='ffprobe')
     parser.add_argument('--audio-device', type=int)
     parser.add_argument('--probe', type=Path)
+    parser.add_argument('--state', type=Path, action='append', default=[],
+                        help='Save/settings file or folder copied into state/start and state/end')
+    parser.add_argument('--registry', action='append', default=[], help='Registry key exported at start and end')
     parser.add_argument('--seconds', type=float, default=0)
     parser.add_argument('--reserve-gib', type=float, default=3)
     parser.add_argument('--headless', action='store_true')
