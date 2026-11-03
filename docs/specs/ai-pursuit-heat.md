@@ -176,7 +176,9 @@ entry point, so the original's profile-absent arithmetic above does not define a
 (index 14) and caps ordinary heat at 5. Stock levels 1 through 5 therefore take 600 seconds per level instead of
 one second. The low-level `seconds_per_level` query retains the original profile-absent base-time behavior.
 
-Loaded careers keep their own bucket and bounds. Races, challenges and the fixed final pursuit keep their existing
+The F5 testing panel's career bin (1 to 15, 0 for none) stands in for the Blacklist bin in a world without a
+career, so a reference run can heat up and cap as the original does on a save at that stage (bin 1: a finished
+career). Loaded careers keep their own bucket and bounds. Races, challenges and the fixed final pursuit keep their existing
 event rules. A nonstock Bartender `TimePerLevel` overrides the sandbox growth policy. Forced console starts can
 raise the heat cap to the requested level, and an explicit F8 heat cap can expose the special rows.
 

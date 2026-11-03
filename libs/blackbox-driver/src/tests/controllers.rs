@@ -164,15 +164,26 @@ fn a_stuck_car_is_noticed_after_three_seconds() {
     let mut detector = StuckDetector::default();
     let mut stuck = false;
     for i in 0..40 {
-        stuck |= detector.update(0.1, true, false, false, Vec3::new(0.0, 0.0, 0.01 * i as f32));
+        stuck |= detector.update(0.1, true, false, false, Vec3::new(0.0, 0.0, 0.01 * i as f32), 0.1);
     }
     assert!(stuck);
     let mut moving = StuckDetector::default();
     let mut ever = false;
     for i in 0..40 {
-        ever |= moving.update(0.1, true, false, false, Vec3::new(0.0, 0.0, i as f32));
+        ever |= moving.update(0.1, true, false, false, Vec3::new(0.0, 0.0, i as f32), 10.0);
     }
     assert!(!ever);
+}
+
+#[test]
+fn a_car_sliding_along_a_wall_without_headway_is_stuck() {
+    // Nose-in against a wall, gas on, no forward speed, but sliding sideways at 4 m/s: 12 m from the anchor.
+    let mut detector = StuckDetector::default();
+    let mut stuck = false;
+    for i in 0..40 {
+        stuck |= detector.update(0.1, true, false, false, Vec3::new(0.4 * i as f32, 0.0, 0.0), 0.05);
+    }
+    assert!(stuck);
 }
 
 #[test]

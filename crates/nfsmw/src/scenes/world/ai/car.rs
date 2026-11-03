@@ -412,7 +412,14 @@ impl AiCar {
                 // A stand-in is not driven, so it cannot be stuck.
                 let stuck = !racer.held
                     && !self.stand_in.active
-                    && racer.stuck.update(self.think_delta, pressing, reversing, false, state.body.position);
+                    && racer.stuck.update(
+                        self.think_delta,
+                        pressing,
+                        reversing,
+                        false,
+                        state.body.position,
+                        view.forward_speed,
+                    );
                 if stuck {
                     log::info!("race: {} is stuck, reversing", self.name);
                     let gear = self.driver.start_reverse_override(RECOVERY_SECONDS, view.gear_is_reverse);
@@ -446,6 +453,7 @@ impl AiCar {
                     self.driver.reverse_override_left() > 0.0,
                     false,
                     state.body.position,
+                    view.forward_speed,
                 );
                 if stuck {
                     log::info!("cop: {} is stuck, reversing", self.name);

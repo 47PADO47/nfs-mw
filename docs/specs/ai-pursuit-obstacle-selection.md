@@ -80,7 +80,8 @@ asks for it, so the road action searches on every think.
 at the car on the centre lane, with any pending path search dropped, so it does not
 drive back into what it hit. When the reverse ends, the cursor is re-initialised at
 the car again and snapped to the nearest selectable lane. The stuck test does not
-run while reversing.
+run while reversing. **[ours]** A cop that slides along a wall without headway
+also counts as stuck (see `ai-driver-control.md` section 7.1).
 
 ## Support checks
 

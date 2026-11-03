@@ -152,6 +152,8 @@ fn installed_physical_bmw_and_heat_five_cop_drive_a_matched_city_route() {
     world.player_position = Some(initial.position);
     world.note_primary_target(0);
     world.start_pursuit(5, rows, performance);
+    // The handed-off unit stands for the chase's cop, so there is no forced start (`pursuit/opening.rs`).
+    world.pursuit.as_mut().unwrap().opening = None;
     let mut props = PropWorld::default();
     let mut driver = Driver::new(ControllerKind::Pid, false);
     let ticks = (SECONDS / STEP).round() as u32;

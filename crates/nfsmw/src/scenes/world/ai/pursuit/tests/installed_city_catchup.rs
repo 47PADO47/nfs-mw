@@ -398,6 +398,8 @@ fn installed_city_heat_five_closes_and_retains_a_recorded_fast_target() {
     world.police.set_forced_pursuit(true);
     world.player_position = Some(first.body.position);
     world.start_pursuit(5, rows, performance);
+    // The handed-off unit stands for the chase's cop, so there is no forced start (`pursuit/opening.rs`).
+    world.pursuit.as_mut().unwrap().opening = None;
     let mut props = PropWorld::default();
     let duration = trace.frames.last().unwrap().time;
     let ticks = (duration / STEP).floor() as u32;

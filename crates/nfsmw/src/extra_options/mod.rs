@@ -62,6 +62,9 @@ pub struct Overrides {
     pub paused: bool,
     pub lock_heat: bool,
     pub heat: u8,
+    /// The Blacklist bin a world without a career heats up by (`ai-pursuit-heat.md` 3.2), 1 to 15; 0 keeps the
+    /// sandbox policy. A loaded career always uses its own bin.
+    pub career_bin: u8,
 }
 impl Default for Overrides {
     fn default() -> Self {
@@ -73,6 +76,7 @@ impl Default for Overrides {
             paused: false,
             lock_heat: false,
             heat: 1,
+            career_bin: 0,
         }
     }
 }
@@ -82,6 +86,7 @@ impl Overrides {
     }
     pub fn validate(&self) -> anyhow::Result<()> {
         anyhow::ensure!((1..=10).contains(&self.heat), "Heat must be 1 through 10");
+        anyhow::ensure!(self.career_bin <= 15, "The career bin must be 0 (sandbox) or 1 through 15");
         Ok(())
     }
 }

@@ -120,7 +120,8 @@ impl WorldScene {
             "pursuit_options": format!("{:?}", traffic.pursuit),
             "track": self.track,
             "testing": {"traffic_off": testing.traffic_off, "police_off": testing.police_off,
-                "lock_heat": testing.lock_heat, "heat": testing.heat, "paused": testing.paused},
+                "lock_heat": testing.lock_heat, "heat": testing.heat, "paused": testing.paused,
+                "career_bin": testing.career_bin},
         })
     }
 
