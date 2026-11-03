@@ -15,7 +15,8 @@ pub(in crate::gpu) struct Maps {
     pub contact: wgpu::TextureView,
     pub ambient: wgpu::TextureView,
     pub cloud: wgpu::TextureView,
-    dummy: wgpu::Buffer,
+    pub local: wgpu::TextureView,
+    pub(super) dummy: wgpu::Buffer,
 }
 
 impl Maps {
@@ -69,9 +70,10 @@ impl Maps {
                 (view.clone(), view, layers)
             }
         };
+        let local = atlas(device, 1, 4).0;
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("shadow receiver data"),
-            contents: bytemuck::bytes_of(&Params::zeroed()),
+            contents: &vec![0; size_of::<Params>() + size_of::<super::local::Params>()],
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -86,7 +88,8 @@ impl Maps {
             contents: &[0; 80],
             usage: wgpu::BufferUsages::UNIFORM,
         });
-        let fallback = group(device, layout, &dummy, &buffer, (&view, &detail), &sampler, (&contact, &ambient, &cloud));
+        let fallback =
+            group(device, layout, &dummy, &buffer, (&view, &detail), &sampler, (&contact, &ambient, &cloud, &local));
         Self {
             resolution,
             detail_resolution,
@@ -100,6 +103,7 @@ impl Maps {
             contact,
             ambient,
             cloud,
+            local,
             dummy,
         }
     }
@@ -117,7 +121,7 @@ impl Maps {
             &self.buffer,
             (&self.view, &self.detail),
             &self.sampler,
-            (&self.contact, &self.ambient, &self.cloud),
+            (&self.contact, &self.ambient, &self.cloud, &self.local),
         )
     }
     pub(in crate::gpu) fn set_ambient(
@@ -147,7 +151,7 @@ fn group(
     buffer: &wgpu::Buffer,
     views: (&wgpu::TextureView, &wgpu::TextureView),
     sampler: &wgpu::Sampler,
-    masks: (&wgpu::TextureView, &wgpu::TextureView, &wgpu::TextureView),
+    masks: (&wgpu::TextureView, &wgpu::TextureView, &wgpu::TextureView, &wgpu::TextureView),
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("material and shadow receivers"),
@@ -161,13 +165,12 @@ fn group(
             wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(masks.1) },
             wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(views.1) },
             wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(masks.2) },
+            wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::TextureView(masks.3) },
         ],
     })
 }
 
-use bytemuck::Zeroable;
-
-fn atlas(device: &wgpu::Device, resolution: u32, count: u32) -> (wgpu::TextureView, Vec<wgpu::TextureView>) {
+pub(super) fn atlas(device: &wgpu::Device, resolution: u32, count: u32) -> (wgpu::TextureView, Vec<wgpu::TextureView>) {
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("sun shadow maps"),
         size: wgpu::Extent3d { width: resolution, height: resolution, depth_or_array_layers: count },

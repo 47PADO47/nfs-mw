@@ -106,7 +106,8 @@ impl Renderer {
             return;
         };
         let Projection::PerspectiveInfiniteReverse { fov_y, .. } = frame.projection else { return };
-        let sun = (-frame.light_dir).normalize_or_zero();
+        // The drawn sun when the caller separates it from the scene light (a moonlit cycle); else the light.
+        let sun = state.to_sun.map_or(-frame.light_dir, glam::Vec3::from_array).normalize_or_zero();
         if sun.z <= 0.0 {
             return;
         }

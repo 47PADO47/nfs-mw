@@ -11,7 +11,44 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
         ui.checkbox(&mut lab.options.cloud_shadows, "Cloud shadows")
             .on_hover_text("Moving cloud shade on sunlight. Independent of geometry shadows; requires Enhanced sky.");
     });
-    ui.small("Cloud coverage and sunlight follow the weather and sun below. Full night lighting is not implemented.");
+    let defaults = super::profiles::defaults(settings).appearance.lighting;
+    let mut cycle = lab.options.full_day_night;
+    if super::controls::checkbox(ui, &mut cycle, "Full day/night cycle", defaults.full_day_night)
+        .on_hover_text("Runs on the custom clock, overriding the other sun modes, with an artistic sun and moon. Switches local lamps on; turning the cycle off restores them.")
+        .changed()
+    {
+        set_full_cycle(lab, cycle);
+    }
+    ui.add_enabled_ui(lab.options.full_day_night, |ui| {
+        super::controls::checkbox(ui, &mut lab.options.auto_player_lights, "Automatic player lights", defaults.auto_player_lights)
+            .on_hover_text("Switch headlights and running lamps at dusk and dawn. You can still toggle them manually between transitions.");
+    });
+    let night_changed = super::controls::checkbox(
+        ui,
+        &mut lab.options.experimental_night,
+        "Experimental moonlit night",
+        defaults.experimental_night,
+    )
+    .on_hover_text("Dims and cools world lighting and enables headlights. Authored light remains in the textures.")
+    .changed();
+    if night_changed && lab.options.experimental_night {
+        set_full_cycle(lab, false);
+        lab.options.local_lamps = true;
+        lab.options.local_street_lights = true;
+        lab.options.local_headlights = true;
+        lab.options.local_traffic_headlights = true;
+    }
+    ui.add_enabled_ui(lab.options.experimental_night || lab.options.full_day_night, |ui| {
+        super::controls::slider(
+            ui,
+            &mut lab.options.night_sky_brightness,
+            0.05..=0.4,
+            "Night sky brightness",
+            defaults.night_sky_brightness,
+        )
+        .on_hover_text("Sky and cloud brightness at night. Used by the full cycle and the manual night preview.");
+    });
+    ui.small("The manual night switch is a fixed preview; the full cycle replaces it.");
     sky_tuning(ui, lab, settings);
     let Some(mut value) = lab.environment else {
         ui.weak("Enter the world to change time and weather.");
@@ -25,18 +62,22 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
             (SunMode::OriginalCycle, "Original cycle"),
             (SunMode::FixedPhase, "Fixed phase"),
         ] {
-            changed |= ui.selectable_value(&mut value.sun_mode, mode, label).changed();
+            if ui.selectable_value(&mut value.sun_mode, mode, label).changed() {
+                changed = true;
+                if mode != SunMode::CustomClock {
+                    set_full_cycle(lab, false);
+                }
+            }
         }
     });
+    let night_label = match lab.options.full_day_night {
+        true => "Night",
+        false => "Night (dusk lighting)",
+    };
     ui.add_enabled_ui(value.sun_mode == SunMode::CustomClock, |ui| {
         ui.horizontal_wrapped(|ui| {
-            for (label, hour) in [
-                ("Dawn", 6.0),
-                ("Morning", 9.0),
-                ("Noon", 12.0),
-                ("Dusk", 18.0),
-                ("Custom night (dusk lighting)", 22.0),
-            ] {
+            for (label, hour) in [("Dawn", 6.0), ("Morning", 9.0), ("Noon", 12.0), ("Dusk", 18.0), (night_label, 22.0)]
+            {
                 if ui.button(label).clicked() {
                     value.hour = hour;
                     changed = true;
@@ -64,7 +105,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
     ui.checkbox(&mut lab.options.freeze_sun, "Freeze time");
     ui.small("Changing Clock hour also advances Enhanced clouds. Freeze time holds sunlight; clouds continue drifting during gameplay.");
     ui.small(
-        "Original cycle: 18 minutes each way; its sun never sets. Custom night is a clock extension using dusk lighting, not an original night scene.",
+        "Original cycle: 18 minutes each way; its sun never sets. Without the full cycle, custom-clock hours after dusk keep dusk lighting; the original game has no night scene.",
     );
     ui.separator();
     ui.label("Cloud / lighting blend");
@@ -164,4 +205,70 @@ fn sky_tuning(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
         });
         ui.small("Changes preview immediately. Use Save for startup or Save as… above to keep them.");
     });
+}
+
+/// The local lamp options the full day/night cycle switches on, as they were before.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct LampOptions([bool; 5]);
+
+fn lamps(o: &mut RenderExperiments) -> [&mut bool; 5] {
+    [
+        &mut o.local_lamps,
+        &mut o.local_street_lights,
+        &mut o.local_headlights,
+        &mut o.local_traffic_headlights,
+        &mut o.local_tail_lights,
+    ]
+}
+
+/// Turn the full day/night cycle on or off from the lab. On: the manual night ends, the lamps light (their previous
+/// values kept) and the sun moves to the custom clock, sent to the world at once. Off: each lamp the cycle switched on
+/// returns to its previous value; one switched off meanwhile stays off.
+pub(super) fn set_full_cycle(lab: &mut GraphicsLab, on: bool) {
+    lab.options.full_day_night = on;
+    if !on {
+        let Some(previous) = lab.cycle_lamp_restore.take() else { return };
+        for (option, was) in lamps(&mut lab.options).into_iter().zip(previous.0) {
+            *option &= was;
+        }
+        return;
+    }
+    lab.options.experimental_night = false;
+    lab.cycle_lamp_restore = Some(LampOptions(lamps(&mut lab.options).map(|option| *option)));
+    for option in lamps(&mut lab.options) {
+        *option = true;
+    }
+    let Some(value) = &mut lab.environment else { return };
+    value.sun_mode = SunMode::CustomClock;
+    lab.environment_change = Some(*value);
+}
+
+#[cfg(test)]
+mod cycle_tests {
+    use super::*;
+
+    #[test]
+    fn the_cycle_takes_the_custom_clock_and_restores_the_lamps_it_lit() {
+        let mut lab = GraphicsLab {
+            environment: Some(crate::viewer::Environment { sun_mode: SunMode::FixedPhase, ..Default::default() }),
+            ..Default::default()
+        };
+        lab.options.local_lamps = true;
+        lab.options.local_street_lights = false;
+        lab.options.local_tail_lights = false;
+        lab.options.experimental_night = true;
+        set_full_cycle(&mut lab, true);
+        assert!(lab.options.full_day_night && !lab.options.experimental_night);
+        assert!(lamps(&mut lab.options).iter().all(|option| **option));
+        assert_eq!(lab.environment_change.map(|value| value.sun_mode), Some(SunMode::CustomClock));
+        lab.options.local_lamps = false;
+        set_full_cycle(&mut lab, false);
+        assert!(!lab.options.full_day_night);
+        assert!(!lab.options.local_lamps, "a lamp switched off during the cycle stays off");
+        assert!(!lab.options.local_street_lights && !lab.options.local_tail_lights, "lamps the cycle lit go back off");
+        assert!(lab.cycle_lamp_restore.is_none());
+        let before = lab.options;
+        set_full_cycle(&mut lab, false);
+        assert_eq!(lab.options, before, "turning an inactive cycle off changes nothing");
+    }
 }

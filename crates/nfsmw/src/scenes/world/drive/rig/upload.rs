@@ -12,7 +12,7 @@ pub(super) fn upload_parts(
     background_actor: bool,
 ) -> (Vec<Part>, Vec<(u32, MeshHandle)>, CarMaterials) {
     let materials = CarMaterials::upload_with_background_policy(renderer, model, shading, to_sun, background_actor);
-    let (parts, meshes) = upload_solids(renderer, model, swaps, &materials, None);
+    let (parts, meshes) = upload_solids(renderer, model, swaps, &materials, None, background_actor);
     (parts, meshes, materials)
 }
 
@@ -24,14 +24,19 @@ pub(super) fn upload_solids(
     swaps: &TextureSwaps,
     materials: &CarMaterials,
     only: Option<&HashSet<u32>>,
+    background_actor: bool,
 ) -> (Vec<Part>, Vec<(u32, MeshHandle)>) {
     let mut cache: HashMap<(u32, bool, u8), Option<MeshHandle>> = HashMap::new();
     // Independent headlight, brake, reverse and cosmetic NOS bits. Equivalent material states share a mesh.
     let variants: [_; 16] = std::array::from_fn(|state| {
-        swaps
-            .clone()
-            .with_visual_lamp_state(state & 1 != 0, state & 2 != 0, state & 8 != 0, &model.textures)
-            .with_reverse_state(state & 4 != 0, &model.textures)
+        let head = state & 1 != 0;
+        let brake = state & 2 != 0;
+        let current = swaps.clone().with_visual_lamp_state(head, brake, state & 8 != 0, &model.textures);
+        let current = match !background_actor && materials.enhanced_lamps() {
+            true => current.with_running_tail_surfaces(head, brake, &model.textures),
+            false => current,
+        };
+        current.with_reverse_state(state & 4 != 0, &model.textures)
     });
     let mut parts = Vec::new();
     let levels = std::iter::once((0, model.placements.as_slice(), false))

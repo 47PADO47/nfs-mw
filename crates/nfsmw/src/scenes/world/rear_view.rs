@@ -57,6 +57,7 @@ impl WorldScene {
         }
         // The sources after the scenery are few; their origins are cut here to the same limit.
         limit_tail(&mut self.rear_visible, scenery, lens.position, far);
+        super::local_lights::set_instance_emission(&mut self.rear_visible, &self.fixture_emission);
         // Every source has appended now: one sort puts the copies of each mesh together.
         visibility::sort_by_mesh(&mut self.rear_visible);
         let fog_end = self.fog_distance;

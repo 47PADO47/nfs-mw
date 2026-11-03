@@ -14,6 +14,12 @@ use blackbox_gfx::{
 use super::Renderer;
 
 impl RenderBackend for Renderer {
+    fn set_night_blend(&mut self, blend: Option<f32>) {
+        self.night_blend = blend.filter(|x| x.is_finite()).map(|x| x.clamp(0.0, 1.0));
+    }
+    fn set_local_lights(&mut self, lights: &[blackbox_gfx::LocalLight]) {
+        Renderer::set_local_lights(self, lights);
+    }
     fn set_display_settings(&mut self, settings: blackbox_gfx::DisplaySettings) {
         Renderer::set_display_settings(self, settings);
     }

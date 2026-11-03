@@ -225,6 +225,56 @@ fn enhanced_water_keeps_dry_pixels_and_produces_stable_patches() {
 
 #[test]
 #[ignore = "requires a GPU"]
+fn wet_road_receives_highlights_from_an_offscreen_light() {
+    let _gpu = test_support::serial();
+    let mut r = Renderer::headless((128, 128), test_support::options()).unwrap();
+    let asphalt = upload(&mut r, [90, 90, 90, 255]);
+    let flat = upload(&mut r, [128, 128, 255, 255]);
+    let mask = upload(&mut r, [255; 4]);
+    let material = material(&mut r, [asphalt, flat, mask], None);
+    let mesh = quad(&mut r, [-20.0, -20.0, 20.0, 20.0], [255; 4], asphalt, Shading::WorldNormal(material));
+    r.set_local_lights(&[blackbox_gfx::LocalLight {
+        position: [0.0, 25.0, 8.0],
+        direction: [0.0, -1.0, -0.3],
+        range: 60.0,
+        outer_cos: 0.2,
+        inner_cos: 0.8,
+        color: [8.0; 3],
+        upper_plane: None,
+        casts_shadow: false,
+        shadow_exclude: None,
+    }]);
+    let options = RenderExperiments {
+        original_world_materials: true,
+        enhanced_wet_surfaces: true,
+        local_shadow_count: 0,
+        ..Default::default()
+    };
+    let water = SurfaceWater { dampness: 1.0, pooling: 1.0, ..Default::default() };
+    let mut frame = frame();
+    frame.camera_position = Vec3::new(0.0, -14.0, 6.0);
+    frame.view = glam::camera::rh::view::look_at_mat4(frame.camera_position, Vec3::ZERO, Vec3::Z);
+    frame.projection = Projection::PerspectiveInfiniteReverse { fov_y: 0.9, aspect: 1.0, near: 0.1 };
+    r.set_surface_water(water);
+    r.set_render_experiments(RenderExperiments { local_specular_strength: 0.0, ..options });
+    r.render(&frame, &[Instance::new(mesh, Mat4::IDENTITY)]).unwrap();
+    let off = r.read_output().unwrap().unwrap();
+    r.set_render_experiments(RenderExperiments { local_specular_strength: 1.0, ..options });
+    r.render(&frame, &[Instance::new(mesh, Mat4::IDENTITY)]).unwrap();
+    let on = r.read_output().unwrap().unwrap();
+    let brighter = on
+        .rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(off.rgba.as_chunks::<4>().0)
+        .filter(|(a, b)| a[0] > b[0].saturating_add(2))
+        .count();
+    assert!(brighter > 10, "a light outside the view should create a wet-road highlight: {brighter}");
+}
+
+#[test]
+#[ignore = "requires a GPU"]
 fn hybrid_road_reflects_visible_geometry_and_preserves_foreground() {
     use blackbox_gfx_testkit::mesh::{MeshBuilder, prelit};
     let _gpu = test_support::serial();

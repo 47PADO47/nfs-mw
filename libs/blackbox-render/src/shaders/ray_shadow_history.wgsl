@@ -14,9 +14,12 @@ fn previous_point(uv:vec2<f32>,z:f32)->vec3<f32>{let w=params.previous_inverse*v
 struct Out{@location(0) mask:vec4<f32>,@location(1) next:vec4<f32>};
 @fragment fn fs(@builtin(position)pixel:vec4<f32>)->Out {
     let p=vec2<i32>(pixel.xy);let size=vec2<i32>(params.screen.xy);
-    let value=textureLoad(source,p,0);let d=textureLoad(depth,p,0);let encoded=textureLoad(normals,p,0);
+    let value=textureLoad(source,p,0);
     var out:Out;out.mask=vec4(value.rg,0.0,1.0);out.next=vec4(0.0);
-    if d<=0.0 || encoded.a<0.5 || value.g<0.98 {return out;}
+    // Partial or missing ray coverage never uses history. Avoid loading surface data for it.
+    if value.g<0.98 {return out;}
+    let d=textureLoad(depth,p,0);let encoded=textureLoad(normals,p,0);
+    if d<=0.0 || encoded.a<0.5 {return out;}
     let n=normalize(encoded.xyz*2.0-1.0);let z=params.screen.z/d;
     out.next=vec4(value.r,z,encode(n));
     let m=textureLoad(motion,p,0);
@@ -38,11 +41,16 @@ struct Out{@location(0) mask:vec4<f32>,@location(1) next:vec4<f32>};
     let old=sum/total;
     // Large lighting/blocker changes reject history immediately, even on an unchanged receiver.
     if abs(old-value.r)>0.2 {return out;}
-    var low=value.r;var high=value.r;
-    for(var y=-1;y<=1;y++){for(var x=-1;x<=1;x++) {
-        let neighbor=textureLoad(source,clamp(p+vec2(x,y),vec2(0),size-vec2(1)),0);
-        low=min(low,neighbor.r);high=max(high,neighbor.r);
-    }}
+    // A ranged source (control.w) is the RT spatial filter, which stores its surface-matched neighbourhood
+    // range in blue/alpha. Other sources clamp to their 3x3 neighbourhood here.
+    var low=min(value.b,value.r);var high=max(value.a,value.r);
+    if params.control.w<0.5 {
+        low=value.r;high=value.r;
+        for(var y=-1;y<=1;y++){for(var x=-1;x<=1;x++) {
+            let neighbor=textureLoad(source,clamp(p+vec2(x,y),vec2(0),size-vec2(1)),0);
+            low=min(low,neighbor.r);high=max(high,neighbor.r);
+        }}
+    }
     if low>=0.999 || high<=0.001 {return out;}
     out.mask.r=mix(value.r,clamp(old,max(0.0,low-0.02),min(1.0,high+0.02)),params.control.y);
     return out;

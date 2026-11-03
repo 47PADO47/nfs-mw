@@ -2,8 +2,11 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 7] = [
+const SHADERS: [(&str, &str); 10] = [
     ("flames", concat!(include_str!("shaders/flame_noise.wgsl"), include_str!("shaders/flames.wgsl"))),
+    ("haze", include_str!("shaders/haze.wgsl")),
+    ("light fog", include_str!("shaders/light_fog.wgsl")),
+    ("light fog grid", include_str!("shaders/light_fog_grid.wgsl")),
     ("ui", include_str!("shaders/ui.wgsl")),
     ("ui_mask", include_str!("shaders/ui_mask.wgsl")),
     ("ui_picture", include_str!("shaders/ui_picture.wgsl")),
@@ -45,6 +48,8 @@ fn the_passes_find_their_entry_points() {
         &["vs_main", "fs_surface", "fs_particle", "fs_streak", "fs_glow", "fs_textured", "fs_textured_alpha"],
     );
     assert_entries("soft_particles", &["vs_main", "fs_main"]);
+    assert_entries("haze", &["vs_main", "fs_main", "fs_main_srgb"]);
+    assert_entries("light fog", &["vs_main", "fs_fog", "fs_composite", "fs_composite_srgb"]);
     assert_entries("fsr1", &["vs_main", "fs_easu", "fs_rcas"]);
 }
 

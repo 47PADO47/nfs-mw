@@ -47,7 +47,8 @@ pub(in crate::gpu) fn instance_source(source: &str, group: Option<u32>) -> Strin
          struct InstanceIn {{ @location(4) slot: u32, }};\n\
          @group({group}) @binding(0) var<storage, read> instance_models: array<InstanceData>;\n\
          fn instance_model(i: InstanceIn) -> mat4x4<f32> {{ return instance_models[i.slot].model; }}\n\
-         fn instance_receives_shadow(i: InstanceIn) -> u32 {{ return u32(instance_models[i.slot].flags.x); }}\n{}",
+         fn instance_receives_shadow(i: InstanceIn) -> u32 {{ return u32(instance_models[i.slot].flags.x); }}\n\
+         fn instance_emission(i: InstanceIn) -> f32 {{ return instance_models[i.slot].flags.y; }}\n{}",
         &source[..start],
         &source[end + END.len()..]
     )

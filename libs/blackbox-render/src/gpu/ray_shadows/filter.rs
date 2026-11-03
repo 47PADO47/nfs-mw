@@ -1,12 +1,23 @@
 //! Small spatial reconstruction of finite-sun visibility; never reuses frame history.
+use super::Groups;
 use crate::gpu::surface::targets::Targets;
 pub(super) struct Filter {
     layout: wgpu::BindGroupLayout,
     pipeline: wgpu::RenderPipeline,
     float_pipeline: wgpu::RenderPipeline,
+    /// Inputs keyed by the depth, normal, ray and ray-surface views.
+    groups: Groups<4>,
+}
+/// The views one filter pass reads.
+pub(super) struct Inputs<'a> {
+    pub params: &'a wgpu::Buffer,
+    pub raw: &'a wgpu::TextureView,
+    pub surface: &'a wgpu::TextureView,
+    pub output: &'a wgpu::TextureView,
+    pub targets: &'a Targets,
 }
 impl Filter {
-    pub fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device, cache: Option<&wgpu::PipelineCache>) -> Self {
         let mut entries = vec![wgpu::BindGroupLayoutEntry {
             binding: 0,
             visibility: wgpu::ShaderStages::FRAGMENT,
@@ -17,13 +28,14 @@ impl Filter {
             },
             count: None,
         }];
-        for binding in 1..=3 {
+        for binding in 1..=4 {
             entries.push(wgpu::BindGroupLayoutEntry {
                 binding,
                 visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Texture {
                     sample_type: match binding {
                         1 => wgpu::TextureSampleType::Depth,
+                        4 => wgpu::TextureSampleType::Uint,
                         _ => wgpu::TextureSampleType::Float { filterable: false },
                     },
                     view_dimension: wgpu::TextureViewDimension::D2,
@@ -69,33 +81,31 @@ impl Filter {
                     })],
                 }),
                 multiview_mask: None,
-                cache: None,
+                cache,
             })
         };
         Self {
             layout,
             pipeline: make(wgpu::TextureFormat::Rg8Unorm),
             float_pipeline: make(wgpu::TextureFormat::Rgba16Float),
+            groups: Groups::default(),
         }
     }
-    pub fn draw(
-        &self,
-        device: &wgpu::Device,
-        encoder: &mut wgpu::CommandEncoder,
-        params: &wgpu::Buffer,
-        raw: &wgpu::TextureView,
-        output: &wgpu::TextureView,
-        surfaces: &Targets,
-    ) {
-        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("sun spatial inputs"),
-            layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: params.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&surfaces.depth) },
-                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&surfaces.normals) },
-                wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(raw) },
-            ],
+    pub fn draw(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder, inputs: Inputs<'_>) {
+        let Inputs { params, raw, surface, output, targets } = inputs;
+        let layout = &self.layout;
+        let group = self.groups.get([&targets.depth, &targets.normals, raw, surface], || {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("sun spatial inputs"),
+                layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: params.as_entire_binding() },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&targets.depth) },
+                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&targets.normals) },
+                    wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(raw) },
+                    wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(surface) },
+                ],
+            })
         });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("RT sun spatial reconstruction"),
@@ -117,19 +127,26 @@ impl Filter {
             wgpu::TextureFormat::Rgba16Float => &self.float_pipeline,
             _ => &self.pipeline,
         });
-        pass.set_bind_group(0, &group, &[]);
+        pass.set_bind_group(0, group, &[]);
         pass.draw(0..3, 0..1);
     }
 }
 pub(super) fn raw(device: &wgpu::Device, size: (u32, u32)) -> wgpu::TextureView {
+    target(device, size, "sun raw visibility and blocker distance", wgpu::TextureFormat::Rgba16Float)
+}
+/// Per ray cell: the representative receiver's camera-relative position and normal, written by the trace.
+pub(super) fn surface(device: &wgpu::Device, size: (u32, u32)) -> wgpu::TextureView {
+    target(device, size, "sun ray receiver planes", wgpu::TextureFormat::Rgba32Uint)
+}
+fn target(device: &wgpu::Device, size: (u32, u32), label: &str, format: wgpu::TextureFormat) -> wgpu::TextureView {
     device
         .create_texture(&wgpu::TextureDescriptor {
-            label: Some("sun raw visibility and blocker distance"),
+            label: Some(label),
             size: wgpu::Extent3d { width: size.0, height: size.1, depth_or_array_layers: 1 },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba16Float,
+            format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,

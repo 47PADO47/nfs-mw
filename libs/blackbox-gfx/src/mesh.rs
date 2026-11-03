@@ -36,6 +36,12 @@ pub enum Shading {
     Prelit,
     /// Authored world material: ambient vertex light receives extinction, sun light does not.
     World,
+    /// World material whose texture alpha masks per-instance emission.
+    WorldEmissive,
+    /// Distant world scenery with the same daylight material and a separate night response.
+    WorldDistant,
+    /// Prelit scenery with the enhanced distant-night response.
+    PrelitDistant,
     /// Registered tangent-space lit scenery, with diffuse, normal and specular textures.
     WorldNormal(crate::NormalMaterialHandle),
     /// Architectural glass with authored two-dimensional reflections.

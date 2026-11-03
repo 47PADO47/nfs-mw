@@ -38,7 +38,7 @@ const GROUND: GroundReferenceSettings = GroundReferenceSettings {
 
 pub(super) struct Environment {
     pub(super) views: Option<nfsmw_data::camera::Views>,
-    regions: blackbox_roads::TrackZones,
+    pub(super) regions: blackbox_roads::TrackZones,
     safety_ground: std::cell::RefCell<blackbox_collision::ground_reference::GroundReferenceCache>,
     /// The last custom-camera clearance and everything it was computed from.
     memo: std::cell::RefCell<Option<ClearanceMemo>>,

@@ -174,6 +174,7 @@ impl Renderer {
             timing.stamp(encoder, 2);
         }
         self.encode_shadows(encoder, frame, instances);
+        self.encode_local_shadows(encoder, frame, instances);
         self.encode_cascade_history(encoder, frame);
         if self.experiments.cloud_shadows
             && self.sky.as_ref().is_some_and(|sky| sky.cloud_shadow_active())
@@ -221,12 +222,19 @@ impl Renderer {
         // A reflection view draws no effects and no material reflections: its pass is recorded whole.
         if view.reflection {
             self.scene_draw().record(encoder, &view, &self.draw_list);
+            let mut pass = super::glossy::screen_draw::resume(encoder, &view.target, &view.depth);
+            pass.set_bind_group(0, &view.globals, &[]);
+            self.effects.draw_light_lenses(&mut pass, Some(&self.shared.shadows.fallback));
             return;
         }
         let mut pass = begin_pass(encoder, &view);
         self.scene_draw().begin(&mut pass, &view, &self.draw_list);
         for (mode_index, mode) in BLEND_ORDER.into_iter().enumerate() {
             self.scene_draw().blend_mode(&mut pass, &view, &self.draw_list, (mode_index, mode));
+            if mode == blackbox_gfx::BlendMode::AlphaTest {
+                pass.set_bind_group(0, &view.globals, &[]);
+                self.effects.draw_light_lenses(&mut pass, Some(&self.shared.shadows.fallback));
+            }
             if mode == blackbox_gfx::BlendMode::AlphaTest
                 && (view.screen || self.road_reflections_active(frame, reduced))
             {

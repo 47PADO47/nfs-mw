@@ -188,6 +188,7 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
     // The FSR 3 upscaler stores its 16-bit intermediates in 16-bit formats where the adapter allows it.
     required_features |= adapter.features() & wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
     let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
+    limits.max_sampled_textures_per_shader_stage = adapter.limits().max_sampled_textures_per_shader_stage.min(17);
     let rays = info.backend == wgpu::Backend::Vulkan
         && ["BLACKBOX_RT_REFLECTIONS", "BLACKBOX_RT_SHADOWS"]
             .iter()
@@ -348,6 +349,10 @@ fn assemble(
         experiments: Default::default(),
         experiment_stats: blackbox_gfx::ExperimentStats { supported: api != GraphicsApi::Gl, ..Default::default() },
         shadows: None,
+        local_shadows: None,
+        local_lights: Vec::new(),
+        fog_view: Some(blackbox_gpu_passes::FogView::Main),
+        night_blend: None,
         smaa: None,
         shadow_casters: None,
         ao: None,

@@ -23,6 +23,8 @@ struct Params {
     intensity: [f32; 4],
     options: [f32; 4],
     appearance: [f32; 4],
+    celestial: [f32; 4],
+    moon: [f32; 4],
 }
 
 struct Material {
@@ -175,6 +177,16 @@ impl Sky {
                     self.state.sky_brightness,
                     self.state.sky_sunset_warmth,
                 ],
+                celestial: match self.state.celestial_sun {
+                    Some(v) => [v[0], v[1], v[2], 1.0],
+                    None => [0.0; 4],
+                },
+                moon: [
+                    self.state.moon_direction[0],
+                    self.state.moon_direction[1],
+                    self.state.moon_direction[2],
+                    self.state.night_amount,
+                ],
             };
             queue.write_buffer(&material.uniform, 0, bytemuck::bytes_of(&params));
         }
@@ -303,6 +315,8 @@ impl Renderer {
                 intensity: [1.0; 4],
                 options: [desc.kind as u32 as f32, 0.0, 0.0, 0.0],
                 appearance: [2.0, 1.0, 1.0, 1.0],
+                celestial: [0.0; 4],
+                moon: [0.0, 0.0, 1.0, 0.0],
             }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });

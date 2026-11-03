@@ -226,6 +226,7 @@ impl WorldScene {
             .filter(|_| self.extra.camera.preserve_framing && comparing)
             .and_then(|drive| drive.last_good());
         self.start_driving_setup(renderer, folder, model, None, false)?;
+        self.reset_player_night_lights();
         if let (Some(drive), Some(spawn)) = (self.players.lead_mut(), preserved) {
             drive.respawn_at(spawn);
         }

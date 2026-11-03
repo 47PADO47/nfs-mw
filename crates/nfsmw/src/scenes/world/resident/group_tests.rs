@@ -1,6 +1,16 @@
 use std::collections::HashMap;
 
-use super::hidden_group;
+use super::{hidden_group, night_building};
+
+#[test]
+fn inspected_downtown_towers_use_night_building_response() {
+    for name in ["XB_CITYMODERN24_1A_00", "XB_CITYMODERN15_1A_00", "XB_CITYTOWERB_1A_00", "XB_HAPARTMENT1_1C_JG_00"] {
+        assert!(night_building(name), "{name}");
+    }
+    for name in ["XB_CITYMODERNSHOP_1B_00", "XB_CITYMODERNBASE12_1B_00", "XB_WALKWAY_1B_00"] {
+        assert!(!night_building(name), "{name}");
+    }
+}
 
 fn groups() -> HashMap<u16, u16> {
     HashMap::from([(41, 624), (13601, 389)])

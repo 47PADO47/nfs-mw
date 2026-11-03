@@ -5,6 +5,29 @@ use blackbox_gfx::{EffectLayer, RenderBackend};
 use super::super::{View, WorldScene};
 use super::entry_marks;
 
+fn fog_shelters(zones: &blackbox_roads::TrackZones, camera: glam::Vec3, range: f32) -> Vec<blackbox_gfx::FogShelter> {
+    let point = camera.truncate();
+    let mut nearby: Vec<_> = zones
+        .zones
+        .iter()
+        .filter(|zone| [3, 4, 5, 7].contains(&zone.kind) && (3..=16).contains(&zone.polygon.len()))
+        .filter_map(|zone| {
+            let distance = point.distance(point.clamp(zone.bbox_min, zone.bbox_max));
+            (distance < range).then_some((distance, zone))
+        })
+        .collect();
+    nearby.sort_by(|a, b| a.0.total_cmp(&b.0));
+    nearby
+        .into_iter()
+        .take(24)
+        .map(|(_, zone)| blackbox_gfx::FogShelter {
+            bounds: [zone.bbox_min.x, zone.bbox_min.y, zone.bbox_max.x, zone.bbox_max.y],
+            ceiling: zone.elevation,
+            polygon: zone.polygon.iter().map(|point| point.to_array()).collect(),
+        })
+        .collect()
+}
+
 impl WorldScene {
     pub(in crate::scenes::world) fn upload_effects(&mut self, renderer: &mut dyn RenderBackend) {
         let _trace = blackbox_trace::scope("World: effects / uploads");
@@ -41,9 +64,28 @@ impl WorldScene {
         self.impact_fx.maintain(renderer, &self.dir);
         let cutscene = self.cutscene_playing();
         let environment = self.environment_effects(renderer);
+        let mut street_glows = Vec::with_capacity(self.street_glows.len() * 18);
+        let mut street_lenses = Vec::with_capacity(self.street_glows.len() * 6);
+        let glow_strength = renderer.render_experiments().local_street_glow;
+        let fog_strength = renderer.render_experiments().local_light_fog;
+        let weather = self.rain.visible_intensity().max(self.atmosphere.intensity() * 0.5);
+        let shelters = match fog_strength > 0.0 && weather > 0.0 {
+            true => fog_shelters(
+                &self.camera_environment.regions,
+                position,
+                renderer.render_experiments().local_light_fog_distance,
+            ),
+            false => Vec::new(),
+        };
+        for &lamp in &self.street_glows {
+            super::street_lamps::append(&mut street_glows, &mut street_lenses, lamp, flare_view, glow_strength);
+        }
         let rain = self.rain_effects(position);
         let Some(drive) = self.players.lead_mut() else {
-            let mut layer = EffectLayer::default();
+            let mut layer = EffectLayer { light_fog: [fog_strength, weather], ..EffectLayer::default() };
+            layer.fog_shelters = shelters;
+            layer.glows.extend_from_slice(&street_glows);
+            layer.light_lenses.extend_from_slice(&street_lenses);
             layer.textured.extend(environment);
             self.ambient_fx.textured(position, forward, &mut layer.textured);
             self.object_fx.textured(position, forward, &mut layer.textured);
@@ -92,6 +134,10 @@ impl WorldScene {
             drive.tail_trails.clear();
         }
         let layer = drive.effects.build(position, forward);
+        layer.light_fog = [fog_strength, weather];
+        layer.fog_shelters = shelters;
+        layer.glows.extend_from_slice(&street_glows);
+        layer.light_lenses.extend_from_slice(&street_lenses);
         layer.textured.extend(environment);
         // A cutscene shows the trail only when it is asked for: the world stands still under it, so a trail from the
         // drive before it would hang in the air.
@@ -148,5 +194,33 @@ impl WorldScene {
         renderer.set_effects(layer);
         drive.flames.reclaim(layer);
         drive.effects.reclaim_built();
+    }
+}
+
+#[cfg(test)]
+mod fog_shelter_tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires installed world"]
+    fn reported_tunnel_has_a_usable_shelter_region() {
+        let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("game install")).unwrap();
+        let index = nfsmw_data::world::WorldIndex::open(&dir, "L2RA").unwrap();
+        let zones = index.track_zones.expect("world has track zones");
+        let camera = glam::Vec3::new(337.0, 1896.0, 211.5);
+        let selected = fog_shelters(&zones, camera, 460.0);
+        let original = zones
+            .zones
+            .iter()
+            .find(|zone| {
+                [3, 4, 5, 7].contains(&zone.kind) && zone.elevation > camera.z && zone.contains(camera.truncate())
+            })
+            .expect("reported tunnel must have a covered track zone");
+        assert!(
+            selected.iter().any(|shelter| {
+                shelter.ceiling == original.elevation && shelter.polygon.len() == original.polygon.len()
+            }),
+            "the reported tunnel zone must reach the fog renderer"
+        );
     }
 }

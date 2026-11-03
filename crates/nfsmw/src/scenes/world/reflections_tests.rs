@@ -177,11 +177,12 @@ fn live_environment_changes_lighting_and_invalidates_frozen_reflections() {
     assert!(world.reflection_last.is_some());
     assert_eq!(world.clock, 0.0, "refresh must not advance simulation");
     for tuning in [
-        [3.0, 2.0, 1.0, 1.0, 1.0],
-        [3.0, 2.5, 1.0, 1.0, 1.0],
-        [3.0, 2.5, 0.5, 1.0, 1.0],
-        [3.0, 2.5, 0.5, 0.5, 1.0],
-        [3.0, 2.5, 0.5, 0.5, 1.5],
+        [3.0, 2.0, 1.0, 1.0, 1.0, 0.18],
+        [3.0, 2.5, 1.0, 1.0, 1.0, 0.18],
+        [3.0, 2.5, 0.5, 1.0, 1.0, 0.18],
+        [3.0, 2.5, 0.5, 0.5, 1.0, 0.18],
+        [3.0, 2.5, 0.5, 0.5, 1.5, 0.18],
+        [3.0, 2.5, 0.5, 0.5, 1.5, 0.12],
     ] {
         let mut options = renderer.render_experiments();
         [
@@ -190,6 +191,7 @@ fn live_environment_changes_lighting_and_invalidates_frozen_reflections() {
             options.sky_sun_brightness,
             options.sky_brightness,
             options.sky_sunset_warmth,
+            options.night_sky_brightness,
         ] = tuning;
         renderer.set_render_experiments(options);
         world.refresh_effects(&mut renderer);

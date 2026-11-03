@@ -130,7 +130,12 @@ fn cloud_lighting_is_shared_between_views_and_invalidated_by_weather_sun_wind_an
     renderer.set_sky_state(SkyState { sky_wind_speed: 0.0, sky_brightness: 0.25, ..state });
     renderer.render(&view, &commands).unwrap();
     assert_eq!(renderer.sky.as_ref().unwrap().cloud_map.updates, 6, "exposure does not require another march");
-    assert_ne!(stopped, renderer.read_output().unwrap().unwrap(), "brightness previews immediately");
+    let dim = renderer.read_output().unwrap().unwrap();
+    assert_ne!(stopped, dim, "brightness previews immediately");
+    renderer.set_sky_state(SkyState { sky_wind_speed: 0.0, sky_brightness: 0.05, ..state });
+    renderer.render(&view, &commands).unwrap();
+    assert_ne!(dim, renderer.read_output().unwrap().unwrap(), "night brightness below 0.25 must not be clamped");
+    assert_eq!(renderer.sky.as_ref().unwrap().cloud_map.updates, 6);
 }
 
 #[test]
@@ -192,4 +197,35 @@ fn solar_disk_retains_sdr_contrast_and_survives_hdr_sdr_switching() {
     renderer.render(&view, &commands).unwrap();
     let restored = renderer.read_output().unwrap().unwrap();
     assert_eq!(sdr, restored, "switching back must restore the exact SDR sky without stale state");
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn celestial_moon_is_visible_and_does_not_change_the_day_sky() {
+    let _gpu = test_support::serial();
+    let Some(mut renderer) = test_support::headless((32, 32)) else { return };
+    let source = texture(&mut renderer, "celestial sky", 1, &[255; 4]);
+    let material = renderer
+        .create_sky_material(&SkyMaterialDesc { kind: SkyLayerKind::Base, diffuse: source, miscellaneous: source })
+        .unwrap();
+    let mesh = mesh(&mut renderer, material, [0.5; 2]);
+    let sky = SkyState {
+        enhanced: true,
+        celestial_sun: Some([0.0, 0.0, -1.0]),
+        moon_direction: [0.03125, -0.03125, 0.5],
+        night_amount: 0.0,
+        ..Default::default()
+    };
+    let dark = image(&mut renderer, mesh, sky);
+    let moon = image(&mut renderer, mesh, SkyState { night_amount: 1.0, ..sky });
+    assert_ne!(dark, moon, "the night sky must contain visible celestial light");
+    assert_eq!(dark, image(&mut renderer, mesh, sky));
+    // By day the cycle path (its own sun, a moon, zero night) must draw the old sky exactly. The test frame's light
+    // points straight down, so the old path's sun is the zenith.
+    for coverage in [0.0, 0.5] {
+        let old = SkyState { enhanced: true, cloud_coverage: coverage, ..Default::default() };
+        let cycle = SkyState { celestial_sun: Some([0.0, 0.0, 1.0]), moon_direction: [0.3, 0.2, 0.5], ..old };
+        let expected = image(&mut renderer, mesh, old);
+        assert_eq!(expected, image(&mut renderer, mesh, cycle), "cycle day sky differs at coverage {coverage}");
+    }
 }

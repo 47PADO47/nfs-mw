@@ -148,6 +148,7 @@ impl WorldScene {
         }
         // The NIS scene's characters: placed with the rest, so they sort by mesh with them.
         self.nis.character_instances(out);
+        super::super::local_lights::set_instance_emission(out, &self.fixture_emission);
         // Every source has appended now: one sort puts the copies of each mesh together, traffic included.
         visibility::sort_by_mesh(out);
     }

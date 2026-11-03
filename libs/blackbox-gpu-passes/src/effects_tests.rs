@@ -192,6 +192,11 @@ fn check(backend: wgpu::Backends) {
     let glow = gpu.sample(&particles, 0.6, 64, no_fog).center();
     assert!(glow[0] > BACKGROUND[0] + 30, "glow has an additive bright core");
     assert_eq!(&glow[1..], &BACKGROUND[1..]);
+    for vertex in &mut particles.glows {
+        vertex.detail[0] = 2.0;
+    }
+    let bright = gpu.sample(&particles, 0.6, 64, no_fog).center();
+    assert!(bright[0] > glow[0] + 20, "the bulb emission multiplier must brighten the core");
     assert_eq!(gpu.sample(&particles, 0.9, 64, no_fog).center(), BACKGROUND, "glows stay behind opaque geometry");
     assert_eq!(gpu.sample(&particles, 0.0, 64, [0.0, 0.1]).center(), BACKGROUND, "glows cannot brighten fog");
     particles.clear();

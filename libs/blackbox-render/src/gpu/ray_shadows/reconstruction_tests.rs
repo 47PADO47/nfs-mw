@@ -142,4 +142,39 @@ fn four_ray_plane_filter_improves_reference_error_and_history_never_recurses() {
     r.set_shadow_casters(Some(&[]));
     r.capture(320, 240, &frame, &[ground]).unwrap();
     assert!(mask(&r).as_chunks::<2>().0.iter().all(|p| p[0] == 255), "removed blockers leave no temporal trail");
+
+    // At the RT range boundary, temporal history must not change partial or absent coverage.
+    r.set_shadow_casters(Some(&[roof]));
+    r.set_render_experiments(RenderExperiments {
+        ray_shadow_range: 10.0,
+        ray_shadow_resolution: 50,
+        ray_shadow_temporal: true,
+        ray_shadow_filter: 0.75,
+        ..settings
+    });
+    for _ in 0..3 {
+        r.capture(320, 240, &frame, &[ground]).unwrap();
+    }
+    let pass = r.ray_shadows.as_ref().unwrap();
+    let current = r.read_raw_texture(pass.spatial.as_ref().unwrap().texture(), (320, 240), 8).unwrap();
+    let resolved = mask(&r);
+    let mut partial = 0;
+    let mut uncovered = 0;
+    for (src, dst) in current.as_chunks::<8>().0.iter().zip(resolved.as_chunks::<2>().0) {
+        let coverage = half::f16::from_le_bytes([src[2], src[3]]).to_f32();
+        if coverage >= 0.98 {
+            continue;
+        }
+        if coverage > 0.0 {
+            partial += 1;
+        } else {
+            uncovered += 1;
+        }
+        for channel in 0..2 {
+            let value = half::f16::from_le_bytes([src[channel * 2], src[channel * 2 + 1]]).to_f32();
+            let expected = (value.clamp(0.0, 1.0) * 255.0).round() as u8;
+            assert!(dst[channel].abs_diff(expected) <= 1, "range fallback must use the current spatial result");
+        }
+    }
+    assert!(partial > 0 && uncovered > 0, "fixture must exercise both partial and absent ray coverage");
 }

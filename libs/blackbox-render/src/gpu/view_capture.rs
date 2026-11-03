@@ -172,7 +172,13 @@ impl Renderer {
         self.draw_list.store.begin_frame();
         self.encode_reflections(&mut encoder, false);
         self.encode_irradiance(&mut encoder);
+        // The light fog keeps a state per view, so a capture never rebuilds the main view's volume or reuses its
+        // history. The rear-view mirror drawn into a UI texture skips the fog: at its size the volume costs more than
+        // it shows. Readback captures (split-screen halves) have no stable identity and are matched by camera.
+        let fog = ui.is_none().then_some(blackbox_gpu_passes::FogView::Unkeyed);
+        let main_fog = std::mem::replace(&mut self.fog_view, fog);
         self.encode_scene_mode(&mut encoder, Some(&capture.scene), &capture.view, frame, instances, true, None);
+        self.fog_view = main_fog;
         self.encode_post(&mut encoder, Some(&capture.scene), &capture.view, (width, height), true);
         let composed = match ui {
             Some(target) => self.ui.compose_picture(
