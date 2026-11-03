@@ -10,13 +10,11 @@ impl Binding {
     pub fn new(rt: &Runtime, package: PackageId) -> Self {
         let tree = rt.tree(package);
         let mut groups = [
-            vec![rt.find(package, fe_hash_upper("TAC_Lines_7500")), rt.find_guid(package, 0x456e)],
+            vec![rt.find_guid(package, 0x456e)],
             ["3rdPersonNeedle", "3rdperson_TurboDial"].map(|n| rt.find(package, fe_hash_upper(n))).to_vec(),
-            ["SPEED_DIGIT_1", "SPEED_DIGIT_2", "SPEED_DIGIT_3", "3rdPersonSpeedUnits", "3rdPersonGear"]
-                .map(|n| rt.find(package, fe_hash_upper(n)))
-                .to_vec(),
+            ["TAC_Lines_7500", "3rdPersonSpeedUnits"].map(|n| rt.find(package, fe_hash_upper(n))).to_vec(),
         ];
-        groups[0].extend(tree.nodes.iter().filter_map(|n| {
+        groups[2].extend(tree.nodes.iter().filter_map(|n| {
             matches!(n.kind, blackbox_feng::NodeKind::Image { texture, .. } if texture == fe_hash_upper("TURBO_LINES"))
                 .then_some(Some(ObjectRef { package, index: n.index }))
         }));
@@ -26,10 +24,7 @@ impl Binding {
                 .flatten()
                 .filter_map(|o| {
                     let n = tree.nodes.iter().find(|n| n.index == o.index)?;
-                    let rgb = match n.name_hash == fe_hash_upper("3rdPersonGear") {
-                        true => [0; 3], // The live tachometer binding uses black for this digit.
-                        false => [n.colour[0], n.colour[1], n.colour[2]],
-                    };
+                    let rgb = [n.colour[0], n.colour[1], n.colour[2]];
                     Some((o, rgb))
                 })
                 .collect()

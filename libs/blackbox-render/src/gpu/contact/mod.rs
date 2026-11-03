@@ -175,8 +175,13 @@ impl Contact {
 }
 
 impl Renderer {
+    /// Contact shadows are on in the renderer and the frame's own shadow tuning, if any, allows them.
+    pub(super) fn contact_active(&self, frame: &FrameParams) -> bool {
+        self.experiments.contact_shadows && frame.shadow_tuning.is_none_or(|tuning| tuning.contact_shadows)
+    }
+
     pub(super) fn encode_contact(&mut self, encoder: &mut wgpu::CommandEncoder, size: (u32, u32), frame: &FrameParams) {
-        if !self.experiments.contact_shadows || self.ray_shadows_active(frame) || !self.screen_lighting_active(frame) {
+        if !self.contact_active(frame) || self.ray_shadows_active(frame) || !self.screen_lighting_active(frame) {
             return;
         }
         let view_proj = self.world_to_clip(frame);

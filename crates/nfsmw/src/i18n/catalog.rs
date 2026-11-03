@@ -11,6 +11,7 @@ const FILES: &[(&str, &str, &str)] = &[
     ("en", "coop.ftl", include_str!("../../i18n/en/coop.ftl")),
     ("en", "dialogs.ftl", include_str!("../../i18n/en/dialogs.ftl")),
     ("en", "formats.ftl", include_str!("../../i18n/en/formats.ftl")),
+    ("en", "garage.ftl", include_str!("../../i18n/en/garage.ftl")),
     ("en", "hud.ftl", include_str!("../../i18n/en/hud.ftl")),
     ("en", "keys.ftl", include_str!("../../i18n/en/keys.ftl")),
     ("en", "lan.ftl", include_str!("../../i18n/en/lan.ftl")),

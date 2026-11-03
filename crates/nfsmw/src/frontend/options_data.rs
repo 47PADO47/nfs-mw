@@ -17,6 +17,7 @@ impl Setting {
     pub fn data(self, s: &Settings) -> Data {
         match self {
             Setting::AdvancedGraphics => message("options-open-f8"),
+            Setting::Autosave => autosave::data(),
             Setting::Custom(row) => super::super::custom_race::options::data(row),
             Setting::TrafficPreset => Data::Text(s.traffic_preset().menu_label()),
             Setting::Input(setting) => setting.data(s),
@@ -36,11 +37,7 @@ impl Setting {
             Setting::UiStyle => Data::Text(s.ui_style.label()),
             Setting::SpeedUnits => Data::Text(s.speed_units.label()),
             Setting::UiTheme => Data::Text(s.ui_theme.label()),
-            Setting::Minimap => match s.minimap {
-                MinimapMode::Fixed => message("options-minimap-fixed"),
-                MinimapMode::Rotating => message("options-minimap-rotating"),
-                MinimapMode::Off => Data::Label(LABEL_OFF),
-            },
+            Setting::ContextMinimap(context) => map_options::data(s.minimap_mode(context)),
             Setting::RenderScale => Data::Text(crate::i18n::fmt::percent(i64::from(s.render_scale.percent()))),
             Setting::Upscaler => match s.upscaler {
                 UpscaleMode::Off => Data::Label(LABEL_OFF),

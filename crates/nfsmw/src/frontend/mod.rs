@@ -29,6 +29,7 @@ mod icon_strip;
 mod icon_window;
 mod ids;
 // The ticket after a bust (`docs/specs/busted-sequence.md`); the flow opens it (`flow.rs`).
+mod backdrop_light;
 pub(crate) mod custom_race;
 mod footer;
 mod garage_scene;
@@ -61,6 +62,7 @@ mod renderer_options;
 mod rewards;
 mod room;
 mod room_floor;
+mod room_fx;
 mod room_materials;
 mod scene;
 mod screens;

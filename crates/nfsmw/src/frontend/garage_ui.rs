@@ -111,6 +111,11 @@ impl GarageUi {
         true
     }
 
+    /// No screen holds this session any more: every page that shares it has been closed.
+    pub fn is_detached(&self) -> bool {
+        Arc::strong_count(&self.0) == 1
+    }
+
     pub fn drain(&self) -> Vec<Request> {
         std::mem::take(&mut self.0.lock().unwrap().requests)
     }

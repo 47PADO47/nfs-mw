@@ -7,7 +7,8 @@
 //!
 //! Left out: the default stable hash (it depends on the installed car data, so a save written by the rewrite loads
 //! in the original only with the same car set; the stored value is kept as it is), the gameplay blob contents and
-//! the other blocks (options, playlist, statistics, race settings, controller bindings), which stay verbatim.
+//! the other blocks (options except the named Autosave switch, playlist, statistics, race settings and controller
+//! bindings), which otherwise stay verbatim.
 
 pub mod crc;
 pub mod layout;

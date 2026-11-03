@@ -101,6 +101,10 @@ impl Tuning {
 }
 
 impl ScreenLogic for Tuning {
+    fn accepts_input(&self) -> bool {
+        !self.done
+    }
+
     fn covers_screens(&self) -> bool {
         true
     }

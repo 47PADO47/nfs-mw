@@ -1,6 +1,6 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 mod ai;
-mod ambient_fx;
+pub(crate) mod ambient_fx;
 mod breaker_icons;
 mod breaker_visuals;
 mod camera_bike;
@@ -37,6 +37,7 @@ mod frame_systems;
 mod full_cycle;
 mod garage;
 mod mesh_animation;
+pub(crate) use garage::career_preview_selection;
 pub(crate) use garage::catalog as garage_catalog;
 pub(crate) use garage::native_my_car_handle;
 mod gps;
@@ -51,7 +52,7 @@ mod hud_pursuit;
 mod installed_turn;
 mod keys;
 mod lighting;
-mod materials;
+pub(crate) mod materials;
 mod mod_hooks;
 mod moment;
 mod moment_world;

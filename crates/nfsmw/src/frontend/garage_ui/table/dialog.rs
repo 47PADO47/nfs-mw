@@ -113,8 +113,12 @@ impl Dialog {
         matches!(self.page, Page::InsufficientFunds | Page::TuningError)
     }
 
-    fn answer(&mut self, yes: bool) {
+    fn answer(&mut self, cx: &mut Cx, yes: bool) {
         if self.done {
+            return;
+        }
+        if yes && !self.notice() && self.handle.model().preview_loading {
+            cx.rt.post_to_package(cx.package, crate::frontend::ids::INPUT_ENABLE);
             return;
         }
         self.done = true;
@@ -178,15 +182,15 @@ impl ScreenLogic for Dialog {
                 self.yes = false;
                 self.refresh(cx);
             }
-            PAD_BACK => self.answer(false),
-            PAD_ACCEPT | confirm::ANSWERED => self.answer(self.yes),
+            PAD_BACK => self.answer(cx, false),
+            PAD_ACCEPT | confirm::ANSWERED => self.answer(cx, self.yes),
             _ => {}
         }
     }
     fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
         let objects: Vec<_> = [0x000f_70e8, 0x000f_72c2].into_iter().filter_map(|guid| cx.guid(guid)).collect();
         let Some(hit) = cx.rt.object_at(&objects, point) else { return false };
-        self.answer(objects.first() == Some(&hit));
+        self.answer(cx, objects.first() == Some(&hit));
         true
     }
     fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
@@ -202,7 +206,7 @@ impl ScreenLogic for Dialog {
             self.yes = false;
         }
         if bits & pad::BACK != 0 {
-            self.answer(false);
+            self.answer(cx, false);
         }
         if bits & pad::ACCEPT != 0 {
             // Its authored pressed script lasts 300 native ticks (1200 ticks per second).
@@ -215,12 +219,15 @@ impl ScreenLogic for Dialog {
             self.pending = Some((yes, time - dt));
             if time <= dt {
                 self.pending = None;
-                self.answer(yes);
+                self.answer(cx, yes);
             }
         }
         self.refresh(cx);
     }
     fn footer(&self) -> Footer {
+        if self.handle.model().preview_loading {
+            return Footer::BackOnly;
+        }
         Footer::BackAccept
     }
 }

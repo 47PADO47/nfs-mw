@@ -28,7 +28,7 @@ pub struct CarLook {
 }
 
 /// What a profile's car record holds: enough to find the car among the install's car types and preset rides.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CarRecordRef {
     /// The record's handle: a small slot number, or the name hash of a preset ride.
     pub handle: u32,
@@ -36,6 +36,9 @@ pub struct CarRecordRef {
     pub frontend_key: u32,
     /// The record's vehicle collection key: the hash of the car type's name for a stock car.
     pub vehicle_key: u32,
+    /// Snapshot of this exact slot, so a worker cannot read a later selection or alias.
+    pub customization: Option<nfsmw_career::stable::CustomizationRecord>,
+    pub alias: Option<String>,
 }
 
 /// The backdrop of a menu.
@@ -118,6 +121,8 @@ impl CarLook {
                 handle: record.handle,
                 frontend_key: record.frontend_key,
                 vehicle_key: record.vehicle_key,
+                customization: career.stable.customization_for_handle(handle),
+                alias: Some(career.alias.clone()),
             }),
         }
     }

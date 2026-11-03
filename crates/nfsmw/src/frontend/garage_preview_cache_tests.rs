@@ -164,3 +164,60 @@ fn batch12_restored_preview_keeps_its_own_fallback_orbit_rest_and_intro() {
     assert_eq!(backdrop.scene.intro, continued_intro, "a later visit resumes the latest parked progress");
     backdrop.close(&mut renderer);
 }
+
+#[test]
+#[ignore = "requires installed garage model and stage"]
+fn batch17_garage_idle_and_nonvisual_choices_reuse_shadow_submission() {
+    let (mut backdrop, renderer) = setup();
+    let mut renderer = renderer.with_reflection_tracking();
+    let mut selection = Selection { car: "BMWM3GTR".into(), ..Default::default() };
+    show(&mut backdrop, &mut renderer, &selection);
+    let input = crate::input::ActionState::default();
+    backdrop.update(&mut renderer, &input, 10.0);
+    backdrop.update(&mut renderer, &input, 0.0);
+    let submissions = renderer.shadow_updates;
+    selection.gauges.needle = Some([40, 150, 210]);
+    assert!(backdrop.restore_preview(&mut renderer, &selection));
+    for _ in 0..5 {
+        backdrop.update(&mut renderer, &input, 0.0);
+    }
+    assert_eq!(renderer.shadow_updates, submissions, "nonvisual edits and idle frames retain casters");
+    backdrop.preview_pending(true);
+    backdrop.update(&mut renderer, &input, 0.0);
+    assert!(renderer.shadow_casters.is_none());
+    backdrop.preview_pending(false);
+    backdrop.update(&mut renderer, &input, 0.0);
+    assert!(renderer.shadow_updates > submissions, "unhiding must restore casters");
+    backdrop.close(&mut renderer);
+}
+
+#[test]
+#[ignore = "requires installed frontend rooms and camera collections"]
+fn pass_b_customization_return_keeps_pose_then_moves_to_my_cars_without_intro() {
+    let (mut backdrop, mut renderer) = setup();
+    backdrop.set_stage(&mut renderer, GarageStage::Cars).unwrap();
+    backdrop.show_camera("mycarsmanager");
+    backdrop.scene.rig.advance(20.0);
+    backdrop.scene.rig.advance(20.0);
+    for _ in 0..2 {
+        backdrop.set_stage(&mut renderer, GarageStage::Customization).unwrap();
+        backdrop.show_camera("customize_rims");
+        backdrop.scene.rig.advance(20.0);
+        backdrop.scene.rig.advance(20.0);
+        let before = backdrop.scene.rig.pose().unwrap();
+        backdrop.set_stage(&mut renderer, GarageStage::Cars).unwrap();
+        assert_eq!(backdrop.scene.rig.pose(), Some(before), "return must not jump to main-menu intro entry");
+        backdrop.show_camera("mycarsmanager");
+        assert_eq!(backdrop.scene.rig.pose(), Some(before), "screen retarget starts at retained pose");
+        let dir = backdrop.scene.dir.as_ref().unwrap();
+        let goal = nfsmw_data::frontend_camera::PoseBook::load(dir).unwrap().screen("mycarsmanager").unwrap();
+        backdrop.scene.rig.advance(20.0);
+        let wanted = crate::frontend::camera_pose::CameraPose::from_angle(&goal);
+        assert!((backdrop.scene.rig.pose().unwrap().eye() - wanted.eye()).length() < 0.001);
+        let settled = backdrop.scene.rig.pose();
+        backdrop.set_stage(&mut renderer, GarageStage::Cars).unwrap();
+        backdrop.show_camera("mycarsmanager");
+        assert_eq!(backdrop.scene.rig.pose(), settled, "repeat refresh must not restart movement");
+    }
+    backdrop.close(&mut renderer);
+}

@@ -54,8 +54,12 @@ fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
     assert_eq!(video[6], text("Overall Quality"));
     assert_eq!(video[7], text("Advanced Graphics"));
     assert!(video.contains(&text("Shadow Quality")));
-    assert_eq!(titles(Category::Audio, &test_caps::native()).len(), 5);
-    assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 10);
+    assert_eq!(
+        titles(Category::Audio, &test_caps::native()).len(),
+        6,
+        "master, effects, engine, menu music, game music and dispatch"
+    );
+    assert_eq!(titles(Category::Gameplay, &test_caps::native()).len(), 12, "the map mode per context and Autosave");
     assert_eq!(titles(Category::Player, &test_caps::native()).len(), 3);
     assert_eq!(titles(Category::Discord, &test_caps::native()).len(), 3, "the Discord toggles have their own category");
 }
@@ -86,7 +90,7 @@ fn a_full_renderer_has_every_row_next_to_the_setting_it_belongs_with() {
     }
     assert_eq!(at("Renderer (After Restart)"), 1);
     assert_eq!(at("Graphics API (After Restart)"), 2);
-    assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 5, "only the Video screen has them");
+    assert_eq!(titles(Category::Audio, &test_caps::full()).len(), 6, "only the Video screen has them");
 }
 
 #[test]

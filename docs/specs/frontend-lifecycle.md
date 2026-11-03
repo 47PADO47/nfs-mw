@@ -29,6 +29,9 @@ running. An icon carousel refuses input after its accepted exit until the destin
 restores control. It must not restart the exit or request automatic feedback for a rejected repeated gesture.
 Settings pages also refuse host input while leaving, so generic pointer focus/release fallback and raw object posts
 cannot bypass their native package input switch.
+The Safe House wrapper forwards the inner carousel's input gate instead of defaulting to enabled. EA Trax
+and garage tuning also expose their pending exit to the host gate. Ignoring edits in their handlers alone does
+not stop generic pointer focus or automatic input feedback. Native exit completion remains active while gated.
 Track selection also gates its host-started Accept animation, whose native response does not disable package input.
 Garage carousels reject supplemental pad actions during exit. Garage dialogs with a pending activation refuse pointer
 answers until their scheduled completion; a second click cannot replace the accepted choice.

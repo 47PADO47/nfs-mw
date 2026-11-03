@@ -50,6 +50,19 @@ fn installed_scrollbar_pointer_follows_inherited_visibility_and_transforms() {
     let point = image.world.transform_point3(Vec3::ZERO).truncate();
     let root_object = ObjectRef { package, index: root.index };
     let image_object = ObjectRef { package, index: image.index };
+    let handle = tree.nodes.iter().find(|n| n.parent == Some(root.index) && n.name_hash == 0x3FBB_7A4E).unwrap();
+    let track = tree.nodes.iter().find(|n| n.parent == Some(root.index) && n.name_hash == 0x688A_1551).unwrap();
+    let range = (track.size.y.abs() - handle.size.y.abs()).max(0.0);
+    let min_y = track.position.y - range * 0.5;
+    assert!((handle.position.y - min_y).abs() < 0.01, "first window positions handle at top");
+    let track_y = track.position.y;
+    let handle_object = ObjectRef { package, index: handle.index };
+    hide_short_scrollbar(&mut cx, menu.rows.len(), menu.on_screen, menu.rows.len() - menu.on_screen);
+    assert!(
+        (cx.rt.position(handle_object).unwrap().y - (track_y + range * 0.5)).abs() < 0.01,
+        "last window positions handle at bottom"
+    );
+    hide_short_scrollbar(&mut cx, menu.rows.len(), menu.on_screen, 0);
     assert_eq!(scrollbar_arrow_at(&cx, point), Some(false));
     menu.vertical = true;
     assert!(!menu.click(&mut cx, point), "alternate UI cannot activate native scrollbar arrows");
@@ -255,4 +268,81 @@ fn installed_volume_slider_repeats_its_texture_at_zero_half_and_full() {
             }
         }
     }
+}
+
+#[test]
+#[ignore = "requires installed original options packages"]
+fn batch18_autosave_row_changes_the_loaded_profile_in_main_and_pause_options() {
+    use crate::career::{Career, CareerData, CareerHandle, ProfileDir};
+    use nfsmw_career::{save::ProfileSave, settings::NewCareer};
+    const CHILD: &str = "NFSMW_TEST_AUTOSAVE_OPTIONS_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("nfsmw-autosave-ui-{}-{nonce}", std::process::id()));
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["frontend::widget_menu::tests::batch18_autosave_row_changes_the_loaded_profile_in_main_and_pause_options", "--exact", "--ignored"])
+            .env(CHILD, "1")
+            .env("NFSMW_CAREER_DIR", &root)
+            .env("BLACKBOX_PROFILE_DIR", root.join("config"))
+            .env("NFSMW_ORIGINAL_SAVES_DIR", root.join("empty-original"))
+            .status().unwrap();
+        if root.exists() {
+            assert!(root.starts_with(std::env::temp_dir()));
+            std::fs::remove_dir_all(root).unwrap();
+        }
+        assert!(result.success());
+        return;
+    }
+    let _guard = crate::career::SHARED_CAREER_TEST.lock().unwrap();
+    let handle = CareerHandle::shared();
+    handle.clear();
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let catalog = Catalog::load(&dir, &SCREEN_FILES);
+    let assets = UiAssets::load(&dir).unwrap();
+    let profiles = ProfileDir::default_dir().unwrap();
+    for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
+        handle.clear();
+        let (mut settings, mut changed) = (Settings::from(Partial::default()), Partial::default());
+        settings.ui_style = crate::settings::UiStyle::Original;
+        assert!(!options::Setting::Autosave.enabled(&settings));
+        handle.load(Career::new("AUTOUI", CareerData::cached(&dir).unwrap(), &NewCareer::default()).unwrap());
+        let mut rt = Runtime::new();
+        let package = rt.load(catalog.find(name).unwrap().clone());
+        let (mut commands, mut memory) = (Vec::new(), HashMap::new());
+        let mut cx = Cx {
+            rt: &mut rt,
+            package,
+            assets: &assets,
+            settings: &mut settings,
+            changed: &mut changed,
+            caps: crate::settings::test_caps::native(),
+            commands: &mut commands,
+            memory: &mut memory,
+            key_texts: &[],
+            world_map: None,
+            mods: None,
+            name,
+        };
+        let mut menu =
+            WidgetMenu::new(Args { pause, category: super::super::logic::Category::Gameplay, ..Default::default() });
+        menu.start(&mut cx);
+        menu.selected = menu.rows.iter().position(|r| r.setting == options::Setting::Autosave).unwrap();
+        menu.message(&mut cx, PAD_RIGHT);
+        assert_eq!(handle.with_loaded(|c| c.autosave.option_on), Some(false));
+        assert!(!ProfileSave::parse(&profiles.read("AUTOUI").unwrap()).unwrap().autosave_enabled());
+        menu.message(&mut cx, PAD_LEFT);
+        assert_eq!(handle.with_loaded(|c| c.autosave.option_on), Some(true));
+        let bytes = profiles.read("AUTOUI").unwrap();
+        assert!(ProfileSave::parse(&bytes).unwrap().autosave_enabled());
+        assert_eq!(*cx.changed, Partial::default(), "profile switch is not a global setting");
+        // An unavailable destination must leave the live choice intact and display a notice.
+        std::fs::remove_file(profiles.path("AUTOUI")).unwrap();
+        std::fs::create_dir(profiles.path("AUTOUI")).unwrap();
+        menu.message(&mut cx, PAD_RIGHT);
+        assert_eq!(handle.with_loaded(|c| c.autosave.option_on), Some(true));
+        assert!(cx.commands.iter().any(|c| matches!(c, Command::Alert(_))));
+        std::fs::remove_dir(profiles.path("AUTOUI")).unwrap();
+        profiles.write("AUTOUI", &bytes).unwrap();
+    }
+    handle.clear();
 }

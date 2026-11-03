@@ -3,10 +3,33 @@
 use blackbox_feng::ObjectRef;
 use glam::Vec2;
 
-pub(super) fn hide_short_scrollbar(cx: &mut super::logic::Cx, rows: usize, window: usize) {
-    if cx.name.eq_ignore_ascii_case(super::ids::screen::OPTIONS) && rows <= window {
-        cx.hide(0xA808_E057, true); // Main options scrollbar parent.
+pub(super) fn hide_short_scrollbar(cx: &mut super::logic::Cx, rows: usize, window: usize, top: usize) {
+    if !cx.name.eq_ignore_ascii_case(super::ids::screen::OPTIONS) {
+        return;
     }
+    if rows <= window {
+        cx.hide(0xA808_E057, true);
+        return;
+    }
+    let tree = cx.rt.tree(cx.package);
+    let Some(root) = tree.nodes.iter().find(|node| node.name_hash == 0xA808_E057).map(|node| node.index) else {
+        return;
+    };
+    let object = |hash| {
+        tree.nodes
+            .iter()
+            .find(|node| node.parent == Some(root) && node.name_hash == hash)
+            .map(|node| ObjectRef { package: cx.package, index: node.index })
+    };
+    let (Some(track), Some(handle)) = (object(0x688A_1551), object(0x3FBB_7A4E)) else { return };
+    let (Some(position), Some(track_size), Some(handle_size)) =
+        (cx.rt.position(track), cx.rt.size(track), cx.rt.size(handle))
+    else {
+        return;
+    };
+    let range = (track_size.y.abs() - handle_size.y.abs()).max(0.0);
+    let fraction = top.min(rows - window) as f32 / (rows - window) as f32;
+    cx.rt.set_position_xy(handle, position.x, position.y - range * 0.5 + range * fraction);
 }
 
 /// The objects of one row.

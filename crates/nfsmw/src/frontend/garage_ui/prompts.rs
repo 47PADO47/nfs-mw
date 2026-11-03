@@ -14,6 +14,7 @@ pub(in crate::frontend) fn hints(footer: Footer, bindings: &Bindings, device: In
         view_cart.0 = vec![crate::ui::prompts::Prompt::Key("4".into())];
     }
     let result = match footer {
+        Footer::GarageLoading => vec![back],
         Footer::GarageManager { add, showcase: can_showcase } => {
             let label = match add {
                 true => L::AddNewCar,
@@ -79,6 +80,8 @@ pub(in crate::frontend) fn hints(footer: Footer, bindings: &Bindings, device: In
 /// The package's PC/console captions are replaced by the shared binding-aware footer.
 pub(in crate::frontend) fn hide_legacy(tree: &mut blackbox_feng::UiTree, footer: Footer) {
     let roots = [
+        0x01bc_f3e9,
+        0x4170_d8cb,
         0xc0a3_2823,
         0x18a4_384f,
         0x8805_e665,

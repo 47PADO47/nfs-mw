@@ -29,7 +29,8 @@ pub enum Setting {
     MasterVolume,
     SfxVolume,
     EngineVolume,
-    MusicVolume,
+    MenuMusicVolume,
+    GameMusicVolume,
     SpeechVolume,
     Vsync,
     MaxFps,
@@ -46,6 +47,7 @@ pub enum Setting {
     TurnSignals,
     CopHealthBars,
     RearViewMirror,
+    Autosave,
     SmokeQuality,
     SmokeColorMode,
     SmokeColor,
@@ -65,7 +67,7 @@ pub enum Setting {
     UiStyle,
     SpeedUnits,
     UiTheme,
-    Minimap,
+    ContextMinimap(crate::settings::MinimapContext),
     RenderScale,
     Upscaler,
     UpscaleSharpness,
@@ -150,6 +152,9 @@ const fn row(setting: Setting, title: Title) -> Row {
 
 #[path = "options_rows.rs"]
 mod category_rows;
+
+#[path = "autosave_option.rs"]
+pub(super) mod autosave;
 pub use category_rows::rows;
 
 #[path = "hd_options.rs"]
@@ -167,6 +172,8 @@ use steps::{cycle, next_scale, nudge};
 
 #[path = "options_data.rs"]
 mod data;
+#[path = "minimap_options.rs"]
+mod map_options;
 
 #[path = "options_language.rs"]
 mod language;
@@ -202,7 +209,8 @@ fn percent_of(s: &Settings, setting: Setting) -> Option<Percent> {
         Setting::MasterVolume => s.master_volume,
         Setting::SfxVolume => s.sfx_volume,
         Setting::EngineVolume => s.engine_volume,
-        Setting::MusicVolume => s.music_volume,
+        Setting::MenuMusicVolume => s.menu_music_volume,
+        Setting::GameMusicVolume => s.game_music_volume,
         Setting::SpeechVolume => s.speech_volume,
         Setting::Graphics(GraphicsSetting::AoIntensity) => s.ao_intensity,
         _ => return None,
@@ -223,6 +231,7 @@ impl Setting {
         match self {
             // With vsync on the display paces the frames, so the limiter is greyed out.
             Setting::MaxFps => !s.vsync,
+            Setting::Autosave => crate::career::CareerHandle::shared().is_loaded(),
             Setting::Custom(row) => super::custom_race::options::enabled(row),
             Setting::Graphics(setting) => setting.enabled(s),
             Setting::Post(PostSetting::Aa) => !s.upscaler.upscaler().is_temporal(),
@@ -266,7 +275,7 @@ impl Setting {
         }
         let before = *s;
         match self {
-            Setting::AdvancedGraphics => return false,
+            Setting::AdvancedGraphics | Setting::Autosave => return false,
             // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings. The theme choice lives in the
             // bridge too.
             Setting::Mod(_) | Setting::ModManaged(_) | Setting::ModTheme | Setting::GameplayOption(_) => return false,
@@ -302,12 +311,7 @@ impl Setting {
                 s.ui_theme = UiTheme::ALL[cycle(at, UiTheme::ALL.len(), forward)];
                 changed.ui_theme = Some(s.ui_theme);
             }
-            Setting::Minimap => {
-                let modes = [MinimapMode::Fixed, MinimapMode::Rotating, MinimapMode::Off];
-                let at = modes.iter().position(|m| *m == s.minimap).unwrap_or(0);
-                s.minimap = modes[cycle(at, modes.len(), forward)];
-                changed.minimap = Some(s.minimap);
-            }
+            Setting::ContextMinimap(context) => map_options::step(context, s, changed, forward),
             Setting::RenderScale => {
                 s.render_scale = next_scale(s.render_scale, forward);
                 changed.render_scale = Some(s.render_scale);
@@ -333,9 +337,13 @@ impl Setting {
                 s.engine_volume = nudge(s.engine_volume, forward);
                 changed.engine_volume = Some(s.engine_volume);
             }
-            Setting::MusicVolume => {
-                s.music_volume = nudge(s.music_volume, forward);
-                changed.music_volume = Some(s.music_volume);
+            Setting::MenuMusicVolume => {
+                s.menu_music_volume = nudge(s.menu_music_volume, forward);
+                changed.menu_music_volume = Some(s.menu_music_volume);
+            }
+            Setting::GameMusicVolume => {
+                s.game_music_volume = nudge(s.game_music_volume, forward);
+                changed.game_music_volume = Some(s.game_music_volume);
             }
             Setting::SpeechVolume => {
                 s.speech_volume = nudge(s.speech_volume, forward);

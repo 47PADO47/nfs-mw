@@ -172,6 +172,10 @@ fn batch12_changed_tuning_discard_waits_for_tuning_leave_and_gates_edits() {
         "closing the discard popup must first animate the tuning page"
     );
     let before = h.model.draft.clone();
+    let tree = h.screens.trees().pop().unwrap();
+    let row = tree.nodes.iter().find(|n| n.name_hash == blackbox_feng::fe_hash_upper("OPTION_NAME_1")).unwrap();
+    let point = row.world.transform_point3(glam::Vec3::ZERO).truncate();
+    assert!(!h.screens.focus_button_at(point), "pending tuning exit blocks the generic pointer focus fallback");
     for bits in [pad::RIGHT, pad::BUTTON0 << 5, pad::BACK, pad::ACCEPT] {
         h.run(bits, 1);
         h.run(0, 1);

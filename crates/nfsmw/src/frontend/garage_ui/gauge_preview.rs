@@ -13,7 +13,7 @@ const TURBO_FACE: u32 = 0xc62a_d685;
 const TURBO_NEEDLE: u32 = 0x8fe2_a217;
 const TURBO_GROUP: u32 = 0xc5d5_51b7;
 const UNITS: u32 = 0xb8f1_f802;
-const DIGITS: &[u32] = &[UNITS, 0xb845_89be, 0x94de_0412, 0x94de_0411, 0x94de_0410, 0x4113_f134, 0x0709_1622];
+const LETTERING: &[u32] = &[FACE, TURBO_FACE, UNITS];
 
 /// The installed sample starts hidden; its authored entrance runs once per page activation.
 pub(super) fn show(cx: &mut Cx) {
@@ -72,11 +72,9 @@ fn apply(
         rt.set_hidden(turbo, !has_turbo);
     }
     // Set RGB after package animation; authored alpha still controls the sample's fades and dimmed digit backing.
-    for (objects, color) in [
-        (&[FACE, TURBO_FACE][..], gauges.backing),
-        (&[NEEDLE, TURBO_NEEDLE][..], gauges.needle),
-        (DIGITS, gauges.digits),
-    ] {
+    for (objects, color) in
+        [(&[FILL][..], gauges.backing), (&[NEEDLE, TURBO_NEEDLE][..], gauges.needle), (LETTERING, gauges.digits)]
+    {
         for &name in objects {
             let Some(object) = rt.find(package, name) else { continue };
             let authored = rt.package(package).and_then(|package| package.objects.get(object.index)).map(|object| {

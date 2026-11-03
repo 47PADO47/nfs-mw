@@ -143,7 +143,7 @@ pub use custom_music::{CustomContext, CustomMode, CustomMusic, Sources as Custom
 pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
 pub use language::LanguageTag;
-pub use minimap::MinimapMode;
+pub use minimap::{MinimapContext, MinimapMode};
 pub use motion_blur::MotionBlur;
 pub use partial::{Partial, Percent, parse_bool};
 pub use post::{PostAa, PostBloom, PostTonemap, VisualTreatment, post_effects};
@@ -193,6 +193,8 @@ pub struct Settings {
     pub show_readout: ShowReadout,
     pub master_volume: Percent,
     pub music_volume: Percent,
+    pub menu_music_volume: Percent,
+    pub game_music_volume: Percent,
     pub sfx_volume: Percent,
     pub engine_volume: Percent,
     /// The police dispatch's radio lines.
@@ -272,6 +274,8 @@ pub struct Settings {
     pub camera_mode: CameraMode,
     /// How the HUD's minimap is shown: fixed (default), rotating or off.
     pub minimap: MinimapMode,
+    pub free_roam_map_mode: Option<MinimapMode>,
+    pub race_map_mode: Option<MinimapMode>,
     /// Placement and scale of the in-game HUD.
     pub hud_layout: HudLayout,
     /// The Custom HUD's options (`[custom_hud]`): preset, size, map, information, accessibility, camera, haptics, volume.
@@ -381,6 +385,8 @@ impl From<Partial> for Settings {
             show_readout: p.show_readout.unwrap_or_default(),
             master_volume: p.master_volume.unwrap_or(Percent(80)),
             music_volume: p.music_volume.unwrap_or(Percent(60)),
+            menu_music_volume: p.menu_music_volume.or(p.music_volume).unwrap_or(Percent(60)),
+            game_music_volume: p.game_music_volume.or(p.music_volume).unwrap_or(Percent(60)),
             sfx_volume: p.sfx_volume.unwrap_or(Percent(90)),
             engine_volume: p.engine_volume.unwrap_or(Percent(90)),
             speech_volume: p.speech_volume.unwrap_or(Percent(90)),
@@ -424,6 +430,8 @@ impl From<Partial> for Settings {
             transmission: p.transmission.unwrap_or_default(),
             camera_mode: p.camera_mode.unwrap_or_default(),
             minimap: p.minimap.unwrap_or_default(),
+            free_roam_map_mode: Some(p.free_roam_map_mode.or(p.minimap).unwrap_or_default()),
+            race_map_mode: Some(p.race_map_mode.or(p.minimap).unwrap_or(MinimapMode::Rotating)),
             hud_layout: p.hud_layout.unwrap_or_default(),
             hud_options: hud::HudSettings::from_layer(p.hud_options),
             ui_style: p.ui_style.unwrap_or_default(),
@@ -477,13 +485,6 @@ impl From<Partial> for Settings {
     }
 }
 
-impl Settings {
-    /// What a steering wheel's extra controls are switched on.
-    pub fn wheel_options(&self) -> WheelOptions {
-        WheelOptions { manual_clutch: self.manual_clutch, h_shifter: self.h_shifter }
-    }
-}
-
 #[cfg(test)]
 mod tests;
 
@@ -493,5 +494,6 @@ mod mods_tests;
 #[cfg(test)]
 mod xenon_effects_tests;
 
+mod music_volume;
 mod world_tuning;
 pub use world_tuning::WorldTuning;

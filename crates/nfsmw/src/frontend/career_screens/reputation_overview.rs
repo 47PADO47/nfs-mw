@@ -67,7 +67,7 @@ const CHALLENGE_KEY: u32 = PAD_BUTTON0 + 4;
 
 /// The page opened at `bin` (the screens it opened come back here).
 pub fn open(cx: &mut Cx, bin: u8, from: Args) {
-    let args = super::blacklist::carry(from, bin, false);
+    let args = Args { overview_sheet: from.overview_sheet, ..super::blacklist::carry(from, bin, false) };
     cx.send(Command::Switch(screen::SAFE_HOUSE_REPUTATION_OVERVIEW.to_string(), args));
 }
 
@@ -129,6 +129,10 @@ struct Overview {
 mod row;
 use row::Row;
 
+#[cfg(test)]
+#[path = "reputation_return_tests.rs"]
+mod return_tests;
+
 /// The logic of `name` (lower case) when it is the overview.
 pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
     if name != screen::SAFE_HOUSE_REPUTATION_OVERVIEW.to_ascii_lowercase() {
@@ -142,10 +146,10 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
         shown: FIRST_RIVAL_STAGE,
         low: FIRST_RIVAL_STAGE,
         asked: args.rival,
-        sheet: 0,
-        args,
+        sheet: args.overview_sheet.min(SHEETS.len() - 1),
+        args: Args { overview_sheet: 0, ..args },
         vertical: false,
-        cursor: 0,
+        cursor: args.overview_sheet.min(SHEETS.len() - 1),
         row: Row::default(),
     }))
 }
@@ -230,7 +234,8 @@ impl Overview {
         match entry {
             Entry::Sheet(sheet) => {
                 let Some(name) = sheet.screen() else { return };
-                let args = super::blacklist::carry(self.args, self.shown, true);
+                let selected = SHEETS.iter().position(|&candidate| candidate == sheet).unwrap_or(0);
+                let args = Args { overview_sheet: selected, ..super::blacklist::carry(self.args, self.shown, true) };
                 cx.send(Command::Switch(name.to_string(), args));
             }
             Entry::Challenge => cx.send(Command::ChallengeRival { bin: self.shown }),
@@ -266,7 +271,7 @@ impl Overview {
 
     fn accept(&self, cx: &mut Cx) {
         let Some(name) = SHEETS[self.sheet].screen() else { return };
-        let args = super::blacklist::carry(self.args, self.shown, true);
+        let args = Args { overview_sheet: self.sheet, ..super::blacklist::carry(self.args, self.shown, true) };
         cx.send(Command::Switch(name.to_string(), args));
     }
 
@@ -360,12 +365,15 @@ impl ScreenLogic for Overview {
 
     // The page has no focused button to answer an accept, so the pad press is the accept.
     fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
-        if bits & pad::ACCEPT != 0 && self.vertical {
-            return self.activate(cx);
+        if bits & pad::ACCEPT == 0 {
+            return;
         }
-        if bits & pad::ACCEPT != 0 {
+        cx.press_sound(|cx| {
+            if self.vertical {
+                return self.activate(cx);
+            }
             self.accept(cx);
-        }
+        });
     }
 
     // The mouse takes the screen's own buttons: the two chevrons, the two arrows, the option and the challenge button

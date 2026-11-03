@@ -226,9 +226,7 @@ The original category textures differ between the front room and backroom:
 `Paint.fng` has eighty swatch button objects, `COLOR_1` through `COLOR_80`,
 arranged in four rows of twenty. The swatch colors come from each installed
 part's `RED`, `GREEN`, `BLUE` attributes. The array scroller owns selection,
-focus and paging. Standard body paint filters are Gloss, Metallic and Pearl;
-installed mod palettes can extend these families. The captured modified game
-also exposes a Custom family with forty swatches. Rim paint has its own palette.
+focus and paging. See [Custom paint pages](garage-custom-paint-pages.md) for finish grouping and UI-039.
 Shoulder/trigger controls change the filter or vinyl
 remap channel. A custom RGB diagnostic control is not an original garage widget.
 
@@ -254,7 +252,8 @@ are Needle, Characters and Backing, with icons `0x70f56628`, `0xbf6682c9` and
 images. These layers do not route through the body Paint package.
 
 The cart contains twenty-five template rows. Each row has `PART_NAME_n`,
-`PRICE_n`, `TRADE_IN_n` and `CHECK_ICON_n`. It uses `ARRAY_SCROLL_REGION`.
+`PRICE_n`, `TRADE_IN_n` and `CHECK_ICON_n`. Each check keeps its authored offset from its matching label when
+the host places a row. It uses `ARRAY_SCROLL_REGION`.
 The visible window has six rows in My Cars and four in career. Vertical
 selection does not wrap. Total, available funds and eligible installed-part
 trade-in update from active items. My Cars omits the career financial columns.

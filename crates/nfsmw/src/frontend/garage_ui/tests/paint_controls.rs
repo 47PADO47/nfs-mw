@@ -42,6 +42,36 @@ fn finish_label(h: &Harness) -> String {
 
 #[test]
 #[ignore = "requires installed original garage packages"]
+fn batch13_custom_paint_groups_internal_finishes_and_retains_equal_rgb_identity() {
+    let mut model = fixed_rim_palette();
+    let catalog = model.cars[0].parts.as_mut().unwrap();
+    catalog.finishes = vec![("Gloss".into(), 1001), ("PEARL1".into(), 1101), ("PEARL2".into(), 1102)];
+    catalog.choices[Part::Paint as usize].clear();
+    for (hash, family) in [(1001, "GLOSS"), (1101, "PEARL1"), (1102, "PEARL2")] {
+        catalog.paint_families.insert(hash, family.into());
+        catalog.colors.insert(hash, [40, 60, 80]);
+        catalog.choices[Part::Paint as usize].push(Choice {
+            hash,
+            label: family.into(),
+            language_hash: None,
+            carbon: false,
+        });
+    }
+    model.draft.parts.parts[Part::Paint as usize] = Some(1102);
+    model.applied = model.draft.clone();
+    let mut h = Harness::open(Page::Paint { color: 0, backroom: false }, model);
+    assert_eq!(finish_label(&h), "Custom");
+    h.press(pad::RIGHT);
+    assert_eq!(h.model.draft.parts.parts[Part::Paint as usize], Some(1101));
+    h.press(pad::LEFT);
+    assert_eq!(h.model.draft.parts.parts[Part::Paint as usize], Some(1102));
+    h.press(pad::BACK);
+    assert_eq!(h.model.draft.parts.parts[Part::Paint as usize], Some(1102));
+    assert!(h.saved.is_empty());
+}
+
+#[test]
+#[ignore = "requires installed original garage packages"]
 fn installed_garage_rim_paint_has_one_fixed_palette_without_finish_controls() {
     for backroom in [false, true] {
         let mut h = Harness::open(Page::Paint { color: 1, backroom }, fixed_rim_palette());
@@ -218,12 +248,14 @@ fn batch12_gauge_entry_and_channel_changes_preserve_unedited_colors() {
     let tree = h.screens.trees().pop().unwrap();
     let gear = tree.nodes.iter().find(|n| n.name_hash == 0xb845_89be).unwrap();
     assert!(gear.visible && gear.world_colour[3] > 0, "the native gear sample remains visible");
-    let characters_before = gear.colour;
+    let gear_before = gear.colour;
     h.press(pad::RIGHT);
     h.press(pad::DOWN);
     let tree = h.screens.trees().pop().unwrap();
     let gear = tree.nodes.iter().find(|n| n.name_hash == 0xb845_89be).unwrap();
-    assert_ne!(gear.colour[..3], characters_before[..3], "Characters updates the gear sample too");
+    assert_eq!(gear.colour[..3], gear_before[..3], "Lettering leaves the digital gear readout unchanged");
+    let units = tree.nodes.iter().find(|n| n.name_hash == 0xb8f1_f802).unwrap();
+    assert_eq!(&units.colour[..3], h.model.draft.gauges.digits.as_ref().unwrap());
     assert_eq!(h.model.draft.gauges.color_parts, [None, Some(141), Some(151)]);
     assert!(h.saved.is_empty());
 }

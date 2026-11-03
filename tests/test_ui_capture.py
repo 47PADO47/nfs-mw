@@ -13,6 +13,7 @@ from tools.ui_capture.common import Timeline, external_output
 from tools.ui_capture.audio import Audio, SampleClock
 from tools.ui_capture.media import chapters_file
 from tools.ui_capture.review import build, event_time, index_events
+from tools.ui_capture import state, sync
 
 
 class CaptureTests(unittest.TestCase):
@@ -77,6 +78,35 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(len(events), 1)
             self.assertNotIn('</script><script>bad()', (folder / 'review.html').read_text())
             self.assertEqual(json.loads((folder / 'review-summary.json').read_text())['media_origin_seconds'], 0.25)
+
+    def test_state_snapshot_copies_files_and_reports_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            saves = root / 'saves'
+            (saves / 'profile').mkdir(parents=True)
+            (saves / 'profile' / 'data').write_bytes(b'before')
+            session = root / 'session'
+            session.mkdir()
+            before = state.snapshot(session, 'start', [saves])
+            (saves / 'profile' / 'data').write_bytes(b'after')
+            (saves / 'new').write_bytes(b'x')
+            after = state.snapshot(session, 'end', [saves, root / 'missing'])
+            self.assertEqual((session / 'state/start/source0/profile/data').read_bytes(), b'before')
+            self.assertFalse(after['sources'][1]['exists'])
+            change = state.changes(before, after)['sources'][0]
+            self.assertEqual(change['changed'], ['profile' + __import__('os').sep + 'data'])
+            self.assertEqual(change['added'], ['new'])
+
+    def test_sync_onset_ignores_earlier_sound_and_needs_a_clear_rise(self):
+        env = [100] * 30 + [5000] * 3 + [100] * 30
+        self.assertEqual(sync.onset(env, 25, 50), 30)
+        self.assertIsNone(sync.onset([100] * 60, 30, 20))
+        self.assertEqual(sync.envelope([0, -9, 3, 1], rate=1000, step_ms=2), [9, 3])
+
+    def test_sync_windows_prefer_sync_markers_then_session_start(self):
+        events = [dict(kind='marker', t=1.0, label='Session start'), dict(kind='marker', t=50.0, label='Sync B')]
+        self.assertEqual(sync.marker_windows(events), [(50.0, 80.0)])
+        self.assertEqual(sync.marker_windows(events[:1]), [(1.0, 31.0)])
 
 
 if __name__ == '__main__':

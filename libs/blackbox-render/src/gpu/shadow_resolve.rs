@@ -63,7 +63,7 @@ impl Resolve {
     fn encode(&mut self, r: &Renderer, encoder: &mut wgpu::CommandEncoder, frame: &FrameParams, surfaces: &Targets) {
         let inverse = r.world_to_clip(frame).inverse();
         let mut values = inverse.to_cols_array().to_vec();
-        values.extend([self.size.0 as f32, self.size.1 as f32, u8::from(r.experiments.contact_shadows) as f32, 0.0]);
+        values.extend([self.size.0 as f32, self.size.1 as f32, u8::from(r.contact_active(frame)) as f32, 0.0]);
         let buffer = r.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("cascade visibility inverse"),
             contents: bytemuck::cast_slice(&values),

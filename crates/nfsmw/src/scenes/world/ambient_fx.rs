@@ -18,6 +18,8 @@ use admission::{Crossing, visible};
 
 const MAX_PLACEMENTS: usize = 64;
 const MAX_EMITTERS: usize = 16;
+/// The section number of the front end's platform files' placements.
+const FRONTEND_SECTION: u16 = 0xa28;
 
 struct Live {
     group: u32,
@@ -35,9 +37,24 @@ pub struct AmbientFx {
     random: u64,
     last_service_time: Option<f64>,
     last_views: Vec<(Vec3, Vec3)>,
+    /// Runs a front-end platform's placements (`frontend::room_fx`) rather than the world's.
+    frontend: bool,
 }
 
 impl AmbientFx {
+    /// The effects of a front-end platform file, whose placements are all in the front end's section.
+    pub fn frontend() -> Self {
+        Self { frontend: true, ..Self::default() }
+    }
+
+    /// The world takes every placed section; a front-end platform only its own section's.
+    fn admits(&self, placement: &Placement) -> bool {
+        if self.frontend {
+            return placement.section == FRONTEND_SECTION;
+        }
+        placement.section != 0
+    }
+
     pub fn maintain<'a>(
         &mut self,
         renderer: &mut dyn RenderBackend,
@@ -54,7 +71,7 @@ impl AmbientFx {
         self.triggers.retain(|id, _| resident.contains(id));
         let mut candidates = Vec::new();
         for (id, placement) in &placements {
-            if placement.section == 0 {
+            if !self.admits(placement) {
                 continue;
             }
             let Some(group) = db.collection_by_key(vlt_hash("emittergroup"), placement.group) else { continue };
@@ -63,7 +80,7 @@ impl AmbientFx {
             let position = matrix.w_axis.truncate();
             // Activity icons already have their own visibility policy and must not compete with scenery.
             let icon = id.0 == usize::MAX - 1;
-            let permanent = placement.section == 0xa28 || icon;
+            let permanent = placement.section == FRONTEND_SECTION || icon;
             let admitted = permanent || visible(position, far + 20.0, 0.55, views);
             if !admitted && service {
                 self.live.remove(id);

@@ -4,23 +4,30 @@ use super::super::garage_ui::{GarageUi, Page, Request};
 use super::*;
 use crate::garage::{MenuEvent, Overlay};
 
+#[path = "garage_pending.rs"]
+mod pending;
+
 impl Frontend {
+    /// The pause menu has already played its leave when this runs, so every refusal must hand control back through the
+    /// alert; returning quietly leaves the menu faded with its input off (UI-060).
     pub(in crate::frontend) fn open_tuning(&mut self, host: &mut Host, env: &mut Env) {
-        if self.garage_ui.is_some() || host.scene.tuning_available() != Some(true) {
+        self.release_detached_garage(host);
+        if self.garage_ui.is_some() {
+            log::warn!("Performance Tuning requested while a garage session owns the screens");
+            self.tuning_failed(host, env);
+            return;
+        }
+        let available = host.scene.tuning_available();
+        if available != Some(true) {
+            log::warn!("Performance Tuning requested but the scene reports {available:?}");
+            self.tuning_failed(host, env);
             return;
         }
         let Some(renderer) = host.renderer.as_mut() else { return };
         if let Err(error) = host.scene.begin_tuning(renderer.as_mut()) {
             // The player reads a summary; `garage_error` logs the error chain.
             self.garage_error(host, error);
-            let alert = super::super::confirm::Alert::new(crate::ui::Text::key("dialogs-tuning-failed"));
-            let commands = self.screens.open_with(
-                super::super::ids::screen::DIALOG,
-                Box::new(super::super::confirm::AlertLogic::new(alert)),
-                false,
-                env,
-            );
-            self.apply(commands, host, env);
+            self.tuning_failed(host, env);
             return;
         }
         let ui = GarageUi::new();
@@ -34,6 +41,40 @@ impl Frontend {
         self.apply(commands, host, env);
     }
 
+    /// The pause menu has left already and cannot take input again in place; the original reloads `Pause_Main` on
+    /// every return, so a fresh one (with fresh availability) goes beneath the alert.
+    fn tuning_failed(&mut self, host: &mut Host, env: &mut Env) {
+        if self.screens.top() == Some(super::super::ids::screen::PAUSE_MENU) {
+            let pause_ctx = self.pause_context(host);
+            let args = Args { pause: true, pause_ctx, ..Args::default() };
+            let commands = self.screens.open(super::super::ids::screen::PAUSE_MENU, args, true, env);
+            self.apply(commands, host, env);
+        }
+        let alert = super::super::confirm::Alert::new(crate::ui::Text::key("dialogs-tuning-failed"));
+        let commands = self.screens.open_with(
+            super::super::ids::screen::DIALOG,
+            Box::new(super::super::confirm::AlertLogic::new(alert)),
+            false,
+            env,
+        );
+        self.apply(commands, host, env);
+    }
+
+    /// Drops a garage session whose screens are all gone without `close_garage`. Its transaction can no longer be
+    /// confirmed, so the scene returns to the selection it had when the session began.
+    pub(in crate::frontend) fn release_detached_garage(&mut self, host: &mut Host) {
+        if !self.garage_ui.as_ref().is_some_and(GarageUi::is_detached) {
+            return;
+        }
+        log::warn!("Releasing a garage session that outlived its screens");
+        self.garage_ui = None;
+        self.garage_tuning = false;
+        let Some(renderer) = host.renderer.as_mut() else { return };
+        if let Err(error) = host.scene.cancel_garage(renderer.as_mut()) {
+            log::warn!("Could not restore the car of the released garage session: {error:#}");
+        }
+    }
+
     pub(in crate::frontend) fn open_garage(&mut self, host: &mut Host, env: &mut Env) {
         let scene = super::super::garage_scene::GarageScene::new(self.dir.clone(), host.screenshot.is_none())
             .with_rig(self.camera.clone());
@@ -45,11 +86,11 @@ impl Frontend {
         self.latch = true;
         self.menu_garage = true;
         self.menu_garage_requested = true;
-        let commands = self.screens.open(LOADING, Args::default(), true, env);
+        let commands = self.screens.open_with(Page::Manager.package(), pending::logic(), true, env);
         self.apply(commands, host, env);
     }
 
-    /// Pending My Cars loads keep the native loading screen moving and allow Back after the entry press is released.
+    /// Catalogue loading retains native My Cars chrome and allows Back after the entry press is released.
     pub(in crate::frontend) fn garage_loading_frame(
         &mut self,
         dt: f32,
@@ -68,8 +109,8 @@ impl Frontend {
         if mask == 0 {
             self.latch = false;
         }
-        if self.screens.top() != Some(LOADING) {
-            let commands = self.screens.open(LOADING, Args::default(), true, env);
+        if self.screens.top() != Some(Page::Manager.package()) {
+            let commands = self.screens.open_with(Page::Manager.package(), pending::logic(), true, env);
             self.apply(commands, host, env);
         }
         let commands = self.screens.update(dt, 0, env);
@@ -77,9 +118,14 @@ impl Frontend {
     }
 
     pub(in crate::frontend) fn poll_garage(&mut self, host: &mut Host, env: &mut Env, overlay: &mut Overlay) {
+        self.release_detached_garage(host);
         if let Some(ui) = &self.garage_ui {
             if let Some(model) = host.scene.garage() {
-                ui.sync(model);
+                match std::mem::take(&mut model.preview_update) {
+                    crate::garage::PreviewUpdate::SlotReady => ui.saved(model),
+                    crate::garage::PreviewUpdate::Failed => ui.failed(model),
+                    crate::garage::PreviewUpdate::None => ui.sync(model),
+                }
             }
             overlay.menu = true;
             return;
@@ -89,7 +135,8 @@ impl Frontend {
             return;
         }
         overlay.menu = true;
-        if !host.scene.ready() {
+        let catalog_ready = host.scene.garage().is_some_and(|model| !model.cars.is_empty() && model.preview_loading);
+        if !host.scene.ready() && !catalog_ready {
             host.hold_capture = true;
             return;
         }
@@ -199,6 +246,7 @@ impl Frontend {
                     if success
                         && slot
                         && let Some(model) = host.scene.garage()
+                        && !model.preview_loading
                     {
                         ui.saved(model);
                     }
@@ -297,3 +345,7 @@ impl Frontend {
         self.resume();
     }
 }
+
+#[cfg(test)]
+#[path = "flow_tuning_tests.rs"]
+mod tuning_tests;

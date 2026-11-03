@@ -5,7 +5,6 @@ use blackbox_feng::fe_hash_upper;
 use nfsmw_career::economy::aftermath::{CarSelectEntry, CarSelectInfo, CarStatus};
 use nfsmw_career::economy::cooling::{HeatMeter, Segment};
 
-use super::car_lot::{set_label, set_text};
 use crate::frontend::logic::Cx;
 use crate::i18n::fmt::grouped;
 
@@ -142,6 +141,16 @@ pub fn header(info: &CarSelectInfo, entry: CarSelectEntry, cash: u32, release_ma
 
 // The drawing helpers: each only sets the package's objects, so they are exercised by the installed test.
 
+/// The view constants are name hashes; the car lot's text helpers instead take GUIDs.
+fn set_label(cx: &mut Cx, name: u32, label: u32) {
+    let Some(object) = cx.object(name) else { return };
+    cx.label(object, label);
+}
+
+fn set_text(cx: &mut Cx, name: u32, text: String) {
+    cx.text_object(name, &text);
+}
+
 pub(super) fn hide_header(cx: &mut Cx) {
     for name in [PIP_GROUP, STAMP_STRIP, STRIKE_MARKERS, RELEASE_MARKERS, HEAT_GROUP, FREE_ONLY] {
         cx.hide(name, true);
@@ -220,7 +229,7 @@ pub(super) const LABEL_TITLE: u32 = 0x5415_c3f1;
 
 /// Sets the header title.
 pub(super) fn set_title(cx: &mut Cx) {
-    set_label(cx, super::car_lot::TAB_TITLE, LABEL_TITLE);
+    super::car_lot::set_label(cx, super::car_lot::TAB_TITLE, LABEL_TITLE);
 }
 
 /// Hides the lot's price and cash lines, which this mode does not use.
@@ -255,3 +264,7 @@ pub(super) fn draw_car(
     draw_count(cx, RELEASE_MARKERS, RELEASE_MARKER_COUNT, release_markers, !free && release_markers > 0);
     draw_heat(cx, &HeatMeter::of(info.heat));
 }
+
+#[cfg(test)]
+#[path = "car_select_view_playtest.rs"]
+mod playtest;

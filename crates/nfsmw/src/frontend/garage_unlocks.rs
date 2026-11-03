@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::career::CareerHandle;
+use anyhow::Context;
 use nfsmw_career::settings::{CareerSettings, Flags};
 use nfsmw_data::car::{
     CarTables,
@@ -21,22 +22,22 @@ fn allowed(settings: &CareerSettings, completed: bool, entity: u32, level: u32, 
     Ok(())
 }
 
-impl GarageScene {
-    pub(super) fn gate_cars(&mut self) {
-        let pool = crate::frontend::quick_play::pool::load_now(&self.dir);
-        let progress = crate::frontend::custom_race::car_select::progress();
-        let entries = crate::frontend::custom_race::car_list::entries(
-            crate::frontend::custom_race::car_list::List::Stock,
-            &pool,
-            &progress,
-        );
-        for car in &mut self.model.cars {
-            if entries.iter().any(|entry| entry.car.folder.eq_ignore_ascii_case(&car.folder) && entry.locked) {
-                car.unavailable = Some("Unlock this car by progressing through the Blacklist".into());
-            }
+pub(super) fn gate_cars(dir: &GameDir, model: &mut Model) {
+    let pool = crate::frontend::quick_play::pool::load_now(dir);
+    let progress = crate::frontend::custom_race::car_select::progress();
+    let entries = crate::frontend::custom_race::car_list::entries(
+        crate::frontend::custom_race::car_list::List::Stock,
+        &pool,
+        &progress,
+    );
+    for car in &mut model.cars {
+        if entries.iter().any(|entry| entry.car.folder.eq_ignore_ascii_case(&car.folder) && entry.locked) {
+            car.unavailable = Some("Unlock this car by progressing through the Blacklist".into());
         }
     }
+}
 
+impl GarageScene {
     pub(super) fn refresh_unlock_error(&mut self, selection: &Selection) {
         let error = self.validate_unlocks(selection).err();
         self.model.selection_locked = error.as_ref().is_some_and(|error| {

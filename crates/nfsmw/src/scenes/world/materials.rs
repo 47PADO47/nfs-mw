@@ -12,7 +12,7 @@ use std::collections::HashMap;
 
 /// The materials of one solid: the textures, whether it is a sky, the per-group routed shading, and which faces each
 /// texture draws.
-pub(super) struct Lookup<F, S>(pub F, pub bool, pub Vec<Option<Shading>>, pub S);
+pub(crate) struct Lookup<F, S>(pub F, pub bool, pub Vec<Option<Shading>>, pub S);
 
 impl<F, S> MaterialLookup for Lookup<F, S>
 where
@@ -66,7 +66,7 @@ pub(super) use windows::window_materials;
 
 /// Resolve the verified family only when all required resident inputs exist.
 /// Backend rejection leaves the ordinary per-group legacy fallback in place.
-pub(super) fn normal_materials(
+pub(crate) fn normal_materials(
     renderer: &mut dyn RenderBackend,
     solid: &Solid,
     lookup: &impl Fn(u32) -> Option<(TextureHandle, BlendMode)>,

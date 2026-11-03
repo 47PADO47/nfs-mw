@@ -10,12 +10,16 @@ use crate::frontend::logic::Cx;
 
 pub fn texture(sheet: Sheet) -> u32 {
     fe_hash_upper(match sheet {
-        Sheet::RaceEvents => "MAIN_ICON_REP_SHEET",
+        Sheet::RaceEvents => "RACE_EVENTS",
         Sheet::Milestones => "MILESTONE_MAIN",
         Sheet::Bounty => "MAIN_ICON_BOUNTY",
         Sheet::Bio => "MAIN_ICON_RIVALBIO",
     })
 }
+
+#[cfg(test)]
+#[path = "reputation_art_tests.rs"]
+mod tests;
 
 pub struct Row {
     strip: IconStrip,

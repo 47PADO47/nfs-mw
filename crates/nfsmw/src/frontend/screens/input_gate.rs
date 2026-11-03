@@ -30,3 +30,23 @@ fn direction(message: u32) -> bool {
             | ids::PAD_DOWNRIGHT
     )
 }
+
+/// Back is user input, even when a package broadcasts it to covered screens as part of its exit script.
+pub(super) fn deliver_to_owner(top: Option<PackageId>, package: PackageId, message: u32) -> bool {
+    message != ids::PAD_BACK || top == Some(package)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn covered_screens_receive_lifecycle_events_but_not_back_input() {
+        let covered = PackageId(1);
+        let top = PackageId(2);
+        assert!(!deliver_to_owner(Some(top), covered, ids::PAD_BACK));
+        assert!(deliver_to_owner(Some(top), top, ids::PAD_BACK));
+        assert!(deliver_to_owner(Some(top), covered, crate::frontend::ids::EXIT_COMPLETE));
+        assert!(deliver_to_owner(Some(top), covered, crate::frontend::ids::INIT_COMPLETE));
+    }
+}

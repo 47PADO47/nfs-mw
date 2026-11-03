@@ -105,6 +105,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         show_readout: field(&table, origin, "show_readout", |v| ShowReadout::from_str(text_of(v)?)),
         master_volume: field(&table, origin, "master_volume", percent),
         music_volume: field(&table, origin, "music_volume", percent),
+        menu_music_volume: field(&table, origin, "menu_music_volume", percent),
+        game_music_volume: field(&table, origin, "game_music_volume", percent),
         sfx_volume: field(&table, origin, "sfx_volume", percent),
         engine_volume: field(&table, origin, "engine_volume", percent),
         speech_volume: field(&table, origin, "speech_volume", percent),
@@ -144,6 +146,8 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         transmission: field(&table, origin, "transmission", |v| Transmission::from_str(text_of(v)?)),
         camera_mode: field(&table, origin, "camera_mode", |v| CameraMode::from_str(text_of(v)?)),
         minimap: field(&table, origin, "minimap", |v| MinimapMode::from_str(text_of(v)?)),
+        free_roam_map_mode: field(&table, origin, "free_roam_map_mode", |v| MinimapMode::from_str(text_of(v)?)),
+        race_map_mode: field(&table, origin, "race_map_mode", |v| MinimapMode::from_str(text_of(v)?)),
         hud_layout: field(&table, origin, "hud_layout", |v| HudLayout::from_str(text_of(v)?)),
         hud_options: super::hud::read(&table, origin),
         // `radio_hud` is the legacy key: read only when this file sets no `ui_style` (`docs/specs/ui-themes.md` section 11).

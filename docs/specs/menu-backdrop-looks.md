@@ -20,8 +20,10 @@ the [provenance file](../provenance/menu-backdrop-looks.md).
 | `Look::SafeHouse(car)` | the safe house menu and the screens it opens | safe house (`CAREER_SAFEHOUSE.BIN`) | the look's car, turned as the safe house stands it | the same camera: the `career_safehouse` intro, then the screens' poses |
 
 `MenuScene::with_look(dir, look)` builds the backdrop (`frontend/scene.rs`); `Frontend::sync_backdrop` swaps it when the screen
-on top asks for another look. A car that cannot be loaded gives way to the default car; if that is missing too, the flat dark
-backdrop stays.
+on top asks for another look. An unavailable named car gives way to the default car; if that is missing too, the flat dark
+backdrop stays. A captured owned-career record that fails to decode instead leaves no car, avoiding an unrelated car
+under the selected identity. Saved parts and RGB handling are specified in
+[career-car-select-presentation.md](career-car-select-presentation.md).
 
 ## 2. Which car
 
@@ -70,7 +72,7 @@ files), and the placement is in the executable (section 4) and the `frontend` at
 
 | File | Solids | Drawn |
 |---|---|---|
-| `PlatformCrib.BIN` (stage 1) | five `BACKDROP_BACKDROP_*` (`v18`, this install's is a modified room): `BACKDROP_BACKDROP_CRIB` (the room, pivot scale 26.04, bounds -222..222 m by 217 m tall) and four `..CAST_SHADOW_MAP*` | all five, each placed by its pivot matrix; the doubled prefix is read as `BACKDROP_*` (`Stage::canonical_name`), and the crib draws every `BACKDROP_*` solid, so a file with more or fewer props than the stock one still shows its room |
+| `PlatformCrib.BIN` (stage 1) | five `BACKDROP_BACKDROP_*` (`v18`, this install's is a modified room): `BACKDROP_BACKDROP_CRIB` (the room, pivot scale 26.04, bounds -222..222 m by 217 m tall) and four `..CAST_SHADOW_MAP*` | all five; the doubled prefix is read as `BACKDROP_*` (`Stage::canonical_name`), and the crib draws every `BACKDROP_*` solid, so a file with more or fewer props than the stock one still shows its room |
 | `CAREER_SAFEHOUSE.BIN` (stage 2) | `BACKDROP_CRIB` (the garage, 4,387 vertices, x -15..12.7, y -12..11.3, z 0..8.5), `BACKDROP_REFLECTION` (the garage mirrored under the floor), `BACKDROP_CURRGEN` (the bright sky outside the windows), `BACKDROP_CAST_SHADOW_MAP`, `..2` and `..3` (the room's props and some wall parts: the couch, the tank, the TV, the fridge, the posters, the pipes), `BACKDROP_CAST_SHADOW_MAP_NEXTGEN` (a high resolution caster sheet above the room), seven `STEAM EMITTER*` (particle markers) | all but the last two kinds |
 
 The three `..MAP`, `..MAP2` and `..MAP3` solids are inside the room, and the mirrored garage repeats their groups (the couch, the TV, the posterboard, the roll door), so they are scenery, drawn like the rest **[verified: groups against `BACKDROP_REFLECTION`; the reference screenshot shows the tank]**. Only `..MAP_NEXTGEN` (z 22.7..24.5, above the room) and the emitter markers are skipped **[ours]**. Without `BACKDROP_CURRGEN` the windows show the clear colour and the floor loses
@@ -83,15 +85,27 @@ garage it is see-through over; with the reflection last, its windows lie on the 
 the mesh handles' order: they come from a free list that reuses what the last backdrop freed, so they are in the file's order on a fresh
 renderer (`view-screen`) and can be reversed after another backdrop was freed. **[verified: `backdrop_tests`, descending handles; seen in the career flow: the reflection's windows lay on the floor as bright panes before the fix]**
 
-**Each solid is placed by its pivot matrix** (`Solid::transform`, translation in the last row, as stored). The safe house's drawn
-solids have the identity; the crib's room is stored about 26 times smaller than it stands and its pivot scales it up
-(26.04 on every axis), so drawn unscaled it is a small box round the car with its houses a few metres away. The earlier
-backdrop (the orbit camera in a too small room) did not show it; the original's camera poses (section 4.4) put the camera
-inside the unscaled houses. **[verified: render against a picture of the original's main menu]**
+**A solid's pivot matrix is not applied** **[exe]**. The platform draw hands the model renderer the stage's turn and
+shift (section 4) as the whole world matrix; the solid header's pivot (`Solid::transform`) plays no part. The stock
+crib's pivots are the identity, so this changes nothing there. Every drawn safe house solid has a pivot that negates
+x (determinant -1), and applying it showed the safe house mirrored: the Castrol banner read backwards
+**[verified: installed files, stock and modded]**. An earlier note here described a modified crib whose pivot scaled
+its room 26 times; no install or mod checked now has that file, and the original would draw such a room unscaled.
+
+**Which room the garage uses.** The front end holds one current platform and changes it only at a few points
+**[exe]**: the career's start and a return from the world to the safe house set stage 2; a return from a world zone sets
+that zone's stage (2 safe house, 3 auto shop, 5 car lot); the marker toggle in the shop swaps 3 and 4. Opening
+Customize changes nothing, except that it leaves the backroom for the shop. So My Cars customizes in the crib it opened
+from, with the camera easing between the customize poses there, and only an auto shop entered from the world stands
+in `CUSTOMIZATION_SHOP.BIN`. My Cars also keeps the crib and its camera up while its car list is read.
 
 ## 4. How the original stands the car and the camera **[exe + verified]**
 
 ### 4.1 The car
+
+The assembled `CarModel::floor_height` already includes the front-end 0.025 m tyre sink. The stage stand adds
+rotation only; subtracting the same sink again lowers every menu car by another 0.025 m. **[verified: current
+assembly and installed wheel records; visual reference acceptance remains open]**
 
 The stand routine (`0x007A96C0`) places the car at the stage origin, turned about the vertical axis by a yaw taken from the
 platform number (the front-end manager's `+0x18`):
@@ -148,7 +162,8 @@ car's tail. That is the low rear three-quarter view of the red M3 with its wing 
 The other safe house screens have their own poses (`career_manager` `angle_career_manager`, `career_safehousebounty`
 `angles_bounty`, `career_safehousemilestones` `angle21`, `career_safehouseracesheet` `angle_racesheet`,
 `career_safehousereputationoverview` `angle20`, `career_safehouserivalchallenge` `angle22`, `career_car_select` `angle4_d`);
-the rewrite shows `angle10` for all of them **[ours]**. Table of values: provenance, section 3.
+the rewrite binds the career car selector to `career_car_select`; the other unbound sheets keep `angle10` **[ours]**.
+Table of values: provenance, section 3.
 
 ### 4.4 The move onto a pose **[exe]**
 
@@ -171,7 +186,9 @@ round.
 `0x007A9620`): it builds the names `angle_entry_` + `career_safehouse` and `angle_final_` + `career_safehouse` (strings at
 `0x008B74A0`, `0x008B74B0`, `0x008B722C`), sets the mover straight onto the entry pose (`0x0046B920`) and starts a move
 to the final pose with the final pose's shape. While the flag is set `0x007B9EA0` records the screen's pose hash but starts
-no move, so the intro is not cut short by the safe house menu's own pose (`angle10`, which has a 0.6 s ease). Poses read
+no move, so the intro is not cut short by the safe house menu's own pose (`angle10`, which has a 0.6 s ease). The intro routine clears the flag as it starts the intro, so only the screen recorded with it waits: a later screen
+with another pose hash starts its move at once, from wherever the intro has got to; it does not wait for the intro to end
+**[exe]**. Poses read
 from `FE_ATTRIB.bin` (provenance, section 3.6):
 
 | Pose | Decay | Duration | Order |
@@ -180,8 +197,8 @@ from `FE_ATTRIB.bin` (provenance, section 3.6):
 | `angle_final_career_safehouse` | 9 | **3.15 s** | 1 |
 | `angle10` (`career_mainmenu_sub`, the menu's own pose) | 8 | 0.6 s | 2 |
 
-A later screen with another pose hash starts a 0.4 to 1 s move from wherever the camera is; the rewrite shows one pose for
-all safe house screens **[ours]**, so only the intro is played. **[verified: `real_install` test reads the values]**
+A later screen with another pose hash starts a 0.4 to 1 s move from wherever the camera is. The bound safe house screens
+use this mover; unbound screens keep the current pose **[ours]**. **[verified: `real_install` test reads the values]**
 
 `CameraMove` (`frontend/camera_move.rs`) implements the blend. The camera is one object for the whole front end,
 `CameraRig` (`frontend/camera_rig.rs`), because the original's mover outlives its screens while a `MenuScene` is rebuilt
@@ -222,11 +239,44 @@ a backdrop swapped for another look of the same stage keeps the camera. The Show
 a scripted `play` run plays the intros.
 The car stands as in section 4.1 in the crib too (yaw 304.97, platform 1).
 
-**The room's turn.** With the car, the camera and the poses as above, the crib's houses stood in front of the camera. Turning
-the room 180 degrees about the vertical axis puts Squidward's house behind the car's front bumper with its door under
-the windows, and the pineapple behind the car in the career menu, as the original's two pictures show them
-(`Stage::room_yaw`). The angle was found by trial against the pictures (180 +- 10 degrees); the executable was not found
-to turn the room. The safe house needs none. **[unverified cause; verified against the pictures]**
+**The room's turn.** The original draws a platform's solids through one matrix: a turn about the vertical axis by an
+angle chosen from the platform number, then a shift along +y. The car stand, the camera and the particle placements stay
+in the unturned frame. **[exe]**
+
+| Platform | Turn (degrees) | Shift (m) |
+|---|---|---|
+| 1 crib, 4 shop backroom | 134.4125 | 0 |
+| 2 career safe house | 302.8531 | 0 |
+| 3 customization shop | 0 | 0 |
+| 5 car lot | 0 | 0.075 |
+
+The scenery light is not turned. With these values the crib's settled main menu matches the original's on the modded
+and the unmodified installs: the car's heading, the silos to the right, the lamps and the forklift
+**[verified: recordings]**. The earlier 180-degree crib turn was fitted to a scaled replacement crib and is withdrawn.
+
+The safe house uses the executable's 302.85 degrees. It once seemed to contradict the recorded safe house menu, but
+the remake was mirroring the room through the solids' pivots (section 3). Without them, the settled safe house shows the
+recorded wall behind the car: the Castrol banner under the vent, the trusses and the tyre stack **[verified: render
+against the recording]**. One file and one angle serve every career safe house; nothing in the draw depends on which
+safe house the player is in **[exe]**.
+
+### 4.5 Atmosphere **[exe + verified data]**
+
+Each platform file has an `EmitterLibrary` chunk (`docs/specs/world-emitter-placements.md`) in the front end's section
+2600. Its untriggered placements name `emittergroup` collections:
+
+- the crib: `fxenv_small_steam1` (five on the floor), `fxenv_bird` (three, about 50 m away and 11.5 m up) and a third
+  group of three on the floor (key `0xC8A23629`);
+- the safe house: `fxenv_small_steam2`;
+- the shop: `fxenv_smokestack`, `fxenv_small_steam2` and the third group;
+- the backroom: `fxenv_small_steam3` and a group with key `0x48D22C27`;
+- the car lot: `fxenv_leaves1` and the third group.
+
+The menu runs them with the world's ambient effect system (`frontend/room_fx.rs`), at their authored matrices in the
+unturned frame. The crib's steam then rises behind the car on the right under the silos, where the original's does
+**[verified: recordings]**. Its density is the installed PC groups'. The modded reference's thicker Xbox 360-style
+smoke comes from mod assets and is not reproduced. While particles run, the menu draws every frame instead of
+keeping a still picture **[ours]**.
 
 ## 5. Light, cost and leaks
 
@@ -283,10 +333,8 @@ warehouse: 55 material groups include brick, concrete, graffiti, lamps, fences
 and girders. Excluding it removes the warehouse from the captured main menu.
 It also supplies the separate caster input. Only the safe-house NEXTGEN sheet
 is a hidden high-resolution proxy. Mesh names alone do not establish visibility.
-Keep the port's fitted 180-degree crib turn until the complete coordinate
-conversion is established. A zero-turn capture places the distant city behind
-the title car, contrary to the supplied original silo/warehouse view. The turn
-is a visual fit, not a recovered original stage parameter.
+The platform turn is the executable's per-platform angle (section 4.2, "The room's turn"); the earlier fitted
+180-degree crib turn is withdrawn.
 
 
 ## Shared platform textures

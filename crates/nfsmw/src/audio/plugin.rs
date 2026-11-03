@@ -21,11 +21,19 @@ pub struct AudioPlugin {
 pub fn volumes_of(settings: &Settings) -> Volumes {
     Volumes {
         master: settings.master_volume.amplitude(),
-        music: settings.music_volume.amplitude(),
+        music: settings.menu_music_volume.amplitude(),
         sfx: settings.sfx_volume.amplitude(),
         engine: settings.engine_volume.amplitude(),
         hud: settings.hud_options.hud_volume,
     }
+}
+
+pub(super) fn volumes_in_context(settings: &Settings, driving: bool, preview: bool) -> Volumes {
+    let mut volumes = volumes_of(settings);
+    if driving && !preview {
+        volumes.music = settings.game_music_volume.amplitude();
+    }
+    volumes
 }
 
 impl Plugin for AudioPlugin {
@@ -36,7 +44,7 @@ impl Plugin for AudioPlugin {
         app.init_resource::<MusicInput>().insert_non_send(audio).add_systems(
             Update,
             (
-                (sync_volumes, sync_radio).in_set(FrameSet::Prepare),
+                sync_radio.in_set(FrameSet::Prepare),
                 super::radio::input::radio_input.in_set(FrameSet::Ui),
                 drive_car.in_set(FrameSet::Ui),
                 play_preview.in_set(FrameSet::Ui),
@@ -47,18 +55,6 @@ impl Plugin for AudioPlugin {
         );
         super::speech::add_systems(app);
         super::eatrax_preview::add_systems(app);
-    }
-}
-
-/// `set volume 50` in the console and the config file reach the mixer.
-fn sync_volumes(settings: Res<Settings>, mut audio: NonSendMut<Audio>) {
-    let _trace = blackbox_trace::scope("Audio: volumes");
-    if !settings.is_changed() {
-        return;
-    }
-    let wanted = volumes_of(&settings);
-    if audio.volumes() != wanted {
-        audio.set_volumes(wanted);
     }
 }
 
@@ -108,6 +104,8 @@ pub(super) fn drive_car(
     mut music: ResMut<MusicInput>,
     mut audio: NonSendMut<Audio>,
     mut seen: Local<u32>,
+    settings: Option<Res<Settings>>,
+    frontend: Option<Res<crate::frontend::Frontend>>,
 ) {
     let _trace = blackbox_trace::scope("Audio: car / traffic / music update");
     // A scene that went away takes its soundtrack with it, even when the next one has none.
@@ -124,6 +122,16 @@ pub(super) fn drive_car(
         *music = MusicInput::default();
     }
     let car = host.scene.car_sound();
+    // Pause retains the gameplay soundtrack; an explicit EA Trax preview belongs to its menu.
+    let paused = host.scene.paused();
+    let driving = car.is_some() || paused;
+    if let Some(settings) = settings {
+        let preview = frontend.is_some_and(|frontend| frontend.jukebox_active());
+        let wanted = volumes_in_context(&settings, driving, preview);
+        if audio.volumes() != wanted {
+            audio.set_volumes(wanted);
+        }
+    }
     audio.drive_car(car.as_ref(), time.delta_secs());
     // Player 2's engine in a co-op session is a voice of its own, heard through the same listener.
     let second_car = host.scene.second_car_sound();
@@ -167,9 +175,6 @@ pub(super) fn drive_car(
     if pops > 0 {
         host.scene.note_sputters(pops);
     }
-    // The pause menu freezes the car (no sound) but the game goes on, and so does the radio.
-    let paused = host.scene.paused();
-    let driving = car.is_some() || paused;
     // The chase of the world reaches the music and the speech; the pursuit music takes the songs' place while a chase
     // is on and for a while after it.
     let chase = host.scene.pursuit_feed();
@@ -191,3 +196,7 @@ pub(super) fn drive_car(
         log::warn!("the scene's sound: {e}");
     }
 }
+
+#[cfg(test)]
+#[path = "music_volume_tests.rs"]
+mod music_volume_tests;

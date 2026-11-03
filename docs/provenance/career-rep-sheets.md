@@ -45,6 +45,29 @@ honest.
 - `Career::from_profile_bytes` rebuilt no bin state and no race count: a reloaded career had every bin unentered. The races won
   are written to the race records (flag 2) and read back (`Blacklist::restore_progress`).
 
+## Recorded category and bounty artwork **[verified]**
+
+The existing 2026-10-27 PC reference recording (modded Black Edition, executable SHA-256
+`bde12bdd158b7f861078ad4527f5a656f34c6068e4a2120f28044f92f0fa158c`) was reviewed without starting the game again.
+At session time 210.4 s the overview shows crossed checkered flags for Race Events. At 213.4 s the bounty grid shows
+the college/tree crest for the first four entries, coastal/sailing crest for the next four, and Rockport/city crest
+for the ninth visible entry. The selected fifth entry's detail repeats the coastal crest. This is visual evidence
+from the recorded modded reference; it does not independently establish every stock PC runtime path.
+
+Matching texture records were read from the original-style Black Edition install with the existing JDLZ/TPK readers.
+The decoded images match the recorded shapes. No extracted image is part of the implementation.
+
+| Texture | Hash | Source package | Size / format |
+|---|---|---|---|
+| `RACE_EVENTS` | `0xEFC9662E` | `FRONTEND/FrontB.lzc` | 64×64 DXT3 |
+| `BOUNTY_ICON_COLLEGE` | `0x8A21B882` | `GLOBAL/GlobalB.lzc` | 64×64 DXT3 |
+| `BOUNTY_ICON_COASTAL` | `0x895EC0AE` | `GLOBAL/GlobalB.lzc` | 64×64 DXT3 |
+| `BOUNTY_ICON_ROCKPORT` | `0x9129E7FB` | `GLOBAL/GlobalB.lzc` | 64×64 DXT3 |
+
+Spawn numbers 9–12 share the Rockport region. The first visible Rockport entry and installed region-specific texture
+support that regional mapping; the recording did not individually select all twelve locations. Installed regressions
+check texture decoding and that grid/detail copies track the selected spawn across the scroll window.
+
 ## Dead ends
 
 - The pending-jump consumer (`+0x11C` / `+0x111`): not looked for again.

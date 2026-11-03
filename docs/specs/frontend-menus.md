@@ -257,7 +257,8 @@ data string that cycles through values) or a *slider*.
 - **Scrollbar [PC observed, modded reference; policy ours].** The recorded Player page shows no bar, while a
   recorded overflowing Video page shows one. The remake's Player row count differs from the reference. On the
   native main options page, hide the scrollbar group when all rows fit; keep it available on overflow. This does
-  not establish original thumb motion or unmodified PC behavior.
+  not establish original thumb motion or unmodified PC behavior. The remake positions the handle along the authored
+  track in proportion to the first visible row, with its endpoints at the track limits.
 - **Scrollbar arrows [PC observed, modded reference; pointer policy ours].** Recorded overflowing Video windows
   show both authored arrow glyphs. Keep these arrows on overflowing native main Options pages, within their own
   scrollbar parent. A click on a drawn arrow moves selection one row in its direction, using the existing wrap

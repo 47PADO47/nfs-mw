@@ -97,7 +97,10 @@ pub(super) fn hide_children(tree: &mut UiTree, hash: u32) {
             let Some(p) = at.filter(|p| *p < tree.nodes.len()) else { break };
             if p == root {
                 let background = tree.nodes[i].parent == Some(root)
-                    && matches!(tree.nodes[i].kind, NodeKind::Image { texture: 0xc6af_dd7e | 0x397a_3a31, .. });
+                    && matches!(
+                        tree.nodes[i].kind,
+                        NodeKind::Image { texture: 0xc6af_dd7e | 0x397a_3a31 | 0x3d3b_c1ac | 0x81b4_fad0, .. }
+                    );
                 *hide = !background;
                 break;
             }

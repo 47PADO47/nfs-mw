@@ -188,7 +188,9 @@ fn apply_bars(
             let height = rt.size(fill).map_or(size.y, |size| size.y);
             rt.set_hidden(fill, selected.is_none() || width <= 0.0);
             rt.set_size_xy(fill, width, height);
-            rt.set_position_xy(fill, left + width / 2.0, top + height / 2.0);
+            // Native equal-depth siblings put the dim base after the lit strip. Keep the fill in front.
+            let depth = rt.position(fill).map_or(position.z - 1.0, |value| value.z.min(position.z - 1.0));
+            rt.set_position(fill, glam::Vec3::new(left + width / 2.0, top + height / 2.0, depth));
             rt.set_uv(fill, [0.0, 0.0, width / 32.0, 1.0]);
         }
         if let Some(handle) = rt.find(package, fe_hash_upper(&format!("HANDLE_{name}"))) {

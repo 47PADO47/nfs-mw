@@ -167,12 +167,13 @@ impl IconStrip {
         let objects: Vec<ObjectRef> = (1..).map_while(|i| cx.named(&format!("OPTION_{i}"))).collect();
         let mut offset = 0.0;
         for obj in objects {
-            let size = cx.rt.size(obj).map_or(Vec2::splat(64.0), |s| Vec2::new(s.x.abs(), s.y.abs()));
-            let (guid, uv) = cx
-                .rt
-                .package(cx.package)
-                .and_then(|p| p.objects.get(obj.index))
-                .map_or((0, [0.0, 0.0, 1.0, 1.0]), |def| (def.guid, def.data.uv()));
+            let (guid, uv, size) = cx.rt.package(cx.package).and_then(|p| p.objects.get(obj.index)).map_or(
+                (0, [0.0, 0.0, 1.0, 1.0], Vec2::splat(64.0)),
+                |def| {
+                    let size = def.data.size();
+                    (def.guid, def.data.uv(), Vec2::new(size.x.abs(), size.y.abs()))
+                },
+            );
             self.slots.push(Slot { obj, guid, size, offset, uv });
             offset += size.x + scroller::SPACING;
         }

@@ -26,9 +26,7 @@ use crate::frontend::look::Look;
 use crate::ui::Text;
 
 /// The objects of `Car_Select.fng` the screen fills (guids from `nfsmw dump-screen Car_Select.fng`): the car card's
-/// name, the `Cost:` value, the `Funds:` value, the "This Car is Locked" notice, the Sell button, the Accept button's
-/// label and the header's title text.
-pub(super) const CAR_NAME: u32 = 0x000E_283B;
+/// Sell button, the Accept button's label and the header's title text.
 pub(super) const SELL_BUTTON: u32 = 0x0010_5E06;
 pub(super) const ACCEPT: u32 = 0x000E_2B7E;
 pub(super) const TAB_TITLE: u32 = 0x000F_18D7;

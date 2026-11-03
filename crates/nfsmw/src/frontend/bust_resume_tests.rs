@@ -53,6 +53,16 @@ impl Rig {
         let commands = fe.screens.update(FRAME, mask, &mut env);
         fe.apply(commands, host, &mut env);
     }
+
+    /// Arrest NIS loading uses a worker; a tight simulated-frame budget can outrun disk work.
+    fn wait_for_ticket(&mut self, input: &ActionState) {
+        let started = std::time::Instant::now();
+        while self.fe.stage != Stage::Paused {
+            assert!(started.elapsed() < std::time::Duration::from_secs(120), "the ticket opens after the arrest hold");
+            self.play_frame(input);
+            std::thread::yield_now();
+        }
+    }
 }
 
 fn rig_around(scene: crate::scenes::world::WorldScene, dir: GameDir) -> Rig {
@@ -80,15 +90,7 @@ fn installed_bust_ticket_and_payment_return_to_driving_through_the_front_end() {
     rig.renderer = renderer;
 
     // The hold runs, then the front end opens the ticket over the frozen world.
-    let mut opened = false;
-    for _ in 0..600 {
-        rig.play_frame(&stopped);
-        opened = rig.fe.stage == Stage::Paused;
-        if opened {
-            break;
-        }
-    }
-    assert!(opened, "the ticket opens after the arrest hold");
+    rig.wait_for_ticket(&stopped);
     assert!(rig.fe.paused.get(), "the world is held under the ticket");
     assert_eq!(rig.fe.screens.top(), Some(INFRACTIONS));
 
@@ -176,20 +178,27 @@ fn career_rig_at_the_ticket(career: Career) -> Rig {
     let mut rig = rig_around(scene, installed_dir());
     rig.renderer = renderer;
     rig.fe.career = shared;
-    let mut opened = false;
-    for _ in 0..600 {
-        rig.play_frame(&stopped);
-        opened = rig.fe.stage == Stage::Paused;
-        if opened {
-            break;
-        }
-    }
-    assert!(opened, "the ticket opens after the arrest hold");
+    rig.fe.profiles = None;
+    rig.fe.save = false;
+    rig.wait_for_ticket(&stopped);
     assert_eq!(rig.fe.screens.top(), Some(INFRACTIONS));
     rig
 }
 
 impl Rig {
+    /// The safe house rebuilds the driving scene after the chosen owned car replaces the menu backdrop.
+    fn wait_for_driving(&mut self) {
+        let started = std::time::Instant::now();
+        while self.fe.stage == Stage::Loading {
+            assert!(started.elapsed() < std::time::Duration::from_secs(120), "career resume did not finish loading");
+            self.host.scene.update(&mut self.renderer, &ActionState::default(), STEP);
+            let (fe, host, mut env) = self.env();
+            fe.loading_frame(FRAME, host, &mut env);
+            std::thread::yield_now();
+        }
+        assert_eq!(self.fe.stage, Stage::Playing, "career resume must start a driving scene");
+    }
+
     /// Frames of the top screen with nothing pressed, then `mask` pressed for three frames and released.
     fn press(&mut self, mask: u32) {
         for _ in 0..90 {
@@ -236,22 +245,24 @@ impl Rig {
 #[test]
 #[ignore = "needs the installed world, the career tables, the infractions screen and the car select"]
 fn installed_career_bust_cash_payment_leads_to_the_car_select_the_safe_house_and_driving() {
+    let _guard = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let mut rig = career_rig_at_the_ticket(career_of(&installed_dir(), 5_000, 0));
     rig.press(pad::ACCEPT);
 
-    // Cash paid: one strike, the heat back to 1, the car kept; the career car select is up over the frozen world.
+    // Cash paid: one strike, the heat back to 1, the car kept; career select is in its live safe-house backdrop.
     let record = rig.record();
     assert_eq!((record.strikes, record.heat, record.state), (1, 1.0, 0), "{record:?}");
     assert_eq!(record.busted, 1);
     assert_eq!(rig.fe.screens.top(), Some(CAR_SELECT), "the ticket leads to the car select");
-    assert_eq!(rig.fe.stage, Stage::Paused);
-    assert!(rig.fe.paused.get(), "the world is still held");
+    assert_eq!(rig.fe.stage, Stage::Menus);
+    assert!(rig.fe.career.is_prelude(), "the selected car will rebuild the driving scene");
 
     // Accept on the free car goes to the safe house menu, whose resume drives again.
     rig.press(pad::ACCEPT);
     assert_eq!(rig.fe.screens.top(), Some(MAIN_MENU_SUB), "a free car leads to the safe house menu");
     rig.run(vec![Command::Resume]);
-    assert_eq!(rig.fe.stage, Stage::Playing);
+    assert_eq!(rig.fe.stage, Stage::Loading);
+    rig.wait_for_driving();
     assert!(!rig.fe.paused.get());
     assert!(rig.host.scene.take_bust_ticket().is_none());
     rig.drives_on();
@@ -261,6 +272,7 @@ fn installed_career_bust_cash_payment_leads_to_the_car_select_the_safe_house_and
 #[test]
 #[ignore = "needs the installed world, the career tables, the infractions screen and the car select"]
 fn installed_career_bust_third_strike_impounds_the_car_and_the_player_must_choose_another() {
+    let _guard = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let mut rig = career_rig_at_the_ticket(career_of(&installed_dir(), 5_000, 2));
     rig.press(pad::ACCEPT);
 
@@ -289,7 +301,8 @@ fn installed_career_bust_third_strike_impounds_the_car_and_the_player_must_choos
     rig.press(pad::ACCEPT);
     assert_eq!(rig.fe.screens.top(), Some(MAIN_MENU_SUB));
     rig.run(vec![Command::Resume]);
-    assert_eq!(rig.fe.stage, Stage::Playing);
+    assert_eq!(rig.fe.stage, Stage::Loading);
+    rig.wait_for_driving();
     rig.drives_on();
     let flags = CareerHandle::shared().with(|career| career.settings.flags).unwrap();
     assert!(!flags.contains(nfsmw_career::settings::Flags::GAME_OVER), "another car is free");

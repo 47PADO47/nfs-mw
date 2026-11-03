@@ -141,6 +141,13 @@ pub fn publish(settings: Res<Settings>) {
     *active = value;
 }
 
+/// Tests stand in for [`publish`]: sets the state in force and returns the one it replaces, for the test to restore.
+#[cfg(test)]
+pub fn replace_active(value: Snapshot) -> Snapshot {
+    let mut active = ACTIVE.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+    std::mem::replace(&mut *active, value)
+}
+
 /// The sun's tuning follows the global quality, including Off. Native world-space shadows use the renderer's
 /// shared sun-shadow options; this frame override also carries the global quality to the Bevy backend.
 pub fn tuning(snapshot: Snapshot) -> Option<ShadowTuning> {
@@ -148,7 +155,13 @@ pub fn tuning(snapshot: Snapshot) -> Option<ShadowTuning> {
         return None;
     }
     let quality = snapshot.world_quality;
-    Some(ShadowTuning { quality, bias: snapshot.options.bias, divider: snapshot.options.divider as usize })
+    // Screen-space contact shadows darken the authored platforms unevenly; the menus keep the map shadows only.
+    Some(ShadowTuning {
+        quality,
+        bias: snapshot.options.bias,
+        divider: snapshot.options.divider as usize,
+        contact_shadows: false,
+    })
 }
 
 /// Clamps a bias multiplier into [`BIAS_RANGE`]. A value that is not a number gives the default.

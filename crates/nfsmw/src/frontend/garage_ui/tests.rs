@@ -2,9 +2,12 @@
 
 mod add_header;
 mod animation_input;
+mod batch16;
+mod cart_alignment;
 mod decal_filter;
 mod filter_pointer;
 mod footer_layout;
+mod gauge_highlight;
 mod harness;
 mod manager_visual;
 mod manager_window;
@@ -12,8 +15,10 @@ mod paint_controls;
 mod return_state;
 mod samples;
 mod specialized;
+mod spoiler_art;
 mod tuning_help;
 mod tuning_prompts;
+mod vinyl_return;
 
 use super::{Page, Section};
 use crate::garage::{MenuEvent, menu_rows::Row};

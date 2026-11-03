@@ -71,6 +71,7 @@ pub(super) fn refresh(cx: &mut Cx, page: Page, model: &Model) {
     cx.hide(0xdc6e_e739, !super::choices::can_enter_backroom(model));
 }
 
+/// The selected item's caption stays its plain name while its preview loads: the original shows no status text here.
 pub(super) fn selection(cx: &mut Cx, label: &str, number: usize, count: usize) {
     for hash in [ids::ICON_TITLE, ids::ICON_TITLE_SHADOW] {
         cx.text_object(hash, label);

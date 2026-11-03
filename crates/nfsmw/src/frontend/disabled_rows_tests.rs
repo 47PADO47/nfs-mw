@@ -46,9 +46,14 @@ fn the_other_rows_are_always_enabled() {
     for s in [settings(true), settings(false)] {
         for category in [Category::Audio, Category::Video, Category::Gameplay, Category::Player, Category::Discord] {
             for row in rows(category, &crate::settings::test_caps::native()) {
+                // Autosave belongs to the loaded career's profile and is dimmed without one, as in the original.
                 if !matches!(
                     row.setting,
-                    Setting::MaxFps | Setting::SmokeColor | Setting::Renderer(_) | Setting::Graphics(_)
+                    Setting::MaxFps
+                        | Setting::SmokeColor
+                        | Setting::Renderer(_)
+                        | Setting::Graphics(_)
+                        | Setting::Autosave
                 ) {
                     assert!(row.setting.enabled(&s), "{:?}", row.setting);
                 }

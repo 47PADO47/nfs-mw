@@ -221,7 +221,7 @@ verified]:
 | `<CAR>_TIRE` | itself; `TRAFFIC_TIRE` for traffic cars |
 | `WINDOW_FRONT`, `WINDOW_REAR`, `WINDOW_{LEFT,RIGHT}_{FRONT,REAR}` | `WINDOW_FRONT` while undamaged, `WINDOW_DAMAGE0` when damaged [decomp] |
 | `REAR_DEFROSTER` | itself (damaged: `WINDOW_DAMAGE0`) |
-| `CARBONFIBRE` skin set | only for carbon hoods (`CARBONFIBRE` attribute) |
+| `<CAR>_SKIN1` on a carbon hood | `CARBONFIBRE`: the carbon hood is the same solid as its painted twin and is drawn through a second table whose body-paint entries show `CARBONFIBRE`, and its `CARSKIN` groups take the `CARBONFIBER` light material (env 0.1) the car keeps beside its paint's, not the paint's (only for a hood part with the `CARBONFIBRE` attribute) [decomp; installed hoods verified] |
 
 **Traffic tires** [decomp, PC build; installed references verified]: the original
 reference is the car type's **base model name** followed by `_TIRE`. Only car

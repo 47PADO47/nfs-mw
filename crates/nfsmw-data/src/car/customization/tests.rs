@@ -323,3 +323,48 @@ fn installed_fixed_vinyls_recolor_without_losing_artwork_and_rim_paint_is_isolat
     selection.parts[Category::Wheels as usize] = None;
     assert!(catalog.validate(&selection).is_err(), "stock wheels cannot use rim paint");
 }
+
+#[test]
+#[ignore = "requires an installed game"]
+fn ui056_a_preset_keeps_its_own_vinyl_without_a_customization_selection() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let preset = super::super::LoadOptions { lod: 'A', all_parts: false, preset: Some("M3GTRCAREERSTART".into()) };
+    let stock = super::super::LoadOptions { preset: None, ..preset.clone() };
+    let layer = bstring_hash("__GARAGE_VINYL");
+    let with_preset = super::super::load(&dir, "BMWM3GTRE46", &preset).unwrap();
+    assert!(with_preset.textures.contains_key(&layer), "the career-start M3 GTR keeps its livery");
+    let plain = super::super::load(&dir, "BMWM3GTRE46", &stock).unwrap();
+    assert!(!plain.textures.contains_key(&layer), "a stock assembly adds no vinyl");
+}
+
+#[test]
+#[ignore = "requires an installed game"]
+fn installed_carbon_hood_shows_carbon_fibre_where_its_painted_twin_shows_paint() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let inventory = Inventory::load(&dir).unwrap();
+    let options = super::super::LoadOptions { lod: 'A', all_parts: false, preset: None };
+    let carbon = blackbox_hash::bstring_hash("CARBONFIBRE");
+    let carbon_material = blackbox_hash::bstring_hash("CARBONFIBER");
+    let catalog = inventory.catalog(&dir, "GTO").unwrap();
+    let hoods = &catalog.choices[Category::Hood as usize];
+    let pair = |want: bool| hoods.iter().find(|p| p.carbon == want && p.label.starts_with("HOOD 6")).unwrap().hash;
+    let hood_textures = |hash: u32| {
+        let mut selection = Selection::default();
+        selection.parts[Category::Hood as usize] = Some(hash);
+        let model = super::super::load_customized(&dir, "GTO", &options, &selection).unwrap();
+        let hood = model.placements.iter().filter(|p| p.slot == super::super::slot::HOOD);
+        let solids: Vec<_> = hood.map(|p| &model.solids[&p.solid]).collect();
+        let textures: Vec<u32> =
+            solids.iter().flat_map(|s| s.groups.iter().filter_map(|g| g.diffuse_texture(s))).collect();
+        let materials: Vec<u32> = solids.iter().flat_map(|s| s.light_material_hashes.iter().copied()).collect();
+        (textures, materials, model.textures.contains_key(&carbon))
+    };
+    let (painted, painted_materials, _) = hood_textures(pair(false));
+    let (carbon_hood, carbon_materials, loaded) = hood_textures(pair(true));
+    assert!(!painted.contains(&carbon), "the painted hood keeps the car's paint");
+    assert!(painted_materials.contains(&super::super::CARSKIN), "the painted hood is lit as paint");
+    assert!(carbon_hood.contains(&carbon), "the carbon hood draws carbon fibre: {carbon_hood:08x?}");
+    assert!(loaded, "the carbon fibre texture is loaded");
+    assert!(carbon_materials.contains(&carbon_material), "the carbon hood is lit as carbon fibre");
+    assert!(!carbon_materials.contains(&super::super::CARSKIN), "no part of the carbon hood is lit as paint");
+}

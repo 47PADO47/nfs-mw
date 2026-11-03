@@ -46,7 +46,7 @@ impl WorldScene {
             true => Some(load_model(&self.dir, &self.garage.draft)?),
             false => None,
         };
-        let mut backdrop = self.garage_backdrop.take().unwrap_or_else(|| GarageBackdrop::new(self.dir.clone()));
+        let mut backdrop = self.garage_backdrop.take().unwrap_or_else(|| GarageBackdrop::shop(self.dir.clone()));
         backdrop.set_car_shading(self.car_shading);
         let result = backdrop.set_stage(renderer, stage).and_then(|()| {
             if let Some(model) = model {

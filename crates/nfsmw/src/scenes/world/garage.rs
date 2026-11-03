@@ -16,7 +16,7 @@ use crate::garage::{Car, Category, Model, Selection};
 mod camera;
 mod checkout;
 pub(super) mod command;
-mod names;
+use crate::car_names as names;
 mod pause_tuning;
 mod persistence;
 pub(super) mod plate_command;
@@ -111,6 +111,27 @@ pub(crate) fn native_my_car_handle(
         .flatten();
     let Some(record) = record else { return Ok(None) };
     Ok(Some(records::read(&record, &CarTables::load(dir)?, folder, model)?))
+}
+
+/// Decode a captured career slot with the same native/extension policy as the driving shop.
+pub(crate) fn career_preview_selection(
+    dir: &GameDir,
+    model: &Model,
+    folder: &str,
+    alias: &str,
+    handle: u32,
+    record: &nfsmw_career::stable::CustomizationRecord,
+    profiles: Option<&crate::career::ProfileDir>,
+) -> Result<Selection> {
+    let mut selection = records::read(record, &CarTables::load(dir)?, folder, model)?;
+    if let Some(profiles) = profiles
+        && let Some(mut saved) = persistence::extension(profiles, alias, handle, record, model)?
+    {
+        ensure!(saved.car == folder, "The saved garage extension belongs to a different car");
+        saved.inherit_native_color_parts(&selection);
+        selection = saved;
+    }
+    Ok(selection)
 }
 
 #[cfg(test)]

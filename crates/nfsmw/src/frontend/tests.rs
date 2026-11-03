@@ -464,30 +464,20 @@ fn controls_options_show_every_response_row_with_visible_values() {
     }
 }
 
-#[test]
-fn main_and_pause_minimap_options_apply_and_request_a_save() {
-    for (name, pause) in [(screen::OPTIONS, false), (screen::PAUSE_OPTIONS, true)] {
-        let args = Args { pause, category: Category::Gameplay, ..Args::default() };
-        let Some(mut h) = Harness::open(name, args) else { return };
-        h.wait(1.0);
-        let row = super::options::rows(Category::Gameplay, &crate::settings::test_caps::native())
-            .iter()
-            .position(|r| r.setting == super::options::Setting::Minimap)
-            .unwrap();
-        for _ in 0..row {
-            h.press(pad::DOWN);
-        }
-        h.press(pad::RIGHT);
-        assert_eq!(h.settings.minimap, crate::settings::MinimapMode::Rotating);
-        assert_eq!(h.changed.minimap, Some(crate::settings::MinimapMode::Rotating));
-        h.press(pad::BACK);
-        h.wait(1.5);
-        assert!(h.said(&Command::SaveSettings));
-    }
-}
+#[path = "context_minimap_playtest.rs"]
+mod context_minimap_playtest;
 
 #[path = "animation_input_playtest.rs"]
 mod animation_input_playtest;
 
 #[path = "pause_background_playtest.rs"]
 mod pause_background_playtest;
+
+#[path = "rendered_playtest.rs"]
+pub(in crate::frontend) mod rendered_playtest;
+
+#[path = "navigation_contract_tests.rs"]
+mod navigation_contract_tests;
+
+#[path = "car_loading_playtest.rs"]
+mod car_loading_playtest;

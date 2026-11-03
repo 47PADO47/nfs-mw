@@ -300,6 +300,10 @@ fn script(cx: &mut Cx, name: u32, which: u32) {
 }
 
 impl ScreenLogic for JukeboxLogic {
+    fn accepts_input(&self) -> bool {
+        !self.leaving
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.screen_list_look(ListScreen::Jukebox);
         self.fill(cx);

@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use blackbox_gfx::{BlendMode, Instance, InstanceKey, MeshHandle, RenderBackend, Shading, TextureHandle};
+use blackbox_gfx::{
+    BlendMode, Instance, InstanceKey, MeshHandle, NormalMaterialHandle, RenderBackend, Shading, TextureHandle,
+};
 use blackbox_scene::{MaterialLookup, blend_mode, upload_solid, upload_texture};
 use blackbox_solid::Solid;
 use blackbox_tpk::TexturePack;
@@ -14,6 +16,7 @@ use game_install::GameDir;
 use glam::Mat4;
 
 use super::stage::Stage;
+use crate::scenes::world::materials::{Lookup, normal_materials};
 
 /// The instance key of the room's parts. The car viewer keys its parts from zero, so this one stays apart.
 const ROOM_ID: u32 = u32::MAX - 2;
@@ -25,6 +28,8 @@ pub struct Room {
     instances: Vec<Instance>,
     casters: Vec<Instance>,
     floor_texture: Option<TextureHandle>,
+    normal_materials: Vec<NormalMaterialHandle>,
+    light: Option<super::backdrop_light::BackdropLight>,
 }
 
 /// Textures of the room by name hash.
@@ -43,12 +48,22 @@ pub struct RoomData {
     solids: Vec<Solid>,
     casters: Vec<Solid>,
     packs: Vec<TexturePack>,
-    /// The stage's turn of the room in degrees (`Stage::room_yaw`).
+    /// The stage's turn of the room in degrees (`Stage::room_yaw`) and its shift along +y (`Stage::room_shift`).
     yaw: f32,
+    shift: f32,
     floor: Option<u32>,
+    /// The scenery light (`backdrop_light.rs`), `None` when the install's presets are unusable.
+    light: Option<super::backdrop_light::BackdropLight>,
+    /// The file's particle placements (`room_fx.rs`).
+    placements: Vec<nfsmw_data::world::emitter_placements::Placement>,
 }
 
 impl RoomData {
+    /// The stage file's particle placements, in the unturned stage frame.
+    pub fn placements(&self) -> &[nfsmw_data::world::emitter_placements::Placement] {
+        &self.placements
+    }
+
     /// Reads and parses the stage file of `stage` (once per session, see `nfsmw_data::memo`).
     pub fn read(dir: &GameDir, stage: Stage) -> Result<Arc<Self>> {
         let _trace = blackbox_trace::scope("Frontend: read the menu room");
@@ -65,7 +80,13 @@ impl RoomData {
             let mut packs = blackbox_tpk::read_texture_packs(&file).with_context(|| format!("textures in {path}"))?;
             super::room_materials::complete(dir, &solids, &mut packs)?;
             let floor = super::room_floor::floor_texture(&solids, stage);
-            Ok(Self { solids, casters, packs, yaw: stage.room_yaw(), floor })
+            let light = super::backdrop_light::BackdropLight::read(dir);
+            let placements = nfsmw_data::world::emitter_placements::read(&file).unwrap_or_else(|error| {
+                log::warn!("{path}: no particle placements: {error:#}");
+                Vec::new()
+            });
+            let (yaw, shift) = (stage.room_yaw(), stage.room_shift());
+            Ok(Self { solids, casters, packs, yaw, shift, floor, light, placements })
         })
     }
 }
@@ -78,9 +99,9 @@ impl Room {
         Ok(Self::upload(renderer, &data))
     }
 
-    /// Uploads the textures and the drawn solids of a stage. Each solid sits where its pivot matrix puts it, turned by the
-    /// stage's yaw (`Stage::room_yaw`): the safe house's pivots are the identity, the crib's room is stored small and scaled
-    /// up by its pivot.
+    /// Uploads the textures and the drawn solids of a stage. The original's platform draw hands the model renderer the
+    /// stage's turn and shift alone (`Stage::room_yaw`, `Stage::room_shift`); a solid's own pivot matrix is not applied.
+    /// The safe house's pivots negate x, so applying them showed that room mirrored.
     pub fn upload(renderer: &mut dyn RenderBackend, data: &RoomData) -> Self {
         let _trace = blackbox_trace::scope("Frontend: upload the menu room");
         let mut textures = Vec::new();
@@ -97,25 +118,38 @@ impl Room {
             .and_then(|hash| map.get(&hash))
             .filter(|(_, blend)| *blend == BlendMode::AlphaBlend)
             .map(|(handle, _)| *handle);
-        let materials = Materials(map);
-        let turn = Mat4::from_rotation_z(data.yaw.to_radians());
+        let turn = Mat4::from_translation(glam::Vec3::new(0.0, data.shift, 0.0))
+            * Mat4::from_rotation_z(data.yaw.to_radians());
         let mut meshes = Vec::new();
         let mut instances = Vec::new();
+        let mut normals = HashMap::new();
+        let find = |hash: u32| map.get(&hash).copied();
         for solid in &data.solids {
-            // The stage is pre-lit world geometry (its vertex colours carry the light), as the world's scenery is.
-            let Some(mesh) = upload_solid(renderer, solid, &materials, Shading::Prelit) else { continue };
+            // The original draws platform groups with the world shaders their effect ids select: the vertex colour is
+            // the ambient term and the scene light supplies the rest (`docs/specs/menu-backdrop-light.md`). Groups whose
+            // normal-map inputs are missing fall back to the ordinary world shader.
+            let routed = normal_materials(renderer, solid, &find, &mut normals);
+            let lookup = Lookup(find, false, routed, |_: u32| -> Option<blackbox_scene::Sidedness> { None });
+            let Some(mesh) = upload_solid(renderer, solid, &lookup, Shading::World) else { continue };
             meshes.push(mesh);
             let key = InstanceKey::new(ROOM_ID, instances.len() as u32);
-            instances.push(Instance::keyed(mesh, turn * Mat4::from_cols_array(&solid.transform), key));
+            instances.push(Instance::keyed(mesh, turn, key));
         }
+        let materials = Materials(map);
         let mut casters = Vec::new();
         for solid in &data.casters {
             let Some(mesh) = upload_solid(renderer, solid, &materials, Shading::Prelit) else { continue };
             meshes.push(mesh);
             let key = InstanceKey::new(ROOM_ID, (instances.len() + casters.len()) as u32);
-            casters.push(Instance::keyed(mesh, turn * Mat4::from_cols_array(&solid.transform), key));
+            casters.push(Instance::keyed(mesh, turn, key));
         }
-        Self { meshes, textures, instances, casters, floor_texture }
+        let normal_materials = normals.into_values().collect();
+        Self { meshes, textures, instances, casters, floor_texture, normal_materials, light: data.light }
+    }
+
+    /// The scenery light the room was authored for, when the install's presets are usable.
+    pub fn light(&self) -> Option<super::backdrop_light::BackdropLight> {
+        self.light
     }
 
     /// The room's parts in the order the stage file lists its solids, one instance per mesh. The renderer draws blended
@@ -141,6 +175,9 @@ impl Room {
         }
         for texture in self.textures {
             renderer.destroy_texture(texture);
+        }
+        for material in self.normal_materials {
+            renderer.destroy_normal_material(material);
         }
     }
 }

@@ -3,6 +3,12 @@
 use super::*;
 
 impl Frontend {
+    /// Runs the car select's loading LEDs while the menu backdrop is still building its car (R2).
+    pub(in crate::frontend) fn sync_car_loading(&mut self, host: &Host) {
+        let loading = self.stage == Stage::Menus && self.menu_in_window && !host.scene.ready();
+        self.screens.set_car_loading(loading);
+    }
+
     /// Shows a browsed screen over the scene already in the window.
     pub(in crate::frontend) fn show_browsed(&mut self, name: &str, host: &mut Host, env: &mut Env) {
         self.latch = true;

@@ -136,6 +136,10 @@ impl Runtime {
                 size,
                 colour,
                 world_colour,
+                corner_colours: match def_obj.kind {
+                    ObjectKind::ColoredImage => data.corner_colours(),
+                    _ => None,
+                },
                 world,
                 z,
                 visible,
