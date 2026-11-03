@@ -75,7 +75,15 @@ impl PhysicsData {
         package: super::PerformancePackage,
     ) -> Result<CarPhysics> {
         let collision = super::mod_car_collision(&self.dir, folder)?;
-        let mut physics = super::physics_from_stats(stats, package, collision.bounds);
+        // A bike is moved by its two-wheel data; the body of its stats only meets the walls and the objects.
+        let mut physics = match crate::car::mods::bike::of(folder) {
+            Some(spec) => {
+                let layout = crate::car::mods::wheel_layout::of(folder);
+                let origin_x = crate::car::mods::bike::origin_x(layout.as_ref());
+                super::CarPhysics::from_bike(spec, origin_x, collision.bounds)
+            }
+            None => super::physics_from_stats(stats, package, collision.bounds),
+        };
         physics.geometry = Some(collision.geometry);
         physics.events = Some(collision.events);
         Ok(physics)

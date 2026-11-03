@@ -75,10 +75,10 @@ fn part(r: &[u8], l: &PartLayout) -> Part {
         group: packed & 0x1F,
         upgrade_level: packed >> 5,
         base_selector: r[l.base_selector] as i8,
-        type_index: r[l.type_index],
-        name_offset: u16_at(r, l.name_offset),
+        type_index: u16::from(r[l.type_index]),
+        name_offset: u32::from(u16_at(r, l.name_offset)),
         attribute_list: u16_at(r, l.attribute_list),
-        model_table: u16_at(r, l.model_table),
+        model_table: u32::from(u16_at(r, l.model_table)),
     }
 }
 

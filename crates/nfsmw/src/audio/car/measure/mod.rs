@@ -3,6 +3,8 @@
 //! can be compared with a car of the 2005 game number by number. `real_tests` runs it on the installs (ignored without
 //! `NFSMW_GAME_DIR`) and holds the regression thresholds.
 
+#[cfg(test)]
+mod curve;
 mod dsp;
 #[cfg(test)]
 mod electric;

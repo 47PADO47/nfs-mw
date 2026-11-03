@@ -12,7 +12,7 @@ impl PartsDb {
     /// `None` if the part has no model there. The solid may still be missing from the geometry
     /// files: many stock parts name solids that don't exist, which means "part of the body".
     pub fn model_hash(&self, part: &Part, lod: usize) -> Option<u32> {
-        let table = self.model_tables.get(usize::from(part.model_table))?;
+        let table = self.model_tables.get(part.model_table as usize)?;
         let entry = *table.entries.get(lod)?;
         if entry == u32::MAX {
             return None;

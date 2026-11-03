@@ -21,10 +21,14 @@ pub struct Part {
     pub upgrade_level: u8,
     /// Where a templated model name starts: 0 nothing, 1 the type name, 2 the `BRAND_NAME` attribute.
     pub base_selector: i8,
-    pub type_index: u8,
-    pub(crate) name_offset: u16,
+    /// Index into the type-name table. The stored record keeps it in a byte; in memory it is wide enough for every car a
+    /// mod can add (docs/specs/car-parts-capacity.md).
+    pub type_index: u16,
+    /// String-table offset in the layout's units (wide in memory, 16 bits in the stored record).
+    pub(crate) name_offset: u32,
     pub(crate) attribute_list: u16,
-    pub(crate) model_table: u16,
+    /// Index of the part's model table (wide in memory, 16 bits in the stored record).
+    pub(crate) model_table: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +66,19 @@ impl PartQuery {
     }
 }
 
+/// How full each table of a [`PartsDb`] is, for diagnostics and the capacity analysis (docs/specs/car-parts-capacity.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sizes {
+    pub parts: usize,
+    pub type_names: usize,
+    /// Bytes of the string table.
+    pub string_bytes: usize,
+    pub model_tables: usize,
+    pub attributes: usize,
+    /// Bytes of the attribute lists.
+    pub attribute_list_bytes: usize,
+}
+
 /// The decoded parts database.
 #[derive(Debug, Clone, Default)]
 pub struct PartsDb {
@@ -81,6 +98,18 @@ impl PartsDb {
         &self.parts
     }
 
+    /// The number of entries of each table.
+    pub fn sizes(&self) -> Sizes {
+        Sizes {
+            parts: self.parts.len(),
+            type_names: self.type_names.len(),
+            string_bytes: self.strings.len(),
+            model_tables: self.model_tables.len(),
+            attributes: self.attributes.len(),
+            attribute_list_bytes: self.attribute_lists.len(),
+        }
+    }
+
     /// Type-name hashes: car types and shared groups (`PAINT`, `WHEELS`, ...).
     pub fn type_names(&self) -> &[u32] {
         &self.type_names
@@ -93,7 +122,7 @@ impl PartsDb {
 
     /// The part's authoring name (`BODY_00`, `METAL_L1_COLOR02`, ...).
     pub fn name(&self, part: &Part) -> &str {
-        self.string(u32::from(part.name_offset)).unwrap_or("")
+        self.string(part.name_offset).unwrap_or("")
     }
 
     /// The string at a string-table offset (in the layout's units).

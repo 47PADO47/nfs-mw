@@ -13,6 +13,8 @@ mod config_tests;
 mod describe;
 mod device_settings;
 #[cfg(test)]
+mod head_look_tests;
+#[cfg(test)]
 mod headlights_tests;
 pub mod hud_labels;
 #[cfg(test)]
@@ -22,6 +24,8 @@ mod presentation;
 #[cfg(test)]
 mod presentation_tests;
 mod remap;
+#[cfg(test)]
+mod rider_weight_tests;
 mod slots;
 mod snapshot;
 mod split;
@@ -31,6 +35,7 @@ mod source;
 mod state;
 mod systems;
 mod vk;
+mod weight_axis;
 
 pub use action::Action;
 pub(crate) use bindings::Source;

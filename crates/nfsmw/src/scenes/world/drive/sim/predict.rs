@@ -16,6 +16,7 @@ use crate::scenes::world::space;
 #[derive(Debug, Clone)]
 pub struct SimSave {
     vehicle: Vehicle,
+    ride: Option<Box<super::bike::BikeRide>>,
     spin: [f32; 4],
     before_velocity: Vec3,
     step_delta: f32,
@@ -45,6 +46,7 @@ impl CarSim {
     pub fn save(&self) -> SimSave {
         SimSave {
             vehicle: self.vehicle.clone(),
+            ride: self.ride.clone(),
             spin: self.spin,
             before_velocity: self.before_velocity,
             step_delta: self.step_delta,
@@ -57,6 +59,7 @@ impl CarSim {
 
     pub fn restore(&mut self, saved: &SimSave) {
         self.vehicle = saved.vehicle.clone();
+        self.ride = saved.ride.clone();
         self.spin = saved.spin;
         self.before_velocity = saved.before_velocity;
         self.step_delta = saved.step_delta;

@@ -60,6 +60,7 @@ mods/example.pack/
 
 ```toml
 # cars/fastcoupe.toml
+kind = "car"                    # car (default) or bike: a two-wheeled vehicle with a [bike] table instead of [stats] (bikes.md)
 role = "both"                   # player, cop, both or traffic (default: player); traffic: api-traffic.md
 heat = [2, 3, 4]                # cop only: heat levels whose waves may use it, 2 cars at 10 percent (left out: every level)
 cop_class = "patrol"            # cop only: patrol (default), pursuit or heavy (cop-cars.md)
@@ -73,7 +74,7 @@ manufacturer = "Acme"           # brand (optional; default: none)
 class = "sedan"                 # compact, sedan, coupe, suv, pickup, van, truck, bus or taxi
 weight = 20                     # how often it is picked, percent
 
-[stats]                         # optional: what the car is, in absolute SI units (car-stats.md)
+[stats]                         # optional: what the car is, in absolute SI units (car-stats.md); a bike has [bike] (bikes.md) instead
 mass_kg = 1295.0
 torque_curve = [[1000.0, 360.0], [5600.0, 440.0], [7800.0, 390.0]]   # [rpm, N m]
 gear_ratios = [3.91, 2.29, 1.55, 1.3, 1.08, 0.88, 0.71]
@@ -131,16 +132,32 @@ without a valid one, with the reason in the log. What it holds and how to write 
 and its gear shifts, turbo whistle and blow-off, backfires and pops (`[car_sound]`, else silence). Collisions, skids,
 nitrous and the road share the game-wide banks. See [car-sound.md](car-sound.md).
 
+#### Parts database capacity
+
+Every mod car adds parts to the game's parts database (`car/mods/parts.rs`): a body, a front wheel and a driver (a bike also a
+rear wheel, a fork and a handlebar group), under one type name of its own, the folder. The stored database has fields too narrow
+for many cars: its type index is a byte (256 car types and groups, the game's own use 106, so **150 mod cars**), its string
+offsets and model-table indices 16 bits (the game uses 26,480 of 262,140 string bytes and 543 of 65,535 model tables, and a bike
+costs about 132 string bytes and 6 model tables). The type-name table was the first to fill: a game with more than 150 mod cars
+left the later ones without a body part (and the log said so). The mod limit is now far higher: the engine keeps the decoded
+database with wide indices (type index 16 bits, string offset and model table 32 bits), which the repository never writes back,
+so the 93 cars of the 2012 mod and the 317 bikes of the RIDE 6 mod (410 cars, 2,460 parts) all get theirs, tested on the real
+database. The analysis, the measured sizes and the alternatives that were rejected are in
+[car-parts-capacity.md](../specs/car-parts-capacity.md). The attribute tables keep their stored widths (a mod car adds no
+attributes). Other per-car tables outside the parts database (garage lists, career slots, the network catalogue) were not
+checked at that many cars.
+
 Known gaps: body kits and hoods (a mod car has none), and a code form (`content.cars().register(..)`) are not built.
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
-| Car manifest | `cars/<id>.toml` with `role`, `heat`, `[[cop]]`, `cop_class`, `name`, `manufacturer`, `[stats]`, `[customization]`, `[[damage_parts]]`, `[[lamp_flare]]`, `[[light_bar]]`, `[engine_sound]`, `[car_sound]`, `[traffic]`; unknown keys refused | G (schema), MW (checks) | `libs/blackbox-modding/src/content/car.rs`, `stats.rs`, `customization.rs`, `engine_sound.rs`, `lamp_flares.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
+| Car manifest | `cars/<id>.toml` with `kind`, `role`, `heat`, `[[cop]]`, `cop_class`, `name`, `manufacturer`, `[stats]`, `[bike]`, `[customization]`, `[[damage_parts]]`, `[[lamp_flare]]`, `[[light_bar]]`, `[engine_sound]`, `[car_sound]`, `[traffic]`; unknown keys refused | G (schema), MW (checks) | `libs/blackbox-modding/src/content/car.rs`, `stats.rs`, `bike.rs`, `customization.rs`, `engine_sound.rs`, `lamp_flares.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
 | Stats | `Stats` (40 keys, absolute SI values; `Stats::default()` is the engine's generic car) converts to `blackbox_vehicle::stats::CarStats`; `car::mods::stats(folder)` reads it; `CarPhysics::from_stats(stats, bounds)` and `physics_from_stats(stats, package, bounds)` build the physics, `PerformanceCatalog::from_stats` the shop's upgrade list, `RatingBook::for_stats` its bars, `ai_vehicle_from_stats` the AI's speed limit | G (schema, builder), MW (wired) | `libs/blackbox-modding/src/content/stats.rs`, `libs/blackbox-vehicle/src/stats/`, `crates/nfsmw-data/src/car/physics/from_stats.rs` |
 | Physics and collision | `PhysicsData::car(folder)` builds a mod car from its `[stats]` and its own `BOUNDS.BIN` (`mod_car_collision`); nothing is read from a vehicle record | MW | `crates/nfsmw-data/src/car/physics/{data,mod_car,bounds}.rs` |
+| Bike | `kind = "bike"` and the `[bike]` table ([bikes.md](bikes.md)): every number of `blackbox_vehicle::bike::BikeSpec` in SI units, no defaults, checked by `bike_check.rs`; the car is a player car only, with two wheel solids (`<ID>_KIT00_FRONT_TIRE_*`, `<ID>_KIT00_REAR_TIRE_*`). `Bike` converts to `BikeSpec` (`impl From<&Bike> for BikeSpec`); `car::mods::bike::{publish, of, is_bike, derived_stats, wheel_setup}` hold the spec and the stats the lists read; `CarPhysics::from_bike` builds the physics; `CarSim` runs it ([vehicle-two-wheel-integration.md](../specs/vehicle-two-wheel-integration.md)) | G (schema, dynamics), MW (wired) | `libs/blackbox-modding/src/content/{bike,bike_check}.rs`, `crates/nfsmw-data/src/car/mods/bike.rs`, `crates/nfsmw-data/src/car/physics/bike.rs`, `crates/nfsmw/src/scenes/world/drive/sim/bike.rs` |
 | Wheel layout | `WheelSetup::for_car` takes a mod car's hubs from its `[wheels]` table when it has one (`WheelSetup::from_layout`, [car-stats.md](car-stats.md#where-the-wheels-are-drawn-wheels)), else from its stats (`WheelSetup::from_stats`): plus and minus half the wheelbase, track and tyre size from `[stats]` | MW | `crates/nfsmw-data/src/car/ecar.rs` |
 | Engine sound | `[engine_sound]` (`idle_rpm`, `redline_rpm`, `layers`): looping WAVs mixed by engine speed; a car without it plays the built-in engine (`blackbox_carsound::synth`). `car::mods::engine_sound(folder)` reads it, `audio/car/own_engine.rs` plays it | G (schema), MW (played) | `libs/blackbox-modding/src/content/engine_sound.rs`, `crates/nfsmw-data/src/car/mods/engine.rs` |
-| Car sound | `[car_sound]` (`shift`, `shift_up`, `shift_down`, `turbo_whine`, `turbo_blowoff`, `backfire`, `pops`): lists of up to 16 WAV files, `MAX_EFFECT_FILES`; a list left out is silence; `shift_clunk = false` also silences the game's class-wide gear clunk for a car with no `shift`; an `[engine_sound]` layer with `gain` curves may have a `rate` curve (its playback rate by an input). `car::mods::car_effects(folder)` reads it, `audio/car/own_sfx.rs` plays it | G (schema), MW (played) | `libs/blackbox-modding/src/content/engine_sound.rs` (`CarEffects`), `crates/nfsmw-data/src/car/mods/engine.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
+| Car sound | `[car_sound]` (`shift`, `shift_up`, `shift_down`, `turbo_whine`, `turbo_blowoff`, `backfire`, `pops`): lists of up to 16 WAV files, `MAX_EFFECT_FILES`; a list left out is silence; `shift_clunk = false` also silences the game's class-wide gear clunk for a car with no `shift`; `shift_trigger = "gear"` plays the shifts at every change of the gear number; `[car_sound.overrun]` (11 numbers) replaces the lift-off backfire with an accumulator backfire; an `[engine_sound]` layer with `gain` curves may have a `rate` curve (its playback rate by an input). `car::mods::car_effects(folder)` reads it, `audio/car/own_sfx.rs` plays it | G (schema), MW (played) | `libs/blackbox-modding/src/content/engine_sound.rs` (`CarEffects`), `crates/nfsmw-data/src/car/mods/engine.rs`, `crates/nfsmw/src/modding/content/cars.rs` |
 | Sound set | `sound::generic_car_sound(db, name)`: the sound set of a car with no `pvehicle` record, from `engineaudio/default`, `shiftpattern/default`, no turbo, the collision links of `pvehicle/cars` and the shared skid and nitrous banks; `Audio::sound_set` picks it for every mod car | MW | `crates/nfsmw-data/src/sound/car.rs`, `crates/nfsmw/src/audio/mod.rs` |
 | Customization | `[customization]` (`paints`, `default_paint`, `rim_paints`, `tints`, `rims`, `spoilers`, `roof_scoops`, `vinyls`, `vinyl_colors`, `liveries`, `default_livery`, and the sub-table `[customization.plate]`, [License plates](car-customization.md#license-plates)): `car::mods::custom::of(folder)` reads it; the garage catalogue (`custom::catalog`, `custom::livery`) and the assembled model (`custom::apply`) come from it and the car's own `GEOMETRY.BIN`, `VINYLS.BIN` and `TEXTURES.BIN` | G (schema), MW (shop) | `libs/blackbox-modding/src/content/customization.rs`, `crates/nfsmw-data/src/car/mods/custom/` |
 | Car parts | the body, wheel and driver part of each mod car, made from the car's own solids `<ID>_KIT00_BODY_A..D`, `<ID>_KIT00_FRONT_TIRE_A..D` and `<ID>_KIT00_DRIVER_A..D` (the last optional) and added to the parts database (`PartsDb::push_parts`); no other slot is filled | G (`push_part`), MW | `libs/blackbox-carparts/src/parts/push.rs`, `crates/nfsmw-data/src/car/mods/parts.rs` |

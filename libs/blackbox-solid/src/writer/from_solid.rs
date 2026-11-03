@@ -53,6 +53,7 @@ impl SolidSource {
                 material_name: None,
                 bounds: Some((g.bounds_min, g.bounds_max)),
                 vertices: vertices.to_vec(),
+                tangents: Vec::new(),
                 indices,
             });
         }

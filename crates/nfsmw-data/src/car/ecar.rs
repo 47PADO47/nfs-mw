@@ -20,13 +20,31 @@ pub struct WheelSetup {
     pub camber: [f32; 2],
     /// Negative: mirror the left wheels instead of rotating them (directional rims).
     pub spoke_count: i32,
+    /// `Some` for a bike: it has two wheels, not four. Wheel 0 is the front wheel and wheel 2 the rear wheel, both on the
+    /// car's centre line (`tire_offsets` has y = 0 for them); wheels 1 and 3 repeat them and are never drawn.
+    pub bike: Option<BikeMount>,
+}
+
+/// How the front wheel of a bike hangs on the frame (`docs/specs/vehicle-two-wheel-integration.md`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BikeMount {
+    /// The steering-head angle from the vertical, rad, the top leaning back. The fork's compression moves the front hub up
+    /// this axis and steering turns the wheel about it.
+    pub rake: f32,
+    /// Horizontal distance from the point where the steering axis meets the ground to the contact patch, m.
+    pub trail: f32,
 }
 
 impl WheelSetup {
-    /// The setup of the car `car`: a mod car's from its own stats, any other car's from its `ecar` record.
+    /// The setup of the car `car`: a mod car's from its own stats (a bike's from its two-wheel data), any other car's from
+    /// its `ecar` record.
     pub fn for_car(db: &Database, car: &blackbox_carparts::CarTypeInfo) -> Option<Self> {
+        let layout = super::mods::wheel_layout::of(&car.type_name);
+        if let Some(bike) = super::mods::bike::of(&car.type_name) {
+            return Some(super::mods::bike::wheel_setup(&bike, layout.as_ref()));
+        }
         match super::mods::stats(&car.type_name) {
-            Some(stats) => Some(Self::from_layout(stats, super::mods::wheel_layout::of(&car.type_name).as_ref())),
+            Some(stats) => Some(Self::from_layout(stats, layout.as_ref())),
             None => Self::read(db, &car.base_model_name),
         }
     }
@@ -64,6 +82,7 @@ impl WheelSetup {
             kit_wheel_offset: [Vec::new(), Vec::new()],
             camber: [0.0; 2],
             spoke_count: 0,
+            bike: None,
         }
     }
 
@@ -84,6 +103,7 @@ impl WheelSetup {
             ],
             camber: [f("CamberFront", 0), f("CamberRear", 0)],
             spoke_count: car.get_i32("WheelSpokeCount").unwrap_or(0),
+            bike: None,
         })
     }
 

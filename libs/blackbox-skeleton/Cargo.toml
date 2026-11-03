@@ -1,0 +1,19 @@
+[package]
+name = "blackbox-skeleton"
+description = "Engine-generic skeletal animation runtime: skeleton hierarchy, sampled clips, pose blending, blend trees, two-bone IK and CPU linear-blend skinning."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

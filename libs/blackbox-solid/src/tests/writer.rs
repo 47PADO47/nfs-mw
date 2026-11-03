@@ -351,11 +351,18 @@ fn bad_input_is_refused() {
         group_problem(solid(group(3, 0.0, &[0, 1, 3]))),
         GroupProblem::IndexOutOfRange { index: 3, vertices: 3 }
     );
-    for wide in [1, 2, 3, 19] {
+    for wide in [2, 19] {
         let mut g = group(3, 0.0, &[0, 1, 2]);
         g.effect_id = wide;
         assert_eq!(group_problem(solid(g)), GroupProblem::WideEffect(wide));
     }
+    // A tangent effect needs one tangent per vertex; any other effect takes none.
+    let mut g = group(3, 0.0, &[0, 1, 2]);
+    g.effect_id = 3;
+    assert_eq!(group_problem(solid(g)), GroupProblem::Tangents { effect_id: 3, tangents: 0, vertices: 3 });
+    let mut g = group(3, 0.0, &[0, 1, 2]);
+    g.tangents = vec![[1.0, 0.0, 0.0, 1.0]; 3];
+    assert_eq!(group_problem(solid(g)), GroupProblem::Tangents { effect_id: 4, tangents: 3, vertices: 3 });
     let mut g = group(3, 0.0, &[0, 1, 2]);
     g.light_material = 0;
     assert_eq!(group_problem(solid(g)), GroupProblem::LightMaterialOutOfRange { light_material: 0, listed: 0 });
@@ -369,6 +376,24 @@ fn safe_effect_ids_are_accepted() {
         let file = write_geometry_pack(&[SolidSource::new("E", vec![g])]).unwrap();
         assert_eq!(read_solids(&file).unwrap()[0].groups[0].effect_id, effect);
     }
+}
+
+#[test]
+fn a_tangent_effect_writes_60_byte_vertices_that_read_back_with_their_tangents() {
+    let mut plain = group(3, 0.0, &[0, 1, 2]);
+    plain.effect_id = 4;
+    let mut bumped = group(4, 10.0, &[0, 1, 2, 2, 1, 3]);
+    bumped.effect_id = 3;
+    bumped.tangents = (0..4).map(|i| [1.0, i as f32, 0.0, -1.0]).collect();
+    let file = write_geometry_pack(&[SolidSource::new("BUMP", vec![plain, bumped.clone()])]).unwrap();
+    let solid = &read_solids(&file).unwrap()[0];
+    assert_eq!(solid.vertex_buffers.iter().map(|b| b.stride).collect::<Vec<_>>(), [36, 60]);
+    let tangents = solid.tangents.as_ref().expect("the tangent buffer is read");
+    assert_eq!(tangents.len(), 7);
+    assert_eq!(&tangents[3..], bumped.tangents.as_slice());
+    assert_eq!(tangents[0], [0.0; 4]);
+    assert_eq!(solid.vertices[3..], bumped.vertices[..]);
+    assert_eq!(solid.secondary_uv(4), bumped.vertices[1].uv);
 }
 
 #[test]

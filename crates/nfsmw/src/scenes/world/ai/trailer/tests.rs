@@ -59,6 +59,7 @@ fn physics(spec: VehicleSpec, male: bool) -> CarPhysics {
         geometry,
         events: None,
         reactions: None,
+        bike: None,
     }
 }
 

@@ -13,6 +13,7 @@ mod extra_options;
 mod grid;
 mod sabotage;
 pub(super) use car_detail::{DetailView, DrawOptions};
+mod bike_view;
 mod cracked;
 mod debug;
 mod effect_feed;
@@ -40,6 +41,7 @@ mod presentation_tests;
 mod release;
 mod remote;
 mod render;
+mod rider;
 mod rig;
 mod road_reflection;
 mod script;
@@ -54,24 +56,23 @@ mod trace;
 mod visual_tires;
 pub(super) mod walls;
 
-use crate::scenes::world::car_lights::{CarLights, LampState};
-use blackbox_collision::CollisionWorld;
-use glam::{Mat4, Vec3};
-use nfsmw_data::car::physics::CarPhysics;
-
 use super::effects::TireEffects;
 use super::exhaust::ExhaustFlames;
 use super::road::{self, Spawn};
 use super::vehicle_effects::VehicleEffects;
+use crate::scenes::world::car_lights::{CarLights, LampState};
 use crate::settings::{Transmission, WheelOptions};
 use crate::viewer::camera::{CameraCut, ChaseCamera, ChaseView, Followed, PursuitCamera, PursuitFeed};
+use blackbox_collision::CollisionWorld;
 pub(super) use clock::{FixedClock, STEP};
 pub(super) use debug::upload_box;
 pub use debug::{ContactMarkers, LEGEND as MARKER_LEGEND, MarkerMeshes};
 use fall::FallWatch;
+use glam::{Mat4, Vec3};
 pub(super) use ground::{WorldGround, drivable_ground_below};
 pub use input::DriveInput;
 use input::Presses;
+use nfsmw_data::car::physics::CarPhysics;
 #[cfg(feature = "multiplayer")]
 pub(super) use predict::DriveSave;
 pub(super) use rig::SurfaceDamage;
@@ -131,6 +132,8 @@ pub struct Drive {
     pub tail_trails: super::tail_light_trails::TailLightTrails,
     tail_style: crate::settings::TailTrailStyle,
     rig: CarRig,
+    /// The rider of a bike, loaded from the mod's rider files the first frame the bike is drawn (`rider/mod.rs`).
+    rider: rider::Rider,
     physics: CarPhysics,
     sim: Option<CarSim>,
     /// Set while the car waits for a road: the physics does not run.
@@ -335,6 +338,9 @@ impl Drive {
     /// Move the chase camera; `look` is the player's look input (the right stick or the mouse), which
     /// orbits the camera round the car.
     pub fn follow(&mut self, _collision: &CollisionWorld, look: (f32, f32), dt: f32) {
+        // A bike's chase camera is made to its size (`viewer/camera/bike.rs`); a car's is the one the camera is built for.
+        self.chase.fit =
+            self.bike_cameras().map_or_else(Default::default, |rig| crate::viewer::camera::bike::chase_fit(&rig));
         if dt == 0.0 {
             // A screenshot run has no frame time: put the camera where it belongs at once.
             self.chase.snap();

@@ -1,11 +1,13 @@
 //! Cameras. The games' worlds are Z-up.
 
+pub mod bike;
 mod chase;
 mod cut;
 #[cfg(test)]
 mod depth_tests;
 mod dynamic_fov;
 mod fly;
+pub mod head_look;
 mod orbit;
 pub mod original;
 mod pursuit;

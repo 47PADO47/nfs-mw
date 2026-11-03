@@ -1,0 +1,24 @@
+# Bikes of the user's own RIDE 6 install, converted by `ride6-bike-import` (mods/ride6-bikes/README.md).
+# A native mod: it converts the exporter's output of the user's own RIDE 6 install in the background (README.md). The
+# generated `cars/` and `files/` belong to that install and are never committed.
+
+[mod]
+id = "ride6-bikes"
+name = "RIDE 6 bikes"
+version = "0.1.0"
+authors = ["nfs-mw contributors"]
+license = "MIT OR Apache-2.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["nfsmw"]
+
+[optional.interfaces]
+"bb.content" = "1.0"
+
+[library]
+windows = "ride6_bikes.dll"
+linux = "libride6_bikes.so"
+macos = "libride6_bikes.dylib"

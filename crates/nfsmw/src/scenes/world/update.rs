@@ -54,6 +54,9 @@ impl WorldScene {
             free_camera_input = input.clone();
             free_camera_input.consume(Action::ShiftUp);
             free_camera_input.consume(Action::ShiftDown);
+            // The mouse and the keys that look round with the free camera do not also turn the rider's head.
+            free_camera_input.consume(Action::HeadLookX);
+            free_camera_input.consume(Action::HeadLookY);
             &free_camera_input
         } else {
             input
@@ -70,6 +73,7 @@ impl WorldScene {
             drive.set_tail_style(self.tuning.tail_trail_style);
             drive.set_no_rev_limiter(self.tuning.no_rev_limiter);
             drive.set_look_back(input.pressed(Action::LookBack));
+            drive.update_head_look(input, dt);
         }
         let camera_shake = self.tuning.camera_shake;
         for drive in self.players.drives_mut() {
@@ -80,6 +84,13 @@ impl WorldScene {
         {
             let on = drive.toggle_headlights();
             log::info!("headlights {}", if on { "on" } else { "off" });
+        }
+        if input.just_pressed(Action::AbsLevel)
+            && let Some(drive) = self.players.lead_mut()
+            && let Some(level) = drive.cycle_abs_level()
+        {
+            // As the headlights: a log line, the game has no HUD notice for a setting changed by a key.
+            log::info!("ABS level {level}");
         }
         if input.just_pressed(Action::ToggleCamera) && self.players.has_lead() {
             log::info!("{}", self.toggle_view());

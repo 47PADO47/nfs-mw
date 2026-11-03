@@ -44,7 +44,9 @@ impl WorldScene {
             || self.extra.selected_bookmark.is_some()
             || self.career.garage.is_some()
             || self.photo_shot.is_some()
-            || (render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode))
+            || ((render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode))
+                // A bike is in its own picture in every view: the camera mounted on it looks at the bike or from its rider's eyes.
+                || drive.bike_cameras().is_some())
                 && !self.extra_view_hides_car())
     }
 }

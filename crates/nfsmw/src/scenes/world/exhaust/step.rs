@@ -25,13 +25,21 @@ impl Active {
         replaced: (bool, bool),
     ) {
         // A mod car shifts with a flame only up and under power (a lift-off has its pops), and flames for every pop its
-        // sound makes, whatever the pedal does by the time the bang is due.
+        // sound makes, whatever the pedal does by the time the bang is due. A bike also flicks at a down-shift off the pedal.
+        let bike = self.bike;
+        let flames_at = |up: bool| match bike {
+            true => trigger::bike_shift_flames(up, car.throttle),
+            false => up && car.throttle >= trigger::MOD_SHIFT_LOAD,
+        };
+        // A bike's pop is a flick of the shift flame: it lasts the shift's pitch time (`trigger::bike_flame_levels`).
+        let pop_seconds = match bike {
+            true => self.timing.duration(),
+            false => trigger::MOD_BACKFIRE_SECONDS,
+        };
         let (shifted, pop_throttle, strength) = match self.mod_car {
-            true => (
-                self.shift.note_gear_where(car.gear, |up| up && car.throttle >= trigger::MOD_SHIFT_LOAD),
-                0.0,
-                (trigger::MOD_BACKFIRE_SECONDS, trigger::MOD_BACKFIRE_INTENSITY),
-            ),
+            true => {
+                (self.shift.note_gear_where(car.gear, flames_at), 0.0, (pop_seconds, trigger::MOD_BACKFIRE_INTENSITY))
+            }
             false => {
                 (self.shift.note_gear(car.gear), car.throttle, (trigger::BACKFIRE_SECONDS, trigger::BACKFIRE_INTENSITY))
             }
@@ -39,28 +47,46 @@ impl Active {
         self.shift.advance(dt, car.gear, car.velocity.length(), self.timing);
         self.backfire.pops_for(pops, pop_throttle, car.gear, strength.0);
         if forced {
-            self.backfire.start();
+            match bike {
+                true => self.backfire.start_for(pop_seconds),
+                false => self.backfire.start(),
+            }
         }
         let blowoff = blowoff_allowed(engine_level, self.engine_upgrades);
-        self.intensity = flame_intensity_with(blowoff, &self.shift, &self.backfire, strength.1);
-        self.backfire.advance(dt);
-        self.nitrous = car.nitrous;
-        let event = match forced || (pops > 0 && pop_throttle < trigger::LIFT_OFF_THROTTLE && car.gear >= 1) {
-            true => Some(crate::garage::BackfireEvent::Pop),
-            false => match shifted && blowoff && self.shift.active() {
-                true => Some(crate::garage::BackfireEvent::Shift),
-                false => None,
-            },
+        // A shift event decays before it is used, so a bike's pop does too: both flicks last the same number of steps.
+        let (shift_level, pop_level) = match bike {
+            true => {
+                self.backfire.advance(dt);
+                trigger::bike_flame_levels(blowoff, &self.shift, &self.backfire)
+            }
+            false => {
+                let level = flame_intensity_with(blowoff, &self.shift, &self.backfire, strength.1);
+                self.backfire.advance(dt);
+                (level, 0.0)
+            }
         };
-        self.enhanced.step(dt, car, event);
+        self.intensity = shift_level.max(pop_level);
+        self.nitrous = car.nitrous;
+        let popped = forced || (pops > 0 && pop_throttle < trigger::LIFT_OFF_THROTTLE && car.gear >= 1);
+        let shifted = shifted && blowoff && self.shift.active();
+        // A bike's burst for a pop is its shift burst a little bigger; a car's is its own, smaller pop burst.
+        let event = match (popped, bike, shifted) {
+            (true, true, _) => Some((crate::garage::BackfireEvent::Shift, trigger::BIKE_BACKFIRE_SCALE_OVER_SHIFT)),
+            (true, false, _) => Some((crate::garage::BackfireEvent::Pop, 1.0)),
+            (false, _, true) => Some((crate::garage::BackfireEvent::Shift, 1.0)),
+            (false, _, false) => None,
+        };
+        self.enhanced.step_sized(dt, car, event);
         if self.intensity == 0.0 && !self.nitrous && self.live == 0 {
             return;
         }
         // The burning nitrous flames blue in place of the orange blow-off and backfire.
         // A variant's effects can stand in for the game's flames (`variant.rs`): then they spawn nothing.
-        let orange = if hides_orange(self.nitrous, replaced.1, car.throttle) { 0.0 } else { self.intensity };
+        let hidden = hides_orange(self.nitrous, replaced.1, car.throttle);
+        let orange = if hidden { 0.0 } else { shift_level };
+        let pop = if hidden { 0.0 } else { pop_level };
         let blue = if self.nitrous && !replaced.0 { 1.0 } else { 0.0 };
-        for (lanes, intensity) in [(&mut self.lanes, orange), (&mut self.blue, blue)] {
+        for (lanes, intensity) in [(&mut self.lanes, orange), (&mut self.blue, blue), (&mut self.pop, pop)] {
             for lane in lanes {
                 for (emitter, pipe) in lane.emitters.iter_mut().zip(&self.pipes) {
                     emitter.set_enabled(intensity > 0.0);

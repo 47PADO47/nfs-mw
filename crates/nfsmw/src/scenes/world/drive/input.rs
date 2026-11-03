@@ -1,5 +1,6 @@
 //! What the driver asks of the car this step, from the player or from a script.
 
+use blackbox_vehicle::bike::FallKind;
 use blackbox_vehicle::drivetrain::{GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE};
 
 use super::Drive;
@@ -32,6 +33,9 @@ pub struct DriveInput {
     pub brake: f32,
     /// -1 (left) ..1 (right).
     pub steer: f32,
+    /// The rider's weight, -1 (back) to 1 (forward). Only a bike reads it; a car's physics step never sees it
+    /// (`to_vehicle` leaves it out).
+    pub weight: f32,
     pub handbrake: bool,
     pub nos: bool,
     /// The speed breaker button is held.
@@ -48,6 +52,8 @@ pub struct DriveInput {
     pub reset: bool,
     /// A scripted sputter pop for the exhaust flames (`pop` in a `--drive-script`; no key does it).
     pub pop: bool,
+    /// A scripted fall (`fall=` in a `--drive-script`; no key does it): a bike throws its rider now, as this kind of fall says.
+    pub fall: Option<FallKind>,
 }
 
 /// The actions that ask for a gear by number, with the gear id each one means.
@@ -83,6 +89,7 @@ impl DriveInput {
             throttle: actions.value(Action::Throttle).clamp(0.0, 1.0),
             brake: actions.value(Action::Brake).clamp(0.0, 1.0),
             steer: actions.value(Action::Steer).clamp(-1.0, 1.0),
+            weight: actions.value(Action::RiderWeight).clamp(-1.0, 1.0),
             handbrake: actions.pressed(Action::Handbrake),
             nos: actions.pressed(Action::Nos),
             speedbreaker: actions.pressed(Action::Speedbreaker),
@@ -92,6 +99,7 @@ impl DriveInput {
             clutch: actions.value(Action::Clutch).clamp(0.0, 1.0),
             reset: actions.just_pressed(Action::ResetCar),
             pop: false,
+            fall: None,
         }
     }
 
@@ -99,7 +107,7 @@ impl DriveInput {
     /// steps of a frame.
     #[cfg(test)]
     pub fn held(self) -> Self {
-        Self { shift_up: false, shift_down: false, gear_select: None, reset: false, pop: false, ..self }
+        Self { shift_up: false, shift_down: false, gear_select: None, reset: false, pop: false, fall: None, ..self }
     }
 }
 

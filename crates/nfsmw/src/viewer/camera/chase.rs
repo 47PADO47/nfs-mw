@@ -42,8 +42,32 @@ const CLEARANCE: f32 = 0.4;
 /// The camera never comes closer to the car than this because of an obstacle.
 const MIN_DISTANCE: f32 = 2.8;
 
+/// The size the camera is made for. A car-sized chase camera sits too far from a small vehicle; a fit shrinks the distance, the height
+/// and the look point to the vehicle's size (`viewer/camera/bike.rs`). A car has the identity fit.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Fit {
+    /// Factors on the distance behind the vehicle (and on the closest an obstacle can bring the camera) and on its height.
+    pub distance: f32,
+    pub height: f32,
+    /// How high above the vehicle's origin the camera looks, metres.
+    pub look_height: f32,
+}
+
+impl Default for Fit {
+    fn default() -> Self {
+        Self { distance: 1.0, height: 1.0, look_height: LOOK_HEIGHT }
+    }
+}
+
+/// The distance behind and the height above a car at rest the chase camera starts from, metres (the player's own distance and
+/// height replace them): what a fit's factors are measured against.
+pub(super) const REFERENCE_DISTANCE: f32 = NEAR;
+pub(super) const REFERENCE_HEIGHT: f32 = LOW;
+
 pub struct ChaseCamera {
     pub preferences: crate::extra_options::CameraPreferences,
+    /// The size of the followed vehicle.
+    pub fit: Fit,
     pub position: Vec3,
     target: Vec3,
     /// Heading the camera looks along, radians from +X.
@@ -82,6 +106,7 @@ impl Default for ChaseCamera {
     fn default() -> Self {
         Self {
             preferences: Default::default(),
+            fit: Fit::default(),
             position: Vec3::ZERO,
             target: Vec3::X,
             yaw: 0.0,
@@ -203,7 +228,7 @@ impl ChaseCamera {
             true => (car.speed.abs() / FAST).clamp(0.0, 1.0),
             false => 0.0,
         };
-        let look = car.position + Vec3::Z * LOOK_HEIGHT;
+        let look = car.position + Vec3::Z * self.fit.look_height;
         if !self.placed {
             self.yaw = car.heading;
         } else {
@@ -212,15 +237,17 @@ impl ChaseCamera {
         let turn_target = if self.looking_back { 1.0 } else { 0.0 };
         self.back_turn += (turn_target - self.back_turn) * approach(LOOK_BACK_RATE, dt);
         let behind = -direction(self.yaw + self.orbit_yaw + std::f32::consts::PI * self.back_turn, 0.0);
-        let distance = self.preferences.distance + (FAR - NEAR) * speed01;
+        let distance = (self.preferences.distance + (FAR - NEAR) * speed01) * self.fit.distance;
         let (up, flat) = self.orbit_elevation.sin_cos();
-        let wanted = behind * (distance * flat)
-            + Vec3::Z * (self.preferences.height + (HIGH - LOW) * speed01 - LOOK_HEIGHT + distance * up);
+        let height = (self.preferences.height + (HIGH - LOW) * speed01) * self.fit.height;
+        let wanted = behind * (distance * flat) + Vec3::Z * (height - self.fit.look_height + distance * up);
         self.offset = if self.placed { self.offset.lerp(wanted, approach(FOLLOW_RATE, dt)) } else { wanted };
 
         let length = self.offset.length();
         let allowed = match blocked(look, look + self.offset) {
-            Some(t) if length > 0.0 => ((t * length - CLEARANCE).max(MIN_DISTANCE.min(length)) / length).min(1.0),
+            Some(t) if length > 0.0 => {
+                ((t * length - CLEARANCE).max((MIN_DISTANCE * self.fit.distance).min(length)) / length).min(1.0)
+            }
             _ => 1.0,
         };
         let rate = if allowed < self.reach { PUSH_IN_RATE } else { PULL_OUT_RATE };

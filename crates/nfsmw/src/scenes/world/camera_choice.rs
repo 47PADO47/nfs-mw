@@ -42,6 +42,10 @@ impl WorldScene {
         let Some(drive) = self.players.lead().filter(|_| self.view == View::Chase) else {
             return self.camera.lens(aspect);
         };
+        // A bike's bumper and hood views are the cameras mounted on it (`camera_bike.rs`), not the original ones.
+        if let Some(lens) = self.bike_lens(drive, aspect, true) {
+            return self.nitrous_screen.camera().apply(lens, aspect, false);
+        }
         let lens = drive
             .original_body(true)
             .and_then(|body| self.original_camera.lens(body, aspect, true))
@@ -73,6 +77,9 @@ impl WorldScene {
         let Some(drive) = self.players.lead().filter(|_| self.view == View::Chase) else {
             return self.camera.lens(aspect);
         };
+        if let Some(lens) = self.bike_lens(drive, aspect, false) {
+            return lens;
+        }
         let lens = drive
             .original_body(false)
             .and_then(|body| self.original_camera.lens(body, aspect, false))

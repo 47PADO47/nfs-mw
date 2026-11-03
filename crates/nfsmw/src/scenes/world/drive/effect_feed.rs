@@ -45,6 +45,19 @@ impl Drive {
 }
 
 impl Drive {
+    /// Once per frame: load the rider of a bike the first time it is drawn (from the mod's rider files; a bike without
+    /// them is drawn without one), then pose it and write its skin to the renderer. A car has no rider.
+    pub fn maintain_rider(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir) {
+        let bike = self.sim.as_ref().is_some_and(|sim| sim.is_bike());
+        let pose = self.render_pose();
+        self.rider.maintain(renderer, dir, self.rig.model(), (&pose, bike));
+    }
+
+    /// Hide the rider while the arrest scene plays (the busted cutscene shows the bike on its own), and show him after.
+    pub fn set_rider_hidden(&mut self, hidden: bool) {
+        self.rider.set_hidden(hidden);
+    }
+
     /// Load the pictures of the tire smoke variant when it changed, and free the ones of a variant that went.
     pub fn maintain_tire_smoke(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir) {
         self.effects.load_variant(renderer, dir);

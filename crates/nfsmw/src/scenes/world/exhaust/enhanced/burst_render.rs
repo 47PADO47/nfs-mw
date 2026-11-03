@@ -5,6 +5,14 @@ use glam::{Mat4, Vec3};
 use super::{Enhanced, motion::Motion};
 
 impl Enhanced {
+    /// The factor on the size of a burst: a bike's flick is smaller than a car's (`trigger::BIKE_FLAME_SCALE`).
+    fn flame_scale(&self) -> f32 {
+        match self.bike {
+            true => super::super::trigger::BIKE_FLAME_SCALE,
+            false => 1.0,
+        }
+    }
+
     pub(super) fn burst_geometry(
         &self,
         pipes: &[Mat4],
@@ -28,7 +36,7 @@ impl Enhanced {
             for (index, pipe) in pipes.iter().enumerate() {
                 let seed = flash.seed + index as f32 * 7.17;
                 let variation = f32::from(style.variation) / 100.0;
-                let size = 1.0 + seed.sin() * 0.07 * variation;
+                let size = (1.0 + seed.sin() * 0.07 * variation) * self.flame_scale();
                 let length = flash.length * size;
                 let width = flash.width * size;
                 let marker = self.pose * *pipe;
@@ -75,5 +83,19 @@ impl Enhanced {
             }
         }
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_bikes_bursts_are_drawn_smaller_than_a_cars() {
+        let mut enhanced = Enhanced::default();
+        assert_eq!(enhanced.flame_scale(), 1.0);
+        enhanced.bike = true;
+        assert_eq!(enhanced.flame_scale(), super::super::super::trigger::BIKE_FLAME_SCALE);
+        assert!(enhanced.flame_scale() < 1.0);
     }
 }
