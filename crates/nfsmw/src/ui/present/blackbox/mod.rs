@@ -1,6 +1,7 @@
 //! The presenter for `blackbox-render`: quads and glyphs of the tree as premultiplied UI meshes, and the
 //! textures they need as UI texture patches.
 
+mod colours;
 mod fallback;
 mod mirror;
 mod raster_cache;
@@ -111,7 +112,7 @@ impl MeshBuilder {
         texture: UiTextureId,
         corners: [Vec3; 4],
         uvs: [[f32; 2]; 4],
-        colour: [u8; 4],
+        colours: [[u8; 4]; 4],
         scale: f32,
         origin: [f32; 2],
     ) {
@@ -121,7 +122,7 @@ impl MeshBuilder {
         }
         let mesh = self.meshes.last_mut().expect("a mesh was just pushed");
         let base = mesh.vertices.len() as u32;
-        for (c, uv) in corners.iter().zip(uvs) {
+        for ((c, uv), colour) in corners.iter().zip(uvs).zip(colours) {
             mesh.vertices.push(UiVertex {
                 position: [origin[0] + c.x * scale, origin[1] + c.y * scale],
                 uv,
@@ -260,7 +261,7 @@ impl BlackboxPresenter {
             Vec3::new(cx - width / 2.0 - lean, cy + height / 2.0, 0.0),
         ];
         let uvs = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
-        builder.quad(id, corners, uvs, vertex_colour(node.world_colour, false), scale, origin);
+        builder.quad(id, corners, uvs, [vertex_colour(node.world_colour, false); 4], scale, origin);
     }
 
     /// Upload straight source pixels once, without changing RGB or the mask's authored alpha.
@@ -306,12 +307,12 @@ impl BlackboxPresenter {
             }
         };
         let corner = |x, y| (node.world * Vec4::new(x - 0.5, y - 0.5, 0.0, 1.0)).truncate();
-        let colour = vertex_colour(node.world_colour, additive);
         for tile in tiles {
             let [x0, y0, x1, y1] = tile.rect;
             let corners = [corner(x0, y0), corner(x1, y0), corner(x1, y1), corner(x0, y1)];
             let [u0, v0, u1, v1] = repeat::padded_uv(tile.uv, size);
-            builder.quad(id, corners, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], colour, scale, origin);
+            let colours = colours::for_rect(node, node.world_colour, additive, tile.rect);
+            builder.quad(id, corners, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], colours, scale, origin);
         }
         true
     }
@@ -387,7 +388,7 @@ impl BlackboxPresenter {
         if node.name_hash == MIRROR_BEZEL {
             colour[3] = faded_alpha(colour[3]);
         }
-        builder.quad(id, corners, uvs, vertex_colour(colour, additive), scale, origin);
+        builder.quad(id, corners, uvs, colours::for_rect(node, colour, additive, [0.0, 0.0, 1.0, 1.0]), scale, origin);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -430,7 +431,7 @@ impl BlackboxPresenter {
             let p = |x: f32, y: f32| (node.world * Vec4::new(x * squeeze, y, 0.0, 1.0)).truncate();
             let corners = [p(q.x0, q.y0), p(q.x1, q.y0), p(q.x1, q.y1), p(q.x0, q.y1)];
             let uvs = [[q.u0, q.v0], [q.u1, q.v0], [q.u1, q.v1], [q.u0, q.v1]];
-            builder.quad(id, corners, uvs, colour, scale, origin);
+            builder.quad(id, corners, uvs, [colour; 4], scale, origin);
         }
     }
 }
@@ -471,9 +472,9 @@ mod tests {
         let mut b = MeshBuilder { meshes: Vec::new(), clip: [0.0; 4] };
         let c = [Vec3::ZERO; 4];
         let uv = [[0.0; 2]; 4];
-        b.quad(UiTextureId(1), c, uv, [255; 4], 1.0, [0.0; 2]);
-        b.quad(UiTextureId(1), c, uv, [255; 4], 1.0, [0.0; 2]);
-        b.quad(UiTextureId(2), c, uv, [255; 4], 1.0, [0.0; 2]);
+        b.quad(UiTextureId(1), c, uv, [[255; 4]; 4], 1.0, [0.0; 2]);
+        b.quad(UiTextureId(1), c, uv, [[255; 4]; 4], 1.0, [0.0; 2]);
+        b.quad(UiTextureId(2), c, uv, [[255; 4]; 4], 1.0, [0.0; 2]);
         assert_eq!(b.meshes.len(), 2);
         assert_eq!(b.meshes[0].indices.len(), 12);
         assert_eq!(b.meshes[0].vertices.len(), 8);

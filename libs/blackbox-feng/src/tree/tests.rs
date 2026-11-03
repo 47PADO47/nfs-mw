@@ -177,3 +177,23 @@ fn the_host_moves_the_window_of_the_mask() {
     rt.set_mask_uv(piece, [-0.75, -0.25, 0.25, 0.75]);
     assert_eq!(mask_uv(&rt), [-0.75, -0.25, 0.25, 0.75]);
 }
+
+#[test]
+fn coloured_images_keep_vertex_tints_but_other_image_tails_do_not() {
+    let mut image = Obj::new(9, 1, 1);
+    image.position = [0.0, 0.0, 1.0];
+    let (mut rt, id) = build(&[image], &[]);
+    let mut package = (*rt.package(id).unwrap()).clone();
+    package.objects[0].data.words.resize(37, 0);
+    package.objects[0].data.words[21..]
+        .copy_from_slice(&[30, 20, 10, 0, 60, 50, 40, 255, 90, 80, 70, 128, 120, 110, 100, 200]);
+    let id = rt.load(package.clone());
+    assert_eq!(
+        rt.tree(id).nodes[0].corner_colours,
+        Some([[10, 20, 30, 0], [40, 50, 60, 255], [70, 80, 90, 128], [100, 110, 120, 200]])
+    );
+    package.objects[0].kind = crate::package::ObjectKind::Image;
+    let id = rt.load(package);
+    assert_eq!(rt.tree(id).nodes[0].corner_colours, None);
+    assert_eq!(crate::package::ObjectData::default().corner_colours(), None);
+}

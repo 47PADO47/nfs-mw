@@ -73,6 +73,7 @@ fn texture(hash: u32, pixels: [[u8; 4]; 3], blend: u8) -> Texture {
 
 fn node(index: usize, mask: Option<u32>) -> UiNode {
     UiNode {
+        corner_colours: None,
         index,
         guid: index as u32 + 1,
         name_hash: 0,

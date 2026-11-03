@@ -114,7 +114,7 @@ impl MapKeys {
             settings.hud_options.map_zoom = zoom_out(settings.hud_options.map_zoom);
         }
         if presses.orientation {
-            settings.minimap = flip_orientation(settings.minimap);
+            settings.set_global_minimap(flip_orientation(settings.minimap));
         }
         if presses.toggle_hud {
             settings.hud = !settings.hud;
