@@ -126,6 +126,19 @@ positive `x` lies to the right of the road direction; this is the rewrite's conv
 
 ### 2.5 Placing the elements
 
+**[ours] Car spacing.** Some layouts put two car slots about 4.3 m apart on one line, which suits the patrol cars but
+not a heavy roadblock's SUVs or a big cop model. Cars created inside each other were pushed onto each other by the contact
+solver: in a play trace one SUV stood half on another. Before the cars are created, each car slot is moved just clear of
+the slots before it (0.3 m gap, the shortest way out of the overlap of the two footprints, in the road plane, at most
+4 m), using the size of the model that will stand there. Slots that do not overlap keep the layout's position, and the
+road-edge check runs on the moved slots (`ai/roadblock/spacing.rs`).
+
+**[ours] Prop tilt.** A prop is tilted to the plane through the surface at its four ends (along its facing and across
+it: the strip's half extents), not to the one face under its centre, and stands at that plane's height there, never below
+the surface found at the centre. In a play trace the face under a strip's centre gave it an 8 degree roll on a road level
+across, so one end of the 6.5 m strip lay up to half a metre under the road. Without a surface at every end the single
+face is used, as before.
+
 - **Car (`kCar`)**: the next car of the list (in order: pooled cars first, then stolen cars): `ResetVehicleToRoadPos(pos,
   facing)` (places it on the ground at the position with that heading), mark it spawned (state reset, repaired, fuel), and add
   it to the roadblock: the roadblock calls `StartRoadBlock` on it: lights on, in-pursuit flag set, no target, goal

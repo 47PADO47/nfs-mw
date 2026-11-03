@@ -201,6 +201,7 @@ fn a_far_helicopter_in_the_cameras_view_stays() {
     police.set_heli_camera(Some(blackbox_pursuit::helicopter::camera::Camera {
         position: Vec3::new(5.0, 3.0, 0.0),
         forward: Vec3::NEG_X,
+        velocity: Vec3::ZERO,
     }));
     police.think_helicopter(crate::scenes::world::drive::STEP, true, &view(10.0), sensed(true), &|_, _| true);
     let heli = police.helicopter_status().expect("still flying");

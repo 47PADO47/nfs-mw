@@ -12,6 +12,7 @@ use nfsmw_data::car::physics::SurfaceTable;
 use std::rc::Rc;
 
 use super::site::Site;
+use super::spacing;
 use super::state::Roadblock;
 use crate::scenes::world::ai::car::{AiCar, Role, Start};
 use crate::scenes::world::ai::support;
@@ -85,6 +86,28 @@ fn surface_near(ground: &impl Ground, at: Vec3) -> Option<(f32, Vec3)> {
     Some((bottom.y + hit.distance, up(hit.normal)))
 }
 
+/// [ours] The plane of the road under a prop, from the surface at its four ends: `reach` is half its extent along its
+/// facing and across it. One face's normal under the centre can belong to a kerb or a seam, and a 6.5 m strip tilted
+/// by it sank up to half a metre into the road at one end. The height is the plane's at the centre, never below the
+/// surface found there. `None` when an end has no surface near it.
+fn fitted_surface(ground: &impl Ground, centre: Vec3, heading: f32, reach: [f32; 2]) -> Option<(f32, Vec3)> {
+    let facing = Vec3::new(heading.cos(), 0.0, heading.sin());
+    let across = Vec3::new(-facing.z, 0.0, facing.x);
+    let at = |offset: Vec3| surface_near(ground, centre + offset).map(|(y, _)| (centre + offset).with_y(y));
+    let (ahead, behind) = (at(facing * reach[0])?, at(-facing * reach[0])?);
+    let (left, right) = (at(across * reach[1])?, at(-across * reach[1])?);
+    let normal = (ahead - behind).cross(left - right).normalize_or_zero();
+    let normal = match normal.y < 0.0 {
+        true => -normal,
+        false => normal,
+    };
+    if normal.y < 0.5 {
+        return None;
+    }
+    let plane = (ahead.y + behind.y + left.y + right.y) / 4.0;
+    Some((plane.max(centre.y), normal))
+}
+
 impl TrafficWorld {
     /// Builds a roadblock ahead of the player. `props` is the prop world for the sawhorses; without it (the headless
     /// tests) the sawhorses are left out. Returns the number of cop cars placed.
@@ -108,10 +131,7 @@ impl TrafficWorld {
         let spikes = !cooling && self.rng.roadblock.next_f32() * 100.0 < self.police.roadblock_odds(level).spike_chance;
         let list: &[Layout] = if spikes { &SPIKES } else { &NORMAL };
         let layout = roadblock::pick(list, site.cr_width, asked).ok_or("no roadblock layout fits this road")?;
-        let placed = roadblock::place(layout, &site.road);
-        self.check_clear(&placed, &site, target)?;
-        let ground = WorldGround { collision, surfaces };
-        let mut cars = Vec::new();
+        let mut placed = roadblock::place(layout, &site.road);
         let car_slots = placed.iter().filter(|slot| slot.kind == Element::Car).count();
         // The lottery's cars come from cops out of view first (the cop manager's steal rule), then are created.
         let mut thieves = match cause {
@@ -120,7 +140,8 @@ impl TrafficWorld {
         }
         .into_iter();
         let mut taken = Vec::new();
-        for slot in placed.iter().filter(|slot| slot.kind == Element::Car) {
+        let mut models = Vec::with_capacity(car_slots);
+        for _ in 0..car_slots {
             let stolen = thieves.next().and_then(|thief| {
                 let index = self.cop_models.iter().position(|m| m.model.name.eq_ignore_ascii_case(&thief.model))?;
                 Some((index, thief.key))
@@ -132,6 +153,13 @@ impl TrafficWorld {
                 }
                 None => pick_model(self, cause).ok_or("no cop model for the roadblock")?,
             };
+            models.push(model);
+        }
+        self.space_cars(&mut placed, &models);
+        self.check_clear(&placed, &site, target)?;
+        let ground = WorldGround { collision, surfaces };
+        let mut cars = Vec::new();
+        for (slot, &model) in placed.iter().filter(|slot| slot.kind == Element::Car).zip(&models) {
             let car = self.roadblock_car(model, slot, &ground).ok_or_else(|| {
                 format!("a roadblock car cannot stand at ({:.0}, {:.0})", slot.position.x, slot.position.z)
             })?;
@@ -214,6 +242,28 @@ impl TrafficWorld {
         Ok(())
     }
 
+    /// Moves the car slots apart by the size of the model each will get (`spacing.rs`); `models` follows the car slots.
+    fn space_cars(&self, placed: &mut [Placed], models: &[usize]) {
+        let mut slots: Vec<&mut Placed> = placed.iter_mut().filter(|slot| slot.kind == Element::Car).collect();
+        let footprints: Vec<spacing::Footprint> = slots
+            .iter()
+            .zip(models)
+            .map(|(slot, &model)| {
+                let half = self.cop_models[model].model.physics.spec.dimension;
+                spacing::Footprint {
+                    centre: Vec2::new(slot.position.x, slot.position.z),
+                    facing: Vec2::new(slot.heading.cos(), slot.heading.sin()),
+                    half_length: half.z,
+                    half_width: half.x,
+                }
+            })
+            .collect();
+        for (slot, centre) in slots.iter_mut().zip(spacing::separate(&footprints)) {
+            slot.position.x = centre.x;
+            slot.position.z = centre.y;
+        }
+    }
+
     /// One roadblock car at `slot`: a stopped cop car of cop model `model` facing the layout's heading.
     fn roadblock_car(&mut self, model: usize, slot: &Placed, ground: &WorldGround<'_>) -> Option<AiCar> {
         let at = slot.position;
@@ -265,6 +315,13 @@ impl TrafficWorld {
             return true;
         };
         let physics = self.roadblocks.physics.as_ref();
+        // The strip's long axis lies across its facing; a sawhorse is short both ways.
+        let reach = match slot.kind {
+            Element::Spike => physics.and_then(|p| p.strip_half).map_or([0.4, 3.2], |half| [half[0], half[1]]),
+            _ => [0.4, 1.0],
+        };
+        let centre = Vec3::new(slot.position.x, height, slot.position.z);
+        let (height, normal) = fitted_surface(ground, centre, slot.heading, reach).unwrap_or((height, normal));
         let lift = match slot.kind {
             Element::Spike => physics.and_then(|p| p.strip_lift).unwrap_or(spikes::HALF_HEIGHT - spikes::CENTRE_LIFT),
             _ => physics.and_then(|p| p.sawhorse_lift).unwrap_or(0.0),
@@ -296,3 +353,7 @@ impl TrafficWorld {
         true
     }
 }
+
+#[cfg(test)]
+#[path = "surface_tests.rs"]
+mod surface_tests;

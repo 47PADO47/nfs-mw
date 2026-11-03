@@ -321,7 +321,10 @@ impl Helicopter {
     fn step(&mut self, dt: f32, goal: Goal, heights: &dyn Heights, specs: &Specs) {
         let desired =
             control::desired(self.body.position, self.body.velocity, &goal, heights, &self.tuning.gains, self.camera);
-        self.body.velocity = desired.body_velocity.unwrap_or(self.body.velocity);
+        // [ours] A velocity the controller sets on the body never exceeds the top speed, as the desired one does not.
+        if let Some(set) = desired.body_velocity {
+            self.body.velocity = set.clamp_length_max(specs.max_speed);
+        }
         self.body.step(dt, desired.velocity, goal.look_at - self.body.position, desired.max_decel, specs);
     }
 }

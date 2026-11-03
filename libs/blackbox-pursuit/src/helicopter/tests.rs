@@ -182,8 +182,9 @@ fn a_helicopter_out_of_view_far_from_the_point_ahead_is_out_of_play() {
 #[test]
 fn a_far_helicopter_the_camera_looks_at_stays_in_play() {
     let mut heli = Helicopter::spawn(Vec3::new(-650.0, 40.0, 0.0), 0.0, Tuning::default());
-    heli.camera = Some(camera::Camera { position: Vec3::new(10.0, 3.0, 0.0), forward: Vec3::NEG_X });
+    heli.camera =
+        Some(camera::Camera { position: Vec3::new(10.0, 3.0, 0.0), forward: Vec3::NEG_X, velocity: Vec3::ZERO });
     assert!(!heli.out_of_play(&player()), "the camera looks back at it");
-    heli.camera = Some(camera::Camera { position: Vec3::new(-10.0, 3.0, 0.0), forward: Vec3::X });
+    heli.camera = Some(camera::Camera { position: Vec3::new(-10.0, 3.0, 0.0), forward: Vec3::X, velocity: Vec3::ZERO });
     assert!(heli.out_of_play(&player()), "the camera looks away from it");
 }

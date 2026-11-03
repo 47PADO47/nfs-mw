@@ -55,7 +55,12 @@ pub(super) struct Plan {
     quadrant: bool,
     /// The pursuit's last known place of the player (physics space), which the search circles.
     last_known: Option<Vec3>,
+    /// The game camera's place at the last step, for its velocity.
+    camera_last: Option<Vec3>,
 }
+
+/// A camera faster than this between two steps has cut to a new view: its velocity is taken as zero.
+const CAMERA_CUT_SPEED: f32 = 200.0;
 
 /// What the helicopter is doing, as the speech and the HUD tell it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -236,7 +241,7 @@ impl Police {
             heli.tuning.skid_hit = current.skid_hit;
         }
         self.heli_plan.previous = Some((heli.body.position, heli.body.orientation));
-        heli.camera = self.heli_camera;
+        heli.camera = self.camera_with_velocity(dt);
         let from = heli.body.position;
         let line = |to: Vec3| clear(from, to + Vec3::Y);
         let body = to_body(player);
@@ -275,6 +280,18 @@ impl Police {
             return;
         }
         self.heli = Some(heli);
+    }
+
+    /// The game camera with its velocity over the last step (zero after a cut or on the first step), for `AvoidCamera`.
+    fn camera_with_velocity(&mut self, dt: f32) -> Option<blackbox_pursuit::helicopter::camera::Camera> {
+        let mut camera = self.heli_camera?;
+        let last = self.heli_plan.camera_last.replace(camera.position);
+        let velocity = last.filter(|_| dt > 0.0).map_or(Vec3::ZERO, |last| (camera.position - last) / dt);
+        camera.velocity = match velocity.length() < CAMERA_CUT_SPEED {
+            true => velocity,
+            false => Vec3::ZERO,
+        };
+        Some(camera)
     }
 
     /// Puts the helicopter in the chase: where the cop manager queued it, or straight behind the player when no spawn was

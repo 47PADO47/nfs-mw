@@ -23,6 +23,7 @@ mod director;
 mod installed_tests;
 pub(super) mod props;
 mod site;
+mod spacing;
 mod state;
 mod steal;
 

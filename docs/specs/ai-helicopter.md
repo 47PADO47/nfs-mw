@@ -166,6 +166,13 @@ when the heli is already inside the sphere but farther than 2 m from `c`). On a 
 the segment end moved onto the sphere surface along `n` (`dest = work + n * dot(hit - work, n)`), and kick the body velocity:
 `V += n * |dot(V, n)| * ((7 - radius) * 0.5 + 1.2)`. The helicopter therefore never flies through the player's camera. [decomp]
 
+**[ours] Relative to the camera.** The remake runs the controller every physics step, and the camera follows the car at
+chase speed. Taken in world velocity, a helicopter overtaking the camera was caught by the moving sphere step after step,
+and each kick (up to 3.45 times the inward speed with the shrunk radius) built on the last: in a play trace it left at
+390 m/s and was taken out of play two seconds later. The segment and the kick therefore use the helicopter's velocity
+minus the camera's (measured from the camera's move over the last step, zero after a cut). The kick then only removes the
+closing speed. A velocity the controller sets on the body is also held to `MAX_SPEED_MPS`.
+
 ### 4.2 `CheckHeliSheet` (height floor and sliding)
 
 Uses three independent sheet coordinates (each caches the last triangle and the last elevation): primary for `dest`, a
@@ -184,6 +191,10 @@ second = elev(work.xz) with normal n: if covered and second > work.y:
         body velocity = dir * current speed          # hard-steers the velocity up and around the surface
 return whether the secondary coordinate was covered
 ```
+
+**[ours]** The lead-point rule's `dir + n2` is made a unit vector again before it is scaled by the speed. Unscaled, the
+push lengthens the vector, and applied every physics step it raised the speed by its share each step (130 m/s over a roof
+in a play trace, against the 100 m/s top speed).
 
 If no sheet triangle covers the point (outside the drivable sections) nothing is changed. A debug flag `bIgnoreHeliSheet`
 (always false in shipped play, because `NeverIgnoreHeliSheet` is true) would also disable it. [decomp]

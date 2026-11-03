@@ -178,7 +178,9 @@ fn lead_roof(position: Vec3, velocity: Vec3, work: &mut Vec3, dest: &mut Vec3, h
     }
     dest.y = dest.y.max(work.y);
     let dir = (*work - position).normalize_or_zero();
-    let dir = dir + side_push(floor.normal, dir, SHEET_STEER_LEAD);
+    // [ours] The pushed direction is made a unit again: the spec scales the un-normalised sum by the speed, which run every
+    // physics step grows the speed by the push's share each step (the helicopter climbed over roofs at 130 m/s).
+    let dir = (dir + side_push(floor.normal, dir, SHEET_STEER_LEAD)).normalize_or_zero();
     Some(dir * velocity.length())
 }
 
@@ -235,7 +237,7 @@ mod tests {
 
     #[test]
     fn the_camera_sphere_kicks_the_body_velocity() {
-        let camera = Camera { position: Vec3::ZERO, forward: Vec3::X };
+        let camera = Camera { position: Vec3::ZERO, forward: Vec3::X, velocity: Vec3::ZERO };
         let goal = goal(Vec3::new(-100.0, 5.0, 0.0));
         let flying = Vec3::new(-40.0, 0.0, 0.0);
         let at = Vec3::new(14.0, 5.0, 0.0);
