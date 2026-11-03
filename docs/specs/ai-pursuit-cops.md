@@ -311,7 +311,8 @@ Written after the code, to say what exists and what is approximated. Evidence ta
   paths that use it are not built. `SpikesHit` has no caller in the original.
 - **Reinforcement timer and wave size** (`ai/pursuit.rs`): every join (start patrols, scripted chase requests, recruited
   roadblock cars, each placed support car, the helicopter) restarts the timer through one path. A chase that starts with no
-  unit starts its timer at the opening interval instead of zero **[ours]**: the original always has an initiating unit. The
+  unit (a forced or scripted start) places its first cop at once, and that cop's join starts the opening interval
+  **[ours]**: the original always has an initiating unit, so this stands in for it. The
   patrols that see the player at the start all join at once rather than one per manager run **[ours]**. The wave is not
   scaled to the active-car limit; support cars are left out of the wave's car count. The quarter-second pursuit task step
   of the original's timer is not modelled.

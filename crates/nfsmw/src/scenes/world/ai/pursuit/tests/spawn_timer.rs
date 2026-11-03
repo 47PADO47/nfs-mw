@@ -1,6 +1,6 @@
-//! The reinforcement timer and the wave size (spec `ai-pursuit-cops.md` section 3): a new chase waits the opening
-//! interval before its first reinforcement, the wave asks for its nominal count with no active-car cap, and a cop that is
-//! due but not placed holds traffic back (`ai-traffic-spawning.md` section 4).
+//! The reinforcement timer and the wave size (spec `ai-pursuit-cops.md` section 3): the initiating unit's join starts
+//! the opening interval before the next reinforcement, the wave asks for its nominal count with no active-car cap, and a
+//! cop that is due but not placed holds traffic back (`ai-traffic-spawning.md` section 4).
 
 use super::free_roam::renderer;
 use super::*;
@@ -34,17 +34,30 @@ fn setup() -> (TrafficWorld, Focus) {
 }
 
 #[test]
-fn a_new_chase_waits_the_opening_interval_before_its_first_reinforcement() {
+fn a_chase_with_no_initiating_unit_places_one_cop_then_waits_the_opening_interval() {
     let (mut world, focus) = setup();
     let (collision, surfaces) = (floor(), SurfaceTable::default());
-    for _ in 0..38 {
-        world.update_pursuit(0.25, focus, &collision, &surfaces);
-    }
-    assert!(world.cars.is_empty(), "no reinforcement within the 10 s opening interval");
-    assert!((0..40).any(|_| {
+    let placed = (0..8).position(|_| {
         world.update_pursuit(0.25, focus, &collision, &surfaces);
         !world.cars.is_empty()
+    });
+    assert!(placed.is_some(), "a chase with no cop places its initiating cop at once");
+    for _ in 0..36 {
+        world.update_pursuit(0.25, focus, &collision, &surfaces);
+    }
+    assert_eq!(world.cars.len(), 1, "no second cop within the 10 s opening interval after the first joined");
+    assert!((0..40).any(|_| {
+        world.update_pursuit(0.25, focus, &collision, &surfaces);
+        world.cars.len() > 1
     }));
+}
+
+#[test]
+fn a_patrol_that_starts_the_chase_holds_the_first_reinforcement_for_the_opening_interval() {
+    let mut pursuit = Pursuit::new(5, vec![row(4); 5], player());
+    assert_eq!(pursuit.spawn_timer, 0.0);
+    pursuit.joined(false);
+    assert_eq!(pursuit.spawn_timer, 10.0, "the initiating patrol's join starts the opening interval");
 }
 
 #[test]

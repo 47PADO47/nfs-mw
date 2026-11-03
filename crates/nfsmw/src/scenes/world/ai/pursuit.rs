@@ -83,8 +83,10 @@ impl Pursuit {
     pub fn new(heat: u32, rows: Vec<HeatRow>, player: Performance) -> Self {
         let row = rows.get(heat.max(1) as usize - 1).or(rows.last());
         let required = row.map_or(0, |row| row.full_engagement_cops);
-        // The timer starts at the opening interval: a new chase never fills at once (spec `ai-pursuit-cops.md` 3.2).
-        let spawn_timer = row.map_or(0.0, |row| row.time_between_first_four_spawns);
+        // The original always has an initiating unit, whose join restarts the timer at the opening interval. A patrol
+        // that joins at the start does that here (`start_pursuit`); a chase that starts with none places its first cop
+        // at once, and that cop's join starts the opening interval (spec `ai-pursuit-cops.md` 3.2).
+        let spawn_timer = 0.0;
         Self {
             budget: Budget::new(required, BackupRow::default().trigger),
             backups: Vec::new(),
