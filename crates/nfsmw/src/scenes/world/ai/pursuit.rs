@@ -418,9 +418,11 @@ impl TrafficWorld {
             return;
         };
         let performance = pursuit.player;
-        let spawned = match self.police.is_perp_in_sight() {
-            true => self.spawn_cop(&name, focus, player.position, performance, collision, surfaces),
-            false => self.spawn_search_cop(&name, focus, performance, collision, surfaces),
+        // The placement follows the cool-down status, not the sight: a cop due in the grace before cooling down still
+        // comes on the chase placement (spec `ai-pursuit-cops.md` section 3.2).
+        let spawned = match cooldown {
+            false => self.spawn_cop(&name, focus, player.position, performance, collision, surfaces),
+            true => self.spawn_search_cop(&name, focus, performance, collision, surfaces),
         };
         if spawned && let Some(p) = self.pursuit.as_mut() {
             p.cop_due = false;

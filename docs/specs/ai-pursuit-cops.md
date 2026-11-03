@@ -217,6 +217,11 @@ Three cases, in order: **[decomp]**
    Failure returns nothing and the timer is not reset (it retries next run).
 3. **During a race event:** 230 m ahead of the target on the cop path (`min distance + 80`), facing it.
 
+The case is chosen by the pursuit's cool-down status, not by whether the target is in sight: a cop due after the target
+was lost but before cooling down began still comes on the chase placement. **[PC runtime: in a recorded stock pursuit
+such a cop appeared 83 m ahead of the player, while the cool-down cops after it appeared 130 to 330 m behind it and
+220 m ahead.]** The rewrite uses the same rule (`ai/pursuit.rs`).
+
 The *forced start* and the roadblock builder use other paths. A forced start (`SpawnPursuitCar`) puts the first car 340 m
 ahead of the target on the cop path (80 m when warping or when the start is a free-roam scripted pursuit); if no spot is
 found it falls back to a car 15 m behind the player (`SpawnCopCarNow`). When no free cop car exists in the pool for those

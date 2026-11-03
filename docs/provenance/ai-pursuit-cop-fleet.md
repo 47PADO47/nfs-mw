@@ -31,3 +31,10 @@ manager's active-car limit. Rewrite: `Pursuit::joined` is the one join path; a c
 first cop at once and that join starts the opening interval **[ours]**; `limits` drops the active-car cap; support cars do not count against the wave.
 Headless checks: `pursuit::tests::spawn_timer`. The helicopter's request gate and weighted pick are changed on another
 branch and not here.
+
+## Reinforcement placement by cool-down status (2026-11-03)
+
+[ai-pursuit-cops.md](../specs/ai-pursuit-cops.md) section 4.1. The reference chooses the cool-down placement by the
+pursuit's status; a private recording of a stock-install pursuit agrees (a cop due between losing the player and the
+cool-down came ahead on the chase placement). Rewrite: `TrafficWorld::update_pursuit` passes the cool-down status
+instead of the sight flag.
