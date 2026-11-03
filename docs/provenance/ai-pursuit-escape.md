@@ -19,6 +19,13 @@ Spec: [ai-pursuit.md](../specs/ai-pursuit.md) sections 4.3, 6 and 7.
 | Hiding multiplier per heat | `evade::HIDDEN_MULTIPLIER` (4, 5, 6, 7, 8, 8, 8, 4, 2, 4) | install-verified `HiddenZoneTimeMultiplier` (spec 4.3) |
 | EVADED at meter 1 while shown | `Status::Evaded`, terminal | decomp (spec 6) |
 
+## Stock-game capture (2026-11-03)
+
+A recording of the original game's pursuit fields over one pursuit from heat 1 to 5 confirmed the grace (7 s), the mode
+gate (2.5 s), the required time (`evadetimeout - 7`), the hiding rate (`1 + multiplier`), the meter floor after a
+sighting during cool-down, and the busted timer's fill and drain rates ([ai-pursuit.md](../specs/ai-pursuit.md)
+section 6.1). The recording is not part of the repository.
+
 ## Discrepancies and guesses
 
 - The hiding latch (0.05 s, or effectively infinite while seen) is not implemented: `hidden` is the world's per-frame

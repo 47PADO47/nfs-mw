@@ -87,8 +87,11 @@ slightly negative when the backup arrives, and zeroed on entering cool-down ([ai
 
 The rewrite (`crates/nfsmw/src/hud/backup_timer.rs`, fed by `PursuitHud::backup_eta`) follows this, with one
 **[inferred]** guard: the leave script is played only on a row shown in this chase, so a row that rests hidden at the
-start of a chase is not played out. Whether the original's leave on a hidden row shows anything, and what the row
-shows across a cool-down, need a capture. A co-op guest's board has no ETA yet (the global block does not carry it).
+start of a chase is not played out. A stock-game capture confirms the ETA that feeds the row (the call timer of the
+heat at the call, zeroed on entering cool-down, a fresh full timer when the chase resumes; see
+[ai-pursuit-cops](ai-pursuit-cops.md) section 4), so after a cool-down the row is driven by the new call. It did not record
+the board itself: whether the original's leave on a hidden row shows anything, and what the row shows during a
+cool-down, remain open. A co-op guest's board has no ETA yet (the global block does not carry it).
 Tests: `hud::backup_timer_tests` (synthetic) and `hud::pursuit_install_tests` (the real package's cascade to the label
 and timer).
 

@@ -12,6 +12,7 @@
 - Implemented in `crates/nfsmw/src/hud/backup_timer.rs` from the spec. One guard is the rewrite's own: the leave script
   only takes down a row shown in this chase.
 - Checked by `hud::backup_timer_tests` (synthetic: the script for each ETA, the timer text, the cool-down hold) and the
-  installed `hud::pursuit_install_tests` (the backing's appear shows the label and timer, the flash in the last 10 s). Not
-  compared with a capture of the original: the look of the leave on a hidden row and of the row across a cool-down remain
-  open.
+  installed `hud::pursuit_install_tests` (the backing's appear shows the label and timer, the flash in the last 10 s).
+- 2026-11-03: a stock-game capture (the pursuit's status, ETA and budget fields over one pursuit from heat 1 to 5)
+  confirmed the ETA rules the row reads. The board's own scripts were not recorded, so the look of the leave on a hidden
+  row and of the row during a cool-down remain open.

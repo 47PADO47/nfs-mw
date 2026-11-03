@@ -55,8 +55,38 @@ step. **[ours]**: the axes follow the physical meaning of the rule; the original
 The rewrite had read the pitch and roll from swapped components and lost the read-back (the velocity was saved after the
 step's change, so the change read was zero): the body never leaned. Tests: `helicopter::flight` in `blackbox-pursuit`.
 
-## 4. Not settled
+## 4. Checked against a stock-game capture
 
-- The original's camera view test (its cone or frustum) and the exit flight's unnormalised fly-out direction.
-- Which radius the search reads (the main spec reads it as `SearchModeRoadblockRadius`, up to 10 km); a capture decides.
-- The helicopter's one extra cop to evade when it first engages (pursuit side): the meaning and the reset are inferred.
+A recording of the original game (stock install, one pursuit from heat 1 to 5, about 14.5 minutes; the helicopter's
+place, goal and fuel, its requests and the player's place sampled 20 times a second) shows **[capture]**:
+
+- **Request and placement.** The first request came on the update the chase reached heat 4, 391 s into it (the
+  helicopter enters the wave at heat 4; the timer and the 45 s support delay had long run out). Four placements failed
+  within 0.1 s; the fifth, 5.2 s later, succeeded. Both helicopters appeared 242 to 249 m from the player, 12 to 21 m
+  above it, at rest: the 250 m along the road and the 20 m lift of the main spec's section 2.2.
+- **Fuel.** 60 s at heat 4 and 90 s at heat 5 (`HeliFuelTime`), counted from the placement: the exit goal began 60.2 s
+  and 90.1 s after it.
+- **Leaving.** Both exits set the "seek car" point (85 m ahead of the player, 25 m up) at once, the helicopter being
+  more than 15 m above the player already. The first helicopter hovered at that point while the player drove away and
+  was removed 7.7 s later about 540 m from the player, by the out-of-play pass of section 2. The second switched to the
+  fly-out after 8.9 s: its seek point lay **1811 m** from the player, which is `200 * |forward + 9 * right|`, so the
+  fly-out direction is not normalised (the rewrite's `exit` already uses it so). It was removed 0.5 s later, more than
+  25 m up, behind the player and over 150 m away.
+- **The next one.** The second helicopter was requested 180.3 s after the first was removed: `TimeBetweenHeliActive`
+  (180 s at heats 4 and 5). After the second left, none came in the remaining 126 s.
+- **Distance while chasing** (3134 samples): 5th percentile 26 m, quartiles 38 / 71 / 197 m, 95th percentile 307 m,
+  most 403 m. While leaving, median 102 m.
+- **No search.** The player was never out of the helicopters' sight long enough for a cool-down while one flew, so the
+  search and its radius were not seen.
+- **No extra cop to evade.** Neither helicopter moved the pursuit's counter for it (see
+  [ai-pursuit-cops.md](ai-pursuit-cops.md) section 4).
+
+These agree with the rewrite's rules and tables (`police/heli.rs`, `blackbox_pursuit::helicopter`); nothing changed.
+
+## 5. Not settled
+
+- The original's camera view test (its cone or frustum).
+- Which radius the search reads (the main spec reads it as `SearchModeRoadblockRadius`, up to 10 km); a capture with a
+  helicopter searching decides.
+- Why the four first placements failed (the rewrite places at the first opportunity once the model is loaded).
+- The meaning of the helicopter-related counter that adds one cop to evade; the rewrite does not add it.

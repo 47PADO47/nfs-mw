@@ -145,3 +145,10 @@ the code had `max(1)`. The lean's axes are the rewrite's physical reading of the
 read-back was a rewrite bug (always zero). Tests: `helicopter::flight` and `helicopter::tests` in `blackbox-pursuit`,
 `police::heli::tests` and `pursuit::tests::air` in `nfsmw`. Not compared with a running game; the view test is the
 rewrite's own cone.
+
+## Stock-game capture (2026-11-03)
+
+A recording of the original game (one pursuit from heat 1 to 5: the helicopter's place, goal, fuel and requests) confirmed
+the request at heat 4, the placement distance and lift, the fuel times, the respawn wait, the unnormalised fly-out
+direction and the out-of-play removal of a hovering helicopter
+([ai-helicopter-presence.md](../specs/ai-helicopter-presence.md) section 4). The recording is not part of the repository.

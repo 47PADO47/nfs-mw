@@ -296,6 +296,23 @@ failure instead. **[decomp]**
 **Safehouse.** While in cool-down, pressing the HUD "engage event" action inside a *safehouse* trigger zone calls
 `EndPursuitEnteringSafehouse`: evade level 1, status `EVADED`, flag "enter the safehouse when done". **[decomp]**
 
+### 6.1 Checked against a stock-game capture
+
+A recording of the original game (stock install, one pursuit from heat 1 to 5, about 14.5 minutes, the pursuit's
+status, sight timers, cool-down and busted fields sampled 20 times a second) matches sections 4 to 6:
+
+- Each of the four cool-downs began on the update the time since any cop saw the player reached 7 s (7.01 to 7.06 s).
+- The chase came back from cool-down only after the 2.5 s mode gate: once on a sighting 2.8 s into the cool-down, once
+  2.5 s into it while the last sighting (0.04 s after the entry) was 2.7 s old. A sighting inside the gate kept the
+  cool-down, refilled its remaining time and set the meter to its 0.05 floor.
+- The required cool-down time was the level's `evadetimeout` minus 7: 13, 38, 68, 83 and 113 s at heats 1 to 5.
+- Unseen, the remaining time fell 1.0 s per second; in a hiding spot at heat 5 it fell 8.98 s per second, that is
+  `1 + HiddenZoneTimeMultiplier` (8) times as fast, not 8 times.
+- The busted timer filled 1.0 s per second while the player was slow beside a cop and drained 2.0 s per second
+  otherwise (real time); the HUD meter read `0.5 + timer / 10`, the section 4.4 blend with the full warning.
+
+These are the rewrite's values (`blackbox_pursuit::cooldown::TUNING`, `evade`, `busted`); nothing changed.
+
 ## 7. Bailing, fleeing, giving up
 
 - `BailPursuit` is used only for AI racers (when an AI racer is busted): the pursuit stops chasing; every active cop is
@@ -362,12 +379,13 @@ when no race is running or when the race is a pursuit race (`AllowStatsToAccumul
 In the original: (1) at heat 1 drive past a parked/patrolling cop at 60 mph (nothing) and at 70 mph (chase starts);
 (2) stop next to a cop: the busted bar fills in about 5 s and drains at twice the speed when you move off;
 (3) break line of sight: the cool-down bar appears about 7 s later and fills in `evadetimeout - 7` s;
-(4) drive into a hidden spot while unseen: the bar fills `HiddenZoneTimeMultiplier` times faster;
+(4) drive into a hidden spot while unseen: the bar fills `1 + HiddenZoneTimeMultiplier` times as fast;
 (5) enter a safehouse during cool-down: the pursuit ends at once.
 
 ## Open questions
 
-- The exact meaning of `dT` for the variable-rate pursuit task (section 1.1); measure the busted-bar fill time in the game.
+- The exact meaning of `dT` for the variable-rate pursuit task (section 1.1). The busted timer and the cool-down run in
+  real seconds in a stock-game capture (section 6.1).
 - Whether `TimeToHideInZone` is read anywhere (it is not in the decomp read).
 - The infraction detection rules (speeding, reckless, racing): `GInfractionManager.cpp` is empty in the decomp.
 - Whether `mCollapseActive` / finisher timings behave as written; the formation code is in [ai-pursuit-formations.md](ai-pursuit-formations.md).

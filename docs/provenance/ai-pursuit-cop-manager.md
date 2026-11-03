@@ -19,5 +19,10 @@ decompiler names appear in the repository.
 | Ticket: the payment tells Cash (`0xB8A7C6CD`) from Marker (`0xB8A7C6CC`) by the pressed object, and continues to the car select screen | `Frontend/MenuScreens/Safehouse/career/uiInfractions.cpp` | The package dump (`nfsmw dump-screen Infractions.fng`) shows its only game responses are `PAD_LEFT` and `PAD_RIGHT`; the rewrite resumes driving instead of the car select. |
 | Heat range and growth by Blacklist bin | `docs/specs/ai-pursuit-heat.md` 3.1 and 3.2 (already verified) | The `race_bin_NN` records are not read; the table is hard-coded from the spec. |
 
-Not verified in a running original: any of the above as a play experience. The tests are synthetic or installed-data
+A stock-game capture (2026-11-03: the original's pursuit budget, status and backup ETA over one pursuit from heat 1 to 5)
+confirmed the budget copies, the backup call and arrival, the ETA zeroed in cool-down and the fresh call after it
+([ai-pursuit-cops](../specs/ai-pursuit-cops.md) section 4). It showed that the helicopter's extra cop to evade is not
+added when a helicopter engages; the rewrite does not add it.
+
+Not verified in a running original: the rest of the above as a play experience. The tests are synthetic or installed-data
 tests, not a matched comparison.

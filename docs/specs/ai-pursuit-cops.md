@@ -165,6 +165,26 @@ the adjusted counts. If a type has too many, a type is picked at random weighted
 most 2 of them away: the farthest cops of that type (distance +40 m when they cannot see the player) are told to flee, but
 a cop that sees the player flees only while more than 2 cops can see the player. Support cars never flee this way.
 
+**Checked against a stock-game capture** (a recording of the original game: one pursuit from heat 1 to 5, about
+14.5 minutes, the pursuit's budget and backup fields sampled 20 times a second):
+
+- The budget is copied from the heat row at the chase's first update (5 to evade at heat 1, trigger 2) and when a backup
+  arrives (20 at heat 4, 25 at heat 5, evaded count 0). A heat rise does not copy it: the chase still needed 5 at heat 2.
+- The backup was called when the remaining count fell to the trigger: at heat 1 after 3 of 5 cops were evaded, with an
+  ETA of 180 s; later calls read 120 s at heats 2 to 4 and 90 s at heat 5, the `BackupCallTimer` of the heat at the call.
+  A heat rise during a call does not change its ETA.
+- The required count grew by both rules of this section, by one when the evaded count reached it and by the surplus
+  when more cops were engaged than remained: from 5 to 12 between heats 2 and 4, so the remaining count stayed at one.
+- The ETA counted down one second per second while the player was seen; it ended slightly below zero, and on that update
+  the status went back to the plain chase and the budget was copied again.
+- Entering cool-down set the ETA to 0 at once (143 s, 9 s and 84 s were left at the three entries). On leaving cool-down
+  with the remaining count still at the trigger, a new call started at once with the full timer of the current heat
+  (120 s, 120 s, 90 s); the old countdown did not resume.
+- The helicopter's extra cop to evade (a counter the pursuit keeps) is not what it was read as: two helicopters chased
+  the player for 60 s and 90 s without it moving. It moved once, adding one to the required count, on a sighting during a
+  cool-down at heat 5 while no helicopter flew (the last had left 105 s earlier). Its condition is not known, so the
+  rewrite does not add it.
+
 **Spawn timer:** when a vehicle joins a pursuit the next spawn waits `TimeBetweenFirstFourSpawn` while fewer than 3 cops have
 been involved (and not in cool-down), otherwise `TimeBetweenCopSpawn`; if 3 or more cops are still needed every second join
 uses 0.2 s ("fast spawn"). **[PC binary]** Every vehicle that joins restarts the timer: a reinforcement, a patrol car that
