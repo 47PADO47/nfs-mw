@@ -231,10 +231,8 @@ impl WorldScene {
 
     /// Tells the police the Blacklist's current bin (or that no career is on): the bin sets the heat range and how fast a
     /// chase heats up, read when the next chase starts.
-    /// Without a career, the F5 testing bin stands in for it, so a reference run heats up as the original's save did.
     fn load_career_bin(&mut self) {
-        let testing = Some(self.extra.testing.career_bin).filter(|&bin| bin > 0);
-        let bin = self.career.handle.with(|career| career.blacklist.current_bin()).or(testing);
+        let bin = self.career.handle.with(|career| career.blacklist.current_bin());
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.set_career_bin(bin);
         }

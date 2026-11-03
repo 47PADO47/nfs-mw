@@ -248,6 +248,13 @@ impl WorldScene {
             }
             drive.configure_extra(&Default::default());
         }
+        // Without a career, the testing bin stands in for the Blacklist's (`ai-pursuit-heat.md` 3.2); a loaded career
+        // sets its own bin each frame (`career/pursuit.rs`).
+        if !self.career.handle.is_active()
+            && let Some(t) = self.traffic.as_mut()
+        {
+            t.set_career_bin(Some(self.extra.testing.career_bin).filter(|&bin| bin > 0));
+        }
         if let Some(t) = self.traffic.as_mut() {
             t.set_extra_traffic(self.extra.testing.traffic_off);
             if self.extra.testing.police_off {
