@@ -59,12 +59,14 @@ pub struct ShadowTuning {
     pub bias: f32,
     /// Divides the map edge (see [`divided_edge`]). 1 keeps it.
     pub divider: usize,
+    /// Screen-space contact shadows may run on this frame when the renderer has them on.
+    pub contact_shadows: bool,
 }
 
 impl ShadowTuning {
     /// The world's tuning: its quality setting, the renderer's bias and the full map edge.
     pub const fn world(quality: ShadowQuality) -> Self {
-        Self { quality, bias: 1.0, divider: 1 }
+        Self { quality, bias: 1.0, divider: 1, contact_shadows: true }
     }
 }
 

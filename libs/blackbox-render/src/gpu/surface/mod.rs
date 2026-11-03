@@ -41,7 +41,7 @@ impl Renderer {
         depth: &wgpu::TextureView,
     ) {
         if !self.screen_lighting_active(frame)
-            || !(self.experiments.contact_shadows
+            || !(self.contact_active(frame)
                 || self.ray_shadows_active(frame)
                 || self.cascade_history_active(frame)
                 || self.graphics.ao.active())

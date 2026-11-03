@@ -163,6 +163,7 @@ impl Renderer {
         let mut params = fit.as_ref().map_or_else(fit::Params::zeroed, |f| f.params);
         params.options[3] = u8::from(settings.clearcoat) as f32;
         if settings.contact_shadows
+            && frame.shadow_tuning.is_none_or(|tuning| tuning.contact_shadows)
             && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. })
             && stats.supported
             && let Some(contact) = &self.contact

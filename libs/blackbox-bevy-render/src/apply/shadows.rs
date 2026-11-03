@@ -103,7 +103,8 @@ mod tests {
     fn the_bias_multiplier_scales_both_biases_and_the_world_keeps_the_renderer_values() {
         let world = light(ShadowTuning::world(ShadowQuality::Medium));
         assert_eq!((world.shadow_depth_bias, world.shadow_normal_bias), (0.02, 1.0));
-        let scaled = light(ShadowTuning { quality: ShadowQuality::Medium, bias: 2.0, divider: 1 });
+        let scaled =
+            light(ShadowTuning { quality: ShadowQuality::Medium, bias: 2.0, divider: 1, contact_shadows: true });
         assert_eq!((scaled.shadow_depth_bias, scaled.shadow_normal_bias), (0.04, 2.0));
     }
 }
