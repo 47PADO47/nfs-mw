@@ -118,12 +118,18 @@ impl WorldScene {
     }
 
     /// The end-of-pursuit card that is up, if one is; none in the fly view. [`Self::show_pursuit_end`] draws it and
-    /// the scene's `wants_ui` asks for it.
+    /// the scene's `wants_ui` asks for it. An escape in a career's free roam has none: the original's rewards screen and
+    /// statistics page tell it (`docs/specs/pursuit-escape-results.md`).
     pub(super) fn pursuit_end(&self) -> Option<crate::hud::PursuitEndCard> {
         if self.view == View::Fly {
             return None;
         }
-        self.traffic.as_ref().and_then(|traffic| traffic.pursuit_end_card())
+        let card = self.traffic.as_ref().and_then(|traffic| traffic.pursuit_end_card())?;
+        let escape_screens = self.race.is_none() && self.career.handle.is_active();
+        if card.reason == blackbox_pursuit::EndReason::Evaded && escape_screens {
+            return None;
+        }
+        Some(card)
     }
 }
 

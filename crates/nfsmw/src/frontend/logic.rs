@@ -145,6 +145,9 @@ pub enum Command {
     ShowResults(crate::viewer::RaceReport),
     /// Show the win photo of a race again, in place of the results the photo's Race Stats opened (`post_race/screen.rs`).
     ShowPhoto(crate::viewer::RaceReport),
+    /// Show a chase's statistics page (`PostRace_Pursuit.fng`) in place of the rewards screen whose Continue asked
+    /// (`rewards.rs`).
+    ShowPursuitResults(crate::viewer::PursuitReport),
     /// The post-race screen's answer: run the race again or leave it (`post_race.rs`).
     RaceAnswer(crate::viewer::RaceAnswer),
     /// Pay the bust's fines on the infractions ticket, with a marker or with cash. The bust takes it (`flow.rs`); the

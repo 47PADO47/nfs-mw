@@ -488,6 +488,7 @@ impl Frontend {
                 Command::RaceAnswer(answer) => self.race_answer(answer, host, env),
                 Command::ShowResults(report) => self.show_results(report, host, env),
                 Command::ShowPhoto(report) => self.show_photo(report, host, env),
+                Command::ShowPursuitResults(report) => self.show_pursuit_results(report, host, env),
                 Command::Switch(..)
                 | Command::Push(..)
                 | Command::Pop

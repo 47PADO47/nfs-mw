@@ -139,6 +139,7 @@ impl WorldScene {
         let mask = infraction_mask(&chase.infractions);
         let result = pursuit_result(reason, mask, chase.rep_normal, chase.rep_destroyed);
         let roadblocks = self.traffic.as_ref().map(|traffic| traffic.roadblock_tally()).unwrap_or_default();
+        let in_race = self.race.is_some();
         let coop = self.coop.as_ref();
         let tally = &self.career.pursuit.tally;
         let phone = &mut self.career.phone;
@@ -167,9 +168,24 @@ impl WorldScene {
             if let Some(record) = bank.and_then(|handle| career.stable.career_for_handle_mut(handle)) {
                 pay_banked(record, &milestones.banked);
             }
-            let bounty =
-                bank.and_then(|handle| career.stable.career_for_handle(handle)).map_or(0, |record| record.bounty);
-            rewards = super::rewards::report_of(&career.milestones, &milestones.banked, bounty);
+            // An escape in free roam always shows the rewards and then the statistics; a race's chase only the
+            // milestones it banked (`docs/specs/pursuit-escape-results.md`).
+            rewards = match busted || in_race {
+                true => super::rewards::report_of(&career.milestones, &milestones.banked),
+                false => {
+                    let unserved = bank
+                        .and_then(|handle| career.stable.career_for_handle(handle))
+                        .map_or(0, |record| record.unserved_total());
+                    let escape = super::rewards::Escape {
+                        secs: chase.secs,
+                        time_bounty: chase.rep_normal,
+                        destroy_bounty: chase.rep_destroyed,
+                        stats: &stats,
+                        unserved,
+                    };
+                    Some(super::rewards::escape_report(&career.milestones, &milestones.banked, &escape))
+                }
+            };
             // A banked milestone is a challenge passed in its bin: the Blacklist counts it, and the bin's challenge
             // messages follow its count (`docs/specs/career-phone.md` section 7).
             for (bin, key) in passed_challenges(&career.milestones, &milestones.banked) {
