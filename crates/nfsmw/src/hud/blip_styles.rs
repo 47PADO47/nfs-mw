@@ -22,6 +22,8 @@ pub const AUTO_SHOP: &str = "auto_shop";
 pub const CAR_LOT: &str = "car_lot";
 pub const SAFE_HOUSE: &str = "safe_house";
 pub const PURSUIT_BREAKER: &str = "pursuit_breaker";
+/// A hiding spot (`HIDING_SPOT_%d`, texture `Minimap_Icon_Hiding_Spot.tga`), shown in a chase's cool-down.
+pub const HIDING_SPOT: &str = "hiding_spot";
 /// A police roadblock site (`MMICON_ROADBLOCK_%d`). Only the world map has its icon objects (`WorldMapMain.fng`); the
 /// in-game HUD package has none, so the minimap draws no style of this name (`docs/provenance/race-mode.md` section 5).
 pub const ROADBLOCK: &str = "roadblock";
@@ -34,6 +36,10 @@ const AUTO_SHOP_POOL: usize = 8;
 const SAFE_HOUSE_POOL: usize = 4;
 /// The car lots' pool: `CAR_LOT_0..3`, one per car lot.
 const CAR_LOT_POOL: usize = 4;
+
+/// The hiding spots' pool: `HIDING_SPOT_0..7` ([package] eight objects; [exe] the `HIDING_SPOT_%d` format of the
+/// minimap's icon table, type 11).
+pub const HIDING_SPOT_POOL: usize = 8;
 
 /// The pursuit breakers' pool: `PURSUIT_BREAKER_0..N`, one object per breaker icon on the map.
 pub const PURSUIT_BREAKER_POOL: usize = 8;
@@ -231,6 +237,7 @@ pub fn map_icon_styles() -> Vec<Box<dyn BlipStyle>> {
         Box::new(IconPool::new(CAR_LOT, "CAR_LOT_", CAR_LOT_POOL).nearest_only().tinted(CAR_LOT_TINT)),
         Box::new(IconPool::new(SAFE_HOUSE, "SAFEHOUSEINDICATOR_", SAFE_HOUSE_POOL).tinted(SAFE_HOUSE_TINT)),
         Box::new(IconPool::new(PURSUIT_BREAKER, "PURSUIT_BREAKER_", PURSUIT_BREAKER_POOL).in_zone()),
+        Box::new(IconPool::new(HIDING_SPOT, "HIDING_SPOT_", HIDING_SPOT_POOL).in_zone()),
     ]
 }
 

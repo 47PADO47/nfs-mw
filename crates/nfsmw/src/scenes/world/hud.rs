@@ -104,6 +104,7 @@ impl WorldScene {
                 self.speed_trap_blips(&mut state.blips);
                 state.blips.extend_from_slice(&self.map_blips);
             }
+            self.chase_map_icons(&mut state.blips);
             state.blips.extend_from_slice(&self.mod_blips);
             #[cfg(feature = "multiplayer")]
             self.apply_net_hud(state);
@@ -205,6 +206,25 @@ fn interior_blip(marker: &ActivityMarker) -> MapBlip {
 fn map_blip(style: &'static str, position: Vec3) -> MapBlip {
     let at = space::to_render(position.to_array());
     MapBlip { style, position: [at.x, at.y], active: false, heading: None }
+}
+
+impl WorldScene {
+    /// The interior icons the chase allows on the minimap, and the hiding spots while it cools down
+    /// (`hud_map_icons.rs`). A race keeps its own icons.
+    fn chase_map_icons(&self, blips: &mut Vec<crate::hud::MapBlip>) {
+        use super::hud_map_icons::{Chase, hiding_blips, shown};
+        let Some(traffic) = self.traffic.as_ref() else { return };
+        let chase = match (traffic.is_pursuing(), traffic.cooldown_status()) {
+            (false, _) => Chase::None,
+            (true, blackbox_pursuit::CooldownStatus::CoolDown) => Chase::CoolDown,
+            (true, _) => Chase::Active,
+        };
+        blips.retain(|blip| shown(blip.style, chase));
+        if chase == Chase::CoolDown && self.race.is_none() {
+            let player = self.players.lead().map_or(Vec3::ZERO, |drive| drive.position());
+            hiding_blips(traffic.hiding_icon_positions(), player, blips);
+        }
+    }
 }
 
 #[cfg(test)]

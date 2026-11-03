@@ -223,3 +223,14 @@ keeping the pieces, arrow and backing aligned without changing their runtime piv
 - Tile numbers outside 0..63 draw nothing. A column past the left or right edge still gives a neighbouring
   row's in-range tile, as described in section 4; the four tile numbers are not clamped by column.
 - The look has not been compared with a capture of the original.
+
+## Interior icons in a chase
+
+**[decomp]** The minimap's interior pass lists only map elements that are switched on (both low bits of the element's flag
+byte), nearest first, and draws one pool object per element of a type the icon mask allows. The icon table pairs each
+type with its pool: hiding spots are type 11, `HIDING_SPOT_%d`, and `HUD_SingleRace.fng` has `HIDING_SPOT_0..7`
+(`Minimap_Icon_Hiding_Spot.tga`). The writer that switches the hiding-spot elements on was not found. **[observed]** In
+the original the hiding spots appear on the minimap while a chase cools down. The remake shows the nearest eight then.
+**[ours]** While a chase runs, the race starts, auto shops and car lots leave the minimap, and the safe houses show only
+in the cool-down. This is the rule of the world's entry markers (`scenes/world/hud_map_icons.rs`).
+
