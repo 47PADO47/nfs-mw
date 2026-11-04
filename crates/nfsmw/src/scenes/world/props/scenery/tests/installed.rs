@@ -13,6 +13,7 @@ use game_install::GameDir;
 use nfsmw_data::world::{DEFAULT_TRACK, PropCatalog, WorldIndex};
 
 mod lifetime;
+mod toll_support;
 
 struct Installed {
     data: PhysicsData,

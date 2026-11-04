@@ -130,6 +130,16 @@ impl SceneryModel {
         self.parent_owner = Some(owner);
     }
 
+    /// A model the world placed (a streamed spawner), as opposed to a fragment or a run-time prop.
+    pub(super) fn is_placed(&self) -> bool {
+        self.parent_owner.is_some()
+    }
+
+    /// Hidden by its sequence (`EHideObject`, a fragment's `HideParent`) or kept hidden by the section cache.
+    pub(super) fn is_hidden(&self) -> bool {
+        self.hidden
+    }
+
     pub(super) fn streaming_state(&self, moved: bool) -> Option<bool> {
         (moved || self.hidden || !self.hidden_parts.is_empty() || self.fired).then_some(self.fired)
     }

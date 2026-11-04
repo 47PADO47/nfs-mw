@@ -51,13 +51,10 @@ impl PropWorld {
                     self.remove_fragment(id);
                     return;
                 }
-                let Some(collider) = self.colliders.get_mut(&id) else {
+                if !self.colliders.contains_key(&id) {
                     return;
-                };
-                if let (Some(body), Some(spec)) = (&mut collider.body, &collider.shape.dynamics) {
-                    body.restore(spec);
                 }
-                self.reset_model(id);
+                self.release_placement(id);
                 self.regrid(id);
             }
             WorldEvent::WakeObject => {

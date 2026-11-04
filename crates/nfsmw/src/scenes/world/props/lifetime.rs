@@ -180,10 +180,7 @@ impl super::PropWorld {
                     self.remove_fragment(id);
                     continue;
                 }
-                Change::Release => {
-                    body.restore(spec);
-                    self.reset_model(id);
-                }
+                Change::Release => self.release_placement(id),
             }
             self.regrid(id);
             let active = self.colliders.get(&id).and_then(|c| c.body.as_ref()).is_some_and(|b| b.lifetime.active);
