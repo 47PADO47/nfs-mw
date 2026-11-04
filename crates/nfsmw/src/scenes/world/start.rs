@@ -63,9 +63,10 @@ impl WorldScene {
                 self.players.set_lead(Drive::new(name.clone(), rig, physics, request, script, visuals));
             }
         }
-        // A rap sheet jump asked for before the car existed puts it on its marker now (`start_at_point`).
+        // A rap sheet jump asked for before the car existed puts it on its marker now (`start_at_point`); the loading
+        // screen covers it, so it takes no fade.
         if let Some(point) = self.career.pending_jump.take() {
-            self.start_at_point(point);
+            self.move_to_point(point);
         }
         self.last_car = name;
         if let Some(traffic) = self.traffic.as_mut() {

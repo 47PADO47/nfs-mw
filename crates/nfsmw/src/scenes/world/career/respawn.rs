@@ -86,12 +86,21 @@ impl WorldScene {
     pub fn start_at_point(&mut self, point: crate::career::JumpPoint) -> bool {
         let at = point.xy();
         (self.camera.position.x, self.camera.position.y) = (at[0], at[1]);
-        let Some(drive) = self.players.lead_mut() else {
+        if self.players.lead().is_none() {
             // A new world has no car yet: it is put on the point when it is made, and its chase is armed then.
             self.career.pending_jump = Some(point);
             log::info!("career: the car will start at ({:.0}, {:.0})", at[0], at[1]);
             return true;
-        };
+        }
+        // The running world fades to black first; the car moves under the black (`jump_fade.rs`).
+        self.begin_jump_fade(point);
+        true
+    }
+
+    /// Moves the car to a jump's point, and arms its chase.
+    pub(in crate::scenes::world) fn move_to_point(&mut self, point: crate::career::JumpPoint) {
+        let at = point.xy();
+        let Some(drive) = self.players.lead_mut() else { return };
         match point.heading {
             Some(heading) => drive.respawn_at(crate::scenes::world::road::Spawn { position: point.at, heading }),
             None => drive.respawn_near(at, None),
@@ -101,7 +110,6 @@ impl WorldScene {
             self.arm_jump_chase();
         }
         log::info!("career: the car jumps to ({:.0}, {:.0})", at[0], at[1]);
-        true
     }
 
     /// The game runs again after a paid bust: the car goes to the respawn marker.

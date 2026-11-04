@@ -20,6 +20,11 @@ impl ScreenFade {
         self.rate = self.rate.max(rate);
     }
 
+    /// Starts coming back from black over `secs` seconds.
+    pub fn fade_in(&mut self, secs: f32) {
+        self.rate = -1.0 / secs.max(0.01);
+    }
+
     /// The screen is clear again at once.
     pub fn clear(&mut self) {
         *self = ScreenFade::default();
@@ -28,7 +33,7 @@ impl ScreenFade {
     /// Moves the fade on by `dt` seconds.
     pub fn advance(&mut self, dt: f32) {
         self.alpha = (self.alpha + self.rate * dt).clamp(0.0, 1.0);
-        if self.alpha >= 1.0 {
+        if self.alpha >= 1.0 || self.alpha <= 0.0 {
             self.rate = 0.0;
         }
     }
@@ -85,6 +90,18 @@ mod tests {
         fade.fade_out(0.5);
         fade.advance(0.5);
         assert_eq!(fade.alpha(), 1.0);
+    }
+
+    #[test]
+    fn a_fade_in_brings_the_screen_back_from_black() {
+        let mut fade = ScreenFade::default();
+        fade.fade_out(0.5);
+        fade.advance(0.5);
+        fade.fade_in(1.0);
+        fade.advance(0.5);
+        assert!((fade.alpha() - 0.5).abs() < 1e-5);
+        fade.advance(1.0);
+        assert!(!fade.is_up());
     }
 
     #[test]
