@@ -66,6 +66,8 @@ mod tests {
         let dir = game_install::GameDir::open(path).unwrap();
         let db = crate::shared::attributes(&dir).unwrap();
         assert_eq!(petrol_station_emitters(&db).len(), 4);
-        assert_eq!(heli_wash_emitters(&db).len(), 3, "the rotor wash has three emitters");
+        let wash = heli_wash_emitters(&db);
+        assert_eq!(wash.len(), 3, "the rotor wash has three emitters");
+        assert!(wash.iter().all(|e| e.spec.spread_as_disc), "the rotor wash blows out across the ground");
     }
 }

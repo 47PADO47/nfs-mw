@@ -120,6 +120,7 @@ fn emitter_spec(e: CollectionRef<'_>) -> EmitterSpec {
         speed: float("Speed"),
         speed_variance: float("SpeedVariance"),
         spread: float("SpreadAngle"),
+        spread_as_disc: flag("SpreadAsDisc"),
         velocity_start: vector("VelocityStart"),
         velocity_delta: vector("VelocityDelta"),
         accel_start: vector("AccelStart"),

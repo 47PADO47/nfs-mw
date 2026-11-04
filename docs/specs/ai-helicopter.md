@@ -314,8 +314,14 @@ State `seek up -> seek car -> fly out`.
   to ram" at the strike (all through `SoundAI`'s helicopter speech object).
 - **Rendering.** `DrawHeli` opens a render connection (`HeliRenderConn`, render usage "AI heli") with the shadow scale and the
   dust-storm intensity (stored by the AI, never changed). The model is hidden from the view whose camera is anchored to it.
-  A *rotor wash* effect (`effects/heliwash`) runs once a second: intensity `1 - ramp(altitude, 5, 30)` (altitude above the
-  ground at the heli's xz), placed on the ground at the heli's xz with the ground normal, paused above 30 m or off valid ground.
+  A *rotor wash* effect (`effects/heliwash`) is updated every simulation tick (its task rate 1.0 is a share of ticks, not
+  1 Hz): intensity `1 - ramp(altitude, 5, 30)` (altitude above the ground at the heli's xz), placed on the ground at the
+  heli's xz, paused above 30 m or off valid ground. Its frame is the shortest turn from world up to the ground normal: `z`
+  is the normal, flat ground leaves it unturned; no heading or heli-to-ground direction enters. All three emitters have
+  `SpreadAsDisc` 1: each particle leaves along a random bearing in the frame's `x`/`y` plane (the ground), tilted about the
+  frame's `y` axis by up to `+-SpreadAngle/2`, so dust (50 m/s, 10 degrees), grass (250 m/s, 90) and leaves (75 m/s, 45)
+  blow out along the road. Quadratic drag stops them within roughly 11 m (dust, 1 s) to 35 m (grass, 2 s). Owner velocity
+  is not inherited (the effect has no owner); emitters are off beyond `VisualCullDist` (100 m) from the view.
 - There is no searchlight, no gun, no muzzle flash and no spike drop in the code (`SPIKE_DROP` and the "heli spike strip"
   counter exist only as statistics). [decomp]
 - **Rotor details.** The bank, the publisher's twelve words, the mixer state and what the module does with each word are
@@ -471,9 +477,9 @@ Tags: **[headless]** by the synthetic world tests, **[verified]** against the in
   (`FUN_0059d500`); the icon group is the helicopter blip. The line-of-sight object (a 64 x 64 image, tint
   `144, 184, 255, 160`) stands at the icon group's own place in the package **[verified]**; the code that scales and turns
   it was not re-read, so the minimap shows the blip but not the sight cone **[open]**.
-- **Rotor wash [headless, install checked].** The install's `effects/heliwash` names a group of three emitters. The effect
-  is placed once a second on the ground under the helicopter, turned to the ground normal, with the intensity
-  `1 - ramp(altitude, 5, 30)`, and paused above 30 m or off the ground (`scenes/world/heli_wash.rs`).
+- **Rotor wash [headless, install checked].** The install's `effects/heliwash` names a group of three disc emitters. The
+  effect is placed every tick on the ground under the helicopter, turned to the ground normal, with the intensity
+  `1 - ramp(altitude, 5, 30)`, and paused above 30 m or off the ground; it blows out across the ground (`heli_wash.rs`).
 - **AvoidCamera [headless].** Section 4.1 is in `helicopter/camera.rs`; the world gives the controller the game camera
   (the cut's camera during a breaker moment) each physics step.
 - **Mod options.** Spawn and despawn distance, speed cap, fly and search speed, attack time, sight distances and the
