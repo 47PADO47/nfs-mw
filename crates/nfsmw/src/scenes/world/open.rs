@@ -86,6 +86,8 @@ impl WorldScene {
             nfsmw_data::visual_treatment::speedbreaker::load(physics.database()),
             nfsmw_data::visual_treatment::speedbreaker::mask(&globals.textures),
         );
+        let pursuit_look =
+            pursuit_look::PursuitLook::new(nfsmw_data::visual_treatment::pursuit::load(physics.database()));
         // The traffic world holds `Rc`s, so it is made in `build`; the road network and the helicopter sheet are read here.
         let road_network = index.road_network.clone();
         let props = PropCatalog::new(index.prop_bounds.clone(), physics.database())
@@ -208,6 +210,7 @@ impl WorldScene {
                 original_player_step: None,
                 gain_map,
                 breaker_visuals,
+                pursuit_look,
                 reflection_faces: std::array::from_fn(|_| Vec::new()),
                 reflection_scratch: Default::default(),
                 reflection_last: None,
