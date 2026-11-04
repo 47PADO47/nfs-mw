@@ -48,6 +48,11 @@ fn cop_cars_have_their_documented_speed_multipliers() {
         (midsize.max_speed_kmh, midsize.acceleration_multiplier, midsize.top_speed_multiplier),
         (280.0, 1.05, 1.6)
     );
+    // The patrol SUV chases at its own numbers; the heavy SUV whose folder it borrows is 50 km/h.
+    let suv = ai_vehicle(&db, "copsuvpatrol");
+    assert_eq!((suv.max_speed_kmh, suv.acceleration_multiplier, suv.top_speed_multiplier), (250.0, 1.05, 0.9));
+    let heavy = ai_vehicle(&db, "copsuv");
+    assert_eq!((heavy.max_speed_kmh, heavy.top_speed_multiplier), (50.0, 0.5));
 }
 
 #[test]
