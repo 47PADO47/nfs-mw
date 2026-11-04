@@ -41,9 +41,6 @@ const DRAG_SCALE_RPM: f32 = 10000.0;
 const GEAR_SHIFTING_ALPHA: u8 = 0x88;
 /// The pursuit board's group (`PursuitBoardGroup`).
 const PURSUIT_BOARD_GROUP: u32 = 0xDE89_E070;
-/// The cops group (`0xE0B1430B`, the parent of the cops counters): its icons and the taken-out count beside them.
-/// Its fade-in is a script on a message this build does not raise, so it is held at full alpha during a chase too.
-const COPS_GROUP: u32 = 0xE0B1_430B;
 /// The gear digit inside the tachometer group (`3rdPersonGear`). The Original theme's gear slot emits it on its own.
 pub(super) const GEAR: &str = "3rdPersonGear";
 
@@ -89,7 +86,7 @@ pub struct HudBinding {
     pursuit_timer: Option<ObjectRef>,
     /// The cops taken out in the chase (`Cops_TakenOut`, beside `Cops_TakenOut_Icon`): the wrecked count.
     cops_taken: Option<ObjectRef>,
-    /// The pursuit board and cops groups, held at full alpha during a chase (see `pursuit`).
+    /// The pursuit board's group, held at full alpha during a chase (see `pursuit`).
     pursuit_frames: Vec<ObjectRef>,
     /// The minimap, once the host has given it a map (see [`HudBinding::with_minimap`]).
     minimap: Option<MinimapBinding>,
@@ -148,7 +145,7 @@ impl HudBinding {
             }).collect(),
             pursuit_timer: find(rt, package, "PursuitTime"),
             cops_taken: find(rt, package, "Cops_TakenOut"),
-            pursuit_frames: [PURSUIT_BOARD_GROUP, COPS_GROUP].iter().filter_map(|h| rt.find(package, *h)).collect(),
+            pursuit_frames: rt.find(package, PURSUIT_BOARD_GROUP).into_iter().collect(),
             minimap: None,
             blips: BlipBinding::builtin(rt, package),
             shift_on: false,
@@ -335,9 +332,11 @@ impl HudBinding {
         super::gauges::perfect_shift(rt, group, &mut self.last_shift, s);
     }
 
-    /// The pursuit board's timer and the width of the cool-down bar, while a chase runs. The board and the bar fade
-    /// in from scripts the game starts on a message this build does not raise, so their groups are held at full
-    /// alpha here instead (as the mirror is, see `apply`).
+    /// The pursuit board's timer and the taken-out count, while a chase runs. The board's group is held at full alpha
+    /// (as the mirror is, see `apply`). The cops group is not: the meter's own scripts fade it (`pursuit_meter.rs`).
+    /// The meter's appear and the cool-down's exit raise its fade-in, the meter's exit into the cool-down its fade-out,
+    /// so the counters leave the room the cool-down's hiding mark takes. Holding it here would undo the fade-out once
+    /// that once-only track rests (`docs/specs/hud-pursuit.md`).
     fn pursuit(&self, rt: &mut Runtime, s: &HudState) {
         let Some(p) = s.pursuit else { return };
         for frame in &self.pursuit_frames {

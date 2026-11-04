@@ -20,6 +20,9 @@ use crate::ui::{Catalog, UiAssets};
 const BACKING: u32 = 0x8c20_a763;
 const ROW: u32 = 0x6a14_4066;
 const TIMER: u32 = 0xbee4_4775;
+/// The cops group and its engaged count, which sits where the cool-down's hiding icon (`0x38074901`) shows.
+const COPS: u32 = 0xe0b1_430b;
+const ENGAGED: u32 = 0x8149_18ca;
 
 fn open() -> Option<(GameDir, Runtime, PackageId)> {
     let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR")?).ok()?;
@@ -61,6 +64,31 @@ fn the_backup_row_appears_with_its_label_and_time_and_flashes_when_close() {
     assert_eq!(text.as_deref(), Some("01:05.00"));
     step(&mut rt, &mut b, &chase(9.0), 0.1);
     assert_eq!(rt.script_of(backing), Some(FLASH));
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_cop_counters_leave_for_the_cool_down_and_come_back_after_it() {
+    let Some((_, mut rt, id)) = open() else { return };
+    let mut b = HudBinding::new(&mut rt, id);
+    b.advance_mirror_fade(1.0);
+    let chase = |cooldown: bool| HudState {
+        pursuit: Some(PursuitHud { secs: 40.0, cooldown, ..Default::default() }),
+        cops_engaged: 2,
+        ..Default::default()
+    };
+    let run = |rt: &mut Runtime, b: &mut HudBinding, cooldown: bool| {
+        for _ in 0..10 {
+            step(rt, b, &chase(cooldown), 0.1);
+        }
+    };
+    run(&mut rt, &mut b, false);
+    assert!(visible(&rt, id, ENGAGED), "the meter's appear fades the counters in");
+    run(&mut rt, &mut b, true);
+    assert_eq!(rt.alpha(rt.find(id, COPS).expect("the cops group")), Some(0), "the meter's exit fades them out");
+    assert!(!visible(&rt, id, ENGAGED), "nothing under the cool-down bar's hiding icon");
+    run(&mut rt, &mut b, false);
+    assert!(visible(&rt, id, ENGAGED), "the cool-down's exit fades them back in");
 }
 
 #[test]

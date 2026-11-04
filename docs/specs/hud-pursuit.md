@@ -25,7 +25,7 @@ The detailed radar and signed meter contract is
 |---|---|
 | `PursuitBoardGroup` / `0xde89e070` | Board shown while the pursuit feed exists, including the arrest display. |
 | `PursuitTime` / `0xfc39cb0a` | Elapsed time in `mm:ss.cc`. |
-| Cops group / `0xe0b1430b` | Live count, damaged count and destroyed count. Ground engagement counting still needs original comparison. |
+| Cops group / `0xe0b1430b` | Live count, damaged count and destroyed count. **[verified]** The package fades the group: the meter's `APPEAR` and the cool-down group's exit (`0x92975065`) raise its `APPEAR`; the meter's exit into the cool-down raises its `LEAVE`, so it is gone while the cool-down bar and its hiding icon (`0x38074901`, authored over the engaged count) show. The host must not hold its alpha. Ground engagement counting still needs original comparison. |
 | Engaged / `0x814918ca` | Ground units reported by the world; no template `99`. |
 | Damaged / `0x5fa70d4c` | Distinct damaged police vehicles in the current pursuit. |
 | Destroyed / `0xa16f9f1e` | Police vehicles destroyed in the current pursuit. |
@@ -95,7 +95,7 @@ cool-down, remain open. A co-op guest's board has no ETA yet (the global block d
 Tests: `hud::backup_timer_tests` (synthetic) and `hud::pursuit_install_tests` (the real package's cascade to the label
 and timer).
 
-The board and cops groups still have host-managed alpha. This is not a claim
+The board group still has host-managed alpha. This is not a claim
 that every original HUD message, fade, counter animation or sound is reproduced.
 
 ## Verification

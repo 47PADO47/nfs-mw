@@ -41,7 +41,11 @@ fn installed_pursuit_hud_drives_heat_counts_and_radar_without_template_numbers()
     chase.radar = None;
     chase.cop_nearby = false;
     chase.pursuit = Some(PursuitHud { secs: 10.0, cops_destroyed: 1, ..Default::default() });
-    step(&mut rt, &mut binding, &chase);
+    // The counters fade in from the meter's appear script (the package's message to the cops group), so they show a
+    // frame after the chase starts, not on its first frame.
+    for _ in 0..3 {
+        step(&mut rt, &mut binding, &chase);
+    }
     let tree = rt.tree(package);
     for (hash, text) in [(0x8149_18CA, "4"), (0x5FA7_0D4C, "2"), (0xA16F_9F1E, "1")] {
         let node = tree.nodes.iter().find(|n| n.name_hash == hash).expect("installed pursuit counter");
