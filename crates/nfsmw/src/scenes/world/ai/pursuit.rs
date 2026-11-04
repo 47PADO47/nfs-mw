@@ -20,6 +20,7 @@ use nfsmw_data::pursuit::{BackupRow, HeatRow, ground_cops};
 
 use super::car::{AiCar, Role, Start};
 use super::cop::{CopCar, CopState};
+use super::pursuit_budget::in_chase;
 use super::traffic::Cruise;
 use super::{Focus, TrafficModel, TrafficWorld};
 use crate::modding::cop_rows::without_models;
@@ -388,8 +389,8 @@ impl TrafficWorld {
             return;
         }
         let Some(pursuit) = self.pursuit.as_mut() else { return };
-        // Support cars are not wave types and take no wave slot (spec `ai-pursuit-cops.md` 3.3).
-        let alive = self.cars.iter().filter(|c| c.is_cop() && c.support_serial().is_none()).count();
+        // The chase's contingent fills the wave: no support, roadblock or fleeing cars (`ai-pursuit-cops.md` 3.3 and 5).
+        let alive = self.cars.iter().filter(|c| in_chase(c)).count();
         let wanted = pursuit.wanted(self.police.settings(), cooldown);
         if pursuit.spawn_timer > 0.0 {
             return;
@@ -415,7 +416,7 @@ impl TrafficWorld {
             let adjusted = pursuit.adjusted_wave(self.police.settings(), cooldown);
             let slots: Vec<Slot> = adjusted.iter().map(|&(name, count, chance)| Slot { name, count, chance }).collect();
             let have =
-                |name: &str| self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count();
+                |name: &str| self.cars.iter().filter(|c| in_chase(c) && c.name.eq_ignore_ascii_case(name)).count();
             let missing = slots.iter().map(|slot| slot.count.saturating_sub(have(slot.name) as u32)).sum();
             let roll = self.rng.police.next_f32();
             (pick_needed(&slots, |name| have(name) as u32, roll).map(|i| slots[i].name.to_owned()), missing)

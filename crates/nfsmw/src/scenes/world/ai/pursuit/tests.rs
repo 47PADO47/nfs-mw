@@ -37,6 +37,7 @@ mod formations;
 mod frame_rate;
 mod free_roam;
 mod heat_progress;
+mod heat_rise;
 mod installed;
 mod installed_arrest;
 mod installed_breaker;

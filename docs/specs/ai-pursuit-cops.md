@@ -199,8 +199,12 @@ feed the cost-to-state totals.
 `AdjustedCopCounts` read the row of the perpetrator's *current* attribute instance, and that instance is re-created whenever
 `int(heat)` changes (`ai-pursuit.md` section 2). So the wave re-picks on the next manager run: the first heat row a chase
 reaches brings its own cop types, and the weighted pick draws among those the new row still needs. The count of each old type
-is not reduced at once; surplus removal (`RemoveUnwantedVehicles`, above) is the only path that drops a type, and it is not
-built yet. Engine: `blackbox_pursuit::wave::pick_needed` (the pick), `nfsmw` `Pursuit::follow_heat` (the heat sync),
+is not reduced at once; surplus removal (`RemoveUnwantedVehicles`, above) is the only path that drops a type. A cop it sends
+away leaves the pursuit at once (section 5), so the new type's cops come in while the old ones are still driving off: the
+wave and its per-type counts read the pursuit's contingent, and only the active-car limit still counts a fleeing cop until
+it is recycled. The rewrite once counted every cop car (fleeing and roadblock cars included) against the wave, so after a
+heat rise no new-type cop came until the old ones were recycled about 400 m away, and the chase often fell into cool-down
+meanwhile (`ai/pursuit_budget.rs` `in_chase`; test `pursuit::tests::heat_rise`). Engine: `blackbox_pursuit::wave::pick_needed` (the pick), `nfsmw` `Pursuit::follow_heat` (the heat sync),
 `nfsmw_data::pursuit::heat_rows` (all ten rows, loaded at chase start so every type's model exists).
 Helicopter records are never ground cops: `nfsmw_data::pursuit::ground_cops` drops `copheli`, and the helicopter path draws it.
 
