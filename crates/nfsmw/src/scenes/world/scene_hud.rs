@@ -11,10 +11,12 @@ impl WorldScene {
             // An arrest keeps the busted overlay up for the whole scene, and its overlay events cue the package.
             let arrest = self.nis.arrest_playing();
             let cue = self.nis.screen().overlay_cue(crate::hud::OVERLAY_PACKAGE).filter(|_| arrest);
+            let summary = self.traffic.as_ref().filter(|_| arrest).map(super::hud_pursuit::chase_summary);
             return Some(crate::hud::HudState {
                 visible: false,
                 busted_overlay: arrest,
                 busted_overlay_cue: cue,
+                busted_summary: summary,
                 ..Default::default()
             });
         }

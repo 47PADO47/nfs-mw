@@ -17,6 +17,7 @@ mod blip_styles;
 mod blips;
 #[cfg(test)]
 mod blips_tests;
+mod busted_line;
 mod busted_overlay;
 mod cards;
 mod cop_blip;
@@ -100,6 +101,7 @@ pub use blip_styles::{
     PURSUIT_BREAKER, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, RACER,
     ROADBLOCK, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
+pub use busted_line::ChaseSummary;
 pub use busted_overlay::OVERLAY_PACKAGE;
 pub use cards::{cards_routed, set_cards_routed};
 pub use cop_blip::{Bar as CopBar, bar as cop_bar, colour as cop_colour, step_at as cop_step_at};

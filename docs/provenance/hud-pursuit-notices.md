@@ -29,3 +29,17 @@ later sections add.
 - Implemented in `crates/nfsmw/src/hud/hiding_mark.rs` from the spec. The leave with no chase is the rewrite's own.
 - Checked by `hud::hiding_mark` (the rule), `hud::pursuit_tests` (the cascade through a synthetic package) and the
   installed `hud::police_install_tests` (label included, and nothing outside the cool-down).
+
+## Busted overlay suspect line
+
+- Spec: [busted-sequence.md](../specs/busted-sequence.md) section 6.1, "The suspect line".
+- Sources read (2026-11-04): the original PC 1.3 busted overlay screen's constructor (the scene type test, the rule,
+  the threshold constant and the arguments of each string), the pursuit timer's print routine and its split into
+  hours, minutes, seconds and milliseconds, in Ghidra, for behaviour only. The CC0 `dbalatoni13/nfsmw`
+  `MenuScreens/InGame/FeBustedOverlay.cpp` for the names of the pursuit data fields. No source text copied.
+- **[verified]** The installed `BUSTED_OVERLAY.fng` (the crawl string `0xf1ed545a`) and the language table (the five
+  crawl strings and their printf places).
+- Implemented in `crates/nfsmw/src/hud/busted_line.rs` and `busted_overlay.rs` from the spec; the chase's values come
+  from the rewrite's police (`scenes/world/hud_pursuit.rs`).
+- Checked by `hud::busted_line` (the rule, the duration format, the argument order) and `hud::busted_overlay` (written
+  once per showing, sample text kept without a chase).

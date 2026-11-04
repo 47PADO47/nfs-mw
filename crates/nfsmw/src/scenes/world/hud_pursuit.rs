@@ -5,7 +5,7 @@ use super::WorldScene;
 use super::ai::TrafficWorld;
 use super::players::{PlayerId, coop::GUEST};
 use crate::audio::PursuitFeed;
-use crate::hud::{HudState, PursuitHud};
+use crate::hud::{ChaseSummary, HudState, PursuitHud};
 
 /// The chase as the pursuit board shows it: the timer and the wrecked cops. The evade share is what the feed gives (the
 /// part of the timeout done); the board's bar takes the cool-down meter instead, see [`pursuit_board`].
@@ -47,6 +47,22 @@ pub(super) fn pursuit_board(traffic: &TrafficWorld, busted: f32) -> Option<Pursu
         infractions: *traffic.infractions(),
         ..board_from_feed(feed, wrecked)
     })
+}
+
+/// The chase an arrest closes, for the busted overlay's suspect line: its time, the cops it damaged and wrecked, the
+/// roadblocks and spike strips passed, the cost to state and its different infractions. The values stay after the chase
+/// ends until the next one begins, so the arrest scene reads the chase it closes.
+pub(super) fn chase_summary(traffic: &TrafficWorld) -> ChaseSummary {
+    let roadblocks = traffic.roadblock_tally();
+    ChaseSummary {
+        secs: traffic.pursuit_time(),
+        cops_damaged: traffic.cops_damaged(),
+        cops_destroyed: traffic.cops_destroyed(),
+        roadblocks_dodged: roadblocks.dodged,
+        spike_strips_dodged: roadblocks.spike_strips_dodged,
+        cost_to_state: traffic.cost_to_state(),
+        infractions: traffic.infractions().count(),
+    }
 }
 
 impl WorldScene {

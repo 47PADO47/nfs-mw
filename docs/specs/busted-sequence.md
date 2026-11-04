@@ -199,8 +199,23 @@ Example `NIS/Scene_ArrestF02_BundleB.bun`, read with `tools/chunkdump.py`:
 - **The flash [verified].** The scene's overlay events only send a message to the package, which is already up.
   `FLASHTRIGGER` (about 3.4 s into ArrestF02) runs a 240-tick colour script on the full-screen base image, which rests
   invisible: the camera flash. Each message is sent once, as the original queues it.
-- **The suspect line [unconfirmed].** The original fills it with a chase summary picked by the roadblocks, spike strips,
-  cops destroyed and cost to state. Not built: the package's sample text stays.
+- **The suspect line [binary; decomp names].** The overlay screen fills the crawl string `0xf1ed545a` when it is built.
+  For an arrest scene it picks one of the five `BUSTED_OVERLAY_CRAWL_TEXT_00` to `_04` strings by the pursuit data the
+  post-pursuit screen keeps for the chase: two roadblocks dodged or more give `_00` (`0x626ac042`), or `_03`
+  (`0x626ac045`, "SUSPECT SECURED IN CUSTODY") with two spike strips dodged or more as well; otherwise two cops
+  destroyed or more give `_02` (`0x626ac044`, "DANGEROUS DRIVING"); otherwise a cost to state above 10,000 gives `_04`
+  (`0x626ac046`, "RECKLESS DRIVING"); otherwise `_01` (`0x626ac043`, "EXCESSIVE SPEEDING"). The string is filled in
+  its own order: `_00` cops damaged, cops immobilized, roadblocks, cost to state, duration; `_01` duration,
+  infractions; `_02` duration, cops damaged, cops immobilized, infractions; `_03` duration, spike strips, roadblocks,
+  infractions; `_04` duration, cost to state, infractions. The numbers print with the thousands separator (`%$d`); the
+  infractions are the number of different infractions of the chase. The duration is the pursuit length in 1/4000 s,
+  printed by the game's timer without flags: `h:mm:ss` from an hour, `m:ss.cc` from a minute, `s.cc` from a second and
+  `0.cc` below, cut and not rounded, the first number padded with a space to two places (`" 1:35.50"`); some languages
+  print other separators. For an intro scene it gives the string `_05` (`0x626ac047`, the "STATUS: CODE 3 PURSUIT"
+  line) instead. The rewrite (`hud/busted_line.rs`, written once per showing by `hud/busted_overlay.rs`) reads the chase
+  from the police (`scenes/world/hud_pursuit.rs`, `chase_summary`); its values stay until the next chase starts, so the
+  arrest scene reads the chase it closes **[inferred]**. Only arrests raise the overlay here, so the intro line is not
+  used; a LAN client's overlay keeps the sample text.
 
 ### 6.2 `InGameBusted.fng` (`GLOBAL/InGameB.bun`, 3 objects, 2 buttons) **[verified]** content
 
@@ -313,15 +328,8 @@ The eight infraction bits, with the fine amount in the install's `infractions` t
 The `INFRACTION_TYPE_%d` rows give one row per bit. The placeholder "TOTAL COST" on `Infractions.fng` (80,000) is sample
 text, not a fine total: the fines are the sum of count times fine per type **[community]**.
 
-The four pursuit-end card texts pick a reason line by type (**[verified]** strings):
-
-- "SUSPECT APPREHENDED FOR EXCESSIVE SPEEDING - PURSUIT DURATION ... INFRACTIONS ISSUED ...",
-- "SUSPECT APPREHENDED FOR DANGEROUS DRIVING - ... POLICE VEHICLES DAMAGED ... IMMOBILIZED ...",
-- "SUSPECT SECURED IN CUSTODY - ... SPIKE STRIPS DODGED ... ROADBLOCKS DODGED ...",
-- "SUSPECT DETAINED FOR RECKLESS DRIVING - ... COST TO STATE ...".
-
-The mapping from the last infraction (or the bust cause) to these lines is **[unconfirmed]**; the names suggest speeding,
-dangerous driving (assault and hit and run), custody (resisting arrest after roadblocks or spikes), and reckless.
+The "SUSPECT APPREHENDED FOR ..." texts are the busted overlay's crawl, picked by the chase's statistics and not by an
+infraction (section 6.1).
 
 ## 10. Port status
 
@@ -436,7 +444,6 @@ runs were allowed in this pass); its parts have unit tests.
 8. Read `dbalatoni13/nfsmw` `VehicleDB.cpp` (`FEImpoundData`, `FEInfractionsData`) to name the fields of the per-car
    record at the offsets used by `0x0052d640`. This would confirm the strike and the impound fields.
 9. Find who uses `InGameBusted.fng`: a name hash table, a data file in the game's bundle, or a dead screen.
-10. Map the four pursuit-end card texts to the infraction type that set them (`0x00546fc0`, the pursuit history rows).
 
 ### Arrest location integration, 2026-10-23
 
