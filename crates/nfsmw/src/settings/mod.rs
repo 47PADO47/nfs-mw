@@ -106,9 +106,10 @@ mod speedbreaker_tests;
 pub(crate) mod test_caps;
 #[cfg(test)]
 mod tire_tests;
-mod traffic_avoidance;
 pub mod traffic_policy;
 pub use traffic_policy::{PopulationPreset, TrafficPolicy, TrafficPreset};
+#[cfg(test)]
+mod traffic_compat;
 mod traffic_settings;
 mod transmission;
 #[cfg(test)]
@@ -219,8 +220,6 @@ pub struct Settings {
     pub cop_share: Percent,
     /// Whether the traffic obeys traffic lights at junctions (a rewrite extension: the original has none).
     pub traffic_lights: bool,
-    /// Whether the traffic goes round a car that blocks its lane (a rewrite extension: the original does not).
-    pub traffic_avoidance: bool,
     /// A health bar above each cop car that chases the player (a rewrite extension; off by default).
     pub cop_health_bars: bool,
     /// Rain on every track (Extra Options `AlwaysRain`).
@@ -406,7 +405,6 @@ impl From<Partial> for Settings {
             car_scale: p.car_scale.unwrap_or(DEFAULT_CAR_SCALE).clamp(0.25, 4.0),
             no_rev_limiter: p.no_rev_limiter.unwrap_or(DEFAULT_NO_REV_LIMITER),
             traffic_lights: p.traffic_lights.unwrap_or(DEFAULT_TRAFFIC_LIGHTS),
-            traffic_avoidance: p.traffic_avoidance.unwrap_or(traffic_avoidance::DEFAULT_TRAFFIC_AVOIDANCE),
             cop_health_bars: p.cop_health_bars.unwrap_or(DEFAULT_COP_HEALTH_BARS),
             smoke_quality: p.smoke_quality.unwrap_or_default(),
             smoke_color_mode: p.smoke_color_mode.unwrap_or_default(),

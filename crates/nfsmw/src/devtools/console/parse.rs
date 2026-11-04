@@ -42,7 +42,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 71] = [
+pub const BUILT_IN: [(&str, &str); 70] = [
     ("trace start [seconds]|stop|mark [label]|status", "performance trace; F9 record/stop, F10 bookmark"),
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
@@ -112,7 +112,6 @@ pub const BUILT_IN: [(&str, &str); 71] = [
     ("speed_trail_style <streaks|car>", "choose the high-speed effect: view streaks or the car only"),
     ("exhaust_flames <on|off>", "change the tail-pipe flames (shift blow-off, lift-off backfire)"),
     ("cop_health_bars <on|off>", "health bars above the police cars"),
-    ("traffic_avoidance <on|off>", "traffic moves over to the next lane past a stopped car, when the gap is clear"),
     ("custom_fonts <on|off>", "FEng fonts from the custom fonts folder (off matches the original)"),
     ("hd_fonts <on|off>", "HD font glyphs keep the stock texture's layout"),
     ("hd_cursor <on|off>", "the pointer's hotspot follows an HD cursor texture"),

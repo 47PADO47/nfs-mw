@@ -159,7 +159,6 @@ pub(super) fn restore_graphics(settings: &mut Settings, snapshot: &Settings) {
     settings.traffic = snapshot.traffic;
     settings.cop_share = snapshot.cop_share;
     settings.traffic_lights = snapshot.traffic_lights;
-    settings.traffic_avoidance = snapshot.traffic_avoidance;
     settings.reflection_cube_size = snapshot.reflection_cube_size;
     settings.reflection_mirror_size = snapshot.reflection_mirror_size;
     settings.reflection_pow2 = snapshot.reflection_pow2;

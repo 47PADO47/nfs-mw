@@ -268,7 +268,6 @@ impl WorldScene {
                     cars: 0,
                     cop_share: crate::settings::Percent(0),
                     lights: false,
-                    avoidance: false,
                     policy: Default::default(),
                     pursuit: Default::default(),
                 },

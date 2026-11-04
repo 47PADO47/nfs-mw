@@ -236,11 +236,6 @@ impl TrafficWorld {
             self.strikes.cop |= first_damage;
         }
         self.hits = hits;
-        for car in &mut self.cars {
-            let distance = focus.map_or(f32::INFINITY, |f| f.distance(car.physics_position()));
-            let Some(duration) = car.take_honk(distance) else { continue };
-            self.sounds.push(TrafficSound::Horn { emitter: car.audio_emitter().id, duration });
-        }
         self.tick_speech_watch(self.step_delta);
         for pass in passes.drain(..) {
             self.note_pass(pass.owner, pass.relative_speed);

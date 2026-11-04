@@ -90,6 +90,25 @@ fn the_look_ahead_grows_with_speed() {
 }
 
 #[test]
+fn traffic_parity_following_table_matches_the_isolated_original_lookup() {
+    let vectors = [
+        (-10.0, 3.0),
+        (0.0, 3.0),
+        (1.0, 3.5875),
+        (10.0, 8.875),
+        (15.0, 11.8125),
+        (20.0, 14.75),
+        (40.0, 26.5),
+        (79.0, 49.412502),
+        (80.0, 50.0),
+        (100.0, 50.0),
+    ];
+    for (input, original) in vectors {
+        assert!((stopping_distance(input, 1680.0) - original).abs() < 0.00001, "original table at {input}");
+    }
+}
+
+#[test]
 fn a_free_road_means_the_posted_speed_and_the_cursor() {
     let net = straight_net();
     let mut nav = lane_nav(&net, 0.1);
@@ -112,6 +131,27 @@ fn shared_tick_delta_scales_acceleration_cap() {
         let mut nav = lane_nav(&net, 0.1);
         let think = think_with_delta(dt, &net, &mut nav, &car, [], false, &mut SplitMix(1), &Cruise::default());
         assert!((think.speed - (10.0 + ACCELERATION_CAP * dt)).abs() < 1e-5);
+    }
+}
+
+#[test]
+fn traffic_parity_decisions_use_full_body_speed_instead_of_forward_projection() {
+    let net = straight_net();
+    // These speed results were also checked by isolated native getter execution.
+    for (velocity, native_speed) in [
+        (Vec3::new(0.0, 0.0, -10.0), 10.0),
+        (Vec3::new(3.0, 4.0, 0.0), 5.0),
+        (Vec3::new(12.0, 0.0, 5.0), 13.0),
+        (Vec3::new(0.0, 12.0, 5.0), 13.0),
+    ] {
+        let mut car = car_at(40.0, velocity.z);
+        car.body.velocity = velocity;
+        let mut nav = lane_nav(&net, 0.1);
+        let result = think(&net, &mut nav, &car, [], false, &mut SplitMix(1), &Cruise::default());
+        assert!((result.speed - (native_speed + 2.0 * THINK_PERIOD)).abs() < 1e-5, "{velocity:?}");
+        let expected_radius = look_ahead(native_speed, THINK_PERIOD, car.radius);
+        assert!((result.avoidable_radius - expected_radius).abs() < 1e-5, "{velocity:?}");
+        assert!(cursor_ahead(&nav, car.body.position) >= expected_radius - 0.5, "{velocity:?}");
     }
 }
 

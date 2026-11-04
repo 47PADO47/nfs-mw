@@ -61,6 +61,5 @@ pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings, status: Option<&s
     ui.separator();
     ui.add(egui::Slider::new(&mut settings.cop_share.0, 0..=100).text("Patrol share %"));
     ui.checkbox(&mut settings.traffic_lights, "Obey traffic lights (custom)");
-    ui.checkbox(&mut settings.traffic_avoidance, "Lane-change avoidance (custom)");
     ui.small("Changing population does not flush visible cars. Reduce density or budget to let traffic drain as it leaves view.");
 }

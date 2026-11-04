@@ -68,6 +68,17 @@ Headless: `--exec "traffic 24" --exec "traffic warmup 25" --screenshot out.png`.
   time and they are beyond its off-screen distance (4 s and 40 m at full density, as in the original), when they
   fell off the map, or when they stand stuck away from you.
 
+## Original traffic parity
+
+The retired `traffic_avoidance` extension supplied custom blocked-lane changes,
+timed junction yielding, blocked-car horns and a separate blocked timer. Those
+controls and runtime rules have been removed. Normal trail obstacle avoidance
+and original junction lane selection do not need an option. Event density now
+scales spawn rates instead of actor caps, authored event patterns override zone
+patterns, and civilian steering refreshes between AI decisions. Original task
+timing, actor reuse, full budget accounting and matched route validation remain
+open. See [traffic driving parity](specs/traffic-driving-parity.md).
+
 ## Traffic lights: a rewrite extension
 
 **The original has no traffic lights** ([ai-traffic-world §1](specs/ai-traffic-world.md#1-traffic-lights-and-stop-signs)):

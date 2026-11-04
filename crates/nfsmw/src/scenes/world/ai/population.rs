@@ -182,7 +182,7 @@ impl TrafficWorld {
         if let Some(patterns) = self.patterns.as_mut() {
             // The traffic cars the mods add join each pattern's list; a rescan that adds some makes the rules again.
             changed |= patterns.refresh_mod(nfsmw_data::car::mods::traffic_generation(), super::mod_traffic::rules_for);
-            changed |= patterns.select(at);
+            changed |= patterns.select_event(at, self.event_pattern.as_deref());
         }
         if changed {
             self.start_pattern();
@@ -324,8 +324,6 @@ struct Vitals {
     offscreen: f32,
     /// A detached part of the car is in view: the car stays (spec §8).
     detached_seen: bool,
-    /// A traffic car blocked and standing for `ai-traffic-obstacles.md` §10.4's 60 s, with the avoidance setting on.
-    stuck: bool,
 }
 
 impl Vitals {
@@ -337,7 +335,6 @@ impl Vitals {
             idle: car.idle_time(),
             offscreen: car.offscreen_time(),
             detached_seen,
-            stuck: car.blocked_clock().is_some_and(|clock| clock.stuck()),
         }
     }
 
@@ -350,7 +347,6 @@ impl Vitals {
             offscreen: trailer.offscreen_time(),
             // Trailers have no part owner of their own in this port (spec §8 keep-alive is for the car's model).
             detached_seen: false,
-            stuck: false,
         }
     }
 
@@ -375,8 +371,7 @@ impl Vitals {
             || (view.forgotten(self.offscreen, self.position)
                 && self.idle > STUCK_TIME
                 && view.away(self.position) > STUCK_DISTANCE);
-        let unseen_too_long = (self.offscreen > limits.time.max(view.grace)
-            || (self.stuck && self.offscreen > view.grace))
+        let unseen_too_long = self.offscreen > limits.time.max(view.grace)
             && view.distance(self.position) > limits.distance
             && view.forgotten(self.offscreen, self.position);
         !(gone || unseen_too_long)

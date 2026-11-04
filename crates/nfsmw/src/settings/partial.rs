@@ -102,7 +102,6 @@ pub struct Partial {
     /// `ShowHUDOnLookBack`: keep the HUD up while looking back.
     pub show_hud_on_look_back: Option<bool>,
     pub traffic_lights: Option<bool>,
-    pub traffic_avoidance: Option<bool>,
     pub cop_health_bars: Option<bool>,
     pub smoke_quality: Option<SmokeQuality>,
     pub smoke_color_mode: Option<super::SmokeColorMode>,
@@ -249,7 +248,6 @@ impl Partial {
             no_rev_limiter: self.no_rev_limiter.or(lower.no_rev_limiter),
             show_hud_on_look_back: self.show_hud_on_look_back.or(lower.show_hud_on_look_back),
             traffic_lights: self.traffic_lights.or(lower.traffic_lights),
-            traffic_avoidance: self.traffic_avoidance.or(lower.traffic_avoidance),
             cop_health_bars: self.cop_health_bars.or(lower.cop_health_bars),
             smoke_quality: self.smoke_quality.or(lower.smoke_quality),
             smoke_color_mode: self.smoke_color_mode.or(lower.smoke_color_mode),

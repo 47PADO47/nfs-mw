@@ -138,7 +138,6 @@ impl TrafficWorld {
                 car.destroy_by_breaker();
             }
             car.set_breaker_stop(car.is_roadblock());
-            car.set_avoidance(self.avoidance);
             car.set_player_speed(focus.body.map_or(0.0, |b| b.velocity.length()));
             let head_on_support = car.head_on_support();
             if let super::car::Role::Cop(cop) = &mut car.role {
