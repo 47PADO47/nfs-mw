@@ -1,7 +1,8 @@
 //! Writing settings to the per-user config file.
 //!
 //! The file is shared with `game_dir` (read by `game-install`) and may hold keys this version does not know, so
-//! a write reads the file, replaces the keys the layer sets and leaves every other key as it was. Comments and
+//! a write reads the file, replaces the keys the layer sets and preserves unknown keys. Retired extension keys
+//! are removed explicitly. Comments and
 //! formatting are not kept: the file is written back by the TOML serializer.
 
 use std::path::Path;
@@ -18,6 +19,7 @@ use super::partial::Partial;
 /// A file that is not valid TOML is an error: it is better left alone than overwritten.
 pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     let mut table: Table = existing.parse().context("the config file is not valid TOML")?;
+    table.remove("traffic_avoidance");
     let traffic = changes.traffic_policy.map(|v| v.merge(table.get("traffic_tuning"))).transpose()?;
     let pursuit = changes.pursuit_options.map(|v| v.merge(table.get("pursuit_options"))).transpose()?;
     let detail = changes.detail.map(|v| v.merge(table.get("detail"))).transpose()?;
@@ -144,9 +146,6 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     }
     if let Some(v) = changes.traffic_lights {
         put("traffic_lights", Value::Boolean(v));
-    }
-    if let Some(v) = changes.traffic_avoidance {
-        put("traffic_avoidance", Value::Boolean(v));
     }
     if let Some(v) = changes.cop_health_bars {
         put("cop_health_bars", Value::Boolean(v));

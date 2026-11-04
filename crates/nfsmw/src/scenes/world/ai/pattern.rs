@@ -62,6 +62,15 @@ impl Patterns {
         self.list.get(self.current)
     }
 
+    /// An event pattern takes precedence over zones; an unresolved override disables ambient spawns.
+    pub fn select_event(&mut self, at: Vec3, pattern: Option<&str>) -> bool {
+        let Some(name) = pattern.filter(|name| !name.is_empty()) else { return self.select(at) };
+        let index = self.list.iter().position(|p| p.name.eq_ignore_ascii_case(name)).unwrap_or(self.list.len());
+        let changed = index != self.current;
+        self.current = index;
+        changed
+    }
+
     /// Switches to the pattern of the zone at `at`; no zone leaves the pattern as it is. Returns whether it
     /// changed.
     pub fn select(&mut self, at: Vec3) -> bool {
@@ -101,6 +110,24 @@ mod tests {
 
     fn mod_rule(name: &str) -> Rule {
         Rule { name: name.into(), rate: 6.0, max_instances: 0, percent: 20 }
+    }
+
+    #[test]
+    fn traffic_parity_event_patterns_override_zones_and_resume_zone_selection_afterwards() {
+        let locate: Locator = Box::new(|_| Some("downtown".to_owned()));
+        let mut patterns = Patterns::new(
+            vec![pattern("default", "trafha"), pattern("downtown", "traftaxi"), pattern("drag", "trafvan")],
+            locate,
+        );
+        assert!(patterns.select_event(Vec3::ZERO, Some("drag")));
+        assert_eq!(patterns.current().expect("event pattern").rules[0].name, "trafvan");
+        assert!(!patterns.select_event(Vec3::X, Some("drag")), "a repeated override must not reset type timers");
+        assert!(patterns.select_event(Vec3::ZERO, None));
+        assert_eq!(patterns.current().expect("zone pattern").rules[0].name, "traftaxi");
+        assert!(patterns.select_event(Vec3::ZERO, Some("missing")));
+        assert!(patterns.current().is_none(), "an unresolved override must not spawn an unrelated model");
+        assert!(patterns.select_event(Vec3::ZERO, Some("")));
+        assert_eq!(patterns.current().expect("zone restored").name, "downtown");
     }
 
     #[test]

@@ -86,6 +86,8 @@ fn installed_traffic_graphs_select_voices_and_release_at_high_frame_rates() {
     for fps in [5, 60, 144, 360] {
         let dir = game_install::GameDir::open(std::path::PathBuf::from(&path)).unwrap();
         let mut audio = Audio::replay(dir, 48000);
+        let trace = std::env::temp_dir().join(format!("nfsmw-native-traffic-horns-{}-{fps}.jsonl", std::process::id()));
+        audio.trace.start(&trace).expect("traffic audio trace");
         let source = emitter(Vec3::X * 6.0);
         let frame = || TrafficFrame {
             dt: 1.0 / 120.0,
@@ -97,13 +99,13 @@ fn installed_traffic_graphs_select_voices_and_release_at_high_frame_rates() {
         let mut owed = 0.0f64;
         let mut tick = 0;
         let mut energy = 0.0f64;
-        for _ in 0..fps * 3 {
+        // A rejected attempt at three seconds can defer the first horn until the six-second retry.
+        for _ in 0..fps * 8 {
             owed += 120.0 / f64::from(fps);
             let mut sounds = Vec::new();
             while owed + 1e-9 >= 1.0 {
                 owed -= 1.0;
                 if tick == 0 {
-                    sounds.push(TrafficSound::Horn { emitter: 77, duration: 1.2 });
                     sounds.push(TrafficSound::NearMiss { emitter: 77, relative_speed: 30.0 });
                 }
                 sounds.push(TrafficSound::Frame(frame()));
@@ -115,7 +117,15 @@ fn installed_traffic_graphs_select_voices_and_release_at_high_frame_rates() {
             energy += samples.iter().map(|s| f64::from(*s).powi(2)).sum::<f64>();
         }
         assert!(energy > 0.001, "authored traffic must produce PCM at {fps} FPS");
-        assert_eq!(tick, 360);
+        assert_eq!(tick, 960);
+        audio.trace.stop();
+        let evidence = std::fs::read_to_string(&trace).expect("flushed traffic trace");
+        std::fs::remove_file(&trace).expect("remove this test's trace");
+        assert!(
+            evidence.lines().any(|line| line.contains("\"event\":\"traffic_horn\"")
+                && line.contains("autonomous ENV_STATIC common horn")),
+            "native autonomous horn must play at {fps} FPS"
+        );
         let mut empty = frame();
         empty.emitters.clear();
         audio.update_traffic(vec![TrafficSound::Frame(empty)], AudioView::default());

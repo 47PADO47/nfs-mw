@@ -43,7 +43,6 @@ pub struct TrafficFrame {
 /// Ordered events followed by a complete snapshot of the same simulation step.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TrafficSound {
-    Horn { emitter: u32, duration: f32 },
     NearMiss { emitter: u32, relative_speed: f32 },
     Frame(TrafficFrame),
 }

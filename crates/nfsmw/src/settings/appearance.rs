@@ -346,7 +346,6 @@ impl Settings {
             traffic: Some(self.traffic),
             cop_share: Some(self.cop_share),
             traffic_lights: Some(self.traffic_lights),
-            traffic_avoidance: Some(self.traffic_avoidance),
             reflection_mirror_size: Some(self.reflection_mirror_size),
             reflection_pow2: Some(self.reflection_pow2),
             mirror_tint: Some(self.mirror_tint),

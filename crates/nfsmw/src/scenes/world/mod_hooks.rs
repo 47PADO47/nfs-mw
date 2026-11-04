@@ -115,7 +115,7 @@ impl WorldScene {
         }
     }
 
-    /// Set the traffic count and the cop share, keeping the lights and avoidance settings as they are.
+    /// Set the traffic count and the cop share, keeping the traffic-light setting as it is.
     pub(super) fn set_traffic_density_to(&mut self, cars: u32, cop_share: u8) {
         let setting = TrafficSettings { cars, cop_share: Percent(cop_share), ..self.traffic_setting };
         self.apply_traffic_setting(setting);

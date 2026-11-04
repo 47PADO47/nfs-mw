@@ -175,7 +175,6 @@ pub fn partial_of(s: &Settings) -> Partial {
         no_rev_limiter: Some(s.no_rev_limiter),
         show_hud_on_look_back: Some(s.show_hud_on_look_back),
         traffic_lights: Some(s.traffic_lights),
-        traffic_avoidance: Some(s.traffic_avoidance),
         cop_health_bars: Some(s.cop_health_bars),
         smoke_quality: Some(s.smoke_quality),
         smoke_color_mode: Some(s.smoke_color_mode),

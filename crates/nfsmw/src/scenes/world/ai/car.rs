@@ -18,7 +18,6 @@ use crate::scenes::world::road::Spawn;
 
 mod accessors;
 mod accident;
-mod avoid;
 mod damage_effects;
 mod glass;
 mod goal_drive;
@@ -39,6 +38,7 @@ mod stepping;
 pub(super) use stepping::AiStep;
 pub(super) mod support_drive;
 mod towing;
+mod traffic_steering;
 
 pub use setup::{Ctx, Role, Start};
 
@@ -99,16 +99,19 @@ pub struct AiCar {
     has_thought: bool,
     /// Delays the first think so the cars' thinks spread over ten steps.
     stagger: u32,
-    /// What the last think decided.
+    /// The current steering target; traffic refreshes this between decisions.
     target: Vec3,
+    /// The speed requested by the last decision.
     speed: f32,
     controls: AiControls,
     radius: f32,
     mass: f32,
     /// Half width and half length of the body.
     half: (f32, f32),
-    /// The last think found another car in the way.
+    /// The current trail query found another car in the way.
     blocked: bool,
+    /// The last traffic decision's obstacle-search radius, extended by current speed when queried.
+    avoidable_radius: f32,
     /// Seconds the car has been (almost) standing still, not counting the time it waits for a light.
     idle: f32,
     /// The stop line the car last headed for (an index into the signal controller's approaches).
@@ -157,8 +160,6 @@ pub struct AiCar {
     damage: Option<CopDamage>,
     /// The request this support car belongs to and its goal (`car/support_drive.rs`); `None` for other cars.
     support: Option<support_drive::SupportCar>,
-    /// The lane rules of a blocked traffic car (`car/avoid.rs`).
-    avoid: avoid::Avoid,
     /// The player car's speed (m/s) at the last physics step: the crash gate of `hits.rs` reads it.
     player_speed: f32,
     pub(in crate::scenes::world::ai) damage_distance: f32,
@@ -255,6 +256,7 @@ impl AiCar {
             mass: physics.spec.mass,
             half: (physics.spec.dimension.x, physics.spec.dimension.z),
             blocked: false,
+            avoidable_radius: traffic::INITIAL_AVOIDABLE_RADIUS,
             idle: 0.0,
             stop_memory: None,
             waiting: false,
@@ -283,7 +285,6 @@ impl AiCar {
             quiet: 0.0,
             damage,
             support: None,
-            avoid: avoid::Avoid::default(),
             player_speed: 0.0,
             damage_distance: 0.0,
             stand_in: stand_in::StandIn::default(),
@@ -351,7 +352,6 @@ impl AiCar {
         };
         self.think_elapsed = 0.0;
         self.has_thought = true;
-        self.avoid.set_think_delta(self.think_delta);
         match &mut self.role {
             Role::Cop(cop) => cop.set_think_delta(self.think_delta),
             Role::Racer(racer) => racer.set_think_delta(self.think_delta),
@@ -377,21 +377,6 @@ impl AiCar {
                 state.stop =
                     ctx.lights.and_then(|l| stop::find(&l, ctx.net, &self.nav, &state.body, &mut self.stop_memory));
                 self.waiting = state.stop.is_some_and(|s| s.is_holding());
-                self.avoid.before_think(
-                    ctx.net,
-                    ctx.index,
-                    &mut self.nav,
-                    &state.body,
-                    traffic::others(ctx.bodies, ctx.me, ctx.player),
-                    self.blocked,
-                );
-                state.stop = self.avoid.yield_at(
-                    ctx.net,
-                    ctx.lights,
-                    state.stop,
-                    self.stop_memory,
-                    traffic::others(ctx.bodies, ctx.me, ctx.player),
-                );
                 let think = traffic::think_with_delta(
                     self.think_delta,
                     ctx.net,
@@ -405,6 +390,7 @@ impl AiCar {
                 self.target = think.target;
                 self.speed = think.speed;
                 self.blocked = think.blocked;
+                self.avoidable_radius = think.avoidable_radius;
             }
             Role::Racer(racer) => {
                 let pressing = self.controls.gas >= 0.5;

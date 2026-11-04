@@ -41,6 +41,7 @@ mod start;
 mod startable;
 #[cfg(test)]
 pub(in crate::scenes::world) mod test_roads;
+mod traffic;
 mod wrong_way;
 
 pub(super) use command::race_command;

@@ -10,7 +10,7 @@ use crate::viewer::Environment;
 const TILE: usize = 40;
 
 fn traffic() -> TrafficSettings {
-    TrafficSettings { cars: 12, cop_share: Percent(5), lights: true, avoidance: true, ..Default::default() }
+    TrafficSettings { cars: 12, cop_share: Percent(5), lights: true, ..Default::default() }
 }
 
 fn snapshot() -> Snapshot {
@@ -135,7 +135,7 @@ fn traffic_while_inside_stops_the_named_parts_and_keeps_the_rest() {
     let quiet = traffic_while_inside(traffic(), all);
     assert_eq!(quiet.cars, 0);
     assert_eq!(quiet.cop_share, Percent(0));
-    assert!(quiet.lights && quiet.avoidance, "the other settings are kept");
+    assert!(quiet.lights, "the other settings are kept");
 
     let cops_only = Suspend { traffic: false, cops: true, pursuit: false };
     let kept = traffic_while_inside(traffic(), cops_only);

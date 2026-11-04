@@ -84,3 +84,37 @@ fn predicted_points_select_a_forward_crossing_without_clamping_to_the_trail_end(
     assert_eq!(closest_cookie_ahead(&cookies, Vec2::new(0.0, 70.1)), Some(24));
     assert_eq!(closest_cookie_ahead(&cookies, Vec2::new(0.0, 91.0)), None);
 }
+
+#[test]
+fn civilian_queue_keeps_slowly_closing_blockers_beyond_three_seconds() {
+    let mut cookies = straight_cookies();
+    // Keep the predicted encounter off an exact cookie boundary so this isolates eligibility.
+    assert!(punch_avoidables(&mut cookies, &body(0.0, 0.5), [body(10.1, 0.0)], true, 1.0).is_some());
+    assert!(cookies.iter().any(|cookie| cookie.flags & CUT != 0));
+
+    let mut other_navigation = straight_cookies();
+    assert!(punch_avoidables(&mut other_navigation, &body(0.0, 0.5), [body(10.1, 0.0)], false, 1.0).is_none());
+    assert!(other_navigation.iter().all(|cookie| cookie.flags & CUT == 0));
+}
+
+#[test]
+fn civilian_queue_retains_the_time_cutoff_for_inside_obstacles() {
+    let mut cookies = straight_cookies();
+    punch_avoidables(&mut cookies, &body(0.0, 0.0), [body(-1.0, 0.0)], true, 1.0);
+    assert!(cookies.iter().all(|cookie| cookie.flags & CUT == 0));
+}
+
+#[test]
+fn civilian_queue_checks_nonclosing_range_along_the_road_and_includes_the_side_boundary() {
+    let mut cookies = straight_cookies();
+    let other = Body { position: Vec3::new(3.0, 0.0, 14.0), ..body(14.0, 0.0) };
+    assert!(punch_avoidables(&mut cookies, &body(0.0, 0.0), [other], true, 1.0).is_some());
+}
+
+#[test]
+fn civilian_queue_ignores_nonclosing_bodies_outside_the_native_side_clearance() {
+    let mut cookies = straight_cookies();
+    let other = Body { position: Vec3::new(3.01, 0.0, 12.0), ..body(12.0, 0.0) };
+    punch_avoidables(&mut cookies, &body(0.0, 0.0), [other], true, 1.0);
+    assert!(cookies.iter().all(|cookie| cookie.flags & CUT == 0));
+}

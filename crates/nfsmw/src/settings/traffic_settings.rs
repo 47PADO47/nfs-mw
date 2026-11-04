@@ -10,8 +10,6 @@ pub struct TrafficSettings {
     pub cop_share: Percent,
     /// Whether they obey traffic lights.
     pub lights: bool,
-    /// Whether they go round a car that blocks their lane (`traffic_avoidance`).
-    pub avoidance: bool,
     pub policy: TrafficPolicy,
     pub pursuit: super::PursuitOptions,
 }
@@ -22,7 +20,6 @@ impl From<&Settings> for TrafficSettings {
             cars: s.traffic,
             cop_share: s.cop_share,
             lights: s.traffic_lights,
-            avoidance: s.traffic_avoidance,
             policy: s.traffic_policy,
             pursuit: s.pursuit_options,
         }

@@ -88,3 +88,6 @@ impl TrafficWorld {
         self.sirens.set_data(nfsmw_data::pursuit_siren::siren_data(db));
     }
 }
+
+#[cfg(test)]
+mod tests;

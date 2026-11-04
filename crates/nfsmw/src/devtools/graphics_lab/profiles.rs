@@ -104,7 +104,6 @@ pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             settings.pursuit_options = Default::default();
             settings.cop_share = crate::settings::DEFAULT_COP_SHARE;
             settings.traffic_lights = crate::settings::DEFAULT_TRAFFIC_LIGHTS;
-            settings.traffic_avoidance = false;
         }
         Tab::Detail => {
             settings.detail = defaults.detail;

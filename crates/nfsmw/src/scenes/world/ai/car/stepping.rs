@@ -71,7 +71,10 @@ impl AiCar {
             _ => DriveFlags::SIMPLE,
         };
         let wanted = if reversing { RECOVERY_SPEED } else { self.speed };
-        let target = self.target + self.avoid.steer_offset(&self.nav, view.position);
+        if human.is_none() {
+            self.refresh_traffic_target(ctx);
+        }
+        let target = self.target;
         let request = DriveRequest { target, speed: wanted, flags };
         let clock = self.elapsed;
         let held = self.controls.steer;
@@ -167,7 +170,6 @@ impl AiCar {
         for hit in impact.damage {
             self.wreck_hit(hit, self.damage_distance);
         }
-        self.avoid.advance(self.speed().abs() * self.step_delta);
         if let (Some(trailer), Some(start)) = (self.trailer.as_mut(), start.trailer.as_ref()) {
             trailer.complete_step(start, &mut self.sim, collision, props, surfaces);
         }

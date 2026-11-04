@@ -34,6 +34,7 @@ impl AiCar {
         self.sight.hash_into(hash);
         hash.vec3(self.target);
         hash.f32(self.speed);
+        hash.f32(self.avoidable_radius);
         hash.f32(self.controls.gas);
         hash.f32(self.controls.brake);
         hash.f32(self.controls.steer);

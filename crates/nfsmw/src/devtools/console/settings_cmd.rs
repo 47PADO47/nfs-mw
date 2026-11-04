@@ -58,7 +58,6 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "traffic" => settings.traffic.to_string(),
         "cop_share" => settings.cop_share.to_string(),
         "traffic_lights" => on_off(settings.traffic_lights).to_owned(),
-        "traffic_avoidance" => on_off(settings.traffic_avoidance).to_owned(),
         "cop_health_bars" => on_off(settings.cop_health_bars).to_owned(),
         "smoke_quality" => settings.smoke_quality.to_string(),
         "smoke_color_mode" => settings.smoke_color_mode.to_string(),
@@ -167,7 +166,6 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         }
         "cop_share" => settings.cop_share = Percent::from_str(value)?,
         "traffic_lights" => settings.traffic_lights = parse_bool(value)?,
-        "traffic_avoidance" => settings.traffic_avoidance = parse_bool(value)?,
         "cop_health_bars" => settings.cop_health_bars = parse_bool(value)?,
         "smoke_quality" => settings.smoke_quality = value.parse()?,
         "smoke_color_mode" => settings.smoke_color_mode = value.parse()?,
@@ -255,7 +253,6 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "ao_compare" => Some(&mut settings.ao_compare),
         "ao_depth_mips" => Some(&mut settings.ao_depth_mips),
         "traffic_lights" => Some(&mut settings.traffic_lights),
-        "traffic_avoidance" => Some(&mut settings.traffic_avoidance),
         "cop_health_bars" => Some(&mut settings.cop_health_bars),
         key if custom_fonts::is_key(key) => custom_fonts::flag(&mut settings.custom_fonts, key),
         key if fe_shadows::is_key(key) => fe_shadows::flag(&mut settings.fe_shadows, key),

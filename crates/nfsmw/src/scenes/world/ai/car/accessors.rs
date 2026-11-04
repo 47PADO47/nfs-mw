@@ -191,11 +191,6 @@ impl AiCar {
         self.sim.events.as_ref().map(|events| Rc::downgrade(&events.owner))
     }
 
-    /// Turns the rewrite's lane-change avoidance on or off for this car (`car/avoid.rs`).
-    pub fn set_avoidance(&mut self, on: bool) {
-        self.avoid.set_enabled(on);
-    }
-
     /// The player car's speed (m/s) this physics step, read by the crash gate in `hits.rs`.
     pub fn set_player_speed(&mut self, speed: f32) {
         self.player_speed = speed;

@@ -32,12 +32,33 @@ const GRAVITY: f32 = 9.8;
 const CREEP_SPEED: f32 = 1.0;
 /// A traffic car never asks for more than this much above its current speed per second.
 const ACCELERATION_CAP: f32 = 2.0;
+/// Search radius before the first traffic decision.
+pub(super) const INITIAL_AVOIDABLE_RADIUS: f32 = 20.0;
 
 /// The distance ahead of the car the cursor is kept at: 10 m when slow, 30 m when fast, plus a think
 /// of travel and the car's radius.
 pub fn look_ahead(speed: f32, think: f32, radius: f32) -> f32 {
     let base = 10.0 + 20.0 * ramp(speed, 0.0, 25.0);
     base + speed * think + radius
+}
+
+/// The radius stored by a decision, before the physical-step speed extension.
+fn decision_radius(speed: f32, dt: f32, radius: f32, blocked: bool) -> f32 {
+    match blocked {
+        true => 30.0 + speed * dt + radius,
+        false => look_ahead(speed, dt, radius),
+    }
+}
+
+/// Refresh steering along an existing trail without advancing its cursor or choosing another road.
+pub(super) fn steering_occlusion(
+    nav: &RoadNav,
+    body: &Body,
+    reach: f32,
+    others: impl IntoIterator<Item = Body>,
+) -> Option<Occlusion> {
+    let near = others.into_iter().filter(|other| other.position.distance(body.position) < reach);
+    nav.trail().and_then(|trail| update_occluded_position(trail, body, nav.position, near, true, nav.half_width))
 }
 
 /// How a car cruises: its speed on streets and on roads with four or more traffic lanes, and how hard it
@@ -52,6 +73,13 @@ pub struct Cruise {
 }
 
 impl Cruise {
+    fn current_speed(&self, car: &CarState) -> f32 {
+        match self.limit_acceleration {
+            true => car.body.velocity.length(),
+            false => car.forward_speed,
+        }
+    }
+
     pub fn traffic(street: f32, highway: f32) -> Self {
         Self { street, highway, lateral_g: TRAFFIC_LATERAL_G, limit_acceleration: true }
     }
@@ -106,6 +134,8 @@ pub struct Think {
     pub speed: f32,
     /// Another car blocks the view along the trail.
     pub blocked: bool,
+    /// Obstacle-search radius retained until the next decision.
+    pub avoidable_radius: f32,
 }
 
 /// The stopping distance behind a car ahead: 3 m when slow up to 50 m at the top of the table.
@@ -158,25 +188,21 @@ pub fn think_with_delta(
     rng: &mut impl RandomSource,
     cruise: &Cruise,
 ) -> Think {
-    let speed = car.forward_speed.abs();
-    let look = match was_blocked {
-        true => 30.0 + speed * dt + car.radius,
-        false => look_ahead(speed, dt, car.radius),
-    };
+    let speed = cruise.current_speed(car).abs();
+    let look = decision_radius(speed, dt, car.radius, was_blocked);
     let ahead = cursor_ahead(nav, car.body.position);
     if !nav.dead_end && ahead < look {
         nav.advance_with_lookahead(net, look - ahead, Vec3::ZERO, look, rng);
     }
-    // The other cars within the avoidable radius.
-    let reach = look.max(2.0 * speed);
-    let position = car.body.position;
-    let near = others.into_iter().filter(move |o| o.position.distance(position) < reach);
-    let occlusion = nav
-        .trail()
-        .and_then(|trail| update_occluded_position(trail, &car.body, nav.position, near, true, nav.half_width));
+    let occlusion = steering_occlusion(nav, &car.body, look.max(2.0 * speed), others);
     let target = occlusion.as_ref().map_or(nav.position, |o| o.position);
     let blocked = occlusion.as_ref().is_some_and(|o| o.avoidable != 0);
-    Think { target, speed: compute_speed(net, nav, car, occlusion.as_ref(), cruise, dt), blocked }
+    Think {
+        target,
+        speed: compute_speed(net, nav, car, occlusion.as_ref(), cruise, dt),
+        blocked,
+        avoidable_radius: look,
+    }
 }
 
 /// The wanted speed: the posted one, limited by the bends ahead, by the car in front and by a light that
@@ -193,7 +219,7 @@ fn compute_speed(
         return 0.0;
     }
     let posted = posted_speed(net, nav, cruise);
-    let current = car.forward_speed;
+    let current = cruise.current_speed(car);
     let mut desired = posted;
     if let (Some(o), Some(trail)) = (occlusion, nav.trail()) {
         let k = trail_curvature(trail.cookies(), o.current_index, car.body.position, o, nav.position, current);

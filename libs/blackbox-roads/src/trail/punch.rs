@@ -97,7 +97,10 @@ pub fn punch_avoidables(
         true => MIN_WIDTH_TRAFFIC,
         false => MIN_WIDTH,
     };
-    let my_speed = xz(me.velocity).length();
+    let my_speed = match traffic {
+        true => me.velocity.length(),
+        false => xz(me.velocity).length(),
+    };
     let mut blocker: Option<(usize, Blocker)> = None;
 
     for a in avoidables.into_iter().take(32) {
@@ -124,18 +127,37 @@ pub fn punch_avoidables(
         let rel_velocity = xz(a.velocity - me.velocity);
         let time = approach_time(his_nose - my_nose, rel_velocity);
         let closing = (his_nose - my_nose).dot(rel_velocity) < 0.0;
-        let far = relative.length()
-            > my_extent
-                + his_extent
-                + match traffic {
-                    true => 0.5 * my_speed + 2.0 * my_extent,
-                    false => 0.0,
-                };
-        if !closing && far {
+        let timed_out = time >= NO_APPROACH_TIME
+            && match traffic {
+                true => inside,
+                false => closing,
+            };
+        if timed_out {
             continue;
         }
-        if closing && time >= NO_APPROACH_TIME {
-            continue;
+        let check_range = !closing && (!traffic || !inside);
+        if check_range {
+            let distance = match traffic {
+                true => dist_ahead,
+                false => relative.length(),
+            };
+            let extra = match traffic {
+                true => 0.5 * my_speed + 2.0 * my_extent,
+                false => 0.0,
+            };
+            let reach = my_extent + his_extent + extra;
+            if distance > reach {
+                continue;
+            }
+            if traffic {
+                let side = relative.dot(me.right()).abs();
+                let side_extent = me.right().dot(a.forward).abs() * a.half_length
+                    + me.half_width
+                    + me.right().dot(ar).abs() * a.half_width;
+                if side > side_extent + 1.0 {
+                    continue;
+                }
+            }
         }
 
         // Cut where the vehicles will meet, rather than beside the other car's current body.

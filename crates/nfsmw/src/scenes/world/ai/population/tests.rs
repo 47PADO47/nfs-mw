@@ -18,7 +18,7 @@ fn free_focus() -> Focus {
 }
 
 fn car_at(position: Vec3, offscreen: f32, airborne: f32) -> Vitals {
-    Vitals { position, finite: true, airborne, idle: 0.0, offscreen, detached_seen: false, stuck: false }
+    Vitals { position, finite: true, airborne, idle: 0.0, offscreen, detached_seen: false }
 }
 
 fn limits(density: f32) -> Limits {
@@ -78,23 +78,6 @@ fn a_detached_part_in_view_keeps_an_otherwise_removable_car() {
     // The part is a sphere (render space) in front of the camera, which is what `parts_seen` tests.
     assert!(view.sees(Vec3::new(0.0, 20.0, 0.0), 1.0), "a part ahead is in view");
     assert!(!view.sees(Vec3::new(0.0, -50.0, 0.0), 1.0), "a part behind is not");
-}
-
-#[test]
-fn a_stuck_car_goes_once_unseen_and_past_the_distance_only() {
-    let view = Viewing::new(&camera_north(), free_focus());
-    let stuck = |position: Vec3, offscreen: f32| Vitals { stuck: true, ..car_at(position, offscreen, 0.0) };
-    let behind = Vec3::new(0.0, -500.0, 0.0);
-    assert!(!view.sees(behind, CAR_RADIUS));
-    assert!(stuck(behind, 0.5).valid(&view, limits(1.0)), "stuck cars still receive offscreen grace");
-    assert!(!stuck(behind, 5.0).valid(&view, limits(1.0)), "stuck cars retire after grace");
-    let near = Vec3::new(0.0, -10.0, 0.0);
-    assert!(stuck(near, 0.5).valid(&view, limits(1.0)), "inside the distance rule it stays");
-    assert!(stuck(Vec3::new(0.0, -50.0, 0.0), 5.0).valid(&view, limits(1.0)), "on the minimap it stays");
-    let seen = Vec3::new(0.0, 50.0, 0.0);
-    assert!(view.sees(seen, CAR_RADIUS));
-    assert!(Vitals { stuck: true, ..car_at(seen, 0.0, 0.0) }.valid(&view, limits(1.0)), "never removed in view");
-    assert!(car_at(behind, 0.5, 0.0).valid(&view, limits(1.0)), "not stuck: the time rule still applies");
 }
 
 #[test]
