@@ -17,3 +17,15 @@ later sections add.
   lost an infraction starts again) is the rewrite's own, since it reads the chase's log rather than a report call.
 - Checked by `hud::infractions` (synthetic: what is told, the labels) and the installed `hud::pursuit_install_tests`
   (rows, label text, count, icon, timing out).
+
+## Hiding mark
+
+- Spec: [pursuit-hiding.md](../specs/pursuit-hiding.md) section 5.
+- Sources read (2026-11-04): the original PC 1.3 pursuit board's update (the cool-down branch that drives the hiding
+  bar, and the branch outside it), in Ghidra, for behaviour only. Earlier private notes on the board's constructor
+  named the bar's slot. No source text copied.
+- **[verified]** The installed `HUD_SingleRace.fng`: the bar's appear and leave and the messages they raise, the
+  responses of the group, the label and the icon, and their scripts' tracks.
+- Implemented in `crates/nfsmw/src/hud/hiding_mark.rs` from the spec. The leave with no chase is the rewrite's own.
+- Checked by `hud::hiding_mark` (the rule), `hud::pursuit_tests` (the cascade through a synthetic package) and the
+  installed `hud::police_install_tests` (label included, and nothing outside the cool-down).

@@ -1,41 +1,57 @@
-//! The cool-down bar's "HIDING" mark: a text group and a car icon under the cool-down group. They rest at zero alpha
-//! and each carries a fade-in and a fade-out script; the package answers two messages with them
-//! (`0x4027A94E` plays the fade-in, `0x451CD24C` the fade-out), which the original raises when the hiding spot starts to
-//! latch the player and when it lets go. Spec: `docs/specs/pursuit-hiding.md` section 5.
+//! The cool-down bar's "HIDING" mark (`docs/specs/pursuit-hiding.md` section 5). Under the cool-down group the package
+//! holds an orange bar (`0x5c2a4f20`), the "HIDING" text group with its label, and a car icon, all resting at zero
+//! alpha. The game drives the bar alone: while the cool-down shows and a hiding spot has started to latch the player it
+//! plays the bar's appear, and otherwise its leave once the appear has run. The bar's appear raises `0x4027A94E` and its
+//! leave `0x451CD24C`; the package answers them by fading the group, the label and the icon in (the icon then pulses)
+//! and out.
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime};
 
-use super::elements::HIDING;
+/// The orange bar the board drives.
+pub(super) const BAR: u32 = 0x5c2a_4f20;
+/// Its appear and leave (320 ms each), whose events fade the mark in and out.
+pub(super) const APPEAR: u32 = 0x5079_C8F8;
+const LEAVE: u32 = 0x0331_13AC;
 
-/// The script that takes an object from zero alpha to its full colour (its track runs from -255 to 0 of alpha). The
-/// car icon chains it into a slow pulse.
-const FADE_IN: u32 = 1_350_158_584;
-/// The script that takes it back to zero alpha.
-const FADE_OUT: u32 = 53_547_948;
+/// The script the bar starts this update. `shown`: the cool-down shows and a hiding spot latches the player; `up`: the bar
+/// plays its appear or rests at its end.
+pub fn bar_script(shown: bool, up: bool) -> Option<u32> {
+    match (shown, up) {
+        (true, false) => Some(APPEAR),
+        (false, true) => Some(LEAVE),
+        _ => None,
+    }
+}
 
-/// The objects of the mark and whether it is on.
+/// The bar the mark hangs on.
 pub struct HidingMark {
-    objects: Vec<ObjectRef>,
-    on: bool,
+    bar: Option<ObjectRef>,
 }
 
 impl HidingMark {
     pub fn new(rt: &Runtime, package: PackageId) -> Self {
-        Self { objects: HIDING.iter().filter_map(|hash| rt.find(package, *hash)).collect(), on: false }
+        Self { bar: rt.find(package, BAR) }
     }
 
-    /// Fades the mark in when `hiding` turns on and out when it turns off; nothing happens while it holds.
-    pub fn apply(&mut self, rt: &mut Runtime, hiding: bool) {
-        if hiding == self.on {
-            return;
+    /// Plays the bar's appear when `shown` turns on and its leave when it turns off; nothing while it holds.
+    pub fn apply(&self, rt: &mut Runtime, shown: bool) {
+        let Some(bar) = self.bar else { return };
+        let up = rt.script_of(bar) == Some(APPEAR);
+        if let Some(script) = bar_script(shown, up) {
+            rt.run_script(bar, script);
         }
-        self.on = hiding;
-        let script = match hiding {
-            true => FADE_IN,
-            false => FADE_OUT,
-        };
-        for object in &self.objects {
-            rt.run_script(*object, script);
-        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_bar_appears_once_and_leaves_once() {
+        assert_eq!(bar_script(true, false), Some(APPEAR), "the spot starts to latch in the cool-down");
+        assert_eq!(bar_script(true, true), None, "an appear that runs or has run is not restarted");
+        assert_eq!(bar_script(false, true), Some(LEAVE), "the spot lets go, or the cool-down ends");
+        assert_eq!(bar_script(false, false), None, "a bar at rest stays at rest");
     }
 }

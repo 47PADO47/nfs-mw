@@ -15,7 +15,8 @@ pub struct PursuitHud {
     /// The pursuit is in its actual cooldown phase, independently of the fill fraction.
     pub cooldown: bool,
     /// How far the hiding spot the player is in has latched, 0 to 1, once it has started to; `None` when no spot is
-    /// hiding the player (`docs/specs/pursuit-hiding.md`). The "hiding" mark shows while this is `Some`.
+    /// hiding the player (`docs/specs/pursuit-hiding.md`). The "hiding" mark shows while this is above zero during the
+    /// cool-down.
     pub hiding: Option<f32>,
     /// Seconds until the called backup arrives (the pursuit's backup ETA); 0 or less when none is on its way. The board's
     /// backup row shows it (`hud/backup_timer.rs`).
@@ -43,9 +44,10 @@ impl PursuitHud {
         self.cooldown
     }
 
-    /// Whether the hiding mark is on the screen.
+    /// Whether the hiding mark is on the screen: the cool-down shows and a hiding spot has started to latch the player.
+    /// The board plays the mark only in the cool-down (`docs/specs/pursuit-hiding.md` section 5).
     pub fn hiding_shown(&self) -> bool {
-        self.hiding.is_some()
+        self.cooldown && self.hiding.is_some_and(|fill| fill > 0.0)
     }
 }
 
@@ -74,6 +76,15 @@ mod tests {
     fn cooldown_is_an_explicit_phase_instead_of_an_inferred_fill_threshold() {
         assert!(!PursuitHud { evade: 0.5, ..Default::default() }.cooldown_shown());
         assert!(PursuitHud { evade: 0.0, cooldown: true, ..Default::default() }.cooldown_shown());
+    }
+
+    #[test]
+    fn the_hiding_mark_shows_only_in_the_cool_down_with_a_latching_spot() {
+        let hidden = PursuitHud { cooldown: true, hiding: Some(0.4), ..Default::default() };
+        assert!(hidden.hiding_shown());
+        assert!(!PursuitHud { cooldown: false, ..hidden }.hiding_shown(), "a spot outside the cool-down shows nothing");
+        assert!(!PursuitHud { hiding: Some(0.0), ..hidden }.hiding_shown(), "a latch that has not filled at all");
+        assert!(!PursuitHud { hiding: None, ..hidden }.hiding_shown());
     }
 
     #[test]

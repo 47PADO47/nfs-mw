@@ -36,10 +36,6 @@ pub(super) const COOLDOWN: [u32; 1] = [0x84a2_26ec];
 /// The bounty row (`BOUNTY >` and the chase's pending bounty). It sits inside the pursuit board's group and shows with
 /// it in every chase, as the game's board plays its appear on every update of a chase.
 pub(super) const BOUNTY_ROW: [u32; 1] = [0x8674_e6d4];
-/// The cool-down bar's "HIDING" text group and its car icon. They sit under the cool-down group and rest at zero
-/// alpha; `hiding_mark.rs` fades them in and out (`docs/specs/pursuit-hiding.md`). The orange bar beside them
-/// (`0x5c2a4f20`) answers no message in the package and stays at rest.
-pub(super) const HIDING: [u32; 2] = [0x60b4_5523, 0x3807_4901];
 /// The rings around the infraction icon (`hud/infractions.rs`): the icon's appear and leave fade them.
 const INFRACTION_RINGS: u32 = 0x3345_911d;
 

@@ -2,7 +2,8 @@
 //! parents as in `HUD_SingleRace.fng`, see `docs/specs/hud-pursuit.md`).
 
 use blackbox_feng::package::{
-    Interp, Key, ObjectData, ObjectDef, ObjectKind, Package, ParamType, Script, StringDef, Track,
+    Event, Interp, Key, MessageTargets, ObjectData, ObjectDef, ObjectKind, Package, ParamType, Response, ResponseKind,
+    ResponseList, ResponseParam, Script, StringDef, Track,
 };
 use blackbox_feng::{PackageId, Runtime, fe_hash_upper};
 use glam::Vec3;
@@ -24,6 +25,10 @@ const BAR: u32 = 6;
 const TRACK: u32 = 7;
 const HIDING: u32 = 8;
 const HIDING_ICON: u32 = 9;
+/// The orange bar the board drives: its appear and leave raise the messages the mark answers.
+const HIDING_BAR: u32 = 16;
+const MARK_IN: u32 = 0x4027_A94E;
+const MARK_OUT: u32 = 0x451C_D24C;
 const HEAT: u32 = 10;
 const SPEEDOMETER: u32 = 11;
 /// The cost-to-state flasher's group and its number.
@@ -56,10 +61,41 @@ fn named(kind: ObjectKind, guid: u32, name_hash: u32, parent: Option<u32>, size:
         scripts: match name_hash {
             0x84A2_26EC | 0x839E_7D77 => visibility_scripts(),
             0x60B4_5523 | 0x3807_4901 => fade_scripts(),
+            0x5C2A_4F20 => bar_scripts(),
             _ => Vec::new(),
         },
-        responses: Vec::new(),
+        responses: match name_hash {
+            0x60B4_5523 | 0x3807_4901 => mark_responses(),
+            _ => Vec::new(),
+        },
     }
+}
+
+/// The bar's appear and leave: each raises its message to the package at once, as the installed ones do.
+fn bar_scripts() -> Vec<Script> {
+    [(super::hiding_mark::APPEAR, MARK_IN), (0x0331_13AC, MARK_OUT)]
+        .into_iter()
+        .map(|(id, message)| Script {
+            id,
+            events: vec![Event { message, target: 0xFFFF_FFFC, time: 0 }],
+            ..Default::default()
+        })
+        .collect()
+}
+
+/// The mark's answers: the bar's appear fades it in, its leave out.
+fn mark_responses() -> Vec<ResponseList> {
+    [(MARK_IN, 1_350_158_584), (MARK_OUT, 53_547_948)]
+        .into_iter()
+        .map(|(message, script)| ResponseList {
+            message,
+            responses: vec![Response {
+                kind: ResponseKind::SetScript,
+                param: ResponseParam::Number(script),
+                target: 0,
+            }],
+        })
+        .collect()
 }
 
 /// The mark's fade-in and fade-out: the installed script ids, setting the alpha outright.
@@ -134,6 +170,7 @@ fn package() -> Package {
         named(ObjectKind::Image, TRACK, 0xA1EB_7E6E, Some(COOLDOWN), Vec3::new(216.0, 5.0, 0.0)),
         named(ObjectKind::Group, HIDING, 0x60B4_5523, Some(COOLDOWN), none),
         named(ObjectKind::Image, HIDING_ICON, 0x3807_4901, Some(COOLDOWN), none),
+        named(ObjectKind::Image, HIDING_BAR, super::hiding_mark::BAR, Some(COOLDOWN), none),
         named(ObjectKind::Group, HEAT, 0xC46A_80A9, None, none),
         named(ObjectKind::String, 20, 0xA81A_2028, Some(HEAT), none),
         named(ObjectKind::String, 21, 0xA81A_2028, Some(HEAT), none),
@@ -152,7 +189,7 @@ fn package() -> Package {
         objects,
         button_count: 0,
         responses: Vec::new(),
-        targets: Vec::new(),
+        targets: [MARK_IN, MARK_OUT].map(|message| MessageTargets { message, guids: vec![HIDING, HIDING_ICON] }).into(),
     }
 }
 
@@ -332,6 +369,18 @@ fn the_hiding_mark_fades_in_while_a_spot_latches_the_player_and_out_when_it_lets
     step(&mut rt, &mut b, &state);
     step(&mut rt, &mut b, &state);
     assert!(!visible(&rt, id, HIDING) && !visible(&rt, id, HIDING_ICON), "and goes when the spot lets go");
+}
+
+#[test]
+fn the_hiding_mark_stays_down_outside_the_cool_down() {
+    let (mut rt, id, mut b) = setup();
+    let mut state = chase(3.0, 0.0);
+    state.pursuit.as_mut().unwrap().hiding = Some(1.0);
+    step(&mut rt, &mut b, &state);
+    step(&mut rt, &mut b, &state);
+    let bar = rt.find(id, super::hiding_mark::BAR).unwrap();
+    assert_ne!(rt.script_of(bar), Some(super::hiding_mark::APPEAR), "the board drives the bar only in the cool-down");
+    assert!(!visible(&rt, id, HIDING) && !visible(&rt, id, HIDING_ICON));
 }
 
 #[test]

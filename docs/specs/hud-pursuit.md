@@ -33,6 +33,7 @@ The detailed radar and signed meter contract is
 | Five meter images / `0xe0e0169b`, `0x8eeebd33`, `0x47a4e2a9`, `0x8e3653a6`, `0x30f39a6f` | Piecewise widths, fixed outer edges and flashing states from the signed display value. |
 | `Cooldown_Meter_Group` / `0x84a226ec` | Shown on actual cooldown state, independently of fill fraction. |
 | Cooldown fill / `0xcf817638` | Installed width times cooldown progress, keeping its left edge fixed. |
+| Hiding bar / `0x5c2a4f20` | Its appear and leave by the board's rule; its messages fade the "HIDING" group, label and icon ([pursuit-hiding](pursuit-hiding.md) section 5). |
 | `Heat_Meter_Group` / `0xc46a80a9` | Retained vehicle heat, including outside a pursuit. **[binary]** The HUD update feeds the meter the player vehicle's live heat every frame, in and out of a chase. That heat starts at `max(1.0, record heat)` in the career (`career-safehouse-2.md` 8), so career free roam reads the car record through that floor and shows x1 for a cooled, cleared or new car. |
 | Duplicate heat strings / `0xa81a2028` | Both string objects updated to the integer multiplier. |
 | Radar backing / `0x839e7d77` | Standalone layout selected through authored `APPEAR`; hidden when the mirror supplies the backing. |
@@ -64,7 +65,6 @@ size over the newly calculated fixed edge.
 |---|---|
 | Heat arcs / `0x862824c9`, `0x4b2cbe1b` | Held hidden; the original mask-to-heat mapping is not implemented. |
 | Total bounty / `0xea903012`, cash / `0x3f8644ca` | Not bound: the career's flashers of the stable's total bounty and the cash. They rest hidden. |
-| Hiding / `0x60b45523`, `0x38074901`, `0x5c2a4f20` | Hidden pending complete hiding timing/presentation. |
 | Radar audio/targets | Native ground selection, range, cone and per-update ramp are bound. Detector click and speed-camera selection remain absent; roll-sensitive lateral orientation remains unverified. |
 | View mode | The rear-view setting selects the detector layout. Original view-specific rear-view eligibility still needs comparison. |
 | Fades/sounds | Radar/meter transforms and transitions run from installed scripts; full HUD event and sound dispatch remains incomplete. |
