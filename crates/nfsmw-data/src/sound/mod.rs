@@ -18,12 +18,13 @@ mod moment;
 mod nis;
 mod shift;
 mod stitch;
+mod sweetener;
 mod turbo;
 
 pub use accel::AccelTransition;
 pub use banks::GlobalBanks;
 pub use car::{CarSound, SoundUpgrades, audio_engine_level, car_sound, generic_car_sound, upgrade_entry};
-pub use collision::{CollisionSounds, CollisionZone, EventKind, ImpactSound, heaviest_impact};
+pub use collision::{CollisionSounds, CollisionZone, EventKind, ImpactSound, all_impacts, heaviest_impact};
 pub use effect::EffectSound;
 pub use engine::{DecelWindow, EngineGroup, EngineMix, EngineSound, MixLevels};
 pub use load::{EngineLoops, load_loop};
@@ -31,6 +32,7 @@ pub use moment::{MomentSound, moment_take, moment_takes};
 pub use nis::{NIS_SCENES, NisBranch, NisTake, nis_branch, nis_row, nis_take};
 pub use shift::{ShiftSound, ShiftStage, Wobble};
 pub use stitch::{Stitch, StitchPiece, collision_stitches, whoosh_stitches};
+pub use sweetener::StreamSweetener;
 pub use turbo::TurboSound;
 
 /// Install folder of the `.gin` loops, the engine banks and the sweetener banks.

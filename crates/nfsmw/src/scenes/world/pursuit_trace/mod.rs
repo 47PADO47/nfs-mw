@@ -115,7 +115,6 @@ impl WorldScene {
             "cop_share": format!("{:?}", traffic.cop_share),
             "traffic_manual": self.traffic_manual,
             "traffic_lights": traffic.lights,
-            "traffic_avoidance": traffic.avoidance,
             "traffic_policy": serde_json::to_value(traffic.policy).ok(),
             "pursuit_options": format!("{:?}", traffic.pursuit),
             "track": self.track,

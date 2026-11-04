@@ -149,11 +149,6 @@ impl AiCar {
         if self.nav.kind != NavKind::Traffic {
             return Neighbour::Other;
         }
-        if !self.is_wrecked()
-            && let Some((from_lane, to_lane)) = self.avoid.changing_lanes()
-        {
-            return Neighbour::ChangingTraffic { from_lane, to_lane, node: self.nav.node_ind };
-        }
         match self.is_wrecked() {
             true => Neighbour::Wreck,
             false => Neighbour::Traffic { lane: self.nav.lane, node: self.nav.node_ind },

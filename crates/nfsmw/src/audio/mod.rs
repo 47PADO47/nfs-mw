@@ -42,6 +42,7 @@ mod heli;
 mod interactive;
 pub mod menu;
 mod mixer;
+mod moment_stream;
 pub mod nis;
 pub mod oneshot;
 mod pcm;
@@ -128,6 +129,8 @@ pub struct Audio {
     speedbreaker: speedbreaker::Slot,
     explosion: explosion::Slot,
     thunder: thunder::Slot,
+    /// The one moment stream the moment recordings share.
+    moments: moment_stream::Stream,
     nis: nis::NisAudio,
     dir: GameDir,
     volumes: Volumes,
@@ -240,6 +243,7 @@ impl Audio {
             speedbreaker: speedbreaker::Slot::default(),
             explosion: explosion::Slot::default(),
             thunder: thunder::Slot::default(),
+            moments: moment_stream::Stream::default(),
             nis: nis::NisAudio::default(),
             dir,
             volumes,

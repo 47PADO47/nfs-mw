@@ -142,8 +142,10 @@ pub struct TrafficWorld {
     signal_lamps: signal_props::SignalLamps,
     /// Cars stop for the lights (the `traffic_lights` setting).
     lights_on: bool,
-    /// Cars go round a car that blocks their lane (the `traffic_avoidance` setting; `car/avoid.rs`).
-    avoidance: bool,
+    /// Ambient spawn density requested by the event, independent of the actor budget.
+    event_density: u32,
+    /// An event's authored traffic pattern; otherwise the neighbourhood selects it.
+    event_pattern: Option<String>,
     models: Vec<TrafficModel>,
     cop_models: Vec<CopModel>,
     /// The worker that reads the car models the traffic asks for, made by its first request (`model_loader.rs`).
@@ -267,7 +269,8 @@ impl TrafficWorld {
             step_delta: super::drive::STEP,
             signal_lamps: signal_props::SignalLamps::default(),
             lights_on: false,
-            avoidance: false,
+            event_density: 100,
+            event_pattern: None,
             network,
             index,
             track_barriers: Vec::new(),
@@ -386,11 +389,6 @@ impl TrafficWorld {
     /// Whether the cars stop for the traffic lights (a rewrite extension: the original has none).
     pub fn set_lights(&mut self, on: bool) {
         self.lights_on = on;
-    }
-
-    /// Whether the cars go round a car that blocks their lane (a rewrite extension: the original does not).
-    pub fn set_avoidance(&mut self, on: bool) {
-        self.avoidance = on;
     }
 
     /// Asks a screenshot run to simulate `seconds` before it captures.

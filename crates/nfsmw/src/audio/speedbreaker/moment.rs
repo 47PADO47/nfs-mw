@@ -1,4 +1,6 @@
-//! Original breaker moment recordings; separate from common FX_UVES and music filtering.
+//! Original breaker moment recordings; separate from common FX_UVES and music filtering. The sting takes the shared
+//! moment stream like every moment (`scenery-effect-audio.md`).
+use super::super::moment_stream::Owner;
 use super::super::radio::feeder::FileSource;
 use super::super::{Audio, Group, pcm, trace::Record, volume};
 use blackbox_mixmap::{InputKey, Mixer, ObjectRef};
@@ -53,6 +55,14 @@ impl Moment {
 }
 
 impl Audio {
+    pub(in crate::audio) fn stop_breaker_moment_voice(&mut self) {
+        self.speedbreaker.moment.stop();
+    }
+
+    pub(in crate::audio) fn breaker_moment_playing(&self) -> bool {
+        self.speedbreaker.moment.voice.as_ref().is_some_and(|voice| voice.state() != PlaybackState::Stopped)
+    }
+
     /// Decode both mode branches during initial car setup, before activation can interrupt driving.
     pub(in crate::audio) fn prepare_breaker_moments(&mut self) {
         if self.output.is_none() {
@@ -116,6 +126,8 @@ impl Audio {
         }
         moment.stop();
         if !active {
+            // The breaker's end stops the sting only while the sting holds the stream.
+            self.moment_stopped(Owner::Breaker);
             self.speedbreaker.moment = moment;
             return;
         }
@@ -123,11 +135,21 @@ impl Audio {
         let slot = usize::from(interactive);
         moment.selected = slot;
         self.prepare_breaker_recording(&mut moment, interactive);
-        if let Some(recording) = &moment.recordings[slot] {
+        let key = blackbox_attrib::vlt_hash(match interactive {
+            true => "purs_break_start_music",
+            false => "purs_break_start_fx",
+        });
+        let view = self.speedbreaker.view;
+        let admitted = match moment.recordings[slot].is_some() {
+            true => self.request_moment(Owner::Breaker, key, None, &view),
+            false => None,
+        };
+        if let (Some(recording), Some((rank, _))) = (&moment.recordings[slot], admitted) {
             let gain = self.breaker_moment_gain(recording);
             match self.play(Group::Sfx, recording.sound.clone().volume(volume::decibels(gain))) {
                 Ok(voice) => {
                     moment.voice = Some(voice);
+                    self.moment_started(Owner::Breaker, key, rank, None);
                     self.trace.record(Record {
                         event: "sample_start",
                         class: "SPEEDBREAKER_MOMENT",

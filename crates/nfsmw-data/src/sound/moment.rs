@@ -8,6 +8,10 @@ pub struct MomentSound {
     pub param: u32,
     pub volume_slot: usize,
     pub positioned: bool,
+    /// `strmpriority`: a playing moment refuses a request of lower priority.
+    pub priority: i8,
+    /// `CanInterupt`: whether a marker-queued request may replace the playing moment.
+    pub can_interrupt: bool,
 }
 
 impl MomentSound {
@@ -31,13 +35,23 @@ impl MomentSound {
         Self::named(db, "expl_gas_station")
     }
 
+    /// The moment collection an impact's stream sweetener names.
+    pub fn by_key(db: &Database, key: u32) -> Option<Self> {
+        Self::from_collection(db.collection_by_key(blackbox_attrib::vlt_hash("aud_moment_strm"), key)?)
+    }
+
     fn named(db: &Database, name: &str) -> Option<Self> {
-        let c = db.collection("aud_moment_strm", name)?;
+        Self::from_collection(db.collection("aud_moment_strm", name)?)
+    }
+
+    fn from_collection(c: CollectionRef<'_>) -> Option<Self> {
         Some(Self {
             stream: word(c, "stream")?,
             param: word(c, "param")?,
             volume_slot: word(c, "VolSlot")? as usize,
             positioned: c.get("IsPositioned").and_then(Value::as_bool).unwrap_or(false),
+            priority: c.get("strmpriority").and_then(Value::as_i32).map_or(0, |p| p.clamp(-128, 127) as i8),
+            can_interrupt: c.get("CanInterupt").and_then(Value::as_bool).unwrap_or(false),
         })
     }
 }

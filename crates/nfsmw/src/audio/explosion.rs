@@ -1,4 +1,6 @@
-//! Authored petrol-station moment stream. Spec: `petrol-station-explosion.md`.
+//! Authored petrol-station moment stream. Spec: `petrol-station-explosion.md`; admission and interruption belong to
+//! the shared moment stream (`scenery-effect-audio.md`).
+use super::moment_stream::Owner;
 use super::radio::feeder::FileSource;
 use super::{Audio, AudioView, Group, pcm, shaped, trace::Record, volume};
 use blackbox_mixmap::{InputKey, Mixer, ObjectRef};
@@ -12,8 +14,8 @@ use std::time::Duration;
 
 const INDEX: &str = "SOUND/STREAMS/NISAudio.idx";
 const STREAM: &str = "SOUND/STREAMS/NISAudio.big";
-const OBJECT: ObjectRef = ObjectRef { state: 0, instance: 0, object: 6 };
-const RETRIGGER_SECONDS: f32 = 2.0;
+pub(super) const OBJECT: ObjectRef = ObjectRef { state: 0, instance: 0, object: 6 };
+const MOMENT: u32 = blackbox_attrib::vlt_hash("expl_gas_station");
 const RANGE: f32 = 120.0;
 
 struct Recording {
@@ -30,7 +32,6 @@ pub(super) struct Slot {
     failed: bool,
     voice: Option<StaticSoundHandle>,
     point: Vec3,
-    elapsed: f32,
 }
 
 impl Slot {
@@ -47,7 +48,7 @@ impl Drop for Slot {
     }
 }
 
-fn publish(mixer: &mut Mixer, point: Vec3, view: AudioView) {
+pub(super) fn publish(mixer: &mut Mixer, point: Vec3, view: AudioView) {
     mixer.set_camera(view.camera_state);
     for (index, value) in view.distances(point).into_iter().enumerate() {
         mixer.set_input(InputKey::controller(0, 0, 2, index as u8), value);
@@ -56,7 +57,7 @@ fn publish(mixer: &mut Mixer, point: Vec3, view: AudioView) {
     mixer.set_input(InputKey::controller(0, 0, 2, 15), i32::from(valid));
 }
 
-fn levels(mixer: &Mixer, definition: MomentSound) -> Option<(f32, f32)> {
+pub(super) fn levels(mixer: &Mixer, definition: MomentSound) -> Option<(f32, f32)> {
     let gain = mixer.volume(OBJECT, definition.volume_slot)?;
     let gain = (((gain.clamp(0.0, 1.0) * 32767.0) as u32) >> 8).min(127) as f32 / 127.0;
     let azimuth = match definition.positioned {
@@ -109,6 +110,15 @@ impl Audio {
 
     pub(super) fn stop_explosion(&mut self) {
         self.explosion.stop();
+        self.moment_stopped(Owner::Petrol);
+    }
+
+    pub(super) fn stop_explosion_voice(&mut self) {
+        self.explosion.stop();
+    }
+
+    pub(super) fn explosion_playing(&self) -> bool {
+        self.explosion.voice.as_ref().is_some_and(|voice| voice.state() != PlaybackState::Stopped)
     }
 
     pub(super) fn update_explosion(&mut self, view: AudioView, dt: f32) {
@@ -116,7 +126,6 @@ impl Audio {
             return;
         }
         let slot = &mut self.explosion;
-        slot.elapsed += dt;
         if slot.voice.as_ref().is_some_and(|voice| voice.state() == PlaybackState::Stopped)
             || slot.point.distance(view.car_position) > RANGE
         {
@@ -137,12 +146,13 @@ impl Audio {
             return;
         }
         self.prepare_explosion();
-        let slot = &mut self.explosion;
-        if slot.voice.as_ref().is_some_and(|voice| voice.state() != PlaybackState::Stopped)
-            && slot.elapsed < RETRIGGER_SECONDS
-        {
+        if self.explosion.recording.is_none() {
             return;
         }
+        // The shared stream decides: a chained blast does not restart it, a queued one is released at its marker.
+        let Some((rank, at)) = self.request_moment(Owner::Petrol, MOMENT, Some(point), &view) else { return };
+        let point = at.unwrap_or(point);
+        let slot = &mut self.explosion;
         let (Some(recording), Some(mixer)) = (&slot.recording, &mut slot.mixer) else { return };
         publish(mixer, point, view);
         mixer.set_input(InputKey::object(0, 0, 6, 5), 32767);
@@ -153,10 +163,10 @@ impl Audio {
         let selection = [recording.bank as i32, recording.take as i32, recording.definition.volume_slot as i32];
         slot.stop();
         slot.point = point;
-        slot.elapsed = 0.0;
         match self.play(Group::Sfx, data) {
             Ok(voice) => {
                 self.explosion.voice = Some(voice);
+                self.moment_started(Owner::Petrol, MOMENT, rank, Some(point));
                 self.trace.record(Record {
                     event: "sample_start",
                     class: "PETROL_EXPLOSION",

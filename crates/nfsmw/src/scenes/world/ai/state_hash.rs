@@ -16,6 +16,12 @@ impl TrafficWorld {
         hash.f32(self.spawn_timer);
         hash.f32(self.sight_clock);
         hash.bool(self.world_moment);
+        hash.u32(self.event_density);
+        hash.bool(self.event_pattern.is_some());
+        if let Some(pattern) = &self.event_pattern {
+            hash.u64(pattern.len() as u64);
+            hash.bytes(pattern.as_bytes());
+        }
         hash.f32(self.hit_timer);
         hash.bool(self.seen_by_cops);
         hash.bool(self.pursuit.is_some());

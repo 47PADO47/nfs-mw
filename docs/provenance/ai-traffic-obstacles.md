@@ -5,6 +5,18 @@ original PC 1.3 executable (`speed.exe`, same SHA-256 as [ai-traffic.md](ai-traf
 program `/speed.exe`, image base `0x00400000`. Symbols are stripped. Function names in this file are Ghidra's
 automatic names (`FUN_`), kept only here as locators. No function was created, renamed or saved in the project.
 
+## 2026-11-03 correction
+
+The stopping table multiplier was misread in the original investigation.
+The actual word is `0x3c4ccccd` (approximately 0.0125), not 0.05. The range
+is 80 and the existing `/80` implementation is correct. Ten isolated original
+lookup executions confirm it; see [current provenance](traffic-driving-parity.md).
+The older port comparisons and lead numbers below describe the historical investigation.
+Current implementation status and open comparisons are in section 9 of the spec.
+The older absence-of-string conclusions below are historical search findings,
+not proof that original traffic never changes lanes. Several paths were not
+identified, and no matched live traffic route was captured in that pass.
+
 ## Addresses
 
 | Address | Role | How found |
@@ -25,7 +37,7 @@ automatic names (`FUN_`), kept only here as locators. No function was created, r
 | `0x00420040` | the crash trigger, for one party of a collision (80 m camera gate, 5 mph, class test, tractor) | the only writer of the crash state 1 (`search_instructions` for `0xac], 0x1`), decompiled |
 | `0x00420130` | the collision callback: skips cops (own class 2), only object collisions (flag `& 7 == 1`), calls the trigger for both parties | caller of `0x00420040`, decompiled |
 | `0x006533b0` | piecewise-linear lookup (count, base, scale, data pointer); used for the stopping table and the removal tables | callee of the speed function; decompiled |
-| `0x008eb394` | stopping table record: count 2, base 0, scale 0.05, data pointer `0x008eb1e8`, [count, base, 80.0, 0.05, ptr, 2] | read memory |
+| `0x008eb394` | stopping table record: count 2, base 0, scale 0.0125, data pointer `0x008eb1e8`, [count, base, 80.0, 0.05, ptr, 2] | read memory |
 | `0x008eb1e8` | stopping table values: 3.0 and 50.0 (then other data) | read memory |
 | `0x008eb358` | removal distance table record: count 11, base 0, scale 10.0 | read memory (for the scale comparison) |
 | `0x007c4b80` | float to 64-bit integer helper (truncation, as a C cast); Ghidra shows `ROUND` | decompiled |
@@ -79,12 +91,9 @@ class.
   and `this+0x5c` (the own vehicle through the constructor) are different objects. The first read of the speed rule
   looked like "occluder mass"; it is the own vehicle's mass and radius, which is what the spec says. Write down the
   object each offset comes from before reading a formula.
-- **Lookup tables are records with a scale.** The helper `0x006533b0` computes `index = floor((x − base) × scale)` on
-  a record whose fields are count, base, a second number, scale, data pointer and count again. Read the data words
-  next to the record, and compare with a table whose meaning is known (the removal table has scale 10 and 11 points,
-  which fits the provenance of [ai-traffic-spawning.md §8](../specs/ai-traffic-spawning.md#8-removing-cars)). The
-  stopping table has scale 0.05 and two points, which gives a range of 20 units, not 80. This is the source of the
-  `/20` versus `/80` conflict.
+- **Decode stored floats before inferring a range.** The lookup reads the index multiplier.
+  The stopping record's multiplier is 0.0125 and its range is 80. The historical
+  0.05 reading and `/20` conflict were errors, corrected by isolated execution.
 - **`ROUND` in Ghidra can mean truncation.** `0x007c4b80` is shown as `ROUND(ST0)`, but its body corrects the value
   to truncate (the C cast). Check the correction code before reading a conversion helper as rounding.
 - **Goal factories are called through tables.** The three factories `0x0043d540`, `0x0043d5a0`, `0x0043d600` have no
@@ -95,8 +104,8 @@ class.
 - **The Ghidra project has gaps.** Some vtable targets (slots 2, 4, 6, 8, 9) are not function entries. `disassemble_function`
   refuses them, but `read_memory` gives the bytes. Do not create functions in the shared project to read them; read the
   bytes, and create them only in a scratch copy.
-- **Name patterns beat decompiles for absence.** Four `search_strings` calls (behaviour words, sound words, state
-  words, and the pursuit words) answered most of the "does it do X" questions before any function was read.
+- **Name searches only guide further investigation.** Four `search_strings` calls (behaviour words, sound words, state
+  words, and the pursuit words) found useful candidates. Missing names do not establish missing behavior.
 
 ## Dead ends
 
@@ -118,7 +127,7 @@ class.
 ## Checked against the port (read only)
 
 - `traffic.rs`: `think`, `compute_speed`, `stopping_distance` (`/80`), the 30 m blocked look, the `from_behind`
-  check, the lateral 0.6 g, the 2 dT clamp. The `/80` is the conflict in the spec (§4.4).
+  check, the lateral 0.6 g, the 2 dT clamp. The historical `/80` conflict is resolved in the correction above.
 - `car/accident.rs`: `ACCIDENT_THINKS = 3`, decrement-then-controls order, the tractor path (centred steering) and
   `on_hit` (returns early unless the state is none, so there is no restart).
 - `car/hits.rs`: `on_hit(traffic && !patrol, tractor)` and the camera distance argument. The gate on the other party's
@@ -128,5 +137,5 @@ class.
 
 ## Open
 
-- The leads in the spec (§Next leads) are the open items.
-- No game measurement exists for any number in this file. The in-game checks are in the spec §11.
+- Current open comparisons are in section 9 of the spec.
+- The stopping lookup has isolated original-execution evidence. No matched live driving comparison has been completed.

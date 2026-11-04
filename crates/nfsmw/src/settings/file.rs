@@ -119,7 +119,6 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         traffic: field(&table, origin, "traffic", count),
         cop_share: field(&table, origin, "cop_share", percent),
         traffic_lights: field(&table, origin, "traffic_lights", boolean),
-        traffic_avoidance: field(&table, origin, "traffic_avoidance", boolean),
         cop_health_bars: field(&table, origin, "cop_health_bars", boolean),
         smoke_quality: field(&table, origin, "smoke_quality", |v| SmokeQuality::from_str(text_of(v)?)),
         smoke_color_mode: field(&table, origin, "smoke_color_mode", |v| super::SmokeColorMode::from_str(text_of(v)?)),

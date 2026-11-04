@@ -162,13 +162,11 @@ impl WorldScene {
         }
         self.view = View::Chase;
         let previous_traffic = self.traffic_manual;
-        // `ForceTrafficDensity` above 0 sets the density at the start (`docs/specs/race-mode.md` section 2).
-        let stored = if p.force_traffic_density > 0 { p.force_traffic_density } else { p.traffic_level };
-        let level = options.traffic.unwrap_or(stored).clamp(0, 100);
         let drag = race.race_type == Some(RaceType::Drag);
         let cars = match drag {
             true => 0,
-            false => (self.traffic_setting.cars * level as u32 / 100) as usize,
+            // Event percentages scale the manager's density, not its actor cap.
+            false => previous_traffic.unwrap_or(self.traffic_setting.cars as usize),
         };
         self.traffic_manual = Some(cars);
         // A Heat Level above None starts a chase at the green light (`heat.rs`) and the car carries its heat into any later

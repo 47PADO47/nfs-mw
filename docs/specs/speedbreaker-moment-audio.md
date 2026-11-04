@@ -34,8 +34,10 @@ Activation and exit follow mode edges, independent of render FPS. The native
 2-second retrigger check applies only while the same moment remains current.
 Once its stopped channel is cleaned up, a fresh activation may play again;
 do not impose a global2-second cooldown after exit.
-World loading may suppress the request; broader NIS/moment priority arbitration
-and exact audio-stream scheduling are separate integration gaps.
+World loading may suppress the request. The sting takes the shared moment stream
+([scenery-effect-audio.md](scenery-effect-audio.md#shared-moment-stream)): it is
+refused below a higher-priority moment, replaces a lower one, and the breaker's
+exit stops it only while it is current. Exact audio-stream scheduling remains a gap.
 The remake includes pending pursuit-music selection and currently playing
 interactive voices when choosing the branch. Full original music-state graph
 selection remains unverified, particularly race/front-end/mode transitions.

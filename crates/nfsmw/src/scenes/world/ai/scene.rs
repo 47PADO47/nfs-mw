@@ -74,7 +74,8 @@ impl WorldScene {
     pub(in crate::scenes::world) fn prepare_traffic_support(&mut self) {
         let focus = self.traffic_focus();
         let policy = self.traffic_setting.policy.sanitized();
-        let range = match self.traffic_wanted() > 0 && policy.density_percent > 0 {
+        let density = self.race.as_ref().map_or(100, |session| session.traffic_context().0);
+        let range = match self.traffic_wanted() > 0 && policy.density_percent > 0 && density > 0 {
             true => policy.spawn_max as f32 + focus.speed.abs().min(200.0) + 100.0,
             false => 0.0,
         };
@@ -90,14 +91,15 @@ impl WorldScene {
         let barred = self.extra.testing.police_off || self.race_bars_cops();
         let guests = self.guest_traffic_views();
         let blocking_models = self.rules.blocking_models;
+        let (density, pattern) = self.race.as_ref().map_or((100, None), |session| session.traffic_context());
         let Some(traffic) = self.traffic.as_mut() else { return };
         traffic.set_guests(guests);
         traffic.set_pursuit_options(self.traffic_setting.pursuit);
         traffic.configure(wanted, share);
         traffic.bar_cops(barred);
         traffic.set_policy(self.traffic_setting.policy);
+        traffic.set_event_traffic(density, pattern);
         traffic.set_lights(self.traffic_setting.lights);
-        traffic.set_avoidance(self.traffic_setting.avoidance);
         // The models the manager asks for are read on the loader's worker. A warm-up run (`traffic warmup`) waits for
         // them in the frame they are asked for, so it sees the same cars every time; a playing scene does not wait, unless
         // a session's rules make the server's model choice independent of the loader's timing (`session_rules.rs`).

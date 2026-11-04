@@ -62,8 +62,11 @@ slot0. Publish blast-to-player and blast-to-camera planar distances and azimuths
 to main position controller2, including its valid flag, and update while playing.
 Positioned recordings use authored azimuth; unpositioned ones remain centered.
 Quantize gain through Q15 shifted right8 into the original 0..127 stream range.
-Playback rate remains1. A current identical moment suppresses re-triggering for
-2 seconds; a later accepted blast replaces the existing explosion voice. Stop
+Playback rate remains1. Admission, the 2-second same-moment retrigger and
+interruption belong to the shared moment stream
+([scenery-effect-audio.md](scenery-effect-audio.md#shared-moment-stream)): a blast
+queued at a gas-station marker is released at that marker, and an accepted blast
+replaces whatever moment plays. Stop
 when its scene leaves and let natural sample completion clear the current voice.
 Suppress/dismiss a blast farther than120m from the player, matching the original
 moment producer's range cleanup. Do not restart an ended recording each frame.
