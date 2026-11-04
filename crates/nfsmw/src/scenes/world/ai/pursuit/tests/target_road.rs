@@ -217,3 +217,25 @@ fn production_step_tracks_stationary_search_memory_instead_of_hidden_motion() {
     assert!(memory.centre.distance(hidden.position) > 100.0);
     assert_eq!(world.pursuit.as_ref().unwrap().last_seen.unwrap().position, first.position);
 }
+
+#[test]
+fn regained_sight_drops_the_seek_cached_for_the_remembered_pose() {
+    let mut world = TrafficWorld::new(straight_road(1000.0));
+    world.start_pursuit(1, vec![wave()], player());
+    let first = Body { forward: Vec2::Y, ..focus().body.unwrap() };
+    free_roam::see(&mut world, true);
+    production_step(&mut world, Some(first));
+    for _ in 0..34 {
+        free_roam::see(&mut world, false);
+    }
+    assert!(!world.police.is_perp_in_sight());
+    let ahead = Body { position: Vec3::Z * 300.0, velocity: Vec3::Z * 60.0, ..first };
+    production_step(&mut world, Some(ahead));
+    let memory = world.target_road.observation().expect("the search follows the remembered pose");
+    assert!(memory.seek.distance(first.position) < 100.0);
+    free_roam::see(&mut world, true);
+    assert!(world.police.is_perp_in_sight());
+    production_step(&mut world, Some(ahead));
+    let regained = world.target_road.observation().expect("the visible target is on the road");
+    assert!(regained.seek.z > ahead.position.z, "the cops seek ahead of the visible player, not its old pose");
+}

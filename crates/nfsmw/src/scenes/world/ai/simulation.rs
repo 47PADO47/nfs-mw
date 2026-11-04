@@ -93,6 +93,8 @@ impl TrafficWorld {
         // Normal driving establishes the vehicle's road history before any chase.
         // A running pursuit may use only its published visible or remembered target.
         let tracking_body = if self.pursuit.is_none() { focus.body } else { target };
+        let remembered = self.pursuit.is_some() && !self.police.is_perp_in_sight();
+        self.target_road.follow_memory(remembered);
         let racing = self.police.pursuit_context().racing;
         let target_road = self.target_road.update(
             &self.network,

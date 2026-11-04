@@ -90,6 +90,9 @@ including its remembered stationary body after tracked sight expires. It must
 not fall back to the hidden physical position when that pursuit target is
 absent. An absent target publishes no road snapshot. A change of
 primary player or replacement of that player's vehicle resets the tracker.
+**[ours]** So does regained sight: the tracked body jumps from the remembered
+pose to the visible one, and the seek cached for the remembered pose (up to
+0.33 s old) would turn every re-engaging cop back toward it and brake it.
 Tracker state, cache clocks, identity and copied cop observations participate
 in the deterministic state hash. Presentation identities and memory addresses
 must not determine the tracker lifetime.

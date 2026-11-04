@@ -12,6 +12,8 @@ pub(super) struct PrimaryRoad {
     owner: Option<u8>,
     tracker: RoadTracker,
     observation: Option<TargetRoad>,
+    /// The last update tracked the pursuit's remembered pose, not the visible target.
+    remembered: bool,
 }
 
 impl PrimaryRoad {
@@ -22,6 +24,16 @@ impl PrimaryRoad {
     fn reset(&mut self) {
         self.tracker = RoadTracker::default();
         self.observation = None;
+    }
+
+    /// Notes before the update whether the tracked body is the remembered pose. When sight returns, the body jumps to
+    /// the visible pose: the seek cached for the remembered one (up to 0.33 s old) would send every cop back to where
+    /// the player was last seen, so the tracker starts again. An adapter rule: the original tracks the real vehicle.
+    pub(super) fn follow_memory(&mut self, remembered: bool) {
+        if self.remembered && !remembered {
+            self.reset();
+        }
+        self.remembered = remembered;
     }
 
     pub(super) fn update(
@@ -55,6 +67,7 @@ impl PrimaryRoad {
     }
 
     pub(super) fn hash_into(&self, hash: &mut StateHasher) {
+        hash.bool(self.remembered);
         hash.bool(self.owner.is_some());
         if let Some(owner) = self.owner {
             hash.u32(u32::from(owner));
