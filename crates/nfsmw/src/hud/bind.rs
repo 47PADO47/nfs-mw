@@ -63,6 +63,7 @@ pub struct HudBinding {
     frame_dt: f32,
     backup_timer: super::backup_timer::BackupTimer,
     cost_to_state: super::cost_to_state::CostToState,
+    infractions: super::infractions::Notifier,
     layout: Layout,
     /// The rear-view mirror is shown; the detector chooses its corresponding authored layout.
     mirror_shown: bool,
@@ -126,6 +127,7 @@ impl HudBinding {
             frame_dt: 0.0,
             backup_timer: super::backup_timer::BackupTimer::new(rt, package),
             cost_to_state: super::cost_to_state::CostToState::new(rt, package),
+            infractions: super::infractions::Notifier::new(rt, package),
             layout: Layout::new(rt, package),
             mirror_frames: [None; 2],
             mirror_shown: true,
@@ -241,6 +243,7 @@ impl HudBinding {
         };
         self.layout.update(rt, shown);
         self.cost_to_state.apply(rt, cost_script);
+        self.infractions.apply(rt, s.pursuit.map(|p| p.infractions));
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
         let alpha = mirror_fade_alpha(self.mirror_elapsed);
         for frame in self.mirror_frames.iter().flatten() {

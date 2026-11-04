@@ -3,6 +3,7 @@
 
 use blackbox_feng::{PackageId, Runtime, fe_hash_upper};
 use blackbox_minimap::Orientation;
+use blackbox_pursuit::{Fines, Infraction, InfractionLog};
 use game_install::GameDir;
 
 use super::MapBlip;
@@ -11,6 +12,7 @@ use super::bind::HudBinding;
 use super::blip_styles::{
     CONE_IDLE, CONE_TRACKING, HELICOPTER, HELICOPTER_CONE, HELICOPTER_CONE_ICON, HELICOPTER_GROUP,
 };
+use super::infractions::{APPEAR as ROW_APPEAR, COUNT, HIDE, ICON, label};
 use super::minimap::MinimapBinding;
 use super::pursuit::PursuitHud;
 use super::state::{HudState, MapPosition};
@@ -161,4 +163,54 @@ fn the_bounty_row_appears_in_a_chase_with_the_pending_bounty() {
     assert!(visible(&rt, id, 0x8674_e6d4) && visible(&rt, id, 0x875e_92eb), "the row and its number show");
     let text = rt.tree(id).nodes.iter().find(|n| n.name_hash == 0x875e_92eb).and_then(|n| n.text.clone());
     assert_eq!(text.as_deref(), Some("162,500"));
+}
+
+/// The text the tree shows under `group` (both strings of an infraction row).
+fn texts_under(rt: &Runtime, id: PackageId, group: u32) -> Vec<Option<String>> {
+    let tree = rt.tree(id);
+    let Some(parent) = tree.nodes.iter().find(|n| n.name_hash == group).map(|n| n.index) else { return Vec::new() };
+    tree.nodes.iter().filter(|n| n.parent == Some(parent)).map(|n| n.text.clone()).collect()
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn each_new_infraction_pops_a_row_with_its_label_and_the_count_then_the_notifier_leaves() {
+    let Some((_, mut rt, id)) = open() else { return };
+    let speeding = label(Infraction::Speeding);
+    rt.set_string_resolver(move |l| (l == speeding).then(|| "Excessive Speeding".to_owned()));
+    let mut b = HudBinding::new(&mut rt, id);
+    b.advance_mirror_fade(1.0);
+    let fines = Fines::new([150, 350, 1000, 350, 300, 100, 300, 75]);
+    let chase = |log: InfractionLog| HudState {
+        pursuit: Some(PursuitHud { secs: 5.0, infractions: log, ..Default::default() }),
+        ..Default::default()
+    };
+    let mut log = InfractionLog::default();
+    step(&mut rt, &mut b, &chase(log), 0.1);
+    let rows: Vec<_> =
+        (1..=4).map(|n| rt.find(id, fe_hash_upper(&format!("INFRACTION_GROUP_{n}"))).expect("a row")).collect();
+    assert!(rows.iter().all(|row| rt.script_of(*row) == Some(HIDE)), "the rows rest hidden");
+    log.record(Infraction::Speeding, &fines);
+    for _ in 0..4 {
+        step(&mut rt, &mut b, &chase(log), 0.1);
+    }
+    assert_eq!(rt.script_of(rows[0]), Some(ROW_APPEAR), "the first row shows the new infraction");
+    assert!(visible(&rt, id, fe_hash_upper("INFRACTION_GROUP_1")), "and is drawn");
+    let row_texts = texts_under(&rt, id, fe_hash_upper("INFRACTION_GROUP_1"));
+    assert_eq!(row_texts.len(), 2, "the text and its shadow");
+    assert!(row_texts.iter().all(|t| t.as_deref() == Some("Excessive Speeding")), "{row_texts:?}");
+    let count = rt.tree(id).nodes.iter().find(|n| n.name_hash == fe_hash_upper(COUNT)).and_then(|n| n.text.clone());
+    assert_eq!(count.as_deref(), Some("1"));
+    assert!(visible(&rt, id, fe_hash_upper(ICON)) && visible(&rt, id, fe_hash_upper(COUNT)), "the icon and the count");
+    log.record(Infraction::OffRoad, &fines);
+    step(&mut rt, &mut b, &chase(log), 0.1);
+    assert_eq!(rt.script_of(rows[1]), Some(ROW_APPEAR), "the next infraction takes the next row");
+    for _ in 0..40 {
+        step(&mut rt, &mut b, &chase(log), 0.1);
+    }
+    assert!(rows.iter().all(|row| rt.script_of(*row) == Some(HIDE)), "each row left by its own chain");
+    assert!(
+        !visible(&rt, id, fe_hash_upper(ICON)) && !visible(&rt, id, fe_hash_upper(COUNT)),
+        "the icon left with them"
+    );
 }

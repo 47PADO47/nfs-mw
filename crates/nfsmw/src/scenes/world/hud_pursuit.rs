@@ -33,6 +33,7 @@ pub(super) fn pursuit_board(traffic: &TrafficWorld, busted: f32) -> Option<Pursu
             hiding: None,
             backup_eta: traffic.backup_eta().unwrap_or(0.0),
             bounty,
+            infractions: *traffic.infractions(),
         });
     }
     // The bar spans the cool-down's own length (`required - grace`), so it opens empty; the meter
@@ -43,6 +44,7 @@ pub(super) fn pursuit_board(traffic: &TrafficWorld, busted: f32) -> Option<Pursu
         cooldown: traffic.cooldown_shown(),
         hiding: traffic.hiding_fill(),
         bounty,
+        infractions: *traffic.infractions(),
         ..board_from_feed(feed, wrecked)
     })
 }

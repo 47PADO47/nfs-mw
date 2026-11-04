@@ -29,6 +29,7 @@ mod frame_cache;
 mod gauge_colors;
 mod gauges;
 mod hiding_mark;
+mod infractions;
 #[cfg(test)]
 mod install_tests;
 mod interact_prompt;

@@ -45,6 +45,7 @@ The detailed radar and signed meter contract is
 | `BACKUP_TIMER` / `0xbee44775` | The backup ETA in `mm:ss.cc` while a backup is on its way. |
 | Bounty row / `0x8674e6d4`, number `0x875e92eb` | The chase's pending bounty, shown with the board in every chase (below, "Bounty row"). |
 | `CTS_GROUP` / `0xd60fc075`, number `0x3ff5f33c`, title `0x64247241` | The cost-to-state flasher (below, "Cost to state"). |
+| `GENERIC_ICONS`, `TOTAL_INFRACTIONS_TEXT`, `INFRACTION_GROUP_1`..`4` | The infraction notifier (below, "Infraction notifier"). |
 
 The radar backing and group no longer receive the earlier +75/+15 unit shifts.
 Those shifts aligned the mirror-oriented initial poses in the standalone view,
@@ -64,7 +65,6 @@ size over the newly calculated fixed edge.
 | Heat arcs / `0x862824c9`, `0x4b2cbe1b` | Held hidden; the original mask-to-heat mapping is not implemented. |
 | Total bounty / `0xea903012`, cash / `0x3f8644ca` | Not bound: the career's flashers of the stable's total bounty and the cash. They rest hidden. |
 | Hiding / `0x60b45523`, `0x38074901`, `0x5c2a4f20` | Hidden pending complete hiding timing/presentation. |
-| Infraction notifications / `INFRACTIONS_HEADER_GROUP`, `INFRACTION_GROUP_1`..`4`, `GENERIC_ICONS`, `TOTAL_INFRACTIONS_TEXT` | Not bound: the four-row queue of new infractions with the icon and the count. They rest hidden. |
 | Radar audio/targets | Native ground selection, range, cone and per-update ramp are bound. Detector click and speed-camera selection remain absent; roll-sensitive lateral orientation remains unverified. |
 | View mode | The rear-view setting selects the detector layout. Original view-specific rear-view eligibility still needs comparison. |
 | Fades/sounds | Radar/meter transforms and transitions run from installed scripts; full HUD event and sound dispatch remains incomplete. |
@@ -95,6 +95,43 @@ score option is on.
 The rewrite (`hud/cost_to_state.rs`) runs the 120 updates as 2 s **[inferred]** (the HUD's update rate was not timed)
 and shows it in every chase: the rewrite has no score option, and its free roam outside the career counts the cost as
 the career does. Tests: `hud::cost_to_state` (the rule) and `hud::pursuit_tests` (the binding).
+
+## Infraction notifier
+
+**[decomp]** for the element and its feed, **[binary]** for the labels, **[verified]** for the objects. The notifier
+sits under the heat meter's top group (`0x157c5b37`): the generic infraction icon `GENERIC_ICONS` with a ring group
+around it, the count `TOTAL_INFRACTIONS_TEXT`, the `INFRACTIONS_HEADER_GROUP` (two "INFRACTIONS" strings, a text and its
+shadow) and four row groups `INFRACTION_GROUP_1` to `_4` of two strings each. Every part's `INIT` chains to `HIDE` (zero
+alpha). A row's appear lasts 2.4 s and chains to its leave (160 ms), which chains back to `HIDE`: a row times itself
+out. The icon's appear (300 ms) chains to a looping pulse; it raises two messages, one that runs the rings' appear and
+one that fades in the count and both header strings. Its leave (300 ms, then `HIDE`) raises the rings' leave and the
+message that hides the count and plays the header's leave.
+
+The game reports an infraction to its infraction manager (in free roam; in a race only when a race-status test passes,
+which is not resolved). An infraction whose bit the chase already holds changes nothing on the HUD. A new one sets the
+bit and sends the HUD a message that, when delivered, takes the infraction's language label and gives its text to the
+notifier:
+
+- the first row whose script is `HIDE` plays its appear and every string under it takes the text (no row shows it while
+  all four are out);
+- the icon plays its appear from the start, even while it is up;
+- the count prints the number of different infractions the chase holds (`%d`).
+
+On each HUD update, when no row is out of `HIDE` and the icon plays its appear or its pulse, the icon plays its leave.
+The manager clears the bits when a pursuit starts.
+
+The row labels **[binary]**, by infraction bit: 1 speeding `0x1f87313a` "Excessive Speeding", 2 racing `0x6df08aff`
+"Speeding", 4 reckless driving `0x21857819`, 8 assault `0x66432b02` "Ramming a Police Vehicle", 16 hit and run
+`0x3e1b41f3`, 32 damage to property `0x98ac2bae`, 64 resisting arrest `0xc03aa693`, 128 off road `0x50f83c6c`. The label
+names do not match their texts for the first two (`INFRACTION_SPEEDING` reads "Excessive Speeding").
+
+The rewrite (`hud/infractions.rs`, fed by `PursuitHud::infractions`, the police's infraction log of the chase) tells
+each infraction of the log it has not told yet, in the log's order, and starts again from none told when a chase starts
+or the log loses an infraction (the next chase's). It sets the rows' label rather than printing the text, so a language
+switch follows. Several infractions of one update all read the final count **[inferred]**: the original prints the count
+as each arrives. The infractions the police record are those of `ai-pursuit.md`; a LAN client's board carries none (the
+global block has no log). Tests: `hud::infractions` (the rule) and `hud::pursuit_install_tests` (the real package's
+rows, count, icon and their timing out).
 
 ## Backup timer
 

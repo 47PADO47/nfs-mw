@@ -23,6 +23,8 @@ pub struct PursuitHud {
     /// The chase's pending bounty: its rep points so far, for the time in sight and the wrecks
     /// (`docs/specs/ai-pursuit-heat.md` section 5.1). The board's `BOUNTY` row shows it.
     pub bounty: u32,
+    /// The chase's infractions so far: each new one pops a row of the infraction notifier (`hud/infractions.rs`).
+    pub infractions: blackbox_pursuit::InfractionLog,
 }
 
 impl PursuitHud {

@@ -40,6 +40,8 @@ pub(super) const BOUNTY_ROW: [u32; 1] = [0x8674_e6d4];
 /// alpha; `hiding_mark.rs` fades them in and out (`docs/specs/pursuit-hiding.md`). The orange bar beside them
 /// (`0x5c2a4f20`) answers no message in the package and stays at rest.
 pub(super) const HIDING: [u32; 2] = [0x60b4_5523, 0x3807_4901];
+/// The rings around the infraction icon (`hud/infractions.rs`): the icon's appear and leave fade them.
+const INFRACTION_RINGS: u32 = 0x3345_911d;
 
 /// What the layout shows this frame, one flag per feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -92,6 +94,9 @@ pub struct Layout {
     milestones: Vec<usize>,
     /// The cost-to-state flasher's group.
     cost_to_state: Vec<usize>,
+    /// The infraction notifier: the icon and its rings, the count, the header and the four rows. Always in the layout:
+    /// each part rests at zero alpha in its own `HIDE` script until a new infraction plays it.
+    infractions: Vec<usize>,
     race: Vec<usize>,
     race_lap: Vec<usize>,
     countdown: Vec<usize>,
@@ -146,6 +151,7 @@ impl Layout {
             cooldown: find(&COOLDOWN),
             milestones: find(&super::milestone_board::BOARD),
             cost_to_state: find(&[fe_hash_upper(super::cost_to_state::GROUP)]),
+            infractions: find(&infraction_roots()),
             race: find(&super::race::root_hashes()),
             race_lap: find(&[super::race::lap_hash()]),
             countdown: find(&[super::race::count_hash()]),
@@ -172,6 +178,7 @@ impl Layout {
         let mut shown = vec![false; self.parent.len()];
         let mut roots: Vec<usize> = self.speedometer.iter().chain(&self.tachometer).copied().collect();
         roots.extend(&self.speedbreaker);
+        roots.extend(&self.infractions);
         if want.mirror {
             roots.extend(&self.mirror);
         }
@@ -270,4 +277,11 @@ impl Layout {
     fn is_under_any(&self, i: usize, roots: &[usize]) -> bool {
         roots.iter().any(|root| self.is_under(i, *root))
     }
+}
+
+/// The name hashes of the infraction notifier's parts.
+fn infraction_roots() -> Vec<u32> {
+    use super::infractions::{COUNT, HEADER, ICON};
+    let rows = (1..=4).map(|n| fe_hash_upper(&format!("INFRACTION_GROUP_{n}")));
+    [ICON, COUNT, HEADER].into_iter().map(fe_hash_upper).chain(rows).chain([INFRACTION_RINGS]).collect()
 }
