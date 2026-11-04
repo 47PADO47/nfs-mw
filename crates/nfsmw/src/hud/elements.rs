@@ -64,6 +64,8 @@ pub struct Shown {
     pub message: bool,
     /// The leaderboard's rows that show (0 hides the board): `LeaderBoardGroup` and its first rows (`hud/leaderboard.rs`).
     pub leaders: u8,
+    /// The milestone board shows: a free-roam chase in the career (`hud/milestone_board.rs`).
+    pub milestones: bool,
 }
 
 /// The elements and where they sit in the package.
@@ -88,6 +90,8 @@ pub struct Layout {
     cooldown: Vec<usize>,
     /// The bounty row: shown in career mode only.
     bounty_row: Vec<usize>,
+    /// The milestone board's group.
+    milestones: Vec<usize>,
     race: Vec<usize>,
     race_lap: Vec<usize>,
     countdown: Vec<usize>,
@@ -141,6 +145,7 @@ impl Layout {
             pursuit_cops: find(&PURSUIT_COPS),
             cooldown: find(&COOLDOWN),
             bounty_row: find(&BOUNTY_ROW),
+            milestones: find(&super::milestone_board::BOARD),
             race: find(&super::race::root_hashes()),
             race_lap: find(&[super::race::lap_hash()]),
             countdown: find(&[super::race::count_hash()]),
@@ -214,6 +219,9 @@ impl Layout {
         }
         if want.cooldown {
             roots.extend(&self.cooldown);
+        }
+        if want.milestones {
+            roots.extend(&self.milestones);
         }
         for root in roots {
             // The root's ancestors have to show for it to show; everything under it shows with it.

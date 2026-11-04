@@ -75,6 +75,7 @@ impl WorldScene {
                 state.police_intel = traffic.police_intel();
             }
             self.career.hud.apply(state);
+            state.milestone_board = self.milestone_board(state.pursuit.is_some());
             state.race = self.race_hud();
             state.race_info = self.race_info();
             state.camera = self.hud_camera();

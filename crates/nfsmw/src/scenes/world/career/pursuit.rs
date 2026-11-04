@@ -72,6 +72,11 @@ struct Chase {
     rep_destroyed: u32,
     /// The cost to state so far.
     cost_to_state: u32,
+    /// Cop cars damaged in the chase ("cops tagged").
+    cops_damaged: u32,
+    /// Roadblocks passed, and the spike strips of those roadblocks.
+    roadblocks_dodged: u32,
+    spikes_dodged: u32,
 }
 
 impl WorldScene {
@@ -89,6 +94,9 @@ impl WorldScene {
             rep_normal: traffic.rep_normal_points(),
             rep_destroyed: traffic.rep_destroyed_points(),
             cost_to_state: traffic.cost_to_state(),
+            cops_damaged: traffic.cops_damaged(),
+            roadblocks_dodged: traffic.roadblock_tally().dodged,
+            spikes_dodged: traffic.roadblock_tally().spike_strips_dodged,
         };
         let started = pursuing && !self.career.pursuit.pursuing;
         let ended = (reason != EndReason::None && reason != self.career.pursuit.end_reason).then_some(reason);
@@ -123,6 +131,11 @@ impl WorldScene {
             career.milestones.update_stat(StatType::TotalInfractions, kinds, FREE_ROAM);
             career.milestones.update_stat(StatType::BountyInPursuit, bounty as f32, FREE_ROAM);
             career.milestones.update_stat(StatType::CostToStateInPursuit, chase.cost_to_state as f32, FREE_ROAM);
+            // [decomp] Each is counted for the player's pursuit as it happens (`docs/specs/career-milestones.md` 3.4):
+            // a cop damaged, a roadblock passed, and that roadblock's spike strips.
+            career.milestones.update_stat(StatType::CopsDamaged, chase.cops_damaged as f32, FREE_ROAM);
+            career.milestones.update_stat(StatType::RoadblocksDodged, chase.roadblocks_dodged as f32, FREE_ROAM);
+            career.milestones.update_stat(StatType::TireSpikesDodged, chase.spikes_dodged as f32, FREE_ROAM);
         });
     }
 

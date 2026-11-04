@@ -12,6 +12,7 @@ mod events;
 mod hud;
 mod ladder;
 mod locks;
+mod milestone_board;
 mod phone;
 mod pursuit;
 mod rap_tally;

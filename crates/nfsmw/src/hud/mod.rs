@@ -50,6 +50,9 @@ mod map_source;
 mod message;
 #[cfg(test)]
 mod message_tests;
+mod milestone_board;
+#[cfg(test)]
+mod milestone_board_install_tests;
 pub(crate) mod minimap;
 #[cfg(test)]
 mod minimap_tests;
@@ -112,6 +115,7 @@ pub use message::{
     Tone as ModMessageTone, advance as advance_mod_message, hide as hide_mod_message, is_up as mod_message_up,
     line as mod_message_line, set as set_mod_message, show as show_mod_message,
 };
+pub use milestone_board::{BoardSlot, Display as MilestoneDisplay, MilestoneBoard, SLOTS as MILESTONE_SLOTS};
 pub use notify::{Category as NoticeCategory, ChipKind, NoticeId};
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;

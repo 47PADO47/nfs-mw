@@ -345,7 +345,7 @@ message); which is live was not decided. The race rules themselves belong to the
 | `InGameMilestones.fng` | `GLOBAL/InGameB.bun`, 117 objects, 9 buttons | the pause-menu milestones list; **[unconfirmed]** which routine opens it |
 | `PostRace_MilestoneRewards.fng` | `GLOBAL/InGameB.bun`, 51 objects, no buttons | the rewards screen of the summary list (3.6) |
 | `SafeHouseMilestones.fng`, `SafehouseMilestones_HELP.fng` | `FRONTEND/FrontB.lzc`, 164 and 18 objects | the rap sheet milestones page and its help |
-| `Hud_MilestoneBoard` (FEng element) | HUD | four slots `MILSTONE_ICON_n` (sic) with `MILESTONE_ICON_BACKING_n`, groups `MILESTONE_INFO_GROUP` and `MILESTONE_ICON_GROUP`, built for the profile's current bin; with two or more unfinished slots it rotates a highlight between them on a timer; the code that fills the slots was not located |
+| `Hud_MilestoneBoard` (FEng element) | HUD | four slots `MILSTONE_ICON_n` (sic) with `MILESTONE_ICON_BACKING_n`, groups `MILESTONE_INFO_GROUP` and `MILESTONE_ICON_GROUP`, built for the profile's current bin during a chase; see [hud-milestone-board.md](hud-milestone-board.md) |
 | `Milestone_TollBooth` (FEng object) | HUD race information element | an object looked up by the race information element beside `CurrentLapTime`; its use is **[unconfirmed]** |
 
 Behaviour of the lists: the rap sheet page (`0x00552440`) lists every milestone of the viewed bin (all states), then
@@ -412,7 +412,7 @@ pay cash.
 2. The divisor read by `AwardPlayerBounty` (3.6).
 3. What interface slot `+0x18` of the pursuit returns when `pursuit_evasion_time` is set, and whether the gate in front of
    the escape routine tests "is player" or "has escaped".
-4. Which routine fills the HUD milestone board slots and which opens `InGameMilestones.fng`.
+4. Which routine opens `InGameMilestones.fng`. (The board's filler is found: [hud-milestone-board.md](hud-milestone-board.md).)
 5. How a milestone is launched from the rap sheet ("jump to location and start a pursuit").
 6. Whether `MilestoneCompleteHeatAdjust` is used anywhere.
 7. The 12 statistic types with no producer: whether they were meant for other modes.

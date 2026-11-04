@@ -56,6 +56,9 @@ pub struct HudBinding {
     leaderboard: super::leaderboard::Binding,
     pursuit_meter: super::pursuit_meter::Binding,
     hiding_mark: super::hiding_mark::HidingMark,
+    milestone_board: super::milestone_board::Binding,
+    /// The seconds of the frame being drawn (from `advance_mirror_fade`), for the milestone board's rotation.
+    frame_dt: f32,
     backup_timer: super::backup_timer::BackupTimer,
     layout: Layout,
     /// The rear-view mirror is shown; the detector chooses its corresponding authored layout.
@@ -113,6 +116,8 @@ impl HudBinding {
             leaderboard: super::leaderboard::Binding::new(rt, package),
             pursuit_meter: super::pursuit_meter::Binding::new(rt, package),
             hiding_mark: super::hiding_mark::HidingMark::new(rt, package),
+            milestone_board: super::milestone_board::Binding::new(rt, package),
+            frame_dt: 0.0,
             backup_timer: super::backup_timer::BackupTimer::new(rt, package),
             layout: Layout::new(rt, package),
             mirror_frames: [None; 2],
@@ -192,6 +197,7 @@ impl HudBinding {
         self.race.advance(dt);
         self.leaderboard.advance(dt);
         self.mirror_elapsed = (self.mirror_elapsed + dt).min(MIRROR_FADE_SECONDS);
+        self.frame_dt = dt;
     }
 
     pub fn advance_blips(&mut self, dt: f32) {
@@ -219,6 +225,7 @@ impl HudBinding {
             countdown: s.race.is_some_and(|r| r.count.is_some()),
             leaders: s.leaders.as_ref().map_or(0, |l| l.shown_rows() as u8),
             message: s.message.is_some() || self.race.message_active(),
+            milestones: s.milestone_board.is_some() && s.pursuit.is_some(),
         };
         self.layout.update(rt, shown);
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
@@ -243,6 +250,8 @@ impl HudBinding {
         self.race.show_message(rt, s.message.as_ref());
         self.pursuit_meter.apply(rt, s.pursuit);
         self.hiding_mark.apply(rt, s.pursuit.is_some_and(|p| p.hiding_shown()));
+        let board = s.milestone_board.as_ref().filter(|_| s.pursuit.is_some());
+        self.milestone_board.apply(rt, board, self.frame_dt);
         self.backup_timer.apply(rt, s.pursuit);
         self.police.apply(rt, s, self.mirror_shown);
         if s.has_nos {
