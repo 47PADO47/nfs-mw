@@ -32,6 +32,7 @@ fn career(dir: &game_install::GameDir) -> Career {
 #[test]
 #[ignore = "needs the installed world and the career tables"]
 fn installed_paid_bust_puts_the_car_back_at_the_last_safe_house_marker() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(mut fixture) = open_arrest_fixture() else { return };
     let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
     let shared = CareerHandle::shared();
@@ -45,7 +46,8 @@ fn installed_paid_bust_puts_the_car_back_at_the_last_safe_house_marker() {
     let marker = start + Vec3::new(60.0, 0.0, 0.0);
     fixture.scene.career.respawn.visit(ZoneKind::SafeHouse, Some(marker));
     let mut ticket = None;
-    for _ in 0..900 {
+    // The hold, the overlay and the arrest scene (up to 14 s for the rough scenes).
+    for _ in 0..1800 {
         fixture.scene.update(&mut fixture.renderer, &stopped, STEP);
         ticket = fixture.scene.take_bust_ticket();
         if ticket.is_some() {
