@@ -21,6 +21,7 @@ impl TrafficWorld {
         self.police.set_heli_camera(camera.map(|(position, forward)| blackbox_pursuit::helicopter::camera::Camera {
             position: Vec3::from_array(crate::scenes::world::space::to_physics(position)),
             forward: Vec3::from_array(crate::scenes::world::space::to_physics(forward)),
+            velocity: Vec3::ZERO,
         }));
     }
 

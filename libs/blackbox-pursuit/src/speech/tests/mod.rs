@@ -7,3 +7,4 @@ mod impacts;
 mod opening;
 mod strategy;
 mod support;
+mod voices;

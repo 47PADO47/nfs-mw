@@ -10,6 +10,10 @@ use crate::scenes::world::moment::heading_angle;
 use crate::scenes::world::scene_space::Anchor;
 use crate::scenes::world::{WorldScene, space};
 
+/// How far below its probe point a character's ground is looked for, in metres [ours]: the probe starts 2 m above the
+/// pelvis, so this reaches a few metres under the feet.
+const CHARACTER_GROUND_BELOW: f32 = 6.0;
+
 impl WorldScene {
     /// Starts the NIS scene `name` with its camera `track`, standing it where the player's car is, on the ground and
     /// facing the way the car faces. Refused without a car, or while another scene plays.
@@ -46,7 +50,8 @@ impl WorldScene {
             .players
             .lead()
             .zip(self.traffic.as_ref())
-            .and_then(|(drive, traffic)| traffic.arrest_anchor(drive.ai_body()));
+            .and_then(|(drive, traffic)| traffic.arrest_anchor(drive.ai_body()))
+            .map(|anchor| self.grounded_anchor(anchor));
         let result = anchor
             .ok_or_else(|| "no arrest road location".to_owned())
             .and_then(|anchor| self.nis.play(&self.dir, name, anchor, NisKind::Arrest, 0));
@@ -55,6 +60,16 @@ impl WorldScene {
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.arrest_scene_over();
         }
+    }
+
+    /// `anchor` with its height set to the ground under its origin, as the original stands a scene's origin on the
+    /// ground face under the marker (`nis-player.md` section 5.2) [decomp]. The road's cross-section height is the road
+    /// network's, which need not be the height of the road's faces. Without a ground the height stays.
+    fn grounded_anchor(&mut self, anchor: Anchor) -> Anchor {
+        let (collision, _) = self.residency.world_parts();
+        let at = anchor.origin;
+        let ground = space::ground_below(collision, at.x, at.y, at.z + space::CAR_GROUND_ABOVE, at.z - 10.0);
+        Anchor { origin: Vec3::new(at.x, at.y, ground.unwrap_or(at.z)), ..anchor }
     }
 
     /// Starts the NIS scene `name` with its camera `track`, standing at `anchor`. Refused while another scene plays.
@@ -114,10 +129,20 @@ impl WorldScene {
             self.link_nis_cars();
             self.retry_nis_cops(dt);
             self.drive_nis_cars();
+            self.ground_nis_characters();
         }
         if self.nis.take_cut() {
             self.cut.arm();
         }
+    }
+
+    /// Stands the playing scene's characters on the ground under their pelvis (`nis-player-2.md` section 9.3): the first
+    /// drivable face going down from the probe point to [`CHARACTER_GROUND_BELOW`] below it.
+    fn ground_nis_characters(&mut self) {
+        let (collision, _) = self.residency.world_parts();
+        self.nis.keep_characters_on_ground(|at| {
+            space::ground_below(collision, at.x, at.y, at.z, at.z - CHARACTER_GROUND_BELOW)
+        });
     }
 
     /// Whether the scene's camera has letterbox bars up.

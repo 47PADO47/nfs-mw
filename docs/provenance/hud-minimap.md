@@ -1,6 +1,7 @@
 # The HUD minimap
 
-- **Spec:** [docs/specs/hud-minimap.md](../specs/hud-minimap.md) (behaviour), [docs/formats/minimap.md](../formats/minimap.md) (data).
+- **Spec:** [docs/specs/hud-minimap.md](../specs/hud-minimap.md) (behaviour), [docs/specs/hud-cop-blips.md](../specs/hud-cop-blips.md)
+  (the police icons), [docs/formats/minimap.md](../formats/minimap.md) (data).
 - **Modules:** `libs/blackbox-minimap` (tiles, projection, view placement, blip placement), the minimap reader in
   `crates/nfsmw-data/src/minimap.rs`, `crates/nfsmw/src/hud/minimap.rs` (the binding to the HUD package), and the
   multi image mask rectangles in `libs/blackbox-feng` and `crates/nfsmw/src/ui/present/`.
@@ -19,6 +20,16 @@
   - Probes of the install: the three whole-city map files, the `TrackInfos` chunk, the HUD package (objects, UV
     rectangles, the mask), the mask and icon textures, and the streaming sections laid over the stitched picture.
     The probe programs are not part of the repository; the facts they measured are in the format document.
+- **Police icons pass (2026-11-02):** the HUD minimap's police update in `speed.exe` (Ghidra and the disassembly; the
+  decompiled C had the helicopter branch wrong) and the pursuit's engagement flag and in-pursuit state in the CC0 decomp,
+  read for behaviour; the installed `HUD_SingleRace.fng` for the helicopter group's place in the icon group. The old
+  reading of this page (a "mode 3" and category masks) was the world map's code and was corrected in the spec.
+- **Stock-game capture (2026-11-03):** a recording of the original game (stock install, one pursuit from heat 1 to 5,
+  about 14.5 minutes, 20 samples a second) of the pursuit state, the police vehicles' places and the minimap's police
+  icon objects (their hidden flags and the flash counter). It settled the engagement radius, the roadblock's own
+  reach, the flash rate (once per rendered frame) and when the helicopter and its cone show
+  ([hud-cop-blips.md](../specs/hud-cop-blips.md) sections 2, 3 and 5). Only the measured behaviour is in the spec; the
+  recording and its tools are not part of the repository.
 - **Implemented:** 2026-10-09, from the spec only (the decompiled code was not open while writing the Rust).
 - **Checked against the game by:** unit tests of the projection, the tile choice, the scroll and the blip rule
   (constructed numbers, hand-checked against the formulas); `#[ignore]` tests that read the tiles and the
@@ -27,7 +38,8 @@
   of the original game.
 - **Known differences from the original:**
   - Always the full `MINI_MAP` file, not the career-dependent `Unlock_1` / `Unlock_2` pictures.
-  - No blips; the placement rule is implemented in the library and not called.
+  - The police icons follow [hud-cop-blips.md](../specs/hud-cop-blips.md) section 7, with its listed deviations (an
+    eight-step light bar on a 0.1 s tick, cars drawn inside the disc only, no line-of-sight cone).
   - Tile numbers outside 0..63 draw nothing; in-range row-overlap tiles at the left/right edges still load.
   - The car model's origin stands in for the rigid body's position.
   - The [HUD viewport](hud-viewport.md) reproduces the native 16:9 shift and offers

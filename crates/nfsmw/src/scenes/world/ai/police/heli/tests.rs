@@ -183,3 +183,27 @@ fn the_status_tells_fuel_sight_and_mode_for_the_speech() {
     assert_eq!(status.fuel_fraction, 1.0);
     assert_eq!(status.health, 1.0);
 }
+
+#[test]
+fn a_helicopter_out_of_play_is_removed_at_once_and_the_next_one_waits() {
+    let mut police = chase(5);
+    police.heli = Some(Helicopter::spawn(Vec3::new(-900.0, 40.0, 0.0), 0.0, Default::default()));
+    police.heli_wait = 0.0;
+    police.think_helicopter(crate::scenes::world::drive::STEP, true, &view(10.0), sensed(true), &|_, _| true);
+    assert!(!police.helicopter_present(), "removed, not sent on an exit flight");
+    assert_eq!(police.heli_wait, 180.0, "heat 5 waits 180 s for the next one");
+}
+
+#[test]
+fn a_far_helicopter_in_the_cameras_view_stays() {
+    let mut police = chase(5);
+    police.heli = Some(Helicopter::spawn(Vec3::new(-900.0, 40.0, 0.0), 0.0, Default::default()));
+    police.set_heli_camera(Some(blackbox_pursuit::helicopter::camera::Camera {
+        position: Vec3::new(5.0, 3.0, 0.0),
+        forward: Vec3::NEG_X,
+        velocity: Vec3::ZERO,
+    }));
+    police.think_helicopter(crate::scenes::world::drive::STEP, true, &view(10.0), sensed(true), &|_, _| true);
+    let heli = police.helicopter_status().expect("still flying");
+    assert_ne!(heli.mode, HeliMode::Leaving, "and not turned round to leave by distance");
+}

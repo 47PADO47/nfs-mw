@@ -28,6 +28,8 @@ pub struct Ctx<'a, R> {
     pub player: Option<Body>,
     /// Where each car's cop goes instead of the player this think, by car index (`None`: the player).
     pub aims: &'a [Option<glam::Vec3>],
+    /// Whether each car holds a formation slot this step, by car index (a missing entry: no slot).
+    pub slotted: &'a [bool],
     /// The traffic lights, when they are on.
     pub lights: Option<Lights<'a>>,
 }

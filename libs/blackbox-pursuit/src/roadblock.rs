@@ -289,8 +289,8 @@ pub fn takes_spikes(heat: u32, roll: f32) -> bool {
     roll * 100.0 < spike_chance(heat)
 }
 
-/// The road where a roadblock goes: its two edges and the target it guards against, all in the plane (`y` unused),
-/// and the road's forward direction.
+/// The road where a roadblock goes: its two edges, each at the road's own height there, the target it guards against,
+/// and the road's forward direction, which may climb or fall (spec section 2.4).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Road {
     pub left: Vec3,
@@ -308,47 +308,37 @@ pub struct Placed {
 }
 
 /// The centre of `layout` on `road`: against the road's edge nearer the target, half the layout's minimum width along
-/// the road's width (spec section 2.4). The roadblock keeps it for the dodge test.
+/// the road's width (spec section 2.4), at the road's height there. The roadblock keeps it for the dodge test.
 pub fn centre(layout: &Layout, road: &Road) -> Vec3 {
-    let at = layout_centre(layout, road);
-    Vec3::new(at.x, road.target.y, at.y)
-}
-
-fn layout_centre(layout: &Layout, road: &Road) -> Vec2 {
-    let left = Vec2::new(road.left.x, road.left.z);
-    let right = Vec2::new(road.right.x, road.right.z);
-    let target = Vec2::new(road.target.x, road.target.z);
+    let flat = |v: Vec3| Vec2::new(v.x, v.z);
+    let (left, right, target) = (flat(road.left), flat(road.right), flat(road.target));
     let crw = (left - right).length().max(1e-3);
-    let (across, anchor) = if (left - target).length_squared() > (right - target).length_squared() {
-        (left - right, right)
-    } else {
-        (right - left, left)
+    let (anchor, other) = match (left - target).length_squared() > (right - target).length_squared() {
+        true => (road.right, road.left),
+        false => (road.left, road.right),
     };
-    anchor + across * (layout.min_width / 2.0) / crw
+    anchor + (other - anchor) * ((layout.min_width / 2.0) / crw)
 }
 
 /// Places `layout` on `road` (spec section 2.4). The layout sits against the edge nearer the target and spreads across
-/// the road; its `x` offsets stretch by up to 14 percent on wider roads. The sign convention of the facing rotation is
-/// `[unconfirmed]` (the spec's note: the game's `RotateInXZ`).
+/// the road; its `x` offsets stretch by up to 14 percent on wider roads. The lateral axis is horizontal (up x forward), the
+/// depth offsets follow the road's climb, and every element starts at the road's height under it.
 pub fn place(layout: &Layout, road: &Road) -> Vec<Placed> {
-    let left = Vec2::new(road.left.x, road.left.z);
-    let right = Vec2::new(road.right.x, road.right.z);
-    let crw = (left - right).length().max(1e-3);
+    let crw = Vec2::new(road.left.x - road.right.x, road.left.z - road.right.z).length().max(1e-3);
     let cr_width = crw + 1.0;
-    let centre = layout_centre(layout, road);
+    let centre = centre(layout, road);
     let x_scale = (cr_width / layout.min_width).clamp(1.0, 1.14);
-    let forward = Vec2::new(road.forward.x, road.forward.z).normalize_or_zero();
-    let side = Vec2::new(forward.y, -forward.x);
+    let forward = road.forward.try_normalize().unwrap_or(Vec3::X);
+    let side = Vec3::Y.cross(forward).normalize_or_zero();
+    let level = Vec2::new(forward.x, forward.z).normalize_or_zero();
     layout
         .slots
         .iter()
         .map(|slot| {
-            let along = side * (slot.x * x_scale) + forward * slot.z;
-            let at = centre + along;
-            let facing = rotate(forward, slot.angle * std::f32::consts::TAU);
+            let facing = rotate(level, slot.angle * std::f32::consts::TAU);
             Placed {
                 kind: slot.kind,
-                position: Vec3::new(at.x, road.target.y, at.y),
+                position: centre + side * (slot.x * x_scale) + forward * slot.z,
                 heading: facing.y.atan2(facing.x),
             }
         })
@@ -437,6 +427,37 @@ mod tests {
         for placed in place(&SPIKES[0], &road) {
             assert!(placed.heading.is_finite());
         }
+    }
+
+    #[test]
+    fn elements_take_the_road_height_at_the_site_not_the_targets() {
+        // The site lies 25 m below the target and climbs 10 percent: the elements follow the road, not the target.
+        let forward = Vec3::new(1.0, 0.1, 0.0).normalize();
+        let road = Road {
+            left: Vec3::new(0.0, -25.0, 4.0),
+            right: Vec3::new(0.0, -25.0, -4.0),
+            target: Vec3::new(-250.0, 0.0, -3.5),
+            forward,
+        };
+        let layout = &NORMAL[2];
+        let at = centre(layout, &road);
+        assert!((at.y + 25.0).abs() < 1e-4, "{at:?}");
+        for (placed, slot) in place(layout, &road).iter().zip(layout.slots.iter()) {
+            let want = -25.0 + forward.y * slot.z;
+            assert!((placed.position.y - want).abs() < 1e-4, "{placed:?} for {slot:?}");
+        }
+    }
+
+    #[test]
+    fn a_banked_site_puts_the_centre_between_the_edge_heights() {
+        let road = Road {
+            left: Vec3::new(0.0, 1.0, 4.0),
+            right: Vec3::new(0.0, 0.0, -4.0),
+            target: Vec3::new(-250.0, 0.0, -3.5),
+            forward: Vec3::X,
+        };
+        // Anchored on the right edge; NORMAL[0] spans 8 m of the 8 m road, so its centre is the middle.
+        assert!((centre(&NORMAL[0], &road).y - 0.5).abs() < 1e-4);
     }
 
     #[test]

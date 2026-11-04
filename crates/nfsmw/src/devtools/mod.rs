@@ -86,6 +86,8 @@ fn run_ui(
         garage: garage.open,
         graphics_lab: lab.open
             || extra.open
+            || extra.toast_up()
+            || host.scene.extra_options().is_some_and(|s| s.toast.is_some() || s.trace.recording)
             || host.scene.extra_options().is_some_and(|s| s.testing.active() || s.restore_environment.is_some()),
         metrics: settings.show_metrics != ShowMetrics::Off,
         readout: !metrics.hud.is_empty(),
@@ -164,6 +166,7 @@ fn run_ui(
                 },
             );
         }
+        extra_options::toast(ctx, &mut extra, host.scene.extra_options(), time.elapsed_secs_f64());
         // The scene's panels first: the metrics sit beside them, so they know how far in to go.
         let left = host.scene.ui(ctx);
         let net = lan_ui.as_deref_mut().and_then(|ui| crate::frontend::lan::stats_line(ui, lan_backend.as_deref_mut()));
@@ -202,6 +205,7 @@ fn run_ui(
         extra.open = false;
     }
     extra.sync(&mut capture, &mut focus);
+    extra.typing = gui.ctx.egui_wants_keyboard_input();
     let drew_nothing = out.layer.as_ref().is_some_and(|layer| layer.meshes.is_empty());
     *settled = ui_gate::Settled::after_pass(
         drew_nothing,

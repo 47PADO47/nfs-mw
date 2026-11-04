@@ -255,6 +255,7 @@ fn sync(
     state.map_picture = hud.map_picture.clone();
     if let Some(overlay) = hud.overlay.as_mut() {
         overlay.set_shown(&mut hud.runtime, state.busted_overlay);
+        overlay.cue(&mut hud.runtime, state.busted_overlay_cue);
     }
     apply_map_mode(&mut state, &settings);
 }
@@ -323,6 +324,16 @@ fn present(
         !themes.hud_is_static() && themes.provided_by(ElementId::Banner).is_some_and(|id| id != ThemeId::Original);
     super::set_cards_routed(routed);
     if !state.visible || !settings.hud {
+        // A scene hides the HUD, but an arrest keeps the busted overlay over the frame: it alone runs and is drawn.
+        if let Some(overlay) = hud.overlay.as_ref().and_then(BustedOverlay::shown) {
+            drawn.shown();
+            hud.runtime.update(time.delta_secs());
+            let _ = hud.runtime.take_outgoing();
+            let screen =
+                Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
+            presenter.0.present(&hud.runtime.tree(overlay), &assets.0, screen, &mut out);
+            return;
+        }
         drawn.hidden(&mut out, window.scale_factor());
         return;
     }

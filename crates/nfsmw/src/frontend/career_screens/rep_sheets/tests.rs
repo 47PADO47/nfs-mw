@@ -133,7 +133,7 @@ fn the_other_places_open_as_the_career_goes_down_the_list() {
 }
 
 fn jump(number: i32, position: Option<Vec3>) -> BountyJump {
-    BountyJump { key: number as u32, name: format!("bounty_jump/{number}"), number, position }
+    BountyJump { key: number as u32, name: format!("bounty_jump/{number}"), number, position, rotation_deg: None }
 }
 
 #[test]
@@ -176,6 +176,7 @@ fn data() -> GameplayData {
         bounty: 8_000,
         spawn_point: Some(1),
         spawn,
+        spawn_rotation_deg: None,
         unconfirmed_goal: 0.0,
         unconfirmed_step: 0.0,
     };
@@ -201,7 +202,7 @@ fn the_milestone_rows_are_the_milestones_then_the_traps_of_the_bin() {
     assert_eq!(rows.len(), 3, "two milestones and one trap of bin 14");
     assert!(matches!(rows[0].entry, Entry::Pursuit { label: Some(6), .. }));
     assert!(matches!(rows[2].entry, Entry::Trap { threshold: 180, .. }));
-    assert_eq!(rows[0].spawn, Some([6.0, -4.0]));
+    assert_eq!(rows[0].spawn.map(|p| p.xy()), Some([6.0, -4.0]));
     assert_eq!(rows[2].spawn, None, "the trap has no spawn point in this data");
 }
 

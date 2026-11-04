@@ -4,6 +4,9 @@
 //! Game code only knows [`HudState`]: a scene returns one from `Scene::hud_state`. Nothing outside this module
 //! names FEng or the presenter, so the presentation can change (docs/decisions/0002-ui-presentation.md).
 
+mod backup_timer;
+#[cfg(test)]
+mod backup_timer_tests;
 mod bind;
 #[cfg(test)]
 mod bind_tests;
@@ -47,6 +50,9 @@ mod map_source;
 mod message;
 #[cfg(test)]
 mod message_tests;
+mod milestone_board;
+#[cfg(test)]
+mod milestone_board_install_tests;
 pub(crate) mod minimap;
 #[cfg(test)]
 mod minimap_tests;
@@ -59,6 +65,8 @@ pub(crate) mod police;
 #[cfg(test)]
 mod police_install_tests;
 mod pursuit;
+#[cfg(test)]
+mod pursuit_install_tests;
 mod pursuit_meter;
 pub use police::RadarHud;
 mod pursuit_end;
@@ -76,6 +84,7 @@ pub(crate) mod skin;
 mod speedbreaker;
 pub(crate) mod split;
 mod state;
+pub(crate) mod takedown;
 mod trax;
 /// The HUD layout's viewport math. The Custom radio card (`ui/theme/custom/radio_card`) reuses its `parameters`.
 pub(crate) mod viewport;
@@ -85,12 +94,13 @@ mod withdrawn;
 
 pub use blip_style::{MapBlip, TICK_SECONDS};
 pub use blip_styles::{
-    AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, CHECKPOINT, COP, GPS, HELICOPTER, PURSUIT_BREAKER, RACE_CIRCUIT,
-    RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, RACER, ROADBLOCK, SAFE_HOUSE,
-    SAFE_HOUSE_TINT,
+    AUTO_SHOP, AUTO_SHOP_TINT, CAR_LOT, CAR_LOT_TINT, CHECKPOINT, COP, GPS, HELICOPTER, HELICOPTER_CONE, HIDING_SPOT,
+    PURSUIT_BREAKER, RACE_CIRCUIT, RACE_DRAG, RACE_KNOCKOUT, RACE_SPEEDTRAP, RACE_SPRINT, RACE_TOLLBOOTH, RACER,
+    ROADBLOCK, SAFE_HOUSE, SAFE_HOUSE_TINT,
 };
+pub use busted_overlay::OVERLAY_PACKAGE;
 pub use cards::{cards_routed, set_cards_routed};
-pub use cop_blip::{colour as cop_colour, step_at as cop_step_at};
+pub use cop_blip::{Bar as CopBar, bar as cop_bar, colour as cop_colour, step_at as cop_step_at};
 pub use interact_prompt::{InteractPopup, Prompt, show as show_interact_prompt};
 pub use leaders::{
     Entry as LeaderEntry, LABEL_BUSTED, LABEL_KMH, LABEL_KNOCKED_OUT, LABEL_MPH, LeaderRow, Leaders, game_word,
@@ -106,10 +116,13 @@ pub use message::{
     Tone as ModMessageTone, advance as advance_mod_message, hide as hide_mod_message, is_up as mod_message_up,
     line as mod_message_line, set as set_mod_message, show as show_mod_message,
 };
+pub use milestone_board::{BoardSlot, Display as MilestoneDisplay, MilestoneBoard, SLOTS as MILESTONE_SLOTS};
 pub use notify::{Category as NoticeCategory, ChipKind, NoticeId};
 pub use plugin::HudPlugin;
 pub use pursuit::PursuitHud;
 pub use pursuit_end::{PursuitEndCard, SHOW_SECS as PURSUIT_END_SECS, show as show_pursuit_end};
+#[cfg(test)]
+pub use race::MessageKind;
 pub use race::{Count, Message, RaceHud};
 pub use race_card::{RaceCard, ResultCard, show as show_race_card};
 pub use radio::{Card, RadioHud};

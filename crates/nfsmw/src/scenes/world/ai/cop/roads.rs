@@ -133,6 +133,7 @@ pub(super) fn snap<R: RandomSource>(
                     trail,
                     me,
                     nav.position,
+                    nav.forward,
                     traffic.iter().copied(),
                     false,
                     nav.half_width,
@@ -197,8 +198,17 @@ mod tests {
         let net = wide_road();
         let index = SegmentIndex::build(&net);
         let mut rng = SplitMix(4);
-        let mut ctx =
-            Ctx { net: &net, index: &index, rng: &mut rng, bodies: &[], me: 0, player: None, aims: &[], lights: None };
+        let mut ctx = Ctx {
+            net: &net,
+            index: &index,
+            rng: &mut rng,
+            bodies: &[],
+            me: 0,
+            player: None,
+            aims: &[],
+            slotted: &[],
+            lights: None,
+        };
         let me = Body {
             position: Vec3::ZERO,
             velocity: Vec3::Z * 20.0,
@@ -218,8 +228,17 @@ mod tests {
         let net = wide_road();
         let index = SegmentIndex::build(&net);
         let mut rng = SplitMix(4);
-        let mut ctx =
-            Ctx { net: &net, index: &index, rng: &mut rng, bodies: &[], me: 0, player: None, aims: &[], lights: None };
+        let mut ctx = Ctx {
+            net: &net,
+            index: &index,
+            rng: &mut rng,
+            bodies: &[],
+            me: 0,
+            player: None,
+            aims: &[],
+            slotted: &[],
+            lights: None,
+        };
         let me = Body {
             position: Vec3::new(3.0, 0.0, 0.0),
             velocity: Vec3::new(2.0, 0.0, 10.0),

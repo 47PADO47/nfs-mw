@@ -241,8 +241,87 @@ fn the_light_bar_moves_with_time_not_with_frames() {
         binding.apply(&mut rt, &state);
     }
     assert_eq!(cop_colour(&rt, id), [0, 0, 255, 255]);
-    // 0.25 s is tick 2, the third step: grey.
-    binding.advance_blips(0.25);
+    // 3.5 frames at 60 fps is tick 3, the fourth step: grey.
+    binding.advance_blips(3.5 / 60.0);
     binding.apply(&mut rt, &state);
     assert_eq!(cop_colour(&rt, id), [204, 204, 204, 255]);
+}
+
+#[test]
+fn a_cop_that_is_not_pursuing_is_steady_light_grey_on_the_map() {
+    let (mut rt, id, mut binding) = setup();
+    let state = on_the_map(vec![cop([PLAYER[0] + 50.0, PLAYER[1]], false)]);
+    for _ in 0..4 {
+        binding.apply(&mut rt, &state);
+        assert_eq!(cop_colour(&rt, id), [204, 204, 204, 255], "the original's 0xffcccccc, not white");
+        binding.advance_blips(0.1);
+    }
+}
+
+#[test]
+fn a_helicopter_blip_places_the_helicopter_group_and_its_blades() {
+    // As in the install: the helicopter's group sits in the package's icon group with the cop icons, which no feature
+    // of the layout shows on its own.
+    const GROUP: &str = blip_styles::HELICOPTER_GROUP;
+    let mut package = minimap_tests::package();
+    package.objects.push(minimap_tests::object(ObjectKind::Group, 69, "ICONS", None, [0.0; 2]));
+    package.objects.push(minimap_tests::object(ObjectKind::Image, 60, COP_ICON, Some(69), [0.0; 2]));
+    package.objects.push(minimap_tests::object(ObjectKind::Group, 70, GROUP, Some(69), [0.0; 2]));
+    package.objects.push(minimap_tests::object(ObjectKind::Image, 71, "HELI_BLADES", Some(70), [0.0; 2]));
+    let mut rt = Runtime::new();
+    let id = rt.load(package);
+    let minimap = MinimapBinding::new(&rt, id, MAP, "MINI_MAP");
+    let mut binding = HudBinding::new(&mut rt, id).with_minimap(minimap);
+    let heli = |x: f32| MapBlip {
+        style: blip_styles::HELICOPTER,
+        position: [PLAYER[0] + x, PLAYER[1]],
+        active: true,
+        heading: None,
+    };
+    binding.apply(&mut rt, &on_the_map(vec![heli(50.0)]));
+    let tree = rt.tree(id);
+    assert!(drawn(&tree, GROUP) && drawn(&tree, "HELI_BLADES"), "the group and its blades are shown");
+    assert!(offset_from_centre(&tree, GROUP).truncate().length() > 1.0, "placed off the centre, where it flies");
+    // Far away it is held on the rim, as in the original, not hidden.
+    binding.apply(&mut rt, &on_the_map(vec![heli(700.0)]));
+    let tree = rt.tree(id);
+    assert!(drawn(&tree, GROUP), "a far helicopter is pinned to the rim");
+    assert!((offset_from_centre(&tree, GROUP).truncate().length() - RIM).abs() < 0.01);
+    binding.apply(&mut rt, &on_the_map(vec![]));
+    assert!(!drawn(&rt.tree(id), GROUP), "no blip, no helicopter");
+}
+
+#[test]
+fn the_helicopter_cone_is_placed_with_the_helicopter_and_tracks_while_it_sees_the_player() {
+    use blackbox_feng::package::Script;
+    const CONE: &str = blip_styles::HELICOPTER_CONE_ICON;
+    let script = |id| Script { id, length: 0, flags: 0, chain: None, tracks: Vec::new(), events: Vec::new() };
+    let mut package = minimap_tests::package();
+    let mut cone = minimap_tests::object(ObjectKind::Image, 80, CONE, None, [0.0; 2]);
+    cone.scripts = vec![script(blip_styles::CONE_IDLE), script(blip_styles::CONE_TRACKING)];
+    package.objects.push(cone);
+    package.objects.push(minimap_tests::object(ObjectKind::Group, 70, blip_styles::HELICOPTER_GROUP, None, [0.0; 2]));
+    let mut rt = Runtime::new();
+    let id = rt.load(package);
+    let minimap = MinimapBinding::new(&rt, id, MAP, "MINI_MAP");
+    let mut binding = HudBinding::new(&mut rt, id).with_minimap(minimap);
+    let at = [PLAYER[0] + 50.0, PLAYER[1]];
+    let blips = |sees: bool| {
+        vec![
+            MapBlip { style: blip_styles::HELICOPTER_CONE, position: at, active: sees, heading: Some([1.0, 0.0]) },
+            MapBlip { style: blip_styles::HELICOPTER, position: at, active: true, heading: Some([1.0, 0.0]) },
+        ]
+    };
+    binding.apply(&mut rt, &on_the_map(blips(true)));
+    let object = rt.find(id, fe_hash_upper(CONE)).expect("the cone");
+    assert_eq!(rt.script_of(object), Some(blip_styles::CONE_TRACKING), "it sees the player: tracking");
+    assert_eq!(rt.alpha(object), Some(160), "the cone keeps its translucency");
+    let tree = rt.tree(id);
+    assert!(drawn(&tree, CONE));
+    let offset = offset_from_centre(&tree, CONE) - offset_from_centre(&tree, blip_styles::HELICOPTER_GROUP);
+    assert!(offset.truncate().length() < 0.01, "the cone sits on the helicopter");
+    binding.apply(&mut rt, &on_the_map(blips(false)));
+    assert_eq!(rt.script_of(object), Some(blip_styles::CONE_IDLE), "the sight is lost: its idle script");
+    binding.apply(&mut rt, &on_the_map(vec![]));
+    assert!(!drawn(&rt.tree(id), CONE), "no helicopter, no cone");
 }

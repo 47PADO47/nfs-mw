@@ -330,8 +330,17 @@ fn installed_same_model_trucks_and_loads_keep_distinct_stable_render_identities(
     let bodies = [(first.avoidable(), false), (second.avoidable(), false)];
     let mut rng = SplitMix(1);
     let mut props = PropWorld::default();
-    let mut context =
-        Ctx { net, index: &segments, rng: &mut rng, bodies: &bodies, me: 0, player: None, aims: &[], lights: None };
+    let mut context = Ctx {
+        net,
+        index: &segments,
+        rng: &mut rng,
+        bodies: &bodies,
+        me: 0,
+        player: None,
+        aims: &[],
+        slotted: &[],
+        lights: None,
+    };
     first.step(&mut context, &collision, &mut props, &data.surfaces);
     first.update_events(&mut props, &data, spawn.position);
     first.sync_contacts();

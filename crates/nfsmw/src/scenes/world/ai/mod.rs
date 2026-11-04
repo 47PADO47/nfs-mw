@@ -28,6 +28,7 @@ mod inspect;
 pub(in crate::scenes::world) mod installed_support;
 mod lamps;
 mod manager;
+mod minimap;
 mod mod_traffic;
 mod model_loader;
 mod models;
@@ -73,6 +74,7 @@ mod support;
 mod tally;
 mod target_road;
 mod touches;
+pub(in crate::scenes::world) mod trace_frame;
 mod traffic;
 #[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md Â§4)
 mod traffic_events;
@@ -97,7 +99,7 @@ use manager::TypeTimers;
 pub(super) use models::load_requested;
 pub use net_export::{NetCar, NetCarKind};
 pub use pattern::{Pattern, Patterns};
-pub use police::{PlayerView, PursuitContext};
+pub use police::{PlayerView, PursuitContext, Takedown};
 pub use population::{ModelRequest, PatrolPlan};
 #[cfg(test)]
 pub(crate) use pursuit::tests::arrest_fixture::{ArrestFixture, handbrake, open_arrest_fixture};
@@ -125,6 +127,8 @@ pub use model::TrafficModel;
 
 pub struct TrafficWorld {
     extra_traffic_off: bool,
+    /// The next chase starts where a jump put the player (`pursuit/opening.rs`).
+    jump_start: bool,
     water: water::Water,
     network: RoadNetwork,
     index: SegmentIndex,
@@ -230,6 +234,8 @@ pub struct TrafficWorld {
     bodies: Vec<(Body, bool)>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
     aims: Vec<Option<Vec3>>,
+    /// Which cars hold a formation slot this step, kept so a step does not allocate.
+    slotted: Vec<bool>,
     /// Entity-to-slot bindings retained while a formation finisher executes.
     formation_membership: std::cell::RefCell<cop_aims::Membership>,
     /// A world-moment cut holds new placements while existing cars keep simulating.
@@ -279,6 +285,7 @@ impl TrafficWorld {
             cops: Default::default(),
             cars: Vec::new(),
             extra_traffic_off: false,
+            jump_start: false,
             next_entity: 0,
             rng: streams::Streams::default(),
             alpha: 0.0,
@@ -319,6 +326,7 @@ impl TrafficWorld {
             shared_bust_held: false,
             bodies: Vec::new(),
             aims: Vec::new(),
+            slotted: Vec::new(),
             formation_membership: Default::default(),
             world_moment: false,
             parallel: parallel::Parallel::default(),
@@ -402,24 +410,6 @@ impl TrafficWorld {
     /// Where the standing roadblocks are, in render space.
     pub fn roadblock_sites(&self) -> Vec<[f32; 2]> {
         self.roadblocks.sites()
-    }
-
-    /// The cops for the minimap (`docs/specs/hud-cop-blips.md`). A pursuit is on while the world has one.
-    pub fn map_blips(&self, out: &mut Vec<crate::hud::MapBlip>) {
-        let pursuing = self.pursuit.is_some();
-        self.helicopter_blips(pursuing, out);
-        for at in self.roadblock_sites() {
-            out.push(crate::hud::MapBlip { style: crate::hud::ROADBLOCK, position: at, active: false, heading: None });
-        }
-        for car in self.cars.iter().filter(|c| c.is_live_police()) {
-            let at = car.position();
-            out.push(crate::hud::MapBlip {
-                style: crate::hud::COP,
-                position: [at.x, at.y],
-                active: pursuing && !car.is_patrol(),
-                heading: Some(car.heading()),
-            });
-        }
     }
 
     /// Appends the sprites of the cop light bars of every car.

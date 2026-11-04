@@ -58,7 +58,8 @@ pub(super) fn steering_occlusion(
     others: impl IntoIterator<Item = Body>,
 ) -> Option<Occlusion> {
     let near = others.into_iter().filter(|other| other.position.distance(body.position) < reach);
-    nav.trail().and_then(|trail| update_occluded_position(trail, body, nav.position, near, true, nav.half_width))
+    nav.trail()
+        .and_then(|trail| update_occluded_position(trail, body, nav.position, nav.forward, near, true, nav.half_width))
 }
 
 /// How a car cruises: its speed on streets and on roads with four or more traffic lanes, and how hard it

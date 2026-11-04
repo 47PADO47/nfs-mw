@@ -2,6 +2,12 @@
 //!
 //! A sphere stands 4 m in front of the camera. The segment from the helicopter to where its velocity takes it in 0.2 s is
 //! tested against it; on a hit the destination is moved onto the sphere's tangent plane and the velocity is kicked away.
+//!
+//! [ours] The segment and the kick use the helicopter's velocity relative to the camera. The spec gives them in world
+//! velocity, but the remake runs the controller every physics step: a camera following the car at 80 m/s caught the
+//! helicopter in its sphere step after step, and each kick (up to 3.45 times the inward speed) compounded the last, so
+//! the helicopter overtaking the camera was flung off at 390 m/s. Relative to the camera the kick only cancels the
+//! closing speed, which keeps it out of the sphere without adding speed.
 
 use glam::Vec3;
 
@@ -21,6 +27,8 @@ const CENTRE_ZONE: f32 = 2.0;
 pub struct Camera {
     pub position: Vec3,
     pub forward: Vec3,
+    /// How fast the camera moves (zero when unknown): the kick is taken relative to it.
+    pub velocity: Vec3,
 }
 
 /// What the avoidance changes.
@@ -60,11 +68,12 @@ pub fn avoid(position: Vec3, velocity: Vec3, work: Vec3, camera: Camera) -> Opti
         true => distance - 0.5,
         false => RADIUS,
     };
-    let end = position + velocity * LEAD;
+    let relative = velocity - camera.velocity;
+    let end = position + relative * LEAD;
     let hit = enter(position, end, centre, radius)?;
     let normal = (hit - centre).normalize_or_zero();
     let dest = work + normal * (hit - work).dot(normal);
-    let kick = normal * (velocity.dot(normal).abs() * ((RADIUS - radius) * 0.5 + KICK));
+    let kick = normal * (relative.dot(normal).abs() * ((RADIUS - radius) * 0.5 + KICK));
     Some(Avoided { dest, velocity: velocity + kick })
 }
 
@@ -73,7 +82,7 @@ mod tests {
     use super::*;
 
     fn camera() -> Camera {
-        Camera { position: Vec3::ZERO, forward: Vec3::X }
+        Camera { position: Vec3::ZERO, forward: Vec3::X, velocity: Vec3::ZERO }
     }
 
     #[test]
@@ -113,5 +122,34 @@ mod tests {
     #[test]
     fn a_standing_helicopter_has_no_segment() {
         assert!(avoid(Vec3::new(14.0, 0.0, 0.0), Vec3::ZERO, Vec3::ZERO, camera()).is_none());
+    }
+
+    #[test]
+    fn a_camera_moving_with_the_helicopter_takes_only_the_closing_speed() {
+        // The camera and its sphere fly along +x at 80 m/s; the helicopter, 10 m behind the centre, at 100 m/s.
+        let moving = Camera { velocity: Vec3::new(80.0, 0.0, 0.0), ..camera() };
+        let position = Vec3::new(-6.0, 0.0, 0.0);
+        let velocity = Vec3::new(100.0, 0.0, 0.0);
+        let got = avoid(position, velocity, position, moving).unwrap();
+        // Closing at 20 m/s: the kick is 20 * 1.2 back, so the helicopter ends 4 m/s slower than the camera.
+        assert!((got.velocity.x - (100.0 - 24.0)).abs() < 1e-3, "{:?}", got.velocity);
+    }
+
+    #[test]
+    fn repeated_kicks_never_speed_the_helicopter_up() {
+        // The camera keeps catching the helicopter: step after step the result stays below the speed it came in with.
+        let moving = Camera { velocity: Vec3::new(80.0, 0.0, 0.0), ..camera() };
+        let mut position = Vec3::new(-6.0, 3.0, 0.0);
+        let mut velocity = Vec3::new(100.0, 0.0, 0.0);
+        let mut cam = moving;
+        for _ in 0..120 {
+            if let Some(got) = avoid(position, velocity, position, cam) {
+                velocity = got.velocity;
+            }
+            velocity += (Vec3::new(100.0, 0.0, 0.0) - velocity).clamp_length_max(80.0 / 60.0);
+            position += velocity / 60.0;
+            cam.position += cam.velocity / 60.0;
+            assert!(velocity.length() <= 100.5, "{velocity:?}");
+        }
     }
 }

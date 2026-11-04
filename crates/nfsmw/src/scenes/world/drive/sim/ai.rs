@@ -61,11 +61,55 @@ impl CarSim {
             return false;
         }
         self.spin = [0.0; 4];
+        self.drawn_steer = [0.0; 2];
         self.brake_lamp_age = 0.0;
         match speed > 0.0 {
             true => self.vehicle.place_moving(position, orientation, speed),
             false => self.vehicle.place(position, orientation),
         }
+        self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
+        true
+    }
+
+    /// Re-seats a standing car on the ground under its four wheel contacts, as a car reset does (roadblock cars, spec
+    /// `ai-pursuit-roadblocks.md` section 2.5): the contacts lie on the axles half a track either side; the pitch comes
+    /// from the axles' midpoints, the roll from the sides' midpoints, the height from their centroid plus the ride lift.
+    /// The fit is the rewrite's. False, leaving the car as it was, when a contact finds no ground.
+    pub fn seat_on_wheels(&mut self, ground: &dyn Ground) -> bool {
+        let position = self.vehicle.position();
+        let rotation = self.vehicle.rotation();
+        let forward = rotation.z_axis.with_y(0.0).normalize_or_zero();
+        let right = Vec3::Y.cross(forward).normalize_or_zero();
+        let chassis = &self.vehicle.spec().chassis;
+        let axles = [chassis.front_axle, chassis.front_axle - chassis.wheel_base];
+        let half_track = chassis.track_width.map(|w| w * 0.5);
+        let lift = self.ride_lift();
+        let contact = |axle: usize, side: f32| {
+            let at = position + forward * axles[axle] + right * (side * half_track[axle]);
+            let top = Vec3::new(at.x, position.y + 2.0, at.z);
+            ground.hit(top, Vec3::NEG_Y, lift + 6.0).map(|hit| top - Vec3::Y * hit.distance)
+        };
+        let (Some(fl), Some(fr), Some(rl), Some(rr)) =
+            (contact(0, -1.0), contact(0, 1.0), contact(1, -1.0), contact(1, 1.0))
+        else {
+            return false;
+        };
+        let (Some(along), Some(across)) =
+            (((fl + fr) - (rl + rr)).try_normalize(), ((fr + rr) - (fl + rl)).try_normalize())
+        else {
+            return false;
+        };
+        let Some(up) = along.cross(across).try_normalize().filter(|up| up.y > 0.1) else { return false };
+        let right = up.cross(along).normalize();
+        let forward = right.cross(up);
+        let middle = (axles[0] + axles[1]) * 0.5;
+        let centroid = (fl + fr + rl + rr) * 0.25;
+        let seated = centroid - forward * middle + up * lift;
+        let orientation = Quat::from_mat3(&Mat3::from_cols(right, up, forward));
+        if !seated.is_finite() || !orientation.is_finite() {
+            return false;
+        }
+        self.vehicle.place(seated, orientation);
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
         true
     }

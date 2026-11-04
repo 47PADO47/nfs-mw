@@ -113,7 +113,18 @@ pub struct PhotoReport {
     pub bounty: u32,
 }
 
-/// The numbers of a pursuit challenge's chase, for `PostRace_Pursuit.fng`.
+/// Which rows `PostRace_Pursuit.fng` shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PursuitPage {
+    /// A pursuit challenge's rows, the challenge's own row as `value / goal` (`PursuitReport::ROWS`).
+    #[default]
+    Challenge,
+    /// The original's pursuit page after an escape in free roam: duration, cops damaged and immobilized, spike strips
+    /// and roadblocks dodged, cost to state and unserved infractions (`docs/specs/pursuit-escape-results.md`).
+    Chase,
+}
+
+/// The numbers of a chase, for `PostRace_Pursuit.fng`: a pursuit challenge's, or an escape's in free roam.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PursuitReport {
     /// Seconds of the chase.
@@ -123,10 +134,13 @@ pub struct PursuitReport {
     pub cops_damaged: u32,
     pub cops_destroyed: u32,
     pub roadblocks_dodged: u32,
+    pub spike_strips_dodged: u32,
     pub cost_to_state: u32,
+    /// The challenge's: the chase's infractions. The free-roam page's: the car's unserved infractions after it.
     pub infractions: u32,
     /// The row the challenge asked for (`PursuitReport::ROWS` index) and the value it had to reach.
     pub goal: Option<(usize, f32)>,
+    pub page: PursuitPage,
 }
 
 impl PursuitReport {
@@ -142,9 +156,11 @@ impl PursuitReport {
             cops_damaged: 12,
             cops_destroyed: 3,
             roadblocks_dodged: 2,
+            spike_strips_dodged: 1,
             cost_to_state: 25_000,
             infractions: 4,
             goal: Some((2, 12.0)),
+            page: PursuitPage::Challenge,
         }
     }
 }
@@ -256,10 +272,10 @@ pub enum RaceAnswer {
     Exit,
 }
 
-/// One milestone a finished chase banked, as the rewards screen lists it.
+/// One row of the rewards screen: the chase's time or wrecks, or a milestone it banked.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RewardLine {
-    /// What was achieved, for example `10 police cars destroyed`.
+    /// What was achieved, for example `Pursuit Duration` or `10 police cars destroyed`.
     pub text: String,
     /// The bounty it paid.
     pub bounty: u32,
@@ -267,23 +283,27 @@ pub struct RewardLine {
     pub icon: &'static str,
 }
 
-/// What `PostRace_MilestoneRewards.fng` shows after a chase that banked milestones.
+/// What `PostRace_MilestoneRewards.fng` shows after a chase: its rows one at a time, the total adding up as they come
+/// (`docs/specs/pursuit-escape-results.md`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct RewardsReport {
     pub lines: Vec<RewardLine>,
-    /// The car's bounty after the rewards.
-    pub total_bounty: u32,
+    /// The chase's statistics page, which Continue opens (an escape in free roam); `None` goes back to the game.
+    pub pursuit: Option<PursuitReport>,
 }
 
 impl RewardsReport {
-    /// A report for `nfsmw view-screen`.
+    /// A report for `nfsmw view-screen`: an escape in free roam with its duration, its wrecks and one milestone, whose
+    /// Continue opens the statistics page.
     pub fn sample() -> Self {
+        let line = |text: &str, bounty, icon| RewardLine { text: text.into(), bounty, icon };
         Self {
             lines: vec![
-                RewardLine { text: "10 police cars destroyed".into(), bounty: 5000, icon: "Cops_TakenOut_Icon" },
-                RewardLine { text: "Chase for 05:00".into(), bounty: 5000, icon: "Milestone_Pursuit_MaxTime" },
+                line("Pursuit Duration", 2500, "Milestone_Pursuit_Duration"),
+                line("Immobilized Police Vehicles: 3", 1500, "Cops_TakenOut_Icon"),
+                line("10 police cars destroyed", 5000, "Cops_TakenOut_Icon"),
             ],
-            total_bounty: 1_000_000,
+            pursuit: Some(PursuitReport { goal: None, page: PursuitPage::Chase, ..PursuitReport::sample() }),
         }
     }
 }

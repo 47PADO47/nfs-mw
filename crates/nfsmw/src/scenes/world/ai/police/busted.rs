@@ -14,10 +14,6 @@ mod flow;
 
 pub(super) use flow::{BustFlow, BustReport, Payment};
 
-/// The perp's class for the arrest scene chooser (0 to 3). The original reads it through the perp car's interface; the
-/// port has no such value, so the bust uses class 0 until it does (`busted-sequence.md` section 4.1).
-const ARREST_CLASS: u8 = 0;
-
 /// Seconds of the post-reset blink after a manual reset: the player flashes (the reset penalty applies) while it runs.
 /// A reset sets the invulnerability timer to 2 s (`docs/specs/vehicle-rigid-body.md` section 7).
 pub const RESET_BLINK: f32 = 2.0;
@@ -99,7 +95,9 @@ impl Police {
     /// free roam (the port has no race mode yet). `roll` in `0..1` picks the arrest scene.
     pub(super) fn start_bust(&mut self, roll: f32) -> bool {
         let report = BustReport::from_log(&self.infractions, &self.settings.fines);
-        let started = self.bust.start(false, ARREST_CLASS, roll, report);
+        // The chooser's "class" is the perp's heat, cut to a whole number (`nis-player.md` section 2.2) [decomp].
+        let class = arrest::class_of_heat(self.heat_value());
+        let started = self.bust.start(false, class, roll, report);
         log::info!("busted: arrest scene {}", self.bust.arrest_scene().unwrap_or("none"));
         started
     }

@@ -30,11 +30,27 @@ The clip advances by the time step and the pose is taken. If the controller uses
 to the space node. Otherwise the local matrix is multiplied with the bone matrix. The character's velocity is set from
 its displacement per second.
 
+The skinned-character shader blends each vertex over up to three bones by its stored weights (the bones of a shading
+group come from its 16-entry bone table) **[decomp]**. What the rewrite does **[ours]** (`nis/skin.rs`,
+`nis/characters.rs`): the model is still split into one part per bone (`blackbox_solid::rigid_split`, which also records
+the solid vertex each part vertex was copied from), but every frame each part's vertices are blended on the CPU with the
+same weights, `sum(weight * skinning[bone] * bind_position)`, normals likewise and normalised, and given to the part's
+mesh (`update_mesh_vertices`). The part is then drawn with the actor's placement only, so a vertex shared by two parts
+lands in one place. Each actor owns its meshes, as two actors in one model take different poses. A backend that cannot
+update a mesh in place draws the parts rigidly, each with its bone's skinning matrix (the earlier rule, which tore the
+seams open at joints by up to 25 cm on the installed arrest characters).
+
 ### 9.3 Keeping on the ground **[decomp]**
 
 When the keep-on-ground flag is on (the default), the pelvis (bone 1) is raised 2 metres and tested against the ground.
 The ground height is smoothed half-and-half with the previous height, and the root is moved vertically by the difference
 plus 5 cm. The arrest's cuffs and cop are all keep-on-ground.
+
+What the rewrite does **[ours]** (`nis/characters.rs`, `nis/world.rs`): each frame of the scene, the pelvis of each
+character is placed in render space, raised 2 m, and the first drivable face is looked for down to 6 m below that point.
+The height found is smoothed half and half with the last one (the first one is taken as it is), and the whole character
+is drawn with its root at that height plus 5 cm. A character with no ground found keeps its last height, or its
+placement before any is found. The original's first-frame query (without the 2 m raise) is folded into the same rule.
 
 ### 9.4 Shadows and the face **[decomp]**
 

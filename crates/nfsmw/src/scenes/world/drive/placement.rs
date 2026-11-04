@@ -74,6 +74,7 @@ impl Drive {
         let sim = self.sim.get_or_insert_with(|| CarSim::new(self.physics.clone(), rest));
         sim.set_tunings(self.tunings);
         sim.set_visual_tires(self.rig.visual_tires());
+        sim.set_wheel_visuals(self.rig.wheel_visuals());
         for (zone, severity, glazed) in self.queued_hits.drain(..) {
             sim.inflict(zone, severity, glazed);
         }

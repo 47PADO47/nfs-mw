@@ -45,6 +45,19 @@ fn run_inner(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&
             testing.validate()?;
             scene.extra.testing = testing;
         }
+        ["spot", number] | ["spot", number, "jump"] | ["spot", number, "pursuit"] => {
+            let number: i32 = number.parse().context("The place is a number, 1 to 12")?;
+            let pursuit = args.get(2) != Some(&"jump");
+            scene.extra_action(renderer, Action::JumpToSpot { number, pursuit })?;
+        }
+        ["spots"] => {
+            scene.load_bounty_spots();
+            let spots = &scene.extra.bounty_spots;
+            let rows: Vec<String> =
+                spots.iter().map(|s| crate::extra_options::reference::row_text(spots, s.number)).collect();
+            return Ok(rows.join("\n"));
+        }
+        ["trace", state @ ("on" | "off")] => scene.extra_action(renderer, Action::PursuitTrace(*state == "on"))?,
         [action] => {
             let action = match *action {
                 "center" => Action::Center,
@@ -56,6 +69,8 @@ fn run_inner(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&
                 "pursuit" => Action::StartPursuit,
                 "set-heat" => Action::SetHeat,
                 "end-pursuit" => Action::EndPursuit,
+                "heat-up" => Action::HeatStep(1),
+                "heat-down" => Action::HeatStep(-1),
                 "marker" => Action::Marker,
                 "return" => Action::Return,
                 _ => bail!("Unknown extra-options action"),
@@ -63,7 +78,7 @@ fn run_inner(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, args: &[&
             scene.extra_action(renderer, action)?;
         }
         _ => bail!(
-            "usage: extra camera|testing [key value] | center|freecam|refill|clear|recover|repair|pursuit|end-pursuit|marker|return"
+            "usage: extra camera|testing [key value] | center|freecam|refill|clear|recover|repair|pursuit|end-pursuit|heat-up|heat-down|marker|return | spots | spot <n> [jump|pursuit] | trace on|off"
         ),
     }
     Ok("Extra option applied".into())

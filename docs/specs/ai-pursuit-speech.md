@@ -97,6 +97,11 @@ TerminatePursuit(forced bail-out; game-mode driven) --> music terminal, queue cl
      (6 to 8), every other car the first of voices 3 to 8 left; **the default pool excludes voice 9, so at most six ordinary speaking
      cops** (plus the cross car). With no voice free the car has no actor.
   Actors are also dropped when their car is unspawned with a "remove" reason, and the voice returns to the pool.
+- **Voices that never go to a car** **[speed.exe: the voice chooser and the actor removal]**: an ordinary cop car only ever
+  receives a voice from 3 to 8; the cross car receives 9 only; voice 2 belongs to the helicopter actor alone. When the helicopter
+  leaves, its voice goes back to the list but the chooser never hands it out, so no car speaks with the pilot's voice in this chase
+  or a later one. The "any cop" picks made without an actor (a forced bail-out line, "lost suspect" with no last speaker, the 911
+  reply) choose uniformly from 3 to 8; the 911 "more details" line from 3 to 6. None of them picks dispatch, the pilot or the cross voice.
 - **Battalion** (what the cop calls himself): by vehicle for the SUVs (`copsuv`, `copsuvl`, `copsuvpatrol`: Rhino Units 32) and the
   super-pursuit cars (`copsport`, `copsportghost`, `copsporthench`, `copcross`: Super Pursuit 16); otherwise by the road the cop is on (region
   city: City 4, coastal: Coastal 2, college town: Rosewood 1) or random among Rosewood, Coastal, City, Alpine (1, 2, 4, 8). Dispatch is 256, air
@@ -317,6 +322,11 @@ Built (2026-10-20), from this spec and with the decompiled flows read for the de
   their call sign pools, the road-name table of 85 named roads, the cop models' battalions), `params` (each `Line` to its speech event and each typed value to its bit), `channel` (the dispatcher as the
   machine's channel), `mod` (`ChaseRadio`: runs the machine each frame and sends the lines to the speech). The world fills the feed in `scenes/world/ai/police/speech_feed.rs`; the player's car type
   (`pvehicle.VerbalType`) and stock paint (`SPEECHCOLOUR`) come from `scenes/world/speech_look.rs`. Console: `speech flow`.
+- **Line events** (`audio/chase/radio/trace.rs`): each line the machine asks the speech for (with the queue's answer:
+  queued, refreshed, unknown, muted or thinned) and each line the speech finishes saying, with the machine's `Line`, the
+  speech event's name and number, the voice (speaker number) and the parameters. The radio keeps the last 64 until a
+  reader takes them: `Audio::take_radio_lines` (once a frame, for a pursuit trace recorder) or the console's
+  `speech lines`. A recorder logs them as-is; the take (bank and recording) the speech picks is not part of the event.
 - **What the world gives the machine now:** the cops (id, distance, speed, health, wrecked, sight, ahead, formation slot and offset, model class, road), the helicopter (present, sight, fuel), a standing
   roadblock (with its cars' sight and the spike strips), the player's speed, heading, road speech id and car, the heat, busted meter, cool-down state, formation, finisher and infractions, rain, the backup's
   arrival time, the pedals, the up vector and the direction of the road under the car, and the world's **events** ([ai-pursuit-speech-world.md](ai-pursuit-speech-world.md)): the player against a wall,

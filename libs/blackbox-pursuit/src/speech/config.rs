@@ -43,6 +43,16 @@ impl Layout {
         all
     }
 
+    /// The voices an ordinary ground cop may have: the primary and secondary ones. Never the dispatch, the
+    /// helicopter's or the cross car's voice.
+    pub fn ground_voices(&self) -> Vec<Speaker> {
+        self.primary.iter().chain(self.secondary).copied().collect()
+    }
+
+    pub fn is_ground_voice(&self, speaker: Speaker) -> bool {
+        self.primary.contains(&speaker) || self.secondary.contains(&speaker)
+    }
+
     pub fn is_primary(&self, speaker: Speaker) -> bool {
         self.primary.contains(&speaker) || speaker == self.heli || speaker == self.cross
     }

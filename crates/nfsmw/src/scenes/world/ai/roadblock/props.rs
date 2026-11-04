@@ -63,6 +63,9 @@ pub(in crate::scenes::world::ai) struct Physics {
     pub sawhorse: Option<(Arc<BoundsSet>, Arc<PropDynamics>)>,
     /// Half extents of the spike strip's collision box in model axes: along its facing, across it, up.
     pub strip_half: Option<[f32; 3]>,
+    /// How far above the ground each prop's origin stands so that the bottom of its root collision box rests on it.
+    pub strip_lift: Option<f32>,
+    pub sawhorse_lift: Option<f32>,
 }
 
 impl Physics {
@@ -71,8 +74,23 @@ impl Physics {
             .shape(SPIKE_MODEL)
             .and_then(|shape| shape.boxes.first().map(|b| b.half))
             .map(|half| [half.x, half.y, half.z]);
-        Self { sawhorse: catalog.placeable(SAWHORSE_MODEL, SAWHORSE_SMACKABLE), strip_half }
+        let sawhorse = catalog.placeable(SAWHORSE_MODEL, SAWHORSE_SMACKABLE);
+        Self {
+            strip_lift: catalog.bounds_of(SPIKE_MODEL).as_deref().and_then(seat_lift),
+            sawhorse_lift: sawhorse.as_ref().and_then(|(bounds, _)| seat_lift(bounds)),
+            sawhorse,
+            strip_half,
+        }
     }
+}
+
+/// The height of a placed prop's origin above the ground under it: `Place` snaps a prop to the ground with its root
+/// collision box's half height, and the box stands at its pivot above the drawn origin (spec section 2.5), so the box's
+/// bottom meets the road. Bounds are in physics axes, y up.
+pub fn seat_lift(bounds: &BoundsSet) -> Option<f32> {
+    let root = bounds.nodes.first()?;
+    let lift = root.half_dimensions[1] - root.pivot[1];
+    lift.is_finite().then_some(lift)
 }
 
 /// A rig pose from a render-space frame.

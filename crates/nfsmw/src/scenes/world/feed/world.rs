@@ -18,6 +18,8 @@ impl WorldScene {
         self.hud_feed.notices(&notices);
         let snapshot = self.feed_snapshot();
         self.hud_feed.observe(snapshot, dt);
+        let latest = self.traffic.as_ref().and_then(|traffic| traffic.last_takedown());
+        self.hud_feed.takedown(latest, dt);
     }
 
     /// What the HUD's events are diffed from this frame.

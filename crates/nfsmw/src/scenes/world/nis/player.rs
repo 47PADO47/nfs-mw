@@ -287,15 +287,25 @@ impl NisPlayer {
         self.retired.push(playing.characters);
     }
 
-    /// Uploads the playing scene's characters, once, with the world's shared textures `shared`, and frees the characters
-    /// of the scenes that ended. The world calls it every frame before it draws.
+    /// Uploads the playing scene's characters, once, with the world's shared textures `shared`, skins them for the scene's
+    /// time, and frees the characters of the scenes that ended. The world calls it every frame before it draws.
     pub fn prepare_characters(&mut self, renderer: &mut dyn RenderBackend, shared: &Materials) {
         for characters in self.retired.drain(..) {
             characters.release(renderer);
         }
         if let Some(playing) = self.play.as_mut() {
             playing.characters.prepare(renderer, shared);
+            let time = playing.run.scene_time();
+            playing.characters.skin(renderer, time);
         }
+    }
+
+    /// Stands the playing scene's characters on the ground `ground(at)` gives under them (see
+    /// [`Characters::keep_on_ground`]). Does nothing when no scene plays.
+    pub fn keep_characters_on_ground(&mut self, ground: impl FnMut(glam::Vec3) -> Option<f32>) {
+        let Some(playing) = self.play.as_mut() else { return };
+        let time = playing.run.scene_time();
+        playing.characters.keep_on_ground(time, &playing.anchor, ground);
     }
 
     /// Adds the playing scene's character instances to `out`, at the scene's time. Nothing is added when no scene plays.
@@ -352,6 +362,17 @@ impl NisPlayer {
     /// How the last scene ended, once: the next call gives `None` until another scene ends.
     pub fn take_outcome(&mut self) -> Option<NisOutcome> {
         self.outcome.take()
+    }
+
+    /// The kind of the scene that plays, if one does.
+    pub fn playing_kind(&self) -> Option<NisKind> {
+        self.play.as_ref().map(|playing| playing.kind)
+    }
+
+    /// Whether an arrest plays: its camera keeps the busted overlay over the whole scene (`docs/specs/busted-sequence.md`
+    /// section 6.1).
+    pub fn arrest_playing(&self) -> bool {
+        self.playing_kind() == Some(NisKind::Arrest)
     }
 
     /// The name of the scene that plays, if one does.

@@ -34,15 +34,19 @@ pub struct BlipLook {
     pub alpha: f32,
     /// Added to the icon's rotation, degrees: a spinning icon changes this every tick.
     pub spin: f32,
+    /// The package script the icon plays (started only when it is not the one playing). `None` leaves it alone.
+    pub script: Option<u32>,
 }
 
 impl BlipLook {
     /// The package object's own colour, opaque, not turned.
-    pub const PLAIN: BlipLook = BlipLook { colour: None, alpha: 1.0, spin: 0.0 };
+    pub const PLAIN: BlipLook = BlipLook { colour: None, alpha: 1.0, spin: 0.0, script: None };
 }
 
-/// One look tick, in seconds. A look that changes with the tick (the light bar) moves at this rate, whatever the frame rate.
-pub const TICK_SECONDS: f32 = 0.1;
+/// One look tick, in seconds. A look that changes with the tick (the light bar) moves at this rate, whatever the frame
+/// rate. The original steps its light bar once per rendered frame; this is that step at 60 frames per second
+/// (`docs/specs/hud-cop-blips.md` section 3).
+pub const TICK_SECONDS: f32 = 1.0 / 60.0;
 
 /// What a kind of blip is. Implement it for a custom blip; register it with the HUD binding.
 pub trait BlipStyle: Send + Sync {

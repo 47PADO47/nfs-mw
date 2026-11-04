@@ -198,7 +198,7 @@ impl Cx<'_> {
         flows.reset();
         self.effect(Effect::ResetHistory);
         let now = self.now;
-        self.roster.clear();
+        self.roster.clear(self.layout);
         // What the original keeps through a reset: the heading it follows, the blow-by memory, the heat it last
         // announced and when the last chase ended.
         let old = self.core.clone();

@@ -72,6 +72,11 @@ struct Chase {
     rep_destroyed: u32,
     /// The cost to state so far.
     cost_to_state: u32,
+    /// Cop cars damaged in the chase ("cops tagged").
+    cops_damaged: u32,
+    /// Roadblocks passed, and the spike strips of those roadblocks.
+    roadblocks_dodged: u32,
+    spikes_dodged: u32,
 }
 
 impl WorldScene {
@@ -89,6 +94,9 @@ impl WorldScene {
             rep_normal: traffic.rep_normal_points(),
             rep_destroyed: traffic.rep_destroyed_points(),
             cost_to_state: traffic.cost_to_state(),
+            cops_damaged: traffic.cops_damaged(),
+            roadblocks_dodged: traffic.roadblock_tally().dodged,
+            spikes_dodged: traffic.roadblock_tally().spike_strips_dodged,
         };
         let started = pursuing && !self.career.pursuit.pursuing;
         let ended = (reason != EndReason::None && reason != self.career.pursuit.end_reason).then_some(reason);
@@ -123,6 +131,11 @@ impl WorldScene {
             career.milestones.update_stat(StatType::TotalInfractions, kinds, FREE_ROAM);
             career.milestones.update_stat(StatType::BountyInPursuit, bounty as f32, FREE_ROAM);
             career.milestones.update_stat(StatType::CostToStateInPursuit, chase.cost_to_state as f32, FREE_ROAM);
+            // [decomp] Each is counted for the player's pursuit as it happens (`docs/specs/career-milestones.md` 3.4):
+            // a cop damaged, a roadblock passed, and that roadblock's spike strips.
+            career.milestones.update_stat(StatType::CopsDamaged, chase.cops_damaged as f32, FREE_ROAM);
+            career.milestones.update_stat(StatType::RoadblocksDodged, chase.roadblocks_dodged as f32, FREE_ROAM);
+            career.milestones.update_stat(StatType::TireSpikesDodged, chase.spikes_dodged as f32, FREE_ROAM);
         });
     }
 
@@ -139,6 +152,7 @@ impl WorldScene {
         let mask = infraction_mask(&chase.infractions);
         let result = pursuit_result(reason, mask, chase.rep_normal, chase.rep_destroyed);
         let roadblocks = self.traffic.as_ref().map(|traffic| traffic.roadblock_tally()).unwrap_or_default();
+        let in_race = self.race.is_some();
         let coop = self.coop.as_ref();
         let tally = &self.career.pursuit.tally;
         let phone = &mut self.career.phone;
@@ -167,9 +181,24 @@ impl WorldScene {
             if let Some(record) = bank.and_then(|handle| career.stable.career_for_handle_mut(handle)) {
                 pay_banked(record, &milestones.banked);
             }
-            let bounty =
-                bank.and_then(|handle| career.stable.career_for_handle(handle)).map_or(0, |record| record.bounty);
-            rewards = super::rewards::report_of(&career.milestones, &milestones.banked, bounty);
+            // An escape in free roam always shows the rewards and then the statistics; a race's chase only the
+            // milestones it banked (`docs/specs/pursuit-escape-results.md`).
+            rewards = match busted || in_race {
+                true => super::rewards::report_of(&career.milestones, &milestones.banked),
+                false => {
+                    let unserved = bank
+                        .and_then(|handle| career.stable.career_for_handle(handle))
+                        .map_or(0, |record| record.unserved_total());
+                    let escape = super::rewards::Escape {
+                        secs: chase.secs,
+                        time_bounty: chase.rep_normal,
+                        destroy_bounty: chase.rep_destroyed,
+                        stats: &stats,
+                        unserved,
+                    };
+                    Some(super::rewards::escape_report(&career.milestones, &milestones.banked, &escape))
+                }
+            };
             // A banked milestone is a challenge passed in its bin: the Blacklist counts it, and the bin's challenge
             // messages follow its count (`docs/specs/career-phone.md` section 7).
             for (bin, key) in passed_challenges(&career.milestones, &milestones.banked) {

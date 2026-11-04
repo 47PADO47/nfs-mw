@@ -126,6 +126,9 @@ impl BlipBinding {
                 rt.set_colour_rgba(o, colour);
             }
             rt.set_alpha(o, (alpha * 255.0) as u8);
+            if let Some(script) = look.script.filter(|script| rt.script_of(o) != Some(*script)) {
+                rt.run_script(o, script);
+            }
         }
     }
 

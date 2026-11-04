@@ -280,8 +280,9 @@ fn cop_arrived(scene: &mut WorldScene, name: &str, load: CopLoad) {
 fn cop_job(scene: &mut WorldScene, name: &str, load: CopLoad) -> Result<Job, String> {
     let CopLoad { folder, model } = load;
     log::debug!("cop car {name}: using geometry from {folder}");
-    let car_type = model.car_type.clone().unwrap_or_else(|| name.to_owned());
-    let physics = scene.physics_of(&model).map_err(|e| format!("{name}: {e:#}"))?;
+    let car_type = requested_type(scene, name, &model);
+    let physics =
+        scene.physics.car(&car_type).or_else(|_| scene.physics_of(&model)).map_err(|e| format!("{name}: {e:#}"))?;
     let ai = ai_vehicle(scene.physics.database(), &car_type);
     let light_fx = CopLightFx::read(scene.physics.database(), &model);
     let hashes: Vec<u32> = light_fx
@@ -289,6 +290,15 @@ fn cop_job(scene: &mut WorldScene, name: &str, load: CopLoad) -> Result<Job, Str
         .map_or_else(Vec::new, |fx| fx.lanes.iter().flat_map(|lane| lane.emitters.iter().map(|e| e.texture)).collect());
     let car = parts(scene, name.to_ascii_uppercase(), &car_type, model, physics);
     Ok(Job::CopExtras { car_type, hashes, staged: Box::new(StagedCop { car, ai, light_fx }) })
+}
+
+/// The `pvehicle` a cop request names. A borrowed folder (COPSUVPATROL drawn from COPSUV's) lends only its geometry:
+/// physics, `aivehicle` and audio stay the requested vehicle's. A request with no record (a mod car) keeps the folder's.
+fn requested_type(scene: &WorldScene, name: &str, model: &CarModel) -> String {
+    if scene.physics.database().collection("pvehicle", &name.to_ascii_lowercase()).is_some() {
+        return name.to_owned();
+    }
+    model.car_type.clone().unwrap_or_else(|| name.to_owned())
 }
 
 fn install_cop(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, name: &str, load: CopExtrasLoad) {

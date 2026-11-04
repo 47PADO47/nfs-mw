@@ -88,6 +88,7 @@ fn installed_named_lightbar_collision_reaches_cargo_flares_and_world_siren_witho
             me: 0,
             player: None,
             aims: &[],
+            slotted: &[],
             lights: None,
         };
         world.cars[0].step(&mut ctx, &collision, &mut props, &data.surfaces);

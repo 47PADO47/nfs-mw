@@ -1,9 +1,9 @@
 //! The helicopter's rotor wash: the `heliwash` particle group of the install (three emitters) run on the ground under
 //! the helicopter. Spec: `docs/specs/ai-helicopter.md` section 7.
 //!
-//! Once a second the effect is placed on the ground at the helicopter's horizontal position, turned to the ground's
-//! normal, with the intensity `1 - ramp(altitude, 5, 30)`. Above 30 m, or with no ground under it, it is paused. The
-//! particles live in the world between those updates.
+//! Every tick the effect is placed on the ground at the helicopter's horizontal position, its `z` axis along the
+//! ground's normal, with the intensity `1 - ramp(altitude, 5, 30)`. Above 30 m, or with no ground under it, it is
+//! paused. The three emitters are discs: they blow out across the ground, not up along the normal.
 
 use blackbox_attrib::Database;
 use blackbox_collision::CollisionWorld;
@@ -17,8 +17,6 @@ use nfsmw_data::world::explosion_fx::heli_wash_emitters;
 use super::explosion_fx::{Set, build_set, draw};
 use super::space;
 
-/// Seconds between two updates of the effect's place and intensity.
-const PERIOD: f32 = 1.0;
 /// The altitude (metres above the ground) where the wash starts to fade, and where it is gone.
 const FULL: f32 = 5.0;
 const GONE: f32 = 30.0;
@@ -37,6 +35,17 @@ pub fn intensity(altitude: f32) -> Option<f32> {
     Some(1.0 - ramp)
 }
 
+/// The effect's frame (render space) at `ground` (physics space) on ground with `normal` (physics space): the shortest
+/// turn from the up axis to the upward normal, so on flat ground it is unturned and its `x`/`y` plane is the ground.
+fn wash_frame(ground: Vec3, normal: Vec3) -> Mat4 {
+    let up = match normal.y < 0.0 {
+        true => -normal,
+        false => normal,
+    };
+    let tilt = Quat::from_rotation_arc(Vec3::Z, space::to_render(up.to_array()).normalize_or(Vec3::Z));
+    Mat4::from_rotation_translation(tilt, space::to_render(ground.to_array()))
+}
+
 enum Load {
     Unloaded,
     Missing,
@@ -49,21 +58,11 @@ pub struct HeliWash {
     /// Where the effect stands (render space, z axis along the ground normal), and the intensity of its last update.
     frame: Mat4,
     intensity: f32,
-    since_update: f32,
-    /// A helicopter flew since the last update.
-    flying: bool,
 }
 
 impl Default for HeliWash {
     fn default() -> Self {
-        Self {
-            load: Load::Unloaded,
-            emitters: Vec::new(),
-            frame: Mat4::IDENTITY,
-            intensity: 0.0,
-            since_update: PERIOD,
-            flying: false,
-        }
+        Self { load: Load::Unloaded, emitters: Vec::new(), frame: Mat4::IDENTITY, intensity: 0.0 }
     }
 }
 
@@ -108,16 +107,9 @@ impl HeliWash {
             return;
         }
         match helicopter {
-            Some(at) => {
-                self.since_update += dt;
-                if self.since_update >= PERIOD || !self.flying {
-                    self.since_update = 0.0;
-                    self.update(at, collision);
-                }
-            }
+            Some(at) => self.update(at, collision),
             None => self.intensity = 0.0,
         }
-        self.flying = helicopter.is_some();
         let frame = Frame { to_world: self.frame, inherit_velocity: Vec3::ZERO, intensity: self.intensity };
         for emitter in &mut self.emitters {
             emitter.set_enabled(self.intensity > 0.0);
@@ -125,7 +117,7 @@ impl HeliWash {
         }
     }
 
-    /// The once-a-second update: place the effect on the ground under `at` and set its intensity.
+    /// Place the effect on the ground under `at` and set its intensity.
     fn update(&mut self, at: Vec3, collision: &CollisionWorld) {
         let Some(hit) = collision.ground(at.x, at.z, at.y, at.y - REACH) else {
             self.intensity = 0.0;
@@ -135,14 +127,7 @@ impl HeliWash {
             self.intensity = 0.0;
             return;
         };
-        let normal = Vec3::from_array(hit.normal);
-        let up = match normal.y < 0.0 {
-            true => -normal,
-            false => normal,
-        };
-        let ground = Vec3::new(at.x, hit.point[1], at.z);
-        let tilt = Quat::from_rotation_arc(Vec3::Z, space::to_render(up.to_array()).normalize_or(Vec3::Z));
-        self.frame = Mat4::from_rotation_translation(tilt, space::to_render(ground.to_array()));
+        self.frame = wash_frame(Vec3::new(at.x, hit.point[1], at.z), Vec3::from_array(hit.normal));
         self.intensity = strength;
     }
 

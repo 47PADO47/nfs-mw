@@ -111,6 +111,24 @@ fn a_cone_spreads_the_direction() {
 }
 
 #[test]
+fn a_disc_shoots_out_across_the_frames_xy_plane() {
+    // A frame turned so that its z axis is the world's x: the disc lies in the world's y/z plane.
+    let turned = Frame { to_world: Mat4::from_rotation_y(std::f32::consts::FRAC_PI_2), ..Frame::default() };
+    let mut flat = Emitter::new(EmitterSpec { spread_as_disc: true, rate: 600.0, life: 5.0, ..spec() }, 3);
+    run(&mut flat, 10, &turned);
+    assert!(flat.sprites().all(|s| s.position.x.abs() < 1e-4));
+    let side = |f: fn(Vec3) -> bool| flat.sprites().filter(|s| f(s.position)).count();
+    assert!(side(|p| p.y > 0.1) > 0 && side(|p| p.y < -0.1) > 0 && side(|p| p.z > 0.1) > 0 && side(|p| p.z < -0.1) > 0);
+    // A spread tilts it out of the plane by at most half the angle.
+    let mut tilted =
+        Emitter::new(EmitterSpec { spread_as_disc: true, spread: 20.0, rate: 600.0, life: 5.0, ..spec() }, 3);
+    run(&mut tilted, 10, &Frame::default());
+    let max_tilt =
+        tilted.sprites().map(|s| s.position.z.atan2(s.position.truncate().length()).abs()).fold(0.0, f32::max);
+    assert!(max_tilt > 2f32.to_radians() && max_tilt <= 10.01f32.to_radians());
+}
+
+#[test]
 fn live_motion_keeps_the_inherited_velocity_out() {
     let car = Frame { inherit_velocity: Vec3::new(30.0, 0.0, 0.0), ..Frame::default() };
     let spec = EmitterSpec { inherit: 1.0, speed: 0.0, velocity_start: Vec3::ZERO, life: 5.0, ..spec() };

@@ -59,6 +59,11 @@ pub(super) fn show(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings
         ui.add(egui::Slider::new(&mut state.testing.heat, 1..=10).text("Heat"));
         ui.checkbox(&mut state.testing.lock_heat, "Lock heat");
     });
+    ui.add(egui::Slider::new(&mut state.testing.career_bin, 0..=15).text("Career bin (no career)"));
+    ui.small(match state.testing.career_bin {
+        0 => "0: sandbox, heat climbs at the early-career rate (10 minutes a level). A loaded career uses its own bin.".into(),
+        bin => format!("Bin {bin}: heat climbs and caps as a career at Blacklist {bin} does; 1 is a finished career (2 minutes a level up to heat 3). The heat range applies from the next chase."),
+    });
     ui.horizontal(|ui| {
         if ui.add_enabled(!state.testing.police_off, egui::Button::new("Start pursuit")).clicked() {
             actions.push(Action::StartPursuit);
@@ -70,6 +75,7 @@ pub(super) fn show(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings
             actions.push(Action::EndPursuit);
         }
     });
+    super::pursuit::show(ui, state, actions);
     ui.checkbox(&mut state.testing.unlimited_nos, "Unlimited NOS · requires an installed NOS system");
     ui.checkbox(&mut state.testing.unlimited_breaker, "Unlimited Speedbreaker · normal activation rules apply");
     ui.horizontal(|ui| {

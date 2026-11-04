@@ -23,6 +23,11 @@ pub struct WheelSetup {
     /// `Some` for a bike: it has two wheels, not four. Wheel 0 is the front wheel and wheel 2 the rear wheel, both on the
     /// car's centre line (`tire_offsets` has y = 0 for them); wheels 1 and 3 repeat them and are never drawn.
     pub bike: Option<BikeMount>,
+    /// How fast the drawn front wheels turn towards the physical steering angle, degrees per second (`SteerSpeed`).
+    /// `None` when the record has none: the drawn angle then follows the physical one at once.
+    pub steer_speed: Option<f32>,
+    /// The largest drawn front-wheel steering angle, degrees (`MaxTireSteer`); `None` leaves it unlimited.
+    pub max_tire_steer: Option<f32>,
 }
 
 /// How the front wheel of a bike hangs on the frame (`docs/specs/vehicle-two-wheel-integration.md`).
@@ -83,6 +88,8 @@ impl WheelSetup {
             camber: [0.0; 2],
             spoke_count: 0,
             bike: None,
+            steer_speed: None,
+            max_tire_steer: None,
         }
     }
 
@@ -104,6 +111,8 @@ impl WheelSetup {
             camber: [f("CamberFront", 0), f("CamberRear", 0)],
             spoke_count: car.get_i32("WheelSpokeCount").unwrap_or(0),
             bike: None,
+            steer_speed: car.get_f32("SteerSpeed").filter(|v| v.is_finite() && *v > 0.0),
+            max_tire_steer: car.get_f32("MaxTireSteer").filter(|v| v.is_finite() && *v > 0.0),
         })
     }
 

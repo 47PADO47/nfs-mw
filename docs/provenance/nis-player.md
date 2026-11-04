@@ -106,10 +106,15 @@ The third-party note on `ENISTimeOfDay` (Xbox 360 behaviour) is a lead only and 
 - **Race scenes:** the `EPlayRaceNIS` consumer is not in the CC0 tree. How a race start picks its scene and camera track is
   not known from the decomp. The race intros and outros use the race's own `IntroNIS` and `OutroNIS` fields, taken from
   the race data ([story-flow.md](../specs/story-flow.md), the race life cycle).
-- **Arrest:** the arrest spot is the player's pose. The original's spot search (the finder at `0x0044da10`) is not built,
-  and the heading rule, the 0.25 offset and the float the finder writes are **[unconfirmed]**
-  ([busted-sequence.md](../specs/busted-sequence.md), sections 4.2 and 4.4). The chooser's variant roll is **[unconfirmed]**
-  too (section 4.1), and the port fixes the perp's class at 0.
+- **Arrest:** the arrest spot is the road's cross-section midpoint at the player, facing the player's car
+  ([pursuit-cinematic-control.md](../specs/pursuit-cinematic-control.md)), and its height is the ground face under it
+  ([nis-player.md](../specs/nis-player.md) section 5.2). The heading rule is read in section 5.2 of that spec
+  **[derived]**; that the car's right axis is the matrix row the chooser reads is from the decomp's rigid-body accessors.
+  The chooser's class is the chase's heat cut to a whole number and its roll is scaled to the original's draw below 0.99
+  (section 2.2).
+- **Characters:** each character stands on the ground under its pelvis, smoothed half and half each frame
+  ([nis-player-2.md](../specs/nis-player-2.md) section 9.3). How far below the probe point the port looks (6 m) is the
+  port's own. The shadows and the face pixelation (section 9.4) are not drawn.
 - **Arrest bundles:** the 1.3 MB arrest bundle is not checked against the loading thresholds above.
 - **Scene data:** the seven special-car entries whose scene hashes match no installed scene may belong to another build
   ([nis-scenes.md](../specs/nis-scenes.md) section 13).

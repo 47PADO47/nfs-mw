@@ -59,6 +59,7 @@ fn a_physical_cop_converges_to_either_lane_without_steering_out_of_the_road() {
                 me: 0,
                 player: Some(target),
                 aims: &[None],
+                slotted: &[],
                 lights: None,
             };
             car.step(&mut ctx, &collision, &mut props, &surfaces);
@@ -122,6 +123,7 @@ fn a_ram_goal_steers_at_its_command_instead_of_the_raw_road_slot() {
             me: 0,
             player: Some(target),
             aims: &[raw_slot],
+            slotted: &[],
             lights: None,
         };
         car.step(&mut ctx, &collision, &mut props, &surfaces);

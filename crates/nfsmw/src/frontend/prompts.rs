@@ -89,6 +89,17 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
     if name.eq_ignore_ascii_case(screen::SAFE_HOUSE_RIVAL_BIO) {
         return vec![(action(Action::MenuAccept), L::Continue, Some(Action::MenuAccept))];
     }
+    // The chase's rewards and statistics: Continue, and on the statistics the PC package's second button, `2`
+    // Infractions (the package answers `PAD_BUTTON4`, MenuButton2, with its page change).
+    if name.eq_ignore_ascii_case(screen::MILESTONE_REWARDS) {
+        return vec![(action(Action::MenuAccept), L::Continue, Some(Action::MenuAccept))];
+    }
+    if name.eq_ignore_ascii_case(screen::POST_RACE_PURSUIT) {
+        return vec![
+            (action(Action::MenuAccept), L::Continue, Some(Action::MenuAccept)),
+            (action(Action::MenuButton2), L::Game(0x03C9_4B43), Some(Action::MenuButton2)), // Infractions
+        ];
+    }
     match footer {
         Footer::ControlsCapture => {
             return vec![(
@@ -287,6 +298,14 @@ pub fn decorate(
     if name.eq_ignore_ascii_case(screen::CHALLENGE_SERIES) {
         legacy::hide_children(tree, 0x84bc_f2b5);
         legacy::hide_roots(tree, &[0x4170_d571, 0x12fd_7d4a]);
+    }
+    // Both copies of the pursuit results' buttons: the console one (its glyph is not drawn on PC) and the PC one
+    // (`PC_key_*`, which the runtime starts hidden).
+    if name.eq_ignore_ascii_case(screen::MILESTONE_REWARDS) {
+        legacy::hide_children(tree, 0xb3a6_9e89);
+    }
+    if name.eq_ignore_ascii_case(screen::POST_RACE_PURSUIT) {
+        legacy::hide_roots(tree, &super::prompt_layout::PURSUIT_FOOTERS);
     }
     let first_hint = tree.nodes.len();
     let hints: Vec<(Vec<Prompt>, String, Option<Action>)> = hint_set(name, footer, bindings, device)

@@ -13,9 +13,12 @@ use nfsmw_data::pursuit::AiVehicle;
 use super::car::Ctx;
 use super::traffic::CarState;
 
+#[cfg(test)]
+mod avoid_sets_tests;
 mod close;
 mod history;
 mod motion;
+mod recovery;
 #[cfg(test)]
 mod reinforcement_tests;
 mod road_nos;
@@ -33,8 +36,6 @@ pub(super) use roads::TargetRoad;
 /// Cops think every eighth physics step.
 pub const THINK_STEPS: u32 = 8;
 pub const THINK_PERIOD: f32 = THINK_STEPS as f32 / 60.0;
-/// The path to the player is searched again this often, seconds.
-const REPATH_PERIOD: f32 = 1.0;
 /// A cop has the skill of its constructor value.
 const SKILL: f32 = 1.0;
 /// The look-ahead follows the requested speed: 30 m at rest to 100 m at 100 m/s.
@@ -60,6 +61,30 @@ pub fn matched_limits(cop: &CopCar, player: &Performance) -> CarLimits {
     }
 }
 
+/// The cop's two avoidable sets, into `corridor` and `separation` (cleared first): the separation set is every nearby
+/// vehicle and the target; the corridor set keeps those flagged as cutting it, and the target unless the cop is in
+/// formation (spec `ai-pursuit-obstacle-selection.md`, avoidable sets).
+fn avoid_sets(
+    target: Body,
+    in_formation: bool,
+    traffic: impl IntoIterator<Item = (Body, bool)>,
+    corridor: &mut Vec<Body>,
+    separation: &mut Vec<Body>,
+) {
+    corridor.clear();
+    separation.clear();
+    separation.push(target);
+    if !in_formation {
+        corridor.push(target);
+    }
+    for (body, cuts) in traffic {
+        separation.push(body);
+        if cuts {
+            corridor.push(body);
+        }
+    }
+}
+
 /// One cop's pursuit state.
 #[derive(Debug, Clone)]
 pub struct CopState {
@@ -70,15 +95,18 @@ pub struct CopState {
     think_delta: f32,
     road_nos: road_nos::State,
     pub stuck: StuckDetector,
-    repath: f32,
     last_find: Vec3,
     last_speed: f32,
     path_state: Option<PathState>,
     close: close::Close,
     environment: Environment,
     pub(super) ram_allowed: bool,
-    /// The other cars of the think in progress; kept so a think does not allocate.
+    /// A stuck reverse runs: its end puts the lane cursor back on a lane (`recovery.rs`).
+    recovering: bool,
+    /// The cars the think in progress cuts its road corridor around, and the ones it keeps its distance from; kept so a
+    /// think does not allocate.
     traffic_scratch: Vec<Body>,
+    separation_scratch: Vec<Body>,
     #[cfg(test)]
     pub(super) last_diagnostic: String,
 }
@@ -97,6 +125,8 @@ pub(super) struct Environment {
     /// The primary uses the shared tracker even when it cannot publish a road.
     pub shared_target_road: bool,
     pub target_road: Option<TargetRoad>,
+    /// The cop holds a formation slot: it ignores the target and the other slotted cops when it cuts its corridor.
+    pub in_formation: bool,
 }
 
 /// What the player looks like to the cop.
@@ -137,14 +167,15 @@ impl CopState {
             think_delta: THINK_PERIOD,
             road_nos: road_nos::State::default(),
             stuck: StuckDetector::default(),
-            repath: 0.0,
             last_find: Vec3::ZERO,
             last_speed: speed,
             path_state: None,
             close: close::Close::default(),
             environment: Environment::default(),
             ram_allowed: false,
+            recovering: false,
             traffic_scratch: Vec::new(),
+            separation_scratch: Vec::new(),
             #[cfg(test)]
             last_diagnostic: String::new(),
         }
@@ -166,7 +197,6 @@ impl CopState {
             return;
         }
         self.environment.head_on_support = enabled;
-        self.repath = 0.0;
         self.road_nos.leave();
         self.close.leave();
     }
@@ -187,21 +217,24 @@ impl CopState {
         (self.environment.shared_target_road, self.environment.target_road)
     }
 
-    /// The think of the race action in pursuit mode.
+    /// The think of the race action in pursuit mode. `traffic` is every other vehicle near the cop, each with whether it
+    /// may cut the cop's road corridor. The target joins both sets, except that a cop in formation does not cut its
+    /// corridor around the target (spec `ai-pursuit-obstacle-selection.md`, avoidable sets).
     pub(super) fn think<R: RandomSource>(
         &mut self,
         ctx: &mut Ctx<'_, R>,
         nav: &mut RoadNav,
         car: &CarState,
         target: &Target,
-        traffic: impl IntoIterator<Item = Body>,
+        traffic: impl IntoIterator<Item = (Body, bool)>,
         inputs: ActionInputs<'_>,
     ) -> CopThink {
-        let mut others = std::mem::take(&mut self.traffic_scratch);
-        others.clear();
-        others.extend(traffic);
-        let think = self.think_among(ctx, nav, car, target, &others, inputs);
-        self.traffic_scratch = others;
+        let mut corridor = std::mem::take(&mut self.traffic_scratch);
+        let mut separation = std::mem::take(&mut self.separation_scratch);
+        avoid_sets(target.body, self.environment.in_formation, traffic, &mut corridor, &mut separation);
+        let think = self.think_among(ctx, nav, car, target, (&corridor, &separation), inputs);
+        self.traffic_scratch = corridor;
+        self.separation_scratch = separation;
         think
     }
 
@@ -211,7 +244,7 @@ impl CopState {
         nav: &mut RoadNav,
         car: &CarState,
         target: &Target,
-        traffic: &[Body],
+        (traffic, nearby): (&[Body], &[Body]),
         inputs: ActionInputs<'_>,
     ) -> CopThink {
         let ActionInputs { collision, grade, ram, nitrous } = inputs;
@@ -231,7 +264,6 @@ impl CopState {
             }
             self.road_nos.leave();
             self.close.leave();
-            self.repath = 0.0;
             return CopThink { target: target.aim.unwrap_or(target.body.position), speed: car.forward_speed.abs() };
         }
         let road_gap = road.as_ref().map_or(0.0, |road| road.gap);
@@ -259,7 +291,7 @@ impl CopState {
                     target: &target.body,
                     aim,
                     road_direction: road.as_ref().map(|r| r.direction),
-                    separation: separation::steer(&car.body, traffic.iter().copied(), 2.7, 5.3),
+                    separation: separation::steer(&car.body, nearby.iter().copied(), 2.7, 5.3),
                     avoidance,
                     performance: &self.player,
                     forward_speed: car.forward_speed,
@@ -287,7 +319,6 @@ impl CopState {
                 *nav = own;
                 nav.enable_trail(ctx.net);
             }
-            self.repath = 0.0;
             self.governor = SpeedGovernor::begin(car.forward_speed);
             self.last_speed = car.forward_speed;
             self.road_nos.begin();
@@ -300,16 +331,14 @@ impl CopState {
             true => target.body.position,
             false => road.as_ref().map_or(target.body.position, |r| r.seek),
         };
-        self.repath -= self.think_delta;
         let to_target = Vec3::new(goal.x - car.body.position.x, 0.0, goal.z - car.body.position.z);
-        if self.repath <= 0.0 || nav.dead_end {
-            self.repath = REPATH_PERIOD;
-            self.last_find = goal;
-            let state = nav.find_path_to(net, index, goal, None, PathType::Cop);
-            self.path_state = Some(state);
-            if state == PathState::NoWay {
-                nav.dead_end = false;
-            }
+        // The original asks for a new search on every think that has none pending; ours completes at once
+        // (spec `ai-pursuit-obstacle-selection.md`, path refresh).
+        self.last_find = goal;
+        let state = nav.find_path_to(net, index, goal, None, PathType::Cop);
+        self.path_state = Some(state);
+        if state == PathState::NoWay {
+            nav.dead_end = false;
         }
         // Keep the cursor on the forward tangent's look-ahead circle. Its
         // distance alone cannot tell whether the car has already passed it.
@@ -327,16 +356,23 @@ impl CopState {
             ) {
                 nav.preserve_offset_at(net, car.body.position);
                 nav.enable_trail(net);
-                self.repath = 0.0;
             }
         }
         let advance = motion::nav_advance(nav.position - car.body.position, nav.forward, look);
         if advance > 0.0 {
             nav.advance_with_lookahead(net, advance, toward, look, rng);
         }
-        // Everything but the player is something to steer round.
+        // The corridor set: the target too, unless this cop holds a formation slot.
         let occlusion = nav.trail().and_then(|trail| {
-            update_occluded_position(trail, &car.body, nav.position, traffic.iter().copied(), false, nav.half_width)
+            update_occluded_position(
+                trail,
+                &car.body,
+                nav.position,
+                nav.forward,
+                traffic.iter().copied(),
+                false,
+                nav.half_width,
+            )
         });
         let curvature = match (&occlusion, nav.trail()) {
             (Some(o), Some(trail)) => {

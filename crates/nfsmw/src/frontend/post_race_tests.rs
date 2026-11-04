@@ -177,3 +177,59 @@ fn the_shoulders_and_key_one_work_without_the_package_answering_them() {
     h.wait(1.0);
     assert_eq!(h.screens.top(), Some(screen::POST_RACE_RESULTS), "back closes the question");
 }
+
+/// Waits up to `seconds` for `text` to show; whether it did.
+fn shows_within(h: &mut Harness, text: &str, seconds: f32) -> bool {
+    for _ in 0..(seconds / 0.25) as usize {
+        if says(h, text) {
+            return true;
+        }
+        h.wait(0.25);
+    }
+    says(h, text)
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_escape_rewards_come_one_row_after_another_and_add_up() {
+    let Some(mut h) = Harness::open(screen::MILESTONE_REWARDS, Args::default()) else { return };
+    assert!(shows_within(&mut h, "Pursuit Duration", 2.0), "{:?}", shown(&h));
+    // The icon's reveal brings the bounty line and the total in after the row's line.
+    assert!(shows_within(&mut h, "Bounty: 2,500", 3.0), "{:?}", shown(&h));
+    assert!(shows_within(&mut h, "Total Bounty: 2,500", 3.0), "{:?}", shown(&h));
+    assert!(
+        shows_within(&mut h, "Immobilized Police Vehicles: 3", 10.0),
+        "the package brings the next row: {:?}",
+        shown(&h)
+    );
+    assert!(says(&h, "Total Bounty: 4,000"), "the total adds the rows shown: {:?}", shown(&h));
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn continue_on_the_escape_rewards_opens_the_statistics_page() {
+    let Some(mut h) = Harness::open(screen::MILESTONE_REWARDS, Args::default()) else { return };
+    h.wait(1.0);
+    h.press(pad::ACCEPT);
+    h.wait(2.0);
+    assert!(h.commands.iter().any(|c| matches!(c, Command::ShowPursuitResults(_))), "{:?}", h.commands);
+    assert!(!h.said(&Command::Resume), "the statistics come before the game: {:?}", h.commands);
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_free_roam_statistics_page_shows_the_seven_rows_and_goes_back_to_the_game() {
+    let Some(mut h) = Harness::open(screen::POST_RACE_PURSUIT, Args::default()) else { return };
+    let report = crate::viewer::RewardsReport::sample().pursuit.expect("the sample escape has its page");
+    let logic = Box::new(crate::frontend::pursuit_results::PursuitResultsLogic::new(report));
+    let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
+    h.commands = h.screens.open_with(screen::POST_RACE_PURSUIT, logic, true, &mut env);
+    h.wait(1.5);
+    for label in ["Pursuit Duration", "Damaged Police Vehicles", "Spike Strips Dodged", "Unserved Infractions"] {
+        assert!(says(&h, label), "{label}: {:?}", shown(&h));
+    }
+    assert!(says(&h, "01:35.50") && says(&h, "25,000"), "{:?}", shown(&h));
+    h.press(pad::ACCEPT);
+    h.wait(2.0);
+    assert!(h.said(&Command::Resume), "{:?}", h.commands);
+}

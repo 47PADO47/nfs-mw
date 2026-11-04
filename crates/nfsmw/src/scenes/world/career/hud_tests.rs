@@ -11,16 +11,18 @@ fn the_bounty_row_sums_the_banked_bounty_and_the_pending_points() {
 }
 
 #[test]
-fn the_heat_meter_stays_within_its_top() {
-    assert_eq!(meter_heat(-1.0), 0.0);
+fn the_heat_meter_stays_between_the_spawn_floor_and_its_top() {
+    assert_eq!(meter_heat(-1.0), 1.0);
+    assert_eq!(meter_heat(0.0), 1.0, "a new or cleared record is driven at heat 1");
+    assert_eq!(meter_heat(0.95), 1.0, "an evade's 0.95 factor on a heat-1 record");
     assert_eq!(meter_heat(1.5), 1.5);
     assert_eq!(meter_heat(12.0), 10.0);
-    assert_eq!(meter_heat(f32::NAN), 0.0);
+    assert_eq!(meter_heat(f32::NAN), 1.0);
 }
 
 #[test]
-fn a_car_without_a_record_has_no_bounty_and_no_heat() {
-    assert_eq!(CareerHud::new(None, 0), CareerHud { on: true, bounty: 0, car_heat: 0.0, cash: 0, chase: None });
+fn a_car_without_a_record_has_no_bounty_and_the_spawn_heat() {
+    assert_eq!(CareerHud::new(None, 0), CareerHud { on: true, bounty: 0, car_heat: 1.0, cash: 0, chase: None });
 }
 
 #[test]
@@ -40,6 +42,13 @@ fn the_row_and_the_car_heat_go_into_the_state_outside_a_chase() {
     hud.apply(&mut state);
     assert_eq!(state.career_bounty, Some(6_000));
     assert_eq!(state.vehicle_heat, 2.5, "the car's heat, not the police heat");
+}
+
+#[test]
+fn a_cooled_car_still_shows_the_first_multiplier_outside_a_chase() {
+    let mut state = HudState::default();
+    CareerHud::new(Some((0, 0.4)), 0).apply(&mut state);
+    assert_eq!(state.vehicle_heat, 1.0, "x1, not the flame without a number");
 }
 
 #[test]

@@ -138,9 +138,14 @@ impl Cx<'_> {
 
     /// A line of a random voice (the original's helpers that pick a speaker number 3 to 8 themselves).
     pub fn say_random_voice(&mut self, line: Line, params: Params) {
-        let voices = self.layout.cop_voices();
-        let voice = voices[self.rng.below(voices.len())];
+        let voice = self.random_ground_voice();
         self.emit(line, voice, params, None);
+    }
+
+    /// A random ground cop voice (primary or secondary): never the dispatch, the helicopter or the cross car.
+    pub fn random_ground_voice(&mut self) -> Speaker {
+        let voices = self.layout.ground_voices();
+        voices[self.rng.below(voices.len())]
     }
 
     /// Where the player is heading: the direction held for three seconds and the road, as the dispatch reads them,

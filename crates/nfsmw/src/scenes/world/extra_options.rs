@@ -86,6 +86,9 @@ impl WorldScene {
                     .context("No repair command")?
                     .map_err(anyhow::Error::msg)?;
             }
+            Action::JumpToSpot { number, pursuit } => self.extra_jump_to_spot(number, pursuit)?,
+            Action::HeatStep(delta) => self.extra_heat_step(delta),
+            Action::PursuitTrace(on) => self.set_pursuit_trace(on)?,
             Action::Teleport(at, heading) => self.extra_teleport(at, heading)?,
             Action::Marker => {
                 let at = self.route_blip().context("Set a GPS destination on the world map first")?.position;
@@ -245,6 +248,13 @@ impl WorldScene {
             }
             drive.configure_extra(&Default::default());
         }
+        // Without a career, the testing bin stands in for the Blacklist's (`ai-pursuit-heat.md` 3.2); a loaded career
+        // sets its own bin each frame (`career/pursuit.rs`).
+        if !self.career.handle.is_active()
+            && let Some(t) = self.traffic.as_mut()
+        {
+            t.set_career_bin(Some(self.extra.testing.career_bin).filter(|&bin| bin > 0));
+        }
         if let Some(t) = self.traffic.as_mut() {
             t.set_extra_traffic(self.extra.testing.traffic_off);
             if self.extra.testing.police_off {
@@ -258,4 +268,5 @@ impl WorldScene {
 mod tests;
 
 mod command;
+mod reference;
 pub(super) use command::run as command;

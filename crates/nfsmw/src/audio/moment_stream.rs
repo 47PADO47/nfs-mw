@@ -81,6 +81,7 @@ impl Arbiter {
         self.markers = markers;
     }
 
+    #[cfg(test)]
     pub fn markers(&self) -> &[(Vec3, u32)] {
         &self.markers
     }
@@ -93,6 +94,7 @@ impl Arbiter {
         self.current.and_then(|c| c.owner)
     }
 
+    #[cfg(test)]
     pub fn is_held(&self) -> bool {
         self.held.is_some()
     }

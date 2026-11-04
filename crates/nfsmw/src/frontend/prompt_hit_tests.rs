@@ -38,3 +38,18 @@ fn translation_and_mirror_preserve_bounds_and_hit_behavior() {
     assert!(mirror.covers(Vec2::new(4.0, 3.0)));
     assert!(!mirror.covers(Vec2::new(4.01, 0.0)));
 }
+
+#[test]
+fn the_pursuit_result_screens_hint_continue_with_its_key_and_no_back() {
+    let bindings = Bindings::default();
+    for device in [InputDevice::Keyboard, InputDevice::Xbox] {
+        for name in [screen::MILESTONE_REWARDS, screen::POST_RACE_PURSUIT] {
+            let hints = hint_set(name, Footer::Standard, &bindings, device);
+            assert_eq!((hints[0].1, hints[0].2), (HintLabel::Continue, Some(Action::MenuAccept)), "{name}");
+            assert!(!hints[0].0.is_empty(), "{name}: Continue has its key or pad glyph");
+            assert!(hints.iter().all(|(_, label, _)| *label != HintLabel::Back), "{name} has no Back");
+        }
+    }
+    let pursuit = hint_set(screen::POST_RACE_PURSUIT, Footer::Standard, &bindings, InputDevice::Keyboard);
+    assert_eq!(pursuit.get(1).map(|hint| hint.2), Some(Some(Action::MenuButton2)), "the infractions page");
+}

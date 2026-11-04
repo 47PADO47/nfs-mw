@@ -46,6 +46,9 @@ There is at most **one** helicopter at a time (`gHeliVehicle`, `HeliVehicleActiv
 
 ## 2. When it appears and leaves
 
+The request's fleet gate, the zero-chance weight, the out-of-play removal and the lean's axes are in
+[ai-helicopter-presence.md](ai-helicopter-presence.md).
+
 ### 2.1 Spawn request
 
 The cop manager asks the pursuit for the next cop type (`CopRequest`). The pursuit allows a helicopter when its heli timer
@@ -163,6 +166,13 @@ when the heli is already inside the sphere but farther than 2 m from `c`). On a 
 the segment end moved onto the sphere surface along `n` (`dest = work + n * dot(hit - work, n)`), and kick the body velocity:
 `V += n * |dot(V, n)| * ((7 - radius) * 0.5 + 1.2)`. The helicopter therefore never flies through the player's camera. [decomp]
 
+**[ours] Relative to the camera.** The remake runs the controller every physics step, and the camera follows the car at
+chase speed. Taken in world velocity, a helicopter overtaking the camera was caught by the moving sphere step after step,
+and each kick (up to 3.45 times the inward speed with the shrunk radius) built on the last: in a play trace it left at
+390 m/s and was taken out of play two seconds later. The segment and the kick therefore use the helicopter's velocity
+minus the camera's (measured from the camera's move over the last step, zero after a cut). The kick then only removes the
+closing speed. A velocity the controller sets on the body is also held to `MAX_SPEED_MPS`.
+
 ### 4.2 `CheckHeliSheet` (height floor and sliding)
 
 Uses three independent sheet coordinates (each caches the last triangle and the last elevation): primary for `dest`, a
@@ -181,6 +191,13 @@ second = elev(work.xz) with normal n: if covered and second > work.y:
         body velocity = dir * current speed          # hard-steers the velocity up and around the surface
 return whether the secondary coordinate was covered
 ```
+
+**Axes of `n2`.** `n2 = (-n.y, 0, n.x)` takes `n` in sheet axes, so in world axes it is `(n.x, 0, n.z)`: no push over a
+level roof. Applied to a world normal it pushed sideways by 0.3 of the speed each step (the helicopter stalled, was dropped).
+
+**[ours]** The lead-point rule's `dir + n2` is made a unit vector again before it is scaled by the speed. Unscaled, the
+push lengthens the vector, and applied every physics step it raised the speed by its share each step (130 m/s over a roof
+in a play trace, against the 100 m/s top speed).
 
 If no sheet triangle covers the point (outside the drivable sections) nothing is changed. A debug flag `bIgnoreHeliSheet`
 (always false in shipped play, because `NeverIgnoreHeliSheet` is true) would also disable it. [decomp]
@@ -289,34 +306,27 @@ State `seek up -> seek car -> fly out`.
 - **Rotor sound.** `SoundHeli` opens a sound connection with the vehicle's attribute collection; the sound system
   (`SFXCTL_Helicopter`, `SFXObj_Helicopter`) takes the helicopter's position, velocity and forward vector, finds the closest
   player car, and publishes to the AEMS helicopter FX: distance (clamped to 100, negative when the sound is behind the
-  listener by the mixer azimuth), speed `= min(1, forward_speed / 500)` (set to 0.5 when under 0.25) scaled to 0..1023,
+  listener by the mixer azimuth), speed `f = min(1, speed / 500)`, replaced by 0.5 when `f < 0.25` (the test is on the fraction, so every helicopter
+  slower than 125 m/s gives the idle 0.5), scaled to 0..1023,
   azimuth, volume and pitch offset from the dynamic mixer outputs, and a "rotation" value = the angle between the heli's
-  heading and the bearing to the player (`acos(dot) >> 6`). Volume goes to 0 while the helicopter is not simulated.
+  heading and the bearing to the player (`acos(dot) >> 6` in 16-bit angle units: 0 nose on, 512 tail on). Volume goes to 0 while the helicopter is not simulated.
 - **Speech.** Quadrant search announcement at the forced search spawn; "self strategy" at the start of a skid-hit; "intent
   to ram" at the strike (all through `SoundAI`'s helicopter speech object).
 - **Rendering.** `DrawHeli` opens a render connection (`HeliRenderConn`, render usage "AI heli") with the shadow scale and the
   dust-storm intensity (stored by the AI, never changed). The model is hidden from the view whose camera is anchored to it.
-  A *rotor wash* effect (`effects/heliwash`) runs once a second: intensity `1 - ramp(altitude, 5, 30)` (altitude above the
-  ground at the heli's xz), placed on the ground at the heli's xz with the ground normal, paused above 30 m or off valid ground.
+  A *rotor wash* effect (`effects/heliwash`) is updated every simulation tick (its task rate 1.0 is a share of ticks, not
+  1 Hz): intensity `1 - ramp(altitude, 5, 30)` (altitude above the ground at the heli's xz), placed on the ground at the
+  heli's xz, paused above 30 m or off valid ground. Its frame is the shortest turn from world up to the ground normal: `z`
+  is the normal, flat ground leaves it unturned; no heading or heli-to-ground direction enters. All three emitters have
+  `SpreadAsDisc` 1: each particle leaves along a random bearing in the frame's `x`/`y` plane (the ground), tilted about the
+  frame's `y` axis by up to `+-SpreadAngle/2`, so dust (50 m/s, 10 degrees), grass (250 m/s, 90) and leaves (75 m/s, 45)
+  blow out along the road. Quadratic drag stops them within roughly 11 m (dust, 1 s) to 35 m (grass, 2 s). Owner velocity
+  is not inherited (the effect has no owner); emitters are off beyond `VisualCullDist` (100 m) from the view.
 - There is no searchlight, no gun, no muzzle flash and no spike drop in the code (`SPIKE_DROP` and the "heli spike strip"
   counter exist only as statistics). [decomp]
-- **Rotor bank and class [verified: install files, speed.exe].** The rotor is the `FX_Helicopter` AEMS class of
-  `IG_GLOBAL/FX_Helicopter_MB.abk` (87 304 bytes on the Black Edition install), registered in the sound manager at
-  `0x004ac950`. Its mixer state is 11, the helicopter state of the map ([formats/mixmap.md](../formats/mixmap.md)). The
-  publisher `0x004d7810` stores twelve words in the class object at +4 to +0x30 and clamps them: word 0 to 32767, 1 to
-  plus or minus 8192, 2 to 0..1, 3 to 32767, 4 to 65535, 5 to 1024, 6 to plus or minus 100 (the distance), 7 and 8 to
-  25000, 9 and 10 to 32767, 11 to 1023 (the speed). The sound object's constructor `0x004dfce0` passes it twelve fields
-  and sets the parent's ready flag. Meanings of words 0 to 5 and 7 to 10: [unconfirmed]. Words 6 and 11 match the rules
-  above.
-- **Not found:** the update that fills those twelve fields. `0x004dfce0` is in the sound class's vtable (`0x008999b0`),
-  but the other slots are not function starts for the decompiler. The sources of the rotor's volume, pitch and azimuth
-  (the mixer outputs) are open, see Q4.
-- **Mixer [verified: installed `MAPOUTPUT.mxb`].** State 11, object 0: the volume master writes slot 1 (azimuth slot 0),
-  the pitch master writes slot 2. Its inputs are one 3D control (spatial object 1, which reads controller 1: distances to
-  the car and camera at 0 and 1, azimuths at 2 and 3, the has-position flag at 15), the state's sub-mix (events only)
-  and state 0 events. The map does the distance rolloff, so the words carry no extra falloff.
-- **Rust.** `audio/heli` plays the module with the words above. The scene's `rotor_frame` gives the frame: the chopper body's position, nose
-  direction and velocity. The rotor stops on pause or with no car.
+- **Rotor details.** The bank, the publisher's twelve words, the mixer state and what the module does with each word are
+  in [ai-helicopter-rotor.md](ai-helicopter-rotor.md). `audio/heli` plays it from the scene's `rotor_frame` (the chopper
+  body's position, nose direction and velocity); the rotor stops on pause or with no car.
 
 ## 8. Constants not in AttribSys
 
@@ -355,8 +365,8 @@ State `seek up -> seek car -> fly out`.
   slightly. Compare lean angles in the running game.
 - **Q3** `AIGoalHeliRoadBlock` is not defined; `roadblockhelichance` is 0 everywhere. Not implemented in the original.
 - **Q4** Narrowed. Known: the bank, the class, the twelve clamped words, state 11, its output slots (volume 1, azimuth 0,
-  pitch 2) and its controller (1), all from the map and the publisher (section 7). Open: the meanings of words 0 to 5 and
-  7 to 10, and the update that fills the words.
+  pitch 2) and its controller (1), all from the map and the publisher (section 7). The words' use is measured ([ai-helicopter-rotor.md](ai-helicopter-rotor.md)). Open: the update that fills
+  the words in the original, so the sources of words 0, 2 and 7 to 10 are not read from the code.
 - **Q5** How `StartPathToPlayerCar` is used (the result is not read by any mode).
 
 ## Rust implementation notes
@@ -457,7 +467,8 @@ Tags: **[headless]** by the synthetic world tests, **[verified]** against the in
   including the grace, fuel seconds and fraction, mode: following, skid hit, searching, leaving; health, always 1 because
   `HIT_POINTS` is 0). `PursuitFeed` carries `heli_in_sight`, `heli_fuel` and `heli_search_call` (the search roll sent it: the
   quadrant call). Wording is the speech layer's.
-- **Rotor [unseen].** The scene feeds `audio/heli` the chopper body's own position, nose direction and velocity (the earlier
+- **Rotor [measured offline, unseen in play].** The words follow [ai-helicopter-rotor.md](ai-helicopter-rotor.md) section 2 (the earlier layout gave the pitch word
+  the azimuth, which silenced every layer, and the volume word the pitch). The scene feeds `audio/heli` the chopper body's own position, nose direction and velocity (the earlier
   flat heading from finite differences is gone), so the doppler and the heading-to-listener angle use the real values.
 - **Breaker zones [headless].** A zone destroys the helicopter above it (horizontal test, height ignored) and the next one waits
   `TimeBetweenHeliActive`. The ground cops are the breaker agent's: they are braked, not wrecked (see the pursuit-breakers spec).
@@ -466,9 +477,9 @@ Tags: **[headless]** by the synthetic world tests, **[verified]** against the in
   (`FUN_0059d500`); the icon group is the helicopter blip. The line-of-sight object (a 64 x 64 image, tint
   `144, 184, 255, 160`) stands at the icon group's own place in the package **[verified]**; the code that scales and turns
   it was not re-read, so the minimap shows the blip but not the sight cone **[open]**.
-- **Rotor wash [headless, install checked].** The install's `effects/heliwash` names a group of three emitters. The effect
-  is placed once a second on the ground under the helicopter, turned to the ground normal, with the intensity
-  `1 - ramp(altitude, 5, 30)`, and paused above 30 m or off the ground (`scenes/world/heli_wash.rs`).
+- **Rotor wash [headless, install checked].** The install's `effects/heliwash` names a group of three disc emitters. The
+  effect is placed every tick on the ground under the helicopter, turned to the ground normal, with the intensity
+  `1 - ramp(altitude, 5, 30)`, and paused above 30 m or off the ground; it blows out across the ground (`heli_wash.rs`).
 - **AvoidCamera [headless].** Section 4.1 is in `helicopter/camera.rs`; the world gives the controller the game camera
   (the cut's camera during a breaker moment) each physics step.
 - **Mod options.** Spawn and despawn distance, speed cap, fly and search speed, attack time, sight distances and the

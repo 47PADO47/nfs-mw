@@ -143,3 +143,38 @@ fn the_sputter_module_pops_when_the_throttle_lifts() {
     }
     assert!(!host.starts.is_empty(), "lifting off the throttle starts sputters");
 }
+
+/// The helicopter's rotor with its twelve class words: pitch 1, volume 3, azimuth 4, rotation 5, distance 6, low-pass
+/// 7, reverb 10, speed 11 (`docs/specs/ai-helicopter-rotor.md` section 2). Returns each playing player's volume and
+/// pitch.
+fn rotor(distance: i32, pitch: i32) -> Vec<(usize, i32, i32)> {
+    let bank = load("FX_Helicopter_MB.abk").expect("helicopter bank");
+    let mut inst = Instance::new(&bank, bank.module_of("FX_Helicopter").expect("rotor module"), 0).unwrap();
+    let mut host = Alive::default();
+    for _ in 0..120 {
+        inst.set_class_data(&[0, pitch, 1, 20000, 0, 256, distance, 25000, 0, 32767, 0, 511]);
+        inst.update(1000.0 / 60.0, &mut host).unwrap();
+    }
+    (0..inst.players())
+        .filter(|&p| inst.player_view(p).unwrap().control == 1)
+        .map(|p| {
+            let inputs = inst.player_inputs(p);
+            (p, inputs.get(input::VOLUME).unwrap_or(0), inputs.get(input::PITCH).unwrap_or(0))
+        })
+        .collect()
+}
+
+#[test]
+#[ignore = "needs a game install; set NFSMW_GAME_DIR"]
+fn the_rotor_plays_its_loop_at_the_pitch_word_and_its_wash_up_close() {
+    let near = rotor(5, 4096);
+    let lead = near.iter().find(|p| p.0 == 0).expect("the rotor loop plays");
+    assert_eq!(lead.2, 4096, "the loop's pitch is word 1");
+    assert!(lead.1 > 5000, "the loop is loud at full volume: {lead:?}");
+    // Players 9 to 12 are the close wash: strong at 5 m, almost gone at 50 m.
+    let wash =
+        |layers: &[(usize, i32, i32)]| layers.iter().filter(|p| (9..13).contains(&p.0)).map(|p| p.1).sum::<i32>();
+    let far = rotor(50, 4096);
+    assert!(wash(&near) > 10 * wash(&far).max(1), "{near:?} against {far:?}");
+    assert!(rotor(5, 0).iter().all(|p| p.2 == 0), "a zero pitch word stops every layer");
+}

@@ -16,11 +16,15 @@ pub struct EmitterSpec {
     /// Seconds a particle lives. Also the scale of the curves' parameter: see [`crate::Emitter`].
     pub life: f32,
     pub life_variance: f32,
-    /// Speed along the emitter's local `z` axis, in units per second. 0 uses the velocity ranges below.
+    /// Speed along the emitter's local `z` axis (or out across its `x`/`y` plane with `spread_as_disc`), in units
+    /// per second. 0 uses the velocity ranges below.
     pub speed: f32,
     pub speed_variance: f32,
     /// Full angle in degrees of the cone the direction is spread over (each axis gets `+-spread / 2`).
     pub spread: f32,
+    /// Shoot out across the frame's `x`/`y` plane instead of along `z`: a random bearing in that plane, turned
+    /// about the frame's `y` axis by up to `+-spread / 2` degrees.
+    pub spread_as_disc: bool,
     /// With `speed == 0`: start velocity and its random half-range (per local axis, or world axes when
     /// `world_axis_velocity`), start acceleration and its half-range (used only when `gravity` is 0).
     pub velocity_start: Vec3,
@@ -89,6 +93,7 @@ impl Default for EmitterSpec {
             speed: 0.0,
             speed_variance: 0.0,
             spread: 0.0,
+            spread_as_disc: false,
             velocity_start: Vec3::ZERO,
             velocity_delta: Vec3::ZERO,
             accel_start: Vec3::ZERO,

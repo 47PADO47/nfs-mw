@@ -164,3 +164,45 @@ fn whenever_a_helicopter_flies_its_blip_reaches_the_world_maps_moving_cars_at_ev
     eprintln!("the helicopter flew at heats {flew_at:?}");
     assert!(flew_at.len() >= 3, "the helicopter flew at heats {flew_at:?}");
 }
+
+#[test]
+fn the_helicopters_blip_goes_with_the_pursuit_even_while_it_flies_away() {
+    use crate::hud::HELICOPTER;
+    let mut world = chase_with_heli(5);
+    run_manager(&mut world, 200);
+    let heli_blips = |world: &TrafficWorld| {
+        let mut blips = Vec::new();
+        world.map_blips(&mut blips);
+        blips.iter().filter(|b| b.style == HELICOPTER || b.style == crate::hud::HELICOPTER_CONE).count()
+    };
+    assert!(world.helicopter_status().is_some(), "the helicopter flies");
+    assert_eq!(heli_blips(&world), 2, "shown with its cone in the pursuit, seen or not");
+    let mut blips = Vec::new();
+    world.map_blips(&mut blips);
+    let cone: Vec<_> = blips.iter().filter(|b| b.style == crate::hud::HELICOPTER_CONE).collect();
+    let icon = blips.iter().find(|b| b.style == HELICOPTER).unwrap();
+    assert_eq!(cone.len(), 1, "its sight cone goes with it");
+    assert_eq!((cone[0].position, cone[0].heading), (icon.position, icon.heading), "at its place and heading");
+    assert_eq!(cone[0].active, world.helicopter_status().unwrap().in_sight, "tracking while it sees the player");
+    world.end_pursuit(blackbox_pursuit::EndReason::Evaded);
+    assert!(world.helicopter_status().is_some(), "it leaves by air");
+    assert_eq!(heli_blips(&world), 0, "but the pursuit is over: no icon and no cone");
+    assert!(world.police_intel().helicopter.is_none(), "nor on the Custom map");
+}
+
+#[test]
+fn the_helicopter_is_not_sent_while_the_cop_cars_fill_the_fleet() {
+    use super::free_roam::{patrol, renderer};
+    let mut world = chase_with_heli(5);
+    let max = world.cop_budget();
+    for i in 0..max {
+        patrol(&mut world, &mut renderer(), Vec3::new(2.0, 0.0, -150.0 + 20.0 * i as f32));
+    }
+    assert!(!world.budget_has_room(), "{max} cop cars: the fleet is full");
+    run_manager(&mut world, 200);
+    assert!(world.helicopter_status().is_none(), "the manager does not ask for a cop type with no room");
+    assert!(!world.pursuit_feed().unwrap().heli_present);
+    world.cars.truncate(max - 1);
+    run_manager(&mut world, 10);
+    assert!(world.pursuit_feed().unwrap().heli_present, "a free slot: the helicopter takes its turn");
+}

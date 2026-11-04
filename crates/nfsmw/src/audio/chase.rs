@@ -170,9 +170,15 @@ impl Audio {
         self.chase_radio.status()
     }
 
-    /// Says the weather cue's line (speaker 0, any voice) and logs what became of it.
+    /// The chase radio's lines asked for and said since the last call, oldest first: the hook a pursuit trace recorder
+    /// reads each frame, and the console's `speech lines`.
+    pub fn take_radio_lines(&mut self) -> Vec<radio::trace::RadioLineEvent> {
+        self.chase_radio.take_line_events()
+    }
+
+    /// Says the weather cue's line in the helicopter pilot's voice and logs what became of it.
     fn say_line(&mut self, name: &str, id: u32) {
-        match self.say(id, 0) {
+        match self.say(id, u16::from(radio::tables::layout().heli)) {
             Ok(outcome) => log::info!("pursuit: {name} {outcome:?}"),
             Err(e) => log::warn!("pursuit: no {name}: {e}"),
         }

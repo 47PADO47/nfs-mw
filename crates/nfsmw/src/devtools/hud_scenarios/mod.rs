@@ -61,6 +61,8 @@ pub enum HudScenario {
     Cooldown,
     /// The player got away.
     Escape,
+    /// A cop car wrecked in the chase: the takedown line up.
+    Takedown,
     /// A blown tyre, a punctured one and heavy body damage.
     CriticalDamage,
     /// A Low notice and two Medium ones up, then a Critical event that displaces the Low one.
@@ -75,7 +77,7 @@ pub enum HudScenario {
 
 impl HudScenario {
     /// Every scenario, in the order the screenshot matrix renders them.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::FreeRoam,
         Self::RaceIntro,
         Self::Racing,
@@ -84,6 +86,7 @@ impl HudScenario {
         Self::Search,
         Self::Cooldown,
         Self::Escape,
+        Self::Takedown,
         Self::CriticalDamage,
         Self::NotifyPreempt,
         Self::MapCompact,
@@ -102,6 +105,7 @@ impl HudScenario {
             Self::Search => "search",
             Self::Cooldown => "cooldown",
             Self::Escape => "escape",
+            Self::Takedown => "takedown",
             Self::CriticalDamage => "critical-damage",
             Self::NotifyPreempt => "notify-preempt",
             Self::MapCompact => "map-compact",
@@ -140,6 +144,7 @@ impl HudScenario {
             Self::Search => pursuit::search(viewport),
             Self::Cooldown => pursuit::cooldown(viewport),
             Self::Escape => pursuit::escape(viewport),
+            Self::Takedown => pursuit::takedown(viewport),
             Self::CriticalDamage => driving::critical_damage(viewport),
             Self::NotifyPreempt => driving::free_roam(viewport),
             Self::MapCompact | Self::MapCentered | Self::MapExpanded => map::route(viewport),

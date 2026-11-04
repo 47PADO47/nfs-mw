@@ -145,7 +145,7 @@ fn both_race_huds_draw_in_their_halves_and_the_second_has_no_map() {
     let assets = UiAssets::load(&dir).unwrap();
     let mut pair = Pair::load(&dir, &assets, Kind::Race).expect("the race pair");
     let screen = Screen { width: 1280.0, height: 720.0, pixels_per_point: 1.0 };
-    let message = Message { serial: 1, text: "CHECKPOINT".into() };
+    let message = Message::new(1, "CHECKPOINT");
     let mut first = state(1, 150.0);
     first.message = Some(message);
     let states = [first, HudState { shift_light: true, rpm: 7600.0, gear: 3, ..state(2, 120.0) }];

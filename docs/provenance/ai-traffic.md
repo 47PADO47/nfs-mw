@@ -212,3 +212,26 @@ Dead ends:
   pointer. The original must keep both lists non-empty during play, or the code path is not reached. **[unconfirmed]**.
 
 Next leads: spec section 8, "Next leads (removal, section 8)" (items 1 to 7).
+
+## Cop requests and the shared vehicle budget (2026-11-02)
+
+[ai-traffic-spawning.md](../specs/ai-traffic-spawning.md) sections 2 and 5. Read in the PC binary (behaviour only): the
+density routine returns 0 while the cop manager reports a pending request (a queued scripted spawn, a latched roadblock,
+or a pursuit due a cop below the cop cap); the population and share budgets compare with 20 vehicles of every kind. That
+the helicopter counts is inferred from the reference's vehicle classes. Rewrite: `TrafficWorld::cop_request_pending`
+(`ai/policy.rs`) with the wave's due state from `ai/pursuit.rs`; the helicopter counts in the population; a due wave cop
+waits for a budget slot (never under 20) with traffic paused. Racers stay out of the budget **[ours]**. Headless check:
+`pursuit::tests::spawn_timer::a_cop_due_but_not_placed_holds_traffic_back`. The spec's GameCube values in sections 5, 6
+and 9 now sit beside the PC ones.
+
+## Parked police vehicles in the shared budget (2026-11-03)
+
+[ai-traffic-spawning.md](../specs/ai-traffic-spawning.md) section 5, "Parked police vehicles". Learned from a private
+recording of one stock-install pursuit (heat 1 to 5, about 870 s, human driver), reduced to the vehicle instance count,
+the traffic manager's own list and the police vehicles kept by the cop manager. The instance total reached 20 and stayed
+there, traffic plus police instances stayed at a constant total, and the traffic list shrank only as the police list
+grew; police vehicles that left the road stayed in the list and were reused by later cops. Rewrite: `Pursuit::fleet`
+and `TrafficWorld::parked_police` (`ai/policy.rs`) count the parked slots in the population and share budgets, and a
+due wave cop may always take one. Releasing them when the chase ends is **[ours]**. The earlier remake comparison held
+9 to 10 traffic cars at every heat because the player stood still with at most one cop: the budget never bound and no
+cop was due for long. Headless checks: `pursuit::tests::parked_police`. Not compared with a moving remake run.

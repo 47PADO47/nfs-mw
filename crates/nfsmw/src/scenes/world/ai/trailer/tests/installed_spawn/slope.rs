@@ -232,6 +232,7 @@ fn installed_highway_slope_startup_separates_placement_from_driver_input() {
                 me: 0,
                 player: None,
                 aims: &[],
+                slotted: &[],
                 lights: None,
             };
             car.step(&mut context, &collision, &mut props, &data.surfaces);

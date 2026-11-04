@@ -162,6 +162,7 @@ impl TrafficWorld {
         if self.world_moment {
             return;
         }
+        self.note_police_fleet();
         self.serve_asked_cars(tick, focus, collision, surfaces);
         if self.needs_patrol() && self.spawn_patrol(focus, collision, surfaces) {
             return;

@@ -1,11 +1,19 @@
 //! The weather edge of a chase: the line fires once on its rising edge, names its speech event, and a chase that opens
-//! already raining says nothing. Synthetic feeds only.
+//! already raining says nothing; it is a pilot's line, so a chase with no helicopter flying says nothing either.
+//! Synthetic feeds only.
 
 use super::cue_line;
 use super::cues::{Cue, Cues, RAIN_THRESHOLD};
+use super::feed::HeliFeed;
 use crate::audio::PursuitFeed;
 
 fn feed(secs: f32, rain: f32) -> PursuitFeed {
+    let mut feed = no_heli(secs, rain);
+    feed.speech.heli = Some(HeliFeed { id: 99, active: true, ..HeliFeed::default() });
+    feed
+}
+
+fn no_heli(secs: f32, rain: f32) -> PursuitFeed {
     PursuitFeed { heat: 1, intensity: 1.0, secs, secs_to_evade: 30.0, rain_intensity: rain, ..Default::default() }
 }
 
@@ -43,4 +51,17 @@ fn a_chase_that_ends_forgets_the_rain() {
 #[test]
 fn the_weather_cue_names_its_speech_event() {
     assert_eq!(cue_line(Cue::Rain), "anytimeevents_weatherreport");
+}
+
+#[test]
+fn the_weather_is_a_pilots_line_and_needs_a_flying_helicopter() {
+    let mut c = Cues::new();
+    let said = play(&mut c, &[no_heli(0.0, 0.0), no_heli(0.1, 1.0)]);
+    assert!(said.is_empty(), "no helicopter, no weather report: {said:?}");
+    let mut leaving = feed(0.3, 1.0);
+    leaving.speech.heli = Some(HeliFeed { id: 99, active: false, ..HeliFeed::default() });
+    let said = play(&mut c, &[no_heli(0.2, 0.0), leaving]);
+    assert!(said.is_empty(), "a helicopter on its way out does not report: {said:?}");
+    let said = play(&mut c, &[feed(0.4, 0.0), feed(0.5, 1.0)]);
+    assert_eq!(said, vec![Cue::Rain]);
 }

@@ -30,6 +30,16 @@ impl TrafficWorld {
         self.formation_membership.borrow().offsets.iter().find(|(id, _)| *id == key).map(|(_, offset)| *offset)
     }
 
+    /// Which cars hold a formation slot now, by car index, into `out`: those cops ignore the target and each other when
+    /// they cut their road corridors (spec `ai-pursuit-obstacle-selection.md`, avoidable sets).
+    pub(in crate::scenes::world::ai) fn formation_slotted(&self, out: &mut Vec<bool>) {
+        out.clear();
+        let active =
+            self.police.last_formation().is_some() && self.police.is_perp_in_sight() && !self.police.is_busted();
+        let membership = self.formation_membership.borrow();
+        out.extend(self.cars.iter().map(|car| active && membership.offsets.iter().any(|(key, _)| *key == car.key())));
+    }
+
     /// A collapse with real eligible members was selected by the latest physics step.
     pub fn collapse_active(&self) -> bool {
         self.is_pursuing()

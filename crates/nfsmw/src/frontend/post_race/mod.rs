@@ -17,7 +17,7 @@ use super::flow::{Frontend, Stage};
 use super::ids::screen::{MILESTONE_REWARDS, PHOTO, POST_RACE_PURSUIT, POST_RACE_RESULTS};
 use super::logic::{Env, QuitTo, ScreenLogic};
 use crate::app::Host;
-use crate::viewer::{RaceAnswer, RaceReport};
+use crate::viewer::{PursuitReport, RaceAnswer, RaceReport};
 
 /// A time as the pursuit result's text shows it: `mm:ss.cc`.
 pub fn lap_time(secs: f32) -> String {
@@ -74,6 +74,14 @@ impl Frontend {
     /// The standings of a race, from the photo's Race Stats button.
     pub(super) fn show_results(&mut self, report: RaceReport, host: &mut Host, env: &mut Env) {
         let commands = self.screens.open_with(POST_RACE_RESULTS, Box::new(PostRaceLogic::new(report)), true, env);
+        self.apply(commands, host, env);
+    }
+
+    /// A chase's statistics page, from the Continue of the rewards screen of an escape.
+    pub(super) fn show_pursuit_results(&mut self, report: PursuitReport, host: &mut Host, env: &mut Env) {
+        log::info!("chase: the pursuit statistics are up");
+        let logic = super::pursuit_results::PursuitResultsLogic::new(report);
+        let commands = self.screens.open_with(POST_RACE_PURSUIT, Box::new(logic), true, env);
         self.apply(commands, host, env);
     }
 

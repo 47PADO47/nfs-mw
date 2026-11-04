@@ -192,8 +192,15 @@ Example `NIS/Scene_ArrestF02_BundleB.bun`, read with `tools/chunkdump.py`:
   SPEEDING" (fixed sample text, scrolled by a 9600-tick script). There is no data binding in the package.
 - Two messages drive it: one runs the group script `0x5079c8f8` (also used by the loading screen's stripe), the other
   fades the base image (`0x02c856ed`). The message names are not resolved.
-- **[unconfirmed]** The screen is not shown by the in-game overlay router (`0x004c2340`, section 6.5). Its show path is
-  not located. The name is only in the table of that router, and the router does nothing for it.
+- **[unconfirmed]** The screen is not shown by the in-game overlay router (`0x004c2340`, section 6.5).
+- **Show path [verified: `GLOBAL/InGameB.bun` camera tracks; decomp].** Every camera key of the 15 arrest scenes and their
+  `b` variants sets overlay index 3, which is `BUSTED_OVERLAY.fng`. The NIS camera code loads that package with the
+  first shot, so the surveillance look covers the whole arrest scene, not a moment of it.
+- **The flash [verified].** The scene's overlay events only send a message to the package, which is already up.
+  `FLASHTRIGGER` (about 3.4 s into ArrestF02) runs a 240-tick colour script on the full-screen base image, which rests
+  invisible: the camera flash. Each message is sent once, as the original queues it.
+- **The suspect line [unconfirmed].** The original fills it with a chase summary picked by the roadblocks, spike strips,
+  cops destroyed and cost to state. Not built: the package's sample text stays.
 
 ### 6.2 `InGameBusted.fng` (`GLOBAL/InGameB.bun`, 3 objects, 2 buttons) **[verified]** content
 
@@ -351,10 +358,16 @@ runs were allowed in this pass); its parts have unit tests.
   `scenes/world/hud.rs`. It is unloaded when the flag clears, so its fades run again on each bust. It is drawn over the
   HUD in the full frame, not in the HUD's viewport; the layout at other aspect ratios is not checked. The package has no
   data binding.
+  During an arrest scene the overlay is up for the whole scene (`nis/player.rs` `arrest_playing`, `scene_hud.rs`), and
+  the scene's overlay events become cues the overlay sends to the package once each (`hud/busted_overlay.rs` `cue`).
+  The HUD state is hidden during a scene, so the HUD plugin still runs and draws the overlay alone then
+  (`hud/plugin.rs`). The earlier placeholder text (`package: message`) is gone.
 - **The arrest scene chooser** (`scenes/world/ai/police/busted/arrest.rs`). Section 4.1's table: 16 scenes reachable.
-  The variant comes from a roll in `0..1`, taken from the world's seeded random source. The class is fixed at 0
-  (`ARREST_CLASS`): the original reads it through the perp car's interface, which the port does not have. The chosen
-  scene is logged and kept (`arrest_scene()`) for the NIS player. An ignored test checks that the 16 bundles exist.
+  The variant comes from a roll in `0..1`, taken from the world's seeded random source and scaled to the original's
+  draw below 0.99 before the 8 variants are counted. The class is the chase's heat cut to a whole number
+  (`class_of_heat`), as the original casts the perp's heat ([nis-player.md](nis-player.md) section 2.2) **[decomp]**:
+  heat 0 and 1 pick the low set, heat 2 and above the high set. The chosen scene is logged and kept (`arrest_scene()`)
+  for the NIS player. An ignored test checks that the 16 bundles exist.
 - **The infractions ticket** (`frontend/infractions.rs`, `Infractions.fng`). It shows this chase's count and fines, the
   unserved count and fines (0, the port has no career state), and the total due. The package has no row per infraction,
   so the offences are listed on the "Violation:" line (layout unverified). Pay with Cash and Pay with Marker send
@@ -372,9 +385,11 @@ runs were allowed in this pass); its parts have unit tests.
 - **The NIS player** (built). The arrest scene plays as a NIS in the world (`scenes/world/nis`, from the `Arrest*`
   bundles in `NIS/`). The bust flow holds the car for the arrest shot, hands the chosen scene to the player, and waits
   for the scene to end, or to be refused, before the infractions ticket (`busted/flow.rs`, `arrest_scene_over`). The
-  arrest spot is the player's pose. Open items of the player, such as the framing not checked on screen, are in
+  arrest spot is the road's cross-section midpoint at the player (section "Arrest location integration" below), stood
+  on the ground face under it as every placed scene's origin is ([nis-player.md](nis-player.md) section 5.2). Open
+  items of the player, such as the framing not checked on screen, are in
   [provenance/nis-player.md](../provenance/nis-player.md).
-- **The arrest spot** (section 4.2). The spot search is not built. The arrest uses the player's pose as its spot instead.
+- **The arrest spot** (section 4.2). Built: see "Arrest location integration" below.
 - **Career state.** Done in a career: see [busted-aftermath.md](busted-aftermath.md) (cash, strikes, impound, markers,
   the notices, the car select and the respawn). Free roam without a career has none of it and resumes driving.
 - **The race pause** (section 2 step 6c). The port has no race mode, so the race branch of the flow (it ends after the arrest shot, and
@@ -388,8 +403,8 @@ runs were allowed in this pass); its parts have unit tests.
 - What the NIS does when it ends, and which screen follows (`Infractions.fng` or the pursuit summary).
 - The rule behind the random variant and the class value in the chooser.
 - Whether the Get Out of Jail marker keeps or waives the unserved infractions (text and community disagree).
-- Which screen or message shows `InGameBusted.fng` and `BUSTED_OVERLAY.fng`, and whether they are used in the Black
-  Edition at all (`InGameBusted.fng` has no name in `speed.exe`).
+- Which screen or message shows `InGameBusted.fng`, and whether it is used in the Black Edition at all (it has no
+  name in `speed.exe`). `BUSTED_OVERLAY.fng` is shown by the arrest scenes' camera tracks (section 6.1).
 - The camera track for each arrest scene (the NIS bundle has none).
 - The meaning of the flag bit shared by each arrest and its `b` variant.
 

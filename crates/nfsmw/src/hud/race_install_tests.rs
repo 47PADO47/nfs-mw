@@ -202,7 +202,7 @@ fn the_drag_hud_shows_the_race_readout_and_turns_its_needle() {
     binding.apply(&mut rt, &up(1, 7900.0));
     binding.apply(&mut rt, &up(2, 5000.0));
     assert_eq!(rt.script_of(perfect), Some(0xC8D8_8528), "a shift at the red line is perfect");
-    let message = super::race::Message { serial: 1, text: "Checkpoint 2/3".into() };
+    let message = super::race::Message::new(1, "Checkpoint 2/3");
     binding.apply(&mut rt, &HudState { message: Some(message), drag: true, ..Default::default() });
     let tree = rt.tree(id);
     let lines: Vec<_> = tree.nodes.iter().filter(|n| n.name_hash == 0xDA76_8EA6).collect();
@@ -260,4 +260,37 @@ fn the_leaderboard_binds_the_single_race_hud_rows() {
     assert_eq!(text(0x2AF8_9FD7), "+656 FT");
     assert_eq!(text(0x2AF8_9FD8), "-----");
     assert_eq!(text(0x2AF8_9FD9), "-656 FT");
+}
+
+/// The takedown line plays the message group's 2400 ms script and the takedown icon's, and shows the icon with the line;
+/// a race line after it puts the icon at rest (`docs/specs/hud-pursuit-takedown.md` section 3).
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_takedown_line_plays_its_scripts_and_shows_its_icon() {
+    use super::race::Message;
+    use super::state::HudState;
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = GameDir::open(std::path::PathBuf::from(root)).unwrap();
+    let catalog = Catalog::load(&dir, &["GLOBAL/InGameB.bun", "GLOBAL/INGAMEC.BUN"]);
+    let mut rt = Runtime::new();
+    let id = rt.load(catalog.find("HUD_SingleRace.fng").unwrap().clone());
+    let mut binding = HudBinding::new(&mut rt, id);
+    let (player, icon) = (rt.find(id, 0x32A7_A521).unwrap(), rt.find(id, 0x6DD7_54EC).unwrap());
+    let state =
+        HudState { message: Some(Message::takedown(7, "Civic Cruiser\nCombo Bounty: 500")), ..Default::default() };
+    binding.apply(&mut rt, &state);
+    assert_eq!(rt.script_of(player), Some(0x8AB8_3EDB), "the takedown's script of the group");
+    assert_eq!(rt.script_of(icon), Some(0x0013_FF94), "the icon's takedown script");
+    for _ in 0..30 {
+        binding.apply(&mut rt, &state);
+        rt.update(1.0 / 60.0);
+    }
+    let tree = rt.tree(id);
+    let node = |hash: u32| tree.nodes.iter().find(|n| n.name_hash == hash).unwrap();
+    // The radar's group around the message rests clear in a bare state; the icon's own colour is what its script sets.
+    assert!(node(0x6DD7_54EC).colour[3] > 0, "the icon's script brings it in");
+    assert!(node(0xDA76_8EA6).text.as_deref().is_some_and(|t| t.contains("Combo Bounty: 500")));
+    binding.apply(&mut rt, &HudState { message: Some(Message::new(8, "Checkpoint 2/3")), ..Default::default() });
+    assert_eq!(rt.script_of(player), Some(0xA19B_B14C), "a race line keeps its own script");
+    assert_eq!(rt.script_of(icon), Some(0x0016_A259), "and puts the icon at rest");
 }

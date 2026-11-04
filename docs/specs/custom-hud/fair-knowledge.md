@@ -19,8 +19,10 @@ The brief asks to keep these separate; each has its own look:
 ## 2. Rules
 
 1. **A cop is placed** on the map, or as an edge arrow, **only while it is sighted**: the unit's sighting says the cop
-   sees the player (mutual line of sight is the simulation's own test, `CanSeeTarget`), or, for the helicopter, its
-   status says it has the player in sight.
+   sees the player (mutual line of sight is the simulation's own test, `CanSeeTarget`). **The helicopter** is seen and
+   heard overhead, so the map places it whenever it flies in the running chase, as the original minimap does
+   ([hud-cop-blips.md](../hud-cop-blips.md) section 2); it goes when the chase ends. The world markers still wait for
+   its status to say it has the player in sight.
 2. **When the sighting ends,** the mark does not follow the unit. It becomes a last-known mark at the position of the
    last sighting and stays there.
 3. **Last-known marks fade** linearly from 0.8 to 0 alpha over 20 s of age, and are dropped at 20 s or when the phase

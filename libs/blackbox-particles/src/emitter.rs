@@ -16,7 +16,8 @@ const DAMPING_STEPS_PER_SECOND: f32 = 60.0;
 /// Where the emitter is and what it hands to new particles for one step.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Frame {
-    /// The emitter's frame in the world: its `z` axis is the direction particles are shot along.
+    /// The emitter's frame in the world: its `z` axis is the direction particles are shot along (a disc emitter
+    /// shoots across its `x`/`y` plane, see [`EmitterSpec::spread_as_disc`]).
     pub to_world: Mat4,
     /// Velocity new particles may inherit (see [`EmitterSpec::inherit`]).
     pub inherit_velocity: Vec3,
@@ -228,7 +229,10 @@ impl Emitter {
         let speed = s.speed - s.speed * s.speed_variance + rng.below(s.speed * s.speed_variance);
         let mut accel = Vec3::ZERO;
         let mut velocity;
-        if s.speed != 0.0 {
+        if s.speed != 0.0 && s.spread_as_disc {
+            let d = disc_direction(rng, s.spread);
+            velocity = (axes[0] * d.x + axes[1] * d.y + axes[2] * d.z) * speed;
+        } else if s.speed != 0.0 {
             let half = s.spread * 0.5;
             let mut angle = || (rng.below(s.spread) - half).to_radians();
             let (x, y, z) = (angle(), angle(), angle());
@@ -335,4 +339,15 @@ impl Emitter {
             None => true,
         }
     }
+}
+
+/// A disc emitter's direction in its own frame: a random bearing in the `x`/`y` plane, turned about the frame's `y`
+/// axis by up to `+-spread / 2` degrees, so only the bearing's `x` part leaves the plane
+/// (`docs/specs/ai-helicopter.md` section 7).
+fn disc_direction(rng: &mut Rng, spread: f32) -> Vec3 {
+    let tilt = (rng.below(spread) - spread * 0.5).to_radians();
+    let bearing = (rng.below(360.0) - 180.0).to_radians();
+    let (sin_b, cos_b) = bearing.sin_cos();
+    let (sin_t, cos_t) = tilt.sin_cos();
+    Vec3::new(cos_b * cos_t, sin_b, -cos_b * sin_t)
 }

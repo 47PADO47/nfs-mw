@@ -136,6 +136,8 @@ fn encounter(
         };
         assert!(world.spawn_cop_at(&dominant, spot, &collision, &data.surfaces));
         result.initial = Some(world.cars.last().unwrap().audio_emitter().id);
+        // The established unit is in the chase, so there is no forced start (`pursuit/opening.rs`).
+        world.pursuit.as_mut().unwrap().opening = None;
     }
     let mut props = PropWorld::default();
     let ticks = (SECONDS / STEP).round() as u32;

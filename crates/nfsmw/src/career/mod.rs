@@ -21,12 +21,14 @@ mod card;
 mod coop_state;
 mod data;
 mod io;
+mod jump_point;
 mod mod_data;
 mod paired_save;
 mod rewards;
 mod sources;
 mod start;
 mod state;
+pub use jump_point::JumpPoint;
 
 use std::sync::{Arc, Mutex, MutexGuard};
 

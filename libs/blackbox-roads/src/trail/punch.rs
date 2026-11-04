@@ -1,6 +1,5 @@
 //! Cutting holes in the trail for other cars so that the corridor passes on one side.
-//! Spec: `docs/specs/ai-road-nav-trail.md` (§5). The original routine is marked unfinished: this follows
-//! the structure and the constants of the spec where they are given.
+//! Specs: `docs/specs/ai-road-nav-trail.md` (§5), `docs/specs/ai-pursuit-obstacle-selection.md` (corridor cuts).
 
 use glam::{Vec2, Vec3};
 
@@ -14,11 +13,13 @@ mod tests;
 pub(super) const MAX_HEIGHT_DIFF: f32 = 5.0;
 /// Half a metre of room on every side of a car.
 const CAR_MARGIN: f32 = 0.5;
-/// Time to closest approach returned when two cars move alike, seconds.
+/// Time to closest approach returned when two cars move alike, seconds; meetings this late cut nothing.
 const NO_APPROACH_TIME: f32 = 3.0;
 /// Corridor width kept after a cut, metres (traffic, others).
 const MIN_WIDTH_TRAFFIC: f32 = 0.1;
 const MIN_WIDTH: f32 = 1.0;
+/// How far the closeness of a cut ramps, metres either side of the car along the road.
+const CLOSENESS_RANGE: f32 = 6.0;
 
 /// A car as the trail sees it: where it is, how it moves and how big it is.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -50,12 +51,21 @@ pub struct Blocker {
     pub trail_speed: f32,
 }
 
-/// Seconds until the two cars' noses are closest, or 3 s when they move alike.
+/// How the car moves across the road section it is on: its lateral offset and lateral speed there, and the heading of
+/// its lane cursor. The side to pass on is chosen against the offset these predict.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub(super) struct Drift {
+    pub offset: f32,
+    pub lateral_speed: f32,
+    pub heading: Vec2,
+}
+
+/// Seconds until the two cars' noses are closest (negative once they separate), or 3 s when they move alike.
 fn approach_time(rel: Vec2, vel: Vec2) -> f32 {
     let speed2 = vel.length_squared();
     match speed2 < 1e-4 {
         true => NO_APPROACH_TIME,
-        false => (-rel.dot(vel) / speed2).max(0.0),
+        false => -rel.dot(vel) / speed2,
     }
 }
 
@@ -81,132 +91,53 @@ fn closest_cookie_ahead(cookies: &[Cookie], point: Vec2) -> Option<usize> {
     best
 }
 
-/// Narrows the bounds of `cookies` (the current one first) around each of `avoidables`. Returns the closest
-/// cut that is further ahead than the two cars' extents.
-pub fn punch_avoidables(
+/// How another car stands against mine along the road, once it is known to cut.
+struct Judged {
+    dist_ahead: f32,
+    combined: f32,
+    inside: bool,
+    time: f32,
+}
+
+/// Narrows the bounds of `cookies` (the visibility sweep's first cookie first) around each of `avoidables`. Returns
+/// the closest cut that is further ahead than the two cars' extents.
+pub(super) fn punch_avoidables(
     cookies: &mut [Cookie],
     me: &Body,
     avoidables: impl IntoIterator<Item = Body>,
     traffic: bool,
     vehicle_half_width: f32,
+    drift: Drift,
 ) -> Option<Blocker> {
-    let first = *cookies.first()?;
-    let f = first.forward;
-    let my_extent = me.half_width + CAR_MARGIN + me.half_length;
+    let reference = *cookies.get(closest_cookie_ahead(cookies, xz(me.position))?)?;
     let min_width = match traffic {
         true => MIN_WIDTH_TRAFFIC,
         false => MIN_WIDTH,
     };
-    let my_speed = match traffic {
-        true => me.velocity.length(),
-        false => xz(me.velocity).length(),
-    };
     let mut blocker: Option<(usize, Blocker)> = None;
-
     for a in avoidables.into_iter().take(32) {
-        if (a.position.y - first.centre.y).abs() > MAX_HEIGHT_DIFF {
+        if (a.position.y - reference.centre.y).abs() > MAX_HEIGHT_DIFF {
             continue;
         }
-        let ar = a.right();
-        let his_extent =
-            a.half_width + CAR_MARGIN + f.dot(a.forward).abs() * a.half_length + f.dot(ar).abs() * a.half_width;
-        let relative = xz(a.position - me.position);
-        let dist_ahead = relative.dot(f);
-        let inside = match traffic || my_speed < 20.0 {
-            true => dist_ahead + his_extent < my_extent,
-            false => dist_ahead - his_extent <= my_extent,
-        };
-        if dist_ahead < -(my_extent + his_extent) {
-            continue;
-        }
-
-        // Where the noses meet if both keep going.
-        let gap = (dist_ahead - my_extent - his_extent).max(0.0);
-        let my_nose = xz(me.position) + f * my_extent.min(gap);
-        let his_nose = xz(a.position) - f * his_extent.min(gap);
-        let rel_velocity = xz(a.velocity - me.velocity);
-        let time = approach_time(his_nose - my_nose, rel_velocity);
-        let closing = (his_nose - my_nose).dot(rel_velocity) < 0.0;
-        let timed_out = time >= NO_APPROACH_TIME
-            && match traffic {
-                true => inside,
-                false => closing,
-            };
-        if timed_out {
-            continue;
-        }
-        let check_range = !closing && (!traffic || !inside);
-        if check_range {
-            let distance = match traffic {
-                true => dist_ahead,
-                false => relative.length(),
-            };
-            let extra = match traffic {
-                true => 0.5 * my_speed + 2.0 * my_extent,
-                false => 0.0,
-            };
-            let reach = my_extent + his_extent + extra;
-            if distance > reach {
-                continue;
-            }
-            if traffic {
-                let side = relative.dot(me.right()).abs();
-                let side_extent = me.right().dot(a.forward).abs() * a.half_length
-                    + me.half_width
-                    + me.right().dot(ar).abs() * a.half_width;
-                if side > side_extent + 1.0 {
-                    continue;
-                }
-            }
-        }
-
+        let Some(judged) = judge(&reference, me, &a, traffic) else { continue };
         // Cut where the vehicles will meet, rather than beside the other car's current body.
-        let trailing = a.speed_along(f);
-        let impact = xz(a.position) + f * (trailing * time - my_extent - his_extent);
+        let trailing = a.speed_along(reference.forward);
+        let impact = xz(a.position) + reference.forward * (trailing * judged.time - judged.combined);
         let Some(start) = closest_cookie_ahead(cookies, impact) else { continue };
-        let lateral_speed = xz(a.velocity).dot(cookies[start].right_axis());
-        let shift = lateral_speed * time.clamp(0.0, 1.0);
-        let close = ramp((dist_ahead - my_extent) / my_extent.max(1.0) * 6.0, -6.0, 6.0);
-        let margin = close;
-        let mut cut_any = false;
+        if judged.dist_ahead > judged.combined && blocker.is_none_or(|(index, _)| start < index) {
+            blocker = Some((start, Blocker { trail_speed: trailing }));
+        }
+        let cut = Cut::plan(&cookies[start], me, &a, &judged, vehicle_half_width, drift, impact);
         for (step, c) in cookies[start..].iter_mut().enumerate() {
-            let lateral = c.lateral(impact) + 0.8 * shift;
-            let ra = c.right_axis();
-            let diag = |s: f32| ((a.forward * a.half_length + ar * (a.half_width * s)).dot(ra)).abs();
-            let half = diag(1.0).max(diag(-1.0)) + 0.2 * shift.abs() + vehicle_half_width + margin;
-            // A car clear of the corridor leaves it alone.
-            if lateral - half >= c.right_offset || lateral + half <= c.left_offset {
-                if step == 0 {
-                    break;
-                }
-                continue;
-            }
-            let gap_right = c.right_offset - (lateral + half);
-            let gap_left = (lateral - half) - c.left_offset;
-            let (fits_right, fits_left) = (gap_right > 0.0, gap_left > 0.0);
-            let mine = c.lateral(xz(me.position));
-            let pass_right = match (fits_right, fits_left) {
-                (true, false) => true,
-                (false, true) => false,
-                _ => lateral <= mine,
-            };
-            let (mut left, mut right) = (c.left_offset, c.right_offset);
-            match pass_right {
-                true => left = left.max(lateral + half).min(right - min_width),
-                false => right = right.min(lateral - half).max(left + min_width),
-            }
-            c.set_offsets(left, right);
-            c.flags |= CUT;
-            if inside {
-                c.flags |= CUT_BEHIND;
-            }
-            cut_any = true;
-            if (xz(c.centre) - impact).dot(c.forward) > 2.0 * (my_extent + his_extent) {
+            if !cut.apply(c, judged.inside, min_width) && step == 0 {
                 break;
             }
-        }
-        if cut_any && dist_ahead > my_extent + his_extent && blocker.is_none_or(|(index, _)| start < index) {
-            blocker = Some((start, Blocker { trail_speed: trailing }));
+            // How far past the meeting this cookie lies. The original takes the other car's height in place of the
+            // second horizontal coordinate here; that measure is kept.
+            let before = (impact.x - c.centre.x) * c.forward.x + (a.position.y - c.centre.y) * c.forward.y;
+            if 2.0 * judged.combined + before < 0.0 {
+                break;
+            }
         }
     }
 
@@ -219,6 +150,109 @@ pub fn punch_avoidables(
         c.set_offsets(-half, half);
     }
     blocker.map(|(_, b)| b)
+}
+
+/// The extents, inside flag and approach time of `a` seen from `me` along `reference`, or `None` when `a` cuts
+/// nothing: entirely behind me, behind my position while beside me, not closing and too far, or met too late.
+fn judge(reference: &Cookie, me: &Body, a: &Body, traffic: bool) -> Option<Judged> {
+    let f = reference.forward;
+    let (ar, mr) = (a.right(), me.right());
+    let my_extent = me.half_width + CAR_MARGIN + me.half_length;
+    let his_extent =
+        a.half_width + CAR_MARGIN + f.dot(a.forward).abs() * a.half_length + f.dot(ar).abs() * a.half_width;
+    let combined = my_extent + his_extent;
+    let relative = xz(a.position - me.position);
+    let dist_ahead = relative.dot(f);
+    let my_speed = xz(me.velocity).length();
+    let inside = match traffic || my_speed < 20.0 {
+        true => dist_ahead + his_extent < my_extent,
+        false => dist_ahead - his_extent <= my_extent,
+    };
+    if dist_ahead < -combined {
+        return None;
+    }
+    // A car whose front is behind me while it runs beside me is passing or being passed: it cuts nothing.
+    let side_extent = ar.dot(mr).abs() * a.half_width + a.forward.dot(mr).abs() * a.half_length + me.half_width;
+    let lateral = relative.dot(mr).abs();
+    if dist_ahead + his_extent < 0.0 && lateral < side_extent {
+        return None;
+    }
+    // Where the noses meet if both keep going.
+    let gap = (dist_ahead - combined).max(0.0);
+    let my_nose = xz(me.position) + f * my_extent.min(gap);
+    let his_nose = xz(a.position) - f * his_extent.min(gap);
+    let rel_velocity = xz(a.velocity - me.velocity);
+    let time = approach_time(his_nose - my_nose, rel_velocity);
+    let closing = (his_nose - my_nose).dot(rel_velocity) < 0.0;
+    let judged = Judged { dist_ahead, combined, inside, time };
+    let timely = time < NO_APPROACH_TIME;
+    // Traffic cuts for any closing car; everyone else only for a meeting within the approach limit.
+    if inside || closing {
+        return (timely || (traffic && closing && !inside)).then_some(judged);
+    }
+    let reach = combined
+        + match traffic {
+            true => 0.5 * my_speed + 2.0 * my_extent,
+            false => 0.0,
+        };
+    if dist_ahead > reach {
+        return None;
+    }
+    match traffic {
+        true => (lateral <= side_extent + 1.0).then_some(judged),
+        false => timely.then_some(judged),
+    }
+}
+
+/// One car's cut: a point, a half width and the side left open, decided once at its first cookie.
+struct Cut {
+    point: Vec2,
+    half: f32,
+    pass_left: bool,
+}
+
+impl Cut {
+    fn plan(c: &Cookie, me: &Body, a: &Body, judged: &Judged, half_width: f32, drift: Drift, impact: Vec2) -> Self {
+        let ra = c.right_axis();
+        let clamped = judged.time.clamp(0.0, 1.0);
+        let shift = xz(a.velocity).dot(ra) * clamped;
+        let point = impact + ra * (0.8 * shift);
+        let along = |p: Vec2| (p - xz(c.centre)).dot(c.forward);
+        let closeness = ramp(along(point) - along(xz(me.position)), -CLOSENESS_RANGE, CLOSENESS_RANGE);
+        let ar = a.right();
+        let diag = |s: f32| (a.forward * a.half_length + ar * (a.half_width * s)).dot(ra).abs();
+        // The drift widens the cut by its signed amount, as in the original.
+        let body = diag(1.0).max(diag(-1.0)) + 0.2 * shift * closeness;
+        let margin = closeness + half_width;
+        let lateral = c.lateral(point);
+        let fits_left = margin < lateral - body - c.left_offset;
+        let fits_right = margin < c.right_offset - lateral - body;
+        let predicted = drift.offset + 0.2 * closeness * clamped * drift.lateral_speed + 2.0 * drift.heading.dot(ra);
+        let pass_left = match fits_left != fits_right {
+            true => fits_left,
+            false => lateral > predicted,
+        };
+        Self { point, half: body + margin, pass_left }
+    }
+
+    /// Narrows `c` when the cut overlaps its corridor; returns whether it did.
+    fn apply(&self, c: &mut Cookie, inside: bool, min_width: f32) -> bool {
+        let lateral = c.lateral(self.point);
+        if lateral < c.left_offset - self.half || lateral > c.right_offset + self.half {
+            return false;
+        }
+        let (mut left, mut right) = (c.left_offset, c.right_offset);
+        match self.pass_left {
+            true => right = (lateral - self.half).max(left + min_width),
+            false => left = (lateral + self.half).min(right - min_width),
+        }
+        c.set_offsets(left, right);
+        c.flags |= CUT;
+        if inside {
+            c.flags |= CUT_BEHIND;
+        }
+        true
+    }
 }
 
 fn ramp(v: f32, a: f32, b: f32) -> f32 {

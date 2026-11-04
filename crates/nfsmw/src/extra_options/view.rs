@@ -3,6 +3,7 @@ use super::{Action, State};
 use crate::settings::{CameraMode, Settings};
 mod camera;
 mod places;
+mod pursuit;
 mod testing;
 
 pub fn show(ctx: &egui::Context, open: &mut bool, state: &mut State, settings: &mut Settings) -> Vec<Action> {

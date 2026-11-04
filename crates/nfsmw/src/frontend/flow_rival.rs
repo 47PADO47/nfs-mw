@@ -30,12 +30,12 @@ impl Frontend {
         self.leave_safe_house_for_race(&event, host, env);
     }
 
-    /// A milestone or a bounty place of the sheets was accepted: the world starts with the car at `at` (render space).
-    pub(super) fn jump_to(&mut self, at: [f32; 2], host: &mut Host, env: &mut Env) {
-        log::info!("career: jumping to ({:.0}, {:.0}) from the rap sheet", at[0], at[1]);
+    /// A milestone or a bounty place of the sheets was accepted: the world starts with the car at the marker `point`.
+    pub(super) fn jump_to(&mut self, point: crate::career::JumpPoint, host: &mut Host, env: &mut Env) {
+        log::info!("career: jumping to ({:.0}, {:.0}) from the rap sheet", point.at.x, point.at.y);
         // From the pause menu the world is already there: the car goes to the point and the game goes on.
         if self.stage == Stage::Paused {
-            if host.scene.jump_player(at) {
+            if host.scene.jump_player(point) {
                 self.resume();
             }
             return;
@@ -44,7 +44,7 @@ impl Frontend {
         self.career.set_prelude(false);
         self.leave_safe_house();
         self.origin = QuitTo::Career;
-        self.jump_start = Some(at);
+        self.jump_start = Some(point);
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 

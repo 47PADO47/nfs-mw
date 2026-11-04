@@ -5,7 +5,7 @@
 //! alone, never from the cop blips, which follow the original minimap's rules:
 //!
 //! - a cop is marked only while it has the player in sight (`sightings`);
-//! - the helicopter only while it has the player in sight;
+//! - the helicopter whenever it flies in the running chase (it is seen and heard overhead), as on the original minimap;
 //! - where the police last saw the player is a hollow mark, only once no one sees the player (Search and Cooldown),
 //!   fading from [`LAST_KNOWN_ALPHA`] to nothing over [`LAST_KNOWN_SECS`];
 //! - a roadblock only once dispatch has reported it.
@@ -141,7 +141,7 @@ fn police(hud: &HudState, out: &mut Vec<Mark>) {
     if intel.roadblock_reported {
         out.extend(intel.roadblocks.iter().map(|at| Mark::new(MarkKind::Roadblock, *at)));
     }
-    let helicopter = intel.helicopter.filter(|heli| heli.in_sight).and_then(|heli| heli.position);
+    let helicopter = intel.helicopter.and_then(|heli| heli.position);
     out.extend(helicopter.map(|at| Mark::new(MarkKind::Helicopter, at)));
     out.extend(intel.sightings.iter().map(|at| Mark::new(MarkKind::Cop, *at)));
 }

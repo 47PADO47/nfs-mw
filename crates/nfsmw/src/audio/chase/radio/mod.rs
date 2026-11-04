@@ -14,6 +14,7 @@ mod snapshot;
 pub mod tables;
 #[cfg(test)]
 mod tests;
+pub mod trace;
 mod world_notices;
 
 use std::collections::HashMap;
@@ -99,6 +100,8 @@ pub struct ChaseRadio {
     awaiting_911: f32,
     /// The notices the world's events have made (`world_notices`).
     world_notices: u32,
+    /// The lines asked for and said, for a trace recorder (`trace.rs`).
+    lines: trace::LineLog,
 }
 
 impl ChaseRadio {
@@ -143,7 +146,14 @@ impl ChaseRadio {
             roam_heat: 1,
             awaiting_911: 0.0,
             world_notices: 0,
+            lines: trace::LineLog::default(),
         }
+    }
+
+    /// The lines the machine asked for and the speech said since the last call, oldest first (at most
+    /// [`trace::CAPACITY`]): the hook a pursuit trace recorder reads each frame.
+    pub fn take_line_events(&mut self) -> Vec<trace::RadioLineEvent> {
+        self.lines.take()
     }
 
     /// Replaces the machine's thresholds with the database's.
@@ -252,6 +262,7 @@ impl ChaseRadio {
                 }
                 self.last = Some((line, speaker));
                 self.said += 1;
+                self.lines.push(trace::LineStage::Said, line, event, speaker, params);
                 if line == Line::Disp911Report {
                     self.awaiting_911 = 0.0;
                 }
@@ -310,6 +321,7 @@ impl ChaseRadio {
                 params: speech_params(request.line, &request.params),
             };
             let outcome = speech.request_as(id, asked);
+            self.lines.push(trace::LineStage::Asked(outcome), request.line, id, request.speaker, request.params);
             log::debug!("chase radio: {:?} by {} -> {outcome:?}", request.line, request.speaker);
         }
     }

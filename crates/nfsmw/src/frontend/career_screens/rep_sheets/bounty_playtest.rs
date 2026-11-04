@@ -18,7 +18,15 @@ fn career_batch13_bounty_spawn_numbers_use_their_regional_crests() {
 #[test]
 #[ignore = "requires installed bounty package and regional textures; set NFSMW_GAME_DIR"]
 fn career_batch13_bounty_grid_and_detail_share_the_selected_regional_crest() {
-    let page = BountyPage { rows: (1..=12).map(|number| BountyRow { number, at: [0.0; 2] }).collect() };
+    let page = BountyPage {
+        rows: (1..=12)
+            .map(|number| BountyRow {
+                number,
+                at: [0.0; 2],
+                jump: crate::career::JumpPoint::from_marker(glam::Vec3::ZERO, None),
+            })
+            .collect(),
+    };
     let mut h = Harness::installed();
     for name in ["BOUNTY_ICON_COLLEGE", "BOUNTY_ICON_COASTAL", "BOUNTY_ICON_ROCKPORT"] {
         let texture = h.screens.assets().texture(fe_hash_upper(name)).expect("installed regional crest");

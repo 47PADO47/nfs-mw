@@ -220,7 +220,7 @@ impl Cx<'_> {
 
     /// The actor of a car that has gone: its voice returns to the pool.
     pub fn remove_cop(&mut self, id: u32) {
-        let Some(gone) = self.roster.remove(id) else { return };
+        let Some(gone) = self.roster.remove(self.layout, id) else { return };
         if gone.heli {}
     }
 

@@ -36,6 +36,7 @@ impl QueueRig {
             me: 0,
             player,
             aims: &[],
+            slotted: &[],
             lights: None,
         };
         self.car.step(&mut ctx, &self.collision, &mut self.props, &self.surfaces);

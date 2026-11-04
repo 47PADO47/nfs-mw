@@ -193,6 +193,9 @@ fn play(dir: &GameDir, db: &Database, secs: f32, at: &dyn Fn(f32) -> (Option<Pur
                     played.unheard.push(name);
                 }
                 Ok(_) => played.failures.push(format!("{name}: silent")),
+                // A voice that did not record the sentence says nothing, as in the original (no voice stands in): the
+                // same request with no speaker assembles.
+                Err(_) if checker.take(id, 0, &lib_params(name, 0, &sp)).is_ok() => played.unheard.push(name),
                 Err(e) => played.failures.push(format!("{name} {:?} by {}: {e}", request.params, request.speaker)),
             }
         }

@@ -104,11 +104,17 @@ pub struct HudState {
     /// The busted meter, 0 to 1: the share of the busted timer filled, 1 once the player is busted. Zero with no chase.
     pub busted: f32,
     /// The busted overlay (`BUSTED_OVERLAY.fng`) is up: the surveillance-camera look after the arrest shot. The world sets
-    /// it while the bust sequence shows the overlay (`scenes/world/ai/police/busted/flow.rs`).
+    /// it while the bust sequence shows the overlay (`scenes/world/ai/police/busted/flow.rs`) and while an arrest scene
+    /// plays, whose camera puts it up (`scenes/world/scene_hud.rs`).
     pub busted_overlay: bool,
+    /// The arrest scene's last message to the overlay (`ENISOverlayMessage`): its FEng hash and the event's serial. The
+    /// HUD posts each serial once while the overlay is up (`FLASHTRIGGER` runs the package's flash).
+    pub busted_overlay_cue: Option<(u32, u32)>,
     /// Career mode is on: the bounty row's number, the car's banked bounty plus the chase's pending points. `None`
     /// outside career mode, where the bounty row and the heat meter stay hidden.
     pub career_bounty: Option<u32>,
+    /// The milestone board: the current bin's milestones during a free-roam chase in the career; `None` otherwise.
+    pub milestone_board: Option<super::MilestoneBoard>,
     /// The race the player runs: the place, lap, clock and countdown. `None` outside a race.
     pub race: Option<super::race::RaceHud>,
     /// The leaderboard of the race (`HUD_SingleRace.fng`'s `LeaderBoardGroup`); `None` outside a race.
@@ -173,7 +179,9 @@ impl Default for HudState {
             visible: true,
             busted: 0.0,
             busted_overlay: false,
+            busted_overlay_cue: None,
             career_bounty: None,
+            milestone_board: None,
             race: None,
             leaders: None,
             drag: false,

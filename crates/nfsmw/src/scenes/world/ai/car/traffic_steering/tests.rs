@@ -155,8 +155,17 @@ fn traffic_parity_refreshes_steering_between_decisions_without_advancing_navigat
     let index = SegmentIndex::build(&net);
     let mut rng = SplitMix(42);
     let bodies = [(car.body(), false), (blocker(&car), false)];
-    let mut ctx =
-        Ctx { net: &net, index: &index, rng: &mut rng, bodies: &bodies, me: 0, player: None, aims: &[], lights: None };
+    let mut ctx = Ctx {
+        net: &net,
+        index: &index,
+        rng: &mut rng,
+        bodies: &bodies,
+        me: 0,
+        player: None,
+        aims: &[],
+        slotted: &[],
+        lights: None,
+    };
     let before = car.target;
     let mut state = Vec::new();
     car.nav.visit_state(&mut |word| state.push(word));
@@ -193,6 +202,7 @@ fn traffic_parity_keeps_patrol_control_and_the_native_stopped_guard() {
             me: 0,
             player: None,
             aims: &[],
+            slotted: &[],
             lights: None,
         };
         car.target = Vec3::new(1.0, 2.0, 3.0);
@@ -215,8 +225,17 @@ fn traffic_parity_retains_the_decision_radius_between_physical_steps() {
     let obstacle = blocker(&car);
     let bodies = [(car.body(), false), (obstacle, false)];
     let mut rng = SplitMix(42);
-    let ctx =
-        Ctx { net: &net, index: &index, rng: &mut rng, bodies: &bodies, me: 0, player: None, aims: &[], lights: None };
+    let ctx = Ctx {
+        net: &net,
+        index: &index,
+        rng: &mut rng,
+        bodies: &bodies,
+        me: 0,
+        player: None,
+        aims: &[],
+        slotted: &[],
+        lights: None,
+    };
     car.refresh_traffic_target(&ctx);
     assert!(!car.blocked, "a new blockage cannot enlarge the last decision's search radius");
     assert_eq!(car.avoidable_radius, 12.5);

@@ -48,7 +48,7 @@ $ErrorActionPreference = 'Stop'
 # The names of HudScenario::ALL (crates/nfsmw/src/devtools/hud_scenarios/mod.rs), in its order.
 $AllScenarios = @(
     'free-roam', 'race-intro', 'racing', 'race-results',
-    'pursuit-active', 'search', 'cooldown', 'escape',
+    'pursuit-active', 'search', 'cooldown', 'escape', 'takedown',
     'critical-damage', 'notify-preempt', 'map-compact', 'map-centered', 'map-expanded'
 )
 $Sizes = @('1280x720', '2560x1080', '5120x1440')

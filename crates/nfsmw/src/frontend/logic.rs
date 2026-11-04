@@ -145,6 +145,9 @@ pub enum Command {
     ShowResults(crate::viewer::RaceReport),
     /// Show the win photo of a race again, in place of the results the photo's Race Stats opened (`post_race/screen.rs`).
     ShowPhoto(crate::viewer::RaceReport),
+    /// Show a chase's statistics page (`PostRace_Pursuit.fng`) in place of the rewards screen whose Continue asked
+    /// (`rewards.rs`).
+    ShowPursuitResults(crate::viewer::PursuitReport),
     /// The post-race screen's answer: run the race again or leave it (`post_race.rs`).
     RaceAnswer(crate::viewer::RaceAnswer),
     /// Pay the bust's fines on the infractions ticket, with a marker or with cash. The bust takes it (`flow.rs`); the
@@ -169,12 +172,8 @@ pub enum Command {
     LaunchEvent {
         event: String,
     },
-    /// The milestones or bounty sheet, answered Yes: the world starts with the car at this point (render space x and y)
-    /// (`flow_rival.rs`).
-    JumpTo {
-        x: f32,
-        y: f32,
-    },
+    /// The milestones or bounty sheet, answered Yes: the world starts with the car at this marker (`flow_rival.rs`).
+    JumpTo(crate::career::JumpPoint),
     /// The Blacklist sequence goes on from this stepper state: one call of the stepper and the screen or movie it names
     /// (`flow_first_visit.rs`).
     BlacklistStep(BlacklistStepper),

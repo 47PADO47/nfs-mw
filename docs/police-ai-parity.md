@@ -43,8 +43,12 @@ reported issues remain open; narrow regression passes do not close them:
 - Police catch-up, driving and formation behavior remain unsatisfactory in play.
 - Spike strips can sit below the road; roadblocks can overlap or fit poorly.
 - Cooldown and radio gaps can be followed by unexpected roadblocks.
-- Minimap visibility and white police icons can be wrong. Destroyed-cop text
-  and the matching escaped-pursuit statistics screen are missing.
+- Minimap visibility and white police icons can be wrong. The destroyed-cop
+  line and the escape's rewards and statistics screens are now implemented from
+  the executable ([takedown](specs/hud-pursuit-takedown.md),
+  [escape results](specs/pursuit-escape-results.md)); they still need a
+  comparison on screen with the original, and the HUD's in-chase statistics
+  action is not bound.
 - Helicopter deployment was absent in the reported heat-five test. Starting
   heat five produced a burst of cars; backup timing and its display remain unclear.
 

@@ -173,7 +173,7 @@ impl AiCar {
         &self.nav
     }
 
-    #[cfg(test)]
+    /// The point the car drives at (physics space) and the speed it asks for, m/s.
     pub(in crate::scenes::world::ai) fn drive_request(&self) -> (Vec3, f32) {
         (self.target, self.speed)
     }
@@ -398,7 +398,14 @@ impl AiCar {
                 // A stand-in is not driven, so it cannot be stuck.
                 let stuck = !racer.held
                     && !self.stand_in.active
-                    && racer.stuck.update(self.think_delta, pressing, reversing, false, state.body.position);
+                    && racer.stuck.update(
+                        self.think_delta,
+                        pressing,
+                        reversing,
+                        false,
+                        state.body.position,
+                        view.forward_speed,
+                    );
                 if stuck {
                     log::info!("race: {} is stuck, reversing", self.name);
                     let gear = self.driver.start_reverse_override(RECOVERY_SECONDS, view.gear_is_reverse);
@@ -418,8 +425,13 @@ impl AiCar {
                     self.speed = 0.0;
                     return;
                 };
-                let (bodies, me) = (ctx.bodies, ctx.me);
-                let others = bodies.iter().enumerate().filter(move |&(i, _)| i != me).map(|(_, b)| b.0);
+                let (bodies, me, slotted) = (ctx.bodies, ctx.me, ctx.slotted);
+                // A slotted cop does not cut its corridor around the other slotted cops (`cop.rs` `think`).
+                let mine = slotted.get(me).copied().unwrap_or(false);
+                let others = bodies.iter().enumerate().filter(move |&(i, _)| i != me).map(move |(i, b)| {
+                    let mate = mine && b.1 && slotted.get(i).copied().unwrap_or(false);
+                    (b.0, !mate)
+                });
                 let pressing = self.controls.gas >= 0.5;
                 let stuck = cop.stuck.update(
                     self.think_delta,
@@ -427,18 +439,15 @@ impl AiCar {
                     self.driver.reverse_override_left() > 0.0,
                     false,
                     state.body.position,
+                    view.forward_speed,
                 );
                 if stuck {
                     log::info!("cop: {} is stuck, reversing", self.name);
                     let gear = self.driver.start_reverse_override(RECOVERY_SECONDS, view.gear_is_reverse);
-                    let at = state.body.position;
-                    let forward = Vec3::new(state.body.forward.x, 0.0, state.body.forward.y);
-                    if self.nav.init_at_point(ctx.net, ctx.index, at, forward, false) {
-                        self.nav.preserve_offset_at(ctx.net, at);
-                        self.nav.enable_trail(ctx.net);
-                    }
                     shift(&mut self.sim, Some(gear));
                 }
+                let reversing = self.driver.reverse_override_left() > 0.0;
+                cop.recover(ctx.net, ctx.index, &mut self.nav, &state.body, stuck, reversing);
                 let aim = support_drive::aim(self.support, &player, ctx.aims.get(ctx.me).copied().flatten());
                 let nos = self.sim.nitrous_spec();
                 let think = cop.think(

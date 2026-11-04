@@ -119,6 +119,11 @@ impl TrafficWorld {
         if !self.cars[index].recruit_to_pursuit(cop, performance, &self.network, &self.index) {
             return;
         }
+        // A recruited roadblock car joins the chase like any other unit and restarts the reinforcement timer.
+        let cooldown = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
+        if let Some(pursuit) = self.pursuit.as_mut() {
+            pursuit.joined(cooldown);
+        }
         if let Some(block) = self.roadblocks.list.iter_mut().find(|block| block.id == id) {
             block.recruited += 1;
         }

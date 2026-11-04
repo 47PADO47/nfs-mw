@@ -99,8 +99,12 @@ fn full_throttle_accelerates_forward_and_up_through_the_gears() {
     assert!(t.gear >= 2, "gear {}", t.gear);
     assert!(sim.is_finite());
     assert_eq!(t.wheels_on_ground, 4);
-    // The wheels have rolled forward: the spin grew.
-    assert!(sim.pose().wheels.iter().all(|w| w.spin > 10.0), "{:?}", sim.pose().wheels);
+    // The wheels have rolled; the drawn roll stays within one turn (`wheel_visuals.rs`).
+    assert!(
+        sim.pose().wheels.iter().all(|w| w.spin != 0.0 && w.spin.abs() < std::f32::consts::TAU),
+        "{:?}",
+        sim.pose().wheels
+    );
 }
 
 #[test]

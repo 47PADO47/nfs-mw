@@ -10,8 +10,10 @@ mod coop_bust;
 mod drive_to_target;
 mod events;
 mod hud;
+mod jump_chase;
 mod ladder;
 mod locks;
+mod milestone_board;
 mod phone;
 mod pursuit;
 mod rap_tally;
@@ -65,6 +67,12 @@ pub(super) struct WorldCareer {
     pub rewards: Option<crate::viewer::RewardsReport>,
     /// The speed trap the car has just crossed, until the front end takes it for the photo.
     pub trap_photo: Option<crate::viewer::PhotoReport>,
+    /// A milestone's or a bounty place's jump waits for the car to stand on its marker to start its chase
+    /// (`jump_chase.rs`).
+    pub jump_chase: bool,
+    /// A jump asked for before the world had its car (a new world started for a rap sheet jump): the car is put on the
+    /// point once it is made (`start_driving`).
+    pub pending_jump: Option<crate::career::JumpPoint>,
 }
 
 impl WorldScene {

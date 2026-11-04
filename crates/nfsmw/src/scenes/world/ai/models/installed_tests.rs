@@ -91,7 +91,7 @@ fn installed_cop_alias_loads_once_and_discards_duplicate_completions_before_uplo
 }
 
 #[test]
-#[ignore = "needs installed heat-one-to-five police models, alias geometry, physics and pursuit tables"]
+#[ignore = "needs installed police models, alias geometry, physics and pursuit tables"]
 fn installed_cop_loading_keeps_requested_vehicle_physics_and_ai_when_geometry_is_inherited() {
     let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
     let mut scene = WorldScene::open(
@@ -109,8 +109,9 @@ fn installed_cop_loading_keeps_requested_vehicle_physics_and_ai_when_geometry_is
     .unwrap();
     let rows = nfsmw_data::pursuit::heat_rows(scene.physics.database());
     assert!(rows.len() >= 5, "all five ordinary heat fleets must be available");
-    let mut names = vec!["copcross".to_owned()];
-    for row in rows.iter().take(5) {
+    // Cross borrows COPSPORT's folder; the patrol SUV borrows COPSUV's, whose aivehicle is 50 km/h x0.5.
+    let mut names = vec!["copcross".to_owned(), "copsuvpatrol".to_owned()];
+    for row in &rows {
         for cop in &row.cops {
             if cop.name != "copheli" && !names.contains(&cop.name) {
                 names.push(cop.name.clone());
@@ -153,4 +154,7 @@ fn installed_cop_loading_keeps_requested_vehicle_physics_and_ai_when_geometry_is
         }
     }
     assert!(mismatches.is_empty(), "geometry donors must not replace requested vehicle physics or AI: {mismatches:?}");
+    let traffic = scene.traffic.as_ref().unwrap();
+    let suv = traffic.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case("copsuvpatrol")).unwrap();
+    assert_eq!(suv.car.ai.max_speed_kmh, 250.0, "the patrol SUV keeps its own aivehicle, not COPSUV's 50 km/h");
 }

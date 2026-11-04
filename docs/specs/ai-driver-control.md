@@ -322,6 +322,11 @@ action drives with flags 3 at a wanted speed of **15 m/s**, so the gas controlle
 a valid lane. The anchor is not moved when a window ends without being stuck, so slowly creeping cars are
 re-anchored only at the next window. [decomp]
 
+**[ours]** The rewrite's window also asks for 3 m of travel along the car's heading (the summed forward speed).
+Its wall contact can let a car pushing nose-in slide sideways along a wall at a few metres a second while its
+forward speed stays near zero; the position test alone then never fires and the car grinds on. In the original's
+captures a wedged cop moves less than 3 m, so the extra test only restores the original outcome.
+
 ### 7.2 Airborne (score 0.0)
 
 Active only while the rigid body is modelled. Each think: if flagged airborne, add `dT` to a timer that is

@@ -78,6 +78,16 @@ impl AiCar {
         self.previous.lerp(&self.current, alpha)
     }
 
+    /// Re-seats a standing car on the ground under its four wheels (a roadblock car). False leaves its first seat.
+    pub(in crate::scenes::world::ai) fn seat_on_wheels(&mut self, ground: &dyn blackbox_vehicle::Ground) -> bool {
+        if !self.sim.seat_on_wheels(ground) {
+            return false;
+        }
+        self.current = self.sim.pose();
+        self.previous = self.current;
+        true
+    }
+
     /// The pose the car is drawn at: the NIS scene's pose while a scene drives it, otherwise the physics pose at `alpha`.
     pub fn render_pose(&self, alpha: f32) -> CarPose {
         self.nis_pose.unwrap_or_else(|| self.pose(alpha))

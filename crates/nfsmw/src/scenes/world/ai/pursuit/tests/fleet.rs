@@ -121,6 +121,9 @@ fn a_wave_cop_is_not_asked_for_while_the_active_cars_fill_the_budget() {
     row.cops[0].count = 6;
     row.full_engagement_cops = 6;
     world.start_pursuit(1, vec![row], player());
+    // The budget is under test, not the forced start: its spots (140 m ahead among the patrols, 15 m behind off the test
+    // floor) do not exist here, so the wave places its cops by the reinforcement walk.
+    world.pursuit.as_mut().unwrap().opening = None;
     assert_eq!(world.cop_budget(), 8);
     assert_eq!(world.active_cop_cars(), 8, "the patrols stayed patrols");
     assert!(!world.budget_has_room());

@@ -50,6 +50,8 @@ impl AiCar {
         self.think_elapsed += self.step_delta;
         self.sim.collision_goal =
             if self.roadblock && !self.is_wrecked() { Some(ROADBLOCK_GOAL) } else { self.goal_drive().collision_goal };
+        // Distant cars are drawn with their front wheels straight (`drive/sim/wheel_visuals.rs`).
+        self.sim.set_steer_visible(self.damage_distance <= crate::scenes::world::drive::STEER_DRAW_DISTANCE);
         let think_steps = match self.role {
             Role::Traffic => traffic::THINK_STEPS,
             Role::Cop(_) => cop::THINK_STEPS,

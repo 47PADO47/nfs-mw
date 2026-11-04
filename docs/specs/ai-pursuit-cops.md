@@ -153,7 +153,9 @@ for each non-heli record in order: n = round(Count * want / nominal_remaining); 
 heli records are copied unchanged
 ```
 
-So early in a chase the wave is the full row (for example 4 cars at heat 1) but never more than the number of
+`max_cops` is not held to the active-car limit (8) **[PC binary]**: that limit gates each request at the manager, and
+support placement ignores it. A wave type is requested while the chase has fewer cars of that type than its scaled count;
+support vehicles do not use wave slots unless they share a wave type's model. So early in a chase the wave is the full row (for example 4 cars at heat 1) but never more than the number of
 cops still needed to finish the wave (`FullEngagementCopCount`, 5 at heat 1); in cool-down only `NumPatrolCars` cops are wanted.
 `NumCopsRequiredToEvade` also grows: when more cops are fully engaged than remain required it increases by the difference, and by one
 when the remaining count would fall below 1, and by one more when a roadblock cop is pulled into the chase.
@@ -163,9 +165,33 @@ the adjusted counts. If a type has too many, a type is picked at random weighted
 most 2 of them away: the farthest cops of that type (distance +40 m when they cannot see the player) are told to flee, but
 a cop that sees the player flees only while more than 2 cops can see the player. Support cars never flee this way.
 
-**Spawn timer:** when a cop joins a pursuit the next spawn waits `TimeBetweenFirstFourSpawn` while fewer than 3 cops have been
-involved (and not in cool-down), otherwise `TimeBetweenCopSpawn`; if 3 or more cops are still needed every second join
-uses 0.2 s ("fast spawn"). The manager spawns at most one car per pursuit per run, only while fewer than 8 cop cars are active. The
+**Checked against a stock-game capture** (a recording of the original game: one pursuit from heat 1 to 5, about
+14.5 minutes, the pursuit's budget and backup fields sampled 20 times a second):
+
+- The budget is copied from the heat row at the chase's first update (5 to evade at heat 1, trigger 2) and when a backup
+  arrives (20 at heat 4, 25 at heat 5, evaded count 0). A heat rise does not copy it: the chase still needed 5 at heat 2.
+- The backup was called when the remaining count fell to the trigger: at heat 1 after 3 of 5 cops were evaded, with an
+  ETA of 180 s; later calls read 120 s at heats 2 to 4 and 90 s at heat 5, the `BackupCallTimer` of the heat at the call.
+  A heat rise during a call does not change its ETA.
+- The required count grew by both rules of this section, by one when the evaded count reached it and by the surplus
+  when more cops were engaged than remained: from 5 to 12 between heats 2 and 4, so the remaining count stayed at one.
+- The ETA counted down one second per second while the player was seen; it ended slightly below zero, and on that update
+  the status went back to the plain chase and the budget was copied again.
+- Entering cool-down set the ETA to 0 at once (143 s, 9 s and 84 s were left at the three entries). On leaving cool-down
+  with the remaining count still at the trigger, a new call started at once with the full timer of the current heat
+  (120 s, 120 s, 90 s); the old countdown did not resume.
+- The helicopter's extra cop to evade (a counter the pursuit keeps) is not what it was read as: two helicopters chased
+  the player for 60 s and 90 s without it moving. It moved once, adding one to the required count, on a sighting during a
+  cool-down at heat 5 while no helicopter flew (the last had left 105 s earlier). Its condition is not known, so the
+  rewrite does not add it.
+
+**Spawn timer:** when a vehicle joins a pursuit the next spawn waits `TimeBetweenFirstFourSpawn` while fewer than 3 cops have
+been involved (and not in cool-down), otherwise `TimeBetweenCopSpawn`; if 3 or more cops are still needed every second join
+uses 0.2 s ("fast spawn"). **[PC binary]** Every vehicle that joins restarts the timer: a reinforcement, a patrol car that
+starts or joins the chase, a roadblock car pulled into it, a support car and the helicopter. A pursuit begins with the unit
+that initiated it, so its first reinforcement follows only after the opening interval, even at a high heat; the rapid fill
+belongs to an established chase after a heat rise or a backup arrival. A failed placement is retried on the next manager
+run and does not restart the timer. The manager spawns at most one car per pursuit per run, only while fewer than 8 cop cars are active. The
 running count of cops involved (`TotalCopsInvolved`), support cars deployed, helicopters spawned and cop cars deployed
 feed the cost-to-state totals.
 
@@ -191,9 +217,22 @@ Three cases, in order: **[decomp]**
    Failure returns nothing and the timer is not reset (it retries next run).
 3. **During a race event:** 230 m ahead of the target on the cop path (`min distance + 80`), facing it.
 
-The *forced start* and the roadblock builder use other paths. A forced start (`SpawnPursuitCar`) puts the first car 340 m
-ahead of the target on the cop path (80 m when warping or when the start is a free-roam scripted pursuit); if no spot is
-found it falls back to a car 15 m behind the player (`SpawnCopCarNow`). When no free cop car exists in the pool for those
+The case is chosen by the pursuit's cool-down status, not by whether the target is in sight: a cop due after the target
+was lost but before cooling down began still comes on the chase placement. **[PC runtime: in a recorded stock pursuit
+such a cop appeared 83 m ahead of the player, while the cool-down cops after it appeared 130 to 330 m behind it and
+220 m ahead.]** The rewrite uses the same rule (`ai/pursuit.rs`).
+
+The *forced start* and the roadblock builder use other paths. A forced start (`SpawnPursuitCar`, a chase that starts with
+no unit in it) puts the first car 340 m ahead of the target (80 m when the start follows a jump to a bounty place or a
+milestone: the pending-jump flags of [career-rapsheet-2](career-rapsheet-2.md) section 5); if no spot is found it falls
+back to a car 15 m behind the player (`SpawnCopCarNow`). The spot: a road cursor is put on the target's position heading
+the way it faces, on traffic roads with the junction connectors left out (a second try lets them in), and advanced that
+far with the target's facing as the junction preference. At 340 m the car faces on along the road and the spot must pass
+the 150 to 400 m window and the 40 m spacing of 3.2; at 80 m the direction is reversed so the car faces the player, and
+only the spacing is checked. The car stands at rest and joins the chase at once. **[exe]** At Riverfront Stadium (bounty
+place 11) the stock game's first cop stands about 65 m from the car, on the stadium road north of the junction ahead,
+facing the car **[runtime]**; the rewrite's walk takes the same road and lands about 10 m farther along it.
+**[ours]** When no free cop car exists in the pool for those
 two paths, an active cop that has been off screen for over 5 s and is more than 100 m from the view (the farthest wins) is
 **stolen**: removed from where it is and reused. A helicopter spawns 250 m behind the target on the cop path, 20 m up. **[decomp]**
 
@@ -303,9 +342,18 @@ Written after the code, to say what exists and what is approximated. Evidence ta
   sight. **[decomp]** The pool of inactive cars is not built as a pool (a car is cheap to make from its shared model; see the
   provenance); the steal rule exists as `fleet::steal` and nothing calls it, because the forced-start and roadblock-builder
   paths that use it are not built. `SpikesHit` has no caller in the original.
+- **Reinforcement timer and wave size** (`ai/pursuit.rs`): every join (start patrols, scripted chase requests, recruited
+  roadblock cars, each placed support car, the helicopter) restarts the timer through one path. A chase that starts with no
+  unit (a forced or scripted start) places its first cop at once, and that cop's join starts the opening interval
+  **[ours]**: the original always has an initiating unit, so this stands in for it. The
+  patrols that see the player at the start all join at once rather than one per manager run **[ours]**. The wave is not
+  scaled to the active-car limit; support cars are left out of the wave's car count. The quarter-second pursuit task step
+  of the original's timer is not modelled.
 - 911 dispatch is in ([ai-pursuit-heat](ai-pursuit-heat.md) section 5.3).
-- Not built: roadblock spawn requests, and the forced start of `pursuit N` through `SpawnPursuitCar` (340 m ahead, 15 m
-  behind as the fallback).
+- The forced start (`ai/pursuit/opening.rs`): a chase that starts with no unit places its first cop by the
+  `SpawnPursuitCar` rule above, 80 m ahead facing the player after the F5 bounty jump. The steal of an off-screen cop when
+  the pool is empty is not built (the pool is not modelled).
+- Not built: roadblock spawn requests.
 
 ## Rust implementation notes
 

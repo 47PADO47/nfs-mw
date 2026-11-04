@@ -34,6 +34,8 @@ use crate::scenes::world::space;
 
 mod telemetry;
 pub use telemetry::Telemetry;
+mod wheel_visuals;
+pub use wheel_visuals::{STEER_DRAW_DISTANCE, WheelVisuals, roll_between};
 
 /// Wheel spin (m/s) the tire sound ignores: the dead zone is a fifth of it.
 const SLIP_TOLERANCE: f32 = 0.5;
@@ -52,8 +54,12 @@ pub struct CarSim {
     pivot: Vec3,
     /// Height of each wheel's centre above the model's origin at rest, in model wheel order.
     rest_height: [f32; 4],
-    /// Roll angle of each wheel, in model wheel order.
+    /// Drawn roll angle of each wheel, in model wheel order (`wheel_visuals.rs`).
     spin: [f32; 4],
+    /// Drawn steering angle of the two front wheels in model axes, and the limits that shape it (`wheel_visuals.rs`).
+    drawn_steer: [f32; 2],
+    wheel_visuals: WheelVisuals,
+    steer_visible: bool,
     walls: WallSpec,
     visual_tires: Option<[super::visual_tires::VisualTire; 4]>,
     pub(in crate::scenes::world) geometry: Option<Arc<CarGeometry>>,
@@ -126,6 +132,9 @@ impl CarSim {
             pivot: physics.bounds.pivot,
             rest_height,
             spin: [0.0; 4],
+            drawn_steer: [0.0; 2],
+            wheel_visuals: WheelVisuals::default(),
+            steer_visible: true,
             walls: physics.walls,
             visual_tires: None,
             geometry: physics.geometry,
@@ -162,6 +171,7 @@ impl CarSim {
     pub fn for_rig(physics: CarPhysics, rig: &super::rig::CarRig) -> Self {
         let mut sim = Self::new(physics, rig.rest_heights());
         sim.set_visual_tires(rig.visual_tires());
+        sim.set_wheel_visuals(rig.wheel_visuals());
         sim
     }
 
@@ -182,6 +192,7 @@ impl CarSim {
     /// Put the car on the road at `spawn`, already rolling forward at `speed` m/s.
     pub fn place_moving(&mut self, ground: &dyn Ground, spawn: Spawn, speed: f32) -> bool {
         self.spin = [0.0; 4];
+        self.drawn_steer = [0.0; 2];
         self.brake_lamp_age = 0.0;
         self.ground_reference.clear();
         for wheel in self.wheel_ground.get_mut() {
@@ -363,8 +374,9 @@ impl CarSim {
                 let centre = w.position + r.y_axis * w.radius;
                 let local = r.transpose() * (centre - origin);
                 let travel = (local.y - self.rest_height[i]).clamp(-MAX_VISIBLE_TRAVEL, MAX_VISIBLE_TRAVEL);
-                // The library steers to the right, the model to the left.
-                WheelPose { steer: -w.steer_angle, spin: self.spin[i], travel }
+                // The library steers to the right, the model to the left; the front wheels are drawn at their drawn angle.
+                let steer = self.drawn_steer.get(i).copied().unwrap_or(-w.steer_angle);
+                WheelPose { steer, spin: self.spin[i], travel }
             }),
         };
         CarPose { position: space::to_render(origin.to_array()), rotation: Quat::from_mat3(&cols), wheels }

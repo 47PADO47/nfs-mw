@@ -10,7 +10,7 @@ use nfsmw_data::gameplay::BountyJump;
 
 use super::milestones::render_xy;
 use super::{Ask, Page, Status};
-use crate::career::CareerHandle;
+use crate::career::{CareerHandle, JumpPoint};
 use crate::frontend::logic::{Command, Cx};
 use crate::ui::Text;
 
@@ -53,6 +53,8 @@ pub struct BountyRow {
     pub number: i32,
     /// Where the car goes, in render space.
     pub at: [f32; 2],
+    /// The marker the car is put on: its place and way.
+    pub jump: JumpPoint,
 }
 
 /// Whether the place `number` is on offer while the career is at `stage`.
@@ -71,7 +73,14 @@ pub fn bounty_rows(jumps: &[BountyJump], stage: u8) -> Vec<BountyRow> {
     jumps
         .iter()
         .filter(|jump| on_offer(jump.number, stage))
-        .filter_map(|jump| Some(BountyRow { number: jump.number, at: render_xy(jump.position?) }))
+        .filter_map(|jump| {
+            let at = jump.position?;
+            Some(BountyRow {
+                number: jump.number,
+                at: render_xy(at),
+                jump: JumpPoint::from_marker(at, jump.rotation_deg),
+            })
+        })
         .collect()
 }
 
@@ -150,10 +159,7 @@ impl Page for BountyPage {
 
     fn ask(&self, at: usize) -> Option<Ask> {
         let row = self.rows.get(at)?;
-        Some(Ask {
-            label: label_hash("REP_SHEET_BOUNTY_CONFIRM"),
-            then: Command::JumpTo { x: row.at[0], y: row.at[1] },
-        })
+        Some(Ask { label: label_hash("REP_SHEET_BOUNTY_CONFIRM"), then: Command::JumpTo(row.jump.with_chase()) })
     }
 }
 

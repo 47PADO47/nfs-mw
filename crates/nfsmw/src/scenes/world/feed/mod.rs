@@ -5,11 +5,13 @@
 //! - `pursuit`: the chase's snapshot and its notices;
 //! - `races`: the races' snapshot and its notices;
 //! - `hud`: the HUD's events of a frame and the snapshot diff behind them;
+//! - `takedown`: the HUD's line for a cop car wrecked in a chase;
 //! - `world`: the world's side of the HUD's events.
 
 pub(in crate::scenes::world) mod hud;
 pub(crate) mod pursuit;
 pub(crate) mod races;
+mod takedown;
 mod world;
 
 pub(in crate::scenes::world) use hud::HudFeed;

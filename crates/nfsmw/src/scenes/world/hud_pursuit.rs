@@ -12,6 +12,7 @@ use crate::hud::{HudState, PursuitHud};
 fn board_from_feed(feed: PursuitFeed, cops_destroyed: u32) -> PursuitHud {
     PursuitHud {
         cops_destroyed,
+        backup_eta: feed.backup_eta,
         ..PursuitHud::from_evade_time(feed.secs, feed.secs_to_evade, blackbox_pursuit::evade::timeout(feed.heat))
     }
 }
@@ -29,6 +30,7 @@ pub(super) fn pursuit_board(traffic: &TrafficWorld, busted: f32) -> Option<Pursu
             busted: 1.0,
             cooldown: false,
             hiding: None,
+            backup_eta: traffic.backup_eta().unwrap_or(0.0),
         });
     }
     // The bar spans the cool-down's own length (`required - grace`), so it opens empty; the meter

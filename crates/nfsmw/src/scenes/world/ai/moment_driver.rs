@@ -80,6 +80,7 @@ impl TrafficWorld {
                 me: usize::MAX,
                 player: None,
                 aims: &[],
+                slotted: &[],
                 lights: None,
             };
             let car = CarState {

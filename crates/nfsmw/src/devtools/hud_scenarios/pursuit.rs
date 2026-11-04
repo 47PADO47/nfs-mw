@@ -104,6 +104,19 @@ pub fn escape(viewport: [f32; 2]) -> HudState {
     }
 }
 
+/// The chase under way with a second cop car just wrecked inside the destruction window: the takedown line up, in the
+/// language's words when the table is loaded.
+pub fn takedown(viewport: [f32; 2]) -> HudState {
+    let message = crate::hud::takedown::message(1, "copmidsize", 500).unwrap_or_else(|| {
+        crate::hud::Message::takedown(
+            1,
+            "Civic Cruiser
+Combo Bounty: 500",
+        )
+    });
+    HudState { message: Some(message), ..active(viewport) }
+}
+
 /// The chase's own numbers on top of the car: the heat, the units, the career numbers and what the police know.
 fn chase(state: HudState) -> HudState {
     HudState {

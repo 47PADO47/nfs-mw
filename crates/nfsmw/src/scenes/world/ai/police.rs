@@ -449,6 +449,7 @@ mod observation;
 mod original_camera;
 mod patrol;
 mod rep;
+pub use rep::Takedown;
 mod roadblock;
 mod roam_911;
 mod roll;

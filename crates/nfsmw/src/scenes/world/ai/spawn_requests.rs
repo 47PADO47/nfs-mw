@@ -158,10 +158,11 @@ impl TrafficWorld {
         }
         let Some(car) = self.build_requested_car(request, collision, surfaces) else { return false };
         log::info!("cop manager: {} placed by a spawn request as {:?}", car.name, request.role);
+        let cooldown = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
         if request.role == RequestRole::Chase
             && let Some(pursuit) = self.pursuit.as_mut()
         {
-            pursuit.involved += 1;
+            pursuit.joined(cooldown);
             self.police.ground_deployed(&car.name);
         }
         self.admit(car);

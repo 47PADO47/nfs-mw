@@ -41,6 +41,9 @@ fn installed_free_roam_pursuit_uses_the_real_patrol_car_and_heat_rows() {
     assert_eq!(world.pursuit_feed().unwrap().heat, 1);
     let mut blips = Vec::new();
     world.map_blips(&mut blips);
+    assert!(blips.is_empty(), "not on the minimap before it comes within the engagement radius");
+    world.cars[0].note_engaged();
+    world.map_blips(&mut blips);
     assert_eq!(blips.len(), 1);
     assert!(blips[0].active);
     world.stop_pursuit();

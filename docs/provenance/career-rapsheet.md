@@ -115,3 +115,19 @@ here only. Image base `0x00400000`; program `/speed.exe` (Black Edition PC v1.3)
 - **The vehicle database header was unfilled.** The page wrote the main page's name object, so the package's design text (`PLAYER NAME`, a bounty, `PORSCHE 911S`, `MAZDA RX-8`) stayed on screen. The header routine above fills four objects of its own.
 - **Not verified.** The login's timed animation and the leave transitions (the screenshot runs render the state after the scripted pad has finished), and whether samples 80 and 81 are audible (the port plays them; no listening comparison against the original).
 - **Method note.** The `bust` and `STAGE15` screenshot profiles lack settings flag bit 4, so their Rap Sheet icon is greyed. A rap sheet profile for a run can be made by setting `Flags::HAS_RAP_SHEET` in a copy and re-sealing it with `ProfileSave::set_settings` and `to_bytes`.
+
+## Jump placement and heading (career-rapsheet-2.md section 5.1)
+
+- Fields: every attribute of the `bounty_jump/*` collections and their parents was dumped with `libs/blackbox-attrib`
+  from `GLOBAL/gameplay.bin` over `GLOBAL/attributes.bin`. Each place stores `Position`, `Rotation` (field hash
+  `0x5A6A57C6`, a float in degrees) and the spawn point number; its parents are `taggedcarmarker`, `carmarker` and
+  `marker` (which sets `Rotation` 0). The reader had kept only `Position`.
+- Behaviour: two recordings of the stock game (Black Edition PC, unmodded install, 23 October and 2 November 2026)
+  started right after the Riverfront Stadium bounty jump. The first gameplay sample has the player at physics
+  (595.59, 110.84, 939.84), speed 0, forward (0.9745, -0.0470, -0.2196). The marker is at map (939.84, -595.59, 110.17)
+  with `Rotation` -102.6971, whose heading `(-sin R, cos R)` is (0.9755, -0.2198) in x and z: the same direction within
+  0.1 degree, and the same map position. The remake's former nearest-road placement put the car 7 m away facing the
+  opposite way.
+- Not established: the jump routine was not followed in the binary, so the behaviour on a marker away from any ground
+  and the milestone and speed trap spawn points (same marker class, same pending-jump path) rest on that reading.
+

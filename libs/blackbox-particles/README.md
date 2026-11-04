@@ -11,7 +11,7 @@ documented in `docs/specs/exhaust-flames.md` (sections 5 and 6).
 Start delays, on/off and one-shot control follow `docs/specs/particle-emission-control.md`.
 Quantized square atlases and random static cells follow
 `docs/specs/prop-particle-attributes.md`. Sprites expose their selected UV rectangle.
-Disc spread, the original global random stream and packed particle motion remain
-outside this simulation's current coverage.
+Disc spread (`SpreadAsDisc`) follows `docs/specs/ai-helicopter.md` section 7. The original
+global random stream and packed particle motion remain outside this simulation's current coverage.
 
 License: MIT OR Apache-2.0.

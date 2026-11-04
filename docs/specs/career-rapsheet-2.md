@@ -281,14 +281,56 @@ map pin from its spawn point. Accept on a completed row only plays sound 7. Othe
 script manager: spawn point key (`+0x11C`), pending flag byte `+0x111 = 1`, `+0x114 = 0`, then leaves the front end the
 way "Resume Free Roam" does (`0x0056C5B0`); the pause menu variant calls the manager's jump routine (`0x005EBC80`) at
 once, which stores `+0x2B4 = 1`, the key at `+0x2B8` and moves the player car to the spawn point. The reader of
-`+0x11C` was not found; the flag `+0x111` is read by two pursuit-start gates. The launched milestone then starts its
-pursuit through the normal milestone/pursuit machinery. **[exe]**, consumer **[unconfirmed]**
+`+0x11C` was not found; the flag `+0x111` is read by two pursuit-start gates. Only a milestone row sets the flag; a speed
+trap row writes the key alone. What happens after the jump is in 5.2. **[exe]**, reader of the key **[unconfirmed]**
 
 **Bounty page.** Rows are the entries of the manager's `bounty_jump` list (up to 20 keys, attribute `0xDB89AB5C` = the
 spawn point number), ordered by that number. The first 4 rows are always shown, rows 5 to 8 while the stage byte is
 below 13, rows 9 and up while it is below 9. Row label `BLACKLIST_BOUNTY_SPAWN_POINT_%02d`; the rows form three groups
 with their own headings. Confirm text `REP_SHEET_BOUNTY_CONFIRM`; the jump uses the same pending-jump fields as the
 milestone page (flag `+0x111 = 1`, `+0x114 = 0`, spawn key `+0x11C`). **[exe]**
+
+### 5.1 Where a jump puts the car
+
+The jump targets are tagged car markers (`taggedcarmarker`): each `bounty_jump/<place>` collection is one itself, and a
+milestone's or speed trap's `SpawnPoint` names one. A marker has a `Position` (map coordinates) and a `Rotation`
+(degrees, inherited default 0); all 12 bounty places set their own `Rotation`. The jump puts the car exactly on the
+marker's `Position`, stopped, facing the marker's `Rotation` (physics heading `(-sin R, 0, cos R)`, the convention of
+the other markers). It is not moved to the nearest road and not turned to the road's direction. Riverfront Stadium
+(place 11, `Rotation` -102.70) leaves the car at map (939.84, -595.59) facing physics (0.975, 0, -0.220).
+**[data]** for the fields, **[runtime]** for the placement (two captures of the stock game agree with the marker's
+position and heading to within a centimetre and 0.1 degree); the routine itself was not traced.
+
+### 5.2 The chase a jump starts **[exe]**
+
+The pause menu's jump (milestones and bounty pages) runs only in free roam (no race) and when no other jump waits. It
+looks the marker up by its key, has the world streamed in around the marker, puts the player's car on it and keeps the
+jump waiting with a "chase" mark: set for a milestone row and for every bounty place, clear for a speed trap row.
+
+Each frame while a jump waits and the world is still loading, nothing happens. Then the car is put on the marker again
+and, with the chase mark:
+
+1. every AI vehicle is reset, the traffic manager removes all its cars, and the cop manager clears its cops and
+   pursuits, destroying the cop cars;
+2. the cop manager's spawn delay (60 s after a reset, or the value of the current pursuit level's attribute) is set to 0,
+   so cops may come at once;
+3. a pursuit is asked for at heat level 1: the player's heat is raised to 1 when it is lower (a higher heat is kept), and
+   a pursuit with the player as its target is made when none runs.
+
+Step 3 repeats every frame until the cop manager reports a pursuit with the player. The jump then ends and the game
+posts a message to the front end. Without the chase mark the jump ends after the car is put down. A speed trap's jump
+therefore only moves the car; a milestone's and a bounty place's start a chase at the car's own heat, at least level 1.
+The first cop of that chase is placed by the forced-start rule after a jump ([ai-pursuit-cops.md](ai-pursuit-cops.md)
+4.1).
+
+The jump from the front end writes the same pending fields (5, milestones page) and leaves for free roam; its chase
+start goes through the pursuit-start gates that read the flag. Whether it also resets the AI first was not followed.
+
+**Rewrite.** `career::JumpPoint::chase` carries the mark (set by the milestones page for a milestone and by the bounty
+page); `scenes/world/career/jump_chase.rs` clears the traffic and the cops when the car is put down and starts the chase
+at level 1 once the car stands on the marker (the car's carried heat lifts it, as above). The rewrite asks once instead
+of every frame; a chase that cannot start is logged. The spawn delay has no counterpart: the remake's chase brings its
+first cop itself.
 
 ## 6. Implementation notes for the Rust rewrite
 

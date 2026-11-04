@@ -15,6 +15,9 @@ pub struct RigidPart {
     /// The vertices the part's triangles use, copied from [`Solid::vertices`]. A vertex that two parts
     /// share is copied into both.
     pub vertices: Vec<Vertex>,
+    /// The [`Solid::vertices`] index each of [`RigidPart::vertices`] was copied from, so the part can be skinned with
+    /// the solid's blend weights (the game's CPU skinning).
+    pub sources: Vec<u32>,
     /// Triangle list into [`RigidPart::vertices`].
     pub indices: Vec<u32>,
     /// The part's triangles grouped by the shading group they came from, in index order. Each run is one draw
@@ -82,6 +85,7 @@ fn dominant_bone(corners: [SkinVertex; 3]) -> u8 {
 #[derive(Default)]
 struct PartBuilder {
     vertices: Vec<Vertex>,
+    sources: Vec<u32>,
     indices: Vec<u32>,
     runs: Vec<PartRun>,
     /// Solid vertex index to index in [`PartBuilder::vertices`].
@@ -101,7 +105,7 @@ impl PartBuilder {
     }
 
     fn finish(self, bone: u8) -> RigidPart {
-        RigidPart { bone, vertices: self.vertices, indices: self.indices, runs: self.runs }
+        RigidPart { bone, vertices: self.vertices, sources: self.sources, indices: self.indices, runs: self.runs }
     }
 
     /// The part's index for solid vertex `v`, copying the vertex from `source` the first time it is used.
@@ -111,6 +115,7 @@ impl PartBuilder {
         }
         let index = self.vertices.len() as u32;
         self.vertices.push(source[v as usize]);
+        self.sources.push(v);
         self.local.insert(v, index);
         index
     }

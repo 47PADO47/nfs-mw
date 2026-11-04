@@ -9,13 +9,18 @@
 use std::fs::File;
 use std::path::Path;
 
-use ea_audio::speech::{Assembler, Chosen, Params, Repeats, Sentences, SpeechBank, SpeechIndex};
+use ea_audio::speech::{Assembler, Chosen, Options, Params, Repeats, Sentences, SpeechBank, SpeechIndex};
 use ea_audio::{Pcm, ReadAt};
 
 use super::random::Rng;
 
 /// The speaker number of recordings that any unit may say.
 const ANY_SPEAKER: u16 = 0xFFFF;
+
+/// How the game's lines are assembled: as in the original, a sentence asked of a speaker who did not record it is not
+/// said (no other voice stands in, so a patrol car never borrows the pilot's, the dispatch's or the cross car's voice).
+/// A request with no speaker still takes any voice that recorded it. Spec `docs/specs/speech-sentences.md` section 5.
+pub const SENTENCE_OPTIONS: Options = Options { speaker_fallback: false };
 
 /// Where lines come from.
 pub trait Lines {
@@ -94,7 +99,7 @@ impl Files {
     /// The takes that say `event`: its sentence under `params`, or (no sentence) one take of a bank of its own.
     fn parts(&mut self, event: u16, speaker: u16, params: &Params) -> Result<Vec<Chosen>, String> {
         if self.sentences.sentence(event).is_some() {
-            let assembler = Assembler::new(&self.sentences, &self.index);
+            let assembler = Assembler { options: SENTENCE_OPTIONS, ..Assembler::new(&self.sentences, &self.index) };
             let parts = assembler.assemble(event, params, &mut self.repeats, &mut self.rng);
             return parts.ok_or_else(|| format!("event {event}: no version of the sentence fits its parameters"));
         }

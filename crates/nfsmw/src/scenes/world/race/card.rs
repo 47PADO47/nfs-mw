@@ -38,7 +38,7 @@ impl WorldScene {
                 challenge: session.challenge.is_some(),
             };
             // One line for the whole message: its serial is past every banner's.
-            return Some(Message { serial: RESULT_SERIAL, text: card.title() });
+            return Some(Message::new(RESULT_SERIAL, card.title()));
         }
         if matches!(session.stage, Stage::Results { .. } | Stage::PostRace { .. }) {
             return None;
@@ -118,13 +118,13 @@ impl WorldScene {
             let outcome = *engine.outcomes().get(racer)?;
             let place = if outcome.finished { outcome.place } else { engine.outcomes().len() as u32 };
             let card = ResultCard { place, racers: engine.outcomes().len(), time: outcome.time, challenge: false };
-            return Some(Message { serial: RESULT_SERIAL, text: card.title() });
+            return Some(Message::new(RESULT_SERIAL, card.title()));
         }
         let banner = &session.banner;
         if banner.left <= 0.0 || banner.count != Some(Count::Go) {
             return None;
         }
-        Some(Message { serial: banner.serial, text: banner.text.clone() })
+        Some(Message::new(banner.serial, banner.text.clone()))
     }
 
     /// Draws the race card over the frame.
@@ -137,12 +137,12 @@ impl WorldScene {
 
 fn banner_message(banner: &super::Banner, launch: &super::Banner) -> Option<Message> {
     if launch.left > 0.0 && launch.serial == banner.serial && (banner.count.is_some() || banner.left <= 0.0) {
-        return Some(Message { serial: launch.serial, text: launch.text.clone() });
+        return Some(Message::new(launch.serial, launch.text.clone()));
     }
     if banner.left <= 0.0 || banner.count.is_some() {
         return None;
     }
-    Some(Message { serial: banner.serial, text: banner.text.clone() })
+    Some(Message::new(banner.serial, banner.text.clone()))
 }
 
 #[cfg(test)]
@@ -154,12 +154,12 @@ mod launch_tests {
     fn a_launch_message_coexists_with_go_and_yields_to_a_later_race_notice() {
         let mut banner = Banner { count: Some(Count::Go), left: 3.0, serial: 5, ..Default::default() };
         let mut launch = Banner { text: "launch".into(), left: 3.2, serial: 5, ..Default::default() };
-        assert_eq!(banner_message(&banner, &launch), Some(Message { serial: 5, text: "launch".into() }));
+        assert_eq!(banner_message(&banner, &launch), Some(Message::new(5, "launch")));
         assert_eq!(banner.count, Some(Count::Go));
         banner.count = None;
         banner.text = "checkpoint".into();
         banner.serial = 6;
-        assert_eq!(banner_message(&banner, &launch), Some(Message { serial: 6, text: "checkpoint".into() }));
+        assert_eq!(banner_message(&banner, &launch), Some(Message::new(6, "checkpoint")));
         banner.left = 0.0;
         assert_eq!(banner_message(&banner, &launch), None, "an expired newer notice must not revive the launch");
         launch.left = 0.0;

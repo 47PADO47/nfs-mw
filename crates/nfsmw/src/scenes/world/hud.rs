@@ -75,6 +75,7 @@ impl WorldScene {
                 state.police_intel = traffic.police_intel();
             }
             self.career.hud.apply(state);
+            state.milestone_board = self.milestone_board(state.pursuit.is_some());
             state.race = self.race_hud();
             state.race_info = self.race_info();
             state.camera = self.hud_camera();
@@ -86,7 +87,11 @@ impl WorldScene {
             state.events = self.hud_feed.events().to_vec();
             state.events_frame = self.hud_feed.frame();
             state.leaders = self.race_leaders();
-            state.message = self.race_message().or_else(|| self.lead_catch_up_line());
+            // The race's lines first (the original gives them the higher priority), then a cop car taken out.
+            state.message = self
+                .race_message()
+                .or_else(|| self.hud_feed.takedown_message().cloned())
+                .or_else(|| self.lead_catch_up_line());
             state.context = self.hud_context();
             state.drag = self.race.as_ref().is_some_and(|r| r.kind == RaceType::Drag);
             state.map_source = self.race.as_ref().map(|r| r.map.clone()).unwrap_or_default();
@@ -100,6 +105,7 @@ impl WorldScene {
                 self.speed_trap_blips(&mut state.blips);
                 state.blips.extend_from_slice(&self.map_blips);
             }
+            self.chase_map_icons(&mut state.blips);
             state.blips.extend_from_slice(&self.mod_blips);
             #[cfg(feature = "multiplayer")]
             self.apply_net_hud(state);
@@ -114,12 +120,18 @@ impl WorldScene {
     }
 
     /// The end-of-pursuit card that is up, if one is; none in the fly view. [`Self::show_pursuit_end`] draws it and
-    /// the scene's `wants_ui` asks for it.
+    /// the scene's `wants_ui` asks for it. An escape in a career's free roam has none: the original's rewards screen and
+    /// statistics page tell it (`docs/specs/pursuit-escape-results.md`).
     pub(super) fn pursuit_end(&self) -> Option<crate::hud::PursuitEndCard> {
         if self.view == View::Fly {
             return None;
         }
-        self.traffic.as_ref().and_then(|traffic| traffic.pursuit_end_card())
+        let card = self.traffic.as_ref().and_then(|traffic| traffic.pursuit_end_card())?;
+        let escape_screens = self.race.is_none() && self.career.handle.is_active();
+        if card.reason == blackbox_pursuit::EndReason::Evaded && escape_screens {
+            return None;
+        }
+        Some(card)
     }
 }
 
@@ -195,6 +207,25 @@ fn interior_blip(marker: &ActivityMarker) -> MapBlip {
 fn map_blip(style: &'static str, position: Vec3) -> MapBlip {
     let at = space::to_render(position.to_array());
     MapBlip { style, position: [at.x, at.y], active: false, heading: None }
+}
+
+impl WorldScene {
+    /// The interior icons the chase allows on the minimap, and the hiding spots while it cools down
+    /// (`hud_map_icons.rs`). A race keeps its own icons.
+    fn chase_map_icons(&self, blips: &mut Vec<crate::hud::MapBlip>) {
+        use super::hud_map_icons::{Chase, hiding_blips, shown};
+        let Some(traffic) = self.traffic.as_ref() else { return };
+        let chase = match (traffic.is_pursuing(), traffic.cooldown_status()) {
+            (false, _) => Chase::None,
+            (true, blackbox_pursuit::CooldownStatus::CoolDown) => Chase::CoolDown,
+            (true, _) => Chase::Active,
+        };
+        blips.retain(|blip| shown(blip.style, chase));
+        if chase == Chase::CoolDown && self.race.is_none() {
+            let player = self.players.lead().map_or(Vec3::ZERO, |drive| drive.position());
+            hiding_blips(traffic.hiding_icon_positions(), player, blips);
+        }
+    }
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 //! The police helicopter's rotor loop. The helicopter's `FX_Helicopter` AEMS module (`IG_GLOBAL/FX_Helicopter_MB.abk`,
 //! `AEMS_MiscBanks`) runs like the traffic engines: one module per helicopter, fed the twelve class words every tick,
 //! placed by the map's 3D control from the listener's view and mixed in the SFX group, so the master, SFX and pause
-//! settings apply. Spec: `docs/specs/ai-helicopter.md` section 7.
+//! settings apply. Spec: `docs/specs/ai-helicopter-rotor.md`.
 mod mixer;
 mod params;
 #[cfg(test)]
@@ -93,7 +93,7 @@ impl Slot {
             pitch: levels.pitch,
             in_front: offset.dot(view.car_forward) >= 0.0,
             distance: offset.length(),
-            forward_speed: frame.velocity.dot(frame.forward.normalize_or_zero()),
+            speed: frame.velocity.length(),
             bearing: frame.forward.normalize_or_zero().dot((-offset).normalize_or_zero()).clamp(-1.0, 1.0).acos(),
         };
         let words = params::class_words(inputs);

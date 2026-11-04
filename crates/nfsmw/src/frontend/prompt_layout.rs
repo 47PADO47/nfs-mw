@@ -10,6 +10,10 @@ use super::logic::Footer;
 pub const BRIEF_FOOTER: u32 = 0x03CA_06E1;
 /// The group of `Quick_Race_Brief.fng` that holds the Randomize hint, which the footer replaces.
 pub const BRIEF_RANDOMIZE: u32 = 0x02DD_F58C;
+/// The footer buttons of `PostRace_Pursuit.fng`, which the drawn hints replace: the console Continue and Pursuit groups
+/// (game flag `0x40`, which the PC game hides when a package loads) and the PC Continue and Infractions groups (flag 8).
+/// The console Continue group owns the footer's fade.
+pub const PURSUIT_FOOTERS: [u32; 4] = [0x05D8_5A9F, 0x6BF6_5436, 0x9502_D148, 0x3FC7_2F9D];
 
 pub struct Frame {
     pub world: Mat4,
@@ -73,7 +77,9 @@ impl Frame {
         // These groups own the footer fade; the image supplies its rectangle, not its low background alpha.
         let (group, background) = match name.to_ascii_lowercase().as_str() {
             "pause_main.fng" => (0x2FE7_4244, 0x81B4_FAD0),
-            "pause_options.fng" | "pause_pc_controller.fng" => (0xB3A6_9E89, 0x81B4_FAD0),
+            "pause_options.fng" | "pause_pc_controller.fng" | "postrace_milestonerewards.fng" => {
+                (0xB3A6_9E89, 0x81B4_FAD0)
+            }
             "options.fng" | "ea_trax_jukebox.fng" | "challengeseries.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
             "safehousereputationoverview.fng"
             | "safehouseracesheet.fng"
@@ -101,6 +107,15 @@ impl Frame {
                 let root = tree.nodes.iter().find(|n| n.name_hash == BRIEF_FOOTER)?;
                 let at = Vec3::new(0.0, root.world.w_axis.y, root.world.w_axis.z);
                 return Some(Self::new(root, Mat4::from_translation(at), 540.0, 26.0, true));
+            }
+            // The pursuit result's bar is a top-level image outside any group: the hints take its rectangle, at the
+            // depth of the Continue group whose fade they follow.
+            "postrace_pursuit.fng" => {
+                let root = tree.nodes.iter().find(|n| n.name_hash == PURSUIT_FOOTERS[0])?;
+                let bar = tree.nodes.iter().find(|n| n.name_hash == 0x81B4_FAD0)?;
+                let at = Vec3::new(bar.world.w_axis.x, bar.world.w_axis.y, root.world.w_axis.z);
+                let (width, height) = (bar.size.x.abs() - 12.0, bar.size.y.abs());
+                return Some(Self::new(root, Mat4::from_translation(at), width, height, false));
             }
             _ => return None,
         };

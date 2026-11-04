@@ -6,6 +6,7 @@
 //! (10 s at the start of the chase, then `TimeBetweenHeliActive` after one left) and the support row's minimum delay has
 //! passed; the search-mode roll can force it. `Police::heli_ask` holds those rules; this file holds the wave's side.
 
+use blackbox_pursuit::wave;
 use blackbox_roads::{Body, LaneType, NavKind, RandomSource, RoadNav, SegmentFilter};
 use glam::Vec3;
 use nfsmw_data::pursuit::HELICOPTER;
@@ -17,20 +18,25 @@ use super::police::heli::{Ask, HeliStatus, Spawn};
 const SPAWN_HEIGHT: f32 = 20.0;
 
 impl TrafficWorld {
-    /// At a cop spawn opportunity: whether the helicopter is the type picked. If so its spawn is queued for the police
+    /// At a cop spawn opportunity (the spawn timer spent and fewer cop cars active than the manager's maximum, as the
+    /// original asks `CopRequest` only then): whether the helicopter is the type picked. If so its spawn is queued for the police
     /// (they place it on their next step) and the chase counts it as involved. `ground_wanted` says whether the wave still
     /// wants ground cars, which share the pick with it.
     pub(super) fn pick_helicopter(&mut self, player: &Body, ground_wanted: bool) -> bool {
         let Some(pursuit) = self.pursuit.as_ref() else { return false };
         let Some(level) = self.police.level() else { return false };
-        let weight =
-            pursuit.row().and_then(|row| row.cops.iter().find(|c| c.name == HELICOPTER)).map(|c| c.chance.max(1));
+        let weight = pursuit
+            .row()
+            .and_then(|row| row.cops.iter().find(|c| c.name == HELICOPTER))
+            .map(|c| wave::weight(c.chance));
         let have =
             |name: &str| self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count() as u32;
         let ground: u32 = match ground_wanted {
-            true => {
-                pursuit.wave().filter(|&(name, count, _)| have(name) < count).map(|(_, _, chance)| chance.max(1)).sum()
-            }
+            true => pursuit
+                .wave()
+                .filter(|&(name, count, _)| have(name) < count)
+                .map(|(_, _, chance)| wave::weight(chance))
+                .sum(),
             false => 0,
         };
         let search_roll = self.rng.air.next_f32();

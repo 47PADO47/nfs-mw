@@ -10,11 +10,11 @@ impl CopState {
         self.road_nos.hash_into(hash);
         self.governor.visit_state(&mut |word| hash.u32(word));
         self.stuck.visit_state(&mut |word| hash.u32(word));
-        hash.f32(self.repath);
         hash.vec3(self.last_find);
         hash.f32(self.last_speed);
         hash.bytes(format!("{:?}", self.path_state).as_bytes());
         hash.bool(self.ram_allowed);
+        hash.bool(self.recovering);
         let environment = self.environment;
         hash.u32(environment.level);
         hash.option_f32(environment.reaction);
@@ -25,6 +25,7 @@ impl CopState {
         hash.bool(environment.racing);
         hash.bool(environment.head_on_support);
         hash.bool(environment.shared_target_road);
+        hash.bool(environment.in_formation);
         hash.bool(environment.target_road.is_some());
         if let Some(road) = environment.target_road {
             road.hash_into(hash);

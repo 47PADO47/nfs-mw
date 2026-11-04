@@ -22,8 +22,8 @@ mod director;
 #[cfg(test)]
 mod installed_tests;
 pub(super) mod props;
-mod seat;
 mod site;
+mod spacing;
 mod state;
 mod steal;
 

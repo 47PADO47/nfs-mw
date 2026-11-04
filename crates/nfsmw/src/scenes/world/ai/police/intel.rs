@@ -25,7 +25,9 @@ impl super::super::TrafficWorld {
             let at = car.position();
             ([at.x, at.y], car.sees_player())
         });
-        let helicopter = self.police.helicopter_status().zip(self.police.helicopter_blip());
+        // The helicopter is part of the running pursuit only: one that leaves after an escape is not shown.
+        let helicopter =
+            self.police.helicopter_status().zip(self.police.helicopter_blip()).filter(|_| self.is_pursuing());
         let reported = self.police.roadblock_standing();
         PoliceIntel {
             sightings: sighted(cops),

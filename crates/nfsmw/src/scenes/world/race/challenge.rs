@@ -318,9 +318,11 @@ impl WorldScene {
             cops_damaged: traffic.cops_damaged(),
             cops_destroyed: traffic.cops_destroyed(),
             roadblocks_dodged: challenge.roadblocks_dodged,
+            spike_strips_dodged: challenge.spikes_dodged,
             cost_to_state: traffic.cost_to_state(),
             infractions: traffic.infractions().count(),
             goal: challenge.goal(),
+            page: crate::viewer::PursuitPage::Challenge,
         });
         if let Some(mut run) = challenge.final_run.take() {
             let keep = self.final_race_frame(session, &mut run, sim_dt);

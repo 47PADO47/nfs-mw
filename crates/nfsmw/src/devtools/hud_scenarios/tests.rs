@@ -31,7 +31,7 @@ fn the_names_parse_back_and_are_unique() {
     let mut names: Vec<&str> = HudScenario::ALL.iter().map(|s| s.name()).collect();
     names.sort_unstable();
     names.dedup();
-    assert_eq!(names.len(), 13);
+    assert_eq!(names.len(), 14);
 }
 
 #[test]
@@ -125,7 +125,8 @@ fn the_search_knows_only_the_last_known_place() {
     assert_eq!(state.pursuit_phase, PursuitPhase::Search);
     assert!(state.police_intel.sightings.is_empty());
     assert_eq!(state.police_intel.last_known.unwrap().age_secs, 3.0);
-    assert_eq!(state.police_intel.helicopter.unwrap().position, None, "a blind helicopter is not placed");
+    let helicopter = state.police_intel.helicopter.unwrap();
+    assert!(!helicopter.in_sight && helicopter.position.is_some(), "a blind helicopter still flies in the chase");
     assert!(!state.pursuit.unwrap().cooldown);
     assert!(state.events.contains(&HudEvent::ContactLost));
 }
