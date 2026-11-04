@@ -21,6 +21,28 @@ where the city map pictures `TRACK_MAP_<event>` come from; the rewrite reads the
 The handler `0x00551530` has no function in Ghidra (`get_functions` fails there), as with the other handlers of the
 registry.
 
+## Milestones and bounty map **[exe]**
+
+Read through the Ghidra MCP this pass. Program identity checked: SHA-256
+`80774c2e5d619b4f120b48d4462896fd504c263399d203a238769cffde1d253c`, the unmodded reference. The milestones fill
+(`0x00552440`) calls the row's map routine `0x005481C0`; the bounty fill (`0x005529F0`) calls the twin `0x00548300`.
+Both take the page's map object (`+0xE4`, built by `0x0055A280`) and the `TRACK_MAP` FEng object
+(`+0xE8`, looked up in the constructors `0x0055A9A0` and `0x0055ACA0`), then:
+
+- store the map settings with no event and no unlock index (`0x00546400`), so the texture name is `TRACK_MAP`
+  (`0x00510AC0`, `0x0051DBC0`: event set gives `TRACK_MAP_<event>`, unlock index set gives `TRACK_MAP_UNLOCK_%d`);
+- set the zoom to 1 and snap it, take the marker's map position and bearing (`0x005E44D0`), set the pan target to the
+  position and the zoom target to 0.27 (`0x3E8A3D71`); the zoom is the side of the view, as `ZoomToTrack` (`0x00510D30`)
+  sets it to the bounds' extent and `PanToTrack` (`0x00510DA0`) the pan to their centre;
+- turn the group `0xAF51DD73` about z by the bearing (`0x00514E20`, degrees to radians).
+
+`0x005E44D0` reads the marker's `Position` (`0x9F743A0E`) and `Rotation` (`0x5A6A57C6`), places the position with track
+2000's calibration (`0x00567510`, the formula of `Calibration::to_map`), turns (0, 0, 1) by the rotation and takes
+`bATan(-x, z)` (`0x0045DED0`, `atan2` of its second argument over its first) in 1/65536 turns, as degrees.
+
+`nfsmw dump-screen`: in both packages the picture `0x0F365871` is a multi image at (139, 90), 290 wide, drawn with
+`BasePoly.tga` until a texture is set; the pin group is at (139, 90) (milestones) and (139, 87) (bounty).
+
 ## Packages **[verified]**
 
 `nfsmw dump-screen` of the three packages: the same counter, map, scroll arrow and icon grid objects; the race sheet's detail

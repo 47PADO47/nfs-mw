@@ -4,17 +4,19 @@
 //! A milestone that is banked, and a speed trap that is done, show as complete and Accept does nothing on them. A locked
 //! one (its bin is not reached) is greyed. Any other asks `REP_SHEET_MILESTONE_CONFIRM` (`REP_SHEET_PHOTOTICKET_CONFIRM`
 //! for a speed trap) and, on Yes, the car goes to the entry's spawn point ([`Command::JumpTo`]); a milestone's jump then
-//! starts a chase there, a speed trap's does not.
+//! starts a chase there, a speed trap's does not. The map shows the city about the entry's spawn point (`pin.rs`).
 
 use blackbox_feng::fe_hash_upper;
+use blackbox_minimap::Calibration;
 use blackbox_text::label_hash;
 use glam::Vec3;
 use nfsmw_career::milestones::speedtrap::SpeedTrap;
 use nfsmw_career::milestones::{Milestone, MilestoneSet, MilestoneState, StatType};
 use nfsmw_data::gameplay::GameplayData;
 
-use super::{Ask, Page, Status};
+use super::{Ask, Page, Status, pin};
 use crate::career::CareerHandle;
+use crate::frontend::challenge_series::Crop;
 use crate::frontend::logic::{Command, Cx};
 use crate::i18n::fmt::grouped;
 use crate::i18n::t;
@@ -138,9 +140,10 @@ pub fn goal_text(stat: StatType, goal: f32) -> String {
     }
 }
 
-/// The rows of the milestones sheet.
+/// The rows of the milestones sheet, and the open city's calibration for the map (`None`: no map).
 pub struct MilestonePage {
     rows: Vec<MilestoneRow>,
+    city: Option<Calibration>,
 }
 
 impl MilestonePage {
@@ -149,7 +152,7 @@ impl MilestonePage {
         let rows = CareerHandle::shared()
             .with(|career| milestone_rows(&career.milestones, &career.traps, &career.data.gameplay, bin))
             .unwrap_or_default();
-        MilestonePage { rows }
+        MilestonePage { rows, city: pin::city() }
     }
 }
 
@@ -242,6 +245,14 @@ impl Page for MilestonePage {
         Some(Ask { label: label_hash(label), then: Command::JumpTo(point) })
     }
 
+    fn map(&self, at: usize) -> Option<(u32, Crop)> {
+        Some(pin::view(self.city.as_ref()?, self.rows.get(at)?.spawn.as_ref()?))
+    }
+
+    fn pin(&self, at: usize) -> Option<f32> {
+        self.rows.get(at)?.spawn.as_ref().map(pin::bearing)
+    }
+
     /// The sheet starts on the first milestone still to do.
     fn first(&self) -> usize {
         self.rows.iter().position(|row| row.status() == Status::Open).unwrap_or(0)
@@ -273,7 +284,7 @@ mod chase_tests {
 
     fn asked(entry: Entry) -> Option<Command> {
         let spawn = Some(jump_point(Vec3::new(1.0, 2.0, 3.0), Some(10.0)));
-        MilestonePage { rows: vec![MilestoneRow { entry, spawn }] }.ask(0).map(|ask| ask.then)
+        MilestonePage { rows: vec![MilestoneRow { entry, spawn }], city: None }.ask(0).map(|ask| ask.then)
     }
 
     #[test]
@@ -288,5 +299,18 @@ mod chase_tests {
         let trap = Entry::Trap { threshold: 150, bounty: 5_000, unlocked: true, done: false, best: 0.0 };
         assert!(matches!(asked(pursuit), Some(Command::JumpTo(point)) if point.chase));
         assert!(matches!(asked(trap), Some(Command::JumpTo(point)) if !point.chase));
+    }
+
+    #[test]
+    fn the_map_shows_the_city_about_the_spawn_point() {
+        let entry = Entry::Trap { threshold: 150, bounty: 5_000, unlocked: true, done: false, best: 0.0 };
+        let spawn = Some(jump_point(Vec3::new(-250.0, 0.0, 500.0), Some(0.0)));
+        let rows = vec![MilestoneRow { entry: entry.clone(), spawn }, MilestoneRow { entry, spawn: None }];
+        let page = MilestonePage { rows, city: Some(Calibration { origin: [0.0, 0.0], width: 1000.0 }) };
+        let (texture, crop) = page.map(0).expect("a map");
+        assert_eq!((texture, crop.centre), (fe_hash_upper("TRACK_MAP"), [0.5, 0.75]));
+        assert!(page.pin(0).is_some_and(|bearing| (bearing - 90.0).abs() < 1e-3));
+        assert_eq!((page.map(1), page.pin(1)), (None, None), "no spawn point, no map");
+        assert_eq!(MilestonePage { city: None, ..page }.map(0), None, "no calibration, no map");
     }
 }
