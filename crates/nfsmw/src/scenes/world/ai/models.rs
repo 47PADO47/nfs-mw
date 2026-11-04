@@ -281,11 +281,8 @@ fn cop_job(scene: &mut WorldScene, name: &str, load: CopLoad) -> Result<Job, Str
     let CopLoad { folder, model } = load;
     log::debug!("cop car {name}: using geometry from {folder}");
     let car_type = requested_type(scene, name, &model);
-    let physics = scene
-        .physics
-        .car(&car_type)
-        .or_else(|_| scene.physics_of(&model))
-        .map_err(|e| format!("{name}: {e:#}"))?;
+    let physics =
+        scene.physics.car(&car_type).or_else(|_| scene.physics_of(&model)).map_err(|e| format!("{name}: {e:#}"))?;
     let ai = ai_vehicle(scene.physics.database(), &car_type);
     let light_fx = CopLightFx::read(scene.physics.database(), &model);
     let hashes: Vec<u32> = light_fx
