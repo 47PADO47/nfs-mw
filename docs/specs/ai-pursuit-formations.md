@@ -102,8 +102,13 @@ Each pursuit tick (`UpdateFormation`, needs a valid target with a vehicle AI and
 
 1. `formation.Update(dT)` (tightening, herd lateral offset).
 2. **Candidates.** For each cop in the pursuit: skip support vehicles; set `InFormation = false`; a helicopter instead gets
-   the helicopter goal (section 7); a car is a candidate when it is drivable-to the target (clear ray) and within
-   `60 + distance(target, its road point)` metres. Its position is converted to the target frame.
+   the helicopter goal (section 7); a car is a candidate when it is drivable-to the target and within
+   `60 + distance(target, its road point)` metres. Its position is converted to the target frame. Drivable-to is the
+   vehicle AI's own flag, refreshed with its targeting: the two body positions are at most 200 m apart, and a world ray
+   between them, both ends 0.5 m up, that tests **barriers only** (no faces, exclusion mask 0, switched-off scenery
+   groups skipped) meets no barrier farther than 0.71 m (squared distance 0.5) from the target end. It is not the cop's
+   sight ray: road crests and decks never stop a candidate. **[decomp; barrier-only query and group filter confirmed in
+   the PC disassembly]**
 3. **Choose slots (`EvenOutOffsets`).** While there are more candidates than chosen slots and fewer than `MaxCops`
    chosen: among the unchosen slots whose priority is not larger than the best priority seen so far, take the one with the
    smallest summed distance to all candidates. This fills slots in priority order, each time taking the one the cops

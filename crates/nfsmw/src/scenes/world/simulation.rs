@@ -202,11 +202,12 @@ impl WorldScene {
             }
             let cast = super::drive::sight::sight_cast(collision);
             let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
+            let drivable = super::drive::sight::drivable_cast(collision);
             traffic.note_player_height(drive.half_height());
             if self.extra.testing.lock_heat {
                 traffic.set_extra_heat(Some(self.extra.testing.heat));
             }
-            traffic.update_police(dt, &view, &clear);
+            traffic.update_police_with(dt, &view, &clear, &drivable);
             // The pursuit camera reads the bust after the police's tick, on the same clock.
             drive.update_pursuit(dt, pursuit_feed(traffic, view.position));
         }

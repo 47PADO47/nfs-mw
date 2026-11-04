@@ -91,7 +91,8 @@ impl TrafficWorld {
     }
 
     /// The layout of the cops around `target`. `extras` places the cops without a slot on the grid behind the
-    /// formation (their aims); the slots, the membership and every slotted cop's aim are the same without it.
+    /// formation (their aims); the slots, the membership and every slotted cop's aim are the same without it. `clear`
+    /// is the drive test between two body positions (`drive::sight::drivable_cast` in the game).
     fn formation_layout_with(
         &self,
         target: Vec3,
@@ -133,7 +134,7 @@ impl TrafficWorld {
             .iter()
             .map(|&i| {
                 let position = self.cars[i].avoidable().position;
-                position.distance(target) < range && clear(position + Vec3::Y, target + Vec3::Y)
+                position.distance(target) < range && clear(position, target)
             })
             .collect();
         let mut slots_of = vec![None; cops.len()];
