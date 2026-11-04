@@ -178,6 +178,7 @@ impl WorldScene {
         self.update_extra_view(camera_dt);
         self.feed_focus(renderer, sim_dt);
         self.update_pursuit_reference(renderer);
+        self.update_jump_chase(renderer);
         self.update_pursuit_trace(sim_dt);
         let lens = self.gameplay_lens(renderer.aspect_ratio());
         let environment = self

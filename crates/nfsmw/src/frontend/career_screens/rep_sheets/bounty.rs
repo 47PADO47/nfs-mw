@@ -159,7 +159,7 @@ impl Page for BountyPage {
 
     fn ask(&self, at: usize) -> Option<Ask> {
         let row = self.rows.get(at)?;
-        Some(Ask { label: label_hash("REP_SHEET_BOUNTY_CONFIRM"), then: Command::JumpTo(row.jump) })
+        Some(Ask { label: label_hash("REP_SHEET_BOUNTY_CONFIRM"), then: Command::JumpTo(row.jump.with_chase()) })
     }
 }
 

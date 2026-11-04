@@ -105,8 +105,8 @@ remnant of another platform. The rewrite should use the threshold only.
 `SpawnPoint` is shared: bins 1 to 8 point at `milestones/bin_08/taggedcarmarker1` (map position 1226.2, -273.4, 108.6,
 heading -13.0), bins 9 to 12 at `milestones/bin_12/taggedcarmarker1` (4503.0, 779.9, 56.1, heading -77.5), bins 13 to 15
 at `milestones/bin_15/taggedcarmarker1` (1678.6, 2514.2, 150.3, heading 179.3). The one exception is the bin 10 bounty
-goal, which points at a collection named `milestones/default_spawn_point`. **[verified]** The code only uses the key to
-place a pin (section 5); that these are launch points of a pursuit is **[unconfirmed]**.
+goal, which points at a collection named `milestones/default_spawn_point`. **[verified]** The key places the selected
+row's map pin and is where a launch from the rap sheet puts the car before its chase starts (section 5). **[exe]**
 
 A template `milestone_challenge` (an activity with `MilestoneName`, `ThreshholdValue`, `Bounty`, `AutoStart`) and a
 `milestone_monitor` activity exist with their script state graphs, but **no collection in the install has them as a
@@ -342,7 +342,7 @@ message); which is live was not decided. The race rules themselves belong to the
 
 | Package | In | Role |
 |---|---|---|
-| `InGameMilestones.fng` | `GLOBAL/InGameB.bun`, 117 objects, 9 buttons | the pause-menu milestones list; **[unconfirmed]** which routine opens it |
+| `InGameMilestones.fng` | `GLOBAL/InGameB.bun`, 117 objects, 9 buttons | the pause-menu milestones list: the Blacklist overview's second entry opens it in game, `SafeHouseMilestones` in the safe house ([career-rapsheet-2.md](career-rapsheet-2.md) 5) |
 | `PostRace_MilestoneRewards.fng` | `GLOBAL/InGameB.bun`, 51 objects, no buttons | the rewards screen of the summary list (3.6) |
 | `SafeHouseMilestones.fng`, `SafehouseMilestones_HELP.fng` | `FRONTEND/FrontB.lzc`, 164 and 18 objects | the rap sheet milestones page and its help |
 | `Hud_MilestoneBoard` (FEng element) | HUD | four slots `MILSTONE_ICON_n` (sic) with `MILESTONE_ICON_BACKING_n`, groups `MILESTONE_INFO_GROUP` and `MILESTONE_ICON_GROUP`, built for the profile's current bin during a chase; see [hud-milestone-board.md](hud-milestone-board.md) |
@@ -358,8 +358,10 @@ minutes:seconds; 2 for plain numbers), the short label, the statistic's current 
 labels `BLACKLIST_PURSUIT_MILESTONES_NN` (long form, one `%s` for the goal) and `_SHORT` (title); `HUD_MILESTONE_COMPLETE`
 ("Milestone Complete!"), `HUD_CHALLENGE_COMPLETE`, `HUD_MILESTONES`, `BL_MILESTONE_WINS`, `MILESTONES_ACHIEVED`,
 `HELP_MILESTONES` and `REP_SHEET_MILESTONE_CONFIRM` exist in `LANGUAGES/English.bin`. The help text says a minimum number
-of milestones is needed before the next rival and that launching a milestone from the rap sheet starts a pursuit;
-the code path that launches one was not found.
+of milestones is needed before the next rival and that launching a milestone from the rap sheet starts a pursuit. The
+launch puts the car on the milestone's `SpawnPoint` marker, clears the traffic and the cops and starts a chase at the
+car's heat, at least level 1; a speed trap's launch only moves the car ([career-rapsheet-2.md](career-rapsheet-2.md)
+5.2). The `SpawnPoint` key is the attribute hash of the name, read by the launch.
 
 ## 6. Gate of the bin's rival (condition only)
 
@@ -412,8 +414,9 @@ pay cash.
 2. The divisor read by `AwardPlayerBounty` (3.6).
 3. What interface slot `+0x18` of the pursuit returns when `pursuit_evasion_time` is set, and whether the gate in front of
    the escape routine tests "is player" or "has escaped".
-4. Which routine opens `InGameMilestones.fng`. (The board's filler is found: [hud-milestone-board.md](hud-milestone-board.md).)
-5. How a milestone is launched from the rap sheet ("jump to location and start a pursuit").
+4. ~~Which routine opens `InGameMilestones.fng`.~~ The Blacklist overview's handler, by the selected entry and whether
+   the game runs (section 5).
+5. ~~How a milestone is launched from the rap sheet.~~ [career-rapsheet-2.md](career-rapsheet-2.md) 5.2.
 6. Whether `MilestoneCompleteHeatAdjust` is used anywhere.
 7. The 12 statistic types with no producer: whether they were meant for other modes.
 8. Which of the two challenge-race progress handlers is live, and the exact meaning of `MilestoneType` 3.

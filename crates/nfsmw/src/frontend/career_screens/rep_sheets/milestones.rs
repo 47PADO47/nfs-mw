@@ -3,7 +3,8 @@
 //!
 //! A milestone that is banked, and a speed trap that is done, show as complete and Accept does nothing on them. A locked
 //! one (its bin is not reached) is greyed. Any other asks `REP_SHEET_MILESTONE_CONFIRM` (`REP_SHEET_PHOTOTICKET_CONFIRM`
-//! for a speed trap) and, on Yes, the car goes to the entry's spawn point ([`Command::JumpTo`]).
+//! for a speed trap) and, on Yes, the car goes to the entry's spawn point ([`Command::JumpTo`]); a milestone's jump then
+//! starts a chase there, a speed trap's does not.
 
 use blackbox_feng::fe_hash_upper;
 use blackbox_text::label_hash;
@@ -233,9 +234,10 @@ impl Page for MilestonePage {
     fn ask(&self, at: usize) -> Option<Ask> {
         let row = self.rows.get(at).filter(|row| row.status() == Status::Open)?;
         let point = row.spawn?;
-        let label = match row.entry {
-            Entry::Trap { .. } => "REP_SHEET_PHOTOTICKET_CONFIRM",
-            Entry::Pursuit { .. } => "REP_SHEET_MILESTONE_CONFIRM",
+        // A milestone's jump starts its chase; a speed trap's only moves the car.
+        let (label, point) = match row.entry {
+            Entry::Trap { .. } => ("REP_SHEET_PHOTOTICKET_CONFIRM", point),
+            Entry::Pursuit { .. } => ("REP_SHEET_MILESTONE_CONFIRM", point.with_chase()),
         };
         Some(Ask { label: label_hash(label), then: Command::JumpTo(point) })
     }
@@ -263,4 +265,28 @@ fn entry_icon(entry: &Entry) -> u32 {
         StatType::TireSpikesDodged => "Milestone_SpikeStrips",
         _ => "Milestone_Main",
     })
+}
+
+#[cfg(test)]
+mod chase_tests {
+    use super::*;
+
+    fn asked(entry: Entry) -> Option<Command> {
+        let spawn = Some(jump_point(Vec3::new(1.0, 2.0, 3.0), Some(10.0)));
+        MilestonePage { rows: vec![MilestoneRow { entry, spawn }] }.ask(0).map(|ask| ask.then)
+    }
+
+    #[test]
+    fn a_milestones_jump_starts_a_chase_and_a_speed_traps_does_not() {
+        let pursuit = Entry::Pursuit {
+            stat: StatType::PursuitLength,
+            goal: 120.0,
+            bounty: 10_000,
+            state: MilestoneState::Active,
+            label: None,
+        };
+        let trap = Entry::Trap { threshold: 150, bounty: 5_000, unlocked: true, done: false, best: 0.0 };
+        assert!(matches!(asked(pursuit), Some(Command::JumpTo(point)) if point.chase));
+        assert!(matches!(asked(trap), Some(Command::JumpTo(point)) if !point.chase));
+    }
 }

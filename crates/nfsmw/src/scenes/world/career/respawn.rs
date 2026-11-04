@@ -82,7 +82,8 @@ impl WorldScene {
 
     /// The world starts with the car at a milestone's or a bounty place's spawn point from the rap sheet's pages
     /// (`career-rapsheet-2.md` section 5.1): exactly on the marker, facing its `Rotation`, stopped, as a garage exit is
-    /// put on its marker. A point without a heading puts the car on the road nearest it, as a respawn does.
+    /// put on its marker. A point without a heading puts the car on the road nearest it, as a respawn does. A milestone's or a
+    /// bounty place's point then starts a chase there (`jump_chase.rs`).
     pub fn start_at_point(&mut self, point: crate::career::JumpPoint) -> bool {
         let at = point.xy();
         (self.camera.position.x, self.camera.position.y) = (at[0], at[1]);
@@ -92,6 +93,9 @@ impl WorldScene {
             None => drive.respawn_near(at, None),
         }
         self.career.respawn.guests_behind = true;
+        if point.chase {
+            self.arm_jump_chase();
+        }
         log::info!("career: the car jumps to ({:.0}, {:.0})", at[0], at[1]);
         true
     }

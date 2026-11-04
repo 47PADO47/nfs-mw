@@ -10,6 +10,9 @@ pub struct JumpPoint {
     /// The marker's heading in render space, radians from +X. `None` (no `Rotation`): the car goes on the road
     /// nearest the place instead.
     pub heading: Option<f32>,
+    /// A milestone's or a bounty place's jump: the roads are cleared and a chase starts once the car stands there. A
+    /// speed trap's jump only moves the car (`docs/specs/career-rapsheet-2.md` section 5.2).
+    pub chase: bool,
 }
 
 impl JumpPoint {
@@ -17,7 +20,16 @@ impl JumpPoint {
     pub fn from_marker(physics: Vec3, rotation_deg: Option<f32>) -> JumpPoint {
         // Physics (x, y, z) is render (z, -x, y). A `Rotation` R faces physics (-sin R, 0, cos R), which is render
         // (cos R, sin R): the render heading is R itself.
-        JumpPoint { at: Vec3::new(physics.z, -physics.x, physics.y), heading: rotation_deg.map(f32::to_radians) }
+        JumpPoint {
+            at: Vec3::new(physics.z, -physics.x, physics.y),
+            heading: rotation_deg.map(f32::to_radians),
+            chase: false,
+        }
+    }
+
+    /// The same point, with the chase a milestone's or a bounty place's jump starts.
+    pub fn with_chase(self) -> JumpPoint {
+        JumpPoint { chase: true, ..self }
     }
 
     /// The map position, render x and y.
@@ -43,6 +55,7 @@ mod tests {
         let point = JumpPoint::from_marker(Vec3::new(1.0, 2.0, 3.0), None);
         assert_eq!(point.at, Vec3::new(3.0, -1.0, 2.0));
         assert_eq!(point.heading, None);
+        assert!(!point.chase && point.with_chase().chase);
         assert_eq!(point.xy(), [3.0, -1.0]);
     }
 }
