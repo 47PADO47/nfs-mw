@@ -76,6 +76,7 @@ impl InfoRecord<'_> {
             alpha_sorting: self.raw[l.alpha_sorting] != 0,
             alpha_blend: self.raw[l.alpha_blend],
             flags: self.raw[l.flags],
+            tilable_uv: self.raw[l.tilable_uv],
             data,
             palette,
         }

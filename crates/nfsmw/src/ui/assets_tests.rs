@@ -66,6 +66,7 @@ fn texture(hash: u32, pixels: [[u8; 4]; 3], blend: u8) -> Texture {
         alpha_sorting: true,
         alpha_blend: blend,
         flags: 0,
+        tilable_uv: 0,
         data: pixels.into_iter().flat_map(|[r, g, b, a]| [b, g, r, a]).collect(),
         palette: Vec::new(),
     }

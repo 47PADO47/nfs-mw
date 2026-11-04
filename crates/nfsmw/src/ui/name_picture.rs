@@ -48,6 +48,7 @@ fn picture(name: &str, (width, height): (u32, u32), data: Vec<u8>) -> Texture {
         alpha_sorting: false,
         alpha_blend: 1,
         flags: 0,
+        tilable_uv: 0,
         data,
         palette: Vec::new(),
     }

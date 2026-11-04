@@ -23,6 +23,7 @@ fn tile(name: &str) -> Texture {
         alpha_sorting: false,
         alpha_blend: 2,
         flags: 0,
+        tilable_uv: 0,
         data: vec![0, 0, 0, 255],
         palette: Vec::new(),
     }
