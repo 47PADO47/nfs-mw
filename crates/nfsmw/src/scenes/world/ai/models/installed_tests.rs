@@ -21,6 +21,9 @@ fn installed_cop_alias_loads_once_and_discards_duplicate_completions_before_uplo
         },
     )
     .unwrap();
+    // The world queues the NIS police car when it opens (`open.rs`, `nis_poses.rs`); drop it, only the Cross counts.
+    let queued = scene.traffic.as_mut().unwrap().take_model_requests();
+    assert!(queued.contains(&ModelRequest::Support("copmidsize".to_owned())), "{queued:?}");
     let cars = nfsmw_data::car::list(&dir);
     assert!(!cars.iter().any(|folder| folder.eq_ignore_ascii_case("copcross")), "fixture needs an inherited model");
     let fallback = folders(&cars, "copcross", &scene.physics.lineage("copcross"))
