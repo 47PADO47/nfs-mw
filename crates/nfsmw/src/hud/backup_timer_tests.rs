@@ -79,3 +79,18 @@ fn the_row_follows_the_backup_and_shows_its_time() {
     b.apply(&mut rt, &chase(0.0, false));
     assert_eq!(backing(&rt, id), Some(LEAVE), "the backup arrived or was called off");
 }
+
+#[test]
+fn a_row_left_up_by_the_cool_down_goes_when_the_chase_ends_and_stays_down_in_the_next() {
+    let (mut rt, id, mut b) = setup();
+    b.apply(&mut rt, &chase(89.0, false));
+    // The cool-down comes two seconds later: the row keeps its time.
+    b.apply(&mut rt, &chase(0.0, true));
+    assert_eq!((backing(&rt, id), timer(&rt, id)), (Some(APPEAR), "01:29.00".to_owned()));
+    // Evaded: the chase ends with the row up, so it is played out with the board.
+    b.apply(&mut rt, &HudState::default());
+    assert_eq!(backing(&rt, id), Some(LEAVE));
+    // The next chase has no backup on its way: the row stays down.
+    b.apply(&mut rt, &chase(0.0, false));
+    assert_eq!(backing(&rt, id), Some(LEAVE), "no old backup time in the next chase");
+}

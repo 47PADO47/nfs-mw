@@ -42,10 +42,16 @@ impl BackupTimer {
         Self { backing: rt.find(package, BACKING), timer: rt.find(package, TIMER), shown: false }
     }
 
-    /// Once per HUD update. Outside a chase the board's group hides the row with it.
+    /// Once per HUD update. Outside a chase the board's group hides the row with it; a row still up when the chase ends
+    /// (a backup called just before the cool-down, which leaves the row as it was) is played out then, so the next chase
+    /// does not show its old time.
     pub fn apply(&mut self, rt: &mut Runtime, pursuit: Option<PursuitHud>) {
         let Some(pursuit) = pursuit else {
-            self.shown = false;
+            if std::mem::take(&mut self.shown)
+                && let Some(backing) = self.backing
+            {
+                rt.run_script(backing, LEAVE);
+            }
             return;
         };
         if pursuit.cooldown {
