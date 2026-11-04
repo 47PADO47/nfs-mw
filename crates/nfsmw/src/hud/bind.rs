@@ -63,6 +63,7 @@ pub struct HudBinding {
     frame_dt: f32,
     backup_timer: super::backup_timer::BackupTimer,
     cost_to_state: super::cost_to_state::CostToState,
+    total_bounty: super::total_bounty::TotalBounty,
     infractions: super::infractions::Notifier,
     layout: Layout,
     /// The rear-view mirror is shown; the detector chooses its corresponding authored layout.
@@ -127,6 +128,7 @@ impl HudBinding {
             frame_dt: 0.0,
             backup_timer: super::backup_timer::BackupTimer::new(rt, package),
             cost_to_state: super::cost_to_state::CostToState::new(rt, package),
+            total_bounty: super::total_bounty::TotalBounty::new(rt, package),
             infractions: super::infractions::Notifier::new(rt, package),
             layout: Layout::new(rt, package),
             mirror_frames: [None; 2],
@@ -220,6 +222,7 @@ impl HudBinding {
         // The game feeds the flasher the chase's cost to state only while a chase runs.
         let cost = s.pursuit.map(|_| s.police_intel.cost_to_state);
         let cost_script = self.cost_to_state.advance(cost, self.frame_dt);
+        let bounty_script = self.total_bounty.advance(s.total_bounty, self.frame_dt);
         let shown = Shown {
             nitrous: s.has_nos,
             turbo: s.has_turbo,
@@ -240,9 +243,11 @@ impl HudBinding {
             message: s.message.is_some() || self.race.message_active(),
             milestones: s.milestone_board.is_some() && s.pursuit.is_some(),
             cost_to_state: self.cost_to_state.shown(),
+            total_bounty: self.total_bounty.shown(),
         };
         self.layout.update(rt, shown);
         self.cost_to_state.apply(rt, cost_script);
+        self.total_bounty.apply(rt, bounty_script);
         self.infractions.apply(rt, s.pursuit.map(|p| p.infractions));
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
         let alpha = mirror_fade_alpha(self.mirror_elapsed);

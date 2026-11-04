@@ -47,6 +47,8 @@ pub(in crate::scenes::world) struct PursuitWatch {
     safe_house_unloaded: bool,
     /// The counts only the world sees (cops involved, damaged, helicopters), for the rap sheet.
     tally: ChaseTally,
+    /// The career's total bounty after the last chase ended (banked or not), for the HUD's TOTAL BOUNTY flasher.
+    total_bounty: Option<u32>,
 }
 
 impl PursuitWatch {
@@ -54,6 +56,11 @@ impl PursuitWatch {
     /// not multiply that car again (`nfsmw_career::safehouse::heat`, the overwrite quirk).
     pub(in crate::scenes::world) fn note_safe_house_unload(&mut self) {
         self.safe_house_unloaded = true;
+    }
+
+    /// The career's total bounty as the last chase's end left it; `None` before a chase has ended.
+    pub(in crate::scenes::world) fn total_bounty(&self) -> Option<u32> {
+        self.total_bounty
     }
 }
 
@@ -208,8 +215,11 @@ impl WorldScene {
                 phone.queue_bin_messages(&mut career.settings.sms, bin_messages(bin, BinMoment::Challenges(count)));
             }
             let total = u32::try_from(career.stable.total_bounty()).unwrap_or(u32::MAX);
-            career.blacklist.bounty_changed(total)
+            (career.blacklist.bounty_changed(total), total)
         });
+        let (bins, total) = bins.unzip();
+        // The HUD is given the total at each chase's end, banked or not (`docs/specs/hud-pursuit.md`, "Total bounty").
+        self.career.pursuit.total_bounty = total.or(self.career.pursuit.total_bounty);
         if let Some(bins) = bins
             && !bins.is_empty()
         {

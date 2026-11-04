@@ -25,6 +25,8 @@ const TIMER: u32 = 0xbee4_4775;
 /// The cops group and its engaged count, which sits where the cool-down's hiding icon (`0x38074901`) shows.
 const COPS: u32 = 0xe0b1_430b;
 const ENGAGED: u32 = 0x8149_18ca;
+/// The career's total bounty flasher.
+const TOTAL_BOUNTY: u32 = 0xea90_3012;
 
 fn open() -> Option<(GameDir, Runtime, PackageId)> {
     let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR")?).ok()?;
@@ -213,4 +215,32 @@ fn each_new_infraction_pops_a_row_with_its_label_and_the_count_then_the_notifier
         !visible(&rt, id, fe_hash_upper(ICON)) && !visible(&rt, id, fe_hash_upper(COUNT)),
         "the icon left with them"
     );
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn a_new_career_total_bounty_flashes_for_two_seconds() {
+    let Some((_, mut rt, id)) = open() else { return };
+    rt.set_string_resolver(|l| (l == 0x7D01_71E4).then(|| "TOTAL BOUNTY:".to_owned()));
+    let mut b = HudBinding::new(&mut rt, id);
+    let career = |total: Option<u32>| HudState { career_bounty: Some(0), total_bounty: total, ..Default::default() };
+    let frame = |rt: &mut Runtime, b: &mut HudBinding, state: &HudState| {
+        b.advance_mirror_fade(0.1);
+        step(rt, b, state, 0.1);
+    };
+    let text =
+        |rt: &Runtime, hash: u32| rt.tree(id).nodes.iter().find(|n| n.name_hash == hash).and_then(|n| n.text.clone());
+    frame(&mut rt, &mut b, &career(None));
+    assert!(!visible(&rt, id, TOTAL_BOUNTY), "no chase has ended: the flasher rests hidden");
+    for _ in 0..5 {
+        frame(&mut rt, &mut b, &career(Some(1_250_000)));
+    }
+    assert_eq!(rt.script_of(rt.find(id, TOTAL_BOUNTY).expect("the group")), Some(APPEAR));
+    assert!(visible(&rt, id, TOTAL_BOUNTY), "a new total shows");
+    assert_eq!(text(&rt, 0x9B0A_C8CA).as_deref(), Some("1,250,000"));
+    assert_eq!(text(&rt, 0x41A5_5ECF).as_deref(), Some("TOTAL BOUNTY:"));
+    for _ in 0..30 {
+        frame(&mut rt, &mut b, &career(Some(1_250_000)));
+    }
+    assert!(!visible(&rt, id, TOTAL_BOUNTY), "after two seconds it has played out");
 }

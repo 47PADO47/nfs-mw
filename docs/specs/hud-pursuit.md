@@ -47,6 +47,7 @@ The detailed radar and signed meter contract is
 | Bounty row / `0x8674e6d4`, number `0x875e92eb` | The chase's pending bounty, shown with the board in every chase (below, "Bounty row"). |
 | `CTS_GROUP` / `0xd60fc075`, number `0x3ff5f33c`, title `0x64247241` | The cost-to-state flasher (below, "Cost to state"). |
 | `GENERIC_ICONS`, `TOTAL_INFRACTIONS_TEXT`, `INFRACTION_GROUP_1`..`4` | The infraction notifier (below, "Infraction notifier"). |
+| Total bounty / `0xea903012`, number `0x9b0ac8ca`, title `0x41a55ecf` | The career's total bounty flasher (below, "Total bounty"). |
 
 The radar backing and group no longer receive the earlier +75/+15 unit shifts.
 Those shifts aligned the mirror-oriented initial poses in the standalone view,
@@ -64,7 +65,7 @@ size over the newly calculated fixed edge.
 | Feature | Status |
 |---|---|
 | Heat arcs / `0x862824c9`, `0x4b2cbe1b` | Held hidden; the original mask-to-heat mapping is not implemented. |
-| Total bounty / `0xea903012`, cash / `0x3f8644ca` | Not bound: the career's flashers of the stable's total bounty and the cash. They rest hidden. |
+| Cash / `0x3f8644ca` | Not bound: a flasher of the career's cash. It rests hidden. |
 | Radar audio/targets | Native ground selection, range, cone and per-update ramp are bound. Detector click and speed-camera selection remain absent; roll-sensitive lateral orientation remains unverified. |
 | View mode | The rear-view setting selects the detector layout. Original view-specific rear-view eligibility still needs comparison. |
 | Fades/sounds | Radar/meter transforms and transitions run from installed scripts; full HUD event and sound dispatch remains incomplete. |
@@ -95,6 +96,30 @@ score option is on.
 The rewrite (`hud/cost_to_state.rs`) runs the 120 updates as 2 s **[inferred]** (the HUD's update rate was not timed)
 and shows it in every chase: the rewrite has no score option, and its free roam outside the career counts the cost as
 the career does. Tests: `hud::cost_to_state` (the rule) and `hud::pursuit_tests` (the binding).
+
+## Total bounty
+
+**[decomp]** for the element, **[binary]** for its feed, **[verified]** for the objects. A group beside `CTS_GROUP`
+holds a title ("TOTAL BOUNTY:"), a number and an info panel; its `INIT` chains to `HIDE` and its appear and leave last
+600 ms. The game builds the element only in the standard single-player HUD of a career race context, and enables it as
+it does the cost to state (the score option, in a career context or a pursuit race). It holds the last total it was
+given, starting from 0 when the HUD is built. A total other than the one it holds replaces it and keeps it up for 120
+HUD updates; the same total does nothing. While it is up the title takes the language label `HUD_TOTALBOUNTY` and the
+number prints the total with the thousands separator (`%$d`); the first update up plays the appear when the group is not
+playing it, the first update after plays the leave when it is.
+
+The total comes from one place **[binary]**: when the cop manager removes a finished pursuit of the player, it banks the
+chase's points into the car's record and gives the HUD the career's total bounty, the stable's sum over its cars plus
+the bounty of the cars sold (`Stable::total_bounty`). That happens at the end of every chase, evaded or busted (a bust
+banks nothing, so its total is the same and shows nothing). A speed trap or a milestone that adds bounty between chases
+shows at the next chase's end, if the total then differs. Whether a race's chase reaches the call is not resolved.
+
+The rewrite (`hud/total_bounty.rs`, fed by `HudState::total_bounty`) keeps the total the last chase's end left
+(`scenes/world/career/pursuit.rs`) and gives it every frame in career mode; the flasher shows a change of it. The 120
+updates run as 2 s, as for the cost to state **[inferred]**. The rewrite's HUD outlives a world session, so a total
+equal to the one the HUD last showed does not show again after the world reloads **[inferred]** (the original builds a
+new element). Tests: `hud::total_bounty` (the rule), `scenes::world::career::hud` (career mode only) and
+`hud::pursuit_install_tests` (the real package).
 
 ## Infraction notifier
 

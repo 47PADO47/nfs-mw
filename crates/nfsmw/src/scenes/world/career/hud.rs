@@ -23,6 +23,8 @@ pub(in crate::scenes::world) struct CareerHud {
     cash: u32,
     /// The chase's own pending points while a chase runs, for the Custom HUD's pursuit panel; `None` with no chase.
     chase: Option<u32>,
+    /// The career's total bounty after the last chase ended, for the TOTAL BOUNTY flasher; `None` before one ended.
+    total_bounty: Option<u32>,
 }
 
 impl CareerHud {
@@ -30,7 +32,14 @@ impl CareerHud {
     /// career record); `pending` is the chase's pending points.
     pub(in crate::scenes::world) fn new(car: Option<(u32, f32)>, pending: u32) -> Self {
         let (banked, heat) = car.unwrap_or((0, 0.0));
-        Self { on: true, bounty: bounty_row(banked, pending), car_heat: meter_heat(heat), cash: 0, chase: None }
+        Self {
+            on: true,
+            bounty: bounty_row(banked, pending),
+            car_heat: meter_heat(heat),
+            cash: 0,
+            chase: None,
+            total_bounty: None,
+        }
     }
 
     /// The bounty row's number in career mode; `None` outside it.
@@ -48,6 +57,11 @@ impl CareerHud {
         Self { chase, ..self }
     }
 
+    /// The same values with the career's total bounty as the last chase's end left it (`None` before one ended).
+    pub(in crate::scenes::world) fn with_total_bounty(self, total_bounty: Option<u32>) -> Self {
+        Self { total_bounty, ..self }
+    }
+
     /// The bounty the running chase has earned so far, in career mode; `None` outside it or with no chase.
     pub(in crate::scenes::world) fn chase_bounty(&self) -> Option<u32> {
         self.chase.filter(|_| self.on)
@@ -61,6 +75,7 @@ impl CareerHud {
         }
         state.career_bounty = Some(self.bounty);
         state.cash = Some(self.cash);
+        state.total_bounty = self.total_bounty;
         if state.pursuit.is_some() {
             return;
         }
@@ -96,7 +111,11 @@ impl WorldScene {
         });
         let cash = self.career.handle.with(|career| career.settings.cash).unwrap_or(0);
         let chase = self.traffic.as_ref().filter(|traffic| traffic.is_pursuing()).map(|traffic| traffic.rep_points());
-        self.career.hud = CareerHud::new(car.flatten(), chase.unwrap_or(0)).with_cash(cash).with_chase(chase);
+        let total = self.career.pursuit.total_bounty();
+        self.career.hud = CareerHud::new(car.flatten(), chase.unwrap_or(0))
+            .with_cash(cash)
+            .with_chase(chase)
+            .with_total_bounty(total);
     }
 }
 

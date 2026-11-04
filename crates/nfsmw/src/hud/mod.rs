@@ -88,6 +88,7 @@ mod speedbreaker;
 pub(crate) mod split;
 mod state;
 pub(crate) mod takedown;
+mod total_bounty;
 mod trax;
 /// The HUD layout's viewport math. The Custom radio card (`ui/theme/custom/radio_card`) reuses its `parameters`.
 pub(crate) mod viewport;

@@ -64,6 +64,8 @@ pub struct Shown {
     pub milestones: bool,
     /// The cost-to-state flasher is up or plays out (`hud/cost_to_state.rs`).
     pub cost_to_state: bool,
+    /// The career's total bounty flasher is up or plays out (`hud/total_bounty.rs`).
+    pub total_bounty: bool,
 }
 
 /// The elements and where they sit in the package.
@@ -90,6 +92,8 @@ pub struct Layout {
     milestones: Vec<usize>,
     /// The cost-to-state flasher's group.
     cost_to_state: Vec<usize>,
+    /// The total bounty flasher's group.
+    total_bounty: Vec<usize>,
     /// The infraction notifier: the icon and its rings, the count, the header and the four rows. Always in the layout:
     /// each part rests at zero alpha in its own `HIDE` script until a new infraction plays it.
     infractions: Vec<usize>,
@@ -147,6 +151,7 @@ impl Layout {
             cooldown: find(&COOLDOWN),
             milestones: find(&super::milestone_board::BOARD),
             cost_to_state: find(&[fe_hash_upper(super::cost_to_state::GROUP)]),
+            total_bounty: find(&[super::total_bounty::GROUP]),
             infractions: find(&infraction_roots()),
             race: find(&super::race::root_hashes()),
             race_lap: find(&[super::race::lap_hash()]),
@@ -225,6 +230,9 @@ impl Layout {
         }
         if want.cost_to_state {
             roots.extend(&self.cost_to_state);
+        }
+        if want.total_bounty {
+            roots.extend(&self.total_bounty);
         }
         for root in roots {
             // The root's ancestors have to show for it to show; everything under it shows with it.

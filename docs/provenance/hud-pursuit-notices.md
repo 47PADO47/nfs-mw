@@ -43,3 +43,15 @@ later sections add.
   from the rewrite's police (`scenes/world/hud_pursuit.rs`).
 - Checked by `hud::busted_line` (the rule, the duration format, the argument order) and `hud::busted_overlay` (written
   once per showing, sample text kept without a chase).
+
+## Total bounty flasher
+
+- Spec: [hud-pursuit.md](../specs/hud-pursuit.md), "Total bounty".
+- Sources read (2026-11-04): the original PC 1.3 HUD reputation element's constructor and interface, the only query of
+  that interface (the cop manager's removal of a finished pursuit, which banks the chase and passes the career total),
+  and the total's sum, in Ghidra, for behaviour only. The CC0 `dbalatoni13/nfsmw` `Frontend/HUD/FeReputation.cpp` and
+  `FEPkg_Hud.cpp` for the names and the element's update. No source text copied.
+- **[verified]** The installed `HUD_SingleRace.fng`: the group, its title, number and panel, and their scripts.
+- Implemented in `crates/nfsmw/src/hud/total_bounty.rs`, fed from `scenes/world/career/pursuit.rs` and `hud.rs`.
+- Checked by `hud::total_bounty` (the rule), `scenes::world::career::hud` and the installed
+  `hud::pursuit_install_tests`.
