@@ -15,10 +15,7 @@ use nfsmw_career::economy::apply_game_over_check;
 use nfsmw_career::economy::markers::MarkerKind;
 use nfsmw_career::stable::CareerRecord;
 
-use super::car_lot::{
-    ACCELERATION_STRIPS, HANDLING_STRIPS, Item, Key, SELL_BUTTON, TOP_SPEED_STRIPS, Tab, items, set_bar, show,
-    shown_fractions,
-};
+use super::car_lot::{Item, Key, SELL_BUTTON, Tab, items, set_bars, show, shown_ratings};
 use super::car_select_view::{LABEL_RELEASE, LABEL_USE_MARKER, draw_car, hide_header, hide_lot_lines, set_title};
 use crate::career::{Career, CareerHandle};
 use crate::frontend::confirm::{Alert, Confirm};
@@ -168,15 +165,17 @@ impl CareerCarSelectLogic {
         });
         hide_lot_lines(cx);
         set_title(cx);
-        super::car_lot_look::identity(
-            cx,
-            &super::car_lot_look::Shown { len: rows.len(), cursor: self.cursor, row, cash: career.settings.cash },
-        );
+        let ratings = shown_ratings(career, row);
+        let shown = super::car_lot_look::Shown {
+            len: rows.len(),
+            cursor: self.cursor,
+            row,
+            cash: career.settings.cash,
+            ratings,
+        };
+        super::car_lot_look::identity(cx, &shown);
         show(cx, SELL_BUTTON, false);
-        let fractions = shown_fractions(career, row);
-        set_bar(cx, &TOP_SPEED_STRIPS, fractions[0]);
-        set_bar(cx, &HANDLING_STRIPS, fractions[1]);
-        set_bar(cx, &ACCELERATION_STRIPS, fractions[2]);
+        set_bars(cx, ratings);
         let record = handle.and_then(|handle| record_of(career, handle).copied());
         match (handle, record) {
             (Some(handle), Some(record)) => self.draw_header(cx, career, &record, cost_of(career, handle)),

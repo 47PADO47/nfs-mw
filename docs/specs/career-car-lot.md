@@ -168,7 +168,7 @@ wired yet. The limits (10 purchased cars, 25 records, 20 customs) are values in 
 
 ## Open questions
 
-1. The manufacturer index order and the part-info array of the `frontend` record. The stat bars are answered in part (pass 5, 2026-10-18); the lit-segment rule is still open.
+1. The manufacturer index order and the part-info array of the `frontend` record. The stat bars are answered in part (pass 5, 2026-10-18). The lit-strip rule is answered since: the bars are the garage's `BASE_`, `FILLBAR_` and `HANDLE_<axis>` objects, drawn and rated as in [garage-performance-bars](garage-performance-bars.md#the-car-selects). Which car the car lot's tick marks is still open.
    - [exe][verified] Three bar groups in `Car_Select.fng`: TOP SPEED = group `0xF1737`, ACCELERATION = `0xF172F`, HANDLING = `0xF173F`. Each is a Multi-Textured Image of `LED_main.tga` strips (160 px, uv 0 to 5.0) plus one `LED_DELTA` tick. The shorter first strips (80 / 40 / 120 px) are fixed in the .fng.
    - [exe][verified] Update messages: `0x26C9925F` (TOP SPEED, script `0x5079C8F8`), `0x0B9A1B40` (ACCELERATION), `0x06FE3A05` (HANDLING). Screen start `0x97BDB465` plays `0x033113AC` on all three. Labels: `0x89B304` "TOPSPEED", `0x89B310` "ACCELERATION", `0x89B2F8` "HANDLING".
    - [exe] Two different bar classes exist. **Correction to pass 4:** the 10-segment builder `0x007AFF10` (`HEAT_BASE_LED_%d`, lo 1.0, hi 5.0) is called only for `HEAT_METER` objects (from `0x007B0C30`, `0x007B12B0`, `0x007BB3E0`, and `0x007B4D70` at +0x88). The car-lot bars are not built by it. The `[1, 5]` range in the spec does not apply to them.

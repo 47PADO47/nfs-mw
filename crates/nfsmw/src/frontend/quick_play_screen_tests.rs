@@ -6,7 +6,6 @@ use blackbox_text::label_hash;
 use nfsmw_data::gameplay::RaceType;
 
 use super::*;
-use crate::frontend::career_screens::car_lot_bars::strip_fills;
 use crate::frontend::look::Look;
 use crate::frontend::quick_play::pool::{self, CarPool};
 use crate::frontend::quick_play::{fill, text};
@@ -108,15 +107,20 @@ fn the_brief_fills_every_object_it_owns() {
     }
     let unlock = text::unlock_of(car, stage());
     assert_eq!(node(&h, fill::UNLOCK_GROUP).visible, unlock != text::Unlock::None, "{} at stage {}", car.name, stage());
-    // The bars: the full strip is as wide as the car's fraction of the pool says.
-    let [top, _, _] =
-        car.stats.map_or([0.0; 3], |own| nfsmw_career::carlot::stats::bar_fractions(&own, &cars.population));
-    let strip = node(&h, fill::TOP_SPEED[1].guid);
-    let fills = strip_fills(top, &fill::TOP_SPEED);
-    assert_eq!(strip.visible, fills[1].shown, "{} top speed {top}", car.name);
-    if fills[1].shown {
-        assert!((strip.size.x - fills[1].width).abs() < 0.5, "{} vs {}", strip.size.x, fills[1].width);
-    }
+    // The bars: the dim base keeps its 160 units, the lit strip is 160 units times the car's stock rating.
+    let top = cars.ratings_of(car).map(|endpoints| endpoints.rating(Default::default())[0]);
+    let tree = h.screens.trees().pop().expect("a tree");
+    let named = |name: &str| {
+        tree.nodes
+            .iter()
+            .find(|n| n.name_hash == blackbox_feng::fe_hash_upper(name))
+            .unwrap_or_else(|| panic!("{name}"))
+    };
+    assert_eq!(named("BASE_TOPSPEED").size.x, 160.0);
+    let lit = named("FILLBAR_TOPSPEED");
+    let Some(top) = top.filter(|top| *top > 0.0) else { return assert!(!lit.visible, "{} has no rating", car.name) };
+    assert!(lit.visible, "{} top speed {top}", car.name);
+    assert!((lit.size.x - 160.0 * top).abs() < 0.5, "{} vs {}", lit.size.x, 160.0 * top);
 }
 
 #[test]

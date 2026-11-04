@@ -2,12 +2,11 @@
 
 use blackbox_feng::fe_hash_upper;
 use blackbox_text::label_hash;
-use nfsmw_career::carlot::stats;
 
 use super::pool::{CarPool, PoolCar};
 use super::text::{self, Unlock};
 use crate::frontend::car_title;
-use crate::frontend::career_screens::car_lot::{Strip, set_bar};
+use crate::frontend::career_screens::car_lot::ratings;
 use crate::frontend::logic::Cx;
 use crate::frontend::quick_race::Track;
 use crate::settings::SpeedUnits;
@@ -39,20 +38,6 @@ const UNLOCK_TEXT: u32 = 0x000F_0F0D;
 pub(crate) const OPTION_COLUMN: [u32; 7] =
     [0x000E_DEA1, 0x000E_DEAD, 0x000E_DEA4, 0x000E_DEB3, 0x000E_972C, 0x000E_96F9, 0x000E_96DF];
 
-/// The strips of the three bars: TOP SPEED group `0xF5C77`, ACCELERATION group `0xF5C7E`, HANDLING group `0xF5C85`. Their
-/// geometry is that of `Car_Select.fng`'s bars, only the GUIDs differ.
-pub(crate) const TOP_SPEED: [Strip; 2] = [
-    Strip { guid: 0x000F_5C78, centre_x: -20.0, width: 80.0, uv_width: 2.5 },
-    Strip { guid: 0x000F_5C79, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
-];
-pub(crate) const ACCELERATION: [Strip; 2] = [
-    Strip { guid: 0x000F_5C7F, centre_x: -40.0, width: 40.0, uv_width: 1.25 },
-    Strip { guid: 0x000F_5C80, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
-];
-pub(crate) const HANDLING: [Strip; 2] = [
-    Strip { guid: 0x000F_5C86, centre_x: 0.0, width: 120.0, uv_width: 3.75 },
-    Strip { guid: 0x000F_5C87, centre_x: 20.0, width: 160.0, uv_width: 5.0 },
-];
 /// The `LED_DELTA` ticks of the bars, which compare with another car; the brief compares with none.
 pub(crate) const DELTA_TICKS: [u32; 3] = [0x000F_5C7A, 0x000F_5C81, 0x000F_5C88];
 
@@ -111,13 +96,8 @@ fn show_car(cx: &mut Cx, car: &PoolCar, pool: &CarPool) {
     let (maker, model) = logo_textures(cx.assets, car);
     set_texture(cx, MANUFACTURER_LOGO, maker);
     set_texture(cx, MODEL_LOGO, model);
-    let [top, handling, acceleration] = match car.stats {
-        Some(own) => stats::bar_fractions(&own, &pool.population),
-        None => [0.0; 3],
-    };
-    set_bar(cx, &TOP_SPEED, top);
-    set_bar(cx, &ACCELERATION, acceleration);
-    set_bar(cx, &HANDLING, handling);
+    // The bars as the car selects draw them, stock; the ticks stay hidden (`hide_unused`).
+    crate::frontend::stat_bars::apply(cx.rt, cx.package, ratings(pool, car, Default::default()), None);
 }
 
 /// The unlock line: shown with its sentence for a car the profile lacks, hidden otherwise (by the group's scripts, as the car
