@@ -119,6 +119,11 @@ impl PropBody {
         pose_matrix(pose) * self.inverse_initial * self.visual
     }
 
+    /// How far the body is from the pose it was placed in.
+    pub fn displacement(&self) -> f32 {
+        self.rigid.position.distance(self.initial.position)
+    }
+
     pub fn restore(&mut self, spec: &PropDynamics) {
         self.rigid = self.initial.clone();
         self.rigid.state = blackbox_vehicle::rigid_body::BodyState::Asleep;

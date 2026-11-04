@@ -13,6 +13,7 @@ mod original_camera;
 mod pairs;
 mod phases;
 mod placed;
+mod release;
 pub(super) mod scenery;
 mod sounds;
 mod streaming;

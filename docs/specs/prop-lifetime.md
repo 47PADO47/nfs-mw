@@ -61,6 +61,28 @@ no read of its key was found in the inspected PC executable. The rewrite restore
 released placements and removes released fragment bodies from collision and draw
 registration.
 
+## Placements on destroyed structures
+
+A rewrite rule, not measured from the original. Toll plazas place a lamp and a
+stop sign on each booth's roof and barrier arms on its sides as separate
+placements. A booth collapse knocks them loose, and debris can keep them moving
+past their eight-second offscreen allowance. Restoring the placement then would
+put a lamp back on a roof that no longer exists, hanging in the air until the
+section reloads.
+
+When a placed model is released (offscreen expiry, off-world expiry or
+`EKillObject`), compare its placement box with the placement boxes of the other
+placed models. It rests on one when the boxes touch (0.25 m tolerance) and it
+starts at least 0.5 m above that model's base; props standing on the same
+ground beside it never qualify. If at least one model it rests on is hidden
+and none of them is still in place (not hidden and within 0.5 m of its placed
+position), hide it instead of restoring it: it ends drawing and collision like
+`EHideObject`, and the section cache keeps it hidden with the structure, so both
+return together. This covers a stop sign that stood on the booth's lamp after the
+lamp was knocked off. A placement that also rests on a model still in place (an
+arm reaching the next booth) is restored as before. Installed check: every toll booth on the track, with
+nobody looking, leaves nothing at its original pose over the collapse.
+
 ## Streaming and destroyed structures
 
 **[decomp]** Streaming has a separate, section-scoped restoration policy. Before

@@ -105,6 +105,8 @@ pub struct ImpactSound {
     pub description: Vec<String>,
     /// Authored continuous-effect identifier, not a bank sample index.
     pub scrape_effect: String,
+    /// `StreamSweetner[]`: moment recordings a heavy or scripted hit adds, in list order.
+    pub sweeteners: Vec<super::StreamSweetener>,
 }
 
 fn word(bytes: &[u8], at: usize) -> u32 {
@@ -141,6 +143,11 @@ impl ImpactSound {
             volumes,
             description,
             scrape_effect: fields.string("CSIS_EFFECT"),
+            sweeteners: fields
+                .raw_items("StreamSweetner")
+                .into_iter()
+                .filter_map(super::StreamSweetener::read)
+                .collect(),
         }
     }
 
@@ -163,6 +170,11 @@ fn sounds_of<'a>(db: &'a Database, wrapper: CollectionRef<'a>) -> Vec<(Collision
             Some((zone, classes.contains(&r.class).then(|| db.resolve(r)).flatten()))
         })
         .collect()
+}
+
+/// Every `audioimpact` collection.
+pub fn all_impacts(db: &Database) -> Vec<ImpactSound> {
+    db.collections_of("audioimpact").map(ImpactSound::read).collect()
 }
 
 /// The `audioimpact` collection with a stitch and the flag `flag` (`WALL`, ...) that has the most stitches: the

@@ -1,4 +1,5 @@
 //! Original weather moment recordings and scheduling. Spec: `rain-pc.md`.
+use super::moment_stream::Owner;
 use super::radio::feeder::FileSource;
 use super::{Audio, AudioView, Group, pcm, volume};
 use blackbox_mixmap::{InputKey, Mixer, ObjectRef};
@@ -50,6 +51,14 @@ impl Drop for Slot {
     }
 }
 impl Audio {
+    pub(in crate::audio) fn stop_thunder_voice(&mut self) {
+        self.thunder.stop();
+    }
+
+    pub(in crate::audio) fn thunder_playing(&self) -> bool {
+        self.thunder.voice.as_ref().is_some_and(|voice| voice.state() != PlaybackState::Stopped)
+    }
+
     pub(in crate::audio) fn prepare_thunder(&mut self) {
         if self.output.is_none() {
             return;
@@ -97,6 +106,7 @@ impl Audio {
     pub(in crate::audio) fn update_thunder(&mut self, view: Option<AudioView>, dt: f32) {
         let Some(view) = view else {
             self.thunder.stop();
+            self.moment_stopped(Owner::Thunder);
             return;
         };
         if !dt.is_finite() || dt <= 0.0 {
@@ -121,6 +131,13 @@ impl Audio {
             return;
         }
         let variant = (self.thunder.seed >> 8) as usize % recordings.len();
+        // Thunder is a moment like any other: it waits for a higher-priority moment, and may replace a lower one.
+        let key = blackbox_attrib::vlt_hash(match selected {
+            1 => "thunder_close",
+            _ => "thunder_distant",
+        });
+        let Some((rank, _)) = self.request_moment(Owner::Thunder, key, None, &view) else { return };
+        let recordings = &self.thunder.recordings[selected];
         let (Some(recording), Some(mixer)) = (recordings.get(variant), &mut self.thunder.mixer) else {
             return;
         };
@@ -136,7 +153,10 @@ impl Audio {
         let gain = (((gain.clamp(0.0, 1.0) * 32767.0) as u32) >> 8).min(127) as f32 / 127.0;
         let sound = recording.sound.clone().volume(volume::decibels(gain));
         match self.play(Group::Sfx, sound) {
-            Ok(voice) => self.thunder.voice = Some(voice),
+            Ok(voice) => {
+                self.thunder.voice = Some(voice);
+                self.moment_started(Owner::Thunder, key, rank, None);
+            }
             Err(error) => log::warn!("stock thunder cannot play: {error}"),
         }
     }

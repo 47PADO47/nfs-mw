@@ -128,7 +128,7 @@ impl Audio {
         car: &mut CarAudio,
         event: &CarEvent,
         _input: &blackbox_carsound::CarInput,
-        _view: &super::AudioView,
+        view: &super::AudioView,
     ) {
         let default = SurfaceTable::hash_of("default");
         let owned = self.contact_sound(event.sound_profile, event.vehicle);
@@ -160,5 +160,6 @@ impl Audio {
         };
         let volume = ((sound.volumes[play.level] * 32768.0).round() as i32).clamp(0, 32767);
         car.impacts.collision(self, stitch, sound, *event, car.mixer.as_ref(), volume);
+        self.play_impact_sweetener(sound, event.magnitude, event.position, *view);
     }
 }

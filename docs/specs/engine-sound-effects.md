@@ -322,7 +322,9 @@ the end of [engine-sound.md](engine-sound.md)):
 Implemented in `libs/blackbox-carsound` (`EffectsMixer`) and `crates/nfsmw/src/audio/` (the bank lookup in
 `refs.rs`, the voices in `fx.rs`). Where this differs from the text above:
 
-- **Not played:** the moment streams of an impact (`StreamSweetner`), the `FX_SKID` wet level and pitch outputs
+- **Stream sweeteners** of the player car's `TWO_CAR` and `EVENT` impacts play through the shared moment voice
+  ([scenery-effect-audio.md](scenery-effect-audio.md#stream-sweeteners)); wall impacts stream nothing, as in the original.
+- **Not played:** the `FX_SKID` wet level and pitch outputs
   of the mixer maps, the transmission loop, the weather wind, road noise transition samples, and the pitch boost
   of a blown tire. The sputters are played by the `CAR_Sputter` module (`crates/nfsmw/src/audio/aems/`,
   [engine-sound-aems.md](engine-sound-aems.md) §5), with the tuner car's forced pop (`Force_Trigger`) left out;
@@ -333,7 +335,8 @@ Implemented in `libs/blackbox-carsound` (`EffectsMixer`) and `crates/nfsmw/src/a
 - **Collisions.** The physics gives the hit's impulse (wall hits: 30,000 N s is full volume, below 800 N s is
   silent, hits closer than 0.2 s are one), the front or side of the car, and the light props it knocks over (a
   `HitWorld` of 0.15 to 0.6 by mass). A scrape is a wall rubbed at more than 3 m/s. The stitch is looked up in
-  `InGameB.bun` (Q3 answered, see [audio.md](../formats/audio.md#sound-stitches)); `StreamSweetner` is read nowhere.
+  `InGameB.bun` (Q3 answered, see [audio.md](../formats/audio.md#sound-stitches)); `StreamSweetner` is read for
+  `EVENT` world effects and the player car's `TWO_CAR`/`EVENT` impacts.
 - **Landings** use dedicated stitches: soft `81 + 4*intensity_band + counter%4`,
   hard `93 + counter%4`, a separate three-voice pool and object13 landing gain.
   Both wheels of a pair must return; intensity uses the axle that completed its
