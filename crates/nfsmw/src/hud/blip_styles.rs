@@ -236,8 +236,8 @@ pub fn map_icon_styles() -> Vec<Box<dyn BlipStyle>> {
         Box::new(IconPool::new(AUTO_SHOP, "SHOP_", AUTO_SHOP_POOL).nearest_only().tinted(AUTO_SHOP_TINT)),
         Box::new(IconPool::new(CAR_LOT, "CAR_LOT_", CAR_LOT_POOL).nearest_only().tinted(CAR_LOT_TINT)),
         Box::new(IconPool::new(SAFE_HOUSE, "SAFEHOUSEINDICATOR_", SAFE_HOUSE_POOL).tinted(SAFE_HOUSE_TINT)),
-        Box::new(IconPool::new(PURSUIT_BREAKER, "PURSUIT_BREAKER_", PURSUIT_BREAKER_POOL).in_zone()),
-        // [observed] A hiding spot outside the view is pinned to the rim, as in the original.
+        // [observed] A pursuit breaker or a hiding spot outside the view is pinned to the rim, as in the original.
+        Box::new(IconPool::new(PURSUIT_BREAKER, "PURSUIT_BREAKER_", PURSUIT_BREAKER_POOL)),
         Box::new(IconPool::new(HIDING_SPOT, "HIDING_SPOT_", HIDING_SPOT_POOL)),
     ]
 }
