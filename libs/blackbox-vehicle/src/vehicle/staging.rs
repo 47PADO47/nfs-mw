@@ -68,6 +68,8 @@ mod tests {
         let mut car = car();
         let ground = FlatGround::new(0.0);
         car.place_on_ground(&ground, 4.0, -3.0, 5.0, 0.0);
+        // Placement puts the car at rest; lift it so there is a settling to make.
+        car.place(car.position() + Vec3::Y * 0.05, car.orientation());
         let start = car.position();
         car.set_staging(true);
         for _ in 0..432 {

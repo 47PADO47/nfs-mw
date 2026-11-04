@@ -74,15 +74,17 @@ fn placing_puts_the_car_on_the_road_facing_the_heading() {
     let pose = sim.pose();
     assert!((pose.position.x - 100.0 + 0.1).abs() < 0.5 && (pose.position.y - 50.0).abs() < 0.5, "{:?}", pose.position);
     assert!(pose.position.z > 5.0 && pose.position.z < 6.0, "{:?}", pose.position);
-    // Facing +X in the world: the model's forward axis is the world's x axis.
+    // Facing +X in the world: the model's forward axis is the world's x axis. The car rests on its springs, so the
+    // axles' different sag may pitch it a little (`vehicle-placement.md`).
     let forward = pose.rotation * Vec3::X;
-    assert!((forward - Vec3::X).length() < 1e-4, "{forward:?}");
-    assert!(((pose.rotation * Vec3::Z) - Vec3::Z).length() < 1e-4, "up is up");
+    assert!((forward.truncate().normalize() - glam::Vec2::X).length() < 1e-4, "{forward:?}");
+    assert!(forward.z.abs() < 0.01, "at most a slight pitch: {forward:?}");
+    assert!(((pose.rotation * Vec3::Z) - Vec3::Z).length() < 0.01, "up is up");
 
     // Headed along +Y (a quarter turn to the left), the car points along +Y.
     assert!(sim.place(&ground, spawn_at(std::f32::consts::FRAC_PI_2)));
     let forward = sim.pose().rotation * Vec3::X;
-    assert!((forward - Vec3::Y).length() < 1e-4, "{forward:?}");
+    assert!((forward.truncate().normalize() - glam::Vec2::Y).length() < 1e-4, "{forward:?}");
 }
 
 #[test]
