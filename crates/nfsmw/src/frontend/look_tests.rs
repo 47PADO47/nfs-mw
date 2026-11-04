@@ -23,7 +23,6 @@ fn data(cars: Vec<LotCar>) -> Arc<CareerData> {
         bins: (1..=15).map(bin).collect(),
         milestones: Vec::new(),
         traps: Vec::new(),
-        stats: vec![None; cars.len()],
         cars,
         heat: Default::default(),
         ranks: Default::default(),

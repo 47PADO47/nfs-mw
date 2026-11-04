@@ -28,10 +28,9 @@ use nfsmw_data::pursuit::{self, CareerHeat};
 use nfsmw_data::rank_thresholds::{self, RankThresholds};
 use nfsmw_data::{memo, read_unwrapped, shared};
 
-/// The files the career tables are built from: the gameplay collections, the attribute database, the front end's
-/// attributes (car lot, rap sheet) and, for the car lot's stats, the car bounds.
-const CAREER_FILES: [&str; 4] =
-    [gameplay::GAMEPLAY_FILE, shared::ATTRIBUTES_FILE, career_cars::FE_ATTRIB_FILE, shared::GLOBALB_FILE];
+/// The files the career tables are built from: the gameplay collections, the attribute database and the front end's
+/// attributes (car lot, rap sheet).
+const CAREER_FILES: [&str; 3] = [gameplay::GAMEPLAY_FILE, shared::ATTRIBUTES_FILE, career_cars::FE_ATTRIB_FILE];
 
 /// The Blacklist bins the rules take: bins 1 to 15, exactly as `Blacklist::new` needs them.
 const FIRST_BIN: u8 = 1;
@@ -48,9 +47,6 @@ pub struct CareerData {
     pub traps: Vec<SpeedTrapDef>,
     /// The car lot's cars, in the reader's order.
     pub cars: Vec<LotCar>,
-    /// The stat bars' raw stats of each car, parallel to `cars`. `None` when the car's physics cannot be read (and
-    /// everywhere the tables are built without an install, see [`CareerData::from_parts`]).
-    pub stats: Vec<Option<CarStats>>,
     /// The cop heat values. `None` when `pursuitlevels/default` is missing from the attribute database.
     pub heat: Option<CareerHeat>,
     /// The rap sheet thresholds. `None` when a ranking table is missing or malformed.
@@ -72,14 +68,11 @@ impl CareerData {
         let cars = career_cars::catalogue(&frontend);
         let heat = pursuit::career_heat(&attributes);
         let ranks = rank_thresholds::rank_thresholds(&frontend);
-        let mut data = CareerData::from_parts(gameplay, &cars, heat, ranks);
-        data.stats = lot_stats(dir, &data.cars);
-        Ok(data)
+        Ok(CareerData::from_parts(gameplay, &cars, heat, ranks))
     }
 
     /// The career tables of the install, read once per session: the same `Arc` while the files they come from are
-    /// unchanged (see `nfsmw_data::memo`). Reading them takes seconds (the car lot's stats), so the screens that need
-    /// them take this and not [`CareerData::load`].
+    /// unchanged (see `nfsmw_data::memo`), so the screens that need them take this and not [`CareerData::load`].
     pub fn cached(dir: &GameDir) -> Result<Arc<CareerData>> {
         memo(dir, &CAREER_FILES, || CareerData::load(dir))
     }
@@ -95,47 +88,16 @@ impl CareerData {
         let milestones = gameplay.milestones.iter().filter_map(milestone_def).collect();
         let traps = gameplay.speed_traps.iter().filter_map(trap_def).collect();
         let cars: Vec<LotCar> = cars.iter().filter_map(lot_car).collect();
-        let stats = vec![None; cars.len()];
-        CareerData { bins, milestones, traps, cars, stats, heat, ranks, gameplay }
+        CareerData { bins, milestones, traps, cars, heat, ranks, gameplay }
     }
-}
-
-/// The stat bars' raw stats of each lot car, parallel to `cars`. The physics are read once for the whole lot. A car
-/// whose physics cannot be read has `None`; when the physics as a whole cannot load, every car does.
-///
-/// Each car is at stock (no upgrades): `PhysicsData::car` is the stock spec, not `car_with_performance`. **[unconfirmed]**
-/// the lot car's `name` is taken as the physics type name (the `pvehicle` collection of the same name).
-///
-/// The cars are measured on several threads (each measurement drives the car flat out, about a hundred milliseconds), in
-/// parts of the lot that are joined in order, so the result is the lot's order as before.
-fn lot_stats(dir: &GameDir, cars: &[LotCar]) -> Vec<Option<CarStats>> {
-    let Ok(physics) = PhysicsData::load(dir) else { return vec![None; cars.len()] };
-    let physics = &physics;
-    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(cars.len()).max(1);
-    let parts: Vec<&[LotCar]> = cars.chunks(cars.len().div_ceil(threads).max(1)).collect();
-    std::thread::scope(|scope| {
-        let workers: Vec<_> = parts
-            .iter()
-            .map(|part| {
-                let part = *part;
-                scope.spawn(move || part.iter().map(|car| car_stats(dir, physics, &car.name)).collect::<Vec<_>>())
-            })
-            .collect();
-        // A part whose thread panicked has no stats, as a car whose physics cannot be read.
-        parts
-            .iter()
-            .zip(workers)
-            .flat_map(|(part, worker)| worker.join().unwrap_or_else(|_| vec![None; part.len()]))
-            .collect()
-    })
 }
 
 /// One car's stats from the repo's estimator. **[unconfirmed]** the estimator (`blackbox_vehicle::performance`) is the
 /// repo's own measurement, not the game's simulation: top speed is its top speed, time to 100 mph is integrated from its
 /// acceleration table, and handling is its start grip. `None` when the car's physics cannot be read.
 ///
-/// The measurement is kept for the session, by car name (`measured::performance`): Quick Play's pool and the car lot ask
-/// for the same cars.
+/// The measurement is kept for the session, by car name (`measured::performance`). Quick Play's pool measures its cars to
+/// keep the ones that can be driven.
 pub fn car_stats(dir: &GameDir, physics: &PhysicsData, name: &str) -> Option<CarStats> {
     let performance = measured::performance(dir, name, || {
         let car = physics.car(name).ok()?;
