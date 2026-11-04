@@ -8,7 +8,15 @@ impl WorldScene {
         }
         // `None` would show the viewer's idle HUD, so a playing scene answers with a hidden one.
         if self.cutscene_playing() {
-            return Some(crate::hud::HudState { visible: false, ..Default::default() });
+            // An arrest keeps the busted overlay up for the whole scene, and its overlay events cue the package.
+            let arrest = self.nis.arrest_playing();
+            let cue = self.nis.screen().overlay_cue(crate::hud::OVERLAY_PACKAGE).filter(|_| arrest);
+            return Some(crate::hud::HudState {
+                visible: false,
+                busted_overlay: arrest,
+                busted_overlay_cue: cue,
+                ..Default::default()
+            });
         }
         if self.moment.hides_hud() {
             return None;

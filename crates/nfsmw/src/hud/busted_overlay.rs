@@ -1,7 +1,7 @@
-//! The busted overlay: `BUSTED_OVERLAY.fng` (`GLOBAL/InGameB.bun`), the surveillance-camera look the original puts over the
-//! frame after the arrest shot (`docs/specs/busted-sequence.md` section 6.1). The package has no data binding, so it runs
-//! its own scripts and nothing more. The HUD loads it into its runtime while [`HudState::busted_overlay`] is set and
-//! unloads it when that clears, so its fades start again on each bust.
+//! The busted overlay: `BUSTED_OVERLAY.fng` (`GLOBAL/InGameB.bun`), the surveillance-camera look the original's arrest
+//! camera puts over the whole arrest scene (`docs/specs/busted-sequence.md` section 6.1). It runs its own scripts; the
+//! scene's overlay events post their message to it (`FLASHTRIGGER`: the flash). The HUD loads it into its runtime while
+//! [`HudState::busted_overlay`] is set and unloads it when that clears, so its fades start again on each bust.
 
 #[cfg(test)]
 use blackbox_feng::UiTree;
@@ -15,11 +15,13 @@ pub const OVERLAY_PACKAGE: &str = "BUSTED_OVERLAY.fng";
 pub struct BustedOverlay {
     package: Package,
     shown: Option<PackageId>,
+    /// The serial of the last cue posted to the overlay while it is up.
+    cued: Option<u32>,
 }
 
 impl BustedOverlay {
     pub fn new(package: Package) -> Self {
-        Self { package, shown: None }
+        Self { package, shown: None, cued: None }
     }
 
     /// Loads the overlay while `shown` is set and unloads it when that clears. Nothing happens when it is already in
@@ -28,10 +30,22 @@ impl BustedOverlay {
         if shown == self.shown.is_some() {
             return;
         }
+        self.cued = None;
         match self.shown.take() {
             Some(id) => runtime.unload(id),
             None => self.shown = Some(runtime.load(self.package.clone())),
         }
+    }
+
+    /// Posts a scene's overlay message (`(message hash, serial)`) to the overlay once per serial, as the original queues
+    /// it to the package. Nothing happens while the overlay is down.
+    pub fn cue(&mut self, runtime: &mut Runtime, cue: Option<(u32, u32)>) {
+        let (Some(id), Some((message, serial))) = (self.shown, cue) else { return };
+        if self.cued == Some(serial) {
+            return;
+        }
+        self.cued = Some(serial);
+        runtime.post_to_package(id, message);
     }
 
     /// The overlay's package, while it is up.
@@ -96,6 +110,19 @@ mod tests {
         overlay.set_shown(&mut runtime, false);
         assert!(overlay.shown.is_none());
         assert!(overlay.tree(&runtime).is_none());
+    }
+
+    #[test]
+    fn a_cue_is_posted_once_while_the_overlay_is_up() {
+        let mut runtime = Runtime::new();
+        let mut overlay = BustedOverlay::new(package());
+        overlay.cue(&mut runtime, Some((fe_hash_upper("FLASHTRIGGER"), 0)));
+        assert_eq!(overlay.cued, None, "nothing to post to while the overlay is down");
+        overlay.set_shown(&mut runtime, true);
+        overlay.cue(&mut runtime, Some((fe_hash_upper("FLASHTRIGGER"), 0)));
+        assert_eq!(overlay.cued, Some(0));
+        overlay.set_shown(&mut runtime, false);
+        assert_eq!(overlay.cued, None, "the next bust posts its cues again");
     }
 
     #[test]

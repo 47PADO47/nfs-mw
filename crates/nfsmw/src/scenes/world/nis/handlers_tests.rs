@@ -39,6 +39,19 @@ fn an_overlay_shows_until_the_next_one_replaces_it() {
 }
 
 #[test]
+fn an_overlay_event_is_a_cue_for_its_package_and_draws_nothing_itself() {
+    let mut screen = NisScreen::default();
+    let flash = || NisEvent::Overlay { package: "BUSTED_OVERLAY.fng".into(), message: "FLASHTRIGGER".into() };
+    dispatch(flash(), &mut screen);
+    assert!(!screen.is_showing(), "the HUD draws the package; the scene's screen shows no text for it");
+    let trigger = fe_hash_upper("FLASHTRIGGER");
+    assert_eq!(screen.overlay_cue("busted_overlay.fng"), Some((trigger, 0)));
+    dispatch(flash(), &mut screen);
+    assert_eq!(screen.overlay_cue("BUSTED_OVERLAY.fng"), Some((trigger, 1)), "a second event is a new cue");
+    assert_eq!(screen.overlay_cue("BLACK_FADE_OUT.fng"), None, "a cue is for its own package");
+}
+
+#[test]
 fn clearing_the_screen_ends_the_flash_and_the_overlay() {
     let mut screen = NisScreen::default();
     dispatch(NisEvent::ScreenFlash { length: 2.0 }, &mut screen);

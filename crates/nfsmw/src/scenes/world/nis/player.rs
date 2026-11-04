@@ -369,6 +369,12 @@ impl NisPlayer {
         self.play.as_ref().map(|playing| playing.kind)
     }
 
+    /// Whether an arrest plays: its camera keeps the busted overlay over the whole scene (`docs/specs/busted-sequence.md`
+    /// section 6.1).
+    pub fn arrest_playing(&self) -> bool {
+        self.playing_kind() == Some(NisKind::Arrest)
+    }
+
     /// The name of the scene that plays, if one does.
     pub fn playing_name(&self) -> Option<&str> {
         self.play.as_ref().map(|playing| playing.name.as_str())

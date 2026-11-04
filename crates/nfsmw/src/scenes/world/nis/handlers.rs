@@ -3,6 +3,7 @@
 //! Spec: `docs/specs/nis-events.md` sections 2 and 6.
 
 use blackbox_attrib::vlt_hash;
+use blackbox_feng::fe_hash_upper;
 use blackbox_particles::Frame;
 use glam::{Mat4, Vec3};
 use nfsmw_data::world::sequences::ObjectEffect;
@@ -14,7 +15,8 @@ use crate::scenes::world::prop_effects::{Command, Source};
 /// The particle source a NIS scene's named effects play under. It is not a sequence object's id.
 const NIS_EFFECT_SOURCE: u32 = 0x4E49_5345;
 
-/// What a NIS scene puts over the frame: a full-screen flash and an overlay message. Both end with the scene.
+/// What a NIS scene puts over the frame: a full-screen flash, and the last overlay message it sent. Both end with the
+/// scene.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct NisScreen {
     flash: Option<Flash>,
@@ -31,6 +33,8 @@ struct Flash {
 struct Overlay {
     package: String,
     message: String,
+    /// Counts the scene's overlay events, so the HUD posts each one to its package once.
+    serial: u32,
 }
 
 impl NisScreen {
@@ -42,10 +46,12 @@ impl NisScreen {
         self.flash = Some(Flash { length, elapsed: 0.0 });
     }
 
-    /// `ENISOverlayMessage`: shows the package's message over the frame until the next overlay or the end of the scene.
-    /// The event carries no duration, so the overlay has none of its own.
+    /// `ENISOverlayMessage`: the message the scene sends to an overlay package, kept until the next overlay event or the
+    /// end of the scene. The event shows nothing itself: the original only queues the message to the package, which the
+    /// arrest camera has put up (`docs/specs/busted-sequence.md` section 6.1).
     pub fn show_overlay(&mut self, package: String, message: String) {
-        self.overlay = Some(Overlay { package, message });
+        let serial = self.overlay.as_ref().map_or(0, |overlay| overlay.serial.wrapping_add(1));
+        self.overlay = Some(Overlay { package, message, serial });
     }
 
     /// Runs `dt` seconds of scene time: the flash fades, and it ends when its length has passed.
@@ -63,14 +69,22 @@ impl NisScreen {
         Some((1.0 - flash.elapsed / flash.length).clamp(0.0, 1.0))
     }
 
-    /// The overlay now, as its package and its message. `None` when no overlay shows.
+    /// The last overlay event, as its package and its message. `None` before the scene sends one.
+    #[cfg(test)]
     pub fn overlay(&self) -> Option<(&str, &str)> {
         self.overlay.as_ref().map(|overlay| (overlay.package.as_str(), overlay.message.as_str()))
     }
 
-    /// Whether a flash or an overlay shows, so [`Self::draw`] puts something over the frame.
+    /// The last overlay event when it went to `package` (any case): the message's FEng hash and the event's serial, for
+    /// the HUD to post to its copy of the package once per event.
+    pub fn overlay_cue(&self, package: &str) -> Option<(u32, u32)> {
+        let overlay = self.overlay.as_ref().filter(|overlay| overlay.package.eq_ignore_ascii_case(package))?;
+        Some((fe_hash_upper(&overlay.message), overlay.serial))
+    }
+
+    /// Whether a flash shows, so [`Self::draw`] puts something over the frame. The overlay packages are the HUD's.
     pub fn is_showing(&self) -> bool {
-        self.flash.is_some() || self.overlay.is_some()
+        self.flash.is_some()
     }
 
     /// Clears the flash and the overlay: the scene has ended.
@@ -78,8 +92,7 @@ impl NisScreen {
         *self = Self::default();
     }
 
-    /// Draws the flash and the overlay over the frame. The overlay is drawn as its text, `package: message`, near the
-    /// bottom of the screen, because the overlay packages are not drawn yet.
+    /// Draws the flash over the frame.
     pub fn draw(&self, ctx: &egui::Context) {
         if !self.is_showing() {
             return;
@@ -88,11 +101,6 @@ impl NisScreen {
         let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("nis_screen")));
         if let Some(alpha) = self.flash_alpha() {
             painter.rect_filled(screen, 0.0, egui::Color32::from_white_alpha((alpha * 255.0) as u8));
-        }
-        if let Some((package, message)) = self.overlay() {
-            let at = egui::pos2(screen.center().x, screen.max.y - 48.0);
-            let text = format!("{package}: {message}");
-            painter.text(at, egui::Align2::CENTER_BOTTOM, text, egui::FontId::proportional(24.0), egui::Color32::WHITE);
         }
     }
 }
