@@ -228,7 +228,9 @@ At the node reached, with `toward` the desired direction (the target vector):
   At the end of the list: a GPS path stops; other paths drop to direction mode.
 - **Direction nav:** let `next` be the plain (non-decision) segment at the node other than the current one.
   - Dead end node (one segment) or on a decision segment with no plain successor: turn around.
-  - Otherwise, if a plain successor exists (the cursor left a junction or is on a chain node), take it.
+  - Otherwise, if a plain successor exists (the cursor left a junction or is on a chain node), take it. The
+    filters and the one-way rule are not applied to it: they only judge the junction exits below. So a cop's
+    seek-ahead walk that leaves a cop road onto one closed to cops goes on along it rather than turning back.
   - Otherwise (the cursor entered a junction through its approach road) examine each decision segment of the
     node. Each candidate is walked forward up to 19 further segments or about 100 m, always continuing
     through the plain segment of the next node. A candidate is dropped when any walked segment: crosses a

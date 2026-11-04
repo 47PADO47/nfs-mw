@@ -91,3 +91,20 @@ fn installed_riverfront_jump_puts_the_first_cop_where_the_original_does() {
     assert!(off < 12.0, "{off} m from the original's first cop");
     assert!(facing > 0.95, "facing dot {facing}");
 }
+
+#[test]
+#[ignore = "needs the installed city road network; set NFSMW_GAME_DIR"]
+fn installed_riverfront_seek_walk_goes_on_along_the_stadium_road() {
+    // East of the Riverfront Stadium marker the junction's plain exit is a road closed to cops. The seek-ahead walk of a
+    // car driving off the marker (a cop walk, filtered as the car's junction connector is a cop road) goes on along it,
+    // as the original's does; turning back sent the first cop the wrong way (spec `ai-road-network.md` 4.2).
+    use blackbox_roads::{LaneType, NavKind, SplitMix};
+    let (_scene, _renderer, world) = super::installed_route::open_at([939.84, -595.59]);
+    let net = &world.network;
+    let start = Vec3::new(620.0, 110.1, 948.0);
+    let mut nav = RoadNav::new(NavKind::Direction, LaneType::Cop, SegmentFilter { cop: true, ..Default::default() });
+    assert!(nav.init_at_point(net, &world.index, start, Vec3::new(0.97, 0.0, -0.22).normalize(), false));
+    nav.advance(net, 120.0, Vec3::ZERO, &mut SplitMix(1));
+    eprintln!("RIVERFRONT_SEEK end={:?} segment={}", nav.position, nav.segment);
+    assert!(nav.position.x > start.x + 50.0, "the walk turned back: {:?}", nav.position);
+}
