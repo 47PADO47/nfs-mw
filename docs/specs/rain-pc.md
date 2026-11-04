@@ -80,7 +80,9 @@ generated white noise for the installed authored module.
 
 Stock PC also queues distant/close thunder moment streams below/above intensity 0.5.
 The intensity threshold is 0.25; subsequent delays are 25 plus random [0,20) seconds,
-with streaming/speech guards. Static presence does not establish audible runtime parity.
+with streaming/speech guards. Thunder requests take the shared moment stream like every moment
+([scenery-effect-audio.md](scenery-effect-audio.md#shared-moment-stream)): a higher-priority moment
+refuses them. Static presence does not establish audible runtime parity.
 The installed selector masks each permit nine thunder recordings. The port selects
 among matching recordings with its own random sequence; it does not claim to match
 the original variation order. Existing single-recording moment callers retain their

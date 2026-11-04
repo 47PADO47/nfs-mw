@@ -124,6 +124,12 @@ pub enum WorldEvent {
         queue_mode: u32,
         radius: f32,
     },
+    /// `EMomentStrm`: stream an `aud_moment_strm` recording from the object. `name_tag` is a package string-table
+    /// hash; `key` is the collection key (the name's hash once strings are resolved, when the data leaves it zero).
+    MomentStream {
+        name_tag: u32,
+        key: u32,
+    },
     HideObject,
     KillObject,
     WakeObject,
@@ -152,6 +158,9 @@ impl WorldEvent {
         if let Self::ObjectEffect(effect) = &mut self {
             effect.effect =
                 package.strings.get(&effect.name_tag).filter(|name| !name.is_empty()).map_or(0, |name| vlt_hash(name));
+        }
+        if let Self::MomentStream { name_tag, key: key @ 0 } = &mut self {
+            *key = package.strings.get(name_tag).filter(|name| !name.is_empty()).map_or(0, |name| vlt_hash(name));
         }
         self
     }
@@ -185,6 +194,7 @@ impl WorldEvent {
                 queue_mode: word(12)?,
                 radius: number(16)?,
             }),
+            0xF07A_31AC => Ok(Self::MomentStream { name_tag: word(4)?, key: word(8)? }),
             0x0713_D2FA => Ok(Self::HideObject),
             0xBD2F_6FF1 => Ok(Self::KillObject),
             0x8E60_A642 => Ok(Self::WakeObject),

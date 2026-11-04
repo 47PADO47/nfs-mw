@@ -107,3 +107,39 @@ fn installed_breaker_profiles_match_the_documented_zones_and_name_their_moments(
     assert!(breakers >= 14, "found {breakers} breaker engines");
     assert!(with_moment * 10 >= breakers * 8, "only {with_moment} of {breakers} breakers name a cinematic moment");
 }
+
+#[test]
+fn a_moment_stream_event_names_its_recording_by_string_unless_it_carries_a_key() {
+    let mut package = Package::default();
+    package.strings.insert(17, "logs_drop".into());
+    let named = WorldEvent::decode(&event(0xF07A_31AC, &[17, 0])).unwrap().resolve_strings(&package);
+    assert_eq!(named, WorldEvent::MomentStream { name_tag: 17, key: vlt_hash("logs_drop") });
+    let keyed = WorldEvent::decode(&event(0xF07A_31AC, &[17, 99])).unwrap().resolve_strings(&package);
+    assert_eq!(keyed, WorldEvent::MomentStream { name_tag: 17, key: 99 });
+    let missing = WorldEvent::decode(&event(0xF07A_31AC, &[5, 0])).unwrap().resolve_strings(&package);
+    assert_eq!(missing, WorldEvent::MomentStream { name_tag: 5, key: 0 });
+}
+
+/// The drive capture streamed `logs_drop` from the log pile breaker's sequence; every installed moment-stream event
+/// resolves to a moment collection.
+#[test]
+fn installed_breaker_sequences_name_their_moment_recordings() {
+    let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = game_install::GameDir::open(path).unwrap();
+    let index = crate::world::WorldIndex::open(&dir, crate::world::DEFAULT_TRACK).unwrap();
+    let mut names = std::collections::BTreeSet::new();
+    for (_, sequence) in index.sequences.iter() {
+        for event in sequence.package.event_lists.values().flatten() {
+            let Ok(WorldEvent::MomentStream { name_tag, key }) =
+                WorldEvent::decode(event).map(|e| e.resolve_strings(&sequence.package))
+            else {
+                continue;
+            };
+            let name = sequence.package.strings.get(&name_tag).cloned().unwrap_or_default();
+            assert_ne!(key, 0, "{name_tag:08X} resolves to no recording");
+            names.insert(name);
+        }
+    }
+    eprintln!("moment streams named by sequences: {names:?}");
+    assert!(names.contains("logs_drop"), "{names:?}");
+}

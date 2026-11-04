@@ -55,6 +55,26 @@ pub const MARKER_NAMES: [&str; 21] = [
     "StripMallMoment",
 ];
 
+/// The moment recordings the sound queues near breaker markers: marker kind (an index of [`MARKER_NAMES`]) and the
+/// `aud_moment_strm` collection it holds ready, in the original's table order. Spec: `scenery-effect-audio.md`.
+pub const QUEUED_MOMENTS: [(usize, &str); 15] = [
+    (1, "expl_gas_station"),
+    (2, "comm_tower_crash"),
+    (15, "comm_tower_crash"),
+    (4, "wtr_tower_crash"),
+    (5, "porch"),
+    (6, "gate"),
+    (7, "scaffold_crash_big"),
+    (8, "gazebo_crash"),
+    (9, "fish_sign_crash"),
+    (10, "boat_fall"),
+    (17, "trailer_park"),
+    (19, "amphitheatre"),
+    (20, "stripmall"),
+    (16, "drive_in"),
+    (18, "torus"),
+];
+
 /// One placed marker. The position is in render space (x forward, y left, z up).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Marker {
@@ -119,6 +139,17 @@ impl MomentData {
             let angle = u16::from_le_bytes([record[0x20], record[0x21]]);
             self.markers.entry(name).or_default().push(Marker { position, angle });
         }
+    }
+
+    /// Every marker that queues a moment recording, with that recording's collection key, in table then file order.
+    pub fn queued_moments(&self) -> Vec<(Vec3, u32)> {
+        QUEUED_MOMENTS
+            .iter()
+            .flat_map(|&(kind, moment)| {
+                let markers = self.markers.get(&bstring_hash(MARKER_NAMES[kind])).map_or(&[][..], Vec::as_slice);
+                markers.iter().map(move |m| (m.position, blackbox_attrib::vlt_hash(moment)))
+            })
+            .collect()
     }
 
     /// The marker kind a scene plays at.

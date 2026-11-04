@@ -62,6 +62,7 @@ impl PropWorld {
                 zone: nfsmw_data::sound::CollisionZone::from_local_normal(body.rotation().transpose() * normal),
                 position: frame.to_world.w_axis.truncate(),
                 magnitude: effect.intensity,
+                moment: None,
             });
         }
         let owner = model.owner.clone();
@@ -79,6 +80,23 @@ impl PropWorld {
     pub fn take_particle_commands(&mut self) -> Vec<Command> {
         std::mem::take(&mut self.scenery.particles)
     }
+    /// A sequence's `EMomentStrm`: the named recording streams from the model, and `unpause` releases the moment the
+    /// sound queued at the nearest breaker marker. The petrol-station blast already streams with its explosion.
+    pub(super) fn moment_stream(&mut self, id: u32, key: u32) {
+        if key == 0 || key == blackbox_attrib::vlt_hash("expl_gas_station") {
+            log::debug!("scenery {id} moment {key:08X} not streamed here");
+            return;
+        }
+        let Some(frame) = self.effect_frame(id, 0) else { return };
+        self.scenery.audio.push(crate::audio::WorldEffectAudio {
+            effect: 0,
+            zone: nfsmw_data::sound::CollisionZone::Default,
+            position: frame.to_world.w_axis.truncate(),
+            magnitude: 1.0,
+            moment: Some(key),
+        });
+    }
+
     pub fn take_world_effect_audio(&mut self) -> Vec<crate::audio::WorldEffectAudio> {
         std::mem::take(&mut self.scenery.audio)
     }

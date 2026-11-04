@@ -117,6 +117,7 @@ pub(super) fn drive_car(
         audio.stop_traffic();
         audio.stop_explosion();
         audio.stop_world_effect_audio();
+        audio.stop_moment_stream();
         audio.stop_nis();
         audio.stop_police_radio();
         *music = MusicInput::default();
@@ -166,6 +167,10 @@ pub(super) fn drive_car(
     // Each petrol-station blast of this frame plays its explosion.
     let view = car.as_ref().map(|state| state.view).unwrap_or(audio.speedbreaker.view);
     audio.update_explosion(view, time.delta_secs());
+    // The moment stream all moment recordings share: its clock, and the breaker markers the car comes near.
+    if car.is_some() {
+        audio.update_moment_stream(view, time.delta_secs());
+    }
     for position in host.scene.take_explosions() {
         audio.play_explosion(position, view);
     }

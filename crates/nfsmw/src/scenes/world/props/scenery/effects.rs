@@ -38,6 +38,7 @@ impl PropWorld {
             WorldEvent::Explosion(explosion) => {
                 self.create_explosion(id, explosion);
             }
+            WorldEvent::MomentStream { key, .. } => self.moment_stream(id, key),
             WorldEvent::HideObject => {
                 self.hide_model(id);
             }
