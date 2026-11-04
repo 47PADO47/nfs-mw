@@ -7,7 +7,6 @@ use nfsmw_career::safehouse::EntryPermissions;
 use nfsmw_career::safehouse::PursuitPhase;
 use nfsmw_career::safehouse::ZoneKind as SafeZoneKind;
 use nfsmw_career::safehouse::engage::{EngageDecision, EngageInput, engage};
-use nfsmw_career::safehouse::heat::unload_world;
 
 use crate::career::CareerRequest;
 use crate::scenes::world::WorldScene;
@@ -103,21 +102,6 @@ impl WorldScene {
     fn end_cool_down_pursuit(&mut self) {
         let Some(traffic) = self.traffic.as_mut() else { return };
         traffic.end_pursuit(EndReason::Evaded);
-    }
-
-    /// The driven car's heat goes into its career record when the world is torn down (`heat::unload_world`, capped at 5).
-    /// Without a chase the world holds no heat value of its own, so the record is left as it is.
-    fn write_driven_heat(&mut self) {
-        let live = self.traffic.as_ref().filter(|traffic| traffic.is_pursuing()).map(|traffic| traffic.heat_value());
-        let Some(heat) = live else { return };
-        let written = self
-            .career
-            .handle
-            .with(|career| unload_world(&career.settings, &mut career.stable, heat, true))
-            .unwrap_or(false);
-        if !written {
-            log::warn!("career: the driven car has no career record; its heat is not kept");
-        }
     }
 }
 

@@ -163,10 +163,3 @@ fn chased_partner_is_an_other() {
     let (_, others) = bank_handles(LEAD_CAR, Some(GUEST_CAR), &busted, LEAD);
     assert!(others.is_empty(), "a car busted earlier in the chase is not an other");
 }
-
-#[test]
-fn coop_carries_the_higher_heat() {
-    assert_eq!(carried(2.0, Some(3.5)), 3.5);
-    assert_eq!(carried(4.0, Some(1.5)), 4.0);
-    assert_eq!(carried(2.0, None), 2.0);
-}

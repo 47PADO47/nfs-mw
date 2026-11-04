@@ -13,9 +13,7 @@ use nfsmw_career::milestones::{Banked, StatType, pay_banked};
 use nfsmw_career::phone::{BinMoment, bin_messages};
 use nfsmw_career::rapsheet::{PursuitStats, case_id_text};
 use nfsmw_career::safehouse::finish_cooldown_pursuit_default;
-use nfsmw_career::safehouse::{
-    DEFAULT_EVADE_HEAT_FACTOR, FrontEndContext, SPAWN_HEAT_FLOOR, apply_heat_factor, spawn_heat,
-};
+use nfsmw_career::safehouse::{DEFAULT_EVADE_HEAT_FACTOR, FrontEndContext, apply_heat_factor};
 use nfsmw_career::savefile::Trigger;
 use nfsmw_career::settings::CareerSettings;
 use nfsmw_career::stable::Stable;
@@ -123,7 +121,7 @@ impl WorldScene {
             self.pursuit_ended(reason, &chase);
         }
         if !pursuing {
-            self.load_carried_heat();
+            self.load_live_heat();
             self.load_career_bin();
         }
     }
@@ -259,26 +257,6 @@ impl WorldScene {
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.set_career_bin(bin);
         }
-    }
-
-    /// Loads the current car's heat into the police, so the next chase starts from it. Runs each frame outside a
-    /// chase: a chase's `begin` reads the value the frame before it starts.
-    fn load_carried_heat(&mut self) {
-        let guest_handle = self.coop.as_ref().and_then(|session| session.guest_handle);
-        let heat = self.career.handle.with(|career| {
-            let lead = spawn_heat(&career.settings, &career.stable, true);
-            let guest = guest_handle
-                .and_then(|handle| career.stable.career_for_handle(handle))
-                .map(|record| record.heat.max(SPAWN_HEAT_FLOOR));
-            carried(lead, guest)
-        });
-        let Some(heat) = heat else {
-            return;
-        };
-        let Some(traffic) = self.traffic.as_mut() else {
-            return;
-        };
-        traffic.set_carried_heat(heat);
     }
 }
 
@@ -441,12 +419,6 @@ fn settle_chase_end(
     }
     apply_heat_factor(stable, DEFAULT_EVADE_HEAT_FACTOR);
     settle_evade(stable, bank, others, result);
-}
-
-/// The heat a chase starts from: the lead car's heat, or the higher of it and the guest car's when the guest has a
-/// record [ours].
-fn carried(lead: f32, guest: Option<f32>) -> f32 {
-    guest.map_or(lead, |guest| lead.max(guest))
 }
 
 /// Writes `heat` back into the record of `handle`, when there is one and a heat was kept.

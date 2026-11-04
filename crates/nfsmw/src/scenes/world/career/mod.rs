@@ -12,6 +12,7 @@ mod events;
 mod hud;
 mod jump_chase;
 mod ladder;
+mod live_heat;
 mod locks;
 mod milestone_board;
 mod phone;
@@ -43,6 +44,8 @@ pub(super) struct WorldCareer {
     /// What the front end has to do, oldest first (`Scene::take_career_request`).
     pub requests: VecDeque<CareerRequest>,
     pub pursuit: pursuit::PursuitWatch,
+    /// The driven car's live heat: which cars it was loaded for, and whether the teardown wrote it back (`live_heat.rs`).
+    pub live_heat: live_heat::LiveHeat,
     pub regions: regions::RegionState,
     pub phone: phone::PhoneState,
     pub hud: hud::CareerHud,

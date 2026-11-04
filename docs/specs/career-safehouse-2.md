@@ -202,6 +202,14 @@ Consequences **[exe]** (reading of the routines; not tested in game):
 - Entering without a pursuit gives the same result as entering in cool-down, minus the factor on the other cars and the
   strike tick.
 
+The rewrite (`scenes/world/career/live_heat.rs`) keeps the live heat in the police for as long as the world lives. It is
+loaded from `max(1.0, record)` once for the car (and again when the current car changes, after the old car's record took the
+live value), each chase starts from it, and the free-roam heat meter shows it. The world's close writes `min(live, 5.0)`
+into the record, once (the safe house entry writes it while its chase still runs). An earlier version reloaded the record
+into the police on every frame without a chase, so a chase that had reached heat 4 left the car at its old heat 2 for the
+next one. The garage, which the rewrite runs inside the world, writes the live heat first, cools the record and starts the
+car again from it, as the original's round trip through a new world does.
+
 ## 9. The respawn marker
 
 ### 9.1 What is stored

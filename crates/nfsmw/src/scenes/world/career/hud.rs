@@ -17,7 +17,8 @@ pub(in crate::scenes::world) struct CareerHud {
     on: bool,
     /// The bounty row: the car's banked bounty plus the chase's pending points.
     bounty: u32,
-    /// The heat the car is driven with, shown outside a chase: its record's heat, never below the spawn floor.
+    /// The heat the car is driven with, shown outside a chase: its live heat (its record's before that is loaded), never
+    /// below the spawn floor.
     car_heat: f32,
     /// The career's cash, for the Custom HUD's free-roam extras.
     cash: u32,
@@ -99,15 +100,16 @@ fn meter_heat(heat: f32) -> f32 {
 }
 
 impl WorldScene {
-    /// Reads the career values of this frame: the lead's car's banked bounty and heat from its career record, the car
+    /// Reads the career values of this frame: the lead's car's banked bounty from its career record and its live heat, the car
     /// `career.settings.car_handle` names, as the rest of the career reads it. The pending points are the running rep
     /// points of the chase while it runs (`ai-pursuit-heat.md` section 5.1); after it ends they are banked into the
     /// record, so they count only while the chase is on.
     pub(super) fn career_hud(&mut self) {
         let lead = self.players.has_lead();
+        let live = self.live_heat();
         let car = self.career.handle.with(|career| {
             let record = career.stable.career_for_handle(career.settings.car_handle).filter(|_| lead)?;
-            Some((record.bounty, record.heat))
+            Some((record.bounty, live.unwrap_or(record.heat)))
         });
         let cash = self.career.handle.with(|career| career.settings.cash).unwrap_or(0);
         let chase = self.traffic.as_ref().filter(|traffic| traffic.is_pursuing()).map(|traffic| traffic.rep_points());
