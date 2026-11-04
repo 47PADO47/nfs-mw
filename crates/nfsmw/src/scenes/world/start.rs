@@ -46,6 +46,9 @@ impl WorldScene {
             .map(|views| bike_views(&name, views));
         self.original_camera.reset();
         self.original_player_step = None;
+        // The cops name the car by the base paint it was built with (`speech_look.rs`).
+        let paint = model.paint.as_ref().map(|paint| blackbox_hash::bstring_hash(&paint.name));
+        self.speech_look.borrow_mut().set_built_paint(paint);
         let rig = CarRig::upload(renderer, keys::PLAYER_CAR, model, self.car_shading, sun::to_sun());
         let [x, y] = self.focus();
         match self.players.lead_mut() {

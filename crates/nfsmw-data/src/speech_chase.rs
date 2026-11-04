@@ -6,9 +6,9 @@
 use blackbox_attrib::{CollectionRef, Database};
 use blackbox_hash::bstring_hash;
 
-use blackbox_carparts::CarTypeInfo;
+use blackbox_carparts::{CarTypeInfo, PartQuery};
 
-use crate::car::{CarTables, slot, stock_parts};
+use crate::car::{CarTables, LAYOUT, slot, stock_parts};
 use crate::pursuit::level_collection;
 
 /// The thresholds of the `speechtune` collection (seconds, metres, miles per hour).
@@ -188,6 +188,17 @@ pub fn speech_colour_bit(hash: u32) -> u32 {
 pub fn stock_speech_colour(tables: &CarTables, car: &CarTypeInfo) -> u32 {
     let Some(part) = stock_parts(tables, car)[slot::BASE_PAINT] else { return 0 };
     tables.parts.attribute(&part, "SPEECHCOLOUR").map_or(0, speech_colour_bit)
+}
+
+/// The `car_color` bit of the base paint part named `paint` (its name hash) on `car`: the part in the car's own base-paint
+/// slot, as the original reads it from the car's customization record. 0 when the car has no such part or it has no
+/// speech colour; there is no other fallback (`docs/specs/ai-pursuit-speech.md`, "The car's colour").
+pub fn paint_speech_colour(tables: &CarTables, car: &CarTypeInfo, paint: u32) -> u32 {
+    let s = slot::BASE_PAINT;
+    let part = tables.slot_types.search_types(s, car.type_name_hash).find_map(|type_hash| {
+        tables.parts.find(&PartQuery::new(LAYOUT.slots[s].part_id, type_hash).name_hash(paint)).copied()
+    });
+    part.and_then(|part| tables.parts.attribute(&part, "SPEECHCOLOUR")).map_or(0, speech_colour_bit)
 }
 
 /// The `car_type` bit the cops name a car by: the `VerbalType` of its `pvehicle` collection; 0 when it has none.

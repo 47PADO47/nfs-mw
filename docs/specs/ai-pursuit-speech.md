@@ -321,7 +321,15 @@ Built (2026-10-20), from this spec and with the decompiled flows read for the de
 - **The game's side** is `crates/nfsmw/src/audio/chase/radio/`: `snapshot` (the world feed to the snapshot, and the notices from the change between two feeds), `tables` (voices 1 to 9, the battalions and
   their call sign pools, the road-name table of 85 named roads, the cop models' battalions), `params` (each `Line` to its speech event and each typed value to its bit), `channel` (the dispatcher as the
   machine's channel), `mod` (`ChaseRadio`: runs the machine each frame and sends the lines to the speech). The world fills the feed in `scenes/world/ai/police/speech_feed.rs`; the player's car type
-  (`pvehicle.VerbalType`) and stock paint (`SPEECHCOLOUR`) come from `scenes/world/speech_look.rs`. Console: `speech flow`.
+  (`pvehicle.VerbalType`) and its paint's `SPEECHCOLOUR` come from `scenes/world/speech_look.rs`. Console: `speech flow`.
+- **The car's colour [binary]:** a car with a customization record (career and preset cars) is named by the
+  `SPEECHCOLOUR` of the part in that record's base-paint slot; only a car with no record falls back to its type's default
+  base paint. An empty slot, or a paint whose `SPEECHCOLOUR` is missing or not one of the 13 colours, leaves the colour
+  out (the descriptions say none and the 911 reply uses its no-description line). A vinyl never changes it. The rewrite
+  reads the paint the garage applied, else the base paint the car's model was built with (its preset's or its
+  customization's), else the stock paint; a custom RGB paint (a rewrite extension) has no colour. It once always used
+  the stock paint, so a career car with its own paint was named by its type's stock colour (the end-game M3 GTR as
+  "red").
 - **Line events** (`audio/chase/radio/trace.rs`): each line the machine asks the speech for (with the queue's answer:
   queued, refreshed, unknown, muted or thinned) and each line the speech finishes saying, with the machine's `Line`, the
   speech event's name and number, the voice (speaker number) and the parameters. The radio keeps the last 64 until a
