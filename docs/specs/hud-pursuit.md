@@ -181,8 +181,10 @@ the timer answer. Each HUD update during a pursuit the board receives the pursui
 - above 0 and at most 10 s: its flash script;
 - above 10 s: its appear script;
 
-each started only when it is not the one playing. While the ETA is above zero the timer shows it in the pursuit timer's
-format (`mm:ss.cc`; the original rounds to 1/4000 s first). While the board shows the cool-down, the row is not updated.
+each started only when it is not the one playing. The backing's appear slides its texture in from below and its leave
+slides it back out, onto the texture's transparent rows. Its colour stays at full alpha, so only the texture's clamp
+hides it ([feng-image-repeat](feng-image-repeat.md)). While the ETA is above zero the timer shows it in the pursuit
+timer's format (`mm:ss.cc`; the original rounds to 1/4000 s first). While the board shows the cool-down, the row is not updated.
 The ETA is the pursuit's: set to `BackupCallTimer` when the backup is called, counting down while the player is seen,
 slightly negative when the backup arrives, and zeroed on entering cool-down ([ai-pursuit-heat](ai-pursuit-heat.md)).
 

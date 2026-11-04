@@ -392,6 +392,12 @@ impl UiAssets {
         Some(Image { width: t.width, height: t.height, rgba, blend: t.alpha_blend })
     }
 
+    /// The `TilableUV` byte of a texture's pack record: the axes an image repeats it on (bit 0 across, bit 1 down). 0
+    /// for a texture no pack holds, which then clamps on both (`docs/specs/feng-image-repeat.md`).
+    pub fn tilable_uv(&self, hash: u32) -> u8 {
+        self.texture(hash).map_or(0, |texture| texture.tilable_uv)
+    }
+
     /// The size a font texture's glyph coordinates are divided by (the layout's texture size): its native (stock) size
     /// under the HD fonts option, else the loaded texture's size. The font layouts are its only users.
     pub fn texture_size(&self, hash: u32) -> Option<(u32, u32)> {

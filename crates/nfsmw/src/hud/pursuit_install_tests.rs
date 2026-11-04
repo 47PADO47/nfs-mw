@@ -7,7 +7,7 @@ use blackbox_pursuit::{Fines, Infraction, InfractionLog};
 use game_install::GameDir;
 
 use super::MapBlip;
-use super::backup_timer::{APPEAR, FLASH};
+use super::backup_timer::{APPEAR, FLASH, LEAVE};
 use super::bind::HudBinding;
 use super::blip_styles::{
     CONE_IDLE, CONE_TRACKING, HELICOPTER, HELICOPTER_CONE, HELICOPTER_CONE_ICON, HELICOPTER_GROUP,
@@ -46,6 +46,30 @@ fn visible(rt: &Runtime, id: PackageId, hash: u32) -> bool {
     rt.tree(id).nodes.iter().any(|n| n.name_hash == hash && n.visible)
 }
 
+/// Whether the image `hash` puts no visible texel on the screen: it is hidden, or its texture does not repeat and the
+/// rectangle it shows, clamped to the texture as the sampler does, holds only transparent texels. The pursuit board's
+/// backings leave by sliding their texture onto its transparent rows (`docs/specs/feng-image-repeat.md`).
+pub(super) fn draws_nothing(rt: &Runtime, id: PackageId, assets: &UiAssets, hash: u32) -> bool {
+    let tree = rt.tree(id);
+    let Some(node) = tree.nodes.iter().find(|n| n.name_hash == hash) else { return true };
+    if !node.visible || node.world_colour[3] == 0 {
+        return true;
+    }
+    let blackbox_feng::NodeKind::Image { texture, uv, .. } = node.kind else { return false };
+    if assets.tilable_uv(texture) != 0 {
+        return false;
+    }
+    let Some(image) = assets.image(texture) else { return true };
+    let span = |a: f32, b: f32, n: u32| {
+        let lo = (a.min(b).clamp(0.0, 1.0) * n as f32).floor() as usize;
+        let hi = (a.max(b).clamp(0.0, 1.0) * n as f32).ceil() as usize;
+        lo.min(n as usize - 1)..hi.clamp(lo + 1, n as usize)
+    };
+    let (columns, rows) = (span(uv[0], uv[2], image.width), span(uv[1], uv[3], image.height));
+    rows.flat_map(|y| columns.clone().map(move |x| (x, y)))
+        .all(|(x, y)| image.rgba[(y * image.width as usize + x) * 4 + 3] == 0)
+}
+
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn the_backup_row_appears_with_its_label_and_time_and_flashes_when_close() {
@@ -68,6 +92,15 @@ fn the_backup_row_appears_with_its_label_and_time_and_flashes_when_close() {
     assert_eq!(text.as_deref(), Some("01:05.00"));
     step(&mut rt, &mut b, &chase(9.0), 0.1);
     assert_eq!(rt.script_of(backing), Some(FLASH));
+    let (dir, _, _) = open().unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    assert!(!draws_nothing(&rt, id, &assets, BACKING), "the backing shows under the row");
+    // The backup arrives: the backing's leave slides its stripes off, onto the texture's transparent rows.
+    for _ in 0..10 {
+        step(&mut rt, &mut b, &chase(0.0), 0.1);
+    }
+    assert_eq!(rt.script_of(backing), Some(LEAVE));
+    assert!(draws_nothing(&rt, id, &assets, BACKING), "the backing is gone with the row");
 }
 
 #[test]

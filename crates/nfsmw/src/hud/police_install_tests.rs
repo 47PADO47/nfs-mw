@@ -277,6 +277,9 @@ fn installed_hiding_mark_fades_in_under_the_cooldown_bar_and_out_again() {
         step(&mut rt, &mut binding, &state);
     }
     assert_eq!(rt.script_of(bar), Some(hiding_mark::APPEAR), "the board played the bar's appear");
+    let assets = crate::ui::UiAssets::load(&dir).unwrap();
+    let drawn = |rt: &Runtime| !super::pursuit_install_tests::draws_nothing(rt, package, &assets, hiding_mark::BAR);
+    assert!(drawn(&rt), "the bar shows under the mark");
     for hash in marks {
         assert!(alpha(&rt, hash) > 100, "{hash:x} faded in: {}", alpha(&rt, hash));
     }
@@ -289,6 +292,7 @@ fn installed_hiding_mark_fades_in_under_the_cooldown_bar_and_out_again() {
         step(&mut rt, &mut binding, &state);
     }
     assert_ne!(rt.script_of(bar), Some(hiding_mark::APPEAR), "the board played the bar's leave");
+    assert!(!drawn(&rt), "the bar's leave slides it off its texture, leaving nothing");
     for hash in marks {
         assert_eq!(alpha(&rt, hash), 0, "{hash:x} faded out when the spot let go");
     }

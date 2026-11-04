@@ -74,7 +74,8 @@ half height, the evade input, the per-cop sight latch and the `pursuit hiding` c
 - **HUD [verified] objects, [binary] board.** Under the cool-down group the package holds a bar (`0x5c2a4f20`), a
   "HIDING" text group (`0x60b45523`) with its label (`0xe8b9d816`, language label `0x4a89ad72`) and a car icon
   (`0x38074901`), each resting in `HIDE` at zero alpha. The game drives the bar alone. Its appear (320 ms: the colour
-  comes up and its texture slides in) raises `0x4027A94E`, and its leave (320 ms: the texture slides out) raises
+  comes up and its texture slides in) raises `0x4027A94E`, and its leave (320 ms: the texture slides out, onto rows the
+  texture's clamp leaves transparent, [feng-image-repeat](feng-image-repeat.md)) raises
   `0x451CD24C`, both to the package. The group, the label and the icon each answer `0x4027A94E` with their appear
   (160 ms for the group and the label, 320 ms for the icon, which then pulses between two colours at full alpha) and
   `0x451CD24C` with their leave. The label has its own zero-alpha rest, so a host that fades only the group leaves the
