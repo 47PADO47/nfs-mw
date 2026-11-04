@@ -43,6 +43,7 @@ The detailed radar and signed meter contract is
 | LEDs / `0x69aa01e7`, `0x9f59065a` | Both installed mask windows updated; zero width without a target. |
 | Backup backing / `0x8c20a763` | Plays the backup row's scripts from the backup ETA (below, "Backup timer"). |
 | `BACKUP_TIMER` / `0xbee44775` | The backup ETA in `mm:ss.cc` while a backup is on its way. |
+| Bounty row / `0x8674e6d4`, number `0x875e92eb` | The chase's pending bounty, shown with the board in every chase (below, "Bounty row"). |
 
 The radar backing and group no longer receive the earlier +75/+15 unit shifts.
 Those shifts aligned the mirror-oriented initial poses in the standalone view,
@@ -60,13 +61,24 @@ size over the newly calculated fixed edge.
 | Feature | Status |
 |---|---|
 | Heat arcs / `0x862824c9`, `0x4b2cbe1b` | Held hidden; the original mask-to-heat mapping is not implemented. |
-| Bounty row / `0x8674e6d4` | Held hidden until the complete bounty feed is bound. |
 | `CostToState` / `0x3ff5f33c` | No complete cost-to-state presentation. |
 | Hiding / `0x60b45523`, `0x38074901`, `0x5c2a4f20` | Hidden pending complete hiding timing/presentation. |
 | Infraction notifications | Original notification queue and authored actions remain incomplete. |
 | Radar audio/targets | Native ground selection, range, cone and per-update ramp are bound. Detector click and speed-camera selection remain absent; roll-sensitive lateral orientation remains unverified. |
 | View mode | The rear-view setting selects the detector layout. Original view-specific rear-view eligibility still needs comparison. |
 | Fades/sounds | Radar/meter transforms and transitions run from installed scripts; full HUD event and sound dispatch remains incomplete. |
+
+## Bounty row
+
+**[decomp]** for the board, **[binary]** for its feed, **[verified]** for the objects. The row inside the board holds
+the label `BOUNTY >` and a number. On every HUD update of a chase the board plays the row's appear script (when it is not
+the one playing) and prints the chase's pending bounty in it with the thousands separator (`%$d`). The pending bounty is
+the perpetrator's rep points of the chase so far, normal plus destruction ([ai-pursuit-heat](ai-pursuit-heat.md) section
+5.1), fed every update; it is not the car's banked bounty. The row's `INIT` chains to `HIDE`, so it rests hidden.
+
+The rewrite (`hud/bind.rs`, fed by `PursuitHud::bounty` from the police's `rep_points`) writes the number, plays the
+appear and holds the row at full alpha with the board. Tests: `hud::pursuit_tests` (synthetic) and
+`hud::pursuit_install_tests` (the real package).
 
 ## Backup timer
 

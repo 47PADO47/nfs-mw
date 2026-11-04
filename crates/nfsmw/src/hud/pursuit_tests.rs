@@ -11,10 +11,12 @@ use super::bind::HudBinding;
 use super::pursuit::PursuitHud;
 use super::state::HudState;
 
-/// The pursuit board's group, its timer, its bounty row, and the radar's group with the cool-down bar under it.
+/// The pursuit board's group, its timer, its bounty row and the row's number, and the radar's group with the cool-down
+/// bar under it.
 const BOARD: u32 = 1;
 const TIMER: u32 = 2;
 const BOUNTY_ROW: u32 = 3;
+const BOUNTY_VALUE: u32 = 13;
 const RADAR: u32 = 4;
 const RADAR_BACKING: u32 = 12;
 const COOLDOWN: u32 = 5;
@@ -120,6 +122,7 @@ fn package() -> Package {
         named(ObjectKind::Group, BOARD, 0xDE89_E070, None, none),
         object(ObjectKind::String, TIMER, "PursuitTime", Some(BOARD), none),
         named(ObjectKind::Group, BOUNTY_ROW, 0x8674_E6D4, Some(BOARD), none),
+        named(ObjectKind::String, BOUNTY_VALUE, 0x875E_92EB, Some(BOUNTY_ROW), none),
         // The radar's group (`0xab9c1d4d`) holds its backing (the layout's radar object) and the cool-down bar.
         named(ObjectKind::Group, RADAR, 0xAB9C_1D4D, None, none),
         named(ObjectKind::Image, RADAR_BACKING, 0x839E_7D77, Some(RADAR), none),
@@ -197,11 +200,16 @@ fn the_timer_shows_the_chase_time() {
 }
 
 #[test]
-fn the_bounty_row_stays_held_hidden_until_the_bounty_is_fed() {
+fn the_bounty_row_shows_with_the_board_and_reads_the_pending_bounty() {
     let (mut rt, id, mut b) = setup();
-    step(&mut rt, &mut b, &chase(3.0, 0.0));
-    assert!(!visible(&rt, id, BOUNTY_ROW), "no bounty in the feed");
+    let mut state = chase(3.0, 0.0);
+    state.pursuit.as_mut().unwrap().bounty = 12_500;
+    step(&mut rt, &mut b, &state);
+    assert!(visible(&rt, id, BOUNTY_ROW) && visible(&rt, id, BOUNTY_VALUE), "the row shows in every chase");
+    assert_eq!(text(&rt, id, BOUNTY_VALUE), "12,500", "the pending bounty with the thousands separator");
     assert!(visible(&rt, id, TIMER), "the timer still shows");
+    step(&mut rt, &mut b, &HudState::default());
+    assert!(!visible(&rt, id, BOUNTY_ROW), "no chase: the row hides with the board");
 }
 
 #[test]

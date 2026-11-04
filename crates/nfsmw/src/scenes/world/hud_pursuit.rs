@@ -17,11 +17,12 @@ fn board_from_feed(feed: PursuitFeed, cops_destroyed: u32) -> PursuitHud {
     }
 }
 
-/// The chase's pursuit board, the same for every player it chases: the timer, the cool-down bar, the hiding mark and
-/// the cops wrecked. `busted` is the meter this player's board shows. Once the arrest runs the board reads busted.
-/// `None` while no cop chases.
+/// The chase's pursuit board, the same for every player it chases: the timer, the cool-down bar, the hiding mark, the
+/// cops wrecked and the pending bounty. `busted` is the meter this player's board shows. Once the arrest runs the board
+/// reads busted. `None` while no cop chases.
 pub(super) fn pursuit_board(traffic: &TrafficWorld, busted: f32) -> Option<PursuitHud> {
     let wrecked = traffic.cops_destroyed();
+    let bounty = traffic.rep_points();
     if traffic.arrest_active() {
         return Some(PursuitHud {
             secs: traffic.pursuit_time(),
@@ -31,6 +32,7 @@ pub(super) fn pursuit_board(traffic: &TrafficWorld, busted: f32) -> Option<Pursu
             cooldown: false,
             hiding: None,
             backup_eta: traffic.backup_eta().unwrap_or(0.0),
+            bounty,
         });
     }
     // The bar spans the cool-down's own length (`required - grace`), so it opens empty; the meter
@@ -40,6 +42,7 @@ pub(super) fn pursuit_board(traffic: &TrafficWorld, busted: f32) -> Option<Pursu
         busted,
         cooldown: traffic.cooldown_shown(),
         hiding: traffic.hiding_fill(),
+        bounty,
         ..board_from_feed(feed, wrecked)
     })
 }

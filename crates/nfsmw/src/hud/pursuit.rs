@@ -20,6 +20,9 @@ pub struct PursuitHud {
     /// Seconds until the called backup arrives (the pursuit's backup ETA); 0 or less when none is on its way. The board's
     /// backup row shows it (`hud/backup_timer.rs`).
     pub backup_eta: f32,
+    /// The chase's pending bounty: its rep points so far, for the time in sight and the wrecks
+    /// (`docs/specs/ai-pursuit-heat.md` section 5.1). The board's `BOUNTY` row shows it.
+    pub bounty: u32,
 }
 
 impl PursuitHud {

@@ -142,3 +142,23 @@ fn the_helicopter_cone_shows_with_the_helicopter_and_plays_its_tracking_script()
     step(&mut rt, &mut b, &HudState { blips: Vec::new(), ..state(false) }, 0.1);
     assert!(!visible(&rt, id, fe_hash_upper(HELICOPTER_CONE_ICON)), "no helicopter, no cone");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_bounty_row_appears_in_a_chase_with_the_pending_bounty() {
+    let Some((_, mut rt, id)) = open() else { return };
+    let mut b = HudBinding::new(&mut rt, id);
+    b.advance_mirror_fade(1.0);
+    let chase = HudState {
+        pursuit: Some(PursuitHud { secs: 40.0, bounty: 162_500, ..Default::default() }),
+        ..Default::default()
+    };
+    for _ in 0..5 {
+        step(&mut rt, &mut b, &chase, 0.1);
+    }
+    let row = rt.find(id, 0x8674_e6d4).expect("the bounty row");
+    assert_eq!(rt.script_of(row), Some(APPEAR), "the row plays its authored appear");
+    assert!(visible(&rt, id, 0x8674_e6d4) && visible(&rt, id, 0x875e_92eb), "the row and its number show");
+    let text = rt.tree(id).nodes.iter().find(|n| n.name_hash == 0x875e_92eb).and_then(|n| n.text.clone());
+    assert_eq!(text.as_deref(), Some("162,500"));
+}
