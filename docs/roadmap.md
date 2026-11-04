@@ -108,7 +108,7 @@ Built:
 
 Open:
 
-- The NIS audio take mapping for rival intros, arrests and endings: one shared take per branch.
+- The NIS audio of the scenes the install has no take for (`Flythrough`, `OPMRivalIntro`, `IntroNisBL01`): the port plays none.
 - The FEng overlay packages in a NIS are drawn as text.
 - NIS character lights and hide events.
 - The overview's race, milestone and bounty sheets are built ([spec](specs/career-rep-sheets.md)); open there: the cop probability row, the in-game twins' own packages (the pause menu opens the safe house ones).
