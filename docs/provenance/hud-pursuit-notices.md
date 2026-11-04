@@ -55,3 +55,12 @@ later sections add.
 - Implemented in `crates/nfsmw/src/hud/total_bounty.rs`, fed from `scenes/world/career/pursuit.rs` and `hud.rs`.
 - Checked by `hud::total_bounty` (the rule), `scenes::world::career::hud` and the installed
   `hud::pursuit_install_tests`.
+
+## Cash flasher
+
+- Spec: [hud-pursuit.md](../specs/hud-pursuit.md), "Cash flasher".
+- Sources searched (2026-11-04): the original PC 1.3 executable for the group's and title's name hashes and the
+  group's name as text (no reference), and the uses of the number's name hash (two front-end screens only). The CC0
+  `FEPkg_Hud.cpp` builds no element for it. No source text copied.
+- **[verified]** The installed `HUD_SingleRace.fng`: the group, its title, number and panel.
+- Nothing implemented: the group stays out of the layout. Checked by the installed `hud::pursuit_install_tests`.

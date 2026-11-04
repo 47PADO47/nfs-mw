@@ -48,6 +48,7 @@ The detailed radar and signed meter contract is
 | `CTS_GROUP` / `0xd60fc075`, number `0x3ff5f33c`, title `0x64247241` | The cost-to-state flasher (below, "Cost to state"). |
 | `GENERIC_ICONS`, `TOTAL_INFRACTIONS_TEXT`, `INFRACTION_GROUP_1`..`4` | The infraction notifier (below, "Infraction notifier"). |
 | Total bounty / `0xea903012`, number `0x9b0ac8ca`, title `0x41a55ecf` | The career's total bounty flasher (below, "Total bounty"). |
+| `CASH_GROUP` / `0x3f8644ca`, number `CASH` / `0x0013c45e`, title `0xb32a0463` | Held hidden: the original never drives it (below, "Cash flasher"). |
 
 The radar backing and group no longer receive the earlier +75/+15 unit shifts.
 Those shifts aligned the mirror-oriented initial poses in the standalone view,
@@ -65,7 +66,6 @@ size over the newly calculated fixed edge.
 | Feature | Status |
 |---|---|
 | Heat arcs / `0x862824c9`, `0x4b2cbe1b` | Held hidden; the original mask-to-heat mapping is not implemented. |
-| Cash / `0x3f8644ca` | Not bound: a flasher of the career's cash. It rests hidden. |
 | Radar audio/targets | Native ground selection, range, cone and per-update ramp are bound. Detector click and speed-camera selection remain absent; roll-sensitive lateral orientation remains unverified. |
 | View mode | The rear-view setting selects the detector layout. Original view-specific rear-view eligibility still needs comparison. |
 | Fades/sounds | Radar/meter transforms and transitions run from installed scripts; full HUD event and sound dispatch remains incomplete. |
@@ -120,6 +120,17 @@ updates run as 2 s, as for the cost to state **[inferred]**. The rewrite's HUD o
 equal to the one the HUD last showed does not show again after the world reloads **[inferred]** (the original builds a
 new element). Tests: `hud::total_bounty` (the rule), `scenes::world::career::hud` (career mode only) and
 `hud::pursuit_install_tests` (the real package).
+
+## Cash flasher
+
+**[verified]** for the objects, **[binary]** for its absence. Between the total bounty and the cost to state the package
+holds a third flasher, `CASH_GROUP`: the title "CASH:" (`0xb32a0463`), the number `CASH` and an info panel, with the
+same `INIT` to `HIDE` rest and 600 ms appear and leave as the other two. Nothing in the PC executable names the group or
+its title, by hash or by text, and the CC0 HUD sources build no element for it. The number's name `CASH` is written only
+by front-end screens. The group therefore rests hidden for the whole game: cash won in a race or a milestone is not
+flashed on the HUD.
+
+The rewrite keeps it out of the layout, so it stays hidden. Test: `hud::pursuit_install_tests`.
 
 ## Infraction notifier
 

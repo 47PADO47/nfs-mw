@@ -244,3 +244,23 @@ fn a_new_career_total_bounty_flashes_for_two_seconds() {
     }
     assert!(!visible(&rt, id, TOTAL_BOUNTY), "after two seconds it has played out");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_cash_flasher_stays_hidden_as_the_original_never_drives_it() {
+    let Some((_, mut rt, id)) = open() else { return };
+    let mut b = HudBinding::new(&mut rt, id);
+    let career = HudState {
+        career_bounty: Some(40_000),
+        cash: Some(125_000),
+        total_bounty: Some(40_000),
+        pursuit: Some(PursuitHud { secs: 40.0, ..Default::default() }),
+        ..Default::default()
+    };
+    for _ in 0..10 {
+        b.advance_mirror_fade(0.1);
+        step(&mut rt, &mut b, &career, 0.1);
+    }
+    assert!(visible(&rt, id, TOTAL_BOUNTY), "its neighbour flashes the total");
+    assert!(!visible(&rt, id, fe_hash_upper("CASH_GROUP")), "no part of the game shows the cash group");
+}
