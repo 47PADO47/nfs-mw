@@ -35,15 +35,26 @@ banked **[exe]**. Its rows, in order **[exe]**:
   format `%s: %$0.0f`); a row whose bounty is zero hides the bounty line **[exe]**.
 - The total line reads `Total Bounty: N` (label `0x5CCF949A`): the sum of the rows shown so far, not the car's bounty
   **[exe]**.
-- The icon plays its reveal (`0x5079C8F8`, 3000 ms) **[exe]**. When the reveal has played, the icon plays its row
-  type's slot script (360 ms), which moves it onto its small icon in the row below and lights that one: `POS0` for the
-  duration, `POS00` for the immobilized cars, `POS1` to `POS8` for the bounty, infractions, cost to state, roadblocks,
-  spike strips, cops damaged, minimum and maximum time milestones **[exe]** **[install]**. The slot script's end posts
-  `0x0D3C3DE7`, which brings the next row; when the rows have run out, both lines play `0x033113AC` (they go) and the
-  total stays **[exe]** **[install]**. The rewrite picks the slot by the row icon's texture and times the reveal itself
-  (the original checks the reveal on the screen's update); a row icon with no slot goes on after the same time.
-- The first row comes with the package's message `0x35F8620B`, 500 ms into its intro **[install]**; the rewrite fills it
-  when the screen starts.
+- FEng script lengths count 1200 ticks a second. The icon plays its reveal (`0x5079C8F8`, 3000 ticks: 2.5 s) **[exe]**.
+  When the reveal has played, the icon plays its row type's slot script (360 ticks: 0.3 s), which moves it onto its
+  small icon in the row below and lights that one: `POS0` for the duration, `POS00` for the immobilized cars, `POS1` to
+  `POS8` for the bounty, infractions, cost to state, roadblocks, spike strips, cops damaged, and the pursuit length
+  (minimum time icon) and evasion time (maximum time icon) milestones **[exe]** **[install]**. The slot script's end
+  posts `0x0D3C3DE7`, which brings the next row.
+- When the rows have run out the big icon hides, both lines play `0x033113AC` (they go), and both panels (`0x962B9C62`,
+  `0xEC85C7E4`) play `POS2`, a slide **[exe]**. The bounty line's leave makes the total play its 2 s flourish
+  **[install]**.
+- The first row comes with the package's message `0x35F8620B`, 500 ticks into its entrance, when the input comes on
+  **[exe]** **[install]**.
+- **The sounds** are the package's own events **[exe]** **[install]**: the dialog box in on opening (`UISND_COMMON_DLGBOX_IN`,
+  trigger 10), `UISND_MILESTONE_REWARD_SYMBOL_ON` (17) as each row's icon appears and with the total's flourish,
+  `UISND_MILESTONE_REWARD_SYMBOL_MOVE` (18) as the icon flies to its slot, the dialog box out (11) with the panels'
+  slide and on Continue, and the accept on Continue. There is no count-up: the total is set at each row.
+- The rewrite follows this (`frontend/rewards.rs`, the sound map in `audio/menu.rs`). It picks the slot by the row
+  icon's texture and times the reveal itself; the original checks the reveal on the screen's update. A row icon with no
+  slot goes on after the reveal and a slot's time **[ours]**: the original's sequence stalls on such a row until
+  Continue. An earlier version timed the reveal as 3 s, filled the first row at once, skipped the end's hide and slides,
+  played none of the four screen sounds, and swapped the two time icons.
 
 ## 3. The statistics page
 

@@ -1,10 +1,12 @@
 //! The milestone rewards screen (`PostRace_MilestoneRewards.fng`): what a chase banked, one row at a time, and the total
 //! of the rows shown so far. The flow opens it with the chase's [`RewardsReport`] (`post_race.rs`,
 //! `Frontend::poll_race`): after every escape in free roam, and after a race's chase that banked milestones. The package
-//! has one text line for the row and one for its bounty, so each row takes its turn: the row's icon plays its reveal,
-//! then moves to its slot in the row of small icons, and the package's message at the end of that brings the next row. Continue leaves through the package's own script; its end
-//! opens the chase's statistics page when the report has one, else goes back to the game
-//! (`docs/specs/pursuit-escape-results.md` section 2).
+//! has one text line for the row and one for its bounty, so each row takes its turn once the package's entrance has
+//! finished: the row's icon plays its reveal, then moves to its slot in the row of small icons, and the package's message
+//! at the end of that brings the next row. When the rows run out the icon goes, the lines leave and both panels slide,
+//! which plays the total's flourish. The sounds are the package's own events (`audio/menu.rs`). Continue leaves through
+//! the package's own script; its end opens the chase's statistics page when the report has one, else goes back to the
+//! game (`docs/specs/pursuit-escape-results.md` section 2).
 
 use blackbox_feng::fe_hash_upper;
 
@@ -27,8 +29,9 @@ const ICON: u32 = 0xFCC8A;
 const REVEAL: u32 = 0x5079_C8F8;
 /// The package's message when a row's icon has moved to its slot: the next row comes **[exe]** **[install]**.
 const ROW_DONE: u32 = 0x0D3C_3DE7;
-/// Seconds of the icon's reveal: when it has played, the icon moves to its slot in the row of small icons **[exe]**.
-const REVEAL_SECS: f32 = 3.0;
+/// Seconds of the icon's reveal (3000 FEng ticks at 1200 a second): when it has played, the icon moves to its slot in the
+/// row of small icons **[exe]**.
+const REVEAL_SECS: f32 = 2.5;
 /// Seconds of the slot script, at whose end the package posts [`ROW_DONE`] **[install]**: the wait for a row whose icon
 /// has no slot.
 const SLOT_SECS: f32 = 0.36;
@@ -53,6 +56,12 @@ fn slot_of(icon: &str) -> Option<u32> {
 }
 /// The script that takes the row's two lines away once the rows have run out **[exe]**.
 const LINES_OUT: u32 = 0x0331_13AC;
+/// The big icon's hide script, and the two panels with the slide they play once the rows have run out **[exe]**; the
+/// upper panel's slide plays the dialog-out sound and dims the Milestones tab.
+const HIDE: u32 = 0x0016_A259;
+const PANELS: [u32; 2] = [0x962B_9C62, 0xEC85_C7E4];
+/// `POS2`, the panels' slide.
+const PANEL_SLIDE: u32 = 0x001B_20C3;
 
 /// Shows a [`RewardsReport`].
 pub struct RewardsLogic {
@@ -102,8 +111,14 @@ impl RewardsLogic {
         }
         self.shown = self.report.lines.len();
         self.row_age = None;
+        if let Some(icon) = cx.guid(ICON) {
+            cx.rt.run_script(icon, HIDE);
+        }
         cx.script(MILESTONE_LINE, LINES_OUT);
         cx.script(BOUNTY_LINE, LINES_OUT);
+        for panel in PANELS {
+            cx.script(panel, PANEL_SLIDE);
+        }
     }
 
     /// The row's icon goes to its slot once its reveal has played; a row whose icon has no slot goes on by itself.
@@ -119,9 +134,8 @@ impl RewardsLogic {
 }
 
 impl ScreenLogic for RewardsLogic {
-    fn start(&mut self, cx: &mut Cx) {
-        self.fill(cx);
-    }
+    // The first row waits for the package's entrance: `INIT_COMPLETE`, below.
+    fn start(&mut self, _cx: &mut Cx) {}
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
         let Some(age) = self.row_age.as_mut() else { return };
@@ -137,6 +151,7 @@ impl ScreenLogic for RewardsLogic {
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
+            ids::INIT_COMPLETE if self.row_age.is_none() && self.shown == 0 => self.fill(cx),
             ROW_DONE => self.next(cx),
             // The package's own leave animation runs on accept; its end is the way out.
             ids::EXIT_COMPLETE => match self.report.pursuit {
@@ -158,6 +173,8 @@ mod tests {
         assert_eq!(slot_of("Cops_TakenOut_Icon"), Some(0x037F_3911), "POS00");
         assert_eq!(slot_of("Milestone_Pursuit_MaxTime"), Some(0x001B_20C9), "POS8");
         assert_eq!(slot_of("Milestone_Main"), None);
+        assert_eq!(PANEL_SLIDE, fe_hash_upper("POS2"));
+        assert_eq!(HIDE, fe_hash_upper("HIDE"));
     }
 
     #[test]

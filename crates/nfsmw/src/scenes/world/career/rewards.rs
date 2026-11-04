@@ -45,11 +45,11 @@ pub(super) fn milestone_text(stat: StatType, threshold: f32) -> String {
 }
 
 /// The icon texture of a statistic's milestone: the row of icons of `PostRace_MilestoneRewards.fng` by what each shows
-/// (the time icons: max time is the chase length, min time the evasion time) **[unconfirmed]**.
+/// (the time icons: min time is the chase length, max time the evasion time) **[exe]**.
 pub(super) fn milestone_icon(stat: StatType) -> &'static str {
     match stat {
-        StatType::PursuitLength => "Milestone_Pursuit_MaxTime",
-        StatType::PursuitEvasionTime => "Milestone_Pursuit_MinTime",
+        StatType::PursuitLength => "Milestone_Pursuit_MinTime",
+        StatType::PursuitEvasionTime => "Milestone_Pursuit_MaxTime",
         StatType::BountyInPursuit => "Milestone_PursuitBounty",
         StatType::CopsDestroyedInPursuit | StatType::CopsDestroyed => "Cops_TakenOut_Icon",
         StatType::CostToStateInPursuit | StatType::CostToState => "Milestone_Cost_To_State",
