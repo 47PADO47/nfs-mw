@@ -39,8 +39,10 @@ Sample the map with flipped vertical UVs. Detail-map additions are omitted.
 
 The High setting applies the full profile. Low blends halfway with the source;
 this is a port convenience, not a claim of PC Low-setting parity. Default Off
-preserves the existing render. Pursuit/cinematic profiles and time-of-day blending
-are not included. No temporal history or frame-rate-dependent state is introduced.
+preserves the existing render. The pursuit and arrest looks change the profile's
+values per frame and multiply the graded colour by a brightness, without rebuilding
+the pass ([pursuit-look](pursuit-look.md)); time-of-day blending is not included.
+No temporal history or frame-rate-dependent state is introduced.
 
 ## Failure and lifetime
 

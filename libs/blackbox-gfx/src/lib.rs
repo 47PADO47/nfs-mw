@@ -81,7 +81,7 @@ pub use shadow::ShadowProjection;
 pub use sky::{SkyLayerKind, SkyMaterialDesc, SkyState, SunGlare, SunGlareLayer};
 pub use stats::{BackendInfo, FramePerformance, RenderStats, WorkloadActivity};
 pub use texture::{PixelFormat, TextureDesc};
-pub use treatment::{ColourTreatment, ColourTreatmentOverride};
+pub use treatment::{ColourLook, ColourTreatment, ColourTreatmentOverride};
 pub use ui::{UiLayer, UiMesh, UiTextureComposition, UiTexturePatch, UiVertex};
 pub use window::WindowMaterialDesc;
 

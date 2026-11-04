@@ -147,6 +147,11 @@ pub trait RenderBackend {
     /// Set the current scene's colour profile and optional gain map; `None` clears it.
     /// The gain map is display-space RGBA: blue multiplies colour. Other channels are reserved.
     fn set_colour_treatment(&mut self, _profile: Option<&crate::ColourTreatment>, _gain: Option<&RgbaImage>) {}
+    /// Change the colour profile [`RenderBackend::set_colour_treatment`] set, for the coming frames, without replacing
+    /// its gain map or pipelines: blend it (with the settings' parameter replacements) towards the look's target and
+    /// multiply the graded colour by its brightness. With no profile set this does nothing; setting a profile again
+    /// resets the look.
+    fn set_colour_look(&mut self, _look: crate::ColourLook) {}
     /// Install a scene mask for the vignette; `None` releases it.
     /// The mask's green times its blue adds the vignette; red and alpha are ignored.
     /// Texels with zero green preserve the source; the UI follows.

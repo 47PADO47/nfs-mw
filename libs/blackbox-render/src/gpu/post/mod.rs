@@ -102,6 +102,8 @@ pub(super) trait PostPass {
         true
     }
     fn set_focus(&mut self, _settings: blackbox_gfx::FocusFilter) {}
+    /// The per-frame change of the scene's colour profile (see `RenderBackend::set_colour_look`).
+    fn set_look(&mut self, _look: &blackbox_gfx::ColourLook) {}
     fn set_display(&mut self, _mapping: Option<display::Mapping>) {}
 
     /// The exposure, when this is the tone-mapping pass: a pass before it may run it as part of its last draw
@@ -179,6 +181,8 @@ pub(super) struct PostChain {
     /// it off to compare against the separate passes.
     fuse: bool,
     profile: Option<treatment::Profile>,
+    /// The per-frame change of the scene profile (`set_look`); none with each new profile.
+    look: blackbox_gfx::ColourLook,
     /// Used by the effect passes built when the settings or the profile change.
     cache: Option<wgpu::PipelineCache>,
     /// The display mapping (HDR output or SDR preview) the chain was given, if any. See `display.rs`.
@@ -201,6 +205,7 @@ impl PostChain {
             settings: crate::PostSettings::default(),
             fuse: true,
             profile: None,
+            look: blackbox_gfx::ColourLook::default(),
             cache: cache.cloned(),
         }
     }

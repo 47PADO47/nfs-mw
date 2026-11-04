@@ -16,21 +16,26 @@ pub(super) struct Parameters {
     strengths: [f32; 4],
     black_curve: [f32; 4],
     colour_curve: [f32; 4],
-    /// `x` is the exposure of the fused tone mapping.
+    /// `x` is the exposure of the fused tone mapping, `y` what the graded colour is multiplied by.
     tonemap: [f32; 4],
 }
 
-fn parameters(settings: &PostSettings, profile: Option<&ColourTreatment>) -> Parameters {
+/// The loaded profile with the settings' parameter replacements: the grade a look blends from.
+fn base(settings: &PostSettings, profile: ColourTreatment) -> ColourTreatment {
+    settings.colour_treatment_override.map_or(profile, |replacement| replacement.apply(profile))
+}
+
+/// The shader's parameters for the finished grade `graded`.
+fn parameters(settings: &PostSettings, graded: Option<&ColourTreatment>) -> Parameters {
     let mut out = Parameters {
         tint: [0.0; 4],
         luminance: [0.0; 4],
         strengths: [0.0; 4],
         black_curve: [0.0; 4],
         colour_curve: [0.0; 4],
-        tonemap: [0.0; 4],
+        tonemap: [0.0, 1.0, 0.0, 0.0],
     };
-    let Some(p) = profile.copied() else { return out };
-    let p = settings.colour_treatment_override.map_or(p, |replacement| replacement.apply(p));
+    let Some(p) = graded.copied() else { return out };
     out.tint[..3].copy_from_slice(&p.tint);
     out.luminance[..3].copy_from_slice(&p.luminance);
     out.strengths = [p.desaturation, p.black_intensity, p.colour_intensity, settings.colour_treatment];
@@ -46,6 +51,9 @@ pub(super) struct Composite {
     sampler: wgpu::Sampler,
     uniform: wgpu::Buffer,
     params: Parameters,
+    /// The settings and the loaded profile the parameters were made from, for a new look (`set_look`).
+    settings: PostSettings,
+    profile: Option<ColourTreatment>,
     /// Per output format and whether the tone mapping is fused into the draw.
     pipelines: HashMap<(wgpu::TextureFormat, bool), wgpu::RenderPipeline>,
     /// Bind groups per (input, blur) view pair. The gain map never changes for one composite (a new profile
@@ -110,7 +118,7 @@ impl Composite {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        let params = parameters(settings, profile);
+        let params = parameters(settings, profile.map(|p| base(settings, *p)).as_ref());
         let uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("colour treatment parameters"),
             contents: bytemuck::bytes_of(&params),
@@ -123,6 +131,8 @@ impl Composite {
             sampler,
             uniform,
             params,
+            settings: *settings,
+            profile: profile.copied(),
             pipelines: HashMap::new(),
             bind_groups: BindCache::default(),
             tonemap: None,
@@ -133,6 +143,19 @@ impl Composite {
     /// Set the HDR flag (`tint.w`): with it the shader keeps positive scene values above 1 instead of clamping them.
     pub(super) fn set_hdr(&mut self, hdr: bool) {
         self.params.tint[3] = u8::from(hdr) as f32;
+    }
+
+    /// Grade with the loaded profile blended towards `look` from the next draw on, multiplying the graded colour by its
+    /// brightness; the HDR flag and the fused tone mapping stay. Returns the grade's luminance weights, `None` without a
+    /// profile.
+    pub(super) fn set_look(&mut self, look: &blackbox_gfx::ColourLook) -> Option<[f32; 3]> {
+        let graded = look.grade(base(&self.settings, self.profile?));
+        let (hdr, exposure) = (self.params.tint[3], self.params.tonemap[0]);
+        self.params = parameters(&self.settings, Some(&graded));
+        self.params.tint[3] = hdr;
+        self.params.tonemap[0] = exposure;
+        self.params.tonemap[1] = look.brightness;
+        Some(graded.luminance)
     }
 
     /// Run the tone mapping with `exposure` as part of the next draw (`None`: not at all).
@@ -237,7 +260,7 @@ mod tests {
         };
         let settings =
             PostSettings { colour_treatment: 0.65, colour_treatment_override: Some(replacement), ..Default::default() };
-        let actual = parameters(&settings, Some(&profile));
+        let actual = parameters(&settings, Some(&base(&settings, profile)));
         assert_eq!(actual.tint[..3], replacement.tint);
         assert_eq!(actual.strengths, [0.7, 0.8, 0.9, 0.65]);
         assert_eq!(actual.luminance[..3], profile.luminance);
