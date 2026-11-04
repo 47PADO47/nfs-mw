@@ -7,6 +7,7 @@ use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use blackbox_chunk::ice::Track;
 use blackbox_sequence::Package;
 use game_install::GameDir;
+use nfsmw_data::car::{CarTables, LightMaterial};
 use nfsmw_data::nis::{CameraLibrary, NisBundle};
 
 use super::cars::{self, CarTrack};
@@ -15,10 +16,11 @@ use super::kind::NisKind;
 use super::player::Plan;
 use crate::scenes::world::scene_space::Anchor;
 
-/// What the loading thread reads: the scene's bundle and the camera library.
+/// What the loading thread reads: the scene's bundle, the camera library and the light materials.
 pub struct Loaded {
     bundle: NisBundle,
     library: Arc<CameraLibrary>,
+    light_materials: Vec<LightMaterial>,
 }
 
 /// What a scene starts from.
@@ -79,7 +81,7 @@ impl Loading {
 
     /// The scene's plan, car tracks, events and characters from what was read. The error names what failed.
     pub fn prepare(&self, loaded: Loaded) -> Result<Prepared, String> {
-        let Loaded { bundle, library } = loaded;
+        let Loaded { bundle, library, light_materials } = loaded;
         let camera = camera_track(&library, &bundle.name, self.track);
         if camera.is_none() {
             log::info!("NIS {}: no camera set, so a slow orbit plays for the scene", bundle.name);
@@ -90,16 +92,28 @@ impl Loading {
             plan,
             cars: cars::read_tracks(&bundle.anim.banks),
             sequence: bundle.sequence.clone(),
-            characters: Characters::from_bundle(&bundle),
+            characters: Characters::from_bundle(&bundle, &light_materials),
         })
     }
 }
 
-/// Reads the scene `scene` and the camera library from the install.
+/// Reads the scene `scene`, the camera library and the light materials from the install.
 fn read(dir: &GameDir, scene: &str) -> Result<Loaded, String> {
     let bundle = NisBundle::load(dir, scene).map_err(|e| format!("{e:#}"))?;
     let library = CameraLibrary::load(dir).map_err(|e| format!("{e:#}"))?;
-    Ok(Loaded { bundle, library })
+    Ok(Loaded { bundle, library, light_materials: light_materials(dir) })
+}
+
+/// The light materials the characters' shading groups name (`nis-player-2.md` section 9.6): the car tables' own, which
+/// are read once per session. Without them the characters are lit with the neutral ramp.
+fn light_materials(dir: &GameDir) -> Vec<LightMaterial> {
+    match CarTables::load(dir) {
+        Ok(tables) => tables.light_materials.clone(),
+        Err(error) => {
+            log::warn!("NIS characters: no light materials ({error:#}); they are lit without them");
+            Vec::new()
+        }
+    }
 }
 
 /// The camera of a scene: its track `track`, or track 0 when its set has no such track. `None` when the scene has no

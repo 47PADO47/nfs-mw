@@ -31,6 +31,10 @@ pub enum BlendMode {
 pub enum Shading {
     /// Texture Ãƒâ€” vertex colour Ãƒâ€” (ambient + directional light): models without baked lighting (cars).
     Lit,
+    /// Texture times vertex colour, with the alpha doubled: the caller has lit the vertices, so the vertex colour is
+    /// the draw's whole light (skinned characters with a light rig of their own). No sun, ambient, shadow or night
+    /// response; fogged like the other models.
+    Character,
     /// Texture Ãƒâ€” vertex colour Ãƒâ€” 2, no dynamic light: pre-lit world geometry, whose
     /// vertex colours use 0x80 for full brightness.
     Prelit,
@@ -121,6 +125,7 @@ mod tests {
         assert!(a.same_pipeline(Shading::Glossy(GlossyMaterialHandle::ANY)));
         assert!(Shading::Lit.same_pipeline(Shading::Lit));
         assert!(!Shading::Lit.same_pipeline(Shading::Prelit));
+        assert!(!Shading::Character.same_pipeline(Shading::Lit), "characters have their own pipeline");
         assert!(!Shading::Sky.same_pipeline(a));
     }
 }

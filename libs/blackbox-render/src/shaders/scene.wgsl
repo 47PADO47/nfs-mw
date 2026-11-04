@@ -6,6 +6,8 @@
 override PRELIT: bool = false;
 // Texture alpha is an emission mask for this opaque material.
 override MASKED_EMISSIVE: bool = false;
+// Skinned characters: the caller lit the vertices, so the vertex colour is the whole light (character_pixel).
+override CHARACTER: bool = false;
 // Off for the sky, which sits beyond the fog.
 override FOG: bool = true;
 override WORLD_KIND: u32 = 0u;
@@ -130,6 +132,7 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
         return material_emission(world_pixel(in, texel, receive_ao), source, in);
     }
     let base = texel * in.color;
+    if CHARACTER { return character_pixel(in, base); }
     let receiver = receiver_normal(in.world, in.normal);
     if FOG && globals.fog_range.w < 0.5 && shadow_data.debug.x > 0.5 {
         return vec4<f32>(lighting_debug_colour(in.world, receiver, in.clip.xy), base.a);
@@ -162,6 +165,18 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
         return material_emission(vec4<f32>(distant_night(scatter_fog(lit, in.world), in.world), base.a), source, in);
     }
     return material_emission(vec4<f32>(distant_night(mix(lit, globals.fog_color.rgb * mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w), fog), in.world), base.a), source, in);
+}
+
+// A skinned character (docs/specs/nis-player-2.md section 9.6): texture times the light its vertices carry, with no
+// sun, ambient, shadow or night response, and the alpha doubled as the original's character pixel stage does. Fogged
+// like the other models.
+fn character_pixel(in: VsOut, base: vec4<f32>) -> vec4<f32> {
+    let alpha = min(base.a * 2.0, 1.0);
+    if globals.scatter_rayleigh.w > 0.5 { return vec4<f32>(scatter_fog(base.rgb, in.world), alpha); }
+    let distance = length(in.world - globals.camera_pos.xyz);
+    let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
+    let fog_colour = globals.fog_color.rgb * mix(vec3(1.0), vec3(0.30, 0.35, 0.45), shadow_data.local_options.w);
+    return vec4<f32>(mix(base.rgb, fog_colour, fog), alpha);
 }
 
 fn distant_night(colour: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
@@ -206,6 +221,7 @@ fn fs_alpha_test(in: VsOut) -> @location(0) vec4<f32> {
     if WORLD_KIND > 0u && globals.light_dir.w > 0.5 {
         alpha = select(alpha, texture_alpha, WORLD_KIND == 2u) * select(1.0, 2.0, WORLD_KIND == 3u);
     }
+    if CHARACTER { alpha *= 2.0; }
     // World-family coverage also includes authored half-alpha walls. Keep genuine texture holes.
     // Independent behavior reference: docs/specs/world-material-routing.md.
     let cutoff = select(0.5, 0.375, WORLD_KIND == 1u || WORLD_KIND == 3u || WORLD_KIND == 4u);

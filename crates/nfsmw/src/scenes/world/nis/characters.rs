@@ -3,7 +3,8 @@
 //! their blend weights (`skin.rs`) and drawn placed by the record's local matrix in the scene, the scene's anchor and a small lift. Each character keeps
 //! its feet on the ground under its pelvis (`keep_on_ground`), as the original's keep-on-ground does. The rules are in
 //! `docs/specs/nis-player-2.md`, section 9; the records in `docs/specs/nis-scenes.md`, section 4; the skin in
-//! `docs/formats/models.md`, "Skinned vertices and bones".
+//! `docs/formats/models.md`, "Skinned vertices and bones". The characters carry their own light in their vertex colours
+//! (`light.rs`, section 9.6).
 
 use std::collections::HashMap;
 
@@ -15,8 +16,10 @@ use blackbox_scene::{blend_mode, upload_rigid_part, upload_texture};
 use blackbox_solid::{RigidPart, Solid, rigid_split};
 use blackbox_tpk::TexturePack;
 use glam::{Mat4, Vec3};
+use nfsmw_data::car::LightMaterial;
 use nfsmw_data::nis::NisBundle;
 
+use super::light::{self, Eye, Lighting, Ramp};
 use super::skin::skin_part;
 use crate::scenes::world::keys;
 use crate::scenes::world::scene_space::Anchor;
@@ -53,6 +56,8 @@ pub struct Characters {
 struct Model {
     solid: Solid,
     parts: Vec<RigidPart>,
+    /// The diffuse ramp of each vertex of each part ([`part_ramps`]).
+    ramps: Vec<Vec<Ramp>>,
 }
 
 /// One character: which model it wears, its skeleton and clip, and where it stands.
@@ -77,11 +82,13 @@ struct Actor {
 
 impl Characters {
     /// The characters of a bundle's scene: one actor per record whose clip, skeleton and model are all in the bundle.
-    /// A record that does not resolve is logged and left out.
-    pub fn from_bundle(bundle: &NisBundle) -> Self {
+    /// A record that does not resolve is logged and left out. `materials` are the light materials the models' shading
+    /// groups name (the car tables' `LightMaterials`).
+    pub fn from_bundle(bundle: &NisBundle, materials: &[LightMaterial]) -> Self {
         let mut characters = Self::default();
+        let ramps = light::ramps(materials);
         for record in &bundle.scene.characters {
-            if let Err(reason) = characters.add(record, bundle) {
+            if let Err(reason) = characters.add(record, bundle, &ramps) {
                 log::warn!("NIS {}: a character is not drawn: {reason}", bundle.name);
             }
         }
@@ -93,7 +100,7 @@ impl Characters {
 
     /// Adds the actor of one record. Fails, naming the hash that did not resolve, when the clip, the skeleton or the
     /// model is missing from the bundle.
-    fn add(&mut self, record: &Character, bundle: &NisBundle) -> Result<(), String> {
+    fn add(&mut self, record: &Character, bundle: &NisBundle, ramps: &HashMap<u32, Ramp>) -> Result<(), String> {
         let clip = find_clip(&bundle.anim.banks, record.skeletal_anim_hash)
             .ok_or_else(|| format!("no clip with hash {:#010x}", record.skeletal_anim_hash))?;
         let skeleton = skeleton_index(&bundle.anim.skeletons, record.skeleton_name_hash, Some(clip.checksum))
@@ -101,7 +108,7 @@ impl Characters {
             .ok_or_else(|| format!("no skeleton with hash {:#010x}", record.skeleton_name_hash))?;
         let solid = solid_index(&bundle.solids, record.lod_name_hashes)
             .ok_or_else(|| format!("no model for the LOD hashes {:x?}", record.lod_name_hashes))?;
-        let model = self.model_of(&bundle.solids[solid]);
+        let model = self.model_of(&bundle.solids[solid], ramps);
         self.actors.push(Actor {
             model,
             skeleton,
@@ -118,17 +125,18 @@ impl Characters {
     }
 
     /// The index of the model of `solid`, adding it on first use. One model serves every actor that wears the solid.
-    fn model_of(&mut self, solid: &Solid) -> usize {
+    fn model_of(&mut self, solid: &Solid, ramps: &HashMap<u32, Ramp>) -> usize {
         if let Some(index) = self.models.iter().position(|model| model.solid.name_hash == solid.name_hash) {
             return index;
         }
         let mut parts = rigid_split(solid);
-        // The skinned shader ignores the vertex colour, and the character meshes store it as 0; the lit material
-        // multiplies by it, so it is set to white.
+        // The character meshes store the vertex colour as 0, which the skinned shader ignores. Here it carries the light
+        // that `skin` works out each frame; until then, and for the rigid fallback, it is white.
         for vertex in parts.iter_mut().flat_map(|part| part.vertices.iter_mut()) {
             vertex.color_bgra = [255; 4];
         }
-        self.models.push(Model { solid: solid.clone(), parts });
+        let ramps = parts.iter().map(|part| part_ramps(solid, part, ramps)).collect();
+        self.models.push(Model { solid: solid.clone(), parts, ramps });
         self.models.len() - 1
     }
 
@@ -152,7 +160,7 @@ impl Characters {
             actor.meshes = model
                 .parts
                 .iter()
-                .map(|part| upload_rigid_part(renderer, &model.solid, part, &lookup, Shading::Lit))
+                .map(|part| upload_rigid_part(renderer, &model.solid, part, &lookup, Shading::Character))
                 .collect();
         }
     }
@@ -173,24 +181,30 @@ impl Characters {
         }
     }
 
-    /// Skins every actor's parts for scene time `scene_time` and gives the vertices to their meshes (`skin.rs`). An
-    /// actor whose mesh the backend cannot update falls back to the rigid draw for the rest of the scene. The world calls
-    /// it every frame after [`Characters::prepare`].
-    pub fn skin(&mut self, renderer: &mut dyn RenderBackend, scene_time: f32) {
+    /// Skins every actor's parts for scene time `scene_time` and gives the vertices to their meshes (`skin.rs`), each
+    /// vertex coloured with its light for the camera `eye` (`light.rs`), the scene standing at `anchor`. An actor whose
+    /// mesh the backend cannot update falls back to the rigid draw for the rest of the scene. The world calls it every
+    /// frame after [`Characters::prepare`].
+    pub fn skin(&mut self, renderer: &mut dyn RenderBackend, scene_time: f32, anchor: &Anchor, eye: &Eye) {
+        let to_render = scene_to_render(anchor);
         let (mut posed, mut drawn) = (Vec::new(), Vec::new());
         for actor in self.actors.iter_mut().filter(|actor| !actor.rigid) {
             let Some(model) = self.models.get(actor.model) else { continue };
             let Some(skin) = model.solid.skin.as_deref() else { continue };
             let skinning = actor.skinning(scene_time);
-            for (part, mesh) in model.parts.iter().zip(&actor.meshes) {
+            let lighting = Lighting::new(eye, actor.frame(to_render));
+            for ((part, ramps), mesh) in model.parts.iter().zip(&model.ramps).zip(&actor.meshes) {
                 let Some(mesh) = *mesh else { continue };
                 skin_part(part, skin, &skinning, &mut posed);
                 drawn.clear();
-                drawn.extend(posed.iter().map(|v| blackbox_gfx::Vertex {
-                    position: v.position,
-                    normal: v.normal,
-                    color_bgra: v.color_bgra,
-                    uv: v.uv,
+                // The light is the bind pose's: the original lights the unskinned position and normal.
+                drawn.extend(posed.iter().zip(&part.vertices).zip(ramps).map(|((v, bind), ramp)| {
+                    blackbox_gfx::Vertex {
+                        position: v.position,
+                        normal: v.normal,
+                        color_bgra: lighting.colour(bind, ramp),
+                        uv: v.uv,
+                    }
                 }));
                 if !renderer.update_mesh_vertices(mesh, &drawn) {
                     actor.rigid = true;
@@ -207,14 +221,12 @@ impl Characters {
         for (actor_index, actor) in self.actors.iter().enumerate() {
             let Some(model) = self.models.get(actor.model) else { continue };
             let skinning = actor.skinning(scene_time);
-            let raise = ground_raise(actor.ground, (to_render * actor.placement).w_axis.z);
-            let lifted = Mat4::from_translation(Vec3::new(0.0, 0.0, raise)) * to_render;
+            let frame = actor.frame(to_render);
             for (part_index, (part, mesh)) in model.parts.iter().zip(&actor.meshes).enumerate() {
                 let (Some(mesh), Some(bone)) = (*mesh, skinning.get(usize::from(part.bone))) else { continue };
                 // Skinned parts already carry the pose in their vertices; the rigid fallback moves each with its bone.
                 let pose = if actor.rigid { *bone } else { Mat4::IDENTITY };
-                let transform = part_transform(lifted, actor.placement, pose);
-                out.push(Instance::keyed(mesh, transform, keys::character(actor_index, part_index)));
+                out.push(Instance::keyed(mesh, frame * pose, keys::character(actor_index, part_index)));
             }
         }
     }
@@ -233,6 +245,14 @@ impl Characters {
 }
 
 impl Actor {
+    /// Where the actor's bind-pose vertices are drawn, the scene's space being `to_render`: [`part_transform`] with no
+    /// bone, after the raise onto its ground.
+    fn frame(&self, to_render: Mat4) -> Mat4 {
+        let raise = ground_raise(self.ground, (to_render * self.placement).w_axis.z);
+        let lifted = Mat4::from_translation(Vec3::new(0.0, 0.0, raise)) * to_render;
+        part_transform(lifted, self.placement, Mat4::IDENTITY)
+    }
+
     /// The clip's pose at scene time `scene_time`, over the bind pose.
     fn pose(&self, scene_time: f32) -> Pose {
         let secs = clip_seconds(scene_time, self.play_speed, self.play_delay, self.looping, self.clip.duration_secs());
@@ -300,6 +320,28 @@ pub fn solid_index(solids: &[Solid], lod_name_hashes: [u32; 4]) -> Option<usize>
         .iter()
         .filter(|&&hash| hash != 0)
         .find_map(|&hash| solids.iter().position(|solid| solid.name_hash == hash))
+}
+
+/// The diffuse ramp of each vertex of `part`: the ramp in `ramps` of the light material of the shading group its
+/// triangles came from, or [`Ramp::NEUTRAL`] when the group names none that `ramps` has (`nis-player-2.md`, section 9.6).
+pub fn part_ramps(solid: &Solid, part: &RigidPart, ramps: &HashMap<u32, Ramp>) -> Vec<Ramp> {
+    let mut out = vec![Ramp::NEUTRAL; part.vertices.len()];
+    for run in &part.runs {
+        let ramp = solid
+            .groups
+            .get(run.group)
+            .and_then(|group| solid.light_material_hashes.get(usize::from(group.light_material)))
+            .and_then(|hash| ramps.get(hash))
+            .copied()
+            .unwrap_or(Ramp::NEUTRAL);
+        let start = run.first_index as usize;
+        for &index in part.indices.get(start..start + run.index_count as usize).unwrap_or_default() {
+            if let Some(slot) = out.get_mut(index as usize) {
+                *slot = ramp;
+            }
+        }
+    }
+    out
 }
 
 /// The clip with name hash `hash`, read from the first bank that holds it. A clip that does not read is logged and

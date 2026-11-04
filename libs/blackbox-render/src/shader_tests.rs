@@ -66,6 +66,19 @@ fn every_shader_parses_and_validates() {
 }
 
 #[test]
+fn the_scene_shader_has_the_switch_the_character_pipeline_sets() {
+    let source = format!(
+        "{}\n{}\n{}",
+        include_str!("shaders/scene.wgsl"),
+        include_str!("shaders/world_surface.wgsl"),
+        include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
+    );
+    let module = naga::front::wgsl::parse_str(&source).unwrap_or_else(|e| panic!("{}", e.emit_to_string(&source)));
+    let names: Vec<&str> = module.overrides.iter().filter_map(|(_, o)| o.name.as_deref()).collect();
+    assert!(names.contains(&"CHARACTER"), "the pipelines set CHARACTER for Shading::Character: {names:?}");
+}
+
+#[test]
 fn the_effects_shader_with_the_shadow_receiver_validates_and_keeps_its_entry_points() {
     use blackbox_gpu_passes::{EFFECTS_BASE_WGSL, EFFECTS_SHADOWED_WGSL};
     let receiver = include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "1");
