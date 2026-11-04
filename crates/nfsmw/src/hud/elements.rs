@@ -64,6 +64,8 @@ pub struct Shown {
     pub leaders: u8,
     /// The milestone board shows: a free-roam chase in the career (`hud/milestone_board.rs`).
     pub milestones: bool,
+    /// The cost-to-state flasher is up or plays out (`hud/cost_to_state.rs`).
+    pub cost_to_state: bool,
 }
 
 /// The elements and where they sit in the package.
@@ -88,6 +90,8 @@ pub struct Layout {
     cooldown: Vec<usize>,
     /// The milestone board's group.
     milestones: Vec<usize>,
+    /// The cost-to-state flasher's group.
+    cost_to_state: Vec<usize>,
     race: Vec<usize>,
     race_lap: Vec<usize>,
     countdown: Vec<usize>,
@@ -141,6 +145,7 @@ impl Layout {
             pursuit_cops: find(&PURSUIT_COPS),
             cooldown: find(&COOLDOWN),
             milestones: find(&super::milestone_board::BOARD),
+            cost_to_state: find(&[fe_hash_upper(super::cost_to_state::GROUP)]),
             race: find(&super::race::root_hashes()),
             race_lap: find(&[super::race::lap_hash()]),
             countdown: find(&[super::race::count_hash()]),
@@ -214,6 +219,9 @@ impl Layout {
         }
         if want.milestones {
             roots.extend(&self.milestones);
+        }
+        if want.cost_to_state {
+            roots.extend(&self.cost_to_state);
         }
         for root in roots {
             // The root's ancestors have to show for it to show; everything under it shows with it.

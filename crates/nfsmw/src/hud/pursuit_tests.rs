@@ -26,6 +26,9 @@ const HIDING: u32 = 8;
 const HIDING_ICON: u32 = 9;
 const HEAT: u32 = 10;
 const SPEEDOMETER: u32 = 11;
+/// The cost-to-state flasher's group and its number.
+const CTS: u32 = 14;
+const CTS_VALUE: u32 = 15;
 
 fn named(kind: ObjectKind, guid: u32, name_hash: u32, parent: Option<u32>, size: Vec3) -> ObjectDef {
     let mut words = vec![0u32; 17];
@@ -138,6 +141,8 @@ fn package() -> Package {
         named(ObjectKind::String, 23, 0x5FA7_0D4C, Some(BOARD), none),
         named(ObjectKind::Image, 24, 0x2419_6AD4, Some(RADAR), none),
         object(ObjectKind::Group, SPEEDOMETER, "SpeedometerGroup", None, none),
+        object(ObjectKind::Group, CTS, "CTS_GROUP", None, none),
+        named(ObjectKind::String, CTS_VALUE, 0x3FF5_F33C, Some(CTS), none),
     ];
     Package {
         name: "HUD.fng".into(),
@@ -210,6 +215,23 @@ fn the_bounty_row_shows_with_the_board_and_reads_the_pending_bounty() {
     assert!(visible(&rt, id, TIMER), "the timer still shows");
     step(&mut rt, &mut b, &HudState::default());
     assert!(!visible(&rt, id, BOUNTY_ROW), "no chase: the row hides with the board");
+}
+
+#[test]
+fn a_rise_of_the_cost_to_state_flashes_its_total_for_two_seconds() {
+    // `setup` runs the frames one second apart.
+    let (mut rt, id, mut b) = setup();
+    step(&mut rt, &mut b, &chase(3.0, 0.0));
+    assert!(!visible(&rt, id, CTS), "no cost yet: the flasher rests hidden");
+    let mut state = chase(4.0, 0.0);
+    state.police_intel.cost_to_state = 2_250;
+    step(&mut rt, &mut b, &state);
+    assert!(visible(&rt, id, CTS) && visible(&rt, id, CTS_VALUE), "a rise shows the total");
+    assert_eq!(text(&rt, id, CTS_VALUE), "2,250");
+    for _ in 0..4 {
+        step(&mut rt, &mut b, &state);
+    }
+    assert!(!visible(&rt, id, CTS), "the same total does not show again: the flasher has played out");
 }
 
 #[test]

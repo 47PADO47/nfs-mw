@@ -62,6 +62,7 @@ pub struct HudBinding {
     /// The seconds of the frame being drawn (from `advance_mirror_fade`), for the milestone board's rotation.
     frame_dt: f32,
     backup_timer: super::backup_timer::BackupTimer,
+    cost_to_state: super::cost_to_state::CostToState,
     layout: Layout,
     /// The rear-view mirror is shown; the detector chooses its corresponding authored layout.
     mirror_shown: bool,
@@ -124,6 +125,7 @@ impl HudBinding {
             milestone_board: super::milestone_board::Binding::new(rt, package),
             frame_dt: 0.0,
             backup_timer: super::backup_timer::BackupTimer::new(rt, package),
+            cost_to_state: super::cost_to_state::CostToState::new(rt, package),
             layout: Layout::new(rt, package),
             mirror_frames: [None; 2],
             mirror_shown: true,
@@ -213,6 +215,9 @@ impl HudBinding {
 
     pub fn apply(&mut self, rt: &mut Runtime, s: &HudState) {
         let map = s.minimap.zip(self.minimap.as_ref());
+        // The game feeds the flasher the chase's cost to state only while a chase runs.
+        let cost = s.pursuit.map(|_| s.police_intel.cost_to_state);
+        let cost_script = self.cost_to_state.advance(cost, self.frame_dt);
         let shown = Shown {
             nitrous: s.has_nos,
             turbo: s.has_turbo,
@@ -232,8 +237,10 @@ impl HudBinding {
             leaders: s.leaders.as_ref().map_or(0, |l| l.shown_rows() as u8),
             message: s.message.is_some() || self.race.message_active(),
             milestones: s.milestone_board.is_some() && s.pursuit.is_some(),
+            cost_to_state: self.cost_to_state.shown(),
         };
         self.layout.update(rt, shown);
+        self.cost_to_state.apply(rt, cost_script);
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
         let alpha = mirror_fade_alpha(self.mirror_elapsed);
         for frame in self.mirror_frames.iter().flatten() {

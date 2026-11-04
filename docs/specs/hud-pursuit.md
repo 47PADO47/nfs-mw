@@ -44,6 +44,7 @@ The detailed radar and signed meter contract is
 | Backup backing / `0x8c20a763` | Plays the backup row's scripts from the backup ETA (below, "Backup timer"). |
 | `BACKUP_TIMER` / `0xbee44775` | The backup ETA in `mm:ss.cc` while a backup is on its way. |
 | Bounty row / `0x8674e6d4`, number `0x875e92eb` | The chase's pending bounty, shown with the board in every chase (below, "Bounty row"). |
+| `CTS_GROUP` / `0xd60fc075`, number `0x3ff5f33c`, title `0x64247241` | The cost-to-state flasher (below, "Cost to state"). |
 
 The radar backing and group no longer receive the earlier +75/+15 unit shifts.
 Those shifts aligned the mirror-oriented initial poses in the standalone view,
@@ -61,9 +62,9 @@ size over the newly calculated fixed edge.
 | Feature | Status |
 |---|---|
 | Heat arcs / `0x862824c9`, `0x4b2cbe1b` | Held hidden; the original mask-to-heat mapping is not implemented. |
-| `CostToState` / `0x3ff5f33c` | No complete cost-to-state presentation. |
+| Total bounty / `0xea903012`, cash / `0x3f8644ca` | Not bound: the career's flashers of the stable's total bounty and the cash. They rest hidden. |
 | Hiding / `0x60b45523`, `0x38074901`, `0x5c2a4f20` | Hidden pending complete hiding timing/presentation. |
-| Infraction notifications | Original notification queue and authored actions remain incomplete. |
+| Infraction notifications / `INFRACTIONS_HEADER_GROUP`, `INFRACTION_GROUP_1`..`4`, `GENERIC_ICONS`, `TOTAL_INFRACTIONS_TEXT` | Not bound: the four-row queue of new infractions with the icon and the count. They rest hidden. |
 | Radar audio/targets | Native ground selection, range, cone and per-update ramp are bound. Detector click and speed-camera selection remain absent; roll-sensitive lateral orientation remains unverified. |
 | View mode | The rear-view setting selects the detector layout. Original view-specific rear-view eligibility still needs comparison. |
 | Fades/sounds | Radar/meter transforms and transitions run from installed scripts; full HUD event and sound dispatch remains incomplete. |
@@ -79,6 +80,21 @@ the perpetrator's rep points of the chase so far, normal plus destruction ([ai-p
 The rewrite (`hud/bind.rs`, fed by `PursuitHud::bounty` from the police's `rep_points`) writes the number, plays the
 appear and holds the row at full alpha with the board. Tests: `hud::pursuit_tests` (synthetic) and
 `hud::pursuit_install_tests` (the real package).
+
+## Cost to state
+
+**[decomp]** for the element, **[binary]** for its feed, **[verified]** for the objects. `CTS_GROUP` holds a title and a
+number over a flasher panel; its `INIT` chains to `HIDE` and its appear and leave scripts last 600 ms. The HUD feeds it
+the perpetrator's cost to state on every update of a chase. A value above the one it holds replaces it and keeps the
+total up for 120 HUD updates; a zero clears the held value without showing it; any other value is ignored. While the
+total is up the title takes the language label `HUD_PURSUITCTS` and the number prints the total with the thousands
+separator; the first update up plays the appear, the first update after plays the leave. The game builds the element
+only in the standard single-player HUD and enables it in a career race context or a pursuit race while the player's
+score option is on.
+
+The rewrite (`hud/cost_to_state.rs`) runs the 120 updates as 2 s **[inferred]** (the HUD's update rate was not timed)
+and shows it in every chase: the rewrite has no score option, and its free roam outside the career counts the cost as
+the career does. Tests: `hud::cost_to_state` (the rule) and `hud::pursuit_tests` (the binding).
 
 ## Backup timer
 

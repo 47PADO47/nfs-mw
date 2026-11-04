@@ -22,6 +22,7 @@ mod cards;
 mod cop_blip;
 #[cfg(test)]
 mod cop_blip_tests;
+mod cost_to_state;
 mod elements;
 mod event_tiles;
 mod frame_cache;
