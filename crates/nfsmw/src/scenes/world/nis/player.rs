@@ -287,14 +287,16 @@ impl NisPlayer {
         self.retired.push(playing.characters);
     }
 
-    /// Uploads the playing scene's characters, once, with the world's shared textures `shared`, and frees the characters
-    /// of the scenes that ended. The world calls it every frame before it draws.
+    /// Uploads the playing scene's characters, once, with the world's shared textures `shared`, skins them for the scene's
+    /// time, and frees the characters of the scenes that ended. The world calls it every frame before it draws.
     pub fn prepare_characters(&mut self, renderer: &mut dyn RenderBackend, shared: &Materials) {
         for characters in self.retired.drain(..) {
             characters.release(renderer);
         }
         if let Some(playing) = self.play.as_mut() {
             playing.characters.prepare(renderer, shared);
+            let time = playing.run.scene_time();
+            playing.characters.skin(renderer, time);
         }
     }
 

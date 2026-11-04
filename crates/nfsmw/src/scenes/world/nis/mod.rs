@@ -25,6 +25,7 @@ mod kind;
 mod loading;
 mod player;
 mod rev_rock;
+mod skin;
 mod world;
 
 pub(super) use command::nis_command;
