@@ -97,9 +97,12 @@ fn each_branch_asks_its_record_for_the_scene_track_0_and_the_complete_section() 
     assert_eq!((blacklist.get(1), blacklist.get(2), blacklist.get(3)), (Some(1 << 13), Some(1), Some(1 << 5)));
 }
 
+/// One record of [`events`]: its event, its phrase and its tests (mask, argument number).
+type EventRecord<'a> = (u16, u16, &'a [(u32, u8)]);
+
 /// An event database of one-entry records: (event, phrase, tests as mask and argument number). Each record has one
 /// block of weight 100 whose one entry reads its phrase for any voice. Layout: `docs/formats/speech-evt.md`.
-fn events(records: &[(u16, u16, &[(u32, u8)])]) -> Vec<u8> {
+fn events(records: &[EventRecord<'_>]) -> Vec<u8> {
     let mut out = vec![0u8; (0x18 + 2 * records.len()).next_multiple_of(4)];
     out[0x10..0x14].copy_from_slice(&(records.len() as u32).to_le_bytes());
     for (i, &(event, phrase, tests)) in records.iter().enumerate() {
