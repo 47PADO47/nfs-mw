@@ -56,6 +56,13 @@ pub fn reach(cars: impl IntoIterator<Item = Car>, target: Vec3) -> Reach {
     out
 }
 
+/// Whether a standing roadblock counts the target as in sight: its nearest car (`roadblock_min`, [`Reach::min`]) is nearer
+/// than every live car of the chase (`chase_min`, the smallest 3-D distance; [`f32::MAX`] with none) and nearer than
+/// [`SEES_YOU`]. A roadblock that is no nearer than the chase adds no sighting.
+pub fn sees_target(roadblock_min: f32, chase_min: f32) -> bool {
+    roadblock_min < chase_min && roadblock_min < SEES_YOU
+}
+
 /// What a roadblock reports when the target gets past it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Dodged {
@@ -133,6 +140,16 @@ mod tests {
 
     fn car(id: usize, x: f32, y: f32, z: f32) -> Car {
         Car { id, position: Vec3::new(x, y, z) }
+    }
+
+    #[test]
+    fn a_roadblock_sees_the_target_only_when_nearer_than_the_chase() {
+        assert!(sees_target(40.0, f32::MAX), "no chase car: 40 m is under 60 m");
+        assert!(sees_target(40.0, 55.0), "nearer than the nearest chase car");
+        assert!(!sees_target(40.0, 30.0), "a chase car is nearer: the roadblock adds no sighting");
+        assert!(!sees_target(40.0, 40.0), "a tie is not nearer");
+        assert!(!sees_target(70.0, f32::MAX), "beyond 60 m");
+        assert!(!sees_target(NO_CARS, f32::MAX), "a roadblock with no car left sees nothing");
     }
 
     #[test]

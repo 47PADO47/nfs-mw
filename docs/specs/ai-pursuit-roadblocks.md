@@ -417,7 +417,8 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
   midpoints, the roll from the side midpoints, the height from their centroid plus the car's ride lift. The fit's exact
   maths is the rewrite's; a car that misses a wheel keeps the centre seat.
 - **Behaviour [headless].** Cars hold the brake (`AIGoalStaticRoadBlock`). A roadblock car does not look for the player; the roadblock
-  sees the player within 60 m (3-D) unless a hiding spot hides it from cars, which resets the pursuit's unseen clock. Passing
+  sees the player within 60 m (3-D) when its nearest car is nearer than every live chase car, unless a hiding spot hides
+  it from cars, which resets the pursuit's unseen clock. Passing
   the centre marks the roadblock dodged once (the dodged and strip counts are kept for the statistics). The cheat rule (a car
   within 500 m horizontally, the player within 300 m of the centre for 20 s, at once in cool-down) takes the nearest car into the
   chase once. A standing roadblock that is whole and unpassed forces the follow formation, and adding one ends the current

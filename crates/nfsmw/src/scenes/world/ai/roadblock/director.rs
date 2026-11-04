@@ -5,7 +5,7 @@
 
 use blackbox_collision::CollisionWorld;
 use blackbox_pursuit::roadblock::request::Ask;
-use blackbox_pursuit::roadblock::standing::{self, Car, SEES_YOU};
+use blackbox_pursuit::roadblock::standing::{self, Car};
 use blackbox_pursuit::support::Strategy;
 use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
@@ -61,10 +61,21 @@ impl TrafficWorld {
             .collect()
     }
 
+    /// The smallest 3-D distance from a live car of the chase (a cop of the pursuit that is neither a roadblock car nor
+    /// fleeing) to `target`; [`f32::MAX`] with none.
+    fn chase_min_distance(&self, target: Vec3) -> f32 {
+        self.cars
+            .iter()
+            .filter(|car| car.is_cop() && !car.is_roadblock() && !car.is_fleeing())
+            .map(|car| car.physics_position().distance(target))
+            .fold(f32::MAX, f32::min)
+    }
+
     /// Every frame: the roadblock's damage counts, the dodge, the distance to the target and the cheat timer.
     fn roadblocks_watch(&mut self, dt: f32, target: Vec3, pursuing: bool) {
         let cooling = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
         let hidden = self.hidden_from_cars();
+        let chase_min = self.chase_min_distance(target);
         let mut sees = false;
         let mut recruit = Vec::new();
         for index in 0..self.roadblocks.list.len() {
@@ -83,8 +94,9 @@ impl TrafficWorld {
             if !pursuing {
                 continue;
             }
-            // A roadblock sees the player within 60 m unless a hiding spot hides it from cars.
-            sees |= !hidden && reach.min < SEES_YOU;
+            // A roadblock sees the player within 60 m, and only when it is nearer than the chase, unless a hiding spot
+            // hides it from cars.
+            sees |= !hidden && standing::sees_target(reach.min, chase_min);
             if let Some(dodged) = block.standing.dodge(target) {
                 self.roadblocks.stats.dodged += 1;
                 self.note_speech(crate::audio::WorldEvent::RoadblockDodged);
