@@ -87,7 +87,12 @@ impl WorldScene {
     pub fn start_at_point(&mut self, point: crate::career::JumpPoint) -> bool {
         let at = point.xy();
         (self.camera.position.x, self.camera.position.y) = (at[0], at[1]);
-        let Some(drive) = self.players.lead_mut() else { return false };
+        let Some(drive) = self.players.lead_mut() else {
+            // A new world has no car yet: it is put on the point when it is made, and its chase is armed then.
+            self.career.pending_jump = Some(point);
+            log::info!("career: the car will start at ({:.0}, {:.0})", at[0], at[1]);
+            return true;
+        };
         match point.heading {
             Some(heading) => drive.respawn_at(crate::scenes::world::road::Spawn { position: point.at, heading }),
             None => drive.respawn_near(at, None),

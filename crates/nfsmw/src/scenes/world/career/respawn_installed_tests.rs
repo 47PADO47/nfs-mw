@@ -72,3 +72,48 @@ fn installed_paid_bust_puts_the_car_back_at_the_last_safe_house_marker() {
     assert!(end.distance(marker) < 40.0, "the car stands near the marker: {end} vs {marker}");
     shared.clear();
 }
+
+/// A rap sheet jump from the safe house starts a new world, which asks for the jump before its car exists: the car must
+/// still land on the marker facing its `Rotation`, and the bounty place's chase must start there (`start_at_point`). The
+/// point is Riverfront Stadium's (bounty place 11), as the F5 reference measures it.
+#[test]
+#[ignore = "needs the installed world"]
+fn installed_jump_asked_before_the_world_has_a_car_lands_on_the_marker_and_starts_its_chase() {
+    use crate::scenes::world::{DriveOptions, Options, WorldScene};
+    let root = std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR");
+    let dir = game_install::GameDir::open(root).unwrap();
+    let options = Options {
+        at: Some([940.0, -596.0]),
+        height: 40.0,
+        heading: 45.0,
+        pitch: -20.0,
+        fog_distance: 1500.0,
+        wait_for_load: true,
+        drive: Some(DriveOptions { car: "ELISE".into(), script: None }),
+    };
+    let mut scene = WorldScene::open(&dir, options).unwrap();
+    let heading = 257.3_f32.to_radians();
+    let point = crate::career::JumpPoint { at: Vec3::new(939.8, -595.6, 110.9), heading: Some(heading), chase: true };
+    assert!(scene.start_at_point(point), "the jump is taken before the car exists");
+    assert!(scene.players.lead().is_none(), "the world has no car yet");
+
+    let mut renderer = crate::app::test_backend::NullBackend::new(crate::settings::test_caps::native());
+    scene.init(&mut renderer).unwrap();
+    let stopped = handbrake();
+    let mut chased = false;
+    for _ in 0..3000 {
+        scene.update(&mut renderer, &stopped, STEP);
+        chased |= scene.traffic.as_ref().is_some_and(|traffic| traffic.is_pursuing());
+        if scene.ready() && chased {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    let drive = scene.players.lead().expect("the car is made");
+    let at = drive.position();
+    assert!(Vec3::new(at.x, at.y, 0.0).distance(Vec3::new(939.8, -595.6, 0.0)) < 1.5, "on the marker: {at}");
+    let turn =
+        (drive.heading() - heading + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+    assert!(turn.abs() < 0.1, "facing the marker's Rotation: off by {:.1} deg", turn.to_degrees());
+    assert!(chased, "the bounty place's chase starts once the car stands there");
+}
