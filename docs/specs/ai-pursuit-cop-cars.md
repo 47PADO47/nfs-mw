@@ -42,6 +42,8 @@ pull-over aggression is forced to 1.0. [decomp]
 out_of_sight  = dist >= front  or  (dist >= rear and dot(cop.forward, unit(target - cop)) <= -0.3)
 out_of_sight |= not pursuit.PursuitMeterCanShowBusted()      # true while the cool-down gauge animates
 if not out_of_sight: out_of_sight = world ray from (cop + 0.5 m up) to (target + 0.5 m up) hits geometry
+                     # faces and barriers, exclusion mask 0, switched-off scenery groups skipped,
+                     # barriers from either side (no facing test)
 hidden = target is "hidden from cars" (it sits in a hidden zone, see the pursuit spec)
 if hidden and this cop's latch is set: return not visible
 latch = false
@@ -238,16 +240,18 @@ lighter than its mass in the front (0.6) so it bounces off; a pit cop hits with 
 
 - **Range and cone** live in `libs/blackbox-pursuit/src/sight.rs` (`ranges`, `out_of_range`, `REAR_CONE_DOT`, `TEST_PERIOD`).
   The cone uses the cop's own forward against the unit direction to the player, as in section 2 above.
-- **Occlusion** is a separate ray in `crates/nfsmw/src/scenes/world/drive/sight.rs` (`sight_cast`): every face blocks, so road
-  decks, bridge undersides and grouped scenery block. The only pass-through is a one-sided barrier met from behind. The
-  wall probe (`drive/walls.rs`, `world_cast`) is unchanged and still serves the body and the helicopter.
+- **Occlusion** is a separate ray in `crates/nfsmw/src/scenes/world/drive/sight.rs` (`sight_cast`): every face and every
+  barrier blocks, barriers from either side, so road decks, bridge undersides and buildings block. Scenery groups that are
+  switched off are skipped, as the world query's candidate filter does. **[decomp + PC disassembly]** The wall probe
+  (`drive/walls.rs`, `world_cast`) is unchanged and still serves the body. The helicopter's line test and the HUD markers
+  share `sight_cast`; the original helicopter ray tests faces only **[decomp]**, which is not modelled yet.
 - **Who looks:** every cop car: patrol cars, chase cops and roadblock cops (`ai/collide.rs`, `update_sight`). One world-level test
   runs every 0.25 s of simulated time and holds its answer between tests. Per-cop `TimeSinceTargetSeen` and the 7 s
   "perp in sight" grace are not modelled yet: the evade counter takes the instantaneous sight.
 - **Vertical gate:** `rules::on_level` (`COP_LEVEL_GATE` 8 m, **[unconfirmed]** design value) gates `nearest_cop`, which feeds
   the off-road and contact rules. A cop on another level is not near. The busted meter is not in the rewrite yet.
-- **Open:** the install's exact vertical test and the game's occlusion query flags are not confirmed by reversing (see
-  `docs/provenance/ai-pursuit-sight.md`).
+- **Open:** the install's exact vertical test is not confirmed by reversing. The occlusion query flags are (see
+  `docs/provenance/ai-pursuit-sight.md`, 4 November 2026).
 
 ### 2.2 Native cop damage and retirement
 
