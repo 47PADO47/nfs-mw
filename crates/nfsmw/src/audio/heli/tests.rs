@@ -1,5 +1,5 @@
 use super::*;
-use params::{RotorInputs, class_words, distance_word, speed_fraction, speed_word};
+use params::{RotorInputs, class_words, distance_word, rotation_word, speed_fraction, speed_word};
 
 fn frame(dt: f32, position: Vec3, forward: Vec3, velocity: Vec3) -> HeliFrame {
     HeliFrame { dt, position, forward, velocity }
@@ -8,11 +8,11 @@ fn frame(dt: f32, position: Vec3, forward: Vec3, velocity: Vec3) -> HeliFrame {
 fn inputs() -> RotorInputs {
     RotorInputs {
         volume: 20000,
-        azimuth: 0,
+        azimuth: 0x4000,
         pitch: 4096,
         in_front: true,
         distance: 50.0,
-        forward_speed: 250.0,
+        speed: 60.0,
         bearing: std::f32::consts::PI,
     }
 }
@@ -27,47 +27,55 @@ fn distance_word_is_metres_clamped_to_a_hundred_and_negative_behind() {
 }
 
 #[test]
-fn speed_is_the_forward_speed_over_five_hundred_with_the_idle_below_a_quarter() {
-    assert_eq!(speed_fraction(0.1), 0.5);
+fn speed_is_idle_below_a_quarter_of_five_hundred() {
+    // The idle test is on the fraction: every speed under 125 m/s reads as the idle half.
     assert_eq!(speed_fraction(0.0), 0.5);
-    assert_eq!(speed_fraction(0.25), 0.25 / 500.0);
+    assert_eq!(speed_fraction(60.0), 0.5);
+    assert_eq!(speed_fraction(124.0), 0.5);
     assert_eq!(speed_fraction(125.0), 0.25);
+    assert_eq!(speed_fraction(250.0), 0.5);
     assert_eq!(speed_fraction(1000.0), 1.0);
-    assert_eq!(speed_fraction(f32::NAN), 0.0);
+    assert_eq!(speed_fraction(f32::NAN), 0.5);
     assert_eq!(speed_word(500.0), 1023);
-    assert_eq!(speed_word(0.1), 511);
+    assert_eq!(speed_word(80.0), 511);
 }
 
 #[test]
-fn class_words_follow_the_publisher_clamps_and_the_inputs() {
+fn rotation_is_the_bearing_over_half_a_turn_in_512_steps() {
+    assert_eq!(rotation_word(0.0), 0);
+    assert_eq!(rotation_word(std::f32::consts::FRAC_PI_2), 256);
+    assert_eq!(rotation_word(std::f32::consts::PI), 512);
+    assert_eq!(rotation_word(-1.0), 0);
+    assert_eq!(rotation_word(f32::NAN), 0);
+}
+
+#[test]
+fn class_words_put_pitch_volume_azimuth_and_rotation_where_the_module_reads_them() {
     let words = class_words(inputs());
-    assert_eq!(words[0], 20000);
-    assert_eq!(words[1], 0);
-    assert_eq!(words[2], 1);
-    assert_eq!(words[3], 4096);
-    assert_eq!(words[4], 65535);
-    assert_eq!(words[6], 50);
-    assert_eq!(words[7], 25000);
-    assert_eq!(words[8], 25000);
-    assert_eq!(words[9], 32767);
-    assert_eq!(words[11], 511);
+    assert_eq!(words[1], 4096, "pitch");
+    assert_eq!(words[3], 20000, "volume");
+    assert_eq!(words[4], 0x4000, "azimuth");
+    assert_eq!(words[5], 512, "rotation");
+    assert_eq!(words[6], 50, "distance");
+    assert_eq!(words[7], 25000, "low-pass open");
+    assert_eq!(words[10], 0, "no reverb send");
+    assert_eq!(words[11], 511, "idle speed");
 }
 
 #[test]
-fn a_rotor_behind_the_listener_has_a_negative_distance_and_no_front_flag() {
+fn a_rotor_behind_the_listener_has_a_negative_distance() {
     let words = class_words(RotorInputs { in_front: false, distance: 150.0, ..inputs() });
     assert_eq!(words[2], 0);
     assert_eq!(words[6], -100);
 }
 
 #[test]
-fn azimuth_is_signed_and_the_levels_stay_in_range() {
-    let words = class_words(RotorInputs { azimuth: 0xFFFF, volume: 40000, pitch: -5, ..inputs() });
-    assert_eq!(words[1], -1);
-    assert_eq!(words[0], 32767);
-    assert_eq!(words[3], 0);
-    let half = class_words(RotorInputs { azimuth: 0x8000, ..inputs() });
-    assert_eq!(half[1], -8192);
+fn the_levels_stay_in_the_publishers_ranges() {
+    let words = class_words(RotorInputs { azimuth: 0xFFFF, volume: 40000, pitch: 20000, ..inputs() });
+    assert_eq!(words[4], 0xFFFF);
+    assert_eq!(words[3], 32767);
+    assert_eq!(words[1], 8192);
+    assert_eq!(class_words(RotorInputs { volume: -5, pitch: -20000, ..inputs() })[..4], [0, -8192, 1, 0]);
 }
 
 #[test]
