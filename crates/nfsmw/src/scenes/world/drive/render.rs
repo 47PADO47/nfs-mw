@@ -25,6 +25,10 @@ impl Drive {
         detail: Option<&DetailView>,
         out: &mut Vec<blackbox_render::Instance>,
     ) {
+        // The reset's blink hides the whole car in its off phase.
+        if self.reset.blink.hidden() {
+            return;
+        }
         if let Some(sim) = &self.sim {
             let dark = self.lights_dark();
             let revealed = sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();

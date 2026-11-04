@@ -41,6 +41,7 @@ mod presentation_tests;
 mod release;
 mod remote;
 mod render;
+mod reset_trail;
 mod rider;
 mod rig;
 mod road_reflection;
@@ -190,10 +191,9 @@ pub struct Drive {
     batch_run: bool,
     /// Physics steps run since the car was last placed, for the once-a-second trace of a scripted run.
     steps: u32,
-    /// Manual resets (the reset key) since the scene last took them; the police start their post-reset blink on them.
-    manual_resets: u32,
-    /// The last place the car stood on a road with its wheels down: `reset` and falling off the map
-    /// bring it back here when no road is near.
+    /// The reset trail, flip timer, blink and pending reset (`reset_trail.rs`).
+    reset: reset_trail::ResetState,
+    /// The last place the car stood on a road with its wheels down: the placement falls back to it with no road near.
     last_good: Option<Spawn>,
     /// When a strict request first failed to find its ground.
     strict_since: Option<std::time::Instant>,
@@ -390,7 +390,7 @@ impl Drive {
 
     /// The manual resets since the last call, for the police's post-reset blink.
     pub fn take_manual_resets(&mut self) -> u32 {
-        std::mem::take(&mut self.manual_resets)
+        std::mem::take(&mut self.reset.manual)
     }
 
     pub fn take_look(&mut self, steps: u32) -> (f32, f32) {

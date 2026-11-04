@@ -6,7 +6,7 @@ use nfsmw_data::car::physics::{CarPhysics, SurfaceTable};
 use super::ground::WorldGround;
 use super::road::Spawn;
 use super::sim::CarSim;
-use super::{CarRig, Drive, SpawnRequest};
+use super::{CarRig, Drive, SpawnRequest, reset_trail};
 use crate::scenes::world::vehicle_effects::VehicleEffects;
 
 mod strict;
@@ -18,6 +18,7 @@ pub use strict::Strict;
 impl Drive {
     /// Ask for the car to be put on the road nearest `near`, keeping `heading` if given.
     pub fn respawn_near(&mut self, near: [f32; 2], heading: Option<f32>) {
+        self.reset.pending = None;
         self.tail_trails.clear();
         self.effects.disconnect();
         self.vehicle_effects.clear();
@@ -41,6 +42,7 @@ impl Drive {
     /// Put the car back where it last stood on a road, if it ever did.
     pub fn restore_last_good(&mut self) -> bool {
         let Some(good) = self.last_good else { return false };
+        self.reset.pending = None;
         self.tail_trails.clear();
         self.effects.disconnect();
         self.vehicle_effects.clear();
@@ -53,9 +55,28 @@ impl Drive {
         true
     }
 
+    /// A reset: the car goes back to the oldest place of its trail (`reset_trail.rs`), on the road there when one is close.
+    /// False, with nothing asked, when the trail is empty.
+    pub fn request_reset(&mut self) -> bool {
+        let Some(crumb) = self.reset.trail.oldest() else { return false };
+        self.tail_trails.clear();
+        self.effects.disconnect();
+        self.vehicle_effects.clear();
+        let near = [crumb.position.x, crumb.position.y];
+        self.request = Some(SpawnRequest { near, heading: Some(crumb.heading), exact: None, strict: false });
+        self.reset.pending = Some(crumb);
+        true
+    }
+
+    /// The place the reset being served goes back to, `None` for any other placement.
+    pub fn pending_reset(&self) -> Option<reset_trail::Crumb> {
+        self.reset.pending
+    }
+
     /// Give up waiting for a road (none was found).
     pub fn cancel_request(&mut self) {
         self.request = None;
+        self.reset.pending = None;
     }
 
     /// Put the car on `spawn`, standing still. False when `ground` has no road there.
@@ -70,7 +91,6 @@ impl Drive {
             _ => spawn,
         };
         let rest = self.rig.rest_heights();
-        let replacing = self.sim.is_some() && self.last_good.is_some();
         let sim = self.sim.get_or_insert_with(|| CarSim::new(self.physics.clone(), rest));
         sim.set_tunings(self.tunings);
         sim.set_visual_tires(self.rig.visual_tires());
@@ -91,8 +111,16 @@ impl Drive {
         sim.set_race_staging(self.gridded);
         self.pending_speed = 0.0;
         self.strict_since = None;
-        if replacing {
-            sim.begin_reset_collision_grace();
+        // Only a reset starts the 2 s grace; any other placement (a jump, a race start) ends one that runs, and every
+        // placement starts the trail again: a reset's trail holds the place it went to.
+        sim.end_reset_collision_grace();
+        self.reset.flip.clear();
+        match self.reset.pending.take() {
+            Some(_) => {
+                sim.begin_reset_collision_grace();
+                self.reset.trail.reset_to(reset_trail::Crumb { position: spawn.position, heading: spawn.heading });
+            }
+            None => self.reset.trail = Default::default(),
         }
         self.effects.disconnect();
         let pose = sim.pose();

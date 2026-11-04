@@ -31,9 +31,14 @@ impl ResetCollision {
 }
 
 impl CarSim {
-    /// Called only after a successful replacement placement, not initial spawning.
+    /// Called only after a successful reset placement, not initial spawning or another placement.
     pub fn begin_reset_collision_grace(&mut self) {
         self.reset_collision.remaining = 2.0;
+    }
+
+    /// A placement that is not a reset ends a grace that runs.
+    pub fn end_reset_collision_grace(&mut self) {
+        self.reset_collision.remaining = 0.0;
     }
 
     pub fn reset_collision_active(&self) -> bool {

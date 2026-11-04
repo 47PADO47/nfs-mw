@@ -79,7 +79,7 @@ impl Drive {
             script: script.map(|script| ScriptRun { script, time: 0.0, previous_time: None }),
             batch_run: false,
             steps: 0,
-            manual_resets: 0,
+            reset: Default::default(),
             last_good: None,
             strict_since: None,
             fall: FallWatch::default(),

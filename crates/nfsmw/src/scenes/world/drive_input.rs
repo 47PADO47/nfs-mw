@@ -38,6 +38,15 @@ impl RoadWait {
 }
 /// How far above a car reset where it stands the road under it is looked for.
 const RESET_ABOVE: f32 = 3.0;
+/// A reset's road spot is taken only this close to its trail place, across and in height, metres: the original snaps to
+/// the nearest reset lane and keeps it only within 3.5 m of the place's height [ours: the horizontal reach].
+const RESET_SNAP_REACH: f32 = 25.0;
+const RESET_SNAP_RISE: f32 = 3.5;
+
+/// Whether the road spot `spot` may stand in for the trail place `crumb` (both on the ground, render space z up).
+fn reset_snap_holds(spot: Vec3, crumb: Vec3) -> bool {
+    (spot.x - crumb.x).hypot(spot.y - crumb.y) <= RESET_SNAP_REACH && (spot.z - crumb.z).abs() < RESET_SNAP_RISE
+}
 
 impl WorldScene {
     /// Put a waiting car on the road once the area around it has loaded; the physics runs in `update_simulation`.
@@ -84,6 +93,22 @@ impl WorldScene {
             );
         }
         self.waiting_since = None;
+        // A reset goes back along the car's own path: onto the road at its trail's oldest place when that is close and on
+        // the same level, else onto that place itself (`docs/specs/vehicle-reset.md`).
+        if let Some(crumb) = drive.pending_reset() {
+            let top = crumb.position.z + RESET_ABOVE;
+            let snapped = road::find(request.near, |x, y| road::probe(collision, x, y, top))
+                .filter(|spot| reset_snap_holds(spot.position, crumb.position));
+            let raw = Spawn { position: crumb.position, heading: crumb.heading };
+            match snapped.into_iter().chain([raw]).find(|&spot| drive.spawn(spot, collision, surfaces)) {
+                Some(spawn) => log_placed(&drive.car_name, spawn),
+                None => {
+                    log::warn!("the reset found no ground at the car's trail; the car stays where it is");
+                    drive.cancel_request();
+                }
+            }
+            return;
+        }
         let estimate = ground::height_near(self.residency.placed(), request.near[0], request.near[1], 150.0);
         // A car reset where it stands looks for a road from just above itself first, so not on a bridge over it.
         let at = drive.position();
@@ -178,4 +203,17 @@ fn log_placed(car: &str, spawn: Spawn) {
         spawn.position.z,
         spawn.heading.to_degrees()
     );
+}
+
+#[cfg(test)]
+mod reset_snap_tests {
+    use super::*;
+
+    #[test]
+    fn a_reset_takes_the_road_only_near_its_place_and_on_its_level() {
+        let crumb = Vec3::new(10.0, 20.0, 5.0);
+        assert!(reset_snap_holds(Vec3::new(14.0, 20.0, 5.2), crumb));
+        assert!(!reset_snap_holds(Vec3::new(10.0, 20.0, 12.0), crumb), "a bridge over the place");
+        assert!(!reset_snap_holds(Vec3::new(60.0, 20.0, 5.0), crumb), "a road far away");
+    }
 }
