@@ -38,3 +38,12 @@ fn an_unknown_car_or_a_missing_level_scores_nothing() {
     assert_eq!(table.destroy_points("copsport", 10), 0, "the row stops at level 9");
     assert_eq!(table.destroy_points("copsport", 9), 20_000);
 }
+
+#[test]
+fn destroy_points_read_the_int32_values_of_the_install_and_a_float() {
+    assert_eq!(points_of(&Value::Int32(250)), Some(250), "the install stores the points as Int32");
+    assert_eq!(points_of(&Value::Int32(100_000)), Some(100_000));
+    assert_eq!(points_of(&Value::Float(2500.0)), Some(2500), "an edited database may hold a float");
+    assert_eq!(points_of(&Value::Int32(-5)), Some(0), "negative points score nothing");
+    assert_eq!(points_of(&Value::Bool(true)), None);
+}

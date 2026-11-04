@@ -326,8 +326,16 @@ fn rep_rates_in(db: &Database, table: &str, heat: u32) -> Option<RepRates> {
 pub fn destroy_rep_points(db: &Database, car: &str, heat: u32) -> Option<u32> {
     let record = db.collection("pvehicle", &car.to_ascii_lowercase())?.follow("aivehicle")?;
     let index = heat.clamp(1, HEAT_LEVELS) as usize - 1;
-    let points = record.get("RepPointsForDestroying")?.as_array()?.get(index)?.as_f32()?;
-    Some(points.max(0.0) as u32)
+    points_of(record.get("RepPointsForDestroying")?.as_array()?.get(index)?)
+}
+
+/// A rep points value as the database stores it. `RepPointsForDestroying` is an `Int32` array in the install (the
+/// class's field type); a float, as an edited database may hold, is read too. Negative points score nothing.
+fn points_of(value: &Value) -> Option<u32> {
+    if let Some(points) = value.as_i64() {
+        return Some(u32::try_from(points.max(0)).unwrap_or(u32::MAX));
+    }
+    value.as_f32().map(|points| points.max(0.0) as u32)
 }
 
 /// The rep tables of the install: the rates of every heat level and the destruction points of every cop car type.

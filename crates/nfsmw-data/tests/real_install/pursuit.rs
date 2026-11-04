@@ -236,3 +236,19 @@ fn assert_selected_context_fields(db: &Database, table: nfsmw_data::pursuit::Pur
         }
     }
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn cop_cars_carry_their_documented_destruction_points() {
+    use nfsmw_data::pursuit::{destroy_rep_points, rep_table};
+    let Some(dir) = install() else { return };
+    let db = Database::open(&dir.read("GLOBAL/ATTRIBUTES.BIN").unwrap()).expect("attributes.bin");
+    // `docs/specs/ai-pursuit-heat.md` section 5.1: the points of a wreck, by cop car type and heat level.
+    assert_eq!(destroy_rep_points(&db, "copmidsize", 1), Some(250));
+    assert_eq!(destroy_rep_points(&db, "copgto", 3), Some(2500));
+    assert_eq!(destroy_rep_points(&db, "copsport", 9), Some(20_000));
+    assert_eq!(destroy_rep_points(&db, "copsport", 10), Some(100_000));
+    let table = rep_table(&db);
+    assert_eq!(table.destroy_points("COPMIDSIZE", 1), 250, "the chase's table, read by the HUD's vehicle name");
+    assert_eq!(table.destroy_points("copsuvl", 5), 10_000);
+}
