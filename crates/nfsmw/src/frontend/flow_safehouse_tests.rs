@@ -76,6 +76,12 @@ fn batch12_pause_safe_house_rechecks_context_then_enters_the_room() {
                 Box::new(WorldProbe { race: false, pursuit, prepared: prepared.clone() }),
                 false
             ));
+            if pursuit {
+                assert_eq!(fe.pause_safe_house(host), None, "the original leaves the shortcut out in a pursuit");
+                fe.apply(vec![Command::JumpToSafeHouse], host, env);
+                assert_eq!(prepared.load(Ordering::Relaxed), 0, "and a command for it does nothing");
+                return;
+            }
             assert_eq!(fe.pause_safe_house(host), Some(true));
             fe.apply(vec![Command::JumpToSafeHouse], host, env);
             assert_eq!(fe.stage, Stage::Menus);

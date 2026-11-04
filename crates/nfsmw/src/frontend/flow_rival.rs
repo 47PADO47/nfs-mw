@@ -33,6 +33,11 @@ impl Frontend {
     /// A milestone or a bounty place of the sheets was accepted: the world starts with the car at the marker `point`.
     pub(super) fn jump_to(&mut self, point: crate::career::JumpPoint, host: &mut Host, env: &mut Env) {
         log::info!("career: jumping to ({:.0}, {:.0}) from the rap sheet", point.at.x, point.at.y);
+        // The Blacklist is shut while a pursuit exists, so its pages cannot start another chase in one.
+        if host.scene.pursuit_feed().is_some() {
+            log::info!("career: no jump while a pursuit runs");
+            return;
+        }
         // From the pause menu the world is already there: the car goes to the point and the game goes on.
         if self.stage == Stage::Paused {
             if host.scene.jump_player(point) {
@@ -61,6 +66,10 @@ impl Frontend {
 
     /// Leaves the safe house for the world, which runs `race` as a career race (its result counts in the Blacklist).
     fn leave_safe_house_for_race(&mut self, race: &str, host: &mut Host, env: &mut Env) {
+        if host.scene.pursuit_feed().is_some() {
+            log::info!("career: no race while a pursuit runs");
+            return;
+        }
         // From the pause menu the race starts in the running world.
         if self.stage == Stage::Paused {
             if host.scene.start_career_event(race) {

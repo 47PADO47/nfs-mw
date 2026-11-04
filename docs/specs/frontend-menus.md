@@ -243,6 +243,14 @@ this rewrite does not have). The header `0x863404B5` shows
 back to `MainMenu.fng`); Options switches to the option categories with the pause flag, whose Back returns to
 the pause menu and whose Start resumes.
 
+**While a pursuit exists [binary]** (chasing or cooling down), the career free-roam pause menu has Resume Free Roam,
+Tuning and Options only: Jump to Safe House is left out, not greyed. The pause menu has no Blacklist, Rap Sheet or World
+Map entries in either state. The in-game Blacklist, behind which the rival Challenge, race events and the milestone and
+bounty starts live, opens from its own button and is silently refused while a pursuit exists or the player is busted.
+The World Map opens in a chase, but no jump is reachable from it. The rewrite's pause menu, which reaches the Blacklist
+**[ours]**, leaves out both the Blacklist and Jump to Safe House while a pursuit exists. Its jump and race starts refuse
+in a pursuit as well (`frontend/flow_safehouse.rs`, `flow_rival.rs`).
+
 ## 3. Option screens (widget menus) [decomp, verified]
 
 Layout rules were read from the code and checked on the packages; where they could not be reproduced the
