@@ -193,8 +193,16 @@ if speed > 0:
         t = (limit - speed) / 5 km/h;  limit -= min(1, dT * t * t) * (limit - speed)
     limit = max(speed, limit) + max_accel * dT          # then let it grow at the allowed acceleration
     limit = min(max_speed, limit)
-else: mirror image for reverse
+else:                                                   # at rest or rolling backwards
+    if speed > limit:
+        t = (limit - speed) / 5 km/h;  limit += max(-1, dT * t * t) * (limit - speed)
+    limit = min(speed, limit) - max_accel * dT
+    limit = min(max_speed, -limit)                      # stored positive: |speed| + max_accel * dT
 ```
+
+The second branch is not a mirror image: its final negation leaves a positive limit, so a cop that rolls back (or
+stands) keeps a forward speed request of about its backward speed plus one step of acceleration. **[decomp + PC
+disassembly]**
 
 **Combining.** `steer = avoid + sep + affin`. If `steer` points against `seek`
 (`counter = -dot(steer, seek) / |seek| > 0.0001`): split `seek` into the part along `steer` and the rest, multiply the

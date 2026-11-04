@@ -209,6 +209,17 @@ mod tests {
     }
 
     #[test]
+    fn a_cop_rolling_back_off_its_slot_keeps_a_forward_speed_request() {
+        // Cop 2.2 m short of its slot, rolling back at 0.6 m/s with a limit of 2.26 from its last think: the limiter gives
+        // 0.6 + 4 * 0.5 = 2.6, so the request is the seek's 2.2 m/s, not a negative speed that the driver brakes for.
+        let cop = CopState { position: Vec2::new(0.0, -8.2), forward_speed: -0.6, limit: 2.26, dt: 0.5 };
+        let step = think(&cop, &stopped_target(), Vec2::new(0.0, -6.0), 0.8, Vec2::ZERO, vehicle());
+        assert!(!step.command.arrived);
+        assert!(close(step.limit, 2.6), "{}", step.limit);
+        assert!(close(step.command.desired_speed, 2.2), "{}", step.command.desired_speed);
+    }
+
+    #[test]
     fn arrival_tests_the_complete_velocity_seek_before_separation() {
         let slot = Vec2::new(0.0, -6.0);
         let target = TargetState { velocity: Vec2::X, ..stopped_target() };
