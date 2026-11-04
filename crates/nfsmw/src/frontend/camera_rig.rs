@@ -29,7 +29,7 @@ struct State {
     shown: Option<&'static str>,
     /// An intro starts at its end (`CameraRig::settled`).
     settled: bool,
-    /// A screen selected during the stage intro takes its own pose after that intro completes.
+    /// The screen that came up with the stage intro takes its own pose after that intro completes.
     deferred: Option<&'static str>,
 }
 
@@ -85,6 +85,20 @@ impl CameraRig {
         state.deferred = None;
     }
 
+    /// A retained garage returns to another room without replaying that room's entry sequence.
+    /// The next `show` starts its normal screen transition from the current pose.
+    pub(super) fn resume_stage(&self, stage: Stage) -> bool {
+        let mut state = self.state();
+        if state.book.is_none() || state.motion.is_none() {
+            return false;
+        }
+        state.stage = Some(stage);
+        state.fresh = false;
+        state.shown = None;
+        state.deferred = None;
+        true
+    }
+
     /// The screen on top has the pose collection `screen`: the camera eases to its pose from where it is. Asking again for
     /// the same collection does nothing.
     pub fn show(&self, screen: &'static str) {
@@ -93,6 +107,8 @@ impl CameraRig {
             return;
         }
         state.shown = Some(screen);
+        // Only the screen that comes up with the intro waits: the original clears its intro flag as the intro starts, so
+        // a later screen with another pose starts its move at once, from wherever the intro has got to.
         let first = std::mem::take(&mut state.fresh);
         if first && !state.settled {
             state.deferred = Some(screen);

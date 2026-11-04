@@ -8,6 +8,10 @@ use blackbox_feng::{ObjectRef, ids::*};
 use glam::Vec2;
 use nfsmw_data::car::customization::Category as Part;
 
+mod finish;
+mod highlight;
+use finish::family_page;
+
 struct Swatch {
     hash: Option<u32>,
     rgb: [u8; 3],
@@ -37,15 +41,17 @@ impl Palette {
         let mut families: Vec<String> = Vec::new();
         if let Some(catalog) = model.selected().and_then(|car| car.parts.as_ref()) {
             for (_, hash) in &catalog.finishes {
-                if let Some(family) = catalog.paint_families.get(hash).filter(|family| !families.contains(*family)) {
-                    families.push(family.clone());
+                if let Some(family) = catalog.paint_families.get(hash).map(|name| family_page(name).to_owned())
+                    && !families.contains(&family)
+                {
+                    families.push(family);
                 }
             }
             for choice in &catalog.choices[Part::Paint as usize] {
-                if let Some(family) =
-                    catalog.paint_families.get(&choice.hash).filter(|family| !families.contains(*family))
+                if let Some(family) = catalog.paint_families.get(&choice.hash).map(|name| family_page(name).to_owned())
+                    && !families.contains(&family)
                 {
-                    families.push(family.clone());
+                    families.push(family);
                 }
             }
         }
@@ -55,7 +61,7 @@ impl Palette {
         let family = model.draft.parts.parts[Part::Paint as usize]
             .and_then(|hash| {
                 let family = model.selected()?.parts.as_ref()?.paint_families.get(&hash)?;
-                families.iter().position(|candidate| candidate == family)
+                families.iter().position(|candidate| candidate == family_page(family))
             })
             .unwrap_or(0);
         let mut channels = model
@@ -127,13 +133,16 @@ impl Palette {
         };
         let family = &self.families[self.family];
         if let Some(hash) = catalog.stock[category as usize]
-            && (self.color() == 1 || catalog.paint_families.get(&hash) == Some(family))
+            && (self.color() == 1
+                || catalog.paint_families.get(&hash).map(|name| family_page(name)) == Some(family.as_str()))
             && let Some(rgb) = catalog.colors.get(&hash).copied()
         {
             self.colors.push(Swatch { hash: None, rgb, option: 0 });
         }
         for (index, choice) in catalog.choices[category as usize].iter().enumerate() {
-            if self.color() == 0 && catalog.paint_families.get(&choice.hash) != Some(family) {
+            if self.color() == 0
+                && catalog.paint_families.get(&choice.hash).map(|name| family_page(name)) != Some(family.as_str())
+            {
                 continue;
             }
             let Some(rgb) = catalog.colors.get(&choice.hash).copied() else {
@@ -150,7 +159,7 @@ impl Palette {
         self.picked = self
             .colors
             .iter()
-            .position(|swatch| selected.is_some_and(|hash| swatch.hash == Some(hash)) || rgb == Some(swatch.rgb))
+            .position(|swatch| selected.map_or(rgb == Some(swatch.rgb), |hash| swatch.hash == Some(hash)))
             .unwrap_or(0);
         self.refresh(cx);
     }
@@ -193,7 +202,7 @@ impl Palette {
             layers.place(cx);
             chrome::selection(
                 cx,
-                ["Needle", "Characters", "Backing"][self.channel],
+                ["Needle Color", "Lettering Color", "Backing Color"][self.channel],
                 self.picked + 1,
                 self.colors.len(),
             );
@@ -224,22 +233,9 @@ impl Palette {
         {
             cx.rt.focus_button(object);
         }
-    }
-
-    fn family_label(&self) -> String {
-        let family = &self.families[self.family];
-        let label = (self.color() == 0 && matches!(family.as_str(), "GLOSS" | "METAL" | "PEARL"))
-            .then(|| {
-                let model = self.handle.model();
-                let catalog = model.selected()?.parts.as_ref()?;
-                let choice = catalog.choices[Part::Paint as usize]
-                    .iter()
-                    .find(|choice| catalog.paint_families.get(&choice.hash) == Some(family))?;
-                let (label, _) = catalog.paint_names.get(&choice.hash)?;
-                crate::ui::Text::Game(*label).resolve()
-            })
-            .flatten();
-        label.unwrap_or_else(|| family.clone())
+        if matches!(self.page, Page::GaugeColors { .. }) {
+            highlight::follow(cx, &self.objects, self.picked % count);
+        }
     }
 
     fn choose(&mut self, cx: &mut Cx, at: usize) {

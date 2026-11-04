@@ -66,7 +66,7 @@ impl BlackboxPresenter {
             let corners =
                 [p(left, y0), p(left + width, y0), p(left + width, y0 + line_height), p(left, y0 + line_height)];
             let uvs = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
-            builder.quad(id, corners, uvs, colour, scale, origin);
+            builder.quad(id, corners, uvs, [colour; 4], scale, origin);
         }
     }
 }

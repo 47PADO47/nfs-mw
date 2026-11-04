@@ -94,7 +94,10 @@ fn the_front_end_tuning_follows_the_switch_and_the_world_quality() {
     use blackbox_gfx::settings::ShadowTuning;
     let on = FeShadows { enabled: true, bias: 2.0, divider: 2, ..Default::default() };
     let tuned = |world| tuning(Snapshot { options: on, world_quality: world });
-    assert_eq!(tuned(ShadowQuality::Off), Some(ShadowTuning { quality: ShadowQuality::Off, bias: 2.0, divider: 2 }));
+    assert_eq!(
+        tuned(ShadowQuality::Off),
+        Some(ShadowTuning { quality: ShadowQuality::Off, bias: 2.0, divider: 2, contact_shadows: false })
+    );
     assert_eq!(tuned(ShadowQuality::High).map(|t| t.quality), Some(ShadowQuality::High));
     let off =
         Snapshot { options: FeShadows { enabled: false, ..Default::default() }, world_quality: ShadowQuality::High };

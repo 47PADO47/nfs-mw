@@ -187,3 +187,93 @@ fn a_career_with_no_races_won_writes_no_race_records() {
     career.profile_bytes();
     assert_eq!(career.settings.nodes().len(), before);
 }
+
+// Native options layout documented in docs/formats/career-save.md.
+const AUTOSAVE_BYTE: usize = 0x5B31;
+
+#[test]
+fn batch18_loaded_autosave_option_controls_the_runtime_manager() {
+    let original = Career::new("AUTO", data(), &NewCareer::default()).unwrap();
+    let mut buffer = original.profile.profile_buffer().to_vec();
+    for enabled in [false, true] {
+        buffer[AUTOSAVE_BYTE] = u8::from(enabled);
+        let bytes = ProfileSave::from_profile_buffer(&buffer).unwrap().to_bytes();
+        let career = Career::from_profile_bytes("AUTO", &bytes, data()).unwrap();
+        assert_eq!(career.autosave.option_on, enabled, "imported native option");
+    }
+}
+
+#[test]
+fn batch18_serialized_autosave_option_preserves_other_option_bytes() {
+    let original = Career::new("AUTO", data(), &NewCareer::default()).unwrap();
+    let mut buffer = original.profile.profile_buffer().to_vec();
+    buffer[0x5B1D..0x5BA1].fill(0x9A);
+    buffer[AUTOSAVE_BYTE] = 1;
+    let bytes = ProfileSave::from_profile_buffer(&buffer).unwrap().to_bytes();
+    let mut career = Career::from_profile_bytes("AUTO", &bytes, data()).unwrap();
+    career.autosave.option_on = false;
+    let saved = ProfileSave::parse(&career.profile_bytes()).unwrap();
+    assert_eq!(saved.profile_buffer()[AUTOSAVE_BYTE], 0);
+    for at in 0x5B1D..0x5BA1 {
+        if at != AUTOSAVE_BYTE {
+            assert_eq!(saved.profile_buffer()[at], 0x9A, "unknown option at {at:#x}");
+        }
+    }
+    assert!(saved.integrity().all_ok());
+}
+
+#[test]
+fn batch18_new_profile_autosave_matches_its_runtime_default() {
+    let career = Career::new("AUTO", data(), &NewCareer::default()).unwrap();
+    assert!(career.autosave.option_on);
+    assert_eq!(career.profile.profile_buffer()[AUTOSAVE_BYTE], 1);
+}
+
+fn autosave_test_folder() -> std::path::PathBuf {
+    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    std::env::temp_dir().join(format!("nfsmw-autosave-option-{}-{nonce}", std::process::id()))
+}
+
+#[test]
+fn batch18_autosave_preference_is_durable_without_saving_unsaved_progress() {
+    let root = autosave_test_folder();
+    let profiles = crate::career::ProfileDir::new(&root);
+    let mut career = Career::new("AUTO", data(), &NewCareer::default()).unwrap();
+    let checkpoint_cash = career.settings.cash;
+    profiles.write("AUTO", &career.profile_bytes()).unwrap();
+    let mut other = Career::new("OTHER", data(), &NewCareer::default()).unwrap();
+    profiles.write("OTHER", &other.profile_bytes()).unwrap();
+    let other_bytes = profiles.read("OTHER").unwrap();
+    career.settings.cash += 123;
+    career.autosave.pending = true;
+    career.autosave.armed = true;
+    career.autosave.off_by_error = true;
+    career.set_autosave_enabled(&profiles, false).unwrap();
+    assert!(!career.autosave.option_on);
+    assert!(!career.autosave.pending && !career.autosave.armed && !career.autosave.off_by_error);
+    let loaded = Career::from_profile_bytes("AUTO", &profiles.read("AUTO").unwrap(), data()).unwrap();
+    assert!(!loaded.autosave.option_on);
+    assert_eq!(loaded.settings.cash, checkpoint_cash, "preference is not a progress checkpoint");
+    assert_eq!(career.settings.cash, checkpoint_cash + 123, "live progress stays intact");
+    assert_eq!(profiles.read("OTHER").unwrap(), other_bytes, "other alias stays untouched");
+    career.set_autosave_enabled(&profiles, true).unwrap();
+    let loaded = Career::from_profile_bytes("AUTO", &profiles.read("AUTO").unwrap(), data()).unwrap();
+    assert!(loaded.autosave.option_on);
+    assert_eq!(loaded.settings.cash, checkpoint_cash);
+    assert!(root.starts_with(std::env::temp_dir()));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn batch18_failed_autosave_preference_write_keeps_the_previous_choice() {
+    let root = autosave_test_folder();
+    std::fs::write(&root, b"blocked profile root").unwrap();
+    let profiles = crate::career::ProfileDir::new(&root);
+    let mut career = Career::new("AUTO", data(), &NewCareer::default()).unwrap();
+    let before = career.autosave;
+    let native = career.profile.to_bytes();
+    assert!(career.set_autosave_enabled(&profiles, false).is_err());
+    assert_eq!(career.autosave, before);
+    assert_eq!(career.profile.to_bytes(), native);
+    std::fs::remove_file(root).unwrap();
+}

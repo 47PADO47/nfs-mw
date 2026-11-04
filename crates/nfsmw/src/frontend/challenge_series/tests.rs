@@ -14,7 +14,6 @@ fn the_objects_the_screen_writes_are_the_packages_by_name() {
     assert_eq!(fe_hash_upper("EVENT_ICON_1"), 0x09C9_A0F9);
     assert_eq!(fe_hash_upper("CHECK_1"), 0xE636_228D);
     assert_eq!(fe_hash_upper("CHECK_10"), 0xACFA_745D);
-    assert_eq!(fe_hash_upper("SHOW_HELP"), SHOW_HELP);
 }
 
 #[test]

@@ -80,8 +80,9 @@ This corrects [formats/frontend.md](../formats/frontend.md), which lists `Platfo
 - The original's camera is not a turntable. `FUN_007B9EA0` and `FUN_007A2310` run a timeline of camera moves (the
   `CubicCameraMover` path): each shot holds for 300 ticks (`DAT_00905E24`), and a move eases the camera from its
   old pose to the new one over the move length. The shots themselves are authored data, not read yet.
-- The room's solids are drawn pre-lit (`Shading::Prelit`), as the world's scenery is; the stage's vertex colours
-  carry the light.
+- The room's groups use the world shaders their effect ids select, with the vertex colour as the ambient term and
+  the front end's scenery light ([menu-backdrop-light.md](menu-backdrop-light.md)). Drawing them pre-lit left the
+  room nearly black.
 - The radio plays on the menus (`Scene::radio_on_menus`), from the front-end list, when the `radio` setting is on.
 - The picture was checked offscreen (`nfsmw view-screen MainMenu.fng --screenshot …`): the car sits behind the
   title, Career and the footer hints.

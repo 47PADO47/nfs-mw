@@ -11,6 +11,6 @@ impl Screens {
     /// The pose collection the camera goes to: the topmost screen that asks for one (`factory::pose_for`). A screen that
     /// closes gives it back to the one below.
     pub fn pose(&self) -> Option<&'static str> {
-        self.stack.iter().rev().find_map(|s| s.pose)
+        self.stack.iter().rev().find_map(|s| s.logic.pose().or(s.pose))
     }
 }

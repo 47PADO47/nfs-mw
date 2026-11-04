@@ -30,19 +30,11 @@ scrolling, prompts and save return. Related source settings listed here do not e
   controls or an Original-style equivalent. The [original HUD binding](../crates/nfsmw/src/hud/bind.rs) still binds
   race and leaderboard data; their existence does not establish independent visibility switches. Determine the
   recorded switches' exact effects and persistence before implementing them.
-- [ ] **Gameplay: separate Free Roam Map Mode and Race Map Mode.** The remake has one `minimap` setting with fixed,
-  rotating and off choices, used by the HUD. It cannot select different modes for the two contexts. The HUD page also
-  exposes the same orientation setting. See [minimap settings](../crates/nfsmw/src/settings/minimap.rs) and
-  [HUD application](../crates/nfsmw/src/hud/plugin.rs).
-- [ ] **Gameplay: Autosave, Game Moment Camera and Car Damage switches.** No matching rows exist in the current
-  [Gameplay category](../crates/nfsmw/src/frontend/options_rows.rs). Autosave has a
-  [career gate and runtime](../crates/nfsmw/src/career/autosave.rs); pursuit-breaker
+- [ ] **Gameplay: Game Moment Camera and Car Damage switches.** No matching rows exist in the current
+  [Gameplay category](../crates/nfsmw/src/frontend/options_rows.rs). Pursuit-breaker
   [moment cameras](../crates/nfsmw/src/scenes/world/moment.rs) and vehicle damage code also exist. Their existence
   does not supply the recorded on/off controls. Determine the original switch semantics and persistence before
   wiring them; do not disable the underlying features by assumption.
-- [ ] **Audio: separate Menu Music Volume and Game Music Volume.** The remake offers one `music_volume` row and
-  [music bus](../crates/nfsmw/src/audio/plugin.rs). Per-song menu/game choices in the
-  [EA Trax jukebox](../crates/nfsmw/src/settings/eatrax.rs) are useful but do not provide separate volume levels.
 - [ ] **Audio: Interactive Music, EA Trax and Audio Mode rows.** The recorded page shows independent switches for
   Interactive Music and EA Trax, plus Audio Mode. The remake has an
   [interactive music conductor](../crates/nfsmw/src/audio/interactive/glue.rs), a
@@ -61,6 +53,15 @@ scrolling, prompts and save return. Related source settings listed here do not e
   This is a menu/presentation gap, not an assertion that resolution cannot be changed.
 
 ## Existing or related controls
+
+- **Context options (batch 18 candidates):** Menu Music Volume and Game Music Volume are independent, persisted
+  controls; legacy `music_volume` still applies to both. Free Roam Map Mode and Race Map Mode are independent;
+  explicit legacy `minimap` settings and global map controls still apply to both contexts. See
+  [music context](specs/music-volume-context.md) and [map context](specs/context-minimap-options.md).
+- **Autosave (batch 18 candidate):** Gameplay exposes the loaded profile's native Autosave switch. Loading and
+  saving honor its stored byte. Option-only writes preserve unsaved career progress; failed writes preserve the
+  previous choice and report the failure. Manual saving remains available. See [Autosave option](specs/autosave-option.md).
+  Both candidates still need rendered/physical/audible acceptance as applicable.
 
 - **Controller configuration (batch 12 candidate):** the Controls page now switches between keyboard and physical
   controller capture. Buttons, triggers and signed axes use the existing bindings persistence. Capture waits for

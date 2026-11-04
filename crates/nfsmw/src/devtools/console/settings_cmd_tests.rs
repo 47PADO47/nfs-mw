@@ -308,3 +308,20 @@ fn the_hud_keys_set_and_read_back() {
     assert_eq!(s, before, "a rejected value changes nothing");
     assert!(set(&mut s, "custom_hud.map_zoom", "").unwrap_err().starts_with("usage: set custom_hud.map_zoom <0.5-2>"));
 }
+
+#[test]
+fn batch18_music_legacy_console_sets_both_contexts_and_new_keys_remain_independent() {
+    let mut s = defaults();
+    set(&mut s, "menu_music_volume", "20").unwrap();
+    set(&mut s, "game_music_volume", "80").unwrap();
+    assert_eq!((s.menu_music_volume, s.game_music_volume), (Percent(20), Percent(80)));
+    set(&mut s, "music_volume", "35").unwrap();
+    assert_eq!((s.music_volume, s.menu_music_volume, s.game_music_volume), (Percent(35), Percent(35), Percent(35)));
+    set(&mut s, "menu_music_volume", "0").unwrap();
+    assert_eq!((s.menu_music_volume, s.game_music_volume), (Percent(0), Percent(35)));
+    let before = s;
+    assert!(set(&mut s, "game_music_volume", "invalid").is_err());
+    assert_eq!(s, before);
+    assert_eq!(get_all(&s).lines().filter(|line| line.starts_with("menu_music_volume = ")).count(), 1);
+    assert_eq!(get_all(&s).lines().filter(|line| line.starts_with("game_music_volume = ")).count(), 1);
+}

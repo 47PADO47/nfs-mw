@@ -187,3 +187,56 @@ fn plays(commands: &[Command], movie: &str) -> bool {
         |c| matches!(c, Command::PlayTutorial { movie: m, back, .. } if m == movie && back == screen::CHALLENGE_SERIES),
     )
 }
+
+#[test]
+#[ignore = "requires installed challenge UI and input artwork"]
+fn pass_a_challenge_footer_tracks_device_and_locked_actions() {
+    use crate::input::{Bindings, InputDevice};
+    use crate::ui::input_icons::ATLAS;
+    use blackbox_feng::NodeKind;
+    let mut h = Harness::open().unwrap();
+    for locked in [false, true] {
+        if locked {
+            h.press(pad::RIGHT);
+            h.press(pad::RIGHT);
+        }
+        for device in [InputDevice::Xbox, InputDevice::Keyboard, InputDevice::Xbox] {
+            let raw = h.screens.trees().pop().unwrap();
+            let shown = h.screens.presented_trees(&Bindings::default(), device).pop().unwrap();
+            let hints = &shown.nodes[raw.nodes.len()..];
+            assert!(hints.iter().any(|n| n.visible && n.text.as_deref() == Some("Back")), "host footer missing");
+            assert_eq!(hints.iter().any(|n| n.visible && n.text.as_deref() == Some("Accept")), !locked);
+            assert_eq!(
+                hints.iter().any(|n| n.visible && matches!(n.kind,NodeKind::Image{texture,..} if texture==ATLAS)),
+                device == InputDevice::Xbox
+            );
+            for root in [0x4170_d571, 0x12fd_7d4a] {
+                assert!(
+                    !shown.nodes.iter().any(|n| n.name_hash == root && n.visible),
+                    "legacy hint root remains visible"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires installed Challenge Series artwork and Vulkan GPU"]
+fn pass_a_gpu_challenge_footer_captures_open_locked_and_device_changes() {
+    use crate::input::{Bindings, InputDevice};
+    let mut h = Harness::open().unwrap();
+    for (state, steps) in [("open", 0), ("locked", 2)] {
+        for _ in 0..steps {
+            h.press(pad::RIGHT);
+        }
+        for (label, device) in [("pad", InputDevice::Xbox), ("keyboard", InputDevice::Keyboard)] {
+            let tree = h.screens.presented_trees(&Bindings::default(), device).pop().unwrap();
+            crate::frontend::tests::rendered_playtest::render(
+                &tree,
+                h.screens.assets(),
+                (1920, 1080),
+                &format!("challenge-{state}-{label}"),
+            );
+        }
+    }
+}

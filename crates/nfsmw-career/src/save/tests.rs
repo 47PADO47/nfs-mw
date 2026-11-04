@@ -234,3 +234,20 @@ fn the_history_block_is_read_and_written_in_place() {
     assert_eq!(&file[0xE88E + 0xA2C..0xE88E + 0xA2C + 3], b"MW-");
     assert_eq!(u32::from_le_bytes(file[0xE88E + 0xBD4..0xE88E + 0xBD8].try_into().unwrap()), 7);
 }
+
+#[test]
+fn native_autosave_option_round_trips_without_touching_other_profile_bytes() {
+    let original = synthetic_save();
+    for enabled in [false, true] {
+        let mut edited = original.clone();
+        edited.set_autosave_enabled(enabled);
+        let saved = ProfileSave::parse(&edited.to_bytes()).unwrap();
+        assert_eq!(saved.autosave_enabled(), enabled);
+        assert!(saved.integrity().all_ok());
+        for at in 0..profile::MD5 {
+            if at != profile::AUTOSAVE {
+                assert_eq!(saved.profile_buffer()[at], original.profile_buffer()[at], "byte {at:#x}");
+            }
+        }
+    }
+}

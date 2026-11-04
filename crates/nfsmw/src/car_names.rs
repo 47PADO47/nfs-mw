@@ -2,7 +2,7 @@
 
 use blackbox_text::label_hash;
 
-pub(super) fn display(
+pub(crate) fn display(
     folder: &str,
     manufacturer: &str,
     brands: &[String],
@@ -11,17 +11,19 @@ pub(super) fn display(
     if let Some(name) = police_name(folder) {
         return (name.to_owned(), "Police".to_owned());
     }
+    let upper = folder.to_ascii_uppercase();
     for brand in std::iter::once(manufacturer.to_owned()).chain(brands.iter().cloned()) {
         let brand = key_brand(&brand);
-        let short = folder.strip_prefix(&brand).unwrap_or(folder);
-        for model in [folder, short] {
+        let short = upper.strip_prefix(&brand).unwrap_or(&upper);
+        for model in [upper.as_str(), short] {
             let label = format!("CARNAME_{brand}_{model}");
             if let Some(name) = label_text(label_hash(&label)) {
                 return (name, pretty_brand(&brand));
             }
         }
     }
-    let name = match folder {
+    let compact = upper.replace('_', "");
+    let name = match compact.as_str() {
         "BMWM3GTR" => "M3 GTR",
         "BMWM3GTRE46" => "M3 GTR (E46)",
         "CORVETTE" => "Corvette C6",
@@ -37,6 +39,7 @@ pub(super) fn display(
 }
 
 fn key_brand(brand: &str) -> String {
+    let brand = brand.to_ascii_uppercase();
     if brand == "CHEVEROLET" {
         return "CHEVROLET".to_owned();
     }
@@ -69,4 +72,15 @@ fn police_name(folder: &str) -> Option<&'static str> {
         "COPSUVL" => "Police SUV variant",
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn batch16_display_names_normalize_physics_alias_case_and_separators() {
+        assert_eq!(display("carrera_gt", "Porsche", &[], &|_| None), ("Carrera GT".into(), "Porsche".into()));
+        assert_eq!(display("bmwm3gtre46", "BMW", &[], &|_| None), ("M3 GTR (E46)".into(), "BMW".into()));
+    }
 }

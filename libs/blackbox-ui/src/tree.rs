@@ -44,6 +44,9 @@ pub struct UiNode {
     pub colour: [u8; 4],
     /// The colour multiplied through the ancestors.
     pub world_colour: [u8; 4],
+    /// Optional local vertex tints, clockwise from top left. Combined with `world_colour` by the presenter.
+    /// `None` preserves the uniform-colour path for ordinary quads and generated widgets.
+    pub corner_colours: Option<[[u8; 4]; 4]>,
     /// Where the unit quad (or the string origin) lands on the 640 x 480 screen with its origin at the centre:
     /// parent context, position, pivot, rotation and size (including scaled groups).
     pub world: Mat4,

@@ -1,6 +1,15 @@
 use super::*;
 use crate::app::test_backend::NullBackend;
 
+fn settled(scene: &mut GarageScene, renderer: &mut NullBackend) {
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while !scene.ready() {
+        assert!(std::time::Instant::now() < until, "asynchronous car preview must finish");
+        scene.update(renderer, &ActionState::default(), 1.0 / 60.0);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
 #[test]
 #[ignore = "requires installed car assets; set NFSMW_GAME_DIR"]
 fn my_cars_loads_previews_discards_confirms_and_frees_models() {
@@ -47,6 +56,8 @@ fn my_cars_loads_previews_discards_confirms_and_frees_models() {
         .folder
         .clone();
     let baseline = Selection { car: folder, ..Selection::default() };
+    scene.preview_garage(&mut renderer, baseline.clone()).unwrap();
+    settled(&mut scene, &mut renderer);
     scene.confirm_garage(&mut renderer, baseline.clone()).unwrap();
     scene.begin_garage(&mut renderer).unwrap();
     let painted = Selection { color: Some([22, 70, 190]), ..baseline.clone() };
@@ -56,6 +67,8 @@ fn my_cars_loads_previews_discards_confirms_and_frees_models() {
     scene.cancel_garage(&mut renderer).unwrap();
     assert_eq!(scene.model.draft, baseline);
     scene.begin_garage(&mut renderer).unwrap();
+    scene.preview_garage(&mut renderer, painted.clone()).unwrap();
+    settled(&mut scene, &mut renderer);
     scene.confirm_garage(&mut renderer, painted.clone()).unwrap();
     assert_eq!(scene.model.applied, painted);
     scene.close(&mut renderer);
@@ -158,10 +171,14 @@ fn batch12_my_cars_restores_a_previous_car_without_uploading_it_again() {
     let meshes = renderer.mesh_labels.clone();
     let other = scene.model.cars.iter().find(|car| car.folder != original.car).unwrap().folder.clone();
     scene.preview_garage(&mut renderer, Selection { car: other, ..Default::default() }).unwrap();
+    assert!(scene.model.preview_loading);
+    assert_eq!(renderer.mesh_labels, meshes, "requesting an unseen car performs no synchronous upload");
+    settled(&mut scene, &mut renderer);
     let after_switch = renderer.mesh_labels.clone();
     assert!(meshes.keys().all(|handle| after_switch.contains_key(handle)), "the old preview stays parked");
     let textures = renderer.texture_labels.clone();
     scene.preview_garage(&mut renderer, original.clone()).unwrap();
+    assert!(!scene.model.preview_loading, "a cached car is immediately ready");
     assert_eq!(scene.model.draft, original);
     assert_eq!(renderer.mesh_labels, after_switch, "returning to the old car allocates no meshes");
     assert_eq!(renderer.texture_labels, textures, "returning to the old car allocates no textures");

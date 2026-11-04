@@ -63,6 +63,32 @@ python -m tools.ui_capture.review '<session directory>'
 python -m tools.ui_capture.quality '<session directory>'
 ```
 
+## Save and settings state
+
+Pass `--state <file or folder>` (repeatable) and `--registry <key>` (repeatable) to identify the profile and
+settings a session ran with. Files are hashed and, up to 4 MiB each, copied into `state/start/` at the start
+and `state/end/` at the end. Registry keys are exported with `reg export`. `session.json` lists files added,
+removed or changed between the two snapshots. The snapshot only reads; a failed copy is recorded in
+`state_errors` and does not stop the recording. Fresh-profile defaults need a fresh profile at the start.
+
+## Sync estimate
+
+```powershell
+python -m tools.ui_capture.sync '<session directory>'
+```
+
+This estimates two pipeline delays from the private probe's events:
+
+- **Sound request to audible onset:** the first clear rise of the recorded envelope after each sound request.
+- **Focus change to the first changed frame.**
+
+By default it measures the 30 seconds after any marker whose label contains "sync", otherwise after the
+session start. Record a short sync routine there: on a still menu, move the selection slowly about ten
+times. `--window START END` selects other intervals, including in older sessions.
+
+Results go to `sync.json` as a median and interquartile range. They are estimates of capture and mix
+latency, not the original game's own timing. A request with an onset is not proof of which sound played.
+
 ## What timing establishes
 
 Audio callback sample indices and PortAudio ADC/current-time pairs are retained

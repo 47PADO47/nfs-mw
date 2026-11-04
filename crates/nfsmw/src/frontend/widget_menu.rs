@@ -319,6 +319,11 @@ impl WidgetMenu {
             self.draw_visible(cx);
             return;
         }
+        if row.setting == options::Setting::Autosave {
+            options::autosave::change(cx);
+            self.draw_visible(cx);
+            return;
+        }
         row.setting.advance(cx.settings, cx.changed, forward, &cx.caps);
         self.draw_visible(cx);
     }
@@ -367,7 +372,7 @@ impl ScreenLogic for WidgetMenu {
         self.find_rows(cx);
         // Packages supply reusable screen slots, not one object for every logical setting.
         self.on_screen = self.on_screen.min(self.objects.len());
-        hide_short_scrollbar(cx, self.rows.len(), self.on_screen);
+        hide_short_scrollbar(cx, self.rows.len(), self.on_screen, self.top);
         hide_unused(cx);
         show_overflow_arrows(cx, self.rows.len(), self.on_screen);
         let title = match (self.args.category, self.args.pause) {
@@ -463,7 +468,7 @@ impl ScreenLogic for WidgetMenu {
     /// The package's scripts write positions (the arrows' scripts hold their placeholder place); the rows are put
     /// back where the layout wants them after every update.
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        hide_short_scrollbar(cx, self.rows.len(), self.on_screen);
+        hide_short_scrollbar(cx, self.rows.len(), self.on_screen, self.top);
         show_overflow_arrows(cx, self.rows.len(), self.on_screen);
         self.clock += dt;
         self.refresh(cx);

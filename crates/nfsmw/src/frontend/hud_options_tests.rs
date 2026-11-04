@@ -110,6 +110,10 @@ fn the_map_orientation_is_the_minimap_setting() {
     assert_eq!((s.minimap, c.minimap), (MinimapMode::Rotating, Some(MinimapMode::Rotating)));
     assert_eq!(HudSetting::MapOrientation.data(&s), shown("Heading up"));
     assert_eq!(c.hud_options, HudLayer::default(), "not a key of the table");
+    assert_eq!(s.free_roam_map_mode, Some(s.minimap));
+    assert_eq!(s.race_map_mode, Some(s.minimap));
+    assert_eq!(c.free_roam_map_mode, Some(s.minimap));
+    assert_eq!(c.race_map_mode, Some(s.minimap));
 }
 
 #[test]

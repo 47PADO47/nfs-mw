@@ -76,6 +76,13 @@ The 12 places are the collections `bounty_jump/<place>`; their number (field `0x
 to 8 while the career's bin is below 13, places 9 to 12 below 9. Accept asks `REP_SHEET_BOUNTY_CONFIRM` and, on Yes, jumps
 like a milestone. The one-time warning `blacklist_bounty_spawn_point_first_time` is not shown.
 
+The saved PC reference shows regional crests in both the grid and detail panel: spawn numbers 1–4 use
+`BOUNTY_ICON_COLLEGE`, 5–8 use `BOUNTY_ICON_COASTAL`, and 9–12 use `BOUNTY_ICON_ROCKPORT`. **[verified]** The installed
+stock textures are 64×64; higher-resolution installed replacements keep their own resolution. The selected spawn
+number supplies both copies, including after scrolling; list position alone
+does not choose a crest. See the provenance's recorded-artwork section. The former repeated `MAIN_ICON_BOUNTY` badge
+was a remake placeholder, not the reference's location artwork.
+
 ## 5. The jump **[ours]**
 
 The original writes a pending jump (spawn key, flag `+0x111`) and leaves the front end as "Resume Free Roam" does; the
@@ -108,5 +115,5 @@ for a beaten rival). Back from a sheet returns to that list, and from the list t
 1. The "Cop Probability" value (the script scan of the label's users is disabled in this Ghidra setup, so its code was
 not found). 2. The sheet's second row mode (every bin from the career's bin up) and what switches it. 3. The one-time bounty
 warning `blacklist_bounty_spawn_point_first_time` (its flag is not known). 4. The in-game twins' own object layout.
-5. Exact original sheet input/scroll animation and bounty/trap artwork. The repaired bounty slots use the installed
-`MAIN_ICON_BOUNTY` artwork as an explicit presentation choice; the package's circuit placeholders are not content.
+5. Exact original sheet input/scroll animation and trap artwork. Bounty regional artwork is verified above; the
+package's circuit placeholders are not content.

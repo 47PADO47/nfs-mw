@@ -113,7 +113,7 @@ pub(super) fn mirror_picture(
     let colour = vertex_colour([255, 255, 255, faded_alpha(alpha)], false);
     for corners in quads {
         let uvs = corners.map(|p| [(p.x - lo.x) / size.x, (p.y - lo.y) / size.y]);
-        builder.quad(MIRROR_TEXTURE, corners, uvs, colour, scale, origin);
+        builder.quad(MIRROR_TEXTURE, corners, uvs, [colour; 4], scale, origin);
     }
 }
 #[cfg(test)]

@@ -98,7 +98,9 @@ impl Inspection {
         let axis = |plus, minus| input.value(plus) - input.value(minus);
         if self.showcase {
             yaw -= axis(Action::MenuRight, Action::MenuLeft) * DEGREES_PER_SECOND * dt;
-            pitch += axis(Action::MenuUp, Action::MenuDown) * DEGREES_PER_SECOND * dt;
+            // Up lowers the camera, as the right stick does: the recorded original Showcase drops toward the car's
+            // side while the stick is held up (UI-061). Camera inversion stays a right-stick/mouse look setting.
+            pitch -= axis(Action::MenuUp, Action::MenuDown) * DEGREES_PER_SECOND * dt;
         }
         let zoom = axis(Action::MenuZoomIn, Action::MenuZoomOut) * METRES_PER_SECOND * dt;
         if yaw.abs() + pitch.abs() + zoom.abs() > 0.0 {
@@ -193,6 +195,34 @@ mod tests {
         assert_eq!(camera.update(&input, Some(base), 5.0, false), Some(pose));
         camera.update(&input, Some(base), 1.0, false);
         assert!((camera.pose().unwrap().yaw - (base.yaw + 30.0)).abs() < 0.0001);
+    }
+
+    /// The pitch a held pad input leaves after a tenth of a second of Showcase, starting from the safe-house pose.
+    fn showcase_pitch(
+        axes: &[(bevy_input::gamepad::GamepadAxis, f32)],
+        buttons: &[bevy_input::gamepad::GamepadButton],
+    ) -> f32 {
+        let mut snapshot = crate::input::Snapshot { dt: 0.1, ..Default::default() };
+        snapshot.pad_axes.extend(axes.iter().copied());
+        snapshot.pad_buttons.extend(buttons.iter().copied());
+        let mut input = ActionState::default();
+        input.update(&crate::input::Bindings::default(), &snapshot, false);
+        let mut camera = Inspection::default();
+        camera.set_showcase(true);
+        camera.set_enabled(true);
+        camera.update(&input, Some(SAFE_HOUSE), 0.1, false);
+        camera.pose().expect("held input inspects").pitch
+    }
+
+    #[test]
+    fn ui061_every_controller_up_input_lowers_the_showcase_camera_like_the_original_right_stick() {
+        use bevy_input::gamepad::{GamepadAxis, GamepadButton};
+        let stick = showcase_pitch(&[(GamepadAxis::RightStickY, 1.0)], &[]);
+        let pad = showcase_pitch(&[], &[GamepadButton::DPadUp]);
+        let left = showcase_pitch(&[(GamepadAxis::LeftStickY, 1.0)], &[]);
+        for (name, pitch) in [("right stick", stick), ("D-pad", pad), ("left stick", left)] {
+            assert!(pitch < SAFE_HOUSE.pitch, "{name} Up must lower the camera: {pitch}");
+        }
     }
 
     #[test]

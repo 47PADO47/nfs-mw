@@ -1,5 +1,6 @@
 //! The installed shopping cart's rows and purchase/remove actions.
 
+mod layout;
 mod names;
 mod rows;
 
@@ -95,7 +96,17 @@ impl Cart {
             }
             if let Some(object) = cx.named(&format!("CHECK_ICON_{number}")) {
                 cx.rt.set_hidden(object, !visible);
-                cx.rt.set_position_xy(object, title.0, y - 10.0);
+                if let Some(name) = cx.named(&format!("PART_NAME_{number}"))
+                    && let Some((name_pos, check_pos)) = cx.rt.package(cx.package).and_then(|package| {
+                        Some((
+                            package.objects.get(name.index)?.data.position(),
+                            package.objects.get(object.index)?.data.position(),
+                        ))
+                    })
+                {
+                    let center = layout::label_center(cx, name).unwrap_or(y + check_pos.y - name_pos.y);
+                    cx.rt.set_position_xy(object, title.0 + 30.0 + check_pos.x - name_pos.x, center);
+                }
                 let script =
                     match self.rows.get(base + index).is_some_and(|row| !rows::active(&state.model, &state.cart, *row))
                     {
@@ -130,6 +141,9 @@ impl Cart {
             return;
         }
         let model = self.handle.model();
+        if model.preview_loading {
+            return;
+        }
         if !crate::garage::can_confirm(&model) {
             if !model.backroom && model.shop_cash.zip(model.shop_total).is_some_and(|(cash, total)| total > cash) {
                 self.handle.request(Request::Push(Page::InsufficientFunds));
@@ -194,6 +208,10 @@ impl ScreenLogic for Cart {
         self.refresh(cx);
     }
     fn message(&mut self, cx: &mut Cx, message: u32) {
+        if self.handle.model().preview_loading && matches!(message, PAD_ACCEPT | BUTTON_PRESSED | PAD_START) {
+            cx.rt.post_to_package(cx.package, crate::frontend::ids::INPUT_ENABLE);
+            return;
+        }
         match message {
             PAD_UP => self.picked = self.picked.saturating_sub(1),
             PAD_DOWN => self.picked = (self.picked + 1).min(self.rows.len().saturating_sub(1)),
@@ -242,6 +260,9 @@ impl ScreenLogic for Cart {
     }
     fn footer(&self) -> Footer {
         let state = self.handle.0.lock().unwrap();
+        if state.model.preview_loading {
+            return Footer::GarageLoading;
+        }
         Footer::GarageCart {
             active: self.rows.get(self.picked).is_some_and(|row| rows::active(&state.model, &state.cart, *row)),
         }

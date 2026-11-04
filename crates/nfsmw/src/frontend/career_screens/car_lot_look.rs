@@ -53,7 +53,12 @@ pub(super) struct Shown<'a> {
 /// measured stats, which Quick Play and the custom race show too).
 pub(super) fn pool_car(name: &str) -> Option<(PoolCar, std::sync::Arc<CarPool>)> {
     let pool = pool::cars()?;
-    let car = pool.cars.iter().find(|car| car.name.eq_ignore_ascii_case(name))?.clone();
+    let car = pool
+        .cars
+        .iter()
+        .chain(pool.presets.iter().map(|preset| &preset.car))
+        .find(|car| car.name.eq_ignore_ascii_case(name))?
+        .clone();
     Some((car, pool))
 }
 
@@ -64,6 +69,26 @@ pub(super) fn draw(cx: &mut Cx, shown: &Shown<'_>) {
         cx.hide(name, true);
     }
     for name in OWN_BUTTONS {
+        cx.hide(name, true);
+    }
+    identity(cx, shown);
+    let car = shown.row.and_then(|row| pool_car(&row.name));
+    let [top, handling, acceleration] = match &car {
+        Some((PoolCar { stats: Some(own), .. }, pool)) => stats::bar_fractions(own, &pool.population),
+        _ => [0.0; 3],
+    };
+    set_bar(cx, &TOP_SPEED_STRIPS, top);
+    set_bar(cx, &HANDLING_STRIPS, handling);
+    set_bar(cx, &ACCELERATION_STRIPS, acceleration);
+    let locked = shown.row.is_some_and(|row| row.locked);
+    cx.script(LOCKED_GROUP, if locked { SCRIPT_SHOW } else { SCRIPT_HIDE });
+    set_text(cx, COST_VALUE, shown.row.map(|row| grouped(i64::from(row.price))).unwrap_or_default());
+    set_text(cx, FUNDS_VALUE, grouped(i64::from(shown.cash)));
+}
+
+/// Shared car identity, including career select. Raw catalogue names and the duplicate debug string stay hidden.
+pub(super) fn identity(cx: &mut Cx, shown: &Shown<'_>) {
+    for &name in &HIDDEN[..2] {
         cx.hide(name, true);
     }
     for name in BLANKED {
@@ -91,17 +116,6 @@ pub(super) fn draw(cx: &mut Cx, shown: &Shown<'_>) {
             }
         }
     }
-    let [top, handling, acceleration] = match &car {
-        Some((PoolCar { stats: Some(own), .. }, pool)) => stats::bar_fractions(own, &pool.population),
-        _ => [0.0; 3],
-    };
-    set_bar(cx, &TOP_SPEED_STRIPS, top);
-    set_bar(cx, &HANDLING_STRIPS, handling);
-    set_bar(cx, &ACCELERATION_STRIPS, acceleration);
-    let locked = shown.row.is_some_and(|row| row.locked);
-    cx.script(LOCKED_GROUP, if locked { SCRIPT_SHOW } else { SCRIPT_HIDE });
-    set_text(cx, COST_VALUE, shown.row.map(|row| grouped(i64::from(row.price))).unwrap_or_default());
-    set_text(cx, FUNDS_VALUE, grouped(i64::from(shown.cash)));
 }
 
 /// The car a row shows in the room: a lot car by its catalogue record, an owned car by its record in the stable.
@@ -109,8 +123,13 @@ pub(super) fn item_look(career: &Career, item: &Item) -> Option<CarLook> {
     match item.key {
         Key::Lot(key) => {
             let car = carlot::by_frontend_key(&career.data.cars, key)?;
-            let record =
-                CarRecordRef { handle: car.handle, frontend_key: car.frontend_key, vehicle_key: car.vehicle_key };
+            let record = CarRecordRef {
+                handle: car.handle,
+                frontend_key: car.frontend_key,
+                vehicle_key: car.vehicle_key,
+                customization: None,
+                alias: None,
+            };
             Some(CarLook { car: car.name.clone(), preset: None, record: Some(record) })
         }
         Key::Owned(handle) => Some(CarLook::of_handle(career, handle)),

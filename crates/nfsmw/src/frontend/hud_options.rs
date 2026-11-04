@@ -293,8 +293,10 @@ impl HudSetting {
                 layer.palette = Some(h.palette);
             }
             Self::MapOrientation => {
-                s.minimap = ORIENTATIONS[cycle(position(&ORIENTATIONS, s.minimap), ORIENTATIONS.len(), forward)];
-                changed.minimap = Some(s.minimap);
+                s.set_global_minimap(
+                    ORIENTATIONS[cycle(position(&ORIENTATIONS, s.minimap), ORIENTATIONS.len(), forward)],
+                );
+                changed.set_global_minimap(s.minimap);
             }
             _ => {}
         }

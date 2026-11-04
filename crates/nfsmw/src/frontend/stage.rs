@@ -27,11 +27,12 @@ pub struct CarStand {
 }
 
 /// How the car stands on the crib and the safe house, which share it. [exe]
-pub const CAR_STAND: CarStand = CarStand { yaw: 304.97, sink: 0.025 };
+// CarModel::floor_height already includes the front-end tyre sink.
+pub const CAR_STAND: CarStand = CarStand { yaw: 304.97, sink: 0.0 };
 
 /// How the car stands in the car lot: the stand routine turns it 340 degrees there (`menu-backdrop-looks.md` section 4.1).
 /// [exe]
-pub const CAR_LOT_STAND: CarStand = CarStand { yaw: 340.0, sink: 0.025 };
+pub const CAR_LOT_STAND: CarStand = CarStand { yaw: 340.0, sink: 0.0 };
 
 impl Look {
     /// The stage the look stands on.
@@ -81,11 +82,21 @@ impl Stage {
         }
     }
 
-    /// Crib framing retains the port's visual fit; the complete original coordinate conversion is unverified.
+    /// Degrees the original turns the platform's solids about the vertical axis when it draws them; the camera and the
+    /// car stand stay in the unturned frame (`menu-backdrop-looks.md`, "The room's turn"). [exe]
     pub fn room_yaw(self) -> f32 {
         match self {
-            Stage::Crib => 180.0,
-            Stage::SafeHouse | Stage::CarLot | Stage::Customization | Stage::Backroom => 0.0,
+            Stage::Crib | Stage::Backroom => 134.4125,
+            Stage::SafeHouse => 302.8531,
+            Stage::Customization | Stage::CarLot => 0.0,
+        }
+    }
+
+    /// Metres the original moves the platform's solids along +y after turning them: only the car lot's. [exe]
+    pub fn room_shift(self) -> f32 {
+        match self {
+            Stage::CarLot => 0.075,
+            Stage::Crib | Stage::SafeHouse | Stage::Customization | Stage::Backroom => 0.0,
         }
     }
 

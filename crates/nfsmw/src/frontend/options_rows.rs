@@ -7,6 +7,7 @@ use crate::frontend::input_options::InputSetting;
 use crate::frontend::logic::Category;
 use crate::frontend::post_options::PostSetting;
 use crate::frontend::renderer_options::RendererSetting;
+use crate::settings::MinimapContext;
 use blackbox_gfx::Capabilities;
 
 /// The original's Rearview Mirror row title (`OPT_GAMEPLAY_REARVIEW`).
@@ -25,7 +26,8 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::MasterVolume, Title::Label(0x2678_2C3E)),
             row(Setting::SfxVolume, Title::Label(0xFD48_7543)),
             row(Setting::EngineVolume, Title::Label(0xA2B1_F888)),
-            row(Setting::MusicVolume, Title::Label(0x418E_681D)),
+            row(Setting::MenuMusicVolume, Title::Label(0x418E_681D)),
+            row(Setting::GameMusicVolume, Title::Key("options-game-music-volume")),
             // The speech volume is the police dispatch's radio, so the row says so (`speech_volume` keeps its key).
             row(Setting::SpeechVolume, Title::Key("options-police-dispatch-volume")),
         ],
@@ -99,8 +101,10 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::UiStyle, Title::Key("options-hud-style")),
             row(Setting::UiTheme, Title::Key("options-hud-theme")),
             row(Setting::SpeedUnits, Title::Key("options-speed-units")),
-            row(Setting::Minimap, Title::Key("options-minimap")),
+            row(Setting::ContextMinimap(MinimapContext::FreeRoam), Title::Key("options-free-roam-map-mode")),
+            row(Setting::ContextMinimap(MinimapContext::Race), Title::Key("options-race-map-mode")),
             row(Setting::RearViewMirror, Title::Label(LABEL_REARVIEW)),
+            row(Setting::Autosave, Title::Key("options-autosave")),
             row(Setting::TurnSignals, Title::Key("options-turn-signals")),
             row(Setting::CopHealthBars, Title::Key("options-cop-health-bars")),
             // The same row as the Player page's, so the camera can be switched from the pause menu's gameplay options too.

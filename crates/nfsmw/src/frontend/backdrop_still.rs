@@ -5,6 +5,7 @@ use std::hash::Hasher;
 
 use blackbox_gfx::{GraphicsSettings, RenderBackend, RenderExperiments, TextureHandle};
 
+use super::super::camera_pose::CameraPose;
 use super::MenuScene;
 use crate::settings::{CarShading, fe_shadows};
 use crate::viewer::StaticHash;
@@ -26,13 +27,17 @@ impl MenuScene {
     /// Whether the casters and the floor capture would come out as they did at the last call; remembers this call's
     /// inputs for the next.
     pub(super) fn still_unchanged(&mut self, renderer: &dyn RenderBackend) -> bool {
-        let key = self.still_key(renderer);
+        self.still_unchanged_from(renderer, None)
+    }
+
+    pub(super) fn still_unchanged_from(&mut self, renderer: &dyn RenderBackend, camera: Option<CameraPose>) -> bool {
+        let key = self.still_key(renderer, camera);
         let same = self.still.as_ref() == Some(&key);
         self.still = Some(key);
         same
     }
 
-    fn still_key(&self, renderer: &dyn RenderBackend) -> StillKey {
+    fn still_key(&self, renderer: &dyn RenderBackend, camera: Option<CameraPose>) -> StillKey {
         let surface = renderer.surface_size();
         let aspect = surface[0] as f32 / surface[1].max(1) as f32;
         let mut hash = StaticHash::default();
@@ -41,7 +46,7 @@ impl MenuScene {
             hash.params(&frame);
             hash.instances(parts);
         }
-        if let Some(pose) = self.rig.pose().filter(|_| self.look.camera_intro().is_some()) {
+        if let Some(pose) = camera.or_else(|| self.rig.pose().filter(|_| self.look.camera_intro().is_some())) {
             let lens = pose.lens(aspect);
             hash.mat4(&lens.view);
             hash.projection(&lens.projection);

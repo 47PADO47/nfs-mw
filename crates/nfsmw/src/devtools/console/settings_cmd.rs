@@ -47,6 +47,8 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "readout" | "show_readout" => settings.show_readout.to_string(),
         "volume" | "master_volume" => settings.master_volume.to_string(),
         "music_volume" => settings.music_volume.to_string(),
+        "menu_music_volume" => settings.menu_music_volume.to_string(),
+        "game_music_volume" => settings.game_music_volume.to_string(),
         "sfx_volume" => settings.sfx_volume.to_string(),
         "engine_volume" => settings.engine_volume.to_string(),
         "speech_volume" => settings.speech_volume.to_string(),
@@ -152,7 +154,14 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "resolution" => settings.resolution = value.parse()?,
         "readout" | "show_readout" => settings.show_readout = ShowReadout::from_str(value)?,
         "volume" | "master_volume" => settings.master_volume = Percent::from_str(value)?,
-        "music_volume" => settings.music_volume = Percent::from_str(value)?,
+        "music_volume" => {
+            let volume = Percent::from_str(value)?;
+            settings.music_volume = volume;
+            settings.menu_music_volume = volume;
+            settings.game_music_volume = volume;
+        }
+        "menu_music_volume" => settings.menu_music_volume = Percent::from_str(value)?,
+        "game_music_volume" => settings.game_music_volume = Percent::from_str(value)?,
         "sfx_volume" => settings.sfx_volume = Percent::from_str(value)?,
         "engine_volume" => settings.engine_volume = Percent::from_str(value)?,
         "speech_volume" => settings.speech_volume = Percent::from_str(value)?,
@@ -180,7 +189,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "turn_signals" => settings.turn_signals = parse_bool(value)?,
         "transmission" => settings.transmission = Transmission::from_str(value)?,
         "camera_mode" => settings.camera_mode = CameraMode::from_str(value)?,
-        "minimap" => settings.minimap = MinimapMode::from_str(value)?,
+        "minimap" => settings.set_global_minimap(MinimapMode::from_str(value)?),
         "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
         "ui_style" | "ui-style" => settings.ui_style = UiStyle::from_str(value)?,
         "speed_units" | "speed-units" => settings.speed_units = SpeedUnits::from_str(value)?,
@@ -283,7 +292,8 @@ fn syntax(key: &str) -> Option<&'static str> {
         "fe_shadows_divider" => "<1|2|4>",
         "monitor" => "<current|primary|index>",
         "resolution" => "<WIDTHxHEIGHT|native>",
-        "volume" | "master_volume" | "music_volume" | "sfx_volume" | "engine_volume" | "speech_volume" => "<0-100>",
+        "volume" | "master_volume" | "music_volume" | "menu_music_volume" | "game_music_volume" | "sfx_volume"
+        | "engine_volume" | "speech_volume" => "<0-100>",
         "graphics_preset" => "<custom|low|medium|high|ultra>",
         "car_shading" => "<simple|glossy|original|original-unshadowed>",
         "smoke_quality" => "<standard|high>",

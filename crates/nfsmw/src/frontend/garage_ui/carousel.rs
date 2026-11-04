@@ -156,6 +156,10 @@ impl Carousel {
     }
 
     fn accept(&mut self, cx: &mut Cx) {
+        if self.handle.model().preview_loading {
+            cx.rt.post_to_package(cx.package, ids::INPUT_ENABLE);
+            return;
+        }
         if self.leaving {
             return;
         }
@@ -416,6 +420,9 @@ impl ScreenLogic for Carousel {
     }
 
     fn footer(&self) -> Footer {
+        if self.page != Page::Showcase && self.handle.model().preview_loading {
+            return Footer::GarageLoading;
+        }
         match self.page {
             Page::Showcase => Footer::Orbit,
             Page::Main => Footer::GarageMain { shop: choices::can_enter_backroom(&self.handle.model()) },

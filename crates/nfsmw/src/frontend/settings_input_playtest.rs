@@ -85,3 +85,58 @@ fn installed_playtest_settings_back_keeps_controller_prompts() {
         }
     }
 }
+
+#[test]
+#[ignore = "requires installed settings footer artwork"]
+fn pass_b_settings_footer_suppresses_reactivated_native_content_without_matching_caption_text() {
+    use crate::frontend::logic::Footer;
+    for (name, pause, root_hash) in [(screen::OPTIONS, false, 0x84bc_f2b5), (screen::PAUSE_OPTIONS, true, 0xb3a6_9e89)]
+    {
+        let mut h = Harness::open(name, Args { pause, category: Category::Audio, ..Default::default() }).unwrap();
+        h.wait(1.0);
+        let raw = h.screens.trees().pop().unwrap();
+        let root = raw.nodes.iter().find(|n| n.name_hash == root_hash).unwrap().index;
+        let mut candidates = Vec::new();
+        for node in &raw.nodes {
+            if node.text.is_none() {
+                continue;
+            }
+            let mut parent = node.parent;
+            while let Some(at) = parent {
+                if at == root {
+                    candidates.push(node.index);
+                    break;
+                }
+                parent = raw.nodes[at].parent;
+            }
+        }
+        assert!(!candidates.is_empty());
+        for device in [InputDevice::Xbox, InputDevice::Keyboard] {
+            let mut tree = raw.clone();
+            for &index in &candidates {
+                tree.nodes[index].text = Some("Reactivated native hint".into());
+                tree.nodes[index].visible = true;
+                tree.nodes[index].world_colour[3] = 255;
+                if !tree.draw_order.contains(&index) {
+                    tree.draw_order.push(index);
+                }
+            }
+            crate::frontend::prompts::decorate(
+                &mut tree,
+                name,
+                Footer::Standard,
+                &Bindings::default(),
+                device,
+                h.screens.assets(),
+            );
+            assert!(
+                candidates.iter().all(|&i| !tree.nodes[i].visible),
+                "footer ownership must not depend on caption wording: {name} {device:?}"
+            );
+            assert!(
+                tree.nodes[raw.nodes.len()..].iter().any(|n| n.visible && n.text.is_some()),
+                "host hints remain visible"
+            );
+        }
+    }
+}

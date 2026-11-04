@@ -89,4 +89,8 @@ fn batch12_scene_cleanup_stops_active_police_and_discards_queued_speech() {
     assert_eq!(world.resource::<MusicInput>().state(), Default::default());
     let speech = audio.speech.loaded_mut().unwrap();
     assert_eq!(speech.request(1, 0), Outcome::Queued, "the next session is not muted");
+    for _ in 0..20 {
+        audio.update_speech(0.1);
+    }
+    assert_eq!(playback.lock().unwrap().plays, 2, "the next session must actually play its new line");
 }

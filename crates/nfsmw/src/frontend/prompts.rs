@@ -13,6 +13,7 @@ use crate::ui::{
     prompts::{self, Prompt},
 };
 
+mod career_car;
 mod legacy;
 
 const FONT: u32 = 0x5455_70c6; // FONT_MW_BODY
@@ -57,6 +58,9 @@ const LEGACY_HINTS: [u32; 9] = [
 /// The footer hints a screen shows, in order. The Original footer and the Remastered menus' draw the same set.
 pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDevice) -> Vec<Hint> {
     use HintLabel as L;
+    if let Some(hints) = career_car::hints(footer, bindings, device) {
+        return hints;
+    }
     if let Some(hints) = super::garage_ui::prompts::hints(footer, bindings, device) {
         return hints;
     }
@@ -127,6 +131,16 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
             ));
             return hints;
         }
+        Footer::ChallengeSeries { can_accept, has_tutorial } => {
+            let mut hints = vec![back];
+            if can_accept {
+                hints.push(accept);
+            }
+            if has_tutorial {
+                hints.push((action(Action::MenuButton2), L::ViewTutorial, Some(Action::MenuButton2)));
+            }
+            return hints;
+        }
         Footer::BackOnly | Footer::CarSelectLocked => return vec![back],
         Footer::BackAccept => return vec![back, accept],
         Footer::Tutorial => {
@@ -150,6 +164,8 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
             return vec![back, (zoom, L::Zoom, None), (arrows, L::ViewCar, None)];
         }
         Footer::Standard
+        | Footer::CareerCarSelect { .. }
+        | Footer::GarageLoading
         | Footer::GarageManager { .. }
         | Footer::GarageMain { .. }
         | Footer::GarageCategories { .. }
@@ -244,8 +260,19 @@ pub fn decorate(
         settings,
         name.eq_ignore_ascii_case(screen::EA_TRAX_JUKEBOX),
     );
+    // The host owns the whole settings footer, including captions restored by native scripts.
+    // Match its group, not translated text or a particular key texture.
+    if name.eq_ignore_ascii_case(screen::OPTIONS) {
+        legacy::hide_children(tree, 0x84bc_f2b5);
+    }
+    if name.eq_ignore_ascii_case(screen::PAUSE_OPTIONS) {
+        legacy::hide_children(tree, 0xb3a6_9e89);
+    }
     if footer.is_garage() {
         super::garage_ui::prompts::hide_legacy(tree, footer);
+    }
+    if matches!(footer, Footer::CareerCarSelect { .. }) {
+        career_car::hide_legacy(tree);
     }
     if name.eq_ignore_ascii_case(screen::SAFE_HOUSE_RIVAL_BIO) {
         legacy::hide_children(tree, 0xdde3_db34);
@@ -256,6 +283,10 @@ pub fn decorate(
     {
         legacy::hide_children(tree, 0x84bc_f2b5);
         legacy::hide_roots(tree, &[0xc0a6_849b, 0x12fd_7d4a, 0xfb80_cdac]);
+    }
+    if name.eq_ignore_ascii_case(screen::CHALLENGE_SERIES) {
+        legacy::hide_children(tree, 0x84bc_f2b5);
+        legacy::hide_roots(tree, &[0x4170_d571, 0x12fd_7d4a]);
     }
     let first_hint = tree.nodes.len();
     let hints: Vec<(Vec<Prompt>, String, Option<Action>)> = hint_set(name, footer, bindings, device)
@@ -365,6 +396,7 @@ fn rect(tree: &mut UiTree, x: f32, y: f32, width: f32, height: f32, colour: [u8;
 fn node(kind: NodeKind, x: f32, y: f32) -> UiNode {
     let pos = Vec3::new(x, y, 1.0);
     UiNode {
+        corner_colours: None,
         index: 0,
         guid: 0,
         name_hash: 0,

@@ -20,6 +20,7 @@ use crate::ui::theme::{DEFAULT_ASPECT, ElementId};
 use crate::ui::{Catalog, UiAssets};
 
 mod aspect;
+mod car_loading;
 mod command;
 mod geometry;
 mod input_gate;
@@ -78,6 +79,8 @@ pub struct Screens {
     last_pad: u32,
     /// The device whose Start went down this frame, until `update` hands it to the top screen (`screens/start.rs`).
     start_press: Option<crate::input::PlayerDevice>,
+    /// The screen and backdrop-loading state the loading LEDs were last told (`screens/car_loading.rs`).
+    car_loading: Option<(PackageId, bool)>,
 }
 
 impl Screens {
@@ -104,6 +107,7 @@ impl Screens {
             pointer: None,
             last_pad: 0,
             start_press: None,
+            car_loading: None,
         }
     }
 
@@ -325,6 +329,9 @@ impl Screens {
     }
 
     fn deliver(&mut self, package: PackageId, message: u32, env: &mut Env, out: &mut Vec<Command>) {
+        if !input_gate::deliver_to_owner(self.stack.last().map(|screen| screen.id), package, message) {
+            return;
+        }
         self.with_logic(package, env, out, |logic, cx| logic.message(cx, message));
     }
 

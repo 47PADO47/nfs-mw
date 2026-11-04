@@ -19,8 +19,17 @@ pub(super) fn refresh(cx: &mut Cx, model: &Model) {
 /// The maker's logo and the model-name picture of `car`: a mod car's own, drawn from its mod's brand and name (the package has
 /// none for it, and its generic pictures read `temp350`), else the game's.
 pub(super) fn pictures(cx: &Cx, car: &Car) -> (u32, u32) {
-    crate::frontend::car_title::pictures(cx.assets, &car.folder)
-        .unwrap_or_else(|| (manufacturer(cx, &car.manufacturer), model_logo(cx, &car.physics_name)))
+    crate::frontend::car_title::pictures(cx.assets, &car.folder).unwrap_or_else(|| {
+        (
+            manufacturer(cx, &car.manufacturer),
+            crate::frontend::car_title::model_picture(
+                cx.assets,
+                &[&car.physics_name, &car.folder],
+                &car.name,
+                &car.manufacturer,
+            ),
+        )
+    })
 }
 
 /// The logo of the brand `name`: a mod's, or the game's own, or the generic one.
@@ -28,10 +37,10 @@ pub(super) fn manufacturer(cx: &Cx, name: &str) -> u32 {
     crate::frontend::car_title::logo_of(cx.assets, name).unwrap_or_else(|| fe_hash_upper("GENERIC_LOGO_128"))
 }
 
-pub(super) fn model_logo(cx: &Cx, name: &str) -> u32 {
-    let hash = fe_hash_upper(&format!("SECONDARY_LOGO_{name}"));
-    match cx.assets.texture(hash) {
-        Some(_) => hash,
-        None => fe_hash_upper("GENERIC_LOGO_256"),
-    }
+pub(super) fn slot_title(model: &Model, id: &str, fallback: String) -> String {
+    model
+        .custom_slot_cars
+        .get(id)
+        .and_then(|folder| model.cars.iter().find(|car| &car.folder == folder))
+        .map_or(fallback, |car| car.name.clone())
 }

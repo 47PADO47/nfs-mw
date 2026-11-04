@@ -25,6 +25,19 @@ pub(crate) fn title(folder: &str) -> String {
     mods::display_name(folder).map_or_else(|| folder.to_owned(), str::to_owned)
 }
 
+/// Resolve native model artwork by identity aliases, or render the real title instead of placeholder art.
+pub(crate) fn model_picture(assets: &UiAssets, keys: &[&str], title: &str, brand: &str) -> u32 {
+    for key in keys {
+        for alias in [key.to_string(), key.replace('_', "")] {
+            let hash = fe_hash_upper(&format!("SECONDARY_LOGO_{alias}"));
+            if assets.texture(hash).is_some() {
+                return hash;
+            }
+        }
+    }
+    picture(assets, "MODEL", model_name(title, brand), MODEL_SLOT)
+}
+
 /// The textures of the maker's logo and the model's name for the mod car in `folder`, drawn on first use; `None` for a car of
 /// the game, whose pictures the package has. The maker's picture is the brand's logo ([`logo_of`]), else the brand written out
 /// (clear for a car with none), the model's the name without the brand in front of it.

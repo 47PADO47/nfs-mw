@@ -119,6 +119,11 @@ fn installed_jukebox_selection_tracks_native_cursor_across_pages() {
         "X requests the visible track's preview"
     );
     assert_eq!(logic.state, before, "preview leaves selection, modes and song order unchanged");
+    logic.message(&mut cx, PAD_ACCEPT);
+    assert!(!logic.accepts_input(), "EA Trax exit gates native input and sound feedback at the host");
+    logic.scroll(&mut cx, 2);
+    logic.message(&mut cx, PAD_RIGHT);
+    assert_eq!(logic.state, before, "exit cannot edit songs through wheel or directional input");
 }
 
 #[test]

@@ -53,7 +53,7 @@ pub use progress::record_win;
 
 use super::confirm::{Confirm, Look};
 use super::ids::{self, screen};
-use super::logic::{Args, Command, Cx, ScreenLogic, wheel_as_rows};
+use super::logic::{Args, Command, Cx, Footer, ScreenLogic, wheel_as_rows};
 use crate::settings::Transmission;
 use crate::ui::Text;
 use board::{Board, Entry};
@@ -87,9 +87,6 @@ const TUTORIAL_HINT_ON: u32 = 0xB295_482E;
 const TUTORIAL_HINT_OFF: u32 = 0x0F7B_54C7;
 const LOCKED_ON: u32 = 0xC5DD_9D68;
 const LOCKED_OFF: u32 = 0x3809_1FA1;
-/// Shows the keys footer of the PC package (`Esc Back`, `2 View Tutorial`): `SHOW_HELP`.
-const SHOW_HELP: u32 = 0xC5DB_4288;
-
 /// Scripts of an icon: its idle look, the highlight and the way back, and a check mark's appearing and hiding.
 const INIT: u32 = 0x0017_44B3;
 const HIGHLIGHT: u32 = 0x249D_B7B7;
@@ -397,8 +394,7 @@ impl ChallengeSeries {
 
 impl ScreenLogic for ChallengeSeries {
     fn start(&mut self, cx: &mut Cx) {
-        cx.hide(CONSOLE_FOOTER, true);
-        cx.rt.post_to_package(cx.package, SHOW_HELP);
+        cx.hide(CONSOLE_FOOTER, false);
         match self.board.clone() {
             Some(board) => self.adopt(cx, board),
             None => self.take_board(cx),
@@ -413,12 +409,19 @@ impl ScreenLogic for ChallengeSeries {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
-        cx.hide(CONSOLE_FOOTER, true);
+        cx.hide(CONSOLE_FOOTER, false);
         self.take_board(cx);
         self.maps.poll(cx.assets);
         self.zoom.tick(dt);
         let Some(entry) = self.entry().cloned() else { return };
         self.place_map(cx, &entry);
+    }
+
+    fn footer(&self) -> Footer {
+        Footer::ChallengeSeries {
+            can_accept: self.entry().is_some_and(|entry| !self.locked(entry)),
+            has_tutorial: self.entry().is_some_and(|entry| entry.kind.tutorial().is_some()),
+        }
     }
 
     fn click(&mut self, cx: &mut Cx, point: glam::Vec2) -> bool {

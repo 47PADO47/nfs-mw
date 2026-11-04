@@ -15,6 +15,7 @@ pub(super) struct Harness {
     pub model: Model,
     pub events: Vec<MenuEvent>,
     pub saved: Vec<Selection>,
+    pub commands: Vec<crate::frontend::logic::Command>,
     pub fail_save: bool,
     pub fail_slot: bool,
     pub slot_selections: std::collections::HashMap<String, Selection>,
@@ -69,6 +70,7 @@ impl Harness {
             model,
             events: Vec::new(),
             saved: Vec::new(),
+            commands: Vec::new(),
             fail_save: false,
             fail_slot: false,
             slot_selections,
@@ -184,7 +186,7 @@ impl Harness {
     pub fn run(&mut self, mask: u32, frames: usize) {
         for _ in 0..frames {
             let mut env = Self::env(&mut self.settings, &mut self.changed);
-            self.screens.update(1.0 / 60.0, mask, &mut env);
+            self.commands.extend(self.screens.update(1.0 / 60.0, mask, &mut env));
             self.flush();
         }
     }

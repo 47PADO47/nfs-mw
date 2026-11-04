@@ -117,9 +117,7 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.master_volume {
         put("master_volume", Value::Integer(i64::from(v.0)));
     }
-    if let Some(v) = changes.music_volume {
-        put("music_volume", Value::Integer(i64::from(v.0)));
-    }
+    super::music_volume::write(changes, &mut put);
     if let Some(v) = changes.sfx_volume {
         put("sfx_volume", Value::Integer(i64::from(v.0)));
     }
@@ -216,6 +214,11 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     }
     if let Some(v) = changes.minimap {
         put("minimap", Value::String(v.to_string()));
+    }
+    for (key, value) in [("free_roam_map_mode", changes.free_roam_map_mode), ("race_map_mode", changes.race_map_mode)] {
+        if let Some(mode) = value {
+            put(key, Value::String(mode.to_string()));
+        }
     }
     if let Some(v) = changes.hud_layout {
         put("hud_layout", Value::String(v.to_string()));

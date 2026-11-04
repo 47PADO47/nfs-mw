@@ -30,6 +30,8 @@ pub const RESOLUTION: &str = "NFSMW_RESOLUTION";
 pub const SHOW_READOUT: &str = "NFSMW_SHOW_READOUT";
 pub const MASTER_VOLUME: &str = "NFSMW_MASTER_VOLUME";
 pub const MUSIC_VOLUME: &str = "NFSMW_MUSIC_VOLUME";
+pub const MENU_MUSIC_VOLUME: &str = "NFSMW_MENU_MUSIC_VOLUME";
+pub const GAME_MUSIC_VOLUME: &str = "NFSMW_GAME_MUSIC_VOLUME";
 pub const SFX_VOLUME: &str = "NFSMW_SFX_VOLUME";
 pub const ENGINE_VOLUME: &str = "NFSMW_ENGINE_VOLUME";
 pub const SPEECH_VOLUME: &str = "NFSMW_SPEECH_VOLUME";
@@ -61,6 +63,8 @@ pub const TRANSMISSION: &str = "NFSMW_TRANSMISSION";
 pub const PHYSICS_RATE_HZ: &str = "NFSMW_PHYSICS_RATE_HZ";
 pub const CAMERA_MODE: &str = "NFSMW_CAMERA_MODE";
 pub const MINIMAP: &str = "NFSMW_MINIMAP";
+pub const FREE_ROAM_MAP_MODE: &str = "NFSMW_FREE_ROAM_MAP_MODE";
+pub const RACE_MAP_MODE: &str = "NFSMW_RACE_MAP_MODE";
 pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
 pub const UI_STYLE: &str = "NFSMW_UI_STYLE";
 pub const SPEED_UNITS: &str = "NFSMW_SPEED_UNITS";
@@ -139,6 +143,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         show_readout: value(&get, SHOW_READOUT, ShowReadout::from_str),
         master_volume: value(&get, MASTER_VOLUME, Percent::from_str),
         music_volume: value(&get, MUSIC_VOLUME, Percent::from_str),
+        menu_music_volume: value(&get, MENU_MUSIC_VOLUME, Percent::from_str),
+        game_music_volume: value(&get, GAME_MUSIC_VOLUME, Percent::from_str),
         sfx_volume: value(&get, SFX_VOLUME, Percent::from_str),
         engine_volume: value(&get, ENGINE_VOLUME, Percent::from_str),
         speech_volume: value(&get, SPEECH_VOLUME, Percent::from_str),
@@ -175,6 +181,8 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         transmission: value(&get, TRANSMISSION, Transmission::from_str),
         camera_mode: value(&get, CAMERA_MODE, CameraMode::from_str),
         minimap: value(&get, MINIMAP, MinimapMode::from_str),
+        free_roam_map_mode: value(&get, FREE_ROAM_MAP_MODE, MinimapMode::from_str),
+        race_map_mode: value(&get, RACE_MAP_MODE, MinimapMode::from_str),
         hud_layout: value(&get, HUD_LAYOUT, HudLayout::from_str),
         ui_style: value(&get, UI_STYLE, UiStyle::from_str)
             .or_else(|| value(&get, RADIO_HUD, RadioHudStyle::from_str).map(UiStyle::from)),

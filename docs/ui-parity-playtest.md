@@ -5,11 +5,30 @@ All items remain **open for playtest acceptance**. Reproduced failures and candi
 UI-005 has scoped gated-release and high-frame-rate repairs; its full physical-input report remains unverified.
 Other reports require reproduction before a repair or closure can be claimed.
 The [batch 12 coverage record](ui-parity-batch12.md) records the later source repair pass and remaining limits.
-Twenty-seven supplied screenshots are preserved in private evidence archives; game images do not belong in this repository.
+Thirty-six supplied screenshots are preserved in private evidence archives; game images do not belong in this repository.
 Screenshot observations establish visible state, not input history, sound, timing or original-game equivalence.
 
 This backlog supplements [menu parity](menu-ui-parity.md), [garage parity](garage-parity.md) and
 [missing options](ui-options-coverage.md). Existing implementation and passing tests do not close these reports.
+
+The [batch 14 follow-up](ui-parity-batch14-followup.md) adds UI-045–052 and reconfirms gauge targeting, duplicate
+footers, intermittent return-state loss, cart alignment and standalone/career identity failures. It records the
+user's shared-code/refactoring concern separately from verified causes. All remain open after the batch 14 playtest.
+
+The [batch 18 playtest follow-up](ui-parity-batch18-followup.md) adds UI-053-059 and
+reopens acceptance for gauge swatch alignment, Blacklist Bio, shadow redraws and career
+stat-bar semantics. It records the broken pause backdrop as a regression, and gauge color
+retention/environment selection as reference questions. Eight more screenshots are archived privately.
+
+The [Pass A+B playtest follow-up](ui-parity-pass-ab-followup.md) adds UI-060 (Performance
+Tuning hangs after earlier menu visits) and UI-061 (controller inspection Up/Down reversed).
+These new reports remain open despite the earlier focused checks. [Batch R1](ui-parity-r1.md) has candidates for both. [Batch R2](ui-parity-r2.md) covers garage loading and customization switching; [batch R3](ui-parity-r3.md) the menu platform lighting.
+
+The [capture coverage ledger](ui-parity-capture-coverage.md) tracks unfinished recorded flows,
+animations, cues/ambience and unreviewed intervals beyond the numbered user reports. The issue
+list and passing repair batches do not establish completion of that capture backlog.
+
+The [repair plan](ui-parity-repair-plan.md) maps all 61 issue IDs and missing options to ordered work packages, bounded tickets and evidence requirements.
 
 ## State loss and invalid input — address first
 
@@ -235,10 +254,17 @@ above. The report asks for documentation only.
   rather than a page per internal material name. Validate complete swatch population, ordering, selection, preview,
   applying/canceling, saved color restoration and Back/re-entry. Preserve the distinction between a display label
   and the material identity needed to apply the chosen color.
+  Batch 13 candidate groups nonstandard finish identifiers into one localized Custom page, preserving stock
+  finish pages and material identities. It also resolves saved paint by hash before RGB, so equal-colored
+  materials cannot silently select the first swatch on reopen. Targeted installed regression coverage is added;
+  rendered acceptance, full palette ordering and large custom-palette paging remain open.
 - [ ] **UI-040 — Back from Vinyls returns to the main menu instead of one level up.** Record the entry route
   and selected category. Validate keyboard Back/controller B restores the immediate parent garage menu, its selected
   item, car preview and footer. Cover repeated visits and pending vinyl/cart changes; do not confuse a deliberate
   full garage exit with leaving the vinyl child screen.
+  Candidate: deliver Back only to the top screen. Installed exit scripts also send Back to covered menus;
+  handling those messages caused several parent screens to pop together. Regression coverage includes the actual
+  Visual/Vinyls entry route, repeated returns and held Back. Rendered/controller acceptance remains open.
 - [ ] **UI-041 — Car performance-stat colors are incorrect.** S23 and S26 show blue segmented Top Speed,
   Acceleration and Handling bars with yellow markers. Establish the expected reference palette before changing it.
   Validate base/upgrade/comparison segments and markers, selection changes, standalone and career car selection,
@@ -257,7 +283,8 @@ above. The report asks for documentation only.
 - [ ] **UI-044 — Blacklist menu Race Events category icon still appears incorrect.** S27 identifies the selected
   Race Events icon beside Milestones and Bounty. Match this exact category icon to the reference; it is a separate
   surface from UI-031's per-event race-list icons. Validate native resolution, aspect/scale, selected/unselected
-  appearance, transition states, rival changes and enter/Back behavior. The expected replacement art is unverified.
+  appearance, transition states, rival changes and enter/Back behavior. Candidate uses the native crossed-flags
+  Race Events category artwork identified in the reference recording; rendered acceptance remains open.
 
 ## Evidence and closure rules
 

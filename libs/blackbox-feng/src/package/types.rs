@@ -79,6 +79,8 @@ pub mod word {
     pub const ROTATION: usize = 10;
     pub const SIZE: usize = 14;
     pub const UV: usize = 17;
+    /// Coloured images: four BGRA integer colours after the image UV rectangle.
+    pub const CORNER_COLOURS: usize = 21;
     /// Multi images: the texture rectangle of each of the three textures, as three upper-left corners (u, v) from
     /// here, then three lower-right corners from `MULTI_BOTTOM_RIGHT`.
     pub const MULTI_TOP_LEFT: usize = 21;
@@ -126,6 +128,15 @@ impl ObjectData {
     pub fn colour_rgba(&self) -> [u8; 4] {
         let c = |i: usize| self.i32_at(word::COLOUR + i).clamp(0, 255) as u8;
         [c(2), c(1), c(0), c(3)]
+    }
+
+    /// Clockwise vertex colours from the upper-left corner, or no extra tint when the tail is absent.
+    pub fn corner_colours(&self) -> Option<[[u8; 4]; 4]> {
+        let words = self.words.get(word::CORNER_COLOURS..word::CORNER_COLOURS + 16)?;
+        Some(std::array::from_fn(|corner| {
+            let c = |channel: usize| (words[corner * 4 + channel] as i32).clamp(0, 255) as u8;
+            [c(2), c(1), c(0), c(3)]
+        }))
     }
 
     pub fn set_alpha(&mut self, alpha: i32) -> bool {

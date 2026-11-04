@@ -1,6 +1,20 @@
 use super::*;
 use blackbox_feng::package::{ObjectData, ObjectDef, ObjectKind, Package, StringDef};
 use blackbox_feng::{NodeKind, ObjectRef};
+const DIGITS: &[u32] = &[UNITS, 0xb845_89be, 0x94de_0412, 0x94de_0411, 0x94de_0410, 0x4113_f134, 0x0709_1622];
+
+#[test]
+fn lettering_color_changes_scale_and_units_but_not_digital_readouts() {
+    let (mut rt, package) = setup();
+    let gauges = GaugeSelection { digits: Some([150, 170, 190]), ..Default::default() };
+    apply(&mut rt, package, &gauges, 7000.0, true, |_| true);
+    for &name in LETTERING {
+        assert_eq!(color(&rt, package, name), [150, 170, 190, 140]);
+    }
+    for name in [0xb845_89be, 0x0709_1622, 0x94de_0412, 0x94de_0411, 0x94de_0410, 0x4113_f134] {
+        assert_eq!(color(&rt, package, name), [10, 20, 30, 140]);
+    }
+}
 
 fn setup() -> (Runtime, PackageId) {
     let mut names = vec![FACE, FILL, NEEDLE, TURBO_FACE, TURBO_NEEDLE, TURBO_GROUP];
@@ -85,9 +99,9 @@ fn backing_needle_and_digit_colors_preserve_alpha_and_restore_the_authored_rgb()
         ..Default::default()
     };
     apply(&mut rt, package, &gauges, 7000.0, true, |_| true);
-    assert_eq!(color(&rt, package, FACE), [50, 70, 90, 140]);
+    assert_eq!(color(&rt, package, FILL), [50, 70, 90, 140]);
     assert_eq!(color(&rt, package, NEEDLE), [100, 120, 140, 140]);
-    for &name in DIGITS {
+    for &name in LETTERING {
         assert_eq!(color(&rt, package, name), [150, 170, 190, 140]);
     }
     let face = rt.find(package, FACE).unwrap();
@@ -134,6 +148,10 @@ fn installed_custom_hud_previews_bind_selected_styles_and_colors_in_both_rooms()
                 ..Default::default()
             };
             rt.update(2.0);
+            let unchanged: Vec<_> = [0xb845_89be, 0x0709_1622, 0x94de_0412, 0x94de_0411, 0x94de_0410, 0x4113_f134]
+                .into_iter()
+                .map(|name| (name, color(&rt, id, name)))
+                .collect();
             apply(&mut rt, id, &gauges, 8250.0, true, |hash| assets.texture(hash).is_some());
             for (object, expected) in [
                 (FACE, skin::tach_face_texture(8250.0, skin)),
@@ -152,9 +170,14 @@ fn installed_custom_hud_previews_bind_selected_styles_and_colors_in_both_rooms()
                     "{name} style {skin} sample image {object:08x} is visible"
                 );
             }
-            assert_eq!(&color(&rt, id, FACE)[..3], &[30, 100, 200]);
+            assert_eq!(&color(&rt, id, FILL)[..3], &[30, 100, 200]);
             assert_eq!(&color(&rt, id, NEEDLE)[..3], &[210, 100, 30]);
-            assert_eq!(&color(&rt, id, UNITS)[..3], &[70, 190, 110]);
+            for &name in LETTERING {
+                assert_eq!(&color(&rt, id, name)[..3], &[70, 190, 110]);
+            }
+            for (name, authored) in unchanged {
+                assert_eq!(color(&rt, id, name), authored, "digital readouts retain their native color for {name:#x}");
+            }
         }
     }
 }

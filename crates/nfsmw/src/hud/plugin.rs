@@ -256,10 +256,7 @@ fn sync(
     if let Some(overlay) = hud.overlay.as_mut() {
         overlay.set_shown(&mut hud.runtime, state.busted_overlay);
     }
-    // The Custom map follows the car whatever the minimap setting says, so it keeps the place before the setting hides it.
-    state.map_car = state.minimap;
-    let orientation = settings.minimap.orientation();
-    state.minimap = state.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
+    apply_map_mode(&mut state, &settings);
 }
 
 /// Feeds the frame's HUD events to the notifications at the player's `[custom_hud] notifications` level, ages them, and
@@ -431,4 +428,26 @@ fn present(
         }
         presenter.0.present(layer, &assets.0, screen, &mut out);
     }
+}
+
+fn apply_map_mode(state: &mut HudState, settings: &Settings) {
+    // The Custom map follows the car whatever the minimap setting says, so it keeps the place before the setting hides it.
+    state.map_car = state.minimap;
+    let orientation = settings.minimap_mode(map_context(state)).orientation();
+    state.minimap = state.minimap.zip(orientation).map(|(at, orientation)| MapPosition { orientation, ..at });
+}
+
+#[cfg(test)]
+#[path = "context_map_tests.rs"]
+mod context_map_tests;
+
+fn map_context(state: &HudState) -> crate::settings::MinimapContext {
+    if state.drag
+        || state.race.is_some()
+        || state.context.race_stage.is_some()
+        || !matches!(state.map_source, MapSource::Stage)
+    {
+        return crate::settings::MinimapContext::Race;
+    }
+    crate::settings::MinimapContext::FreeRoam
 }

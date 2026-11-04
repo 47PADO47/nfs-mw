@@ -11,6 +11,9 @@ use nfsmw_data::car::{CarModel, LoadOptions};
 use crate::frontend::look::{CarLook, Look};
 use crate::frontend::room::RoomData;
 
+#[path = "backdrop_career.rs"]
+mod career;
+
 /// The car the menus show: the career-start M3 GTR, a preset of the `BMWM3GTRE46` car type with its livery and
 /// spoiler, as the original's menu shows it. [ours] The original shows it on a platform stage
 /// (`FRONTEND/PLATFORMS/PLATFORMCRIB.BIN`, see docs/specs/frontend-menus.md); here it stands on the car viewer's floor.
@@ -72,6 +75,9 @@ fn read(dir: &GameDir, look: &Look) -> Staged {
 /// The car the look shows, assembled from the install: the main look's career-start GTR, or the look's own car. A car
 /// that cannot be loaded gives way to the default car; with that missing too, `None` leaves the flat backdrop.
 fn load_car(dir: &GameDir, look: &Look) -> Option<(CarModel, LoadOptions)> {
+    if let Some(result) = career::load(dir, look) {
+        return result.map_err(|error| log::warn!("the selected career car is unavailable: {error:#}")).ok();
+    }
     let (car, preset) = match look {
         Look::Main => (MENU_CAR.to_owned(), Some(MENU_PRESET.to_owned())),
         Look::Car(look)

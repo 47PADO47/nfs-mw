@@ -56,6 +56,10 @@ pub fn make(args: Args) -> Box<dyn ScreenLogic> {
 }
 
 impl ScreenLogic for SafeHouseMenu {
+    fn accepts_input(&self) -> bool {
+        self.menu.accepts_input()
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.menu.start(cx);
         if let Some(o) = cx.named("CAREER_DATA") {

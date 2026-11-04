@@ -1,5 +1,12 @@
 # The reputation overview page (Blacklist N)
 
+## Child return state repair
+
+Returning from Race Events, Milestones, Bounty or Bio restores the same rival and category (UI-052).
+The child receives an explicit category index. The recreated overview consumes it once; leaving the overview
+does not carry it into unrelated screens or later fresh visits. Preserve the selected native icon and caption.
+This is a repair contract based on the user playtest, not a new global carousel reset policy.
+
 What the safe house item "Blacklist N" opens in the Original look: `SafeHouseReputationOverview.fng` (the in-game twin
 is `InGameReputationOverview.fng`, opened from the pause menu with the argument 1). The pages it leads to are in
 [career-rapsheet-2.md](career-rapsheet-2.md) section 5, the rival data in [career-blacklist.md](career-blacklist.md).
@@ -75,11 +82,15 @@ bit 14) or the shown bin is above the stage byte: the rival is beaten. **[exe]**
 ## 4. In the Rust rewrite
 
 The native overview binds all four sheets to the package's `OPTION_n` carousel slots. It uses the installed
-`MAIN_ICON_REP_SHEET`, `MILESTONE_MAIN`, `MAIN_ICON_BOUNTY` and `MAIN_ICON_RIVALBIO` artwork, rather than leaving
-the package's `OPTION_MASTER` car stand-in visible. This explicit artwork mapping is a presentation choice;
-the original option records described above contain zero texture keys. Unimplemented destinations remain
+`RACE_EVENTS`, `MILESTONE_MAIN`, `MAIN_ICON_BOUNTY` and `MAIN_ICON_RIVALBIO` artwork, rather than leaving
+the package's `OPTION_MASTER` car stand-in visible. The saved PC reference shows crossed checkered flags for Race
+Events; `RACE_EVENTS` is the matching stock 64×64 texture. Higher-resolution installed replacements retain their
+resolution. **[verified]** `MAIN_ICON_REP_SHEET` was a different,
+incorrect badge. The other explicit mappings remain presentation choices; the original option records described
+above contain zero texture keys. Unimplemented destinations remain
 selectable but grey, and Accept opens nothing. The row reads destination availability from `Sheet::screen`.
 The footer uses the shared bound keyboard/controller Back and Accept prompts inside the authored footer bar.
+Recorded-artwork evidence is listed in [the sheets' provenance](../provenance/career-rep-sheets.md).
 
 `crates/nfsmw/src/frontend/career_screens/reputation_overview.rs`. The pure parts (the step rule, the shown rival, the
 panel, the sheets) are tested in `reputation_overview_tests.rs`. Differences from the original:
