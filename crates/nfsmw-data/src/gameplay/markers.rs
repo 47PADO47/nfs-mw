@@ -49,6 +49,9 @@ pub struct ActivityMarker {
     pub radius: f32,
     /// The `respawn` marker the game places the car at after this zone (its `Position` and `Rotation`).
     pub respawn: Option<Placement>,
+    /// The key of that `respawn` marker collection: what the save stores as the last visited zone or safe house
+    /// (`docs/specs/career-safehouse-2.md` 9.2 and 9.4).
+    pub respawn_key: Option<u32>,
     /// BinIndex: the positive career-bin threshold at which the zone icon becomes available.
     /// The legacy field name is retained for callers; this is not a texture index.
     pub icon_index: Option<i32>,
@@ -89,6 +92,7 @@ fn marker(db: &Database, c: CollectionRef<'_>) -> Option<ActivityMarker> {
         position: placement(c).position,
         radius: c.get_f32("Radius").unwrap_or(0.0),
         respawn: key_field_at(c, RESPAWN_FIELD).and_then(|k| collection(db, k)).map(placement),
+        respawn_key: key_field_at(c, RESPAWN_FIELD),
         icon_index: c.get_by_key(ICON_INDEX_FIELD).and_then(|v| v.as_i32()),
     })
 }

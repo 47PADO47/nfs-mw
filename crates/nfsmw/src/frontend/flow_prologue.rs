@@ -71,7 +71,9 @@ impl Frontend {
         self.origin = QuitTo::Career;
         self.quick_race = Some(event.to_owned());
         self.race_options = Some(RaceOptions { career: true, ..RaceOptions::default() });
-        self.quick_car = car;
+        // A race that forces no car is driven in the career's current car, not the free-roam default.
+        let car = car.unwrap_or_else(|| self.profile_car());
+        self.quick_car = Some(car);
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 
@@ -119,7 +121,8 @@ impl Frontend {
     pub(super) fn open_car_lot(&mut self, zone: Option<String>, host: &mut Host, env: &mut Env) {
         log::info!("career: the car lot opens ({zone:?})");
         let args = Args { safehouse: true, first_car: zone.is_none(), from_world: zone.is_some(), ..Args::default() };
-        self.safe_house_start.zone = zone;
+        // Leaving the lot starts at the lot once; the safe house later starts use stays the last safe house.
+        self.safe_house_start.lot = zone;
         self.latch = true;
         self.paused.set(false);
         self.screens.clear();
@@ -145,7 +148,7 @@ impl Frontend {
         self.origin = QuitTo::Career;
         self.quick_car = Some(self.profile_car());
         // The drive starts where the player leaves the lot, not at the career's start point.
-        self.safe_house_start.zone = Some(FIRST_CAR_LOT_ZONE.to_owned());
+        self.safe_house_start.lot = Some(FIRST_CAR_LOT_ZONE.to_owned());
         self.safe_house_start.pending = true;
         self.drive_to_safe_house = true;
         self.start_free_roam(LoadingScreen::Tips, host, env);

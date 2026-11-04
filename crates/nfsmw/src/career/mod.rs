@@ -28,6 +28,7 @@ mod rewards;
 mod sources;
 mod start;
 mod state;
+mod zone_visits;
 pub use jump_point::JumpPoint;
 
 use std::sync::{Arc, Mutex, MutexGuard};

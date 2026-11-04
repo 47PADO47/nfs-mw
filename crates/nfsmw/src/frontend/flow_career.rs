@@ -40,6 +40,10 @@ impl Frontend {
             return self.start_career_race(FINAL_RACE_EVENT, host, env);
         }
         log::info!("career: resuming at the safe house");
+        // The save's last safe house is where Resume Free Roam starts, as in the original (`career-safehouse-2.md` 9).
+        if self.safe_house_start.zone.is_none() {
+            self.safe_house_start.zone = self.career.with(|career| career.saved_safe_house_zone()).flatten();
+        }
         self.career.set_prelude(true);
         self.in_safe_house = true;
         self.latch = true;
@@ -112,6 +116,10 @@ impl Frontend {
         }
         let Some(request) = host.scene.take_career_request() else { return };
         log::info!("career: {request:?}");
+        // A safe house or car lot entered is remembered, in the save too, as the original's respawn markers are.
+        if let CareerRequest::SafeHouse { zone } | CareerRequest::CarLot { zone } = &request {
+            self.career.with(|career| career.note_zone_visit(zone));
+        }
         if let CareerRequest::SafeHouse { zone } = &request {
             self.safe_house_start.zone = Some(zone.clone());
         }

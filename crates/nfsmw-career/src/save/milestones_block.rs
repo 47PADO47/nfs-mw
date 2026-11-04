@@ -7,6 +7,7 @@
 //!
 //! Decoded here, at the offsets the docs give:
 //! - the header words and the digest ([`MilestoneBlock`]);
+//! - the respawn marker pair at the end ([`RespawnKeys`], `respawn.rs`);
 //! - the 16-byte statistic node ([`StatNode`]), the 20-byte milestone entry ([`MilestoneEntry`]), the 20-byte speed
 //!   trap entry ([`SpeedTrapEntry`]) and the 8-byte bin counter record ([`BinCounter`]).
 //!
@@ -22,11 +23,13 @@
 mod arrays;
 mod layout;
 mod new;
+mod respawn;
 #[cfg(test)]
 mod tests;
 
 pub use arrays::ArrayError;
 pub use layout::BlockLayout;
+pub use respawn::RespawnKeys;
 
 use crate::LayoutError;
 use crate::bytes::{array_at, f32_at, put_f32, put_u16, put_u32, u16_at, u32_at};

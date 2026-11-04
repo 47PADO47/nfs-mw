@@ -45,6 +45,8 @@ impl Frontend {
         self.leave_safe_house();
         self.origin = QuitTo::Career;
         self.jump_start = Some(point);
+        // The new world is driven in the career's current car, as leaving the safe house is.
+        self.quick_car = Some(self.profile_car());
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 
