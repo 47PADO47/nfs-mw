@@ -137,6 +137,10 @@ pub struct Helicopter {
     pub search_angle: f32,
     /// The game camera, when the world gives one: the helicopter keeps out of a sphere in front of it (`camera.rs`).
     pub camera: Option<camera::Camera>,
+    /// Seconds since it spawned, counted with the fuel at each decision (the vehicle's spawn timer).
+    pub age: f32,
+    /// Whether it has stood where the cop manager may not recycle it since it spawned (`CanRespawn`).
+    respawn: crate::respawn::Latch,
 }
 
 impl Helicopter {
@@ -152,18 +156,38 @@ impl Helicopter {
             tuning,
             search_angle: 0.0,
             camera: None,
+            age: 0.0,
+            respawn: crate::respawn::Latch::default(),
         }
     }
 
-    /// Whether the cop manager takes it out of play: out of the game camera's view and farther than `despawn_distance`
-    /// from the point [`AHEAD`](crate::respawn::AHEAD) along the player's travel. It is then removed at once, with no exit
-    /// flight (spec `ai-helicopter-presence.md`).
-    pub fn out_of_play(&self, player: &Player) -> bool {
+    /// Whether the cop manager takes it out of play: its spawn timer allows it (8 s after it stood where it may not be
+    /// recycled, otherwise 10 s), its place may be recycled, it is out of the game camera's view and farther than
+    /// `despawn_distance` from the point [`AHEAD`](crate::respawn::AHEAD) along the player's travel. It is then
+    /// removed at once, with no exit flight (spec `ai-helicopter-presence.md`). Asked every pass: it keeps the latch.
+    pub fn out_of_play(&mut self, player: &Player) -> bool {
+        let available = self.respawn_available(player);
+        let may_go = self.respawn.can_respawn(available, self.age);
+        if !(may_go && available) {
+            return false;
+        }
         let ahead = crate::respawn::ahead_point(player.position, player.velocity, player.forward);
         if self.body.position.distance(ahead) <= self.tuning.despawn_distance {
             return false;
         }
         !self.in_camera_view()
+    }
+
+    /// Whether the cop manager may recycle its place ([`crate::respawn::available`]): measured from the game camera,
+    /// or from the player by distance alone when there is no camera.
+    fn respawn_available(&self, player: &Player) -> bool {
+        let (eye, forward) = match self.camera {
+            Some(camera) => (camera.position, Some(camera.forward.normalize_or_zero())),
+            None => (player.position, None),
+        };
+        let offset = self.body.position - eye;
+        let dot = forward.zip(offset.try_normalize()).map(|(forward, to)| to.dot(forward));
+        crate::respawn::available(crate::respawn::COP_WINDOW, offset.x.hypot(offset.z), dot)
     }
 
     /// Whether the game camera looks at it: within [`VIEW_COS`] of the camera's forward. With no camera nothing is in
@@ -209,6 +233,7 @@ impl Helicopter {
             return false;
         }
         self.fuel -= dt;
+        self.age += dt;
         self.skid_timer -= dt;
         if let Mode::Exit(mut exit) = self.mode {
             let goal = exit.think(self.body.position, self.body.velocity, player, self.tuning.fly_speed);

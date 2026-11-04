@@ -32,7 +32,15 @@ from the world at once: no exit flight, no turning back. **[binary]** The remova
 pursuit, so the next one waits the level's time between helicopters **[inferred]**. Running out of fuel and the end of the
 pursuit still start the exit flight (section 2.3 of the main spec).
 
-The rewrite (`Helicopter::out_of_play`, used in `police/heli.rs`) measures the 3D distance from the point the respawn rules
+The pass first asks the vehicle's spawn timer, as for a ground cop ([ai-pursuit-cops.md](ai-pursuit-cops.md) section 3.3):
+the helicopter uses the ground cars' rule unchanged. Its place must be recyclable (beyond 150 m of the camera horizontally,
+and beyond 275 m or outside the camera's forward cone). It may go 8 s after its spawn once it has stood where its place was
+not recyclable, otherwise 10 s after it. The spawn timer counts with the helicopter's AI update, like its fuel. **[binary]**
+Nothing else ends a helicopter early in a cool-down: it searches around the last known place until its fuel runs out or
+this pass removes it.
+
+The rewrite (`Helicopter::out_of_play`, used in `police/heli.rs`) keeps the spawn timer's latch (`respawn::Latch`, with
+`Helicopter::age`) and measures the 3D distance from the point the respawn rules
 use (`respawn::ahead_point`: 75 m along the target's velocity above 1 m/s, otherwise its facing). The view test is the
 rewrite's own **[ours]**: in view while the helicopter lies within 60 degrees of the camera's forward direction, wider than
 the game's view so that a helicopter on screen is never removed; with no camera nothing is in view. The old rule (600 m

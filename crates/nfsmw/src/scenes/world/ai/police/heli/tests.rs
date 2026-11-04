@@ -187,11 +187,23 @@ fn the_status_tells_fuel_sight_and_mode_for_the_speech() {
 #[test]
 fn a_helicopter_out_of_play_is_removed_at_once_and_the_next_one_waits() {
     let mut police = chase(5);
-    police.heli = Some(Helicopter::spawn(Vec3::new(-900.0, 40.0, 0.0), 0.0, Default::default()));
+    let mut heli = Helicopter::spawn(Vec3::new(-900.0, 40.0, 0.0), 0.0, Default::default());
+    heli.age = blackbox_pursuit::respawn::NEVER_SEEN_SECS + 1.0;
+    police.heli = Some(heli);
     police.heli_wait = 0.0;
     police.think_helicopter(crate::scenes::world::drive::STEP, true, &view(10.0), sensed(true), &|_, _| true);
     assert!(!police.helicopter_present(), "removed, not sent on an exit flight");
     assert_eq!(police.heli_wait, 180.0, "heat 5 waits 180 s for the next one");
+}
+
+#[test]
+fn a_helicopter_just_sent_far_behind_waits_for_its_spawn_timer() {
+    // A searching helicopter outrun in the cool-down: far and out of view, but the cop manager keeps it until its spawn
+    // timer allows (`CanRespawn`, 10 s when it never stood where it may not be recycled).
+    let mut police = chase(5);
+    police.heli = Some(Helicopter::spawn(Vec3::new(-900.0, 40.0, 0.0), 0.0, Default::default()));
+    police.think_helicopter(crate::scenes::world::drive::STEP, true, &view(10.0), sensed(false), &|_, _| true);
+    assert!(police.helicopter_present(), "kept while its spawn timer runs");
 }
 
 #[test]
