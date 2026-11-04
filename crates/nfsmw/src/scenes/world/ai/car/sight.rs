@@ -4,6 +4,9 @@ use super::AiCar;
 #[cfg(test)]
 use crate::scenes::world::ai::cop::THINK_PERIOD;
 
+/// The constructor's time since seen: the unit has not seen its target.
+const UNSEEN: f32 = 99.0;
+
 #[derive(Debug, Clone)]
 pub(super) struct Sight {
     active: bool,
@@ -14,7 +17,7 @@ pub(super) struct Sight {
 
 impl Default for Sight {
     fn default() -> Self {
-        Self { active: true, pending: Default::default(), test_timer: 0.0, since_seen: 99.0 }
+        Self { active: true, pending: Default::default(), test_timer: 0.0, since_seen: UNSEEN }
     }
 }
 
@@ -23,6 +26,14 @@ impl Sight {
         self.pending.clear();
         self.test_timer = 0.25;
         self.since_seen = 0.25;
+    }
+
+    /// Back from collision suspension: test at the next task, but bring no sighting into the pursuit. The 0.25 s of a
+    /// unit without a target is below the pursuit's seven-second grace and would re-acquire an unseen player.
+    fn reactivate(&mut self) {
+        self.pending.clear();
+        self.test_timer = 0.25;
+        self.since_seen = self.since_seen.max(UNSEEN);
     }
 
     fn advance(&mut self, dt: f32) -> bool {
@@ -50,7 +61,7 @@ impl AiCar {
     /// Original aggregation excludes inactive vehicles. Collision suspension is the world's activity boundary.
     pub(in crate::scenes::world::ai) fn set_sight_active(&mut self, active: bool) {
         if !self.sight.active && active {
-            self.sight.without_target();
+            self.sight.reactivate();
         }
         self.sight.active = active;
         if !active {
@@ -117,6 +128,18 @@ mod tests {
         assert!(sight.since_seen <= 0.0);
         sight.advance(THINK_PERIOD);
         assert!(sight.since_seen > 0.0);
+    }
+
+    #[test]
+    fn reactivation_tests_at_the_next_task_without_a_sighting() {
+        let grace = blackbox_pursuit::cooldown::TUNING.grace;
+        let mut resumed = Sight { since_seen: 3.0, ..Default::default() };
+        resumed.reactivate();
+        assert!(resumed.since_seen > grace, "a resumed unit must not re-acquire the pursuit");
+        assert!(resumed.advance(THINK_PERIOD), "it tests at its next task");
+        let mut long_lost = Sight { since_seen: 140.0, ..Default::default() };
+        long_lost.reactivate();
+        assert_eq!(long_lost.since_seen, 140.0, "an older age is kept");
     }
 
     #[test]

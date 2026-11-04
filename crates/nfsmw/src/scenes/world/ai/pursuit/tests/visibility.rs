@@ -90,4 +90,7 @@ fn a_suspended_cop_cannot_hold_a_frozen_negative_sight_age_over_the_pursuit() {
     assert!(world.police.observed_ground_age().unwrap().is_infinite());
     world.cars[0].set_sight_active(true);
     assert!(!world.cars[0].sees_player(), "reactivation requires a fresh observation");
+    world.update_sight(STEP, &|_, _| panic!("no car task was executed"));
+    let grace = blackbox_pursuit::cooldown::TUNING.grace;
+    assert!(world.police.observed_ground_age().unwrap() > grace, "a resumed cop brings no sighting into the pursuit");
 }
