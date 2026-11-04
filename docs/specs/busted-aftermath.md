@@ -150,7 +150,7 @@ patrol cars, support vehicles and property damage (slots stay 0). The history's 
   the last safe house's marker (else the last zone's) when the game runs again (installed test
   `installed_paid_bust_puts_the_car_back_at_the_last_safe_house_marker`).
 - **Not done:** the arrest NIS; the stamp's language variants; the game over's career-manager mode (it returns to the main
-  menu); the carousel's loading bar; saving the respawn keys; the `career_start_<region>` fallback (the car stays where it is);
+  menu); the carousel's loading bar; the last zone of any kind as the fallback when no safe house was visited;
   the Extra Impound Strike marker's and the heat meter's rendered look (no screenshot was taken: only the data and the
   scripts are checked); the stamp and pips were not compared with the original.
 

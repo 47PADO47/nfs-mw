@@ -273,9 +273,16 @@ Minimum model: `respawn_home: Key` (+0x108), `respawn_safehouse: Key` (+0x10C), 
 
 **Rewrite status of step 4's position.** A world that replaces the safe house menu standing before it (Resume Career, the first
 visit) starts at the marker of the last safe house the player came to in the run, else at `career_start_<region>` (gameplay
-collection `career_start_l2ra`, `GameplayData::career_start`; `WorldScene::start_at_safe_house`). The two keys are not saved yet
-(section 9.4), so a run that begins at the main menu always starts at the career start point. **[verified: offscreen run of the
+collection `career_start_l2ra`, `GameplayData::career_start`; `WorldScene::start_at_safe_house`). **[verified: offscreen run of the
 resume flow, the car stands at (982, 2148, 152)]**
+
+**Rewrite status of the saved keys (9.4).** The pair is read and written in the gameplay blob
+(`nfsmw_career::save::milestones_block::RespawnKeys`, at the layout's `references`): entering a safe house stores its respawn
+marker's key as both keys, entering a car lot as the first only (`Career::note_zone_visit`), and Resume Career starts at the
+safe house whose respawn marker the save holds (`Career::saved_safe_house_zone`), so a run that begins at the main menu starts
+at the last safe house, not at the career start point. A blob without the `Game` tag (a blank profile) keeps no pair. Leaving a
+car lot starts that one world at the lot and then returns to the last safe house (the remake's one-shot `SafeHouseStart::lot`
+for the `+0x110` flag). **[ours: the flag is not modelled as a byte]**
 
 ## Open questions
 

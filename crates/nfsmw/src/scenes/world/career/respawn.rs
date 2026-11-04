@@ -3,9 +3,8 @@
 //! leaves the safe house menu.
 //!
 //! The original loads a new world at the marker (`career-safehouse-2.md` section 9). The rewrite keeps the world and
-//! places the car on the road nearest the marker; the heading is the road's. Nothing is remembered across sessions (the
-//! original saves both keys in the gameplay blob), and with no zone visited the car stays where it is (the original
-//! starts at `career_start_<region>`).
+//! places the car on the road nearest the marker; the heading is the road's. With no zone visited in this world the car
+//! stays where it is. The keys a new world starts from are kept in the save by the front end (`career/zone_visits.rs`).
 
 use glam::Vec3;
 
