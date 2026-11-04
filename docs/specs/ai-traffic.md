@@ -149,8 +149,9 @@ then update the occluded position (with other cars punched out of the trail)
   random branch of [ai-road-network.md §4.3](ai-road-network.md#43-choosing-the-next-segment-traffic-navs-decomp):
   a uniformly random legal exit, preferring to keep the car in its lane counted from the centre and, on the rightmost
   entrance, from the curb. Cops that do have a target steer the same code towards it.
-- The cursor stays in the car's lane for the whole drive: **traffic never changes lanes** by choice. The only lateral
-  motion is inside the narrow corridor of the trail (section 5.1). The lane keeps its number across segments
+- The examined ordinary-traffic action does not request a separate overtaking lane change. Its trail can
+  shift the steering point within the lane (section 5.1). Junction transitions choose destination lanes; this is
+  not a blanket proof that original traffic never changes lanes. The lane normally keeps its number across segments
   (`nth` traffic lane from the centre) and takes the lane's own offset on each segment.
 - Driving direction follows the lane: lanes right of the profile's middle zone run along the stored segment direction
   (drive on the right). One-way segments only carry traffic in the stored direction. A node with fewer than two
@@ -425,7 +426,8 @@ In the original (PC build), free roam:
 - Reproduce the accident quirk (decrement per think) behind a named constant so it can be changed, and make the
   state reset on respawn only.
 - The avoidable list can be a brute-force O(n^2) overlap test every four fixed ticks for at most ~20 cars.
-- Do not implement lights, stops, lane changes or pull-over; they are not in the original data/code path.
+- Keep custom lane-changing, timed yielding and stuck rules out of the original traffic path. Establish
+  original lane-transition behavior from evidence before adding a new rule; see [traffic driving parity](traffic-driving-parity.md).
 - Keep the shock-to-neutral rule in the controller, not in the driver, because it is applied after the driver's
   controls.
 - Determinism: use one seeded random stream for spawn offsets, lane choices and junction exits so replays match.

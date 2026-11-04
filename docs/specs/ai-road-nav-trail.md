@@ -145,6 +145,12 @@ For avoidable `a` and own car `m`, with `F` the closest cookie's Forward:
   returns 3 s when relative speed squared is below 1e-4. Cars that are not closing are ignored when farther than
   `my_extent + his_extent` (traffic: plus `0.5 × speed + 2 × my_extent`), or when traffic is clearly beside.
   Otherwise, unless blocked traffic, ignore when approach time ≥ 3 s.
+  **[verified native PC civilian-traffic correction]** With the inside flag clear,
+  traffic retains closing obstacles even beyond three seconds. Non-closing
+  traffic uses longitudinal range and side clearance, not full centre distance.
+  With the inside flag set, the three-second cutoff still applies. See the
+  [traffic queue specification](traffic-queue-parity.md) and its native branch
+  execution evidence. Other controller paths are outside this correction.
 - The point of impact is the avoidable's position advanced along `F` by `trailing_speed × approach_time −
   (my_extent + his_extent)`; the closest cookie to it is the cut start. Its lateral velocity component times the
   clamped approach time (0…1) shifts the cut position by `0.8 ×` and widens the avoidable by `0.2 ×`.

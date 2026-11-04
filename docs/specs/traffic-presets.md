@@ -38,8 +38,10 @@ cops and trailers consume space. Installed neighbourhood type rates, model
 share caps and rare-vehicle maxima still apply. The density scale reduces the
 context density before its original rate/time/distance tables; pursuit retains
 its factor. Zero density stops new spawns without deleting visible actors.
-Race-specific density/route plumbing remains incomplete in the world adapter;
-presets do not manufacture a fixed race traffic setting.
+Event density and authored pattern overrides now reach the world adapter.
+Percentages scale replenishment and removal lookups, while the actor cap stays
+independent. Scripted drag traffic retains its separate adapter. Full actor-budget
+accounting and matched route validation remain open.
 
 Use a deterministic 30 Hz simulated-time activation clock and cached models.
 Each activation tries one random probe, so failed lane/ground searches wait

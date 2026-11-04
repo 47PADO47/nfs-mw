@@ -27,8 +27,8 @@ Everything is **[decomp]** unless marked. The three statements that change the p
 | Slow down behind a car in its lane | yes | the car-ahead rule, §4.3 | yes (`traffic.rs`, `compute_speed`) |
 | Stop behind a stopped car in its lane | yes, same rule: the speed goes to 0 as the gap closes | §4.3 | yes |
 | Shift sideways inside its own lane to pass a car | partly: the steering point moves inside a narrow corridor; the car never leaves its lane | trail cut, §8.1 | trail punch in `blackbox-roads` |
-| Change lane to get round a blocked car | **no** | no lane-change string; no lane-change path in the action; cursor stays in lane | no |
-| Overtake | **no** | as above; no overtake string | no |
+| Change lane to get round a blocked car | not established | no overtaking decision found in the examined action; live verification remains open | custom rule removed |
+| Overtake | not established | absence of a string does not prove absence of behavior | custom rule removed |
 | Pull over to the kerb | **no** (code present, never entered) | decision slot is a stub; state 1 is never written, §6 | no |
 | Reverse | **no** | the traffic action set has no unstuck or reverse action, §7 | no |
 | Get-unstuck recovery or a stuck timer | **no** for traffic | action set of the traffic goal is `AIActionTraffic` only, §7 | no |
@@ -38,9 +38,10 @@ Everything is **[decomp]** unless marked. The three statements that change the p
 | Evade a player coming from behind or head-on | **no** evade; from behind is ignored by the speed rule; head-on in its lane is a car ahead | §8 | partly (`from_behind` flag) |
 | React to a crash it is hit in | yes: 3 thinks, then brake to a stop (tractors stop at once) | accident trigger, §5 | yes, with gaps, §9 |
 
-**Verdict:** the original traffic car is a lane follower with one speed rule and a crash state. It never changes lane,
-never overtakes, never reverses and never honks at obstacles. Whatever it does around a blocking car is a slowdown
-and, at most, a sidestep inside its own narrow corridor.
+The inspected ordinary-traffic action follows a lane trail, adjusts speed
+and reacts to crashes. This does not prove that all original traffic can never
+switch lanes: original navigation chooses junction exits and destination lanes
+and has lane-transition support. Mid-road overtaking needs live verification.
 
 ## 2. What the car can see
 
@@ -52,7 +53,7 @@ and, at most, a sidestep inside its own narrow corridor.
   or behind the car), the blocker's trail speed and the apex point. **[decomp]**
 - **No world probe.** The think's direct callees are the navigator's advance, the occlusion update, the speed
   function, the drive-target setter, a clamp and a normalise. None is a world ray cast or a road-edge probe by name.
-  Two helpers reached from the drive-target setter were not identified (§11, lead 4). The road edge is enforced only by
+  Two helpers reached from the drive-target setter were not identified in that investigation. The road edge is enforced by
   the lane corridor. **[decomp, derived]**
 - **Look-ahead.** `look = lerp(10, 30, ramp(speed, 0, 25)) + speed × dT + radius` metres; **30 m + the same tail** when
   the navigator reports "occluded by a car" (the blocked case). **[decomp]**, the same as [ai-traffic.md §3.1](ai-traffic.md#31-per-think-update).
@@ -63,8 +64,7 @@ Per think (`dT` = time since the previous think):
 
 1. Read the speed, the own radius and the navigator; `t = ramp(speed, 0, 25)`. If the navigator reports
    "occluded by a car" with an occluder present, `t = 1` (look 30 m).
-2. Advance the navigator cursor to `look` metres ahead of the car. The random lane choice at junctions is the only
-   lane decision ([ai-road-network.md §4.3](ai-road-network.md#43-choosing-the-next-segment-traffic-navs-decomp)).
+2. Advance the navigator cursor to `look` metres ahead of the car. Junction exit/lane selection follows ([ai-road-network.md §4.3](ai-road-network.md#43-choosing-the-next-segment-traffic-navs-decomp)).
 3. Set the avoidable radius to `look`.
 4. Compute the desired speed (§4). If the navigator is valid, the drive target is its occluded position and the
    speed is the desired one; otherwise the speed is 0.
@@ -88,7 +88,7 @@ segment has four or more traffic-lane zones, else `SpeedStreet`. The values are 
 `k` is the trail curvature. This equals `sqrt(a / |k|)` capped at the posted speed. **[decomp]**, as in
 [ai-traffic.md §3.3](ai-traffic.md#33-speed). The rule is off when the `fixed` flag is set on the action.
 
-### 4.3 The car ahead (verified in shape; one constant in conflict)
+### 4.3 The car ahead
 
 Applies only when the navigator reports "occluded by a car", the blocker is **not** "from behind", and the `fixed`
 flag is off **[decomp]**:
@@ -108,25 +108,18 @@ The blocker's trail speed is its speed along its own trail, not a closing speed.
 the blocker is coming towards the car. A car stopped in its lane gives `blocker_trail_speed = 0`, so the car's
 desired speed goes to 0 as the gap closes.
 
-### 4.4 The stopping table **[decomp, conflict]**
+### 4.4 The stopping table **[PC static and isolated execution]**
 
-`T(x)` is a generic piecewise-linear lookup. Its table is a record with a count of **2**, a base of 0, an index
-scale of **0.05** and two values, **3 m** and **50 m**. The index is `floor((x − 0) × 0.05)`; between the two points
-the result is linear, and beyond it is 50 m. So:
+The table has two values, 3 m and 50 m, over inputs 0 through 80.
+Its stored multiplier is approximately 0.0125 (`0x3c4ccccd`), not 0.05.
+The earlier reading of that float was incorrect. The existing implementation
+using input divided by 80 matches the original lookup.
 
-```
-T(x) = 3 + 47 × min(x / 20, 1)        # decomp reading
-```
-
-The spec ([ai-traffic.md §3.3](ai-traffic.md#33-speed)) and the port (`traffic.rs`, `stopping_distance`) use
-`3 + 47 × clamp(x / 80, 0, 1)`. The two readings differ by a factor of four in range.
-
-- At 15 m/s and 1680 kg (`x = 15`): decomp gives **38.25 m**, the spec and port give **11.81 m**.
-- The same lookup routine uses index scale 10 for the removal table ([provenance](../provenance/ai-traffic-obstacles.md)),
-  so the scale word is read as the index multiplier. The word `80.0` stored in the same record is not read by the
-  lookup routine **[decomp]**.
-
-**Action:** do not change the port until the scale is confirmed by one of the checks in §11 (check 1 measures it).
+At 15 m/s and 1680 kg the following distance is 11.8125 m. Ten isolated
+original executions cover negative, interior, boundary and saturated inputs.
+See [traffic driving parity](traffic-driving-parity.md) and its
+[provenance](../provenance/traffic-driving-parity.md). This is numeric routine
+evidence, not a live braking-distance measurement.
 
 ### 4.5 Limits on the change of speed
 
@@ -173,7 +166,7 @@ Only a collision with a non-traffic vehicle counts. Traffic against traffic, pro
 
 The trigger's own gate allows a new hit to start the accident again while the state is "over", provided the other
 party is moving at 5 mph or faster. So a traffic car that is already stopped by a crash is re-armed by a second
-fast hit. The port's `Accident::on_hit` does not allow this (§9).
+fast hit. The port now permits this restart (§9).
 
 ## 6. Pulling over (dead code in this build)
 
@@ -191,7 +184,7 @@ fast hit. The port's `Accident::on_hit` does not allow this (§9).
   that action. Its only other form adds the too-damaged action; neither includes the get-unstuck action **[decomp]**.
 - **Get-unstuck** (`AIActionGetUnstuck`) is in the action sets of the other drivers (the racer, human and cop sets
   built by the factories that also list the pursuit and ram actions) **[decomp]**. Its implementation was not
-  reached (§11, lead 5).
+  reached in that investigation.
 - **No stuck timer** exists in the traffic think. A car blocked behind a stopped car stays there until the manager
   removes it.
 - **Dead end:** when the navigator reaches a node with fewer than two exits, it stops and the speed is 0. The car
@@ -236,176 +229,36 @@ It cannot steer outside its lane: the corridor is the lane's own width ([ai-road
 Nothing in the traffic action reads the player's speed, distance or heading. The player is an avoidable like any
 other car, so the rules above apply. Honks and whooshes are sound-side ([ai-traffic-world.md §3](ai-traffic-world.md#3-horns-engine-and-drive-by-sounds)).
 
-## 9. What the port lacks or does differently
+## 9. Current port status and verification limits
 
-### 9.1 (a) Original behaviour the port does not have, or differs
+The custom `traffic_avoidance` option has been removed. It supplied a
+three-second blocked-lane change, timed junction yielding, blocked-car horns
+and a sixty-second blocked timer. These rules were authored for the remake;
+their removal does not establish that original traffic never switches lanes.
+Old config/environment values do not enable them. Saving a profile removes
+the retired config key while retaining unrelated unknown keys.
 
-1. **Re-arming the accident.** The original starts a new accident from a hit by a fast non-traffic vehicle while
-   the state is "over" (§5.3). `car/accident.rs` `on_hit` returns early unless the state is "none", so a stopped
-   traffic car is never re-armed. Port gap, matches the audit's item 4 ([traffic-interactions-audit](../traffic-interactions-audit.md)).
-2. **Accident gate.** The original's gates are: object collision only; the other party's class in {human, cop,
-   racer}; the other party at ≥ 5 mph or the state not over; the camera distance ≤ 80 m (§5.1). The port's
-   `on_hit(traffic, tractor)` gates only the car's own role and patrol state. The caller's gating was not read here;
-   check `car/hits.rs` against §5.1.
-3. **Tractor steering in the crash.** The original writes no steering value for a tractor in either crash phase
-   (§5.2). The port centres the steering for tractors (`accident.rs` `controls`). The original's steering stays at
-   whatever the last drive set. This is a visible difference only if the last drive set a turn.
-4. **Stopping distance.** The port uses `/80` where the decomp reads `/20` (§4.4). **Unresolved; do not change until
-   §11 check 1 is run.**
+Ordinary trail obstacle avoidance and junction lane selection remain active
+without a switch. The steering target is refreshed on physical traffic-driver
+steps, independently of slower decisions. Event percentages drive context
+density rather than actor caps, and an event pattern overrides zones. See
+[traffic driving parity](traffic-driving-parity.md).
 
-### 9.2 Matches (no change needed)
+The crash restart, non-traffic striker/view/speed gates and retained tractor
+steering were already implemented. The stopping-table conflict is resolved
+in section 4.4. Separate optional traffic lights remain a remake extension.
 
-- No lane change, no overtake, no pull over (the port's pull-over path is absent; the original's is dead).
-- No reverse and no get-unstuck for traffic (the port's stuck and reverse code is in `car.rs` for cops only).
-- No AI honk.
-- The think's look-ahead of 10 to 30 m, and 30 m when blocked.
-- The 3-think crash phase and the tractor's immediate stop.
+Still open:
 
-## 10. (b) Beyond the original: rewrite extensions
+- Capture original traffic approaching a stopped car and compare its steering,
+  speed, braking and lane transitions on the same road and at the same speed.
+- Compare junction lane selection and changing lane counts on matched routes.
+- Confirm mid-road overtaking triggers, rather than inferring their absence
+  from action names, strings or incomplete static coverage.
+- Complete original task timing, inactive-instance reuse and full actor-budget
+  accounting. The deterministic fixed-tick adapter is not original timing parity.
+- Measure the current launch-speed floor and remaining physical/controller
+  differences before changing them; removing it blindly can pin stopped cars.
 
-Nothing in this section is in the original. Each proposal keeps the lanes the road network already gives (the nth
-traffic lane from the centre, the same direction, and the segment's lane zones), uses only the avoidables and the
-existing clock, and changes no data. Each must be recorded as a rewrite extension, behind a setting, in the same
-way the traffic-light extension is ([ai-traffic-world.md §8](ai-traffic-world.md#8-rust-implementation-notes)).
-
-### 10.1 Go round a blocked car in the same direction (lane change)
-
-- **Trigger:** the car has been "blocked" (occluded by a car within the stopping distance, §4.3) for at least **3 s**
-  of simulated time, and its speed is under 5 m/s.
-- **Lane:** the nth traffic lane next to the car's lane on the same segment (`nth ± 1`), in the same direction. If
-  the segment has one lane in that direction, there is no change.
-- **Gap test:** the target lane has no avoidable from **10 m behind** to **2 s × speed + 15 m ahead** of the car, and
-  the avoidable in the target lane (if any) is not closing faster than the car is moving.
-- **Execution:** re-initialise the navigator on the neighbour lane at the car's position and heading. Blend the lateral
-  offset over **2 s × speed** metres (no step). Keep the posted speed; no extra acceleration.
-- **Abort:** if an avoidable enters the gap test during the blend, the car stays in its original lane and waits.
-- **Return:** after **15 m** clear of the blocker, move back only if the original lane's gap test passes.
-
-### 10.2 Wait for an oncoming gap before crossing
-
-- **Use:** at a decision segment where the car's exit lane crosses or joins an opposing lane (two-way roads).
-- **Gate:** the car stops at the entry of the decision segment (the same speed-limit mechanism as the traffic-light
-  extension) until no avoidable's time to closest approach to the crossing point is under **3 s**.
-- **Timeout:** after **8 s** of waiting, the car goes anyway. This keeps the flow alive and avoids deadlocks. The
-  original deadlocks head-on at junctions ([ai-traffic-world.md §2](ai-traffic-world.md#2-intersections-and-priority)).
-  The timeout is the extension's choice, not the original's.
-
-### 10.3 Honk when blocked
-
-- **Trigger:** blocked (as in 10.1) for **2 s**, with the player within 20 m. Sound only.
-- **Sample:** the car's own `HornType` sample; the 3 s cooldown and the shared `last_honk_time` of the original horn
-  rule ([ai-traffic-world.md §3.2](ai-traffic-world.md#32-horn)) are reused.
-
-### 10.4 Stuck timeout
-
-- **Trigger:** stopped and blocked for **60 s** of simulated time.
-- **Action:** mark the car as removable so the manager's distance and time rule can take it at the next test. Do not
-  teleport it.
-
-## 11. How to check it
-
-1. **Stopping distance (decides §4.4).** In the original, free roam at a steady 15 m/s in a 1680 kg street car:
-   park a car in the lane ahead and watch a traffic car approaching it. Record the distance at which the traffic
-   car first lifts off the throttle. The decomp predicts about **38 m**, the spec and port predict about **12 m**.
-   Repeat at a second speed, for example 10 m/s, to check the linear shape.
-2. **No lane change.** A traffic car behind a stopped car stays in its lane for at least 30 s. Expect no lateral
-   shift larger than the lane's own width.
-3. **No overtake, no reverse.** A traffic car behind a stopped car never passes it and never reverses.
-4. **Crash phase.** Hit a traffic car with the player. Count the thinks (at 60 FPS, about 30 frames) during which
-   the car has no throttle and no brake, and then the full brake.
-5. **Head-on.** Drive at a traffic car in its own lane at 15 m/s. Expect it to slow as you close and to stop if the
-   gap is inside the stopping distance. Check whether it moves to one side of its lane before you pass.
-6. **Restart.** Hit a traffic car until it is stopped; hit it again with a car at 5 mph or more. The original should
-   start a new crash phase (§5.3); the port should not.
-
-## 11a. Open questions
-
-- Whether the stopping table's scale is 0.05 (decomp) or 1/80 (spec) (§4.4).
-- Whether the tractor's crash steering is left at the last value (decomp) or centred (port) (§9.1 item 3).
-- Whether the head-on wait in §8.2 appears in measurement, and how long it lasts.
-- The class numbering of driver classes 0 to 3 (§5.1) is inferred from three sets, not from a name table.
-
-## 12. Port status
-
-What the port does now, against §9 and §10. Settings: `traffic_avoidance` (default **off**; TOML key of the same name,
-`NFSMW_TRAFFIC_AVOIDANCE`, console `set traffic_avoidance on`). The pure rules are in `libs/blackbox-roads/src/avoidance/`
-and `libs/blackbox-roads/src/junction_crossing.rs`; the game wiring is in `crates/nfsmw/src/scenes/world/ai/`
-(`car/avoid.rs`, `stop.rs`, `collide.rs`, `car/hits.rs`, `population.rs`) and the traffic sound path in
-`crates/nfsmw/src/audio/traffic/`.
-
-| Item | Status | Where |
-|---|---|---|
-| §9.1 (a)1 crash restart from over | done: a hit by a human, cop or racer at 5 mph or more restarts an "over" car; a hit while in progress restarts the three thinks | `car/accident.rs` `on_hit(traffic, tractor, fast)`, `car/hits.rs` `on_hit` |
-| §9.1 (a)2 crash gate | done: the class of the party that hit the car must be human, cop or racer (classes 0, 2, 3), so traffic against traffic does not start a crash; the 80 m view gate and the 5 mph rule use the hitter's speed. `collide.rs` passes each party's class and speed with the hit. The port has no AI racer, so class 3 does not occur yet | `collide.rs` `DriverClass` and `Hit`, `car/hits.rs` `starts_crash`, `driver_class` |
-| §9.1 (a)3 tractor steering in the crash | done: a tractor keeps the steering it had in both phases | `car/accident.rs` `controls(tractor, held_steer)` |
-| §9.1 (a)4 stopping distance (`/80` vs `/20`) | **not changed**. The port still uses `/80`. Decide after §11 check 1 in the game | `traffic.rs` `stopping_distance` |
-| §10.1 lane change to the next lane, same direction | done behind the setting (see the notes below) | `avoidance/change.rs`, `avoidance/gap.rs`, `avoidance/blend.rs`, `car/avoid.rs` |
-| §10.2 wait for an oncoming gap at a crossing | **built, one call pending**. `junction_crossing.rs` gives the crossing point and the earliest oncoming car; `stop.rs` `yield_to_oncoming` holds a green line as a red one while an oncoming car will reach the crossing within 3 s, and goes after 8 s (`Crossing`, the existing rule). `car/avoid.rs` `yield_at` is the entry point, off with the setting. Nothing calls it yet (see "Not in this pass") | `libs/blackbox-roads/src/junction_crossing.rs`, `avoidance/crossing.rs`, `stop.rs`, `car/avoid.rs` |
-| §10.3 honk when blocked | done: a blocked car honks once per blocked episode, 3 s after it is blocked, with the player within 20 m. The horn is the car's own horn sample, played by the traffic emitter for 1.5 s. Sound only. The shared 3 s horn cooldown of the authored traffic audio applies | `avoidance/blocked.rs` `take_honk`, `car/avoid.rs` `honk`, `collide.rs` (the `TrafficSound::Horn` event), `audio/traffic/controller.rs` `horn_allowed` |
-| §10.4 stuck timeout (60 s) | done with the setting on: `Blocked::stuck` (60 s blocked and standing) makes an unseen car removable once it is also past the manager's distance, so the time part of the rule is met by the stuck clock. A car in view is never removed by it | `avoidance/blocked.rs`, `car/avoid.rs` `blocked_clock`, `population.rs` `Vitals::valid` |
-
-Notes on the lane change (§10.1), where the implementation chose:
-
-- **Trigger.** Blocked for 3 s of thinks (6 Hz, so the clock moves in steps of 0.167 s), and speed under 5 m/s. The
-  blocked flag is the one the last think found, as in `traffic.rs`.
-- **Lanes.** The next traffic lane towards the centre, then the one towards the kerb; the first one with a clear gap.
-  Lanes come from the travel-frame profile (`forward_traffic_lanes`), so the same-direction rule holds by construction.
-- **Gap.** A car in the target lane blocks it when it is inside the gap (10 m behind to 2 s × speed + 15 m ahead) and
-  it is not moving away: a car ahead that is slower than the changing car, or a car behind that is faster. The spec's
-  "not closing faster than the car is moving" is read this way.
-- **Blend.** The steering target starts at the car's own place and closes on the new lane's centre with a smooth step
-  over 2 s × max(speed, 3 m/s), driven by the distance driven per physics step. The 3 m/s floor is the implementation's
-  choice: at a standstill the spec's 2 s × speed would be a step.
-- **Abort and return.** A car that finds another car in the new lane during the blend goes back to its old lane and
-  waits. After 15 m clear of the blocker in the new lane, it moves home if the home gap is clear.
-- **Off by default.** With the setting off no rule runs and the car never leaves its lane (checked in a unit test).
-
-Notes on the other rules:
-
-- **Oncoming cars.** A car going the same way as the waiting car (heading within 45 degrees) is behind it and does not
-  count. Cars crossing at a right angle and cars coming the other way do. A standing car does not count.
-- **Crossing point.** The centre of the junction: the mean of its nodes. The data gives no lane-level crossings, so this
-  is exact for a four-way junction and an estimate for a T junction. Unsignalled junctions have no rule.
-- **Every car, not only turners.** The rule holds every car at a green signalled line, because the turn a car will make
-  is not known at the stop line. The spec's "turning car" is therefore wider here than in §10.2.
-- **Honk range.** The player's distance is the distance between the car and the player in physics space. The horn
-  duration (1.5 s) is the implementation's choice; the spec gives none.
-
-Not in this pass:
-
-- **The oncoming-gap rule needs one line in `car.rs`**, which is outside this pass's file list. In `AiCar::think`, after
-  the `self.avoid.before_think(...)` call and before `traffic::think`, add
-  `state.stop = self.avoid.yield_at(ctx.net, ctx.lights, state.stop, self.stop_memory, &others);`. The
-  `#[allow(dead_code)]` on `yield_at` (`car/avoid.rs`) goes with that call. Until then §10.2 is inert.
-- **Stuck removal is off-screen only, and needs the distance.** A stuck car far from the player is removed; a stuck car
-  near the player is kept, as the rewrite's other removal rules keep near cars. The rewrite's own idle rule (20 s and
-  more than 40 m away) is unchanged.
-- **§10.2's "turning car" and the exact lane crossing** are not modelled (see the notes above).
-
-## Next leads
-
-1. **Confirm the stopping table scale.** The table record is at `0x008eb394` (count 2, scale 0.05, data at
-   `0x008eb1e8`, values 3 and 50). Find another caller of the lookup routine (`0x006533b0`) that reads a known table,
-   and check the shared record layout. Then run check 1 of §11 in the game.
-2. **Identify action vtable slot 2** (`0x00406930`, a large function with a 0x1f4-byte frame and a structured
-   exception frame). The Ghidra project has no function there; read its body with the listing tools without
-   creating one, or define it in a scratch copy.
-3. **Identify the message dispatcher at `0x004117d0`** (vtable slot 4). It compares the message's class with the global
-   at `0x0092c5e0` and calls a behaviour lookup by key `0x004039f0`. If it is the collision message handler, it is
-   the second entry point of the crash trigger.
-4. **Identify the helpers of the drive-target setter** (`0x0077bba0`, `0x00776600`, called from the function at
-   `0x00411a70`). If either probes the world, the "no world probe" claim of §2 is wrong.
-5. **Find the get-unstuck action's implementation.** Its registration is the static initialiser at `0x00883e60`
-   (name pushed, then a registration call); the factory is not decoded. Likely a reverse-and-retry, the cop stuck
-   logic in the port is the analogue.
-6. **Map the goal factories to goal names.** The traffic-only factory (`0x0043b670`) is the candidate for
-   `AIGoalTraffic`; confirm through the goal-name table near `0x00891524` to `0x00891550`.
-7. **Read the traffic goal's update** (`0x00423190`): it sets the drive target from the navigator, or from a point
-   ten times a stored vector when the navigator is not valid. Confirm the fallback.
-8. **Trace the writers of the navigator's occluder pointer (offset 0x5c) and the occluded flag (0x55).** That tells
-   exactly which avoidable is the occluder, and whether it can be a racer or a cop.
-9. **Identify action vtable slot 3** (`0x004068f0`): a boolean that reads the pursuit target of the navigator and asks
-   it for a test. The role is not named here.
-10. **Re-check the horn rule** of [ai-traffic-world.md §3.2](ai-traffic-world.md#32-horn) against the sound code. It was
-    not re-read in this pass.
-11. **Check the port's accident caller** (`car/hits.rs`) for the 80 m camera gate and the other party's class.
+Numeric routine tests, synthetic driver checks and installed-data tests must
+be reported separately from actual original/remake driving observations.
