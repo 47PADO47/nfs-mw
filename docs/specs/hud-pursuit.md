@@ -33,7 +33,7 @@ The detailed radar and signed meter contract is
 | Five meter images / `0xe0e0169b`, `0x8eeebd33`, `0x47a4e2a9`, `0x8e3653a6`, `0x30f39a6f` | Piecewise widths, fixed outer edges and flashing states from the signed display value. |
 | `Cooldown_Meter_Group` / `0x84a226ec` | Shown on actual cooldown state, independently of fill fraction. |
 | Cooldown fill / `0xcf817638` | Installed width times cooldown progress, keeping its left edge fixed. |
-| `Heat_Meter_Group` / `0xc46a80a9` | Retained vehicle heat, including outside a pursuit. |
+| `Heat_Meter_Group` / `0xc46a80a9` | Retained vehicle heat, including outside a pursuit. **[binary]** The HUD update feeds the meter the player vehicle's live heat every frame, in and out of a chase. That heat starts at `max(1.0, record heat)` in the career (`career-safehouse-2.md` 8), so career free roam reads the car record through that floor and shows x1 for a cooled, cleared or new car. |
 | Duplicate heat strings / `0xa81a2028` | Both string objects updated to the integer multiplier. |
 | Radar backing / `0x839e7d77` | Standalone layout selected through authored `APPEAR`; hidden when the mirror supplies the backing. |
 | Mirror backing / `0x9ee06631` | Mirror layout selected with `APPEAR`; retained during pursuit when enabled. |

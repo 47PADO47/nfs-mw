@@ -2,6 +2,8 @@
 //! `docs/specs/ai-pursuit-heat.md`). [`WorldScene::career_hud`] reads the values once a frame; [`CareerHud::apply`]
 //! puts them in the HUD state, from `scenes/world/hud.rs`.
 
+use nfsmw_career::safehouse::SPAWN_HEAT_FLOOR;
+
 use crate::hud::HudState;
 use crate::scenes::world::WorldScene;
 
@@ -15,7 +17,7 @@ pub(in crate::scenes::world) struct CareerHud {
     on: bool,
     /// The bounty row: the car's banked bounty plus the chase's pending points.
     bounty: u32,
-    /// The car's heat, shown outside a chase.
+    /// The heat the car is driven with, shown outside a chase: its record's heat, never below the spawn floor.
     car_heat: f32,
     /// The career's cash, for the Custom HUD's free-roam extras.
     cash: u32,
@@ -71,12 +73,14 @@ fn bounty_row(banked: u32, pending: u32) -> u32 {
     banked.saturating_add(pending)
 }
 
-/// The heat meter's level: the car's heat within the meter, 0 for a heat that is not a number.
+/// The heat meter's level. The meter shows the driven car's heat, which starts at `max(1.0, record heat)`
+/// (`nfsmw_career::safehouse::spawn_heat`), so a record cooled, cleared or multiplied below 1 still reads x1. Capped at
+/// the meter's top; a heat that is not a number reads as the floor.
 fn meter_heat(heat: f32) -> f32 {
     if heat.is_nan() {
-        return 0.0;
+        return SPAWN_HEAT_FLOOR;
     }
-    heat.clamp(0.0, HEAT_TOP)
+    heat.clamp(SPAWN_HEAT_FLOOR, HEAT_TOP)
 }
 
 impl WorldScene {
