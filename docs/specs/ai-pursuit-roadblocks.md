@@ -412,6 +412,10 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
   shared scenery's own meshes (an intact sawhorse from its hierarchy's visible nodes, the strip from its shared mesh), lit
   as the city's props are; uploaded as car rigs and drawn with the car shading they came out black. The rigs remain the
   fallback when the shared sets lack them [ours; checked in a screenshot for the sawhorse].
+  A spike strip is moved along the road's width until both ends lie 0.2 m inside the edges (centred when it is
+  longer than the road is wide), and its seat replaces a surface at an end that breaks more than 0.12 m from the road's
+  slope (the line from its centre through the point halfway out) by that line, so it neither reaches into a railing
+  nor tilts up onto a kerb, while a banked road still tilts it (`roadblock/strip_fit.rs`) [ours].
   Each prop is seated by section 2.5: the nearest surface at its element point (the element carries the road's height at
   the site), its origin lifted so the bottom of its root collision box (half height less the box's pivot height) meets that
   surface, the strip's tire-test box with it. A prop with no surface under it is skipped, and props past 13 live ones are not

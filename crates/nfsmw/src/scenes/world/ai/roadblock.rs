@@ -26,6 +26,7 @@ mod site;
 mod spacing;
 mod state;
 mod steal;
+mod strip_fit;
 
 pub use build::Cause;
 pub use state::Roadblocks;
