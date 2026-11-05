@@ -205,9 +205,10 @@ impl AiCar {
         let (name, rig, physics) = (model.name.clone(), model.rig.clone(), &model.physics);
         let mut sim = CarSim::for_rig(physics.clone(), &rig);
         sim.set_tunings(model.tunings);
-        sim.configure_ai();
-        if matches!(role, Role::Traffic) && !start.patrol {
-            sim.configure_traffic();
+        match (&role, start.patrol) {
+            (Role::Cop(_), _) | (Role::Traffic, true) => sim.configure_police(),
+            (Role::Traffic, false) => sim.configure_traffic(),
+            (Role::Racer(_), _) => sim.configure_ai(),
         }
         sim.collision_role.cop = start.patrol || matches!(role, Role::Cop(_));
         if !sim.place_traffic_moving(ground, spawn, start.speed) {
@@ -230,13 +231,11 @@ impl AiCar {
             light_phase,
             sim,
             trailer,
-            driver: Driver::new(
-                match role {
-                    Role::Traffic => ControllerKind::Simple,
-                    Role::Cop(_) | Role::Racer(_) => ControllerKind::Pid,
-                },
-                false,
-            ),
+            driver: match role {
+                Role::Traffic => Driver::new(ControllerKind::Simple, false),
+                Role::Cop(_) => Driver::police(),
+                Role::Racer(_) => Driver::new(ControllerKind::Pid, false),
+            },
             role,
             target: nav.position,
             nav,

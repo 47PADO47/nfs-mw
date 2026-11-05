@@ -1,0 +1,114 @@
+# Police simple chassis: tires, brakes and drive
+
+The original gives every police car the simple chassis (`SuspensionSimple`), not the racer chassis the player's car and
+the AI racers drive with. It shares the racer chassis' springs, dampers, anti-roll, centre of gravity, aerodynamics and
+`YAW_SPEED` yaw scaling, but its tires, brakes, drive and stability rules are its own and much simpler: no racing slip
+solver, no drift, no yaw-control assist. This spec covers those parts; the centre of gravity, the 45 to 60 degree
+steering range and the first-landing yaw halving are in [npc-chassis-contact-state.md](npc-chassis-contact-state.md).
+
+Sources: the CC0 reference decompilation (`Physics/Behaviors/SuspensionSimple.cpp`, `Physics/Behaviors/Chassis.cpp`),
+read for understanding only, and the retail PC executable, whose loaded-tire routine and constants were checked against
+it value for value **[PC binary]** (private notes). Evidence tags as in the [docs README](../README.md#evidence-tags).
+
+Angles are in turns (1.0 = 360 degrees) unless marked degrees, as the tire code keeps them. `axle` is 0 at the front.
+
+## 1. Per step
+
+1. The speed-dependent scales of the shared chassis (`max_slip`, lateral `grip_scale`, `traction_scale`, spec
+   [vehicle-suspension-tires.md](vehicle-suspension-tires.md) section 3.7) start every tire's step: each tire's traction
+   boost is the traction scale, its grip boost the grip scale, its slip limit the max slip, and it may not slip.
+2. **Oversteer correction** on the two rear tires, for every driver but a remote one: `oversteer = |body slip angle -
+   0.25 * yaw rate|` (the yaw rate in radians per second taken as turns), `grip = ramp(oversteer, 0, 35 deg) *
+   ramp(speed, 0, 20 m/s) * 0.15`; each rear tire's traction boost is set to `1 + grip`. **[decomp]**
+3. **Drive** (only when the gearbox gives a drive torque): the torque splits by `TORQUE_SPLIT`, half to each grounded
+   wheel of an axle. A driven grounded wheel may slip when the car is staging or in reverse, neutral, first or second gear
+   with more than half throttle; its traction boost is multiplied by the nitrous boost (and by 0.25 while staging).
+   **[decomp + PC binary]**
+4. **Brakes:** every tire takes the brake pedal, the two rear tires the handbrake. **[decomp]**
+5. **Steering drag reduction** is 0.5 for a police car (an AI racer interpolates 0.23 to 0.5 by its catch-up). **[decomp]**
+6. The wheel loop of the shared chassis (spring and damper load, contact, the lateral force clamped to what stops the
+   wheel's sideways speed in one step with a quarter of the mass, the drive force along the ground, `YAW_SPEED` scaling
+   of the yaw torque) runs each tire's loaded or free rule below.
+
+## 2. A loaded tire [decomp + PC binary]
+
+Inputs: lateral and forward contact speeds `lat`, `fwd`, body speed, load `L` (clamped at 0), the step `dt`, the drag
+reduction `k`; the tire's specs `GRIP_SCALE`, `STATIC_GRIP`, `DYNAMIC_GRIP` of its axle, the brake torques, its radius
+`r`, its wheel speed `w` (rad/s) and the surface's lateral, drive and rolling grip.
+
+```
+if the tire carried no load last step and is not locked: w = fwd / r
+fwd_acc = (fwd - last fwd) / dt
+traction = 1;  locked = handbrake > 0 and rear
+torque = drive torque
+if brake + handbrake > 0:
+    if |fwd| < 1:  torque += -(brake + handbrake) * L * fwd / r             # stops the wheel at walking pace
+    else:          torque += (w <= 0 ? +1 : -1) * (brake * BRAKES[axle] + handbrake * EBRAKE) * 1.3558 * 10
+slip_angle = atan2(lat, |fwd|)                                               # turns
+slip = (locked or may slip) ? w * r - fwd : 0
+slipping = may slip and |slip| > max_slip;  ratio = slipping ? max_slip / |slip| : 1;  traction *= ratio
+skid = sqrt(slip^2 + lat^2)
+Fy = grip_boost * ramp(|slip_angle|, 0, 12 deg) * 1.54 * L * GRIP_SCALE * traction_boost, against the slip angle's sign
+if locked and skid > 1:
+    Fy = -1.5 * lat * L * traction_boost * DYNAMIC_GRIP / skid
+    Fx = slip * L * traction_boost * DYNAMIC_GRIP / (1.5 * skid)
+elif slipping:
+    pilot = 0.85 + 0.15 * ramp(body speed, 30 mph, 50 mph)
+    Fx = limit(DYNAMIC_GRIP * traction_boost * L * pilot * slip / skid, torque / r)
+else:
+    Fx = torque / r
+if may slip and not slipping and not locked:  Fx += 10 * (wheel_acc * r - fwd_acc) / r      # the wheel's inertia
+limit = L * STATIC_GRIP * traction_boost * (2.5 * brake + 1)
+if Fx^2 + Fy^2 > limit^2:  scale Fx, Fy and traction by limit / |F|; ratio *= (that scale)^2
+if |fwd| > 1:  Fx -= sin(slip_angle) * Fy * k / GRIP_SCALE                   # cornering drag
+else:          Fy *= min(|lat|, 1)
+if not braking and rear:  Fx *= surface drive grip;  Fy *= surface lateral grip
+wheel speed:
+    locked:                          wheel_acc = 0, w = 0
+    may slip and ratio < 1:          t = ((torque - Fx * r) + last t) / 2;  e = t - 1.5 * w * surface rolling grip
+                                     wheel_acc = lerp(0.1 * e - ratio * slip / (r * dt), fwd_acc / r, ratio);  w += wheel_acc * dt
+    otherwise:                       w = fwd / r
+```
+
+`limit(a, b)` keeps `a` within `|b|`. The lateral force is therefore linear in the slip angle up to 12 degrees and then
+flat, capped by the friction circle; there is no load sensitivity curve and no slip-angle peak.
+
+## 3. A tire in the air [decomp]
+
+No load, slip, slip angle or forces. A locked rear tire (handbrake) stops; any other wheel speeds up by the torque over the
+wheel inertia times the step.
+
+## 4. The rewrite
+
+`blackbox_vehicle` has the rule as `Tire::update_simple` and `update_simple_free` (`tires/simple.rs`) and runs it, with
+the per-step rules of section 1 (`vehicle/simple_tires.rs`), when the simple chassis is selected with `simple_tires` on;
+the tire's wheel speed is then its own (the gearbox reads it and does not write it back, as for the rolling chassis of
+traffic). Unit and whole-car tests cover the slip-angle ramp, the friction circle, the locked rear skid, the walking-pace
+fade, braking to a stop and a steering pulse settling at speed.
+
+**Not turned on yet.** `CarSim::configure_police` leaves `simple_tires` off. With it on, the rewrite's heat 5 cop loses
+the installed catch-up checks: on the bendy installed route it never passes 81 m/s where it reaches 100 m/s on the racer
+tire, and it falls back to the 400 m retire distance. On a flat straight both tires give the same speed, gear and drive
+force, so the loss is in the bends; the likely parts are the cornering speeds the cop's road action plans from the racer
+tire's grip, and the steering a softer tire needs. Until that is settled the police keep the racer tire.
+
+**Steering gains [ours].** A police car's steering controller ([ai-driver-control-pid.md](ai-driver-control-pid.md)
+section 3) holds its coefficients at the lower ends of their ranges at speed instead of adapting them
+(`Driver::police`); below 10 m/s the speed tables apply as before. The original's controller, its tables, its MIT rule,
+its sensitivity and its term rotation match the PC executable, and its cops show an effective steering gain that stays
+flat over a cop's life (a fit of the steering input to the heading error in a stock heat 5 recording: 0.68 to 0.83 at
+every age) and equal to the rewrite's at the range minima. The rewrite's adaptation instead climbed (0.7 to about 1.3 by
+40 s; P from 0.40 to 0.63 and D from 0.10 to 0.21 in a matched run), and the cause of that difference is not found. On a
+45 s heat 5 highway stretch cut from the stock recording, the stock cops change their yaw direction 1.76 times a second
+(20 Hz samples); the rewrite's cop did 2.20 times with adaptation and 1.97 with the gains held (racer tire; 1.83 with
+the simple tire as well).
+
+The stock cops also slide more than the rewrite's: a body slip above 40 m/s of 0.89 degrees at the median and 3.7 at the
+90th percentile, against 0.6 and 2.4, which fits their softer tire.
+
+## 5. Open questions
+
+- Why the rewrite's steering adaptation drifts upward while the original's, with the same rule and constants, does not.
+- What keeps a cop on the simple tire slow on bends in the rewrite (section 4).
+- Which chassis the original gives an AI racer; the rewrite gives racers the simple chassis' steering range with the racer
+  tire, and leaves that to the race work.

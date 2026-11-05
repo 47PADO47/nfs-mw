@@ -102,6 +102,11 @@ impl AdaptivePid {
         self.coefficients
     }
 
+    /// The lower ends of the P, I and D coefficient ranges.
+    pub fn lower_limits(&self) -> [f32; 3] {
+        self.settings.ranges.map(|(low, _)| low)
+    }
+
     pub fn output(&self) -> f32 {
         self.coefficients.iter().zip(self.terms).map(|(c, t)| c * t.clamp(-99_999.0, 99_999.0)).sum()
     }

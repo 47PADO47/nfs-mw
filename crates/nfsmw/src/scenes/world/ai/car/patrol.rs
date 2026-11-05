@@ -27,7 +27,7 @@ impl AiCar {
         self.nav = nav;
         self.role = Role::Cop(Box::new(cop::CopState::new(car, player, self.speed().abs())));
         self.sight.without_target();
-        self.driver = Driver::new(ControllerKind::Pid, false);
+        self.driver = Driver::police();
         self.patrol = false;
         self.waiting = false;
         self.stop_memory = None;

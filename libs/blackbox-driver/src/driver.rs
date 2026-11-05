@@ -76,6 +76,14 @@ impl Driver {
         visit(self.reverse_override.to_bits());
         visit(u32::from(self.shocked));
     }
+    /// The PID controller of a police car: its steering coefficients are held at the lower ends of their ranges at
+    /// speed (`docs/specs/cop-simple-chassis.md` section 4).
+    pub fn police() -> Self {
+        let mut driver = Self::new(ControllerKind::Pid, false);
+        driver.steering.hold_gains(true);
+        driver
+    }
+
     pub fn new(kind: ControllerKind, drag_steering: bool) -> Self {
         let settings = match drag_steering {
             true => AdaptiveSettings::DRAG,
