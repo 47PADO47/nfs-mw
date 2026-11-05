@@ -158,8 +158,8 @@ impl CarSim {
     }
 
     /// A police car: the AI controls on the simple chassis. The simple chassis' own tires
-    /// (`docs/specs/cop-simple-chassis.md`) are not turned on yet: with them the rewrite's cops lose the installed
-    /// catch-up checks on bends (section 4 of that spec).
+    /// (`docs/specs/cop-simple-chassis.md`) are not turned on yet: with them the rewrite's cops cannot hold their speed in
+    /// the pursuit's speed loop and lose the installed catch-up checks (section 4 of that spec).
     pub fn configure_police(&mut self) {
         self.configure_ai();
         self.vehicle.set_simple_tires(false);

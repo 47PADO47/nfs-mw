@@ -87,10 +87,14 @@ traffic). Unit and whole-car tests cover the slip-angle ramp, the friction circl
 fade, braking to a stop and a steering pulse settling at speed.
 
 **Not turned on yet.** `CarSim::configure_police` leaves `simple_tires` off. With it on, the rewrite's heat 5 cop loses
-the installed catch-up checks: on the bendy installed route it never passes 81 m/s where it reaches 100 m/s on the racer
-tire, and it falls back to the 400 m retire distance. On a flat straight both tires give the same speed, gear and drive
-force, so the loss is in the bends; the likely parts are the cornering speeds the cop's road action plans from the racer
-tire's grip, and the steering a softer tire needs. Until that is settled the police keep the racer tire.
+the installed catch-up checks: on the straight installed road it holds about 77 m/s in third gear where it reaches
+100 m/s on the racer tire, and falls back to the 400 m retire distance. On a flat straight at full throttle both tires
+give the same speed, gear and drive force; the loss comes from the pursuit's speed control. The simple tire puts the whole
+drive torque on the road, so under the speed governor's request (which grows at the matched acceleration, about
+2 m/s² here) the car surges at 5 to 14 m/s², overshoots, and the throttle controller brakes; the simple brakes are 2.5
+times the racer tire's, and the governor lowers its request while the car decelerates, so the cop settles low. With the
+brake torque at the racer tire's scale it still loses (96.5 m/s at most). The original runs the same governor, throttle
+controller and tire, so a part of that loop still differs.
 
 **Steering gains [ours].** A police car's steering controller ([ai-driver-control-pid.md](ai-driver-control-pid.md)
 section 3) holds its coefficients at the lower ends of their ranges at speed instead of adapting them
@@ -109,6 +113,6 @@ The stock cops also slide more than the rewrite's: a body slip above 40 m/s of 0
 ## 5. Open questions
 
 - Why the rewrite's steering adaptation drifts upward while the original's, with the same rule and constants, does not.
-- What keeps a cop on the simple tire slow on bends in the rewrite (section 4).
+- What keeps a cop on the simple tire from holding its speed in the rewrite's speed loop (section 4).
 - Which chassis the original gives an AI racer; the rewrite gives racers the simple chassis' steering range with the racer
   tire, and leaves that to the race work.
