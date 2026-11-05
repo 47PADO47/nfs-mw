@@ -173,7 +173,8 @@ face is used, as before.
 ## 3. Layouts without spikes (`RoadblockCandidateList`)
 
 `C` = car, `B` = barrier (sawhorse). Entries `(x, z, angle)` in metres, metres and turns. `min_w` = minimum road width
-needed, `req` = cars required. **[decomp]** (data hard-coded in the code, not in AttribSys)
+needed, `req` = cars required. **[decomp]** (data hard-coded in the code, not in AttribSys). **[PC binary]** The
+retail PC executable's two tables hold the same layouts, in the same order, as this section and section 4.
 
 | # | min_w | req | Elements |
 |---|---|---|---|
