@@ -7,6 +7,20 @@ use blackbox_carsound::CarInput;
 use nfsmw_data::car::physics::{PerformanceCategory, PerformancePackage, SurfaceTable};
 use nfsmw_data::sound::SoundUpgrades;
 
+impl super::Drive {
+    /// What the car sound needs of the drive; `None` while there is no car yet.
+    pub fn car_sound(&mut self) -> Option<CarSoundState> {
+        if self.sim.is_none() {
+            self.sound.clear();
+            return None;
+        }
+        let mut state =
+            self.sound.state(self.sound_car.as_deref().unwrap_or(&self.car_name), &self.telemetry, self.performance);
+        state.engine = self.engine_audio();
+        Some(state)
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct SoundFeed {
     ticks: Vec<CarSoundTick>,

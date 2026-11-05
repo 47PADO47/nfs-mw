@@ -22,7 +22,7 @@ impl CarSim {
         }));
     }
 
-    pub(in crate::scenes::world::drive) fn set_race_staging(&mut self, held: bool) {
+    pub(in crate::scenes::world) fn set_race_staging(&mut self, held: bool) {
         self.vehicle.set_staging(held);
     }
 

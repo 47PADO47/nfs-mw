@@ -73,7 +73,7 @@ impl Scene for WorldScene {
         true
     }
     fn title(&self) -> String {
-        format!("nfsmw — {}", self.track)
+        format!("nfsmw â€” {}", self.track)
     }
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         renderer.set_colour_treatment(self.colour_treatment.as_ref(), self.gain_map.as_ref());
@@ -96,7 +96,7 @@ impl Scene for WorldScene {
         self.attach_client(client)
     }
     fn runs_while_paused(&self) -> bool {
-        self.is_net_client()
+        self.is_net_client() || self.photo_driving()
     }
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
         self.scene_ui(ctx)
@@ -478,6 +478,9 @@ impl Scene for WorldScene {
     fn nis_audio(&self) -> Option<&crate::audio::nis::NisAudioRequest> {
         self.nis.audio_request()
     }
+    fn owns_soundtrack(&self) -> bool {
+        self.cutscene_playing() || self.photo_shot.is_some()
+    }
     fn note_nis_audio(&mut self, playing: bool) {
         self.nis.note_voice(playing);
     }
@@ -488,8 +491,9 @@ impl Scene for WorldScene {
         self.traffic.as_mut()?.siren_frame(dt)
     }
     fn note_police_speech(&mut self, phase: Option<blackbox_pursuit::siren::Phase>) {
-        if let Some(traffic) = self.traffic.as_mut() {
-            traffic.note_police_speech(phase);
-        }
+        self.note_police_speech_now(phase);
+    }
+    fn advance_presentation(&mut self, dt: f32) -> bool {
+        self.step_photo_shot(dt)
     }
 }

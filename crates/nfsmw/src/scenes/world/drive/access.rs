@@ -66,12 +66,13 @@ impl Drive {
         }
     }
 
-    /// What the car can do flat out (measured by driving the model flat out), for cops that are matched to it.
+    /// Physical launch measurements retained by installed diagnostic fixtures; actions use `ai_performance`.
+    #[cfg(test)]
     pub(in crate::scenes::world) fn performance(&self) -> blackbox_vehicle::performance::Performance {
         nfsmw_data::car::physics::measured::performance_of_spec(&self.physics.spec, self.physics.tire_integration)
     }
 
-    /// The analytical curve exposed to pursuit actions; physical engine and driving settings are unchanged.
+    /// The analytical curve exposed to AI actions; physical engine and driving settings are unchanged.
     pub(in crate::scenes::world) fn ai_performance(&self) -> blackbox_vehicle::performance::Performance {
         nfsmw_data::car::physics::measured::ai_performance_of_spec(&self.physics.spec, self.physics.tire_integration)
     }

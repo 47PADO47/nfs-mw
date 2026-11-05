@@ -58,6 +58,10 @@ impl super::super::TrafficWorld {
     /// What the speech machine reads while no cop chases: the player, the heat, the lockout and what the player hit
     /// since the last call. `None` with a chase on (its own feed carries the speech) or before the player is seen.
     pub fn roam_feed(&mut self, tuning: &Tuning) -> Option<RoamFeed> {
+        if self.cops.barred() {
+            self.cops.roam.restart();
+            return None;
+        }
         if self.is_pursuing() {
             return None;
         }

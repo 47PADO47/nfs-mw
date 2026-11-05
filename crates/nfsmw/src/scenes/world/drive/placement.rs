@@ -134,6 +134,7 @@ impl Drive {
         self.flames.unload();
         self.effects.clear();
         self.car_name = name;
+        self.sound_car = None;
         if self.sim.take().is_some() {
             let at = self.current.position;
             self.request =

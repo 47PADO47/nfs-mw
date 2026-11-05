@@ -54,14 +54,20 @@ fn traffic_starts_clear_of_banked_and_sloping_ground_without_an_initial_impact()
 }
 
 #[test]
-fn traffic_flat_placement_keeps_the_existing_unloaded_clearance_and_speed() {
+fn traffic_flat_placement_keeps_its_unloaded_clearance_and_the_player_placements_speed() {
     for speed in [0.0, 15.0] {
         let (mut old, mut traffic) = (sim(), sim());
         let ground = FlatGround::new(5.0);
         assert!(old.place_moving(&ground, spawn_at(0.8), speed));
         assert!(traffic.place_traffic_moving(&ground, spawn_at(0.8), speed));
-        assert!(old.body().position.distance(traffic.body().position) < 1e-5);
-        assert!(old.body().linear_velocity.distance(traffic.body().linear_velocity) < 1e-5);
+        // The player's placement rests the car on its springs (`vehicle-placement.md`); traffic keeps the unloaded
+        // clearance, so it starts no lower.
+        let (a, b) = (old.body().position, traffic.body().position);
+        assert!((a.x - b.x).hypot(a.z - b.z) < 0.05, "{a} {b}");
+        assert!(b.y >= a.y - 1e-5, "{a} {b}");
+        // The rested car may sit slightly pitched, so its speed points a little up or down.
+        let (va, vb) = (old.body().linear_velocity, traffic.body().linear_velocity);
+        assert!((va.length() - vb.length()).abs() < 1e-4 && (va.x - vb.x).hypot(va.z - vb.z) < 0.05, "{va} {vb}");
         assert_eq!(old.telemetry().gear, traffic.telemetry().gear);
         assert_eq!(old.telemetry().rpm, traffic.telemetry().rpm);
     }

@@ -1,5 +1,5 @@
 //! The camera of the win photo: the replay camera a race names (`FinishCamera`: `DefaultFinish`, `PHoldFin_17`...), an
-//! ICE track whose eye and look point are in the player's car space, settled at the end of its track. The photo screen
+//! ICE track whose eye and look point move in the frozen player's car space, then hold. The photo screen
 //! (`InGamePhotoMaster.fng`) has a transparent window in its picture; the world seen through it, from this camera, is
 //! the photo. Spec: `docs/specs/race-finish-effects.md` section 3.
 
@@ -18,7 +18,11 @@ pub struct PhotoShot {
     track: Track,
     /// The car's frame in render space (+x forward, +y left, +z up).
     car: Mat4,
+    elapsed: f32,
 }
+
+/// The native photo screen's driving-view interval before its cinematic camera cuts in.
+pub const CAMERA_DELAY: f32 = 0.75;
 
 /// A track point in render space. Car space is the car's own frame (+x forward, +y left, +z up); hybrid space has the
 /// world's axes round the car's origin; a world point is as it stands. A scene-space point has no scene here.
@@ -34,14 +38,51 @@ pub fn place(car: &Mat4, space: Space, point: [f32; 3]) -> Option<Vec3> {
 
 impl PhotoShot {
     pub fn new(track: Track, car: Mat4) -> Self {
-        Self { track, car }
+        Self { track, car, elapsed: 0.0 }
+    }
+
+    pub fn advance(&mut self, dt: f32) -> bool {
+        if !dt.is_finite() || dt <= 0.0 || self.elapsed >= CAMERA_DELAY + self.track.length {
+            return false;
+        }
+        let before = self.current();
+        self.elapsed = (self.elapsed + dt).min(CAMERA_DELAY + self.track.length);
+        before != self.current()
+    }
+
+    fn fraction(&self) -> f32 {
+        ((self.elapsed - CAMERA_DELAY) / self.track.length.max(0.001)).clamp(0.0, 1.0)
+    }
+
+    fn current(&self) -> Option<(Vec3, Vec3, Vec3, f32)> {
+        self.camera_started().then(|| self.at(self.fraction())).flatten()
+    }
+
+    /// Whether the finish camera has cut away from the retained driving view.
+    pub fn camera_started(&self) -> bool {
+        self.elapsed >= CAMERA_DELAY
+    }
+
+    pub fn driving_left(&self) -> f32 {
+        (CAMERA_DELAY - self.elapsed).max(0.0)
+    }
+
+    /// Average scale for this real-time slice of the host's linear finish slowdown.
+    pub fn simulation_scale(&self, dt: f32) -> f32 {
+        let end = (self.elapsed + dt.max(0.0)).min(CAMERA_DELAY);
+        (1.0 - (self.elapsed + end) / (2.0 * CAMERA_DELAY)).clamp(0.0, 1.0)
     }
 
     /// The eye, the look point, the up vector and the field of view (16-bit angle) of the camera at rest, at the end of
     /// its track: the cut moves in for the first fifth of a second or so and then holds (`SprintFinish`: 3 s long, its
     /// second key, the held one, from 0.212 of it). `None` when the track has no key or a point has no place.
+    #[cfg(test)]
     fn at_rest(&self) -> Option<(Vec3, Vec3, Vec3, f32)> {
-        let sample = self.track.sample(1.0)?;
+        self.at(1.0)
+    }
+
+    fn at(&self, fraction: f32) -> Option<(Vec3, Vec3, Vec3, f32)> {
+        let sample = self.track.sample(fraction)?;
         let eye = place(&self.car, sample.eye_space, sample.eye)?;
         let target = place(&self.car, sample.look_space, sample.look)?;
         let forward = (target - eye).normalize_or_zero();
@@ -50,7 +91,7 @@ impl PhotoShot {
 
     /// The camera, `aspect` being width over height.
     pub fn lens(&self, aspect: f32) -> Option<Lens> {
-        let (eye, target, up, fov_bangle) = self.at_rest()?;
+        let (eye, target, up, fov_bangle) = self.current()?;
         Some(original::native_lens(original::Sample { eye, target, up, fov_bangle }, aspect))
     }
 }
@@ -62,12 +103,18 @@ impl WorldScene {
         let Some(track) = replay_track(&self.dir, named, kind == RaceType::Drag) else { return };
         log::info!("race: the win photo is framed by the replay camera {}", track.name);
         self.photo_shot = Some(PhotoShot::new(track, drive.pose().transform()));
+        if let Some(drive) = self.players.lead_mut() {
+            drive.set_cinematic_input(Some(Default::default()));
+        }
         self.cut.arm();
     }
 
     /// The photo is over: the game camera is back.
     pub(super) fn end_photo_shot(&mut self) {
         if self.photo_shot.take().is_some() {
+            if let Some(drive) = self.players.lead_mut() {
+                drive.set_cinematic_input(None);
+            }
             self.cut.arm();
         }
     }
@@ -75,6 +122,23 @@ impl WorldScene {
     /// The camera of the win photo while one is up.
     pub(super) fn photo_lens(&self, aspect: f32) -> Option<Lens> {
         self.photo_shot.as_ref()?.lens(aspect)
+    }
+
+    pub(super) fn photo_driving(&self) -> bool {
+        self.photo_shot.as_ref().is_some_and(|shot| !shot.camera_started())
+    }
+
+    pub(super) fn step_photo_shot(&mut self, dt: f32) -> bool {
+        let Some(shot) = &mut self.photo_shot else { return false };
+        let was_driving = !shot.camera_started();
+        if was_driving && let Some(drive) = self.players.lead() {
+            shot.car = drive.pose().transform();
+        }
+        let changed = shot.advance(dt);
+        if was_driving && shot.camera_started() {
+            self.cut.arm();
+        }
+        changed
     }
 }
 

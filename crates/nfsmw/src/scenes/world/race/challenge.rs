@@ -230,7 +230,7 @@ impl WorldScene {
             previous_traffic,
             glue: Vec::new(),
             catch_up: false,
-            glue_clock: 0.0,
+            player_top_speed_rating: 1.0,
             demo_clock: 0.0,
             lane: Default::default(),
             log_clock: 0.0,

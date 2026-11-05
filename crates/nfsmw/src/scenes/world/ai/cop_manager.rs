@@ -52,7 +52,15 @@ impl CopManager {
 
     /// Keeps the cops out (`true`) for as long as a race with no police runs, or lets the lockout rule again (`false`).
     pub fn bar(&mut self, barred: bool) {
+        if self.barred != barred {
+            self.roam.restart();
+        }
         self.barred = barred;
+    }
+
+    /// A race explicitly disallows police; this is independent of a temporary spawn lockout.
+    pub fn barred(&self) -> bool {
+        self.barred
     }
 
     /// Locks the cops out for the free-roam time after an evade, or a ticket paid (`LockoutCops(true)`).

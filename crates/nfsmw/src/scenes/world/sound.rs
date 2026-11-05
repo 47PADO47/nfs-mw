@@ -3,13 +3,6 @@ use super::race::Stage;
 use super::*;
 use blackbox_race::Phase;
 
-/// Whether a story cutscene owns the sound: a movie plays, or the NIS of a race's intro does
-/// (`docs/specs/prologue-car-and-audio.md`). The movie's and the NIS's own streams are the sound then, not the car idling
-/// on the grid under a camera that is far from it.
-fn cutscene_owns_sound(movie: bool, nis: bool, race_intro: bool) -> bool {
-    movie || (nis && race_intro)
-}
-
 fn pre_race_audio(rolling: bool, stage: &Stage, phase: Option<Phase>) -> bool {
     if rolling {
         return false;
@@ -57,8 +50,21 @@ impl WorldScene {
         if self.car_silenced() {
             return None;
         }
-        let pose = self.players.lead()?.pose();
-        let state = self.players.lead_mut()?.car_sound()?;
+        let pose = self.players.lead()?.render_pose();
+        let rev = self.nis.player_rev();
+        let mut state = self.players.lead_mut()?.car_sound()?;
+        if let Some(rev) = rev {
+            let apply = |input: &mut blackbox_carsound::CarInput| {
+                input.rpm_pct = ((rev.rpm - 1000.0) / 9000.0).clamp(0.0, 1.0);
+                input.scripted_rpm = Some(rev.rpm);
+                input.throttle = rev.torque / 100.0;
+                input.pre_race = true;
+            };
+            apply(&mut state.input);
+            for tick in &mut state.ticks {
+                apply(&mut tick.input);
+            }
+        }
         Some(self.listened_car_state(state, pose))
     }
 
@@ -79,8 +85,7 @@ impl WorldScene {
 
     /// A story cutscene owns the sound: no engine voice plays under it.
     fn car_silenced(&self) -> bool {
-        let race_intro = self.race.as_ref().is_some_and(|race| matches!(race.stage, Stage::Intro { .. }));
-        cutscene_owns_sound(self.story_movie.is_playing(), self.nis.is_playing(), race_intro)
+        self.story_movie.is_playing()
     }
 
     /// The car's sound with the view it is heard from: the car at `pose`, the gameplay lens of the frame and the
@@ -132,7 +137,7 @@ impl WorldScene {
 
 #[cfg(test)]
 mod tests {
-    use super::{Phase, Stage, cutscene_owns_sound, pre_race_audio, set_pre_race};
+    use super::{Phase, Stage, pre_race_audio, set_pre_race};
 
     #[test]
     fn pre_race_visual_audio_tracks_standing_countdown_and_excludes_rolling_starts() {
@@ -174,20 +179,5 @@ mod tests {
         assert_eq!(state.ticks.iter().map(|tick| tick.input.pre_race).collect::<Vec<_>>(), [true, false]);
         set_pre_race(&mut state, true);
         assert!(state.input.pre_race && state.ticks.iter().all(|tick| tick.input.pre_race));
-    }
-
-    #[test]
-    fn a_movie_or_the_intro_nis_of_a_race_silences_the_car() {
-        assert!(cutscene_owns_sound(true, false, false));
-        assert!(cutscene_owns_sound(true, false, true));
-        assert!(cutscene_owns_sound(false, true, true));
-    }
-
-    #[test]
-    fn other_scenes_keep_the_car_audible() {
-        assert!(!cutscene_owns_sound(false, false, false));
-        assert!(!cutscene_owns_sound(false, false, true));
-        // The bust's arrest scene is a NIS outside any race intro.
-        assert!(!cutscene_owns_sound(false, true, false));
     }
 }

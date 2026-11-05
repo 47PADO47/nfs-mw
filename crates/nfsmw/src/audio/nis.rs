@@ -26,19 +26,22 @@ const STREAM: &str = "SOUND/STREAMS/NISAudio.big";
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NisAudioRequest {
     pub scene: Option<String>,
+    pub countdown: bool,
+    /// Distinguishes repeated one-shots of the same scene/section, such as a race restart.
+    pub serial: u32,
 }
 
 /// The scene the voice was last asked for. A change stops the voice; a `Some` change also starts that scene.
 #[derive(Debug, Default, PartialEq, Eq)]
-pub(super) struct Requested(Option<String>);
+pub(super) struct Requested(Option<NisAudioRequest>);
 
 impl Requested {
     /// Record `wanted`. Returns true when it differs from the last request, which means the voice must follow it.
-    pub fn set(&mut self, wanted: Option<&str>) -> bool {
-        if self.0.as_deref() == wanted {
+    pub fn set(&mut self, wanted: Option<&NisAudioRequest>) -> bool {
+        if self.0.as_ref() == wanted {
             return false;
         }
-        self.0 = wanted.map(str::to_owned);
+        self.0 = wanted.cloned();
         true
     }
 }
@@ -50,7 +53,13 @@ type Take = Result<Option<StaticSoundData>, String>;
 type Slot = Arc<Mutex<Option<Take>>>;
 
 /// The take [`prefetch`] started last, with the scene it is for. A take nobody claims stays until the next prefetch.
-static PREFETCHED: Mutex<Option<(String, Slot)>> = Mutex::new(None);
+static PREFETCHED: Mutex<Option<Prefetched>> = Mutex::new(None);
+
+struct Prefetched {
+    scene: String,
+    full: Option<Slot>,
+    countdown: Option<Slot>,
+}
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
@@ -60,25 +69,31 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 /// player calls it when it starts loading the scene, so the decode overlaps with the scene's own load. Asking for the
 /// scene's audio later uses this take; any other scene decodes its own.
 pub fn prefetch(dir: &GameDir, scene: &str) {
-    let slot = spawn_take(dir, scene);
-    *lock(&PREFETCHED) = Some((scene.to_owned(), slot));
+    *lock(&PREFETCHED) = Some(Prefetched {
+        scene: scene.to_owned(),
+        full: Some(spawn_take(dir, scene, false)),
+        countdown: Some(spawn_take(dir, scene, true)),
+    });
 }
 
 /// The prefetched take of `scene`, if the last prefetch was for it by the same name.
-fn claim_prefetched(scene: &str) -> Option<Slot> {
+fn claim_prefetched(scene: &str, countdown: bool) -> Option<Slot> {
     let mut prefetched = lock(&PREFETCHED);
-    let (name, _) = prefetched.as_ref()?;
-    if name != scene {
+    let entry = prefetched.as_mut()?;
+    if entry.scene != scene {
         return None;
     }
-    prefetched.take().map(|(_, slot)| slot)
+    match countdown {
+        true => entry.countdown.take(),
+        false => entry.full.take(),
+    }
 }
 
-fn spawn_take(dir: &GameDir, scene: &str) -> Slot {
+fn spawn_take(dir: &GameDir, scene: &str, countdown: bool) -> Slot {
     let slot: Slot = Arc::default();
     let (dir, name, out) = (dir.clone(), scene.to_owned(), slot.clone());
     let spawned = std::thread::Builder::new().name("nis-audio".into()).spawn(move || {
-        let take = load(&dir, &name);
+        let take = load(&dir, &name, countdown);
         *lock(&out) = Some(take);
     });
     if let Err(error) = spawned {
@@ -117,9 +132,9 @@ impl NisAudio {
     }
 
     /// Starts reading the take of `scene` from the install: the prefetched one when there is one, else a new thread's.
-    fn begin(&mut self, dir: &GameDir, scene: &str) {
+    fn begin(&mut self, dir: &GameDir, scene: &str, countdown: bool) {
         self.stop();
-        let slot = claim_prefetched(scene).unwrap_or_else(|| spawn_take(dir, scene));
+        let slot = claim_prefetched(scene, countdown).unwrap_or_else(|| spawn_take(dir, scene, countdown));
         self.pending = Some((scene.to_owned(), slot));
     }
 
@@ -149,9 +164,13 @@ fn tables(dir: &GameDir) -> Result<Arc<Tables>, String> {
 }
 
 /// Read the take of `scene` from the install. `Ok(None)` when the scene has no stream.
-fn load(dir: &GameDir, scene: &str) -> Take {
+fn load(dir: &GameDir, scene: &str, countdown: bool) -> Take {
     let tables = tables(dir)?;
-    let Some(take) = nis_take(&tables.index, &tables.sentences, scene) else { return Ok(None) };
+    let take = match countdown {
+        true => nfsmw_data::sound::nis_countdown_take(&tables.index, &tables.sentences, scene),
+        false => nis_take(&tables.index, &tables.sentences, scene),
+    };
+    let Some(take) = take else { return Ok(None) };
     let path = dir.resolve(STREAM).ok_or("NISAudio.big missing")?;
     let file = FileSource::open(path).map_err(|e| e.to_string())?;
     let decoded = tables.index.banks()[take.bank].decode(&file, take.take).map_err(|e| e.to_string())?;
@@ -161,14 +180,24 @@ fn load(dir: &GameDir, scene: &str) -> Take {
 impl Audio {
     /// Follow the NIS player's request. A changed request stops the voice, and a scene starts decoding its take, which
     /// plays on the first update after it is ready.
-    pub(super) fn update_nis(&mut self, wanted: Option<&str>) {
+    pub(super) fn update_nis(&mut self, wanted: Option<&NisAudioRequest>) {
         self.play_ready_nis_take();
         if !self.nis.requested.set(wanted) {
             return;
         }
+        self.trace.record(super::trace::Record {
+            event: "nis_request",
+            detail: wanted.and_then(|request| request.scene.as_deref()).unwrap_or("stop"),
+            params: &[
+                i32::from(wanted.is_some_and(|request| request.countdown)),
+                wanted.map_or(0, |request| request.serial as i32),
+            ],
+            ..Default::default()
+        });
         self.nis.stop();
-        let Some(scene) = wanted else { return };
-        self.nis.begin(&self.dir, scene);
+        let Some(request) = wanted else { return };
+        let Some(scene) = request.scene.as_deref() else { return };
+        self.nis.begin(&self.dir, scene, request.countdown);
     }
 
     /// Plays the take that has finished decoding, if one has. A scene with no take, or a take that fails to load,
@@ -187,7 +216,10 @@ impl Audio {
             }
         };
         match self.play(Group::Sfx, sound) {
-            Ok(voice) => self.nis.voice = Some(voice),
+            Ok(voice) => {
+                self.nis.voice = Some(voice);
+                self.trace.note("nis_voice_start", &scene);
+            }
             Err(error) => log::warn!("NIS audio cannot play {scene}: {error}"),
         }
     }
@@ -205,17 +237,56 @@ impl Audio {
 }
 
 #[cfg(test)]
+#[path = "nis_delivery_tests.rs"]
+mod delivery_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn a_request_changes_only_when_its_scene_does() {
+    #[ignore = "needs installed NIS audio index, sentence table and stream"]
+    fn installed_custom_race_countdown_has_its_own_audible_take() {
+        let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+        let tables = tables(&dir).unwrap();
+        let file = FileSource::open(dir.resolve(STREAM).unwrap()).unwrap();
+        for scene in ["IntroNis02", "IntroNis04"] {
+            let full = nis_take(&tables.index, &tables.sentences, scene).unwrap();
+            let count = nfsmw_data::sound::nis_countdown_take(&tables.index, &tables.sentences, scene).unwrap();
+            assert!(full.exact && count.exact);
+            assert_ne!((full.bank, full.take), (count.bank, count.take));
+            if scene == "IntroNis04" {
+                assert_eq!((full.bank, full.take), (2, 14));
+                assert_eq!((count.bank, count.take), (2, 15));
+            }
+            for (section, take) in [("complete", full), ("countdown", count)] {
+                let pcm = tables.index.banks()[take.bank].decode(&file, take.take).unwrap();
+                eprintln!(
+                    "NIS_AUDIO scene={scene} section={section} bank={} take={} seconds={:.3} channels={}",
+                    take.bank,
+                    take.take,
+                    pcm.duration_secs(),
+                    pcm.channels
+                );
+                assert!(pcm.samples.iter().any(|sample| sample.abs_diff(0) > 100));
+                assert!(pcm.duration_secs() > 0.0);
+            }
+        }
+    }
+
+    #[test]
+    fn a_request_changes_when_its_scene_section_or_serial_changes() {
         let mut requested = Requested::default();
+        let intro = NisAudioRequest { scene: Some("IntroNis05".into()), countdown: false, serial: 0 };
+        let countdown = NisAudioRequest { countdown: true, ..intro.clone() };
         assert!(!requested.set(None));
-        assert!(requested.set(Some("IntroNis05")));
-        assert_eq!(requested, Requested(Some("IntroNis05".into())));
-        assert!(!requested.set(Some("IntroNis05")));
-        assert!(requested.set(Some("EndingNis04")));
+        assert!(requested.set(Some(&intro)));
+        assert_eq!(requested, Requested(Some(intro.clone())));
+        assert!(!requested.set(Some(&intro)));
+        assert!(requested.set(Some(&countdown)), "skipping starts the countdown section of the same scene");
+        let restart = NisAudioRequest { serial: 1, ..countdown };
+        assert!(requested.set(Some(&restart)), "the same countdown must play again after Restart");
+        assert!(!requested.set(Some(&restart)), "one request still starts only once");
         assert!(requested.set(None));
         assert_eq!(requested, Requested(None));
         assert!(!requested.set(None));

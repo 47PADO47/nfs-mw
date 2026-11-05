@@ -5,7 +5,7 @@ use blackbox_collision::CollisionWorld;
 use blackbox_roads::{LaneType, NavKind, RoadNav, SegmentFilter};
 use blackbox_vehicle::performance::Performance;
 use glam::Vec3;
-use nfsmw_data::car::physics::{SurfaceTable, measured};
+use nfsmw_data::car::physics::{CarPhysics, SurfaceTable, measured};
 use nfsmw_data::pursuit::AiVehicle;
 
 use super::TrafficWorld;
@@ -30,6 +30,8 @@ pub struct RacerSpawn {
     pub id: usize,
     /// The `pvehicle` name of its car.
     pub model: String,
+    /// Per-racer hardware; shared traffic models retain their original equipment.
+    pub physics: Option<CarPhysics>,
     /// The grid slot in render space and its heading (radians from +X).
     pub spawn: Spawn,
     pub ai: AiVehicle,
@@ -74,6 +76,9 @@ impl TrafficWorld {
     /// Puts a racer on the grid. `false` when its model is not loaded or the ground or road is missing there.
     pub fn spawn_racer(&mut self, spec: &RacerSpawn, collision: &CollisionWorld, surfaces: &SurfaceTable) -> bool {
         let Some(model) = self.models.iter().find(|m| m.name.eq_ignore_ascii_case(&spec.model)) else { return false };
+        let configured =
+            spec.physics.as_ref().map(|physics| super::TrafficModel { physics: physics.clone(), ..model.clone() });
+        let model = configured.as_ref().unwrap_or(model);
         let physics_at = Vec3::from(space::to_physics(spec.spawn.position));
         let dir = Vec3::from(space::to_physics(Vec3::new(spec.spawn.heading.cos(), spec.spawn.heading.sin(), 0.0)));
         let mut nav = RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter::default());
@@ -83,8 +88,8 @@ impl TrafficWorld {
         }
         nav.half_width = model.physics.spec.dimension.x;
         nav.enable_trail(&self.network);
-        // Measured once per distinct car spec: every race has the same cars on its grids again and again.
-        let own = measured::performance_of_spec(&model.physics.spec, model.physics.tire_integration);
+        // Action planning uses the native estimate; a physical launch trial includes delays absent from that curve.
+        let own = measured::ai_performance_of_spec(&model.physics.spec, model.physics.tire_integration);
         let mut state = RacerState::new(spec.id, own, spec.ai, spec.player, spec.bias, spec.base_skill, spec.speed);
         state.held = spec.held;
         let start = Start { stagger: spec.id as u32 % 8, speed: spec.speed, cruise: Cruise::default(), patrol: false };
@@ -137,6 +142,16 @@ impl TrafficWorld {
     /// The racer with this index.
     pub fn racer_mut(&mut self, id: usize) -> Option<&mut RacerState> {
         self.cars.iter_mut().filter_map(AiCar::racer_mut).find(|racer| racer.id == id)
+    }
+
+    /// Whether this rival currently moves by the off-world stand-in.
+    pub fn racer_is_emulated(&self, id: usize) -> bool {
+        self.cars.iter().find(|car| car.racer_id() == Some(id)).is_some_and(|car| !car.race_uses_physics())
+    }
+
+    /// Time covered by this rival's decision, only on ticks when it thinks.
+    pub fn racer_decision_interval(&self, id: usize) -> Option<f32> {
+        self.cars.iter().find(|car| car.racer_id() == Some(id))?.racer_decision_interval()
     }
 
     /// Takes the racer with this index out of the world (a racer that was knocked out).

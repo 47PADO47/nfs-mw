@@ -161,7 +161,7 @@ pub(super) fn dispatch(event: NisEvent, screen: &mut NisScreen) -> Option<Reques
         NisEvent::PlayEffect { name, position, magnitude } => {
             Some(Request::Effect(EffectRequest { name, position, magnitude }))
         }
-        NisEvent::Other(_) => None,
+        NisEvent::Car { .. } | NisEvent::Other(_) => None,
     }
 }
 

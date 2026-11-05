@@ -4,8 +4,12 @@
 //! `docs/specs/ai-racers.md`, `docs/specs/ai-racers-route.md`, `docs/specs/ai-racers-catchup.md`.
 
 mod barriers;
+#[cfg(test)]
+mod blacklist_tests;
 mod blips;
 mod card;
+mod career_car;
+mod catch_up;
 mod challenge;
 pub(in crate::scenes::world) mod chase_fade;
 mod command;
@@ -58,7 +62,7 @@ pub(in crate::scenes::world) fn is_story_race(race: &nfsmw_data::gameplay::Race)
 
 use std::collections::VecDeque;
 
-use blackbox_race::{CatchUp, Course, Race};
+use blackbox_race::{Course, Race};
 use nfsmw_career::story::{IntroStep, OutroStep};
 use nfsmw_data::gameplay::RaceType;
 
@@ -126,6 +130,8 @@ pub(super) struct RacerPlan {
     /// The `pvehicle` name of the car; `None` for the player.
     pub model: Option<String>,
     pub spawn: Spawn,
+    /// Physical grid position; racer ID zero remains the player.
+    pub grid_slot: usize,
     pub skill: f32,
     pub bias: f32,
     /// Models that were tried and failed, so a fallback is not asked for twice.
@@ -173,10 +179,11 @@ pub(super) struct RaceSession {
     pub setup: Option<start::Prepared>,
     /// The traffic count a console command had set before the race, to give back.
     pub previous_traffic: Option<usize>,
-    pub glue: Vec<CatchUp>,
+    pub glue: Vec<catch_up::Glue>,
     /// The rubber band is on (`CatchUp`).
     pub catch_up: bool,
-    pub glue_clock: f32,
+    /// Native normalized top-speed rating of the human build, for quick-race catch-up error.
+    pub player_top_speed_rating: f32,
     /// Seconds since the demo run's last jump.
     pub demo_clock: f32,
     /// The lane of the player's car in a drag race (`drag.rs`).
@@ -223,7 +230,7 @@ impl RaceSession {
     /// above None, or a stock race with `CopsInRace` enabled.
     pub fn has_police(&self) -> bool {
         let params = &self.origin.race.params;
-        let police = heat::police_of(self.options.heat, params.pursuit_race || params.cops_in_race);
+        let police = heat::police_of(self.options.heat, params.pursuit_race, params.cops_in_race);
         self.challenge.is_some() || police != heat::Police::CallOff
     }
 }

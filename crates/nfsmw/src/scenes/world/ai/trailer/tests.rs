@@ -92,10 +92,11 @@ type Pair = (CarSim, CarSim, Coupling);
 /// A tractor and a trailer behind it, hitched and rolling at `speed`.
 fn rig(ground: &dyn Ground, speed: f32) -> Pair {
     let (mut tractor, mut trailer) = (tractor(), trailer());
-    assert!(tractor.place_moving(ground, spawn(), speed));
+    // The world places a semi and its trailer as traffic (`ai/trailer.rs`).
+    assert!(tractor.place_traffic_moving(ground, spawn(), speed));
     let back = tractor.half_dimensions().z + trailer.half_dimensions().z;
     let behind = Spawn { position: spawn().position - Vec3::new(back, 0.0, 0.0), heading: 0.0 };
-    assert!(trailer.place_moving(ground, behind, speed));
+    assert!(trailer.place_traffic_moving(ground, behind, speed));
     let coupling = Coupling::new(&tractor, &trailer).unwrap();
     coupling.align(&tractor, &mut trailer);
     (tractor, trailer, coupling)
