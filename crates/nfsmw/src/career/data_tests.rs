@@ -303,3 +303,36 @@ fn a_race_has_the_event_it_stores_or_the_one_its_name_gives() {
         assert!(race_has_event(race, &race_event_id(race)));
     }
 }
+
+#[test]
+#[ignore = "needs installed Blacklist race collections"]
+fn installed_blacklist_event_identity_matches_referenced_collections() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR")).unwrap();
+    let gameplay = gameplay::load(&dir).unwrap();
+    let data = CareerData::from_parts(gameplay.clone(), &[], None, None);
+    let mut mismatches = Vec::new();
+    for source in gameplay.bins.iter().filter(|bin| (1..=15).contains(&bin.number)) {
+        let converted = data.bins.iter().find(|bin| i32::from(bin.number) == source.number).unwrap();
+        for (keys, events) in [(&source.world_races, &converted.races), (&source.boss_races, &converted.rival_events)] {
+            assert_eq!(keys.len(), events.len());
+            for (key, event) in keys.iter().zip(events) {
+                let race = gameplay.races.iter().find(|race| race.key == *key).unwrap();
+                if *event != race_event_id(race) {
+                    mismatches.push((source.number, race.name.clone(), event.clone(), race_event_id(race)));
+                }
+            }
+        }
+    }
+    assert!(mismatches.is_empty(), "Blacklist selection loses collection identity: {mismatches:?}");
+}
+
+#[test]
+fn a_reused_route_keeps_its_own_event_in_the_blacklist() {
+    let original = Race { event: Some("2.2.1".into()), ..race(1, "race_bin_02/2_2_1_sprint") };
+    let reused = Race { event: Some("2.2.1.r".into()), ..race(2, "race_bin_01/2_2_1_r_sprint") };
+    let gameplay =
+        GameplayData { races: vec![original, reused], bins: vec![bin(1, vec![2], vec![1])], ..Default::default() };
+    let converted = CareerData::from_parts(gameplay, &[], None, None);
+    assert_eq!(converted.bins[0].races, ["2.2.1.r"]);
+    assert_eq!(converted.bins[0].rival_events, ["2.2.1"]);
+}

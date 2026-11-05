@@ -6,7 +6,7 @@ use super::QuitTo;
 /// chased, `docs/specs/coop-career.md` section 3.2).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PauseCtx {
-    /// The original tuning entry: absent in modes that exclude it, otherwise grey until a path is available.
+    /// Absent in unsupported modes. Stock cars still open the page with locked categories.
     pub tuning: Option<bool>,
     /// Absent outside eligible career free roam; false displays the unavailable action.
     pub safe_house: Option<bool>,

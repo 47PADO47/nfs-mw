@@ -170,12 +170,7 @@ fn blacklist_bin(gameplay: &GameplayData, bin: &gameplay::Bin) -> Option<BinDef>
 
 /// The event ids of the races with these collection keys, in order. Keys with no race are skipped.
 fn event_ids(gameplay: &GameplayData, keys: &[u32]) -> Vec<String> {
-    keys.iter().filter_map(|key| race_name(gameplay, *key)).map(event_id).collect()
-}
-
-/// The data name of the race with this collection key.
-fn race_name(gameplay: &GameplayData, key: u32) -> Option<&str> {
-    gameplay.races.iter().find(|race| race.key == key).map(|race| race.name.as_str())
+    keys.iter().filter_map(|key| gameplay.races.iter().find(|race| race.key == *key)).map(race_event_id).collect()
 }
 
 /// The leaf name of the final race, `race_bin_01/epic_pursuit` (event `1.8.1`).

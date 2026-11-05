@@ -7,7 +7,42 @@ use nfsmw_data::car::physics::tuning::TuningCategory;
 use super::WorldScene;
 use crate::garage::Selection;
 
+#[cfg(test)]
+#[path = "pause_tuning_tests.rs"]
+mod tests;
+
 impl WorldScene {
+    pub(in crate::scenes::world) fn begin_pause_tuning(&mut self, _: &mut dyn RenderBackend) -> Result<()> {
+        ensure!(self.career.garage.is_none(), "A garage session is already open");
+        ensure!(self.garage_tuning_available().is_some(), "Tuning is unavailable in this mode");
+        let baseline = self.garage.applied.clone();
+        self.discover_garage_parts(&baseline.car)?;
+        let career_drive = self.race.as_ref().is_none_or(|race| {
+            race.options.career
+                && race.origin.race.story.player_car_type.is_none()
+                && !race.origin.race.story.special_setup
+        });
+        let handle = self
+            .career
+            .handle
+            .with(|career| {
+                let car = career.stable.car_by_handle(career.settings.car_handle)?;
+                let entry = self.garage.cars.iter().find(|entry| entry.folder == baseline.car)?;
+                (career_drive
+                    && car.is_owned()
+                    && car.vehicle_key == blackbox_attrib::vlt_hash(&entry.physics_name.to_ascii_lowercase()))
+                .then_some(career.settings.car_handle)
+            })
+            .flatten();
+        self.career.garage = Some(super::session::ShopSession { baseline, handle, yaw: 2.4 });
+        self.garage.reset_draft();
+        self.garage.shop = handle.is_some();
+        self.garage.lock_car = true;
+        self.garage.backroom = false;
+        self.refresh_garage_quote(&self.garage.applied.clone());
+        Ok(())
+    }
+
     pub(in crate::scenes::world) fn garage_tuning_available(&self) -> Option<bool> {
         if self.players.is_empty() || self.split_on() {
             return None;
@@ -37,7 +72,7 @@ impl WorldScene {
             self.career.garage.as_ref().ok_or_else(|| anyhow::anyhow!("No tuning session is open"))?.baseline.clone();
         expected.tuning = selection.tuning;
         ensure!(expected == selection, "Performance tuning cannot purchase parts or change cars");
-        if self.career.handle.is_active() {
+        if self.career.garage.as_ref().is_some_and(|session| session.handle.is_some()) {
             return self.confirm_garage_session(renderer, selection);
         }
         self.apply_garage_selection(renderer, selection)?;

@@ -18,12 +18,15 @@ impl Frontend {
             return;
         }
         let available = host.scene.tuning_available();
-        if available != Some(true) {
+        if available.is_none() {
             log::warn!("Performance Tuning requested but the scene reports {available:?}");
             self.tuning_failed(host, env);
             return;
         }
-        let Some(renderer) = host.renderer.as_mut() else { return };
+        let Some(renderer) = host.renderer.as_mut() else {
+            self.tuning_failed(host, env);
+            return;
+        };
         if let Err(error) = host.scene.begin_tuning(renderer.as_mut()) {
             // The player reads a summary; `garage_error` logs the error chain.
             self.garage_error(host, error);

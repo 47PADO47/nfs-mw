@@ -34,7 +34,7 @@ impl Scene for WorldScene {
         self.begin_garage_session(renderer)
     }
     fn begin_tuning(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
-        self.begin_garage_session(renderer)
+        self.begin_pause_tuning(renderer)
     }
     fn tuning_available(&self) -> Option<bool> {
         self.garage_tuning_available()
@@ -73,7 +73,7 @@ impl Scene for WorldScene {
         true
     }
     fn title(&self) -> String {
-        format!("nfsmw â€” {}", self.track)
+        format!("nfsmw — {}", self.track)
     }
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         renderer.set_colour_treatment(self.colour_treatment.as_ref(), self.gain_map.as_ref());
@@ -415,14 +415,7 @@ impl Scene for WorldScene {
         self.start_at_point(point)
     }
     fn start_career_event(&mut self, event: &str) -> bool {
-        let options = super::race::RaceOptions { career: true, ..Default::default() };
-        match self.start_race(event, options) {
-            Ok(_) => true,
-            Err(e) => {
-                log::warn!("career: cannot start event {event}: {e}");
-                false
-            }
-        }
+        self.queue_career_event(event)
     }
     fn add_player_nitrous(&mut self, amount: f32) -> bool {
         self.add_player_nitrous_to(amount)

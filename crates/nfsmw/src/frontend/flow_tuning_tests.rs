@@ -19,6 +19,7 @@ struct Tunable {
     available: Arc<AtomicBool>,
     begin_fails: bool,
     cancelled: Arc<AtomicUsize>,
+    race: bool,
 }
 
 impl Scene for Tunable {
@@ -34,6 +35,9 @@ impl Scene for Tunable {
     }
     fn tuning_available(&self) -> Option<bool> {
         Some(self.available.load(Ordering::Relaxed))
+    }
+    fn race_active(&self) -> bool {
+        self.race
     }
     fn begin_tuning(&mut self, _: &mut dyn blackbox_gfx::RenderBackend) -> anyhow::Result<()> {
         if self.begin_fails {
@@ -52,6 +56,7 @@ fn frames(fe: &mut Frontend, host: &mut Host, env: &mut Env, mask: u32, seconds:
     for _ in 0..(seconds / FRAME).ceil() as usize {
         let commands = fe.screens.update(FRAME, mask, env);
         fe.apply(commands, host, env);
+        fe.garage_requests(host, env, &mut crate::garage::Overlay::default());
     }
 }
 
@@ -66,7 +71,7 @@ fn ui060_refused_tuning_returns_a_usable_pause_menu() {
     let mut rig = install_rig().expect("installed menus");
     let available = Arc::new(AtomicBool::new(true));
     let cancelled = Arc::new(AtomicUsize::new(0));
-    let scene = Tunable { available: available.clone(), begin_fails: false, cancelled };
+    let scene = Tunable { available: available.clone(), begin_fails: true, cancelled, race: false };
     rig.with(|fe, host, env| {
         assert!(fe.replace_scene(host, Box::new(scene), false));
         fe.pause(host, env);
@@ -92,7 +97,12 @@ fn ui060_refused_tuning_returns_a_usable_pause_menu() {
 fn ui060_a_garage_session_without_screens_is_released_before_tuning() {
     let mut rig = install_rig().expect("installed menus");
     let cancelled = Arc::new(AtomicUsize::new(0));
-    let scene = Tunable { available: Arc::new(AtomicBool::new(true)), begin_fails: true, cancelled: cancelled.clone() };
+    let scene = Tunable {
+        available: Arc::new(AtomicBool::new(true)),
+        begin_fails: true,
+        cancelled: cancelled.clone(),
+        race: false,
+    };
     rig.with(|fe, host, env| {
         assert!(fe.replace_scene(host, Box::new(scene), false));
         fe.pause(host, env);
@@ -115,4 +125,46 @@ fn ui060_a_garage_session_is_detached_once_no_screen_shares_it() {
     assert!(!ui.is_detached());
     drop(page);
     assert!(ui.is_detached());
+}
+
+#[test]
+#[ignore = "requires installed pause package; set NFSMW_GAME_DIR"]
+fn installed_race_play_path_stock_tuning_opens_and_returns_to_pause() {
+    let mut rig = install_rig().expect("installed menus");
+    let scene = Tunable {
+        available: Arc::new(AtomicBool::new(false)),
+        begin_fails: false,
+        cancelled: Arc::new(AtomicUsize::new(0)),
+        race: true,
+    };
+    rig.with(|fe, host, env| {
+        assert!(fe.replace_scene(host, Box::new(scene), false));
+        fe.pause(host, env);
+        frames(fe, host, env, 0, 1.5);
+        let caption = crate::i18n::game_or_error(0x6A36_72A2);
+        let selected = |fe: &Frontend| {
+            fe.screens.trees().iter().any(|tree| {
+                tree.nodes.iter().any(|node| {
+                    node.name_hash == crate::frontend::ids::ICON_TITLE && node.text.as_deref() == Some(&caption)
+                })
+            })
+        };
+        for _ in 0..12 {
+            if selected(fe) {
+                break;
+            }
+            press(fe, host, env, pad::RIGHT);
+        }
+        assert!(selected(fe), "the test must select Performance Tuning");
+        press(fe, host, env, pad::ACCEPT);
+        assert_eq!(
+            fe.screens.top(),
+            Some(crate::frontend::garage_ui::Page::Tuning.package()),
+            "a stock car must open the tuning page with unavailable categories disabled"
+        );
+        press(fe, host, env, pad::BACK);
+        assert_eq!(fe.screens.top(), Some(screen::PAUSE_MENU));
+        press(fe, host, env, pad::BACK);
+        assert_ne!(fe.stage, Stage::Paused, "an unavailable stock-car tuning entry must not disable Back");
+    });
 }
