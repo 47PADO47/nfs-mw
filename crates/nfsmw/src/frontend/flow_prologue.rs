@@ -71,7 +71,7 @@ impl Frontend {
         self.origin = QuitTo::Career;
         self.quick_race = Some(event.to_owned());
         self.race_options = Some(RaceOptions { career: true, ..RaceOptions::default() });
-        self.quick_car = car;
+        self.quick_car = Some(car.unwrap_or_else(|| self.profile_car()));
         self.start_free_roam(LoadingScreen::Tips, host, env);
     }
 

@@ -10,8 +10,10 @@ use blackbox_feng::ids::*;
 use super::aems::{EffectModule, EffectSampler};
 use super::{Audio, Group};
 
+mod photo;
 #[cfg(test)]
 mod tests;
+pub use photo::{request_photo_finish, request_photo_transition};
 
 const LAST_COMMON_BUTTON: u32 = PAD_BUTTON0 + 5;
 
@@ -89,7 +91,7 @@ fn target(id: i32) -> (&'static str, &'static str, i32) {
 
 struct Running {
     module: EffectModule,
-    words: [i32; 4],
+    words: Vec<i32>,
     age: f32,
     released: bool,
     group: Group,
@@ -148,7 +150,7 @@ impl MenuPlayer {
                     logical_ms: audio.trace.now_ms(),
                     ..Default::default()
                 });
-                self.active.push(Running { module, words, age: 0.0, released: false, group })
+                self.active.push(Running { module, words: words.to_vec(), age: 0.0, released: false, group })
             }
             Err(error) => {
                 audio.trace.record(super::trace::Record {
@@ -186,6 +188,14 @@ impl MenuPlayer {
     }
 
     pub(super) fn service(&mut self, audio: &mut Audio, dt: f32) {
+        if photo::take_transition() {
+            photo::start_transition(audio);
+        }
+        if photo::take()
+            && let Err(error) = self.start_photo(audio)
+        {
+            log::warn!("photo camera sound unavailable: {error}");
+        }
         for id in take() {
             self.start(audio, id);
         }
@@ -193,5 +203,13 @@ impl MenuPlayer {
             self.start_in(audio, id, Group::Hud);
         }
         self.update(audio, dt);
+    }
+}
+
+impl Audio {
+    pub(crate) fn update_menu(&mut self, dt: f32) {
+        let mut player = std::mem::take(&mut self.menu);
+        player.service(self, dt);
+        self.menu = player;
     }
 }

@@ -1,6 +1,54 @@
 use super::*;
 
 #[test]
+fn the_play_wrapper_delivers_nis_audio_and_feedback() {
+    use crate::audio::nis::NisAudioRequest;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    struct Observed {
+        request: NisAudioRequest,
+        playing: Arc<AtomicBool>,
+    }
+    impl Scene for Observed {
+        fn title(&self) -> String {
+            String::new()
+        }
+        fn init(&mut self, _: &mut dyn RenderBackend) -> Result<()> {
+            Ok(())
+        }
+        fn update(&mut self, _: &mut dyn RenderBackend, _: &ActionState, _: f32) {}
+        fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
+            unreachable!()
+        }
+        fn nis_audio(&self) -> Option<&NisAudioRequest> {
+            Some(&self.request)
+        }
+        fn owns_soundtrack(&self) -> bool {
+            true
+        }
+        fn note_nis_audio(&mut self, playing: bool) {
+            self.playing.store(playing, Ordering::Relaxed);
+        }
+    }
+    let request = NisAudioRequest { scene: Some("IntroNis04".into()), countdown: true, serial: 0 };
+    let playing = Arc::new(AtomicBool::new(false));
+    let flag = PauseFlag::default();
+    let mut scene =
+        Pausable::new(Box::new(Observed { request: request.clone(), playing: playing.clone() }), flag.clone());
+    assert_eq!(scene.nis_audio(), Some(&request));
+    assert!(scene.owns_soundtrack());
+    scene.note_nis_audio(true);
+    assert!(playing.load(Ordering::Relaxed));
+    flag.set(true);
+    assert_eq!(scene.nis_audio(), Some(&request), "pausing retains the one-shot for mixer resume");
+    scene.conceal.set(true);
+    assert!(scene.nis_audio().is_none(), "a hidden world does not play its soundtrack");
+    assert!(!scene.owns_soundtrack());
+    scene.note_nis_audio(false);
+    assert!(!playing.load(Ordering::Relaxed));
+}
+
+#[test]
 fn a_paused_game_is_still_a_game_for_the_radio() {
     let flag = PauseFlag::default();
     let mut scene = Pausable::new(Box::new(MenuScene::default()), flag.clone());
@@ -216,4 +264,44 @@ fn paused_car_shading_change_refreshes_without_advancing_simulation() {
     assert_eq!(seen.lock().unwrap().applied, Some(CarShading::Original));
     paused.update(&mut renderer, &ActionState::default(), 1.0 / 240.0);
     assert_eq!(seen.lock().unwrap().refreshes, 1, "the paused refresh is consumed once");
+}
+
+#[test]
+fn the_paused_finish_camera_advances_and_invalidates_the_frozen_frame() {
+    use crate::app::test_backend::NullBackend;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    struct Camera(Arc<AtomicUsize>);
+    impl Scene for Camera {
+        fn title(&self) -> String {
+            String::new()
+        }
+        fn init(&mut self, _: &mut dyn RenderBackend) -> Result<()> {
+            Ok(())
+        }
+        fn update(&mut self, _: &mut dyn RenderBackend, _: &ActionState, _: f32) {
+            panic!("finish presentation must not advance physics");
+        }
+        fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
+            (flat_frame(), &[])
+        }
+        fn advance_presentation(&mut self, _: f32) -> bool {
+            self.0.fetch_add(1, Ordering::Relaxed) == 0
+        }
+        fn menu_frame(&self) -> bool {
+            true
+        }
+    }
+    let ticks = Arc::new(AtomicUsize::new(0));
+    let paused = PauseFlag::default();
+    paused.set(true);
+    let conceal = ConcealFlag::default();
+    let mut scene = Pausable::new(Box::new(Camera(ticks.clone())), paused).with_conceal(conceal.clone());
+    let mut renderer = NullBackend::new(crate::settings::test_caps::native());
+    scene.update(&mut renderer, &ActionState::default(), 1.0 / 60.0);
+    assert!(!scene.menu_frame(), "a moving finish camera must redraw the world");
+    scene.update(&mut renderer, &ActionState::default(), 1.0 / 60.0);
+    assert!(scene.menu_frame(), "the settled camera may reuse its frame");
+    conceal.set(true);
+    scene.update(&mut renderer, &ActionState::default(), 1.0 / 60.0);
+    assert_eq!(ticks.load(Ordering::Relaxed), 2, "loading must not consume finish presentation");
 }
