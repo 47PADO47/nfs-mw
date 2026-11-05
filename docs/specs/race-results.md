@@ -38,6 +38,11 @@ column is `Speed`, the sum of the racer's trap speeds. The player's name is the 
 profile that is loaded but not played), `player` when none is loaded **[ours]**; the opponents' names are
 [race-names](../provenance/race-names.md).
 
+Sprint exception: unfinished non-eliminated AI opponents receive projected result
+times when the player's finish ends the race. These are report timers, not proof
+that those cars crossed the finish. See
+[race-reference-followup](race-reference-followup.md#sprint-opponent-result-times).
+
 **Statistics** of the racer shown, a label on the left and the value on the right:
 
 | Race | Rows |

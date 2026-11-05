@@ -52,8 +52,9 @@ collections that share each set:
 | `RBTrailer` | none | `SuspensionTrailer` | `default` | trailers (7) |
 | `RBVehicle` | `SimpleChopper` | none | `default` | helicopters |
 
-The input behaviour is `PInput` for every collection [verified]; a player's car gets `InputPlayer` at spawn.
-This is a **permanent** model choice, not a distance one. The cheaper models [decomp]:
+These are stored behavior names. The PC selector overrides suspension to Simple for racer driver class 3,
+and input to `InputPlayer` for a human **[exe]** ([race-play-path provenance](../provenance/race-play-path-parity.md)).
+The spawn-time choice is independent of distance. The cheaper models [decomp]:
 
 - **Traffic engine:** no clutch slip model, no limiter logic, no nitrous, no induction. Engine speed chases
   `redline * throttle`; torque comes from the torque curve (with an engine-braking curve when off the
@@ -71,10 +72,9 @@ This is a **permanent** model choice, not a distance one. The cheaper models [de
   `+15 percent` rear traction), and it skips its whole step once the chassis has been fully asleep for 3 s.
   Parts that use the catch-up cheat are inactive for cops (cheat 0).
 
-The racer chassis and engine are the player's models from [vehicle-suspension-tires.md](vehicle-suspension-tires.md),
-[vehicle-engine-drivetrain.md](vehicle-engine-drivetrain.md) and [vehicle-steering-assists-aero.md](vehicle-steering-assists-aero.md);
-the AI differs only by using the AI steering path ([ai-driver-control.md](ai-driver-control.md) section 4.1) and
-not the human input shaping.
+The racer engine shares the player's engine contract in [vehicle-engine-drivetrain.md](vehicle-engine-drivetrain.md).
+The PC suspension override and AI steering path ([ai-driver-control.md](ai-driver-control.md) section 4.1)
+are separate from human input shaping and the player's racer suspension.
 
 ## 3. Physics modes and the simple (emulated) physics
 

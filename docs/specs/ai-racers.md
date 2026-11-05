@@ -27,6 +27,8 @@ Evidence tags as in [docs/README.md](../README.md#evidence-tags). Sources: the d
 - **The rewrite's pick** when the character names no usable car: a stock car of the install in a fixed order that
   starts from the race's hash, so that the same race gives the same cars **[unconfirmed]**. Cars named by
   `PresetRide` resolve through the front-end preset data when the car is installed; otherwise the pick above is used.
+- Ordinary quick-race computer opponents receive maximum ordinary performance hardware. Model choice and hardware
+  are separate; humans retain their selected build. See [race-play-path-parity.md](race-play-path-parity.md).
 - **The opponent's name** is fixed in a career race when the data fixes one (a Blacklist rival, the prologue's opponents,
   [racer-names.md](racer-names.md)); every other racer's is drawn from the language table's `RACERNAME_000` to `RACERNAME_149`
   while no other racer of the race has it, as the original does **[exe]** ([provenance/race-names.md](../provenance/race-names.md));
@@ -34,9 +36,13 @@ Evidence tags as in [docs/README.md](../README.md#evidence-tags). Sources: the d
 - **Performance matching.** An opponent's top speed, grip and acceleration are limited to the player car's own,
   scaled by the character's `MinimumAIPerformance` ([ai-driver-speed-skill.md](ai-driver-speed-skill.md) section 2):
   0 means always matched down to the weakest player rating, 1 means no matching **[decomp]**. The rewrite uses the
-  cop matching of `ai/cop.rs` (`matched_limits`) with the bias taken from `MinimumAIPerformance`.
+  cop matching of `ai/cop.rs` (`matched_limits`) with career bias from `MinimumAIPerformance`; quick-race bias is zero.
 
 ## 3. Skill
+
+Action curves: both the opponent and the player's matching performance use the
+analytical estimate, not a physical launch trial. See
+[race-reference-followup](race-reference-followup.md#racer-action-performance).
 
 `base_skill` ([ai-driver-speed-skill.md](ai-driver-speed-skill.md) section 8.1) **[decomp]**:
 

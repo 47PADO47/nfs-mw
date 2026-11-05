@@ -274,11 +274,20 @@ CRC. [decomp] The install's `SOUND/STREAMS/NISAudio.csi` holds the same four int
 | `NIS_Select_Blacklist` | `0x3B39` | track, section, blacklist (a bit flag, 19 values) |
 | `SoundFX_Select` | `0x2052` | sound type, sound parameter (used by moments and effects) |
 
-The mapping from these parameters to one stream in the `.big` is inside the CSIS library and the `.evt` table. It is
-not in the CC0 decomp outside the generated headers. Which stream a parameter set picks is **[unconfirmed – needs
-Ghidra]**: the `EAXSound` CSIS runtime and the `.evt` reader.
+The mapping from these parameters to one stream in the `.big` is inside the CSIS library and the `.evt` table.
+The start mapping is now verified by native sample requests (section 7.5).
+General CSIS interpretation and the blacklist/end selection policies retain
+their separate unverified limits.
 
 ### 7.5 When the audio starts
+
+**[verified, PC runtime follow-up]** A normal `IntroNis06` queues speech event
+`0x4000` with scene mask 32, track mask 8192 and section 1. At countdown it
+queues the same event with section 4. The sample requests resolve to the
+installed `0x4023` phrase bank, takes 18 and 19. Its request parameter order is
+scene (1), track (2), section (3). This is the 32-take bank, not the 34-take
+arrest/end bank. The previous count-based start/end assignment was reversed.
+The blacklist/end selector policies retain their separate validation limits.
 
 - The stream is ready when its channel has buffered data and its queue callback has run. The stream module's update
   sets both. [decomp]
@@ -352,7 +361,7 @@ of the table it reads.
 
 ## 9. Sources
 
-- Install (read only, `D:\Need For Speed Most Wanted Black Edition`): `NIS/Scene_*_BundleB.bun` (87 files; 59 with a
+- Read-only PC reference installation: `NIS/Scene_*_BundleB.bun` (87 files; 59 with a
   `0x0003B811` sequence chunk), `SOUND/STREAMS/NISAudio.csi`, `SOUND/NISREVDATA/*.bin` (29 files). Parsed with a Python
   reader in the scratchpad. The reader reuses the repo's `tools/chunkdump.py` for the chunk walk and JDLZ, and ports the
   CARP group reader and event reader of `libs/blackbox-carp` and `libs/blackbox-sequence`. Hashes were checked against

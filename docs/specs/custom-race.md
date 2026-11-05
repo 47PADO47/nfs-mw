@@ -13,6 +13,10 @@ The Quick Race menu's second icon ("Custom Race", `MODE_ICON_QUICK_RACE`) opens 
 
 ## 1. The flow and the mode select
 
+Larger grids and configurable race police are intentional remake extensions.
+Parity work must preserve them; see
+[race-reference-followup](race-reference-followup.md#intentional-custom-options).
+
 Quick Race menu, Custom Race: `MainMenu_Sub.fng` with `Sub::CustomRace` (an icon row, title `custom race mode select`
 `0x1F203817`). Six icons, in the order of the screenshots **[verified]**: Circuit, Sprint, Drag, Tollbooth, Lap Knockout,
 Speedtrap. The decomp's `UIQRModeSelect::Setup` lists circuit, sprint (`P2P`), drag, knockout and speedtrap and gives the
@@ -97,7 +101,7 @@ screenshot of the circuit options **[verified]** and is added at the end of ever
 | Row | Values | Default | Source |
 |---|---|---|---|
 | Laps | 1 to 8, wrapping | 1 | **[decomp]** max 8; default 1 **[verified]** |
-| Opponents | 1 to 15, wrapping | 3 | **[ours]** 15: sixteen racers less the player (the 16 is ours; the original's grid is four, so 1 to 3 **[decomp]**, 4 minus the players); default 3 **[verified]** (the screenshot) |
+| Opponents | 0 to 15, wrapping | 3 | **[verified]** user OG observation permits zero; **[ours]** extended maximum 15; default 3 **[verified]** (the screenshot) |
 | Difficulty | Easy, Medium, Hard (`0x61973E01`, `0x3747F6D0`, `0x6198E2EE`) | Medium | **[decomp]** |
 | Traffic Level | None, Minimum, Moderate, Maximum (`0x8CDC3937`, `0x73C615A3`, `0xA2CCA838`, `0x61D1C5A5`) | Minimum | **[decomp]** |
 | Catch Up | On / Off | On | **[decomp]** |
@@ -122,7 +126,9 @@ did not before. The console `race start <race> heat=0..3` sets the level. The sp
 ([split-screen.md](split-screen.md)).
 
 **A race of sixteen [ours].** A race holds at most `MAX_RACERS` (16) racers, the player included, so 15 opponents at most. The
-grid (`race/setup.rs` `grid_slot`) keeps two columns 3.5 m apart and a row 7.5 m behind the last, so 16 racers take eight rows
+ordinary custom grid varies the player's physical slot while keeping racer ID zero as the human. Scripted career starts and
+authored forced positions keep their placement. See [race-play-path-parity.md](race-play-path-parity.md) for evidence limits.
+The grid (`race/grid.rs` `grid_slot`) keeps two columns 3.5 m apart and a row 7.5 m behind the last, so 16 racers take eight rows
 and reach 52.5 m behind the start line; every slot is behind the line and no two overlap (a unit test). A racer whose slot has no
 road under it is left off the grid and logged (`race: X could not be put on the grid`). The names come from the install's
 `RACERNAME` pool (150 names), so 15 names never repeat. The cars of a racer whose character names none come from the stock pool

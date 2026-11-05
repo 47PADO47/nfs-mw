@@ -32,8 +32,10 @@ converted from map to physics space.
   2,106, 55, 3 and 43 missing (`race_routes`, a real-install test). The network's barrier flags are clear again
   afterwards, as before.
 - **Shortcuts in the rewrite [ours].** A marker's shortcut is the road from the start of the route's nearest leg
-  through the marker to the leg's end, kept when it is at most 1.25 times the leg (661 of the 971 markers of the
-  courses). Each racer rolls once per shortcut on the grid, with the chance `lerp(min, max, skill)`, from a seed of the
+  through the marker to the leg's end, kept when it is at most 1.25 times the leg. The search carries active race
+  barriers on temporary road flags, with the base leg's exemptions and accepted fallback segments retained
+  ([race-reference-followup.md](race-reference-followup.md#shortcut-barrier-context)). Each racer rolls once per
+  shortcut on the grid, with the chance `lerp(min, max, skill)`, from a seed of the
   race and the racer, and drives its own copy of the route with the legs it rolled for replaced (`race/shortcuts.rs`).
 - **Following the route [ours].** When a racer searches again (every second, at a dead end, and when it reaches a
   gate) its navigator follows its route instead of the shortest road (`ai/racer_route.rs`): from the navigator's own
@@ -58,6 +60,10 @@ The grid is checked against the road: each slot is moved to the nearest road gro
 slot with no ground is skipped.
 
 ## 4. What the car steers at
+
+Racers decide at 30 Hz, two ticks of the 60 Hz simulation, rather than the police
+decision rate. This also applies to their stand-ins; see
+[ai-simulation-lod.md](ai-simulation-lod.md) section 4. **[decomp]**
 
 The racer think is the cop think without a quarry ([ai-driver-speed-skill.md](ai-driver-speed-skill.md) and the
 `ai/cop.rs` think in the rewrite): a look-ahead point on the path to the target (30 m at rest up to 100 m at 100 m/s),
