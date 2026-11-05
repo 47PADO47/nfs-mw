@@ -207,7 +207,11 @@ wave and its per-type counts read the pursuit's contingent, and only the active-
 it is recycled. The rewrite once counted every cop car (fleeing and roadblock cars included) against the wave, so after a
 heat rise no new-type cop came until the old ones were recycled about 400 m away, and the chase often fell into cool-down
 meanwhile (`ai/pursuit_budget.rs` `in_chase`; test `pursuit::tests::heat_rise`). Engine: `blackbox_pursuit::wave::pick_needed` (the pick), `nfsmw` `Pursuit::follow_heat` (the heat sync),
-`nfsmw_data::pursuit::heat_rows` (all ten rows, loaded at chase start so every type's model exists).
+`nfsmw_data::pursuit::heat_rows` (all ten rows, loaded at chase start so every type's model exists). The models load
+on one worker in the background, the starting level's first and then the levels above it; a car's second trip (its
+performance and light textures) goes before the next car's first, and a heat change moves the new level's cars to the
+front (`ai/model_loader.rs`) **[ours]**. Queued plainly, every car's first trip ran before any car's second, so after a
+jump from heat 1 to 5 the heat 5 car came about 40 s into the chase and no cop could spawn until then.
 Helicopter records are never ground cops: `nfsmw_data::pursuit::ground_cops` drops `copheli`, and the helicopter path draws it.
 
 ### 4.1 Where a pursuit car appears (`SpawnPursuitIVehicle`)

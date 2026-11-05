@@ -81,12 +81,14 @@ impl TrafficWorld {
 
     /// Whether a wave cop may take a slot of the vehicle budget it shares with traffic and the player: a parked police
     /// vehicle's, or a free one. Active traffic is never removed for it: it waits, with traffic paused, until cars retire.
-    /// The budget is never under the reference 20, so a low traffic setting does not starve the chase **[ours]**.
+    /// The budget is never under the reference 20, so a low traffic setting does not starve the chase, and it grows by
+    /// the extra police cars the F8 limit enhancement allows **[ours]**.
     pub(super) fn vehicle_budget_has_room(&self, focus: Focus) -> bool {
         if self.parked_police() > 0 {
             return true;
         }
-        let budget = self.target.max(crate::settings::DEFAULT_TRAFFIC as usize);
+        let budget =
+            self.target.max(crate::settings::DEFAULT_TRAFFIC as usize) + self.police.extra_cop_slots() as usize;
         self.population_slots(focus) < budget
     }
 

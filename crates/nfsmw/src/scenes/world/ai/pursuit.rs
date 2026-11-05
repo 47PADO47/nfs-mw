@@ -367,8 +367,12 @@ impl TrafficWorld {
         if let Some(level) = level
             && pursuit.follow_heat(level)
         {
-            let wave: Vec<&str> = pursuit.wave().map(|w| w.0).collect();
+            let wave: Vec<String> = pursuit.wave().map(|w| w.0.to_owned()).collect();
             log::info!("pursuit: heat {level}, the wave is now {}", wave.join(", "));
+            // The new level's cars load ahead of the others still waiting (a jump of several levels finds them queued).
+            if let Some(loader) = self.model_loader.as_mut() {
+                loader.prioritize_cops(&wave);
+            }
         }
         pursuit.spawn_timer -= sim_dt;
         self.update_budget(sim_dt, focus);

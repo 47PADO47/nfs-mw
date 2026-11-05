@@ -138,7 +138,15 @@ pub struct ModelLoader {
     pending: HashSet<Request>,
     /// The finished requests not yet taken.
     ready: VecDeque<Done>,
+    /// Submitted and not handed to the worker yet, in the order they go.
+    queue: VecDeque<(Request, Job)>,
+    /// Handed to the worker and not back yet.
+    in_flight: usize,
 }
+
+/// Jobs handed to the worker at once. The rest wait in the loader's own queue, whose order the scene can change: a cop
+/// car's second trip goes first, and a chase moves the cars of its new heat ahead ([`ModelLoader::prioritize_cops`]).
+const IN_FLIGHT: usize = 1;
 
 impl ModelLoader {
     /// Starts the worker, which reads the install at `dir`.
@@ -156,24 +164,78 @@ impl ModelLoader {
                 None
             }
         };
-        Self { jobs, results, pending: HashSet::new(), ready: VecDeque::new() }
+        Self { jobs, results, pending: HashSet::new(), ready: VecDeque::new(), queue: VecDeque::new(), in_flight: 0 }
     }
 
-    /// Asks the worker for `request`, unless it is pending already.
+    /// Asks the worker for `request`, unless it is pending already. A cop car's second trip (its extras) goes ahead of
+    /// the waiting first trips, so a car that has started finishes before the next one starts.
     pub fn submit(&mut self, request: Request, job: Job) {
         let key = request.key();
         if self.pending.contains(&key) {
             return;
         }
         self.pending.insert(key);
-        let sent = self.jobs.as_ref().is_some_and(|jobs| jobs.send((request.clone(), job)).is_ok());
-        if !sent {
-            self.ready.push_back(Done { request, result: Err("the model loader is not running".to_owned()) });
+        match job {
+            Job::CopExtras { .. } => self.queue.push_front((request, job)),
+            _ => self.queue.push_back((request, job)),
         }
+        self.dispatch();
+    }
+
+    /// Moves the waiting jobs of the cop cars `names` ahead of the other waiting jobs, keeping their order.
+    pub fn prioritize_cops(&mut self, names: &[String]) {
+        let wanted = |request: &Request| match request {
+            Request::Cop(name) => names.iter().any(|n| n.eq_ignore_ascii_case(name)),
+            _ => false,
+        };
+        let (mut first, rest): (VecDeque<_>, VecDeque<_>) =
+            self.queue.drain(..).partition(|(request, _)| wanted(request));
+        first.extend(rest);
+        self.queue = first;
+    }
+
+    /// Hands queued jobs to the worker while it has room.
+    fn dispatch(&mut self) {
+        while self.in_flight < IN_FLIGHT {
+            let Some((request, job)) = self.queue.pop_front() else { return };
+            let sent = self.jobs.as_ref().is_some_and(|jobs| jobs.send((request.clone(), job)).is_ok());
+            match sent {
+                true => self.in_flight += 1,
+                false => {
+                    self.ready.push_back(Done { request, result: Err("the model loader is not running".to_owned()) })
+                }
+            }
+        }
+    }
+
+    /// A job came back from the worker: its slot frees up. After a cop car's first trip the next job waits until the
+    /// scene has taken it and asked for the second trip (or until the next [`Self::next`]), so the car finishes first.
+    fn returned(&mut self, done: Done) {
+        self.in_flight = self.in_flight.saturating_sub(1);
+        let first_trip = matches!(done.result, Ok(Loaded::Cop(_)));
+        self.ready.push_back(done);
+        if !first_trip {
+            self.dispatch();
+        }
+    }
+
+    /// The order of the waiting cop requests, for the tests.
+    #[cfg(test)]
+    fn queued_cops(&self) -> Vec<String> {
+        self.queue
+            .iter()
+            .filter_map(|(request, _)| match request {
+                Request::Cop(name) => Some(name.clone()),
+                _ => None,
+            })
+            .collect()
     }
 
     /// The next finished request. Without `block` this does not wait; with it, this waits while requests are pending.
     pub fn next(&mut self, block: bool) -> Option<Done> {
+        if self.ready.is_empty() {
+            self.dispatch();
+        }
         self.receive();
         if block && self.ready.is_empty() && !self.pending.is_empty() {
             self.wait();
@@ -187,7 +249,7 @@ impl ModelLoader {
     fn receive(&mut self) {
         loop {
             match self.results.try_recv() {
-                Ok(done) => self.ready.push_back(done),
+                Ok(done) => self.returned(done),
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
                     self.lost();
@@ -200,7 +262,7 @@ impl ModelLoader {
     /// Waits for the worker to finish one request.
     fn wait(&mut self) {
         match self.results.recv() {
-            Ok(done) => self.ready.push_back(done),
+            Ok(done) => self.returned(done),
             Err(_) => self.lost(),
         }
     }
@@ -321,6 +383,40 @@ fn serve(mut worker: Worker, jobs: Receiver<(Request, Job)>, done: Sender<Done>)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A loader whose worker is the test: it reads the jobs sent and answers them.
+    fn loader() -> (ModelLoader, Receiver<(Request, Job)>, Sender<Done>) {
+        let (jobs, sent) = channel();
+        let (answer, results) = channel();
+        let loader = ModelLoader {
+            jobs: Some(jobs),
+            results,
+            pending: HashSet::new(),
+            ready: VecDeque::new(),
+            queue: VecDeque::new(),
+            in_flight: 0,
+        };
+        (loader, sent, answer)
+    }
+
+    fn submit_cop(loader: &mut ModelLoader, name: &str) {
+        loader.submit(Request::Cop(name.into()), Job::Cop(Lookup { vehicle: name.into(), lineage: Vec::new() }));
+    }
+
+    #[test]
+    fn the_worker_gets_one_job_at_a_time_and_a_new_heat_moves_its_cars_ahead() {
+        let (mut loader, sent, answer) = loader();
+        for name in ["copmidsize", "copghost", "copgto", "copsporthench"] {
+            submit_cop(&mut loader, name);
+        }
+        assert_eq!(sent.try_recv().unwrap().0, Request::Cop("copmidsize".into()));
+        assert!(sent.try_recv().is_err(), "one job at a time");
+        loader.prioritize_cops(&["COPSPORTHENCH".to_owned()]);
+        assert_eq!(loader.queued_cops(), ["copsporthench", "copghost", "copgto"]);
+        answer.send(Done { request: Request::Cop("copmidsize".into()), result: Err("no files".into()) }).unwrap();
+        assert!(loader.next(false).is_some());
+        assert_eq!(sent.try_recv().unwrap().0, Request::Cop("copsporthench".into()), "the new heat's car is next");
+    }
 
     #[test]
     #[ignore = "needs the game (set NFSMW_GAME_DIR)"]

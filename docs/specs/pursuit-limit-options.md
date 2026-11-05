@@ -21,6 +21,10 @@ bug fixes of [ai-pursuit-heat.md](ai-pursuit-heat.md) section 5.5; off restores 
 original's takedown bounty rules. The F8 panel shows it as the "Bounty fixes"
 checkbox below the limits.
 
+The vehicle budget police cars share with traffic and the player (never under 20) grows by the active-car limit's
+excess over the reference, so the extra cops do not wait on traffic slots. Without that the budget held a 400 % wave
+to about 13 cops on the road.
+
 The active-car override does not alter the wave's composition or the finite
 evasion/backup budget. Increasing it permits the existing heat row and support
 requests to use available room. It does not promise 64 active cops at every heat:
