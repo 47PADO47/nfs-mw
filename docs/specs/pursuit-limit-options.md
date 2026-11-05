@@ -4,9 +4,9 @@ These are remake enhancements. Reference pursuit behavior remains the default.
 The F8 Traffic panel groups them under **Police limits (enhancement)**.
 
 - `enhanced`: off by default; controls whether any of the overrides below takes effect.
-- `max_active_cops`: 8 to 64, initially 16 for the optional mode. Applies to all
+- `max_active_cops`: 8 to 256, initially 16 for the optional mode. Applies to all
   active police cars: patrols, pursuing cars, roadblocks and support together.
-- `wave_percent`: 100 to 400, initially 100. A chase that starts with it above 100
+- `wave_percent`: 100 to 2000, initially 100. A chase that starts with it above 100
   takes the heat rows' counts scaled by it, rounded, a non-zero count never below
   one: each wave car type's count (the helicopter stays one), `FullEngagementCopCount`
   (the cops to evade before the backup) and `NumPatrolCars` (the cool-down search).
@@ -27,7 +27,7 @@ to about 13 cops on the road.
 
 The active-car override does not alter the wave's composition or the finite
 evasion/backup budget. Increasing it permits the existing heat row and support
-requests to use available room. It does not promise 64 active cops at every heat:
+requests to use available room. It does not promise 256 active cops at every heat:
 the reference waves are 4, 5, 7, 8 and 10 cars at heats 1 to 5, so at 100% the
 limit binds only at heat 5 and no value above about 12 changes a chase. More cops
 come from `wave_percent`, which the active-car limit still caps.

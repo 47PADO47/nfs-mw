@@ -6,8 +6,17 @@ pub(super) fn options(ui: &mut egui::Ui, options: &mut crate::settings::PursuitO
     ui.collapsing("Police limits (enhancement)", |ui| {
         ui.checkbox(&mut options.enhanced, "Enhanced police limits");
         ui.add_enabled_ui(options.enhanced, |ui| {
-            ui.add(egui::Slider::new(&mut options.wave_percent, 100..=400).suffix("%").text("Cops per wave"));
-            ui.add(egui::Slider::new(&mut options.max_active_cops, 8..=64).text("Active police car limit"));
+            ui.add(
+                egui::Slider::new(&mut options.wave_percent, 100..=crate::settings::pursuit_options::MAX_WAVE_PERCENT)
+                    .logarithmic(true)
+                    .suffix("%")
+                    .text("Cops per wave"),
+            );
+            ui.add(
+                egui::Slider::new(&mut options.max_active_cops, 8..=crate::settings::pursuit_options::MAX_ACTIVE_COPS)
+                    .logarithmic(true)
+                    .text("Active police car limit"),
+            );
             ui.add(egui::Slider::new(&mut options.heat_cap, 0..=10).text("Maximum heat (0: event rules)"));
         });
         ui.small(

@@ -2,6 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
+/// The most police cars the enhancement allows at once, and the largest wave scale, percent: far past the original's,
+/// for testing big chases (the frame rate is the limit there).
+pub const MAX_ACTIVE_COPS: u32 = 256;
+pub const MAX_WAVE_PERCENT: u32 = 2000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PursuitOptions {
@@ -26,9 +31,9 @@ impl Default for PursuitOptions {
 impl PursuitOptions {
     pub fn sanitized(self) -> Self {
         Self {
-            max_active_cops: self.max_active_cops.clamp(8, 64),
+            max_active_cops: self.max_active_cops.clamp(8, MAX_ACTIVE_COPS),
             heat_cap: self.heat_cap.min(10),
-            wave_percent: self.wave_percent.clamp(100, 400),
+            wave_percent: self.wave_percent.clamp(100, MAX_WAVE_PERCENT),
             ..self
         }
     }
@@ -91,14 +96,14 @@ mod tests {
     fn file_values_are_bounded_without_changing_the_disabled_state() {
         let options = PursuitOptions {
             enhanced: false,
-            max_active_cops: 500,
+            max_active_cops: 5000,
             heat_cap: 99,
-            wave_percent: 900,
+            wave_percent: 90_000,
             bounty_fixes: false,
         }
         .sanitized();
-        assert_eq!(options.max_active_cops, 64);
-        assert_eq!(options.wave_percent, 400);
+        assert_eq!(options.max_active_cops, MAX_ACTIVE_COPS);
+        assert_eq!(options.wave_percent, MAX_WAVE_PERCENT);
         assert_eq!(options.heat_cap, 10);
         assert_eq!(options.active_limit(8), 8);
         assert_eq!(options.maximum_heat(), None);
