@@ -66,6 +66,13 @@ impl Residency {
             }
         })
     }
+    /// The mesh the shared sets hold for the model called `name`, uploaded with the scenery's own materials and lighting
+    /// (a roadblock's spike strip). `None` while the shared sets do not hold it.
+    pub fn shared_mesh(&self, name: &str) -> Option<blackbox_gfx::MeshHandle> {
+        let hash = blackbox_hash::bstring_hash(&name.to_ascii_uppercase());
+        self.shared.meshes.get(&hash).map(|(mesh, _, _)| *mesh)
+    }
+
     /// The hierarchy of the model called `name` with the meshes of the shared sets: the parts a run-time prop's
     /// sequence releases (a roadblock's sawhorse). `None` while the shared sets or the hierarchy are missing.
     pub fn fragment_parts(&self, name: &str) -> Option<Arc<ModelParts>> {

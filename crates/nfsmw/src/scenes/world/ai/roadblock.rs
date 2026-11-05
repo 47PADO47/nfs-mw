@@ -84,6 +84,13 @@ impl TrafficWorld {
         self.roadblocks.kit.take().map(|kit| kit.into_rigs().into()).unwrap_or_default()
     }
 
+    /// The spike strip's mesh from the shared scenery.
+    pub(in crate::scenes::world) fn set_spike_mesh(&mut self, mesh: Option<blackbox_render::MeshHandle>) {
+        if let Some(kit) = self.roadblocks.kit.as_mut() {
+            kit.set_spike_mesh(mesh);
+        }
+    }
+
     /// The parts a sawhorse's sequence releases when it breaks (from the shared scenery).
     pub(in crate::scenes::world) fn set_sawhorse_parts(
         &mut self,

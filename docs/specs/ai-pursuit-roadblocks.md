@@ -408,7 +408,10 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
   the `genericsmackable` sequence releases the four pieces and hides the whole [headless: installed test
   `installed_sawhorse_breaks_into_its_four_pieces_when_a_car_hits_it`; the pieces' meshes are the shared sections']. Spike
   strips are drawn from the installed model, tilted to the ground normal, with the installed collision box; the tire box is the
-  original's (0.15 m along the axle, the radius in the other two axes) swept along the step. Not seen in a running game.
+  original's (0.15 m along the axle, the radius in the other two axes) swept along the step. Both props are drawn with the
+  shared scenery's own meshes (an intact sawhorse from its hierarchy's visible nodes, the strip from its shared mesh), lit
+  as the city's props are; uploaded as car rigs and drawn with the car shading they came out black. The rigs remain the
+  fallback when the shared sets lack them [ours; checked in a screenshot for the sawhorse].
   Each prop is seated by section 2.5: the nearest surface at its element point (the element carries the road's height at
   the site), its origin lifted so the bottom of its root collision box (half height less the box's pivot height) meets that
   surface, the strip's tire-test box with it. A prop with no surface under it is skipped, and props past 13 live ones are not

@@ -33,13 +33,15 @@ pub(in crate::scenes::world::ai) struct Kit {
     sawhorse_local: Vec<Instance>,
     /// The sawhorse's fragments, for its event sequence (the hierarchy of `SAWHORSE_MODEL`).
     sawhorse_parts: Option<Arc<ModelParts>>,
+    /// The spike strip's mesh as the shared scenery holds it.
+    spike_mesh: Option<blackbox_render::MeshHandle>,
 }
 
 impl Kit {
     pub fn new(spike: Rc<CarRig>, sawhorse: Rc<CarRig>) -> Self {
         let mut sawhorse_local = Vec::new();
         sawhorse.instances(&pose(Mat4::IDENTITY), None, &BTreeSet::new(), &mut sawhorse_local);
-        Self { spike, sawhorse, sawhorse_local, sawhorse_parts: None }
+        Self { spike, sawhorse, sawhorse_local, sawhorse_parts: None, spike_mesh: None }
     }
 
     /// The two uploaded rigs, for the teardown to free.
@@ -47,14 +49,35 @@ impl Kit {
         [self.spike, self.sawhorse]
     }
 
-    /// The parts the sawhorse's sequence releases when it breaks.
+    /// The parts the sawhorse's sequence releases when it breaks. Their meshes are the shared scenery's, so an intact
+    /// sawhorse is drawn from them too, lit as the city's own sawhorses are; the rig's meshes are the fallback.
     pub fn set_sawhorse_parts(&mut self, parts: Option<Arc<ModelParts>>) {
+        if let Some(parts) = &parts {
+            let local: Vec<Instance> = parts
+                .hierarchy
+                .visible_nodes(0)
+                .into_iter()
+                .filter_map(|node| parts.meshes.get(&node).map(|&mesh| Instance::new(mesh, Mat4::IDENTITY)))
+                .collect();
+            if !local.is_empty() {
+                self.sawhorse_local = local;
+            }
+        }
         self.sawhorse_parts = parts;
     }
 
-    /// The spike strip drawn at `frame` (render space).
+    /// The spike strip's mesh from the shared scenery (`None` keeps the rig's).
+    pub fn set_spike_mesh(&mut self, mesh: Option<blackbox_render::MeshHandle>) {
+        self.spike_mesh = mesh;
+    }
+
+    /// The spike strip drawn at `frame` (render space): the shared scenery's mesh, lit as the city's props are, or the
+    /// rig's without it.
     pub fn draw_strip(&self, frame: Mat4, out: &mut Vec<Instance>) {
-        self.spike.instances(&pose(frame), None, &BTreeSet::new(), out);
+        match self.spike_mesh {
+            Some(mesh) => out.push(Instance::new(mesh, frame)),
+            None => self.spike.instances(&pose(frame), None, &BTreeSet::new(), out),
+        }
     }
 }
 
