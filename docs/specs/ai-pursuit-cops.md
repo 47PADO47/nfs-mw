@@ -252,6 +252,10 @@ two paths, an active cop that has been off screen for over 5 s and is more than 
 - Destroyed or inactive cops are removed from the pursuit each manager run (`RemoveVehicle`); a destroyed cop is counted as
   a kill only if it was still in the pursuit and stats are allowed to accumulate.
 - A cop that reaches `AIGoalFleePursuit` just drives; it is un-spawned by the patrol rule when out of view and far enough.
+  It is still a member of the chase and keeps its own sight test ("Implemented in the rewrite", Surplus). **[decomp]** In the rewrite a
+  searching or fleeing cop drives the traffic lanes; where its lane ends it takes the lane the other way from where it
+  stands and turns round, instead of standing at the dead end, which a traffic car does (`AiCar::turn_search_round`).
+  **[ours]**
 - A helicopter whose fuel runs out (field `HeliFuelTime`) leaves with `AIGoalHeliExit` and un-spawns; the next one waits
   `TimeBetweenHeliActive`.
 
@@ -333,10 +337,13 @@ Written after the code, to say what exists and what is approximated. Evidence ta
 - **Budget and backup** (`blackbox_pursuit::backup`, `ai/pursuit_budget.rs`): section 4 and the heat spec's
   `FullEngagementCopCount`, `FullEngagementRadius`, `NumCopsToTriggerBackup`, `BackupCallTimer`. A cop counts as evaded when it
   has stood within the radius (not in cool-down, not support) and later leaves the chase by any route. **[decomp]**
-- **Surplus** (`wave::adjusted_counts`, `wave::pick_surplus`, `AiCar::start_flee`): section 4. A fled cop leaves the chase
-  logic, drives the traffic lanes at the search speed with its lights out, and is recycled by the rule above. **[decomp]**
-  A cop's own line of sight is not kept per car, so "sees the player" is the chase's contact within the front range.
-  **[inferred]**
+- **Surplus** (`wave::adjusted_counts`, `wave::pick_surplus`, `AiCar::start_flee`): section 4. A fled cop stops counting
+  for the wave, drives the traffic lanes at the search speed with its lights out, and is recycled by the rule above. It
+  stays in the chase with its target, so it keeps its own sight test and a sighting by it brings the chase back, as
+  `AIVehiclePursuit::Update` has no flee check and the pursuit takes the shortest time since seen over every active
+  member (`ai/collide.rs`). **[decomp]** The original drives a fleeing cop with `AIActionRace` along the road; the
+  traffic-lane drive is the rewrite's. **[ours]**
+  The surplus pick reads each cop's own sight test (`AiCar::sees_player`).
 - **Fleet** (`ai/spawn_requests.rs`, `ai/seek_spawn.rs`, `blackbox_pursuit::{fleet, spawn_rules}`;
   [provenance](../provenance/ai-pursuit-cop-fleet.md)): the wave asks for a cop only while the active police cars (patrols,
   chase, support, roadblock, wrecks) are below the budget (the Bartender `MaxCops`, 8); queued spawn requests (console

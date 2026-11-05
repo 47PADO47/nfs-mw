@@ -155,6 +155,22 @@ impl AiCar {
         }
     }
 
+    /// A searching or fleeing cop whose traffic lane has ended takes the lane the other way from where it stands, so it
+    /// turns round instead of standing at the end of the road for good (a traffic car at a dead end wants no speed).
+    /// **[ours]** (`docs/specs/ai-pursuit-cops.md` section 5).
+    fn turn_search_round(&mut self, net: &RoadNetwork, index: &SegmentIndex) {
+        let filter = SegmentFilter { traffic: true, ..Default::default() };
+        let mut nav = RoadNav::new(NavKind::Traffic, LaneType::Traffic, filter);
+        nav.half_width = self.half.0;
+        if !nav.init_at_point(net, index, self.physics_position(), -self.physics_forward(), false) {
+            return;
+        }
+        nav.enable_trail(net);
+        self.nav = nav;
+        self.blocked = false;
+        self.target = self.nav.position;
+    }
+
     /// Switch actions without moving or replacing the physical vehicle.
     pub(in crate::scenes::world::ai) fn search_mode(
         &mut self,
@@ -198,6 +214,9 @@ impl AiCar {
 
     /// The original pursuit goal selects its lane-following traffic action after tracked sight expires.
     pub(super) fn think_search<R: RandomSource>(&mut self, ctx: &mut Ctx<'_, R>, state: &traffic::CarState) {
+        if self.nav.dead_end {
+            self.turn_search_round(ctx.net, ctx.index);
+        }
         let think = traffic::think_with_delta(
             self.think_delta,
             ctx.net,
