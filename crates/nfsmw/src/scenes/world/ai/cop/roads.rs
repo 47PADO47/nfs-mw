@@ -28,13 +28,11 @@ impl TargetRoad {
     }
 }
 
+/// Whether a cop at `start` can drive straight to `end`: the vehicle AI's drivable-to test, the barrier-only ray that skips
+/// the switched-off scenery groups (spec `ai-pursuit-formations.md` section 3). Road faces and the barriers of a group
+/// that is not in the world do not stop it.
 pub(super) fn clear(collision: &CollisionWorld, start: Vec3, end: Vec3) -> bool {
-    if start.distance_squared(end) > 200.0_f32.powi(2) {
-        return false;
-    }
-    let end = end + Vec3::Y * 0.5;
-    let hit = collision.ray_cast((start + Vec3::Y * 0.5).to_array(), end.to_array(), &RayOptions::default());
-    hit.is_none_or(|hit| Vec3::from_array(hit.point).distance_squared(end) <= 0.5)
+    crate::scenes::world::drive::sight::drivable_cast(collision)(start, end)
 }
 
 pub(super) fn at_car<R>(ctx: &Ctx<'_, R>, body: &Body, level: u32) -> Option<RoadNav> {
@@ -161,7 +159,8 @@ pub(super) fn wall(collision: &CollisionWorld, me: &Body) -> Vec2 {
     let length = (speed + 10.0).min(80.0);
     let start = me.position;
     let end = start + me.velocity / speed * length;
-    let options = RayOptions { faces: false, ..Default::default() };
+    // A switched-off scenery group is not in the world: its barriers push no cop away.
+    let options = RayOptions { faces: false, skip_groups: true, ..Default::default() };
     let Some(hit) = collision.ray_cast(start.to_array(), end.to_array(), &options) else {
         return Vec2::ZERO;
     };
