@@ -24,6 +24,7 @@ and complete Xbox 360 simulation equivalence have not been established.
 | Total active vehicle budget | 20 by default, independent F8 control | Preserved |
 | Maximum unseen range | 650 m | 1000 m |
 | Minimum offscreen grace | 4 s | 8 s |
+| Keep unseen cars and cops on the minimap | off | on |
 | Density scale | 100% | 100% |
 
 The Video menu offers Reference, Extended and Custom beside detail options. Custom retains

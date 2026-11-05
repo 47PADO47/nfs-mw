@@ -50,6 +50,7 @@ pub(super) fn show(ui: &mut egui::Ui, settings: &mut Settings, status: Option<&s
             .text("Maximum unseen range · m"),
     );
     ui.add(egui::Slider::new(&mut policy.offscreen_seconds, 4..=30).text("Offscreen grace · s"));
+    ui.checkbox(&mut policy.keep_on_minimap, "Keep unseen cars and cops while on the minimap (enhancement)");
     ui.small("Range and grace are visibility controls, not density controls. Maxing every slider is not a maximum-traffic preset.");
     *policy = policy.sanitized();
     if before != settings.traffic_policy.range_only() {

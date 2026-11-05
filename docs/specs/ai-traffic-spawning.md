@@ -382,10 +382,13 @@ valid(car, d):                      # d = the density computed this tick
 - **No maximum-distance despawn [decomp].** The removal path has no absolute distance rule. The rewrite's 350 m
   limit, its airborne limit and its idle or stuck limit have no counterpart here. Other original code may apply
   such limits elsewhere (not found).
-- **Minimap keep-alive [ours].** The rewrite removes an unseen car (by the time-and-distance rule or the stuck rule)
-  only once it has been unseen for the offscreen grace (4 s) and is outside the minimap's circle (about 400 m,
-  `blackbox_minimap::inside_radius`). Turning round then finds the cars that were behind. Cops follow the same rule
-  (`ai-pursuit-cops.md`).
+- **Offscreen grace and minimap keep-alive [ours].** The rewrite removes an unseen car (by the time-and-distance rule
+  or the stuck rule) only once it has been unseen for the offscreen grace (4 s by default). With the traffic policy's
+  `keep_on_minimap` (off in the Reference preset, on in Extended, an F8 checkbox) it must also be outside the minimap's
+  circle (about 400 m, `blackbox_minimap::inside_radius`), so turning round finds the cars that were behind. Cops
+  follow the same rule (`ai-pursuit-cops.md`). With the keep-alive on, a free-roam drive carried 1.5 to 3 more traffic
+  cars at every heat than a stock recording (5.7 / 6.4 / 6.5 / 4.6 / 3.0 cars at heats 1 to 5 there), whose traffic,
+  police and player stayed at 8 to 10 vehicles, well under the budget of 20.
 - A traffic centre also blocks a spawn within 150 m (section 6), so a car cannot normally be removed and respawned in
   the same place.
 

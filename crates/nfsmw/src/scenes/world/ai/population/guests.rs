@@ -59,6 +59,7 @@ impl TrafficWorld {
                 let mut view = Viewing::new(camera, *focus);
                 view.retire_distance = self.policy.retire_distance as f32;
                 view.grace = self.policy.offscreen_seconds as f32;
+                view.keep_on_minimap = self.policy.keep_on_minimap;
                 view
             })
             .collect()

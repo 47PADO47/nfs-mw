@@ -275,6 +275,7 @@ impl TrafficWorld {
         let mut view = Viewing::new(camera, focus).also_shown_through(shown);
         view.retire_distance = self.policy.retire_distance as f32;
         view.grace = self.policy.offscreen_seconds as f32;
+        view.keep_on_minimap = self.policy.keep_on_minimap;
         let base = cops::Base::new(camera, focus, self.pursuit.is_some());
         // A co-op guest's view keeps a traffic car as the lead's does; the police follow the lead's.
         let guests = self.guest_views();
@@ -354,8 +355,8 @@ impl Vitals {
     /// Whether the car may stay. A visible detached part keeps it. A seen car always stays (its off-screen time is
     /// 0 after this tick's update). An unseen car is removed by the original's rule (unseen longer than
     /// `limits.time` and more than `limits.distance` away), or by the rewrite's extra rules: airborne, far beyond
-    /// the selected maximum range, or stuck. Ordinary removal waits for the selected offscreen grace and, in the
-    /// rewrite, for the car to leave the minimap, so turning round finds the cars that were behind **[ours]**;
+    /// the selected maximum range, or stuck. Ordinary removal waits for the selected offscreen grace and, with
+    /// `keep_on_minimap`, for the car to leave the minimap, so turning round finds the cars behind **[ours]**;
     /// invalid/off-world recovery remains exceptional. Visible finite cars stay protected.
     fn valid(&self, view: &Viewing, limits: Limits) -> bool {
         if !self.finite {
