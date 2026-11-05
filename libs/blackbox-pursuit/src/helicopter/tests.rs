@@ -216,11 +216,12 @@ fn the_spawn_timer_counts_with_each_decision() {
 }
 
 #[test]
-fn a_far_helicopter_the_camera_looks_at_stays_in_play() {
+fn a_far_helicopter_goes_whichever_way_the_camera_looks_as_a_ground_cop_does() {
+    // Over 275 m from the camera its place may be recycled however the camera faces (`RespawnAvailable`).
     let mut heli = settled(Vec3::new(-650.0, 40.0, 0.0));
     heli.camera =
         Some(camera::Camera { position: Vec3::new(10.0, 3.0, 0.0), forward: Vec3::NEG_X, velocity: Vec3::ZERO });
-    assert!(!heli.out_of_play(&player()), "the camera looks back at it");
+    assert!(heli.out_of_play(&player()), "the camera looks back at it");
     heli.camera = Some(camera::Camera { position: Vec3::new(-10.0, 3.0, 0.0), forward: Vec3::X, velocity: Vec3::ZERO });
     assert!(heli.out_of_play(&player()), "the camera looks away from it");
 }

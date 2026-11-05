@@ -286,7 +286,8 @@ at more than 20 the skid is aborted. `collision_abort` decays by 1 per think. [d
 distance `random(0, 0.7 R) + 0.2 R` at an angle that advances by 0.125 turn per destination (the first angle is 0.125);
 its altitude = the sheet elevation at `C` (if covered, never lower than `C`'s own `y`) + 5 m. Fly to it at 70 m/s, dest
 velocity = own velocity, look at the point; **only when within 30 m horizontally choose the next**. The spec's earlier
-"1000 m" was the heat 1 and 2 value. [decomp][verified]
+"1000 m" was the heat 1 and 2 value. [decomp][verified] The PC search reads the radius from the level layout at the offset of
+`SearchModeRoadblockRadius` [PC binary].
 
 ### 6.2 `AIActionHeliExit`
 

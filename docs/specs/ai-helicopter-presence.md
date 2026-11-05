@@ -41,9 +41,10 @@ this pass removes it.
 
 The rewrite (`Helicopter::out_of_play`, used in `police/heli.rs`) keeps the spawn timer's latch (`respawn::Latch`, with
 `Helicopter::age`) and measures the 3D distance from the point the respawn rules
-use (`respawn::ahead_point`: 75 m along the target's velocity above 1 m/s, otherwise its facing). The view test is the
-rewrite's own **[ours]**: in view while the helicopter lies within 60 degrees of the camera's forward direction, wider than
-the game's view so that a helicopter on screen is never removed; with no camera nothing is in view. The old rule (600 m
+use (`respawn::ahead_point`: 75 m along the target's velocity above 1 m/s, otherwise its facing). The only view test is the
+recyclable-place rule above: the pass the PC executable runs for every cop calls that test and the spawn timer, and no
+other camera check **[binary]**, so a helicopter more than 275 m from the camera and 600 m from the point ahead goes even
+on screen. (The rewrite had added a 60-degree on-screen cone of its own.) The old rule (600 m
 from the player, horizontal, then an exit flight) sent a far searching helicopter back over the player before it left.
 
 ## 3. The lean
@@ -86,15 +87,16 @@ place, goal and fuel, its requests and the player's place sampled 20 times a sec
   most 403 m. While leaving, median 102 m.
 - **No search.** The player was never out of the helicopters' sight long enough for a cool-down while one flew, so the
   search and its radius were not seen.
-- **No extra cop to evade.** Neither helicopter moved the pursuit's counter for it (see
-  [ai-pursuit-cops.md](ai-pursuit-cops.md) section 4).
+- **No extra cop to evade.** Neither helicopter moved the pursuit's counter, which belongs to the roadblock cheat rule
+  (see [ai-pursuit-cops.md](ai-pursuit-cops.md) section 4).
 
 These agree with the rewrite's rules and tables (`police/heli.rs`, `blackbox_pursuit::helicopter`); nothing changed.
 
 ## 5. Not settled
 
-- The original's camera view test (its cone or frustum).
-- Which radius the search reads (the main spec reads it as `SearchModeRoadblockRadius`, up to 10 km); a capture with a
-  helicopter searching decides.
 - Why the four first placements failed (the rewrite places at the first opportunity once the model is loaded).
-- The meaning of the helicopter-related counter that adds one cop to evade; the rewrite does not add it.
+
+Settled since: the camera view test is the recyclable-place rule of section 2 (the PC pass calls nothing else); the
+search reads the level's `SearchModeRoadblockRadius` (the PC search reads the level layout at the offset the class layout
+gives that field, the same layout whose evade, race-win and milestone offsets the PC callers confirm); the counter that
+adds a cop to evade is the roadblock cheat rule's, not the helicopter's.

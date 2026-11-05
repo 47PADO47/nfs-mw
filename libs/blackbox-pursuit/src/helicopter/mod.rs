@@ -17,11 +17,6 @@ use flight::{Chopper, Specs};
 pub use gains::Gains;
 use sight::{Look, Sight};
 
-/// The cosine of the half angle of the cone in front of the game camera that counts as in view for the out-of-play
-/// rule (60 degrees). **[ours]**: the original's view test was not read in detail; this is wider than the game's view so
-/// that a helicopter on screen is never removed.
-pub const VIEW_COS: f32 = 0.5;
-
 /// The settings of one heat level that change how the helicopter behaves. The defaults are the game's own values.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Tuning {
@@ -162,9 +157,10 @@ impl Helicopter {
     }
 
     /// Whether the cop manager takes it out of play: its spawn timer allows it (8 s after it stood where it may not be
-    /// recycled, otherwise 10 s), its place may be recycled, it is out of the game camera's view and farther than
-    /// `despawn_distance` from the point [`AHEAD`](crate::respawn::AHEAD) along the player's travel. It is then
-    /// removed at once, with no exit flight (spec `ai-helicopter-presence.md`). Asked every pass: it keeps the latch.
+    /// recycled, otherwise 10 s), its place may be recycled (the ground cops' camera rule, the only view test the
+    /// original makes) and it is farther than `despawn_distance` from the point [`AHEAD`](crate::respawn::AHEAD) along
+    /// the player's travel. It is then removed at once, with no exit flight (spec `ai-helicopter-presence.md`). Asked
+    /// every pass: it keeps the latch.
     pub fn out_of_play(&mut self, player: &Player) -> bool {
         let available = self.respawn_available(player);
         let may_go = self.respawn.can_respawn(available, self.age);
@@ -172,10 +168,7 @@ impl Helicopter {
             return false;
         }
         let ahead = crate::respawn::ahead_point(player.position, player.velocity, player.forward);
-        if self.body.position.distance(ahead) <= self.tuning.despawn_distance {
-            return false;
-        }
-        !self.in_camera_view()
+        self.body.position.distance(ahead) > self.tuning.despawn_distance
     }
 
     /// Whether the cop manager may recycle its place ([`crate::respawn::available`]): measured from the game camera,
@@ -188,14 +181,6 @@ impl Helicopter {
         let offset = self.body.position - eye;
         let dot = forward.zip(offset.try_normalize()).map(|(forward, to)| to.dot(forward));
         crate::respawn::available(crate::respawn::COP_WINDOW, offset.x.hypot(offset.z), dot)
-    }
-
-    /// Whether the game camera looks at it: within [`VIEW_COS`] of the camera's forward. With no camera nothing is in
-    /// view.
-    fn in_camera_view(&self) -> bool {
-        let Some(camera) = self.camera else { return false };
-        let Some(to) = (self.body.position - camera.position).try_normalize() else { return true };
-        to.dot(camera.forward.normalize_or_zero()) > VIEW_COS
     }
 
     /// Starts leaving: climbs away from the player and flies out.
