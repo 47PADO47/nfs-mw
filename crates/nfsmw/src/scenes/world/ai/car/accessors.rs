@@ -177,13 +177,6 @@ impl AiCar {
         self.controls
     }
 
-    /// Puts a police car (a cop or a patrol) on the simple chassis' own tires or the racer tire; other cars keep theirs.
-    pub(in crate::scenes::world::ai) fn set_police_tires(&mut self, simple: bool) {
-        if matches!(self.role, super::Role::Cop(_)) || self.patrol {
-            self.sim.set_police_simple_tires(simple);
-        }
-    }
-
     /// An identity of the car that holds for its life (the radio keys its cops by it).
     pub(in crate::scenes::world::ai) fn render_key(&self) -> u32 {
         self.render_id

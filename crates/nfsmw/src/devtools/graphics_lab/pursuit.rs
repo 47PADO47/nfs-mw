@@ -17,9 +17,6 @@ pub(super) fn options(ui: &mut egui::Ui, options: &mut crate::settings::PursuitO
         );
         ui.checkbox(&mut options.bounty_fixes, "Bounty fixes")
             .on_hover_text("Heat 10 takedowns score, a downed helicopter pays 100,000 with its own line, and 2-minute combo windows last 10 s. Off restores the original's bugs.");
-        ui.checkbox(&mut options.simple_police_tires, "Original police tires (experimental)").on_hover_text(
-            "Police cars drive on the original's simple police tire (steady grip in a slide, very strong brakes) instead of the racer tire. Applies live.",
-        );
         ui.small("Heat 6–10 includes special-event rules. The final pursuit stays fixed at heat 6. Changes apply live; Save for startup keeps them.");
     });
 }

@@ -275,12 +275,10 @@ impl TrafficWorld {
     }
 }
 
-/// What follows a car's step in car order, stepped or not: a new wreck is counted, the light bars advance and a police
-/// car takes the tire the F8 option selects.
+/// What follows a car's step in car order, stepped or not: a new wreck is counted and the light bars advance.
 fn car_after_step(car: &mut AiCar, police: &mut Police) {
     if car.take_wreck() {
         police.record_wreck(&car.name);
     }
     car.step_lights();
-    car.set_police_tires(police.simple_police_tires());
 }

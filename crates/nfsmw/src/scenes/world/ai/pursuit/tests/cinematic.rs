@@ -40,6 +40,7 @@ fn temporary_racer_controls_steer_down_the_road_without_player_buttons() {
         forward: Vec3::Z,
         forward_speed: 15.0,
         planar_speed: 15.0,
+        speed: 15.0,
         gear_is_reverse: false,
         max_steer: 0.5,
         in_shock: false,

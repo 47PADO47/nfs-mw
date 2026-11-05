@@ -19,8 +19,11 @@ pub struct Pedals {
 /// What the throttle controller needs to know this tick.
 #[derive(Debug, Clone, Copy)]
 pub struct ThrottleInput {
-    /// Signed forward speed, m/s.
+    /// Signed forward speed, m/s: the reverse and rolling-back rules read it.
     pub speed: f32,
+    /// The length of the body's velocity, m/s: the speed error is measured on it (`GetSpeed`, see
+    /// `docs/specs/ai-driver-control-pid.md` section 2).
+    pub body_speed: f32,
     /// The speed to hold, m/s.
     pub want: f32,
     pub reversing_gear: bool,
@@ -55,7 +58,7 @@ impl ThrottlePid {
 
     pub fn step(&mut self, input: &ThrottleInput, dt: f32) -> Pedals {
         let mut handbrake = 0.0;
-        let error = input.speed - input.want;
+        let error = input.body_speed - input.want;
         match () {
             _ if input.staging => self.state = STAGING_GAS,
             _ if !input.reversing_speed && input.steering_behind => {

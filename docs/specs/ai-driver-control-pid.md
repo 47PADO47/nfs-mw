@@ -90,7 +90,7 @@ elif not reversing_speed and steering_behind: tb = 1;  handbrake = 1          # 
 else:
     reversing = gearbox in reverse
     cur = signed forward speed;  want = drive_speed
-    err = cur - want
+    err = |body velocity| - want                      # GetSpeed: the velocity's length [PC capture]
     speed_error.record(err, dT)                       # PidError(4, 4, 30)
     if want < 0.5:                 tb = -1            # stop
     elif reversing:                tb = (cur > 1) ? -1 : +1
@@ -104,7 +104,10 @@ gas = clamp(tb, 0, 1);  brake = clamp(-tb, 0, 1)
 ```
 
 Gains `P = 0.4`, `I = 0.01`, `D = 0.1`; limits for the integral +-5 and derivative +-10; max gas 1, max brake 1,
-staging gas 0.8 [decomp]. Because the formula *adds* the PID value each tick, the real controller is
+staging gas 0.8 [decomp]. The speed error is measured on the length of the body's velocity, the reference's `RigidBody::GetSpeed`: replaying
+this controller on a stock 60 Hz recording of the original's cops (speed above 20 m/s) reproduces their logged pedals
+with a mean difference of 0.001 on that speed and 0.019 on the forward speed [PC capture]. The reverse rules keep the
+signed forward speed [ours]. Because the formula *adds* the PID value each tick, the real controller is
 integrating: a speed error of 1 m/s moves `tb` by 0.4 per tick (24 per second), so the pedal swings between
 full gas and full brake within a few ticks when the error is a few m/s, and settles with a small ripple;
 `tb` never accumulates beyond +-1. The brake and gas are never both non-zero. The adaptive throttle controller

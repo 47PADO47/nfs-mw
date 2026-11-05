@@ -8,6 +8,7 @@ fn view(speed: f32) -> VehicleView {
         forward: Vec3::Z,
         forward_speed: speed,
         planar_speed: speed.abs(),
+        speed: speed.abs(),
         gear_is_reverse: false,
         max_steer: 45f32.to_radians(),
         in_shock: false,
@@ -94,6 +95,7 @@ fn throttle_pid_reaches_full_gas_then_eases_off() {
         let out = pid.step(
             &ThrottleInput {
                 speed,
+                body_speed: speed.abs(),
                 want: 30.0,
                 reversing_gear: false,
                 staging: false,

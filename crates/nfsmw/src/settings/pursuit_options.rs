@@ -15,21 +15,11 @@ pub struct PursuitOptions {
     /// The bounty bug fixes of a takedown (`docs/specs/ai-pursuit-heat.md` section 5.5). On by default, independent of
     /// the limit enhancement; off restores the original's bugs.
     pub bounty_fixes: bool,
-    /// Police cars drive on the original's simple police tire instead of the racer tire (experimental, off by default;
-    /// `docs/specs/cop-simple-chassis.md` section 4). Independent of the limit enhancement.
-    pub simple_police_tires: bool,
 }
 
 impl Default for PursuitOptions {
     fn default() -> Self {
-        Self {
-            enhanced: false,
-            max_active_cops: 16,
-            heat_cap: 0,
-            wave_percent: 100,
-            bounty_fixes: true,
-            simple_police_tires: false,
-        }
+        Self { enhanced: false, max_active_cops: 16, heat_cap: 0, wave_percent: 100, bounty_fixes: true }
     }
 }
 
@@ -105,7 +95,6 @@ mod tests {
             heat_cap: 99,
             wave_percent: 900,
             bounty_fixes: false,
-            simple_police_tires: true,
         }
         .sanitized();
         assert_eq!(options.max_active_cops, 64);
@@ -114,7 +103,6 @@ mod tests {
         assert_eq!(options.active_limit(8), 8);
         assert_eq!(options.maximum_heat(), None);
         assert!(!options.bounty_fixes, "turning the fixes off is kept");
-        assert!(options.simple_police_tires);
     }
 
     #[test]
@@ -126,6 +114,5 @@ max_active_cops = 20",
         )
         .unwrap();
         assert!(PursuitOptions::read(&old, "test").unwrap().bounty_fixes);
-        assert!(!PursuitOptions::read(&old, "test").unwrap().simple_police_tires, "the experimental tire stays off");
     }
 }

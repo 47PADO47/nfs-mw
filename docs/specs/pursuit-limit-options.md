@@ -19,9 +19,7 @@ The same table holds `bounty_fixes`, which is not a limit and does not depend on
 `enhanced`: on by default (also for an old file without it), it builds in the bounty
 bug fixes of [ai-pursuit-heat.md](ai-pursuit-heat.md) section 5.5; off restores the
 original's takedown bounty rules. The F8 panel shows it as the "Bounty fixes"
-checkbox below the limits. `simple_police_tires` (off by default, independent of `enhanced`) is an experimental
-switch: police cars drive on the original's simple police tire instead of the racer tire, applied live
-([cop-simple-chassis.md](cop-simple-chassis.md) section 4).
+checkbox below the limits.
 
 The active-car override does not alter the wave's composition or the finite
 evasion/backup budget. Increasing it permits the existing heat row and support

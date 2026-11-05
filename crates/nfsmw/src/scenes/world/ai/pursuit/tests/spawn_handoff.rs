@@ -230,6 +230,7 @@ fn a_rolling_cop_body_and_initial_drive_target_use_the_same_prepared_road_cursor
             forward: car.physics_forward(),
             forward_speed: car.speed(),
             planar_speed: car.body().velocity.length(),
+            speed: car.body().velocity.length(),
             gear_is_reverse: false,
             max_steer: std::f32::consts::FRAC_PI_4,
             in_shock: false,

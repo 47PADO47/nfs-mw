@@ -86,9 +86,11 @@ the tire's wheel speed is then its own (the gearbox reads it and does not write 
 traffic). Unit and whole-car tests cover the slip-angle ramp, the friction circle, the locked rear skid, the walking-pace
 fade, braking to a stop and a steering pulse settling at speed.
 
-**Not turned on by default.** `CarSim::configure_police` leaves `simple_tires` off; the experimental F8 option "Original
-police tires" (`PursuitOptions::simple_police_tires`, [pursuit-limit-options.md](pursuit-limit-options.md)) puts every
-police car on it live, for play comparisons. With it on, the rewrite's heat 5 cop loses
+**On for every police car.** `CarSim::configure_police` turns `simple_tires` on for cops and patrol cars (it was off
+until a play comparison on 2026-11-05; the paragraph below records why it was held back). In that heat 5 chase against
+the stock recording: sideways slides of a second or more 0 percent of cop time (stock 0, racer tire 0.16 to 0.76), cops
+behind the player at 0.86 of its speed (stock 0.86, racer tire 0.80), hard braking behind the player 6 percent (stock 4,
+racer tire 11), top speed at the 99th percentile 99.5 m/s (stock 91). With it on, the rewrite's heat 5 cop loses
 the installed catch-up checks: on the straight installed road it holds about 77 m/s in third gear where it reaches
 100 m/s on the racer tire, and falls back to the 400 m retire distance. On a flat straight at full throttle both tires
 give the same speed, gear and drive force; the loss comes from the pursuit's speed control. The simple tire puts the whole
@@ -127,7 +129,18 @@ The stock cops also slide more than the rewrite's: a body slip above 40 m/s of 0
 
 - Why the rewrite's steering adaptation drifts upward while the original's, with the same rule and constants, does not.
 - What keeps a cop on the simple tire from holding its speed in the rewrite's speed loop (section 4). In the matched
-  city run the simple-tire cop keeps pace until a contact with the player, then trails in the close action; whether
-  that is a general deficit is to be checked in play with the F8 option.
+  city run (`installed_physical_catchup`) the simple-tire cop keeps pace until a contact with the player, then trails in
+  the close action and misses the late-engagement check; in play the cops keep pace (section 4). The brake dips while
+  accelerating to the request stay deeper than the original's (median 0.27 against 0.11).
+- **Known failing acceptance checks.** With the simple tire, four installed checks fail that pass on the racer tire:
+  `installed_catchup` (both cases), `installed_physical_catchup` and `installed_route` (a cop stays in sight too long
+  for the lane-search stage). In the catch-up case the governor's request grows about 2 m/s² (the matched target's
+  acceleration table) and sits 1 to 2 m/s above the cop's speed; the cop accelerates 9 m/s² at full throttle without
+  nitrous (the original 8.5 at 70 to 80 m/s), and the throttle controller dips the brake every few ticks (0.3 to 0.9;
+  the original's cops at 70 to 80 m/s near their request: 10 percent of ticks at a median 0.08, gaining 2.6 m/s² on
+  average), so the cop holds about 76 to 80 m/s. A model car with the measured full-throttle and full-brake responses
+  and the same controller also dips 0.17 to 0.43, so the original's speed near its request must answer the pedal
+  more smoothly in a way not yet found. The rewrite's cops also burn nitrous far more often than the original's on this
+  run (506 of 2100 ticks; the stock recording shows nitrous in under 2 percent of full-throttle ticks).
 - Which chassis the original gives an AI racer; the rewrite gives racers the simple chassis' steering range with the racer
   tire, and leaves that to the race work.

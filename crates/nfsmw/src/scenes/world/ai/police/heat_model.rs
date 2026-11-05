@@ -180,11 +180,6 @@ impl Police {
         self.heat_model.pursuit_options.wave_scale()
     }
 
-    /// Police cars drive on the simple chassis' own tires (`docs/specs/cop-simple-chassis.md` section 4).
-    pub(in crate::scenes::world::ai) fn simple_police_tires(&self) -> bool {
-        self.heat_model.pursuit_options.simple_police_tires
-    }
-
     /// The bounty bug fixes are on (`docs/specs/ai-pursuit-heat.md` section 5.5).
     pub(super) fn bounty_fixes(&self) -> bool {
         self.heat_model.pursuit_options.bounty_fixes
