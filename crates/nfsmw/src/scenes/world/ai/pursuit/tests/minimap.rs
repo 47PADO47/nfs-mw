@@ -24,7 +24,7 @@ fn world_with(at: &[f32], chase: bool) -> TrafficWorld {
     }
     world.player_position = Some(Vec3::ZERO);
     if chase {
-        world.start_pursuit(1, vec![wave()], player());
+        start_with_patrols(&mut world, 1, vec![wave()], player());
     }
     world
 }

@@ -16,7 +16,7 @@ fn chase_shaped(cops: usize, shape: impl FnOnce(&mut HeatRow)) -> TrafficWorld {
     row.full_engagement_cops = 5;
     shape(&mut row);
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![row], player());
+    start_with_patrols(&mut world, 1, vec![row], player());
     world
 }
 

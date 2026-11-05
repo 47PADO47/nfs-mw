@@ -47,7 +47,7 @@ fn running() -> TrafficWorld {
     let mut world = TrafficWorld::new(cop_road());
     chasing_cop(&mut world, Vec3::new(2.0, 0.0, 20.0));
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     // Radio fixtures hold the cars still rather than running their physical AI tasks.
     // Supply their clear observation explicitly; task cadence is covered in visibility.rs.
     for car in &mut world.cars {

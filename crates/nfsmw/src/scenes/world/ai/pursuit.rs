@@ -4,6 +4,7 @@
 use std::rc::Rc;
 
 mod opening;
+mod patrol_join;
 mod placement;
 
 use opening::Opening;
@@ -245,22 +246,8 @@ impl TrafficWorld {
         let mut pursuit = Pursuit::new(self.police.patrol_heat(), rows, player);
         pursuit.set_backups(self.backup_rows.clone());
         self.pursuit = Some(pursuit);
-        let range = blackbox_pursuit::sight::ranges(self.police.patrol_heat()).0;
-        for car in &mut self.cars {
-            let near = self.player_position.is_some_and(|p| car.physics_position().distance(p) < range);
-            if !near {
-                continue;
-            }
-            let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(&car.name)) else {
-                continue;
-            };
-            if car.join_pursuit(model.car, player, &self.network, &self.index)
-                && let Some(pursuit) = self.pursuit.as_mut()
-            {
-                pursuit.joined(false);
-                self.police.ground_deployed(&car.name);
-            }
-        }
+        // The chase begins with the patrol that saw the player; the others that see it join on later runs.
+        self.join_requesting_patrol(false);
         self.arm_opening();
         for name in super::support::support_models() {
             self.request_cop(name);
@@ -371,6 +358,9 @@ impl TrafficWorld {
         self.police.set_support_busy(busy);
         let level = self.police.level();
         let cooldown = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
+        if self.pursuit.is_some() {
+            self.join_requesting_patrol(cooldown);
+        }
         let Some(pursuit) = self.pursuit.as_mut() else { return };
         if let Some(level) = level
             && pursuit.follow_heat(level)

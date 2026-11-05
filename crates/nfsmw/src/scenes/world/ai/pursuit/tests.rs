@@ -55,6 +55,7 @@ mod net_export;
 mod opening;
 mod parallel;
 mod parked_police;
+mod patrol_join;
 mod placement;
 mod recycling;
 mod roadblock;
@@ -162,6 +163,19 @@ fn wave() -> HeatRow {
 }
 
 /// The player's car as the chase sees it: the target of the wave, standing at the origin.
+/// Starts a chase in which the patrols the fixture placed within the heat's sight range of the player see it and join, one
+/// a manager run, before the test goes on: they are the chase's first cops (`patrol_join.rs`).
+fn start_with_patrols(world: &mut TrafficWorld, heat: u32, rows: Vec<HeatRow>, player: Performance) {
+    let range = blackbox_pursuit::sight::ranges(world.police.patrol_heat()).0;
+    let at = world.player_position;
+    for car in world.cars.iter_mut().filter(|car| car.is_patrol()) {
+        let near = at.is_some_and(|p| car.physics_position().distance(p) < range);
+        car.report_sight(false, near);
+    }
+    world.start_pursuit(heat, rows, player);
+    while world.join_requesting_patrol(false) {}
+}
+
 fn focus() -> Focus {
     Focus {
         position: [0.0, 0.0],

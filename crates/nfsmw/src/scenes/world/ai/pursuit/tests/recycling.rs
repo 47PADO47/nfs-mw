@@ -93,7 +93,7 @@ fn a_cop_in_a_chase_stays_while_it_is_about_to_meet_the_target() {
     let mut world = world_with_a_driving_patrol_at(100.0);
     // The player stands 150 m from the patrol, which sees it and joins, while the camera is 200 m off to the side.
     world.player_position = Some(Vec3::new(0.0, 0.0, -50.0));
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     assert!(world.cars[0].is_cop());
     let (focus, camera) = (player_at(-50.0, 0.0), camera_at(-100.0, false));
     run(&mut world, focus, &camera, 30.0);

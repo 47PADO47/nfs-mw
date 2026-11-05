@@ -14,7 +14,7 @@ fn world(phases: &[u32]) -> TrafficWorld {
         free_roam::patrol_phased(&mut world, &mut renderer, Vec3::new(2.0, 0.0, -10.0 - index as f32 * 20.0), phase);
     }
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     world
 }
 

@@ -96,7 +96,7 @@ fn missing_target_and_racing_publish_no_free_roam_snapshot_but_age_state() {
 #[test]
 fn road_observation_follows_remembered_search_target_without_reading_hidden_pose() {
     let mut world = TrafficWorld::new(straight_road(1000.0));
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     let first = focus().body.unwrap();
     free_roam::see(&mut world, true);
     let target = world.pursuit_target(Some(first));
@@ -124,7 +124,7 @@ fn the_step_shares_primary_snapshot_and_keeps_secondary_target_fallback_separate
         world.cars.last_mut().unwrap().set_entity(key);
     }
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     assert!(world.cars.iter().all(AiCar::is_cop));
     free_roam::see(&mut world, true);
     let primary = focus();
@@ -154,7 +154,7 @@ fn free_roam_steps_establish_road_history_that_continues_into_a_chase() {
     production_step(&mut world, Some(first));
     let before = world.target_road.observation().expect("normal driving must establish target road history");
     let history = tracked_hash(&world.target_road);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     assert_eq!(tracked_hash(&world.target_road), history, "pursuit entry must retain this vehicle's history");
     let moved = Body { position: first.position + Vec3::Z * 10.0, ..first };
     production_step(&mut world, Some(moved));
@@ -182,7 +182,7 @@ fn free_roam_steps_without_a_body_suppress_the_snapshot_and_keep_aging_clocks() 
 fn active_pursuit_without_an_authorized_target_does_not_track_the_hidden_actual_body() {
     let mut world = TrafficWorld::new(straight_road(1000.0));
     production_step(&mut world, focus().body);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     // No unit has sighted this target: age the native -5-second initial timer through its full grace.
     let unseen_steps = ((blackbox_pursuit::cooldown::TUNING.grace - blackbox_pursuit::cooldown::SIGHT_AT_START) / 0.25)
         .ceil() as usize
@@ -201,7 +201,7 @@ fn active_pursuit_without_an_authorized_target_does_not_track_the_hidden_actual_
 #[test]
 fn production_step_tracks_stationary_search_memory_instead_of_hidden_motion() {
     let mut world = TrafficWorld::new(straight_road(1000.0));
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     let first = Body { forward: Vec2::Y, ..focus().body.unwrap() };
     free_roam::see(&mut world, true);
     production_step(&mut world, Some(first));
@@ -221,7 +221,7 @@ fn production_step_tracks_stationary_search_memory_instead_of_hidden_motion() {
 #[test]
 fn regained_sight_drops_the_seek_cached_for_the_remembered_pose() {
     let mut world = TrafficWorld::new(straight_road(1000.0));
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     let first = Body { forward: Vec2::Y, ..focus().body.unwrap() };
     free_roam::see(&mut world, true);
     production_step(&mut world, Some(first));

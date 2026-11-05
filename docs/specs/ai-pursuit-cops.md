@@ -349,8 +349,11 @@ Written after the code, to say what exists and what is approximated. Evidence ta
 - **Reinforcement timer and wave size** (`ai/pursuit.rs`): every join (start patrols, scripted chase requests, recruited
   roadblock cars, each placed support car, the helicopter) restarts the timer through one path. A chase that starts with no
   unit (a forced or scripted start) places its first cop at once, and that cop's join starts the opening interval
-  **[ours]**: the original always has an initiating unit, so this stands in for it. The
-  patrols that see the player at the start all join at once rather than one per manager run **[ours]**. The wave is not
+  **[ours]**: the original always has an initiating unit, so this stands in for it. A patrol joins by its own sighting
+  (`pursuit/patrol_join.rs`): the chase begins with the first patrol, in car order, that saw the player at its last sight
+  test, and on each manager run (each simulation step in the rewrite) the next patrol that sees the player joins,
+  in the opening and later in the chase alike. A patrol that does not see the player stays a patrol however near it is.
+  The wave is not
   scaled to the active-car limit; support cars are left out of the wave's car count. The quarter-second pursuit task step
   of the original's timer is not modelled.
 - 911 dispatch is in ([ai-pursuit-heat](ai-pursuit-heat.md) section 5.3).

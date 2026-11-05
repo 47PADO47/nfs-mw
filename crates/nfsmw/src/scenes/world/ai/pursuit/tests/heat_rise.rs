@@ -29,7 +29,7 @@ fn setup() -> (TrafficWorld, Focus) {
         row.full_engagement_cops = 20;
         row
     };
-    world.start_pursuit(1, vec![row("copx"), row("copy")], player());
+    start_with_patrols(&mut world, 1, vec![row("copx"), row("copy")], player());
     world.pursuit.as_mut().unwrap().opening = None;
     (world, focus)
 }
