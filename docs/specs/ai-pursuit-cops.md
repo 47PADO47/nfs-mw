@@ -180,10 +180,11 @@ a cop that sees the player flees only while more than 2 cops can see the player.
 - Entering cool-down set the ETA to 0 at once (143 s, 9 s and 84 s were left at the three entries). On leaving cool-down
   with the remaining count still at the trigger, a new call started at once with the full timer of the current heat
   (120 s, 120 s, 90 s); the old countdown did not resume.
-- The helicopter's extra cop to evade (a counter the pursuit keeps) is not what it was read as: two helicopters chased
-  the player for 60 s and 90 s without it moving. It moved once, adding one to the required count, on a sighting during a
-  cool-down at heat 5 while no helicopter flew (the last had left 105 s earlier). Its condition is not known, so the
-  rewrite does not add it.
+- The extra cop to evade that was read as the helicopter's is the roadblock cheat rule's: the counter is the number of
+  roadblock cars the pursuit took in since its roadblock was added, and the recruit adds one to the required count
+  ([ai-pursuit-roadblocks](ai-pursuit-roadblocks.md) section 5) **[decomp + PC binary]**. The capture agrees: two
+  helicopters chased the player for 60 s and 90 s without it moving; it moved once, on a sighting in a cool-down at heat 5
+  with no helicopter up, which is when the cheat rule fires at once. The rewrite adds the cop with the recruit.
 
 **Spawn timer:** when a vehicle joins a pursuit the next spawn waits `TimeBetweenFirstFourSpawn` while fewer than 3 cops have
 been involved (and not in cool-down), otherwise `TimeBetweenCopSpawn`; if 3 or more cops are still needed every second join

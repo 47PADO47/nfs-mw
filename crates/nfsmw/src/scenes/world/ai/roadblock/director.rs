@@ -116,7 +116,7 @@ impl TrafficWorld {
     }
 
     /// The pursuit takes one car of the roadblock into its own list (`AIPursuit` when the roadblock reports the perp
-    /// cheating): the nearest one, once. It becomes an ordinary pursuit cop.
+    /// cheating): the nearest one, once. It becomes an ordinary pursuit cop and one more cop to evade.
     fn recruit_from_roadblock(&mut self, id: u32, key: u32) {
         let Some(pursuit) = self.pursuit.as_ref() else { return };
         let performance = pursuit.performance();
@@ -135,6 +135,7 @@ impl TrafficWorld {
         let cooldown = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
         if let Some(pursuit) = self.pursuit.as_mut() {
             pursuit.joined(cooldown);
+            pursuit.budget.add_required();
         }
         if let Some(block) = self.roadblocks.list.iter_mut().find(|block| block.id == id) {
             block.recruited += 1;

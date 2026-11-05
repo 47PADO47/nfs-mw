@@ -43,6 +43,11 @@ impl Budget {
         *self = Self::new(required, trigger);
     }
 
+    /// One more cop has to be evaded: a roadblock car the chase took in when the perp dodged round the roadblock.
+    pub fn add_required(&mut self) {
+        self.required = self.required.saturating_add(1);
+    }
+
     /// An engaged cop left the chase.
     pub fn note_evaded(&mut self, cops: u32) {
         self.evaded = self.evaded.saturating_add(cops as i32);
@@ -141,6 +146,14 @@ mod tests {
         budget.note_evaded(4);
         assert_eq!(budget.allowed(), 0, "never negative");
         assert_eq!(budget.remaining(), 1, "the readout never falls under one");
+    }
+
+    #[test]
+    fn a_recruited_roadblock_car_is_one_more_cop_to_evade() {
+        let mut budget = Budget::new(5, 2);
+        budget.note_evaded(1);
+        budget.add_required();
+        assert_eq!((budget.required(), budget.allowed()), (6, 5));
     }
 
     #[test]

@@ -167,12 +167,15 @@ fn a_target_that_stays_near_the_roadblock_makes_it_recruit_one_car() {
     let mut world = chase(5);
     build(&mut world, Cause::Console).unwrap();
     let cars = group_cars(&world);
+    let required = world.pursuit.as_ref().unwrap().budget.required();
     for _ in 0..30 {
         run(&mut world, 1.0, -150.0);
     }
     assert_eq!(group_cars(&world), cars - 1, "the roadblock gave one car to the chase");
     assert_eq!(world.roadblocks.stats().recruited, 1);
     assert_eq!(cop_count(&world), 1, "and it is an ordinary pursuit cop now");
+    let now = world.pursuit.as_ref().unwrap().budget.required();
+    assert!(now > required, "the recruit is one more cop to evade: {required} -> {now}");
 }
 
 #[test]

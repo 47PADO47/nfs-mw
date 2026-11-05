@@ -422,7 +422,7 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
   it from cars, which resets the pursuit's unseen clock. Passing
   the centre marks the roadblock dodged once (the dodged and strip counts are kept for the statistics). The cheat rule (a car
   within 500 m horizontally, the player within 300 m of the centre for 20 s, at once in cool-down) takes the nearest car into the
-  chase once. A standing roadblock that is whole and unpassed forces the follow formation, and adding one ends the current
+  chase once and adds one cop to evade (`Budget::add_required`). A standing roadblock that is whole and unpassed forces the follow formation, and adding one ends the current
   formation unless it is FOLLOW or its finisher runs. The cost to state is 500 per roadblock and 250 per prop, sawhorses included.
 - **Release and repeat [headless].** A roadblock with no live car is released and its props go with it; the lottery may then build
   another. An escape leaves roadblocks standing (their cars are retired by the cop manager's out-of-play rule: a roadblock car
