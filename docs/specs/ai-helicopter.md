@@ -114,7 +114,7 @@ in_sight = dist <= 75                                     # visual sphere radius
 if not in_sight and dist < los: in_sight = dot(heli.forward, unit(target - heli)) > 0       # in front half space
 if in_sight:
     if the main game view is in a tunnel: in_sight = false
-    else ray (heli -> target + 1 m up) against the world; a hit: in_sight = false ; no hit: last_seen_place = target
+    else ray (heli -> target + 1 m up) against the world's faces (no barriers); a hit: in_sight = false ; no hit: last_seen_place = target
 if not in_sight:
     if hidden: latched = true
     elif dist < 150 and |target - last_seen_place|^2 < 400:  return true       # grace: target near where it was last seen
@@ -433,8 +433,8 @@ Implemented in `libs/blackbox-pursuit/src/helicopter/` (sight, flight model, con
 `crates/nfsmw/src/scenes/world/ai/police.rs`: it joins from heat 4 after a 10 s wait, takes the per-level fuel and
 respawn tables of section 2.3, follows, skid-hits where the level has `SKID_HIT`, searches, exits, and shows on the
 minimap. Its `COPHELI` model is loaded with the cops and drawn at its pose (render frame rebuilt from the physics nose
-and up). Sight uses the world's ray cast (the line from the helicopter to the player, lifted 1 m, must be clear; the
-`clear` closure in `ai/police.rs`). The heli sheet's chunk parser and its lookup are in `libs/blackbox-roads/src/heli_sheet.rs`
+and up). Sight uses the world's ray cast on faces only (the line from the helicopter to the player, lifted 1 m, must be clear;
+`drive::sight::heli_clear`, passed to `ai/police.rs` as `clear`). The heli sheet's chunk parser and its lookup are in `libs/blackbox-roads/src/heli_sheet.rs`
 (section 1 of `docs/formats/pursuit-data.md`). The sheet is read from `STREAML2RA.BUN` when the track opens
 (`crates/nfsmw-data/src/world/heli_sheet.rs`, a header walk: the 532 MB file is not read whole) and is the helicopter's
 floor (`SheetFloor` in `ai/police.rs`; a flat floor when the sheet is missing). On the install the walk gives the

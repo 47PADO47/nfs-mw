@@ -7,6 +7,9 @@
 //!
 //! The drive ray ([`drivable_cast`]) is the other world line test of a cop: whether it can drive straight to the target.
 //! It tests barriers only, so road faces never block it (`docs/specs/ai-pursuit-formations.md` section 3).
+//!
+//! The helicopter's sight ([`heli_clear`]) tests faces only: a barrier, a wall the cars cannot cross, does not hide the
+//! player from the air (`docs/specs/ai-helicopter.md` section 4).
 
 use blackbox_collision::{CollisionWorld, HitKind, RayOptions};
 use glam::Vec3;
@@ -38,6 +41,18 @@ pub fn sight_cast(collision: &CollisionWorld) -> impl Fn(Vec3, Vec3) -> Option<H
         };
         Some(Hit { point: Vec3::from(hit.point), normal: Vec3::from(hit.normal), prop: None, info: Some(info) })
     }
+}
+
+/// The helicopter sight's query: faces only, no exclusion bits, and only the scenery groups that are in the world.
+fn heli_options() -> RayOptions {
+    RayOptions { barriers: false, ..sight_options() }
+}
+
+/// Whether the helicopter's line from `from` to `to` (physics space) is clear: no face of the world on it. Barriers do
+/// not block it.
+pub fn heli_clear(collision: &CollisionWorld) -> impl Fn(Vec3, Vec3) -> bool + '_ {
+    let options = heli_options();
+    move |from, to| collision.ray_cast(from.to_array(), to.to_array(), &options).is_none()
 }
 
 /// The drive ray's query: barriers only, no exclusion bits, and only the scenery groups that are in the world.
@@ -118,6 +133,16 @@ mod tests {
         let cast = sight_cast(&collision);
         assert!(cast(FRONT, BACK).is_some_and(|hit| (hit.point.z - 10.0).abs() < 1e-3), "from its front");
         assert!(cast(BACK, FRONT).is_some(), "from behind: the world query has no facing test");
+    }
+
+    #[test]
+    fn the_helicopter_sees_over_a_barrier_and_tests_faces_only() {
+        let options = heli_options();
+        assert!(options.faces && !options.barriers);
+        assert_eq!(options.exclude, 0);
+        assert!(options.skip_groups);
+        let collision = wall(0);
+        assert!(heli_clear(&collision)(FRONT, BACK), "the wall that hides the player from the cars");
     }
 
     #[test]

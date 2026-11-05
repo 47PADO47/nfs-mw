@@ -200,8 +200,7 @@ impl WorldScene {
             if drive.take_manual_resets() > 0 {
                 traffic.note_manual_reset();
             }
-            let cast = super::drive::sight::sight_cast(collision);
-            let clear = |from: glam::Vec3, to: glam::Vec3| cast(from, to).is_none();
+            let clear = super::drive::sight::heli_clear(collision);
             let drivable = super::drive::sight::drivable_cast(collision);
             traffic.note_player_height(drive.half_height());
             if self.extra.testing.lock_heat {
