@@ -9,6 +9,7 @@ fn pursuit_limit_enhancements_round_trip_through_startup_and_named_snapshot_payl
         heat_cap: 7,
         wave_percent: 150,
         bounty_fixes: false,
+        simple_police_tires: true,
     };
     let text = payload(&settings).unwrap();
     let wanted = settings.pursuit_options;

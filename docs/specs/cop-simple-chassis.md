@@ -86,7 +86,9 @@ the tire's wheel speed is then its own (the gearbox reads it and does not write 
 traffic). Unit and whole-car tests cover the slip-angle ramp, the friction circle, the locked rear skid, the walking-pace
 fade, braking to a stop and a steering pulse settling at speed.
 
-**Not turned on yet.** `CarSim::configure_police` leaves `simple_tires` off. With it on, the rewrite's heat 5 cop loses
+**Not turned on by default.** `CarSim::configure_police` leaves `simple_tires` off; the experimental F8 option "Original
+police tires" (`PursuitOptions::simple_police_tires`, [pursuit-limit-options.md](pursuit-limit-options.md)) puts every
+police car on it live, for play comparisons. With it on, the rewrite's heat 5 cop loses
 the installed catch-up checks: on the straight installed road it holds about 77 m/s in third gear where it reaches
 100 m/s on the racer tire, and falls back to the 400 m retire distance. On a flat straight at full throttle both tires
 give the same speed, gear and drive force; the loss comes from the pursuit's speed control. The simple tire puts the whole
@@ -107,12 +109,25 @@ every age) and equal to the rewrite's at the range minima. The rewrite's adaptat
 (20 Hz samples); the rewrite's cop did 2.20 times with adaptation and 1.97 with the gains held (racer tire; 1.83 with
 the simple tire as well).
 
+**Per-tick evidence (stock 60 Hz recording) [ours].** Replaying the throttle controller of
+[ai-driver-control-pid.md](ai-driver-control-pid.md) section 2 on an original cop's logged speed and request, tick by
+tick, reproduces its logged pedals (mean difference 0.001 over 371 ticks above 20 m/s): the controller is the same.
+What differs is the car's answer to the pedal. On a straight at 40 to 75 m/s the original cop decelerates about 76 m/s²
+in the tick after a brake above half (the simple tire's brake rule of section 2 gives the same order); the rewrite's cop
+on the racer tire, about 26 m/s². Full throttle gives about 11 m/s² in both. With the weaker brake the same controller
+needs longer, deeper brake dips to correct an overshoot (brake while accelerating to the request: 13 to 17 percent of
+the time at a median 0.33 to 0.43 in the rewrite, 6.6 percent at 0.11 in the original). The racer tire also lets a cop
+spin: sideways slides of a second or more take 0.14 to 0.76 percent of the rewrite's cop time, against about none in
+the original, whose tire keeps its lateral force past 12 degrees.
+
 The stock cops also slide more than the rewrite's: a body slip above 40 m/s of 0.89 degrees at the median and 3.7 at the
 90th percentile, against 0.6 and 2.4, which fits their softer tire.
 
 ## 5. Open questions
 
 - Why the rewrite's steering adaptation drifts upward while the original's, with the same rule and constants, does not.
-- What keeps a cop on the simple tire from holding its speed in the rewrite's speed loop (section 4).
+- What keeps a cop on the simple tire from holding its speed in the rewrite's speed loop (section 4). In the matched
+  city run the simple-tire cop keeps pace until a contact with the player, then trails in the close action; whether
+  that is a general deficit is to be checked in play with the F8 option.
 - Which chassis the original gives an AI racer; the rewrite gives racers the simple chassis' steering range with the racer
   tire, and leaves that to the race work.

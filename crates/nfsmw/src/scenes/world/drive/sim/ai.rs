@@ -158,11 +158,16 @@ impl CarSim {
     }
 
     /// A police car: the AI controls on the simple chassis. The simple chassis' own tires
-    /// (`docs/specs/cop-simple-chassis.md`) are not turned on yet: with them the rewrite's cops cannot hold their speed in
-    /// the pursuit's speed loop and lose the installed catch-up checks (section 4 of that spec).
+    /// (`docs/specs/cop-simple-chassis.md`) start off; the F8 option turns them on ([`Self::set_police_simple_tires`]).
     pub fn configure_police(&mut self) {
         self.configure_ai();
         self.vehicle.set_simple_tires(false);
+    }
+
+    /// Puts a police car on the simple chassis' own tires, or back on the racer tire (section 4 of
+    /// `docs/specs/cop-simple-chassis.md`).
+    pub fn set_police_simple_tires(&mut self, on: bool) {
+        self.vehicle.set_simple_tires(on);
     }
 
     /// Makes the car take its controls from a person on a computer-driven body (split screen): the player's own control
