@@ -8,15 +8,16 @@
 //! 911 report and, when the line has been said, the player's 911 timer is set to `Lifetime911` seconds and the cop lockout
 //! is cleared, so a patrol cop that sees the player starts a chase whatever the speed. The counters here follow the same
 //! rule and are fed to the speech machine as events; the machine decides and speaks, and the call starts when it answers
-//! ([`Roam911::start_call`]). A rewrite fallback raises the call itself when the speech never answers (speech off, no
-//! audio device), so the cops are not out of reach of the rule for lack of a sound card.
+//! ([`Roam911::start_call`]). A rewrite fallback raises the call itself while the speech cannot answer (speech muted, not
+//! loaded, no audio device), so the cops are not out of reach of the rule for lack of a sound card. While the speech runs
+//! there is no fallback: the original makes the call only when the report has been said.
 
 use std::collections::HashMap;
 
 /// The same object counts again only after this many seconds without contact. **[inferred]** The original counts each
 /// collision callback; the rewrite's contact is continuous while the car rests against an object.
 const SAME_OBJECT_GAP: f32 = 1.0;
-/// Seconds after the thresholds are met, with no answer from the speech, before the world raises the call itself.
+/// Seconds after the thresholds are met, with no speech to answer, before the world raises the call itself.
 /// **[inferred]** (rewrite only).
 pub const FALLBACK_AFTER: f32 = 20.0;
 /// Metres per second in a mile per hour.
@@ -101,8 +102,10 @@ pub struct Roam911 {
     timer: f32,
     /// A 911 call was made since the cops were last locked out (the speech's `DISP911_ACTIVE`).
     reported: bool,
-    /// Seconds the thresholds have held with no call.
+    /// Seconds the thresholds have held with no call and no speech to make it.
     waiting: f32,
+    /// The speech runs and can say the report: the fallback waits for it instead.
+    speech: bool,
     chasing: bool,
     touched: HashMap<Touched, f32>,
     events: Vec<Event>,
@@ -115,6 +118,11 @@ impl Roam911 {
     pub fn set_data(&mut self, tuning: Tuning, levels: Vec<Level>) {
         self.tuning = tuning;
         self.levels = levels;
+    }
+
+    /// Whether the speech runs and can say the 911 report. While it does, the fallback does not run.
+    pub fn set_speech(&mut self, running: bool) {
+        self.speech = running;
     }
 
     /// The hit judgement.
@@ -185,7 +193,7 @@ impl Roam911 {
             let clock = self.clock;
             self.touched.retain(|_, at| clock - *at < SAME_OBJECT_GAP);
         }
-        if self.reported || !self.threshold_met() {
+        if self.reported || !self.threshold_met() || self.speech {
             self.waiting = 0.0;
             return None;
         }
@@ -419,6 +427,17 @@ mod tests {
         assert_eq!(roam.tick(1.5, false, 1), Some(45.0));
         assert!(roam.start_call(45.0));
         assert_eq!(roam.tick(5.0, false, 1), None, "a call that was made is not made again");
+    }
+
+    #[test]
+    fn running_speech_holds_the_fallback_and_the_call_waits_for_the_report() {
+        let mut roam = roam();
+        roam.set_speech(true);
+        roam.note_prop(1, 500);
+        assert_eq!(roam.tick(FALLBACK_AFTER * 3.0, false, 1), None, "the speech makes the call, not a timer");
+        roam.set_speech(false);
+        assert_eq!(roam.tick(FALLBACK_AFTER - 1.0, false, 1), None, "the wait starts when the speech goes");
+        assert_eq!(roam.tick(1.5, false, 1), Some(45.0));
     }
 
     #[test]

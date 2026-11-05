@@ -268,8 +268,9 @@ searching.
 (read from the `smackable` collection) and the traffic hits closing hard enough, clears both while a chase or the arrest
 runs, and tells the speech machine each one as a `Smashed` or `PlayerHitTraffic` notice in a free-roam frame. The machine
 decides and says the report; when it has been said the world sets the 911 timer to `Lifetime911` and clears the lockout.
-A patrol that sees the player then starts a chase at any speed. A rewrite fallback makes the call itself after 20 s when
-the speech does not answer. **[decomp]** for the rule, **[inferred]** for the one-touch-per-second debounce and the
+A patrol that sees the player then starts a chase at any speed. A rewrite fallback makes the call itself after 20 s while
+no speech can say the report (muted, not loaded, no audio device); while the speech runs only the said report makes the
+call, as in the original. **[decomp]** for the rule, **[inferred]** for the one-touch-per-second debounce and the
 fallback. Console: `pursuit status` shows the call and the counters, `pursuit 911` makes a call now.
 
 ### 5.4 Totals at the end
