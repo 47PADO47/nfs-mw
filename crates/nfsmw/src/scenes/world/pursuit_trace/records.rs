@@ -108,8 +108,10 @@ pub(super) fn cop_id(key: u32) -> String {
 }
 
 /// Whether the cop counts as one of the chase's: the original marks a cop `pursuit_cop` while it has a pursuit.
+/// Whether the cop counts as one of the chase's: not a patrol, and not a roadblock car (the original's roadblock cars
+/// belong to their roadblock until the chase recruits one, which then joins as a chase cop).
 pub(super) fn in_pursuit(cop: &CopFrame, frame: &PoliceFrame) -> bool {
-    frame.pursuing && cop.kind != "patrol"
+    frame.pursuing && cop.kind != "patrol" && cop.kind != "roadblock"
 }
 
 impl Cop {
@@ -128,6 +130,7 @@ pub(super) fn cop(cop: &CopFrame, member: bool, pursuit: Option<&str>) -> Cop {
         role: match (member, cop.kind) {
             (true, _) => "pursuit_cop",
             (false, "patrol") => "patrol",
+            (false, "roadblock") => "roadblock_cop",
             _ => "cop_unclassified",
         },
         position: cop.position,
