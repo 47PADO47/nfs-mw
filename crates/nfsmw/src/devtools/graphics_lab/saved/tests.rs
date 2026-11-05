@@ -3,7 +3,8 @@ use super::*;
 #[test]
 fn pursuit_limit_enhancements_round_trip_through_startup_and_named_snapshot_payloads() {
     let mut settings = Settings::from(crate::settings::Partial::default());
-    settings.pursuit_options = crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 7 };
+    settings.pursuit_options =
+        crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 7, wave_percent: 150 };
     let text = payload(&settings).unwrap();
     let wanted = settings.pursuit_options;
     settings.pursuit_options = Default::default();

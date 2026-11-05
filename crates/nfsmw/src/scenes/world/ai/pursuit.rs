@@ -6,6 +6,7 @@ use std::rc::Rc;
 mod opening;
 mod patrol_join;
 mod placement;
+mod wave_scale;
 
 use opening::Opening;
 
@@ -243,6 +244,7 @@ impl TrafficWorld {
         self.cops.unlock();
         self.police.begin(heat);
         self.roadblocks.begin_chase();
+        let rows = wave_scale::scaled(rows, self.police.wave_scale());
         let mut pursuit = Pursuit::new(self.police.patrol_heat(), rows, player);
         pursuit.set_backups(self.backup_rows.clone());
         self.pursuit = Some(pursuit);

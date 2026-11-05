@@ -174,6 +174,11 @@ impl Police {
     pub fn set_forced_pursuit(&mut self, forced: bool) {
         self.heat_model.forced = forced;
     }
+
+    /// How much the F8 enhancement grows the heat table's cop counts: 1 for the reference counts.
+    pub fn wave_scale(&self) -> f32 {
+        self.heat_model.pursuit_options.wave_scale()
+    }
     /// The Blacklist's current bin, or `None` without a career: it sets the heat range and the growth time of a chase.
     pub fn set_career_bin(&mut self, bin: Option<u8>) {
         self.heat_model.set_bin(bin);
@@ -340,7 +345,8 @@ mod tests {
         let mut police = Police::default();
         police.set_career_bin(Some(15));
         police.begin(1);
-        let options = crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 7 };
+        let options =
+            crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 7, ..Default::default() };
         police.set_pursuit_options(options);
         assert_eq!(police.settings().max_cops, 24);
         assert_eq!(police.heat_model.range_for(None, 1), (1.0, 7.0));
@@ -361,7 +367,8 @@ mod tests {
         police.set_career_bin(Some(15));
         police.set_forced_pursuit(true);
         police.begin(6);
-        let options = crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 0 };
+        let options =
+            crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 0, ..Default::default() };
         police.set_pursuit_options(options);
         assert_eq!(police.level(), Some(6), "enabling a car limit must preserve the forced heat");
         police.set_pursuit_options(crate::settings::PursuitOptions { max_active_cops: 32, ..options });
