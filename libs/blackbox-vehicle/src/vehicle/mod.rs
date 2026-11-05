@@ -19,6 +19,7 @@ mod retirement;
 mod rolling_chassis;
 mod settle;
 mod simple_chassis;
+mod simple_tires;
 mod spec;
 mod staging;
 mod state;
@@ -64,6 +65,8 @@ pub struct Vehicle {
     simple_max_steering: f32,
     rolling_chassis: Option<RollingChassisConfig>,
     coasting_tires: Option<crate::tires::CoastingTireResponse>,
+    /// The simple chassis runs its own tires (police cars, `cop-simple-chassis.md`).
+    simple_tires: bool,
     retirement: retirement::Retirement,
     launch: crate::launch::LaunchState,
     /// Calibration hook: hold the front wheels at these angles instead of steering (a replay of a
@@ -140,6 +143,7 @@ impl Vehicle {
             simple_max_steering: 0.0,
             rolling_chassis: None,
             coasting_tires: None,
+            simple_tires: false,
             retirement: Default::default(),
             launch: Default::default(),
             forced_wheel_angles: None,

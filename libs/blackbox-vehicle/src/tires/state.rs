@@ -72,6 +72,8 @@ pub struct Tire {
     /// Lateral and longitudinal multipliers of the handling tuning.
     pub traction_circle: (f32, f32),
     pub drift_friction: f32,
+    /// The simple chassis lets this driven wheel slip this step (`cop-simple-chassis.md` section 1).
+    pub allow_slip: bool,
 }
 
 impl Default for Tire {
@@ -101,6 +103,7 @@ impl Default for Tire {
             lateral_boost: 1.0,
             traction_circle: (1.0, 1.0),
             drift_friction: 1.0,
+            allow_slip: false,
         }
     }
 }
@@ -119,6 +122,7 @@ impl Tire {
         self.grip_boost = grip_boost;
         self.traction_boost = traction_boost;
         self.drag_reduction = 0.15;
+        self.allow_slip = false;
     }
 
     /// Stops the wheel speed from changing sign within a step: it is set to 0 instead, and the sign memory

@@ -25,7 +25,7 @@ impl Vehicle {
 
     /// Brake commands, stability boost and handling tuning. Call after the drive torque is added.
     pub(super) fn tune_tires(&mut self, dt: f32, speed: f32, angular_velocity: glam::Vec3) {
-        if self.rolling_tire_controls() || self.coasting_controls() {
+        if self.rolling_tire_controls() || self.coasting_controls() || self.simple_tire_controls() {
             return;
         }
         let c = self.controls;
