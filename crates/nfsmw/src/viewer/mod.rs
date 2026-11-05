@@ -5,8 +5,8 @@ pub mod camera;
 mod race_report;
 mod static_hash;
 pub use race_report::{
-    PhotoKind, PhotoReport, PursuitPage, PursuitReport, RaceAnswer, RaceReport, ReportLap, ReportRacer, RewardLine,
-    RewardsReport, photo_picture,
+    MILESTONE_LINES, MilestoneLine, MilestoneStatus, PhotoKind, PhotoReport, PursuitPage, PursuitReport, RaceAnswer,
+    RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport, photo_picture,
 };
 pub use static_hash::StaticHash;
 

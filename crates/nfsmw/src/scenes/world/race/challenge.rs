@@ -323,6 +323,8 @@ impl WorldScene {
             infractions: traffic.infractions().count(),
             goal: challenge.goal(),
             page: crate::viewer::PursuitPage::Challenge,
+            committed: *traffic.infractions(),
+            milestones: [None; crate::viewer::MILESTONE_LINES],
         });
         if let Some(mut run) = challenge.final_run.take() {
             let keep = self.final_race_frame(session, &mut run, sim_dt);

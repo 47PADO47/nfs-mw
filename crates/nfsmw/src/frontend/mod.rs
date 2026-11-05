@@ -55,6 +55,7 @@ pub(crate) mod post_options;
 mod post_race;
 mod prompt_layout;
 mod prompts;
+mod pursuit_pages;
 mod pursuit_results;
 mod quick_play;
 mod quick_race;

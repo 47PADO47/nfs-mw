@@ -73,20 +73,50 @@ and a value **[exe]**:
 
 - The package has nine label and value rows (`0x38B136A8 + n`, `0x85AB7369 + n`) **[install]**; the two past the seventh
   stay empty.
-- The screen also has an infractions page (heading `INFRACTIONS`) and a challenge variant; the rewrite's pursuit
-  challenge keeps its own rows ([race-mode.md](race-mode.md) section 11). The page switch is not done.
+- The screen also has a challenge variant; the rewrite's pursuit challenge keeps its own rows
+  ([race-mode.md](race-mode.md) section 11).
+
+### 3.1 The other pages **[exe]** **[install]**
+
+- **Turning the page.** The footer's second button (PC key 2, the pad's button 4, message `0xC519BFC3`) reads the page it
+  goes to. The package answers the press itself: the rows play out over 420 ticks, and at 500 ticks it passes
+  `0xC519BFC3` on to the screen and plays the rows back in. The screen turns the page on that message only. After an
+  escape the pages go pursuit, infractions, milestones, pursuit; in the challenge series, pursuit and infractions only.
+- The page's heading and the button's text: pursuit `PURSUIT` (`0xFEA872D4`) with `Infractions` (`0xAEAEB62F`);
+  infractions `INFRACTIONS` (`0xFB415E78`) with `Milestones` (`0x74413352`), or `Pursuit` (`0x7448870B`) in the challenge
+  series; milestones `MILESTONES` (`0x578B767B`) with `Pursuit`. In a career's pursuit race the milestones page reads
+  `CHALLENGE` (`0x334FA7FB`), the infractions page's button `Challenge` (`0x9145A5F2`), and the page has the race's one
+  goal; the rewrite shows the page after an escape in free roam only.
+- **Lines.** Each of the nine is `LINEn_GROUP` with `COLUMN1_DATAn` (label), `COLUMN2_DATAn` (value), `CHECKn` (a tick)
+  and `EMPTYn` (an empty box). Drawing a line first plays `0x16A259` (hidden) on both marks and `0x1744B3` (rest) on the
+  group. A line has a state: 1 ticks it (`0x1CA7C0` on the tick), 2 dims it (`0x163C76` on the group and the tick); a
+  value line of the pursuit page with state 0 shows no mark, any other line with state 0 shows the empty box (`0x1CA7C0`
+  on it).
+- **Infractions page:** eight lines with the value hidden, ticked when the chase committed the infraction, in this order:
+  `Speeding` (`0x4B0FF103`, mask 2), `Excessive Speeding` (`0x8EC1A6EC`, mask 1), `Reckless Driving` (`0x370F331D`),
+  `Ramming a Police Vehicle` (`0x8462A784`), `Hit & Run` (`0xDFF254BA`), `Damage to Property` (`0x7DBD5B34`),
+  `Resisting Arrest` (`0x2B1DE2A9`), `Driving off Roadway` (`0xB0EF5C12`) (masks 4 to 128).
+- **Milestones page:** one line per milestone of the career's current bin, in the milestone array's order, labelled
+  `BLACKLIST_PURSUIT_MILESTONES_NN_SHORT`, with the statistic's current value (below 0 reads 0) and the threshold. State
+  1 is at stake, 2 complete, 0 otherwise. An open line reads `value/threshold` with the value clamped to the threshold,
+  a ticked one the threshold alone. Pursuit length and evasion time read as times (`mm:ss.cc`, zeros rather than dashes
+  when empty), the rest as numbers with the thousands separator.
+- Continue's script passes the accept (`PAD_ACCEPT`) on to the screen at its end, and the screen leaves on it. Both
+  scripts end with `0xE1FDE1D1`, so that message does not mean the screen is done.
 
 ## 4. The rewrite
 
 - `scenes/world/career/pursuit.rs` and `career/rewards.rs` build the report at the end of a career chase: an escape
   outside a race gets the rows of section 2 and the page of section 3; a race's chase keeps the milestones-only report.
 - `frontend/rewards.rs` plays the rows, adds up the total, and on its exit opens the page (`Command::ShowPursuitResults`);
-  `frontend/pursuit_results.rs` fills the page.
+  `frontend/pursuit_results.rs` fills the page and turns it, `frontend/pursuit_pages.rs` draws the lines of section
+  3.1, and the hint bar's key 2 reads the package's button (`frontend/prompts.rs`).
 - `scenes/world/hud.rs` drops the end card of an escape in a career's free roam.
 
 ## 5. Open
 
 - The HUD's statistics action during a chase (and the race's results from it) is not bound.
-- The infractions page of the statistics screen and its page switch are not done.
+- The milestones page of a career's pursuit race (section 3.1) is not shown: the rewrite opens the statistics after an
+  escape in free roam only.
 - How the original words a milestone row is not read (section 2, row 3).
 - The screens were read from the executable and the packages, not captured from the running original.

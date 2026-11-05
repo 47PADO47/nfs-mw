@@ -233,3 +233,45 @@ fn the_free_roam_statistics_page_shows_the_seven_rows_and_goes_back_to_the_game(
     h.wait(2.0);
     assert!(h.said(&Command::Resume), "{:?}", h.commands);
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn key_two_turns_the_escape_statistics_to_the_infractions_and_the_milestones_and_back() {
+    use crate::viewer::{MilestoneLine, MilestoneStatus};
+    use blackbox_pursuit::{Fines, Infraction};
+    use nfsmw_career::milestones::StatType;
+    let Some(mut h) = Harness::open(screen::POST_RACE_PURSUIT, Args::default()) else { return };
+    let mut report = crate::viewer::RewardsReport::sample().pursuit.expect("the sample escape has its page");
+    report.committed.record(Infraction::Racing, &Fines::new([1; 8]));
+    report.milestones[0] = Some(MilestoneLine {
+        stat: StatType::CopsDestroyedInPursuit,
+        label: None,
+        value: 3.0,
+        goal: 10.0,
+        status: MilestoneStatus::Open,
+    });
+    let logic = Box::new(crate::frontend::pursuit_results::PursuitResultsLogic::new(report));
+    let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
+    h.commands = h.screens.open_with(screen::POST_RACE_PURSUIT, logic, true, &mut env);
+    // The package's button string, under the hint bar: the bar's key 2 reads it.
+    let button = |h: &Harness| {
+        let tree = h.screens.trees().pop().unwrap();
+        tree.nodes.iter().find(|n| n.name_hash == 0xC6BE_1C1F).and_then(|n| n.text.clone()).unwrap_or_default()
+    };
+    h.wait(1.5);
+    assert!(says(&h, "PURSUIT") && button(&h) == "Infractions", "the button names the next page: {:?}", shown(&h));
+    h.press(SECOND);
+    h.wait(2.0);
+    for text in ["INFRACTIONS", "Speeding", "Excessive Speeding", "Driving off Roadway"] {
+        assert!(says(&h, text), "{text}: {:?}", shown(&h));
+    }
+    assert_eq!(button(&h), "Milestones");
+    assert!(!says(&h, "Pursuit Duration"), "the pursuit rows are gone: {:?}", shown(&h));
+    h.press(SECOND);
+    h.wait(2.0);
+    assert!(says(&h, "MILESTONES") && says(&h, "3/10") && button(&h) == "Pursuit", "{:?}", shown(&h));
+    h.press(SECOND);
+    h.wait(2.0);
+    assert!(says(&h, "PURSUIT") && says(&h, "Pursuit Duration"), "back to the pursuit page: {:?}", shown(&h));
+    assert!(!h.said(&Command::Resume), "turning pages does not leave: {:?}", h.commands);
+}

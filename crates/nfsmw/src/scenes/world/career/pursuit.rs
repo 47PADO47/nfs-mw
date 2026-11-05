@@ -200,6 +200,12 @@ impl WorldScene {
                         destroy_bounty: chase.rep_destroyed,
                         stats: &stats,
                         unserved,
+                        committed: chase.infractions,
+                        milestones: super::rewards::milestone_page(
+                            &career.milestones,
+                            &career.data.gameplay,
+                            career.blacklist.current_bin(),
+                        ),
                     };
                     Some(super::rewards::escape_report(&career.milestones, &milestones.banked, &escape))
                 }

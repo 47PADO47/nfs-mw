@@ -5,11 +5,16 @@
 //! whose use is not fully read (`docs/specs/career-milestones.md` section 3.9), so the milestones' texts here are the
 //! rewrite's own.
 
-use nfsmw_career::milestones::{Banked, MilestoneSet, StatType};
+use blackbox_pursuit::InfractionLog;
+use blackbox_text::label_hash;
+use nfsmw_career::milestones::{Banked, MilestoneSet, MilestoneState, StatType};
 use nfsmw_career::rapsheet::PursuitStats;
+use nfsmw_data::gameplay::GameplayData;
 
 use crate::i18n::{self, fmt::grouped, t};
-use crate::viewer::{PursuitPage, PursuitReport, RewardLine, RewardsReport};
+use crate::viewer::{
+    MILESTONE_LINES, MilestoneLine, MilestoneStatus, PursuitPage, PursuitReport, RewardLine, RewardsReport,
+};
 
 /// The language labels of the escape's first two rows **[exe]**: `Pursuit Duration` and `Immobilized Police Vehicles`.
 const DURATION_LABEL: u32 = 0x4D64_888D;
@@ -23,6 +28,39 @@ pub(super) struct Escape<'a> {
     pub stats: &'a PursuitStats,
     /// The car's unserved infractions after the chase.
     pub unserved: u32,
+    /// The chase's infractions.
+    pub committed: InfractionLog,
+    /// The milestones page: [`milestone_page`] after the escape banked.
+    pub milestones: [Option<MilestoneLine>; MILESTONE_LINES],
+}
+
+/// The milestones page of the statistics screen: one line per milestone of `bin`, in the set's order, with the
+/// statistic's current value, the threshold and the state (`docs/specs/pursuit-escape-results.md` section 3.1). The
+/// package has room for nine; more are left out.
+pub(super) fn milestone_page(
+    set: &MilestoneSet,
+    data: &GameplayData,
+    bin: u8,
+) -> [Option<MilestoneLine>; MILESTONE_LINES] {
+    let mut lines = [None; MILESTONE_LINES];
+    let in_bin = set.milestones().iter().filter(|m| m.def.bin == bin);
+    for (slot, milestone) in lines.iter_mut().zip(in_bin) {
+        let stat = milestone.def.stat;
+        let label = data
+            .milestone_types
+            .iter()
+            .find(|kind| kind.name == stat.name())
+            .and_then(|kind| kind.label)
+            .map(|index| label_hash(&format!("BLACKLIST_PURSUIT_MILESTONES_{index:02}_SHORT")));
+        let status = match milestone.state {
+            MilestoneState::AtStake => MilestoneStatus::AtStake,
+            MilestoneState::Complete => MilestoneStatus::Complete,
+            MilestoneState::Locked | MilestoneState::Active => MilestoneStatus::Open,
+        };
+        let value = set.stat(stat).current.unwrap_or(0.0).max(0.0);
+        *slot = Some(MilestoneLine { stat, label, value, goal: milestone.def.threshold, status });
+    }
+    lines
 }
 
 /// The line a milestone gets: what it asked for, in plain words.
@@ -114,6 +152,8 @@ fn chase_page(escape: &Escape) -> PursuitReport {
         infractions: escape.unserved,
         goal: None,
         page: PursuitPage::Chase,
+        committed: escape.committed,
+        milestones: escape.milestones,
     }
 }
 
@@ -137,7 +177,15 @@ mod tests {
     }
 
     fn escape(stats: &PursuitStats, destroy_bounty: u32) -> Escape<'_> {
-        Escape { secs: 95.5, time_bounty: 1200, destroy_bounty, stats, unserved: 3 }
+        Escape {
+            secs: 95.5,
+            time_bounty: 1200,
+            destroy_bounty,
+            stats,
+            unserved: 3,
+            committed: InfractionLog::default(),
+            milestones: [None; MILESTONE_LINES],
+        }
     }
 
     #[test]

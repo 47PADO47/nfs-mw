@@ -16,4 +16,11 @@
 - Checked by `scenes::world::career::rewards` tests (the rows of an escape), `frontend::pursuit_results` tests (the
   page's values), `frontend::rewards` tests and the installed `frontend::rewards_tests` (the rows come one after the
   other, Continue opens the statistics page, the page shows the seven labels).
+- 2026-11-05, the other pages (spec section 3.1): the statistics screen's message handler (the page turn and the
+  continue), its page builder (headings and button texts per page), the infractions and milestones line builders, the
+  line's draw (the marks and their scripts by state) and the time format, read in the same executable for behaviour only.
+  Implemented in `frontend/pursuit_results.rs`, `frontend/pursuit_pages.rs`, `frontend/prompts.rs`, `viewer/race_report.rs`
+  and `career/rewards.rs`; checked by `frontend::pursuit_pages` tests (the ticks, the values) and the installed
+  `frontend::post_race_tests` page turn (key 2 shows the infractions, the milestones and the pursuit again, and does not
+  leave).
 - Not checked against the original's screen: no capture of the screens after an escape was made.
