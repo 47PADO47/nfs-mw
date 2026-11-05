@@ -359,9 +359,9 @@ car select screen (x0.95); get busted three times and confirm the impound.
   `elevation` is read as a physics height; that unit is not checked against the install.
 - **Busted** (the bust meter, `BustSpeed`, `MeterDeadZoneBustedDistance`): the busted timer and its HUD value are
   implemented. The rule is in [ai-pursuit.md](ai-pursuit.md) section 5 and `libs/blackbox-pursuit/src/busted.rs`;
-  the bust speed comes from the Bartender file. Not implemented: the five-segment bar (`PursuitMeter`, section 4.4 of
-  ai-pursuit.md), whose formula uses `MeterDeadZoneBustedDistance` and which the code does not have, and drawing a bar
-  on screen. See
+  the bust speed comes from the Bartender file. The five-segment bar (`PursuitMeter`, section 4.4 of ai-pursuit.md) is
+  built: its signed value with the 35 m and 50 m dead zones in `blackbox_pursuit::busted::meter`, drawn by
+  `hud/pursuit_meter.rs` ([hud-pursuit-state.md](hud-pursuit-state.md)). See
   [provenance](../provenance/ai-pursuit-busted.md).
 - **Heat growth** (section 3.2): `TimePerHeatLevel` times `ScaleEscalationPerBucket[min(bin, 14)]` from the install, with the
   Blacklist's current bin (`scenes/world/ai/police/heat_model.rs`). The original profile-absent query uses `TimePerHeatLevel`
@@ -374,4 +374,5 @@ car select screen (x0.95); get busted three times and confirm the impound.
 - **Paint cooling** (`fecooling`): read, and applied to the career car when a garage part is fitted (not a chase effect); see [career-cooling.md](career-cooling.md).
 - **Evade heat** (section 3.3): an escape multiplies the heat by 0.95 and the value carries into the next chase, as the
   start heat (`max(heat, base)`). The rewrite has one car and no career, so this is that car's heat only
-  (`Police::carried_heat`). **[unconfirmed]** The install's career rule (every car of the stable) is not modelled.
+  (`Police::carried_heat`). In a career every car of the stable is multiplied as well (`career/pursuit.rs`, through
+  `nfsmw_career::safehouse::apply_heat_factor`).

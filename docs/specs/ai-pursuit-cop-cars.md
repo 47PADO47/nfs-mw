@@ -243,13 +243,16 @@ lighter than its mass in the front (0.6) so it bounces off; a pit cop hits with 
 - **Occlusion** is a separate ray in `crates/nfsmw/src/scenes/world/drive/sight.rs` (`sight_cast`): every face and every
   barrier blocks, barriers from either side, so road decks, bridge undersides and buildings block. Scenery groups that are
   switched off are skipped, as the world query's candidate filter does. **[decomp + PC disassembly]** The wall probe
-  (`drive/walls.rs`, `world_cast`) is unchanged and still serves the body. The helicopter's line test and the HUD markers
-  share `sight_cast`; the original helicopter ray tests faces only **[decomp]**, which is not modelled yet.
+  (`drive/walls.rs`, `world_cast`) is unchanged and still serves the body. The HUD markers share `sight_cast`. The
+  helicopter's line test is `heli_clear`: faces only, so a barrier does not hide the player from the air **[decomp + PC
+  binary]** (the helicopter's world query asks for faces, a cop car's for faces and barriers).
 - **Who looks:** every cop car: patrol cars, chase cops and roadblock cops (`ai/collide.rs`, `update_sight`). One world-level test
-  runs every 0.25 s of simulated time and holds its answer between tests. Per-cop `TimeSinceTargetSeen` and the 7 s
-  "perp in sight" grace are not modelled yet: the evade counter takes the instantaneous sight.
+  runs every 0.25 s of simulated time and holds its answer between tests. Each car keeps its own time since it saw the
+  player (`ai/car/sight.rs`, -0.25 on a sighting, 99 s for a new car), and the pursuit's "perp in sight" is the smallest
+  of them under the 7 s grace (`blackbox_pursuit::cooldown`).
 - **Vertical gate:** `rules::on_level` (`COP_LEVEL_GATE` 8 m, **[unconfirmed]** design value) gates `nearest_cop`, which feeds
-  the off-road and contact rules. A cop on another level is not near. The busted meter is not in the rewrite yet.
+  the off-road and contact rules. A cop on another level is not near. The busted meter is in
+  `blackbox_pursuit::busted` ([ai-pursuit.md](ai-pursuit.md) section 5).
 - **Open:** the install's exact vertical test is not confirmed by reversing. The occlusion query flags are (see
   `docs/provenance/ai-pursuit-sight.md`, 4 November 2026).
 

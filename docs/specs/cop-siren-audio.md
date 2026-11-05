@@ -96,9 +96,10 @@ pressing tick when 60 s have passed since the clock was last reset, and not agai
 
 - **Light bar gate.** The original lets the chase logic overwrite the dark-bar result. The rewrite applies the gate last:
   a dark bar is `off`, a wrecked car with a dark bar is `die`, also for roadblock cars. [rewrite]
-- **Speech focus.** The rewrite has no speech focus. The opening exchange is the first 5 s of the chase; "lost" is the
-  cops having had no contact for 5 s or more. The "line playing" condition is not wired (it never reads true).
-  [inferred]
+- **Speech focus.** The phase comes from the radio's speech focus (`audio/chase/radio`, `note_police_speech`). Only while
+  the speech is muted or not loaded does a stand-in run: the opening exchange is the first 5 s of the chase and "lost" is
+  the cops having had no contact for 5 s or more. A closing line playing does not count as pressing: the pressing branch
+  takes the finisher or a slow formation only. [inferred]
 - **Formation.** "In formation" is a cop that the formation module has assigned a slot; collapse and finisher come from
   the police state. [rewrite]
 - **Shared gap.** Kept (one `OpeningGap` for all cars).

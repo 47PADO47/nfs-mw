@@ -65,7 +65,7 @@ size over the newly calculated fixed edge.
 
 | Feature | Status |
 |---|---|
-| Heat arcs / `0x862824c9`, `0x4b2cbe1b` | Held hidden; the original mask-to-heat mapping is not implemented. |
+| Heat arcs / `0x862824c9`, `0x4b2cbe1b` | Bound: the two masks turn with the fractional heat (`hud/police/heat.rs`, installed test in `hud/police_install_tests.rs`). |
 | Radar audio/targets | Native ground selection, range, cone and per-update ramp are bound. Detector click and speed-camera selection remain absent; roll-sensitive lateral orientation remains unverified. |
 | View mode | The rear-view setting selects the detector layout. Original view-specific rear-view eligibility still needs comparison. |
 | Fades/sounds | Radar/meter transforms and transitions run from installed scripts; full HUD event and sound dispatch remains incomplete. |

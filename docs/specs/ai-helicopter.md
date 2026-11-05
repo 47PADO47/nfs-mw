@@ -490,5 +490,6 @@ Tags: **[headless]** by the synthetic world tests, **[verified]** against the in
   1.55 and 0.4). The meaning of each part is mapped by value, since the mod's defaults equal the vanilla constants
   **[inferred]**; the mod's `-8` gain is used by its size. `SearchRadius` (80, 250) is read and held: no constant of the
   controller matches it. `DespawnDistance` (600 m) is the mod's default for a vanilla distance whose code was not found.
-- **Not done.** The sight cone, the skid-hit's collision-abort counter from real body collisions, and the rotor word
-  meanings (section 7). A live-play comparison has not been made.
+- **Not done.** The skid-hit's collision-abort counter from real body collisions (the helicopter has no collision
+  contacts yet), and the rotor word meanings (section 7). A live-play comparison has not been made. (The sight's
+  75 m sphere and front half space are in `helicopter/sight.rs`; the minimap shows its cone.)

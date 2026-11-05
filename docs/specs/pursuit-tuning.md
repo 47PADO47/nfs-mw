@@ -55,8 +55,8 @@ feed (`TrafficWorld::pursuit_feed`) and the HUD, which was not done in this pass
 
 These are the Bartender feature list's items that have no system in the rewrite to tune yet. Each needs its system first.
 
-- Bounty and combo multipliers, rep points (`RepPointsPerMinute`, `RepPointsForDestroying`): the economy is not built
-  (`Police::record_wreck` is the hook).
+- Bounty and combo multipliers, rep points (`RepPointsPerMinute`, `RepPointsForDestroying`): the rep points are built
+  from the install's `RepTable` (`ai/police/rep.rs`), but the Bartender's values for them are not passed to it.
 - NOS and Speedbreaker charge gained from tagging, assaulting or destroying cops: no such gain exists yet.
 - Roadblock and ramming strategy settings (`roadblockprobability`, `roadblockspikechance`, the `CopFormations` records):
   the support roll reads the install's values; overriding them needs a settings path into `support::heavy_options`.

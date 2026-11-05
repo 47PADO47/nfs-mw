@@ -432,8 +432,8 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
   chase's) that have been out of view more than 5 s and are over 100 m from the player, the farthest first, and removes
   them; the cars it still lacks are created (`roadblock/steal.rs`). The original asks its pool of inactive cars first;
   the rewrite has no pool yet, so the order is reversed until the cop manager's pool lands.
-- **Not built.** The pursuit statistics reaching the rap sheet (`Roadblocks::stats` holds them); the
-  "cops needed to evade + 1" count; a roadblock marker on the map. The in-game minimap's constructor (`FUN_0059d500`) loads
+- **Built since.** The dodged roadblocks reach the busted line, the pursuit statistics and the rap sheet's pursuit page;
+  the cheat recruit adds one cop to evade. **Not built:** a roadblock marker on the map. The in-game minimap's constructor (`FUN_0059d500`) loads
   cop, racer, checkpoint and helicopter objects and **no** roadblock object, so the minimap has no roadblock blip. The
   `MMICON_ROADBLOCK_%d` pool belongs to the full-screen map's legend builder (`FUN_00531350`, listed in
   [../provenance/world-map-ghidra.md](../provenance/world-map-ghidra.md)); whether the map screen draws standing
