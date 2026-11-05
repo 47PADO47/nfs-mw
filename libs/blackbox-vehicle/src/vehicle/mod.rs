@@ -9,11 +9,13 @@ mod drift;
 mod drift_assist;
 mod drive_assists;
 mod example;
+mod force_scales;
 mod integration;
 mod jump;
 mod launch;
 mod maneuver;
 mod reconfigure;
+mod rest_pose;
 mod retirement;
 mod rolling_chassis;
 mod settle;
@@ -29,6 +31,7 @@ mod wheels;
 mod tests;
 
 pub use drift_assist::DriftTuning;
+pub use force_scales::ForceScales;
 pub use jump::{
     AlignmentConfig, GroundReference, JumpConfig, JumpForces, JumpInput, JumpState, LandingConfig, PassiveConfig,
 };
@@ -63,6 +66,7 @@ pub struct Vehicle {
     simple_max_steering: f32,
     rolling_chassis: Option<RollingChassisConfig>,
     coasting_tires: Option<crate::tires::CoastingTireResponse>,
+    force_scales: ForceScales,
     retirement: retirement::Retirement,
     launch: crate::launch::LaunchState,
     /// Calibration hook: hold the front wheels at these angles instead of steering (a replay of a
@@ -139,6 +143,7 @@ impl Vehicle {
             simple_max_steering: 0.0,
             rolling_chassis: None,
             coasting_tires: None,
+            force_scales: ForceScales::default(),
             retirement: Default::default(),
             launch: Default::default(),
             forced_wheel_angles: None,
@@ -208,9 +213,9 @@ impl Vehicle {
         }
     }
 
-    /// Puts the car on the ground below `(x, z)`, facing `yaw` radians about the up axis (0 = +z), with
-    /// the springs at their unloaded length. The ground is searched for from height `top` down to 100 m
-    /// below it; returns false if there is none.
+    /// Puts the car on the ground below `(x, z)`, facing `yaw` radians about the up axis (0 = +z), at rest: each wheel
+    /// at its ride height less the static sag over its own ground, pitched and rolled with the road (`rest_pose.rs`). The
+    /// ground is searched for from height `top` down to 100 m below it; returns false if there is none.
     pub fn place_on_ground(&mut self, ground: &dyn Ground, x: f32, z: f32, top: f32, yaw: f32) -> bool {
         self.place_on_ground_moving(ground, x, z, top, yaw, 0.0)
     }
@@ -227,14 +232,15 @@ impl Vehicle {
         speed: f32,
     ) -> bool {
         let Some(hit) = ground.hit(Vec3::new(x, top, z), Vec3::NEG_Y, 100.0) else { return false };
-        let y = top - hit.distance;
-        let ride = self
-            .spec
-            .chassis
-            .axle(0, self.tunings.ride_height)
-            .ride
-            .max(self.spec.chassis.axle(1, self.tunings.ride_height).ride);
-        let (position, orientation) = (Vec3::new(x, y + self.spec.dimension.y + ride, z), Quat::from_rotation_y(yaw));
+        let axle = |i: usize| self.spec.chassis.axle(i, self.tunings.ride_height);
+        let car = rest_pose::RestCar {
+            arms: self.geometry.arms,
+            half_height: self.spec.dimension.y,
+            mass: self.spec.mass,
+            springs: [axle(0).spring, axle(1).spring],
+            rides: [axle(0).ride, axle(1).ride],
+        };
+        let (position, orientation) = rest_pose::rest_pose(ground, &car, (x, top - hit.distance, z), yaw);
         match speed > 0.0 {
             true => self.place_moving(position, orientation, speed),
             false => self.place(position, orientation),

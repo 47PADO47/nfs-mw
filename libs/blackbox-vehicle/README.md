@@ -235,6 +235,7 @@ Race launch assistance is opt-in through `Vehicle::set_launch_config`. The calle
 supplies all game constants, staging state and the explicit `Vehicle::launch`
 trigger. Generic vehicles and AI retain disabled defaults. The shared band,
 timer, engine and traction rules are in [the launch contract](../../docs/specs/player-launch.md).
+Physical staging can be selected without configuring launch assistance.
 
 `Vehicle::set_coasting_tires` selects a caller-configured loaded-tire response
 without powered slip or handbrake. It uses direct ordinary brakes and axle torque,

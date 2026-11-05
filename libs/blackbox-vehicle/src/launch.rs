@@ -51,7 +51,7 @@ impl LaunchState {
     }
 
     pub fn set_staging(&mut self, staging: bool) {
-        self.staging = staging && self.config.is_some();
+        self.staging = staging;
     }
 
     pub fn staging(&self) -> bool {

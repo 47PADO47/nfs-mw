@@ -56,6 +56,8 @@ impl Default for WheelInput {
 pub struct CarInput {
     /// `(rpm - idle) / (redline - idle)`, 0 to 1 (0 when the redline is not above the idle).
     pub rpm_pct: f32,
+    /// An authored engine sound RPM (1000–10000), bypassing the vehicle's RPM remap while a scene owns it.
+    pub scripted_rpm: Option<f32>,
     /// Throttle pedal, 0 to 1.
     pub throttle: f32,
     /// Brake pedal, 0 to 1.
@@ -85,6 +87,7 @@ impl Default for CarInput {
     fn default() -> Self {
         Self {
             rpm_pct: 0.0,
+            scripted_rpm: None,
             throttle: 0.0,
             brake: 0.0,
             gear: GEAR_NEUTRAL,

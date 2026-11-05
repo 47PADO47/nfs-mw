@@ -101,3 +101,26 @@ fn each_wheel_reports_where_its_ray_hit_the_road() {
     airborne.step(FIXED_STEP, &InputState::default(), &NoGround);
     assert!(airborne.wheel_ground_hit(0).is_none());
 }
+
+/// A car set on the ground comes down at rest on its springs, as the original's placement puts it: it neither drops nor
+/// bounces (`docs/specs/vehicle-placement.md`).
+#[test]
+fn a_car_placed_on_the_ground_does_not_bounce() {
+    let mut v = Vehicle::new(VehicleSpec::example());
+    let g = flat();
+    assert!(v.place_on_ground(&g, 0.0, 0.0, 5.0, 0.0));
+    let start = v.position().y;
+    let (mut low, mut high) = (start, start);
+    for _ in 0..(2.0 / FIXED_STEP) as usize {
+        v.step(FIXED_STEP, &InputState::default(), &g);
+        low = low.min(v.position().y);
+        high = high.max(v.position().y);
+    }
+    assert!(
+        start - low < 0.01 && high - start < 0.01,
+        "the body moved {:.3} down and {:.3} up",
+        start - low,
+        high - start
+    );
+    assert_eq!(v.wheels_on_ground(), 4);
+}
