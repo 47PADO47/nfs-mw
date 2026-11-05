@@ -80,6 +80,8 @@ pub struct AiCar {
     entity: u32,
     /// Persistent phase in [0,1), advancing with simulation even while lamps are off.
     light_phase: f32,
+    /// The brake-flare history the nitrous taillight smear draws from (`docs/specs/nitrous-light-trails.md`).
+    tail_trails: crate::scenes::world::tail_light_trails::TailLightTrails,
     sim: CarSim,
     /// The trailer of a semi tractor, hitched or loose.
     trailer: Option<TrailerCar>,
@@ -187,7 +189,6 @@ impl AiCar {
         format!("{:?} {action}", self.sim.telemetry())
     }
 
-    #[cfg(test)]
     pub(in crate::scenes::world::ai) fn nitrous_burning(&self) -> bool {
         self.sim.telemetry().nos_burning
     }
@@ -229,6 +230,7 @@ impl AiCar {
             render_id,
             entity: 0,
             light_phase,
+            tail_trails: Default::default(),
             sim,
             trailer,
             driver: match role {

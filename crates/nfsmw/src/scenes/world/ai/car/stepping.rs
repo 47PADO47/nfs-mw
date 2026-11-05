@@ -177,6 +177,8 @@ impl AiCar {
         }
         self.previous = self.current;
         self.current = self.sim.pose();
+        let nitrous = self.sim.telemetry().nos_burning;
+        self.tail_trails.step(self.current.transform(), nitrous, self.sim.velocity().length());
         self.wreck_step(self.step_delta);
         self.steps += 1;
         self.elapsed += self.step_delta;

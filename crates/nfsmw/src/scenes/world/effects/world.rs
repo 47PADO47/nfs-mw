@@ -105,6 +105,9 @@ impl WorldScene {
         };
         drive.flames.set_enhanced(self.tuning.enhanced_exhaust && renderer.info().renderer == "blackbox");
         drive.maintain_flames(renderer, &self.dir, self.physics.database());
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.maintain_cop_flames(renderer, &self.dir, self.physics.database(), self.exhaust_flames, position);
+        }
         drive.maintain_tire_smoke(renderer, &self.dir);
         drive.maintain_rider(renderer, &self.dir);
         let arrested = self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active());
@@ -189,6 +192,9 @@ impl WorldScene {
         );
         drive.vehicle_effects.textured(forward, &self.residency.shared.materials, &mut layer.textured);
         drive.flames.geometry_in_world(position, forward, self.residency.collision(), layer);
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.cop_flame_geometry(position, forward, self.residency.collision(), layer);
+        }
         self.explosions.textured(position, forward, &mut layer.textured);
         self.heli_wash.textured(position, forward, &mut layer.textured);
         self.finish_flares.textured(position, forward, &mut layer.textured);
@@ -198,6 +204,9 @@ impl WorldScene {
         self.impact_fx.textured(forward, &mut layer.textured);
         renderer.set_effects(layer);
         drive.flames.reclaim(layer);
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.reclaim_cop_flames(layer);
+        }
         drive.effects.reclaim_built();
     }
 }

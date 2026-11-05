@@ -407,7 +407,7 @@ between emitters. [decomp for the vectors; inferred for the blend]
 - A link from the sputters (sound) to any visual. The sputters have no render-side reader; the rewrite's lift-off
   backfire (section 8.3) is its own design, not the original's.
 - The platform blend state of particles (section 4).
-- AI racers' own flames follow the same code (usage 2); only the player's car exists in the rewrite.
+- AI racers follow the same code (usage 2). Police cars within 200 m [ours] flame on nitrous only (`ai/cop_flames.rs`).
 - The name of the emitter-data int at `+0xe0` (section 5). Needed to say whether the original's fire trails.
 - The draw path that places particles (`FUN_00508c30` does not). Needed to say whether a live particle is drawn
   relative to its emitter. Not found in the decompile so far.

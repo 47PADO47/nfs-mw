@@ -226,6 +226,7 @@ impl TrafficWorld {
             }
             car_after_step(car, &mut self.police);
         }
+        self.step_cop_flames(self.step_delta);
         self.watch_cops_against_walls();
         self.signal_time += self.step_delta;
         self.breaker_zones.step(self.step_delta);

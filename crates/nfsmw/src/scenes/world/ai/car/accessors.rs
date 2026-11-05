@@ -177,6 +177,23 @@ impl AiCar {
         self.controls
     }
 
+    /// What the tail-pipe flames need of the car after a physics step (`cop_flames.rs`).
+    pub(in crate::scenes::world::ai) fn flame_state(&self) -> crate::scenes::world::exhaust::CarState {
+        let telemetry = self.sim.telemetry();
+        crate::scenes::world::exhaust::CarState {
+            to_world: self.pose(1.0).transform(),
+            velocity: self.sim.velocity(),
+            gear: telemetry.gear,
+            throttle: self.controls.gas,
+            nitrous: telemetry.nos_burning,
+        }
+    }
+
+    /// The car's model, as its rig holds it.
+    pub(in crate::scenes::world::ai) fn model(&self) -> &nfsmw_data::car::CarModel {
+        self.rig.model()
+    }
+
     /// An identity of the car that holds for its life (the radio keys its cops by it).
     pub(in crate::scenes::world::ai) fn render_key(&self) -> u32 {
         self.render_id

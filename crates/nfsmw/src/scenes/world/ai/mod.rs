@@ -13,6 +13,7 @@ mod commands;
 pub(in crate::scenes::world) mod coop_chase;
 mod cop;
 mod cop_aims;
+mod cop_flames;
 mod cop_health;
 mod cop_lights;
 mod cop_manager;
@@ -152,6 +153,8 @@ pub struct TrafficWorld {
     model_loader: Option<model_loader::ModelLoader>,
     /// The police helicopter's rig. It is not a car, so it has no `CarPhysics` (`models.rs`).
     helicopter_rig: Option<Rc<CarRig>>,
+    /// The nitrous flames of the police cars (`cop_flames.rs`).
+    cop_flames: cop_flames::CopFlames,
     pursuit: Option<Pursuit>,
     target_road: target_road::PrimaryRoad,
     backup_rows: Vec<nfsmw_data::pursuit::BackupRow>,
@@ -280,6 +283,7 @@ impl TrafficWorld {
             cop_models: Vec::new(),
             model_loader: None,
             helicopter_rig: None,
+            cop_flames: Default::default(),
             pursuit: None,
             target_road: Default::default(),
             backup_rows: Vec::new(),

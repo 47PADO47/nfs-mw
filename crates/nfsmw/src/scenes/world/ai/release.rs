@@ -12,6 +12,7 @@ impl TrafficWorld {
     /// Free what the traffic uploaded. The cars, the police and the window pass hold clones of the shared rigs and
     /// light bars, so they are let go first; each rig and light set left is then freed by its one holder.
     pub fn release(&mut self, renderer: &mut dyn RenderBackend) {
+        self.release_cop_flames(renderer);
         self.cars.clear();
         self.police.set_rig(None);
         self.window_requests.get_mut().clear();
