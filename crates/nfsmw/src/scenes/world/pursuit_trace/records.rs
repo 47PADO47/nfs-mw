@@ -75,6 +75,9 @@ pub(super) struct CopExtras {
     offscreen_s: f32,
     roadblock: Option<u32>,
     support: Option<u32>,
+    /// A chase cop's own action this think and its road speed limit (m/s).
+    action: Option<&'static str>,
+    speed_limit: Option<f32>,
 }
 
 /// One cop, in the original's per-cop layout. `ai`, `pursuit_status`, `drivable_to_nav` and `nav` have no remake
@@ -158,6 +161,8 @@ pub(super) fn cop(cop: &CopFrame, member: bool, pursuit: Option<&str>) -> Cop {
             offscreen_s: cop.offscreen_secs,
             roadblock: cop.roadblock,
             support: cop.support,
+            action: cop.action,
+            speed_limit: cop.speed_limit,
         },
     }
 }

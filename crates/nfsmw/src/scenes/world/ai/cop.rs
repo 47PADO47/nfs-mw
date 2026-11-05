@@ -29,6 +29,7 @@ pub(super) mod separation;
 #[cfg(test)]
 mod shared_target_tests;
 mod state_hash;
+mod trace;
 
 pub(in crate::scenes::world::ai) use road_nos::Input as RoadNitrous;
 pub(super) use roads::TargetRoad;
@@ -104,6 +105,8 @@ pub struct CopState {
     pub(super) ram_allowed: bool,
     /// A stuck reverse runs: its end puts the lane cursor back on a lane (`recovery.rs`).
     recovering: bool,
+    /// The last road think braked to turn round (the trace's `action`).
+    turning: bool,
     /// The cars the think in progress cuts its road corridor around, and the ones it keeps its distance from; kept so a
     /// think does not allocate.
     traffic_scratch: Vec<Neighbour>,
@@ -177,6 +180,7 @@ impl CopState {
             environment: Environment::default(),
             ram_allowed: false,
             recovering: false,
+            turning: false,
             traffic_scratch: Vec::new(),
             separation_scratch: Vec::new(),
             avoid_radius: blackbox_roads::DEFAULT_AVOID_RADIUS,
@@ -435,6 +439,7 @@ impl CopState {
         );
         let destination = occlusion.as_ref().map_or(nav.position, |o| o.position);
         let turning = motion::needs_turnaround(&car.body, destination);
+        self.turning = turning;
         self.road_nos.update(
             nitrous,
             self.environment.nitrous_boost,

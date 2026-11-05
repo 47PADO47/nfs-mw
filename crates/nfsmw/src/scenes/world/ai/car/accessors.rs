@@ -22,6 +22,17 @@ impl AiCar {
         }
     }
 
+    /// What a cop's own driving does this think, for the pursuit trace: `reverse` (a stuck reverse), `close`,
+    /// `turnaround` or `road`, with the road action's speed limit. `None` for a car that is not a chase cop.
+    pub(in crate::scenes::world) fn cop_drive_trace(&self) -> Option<(&'static str, f32)> {
+        let Role::Cop(cop) = &self.role else { return None };
+        let action = match self.driver.reverse_override_left() > 0.0 {
+            true => "reverse",
+            false => cop.trace_action(),
+        };
+        Some((action, cop.speed_limit()))
+    }
+
     /// The avoidance radius the car advertises to the other cars' neighbourhood tests (spec
     /// `ai-pursuit-obstacle-selection.md`, avoidable neighbourhood): a cop's or racer's last road look-ahead, a traffic
     /// car's (or a patrol's) traffic look-ahead, and the default for a roadblock car, which never sets one.

@@ -27,6 +27,8 @@ fn cop(key: u32, kind: &'static str) -> CopFrame {
         offscreen_secs: 0.0,
         roadblock: None,
         support: None,
+        action: None,
+        speed_limit: None,
     }
 }
 
