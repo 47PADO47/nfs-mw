@@ -189,6 +189,8 @@ raise the heat cap to the requested level, and an explicit F8 heat cap can expos
 - **Escape (player):** every car of the career stable gets `VehicleHeat *= EvadeSuccessHeatAdjust` from the *default*
   collection = **0.95**; and `TimesBusted` handling of section 6. **[decomp + verified]**
 - **Event win:** stable heat x `EventWinHeatAdjust` (default 0.94); **milestone complete:** x 0.93. **[decomp + verified]**
+  On PC no code reads `MilestoneCompleteHeatAdjust` ([career-milestones.md](career-milestones.md)), so the rewrite cools
+  the stable on a career race won (first place, `blacklist/results.rs`) and not on a milestone.
 - **Paying the bust fine:** the car's heat is set to 1.0. A quick-race car select sets the car's heat to 0.
 - A visual part fitted in a career garage multiplies the car's record heat by its `fecooling` factor times `extra`
   (1.0, or 0.75 in the backroom); values 0.69 to 0.99 read from the install in [career-cooling.md](career-cooling.md).

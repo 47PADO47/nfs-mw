@@ -32,8 +32,8 @@ pub const SPAWN_HEAT_FLOOR: f32 = 1.0;
 pub const DEFAULT_EVADE_HEAT_FACTOR: f32 = 0.95;
 /// The race-win factor (`pursuitlevels/default`, 0.94 in `ai-pursuit-heat.md` 3.3).
 pub const DEFAULT_RACE_WIN_HEAT_FACTOR: f32 = 0.94;
-/// The milestone factor (0.93). The pairing of this value with the milestone moment is **[unconfirmed]** in the
-/// spec and no caller was found.
+/// The milestone factor (0.93). No code of the PC executable reads `MilestoneCompleteHeatAdjust`
+/// (`career-milestones.md`), so a completed milestone cools nothing and this is not applied.
 pub const DEFAULT_MILESTONE_HEAT_FACTOR: f32 = 0.93;
 
 /// Multiplies the heat of every live car record of the stable by `factor` (pursuit evaded, career race won,
