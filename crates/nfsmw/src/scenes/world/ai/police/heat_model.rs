@@ -179,6 +179,11 @@ impl Police {
     pub fn wave_scale(&self) -> f32 {
         self.heat_model.pursuit_options.wave_scale()
     }
+
+    /// The bounty bug fixes are on (`docs/specs/ai-pursuit-heat.md` section 5.5).
+    pub(super) fn bounty_fixes(&self) -> bool {
+        self.heat_model.pursuit_options.bounty_fixes
+    }
     /// The Blacklist's current bin, or `None` without a career: it sets the heat range and the growth time of a chase.
     pub fn set_career_bin(&mut self, bin: Option<u8>) {
         self.heat_model.set_bin(bin);

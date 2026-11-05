@@ -35,7 +35,8 @@ The line is one language label per cop vehicle, with the bounty put in **[exe]**
 - `^` breaks the line and `%$d` is the bounty (points times multiplier) with the thousands separator. The word "Combo"
   is in every label, so a single wreck also reads `Combo Bounty` **[install]**.
 - Any other vehicle (traffic, the helicopter, a mod's car) has no line; nothing shows **[exe]**. A label the language
-  table lacks shows nothing either **[exe]**.
+  table lacks shows nothing either **[exe]**. With the rewrite's bounty fixes on (the default,
+  [ai-pursuit-heat.md](ai-pursuit-heat.md) section 5.5) a downed helicopter takes the `copsporthench` line.
 
 ## 3. Presentation
 

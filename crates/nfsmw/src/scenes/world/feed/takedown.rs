@@ -49,7 +49,7 @@ impl TakedownLine {
         }
         let Some(takedown) = latest else { return };
         let serial = SERIAL_BASE.wrapping_add(self.told);
-        let Some(message) = line_of(serial, &takedown.car, takedown.bounty()) else { return };
+        let Some(message) = line_of(serial, &takedown.line_car, takedown.bounty()) else { return };
         self.told = self.told.wrapping_add(1);
         self.line = Some(message);
         self.left = LINE_SECS;
@@ -66,7 +66,7 @@ mod tests {
     use super::*;
 
     fn wreck(count: u32, car: &str) -> Takedown {
-        Takedown { count, car: car.to_owned(), points: 250, multiplier: 2 }
+        Takedown { count, car: car.to_owned(), points: 250, multiplier: 2, line_car: car.to_owned() }
     }
 
     /// The line without the language table: the car's name and the bounty.

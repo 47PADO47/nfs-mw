@@ -143,11 +143,13 @@ impl Police {
     }
 
     /// A pursuit breaker destroyed the helicopter: it is gone at once, and the next one waits the level's time
-    /// (`UpdatePursuits` resets the helicopter timer when the vehicle leaves the pursuit, destroyed or not).
+    /// (`UpdatePursuits` resets the helicopter timer when the vehicle leaves the pursuit, destroyed or not). It leaves
+    /// the chase destroyed, so it counts as a takedown like a cop car (`docs/specs/ai-pursuit-heat.md` section 5.1).
     pub fn helicopter_destroyed(&mut self) {
         if self.heli.take().is_none() {
             return;
         }
+        self.record_wreck(nfsmw_data::pursuit::HELICOPTER);
         self.heli_wait = self.heli_respawn_seconds(self.level().unwrap_or(1));
         self.heli_plan.quadrant = false;
     }

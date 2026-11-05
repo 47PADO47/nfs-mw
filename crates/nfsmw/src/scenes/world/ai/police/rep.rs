@@ -4,7 +4,7 @@
 
 use nfsmw_data::pursuit::RepTable;
 
-use super::Police;
+use super::{Police, bounty_fixes};
 
 /// Seconds of chase per step of the normal rep points: the code steps every 10 s (spec 5.1).
 const STEP_SECS: f32 = 10.0;
@@ -32,6 +32,8 @@ pub struct Takedown {
     pub points: u32,
     /// The destruction multiplier it was wrecked at, 1 to 3.
     pub multiplier: u32,
+    /// The vehicle whose line the HUD shows: the car itself, or another car's line by the bounty fixes.
+    pub line_car: String,
 }
 
 impl Takedown {
@@ -162,15 +164,19 @@ impl Police {
         self.rep.table = table;
     }
 
-    /// A cop car of type `car` (lower-case name) was wrecked in the chase. Only a chase counts it: its rep points at the
-    /// chase's heat, times the multiplier, and its cost to state.
+    /// A cop car or the helicopter of type `car` (lower-case name) was wrecked in the chase. Only a chase counts it:
+    /// its rep points at the chase's heat, times the multiplier, and its cost to state. The bounty fixes (on unless the
+    /// F8 option turns them off) change which points it reads and how long the window runs (`bounty_fixes.rs`).
     pub fn record_wreck(&mut self, car: &str) {
         let Some(level) = self.level() else { return };
-        let points = self.rep.table.destroy_points(car, level);
-        let window = self.rep.table.rate(level).destroy_bonus_secs;
+        let fixed = self.bounty_fixes();
+        let raw = self.rep.table.destroy_points(car, bounty_fixes::points_entry(level, fixed));
+        let points = bounty_fixes::points(raw, fixed);
+        let window = bounty_fixes::window_secs(self.rep.table.rate(level).destroy_bonus_secs, fixed);
         self.rep.wreck(points, window);
         let (count, multiplier) = (self.rep.cops_destroyed, self.rep.multiplier);
-        self.rep.takedown = Some(Takedown { count, car: car.to_owned(), points, multiplier });
+        let line_car = bounty_fixes::line_car(car, fixed).to_owned();
+        self.rep.takedown = Some(Takedown { count, car: car.to_owned(), points, multiplier, line_car });
     }
 
     /// The latest cop car wrecked in the chase; kept after it ends until the next chase begins.

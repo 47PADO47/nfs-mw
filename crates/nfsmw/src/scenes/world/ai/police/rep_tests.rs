@@ -72,7 +72,7 @@ fn each_wreck_costs_five_thousand_and_each_new_damaged_cop_two_hundred_fifty() {
 fn a_chase_reset_clears_the_totals_and_keeps_the_table() {
     let table = RepTable {
         rates: vec![RepRates { per_ten_seconds: 500, destroy_bonus_secs: 10.0 }],
-        destroy: vec![("copgto".to_owned(), vec![2500])],
+        destroy: vec![("copgto".to_owned(), vec![2500; 10])],
     };
     let mut rep = RepState { table, ..RepState::default() };
     rep.wreck(2500, 10.0);
@@ -81,4 +81,52 @@ fn a_chase_reset_clears_the_totals_and_keeps_the_table() {
     assert_eq!((rep.points(), rep.cost, rep.cops_destroyed), (0, 0, 0));
     assert_eq!(rep.table.rate(1).per_ten_seconds, 500);
     assert_eq!(rep.table.destroy_points("copgto", 1), 2500);
+}
+
+/// A chase at `heat` over a table whose copsport pays 20 000 up to entry 8 and 100 000 at entry 9, with the
+/// heat 8 and 10 windows of two minutes.
+fn chase_at(heat: u32, fixes: bool) -> Police {
+    let mut police = Police::default();
+    police.set_rep_table(RepTable {
+        rates: (1..=10)
+            .map(|level| RepRates {
+                per_ten_seconds: 0,
+                destroy_bonus_secs: match level {
+                    8 | 10 => 120.0,
+                    _ => 10.0,
+                },
+            })
+            .collect(),
+        destroy: vec![("copsport".to_owned(), [vec![20_000; 9], vec![100_000]].concat())],
+    });
+    // The heat cap lifts the free-roam bound so a chase can run at heat 9 or 10.
+    let options =
+        crate::settings::PursuitOptions { enhanced: true, heat_cap: 10, bounty_fixes: fixes, ..Default::default() };
+    police.set_pursuit_options(options);
+    police.begin(heat);
+    assert_eq!(police.level(), Some(heat));
+    police
+}
+
+#[test]
+fn the_original_reads_entry_heat_so_heat_ten_scores_nothing() {
+    let mut police = chase_at(9, false);
+    police.record_wreck("copsport");
+    assert_eq!(police.rep_destroyed_points(), 100_000, "heat 9 reads the last entry");
+    let mut police = chase_at(10, false);
+    police.record_wreck("copsport");
+    assert_eq!(police.rep_destroyed_points(), 0, "heat 10 runs off the array");
+    assert_eq!(police.cops_destroyed(), 1, "it is still a takedown");
+    assert_eq!(police.rep.window_secs, 120.0);
+}
+
+#[test]
+fn the_bounty_fixes_score_heat_ten_and_shorten_the_long_window() {
+    let mut police = chase_at(10, true);
+    police.record_wreck("copsport");
+    assert_eq!(police.rep_destroyed_points(), 100_000);
+    assert_eq!(police.rep.window_secs, 10.0);
+    let mut police = chase_at(5, true);
+    police.record_wreck("copsport");
+    assert_eq!(police.rep_destroyed_points(), 20_000, "lower heats are unchanged");
 }

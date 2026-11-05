@@ -162,6 +162,49 @@ fn a_breaker_destroys_the_helicopter_and_the_next_one_waits() {
     assert_eq!(police.heli_ask(5, 0.9), Ask::No);
 }
 
+/// A heat 5 chase with a helicopter in the air and its placeholder destruction points (1 to 10) in the table.
+fn flying(fixes: bool) -> Police {
+    let mut police = ready(5);
+    police.set_rep_table(nfsmw_data::pursuit::RepTable {
+        rates: vec![],
+        destroy: vec![("copheli".to_owned(), (1..=10).collect())],
+    });
+    police.set_pursuit_options(crate::settings::PursuitOptions { bounty_fixes: fixes, ..Default::default() });
+    police.queue_helicopter(Spawn { position: Vec3::ZERO, heading: 0.0 });
+    police.try_join(&PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: Vec3::ZERO,
+        position: Vec3::ZERO,
+        forward: Vec3::X,
+        speed: 0.0,
+        nitrous: 0.0,
+        throttle: 0.0,
+    });
+    police
+}
+
+#[test]
+fn a_downed_helicopter_counts_as_a_takedown_with_its_placeholder_points() {
+    let mut police = flying(false);
+    police.helicopter_destroyed();
+    assert_eq!(police.cops_destroyed(), 1);
+    assert_eq!(police.cost_to_state(), 2000 + 5000, "its spawn and its wreck");
+    let takedown = police.last_takedown().unwrap();
+    assert_eq!((takedown.car.as_str(), takedown.points), ("copheli", 6), "heat 5 reads entry 5");
+    assert_eq!(takedown.line_car, "copheli", "the original has no line for it");
+}
+
+#[test]
+fn the_bounty_fixes_pay_a_downed_helicopter_with_the_federal_line() {
+    let mut police = flying(true);
+    police.helicopter_destroyed();
+    let takedown = police.last_takedown().unwrap();
+    assert_eq!(takedown.points, 100_000);
+    assert_eq!(takedown.line_car, "copsporthench");
+    assert_eq!(police.rep_destroyed_points(), 100_000);
+}
+
 #[test]
 fn the_status_tells_fuel_sight_and_mode_for_the_speech() {
     let mut police = ready(5);

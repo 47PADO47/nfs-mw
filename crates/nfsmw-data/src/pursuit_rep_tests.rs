@@ -5,7 +5,10 @@ fn table() -> RepTable {
         rates: (1..=HEAT_LEVELS)
             .map(|level| RepRates { per_ten_seconds: level * 100, destroy_bonus_secs: 10.0 })
             .collect(),
-        destroy: vec![("copgto".to_owned(), vec![2500; 10]), ("copsport".to_owned(), vec![20_000; 9])],
+        destroy: vec![
+            ("copgto".to_owned(), vec![2500; 10]),
+            ("copsport".to_owned(), [vec![20_000; 9], vec![100_000]].concat()),
+        ],
     }
 }
 
@@ -35,8 +38,14 @@ fn destroy_points_match_the_car_name_without_case() {
 fn an_unknown_car_or_a_missing_level_scores_nothing() {
     let table = table();
     assert_eq!(table.destroy_points("copmidsize", 4), 0, "not in the table");
-    assert_eq!(table.destroy_points("copsport", 10), 0, "the row stops at level 9");
-    assert_eq!(table.destroy_points("copsport", 9), 20_000);
+    assert_eq!(table.destroy_points("copsport", 10), 0, "heat 10 runs off the 10-entry array");
+}
+
+#[test]
+fn heat_n_reads_entry_n_as_the_original_does() {
+    let table = table();
+    assert_eq!(table.destroy_points("copsport", 8), 20_000);
+    assert_eq!(table.destroy_points("copsport", 9), 100_000, "heat 9 reads the last entry");
 }
 
 #[test]

@@ -233,7 +233,13 @@ Two counters on the perpetrator, accumulated only in free roam or challenge race
   `RepPointsForDestroying[heat]` of the cop's `aivehicle` collection times a multiplier. Values (all heat levels equal):
   `copmidsize` 250, `copghost` 500, `copgto` 2500, `copgtoghost` 5000, `copsporthench` 20 000, `copsportghost` 25 000,
   `copsport` 20 000 (100 000 at heat 10), `copsuvl` 10 000, `copsuv` 15 000, `copsuvpatrol` 25 000, `copcross` 100 000,
-  `copcompact` 1..10. **[verified]** The array is indexed by the integer heat (10 entries).
+  `copcompact` 1..10. **[verified]** The array has 10 entries and is indexed by the integer heat itself, not heat
+  minus one: heat 1 reads the second entry, heat 9 the last (so `copsport` pays 100 000 at heat 9), and heat 10 reads
+  past the end, where the lookup returns its zero default, so every takedown at heat 10 pays 0 **[exe]** (the reward
+  routine at `0x418f30` passes the pursuit's integer heat as the attribute index). Any vehicle that leaves the chase
+  destroyed is counted, the helicopter included: a helicopter downed by a breaker pays `copheli`'s placeholder points
+  (the array holds 1 to 10, so heat `n` pays `n + 1`), raises the cops-destroyed count and the multiplier, and costs 5000
+  like a car **[decomp]**. The bounty fixes (section 5.5) change three of these rules.
 - **multiplier**: the first kill uses x1; a further kill while `DestroyCopBonusTimer > 0` raises the multiplier by 1
   to a maximum of 3; each kill restarts the timer at `DestroyCopBonusTime`; after the timer runs out the multiplier is back to 1.
   `GetCopDestroyedBonusMultiplier`, `GetMostRecentCopDestroyedRepPoints` and `...Type` feed the HUD pop-up ("cop X taken out,
@@ -284,6 +290,19 @@ At the end of a *career* pursuit the manager moves the pending points (normal + 
 (`Bounty`), stores the infraction bits, and, if the player escaped, raises the displayed career rep and posts the new
 bounty. Challenge-series races skip this. Evaded and busted pursuits are tallied (`NumEvadedPursuits`, `NumBustedPursuits`)
 and ranked in the high-score tables (pursuit length, bounty, infractions, cops destroyed...). **[decomp]**
+
+### 5.5 Bounty fixes [ours]
+
+Three rules above are bugs that a widely used community fix for the original corrects. The rewrite builds the same
+corrections in, on by default; the F8 police panel's "Bounty fixes" checkbox (`PursuitOptions::bounty_fixes`, saved with
+the startup settings) turns them off to restore the original. Implemented in `scenes/world/ai/police/bounty_fixes.rs`.
+
+- **Heat 10 takedowns:** the points entry is the heat capped at 9, so heat 10 reads the last entry instead of nothing.
+- **The helicopter:** destruction points of 1 to 10 (the data's placeholders, the helicopter's array) score 100 000, and
+  the downed helicopter's takedown line uses the `copsporthench` label (`Federal Pursuit Vehicle`); the original has no
+  line for it ([hud-pursuit-takedown.md](hud-pursuit-takedown.md) section 2). 0 points (a car without a table entry) stay 0.
+- **Long combo windows:** a `DestroyCopBonusTime` of 120 s or more (heat 8 and 10 of the chase table, heat 6 to 10 of
+  the race table) is 10 s, the other levels' window.
 
 ## 6. Career consequences
 

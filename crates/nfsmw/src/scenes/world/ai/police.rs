@@ -434,6 +434,7 @@ impl Police {
 #[path = "police_tests.rs"]
 mod tests;
 
+mod bounty_fixes;
 mod busted;
 mod costs;
 mod escape;

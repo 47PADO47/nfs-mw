@@ -12,11 +12,14 @@ pub struct PursuitOptions {
     /// The heat table's cop counts a chase uses, percent: the wave, the cops to evade before backup and the cool-down
     /// search. 100 keeps the reference counts.
     pub wave_percent: u32,
+    /// The bounty bug fixes of a takedown (`docs/specs/ai-pursuit-heat.md` section 5.5). On by default, independent of
+    /// the limit enhancement; off restores the original's bugs.
+    pub bounty_fixes: bool,
 }
 
 impl Default for PursuitOptions {
     fn default() -> Self {
-        Self { enhanced: false, max_active_cops: 16, heat_cap: 0, wave_percent: 100 }
+        Self { enhanced: false, max_active_cops: 16, heat_cap: 0, wave_percent: 100, bounty_fixes: true }
     }
 }
 
@@ -86,12 +89,30 @@ mod tests {
 
     #[test]
     fn file_values_are_bounded_without_changing_the_disabled_state() {
-        let options =
-            PursuitOptions { enhanced: false, max_active_cops: 500, heat_cap: 99, wave_percent: 900 }.sanitized();
+        let options = PursuitOptions {
+            enhanced: false,
+            max_active_cops: 500,
+            heat_cap: 99,
+            wave_percent: 900,
+            bounty_fixes: false,
+        }
+        .sanitized();
         assert_eq!(options.max_active_cops, 64);
         assert_eq!(options.wave_percent, 400);
         assert_eq!(options.heat_cap, 10);
         assert_eq!(options.active_limit(8), 8);
         assert_eq!(options.maximum_heat(), None);
+        assert!(!options.bounty_fixes, "turning the fixes off is kept");
+    }
+
+    #[test]
+    fn the_bounty_fixes_are_on_by_default_and_for_an_older_file() {
+        assert!(PursuitOptions::default().bounty_fixes);
+        let old: toml::Value = toml::from_str(
+            "enhanced = true
+max_active_cops = 20",
+        )
+        .unwrap();
+        assert!(PursuitOptions::read(&old, "test").unwrap().bounty_fixes);
     }
 }

@@ -288,8 +288,7 @@ pub struct RepRates {
 pub struct RepTable {
     /// The rates of heat level `n` at index `n - 1`.
     pub rates: Vec<RepRates>,
-    /// Each cop car type (lower case name) with the destruction points of heat level `n` at index `n - 1`
-    /// (`RepPointsForDestroying` of its `aivehicle` record).
+    /// Each cop car type (lower case name) with its `RepPointsForDestroying` array (`aivehicle` record), entry by entry.
     pub destroy: Vec<(String, Vec<u32>)>,
 }
 
@@ -300,11 +299,12 @@ impl RepTable {
         self.rates.get(index).copied().unwrap_or_default()
     }
 
-    /// The destruction points of cop car `car` wrecked at heat level `level` (clamped); 0 for a car the table lacks.
-    pub fn destroy_points(&self, car: &str, level: u32) -> u32 {
-        let index = level.clamp(1, HEAT_LEVELS) as usize - 1;
+    /// The destruction points of cop car `car` wrecked at heat `heat`, read as the original reads them: entry `heat` of
+    /// the array, so heat 1 takes the second entry and heat 10 runs off the 10-entry array and scores 0
+    /// (`docs/specs/ai-pursuit-heat.md` section 5.1). 0 for a car or an entry the table lacks.
+    pub fn destroy_points(&self, car: &str, heat: u32) -> u32 {
         let row = self.destroy.iter().find(|(name, _)| name.eq_ignore_ascii_case(car));
-        row.and_then(|(_, points)| points.get(index)).copied().unwrap_or(0)
+        row.and_then(|(_, points)| points.get(heat as usize)).copied().unwrap_or(0)
     }
 }
 
@@ -321,12 +321,12 @@ fn rep_rates_in(db: &Database, table: &str, heat: u32) -> Option<RepRates> {
     })
 }
 
-/// The destruction points of cop car type `car` wrecked at heat `heat` (1…10): `RepPointsForDestroying` of its
-/// `aivehicle` record, at index `heat - 1`. None when the record or the value is missing.
-pub fn destroy_rep_points(db: &Database, car: &str, heat: u32) -> Option<u32> {
+/// The destruction points array of cop car type `car`: `RepPointsForDestroying` of its `aivehicle` record, entry by
+/// entry (an entry that is not a number scores 0). None when the record or the array is missing.
+pub fn destroy_rep_points(db: &Database, car: &str) -> Option<Vec<u32>> {
     let record = db.collection("pvehicle", &car.to_ascii_lowercase())?.follow("aivehicle")?;
-    let index = heat.clamp(1, HEAT_LEVELS) as usize - 1;
-    points_of(record.get("RepPointsForDestroying")?.as_array()?.get(index)?)
+    let entries = record.get("RepPointsForDestroying")?.as_array()?;
+    Some(entries.iter().map(|value| points_of(value).unwrap_or(0)).collect())
 }
 
 /// A rep points value as the database stores it. `RepPointsForDestroying` is an `Int32` array in the install (the
@@ -344,7 +344,7 @@ pub fn rep_table(db: &Database) -> RepTable {
     let mut destroy: Vec<(String, Vec<u32>)> = cop_car_names(db)
         .into_iter()
         .map(|name| {
-            let points = (1..=HEAT_LEVELS).map(|heat| destroy_rep_points(db, &name, heat).unwrap_or(0)).collect();
+            let points = destroy_rep_points(db, &name).unwrap_or_default();
             (name, points)
         })
         .collect();
