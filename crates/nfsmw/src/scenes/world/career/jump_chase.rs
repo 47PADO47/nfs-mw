@@ -43,7 +43,10 @@ impl WorldScene {
             traffic.set_jump_start(false);
         }
         match result {
-            Ok(line) => log::info!("career: the jump's chase starts: {line}"),
+            Ok(line) => {
+                self.jump_chase_started();
+                log::info!("career: the jump's chase starts: {line}");
+            }
             Err(e) => log::warn!("career: the jump's chase did not start: {e}"),
         }
     }

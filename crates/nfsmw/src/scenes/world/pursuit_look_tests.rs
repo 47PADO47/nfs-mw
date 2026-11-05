@@ -123,3 +123,15 @@ fn missing_data_leaves_out_only_its_part() {
     let frame = still.update(2.0, true, 0.016, 0.016);
     assert_eq!((weight(&frame), frame.look.brightness), (0.0, 1.0), "no blend and no flash without their effects");
 }
+
+#[test]
+fn a_chase_that_starts_with_a_reset_does_not_fire() {
+    // A jump's chase: the original starts it inside the jump's reset, and the rewrite forgets the state when it starts.
+    let mut look = fixture();
+    look.update(1.0, false, 0.016, 0.016);
+    look.reset();
+    let frame = look.update(1.0, true, 0.016, 0.016);
+    assert_eq!((weight(&frame), frame.look.brightness, frame.radial_blur), (0.0, 1.0, 0.0));
+    let rise = look.update(2.0, true, 0.016, 0.016);
+    assert_eq!(weight(&rise), 1.0, "a later heat rise still fires");
+}

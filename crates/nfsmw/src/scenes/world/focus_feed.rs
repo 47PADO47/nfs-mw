@@ -41,6 +41,13 @@ impl WorldScene {
         renderer.set_focus_filter(focus);
     }
 
+    /// A jump's chase started. The original starts it with the jump, inside the reset that never starts the look; the
+    /// rewrite starts it once the car stands on its marker, so the look forgets what it knew and the next frame only
+    /// records the chase (`docs/specs/pursuit-look.md`).
+    pub(in crate::scenes::world) fn jump_chase_started(&mut self) {
+        self.pursuit_look.reset();
+    }
+
     /// This frame's pursuit look, from the driven car's heat and whether a chase runs. `None` while the garage shows
     /// its own look or no car is driven; the look then starts again.
     fn pursuit_look_frame(&mut self, sim_dt: f32, real_dt: f32) -> Option<super::pursuit_look::Frame> {

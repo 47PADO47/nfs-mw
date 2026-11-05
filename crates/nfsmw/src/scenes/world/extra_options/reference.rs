@@ -102,6 +102,7 @@ impl WorldScene {
         }
         self.extra.message = Some(match result {
             Ok(_) => {
+                self.jump_chase_started();
                 format!("Pursuit started at heat {heat} at {}", reference::row_text(&self.extra.bounty_spots, number))
             }
             Err(e) => format!("The pursuit did not start: {e}"),

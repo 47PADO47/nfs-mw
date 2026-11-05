@@ -50,6 +50,9 @@ focus filter. Differences, all **[ours]**:
   the pursuit and arrest looks show as they are;
 - the heat is the driven car's live heat and "pursued" is whether a chase runs, cool-down included;
 - the garage's showroom keeps its own grade, and the look starts again after it;
+- the chase of a jump to a bounty place or a milestone starts inside the jump's reset in the original (its recording
+  attaches the first cop during the load), so it never fires the look; the rewrite starts that chase once the car stands
+  on its marker and forgets the look's state then, so the next frame only records it;
 - the blur follows the motion blur setting, as the rewrite's other radial blurs do;
 - with the colour treatment turned off there is no grade, so no flash either;
 - missing data leaves out only its part (no `uves` look: no blue; no pulse: no flash).
