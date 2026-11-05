@@ -154,6 +154,23 @@ fn following_mass(car: &CarState) -> f32 {
 
 /// The other cars as a think reads them: every body of the step's snapshot (`simulation.rs`) except the thinking car
 /// `me`, in snapshot order, then the player. Nothing is copied; the snapshot is read in place.
+/// The other cars as a cop's or racer's neighbourhood test sees them: [`others`] with the avoidance radius each
+/// advertises (the player has the default).
+pub fn neighbours<'a>(
+    bodies: &'a [(Body, bool)],
+    radii: &'a [f32],
+    me: usize,
+    player: Option<Body>,
+) -> impl Iterator<Item = blackbox_roads::Neighbour> + Clone + 'a {
+    let radius = |i: usize| radii.get(i).copied().unwrap_or(blackbox_roads::DEFAULT_AVOID_RADIUS);
+    bodies
+        .iter()
+        .enumerate()
+        .filter(move |&(i, _)| i != me)
+        .map(move |(i, b)| blackbox_roads::Neighbour { body: b.0, radius: radius(i) })
+        .chain(player.map(blackbox_roads::Neighbour::from))
+}
+
 pub fn others<'a>(
     bodies: &'a [(Body, bool)],
     me: usize,

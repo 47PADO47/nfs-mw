@@ -13,7 +13,6 @@ use super::car::Ctx;
 use super::cop::{THINK_PERIOD, THINK_STEPS};
 use super::racer_route::follow_route;
 use super::traffic::CarState;
-use blackbox_roads::Body;
 
 /// Racers think as often as cops do.
 pub const RACER_THINK_STEPS: u32 = THINK_STEPS;
@@ -66,6 +65,8 @@ pub struct RacerState {
     pub held: bool,
     /// Where the racer was told to cruise to after finishing: a speed (m/s).
     cruise: f32,
+    /// The avoidance radius the racer advertises to the other cars: its last road look-ahead.
+    avoid_radius: f32,
     /// The road the racer follows through the gates, with the shortcuts it rolled for (`race/shortcuts.rs`); `None`
     /// before the race gives it one, or without a road network.
     pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
@@ -119,6 +120,7 @@ impl RacerState {
             glue: 0.0,
             held: true,
             cruise: 25.0,
+            avoid_radius: blackbox_roads::DEFAULT_AVOID_RADIUS,
             route: None,
             leg: None,
             on_route: false,
@@ -130,6 +132,12 @@ impl RacerState {
     /// (`docs/specs/ai-driver-speed-skill.md` section 8.1).
     pub fn skill(&self) -> f32 {
         (self.base_skill + self.glue).clamp(0.0, 1.0)
+    }
+
+    /// The avoidance radius the racer advertises: the look-ahead of its last road think (`DEFAULT_AVOID_RADIUS` before
+    /// one).
+    pub fn avoid_radius(&self) -> f32 {
+        self.avoid_radius
     }
 
     /// Where the racer drives to (physics space). `None` once it has finished.
@@ -161,7 +169,7 @@ impl RacerState {
         ctx: &mut Ctx<'_, R>,
         nav: &mut RoadNav,
         car: &CarState,
-        traffic: impl IntoIterator<Item = Body>,
+        traffic: impl IntoIterator<Item: Into<blackbox_roads::Neighbour>>,
     ) -> RacerThink {
         let (net, index, rng) = (ctx.net, ctx.index, &mut *ctx.rng);
         let Some(goal) = self.goal else {
@@ -174,6 +182,7 @@ impl RacerState {
             self.repath_to(net, index, nav, car, goal);
         }
         let look = look_ahead(self.governor.speed_limit);
+        self.avoid_radius = look;
         let gap = nav.position.distance(car.body.position);
         let toward = to_goal.try_normalize().unwrap_or(Vec3::ZERO);
         if gap < look {
@@ -246,10 +255,11 @@ impl RacerState {
         ctx: &mut Ctx<'_, R>,
         nav: &mut RoadNav,
         car: &CarState,
-        traffic: impl IntoIterator<Item = Body>,
+        traffic: impl IntoIterator<Item: Into<blackbox_roads::Neighbour>>,
     ) -> RacerThink {
         let (net, rng) = (ctx.net, &mut *ctx.rng);
         let look = look_ahead(self.cruise);
+        self.avoid_radius = look;
         let gap = nav.position.distance(car.body.position);
         if gap < look {
             nav.advance_with_lookahead(net, look - gap, Vec3::ZERO, look, rng);

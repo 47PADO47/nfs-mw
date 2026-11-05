@@ -22,6 +22,20 @@ impl AiCar {
         }
     }
 
+    /// The avoidance radius the car advertises to the other cars' neighbourhood tests (spec
+    /// `ai-pursuit-obstacle-selection.md`, avoidable neighbourhood): a cop's or racer's last road look-ahead, a traffic
+    /// car's (or a patrol's) traffic look-ahead, and the default for a roadblock car, which never sets one.
+    pub fn avoid_radius(&self) -> f32 {
+        if self.roadblock {
+            return blackbox_roads::DEFAULT_AVOID_RADIUS;
+        }
+        match &self.role {
+            Role::Cop(cop) => cop.avoid_radius(),
+            Role::Racer(racer) => racer.avoid_radius(),
+            Role::Traffic => self.avoidable_radius,
+        }
+    }
+
     /// Whether this car is part of a roadblock (and so holds its place).
     pub fn is_roadblock(&self) -> bool {
         self.roadblock

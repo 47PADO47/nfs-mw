@@ -88,6 +88,10 @@ impl TrafficWorld {
         bodies.extend(self.cars.iter().map(|c| (c.avoidable(), c.is_cop())));
         bodies.extend(self.cars.iter().filter_map(AiCar::loose_trailer_body).map(|b| (b, false)));
         bodies.extend(self.guest_bodies().map(|b| (b, false)));
+        // The radius each car advertises; the loose trailers and the guests after them have the default.
+        let mut radii = std::mem::take(&mut self.radii);
+        radii.clear();
+        radii.extend(self.cars.iter().map(AiCar::avoid_radius));
         self.watch_ground(focus.body.map(|b| b.position), collision);
         let target = self.pursuit_target(focus.body);
         // Normal driving establishes the vehicle's road history before any chase.
@@ -165,6 +169,7 @@ impl TrafficWorld {
                 index: &self.index,
                 rng: &mut self.rng.nav,
                 bodies: &bodies,
+                radii: &radii,
                 me,
                 player: match car.is_cop() && !car.is_searching() {
                     true => secondary.or(target),
@@ -189,6 +194,7 @@ impl TrafficWorld {
             });
         }
         self.bodies = bodies;
+        self.radii = radii;
         self.aims = aims;
         self.slotted = slotted;
         self.starts = starts;

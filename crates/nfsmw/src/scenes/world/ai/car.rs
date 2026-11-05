@@ -416,7 +416,8 @@ impl AiCar {
                     }
                     shift(&mut self.sim, Some(gear));
                 }
-                let think = racer.think(ctx, &mut self.nav, &state, traffic::others(ctx.bodies, ctx.me, ctx.player));
+                let neighbours = traffic::neighbours(ctx.bodies, ctx.radii, ctx.me, ctx.player);
+                let think = racer.think(ctx, &mut self.nav, &state, neighbours);
                 self.target = think.target;
                 self.speed = think.speed;
             }
@@ -425,12 +426,13 @@ impl AiCar {
                     self.speed = 0.0;
                     return;
                 };
-                let (bodies, me, slotted) = (ctx.bodies, ctx.me, ctx.slotted);
+                let (bodies, radii, me, slotted) = (ctx.bodies, ctx.radii, ctx.me, ctx.slotted);
                 // A slotted cop does not cut its corridor around the other slotted cops (`cop.rs` `think`).
                 let mine = slotted.get(me).copied().unwrap_or(false);
                 let others = bodies.iter().enumerate().filter(move |&(i, _)| i != me).map(move |(i, b)| {
                     let mate = mine && b.1 && slotted.get(i).copied().unwrap_or(false);
-                    (b.0, !mate)
+                    let radius = radii.get(i).copied().unwrap_or(blackbox_roads::DEFAULT_AVOID_RADIUS);
+                    (blackbox_roads::Neighbour { body: b.0, radius }, !mate)
                 });
                 let pressing = self.controls.gas >= 0.5;
                 let stuck = cop.stuck.update(

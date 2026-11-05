@@ -7,8 +7,22 @@ use super::Body;
 use super::punch::MAX_HEIGHT_DIFF;
 
 const CAPACITY: usize = 32;
-/// The sweep radius of a vehicle that has not set its own (the other cars' radii are not carried here).
-const DEFAULT_RADIUS: f32 = 20.0;
+/// The avoidance radius of a vehicle that has not set its own: a parked or roadblock car, the player's.
+pub const DEFAULT_AVOID_RADIUS: f32 = 20.0;
+
+/// Another vehicle as a car's neighbourhood test sees it: its body and the avoidance radius it advertises (the road
+/// look-ahead of a cop or racer on its road action, the traffic look-ahead of a traffic car).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Neighbour {
+    pub body: Body,
+    pub radius: f32,
+}
+
+impl From<Body> for Neighbour {
+    fn from(body: Body) -> Self {
+        Self { body, radius: DEFAULT_AVOID_RADIUS }
+    }
+}
 
 /// A vehicle's sweep: the larger of its avoidance radius and twice its speed.
 fn sweep(radius: f32, body: &Body) -> f32 {
@@ -16,15 +30,16 @@ fn sweep(radius: f32, body: &Body) -> f32 {
 }
 
 /// The bodies whose sweep squares overlap mine on both horizontal axes, nearest first beyond the capacity. My radius is
-/// the cursor distance; the others use the default radius.
-pub(super) fn nearby(me: &Body, cursor: Vec3, bodies: impl IntoIterator<Item = Body>) -> Vec<Body> {
+/// the cursor distance; each other vehicle sweeps its own radius.
+pub(super) fn nearby(me: &Body, cursor: Vec3, bodies: impl IntoIterator<Item: Into<Neighbour>>) -> Vec<Body> {
     let mine = sweep(cursor.distance(me.position), me);
     let mut found: Vec<_> = bodies
         .into_iter()
         .enumerate()
-        .filter_map(|(index, body)| {
+        .filter_map(|(index, neighbour)| {
+            let Neighbour { body, radius } = neighbour.into();
             let delta = body.position - me.position;
-            let reach = mine + sweep(DEFAULT_RADIUS, &body);
+            let reach = mine + sweep(radius, &body);
             let overlaps = delta.x.abs() <= reach && delta.z.abs() <= reach;
             (delta.y.abs() <= MAX_HEIGHT_DIFF && overlaps).then_some((index, delta.length_squared(), body))
         })
@@ -56,6 +71,18 @@ mod tests {
         let parked = body(Vec3::Z * 80.0, Vec3::ZERO);
         assert!(nearby(&me, Vec3::Z * 30.0, [parked]).is_empty(), "a parked car sweeps only its 20 m default");
         assert_eq!(nearby(&me, Vec3::Z * 30.0, [body(Vec3::Z * 50.0, Vec3::ZERO)]).len(), 1);
+    }
+
+    #[test]
+    fn a_neighbour_sweeps_its_own_avoidance_radius() {
+        let me = body(Vec3::ZERO, Vec3::ZERO);
+        // My sweep is 30 m: a stopped car 80 m ahead is a neighbour only through a radius of 50 m or more.
+        let ahead = body(Vec3::Z * 80.0, Vec3::ZERO);
+        assert!(nearby(&me, Vec3::Z * 30.0, [Neighbour { body: ahead, radius: 45.0 }]).is_empty());
+        assert_eq!(nearby(&me, Vec3::Z * 30.0, [Neighbour { body: ahead, radius: 55.0 }]).len(), 1);
+        // A fast car still sweeps twice its speed past a short radius.
+        let fast = body(Vec3::Z * 80.0, Vec3::X * 30.0);
+        assert_eq!(nearby(&me, Vec3::Z * 30.0, [Neighbour { body: fast, radius: 10.0 }]).len(), 1);
     }
 
     #[test]

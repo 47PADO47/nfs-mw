@@ -12,6 +12,7 @@ mod punch;
 use glam::{Vec2, Vec3};
 
 pub use curvature::trail_curvature;
+pub use neighbours::{DEFAULT_AVOID_RADIUS, Neighbour};
 pub use occlusion::{Occlusion, update_occluded_position};
 pub use punch::{Avoidable, Body};
 

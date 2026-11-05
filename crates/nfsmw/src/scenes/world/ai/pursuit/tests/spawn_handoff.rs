@@ -102,6 +102,7 @@ fn ram_support_entry_uses_drivability_even_against_a_fast_target() {
             index: &world.index,
             rng: &mut rng,
             bodies: &[],
+            radii: &[],
             me: 0,
             player: Some(target),
             aims: &[None],

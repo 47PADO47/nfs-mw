@@ -232,6 +232,8 @@ pub struct TrafficWorld {
     shared_bust_held: bool,
     /// Per-step scratch, kept so a step does not allocate: every body as the others see it (`simulation.rs`).
     bodies: Vec<(Body, bool)>,
+    /// The avoidance radius of each car of `bodies` (`AiCar::avoid_radius`).
+    radii: Vec<f32>,
     /// The cops' aims of the step, by car index (`cop_aims.rs`).
     aims: Vec<Option<Vec3>>,
     /// Which cars hold a formation slot this step, kept so a step does not allocate.
@@ -325,6 +327,7 @@ impl TrafficWorld {
             secondary_seen: false,
             shared_bust_held: false,
             bodies: Vec::new(),
+            radii: Vec::new(),
             aims: Vec::new(),
             slotted: Vec::new(),
             formation_membership: Default::default(),

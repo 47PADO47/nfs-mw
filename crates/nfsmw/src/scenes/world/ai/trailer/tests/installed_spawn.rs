@@ -335,6 +335,7 @@ fn installed_same_model_trucks_and_loads_keep_distinct_stable_render_identities(
         index: &segments,
         rng: &mut rng,
         bodies: &bodies,
+        radii: &[],
         me: 0,
         player: None,
         aims: &[],

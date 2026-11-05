@@ -77,6 +77,7 @@ impl TrafficWorld {
                 index: &self.index,
                 rng: &mut self.rng.nav,
                 bodies: &bodies,
+                radii: &[],
                 me: usize::MAX,
                 player: None,
                 aims: &[],
@@ -93,7 +94,9 @@ impl TrafficWorld {
             };
             state.racer.set_think_delta(state.think_elapsed);
             state.think_elapsed = 0.0;
-            let think = state.racer.think(&mut ctx, &mut state.nav, &car, bodies.iter().map(|(body, _)| *body));
+            let radii: Vec<f32> = self.cars.iter().map(|car| car.avoid_radius()).collect();
+            let neighbours = super::traffic::neighbours(&bodies, &radii, usize::MAX, None);
+            let think = state.racer.think(&mut ctx, &mut state.nav, &car, neighbours);
             state.request = DriveRequest { target: think.target, speed: think.speed, flags: DriveFlags::FULL };
         }
         let controls = state.driver.step(&view, &state.request, dt, state.elapsed);

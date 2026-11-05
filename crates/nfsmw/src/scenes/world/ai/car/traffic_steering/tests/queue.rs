@@ -33,6 +33,7 @@ impl QueueRig {
             index: &self.index,
             rng: &mut self.rng,
             bodies: &bodies,
+            radii: &[],
             me: 0,
             player,
             aims: &[],
