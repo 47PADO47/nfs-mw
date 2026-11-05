@@ -175,6 +175,7 @@ impl WorldScene {
     }
 
     fn sample_pursuit_trace(&mut self, sim_dt: f32) {
+        let tools_paused = self.tools_paused();
         let Some(active) = self.pursuit_trace.active.as_mut() else { return };
         active.sim_time += f64::from(sim_dt.max(0.0));
         let time_ms = active.started.elapsed().as_secs_f64() * 1000.0;
@@ -216,7 +217,7 @@ impl WorldScene {
             })));
         }
         let pursuit = active.tracker.pursuit_id(&frame);
-        let paused = self.extra.testing.paused || sim_dt <= 0.0;
+        let paused = tools_paused || sim_dt <= 0.0;
         let sample = Sample {
             kind: "sample",
             stamp,

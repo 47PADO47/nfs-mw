@@ -178,6 +178,8 @@ pub struct WorldScene {
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,
     garage_open: bool,
+    /// A tools overlay (F5, F8) is open; with the preference on, the world pauses as the testing pause does.
+    overlay_open: bool,
     garage_backdrop: Option<crate::frontend::GarageBackdrop>,
     garage_exit: Option<nfsmw_data::gameplay::Placement>,
     audio_environment: Option<crate::audio::environment_context::EnvironmentMap>,

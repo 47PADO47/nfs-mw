@@ -165,6 +165,7 @@ impl WorldScene {
                 garage: garage_catalog,
                 garage_parts: None,
                 garage_open: false,
+                overlay_open: false,
                 garage_backdrop: None,
                 garage_exit: None,
                 audio_environment,

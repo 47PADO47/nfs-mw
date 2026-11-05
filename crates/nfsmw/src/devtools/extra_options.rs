@@ -103,6 +103,7 @@ fn toggle(
         heat_keys(&mut keys, &mut host, driving && !overlay.typing);
     }
     overlay.sync(&mut capture, &mut focus);
+    host.scene.set_overlay_open(overlay.open || lab.open);
     if lab.open || console.open {
         capture.0 = false;
         focus.0 = true;

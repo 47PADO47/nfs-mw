@@ -67,6 +67,9 @@ impl Scene for WorldScene {
     fn set_garage_open(&mut self, open: bool) {
         self.garage_open = open;
     }
+    fn set_overlay_open(&mut self, open: bool) {
+        self.overlay_open = open;
+    }
     fn paused(&self) -> bool {
         self.garage_open
     }

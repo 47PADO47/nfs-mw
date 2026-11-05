@@ -7,11 +7,18 @@ use crate::input::{Action, ActionState};
 use crate::viewer::Scene;
 
 impl WorldScene {
+    /// The world stands still for the tools: the testing pause, or a tools overlay open with the pause preference on
+    /// (single player only: a multiplayer session keeps its clock).
+    pub(super) fn tools_paused(&self) -> bool {
+        self.extra.testing.paused
+            || (self.overlay_open && self.extra.camera.pause_overlays && self.rules.time_scale_allowed)
+    }
+
     /// Advance the scene by one frame: input, streaming, simulation, effects and captures.
     pub(super) fn update_frame(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         self.prepare_extra();
         let camera_dt = dt;
-        let dt = match self.extra.testing.paused {
+        let dt = match self.tools_paused() {
             true => 0.0,
             false => dt,
         };
@@ -34,7 +41,7 @@ impl WorldScene {
         // The garage, a playing NIS scene and a playing story movie freeze the world: no input reaches it and no time
         // passes in it.
         let idle = ActionState::default();
-        let frozen = self.extra.testing.paused
+        let frozen = self.tools_paused()
             || self.garage_open
             || self.nis.is_playing()
             || self.story_movie.is_playing()
@@ -212,7 +219,7 @@ impl WorldScene {
         self.update_sky(renderer);
 
         self.residency.animate(renderer, self.clock);
-        if self.extra.testing.paused
+        if self.tools_paused()
             && self.view == View::Chase
             && let Some(drive) = self.players.lead_mut()
         {
@@ -224,12 +231,12 @@ impl WorldScene {
             drive.set_alpha(1.0);
         }
 
-        if self.extra.testing.paused && self.view == View::Chase {
+        if self.tools_paused() && self.view == View::Chase {
             self.seed_original_camera();
             self.update_original_camera(camera_dt, 0.0, self.speedbreaker_clock, false, 1.0);
         }
         if self.view == View::Fly {
-            let tools_camera = (self.extra.freecam || self.extra.testing.paused)
+            let tools_camera = (self.extra.freecam || self.tools_paused())
                 && !self.garage_open
                 && !self.nis.is_playing()
                 && !self.story_movie.is_playing();

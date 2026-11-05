@@ -164,6 +164,8 @@ pub trait Scene {
     }
     /// Freeze driving while the garage owns the controls, allowing streaming and placement to continue.
     fn set_garage_open(&mut self, _open: bool) {}
+    /// Whether a tools overlay (F5, F8) is open: the world pauses for it unless the player turned that off.
+    fn set_overlay_open(&mut self, _open: bool) {}
     fn title(&self) -> String;
     /// Upload the initial resources.
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()>;
