@@ -375,6 +375,21 @@ mod tests {
     }
 
     #[test]
+    fn a_carried_testing_heat_starts_the_next_forced_chase_above_the_free_roam_range() {
+        let mut police = Police::default();
+        police.set_career_bin(Some(15));
+        police.set_forced_pursuit(true);
+        police.set_carried_heat(7.0);
+        police.begin(1);
+        assert_eq!(police.level(), Some(7), "the patrol's chase starts at the carried heat");
+        let mut unforced = Police::default();
+        unforced.set_career_bin(Some(15));
+        unforced.set_carried_heat(7.0);
+        unforced.begin(1);
+        assert!(unforced.level().unwrap() <= 5, "an ordinary chase keeps the free-roam range");
+    }
+
+    #[test]
     fn active_car_options_keep_a_development_heat_but_explicit_heat_caps_win() {
         let mut police = Police::default();
         police.set_career_bin(Some(15));

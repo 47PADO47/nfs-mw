@@ -261,7 +261,9 @@ impl Police {
     pub fn begin(&mut self, level: u32) {
         self.observation = Default::default();
         let config = extra_options::active().heat_bounds().map(|bounds| (bounds.min, bounds.max));
-        let (min, max) = self.heat_model.range_for(config, level);
+        // A development start's range reaches its level; the heat the car carries counts as one (the heat keys set it).
+        let reach = level.max(self.carried_heat.floor().max(0.0) as u32);
+        let (min, max) = self.heat_model.range_for(config, reach);
         let mut heat = Heat::new(min, max);
         heat.begin();
         heat.raise_to(self.carried_heat);

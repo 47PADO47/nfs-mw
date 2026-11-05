@@ -70,6 +70,15 @@ pub fn row_text(spots: &[BountySpot], number: i32) -> String {
     format!("{}/{} · {}", at + 1, spots.len(), spots[at].name)
 }
 
+/// The level the heat keys step from: the car's live heat (the chase's while one runs, else the heat it carries) when
+/// the world knows it, so a step never lands below a chase that has climbed on its own; the testing heat otherwise.
+pub fn step_base(live: Option<f32>, testing: u8) -> u8 {
+    match live.filter(|heat| heat.is_finite()) {
+        Some(heat) => heat.floor().clamp(f32::from(MIN_HEAT), f32::from(MAX_HEAT)) as u8,
+        None => testing,
+    }
+}
+
 /// `heat` moved by `delta` levels, kept in 1 to 10.
 pub fn step_heat(heat: u8, delta: i8) -> u8 {
     let next = i16::from(heat) + i16::from(delta);
@@ -84,14 +93,13 @@ pub fn heat_note(heat: u8) -> Option<&'static str> {
     Some("above 5 is modded (extended heat levels)")
 }
 
-/// The toast shown after a heat key: the new level, whether a running chase took it, and the modded note.
+/// The toast shown after a heat key: the new level, whether a running chase took it (else the car carries it into the
+/// next chase), and the modded note.
 pub fn heat_toast(heat: u8, applied: bool) -> String {
     let mut text = format!("Testing heat {heat}");
-    if applied {
-        text.push_str(" · applied to the pursuit");
-    }
-    if !applied {
-        text.push_str(" · used by the next pursuit");
+    match applied {
+        true => text.push_str(" · applied to the pursuit"),
+        false => text.push_str(" · the next pursuit starts at it"),
     }
     if let Some(note) = heat_note(heat) {
         text.push_str(" · ");
@@ -122,6 +130,15 @@ mod tests {
 
     fn jump(number: i32, position: Option<Vec3>) -> BountyJump {
         BountyJump { key: number as u32, name: format!("bounty_jump/{number}"), number, position, rotation_deg: None }
+    }
+
+    #[test]
+    fn the_keys_step_from_the_live_heat_so_a_climbed_chase_never_drops() {
+        assert_eq!(step_heat(step_base(Some(4.6), 1), 1), 5, "a chase at heat 4 goes up to 5, not to 2");
+        assert_eq!(step_heat(step_base(Some(4.6), 1), -1), 3);
+        assert_eq!(step_base(None, 3), 3, "without a world the testing heat is the base");
+        assert_eq!(step_base(Some(f32::NAN), 3), 3);
+        assert_eq!(step_base(Some(0.2), 3), 1);
     }
 
     #[test]
