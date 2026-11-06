@@ -97,7 +97,7 @@ impl AiCar {
         self.hold_goal_brake();
         let airborne_action = matches!(&self.role, super::Role::Cop(cop) if !cop.close_active()
             && !(cop.ram_allowed && self.goal_drive().command().is_some()));
-        if airborne_action && !reversing && self.airborne > 1.5 {
+        if airborne_releases(airborne_action, reversing, self.airborne, self.sim.body_on_ground()) {
             self.controls = AiControls::default();
         }
         if self.breaker_stop {
@@ -190,5 +190,35 @@ impl AiCar {
             true => self.idle + self.step_delta,
             false => 0.0,
         };
+    }
+}
+
+/// Seconds with no wheel on the ground before the airborne action releases a cop's controls (`ai-driver-control.md`
+/// section 7.2).
+const AIRBORNE_SECS: f32 = 1.5;
+
+/// Whether the airborne action holds a cop's controls at zero this step: the cop may take it (`eligible`), no stuck
+/// reverse runs, and it has had no wheel down for [`AIRBORNE_SECS`]. **[ours]** Not while its body rests on the
+/// ground: a cop beached on a kerb or a bank with its wheels hanging would sit there for good, as its body sleeps and
+/// only the throttle wakes it, and the stuck test only counts while the gas is pressed.
+fn airborne_releases(eligible: bool, reversing: bool, airborne: f32, body_on_ground: bool) -> bool {
+    eligible && !reversing && !body_on_ground && airborne > AIRBORNE_SECS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_airborne_action_releases_a_flying_cop_after_a_second_and_a_half() {
+        assert!(!airborne_releases(true, false, 1.4, false));
+        assert!(airborne_releases(true, false, 1.6, false));
+        assert!(!airborne_releases(true, true, 5.0, false), "a stuck reverse keeps its controls");
+        assert!(!airborne_releases(false, false, 5.0, false), "a closing or ramming cop keeps its controls");
+    }
+
+    #[test]
+    fn a_cop_beached_on_its_body_keeps_its_controls() {
+        assert!(!airborne_releases(true, false, 60.0, true), "it keeps pressing the gas, so it wakes and can reverse");
     }
 }

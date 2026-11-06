@@ -356,6 +356,13 @@ impl Vehicle {
         self.body.state == BodyState::Asleep
     }
 
+    /// The body itself touches the ground: a corner of the box was in contact at the last awake step, or the body
+    /// has gone to sleep (it only sleeps supported). With no wheel down this is a car beached on its body, not one
+    /// in the air.
+    pub fn body_on_ground(&self) -> bool {
+        self.body_ground_contact || self.is_asleep()
+    }
+
     /// Fill the installed nitrous tank without changing its performance specification.
     pub fn refill_nitrous(&mut self) {
         self.powertrain.nos.capacity = 1.0;

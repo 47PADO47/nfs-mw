@@ -336,6 +336,11 @@ impl CarSim {
         })
     }
 
+    /// The body rests on the ground itself (a corner touches, or it sleeps supported): with no wheel down, beached.
+    pub fn body_on_ground(&self) -> bool {
+        self.vehicle.body_on_ground()
+    }
+
     /// The dot product of the car's up vector with the world's.
     pub fn up_dot(&self) -> f32 {
         self.vehicle.rotation().y_axis.y
