@@ -57,6 +57,8 @@ pub(super) struct Plan {
     last_known: Option<Vec3>,
     /// The game camera's place at the last step, for its velocity.
     camera_last: Option<Vec3>,
+    /// The lowest heat level of the chase since the helicopter came (its level when it spawned, then any lower one).
+    level: u32,
 }
 
 /// A camera faster than this between two steps has cut to a new view: its velocity is taken as zero.
@@ -241,6 +243,14 @@ impl Police {
             heli.tuning.line_of_sight = current.line_of_sight;
             heli.tuning.search_radius = current.search_radius;
             heli.tuning.skid_hit = current.skid_hit;
+            // [ours] Only the testing heat keys lower a running chase's heat: a helicopter then keeps no more fuel than
+            // the lower level's tank, so one that came at heat 10 does not hover for minutes at heat 1. The original's
+            // heat only climbs during a chase, where this changes nothing.
+            if level < self.heli_plan.level {
+                self.heli_plan.level = level;
+                heli.tuning.fuel_time = current.fuel_time;
+                heli.fuel = heli.fuel.min(current.fuel_time);
+            }
         }
         self.heli_plan.previous = Some((heli.body.position, heli.body.orientation));
         heli.camera = self.camera_with_velocity(dt);
@@ -314,6 +324,7 @@ impl Police {
             ),
         };
         self.heli = Some(Helicopter::spawn(position, heading, tuning));
+        self.heli_plan.level = level;
         self.heli_plan.previous = None;
         self.heli_clock = THINK_PERIOD;
         self.heli_plan.forced = false;

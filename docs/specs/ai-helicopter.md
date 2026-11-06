@@ -96,6 +96,11 @@ levels: 1: 10/120/251/-, 2: 20/120/251/-, 3: 60/120/251/-, 4: 80/120/251/60, 5: 
 220/120/251/60, 8: 75/120/301/75, 9: 120/120/301/80, 10: 120/120/301/90; `default`: 20/20/201/-. (`-`: not in the `cops`
 list.) `MinimumSupportDelay`: 10 to 60 s ([ai-pursuit-cops.md](ai-pursuit-cops.md) section 6).
 
+**[ours]** The tank is filled once, at the placement, from that level. A chase's heat only climbs in the original, but
+the rewrite's testing heat keys can lower it: when the chase's level falls below the lowest one since the helicopter came,
+the helicopter keeps no more fuel than the lower level's tank (and that tank becomes its capacity), so it leaves within
+10 s of a drop to heat 1 to 3. Climbing again does not refill it (`police/heli.rs`).
+
 ### 2.4 Who the helicopter chases
 
 `AIVehicleHelicopter::Update` sets its target to the **local player's** vehicle every think, whatever the pursuit target

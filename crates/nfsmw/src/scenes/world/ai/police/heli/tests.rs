@@ -37,6 +37,26 @@ fn an_airborne_helicopter_tracks_current_heat_tuning_without_refilling() {
 }
 
 #[test]
+fn a_testing_heat_drop_cuts_the_fuel_to_the_lower_levels_tank() {
+    let mut police = chase(5);
+    police.heli = Some(Helicopter::spawn(Vec3::new(-100.0, 40.0, 0.0), 0.0, Default::default()));
+    police.heli_plan.level = police.level().unwrap();
+    police.heli.as_mut().unwrap().fuel = 300.0;
+    let step = crate::scenes::world::drive::STEP;
+    police.think_helicopter(step, true, &view(10.0), sensed(true), &|_, _| true);
+    assert!(police.heli.as_ref().unwrap().fuel > 290.0, "no change while the heat holds");
+    police.heat = Some(blackbox_pursuit::Heat::new(1.0, 10.0));
+    police.think_helicopter(step, true, &view(10.0), sensed(true), &|_, _| true);
+    let heli = police.heli.as_ref().unwrap();
+    let tank = crate::settings::helicopter::vanilla::FUEL_HEAT[0];
+    assert!(heli.fuel <= tank, "{} s left after the drop to heat 1", heli.fuel);
+    assert_eq!(heli.tuning.fuel_time, tank);
+    police.heat = Some(blackbox_pursuit::Heat::new(5.0, 10.0));
+    police.think_helicopter(step, true, &view(10.0), sensed(true), &|_, _| true);
+    assert!(police.heli.as_ref().unwrap().fuel <= tank, "climbing again does not refill it");
+}
+
+#[test]
 fn drawing_interpolates_poses_without_changing_physics_telemetry() {
     let mut police = chase(5);
     police.heli = Some(Helicopter::spawn(Vec3::X * 10.0, 0.0, Default::default()));
