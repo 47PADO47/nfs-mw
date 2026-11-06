@@ -1,69 +1,64 @@
-//! The pursuit breakers' icons on the minimap. In a chase the game marks the breaker structures with icons; the icon
-//! of a breaker that fires, and every icon within 20 m of it, disappears. Spec: `docs/specs/pursuit-breakers.md`
-//! ("Map icons").
+//! The pursuit breakers' icons on the minimap. In a chase the game shows one icon at every track position marker named
+//! `IconMarker`; a breaker that fires takes every icon within 20 m of it away until its section is reset. Spec:
+//! `docs/specs/pursuit-breakers.md` ("Map icons").
 
-use glam::{Vec2, Vec3};
-use nfsmw_data::car::physics::PhysicsData;
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
-use super::props::PropWorld;
+use glam::Vec3;
+
 use super::space;
 use crate::hud::{MapBlip, PURSUIT_BREAKER};
 
 /// A fired breaker removes the icons within this many metres of it.
 pub const HIDE_RADIUS: f32 = 20.0;
-/// The resident breakers are looked up again this often, simulated seconds.
-const REFRESH: f32 = 1.0;
 
-/// The icons of the resident breakers that have not fired.
-#[derive(Default)]
-pub(super) struct BreakerIcons {
-    /// Physics-space positions of the breakers that show an icon.
-    shown: Vec<Icon>,
-    /// Hidden icons retain their section identity across streaming.
-    hidden: BTreeSet<(usize, u32)>,
-    age: f32,
-    looked: bool,
+/// A breaker that fired: where (physics space) and the streaming section it belongs to, when it is known.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct Fired {
+    pub position: Vec3,
+    pub section: Option<usize>,
 }
 
-#[derive(Clone, Copy)]
-struct Icon {
-    section: usize,
-    id: u32,
-    position: Vec3,
+/// The icon places and which of them a fired breaker hides.
+#[derive(Default)]
+pub(super) struct BreakerIcons {
+    /// Physics-space places of the track's icon markers; empty until the track's markers are read.
+    places: Vec<Vec3>,
+    /// Hidden icons by index, with the section of the breaker that hid them: a reset of that section shows them again.
+    hidden: BTreeMap<usize, Option<usize>>,
+    placed: bool,
 }
 
 impl BreakerIcons {
-    /// Looks the resident breakers up once a second.
-    pub fn step(&mut self, dt: f32, props: &PropWorld, data: &PhysicsData, fired: &[Vec3], restored: &[usize]) {
-        self.age += dt;
-        self.hidden.retain(|(section, _)| !restored.contains(section));
-        if self.looked && self.age < REFRESH && fired.is_empty() && restored.is_empty() {
-            return;
-        }
-        self.age = 0.0;
-        self.looked = true;
-        let sites = props.breaker_sites(data, Vec2::ZERO);
-        self.shown = sites
-            .iter()
-            .filter(|s| !s.fired)
-            .filter_map(|s| Some(Icon { section: props.section_for(s.id)?, id: s.id, position: s.position }))
-            .collect();
+    /// Whether the icon places were given.
+    pub fn is_placed(&self) -> bool {
+        self.placed
+    }
+
+    /// The icon markers' places, render space (the track's own records).
+    pub fn place(&mut self, markers: impl IntoIterator<Item = Vec3>) {
+        self.places = markers.into_iter().map(|at| Vec3::from_array(space::to_physics(at))).collect();
+        self.hidden.clear();
+        self.placed = true;
+    }
+
+    /// One step: breakers fired at these places, and these streaming sections were reset.
+    pub fn step(&mut self, fired: &[Fired], restored: &[usize]) {
+        self.hidden.retain(|_, section| !section.is_some_and(|section| restored.contains(&section)));
         self.fired(fired);
     }
 
-    /// Breakers opened zones at these places (physics space): their icons and the icons near them go.
-    pub fn fired(&mut self, places: &[Vec3]) {
-        for icon in &self.shown {
-            if places.iter().any(|p| p.distance(icon.position) <= HIDE_RADIUS) {
-                self.hidden.insert((icon.section, icon.id));
+    /// Breakers opened zones here: the icons within [`HIDE_RADIUS`] go.
+    pub fn fired(&mut self, fired: &[Fired]) {
+        for (index, icon) in self.places.iter().enumerate() {
+            if let Some(stop) = fired.iter().find(|stop| stop.position.distance(*icon) <= HIDE_RADIUS) {
+                self.hidden.insert(index, stop.section);
             }
         }
-        self.apply_hidden();
     }
 
-    fn apply_hidden(&mut self) {
-        self.shown.retain(|icon| !self.hidden.contains(&(icon.section, icon.id)));
+    fn shown(&self) -> impl Iterator<Item = Vec3> + '_ {
+        self.places.iter().enumerate().filter(|(index, _)| !self.hidden.contains_key(index)).map(|(_, at)| *at)
     }
 
     /// The icons for the minimap, while a chase is on. Nearest first is the style's business.
@@ -71,22 +66,21 @@ impl BreakerIcons {
         if !pursuing {
             return;
         }
-        for icon in &self.shown {
-            let render = space::to_render(icon.position.to_array());
+        for icon in self.shown() {
+            let render = space::to_render(icon.to_array());
             out.push(MapBlip { style: PURSUIT_BREAKER, position: [render.x, render.y], active: false, heading: None });
         }
     }
 
-    /// The breakers that show an icon within `radius` metres of `place`, nearest first and at most `count`, both in
-    /// render space, for the Custom HUD's world markers (`hud_marks.rs`). None outside a chase, as on the minimap.
+    /// The icons within `radius` metres of `place`, nearest first and at most `count`, both in render space, for the
+    /// Custom HUD's world markers (`hud_marks.rs`). None outside a chase, as on the minimap.
     pub fn near(&self, pursuing: bool, place: Vec3, radius: f32, count: usize) -> Vec<Vec3> {
         if !pursuing {
             return Vec::new();
         }
         let mut near: Vec<Vec3> = self
-            .shown
-            .iter()
-            .map(|icon| space::to_render(icon.position.to_array()))
+            .shown()
+            .map(|icon| space::to_render(icon.to_array()))
             .filter(|at| at.distance(place) <= radius)
             .collect();
         near.sort_by(|a, b| a.distance(place).total_cmp(&b.distance(place)));
@@ -97,12 +91,12 @@ impl BreakerIcons {
     /// How many icons stand within `radius` metres of `place` (physics space).
     #[cfg(test)]
     pub fn shown_near(&self, place: Vec3, radius: f32) -> usize {
-        self.shown.iter().filter(|p| p.position.distance(place) <= radius).count()
+        self.shown().filter(|p| p.distance(place) <= radius).count()
     }
 
     #[cfg(test)]
     pub fn len(&self) -> usize {
-        self.shown.len()
+        self.shown().count()
     }
 }
 
@@ -110,20 +104,19 @@ impl BreakerIcons {
 mod tests {
     use super::*;
 
+    /// Icons at these physics-space places.
     fn icons(places: &[Vec3]) -> BreakerIcons {
-        BreakerIcons {
-            shown: places
-                .iter()
-                .enumerate()
-                .map(|(id, &position)| Icon { section: 0, id: id as u32, position })
-                .collect(),
-            looked: true,
-            ..Default::default()
-        }
+        let mut icons = BreakerIcons::default();
+        icons.place(places.iter().map(|at| space::to_render(at.to_array())));
+        icons
+    }
+
+    fn fired(position: Vec3, section: usize) -> Fired {
+        Fired { position, section: Some(section) }
     }
 
     #[test]
-    fn icons_show_only_in_a_chase_at_the_structure() {
+    fn icons_show_only_in_a_chase_at_the_marker() {
         let icons = icons(&[Vec3::new(-100.0, 5.0, 300.0)]);
         let mut out = Vec::new();
         icons.blips(false, &mut out);
@@ -135,7 +128,7 @@ mod tests {
     }
 
     #[test]
-    fn the_breakers_near_the_car_are_in_render_space_nearest_first_and_only_in_a_chase() {
+    fn the_icons_near_the_car_are_in_render_space_nearest_first_and_only_in_a_chase() {
         // Physics (0, 0, 100) is render (100, 0, 0); physics (-50, 0, 0) is render (0, 50, 0).
         let icons = icons(&[Vec3::new(0.0, 0.0, 100.0), Vec3::new(-50.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 900.0)]);
         assert!(icons.near(false, Vec3::ZERO, 150.0, 4).is_empty(), "no breakers outside a chase");
@@ -152,34 +145,29 @@ mod tests {
             Vec3::new(0.0, 0.0, 21.0),
             Vec3::new(500.0, 0.0, 0.0),
         ]);
-        icons.fired(&[Vec3::new(0.0, 0.0, 0.0)]);
+        icons.fired(&[fired(Vec3::ZERO, 0)]);
         assert_eq!(icons.len(), 2);
-        let mut out = Vec::new();
-        icons.blips(true, &mut out);
-        assert!(out.iter().all(|b| b.position != [0.0, 0.0] && b.position != [19.0, 0.0]));
+        assert_eq!(icons.shown_near(Vec3::ZERO, HIDE_RADIUS), 0);
     }
 
     #[test]
-    fn a_fired_place_keeps_hiding_after_the_next_look() {
-        let mut icons = icons(&[Vec3::new(5.0, 0.0, 0.0), Vec3::new(50.0, 0.0, 0.0)]);
-        let resident = icons.shown.clone();
-        icons.fired(&[Vec3::ZERO]);
-        icons.shown = resident;
-        icons.apply_hidden();
-        assert_eq!(icons.len(), 1);
-    }
-
-    #[test]
-    fn a_section_reset_restores_only_its_own_icons() {
-        let mut icons = icons(&[Vec3::ZERO, Vec3::X]);
-        icons.shown[1].section = 1;
-        let resident = icons.shown.clone();
-        icons.fired(&[Vec3::ZERO]);
+    fn a_section_reset_restores_only_the_icons_its_breakers_hid() {
+        let mut icons = icons(&[Vec3::ZERO, Vec3::new(100.0, 0.0, 0.0)]);
+        icons.step(&[fired(Vec3::ZERO, 0), fired(Vec3::new(100.0, 0.0, 0.0), 1)], &[]);
         assert_eq!(icons.len(), 0);
-        icons.hidden.retain(|(section, _)| *section != 0);
-        icons.shown = resident;
-        icons.apply_hidden();
+        icons.step(&[], &[1]);
         assert_eq!(icons.len(), 1);
-        assert_eq!(icons.shown[0].section, 0);
+        assert_eq!(icons.shown_near(Vec3::new(100.0, 0.0, 0.0), 1.0), 1, "section 1's icon is back");
+        icons.step(&[], &[2]);
+        assert_eq!(icons.shown_near(Vec3::ZERO, 1.0), 0, "section 0's icon stays hidden");
+    }
+
+    #[test]
+    fn placing_the_markers_again_shows_every_icon() {
+        let mut icons = icons(&[Vec3::ZERO]);
+        icons.fired(&[Fired { position: Vec3::ZERO, section: None }]);
+        assert_eq!(icons.len(), 0);
+        icons.place([Vec3::ZERO]);
+        assert_eq!(icons.len(), 1);
     }
 }
