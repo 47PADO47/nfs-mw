@@ -21,8 +21,8 @@ pub(super) fn options(ui: &mut egui::Ui, options: &mut crate::settings::PursuitO
         });
         ui.small(
             "Off keeps reference limits. Cops per wave scales the heat table's counts (the wave, the cops to evade \
-             before backup, the cool-down search) from the next chase. The active limit only caps them: reference \
-             waves are 4 to 10 cops, so at 100% no limit above about 12 changes a chase.",
+             before backup, the cool-down search) and shortens the spawn intervals to match, live. The active limit \
+             only caps them: reference waves are 4 to 10 cops, so at 100% no limit above about 12 changes a chase.",
         );
         ui.checkbox(&mut options.bounty_fixes, "Bounty fixes")
             .on_hover_text("Heat 10 takedowns score, a downed helicopter pays 100,000 with its own line, and 2-minute combo windows last 10 s. Off restores the original's bugs.");

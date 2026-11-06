@@ -68,6 +68,8 @@ pub struct Pursuit {
     pub heat: u32,
     /// The rows of the heat levels, index = level - 1 (`nfsmw_data::pursuit::heat_rows`).
     pub(super) rows: Vec<HeatRow>,
+    /// The reference rows `rows` are scaled from, and the F8 wave scale (`wave_scale`).
+    wave: wave_scale::Wave,
     player: Performance,
     spawn_timer: f32,
     requested_missing: u32,
@@ -102,6 +104,7 @@ impl Pursuit {
             backups: Vec::new(),
             engaged: Default::default(),
             heat,
+            wave: wave_scale::Wave::of(&rows),
             rows,
             player,
             last_seen: None,
@@ -164,7 +167,7 @@ impl Pursuit {
         }
         self.involved += 1;
         self.opening = None;
-        self.spawn_timer = delay;
+        self.spawn_timer = self.wave.delay(delay);
     }
 
     /// Spawn decisions must remain visible to determinism checks before their future cars differ.
@@ -191,6 +194,7 @@ impl Pursuit {
     fn drop_model(&mut self, name: &str) {
         let rows = std::mem::take(&mut self.rows);
         self.rows = without_models(rows, &[name.to_owned()]);
+        self.wave.drop_model(name);
     }
 
     /// The car types of the wave at the current heat (without the helicopter) with how many of each.
@@ -244,8 +248,8 @@ impl TrafficWorld {
         self.cops.unlock();
         self.police.begin(heat);
         self.roadblocks.begin_chase();
-        let rows = wave_scale::scaled(rows, self.police.wave_scale());
         let mut pursuit = Pursuit::new(self.police.patrol_heat(), rows, player);
+        pursuit.set_wave_scale(self.police.wave_scale());
         pursuit.set_backups(self.backup_rows.clone());
         self.pursuit = Some(pursuit);
         // The chase begins with the patrol that saw the player; the others that see it join on later runs.
@@ -364,6 +368,7 @@ impl TrafficWorld {
             self.join_requesting_patrol(cooldown);
         }
         let Some(pursuit) = self.pursuit.as_mut() else { return };
+        pursuit.set_wave_scale(self.police.wave_scale());
         if let Some(level) = level
             && pursuit.follow_heat(level)
         {

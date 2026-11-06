@@ -30,7 +30,7 @@ impl TrafficWorld {
     #[cfg(test)]
     pub(super) fn chase_spawn_placements(&mut self, player: &Body) -> Vec<(Vec3, Vec3)> {
         let mut points = Vec::with_capacity(2);
-        points.extend(self.seek_spawn_cursor(player).map(|nav| (nav.position, nav.forward)));
+        points.extend(self.seek_spawn_cursor(player, 0.0).map(|nav| (nav.position, nav.forward)));
         points.push(self.fallback_spawn_point(player));
         points
     }
@@ -71,12 +71,13 @@ impl TrafficWorld {
         Some(nav.position)
     }
 
-    /// The end of the walk: from the seek-ahead point, as far as the target is from it, along the cop roads in the direction
-    /// of the vector back to the target turned by 60 degrees to a random side.
-    pub(super) fn seek_spawn_cursor(&mut self, player: &Body) -> Option<RoadNav> {
+    /// The end of the walk: from the seek-ahead point, as far as the target is from it and `further` metres more, along the
+    /// cop roads in the direction of the vector back to the target turned by 60 degrees to a random side. The original
+    /// walks no further; a scaled F8 wave walks on to find room for its next cop **[ours]**.
+    pub(super) fn seek_spawn_cursor(&mut self, player: &Body, further: f32) -> Option<RoadNav> {
         let seek = self.reinforcement_seek(player)?;
         let back = player.position - seek;
-        let distance = back.length();
+        let distance = back.length() + further;
         let toward = rotate_in_xz(back, side_angle(self.rng.police.next_f32()));
         let mut nav =
             RoadNav::new(NavKind::Direction, LaneType::Cop, SegmentFilter { cop: true, ..SegmentFilter::default() });

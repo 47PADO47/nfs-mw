@@ -6,11 +6,25 @@ The F8 Traffic panel groups them under **Police limits (enhancement)**.
 - `enhanced`: off by default; controls whether any of the overrides below takes effect.
 - `max_active_cops`: 8 to 256, initially 16 for the optional mode. Applies to all
   active police cars: patrols, pursuing cars, roadblocks and support together.
-- `wave_percent`: 100 to 2000, initially 100. A chase that starts with it above 100
-  takes the heat rows' counts scaled by it, rounded, a non-zero count never below
-  one: each wave car type's count (the helicopter stays one), `FullEngagementCopCount`
-  (the cops to evade before the backup) and `NumPatrolCars` (the cool-down search).
-  Spawn weights and timers are unchanged. A running chase keeps its rows.
+- `wave_percent`: 100 to 2000, initially 100. Above 100 the chase takes the heat
+  rows' counts scaled by it, rounded, a non-zero count never below one: each wave
+  car type's count (the helicopter stays one), `FullEngagementCopCount` (the cops to
+  evade before the backup) and `NumPatrolCars` (the cool-down search). The
+  reinforcement intervals (`TimeBetweenFirstFourCopSpawns`, `TimeBetweenCopSpawns`)
+  are divided by it, never below the 0.2 s of the fast-spawn alternation, so the
+  larger wave arrives in the reference wave's time: at the reference intervals cops
+  are lost about as fast as they come, and a larger count alone barely showed on
+  the road. A reinforcement tries one seek-walk spot and one fallback-disc spot a
+  step at 100 %, as the original does, and one more of each for every further
+  multiple of the scale, up to eight: each further seek spot lies another 40 m
+  (the spawn spacing) along the walk's road, and the fallback samples the disc
+  again. With one of each, the spacing from the cop placed last and the disc's
+  points off the cop roads held a scaled wave to about one new cop a second.
+  Spawn weights are unchanged.
+  A change applies to a running chase at once: the chase keeps the reference rows
+  and rebuilds its working rows from them, and the cops still to evade scale by the
+  same ratio while those already evaded stay counted. A pursuit context change
+  mid-chase takes the new context's rows at the chase's scale.
 - `heat_cap`: zero preserves event/career limits; 1 to 10 overrides their maximum.
   The authored final pursuit remains fixed at six. Special heat rows are exposed
   as an explicit enhancement without claiming they are ordinary career tiers.

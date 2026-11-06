@@ -287,7 +287,7 @@ pub(in crate::scenes::world) fn configure_pursuit_context(
     traffic.police.set_rep_table(table.rep(db));
     traffic.backup_rows = backups.clone();
     if let Some(pursuit) = traffic.pursuit.as_mut() {
-        pursuit.rows = rows;
+        pursuit.set_base_rows(rows);
         pursuit.set_backups(backups);
     }
     Ok(())

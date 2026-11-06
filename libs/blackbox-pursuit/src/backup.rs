@@ -68,6 +68,14 @@ impl Budget {
         self.required.max(0) as u32
     }
 
+    /// Scales the cops to evade by `ratio`, keeping those already evaded: a testing option that changes the wave's size
+    /// in the middle of a chase **[ours]**. The original has no such change.
+    pub fn scale_required(&mut self, ratio: f32) {
+        if ratio.is_finite() && ratio > 0.0 {
+            self.required = (self.required as f32 * ratio).round() as i32;
+        }
+    }
+
     /// Cops evaded so far.
     pub fn evaded(&self) -> u32 {
         self.evaded.max(0) as u32
@@ -228,5 +236,17 @@ mod tests {
         assert_eq!(budget.tick(f32::NAN, true, 5, 2), Event::None);
         assert_eq!(budget.tick(-1.0, true, 5, 2), Event::None);
         assert_eq!(budget, before);
+    }
+
+    #[test]
+    fn a_rescaled_wave_keeps_the_cops_already_evaded() {
+        let mut budget = Budget::new(10, 2);
+        budget.note_evaded(4);
+        budget.scale_required(5.0);
+        assert_eq!((budget.required(), budget.evaded(), budget.allowed()), (50, 4, 46));
+        budget.scale_required(0.2);
+        assert_eq!(budget.allowed(), 6);
+        budget.scale_required(f32::NAN);
+        assert_eq!(budget.required(), 10, "a bad ratio changes nothing");
     }
 }
