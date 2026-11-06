@@ -95,6 +95,7 @@ fn installed_traffic_graphs_select_voices_and_release_at_high_frame_rates() {
             listener_forward: Vec3::X,
             listener_velocity: Vec3::X * 50.0,
             emitters: vec![source],
+            racers: Vec::new(),
         };
         let mut owed = 0.0f64;
         let mut tick = 0;

@@ -271,7 +271,8 @@ impl TrafficWorld {
                 listener_position: space::to_render(body.position.to_array()),
                 listener_forward: space::to_render((body.orientation * Vec3::Z).to_array()),
                 listener_velocity: space::to_render(body.linear_velocity.to_array()),
-                emitters: self.cars.iter().map(|car| car.audio_emitter()).collect(),
+                emitters: self.cars.iter().filter(|car| !car.is_racer()).map(|car| car.audio_emitter()).collect(),
+                racers: self.cars.iter().filter_map(|car| car.racer_emitter()).collect(),
             }));
         }
         self.player_speed = player.as_deref().map_or(0.0, |p| p.body().linear_velocity.length());

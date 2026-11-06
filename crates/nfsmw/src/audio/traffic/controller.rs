@@ -1,5 +1,10 @@
 //! Ordered fixed-step traffic snapshots own all source lifetimes.
-use super::{TrafficFrame, TrafficSound, emitter::Emitter, selection::Variants};
+use super::{
+    TrafficFrame, TrafficSound,
+    emitter::Emitter,
+    racer::{RacerVoices, Step},
+    selection::Variants,
+};
 use crate::audio::{Audio, AudioView, trace::Record};
 use blackbox_mixmap::MixMap;
 use glam::Vec3;
@@ -18,12 +23,17 @@ pub(in crate::audio) struct TrafficAudio {
     pending: Vec<TrafficSound>,
     time: f32,
     last_horn: f32,
+    racers: RacerVoices,
 }
 
 impl TrafficAudio {
     #[cfg(test)]
     pub fn emitter_count(&self) -> usize {
         self.emitters.len()
+    }
+    #[cfg(test)]
+    pub fn racer_voice_count(&self) -> usize {
+        self.racers.count()
     }
     fn load(&mut self, audio: &mut Audio) -> bool {
         if self.failed {
@@ -75,6 +85,7 @@ impl TrafficAudio {
         {
             self.pending.clear();
             self.emitters.clear();
+            self.racers = RacerVoices::default();
             return;
         }
         let offset = view.camera_position - view.car_position;
@@ -93,6 +104,8 @@ impl TrafficAudio {
                 .any(|e| e.id == *id && e.position.is_finite() && e.velocity.is_finite() && e.forward.is_finite())
         });
         let Some(map) = self.map.clone() else { return };
+        let step = Step { velocities: [frame.listener_velocity, camera_velocity], dt: frame.dt, delay };
+        self.racers.update(audio, &map, &frame.racers, view, step);
         for state in frame.emitters {
             if !state.position.is_finite() || !state.velocity.is_finite() || !state.forward.is_finite() {
                 continue;

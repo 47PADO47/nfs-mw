@@ -19,6 +19,35 @@ space. Ordered step snapshots and events retain their elapsed time even when
 multiple physics steps occur in one display frame. No render-rate cooldowns or
 invented full-volume horn/near-miss constants participate in authored playback.
 
+## Actor roles
+
+Only traffic-context cars feed these producers. The original gives each simulated
+car one sound context: traffic, AI racer, cop or player **[decomp]**. The traffic
+state manager connects only traffic cars within 65 m; its horn, `FX_TRAFFIC`
+engine and drive-by whoosh effects never attach to a race opponent. The installed
+`racers` and `cars` base records still carry `HornType` 5, `TrafficEngType` 0 and
+`WooshType` 9, so every race opponent inherits valid traffic IDs **[verified]**.
+Selecting producers by class data alone therefore gives racers traffic horns,
+whooshes and a traffic engine loop. Select them by actor role instead.
+
+A race opponent plays its own engine through the AI-racer state, main map state 3
+**[decomp]**. At most four opponents are heard: the nearest within 135 m of the
+camera. Its `CAR` module comes from the car's own engine set bank; class data are
+car ID, sound-scale RPM mapped onto the set's `MinRPM..MaxRPM`, torque percent
+times 10.24, engine and exhaust attenuation from the engine object's slot 1
+volume, pitch offset and azimuth. Each new voice steps a pitch seed by 500 modulo
+3000 and uses the seed minus 1500; the map's pitch multiplies the seed plus 16000,
+less 16000. The source sits 0.2 m ahead of the car centre. State 3 receives the
+car's physics controller, the shared 3D car-position block and the engine
+controller's upgrade and `Master_Vol` inputs. The player's camera-distance
+low-pass cutoff fills the filter word; the original's AI filter producer remains
+unverified. Shift, clutch and LFO effects on AI RPM, AI turbo and skid effects,
+the original AI engine-upgrade selection and connection hysteresis remain open.
+
+Driver class follows the same role: a race opponent is class 3, which starts a
+traffic car's crash state like the player or a cop. Hitting an opponent is not
+a traffic hit for police radio, 911 counts or traffic-impact reports.
+
 ## Mixer and class data
 
 The traffic main state is 5: engine object 0, whoosh object 1, horn object 2.
@@ -70,4 +99,5 @@ invalid telemetry. Installed regressions exercise actual module voices and
 cleanup. Remaining parity gaps include original camera-velocity averaging,
 global random generator sequence, two-player mixing, exact AI horn requests,
 traffic truck auxiliary `FX_TRUCK_FX`, generic scenery whoosh trigger producers,
-and shared wet DSP/backend laws. Module presence is not an audible parity claim.
+cop-context engine voices (cops still use traffic producers), and shared wet
+DSP/backend laws. Module presence is not an audible parity claim.

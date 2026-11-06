@@ -2,6 +2,9 @@
 mod controller;
 mod emitter;
 pub(in crate::audio) mod mixer;
+mod racer;
+#[cfg(test)]
+mod racer_tests;
 mod selection;
 #[cfg(test)]
 mod tests;
@@ -31,13 +34,33 @@ pub struct TrafficEmitter {
     pub velocity: Vec3,
 }
 
+/// A race opponent heard through its own engine voice (the original's AI-racer context), never through the traffic
+/// horn, traffic engine or drive-by whoosh producers. Spec: `authored-traffic-audio.md` "Actor roles".
+#[derive(Debug, Clone, PartialEq)]
+pub struct RacerEmitter {
+    pub id: u32,
+    /// The `pvehicle` record whose engine sound set it plays (`carreragt`).
+    pub car: String,
+    pub position: Vec3,
+    pub forward: Vec3,
+    pub velocity: Vec3,
+    /// Physics RPM between idle (0) and the red line (1).
+    pub rpm_pct: f32,
+    /// Throttle, 0 to 1.
+    pub throttle: f32,
+    pub wheels_on_ground: u8,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TrafficFrame {
     pub dt: f32,
     pub listener_position: Vec3,
     pub listener_forward: Vec3,
     pub listener_velocity: Vec3,
+    /// Traffic-context cars: horns, traffic engine loops and drive-by whooshes.
     pub emitters: Vec<TrafficEmitter>,
+    /// Race opponents: engine voices only.
+    pub racers: Vec<RacerEmitter>,
 }
 
 /// Ordered events followed by a complete snapshot of the same simulation step.

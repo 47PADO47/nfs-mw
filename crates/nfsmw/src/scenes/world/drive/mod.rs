@@ -48,7 +48,7 @@ mod script;
 pub(super) mod sight;
 mod sim;
 mod simulation;
-mod sound;
+pub(in crate::scenes::world) mod sound;
 mod speedbreaker;
 mod time_scale;
 mod touch;
