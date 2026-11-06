@@ -58,45 +58,8 @@ impl WorldScene {
         let series_complete = self.note_side_race(event, place);
         let rewards = self.race_rewards(event);
         let phone = &mut self.career.phone;
-        let outcome = self.career.handle.with(|career| {
-            let result = EventResult {
-                event: event.to_owned(),
-                placing: place,
-                cash_value,
-                is_challenge: false,
-                bin: 0,
-                career: true,
-                bounty_total: None,
-                challenge_series_complete: series_complete,
-            };
-            let outcome = apply_event_result(
-                &mut career.settings,
-                &mut career.blacklist,
-                &mut career.milestones,
-                &mut career.traps,
-                &mut career.stable,
-                &result,
-            );
-            let inbox = &mut career.settings.sms;
-            if place == 1
-                && let Some((bin, won)) = races_won_in_bin(&career.blacklist, event)
-            {
-                phone.queue_bin_messages(inbox, bin_messages(bin, BinMoment::RaceWins(won)));
-            }
-            if outcome.released_cars > 0 {
-                phone.add_sms(inbox, RELEASE_SMS);
-            }
-            // A rival beaten by its last boss race: its gauntlet's rewards are granted now, and the safe house runs
-            // the arrival sequence at the next entry (`flow_arrival.rs`). Bin 1 has no arrival: its last race is the
-            // final race, which has its own end (`story-flow-2.md` section 5).
-            if let Some(bin) = outcome.bins_done.first().copied() {
-                career.rival_beaten = outcome.bins_done.iter().copied().find(|bin| *bin > 1);
-                if let Some((list, deferred)) = &rewards {
-                    grant_gauntlet(career, list, bin, *deferred);
-                }
-            }
-            outcome
-        });
+        let finished = RaceFinish { event, place, cash_value, series_complete, rewards: rewards.as_ref() };
+        let outcome = self.career.handle.with(|career| apply_race_finish(career, phone, &finished));
         let Some(outcome) = outcome else { return };
         log::info!(
             "career: race {event} placed {place}: cash {}, bins done {:?}, bins entered {:?}, {} car(s) releasable",
@@ -143,8 +106,14 @@ impl WorldScene {
             .all(|id| self.career.side_won.contains(&id))
     }
 
-    /// The race is over and the world is free roam again: the roaming-start autosave runs, as `SetRoaming` does.
+    /// The race is over and the world is free roam again: the roaming-start autosave runs, as `SetRoaming` does. It
+    /// waits while a beaten rival's arrival is due: that sequence holds the deferred rewards, which are not saved, and
+    /// saves after its markers screen itself (`story-flow-2.md` section 4.6 step 3).
     pub(in crate::scenes::world) fn career_race_left(&mut self) {
+        if self.career.handle.with(|career| arrival_pending(career)).unwrap_or(false) {
+            log::info!("career: roaming autosave held until the rival arrival sequence");
+            return;
+        }
         let inputs = AutosaveInputs {
             context: FrontEndContext::CAREER,
             node_id: None,
@@ -185,6 +154,66 @@ impl WorldScene {
 
 /// The SMS that tells the player an impounded car can be released (`docs/specs/career-economy-flows.md` section 7).
 const RELEASE_SMS: u32 = 120;
+
+/// One finished career race as the world read it: the event id, the player's place, the race cash, whether it
+/// completed the challenge series, and the race's reward list with its defer flag.
+pub(super) struct RaceFinish<'a> {
+    pub event: &'a str,
+    pub place: u8,
+    pub cash_value: f32,
+    pub series_complete: bool,
+    pub rewards: Option<&'a (Vec<RewardRecord>, bool)>,
+}
+
+/// Whether a beaten rival's arrival sequence (and any rewards it defers to the markers screen) is still to run.
+pub(super) fn arrival_pending(career: &Career) -> bool {
+    career.rival_beaten.is_some() || !career.popups.entries().is_empty()
+}
+
+/// Applies a finished race to the career: the Blacklist result, the bin's race-win messages, the release SMS and,
+/// when a rival falls, the gauntlet's rewards and the pending arrival sequence.
+pub(super) fn apply_race_finish(
+    career: &mut Career,
+    phone: &mut super::phone::PhoneState,
+    finished: &RaceFinish<'_>,
+) -> nfsmw_career::blacklist::EventOutcome {
+    let result = EventResult {
+        event: finished.event.to_owned(),
+        placing: finished.place,
+        cash_value: finished.cash_value,
+        is_challenge: false,
+        bin: 0,
+        career: true,
+        bounty_total: None,
+        challenge_series_complete: finished.series_complete,
+    };
+    let outcome = apply_event_result(
+        &mut career.settings,
+        &mut career.blacklist,
+        &mut career.milestones,
+        &mut career.traps,
+        &mut career.stable,
+        &result,
+    );
+    let inbox = &mut career.settings.sms;
+    if finished.place == 1
+        && let Some((bin, won)) = races_won_in_bin(&career.blacklist, finished.event)
+    {
+        phone.queue_bin_messages(inbox, bin_messages(bin, BinMoment::RaceWins(won)));
+    }
+    if outcome.released_cars > 0 {
+        phone.add_sms(inbox, RELEASE_SMS);
+    }
+    // A rival beaten by its last boss race: its gauntlet's rewards are granted now, and the safe house runs the arrival
+    // sequence at the next entry (`flow_arrival.rs`). Bin 1 has no arrival: its last race is the final race, which has
+    // its own end (`story-flow-2.md` section 5).
+    let Some(bin) = outcome.bins_done.first().copied() else { return outcome };
+    career.rival_beaten = outcome.bins_done.iter().copied().find(|bin| *bin > 1);
+    if let Some((list, deferred)) = finished.rewards {
+        grant_gauntlet(career, list, bin, *deferred);
+    }
+    outcome
+}
 
 /// Grants the reward list of a gauntlet's last race once its rival is beaten (`story-flow-2.md` section 4.5, F-10). The
 /// rewards go to the career at once, or to the popup queue when the race defers them. A pink slip names the rival's
