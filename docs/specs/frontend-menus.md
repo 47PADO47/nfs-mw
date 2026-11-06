@@ -317,6 +317,12 @@ screens, labels and behaviour where a label exists:
 | Audio | Engine Volume | `0xA2B1F888` | `engine_volume` |
 | Audio | Menu Music Volume | `0x418E681D` | `music_volume` |
 | Audio | Speech Volume | `0x9E5FB82A` | `speech_volume` |
+
+A settings file without a volume key takes the PC defaults `AudioSettings::Default` sets: master, speech, sound
+effects and engine 100, menu and in-game music 80 **[verified: PC static]**. Saved values are kept. The PC turns
+each category into a mixer-map attenuation, `1 - category * master * curve1(master)`, where curve 1 is the equal
+power shape of `1 - master`; the map's main state then shapes it. The remake still scales its output groups
+linearly, so equal slider positions are not yet equal loudness.
 | Video | Vsync | `0x6CEB9CB6` | `vsync` (On / Off) |
 | Video | Frame Limit | none in the language table, plain text | `max_fps` (Unlocked, 30, 60, 120, 144, 240) |
 | Video | Performance Overlay | none, plain text | `show_metrics` (Off, Basic, Advanced) |

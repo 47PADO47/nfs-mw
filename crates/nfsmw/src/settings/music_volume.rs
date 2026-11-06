@@ -22,7 +22,7 @@ mod tests {
             let s = Settings::from(p);
             (s.menu_music_volume, s.game_music_volume)
         };
-        assert_eq!(pair(Partial::default()), (Percent(60), Percent(60)));
+        assert_eq!(pair(Partial::default()), (Percent(80), Percent(80)));
         let legacy = Partial { music_volume: Some(Percent(25)), ..Default::default() };
         assert_eq!(pair(legacy), (Percent(25), Percent(25)));
         let split = Partial {
