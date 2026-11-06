@@ -37,3 +37,21 @@ diagnostic input, not an exact replay. Opponent source keys refer to runtime
 attribute collections. The later stock-race captures resolve their model parents;
 see [race-stock-pace](race-stock-pace.md). The native selection algorithm remains
 unresolved. This correction does not establish complete pace or career catch-up parity.
+
+## Career branch (2026-11-06)
+
+Same PC image, identity confirmed. The career branch of `ComputeCatchUpSkill`
+selects race context 2, derives its Easy-to-Hard factor from the race status
+adaptive bonus and halves the remaining distance to Hard for `BossRace` races
+(`GRaceParameters::GetIsBossRace` at `0x005fbd90`). `CatchUpOverride` at
+`0x005fc800` selects race-authored tables. The race status constructor and
+`SyncronizeAdaptiveBonus` at `0x005dc1a0` read the profile's signed 16-bit value
+scaled by 1/32767 and clamped to -1..1. Base skill for career racers reads
+`SkillLevel` and the adaptive up/down tables (0.5/0.75/1 and 0.5/0.375/0.25).
+Bounded instruction and constant inspection only; no translated code.
+
+An installed probe of `GLOBAL/gameplay.bin` found `CatchUpOverride` false for every
+race; 38 gameplay records resolve `BossRace` true. The CC0 reference front-end database stores the
+adaptive value through a setter clamped to 0..1, read for understanding only.
+Unit checks cover the factor endpoints, boss interpolation and identical career and
+Medium quick-race outputs. This does not establish full career pace parity.

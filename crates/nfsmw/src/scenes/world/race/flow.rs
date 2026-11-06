@@ -118,7 +118,7 @@ impl WorldScene {
         self.drag_assist(session);
         self.demo_step(session, dt);
         self.race_goals(session);
-        self.race_glue(session, dt);
+        self.race_glue(session);
         self.race_log(session, dt);
         let tick = tick_of(&events);
         self.race_events(session, events);
@@ -193,7 +193,7 @@ impl WorldScene {
     }
 
     /// The catch-up: sampled errors and current progress while the player still races.
-    fn race_glue(&mut self, session: &mut RaceSession, dt: f32) {
+    fn race_glue(&mut self, session: &mut RaceSession) {
         let (Some(engine), Some(traffic)) = (session.engine.as_ref(), self.traffic.as_mut()) else { return };
         let racers = engine.racers();
         if engine.phase() != Phase::Racing || racers[0].done() {
@@ -210,12 +210,7 @@ impl WorldScene {
             {
                 state.glue = 0.0;
             }
-            let interval = if session.options.career {
-                dt
-            } else {
-                let Some(interval) = traffic.racer_decision_interval(id) else { continue };
-                interval
-            };
+            let Some(interval) = traffic.racer_decision_interval(id) else { continue };
             let error = blackbox_race::CatchUp::error(length, player, racer.percent, session.player_top_speed_rating);
             let Some(state) = traffic.racer_mut(id) else { continue };
             let skill = session.glue[id].update(error, interval, racer.percent, emulated, session.catch_up);
