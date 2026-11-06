@@ -37,6 +37,11 @@ When a pursuit of the player begins (the pursuit takes its target), the camera d
 starts half a second after the pursuit and lasts two seconds; when the clock runs out the gameplay camera returns
 **[decomp]**. In a race the shot is skipped in a pursuit race and in the race's first second **[decomp]**.
 
+The original places a forced start's first cop as the pursuit starts, so the cop is there when the shot looks for it.
+The rewrite places that cop a little later (after a jump to a bounty place or a milestone, once its model is in), so a
+started pursuit waits up to 3 s for a cop that sees the player before its clock starts, counting only while no screen
+fade shows **[ours]**. A cop that is there at the start starts it at once, as in the original.
+
 ## 2.2 Jump
 
 The game posts `EPlayerAirborne` on the step a player-driven car's wheels-on-ground count drops from some to none,

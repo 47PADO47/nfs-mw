@@ -118,3 +118,33 @@ fn installed_moments_share_one_stream() {
         [audio.explosion_playing(), audio.world_effects.sweetener.is_playing(), audio.breaker_moment_playing()];
     assert_eq!(playing.iter().filter(|p| **p).count(), 1, "one moment at a time: {playing:?}");
 }
+
+/// The game moment shots' sounds (`docs/specs/game-moment-camera.md` section 2) are installed moments that play at the
+/// car through the world effects. The pursuit shot's recording opens with about 1.4 s of silence.
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_game_moment_shot_sounds_play_at_the_car() {
+    for name in ["spot_cop_camera", "jump_cam", "crash_cam"] {
+        let mut audio = installed();
+        let key = vlt_hash(name);
+        let rank = audio.moment_rank(key);
+        eprintln!("{name}: {rank:?}");
+        assert!(rank.is_some(), "{name} is an installed moment");
+        let car = Vec3::new(10.0, 0.0, 0.0);
+        let view = AudioView { car_position: car, camera_position: car + Vec3::Z * 2.0, ..AudioView::default() };
+        let sound = WorldEffectAudio {
+            effect: 0,
+            zone: CollisionZone::Default,
+            position: car,
+            magnitude: 1.0,
+            moment: Some(key),
+        };
+        audio.update_world_effect_audio(vec![sound], view, DT);
+        assert_eq!(audio.world_effects.sweetener.playing(), Some(key), "{name} plays");
+        let blocks: Vec<f64> =
+            (0..180).map(|_| audio.render_replay(800).iter().map(|s| f64::from(*s).powi(2)).sum::<f64>()).collect();
+        let first = blocks.iter().position(|e| *e > 0.0);
+        eprintln!("{name}: first sound after {:?} blocks of 1/60 s", first);
+        assert!(first.is_some(), "{name} reaches the output");
+    }
+}

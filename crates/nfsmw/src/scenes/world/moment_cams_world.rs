@@ -17,7 +17,13 @@ pub(super) struct MomentShots {
     /// The player's car had a wheel down at the last step (the takeoff is the step it has none).
     grounded: bool,
     pursued: bool,
+    /// Seconds a started pursuit has waited for a cop to look at (counted while the screen is not faded) **[ours]**.
+    pursuit_wait: Option<f32>,
 }
+
+/// How long a started pursuit waits for its first cop before the pursuit shot is dropped (s) **[ours]**: the original
+/// places the first cop as the pursuit starts, the rewrite a moment later (after a jump, once its model is in).
+const PURSUIT_WAIT: f32 = 3.0;
 
 /// The world's answers to the shots' questions, render space.
 struct World<'a> {
@@ -82,18 +88,31 @@ impl WorldScene {
         };
         let grounded = drive.sim().is_some_and(|sim| sim.telemetry().wheels_on_ground > 0);
         let takeoff = std::mem::replace(&mut self.moment_shots.grounded, grounded) && !grounded;
-        let speedbreaker = drive.speedbreaker_active();
+        let speedbreaker = drive.speedbreaker_camera_on();
         let flight = drive.sim().map(|sim| sim.flight_start(view.speed));
         let pursued = self.traffic.as_ref().is_some_and(TrafficWorld::is_pursuing);
         let started = !std::mem::replace(&mut self.moment_shots.pursued, pursued) && pursued;
         let world = World { collision: self.residency.collision(), traffic: self.traffic.as_ref() };
         // No shot starts during the speedbreaker or its fade (the original's gate for every moment).
         let open = |kind: MomentKind| !speedbreaker && self.moment_allowed(kind);
+        let (open_pursuit, open_jumps, open_crashes) =
+            (open(MomentKind::Pursuit), open(MomentKind::Jumps), open(MomentKind::Crashes));
         let mut starts = Vec::new();
-        if started && open(MomentKind::Pursuit) && self.race_allows_pursuit_shot() {
-            starts.push(Start::Pursuit);
+        if started && open_pursuit && self.race_allows_pursuit_shot() {
+            self.moment_shots.pursuit_wait = Some(0.0);
         }
-        if takeoff && open(MomentKind::Jumps) && !self.moment_shots.cams.car_shot() {
+        if !pursued {
+            self.moment_shots.pursuit_wait = None;
+        }
+        let faded = self.screen_fade_up();
+        if let Some(wait) = self.moment_shots.pursuit_wait.as_mut().filter(|_| !faded) {
+            *wait += real_dt;
+        }
+        let waiting = self.moment_shots.pursuit_wait.is_some_and(|wait| wait <= PURSUIT_WAIT);
+        if self.moment_shots.pursuit_wait.is_some() && !waiting {
+            self.moment_shots.pursuit_wait = None;
+        }
+        if takeoff && open_jumps && !self.moment_shots.cams.car_shot() {
             let zone = self.camera_environment.regions.first_of_kind_at(JUMP_ZONE, car.position.truncate()).is_some();
             let flight = flight.and_then(|(start, gravity)| {
                 let start = space::to_render(start.to_array());
@@ -104,11 +123,11 @@ impl WorldScene {
                 starts.push(Start::Jump(rules::jump_secs(flight.airtime)));
             }
         }
-        if open(MomentKind::Crashes) && self.crash_coming(&car, grounded) {
+        if open_crashes && self.crash_coming(&car, grounded) {
             starts.push(Start::Crash { roadblock: true });
         }
         // The camera and the cops in its sight matter only to a shot that starts now or is about to look for a cop.
-        let looking = !starts.is_empty() || self.moment_shots.cams.wants_camera();
+        let looking = !starts.is_empty() || waiting || self.moment_shots.cams.wants_camera();
         let lens = match looking {
             true => self.moment_camera_now(car.position),
             false => Camera { eye: car.position, target: car.position, fov: 0.0 },
@@ -118,6 +137,11 @@ impl WorldScene {
             false => Vec::new(),
         };
         let cops: Vec<Vec3> = cops.into_iter().filter(|&cop| Scene::clear(&world, lens.eye, cop)).collect();
+        // The pursuit shot starts once a cop it can look at is there, and not under a fade.
+        if waiting && !faded && !cops.is_empty() && open_pursuit {
+            self.moment_shots.pursuit_wait = None;
+            starts.insert(0, Start::Pursuit);
+        }
         let facts = Facts { car, pursued, camera: lens, cops: &cops, scene: &world };
         let cams = &mut self.moment_shots.cams;
         for start in starts {

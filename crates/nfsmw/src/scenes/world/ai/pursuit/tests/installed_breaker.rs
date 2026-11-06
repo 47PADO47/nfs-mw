@@ -242,13 +242,10 @@ fn the_players_car_driving_into_a_gas_pump_opens_the_breaker() {
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR): streams the real city around a gas station"]
 fn a_starting_pursuit_plays_the_cop_shot_unless_the_game_moment_camera_is_off() {
+    // The forced start has no sighting yet: the shot waits for the first cop that sees the player, as after a jump.
     let mut fixture = Fixture::open();
-    // A real chase starts from a sighting: the cops have just seen the parked player.
-    for car in &mut fixture.scene.traffic.as_mut().unwrap().cars {
-        car.report_sight(false, true);
-    }
     let mut seen = Vec::new();
-    for _ in 0..(3.5 / STEP) as usize {
+    for _ in 0..(5.0 / STEP) as usize {
         fixture.scene.update(&mut fixture.renderer, &fixture.pad, STEP);
         let status = fixture.scene.moment_cams_status();
         if seen.last() != Some(&status) {
