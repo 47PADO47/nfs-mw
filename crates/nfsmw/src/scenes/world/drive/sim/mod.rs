@@ -48,7 +48,7 @@ pub struct CarSim {
     vehicle: Vehicle,
     /// The two-wheel dynamics of a bike, for which `vehicle` is a body double (`bike.rs`). `None` for a car.
     ride: Option<Box<bike::BikeRide>>,
-    cinematic_controls: Option<blackbox_vehicle::ControlConfig>,
+    cinematic_controls: Option<cinematic::Saved>,
     reset_collision: reset_collision::ResetCollision,
     /// Where the body box's centre is relative to the model's origin, in physics axes.
     pivot: Vec3,

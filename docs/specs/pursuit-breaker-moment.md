@@ -95,6 +95,7 @@ keys"; the rules the cut uses:
 | The busted meter does not move | [decomp] (CC0 `AIPursuit`: the increment is zeroed while a world moment plays) | Yes (`hold_busted`) |
 | The world runs at the track's speed | [verified] data, [inferred] consumer | Yes |
 | The player's car is driven by the racer AI for the cut: the activity posts `EBecomeAiCar` on loading a Moment and `EBecomePlayerCar` on release | event construction [decomp]; the human AI switch selects the racer goal [decomp] | Temporary racer driver on the same body; entry-speed target remains rewrite policy |
+| The AI switch posts `EEnableAIPhysics`, which puts the car on the AI suspension behaviour `SuspensionSimple` for the cut and takes it off at the release | handler `0x638040` (behaviour override of `BEHAVIOR_MECHANIC_SUSPENSION`) [decomp] | Yes: the simple chassis and its tires, the player's own after the cut (`drive/sim/cinematic.rs`) |
 | No new traffic is created while a NIS exists (traffic density is 0) | CC0 `AITrafficManager::ComputeDensity` [decomp] | Yes during a moment; full NIS already freezes the world |
 | Cop spawning is off but removal is allowed during a moment | CC0 `AICopManager::VehicleSpawningEnabled` [decomp] | New placements wait; existing retirement and timers continue |
 | Camera noise (shake), depth of field, letterbox | the key fields exist; all moments have them zero or off [verified] | Not applied |
