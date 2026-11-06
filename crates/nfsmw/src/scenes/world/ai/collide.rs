@@ -28,12 +28,13 @@ struct Part<'a> {
 
 /// The driver of a car, as the crash gate reads it (`ai-traffic-obstacles.md` section 5.1): the player is `Human`
 /// (class 0), a car cruising the streets is `Traffic` (class 1), and a cop is `Cop` (class 2): a chasing cop, a patrol
-/// car or a roadblock car. The original's racer (class 3) has no car in this port.
+/// car or a roadblock car, and a race opponent is `Racer` (class 3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum DriverClass {
     Human,
     Traffic,
     Cop,
+    Racer,
 }
 
 /// A hit, remembered until the cars can be told: the car, the impulse (N s), where it touched (physics space), whether
