@@ -336,6 +336,17 @@ impl CarSim {
         })
     }
 
+    /// Where a predicted flight starts and how it falls (`docs/specs/game-moment-camera.md` section 2.2): the tyres'
+    /// mean contact point (physics space) and the vertical acceleration at `speed`, the body's gravity less its
+    /// downforce per mass (speed times the aero coefficient times 2000 N, as the original's jump camera reckons it).
+    pub fn flight_start(&self, speed: f32) -> (Vec3, f32) {
+        let up = self.vehicle.rotation() * Vec3::Y;
+        let patch = (0..4).map(|i| self.wheel_state(i)).map(|w| w.position - up * w.radius).sum::<Vec3>() * 0.25;
+        let body = self.vehicle.body();
+        let downforce = speed * self.vehicle.spec().aero.aero_coefficient * 2000.0;
+        (patch, body.spec().gravity - downforce / body.mass().max(1.0))
+    }
+
     /// The body rests on the ground itself (a corner touches, or it sleeps supported): with no wheel down, beached.
     pub fn body_on_ground(&self) -> bool {
         self.vehicle.body_on_ground()

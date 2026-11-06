@@ -57,6 +57,8 @@ mod lighting;
 pub(crate) mod materials;
 mod mod_hooks;
 mod moment;
+mod moment_cams;
+mod moment_cams_world;
 mod moment_world;
 pub mod net;
 #[cfg(feature = "multiplayer")]
@@ -358,6 +360,8 @@ pub struct WorldScene {
     cop_health: effects::cop_health::CopHealthBars,
     /// The cinematic moment of a pursuit breaker, when one plays (`moment.rs`).
     moment: moment::Moment,
+    /// The game moment cameras: the pursuit-start, jump and crash shots (`moment_cams_world.rs`).
+    moment_shots: moment_cams_world::MomentShots,
     /// The NIS cutscene player: the camera of a cutscene scene while it plays (`nis/`).
     nis: nis::NisPlayer,
     /// The movie the world plays over its view, and the tutorials seen (`story_movie.rs`).

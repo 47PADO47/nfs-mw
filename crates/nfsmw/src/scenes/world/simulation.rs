@@ -90,6 +90,7 @@ impl WorldScene {
             true => {
                 self.tuning.game_speed
                     * self.moment.sim_speed()
+                    * self.moment_shots.cams.sim_speed()
                     * self.photo_shot.as_ref().map_or(1.0, |shot| shot.simulation_scale(real_dt))
             }
             false => 1.0,
@@ -140,6 +141,7 @@ impl WorldScene {
             self.race_tick_with_delta(tick_delta);
         }
         self.step_moment(sim_dt);
+        self.step_moment_cams(real_dt);
         // A loading pause holds the last displayed phase instead of jumping ahead and rewinding.
         let alpha = match batch || dt == 0.0 {
             true => 1.0,

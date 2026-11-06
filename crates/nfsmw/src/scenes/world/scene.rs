@@ -358,7 +358,7 @@ impl Scene for WorldScene {
         self.explosions.take_started()
     }
     fn take_world_effect_audio(&mut self) -> Vec<crate::audio::WorldEffectAudio> {
-        self.residency.world_parts().1.take_world_effect_audio()
+        [self.residency.world_parts().1.take_world_effect_audio(), self.take_moment_cam_sounds()].concat()
     }
 
     fn readout(&self, level: crate::devtools::ShowReadout) -> Option<String> {

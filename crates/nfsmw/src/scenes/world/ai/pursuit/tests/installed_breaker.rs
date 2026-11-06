@@ -238,3 +238,33 @@ fn the_players_car_driving_into_a_gas_pump_opens_the_breaker() {
     eprintln!("{status}");
     assert!(status.contains("WMGasStation"), "the breaker asked for its moment: {status}");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR): streams the real city around a gas station"]
+fn a_starting_pursuit_plays_the_cop_shot_unless_the_game_moment_camera_is_off() {
+    let mut fixture = Fixture::open();
+    // A real chase starts from a sighting: the cops have just seen the parked player.
+    for car in &mut fixture.scene.traffic.as_mut().unwrap().cars {
+        car.report_sight(false, true);
+    }
+    let mut seen = Vec::new();
+    for _ in 0..(3.5 / STEP) as usize {
+        fixture.scene.update(&mut fixture.renderer, &fixture.pad, STEP);
+        let status = fixture.scene.moment_cams_status();
+        if seen.last() != Some(&status) {
+            seen.push(status);
+        }
+    }
+    eprintln!("{seen:#?}");
+    assert!(seen.iter().any(|line| line.contains("last: pursuit start")), "the pursuit start posts the shot: {seen:?}");
+    assert!(seen.iter().any(|line| line.contains("cop shot")), "a cop sees the parked player: {seen:?}");
+    assert!(seen.last().is_some_and(|line| line.contains("gameplay camera")), "the shot ends: {seen:?}");
+
+    let mut off = Fixture::open();
+    off.scene.tuning.game_moments.camera = false;
+    off.scene.moment_shots = Default::default();
+    for _ in 0..(1.0 / STEP) as usize {
+        off.scene.update(&mut off.renderer, &off.pad, STEP);
+    }
+    assert!(off.scene.moment_cams_status().contains("last: none"), "{}", off.scene.moment_cams_status());
+}
