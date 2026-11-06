@@ -2,7 +2,8 @@
 use super::*;
 use crate::extra_options::{Action, State};
 use crate::viewer::Scene;
-struct Tools(State);
+/// The fixture's driving scene: its extra options and the overlay state the wrapper passes on.
+struct Tools(State, std::rc::Rc<std::cell::Cell<bool>>);
 impl Scene for Tools {
     fn title(&self) -> String {
         "tools fixture".into()
@@ -20,6 +21,9 @@ impl Scene for Tools {
     fn screenshot_ui_hidden(&self) -> bool {
         self.0.hide_ui
     }
+    fn set_overlay_open(&mut self, open: bool) {
+        self.1.set(open);
+    }
     fn apply_extra_option(&mut self, _: &mut dyn blackbox_gfx::RenderBackend, action: Action) -> anyhow::Result<()> {
         assert!(matches!(action, Action::Center));
         self.0.hide_ui = true;
@@ -28,11 +32,20 @@ impl Scene for Tools {
 }
 #[test]
 fn normal_play_forwards_f5_preferences_actions_and_screenshot_visibility() {
-    let mut scene = Pausable::new(Box::new(Tools(State::default())), PauseFlag::default());
+    let mut scene = Pausable::new(Box::new(Tools(State::default(), Default::default())), PauseFlag::default());
     scene.extra_options().expect("F5 must reach the driving world").camera.auto_center = false;
     assert!(!scene.extra_options().unwrap().camera.auto_center);
     assert!(!scene.screenshot_ui_hidden());
     let mut renderer = crate::app::test_backend::NullBackend::new(crate::settings::test_caps::native());
     scene.apply_extra_option(&mut renderer, Action::Center).unwrap();
     assert!(scene.screenshot_ui_hidden());
+}
+#[test]
+fn normal_play_forwards_the_open_overlay_so_the_world_pauses_for_it() {
+    let overlay = std::rc::Rc::new(std::cell::Cell::new(false));
+    let mut scene = Pausable::new(Box::new(Tools(State::default(), overlay.clone())), PauseFlag::default());
+    scene.set_overlay_open(true);
+    assert!(overlay.get(), "F5 / F8 open must reach the driving world");
+    scene.set_overlay_open(false);
+    assert!(!overlay.get());
 }
