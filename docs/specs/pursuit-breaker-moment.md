@@ -30,7 +30,10 @@ The event runs a gate before anything else **[decomp]**; the cut does not play w
 3. The Game Moment Camera option is on (the profile's `JumpCam` byte, on by default; see
    [game-moment-camera](game-moment-camera.md)) **[decomp]**.
 4. Not the online or split-screen mode, no editor, and in a race the race's own flag allows moments. Free roam passes.
-5. The player's car is not being arrested **[inferred]**: the player object's busted flag stops the event.
+5. The player's car is not being arrested **[inferred]**: the player object's busted flag stops the event. The
+   speedbreaker is not on and its camera fade has ended (`gGameBreakerCamera`, the blend the gameplay camera keeps
+   while the speedbreaker shows) **[decomp]**: a structure smashed during the speedbreaker plays no cut. The
+   speedbreaker cannot be switched on while the cut plays either (it needs no scripted scene) **[decomp]**.
 6. A ground police car that is active and in pursuit of the player is close. The reach is
    `20 + 30 * (1 + cos)` metres, with `cos` the dot product of the heading of the player's car and the direction
    from the cop to the player. A cop right behind has 80 m, one right ahead 20 m, one beside 50 m. The distance is

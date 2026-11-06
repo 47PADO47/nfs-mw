@@ -28,6 +28,10 @@ impl WorldScene {
             log::info!("pursuit breaker moment: {scenes:?} not played (Game Moment Camera off)");
             return;
         }
+        if self.players.lead().is_some_and(super::drive::Drive::speedbreaker_camera_on) {
+            log::info!("pursuit breaker moment: {scenes:?} not played (speedbreaker)");
+            return;
+        }
         self.moment.prepare(&self.dir);
         let Some(drive) = self.players.lead() else { return };
         let view = drive.player_view();
