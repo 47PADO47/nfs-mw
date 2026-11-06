@@ -5,6 +5,7 @@ use glam::Vec3;
 
 use super::moment::Facts;
 use super::{WorldScene, space};
+use crate::settings::game_moments::MomentKind;
 
 impl WorldScene {
     /// The console line about the cinematic moment.
@@ -12,9 +13,19 @@ impl WorldScene {
         self.moment.status()
     }
 
+    /// Whether moments of this kind may play: the Game Moment Camera and the kind are on, and the game is local single
+    /// player (the original plays none online or in split screen).
+    pub(super) fn moment_allowed(&self, kind: MomentKind) -> bool {
+        self.tuning.game_moments.allows(kind) && self.extra_options_allowed()
+    }
+
     /// The breaker sequences asked for these scenes this step. The first the rules allow plays.
     pub(super) fn play_moments(&mut self, scenes: Vec<String>) {
         if scenes.is_empty() {
+            return;
+        }
+        if !self.moment_allowed(MomentKind::Breakers) {
+            log::info!("pursuit breaker moment: {scenes:?} not played (Game Moment Camera off)");
             return;
         }
         self.moment.prepare(&self.dir);

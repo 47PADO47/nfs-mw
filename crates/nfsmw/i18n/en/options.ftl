@@ -53,6 +53,11 @@ options-minimap-fixed = Fixed
 options-minimap-rotating = Rotating
 options-turn-signals = Turn Signals
 options-cop-health-bars = Cop Health Bars
+# The kinds of moment the Game Moment Camera plays (the row itself is the game's own label).
+options-game-moment-breakers = Moments: Pursuit Breakers
+options-game-moment-pursuit = Moments: Pursuit Start
+options-game-moment-jumps = Moments: Jumps
+options-game-moment-crashes = Moments: Roadblock Crashes
 # The row that picks the game's language; each language is listed by its own name (`languages.ftl`).
 options-language = Language
 

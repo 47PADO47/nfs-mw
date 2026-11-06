@@ -22,6 +22,7 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     table.remove("traffic_avoidance");
     let traffic = changes.traffic_policy.map(|v| v.merge(table.get("traffic_tuning"))).transpose()?;
     let pursuit = changes.pursuit_options.map(|v| v.merge(table.get("pursuit_options"))).transpose()?;
+    let moments = changes.game_moments.map(|v| v.merge(table.get("game_moments"))).transpose()?;
     let detail = changes.detail.map(|v| v.merge(table.get("detail"))).transpose()?;
     let appearance = changes.appearance.map(|v| v.merge(table.get("appearance"))).transpose()?;
     let mut put = |key: &str, value: Value| {
@@ -44,6 +45,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     }
     if let Some(v) = pursuit {
         put("pursuit_options", v);
+    }
+    if let Some(v) = moments {
+        put("game_moments", v);
     }
     if let Some(v) = detail {
         put("detail", v);

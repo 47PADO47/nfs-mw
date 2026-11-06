@@ -51,6 +51,7 @@ impl std::fmt::Display for Percent {
 pub struct Partial {
     pub traffic_policy: Option<super::TrafficPolicy>,
     pub pursuit_options: Option<super::PursuitOptions>,
+    pub game_moments: Option<super::game_moments::GameMoments>,
     pub detail: Option<super::DetailSettings>,
     pub appearance: Option<super::Appearance>,
     pub deadzone_mode: Option<super::DeadzoneMode>,
@@ -201,6 +202,7 @@ impl Partial {
         Partial {
             traffic_policy: self.traffic_policy.or(lower.traffic_policy),
             pursuit_options: self.pursuit_options.or(lower.pursuit_options),
+            game_moments: self.game_moments.or(lower.game_moments),
             detail: self.detail.or(lower.detail),
             appearance: self.appearance.or(lower.appearance),
             deadzone_mode: self.deadzone_mode.or(lower.deadzone_mode),

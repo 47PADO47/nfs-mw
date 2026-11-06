@@ -34,6 +34,8 @@ pub struct WorldTuning {
     pub fov_intensity: f32,
     /// How the tire smoke is coloured (`smoke_color_mode`, `smoke_color`).
     pub smoke_tint: SmokeTint,
+    /// Which game moments play (`[game_moments]`).
+    pub game_moments: game_moments::GameMoments,
 }
 
 impl Default for WorldTuning {
@@ -58,6 +60,7 @@ impl Default for WorldTuning {
             camera_shake: hud::DEFAULT_CAMERA_SHAKE,
             fov_intensity: hud::DEFAULT_FOV_INTENSITY,
             smoke_tint: SmokeTint::default(),
+            game_moments: game_moments::GameMoments::default(),
         }
     }
 }
@@ -84,6 +87,7 @@ impl From<&Settings> for WorldTuning {
             camera_shake: s.hud_options.camera_shake,
             fov_intensity: s.hud_options.fov_intensity,
             smoke_tint: SmokeTint { mode: s.smoke_color_mode, color: s.smoke_color },
+            game_moments: s.game_moments,
         }
     }
 }

@@ -27,8 +27,8 @@ The event runs a gate before anything else **[decomp]**; the cut does not play w
 2. The player's car touched the structure within the last 2 seconds. The clock is set when the model's trigger event
    is consumed and the model was last touched by the player's vehicle. The rewrite uses the last contact between the
    player's car and any prop (`drive/touch.rs`) **[inferred]**: it has no per-model "last touched by" yet.
-3. An options flag (a byte of the profile's gameplay options, 1 by default) is on. Its menu name was not found; the
-   rewrite treats it as on **[open]**.
+3. The Game Moment Camera option is on (the profile's `JumpCam` byte, on by default; see
+   [game-moment-camera](game-moment-camera.md)) **[decomp]**.
 4. Not the online or split-screen mode, no editor, and in a race the race's own flag allows moments. Free roam passes.
 5. The player's car is not being arrested **[inferred]**: the player object's busted flag stops the event.
 6. A ground police car that is active and in pursuit of the player is close. The reach is
@@ -96,6 +96,7 @@ keys"; the rules the cut uses:
 | The world runs at the track's speed | [verified] data, [inferred] consumer | Yes |
 | The player's car is driven by the racer AI for the cut: the activity posts `EBecomeAiCar` on loading a Moment and `EBecomePlayerCar` on release | event construction [decomp]; the human AI switch selects the racer goal [decomp] | Temporary racer driver on the same body; entry-speed target remains rewrite policy |
 | The AI switch posts `EEnableAIPhysics`, which puts the car on the AI suspension behaviour `SuspensionSimple` for the cut and takes it off at the release | handler `0x638040` (behaviour override of `BEHAVIOR_MECHANIC_SUSPENSION`) [decomp] | Yes: the simple chassis and its tires, the player's own after the cut (`drive/sim/cinematic.rs`) |
+| An options flag gates the cut: the Game Moment Camera (profile `JumpCam`) | [decomp] | Yes, with its own row ([game-moment-camera](game-moment-camera.md)) |
 | No new traffic is created while a NIS exists (traffic density is 0) | CC0 `AITrafficManager::ComputeDensity` [decomp] | Yes during a moment; full NIS already freezes the world |
 | Cop spawning is off but removal is allowed during a moment | CC0 `AICopManager::VehicleSpawningEnabled` [decomp] | New placements wait; existing retirement and timers continue |
 | Camera noise (shake), depth of field, letterbox | the key fields exist; all moments have them zero or off [verified] | Not applied |
@@ -107,5 +108,5 @@ keys"; the rules the cut uses:
   test places the gas station's cut on its nearest marker: the look point is 0.4 to 1.7 m from the station's roof for
   the whole cut and the eye stands 12 to 18 m away, which confirms the rotation sense and the quarter-turn offset **[verified]**.
 - The touch rule (section 2.2) is a rewrite approximation of the trigger event's "last touched by".
-- The options byte (2.3) and the original non-race autopilot's speed selection remain open.
+- The original non-race autopilot's speed selection remains open.
 - Scenes with no installed camera track (`WMGazebo`, `WMFishMarket`...) play nothing, as the original's gate.

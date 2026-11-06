@@ -96,6 +96,8 @@ pipeline, authored prop attributes and the limits of installed-data coverage.
 stimuli, expanding explosions, ownership and fixed-clock cop-stop regions.
 [Pursuit breaker moment](pursuit-breaker-moment.md) covers the camera cut a breaker plays: its gate, the marker it
 stands on, the ICE camera track and what the world does during it.
+[Game Moment Camera](game-moment-camera.md) covers the option and the shots it switches: the pursuit start, jump and
+roadblock crash cameras, their triggers and their slow motion.
 [Pursuit hiding spots](pursuit-hiding.md) covers the HIDDEN track zones, the latch that turns a spot into
 "hidden", its effect on cops and the evade meter, and the HUD mark.
 [Trailer constraints](trailer-constraints.md) covers named angular limits,
