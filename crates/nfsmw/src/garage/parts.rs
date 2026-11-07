@@ -3,6 +3,7 @@
 use nfsmw_data::car::customization::Category;
 
 use super::Model;
+use super::options::{Change, Edit, Inputs, Slot, Store, VehicleOptions};
 
 pub(super) fn show(ui: &mut egui::Ui, model: &mut Model) {
     let Some(car) = model.selected() else { return };
@@ -10,16 +11,45 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model) {
         ui.weak("Model customization is unavailable for this car.");
         return;
     };
+    let options = VehicleOptions::build(&Inputs {
+        folder: &car.folder,
+        name: &car.name,
+        catalog: Some(&catalog),
+        parts: &model.draft.parts,
+        color: model.draft.color,
+        paintable: car.paintable,
+        original_color: car.original_color,
+        performance: Some((&car.performance, model.draft.performance)),
+    });
     ui.weak("Installed parts · changes apply immediately");
     ui.add_space(8.0);
-    for category in Category::MODELS {
-        selector(ui, model, &catalog, category);
+    // The slots of the vehicle's own data: a bike's exhaust, rims and brake discs, a car's body kit, spoiler, hood, roof scoop and rims.
+    let shown: Vec<&Slot> = options.slots.iter().filter(|slot| is_part(slot)).collect();
+    let mut asked = None;
+    for slot in &shown {
+        if let Some(index) = slot_selector(ui, model, slot) {
+            asked = Some((slot.id.clone(), index));
+        }
+    }
+    if shown.is_empty() {
+        ui.weak("This car has no installed parts to change.");
     }
     ui.separator();
-    let changed = Category::MODELS.iter().any(|c| model.draft.parts.parts[*c as usize].is_some());
-    if ui.add_enabled(changed, egui::Button::new("Restore stock parts")).clicked() {
-        for category in Category::MODELS {
-            model.draft.parts.parts[category as usize] = None;
+    let changed = shown.iter().any(|slot| slot.changed());
+    let restore = ui.add_enabled(changed, egui::Button::new("Restore stock parts")).clicked();
+    let change = match (restore, asked) {
+        (true, _) => shown.iter().map(|slot| Change::Pick { slot: slot.id.clone(), index: 0 }).collect(),
+        (false, Some((slot, index))) => vec![Change::Pick { slot, index }],
+        (false, None) => Vec::new(),
+    };
+    for change in change {
+        let mut edit = Edit {
+            parts: &mut model.draft.parts,
+            color: &mut model.draft.color,
+            performance: &mut model.draft.performance,
+        };
+        if let Err(error) = options.apply(Some(&catalog), &mut edit, &change) {
+            model.message = Some(Err(error));
         }
     }
     clear_ineligible_rim_paint(model, &catalog);
@@ -32,6 +62,55 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model) {
             ui.weak("Fit a body kit or spoiler to unlock aerodynamics tuning.");
         }
     }
+}
+
+/// Whether a slot is a part that is fitted to the vehicle: a model category's choice, or a component slot of its own.
+fn is_part(slot: &Slot) -> bool {
+    match slot.store {
+        Store::Category(category) => Category::MODELS.contains(&category),
+        Store::Session => true,
+        Store::Level(_) => false,
+    }
+}
+
+/// One slot as a list of its choices; the position the player picked, if they did.
+fn slot_selector(ui: &mut egui::Ui, model: &mut Model, slot: &Slot) -> Option<usize> {
+    ui.horizontal(|ui| {
+        ui.label(&slot.label);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| match slot.choices.len() {
+            0 | 1 => ui.weak("Factory only"),
+            more => ui.weak(format!("{} options", more - 1)),
+        });
+    });
+    let mut picked = None;
+    let filter_at = match slot.store {
+        Store::Category(category) => Some(category as usize),
+        _ => None,
+    };
+    ui.add_enabled_ui(slot.choices.len() > 1, |ui| {
+        egui::ComboBox::from_id_salt(("garage_part", &slot.id))
+            .width(ui.available_width())
+            .height(260.0)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .selected_text(&slot.installed().label)
+            .show_ui(ui, |ui| {
+                if let Some(at) = filter_at.filter(|_| slot.choices.len() > 10) {
+                    ui.add(egui::TextEdit::singleline(&mut model.parts_filter[at]).hint_text("Search parts"));
+                }
+                let filter = filter_at.map(|at| model.parts_filter[at].trim().to_ascii_lowercase()).unwrap_or_default();
+                for (at, choice) in slot.choices.iter().enumerate() {
+                    if at != 0 && !choice.label.to_ascii_lowercase().contains(&filter) {
+                        continue;
+                    }
+                    if ui.selectable_label(at == slot.current, &choice.label).clicked() {
+                        picked = Some(at);
+                        ui.close();
+                    }
+                }
+            });
+    });
+    ui.add_space(10.0);
+    picked
 }
 
 pub(super) fn selector(
