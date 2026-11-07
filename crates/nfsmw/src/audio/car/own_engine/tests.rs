@@ -33,7 +33,7 @@ fn between_two_layers_the_power_stays_constant_and_each_is_pitched_to_the_engine
 fn below_the_lowest_and_above_the_highest_layer_one_layer_carries_the_sound() {
     assert_eq!(gains(300.0), [1.0, 0.0, 0.0]);
     assert_eq!(gains(7000.0), [0.0, 0.0, 1.0]);
-    let low = mix(&sound(), 300.0);
+    let low = mix(&sound(), 100.0);
     assert!((low[0].rate - RATE_RANGE.0).abs() < 1e-5, "slowed, but only so far: {:?}", low[0]);
     assert!((mix(&sound(), 7000.0)[2].rate - 7000.0 / 6400.0).abs() < 1e-5);
 }
