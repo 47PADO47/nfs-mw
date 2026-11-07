@@ -61,6 +61,15 @@ impl RoadNav {
             match self.next_segment(net, toward, rng) {
                 Step::Stay => self.dead_end = true,
                 Step::To { segment, node_ind, lane } => {
+                    // A path can revisit a segment. Retire only an accepted edge, so a later visit cannot select
+                    // the successor of an earlier occurrence. A turn around on the same segment consumes nothing.
+                    if self.kind == NavKind::Path
+                        && segment != self.segment
+                        && let Some(at) = self.path.iter().position(|&part| part == self.segment)
+                        && self.path.get(at + 1) == Some(&segment)
+                    {
+                        self.path.drain(..at + 1);
+                    }
                     let start = self.line.end();
                     let bounds = self.trail().map(|_| self.bound_lines(net).map(|line| line.end()));
                     self.segment = segment;

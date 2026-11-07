@@ -31,7 +31,9 @@ impl WorldScene {
             let average = stats.distance / time * 3.6;
             crate::frontend::custom_race::records::note_run(&session.event, average, stats.top_speed * 3.6);
         }
-        session.stage = Stage::Results { left: RACE_OVER_SECS };
+        // Winning capture: the photo opens on the finish frame. Losses retain the Lua race-over interval.
+        let photo = me.finished && place == 1 && session.challenge.is_none();
+        session.stage = Stage::Results { left: if photo { 0.0 } else { RACE_OVER_SECS } };
         self.note_race_outcome(session);
         session.banner = Banner::default();
         log::info!(
@@ -106,6 +108,7 @@ impl WorldScene {
             self.stop_nis();
             self.stop_story_movie();
         }
+        self.nis.end_countdown_audio();
         self.lower_race_walls(std::mem::take(&mut session.walls));
         // The stage's region gates come back after the race's own walls are down.
         self.restore_region_gates();

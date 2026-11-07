@@ -1,6 +1,6 @@
-//! The race events sheet (`SafeHouseRaceSheet.fng`): the free races of the rival's bin, then its boss races.
+//! The race events sheet (`SafeHouseRaceSheet.fng`): only the free races of the rival's bin.
 //!
-//! A race is open once its bin has been entered (a boss race once the rival is unlocked), and done once it is won in the
+//! A race is open once its bin has been entered, and done once it is won in the
 //! career (`career-blacklist.md` sections 2.6 and 4.1). Accept asks `REP_SHEET_RACE_CONFIRM`; on Yes the career race
 //! starts like a rival challenge does ([`Command::LaunchEvent`]).
 
@@ -66,12 +66,10 @@ pub struct RaceRow {
     pub crop: Crop,
 }
 
-/// The rows of bin `bin`: its free races, then its boss races. A race the install has no data for is left out.
+/// The free races of bin `bin`. Rival challenges have their own launch flow.
 pub fn race_rows(blacklist: &Blacklist, races: &[Race], board: Option<&Board>, bin: u8) -> Vec<RaceRow> {
     let Some(record) = blacklist.bin(bin) else { return Vec::new() };
-    let free = record.def.races.iter().map(|event| (event, false));
-    let boss = record.def.rival_events.iter().map(|event| (event, true));
-    free.chain(boss).filter_map(|(event, boss)| row(record, races, board, event, boss)).collect()
+    record.def.races.iter().filter_map(|event| row(record, races, board, event, false)).collect()
 }
 
 fn row(record: &BinRecord, races: &[Race], board: Option<&Board>, event: &str, boss: bool) -> Option<RaceRow> {

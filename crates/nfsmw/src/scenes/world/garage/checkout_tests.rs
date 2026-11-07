@@ -129,7 +129,7 @@ fn installed_career_garage_previews_purchases_reloads_and_keeps_f6_out_of_saves(
     scene.restore_career_garage(&mut renderer).unwrap();
     assert_eq!(scene.garage.applied, desired, "native stages/parts/tuning and extended RGB must reload");
     quote_ones_digit_change(&mut scene, &mut renderer, &desired);
-    scene.begin_garage_session(&mut renderer).unwrap();
+    scene.begin_tuning(&mut renderer).unwrap();
     let cash_before_tuning = handle.with(|career| career.cash()).unwrap();
     desired.tuning.profiles[2][0] = 4;
     desired.tuning.active = 2;

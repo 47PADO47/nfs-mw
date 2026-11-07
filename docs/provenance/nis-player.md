@@ -20,10 +20,6 @@
   functions and fields for a Ghidra pass.
 - The arrest handler's addresses (the chooser `0x0044d770` and the spot finder `0x0044da10`) come from
   [busted-sequence.md](../specs/busted-sequence.md), which was written from `speed.exe` 1.3 in Ghidra (read only).
-- The NIS audio choices ([nis-events.md](../specs/nis-events.md) section 7.9) were read from the scene table builder
-  and the stream queue of `speed.exe` 1.3 in Ghidra (read only), and compared with the decomp's generated header. The
-  records and banks were read from the install's `NISAudio.evt` and `.idx` and the takes' `SCHl` headers by a Python
-  reader in the scratchpad; the scene lengths from the bundles' `VanishFrame`. Nothing was copied.
 - The implementation was written from the specs. The decomp files were not kept on disk.
 - The character lighting ([nis-player-2.md](../specs/nis-player-2.md) section 9.6), specified before it was written, was
   read from `speed.exe` 1.3 (the matched image of [car-lighting.md](car-lighting.md)) in Ghidra, read only: the
@@ -100,14 +96,10 @@ The third-party note on `ENISTimeOfDay` (Xbox 360 behaviour) is a lead only and 
 
 ## Known differences and open items
 
-- **NIS audio take:** each scene plays the take its choice selects (section 7.9 of
-  [nis-events.md](../specs/nis-events.md)). An earlier version paired each branch with the wrong record, so every
-  arrest and ending played the `IntroNisDD` take, the blacklist intros the `ArrestF02` take and each story intro a
-  blacklist take. `Flythrough`, `GarageEnter`, `GarageExit`, `OPMRivalIntro` and `IntroNisBL01` have no take in the
-  install and play no stream; what the original plays then is **[unconfirmed]**. `GenericStart` always asks for track
-  0, where the original passes its camera track. The `ArrestM23`, `ArrestM23b`, `EndingNis01`, `EndingNis02`,
-  `GarageEnter`, `GarageExit` and `OPMRivalIntro` audio names have no bundle in the install. The `SpeechManager` side
-  of the stream was not read, and the takes' content was not checked by ear.
+- **NIS audio take:** one shared take per branch (rival intros, arrests and endings), not a take per scene. The
+  `ArrestM23`, `ArrestM23b`, `EndingNis01`, `EndingNis02`, `GarageEnter`, `GarageExit` and `OPMRivalIntro` audio names
+  have no bundle in the install. The CSIS mapping from an interface to one stream is **[unconfirmed]**, and the
+  `SpeechManager` side of the stream was not read ([nis-events.md](../specs/nis-events.md) sections 7 and 8).
 - **Overlay packages:** the FEng packages a NIS puts over the frame are drawn as text.
 - **Characters:** the character light and hide events are not played.
 - **Handlers:** all 26 `ENIS` event types lack handler bodies in the decomp. Their effects in the port are the port's own,

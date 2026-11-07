@@ -15,6 +15,7 @@ use crate::ui::{
 
 mod career_car;
 mod legacy;
+pub(super) mod race;
 
 const FONT: u32 = 0x5455_70c6; // FONT_MW_BODY
 /// Half the height of a hint in its frame's units, before the fit: the keycaps are 22 high.
@@ -58,6 +59,9 @@ const LEGACY_HINTS: [u32; 9] = [
 /// The footer hints a screen shows, in order. The Original footer and the Remastered menus' draw the same set.
 pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDevice) -> Vec<Hint> {
     use HintLabel as L;
+    if let Some(hints) = race::hints(footer, bindings, device) {
+        return hints;
+    }
     if let Some(hints) = career_car::hints(footer, bindings, device) {
         return hints;
     }
@@ -175,6 +179,8 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
             return vec![back, (zoom, L::Zoom, None), (arrows, L::ViewCar, None)];
         }
         Footer::Standard
+        | Footer::RacePhoto { .. }
+        | Footer::RaceResults { .. }
         | Footer::CareerCarSelect { .. }
         | Footer::GarageLoading
         | Footer::GarageManager { .. }
@@ -253,6 +259,7 @@ pub fn decorate(
     let splash = [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s));
     let pause = name.eq_ignore_ascii_case(screen::PAUSE_MENU);
     let Some(frame) = Frame::find(tree, name, footer, assets) else { return Vec::new() };
+    race::hide_legacy(tree, name);
     let settings = [
         screen::OPTIONS,
         screen::PAUSE_OPTIONS,

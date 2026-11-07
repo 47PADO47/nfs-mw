@@ -87,7 +87,11 @@ impl WorldScene {
             loaded && self.players.lead_mut().filter(|_| driving).is_some_and(|drive| drive.prepare_time(real_dt));
         let active = lead_breaker | (loaded && driving && self.guests_prepare_time(real_dt));
         let simulation_scale = match time_scale {
-            true => self.tuning.game_speed * self.moment.sim_speed(),
+            true => {
+                self.tuning.game_speed
+                    * self.moment.sim_speed()
+                    * self.photo_shot.as_ref().map_or(1.0, |shot| shot.simulation_scale(real_dt))
+            }
             false => 1.0,
         };
         let sim_dt = match loaded {

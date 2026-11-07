@@ -2,6 +2,12 @@
 use super::WorldScene;
 
 impl WorldScene {
+    pub(super) fn note_police_speech_now(&mut self, phase: Option<blackbox_pursuit::siren::Phase>) {
+        if let Some(traffic) = self.traffic.as_mut() {
+            traffic.note_police_speech(phase);
+        }
+    }
+
     pub(super) fn scene_hud(&self) -> Option<crate::hud::HudState> {
         if self.career.garage.is_some() {
             return Some(crate::hud::HudState { visible: false, ..Default::default() });

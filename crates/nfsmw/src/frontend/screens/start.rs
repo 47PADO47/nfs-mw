@@ -5,6 +5,11 @@ use super::{Command, Env, Screens};
 use crate::input::PlayerDevice;
 
 impl Screens {
+    /// The retained screen immediately below the current one.
+    pub(in crate::frontend) fn previous(&self) -> Option<&str> {
+        self.stack.iter().rev().nth(1).map(|screen| screen.name.as_str())
+    }
+
     /// Sets the device whose Start went down this frame; the next [`Screens::update`] gives it to the top screen.
     pub fn set_start_press(&mut self, device: Option<PlayerDevice>) {
         self.start_press = device;

@@ -108,7 +108,12 @@ impl WorldScene {
         };
         let start = race.start.ok_or("the race has no start")?;
         let tables = nfsmw_data::car::CarTables::load(&self.dir).ok();
-        let resolve_preset = |name: &str| tables.as_ref().and_then(|t| t.preset(name)).map(|p| p.car_type_name.clone());
+        let resolve_preset = |name: &str| {
+            let tables = tables.as_ref()?;
+            let ride = tables.preset(name)?;
+            let vehicle = nfsmw_data::car::physics::performance::preset::vehicle_name(&tables.attributes, ride);
+            Some(format!("{vehicle}:{}", ride.preset_name))
+        };
         // A co-op race seats player 2 as a split-screen race does, among the race's own opponents (`players/race.rs`).
         // The network's seats race as people beside the lead; a co-op guest on this machine takes the split-screen seat.
         let people = self.net_race_people(&race);
@@ -131,6 +136,17 @@ impl WorldScene {
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
         let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road && startable::runs_opponents(&race));
+        if !options.career
+            && split.is_none()
+            && people.is_empty()
+            && !race.params.rolling_start
+            && opponents.iter().all(|opponent| opponent.start.is_none())
+            && let Some(traffic) = self.traffic.as_mut()
+        {
+            let seed = self.rules.seed.is_none().then(|| self.rules.name_seed());
+            let slot = traffic.race_grid_slot(plan.len(), seed);
+            grid::move_player(&mut plan, slot);
+        }
         super::names::name_opponents(&mut plan, &self.dir, race.key ^ self.rules.name_seed());
         if let Some(setup) = &split {
             if plan.len() < 2 {
@@ -149,7 +165,7 @@ impl WorldScene {
             rolling: p.rolling_start,
             initial_speed: p.initial_speed.max(0.0),
             // Nothing slows the leader between two people.
-            catch_up: p.catch_up && split.is_none(),
+            catch_up: options.catch_up.unwrap_or(p.catch_up) && split.is_none(),
             gains: CatchUpGains::default(),
         };
         let prepared_catch_up = prepared.catch_up;
@@ -174,7 +190,7 @@ impl WorldScene {
         // race has no police (`docs/specs/split-screen.md`).
         let police = match split.is_some() && coop.is_none() {
             true => Police::CallOff,
-            false => heat::police_of(options.heat, p.pursuit_race || p.cops_in_race),
+            false => heat::police_of(options.heat, p.pursuit_race, p.cops_in_race),
         };
         if let Some(traffic) = self.traffic.as_mut() {
             match police {
@@ -234,7 +250,7 @@ impl WorldScene {
             previous_traffic,
             glue: Vec::new(),
             catch_up: prepared_catch_up,
-            glue_clock: 0.0,
+            player_top_speed_rating: 1.0,
             demo_clock: 0.0,
             lane: Default::default(),
             log_clock: 0.0,
@@ -296,6 +312,7 @@ fn plan_racers(
         name_label: None,
         model: None,
         spawn: slot(start),
+        grid_slot: 0,
         skill: 1.0,
         bias: 1.0,
         tried: Vec::new(),
@@ -313,6 +330,7 @@ fn plan_racers(
             name_label: opponent.name_label.clone(),
             model: Some(model),
             spawn: slot(&placement),
+            grid_slot: i + 1,
             skill: opponent.skill,
             bias: opponent.bias,
             tried: Vec::new(),
@@ -417,6 +435,21 @@ mod tests {
         let start = nfsmw_data::gameplay::Placement { position: glam::Vec3::ZERO, heading_deg: 0.0 };
         let named = opponent("a", Some("c1"));
         assert_eq!(plan_racers(&race("r"), &start, &[named], &[], false).len(), 1);
+    }
+
+    #[test]
+    fn a_different_starting_slot_preserves_player_and_opponent_identity() {
+        let start = nfsmw_data::gameplay::Placement { position: glam::Vec3::ZERO, heading_deg: 0.0 };
+        let mut plan =
+            plan_racers(&race("r"), &start, &[opponent("a", Some("c1")), opponent("b", Some("c2"))], &[], true);
+        let original: Vec<_> = plan.iter().map(|racer| racer.spawn).collect();
+        grid::move_player(&mut plan, 2);
+        assert_eq!(plan[0].model, None);
+        assert_eq!(plan[1].model.as_deref(), Some("c1"));
+        assert_eq!(plan[2].model.as_deref(), Some("c2"));
+        assert_eq!(plan[0].spawn.position, original[2].position);
+        assert_eq!(plan[2].spawn.position, original[0].position);
+        assert_eq!(plan.iter().map(|racer| racer.grid_slot).collect::<Vec<_>>(), [2, 1, 0]);
     }
 
     #[test]

@@ -2,6 +2,8 @@
 
 The caller supplies the launch configuration and race staging/release context.
 Generic vehicles keep this feature disabled. AI activation is outside this change.
+Physical chassis staging is independent of optional launch assistance. An AI
+grid hold can restrain chassis motion without a launch configuration or boost.
 See [provenance](../provenance/player-launch.md).
 
 **Known defect (2026-10-26 playtest):** countdown engine revs are buggy and

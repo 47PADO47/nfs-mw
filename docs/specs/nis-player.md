@@ -325,7 +325,7 @@ So the car does not move by its own physics. Its pose comes from the clip.
 The car's wheels follow from the same pose (`AnimatedCars_SetMainAndWheels` is named for the main body and the wheels).
 The wheel poses are not decoded in CC0 **[unconfirmed]**.
 
-What the rewrite does **[ours]** (`nis/car_world.rs`, `nis/car_memory.rs`, `nis/rev_rock.rs`):
+What the rewrite does **[ours]** (`nis/car_world.rs`, `nis/car_memory.rs`, `nis/car_events.rs`):
 
 - **Ground.** The ground is the first drivable face from 3 m above the car's clip position down to 20 m below it (not
   the topmost face near it, which put a car under a bridge on the bridge), and a frame that finds none keeps the last
@@ -333,9 +333,11 @@ What the rewrite does **[ours]** (`nis/car_world.rs`, `nis/car_memory.rs`, `nis/
   where the clip left it.
 - **Wheels.** Each wheel turns by the distance the scene moves the car along its nose over the wheel's radius, from the
   physics car's wheels on the scene's first frame; a jump of more than 5 m (a cut) turns nothing.
-- **The rev.** In a race's start scene the player's body rocks while the car stands still (under 1 m/s): a roll of 1.5°
-  about the nose and a pitch of 0.5° at 6 Hz, faded in over 0.4 s and out over 0.2 s once it moves. The scene's audio
-  gives no rev cue, so the rock does not follow the engine sound.
+- **Engine and body motion.** Read the installed rev curves and authored per-car pitch, roll and burnout events.
+  Body pulses end at rest and apply to body parts; wheel instances retain their road poses. The fixed stationary
+  rocking loop is removed. Each model uses its frozen tyre contacts to determine ground clearance, rather than a
+  shared wheel-radius lift. The implementation contract and remaining limits are in
+  [race-reference-followup](race-reference-followup.md#race-presentation-follow-up).
 
 ### 7.5 Releasing the cars **[decomp: `AnimatedCars_UnBind`, `NISActivity` destructor]**
 

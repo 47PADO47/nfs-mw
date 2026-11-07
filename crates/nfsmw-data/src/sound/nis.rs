@@ -1,17 +1,17 @@
 //! The audio stream of a NIS scene: which take of `SOUND/STREAMS/NISAudio.big` the scene plays. Spec:
-//! `docs/specs/nis-events.md` sections 7.3 (the table and its branches), 7.4 (the selectors) and 7.9 (the records,
-//! the banks and the take of each scene).
+//! `docs/specs/nis-events.md` sections 7.3 (the table and its branches), 7.4 (the selectors) and 7.8 (the lookup).
 //!
-//! [`nis_take`] finds the scene's row in the 68-row table by its `bStringHash`, takes the branch and the scene choice of
-//! that row, and asks the branch's sentence record in `NISAudio.evt` for the take that fits the choice, track 0 and the
-//! complete section. The record's tests match each take's selector bits against the request's parameters, which is how
+//! [`nis_take`] finds the scene's row in the 68-row table by its `bStringHash`, takes the branch of that row, and asks
+//! the sentence database (`NISAudio.evt`) for the take of that branch. The sentence database holds one record per
+//! branch; the record's tests match each take's selector bits against the request's parameters, which is how
 //! `ea_audio::speech::Assembler` reads it.
 
 use blackbox_hash::bstring_hash;
-use ea_audio::speech::{Assembler, Params, Random, Repeats, Sentences, SpeechIndex};
+use ea_audio::speech::{Assembler, Chosen, Params, Random, Repeats, Sentences, SpeechIndex};
 
 /// The table of spec section 7.3 in row order. Row 0 is `GenericStart`; rows 1 to 17 are the start branch, 18 to 35
-/// the blacklist branch and 36 to 67 the end (busted) branch.
+/// the blacklist branch and 36 to 67 the end (busted) branch. Rows 1 to 17 are in the order the spec gives, and the
+/// start branch's selector bits are enum values independent of those rows.
 pub const NIS_SCENES: [&str; 68] = [
     "GenericStart",
     "IntroNis01",
@@ -37,9 +37,7 @@ pub const NIS_SCENES: [&str; 68] = [
     "IntroNisBL04",
     "IntroNisBL05",
     "IntroNisBL06",
-    "IntroNisBL06End",
     "IntroNisBL07",
-    "IntroNisBL07End",
     "IntroNisBL08",
     "IntroNisBL09",
     "IntroNisBL10",
@@ -49,33 +47,35 @@ pub const NIS_SCENES: [&str; 68] = [
     "IntroNisBL14",
     "IntroNisBL15",
     "IntroNisBL16",
+    "IntroNisBL06End",
+    "IntroNisBL07End",
     "ArrestF02",
-    "ArrestF06",
-    "ArrestF07",
-    "ArrestF14",
-    "ArrestF18",
-    "ArrestF23",
-    "ArrestM01",
-    "ArrestM04",
-    "ArrestM06",
-    "ArrestM07",
-    "ArrestM14",
-    "ArrestM16",
-    "ArrestM19",
-    "ArrestM23",
     "ArrestF02b",
+    "ArrestF06",
     "ArrestF06b",
+    "ArrestF07",
     "ArrestF07b",
+    "ArrestF14",
     "ArrestF14b",
+    "ArrestF18",
     "ArrestF18b",
+    "ArrestF23",
     "ArrestF23b",
+    "ArrestM01",
     "ArrestM01b",
+    "ArrestM04",
     "ArrestM04b",
+    "ArrestM06",
     "ArrestM06b",
+    "ArrestM07",
     "ArrestM07b",
+    "ArrestM14",
     "ArrestM14b",
+    "ArrestM16",
     "ArrestM16b",
+    "ArrestM19",
     "ArrestM19b",
+    "ArrestM23",
     "ArrestM23b",
     "EndingNis01",
     "EndingNis02",
@@ -83,30 +83,10 @@ pub const NIS_SCENES: [&str; 68] = [
     "EndingNis04",
 ];
 
-/// The scene choice of each row of [`NIS_SCENES`], as the bit index of the branch's scene parameter: `NIS_Scene_Start`
-/// for rows 0 to 17, `NIS_Blacklist` for 18 to 35 and `NIS_Scene_End` for 36 to 67. Spec section 7.9, step 1. [decomp]
-/// and the same values in `speed.exe`. Rows that share a choice play the same take: `GarageEnter` and `GarageExit`,
-/// the two blacklist end scenes and their races, and each `b` arrest and its base.
-const SCENE_BITS: [u8; 68] = [
-    18, // GenericStart
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, // IntroNis01 to IntroNis10
-    12, 14, 19, 17, // Flythrough, IntroNisDD, IntroNisDDEnd, IntroNisToll01
-    13, 13, 15, // GarageEnter, GarageExit, OPMRivalIntro
-    0, 1, 2, 3, 4, 5, 5, 6, 6, // IntroNisBL01 to IntroNisBL05, IntroNisBL06 and its End, IntroNisBL07 and its End
-    7, 8, 9, 10, 11, 12, 13, 14, 15, // IntroNisBL08 to IntroNisBL16
-    7, 8, 9, 10, 14, 11, // ArrestF02, F06, F07, F14, F18, F23
-    0, 1, 2, 15, 3, 4, 5, 6, // ArrestM01, M04, M06, M07, M14, M16, M19, M23
-    7, 8, 9, 10, 14, 11, // ArrestF02b to ArrestF23b
-    0, 1, 2, 15, 3, 4, 5, 6, // ArrestM01b to ArrestM23b
-    17, 18, 19, 20, // EndingNis01 to EndingNis04
-];
-
-/// The section of a normal play: `Complete`, bit 0 of `NIS_Section`. A skip asks for `End`, bit 2. [decomp]
+/// The section value of a normal play: the complete section, which the takes carry as selector bit 0. [inferred]
+/// The spec names the section but not its number; the takes of the start and end branches use bits 0 and 2, and the
+/// skip (end) section is 2.
 const COMPLETE: u32 = 1 << 0;
-
-/// The track every row asks for: `Track00`, bit 13 of `NIS_Track`. [decomp] and `speed.exe`. The original asks
-/// `GenericStart` for the scene's camera track instead; the request does not carry it, so it asks for track 0 too.
-const TRACK_00: u32 = 1 << 13;
 
 /// Which selector the scene plays from. Spec section 7.3, step 1.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -130,39 +110,60 @@ impl NisBranch {
         }
     }
 
-    /// The event number of the branch's record in `NISAudio.evt`. [verified] The records lie in the order of the
-    /// interface list stored after them (start, sound effect, blacklist, end), and each record's three tests have the
-    /// choice counts of its interface's parameters: 20, 20 and 3 for the start record, 19, 20 and 3 for the blacklist
-    /// record and 21, 20 and 3 for the end record (spec section 7.9, step 3).
+    /// The start event is verified by native sample requests. The 32-take start bank and 34-take arrest/end bank
+    /// were previously reversed; the blacklist/end policies retain their separately documented limits.
     fn event(self) -> u16 {
         match self {
             Self::Start => 0x4000,
-            Self::Blacklist => 0x4014,
-            Self::End => 0x4011,
+            Self::Blacklist => 0x4011,
+            Self::End => 0x4014,
         }
     }
 
-    /// The argument numbers of the scene, the track and the section in the branch's interface, in that order. [decomp]
-    /// and the record's tests: the blacklist interface takes the track and the section first.
-    fn arguments(self) -> (u8, u8, u8) {
+    /// The parameter number of the record's section test. [verified from the records' tests]
+    fn section_param(self) -> u8 {
         match self {
-            Self::Start | Self::End => (1, 2, 3),
-            Self::Blacklist => (3, 1, 2),
+            Self::End => 2,
+            Self::Start | Self::Blacklist => 3,
         }
     }
 
-    /// The parameters of a normal play of the scene with choice `bit`: that scene, track 0 and the complete section.
-    fn params(self, bit: u8) -> Params {
-        let (scene, track, section) = self.arguments();
-        Params::new().with(scene, 1 << bit).with(track, TRACK_00).with(section, COMPLETE)
+    /// The parameter number of the record's scene test. [verified from the records' tests]
+    fn scene_param(self) -> u8 {
+        match self {
+            Self::End => 3,
+            Self::Start | Self::Blacklist => 1,
+        }
+    }
+
+    /// The start selector is an enum bit, not the scene table's row. Verified in the PC selector table.
+    /// The other branches retain their separately documented mapping limit.
+    fn scene_bit(self, row: usize) -> Option<u32> {
+        match self {
+            Self::Start => match row {
+                0 => Some(18),
+                1..=10 => Some(row as u32 - 1),
+                11 => Some(12),
+                12 => Some(14),
+                13 => Some(19),
+                14 => Some(17),
+                15 | 16 => Some(13),
+                17 => Some(15),
+                _ => None,
+            },
+            Self::Blacklist | Self::End => None,
+        }
     }
 }
 
 /// One take of the NIS audio: `bank` is the bank's position in [`SpeechIndex::banks`] and `take` the take in it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// `exact` is false when the scene's own take could not be picked, and the take is the first complete take of the
+/// scene's branch instead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NisTake {
     pub bank: usize,
     pub take: usize,
+    pub exact: bool,
 }
 
 /// The table row of a scene, found by the `bStringHash` of its name. `None` for a scene outside the table: those play
@@ -177,20 +178,49 @@ pub fn nis_branch(scene: &str) -> Option<NisBranch> {
     NisBranch::of_row(nis_row(scene)?)
 }
 
-/// The take a NIS scene plays: the take of its branch's bank that the branch's record allows for the scene's choice,
-/// track 0 and the complete section (spec section 7.9). Each bank has one such take per choice.
+/// The take a NIS scene plays. Spec section 7.3 gives the table and the branch; the take is picked by the branch's
+/// sentence record. The start event and parameter order are verified by native sample requests. The other
+/// branches retain their separately documented limits:
 ///
-/// `None` for a scene outside the table, and for a table scene the install has no take for (`Flythrough`,
-/// `GarageEnter`, `GarageExit`, `OPMRivalIntro` and `IntroNisBL01`): those play no stream. [unconfirmed] What the
-/// original plays when its selection finds no take is not known; another scene's take would be wrong, so none plays.
+/// - a start scene asks for its own scene bit and the complete section, and takes the one take that fits;
+/// - a blacklist or end scene has no known scene bit, so it takes the first complete take of its branch, and
+///   [`NisTake::exact`] is false. This is the rule the spec's "cannot pick a single take" case gives;
+/// - a start scene with no take for its bit returns `None`; it must not play another scene's recording.
+///
+/// The section is the complete one, which is normal play. The skip (end) section is not chosen here.
 pub fn nis_take(index: &SpeechIndex, sentences: &Sentences, scene: &str) -> Option<NisTake> {
+    section_take(index, sentences, scene, COMPLETE)
+}
+
+/// The countdown-only section used when an intro is skipped or a race restarts.
+pub fn nis_countdown_take(index: &SpeechIndex, sentences: &Sentences, scene: &str) -> Option<NisTake> {
+    section_take(index, sentences, scene, 1 << 2)
+}
+
+fn section_take(index: &SpeechIndex, sentences: &Sentences, scene: &str, selected: u32) -> Option<NisTake> {
     let row = nis_row(scene)?;
     let branch = NisBranch::of_row(row)?;
-    let params = branch.params(SCENE_BITS[row]);
     let assembler = Assembler::new(sentences, index);
-    let chosen = assembler.assemble(branch.event(), &params, &mut Repeats::default(), &mut First)?;
-    let first = chosen.first()?;
-    Some(NisTake { bank: first.bank, take: first.take })
+    let section = Params::new().with(branch.section_param(), selected);
+    let exact = branch.scene_bit(row).and_then(|bit| {
+        let params = section.with(branch.scene_param(), 1 << bit);
+        pick(&assembler, branch.event(), &params)
+    });
+    if let Some(chosen) = exact {
+        return Some(NisTake { bank: chosen.bank, take: chosen.take, exact: true });
+    }
+    if branch == NisBranch::Start {
+        return None;
+    }
+    let chosen = pick(&assembler, branch.event(), &section)?;
+    Some(NisTake { bank: chosen.bank, take: chosen.take, exact: false })
+}
+
+/// The first take the sentence record of `event` makes for `params`. The record has one block of weight 100, so the
+/// block is always tried; the random choice is fixed to the first fitting take.
+fn pick(assembler: &Assembler, event: u16, params: &Params) -> Option<Chosen> {
+    let chosen = assembler.assemble(event, params, &mut Repeats::default(), &mut First)?;
+    chosen.first().copied()
 }
 
 /// A choice source that always takes the first option, so a NIS scene always plays the same take.
@@ -203,5 +233,54 @@ impl Random for First {
 }
 
 #[cfg(test)]
-#[path = "nis_tests.rs"]
-mod tests;
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn the_table_has_the_spec_rows_and_no_two_scenes_share_a_hash() {
+        assert_eq!(NIS_SCENES.len(), 68);
+        assert_eq!(NIS_SCENES[0], "GenericStart");
+        assert_eq!(NIS_SCENES[17], "OPMRivalIntro");
+        assert_eq!(NIS_SCENES[18], "IntroNisBL01");
+        assert_eq!(NIS_SCENES[35], "IntroNisBL07End");
+        assert_eq!(NIS_SCENES[36], "ArrestF02");
+        assert_eq!(NIS_SCENES[67], "EndingNis04");
+        let hashes: HashSet<u32> = NIS_SCENES.iter().map(|name| bstring_hash(name)).collect();
+        assert_eq!(hashes.len(), 68);
+    }
+
+    #[test]
+    fn a_scene_takes_the_branch_of_its_row() {
+        assert_eq!(nis_branch("GenericStart"), Some(NisBranch::Start));
+        assert_eq!(nis_branch("IntroNis05"), Some(NisBranch::Start));
+        assert_eq!(nis_branch("Flythrough"), Some(NisBranch::Start));
+        assert_eq!(nis_branch("IntroNisBL02"), Some(NisBranch::Blacklist));
+        assert_eq!(nis_branch("IntroNisBL06End"), Some(NisBranch::Blacklist));
+        assert_eq!(nis_branch("ArrestF02"), Some(NisBranch::End));
+        assert_eq!(nis_branch("ArrestM23b"), Some(NisBranch::End));
+        assert_eq!(nis_branch("EndingNis04"), Some(NisBranch::End));
+    }
+
+    #[test]
+    fn a_scene_outside_the_table_plays_no_stream() {
+        assert_eq!(nis_row("FMVTest"), None);
+        assert_eq!(nis_row("ReplayBurnout"), None);
+        assert_eq!(nis_branch("WMBoat"), None);
+    }
+
+    #[test]
+    fn only_the_start_branch_has_a_scene_bit() {
+        assert_eq!(NisBranch::Start.scene_bit(5), Some(4));
+        assert_eq!(NisBranch::Start.scene_bit(4), Some(3), "IntroNis04 is enum flag 8");
+        assert_eq!(NisBranch::Start.scene_bit(0), Some(18));
+        assert_eq!(NisBranch::Blacklist.scene_bit(20), None);
+        assert_eq!(NisBranch::End.scene_bit(40), None);
+    }
+
+    #[test]
+    fn the_first_choice_is_the_first_option() {
+        assert_eq!(First.below(7), 0);
+        assert_eq!(First.below(0), 0);
+    }
+}

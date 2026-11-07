@@ -47,12 +47,12 @@ pub(super) fn chase_heat(level: Option<u8>) -> Option<u32> {
     }
 }
 
-/// The police of a race with `level` as its Heat Level, `pursuit_race` as its data says.
-pub(super) fn police_of(level: Option<u8>, pursuit_race: bool) -> Police {
+/// A chosen level overrides a track's ambient cops. Pursuit events still keep their required police.
+pub(super) fn police_of(level: Option<u8>, pursuit_race: bool, cops_in_race: bool) -> Police {
     if let Some(heat) = chase_heat(level) {
         return Police::Chase(heat);
     }
-    match pursuit_race {
+    match pursuit_race || (level.is_none() && cops_in_race) {
         true => Police::Keep,
         false => Police::CallOff,
     }
@@ -127,17 +127,24 @@ mod tests {
 
     #[test]
     fn only_none_calls_off_a_chase() {
-        assert_eq!(police_of(Some(0), false), Police::CallOff);
-        assert_eq!(police_of(None, false), Police::CallOff);
-        assert_eq!(police_of(Some(1), false), Police::Chase(1));
-        assert_eq!(police_of(Some(3), false), Police::Chase(5));
+        assert_eq!(police_of(Some(0), false, false), Police::CallOff);
+        assert_eq!(police_of(None, false, false), Police::CallOff);
+        assert_eq!(police_of(Some(1), false, false), Police::Chase(1));
+        assert_eq!(police_of(Some(3), false, false), Police::Chase(5));
     }
 
     #[test]
     fn a_pursuit_race_keeps_its_police_when_none_is_chosen() {
-        assert_eq!(police_of(None, true), Police::Keep);
-        assert_eq!(police_of(Some(0), true), Police::Keep);
-        assert_eq!(police_of(Some(2), true), Police::Chase(3), "a chosen level still starts its chase");
+        assert_eq!(police_of(None, true, false), Police::Keep);
+        assert_eq!(police_of(Some(0), true, false), Police::Keep);
+        assert_eq!(police_of(Some(2), true, false), Police::Chase(3), "a chosen level still starts its chase");
+    }
+
+    #[test]
+    fn explicit_none_overrides_a_tracks_ambient_police_flag() {
+        assert_eq!(police_of(None, false, true), Police::Keep, "career keeps the authored setting");
+        assert_eq!(police_of(Some(0), false, true), Police::CallOff, "custom race disables police");
+        assert_eq!(police_of(Some(1), false, true), Police::Chase(1));
     }
 
     #[test]

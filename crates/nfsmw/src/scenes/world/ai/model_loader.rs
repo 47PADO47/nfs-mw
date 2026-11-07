@@ -295,6 +295,13 @@ impl Worker {
 
     /// The car folder of `lookup` (the first that loads), with its folder name.
     fn car(&self, lookup: &Lookup) -> Result<(String, CarModel), String> {
+        if let Some((_, name)) = lookup.vehicle.split_once(':') {
+            let tables = nfsmw_data::car::CarTables::load(&self.dir).map_err(|error| format!("{error:#}"))?;
+            let ride = tables.preset(name).ok_or_else(|| format!("preset {name} missing"))?;
+            let wanted = format!("{}:{}", ride.car_type_name, ride.preset_name);
+            return crate::scenes::world::car_loader::load_named_car(&self.dir, &wanted)
+                .map_err(|error| format!("{error:#}"));
+        }
         let cars = nfsmw_data::car::list(&self.dir);
         let mut last = format!("no car folder for {}", lookup.vehicle);
         for folder in folders(&cars, &lookup.vehicle, &lookup.lineage) {

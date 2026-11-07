@@ -31,6 +31,7 @@ impl Drive {
             wheels: [nfsmw_data::car::WheelPose::default(); 4],
         };
         Self {
+            sound_car: None,
             car_name,
             effects: TireEffects::default(),
             brake_lamp: 0.0,
@@ -64,6 +65,7 @@ impl Drive {
             previous: pose,
             current: pose,
             nis_pose: None,
+            nis_body_tilt: glam::Quat::IDENTITY,
             net_pose: None,
             telemetry: Telemetry::default(),
             gauges: Default::default(),

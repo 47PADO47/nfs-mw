@@ -69,5 +69,30 @@ impl Physics {
             fraction = bezier_y(tuning.rpm_map, fraction);
         }
         self.rpm = finite(fraction).clamp(0.0, 1.0) * 9000.0 + 1000.0;
+        if let Some(rpm) = input.scripted_rpm.filter(|rpm| rpm.is_finite()) {
+            self.rpm = rpm.clamp(1000.0, 10000.0);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn authored_sound_rpm_bypasses_local_remapping_and_releases_to_physics() {
+        let tuning = EngineTuning { rpm_map: [0.0, 0.0, 0.0, 1.0], ..Default::default() };
+        let mut physics = Physics::new();
+        let mut input = CarInput { rpm_pct: 0.5, scripted_rpm: Some(7500.0), throttle: 0.8, ..Default::default() };
+        physics.update(&input, &tuning, true);
+        assert_eq!(physics.rpm, 7500.0);
+        assert_eq!(physics.torque, 80.0);
+        input.scripted_rpm = None;
+        physics.update(&input, &tuning, true);
+        assert_ne!(physics.rpm, 7500.0);
+        let ordinary = physics.rpm;
+        input.scripted_rpm = Some(f32::NAN);
+        physics.update(&input, &tuning, true);
+        assert_eq!(physics.rpm, ordinary);
     }
 }

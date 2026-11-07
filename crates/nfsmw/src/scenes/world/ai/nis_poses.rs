@@ -19,6 +19,25 @@ const NIS_COP_MODEL: &str = "copmidsize";
 const FACING_REACH: f32 = 10.0;
 
 impl TrafficWorld {
+    /// A race channel binds by racer ID, independent of civilian proximity and vector order.
+    pub fn racer_car_index(&self, id: usize) -> Option<usize> {
+        self.cars.iter().position(|car| car.racer_id() == Some(id))
+    }
+
+    pub fn nis_ground_lift(&self, index: usize) -> Option<f32> {
+        self.cars.get(index).map(AiCar::nis_ground_lift)
+    }
+
+    pub fn nis_geometry(&self, index: usize) -> Option<(f32, f32, [bool; 4])> {
+        self.cars.get(index).map(AiCar::nis_geometry)
+    }
+
+    pub fn set_nis_body_tilt(&mut self, index: usize, tilt: glam::Quat) {
+        if let Some(car) = self.cars.get_mut(index) {
+            car.set_nis_body_tilt(tilt);
+        }
+    }
+
     /// The car's physics pose now, or `None` for an index no car has.
     pub fn car_pose(&self, index: usize) -> Option<CarPose> {
         self.cars.get(index).map(|car| car.pose(self.alpha))

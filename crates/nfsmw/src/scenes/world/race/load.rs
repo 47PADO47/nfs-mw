@@ -1,7 +1,7 @@
 //! The loading stage: waiting for the player's car to stand on the grid and for the racers' models, then putting the
 //! racers on the grid and starting the countdown.
 
-use blackbox_race::{CatchUp, Race};
+use blackbox_race::Race;
 use glam::Vec3;
 use nfsmw_data::pursuit::ai_vehicle;
 
@@ -95,7 +95,13 @@ impl WorldScene {
         session.catch_up = prep.catch_up;
         let Some(drive) = self.players.lead_mut() else { return };
         let player_physics = Vec3::from(space::to_physics(session.plan[0].spawn.position));
-        let player_perf = drive.performance();
+        let player_perf = drive.ai_performance();
+        if !session.options.career {
+            session.player_top_speed_rating = nfsmw_data::car::physics::ratings::RatingBook::load(&self.dir)
+                .ok()
+                .and_then(|book| book.for_car(&drive.car_name))
+                .map_or(1.0, |endpoints| endpoints.rating(drive.performance)[0]);
+        }
         let speed = if prep.rolling { prep.initial_speed } else { 0.0 };
         let mut kept = vec![session.plan[0].clone()];
         let mut grid = vec![(!self.race_lead_idle, player_physics)];
@@ -107,8 +113,9 @@ impl WorldScene {
         };
         if let Some(traffic) = self.traffic.as_mut() {
             let collision = self.residency.collision();
+            let lines = self.scenery_groups.active_barriers(traffic.track_barriers());
             let shortcuts = match &session.route {
-                Some(route) => shortcuts::shortcuts_of(traffic, route, &markers),
+                Some(route) => shortcuts::shortcuts_of(traffic, route, &markers, &lines),
                 None => Vec::new(),
             };
             // The people of the grid are the first racers after the lead; one that cannot stand there is dropped from
@@ -116,9 +123,25 @@ impl WorldScene {
             let mut seated_people = 0;
             for plan in session.plan.iter().skip(1) {
                 let Some(model) = plan.model.clone() else { continue };
+                let car_type = model.split(':').next().unwrap_or(&model);
+                let physics = (plan.person.is_none() && !session.options.career && !model.contains(':'))
+                    .then(|| {
+                        let package =
+                            nfsmw_data::car::physics::PerformanceCatalog::read(self.physics.database(), car_type)?
+                                .maximum();
+                        self.physics.car_with_performance(car_type, package)
+                    })
+                    .and_then(|result| match result {
+                        Ok(physics) => Some(physics),
+                        Err(error) => {
+                            log::warn!("race: {model} keeps original equipment: {error:#}");
+                            None
+                        }
+                    });
                 let spec = RacerSpawn {
                     id: kept.len(),
-                    ai: ai_vehicle(self.physics.database(), &model),
+                    ai: ai_vehicle(self.physics.database(), car_type),
+                    physics,
                     model,
                     spawn: plan.spawn,
                     player: player_perf,
@@ -138,6 +161,9 @@ impl WorldScene {
                 if plan.person.is_some() {
                     seated_people += 1;
                 }
+                if let Some(state) = traffic.racer_mut(spec.id) {
+                    state.drag = session.kind == nfsmw_data::gameplay::RaceType::Drag;
+                }
                 if let Some(base) = &session.route {
                     let id = kept.len();
                     let taken =
@@ -150,7 +176,19 @@ impl WorldScene {
             session.shortcuts = shortcuts;
         }
         session.plan = kept;
-        session.glue = (0..grid.len()).map(|_| CatchUp::new(prep.gains)).collect();
+        let difficulty = nfsmw_data::gameplay::RaceParams {
+            difficulty: session.options.difficulty.unwrap_or(session.origin.race.params.difficulty),
+            ..Default::default()
+        }
+        .difficulty_class();
+        let phases = self
+            .traffic
+            .as_mut()
+            .map_or_else(|| vec![0.0; grid.len()], |traffic| traffic.race_catch_up_phases(grid.len()));
+        session.glue = phases
+            .into_iter()
+            .map(|phase| super::catch_up::Glue::new(session.options.career, difficulty, prep.gains).with_phase(phase))
+            .collect();
         let lead = match prep.rolling {
             true => 0,
             false => (prep.config.countdown * 60.0).ceil().max(0.0) as u32,

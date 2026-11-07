@@ -91,6 +91,8 @@ struct Playing {
     characters: Characters,
     /// What the world remembers of the linked cars between frames (`car_memory.rs`).
     memory: CarMemory,
+    revs: Option<nfsmw_data::sound::NisRevs>,
+    motion: [super::car_events::CarMotion; 16],
 }
 
 impl Playing {
@@ -129,6 +131,9 @@ pub struct NisPlayer {
     screen: NisScreen,
     /// The characters of the scenes that ended, freed by the next [`NisPlayer::prepare_characters`].
     retired: Vec<Characters>,
+    /// A start scene's stream continues through 3–2–1 after its camera ends.
+    countdown_audio: Option<NisAudioRequest>,
+    audio_serial: u32,
 }
 
 impl NisPlayer {
@@ -147,6 +152,7 @@ impl NisPlayer {
     ) -> Result<(), String> {
         let _trace = blackbox_trace::scope("NIS: start loading the scene");
         self.refuse_while_playing()?;
+        self.countdown_audio = None;
         let loading = Loading::start(dir, scene, marker, kind, track)?;
         // The scene's voice decodes while the scene loads.
         crate::audio::nis::prefetch(dir, scene);
@@ -163,7 +169,11 @@ impl NisPlayer {
         let _trace = blackbox_trace::scope("NIS: prepare the loaded scene");
         let started = result.and_then(|loaded| {
             let ready = loading.prepare(loaded)?;
-            self.start_with_cars(ready.plan, ready.cars, ready.sequence, ready.characters)
+            self.start_with_cars(ready.plan, ready.cars, ready.sequence, ready.characters)?;
+            if let Some(playing) = self.play.as_mut() {
+                playing.revs = ready.revs;
+            }
+            Ok(())
         });
         let Err(error) = started else { return };
         log::warn!("NIS {}: the scene is not played: {error}", loading.name);
@@ -211,8 +221,9 @@ impl NisPlayer {
         self.cut = true;
         self.screen.clear();
         self.last = Some(format!("{}: playing", plan.name));
+        self.audio_serial = self.audio_serial.wrapping_add(1);
         self.play = Some(Playing {
-            audio: NisAudioRequest { scene: Some(plan.name.clone()) },
+            audio: NisAudioRequest { scene: Some(plan.name.clone()), countdown: false, serial: self.audio_serial },
             name: plan.name,
             kind: plan.kind,
             anchor: plan.anchor,
@@ -227,6 +238,8 @@ impl NisPlayer {
             voice: false,
             characters,
             memory: CarMemory::default(),
+            revs: None,
+            motion: Default::default(),
         });
         Ok(())
     }
@@ -247,7 +260,16 @@ impl NisPlayer {
         let before = playing.run.elapsed();
         let finished = playing.run.advance(dt) == PlaybackState::Finished;
         let step = playing.run.elapsed() - before;
-        let events = playing.events.as_mut().map_or_else(Vec::new, |events| events.advance(step));
+        let mut events = playing.events.as_mut().map_or_else(Vec::new, |events| events.advance(step));
+        events.retain(|event| {
+            if let NisEvent::Car { system, event } = *event {
+                if let Some(slot) = super::car_events::slot_of(system) {
+                    playing.motion[slot].apply(event, playing.run.elapsed());
+                }
+                return false;
+            }
+            true
+        });
         self.screen.advance(dt);
         if finished {
             self.end(NisOutcome::Completed);
@@ -280,6 +302,9 @@ impl NisPlayer {
 
     fn end(&mut self, outcome: NisOutcome) {
         let Some(playing) = self.play.take() else { return };
+        if self.player_stays {
+            self.countdown_audio = Some(NisAudioRequest { countdown: true, ..playing.audio.clone() });
+        }
         self.final_cars = Some(handed_back(playing.spots(), std::mem::take(&mut self.player_stays)));
         self.last = Some(format!("{}: {outcome:?}", playing.name));
         self.outcome = Some(outcome);
@@ -339,7 +364,32 @@ impl NisPlayer {
 
     /// The audio request of the playing scene: its name, while it plays. `None` when no scene plays.
     pub fn audio_request(&self) -> Option<&NisAudioRequest> {
-        self.play.as_ref().map(|playing| &playing.audio)
+        self.play.as_ref().map(|playing| &playing.audio).or(self.countdown_audio.as_ref())
+    }
+
+    /// Restarts and unavailable intros use the installed countdown-only take.
+    pub fn begin_countdown_audio(&mut self, scene: &str) {
+        let scene =
+            self.countdown_audio.as_ref().and_then(|request| request.scene.clone()).unwrap_or_else(|| scene.to_owned());
+        self.audio_serial = self.audio_serial.wrapping_add(1);
+        self.countdown_audio = Some(NisAudioRequest { scene: Some(scene), countdown: true, serial: self.audio_serial });
+    }
+
+    pub fn end_countdown_audio(&mut self) {
+        self.countdown_audio = None;
+    }
+
+    /// The linked player's engine curve, or the primary race-start cue for a custom grid slot with no authored curve.
+    pub fn player_rev(&self) -> Option<nfsmw_data::sound::NisRev> {
+        let playing = self.play.as_ref()?;
+        let revs = playing.revs.as_ref()?;
+        let time = playing.run.elapsed();
+        let slot =
+            playing.links.as_ref()?.iter().find(|(_, target)| *target == super::cars::Target::Player).map(|p| p.0);
+        if let Some(curve) = slot.and_then(|slot| revs.sample(slot, time)) {
+            return Some(curve);
+        }
+        self.player_stays.then(|| revs.sample(0, time)).flatten()
     }
 
     /// Records whether the playing scene's voice plays, as the audio plugin reports it each frame. A voice that stops

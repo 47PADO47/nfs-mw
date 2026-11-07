@@ -17,6 +17,9 @@ impl Vehicle {
         }
         for t in &mut self.tires {
             t.begin_frame(scales.max_slip, scales.grip_scale, scales.traction_scale);
+            if let Some(drag) = self.force_scales.tire_steering_drag {
+                t.drag_reduction = drag;
+            }
             if let Some(drag) = self.maneuver.tire_steering_drag {
                 t.drag_reduction = drag;
             }

@@ -18,10 +18,6 @@ pub const CAR_SLOTS: usize = 16;
 /// The car clips run at half the scene's time: a clip's seconds are the scene's seconds times this (`nis-player.md`
 /// section 7.2, derived from the decomp's controller time scale).
 pub const CAR_TIME_SCALE: f32 = 0.5;
-/// The height above the ground a car is set to, in metres. The original sets ground + 5 m (`nis-player.md` section 7.4)
-/// and lets its physics drop the car; the world is frozen while a scene plays here, so the car is put on the ground,
-/// raised by about a wheel radius (the car's origin sits at its axles).
-pub const CAR_LIFT: f32 = 0.35;
 /// The first slot of the rotation (xyzw) and of the translation (xyz) within a bone's twelve DOF slots.
 const ROTATION_SLOT: usize = 4;
 const TRANSLATION_SLOT: usize = 8;
@@ -106,10 +102,10 @@ pub fn read_rotation(dofs: &[f32], at: usize) -> Quat {
     q.normalize()
 }
 
-/// The spot with its height set to `ground` plus [`CAR_LIFT`]. Without a ground under it the spot stands as it is.
-pub fn lifted(spot: CarSpot, ground: Option<f32>) -> CarSpot {
+/// Stands the model on its frozen tyre contacts, rather than assuming every model origin is at an axle.
+pub fn lifted(spot: CarSpot, ground: Option<f32>, clearance: f32) -> CarSpot {
     let Some(ground) = ground else { return spot };
-    CarSpot { position: Vec3::new(spot.position.x, spot.position.y, ground + CAR_LIFT), ..spot }
+    CarSpot { position: Vec3::new(spot.position.x, spot.position.y, ground + clearance), ..spot }
 }
 
 /// One car of a scene: its slot, and the translation and rotation clips of its root bone.

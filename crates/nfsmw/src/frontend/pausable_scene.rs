@@ -272,16 +272,21 @@ impl Scene for Pausable {
     }
 
     fn hud_state(&self) -> Option<crate::hud::HudState> {
-        if self.paused.get() || self.concealed() {
-            return Some(crate::hud::HudState { visible: false, ..Default::default() });
-        }
-        self.inner.hud_state()
+        self.scene_hud_state()
     }
 
     fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
         self.paused_car_sound()
     }
-
+    fn nis_audio(&self) -> Option<&crate::audio::nis::NisAudioRequest> {
+        self.visible_nis_audio()
+    }
+    fn owns_soundtrack(&self) -> bool {
+        !self.concealed() && self.inner.owns_soundtrack()
+    }
+    fn note_nis_audio(&mut self, playing: bool) {
+        self.inner.note_nis_audio(playing);
+    }
     fn radio_on_menus(&self) -> bool {
         self.inner.radio_on_menus()
     }
@@ -290,11 +295,7 @@ impl Scene for Pausable {
         self.paused_second_car_sound()
     }
     fn note_car_visual_rpm(&mut self, player: usize, fraction: Option<f32>) {
-        let fraction = match self.paused.get() || self.concealed() {
-            true => None,
-            false => fraction,
-        };
-        self.inner.note_car_visual_rpm(player, fraction);
+        self.paused_note_car_visual_rpm(player, fraction);
     }
 
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
@@ -332,13 +333,7 @@ impl Scene for Pausable {
     }
 
     fn take_race_report(&mut self) -> Option<crate::viewer::RaceReport> {
-        if self.concealed() {
-            return None;
-        }
-        let report = self.inner.take_race_report();
-        // A win photo moves the camera: the frozen effect buffers are built again against the new one.
-        self.effects_dirty |= report.as_ref().is_some_and(|report| report.photo.is_some());
-        report
+        self.scene_race_report()
     }
 
     fn take_trap_photo(&mut self) -> Option<crate::viewer::PhotoReport> {

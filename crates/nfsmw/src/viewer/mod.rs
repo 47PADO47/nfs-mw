@@ -410,6 +410,10 @@ pub trait Scene {
     fn note_sputters(&mut self, _pops: u32) {}
     /// Refresh changed visual-effect buffers without advancing a paused scene.
     fn refresh_effects(&mut self, _renderer: &mut dyn RenderBackend) {}
+    /// Advance UI-owned camera motion while physics is paused. True invalidates frozen effect buffers.
+    fn advance_presentation(&mut self, _dt: f32) -> bool {
+        false
+    }
     /// Apply the optional smoke presentation quality. Scenes without tires ignore it.
     fn set_smoke_quality(&mut self, _quality: crate::settings::SmokeQuality) {}
     /// Apply the car shading setting: the scene re-uploads its cars when it changes. Scenes without cars ignore it.
@@ -444,6 +448,10 @@ pub trait Scene {
     /// NIS ignore it.
     fn nis_audio(&self) -> Option<&crate::audio::nis::NisAudioRequest> {
         None
+    }
+    /// A cutscene owns the soundtrack while engine voices can still play.
+    fn owns_soundtrack(&self) -> bool {
+        false
     }
     /// Whether the NIS audio still plays after this frame's update. Called every frame. Scenes without NIS ignore it.
     fn note_nis_audio(&mut self, _playing: bool) {}

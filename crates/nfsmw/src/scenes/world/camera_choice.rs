@@ -30,7 +30,23 @@ impl WorldScene {
         if let Some(lens) = self.moment.lens(aspect) {
             return lens;
         }
-        if let Some(lens) = self.nis.lens(aspect) {
+        if let Some(mut lens) = self.nis.lens(aspect) {
+            // Authored start cameras sit on a flat scene plane. The streamed road may slope through that plane.
+            // Keep the near plane clear without selecting the deck of a bridge overhead.
+            if self.nis.race_start_scene() {
+                let collision = self.residency.collision();
+                let at = lens.position;
+                if let Some(ground) = super::space::ground_below(collision, at.x, at.y, at.z + 3.0, at.z - 20.0) {
+                    let near = match lens.projection {
+                        blackbox_gfx::Projection::PerspectiveInfiniteReverse { near, .. } => near,
+                        _ => 0.0,
+                    };
+                    let lift = (ground + near - at.z).max(0.0);
+                    let shift = glam::Vec3::Z * lift;
+                    lens.position += shift;
+                    lens.view *= glam::Mat4::from_translation(-shift);
+                }
+            }
             return lens;
         }
         if let Some(lens) = self.photo_lens(aspect) {

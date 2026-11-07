@@ -69,7 +69,8 @@ fn warming_up(scene: &WorldScene) -> bool {
 
 /// The lookup of `vehicle`'s car folders: its name and its lineage on the scene's physics data.
 fn lookup(scene: &WorldScene, vehicle: &str) -> Lookup {
-    Lookup { vehicle: vehicle.to_owned(), lineage: scene.physics.lineage(vehicle) }
+    let car_type = vehicle.split(':').next().unwrap_or(vehicle);
+    Lookup { vehicle: vehicle.to_owned(), lineage: scene.physics.lineage(car_type) }
 }
 
 /// Asks the loader for `request`. The first request makes the loader.
@@ -357,12 +358,21 @@ fn install_roadblock_props(scene: &mut WorldScene, renderer: &mut dyn RenderBack
 
 /// The physics of a traffic car, which the scene's physics data makes (its `pvehicle` first, then its model's type).
 fn car_parts(scene: &mut WorldScene, vehicle: &str, model: CarModel) -> Result<CarParts, String> {
-    let physics = scene
-        .physics
-        .car(vehicle)
-        .or_else(|_| scene.physics_of(&model))
-        .map_err(|e| format!("{vehicle} has no physics: {e:#}"))?;
-    Ok(parts(scene, vehicle.to_ascii_uppercase(), vehicle, model, physics))
+    let car_type = vehicle.split(':').next().unwrap_or(vehicle);
+    let package = vehicle
+        .split_once(':')
+        .map(|(_, preset)| {
+            nfsmw_data::car::physics::performance::preset::read(scene.physics.database(), car_type, preset)
+        })
+        .transpose()
+        .map_err(|error| format!("{error:#}"))?
+        .flatten();
+    let physics = match package {
+        Some(package) => scene.physics.car_with_performance(car_type, package),
+        None => scene.physics.car(car_type).or_else(|_| scene.physics_of(&model)),
+    }
+    .map_err(|e| format!("{vehicle} has no physics: {e:#}"))?;
+    Ok(parts(scene, vehicle.to_ascii_uppercase(), car_type, model, physics))
 }
 
 /// A loaded car with its flags as the installed data gives them for `type_name`.

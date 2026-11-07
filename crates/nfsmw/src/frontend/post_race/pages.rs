@@ -170,6 +170,10 @@ pub fn table(report: &RaceReport, page: Page, shown: usize, units: SpeedUnits) -
     }
 }
 
+pub(super) fn footer_label(page: Page, kind: RaceType) -> u32 {
+    button(page, family(kind))
+}
+
 fn button(page: Page, family: Family) -> u32 {
     match (page, family) {
         (Page::Standings, _) => label::STATISTICS_BUTTON,

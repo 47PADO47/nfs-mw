@@ -193,8 +193,8 @@ pub fn pause_icons(ctx: PauseCtx) -> Vec<Icon> {
         list.push(icon(Id::JumpToSafeHouse, QUIT_TEXTURE, 0x3C14_C420, enabled));
     }
     list.push(icon(Id::Options, 0x520D_E4E3, 0x2B5A_03A8, true));
-    if let Some(enabled) = ctx.tuning {
-        list.push(icon(Id::PerformanceTuning, 0x4832_38FD, 0x6A36_72A2, enabled));
+    if ctx.tuning.is_some() {
+        list.push(icon(Id::PerformanceTuning, 0x4832_38FD, 0x6A36_72A2, true));
     }
     if ctx.coop {
         // Greyed out while player 2 races or is chased: their car cannot leave a race or a chase halfway.

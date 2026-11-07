@@ -34,10 +34,12 @@ fn a_human_grid_launch_uses_staged_revs_and_resets_on_placement_configuration() 
 }
 
 #[test]
-fn unconfigured_ai_does_not_stage_or_launch() {
+fn unconfigured_ai_stages_without_player_launch_assistance() {
     let mut car = sim();
+    car.configure_ai();
     car.set_race_staging(true);
+    assert!(car.vehicle.staging());
+    assert!(!car.launch_from_grid());
     assert!(!car.vehicle.staging());
-    car.launch_from_grid();
     assert_eq!(car.vehicle.launch_strength(), 0.0);
 }

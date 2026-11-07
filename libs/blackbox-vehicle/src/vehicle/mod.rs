@@ -9,6 +9,7 @@ mod drift;
 mod drift_assist;
 mod drive_assists;
 mod example;
+mod force_scales;
 mod integration;
 mod jump;
 mod launch;
@@ -31,6 +32,7 @@ mod wheels;
 mod tests;
 
 pub use drift_assist::DriftTuning;
+pub use force_scales::ForceScales;
 pub use jump::{
     AlignmentConfig, GroundReference, JumpConfig, JumpForces, JumpInput, JumpState, LandingConfig, PassiveConfig,
 };
@@ -67,6 +69,7 @@ pub struct Vehicle {
     coasting_tires: Option<crate::tires::CoastingTireResponse>,
     /// The simple chassis runs its own tires (police cars, `cop-simple-chassis.md`).
     simple_tires: bool,
+    force_scales: ForceScales,
     retirement: retirement::Retirement,
     launch: crate::launch::LaunchState,
     /// Calibration hook: hold the front wheels at these angles instead of steering (a replay of a
@@ -144,6 +147,7 @@ impl Vehicle {
             rolling_chassis: None,
             coasting_tires: None,
             simple_tires: false,
+            force_scales: ForceScales::default(),
             retirement: Default::default(),
             launch: Default::default(),
             forced_wheel_angles: None,

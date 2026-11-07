@@ -9,7 +9,7 @@ use nfsmw_data::pursuit::AiVehicle;
 
 use super::TrafficWorld;
 use super::car::Ctx;
-use super::racer::RacerState;
+use super::racer::{RACER_THINK_STEPS, RacerState};
 use super::traffic::CarState;
 use crate::scenes::world::drive::DriveInput;
 
@@ -65,12 +65,12 @@ impl TrafficWorld {
                 driver: Driver::new(ControllerKind::Pid, false),
                 ticks: 0,
                 elapsed: 0.0,
-                think_elapsed: super::cop::THINK_STEPS as f32 * dt,
+                think_elapsed: RACER_THINK_STEPS as f32 * dt,
                 request: DriveRequest { target: body.position, speed: view.planar_speed, flags: DriveFlags::FULL },
             });
         }
         let state = state.as_mut().expect("the road navigation was acquired");
-        if state.ticks.is_multiple_of(super::cop::THINK_STEPS) {
+        if state.ticks.is_multiple_of(RACER_THINK_STEPS) {
             let bodies: Vec<(Body, bool)> = self.cars.iter().map(|car| (car.avoidable(), car.is_cop())).collect();
             let mut ctx = Ctx {
                 net: &self.network,
@@ -96,7 +96,14 @@ impl TrafficWorld {
             state.think_elapsed = 0.0;
             let radii: Vec<f32> = self.cars.iter().map(|car| car.avoid_radius()).collect();
             let neighbours = super::traffic::neighbours(&bodies, &radii, usize::MAX, None);
-            let think = state.racer.think(&mut ctx, &mut state.nav, &car, neighbours);
+            let think = state.racer.think(
+                &mut ctx,
+                &mut state.nav,
+                &car,
+                neighbours,
+                state.ticks.is_multiple_of(4),
+                view.forward.y,
+            );
             state.request = DriveRequest { target: think.target, speed: think.speed, flags: DriveFlags::FULL };
         }
         let controls = state.driver.step(&view, &state.request, dt, state.elapsed);

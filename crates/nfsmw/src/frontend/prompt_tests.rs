@@ -20,6 +20,47 @@ fn assets() -> UiAssets {
     UiAssets::load(&dir).unwrap()
 }
 
+#[test]
+#[ignore = "requires installed race result packages and controller atlas"]
+fn installed_race_play_path_results_have_visible_controller_prompts() {
+    use crate::frontend::logic::Footer;
+    use crate::input::Action;
+    use crate::ui::input_icons::ATLAS;
+
+    for name in [screen::PHOTO, screen::POST_RACE_RESULTS] {
+        let mut h = Harness::open(name, Args::default()).expect("installed race result screen");
+        h.wait(3.0);
+        let raw = h.screens.trees().pop().expect("race result tree");
+        let shown = h.screens.presented_trees(&Bindings::default(), InputDevice::Xbox).pop().unwrap();
+        let icons = shown.nodes[raw.nodes.len()..]
+            .iter()
+            .filter(|node| {
+                node.visible && node.world_colour[3] > 0 && matches!(node.kind, NodeKind::Image { texture: ATLAS, .. })
+            })
+            .count();
+        assert!(icons >= 3, "{name}: Continue/Exit, Race Stats and Restart need controller glyphs; got {icons}");
+        assert!(
+            !shown.nodes.iter().any(|node| {
+                node.visible
+                    && node.world_colour[3] > 0
+                    && matches!(node.kind, NodeKind::Image { texture: 0x68A2_9A8A | 0x68A2_9A8B | 0xD7B6_EDB7, .. })
+            }),
+            "{name}: legacy keyboard art must not cover controller prompts"
+        );
+    }
+    let hints = super::super::prompts::hint_set(
+        screen::PHOTO,
+        Footer::RacePhoto { race: false },
+        &Bindings::default(),
+        InputDevice::Xbox,
+    );
+    assert_eq!(
+        hints.iter().map(|hint| hint.2).collect::<Vec<_>>(),
+        [Some(Action::MenuAccept)],
+        "a free-roam speed-trap photo must not offer race actions"
+    );
+}
+
 fn assert_entrance(h: &Harness, group: u32) {
     let raw = h.screens.trees().pop().unwrap();
     let root = raw.nodes.iter().find(|n| n.name_hash == group).unwrap();

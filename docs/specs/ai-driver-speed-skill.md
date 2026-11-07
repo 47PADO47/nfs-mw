@@ -72,7 +72,8 @@ top_speed  = lerp(min over {self, players} of top_speed (> 0 only), top_speed_se
 So with `bias = 0` (the default outside a career race) every AI car is **limited to the weakest of itself and
 the human cars** for grip, nitrous strength and capacity, and top speed. A stronger AI car is therefore tuned
 down to the player's; a weaker AI car keeps its own. The ratings are `Performance { TopSpeed, Handling,
-Acceleration }` from the estimator `EstimatePerformance`, whose body is not in the sources (open question 2).
+Acceleration }` from `EstimatePerformance`. The recovered definition is implemented
+by the [garage rating calculator](garage-performance-bars.md); its scores are distinct from physical AI action curves.
 `AccelerationMultiplier` and `TopSpeedMultiplier` (section 3, 4) are applied after this matching, so a cop with
 `TopSpeedMultiplier` above 1 can exceed it. [decomp]
 
@@ -265,7 +266,8 @@ For racers that are racing and not staging, once per second the driver records
 `glue_error = (race_length / 100) * (average player percent complete - own percent complete) * performance_ratio`
 into a 10-sample error history, with `performance_ratio = 1 + (1 - player.TopSpeed_rating) * 0.5`. The race status
 turns this history into `glue_output` and `glue_skill` (a signed number added to the skill) in
-`ComputeCatchUpSkill`, which is not in the sources (open question 3). The driver then scales a positive glue
+`ComputeCatchUpSkill`. Its PC quick-race branch is now specified in
+[racer catch-up](ai-racers-catchup.md). The driver then scales a positive glue
 skill by `Table[0.33, 0.66, 1.0](base_skill)` (by 0.5 in speed-trap races) and a negative one by
 `Table[1.0, 1.0, 0.66](base_skill)` (by 0.5 in speed-trap races); a car in emulated off-world mode keeps the
 raw value. [decomp]
@@ -283,10 +285,10 @@ Maximum 0.5. Used by [decomp]:
 | simple chassis aerodynamics | drag `x (1 - c)`, downforce factor `lerp(1, 1.5, c)` |
 | simple chassis (racer, racing style) | steering drag reduction `lerp(0.23, 0.5, c)` |
 
-The last two rows live in the simple (cop) chassis. In the shipped data racers use the racer chassis, which
-does not read the cheat [verified: `pvehicle` table in [ai-simulation-lod.md](ai-simulation-lod.md)], and cops
-never have a cheat, so those two rows are inactive; do not port them unless a car with a simple chassis
-and a racer driver exists.
+The last two rows live in the simple chassis. The stored `pvehicle` names are not the final PC choice:
+the PC behavior selector overrides suspension to Simple for racer driver class 3 **[exe]**.
+Consequently its aerodynamic catch-up scales apply to ordinary race opponents. Cops have zero cheat.
+See [race-play-path provenance](../provenance/race-play-path-parity.md) for the selector identity.
 
 Cops: skill reads 0.5 (constructor value) + glue 0, cheat 0. Skill-driven scales for a base skill of 0.5:
 cornering scale 0.63, speed scale 0.925, acceleration scale 0.825. [decomp]
@@ -319,8 +321,8 @@ more than ~107 degrees from the drive target, it steers at the future road point
    [police acceleration handoff](ai-pursuit-acceleration-handoff.md). Exact runtime comparisons across
    all supported parameter sets remain open. The older physical-launch reconstruction was an
    approximation; it must not substitute for the analytical action estimate.
-2. The three ratings' definition and the 7 `PerformanceWeights` entries.
-3. `ComputeCatchUpSkill` (inputs: the glue history, the race status, whether the car is off world).
+2. Runtime numeric agreement of the three ratings; their definition and seven weight rows are in the garage rating spec.
+3. Career adaptive and override branches of `ComputeCatchUpSkill`; ordinary quick-race tables are now specified.
 4. Whether the unstage timer influences anything (only set and decremented in the sources).
 
 ## 12. Rust implementation notes

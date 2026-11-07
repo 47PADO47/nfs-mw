@@ -227,6 +227,7 @@ impl Vehicle {
             true => self.corners.map(|corner| corner.compression > 0.0),
             false => grounded,
         };
+        self.powertrain.set_positive_torque_scale(self.force_scales.positive_drive_torque);
         let drive_torque = self.powertrain.tick_with_loaded_wheels(
             &mut TickInput {
                 dt,
@@ -274,7 +275,8 @@ impl Vehicle {
             self.body.apply_force(-rot.y_axis * self.spec.mass * self.maneuver.extra_downward_acceleration);
         }
         let aero = crate::aero::AeroSpec {
-            drag_coefficient: self.spec.aero.drag_coefficient * self.maneuver.drag_scale,
+            drag_coefficient: self.spec.aero.drag_coefficient * self.maneuver.drag_scale * self.force_scales.drag,
+            aero_coefficient: self.spec.aero.aero_coefficient * self.force_scales.downforce,
             ..self.spec.aero
         };
         let aero_forces = match self.tire_integration {

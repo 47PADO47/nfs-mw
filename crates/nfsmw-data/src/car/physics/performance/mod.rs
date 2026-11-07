@@ -3,6 +3,7 @@
 mod catalog;
 pub(crate) mod fields;
 mod frontend;
+pub mod preset;
 mod resolve;
 pub use catalog::{CategoryOptions, PerformanceCatalog};
 pub use frontend::{PackageDetails, PerformanceDetails};

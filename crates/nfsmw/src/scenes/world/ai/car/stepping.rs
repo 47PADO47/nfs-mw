@@ -58,6 +58,13 @@ impl AiCar {
             Role::Racer(_) => racer::RACER_THINK_STEPS,
         };
         let human = self.human_pedals();
+        let (cheat, steering_drag) = match &self.role {
+            Role::Racer(racer) => (racer.cheat(), racer.steering_drag()),
+            _ => (0.0, None),
+        };
+        self.sim.set_race_catch_up(cheat, steering_drag);
+        let held = self.racer_held();
+        self.sim.set_race_staging(held);
         if human.is_none() && !self.is_wrecked() && (self.steps + self.stagger).is_multiple_of(think_steps) {
             self.think(ctx, collision);
             if matches!(self.role, Role::Cop(_)) {

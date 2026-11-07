@@ -428,21 +428,7 @@ pub struct Pausable {
     paused: PauseFlag,
     conceal: ConcealFlag,
     effects_dirty: bool,
-}
-
-impl Pausable {
-    pub fn new(inner: Box<dyn Scene>, paused: PauseFlag) -> Self {
-        Self { inner, paused, conceal: ConcealFlag::default(), effects_dirty: false }
-    }
-
-    pub fn with_conceal(mut self, conceal: ConcealFlag) -> Self {
-        self.conceal = conceal;
-        self
-    }
-
-    fn concealed(&self) -> bool {
-        self.conceal.get()
-    }
+    presentation_changed: bool,
 }
 
 #[path = "backdrop_build.rs"]

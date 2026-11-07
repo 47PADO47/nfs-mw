@@ -35,6 +35,17 @@ pub fn follow_route(
     let current = route.legs.get(leg).filter(|l| !l.missing())?;
     let window = route.window(leg);
     let goal = route.window_goal(leg);
+    // Retain the current traversal occurrence when the window revisits the same road. A fresh locate/search still
+    // uses the full window; a periodic refresh must not rewind an already consumed prefix.
+    if nav.path_type == PathType::RaceRoute
+        && nav.goal == goal
+        && !nav.path.is_empty()
+        && window.ends_with(&nav.path)
+        && let Some(at) = nav.path.iter().position(|&segment| segment == nav.segment)
+    {
+        nav.follow(net, nav.path[at..].to_vec(), goal, PathType::RaceRoute);
+        return Some(Follow::Window);
+    }
     if let Some(at) = window.iter().position(|&s| s == nav.segment) {
         nav.follow(net, window[at..].to_vec(), goal, PathType::RaceRoute);
         return Some(Follow::Window);
@@ -61,7 +72,7 @@ pub fn follow_route(
 
 #[cfg(test)]
 mod tests {
-    use blackbox_roads::{LaneType, NavKind, RouteBuilder, SegmentFilter};
+    use blackbox_roads::{LaneType, LegPath, NavKind, RouteBuilder, SegmentFilter};
 
     use super::*;
     use crate::scenes::world::race::test_roads::{goal, network, route};
@@ -71,6 +82,34 @@ mod tests {
         let at = blackbox_roads::centre_line(net, segment, 1).position(t);
         nav.init_at_segment(net, segment, t, at, heading, false);
         nav
+    }
+
+    #[test]
+    fn a_path_that_revisits_a_road_advances_to_its_later_successor() {
+        let net = network();
+        let mut nav = nav_on(&net, 0, 0.2, Vec3::Z);
+        nav.follow(&net, vec![0, 1, 0, 2], Some((2, 0.9)), PathType::RaceRoute);
+        nav.advance(&net, 520.0, Vec3::X, &mut blackbox_roads::SplitMix(1));
+        assert_eq!(nav.segment, 2, "the second visit to segment 0 must lead to 2, not back to 1");
+        assert_eq!(nav.path, [2]);
+    }
+
+    #[test]
+    fn refreshing_a_route_does_not_rewind_a_revisited_road() {
+        let net = network();
+        let index = SegmentIndex::build(&net);
+        let mut builder = RouteBuilder::new(&net);
+        let path = LegPath { segments: vec![0, 1, 0, 2], from_t: 0.2, goal: (2, 0.9) };
+        builder.push(goal(20.0), goal(100.0), Some(&path));
+        let route = builder.finish();
+        let mut nav = nav_on(&net, 0, 0.2, Vec3::Z);
+        follow_route((&net, &index), &route, 0, &mut nav, Vec3::new(0.0, 0.0, 20.0));
+        nav.advance(&net, 360.0, Vec3::Z, &mut blackbox_roads::SplitMix(1));
+        assert_eq!(nav.segment, 0, "the cursor has returned to the first road");
+        assert_eq!(nav.path, [0, 2]);
+        let position = nav.position;
+        follow_route((&net, &index), &route, 0, &mut nav, position);
+        assert_eq!(nav.path, [0, 2], "refresh keeps the later exit");
     }
 
     #[test]

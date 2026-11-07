@@ -22,11 +22,8 @@ be read, the gap says **[unconfirmed – needs Ghidra]** and names the function.
 - The NIS audio stream is keyed by the scene name's `bStringHash`, not by the CARP engine name. The choice is made by a
   68-row table of scene names in the decomp, then by the CSIS sound interface. The four CSIS interfaces match the
   install's `NISAudio.csi`. [verified]
-- The decomp's lookup of that table compares the wrong slot (section 7.8). The PC binary compares the hash, so the
-  lookup works there. [decomp, matched in `speed.exe`]
-- Each scene asks its branch's record in `NISAudio.evt` for one take: its own choice, track 0 and the complete section.
-  Every arrest has its own take of the busted bank, 0.05 to 1.8 s longer than the scene; a `b` arrest plays the take of
-  its base (section 7.9). [verified]
+- The decomp's lookup of that table compares the wrong slot (section 7.8). If the PC binary does the same, no NIS
+  stream or rev curve could load. **[unconfirmed – needs Ghidra]**
 - The engine-rev curves (`NISREVDATA`, 29 files) drive a NIS car's RPM and torque, keyed by car slot: `car1`..`car8`,
   then `cop1`..`cop8`. [decomp] + [verified] (file layout)
 
@@ -257,9 +254,7 @@ The stream queue (`SFXObj_NISStream::QueueNISStream`) does four things. [decomp]
 
 2. It picks a camera track. Only index 0 uses the NIS's track number; every other scene uses track 0. [decomp]
 3. It picks the section. Normal play uses the *complete* section. A skip (the button-through path) uses the *end*
-   section; for two blacklist entries it remaps indices 24 and 26 to 23 and 25. [decomp] In the decomp and in
-   `speed.exe` that remap sits behind the start-branch test (index below 18), so it never runs: `IntroNisBL06End` and
-   `IntroNisBL07End` play the complete take of their race. The end branch never skips. [decomp, matched in `speed.exe`]
+   section; for two blacklist entries it remaps indices 24 and 26 to 23 and 25. [decomp]
 4. It queues the stream on the speech module: the start stream for indices 0 to 35, the busted stream for 36 to 67. It
    sets the NIS mixer input (input 6 for start, input 7 for busted) to full volume, or to zero when skipping. [decomp]
 
@@ -279,10 +274,20 @@ CRC. [decomp] The install's `SOUND/STREAMS/NISAudio.csi` holds the same four int
 | `NIS_Select_Blacklist` | `0x3B39` | track, section, blacklist (a bit flag, 19 values) |
 | `SoundFX_Select` | `0x2052` | sound type, sound parameter (used by moments and effects) |
 
-The mapping from these parameters to one stream in the `.big` is the `.evt` record of each interface and the bank its
-record names. Section 7.9 gives the records, the banks and the take of each scene. [verified]
+The mapping from these parameters to one stream in the `.big` is inside the CSIS library and the `.evt` table.
+The start mapping is now verified by native sample requests (section 7.5).
+General CSIS interpretation and the blacklist/end selection policies retain
+their separate unverified limits.
 
 ### 7.5 When the audio starts
+
+**[verified, PC runtime follow-up]** A normal `IntroNis06` queues speech event
+`0x4000` with scene mask 32, track mask 8192 and section 1. At countdown it
+queues the same event with section 4. The sample requests resolve to the
+installed `0x4023` phrase bank, takes 18 and 19. Its request parameter order is
+scene (1), track (2), section (3). This is the 32-take bank, not the 34-take
+arrest/end bank. The previous count-based start/end assignment was reversed.
+The blacklist/end selector policies retain their separate validation limits.
 
 - The stream is ready when its channel has buffered data and its queue callback has run. The stream module's update
   sets both. [decomp]
@@ -333,67 +338,9 @@ hash. The table's first slot holds the `bStringHash` of the name. The stream que
 lookup with the scene key. As written in the CC0 decomp, the comparison never matches a hash, so the lookup returns -1
 for every scene. In that case no NIS would queue a stream or open a rev file.
 
-The PC game plays NIS audio. In `speed.exe` both the lookup and the stream queue's own inlined scan compare the
-**first** slot (the hash), so the lookup works on the PC; the CC0 line is a reconstruction error. [verified in
-`speed.exe` 1.3, read only]
-
-### 7.9 From the parameters to one take [verified] + [decomp, matched in `speed.exe`]
-
-1. **The choices.** Each table row holds its scene's choice in the branch's scene parameter, a single bit. The PC
-   table holds the same values as the decomp's generated header:
-
-| Branch | Choice (bit index) |
-|---|---|
-| start, `NIS_Scene_Start` | `IntroNis01`..`IntroNis10` 0..9, `Flythrough` 12, `GarageEnter` and `GarageExit` 13 (`safehouse`), `IntroNisDD` 14, `OPMRivalIntro` 15 (`e3`), `IntroNisToll01` 17, `GenericStart` 18, `IntroNisDDEnd` 19 |
-| blacklist, `NIS_Blacklist` | `IntroNisBL01`..`IntroNisBL16` 0..15; `IntroNisBL06End` 5 and `IntroNisBL07End` 6, as their races |
-| end, `NIS_Scene_End` | `ArrestM01` 0, `M04` 1, `M06` 2, `M14` 3, `M16` 4, `M19` 5, `M23` 6, `F02` 7, `F06` 8, `F07` 9, `F14` 10, `F23` 11, `F18` 14, `M07` 15; `EndingNis01`..`04` 17..20. Each `b` arrest has the bit of its base |
-
-2. **The call.** The start and end branches pass (choice, track, section); the blacklist branch passes (track,
-   section, choice). The track is `Track00` (bit 13) for every row but 0, which passes its camera track. The end
-   branch always passes `Complete` (bit 0), queues the busted stream and opens mixer input 7.
-3. **The records.** `NISAudio.evt` holds four records, in the order of the interface list stored after them (start,
-   sound effect, blacklist, end). Each has one block with one entry for any voice and three tests (two for the sound
-   effect). The masks fit only their own interface:
-
-| Interface | Record | Bank phrase (takes) | Tests: argument, choices |
-|---|---|---|---|
-| `NIS_Select_Start` | `0x4000` | `0x4023` (32) | 1: 20; 2: 20; 3: 3 |
-| `SoundFX_Select` | `0x400E` | `0x400E` (58) | 1: 8; 2: 31 |
-| `NIS_Select_Blacklist` | `0x4014` | `0x4025` (34) | 3: 19; 1: 20; 2: 3 |
-| `NIS_Select_End` | `0x4011` | `0x4024` (18) | 1: 21; 2: 20; 3: 3 |
-
-   So in all three NIS banks a take's selectors are (scene choice, track, section).
-4. **The banks.** The busted bank has one take per end choice (14 arrests, 4 endings), all for `Track00` and
-   `Complete`, in table order. The start bank has a complete and an end take for `IntroNis01`..`10`, `IntroNisDD`,
-   `IntroNisDDEnd`, `IntroNisToll01` and `GenericStart` (the latter for `Track00` and `Track01`), and one complete
-   take each for `safehouse` on tracks `Enter` and `Exit`. The blacklist bank has a complete and an end take for
-   `IntroNisBL02`..`16` and the two end scenes. No take exists for `Flythrough`, `e3`, `IntroNisBL01`, or for
-   `safehouse` on `Track00`; the port plays no stream for them. What the original then plays is **[unconfirmed]**.
-5. **The arrests.** Normal play picks one take each; all are 6-channel, 44,100 Hz, and end 0.05 to 1.8 s after the
-   scene (`VanishFrame / 30`):
-
-| Scene (and its `b`) | Choice | Take | Take (s) | Scene (s) |
-|---|---|---|---|---|
-| `ArrestF02` | 7 | 0 | 7.84 | 7.73 |
-| `ArrestF06` | 8 | 1 | 12.48 | 11.33 |
-| `ArrestF07` | 9 | 2 | 11.64 | 9.87 |
-| `ArrestF14` | 10 | 3 | 8.22 | 7.60 |
-| `ArrestF18` | 14 | 4 | 8.25 | 8.13 |
-| `ArrestF23` | 11 | 5 | 9.27 | 8.70 |
-| `ArrestM01` | 0 | 6 | 6.87 | 6.23 |
-| `ArrestM04` | 1 | 7 | 8.38 | 8.33 |
-| `ArrestM06` | 2 | 8 | 8.74 | 8.57 |
-| `ArrestM07` | 15 | 9 | 9.67 | 9.53 |
-| `ArrestM14` | 3 | 10 | 7.07 | 7.00 |
-| `ArrestM16` | 4 | 11 | 7.24 | 6.90 |
-| `ArrestM19` | 5 | 12 | 11.92 | 11.27 |
-| `ArrestM23` | 6 | 13 | 0.44 (mono) | no bundle |
-
-6. **Voices and foley.** The arrest sequences carry no sound event: their events are `ENISCarPitch`, `ENISCarRoll`,
-   `ENISCopCarDoors`, `ENISHideCharacter`, lights, `ENISOverlayMessage` and `ENISPixelate`
-   ([nis-events-2.md](nis-events-2.md)). The pursuit speech stops at the bust ([ai-pursuit-speech.md](ai-pursuit-speech.md)).
-   So the arrest's voices and foley are those of its busted take. [inferred] The takes' content was not checked by
-   ear, and whether the PC's `ENISCopCarDoors` handler plays a door sound is **[unconfirmed – needs Ghidra]**.
+The PC game plays NIS audio. So either the decomp is wrong here (the compare should use the hash slot) or the caller
+passes something else. To settle it, check `GetCsisEventIndex` in `speed.exe` through its symbol, and check which slot
+of the table it reads.
 
 ## 8. Facts still missing
 
@@ -403,9 +350,8 @@ The PC game plays NIS audio. In `speed.exe` both the lookup and the stream queue
 3. `NISActivity::Play` (the start frame) and its caller; the frame of scene time zero relative to the audio start.
 4. Whether the scene clock follows the audio time. The callback variable is written but not read in the CC0 file.
 5. The caller of `SFXCTL_Physics::UpdateNIS`, and its time base.
-6. Settled (section 7.9): the records and banks behind each interface. Open: what the original plays when no take
-   fits (`Flythrough`, `OPMRivalIntro`, `IntroNisBL01`).
-7. Settled (section 7.8): the PC compares the hash slot.
+6. The CSIS mapping from interface parameters to one stream in `NISAudio.big`, through `NISAudio.evt` and `.idx`.
+7. Whether `GetCsisEventIndex` compares the hash slot on the PC (section 7.8).
 8. Seven audio table names have no NIS bundle in the install: `ArrestM23`, `ArrestM23b`, `EndingNis01`, `EndingNis02`,
    `GarageEnter`, `GarageExit`, `OPMRivalIntro`. Find the bundles that hold them, if any.
 9. The `UCrc32` variant used for car channel keys and for the `c` fields (`fPosition`, `fID`).
@@ -415,9 +361,8 @@ The PC game plays NIS audio. In `speed.exe` both the lookup and the stream queue
 
 ## 9. Sources
 
-- Install (read only, `D:\Need For Speed Most Wanted Black Edition`): `NIS/Scene_*_BundleB.bun` (87 files; 59 with a
-  `0x0003B811` sequence chunk), `SOUND/STREAMS/NISAudio.csi`, `.evt`, `.idx` and the `SCHl` headers of `.big` (section
-  7.9), `SOUND/NISREVDATA/*.bin` (29 files). Parsed with a Python
+- Read-only PC reference installation: `NIS/Scene_*_BundleB.bun` (87 files; 59 with a
+  `0x0003B811` sequence chunk), `SOUND/STREAMS/NISAudio.csi`, `SOUND/NISREVDATA/*.bin` (29 files). Parsed with a Python
   reader in the scratchpad. The reader reuses the repo's `tools/chunkdump.py` for the chunk walk and JDLZ, and ports the
   CARP group reader and event reader of `libs/blackbox-carp` and `libs/blackbox-sequence`. Hashes were checked against
   `libs/blackbox-attrib` (vault hash) and `libs/blackbox-hash` (`bStringHash`).
@@ -429,8 +374,6 @@ The PC game plays NIS audio. In `speed.exe` both the lookup and the stream queue
   - `src/Speed/Indep/Src/EAXSound/SND_GEN/NISAudio.hpp` and `NISAudio.cpp`;
   - `src/Speed/Indep/Src/EAXSound/sfxctl/SFXCTL_NISReving.cpp`;
   - code search results for each handler name (symbol list only).
-- `speed.exe` 1.3 (PC, read only in Ghidra, nothing copied): the scene table builder, the table lookup and the stream
-  queue with its three inlined interface calls (sections 7.3, 7.8 and 7.9).
 - Repo docs: [event formats](../formats/event-sequences.md), [world sequencers](world-sequencers.md),
   [audio](../formats/audio.md), [pursuit breaker moment](pursuit-breaker-moment.md),
   [speedbreaker moment audio](speedbreaker-moment-audio.md), [career phone](career-phone.md), [speech](speech.md),

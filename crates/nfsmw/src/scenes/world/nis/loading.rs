@@ -21,6 +21,7 @@ pub struct Loaded {
     bundle: NisBundle,
     library: Arc<CameraLibrary>,
     light_materials: Vec<LightMaterial>,
+    revs: Option<nfsmw_data::sound::NisRevs>,
 }
 
 /// What a scene starts from.
@@ -29,6 +30,7 @@ pub struct Prepared {
     pub cars: Vec<CarTrack>,
     pub sequence: Option<Arc<Package>>,
     pub characters: Characters,
+    pub revs: Option<nfsmw_data::sound::NisRevs>,
 }
 
 /// A scene being read on a named thread, with what the player asked for it.
@@ -81,7 +83,7 @@ impl Loading {
 
     /// The scene's plan, car tracks, events and characters from what was read. The error names what failed.
     pub fn prepare(&self, loaded: Loaded) -> Result<Prepared, String> {
-        let Loaded { bundle, library, light_materials } = loaded;
+        let Loaded { bundle, library, light_materials, revs } = loaded;
         let camera = camera_track(&library, &bundle.name, self.track);
         if camera.is_none() {
             log::info!("NIS {}: no camera set, so a slow orbit plays for the scene", bundle.name);
@@ -93,6 +95,7 @@ impl Loading {
             cars: cars::read_tracks(&bundle.anim.banks),
             sequence: bundle.sequence.clone(),
             characters: Characters::from_bundle(&bundle, &light_materials),
+            revs,
         })
     }
 }
@@ -101,7 +104,19 @@ impl Loading {
 fn read(dir: &GameDir, scene: &str) -> Result<Loaded, String> {
     let bundle = NisBundle::load(dir, scene).map_err(|e| format!("{e:#}"))?;
     let library = CameraLibrary::load(dir).map_err(|e| format!("{e:#}"))?;
-    Ok(Loaded { bundle, library, light_materials: light_materials(dir) })
+    let canonical = nfsmw_data::sound::nis_row(&bundle.name).map(|row| nfsmw_data::sound::NIS_SCENES[row]);
+    let revs = canonical.and_then(|name| {
+        let path = format!("SOUND/NISREVDATA/{name}.bin");
+        let bytes = dir.resolve(&path).and_then(|_| dir.read(&path).ok())?;
+        match nfsmw_data::sound::NisRevs::parse(&bytes) {
+            Ok(revs) => Some(revs),
+            Err(error) => {
+                log::warn!("NIS {name}: {error}; no engine curve");
+                None
+            }
+        }
+    });
+    Ok(Loaded { bundle, library, light_materials: light_materials(dir), revs })
 }
 
 /// The light materials the characters' shading groups name (`nis-player-2.md` section 9.6): the car tables' own, which

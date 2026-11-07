@@ -42,7 +42,7 @@ What the rewrite played during those steps **[verified]** (code reading):
 4. The NIS rev data (`SOUND/NISREVDATA`) that drives the engine during a NIS in the original is not read by the rewrite,
    so the engine had no revs to follow in the NIS either.
 
-**Rule [ours]:** while a story movie plays, or the NIS of a race's intro does, the car sound state is withheld (as for the
+**Historical workaround [ours; superseded for NIS intros by [race-reference-followup](race-reference-followup.md)]:** while a story movie plays, or the NIS of a race's intro does, the car sound state is withheld (as for the
 pause menu): the engine and the sounds that follow the car stop, the radio stops, and the movie's or NIS's own stream is
 the sound. They start again when the cutscene ends. The bust's arrest scene (a NIS outside a race intro) is not
 changed. Code: `scenes/world/sound.rs` (`cutscene_owns_sound`).

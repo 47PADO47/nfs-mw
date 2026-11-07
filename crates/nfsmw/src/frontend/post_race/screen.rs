@@ -263,6 +263,13 @@ fn lies_inside(cx: &Cx, name: u32, group: u32) -> bool {
 }
 
 impl ScreenLogic for PostRaceLogic {
+    fn footer(&self) -> crate::frontend::logic::Footer {
+        crate::frontend::logic::Footer::RaceResults {
+            back: back_target(self.page, self.report.photo.is_some()) != Back::Stay,
+            page: super::pages::footer_label(self.page, self.report.kind),
+        }
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.fill(cx);
     }
