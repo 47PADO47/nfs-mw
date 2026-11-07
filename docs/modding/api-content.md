@@ -170,6 +170,42 @@ Known gaps: body kits and hoods (a mod car has none), and a code form (`content.
 | Traffic role | `role = "traffic"` and `[traffic]` (`class`, `weight`, `max_instances`, `speed_factor`, `patterns`): the car joins the traffic patterns with a rule made from its weight; `car::mods::{traffic_unit, traffic_cars, traffic_rules}` give the unit and the rules; a traffic-only car is usage type 2 | G (schema), MW (spawner) | [api-traffic.md](api-traffic.md), `libs/blackbox-modding/src/content/traffic.rs`, `crates/nfsmw-data/src/car/mods/traffic.rs`, `crates/nfsmw/src/scenes/world/ai/mod_traffic.rs` |
 | Planned: code form | `content.cars().register(CarDef { .. }) -> Result<CarId>`, paint (`CARSKIN`), part models | G | not built |
 
+### Components
+
+A car manifest may list **slots** and bind **parts** (ADR 0014, [specs/vehicle-components/manifest.md](../specs/vehicle-components/manifest.md)); the
+components the slots accept are in the mod's `components/*.toml`, read in path order, ids unique across the mod. Unknown keys refuse
+the car (or the file) and the log names the key. The first delivery binds a **bike** ([ride6-bike-upgrades.md](ride6-bike-upgrades.md)).
+
+```toml
+# cars/<id>.toml
+[[slot]]                       # in screen order; see the spec for `accepts`, `default`, `when`, `inputs`
+id = "exhaust"                 # lower case, digits and _ . : -, up to 64 bytes
+group = "looks"
+accepts = ["mod:exhaust.stock", { component = "mod:exhaust.race", price = 900 }]
+default = "mod:exhaust.stock"
+
+[parts."exhaust.race"]         # a part a component shows, bound to a solid
+solid = "MYBIKE_KIT00_RACE"    # the solid without its level-of-detail letter (A to E)
+pack = "PARTS/R6/MUF974_001"   # optional: a folder under files/ with its own GEOMETRY.BIN and TEXTURES.BIN, shared by cars; left out: the car's own files
+role = "body"                  # body | steered (a bike's bars) | steered_slid (its fork) | wheel_front | wheel_rear: the frame the solid is modelled in
+matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0]   # optional: three rows of a 3 by 4 matrix, solid to the frame of `role`
+```
+
+```toml
+# components/parts.toml
+[[component]]
+id = "mod:engine.l1"
+tier = 1                       # the level of an upgrade ladder
+effects = [{ kind = "param", key = "bike.engine.peak_torque_nm", op = "mul", value = 1.04 }]
+```
+
+The slots map onto the garage by id: `exhaust` (Spoiler), `bar_pad` (Hood), `rims` (Rims), `brake_discs` (Body kit), and the ladders
+`perf_engine`, `perf_chassis`, `perf_brakes` (the Engine, Suspension and Brakes performance levels; the components' `tier` is the
+level). Other slot ids are checked and kept but not listed. The parameter keys a bike binds are `bike.engine.peak_torque_nm`,
+`bike.chassis.mass_kg`, `bike.brakes.front_force_n` and `bike.brakes.rear_force_n` (`op` `set`, `add`, `mul`, `min`, `max`; a stack stays within
+0.5 to 2 times the base); a `surface` or `behaviour` effect is logged as not bound. A slot that does not fit the catalog
+(`VehicleDef::check`) leaves the car without components. A component whose pack is not in the install is not offered.
+
 ### Music
 
 Works now in NFS:MW. A mod ships its tracks in a `music/` folder, as audio files (`mp3`, `ogg`, `flac`, `wav`) and/or

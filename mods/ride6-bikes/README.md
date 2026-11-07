@@ -29,7 +29,7 @@ own install. Without exports the mod adds nothing and the game is unaffected.
    The exports come from your tools outside the repository: `bikeparts.py` for each bike and the physics dump
    ([ride6-bikes.md](../../docs/modding/ride6-bikes.md), [ride6-bikes-batch.md](../../docs/modding/ride6-bikes-batch.md)).
    Optional keys: `rider` (the exporter's rider folder, with `RiderGP_PhysicsAsset.json` and `RiderBP.json` beside the pack for the fall's ragdoll, default a `rider` folder inside `source`; without it the bikes have no rider), `tyre_tables`, `sound` (the output folder of `sound-bikes`: bikes with tables there get RIDE 6's own engine sound), `pak_key`
-   (the key of RIDE 6's pak files for the sound extraction; default: the built-in key, see below), `max_texture`.
+   (the key of RIDE 6's pak files for the sound extraction; default: the built-in key, see below), `max_texture`, `upgrades` (the shop options, default on) and `bike_parts` (the exporter's folder of the optional parts, [docs/modding/ride6-bike-upgrades.md](../../docs/modding/ride6-bike-upgrades.md)).
 3. Start the game again. The mod imports **every bike** of the folder (default stock parts, first livery) in the background
    while the game runs; nothing waits for it. When it is done the bikes are in the game; the log says how many were imported
    and lists each bike that was left out with the reason. Later starts import nothing unless the settings or the exports
