@@ -9,7 +9,7 @@
 use super::choices;
 use glam::{Mat3, Vec3};
 
-use super::curve::{curve, factor, ramp};
+use super::curve::{curve, factor, factor_either_side, ramp};
 use super::filter::{SecondOrder, step_acceleration};
 use super::magic::Mf94;
 use super::peaks::peaks;
@@ -119,7 +119,7 @@ impl Lean {
         let scale = attenuation
             * spec.time_scale
             * factor(&spec.time_scale_speed, input.speed.abs())
-            * factor(&spec.time_scale_input, input.stick.clamp(-1.0, 1.0))
+            * factor_either_side(&spec.time_scale_input, input.stick.clamp(-1.0, 1.0))
             * sensitivity;
         let free = self.target.step(wanted, spec.target_k, spec.target_damping_ratio, input.dt * scale);
         let target = free.clamp(-input.target_cap, input.target_cap);
