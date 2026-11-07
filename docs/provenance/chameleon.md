@@ -52,7 +52,7 @@ table was read with the Python scratch reader of the container: each song is a `
 80-byte Genesys object that imports it; the titles and artists were found by searching the English string table for the names of artists
 the game is known to play and seeing that their ids sit right after the song objects' keys, and the allocation rule was checked on the
 43 songs (the few that do not fit are in [formats/chameleon-sound.md](../formats/chameleon-sound.md#the-soundtrack-uisongs)). The stream
-format and its repacking to MP3 are the work recorded in [chameleon-tools.md](chameleon-tools.md); no executable was read for this.
+format and its repacking to MP3 are described in [formats/chameleon-sound.md](../formats/chameleon-sound.md); no executable was read for this.
 No decompiled code and no song is in the repository: the mod writes a playlist of paths, and the game decodes the install's own files.
 
 ## Known limits
