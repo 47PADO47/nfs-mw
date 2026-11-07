@@ -24,9 +24,11 @@ supported = ["nfsmw"]
 "bb.vehicles" = "1.2"
 
 # The 2012 soundtrack: the mod writes music/MW2012.m3u8, a playlist of the songs in the 2012 install (soundtrack.rs); the game
-# decodes them from there. They join the custom music, so they play when the game's Custom music option is on.
+# decodes them from there. The mod removes the playlist again unless the gameplay option "2012 soundtrack" is on, so `always` only
+# says the songs play whether or not the game's own custom music is on.
 [music]
 contexts = ["menu", "free_roam"]
+always = true
 
 [library]
 windows = "nfsmw_2012_content.dll"

@@ -115,6 +115,7 @@ Every key is optional. An unknown key is an error and no car is added, so a typo
 | `role` | `"player"` (default), `"cop"` or `"both"`: who can use the cars that are not police cars (the police cars have their own setting, `[police]`) |
 | `[police]` | Which cars are police cars and where they chase: `auto` (default `true`), `add`, `remove`, `role`, and `[police.car.<id or name fragment>]` with `class`, `heat` and `cop` entries ([Police cars](#police-cars)) |
 | `own_engine_sound` | `true` (default): each car gets the recordings of its own 2012 bundle, written into the mod folder as WAVs (`files/SOUND/MODENGINE/<ID>/`): its engine loops, and its gear shifts, turbo whistle and blow-off, backfires and pops. `false` writes none (the shared recordings included): the cars play the game's built-in engine and have only the game-wide sounds. An approximation, see [car-sound.md](../../docs/modding/car-sound.md#the-2012-cars-recordings) |
+| `music` | `true` (default): offers the 2012 game's soundtrack (43 songs of `UI/SONGS/`) as the gameplay option **2012 soundtrack** (off until the player turns it on), **streamed from your 2012 install**: nothing is converted or copied, the mod only writes a small playlist (`music/MW2012.m3u8`) at every start. `false` removes the playlist and the option. It never converts the cars again ([The soundtrack](#the-soundtrack)) |
 | `traffic` | `true` (default): adds the 2012 game's eleven traffic cars (Audi A3, Cadillac CTS-V, Chevrolet Express Van, Dodge Caliber, Grand Caravan and Ram 1500, Chevrolet Cobalt, Infiniti G35, Nissan Frontier and Versa, GMC Topkick) as traffic cars among the game's own, with ids ending in `_TR`. `false` adds none. `cars` and `exclude` pick them too (the word `traffic` is in every name). Numbers, limits and the console: [api-traffic.md](../../docs/modding/api-traffic.md#the-2012-mods-traffic-cars) |
 | `trees` | `true` (default): converts the 2012 game's trees (eleven species at four levels of detail, read from the world bundles of `HAWAII/`) and adds the value **NFS Most Wanted 2012** to the gameplay setting **Trees**. Choosing it swaps their models and textures in for the 2005 game's trees (the tree lines, cedars, poplars, bushes, fall trees and dead trees: 78 solids) as the world streams in; the setting is read as sections load, so a choice made before a drive is in all of them. `false` converts and adds neither. What the 2012 trees are and which solids they replace: [chameleon-vegetation.md](../../docs/formats/chameleon-vegetation.md); the profile and the fit: [effect-variants.md](../../docs/modding/effect-variants.md#profile-format-of-the-trees) (`src/trees.rs`) |
 | `[performance]` | Optional multipliers on the stats read from each car's own 2012 data: `power` (torque at every engine speed), `mass`, `grip` (tyre friction), `brakes` (brake torque), `nitrous_power` (the extra torque of the nitrous), all 1.0 by default, and `nitrous` (`true` by default: the car keeps the nitrous its 2012 data gives it; `false` removes it). The mod applies them when it writes the car, so the game only sees the resulting absolute `[stats]` table ([car-stats.md](../../docs/modding/car-stats.md)); a car whose settings are left alone is exactly the imported 2012 car. Ranges: `power`, `mass`, `brakes` 0.25 to 4, `grip` 0.25 to 3, `nitrous_power` 0 to 4; results are clamped to the ranges of `[stats]` |
@@ -424,6 +425,23 @@ Every converted car gets the 2012 game's cameras as three extra camera views (**
 **C** past the game's own, or pick one in the options' Camera row), and while the player drives one of the mod's cars the mod keeps the
 drift assist on and pays drift distance into the nitrous tank, always, with no setting. What they read and how they behave:
 [docs/mods/nfsmw-2012-cameras-drift.md](../../docs/mods/nfsmw-2012-cameras-drift.md).
+
+## The soundtrack
+
+The 2012 install holds its soundtrack as 58 `.SPS` song streams in `UI/SONGS/` (259 MB). The mod does **not** convert them: at every start it
+writes `music/MW2012.m3u8` (about 5 KB), a playlist that names the 43 titled songs of the install by their paths with their title and
+artist, and the game's custom music player decodes the `.SPS` files from your install while they play (a song is read whole, repacked to MP3 in
+memory and decoded; a track takes a few tens of milliseconds more to start than an MP3). The songs join the game's music in the menus and
+while you drive (the `[music]` table of `mod.toml` names the two contexts and sets `always`, so the game's `[custom_music]` setting is not
+needed); with them on, they take the place of the EA Trax songs as any custom music does ([custom-music.md](../../docs/specs/custom-music.md)).
+
+**The switch in the game:** the Gameplay option **2012 soundtrack** (`bb.settings`, off by default, shown only when the playlist was
+written: a 2012 install is set and `music` is on). The mod reads it at the start and removes the playlist again while it is off, so a
+change in the game applies at the next start. `music = false` in the settings adds neither the playlist nor the option; the setting is not
+part of the conversion's fingerprint, so changing it never converts the cars again. Titles and artists are read from the language table by a
+rule that is partly inferred, so a few captions are wrong ([chameleon-sound.md](../../docs/formats/chameleon-sound.md#the-soundtrack-uisongs)).
+**Nothing of this has been heard in the game.** Test: `cargo test -p nfsmw-2012-content --lib soundtrack` (with `MW2012_GAME_DIR`, `-- --ignored`
+reads the install).
 
 ## License plates
 

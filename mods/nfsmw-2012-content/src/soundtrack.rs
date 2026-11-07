@@ -13,6 +13,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use blackbox_modding::sdk::{Ctx, Level};
 use chameleon_bundle::{Bundle, ResourceKind};
 use chameleon_vehicle::localised_text;
 
@@ -20,6 +21,9 @@ use chameleon_vehicle::localised_text;
 pub const FOLDER: &str = "music";
 /// The playlist's file name.
 pub const PLAYLIST: &str = "MW2012.m3u8";
+/// The gameplay option that switches the songs on, and its label (a message id of the mod's catalogue, `lang/en/`).
+pub const OPTION: &str = "soundtrack_2012";
+pub const LABEL: &str = "nfsmw2012-soundtrack";
 /// Songs shorter than this are the menu loops of the 2012 front end, not songs.
 const MIN_SECS: f32 = 60.0;
 /// How many ids above a song's key its texts may be: the texts of a song get the ids right after the song's own.
@@ -66,6 +70,26 @@ pub fn sync(mod_dir: &Path, source: Option<&Path>, on: bool) {
             let _ = fs::remove_file(&playlist);
         }
     }
+}
+
+/// Offer the songs as the gameplay option **2012 soundtrack** when the playlist was written (a 2012 install is set and `music` is
+/// on). The option is **off by default**: the songs then join the game's music in place of the EA Trax songs only when the player
+/// chooses them. While it is off the playlist is removed again here, before the game reads the music of its mods; a change in the
+/// game applies at the next start. A game without `bb.settings` keeps the playlist, since it has no way to choose.
+pub fn register(ctx: &Ctx, mod_dir: &Path) {
+    let playlist = mod_dir.join(FOLDER).join(PLAYLIST);
+    if !playlist.is_file() {
+        return;
+    }
+    let Some(settings) = ctx.settings() else { return };
+    if let Err(error) = settings.add_toggle(OPTION, LABEL, false, |_ctx, _on| {}) {
+        ctx.log(Level::Warn, &format!("nfsmw-2012-content: the soundtrack setting is not added: {error}"));
+        return;
+    }
+    if settings.get(OPTION).is_ok_and(|value| value == "on") {
+        return;
+    }
+    let _ = fs::remove_file(&playlist);
 }
 
 /// Write the playlist of the songs of `source` (left alone when it is already right). Returns the number of songs.

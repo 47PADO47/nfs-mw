@@ -73,9 +73,9 @@ role = \"player\"
 # mod's folder. false gives the cars no recordings: they play the game's built-in engine and have no other car sounds.
 own_engine_sound = true
 
-# Add the 2012 game's soundtrack (58 songs, read from your 2012 install while they play: nothing is converted or copied) to
-# the game's custom music, which plays them in the menus and while you drive when the game's Custom music option is on.
-# false adds none. Changing it never converts the cars again (mods/nfsmw-2012-content/README.md, \"The soundtrack\").
+# Offer the 2012 game's soundtrack (43 songs, read from your 2012 install while they play: nothing is converted or copied) as the
+# gameplay option \"2012 soundtrack\", which is off until you turn it on. false adds neither the songs nor the option. Changing it
+# never converts the cars again (mods/nfsmw-2012-content/README.md, \"The soundtrack\").
 music = true
 
 # Add the 2012 game's eleven traffic cars (Audi A3, Dodge Ram 1500, GMC Topkick, ...) to the roads, among the game's own

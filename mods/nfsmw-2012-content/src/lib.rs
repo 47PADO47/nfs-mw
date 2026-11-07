@@ -121,6 +121,7 @@ impl Mod for NfsmwContent {
                 effect_variants::add_all(ctx, trees);
                 drift_nitrous::register(ctx, &mod_dir);
                 engine_stop::register(ctx, &mod_dir);
+                soundtrack::register(ctx, &mod_dir);
                 ctx.log(Level::Info, &format!("nfsmw-2012-content: {cars} cars are ready"));
             }
             Ok(Start::Started { job, live, trees }) => {
@@ -128,6 +129,7 @@ impl Mod for NfsmwContent {
                 effect_variants::add_all(ctx, trees);
                 drift_nitrous::register(ctx, &mod_dir);
                 engine_stop::register(ctx, &mod_dir);
+                soundtrack::register(ctx, &mod_dir);
                 ctx.log(Level::Info, "nfsmw-2012-content: converting the 2012 cars in the background");
                 state.job = Some(job);
                 state.live = live;

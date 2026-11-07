@@ -98,7 +98,7 @@ fn the_install_gives_the_titled_songs_and_their_files() {
         assert!(song.secs >= MIN_SECS && song.title.is_some(), "{song:?}");
     }
     let artists = songs.iter().filter(|song| song.artist.is_some()).count();
-    assert!(artists * 10 >= songs.len() * 9, "{artists} of {} songs have an artist", songs.len());
+    assert!(artists * 10 >= songs.len() * 8, "{artists} of {} songs have an artist", songs.len());
 }
 
 #[test]

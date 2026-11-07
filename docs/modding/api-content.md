@@ -172,8 +172,9 @@ Known gaps: body kits and hoods (a mod car has none), and a code form (`content.
 
 ### Music
 
-Works now in NFS:MW. A mod ships its tracks in a `music/` folder, as audio files (`mp3`, `ogg`, `flac`, `wav`) and/or
-playlists (`.m3u` or `.m3u8`, whose entries are relative to the playlist). `mod.toml` names the contexts:
+Works now in NFS:MW. A mod ships its tracks in a `music/` folder, as audio files (`mp3`, `ogg`, `flac`, `wav`, and `sps`, the song format
+of the 2012 game) and/or playlists (`.m3u` or `.m3u8`, whose entries are relative to the playlist **or absolute**: a playlist may name files outside the
+mod, which is how the 2012 mod streams the songs of the player's own 2012 install with nothing copied). `mod.toml` names the contexts:
 
 ```toml
 [music]
