@@ -10,6 +10,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use toml::{Table, Value};
 
+use super::BikeClass;
 use super::custom_fonts;
 use super::fe_shadows;
 use super::hd_content;
@@ -233,7 +234,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
         ("ui_style", changes.ui_style.map(|v| v.to_string())),
         ("language", changes.language.map(|v| v.to_string())),
         ("speed_units", changes.speed_units.map(|v| v.to_string())),
-        ("riding_style", changes.riding_style.map(|v| v.to_string())),
+        (BikeClass::Road.key(), changes.riding_style_road.map(|v| v.to_string())),
+        (BikeClass::Motard.key(), changes.riding_style_motard.map(|v| v.to_string())),
+        (BikeClass::Offroad.key(), changes.riding_style_offroad.map(|v| v.to_string())),
         ("ui_theme", changes.ui_theme.map(|v| v.to_string())),
     ];
     for (key, value) in named {
@@ -241,6 +244,8 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
             put(key, Value::String(v));
         }
     }
+    changes.brake_fingers.into_iter().for_each(|v| put("brake_fingers", Value::Integer(i64::from(v.count()))));
+    changes.clutch_fingers.into_iter().for_each(|v| put("clutch_fingers", Value::Integer(i64::from(v.count()))));
     if let Some(v) = changes.post_tonemap {
         put("post_tonemap", Value::String(v.to_string()));
     }
