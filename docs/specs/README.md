@@ -6,6 +6,9 @@ before the Rust implementation. Required wherever the only source is decompiled 
 
 Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
 
+The CustomHUD plugin's gauge skins (the mod `scripts/CustomHud.asi`): [custom-hud-gauges.md](custom-hud-gauges.md), with the file
+format in [../formats/custom-hud-skin.md](../formats/custom-hud-skin.md).
+
 Player countdown follow-up: [clutch state and comparison boundaries](player-countdown-drivetrain.md).
 
 Driving extensions: [performance-upgrades.md](performance-upgrades.md),

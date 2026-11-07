@@ -157,6 +157,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [formats/maps.md](formats/maps.md) | The L2RA world: metadata chunks, streaming index, section families, scenery placement and rotation encoding | Verified; Rust readers |
 | [formats/world.md](formats/world.md) | World grid and road network, collision packs, bounds, triggers, emitters, sky, minimap | Partial (decomp only for several) |
 | [formats/minimap.md](formats/minimap.md) | The minimap: 8 x 8 map tiles, the per-track calibration, the HUD objects and textures | Verified; Rust reader |
+| [formats/custom-hud-skin.md](formats/custom-hud-skin.md) | The CustomHUD plugin's skins: `CustomHud.ini`, the skin ini and its DDS atlases (a third-party mod's files, not game data) | Read from the plugin; Rust reader |
 | [formats/collision.md](formats/collision.md) | World collision packs, the collision grid, car and prop bounds, surface types, query semantics | Layouts verified; Rust reader |
 | [formats/event-sequences.md](formats/event-sequences.md) | World event engines, actions and fragment events | All 73 installed packages read; 75 engines |
 | [formats/model-hierarchies.md](formats/model-hierarchies.md) | Named intact and internal fragment models | Validated reader and installed breakup checks |
