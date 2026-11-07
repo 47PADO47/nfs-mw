@@ -179,9 +179,7 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.turn_signals {
         put("turn_signals", Value::Boolean(v));
     }
-    if let Some(v) = changes.rider_gear {
-        put("rider_gear", Value::Boolean(v));
-    }
+    changes.rider_gear.into_iter().for_each(|v| put("rider_gear", Value::Boolean(v)));
     if let Some(v) = changes.rear_view_mirror {
         put("rear_view_mirror", Value::Boolean(v));
     }
@@ -233,9 +231,7 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.ui_style {
         put("ui_style", Value::String(v.to_string()));
     }
-    if let Some(v) = changes.custom_hud_skin {
-        put("custom_hud_skin", Value::String(v.to_string()));
-    }
+    changes.custom_hud_skin.into_iter().for_each(|v| put("custom_hud_skin", Value::String(v.to_string())));
     if let Some(v) = changes.language {
         put("language", Value::String(v.to_string()));
     }

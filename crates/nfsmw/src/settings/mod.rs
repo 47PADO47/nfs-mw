@@ -1,7 +1,6 @@
 //! Settings, layered: command line > environment > per-user config file > defaults.
 //!
-//! Each source produces a [`Partial`]; [`Settings::load`] merges them. The in-game settings menu
-//! (milestone 6) and the developer console write the config file layer.
+//! Each source produces a [`Partial`]; [`Settings::load`] merges them. The settings menu and the console write the file layer.
 
 #[macro_use]
 mod names;
@@ -490,14 +489,12 @@ impl From<Partial> for Settings {
         settings
     }
 }
-
 #[cfg(test)]
 mod mods_tests;
+mod music_volume;
 #[cfg(test)]
 mod tests;
+mod world_tuning;
 #[cfg(test)]
 mod xenon_effects_tests;
-
-mod music_volume;
-mod world_tuning;
 pub use world_tuning::WorldTuning;
