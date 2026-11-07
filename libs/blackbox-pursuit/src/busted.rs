@@ -48,6 +48,13 @@ pub struct BustInput {
     pub grace: bool,
 }
 
+impl BustInput {
+    /// An input of an ordinary frame: not flashing, no grace.
+    pub fn new(cop_distance: f32, seen: bool, player_speed: f32, slow_speed: f32) -> Self {
+        Self { cop_distance, seen, player_speed, slow_speed, flashing: false, grace: false }
+    }
+}
+
 /// Whether a cop's height difference from the player (metres, either sign) is within the gate. A cop on a bridge above
 /// or a road below does not count.
 pub fn height_matches(height_difference: f32, gate: f32) -> bool {
