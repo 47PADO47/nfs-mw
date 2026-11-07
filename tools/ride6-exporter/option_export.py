@@ -164,14 +164,15 @@ def write_parts(tool, assets, catalogue, keep, out_dir, max_tex):
     }
 
 
-def anchor_of(glb_dir, stem, bones):
-    """The anchor of the mesh `stem` on a bike with `bones`, None when it is not one rigid transform."""
+def anchor_of(glb_dir, stem, bones, strict=True):
+    """The anchor of the mesh `stem` on a bike with `bones`. With `strict`, None when it is not one rigid transform; a brake
+    disc pair (a left and a right bone, as the stock front brake) takes the anchor of its dominant bone like the stock part."""
     path = bikeparts.smallest_glb(glb_dir, stem)
     if not path:
         return None
     part = glbtools.Glb(path)
     anchor = glbtools.anchor(part, bones)
-    if anchor is None or not bake.is_rigid(part, bones):
+    if anchor is None or (strict and not bake.is_rigid(part, bones)):
         return None
     return anchor
 
@@ -188,10 +189,10 @@ def place(catalogue, bikes_root, out_dir, only):
         with open(path, encoding="utf-8") as f:
             bones = bike_bones(json.load(f))
 
-        def anchors(asset, sides):
+        def anchors(asset, sides, strict=True):
             found = {}
             for side, mesh in sides.items():
-                value = anchor_of(glb_dir, object_name(mesh), bones)
+                value = anchor_of(glb_dir, object_name(mesh), bones, strict)
                 if value is None:
                     return None
                 found[side] = value
@@ -200,7 +201,8 @@ def place(catalogue, bikes_root, out_dir, only):
         for key in ("brakes", "rims", "barpad"):
             kept = []
             for item in entry[key]:
-                item["anchors"] = anchors(item["asset"], catalogue["assets"][item["asset"]]["meshes"])
+                strict = key != "brakes"
+                item["anchors"] = anchors(item["asset"], catalogue["assets"][item["asset"]]["meshes"], strict)
                 if item["anchors"]:
                     kept.append(item)
             entry[key] = kept
