@@ -74,11 +74,6 @@ pub(crate) fn catalogue() -> Option<Arc<Catalogue>> {
     lock().catalogue.clone()
 }
 
-/// Whether there is anything to pick: the setting is on and a mod offers gear.
-pub(crate) fn available() -> bool {
-    enabled() && lock().catalogue.is_some()
-}
-
 /// Reads the profile's file again, when the profile or the file changed.
 pub(crate) fn reload() {
     let path = choice::path();

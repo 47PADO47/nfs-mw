@@ -15,6 +15,5 @@ mod tests;
 pub(crate) use catalogue::{Catalogue, Entry, Part};
 pub(crate) use choice::Choice;
 pub(crate) use state::{
-    available, catalogue as loaded, commit, committed, current, enabled, generation, reload, scan, set_enabled,
-    set_preview,
+    catalogue as loaded, commit, committed, current, enabled, generation, reload, scan, set_enabled, set_preview,
 };
