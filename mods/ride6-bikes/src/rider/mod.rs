@@ -27,8 +27,10 @@ pub mod convert;
 pub mod falls;
 pub mod gear;
 pub mod graph;
+pub mod graph_fingers;
 pub mod graph_reverse;
 pub mod graph_sets;
+pub mod graph_stand;
 pub mod parts;
 pub mod raw;
 pub mod seat_surface;
@@ -52,9 +54,9 @@ pub struct Summary {
     pub falls: bool,
 }
 
-/// Converts the export in `input` into `output`. `riding_style` picks the lean clips of every type (see [`graph::graph_for`]);
-/// `None` gives each type its own ([`graph_sets::ClipSet::riding_style`]).
-pub fn import(input: &Path, output: &Path, riding_style: Option<u8>) -> Result<Summary> {
+/// Converts the export in `input` into `output`. Every graph carries the lean sets of all three riding styles
+/// ([`graph::graph_selectable`]); the game picks one by the player's setting.
+pub fn import(input: &Path, output: &Path) -> Result<Summary> {
     let read = |name: &str| fs::read(input.join(name)).with_context(|| format!("reading {name}"));
     let rider_json = raw::parse_skeleton(&read("skeleton.json")?)?;
     let bike_json = raw::parse_skeleton(&read("bike_skeleton.json")?)?;
@@ -87,9 +89,9 @@ pub fn import(input: &Path, output: &Path, riding_style: Option<u8>) -> Result<S
         .sample(&skeleton, 0.0, false);
     let attach = attach::attach_json(&skeleton, &reference, &bike_json)?;
     let pack = convert::pack(skeleton, sockets, clips, meshes);
-    let graph = graph::motard_graph(&pack, riding_style.unwrap_or(graph_sets::MOTARD.riding_style))?;
+    let graph = graph::graph_selectable(&pack, &graph_sets::MOTARD)?;
     graph.validate(&pack.clips, &pack.skeleton)?;
-    let styles = write_styles(&pack, riding_style, output)?;
+    let styles = write_styles(&pack, output)?;
     let falls = write_falls(&pack, output)?;
 
     fs::create_dir_all(output.join("textures")).context("creating the output folder")?;
@@ -129,12 +131,11 @@ fn write_falls(pack: &blackbox_skeleton::Pack, output: &Path) -> Result<bool> {
 
 /// Writes `graph_<type>.json` for every bike type whose clips the pack has, and `styles.json` naming them; returns the types'
 /// names. A type with a clip missing is left out with a warning (the pack comes from an export without that type's folder).
-fn write_styles(pack: &blackbox_skeleton::Pack, riding_style: Option<u8>, output: &Path) -> Result<Vec<&'static str>> {
+fn write_styles(pack: &blackbox_skeleton::Pack, output: &Path) -> Result<Vec<&'static str>> {
     fs::create_dir_all(output).context("creating the output folder")?;
     let mut entries = Vec::new();
     for set in graph_sets::SETS {
-        let riding_style = riding_style.unwrap_or(set.riding_style);
-        let graph = match graph::graph_for(pack, set, riding_style).and_then(|graph| {
+        let graph = match graph::graph_selectable(pack, set).and_then(|graph| {
             graph.validate(&pack.clips, &pack.skeleton)?;
             Ok(graph)
         }) {
@@ -146,9 +147,58 @@ fn write_styles(pack: &blackbox_skeleton::Pack, riding_style: Option<u8>, output
         };
         fs::write(output.join(style::graph_file(set)), serde_json::to_vec_pretty(&graph)?)?;
         let walk = graph_reverse::loop_seconds(pack, &set.walk);
-        entries.push((set, style::entry(set, riding_style, walk)));
+        entries.push((set, style::entry(set, walk)));
     }
     let table = style::table(&entries);
     fs::write(output.join(style::FILE), serde_json::to_vec_pretty(&table)?)?;
     Ok(entries.iter().map(|(set, _)| set.name).collect())
+}
+
+/// Adds the animations of the export in `input` (a folder with `skeleton.json` and `*.r6ra` and/or `acl/`, made by the export tool's
+/// `skeleton`, `anims` and `acl` modes) to the rider already in `output`, and writes every graph again. The clips the pack has
+/// already keep their data. Nothing else of the rider is read again: a rider imported before a clip set grew gets it without the
+/// whole export.
+pub fn merge(input: &Path, output: &Path) -> Result<Summary> {
+    let read = |name: &str| fs::read(input.join(name)).with_context(|| format!("reading {name}"));
+    let rider_json = raw::parse_skeleton(&read("skeleton.json")?)?;
+    let (skeleton, _) = convert::skeleton(&rider_json)?;
+    let mut pack = blackbox_skeleton::Pack::parse(
+        &fs::read(output.join("rider.bbsk")).context("reading rider.bbsk of the rider to add to")?,
+    )
+    .context("rider.bbsk")?;
+    anyhow::ensure!(
+        pack.skeleton.len() == skeleton.len()
+            && (0..skeleton.len()).all(|b| pack.skeleton.bones()[b].name == skeleton.bones()[b].name),
+        "the export's skeleton is not the rider's"
+    );
+    let (anims, undecoded) = acl_clips::collect(input, &rider_json)?;
+    for message in &undecoded {
+        eprintln!("warning: an ACL clip was left out: {message}");
+    }
+    for clip in convert::clips(&anims, &skeleton)? {
+        if pack.clip_index(&clip.name).is_none() {
+            pack.clips.push(clip);
+        }
+    }
+    let attach_path = output.join("attach.json");
+    let mut attach: serde_json::Value =
+        serde_json::from_slice(&fs::read(&attach_path).context("reading attach.json")?).context("attach.json")?;
+    if let Some(map) = attach.as_object_mut() {
+        map.insert("wrist_throttle".to_owned(), attach::wrist_throttle());
+    }
+    fs::write(&attach_path, serde_json::to_vec_pretty(&attach)?)?;
+    let graph = graph::graph_selectable(&pack, &graph_sets::MOTARD)?;
+    graph.validate(&pack.clips, &pack.skeleton)?;
+    let styles = write_styles(&pack, output)?;
+    let bytes = pack.to_bytes();
+    fs::write(output.join("rider.bbsk"), &bytes)?;
+    fs::write(output.join("graph.json"), serde_json::to_vec_pretty(&graph)?)?;
+    Ok(Summary {
+        bones: pack.skeleton.len(),
+        clips: pack.clips.len(),
+        meshes: pack.meshes.len(),
+        bytes: bytes.len(),
+        styles,
+        falls: output.join("falls.json").is_file(),
+    })
 }

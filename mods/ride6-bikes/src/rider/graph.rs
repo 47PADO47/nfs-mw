@@ -9,8 +9,10 @@
 use anyhow::{Context, Result};
 use blackbox_skeleton::{Axis, BlendSpace, Graph, Node, Pack, SpaceSample, TimeMode, Value};
 
+use super::graph_fingers;
 use super::graph_reverse;
 use super::graph_sets::{self, ClipSet, MOTARD};
+use super::graph_stand;
 
 /// Parameter order of the graph (the names are in [`Graph::param_names`]).
 ///
@@ -31,7 +33,14 @@ use super::graph_sets::{self, ClipSet, MOTARD};
 /// The last two pick the lean pose (`docs/specs/ride6-rider-knee-foot.md`): `lean_out` is `RiderLean_LeftOrRight` (0 the left lean
 /// clip, 1 the right one) and `straight` `LeanOrStraight_Alpha` (1 the upright pose over the lean sweep). A graph made before them
 /// reads 0 for both.
-pub const PARAMS: [&str; 18] = [
+///
+/// `riding_style` picks the lean set of a graph built for every style ([`graph_selectable`]; `RidingStyle` of the blueprint: 0
+/// balanced, 1 shoulders out, 2 old school). The five after it make the standstill ([`graph_stand`]): `stand` is how much of
+/// the pose is the rider with his feet down, `stand_state` which of the stop, standing and start clips (0, 1, 2), `stand_leg`
+/// which feet (0 both, 1 the left, 2 the right) and `stop_time` and `start_time` the seconds into the stop and start clips. The
+/// last four put the fingers on the levers ([`graph_fingers`]): `clutch` and `brake` are the levers (0 let go, 1 pulled in) and
+/// `clutch_alpha` and `brake_alpha` the weights of the finger layers.
+pub const PARAMS: [&str; 28] = [
     "lean",
     "speed_kmh",
     "tuck",
@@ -50,6 +59,16 @@ pub const PARAMS: [&str; 18] = [
     "reverse_cycle",
     "lean_out",
     "straight",
+    "riding_style",
+    "stand",
+    "stand_state",
+    "stand_leg",
+    "stop_time",
+    "start_time",
+    "clutch",
+    "clutch_alpha",
+    "brake",
+    "brake_alpha",
 ];
 const LEAN: usize = 0;
 const SPEED: usize = 1;
@@ -66,6 +85,14 @@ const DRIFT: usize = 11;
 const REVERSE: graph_reverse::Params = graph_reverse::Params { weight: 12, start: 13, looped: 14, cycle: 15 };
 const LEAN_OUT: usize = 16;
 const STRAIGHT: usize = 17;
+const RIDING_STYLE: usize = 18;
+const STAND: graph_stand::Params =
+    graph_stand::Params { weight: 19, state: 20, leg: 21, stop_time: 22, start_time: 23 };
+const FINGERS: graph_fingers::Params =
+    graph_fingers::Params { clutch: 24, clutch_alpha: 25, brake: 26, brake_alpha: 27 };
+/// `BrakeFingers` of the blueprint: how many fingers pull the brake lever. The blueprint's own default and the `BrakeFingers` of
+/// the `RIDING_STYLE` presets are 2 (the `BRAKE_FINGERS` option of the riding style page offers 1, 2 and 4).
+const BRAKE_FINGERS: u8 = 2;
 
 /// The seconds the lean clips are swept over: the blueprint evaluates the left clip at `RiderLeanLeft_Explicit = 1 - RiderLeaning`
 /// and the right one at `RiderLeanRight_Explicit = RiderLeaning + 1` seconds (`Rider_Lean_Polish`), so the clip's frame 0 is one
@@ -129,9 +156,27 @@ pub fn motard_graph(pack: &Pack, riding_style: u8) -> Result<Graph> {
     graph_for(pack, &MOTARD, riding_style)
 }
 
-/// The tree of a bike type's clip set. `riding_style` is the blueprint's `RidingStyle` (0 to 2; a larger number is 1, the plain
-/// style of the sets that have one).
+/// The tree of a bike type's clip set for one riding style. `riding_style` is the blueprint's `RidingStyle` (0 to 2; a larger
+/// number is 1, the plain style of the sets that have one).
 pub fn graph_for(pack: &Pack, set: &ClipSet, riding_style: u8) -> Result<Graph> {
+    assemble(pack, set, riding(pack, set, riding_style)?)
+}
+
+/// The tree of a bike type's clip set for every riding style: the `riding_style` parameter picks the lean set (the blueprint's
+/// `SET Animations` picks it by `RidingStyle`). A type whose styles all share the same clips (the scooter) has one lean set.
+pub fn graph_selectable(pack: &Pack, set: &ClipSet) -> Result<Graph> {
+    let mut styles: Vec<Node> =
+        (0..graph_sets::STYLES as u8).map(|style| riding(pack, set, style)).collect::<Result<_>>()?;
+    let alike = styles.iter().all(|node| *node == styles[0]);
+    let node = match alike {
+        true => styles.swap_remove(0),
+        false => Node::Select { options: styles, index: Value::param(RIDING_STYLE) },
+    };
+    assemble(pack, set, node)
+}
+
+/// The rider's sitting pose of one riding style: the low-speed and the high-speed lean sets, crossed by the tuck.
+fn riding(pack: &Pack, set: &ClipSet, riding_style: u8) -> Result<Node> {
     let style = usize::from(riding_style).min(graph_sets::STYLES - 1);
     let lean = &set.lean[style];
     // `Leaning_Standard_*` is the low-speed set, `Leaning_Aero_*` the high-speed one; the tuck blends them. The old-school style
@@ -144,8 +189,12 @@ pub fn graph_for(pack: &Pack, set: &ClipSet, riding_style: u8) -> Result<Graph> 
     };
     let standard = lean_set(pack, lean.low[0], centre.low, lean.low[1])?;
     let aero = lean_set(pack, lean.high[0], centre.high, lean.high[1])?;
-    let riding = blend(standard, aero, Value::remap(TUCK, (0.0, 1.0), (0.0, 1.0)));
+    Ok(blend(standard, aero, Value::remap(TUCK, (0.0, 1.0), (0.0, 1.0))))
+}
 
+/// Everything over the sitting pose `riding`: the wheelie, the stoppie, the standing wheelie and the drift, the reverse walk, the
+/// standstill, the additive shake and the fingers on the levers.
+fn assemble(pack: &Pack, set: &ClipSet, riding: Node) -> Result<Graph> {
     // Sitting wheelie: minimum to maximum pose, left to right by the lean.
     let wheelie_amount = Value::param(WHEELIE_ALPHA);
     let [left_min, left_max, right_min, right_max] = set.wheelie;
@@ -165,15 +214,17 @@ pub fn graph_for(pack: &Pack, set: &ClipSet, riding_style: u8) -> Result<Graph> 
     let with_stoppie = blend(with_wheelie, stoppie_pose, Value::param(STOPPIE));
     let with_drift = with_standing_and_drift(pack, set, with_stoppie)?;
     let walking = graph_reverse::with_walk(pack, with_drift, &set.walk, REVERSE)?;
+    let standing = graph_stand::with_stand(pack, set, walking, STAND)?;
 
     // Additive shake of the body, low and high speed.
     let shake =
         blend(looped(pack, set.shake[0])?, looped(pack, set.shake[1])?, Value::remap(SPEED, NOISE_SWAP, (0.0, 1.0)));
-    let root = Node::Additive {
-        base: Box::new(walking),
+    let shaken = Node::Additive {
+        base: Box::new(standing),
         delta: Box::new(shake),
         weight: Value::remap(SPEED, NOISE_RAMP, (0.0, NOISE_ALPHA)),
     };
+    let root = graph_fingers::with_fingers(pack, shaken, BRAKE_FINGERS, FINGERS)?;
     Ok(Graph { param_names: PARAMS.iter().map(|s| (*s).to_owned()).collect(), root })
 }
 

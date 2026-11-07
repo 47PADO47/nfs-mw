@@ -154,7 +154,7 @@ fn spawn(max_texture: u32, inputs: Inputs, mod_dir: PathBuf, stamp: String) -> R
 /// The rider's pack from his export folder: the riding pack, and the fall's `ragdoll.json` when the folder also holds the two
 /// files it is made from (`RiderGP_PhysicsAsset.json`, `RiderBP.json`); without them the rider stays on a bike that falls.
 fn rider_files(export: &Path, files: &Path) -> Result<()> {
-    crate::rider::import(export, files, None)?;
+    crate::rider::import(export, files)?;
     let (asset, blueprint) = (export.join(RAGDOLL_ASSET), export.join(RAGDOLL_BLUEPRINT));
     if !asset.is_file() || !blueprint.is_file() {
         return Ok(());
