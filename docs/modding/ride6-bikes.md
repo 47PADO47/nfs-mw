@@ -96,16 +96,19 @@ schema, vehicle, chassis_row, tyre_sizes{front,back}, lights
 bones{ <name>: {position[3], rotation[4]} }          chassis skeleton in bind pose, glTF axes, metres
 sockets{ <name>: {bone, location_cm, rotation_deg} }  the skeleton's sockets (rider, feet, audio, stand)
 parts[]: id, role (body | front_wheel | back_wheel), export (mesh stem), anchor{bone, translation, rotation},
-         materials{ <name in the glb>: <material instance path> }, source (table and row), mesh
+         materials{ <name in the glb>: <material instance path> }, slots{ <name in the glb>: <mesh slot> }, source (table and row), mesh
 materials{ <instance>: tex{param: path}, scalar, vector, switch, blend_mode, shading_model, clip, chain }
 liveries[]: index (the NN of the row), row, materials{ <name in the stock glb>: <instance of this livery> }, parts{ <part id>: {..} }
 textures{ <stem>: <format, size, sRGB, compression> }
+fallbacks[]: part, surface, slot, kind, levels, triangles, reason, rule, source, source_part, source_surface, material, picture
 physics_asset, lights
 missing[]: part, reason (no row | asset not in install | no mesh | mesh not in install | export failed | ...), detail
 notes[]   what the script found but did not apply
 ```
 
-`liveries` and `missing` are new and optional: the importer reads a file without them as a bike with one look.
+`liveries` and `missing` are new and optional: the importer reads a file without them as a bike with one look. `slots` (the mesh slot behind each surface name, empty slots included) and `fallbacks` are
+written by the exporter's `bikeparts.py` and `fallbacks.py`: a surface no picture reaches wears the material of a similar model, and
+the importer copies each record into the manifest as a comment ([the rule](ride6-bikes-batch.md#grey-surfaces-the-fallbacks)).
 
 A part's kind comes from the end of its id (`front_tyre`, `back_rim`, `front_brake`; anything else is body: `chassis`, `exmanifold`, `muffler`, `barpad`, `handguards`, `mirrors`, `sump_guard`). Exported
 meshes are `<export>.glb` and `<export>_LOD<n>.glb`.
