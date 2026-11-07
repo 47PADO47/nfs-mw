@@ -62,6 +62,9 @@ pub fn start(mod_dir: &Path, supplied: Option<&config::Supplied>) -> Result<Star
     promote(mod_dir)?;
     let config_path = mod_dir.join(config::FILE_NAME);
     let (config, created) = Config::resolve(supplied, &config_path)?;
+    // The soundtrack is a playlist of the install's own files, kept in line with the settings at every start whatever the
+    // conversion does (`soundtrack.rs`).
+    crate::soundtrack::sync(mod_dir, config.source.as_deref(), config.music);
     let Some(source) = config.source.clone() else {
         return Ok(Start::NotConfigured { config: config_path, created });
     };

@@ -57,6 +57,7 @@ mod police;
 mod sample;
 mod shared;
 mod sounds;
+mod soundtrack;
 mod source;
 mod spark_assets;
 mod stamp;
