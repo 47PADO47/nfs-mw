@@ -288,9 +288,8 @@ fn the_throttle_rolls_the_right_grips_target_about_its_own_frame_and_only_that_o
     roll_wrist(&attach, &mut targets, 1.0);
     assert_eq!(targets[0], rest[0], "the left grip is not the throttle's");
     let (before, after) = (rest[2], targets[2]);
-    // The offset is in the grip's own frame: its turn carries it into the rider's space.
-    let moved = after.position - before.position;
-    assert!(moved.distance(before.rotation.unwrap() * Vec3::new(-0.006, -0.05, 0.0)) < 1e-6, "{moved:?}");
+    // The offset's translation is not played: the hand would leave the grip (a user's playtest, spec section 2).
+    assert_eq!(after.position, before.position, "the grip does not move");
     let rolled = before.rotation.unwrap().inverse() * after.rotation.unwrap();
     assert!(rolled.angle_between(roll) < 1e-5);
     // Half the throttle is half the roll.
@@ -324,7 +323,7 @@ fn a_hand_keeps_its_place_and_turn_against_the_grip_bone_it_holds() {
     // Without the bike's anchor (an older file) the hand goes to the socket as it did.
     let socket_only = Placed { anchor: None, ..placed };
     assert!(tip_goal(&limb, &socket_only).0.distance(Vec3::new(5.0, 5.0, 5.0)) < 1e-6);
-    // The throttle turns the grip bone's frame about the socket's axis and moves it with the offset.
+    // The throttle turns the grip bone's frame about the bone's own y axis, the grip's, and does not move it.
     let mut attach = attach();
     attach.targets.push(super::super::attach::Target {
         name: "right_grip".into(),
@@ -332,7 +331,8 @@ fn a_hand_keeps_its_place_and_turn_against_the_grip_bone_it_holds() {
         rotation: Some(turn.to_array()),
         steers: false,
         anchor: Some([0.3, 0.2, 0.9]),
-        anchor_rotation: Some(Quat::IDENTITY.to_array()),
+        // A bone that is not the world's axes, to tell the bone's own y from the world's.
+        anchor_rotation: Some(Quat::from_rotation_x(0.7).to_array()),
     });
     attach.wrist_throttle = Some(super::super::attach::Rigid {
         translation: [0.0, 0.01, 0.0],
@@ -343,6 +343,10 @@ fn a_hand_keeps_its_place_and_turn_against_the_grip_bone_it_holds() {
     let before = targets[2];
     roll_wrist(&attach, &mut targets, 1.0);
     let (at, bone) = (targets[2].anchor.unwrap(), before.anchor.unwrap());
-    assert!((at.0 - bone.0).distance(turn * Vec3::new(0.0, 0.01, 0.0)) < 1e-6, "{at:?}");
-    assert!(at.1.angle_between(bone.1) > 0.4, "the hand is turned about the bar: {at:?}");
+    assert_eq!(at.0, bone.0, "the grip stays where it is, the hand goes round it: {at:?}");
+    assert!((at.1.angle_between(bone.1) - 0.5).abs() < 1e-4, "{at:?}");
+    // The turn is about the bone's own y axis, toward the rider (the other way from the bone's +y).
+    let axis = (bone.1 * Vec3::Y).normalize();
+    assert!((at.1 * Vec3::Y).distance(axis) < 1e-5, "the bone's y axis is the turn's axis");
+    assert!((at.1 * Vec3::X).distance(Quat::from_axis_angle(axis, -0.5) * (bone.1 * Vec3::X)) < 1e-5);
 }

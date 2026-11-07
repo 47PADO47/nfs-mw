@@ -39,14 +39,26 @@ type (targets 0.2 to 0.27 s); here the lever itself is the input, a choice. **Wh
 | In | (20, 0, 0) | (0, 0, 4) |
 | Out | (-35, 0, -1) | (-0.5, -1, -8) |
 
-(The left hand's are mirrored; the class defaults print their decimals with commas.) `Hand_R_WristDown` is the strongest of the clips'
-`wrist_R_down` notifies and `VehicleThrottle` (`LogicalMax`), so the wrist **rolls down with the throttle**. The offset is followed at
-`Hand_R_TransformSpeed`, 4 a second (`SmoothVector_Interpolate`, `SmoothRotator_Interpolate`), and goes to `RightGripIKOffsetTranslation`
-and `RightGripIKOffsetRotation`, which move the grip's IK target. The yaw is a turn about the grip socket's own z axis, which in the
-bikes' sockets is the handlebar's axis (measured on the CRF 450 R, the RC 390 and the Panigale V4 S: the socket's z is within 22 degrees of the car's y). The
-other poses answer the clips' own notifies (`wrist_R_up`, `wrist_L_in`, ...: wheelie and lean poses), `WristX_*` steps `race_Wrist_X`
-(a 2 s sweep of the wrists and fingers) by the outer and inner wrist weights, and `HandsClutchFingersRotCompensation` turns the left
-hand 20 degrees about one axis while it is down; none of those is played.
+(The left hand's are mirrored; the class defaults print their decimals with commas.) `Hand_R_WristDown` is the strongest of the clips' `wrist_R_down` notifies and `VehicleThrottle` (`LogicalMax`), so the wrist **rolls down with the
+throttle**. The offset is followed at `Hand_R_TransformSpeed`, 4 a second (`SmoothVector_Interpolate`, `SmoothRotator_Interpolate`), and goes to
+`RightGripIKOffsetTranslation` and `RightGripIKOffsetRotation`, which move the grip's IK target [D]. The other poses answer the clips' own notifies
+(`wrist_R_up`, `wrist_L_in`, ...: wheelie and lean poses), `WristX_*` steps `race_Wrist_X` (a 2 s sweep of the wrists and fingers) by the outer and
+inner wrist weights, and `HandsClutchFingersRotCompensation` turns the left hand 20 degrees about one axis while it is down; none of those is played.
+
+**What is played here: the roll only.** The yaw of 30 degrees is the roll of the wrist about the grip. The translation (-0.6, 5, 0 cm) is **not
+played**: the space it is in belongs to the control rig's cooked data (not read), and applied in the grip socket's frame it moved the whole hand 5
+cm perpendicular to the bar, off the grip and under it. A user's playtest showed it (helmet camera on a CRF 450 R SMT at 72 km/h: the right glove
+below the grip, the grip bare; with the first version of this rule the throttle translated the hand instead of turning it). With the roll alone the
+glove stays wrapped around the grip at every throttle and turns about it (0, 0.5 and 1 checked on the CRF 450 R SMT; see section 7).
+
+**The axis of the roll** is the grip's own: in the grip bone's frame the grip's cylinder is the bone's z axis in the exporter's frame (y in the car's
+axes), and the bone's origin lies on that axis. Measured on four bikes against the principal axis of the grip mesh's vertices skinned to
+`BONE_R_GRIP` (CRF 450 R SMT, RC 390, Panigale V4 S, KTM 690 SMC R): the axis and the bone's z agree within 1 degree and the bone's origin is
+within 0.3 mm of the axis [measured]. The bone's axis is 14 to 29 degrees off the car's lateral axis on the real bikes (the bars are swept, the
+clip-ons are angled), and the grip socket's z (the earlier rule's axis) is only within 22 degrees of it. Turning the grip bone's frame about its own
+axis takes the hand, held by that bone ([section 3](#3-where-the-hands-hold-the-grips)), round the grip with the grip staying in the fist.
+The direction is fixed: the knuckles roll toward the rider (the throttle opens). Older files without a grip bone turn the socket's frame by the
+file's rotation instead.
 
 ## 3. Where the hands hold the grips
 
@@ -68,16 +80,15 @@ An earlier version of this rule kept the turn of the bike's grip socket and move
 on top of the grip, the grip's rubber showing under the fist (the socket's turn differs from the bone's by up to 25 degrees of pitch from the
 supermoto's, which the authored pose never saw). With the bone's own frame the hand wraps the grip the way it does on the reference bike on
 every bike: pictures of the RC 390, CRF 450 R SMT, Panigale V4 S and Hayabusa show the fingers around the bar and the bar end past the
-glove. The sockets are still read (older files, `HANDS_ON_SOCKET`), and the throttle's wrist roll is about the socket's axis, which is the
-bar's, seen from the world. Measured against the socket rule's wrist place: the CRF 1.4 cm, the RC 390 5.7 cm, the Panigale 3.1 cm, the
+glove. The sockets are still read (older files, `HANDS_ON_SOCKET`). Measured against the socket rule's wrist place: the CRF 1.4 cm, the RC 390 5.7 cm, the Panigale 3.1 cm, the
 MT-09 1.2 cm. A bike with a `contacts.json` or an `attach.json` written before the anchors goes to its socket as before.
 
 ## 4. What the game does with it
 
 `crates/nfsmw/src/scenes/world/drive/rider/hands.rs` makes the signals from the bike's clutch lever, front brake and throttle: the
 graph's `clutch` and `brake` (the levers, 0 to 1, followed at 2.5 and 3.5 a second) and `clutch_alpha` and `brake_alpha` (the layers' weights); and `wrist`
-(the throttle followed at 4 a second), which `pose::roll_wrist` takes into the right grip's target: the target turns by `wrist` times the file's
-`wrist_throttle` rotation and moves by `wrist` times its translation, both against the grip's own frame. The graph is
+(the throttle followed at 4 a second), which `pose::roll_wrist` takes into the right grip's target: the grip bone's frame turns about its own axis by `wrist`
+times the angle of the file's `wrist_throttle` rotation (30 degrees); the file's translation is not used. The graph is
 `mods/ride6-bikes/src/rider/graph_fingers.rs`; the offset is in `attach.json` (`wrist_throttle`, [ride6-rider.md](../formats/ride6-rider.md)), written by
 `attach.rs` from the constants above.
 
@@ -90,7 +101,7 @@ graph's `clutch` and `brake` (the levers, 0 to 1, followed at 2.5 and 3.5 a seco
 | Two fingers on the brake | Data (the blueprint's default) |
 | The mask: every bone under the hand bone | Choice (the branch filters name the first finger bones; the rest of the finger is under them) |
 | The hand's grip point from the authored pose and the bike's grip bone | Measured (the reference pose is taken to hold the reference bike's grip; the previous agent checked it against the render); the rule is a choice |
-| The wrist's offset in the socket's frame | Inference (the offset's space is in the control rig's cooked data; the yaw about the grip's axis is the throttle) |
+| The wrist's roll: 30 degrees about the grip bone's own axis, toward the rider | Data for the angle; measured for the axis; choice for the direction. The offset's translation is not played (choice, from a playtest) |
 
 ## 6. Not done
 
