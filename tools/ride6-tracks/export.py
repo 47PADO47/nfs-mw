@@ -109,7 +109,7 @@ class Builder:
         self.pictures = set()
         self.info = {}
 
-    def material(self, name, picture, tile_m, uv, surface, colour=(200, 200, 200)):
+    def material(self, name, picture, tile_m, uv, surface, colour=(140, 140, 140)):
         if name in self.index:
             return self.index[name]
         stem = trkmat.stem(picture) if picture else None
