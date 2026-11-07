@@ -179,6 +179,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.turn_signals {
         put("turn_signals", Value::Boolean(v));
     }
+    if let Some(v) = changes.rider_gear {
+        put("rider_gear", Value::Boolean(v));
+    }
     if let Some(v) = changes.rear_view_mirror {
         put("rear_view_mirror", Value::Boolean(v));
     }

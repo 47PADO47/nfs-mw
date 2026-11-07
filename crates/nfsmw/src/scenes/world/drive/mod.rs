@@ -42,7 +42,7 @@ mod release;
 mod remote;
 mod render;
 mod reset_trail;
-mod rider;
+pub(crate) mod rider;
 mod rig;
 mod road_reflection;
 mod script;

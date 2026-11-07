@@ -25,6 +25,7 @@ pub mod attach;
 pub mod contacts;
 pub mod convert;
 pub mod falls;
+pub mod gear;
 pub mod graph;
 pub mod graph_reverse;
 pub mod graph_sets;

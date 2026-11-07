@@ -10,7 +10,8 @@ use crate::config::Config;
 /// 2: the rider's contact points per car (`RIDER/contacts.json`).
 /// 3: glass blended as its transmittance, metals spared most of the baked occlusion, more stock parts, liveries, the finest level
 /// of detail whose solids fit, colours not veiled by the reflection, the idle panel in the instrument clusters' displays.
-const CONVERSION: u32 = 3;
+/// 4: the rider's gear catalogue (`files/RIDER/GEAR`).
+const CONVERSION: u32 = 4;
 /// The name of the stamp file, in the mod's folder.
 pub const FILE: &str = ".import-stamp";
 
@@ -23,6 +24,7 @@ pub fn of(
     physics: &Path,
     sound: Option<&Path>,
     rider: Option<&Path>,
+    gear: Option<&Path>,
 ) -> String {
     let mut parts = vec![format!("conversion {CONVERSION}"), format!("{config:?}")];
     let mut inputs: Vec<String> = bikes
@@ -39,6 +41,9 @@ pub fn of(
         inputs.extend(files_below(&dir.join("cars")));
     }
     if let Some(dir) = rider {
+        inputs.extend(files_below(dir));
+    }
+    if let Some(dir) = gear {
         inputs.extend(files_below(dir));
     }
     inputs.sort();
@@ -115,18 +120,22 @@ mod tests {
         fs::write(bike.join("parts.json"), "{}").unwrap();
         let bikes = vec![bike.clone()];
         let nowhere = dir.join("none");
-        let base = of(&Config::default(), &bikes, &nowhere, None, None);
-        assert_eq!(base, of(&Config::default(), &bikes, &nowhere, None, None), "the same input gives the same stamp");
+        let base = of(&Config::default(), &bikes, &nowhere, None, None, None);
+        assert_eq!(
+            base,
+            of(&Config::default(), &bikes, &nowhere, None, None, None),
+            "the same input gives the same stamp"
+        );
         let smaller = Config { max_texture: 512, ..Config::default() };
-        assert_ne!(base, of(&smaller, &bikes, &nowhere, None, None));
+        assert_ne!(base, of(&smaller, &bikes, &nowhere, None, None, None));
         // The meshes being there counts: a cleaned folder is another input.
         fs::create_dir_all(bike.join("glb")).unwrap();
-        assert_ne!(base, of(&Config::default(), &bikes, &nowhere, None, None));
+        assert_ne!(base, of(&Config::default(), &bikes, &nowhere, None, None, None));
         // So does a physics file.
-        let with_glb = of(&Config::default(), &bikes, &nowhere, None, None);
+        let with_glb = of(&Config::default(), &bikes, &nowhere, None, None, None);
         fs::create_dir_all(dir.join("dump/vehicles/KTM")).unwrap();
         fs::write(dir.join("dump/vehicles/KTM/a.json"), "{}").unwrap();
-        assert_ne!(with_glb, of(&Config::default(), &bikes, &dir.join("dump"), None, None));
+        assert_ne!(with_glb, of(&Config::default(), &bikes, &dir.join("dump"), None, None, None));
         fs::remove_dir_all(&dir).unwrap();
     }
 }

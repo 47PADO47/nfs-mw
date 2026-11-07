@@ -194,6 +194,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         backfire_style: Some(s.backfire_style),
         tail_trail_style: Some(s.tail_trail_style),
         turn_signals: Some(s.turn_signals),
+        rider_gear: Some(s.rider_gear),
         rear_view_mirror: Some(s.rear_view_mirror),
         discord: Some(s.discord),
         discord_time_played: Some(s.discord_time_played),
