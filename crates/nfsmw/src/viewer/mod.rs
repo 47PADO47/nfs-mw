@@ -104,6 +104,20 @@ pub trait Scene {
         false
     }
 
+    /// What the vehicle on show can change (`garage::options`), for the developer tools' vehicle panel and the `vehicle` console
+    /// command. `None` where the scene shows no vehicle.
+    fn vehicle_options(&mut self) -> Option<crate::garage::options::VehicleOptions> {
+        None
+    }
+    /// Applies a change of the vehicle's options to the vehicle on show, which is dressed again at once. Returns what was done.
+    fn change_vehicle(
+        &mut self,
+        _renderer: &mut dyn RenderBackend,
+        _change: &crate::garage::options::Change,
+    ) -> Result<String, String> {
+        Err("this scene shows no vehicle".into())
+    }
+
     /// Installed car choices for the runtime garage; scenes without driving return None.
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
         None

@@ -16,6 +16,7 @@ use crate::garage::{Car, Category, Model, Selection};
 mod camera;
 mod checkout;
 pub(super) mod command;
+mod options;
 use crate::car_names as names;
 mod pause_tuning;
 mod persistence;

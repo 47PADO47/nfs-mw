@@ -28,6 +28,16 @@ impl Scene for Pausable {
     fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.inner.apply_garage(renderer, selection)
     }
+    fn vehicle_options(&mut self) -> Option<crate::garage::options::VehicleOptions> {
+        self.inner.vehicle_options()
+    }
+    fn change_vehicle(
+        &mut self,
+        renderer: &mut dyn RenderBackend,
+        change: &crate::garage::options::Change,
+    ) -> Result<String, String> {
+        self.inner.change_vehicle(renderer, change)
+    }
     fn set_garage_open(&mut self, open: bool) {
         self.inner.set_garage_open(open);
     }

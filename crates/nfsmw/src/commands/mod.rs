@@ -228,6 +228,7 @@ pub fn run(cli: Cli) -> Result<()> {
             crate::app::run(
                 Box::new(
                     CarScene::new(model, yaw)
+                        .with_customization(selection)
                         .with_view(zoom, pitch, focus_height)
                         .with_rider_state(rider_state)
                         .with_source(dir, options),
