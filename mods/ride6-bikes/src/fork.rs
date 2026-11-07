@@ -68,6 +68,8 @@ pub struct Names<'a> {
     pub fork: &'a str,
     pub bars: &'a str,
     pub car: &'a str,
+    /// The ids of the parts built as solids of their own ([`crate::build::apart_ids`]); the body, bars and fork leave them out.
+    pub apart: &'a [&'a str],
 }
 
 /// What one solid collects.
@@ -157,7 +159,7 @@ fn fit(
     let chassis = table.chassis()?;
     let at = |part: &Part| if part.id == chassis.id { level } else { part_level };
     let mut loaded: Vec<(&Part, Glb)> = Vec::new();
-    for part in table.parts_of(Role::Body) {
+    for part in table.parts_of(Role::Body).filter(|part| !names.apart.contains(&part.id.as_str())) {
         loaded.push((part, exports.load(&part.export, at(part))?));
     }
     let estimate: usize = loaded.iter().map(|(part, glb)| vertex_estimate(glb, table, part)).sum();

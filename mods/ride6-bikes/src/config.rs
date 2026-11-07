@@ -16,6 +16,9 @@
 //! # pak_key = '...'
 //! # The longest side of a body texture, pixels.
 //! max_texture = 2048
+//! # The shop's options: the optional parts and upgrades of the bikes (docs/modding/ride6-bike-upgrades.md).
+//! upgrades = true
+//! bike_parts = 'C:\r6\bike-parts'
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -77,6 +80,14 @@ pub const DEFAULT_CONFIG: &str = "# Settings of the RIDE 6 bikes mod (mods/ride6
 
 # Longest side of a body texture in pixels (a power of two, 64 to 4096); wheels get half of it and discs a quarter.
 max_texture = 2048
+
+# The shop's options (docs/modding/ride6-bike-upgrades.md): the aftermarket exhausts, rims, brake discs and bar pads of the bikes,
+# and their engine, chassis and brake upgrades. `false` imports the bikes as they were, with every stock part in its solid.
+upgrades = true
+
+# The exporter's folder of the optional parts (`upgrades.py` and `option_export.py` write it; catalogue.json is in it). Default:
+# a folder called `bike-parts` inside `source` or beside it. Without one the bikes get no options.
+# bike_parts = 'C:\\r6work\\bike-parts'
 ";
 
 /// The settings of the mod.
@@ -91,6 +102,10 @@ pub struct Config {
     /// The key of RIDE 6's pak files (`sound/pak_key.rs`); `None` uses the built-in one.
     pub pak_key: Option<String>,
     pub max_texture: u32,
+    /// Whether the bikes get the shop's options (their optional parts and upgrades); `bike_parts` says where the parts are.
+    pub upgrades: bool,
+    /// The exporter's folder of the optional parts; `None`: [`Config::bike_parts_dir`] looks for it.
+    pub bike_parts: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -103,6 +118,8 @@ impl Default for Config {
             rider: None,
             pak_key: None,
             max_texture: 2048,
+            upgrades: true,
+            bike_parts: None,
         }
     }
 }
@@ -170,6 +187,19 @@ impl Config {
             .unwrap_or_else(|| source.join(DUMP_NAMES[0]))
     }
 
+    /// The folder of the optional parts: none when `upgrades` is off; else the `bike_parts` key, else a folder called `bike-parts`
+    /// inside `source` or beside it that holds a `catalogue.json`.
+    pub fn bike_parts_dir(&self, source: &Path) -> Option<PathBuf> {
+        if !self.upgrades {
+            return None;
+        }
+        if let Some(dir) = &self.bike_parts {
+            return Some(dir.clone());
+        }
+        let beside = source.parent().map(|parent| parent.join("bike-parts"));
+        [Some(source.join("bike-parts")), beside].into_iter().flatten().find(|dir| dir.join("catalogue.json").is_file())
+    }
+
     /// The rider's export folder: the `rider` key, else a folder called `rider` inside `source` when it exists.
     pub fn rider_dir(&self, source: &Path) -> Option<PathBuf> {
         if let Some(dir) = &self.rider {
@@ -217,6 +247,24 @@ mod tests {
         assert!(Config::parse("sorce = 'x'").is_err());
         assert!(Config::parse("max_texture = 1000").is_err());
         assert!(Config::parse("max_texture = 32").is_err());
+    }
+
+    #[test]
+    fn the_shop_is_on_unless_switched_off_and_finds_its_parts_beside_the_source() {
+        let root = temp("shop");
+        let source = root.join("bikes");
+        std::fs::create_dir_all(&source).unwrap();
+        assert!(Config::default().upgrades);
+        assert_eq!(Config::default().bike_parts_dir(&source), None, "no catalogue, no options");
+        std::fs::create_dir_all(root.join("bike-parts")).unwrap();
+        assert_eq!(Config::default().bike_parts_dir(&source), None, "a folder without a catalogue is not the parts");
+        std::fs::write(root.join("bike-parts/catalogue.json"), "{}").unwrap();
+        assert_eq!(Config::default().bike_parts_dir(&source), Some(root.join("bike-parts")));
+        let off = Config::parse("upgrades = false").unwrap();
+        assert_eq!(off.bike_parts_dir(&source), None);
+        let named = Config::parse("bike_parts = 'C:/parts'").unwrap();
+        assert_eq!(named.bike_parts_dir(&source).as_deref(), Some(Path::new("C:/parts")));
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

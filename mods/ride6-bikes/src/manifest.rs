@@ -107,6 +107,14 @@ pub fn apply_liveries(mod_dir: &Path, car: &str, liveries: &[LiveryChoice]) -> R
         .with_context(|| format!("writing {}", manifest.display()))
 }
 
+/// Add `text` (tables the importer writes after the car: the bike's slots and parts) to the end of the manifest `cars/<car>.toml`.
+pub fn append_tables(mod_dir: &Path, car: &str, text: &str) -> Result<()> {
+    let manifest = mod_dir.join("cars").join(format!("{}.toml", car.to_ascii_lowercase()));
+    let current = std::fs::read_to_string(&manifest).with_context(|| format!("reading {}", manifest.display()))?;
+    let joined = format!("{}\n\n{}", current.trim_end_matches('\n'), text.trim_start_matches('\n'));
+    std::fs::write(&manifest, joined).with_context(|| format!("writing {}", manifest.display()))
+}
+
 /// The text of `cars/<id>.toml`.
 pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'_>) -> String {
     let mut text = format!(
