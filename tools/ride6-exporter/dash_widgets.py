@@ -9,7 +9,7 @@ docs/formats/ride6-materials.md ("Instrument clusters"). Nothing of the game is 
 
 import re
 
-from r6lib import object_name, package_key
+from r6lib import object_name
 
 HUD_DIR = "/Game/assets/data/vehicles/HUD/"
 

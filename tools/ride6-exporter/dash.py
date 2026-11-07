@@ -29,7 +29,7 @@ TEXTURE_PARAMS = ("DayTexture", "NightTexture", "BaseTexture", "GradientTexture"
 # Widgets that show a warning or a unit the bike at rest does not: they are left out of the picture.
 HIDDEN = re.compile(
     r"(abs|tcs|tc_|_tc|oil|fuel|limiter|warning|alert|_aw|aw_|dtc|autolights|led_light|^led_eb|eb_led|hidden|miles|mile|mph|^mi$|"
-    r"^m$|^m1|^m2|speedlimit|pwr_led|longitudinal|led_rpm)",
+    r"^m$|^m1|^m2|speedlimit|pwr_led|longitudinal|led_rpm|led_white)",
     re.I,
 )
 SHOWN = re.compile(r"(led_n$|ledn|neutral|bkg|backlight)", re.I)
@@ -61,6 +61,10 @@ def idle_state(widget, config, rpm):
             return "N"
         if name in ("rpmvalue", "rpmtext", "rpm"):
             return "1.4"
+        design = node.props.get("Text", {}).get("SourceString", "")
+        if design and set(design) <= set("8:.-/ ") and "8" in design:
+            # The design text of a lap time or a date is every segment lit: at rest it reads zero, a best lap not yet set dashes.
+            return design.replace("8", "-" if "best" in name else "0")
         return None
 
     def angle(node):
