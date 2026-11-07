@@ -12,7 +12,7 @@ use crate::space;
 /// The world shader of the game (`WorldShader`, 36-byte vertices): effect 0.
 const WORLD_EFFECT: u32 = 0;
 /// The vertex colour of a surface, as stored (blue, green, red, alpha).
-const COLOUR: [u8; 4] = [0x70, 0x70, 0x70, 0xFF];
+const COLOUR: [u8; 4] = [0x58, 0x58, 0x58, 0xFF];
 /// Whether the triangles are written the other way round to the 2012 order.
 pub const FLIP_WINDING: bool = false;
 

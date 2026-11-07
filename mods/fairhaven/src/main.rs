@@ -28,9 +28,10 @@ struct Args {
 
 fn line(unit: u32, stats: &Stats) -> String {
     format!(
-        "unit {unit:5}: {:6} ms  {:5} instances ({} clipped, {} missing, {} too large)  {:5} placements  {:5} solids  {:8} triangles  {:4} pictures ({} flat)  {:7} collision triangles ({} skipped)  {:6.2} MB  (pictures {} ms, collision {} ms, writing {} ms)",
+        "unit {unit:5}: {:6} ms  {:5} instances + {:4} objects ({} clipped, {} missing, {} too large)  {:5} placements  {:5} solids  {:8} triangles  {:4} pictures ({} flat)  {:7} collision triangles ({} skipped)  {:6.2} MB  (pictures {} ms, collision {} ms, writing {} ms)",
         stats.millis,
         stats.instances,
+        stats.objects,
         stats.clipped,
         stats.missing,
         stats.too_large,

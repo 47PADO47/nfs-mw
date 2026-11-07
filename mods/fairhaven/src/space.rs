@@ -16,10 +16,13 @@ pub fn physics([x, y, z]: [f32; 3]) -> [f32; 3] {
 /// A 4 by 4 matrix of a placed model (row vectors, the translation in the last row, `world = local * M`) as the game's scenery
 /// instance takes it in render space: the three rows of the rotation (the object's x, y and z axes in render space) and the
 /// position. The model's own vertices are in render space too, so the render x axis of the object is the engine z axis:
-/// `R0 = render(M2)`, `R1 = render(M0)`, `R2 = render(M1)`.
+/// `R0 = render(M2)`, `R1 = render(M0)`, `R2 = render(M1)`. The fourth value of the last row is 1 in the model lists and the
+/// uniform scale of a prop in the object lists (0.94 seen): it scales the rows when it is a sane number.
 pub fn instance_rows(m: &[f32; 16]) -> ([[f32; 3]; 3], [f32; 3]) {
     let row = |n: usize| render([m[4 * n], m[4 * n + 1], m[4 * n + 2]]);
-    ([row(2), row(0), row(1)], row(3))
+    let scale = if m[15].is_finite() && (0.05..=20.0).contains(&m[15]) { m[15] } else { 1.0 };
+    let scaled = |n: usize| row(n).map(|v| v * scale);
+    ([scaled(2), scaled(0), scaled(1)], row(3))
 }
 
 /// The position that keeps a model's vertices in place when they are moved by `-centre` (render space): the instance's rows
@@ -58,6 +61,20 @@ mod tests {
         let world =
             [0, 1, 2].map(|c| local[0] * rows[0][c] + local[1] * rows[1][c] + local[2] * rows[2][c] + position[c]);
         assert_eq!(world, render(engine_world(local_engine, &m)));
+    }
+
+    #[test]
+    fn a_prop_scale_in_the_last_value_scales_the_rows_and_not_the_position() {
+        let mut m = matrix();
+        m[15] = 0.5;
+        let (rows, position) = instance_rows(&m);
+        let (full_rows, full_position) = instance_rows(&matrix());
+        assert_eq!(position, full_position);
+        for (half, full) in rows.iter().flatten().zip(full_rows.iter().flatten()) {
+            assert_eq!(*half, full * 0.5);
+        }
+        m[15] = 0.0;
+        assert_eq!(instance_rows(&m).0, full_rows, "a value that is not a scale leaves the rows alone");
     }
 
     #[test]

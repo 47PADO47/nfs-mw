@@ -16,7 +16,7 @@ use chameleon_gfx::{Material, Model, Texture};
 
 use crate::collision;
 use crate::install::{Install, ShaderInfo};
-use crate::instances::{self, INSTANCE_LIST};
+use crate::instances::{self, COMPOUND_INSTANCE_LIST, DYNAMIC_INSTANCE_LIST, INSTANCE_LIST, MODEL, PROP_INSTANCE_LIST};
 use crate::material::{Surface, surface};
 use crate::mesh::{self, RenderableData};
 use crate::pvs::Zone;
@@ -35,6 +35,9 @@ pub const CLIP_MARGIN: f32 = 25.0;
 const EXCLUDE_FLAGS: u32 = 0x60;
 /// The name of the flat grey picture a surface with no picture of its own is drawn with.
 const FLAT_NAME: &str = "FLATGREY";
+/// The name and colour (RGB565, little endian) of the picture water is drawn with: a dark green-blue.
+const WATER_NAME: &str = "FLATWATER";
+const WATER_BLOCK: [u8; 8] = [0xC9, 0x11, 0xC9, 0x11, 0, 0, 0, 0];
 const RESOURCE_TEXTURE: u32 = 0x1;
 
 /// What the conversion of a unit is told.
@@ -50,6 +53,8 @@ pub struct Stats {
     /// Instances in the unit's lists, those left out because they lie outside the zone or are the panorama, and those whose
     /// model is missing or whose turn does not fit the game's records.
     pub instances: usize,
+    /// Props, compound and dynamic objects in the unit's lists.
+    pub objects: usize,
     pub clipped: usize,
     pub missing: usize,
     pub too_large: usize,
@@ -109,6 +114,7 @@ struct Converter<'a> {
     textures: Vec<TextureSource>,
     texture_names: HashMap<String, bool>,
     models: HashMap<u64, Option<Rc<ModelInfo>>>,
+    object_models: HashMap<u64, Option<u64>>,
     built: HashMap<u64, Rc<Vec<PartPlacement>>>,
     sources: Vec<SolidSource>,
 }
@@ -127,6 +133,7 @@ pub fn convert_unit(install: &Install, number: u32, section_number: u32, options
         textures: Vec::new(),
         texture_names: HashMap::new(),
         models: HashMap::new(),
+        object_models: HashMap::new(),
         built: HashMap::new(),
         sources: Vec::new(),
     };
@@ -156,18 +163,43 @@ pub fn convert_unit(install: &Install, number: u32, section_number: u32, options
 }
 
 impl Converter<'_> {
-    /// The placements of every instance of the unit that is kept.
+    /// The placements of every instance of the unit that is kept: the models, then the props, compound and dynamic objects.
     fn place_all(&mut self, zone: &Zone) -> Result<Vec<Placement>> {
         let mut placements = Vec::new();
         for list in self.unit.ids_of(INSTANCE_LIST) {
-            let resource = self.unit.resource(list)?;
-            for instance in instances::parse(&resource)? {
+            for instance in instances::parse(&self.unit.resource(list)?)? {
                 self.stats.instances += 1;
                 self.place(zone, &instance, &mut placements);
             }
         }
+        for kind in [PROP_INSTANCE_LIST, COMPOUND_INSTANCE_LIST, DYNAMIC_INSTANCE_LIST] {
+            for list in self.unit.ids_of(kind) {
+                for object in instances::parse_with(&self.unit.resource(list)?, instances::OBJECTS)? {
+                    self.stats.objects += 1;
+                    let Some(model) = self.model_of_object(object.model) else {
+                        self.stats.missing += 1;
+                        continue;
+                    };
+                    self.place(zone, &instances::Instance { model, ..object }, &mut placements);
+                }
+            }
+        }
         placements.truncate(i16::MAX as usize);
         Ok(placements)
+    }
+
+    /// The model an object (a prop, a compound or a dynamic object) is drawn with: the first model it imports.
+    fn model_of_object(&mut self, object: u64) -> Option<u64> {
+        if let Some(&known) = self.object_models.get(&object) {
+            return known;
+        }
+        let found = self.unit.resource(object).ok().and_then(|resource| {
+            let mut imports: Vec<_> = resource.imports.iter().collect();
+            imports.sort_by_key(|import| import.slot());
+            imports.into_iter().map(|import| import.id).find(|&id| self.unit.kind(id) == Some(MODEL))
+        });
+        self.object_models.insert(object, found);
+        found
     }
 
     fn place(&mut self, zone: &Zone, instance: &instances::Instance, placements: &mut Vec<Placement>) {
@@ -178,7 +210,10 @@ impl Converter<'_> {
         let m = &instance.matrix;
         let [sx, sy, sz, radius] = model.sphere;
         let centre = [0, 1, 2].map(|c| sx * m[c] + sy * m[4 + c] + sz * m[8 + c] + m[12 + c]);
-        if radius > MAX_RADIUS || !zone.contains(centre[0], centre[2], CLIP_MARGIN) {
+        // The panorama is left out, except the water: the sea is one huge mesh that every unit by the coast lists, and it is all
+        // there is of the sea.
+        let panorama = radius > MAX_RADIUS && !self.is_water(&model);
+        if panorama || (radius <= MAX_RADIUS && !zone.contains(centre[0], centre[2], CLIP_MARGIN)) {
             self.stats.clipped += 1;
             return;
         }
@@ -201,6 +236,13 @@ impl Converter<'_> {
                 exclude_flags: EXCLUDE_FLAGS,
             });
         }
+    }
+
+    /// Whether every mesh of the model's first level is water.
+    fn is_water(&mut self, model: &ModelInfo) -> bool {
+        let mut meshes = model.fine.meshes.iter().peekable();
+        meshes.peek().is_some()
+            && meshes.all(|mesh| self.material(mesh.material).is_some_and(|info| info.surface.water))
     }
 
     /// The model `id`: its levels and the first level's meshes, read once. `None` for a model that is missing or does not read.
@@ -276,8 +318,15 @@ impl Converter<'_> {
                 continue;
             }
             let look = Look { cut_out: material.surface.cut_out, two_sided: material.surface.two_sided };
-            let texture = self.texture(material.surface.diffuse, look);
-            groups.extend(mesh::parts(mesh).into_iter().map(|part| Group { texture: texture.clone(), part }));
+            let texture = match material.surface.water {
+                true => self.water(),
+                false => self.texture(material.surface.diffuse, look),
+            };
+            let [across, down] = material.surface.uv_scale;
+            groups.extend(mesh::parts(mesh).into_iter().map(|mut part| {
+                part.uvs.iter_mut().for_each(|uv| *uv = [uv[0] * across, uv[1] * down]);
+                Group { texture: texture.clone(), part }
+            }));
         }
         solid::build(prefix, groups)
     }
@@ -332,6 +381,14 @@ impl Converter<'_> {
         }
         let resource = self.unit.resource(id)?;
         Ok(Texture::parse(&resource.blocks[0], &resource.blocks[1])?)
+    }
+
+    fn water(&mut self) -> String {
+        if !self.texture_names.contains_key(WATER_NAME) {
+            self.textures.push(TextureSource::new(WATER_NAME, 4, 4, PixelFormat::Dxt1, 1, WATER_BLOCK.to_vec()));
+            self.texture_names.insert(WATER_NAME.to_owned(), true);
+        }
+        WATER_NAME.to_owned()
     }
 
     fn flat(&mut self) -> String {
