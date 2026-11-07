@@ -76,6 +76,7 @@ use input::Presses;
 use nfsmw_data::car::physics::CarPhysics;
 #[cfg(feature = "multiplayer")]
 pub(super) use predict::DriveSave;
+pub use rider::RiderVisibility;
 pub(super) use rig::SurfaceDamage;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;

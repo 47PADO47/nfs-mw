@@ -86,22 +86,36 @@ view empty).
   the lens is made in (`Mount::place`: section 6 says how the lean enters), so the camera and the bike never differ by a frame of
   travel. Without a rider (a bike with no rider files,
   or the rider off the bike in a fall) it is `fixed_position_m`: RIDE 6's own `RelativeLocation` (x 5 to 10 cm, z 1.2 m on a sport bike).
-- **Not drawn:** the meshes named in `hide_meshes` (`helmetRacing_default`, `visorClosedRacing_default`); his suit, gloves and boots
-  are drawn, so his arms are in the picture. The near plane is the data's 10 cm.
+- **Not drawn:** looking ahead, the meshes named in `hide_meshes` (`helmetRacing_default`, `visorClosedRacing_default`); his suit,
+  gloves and boots are drawn, so his arms are in the picture. **Looking back (key B) none of the rider is drawn**: the lens is inside
+  his own back and shoulders, which the wide view would show as a dark wall (`RiderVisibility::LookingBack`, `drive/rider/view.rs`,
+  set every frame from the camera state in `scenes/world/camera_bike.rs`, `bike_rider_visibility`; the bike stays). The look stick's
+  turn (section 6.2) is 11 degrees and does not move his body, so the freelook needs no further hiding. The near plane is the data's 10
+  cm, and a nitrous variant's field-of-view nudge keeps it (it used to put the chase camera's 30 cm back, which cut the panel off).
 - **Optics:** RIDE 6's 91.49284 degrees, which is exactly a 60 degree vertical field of view at 16:9 (the evidence that its fields of view are
-  the horizontal ones at 16:9) [M]; held as that vertical field of view for any aspect (a wider screen shows more at the sides) [C].
+  the horizontal ones at 16:9) [M], is **not used as it is** [C]: from the eyes the grips of the 277 imported bikes are 20 to 60
+  degrees down (median 48, 90th percentile 54) and 33 to 65 to the side (median 45, 90th percentile 52) [M: the eye is the manifest's
+  `fixed_position_m`, the grips are the rider's `contacts.json` in the model's frame], so a 60 degree picture tilted 18 degrees down
+  ended 48 degrees below the horizon and 46 to the side and cut the handlebar and the instrument panel at the picture's edges. The
+  helmet camera sees `HELMET_FOV_DEG` = **88 degrees vertical** (120 horizontal at 16:9; a bike whose data is wider keeps its own),
+  tilted `HELMET_VIEW_DOWN_DEG` = 16 degrees on top of the data's, so its bottom edge is about 70 degrees below the horizon and its sides
+  56 degrees out (`viewer/camera/bike.rs`). The vertical field of view is held for any aspect, so a wider screen shows more at the
+  sides (Hor+); a narrower one (16:10, 4:3, a split screen) is widened to keep the same 120 degrees across, up to 110 degrees
+  vertical [C]. At speed it widens by up to `HELMET_SPEED_WIDEN_DEG` = 8 degrees along the dynamic field of view's speed curve, scaled
+  by the field-of-view intensity and off with "change distance and FOV with speed"; it never narrows.
 - **Look:** along the bike's heading, tilted by the data's `RelativeRotation.Pitch` (-10 degrees on 312 of the 344 bikes; 23 have none,
-  and 5, 7, 15, 20, 50 and 60 occur a few times) [D] and `HELMET_VIEW_DOWN_DEG` = 8 degrees further down [C] (`viewer/camera/bike.rs`,
+  and 5, 7, 15, 20, 50 and 60 occur a few times) [D] and `HELMET_VIEW_DOWN_DEG` = 16 degrees further down [C] (`viewer/camera/bike.rs`,
   `Mount::helmet`). The extra is the player's request ("pointed a little more down so I can see more of the bike"), not RIDE 6's:
   the data's -10 shows the road and the sky with the dash only as a strip at the bottom, and no real value gives more, since the
   `PitchFactor` is the share of the bike's own pitch (a quarter of a wheelie), not a tilt, and the larger tilts are two supermotards'
   whose frame of reference is not in the data (their -50 and -60 are capped to `MAX_HELMET_DOWN_DEG` = 10 [C]: 60 degrees would show
-  the front tyre). With the 8 the straight view looks 18 degrees down: the horizon is at about a fifth of the picture's height
-  from the top (the Panigale; `C:/r6/shots/cams/j/pan-straight.png`, against about a third before), the fairing, the dash and the
+  the front tyre). With the 8 the straight view looked 18 degrees down with 60 degrees of field of view (the horizon at about a fifth of the
+  picture's height from the top; `C:/r6/shots/cams/j/pan-straight.png`); the 10 and the 80 degrees above show the whole cockpit (the
+  horizon is at 28 percent from the top, not measured in a picture): the fairing, the dash and the
   handlebars fill its lower half and the road and the traffic ahead the middle; on the KTM 450 SMR, whose cockpit sits lower, the
   dash's top, the clocks and the bars' ends show at the bottom (`ktm-straight.png`). It is a
   host constant, not a table value, so it applies to every bike, those already imported too; it is on top of the lean's own
-  tilt (section 6.1: the view looks at most 23 degrees down at 60 degrees of lean: at the hard lean of the script
+  tilt (section 6.1: the view looks at most 25 degrees down at 60 degrees of lean: at the hard lean of the script
   the horizon is then at the top edge of the picture and tipped, where it was a fifth to a quarter down before; it is still in view at the
   usual lean of a bend, `pan-lean.png`/`ktm-lean.png`). The front camera is not changed.
 
@@ -158,7 +172,7 @@ third, tipped by about 10 degrees, and the road ahead fills the rest, where the 
 its fairing. A KTM 450 SMR leaned with a stick of 0.55 and 0.75 shows the same (`ktm-s55`, `ktm-s75`); at a full stick (1.0) it
 falls at that speed and the camera is the fixed one of the fallen bike (section 7).
 
-The bounds that follow (tests, lean 0 to 60 degrees either side): the look is between 23 degrees down (10 of the data, 8 of
+The bounds that follow (tests, lean 0 to 60 degrees either side): the look is between 25 degrees down (10 of the data, 10 of
 section 5, 5 of the lean) and the horizon, turned at
 most 20 degrees from the heading, the horizon is tipped at most 17 degrees (5 followed and 12), and the lens is at most 35 cm below,
 16 + 12 cm sideways and 28 cm ahead of its upright place.
@@ -247,7 +261,11 @@ do not, and the physics never sees it (`input/head_look_tests.rs`, `viewer/camer
   `input/head_look_tests.rs`: the right stick's X is the look and its Y still shifts, the camera dead zone, the names.
   `drive/script.rs`: `look` and `lookup`.
 - `drive/rider/view.rs`: the eye is the middle of the eye bones, in the model's frame; the head bone is the fallback; none off the bike;
-  the helmet and visor are the hidden parts.
+  the helmet and visor are the hidden parts; the visibility (whole, from the helmet, looking back) draws all, all but those, none.
+- `viewer/camera/bike_fov_tests.rs`: the helmet field of view (88 degrees, wider than the data's, kept when a bike's is wider), Hor+ and
+  the floor on narrow pictures, the grips and the panel of a sample cockpit inside the picture at 16:9, 21:9, 16:10 and 4:3 and at
+  speed (and outside the old 60 degree one), the speed widening curve, the 10 cm near plane; `scenes/world/nitrous_screen_tests.rs`:
+  the nudge keeps a camera's own near plane.
 - `modding/content/bike_camera.rs`, `libs/blackbox-modding` (`bike_camera.rs`), `nfsmw-data` (`mods/bike_camera.rs`): the table's schema,
   ranges, defaults, derived cameras, the lean table (partial tables, ramps, the root default).
 - `mods/ride6-bikes/src/camera_tests.rs`: the layers of the container, units and frames, the schema round trip, replacing a table, the
