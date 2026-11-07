@@ -88,6 +88,9 @@ impl Ride6Bikes {
                 &format!("ride6-bikes: the rider is not converted, the bikes are ridden by nobody: {reason}"),
             );
         }
+        if let Some(reason) = &report.gear_failed {
+            ctx.log(Level::Warn, &format!("ride6-bikes: the rider's gear is not fully converted: {reason}"));
+        }
         if self.live {
             ctx.log(Level::Info, "ride6-bikes: the new bikes replace the old ones at the next start");
             return;
