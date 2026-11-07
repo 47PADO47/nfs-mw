@@ -143,6 +143,10 @@ road (no speech id), location lines are skipped.
 ## 5. The opening exchange (`PursuitFlow`)
 
 State machine (a state number and a `busy` counter; "speech busy" means the cop channel is playing or holding): **[decomp]**
+("Speech busy" is `IsCopSpeechBusy`: the cop speech module's playback flag, set when a line's samples are handed to the
+stream, or a stream that has not finished. Requests waiting in the queue do not count, so the flows go on asking while
+lines wait. **[Ghidra, speed.exe]** The original's recordings agree: the strategy flow's lines are asked for while
+nothing plays, also while other lines wait, and from about 1 s after a line ends.)
 
 ```
 CullCheck       wait until the speech pursuit state is Active                          -> CloseInCheck
@@ -227,7 +231,7 @@ location and heading. **[decomp]**
 
 Notes on the lost sequence **[decomp]**: the quadrant lines are said from `SyncPursuit` itself (not from a flow), while the strategy flow sits in its "lost" state, which only ends it (to its terminal, that
 resets it). The "time expired" line needs the pursuit to be gone (null) or in the evaded state **and** the quadrant sequence expired; in the decompiled branch order the same condition that says the quadrant lines is tried first, so the
-line comes when the channel is busy (a queued line counts) or after 153 s; the Rust port treats an evaded pursuit like a finished one (it says "time expired" at once when the sequence has expired). **[inferred]**
+line comes when the channel is busy (a line sounds or holds) or after 153 s; the Rust port treats an evaded pursuit like a finished one (it says "time expired" at once when the sequence has expired). **[inferred]**
 When the focus is Lost and the pursuit comes back within 153 s the opening flow runs again with the cause "reacquired" ("re-initiate pursuit" by the closest cop, or "spotted"/"regain visual" when the loss was under 3 s).
 
 ### 6.3 Dead air (`DealWithDeadAir`)
@@ -381,7 +385,7 @@ Nobody has listened to the result next to the original.
   `GetLocation`, written down in `chase/radio/tables.rs` (ids 1 to 83, 85 and 86 have a name; 84, 87 and the off-road places 88 up do not).
 - The SPAM speech map: the layer "Speech" of the track's parameter maps is installed (26 sets, integer field 1 is the id, -1 to 27); the table from id to the 24 named places (`GetSPAMLocation`) is still to be read.
 - The `kNeverVisibleRespawnTime` and `DESTROY_COPS_ON_INACTIVITY` constants (build-time) and the PC value of `SpeechFlow` display flags.
-- Whether the original's `IsCopSpeechBusy` includes requests still waiting in the queue; the port counts them (the flows then wait for the lines they asked for). **[inferred]**
+- *Answered:* the original's `IsCopSpeechBusy` does not include requests waiting in the queue (section 5); the port follows it.
 - The `std::sort` of cop pointers that the flows use to choose "the first" cop is an address order; the port takes the cop that joined first.
 - Behaviour of the helicopter actor lines (`EAXAirSupport.cpp`) beyond the event list of the events file is ported as read (self strategy, lost visual, intent to bail, bail-out, swarming, spotter, hazard alert, bullhorn arrest);
   the quadrant lines of the helicopter are not asked for by the flows.

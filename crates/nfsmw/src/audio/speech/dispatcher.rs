@@ -196,9 +196,10 @@ impl Dispatcher {
         &self.history
     }
 
-    /// A line sounds, is held in its enforced silence, or waits in the queue: the cop channel is busy.
+    /// A line sounds or is held in its enforced silence: the cop channel is busy. Requests waiting in the queue do not
+    /// count, as in the original (its busy test reads the cop module's playback, not the queue).
     pub fn busy(&self) -> bool {
-        self.current.is_some() || !self.pending.is_empty()
+        self.current.is_some()
     }
 
     /// Seconds since a line last sounded (0 while one does; a large number before the first).
