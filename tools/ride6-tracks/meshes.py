@@ -93,6 +93,15 @@ def vertex_colours(attrs):
     return colour.astype(np.float32) / (255.0 if colour.dtype == np.uint8 else 1.0)
 
 
-def planar_uv(positions, tile_m):
-    """Texture coordinates that tile every `tile_m` metres over the ground (x and y of the render space)."""
-    return np.stack([positions[:, 0] / tile_m, positions[:, 1] / tile_m], axis=1).astype(np.float32)
+def planar_uv(positions, normals, tile_m):
+    """Texture coordinates that tile every `tile_m` metres over the ground, projected along the axis the normal points most to.
+
+    A flat piece of ground is projected from above (x and y of the render space); a cliff or a wall from the side (y and z, or
+    x and z), so a steep face is not a smear of the picture's edge. A vertex takes the projection of its own normal.
+    """
+    ax, ay, az = (np.abs(normals[:, k]) for k in range(3))
+    top = (az >= ax) & (az >= ay)
+    side_x = ~top & (ax >= ay)
+    u = np.where(top, positions[:, 0], np.where(side_x, positions[:, 1], positions[:, 0]))
+    v = np.where(top, positions[:, 1], positions[:, 2])
+    return np.stack([u / tile_m, v / tile_m], axis=1).astype(np.float32)

@@ -9,7 +9,7 @@ use crate::cells::Part;
 /// The world shader of the game (`WorldShader`, 36-byte vertices): effect 0.
 const WORLD_EFFECT: u32 = 0;
 /// The vertex colour of the ground, as stored (blue, green, red, alpha).
-const GROUND_COLOUR: [u8; 4] = [0x80, 0x80, 0x80, 0xFF];
+const GROUND_COLOUR: [u8; 4] = [0x70, 0x70, 0x70, 0xFF];
 /// Whether the triangles are written in the opposite order to the pack's (counter-clockwise from outside): the game draws
 /// the other way round.
 pub const FLIP_WINDING: bool = false;

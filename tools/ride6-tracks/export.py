@@ -24,7 +24,8 @@ import pack  # noqa: E402
 import trkmat  # noqa: E402
 
 GROUND_SKIP = re.compile(r"_SC$|water|overlay|decal", re.IGNORECASE)
-COLLIDE = re.compile(r"satnear_\d+$|runnable|kerbs|terrain$", re.IGNORECASE)
+# The far hills are drawn and not driven on; everything else of the ground is collision.
+NO_COLLISION = re.compile(r"far", re.IGNORECASE)
 
 
 def mesh_materials(assets, mesh_path, overrides):
@@ -52,7 +53,7 @@ def ground_meshes(assets, track):
                 "name": name,
                 "mesh": item["mesh"],
                 "materials": mesh_materials(assets, item["mesh"], item["overrides"]),
-                "collide": bool(COLLIDE.search(name)),
+                "collide": not NO_COLLISION.search(name),
             }
         )
     return found
@@ -129,11 +130,11 @@ class Builder:
         if mask is None:
             mask = np.ones(len(indices) // 3, dtype=bool)
         positions, normals, uv0, local = meshes.part(attrs, indices, mask)
-        coords = meshes.planar_uv(positions, tile_m) if uv == "planar" else uv0
-        material = self.material(name, picture, tile_m, uv, surface)
         if normals is None:
             normals = np.zeros_like(positions)
             normals[:, 2] = 1.0
+        coords = meshes.planar_uv(positions, normals, tile_m) if uv == "planar" else uv0
+        material = self.material(name, picture, tile_m, uv, surface)
         self.ground.add(material, item["collide"], positions, normals, coords, local)
 
 
