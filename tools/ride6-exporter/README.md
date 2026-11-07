@@ -41,7 +41,7 @@ folder themselves.
 ## Run
 
 ```
-python -I tools\ride6-exporter\export_all.py --out C:\r6work\bikes [--only <regex>] [--jobs 3] [--force]
+python -I tools\ride6-exporter\export_all.py --out C:\r6work\bikes [--only <regex>] [--jobs 3] [--force] [--normals]
 python -I tools\ride6-exporter\report.py --out C:\r6work\bikes
 python -I tools\ride6-exporter\physdump.py --out C:\r6work\physdump-all
 python -I tools\ride6-exporter\bikeparts.py <vehicle id> C:\r6work\bikes\<vehicle id>      (one bike)
