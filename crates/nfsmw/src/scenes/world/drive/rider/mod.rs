@@ -350,8 +350,7 @@ pub struct Rider {
     loaded_for: String,
     /// The rider is not drawn: the arrest scene plays the player's bike on its own, and the rider is not part of it.
     hidden: bool,
-    /// What the camera shows of him: from inside his helmet the helmet and the visor are not drawn, looking back none of him is
-    /// (`view.rs`).
+    /// What the camera shows of him: no helmet or visor from inside it, none of him looking back (`view.rs`).
     visibility: RiderVisibility,
     /// Where he looks from straight ahead, turned by the player's look stick (`viewer/camera/head_look.rs`).
     head_look: crate::viewer::camera::head_look::HeadLook,
@@ -359,8 +358,7 @@ pub struct Rider {
     previewing: bool,
     /// The state of the gear (`garage/rider_gear`) as of the last frame: he is dressed again only when it moved.
     seen: u64,
-    /// Where his pelvis is while he is off the bike, and whether he is down or on his way back: what the cameras follow in a fall
-    /// (`fall.rs`, `viewer/camera/rider_follow.rs`). Set by the physics step.
+    /// His pelvis and whether he is down or on his way back while off the bike: what the cameras follow (`fall.rs`).
     off_bike: Option<(Phase, Vec3)>,
 }
 
