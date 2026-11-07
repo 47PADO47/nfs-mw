@@ -150,3 +150,17 @@ fn a_surface_with_no_instance_takes_the_chassis_instance_of_its_kind() {
     let tyre = &table.parts[1];
     assert_eq!(table.material(tyre, "mat_bike_lods711").and_then(|m| m.base_color.as_deref()), Some("tyre_d"));
 }
+
+#[test]
+fn the_fallbacks_of_a_table_are_kept_for_the_manifest() {
+    assert!(PartTable::parse(SAMPLE).unwrap().fallbacks.is_empty());
+    let text = SAMPLE.replacen(
+        "\"parts\": [",
+        "\"fallbacks\": [{\"part\": \"chassis\", \"surface\": \"mat_light1\", \"levels\": [0], \"triangles\": 440, \
+         \"rule\": \"family\", \"source\": \"A_B-2008\", \"material\": \"mat_light2\", \"picture\": \"lights2_d\"}], \"parts\": [",
+        1,
+    );
+    let table = PartTable::parse(&text).unwrap();
+    assert_eq!(table.fallbacks.len(), 1);
+    assert_eq!(table.fallbacks[0].source.as_deref(), Some("A_B-2008"));
+}

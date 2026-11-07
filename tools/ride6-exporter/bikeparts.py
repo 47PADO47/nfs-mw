@@ -30,7 +30,12 @@ SCHEMA = 1
 
 
 def slot_materials(assets, mesh_path):
-    """`[(slot name, default material instance path)]` of a skeletal mesh."""
+    """`[(slot name, default material instance path or None, glb material name)]` of a skeletal mesh.
+
+    The glb names a surface after the slot's material: the quoted name of the reference (`MaterialInstanceConstant'x'`, which is not
+    always the package's own name: the R1 RM 2008's header says `exmanifold627_627_001` and points at `exmanifold627`), and after
+    the slot when the mesh has no material in it (the rims of the Monster 1200 S, the mirrors of three race bikes).
+    """
     export = None
     for item in assets.exports(mesh_path) or []:
         if "SkeletalMaterials" in item or "StaticMaterials" in item:
@@ -41,40 +46,56 @@ def slot_materials(assets, mesh_path):
     slots = export.get("SkeletalMaterials") or export.get("StaticMaterials") or []
     out = []
     for slot in slots:
+        name = slot.get("MaterialSlotName") or ""
         path = ref_path(slot.get("Material"))
-        if path:
-            out.append((slot.get("MaterialSlotName") or "", path))
+        out.append((name, path, glb_name(slot.get("Material"), path, name)))
     return out
+
+
+def glb_name(reference, path, slot):
+    """The lower-case name the glb gives the surface of a slot: the reference's quoted name, else the path's, else the slot's."""
+    quoted = str((reference or {}).get("ObjectName", "")).partition("'")[2].rstrip("'")
+    if quoted:
+        return quoted.lower()
+    return object_name(path) if path else slot.lower()
 
 
 COMPOSITE = ("bike_lods", "livery_lod")
 
 
-def is_composite(path):
+def is_composite(path, slot=""):
     """The slot of the far levels of detail (a picture the game composites at run time), which the converter never reads."""
-    name = object_name(path)
+    name = object_name(path) if path else slot.lower()
     return any(tag in name for tag in COMPOSITE)
 
 
 def part_materials(assets, part, chassis_props):
-    """`{glb material name (lower): instance path}` of one part: the mesh's slots with the data asset's overrides."""
-    slots = [(slot, default) for slot, default in slot_materials(assets, part["mesh"]) if not is_composite(default)]
+    """`{glb material name (lower): instance path}` of one part: the mesh's slots with the data asset's overrides.
+
+    A slot the mesh leaves empty takes the data asset's `Material` (a rim with one picture slot) or, for the chassis, the livery's
+    instance of the slot's name; a slot that stays empty is not listed (the surface falls back, `fallbacks.py`).
+    """
+    slots = [s for s in slot_materials(assets, part["mesh"]) if not is_composite(s[1], s[0])]
+    filled = [s for s in slots if s[1]]
+    # The one picture slot of a part (the others, if any, hold no material): the data asset's `Material` is its instance.
+    single = (filled or slots)[0] if len(filled or slots) == 1 else None
     out = {}
     notes = []
     override = part.get("material")
-    for slot, default in slots:
+    for slot, default, glb in slots:
         path = default
         if chassis_props is not None:
             for key, value in chassis_props.items():
                 if livery_lib.normal(key) == livery_lib.normal(slot) and ref_path(value):
                     path = ref_path(value)
-        if override and len(slots) == 1:
-            path = override
-        out[object_name(default)] = path
-    if override and len(slots) > 1:
-        for slot, default in slots:
+        if override and single is not None:
+            path = override if (slot, default, glb) == single else default
+        if path:
+            out[glb] = path
+    if override and single is None:
+        for slot, _, glb in slots:
             if livery_lib.normal(slot) in livery_lib.normal(object_name(override)):
-                out[object_name(default)] = override
+                out[glb] = override
     return out, notes
 
 
@@ -200,6 +221,7 @@ def build(vehicle, out_dir, tool, assets, tables, max_tex=2048):
                 "export": stem,
                 "anchor": anchor,
                 "materials": {name: path for name, path in mats.items()},
+                "slots": {glb: slot for slot, default, glb in part["slots"] if not is_composite(default, slot)},
                 "source": part["origin"],
                 "mesh": part["mesh"],
             }
