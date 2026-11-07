@@ -68,6 +68,8 @@ pub enum Setting {
     Renderer(RendererSetting),
     HudLayout,
     UiStyle,
+    /// The CustomHUD plugin's gauge skin: Auto or Off (`settings/custom_hud_skin.rs`).
+    CustomHudSkin,
     SpeedUnits,
     UiTheme,
     ContextMinimap(crate::settings::MinimapContext),
@@ -305,6 +307,12 @@ impl Setting {
                 let at = UiStyle::ALL.iter().position(|style| *style == s.ui_style).unwrap_or(0);
                 s.ui_style = UiStyle::ALL[cycle(at, UiStyle::ALL.len(), forward)];
                 changed.ui_style = Some(s.ui_style);
+            }
+            Setting::CustomHudSkin => {
+                let all = crate::settings::CustomHudSkin::ALL;
+                let at = all.iter().position(|choice| *choice == s.custom_hud_skin).unwrap_or(0);
+                s.custom_hud_skin = all[cycle(at, all.len(), forward)];
+                changed.custom_hud_skin = Some(s.custom_hud_skin);
             }
             Setting::SpeedUnits => {
                 let at = SpeedUnits::ALL.iter().position(|units| *units == s.speed_units).unwrap_or(0);

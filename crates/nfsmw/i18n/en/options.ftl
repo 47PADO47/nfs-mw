@@ -6,6 +6,7 @@
 ## Values several rows share
 
 options-off = Off
+options-auto = Auto
 options-low = Low
 options-medium = Medium
 options-high = High
@@ -32,6 +33,8 @@ options-police-dispatch-volume = Police Dispatch
 options-hud-layout = HUD Layout
 options-hud-layout-centered = Centered
 options-hud-style = HUD style
+# The third-party CustomHUD plugin's gauge skin (`custom_hud_skin`): drawn when the install has the plugin.
+options-custom-hud-skin = CustomHUD skin
 options-hud-theme = HUD theme
 options-nitrous-variant = Nitrous variant
 options-nitrous-variant-original = Original

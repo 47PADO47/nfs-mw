@@ -1587,6 +1587,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-gauge-skin"
+version = "0.1.0"
+dependencies = [
+ "blackbox-tpk",
+ "ini-tuning",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "blackbox-gfx"
 version = "0.1.0"
 dependencies = [
@@ -4239,6 +4248,7 @@ dependencies = [
  "blackbox-driver",
  "blackbox-feng",
  "blackbox-fxedit",
+ "blackbox-gauge-skin",
  "blackbox-gfx",
  "blackbox-ginsu",
  "blackbox-hash",

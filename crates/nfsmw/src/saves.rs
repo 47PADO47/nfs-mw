@@ -206,6 +206,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         race_map_mode: s.race_map_mode,
         hud_layout: Some(s.hud_layout),
         ui_style: Some(s.ui_style),
+        custom_hud_skin: Some(s.custom_hud_skin),
         speed_units: Some(s.speed_units),
         language: s.language,
         ui_theme: Some(s.ui_theme),
