@@ -53,7 +53,11 @@ impl WorldScene {
             Shot::Front => (Vec3::from_array(rig.front.position), bike::Mount::front(&rig.front, looking_back)),
             Shot::Helmet => {
                 let eye = view.eye.unwrap_or(Vec3::from_array(rig.helmet.fixed_position));
-                (eye, bike::Mount::helmet(&rig.helmet, looking_back).with_head(view.head))
+                let widen = match self.extra.camera.speed_zoom {
+                    true => bike::speed_widening(drive.speed(), self.tuning.fov_intensity),
+                    false => 0.0,
+                };
+                (eye, bike::Mount::helmet(&rig.helmet, looking_back).with_head(view.head).with_widening(widen))
             }
         };
         let eye = mount.place(view.origin(), view.rotation, in_model);
