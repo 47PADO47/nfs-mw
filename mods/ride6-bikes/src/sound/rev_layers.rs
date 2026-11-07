@@ -176,6 +176,10 @@ fn loop_layers(
     for position in choose(&speeds, DENSE_BELOW * plan.redline_rpm, plan.loops) {
         let stream = usable[position];
         let rpm = stream.rpm_with(unit);
+        // A model can end its run with the same loop twice: the second is the first again.
+        if layers.last().is_some_and(|last: &EngineLayer| (last.rpm - rpm).abs() < 1.0) {
+            continue;
+        }
         let partner = partner(stream, exhaust_loops).context("the exhaust model has no loops")?;
         let (a, b) = (mono(engine_audio.decode(stream.number)?)?, mono(exhaust_audio.decode(partner.number)?)?);
         let detune = (partner.cycles as f32 - stream.cycles as f32).abs() / stream.cycles as f32;
