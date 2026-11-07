@@ -67,8 +67,17 @@ pub struct Plan {
 /// indices as 16-bit, and a draw for each section with the picture its material slot wears. A mesh with too many vertices
 /// for 16-bit indices, or with no level, is left out and named in the second list.
 pub fn plan(pack: &Pack, entries: &[Entry]) -> (Vec<Plan>, Vec<String>) {
+    plan_without(pack, entries, &[])
+}
+
+/// [`plan`] without the meshes of the pack at the indices `hidden` (the rider's own gear that other gear has taken the place of,
+/// `gear.rs`).
+pub fn plan_without(pack: &Pack, entries: &[Entry], hidden: &[usize]) -> (Vec<Plan>, Vec<String>) {
     let (mut plans, mut skipped) = (Vec::new(), Vec::new());
     for (mesh_index, mesh) in pack.meshes.iter().enumerate() {
+        if hidden.contains(&mesh_index) {
+            continue;
+        }
         let drawn: Vec<&Entry> = entries.iter().filter(|e| e.mesh == mesh.name).collect();
         if drawn.is_empty() || drawn.iter().all(|e| !e.drawn) {
             continue;
@@ -255,6 +264,15 @@ mod tests {
             [entry("suit", "cloth", "suit.png", false, true), entry("arms", "cloth", "suit.png", false, false)];
         let (plans, _) = plan(&pack, &entries);
         assert_eq!(plans.iter().map(|p| p.mesh).collect::<Vec<_>>(), vec![0]);
+    }
+
+    #[test]
+    fn a_hidden_mesh_is_not_planned_even_when_an_entry_names_it() {
+        let pack = pack(vec![mesh("suit", &["cloth"], 4), mesh("suit", &["cloth"], 4)]);
+        let entries = [entry("suit", "cloth", "suit.png", false, true)];
+        let (plans, _) = plan_without(&pack, &entries, &[0]);
+        assert_eq!(plans.iter().map(|p| p.mesh).collect::<Vec<_>>(), vec![1]);
+        assert_eq!(plan(&pack, &entries).0.len(), 2);
     }
 
     #[test]
