@@ -119,6 +119,8 @@ fn sound_command(argv: &[String]) -> Option<Result<()>> {
         "remanifest" => Some(cli::remanifest(rest)),
         "contacts" => Some(cli::contacts(rest)),
         "cameras" => Some(cli::cameras(rest)),
+        "geometry" => Some(cli::geometry(rest)),
+        "import-all" => Some(cli::import_all(rest)),
         _ => None,
     }
 }

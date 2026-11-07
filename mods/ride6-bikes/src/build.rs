@@ -21,7 +21,7 @@ use crate::exports::Exports;
 use crate::fork::{self, Names};
 use crate::front_end::Take;
 use crate::layout::{Frame, LEVELS, wheel_point};
-use crate::partfile::{Kind, Part, PartTable, Role};
+use crate::partfile::{Kind, Material, Part, PartTable, Role};
 use crate::solids::{Context as GroupContext, Lists, Placer, part_groups};
 use crate::textures::TexStore;
 
@@ -43,6 +43,14 @@ pub struct Wheel {
     pub width: f32,
 }
 
+/// One livery the car offers: a choice of the shop's vinyl category, and the texture of the car's own `TEXTURES.BIN` that holds
+/// its picture (`[customization] liveries`, `docs/modding/car-customization.md#liveries`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LiveryChoice {
+    pub name: String,
+    pub texture: String,
+}
+
 /// What the car's files hold, and what the manifest needs to know.
 pub struct Built {
     pub geometry: Vec<u8>,
@@ -59,6 +67,8 @@ pub struct Built {
     /// The silencers' outlets in the body solid's frame; each is a tail-pipe marker of every body solid ([`exhaust`]). Empty for a
     /// bike with no silencer mesh.
     pub exhaust: Vec<Pipe>,
+    /// The liveries the bike offers, the stock one first; empty for a bike with one look.
+    pub liveries: Vec<LiveryChoice>,
 }
 
 impl Built {
@@ -110,7 +120,14 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
     let table = PartTable::read(dir)?;
     let exports = Exports::scan(&dir.join("glb"))?;
     let store = TexStore::open(&dir.join("tex"))?;
-    let mut surfaces = Surfaces::new(store, options);
+    // A bike with several different liveries draws the stock one on the car's paint placeholder, which the game repaints with
+    // the livery the player picks; the others are textures of the pack.
+    let livery_pictures = table.livery_pictures();
+    let paint = match livery_pictures.is_empty() {
+        true => None,
+        false => table.livery_material().and_then(|(_, material)| material.base_color.clone()),
+    };
+    let mut surfaces = Surfaces::new(store, options).with_paint(paint);
 
     let (front_tyre, rear_tyre) = (tyre(&table, Role::FrontWheel)?, tyre(&table, Role::BackWheel)?);
     let (front_hub, rear_hub) = (hub_of(&table, front_tyre)?, hub_of(&table, rear_tyre)?);
@@ -153,12 +170,37 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
             solids.list.push(wheel_solid(&table, &exports, &mut surfaces, (&name, folder), (role, hub), level)?);
         }
     }
+    let liveries = add_liveries(&mut surfaces, folder, &livery_pictures)?;
     let geometry = write_geometry_pack(&solids.list).context("writing GEOMETRY.BIN")?;
     let textures = write_tpk(folder, &surfaces.palette.into_textures()).context("writing TEXTURES.BIN")?;
     let (bounds, half) = bounds(&solids.points, folder)?;
     let report = solids.report;
     let triangles = report.body_triangles + report.fork_triangles + report.bars_triangles;
-    Ok(Built { geometry, textures, bounds, half, front, rear, triangles, front_end: report, exhaust: pipes })
+    Ok(Built { geometry, textures, bounds, half, front, rear, triangles, front_end: report, exhaust: pipes, liveries })
+}
+
+/// The livery textures of the car's pack and the choices that name them. The first livery is the stock one: its picture is the
+/// paint placeholder `<ID>_SKIN1` the body surfaces already draw; every other gets a texture `<ID>_LIV<n>`. A livery whose picture
+/// is the same as an earlier one's, or cannot be read, is left out.
+fn add_liveries(surfaces: &mut Surfaces, folder: &str, pictures: &[(u32, Material)]) -> Result<Vec<LiveryChoice>> {
+    let id = folder.to_ascii_uppercase();
+    let mut out = Vec::new();
+    let mut seen: Vec<Option<String>> = Vec::new();
+    for (index, material) in pictures {
+        if seen.contains(&material.base_color) {
+            continue;
+        }
+        let texture = match out.is_empty() {
+            true => format!("{id}_SKIN1"),
+            false => format!("{id}_LIV{index}"),
+        };
+        if !out.is_empty() && !surfaces.add_livery_picture(&texture, material)? {
+            continue;
+        }
+        seen.push(material.base_color.clone());
+        out.push(LiveryChoice { name: format!("Livery {index}"), texture });
+    }
+    Ok(out)
 }
 
 /// Read the part at `level` (or the finest level below it that was exported) and make its groups.
@@ -245,6 +287,7 @@ mod tests {
             triangles: 0,
             front_end: fork::Report::default(),
             exhaust: Vec::new(),
+            liveries: Vec::new(),
         };
         assert!((built.wheelbase() - 1.4745).abs() < 1e-4);
     }

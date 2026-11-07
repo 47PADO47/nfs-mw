@@ -32,11 +32,11 @@ an older file lacks it). `mod.toml` declares the library (`[library]`) like the 
 ## Data flow
 
 ```
-RIDE 6 install ──R6ToolParts + bikeparts.py (the user's tools, outside the repository)──▶ <bike folder>
+RIDE 6 install ──tools/ride6-exporter (R6ToolParts + bikeparts.py)──▶ <bike folder>
     <bike folder>/parts.json   the part table: stock parts, where they sit, materials and their textures
     <bike folder>/glb/         every level of detail of every part mesh (glTF)
     <bike folder>/tex/         every texture of every material (PNG, largest mip not above 2048 px)
-RIDE 6 install ──R6ToolPhys physdump (the user's tool)──▶ <physics dump>/vehicles/<Brand>/<Vehicle>.json   resolved physics
+RIDE 6 install ──tools/ride6-exporter/physdump.py──▶ <physics dump>/vehicles/<Brand>/<Vehicle>.json   resolved physics
 <bike folder> + <vehicle json> ──ride6-bike-import --physics──▶ <mod>/{mod.toml, cars/<id>.toml, files/CARS/<ID>/{GEOMETRY,TEXTURES,BOUNDS}.BIN}
 ```
 
@@ -48,40 +48,46 @@ folders; a second bike is a second folder and a second `--car` (left out, the id
 the rule of [the batch page](ride6-bikes-batch.md#car-ids-and-names)). The output is deterministic: no random
 numbers, ordered maps, a deterministic DXT encoder and JDLZ writer.
 
-## The exporter script (not in the repository)
+## The exporter (`tools/ride6-exporter`)
 
 RIDE 6 is Unreal Engine 5.6. Its `.utoc`/`.ucas` containers open without an AES key, and its assets need a `.usmap`
 mapping file (the packages use unversioned properties; made by running the game with a dumper, which the user does
-offline: the game is protected by EasyAntiCheat). The reader is CUE4Parse (`GAME_UE5_6`) wrapped in a small console tool
-whose modes are generic:
+offline: the game is protected by EasyAntiCheat). The reader is CUE4Parse (`GAME_UE5_6`, cloned outside the repository)
+wrapped in our own console tool, `tools/ride6-exporter/R6ToolParts` (source only; the scripts and the build commands are in its
+[README](../../tools/ride6-exporter/README.md)). Its modes are generic:
 
 | Mode | Does |
 |---|---|
 | `jsonmany <list> <out>` | one JSON file of the exports of each listed package |
 | `tex <list> <out> <max>` | decode each texture (largest mip not above `<max>`) to PNG, with a `.txt` of its format, size, sRGB flag and compression |
 | `export "<pkg;pkg>" <out> Gltf2 All` | every level of detail of each skeletal or static mesh as `.glb` |
+| `list`, `raw`, `serve` | the file list, the bytes of a file, the same modes as requests on stdin (the scripts keep one process per worker) |
 
 `bikeparts.py <vehicle id> <out>` drives it. Given a vehicle id (`KTM_450-SMR-2022`) it reads the bindings tables
-`graphics/Bindings/Bike/*.uasset` (data tables whose rows point at one customization data asset each) and finds the stock
-parts by the row keys below, then walks every material instance up its parents, exports the textures of the base colour,
-normal and packed pictures, exports the meshes, and writes `parts.json`.
+`graphics/Bindings/Bike/*.uasset` (data tables whose rows point at one data asset each), finds the stock parts by the row keys
+below, walks every material instance up its parents, exports the textures of the base colour, normal and packed pictures and the
+meshes (levels of detail 0 to 3), and writes `parts.json`. `export_all.py` does the 319 vehicles several at a time and
+`report.py` lists what each bike lacks. The tables, the data assets, the rule for each part and the traps (a data asset package
+with a stub as its first export, rows missing for an event variant) are in
+[formats/ride6-bike-parts.md](../formats/ride6-bike-parts.md).
 
 | Part | Table | Row key | Data asset gives |
 |---|---|---|---|
 | chassis | `CHASSIS` | `CH_<id>_Livery-01` | mesh, anim blueprint, livery, mechanics, cockpit, glass decal materials |
 | tyre sizes | `TYRE_SIZES` | `CH_<id>_Livery-01$FrontTyreSize` / `$BackTyreSize` | size code (`120-60-17`) |
-| front, back tyre | `FRONT_TYRES`, `BACK_TYRES` | any row ending in `_<size code>` (every brand of one size points at one data asset; the script checks that) | mesh |
+| front, back tyre | `FRONT_TYRES`, `BACK_TYRES` | the `No-Brand_<class>` row of the size, the class from the physics tyre family | mesh |
 | rims | `RIMS` | `RI_Stock_<id>_Livery-01` | front and back rim mesh, material |
 | brakes | `BRAKES_KIT` | `BRK_<id>_Brakes-Stock-Kit` | front and back disc mesh, material |
 | header pipes | `EXMANIFOLD` | `CH_<id>$MUF_Stock_<id>_Standard` | mesh, material |
 | silencer | `MUFFLER` | `MUF_Stock_<id>_Standard` | mesh, material |
-| bar pad, hand guards | `BARPADS`, `HANDGUARDS` | `PAD_Stock_<id>_Livery-01`, `HGU_Stock_<id>_Livery-01` | mesh, material |
+| bar pad, hand guards, mirrors, sump guard | `BARPADS`, `HANDGUARDS`, `SIDE_MIRRORS`, `SUMP_GUARD` | `PAD_Stock_<id>_Livery-01`, `HGU_Stock_<id>_Livery-01`, `MI_Stock_<id>`, `<id>` | mesh, material |
 
 Where a part sits is read from the glTF files: every part skeleton shares bones with the chassis skeleton
 (`BONE_F_VIS_WHEEL`, `BONE_FL_BRAKE`, `BONE_BARPAD`, ...). The script takes the shared bone that dominates most vertices
 (a bone only the part has is replaced by its nearest shared ancestor) and stores `anchor = chassis_world(bone) *
 part_world(bone)^-1`. A wheel part is therefore centred on its hub bone, a disc on its brake bone (off the hub plane by
-its offset), the exhaust on the chassis itself.
+its offset), the exhaust on the chassis itself. A body part whose bones move differently (the hand guards and the mirrors, one
+mesh with a left and a right bone) is rewritten in the chassis frame and has the identity as its anchor.
 
 ### `parts.json` (schema 1)
 
@@ -90,13 +96,18 @@ schema, vehicle, chassis_row, tyre_sizes{front,back}, lights
 bones{ <name>: {position[3], rotation[4]} }          chassis skeleton in bind pose, glTF axes, metres
 sockets{ <name>: {bone, location_cm, rotation_deg} }  the skeleton's sockets (rider, feet, audio, stand)
 parts[]: id, role (body | front_wheel | back_wheel), export (mesh stem), anchor{bone, translation, rotation},
-         materials{ <name in the glb>: <material instance path> }, slots, lod_sections, source, skeleton
-materials{ <instance>: tex{param: path}, scalar, vector, switch, blend_mode, shading_model, clip, chain, uv }
+         materials{ <name in the glb>: <material instance path> }, source (table and row), mesh
+materials{ <instance>: tex{param: path}, scalar, vector, switch, blend_mode, shading_model, clip, chain }
+liveries[]: index (the NN of the row), row, materials{ <name in the stock glb>: <instance of this livery> }, parts{ <part id>: {..} }
 textures{ <stem>: <format, size, sRGB, compression> }
+physics_asset, lights
+missing[]: part, reason (no row | asset not in install | no mesh | mesh not in install | export failed | ...), detail
 notes[]   what the script found but did not apply
 ```
 
-A part's kind comes from the end of its id (`front_tyre`, `back_rim`, `front_brake`; anything else is body). Exported
+`liveries` and `missing` are new and optional: the importer reads a file without them as a bike with one look.
+
+A part's kind comes from the end of its id (`front_tyre`, `back_rim`, `front_brake`; anything else is body: `chassis`, `exmanifold`, `muffler`, `barpad`, `handguards`, `mirrors`, `sump_guard`). Exported
 meshes are `<export>.glb` and `<export>_LOD<n>.glb`.
 
 ## The KTM 450 SMR 2022 (`KTM_450-SMR-2022`, chassis 369)
@@ -149,11 +160,31 @@ the manifest in `[wheels]` (radii from the meshes, tyre widths from the size cod
 tyres and body box. Everything else of the `[bike]` table is the bike's physics data, converted
 ([below](#the-physics-dump-import-bike)); the manifest has no `[stats]`.
 
-**Levels of detail.** The chassis levels 0 to 3 are read (level 0: 135,000 vertices, 1: 78,000, 2: 44,000, 3: 26,000). A body
-solid takes the finest level from its letter's minimum on whose parts, with their triangles split by light material, fit
-one solid (60,000 vertices, 65,535 triangles): `A` and `B` come out as level 2, `C` and `D` as level 3; the small parts are
-read one level finer. Levels 4 to 7 of the engine are one composited material and are not used. A wheel solid reads the
-export level of its letter's position (A is 0, D is 3).
+**Levels of detail.** The chassis levels 0 to 3 are read (level 0: 135,000 to 175,000 vertices, 1: 69,000 to 78,000, 2: 34,000 to
+44,000, 3: 18,000 to 26,000). The frame, the bars and the fork are three solids that each hold at most 60,000 vertices and 65,535
+triangles (16-bit indices), so a body solid takes the finest level from its letter's minimum whose three solids fit: `A` starts at
+level 0 (never fits: the frame alone has 148,000 vertices on the RC 390) and normally ends at level 1 (the RC 390's frame has 54,000
+vertices at level 1), `B` starts at level 2 and `C` and `D` at level 3. Before this, the vertex count of the whole bike was compared
+with one solid's limit, which left `A` at level 2 (44,000 vertices, 30,000 triangles) although level 1 fits as three solids. The
+small parts (exhaust, mirrors, bar pad) are tried one level finer than the chassis first and then ever coarser until the solids
+fit: a silencer's few thousand vertices are worth less than the finer body. Levels 4 to 7 of the engine are one composited
+material and are not used. A wheel solid reads the export level of its letter's position (A is 0, D is 3). Textures: the body's are
+at most `max_texture` (2048) on a side, the rims' and tyres' half of that and the discs' a quarter.
+
+## Liveries
+
+`parts.json` lists the liveries of a bike (`liveries[]`, one per `CH_<id>_Livery-NN` row of the `Chassis` table:
+[formats/ride6-bike-parts.md](../formats/ride6-bike-parts.md#liveries-data)): the instance that replaces each chassis material in that
+livery. The meshes are the same; a livery is other pictures on the same surfaces. A bike whose liveries have at least two different
+**base colour pictures** on its livery material (`mat_livery_0_..`; its second material, `mat_livery_1_..`, uses the same picture on
+every bike that has one: 289 of the 293) gets a `[customization]` table (`manifest.rs`): `liveries = [{ name = "Livery 1", texture = "<ID>_SKIN1" },
+{ name = "Livery 2", texture = "<ID>_LIV2" }, ...]` and `default_livery = 0`, so the shop lists them with the vinyls
+([car-customization.md](car-customization.md#liveries)) and the bike wears its stock livery from the start. The stock livery's
+picture is baked into the texture `<ID>_SKIN1`, the placeholder the game paints (the surfaces that draw the livery picture use it as
+their diffuse texture), so the bike looks the same with and without the livery choice; each other livery is one more texture
+`<ID>_LIV<n>` of the car's pack, graded like the body textures (occlusion, lift), opaque and one level (the game reads the
+first). The list of paints has one neutral grey (`default_paint = 0`), which shows nowhere: the pictures are opaque. 209 of the 293
+bikes offer two to five liveries. Colour customization (RIDE 6's palette and masks) is not read.
 
 ## The steered front end
 
@@ -235,14 +266,14 @@ rider help, wheelie control, ABS). The importer reads it from a **resolved** JSO
 Unreal's packages nor its inheritance rules. Export, resolve and import, end to end:
 
 ```
-RIDE 6 install ──R6ToolPhys physdump (the user's tool, outside the repository)──▶ physdump-all/
+RIDE 6 install ──tools/ride6-exporter/physdump.py──▶ physdump-all/
     vehicles/<Brand>/<Vehicle>.json         Properties (resolved over DefaultBike) + Linked (every asset the vehicle refers to)
     resolved/plugin/Physics/Tire/...        every tyre asset and grip table, one file each
 physdump-all/vehicles/KTM/KTM_450SMR_2022.json ──ride6-bike-import --physics──▶ cars/ktm450.toml  ([bike], [wheels])
 ```
 
-1. **Dump** (once per install): `dotnet build -c Release C:\r6\tools\CUE4Parse\R6ToolPhys`, then `C:\r6\run-physdump.cmd`
-   (about 10 seconds; it needs the install and the `.usmap`). The README in the output folder says how the merge works:
+1. **Dump** (once per install): `python -I tools\ride6-exporter\physdump.py --out C:\r6work\physdump-all`
+   (about a minute with a warm cache; it needs the install, the `.usmap` and the built `R6ToolParts`, see the exporter's README). The README in the output folder says how the merge works:
    struct properties merge field by field, everything else of the child replaces the parent's value, an external curve wins
    over the embedded one.
 2. **The vehicle's file** is named after the vehicle id with the punctuation of the asset (`KTM_450-SMR-2022` is
@@ -394,7 +425,7 @@ done, in the order of fidelity:
   state, not in the tables read), the clear-coat look.
 - The car scene's normal-material route (the engine side).
 - Sound, lamp states (the lamps never light; the lens colours are the unlit ones) and damage parts.
-- Other bikes: all of the install is imported by [the batch](ride6-bikes-batch.md) (`import_all.py`): the importer has no
+- Other bikes: all of the install is imported by [the batch](ride6-bikes-batch.md) (`ride6-bike-import import-all`): the importer has no
   bike-specific table, a bike is a vehicle id for the script. Bikes with a mono-arm swingarm, a different number of brake discs
   (the part table lists one disc mesh per wheel) or a chain guard that is a separate part are untested.
 
