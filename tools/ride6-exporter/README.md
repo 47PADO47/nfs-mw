@@ -48,7 +48,7 @@ python -I tools\ride6-exporter\bikeparts.py <vehicle id> C:\r6work\bikes\<vehicl
 ```
 
 `export_all.py` writes `C:\r6work\bikes\<vehicle id>\{parts.json, glb/, tex/, status.json}` for each of the 319 vehicles
-(about 100 MB each, 20 minutes for all with 3 jobs once the cache is warm, an hour cold). A bike that has a `status.json` is
+(about 85 MB each without the normal maps, 125 MB with them: `--normals`; 10 s a bike the first time, 1.7 s with the JSON cache warm, so about 17 minutes for all 293 with 3 jobs the first time: [measured](../../docs/modding/ride6-bikes-disk.md)). A bike that has a `status.json` is
 skipped unless `--force`. A vehicle whose `CHASSIS` data asset is not in the install is refused with that reason. `report.py`
 writes `export-report.md` into the output folder. `physdump.py` writes `vehicles/<Brand>/<Vehicle>.json`,
 `resolved/plugin/Physics/**` and `resolved/content/assets/**` (the rider's correction table and the camera containers) in about
