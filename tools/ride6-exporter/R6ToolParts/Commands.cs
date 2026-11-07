@@ -17,6 +17,8 @@ public static class Commands
           tex <listfile> <outdir> <max>         each texture as <stem>.png (+ .txt), largest mip not above <max> px
           export "<pkg;pkg>" <outdir> Gltf2 All every level of detail of each mesh as .glb
           raw <listfile> <outdir>               the bytes of each listed file (any extension, path as listed)
+          gmesh <listfile> <outdir>             each listed skeletal mesh as <name>.r6rm (rider gear, docs/formats/ride6-rider-gear.md)
+          gtex <listfile> <outdir> <max>        each listed texture as <name>.r6tx: its block-compressed mips from the largest not above <max> px
           serve                                 requests as tab separated lines on stdin
         """;
 
@@ -29,6 +31,8 @@ public static class Commands
             case "tex": return Textures(provider, args[1], args[2], int.Parse(args[3]), output);
             case "export": return Export(provider, args[1], args[2], args.Length > 3 ? args[3] : "Gltf2", output);
             case "raw": return Raw(provider, args[1], args[2], output);
+            case "gmesh": return Gear.Meshes(provider, args[1], args[2], output);
+            case "gtex": return Gear.Textures(provider, args[1], args[2], int.Parse(args[3]), output);
             case "ping":
                 output.WriteLine("pong");
                 return true;
