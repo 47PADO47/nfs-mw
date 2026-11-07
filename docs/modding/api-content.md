@@ -319,7 +319,8 @@ promised for the first delivery, because the index and the road network are read
 2005 trees) does not need a registry call: the overlay replaces whole files, and the world's solids are 20,000 entries of one 533 MB
 stream. The **trees variant** ([effect-variants.md](effect-variants.md#profile-format-of-the-trees)) is the file-level answer: the mod adds a
 value to the `trees_variant` option (`bb.settings`) and ships `TREES/<ID>/profile.toml` with a pack of solids and a pack of textures; the
-game replaces, by name, the listed solids of every section it streams in, fitted into the bounds of the solid each replaces. No new
+game replaces, by name, the listed solids of every section it streams in (and the world-space `_DEINST` copies of them), fitted into the
+bounds of the solid each replaces, and uploads the pack's textures once, into the shared sets. No new
 interface or ABI entry: it is `bb.settings` plus files, so any mod may offer another set of models the same way.
 
 Cross-game: scenery from another Black Box game works only where `libs/blackbox-solid`, `blackbox-tpk` and
