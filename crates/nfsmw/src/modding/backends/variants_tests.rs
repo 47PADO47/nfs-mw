@@ -249,3 +249,43 @@ gain = [[0.0, 1.0], [1.0, 1.0]]
     assert!(bridge.effect_variants().wind.is_none());
     let _ = std::fs::remove_dir_all(&root);
 }
+
+const TREES_PROFILE: &str = "format = 1
+geometry = \"TREES/MYMOD/GEOMETRY.BIN\"
+textures = \"TREES/MYMOD/TEXTURES.BIN\"
+[[swap]]
+solid = \"XT_STOCK\"
+model = \"MYTREE_L0\"
+fit = \"row\"
+";
+
+#[test]
+fn the_trees_profile_is_read_through_its_own_folder_and_a_refused_one_is_none() {
+    let (bridge, store, port) = setup();
+    let (root, dir) = install_with_kind("trees", &TREES_KIND, TREES_PROFILE);
+    bridge.set_install(dir);
+    assert!(bridge.trees_profile().is_none(), "the original: nothing is read");
+    port.add_option("mymod", &spec(&TREES_KIND, "mymod"), None).unwrap();
+    change(&bridge, visible(&bridge)[0], true);
+    assert_eq!(store.saved_text("nfsmw", "option_trees_variant").as_deref(), Some("mymod"));
+    let profile = bridge.trees_profile().expect("the mod's profile");
+    assert_eq!((profile.swaps.len(), profile.swaps[0].fit), (1, blackbox_modding::content::SwapFit::Row));
+    assert!(Arc::ptr_eq(&profile, &bridge.trees_profile().unwrap()), "read once for the chosen value");
+    assert!(bridge.wind_profile().is_none(), "the other kinds are untouched");
+    let _ = std::fs::remove_dir_all(&root);
+
+    let (bridge, _, port) = setup();
+    let (root, dir) = install_with_kind(
+        "trees-bad",
+        &TREES_KIND,
+        "format = 1
+geometry = \"G.BIN\"
+textures = \"T.BIN\"
+",
+    );
+    bridge.set_install(dir);
+    port.add_option("mymod", &spec(&TREES_KIND, "mymod"), None).unwrap();
+    change(&bridge, visible(&bridge)[0], true);
+    assert!(bridge.trees_profile().is_none(), "a profile with no swap is refused: the game's trees stay");
+    let _ = std::fs::remove_dir_all(&root);
+}
