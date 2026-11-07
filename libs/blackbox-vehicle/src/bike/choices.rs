@@ -101,6 +101,19 @@ pub const STEER_REACH: f32 = 0.9;
 /// sweeps of the spec fall on no bike). 0 or less gives the data's cut back.
 pub const WHEELIE_LEAN_FLOOR: f32 = 0.35;
 
+/// How a held wheelie is let down (`pitch_assist::lowering_torque`; `docs/specs/ride6-wheelie-hold.md`, section 3). The reference's assist
+/// asks the body for an angular acceleration of `Acceleration` (10 rad/s^2) but its torque is scaled by the bike's mass times the
+/// pitch term alone (45 kg m^2 for the KTM) against 73 kg m^2 of the whole body, and a wheelie's weight torque is 12 to 17 rad/s^2: so a
+/// throttle that is shut drops the nose at 100 to 125 degrees a second and it lands at 20 or more. A modelling choice: while the assist is
+/// on, the nose may drop at `WHEELIE_LOWER_PER_PITCH` times its height per second, between `WHEELIE_LOWER_TOUCHDOWN_RATE` and
+/// `WHEELIE_LOWER_RATE` (0.7 rad/s, 40 degrees a second from 35 degrees), and a torque that holds back the excess over `WHEELIE_LOWER_RESPONSE`
+/// seconds (0.02), up to `WHEELIE_LOWER_ACCELERATION` rad/s^2 of the whole body (about the weight's torque), is added. A throttle that is blipped
+/// again raises the nose as before.
+pub const WHEELIE_LOWER_RATE: f32 = 0.7;
+pub const WHEELIE_LOWER_PER_PITCH: f32 = 1.2;
+pub const WHEELIE_LOWER_TOUCHDOWN_RATE: f32 = 0.12;
+pub const WHEELIE_LOWER_RESPONSE: f32 = 0.02;
+pub const WHEELIE_LOWER_ACCELERATION: f32 = 25.0;
 
 /// The share of the gap between the yaw rate of a steady turn at the bike's lean and its own that the yaw torque closes in a sub-step
 /// while the front wheel is up and the rear is on the road (`wheelie_steer::apply_wheelie_yaw`): the reference's stability help has a
