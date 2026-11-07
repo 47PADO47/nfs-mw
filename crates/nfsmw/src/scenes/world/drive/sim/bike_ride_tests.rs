@@ -94,6 +94,32 @@ fn the_pedals_and_the_stick_become_the_riders_levers() {
 }
 
 #[test]
+fn the_ground_contacts_of_the_double_are_those_of_the_step_and_not_of_the_last_fall() {
+    let (mut ride, mut vehicle) = ride_and_double();
+    let ground = FlatGround::new(0.0);
+    assert!(ride.place(&ground, (0.0, 0.0, 2.0), 0.0, 5.0));
+    ride.push(&mut vehicle);
+    // Tip it over: it lies on its box and the double meets the ground in every step.
+    ride.bike.body_mut().set_orientation(Quat::from_rotation_z(-1.5));
+    ride.bike.respond(FIXED_STEP, &BikeInput::default(), &ground);
+    assert!(ride.bike.fallen());
+    let mut met = false;
+    for _ in 0..30 {
+        ride.begin_body(&mut vehicle, FIXED_STEP);
+        ride.finish_body(&mut vehicle, FIXED_STEP, &ground);
+        met |= !vehicle.body_contacts().is_empty();
+        let step = StepStart { input: InputState::default(), weight: 0.0, delta: FIXED_STEP, terrain: None };
+        ride.respond(&mut vehicle, &step, &ground);
+    }
+    assert!(met, "a bike on its side meets the ground");
+    // Stood up again by hand: the next step has no contact left over from the fall.
+    assert!(ride.place(&ground, (0.0, 0.0, 2.0), 0.0, 5.0));
+    ride.begin_body(&mut vehicle, FIXED_STEP);
+    ride.finish_body(&mut vehicle, FIXED_STEP, &ground);
+    assert!(vehicle.body_contacts().is_empty(), "{} contacts left over", vehicle.body_contacts().len());
+}
+
+#[test]
 fn a_rider_who_lay_long_enough_stands_the_bike_up_where_it_is() {
     let (mut ride, _) = ride_and_double();
     let ground = FlatGround::new(0.0);

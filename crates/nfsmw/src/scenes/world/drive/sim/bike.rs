@@ -126,6 +126,8 @@ impl BikeRide {
 
     /// The first half of a step: the bike integrates the forces of the last one, and the double follows.
     pub(super) fn begin_body(&mut self, vehicle: &mut Vehicle, dt: f32) {
+        // The double's ground contacts are those of this step only (the car's own begin does this).
+        vehicle.clear_body_contacts();
         self.sync_double(vehicle);
         self.bike.begin_body(dt);
         self.push(vehicle);
