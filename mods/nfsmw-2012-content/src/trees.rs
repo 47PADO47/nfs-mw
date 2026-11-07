@@ -12,6 +12,7 @@
 
 mod build;
 mod light;
+mod ranges;
 mod read;
 #[cfg(test)]
 mod real_tests;
@@ -21,9 +22,11 @@ pub mod stock;
 mod tests;
 
 use std::path::Path;
+use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
-use chameleon_bundle::{Bundle, Pool};
+use chameleon_bundle::{Bundle, Pool, Ranges};
 
 use crate::config::Config;
 use crate::source::Source;
@@ -48,48 +51,79 @@ pub fn write(source: &Source, config: &Config, out: &Path) {
 }
 
 fn try_write(source: &Source, config: &Config, out: &Path) -> Result<()> {
-    let models = read_models(source);
+    let started = Instant::now();
+    let (models, taken) = read_models(source);
     if models.is_empty() {
         bail!("none of the trees could be read");
     }
     let pack = build::build(&models, config.max_texture_size)?;
     let folder = out.join("files").join(FOLDER);
     std::fs::create_dir_all(&folder).with_context(|| format!("creating {}", folder.display()))?;
+    let mut written = 0;
     for (file, bytes) in [
         (build::GEOMETRY_FILE, pack.geometry.as_slice()),
         (build::TEXTURES_FILE, pack.textures.as_slice()),
         ("profile.toml", pack.profile.as_bytes()),
     ] {
         std::fs::write(folder.join(file), bytes).with_context(|| format!("writing {file}"))?;
+        written += bytes.len();
     }
     let names: Vec<String> = pack.species.iter().map(|(key, levels)| format!("{key} ({levels})")).collect();
     log::info!("trees variant: {}", names.join(", "));
+    log::info!(
+        "trees variant: read {} KiB of {} KiB of the bundles, wrote {} KiB ({} KiB of textures, {} KiB of models), {} ms",
+        taken.read / 1024,
+        taken.total / 1024,
+        written / 1024,
+        pack.textures.len() / 1024,
+        pack.geometry.len() / 1024,
+        started.elapsed().as_millis()
+    );
     Ok(())
 }
 
-/// The species the install holds, read bundle by bundle (each bundle once). A species that cannot be read is left out with a
-/// warning.
-fn read_models(source: &Source) -> Vec<(&'static Species, TreeModel)> {
+/// What reading the species cost: the bytes asked of the bundles' files and the size of those files.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Taken {
+    pub read: u64,
+    pub total: u64,
+}
+
+/// The bundle at `rel` under the install, read by ranges; its reader is added to `readers`, which count what is read. A bundle that
+/// cannot be opened is a warning and `None`.
+fn open_bundle(source: &Source, rel: &str, readers: &mut Vec<Arc<ranges::FileRanges>>) -> Option<Bundle<'static>> {
+    match ranges::open(&source.root().join(rel)) {
+        Ok((bundle, reader)) => {
+            readers.push(reader);
+            Some(bundle)
+        }
+        Err(error) => {
+            log::warn!("trees: {error:#}");
+            None
+        }
+    }
+}
+
+/// The species the install holds, read bundle by bundle (each bundle once, by ranges: only the resources a tree needs are read).
+/// A species that cannot be read is left out with a warning. Also what the reading cost.
+fn read_models(source: &Source) -> (Vec<(&'static Species, TreeModel)>, Taken) {
     let shaders = source.shared_bundles().1;
-    let global = source.read_file(GLOBAL_BUNDLE).map_err(|error| log::warn!("trees: {error:#}")).ok();
+    let mut readers = Vec::new();
+    let global = open_bundle(source, GLOBAL_BUNDLE, &mut readers);
     let mut bundles: Vec<&str> = SPECIES.iter().map(|species| species.bundle).collect();
     bundles.sort_unstable();
     bundles.dedup();
     let mut found = Vec::new();
     for bundle in bundles {
         let is_global = bundle == GLOBAL_BUNDLE;
-        let own = match is_global {
-            true => None,
-            false => source.read_file(bundle).map_err(|error| log::warn!("trees: {error:#}")).ok(),
-        };
         let first = match is_global {
-            true => global.as_deref(),
-            false => own.as_deref(),
+            true => global.clone(),
+            false => open_bundle(source, bundle, &mut readers),
         };
         let Some(first) = first else { continue };
         let behind = match is_global {
             true => None,
-            false => global.as_deref(),
+            false => global.clone(),
         };
         let wanted: Vec<&'static Species> = SPECIES.iter().filter(|species| species.bundle == bundle).collect();
         match read_from(first, behind, shaders, &wanted) {
@@ -98,20 +132,24 @@ fn read_models(source: &Source) -> Vec<(&'static Species, TreeModel)> {
         }
     }
     found.sort_by_key(|(species, _)| SPECIES.iter().position(|known| known.key == species.key));
-    found
+    let taken = Taken {
+        read: readers.iter().map(|reader| reader.bytes_read()).sum(),
+        total: readers.iter().map(|reader| reader.size()).sum(),
+    };
+    (found, taken)
 }
 
 /// The models of `wanted` out of the bundle `first`, with the shared bundle `behind` it (when there is one) and the shaders.
 fn read_from(
-    first: &[u8],
-    behind: Option<&[u8]>,
+    first: Bundle<'_>,
+    behind: Option<Bundle<'_>>,
     shaders: &[u8],
     wanted: &[&'static Species],
 ) -> Result<Vec<(&'static Species, TreeModel)>> {
     let mut pool = Pool::new();
-    pool.add(Bundle::parse(first)?);
+    pool.add(first);
     if let Some(behind) = behind {
-        pool.add(Bundle::parse(behind)?);
+        pool.add(behind);
     }
     pool.add(Bundle::parse(shaders)?);
     let mut models = Vec::new();

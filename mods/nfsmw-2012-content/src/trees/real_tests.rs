@@ -16,7 +16,7 @@ fn install() -> Option<Source> {
 #[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
 fn every_species_is_read_with_its_levels_and_both_kinds_of_mesh() {
     let Some(source) = install() else { return };
-    let models = read_models(&source);
+    let (models, _) = read_models(&source);
     assert_eq!(models.len(), SPECIES.len(), "a species could not be read");
     for (species, model) in &models {
         assert!(model.levels.len() >= 3, "{}: {} levels", species.key, model.levels.len());
@@ -34,7 +34,7 @@ fn every_species_is_read_with_its_levels_and_both_kinds_of_mesh() {
 #[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
 fn the_pack_reads_back_as_solids_textures_and_a_profile_the_game_accepts() {
     let Some(source) = install() else { return };
-    let models = read_models(&source);
+    let (models, _) = read_models(&source);
     let pack = build::build(&models, 1024).unwrap();
     assert_eq!(pack.species.len(), SPECIES.len());
     let solids = read_solids(&pack.geometry).unwrap();
@@ -55,4 +55,24 @@ fn the_pack_reads_back_as_solids_textures_and_a_profile_the_game_accepts() {
         assert!(solids.iter().any(|solid| solid.name == swap.model), "{} has no model {}", swap.solid, swap.model);
     }
     assert_eq!(profile.swaps.len(), 78, "{} swaps", profile.swaps.len());
+}
+
+#[test]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR)"]
+fn the_trees_are_read_by_ranges_and_written_in_a_few_megabytes() {
+    let Some(source) = install() else { return };
+    let started = std::time::Instant::now();
+    let (models, taken) = read_models(&source);
+    let read_time = started.elapsed();
+    assert_eq!(models.len(), SPECIES.len());
+    println!("read {} KiB of {} KiB of the bundles in {read_time:?}", taken.read / 1024, taken.total / 1024);
+    assert!(taken.read < 16 * 1024 * 1024, "megabytes of the bundles' hundreds, not all of them: {}", taken.read);
+    let pack = build::build(&models, 1024).unwrap();
+    println!(
+        "wrote geometry {} KiB, textures {} KiB, in {:?} all told",
+        pack.geometry.len() / 1024,
+        pack.textures.len() / 1024,
+        started.elapsed()
+    );
+    assert!(pack.geometry.len() + pack.textures.len() < 12 * 1024 * 1024);
 }
