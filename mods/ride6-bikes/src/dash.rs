@@ -8,7 +8,7 @@
 //! window with the panel of an engine at rest: the rev bar with its first segments lit, the gear `N` and the speed `0 KM/H`.
 //! See [the material model](../../../docs/formats/ride6-materials.md#instrument-clusters).
 //!
-//! The window is found, not read: no material parameter names it (a search of the 3,100 material instances for `screen`,
+//! The window is found, not read: no material parameter names it (a search of the 4,393 material instances of the 293 exported bikes for `screen`,
 //! `display`, `tft`, `dash`, `clock` and `lcd` finds none), so it is the largest rectangle of near black texels that is
 //! well inside the picture and has the proportions of a display. A picture without such a rectangle (the dials of an analogue
 //! cluster, a bezel on a black ground) is left as it is.

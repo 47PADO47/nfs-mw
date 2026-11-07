@@ -1,10 +1,11 @@
-# Importing every RIDE 6 bike (`import_all.py`, `ride6-bike-import ids` and `remanifest`)
+# Importing every RIDE 6 bike (`export_all.py`, `import-all`, `geometry`, `ids` and `remanifest`)
 
 Part of the [RIDE 6 bikes mod](ride6-bikes.md). The importer converts one bike per run; this page is the batch around it: which
-vehicles there are, how a bike gets its car id and its names, how the whole install is imported in one unattended run, what
-is refused and why, and how to convert the physics again without exporting the meshes again. The script itself is a user tool
-outside the repository (like the exporter it drives: `bikeparts.py`, [ride6-bikes.md](ride6-bikes.md#the-exporter-toolsride6-exporter));
-the importer's part (`naming.rs`, `summary.rs`, `cli.rs`, `pipeline.rs`) is in `mods/ride6-bikes`; the same import runs inside the game as the [native mod](ride6-bikes.md#the-native-mod), which needs no script. Nothing of the game is stored in the repository.
+vehicles there are, how a bike gets its car id and its names, how the whole install is exported and imported in one unattended
+run, what is refused and why, and how to convert the physics or the meshes again without the rest. The exporter (`export_all.py`
+and its scripts) is in the repository's [`tools/ride6-exporter`](../../tools/ride6-exporter/README.md), the importer's part
+(`naming.rs`, `summary.rs`, `cli.rs`, `pipeline.rs`, `regeometry.rs`) is in `mods/ride6-bikes`, and the same import runs inside the
+game as the [native mod](ride6-bikes.md#the-native-mod), which needs no command. Nothing of the game is stored in the repository.
 
 ## The vehicles
 
@@ -54,57 +55,29 @@ retyped. The variants keep their tokens (`Yamaha YZF R1M RM 2019`).
 
 ## Running it
 
+Three steps, each resumable and each writing outside the repository (`C:\r6work`):
+
 ```
-python -I C:\r6\tools\bikeparts\import_all.py [--only <regex on the vehicle id>] [--limit N] [--force] [--dry-run]
-         [--mod <mod folder>] [--work <scratch folder>] [--importer <exe>] [--min-free-gb 30]
-         [--jobs N] [--no-server]
+python -I tools\ride6-exporter\export_all.py --out C:\r6work\bikes --jobs 3     the meshes, textures and part tables (293 bikes)
+python -I tools\ride6-exporter\physdump.py --out C:\r6work\physdump-all         the physics dump
+ride6-bike-import import-all C:\r6work\bikes <mod folder> --physics C:\r6work\physdump-all ^
+    --tyre-tables C:\r6work\physdump-all\resolved\plugin\Physics\Tire [--sound-dir <sound-bikes output>] [--threads 4]
 ```
 
-For each vehicle (the KTM first, as a regression gate) the script: checks the bindings and the physics file, runs `bikeparts.py`
-(the exporter: `parts.json`, `glb/`, `tex/`), runs `ride6-bike-import` into the mod folder (`files/CARS/<ID>/`, `cars/<id>.toml`),
-**deletes `glb/` and `tex/`** (250 to 500 MB per bike) and keeps the small files (`parts.json`, `built.json`, `status.json`), so the
-scratch folder stays under about 1 GB per finished bike set and the exports of `--jobs` bikes at a time (a few hundred MB each) are on disk. It
-checks the free space of the work drive before each bike (default: stop below 30 GB). It writes `status.json` per bike, appends
-to `import-log.jsonl` and rewrites `import-report.md` after every bike, and a bike with a status is not done again unless
-`--force`, so an interrupted run resumes. The KTM's output is compared with the baseline hashes in `_baseline_ktm450.md5` and the
-batch stops if they differ.
+`export_all.py` skips a bike that has a `status.json` (`--force` does it again, `--only <regex>` picks bikes); `import-all` is the
+native mod's batch import (every bike folder of the source, the car ids assigned to the whole set, a bike that cannot be imported
+listed with its reason and the others going on; `mod.toml` written when the folder has none). To rebuild only the meshes,
+textures and liveries of bikes that are imported already, **without** touching their manifests (the sound, camera and physics
+tables stay as they are):
 
-Time on the reference PC (one run at a time; the exporter dominates): about 25 to 30 seconds of export and 5 to 7 seconds of
-import per bike, so the 288 importable bikes take under 3 hours. Disk: about 12 MB of car files per bike (3.5 GB for the 288).
-The exporter's JSON cache (`C:\r6\parts\cache`) is shared by the runs and grows by a few hundred MB.
+```
+ride6-bike-import geometry C:\r6work\bikes <mod folder> [--only <text>] [--max-texture 2048] [--threads 4]
+```
 
-### Faster: the tool server and `--jobs`
-
-The exporter reads the install through `R6Tool` (the CUE4Parse tool `R6ToolParts`), and it used to start the tool as a new process
-for every call (one `jsonmany` per package dump, one `tex`, one `export`), each mounting the 88 encrypted paks and loading the
-`.usmap` again. The run also did one bike after the other. Three changes remove that; the results are byte for byte the same
-(the `parts.json`, `glb/` and `tex/` of a bike, `built.json`, the car's files and `cars/<id>.toml`).
-
-- **`R6Tool <game> serve <port>`** mounts the paks once and answers one request per TCP connection on `127.0.0.1:<port>` (port 0
-  picks a free one and prints `READY <port>`). A request is one line, tab separated: `jsonmany <listfile> <outdir>`,
-  `tex <listfile> <outdir> <max size>`, `export <packages;> <outdir> <Gltf2|ActorX> <quality>` (the arguments and the effects of
-  the one-shot modes), or `ping`, `stats`, `quit`. The reply is the text the one-shot mode prints, and the connection closes.
-  Requests run concurrently, one task each. Loading a package from the paks is serialised by a lock (a small share of the time:
-  `stats` prints it); mesh export, texture decoding and JSON serialisation run in parallel. `jsonmany` writes a temporary file and
-  renames it, so a reader never sees a partial JSON (the one-shot mode does the same). The one-shot modes (`list`, `names`, `grep`,
-  `export`, `jsonmany`, `tex`, `json`) work as before.
-- **`r6lib.run_tool`** sends the request to the server when the environment variable `R6_SERVER_PORT` is set and runs the tool as a
-  process otherwise (also when the server cannot be reached). `import_all.py` starts one server on a free port when the run exports
-  anything (not with `--dry-run` or `--remanifest`), waits until it answers, exports `R6_SERVER_PORT` to the exporter processes and
-  stops the server at the end, also after an error or Ctrl-C. `--no-server` keeps the process-per-call way.
-- **`--jobs N`** (default 4) does N bikes at the same time with a thread pool. The first bike always runs alone: it is the KTM
-  regression gate and it writes `mod.toml` (when the KTM is not in the run, the first bike of the run does, unless the mod folder
-  has the file). The status, log and report writes are under a lock; every bike has its own folder and its own car folder in the
-  mod; the JSON cache is shared. The importer is a process of its own per bike.
-
-The tool is outside the repository like the scripts: `C:\r6\tools\CUE4Parse\R6ToolParts\Program.cs`. Build it from a copy of the
-project folder that sits next to the CUE4Parse projects (so the running tool's `obj` is not touched), with
-`CUE4PARSE_SKIP_NATIVE=true dotnet build -c Release -o <dir>`, and point `TOOL` in `r6lib.py` (or the environment variable
-`R6_TOOL`) at the `R6Tool.exe` there.
-
-Measured on the reference PC while it was busy with other work (4 bikes, a JSON cache warmed by other bikes, per bike in all):
-about 36 s with a process per call, about 19 s with the server and `--jobs 1`, about 11 s with the server and `--jobs 4`. What
-stays is the mesh export and texture decoding of the tool itself (about 12 to 17 s of export per bike), which the jobs overlap.
+It writes `GEOMETRY.BIN`, `TEXTURES.BIN`, `BOUNDS.BIN` of each car and the `[customization]` table (the liveries) of its manifest;
+a bike whose `cars/<id>.toml` is not there is reported, not built. The exporter's folder keeps its `glb/` and `tex/` (the old
+batch script deleted them after the import; they are needed for the next run): about 125 MB per bike with the normal maps and
+about 85 MB without (the exporter leaves them out unless `--normals`, `ride6-bike-import` reads them only with `--normal-maps`).
 
 `ride6-bike-import ids <vehicle id>... | --file <list>` prints `vehicle id, car id, name, manufacturer` (tab-separated) for a set,
 and the script uses it as its only source of names. `ride6-bike-import` without `--car` derives the id for the one bike by rules 1 to
@@ -125,35 +98,59 @@ meshes (`--car`, `--name`, `--manufacturer` and `--sound-dir` as for the importe
 
 ## What an imported bike is
 
-The default stock bike: chassis, tyres, rims, discs, exhaust (where the bindings name one) and, where the bindings have them, bar
-pad and hand guards, in the first livery, with its own physics (`[bike]`, [ride6-bikes.md](ride6-bikes.md#the-physics-dump-import-bike)),
-its own model, bounds and manifest. The rider is the shared one (`files/RIDER/`) when the mod folder has it ([bikes.md](bikes.md#the-rider)).
-Not part of an imported bike: engine and effect sounds (the `sound` command needs hand-chosen recordings per bike: the bike uses
-the game's built-in engine), other liveries, customization (paints, parts from the shop), lamps and damage parts.
+The default stock bike: chassis, tyres, rims, discs, exhaust (header pipes and silencer; every bike of the install has them) and,
+where the bindings have them, bar pad, hand guards, mirrors, sump guard, number plate and rally kit, with its own physics (`[bike]`,
+[ride6-bikes.md](ride6-bikes.md#the-physics-dump-import-bike)), its own model, bounds and manifest. **Liveries:** every livery of
+the bike (`CH_<id>_Livery-NN`) with a different picture is listed in the shop's vinyl category like the 2012 cars' liveries
+([car-customization.md](car-customization.md#liveries)): 209 of the 293 bikes have two to five, and the stock one (Livery 1) is
+worn from the start. The rider is the shared one (`files/RIDER/`) when the mod folder has it ([bikes.md](bikes.md#the-rider)).
+Not part of an imported bike: colour customization (the paint list has one neutral entry, the colours come from the liveries),
+parts from the shop, lamps and damage parts. Engine sound comes from `sound-bikes`.
 
 ## Report
 
-`import-report.md` (in the work folder) lists **every** vehicle: car id, name, imported or refused with the reason, and remarks
-(no stock exhaust row, several tyre models for the size, brake kit override not applied). The refusals of the reference run:
+The exporter's `export-report.md` (written by `report.py` into the output folder) lists **every** vehicle and what it lacks; the
+importer's `import-all` prints the bikes it left out. The numbers of the reference run:
 
-**288 of the 319 vehicles are imported, 31 are refused.**
+**319 vehicles: 293 exported, 26 refused by the exporter, 5 refused by the importer, 288 imported.**
 
-| Refused | Count | Reason |
-|---|---|---|
-| chassis data asset not in the install | 25 | the `CHASSIS` row names `customization_data/bikeNNN_001`, which was never shipped (the BMW M 1000 R, R 100 GS, S 1000 R, Husqvarna FS 450, RS 457 Trofeo, Vyrus Alyen and more: the report lists each); 2 of them also have no physics asset |
-| physics asset not in the install | 1 | the `PHYSICS` row names an asset that is not in the install (`Suzuki_DR-800-S-Big-1994`); the chassis exists |
-| physics data does not convert | 5 | the three Indian Challenger variants (a tyre section of the bagger's rain tyre has an unset reference, `TireData/Bagger/FrontTyre_Rain`) and the two Italjet Dragster 200 CC (the skeleton data has no rake and trail: a scooter-like frame) |
+**The 26 the exporter refuses** (all for one reason: the `CHASSIS` row names a data asset, `customization_data/bikeNNN_001`, that
+the install does not contain; the chassis mesh `chassisNNN` and the livery materials are not in the install either, so there is
+nothing to read; the whole container set (45 IoStore containers and 44 encrypted `.pak` files in `Paks`; the containers mount without a key) is searched, and a listing for the asset and
+mesh names finds no file): Aprilia RS 457 Trofeo 2024 (bike034), RSV4 Factory 1100 2025 (009), Tuono V4 Factory E5 2021 (030); BMW
+M 1000 R 2023 (068), R 100 GS 1000 1987 (070), S 1000 R 2020 (065); Ducati Hypermotard 950 2019 (141), Monster Plus 2021 (155),
+Panigale V2 2021 (156), Panigale V4 S RM 2025 (166); Honda CBR 600 RR HRC 2021 (251), XVR 750 Africa Twin 1990 (256); Husqvarna 701
+Supermoto 2025 (274), FS 450 2022 (277); Kawasaki Ninja ZX-10RR Performance 2024 (320); MV Agusta Brutale 800 RR 2021 (484), F3
+800 RR 2022 (488), LXP Orioli 2024 (490), Rush 1000 2021 (486); Suzuki DR 800 S Big 1994 (536), TL 1000 R RM 1998 (552); Triumph
+Street Triple RS 2024 (598), Trident 660 2021 (595); Vyrus Alyen 2020 (645); Yamaha MT-10 SP 2024 (664), XTZ 750 Super Tenere 1989
+(666). Three of them also have no physics asset (the RSV4 Factory 1100 2025, the Husqvarna 701 Supermoto 2025 and the Suzuki DR 800 S
+Big 1994: `phys_missing` in the exporter's check). The tables list them because the game's data lists them: the content was never
+shipped in this build of the install (a later patch or paid pack, or content cut before release); nothing in the install can
+replace it, and the exporter does not guess a mesh from another bike. **Nothing to fix here**; if a later install has the
+packages, `export_all.py --only <id> --force` exports them.
 
-Nothing else is refused: a missing exhaust, bar pad, hand guards or rim mesh in the bindings is a note and the bike goes on
-without that part (2 bikes have no stock exhaust row; 33 have a brake kit override the importer does not apply; 257 have several
-tyre models for their size and take the most used). The 288 imported manifests read back with the game's content schema except
-5 (`RIDE6_MOD_DIR=. cargo test -p ride6-bikes --test imported_manifests -- --ignored`): four bikes whose converted gear ratios
+**The 5 the importer refuses:** the three Indian Challenger variants (a tyre section of the bagger's rain tyre has an unset
+reference, `TireData/Bagger/FrontTyre_Rain`) and the two Italjet Dragster 200 CC (the skeleton data has no rake and trail: a
+scooter-like frame).
+
+**Parts a bike lacks.** Every one of the 293 exported bikes has front and back tyre, rim and brake disc, header pipes and silencer
+(the two event bikes whose own rows were missing, the Aprilia RS 457 Ride-Fest 2024 and the Triumph Daytona 675 R Ride-Fest 2017, take
+the rows of the bike they are a variant of). What some lack is data the install does not ship: mirrors and number plate for the
+Aprilia RSV4 X-trenta 2022, Ducati Desmosedici RR Stoner 2006 and KTM RC 8C 2023 (`asset not in install`), mirrors for the Italjet
+Dragster 700 Twin and the KTM 450 SMR 2022 (the row is `mirrornone`: the bike has none), the bar pad of the KTM 690 SMC R 2026,
+the sump guard of the Honda X-ADV 2024, the `worldgridmaterial` of 12 rally bikes (an engine debug material, a grey surface is
+used) and the normal map `cockpit529_n` of the Suzuki GSX-R 1000 RM 2007 (the decoder fails on it; the normal maps are not used).
+Of the 293, bar pads exist for 4 bikes, hand guards for 19, mirrors for 157, a sump guard for 10 (the others have none in the
+game). The Ducati Hypermotard 698 (`DUCATI_HYPERMOTARD-6-9A50E0`) had no rims, no silencer and no hand guards in the first
+import: [the first export of its data assets is a stub](../formats/ride6-bike-parts.md#a-data-asset-package-has-more-than-one-export-data),
+which the exporter read.
+
+Nothing else is refused: 33 bikes have a brake kit override the importer does not apply; 257 have several tyre models for their
+size and take the stock look of their tyre family. The 288 imported manifests read back with the game's content schema except 5
+(`RIDE6_MOD_DIR=. cargo test -p ride6-bikes --test imported_manifests -- --ignored`): four bikes whose converted gear ratios
 exceed the schema's 10 (Ducati 888 SP5 and its RM, the two Indian FTR X 100R Carbon: a ratio of 12.2 is in the data) and one
 whose rear leverage curve runs to 2.06 of the travel where the schema takes shares up to 1 (MV Agusta Superveloce 800). Those are
-limits of the bike schema against the data (the physics importer and `bike_check*.rs`), not of the batch. The tyre widths of
-trail bikes (90 mm) needed the `[wheels]` check (`content/wheels.rs`) to allow 0.03 m for a bike; it took 0.1 m, as for a car.
-Time: the reference run took about 34 seconds per bike in all (export about 29, import about 5): under three hours of work
-for the 293 bikes that got as far as the exporter, in several sessions (the script resumes).
+limits of the bike schema against the data (the physics importer and `bike_check*.rs`), not of the batch.
 
 ## The game side
 

@@ -200,7 +200,13 @@ display luminance (0 to 255) was **49.9**, against **70.1** for ten stock cars (
 Result, same 18 bikes and cameras (floor 0.55, lift 1.35, reflection 0.25): mean luminance **62.4** (+25 percent; per bike
 +17 to +36, the Zephyr 64 to 75, the CBR600RR 36 to 49, the R7 38 to 52), pixels below 25 from 31..44 percent to 15..31 percent; the
 dark-paint stock cars are at 50 to 56 and the median stock car at 61. Black stays black where it is black paint: the silencer of
-the KTM 450 is still black ([above](#the-light-material-of-a-triangle)). The options are `--ao-floor`, `--gain` and `--reflected`
+the KTM 450 is still black ([above](#the-light-material-of-a-triangle)). **Update (saturated paints).** The bikes still looked
+washed out against RIDE 6's bright glossy paints, and the cause was the reflection above: a veil of one grey on every texel, which
+a texel with no green in it (the red (184, 0, 26) of the Honda CRF 450 R: 0.01 linear of green is sRGB 25, and the lift makes it
+33) turns pink. The veil is now applied in proportion to how little saturated the texel is, `(1 - saturation)` with
+`saturation = (max - min) / max` of the linear colour (`bake::saturation`): black plastic (no saturation) gets all of it, a pure
+hue none. The metals are spared most of the occlusion as well (`grade::metal_floor`, `METAL_AO_RELIEF` 0.8, a silver can read
+dark grey with the full floor). The options are `--ao-floor`, `--gain` and `--reflected`
 of the importer (`--gain 1 --reflected 0 --ao-floor 0.3` gives the earlier look).
 
 ### Translucent surfaces
@@ -247,8 +253,14 @@ opacity *o* is a picture alpha of *o* divided by the light material's alpha.
   `BRAKELIGHTGLASS` (alpha 1.0), because `WINDSHIELD` cannot show more than 0.4 (the thresholds are `CLEAR_ALPHA` and
   `TINTED_ALPHA` in `glass.rs`). The texel's alpha is stored for the material its own opacity selects, so a clear texel is
   alpha 32 (0.05 / 0.4) and the Yamaha's red lens 221 (0.87; the Ducati's red 0.80 and amber 0.62).
-- The colour is the picture's colour as it is (white veils the scene behind the screen by its 5 percent, which is about the
-  Fresnel reflection of glass; a red lens is red).
+- The colour is the **blend colour** (`glass::blend_colour`), not the picture's own. The car shader draws
+  `alpha * colour + (1 - alpha) * scene`, and RIDE 6's thin translucent surface shows `scene * transmittance`. With the opacity
+  `alpha = 1 - mean(transmittance)` the two are equal for a scene of mid brightness (0.5, linear) when the colour is
+  `(transmittance - mean) * 0.5 / alpha` per channel, linear and never below black (the division is capped at an opacity of
+  0.25, or the noise of an almost clear lens would become a tint). Grey glass is therefore **black** with its opacity as alpha
+  and a coloured lens keeps only the colour it has over the grey: a red lens (173, 0, 5) is a dark red, a clear screen is black
+  at 5 percent. The picture's own colour was drawn as the surface colour before, which made the smoked screen of the KTM RC
+  390 (transmittance 178 to 216, opacity 0.35 to 0.58) an opaque light-grey shell: the screen the user saw as white.
 - The texture is DXT5, alpha usage modulated, blend type 1, alpha-sorted, the two-sided flag clear: like the stock windows. A
   blended group of the car effect culls back faces (`culls_blended`), so the screen is seen from the front only.
 
@@ -271,6 +283,28 @@ engine's two-channel picture rebuilt as RGB; Unreal's green channel points the o
 handedness against this shader is not verified** (`--flip-green` inverts it). A car solid with effect-3 groups draws them
 like effect-4 groups (diffuse and light material) until the car scene routes such groups to normal materials; that routing
 is a small change in the car scene's `MaterialLookup` (see [ride6-bikes.md](../modding/ride6-bikes.md#rendering)).
+
+### Instrument clusters
+
+**The material [data].** `mat_gauge<chassis>` (287 bikes) is `BLEND_Masked` with `BaseColor - Texture` the cluster picture
+(`gauge371_d`), `BaseColorOpacity - Texture` the engine's white default, `EmissiveColor - Texture` the engine's **black** texture
+(in all 287 materials), and constant specular, roughness and metallic scalars. There is no render target, screen or display
+parameter in any of the 4,393 material instances of the exported bikes (a search for `screen`, `tft`, `dash`, `display`, `clock` and `lcd` in the
+parameter and texture names finds none; 573 names contain `gauge`). The picture is the bezel and the warning lamps in their off
+state; on a bike with a colour display it also has a **black window** (77 of the 245 different pictures have a rectangle of
+black over 2 percent of their area; the KTM RC 390's is about 610 by 365 of 1024 px, between the lamps) where RIDE 6 draws the
+instrument panel at run time through the emissive input. The other pictures are analogue dials (an Aprilia cluster has a
+tachometer dial) and LCD fields that are drawn in the picture itself.
+
+**The mapping [choice].** The converter cannot draw a live panel: a car's textures do not change while it is drawn, and no
+per-frame texture feed for a car was found in the host (not investigated further). It fills the window with the panel of an engine at
+rest, once (`dash.rs`): a dark blue ground, the rev bar of 24 segments with the first 3 lit, the gear `N` in green and the speed
+`0` with `KM/H` under it, in a 5 by 7 dot font scaled to the window. The window is **found**, since nothing names it: the
+largest rectangle of texels whose brightest channel is at most 12, at least 4 percent of the picture, between 1 and 3.5 times
+wider than high, and not touching the border of the picture (a black ground around a bezel is not a window), drawn 3 percent
+inside its edges because the corners of a display are rounded. A picture without such a rectangle is left as it is. What stays
+open: live speed, rpm and gear (they need the host to draw the three values into the cluster's texture each frame), the
+night glow of the lamps, and the displays that are dark grey (about 45) rather than black, which the window search does not see.
 
 ## Open
 

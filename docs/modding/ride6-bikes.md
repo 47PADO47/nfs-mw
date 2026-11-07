@@ -171,6 +171,21 @@ fit: a silencer's few thousand vertices are worth less than the finer body. Leve
 material and are not used. A wheel solid reads the export level of its letter's position (A is 0, D is 3). Textures: the body's are
 at most `max_texture` (2048) on a side, the rims' and tyres' half of that and the discs' a quarter.
 
+## Liveries
+
+`parts.json` lists the liveries of a bike (`liveries[]`, one per `CH_<id>_Livery-NN` row of the `Chassis` table:
+[formats/ride6-bike-parts.md](../formats/ride6-bike-parts.md#liveries-data)): the instance that replaces each chassis material in that
+livery. The meshes are the same; a livery is other pictures on the same surfaces. A bike whose liveries have at least two different
+**base colour pictures** on its livery material (`mat_livery_0_..`; its second material, `mat_livery_1_..`, uses the same picture on
+every bike that has one: 289 of the 293) gets a `[customization]` table (`manifest.rs`): `liveries = [{ name = "Livery 1", texture = "<ID>_SKIN1" },
+{ name = "Livery 2", texture = "<ID>_LIV2" }, ...]` and `default_livery = 0`, so the shop lists them with the vinyls
+([car-customization.md](car-customization.md#liveries)) and the bike wears its stock livery from the start. The stock livery's
+picture is baked into the texture `<ID>_SKIN1`, the placeholder the game paints (the surfaces that draw the livery picture use it as
+their diffuse texture), so the bike looks the same with and without the livery choice; each other livery is one more texture
+`<ID>_LIV<n>` of the car's pack, graded like the body textures (occlusion, lift), opaque and one level (the game reads the
+first). The list of paints has one neutral grey (`default_paint = 0`), which shows nowhere: the pictures are opaque. 209 of the 293
+bikes offer two to five liveries. Colour customization (RIDE 6's palette and masks) is not read.
+
 ## The steered front end
 
 The chassis is one skinned mesh in the bind pose. The importer splits it in three with the bike's own skeleton, so the
@@ -410,7 +425,7 @@ done, in the order of fidelity:
   state, not in the tables read), the clear-coat look.
 - The car scene's normal-material route (the engine side).
 - Sound, lamp states (the lamps never light; the lens colours are the unlit ones) and damage parts.
-- Other bikes: all of the install is imported by [the batch](ride6-bikes-batch.md) (`import_all.py`): the importer has no
+- Other bikes: all of the install is imported by [the batch](ride6-bikes-batch.md) (`ride6-bike-import import-all`): the importer has no
   bike-specific table, a bike is a vehicle id for the script. Bikes with a mono-arm swingarm, a different number of brake discs
   (the part table lists one disc mesh per wheel) or a chain guard that is a separate part are untested.
 
