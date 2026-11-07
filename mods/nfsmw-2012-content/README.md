@@ -51,7 +51,7 @@ wheels sit at plus and minus half the car's wheelbase with the model centred on 
 
 That is all. With a `source` set, the mod converts the cars **on a background thread while the game starts and runs**;
 nothing waits for it. It takes about a second on a six-core PC once the files are in the disk cache, a few more seconds
-when they are not, and writes about 740 MB into the mod's own `files/` and `cars/` folders (both belong to the converter: a new
+when they are not, and writes about 430 MB (40 MB with `stream_cars`, [Streamed cars](#streamed-cars); it was 750 MB before the copies of the second level of detail and of the recordings went) into the mod's own `files/` and `cars/` folders (both belong to the converter: a new
 conversion clears them, so do not edit them by hand). When it is done the cars are in the game: everything the game opens
 after that, the garage and the career among them, lists them, so by the time you reach the career menu they are there. Later
 starts convert nothing unless the settings, the converter or the 2012 files changed (the mod keeps a fingerprint in
@@ -116,7 +116,8 @@ Every key is optional. An unknown key is an error and no car is added, so a typo
 | `[police]` | Which cars are police cars and where they chase: `auto` (default `true`), `add`, `remove`, `role`, and `[police.car.<id or name fragment>]` with `class`, `heat` and `cop` entries ([Police cars](#police-cars)) |
 | `own_engine_sound` | `true` (default): each car gets the recordings of its own 2012 bundle, written into the mod folder as WAVs, each distinct recording once under `files/SOUND/MODENGINE/SHARED/` (cars share them: 1,070 of 1,338 files were copies, 123 of 173 MB), plus the car's own `IGNITION.WAV` in `files/SOUND/MODENGINE/<ID>/`: its engine loops, and its gear shifts, turbo whistle and blow-off, backfires and pops. `false` writes none (the shared recordings included): the cars play the game's built-in engine and have only the game-wide sounds. An approximation, see [car-sound.md](../../docs/modding/car-sound.md#the-2012-cars-recordings) |
 | `music` | `true` (default): offers the 2012 game's soundtrack (43 songs of `UI/SONGS/`) as the gameplay option **2012 soundtrack** (off until the player turns it on), **streamed from your 2012 install**: nothing is converted or copied, the mod only writes a small playlist (`music/MW2012.m3u8`) at every start. `false` removes the playlist and the option. It never converts the cars again ([The soundtrack](#the-soundtrack)) |
-| `driver_poses` | `true` (default): each car's driver is posed for the steering and the look back (8 extra figures a car, about 3.5 MB: half of the converted geometry). `false` writes none: the driver stays seated and still, and the car's files are about 230 MB smaller over 67 cars ([The driver's poses](#the-drivers-poses)) |
+| `driver_poses` | `true` (default): each car's driver is posed for the steering and the look back (8 extra figures a car, about 1.7 MB: 110 MB over 67 cars, nothing on disk with `stream_cars`). `false` writes none: the driver stays seated and still ([The driver's poses](#the-drivers-poses)) |
+| `stream_cars` | `true` (default): the cars' heavy files (`GEOMETRY.BIN`, `TEXTURES.BIN`, the recordings) are **made when the game opens a car**, not written: the folder holds stubs and a recipe, about 40 MB in place of 430. Needs a game with `bb.content` 1.1; the gameplay option **Stream 2012 cars** switches it too. `false` writes every file ([Streamed cars](#streamed-cars)) |
 | `traffic` | `true` (default): adds the 2012 game's eleven traffic cars (Audi A3, Cadillac CTS-V, Chevrolet Express Van, Dodge Caliber, Grand Caravan and Ram 1500, Chevrolet Cobalt, Infiniti G35, Nissan Frontier and Versa, GMC Topkick) as traffic cars among the game's own, with ids ending in `_TR`. `false` adds none. `cars` and `exclude` pick them too (the word `traffic` is in every name). Numbers, limits and the console: [api-traffic.md](../../docs/modding/api-traffic.md#the-2012-mods-traffic-cars) |
 | `trees` | `true` (default): converts the 2012 game's trees (eleven species at four levels of detail, read from the world bundles of `HAWAII/`) and adds the value **NFS Most Wanted 2012** to the gameplay setting **Trees**. Choosing it swaps their models and textures in for the 2005 game's trees (the tree lines, cedars, poplars, bushes, fall trees and dead trees: 78 solids) as the world streams in; the setting is read as sections load, so a choice made before a drive is in all of them. `false` converts and adds neither. What the 2012 trees are and which solids they replace: [chameleon-vegetation.md](../../docs/formats/chameleon-vegetation.md); the profile and the fit: [effect-variants.md](../../docs/modding/effect-variants.md#profile-format-of-the-trees) (`src/trees.rs`) |
 | `[performance]` | Optional multipliers on the stats read from each car's own 2012 data: `power` (torque at every engine speed), `mass`, `grip` (tyre friction), `brakes` (brake torque), `nitrous_power` (the extra torque of the nitrous), all 1.0 by default, and `nitrous` (`true` by default: the car keeps the nitrous its 2012 data gives it; `false` removes it). The mod applies them when it writes the car, so the game only sees the resulting absolute `[stats]` table ([car-stats.md](../../docs/modding/car-stats.md)); a car whose settings are left alone is exactly the imported 2012 car. Ranges: `power`, `mass`, `brakes` 0.25 to 4, `grip` 0.25 to 3, `nitrous_power` 0 to 4; results are clamped to the ranges of `[stats]` |
@@ -194,6 +195,16 @@ Levels of detail: the game draws nothing for a level a car lacks, so A and B are
   `cars/` folder declares; the car tables list them from then on. See [api-content.md](../../docs/modding/api-content.md#content-registries-bbcontent).
 - If content was already live at start (a rerun after a change), the finished conversion is promoted at the next start
   instead, because the game has indexed the folder.
+
+### Streamed cars
+
+With `stream_cars` the conversion still runs once (the manifests need each car converted) but writes a small stub where
+`GEOMETRY.BIN`, `TEXTURES.BIN` and each recording go, and `lazy-cars.toml` (the install, the settings, each car's bundle
+numbers). The mod gives the game a maker (`bb.content` 1.1 `provide_lazy_files`); when the game opens a stub, the maker converts
+that car again from the 2012 install with the same steps (`src/prepare.rs`, `src/lazy/maker.rs`), keeps the last three cars in memory and
+times each conversion. The first time a car is opened it waits for that conversion **[time not measured]**; the start of the game
+reads one small file. Traffic cars, ignitions and the shared sounds stay files. How it works, the sizes before and after and how to
+measure them: [lean-content.md](../../docs/modding/lean-content.md).
 
 ## Limits
 
