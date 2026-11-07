@@ -6,7 +6,8 @@ use glam::Vec3;
 /// A closer road outside the old path and trail, only after the car has left the old corridor.
 pub(super) fn candidate(net: &RoadNetwork, index: &SegmentIndex, nav: &RoadNav, car: &Body) -> Option<RoadNav> {
     let trail = nav.trail()?;
-    let current = update_occluded_position(trail, car, nav.position, nav.forward, [], false, nav.half_width)?;
+    let current =
+        update_occluded_position(trail, car, nav.position, nav.forward, [] as [Body; 0], false, nav.half_width)?;
     if current.out_of_bounds <= 2.0 {
         return None;
     }
