@@ -19,6 +19,10 @@ public static class Commands
           raw <listfile> <outdir>               the bytes of each listed file (any extension, path as listed)
           gmesh <listfile> <outdir>             each listed skeletal mesh as <name>.r6rm (rider gear, docs/formats/ride6-rider-gear.md)
           gtex <listfile> <outdir> <max>        each listed texture as <name>.r6tx: its block-compressed mips from the largest not above <max> px
+          bp <listfile> <outdir>                each listed Blueprint class as pseudo-C++ (<class>.cpp)
+          skeleton <package> <outfile>          the skeleton of an animation sequence as skeleton.json (rider, docs/formats/ride6-rider.md)
+          anims <listfile> <outfile.r6ra>       each listed animation sequence (Unreal's own codecs) sampled at every frame, as R6RA
+          acl <listfile> <outdir>               each listed ACL animation sequence as <name>.acl and <name>.meta.json
           serve                                 requests as tab separated lines on stdin
         """;
 
@@ -33,6 +37,10 @@ public static class Commands
             case "raw": return Raw(provider, args[1], args[2], output);
             case "gmesh": return Gear.Meshes(provider, args[1], args[2], output);
             case "gtex": return Gear.Textures(provider, args[1], args[2], int.Parse(args[3]), output);
+            case "bp": return Bp.Classes(provider, args[1], args[2], output);
+            case "skeleton": return Anim.Skeleton(provider, args[1], args[2], output);
+            case "anims": return Anim.Anims(provider, args[1], args[2], output);
+            case "acl": return Anim.Acl(provider, args[1], args[2], output);
             case "ping":
                 output.WriteLine("pong");
                 return true;
