@@ -9,7 +9,7 @@ for the others) so a livery is a set of replaced pictures on the same meshes.
 
 import re
 
-from r6lib import object_name, ref_path
+from r6lib import ref_path
 
 
 def normal(text):
@@ -19,11 +19,11 @@ def normal(text):
 def chassis_materials(chassis_part, props):
     """`{base glb material name: instance path}` for the slots the data asset `props` replaces."""
     out = {}
-    for slot, default in chassis_part["slots"]:
+    for slot, _, glb in chassis_part["slots"]:
         for key, value in props.items():
             path = ref_path(value)
             if path and normal(key) == normal(slot):
-                out[object_name(default)] = path
+                out[glb] = path
     return out
 
 
