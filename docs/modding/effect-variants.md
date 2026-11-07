@@ -13,6 +13,7 @@ saved with the other settings (`[mod_values.nfsmw] option_<kind>_variant = "<val
 | Collision sparks (Original PC spark style) | `collision_spark_variant` | `SPARKS/<ID>/` | `blackbox_modding::content::spark_variant` | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) |
 | Restored sparks (Restored spark style; sparks only, no contrail or streaks) | `xenon_spark_variant` | `XENON/<ID>/` | `blackbox_modding::content::xenon_variant` | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) |
 | Wind (looping recordings played with the car's speed) | `wind_variant` | `WIND/<ID>/` | `blackbox_modding::content::wind_fx` | below |
+| Trees (models and textures of the world's trees, swapped in as sections load) | `trees_variant` | `TREES/<ID>/` | `blackbox_modding::content::model_swap` | [below](#profile-format-of-the-trees) |
 
 ## How a variant works
 
@@ -90,6 +91,50 @@ the loops left out (two that swell in the air, two muted) are in
 [chameleon-sound-graph.md](../formats/chameleon-sound-graph.md#the-sound-of-speed). Loudness against the game's own wind was not
 heard, so `volume` is the data's alone. In a co-op session each car's voice plays its own copy of the loops.
 
+## Profile format of the trees
+
+The trees are not an effect but a set of models of the world, so this kind has no per-frame look: its profile names two packs
+the mod ships and says which solid of the game each model replaces. The game applies it to every section of the world its loader
+threads parse while the variant is chosen.
+
+```toml
+format = 1
+geometry = "TREES/MW2012/GEOMETRY.BIN"   # the models: solids in the install's format (a GeometryPack, as a car's GEOMETRY.BIN)
+textures = "TREES/MW2012/TEXTURES.BIN"   # the textures they use (a texture pack, as a car's TEXTURES.BIN)
+
+[[swap]]                                 # one per replaced solid, 1 to 4096
+solid = "XT_CEDARM_1B_JG_00"             # the game's solid, by name as the game spells it (the hash is case-sensitive)
+model = "MW12_CONIFER_TALL_L0"           # the solid of `geometry` that takes its place
+fit = "height"                           # "height" (default) or "row"
+```
+
+- **The pack files** are the formats of the cars' files ([models.md](../formats/models.md), [textures.md](../formats/textures.md)): write
+  them with `blackbox_solid::write_geometry_pack` and `blackbox_tpk::write_tpk`. A model's vertices are 36 bytes (position, normal,
+  colour, uv); its groups name their effect: **effect 6** (the tree shader) for leaf cards, **effect 0** (the world shader) for bark.
+  The texture of a leaf card is a punch-through texture (`AlphaUsageType` 1, blend 0): the engine draws it cut out and from both sides.
+- **A model's origin is its base**: z is up, the foot of the trunk is at the origin, and the model's height is how far it reaches above it
+  (roots may reach below). Texture names are the mod's own (the 2012 mod's are `MW12_T<id>`), so they cannot clash with the game's.
+- **A replacement keeps the identity of the solid it replaces**: its name (so the hash the scenery refers to it by), its flags (the
+  sway bit among them), its pivot matrix and the polygon count and density its header carries (the scenery's choice of level of detail
+  reads them). Only the geometry changes.
+- **`fit = "height"`**: one copy, scaled evenly (a quarter to four times) to the height of the replaced solid's bounds, with its origin at
+  the solid's origin on the solid's floor (the lowest point of its bounds).
+- **`fit = "row"`**: for a solid that is a stretch of trees: copies of the model, scaled to the replaced height but no further than one and
+  a half times, set along the longer horizontal side of the replaced bounds (at most eight, a crown overlapping its neighbour by a fifth),
+  each turned by the golden angle more than the one before, on the middle of the other side.
+- **What is swapped.** A section is rewritten right after it is parsed (`Streamer::set_rewrite`), before its textures are decoded: each
+  solid whose name hash a swap lists is replaced, and the textures the replacements use are added to the section when it lacks them (a
+  swap whose model or texture is missing from the packs is left out, with a warning). The shared sets (`X0`: the library of the
+  scenery) are rewritten like the tiles. Solids the profile does not list, and world-space copies (`_DEINST` names), keep the game's look.
+- **When.** The pack is read when the choice, or its profile, changes (`Bridge::publish_trees`, once a frame at most) and takes effect for
+  the sections that load afterwards: a choice made before a drive is in every section, a choice made during a drive shows in the tiles
+  that stream in after it and in all of them at the next drive. A pack that is missing or does not parse leaves the game's trees (a warning
+  says why).
+
+The 2012 mod's value, **NFS Most Wanted 2012**, is the 2012 game's trees converted from the player's own install: eleven species, four
+levels of detail each, 78 swaps. What the 2012 files hold, the species, and which solids they replace:
+[chameleon-vegetation.md](../formats/chameleon-vegetation.md). The mod's setting `trees = false` leaves them out.
+
 ## The spark kinds
 
 The collision sparks (`SPARKS/<ID>/`) and the restored sparks (`XENON/<ID>/`) are two kinds with one page,
@@ -110,6 +155,7 @@ Restored (Experimental).
 | Handing the profiles to the scene | `crate::effect_variants::EffectVariants` (one field per kind, the nitrous's too), made by `Bridge::effect_variants()` and given every frame to `Scene::set_effect_variants` (one trait method for every kind: a new kind adds no method to `Scene`, `Pausable` or the viewer) |
 | Drawing | the scene: for the tire smoke `WorldScene::scene_set_effect_variants` (`scene_effects.rs`) gives the profile to `TireEffects` (`scenes/world/effects/profile.rs`), which loads its pictures from `maintain_tire_smoke` and draws them with the game's particle system (`blackbox-particles`; `exhaust::variant::{emitter_spec, spawn_intensity, upload_png}` are shared by the effects that draw particles) |
 | Drawing the spark kinds | `WorldScene::scene_set_effect_variants` gives the collision sparks to `ImpactEffects::set_variant` (`scenes/world/impact_effects/variant*.rs`: its own small particle system with a streak quad and an overbright colour, loaded from `ImpactEffects::maintain`, played for vehicle contacts the install accepts) and the restored sparks to `VehicleEffects::set_spark_variant` (`scenes/world/vehicle_effects/sparks/variant.rs`: the restoration's line sparks with the profile's numbers). Each acts in its own spark style; the contrail and the speed streaks have no variant |
+| The trees | not an effect: `Bridge::trees_profile` (the same `variant_profile`), `Bridge::publish_trees` (`backends/trees.rs`) reads the pack the profile names (`content::model_swap::Pack`) and makes it the pack in effect; the world's loader threads call `model_swap::rewrite` on every section (`residency/start.rs` sets it with `Streamer::set_rewrite` before the first request) |
 | The mod's side | `mods/nfsmw-2012-content/src/effect_variants.rs` (`Kind`, `ALL`, `add_all`) adds the values; `tire_smoke.rs` and `spark_assets*.rs` convert the files |
 
 ### Adding a kind: checklist
