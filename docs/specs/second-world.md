@@ -125,8 +125,9 @@ on Okayama, 1,854 of 1,863 samples of the lap are asphalt; a few tracks have a l
 - **Lap timing:** the mod times laps on `worlds/<id>.lap` and shows the time as a HUD message (`bb.hud`); on a world's first tick it
   says that timing is on, which is how the message path was seen offscreen. The crossing messages could not be seen offscreen:
   a scripted run advances the world in one batch, so the mod sees the car only after it has crossed. Unit-tested in `lap.rs`.
-- **Radar disc:** the HUD's backing disc of the radar is hidden while a scene has no map position (a second world); the minimap's
-  tiles were already hidden.
+- **Minimap:** the scene gives the HUD no map position in a second world, so the city's tiles are not drawn. The radar's dark disc
+  stays (it is part of the original HUD package and neither its backing group's alpha nor the layout's `radar` flag removed it; not
+  solved). A map drawn from the spline would be the next step.
 
 ## What is not built
 
