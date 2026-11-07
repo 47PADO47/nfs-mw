@@ -96,7 +96,7 @@ pub fn fit_prepared(model: &Prepared, stock: &Solid, how: SwapFit, frame: Frame)
             let vertices = group.vertices.iter().map(|vertex| place(vertex, at)).collect();
             let mut placed = GroupSource { vertices, bounds: None, ..group.clone() };
             if mirrored {
-                placed.indices.chunks_exact_mut(3).for_each(|triangle| triangle.swap(1, 2));
+                placed.indices.as_chunks_mut::<3>().0.iter_mut().for_each(|triangle| triangle.swap(1, 2));
             }
             groups.push(placed);
         }

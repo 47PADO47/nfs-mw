@@ -6,6 +6,7 @@
 //! out. The positions stay in the 2012 engine's space (x left, y up, z forward, metres); only the vertices a triangle uses are kept.
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 use anyhow::{Context, Result};
 use chameleon_bundle::{Pool, Resource, ResourceKind};
@@ -94,9 +95,9 @@ fn read_level(pool: &Pool, lod: u64, textures: &mut HashMap<u64, Texture>) -> Re
         let Some(descriptor) = shader.vertex_descriptor else { continue };
         let slot = shader.sampler_slot("DiffuseTextureSampler").unwrap_or(0);
         let Some(&texture) = material.textures.get(slot) else { continue };
-        if !textures.contains_key(&texture) {
+        if let Entry::Vacant(slot) = textures.entry(texture) {
             let picture = expect(pool, texture, ResourceKind::Texture)?;
-            textures.insert(texture, Texture::parse(&picture.blocks[0], &picture.blocks[1])?);
+            slot.insert(Texture::parse(&picture.blocks[0], &picture.blocks[1])?);
         }
         let descriptor = expect(pool, descriptor, ResourceKind::VertexDescriptor)?;
         let descriptor = VertexDescriptor::parse(&descriptor.blocks[0])?;
