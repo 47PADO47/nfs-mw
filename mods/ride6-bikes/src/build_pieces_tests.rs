@@ -10,7 +10,7 @@ fn mounts() -> Mounts {
 
 #[test]
 fn the_pieces_take_the_exhaust_pad_rims_and_discs_out_of_the_other_solids() {
-    let ids = apart_ids();
+    let ids = apart_ids(0b11_1111);
     assert_eq!(ids.len(), 7);
     for id in ["exmanifold", "muffler", "barpad", "front_rim", "back_rim", "front_brake", "back_brake"] {
         assert!(ids.contains(&id), "{id}");

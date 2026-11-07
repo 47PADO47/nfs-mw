@@ -151,10 +151,10 @@ pub(super) fn check(
 /// defined twice in the file, refuses the file.
 pub fn parse_catalog(text: &str) -> Result<Catalog, ContentError> {
     let catalog: Catalog = toml::from_str(text).map_err(|error| ContentError::Parse(error.to_string()))?;
-    match catalog.iter().find(|component| !is_component_id(&component.id)) {
-        Some(component) => Err(ContentError::InvalidText(component.id.clone())),
-        None => Ok(catalog),
+    if let Some(component) = catalog.iter().find(|component| !is_component_id(&component.id)) {
+        return Err(ContentError::InvalidText(component.id.clone()));
     }
+    Ok(catalog)
 }
 
 /// Add the components of `more` to `catalog`; an id that is already there refuses the file (a mod cannot replace a component).
