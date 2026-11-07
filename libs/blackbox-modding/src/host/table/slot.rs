@@ -19,12 +19,19 @@ pub(crate) struct Slot<T: ?Sized> {
     pub(crate) owner: String,
     /// Handles the mod registered and has not removed. They are removed when the mod unloads.
     registered: RefCell<Vec<u64>>,
+    /// What to undo when the mod unloads, besides the handles (a callback of the mod that the host must stop calling).
+    cleanups: RefCell<Vec<Box<dyn Fn()>>>,
 }
 
 impl<T: ?Sized> Slot<T> {
     /// A new slot for `owner`.
     pub(crate) fn new(backend: Rc<T>, owner: &str) -> Rc<Self> {
-        Rc::new(Slot { backend, owner: owner.to_owned(), registered: RefCell::new(Vec::new()) })
+        Rc::new(Slot {
+            backend,
+            owner: owner.to_owned(),
+            registered: RefCell::new(Vec::new()),
+            cleanups: RefCell::new(Vec::new()),
+        })
     }
 
     /// The `ctx` value a table carries for this slot.
@@ -42,11 +49,20 @@ impl<T: ?Sized> Slot<T> {
         self.registered.borrow_mut().retain(|known| *known != handle);
     }
 
-    /// Remove every handle still registered, through `remove`.
+    /// Run `undo` when the mod unloads.
+    pub(crate) fn on_release(&self, undo: Box<dyn Fn()>) {
+        self.cleanups.borrow_mut().push(undo);
+    }
+
+    /// Remove every handle still registered, through `remove`, then run what [`Slot::on_release`] was given.
     pub(crate) fn release_with(&self, remove: impl Fn(&T, &str, u64)) {
         let handles = std::mem::take(&mut *self.registered.borrow_mut());
         for handle in handles {
             remove(&*self.backend, &self.owner, handle);
+        }
+        let cleanups = std::mem::take(&mut *self.cleanups.borrow_mut());
+        for undo in cleanups {
+            undo();
         }
     }
 }
