@@ -36,7 +36,7 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
     let source = PathBuf::from(source);
     let dir = mod_folder(&source);
 
-    let Start::Started { job: running, live } = job::start(&dir, None).unwrap() else {
+    let Start::Started { job: running, live, .. } = job::start(&dir, None).unwrap() else {
         panic!("the first start must convert")
     };
     assert!(!live, "nothing is live on a first start");
@@ -127,9 +127,9 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
         assert!(&wav[..4] == b"RIFF" || &wav[..4] == b"Gnsu", "{file} is a WAV or a Ginsu file");
     }
 
-    assert!(matches!(job::start(&dir, None).unwrap(), Start::UpToDate { cars: 1 }));
+    assert!(matches!(job::start(&dir, None).unwrap(), Start::UpToDate { cars: 1, .. }));
     std::fs::write(dir.join("config.toml"), "source = 'nowhere'\n").unwrap();
-    let Start::Started { job: second, live } = job::start(&dir, None).unwrap() else {
+    let Start::Started { job: second, live, .. } = job::start(&dir, None).unwrap() else {
         panic!("a changed setting converts")
     };
     assert!(live, "content from the first run is live now, so the new run waits for the next start");
