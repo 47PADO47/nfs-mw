@@ -291,9 +291,9 @@ is a small change in the car scene's `MaterialLookup` (see [ride6-bikes.md](../m
 (in all 287 materials), and constant specular, roughness and metallic scalars. There is no render target, screen or display
 parameter in any of the 4,393 material instances of the exported bikes (a search for `screen`, `tft`, `dash`, `display`, `clock` and `lcd` in the
 parameter and texture names finds none; 573 names contain `gauge`). The picture is the bezel and the warning lamps in their off
-state; on a bike with a colour display it also has a **black window** (77 of the 245 different pictures have a rectangle of
-black over 2 percent of their area; the KTM RC 390's is about 610 by 365 of 1024 px, between the lamps) where RIDE 6 draws the
-instrument panel at run time through the emissive input. The other pictures are analogue dials (an Aprilia cluster has a
+state; on a bike with a colour display it also has a **black window** (77 of the 245 different pictures are black over more than 2 percent of their area,
+mostly as a black ground around the bezel, and 14 of them have a display window of the kind the importer finds; the KTM RC 390's is about 610 by 365 of 1024 px, between the lamps) where RIDE 6 presumably draws the
+instrument panel at run time (inferred: nothing in the materials draws it). The other pictures are analogue dials (an Aprilia cluster has a
 tachometer dial) and LCD fields that are drawn in the picture itself.
 
 **The mapping [choice].** The converter cannot draw a live panel: a car's textures do not change while it is drawn, and no
