@@ -32,7 +32,7 @@ fn is_base(stem: &str) -> bool {
 /// camera leaves out: the helmet and the visor of the stock rider (`docs/formats/ride6-rider.md`, `rider/parts.rs`).
 const EYE_BONES: [&str; 2] = ["eye_l", "eye_r"];
 const HEAD_BONE: &str = "head";
-const HIDDEN_MESHES: [&str; 2] = ["helmetRacing_default", "visorClosedRacing_default"];
+pub(crate) const HIDDEN_MESHES: [&str; 2] = ["helmetRacing_default", "visorClosedRacing_default"];
 
 /// How far ahead of the front hub the camera in front of the bike is, m. A modelling choice: RIDE 6's own front camera is bolted
 /// to the fairing and looks ahead; the game asks for one that looks back at the bike and the road, so it is put this far out

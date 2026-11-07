@@ -25,6 +25,7 @@ pub(crate) mod plate_edit;
 pub(crate) mod plates;
 pub(crate) mod presets;
 pub(crate) mod pricing;
+pub(crate) mod rider_gear;
 #[cfg(test)]
 mod tests;
 mod tuning;

@@ -17,6 +17,7 @@ outside the repository (`C:\r6work`).
 | `bikeparts.py` | one bike: `parts.json`, `glb/` (levels of detail 0 to 3), `tex/` |
 | `export_all.py` | every bike, several at a time, resumable (`status.json` per bike) |
 | `report.py` | the completeness report (which bike lacks which part, and the reason) |
+| `gear.py`, `gear_colors.py` | the rider gear catalogue (helmets, suits, gloves, boots) with its meshes and pictures, written once into `C:6workider-gear` ([format](../../docs/formats/ride6-rider-gear.md)); needs the tool's `gmesh` and `gtex` modes |
 | `physdump.py` | the physics dump `ride6-bike-import --physics` reads (inheritance resolved) |
 
 ## Setup (once)
@@ -74,6 +75,7 @@ mod imports every bike folder in the background. The folder name is the vehicle 
 | `jsonmany <listfile> <outdir>` | the exports of each listed package as `<outdir>/<lower-case package path>.json` |
 | `tex <listfile> <outdir> <max>` | each texture as `<stem>.png` (largest mip not above `<max>` px) and `<stem>.txt` (format, size, sRGB) |
 | `export "<pkg;pkg>" <outdir> Gltf2 All` | every level of detail of each skeletal or static mesh as `.glb` (`<name>.glb`, `<name>_LOD<n>.glb`) |
+| `gmesh <listfile> <outdir>`, `gtex <listfile> <outdir> <max>` | skeletal meshes as `R6RM` and pictures as `R6TX` (block-compressed mips as the game stores them), for `gear.py` |
 | `raw <listfile> <outdir>` | the bytes of each listed file (any extension) |
 
 Package paths are Unreal object paths (`/Game/assets/...`, `/PhysicsRide6/Physics/...`) or the file paths `list` prints.

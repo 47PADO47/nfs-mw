@@ -227,6 +227,7 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
         host.set_rain(settings.always_rain, settings.rain_amount.amplitude());
     }
     host.set_world_tuning(WorldTuning::from(&*settings));
+    crate::garage::rider_gear::set_enabled(settings.rider_gear);
     if applied.as_ref().is_none_or(|before| before.spark_style != settings.spark_style) {
         host.set_spark_style(settings.spark_style);
     }

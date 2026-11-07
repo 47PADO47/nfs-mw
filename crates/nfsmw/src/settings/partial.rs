@@ -120,6 +120,8 @@ pub struct Partial {
     pub tail_trail_style: Option<super::TailTrailStyle>,
     /// Show turn signals on cars while steering (`[Gameplay] ShowTurnSignals`); off by default.
     pub turn_signals: Option<bool>,
+    /// Dress the rider of a bike in the gear the player picked (`rider_gear`); on by default.
+    pub rider_gear: Option<bool>,
     pub rear_view_mirror: Option<bool>,
     pub discord: Option<bool>,
     pub discord_time_played: Option<bool>,
@@ -266,6 +268,7 @@ impl Partial {
             backfire_style: self.backfire_style.or(lower.backfire_style),
             tail_trail_style: self.tail_trail_style.or(lower.tail_trail_style),
             turn_signals: self.turn_signals.or(lower.turn_signals),
+            rider_gear: self.rider_gear.or(lower.rider_gear),
             rear_view_mirror: self.rear_view_mirror.or(lower.rear_view_mirror),
             discord: self.discord.or(lower.discord),
             discord_time_played: self.discord_time_played.or(lower.discord_time_played),

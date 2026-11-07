@@ -42,6 +42,8 @@ pub struct Report {
     pub skipped: Vec<Skipped>,
     /// Why the rider was not converted, when it was asked for and failed (the bikes are still imported).
     pub rider_failed: Option<String>,
+    /// Why the rider's gear is missing or incomplete, when a catalogue was given (the bikes are still imported).
+    pub gear_failed: Option<String>,
 }
 
 /// The stack of an import thread: the converter holds a bike's pictures and meshes in frames of its own, and a thread of the
