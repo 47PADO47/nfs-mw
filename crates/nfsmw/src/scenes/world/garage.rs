@@ -26,6 +26,8 @@ pub(super) mod session;
 mod showroom;
 
 pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
+    // The rider's gear a mod offers (`RIDER/GEAR/gear.json`): the Visual category lists its pages for a bike.
+    crate::garage::rider_gear::scan(dir);
     let tables = CarTables::load(dir)?;
     let ratings = nfsmw_data::car::physics::ratings::RatingBook::load(dir)?;
     let mut frontend = physics.database().clone();

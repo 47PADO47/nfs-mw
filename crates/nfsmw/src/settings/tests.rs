@@ -68,11 +68,7 @@ fn rider_gear_is_on_by_default_and_comes_from_every_layer() {
     assert!(Settings::from(Partial::default()).rider_gear);
     let cli = Partial { rider_gear: Some(true), ..Partial::default() };
     let env = env::read(|n| (n == "NFSMW_RIDER_GEAR").then(|| "off".to_owned()));
-    let file = file::parse(
-        "rider_gear = false
-",
-        "test",
-    );
+    let file = file::parse("rider_gear = false\n", "test");
     assert!(Settings::from(cli.or(env).or(file)).rider_gear, "the command line wins");
     assert!(!Settings::from(Partial::default().or(env).or(file)).rider_gear, "the environment over the file");
     assert!(!Settings::from(Partial::default().or(file)).rider_gear);
