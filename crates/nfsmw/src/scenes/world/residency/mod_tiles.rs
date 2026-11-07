@@ -2,11 +2,55 @@
 //! lists: it loads while the camera is inside its anchor plus a margin, or while an interior holds it (`pin`). Each pack
 //! has its own streamer, reading its own file, and its indices come after the install's (`mod_base`).
 
+use std::sync::Arc;
+
 use blackbox_collision::CollisionPack;
-use nfsmw_data::world::{SectionData, StreamerEvent};
+use game_install::GameDir;
+use nfsmw_data::world::{SectionData, SectionReader, Streamer, StreamerEvent};
 
 use super::{Residency, TileState};
-use crate::modding::content::scenery::assemble;
+use crate::modding::content::scenery::{MapPack, PackSource, assemble};
+
+/// Loader threads of the streamer the installed packs share (the pieces of a world made when they are asked for).
+const INSTALLED_THREADS: usize = 3;
+
+/// The streamers of a world's map packs, the route to each pack (streamer, section in it) and the pack of each section. A pack
+/// that is a file has a streamer of its own, reading it from offset 0 as entry 0. The packs read through the install
+/// (`PackSource::Installed`: a world made of many pieces, some made when asked for) share one streamer, whose sections are those
+/// packs in order, so a world of hundreds of pieces does not start hundreds of threads.
+pub(super) fn spawn_streamers(packs: &[MapPack]) -> (Vec<Streamer>, Vec<(usize, usize)>, Vec<Vec<usize>>) {
+    let mut streamers = Vec::new();
+    let mut owners: Vec<Vec<usize>> = Vec::new();
+    let mut routes = vec![(0, 0); packs.len()];
+    let mut installed: Vec<(usize, &GameDir, &str)> = Vec::new();
+    for (k, pack) in packs.iter().enumerate() {
+        match &pack.source {
+            PackSource::File(path) => {
+                routes[k] = (streamers.len(), 0);
+                owners.push(vec![k]);
+                streamers.push(Streamer::spawn(path.clone(), vec![pack.section.clone()], 1));
+            }
+            PackSource::Installed { dir, file } => installed.push((k, dir, file)),
+        }
+    }
+    if installed.is_empty() {
+        return (streamers, routes, owners);
+    }
+    let shared = streamers.len();
+    let sections = installed.iter().map(|&(k, _, _)| packs[k].section.clone()).collect();
+    let files: Vec<(GameDir, String)> =
+        installed.iter().map(|&(_, dir, file)| (dir.clone(), file.to_owned())).collect();
+    let reader: Arc<SectionReader> = Arc::new(move |section| {
+        let (dir, file) = files.get(section).ok_or_else(|| format!("no piece {section}"))?;
+        dir.read(file).map_err(|error| format!("{file}: {error}"))
+    });
+    for (section, &(k, _, _)) in installed.iter().enumerate() {
+        routes[k] = (shared, section);
+    }
+    owners.push(installed.iter().map(|&(k, _, _)| k).collect());
+    streamers.push(Streamer::spawn_made(reader, sections, INSTALLED_THREADS));
+    (streamers, routes, owners)
+}
 
 /// How far outside its anchor a pack stays loaded, metres (the spec's design value).
 pub const MOD_MARGIN: f32 = 150.0;
@@ -61,24 +105,29 @@ impl Residency {
                 continue;
             }
             self.tiles.insert(tile, TileState::Requested);
-            self.mod_streamers[tile - self.mod_base].request(0);
+            let (streamer, section) = self.mod_routes[tile - self.mod_base];
+            self.mod_streamers[streamer].request(section);
         }
     }
 
     /// Take in the results of the map packs' streamers. A parsed pack becomes its scenery and its collision here.
     pub(super) fn receive_mod(&mut self) {
-        for k in 0..self.mod_streamers.len() {
-            let tile = self.mod_base + k;
-            let events: Vec<StreamerEvent> = std::iter::from_fn(|| self.mod_streamers[k].poll()).collect();
+        for streamer in 0..self.mod_streamers.len() {
+            let events: Vec<StreamerEvent> = std::iter::from_fn(|| self.mod_streamers[streamer].poll()).collect();
             for event in events {
                 match event {
                     StreamerEvent::Collision { .. } => {}
                     StreamerEvent::Loaded(mut data) => {
-                        data.index = tile;
+                        let Some(&k) = self.mod_owners[streamer].get(data.index) else { continue };
+                        data.index = self.mod_base + k;
                         self.assemble_mod(&mut data, k);
                         self.handle(StreamerEvent::Loaded(data));
                     }
-                    StreamerEvent::Failed { error, .. } => self.handle(StreamerEvent::Failed { index: tile, error }),
+                    StreamerEvent::Failed { index, error } => {
+                        let Some(&k) = self.mod_owners[streamer].get(index) else { continue };
+                        log::warn!("map pack {}: {error}", self.mod_packs[k].key);
+                        self.handle(StreamerEvent::Failed { index: self.mod_base + k, error });
+                    }
                 }
             }
         }

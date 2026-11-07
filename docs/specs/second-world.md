@@ -110,12 +110,27 @@ MB, Stelvio Park 351 MB, Blue Wave Circuit 184 MB, Nevada 162 MB). The lap check
 on Okayama, 1,854 of 1,863 samples of the lap are asphalt; a few tracks have a lap with large stretches with no ground under it
 (Nurburgring GP: 1,781 of 2,541), which means their racing surface is in another level than the terrain one, not read yet.
 
+## Pieces made when asked for **[built]**
+
+A world of hundreds of pieces that exist in another game's files (Fairhaven's 169 units, [fairhaven mod](../modding/fairhaven.md))
+cannot be written to disk and cannot be read when the world opens. A piece is the same map pack as above with two differences, so
+the extension is a second kind of piece in the same residency and not a second world mechanism:
+
+1. `placed = "file"` in its manifest ([api-content.md](../modding/api-content.md#scenery-pack-manifest-built)): no `[[place]]`; the
+   file holds its own `ScenerySection` (written by `blackbox_scenery::write_section`, the inverse of the reader) and collision pack.
+   `assemble` (`modding/content/scenery.rs`) keeps both and numbers them with the pack's section number.
+2. The file is read **through the install** (`PackSource::Installed`, `GameDir::read`) when the camera comes near, never at open: its
+   file in the mod's `files/` can be a [lazy file](../modding/api-content.md#lazy-files), a stub the mod replaces with the bytes
+   it makes from the other game's files at that moment ([lean-content.md](../modding/lean-content.md)). The world's open therefore
+   reads the manifests only (169 small text files), not the 3 GB.
+
+All the pieces read through the install **share one streamer** (`residency/mod_tiles.rs::spawn_streamers`, 3 loader threads;
+`Streamer::spawn_made` takes a function that makes section `n`), so 169 pieces do not start 169 threads. A piece with a file of its
+own keeps its streamer as before. Tests: `blackbox-scenery/src/write.rs` (write then read back), `streamer.rs` (a streamer that
+gets its sections from a function), `blackbox-modding` `scenery_tests.rs` (the manifest key).
+
 ## What is not built
 
-- A **streamed world source** with no converted files (Fairhaven's units read from the install): this delivery has packs only. The
-  seam for it is `WorldScene::load_in`: a source gives the index (what is shared), the pieces near the camera and their collision.
-  Fairhaven's 169 units would be pieces in the same residency (`mod_packs`-like entries whose streamer reads the install instead of a
-  file of the mod), so the extension is a second kind of piece, not a second world mechanism.
 - Roads, traffic, police, races and the minimap in a second world (the road network, the minimap's tiles and the nav data are each
   specified as open work in the plan, layers 7, 9 and 10).
 - Lighting, time of day and weather of a world of its own: the city's sky and sun are used.
