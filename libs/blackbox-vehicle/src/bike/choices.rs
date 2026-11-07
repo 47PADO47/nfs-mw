@@ -69,29 +69,21 @@ pub const COLLISION_LEAN_HELP: (f32, f32) = (2.0, 5.0);
 pub const COLLISION_STABILITY_HELP: (f32, f32) = (0.4, 5.0);
 pub const COLLISION_STABILITY_HELP_FRONTAL: (f32, f32) = (0.2, 1.0);
 
-/// The speed (m/s) up to which a full stick is the whole of the lean limit, and the speed from which it gives only [`STICK_SHARE_AT_TOP`] of it.
-pub const STICK_FULL_UNTIL: f32 = 30.0;
-pub const STICK_REDUCED_AT: f32 = 40.0;
-/// The share of the lean limit a full stick gives from [`STICK_REDUCED_AT`] on. 1.0: none is held back. A user-tunable modelling choice
-/// (`ride6-feel-round11.md`, section 2): the reference's full stick asks for the whole lean limit at any speed; rounds 9 and 10 held it to
-/// 0.9 from 40 m/s because the 1000 cm3 sports bikes weaved at that speed when the throttle moved (267 to 283 of 288 held a full stick at
-/// 40 m/s). With the lean help of round 11 (the grip floor at the rest load, the g-force of the lean limit) 287 of 288 hold a full stick
-/// from 8 to 50 m/s with a moving throttle (the exception is the Italjet Dragster 700, whose fall limit is its lean limit), so the cap went.
-/// Set it under 1.0 (0.9 was the old value) to give the stick less of the lean limit at speed.
-pub const STICK_SHARE_AT_TOP: f32 = 1.0;
+/// The least speed factor of the target lean's time scale (`LeanTimeScaleSpeedTuning`): the data's curve falls from 1 at 40 km/h to 0.333 at
+/// 330 km/h for 270 of the 288 bikes (the other 18 fall to 0.65 at 200 km/h and stay there), which makes the lean come in 1.3 to 1.7
+/// times slower at 60 to 90 m/s than at 20 m/s (the time to 80 percent of the limit after a full stick, 0.28 / 0.45 stick curve, right:
+/// 1.05 s at 20 m/s, 1.32 at 60, 1.63 at 80; left 1.35, 1.80, 2.31): the players' "the faster, the less steering"
+/// (`ride6-feel-round13.md`, sections 2 and 4). The tyre's roll authority does not fall with speed (its peak coefficient has no speed
+/// term), so the slowing is the rider's pace in the data, and the closed loop was verified only to 50 m/s, where the curve is at 0.68:
+/// the factor stops at 0.65, the value of the 18 bikes above 200 km/h. Below 53 m/s nothing changes. 0 gives the data's curve back.
+pub const TIME_SCALE_SPEED_FLOOR: f32 = 0.65;
 
-/// The share of the stick a host gives the lean controller at this speed (m/s), for a stick pushed to its end: a full stick up to
-/// [`STICK_FULL_UNTIL`], falling to [`STICK_SHARE_AT_TOP`] by [`STICK_REDUCED_AT`] (no fall at all with the default of 1.0). A radius at
-/// those speeds is `v^2 / (g tan lean)`; a share under 1.0 widens it.
-pub fn stick_share(speed: f32) -> f32 {
-    share_falling_to(speed, STICK_SHARE_AT_TOP)
-}
-
-/// [`stick_share`] for a share `top` from [`STICK_REDUCED_AT`] on.
-fn share_falling_to(speed: f32, top: f32) -> f32 {
-    let t = ((speed.abs() - STICK_FULL_UNTIL) / (STICK_REDUCED_AT - STICK_FULL_UNTIL)).clamp(0.0, 1.0);
-    1.0 + (top - 1.0) * t
-}
+/// The share of the stick's travel (after the dead zone, rescaled) at which the bike's stick reads its end. A modelling choice of this
+/// game's input layer, as `REACH` of the weight lever (`crates/nfsmw/src/input/weight_axis.rs`) is: the reference reads the stick as it
+/// is, but a thumb rarely holds a pad stick at exactly 1.0, and the lean target is linear in the stick while the radius goes with
+/// `1 / tan(lean)`, so a stick at 0.85 leans the bike to 0.85 of its limit and widens a fast turn by a third (`ride6-feel-round12.md`,
+/// section 2). A key (1.0) is unchanged; 1.0 here gives the reference's reading back.
+pub const STEER_REACH: f32 = 0.9;
 
 /// The least lean limit (rad) a wheelie leaves the stick: the reference cuts the lean limit with the wheelie angle down to 1 degree at 40 to
 /// 45 degrees (`WheelieLeanLimitTuning`, data), which keeps a wheelie straight; here the cut stops at this limit. A modelling choice
@@ -121,22 +113,3 @@ pub const WHEELIE_YAW_PITCH_RANGE: [f32; 2] = [0.15, 0.35];
 /// is cut and dragged back, so past this share the cut is held. 1.1 sits above any overshoot of a slipping clutch at the limiter
 /// (the alternation is tested at 1.05) and well below what a free wheel reaches.
 pub const OVERREV_SHARE: f32 = 1.1;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_stick_has_its_whole_range_at_any_speed_unless_a_share_at_the_top_is_set() {
-        for speed in [0.0, 30.0, 35.0, 40.0, -80.0] {
-            assert_eq!(stick_share(speed), 1.0);
-        }
-    }
-
-    #[test]
-    fn a_share_under_one_at_the_top_falls_linearly_between_the_two_speeds() {
-        assert_eq!(share_falling_to(30.0, 0.9), 1.0);
-        assert!((share_falling_to(35.0, 0.9) - 0.95).abs() < 1e-6);
-        assert!((share_falling_to(40.0, 0.9) - 0.9).abs() < 1e-6 && (share_falling_to(-80.0, 0.9) - 0.9).abs() < 1e-6);
-    }
-}
