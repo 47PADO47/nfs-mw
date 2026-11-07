@@ -227,8 +227,33 @@ the first bikes were made by the conversion, in two places:
 | satin metal as a conductor | the bare metal of the Honda CRF 450 R (mechanics, muffler, header: base colour (181, 181, 181), neutral; roughness 0.2 to 0.55, median 0.35 to 0.45) took `ALUMINUM` (conductor, the environment only) for roughness from 0.4 and `MAGSILVER` below, so the frame and engine rendered blue-white (the viewer's sky is the whole colour of a conductor) | roughness from 0.3 is `MAGGUNMETAL` (the texture under a painted-metal response with a weak reflection, neutral silver), `MAGSILVER` stays for 0.2 to 0.3 and `CHROME` below 0.2 |
 
 What the 2005 car shader still cannot show: the clear coat's own reflection (the shader draws the lit paint and the environment
-term of its light material), flakes and the carbon weave, and an ambient term (a panel that faces away from the three lights is
-black, which is most of the dark patches of a glossy panel in `view-car`).
+term of its light material), flakes and the carbon weave. The black panels it also could not avoid are fixed in the renderer
+([next section](#panels-that-face-away-from-the-lights)).
+
+### Panels that face away from the lights
+
+**The dark patches of glossy paint [verified by renders].** In `car_shading = "glossy"` the fairings, tank and tail of the
+KTM RC 390, the Honda CRF 450 R, the Ducati Panigale V4, the Suzuki Hayabusa and the Yamaha YZF-R1 went brown or black in large
+patches on the side that faces away from the key light, and the same in the `original` shading (the black side of the KTM at
+yaw 270). Neither the importer nor the textures cause it: `simple` shading (texture and one light) shows the same panels
+clean, and the baked occlusion of the livery is already at 0.9 ([above](#paint-and-satin-metal)). The cause is the light model of
+the car shader: `light = sum of clamp(n . L_k + 0.1) * colour_k` over three directional lights and **no ambient term**
+([car-material-shading.md](../specs/car-material-shading.md)), and the paint of a bike is `SHINYPLASTIC`, whose environment
+ramp (0.001) draws no reflection to make up for it. A normal that faces away from all three lights (the sun and its two fills
+sit around it in the viewer, the world's rig around the sun) gets zero light, whatever the paint's colour. The stock cars were
+authored for this (their paints and light materials carry the look); a RIDE 6 paint is a clean glossy colour that the game
+lights with a sky and a ground. It is not the reflection of a dark ground (the paint reflects nothing) and not a clear-coat
+effect: a clear coat would add a highlight, not light the dark side.
+
+**The fix, in the renderer [choice].** `GlossyMaterial::ambient_floor` ([renderer spec](../specs/custom-car-materials.md#hemispheric-floor-for-converted-mod-bikes))
+raises the light a surface gets to `ambient_floor * (fill 1 + fill 2 + rig ambient) * mix(0.6, 1.0, n.z * 0.5 + 0.5)`, as a
+`max`, in `glossy.wgsl` (the Custom shading, and the per-vertex light of both original shadings; the shadowed original family also keeps 55 percent of the diffuse in shadow for these materials, `MOD_CAR_SHADOW_FLOOR`, because it gates the whole diffuse light by the shadow). The importer cannot set it
+(a bike's files only name light materials of the install, and the 156 of them have no ambient), so the game sets it for every
+material of a bike (`nfsmw_data::car::mods::bike::is_bike`), **1.2**, tuned on the five bikes at yaws 0, 90, 180, 270: 0.8
+still left a dark side on the KTM tank, 1.7 started to flatten the Yamaha's rims. The stock cars and the 2012 cars have the
+floor 0 and render as before (checked: the `BMWM3GTR` render is pixel-identical before and after). Day and night follow the
+rig: the floor is a share of the rig's fills (the viewer's cool fill, the world's authored ambient), and the night
+factor multiplies the result as for any light. A bike in the dark stays dark.
 
 ### Translucent surfaces
 
