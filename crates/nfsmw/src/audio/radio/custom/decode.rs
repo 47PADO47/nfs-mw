@@ -1,8 +1,9 @@
 //! Plays one custom file: a decoder thread reads the file and sends its frames in blocks, as the EA Trax songs are sent
-//! (`crate::audio::radio::stream`). The decoder is symphonia, for MP3, Ogg Vorbis, FLAC and WAV
-//! (`docs/specs/custom-music.md`, section 4).
+//! (`crate::audio::radio::stream`). The decoder is symphonia, for MP3, Ogg Vorbis, FLAC and WAV, and for the `.SPS`
+//! songs of the 2012 game, which are repacked to MP3 in memory first (`docs/specs/custom-music.md`, section 4).
 
 use std::fs::File;
+use std::io::Cursor;
 use std::path::Path;
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::thread;
@@ -13,7 +14,7 @@ use symphonia::core::codecs::audio::{AudioCodecParameters, AudioDecoder, AudioDe
 use symphonia::core::errors::{Error, Result as DecodeResult};
 use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, FormatReader};
-use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
+use symphonia::core::io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions};
 use symphonia::core::meta::{MetadataOptions, StandardTag};
 use symphonia::core::packet::Packet;
 
@@ -94,12 +95,12 @@ struct Stream {
 impl Stream {
     fn prepare(path: &Path) -> Result<Self, String> {
         let shown = path.display().to_string();
-        let file = File::open(path).map_err(|e| format!("{shown}: {e}"))?;
+        let (media, extension) = open_media(path, &shown)?;
         let mut hint = Hint::new();
-        if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
-            hint.with_extension(extension);
+        if !extension.is_empty() {
+            hint.with_extension(&extension);
         }
-        let source = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
+        let source = MediaSourceStream::new(media, MediaSourceStreamOptions::default());
         let mut format = symphonia::default::get_probe()
             .probe(&hint, source, FormatOptions::default(), MetadataOptions::default())
             .map_err(|e| format!("{shown}: {e}"))?;
@@ -159,6 +160,22 @@ impl Stream {
             }
         }
     }
+}
+
+/// What the probe reads for `path` and the extension that tells it what that is. A file is opened as it is; an EA Audio
+/// `.SPS` stream (the songs of NFS: Most Wanted 2012, Layer III in EA's frame packing) is read whole and repacked to
+/// MPEG-1 Layer III in memory by `ea_audio::sps::to_mp3`, of which the first core (the front stereo pair) is played. The
+/// file is never changed and nothing is written, so a song can be played from the 2012 install itself.
+fn open_media(path: &Path, shown: &str) -> Result<(Box<dyn MediaSource>, String), String> {
+    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
+    if extension != "sps" {
+        let file = File::open(path).map_err(|e| format!("{shown}: {e}"))?;
+        return Ok((Box::new(file), extension));
+    }
+    let data = std::fs::read(path).map_err(|e| format!("{shown}: {e}"))?;
+    let mp3 = ea_audio::sps::to_mp3(&data).map_err(|e| format!("{shown}: {e}"))?;
+    let core = mp3.cores.into_iter().next().ok_or_else(|| format!("{shown}: the stream has no audio"))?;
+    Ok((Box::new(Cursor::new(core.bytes)), "mp3".to_owned()))
 }
 
 /// The first audio track: its id, its codec parameters and its length in frames when the container gives one.
@@ -240,6 +257,15 @@ mod tests {
         std::fs::write(&path, b"this is not audio at all").unwrap();
         let err = open(&path).err().expect("junk does not open");
         assert!(err.contains("junk.wav"), "{err}");
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn an_sps_file_that_is_not_a_stream_is_an_error_that_names_it() {
+        let path = std::env::temp_dir().join(format!("nfsmw-custom-decode-{}-junk.sps", std::process::id()));
+        std::fs::write(&path, b"this is not an EA audio stream").unwrap();
+        let err = open(&path).err().expect("junk does not open");
+        assert!(err.contains("junk.sps"), "{err}");
         let _ = std::fs::remove_file(path);
     }
 
