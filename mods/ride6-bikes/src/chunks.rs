@@ -24,7 +24,7 @@ pub fn split_group(group: GroupSource) -> Vec<GroupSource> {
     }
     let mut pieces = Vec::new();
     let mut piece = Piece::default();
-    for corners in group.indices.chunks_exact(3) {
+    for corners in group.indices.as_chunks::<3>().0 {
         let fresh = corners.iter().filter(|c| !piece.remap.contains_key(c)).count();
         if piece.vertices.len() + fresh > MAX_SOLID_VERTICES || piece.indices.len() / 3 + 1 > MAX_SOLID_TRIANGLES {
             pieces.push(piece.finish(&group));
@@ -86,14 +86,17 @@ pub fn pack(groups: Vec<GroupSource>) -> Vec<Vec<GroupSource>> {
     for group in groups.into_iter().flat_map(split_group) {
         let (v, t) = (group.vertices.len(), group.indices.len() / 3);
         let fits = vertices + v <= MAX_SOLID_VERTICES && triangles + t <= MAX_SOLID_TRIANGLES;
-        if !solids.is_empty() && fits {
-            solids.last_mut().map(|solid| solid.push(group));
-            vertices += v;
-            triangles += t;
-            continue;
+        match solids.last_mut() {
+            Some(solid) if fits => {
+                solid.push(group);
+                vertices += v;
+                triangles += t;
+            }
+            _ => {
+                solids.push(vec![group]);
+                (vertices, triangles) = (v, t);
+            }
         }
-        solids.push(vec![group]);
-        (vertices, triangles) = (v, t);
     }
     solids
 }
