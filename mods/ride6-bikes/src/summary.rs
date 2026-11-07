@@ -10,7 +10,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::build::{Built, LiveryChoice, Wheel};
+use crate::build::{Built, ExtraSolid, LiveryChoice, Wheel};
 use crate::exhaust::Pipe;
 
 /// The file name beside `parts.json`.
@@ -53,9 +53,9 @@ pub struct Summary {
     /// The levels of detail each body letter was built at (`Built::levels`); older files have none.
     #[serde(default)]
     levels: Vec<[u32; 2]>,
-    /// The solids of the body after the first (`Built::extra_bodies`); older files have none.
+    /// The solids of the body after the first (`Built::extra_solids`); older files have none.
     #[serde(default)]
-    extra_bodies: Vec<String>,
+    extra_solids: Vec<ExtraSolid>,
 }
 
 impl Summary {
@@ -69,7 +69,7 @@ impl Summary {
             exhaust: built.exhaust.clone(),
             liveries: built.liveries.clone(),
             levels: built.levels.clone(),
-            extra_bodies: built.extra_bodies.clone(),
+            extra_solids: built.extra_solids.clone(),
         }
     }
 
@@ -92,7 +92,7 @@ impl Summary {
             exhaust: self.exhaust,
             liveries: self.liveries,
             levels: self.levels,
-            extra_bodies: self.extra_bodies,
+            extra_solids: self.extra_solids,
         }
     }
 
@@ -128,7 +128,11 @@ mod tests {
             exhaust: vec![Pipe { side: Side::Right, at: [-0.75, -0.14, 0.75], dir: [-0.87, 0.0, 0.5] }],
             liveries: vec![LiveryChoice { name: "Livery 1".to_owned(), texture: "KTM450_SKIN1".to_owned() }],
             levels: vec![[1, 0], [2, 1]],
-            extra_bodies: vec!["KTM450_KIT00_BODY2".to_owned()],
+            extra_solids: vec![ExtraSolid {
+                id: "base.body.2".to_owned(),
+                solid: "KTM450_KIT00_BODY2".to_owned(),
+                role: "body".to_owned(),
+            }],
         };
         let dir = std::env::temp_dir().join(format!("ride6-summary-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -142,7 +146,7 @@ mod tests {
         assert_eq!(back.exhaust, built.exhaust);
         assert_eq!(back.liveries, built.liveries);
         assert_eq!(back.levels, built.levels);
-        assert_eq!(back.extra_bodies, built.extra_bodies);
+        assert_eq!(back.extra_solids, built.extra_solids);
     }
 
     #[test]

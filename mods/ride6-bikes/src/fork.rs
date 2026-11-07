@@ -52,10 +52,11 @@ pub struct Pair {
     /// The solids of the frame: `<ID>_KIT00_BODY_<L>` first, then `<ID>_KIT00_BODY2_<L>` and so on for what does not fit it
     /// ([`crate::chunks`]). Never empty.
     pub bodies: Vec<SolidSource>,
-    /// `None` when nothing slides (the chassis is not skinned, or no bone of the rules is in it).
-    pub fork: Option<SolidSource>,
-    /// `None` when nothing steers without sliding.
-    pub bars: Option<SolidSource>,
+    /// The solids of the fork, `<ID>_KIT00_FORK_<L>` and then `FORK2` and so on; empty when nothing slides (the chassis is not skinned,
+    /// or no bone of the rules is in it).
+    pub fork: Vec<SolidSource>,
+    /// The solids of the handlebar group; empty when nothing steers without sliding.
+    pub bars: Vec<SolidSource>,
     /// The vertices of the body, in the body solid's frame, for the bounds.
     pub body_points: Vec<[f32; 3]>,
     /// The vertices of the fork and of the bars, in their solids' frame (the front hub's).
@@ -66,11 +67,32 @@ pub struct Pair {
     pub levels: [u32; 2],
 }
 
-/// The name of the `n`th solid of a car's body (1 is the body solid itself) at the level of detail `letter`.
-pub fn body_name(car: &str, n: usize, letter: char) -> String {
+/// The part of a bike a solid is made of: the frame, the handlebar group or the fork.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Body,
+    Bars,
+    Fork,
+}
+
+impl Kind {
+    /// The solid name's part: `BODY`, `BARS`, `FORK`.
+    fn tag(self) -> &'static str {
+        match self {
+            Kind::Body => "BODY",
+            Kind::Bars => "BARS",
+            Kind::Fork => "FORK",
+        }
+    }
+}
+
+/// The name of the `n`th solid (1 is the first, `<ID>_KIT00_BODY_<L>`) of `kind` at the level of detail `letter`: the second is
+/// `<ID>_KIT00_BODY2_<L>`.
+pub fn solid_name(car: &str, kind: Kind, n: usize, letter: char) -> String {
+    let tag = kind.tag();
     match n {
-        0 | 1 => format!("{car}_KIT00_BODY_{letter}"),
-        _ => format!("{car}_KIT00_BODY{n}_{letter}"),
+        0 | 1 => format!("{car}_KIT00_{tag}_{letter}"),
+        _ => format!("{car}_KIT00_{tag}{n}_{letter}"),
     }
 }
 
@@ -79,8 +101,6 @@ pub fn body_name(car: &str, n: usize, letter: char) -> String {
 pub struct Names<'a> {
     /// The letter of the level of detail the solids are for.
     pub letter: char,
-    pub fork: &'a str,
-    pub bars: &'a str,
     pub car: &'a str,
     /// The ids of the parts built as solids of their own ([`crate::build::apart_ids`]); the body, bars and fork leave them out.
     pub apart: &'a [&'a str],
@@ -117,12 +137,20 @@ impl Half {
     }
 }
 
-/// A solid that may have nothing in it: `None` for no groups, else [`finish`].
-fn optional(name: &str, groups: Vec<GroupSource>, lists: Lists) -> Result<Option<SolidSource>> {
-    if groups.is_empty() {
-        return Ok(None);
+/// The solids of `kind` made of `half`'s groups ([`pack`]: as many as they need), none for no groups; `None` when there are more than
+/// [`MAX_BODY_SOLIDS`] or one does not fit.
+fn solids_of(names: Names<'_>, kind: Kind, half: Half) -> Option<Vec<SolidSource>> {
+    let packed = pack(half.groups);
+    if packed.len() > MAX_BODY_SOLIDS {
+        return None;
     }
-    finish(name, groups, lists).map(Some)
+    let mut out = Vec::new();
+    for (n, groups) in packed.into_iter().enumerate() {
+        let lists =
+            Lists { textures: half.lists.textures.clone(), light_materials: half.lists.light_materials.clone() };
+        out.push(finish(&solid_name(names.car, kind, n + 1, names.letter), groups, lists).ok()?);
+    }
+    Some(out)
 }
 
 /// The whole-bike vertex count above which a level is not tried: what the most solids of a body, the bars and the fork hold. The RC
@@ -157,7 +185,7 @@ pub fn body_and_fork(
     }
     anyhow::bail!(
         "{}: no level of detail of the chassis from {first_level} to {COARSEST_CHASSIS_LEVEL} fits its solids",
-        body_name(names.car, 1, names.letter)
+        solid_name(names.car, Kind::Body, 1, names.letter)
     )
 }
 
@@ -211,26 +239,17 @@ fn fit(
         bars_vertices: bars.vertices(),
         bars_triangles: bars.triangles(),
     };
-    let mut bodies = Vec::new();
-    let packed = pack(body.groups);
-    if packed.is_empty() || packed.len() > MAX_BODY_SOLIDS {
-        return Ok(None);
-    }
-    for (n, groups) in packed.into_iter().enumerate() {
-        let lists =
-            Lists { textures: body.lists.textures.clone(), light_materials: body.lists.light_materials.clone() };
-        let Ok(solid) = finish(&body_name(names.car, n + 1, names.letter), groups, lists) else { return Ok(None) };
-        bodies.push(solid);
-    }
-    let Ok(fork_solid) = optional(names.fork, fork.groups, fork.lists) else { return Ok(None) };
-    let Ok(bars_solid) = optional(names.bars, bars.groups, bars.lists) else { return Ok(None) };
+    let (points, fork_points, bars_points) = (body.points.clone(), fork.points.clone(), bars.points.clone());
+    let Some(bodies) = solids_of(names, Kind::Body, body).filter(|bodies| !bodies.is_empty()) else { return Ok(None) };
+    let Some(fork_solids) = solids_of(names, Kind::Fork, fork) else { return Ok(None) };
+    let Some(bars_solids) = solids_of(names, Kind::Bars, bars) else { return Ok(None) };
     Ok(Some(Pair {
         bodies,
-        fork: fork_solid,
-        bars: bars_solid,
-        body_points: body.points,
-        fork_points: fork.points,
-        bars_points: bars.points,
+        fork: fork_solids,
+        bars: bars_solids,
+        body_points: points,
+        fork_points,
+        bars_points,
         report,
         levels: [level, part_level],
     }))

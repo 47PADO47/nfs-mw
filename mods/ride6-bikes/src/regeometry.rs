@@ -93,7 +93,7 @@ fn write(bike: &Found, car: &str, mod_dir: &Path, options: Options) -> Result<()
     }
     Summary::of(&bike.vehicle, &built).write(&bike.dir)?;
     manifest::apply_liveries(mod_dir, car, &built.liveries)?;
-    manifest::apply_bodies(mod_dir, car, &built.extra_bodies)
+    manifest::apply_extra_solids(mod_dir, car, &built.extra_solids)
 }
 
 #[cfg(test)]

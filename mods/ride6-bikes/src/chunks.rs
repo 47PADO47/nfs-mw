@@ -13,7 +13,7 @@ use blackbox_solid::GroupSource;
 use crate::build::{MAX_SOLID_TRIANGLES, MAX_SOLID_VERTICES};
 
 /// The solids of one body at one level: more than this and the level is not used.
-pub const MAX_BODY_SOLIDS: usize = 6;
+pub const MAX_BODY_SOLIDS: usize = 10;
 
 /// `group` as pieces that each fit a solid. A group that fits is returned as it is; a larger one is cut along its triangle list, each
 /// piece with the vertices its triangles use.

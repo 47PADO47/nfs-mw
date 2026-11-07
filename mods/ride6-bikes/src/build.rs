@@ -52,6 +52,17 @@ pub struct LiveryChoice {
     pub texture: String,
 }
 
+/// A solid of the car after the first of its kind, which the manifest binds as a base part (`[parts."base.body.2"]`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ExtraSolid {
+    /// The part's id: `base.body.2`, `base.bars.2`, `base.fork.3`.
+    pub id: String,
+    /// The solid's name without the level letter.
+    pub solid: String,
+    /// The part's role in the manifest: `body`, `steered` or `steered_slid`.
+    pub role: String,
+}
+
 /// What the car's files hold, and what the manifest needs to know.
 pub struct Built {
     pub geometry: Vec<u8>,
@@ -72,9 +83,9 @@ pub struct Built {
     pub liveries: Vec<LiveryChoice>,
     /// For each body letter `A` to `D`: the level of detail of the chassis and of the other body parts its solids were built at.
     pub levels: Vec<[u32; 2]>,
-    /// The names, without the level letter, of the solids of the body after the first (`<ID>_KIT00_BODY2`, ...): the frame at
-    /// the finest levels of detail does not fit one solid. The manifest binds each as a base part.
-    pub extra_bodies: Vec<String>,
+    /// The solids after the first of the frame, the handlebar group and the fork (`<ID>_KIT00_BODY2`, ...): at the finest levels of
+    /// detail they do not fit one solid. The manifest binds each as a base part.
+    pub extra_solids: Vec<ExtraSolid>,
 }
 
 impl Built {
@@ -120,8 +131,8 @@ struct Solids {
     points: Vec<[f32; 3]>,
     report: fork::Report,
     levels: Vec<[u32; 2]>,
-    /// The most solids the body has at any level.
-    bodies: usize,
+    /// The most solids the frame, the handlebar group and the fork have at any level.
+    most: [usize; 3],
 }
 
 /// Build the car files of `folder` from the part table and exports in `dir`.
@@ -151,17 +162,22 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
     let (front, rear) = (wheel(front_hub, front_heights, "front"), wheel(rear_hub, rear_heights, "back"));
     let pipes = exhaust::stock_pipes(&table, &exports, frame)?;
 
-    let mut solids =
-        Solids { list: Vec::new(), points: Vec::new(), report: fork::Report::default(), levels: Vec::new(), bodies: 1 };
+    let mut solids = Solids {
+        list: Vec::new(),
+        points: Vec::new(),
+        report: fork::Report::default(),
+        levels: Vec::new(),
+        most: [1; 3],
+    };
     let apart = apart_ids(options.split_parts);
     let hubs = [(Role::FrontWheel, front_hub, "FRONT_TIRE"), (Role::BackWheel, rear_hub, "REAR_TIRE")];
     for (n, (letter, level)) in LEVELS.into_iter().enumerate() {
-        let (fork_name, bars_name) = (format!("{folder}_KIT00_FORK_{letter}"), format!("{folder}_KIT00_BARS_{letter}"));
-        let names = Names { letter, fork: &fork_name, bars: &bars_name, car: folder, apart: &apart };
+        let names = Names { letter, car: folder, apart: &apart };
         let mut pair = fork::body_and_fork(&table, &exports, &mut surfaces, names, (frame, front_hub), level)?;
         pair.bodies[0].markers = exhaust::markers(&pipes);
         solids.levels.push(pair.levels);
-        solids.bodies = solids.bodies.max(pair.bodies.len());
+        let counts = [pair.bodies.len(), pair.bars.len(), pair.fork.len()];
+        solids.most = std::array::from_fn(|i| solids.most[i].max(counts[i]));
         if n == 0 {
             solids.report = pair.report;
             // The fork's and the bars' points are relative to the front hub; the bounds are of the whole bike in the body's
@@ -196,7 +212,7 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
     let report = solids.report;
     let triangles = report.body_triangles + report.fork_triangles + report.bars_triangles;
     let levels = solids.levels;
-    let extra_bodies = (2..=solids.bodies).map(|n| format!("{folder}_KIT00_BODY{n}")).collect();
+    let extra_solids = extra_solids(folder, solids.most);
     Ok(Built {
         geometry,
         textures,
@@ -209,8 +225,25 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
         exhaust: pipes,
         liveries,
         levels,
-        extra_bodies,
+        extra_solids,
     })
+}
+
+/// The base parts for the solids after the first of the frame, the handlebar group and the fork, `most` being how many of each the car
+/// has at its finest level.
+fn extra_solids(folder: &str, most: [usize; 3]) -> Vec<ExtraSolid> {
+    let kinds = [("body", "BODY", "body"), ("bars", "BARS", "steered"), ("fork", "FORK", "steered_slid")];
+    let mut out = Vec::new();
+    for ((lower, upper, role), count) in kinds.into_iter().zip(most) {
+        for n in 2..=count {
+            out.push(ExtraSolid {
+                id: format!("base.{lower}.{n}"),
+                solid: format!("{folder}_KIT00_{upper}{n}"),
+                role: role.to_owned(),
+            });
+        }
+    }
+    out
 }
 
 /// The livery textures of the car's pack and the choices that name them. The first livery is the stock one: its picture is the
@@ -323,7 +356,7 @@ mod tests {
             exhaust: Vec::new(),
             liveries: Vec::new(),
             levels: Vec::new(),
-            extra_bodies: Vec::new(),
+            extra_solids: Vec::new(),
         };
         assert!((built.wheelbase() - 1.4745).abs() < 1e-4);
     }

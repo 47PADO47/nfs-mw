@@ -108,13 +108,13 @@ def apart_parts(solids):
 def body_row(parts, glbs, solids, apart, letter, pair):
     """(expected triangles, triangles in the car, solids of the frame) of the body of `letter` built at the levels `pair`.
 
-    The frame is the body solid and `BODY2`, `BODY3`, ... when it does not fit one (`chunks.rs`); the bars and the fork follow.
+    The frame is the body solid and `BODY2`, `BODY3`, ... when it does not fit one (`chunks.rs`); the bars and the fork likewise.
     """
     chassis_level, other = pair
     body = [p for p in parts if p["role"] == "body" and p["id"] not in apart]
     want = sum(glb_tris(glbs, p["export"], chassis_level if p["id"] == "chassis" else other) for p in body)
     frame = [s for name, s in solids.items() if re.search(rf"_KIT00_BODY\d*_{letter}$", name)]
-    steered = [s for name, s in solids.items() if re.search(rf"_KIT00_(BARS|FORK)_{letter}$", name)]
+    steered = [s for name, s in solids.items() if re.search(rf"_KIT00_(BARS|FORK)\d*_{letter}$", name)]
     return want, sum(s["triangles"] for s in frame + steered), len(frame)
 
 
@@ -254,6 +254,20 @@ def summary(results):
     return out
 
 
+def parts_matrix(results):
+    """One row per bike, one column per stock part: `ok` (in the car), or the reason it is not (`no row` is a part the game has no row
+    for: most road bikes have no bar pad or hand guards), and the solids of the frame at the finest level."""
+    columns = ["front_tyre", "back_tyre", "front_rim", "back_rim", "front_brake", "back_brake", "exmanifold", "muffler",
+               "barpad", "handguards", "mirrors", "homologation"]
+    out = [line(["Bike", "Frame solids at A"] + columns), line(["---"] * (2 + len(columns)))]
+    for r in results:
+        frames = next(iter(r.get("solids", {}).get("A", {})), "")
+        count = re.search(r"\((\d+) solids", frames)
+        cells = [r["parts"].get(c, "no row").replace("asset not in install", "not shipped") for c in columns]
+        out.append(line([r["vehicle"], count.group(1) if count else "?"] + cells))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=r"C:\r6work\bikes")
@@ -261,6 +275,7 @@ def main():
     ap.add_argument("--only", help="regex on the vehicle id")
     ap.add_argument("--detail", nargs="*", default=[], help="vehicles to print a table for")
     ap.add_argument("--md", help="write the report here (default: print)")
+    ap.add_argument("--matrix", action="store_true", help="add the table of stock parts per bike")
     ap.add_argument("--infer", action="store_true", help="find the levels of detail by the triangles, not from built.json (car files of an older import)")
     args = ap.parse_args()
     vehicles = sorted(v for v in os.listdir(args.out) if os.path.isfile(os.path.join(args.out, v, "parts.json"))
@@ -271,6 +286,8 @@ def main():
     results = [analyse(args.out, v, ids, cars, binds, args.infer) for v in vehicles]
     text = ["### Summary", ""] + summary(results) + [""]
     text += [f"{len(results)} bikes, {sum(1 for r in results if r['problems'])} with problems.", ""]
+    if args.matrix:
+        text += ["### Stock parts per bike", ""] + parts_matrix(results) + [""]
     for r in results:
         if r["vehicle"] in args.detail:
             text += detail(r)

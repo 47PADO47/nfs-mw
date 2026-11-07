@@ -10,7 +10,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use crate::bike_table::BikeTable;
-use crate::build::{Built, LiveryChoice, Wheel};
+use crate::build::{Built, ExtraSolid, LiveryChoice, Wheel};
 use crate::physics::toml_text::{Toml, quote};
 
 /// The `mod.toml` of the content mod: no library, only `cars/` and `files/`.
@@ -81,16 +81,16 @@ paints = [{{ name = \"Stock\", color = [{r}, {g}, {b}] }}]
     )
 }
 
-/// The `[parts."body.<n>"]` tables of the solids of a body after the first: base parts, drawn with the car whatever its components
-/// are (`docs/modding/api-content.md#components`). Empty for a body of one solid.
-pub fn body_parts(extra: &[String]) -> String {
+/// The `[parts."base.<kind>.<n>"]` tables of the solids of the frame, the handlebar group and the fork after the first: base parts,
+/// drawn with the car whatever its components are (`docs/modding/api-content.md#components`). Empty for a car of three solids.
+pub fn base_parts(extra: &[ExtraSolid]) -> String {
     let mut text = String::new();
-    for (at, solid) in extra.iter().enumerate() {
+    for (at, part) in extra.iter().enumerate() {
         if at > 0 {
             text.push('\n');
         }
-        let (id, solid) = (at + 2, quote(solid));
-        text.push_str(&format!("[parts.\"body.{id}\"]\nsolid = {solid}\nrole = \"body\"\nbase = true\n"));
+        let (id, solid, role) = (&part.id, quote(&part.solid), &part.role);
+        text.push_str(&format!("[parts.\"{id}\"]\nsolid = {solid}\nrole = \"{role}\"\nbase = true\n"));
     }
     text
 }
@@ -134,12 +134,12 @@ pub fn apply_liveries(mod_dir: &Path, car: &str, liveries: &[LiveryChoice]) -> R
         .with_context(|| format!("writing {}", manifest.display()))
 }
 
-/// Put the body's extra solids into the manifest `cars/<car>.toml` in `mod_dir` (replacing its `[parts."body.<n>"]` tables), leaving
+/// Put the extra solids of the car into the manifest `cars/<car>.toml` in `mod_dir` (replacing its `[parts."base.<kind>.<n>"]` tables), leaving
 /// everything else of the file as it is.
-pub fn apply_bodies(mod_dir: &Path, car: &str, extra: &[String]) -> Result<()> {
+pub fn apply_extra_solids(mod_dir: &Path, car: &str, extra: &[ExtraSolid]) -> Result<()> {
     let manifest = mod_dir.join("cars").join(format!("{}.toml", car.to_ascii_lowercase()));
     let text = std::fs::read_to_string(&manifest).with_context(|| format!("reading {}", manifest.display()))?;
-    std::fs::write(&manifest, replace_tables(&text, "[parts.\"body.", &body_parts(extra)))
+    std::fs::write(&manifest, replace_tables(&text, "[parts.\"base.", &base_parts(extra)))
         .with_context(|| format!("writing {}", manifest.display()))
 }
 
@@ -172,9 +172,9 @@ pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'
         text.push('\n');
         text.push_str(&customization(&built.liveries));
     }
-    if !built.extra_bodies.is_empty() {
+    if !built.extra_solids.is_empty() {
         text.push('\n');
-        text.push_str(&body_parts(&built.extra_bodies));
+        text.push_str(&base_parts(&built.extra_solids));
     }
     if let Some(sound) = tables.sound {
         text.push('\n');
@@ -261,7 +261,7 @@ mod tests {
             exhaust: Vec::new(),
             liveries: Vec::new(),
             levels: Vec::new(),
-            extra_bodies: Vec::new(),
+            extra_solids: Vec::new(),
         }
     }
 
@@ -319,5 +319,22 @@ default_paint = 0
         let mut one = built();
         one.liveries = vec![livery(1, "KTM450_SKIN1")];
         assert!(!car_toml("KTM", "KTM", &one, &tables).contains("[customization]"), "one look is no choice");
+    }
+
+    #[test]
+    fn the_extra_solids_are_base_parts_and_replace_each_other() {
+        let extra =
+            |id: &str, solid: &str, role: &str| ExtraSolid { id: id.into(), solid: solid.into(), role: role.into() };
+        let parts = [extra("base.body.2", "K_KIT00_BODY2", "body"), extra("base.bars.2", "K_KIT00_BARS2", "steered")];
+        let text = base_parts(&parts);
+        assert!(
+            text.starts_with("[parts.\"base.body.2\"]\nsolid = \"K_KIT00_BODY2\"\nrole = \"body\"\nbase = true\n"),
+            "{text}"
+        );
+        assert!(text.contains("\n[parts.\"base.bars.2\"]\n") && text.contains("role = \"steered\""));
+        let manifest = format!("[bike]\ndrag = 1\n\n{text}\n[parts.\"exhaust.stock\"]\nsolid = \"X\"\n");
+        let out = replace_tables(&manifest, "[parts.\"base.", &base_parts(&parts[..1]));
+        assert_eq!(out.matches("base = true").count(), 1);
+        assert!(out.contains("[parts.\"exhaust.stock\"]"), "the options' parts stay: {out}");
     }
 }
