@@ -412,8 +412,7 @@ times is wrong (the body resonances move); a proper fill of the hole is the firs
 ### 9.5 Not done, and what is not known
 
 - **The rev-up and coast-down sweeps** are recordings from idle to redline, under load and off load. A pitch track of them (their records
-  have `hz` 0) would give loops at the missing speeds of 9.4 with the right timbre; the exporter that read the banks is being rebuilt, so it
-  was not tried. They are also the natural source of the transients REV plays at a blip of the throttle.
+  have `hz` 0) would give loops at the missing speeds of 9.4 with the right timbre; it was not tried. They are also the natural source of the transients REV plays at a blip of the throttle.
 - **The RPM curve of the plugin** (`RPM` to parameter 2: a straight line in 49 models, a knee near (0.6, 0.45) in the others) maps the
   game's rpm to the synthesiser's own scale. What that scale is (the model's idle to its top loop, or the physics range) is in the 212-byte
   parameter block that was not interpreted. This game plays every loop at `rpm / loop rpm` with the bike's physics rpm; for the models with a
@@ -437,3 +436,34 @@ times is wrong (the body resonances move); a proper fill of the hole is the firs
    `files/SOUND/RIDE6/ENG` there before the copy to save 3.5 GB.
 2. Until then, `python tools/ride6_sound_audit.py fix-levels --mod <mod> --out <dir>` and copy `<dir>/files` over the mod's `files`: it
    levels the stale first two layers (the retimed exhaust and the loops off load need the rebuild).
+
+### 9.7 The result of the fixed converter on the whole install (2026-11-07)
+
+Everything was regenerated from the install with the sources of this repository: the pak reader `tools/ride6-exporter/R6ToolSnd`
+(`pak-sound`: 2468 files, 878 MiB extracted in 20 s with the key, 634 resolved rows), vgmstream r2168, then `sound-bikes` (about 2 minutes).
+The output folder holds 282 `cars/<id>.sound.toml`, 94 engine sets of 42 layers each (21 loops under load, 21 off load: the idle once in
+each set) and 471 effect recordings: 4418 files, 385 MB (ENG 378 MB, FX 5 MB). **[data]** measured with `tools/ride6_sound_audit.py`:
+
+- **Level.** Within every engine all layers are at one level (spread 0.0 dB, no layer 3 dB from its engine, none 6 dB under; the stale
+  quiet layers of 9.1 are gone). The engines differ between -17.7 and -10.9 dB; the host's level model (section 8) brings each engine
+  to its target level from the loudness of its layers, so that difference is not heard.
+- **Exhaust at the engine's note (9.2).** Share of a layer's energy on the harmonics of its engine cycle: 1 of 1858 layers is under half
+  (the Yamaha RD 500 LC, 0.07), against 154 of 1936 before; 23 layers of two-stroke models hold half a cycle more and 2 clips hold over
+  100 cycles, the test skips them. The three sweeps below have a comb share of 0.8 to 0.99 from the second loop up.
+- **Layers off load (9.3).** Every engine has them (21 each); the sweeps through the off-load set have the same level span (2.7 to 4.3 dB)
+  and pitch error as the set under load.
+- **Pitch and rate range (9.4), 250 rpm steps, cycle frequency against `rpm / 120`.** From the first loop up the largest error is 0 to
+  3 cents for the Ducati 1098 R 2008 (V-twin, 21 loops from 1350 to 10647 rpm, level -16.0 to -13.5 dB), the KTM 450 SMR (single, 2088 to
+  11361, -16.3 to -13.4 dB) and the Kawasaki ZX-10R 2017 (four cylinders, 1747 to 14083, -14.6 to -11.6 dB), with the old limits
+  0.55 to 1.8 as well as with 0.3 to 3.3 (their layers have no holes). The Yamaha R1 2008 (idle 1588, first loop 6443) is where the
+  range counts: with 0.3 to 3.3 the error is -5 to +5 cents from 3250 rpm up (-16 and -21 at 2000 and 2250), with 0.55 to 1.8 it
+  is -240 to +496 cents between 2000 and 4750 rpm. From 1500 to 3000 rpm the idle recording carries the sound and has no clear period,
+  so the comb finds -360 to -395 cents there. The widest gap between two loops under load is 4.26 (the engine of the Kawasaki ZX-10RR
+  SC Project). For 58 of 94 engines the idle layer's comb is over 100 cents from its labelled speed (share mostly under 0.3: no comb in
+  that recording), the problem of 9.5, not new; the sweeps' idle rows show it (-600 cents for the Ducati and the Kawasaki).
+- **Eleven bikes have no sound** (BMW R 1300 GS, S 1000 R, S 1000 R RM, S 1000 RR; Ducati Multistrada V4 Rally, Panigale V4, V4 SP; Honda
+  Africa Twin ES, ES Howes, X-ADV; Norton V4SV: 282 of 293 bikes converted, 288 before): `sound-bikes` refuses them with
+  "two layers have the same engine speed". Cause, read on the BMW S 1000 RR model: its off-load run ends with the loops
+  `(70 cycles, 14014.6 rpm)` twice, identical in cycles and frames, so a set of off-load layers holds the same speed twice and
+  `rev_layers::build` rejects the set. The loops under load of that model are distinct. To fix in `loop_layers`: drop a loop whose
+  speed equals the previous one's.
