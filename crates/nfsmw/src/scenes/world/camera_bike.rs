@@ -4,7 +4,7 @@
 
 use glam::Vec3;
 
-use super::drive::Drive;
+use super::drive::{Drive, RiderVisibility};
 use super::{View, WorldScene};
 use crate::settings::CameraMode;
 use crate::viewer::camera::{Lens, bike};
@@ -40,6 +40,13 @@ impl WorldScene {
     /// Whether the camera is inside the rider's helmet (so his helmet and visor are not drawn).
     pub(super) fn bike_helmet_active(&self) -> bool {
         self.bike_shot() == Some(Shot::Helmet)
+    }
+
+    /// What the camera shows of the lead's rider: all of him outside his helmet, all but the helmet and visor from inside it, and
+    /// none of him when the helmet camera looks back over the tail (the camera is then inside his own back).
+    pub(super) fn bike_rider_visibility(&self) -> RiderVisibility {
+        let looking_back = self.players.lead().is_some_and(|drive| drive.camera_looking_back(self.camera_mode));
+        RiderVisibility::of(self.bike_helmet_active(), looking_back)
     }
 
     /// The lens of the mounted camera on `drive`'s bike, when one is in use: as the bike is drawn when `presented`, else as the
