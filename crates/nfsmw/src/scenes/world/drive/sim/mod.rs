@@ -352,15 +352,6 @@ impl CarSim {
         self.vehicle.body_on_ground()
     }
 
-    /// The dot product of the car's up vector with the world's. A bike under its rider is never "tipped over": it rides leaned to
-    /// 50 or 60 degrees, which is a car on its side to the sound and the police speech; only a fallen bike has its real value.
-    pub fn up_dot(&self) -> f32 {
-        match self.ride.as_deref() {
-            Some(ride) if !ride.bike.fallen() => 1.0,
-            _ => self.vehicle.rotation().y_axis.y,
-        }
-    }
-
     /// Whether the state is usable (no NaN or runaway values). Covers the rotation, the wheels and the engine
     /// too: a NaN there freezes the car while its position still looks fine.
     pub fn is_finite(&self) -> bool {

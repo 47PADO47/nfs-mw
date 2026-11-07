@@ -399,6 +399,15 @@ pub(super) fn command(input: &InputState) -> BikeInput {
 }
 
 impl CarSim {
+    /// The dot product of the car's up vector with the world's. A bike under its rider is never "tipped over": it rides leaned to
+    /// 50 or 60 degrees, which is a car on its side to the sound and the police speech; only a fallen bike has its real value.
+    pub fn up_dot(&self) -> f32 {
+        match self.ride.as_deref() {
+            Some(ride) if !ride.bike.fallen() => 1.0,
+            _ => self.vehicle.rotation().y_axis.y,
+        }
+    }
+
     /// Whether the car is a bike.
     pub fn is_bike(&self) -> bool {
         self.ride.is_some()
