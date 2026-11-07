@@ -37,6 +37,7 @@ mod native;
 pub mod partfile;
 pub mod physics;
 pub mod pipeline;
+pub mod regeometry;
 pub mod rider;
 pub mod rider_ragdoll;
 pub mod shading;
