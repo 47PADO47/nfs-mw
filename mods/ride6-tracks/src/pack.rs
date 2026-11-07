@@ -116,15 +116,14 @@ pub fn read_groups(bytes: &[u8], materials: usize) -> Result<Vec<Group>> {
         cursor += vertices * 4;
         let index_bytes = bytes.get(cursor..cursor + indices * 4).context("ground.r6m is cut short")?;
         cursor += indices * 4;
-        let indices: Vec<u32> =
-            index_bytes.chunks_exact(4).map(|c| u32::from_le_bytes(c.try_into().expect("four bytes"))).collect();
+        let indices: Vec<u32> = index_bytes.as_chunks::<4>().0.iter().map(|c| u32::from_le_bytes(*c)).collect();
         ensure!(indices.iter().all(|&i| (i as usize) < vertices), "group {i} has an index past its vertices");
         groups.push(Group {
             material,
             collide: flags & 1 != 0,
-            positions: positions.chunks_exact(3).map(|p| [p[0], p[1], p[2]]).collect(),
-            uvs: uvs.chunks_exact(2).map(|p| [p[0], p[1]]).collect(),
-            normals: normal_bytes.chunks_exact(4).map(|n| [n[0] as i8, n[1] as i8, n[2] as i8]).collect(),
+            positions: positions.as_chunks::<3>().0.to_vec(),
+            uvs: uvs.as_chunks::<2>().0.to_vec(),
+            normals: normal_bytes.as_chunks::<4>().0.iter().map(|n| [n[0] as i8, n[1] as i8, n[2] as i8]).collect(),
             indices,
         });
     }
@@ -134,7 +133,7 @@ pub fn read_groups(bytes: &[u8], materials: usize) -> Result<Vec<Group>> {
 fn floats(bytes: &[u8], cursor: &mut usize, count: usize) -> Result<Vec<f32>> {
     let slice = bytes.get(*cursor..*cursor + count * 4).context("ground.r6m is cut short")?;
     *cursor += count * 4;
-    Ok(slice.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().expect("four bytes"))).collect())
+    Ok(slice.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect())
 }
 
 /// The bytes of a `ground.r6m` for tests and tools: the same layout the exporter writes.

@@ -141,7 +141,7 @@ pub struct Partial {
     /// The language tag (`language`).
     pub language: Option<super::LanguageTag>,
     /// The second world to play (`world`).
-    pub world: Option<super::WorldId>,
+    pub world: Option<super::world_id::WorldId>,
     /// The palette of the token-driven HUD (`ui_theme`).
     pub ui_theme: Option<UiTheme>,
     pub post_tonemap: Option<PostTonemap>,

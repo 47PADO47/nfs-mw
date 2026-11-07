@@ -135,10 +135,8 @@ mod window;
 pub(crate) mod write;
 
 use blackbox_gfx::GraphicsApi;
-
-pub use blackbox_gfx::ReflectionQuality;
 pub use blackbox_gfx::reflection::{MirrorTint, ReflectionSize};
-pub use blackbox_gfx::{AoMethod, AoQuality, ShadowQuality, TextureFiltering};
+pub use blackbox_gfx::{AoMethod, AoQuality, ReflectionQuality, ShadowQuality, TextureFiltering};
 pub use camera_mode::{CameraMode, ViewKey};
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
@@ -167,7 +165,6 @@ pub use upscale::{RenderScale, UpscaleMode};
 pub use upscale_quality::UpscaleQuality;
 pub use wheel::WheelOptions;
 pub use window::{Monitor, Resolution, WindowMode};
-pub use world_id::WorldId;
 pub use write::write as write_file;
 
 use crate::app::pacing::MaxFps;
@@ -292,7 +289,7 @@ pub struct Settings {
     /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
     pub language: Option<LanguageTag>,
     /// The second world to play instead of the city (`world`, `--world`); unset or `rockport` is the city.
-    pub world: Option<WorldId>,
+    pub world: Option<world_id::WorldId>,
     /// The palette of the token-driven HUD. Applies only when `ui_style` is not Original.
     pub ui_theme: UiTheme,
     /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.
@@ -492,11 +489,9 @@ impl From<Partial> for Settings {
 }
 
 #[cfg(test)]
-mod tests;
-
-#[cfg(test)]
 mod mods_tests;
-
+#[cfg(test)]
+mod tests;
 #[cfg(test)]
 mod xenon_effects_tests;
 

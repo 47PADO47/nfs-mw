@@ -116,7 +116,7 @@ pub struct ViewArgs {
     /// The second world to play instead of the city, by id, for a world a mod provides (`rockport` is the city)
     /// [env NFSMW_WORLD; config `world`; default the city].
     #[arg(long, value_name = "id")]
-    pub world: Option<crate::settings::WorldId>,
+    pub world: Option<crate::settings::world_id::WorldId>,
     /// Legacy radio switch: ea_trax is --ui-style original, custom is --ui-style custom. --ui-style wins if both are set [env NFSMW_RADIO_HUD].
     #[arg(long, value_name = "ea_trax|custom")]
     pub radio_hud: Option<crate::settings::RadioHudStyle>,

@@ -190,7 +190,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
             .or_else(|| value(&get, RADIO_HUD, RadioHudStyle::from_str).map(UiStyle::from)),
         speed_units: value(&get, SPEED_UNITS, SpeedUnits::from_str),
         language: value(&get, LANGUAGE, super::LanguageTag::from_str),
-        world: value(&get, WORLD, super::WorldId::from_str),
+        world: value(&get, WORLD, super::world_id::WorldId::from_str),
         post_tonemap: value(&get, POST_TONEMAP, PostTonemap::from_str),
         post_bloom: value(&get, POST_BLOOM, PostBloom::from_str),
         visual_treatment: value(&get, "NFSMW_VISUAL_TREATMENT", super::VisualTreatment::from_str),

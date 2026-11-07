@@ -6,8 +6,8 @@ use super::Data;
 use super::steps::cycle;
 use crate::i18n::t;
 use crate::modding::content::worlds;
-use crate::settings::world_id::CITY;
-use crate::settings::{Partial, Settings, WorldId};
+use crate::settings::world_id::{CITY, WorldId};
+use crate::settings::{Partial, Settings};
 
 /// One choice of the row: the world's id and the name the menu shows.
 type Choice = (String, String);

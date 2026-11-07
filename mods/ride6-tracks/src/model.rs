@@ -47,7 +47,7 @@ pub fn solid_of(name: &str, part: &Part, texture: &str) -> PlacedSolid {
         .collect();
     let mut indices = part.indices.clone();
     if FLIP_WINDING {
-        indices.chunks_exact_mut(3).for_each(|triangle| triangle.swap(1, 2));
+        indices.as_chunks_mut::<3>().0.iter_mut().for_each(|triangle| triangle.swap(1, 2));
     }
     let mut group = GroupSource::new(vertices, indices);
     group.effect_id = WORLD_EFFECT;
