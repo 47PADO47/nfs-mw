@@ -99,6 +99,7 @@ matrix = [1.0, 0.0, 0.0, -0.01, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.04]
 The settings of the mod (`config.toml` or `[mods.ride6-bikes]` of the game's config): `upgrades = true` (the master switch: `false`
 imports the bikes as before, with every stock part in its solid) and `bike_parts = '<folder>'` (default: `bike-parts` inside the
 `source` folder or beside it, when it holds a `catalogue.json`). The command line takes `import-all ... --bike-parts <dir>`.
+There is **no gameplay-menu row** yet: the switch acts at import time (restart to change it). A row (`bb.settings`, [api-settings.md](api-settings.md)) would need the host to read the mod's value when it lists components; not built.
 The `geometry` command rebuilds the car files without the split and must not be run on a bike imported with options.
 
 ### Size and time
