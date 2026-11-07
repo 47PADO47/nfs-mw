@@ -3,7 +3,7 @@
 Part of the [RIDE 6 bikes mod](ride6-bikes.md). The importer converts one bike per run; this page is the batch around it: which
 vehicles there are, how a bike gets its car id and its names, how the whole install is imported in one unattended run, what
 is refused and why, and how to convert the physics again without exporting the meshes again. The script itself is a user tool
-outside the repository (like the exporter it drives: `bikeparts.py`, [ride6-bikes.md](ride6-bikes.md#the-exporter-script-not-in-the-repository));
+outside the repository (like the exporter it drives: `bikeparts.py`, [ride6-bikes.md](ride6-bikes.md#the-exporter-toolsride6-exporter));
 the importer's part (`naming.rs`, `summary.rs`, `cli.rs`, `pipeline.rs`) is in `mods/ride6-bikes`; the same import runs inside the game as the [native mod](ride6-bikes.md#the-native-mod), which needs no script. Nothing of the game is stored in the repository.
 
 ## The vehicles
@@ -13,7 +13,7 @@ of every bike: 738 rows for **319 vehicles**. The default (first) livery is `Liv
 vehicle id is `<Brand>_<model words joined by ->-<year>` (`MV-Agusta_Brutale-1090-RR-2016`); variants are separate vehicles
 (`...-RM-...`, `...-EM-...`, `...-Ride-Fest-...`: the same chassis family with their own livery and physics data).
 
-What a bike needs, and where the script finds it (all keyed by the vehicle id; [ride6-bikes.md](ride6-bikes.md#the-exporter-script-not-in-the-repository)
+What a bike needs, and where the script finds it (all keyed by the vehicle id; [ride6-bikes.md](ride6-bikes.md#the-exporter-toolsride6-exporter)
 has the stock-parts table):
 
 | Item | Row | If it is missing |
