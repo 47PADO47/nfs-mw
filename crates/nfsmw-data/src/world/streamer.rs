@@ -237,6 +237,30 @@ mod tests {
     }
 
     #[test]
+    fn only_the_first_rewrite_hook_counts() {
+        let streamer = Streamer::spawn(PathBuf::from("this-file-does-not-exist.bun"), Vec::new(), 1);
+        assert!(streamer.control.rewrite.get().is_none());
+        streamer.set_rewrite(Box::new(|data| data.index = 5));
+        streamer.set_rewrite(Box::new(|data| data.index = 9));
+        let mut data = SectionData {
+            index: 0,
+            solids: Vec::new(),
+            textures: Vec::new(),
+            decoded: Vec::new(),
+            anims: Vec::new(),
+            scrolls: Vec::new(),
+            scenery: Vec::new(),
+            spawners: Vec::new(),
+            emitters: Vec::new(),
+            collision: Vec::new(),
+            prepared: None,
+        };
+        let rewrite = streamer.control.rewrite.get().expect("the hook is set");
+        rewrite(&mut data);
+        assert_eq!(data.index, 5);
+    }
+
+    #[test]
     fn dropping_a_streamer_does_not_work_off_its_queue() {
         // A stream file that cannot be opened ends the workers at once; the drop must still return.
         let streamer = Streamer::spawn(PathBuf::from("this-file-does-not-exist.bun"), Vec::new(), 2);

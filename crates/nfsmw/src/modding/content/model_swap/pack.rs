@@ -67,7 +67,7 @@ impl Pack {
                 log::warn!("trees: the model {} uses a texture that is not in {}", swap.model, profile.textures);
                 continue;
             }
-            entries.insert(bstring_hash(&swap.solid), Entry { model: (*model).clone(), fit: swap.fit });
+            entries.insert(bstring_hash(&swap.solid), Entry { model: Solid::clone(model), fit: swap.fit });
         }
         Self { entries, textures, fitted: Mutex::new(HashMap::new()) }
     }

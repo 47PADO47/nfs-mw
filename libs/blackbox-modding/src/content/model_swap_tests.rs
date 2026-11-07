@@ -2,35 +2,32 @@ use super::*;
 
 const PROFILE: &str = r#"
 format = 1
-geometry = "TREES/MW2012/GEOMETRY.BIN"
-textures = "TREES/MW2012/TEXTURES.BIN"
+geometry = "TREES/MYMOD/GEOMETRY.BIN"
+textures = "TREES/MYMOD/TEXTURES.BIN"
 
 [[swap]]
-solid = "XT_CEDARM_1B_JG_00"
-model = "MW12_CONIFER_TALL_L0"
+solid = "TALL_TREE_1B"
+model = "TALL_TREE_L0"
 
 [[swap]]
-solid = "XT_CT_TREELINE1_1B_00"
-model = "MW12_BROADLEAF_M_L1"
+solid = "TREE_ROW_1B"
+model = "TREE_L1"
 fit = "row"
 "#;
 
 #[test]
 fn swaps_parse_in_file_order_and_fit_defaults_to_height() {
     let profile = parse(PROFILE).unwrap();
-    assert_eq!(profile.geometry, "TREES/MW2012/GEOMETRY.BIN");
-    assert_eq!(profile.textures, "TREES/MW2012/TEXTURES.BIN");
+    assert_eq!(profile.geometry, "TREES/MYMOD/GEOMETRY.BIN");
+    assert_eq!(profile.textures, "TREES/MYMOD/TEXTURES.BIN");
     assert_eq!(profile.swaps.len(), 2);
-    assert_eq!(
-        profile.swaps[0],
-        Swap { solid: "XT_CEDARM_1B_JG_00".into(), model: "MW12_CONIFER_TALL_L0".into(), fit: Fit::Height }
-    );
+    assert_eq!(profile.swaps[0], Swap { solid: "TALL_TREE_1B".into(), model: "TALL_TREE_L0".into(), fit: Fit::Height });
     assert_eq!(profile.swaps[1].fit, Fit::Row);
 }
 
 #[test]
 fn the_profile_lives_in_the_trees_folder() {
-    assert_eq!(model_swap_profile_path("mw2012"), "TREES/MW2012/profile.toml");
+    assert_eq!(model_swap_profile_path("mymod"), "TREES/MYMOD/profile.toml");
     assert_eq!(TREES_FOLDER, "TREES");
 }
 
@@ -66,7 +63,7 @@ fn bad_packs_names_and_keys_are_refused() {
 #[test]
 fn a_solid_is_replaced_once() {
     let two = format!(
-        "{}\n[[swap]]\nsolid = \"XT_CEDARM_1B_JG_00\"\nmodel = \"OTHER\"\n",
+        "{}\n[[swap]]\nsolid = \"TALL_TREE_1B\"\nmodel = \"OTHER\"\n",
         PROFILE.replace("fit = \"row\"", "fit = \"height\"")
     );
     assert!(matches!(parse(&two), Err(ContentError::Field { field: "swap.solid", .. })));

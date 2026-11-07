@@ -108,7 +108,7 @@ mod tests {
         assert_eq!(TREES.option, blackbox_modding::content::TREES.option);
         let folder = format!("{}/{}", blackbox_modding::content::TREES.folder, TREES.value.to_ascii_uppercase());
         assert_eq!(folder, crate::trees::FOLDER);
-        assert!(TREES.option.ends_with("_variant"));
+        assert!(TREES.option.ends_with("_variant") && ALL.iter().all(|other| other.option != TREES.option));
     }
 
     #[test]

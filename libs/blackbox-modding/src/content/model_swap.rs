@@ -10,12 +10,12 @@
 //!
 //! ```toml
 //! format = 1
-//! geometry = "TREES/MW2012/GEOMETRY.BIN"   # the models: solids in the install's format, a path under the mod's files/
-//! textures = "TREES/MW2012/TEXTURES.BIN"   # the textures the models use
+//! geometry = "TREES/MYMOD/GEOMETRY.BIN"   # the models: solids in the install's format, a path under the mod's files/
+//! textures = "TREES/MYMOD/TEXTURES.BIN"   # the textures the models use
 //!
 //! [[swap]]                                 # one per replaced solid, 1 to 4096
-//! solid = "XT_CEDARM_1B_JG_00"             # the game's solid, by name as the game spells it (its hash is case-sensitive)
-//! model = "MW12_CONIFER_TALL_L0"           # the solid of `geometry` that takes its place
+//! solid = "TALL_TREE_1B"             # the game's solid, by name as the game spells it (its hash is case-sensitive)
+//! model = "TALL_TREE_L0"           # the solid of `geometry` that takes its place
 //! fit = "height"                           # "height" (default) or "row"
 //! ```
 //!
