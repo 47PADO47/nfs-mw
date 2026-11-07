@@ -471,3 +471,5 @@ mod tests_behaviour;
 mod tests_tricks;
 #[cfg(test)]
 mod turn_tests;
+#[cfg(test)]
+mod wheelie_hold_tests;
