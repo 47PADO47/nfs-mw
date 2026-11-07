@@ -64,6 +64,22 @@ fn cop_health_bars_are_off_by_default_and_come_from_every_layer() {
 }
 
 #[test]
+fn rider_gear_is_on_by_default_and_comes_from_every_layer() {
+    assert!(Settings::from(Partial::default()).rider_gear);
+    let cli = Partial { rider_gear: Some(true), ..Partial::default() };
+    let env = env::read(|n| (n == "NFSMW_RIDER_GEAR").then(|| "off".to_owned()));
+    let file = file::parse(
+        "rider_gear = false
+",
+        "test",
+    );
+    assert!(Settings::from(cli.or(env).or(file)).rider_gear, "the command line wins");
+    assert!(!Settings::from(Partial::default().or(env).or(file)).rider_gear, "the environment over the file");
+    assert!(!Settings::from(Partial::default().or(file)).rider_gear);
+    assert_eq!(file::parse("rider_gear = 3", "test").rider_gear, None);
+}
+
+#[test]
 fn traffic_lights_are_on_by_default_and_come_from_every_layer() {
     assert!(Settings::from(Partial::default()).traffic_lights);
     const { assert!(DEFAULT_TRAFFIC_LIGHTS) };

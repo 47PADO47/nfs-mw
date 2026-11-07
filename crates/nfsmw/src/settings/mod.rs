@@ -262,6 +262,8 @@ pub struct Settings {
     pub tail_trail_style: TailTrailStyle,
     /// Show turn signals on cars while steering (a rewrite extension, off by default).
     pub turn_signals: bool,
+    /// Dress the rider of a bike in the gear the player picked and offer the gear in the garage (a mod's catalogue, `docs/specs/ride6-rider-gear.md`).
+    pub rider_gear: bool,
     /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
     pub rear_view_mirror: bool,
     /// Show the game in Discord Rich Presence (the local Discord client; silently skipped when it is not running).
@@ -424,6 +426,7 @@ impl From<Partial> for Settings {
             backfire_style: p.backfire_style.unwrap_or_default(),
             tail_trail_style: p.tail_trail_style.unwrap_or_default(),
             turn_signals: p.turn_signals.unwrap_or(false),
+            rider_gear: p.rider_gear.unwrap_or(true),
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
             discord: p.discord.unwrap_or(true),
             discord_time_played: p.discord_time_played.unwrap_or(true),

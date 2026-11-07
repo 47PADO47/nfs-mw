@@ -45,6 +45,7 @@ pub enum Setting {
     ExhaustFlames,
     CustomFonts,
     TurnSignals,
+    RiderGear,
     CopHealthBars,
     RearViewMirror,
     Autosave,
@@ -387,6 +388,7 @@ impl Setting {
                 changed.custom_fonts.enabled = Some(s.custom_fonts.enabled);
             }
             Setting::TurnSignals => toggle!(s, changed, turn_signals),
+            Setting::RiderGear => toggle!(s, changed, rider_gear),
             Setting::CopHealthBars => toggle!(s, changed, cop_health_bars),
             Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),
             Setting::Discord => toggle!(s, changed, discord),
