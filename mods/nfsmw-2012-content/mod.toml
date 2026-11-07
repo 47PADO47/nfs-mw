@@ -17,7 +17,7 @@ supported = ["nfsmw"]
 
 [optional.interfaces]
 "bb.camera" = "1.1"
-"bb.content" = "1.0"
+"bb.content" = "1.1"
 "bb.engine" = "1.0"
 "bb.hud" = "1.0"
 "bb.settings" = "1.0"

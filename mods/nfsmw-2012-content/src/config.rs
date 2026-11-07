@@ -79,9 +79,16 @@ own_engine_sound = true
 music = true
 
 # Pose each car's driver for the steering and the look back (seven steering poses and one reverse pose of the figure, in the car's
-# files: about 3.5 MB a car, half of all the converted geometry). false keeps the driver seated and still, and the car's files
-# about 230 MB smaller over 67 cars (mods/nfsmw-2012-content/README.md, \"The driver's poses\").
+# files: about 1.7 MB a car, 110 MB over 67 cars, and nothing on disk with stream_cars). false keeps the driver seated and still
+# (mods/nfsmw-2012-content/README.md, \"The driver's poses\").
 driver_poses = true
+
+# Make the cars' heavy files (GEOMETRY.BIN, TEXTURES.BIN, the engine and effect recordings) when the game opens a car instead of
+# writing them: the mod's folder then holds small stubs and a recipe, and each car is converted from your 2012 install the first
+# time the game needs it (a moment, then kept in memory). false writes every file, which takes the disk space and the first start's
+# time. Needs a game with bb.content 1.1; the gameplay option \"Stream 2012 cars\" switches it too. A change converts again at the
+# next start (mods/nfsmw-2012-content/README.md, \"Streamed cars\").
+stream_cars = true
 
 # Add the 2012 game's eleven traffic cars (Audi A3, Dodge Ram 1500, GMC Topkick, ...) to the roads, among the game's own
 # traffic. They are cars of their own (ids ending in _TR) that nobody drives. false adds none. The cars, exclude and
@@ -190,6 +197,12 @@ pub struct Config {
     pub music: bool,
     /// Whether each car's driver is posed for the steering and the look back (`driver_poses.rs`).
     pub driver_poses: bool,
+    /// Whether the cars' heavy files are made when the game opens them instead of being written (`lazy.rs`).
+    pub stream_cars: bool,
+    /// Whether this conversion writes lazy files: `stream_cars`, a host that can make them and the gameplay option on. Decided at
+    /// every start (`lazy::decide`) and never read from a file; it is part of the import stamp.
+    #[serde(skip)]
+    pub lazy: bool,
     /// Whether the 2012 game's traffic cars are added as traffic cars (`traffic.rs`).
     pub traffic: bool,
     /// Whether the 2012 game's trees are converted and offered as a trees variant (`trees.rs`).
@@ -213,6 +226,8 @@ impl Default for Config {
             own_engine_sound: true,
             music: true,
             driver_poses: true,
+            stream_cars: true,
+            lazy: false,
             traffic: true,
             trees: true,
             performance: Performance::default(),
@@ -415,5 +430,19 @@ mod tests {
     fn the_drivers_are_posed_by_default_and_the_setting_turns_the_poses_off() {
         assert!(Config::default().driver_poses);
         assert!(!Config::parse("driver_poses = false\n").unwrap().driver_poses);
+    }
+
+    #[test]
+    fn the_cars_stream_by_default_and_the_setting_and_the_decision_change_the_stamp() {
+        assert!(Config::default().stream_cars && !Config::default().lazy);
+        assert!(!Config::parse("stream_cars = false\n").unwrap().stream_cars);
+        assert!(toml::from_str::<Config>("lazy = true").is_err(), "the decision is not a setting");
+        let nowhere = Path::new("definitely/not/here");
+        let lazy = Config { lazy: true, ..Config::default() };
+        assert_ne!(
+            crate::stamp::of(&Config::default(), nowhere),
+            crate::stamp::of(&lazy, nowhere),
+            "stubs and files are different content"
+        );
     }
 }

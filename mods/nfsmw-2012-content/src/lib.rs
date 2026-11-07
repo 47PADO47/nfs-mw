@@ -12,6 +12,10 @@
 //! written to a staging folder; when the job ends, the mod moves them into place and tells the host through
 //! `bb.content`, and everything the game opens after that (the garage, the career) lists the cars. Later starts find
 //! the content ready and convert nothing, unless the settings or the installs changed.
+//!
+//! With `stream_cars` (the default, on a game that makes lazy files for its mods) the conversion writes no `GEOMETRY.BIN`,
+//! `TEXTURES.BIN` or recording: it writes stubs, and the game has the mod ([`lazy`]) convert a car from the 2012 install when
+//! it first opens one of those files.
 
 mod body_panels;
 mod brands;
@@ -41,6 +45,7 @@ pub mod import;
 pub mod job;
 mod lamp_coronas;
 mod lamp_surfaces;
+pub mod lazy;
 mod liveries;
 mod logo;
 mod low_detail;
@@ -54,6 +59,7 @@ mod pipes;
 mod plate;
 mod plate_designs;
 mod police;
+mod prepare;
 mod sample;
 mod shared;
 mod sound_store;
@@ -105,7 +111,7 @@ impl Mod for NfsmwContent {
                 return Ok(state);
             }
         };
-        match job::start(&mod_dir, supplied.as_ref()) {
+        match job::start_with(&mod_dir, supplied.as_ref(), |config| lazy::decide(ctx, config)) {
             Ok(Start::NotConfigured { config, created }) => {
                 let made = if created { " (written just now)" } else { "" };
                 let elsewhere = format!("or under [mods.{}] in the game's config file,", config::MOD_ID);
@@ -137,6 +143,8 @@ impl Mod for NfsmwContent {
             }
             Err(error) => ctx.log(Level::Warn, &format!("nfsmw-2012-content: no car is added: {error:#}")),
         }
+        // Content of an earlier run that is made when the game reads it needs its maker from the first read on.
+        lazy::provide(ctx, &mod_dir);
         Ok(state)
     }
 
@@ -198,6 +206,7 @@ impl NfsmwContent {
                 return ctx.log(Level::Warn, &format!("nfsmw-2012-content: the cars are not in place: {error:#}"));
             }
         }
+        lazy::provide(ctx, &self.mod_dir);
         match ctx.content().map(|content| content.rescan()) {
             Some(Ok(())) => ctx.log(Level::Info, &format!("nfsmw-2012-content: {done} cars are ready")),
             Some(Err(error)) => {

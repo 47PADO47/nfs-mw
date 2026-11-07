@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 
 use crate::config::Role;
 use crate::effects::EffectFiles;
+use crate::lazy::Sound;
 use crate::sound_store::SoundStore;
 use crate::stats::ImportedStats;
 
@@ -51,6 +52,8 @@ pub struct ModFolder {
     root: PathBuf,
     /// The recordings written so far: a recording of several cars is one file (`sound_store.rs`).
     sounds: SoundStore,
+    /// The heavy files are stubs that the game has the mod make when it reads them (`lazy.rs`).
+    lazy: bool,
 }
 
 impl ModFolder {
@@ -64,7 +67,14 @@ impl ModFolder {
             }
         }
         std::fs::create_dir_all(root).with_context(|| format!("creating {}", root.display()))?;
-        Ok(Self { root: root.to_owned(), sounds: SoundStore::default() })
+        Ok(Self { root: root.to_owned(), sounds: SoundStore::default(), lazy: false })
+    }
+
+    /// Write the car's recordings as lazy files, which are stubs the game has the mod make when it reads them (`lazy.rs`). The
+    /// geometry and textures given to [`ModFolder::add_car`] are whatever the caller wants written, the stubs when it is lazy.
+    pub fn lazy(mut self, on: bool) -> Self {
+        self.lazy = on;
+        self
     }
 
     /// The mod folder.
@@ -89,7 +99,7 @@ impl ModFolder {
         std::fs::write(folder.join("GEOMETRY.BIN"), files.geometry)?;
         std::fs::write(folder.join("TEXTURES.BIN"), files.textures)?;
         std::fs::write(folder.join("BOUNDS.BIN"), files.bounds)?;
-        let engine = files.engine.map(|engine| self.add_engine(engine)).transpose()?;
+        let engine = files.engine.map(|engine| self.add_engine(&car.id, engine)).transpose()?;
         let effects = files.effects.map(|effects| self.add_effects(&car.id, effects)).transpose()?;
         let sound: String = [engine, effects].into_iter().flatten().collect();
         let cars = self.root.join("cars");
@@ -102,14 +112,15 @@ impl ModFolder {
     }
 
     /// Write the engine loops of a car (each once among all cars, [`SoundStore`]) and return the manifest table that names them.
-    fn add_engine(&self, engine: &EngineFiles) -> Result<String> {
+    fn add_engine(&self, id: &str, engine: &EngineFiles) -> Result<String> {
         let mut layers = Vec::new();
-        for layer in &engine.layers {
+        for (at, layer) in engine.layers.iter().enumerate() {
             let (extension, fields) = match &layer.curves {
                 None => ("WAV", format!("rpm = {:?}", layer.rpm)),
                 Some(curved) => (if curved.ginsu { "GIN" } else { "WAV" }, curved.fields.clone()),
             };
-            let path = self.sounds.put(&self.root, extension, &layer.wav)?;
+            let key = self.lazy.then(|| crate::lazy::sound_key(id, Sound::Engine, at));
+            let path = self.sounds.put(&self.root, extension, &layer.wav, key.as_deref())?;
             layers.push(format!("  {{ file = \"{path}\", {fields} }},\n"));
         }
         Ok(format!(
@@ -125,7 +136,10 @@ impl ModFolder {
     /// Write the shifts, turbo, backfire and pops of the car `id` (each once among all cars) and return the `[car_sound]` table
     /// that names them. The car's ignition is a file of its own, which the mod plays by its path (`ignition.rs`).
     fn add_effects(&self, id: &str, effects: &EffectFiles) -> Result<String> {
-        let table = effects_table(effects, &mut |bytes| self.sounds.put(&self.root, "WAV", bytes))?;
+        let table = effects_table(effects, &mut |kind, at, bytes| {
+            let key = self.lazy.then(|| crate::lazy::sound_key(id, kind, at));
+            self.sounds.put(&self.root, "WAV", bytes, key.as_deref())
+        })?;
         if let Some(ignition) = &effects.ignition {
             let folder = self.root.join("files").join("SOUND").join("MODENGINE").join(id);
             std::fs::create_dir_all(&folder)?;
@@ -135,24 +149,25 @@ impl ModFolder {
     }
 }
 
-/// The `[car_sound]` table of a car with `effects`: each list names the paths `put` gives for its recordings (`put` writes
-/// one and returns its path under `files/`). Empty lists are left out, and a car with no effect at all has no table.
-fn effects_table(effects: &EffectFiles, put: &mut dyn FnMut(&[u8]) -> Result<String>) -> Result<String> {
+/// The `[car_sound]` table of a car with `effects`: each list names the paths `put` gives for its recordings (`put` is told
+/// the kind and the position of a recording, writes it and returns its path under `files/`). Empty lists are left out, and a
+/// car with no effect at all has no table.
+fn effects_table(effects: &EffectFiles, put: &mut dyn FnMut(Sound, usize, &[u8]) -> Result<String>) -> Result<String> {
     let lists = [
-        ("shift", &effects.shift),
-        ("turbo_whine", &effects.turbo_whine),
-        ("turbo_blowoff", &effects.turbo_blowoff),
-        ("backfire", &effects.backfire),
-        ("pops", &effects.pops),
+        ("shift", Sound::Shift, &effects.shift),
+        ("turbo_whine", Sound::Whine, &effects.turbo_whine),
+        ("turbo_blowoff", Sound::Blowoff, &effects.turbo_blowoff),
+        ("backfire", Sound::Backfire, &effects.backfire),
+        ("pops", Sound::Pops, &effects.pops),
     ];
     let mut table = String::new();
-    for (key, wavs) in lists {
+    for (key, kind, wavs) in lists {
         if wavs.is_empty() {
             continue;
         }
         let mut paths = Vec::with_capacity(wavs.len());
-        for wav in wavs {
-            paths.push(format!("\"{}\"", put(wav.as_slice())?));
+        for (at, wav) in wavs.iter().enumerate() {
+            paths.push(format!("\"{}\"", put(kind, at, wav.as_slice())?));
         }
         table.push_str(&format!("{key} = [{}]\n", paths.join(", ")));
     }
@@ -246,7 +261,7 @@ paints = [{ name = \"Red\", color = [200, 0, 0] }]
     /// were handed out, and the recordings in that order.
     fn table_of(id: &str, effects: &EffectFiles) -> (String, Vec<Vec<u8>>) {
         let mut written: Vec<Vec<u8>> = Vec::new();
-        let table = effects_table(effects, &mut |bytes| {
+        let table = effects_table(effects, &mut |_, _, bytes| {
             written.push(bytes.to_vec());
             Ok(format!("SOUND/MODENGINE/{id}/F{}.WAV", written.len() - 1))
         })
@@ -348,6 +363,23 @@ paints = [{ name = \"Red\", color = [200, 0, 0] }]
         assert_eq!(sound.shared.impact_big, ["SOUND/MODSHARED/IMPACT/B.WAV"]);
         assert_eq!(sound.shared.scrape, ["SOUND/MODSHARED/SCRAPE/S.WAV"]);
         assert!(folder.append_to_manifest("NOSUCHCAR", table).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_lazy_folder_writes_stubs_for_the_recordings_and_the_manifest_names_them() {
+        let dir = std::env::temp_dir().join(format!("nfsmw-import2012-lazy-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let folder = ModFolder::create(&dir).unwrap().lazy(true);
+        let effects = EffectFiles { shift: vec![vec![1, 2, 3]], ..EffectFiles::default() };
+        let files = CarFiles { geometry: b"g", textures: b"t", bounds: b"b", engine: None, effects: Some(&effects) };
+        folder.add_car(&entry(), &files).unwrap();
+        let text = std::fs::read_to_string(dir.join("cars/por911carr12.toml")).unwrap();
+        let manifest = blackbox_modding::content::parse_car("por911carr12", &text).unwrap();
+        let shift = manifest.car_sound.unwrap().shift;
+        assert_eq!(shift.len(), 1);
+        let written = std::fs::read(dir.join("files").join(&shift[0])).unwrap();
+        assert_eq!(written, crate::lazy::stub("sound/POR911CARR12/shift/0"), "a stub, not the recording");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

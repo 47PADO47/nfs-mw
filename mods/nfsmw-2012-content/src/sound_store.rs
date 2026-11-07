@@ -2,7 +2,8 @@
 //!
 //! The 2012 cars share most of their sounds: of the 1,338 engine, shift, turbo, backfire and pop files of 67 cars, 1,070 were
 //! byte for byte the same as another car's (123 MB of the 173 MB written). A recording is therefore written once, under
-//! [`FOLDER`], named after its content; every manifest that uses it names that path.
+//! [`FOLDER`], named after its content; every manifest that uses it names that path. With lazy files (`lazy.rs`) the file written
+//! is a stub of the first car that has the recording, and the recording is made when the game reads it.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -21,8 +22,9 @@ pub struct SoundStore {
 
 impl SoundStore {
     /// Write `bytes` as a file of kind `extension` under `root/files/SOUND/MODENGINE/SHARED/`, unless an equal file is already
-    /// there, and return the path the manifests name (under `files/`). Equal bytes give the same path.
-    pub fn put(&self, root: &Path, extension: &str, bytes: &[u8]) -> Result<String> {
+    /// there, and return the path the manifests name (under `files/`). Equal bytes give the same path. With a `lazy_key` the
+    /// file is the stub of that key (`lazy::sound_key`) and not the bytes.
+    pub fn put(&self, root: &Path, extension: &str, bytes: &[u8], lazy_key: Option<&str>) -> Result<String> {
         let name = name_of(extension, bytes);
         let path = format!("{FOLDER}/{name}");
         let fresh = self.written.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).insert(name);
@@ -32,7 +34,8 @@ impl SoundStore {
         let file = root.join("files").join(FOLDER);
         std::fs::create_dir_all(&file).with_context(|| format!("creating {}", file.display()))?;
         let file = root.join("files").join(&path);
-        std::fs::write(&file, bytes).with_context(|| format!("writing {}", file.display()))?;
+        let content = lazy_key.map_or_else(|| bytes.to_vec(), crate::lazy::stub);
+        std::fs::write(&file, content).with_context(|| format!("writing {}", file.display()))?;
         Ok(path)
     }
 }
@@ -61,15 +64,28 @@ mod tests {
     fn equal_recordings_share_one_file_and_different_ones_do_not() {
         let dir = temp("store");
         let store = SoundStore::default();
-        let a = store.put(&dir, "WAV", b"one recording").unwrap();
-        let b = store.put(&dir, "WAV", b"one recording").unwrap();
-        let c = store.put(&dir, "WAV", b"another one").unwrap();
+        let a = store.put(&dir, "WAV", b"one recording", None).unwrap();
+        let b = store.put(&dir, "WAV", b"one recording", None).unwrap();
+        let c = store.put(&dir, "WAV", b"another one", None).unwrap();
         assert_eq!(a, b);
         assert_ne!(a, c);
         assert!(a.starts_with("SOUND/MODENGINE/SHARED/") && a.ends_with(".WAV"));
         assert_eq!(std::fs::read(dir.join("files").join(&a)).unwrap(), b"one recording");
         let files = std::fs::read_dir(dir.join("files").join(FOLDER)).unwrap().count();
         assert_eq!(files, 2, "two distinct recordings, two files");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_lazy_recording_is_a_stub_of_the_first_key_and_a_second_car_shares_it() {
+        let dir = temp("lazy");
+        let store = SoundStore::default();
+        let first = store.put(&dir, "WAV", b"one recording", Some("sound/A/engine/0")).unwrap();
+        let second = store.put(&dir, "WAV", b"one recording", Some("sound/B/engine/3")).unwrap();
+        assert_eq!(first, second);
+        let written = std::fs::read(dir.join("files").join(&first)).unwrap();
+        assert_eq!(written, crate::lazy::stub("sound/A/engine/0"), "the first car's key stands for the recording");
+        assert!(written.len() < 128);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -86,7 +102,8 @@ mod tests {
         let store = SoundStore::default();
         let bytes = vec![7u8; 100_000];
         let paths: Vec<String> = std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..4).map(|_| scope.spawn(|| store.put(&dir, "WAV", &bytes).unwrap())).collect();
+            let handles: Vec<_> =
+                (0..4).map(|_| scope.spawn(|| store.put(&dir, "WAV", &bytes, None).unwrap())).collect();
             handles.into_iter().map(|handle| handle.join().unwrap()).collect()
         });
         assert!(paths.windows(2).all(|pair| pair[0] == pair[1]));
