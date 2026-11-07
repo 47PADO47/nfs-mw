@@ -49,6 +49,9 @@ options-xenon-spark-variant-original = Original
 # The wind of the speed: the game's own is the 2005 wind module; a mod may add loops that play with the car's speed.
 options-wind-variant = Wind variant
 options-wind-variant-original = Original
+# The trees of the world: the game's own are the models of the 2005 game; a mod may replace their models and textures.
+options-trees-variant = Trees
+options-trees-variant-original = Original
 options-speed-units = Speed units
 options-speed-units-metric = Metric (km/h)
 options-speed-units-imperial = Imperial (mph)
