@@ -97,14 +97,14 @@ view empty).
   degrees down (median 48, 90th percentile 54) and 33 to 65 to the side (median 45, 90th percentile 52) [M: the eye is the manifest's
   `fixed_position_m`, the grips are the rider's `contacts.json` in the model's frame], so a 60 degree picture tilted 18 degrees down
   ended 48 degrees below the horizon and 46 to the side and cut the handlebar and the instrument panel at the picture's edges. The
-  helmet camera sees `HELMET_FOV_DEG` = **80 degrees vertical** (112 horizontal at 16:9; a bike whose data is wider keeps its own),
-  tilted `HELMET_VIEW_DOWN_DEG` = 10 degrees on top of the data's, so its bottom edge is 60 degrees below the horizon and its sides
+  helmet camera sees `HELMET_FOV_DEG` = **88 degrees vertical** (120 horizontal at 16:9; a bike whose data is wider keeps its own),
+  tilted `HELMET_VIEW_DOWN_DEG` = 16 degrees on top of the data's, so its bottom edge is about 70 degrees below the horizon and its sides
   56 degrees out (`viewer/camera/bike.rs`). The vertical field of view is held for any aspect, so a wider screen shows more at the
-  sides (Hor+); a narrower one (16:10, 4:3, a split screen) is widened to keep the same 112 degrees across, up to 110 degrees
+  sides (Hor+); a narrower one (16:10, 4:3, a split screen) is widened to keep the same 120 degrees across, up to 110 degrees
   vertical [C]. At speed it widens by up to `HELMET_SPEED_WIDEN_DEG` = 8 degrees along the dynamic field of view's speed curve, scaled
   by the field-of-view intensity and off with "change distance and FOV with speed"; it never narrows.
 - **Look:** along the bike's heading, tilted by the data's `RelativeRotation.Pitch` (-10 degrees on 312 of the 344 bikes; 23 have none,
-  and 5, 7, 15, 20, 50 and 60 occur a few times) [D] and `HELMET_VIEW_DOWN_DEG` = 10 degrees further down [C] (`viewer/camera/bike.rs`,
+  and 5, 7, 15, 20, 50 and 60 occur a few times) [D] and `HELMET_VIEW_DOWN_DEG` = 16 degrees further down [C] (`viewer/camera/bike.rs`,
   `Mount::helmet`). The extra is the player's request ("pointed a little more down so I can see more of the bike"), not RIDE 6's:
   the data's -10 shows the road and the sky with the dash only as a strip at the bottom, and no real value gives more, since the
   `PitchFactor` is the share of the bike's own pitch (a quarter of a wheelie), not a tilt, and the larger tilts are two supermotards'
@@ -262,7 +262,7 @@ do not, and the physics never sees it (`input/head_look_tests.rs`, `viewer/camer
   `drive/script.rs`: `look` and `lookup`.
 - `drive/rider/view.rs`: the eye is the middle of the eye bones, in the model's frame; the head bone is the fallback; none off the bike;
   the helmet and visor are the hidden parts; the visibility (whole, from the helmet, looking back) draws all, all but those, none.
-- `viewer/camera/bike_fov_tests.rs`: the helmet field of view (80 degrees, wider than the data's, kept when a bike's is wider), Hor+ and
+- `viewer/camera/bike_fov_tests.rs`: the helmet field of view (88 degrees, wider than the data's, kept when a bike's is wider), Hor+ and
   the floor on narrow pictures, the grips and the panel of a sample cockpit inside the picture at 16:9, 21:9, 16:10 and 4:3 and at
   speed (and outside the old 60 degree one), the speed widening curve, the 10 cm near plane; `scenes/world/nitrous_screen_tests.rs`:
   the nudge keeps a camera's own near plane.
