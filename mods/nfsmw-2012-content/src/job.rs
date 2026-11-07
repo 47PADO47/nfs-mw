@@ -123,7 +123,7 @@ pub fn promote(mod_dir: &Path) -> Result<bool> {
         return Ok(false);
     }
     if !staging.join(stamp::FILE).is_file() {
-        fs::remove_dir_all(&staging).with_context(|| format!("removing {}", staging.display()))?;
+        remove_staging(&staging);
         return Ok(false);
     }
     stamp::clear(mod_dir);
@@ -148,8 +148,17 @@ pub fn promote(mod_dir: &Path) -> Result<bool> {
         }
     }
     fs::rename(staging.join(stamp::FILE), mod_dir.join(stamp::FILE)).context("moving the import stamp into place")?;
-    fs::remove_dir_all(&staging).with_context(|| format!("removing {}", staging.display()))?;
+    remove_staging(&staging);
     Ok(true)
+}
+
+/// Delete the staging folder. Best effort: Windows refuses to delete a folder another process has open (a file indexer or a virus
+/// scanner looking at what was just written), and an empty leftover is harmless (the next start finds nothing to promote and
+/// tries again), whereas failing here would throw away a finished promotion.
+fn remove_staging(staging: &Path) {
+    if let Err(error) = fs::remove_dir_all(staging) {
+        log::debug!("the staging folder {} stays for now: {error}", staging.display());
+    }
 }
 
 fn count_cars(mod_dir: &Path) -> usize {
