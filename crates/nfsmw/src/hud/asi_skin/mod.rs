@@ -13,6 +13,8 @@
 
 mod detect;
 mod hide;
+#[cfg(test)]
+mod install_tests;
 mod load;
 mod render;
 
