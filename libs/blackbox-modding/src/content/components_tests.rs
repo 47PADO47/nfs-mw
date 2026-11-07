@@ -13,7 +13,7 @@ solid = "FASTBIKE_KIT00_MUFFLER"
 
 [parts."exhaust.muffler.race"]
 solid = "MUF_974_001"
-pack = "R6PARTS"
+pack = "PARTS/R6/MUF974_001"
 role = "wheel_front"
 matrix = [1, 0, 0, 0, 0, 1, 0, 0.1, 0, 0, 1, 0]
 "#;
@@ -43,7 +43,7 @@ fn the_slots_and_the_parts_are_read_in_order() {
         &PartBinding { solid: "FASTBIKE_KIT00_MUFFLER".into(), pack: None, role: PartRole::Body, matrix: None }
     );
     let race = &found.parts["exhaust.muffler.race"];
-    assert_eq!(race.pack.as_deref(), Some("R6PARTS"));
+    assert_eq!(race.pack.as_deref(), Some("PARTS/R6/MUF974_001"));
     assert_eq!(race.role, PartRole::WheelFront);
     assert_eq!(race.matrix.unwrap()[7], 0.1);
 }
@@ -68,7 +68,7 @@ fn a_matrix_has_twelve_finite_numbers() {
 fn a_solid_name_is_plain() {
     let bad = BIKE.replace("MUF_974_001", "muf 974");
     assert!(matches!(tables(&bad), Err(ContentError::InvalidModel(_))));
-    let pack = BIKE.replace("R6PARTS", "../R6");
+    let pack = BIKE.replace("PARTS/R6/MUF974_001", "PARTS/../R6");
     assert!(matches!(tables(&pack), Err(ContentError::InvalidModel(_))));
 }
 

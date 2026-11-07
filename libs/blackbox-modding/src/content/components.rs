@@ -56,7 +56,8 @@ pub(super) struct RawPart {
 pub struct PartBinding {
     /// The solid's name without its level-of-detail letter.
     pub solid: String,
-    /// The shared folder under `CARS/` the solid is in; `None`: the car's own `GEOMETRY.BIN`.
+    /// The folder under the mod's `files/` that holds the part's own `GEOMETRY.BIN` and `TEXTURES.BIN` (`PARTS/R6/MUF974_001`),
+    /// shared by every car that binds the part; `None`: the car's own `GEOMETRY.BIN`.
     pub pack: Option<String>,
     pub role: PartRole,
     /// The mount: three rows of a 3 by 4 affine matrix (`p' = M [p, 1]`) taking the solid's points to the frame of `role`.
@@ -69,6 +70,11 @@ pub struct PartBinding {
 pub struct Components {
     pub slots: Vec<Slot>,
     pub parts: BTreeMap<String, PartBinding>,
+}
+
+/// A pack folder: names of letters, digits, `_` and `-` separated by `/`, 1 to 64 bytes in all.
+fn is_pack_path(text: &str) -> bool {
+    text.len() <= 64 && text.split('/').all(is_solid_name)
 }
 
 /// A solid or pack name: letters, digits, `_` and `-`.
@@ -94,7 +100,7 @@ fn part(raw: RawPart) -> Result<PartBinding, ContentError> {
         return Err(ContentError::InvalidModel(raw.solid));
     }
     if let Some(pack) = &raw.pack
-        && !is_solid_name(pack)
+        && !is_pack_path(pack)
     {
         return Err(ContentError::InvalidModel(pack.clone()));
     }

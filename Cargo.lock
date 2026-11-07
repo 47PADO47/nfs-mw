@@ -4245,6 +4245,7 @@ dependencies = [
  "blackbox-carsound",
  "blackbox-chunk",
  "blackbox-collision",
+ "blackbox-components",
  "blackbox-damage",
  "blackbox-driver",
  "blackbox-feng",
