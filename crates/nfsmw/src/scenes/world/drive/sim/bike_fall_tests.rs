@@ -84,7 +84,9 @@ fn the_bike_is_stood_up_with_its_rider_when_it_has_lain_still() {
     assert!(!sim.rider_off(), "stood up again");
     assert!(sim.up_dot() > 0.95);
     // The double has its rider's mass again.
-    let total = BikeSpec::example().total_mass();
+    let mut spec = BikeSpec::example();
+    spec.chassis.mass *= blackbox_vehicle::bike::choices::BIKE_MASS_SCALE;
+    let total = spec.total_mass();
     assert!((sim.vehicle.body().mass() - total).abs() < 1.0, "{} {total}", sim.vehicle.body().mass());
     // ... and he can fall again.
     assert!(sim.place_moving(&ground, spawn(), 25.0));
