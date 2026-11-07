@@ -93,7 +93,7 @@ original file at load time with no file written (S), needs a small converter (C)
 
 | Item | 2012 data | 2005 slot | Status | Cost | Stream |
 |---|---|---|---|---|---|
-| **Soundtrack** | `UI/SONGS`: 58 `.SPS` of EL31 (Layer III) audio, titles and artists in the language table next to the song object's key | custom music library (`[music]`, playlists with captions) | **DOABLE NOW** | host: `.sps` decode (about 40 lines, `ea_audio::sps::to_mp3` is in the repo); mod: one playlist of about 60 lines, 10 KB | **S** (the playlist names the install's files; nothing converted) |
+| **Soundtrack** | `UI/SONGS`: 58 `.SPS` of EL31 (Layer III) audio, titles and artists in the language table next to the song object's key | custom music library (`[music]`, playlists with captions) | **DONE** (key `music`, gameplay option *2012 soundtrack*): 43 titled songs | host: `.sps` decode in `custom/decode.rs` (25 lines, `ea_audio::sps::to_mp3`); mod: `soundtrack.rs` (about 230 lines), a playlist of about 5 KB written at every start in a few ms | **S** (the playlist names the install's files; the host decodes them while they play; nothing converted) |
 | Ambience loops, city beds | `SOUND/STREAMS` 6-channel loops (`AMBIENCES`, `REVERBROADDATA`) | none (the 2005 ambience is in its sound banks) | NEEDS HOST FEATURE | an `ambience` variant kind like the wind (looping layers) | S once the kind exists |
 | Menu and UI sounds | `UI/SCREENS2` waves (617), `SEQUENCEITEMS` (131), `SOUND/GLOBAL` (141) | none (2005 menu sounds are events in its banks) | NEEDS HOST FEATURE | an event-to-WAV map in the host | C (stream decode to WAV on first use) |
 | Horn | graph `Player Vehicle Horn` in every car and in `SOUND/GLOBAL` | the car's `[car_sound]` has no horn list | NEEDS HOST FEATURE | one list key, one host call | C |
@@ -211,23 +211,35 @@ Leaner paths, by what they save and what they cost:
 | Path | Saves | Cost | Where |
 |---|---|---|---|
 | Virtual layer (section 4) for `GEOMETRY.BIN` and `TEXTURES.BIN` | about 590 MB (79 %) | host about 150 lines + ABI entry, mod about 200 lines; first open of a car waits for its conversion | host + mod |
-| Key `driver_poses = false` | 3.5 MB a car (about 230 MB for 67 cars, 31 %) | the driver stays seated and does not follow the wheel | mod only, 10 lines |
+| Key `driver_poses = false` (**done**, default `true`) | 3.5 MB a car (about 230 MB for 67 cars, 31 %) | the driver stays seated and does not follow the wheel | mod only, 4 lines |
 | One `_A` solid, `_B` as an alias | 234 MB (31 %) | the game's car model must accept two names for one solid | host (`blackbox-solid` reader) |
 | Shared driver pack (4 characters once, the car gives only the seat) | most of the 260 MB | the host loads a shared driver pack | host |
 | WAVs from the bundles' `SPS` at load | 169 MB (22 %) | the engine sound loader opens by path today; it would need bytes | host (`audio/car/own_engine.rs`) |
 | `max_texture_size = 512` | about 55 MB of the textures | blurrier textures | config only (exists) |
 
-## 6. The order of the work (phase 2)
+## 6. Phase 2: what was done, and what was not
 
-1. **Soundtrack, streamed** (DOABLE NOW, visible, no disk): host decodes `.sps` in the custom music player; the mod writes a
-   playlist of the 58 songs with their titles and artists; key `music`, and the game's own *Custom music* option is the switch.
-2. **Lean car files** (measured above): the `driver_poses` key (toggle, 10 lines) and, if the host change is accepted, the virtual
-   layer with lazy per-car conversion.
-3. **Rims of other 2012 cars as shop choices** (limited, once the files are lazy).
-4. After the trees PR: **props and signs** through the same model swap, and the **texture swap** that road, sign and sky textures
-   need.
-5. Variant kinds that need a profile and a few pictures or WAVs (helicopter, skid marks, debris, rain): one option row each, by the
-   checklist in [effect-variants.md](../modding/effect-variants.md#adding-a-kind-checklist).
+Done in this branch (each a key of the mod's config and a row of its README; nothing was compiled or run):
 
-Each one is a key of the mod's config, a row of its README, and, where the player should switch it in the game, a Gameplay
-option (the variant option pattern, texts in `crates/nfsmw/i18n/*/options.ftl`) that shows only when the mod provides it.
+1. **Soundtrack, streamed.** The custom music player plays `.SPS` files (repacked to MP3 in memory); the mod writes a playlist of the 43
+   titled songs of `UI/SONGS/`. Key `music` (default `true`: the option is offered), gameplay option **2012 soundtrack** (off by default;
+   `bb.settings` toggle, label from `lang/en/nfsmw-2012-content.ftl`; a change applies at the next start). Disk: 5 KB. Time: a few
+   milliseconds at start for the playlist; a song takes a few tens of milliseconds more to start than an MP3 (the whole stream is repacked first).
+2. **Lean car files.** Measured above; key `driver_poses = false` leaves out the 8 posed figures of every driver (about 230 MB over 67
+   cars). The default is unchanged (poses on), so the size of an existing install changes only when the player asks.
+
+Not done, with the reason:
+
+3. **The virtual layer** (section 4): the design is above, but it touches the `GameDir` index, five files of the `bb.content` ABI and
+   its snapshot tests, the host backend, the SDK, and a split of the mod's per-car conversion into a manifest part and a payload part.
+   That is too much change to write without a compiler; it is the next step if the 590 MB matter, and the only one that removes them
+   without a loss. The `_B` alias and a shared driver pack are smaller host changes with the same saving per file.
+4. **Rims of other cars**: the wheel is one solid with the tyre, disc and caliper, so a rim as a shop part needs the rim cut out by
+   material first; not a cheap item.
+5. **Props, signs, road and sky textures**: wait for the trees PR (the model swap) and need the texture swap of section 3.4.
+6. **Variant kinds** (helicopter, skid marks, debris, rain, ambience, grading): each needs a profile schema, a host option row and a scene
+   that draws or plays it, by the checklist in [effect-variants.md](../modding/effect-variants.md#adding-a-kind-checklist). Skid marks
+   and the helicopter are the smallest.
+
+Each one is a key of the mod's config, a row of its README, and, where the player should switch it in the game, a Gameplay option
+(the settings pattern of [api-settings.md](../modding/api-settings.md)) that shows only when the mod provides it.
