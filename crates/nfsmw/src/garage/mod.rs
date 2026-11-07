@@ -17,6 +17,7 @@ pub(crate) mod menu_rows;
 #[cfg(test)]
 mod menu_tests;
 pub(crate) mod my_cars;
+pub(crate) mod options;
 mod parts;
 mod performance;
 #[cfg(test)]

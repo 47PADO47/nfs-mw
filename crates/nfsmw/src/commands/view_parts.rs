@@ -13,18 +13,7 @@ use crate::garage::rider_gear::{self, Choice, Entry, Part};
 
 /// The category a `--part` key names.
 fn category(key: &str) -> Option<Category> {
-    Some(match key {
-        "body" => Category::Body,
-        "spoiler" => Category::Spoiler,
-        "hood" => Category::Hood,
-        "roof" => Category::Roof,
-        "rims" => Category::Wheels,
-        "paint" => Category::Paint,
-        "tint" => Category::WindowTint,
-        "rimpaint" => Category::RimPaint,
-        "vinyl" => Category::Vinyl,
-        _ => return None,
-    })
+    Category::from_key(key)
 }
 
 /// The plate design id a `--part plate-design=` value names: `none` (or nothing) is the plain plate, whose id is empty.
