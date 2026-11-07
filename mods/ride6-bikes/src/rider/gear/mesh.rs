@@ -114,7 +114,7 @@ pub fn pack(mut raw_mesh: RawMesh, role: Role) -> Result<Pack> {
             .get(first..first + section.index_count as usize)
             .context("a section runs past the indices of the mesh")?;
         let start = indices.len();
-        for triangle in triangles.chunks_exact(3) {
+        for triangle in triangles.as_chunks::<3>().0 {
             let hand = role == Role::Body && triangle.iter().all(|&i| is_hand(&lod.vertices[i as usize], &hand_bones));
             match hand {
                 true => hands.extend_from_slice(triangle),

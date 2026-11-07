@@ -66,6 +66,7 @@ pub struct Plan {
 /// The parts to draw: for each mesh of the pack that has a drawn entry, its level [`LEVEL`] (the finest; a mesh without levels is left out), the
 /// indices as 16-bit, and a draw for each section with the picture its material slot wears. A mesh with too many vertices
 /// for 16-bit indices, or with no level, is left out and named in the second list.
+#[cfg(test)]
 pub fn plan(pack: &Pack, entries: &[Entry]) -> (Vec<Plan>, Vec<String>) {
     plan_without(pack, entries, &[])
 }
