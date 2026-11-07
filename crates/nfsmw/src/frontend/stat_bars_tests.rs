@@ -1,14 +1,17 @@
+use blackbox_feng::fe_hash_upper;
+
 use super::*;
 
 #[test]
 #[ignore = "requires an installed game"]
-fn installed_garage_stat_bars_preserve_base_and_place_absolute_installed_marker() {
+fn installed_stat_bars_preserve_base_and_place_absolute_installed_marker() {
     let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
     let catalog = crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES);
-    for name in ["CustomizePerformance.fng", "MyCarsManager.fng"] {
+    // The garage's screens and the car selects share the objects: the bars draw alike on all of them.
+    for name in ["CustomizePerformance.fng", "MyCarsManager.fng", "Car_Select.fng", "Quick_Race_Brief.fng"] {
         let mut rt = crate::ui::runtime();
         let package = rt.load(catalog.find(name).unwrap().clone());
-        apply_bars(&mut rt, package, Some([0.25, 0.5, 0.75]), Some([0.75, 0.5, 0.25]));
+        apply(&mut rt, package, Some([0.25, 0.5, 0.75]), Some([0.75, 0.5, 0.25]));
         for (index, axis) in ["TOPSPEED", "HANDLING", "ACCELERATION"].into_iter().enumerate() {
             let object = |rt: &blackbox_feng::Runtime, prefix| {
                 rt.find(package, fe_hash_upper(&format!("{prefix}_{axis}"))).unwrap()
@@ -21,7 +24,7 @@ fn installed_garage_stat_bars_preserve_base_and_place_absolute_installed_marker(
             let handle = object(&rt, "HANDLE");
             assert_eq!(rt.position(handle).unwrap().x, [76.0, 36.0, -4.0][index]);
         }
-        apply_bars(&mut rt, package, Some([0.1; 3]), Some([0.75, 0.5, 0.25]));
+        apply(&mut rt, package, Some([0.1; 3]), Some([0.75, 0.5, 0.25]));
         let handle = rt.find(package, fe_hash_upper("HANDLE_TOPSPEED")).unwrap();
         assert_eq!(rt.position(handle).unwrap().x, 76.0, "preview changes must not move the installed-value marker");
     }
@@ -32,10 +35,10 @@ fn installed_garage_stat_bars_preserve_base_and_place_absolute_installed_marker(
 fn batch17_lit_stat_fill_draws_above_the_dim_base_without_recoloring_artwork() {
     let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
     let catalog = crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES);
-    for name in ["CustomizePerformance.fng", "MyCarsManager.fng"] {
+    for name in ["CustomizePerformance.fng", "MyCarsManager.fng", "Car_Select.fng", "Quick_Race_Brief.fng"] {
         let mut rt = crate::ui::runtime();
         let package = rt.load(catalog.find(name).unwrap().clone());
-        apply_bars(&mut rt, package, Some([0.5; 3]), Some([0.5; 3]));
+        apply(&mut rt, package, Some([0.5; 3]), Some([0.5; 3]));
         let tree = rt.tree(package);
         for axis in ["TOPSPEED", "HANDLING", "ACCELERATION"] {
             let node =

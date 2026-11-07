@@ -21,6 +21,7 @@ fn mip_residency_reduces_physical_dimensions_and_handles_small_bc_tails() {
             alpha_sorting: false,
             alpha_blend: 0,
             flags: 0,
+            tilable_uv: 0,
             palette: vec![],
             data: vec![0; 128 + 32 + 8 + 8 + 8],
         };
@@ -52,6 +53,7 @@ fn nonzero_mip_never_reuses_level_zero_decoded_pixels() {
         alpha_sorting: false,
         alpha_blend: 0,
         flags: 0,
+        tilable_uv: 0,
         palette: vec![],
         data: [vec![0; 16], vec![1, 2, 3, 4]].concat(),
     };

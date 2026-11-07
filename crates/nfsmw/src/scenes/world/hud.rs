@@ -4,7 +4,7 @@ use glam::Vec3;
 use nfsmw_career::settings::PROLOGUE_STAGE;
 use nfsmw_data::gameplay::{ActivityKind, ActivityMarker, GameplayData, Placement, Race, RaceType};
 
-use super::hud_pursuit::pursuit_board;
+use super::hud_pursuit::{chase_summary, pursuit_board};
 use super::players::LEAD;
 use super::{View, WorldScene, space};
 use crate::hud::{
@@ -71,6 +71,7 @@ impl WorldScene {
                 }
                 state.busted = self.busted_meter_for(LEAD, traffic);
                 state.busted_overlay = traffic.busted_overlay();
+                state.busted_summary = state.busted_overlay.then(|| chase_summary(traffic));
                 state.pursuit_phase = traffic.pursuit_phase();
                 state.police_intel = traffic.police_intel();
             }
@@ -301,6 +302,7 @@ mod tests {
             position: Vec3::new(0.0, 0.0, 10.0),
             radius: 6.0,
             respawn: None,
+            respawn_key: None,
             icon_index: None,
         };
         let blips =

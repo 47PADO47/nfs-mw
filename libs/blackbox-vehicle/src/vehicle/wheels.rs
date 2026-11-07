@@ -131,8 +131,13 @@ impl Vehicle {
                     quarter_mass: 0.25 * mass,
                     surface: c.surface,
                 };
+                let simple = self.simple_tires_on();
                 let fy = match self.rolling_chassis {
                     Some(config) => self.tires[i].update_rolling(&self.params[i], &input, config.tires),
+                    None if simple => {
+                        let drag = self.tires[i].drag_reduction;
+                        self.tires[i].update_simple(&self.params[i], &input, drag)
+                    }
                     None => match self.coasting_tires {
                         Some(response) => self.tires[i].update_coasting(&self.params[i], &input, response),
                         None => self.tires[i].update_loaded(&self.params[i], &input),
@@ -146,6 +151,7 @@ impl Vehicle {
             } else {
                 match self.rolling_chassis {
                     Some(_) => self.tires[i].update_rolling_free(),
+                    None if self.simple_tires_on() => self.tires[i].update_simple_free(&self.params[i], dt),
                     None => self.tires[i].update_free(&self.params[i], dt),
                 }
             }

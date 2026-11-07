@@ -21,6 +21,9 @@ pub struct Texture {
     /// The `Flags` byte of the info record. Bit 1 (`0x02`) makes the texture's surfaces two-sided
     /// (`docs/specs/backface-culling.md`); the other bits are not mapped.
     pub flags: u8,
+    /// `TilableUV`: which axes of the texture repeat where an image's texture rectangle leaves the unit square, bit 0
+    /// across (u) and bit 1 down (v); a clear bit clamps that axis to the edge (`docs/specs/feng-image-repeat.md`).
+    pub tilable_uv: u8,
     /// All mip levels, largest first, as stored.
     pub data: Vec<u8>,
     /// Palette for [`PixelFormat::P8`], as stored.

@@ -22,7 +22,20 @@ fn the_heat_meter_stays_between_the_spawn_floor_and_its_top() {
 
 #[test]
 fn a_car_without_a_record_has_no_bounty_and_the_spawn_heat() {
-    assert_eq!(CareerHud::new(None, 0), CareerHud { on: true, bounty: 0, car_heat: 1.0, cash: 0, chase: None });
+    assert_eq!(
+        CareerHud::new(None, 0),
+        CareerHud { on: true, bounty: 0, car_heat: 1.0, cash: 0, chase: None, total_bounty: None }
+    );
+}
+
+#[test]
+fn the_total_bounty_goes_into_the_state_in_career_mode_only() {
+    let mut state = HudState::default();
+    CareerHud::new(None, 0).with_total_bounty(Some(250_000)).apply(&mut state);
+    assert_eq!(state.total_bounty, Some(250_000));
+    let mut outside = HudState::default();
+    CareerHud::default().with_total_bounty(Some(250_000)).apply(&mut outside);
+    assert_eq!(outside.total_bounty, None, "outside career mode there is no flasher");
 }
 
 #[test]

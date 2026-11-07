@@ -298,7 +298,6 @@ impl TextureSwaps {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     fn texture() -> blackbox_tpk::Texture {
         blackbox_tpk::Texture {
             name: String::new(),
@@ -312,6 +311,7 @@ mod tests {
             alpha_sorting: false,
             alpha_blend: 0,
             flags: 0,
+            tilable_uv: 0,
             data: vec![0; 4],
             palette: Vec::new(),
         }

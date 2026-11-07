@@ -1,13 +1,12 @@
 //! What the car lot shows around its cars: the room's car for a row, and the package's sample widgets put right.
 
 use nfsmw_career::carlot;
-use nfsmw_career::carlot::stats::{self, CarStats};
 use nfsmw_career::carlot::{LotCar, LotState};
 use nfsmw_career::economy::sale_proceeds;
 use nfsmw_career::stable::Stable;
 
 use super::car_lot::{Item, Key, set_text, show};
-use super::car_lot_bars::{ACCELERATION_STRIPS, HANDLING_STRIPS, TOP_SPEED_STRIPS, set_bar};
+use super::car_lot_bars::{installed_package, ratings, set_bars};
 use crate::career::Career;
 use crate::frontend::logic::Cx;
 use crate::frontend::look::{CarLook, CarRecordRef};
@@ -47,6 +46,8 @@ pub(super) struct Shown<'a> {
     pub cursor: usize,
     pub row: Option<&'a Item>,
     pub cash: u32,
+    /// The shown car's bars (`shown_ratings`).
+    pub ratings: Option<[f32; 3]>,
 }
 
 /// The car of the shared car pool a row stands for (the pool holds the drivable cars with their folder, manufacturer and
@@ -72,14 +73,7 @@ pub(super) fn draw(cx: &mut Cx, shown: &Shown<'_>) {
         cx.hide(name, true);
     }
     identity(cx, shown);
-    let car = shown.row.and_then(|row| pool_car(&row.name));
-    let [top, handling, acceleration] = match &car {
-        Some((PoolCar { stats: Some(own), .. }, pool)) => stats::bar_fractions(own, &pool.population),
-        _ => [0.0; 3],
-    };
-    set_bar(cx, &TOP_SPEED_STRIPS, top);
-    set_bar(cx, &HANDLING_STRIPS, handling);
-    set_bar(cx, &ACCELERATION_STRIPS, acceleration);
+    set_bars(cx, shown.ratings);
     let locked = shown.row.is_some_and(|row| row.locked);
     cx.script(LOCKED_GROUP, if locked { SCRIPT_SHOW } else { SCRIPT_HIDE });
     set_text(cx, COST_VALUE, shown.row.map(|row| grouped(i64::from(row.price))).unwrap_or_default());
@@ -205,22 +199,15 @@ pub(super) fn owned_rows(stable: &Stable, cars: &[LotCar]) -> Vec<Item> {
         .collect()
 }
 
-/// The three bar fractions of a row, `[TOP SPEED, HANDLING, ACCELERATION]`: the car's measured stats among the shared pool's
-/// (the same bars Quick Play and the custom race show), else among the lot's own. Empty bars for no row or a car with no stats.
-pub(super) fn shown_fractions(career: &Career, item: Option<&Item>) -> [f32; 3] {
-    let Some(item) = item else { return [0.0; 3] };
-    if let Some((PoolCar { stats: Some(own), .. }, pool)) = pool_car(&item.name) {
-        return stats::bar_fractions(&own, &pool.population);
-    }
-    let key = match item.key {
-        Key::Lot(key) => key,
-        Key::Owned(handle) => {
-            let Some(record) = career.stable.cars.iter().find(|car| car.handle == handle) else { return [0.0; 3] };
-            record.frontend_key
-        }
+/// The bars of a row, `[TOP SPEED, HANDLING, ACCELERATION]`: the original front end's ratings of its car (`car_lot_bars`),
+/// with the upgrades installed on it for an owned car and stock for one on sale. `None` for no row, or a car the shared pool
+/// does not hold yet or has no ratings for (the screens draw again when the pool arrives).
+pub(super) fn shown_ratings(career: &Career, item: Option<&Item>) -> Option<[f32; 3]> {
+    let item = item?;
+    let (car, pool) = pool_car(&item.name)?;
+    let package = match item.key {
+        Key::Owned(handle) => installed_package(&career.stable, handle),
+        Key::Lot(_) => Default::default(),
     };
-    let Some(index) = career.data.cars.iter().position(|car| car.frontend_key == key) else { return [0.0; 3] };
-    let Some(car) = career.data.stats.get(index).copied().flatten() else { return [0.0; 3] };
-    let population: Vec<CarStats> = career.data.stats.iter().flatten().copied().collect();
-    stats::bar_fractions(&car, &population)
+    ratings(&pool, &car, package)
 }

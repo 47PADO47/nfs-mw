@@ -3,14 +3,16 @@
 //!
 //! The 12 places of the install are numbered; the first four are always on offer, places 5 to 8 once the career is
 //! below bin 13, and places 9 to 12 below bin 9. Accept asks `REP_SHEET_BOUNTY_CONFIRM` and, on Yes, the car goes to the
-//! place ([`Command::JumpTo`]).
+//! place ([`Command::JumpTo`]). The map shows the city about the place (`pin.rs`).
 
+use blackbox_minimap::Calibration;
 use blackbox_text::label_hash;
 use nfsmw_data::gameplay::BountyJump;
 
 use super::milestones::render_xy;
-use super::{Ask, Page, Status};
+use super::{Ask, Page, Status, pin};
 use crate::career::{CareerHandle, JumpPoint};
+use crate::frontend::challenge_series::Crop;
 use crate::frontend::logic::{Command, Cx};
 use crate::ui::Text;
 
@@ -84,9 +86,10 @@ pub fn bounty_rows(jumps: &[BountyJump], stage: u8) -> Vec<BountyRow> {
         .collect()
 }
 
-/// The rows of the bounty sheet.
+/// The rows of the bounty sheet, and the open city's calibration for the map (`None`: no map).
 pub struct BountyPage {
     rows: Vec<BountyRow>,
+    city: Option<Calibration>,
 }
 
 impl BountyPage {
@@ -94,7 +97,7 @@ impl BountyPage {
         let rows = CareerHandle::shared()
             .with(|career| bounty_rows(&career.data.gameplay.bounty_jumps, career.blacklist.current_bin()))
             .unwrap_or_default();
-        BountyPage { rows }
+        BountyPage { rows, city: pin::city() }
     }
 }
 
@@ -160,6 +163,14 @@ impl Page for BountyPage {
     fn ask(&self, at: usize) -> Option<Ask> {
         let row = self.rows.get(at)?;
         Some(Ask { label: label_hash("REP_SHEET_BOUNTY_CONFIRM"), then: Command::JumpTo(row.jump.with_chase()) })
+    }
+
+    fn map(&self, at: usize) -> Option<(u32, Crop)> {
+        Some(pin::view(self.city.as_ref()?, &self.rows.get(at)?.jump))
+    }
+
+    fn pin(&self, at: usize) -> Option<f32> {
+        self.rows.get(at).map(|row| pin::bearing(&row.jump))
     }
 }
 

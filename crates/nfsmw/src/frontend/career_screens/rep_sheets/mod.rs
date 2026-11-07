@@ -13,6 +13,7 @@ mod icons;
 #[cfg(test)]
 mod install_tests;
 mod milestones;
+mod pin;
 #[cfg(test)]
 pub(super) mod playtest;
 mod race;
@@ -38,6 +39,8 @@ const COUNTER_OF: u32 = 0xB203_7BDC;
 const COUNTER_STATIC: [u32; 3] = [0x5B80_5EE5, 0x2E48_1779, 0xF658_6F97];
 const EVENT_ID: u32 = 0xBBF9_70CD;
 const MAP: u32 = 0x0F36_5871;
+/// The pin of the milestones and bounty packages: a group at the map picture's centre holding the car arrow.
+const PIN: u32 = 0xAF51_DD73;
 /// The authored three-by-three icon grid shared by the sheets.
 const ICON_GRID: u32 = 0xCA9F_A6F5;
 /// The scroll arrows at the left of the panel: the previous or next grid row.
@@ -51,6 +54,10 @@ pub(super) fn used_objects(kind: Kind) -> Vec<u32> {
     // The milestones package has no stand-in event id.
     if kind != Kind::Milestones {
         all.push(EVENT_ID);
+    }
+    // The race sheet has no pin.
+    if kind != Kind::Race {
+        all.push(PIN);
     }
     all.extend(COUNTER_STATIC);
     all.extend(match kind {
@@ -103,6 +110,10 @@ pub trait Page: Send + Sync {
     /// Every map picture the sheet may show (the sheet reads them on a worker thread).
     fn map_textures(&self) -> Vec<u32> {
         Vec::new()
+    }
+    /// The pin's bearing on the map picture (degrees clockwise from up), when the sheet has a pin.
+    fn pin(&self, _at: usize) -> Option<f32> {
+        None
     }
     /// The entry to start on.
     fn first(&self) -> usize {
@@ -234,9 +245,16 @@ impl Sheet {
     }
 
     fn place_map(&mut self, cx: &mut Cx) {
-        let Some(map) = cx.object(MAP) else { return };
+        let shown = self.show_map(cx);
+        self.place_pin(cx, shown);
+    }
+
+    /// Draws the entry's map picture; whether it is shown.
+    fn show_map(&mut self, cx: &mut Cx) -> bool {
+        let Some(map) = cx.object(MAP) else { return false };
         let Some((texture, crop)) = self.page.map(self.at).filter(|_| self.len() > 0) else {
-            return cx.rt.set_hidden(map, true);
+            cx.rt.set_hidden(map, true);
+            return false;
         };
         if self.shown_map != Some(self.at) {
             self.shown_map = Some(self.at);
@@ -245,10 +263,22 @@ impl Sheet {
         let loaded = cx.assets.texture(texture).is_some();
         cx.rt.set_hidden(map, !loaded);
         if !loaded {
-            return;
+            return false;
         }
         cx.rt.set_texture(map, texture);
         cx.rt.set_uv(map, self.zoom.now().uv());
+        true
+    }
+
+    /// The pin of the milestones and bounty sheets: it stays at the picture's centre, turned to the entry's marker, and
+    /// is hidden with the picture.
+    fn place_pin(&self, cx: &mut Cx, shown: bool) {
+        let Some(pin) = cx.object(PIN) else { return };
+        let Some(bearing) = self.page.pin(self.at).filter(|_| shown) else {
+            return cx.rt.set_hidden(pin, true);
+        };
+        cx.rt.set_hidden(pin, false);
+        cx.rt.set_rotation_z(pin, bearing.to_radians());
     }
 
     /// Accept: the question of the entry, when it has one.

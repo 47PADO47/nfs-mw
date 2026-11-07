@@ -50,6 +50,16 @@ pub(super) struct SafeHouseStart {
     pub(super) zone: Option<String>,
     /// The next world starts there (`start_from_safe_house`).
     pub(super) pending: bool,
+    /// The car lot the next world starts at instead, once: leaving a lot (or the first drive from it) starts at the
+    /// lot, as the original's last-zone marker does, without making it the safe house later starts use.
+    pub(super) lot: Option<String>,
+}
+
+impl SafeHouseStart {
+    /// The zone the next world starts at: a car lot just left, else the last safe house.
+    pub(super) fn start_zone(&mut self) -> Option<String> {
+        self.lot.take().or_else(|| self.zone.clone())
+    }
 }
 
 /// Where a start is. The state is the front end's; the world is the scene's.
@@ -145,10 +155,8 @@ impl Frontend {
             }
         }
         if std::mem::take(&mut self.safe_house_start.pending) {
-            world.start_at_safe_house(self.safe_house_start.zone.as_deref());
-        }
-        if std::mem::take(&mut self.safe_house_start.pending) {
-            world.start_at_safe_house(self.safe_house_start.zone.as_deref());
+            let zone = self.safe_house_start.start_zone();
+            world.start_at_safe_house(zone.as_deref());
         }
         if let Some(point) = self.jump_start.take() {
             world.start_at_point(point);

@@ -86,6 +86,11 @@ impl Police {
         }
     }
 
+    /// Whether the speech runs (`set_speech_enabled`).
+    pub fn speech_enabled(&self) -> bool {
+        self.formation_speech.enabled
+    }
+
     /// Supply whether enabled speech currently owns setup focus.
     pub fn set_speech_setup(&mut self, active: bool) {
         self.formation_speech.active = active;

@@ -96,6 +96,11 @@ levels: 1: 10/120/251/-, 2: 20/120/251/-, 3: 60/120/251/-, 4: 80/120/251/60, 5: 
 220/120/251/60, 8: 75/120/301/75, 9: 120/120/301/80, 10: 120/120/301/90; `default`: 20/20/201/-. (`-`: not in the `cops`
 list.) `MinimumSupportDelay`: 10 to 60 s ([ai-pursuit-cops.md](ai-pursuit-cops.md) section 6).
 
+**[ours]** The tank is filled once, at the placement, from that level. A chase's heat only climbs in the original, but
+the rewrite's testing heat keys can lower it: when the chase's level falls below the lowest one since the helicopter came,
+the helicopter keeps no more fuel than the lower level's tank (and that tank becomes its capacity), so it leaves within
+10 s of a drop to heat 1 to 3. Climbing again does not refill it (`police/heli.rs`).
+
 ### 2.4 Who the helicopter chases
 
 `AIVehicleHelicopter::Update` sets its target to the **local player's** vehicle every think, whatever the pursuit target
@@ -114,7 +119,7 @@ in_sight = dist <= 75                                     # visual sphere radius
 if not in_sight and dist < los: in_sight = dot(heli.forward, unit(target - heli)) > 0       # in front half space
 if in_sight:
     if the main game view is in a tunnel: in_sight = false
-    else ray (heli -> target + 1 m up) against the world; a hit: in_sight = false ; no hit: last_seen_place = target
+    else ray (heli -> target + 1 m up) against the world's faces (no barriers); a hit: in_sight = false ; no hit: last_seen_place = target
 if not in_sight:
     if hidden: latched = true
     elif dist < 150 and |target - last_seen_place|^2 < 400:  return true       # grace: target near where it was last seen
@@ -286,7 +291,8 @@ at more than 20 the skid is aborted. `collision_abort` decays by 1 per think. [d
 distance `random(0, 0.7 R) + 0.2 R` at an angle that advances by 0.125 turn per destination (the first angle is 0.125);
 its altitude = the sheet elevation at `C` (if covered, never lower than `C`'s own `y`) + 5 m. Fly to it at 70 m/s, dest
 velocity = own velocity, look at the point; **only when within 30 m horizontally choose the next**. The spec's earlier
-"1000 m" was the heat 1 and 2 value. [decomp][verified]
+"1000 m" was the heat 1 and 2 value. [decomp][verified] The PC search reads the radius from the level layout at the offset of
+`SearchModeRoadblockRadius` [PC binary].
 
 ### 6.2 `AIActionHeliExit`
 
@@ -432,8 +438,8 @@ Implemented in `libs/blackbox-pursuit/src/helicopter/` (sight, flight model, con
 `crates/nfsmw/src/scenes/world/ai/police.rs`: it joins from heat 4 after a 10 s wait, takes the per-level fuel and
 respawn tables of section 2.3, follows, skid-hits where the level has `SKID_HIT`, searches, exits, and shows on the
 minimap. Its `COPHELI` model is loaded with the cops and drawn at its pose (render frame rebuilt from the physics nose
-and up). Sight uses the world's ray cast (the line from the helicopter to the player, lifted 1 m, must be clear; the
-`clear` closure in `ai/police.rs`). The heli sheet's chunk parser and its lookup are in `libs/blackbox-roads/src/heli_sheet.rs`
+and up). Sight uses the world's ray cast on faces only (the line from the helicopter to the player, lifted 1 m, must be clear;
+`drive::sight::heli_clear`, passed to `ai/police.rs` as `clear`). The heli sheet's chunk parser and its lookup are in `libs/blackbox-roads/src/heli_sheet.rs`
 (section 1 of `docs/formats/pursuit-data.md`). The sheet is read from `STREAML2RA.BUN` when the track opens
 (`crates/nfsmw-data/src/world/heli_sheet.rs`, a header walk: the 532 MB file is not read whole) and is the helicopter's
 floor (`SheetFloor` in `ai/police.rs`; a flat floor when the sheet is missing). On the install the walk gives the
@@ -489,5 +495,6 @@ Tags: **[headless]** by the synthetic world tests, **[verified]** against the in
   1.55 and 0.4). The meaning of each part is mapped by value, since the mod's defaults equal the vanilla constants
   **[inferred]**; the mod's `-8` gain is used by its size. `SearchRadius` (80, 250) is read and held: no constant of the
   controller matches it. `DespawnDistance` (600 m) is the mod's default for a vanilla distance whose code was not found.
-- **Not done.** The sight cone, the skid-hit's collision-abort counter from real body collisions, and the rotor word
-  meanings (section 7). A live-play comparison has not been made.
+- **Not done.** The skid-hit's collision-abort counter from real body collisions (the helicopter has no collision
+  contacts yet), and the rotor word meanings (section 7). A live-play comparison has not been made. (The sight's
+  75 m sphere and front half space are in `helicopter/sight.rs`; the minimap shows its cone.)

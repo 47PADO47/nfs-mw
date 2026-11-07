@@ -17,6 +17,9 @@ pub struct CameraPreferences {
     pub preserve_framing: bool,
     pub center_key: String,
     pub hide_ui_key: String,
+    /// The game pauses while the F5, F6 or F8 overlay is open (single player only), so a screenshot or a toggle is not
+    /// interrupted by the chase.
+    pub pause_overlays: bool,
 }
 impl Default for CameraPreferences {
     fn default() -> Self {
@@ -31,6 +34,7 @@ impl Default for CameraPreferences {
             preserve_framing: true,
             center_key: "Home".into(),
             hide_ui_key: "F4".into(),
+            pause_overlays: true,
         }
     }
 }

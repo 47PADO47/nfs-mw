@@ -1,4 +1,4 @@
-//! The pursuit result screen (`PostRace_Pursuit.fng`): the numbers of a chase, one row each. Two pages:
+//! The pursuit result screen (`PostRace_Pursuit.fng`): the numbers of a chase, one row each. Two kinds of report:
 //!
 //! - a pursuit challenge's, the row the challenge asked for showing `value / goal` (the package's rows read
 //!   `00:00.00 / 00:00.00`). The flow opens it with the chase's [`PursuitReport`] when a challenge ends (`post_race.rs`);
@@ -6,39 +6,68 @@
 //! - the original's pursuit page after an escape in free roam, which the rewards screen's Continue opens: the seven rows
 //!   of `docs/specs/pursuit-escape-results.md` section 3, each with its language label. Continue goes back to the game.
 //!
-//! Continue leaves through the package's own script, whose end (`EXIT_COMPLETE`) answers the screen.
+//! The footer's second button (key 2) turns the page **[exe]**: after an escape from the pursuit page to the
+//! infractions page, the milestones page and back; after a challenge between the pursuit and the infractions pages
+//! (`pursuit_pages.rs`). The package plays the rows out on the key and passes it on to the screen once they are gone,
+//! then plays them back in. Continue leaves through the package's own script, which passes the accept on to the screen
+//! at its end **[exe]**; the end of both scripts (`EXIT_COMPLETE`) is no answer, as a page turn ends with it too.
 
-use super::ids;
+use blackbox_feng::ids::{PAD_ACCEPT, PAD_BUTTON0};
+
 use super::logic::{Command, Cx, ScreenLogic};
 use super::post_race::lap_time;
+use super::pursuit_pages::{self, LINES, Line, Mark};
 use crate::i18n::fmt::grouped;
 use crate::viewer::{PursuitPage, PursuitReport, RaceAnswer};
 
-/// The label and the value of row `n` (0 to 8) are the name hashes `0x38B136A8 + n` and `0x85AB7369 + n`.
-const FIRST_LABEL: u32 = 0x38B1_36A8;
-const FIRST_VALUE: u32 = 0x85AB_7369;
-/// The heading and its shadow, and the language label they show (`PRP_HEADER_PURSUIT`).
+/// The heading and its shadow.
 const HEADING: u32 = 0xB987_AEA9;
 const HEADING_SHADOW: u32 = 0x8481_22A4;
-const HEADING_TEXT: u32 = 0xFEA8_72D4;
-/// The rows the package has past the six a challenge fills: the unserved infractions, the escapes in a row and the
-/// unserved infractions again. They are left empty.
-const SPARE_ROWS: std::ops::Range<u32> = 6..9;
-/// The package's rows: the free-roam page leaves the two past its seven empty.
-const PACKAGE_ROWS: u32 = 9;
+/// The footer button that turns the page: its string, which names the page it goes to.
+const PAGE_BUTTON: u32 = 0xC6BE_1C1F;
+/// What the package passes on once the rows have gone: the pad's fifth button, key 2.
+const TURN_PAGE: u32 = PAD_BUTTON0 + 4;
+/// The headings `PURSUIT`, `INFRACTIONS` and `MILESTONES`, and the button's `Infractions`, `Milestones` and `Pursuit`
+/// **[exe]**.
+const PURSUIT_HEADING: u32 = 0xFEA8_72D4;
+const INFRACTIONS_HEADING: u32 = 0xFB41_5E78;
+const MILESTONES_HEADING: u32 = 0x578B_767B;
+const TO_INFRACTIONS: u32 = 0xAEAE_B62F;
+const TO_MILESTONES: u32 = 0x7441_3352;
+const TO_PURSUIT: u32 = 0x7448_870B;
+/// The rows a challenge fills; the package's three past them stay empty.
+const CHALLENGE_ROWS: usize = 6;
 /// The language labels of the free-roam pursuit page's rows, top to bottom **[exe]**: Pursuit Duration, Damaged Police
 /// Vehicles, Immobilized Police Vehicles, Spike Strips Dodged, Roadblocks Dodged, Cost to State, Unserved Infractions.
 const CHASE_LABELS: [u32; 7] =
     [0x4D64_888D, 0xA999_F6E2, 0x23F6_E732, 0x0291_C816, 0x29DA_BA15, 0xD9BB_7D2D, 0xB7DF_FF96];
 
+/// The page the screen shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Shown {
+    Pursuit,
+    Infractions,
+    Milestones,
+}
+
 /// Shows a [`PursuitReport`].
 pub struct PursuitResultsLogic {
     report: PursuitReport,
+    shown: Shown,
 }
 
 impl PursuitResultsLogic {
     pub fn new(report: PursuitReport) -> Self {
-        Self { report }
+        Self { report, shown: Shown::Pursuit }
+    }
+
+    /// The page after this one: a challenge has no milestones page.
+    fn next(&self) -> Shown {
+        match (self.shown, self.report.page) {
+            (Shown::Pursuit, _) => Shown::Infractions,
+            (Shown::Infractions, PursuitPage::Chase) => Shown::Milestones,
+            (Shown::Infractions, PursuitPage::Challenge) | (Shown::Milestones, _) => Shown::Pursuit,
+        }
     }
 }
 
@@ -82,37 +111,62 @@ fn cost(value: f32) -> String {
 }
 
 impl PursuitResultsLogic {
-    /// The free-roam pursuit page: each row's label and value, and the package's spare rows empty.
-    fn fill_chase(&self, cx: &mut Cx) {
-        for row in 0..PACKAGE_ROWS {
-            let label = CHASE_LABELS.get(row as usize).map_or_else(String::new, |&l| crate::i18n::game_or_error(l));
-            cx.text_object(FIRST_LABEL + row, &label);
-            cx.text_object(FIRST_VALUE + row, &chase_row_text(&self.report, row as usize));
+    /// The page shown: its heading, the button's name of the next page, and its lines.
+    fn show(&self, cx: &mut Cx) {
+        let heading = crate::i18n::game_or_error(match self.shown {
+            Shown::Pursuit => PURSUIT_HEADING,
+            Shown::Infractions => INFRACTIONS_HEADING,
+            Shown::Milestones => MILESTONES_HEADING,
+        });
+        cx.text_object(HEADING, &heading);
+        cx.text_object(HEADING_SHADOW, &heading);
+        let button = match self.next() {
+            Shown::Pursuit => TO_PURSUIT,
+            Shown::Infractions => TO_INFRACTIONS,
+            Shown::Milestones => TO_MILESTONES,
+        };
+        cx.text_object(PAGE_BUTTON, &crate::i18n::game_or_error(button));
+        let lines = match self.shown {
+            Shown::Pursuit => self.pursuit_lines(),
+            Shown::Infractions => pursuit_pages::infractions(&self.report.committed),
+            Shown::Milestones => pursuit_pages::milestones(&self.report.milestones),
+        };
+        for n in 0..LINES {
+            pursuit_pages::draw(cx, n, lines.get(n as usize));
         }
+    }
+
+    /// The pursuit page: the free-roam rows with their labels, or a challenge's rows under the package's own labels.
+    fn pursuit_lines(&self) -> Vec<Line> {
+        let line = |label: String, value: String| Line { label, value: Some(value), mark: Mark::None };
+        if self.report.page == PursuitPage::Chase {
+            return CHASE_LABELS
+                .iter()
+                .enumerate()
+                .map(|(row, &label)| line(crate::i18n::game_or_error(label), chase_row_text(&self.report, row)))
+                .collect();
+        }
+        PursuitReport::ROWS
+            .iter()
+            .take(CHALLENGE_ROWS)
+            .enumerate()
+            .map(|(row, &label)| line(label.to_owned(), row_text(&self.report, row)))
+            .collect()
     }
 }
 
 impl ScreenLogic for PursuitResultsLogic {
     fn start(&mut self, cx: &mut Cx) {
-        // The package's heading reads INFRACTIONS (the screen is shared with the infractions page of a chase).
-        let heading = crate::i18n::game_or_error(HEADING_TEXT);
-        cx.text_object(HEADING, &heading);
-        cx.text_object(HEADING_SHADOW, &heading);
-        if self.report.page == PursuitPage::Chase {
-            self.fill_chase(cx);
-            return;
-        }
-        for row in 0..PursuitReport::ROWS.len() {
-            cx.text_object(FIRST_VALUE + row as u32, &row_text(&self.report, row));
-        }
-        for row in SPARE_ROWS {
-            cx.text_object(FIRST_LABEL + row, "");
-            cx.text_object(FIRST_VALUE + row, "");
-        }
+        self.show(cx);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
-        if message != ids::EXIT_COMPLETE {
+        if message == TURN_PAGE {
+            self.shown = self.next();
+            self.show(cx);
+            return;
+        }
+        if message != PAD_ACCEPT {
             return;
         }
         match self.report.page {
@@ -146,5 +200,19 @@ mod tests {
     fn an_escape_that_did_not_happen_has_no_time() {
         let report = PursuitReport { evasion: None, goal: Some((1, 300.0)), ..PursuitReport::sample() };
         assert_eq!(row_text(&report, 1), "--:--.-- / 05:00.00");
+    }
+
+    #[test]
+    fn key_2_turns_an_escapes_pages_through_infractions_and_milestones_and_a_challenges_through_infractions() {
+        let mut chase = PursuitResultsLogic::new(PursuitReport { page: PursuitPage::Chase, ..PursuitReport::sample() });
+        let mut seen = Vec::new();
+        for _ in 0..3 {
+            chase.shown = chase.next();
+            seen.push(chase.shown);
+        }
+        assert_eq!(seen, [Shown::Infractions, Shown::Milestones, Shown::Pursuit]);
+        let mut challenge = PursuitResultsLogic::new(PursuitReport::sample());
+        challenge.shown = challenge.next();
+        assert_eq!((challenge.shown, challenge.next()), (Shown::Infractions, Shown::Pursuit));
     }
 }

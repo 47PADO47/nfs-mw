@@ -127,6 +127,11 @@ impl RenderBackend for Renderer {
         self.touch_scene();
         self.set_scene_treatment(profile, gain);
     }
+    fn set_colour_look(&mut self, look: blackbox_gfx::ColourLook) {
+        if self.post.set_look(look) {
+            self.touch_scene();
+        }
+    }
     fn set_surface_water(&mut self, water: blackbox_gfx::SurfaceWater) {
         self.touch_scene();
         self.surface_water = water.sanitized();

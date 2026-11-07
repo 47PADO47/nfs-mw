@@ -2,7 +2,7 @@
 
 This supplements [ai-pursuit.md](ai-pursuit.md) and
 [busted-sequence.md](busted-sequence.md). It separates the original's observed
-source rules from the remake's fallback while arrest NIS playback is missing.
+source rules from the remake's fallback for when the arrest NIS cannot play.
 
 ## Reference rules
 
@@ -21,10 +21,11 @@ The manual-reset exception is also stock by default: the flashing reach is
 explicitly enables the optional enhancement.
 
 **[decomp]** The NIS message is delayed by three simulation seconds after the
-bust. That delay is separate from the NIS animation's duration. Arrest scene
-playback, placement and the original career transition remain incomplete here.
-The remake uses the no-NIS fallback: three seconds of held controls, followed by
-the infractions ticket directly. There is no additional invented overlay delay.
+bust. That delay is separate from the NIS animation's duration. The arrest scene
+plays as an in-world NIS ([busted-sequence.md](busted-sequence.md) section 10.3).
+When it cannot (no road under the car, the scene fails to load, or co-op, which
+skips it) the remake uses the no-NIS fallback: three seconds of held controls,
+followed by the infractions ticket directly. There is no additional invented overlay delay.
 The fallback retains the stopped police and holds the player's controls until
 the infractions screen has accepted payment. A completed ticket must
 release those controls, clear the terminal busted flag and meter, and permit

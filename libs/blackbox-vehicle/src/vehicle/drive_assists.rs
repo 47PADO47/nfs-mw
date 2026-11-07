@@ -8,7 +8,11 @@ use crate::math::ramp;
 
 impl Vehicle {
     pub(super) fn distribute_drive(&mut self, torque: f32, av: [f32; 4], grounded: [bool; 4]) {
-        if self.rolling_drive(torque, grounded) || self.coasting_drive(torque, grounded) {
+        let angular_velocity = self.body.angular_velocity;
+        if self.rolling_drive(torque, grounded)
+            || self.coasting_drive(torque, grounded)
+            || self.simple_drive(torque, grounded, angular_velocity)
+        {
             return;
         }
         if torque.abs() <= f32::EPSILON {

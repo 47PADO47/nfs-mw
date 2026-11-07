@@ -56,3 +56,23 @@ fn no_road_under_an_end_keeps_the_single_point_answer() {
     }
     assert!(fitted_surface(&Nothing, Vec3::ZERO, 0.0, [0.4, 3.2]).is_none());
 }
+
+#[test]
+fn a_kerb_under_one_end_leaves_the_strip_on_the_road() {
+    /// A level road whose surface steps up 0.15 m past z 2.9: a kerb under the strip's far end.
+    struct Kerb;
+    impl Ground for Kerb {
+        fn hit(&self, origin: Vec3, direction: Vec3, limit: f32) -> Option<GroundHit> {
+            let top = if origin.z > 2.9 { 0.15 } else { 0.0 };
+            let distance = (origin.y - top) / -direction.y;
+            (direction.y < 0.0 && distance >= 0.0 && distance <= limit).then_some(GroundHit {
+                distance,
+                normal: Vec3::Y,
+                surface: SurfaceGrip::DEFAULT,
+            })
+        }
+    }
+    let (height, normal) = fitted_surface(&Kerb, Vec3::ZERO, 0.0, [0.4, 3.2]).unwrap();
+    assert!(height.abs() < 1e-3, "{height}");
+    assert!((normal - Vec3::Y).length() < 1e-3, "the kerb does not tilt the strip: {normal:?}");
+}

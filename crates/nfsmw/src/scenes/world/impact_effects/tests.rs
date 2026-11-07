@@ -71,14 +71,16 @@ fn installed_source_contact_groups_select_native_profiles_and_reach_shared_batch
     let owner = Rc::new(());
     let mut backend =
         crate::app::test_backend::NullBackend::new(crate::settings::test_caps::native()).with_texture_tracking();
-    for (class, name, action, effect) in [
-        ("smackable", "largemetalpost", Action::HitWorld, "lamp_lrg_hit_world"),
-        ("smackable", "largemetalpost", Action::HitObject, "lamp_lrg_hit_car"),
-        ("pvehicle", "traftaxi", Action::HitWorld, "carhitwall"),
-        ("pvehicle", "copmidsize", Action::HitObject, "carhitcar"),
-        ("smackable", "genericwood_frag", Action::HitWorld, "wood_frag_med_hit_world"),
-        ("smackable", "glassshatter1", Action::HitGround, "glass_hit_world"),
-        ("smackable", "trafficcablelight", Action::HitWorld, "mtl_box_hit_world"),
+    // The last column: the stock group releases a particle. The stock dust puff (six a second for a 0.1 s on interval)
+    // releases none under the native count truncation (`docs/specs/pc-collision-particles.md`); mods raise its rate.
+    for (class, name, action, effect, visible) in [
+        ("smackable", "largemetalpost", Action::HitWorld, "lamp_lrg_hit_world", false),
+        ("smackable", "largemetalpost", Action::HitObject, "lamp_lrg_hit_car", true),
+        ("pvehicle", "traftaxi", Action::HitWorld, "carhitwall", true),
+        ("pvehicle", "copmidsize", Action::HitObject, "carhitcar", true),
+        ("smackable", "genericwood_frag", Action::HitWorld, "wood_frag_med_hit_world", false),
+        ("smackable", "glassshatter1", Action::HitGround, "glass_hit_world", false),
+        ("smackable", "trafficcablelight", Action::HitWorld, "mtl_box_hit_world", false),
     ] {
         let contact = sample(&db, class, name, action, effect, &owner);
         let mut fx = ImpactEffects::default();
@@ -90,7 +92,7 @@ fn installed_source_contact_groups_select_native_profiles_and_reach_shared_batch
         let mut batches = Vec::new();
         fx.textured(Vec3::Y, &mut batches);
         assert!(
-            batches.iter().any(|batch| !batch.vertices.is_empty()),
+            !visible || batches.iter().any(|batch| !batch.vertices.is_empty()),
             "{name} {effect} must reach shared textured batches"
         );
         assert!(fx.accepted > 0);

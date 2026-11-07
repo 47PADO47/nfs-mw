@@ -103,13 +103,18 @@ are **[verified]** against the install (name, hash, size, format and mip count g
 | 0x4B | u8 | PaletteCompressionType |
 | 0x4C | i16 | NumPaletteEntries |
 | 0x4E | i8 | NumMipMapLevels ✔ |
-| 0x4F–0x57 | i8 ×9 | TilableUV, BiasLevel, RenderingOrder, ScrollType, UsedFlag, ApplyAlphaSorting, **AlphaUsageType** (0 none, 1 punch-through, 2 modulated), **AlphaBlendType**, Flags |
+| 0x4F–0x57 | i8 ×9 | **TilableUV** (bit 0 repeats across, bit 1 down; clear clamps), BiasLevel, RenderingOrder, ScrollType, UsedFlag, ApplyAlphaSorting, **AlphaUsageType** (0 none, 1 punch-through, 2 modulated), **AlphaBlendType**, Flags |
 | 0x58 | i16 ×7 | ScrollTimeStep, ScrollSpeedS/T, OffsetS/T, ScaleS/T |
 | 0x68 | 20 B | runtime pointers and reference count |
 
 `Flags` (0x57) bit 1 (`0x02`) keeps both faces of copy-mode surfaces drawn with the texture: the original culls back
 faces of copy-mode textures unless this bit is set or the alpha is punch-through **[exe + verified]**. Set on 245 of
 4,273 car and world textures. The rule is in [../specs/backface-culling.md](../specs/backface-culling.md).
+
+`TilableUV` (0x4F) names the axes a texture repeats on where an image's texture rectangle leaves the unit square: 3 on
+the menus' stripes and noise tiles, 1 on the LED bars, 0 on 690 of 725 HUD and menu textures **[verified]**; the
+per-axis reading is **[inferred]**. The rule and its evidence are in
+[../specs/feng-image-repeat.md](../specs/feng-image-repeat.md).
 
 ### Platform record (0x20 bytes, PC) **[verified]**
 

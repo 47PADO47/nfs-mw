@@ -66,6 +66,7 @@ fn texture(hash: u32, pixels: [[u8; 4]; 3], blend: u8) -> Texture {
         alpha_sorting: true,
         alpha_blend: blend,
         flags: 0,
+        tilable_uv: 0,
         data: pixels.into_iter().flat_map(|[r, g, b, a]| [b, g, r, a]).collect(),
         palette: Vec::new(),
     }
@@ -191,20 +192,26 @@ fn the_verified_table_rows_match_the_install_and_stock_fonts_keep_their_size() {
     }
 }
 
-#[test]
-fn repeating_images_keep_their_extent_and_cache_a_separate_wrapped_texture() {
-    let assets = UiAssets {
+/// Assets holding `texture` alone.
+fn assets_with(texture: Texture) -> UiAssets {
+    let blank = || Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 };
+    UiAssets {
         fonts: HashMap::new(),
-        textures: HashMap::from([(1, texture(1, [[255; 4], [128; 4], [64; 4]], 1))]),
+        textures: HashMap::from([(texture.name_hash, texture)]),
         aliases: HashMap::new(),
         font_native: HashMap::new(),
         custom: CustomFontSet::default(),
         late: LateTextures::default(),
-        input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
-        discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
-        mod_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
+        input_atlas: blank(),
+        discord_mark: blank(),
+        mod_mark: blank(),
         language_fonts: HashMap::new(),
-    };
+    }
+}
+
+#[test]
+fn repeating_images_keep_their_extent_and_cache_a_separate_wrapped_texture() {
+    let assets = assets_with(Texture { tilable_uv: 3, ..texture(1, [[255; 4], [128; 4], [64; 4]], 1) });
     let mut repeating = node(0, None);
     let NodeKind::Image { uv, .. } = &mut repeating.kind else { unreachable!() };
     *uv = [0.0, 0.0, 2.5, 1.5];
@@ -229,6 +236,39 @@ fn repeating_images_keep_their_extent_and_cache_a_separate_wrapped_texture() {
     let mut cached = UiOutput::default();
     presenter.present(&tree, &assets, screen, &mut cached);
     assert!(cached.patches.is_empty());
+}
+
+/// A texture its pack does not mark tilable (the pursuit board's backing) is drawn as one quad whose texture coordinates
+/// the sampler clamps to the edge, however far they leave the unit square: its leave slides it onto transparent rows.
+#[test]
+fn an_image_whose_texture_does_not_tile_draws_one_clamped_quad() {
+    let assets = assets_with(texture(1, [[255; 4], [128; 4], [64; 4]], 1));
+    let mut sliding = node(0, None);
+    let NodeKind::Image { uv, .. } = &mut sliding.kind else { unreachable!() };
+    *uv = [0.0, 0.59375, 1.0, 2.0];
+    let tree = UiTree { nodes: vec![sliding], draw_order: vec![0] };
+    let screen = Screen { width: 640.0, height: 480.0, pixels_per_point: 1.0 };
+    let mut out = UiOutput::default();
+    BlackboxPresenter::default().present(&tree, &assets, screen, &mut out);
+    assert_eq!(out.patches.len(), 1);
+    assert_eq!(out.patches[0].size, [3, 1], "the plain texture, no wrapped copy");
+    let mesh = &out.layer.as_ref().unwrap().meshes[0];
+    assert_eq!(mesh.vertices.len(), 4);
+    assert!(mesh.vertices.iter().any(|v| v.uv[1] == 2.0), "the authored rectangle reaches the sampler");
+}
+
+/// The packs mark each texture the menus and the HUD scroll past their edges: the stripes and noise repeat both ways, the
+/// LED bars across only, and the pursuit board's backing and the sliding tags not at all.
+#[test]
+#[ignore = "requires an unmodified base PC install; set NFSMW_GAME_DIR"]
+fn installed_textures_carry_the_axes_they_repeat_on() {
+    let dir = GameDir::open(std::env::var("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    for (name, tilable) in
+        [("BASESTRIPE", 3), ("NOISE_TILE", 3), ("LED_MAIN", 1), ("OUTRUN_BACKING", 0), ("TAG_1", 0), ("LED_DELTA", 0)]
+    {
+        assert_eq!(assets.tilable_uv(fe_hash_upper(name)), tilable, "{name}");
+    }
 }
 
 #[test]

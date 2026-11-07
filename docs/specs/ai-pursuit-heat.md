@@ -189,6 +189,8 @@ raise the heat cap to the requested level, and an explicit F8 heat cap can expos
 - **Escape (player):** every car of the career stable gets `VehicleHeat *= EvadeSuccessHeatAdjust` from the *default*
   collection = **0.95**; and `TimesBusted` handling of section 6. **[decomp + verified]**
 - **Event win:** stable heat x `EventWinHeatAdjust` (default 0.94); **milestone complete:** x 0.93. **[decomp + verified]**
+  On PC no code reads `MilestoneCompleteHeatAdjust` ([career-milestones.md](career-milestones.md)), so the rewrite cools
+  the stable on a career race won (first place, `blacklist/results.rs`) and not on a milestone.
 - **Paying the bust fine:** the car's heat is set to 1.0. A quick-race car select sets the car's heat to 0.
 - A visual part fitted in a career garage multiplies the car's record heat by its `fecooling` factor times `extra`
   (1.0, or 0.75 in the backroom); values 0.69 to 0.99 read from the install in [career-cooling.md](career-cooling.md).
@@ -231,7 +233,13 @@ Two counters on the perpetrator, accumulated only in free roam or challenge race
   `RepPointsForDestroying[heat]` of the cop's `aivehicle` collection times a multiplier. Values (all heat levels equal):
   `copmidsize` 250, `copghost` 500, `copgto` 2500, `copgtoghost` 5000, `copsporthench` 20 000, `copsportghost` 25 000,
   `copsport` 20 000 (100 000 at heat 10), `copsuvl` 10 000, `copsuv` 15 000, `copsuvpatrol` 25 000, `copcross` 100 000,
-  `copcompact` 1..10. **[verified]** The array is indexed by the integer heat (10 entries).
+  `copcompact` 1..10. **[verified]** The array has 10 entries and is indexed by the integer heat itself, not heat
+  minus one: heat 1 reads the second entry, heat 9 the last (so `copsport` pays 100 000 at heat 9), and heat 10 reads
+  past the end, where the lookup returns its zero default, so every takedown at heat 10 pays 0 **[exe]** (the reward
+  routine at `0x418f30` passes the pursuit's integer heat as the attribute index). Any vehicle that leaves the chase
+  destroyed is counted, the helicopter included: a helicopter downed by a breaker pays `copheli`'s placeholder points
+  (the array holds 1 to 10, so heat `n` pays `n + 1`), raises the cops-destroyed count and the multiplier, and costs 5000
+  like a car **[decomp]**. The bounty fixes (section 5.5) change three of these rules.
 - **multiplier**: the first kill uses x1; a further kill while `DestroyCopBonusTimer > 0` raises the multiplier by 1
   to a maximum of 3; each kill restarts the timer at `DestroyCopBonusTime`; after the timer runs out the multiplier is back to 1.
   `GetCopDestroyedBonusMultiplier`, `GetMostRecentCopDestroyedRepPoints` and `...Type` feed the HUD pop-up ("cop X taken out,
@@ -268,8 +276,9 @@ searching.
 (read from the `smackable` collection) and the traffic hits closing hard enough, clears both while a chase or the arrest
 runs, and tells the speech machine each one as a `Smashed` or `PlayerHitTraffic` notice in a free-roam frame. The machine
 decides and says the report; when it has been said the world sets the 911 timer to `Lifetime911` and clears the lockout.
-A patrol that sees the player then starts a chase at any speed. A rewrite fallback makes the call itself after 20 s when
-the speech does not answer. **[decomp]** for the rule, **[inferred]** for the one-touch-per-second debounce and the
+A patrol that sees the player then starts a chase at any speed. A rewrite fallback makes the call itself after 20 s while
+no speech can say the report (muted, not loaded, no audio device); while the speech runs only the said report makes the
+call, as in the original. **[decomp]** for the rule, **[inferred]** for the one-touch-per-second debounce and the
 fallback. Console: `pursuit status` shows the call and the counters, `pursuit 911` makes a call now.
 
 ### 5.4 Totals at the end
@@ -281,6 +290,19 @@ At the end of a *career* pursuit the manager moves the pending points (normal + 
 (`Bounty`), stores the infraction bits, and, if the player escaped, raises the displayed career rep and posts the new
 bounty. Challenge-series races skip this. Evaded and busted pursuits are tallied (`NumEvadedPursuits`, `NumBustedPursuits`)
 and ranked in the high-score tables (pursuit length, bounty, infractions, cops destroyed...). **[decomp]**
+
+### 5.5 Bounty fixes [ours]
+
+Three rules above are bugs that a widely used community fix for the original corrects. The rewrite builds the same
+corrections in, on by default; the F8 police panel's "Bounty fixes" checkbox (`PursuitOptions::bounty_fixes`, saved with
+the startup settings) turns them off to restore the original. Implemented in `scenes/world/ai/police/bounty_fixes.rs`.
+
+- **Heat 10 takedowns:** the points entry is the heat capped at 9, so heat 10 reads the last entry instead of nothing.
+- **The helicopter:** destruction points of 1 to 10 (the data's placeholders, the helicopter's array) score 100 000, and
+  the downed helicopter's takedown line uses the `copsporthench` label (`Federal Pursuit Vehicle`); the original has no
+  line for it ([hud-pursuit-takedown.md](hud-pursuit-takedown.md) section 2). 0 points (a car without a table entry) stay 0.
+- **Long combo windows:** a `DestroyCopBonusTime` of 120 s or more (heat 8 and 10 of the chase table, heat 6 to 10 of
+  the race table) is 10 s, the other levels' window.
 
 ## 6. Career consequences
 
@@ -356,9 +378,9 @@ car select screen (x0.95); get busted three times and confirm the impound.
   `elevation` is read as a physics height; that unit is not checked against the install.
 - **Busted** (the bust meter, `BustSpeed`, `MeterDeadZoneBustedDistance`): the busted timer and its HUD value are
   implemented. The rule is in [ai-pursuit.md](ai-pursuit.md) section 5 and `libs/blackbox-pursuit/src/busted.rs`;
-  the bust speed comes from the Bartender file. Not implemented: the five-segment bar (`PursuitMeter`, section 4.4 of
-  ai-pursuit.md), whose formula uses `MeterDeadZoneBustedDistance` and which the code does not have, and drawing a bar
-  on screen. See
+  the bust speed comes from the Bartender file. The five-segment bar (`PursuitMeter`, section 4.4 of ai-pursuit.md) is
+  built: its signed value with the 35 m and 50 m dead zones in `blackbox_pursuit::busted::meter`, drawn by
+  `hud/pursuit_meter.rs` ([hud-pursuit-state.md](hud-pursuit-state.md)). See
   [provenance](../provenance/ai-pursuit-busted.md).
 - **Heat growth** (section 3.2): `TimePerHeatLevel` times `ScaleEscalationPerBucket[min(bin, 14)]` from the install, with the
   Blacklist's current bin (`scenes/world/ai/police/heat_model.rs`). The original profile-absent query uses `TimePerHeatLevel`
@@ -371,4 +393,5 @@ car select screen (x0.95); get busted three times and confirm the impound.
 - **Paint cooling** (`fecooling`): read, and applied to the career car when a garage part is fitted (not a chase effect); see [career-cooling.md](career-cooling.md).
 - **Evade heat** (section 3.3): an escape multiplies the heat by 0.95 and the value carries into the next chase, as the
   start heat (`max(heat, base)`). The rewrite has one car and no career, so this is that car's heat only
-  (`Police::carried_heat`). **[unconfirmed]** The install's career rule (every car of the stable) is not modelled.
+  (`Police::carried_heat`). In a career every car of the stable is multiplied as well (`career/pursuit.rs`, through
+  `nfsmw_career::safehouse::apply_heat_factor`).

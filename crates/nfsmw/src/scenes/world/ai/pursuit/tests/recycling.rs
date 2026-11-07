@@ -83,9 +83,18 @@ fn a_patrol_inside_the_window_and_ahead_of_the_camera_stays() {
 #[test]
 fn a_patrol_beside_the_camera_stays_while_it_is_on_the_minimap() {
     let mut world = world_with_a_stationary_cop_at(100.0);
+    world.set_policy(crate::settings::TrafficPolicy { keep_on_minimap: true, ..Default::default() });
     let (focus, camera) = (player_at(-100.0, 0.0), camera_at(-100.0, false));
     run(&mut world, focus, &camera, 30.0);
     assert_eq!(world.cars.len(), 1, "200 m off to the side: turning round finds it");
+}
+
+#[test]
+fn by_default_a_patrol_out_of_play_beside_the_camera_goes_as_in_the_original() {
+    let mut world = world_with_a_stationary_cop_at(100.0);
+    let (focus, camera) = (player_at(-100.0, 0.0), camera_at(-100.0, false));
+    run(&mut world, focus, &camera, 30.0);
+    assert!(world.cars.is_empty(), "200 m off to the side and unseen: the patrol pass recycles it");
 }
 
 #[test]
@@ -93,7 +102,7 @@ fn a_cop_in_a_chase_stays_while_it_is_about_to_meet_the_target() {
     let mut world = world_with_a_driving_patrol_at(100.0);
     // The player stands 150 m from the patrol, which sees it and joins, while the camera is 200 m off to the side.
     world.player_position = Some(Vec3::new(0.0, 0.0, -50.0));
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     assert!(world.cars[0].is_cop());
     let (focus, camera) = (player_at(-50.0, 0.0), camera_at(-100.0, false));
     run(&mut world, focus, &camera, 30.0);
@@ -115,6 +124,7 @@ fn a_wreck_in_play_stays_in_view_and_goes_once_it_may_respawn_out_of_play() {
         other: crate::scenes::world::events::OtherBody { vehicle: true, player: true, ..Default::default() },
     };
     world.cars[0].on_hit(1_000_000.0, true, DriverClass::Human, 50.0, hit, 0.0);
+    world.set_policy(crate::settings::TrafficPolicy { keep_on_minimap: true, ..Default::default() });
     assert!(world.cars[0].is_wrecked());
     let (focus, camera) = (player_at(-150.0, 0.0), camera_at(-150.0, true));
     // The wreck coasts to a stop (the native retirement): a few seconds, while it is still inside the window.

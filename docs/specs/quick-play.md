@@ -75,15 +75,16 @@ redraw replaces a pair equal to the last one. There is no generator in the depen
 | manufacturer names, index 1 to 25 | BMW, Ford, Subaru, Porsche, Audi, Mazda, General Motors, Dodge, Toyota, Mitsubishi, McLaren, Mercedes, Nissan, Lotus, Lamborghini, Renault, Lexus, Pontiac, Chevrolet, Vauxhall, Aston Martin, Volkswagen, Fiat, Cadillac, Corvette | **[exe]**, **[verified]** against 6 catalogue cars |
 | manufacturer logo | texture `CARSELECT_MANUFACTURER_<NAME>` (the names with an underscore for General Motors: `GENERAL_MOTORS`); `GENERIC_LOGO_128` when the car has no manufacturer or the texture is missing | **[exe]** |
 | model-name picture | texture `SECONDARY_LOGO_<collection name>` (the name as stored, `cobaltss`); `GENERIC_LOGO_256` when the car has no manufacturer or the texture is missing | **[exe]** |
-| stat bars | `nfsmw_career::carlot::stats::bar_fractions` of the car among all pool cars, as the car lot shows them | **[ours]**, `career-car-lot.md` open question 1 |
+| stat bars | the original front end's stock rating of the car ([garage-performance-bars](garage-performance-bars.md)), as the car lot shows them | **[verified]** objects, rating as in the garage |
 
 This answers the manufacturer index order that `career-car-lot.md` left open (open question 1, last bullet): the order above
 is the exe's switch, and the installed collections agree (`cobaltss` 19 Chevrolet, `a4_32` 5 Audi, `imprezzawrx` 3 Subaru,
 `rx8speed` 6 Mazda). Index 26 and above, and 0, have no name; the Ferrari collection is among those.
 
-The bars use the same three LED strips as `Car_Select.fng`, the same geometry (80 / 40 / 120 pixel first strip over a 160
-pixel strip, 32 pixels per uv unit); only the GUIDs differ (section 6). The `LED_DELTA` ticks, which compare with another car,
-are hidden.
+The bars use the same objects as `Car_Select.fng` (`BASE_`, `FILLBAR_` and `HANDLE_<axis>`); only the GUIDs differ (section
+6). They are drawn as the car selects draw them, with the car's stock rating
+([garage-performance-bars](garage-performance-bars.md#the-car-selects)). The `LED_DELTA` ticks, which compare with another
+car, are hidden.
 
 ## 5. The race lines
 

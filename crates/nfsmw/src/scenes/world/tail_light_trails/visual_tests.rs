@@ -192,7 +192,7 @@ fn installed_nos_trail_visual_comparisons() {
             for enabled in [false, true] {
                 scene.tuning.motion_blur.enabled = enabled;
                 for _ in 0..60 {
-                    scene.feed_focus(&mut renderer, 1.0 / 120.0);
+                    scene.feed_focus(&mut renderer, 1.0 / 120.0, 1.0 / 120.0);
                 }
                 renderer.render(&base, &instances).unwrap();
                 let image = renderer.read_output().unwrap().unwrap();
@@ -211,7 +211,7 @@ fn installed_nos_trail_visual_comparisons() {
             }
             scene.traffic = saved_traffic;
             scene.tuning.motion_blur.enabled = false;
-            scene.feed_focus(&mut renderer, 0.0);
+            scene.feed_focus(&mut renderer, 0.0, 0.0);
         }
         for (camera, offset) in [
             ("chase", Vec3::new(-8.0, -1.2, 2.6)),

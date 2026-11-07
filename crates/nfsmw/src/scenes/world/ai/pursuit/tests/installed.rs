@@ -35,7 +35,7 @@ fn installed_free_roam_pursuit_uses_the_real_patrol_car_and_heat_rows() {
     world.cars.push(car);
     world.add_cop_model(model);
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, rows, player());
+    start_with_patrols(&mut world, 1, rows, player());
     assert_eq!(cop_count(&world), 1);
     assert!(world.cars[0].emergency_lights());
     assert_eq!(world.pursuit_feed().unwrap().heat, 1);

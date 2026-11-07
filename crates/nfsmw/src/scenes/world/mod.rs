@@ -37,6 +37,7 @@ mod frame_systems;
 mod full_cycle;
 mod garage;
 mod mesh_animation;
+mod pursuit_look;
 pub(crate) use garage::career_preview_selection;
 pub(crate) use garage::catalog as garage_catalog;
 pub(crate) use garage::native_my_car_handle;
@@ -177,6 +178,8 @@ pub struct WorldScene {
     garage: crate::garage::Model,
     garage_parts: Option<nfsmw_data::car::customization::Inventory>,
     garage_open: bool,
+    /// A tools overlay (F5, F8) is open; with the preference on, the world pauses as the testing pause does.
+    overlay_open: bool,
     garage_backdrop: Option<crate::frontend::GarageBackdrop>,
     garage_exit: Option<nfsmw_data::gameplay::Placement>,
     audio_environment: Option<crate::audio::environment_context::EnvironmentMap>,
@@ -209,6 +212,7 @@ pub struct WorldScene {
     original_player_step: Option<u32>,
     gain_map: Option<blackbox_gfx::RgbaImage>,
     breaker_visuals: breaker_visuals::Presentation,
+    pursuit_look: pursuit_look::PursuitLook,
     reflection_faces: [Vec<Instance>; 6],
     reflection_scratch: reflections_visibility::Scratch,
     reflection_last: Option<reflections::CaptureStamp>,

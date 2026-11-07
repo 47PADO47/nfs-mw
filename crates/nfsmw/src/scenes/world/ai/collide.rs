@@ -334,7 +334,9 @@ impl TrafficWorld {
                 let visible = !out_of_range && (!pursuit || pursuit_sight_allowed) && clear(cast, cop + EYE, eye);
                 car.test_target_sight(hidden, visible)
             };
-            if car.is_cop() && pursuing && !car.is_fleeing() {
+            // A cop sent away still belongs to the chase and keeps its target, so it keeps looking: a sighting brings the
+            // chase back (`AIVehiclePursuit::Update` has no flee check; `ai-pursuit-cops.md` section 5).
+            if car.is_cop() && pursuing {
                 while let Some(ray_due) = car.next_sight_task() {
                     if ray_due {
                         test(car, true);

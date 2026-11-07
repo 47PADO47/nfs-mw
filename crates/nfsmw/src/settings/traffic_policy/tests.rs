@@ -30,6 +30,7 @@ fn unsafe_ranges_cannot_overlap_retirement_or_escape_bounds() {
         custom: true,
         common_fill: true,
         common_rate_percent: u16::MAX,
+        keep_on_minimap: true,
     }
     .sanitized();
     assert_eq!((policy.spawn_min, policy.spawn_max), (1200, 1250));

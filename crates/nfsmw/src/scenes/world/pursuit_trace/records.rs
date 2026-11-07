@@ -75,6 +75,9 @@ pub(super) struct CopExtras {
     offscreen_s: f32,
     roadblock: Option<u32>,
     support: Option<u32>,
+    /// A chase cop's own action this think and its road speed limit (m/s).
+    action: Option<&'static str>,
+    speed_limit: Option<f32>,
 }
 
 /// One cop, in the original's per-cop layout. `ai`, `pursuit_status`, `drivable_to_nav` and `nav` have no remake
@@ -108,8 +111,10 @@ pub(super) fn cop_id(key: u32) -> String {
 }
 
 /// Whether the cop counts as one of the chase's: the original marks a cop `pursuit_cop` while it has a pursuit.
+/// Whether the cop counts as one of the chase's: not a patrol, and not a roadblock car (the original's roadblock cars
+/// belong to their roadblock until the chase recruits one, which then joins as a chase cop).
 pub(super) fn in_pursuit(cop: &CopFrame, frame: &PoliceFrame) -> bool {
-    frame.pursuing && cop.kind != "patrol"
+    frame.pursuing && cop.kind != "patrol" && cop.kind != "roadblock"
 }
 
 impl Cop {
@@ -128,6 +133,7 @@ pub(super) fn cop(cop: &CopFrame, member: bool, pursuit: Option<&str>) -> Cop {
         role: match (member, cop.kind) {
             (true, _) => "pursuit_cop",
             (false, "patrol") => "patrol",
+            (false, "roadblock") => "roadblock_cop",
             _ => "cop_unclassified",
         },
         position: cop.position,
@@ -155,6 +161,8 @@ pub(super) fn cop(cop: &CopFrame, member: bool, pursuit: Option<&str>) -> Cop {
             offscreen_s: cop.offscreen_secs,
             roadblock: cop.roadblock,
             support: cop.support,
+            action: cop.action,
+            speed_limit: cop.speed_limit,
         },
     }
 }

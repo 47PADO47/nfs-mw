@@ -37,6 +37,26 @@ fn an_airborne_helicopter_tracks_current_heat_tuning_without_refilling() {
 }
 
 #[test]
+fn a_testing_heat_drop_cuts_the_fuel_to_the_lower_levels_tank() {
+    let mut police = chase(5);
+    police.heli = Some(Helicopter::spawn(Vec3::new(-100.0, 40.0, 0.0), 0.0, Default::default()));
+    police.heli_plan.level = police.level().unwrap();
+    police.heli.as_mut().unwrap().fuel = 300.0;
+    let step = crate::scenes::world::drive::STEP;
+    police.think_helicopter(step, true, &view(10.0), sensed(true), &|_, _| true);
+    assert!(police.heli.as_ref().unwrap().fuel > 290.0, "no change while the heat holds");
+    police.heat = Some(blackbox_pursuit::Heat::new(1.0, 10.0));
+    police.think_helicopter(step, true, &view(10.0), sensed(true), &|_, _| true);
+    let heli = police.heli.as_ref().unwrap();
+    let tank = crate::settings::helicopter::vanilla::FUEL_HEAT[0];
+    assert!(heli.fuel <= tank, "{} s left after the drop to heat 1", heli.fuel);
+    assert_eq!(heli.tuning.fuel_time, tank);
+    police.heat = Some(blackbox_pursuit::Heat::new(5.0, 10.0));
+    police.think_helicopter(step, true, &view(10.0), sensed(true), &|_, _| true);
+    assert!(police.heli.as_ref().unwrap().fuel <= tank, "climbing again does not refill it");
+}
+
+#[test]
 fn drawing_interpolates_poses_without_changing_physics_telemetry() {
     let mut police = chase(5);
     police.heli = Some(Helicopter::spawn(Vec3::X * 10.0, 0.0, Default::default()));
@@ -162,6 +182,49 @@ fn a_breaker_destroys_the_helicopter_and_the_next_one_waits() {
     assert_eq!(police.heli_ask(5, 0.9), Ask::No);
 }
 
+/// A heat 5 chase with a helicopter in the air and its placeholder destruction points (1 to 10) in the table.
+fn flying(fixes: bool) -> Police {
+    let mut police = ready(5);
+    police.set_rep_table(nfsmw_data::pursuit::RepTable {
+        rates: vec![],
+        destroy: vec![("copheli".to_owned(), (1..=10).collect())],
+    });
+    police.set_pursuit_options(crate::settings::PursuitOptions { bounty_fixes: fixes, ..Default::default() });
+    police.queue_helicopter(Spawn { position: Vec3::ZERO, heading: 0.0 });
+    police.try_join(&PlayerView {
+        nos_input: false,
+        nitrous_boost: 0.0,
+        velocity: Vec3::ZERO,
+        position: Vec3::ZERO,
+        forward: Vec3::X,
+        speed: 0.0,
+        nitrous: 0.0,
+        throttle: 0.0,
+    });
+    police
+}
+
+#[test]
+fn a_downed_helicopter_counts_as_a_takedown_with_its_placeholder_points() {
+    let mut police = flying(false);
+    police.helicopter_destroyed();
+    assert_eq!(police.cops_destroyed(), 1);
+    assert_eq!(police.cost_to_state(), 2000 + 5000, "its spawn and its wreck");
+    let takedown = police.last_takedown().unwrap();
+    assert_eq!((takedown.car.as_str(), takedown.points), ("copheli", 6), "heat 5 reads entry 5");
+    assert_eq!(takedown.line_car, "copheli", "the original has no line for it");
+}
+
+#[test]
+fn the_bounty_fixes_pay_a_downed_helicopter_with_the_federal_line() {
+    let mut police = flying(true);
+    police.helicopter_destroyed();
+    let takedown = police.last_takedown().unwrap();
+    assert_eq!(takedown.points, 100_000);
+    assert_eq!(takedown.line_car, "copsporthench");
+    assert_eq!(police.rep_destroyed_points(), 100_000);
+}
+
 #[test]
 fn the_status_tells_fuel_sight_and_mode_for_the_speech() {
     let mut police = ready(5);
@@ -187,11 +250,23 @@ fn the_status_tells_fuel_sight_and_mode_for_the_speech() {
 #[test]
 fn a_helicopter_out_of_play_is_removed_at_once_and_the_next_one_waits() {
     let mut police = chase(5);
-    police.heli = Some(Helicopter::spawn(Vec3::new(-900.0, 40.0, 0.0), 0.0, Default::default()));
+    let mut heli = Helicopter::spawn(Vec3::new(-900.0, 40.0, 0.0), 0.0, Default::default());
+    heli.age = blackbox_pursuit::respawn::NEVER_SEEN_SECS + 1.0;
+    police.heli = Some(heli);
     police.heli_wait = 0.0;
     police.think_helicopter(crate::scenes::world::drive::STEP, true, &view(10.0), sensed(true), &|_, _| true);
     assert!(!police.helicopter_present(), "removed, not sent on an exit flight");
     assert_eq!(police.heli_wait, 180.0, "heat 5 waits 180 s for the next one");
+}
+
+#[test]
+fn a_helicopter_just_sent_far_behind_waits_for_its_spawn_timer() {
+    // A searching helicopter outrun in the cool-down: far and out of view, but the cop manager keeps it until its spawn
+    // timer allows (`CanRespawn`, 10 s when it never stood where it may not be recycled).
+    let mut police = chase(5);
+    police.heli = Some(Helicopter::spawn(Vec3::new(-900.0, 40.0, 0.0), 0.0, Default::default()));
+    police.think_helicopter(crate::scenes::world::drive::STEP, true, &view(10.0), sensed(false), &|_, _| true);
+    assert!(police.helicopter_present(), "kept while its spawn timer runs");
 }
 
 #[test]

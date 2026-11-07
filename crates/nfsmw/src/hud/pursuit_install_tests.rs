@@ -3,14 +3,16 @@
 
 use blackbox_feng::{PackageId, Runtime, fe_hash_upper};
 use blackbox_minimap::Orientation;
+use blackbox_pursuit::{Fines, Infraction, InfractionLog};
 use game_install::GameDir;
 
 use super::MapBlip;
-use super::backup_timer::{APPEAR, FLASH};
+use super::backup_timer::{APPEAR, FLASH, LEAVE};
 use super::bind::HudBinding;
 use super::blip_styles::{
     CONE_IDLE, CONE_TRACKING, HELICOPTER, HELICOPTER_CONE, HELICOPTER_CONE_ICON, HELICOPTER_GROUP,
 };
+use super::infractions::{APPEAR as ROW_APPEAR, COUNT, HIDE, ICON, label};
 use super::minimap::MinimapBinding;
 use super::pursuit::PursuitHud;
 use super::state::{HudState, MapPosition};
@@ -23,6 +25,8 @@ const TIMER: u32 = 0xbee4_4775;
 /// The cops group and its engaged count, which sits where the cool-down's hiding icon (`0x38074901`) shows.
 const COPS: u32 = 0xe0b1_430b;
 const ENGAGED: u32 = 0x8149_18ca;
+/// The career's total bounty flasher.
+const TOTAL_BOUNTY: u32 = 0xea90_3012;
 
 fn open() -> Option<(GameDir, Runtime, PackageId)> {
     let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR")?).ok()?;
@@ -40,6 +44,30 @@ fn step(rt: &mut Runtime, binding: &mut HudBinding, state: &HudState, dt: f32) {
 
 fn visible(rt: &Runtime, id: PackageId, hash: u32) -> bool {
     rt.tree(id).nodes.iter().any(|n| n.name_hash == hash && n.visible)
+}
+
+/// Whether the image `hash` puts no visible texel on the screen: it is hidden, or its texture does not repeat and the
+/// rectangle it shows, clamped to the texture as the sampler does, holds only transparent texels. The pursuit board's
+/// backings leave by sliding their texture onto its transparent rows (`docs/specs/feng-image-repeat.md`).
+pub(super) fn draws_nothing(rt: &Runtime, id: PackageId, assets: &UiAssets, hash: u32) -> bool {
+    let tree = rt.tree(id);
+    let Some(node) = tree.nodes.iter().find(|n| n.name_hash == hash) else { return true };
+    if !node.visible || node.world_colour[3] == 0 {
+        return true;
+    }
+    let blackbox_feng::NodeKind::Image { texture, uv, .. } = node.kind else { return false };
+    if assets.tilable_uv(texture) != 0 {
+        return false;
+    }
+    let Some(image) = assets.image(texture) else { return true };
+    let span = |a: f32, b: f32, n: u32| {
+        let lo = (a.min(b).clamp(0.0, 1.0) * n as f32).floor() as usize;
+        let hi = (a.max(b).clamp(0.0, 1.0) * n as f32).ceil() as usize;
+        lo.min(n as usize - 1)..hi.clamp(lo + 1, n as usize)
+    };
+    let (columns, rows) = (span(uv[0], uv[2], image.width), span(uv[1], uv[3], image.height));
+    rows.flat_map(|y| columns.clone().map(move |x| (x, y)))
+        .all(|(x, y)| image.rgba[(y * image.width as usize + x) * 4 + 3] == 0)
 }
 
 #[test]
@@ -64,6 +92,15 @@ fn the_backup_row_appears_with_its_label_and_time_and_flashes_when_close() {
     assert_eq!(text.as_deref(), Some("01:05.00"));
     step(&mut rt, &mut b, &chase(9.0), 0.1);
     assert_eq!(rt.script_of(backing), Some(FLASH));
+    let (dir, _, _) = open().unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    assert!(!draws_nothing(&rt, id, &assets, BACKING), "the backing shows under the row");
+    // The backup arrives: the backing's leave slides its stripes off, onto the texture's transparent rows.
+    for _ in 0..10 {
+        step(&mut rt, &mut b, &chase(0.0), 0.1);
+    }
+    assert_eq!(rt.script_of(backing), Some(LEAVE));
+    assert!(draws_nothing(&rt, id, &assets, BACKING), "the backing is gone with the row");
 }
 
 #[test]
@@ -141,4 +178,122 @@ fn the_helicopter_cone_shows_with_the_helicopter_and_plays_its_tracking_script()
     eprintln!("idle colour {:?}", rt.colour_rgba(cone));
     step(&mut rt, &mut b, &HudState { blips: Vec::new(), ..state(false) }, 0.1);
     assert!(!visible(&rt, id, fe_hash_upper(HELICOPTER_CONE_ICON)), "no helicopter, no cone");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_bounty_row_appears_in_a_chase_with_the_pending_bounty() {
+    let Some((_, mut rt, id)) = open() else { return };
+    let mut b = HudBinding::new(&mut rt, id);
+    b.advance_mirror_fade(1.0);
+    let chase = HudState {
+        pursuit: Some(PursuitHud { secs: 40.0, bounty: 162_500, ..Default::default() }),
+        ..Default::default()
+    };
+    for _ in 0..5 {
+        step(&mut rt, &mut b, &chase, 0.1);
+    }
+    let row = rt.find(id, 0x8674_e6d4).expect("the bounty row");
+    assert_eq!(rt.script_of(row), Some(APPEAR), "the row plays its authored appear");
+    assert!(visible(&rt, id, 0x8674_e6d4) && visible(&rt, id, 0x875e_92eb), "the row and its number show");
+    let text = rt.tree(id).nodes.iter().find(|n| n.name_hash == 0x875e_92eb).and_then(|n| n.text.clone());
+    assert_eq!(text.as_deref(), Some("162,500"));
+}
+
+/// The text the tree shows under `group` (both strings of an infraction row).
+fn texts_under(rt: &Runtime, id: PackageId, group: u32) -> Vec<Option<String>> {
+    let tree = rt.tree(id);
+    let Some(parent) = tree.nodes.iter().find(|n| n.name_hash == group).map(|n| n.index) else { return Vec::new() };
+    tree.nodes.iter().filter(|n| n.parent == Some(parent)).map(|n| n.text.clone()).collect()
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn each_new_infraction_pops_a_row_with_its_label_and_the_count_then_the_notifier_leaves() {
+    let Some((_, mut rt, id)) = open() else { return };
+    let speeding = label(Infraction::Speeding);
+    rt.set_string_resolver(move |l| (l == speeding).then(|| "Excessive Speeding".to_owned()));
+    let mut b = HudBinding::new(&mut rt, id);
+    b.advance_mirror_fade(1.0);
+    let fines = Fines::new([150, 350, 1000, 350, 300, 100, 300, 75]);
+    let chase = |log: InfractionLog| HudState {
+        pursuit: Some(PursuitHud { secs: 5.0, infractions: log, ..Default::default() }),
+        ..Default::default()
+    };
+    let mut log = InfractionLog::default();
+    step(&mut rt, &mut b, &chase(log), 0.1);
+    let rows: Vec<_> =
+        (1..=4).map(|n| rt.find(id, fe_hash_upper(&format!("INFRACTION_GROUP_{n}"))).expect("a row")).collect();
+    assert!(rows.iter().all(|row| rt.script_of(*row) == Some(HIDE)), "the rows rest hidden");
+    log.record(Infraction::Speeding, &fines);
+    for _ in 0..4 {
+        step(&mut rt, &mut b, &chase(log), 0.1);
+    }
+    assert_eq!(rt.script_of(rows[0]), Some(ROW_APPEAR), "the first row shows the new infraction");
+    assert!(visible(&rt, id, fe_hash_upper("INFRACTION_GROUP_1")), "and is drawn");
+    let row_texts = texts_under(&rt, id, fe_hash_upper("INFRACTION_GROUP_1"));
+    assert_eq!(row_texts.len(), 2, "the text and its shadow");
+    assert!(row_texts.iter().all(|t| t.as_deref() == Some("Excessive Speeding")), "{row_texts:?}");
+    let count = rt.tree(id).nodes.iter().find(|n| n.name_hash == fe_hash_upper(COUNT)).and_then(|n| n.text.clone());
+    assert_eq!(count.as_deref(), Some("1"));
+    assert!(visible(&rt, id, fe_hash_upper(ICON)) && visible(&rt, id, fe_hash_upper(COUNT)), "the icon and the count");
+    log.record(Infraction::OffRoad, &fines);
+    step(&mut rt, &mut b, &chase(log), 0.1);
+    assert_eq!(rt.script_of(rows[1]), Some(ROW_APPEAR), "the next infraction takes the next row");
+    for _ in 0..40 {
+        step(&mut rt, &mut b, &chase(log), 0.1);
+    }
+    assert!(rows.iter().all(|row| rt.script_of(*row) == Some(HIDE)), "each row left by its own chain");
+    assert!(
+        !visible(&rt, id, fe_hash_upper(ICON)) && !visible(&rt, id, fe_hash_upper(COUNT)),
+        "the icon left with them"
+    );
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn a_new_career_total_bounty_flashes_for_two_seconds() {
+    let Some((_, mut rt, id)) = open() else { return };
+    rt.set_string_resolver(|l| (l == 0x7D01_71E4).then(|| "TOTAL BOUNTY:".to_owned()));
+    let mut b = HudBinding::new(&mut rt, id);
+    let career = |total: Option<u32>| HudState { career_bounty: Some(0), total_bounty: total, ..Default::default() };
+    let frame = |rt: &mut Runtime, b: &mut HudBinding, state: &HudState| {
+        b.advance_mirror_fade(0.1);
+        step(rt, b, state, 0.1);
+    };
+    let text =
+        |rt: &Runtime, hash: u32| rt.tree(id).nodes.iter().find(|n| n.name_hash == hash).and_then(|n| n.text.clone());
+    frame(&mut rt, &mut b, &career(None));
+    assert!(!visible(&rt, id, TOTAL_BOUNTY), "no chase has ended: the flasher rests hidden");
+    for _ in 0..5 {
+        frame(&mut rt, &mut b, &career(Some(1_250_000)));
+    }
+    assert_eq!(rt.script_of(rt.find(id, TOTAL_BOUNTY).expect("the group")), Some(APPEAR));
+    assert!(visible(&rt, id, TOTAL_BOUNTY), "a new total shows");
+    assert_eq!(text(&rt, 0x9B0A_C8CA).as_deref(), Some("1,250,000"));
+    assert_eq!(text(&rt, 0x41A5_5ECF).as_deref(), Some("TOTAL BOUNTY:"));
+    for _ in 0..30 {
+        frame(&mut rt, &mut b, &career(Some(1_250_000)));
+    }
+    assert!(!visible(&rt, id, TOTAL_BOUNTY), "after two seconds it has played out");
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn the_cash_flasher_stays_hidden_as_the_original_never_drives_it() {
+    let Some((_, mut rt, id)) = open() else { return };
+    let mut b = HudBinding::new(&mut rt, id);
+    let career = HudState {
+        career_bounty: Some(40_000),
+        cash: Some(125_000),
+        total_bounty: Some(40_000),
+        pursuit: Some(PursuitHud { secs: 40.0, ..Default::default() }),
+        ..Default::default()
+    };
+    for _ in 0..10 {
+        b.advance_mirror_fade(0.1);
+        step(&mut rt, &mut b, &career, 0.1);
+    }
+    assert!(visible(&rt, id, TOTAL_BOUNTY), "its neighbour flashes the total");
+    assert!(!visible(&rt, id, fe_hash_upper("CASH_GROUP")), "no part of the game shows the cash group");
 }

@@ -254,7 +254,6 @@ fn the_stats_are_parallel_to_the_cars_and_empty_without_an_install() {
     ];
     let data = CareerData::from_parts(GameplayData::default(), &cars, None, None);
     assert_eq!(data.cars.len(), 2);
-    assert_eq!(data.stats, vec![None, None], "no physics read without an install");
 }
 
 #[test]

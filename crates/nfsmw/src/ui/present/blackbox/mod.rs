@@ -291,8 +291,9 @@ impl BlackboxPresenter {
         scale: f32,
         origin: [f32; 2],
     ) -> bool {
-        let Some(tiles) = repeat::tiles(uv) else { return false };
         let key = assets.resolve(texture);
+        let tiling = repeat::Tiling::from_byte(assets.tilable_uv(key));
+        let Some(tiles) = repeat::tiles(uv, tiling) else { return false };
         let id = UiTextureId(HUD_TEXTURE_BIT | REPEATED_TEXTURE_BIT | u64::from(key));
         let (size, additive) = match self.repeated.entry(key) {
             Entry::Occupied(e) => *e.get(),
@@ -302,7 +303,7 @@ impl BlackboxPresenter {
                     return false;
                 }
                 let metadata = ([image.width, image.height], image.blend == 2);
-                send(id, repeat::pad(&image), out);
+                send(id, repeat::pad(&image, tiling), out);
                 *e.insert(metadata)
             }
         };

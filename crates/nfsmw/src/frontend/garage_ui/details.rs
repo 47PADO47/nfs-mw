@@ -167,44 +167,7 @@ pub(super) fn comparison_bars(cx: &mut Cx, model: &Model, baseline: &Selection) 
             false => model.draft.performance,
         })
     });
-    apply_bars(cx.rt, cx.package, selected, installed);
-}
-
-fn apply_bars(
-    rt: &mut blackbox_feng::Runtime,
-    package: blackbox_feng::PackageId,
-    selected: Option<[f32; 3]>,
-    installed: Option<[f32; 3]>,
-) {
-    for (index, name) in ["TOPSPEED", "HANDLING", "ACCELERATION"].into_iter().enumerate() {
-        let Some(base) = rt.find(package, fe_hash_upper(&format!("BASE_{name}"))) else { continue };
-        let Some(position) = rt.position(base) else { continue };
-        let Some(size) = rt.size(base) else { continue };
-        let left = position.x - size.x / 2.0;
-        let top = position.y - size.y / 2.0;
-        if let Some(fill) = rt.find(package, fe_hash_upper(&format!("FILLBAR_{name}"))) {
-            let fraction = selected.map(|values| values[index].clamp(0.0, 1.0)).unwrap_or(0.0);
-            let width = 160.0 * fraction;
-            let height = rt.size(fill).map_or(size.y, |size| size.y);
-            rt.set_hidden(fill, selected.is_none() || width <= 0.0);
-            rt.set_size_xy(fill, width, height);
-            // Native equal-depth siblings put the dim base after the lit strip. Keep the fill in front.
-            let depth = rt.position(fill).map_or(position.z - 1.0, |value| value.z.min(position.z - 1.0));
-            rt.set_position(fill, glam::Vec3::new(left + width / 2.0, top + height / 2.0, depth));
-            rt.set_uv(fill, [0.0, 0.0, width / 32.0, 1.0]);
-        }
-        if let Some(handle) = rt.find(package, fe_hash_upper(&format!("HANDLE_{name}"))) {
-            rt.set_hidden(handle, installed.is_none());
-            if let Some(values) = installed {
-                let handle_size = rt.size(handle).unwrap_or(glam::Vec3::splat(32.0));
-                rt.set_position_xy(
-                    handle,
-                    left + 160.0 * values[index].clamp(0.0, 1.0) + handle_size.x / 2.0,
-                    top + handle_size.y / 2.0,
-                );
-            }
-        }
-    }
+    crate::frontend::stat_bars::apply(cx.rt, cx.package, selected, installed);
 }
 
 #[cfg(test)]
@@ -249,7 +212,3 @@ mod tests {
         assert_eq!(reward_details(&model, row, package).brands[2], 0);
     }
 }
-
-#[cfg(test)]
-#[path = "details_bar_tests.rs"]
-mod bar_tests;

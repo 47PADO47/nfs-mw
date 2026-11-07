@@ -1,9 +1,10 @@
-//! The pure parts of the characters: the record-to-asset matching, the clip's time and the part transform.
+//! The pure parts of the characters: the record-to-asset matching, the clip's time, the part transform and the light
+//! material of each vertex.
 
 use blackbox_anim::Skeleton;
 use blackbox_hash::bstring_hash;
-use blackbox_solid::Solid;
-use glam::{Mat4, Quat, Vec3};
+use blackbox_solid::{PartRun, ShadingGroup, Solid, Vertex};
+use glam::{Mat4, Quat, Vec3, Vec4};
 
 use super::*;
 
@@ -118,4 +119,51 @@ fn a_character_is_raised_from_its_placement_onto_its_ground() {
     let raised = Mat4::from_translation(Vec3::new(0.0, 0.0, ground_raise(Some(12.0), 10.0)));
     let at = part_transform(raised, Mat4::from_translation(Vec3::new(0.0, 0.0, 10.0)), Mat4::IDENTITY);
     assert!(near(at.transform_point3(Vec3::ZERO), Vec3::new(0.0, 0.0, 12.0 + LIFT)), "the root stands on its ground");
+}
+
+/// A skinned shading group naming light material number `light_material` of its solid (0xFF for none).
+fn group(light_material: u8) -> ShadingGroup {
+    ShadingGroup {
+        bounds_min: [0.0; 3],
+        bounds_max: [0.0; 3],
+        texture_slots: [0xFF; 5],
+        light_material,
+        effect_id: 2,
+        flags: 0,
+        num_vertices: 0,
+        num_triangles: 0,
+        first_index: 0,
+        num_indices: 0,
+        base_vertex: 0,
+        vertex_buffer: 0,
+        bone_table: None,
+    }
+}
+
+#[test]
+fn each_vertex_takes_the_ramp_of_its_groups_light_material() {
+    let skin = bstring_hash("CHAR_SKIN");
+    let mut solid = solid("DMCOP01");
+    solid.light_material_hashes = vec![skin, bstring_hash("CHAR_ABSENT")];
+    solid.groups = vec![group(0), group(1), group(0xFF)];
+    let vertex = Vertex { position: [0.0; 3], normal: [0.0, 0.0, 1.0], color_bgra: [255; 4], uv: [0.0; 2] };
+    let part = RigidPart {
+        bone: 0,
+        vertices: vec![vertex; 7],
+        sources: (0..7).collect(),
+        indices: vec![0, 1, 2, 3, 4, 3, 5, 5, 5],
+        runs: vec![
+            PartRun { group: 0, first_index: 0, index_count: 3 },
+            PartRun { group: 1, first_index: 3, index_count: 3 },
+            PartRun { group: 2, first_index: 6, index_count: 3 },
+        ],
+    };
+    let ramp = Ramp { min: Vec4::splat(1.5), range: Vec4::splat(-0.25) };
+    let ramps = HashMap::from([(skin, ramp)]);
+    let neutral = Ramp::NEUTRAL;
+    assert_eq!(
+        part_ramps(&solid, &part, &ramps),
+        [ramp, ramp, ramp, neutral, neutral, neutral, neutral],
+        "a material the table lacks, a group without one and a vertex no triangle uses stay neutral",
+    );
 }

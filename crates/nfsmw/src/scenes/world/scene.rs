@@ -18,6 +18,8 @@ impl Scene for WorldScene {
         self.extra.hide_ui
     }
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
+        // The player car goes with the world: its live heat goes into its career record.
+        self.write_driven_heat();
         renderer.set_night_blend(None);
         renderer.set_sun_glare(None);
         self.close_garage_backdrop(renderer);
@@ -64,6 +66,9 @@ impl Scene for WorldScene {
     }
     fn set_garage_open(&mut self, open: bool) {
         self.garage_open = open;
+    }
+    fn set_overlay_open(&mut self, open: bool) {
+        self.overlay_open = open;
     }
     fn paused(&self) -> bool {
         self.garage_open

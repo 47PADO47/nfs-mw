@@ -22,6 +22,31 @@ impl AiCar {
         }
     }
 
+    /// What a cop's own driving does this think, for the pursuit trace: `reverse` (a stuck reverse), `close`,
+    /// `turnaround` or `road`, with the road action's speed limit. `None` for a car that is not a chase cop.
+    pub(in crate::scenes::world) fn cop_drive_trace(&self) -> Option<(&'static str, f32)> {
+        let Role::Cop(cop) = &self.role else { return None };
+        let action = match self.driver.reverse_override_left() > 0.0 {
+            true => "reverse",
+            false => cop.trace_action(),
+        };
+        Some((action, cop.speed_limit()))
+    }
+
+    /// The avoidance radius the car advertises to the other cars' neighbourhood tests (spec
+    /// `ai-pursuit-obstacle-selection.md`, avoidable neighbourhood): a cop's or racer's last road look-ahead, a traffic
+    /// car's (or a patrol's) traffic look-ahead, and the default for a roadblock car, which never sets one.
+    pub fn avoid_radius(&self) -> f32 {
+        if self.roadblock {
+            return blackbox_roads::DEFAULT_AVOID_RADIUS;
+        }
+        match &self.role {
+            Role::Cop(cop) => cop.avoid_radius(),
+            Role::Racer(racer) => racer.avoid_radius(),
+            Role::Traffic => self.avoidable_radius,
+        }
+    }
+
     /// Whether this car is part of a roadblock (and so holds its place).
     pub fn is_roadblock(&self) -> bool {
         self.roadblock
@@ -165,6 +190,23 @@ impl AiCar {
 
     pub fn controls(&self) -> AiControls {
         self.controls
+    }
+
+    /// What the tail-pipe flames need of the car after a physics step (`cop_flames.rs`).
+    pub(in crate::scenes::world::ai) fn flame_state(&self) -> crate::scenes::world::exhaust::CarState {
+        let telemetry = self.sim.telemetry();
+        crate::scenes::world::exhaust::CarState {
+            to_world: self.pose(1.0).transform(),
+            velocity: self.sim.velocity(),
+            gear: telemetry.gear,
+            throttle: self.controls.gas,
+            nitrous: telemetry.nos_burning,
+        }
+    }
+
+    /// The car's model, as its rig holds it.
+    pub(in crate::scenes::world::ai) fn model(&self) -> &nfsmw_data::car::CarModel {
+        self.rig.model()
     }
 
     /// An identity of the car that holds for its life (the radio keys its cops by it).

@@ -42,12 +42,20 @@ impl WorldScene {
         Ok(())
     }
 
-    /// Page Up / Page Down: the testing heat moves one level and a running chase takes it at once.
+    /// Page Up / Page Down: the heat moves one level from the car's live heat. A running chase takes it at once; without
+    /// one (after an escape too) the car carries it into the next chase.
     pub(super) fn extra_heat_step(&mut self, delta: i8) {
-        let heat = reference::step_heat(self.extra.testing.heat, delta);
+        let live = self.traffic.as_ref().map(|traffic| traffic.vehicle_heat());
+        let heat = reference::step_heat(reference::step_base(live, self.extra.testing.heat), delta);
         self.extra.testing.heat = heat;
         let police = !self.extra.testing.police_off;
         let applied = police && self.traffic.as_mut().is_some_and(|traffic| traffic.set_extra_heat_once(heat));
+        if police
+            && !applied
+            && let Some(traffic) = self.traffic.as_mut()
+        {
+            traffic.carry_extra_heat(heat);
+        }
         let text = reference::heat_toast(heat, applied);
         log::info!("pursuit reference: {text}");
         self.extra.toast = Some(text);
@@ -102,6 +110,7 @@ impl WorldScene {
         }
         self.extra.message = Some(match result {
             Ok(_) => {
+                self.jump_chase_started();
                 format!("Pursuit started at heat {heat} at {}", reference::row_text(&self.extra.bounty_spots, number))
             }
             Err(e) => format!("The pursuit did not start: {e}"),

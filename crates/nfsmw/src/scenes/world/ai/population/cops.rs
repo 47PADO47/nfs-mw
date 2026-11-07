@@ -3,7 +3,8 @@
 //! The original's patrol pass visits every active cop car: one that may be recycled and stands where a car can come and
 //! go unseen is removed, unless its chase is about to meet it; a wreck goes once it has been off screen for 3 s. The
 //! traffic's own unseen-time rules do not apply to cops. The rewrite also keeps a cop until it has been unseen for the
-//! offscreen grace and is off the minimap, so one the player turns round to find is still there **[ours]**.
+//! offscreen grace and, with `keep_on_minimap`, is off the minimap, so one the player turns round to find is still there
+//! **[ours]**.
 
 use blackbox_pursuit::respawn::{self, COP_WINDOW};
 use glam::Vec3;

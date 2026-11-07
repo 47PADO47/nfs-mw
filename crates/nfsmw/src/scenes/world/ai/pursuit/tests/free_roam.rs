@@ -54,7 +54,8 @@ fn a_nearby_patrol_joins_in_place_with_its_identity_speed_and_damage() {
     let position = world.cars[0].physics_position();
     let speed = world.cars[0].speed();
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![wave()], player());
+    world.cars[0].report_sight(false, true);
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     assert!(world.cars[0].is_cop());
     assert!(!world.cars[0].is_patrol());
     assert_eq!(world.cars[0].audio_emitter().id, identity);
@@ -68,7 +69,7 @@ fn a_nearby_patrol_joins_in_place_with_its_identity_speed_and_damage() {
 #[test]
 fn tracked_sight_keeps_the_grace_then_search_remembers_and_reacquisition_updates() {
     let mut world = TrafficWorld::new(cop_road());
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     let first = focus().body.unwrap();
     see(&mut world, true);
     world.pursuit_target(Some(first));
@@ -95,7 +96,7 @@ fn search_replacements_spawn_on_lanes_in_search_mode() {
     let mut row = wave();
     row.patrol_cars = 1;
     row.cops[0].count = 3;
-    world.start_pursuit(1, vec![row], player());
+    start_with_patrols(&mut world, 1, vec![row], player());
     see(&mut world, true);
     for _ in 0..32 {
         see(&mut world, false);
@@ -117,7 +118,7 @@ fn police_switch_to_road_search_and_back_without_replacing_or_teleporting() {
     let mut world = TrafficWorld::new(cop_road());
     patrol(&mut world, &mut renderer(), Vec3::new(2.0, 0.0, 20.0));
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     let car = &mut world.cars[0];
     let before = (car.audio_emitter().id, car.physics_position(), car.body().velocity);
     let cruise = Cruise::patrol(10.0, 20.0);
@@ -178,7 +179,7 @@ fn radar_warns_about_a_patrol_before_the_chase_and_returns_during_search() {
     assert!(radar.distance > 19.0 && radar.distance < 22.0);
     assert!(radar.angle.abs() < 0.2);
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     assert!(world.radar(Vec3::ZERO, forward).is_none());
     see(&mut world, true);
     see(&mut world, false);
@@ -196,7 +197,7 @@ fn ending_the_chase_removes_static_roadblock_units_too() {
     let mut world = TrafficWorld::new(cop_road());
     patrol(&mut world, &mut renderer(), Vec3::new(2.0, 0.0, 20.0));
     world.cars[0].set_roadblock();
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     world.stop_pursuit();
     assert!(world.cars.is_empty());
 }
@@ -263,7 +264,7 @@ fn hiding_entry_keeps_watchers_visible_and_lost_sight_is_latched_per_unit() {
 #[test]
 fn air_support_waits_for_a_model_instead_of_tracking_from_an_invisible_unit() {
     let mut world = TrafficWorld::new(cop_road());
-    world.start_pursuit(4, vec![wave()], player());
+    start_with_patrols(&mut world, 4, vec![wave()], player());
     for _ in 0..48 {
         see(&mut world, true);
     }
@@ -274,7 +275,7 @@ fn air_support_waits_for_a_model_instead_of_tracking_from_an_invisible_unit() {
 fn roadblock_cars_keep_the_layout_offsets_instead_of_snapping_into_lanes() {
     let mut world = TrafficWorld::new(straight_road(1000.0));
     world.add_cop_model(cop_model(&mut renderer(), "copx", player()));
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     let view = PlayerView {
         nos_input: false,
         nitrous_boost: 0.0,

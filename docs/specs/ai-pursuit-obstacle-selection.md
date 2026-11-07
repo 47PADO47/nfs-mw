@@ -30,8 +30,11 @@ enters the cop's own square.
 
 The reconstruction receives an unfiltered world-body iterator. **[ours]** Form a
 local neighbourhood before its 32-body cap: the cop's sweep uses its cursor
-distance or twice its speed, whichever is larger; the other bodies carry no
-radius, so each uses the 20-metre default or twice its speed. Exclude the existing
+distance or twice its speed, whichever is larger; every other vehicle carries the
+radius it advertises: a cop's or racer's road look-ahead from its last road think
+(30 m at rest to 100 m at 100 m/s; the close and ram actions leave it as it was), a
+traffic car's or patrol's traffic look-ahead, and the 20-metre default for roadblock
+cars, the player, loose trailers and network guests. Exclude the existing
 unrelated-height cases and retain nearest bodies when the neighbourhood exceeds
 capacity. Keep stable input order among selected bodies. Exact original
 spatial-list ordering and its quarter-second refresh remain a separate parity

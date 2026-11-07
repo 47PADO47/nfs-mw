@@ -44,7 +44,6 @@ fn career() -> Career {
         milestones: Vec::new(),
         traps: Vec::new(),
         cars: vec![lot],
-        stats: vec![None],
         heat: None,
         ranks: None,
         gameplay: Default::default(),

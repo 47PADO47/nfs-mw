@@ -24,13 +24,23 @@ impl TrafficWorld {
         }
         let band = Some((MIN_DISTANCE, MAX_DISTANCE));
         let spot = |nav: &RoadNav| CopSpot { at: nav.position, target, speed: REINFORCEMENT_START_SPEED, player, band };
-        if let Some(nav) = self.seek_spawn_cursor(&body)
-            && self.spawn_cop_on_road(name, spot(&nav), nav, collision, surfaces)
-        {
-            return true;
+        // A scaled wave walks on past a near or taken spot and samples the fallback disc more than once a step, so its
+        // larger count can be placed (`wave_scale`). The reference tries each once, as the original does.
+        let tries = super::wave_scale::spawn_tries(self.police.wave_scale());
+        for further in 0..tries {
+            if let Some(nav) = self.seek_spawn_cursor(&body, further as f32 * MIN_GAP)
+                && self.spawn_cop_on_road(name, spot(&nav), nav, collision, surfaces)
+            {
+                return true;
+            }
         }
-        let Some(nav) = self.fallback_spawn_cursor(&body) else { return false };
-        self.spawn_cop_on_road(name, spot(&nav), nav, collision, surfaces)
+        for _ in 0..tries {
+            let Some(nav) = self.fallback_spawn_cursor(&body) else { continue };
+            if self.spawn_cop_on_road(name, spot(&nav), nav, collision, surfaces) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Puts a cop car of `name` on the cop road at `spot.at`, rolling at `spot.speed` and facing `spot.target`. The spawn path

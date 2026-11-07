@@ -31,6 +31,9 @@ impl Scene for Pausable {
     fn set_garage_open(&mut self, open: bool) {
         self.inner.set_garage_open(open);
     }
+    fn set_overlay_open(&mut self, open: bool) {
+        self.inner.set_overlay_open(open);
+    }
     fn begin_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         self.inner.begin_garage(renderer)
     }
@@ -148,15 +151,12 @@ impl Scene for Pausable {
     fn status(&self) -> Option<String> {
         self.inner.status()
     }
-
     fn readout(&self, level: crate::devtools::ShowReadout) -> Option<String> {
         self.inner.readout(level)
     }
-
     fn set_transmission(&mut self, transmission: crate::settings::Transmission) {
         self.inner.set_transmission(transmission);
     }
-
     fn environment(&self) -> Option<crate::viewer::Environment> {
         self.inner.environment()
     }

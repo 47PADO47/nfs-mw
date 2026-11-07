@@ -1,11 +1,17 @@
 use blackbox_attrib::{Database, Value};
 use blackbox_gfx::{ColourTreatment, RgbaImage};
 use blackbox_tpk::Texture;
+pub mod pursuit;
 pub mod speedbreaker;
 
 /// The ordinary free-roam look. Missing or malformed data leaves grading disabled.
 pub fn midday(db: &Database) -> Option<ColourTreatment> {
-    let look = db.collection("visuallook", "default")?;
+    look(db, "default")
+}
+
+/// The look (`visuallook`) of `name`, `None` when its data is missing or malformed.
+fn look(db: &Database, name: &str) -> Option<ColourTreatment> {
+    let look = db.collection("visuallook", name)?;
     let tint = look.get("ColourBloomTint")?.as_vector4()?;
     let profile = ColourTreatment {
         tint: [tint[0], tint[1], tint[2]],

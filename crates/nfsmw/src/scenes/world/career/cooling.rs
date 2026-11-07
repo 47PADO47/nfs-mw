@@ -88,6 +88,8 @@ impl WorldScene {
         let dir = &self.dir;
         let table = *self.career.cooling.get_or_insert_with(|| read_table(dir));
         let Some(table) = table else { return };
+        // The parts cool the record: the live heat goes into it first, and the car starts again from the cooled record.
+        self.reload_live_heat();
         let cooled = self.career.handle.with(|career| {
             let handle = career.settings.car_handle;
             let record = career.stable.career_for_handle_mut(handle)?;

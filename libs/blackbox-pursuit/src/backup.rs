@@ -43,6 +43,11 @@ impl Budget {
         *self = Self::new(required, trigger);
     }
 
+    /// One more cop has to be evaded: a roadblock car the chase took in when the perp dodged round the roadblock.
+    pub fn add_required(&mut self) {
+        self.required = self.required.saturating_add(1);
+    }
+
     /// An engaged cop left the chase.
     pub fn note_evaded(&mut self, cops: u32) {
         self.evaded = self.evaded.saturating_add(cops as i32);
@@ -61,6 +66,14 @@ impl Budget {
     /// Cops that have to be evaded in all.
     pub fn required(&self) -> u32 {
         self.required.max(0) as u32
+    }
+
+    /// Scales the cops to evade by `ratio`, keeping those already evaded: a testing option that changes the wave's size
+    /// in the middle of a chase **[ours]**. The original has no such change.
+    pub fn scale_required(&mut self, ratio: f32) {
+        if ratio.is_finite() && ratio > 0.0 {
+            self.required = (self.required as f32 * ratio).round() as i32;
+        }
     }
 
     /// Cops evaded so far.
@@ -144,6 +157,14 @@ mod tests {
     }
 
     #[test]
+    fn a_recruited_roadblock_car_is_one_more_cop_to_evade() {
+        let mut budget = Budget::new(5, 2);
+        budget.note_evaded(1);
+        budget.add_required();
+        assert_eq!((budget.required(), budget.allowed()), (6, 5));
+    }
+
+    #[test]
     fn the_required_count_never_leaves_fewer_than_one_to_evade() {
         let mut budget = Budget::new(5, 2);
         budget.note_evaded(5);
@@ -215,5 +236,17 @@ mod tests {
         assert_eq!(budget.tick(f32::NAN, true, 5, 2), Event::None);
         assert_eq!(budget.tick(-1.0, true, 5, 2), Event::None);
         assert_eq!(budget, before);
+    }
+
+    #[test]
+    fn a_rescaled_wave_keeps_the_cops_already_evaded() {
+        let mut budget = Budget::new(10, 2);
+        budget.note_evaded(4);
+        budget.scale_required(5.0);
+        assert_eq!((budget.required(), budget.evaded(), budget.allowed()), (50, 4, 46));
+        budget.scale_required(0.2);
+        assert_eq!(budget.allowed(), 6);
+        budget.scale_required(f32::NAN);
+        assert_eq!(budget.required(), 10, "a bad ratio changes nothing");
     }
 }

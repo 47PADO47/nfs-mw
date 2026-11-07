@@ -1,7 +1,7 @@
 //! Which parts of the HUD package are shown. The package holds every element of the in-game HUD; the game turns
 //! each on or off by feature. Here an element is on when the state it shows exists in this build: the speedometer
 //! and the tachometer always, the nitrous and turbo gauges when the car has the hardware, the pursuit board and its
-//! cool-down bar during a chase, the bounty row in career mode. Race groups and heat arcs show their bound state;
+//! cool-down bar during a chase, the bounty row with the board. Race groups and heat arcs show their bound state;
 //! the minimap shows when the scene has a map position for it.
 
 use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
@@ -33,13 +33,11 @@ pub(super) const PURSUIT_COPS: [u32; 1] = [0xe0b1_430b];
 /// The cool-down bar (`Cooldown_Meter_Group`): its track and fill. It sits inside the radar's group in the package,
 /// so [`Layout::update`] decides it on its own flag. Shown once the player has started to get away.
 pub(super) const COOLDOWN: [u32; 1] = [0x84a2_26ec];
-/// The bounty row: the career feeds it, so it shows in career mode only and is held hidden elsewhere. It sits inside the
-/// pursuit board's group.
+/// The bounty row (`BOUNTY >` and the chase's pending bounty). It sits inside the pursuit board's group and shows with
+/// it in every chase, as the game's board plays its appear on every update of a chase.
 pub(super) const BOUNTY_ROW: [u32; 1] = [0x8674_e6d4];
-/// The cool-down bar's "HIDING" text group and its car icon. They sit under the cool-down group and rest at zero
-/// alpha; `hiding_mark.rs` fades them in and out (`docs/specs/pursuit-hiding.md`). The orange bar beside them
-/// (`0x5c2a4f20`) answers no message in the package and stays at rest.
-pub(super) const HIDING: [u32; 2] = [0x60b4_5523, 0x3807_4901];
+/// The rings around the infraction icon (`hud/infractions.rs`): the icon's appear and leave fade them.
+const INFRACTION_RINGS: u32 = 0x3345_911d;
 
 /// What the layout shows this frame, one flag per feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -54,8 +52,6 @@ pub struct Shown {
     pub mirror: bool,
     pub pursuit: bool,
     pub cooldown: bool,
-    /// Career mode: the bounty row shows.
-    pub career: bool,
     /// A race runs: the race information group (place, clock) shows.
     pub race: bool,
     /// A countdown step is up: the `321_GO_GROUP` shows.
@@ -66,6 +62,10 @@ pub struct Shown {
     pub leaders: u8,
     /// The milestone board shows: a free-roam chase in the career (`hud/milestone_board.rs`).
     pub milestones: bool,
+    /// The cost-to-state flasher is up or plays out (`hud/cost_to_state.rs`).
+    pub cost_to_state: bool,
+    /// The career's total bounty flasher is up or plays out (`hud/total_bounty.rs`).
+    pub total_bounty: bool,
 }
 
 /// The elements and where they sit in the package.
@@ -88,10 +88,15 @@ pub struct Layout {
     pursuit: Vec<usize>,
     pursuit_cops: Vec<usize>,
     cooldown: Vec<usize>,
-    /// The bounty row: shown in career mode only.
-    bounty_row: Vec<usize>,
     /// The milestone board's group.
     milestones: Vec<usize>,
+    /// The cost-to-state flasher's group.
+    cost_to_state: Vec<usize>,
+    /// The total bounty flasher's group.
+    total_bounty: Vec<usize>,
+    /// The infraction notifier: the icon and its rings, the count, the header and the four rows. Always in the layout:
+    /// each part rests at zero alpha in its own `HIDE` script until a new infraction plays it.
+    infractions: Vec<usize>,
     race: Vec<usize>,
     race_lap: Vec<usize>,
     countdown: Vec<usize>,
@@ -144,8 +149,10 @@ impl Layout {
             pursuit: find(&PURSUIT_BOARD),
             pursuit_cops: find(&PURSUIT_COPS),
             cooldown: find(&COOLDOWN),
-            bounty_row: find(&BOUNTY_ROW),
             milestones: find(&super::milestone_board::BOARD),
+            cost_to_state: find(&[fe_hash_upper(super::cost_to_state::GROUP)]),
+            total_bounty: find(&[super::total_bounty::GROUP]),
+            infractions: find(&infraction_roots()),
             race: find(&super::race::root_hashes()),
             race_lap: find(&[super::race::lap_hash()]),
             countdown: find(&[super::race::count_hash()]),
@@ -172,6 +179,7 @@ impl Layout {
         let mut shown = vec![false; self.parent.len()];
         let mut roots: Vec<usize> = self.speedometer.iter().chain(&self.tachometer).copied().collect();
         roots.extend(&self.speedbreaker);
+        roots.extend(&self.infractions);
         if want.mirror {
             roots.extend(&self.mirror);
         }
@@ -180,9 +188,6 @@ impl Layout {
         }
         if want.heat {
             roots.extend(&self.heat);
-        }
-        if want.career {
-            roots.extend(&self.bounty_row);
         }
         if want.race {
             roots.extend(&self.race);
@@ -223,6 +228,12 @@ impl Layout {
         if want.milestones {
             roots.extend(&self.milestones);
         }
+        if want.cost_to_state {
+            roots.extend(&self.cost_to_state);
+        }
+        if want.total_bounty {
+            roots.extend(&self.total_bounty);
+        }
         for root in roots {
             // The root's ancestors have to show for it to show; everything under it shows with it.
             let mut up = Some(root);
@@ -237,7 +248,6 @@ impl Layout {
         }
         // The parts without a bound feed stay hidden under whatever shows around them.
         for (i, slot) in shown.iter_mut().enumerate() {
-            let held = !want.career && self.is_under_any(i, &self.bounty_row);
             // The lap group is the tollbooth milestone group (not bound); a lap count shows in the progress group.
             let race_part =
                 self.is_under_any(i, &self.race_lap) || (!want.countdown && self.is_under_any(i, &self.countdown));
@@ -247,7 +257,7 @@ impl Layout {
                 .iter()
                 .enumerate()
                 .any(|(k, row)| k >= usize::from(want.leaders) && self.is_under_any(i, row));
-            if held || race_part || unused_row || self.is_under_any(i, &self.leader_icons) {
+            if race_part || unused_row || self.is_under_any(i, &self.leader_icons) {
                 *slot = false;
             }
         }
@@ -271,4 +281,11 @@ impl Layout {
     fn is_under_any(&self, i: usize, roots: &[usize]) -> bool {
         roots.iter().any(|root| self.is_under(i, *root))
     }
+}
+
+/// The name hashes of the infraction notifier's parts.
+fn infraction_roots() -> Vec<u32> {
+    use super::infractions::{COUNT, HEADER, ICON};
+    let rows = (1..=4).map(|n| fe_hash_upper(&format!("INFRACTION_GROUP_{n}")));
+    [ICON, COUNT, HEADER].into_iter().map(fe_hash_upper).chain(rows).chain([INFRACTION_RINGS]).collect()
 }

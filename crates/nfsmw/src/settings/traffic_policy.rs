@@ -68,6 +68,9 @@ pub struct TrafficPolicy {
     pub density_percent: u8,
     pub common_fill: bool,
     pub common_rate_percent: u16,
+    /// Keep an unseen car or cop while it is on the minimap, so turning round finds the ones behind (an enhancement;
+    /// the original removes them by its distance and time rule alone).
+    pub keep_on_minimap: bool,
 }
 impl Default for TrafficPolicy {
     fn default() -> Self {
@@ -80,6 +83,7 @@ impl Default for TrafficPolicy {
             density_percent: 100,
             common_fill: false,
             common_rate_percent: 100,
+            keep_on_minimap: false,
         }
     }
 }
@@ -94,6 +98,7 @@ impl TrafficPolicy {
             density_percent: 100,
             common_fill: false,
             common_rate_percent: 100,
+            keep_on_minimap: true,
         }
     }
     pub fn range_only(self) -> Self {
@@ -111,6 +116,7 @@ impl TrafficPolicy {
             density_percent: self.density_percent.min(100),
             common_fill: self.common_fill,
             common_rate_percent: self.common_rate_percent.clamp(100, 300),
+            keep_on_minimap: self.keep_on_minimap,
         }
     }
     pub fn density(self, context: f32) -> f32 {

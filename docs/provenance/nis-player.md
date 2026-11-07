@@ -21,6 +21,13 @@
 - The arrest handler's addresses (the chooser `0x0044d770` and the spot finder `0x0044da10`) come from
   [busted-sequence.md](../specs/busted-sequence.md), which was written from `speed.exe` 1.3 in Ghidra (read only).
 - The implementation was written from the specs. The decomp files were not kept on disk.
+- The character lighting ([nis-player-2.md](../specs/nis-player-2.md) section 9.6), specified before it was written, was
+  read from `speed.exe` 1.3 (the matched image of [car-lighting.md](car-lighting.md)) in Ghidra, read only: the
+  world-model draw that picks the rig, the rig setup, the effect's constant and material uploads, the rig's values in
+  the image's data, and the compiled skinned-character effect, disassembled with D3DX by a script in the scratchpad. The
+  decomp's `eLight` and `WorldModel` sources (CC0) gave the names. The characters' light materials were read from the
+  install's `GLOBAL/GlobalB.lzc` and the arrest bundles by a Python reader in the scratchpad. No addresses, decompiler
+  output or shader text are kept here.
 
 ## Sources read
 
@@ -114,7 +121,9 @@ The third-party note on `ENISTimeOfDay` (Xbox 360 behaviour) is a lead only and 
   (section 2.2).
 - **Characters:** each character stands on the ground under its pelvis, smoothed half and half each frame
   ([nis-player-2.md](../specs/nis-player-2.md) section 9.3). How far below the probe point the port looks (6 m) is the
-  port's own. The shadows and the face pixelation (section 9.4) are not drawn.
+  port's own. The shadows and the face pixelation (section 9.4) are not drawn. The light (section 9.6) is worked out on
+  the CPU into the vertex colours; whether the original fogs the characters is unconfirmed, and no capture of an arrest
+  has been compared.
 - **Arrest bundles:** the 1.3 MB arrest bundle is not checked against the loading thresholds above.
 - **Scene data:** the seven special-car entries whose scene hashes match no installed scene may belong to another build
   ([nis-scenes.md](../specs/nis-scenes.md) section 13).

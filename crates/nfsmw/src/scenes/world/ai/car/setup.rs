@@ -24,6 +24,8 @@ pub struct Ctx<'a, R> {
     /// Every computer-driven car (a semi with its trailer hitched is one long body), with whether it is a cop,
     /// and which of them is this car; the trailers that came loose follow after the cars.
     pub bodies: &'a [(Body, bool)],
+    /// The avoidance radius each of `bodies` advertises (`AiCar::avoid_radius`); a missing entry has the default.
+    pub radii: &'a [f32],
     pub me: usize,
     pub player: Option<Body>,
     /// Where each car's cop goes instead of the player this think, by car index (`None`: the player).

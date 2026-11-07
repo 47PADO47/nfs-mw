@@ -26,8 +26,9 @@ not alter authored mass, friction, collision reactions or prop lifetime. Reset v
 and pursuit reset penalties have their existing independent consumers.
 
 The runtime uses the fixed CarSim simulation clock. Ordinary streamed initial traffic placement
-does not gain reset invulnerability. Complete native reset breadcrumbs, guided zones, drawing blink
-timing, and tractor-to-trailer propagation remain separate work.
+does not gain reset invulnerability; only a reset placement starts it, and any other placement ends it.
+The reset trail, the automatic resets and the blink are in [vehicle-reset](vehicle-reset.md); guided zones
+and tractor-to-trailer propagation remain separate work.
 
 Tests must witness a real approaching overlap before checking its refusal; verify both-body order,
 unchanged velocities/positions and empty callbacks, actual-contact cooldown refresh, timer recovery,

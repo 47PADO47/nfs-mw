@@ -13,7 +13,7 @@ fn world() -> TrafficWorld {
         world.cars.last_mut().unwrap().set_entity(key);
     }
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     assert!(world.cars.iter().all(AiCar::is_cop));
     world.police.test_formation(Formation::BoxIn, false);
     world

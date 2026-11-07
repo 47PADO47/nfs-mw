@@ -42,7 +42,9 @@ fn frontend_theta(material_specular_scale: f32, theta_sign: f32) -> LightingRig 
     LightingRig { lights, ambient: Vec3::ZERO, material_specular_scale }
 }
 
-fn spherical(azimuth: f32, polar: f32) -> Vec3 {
+/// The unit direction at `azimuth` from +X about +Z and `polar` from +Z, both in degrees, through engine angles. The NIS
+/// characters' rig (`nis-player-2.md` section 9.6) builds its camera-space lights with it too.
+pub(crate) fn spherical(azimuth: f32, polar: f32) -> Vec3 {
     let (sa, ca) = angle(azimuth).to_radians().sin_cos();
     let (sp, cp) = angle(polar).to_radians().sin_cos();
     Vec3::new(sp * ca, sp * sa, cp)

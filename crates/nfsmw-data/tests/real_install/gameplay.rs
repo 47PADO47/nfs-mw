@@ -80,6 +80,18 @@ fn races_triggers_and_activity_zones_match_documented_numbers() {
     assert_eq!(zone.icon_index, Some(15));
     let respawn = zone.respawn.expect("respawn marker");
     assert!(close(respawn.heading_deg, 82.59451));
+    // The save remembers zones by their respawn marker's key (career-safehouse-2.md 9.4): every safe house and car lot
+    // has one, and no two zones share it.
+    let keyed: Vec<u32> = data
+        .markers
+        .iter()
+        .filter(|m| matches!(m.kind, ActivityKind::SafeHouse | ActivityKind::CarLot))
+        .map(|m| m.respawn_key.unwrap_or_else(|| panic!("{} has no respawn key", m.name)))
+        .collect();
+    let mut unique = keyed.clone();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(unique.len(), keyed.len(), "each zone has its own respawn marker");
 }
 
 #[test]

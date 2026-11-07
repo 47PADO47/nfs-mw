@@ -37,7 +37,10 @@ original task's exact scheduling position; that ordering remains an explicit
 adapter boundary pending native scheduler integration evidence.
 
 **[adapter]** Cars suspended while collision is not resident do not contribute
-their frozen sight ages to pursuit aggregation. Reactivation resets the target
-observation before the next scheduled check. This maps the original active-unit
-filter to the remake's streaming boundary and prevents an unloaded cop from
-holding a pursuit in sight indefinitely.
+their frozen sight ages to pursuit aggregation. Reactivation schedules a test at
+the car's next task and gives it the constructor's unseen age (99 s, or its
+older frozen age), not the 0.25 s of a vehicle without a target. That 0.25 s is
+below the seven-second grace, so a resumed cop far out of sight would otherwise
+re-acquire the target and end a cool-down without any sighting. This maps the
+original active-unit filter to the remake's streaming boundary and prevents an
+unloaded cop from holding a pursuit in sight indefinitely.

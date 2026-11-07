@@ -21,6 +21,7 @@ use crate::economy::cash::{RaceWin, award_race_win};
 use crate::milestones::MilestoneSet;
 use crate::milestones::speedtrap::{SpeedTrap, unlock_bin};
 use crate::regions::{RegionPicture, region_unlock_screen};
+use crate::safehouse::{DEFAULT_RACE_WIN_HEAT_FACTOR, apply_heat_factor};
 use crate::settings::{CareerSettings, FIRST_RIVAL_STAGE, Flags, PROLOGUE_STAGE};
 use crate::stable::Stable;
 
@@ -148,7 +149,9 @@ fn apply_event(
     apply_race(career, blacklist, stable, result, outcome);
 }
 
-/// A race finish: the Blacklist counts it, and a first place pays the race cash and ticks the impound countdown.
+/// A race finish: the Blacklist counts it, and a first place pays the race cash, ticks the impound countdown and cools
+/// the heat of every car of the stable by `EventWinHeatAdjust` (`docs/specs/ai-pursuit-heat.md` section 3.3; the
+/// records only, so the driven car's own record is written over by its live heat when the world unloads).
 fn apply_race(
     career: &mut CareerSettings,
     blacklist: &mut Blacklist,
@@ -162,6 +165,7 @@ fn apply_race(
         return;
     }
     let RaceWin { cash, released_cars } = award_race_win(career, stable, result.cash_value);
+    apply_heat_factor(stable, DEFAULT_RACE_WIN_HEAT_FACTOR);
     outcome.cash_paid = cash;
     outcome.released_cars = released_cars;
 }

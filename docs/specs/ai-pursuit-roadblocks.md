@@ -173,7 +173,8 @@ face is used, as before.
 ## 3. Layouts without spikes (`RoadblockCandidateList`)
 
 `C` = car, `B` = barrier (sawhorse). Entries `(x, z, angle)` in metres, metres and turns. `min_w` = minimum road width
-needed, `req` = cars required. **[decomp]** (data hard-coded in the code, not in AttribSys)
+needed, `req` = cars required. **[decomp]** (data hard-coded in the code, not in AttribSys). **[PC binary]** The
+retail PC executable's two tables hold the same layouts, in the same order, as this section and section 4.
 
 | # | min_w | req | Elements |
 |---|---|---|---|
@@ -407,7 +408,14 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
   the `genericsmackable` sequence releases the four pieces and hides the whole [headless: installed test
   `installed_sawhorse_breaks_into_its_four_pieces_when_a_car_hits_it`; the pieces' meshes are the shared sections']. Spike
   strips are drawn from the installed model, tilted to the ground normal, with the installed collision box; the tire box is the
-  original's (0.15 m along the axle, the radius in the other two axes) swept along the step. Not seen in a running game.
+  original's (0.15 m along the axle, the radius in the other two axes) swept along the step. Both props are drawn with the
+  shared scenery's own meshes (an intact sawhorse from its hierarchy's visible nodes, the strip from its shared mesh), lit
+  as the city's props are; uploaded as car rigs and drawn with the car shading they came out black. The rigs remain the
+  fallback when the shared sets lack them [ours; checked in a screenshot for the sawhorse].
+  A spike strip is moved along the road's width until both ends lie 0.2 m inside the edges (centred when it is
+  longer than the road is wide), and its seat replaces a surface at an end that breaks more than 0.12 m from the road's
+  slope (the line from its centre through the point halfway out) by that line, so it neither reaches into a railing
+  nor tilts up onto a kerb, while a banked road still tilts it (`roadblock/strip_fit.rs`) [ours].
   Each prop is seated by section 2.5: the nearest surface at its element point (the element carries the road's height at
   the site), its origin lifted so the bottom of its root collision box (half height less the box's pivot height) meets that
   surface, the strip's tire-test box with it. A prop with no surface under it is skipped, and props past 13 live ones are not
@@ -417,10 +425,11 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
   midpoints, the roll from the side midpoints, the height from their centroid plus the car's ride lift. The fit's exact
   maths is the rewrite's; a car that misses a wheel keeps the centre seat.
 - **Behaviour [headless].** Cars hold the brake (`AIGoalStaticRoadBlock`). A roadblock car does not look for the player; the roadblock
-  sees the player within 60 m (3-D) unless a hiding spot hides it from cars, which resets the pursuit's unseen clock. Passing
+  sees the player within 60 m (3-D) when its nearest car is nearer than every live chase car, unless a hiding spot hides
+  it from cars, which resets the pursuit's unseen clock. Passing
   the centre marks the roadblock dodged once (the dodged and strip counts are kept for the statistics). The cheat rule (a car
   within 500 m horizontally, the player within 300 m of the centre for 20 s, at once in cool-down) takes the nearest car into the
-  chase once. A standing roadblock that is whole and unpassed forces the follow formation, and adding one ends the current
+  chase once and adds one cop to evade (`Budget::add_required`). A standing roadblock that is whole and unpassed forces the follow formation, and adding one ends the current
   formation unless it is FOLLOW or its finisher runs. The cost to state is 500 per roadblock and 250 per prop, sawhorses included.
 - **Release and repeat [headless].** A roadblock with no live car is released and its props go with it; the lottery may then build
   another. An escape leaves roadblocks standing (their cars are retired by the cop manager's out-of-play rule: a roadblock car
@@ -430,8 +439,8 @@ Tags: **[verified]** by a test that ran here, **[headless]** by the synthetic wo
   chase's) that have been out of view more than 5 s and are over 100 m from the player, the farthest first, and removes
   them; the cars it still lacks are created (`roadblock/steal.rs`). The original asks its pool of inactive cars first;
   the rewrite has no pool yet, so the order is reversed until the cop manager's pool lands.
-- **Not built.** The pursuit statistics reaching the rap sheet (`Roadblocks::stats` holds them); the
-  "cops needed to evade + 1" count; a roadblock marker on the map. The in-game minimap's constructor (`FUN_0059d500`) loads
+- **Built since.** The dodged roadblocks reach the busted line, the pursuit statistics and the rap sheet's pursuit page;
+  the cheat recruit adds one cop to evade. **Not built:** a roadblock marker on the map. The in-game minimap's constructor (`FUN_0059d500`) loads
   cop, racer, checkpoint and helicopter objects and **no** roadblock object, so the minimap has no roadblock blip. The
   `MMICON_ROADBLOCK_%d` pool belongs to the full-screen map's legend builder (`FUN_00531350`, listed in
   [../provenance/world-map-ghidra.md](../provenance/world-map-ghidra.md)); whether the map screen draws standing

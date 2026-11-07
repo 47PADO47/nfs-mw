@@ -341,9 +341,18 @@ fn install_roadblock_props(scene: &mut WorldScene, renderer: &mut dyn RenderBack
     let spike = rig(scene, renderer, models.spike);
     let sawhorse = rig(scene, renderer, models.sawhorse);
     let parts = scene.residency.fragment_parts(crate::scenes::world::ai::roadblock::props::SAWHORSE_MODEL);
+    let spike_mesh = scene.residency.shared_mesh(crate::scenes::world::ai::roadblock::props::SPIKE_MODEL);
+    if spike_mesh.is_none() || parts.is_none() {
+        log::warn!(
+            "roadblock props: the shared scenery lacks the spike strip ({}) or the sawhorse ({}); drawn from their rigs",
+            spike_mesh.is_some(),
+            parts.is_some()
+        );
+    }
     if let Some(traffic) = scene.traffic.as_mut() {
         traffic.set_roadblock_models(spike, sawhorse);
         traffic.set_sawhorse_parts(parts);
+        traffic.set_spike_mesh(spike_mesh);
     }
 }
 

@@ -1,15 +1,18 @@
 //! The pool Quick Play draws from: the cars of the front-end catalogue and the races of the quick race board, limited by the
 //! career's stage, and the random pick from it (`docs/specs/quick-play.md` sections 2 and 3).
 //!
-//! The cars are read on a worker thread when the front end starts (the physics of the whole catalogue are measured for the
-//! stat bars, which takes a moment); the races are the quick race board (`quick_race.rs`).
+//! The cars are read on a worker thread when the front end starts (the physics of the whole catalogue are measured, to keep
+//! the cars that can be driven, and rated for the stat bars, which takes a moment); the races are the quick race board
+//! (`quick_race.rs`).
 
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use blackbox_attrib::vlt_hash;
 use game_install::GameDir;
 use nfsmw_career::carlot::stats::CarStats;
 use nfsmw_data::car::physics::PhysicsData;
+use nfsmw_data::car::physics::ratings::{RatingBook, RatingEndpoints};
 use nfsmw_data::career_cars::{self, CarClass, CatalogueCar};
 
 use crate::frontend::quick_race::Track;
@@ -34,7 +37,8 @@ pub struct PoolCar {
     pub handle: u32,
     /// The manufacturer index (1 BMW ... 25 Corvette), `None` for a car with none.
     pub manufacturer: Option<u8>,
-    /// What the stat bars measure, `None` for a car whose physics cannot be read.
+    /// The car's measured stats, `None` for a car whose physics cannot be read (it cannot be driven). The stat bars show
+    /// the pool's ratings instead (`CarPool::ratings_of`).
     pub stats: Option<CarStats>,
 }
 
@@ -49,12 +53,14 @@ pub struct PoolPreset {
     pub car: PoolCar,
 }
 
-/// The cars Quick Play can pick from, with the stats of all of them (the stat bars fill relative to that population).
+/// The cars Quick Play can pick from, and the original front end's rating endpoints of each car, which the stat bars show
+/// (`docs/specs/garage-performance-bars.md`).
 #[derive(Debug, Default)]
 pub struct CarPool {
     pub cars: Vec<PoolCar>,
-    pub population: Vec<CarStats>,
     pub presets: Vec<PoolPreset>,
+    /// The rating endpoints by car folder in lower case; a car the rating book does not know has none.
+    pub ratings: HashMap<String, RatingEndpoints>,
 }
 
 static CARS: OnceLock<Arc<CarPool>> = OnceLock::new();
@@ -107,14 +113,41 @@ impl CarPool {
             crate::career::car_stats(dir, physics, &folder.to_ascii_lowercase())
         });
         let cars = drivable(cars, physics.is_some());
-        let population = cars.iter().filter_map(|car| car.stats).collect();
         let rides = nfsmw_data::car::CarTables::load(dir).map(|tables| tables.presets.clone()).unwrap_or_default();
         let presets = presets_of(&catalogue, &folders, &rides, |folder| {
             let physics = physics.as_ref()?;
             crate::career::car_stats(dir, physics, &folder.to_ascii_lowercase())
         });
-        Ok(CarPool { cars, population, presets })
+        let ratings = match RatingBook::load(dir) {
+            Ok(book) => rating_endpoints(&book, cars.iter().chain(presets.iter().map(|preset| &preset.car))),
+            Err(e) => {
+                log::warn!("quick play: the stat bars' ratings do not read: {e:#}");
+                HashMap::new()
+            }
+        };
+        Ok(CarPool { cars, presets, ratings })
     }
+
+    /// The rating endpoints of a pool car (`RatingEndpoints::rating` turns a performance package into the bars).
+    pub fn ratings_of(&self, car: &PoolCar) -> Option<RatingEndpoints> {
+        self.ratings.get(&car.folder.to_ascii_lowercase()).copied()
+    }
+}
+
+/// The rating endpoints of each car's folder: a mod car's own stats on the stock population's scale, else the stock car's of
+/// the same physics name, as the garage rates them (`scenes/world/garage.rs`).
+fn rating_endpoints<'a>(
+    book: &RatingBook,
+    cars: impl Iterator<Item = &'a PoolCar>,
+) -> HashMap<String, RatingEndpoints> {
+    cars.filter_map(|car| {
+        let endpoints = match nfsmw_data::car::mods::stats(&car.folder) {
+            Some(stats) => book.for_stats(stats),
+            None => book.for_car(&car.folder),
+        };
+        Some((car.folder.to_ascii_lowercase(), endpoints?))
+    })
+    .collect()
 }
 
 /// The cars that can be driven. The install's add-on cars (`levin`, `trueno`, `corollae88`) have no `pvehicle` or collision

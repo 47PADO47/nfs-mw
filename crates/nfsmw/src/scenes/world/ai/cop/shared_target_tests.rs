@@ -22,6 +22,7 @@ fn primary_uses_its_shared_seek_and_failed_tracking_uses_the_published_body() {
             index: &index,
             rng: &mut rng,
             bodies: &[],
+            radii: &[],
             me: 0,
             player: None,
             aims: &[],

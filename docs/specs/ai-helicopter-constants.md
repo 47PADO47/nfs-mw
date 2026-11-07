@@ -55,5 +55,6 @@ constants sit in one cluster at `0x00890828` to `0x00890868` (values below). Use
 seek), 600 (despawn). They may be immediate operands in code. Their values are the spec's, not confirmed in `speed.exe`.
 
 **Port gaps** (the sheet steering was closed in pass 3, see Rewrite status): `AvoidCamera` is ported (the world gives the
-helicopter the game camera each step). Still open: the search arrival rule (section 6.1, a new point within 30 m; the port takes the angle from the caller).
+helicopter the game camera each step). The search arrival rule (section 6.1, a new point within 30 m, the angle stepped by
+0.125 turn) is ported in `blackbox_pursuit::helicopter`.
 

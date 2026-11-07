@@ -19,6 +19,7 @@ use super::characters::{Characters, Materials};
 use super::cop_wait::CopWait;
 use super::events::{NisEvent, NisEvents};
 use super::handlers::NisScreen;
+use super::light::Eye;
 use super::loading::Loading;
 use crate::audio::nis::NisAudioRequest;
 use crate::scenes::world::scene_space::{Anchor, lens_of, placed};
@@ -312,17 +313,19 @@ impl NisPlayer {
         self.retired.push(playing.characters);
     }
 
-    /// Uploads the playing scene's characters, once, with the world's shared textures `shared`, skins them for the scene's
-    /// time, and frees the characters of the scenes that ended. The world calls it every frame before it draws.
+    /// Uploads the playing scene's characters, once, with the world's shared textures `shared`, skins and lights them for
+    /// the scene's time and camera, and frees the characters of the scenes that ended. The world calls it every frame
+    /// before it draws.
     pub fn prepare_characters(&mut self, renderer: &mut dyn RenderBackend, shared: &Materials) {
         for characters in self.retired.drain(..) {
             characters.release(renderer);
         }
-        if let Some(playing) = self.play.as_mut() {
-            playing.characters.prepare(renderer, shared);
-            let time = playing.run.scene_time();
-            playing.characters.skin(renderer, time);
-        }
+        // The light follows the camera's turn only, which the aspect does not change.
+        let eye = self.lens(1.0).map(|lens| Eye::new(lens.view, lens.position));
+        let (Some(playing), Some(eye)) = (self.play.as_mut(), eye) else { return };
+        playing.characters.prepare(renderer, shared);
+        let time = playing.run.scene_time();
+        playing.characters.skin(renderer, time, &playing.anchor, &eye);
     }
 
     /// Stands the playing scene's characters on the ground `ground(at)` gives under them (see

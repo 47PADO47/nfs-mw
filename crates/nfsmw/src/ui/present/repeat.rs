@@ -11,13 +11,32 @@ pub struct Tile {
     pub uv: [f32; 4],
 }
 
-/// None keeps the ordinary single-quad path, including malformed/unreasonably large rectangles.
-pub fn tiles(uv: [f32; 4]) -> Option<Vec<Tile>> {
-    if uv.iter().all(|v| (0.0..=1.0).contains(v)) || !uv.iter().all(|v| v.is_finite()) {
+/// The axes a texture repeats on: its pack record's `TilableUV`, bit 0 across and bit 1 down. An axis that does not
+/// repeat clamps to the texture's edge.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Tiling {
+    pub across: bool,
+    pub down: bool,
+}
+
+impl Tiling {
+    pub fn from_byte(tilable_uv: u8) -> Self {
+        Self { across: tilable_uv & 1 != 0, down: tilable_uv & 2 != 0 }
+    }
+}
+
+/// None keeps the ordinary single-quad path, whose sampler clamps to the edge: a rectangle inside the unit square, one
+/// that leaves it only on axes the texture does not repeat on, and malformed or unreasonably large rectangles.
+pub fn tiles(uv: [f32; 4], tiling: Tiling) -> Option<Vec<Tile>> {
+    if !uv.iter().all(|v| v.is_finite()) {
         return None;
     }
-    let x = segments(uv[0], uv[2])?;
-    let y = segments(uv[1], uv[3])?;
+    let leaves = |a: f32, b: f32| !(0.0..=1.0).contains(&a) || !(0.0..=1.0).contains(&b);
+    if !(tiling.across && leaves(uv[0], uv[2])) && !(tiling.down && leaves(uv[1], uv[3])) {
+        return None;
+    }
+    let x = spans(uv[0], uv[2], tiling.across)?;
+    let y = spans(uv[1], uv[3], tiling.down)?;
     if x.len().checked_mul(y.len())? > MAX_QUADS {
         return None;
     }
@@ -28,6 +47,15 @@ pub fn tiles(uv: [f32; 4]) -> Option<Vec<Tile>> {
         }
     }
     Some(result)
+}
+
+/// The spans of one axis: one per tile when the texture repeats on it, else the whole range with its coordinates kept, for
+/// the edge to clamp them.
+fn spans(start: f32, end: f32, repeats: bool) -> Option<Vec<[f32; 4]>> {
+    if !repeats {
+        return Some(vec![[0.0, 1.0, start, end]]);
+    }
+    segments(start, end)
 }
 
 fn segments(start: f32, end: f32) -> Option<Vec<[f32; 4]>> {
@@ -57,13 +85,18 @@ fn segments(start: f32, end: f32) -> Option<Vec<[f32; 4]>> {
     )
 }
 
-/// The opposite edge supplies each filter-border texel, including the diagonal corner samples.
-pub fn pad(image: &Image) -> Image {
+/// One border texel around the image for the filter: the opposite edge supplies it on an axis the texture repeats on (the
+/// diagonal corners too), the same edge on an axis it clamps on.
+pub fn pad(image: &Image, tiling: Tiling) -> Image {
     let (w, h) = (image.width as usize, image.height as usize);
+    let border = |at: usize, len: usize, repeats: bool| match repeats {
+        true => (at + len - 1) % len,
+        false => at.saturating_sub(1).min(len - 1),
+    };
     let mut rgba = vec![0; (w + 2) * (h + 2) * 4];
     for y in 0..h + 2 {
         for x in 0..w + 2 {
-            let src = (((y + h - 1) % h) * w + (x + w - 1) % w) * 4;
+            let src = (border(y, h, tiling.down) * w + border(x, w, tiling.across)) * 4;
             let dst = (y * (w + 2) + x) * 4;
             rgba[dst..dst + 4].copy_from_slice(&image.rgba[src..src + 4]);
         }
@@ -71,7 +104,8 @@ pub fn pad(image: &Image) -> Image {
     Image { width: image.width + 2, height: image.height + 2, rgba, blend: image.blend }
 }
 
-/// Map the original unit texture into the wrapped image's unpadded interior.
+/// Map the original unit texture into the padded image's interior. On an axis that clamps, coordinates outside the unit
+/// square land past the interior, where the sampler holds the edge texel.
 pub fn padded_uv(uv: [f32; 4], size: [u32; 2]) -> [f32; 4] {
     std::array::from_fn(|i| {
         let dim = size[i % 2] as f32;
@@ -83,9 +117,11 @@ pub fn padded_uv(uv: [f32; 4], size: [u32; 2]) -> [f32; 4] {
 mod tests {
     use super::*;
 
+    const BOTH: Tiling = Tiling { across: true, down: true };
+
     #[test]
     fn dialog_stripe_repeats_through_its_fractional_final_tiles() {
-        let tiles = tiles([0.0, 0.0, 16.8125, 6.1875]).unwrap();
+        let tiles = tiles([0.0, 0.0, 16.8125, 6.1875], BOTH).unwrap();
         assert_eq!(tiles.len(), 17 * 7);
         let last = tiles.last().unwrap();
         assert_eq!(last.rect[2..], [1.0, 1.0]);
@@ -96,7 +132,7 @@ mod tests {
 
     #[test]
     fn scrolling_and_reversed_uvs_keep_their_phase_and_direction() {
-        let tiles = tiles([-0.25, 1.25, 1.25, -0.25]).unwrap();
+        let tiles = tiles([-0.25, 1.25, 1.25, -0.25], BOTH).unwrap();
         assert_eq!(tiles.len(), 9);
         assert_eq!(tiles[0].uv, [0.75, 0.25, 1.0, 0.0]);
         assert_eq!(tiles[8].uv, [0.0, 1.0, 0.25, 0.75]);
@@ -113,7 +149,7 @@ mod tests {
             [0.0, 0.0, f32::INFINITY, 1.0],
             [f32::NAN; 4],
         ] {
-            assert!(tiles(uv).is_none(), "{uv:?}");
+            assert!(tiles(uv, BOTH).is_none(), "{uv:?}");
         }
     }
 
@@ -121,12 +157,39 @@ mod tests {
     fn filter_padding_wraps_both_axes_instead_of_clamping() {
         let image =
             Image { width: 2, height: 2, rgba: [1u8, 2, 3, 4].into_iter().flat_map(|v| [v; 4]).collect(), blend: 2 };
-        let padded = pad(&image);
+        let padded = pad(&image, BOTH);
         assert_eq!(
             padded.rgba.as_chunks::<4>().0.iter().map(|p| p[0]).collect::<Vec<_>>(),
             [4, 3, 4, 3, 2, 1, 2, 1, 4, 3, 4, 3, 2, 1, 2, 1]
         );
         assert_eq!(padded.blend, 2);
         assert_eq!(padded_uv([0.0, 0.0, 1.0, 1.0], [2, 2]), [0.25, 0.25, 0.75, 0.75]);
+    }
+
+    #[test]
+    fn a_texture_that_does_not_repeat_keeps_the_single_quad_and_its_edge_clamp() {
+        // The pursuit board's backing slid off its texture by its leave: the clamped edge rows are transparent.
+        assert!(tiles([0.0, 0.59375, 1.0, 2.0], Tiling::default()).is_none());
+        assert!(tiles([0.0, 0.0, 1.0, 2.0], Tiling { across: true, down: false }).is_none(), "repeats only across");
+        assert!(tiles([0.0, 0.0, 1.0, 2.0], Tiling { across: false, down: true }).is_some());
+    }
+
+    #[test]
+    fn a_texture_that_repeats_across_only_splits_across_and_keeps_its_rows_for_the_clamp() {
+        let tiles = tiles([0.0, -0.5, 2.5, 1.25], Tiling { across: true, down: false }).unwrap();
+        assert_eq!(tiles.len(), 3);
+        assert!(tiles.iter().all(|t| t.rect[1] == 0.0 && t.rect[3] == 1.0 && t.uv[1] == -0.5 && t.uv[3] == 1.25));
+        assert_eq!(tiles[2].uv[2], 0.5);
+    }
+
+    #[test]
+    fn filter_padding_holds_the_edge_on_an_axis_that_clamps() {
+        let image =
+            Image { width: 2, height: 2, rgba: [1u8, 2, 3, 4].into_iter().flat_map(|v| [v; 4]).collect(), blend: 1 };
+        let padded = pad(&image, Tiling { across: true, down: false });
+        assert_eq!(
+            padded.rgba.as_chunks::<4>().0.iter().map(|p| p[0]).collect::<Vec<_>>(),
+            [2, 1, 2, 1, 2, 1, 2, 1, 4, 3, 4, 3, 4, 3, 4, 3]
+        );
     }
 }

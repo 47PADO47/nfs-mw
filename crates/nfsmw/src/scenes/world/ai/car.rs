@@ -80,6 +80,8 @@ pub struct AiCar {
     entity: u32,
     /// Persistent phase in [0,1), advancing with simulation even while lamps are off.
     light_phase: f32,
+    /// The brake-flare history the nitrous taillight smear draws from (`docs/specs/nitrous-light-trails.md`).
+    tail_trails: crate::scenes::world::tail_light_trails::TailLightTrails,
     sim: CarSim,
     /// The trailer of a semi tractor, hitched or loose.
     trailer: Option<TrailerCar>,
@@ -188,7 +190,6 @@ impl AiCar {
         format!("{:?} {action} {}", self.sim.telemetry(), self.sim.terrain_diagnostic())
     }
 
-    #[cfg(test)]
     pub(in crate::scenes::world::ai) fn nitrous_burning(&self) -> bool {
         self.sim.telemetry().nos_burning
     }
@@ -206,9 +207,10 @@ impl AiCar {
         let (name, rig, physics) = (model.name.clone(), model.rig.clone(), &model.physics);
         let mut sim = CarSim::for_rig(physics.clone(), &rig);
         sim.set_tunings(model.tunings);
-        sim.configure_ai();
-        if matches!(role, Role::Traffic) && !start.patrol {
-            sim.configure_traffic();
+        match (&role, start.patrol) {
+            (Role::Cop(_), _) | (Role::Traffic, true) => sim.configure_police(),
+            (Role::Traffic, false) => sim.configure_traffic(),
+            (Role::Racer(_), _) => sim.configure_ai(),
         }
         sim.collision_role.cop = start.patrol || matches!(role, Role::Cop(_));
         sim.collision_racer = matches!(role, Role::Racer(_));
@@ -234,15 +236,14 @@ impl AiCar {
             render_id,
             entity: 0,
             light_phase,
+            tail_trails: Default::default(),
             sim,
             trailer,
-            driver: Driver::new(
-                match role {
-                    Role::Traffic => ControllerKind::Simple,
-                    Role::Cop(_) | Role::Racer(_) => ControllerKind::Pid,
-                },
-                false,
-            ),
+            driver: match role {
+                Role::Traffic => Driver::new(ControllerKind::Simple, false),
+                Role::Cop(_) => Driver::police(),
+                Role::Racer(_) => Driver::new(ControllerKind::Pid, false),
+            },
             role,
             target: nav.position,
             nav,
@@ -423,11 +424,12 @@ impl AiCar {
                     }
                     shift(&mut self.sim, Some(gear));
                 }
+                let neighbours = traffic::neighbours(ctx.bodies, ctx.radii, ctx.me, ctx.player);
                 let think = racer.think(
                     ctx,
                     &mut self.nav,
                     &state,
-                    traffic::others(ctx.bodies, ctx.me, ctx.player),
+                    neighbours,
                     (self.steps + self.stagger).is_multiple_of(4),
                     match self.stand_in.active {
                         true => 0.0,
@@ -442,12 +444,13 @@ impl AiCar {
                     self.speed = 0.0;
                     return;
                 };
-                let (bodies, me, slotted) = (ctx.bodies, ctx.me, ctx.slotted);
+                let (bodies, radii, me, slotted) = (ctx.bodies, ctx.radii, ctx.me, ctx.slotted);
                 // A slotted cop does not cut its corridor around the other slotted cops (`cop.rs` `think`).
                 let mine = slotted.get(me).copied().unwrap_or(false);
                 let others = bodies.iter().enumerate().filter(move |&(i, _)| i != me).map(move |(i, b)| {
                     let mate = mine && b.1 && slotted.get(i).copied().unwrap_or(false);
-                    (b.0, !mate)
+                    let radius = radii.get(i).copied().unwrap_or(blackbox_roads::DEFAULT_AVOID_RADIUS);
+                    (blackbox_roads::Neighbour { body: b.0, radius }, !mate)
                 });
                 let pressing = self.controls.gas >= 0.5;
                 let stuck = cop.stuck.update(

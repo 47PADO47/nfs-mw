@@ -229,6 +229,7 @@ fn installed_highway_slope_startup_separates_placement_from_driver_input() {
                 index: &segments,
                 rng: &mut rng,
                 bodies: &bodies,
+                radii: &[],
                 me: 0,
                 player: None,
                 aims: &[],

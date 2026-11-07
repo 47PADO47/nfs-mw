@@ -1,7 +1,9 @@
 //! What a finished race tells the post-race screen (`PostRace_Results.fng`, `frontend/post_race.rs`), and what the
 //! screen answers. Plain data: the world builds it, the front end shows it.
 
+use blackbox_pursuit::InfractionLog;
 use blackbox_race::{RacerStats, StageMark};
+use nfsmw_career::milestones::StatType;
 use nfsmw_data::gameplay::RaceType;
 
 /// One lap of a racer: its time and the place the racer held at the end of it.
@@ -141,6 +143,36 @@ pub struct PursuitReport {
     /// The row the challenge asked for (`PursuitReport::ROWS` index) and the value it had to reach.
     pub goal: Option<(usize, f32)>,
     pub page: PursuitPage,
+    /// The chase's infractions: the infractions page ticks them.
+    pub committed: InfractionLog,
+    /// The milestones page of an escape in free roam: the milestones of the career's current bin, in order.
+    pub milestones: [Option<MilestoneLine>; MILESTONE_LINES],
+}
+
+/// The milestone lines the statistics screen has room for.
+pub const MILESTONE_LINES: usize = 9;
+
+/// One line of the statistics screen's milestones page (`docs/specs/pursuit-escape-results.md` section 3).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MilestoneLine {
+    pub stat: StatType,
+    /// The language label of its short name (`BLACKLIST_PURSUIT_MILESTONES_NN_SHORT`); `None` when the data names none.
+    pub label: Option<u32>,
+    /// The statistic's current value, 0 when it is not set.
+    pub value: f32,
+    pub goal: f32,
+    pub status: MilestoneStatus,
+}
+
+/// How a milestone line is marked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MilestoneStatus {
+    /// Neither at stake nor complete: an empty box, and the value against the goal.
+    Open,
+    /// Passed in this chase and banked on its escape: ticked, the goal alone.
+    AtStake,
+    /// Banked: ticked and dimmed, the goal alone.
+    Complete,
 }
 
 impl PursuitReport {
@@ -161,6 +193,8 @@ impl PursuitReport {
             infractions: 4,
             goal: Some((2, 12.0)),
             page: PursuitPage::Challenge,
+            committed: InfractionLog::default(),
+            milestones: [None; MILESTONE_LINES],
         }
     }
 }

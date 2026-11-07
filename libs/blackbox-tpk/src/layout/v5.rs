@@ -22,6 +22,7 @@ pub const V5: PackLayout = PackLayout {
         alpha_usage: 0x55,
         alpha_blend: 0x56,
         flags: 0x57,
+        tilable_uv: 0x4F,
     },
     plat_len: 0x20,
     plat_format: 0x14,

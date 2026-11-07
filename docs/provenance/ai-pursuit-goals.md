@@ -126,3 +126,19 @@ Evidence is static reconstructed GameCube behavior, not a recorded PC trajectory
 Regressions distinguish a stationary target's heading from its predictive velocity,
 cover a slowly moving target below the slot-frame threshold, and check pull-over
 arrival with the complete predictive seek. No original implementation is copied.
+
+## Limiter at rest and in reverse; pull-over separation (4 November 2026)
+
+A private remake recording at heat 5 showed the collapse cop stalling about 5 m from a parked player: once the
+separation turned its drive point behind it, the driver selected reverse, the cop's speed went slightly negative and
+the rewrite's mirrored limiter returned a negative limit. The desired speed became negative, and the throttle brakes
+for any request under 0.5 m/s, so the cop held the brake in reverse gear for 1.5 s. The decompiled limiter and the
+retail PC executable's disassembly agree that the branch for `speed <= 0` ends with a negation that stores a positive
+limit. A private stock recording shows pull-over cops reversing with the throttle open and a positive requested speed.
+The rewrite now takes that branch.
+
+The other suspected causes are original behaviour and were left alone: the ring radius is `max(3,
+CollapseInnerRadius)` from the target's centre (3 m at heats 4 to 6); arrival needs the complete seek under
+`0.5 + 0.2 (1 - a)` km/h; and the separation runs over the cop's avoidable neighbours, which include the player's own
+vehicle AI (every vehicle AI registers as an avoidable with a 20 m default radius). None of 24 stock pull-over episodes
+reached the arrived state. No addresses, code or capture data are in the repository.

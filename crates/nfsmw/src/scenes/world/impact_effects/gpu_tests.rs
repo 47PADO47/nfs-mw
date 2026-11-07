@@ -47,8 +47,8 @@ fn installed_source_contact_particles_render_on_native_gpu() {
     renderer.render(&frame, &[]).unwrap();
     let before = renderer.read_output().unwrap().unwrap();
     let owner = Rc::new(());
+    // Not the stock dust puff (`lamp_lrg_hit_world`): it releases no particle (`tests.rs`).
     for (class, name, action, effect) in [
-        ("smackable", "largemetalpost", Action::HitWorld, "lamp_lrg_hit_world"),
         ("smackable", "largemetalpost", Action::HitObject, "lamp_lrg_hit_car"),
         ("pvehicle", "copmidsize", Action::HitObject, "carhitcar"),
         ("pvehicle", "traftaxi", Action::HitWorld, "carhitwall"),

@@ -1,4 +1,5 @@
-//! Authored barriers, not road faces, supply the close-action wall force.
+//! Authored barriers, not road faces, supply the close-action wall force and stop the drive ray; a switched-off scenery
+//! group's barriers do neither.
 
 use super::*;
 use blackbox_collision::{Article, Barrier, CollisionPack, HitKind, Instance, PackedVert, STRIP_FACING_UNKNOWN, Strip};
@@ -22,6 +23,11 @@ fn barrier(bottom: f32, top: f32) -> Barrier {
 }
 
 fn world(strips: Vec<Strip>, barriers: Vec<Barrier>) -> CollisionWorld {
+    world_in(0, strips, barriers)
+}
+
+/// The fixture's one instance in scenery group `group` (0: none).
+fn world_in(group: u16, strips: Vec<Strip>, barriers: Vec<Barrier>) -> CollisionWorld {
     let mut collision = CollisionWorld::new(None);
     collision.insert(CollisionPack {
         section: 1,
@@ -35,7 +41,7 @@ fn world(strips: Vec<Strip>, barriers: Vec<Barrier>) -> CollisionWorld {
             radius: 45.0,
             iter_stamp: 0,
             flags: 0,
-            group: 0,
+            group,
             article: 0,
         }],
         articles: vec![Article { strips, barriers, surfaces: vec![0], intermediate_object: 0, flags: 0 }],
@@ -82,4 +88,25 @@ fn close_wall_query_starts_at_the_body_height_without_an_offset() {
     let expected = close::wall(me.velocity, -Vec3::Z, 10.0);
     assert!(expected.y < -10.0);
     assert!((wall(&collision, &me) - expected).length() < 0.0001);
+}
+
+#[test]
+fn a_road_face_does_not_stop_the_drive_ray() {
+    let collision = world(vec![slope()], vec![]);
+    let me = body();
+    assert!(clear(&collision, me.position, me.position + Vec3::Z * 30.0), "drivable-to tests barriers only");
+}
+
+#[test]
+fn a_switched_off_scenery_group_neither_stops_the_drive_ray_nor_pushes_the_cop() {
+    // The cop beside the Riverfront Stadium marker never took its close action: a barrier of a group not in the world
+    // stood between it and the player.
+    let mut collision = world_in(217, vec![], vec![barrier(0.0, 4.0)]);
+    let me = body();
+    let ahead = me.position + Vec3::Z * 30.0;
+    assert!(clear(&collision, me.position, ahead));
+    assert_eq!(wall(&collision, &me), Vec2::ZERO);
+    collision.set_group_enabled(217, true);
+    assert!(!clear(&collision, me.position, ahead), "the group's barrier is in the world now");
+    assert_ne!(wall(&collision, &me), Vec2::ZERO);
 }

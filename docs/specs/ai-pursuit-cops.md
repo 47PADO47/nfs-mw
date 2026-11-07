@@ -92,9 +92,10 @@ else if should_remove and the cop is in a pursuit:
 remove if should_remove or spawning is disabled (despawn variant)
 ```
 
-**[ours]** The rewrite also requires the cop to have been unseen for the offscreen grace (4 s) and to be outside the
-minimap's circle (about 400 m) before `should_remove` takes it. Without this, a patrol cop 150 m behind the camera
-vanished the moment the player turned round (`scenes/world/ai/population/cops.rs`).
+**[ours]** The rewrite also requires the cop to have been unseen for the offscreen grace (4 s) before `should_remove`
+takes it, and, with the traffic policy's `keep_on_minimap` enhancement (off in the Reference preset), to be outside the
+minimap's circle (about 400 m) as well, so a patrol cop behind the camera is still there when the player turns round
+(`scenes/world/ai/population/cops.rs`).
 
 A removed cop is detached from its pursuit or roadblock and un-spawned (back to the pool). The first non-destroyed cop that
 reports a pursuit request (patrol cop that sees a perpetrator, ai-pursuit.md 4.2) is remembered and the loop stops, so only one new
@@ -180,10 +181,11 @@ a cop that sees the player flees only while more than 2 cops can see the player.
 - Entering cool-down set the ETA to 0 at once (143 s, 9 s and 84 s were left at the three entries). On leaving cool-down
   with the remaining count still at the trigger, a new call started at once with the full timer of the current heat
   (120 s, 120 s, 90 s); the old countdown did not resume.
-- The helicopter's extra cop to evade (a counter the pursuit keeps) is not what it was read as: two helicopters chased
-  the player for 60 s and 90 s without it moving. It moved once, adding one to the required count, on a sighting during a
-  cool-down at heat 5 while no helicopter flew (the last had left 105 s earlier). Its condition is not known, so the
-  rewrite does not add it.
+- The extra cop to evade that was read as the helicopter's is the roadblock cheat rule's: the counter is the number of
+  roadblock cars the pursuit took in since its roadblock was added, and the recruit adds one to the required count
+  ([ai-pursuit-roadblocks](ai-pursuit-roadblocks.md) section 5) **[decomp + PC binary]**. The capture agrees: two
+  helicopters chased the player for 60 s and 90 s without it moving; it moved once, on a sighting in a cool-down at heat 5
+  with no helicopter up, which is when the cheat rule fires at once. The rewrite adds the cop with the recruit.
 
 **Spawn timer:** when a vehicle joins a pursuit the next spawn waits `TimeBetweenFirstFourSpawn` while fewer than 3 cops have
 been involved (and not in cool-down), otherwise `TimeBetweenCopSpawn`; if 3 or more cops are still needed every second join
@@ -199,9 +201,17 @@ feed the cost-to-state totals.
 `AdjustedCopCounts` read the row of the perpetrator's *current* attribute instance, and that instance is re-created whenever
 `int(heat)` changes (`ai-pursuit.md` section 2). So the wave re-picks on the next manager run: the first heat row a chase
 reaches brings its own cop types, and the weighted pick draws among those the new row still needs. The count of each old type
-is not reduced at once; surplus removal (`RemoveUnwantedVehicles`, above) is the only path that drops a type, and it is not
-built yet. Engine: `blackbox_pursuit::wave::pick_needed` (the pick), `nfsmw` `Pursuit::follow_heat` (the heat sync),
-`nfsmw_data::pursuit::heat_rows` (all ten rows, loaded at chase start so every type's model exists).
+is not reduced at once; surplus removal (`RemoveUnwantedVehicles`, above) is the only path that drops a type. A cop it sends
+away leaves the pursuit at once (section 5), so the new type's cops come in while the old ones are still driving off: the
+wave and its per-type counts read the pursuit's contingent, and only the active-car limit still counts a fleeing cop until
+it is recycled. The rewrite once counted every cop car (fleeing and roadblock cars included) against the wave, so after a
+heat rise no new-type cop came until the old ones were recycled about 400 m away, and the chase often fell into cool-down
+meanwhile (`ai/pursuit_budget.rs` `in_chase`; test `pursuit::tests::heat_rise`). Engine: `blackbox_pursuit::wave::pick_needed` (the pick), `nfsmw` `Pursuit::follow_heat` (the heat sync),
+`nfsmw_data::pursuit::heat_rows` (all ten rows, loaded at chase start so every type's model exists). The models load
+on one worker in the background, the starting level's first and then the levels above it; a car's second trip (its
+performance and light textures) goes before the next car's first, and a heat change moves the new level's cars to the
+front (`ai/model_loader.rs`) **[ours]**. Queued plainly, every car's first trip ran before any car's second, so after a
+jump from heat 1 to 5 the heat 5 car came about 40 s into the chase and no cop could spawn until then.
 Helicopter records are never ground cops: `nfsmw_data::pursuit::ground_cops` drops `copheli`, and the helicopter path draws it.
 
 ### 4.1 Where a pursuit car appears (`SpawnPursuitIVehicle`)
@@ -246,6 +256,10 @@ two paths, an active cop that has been off screen for over 5 s and is more than 
 - Destroyed or inactive cops are removed from the pursuit each manager run (`RemoveVehicle`); a destroyed cop is counted as
   a kill only if it was still in the pursuit and stats are allowed to accumulate.
 - A cop that reaches `AIGoalFleePursuit` just drives; it is un-spawned by the patrol rule when out of view and far enough.
+  It is still a member of the chase and keeps its own sight test ("Implemented in the rewrite", Surplus). **[decomp]** In the rewrite a
+  searching or fleeing cop drives the traffic lanes; where its lane ends it takes the lane the other way from where it
+  stands and turns round, instead of standing at the dead end, which a traffic car does (`AiCar::turn_search_round`).
+  **[ours]**
 - A helicopter whose fuel runs out (field `HeliFuelTime`) leaves with `AIGoalHeliExit` and un-spawns; the next one waits
   `TimeBetweenHeliActive`.
 
@@ -327,10 +341,13 @@ Written after the code, to say what exists and what is approximated. Evidence ta
 - **Budget and backup** (`blackbox_pursuit::backup`, `ai/pursuit_budget.rs`): section 4 and the heat spec's
   `FullEngagementCopCount`, `FullEngagementRadius`, `NumCopsToTriggerBackup`, `BackupCallTimer`. A cop counts as evaded when it
   has stood within the radius (not in cool-down, not support) and later leaves the chase by any route. **[decomp]**
-- **Surplus** (`wave::adjusted_counts`, `wave::pick_surplus`, `AiCar::start_flee`): section 4. A fled cop leaves the chase
-  logic, drives the traffic lanes at the search speed with its lights out, and is recycled by the rule above. **[decomp]**
-  A cop's own line of sight is not kept per car, so "sees the player" is the chase's contact within the front range.
-  **[inferred]**
+- **Surplus** (`wave::adjusted_counts`, `wave::pick_surplus`, `AiCar::start_flee`): section 4. A fled cop stops counting
+  for the wave, drives the traffic lanes at the search speed with its lights out, and is recycled by the rule above. It
+  stays in the chase with its target, so it keeps its own sight test and a sighting by it brings the chase back, as
+  `AIVehiclePursuit::Update` has no flee check and the pursuit takes the shortest time since seen over every active
+  member (`ai/collide.rs`). **[decomp]** The original drives a fleeing cop with `AIActionRace` along the road; the
+  traffic-lane drive is the rewrite's. **[ours]**
+  The surplus pick reads each cop's own sight test (`AiCar::sees_player`).
 - **Fleet** (`ai/spawn_requests.rs`, `ai/seek_spawn.rs`, `blackbox_pursuit::{fleet, spawn_rules}`;
   [provenance](../provenance/ai-pursuit-cop-fleet.md)): the wave asks for a cop only while the active police cars (patrols,
   chase, support, roadblock, wrecks) are below the budget (the Bartender `MaxCops`, 8); queued spawn requests (console
@@ -345,8 +362,11 @@ Written after the code, to say what exists and what is approximated. Evidence ta
 - **Reinforcement timer and wave size** (`ai/pursuit.rs`): every join (start patrols, scripted chase requests, recruited
   roadblock cars, each placed support car, the helicopter) restarts the timer through one path. A chase that starts with no
   unit (a forced or scripted start) places its first cop at once, and that cop's join starts the opening interval
-  **[ours]**: the original always has an initiating unit, so this stands in for it. The
-  patrols that see the player at the start all join at once rather than one per manager run **[ours]**. The wave is not
+  **[ours]**: the original always has an initiating unit, so this stands in for it. A patrol joins by its own sighting
+  (`pursuit/patrol_join.rs`): the chase begins with the first patrol, in car order, that saw the player at its last sight
+  test, and on each manager run (each simulation step in the rewrite) the next patrol that sees the player joins,
+  in the opening and later in the chase alike. A patrol that does not see the player stays a patrol however near it is.
+  The wave is not
   scaled to the active-car limit; support cars are left out of the wave's car count. The quarter-second pursuit task step
   of the original's timer is not modelled.
 - 911 dispatch is in ([ai-pursuit-heat](ai-pursuit-heat.md) section 5.3).

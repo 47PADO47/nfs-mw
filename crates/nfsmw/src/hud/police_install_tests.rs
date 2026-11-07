@@ -246,8 +246,9 @@ fn assert_group_drawn(tree: &blackbox_feng::UiTree, group: usize, assets: &crate
     assert_eq!(drawn, expected, "installed group {:08x} presents visible triangle area", tree.nodes[group].name_hash);
 }
 
-/// The cool-down bar's "HIDING" mark (`docs/specs/pursuit-hiding.md` section 5): hidden at rest, faded in while a
-/// hiding spot latches the player, faded out again when it lets go.
+/// The cool-down bar's "HIDING" mark (`docs/specs/pursuit-hiding.md` section 5): hidden at rest, faded in with its
+/// label through the bar's appear while a hiding spot latches the player in the cool-down, faded out again when it lets
+/// go, and never raised outside the cool-down.
 #[test]
 #[ignore = "needs installed HUD assets"]
 fn installed_hiding_mark_fades_in_under_the_cooldown_bar_and_out_again() {
@@ -261,7 +262,9 @@ fn installed_hiding_mark_fades_in_under_the_cooldown_bar_and_out_again() {
         pursuit: Some(PursuitHud { secs: 30.0, evade: 0.4, cooldown: true, ..Default::default() }),
         ..Default::default()
     };
-    let marks = [0x60B4_5523, 0x3807_4901];
+    // The text group, its "HIDING" label and the car icon; the bar the board drives raises and lowers them.
+    let marks = [0x60B4_5523, 0xE8B9_D816, 0x3807_4901];
+    let bar = rt.find(package, hiding_mark::BAR).expect("the hiding bar");
     let alpha = |rt: &Runtime, hash: u32| rt.alpha(rt.find(package, hash).unwrap()).unwrap();
     for _ in 0..8 {
         step(&mut rt, &mut binding, &state);
@@ -273,6 +276,10 @@ fn installed_hiding_mark_fades_in_under_the_cooldown_bar_and_out_again() {
     for _ in 0..400 {
         step(&mut rt, &mut binding, &state);
     }
+    assert_eq!(rt.script_of(bar), Some(hiding_mark::APPEAR), "the board played the bar's appear");
+    let assets = crate::ui::UiAssets::load(&dir).unwrap();
+    let drawn = |rt: &Runtime| !super::pursuit_install_tests::draws_nothing(rt, package, &assets, hiding_mark::BAR);
+    assert!(drawn(&rt), "the bar shows under the mark");
     for hash in marks {
         assert!(alpha(&rt, hash) > 100, "{hash:x} faded in: {}", alpha(&rt, hash));
     }
@@ -284,7 +291,17 @@ fn installed_hiding_mark_fades_in_under_the_cooldown_bar_and_out_again() {
     for _ in 0..400 {
         step(&mut rt, &mut binding, &state);
     }
+    assert_ne!(rt.script_of(bar), Some(hiding_mark::APPEAR), "the board played the bar's leave");
+    assert!(!drawn(&rt), "the bar's leave slides it off its texture, leaving nothing");
     for hash in marks {
         assert_eq!(alpha(&rt, hash), 0, "{hash:x} faded out when the spot let go");
+    }
+    // A spot that holds the player while a cop sees it (no cool-down) raises nothing.
+    state.pursuit = Some(PursuitHud { secs: 40.0, hiding: Some(1.0), ..Default::default() });
+    for _ in 0..8 {
+        step(&mut rt, &mut binding, &state);
+    }
+    for hash in marks {
+        assert_eq!(alpha(&rt, hash), 0, "{hash:x} stays down outside the cool-down");
     }
 }

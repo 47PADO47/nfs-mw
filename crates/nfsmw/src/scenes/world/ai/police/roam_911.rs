@@ -22,8 +22,9 @@ impl super::super::TrafficWorld {
     pub(in crate::scenes::world::ai) fn update_911(&mut self, dt: f32) {
         let chasing = self.is_pursuing() || self.police.bust.active();
         let heat = self.police.patrol_heat();
+        self.cops.roam.set_speech(self.police.speech_enabled());
         if let Some(lifetime) = self.cops.roam.tick(dt, chasing, heat) {
-            log::info!("911: the speech has not answered, so the call is made without it");
+            log::info!("911: no speech can say the report, so the call is made without it");
             self.start_911_call(lifetime);
         }
     }

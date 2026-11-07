@@ -138,6 +138,10 @@ policy before the HUD. See the player-car-light specification for the
 appearance arithmetic and its unresolved occlusion/rotation details.
 **[PC static; existing flare renderer research]**
 
+Police cars draw the same smear in the rewrite: each AI car keeps its own three-pose history, sampled every physics
+step, and its brake flares repeat along it while its nitrous burns (`ai/car/lighting.rs`). The PC history is kept per
+rendered car; the smear on the original's cops is seen in play, not read from the dispatch. **[ours; play observation]**
+
 ## Host timing and lifecycle contract
 
 The native history advances per eligible rendered view, so its spatial length

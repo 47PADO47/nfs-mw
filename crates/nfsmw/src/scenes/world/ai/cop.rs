@@ -4,7 +4,7 @@
 use blackbox_collision::CollisionWorld;
 use blackbox_driver::{CarLimits, SpeedGovernor, StuckDetector, potential_acceleration, potential_speed};
 use blackbox_driver::{PursuitContext, ramp};
-use blackbox_roads::{Body, PathState, PathType, RandomSource, RoadNav};
+use blackbox_roads::{Body, Neighbour, PathState, PathType, RandomSource, RoadNav};
 use blackbox_roads::{trail_curvature, update_occluded_position};
 use blackbox_vehicle::performance::Performance;
 use glam::{Vec2, Vec3};
@@ -29,6 +29,7 @@ pub(super) mod separation;
 #[cfg(test)]
 mod shared_target_tests;
 mod state_hash;
+mod trace;
 
 pub(in crate::scenes::world::ai) use road_nos::Input as RoadNitrous;
 pub(super) use roads::TargetRoad;
@@ -64,23 +65,24 @@ pub fn matched_limits(cop: &CopCar, player: &Performance) -> CarLimits {
 /// The cop's two avoidable sets, into `corridor` and `separation` (cleared first): the separation set is every nearby
 /// vehicle and the target; the corridor set keeps those flagged as cutting it, and the target unless the cop is in
 /// formation (spec `ai-pursuit-obstacle-selection.md`, avoidable sets).
-fn avoid_sets(
+fn avoid_sets<N: Into<Neighbour>>(
     target: Body,
     in_formation: bool,
-    traffic: impl IntoIterator<Item = (Body, bool)>,
-    corridor: &mut Vec<Body>,
+    traffic: impl IntoIterator<Item = (N, bool)>,
+    corridor: &mut Vec<Neighbour>,
     separation: &mut Vec<Body>,
 ) {
     corridor.clear();
     separation.clear();
     separation.push(target);
     if !in_formation {
-        corridor.push(target);
+        corridor.push(target.into());
     }
-    for (body, cuts) in traffic {
-        separation.push(body);
+    for (neighbour, cuts) in traffic {
+        let neighbour = neighbour.into();
+        separation.push(neighbour.body);
         if cuts {
-            corridor.push(body);
+            corridor.push(neighbour);
         }
     }
 }
@@ -103,10 +105,14 @@ pub struct CopState {
     pub(super) ram_allowed: bool,
     /// A stuck reverse runs: its end puts the lane cursor back on a lane (`recovery.rs`).
     recovering: bool,
+    /// The last road think braked to turn round (the trace's `action`).
+    turning: bool,
     /// The cars the think in progress cuts its road corridor around, and the ones it keeps its distance from; kept so a
     /// think does not allocate.
-    traffic_scratch: Vec<Body>,
+    traffic_scratch: Vec<Neighbour>,
     separation_scratch: Vec<Body>,
+    /// The avoidance radius the cop advertises to the other cars: the look-ahead of its last road action.
+    avoid_radius: f32,
     #[cfg(test)]
     pub(super) last_diagnostic: String,
 }
@@ -174,11 +180,19 @@ impl CopState {
             environment: Environment::default(),
             ram_allowed: false,
             recovering: false,
+            turning: false,
             traffic_scratch: Vec::new(),
             separation_scratch: Vec::new(),
+            avoid_radius: blackbox_roads::DEFAULT_AVOID_RADIUS,
             #[cfg(test)]
             last_diagnostic: String::new(),
         }
+    }
+
+    /// The avoidance radius the cop advertises: the look-ahead of its last road action (`DEFAULT_AVOID_RADIUS` before
+    /// one). The close and ram actions leave it as it was.
+    pub fn avoid_radius(&self) -> f32 {
+        self.avoid_radius
     }
 
     /// A return from lane search starts a fresh pursuit path and speed governor at the existing car's speed.
@@ -226,7 +240,7 @@ impl CopState {
         nav: &mut RoadNav,
         car: &CarState,
         target: &Target,
-        traffic: impl IntoIterator<Item = (Body, bool)>,
+        traffic: impl IntoIterator<Item = (Neighbour, bool)>,
         inputs: ActionInputs<'_>,
     ) -> CopThink {
         let mut corridor = std::mem::take(&mut self.traffic_scratch);
@@ -244,12 +258,12 @@ impl CopState {
         nav: &mut RoadNav,
         car: &CarState,
         target: &Target,
-        (traffic, nearby): (&[Body], &[Body]),
+        (traffic, nearby): (&[Neighbour], &[Body]),
         inputs: ActionInputs<'_>,
     ) -> CopThink {
         let ActionInputs { collision, grade, ram, nitrous } = inputs;
         #[cfg(test)]
-        let mut diagnostic_traffic = traffic.to_vec();
+        let mut diagnostic_traffic: Vec<Body> = traffic.iter().map(|n| n.body).collect();
         let road = match self.environment.shared_target_road {
             true => self.environment.target_road,
             false => roads::target(ctx, target, self.environment.level, self.environment.jerk),
@@ -343,6 +357,7 @@ impl CopState {
         // Keep the cursor on the forward tangent's look-ahead circle. Its
         // distance alone cannot tell whether the car has already passed it.
         let look = look_ahead(self.governor.speed_limit);
+        self.avoid_radius = look;
         let gap = nav.position.distance(car.body.position);
         let toward = to_target.try_normalize().unwrap_or(Vec3::ZERO);
         if gap > 2.5 * look {
@@ -424,6 +439,7 @@ impl CopState {
         );
         let destination = occlusion.as_ref().map_or(nav.position, |o| o.position);
         let turning = motion::needs_turnaround(&car.body, destination);
+        self.turning = turning;
         self.road_nos.update(
             nitrous,
             self.environment.nitrous_boost,

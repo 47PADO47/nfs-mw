@@ -5,11 +5,12 @@ use blackbox_feng::{ObjectRef, PackageId, Runtime, fe_hash_upper};
 
 use super::blip_style::BlipStyle;
 use super::blips::BlipBinding;
-use super::elements::{Layout, Shown};
+use super::elements::{BOUNTY_ROW, Layout, Shown};
 use super::minimap::MinimapBinding;
 use super::pursuit::timer_text;
 use super::skin::{drag_face_texture, fill_texture, needle_texture, tach_face_texture};
 use super::state::{HudState, redline_rotation, redline_rotation_drag};
+use crate::i18n::fmt::grouped;
 
 /// The script an object plays when its condition is on, and the one it rests in.
 const SCRIPT_GREEN: u32 = 0x02DDC8F0;
@@ -41,6 +42,10 @@ const DRAG_SCALE_RPM: f32 = 10000.0;
 const GEAR_SHIFTING_ALPHA: u8 = 0x88;
 /// The pursuit board's group (`PursuitBoardGroup`).
 const PURSUIT_BOARD_GROUP: u32 = 0xDE89_E070;
+/// The number of the board's bounty row (the `9999999` after `BOUNTY >`), and the row's authored appear script, which
+/// the game plays on every update of a chase (`docs/specs/hud-pursuit.md`, "Bounty row").
+const BOUNTY_VALUE: u32 = 0x875E_92EB;
+const BOUNTY_APPEAR: u32 = 0x5079_C8F8;
 /// The gear digit inside the tachometer group (`3rdPersonGear`). The Original theme's gear slot emits it on its own.
 pub(super) const GEAR: &str = "3rdPersonGear";
 
@@ -57,6 +62,9 @@ pub struct HudBinding {
     /// The seconds of the frame being drawn (from `advance_mirror_fade`), for the milestone board's rotation.
     frame_dt: f32,
     backup_timer: super::backup_timer::BackupTimer,
+    cost_to_state: super::cost_to_state::CostToState,
+    total_bounty: super::total_bounty::TotalBounty,
+    infractions: super::infractions::Notifier,
     layout: Layout,
     /// The rear-view mirror is shown; the detector chooses its corresponding authored layout.
     mirror_shown: bool,
@@ -88,6 +96,9 @@ pub struct HudBinding {
     cops_taken: Option<ObjectRef>,
     /// The pursuit board's group, held at full alpha during a chase (see `pursuit`).
     pursuit_frames: Vec<ObjectRef>,
+    /// The board's bounty row and its number: the chase's pending bounty.
+    bounty_row: Option<ObjectRef>,
+    bounty_value: Option<ObjectRef>,
     /// The minimap, once the host has given it a map (see [`HudBinding::with_minimap`]).
     minimap: Option<MinimapBinding>,
     /// The cop, racer, checkpoint and helicopter objects on the map.
@@ -116,6 +127,9 @@ impl HudBinding {
             milestone_board: super::milestone_board::Binding::new(rt, package),
             frame_dt: 0.0,
             backup_timer: super::backup_timer::BackupTimer::new(rt, package),
+            cost_to_state: super::cost_to_state::CostToState::new(rt, package),
+            total_bounty: super::total_bounty::TotalBounty::new(rt, package),
+            infractions: super::infractions::Notifier::new(rt, package),
             layout: Layout::new(rt, package),
             mirror_frames: [None; 2],
             mirror_shown: true,
@@ -146,6 +160,8 @@ impl HudBinding {
             pursuit_timer: find(rt, package, "PursuitTime"),
             cops_taken: find(rt, package, "Cops_TakenOut"),
             pursuit_frames: rt.find(package, PURSUIT_BOARD_GROUP).into_iter().collect(),
+            bounty_row: rt.find(package, BOUNTY_ROW[0]),
+            bounty_value: rt.find(package, BOUNTY_VALUE),
             minimap: None,
             blips: BlipBinding::builtin(rt, package),
             shift_on: false,
@@ -203,6 +219,10 @@ impl HudBinding {
 
     pub fn apply(&mut self, rt: &mut Runtime, s: &HudState) {
         let map = s.minimap.zip(self.minimap.as_ref());
+        // The game feeds the flasher the chase's cost to state only while a chase runs.
+        let cost = s.pursuit.map(|_| s.police_intel.cost_to_state);
+        let cost_script = self.cost_to_state.advance(cost, self.frame_dt);
+        let bounty_script = self.total_bounty.advance(s.total_bounty, self.frame_dt);
         let shown = Shown {
             nitrous: s.has_nos,
             turbo: s.has_turbo,
@@ -217,14 +237,18 @@ impl HudBinding {
             mirror: self.mirror_shown,
             pursuit: s.pursuit.is_some(),
             cooldown: s.pursuit.is_some_and(|p| p.cooldown_shown()),
-            career: s.career_bounty.is_some(),
             race: s.race.is_some(),
             countdown: s.race.is_some_and(|r| r.count.is_some()),
             leaders: s.leaders.as_ref().map_or(0, |l| l.shown_rows() as u8),
             message: s.message.is_some() || self.race.message_active(),
             milestones: s.milestone_board.is_some() && s.pursuit.is_some(),
+            cost_to_state: self.cost_to_state.shown(),
+            total_bounty: self.total_bounty.shown(),
         };
         self.layout.update(rt, shown);
+        self.cost_to_state.apply(rt, cost_script);
+        self.total_bounty.apply(rt, bounty_script);
+        self.infractions.apply(rt, s.pursuit.map(|p| p.infractions));
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
         let alpha = mirror_fade_alpha(self.mirror_elapsed);
         for frame in self.mirror_frames.iter().flatten() {
@@ -348,6 +372,15 @@ impl HudBinding {
         if let Some(o) = self.cops_taken {
             rt.set_text(o, p.cops_destroyed.to_string());
         }
+        if let Some(o) = self.bounty_value {
+            rt.set_text(o, grouped(i64::from(p.bounty)));
+        }
+        // The row rests hidden (its `INIT` chains to `HIDE`); the game plays its appear while the chase runs.
+        let Some(row) = self.bounty_row else { return };
+        if rt.script_of(row) != Some(BOUNTY_APPEAR) {
+            rt.run_script(row, BOUNTY_APPEAR);
+        }
+        rt.set_alpha(row, 255);
     }
 
     fn nitrous(&mut self, rt: &mut Runtime, s: &HudState) {

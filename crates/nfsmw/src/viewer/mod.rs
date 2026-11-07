@@ -5,8 +5,8 @@ pub mod camera;
 mod race_report;
 mod static_hash;
 pub use race_report::{
-    PhotoKind, PhotoReport, PursuitPage, PursuitReport, RaceAnswer, RaceReport, ReportLap, ReportRacer, RewardLine,
-    RewardsReport, photo_picture,
+    MILESTONE_LINES, MilestoneLine, MilestoneStatus, PhotoKind, PhotoReport, PursuitPage, PursuitReport, RaceAnswer,
+    RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport, photo_picture,
 };
 pub use static_hash::StaticHash;
 
@@ -164,6 +164,8 @@ pub trait Scene {
     }
     /// Freeze driving while the garage owns the controls, allowing streaming and placement to continue.
     fn set_garage_open(&mut self, _open: bool) {}
+    /// Whether a tools overlay (F5, F8) is open: the world pauses for it unless the player turned that off.
+    fn set_overlay_open(&mut self, _open: bool) {}
     fn title(&self) -> String;
     /// Upload the initial resources.
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()>;

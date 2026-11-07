@@ -9,7 +9,16 @@ fn stored(render: [f32; 3]) -> Vec3 {
 }
 
 fn marker(kind: ActivityKind, at: Vec3, radius: f32) -> ActivityMarker {
-    ActivityMarker { key: 2, name: "zone".to_string(), kind, position: at, radius, respawn: None, icon_index: None }
+    ActivityMarker {
+        key: 2,
+        name: "zone".to_string(),
+        kind,
+        position: at,
+        radius,
+        respawn: None,
+        respawn_key: None,
+        icon_index: None,
+    }
 }
 
 fn race(name: &str, start: Option<Placement>) -> Race {

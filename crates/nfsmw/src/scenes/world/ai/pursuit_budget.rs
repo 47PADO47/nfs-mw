@@ -43,7 +43,7 @@ impl TrafficWorld {
         let backup = pursuit.backup();
         let mut now = HashSet::new();
         let mut engaged = 0;
-        for car in self.cars.iter_mut().filter(|car| is_chase_cop(car)) {
+        for car in self.cars.iter_mut().filter(|car| in_chase(car)) {
             if car.physics_position().distance(player.position) < backup.engagement_radius {
                 engaged += 1;
                 if !cooldown {
@@ -91,7 +91,7 @@ impl TrafficWorld {
             .map(|(name, count, _)| (name.to_ascii_lowercase(), count))
             .collect();
         let mut types: Vec<(String, u32)> = Vec::new();
-        for car in self.cars.iter().filter(|car| is_chase_cop(car)) {
+        for car in self.cars.iter().filter(|car| in_chase(car)) {
             let name = car.name.to_ascii_lowercase();
             match types.iter_mut().find(|(known, _)| *known == name) {
                 Some((_, count)) => *count += 1,
@@ -114,13 +114,9 @@ impl TrafficWorld {
         let cruise = self.search_cruise();
         let count = count.min(MOST_PER_RUN);
         let Self { cars, network, index: lanes, .. } = self;
-        let (mut already, mut watching) = (0u32, 0u32);
+        let mut watching = 0u32;
         let mut candidates: Vec<(usize, f32, bool)> = Vec::new();
-        for (i, car) in cars.iter().enumerate().filter(|(_, car)| is_chase_cop(car)) {
-            if car.is_fleeing() {
-                already += 1;
-                continue;
-            }
+        for (i, car) in cars.iter().enumerate().filter(|(_, car)| in_chase(car)) {
             let distance = car.physics_position().distance(player.position);
             // Each cop keeps its own answer of the last sight test (`GetTimeSinceTargetSeen() <= 0`).
             let sees = car.sees_player();
@@ -131,7 +127,7 @@ impl TrafficWorld {
         }
         candidates.sort_by(|a, b| b.1.total_cmp(&a.1));
         for (rank, &(i, _, sees)) in candidates.iter().take(MOST_PER_RUN as usize).enumerate() {
-            if count <= already + rank as u32 {
+            if count <= rank as u32 {
                 break;
             }
             if sees && watching <= KEEP_WATCHING {
@@ -147,7 +143,9 @@ impl TrafficWorld {
     }
 }
 
-/// A cop of the chase proper: not a roadblock car and not a support car.
-fn is_chase_cop(car: &super::AiCar) -> bool {
-    car.is_cop() && !car.is_roadblock() && car.support_serial().is_none()
+/// A cop of the chase's contingent: a cop car chasing the player that is not a roadblock car, not a support car and not
+/// sent away. A cop sent away has left the chase at once (`ai-pursuit-cops.md` section 5): it counts as evaded if it was
+/// engaged, and it no longer fills its type's place in the wave, though it stays an active car until it is recycled.
+pub(super) fn in_chase(car: &super::AiCar) -> bool {
+    car.is_cop() && !car.is_roadblock() && car.support_serial().is_none() && !car.is_fleeing()
 }

@@ -60,7 +60,7 @@ fn a_chase_cop_lands_in_the_window_through_the_fallback_when_the_walk_fails() {
     let mut world = world();
     let focus = player_at(-200.0, 30.0);
     world.player_position = Some(focus.body.unwrap().position);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     let (collision, surfaces) = (floor(), SurfaceTable::default());
     let placed =
         (0..60).any(|_| world.spawn_cop("copx", focus, focus.body.unwrap().position, player(), &collision, &surfaces));
@@ -120,7 +120,7 @@ fn a_wave_cop_is_not_asked_for_while_the_active_cars_fill_the_budget() {
     let mut row = wave();
     row.cops[0].count = 6;
     row.full_engagement_cops = 6;
-    world.start_pursuit(1, vec![row], player());
+    start_with_patrols(&mut world, 1, vec![row], player());
     // The budget is under test, not the forced start: its spots (140 m ahead among the patrols, 15 m behind off the test
     // floor) do not exist here, so the wave places its cops by the reinforcement walk.
     world.pursuit.as_mut().unwrap().opening = None;
@@ -234,7 +234,7 @@ fn a_chase_request_survives_until_the_scene_starts_its_pursuit() {
         world.requested_chase_ready(focus, &collision, &surfaces),
         "the scene may now create the requested pursuit"
     );
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     world.service_spawn_requests(focus, &collision, &surfaces);
     assert_eq!(world.cop_requests_waiting(), 0);
     assert!(world.cars.iter().any(AiCar::is_cop));
@@ -280,7 +280,7 @@ fn a_scripted_roadblock_request_creates_a_stationary_police_car_without_a_pursui
 #[test]
 fn finishing_a_chase_cancels_unplaced_chase_requests() {
     let mut world = world();
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     world.queue_cop_spawn("missing", Vec3::Z * 120.0, Vec3::Z, RequestRole::Chase);
     queue_patrol(&mut world, 150.0);
     world.stop_pursuit();
@@ -307,7 +307,7 @@ fn the_cops_sent_away_are_the_ones_that_cannot_see_the_player() {
     row.cops[0].count = 4;
     row.full_engagement_cops = 5;
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![row], player());
+    start_with_patrols(&mut world, 1, vec![row], player());
     world.pursuit.as_mut().unwrap().budget.note_evaded(3);
     // The two farthest cops see the player; the two nearer ones do not.
     world.cars[2].report_sight(false, true);

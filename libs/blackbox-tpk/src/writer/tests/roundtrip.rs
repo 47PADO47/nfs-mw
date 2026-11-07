@@ -54,6 +54,7 @@ fn dxt5_with_non_square_mip_chain() {
     s.alpha_blend = 1;
     s.alpha_sorting = true;
     s.flags = 2;
+    s.tilable_uv = 3;
     assert_eq!(s.data.len(), 128 + 32 + 16 + 16 + 16);
     round_trip(&[s]);
 }
@@ -131,6 +132,7 @@ fn a_parsed_texture_can_be_written_again() {
     let mut s = source("REWRITE_WITH_A_LONG_NAME_X", 16, 16, PixelFormat::Dxt5, 5, 7);
     s.flags = 3;
     s.alpha_usage = AlphaUsage::PunchThrough;
+    s.tilable_uv = 1;
     let first = read_texture_packs(&write_tpk("P", &[s]).unwrap()).unwrap();
     let again: Vec<TextureSource> = first[0].textures.iter().map(TextureSource::from).collect();
     let second = read_texture_packs(&write_tpk("P", &again).unwrap()).unwrap();

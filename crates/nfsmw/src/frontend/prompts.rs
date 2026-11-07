@@ -315,9 +315,17 @@ pub fn decorate(
         legacy::hide_roots(tree, &super::prompt_layout::PURSUIT_FOOTERS);
     }
     let first_hint = tree.nodes.len();
+    // The statistics' key 2 names the page it turns to: the screen writes it on the package's own button.
+    let page_button = name
+        .eq_ignore_ascii_case(screen::POST_RACE_PURSUIT)
+        .then(|| tree.nodes.iter().find(|n| n.name_hash == 0xC6BE_1C1F).and_then(|n| n.text.clone()))
+        .flatten();
     let hints: Vec<(Vec<Prompt>, String, Option<Action>)> = hint_set(name, footer, bindings, device)
         .into_iter()
-        .map(|(keys, label, action)| (keys, label.text(), action))
+        .map(|(keys, label, action)| match (&page_button, action) {
+            (Some(text), Some(Action::MenuButton2)) => (keys, text.clone(), action),
+            _ => (keys, label.text(), action),
+        })
         .collect();
     let colour =
         match pause || [screen::PAUSE_OPTIONS, screen::PAUSE_CONTROLS].iter().any(|s| name.eq_ignore_ascii_case(s)) {

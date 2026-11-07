@@ -61,7 +61,7 @@ fn a_patrol_car_is_a_silent_source_and_a_chase_gives_the_cop_its_siren() {
 
     // The chase begins and runs past its opening: the same car, its lights on, now sounds.
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     assert!(world.cars[0].emergency_lights());
     // The player is driving fast: no collapse, so the cops do not press.
     world.player_speed = 40.0;

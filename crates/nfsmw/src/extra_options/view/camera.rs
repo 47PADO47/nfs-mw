@@ -47,6 +47,7 @@ pub(super) fn show(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings
     }
     ui.small("Freecam: WASD, Space/C up/down, Shift faster, mouse/right stick to look, wheel for speed.");
     ui.checkbox(&mut state.testing.paused, "Pause simulation · camera remains usable");
+    ui.checkbox(&mut state.camera.pause_overlays, "Pause the game while F5, F6 or F8 is open");
     ui.checkbox(&mut state.hide_ui, "Hide all UI for screenshots");
     egui::ComboBox::from_id_salt("hide_shortcut")
         .selected_text(format!("Show/hide UI shortcut: {}", state.camera.hide_ui_key))

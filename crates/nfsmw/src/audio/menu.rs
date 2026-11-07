@@ -33,8 +33,12 @@ fn trigger(message: u32) -> Option<i32> {
         PAD_START => 6,
         PAD_BUTTON0..=LAST_COMMON_BUTTON => 7,
         0x610F_B233..=0x610F_B238 => 7,
-        0x6BC1_CD5D => 10,
-        0xE3FB_93BE => 11,
+        // `SOUND_DLGBOX_IN` / `UISND_COMMON_DLGBOX_IN`, `SOUND_DLGBOX_OUT` / `UISND_COMMON_DLGBOX_OUT`.
+        0x6BC1_CD5D | 0xC989_909F => 10,
+        0xE3FB_93BE | 0xFABB_BF40 => 11,
+        // The milestone rewards screen's `UISND_MILESTONE_REWARD_SYMBOL_ON` and `..._SYMBOL_MOVE`.
+        0x65A0_3426 => 17,
+        0x4E7C_CC80 => 18,
         0x4810_A91B => 28,
         0x145B_13C0 => 88,
         0x8C40_ED95 => 89,

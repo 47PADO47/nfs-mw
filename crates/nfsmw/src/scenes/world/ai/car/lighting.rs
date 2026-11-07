@@ -71,7 +71,10 @@ impl AiCar {
 
     pub fn flares(&self, alpha: f32, view: FlareView, out: &mut Vec<TexturedEffect>) {
         let state = LampState { time: self.lamp_time(alpha), ..self.lamp_state() };
-        self.rig.flares().draw(self.rig.lights(), self.pose(alpha).transform(), state, view, out);
+        let world = self.pose(alpha).transform();
+        self.rig.flares().draw(self.rig.lights(), world, state, view, out);
+        // A cop's nitrous smears its brake flares along its last poses, as the player's does.
+        self.rig.flares().draw_trails(self.rig.lights(), &self.tail_trails, world, state, view, out);
         if let Some(trailer) = &self.trailer {
             trailer.flares(alpha, view, out);
         }

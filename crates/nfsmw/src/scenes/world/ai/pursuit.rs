@@ -4,7 +4,9 @@
 use std::rc::Rc;
 
 mod opening;
+mod patrol_join;
 mod placement;
+mod wave_scale;
 
 use opening::Opening;
 
@@ -20,6 +22,7 @@ use nfsmw_data::pursuit::{BackupRow, HeatRow, ground_cops};
 
 use super::car::{AiCar, Role, Start};
 use super::cop::{CopCar, CopState};
+use super::pursuit_budget::in_chase;
 use super::traffic::Cruise;
 use super::{Focus, TrafficModel, TrafficWorld};
 use crate::modding::cop_rows::without_models;
@@ -65,6 +68,8 @@ pub struct Pursuit {
     pub heat: u32,
     /// The rows of the heat levels, index = level - 1 (`nfsmw_data::pursuit::heat_rows`).
     pub(super) rows: Vec<HeatRow>,
+    /// The reference rows `rows` are scaled from, and the F8 wave scale (`wave_scale`).
+    wave: wave_scale::Wave,
     player: Performance,
     spawn_timer: f32,
     requested_missing: u32,
@@ -99,6 +104,7 @@ impl Pursuit {
             backups: Vec::new(),
             engaged: Default::default(),
             heat,
+            wave: wave_scale::Wave::of(&rows),
             rows,
             player,
             last_seen: None,
@@ -161,7 +167,7 @@ impl Pursuit {
         }
         self.involved += 1;
         self.opening = None;
-        self.spawn_timer = delay;
+        self.spawn_timer = self.wave.delay(delay);
     }
 
     /// Spawn decisions must remain visible to determinism checks before their future cars differ.
@@ -188,6 +194,7 @@ impl Pursuit {
     fn drop_model(&mut self, name: &str) {
         let rows = std::mem::take(&mut self.rows);
         self.rows = without_models(rows, &[name.to_owned()]);
+        self.wave.drop_model(name);
     }
 
     /// The car types of the wave at the current heat (without the helicopter) with how many of each.
@@ -242,24 +249,11 @@ impl TrafficWorld {
         self.police.begin(heat);
         self.roadblocks.begin_chase();
         let mut pursuit = Pursuit::new(self.police.patrol_heat(), rows, player);
+        pursuit.set_wave_scale(self.police.wave_scale());
         pursuit.set_backups(self.backup_rows.clone());
         self.pursuit = Some(pursuit);
-        let range = blackbox_pursuit::sight::ranges(self.police.patrol_heat()).0;
-        for car in &mut self.cars {
-            let near = self.player_position.is_some_and(|p| car.physics_position().distance(p) < range);
-            if !near {
-                continue;
-            }
-            let Some(model) = self.cop_models.iter().find(|m| m.model.name.eq_ignore_ascii_case(&car.name)) else {
-                continue;
-            };
-            if car.join_pursuit(model.car, player, &self.network, &self.index)
-                && let Some(pursuit) = self.pursuit.as_mut()
-            {
-                pursuit.joined(false);
-                self.police.ground_deployed(&car.name);
-            }
-        }
+        // The chase begins with the patrol that saw the player; the others that see it join on later runs.
+        self.join_requesting_patrol(false);
         self.arm_opening();
         for name in super::support::support_models() {
             self.request_cop(name);
@@ -370,12 +364,20 @@ impl TrafficWorld {
         self.police.set_support_busy(busy);
         let level = self.police.level();
         let cooldown = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
+        if self.pursuit.is_some() {
+            self.join_requesting_patrol(cooldown);
+        }
         let Some(pursuit) = self.pursuit.as_mut() else { return };
+        pursuit.set_wave_scale(self.police.wave_scale());
         if let Some(level) = level
             && pursuit.follow_heat(level)
         {
-            let wave: Vec<&str> = pursuit.wave().map(|w| w.0).collect();
+            let wave: Vec<String> = pursuit.wave().map(|w| w.0.to_owned()).collect();
             log::info!("pursuit: heat {level}, the wave is now {}", wave.join(", "));
+            // The new level's cars load ahead of the others still waiting (a jump of several levels finds them queued).
+            if let Some(loader) = self.model_loader.as_mut() {
+                loader.prioritize_cops(&wave);
+            }
         }
         pursuit.spawn_timer -= sim_dt;
         self.update_budget(sim_dt, focus);
@@ -388,8 +390,8 @@ impl TrafficWorld {
             return;
         }
         let Some(pursuit) = self.pursuit.as_mut() else { return };
-        // Support cars are not wave types and take no wave slot (spec `ai-pursuit-cops.md` 3.3).
-        let alive = self.cars.iter().filter(|c| c.is_cop() && c.support_serial().is_none()).count();
+        // The chase's contingent fills the wave: no support, roadblock or fleeing cars (`ai-pursuit-cops.md` 3.3 and 5).
+        let alive = self.cars.iter().filter(|c| in_chase(c)).count();
         let wanted = pursuit.wanted(self.police.settings(), cooldown);
         if pursuit.spawn_timer > 0.0 {
             return;
@@ -415,7 +417,7 @@ impl TrafficWorld {
             let adjusted = pursuit.adjusted_wave(self.police.settings(), cooldown);
             let slots: Vec<Slot> = adjusted.iter().map(|&(name, count, chance)| Slot { name, count, chance }).collect();
             let have =
-                |name: &str| self.cars.iter().filter(|c| c.is_cop() && c.name.eq_ignore_ascii_case(name)).count();
+                |name: &str| self.cars.iter().filter(|c| in_chase(c) && c.name.eq_ignore_ascii_case(name)).count();
             let missing = slots.iter().map(|slot| slot.count.saturating_sub(have(slot.name) as u32)).sum();
             let roll = self.rng.police.next_f32();
             (pick_needed(&slots, |name| have(name) as u32, roll).map(|i| slots[i].name.to_owned()), missing)

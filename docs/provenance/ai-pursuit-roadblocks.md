@@ -84,3 +84,13 @@ corrected to the observed per-frame cadence. The rewrite already runs the direct
 250 m along the road, and keeps the lottery timer running while a roadblock stands, so no code changed. Request rates,
 lifetimes and spike shares were compared by hand with the lottery's odds; the sample (23 roadblocks) is too small to
 test the odds themselves. No addresses, code or capture data are in the repository.
+
+## Roadblock sighting against the chase (2026-11-04)
+
+[ai-pursuit-roadblocks.md](../specs/ai-pursuit-roadblocks.md) section 5, "Distance to the target". The rewrite counted a
+roadblock within 60 m as a sighting regardless of the chase. The decompiled pursuit update and the retail PC
+executable's disassembly agree: the roadblock's minimum 3-D distance is first compared with the minimum over the
+pursuit's active, undestroyed vehicles, and only when it is smaller is it compared with 60 m (both strict). The
+rewrite now measures its live chase cops (not roadblock cars, not fleeing) and applies both tests. The helicopter,
+which the original also lists among the pursuit's vehicles, is not part of the rewrite's measurement **[unconfirmed
+effect]**. No recording was compared. No addresses, code or capture data are in the repository.

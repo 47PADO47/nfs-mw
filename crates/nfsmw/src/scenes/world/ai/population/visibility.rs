@@ -31,6 +31,8 @@ pub struct Viewing {
     focus: [f32; 2],
     pub retire_distance: f32,
     pub grace: f32,
+    /// An unseen body on the minimap stays (`TrafficPolicy::keep_on_minimap`) **[ours]**.
+    pub keep_on_minimap: bool,
 }
 
 impl Viewing {
@@ -48,6 +50,7 @@ impl Viewing {
             focus: focus.position,
             retire_distance: super::DESPAWN_DISTANCE,
             grace: 4.0,
+            keep_on_minimap: true,
         }
     }
 
@@ -79,9 +82,10 @@ impl Viewing {
         self.away(p) <= MINIMAP_RADIUS
     }
 
-    /// Whether a body unseen for `offscreen` seconds at `p` may go: unseen longer than the grace and off the minimap.
+    /// Whether a body unseen for `offscreen` seconds at `p` may go: unseen longer than the grace, and off the minimap
+    /// when the minimap keeps bodies.
     pub fn forgotten(&self, offscreen: f32, p: Vec3) -> bool {
-        offscreen > self.grace && !self.on_minimap(p)
+        offscreen > self.grace && !(self.keep_on_minimap && self.on_minimap(p))
     }
 }
 
@@ -128,6 +132,8 @@ mod tests {
         assert!(!view.forgotten(60.0, near), "a cop or car on the minimap stays however long it is unseen");
         assert!(!view.forgotten(3.9, far), "off the minimap, but not unseen for 4 s yet");
         assert!(view.forgotten(4.1, far));
+        let reference = Viewing { keep_on_minimap: false, ..view };
+        assert!(reference.forgotten(4.1, near), "without the enhancement only the grace holds an unseen body");
     }
 
     #[test]

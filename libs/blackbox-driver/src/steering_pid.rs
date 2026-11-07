@@ -34,19 +34,33 @@ const SEED_D: Table<10> =
 pub struct SteeringPid {
     body_error: PidError,
     controller: AdaptivePid,
+    /// Hold the coefficients at the lower ends of their ranges above the seed speed instead of adapting them.
+    hold_gains: bool,
 }
 
 impl SteeringPid {
     pub(crate) fn visit_state(&self, visit: &mut impl FnMut(u32)) {
         self.body_error.visit_state(visit);
         self.controller.visit_state(visit);
+        visit(u32::from(self.hold_gains));
     }
     pub fn new(settings: AdaptiveSettings) -> Self {
-        Self { body_error: PidError::new(5, 5, 30.0), controller: AdaptivePid::new(settings) }
+        Self { body_error: PidError::new(5, 5, 30.0), controller: AdaptivePid::new(settings), hold_gains: false }
     }
 
     pub fn reset(&mut self) {
         self.body_error.reset();
+    }
+
+    /// Holds the coefficients at the lower ends of their ranges at speed rather than adapting them (police cars,
+    /// `docs/specs/cop-simple-chassis.md` section 4).
+    pub fn hold_gains(&mut self, hold: bool) {
+        self.hold_gains = hold;
+    }
+
+    /// The P, I and D coefficients now.
+    pub fn coefficients(&self) -> [f32; 3] {
+        self.controller.coefficients()
     }
 
     /// The steering in -1…1 for a signed heading error to the target (`angle`, radians, positive when
@@ -67,6 +81,10 @@ impl SteeringPid {
         self.controller.update(model, rate.to_degrees(), dt, clock);
         if speed < SEED_SPEED {
             self.controller.force_coefficients(SEED_P.lookup(speed), SEED_I.lookup(speed), SEED_D.lookup(speed));
+        }
+        if speed >= SEED_SPEED && self.hold_gains {
+            let [p, i, d] = self.controller.lower_limits();
+            self.controller.force_coefficients(p, i, d);
         }
         (self.controller.output() / max_steer.max(1e-3)).clamp(-1.0, 1.0)
     }

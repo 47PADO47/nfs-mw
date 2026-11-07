@@ -6,7 +6,9 @@ use nfsmw_data::car::physics::SurfaceTable;
 
 use super::effect_feed;
 use super::walls::Impact;
-use super::{Drive, DriveInput, GOOD_SPOT_SECONDS, Spawn, SpawnRequest, StepStart, WorldGround, clock, fall, trace};
+use super::{
+    Drive, DriveInput, GOOD_SPOT_SECONDS, Spawn, SpawnRequest, StepStart, WorldGround, clock, fall, reset_trail, trace,
+};
 use crate::input::ActionState;
 use crate::scenes::world::{props::PropWorld, road, space};
 
@@ -216,15 +218,21 @@ impl Drive {
             );
         }
         let finite = sim.is_finite();
-        let reset_allowed = !sim.reset_collision_active();
+        let graced = sim.reset_collision_active();
         if self.batch_run && self.script_finished() {
             log::info!("tire effects at script end: {}", self.effects.status());
         }
-        if input.reset && reset_allowed {
-            self.manual_resets += 1;
+        // The reset rules (`docs/specs/vehicle-reset.md`): a manual reset is refused while a reset's grace runs and while
+        // the car is held on a grid; a car on its roof or side for over 4 s is put back whatever the grace.
+        self.reset.blink.update(graced, dt);
+        let up = (self.current.rotation * Vec3::Z).z;
+        let flipped = self.reset.flip.update(reset_trail::flipped(telemetry.wheels_on_ground, up), dt);
+        if input.reset && !graced && !self.gridded && self.request_reset() {
+            self.reset.manual += 1;
             let at = self.current.position;
             log::info!("reset at ({:.0}, {:.0}, {:.0})", at.x, at.y, at.z);
-            self.respawn_near([at.x, at.y], Some(self.heading()));
+        } else if flipped && self.request_reset() {
+            log::info!("the car stayed on its roof; putting it back on its path");
         }
         self.check_road(collision, finite, dt);
     }
@@ -232,6 +240,15 @@ impl Drive {
     fn check_road(&mut self, collision: &CollisionWorld, finite: bool, dt: f32) {
         let wheels_down = self.telemetry.wheels_on_ground;
         let position = self.current.position;
+        // Every step with all four wheels down over the world, the car's place joins its reset trail.
+        if wheels_down >= 4
+            && let Some(road::Surface { height, .. }) = road::probe(collision, position.x, position.y, position.z + 1.5)
+            && (height - position.z).abs() < 1.5
+        {
+            let crumb =
+                reset_trail::Crumb { position: Vec3::new(position.x, position.y, height), heading: self.heading() };
+            self.reset.trail.record(crumb);
+        }
         // Remember the last road the car stood on, and notice when it has fallen off the map.
         self.road_check_elapsed += f64::from(dt);
         if wheels_down >= 3 && self.road_check_elapsed >= GOOD_SPOT_SECONDS {
@@ -256,7 +273,7 @@ impl Drive {
                 position.y,
                 position.z
             );
-            if !self.restore_last_good() {
+            if !self.request_reset() && !self.restore_last_good() {
                 self.respawn_near([position.x, position.y], None);
             }
         }

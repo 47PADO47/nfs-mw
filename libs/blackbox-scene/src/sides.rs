@@ -53,6 +53,7 @@ mod tests {
             alpha_sorting: false,
             alpha_blend,
             flags,
+            tilable_uv: 0,
             data: Vec::new(),
             palette: Vec::new(),
         }

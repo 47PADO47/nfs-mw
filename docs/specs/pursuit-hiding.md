@@ -71,23 +71,33 @@ half height, the evade input, the per-cop sight latch and the `pursuit hiding` c
 
 - **Previously** the world used the bare zone test as the hidden flag: no 0.05 s latch, no seen-on-entry rule, the body
   height instead of the feet, and cars only for the evade multiplier. These are corrected.
-- **HUD.** The cool-down bar holds a "HIDING" text group (`0x60b45523`) and a car icon (`0x38074901`) at zero alpha.
-  Each answers two messages of the package with scripts: `0x4027A94E` plays a fade-in (script 1350158584, the icon
-  then pulses) and `0x451CD24C` a fade-out (script 53547948) **[verified]**. The rewrite plays those scripts when the
-  latch's fill appears and when it goes (`hud/hiding_mark.rs`); that the original raises them from the perpetrator's
-  hidden fill is **[inferred]**, as its feeder (`TimeUntilHidden`) is not in the public sources. The orange bar
-  `0x5c2a4f20` beside them answers no message and stays at rest. The mark sits under the cool-down group, so it shows
-  only while that bar does.
+- **HUD [verified] objects, [binary] board.** Under the cool-down group the package holds a bar (`0x5c2a4f20`), a
+  "HIDING" text group (`0x60b45523`) with its label (`0xe8b9d816`, language label `0x4a89ad72`) and a car icon
+  (`0x38074901`), each resting in `HIDE` at zero alpha. The game drives the bar alone. Its appear (320 ms: the colour
+  comes up and its texture slides in) raises `0x4027A94E`, and its leave (320 ms: the texture slides out, onto rows the
+  texture's clamp leaves transparent, [feng-image-repeat](feng-image-repeat.md)) raises
+  `0x451CD24C`, both to the package. The group, the label and the icon each answer `0x4027A94E` with their appear
+  (160 ms for the group and the label, 320 ms for the icon, which then pulses between two colours at full alpha) and
+  `0x451CD24C` with their leave. The label has its own zero-alpha rest, so a host that fades only the group leaves the
+  word invisible.
+- **The board's rule [binary].** On every update of a chase that shows the cool-down (the signed meter at -1 or
+  below), the board plays the bar's appear when the perpetrator's "how hidden" value (section 3) is above zero and the
+  bar is not already in its appear; otherwise it plays the bar's leave when the bar is in its appear. Outside the
+  cool-down it plays the leave when the bar is in its appear. A finished appear stays the bar's current script, so
+  neither script restarts while its condition holds. With no chase the bar is left alone.
+- The rewrite (`hud/hiding_mark.rs`, fed by `PursuitHud::hiding_shown`: the cool-down phase and the latch's fill above
+  zero) plays the bar's two scripts by that rule and leaves the rest to the package's messages. With no chase it plays
+  the leave as outside the cool-down **[inferred]**: the cool-down group is out of the layout then, so nothing shows.
 - **[open]** Whether the original raises the mark for the quick (0.05 s) latch, since the fill reaches one within a few
-  frames; here the mark shows for as long as the latch holds.
+  frames; here the mark shows for as long as the latch holds in the cool-down.
 
 ## 6. Checks
 
-Unit tests of the latch (quick, seen entry, scope, overlap, fill, height, evade entry rule) and of the HUD mark
-(synthetic package). Installed tests: the elevations against the road surface; the HUD mark fading in and out on the
-real package; a parked player in the installed spot under the overpass at physics (-2194, 2730) escapes a heat 1
-chase that no cop sees after 14.6 s, against 25.0 s on the open road, and the HUD frame raises the mark; the console
-report names the spot and "PLAYER INSIDE". A playable check: `pursuit hiding`
-lists the spots nearest to the player with their heights and says whether the player is inside one; driving into a
-listed spot with a running chase and no cop in sight sets the `hidden` flags after 0.05 s and makes the evade meter
-run `HiddenZoneTimeMultiplier` times faster.
+Unit tests of the latch (quick, seen entry, scope, overlap, fill, height, evade entry rule) and of the HUD mark (the
+bar's rule, and the cascade through a synthetic package). Installed tests: the elevations against the road surface; the
+HUD mark with its label fading in and out on the real package, and staying down outside the cool-down; a parked player
+in the installed spot under the overpass at physics (-2194, 2730) escapes a heat 1 chase that no cop sees after 14.6 s,
+against 25.0 s on the open road, and the HUD frame raises the mark; the console report names the spot and "PLAYER
+INSIDE". A playable check: `pursuit hiding` lists the spots nearest to the player with their heights and says whether
+the player is inside one; driving into a listed spot with a running chase and no cop in sight sets the `hidden` flags
+after 0.05 s and makes the evade meter run `HiddenZoneTimeMultiplier` times faster.

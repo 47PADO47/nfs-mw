@@ -195,12 +195,20 @@ impl CarSim {
         };
     }
 
+    /// A police car: the AI controls on the simple chassis with its own tires, as the original gives every police car
+    /// (`docs/specs/cop-simple-chassis.md`).
+    pub fn configure_police(&mut self) {
+        self.configure_ai();
+        self.vehicle.set_simple_tires(true);
+    }
+
     /// Makes the car take its controls from a person on a computer-driven body (split screen): the player's own control
     /// set-up (dead zone, automatic reverse, idle braking, the pad's steering response) and chassis, so the car drives as the
     /// player's does. `automatic` is the person's gearbox.
     pub fn configure_human(&mut self, automatic: bool) {
         self.collision_role.player = false;
         self.vehicle.set_simple_chassis(None);
+        self.vehicle.set_simple_tires(false);
         self.vehicle.config = ControlConfig { automatic, ..ControlConfig::default() };
     }
 
@@ -220,6 +228,7 @@ impl CarSim {
             forward: v.rotation().z_axis,
             forward_speed: v.forward_speed(),
             planar_speed: Vec3::new(velocity.x, 0.0, velocity.z).length(),
+            speed: velocity.length(),
             gear_is_reverse: v.gear() == GEAR_REVERSE,
             max_steer: v.maximum_steering_degrees().to_radians(),
             in_shock: false,

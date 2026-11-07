@@ -204,6 +204,7 @@ pub fn decode(texture: &Texture) -> Result<Picture> {
         alpha_sorting: false,
         alpha_blend: 0,
         flags: 0,
+        tilable_uv: 0,
         data: mip.to_vec(),
         palette: Vec::new(),
     };

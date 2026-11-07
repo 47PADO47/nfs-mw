@@ -99,6 +99,7 @@ mod tests {
             position: Vec3::new(0.0, 0.0, 10.0),
             radius: 6.0,
             respawn: None,
+            respawn_key: None,
             icon_index: None,
         };
         let place = place_marker(&marker);

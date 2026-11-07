@@ -57,6 +57,8 @@ impl ShadingKind {
             Shading::Sky => Self::Sky,
             Shading::SkyLayer(_) => Self::Sky,
             Shading::Lit => Self::Lit,
+            // This backend has no vertex-lit model: a character is lit again like a car.
+            Shading::Character => Self::Lit,
             Shading::Glossy(_) => Self::Glossy,
             Shading::World | Shading::WorldDistant | Shading::WorldEmissive => Self::World,
             Shading::PrelitDistant => Self::Prelit,

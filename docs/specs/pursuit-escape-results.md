@@ -35,15 +35,26 @@ banked **[exe]**. Its rows, in order **[exe]**:
   format `%s: %$0.0f`); a row whose bounty is zero hides the bounty line **[exe]**.
 - The total line reads `Total Bounty: N` (label `0x5CCF949A`): the sum of the rows shown so far, not the car's bounty
   **[exe]**.
-- The icon plays its reveal (`0x5079C8F8`, 3000 ms) **[exe]**. When the reveal has played, the icon plays its row
-  type's slot script (360 ms), which moves it onto its small icon in the row below and lights that one: `POS0` for the
-  duration, `POS00` for the immobilized cars, `POS1` to `POS8` for the bounty, infractions, cost to state, roadblocks,
-  spike strips, cops damaged, minimum and maximum time milestones **[exe]** **[install]**. The slot script's end posts
-  `0x0D3C3DE7`, which brings the next row; when the rows have run out, both lines play `0x033113AC` (they go) and the
-  total stays **[exe]** **[install]**. The rewrite picks the slot by the row icon's texture and times the reveal itself
-  (the original checks the reveal on the screen's update); a row icon with no slot goes on after the same time.
-- The first row comes with the package's message `0x35F8620B`, 500 ms into its intro **[install]**; the rewrite fills it
-  when the screen starts.
+- FEng script lengths count 1200 ticks a second. The icon plays its reveal (`0x5079C8F8`, 3000 ticks: 2.5 s) **[exe]**.
+  When the reveal has played, the icon plays its row type's slot script (360 ticks: 0.3 s), which moves it onto its
+  small icon in the row below and lights that one: `POS0` for the duration, `POS00` for the immobilized cars, `POS1` to
+  `POS8` for the bounty, infractions, cost to state, roadblocks, spike strips, cops damaged, and the pursuit length
+  (minimum time icon) and evasion time (maximum time icon) milestones **[exe]** **[install]**. The slot script's end
+  posts `0x0D3C3DE7`, which brings the next row.
+- When the rows have run out the big icon hides, both lines play `0x033113AC` (they go), and both panels (`0x962B9C62`,
+  `0xEC85C7E4`) play `POS2`, a slide **[exe]**. The bounty line's leave makes the total play its 2 s flourish
+  **[install]**.
+- The first row comes with the package's message `0x35F8620B`, 500 ticks into its entrance, when the input comes on
+  **[exe]** **[install]**.
+- **The sounds** are the package's own events **[exe]** **[install]**: the dialog box in on opening (`UISND_COMMON_DLGBOX_IN`,
+  trigger 10), `UISND_MILESTONE_REWARD_SYMBOL_ON` (17) as each row's icon appears and with the total's flourish,
+  `UISND_MILESTONE_REWARD_SYMBOL_MOVE` (18) as the icon flies to its slot, the dialog box out (11) with the panels'
+  slide and on Continue, and the accept on Continue. There is no count-up: the total is set at each row.
+- The rewrite follows this (`frontend/rewards.rs`, the sound map in `audio/menu.rs`). It picks the slot by the row
+  icon's texture and times the reveal itself; the original checks the reveal on the screen's update. A row icon with no
+  slot goes on after the reveal and a slot's time **[ours]**: the original's sequence stalls on such a row until
+  Continue. An earlier version timed the reveal as 3 s, filled the first row at once, skipped the end's hide and slides,
+  played none of the four screen sounds, and swapped the two time icons.
 
 ## 3. The statistics page
 
@@ -62,20 +73,50 @@ and a value **[exe]**:
 
 - The package has nine label and value rows (`0x38B136A8 + n`, `0x85AB7369 + n`) **[install]**; the two past the seventh
   stay empty.
-- The screen also has an infractions page (heading `INFRACTIONS`) and a challenge variant; the rewrite's pursuit
-  challenge keeps its own rows ([race-mode.md](race-mode.md) section 11). The page switch is not done.
+- The screen also has a challenge variant; the rewrite's pursuit challenge keeps its own rows
+  ([race-mode.md](race-mode.md) section 11).
+
+### 3.1 The other pages **[exe]** **[install]**
+
+- **Turning the page.** The footer's second button (PC key 2, the pad's button 4, message `0xC519BFC3`) reads the page it
+  goes to. The package answers the press itself: the rows play out over 420 ticks, and at 500 ticks it passes
+  `0xC519BFC3` on to the screen and plays the rows back in. The screen turns the page on that message only. After an
+  escape the pages go pursuit, infractions, milestones, pursuit; in the challenge series, pursuit and infractions only.
+- The page's heading and the button's text: pursuit `PURSUIT` (`0xFEA872D4`) with `Infractions` (`0xAEAEB62F`);
+  infractions `INFRACTIONS` (`0xFB415E78`) with `Milestones` (`0x74413352`), or `Pursuit` (`0x7448870B`) in the challenge
+  series; milestones `MILESTONES` (`0x578B767B`) with `Pursuit`. In a career's pursuit race the milestones page reads
+  `CHALLENGE` (`0x334FA7FB`), the infractions page's button `Challenge` (`0x9145A5F2`), and the page has the race's one
+  goal; the rewrite shows the page after an escape in free roam only.
+- **Lines.** Each of the nine is `LINEn_GROUP` with `COLUMN1_DATAn` (label), `COLUMN2_DATAn` (value), `CHECKn` (a tick)
+  and `EMPTYn` (an empty box). Drawing a line first plays `0x16A259` (hidden) on both marks and `0x1744B3` (rest) on the
+  group. A line has a state: 1 ticks it (`0x1CA7C0` on the tick), 2 dims it (`0x163C76` on the group and the tick); a
+  value line of the pursuit page with state 0 shows no mark, any other line with state 0 shows the empty box (`0x1CA7C0`
+  on it).
+- **Infractions page:** eight lines with the value hidden, ticked when the chase committed the infraction, in this order:
+  `Speeding` (`0x4B0FF103`, mask 2), `Excessive Speeding` (`0x8EC1A6EC`, mask 1), `Reckless Driving` (`0x370F331D`),
+  `Ramming a Police Vehicle` (`0x8462A784`), `Hit & Run` (`0xDFF254BA`), `Damage to Property` (`0x7DBD5B34`),
+  `Resisting Arrest` (`0x2B1DE2A9`), `Driving off Roadway` (`0xB0EF5C12`) (masks 4 to 128).
+- **Milestones page:** one line per milestone of the career's current bin, in the milestone array's order, labelled
+  `BLACKLIST_PURSUIT_MILESTONES_NN_SHORT`, with the statistic's current value (below 0 reads 0) and the threshold. State
+  1 is at stake, 2 complete, 0 otherwise. An open line reads `value/threshold` with the value clamped to the threshold,
+  a ticked one the threshold alone. Pursuit length and evasion time read as times (`mm:ss.cc`, zeros rather than dashes
+  when empty), the rest as numbers with the thousands separator.
+- Continue's script passes the accept (`PAD_ACCEPT`) on to the screen at its end, and the screen leaves on it. Both
+  scripts end with `0xE1FDE1D1`, so that message does not mean the screen is done.
 
 ## 4. The rewrite
 
 - `scenes/world/career/pursuit.rs` and `career/rewards.rs` build the report at the end of a career chase: an escape
   outside a race gets the rows of section 2 and the page of section 3; a race's chase keeps the milestones-only report.
 - `frontend/rewards.rs` plays the rows, adds up the total, and on its exit opens the page (`Command::ShowPursuitResults`);
-  `frontend/pursuit_results.rs` fills the page.
+  `frontend/pursuit_results.rs` fills the page and turns it, `frontend/pursuit_pages.rs` draws the lines of section
+  3.1, and the hint bar's key 2 reads the package's button (`frontend/prompts.rs`).
 - `scenes/world/hud.rs` drops the end card of an escape in a career's free roam.
 
 ## 5. Open
 
 - The HUD's statistics action during a chase (and the race's results from it) is not bound.
-- The infractions page of the statistics screen and its page switch are not done.
+- The milestones page of a career's pursuit race (section 3.1) is not shown: the rewrite opens the statistics after an
+  escape in free roam only.
 - How the original words a milestone row is not read (section 2, row 3).
 - The screens were read from the executable and the packages, not captured from the running original.

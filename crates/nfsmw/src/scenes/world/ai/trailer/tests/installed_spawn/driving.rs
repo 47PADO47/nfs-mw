@@ -104,6 +104,7 @@ fn installed_loaded_truck_drivers_have_bounded_startup_on_curved_highways() {
                     index: &segments,
                     rng: &mut rng,
                     bodies: &bodies,
+                    radii: &[],
                     me: 0,
                     player: None,
                     aims: &[],

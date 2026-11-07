@@ -36,6 +36,9 @@ pub(in crate::scenes::world) struct CopFrame {
     pub offscreen_secs: f32,
     pub roadblock: Option<u32>,
     pub support: Option<u32>,
+    /// A chase cop's own action this think (`reverse`, `close`, `turnaround`, `road`) and its speed limit, m/s.
+    pub action: Option<&'static str>,
+    pub speed_limit: Option<f32>,
 }
 
 /// One spike strip of a standing roadblock.
@@ -182,6 +185,7 @@ fn cop_frame(car: &super::AiCar) -> CopFrame {
     let controls = car.controls();
     let (target, desired) = car.drive_request();
     let goal = car.goal_drive().kind.map(|kind| format!("{kind:?}"));
+    let drive = car.cop_drive_trace();
     CopFrame {
         key: car.key(),
         render_key: car.render_key(),
@@ -207,5 +211,7 @@ fn cop_frame(car: &super::AiCar) -> CopFrame {
         offscreen_secs: car.offscreen_time(),
         roadblock: car.roadblock_group(),
         support: car.support_serial(),
+        action: drive.map(|d| d.0),
+        speed_limit: drive.map(|d| d.1),
     }
 }

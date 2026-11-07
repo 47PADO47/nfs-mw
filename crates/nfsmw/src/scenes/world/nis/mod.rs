@@ -6,7 +6,8 @@
 //! sequence runs in `events.rs`, and what its events do (the flash, the overlay, a phone call, an effect) in `handlers.rs`.
 //! The player is `player.rs`, its camera `camera.rs`, the console `command.rs`, and the world's side `world.rs`.
 //! `car_world.rs` gives them the player's and the traffic's cars each frame. The characters (the actors of the arrest
-//! scenes, skinned models driven by their clips) are in `characters.rs`. The player is `player.rs`, its camera
+//! scenes, skinned models driven by their clips) are in `characters.rs`, their light in `light.rs`. The player is
+//! `player.rs`, its camera
 //! `camera.rs`, the console `command.rs`, and the world's side `world.rs`.
 
 #[cfg(test)]
@@ -24,6 +25,7 @@ mod events;
 mod handlers;
 mod intro_grid;
 mod kind;
+mod light;
 mod loading;
 mod player;
 mod skin;

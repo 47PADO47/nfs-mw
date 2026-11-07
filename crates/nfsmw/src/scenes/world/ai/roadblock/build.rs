@@ -109,7 +109,17 @@ fn wall_between(collision: &CollisionWorld, from: Vec2, to: Vec2, height: f32) -
 fn fitted_surface(ground: &impl Ground, centre: Vec3, heading: f32, reach: [f32; 2]) -> Option<(f32, Vec3)> {
     let facing = Vec3::new(heading.cos(), 0.0, heading.sin());
     let across = Vec3::new(-facing.z, 0.0, facing.x);
-    let at = |offset: Vec3| surface_near(ground, centre + offset).map(|(y, _)| (centre + offset).with_y(y));
+    // An end over a kerb or a railing's foot breaks from the road's slope between the centre and halfway out: it
+    // then lies on that slope's line instead, and a banked or climbing road still tilts the strip.
+    let at = |offset: Vec3| {
+        let end = surface_near(ground, centre + offset)?.0;
+        let line = surface_near(ground, centre + offset * 0.5).map(|(half, _)| 2.0 * half - centre.y);
+        let y = match line {
+            Some(line) if (end - line).abs() > super::strip_fit::MAX_END_STEP => line,
+            _ => end,
+        };
+        Some((centre + offset).with_y(y))
+    };
     let (ahead, behind) = (at(facing * reach[0])?, at(-facing * reach[0])?);
     let (left, right) = (at(across * reach[1])?, at(-across * reach[1])?);
     let normal = (ahead - behind).cross(left - right).normalize_or_zero();
@@ -204,7 +214,7 @@ impl TrafficWorld {
         }
         let mut deployed = 0;
         for slot in placed.iter().filter(|slot| slot.kind != Element::Car) {
-            deployed += u32::from(self.place_prop(&mut block, slot, &ground, props.as_deref_mut()));
+            deployed += u32::from(self.place_prop(&mut block, slot, &site.road, &ground, props.as_deref_mut()));
         }
         block.standing.spike_strips = block.strips.len() as u32;
         log::info!(
@@ -332,9 +342,19 @@ impl TrafficWorld {
         &mut self,
         block: &mut Roadblock,
         slot: &Placed,
+        road: &roadblock::Road,
         ground: &WorldGround<'_>,
         props: Option<&mut PropWorld>,
     ) -> bool {
+        let physics = self.roadblocks.physics.as_ref();
+        // A strip keeps both its ends on the road (`strip_fit.rs`).
+        let slot = &match slot.kind {
+            Element::Spike => {
+                let half = physics.and_then(|p| p.strip_half).map_or(3.2, |half| half[1]);
+                Placed { position: super::strip_fit::inside_road(slot.position, slot.heading, half, road), ..*slot }
+            }
+            _ => *slot,
+        };
         let standing: usize = self.roadblocks.list.iter().map(|b| b.strips.len() + b.sawhorses.len()).sum();
         if standing + block.strips.len() + block.sawhorses.len() >= MAX_PLACEABLES {
             log::info!("roadblock: {MAX_PLACEABLES} props already stand, one is left out");
@@ -344,7 +364,6 @@ impl TrafficWorld {
             log::info!("roadblock: no ground under a prop at ({:.0}, {:.0})", slot.position.x, slot.position.z);
             return true;
         };
-        let physics = self.roadblocks.physics.as_ref();
         // The strip's long axis lies across its facing; a sawhorse is short both ways.
         let reach = match slot.kind {
             Element::Spike => physics.and_then(|p| p.strip_half).map_or([0.4, 3.2], |half| [half[0], half[1]]),

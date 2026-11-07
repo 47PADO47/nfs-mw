@@ -43,7 +43,6 @@ fn career(cars: Vec<LotCar>) -> Career {
         milestones: Vec::new(),
         traps: Vec::new(),
         cars,
-        stats: Vec::new(),
         heat: Default::default(),
         ranks: Default::default(),
         gameplay: Default::default(),

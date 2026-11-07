@@ -196,7 +196,10 @@ fn begin_pursuit(
     // The chase re-reads its wave at every heat level it climbs to, so the cop models of all levels load now. The waves
     // the mods set take the install's rows here, so the cars they name load too.
     let rows = with_heat_overrides(context.table().rows(db).ok_or("the pursuit escalation table is incomplete")?);
-    let names = wave_names(&rows);
+    // The starting level and the ones above it load first, in the order the chase climbs them.
+    let start = (heat.clamp(1, rows.len().max(1) as u32) - 1) as usize;
+    let climb: Vec<_> = rows[start.min(rows.len())..].iter().chain(&rows[..start.min(rows.len())]).cloned().collect();
+    let names = wave_names(&climb);
     let missing = load_wave_models(scene, renderer, &names);
     let rows = without_models(rows, &missing);
     let start_names: Vec<String> =
@@ -284,7 +287,7 @@ pub(in crate::scenes::world) fn configure_pursuit_context(
     traffic.police.set_rep_table(table.rep(db));
     traffic.backup_rows = backups.clone();
     if let Some(pursuit) = traffic.pursuit.as_mut() {
-        pursuit.rows = rows;
+        pursuit.set_base_rows(rows);
         pursuit.set_backups(backups);
     }
     Ok(())

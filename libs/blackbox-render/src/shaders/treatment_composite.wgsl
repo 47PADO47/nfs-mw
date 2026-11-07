@@ -5,7 +5,7 @@ struct Parameters {
     strengths: vec4<f32>, // source-colour coefficient, black, colour, treatment blend
     black_curve: vec4<f32>,
     colour_curve: vec4<f32>,
-    tonemap: vec4<f32>, // x: exposure of the fused tone mapping (fs_main_tonemap only)
+    tonemap: vec4<f32>, // x: exposure of the fused tone mapping (fs_main_tonemap only), y: brightness
 }
 @group(0) @binding(0) var scene: texture_2d<f32>;
 @group(0) @binding(1) var luma: texture_2d<f32>;
@@ -41,7 +41,8 @@ fn treated_colour(uv: vec2<f32>) -> vec3<f32> {
         // The legacy screen gain embeds a vignette. The separate vignette setting owns edge darkening.
         treated = mix(c, base * black + c * p.tint.xyz * colour, p.strengths.w);
     }
-    return treated;
+    // The scene's brightness (the pursuit look's flash) multiplies the graded colour.
+    return treated * p.tonemap.y;
 }
 @fragment fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let treated = treated_colour(in.uv);

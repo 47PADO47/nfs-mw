@@ -51,6 +51,9 @@ impl PostChain {
         let count = fresh.len();
         self.passes.splice(..self.effect_count, fresh);
         self.effect_count = count;
+        for pass in &mut self.passes[..count] {
+            pass.set_look(&self.look);
+        }
         for pass in &mut self.passes {
             pass.set_display(self.display);
         }
@@ -59,7 +62,22 @@ impl PostChain {
     /// Profile changes invalidate the effect list even when the user settings stay the same.
     pub(super) fn set_treatment(&mut self, device: &wgpu::Device, profile: Option<super::treatment::Profile>) {
         self.profile = profile;
+        self.look = blackbox_gfx::ColourLook::default();
         self.rebuild_effects(device);
+    }
+
+    /// Blend the scene profile towards a look and set its brightness, keeping its gain map and passes. Returns whether
+    /// anything changed; without a profile nothing does.
+    pub(in crate::gpu) fn set_look(&mut self, look: blackbox_gfx::ColourLook) -> bool {
+        let look = look.sanitized();
+        if self.profile.is_none() || look == self.look {
+            return false;
+        }
+        self.look = look;
+        for pass in &mut self.passes[..self.effect_count] {
+            pass.set_look(&look);
+        }
+        true
     }
 
     /// Replace the effect passes at the front of the chain with those `settings` ask for. Returns

@@ -11,7 +11,9 @@ mod drive_to_target;
 mod events;
 mod hud;
 mod jump_chase;
+mod jump_fade;
 mod ladder;
+mod live_heat;
 mod locks;
 mod milestone_board;
 mod phone;
@@ -45,6 +47,8 @@ pub(super) struct WorldCareer {
     /// What the front end has to do, oldest first (`Scene::take_career_request`).
     pub requests: VecDeque<CareerRequest>,
     pub pursuit: pursuit::PursuitWatch,
+    /// The driven car's live heat: which cars it was loaded for, and whether the teardown wrote it back (`live_heat.rs`).
+    pub live_heat: live_heat::LiveHeat,
     pub regions: regions::RegionState,
     pub phone: phone::PhoneState,
     pub hud: hud::CareerHud,
@@ -75,6 +79,8 @@ pub(super) struct WorldCareer {
     /// A jump asked for before the world had its car (a new world started for a rap sheet jump): the car is put on the
     /// point once it is made (`start_driving`).
     pub pending_jump: Option<crate::career::JumpPoint>,
+    /// A jump in the running world waits for the screen to go black, then for the car to stand (`jump_fade.rs`).
+    pub jump_fade: Option<jump_fade::JumpFade>,
 }
 
 impl WorldScene {
@@ -95,6 +101,7 @@ impl WorldScene {
         self.career_pursuit(dt);
         self.career_speed_traps();
         self.screen_fade.advance(dt);
+        self.career_jump_fade();
         self.update_scripted_chase(dt);
         self.career_drive_to_target(dt);
         self.career_regions();

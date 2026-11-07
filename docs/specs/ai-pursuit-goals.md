@@ -240,7 +240,10 @@ Computed each think from the target and the cop's own tuning [decomp]:
 | jerk pursuit | ceiling x 1.1, speed multiplier x 1.2, acceleration multiplier x 1.5 |
 
 The limiter (the same smoothed limit as tactics section 3.3) takes the cop speed, the ceiling and the acceleration, and
-gives the speed limit; the desired speed is `min(|steering|, limiter)`. [decomp]
+gives the speed limit; the desired speed is `min(|steering|, limiter)`. [decomp] At rest or rolling backwards the limiter
+is positive (tactics section 3.3), so the desired speed never turns negative: a pull-over cop that rolls back from the
+target in reverse gear keeps pressing the pedal (the driver's reverse rule chooses the gear) instead of braking.
+**[decomp + PC disassembly]**
 
 The code does **not** show the nitrous 0.2 factor or the `-9.81 * forward.y` grade term that
 [ai-pursuit-tactics.md](ai-pursuit-tactics.md) section 5.1 lists for this ceiling. They may sit inside the shared limiter; not

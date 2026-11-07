@@ -20,6 +20,7 @@ mod retirement;
 mod rolling_chassis;
 mod settle;
 mod simple_chassis;
+mod simple_tires;
 mod spec;
 mod staging;
 mod state;
@@ -66,6 +67,8 @@ pub struct Vehicle {
     simple_max_steering: f32,
     rolling_chassis: Option<RollingChassisConfig>,
     coasting_tires: Option<crate::tires::CoastingTireResponse>,
+    /// The simple chassis runs its own tires (police cars, `cop-simple-chassis.md`).
+    simple_tires: bool,
     force_scales: ForceScales,
     retirement: retirement::Retirement,
     launch: crate::launch::LaunchState,
@@ -143,6 +146,7 @@ impl Vehicle {
             simple_max_steering: 0.0,
             rolling_chassis: None,
             coasting_tires: None,
+            simple_tires: false,
             force_scales: ForceScales::default(),
             retirement: Default::default(),
             launch: Default::default(),
@@ -354,6 +358,13 @@ impl Vehicle {
 
     pub fn is_asleep(&self) -> bool {
         self.body.state == BodyState::Asleep
+    }
+
+    /// The body itself touches the ground: a corner of the box was in contact at the last awake step, or the body
+    /// has gone to sleep (it only sleeps supported). With no wheel down this is a car beached on its body, not one
+    /// in the air.
+    pub fn body_on_ground(&self) -> bool {
+        self.body_ground_contact || self.is_asleep()
     }
 
     /// Fill the installed nitrous tank without changing its performance specification.

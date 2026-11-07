@@ -31,6 +31,20 @@ The wheel and scroll arrows move one grid row. The counter, details, active icon
 index; memory is separate for each sheet/rival. Back returns to the overview at that rival. The Remastered vertical
 list keeps its one-entry navigation. Installed-package playtest regressions are in `rep_sheets/playtest.rs`.
 
+### 1.1 The map of the milestones and bounty sheets **[exe]** + **[verified]**
+
+The two packages also have a pin `0xAF51DD73`: a group at the map picture's centre holding `Minimap_Icon_Car`. When an
+entry is selected the original shows the whole-city picture `TRACK_MAP` of `TrackMaps.bin` (neither a race's picture nor
+a `TRACK_MAP_UNLOCK_n` variant, whatever the career's stage). Its view is set to the whole picture, then eased to a
+square 0.27 of the picture's side centred on the entry's marker (a milestone's or speed trap's `SpawnPoint`, a bounty
+place's own marker). The marker's `Position` is placed with the open city's calibration (track 2000) as the HUD maps
+place the car. The pin stays at the picture's centre and is turned to the bearing of the marker's facing, with
+`Rotation` 0 when the marker has none. The view is not moved back inside the picture near an edge.
+
+The rewrite eases from the current view instead of from the whole picture, and hides the pin with the picture when the
+picture or the calibration is missing **[ours]**. Before this was added the two sheets hid the picture and left the pin
+alone on the dark pane.
+
 ## 2. Race events **[exe]** + **[ours]**
 
 Rows are only the free races (`WorldRaces`) of the viewed bin. Boss races

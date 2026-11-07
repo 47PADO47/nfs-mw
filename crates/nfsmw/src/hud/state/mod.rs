@@ -110,9 +110,15 @@ pub struct HudState {
     /// The arrest scene's last message to the overlay (`ENISOverlayMessage`): its FEng hash and the event's serial. The
     /// HUD posts each serial once while the overlay is up (`FLASHTRIGGER` runs the package's flash).
     pub busted_overlay_cue: Option<(u32, u32)>,
+    /// The chase the arrest closes, for the busted overlay's suspect line (`hud/busted_line.rs`). The world sets it with
+    /// the overlay; `None` keeps the package's sample text.
+    pub busted_summary: Option<super::ChaseSummary>,
     /// Career mode is on: the bounty row's number, the car's banked bounty plus the chase's pending points. `None`
     /// outside career mode, where the bounty row and the heat meter stay hidden.
     pub career_bounty: Option<u32>,
+    /// The career's total bounty as the last chase's end left it, for the TOTAL BOUNTY flasher (`hud/total_bounty.rs`).
+    /// `None` outside career mode and before a chase has ended.
+    pub total_bounty: Option<u32>,
     /// The milestone board: the current bin's milestones during a free-roam chase in the career; `None` otherwise.
     pub milestone_board: Option<super::MilestoneBoard>,
     /// The race the player runs: the place, lap, clock and countdown. `None` outside a race.
@@ -180,7 +186,9 @@ impl Default for HudState {
             busted: 0.0,
             busted_overlay: false,
             busted_overlay_cue: None,
+            busted_summary: None,
             career_bounty: None,
+            total_bounty: None,
             milestone_board: None,
             race: None,
             leaders: None,

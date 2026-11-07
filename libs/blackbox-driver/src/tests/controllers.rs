@@ -8,6 +8,7 @@ fn view(speed: f32) -> VehicleView {
         forward: Vec3::Z,
         forward_speed: speed,
         planar_speed: speed.abs(),
+        speed: speed.abs(),
         gear_is_reverse: false,
         max_steer: 45f32.to_radians(),
         in_shock: false,
@@ -94,6 +95,7 @@ fn throttle_pid_reaches_full_gas_then_eases_off() {
         let out = pid.step(
             &ThrottleInput {
                 speed,
+                body_speed: speed.abs(),
                 want: 30.0,
                 reversing_gear: false,
                 staging: false,
@@ -269,4 +271,18 @@ mod speed {
         let l = limits();
         assert!(potential_speed(&l, 0.0, 0.5, Some(&near)) <= near.max_cop_speed());
     }
+}
+
+#[test]
+fn a_police_steering_controller_holds_its_gains_at_the_range_minima_at_speed() {
+    let mut pid = crate::SteeringPid::new(crate::AdaptiveSettings::RACING);
+    pid.hold_gains(true);
+    for tick in 0..600 {
+        let t = tick as f32 / 60.0;
+        let angle = 0.2 * (t * 7.0).sin();
+        pid.step(angle, 60.0, std::f32::consts::FRAC_PI_4, 1.0 / 60.0, t);
+    }
+    assert_eq!(pid.coefficients(), [0.4, 0.01, 0.1]);
+    pid.step(0.1, 5.0, std::f32::consts::FRAC_PI_4, 1.0 / 60.0, 10.0);
+    assert!((pid.coefficients()[0] - 0.4).abs() > 1e-3, "below the seed speed the speed tables still apply");
 }

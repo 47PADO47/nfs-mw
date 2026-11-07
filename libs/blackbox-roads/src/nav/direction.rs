@@ -21,13 +21,13 @@ impl RoadNav {
         if attached.len() < 2 {
             return turn_around;
         }
-        let plain = net.plain_segment_at(node, self.segment);
-        let entering_junction = !current.is_decision() && attached.iter().any(|&s| net.segment(s).is_decision());
-        if !entering_junction {
-            return match plain {
-                Some(next) if self.may_enter(net, next, node) => self.snap_onto(net, next, node),
-                _ => turn_around,
-            };
+        // The plain segment on from the node is taken as it is: the filters and the one-way rule judge only the exits
+        // of a junction the cursor enters, so a walk does not turn back where the road ahead is closed to its kind.
+        if let Some(next) = net.plain_segment_at(node, self.segment) {
+            return self.snap_onto(net, next, node);
+        }
+        if current.is_decision() {
+            return turn_around;
         }
         let mut best: Option<(f32, u16)> = None;
         for &d in attached {

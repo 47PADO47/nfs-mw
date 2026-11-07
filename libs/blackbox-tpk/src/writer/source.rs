@@ -41,6 +41,8 @@ pub struct TextureSource {
     pub alpha_blend: u8,
     /// The info record's `Flags` byte (bit 1 = two-sided).
     pub flags: u8,
+    /// `TilableUV` (bit 0 = repeats across, bit 1 = repeats down).
+    pub tilable_uv: u8,
     /// `RenderingOrder`.
     pub rendering_order: u8,
 }
@@ -81,6 +83,7 @@ impl TextureSource {
             alpha_sorting: false,
             alpha_blend: 0,
             flags: 0,
+            tilable_uv: 0,
             rendering_order: DEFAULT_RENDERING_ORDER,
         }
     }
@@ -160,6 +163,7 @@ impl From<&Texture> for TextureSource {
             alpha_sorting: t.alpha_sorting,
             alpha_blend: t.alpha_blend,
             flags: t.flags,
+            tilable_uv: t.tilable_uv,
             rendering_order: DEFAULT_RENDERING_ORDER,
         }
     }

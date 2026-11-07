@@ -334,6 +334,12 @@ never reset (once it has exceeded 1.5 s in total, the action is attempted whenev
 check); then airborne = no wheel on the ground. While current, it zeros gas, brake, steering, vertical
 steering and handbrake and refreshes the flag; it is finished when a wheel touches down. [decomp]
 
+**[ours]** The rewrite does not take the action while the body itself rests on the ground (a corner of the box touches,
+or the body sleeps, which it does only when supported). A cop can come to rest on its body with its wheels hanging, on
+a kerb or at the foot of a bank; its body then sleeps, only the throttle wakes it, and the get-unstuck window of 7.1
+counts only while the gas is pressed. With the action's zero controls it stood there for good. Keeping the controls
+lets it press on, so the stuck test can reverse it (`ai/car/stepping.rs`).
+
 ### 7.3 Wrecked (too-damaged, score 1.0) and stop
 
 - *Too damaged*: attempted when the vehicle is destroyed. On begin it ends the car's pursuit. Each update it

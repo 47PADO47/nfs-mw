@@ -10,7 +10,7 @@ mod players;
 
 use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_BUTTON0, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_UP};
 use blackbox_text::label_hash;
-use nfsmw_career::carlot::{self, stats};
+use nfsmw_career::carlot;
 use nfsmw_career::settings::Flags;
 use nfsmw_career::stable::CarRecord;
 
@@ -18,7 +18,7 @@ use super::car_list::{self, Entry, List, Progress};
 use super::mode::Mode;
 use super::state;
 use crate::career::CareerHandle;
-use crate::frontend::career_screens::car_lot::{ACCELERATION_STRIPS, HANDLING_STRIPS, TOP_SPEED_STRIPS, set_bar};
+use crate::frontend::career_screens::car_lot::{ratings, set_bars};
 use crate::frontend::confirm::{Confirm, Look as DialogLook};
 use crate::frontend::ids::{self, screen};
 use crate::frontend::logic::{Args, Command, CustomStart, Cx, Footer, ScreenLogic};
@@ -205,13 +205,8 @@ impl CarSelect {
                 cx.rt.set_texture(o, texture);
             }
         }
-        let [top, handling, acceleration] = match entry.car.stats {
-            Some(own) => stats::bar_fractions(&own, &pool.population),
-            None => [0.0; 3],
-        };
-        set_bar(cx, &TOP_SPEED_STRIPS, top);
-        set_bar(cx, &ACCELERATION_STRIPS, acceleration);
-        set_bar(cx, &HANDLING_STRIPS, handling);
+        // The lists name catalogue cars and presets, which the bars show stock.
+        set_bars(cx, ratings(&pool, &entry.car, Default::default()));
         self.show_unlock(cx, &entry);
     }
 
@@ -225,9 +220,7 @@ impl CarSelect {
         for name in [MAKER_LOGO, MODEL_LOGO] {
             cx.hide(name, true);
         }
-        for strips in [&TOP_SPEED_STRIPS, &ACCELERATION_STRIPS, &HANDLING_STRIPS] {
-            set_bar(cx, strips, 0.0);
-        }
+        set_bars(cx, None);
         cx.script(LOCKED_GROUP, SCRIPT_HIDE);
     }
 

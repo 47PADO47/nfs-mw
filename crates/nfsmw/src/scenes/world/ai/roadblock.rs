@@ -26,6 +26,7 @@ mod site;
 mod spacing;
 mod state;
 mod steal;
+mod strip_fit;
 
 pub use build::Cause;
 pub use state::Roadblocks;
@@ -82,6 +83,13 @@ impl TrafficWorld {
     /// The uploaded prop rigs, taken for the teardown to free; the roadblocks go without models after it.
     pub(super) fn take_roadblock_rigs(&mut self) -> Vec<Rc<CarRig>> {
         self.roadblocks.kit.take().map(|kit| kit.into_rigs().into()).unwrap_or_default()
+    }
+
+    /// The spike strip's mesh from the shared scenery.
+    pub(in crate::scenes::world) fn set_spike_mesh(&mut self, mesh: Option<blackbox_render::MeshHandle>) {
+        if let Some(kit) = self.roadblocks.kit.as_mut() {
+            kit.set_spike_mesh(mesh);
+        }
     }
 
     /// The parts a sawhorse's sequence releases when it breaks (from the shared scenery).

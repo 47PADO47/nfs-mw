@@ -14,7 +14,7 @@ fn world(phases: &[u32]) -> TrafficWorld {
         free_roam::patrol_phased(&mut world, &mut renderer, Vec3::new(2.0, 0.0, -10.0 - index as f32 * 20.0), phase);
     }
     world.player_position = Some(Vec3::ZERO);
-    world.start_pursuit(1, vec![wave()], player());
+    start_with_patrols(&mut world, 1, vec![wave()], player());
     world
 }
 
@@ -90,4 +90,50 @@ fn a_suspended_cop_cannot_hold_a_frozen_negative_sight_age_over_the_pursuit() {
     assert!(world.police.observed_ground_age().unwrap().is_infinite());
     world.cars[0].set_sight_active(true);
     assert!(!world.cars[0].sees_player(), "reactivation requires a fresh observation");
+    world.update_sight(STEP, &|_, _| panic!("no car task was executed"));
+    let grace = blackbox_pursuit::cooldown::TUNING.grace;
+    assert!(world.police.observed_ground_age().unwrap() > grace, "a resumed cop brings no sighting into the pursuit");
+}
+
+#[test]
+fn a_cop_sent_away_still_looks_and_its_sighting_counts_for_the_chase() {
+    let mut world = world(&[0]);
+    let cruise = world.search_cruise();
+    assert!(world.cars[0].start_flee(cruise, &world.network, &world.index));
+    let collision = floor();
+    let surfaces = SurfaceTable::default();
+    let mut props = PropWorld::default();
+    for _ in 0..8 {
+        world.step(focus(), &collision, &mut props, &surfaces);
+        world.update_sight(STEP, &|_, _| None);
+    }
+    assert!(world.cars[0].is_fleeing());
+    assert!(world.cars[0].sees_player(), "a fleeing cop keeps testing its sight");
+    assert!(world.sighting(1).seen, "and its sighting is the chase's");
+}
+
+#[test]
+fn a_cop_sent_away_turns_round_where_its_lane_ends() {
+    let mut world = world(&[0]);
+    let cruise = world.search_cruise();
+    assert!(world.cars[0].start_flee(cruise, &world.network, &world.index));
+    // The player stands off the road, so nothing blocks the lane.
+    let aside = Vec3::new(60.0, 0.0, 0.0);
+    world.player_position = Some(aside);
+    let mut view = focus();
+    view.position = [aside.x, aside.z];
+    if let Some(body) = view.body.as_mut() {
+        body.position = aside;
+    }
+    let collision = floor();
+    let surfaces = SurfaceTable::default();
+    let mut props = PropWorld::default();
+    let mut farthest: f32 = 0.0;
+    for _ in 0..(60.0 / STEP) as u32 {
+        world.step(view, &collision, &mut props, &surfaces);
+        farthest = farthest.max(world.cars[0].physics_position().z.abs());
+    }
+    let end = world.cars[0].physics_position().z.abs();
+    assert!(farthest > 150.0, "it drove to the end of the 180 m lane: {farthest}");
+    assert!(end < farthest - 20.0, "and came back instead of standing there: {end} of {farthest}");
 }

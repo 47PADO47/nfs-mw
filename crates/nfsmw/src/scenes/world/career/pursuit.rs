@@ -13,9 +13,7 @@ use nfsmw_career::milestones::{Banked, StatType, pay_banked};
 use nfsmw_career::phone::{BinMoment, bin_messages};
 use nfsmw_career::rapsheet::{PursuitStats, case_id_text};
 use nfsmw_career::safehouse::finish_cooldown_pursuit_default;
-use nfsmw_career::safehouse::{
-    DEFAULT_EVADE_HEAT_FACTOR, FrontEndContext, SPAWN_HEAT_FLOOR, apply_heat_factor, spawn_heat,
-};
+use nfsmw_career::safehouse::{DEFAULT_EVADE_HEAT_FACTOR, FrontEndContext, apply_heat_factor};
 use nfsmw_career::savefile::Trigger;
 use nfsmw_career::settings::CareerSettings;
 use nfsmw_career::stable::Stable;
@@ -47,6 +45,8 @@ pub(in crate::scenes::world) struct PursuitWatch {
     safe_house_unloaded: bool,
     /// The counts only the world sees (cops involved, damaged, helicopters), for the rap sheet.
     tally: ChaseTally,
+    /// The career's total bounty after the last chase ended (banked or not), for the HUD's TOTAL BOUNTY flasher.
+    total_bounty: Option<u32>,
 }
 
 impl PursuitWatch {
@@ -54,6 +54,11 @@ impl PursuitWatch {
     /// not multiply that car again (`nfsmw_career::safehouse::heat`, the overwrite quirk).
     pub(in crate::scenes::world) fn note_safe_house_unload(&mut self) {
         self.safe_house_unloaded = true;
+    }
+
+    /// The career's total bounty as the last chase's end left it; `None` before a chase has ended.
+    pub(in crate::scenes::world) fn total_bounty(&self) -> Option<u32> {
+        self.total_bounty
     }
 }
 
@@ -116,7 +121,7 @@ impl WorldScene {
             self.pursuit_ended(reason, &chase);
         }
         if !pursuing {
-            self.load_carried_heat();
+            self.load_live_heat();
             self.load_career_bin();
         }
     }
@@ -195,6 +200,12 @@ impl WorldScene {
                         destroy_bounty: chase.rep_destroyed,
                         stats: &stats,
                         unserved,
+                        committed: chase.infractions,
+                        milestones: super::rewards::milestone_page(
+                            &career.milestones,
+                            &career.data.gameplay,
+                            career.blacklist.current_bin(),
+                        ),
                     };
                     Some(super::rewards::escape_report(&career.milestones, &milestones.banked, &escape))
                 }
@@ -208,8 +219,11 @@ impl WorldScene {
                 phone.queue_bin_messages(&mut career.settings.sms, bin_messages(bin, BinMoment::Challenges(count)));
             }
             let total = u32::try_from(career.stable.total_bounty()).unwrap_or(u32::MAX);
-            career.blacklist.bounty_changed(total)
+            (career.blacklist.bounty_changed(total), total)
         });
+        let (bins, total) = bins.unzip();
+        // The HUD is given the total at each chase's end, banked or not (`docs/specs/hud-pursuit.md`, "Total bounty").
+        self.career.pursuit.total_bounty = total.or(self.career.pursuit.total_bounty);
         if let Some(bins) = bins
             && !bins.is_empty()
         {
@@ -249,26 +263,6 @@ impl WorldScene {
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.set_career_bin(bin);
         }
-    }
-
-    /// Loads the current car's heat into the police, so the next chase starts from it. Runs each frame outside a
-    /// chase: a chase's `begin` reads the value the frame before it starts.
-    fn load_carried_heat(&mut self) {
-        let guest_handle = self.coop.as_ref().and_then(|session| session.guest_handle);
-        let heat = self.career.handle.with(|career| {
-            let lead = spawn_heat(&career.settings, &career.stable, true);
-            let guest = guest_handle
-                .and_then(|handle| career.stable.career_for_handle(handle))
-                .map(|record| record.heat.max(SPAWN_HEAT_FLOOR));
-            carried(lead, guest)
-        });
-        let Some(heat) = heat else {
-            return;
-        };
-        let Some(traffic) = self.traffic.as_mut() else {
-            return;
-        };
-        traffic.set_carried_heat(heat);
     }
 }
 
@@ -431,12 +425,6 @@ fn settle_chase_end(
     }
     apply_heat_factor(stable, DEFAULT_EVADE_HEAT_FACTOR);
     settle_evade(stable, bank, others, result);
-}
-
-/// The heat a chase starts from: the lead car's heat, or the higher of it and the guest car's when the guest has a
-/// record [ours].
-fn carried(lead: f32, guest: Option<f32>) -> f32 {
-    guest.map_or(lead, |guest| lead.max(guest))
 }
 
 /// Writes `heat` back into the record of `handle`, when there is one and a heat was kept.

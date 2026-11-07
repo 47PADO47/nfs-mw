@@ -116,6 +116,12 @@ impl PostPass for TreatmentPass {
         true
     }
 
+    fn set_look(&mut self, look: &blackbox_gfx::ColourLook) {
+        if let Some(luminance) = self.composite.set_look(look) {
+            self.params.b[..3].copy_from_slice(&luminance);
+        }
+    }
+
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
         let luma_format = self.luma_format;
         let targets = self.targets.get_or_make((io.input_size, luma_format), || {

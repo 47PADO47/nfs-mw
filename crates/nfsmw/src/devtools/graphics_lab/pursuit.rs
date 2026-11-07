@@ -6,10 +6,26 @@ pub(super) fn options(ui: &mut egui::Ui, options: &mut crate::settings::PursuitO
     ui.collapsing("Police limits (enhancement)", |ui| {
         ui.checkbox(&mut options.enhanced, "Enhanced police limits");
         ui.add_enabled_ui(options.enhanced, |ui| {
-            ui.add(egui::Slider::new(&mut options.max_active_cops, 8..=64).text("Active police car limit"));
+            ui.add(
+                egui::Slider::new(&mut options.wave_percent, 100..=crate::settings::pursuit_options::MAX_WAVE_PERCENT)
+                    .logarithmic(true)
+                    .suffix("%")
+                    .text("Cops per wave"),
+            );
+            ui.add(
+                egui::Slider::new(&mut options.max_active_cops, 8..=crate::settings::pursuit_options::MAX_ACTIVE_COPS)
+                    .logarithmic(true)
+                    .text("Active police car limit"),
+            );
             ui.add(egui::Slider::new(&mut options.heat_cap, 0..=10).text("Maximum heat (0: event rules)"));
         });
-        ui.small("Off keeps reference limits. More active cops allows larger waves; it does not change wave composition or backup budgets.");
+        ui.small(
+            "Off keeps reference limits. Cops per wave scales the heat table's counts (the wave, the cops to evade \
+             before backup, the cool-down search) and shortens the spawn intervals to match, live. The active limit \
+             only caps them: reference waves are 4 to 10 cops, so at 100% no limit above about 12 changes a chase.",
+        );
+        ui.checkbox(&mut options.bounty_fixes, "Bounty fixes")
+            .on_hover_text("Heat 10 takedowns score, a downed helicopter pays 100,000 with its own line, and 2-minute combo windows last 10 s. Off restores the original's bugs.");
         ui.small("Heat 6–10 includes special-event rules. The final pursuit stays fixed at heat 6. Changes apply live; Save for startup keeps them.");
     });
 }

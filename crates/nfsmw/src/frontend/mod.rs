@@ -55,6 +55,7 @@ pub(crate) mod post_options;
 mod post_race;
 mod prompt_layout;
 mod prompts;
+mod pursuit_pages;
 mod pursuit_results;
 mod quick_play;
 mod quick_race;
@@ -70,6 +71,7 @@ mod script;
 mod scroller;
 mod splash;
 mod stage;
+mod stat_bars;
 mod widget_layout;
 mod widget_menu;
 // The shared option widgets. The advanced controls screen that uses them is not wired to its package yet.

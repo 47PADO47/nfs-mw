@@ -29,6 +29,8 @@ pub struct InfoLayout {
     pub alpha_blend: usize,
     /// `Flags` (`u8`): bit 1 marks textures drawn on both faces.
     pub flags: usize,
+    /// `TilableUV` (`u8`): the axes the texture repeats on, bit 0 across and bit 1 down.
+    pub tilable_uv: usize,
 }
 
 /// Everything version-specific about a pack.

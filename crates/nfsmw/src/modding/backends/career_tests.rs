@@ -42,7 +42,6 @@ fn data() -> Arc<CareerData> {
         }],
         traps: Vec::new(),
         cars: Vec::new(),
-        stats: Vec::new(),
         heat: Default::default(),
         ranks: Default::default(),
         gameplay: Default::default(),

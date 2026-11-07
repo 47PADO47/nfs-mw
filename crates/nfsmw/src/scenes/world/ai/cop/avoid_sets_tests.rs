@@ -6,12 +6,24 @@ fn at(x: f32) -> Body {
     Body { position: Vec3::X * x, velocity: Vec3::ZERO, forward: Vec2::Y, half_width: 1.0, half_length: 2.0 }
 }
 
+fn bodies(set: &[Neighbour]) -> Vec<Body> {
+    set.iter().map(|n| n.body).collect()
+}
+
 #[test]
 fn a_cop_out_of_formation_cuts_round_the_target_and_everyone_and_keeps_its_distance_from_all() {
     let (mut corridor, mut separation) = (Vec::new(), Vec::new());
     avoid_sets(at(0.0), false, [(at(1.0), true), (at(2.0), true)], &mut corridor, &mut separation);
-    assert_eq!(corridor, [at(0.0), at(1.0), at(2.0)]);
-    assert_eq!(separation, corridor);
+    assert_eq!(bodies(&corridor), [at(0.0), at(1.0), at(2.0)]);
+    assert_eq!(separation, bodies(&corridor));
+}
+
+#[test]
+fn the_corridor_keeps_the_radius_each_vehicle_advertises() {
+    let (mut corridor, mut separation) = (Vec::new(), Vec::new());
+    let racer = Neighbour { body: at(1.0), radius: 64.0 };
+    avoid_sets(at(0.0), false, [(racer, true)], &mut corridor, &mut separation);
+    assert_eq!(corridor, [Neighbour::from(at(0.0)), racer], "the target has the default radius");
 }
 
 #[test]
@@ -19,6 +31,6 @@ fn a_cop_in_formation_ignores_the_target_and_its_formation_mates_for_its_corrido
     let (mut corridor, mut separation) = (Vec::new(), Vec::new());
     // at(1) is a slotted mate (flagged not to cut), at(2) is traffic.
     avoid_sets(at(0.0), true, [(at(1.0), false), (at(2.0), true)], &mut corridor, &mut separation);
-    assert_eq!(corridor, [at(2.0)]);
+    assert_eq!(bodies(&corridor), [at(2.0)]);
     assert_eq!(separation, [at(0.0), at(1.0), at(2.0)]);
 }

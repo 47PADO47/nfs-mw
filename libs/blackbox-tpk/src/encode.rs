@@ -334,6 +334,7 @@ mod tests {
             alpha_sorting: source.alpha_sorting,
             alpha_blend: source.alpha_blend,
             flags: source.flags,
+            tilable_uv: source.tilable_uv,
             data: source.data.clone(),
             palette: Vec::new(),
         };

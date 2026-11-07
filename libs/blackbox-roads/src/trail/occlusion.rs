@@ -52,13 +52,13 @@ impl Occlusion {
 }
 
 /// Finds the steering target of `car` on `trail`, with the cursor at `cursor` heading along `cursor_forward` and
-/// other cars in `avoidables`. `traffic` selects the narrower look-ahead of traffic cars.
+/// other cars in `avoidables` (a bare body advertises the default avoidance radius). `traffic` selects the narrower look-ahead of traffic cars.
 pub fn update_occluded_position(
     trail: &Trail,
     car: &Body,
     cursor: Vec3,
     cursor_forward: Vec3,
-    avoidables: impl IntoIterator<Item = Body>,
+    avoidables: impl IntoIterator<Item: Into<super::Neighbour>>,
     traffic: bool,
     vehicle_half_width: f32,
 ) -> Option<Occlusion> {

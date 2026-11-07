@@ -167,24 +167,61 @@ fn the_exit_reports_done_once_it_is_clear_of_the_car() {
     assert!(done, "the exit finishes within a minute");
 }
 
+/// A helicopter at `at` whose spawn timer lets the cop manager take it out of play (past the 10 s of `CanRespawn`).
+fn settled(at: Vec3) -> Helicopter {
+    let mut heli = Helicopter::spawn(at, 0.0, Tuning::default());
+    heli.age = crate::respawn::NEVER_SEEN_SECS + 1.0;
+    heli
+}
+
 #[test]
 fn a_helicopter_out_of_view_far_from_the_point_ahead_is_out_of_play() {
     // The player drives along +X: the point 75 m ahead is (75, 0, 0). 650 m behind the player is 725 m from it.
-    let far_back = Helicopter::spawn(Vec3::new(-650.0, 40.0, 0.0), 0.0, Tuning::default());
+    let mut far_back = settled(Vec3::new(-650.0, 40.0, 0.0));
     assert!(far_back.out_of_play(&player()));
     // 560 m ahead of the player is 485 m from the point ahead: still in play, though 560 m from the player.
-    let ahead = Helicopter::spawn(Vec3::new(560.0, 40.0, 0.0), 0.0, Tuning::default());
+    let mut ahead = settled(Vec3::new(560.0, 40.0, 0.0));
     assert!(!ahead.out_of_play(&player()));
-    let near = Helicopter::spawn(Vec3::new(-500.0, 40.0, 0.0), 0.0, Tuning::default());
+    let mut near = settled(Vec3::new(-500.0, 40.0, 0.0));
     assert!(!near.out_of_play(&player()), "575 m from the point ahead");
 }
 
 #[test]
-fn a_far_helicopter_the_camera_looks_at_stays_in_play() {
+fn a_helicopter_that_never_stood_in_play_waits_ten_seconds_before_it_is_out_of_play() {
     let mut heli = Helicopter::spawn(Vec3::new(-650.0, 40.0, 0.0), 0.0, Tuning::default());
+    heli.age = 9.9;
+    assert!(!heli.out_of_play(&player()), "far and out of view, but too young");
+    heli.age = 10.1;
+    assert!(heli.out_of_play(&player()));
+}
+
+#[test]
+fn a_helicopter_that_stood_in_play_may_go_eight_seconds_after_its_spawn() {
+    let mut heli = Helicopter::spawn(Vec3::new(-100.0, 40.0, 0.0), 0.0, Tuning::default());
+    heli.age = 1.0;
+    assert!(!heli.out_of_play(&player()), "100 m from the player its place may not be recycled");
+    heli.body.position = Vec3::new(-650.0, 40.0, 0.0);
+    heli.age = 7.9;
+    assert!(!heli.out_of_play(&player()));
+    heli.age = 8.1;
+    assert!(heli.out_of_play(&player()), "after a stay in play 8 s suffice");
+}
+
+#[test]
+fn the_spawn_timer_counts_with_each_decision() {
+    let mut heli = Helicopter::spawn(Vec3::new(-150.0, 40.0, 0.0), 0.0, Tuning::default());
+    heli.decide(0.5, &player(), OPEN, &clear, &Flat(0.0), LOST);
+    heli.decide(0.25, &player(), OPEN, &clear, &Flat(0.0), LOST);
+    assert!((heli.age - 0.75).abs() < 1e-6);
+}
+
+#[test]
+fn a_far_helicopter_goes_whichever_way_the_camera_looks_as_a_ground_cop_does() {
+    // Over 275 m from the camera its place may be recycled however the camera faces (`RespawnAvailable`).
+    let mut heli = settled(Vec3::new(-650.0, 40.0, 0.0));
     heli.camera =
         Some(camera::Camera { position: Vec3::new(10.0, 3.0, 0.0), forward: Vec3::NEG_X, velocity: Vec3::ZERO });
-    assert!(!heli.out_of_play(&player()), "the camera looks back at it");
+    assert!(heli.out_of_play(&player()), "the camera looks back at it");
     heli.camera = Some(camera::Camera { position: Vec3::new(-10.0, 3.0, 0.0), forward: Vec3::X, velocity: Vec3::ZERO });
     assert!(heli.out_of_play(&player()), "the camera looks away from it");
 }

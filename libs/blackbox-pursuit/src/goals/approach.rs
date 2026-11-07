@@ -154,17 +154,24 @@ pub fn ceiling(vehicle: AiVehicle, target: &TargetState) -> Ceiling {
     Ceiling { max_speed: own_max.min(target_max), max_accel: target.accel * vehicle.accel_mult * jerk.accel }
 }
 
-/// The smoothed speed limit (the performance limiter of tactics 3.3). Forward speeds: while the cop is more than 5 km/h
-/// under the limit, the limit is pulled down (by `min(1, dt t^2)` of the gap, with `t` the gap in 5 km/h units). Then
-/// the limit is `max(speed, limit) + max_accel dt`, capped at `max_speed`.
+/// The smoothed speed limit (the performance limiter of tactics 3.3). Forward speeds (`speed > 0`): while the cop is
+/// slower than the limit, the limit is pulled down (by `min(1, dt t^2)` of the gap, with `t` the gap in 5 km/h units).
+/// Then the limit is `max(speed, limit) + max_accel dt`, capped at `max_speed`.
 ///
-/// [unconfirmed] The spec's branch is `speed > 0` with a mirror for the rest. This takes the forward branch for
-/// `speed >= 0`, so a cop at rest gets a forward limit. Negative speeds take the mirror image (negated limit).
+/// At rest or rolling backwards (`speed <= 0`) the limit is `min(max_speed, max_accel dt - min(speed, limit))`, after
+/// the same pull towards the speed when the limit is below it. The result is the size of the speed plus one step of
+/// acceleration, so it stays positive: a cop that rolls back keeps a forward speed request and is not braked by its
+/// own limit.
 pub fn limiter_step(limit: f32, speed: f32, max_speed: f32, max_accel: f32, dt: f32) -> f32 {
-    if speed < 0.0 {
-        return -forward_limit(-limit, -speed, max_speed, max_accel, dt);
+    if speed > 0.0 {
+        return forward_limit(limit, speed, max_speed, max_accel, dt);
     }
-    forward_limit(limit, speed, max_speed, max_accel, dt)
+    let mut limit = limit;
+    if speed > limit {
+        let t = (limit - speed) / LIMITER_BAND;
+        limit += (dt * t * t).max(-1.0) * (limit - speed);
+    }
+    (max_accel * dt - limit.min(speed)).min(max_speed)
 }
 
 fn forward_limit(limit: f32, speed: f32, max_speed: f32, max_accel: f32, dt: f32) -> f32 {
@@ -377,10 +384,30 @@ mod tests {
     }
 
     #[test]
-    fn the_limiter_mirrors_in_reverse() {
-        // Speed -10 with limit -20 is the forward case (10, 20) negated: 12 becomes -12.
-        let limit = limiter_step(-20.0, -10.0, 30.0, 4.0, 0.5);
-        assert!(close(limit, -12.0), "{limit}");
+    fn a_cop_rolling_back_keeps_a_positive_limit() {
+        // Limit 2.26, speed -0.62, accel 4, dt 0.5: min(-0.62, 2.26) = -0.62, so the limit is 0.62 + 2 = 2.62.
+        let limit = limiter_step(2.26, -0.62, 30.0, 4.0, 0.5);
+        assert!(close(limit, 2.62), "{limit}");
+    }
+
+    #[test]
+    fn the_limiter_restarts_from_one_step_of_acceleration_at_rest() {
+        // Speed 0 takes the rest branch: a limit of 1 does not carry over, it becomes 4 * 0.5 = 2.
+        let limit = limiter_step(1.0, 0.0, 20.0, 4.0, 0.5);
+        assert!(close(limit, 2.0), "{limit}");
+    }
+
+    #[test]
+    fn a_limit_below_a_backward_speed_is_pulled_further_down_first() {
+        // Limit -3, speed -2: t = -1 / 1.389, dt t^2 = 0.2592, the limit becomes -3.2592; then 2 + 3.2592.
+        let limit = limiter_step(-3.0, -2.0, 30.0, 4.0, 0.5);
+        assert!(close(limit, 5.2592), "{limit}");
+    }
+
+    #[test]
+    fn the_backward_limit_is_capped_at_the_ceiling() {
+        let limit = limiter_step(2.0, -40.0, 30.0, 4.0, 0.5);
+        assert!(close(limit, 30.0), "{limit}");
     }
 
     #[test]

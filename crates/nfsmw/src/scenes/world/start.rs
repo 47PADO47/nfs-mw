@@ -46,6 +46,9 @@ impl WorldScene {
             .map(|views| bike_views(&name, views));
         self.original_camera.reset();
         self.original_player_step = None;
+        // The cops name the car by the base paint it was built with (`speech_look.rs`).
+        let paint = model.paint.as_ref().map(|paint| blackbox_hash::bstring_hash(&paint.name));
+        self.speech_look.borrow_mut().set_built_paint(paint);
         let rig = CarRig::upload(renderer, keys::PLAYER_CAR, model, self.car_shading, sun::to_sun());
         let [x, y] = self.focus();
         match self.players.lead_mut() {
@@ -63,9 +66,10 @@ impl WorldScene {
                 self.players.set_lead(Drive::new(name.clone(), rig, physics, request, script, visuals));
             }
         }
-        // A rap sheet jump asked for before the car existed puts it on its marker now (`start_at_point`).
+        // A rap sheet jump asked for before the car existed puts it on its marker now (`start_at_point`); the loading
+        // screen covers it, so it takes no fade.
         if let Some(point) = self.career.pending_jump.take() {
-            self.start_at_point(point);
+            self.move_to_point(point);
         }
         self.last_car = name;
         if let Some(traffic) = self.traffic.as_mut() {

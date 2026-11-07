@@ -217,8 +217,8 @@ mod tests {
         let preset = |name: &str| PoolPreset { name: name.into(), car: car("m3", "BMWM3GTRE46", 0) };
         CarPool {
             cars: vec![car("cobaltss", "COBALTSS", 3), car("gt2", "911GT2", 3), car("a3", "A3", 15)],
-            population: Vec::new(),
             presets: vec![preset("BL6"), preset("M3GTRCAREERSTART"), preset("BONUS_C6R"), preset("CE_ELISE")],
+            ratings: Default::default(),
         }
     }
 

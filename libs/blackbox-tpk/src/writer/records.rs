@@ -99,6 +99,7 @@ pub fn info_record(layout: &PackLayout, t: &TextureSource, placement: u32) -> Ve
     r[l.alpha_usage] = alpha_usage_byte(t.alpha_usage);
     r[l.alpha_blend] = t.alpha_blend;
     r[l.flags] = t.flags;
+    r[l.tilable_uv] = t.tilable_uv;
     put_u16(&mut r, SCROLL_TIME_STEP, FIXED_ONE);
     put_u16(&mut r, SCALE_S, FIXED_ONE);
     put_u16(&mut r, SCALE_T, FIXED_ONE);

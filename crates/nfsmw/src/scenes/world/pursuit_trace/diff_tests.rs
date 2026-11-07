@@ -27,6 +27,8 @@ fn cop(key: u32, kind: &'static str) -> CopFrame {
         offscreen_secs: 0.0,
         roadblock: None,
         support: None,
+        action: None,
+        speed_limit: None,
     }
 }
 
@@ -101,4 +103,17 @@ fn roadblocks_and_the_helicopter_come_and_go_with_their_poses() {
     let down = PoliceFrame { pursuing: true, ..Default::default() };
     let gone = kinds(&tracker.events(&down, None));
     assert!(gone.contains(&"roadblock_remove") && gone.contains(&"heli_despawn") && gone.contains(&"unspawn"));
+}
+
+#[test]
+fn a_roadblock_car_is_no_chase_member_until_the_chase_recruits_it() {
+    let mut tracker = Tracker::default();
+    let car = CopFrame { roadblock: Some(4), ..cop(7, "roadblock") };
+    let standing = PoliceFrame { pursuing: true, heat_level: Some(5), cops: vec![car.clone()], ..Default::default() };
+    let found = tracker.events(&standing, Some([0.0; 3]));
+    assert!(!kinds(&found).contains(&"pursuit_join"), "a roadblock car only spawns: {:?}", kinds(&found));
+    assert_eq!(super::super::records::cop(&car, in_pursuit(&car, &standing), None).role(), "roadblock_cop");
+    let recruited = PoliceFrame { cops: vec![CopFrame { roadblock: None, ..cop(7, "chase") }], ..standing };
+    let joined = kinds(&tracker.events(&recruited, Some([0.0; 3])));
+    assert_eq!(joined.iter().filter(|k| **k == "pursuit_join").count(), 1, "the recruit joins once: {joined:?}");
 }

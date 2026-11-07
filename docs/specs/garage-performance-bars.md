@@ -116,6 +116,21 @@ comparison tick stays at the installed rating. The original `TwoStageSlider`
 also fills `PREVIEWBAR_<axis>` to that installed value when the object exists.
 The tick is an absolute installed-rating position, not a signed difference.
 
+## The car selects
+
+`Car_Select.fng` (the car lot, the career's car select and the custom race's) and `Quick_Race_Brief.fng` hold the same
+three bars under the same names: per axis `BASE_<axis>` (dim tint, 160 units, `LED_main` repeated across five times),
+`FILLBAR_<axis>` (full tint, a placeholder width of 80, 40 or 120 units) and `HANDLE_<axis>` (`LED_DELTA`)
+**[verified]**. They are drawn by the same rule: the base keeps its width, the fill is 160 units times the rating from
+the base's left edge, the tick's left edge is at the base's left edge plus 160 units times the marked rating. A
+capture of the original's quick race car select shows the dim base at full length on every axis and the tick at the
+end of each lit strip, so the rewrite marks the shown car's own rating on its tick (a captured observation, not a rule
+read from the code). Whether the car lot's tick compares with the player's current car instead is **[unconfirmed]**
+(the refresh builds blends for both, [career-car-lot](career-car-lot.md#open-questions)). The ratings are this page's,
+on the same population as the garage's. An owned career car is rated with the upgrade levels and Junkman parts of its
+customization record, a car on sale or in the custom race's lists at stock. The quick race brief keeps its ticks
+hidden.
+
 ## Validation boundary
 
 Synthetic tests must check native estimate inputs, nonlinear Junkman blending,

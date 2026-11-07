@@ -2,6 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
+/// The most police cars the enhancement allows at once, and the largest wave scale, percent: far past the original's,
+/// for testing big chases (the frame rate is the limit there).
+pub const MAX_ACTIVE_COPS: u32 = 256;
+pub const MAX_WAVE_PERCENT: u32 = 2000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PursuitOptions {
@@ -9,23 +14,42 @@ pub struct PursuitOptions {
     pub max_active_cops: u32,
     /// Zero preserves the event/career maximum; 1..10 explicitly replaces it.
     pub heat_cap: u32,
+    /// The heat table's cop counts a chase uses, percent: the wave, the cops to evade before backup and the cool-down
+    /// search. 100 keeps the reference counts.
+    pub wave_percent: u32,
+    /// The bounty bug fixes of a takedown (`docs/specs/ai-pursuit-heat.md` section 5.5). On by default, independent of
+    /// the limit enhancement; off restores the original's bugs.
+    pub bounty_fixes: bool,
 }
 
 impl Default for PursuitOptions {
     fn default() -> Self {
-        Self { enhanced: false, max_active_cops: 16, heat_cap: 0 }
+        Self { enhanced: false, max_active_cops: 16, heat_cap: 0, wave_percent: 100, bounty_fixes: true }
     }
 }
 
 impl PursuitOptions {
     pub fn sanitized(self) -> Self {
-        Self { max_active_cops: self.max_active_cops.clamp(8, 64), heat_cap: self.heat_cap.min(10), ..self }
+        Self {
+            max_active_cops: self.max_active_cops.clamp(8, MAX_ACTIVE_COPS),
+            heat_cap: self.heat_cap.min(10),
+            wave_percent: self.wave_percent.clamp(100, MAX_WAVE_PERCENT),
+            ..self
+        }
     }
 
     pub fn active_limit(self, reference: u32) -> u32 {
         match self.enhanced {
             true => self.sanitized().max_active_cops,
             false => reference,
+        }
+    }
+
+    /// How much the heat table's cop counts grow: 1 unless the enhancement is on.
+    pub fn wave_scale(self) -> f32 {
+        match self.enhanced {
+            true => self.sanitized().wave_percent as f32 / 100.0,
+            false => 1.0,
         }
     }
 
@@ -64,14 +88,36 @@ mod tests {
         assert_eq!(enhanced.active_limit(8), 16);
         assert_eq!(enhanced.maximum_heat(), None, "lifting the active cap alone keeps event heat rules");
         assert_eq!(PursuitOptions { heat_cap: 7, ..enhanced }.maximum_heat(), Some(7.0));
+        assert_eq!(PursuitOptions { wave_percent: 200, ..reference }.wave_scale(), 1.0, "off keeps the waves");
+        assert_eq!(PursuitOptions { wave_percent: 200, ..enhanced }.wave_scale(), 2.0);
     }
 
     #[test]
     fn file_values_are_bounded_without_changing_the_disabled_state() {
-        let options = PursuitOptions { enhanced: false, max_active_cops: 500, heat_cap: 99 }.sanitized();
-        assert_eq!(options.max_active_cops, 64);
+        let options = PursuitOptions {
+            enhanced: false,
+            max_active_cops: 5000,
+            heat_cap: 99,
+            wave_percent: 90_000,
+            bounty_fixes: false,
+        }
+        .sanitized();
+        assert_eq!(options.max_active_cops, MAX_ACTIVE_COPS);
+        assert_eq!(options.wave_percent, MAX_WAVE_PERCENT);
         assert_eq!(options.heat_cap, 10);
         assert_eq!(options.active_limit(8), 8);
         assert_eq!(options.maximum_heat(), None);
+        assert!(!options.bounty_fixes, "turning the fixes off is kept");
+    }
+
+    #[test]
+    fn the_bounty_fixes_are_on_by_default_and_for_an_older_file() {
+        assert!(PursuitOptions::default().bounty_fixes);
+        let old: toml::Value = toml::from_str(
+            "enhanced = true
+max_active_cops = 20",
+        )
+        .unwrap();
+        assert!(PursuitOptions::read(&old, "test").unwrap().bounty_fixes);
     }
 }

@@ -18,7 +18,7 @@ use crate::{BlendMode, GlossyMaterialHandle, Shading, Vertex};
 /// Draw order: opaque and alpha-tested first, blended last.
 pub(super) const BLEND_ORDER: [BlendMode; 5] =
     [BlendMode::Opaque, BlendMode::AlphaTest, BlendMode::AlphaBlend, BlendMode::Subtractive, BlendMode::Additive];
-pub(super) const SHADINGS: [Shading; 11] = [
+pub(super) const SHADINGS: [Shading; 12] = [
     Shading::Lit,
     Shading::Prelit,
     Shading::Sky,
@@ -29,6 +29,8 @@ pub(super) const SHADINGS: [Shading; 11] = [
     Shading::Tree,
     Shading::WorldNoFog,
     Shading::WorldPrelit,
+    Shading::Character,
+    // Last: the glossy screen draw finds its bucket at the end.
     Shading::Glossy(GlossyMaterialHandle::ANY),
 ];
 
@@ -293,7 +295,7 @@ impl Pipelines {
             true => (wgpu::CompareFunction::Equal, false),
             false => (wgpu::CompareFunction::GreaterEqual, depth_write),
         };
-        let prelit = !matches!(shading, Shading::Lit | Shading::Glossy(_));
+        let prelit = !matches!(shading, Shading::Lit | Shading::Character | Shading::Glossy(_));
         let world_kind = match shading {
             Shading::World | Shading::WorldDistant | Shading::WorldEmissive => 1.0,
             Shading::Tree => 2.0,
@@ -305,6 +307,7 @@ impl Pipelines {
         let constants = [
             ("MASKED_EMISSIVE", f64::from(u8::from(shading == Shading::WorldEmissive))),
             ("PRELIT", f64::from(u8::from(prelit))),
+            ("CHARACTER", f64::from(u8::from(shading == Shading::Character))),
             ("FOG", f64::from(u8::from(shading != Shading::Sky))),
             ("WORLD_KIND", world_kind),
             ("DISTANT_SCENERY", f64::from(u8::from(matches!(shading, Shading::WorldDistant | Shading::PrelitDistant)))),
@@ -383,5 +386,23 @@ impl Pipelines {
 
     fn slot(&self, prepared: bool, i: usize) -> Option<&wgpu::RenderPipeline> {
         self.sets.get(&(self.format, prepared, self.clip))?.get(i)?.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_shading_has_its_own_slot_and_glossy_stays_last() {
+        let slots: Vec<usize> = SHADINGS.iter().map(|&s| index(BlendMode::Opaque, s, Face::Both)).collect();
+        assert_eq!(slots, (0..SHADINGS.len()).collect::<Vec<_>>(), "no two shadings share a pipeline slot");
+        assert_eq!(index(BlendMode::Opaque, Shading::Character, Face::Both), SHADINGS.len() - 2);
+        assert!(matches!(SHADINGS[SHADINGS.len() - 1], Shading::Glossy(_)));
+    }
+
+    #[test]
+    fn characters_keep_the_plain_depth_test() {
+        assert!(!equal_depth(BlendMode::Opaque, Shading::Character));
     }
 }

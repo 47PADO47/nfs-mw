@@ -156,13 +156,16 @@ mod tests {
         let dir = game_install::GameDir::open(std::env::var("NFSMW_GAME_DIR").unwrap()).unwrap();
         let db = crate::shared::attributes(&dir).unwrap();
         let table = SurfaceTable::from_database(&db);
-        let mut count = 0;
+        let (mut count, mut authored) = (0, 0);
         for surface in db.collections_of("simsurface") {
-            let expected =
-                std::array::from_fn(|index| surface.get_at("CAMERA_NOISE", index).unwrap().as_f32().unwrap());
-            assert_eq!(table.camera_noise(surface.key()), expected);
+            // Most stock surfaces have no `CAMERA_NOISE` in their lineage; each absent item is zero (the spec).
+            let item = |index| surface.get_at("CAMERA_NOISE", index).map(|v| v.as_f32().expect("a float array"));
+            let expected = [0, 1].map(|index| item(index).unwrap_or(0.0));
+            assert_eq!(table.camera_noise(surface.key()), expected, "{:?}", surface.name());
+            authored += usize::from(item(0).is_some());
             count += 1;
         }
         assert!(count > 0, "selected no surface camera records");
+        assert!(authored > 0, "no surface authors a CAMERA_NOISE pair");
     }
 }

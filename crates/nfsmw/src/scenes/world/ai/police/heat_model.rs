@@ -174,6 +174,22 @@ impl Police {
     pub fn set_forced_pursuit(&mut self, forced: bool) {
         self.heat_model.forced = forced;
     }
+
+    /// How much the F8 enhancement grows the heat table's cop counts: 1 for the reference counts.
+    pub fn wave_scale(&self) -> f32 {
+        self.heat_model.pursuit_options.wave_scale()
+    }
+
+    /// The police cars the F8 limit enhancement allows over the configured limit: the shared vehicle budget grows by
+    /// them, so the extra cops do not wait on traffic slots (`docs/specs/pursuit-limit-options.md`). 0 without it.
+    pub(in crate::scenes::world::ai) fn extra_cop_slots(&self) -> u32 {
+        self.settings.max_cops.saturating_sub(self.configured_max_cops)
+    }
+
+    /// The bounty bug fixes are on (`docs/specs/ai-pursuit-heat.md` section 5.5).
+    pub(super) fn bounty_fixes(&self) -> bool {
+        self.heat_model.pursuit_options.bounty_fixes
+    }
     /// The Blacklist's current bin, or `None` without a career: it sets the heat range and the growth time of a chase.
     pub fn set_career_bin(&mut self, bin: Option<u8>) {
         self.heat_model.set_bin(bin);
@@ -340,19 +356,37 @@ mod tests {
         let mut police = Police::default();
         police.set_career_bin(Some(15));
         police.begin(1);
-        let options = crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 7 };
+        let options =
+            crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 7, ..Default::default() };
         police.set_pursuit_options(options);
         assert_eq!(police.settings().max_cops, 24);
+        assert_eq!(police.extra_cop_slots(), 16, "the shared vehicle budget grows by the cars over the reference 8");
         assert_eq!(police.heat_model.range_for(None, 1), (1.0, 7.0));
         police.set_carried_heat(6.0);
         police.begin(6);
         assert_eq!(police.level(), Some(6));
         police.set_pursuit_options(Default::default());
         assert_eq!(police.settings().max_cops, 8);
+        assert_eq!(police.extra_cop_slots(), 0);
         assert_eq!(police.level(), Some(2), "restoring reference clamps the active chase back to career bounds");
         police.heat_model.context.final_pursuit = true;
         police.set_pursuit_options(options);
         assert_eq!(police.heat_model.range_for(None, 1), (6.0, 6.0));
+    }
+
+    #[test]
+    fn a_carried_testing_heat_starts_the_next_forced_chase_above_the_free_roam_range() {
+        let mut police = Police::default();
+        police.set_career_bin(Some(15));
+        police.set_forced_pursuit(true);
+        police.set_carried_heat(7.0);
+        police.begin(1);
+        assert_eq!(police.level(), Some(7), "the patrol's chase starts at the carried heat");
+        let mut unforced = Police::default();
+        unforced.set_career_bin(Some(15));
+        unforced.set_carried_heat(7.0);
+        unforced.begin(1);
+        assert!(unforced.level().unwrap() <= 5, "an ordinary chase keeps the free-roam range");
     }
 
     #[test]
@@ -361,7 +395,8 @@ mod tests {
         police.set_career_bin(Some(15));
         police.set_forced_pursuit(true);
         police.begin(6);
-        let options = crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 0 };
+        let options =
+            crate::settings::PursuitOptions { enhanced: true, max_active_cops: 24, heat_cap: 0, ..Default::default() };
         police.set_pursuit_options(options);
         assert_eq!(police.level(), Some(6), "enabling a car limit must preserve the forced heat");
         police.set_pursuit_options(crate::settings::PursuitOptions { max_active_cops: 32, ..options });

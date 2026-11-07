@@ -105,6 +105,7 @@ mod tests {
             alpha_sorting: false,
             alpha_blend: 0,
             flags: 0,
+            tilable_uv: 0,
             data,
             palette: Vec::new(),
         };
@@ -126,6 +127,7 @@ mod tests {
             alpha_sorting: false,
             alpha_blend: 0,
             flags: 0,
+            tilable_uv: 0,
             data: vec![1, 2, 3, 4],
             palette: Vec::new(),
         };

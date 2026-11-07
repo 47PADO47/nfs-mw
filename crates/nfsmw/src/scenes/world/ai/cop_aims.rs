@@ -44,8 +44,9 @@ impl super::TrafficWorld {
             return;
         }
         let tuning = self.police.goal_tuning();
-        let cast = crate::scenes::world::drive::sight::sight_cast(collision);
-        let plans = self.cop_plans(player, &|from, to| cast(from, to).is_none());
+        // The formation and the collapse take the cops that can drive straight to the player (barriers only).
+        let drivable = crate::scenes::world::drive::sight::drivable_cast(collision);
+        let plans = self.cop_plans(player, &drivable);
         out.clear();
         out.resize(self.cars.len(), None);
         for (me, order) in plans.into_iter().enumerate() {

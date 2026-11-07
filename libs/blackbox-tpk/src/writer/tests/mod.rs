@@ -33,4 +33,5 @@ pub fn assert_same(t: &Texture, s: &TextureSource) {
     assert_eq!(t.alpha_sorting, s.alpha_sorting, "{}", s.name);
     assert_eq!(t.alpha_blend, s.alpha_blend, "{}", s.name);
     assert_eq!(t.flags, s.flags, "{}", s.name);
+    assert_eq!(t.tilable_uv, s.tilable_uv, "{}", s.name);
 }

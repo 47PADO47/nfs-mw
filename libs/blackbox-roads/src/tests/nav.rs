@@ -141,6 +141,19 @@ fn a_direction_cursor_turns_around_at_a_dead_end() {
 }
 
 #[test]
+fn a_direction_cursor_takes_the_plain_road_on_whatever_its_filters() {
+    // A cop seek walk leaving a cop road onto one closed to cops goes on along it, as the original's does.
+    let mut net = chain_road();
+    net.segments[1].flags |= crate::flags::NO_TRAFFIC;
+    let filter = SegmentFilter { cop: true, ..Default::default() };
+    let mut nav = RoadNav::new(NavKind::Direction, LaneType::Cop, filter);
+    nav.place(&net, 0, 1, 3, 0.5);
+    nav.advance(&net, 100.0, Vec3::ZERO, &mut SplitMix(1));
+    assert_eq!((nav.segment, nav.node_ind), (1, 1), "on along the closed road");
+    assert!(nav.position.z > 140.0, "{:?}", nav.position);
+}
+
+#[test]
 fn lane_types_mask_the_zone_types() {
     use crate::zone;
     assert_eq!(LaneType::Traffic.drivable_mask(), 1 << zone::TRAFFIC);

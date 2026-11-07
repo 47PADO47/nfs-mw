@@ -14,6 +14,9 @@ F5 / Escape closes the panel. Opening another developer panel closes F5.
 - Home centers the remake chase and releases a camera bookmark. F5 offers alternate keys.
 - F4 hides the complete composed UI. F5 restores it. An alternate key is selectable.
 - Pause stops simulation while freecam and the remake chase orbit remain usable.
+- By default the game also pauses while the F5, F6 or F8 overlay is open, so a screenshot or a toggle is not
+  interrupted; the camera preference "Pause the game while F5, F6 or F8 is open" turns it off. Multiplayer never
+  pauses for it.
 - A camera bookmark saves position, orientation and FOV in world or car-relative space.
   A car-relative view follows the car's position and heading.
 - Normal F6 car swaps keep the driving camera following the new car. They never pin a view.
@@ -34,7 +37,9 @@ Traffic off removes ambient civilians immediately and suppresses their automatic
 It retains police and race opponents and does not rewrite F8 density. Police off ends
 pursuits without awarding an escape and bars patrol/reinforcement spawning.
 
-Heat can be started/set and locked from 1 to 10. Unlimited NOS fills an installed system;
+Heat can be started/set and locked from 1 to 10. Page Up and Page Down step from the car's live heat (the chase's,
+or the heat it carries), so a chase that climbed on its own never drops; outside a chase, after an escape too, the
+car carries the new heat into the next chase, which may then go above the event's range as a testing start does. Unlimited NOS fills an installed system;
 it does not add an upgrade. Unlimited Speedbreaker keeps its normal activation rules.
 Refill, repair and recover-to-road are explicit actions.
 

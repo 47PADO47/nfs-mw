@@ -249,8 +249,10 @@ impl Vehicle {
             self.wheels_on_ground,
         );
         let writes = self.powertrain.wheel_writes();
+        // A rolling or simple chassis keeps its tires' own wheel speeds.
+        let own_wheel_speeds = self.rolling_chassis.is_some() || self.simple_tires_on();
         for (i, t) in self.tires.iter_mut().enumerate() {
-            if self.rolling_chassis.is_none() && (!reference || writes[i]) {
+            if !own_wheel_speeds && (!reference || writes[i]) {
                 t.av = av[i];
             }
         }

@@ -62,6 +62,62 @@ character-shadow texture. For bone-map type 3 (the perp), it sets the face-pixel
 Setting the time sets the clip to frame 0 and then advances it by the given time. Seeking is therefore an absolute
 evaluation from the start, not a jump in the clip.
 
+### 9.6 Lighting **[decomp: `WorldModel::RenderModel`, `eLight.cpp`; PC image read in Ghidra; data verified]**
+
+A character is drawn with the skinned-character effect (effect 2, `WorldBoneShader`). Its light is not the world's:
+no sun, ambient, shadow or time-of-day term reaches it, and it does not use the car rig of
+[car-lighting.md](car-lighting.md). A world model that has blend matrices (a character) is lit by the **character rig**;
+one without them by the in-game car rig. The rig is placed at the character's matrix with its origin moved to the pelvis
+(bone 1), which matters only for positioned lights.
+
+**The rig.** Three entries in the table form of [car-lighting.md](car-lighting.md) (theta and phi in degrees, RGB,
+intensity), all camera-space:
+
+| Light | Theta | Phi | RGB | Intensity | Role |
+|---|---:|---:|---|---:|---|
+| 0 | 122.9 | 194 | .5, .5, .5 | .53 | fill |
+| 1 | 28 | 0 | 1, 1, 1 | .59 | key |
+| 2 | 0 | 0 | 0, 0, 0 | 0 | unused by the effect |
+
+A camera-space entry takes the spherical direction `v` of azimuth theta + 180 and polar angle 90 − phi (engine angles,
+as in car-lighting.md) and uses `(−v.y, −v.z, v.x)` in camera space, whose axes are right, down and forward. The
+camera's rotation turns it into world space and the character's inverse rotation into the model's frame. The direction
+points toward the light; the colour is RGB times intensity. In camera space the fill comes from (−0.815, 0.242, −0.527)
+(the left, a little below, the viewer's side) and the key from (0.469, 0, −0.883) (the right of the camera, at its
+height). The effect reads lights 0 and 1 only. **[decomp; values from the image's data]**
+
+The rig does not change during play. Its only writer is the cop-light flash: while a cop car's light bar is drawn in the
+player's view with its red or blue light on, light 2 becomes a positioned light (red .8, .2, 0 or blue .2, .2, .8, times
+the flash intensity) at the bar, and a backup copy of the rig restores it when the light goes out. Light 2 is the one
+the effect ignores, so on PC the flash does not reach the characters. The characters are lit the same by day and by
+night. **[decomp]**
+
+**The material.** Each shading group's light material (the install's arrest characters use `CHAR_SKIN`, `CHAR_CLOTH`,
+`CHAR_LEATHER`, `CHAR_RUBBER` and `CHAR_LATEX` from the global light-material table in `GLOBAL/GlobalB.lzc`) gives a
+diffuse ramp, mapped as in [car-lighting.md](car-lighting.md), "Material constants": minimum = MinScale × MinRGB with
+alpha MinAlpha, range = MaxScale × MaxRGB − minimum with alpha 0.25 × (MaxAlpha − MinAlpha). The effect is given the
+diffuse ramp only; its specular and environment terms reach a vertex output that its pixel stage does not read, and the
+vertex colour scales only those. A hash the table lacks resolves to its `DEFAULT` material. **[decomp; verified table]**
+
+**Per vertex.** With the unskinned (bind-pose) position `P` and normal `N` in the model's frame, the camera position `E`
+in the same frame, and the lights `L0`, `L1` with colours `C0`, `C1`:
+
+1. facing `f = max(clamp(N · normalize(E − P), 0, 1), 0.01)`;
+2. ramp `D = minimum + range × f` (RGBA);
+3. light `= clamp(N · L0 + 0.3, 0, 1) × C0 + clamp(N · L1 + 0.3, 0, 1) × C1`;
+4. colour `= clamp(D.rgb × light, 0, 1)` with alpha `clamp(D.a, 0, 1)` (the vertex colour output saturates).
+
+The bones move a vertex but not its light. **Per pixel:** RGB = texture RGB × colour RGB (no doubling); alpha = texture
+alpha × colour alpha × 2. **[decomp: compiled effect]**
+
+What the rewrite does **[ours]** (`nis/light.rs`, `nis/characters.rs`): the colour is worked out on the CPU each frame
+as the parts are skinned, from the bind-pose vertex, the scene camera and the light materials of the car tables, and
+stored in the vertex colour (8 bits a channel). The parts are drawn with `Shading::Character`: texture × vertex colour,
+alpha doubled, fogged as the other models, with no world light, shadow, ambient occlusion or night tint. A group whose
+light material the table lacks keeps a neutral ramp (minimum 1, range 0) rather than `DEFAULT`. Parts drawn by the rigid
+fallback keep white vertices. Whether the original fogs the characters, and a side-by-side capture of an arrest, are
+**[unconfirmed]**.
+
 ## 10. The camera **[decomp; verified for the data]**
 
 ### 10.1 Who has the camera **[decomp: `CAnimScene::BindToGame`, `SetCameraControl`]**
@@ -264,6 +320,8 @@ Each item names the function or field and what to find. Addresses are in `speed.
   (10.5 KB) and `.cpp` (26.7 KB); `Animation/AnimLocator.cpp` (3.5 KB); `Animation/AnimPlayer.hpp` (4.0 KB) and `.cpp`
   (17.5 KB); `Animation/AnimCtrl.cpp` (8.5 KB, `AdvanceAnimTime`); `Animation/AnimEntity.cpp` (1.1 KB);
   `Animation/AnimEntity_BasicCharacter.cpp` (14.4 KB); `Animation/AnimEntity_Prop.cpp` (2.1 KB);
+  `World/WorldModel.cpp` (`RenderModel`); `Ecstasy/eLight.hpp` and `.cpp` (the shaper rigs); `World/CarRender.cpp` (the
+  cop-light flash);
   `Animation/AnimCandidates.hpp` (9.4 KB) and `.cpp` (6.7 KB, first part); `Animation/AnimChooser.hpp` (0.6 KB);
   `Animation/GenericNISControlScenario.cpp` (world animation, not used by the NIS); `Interfaces/SimActivities/INIS.h`;
   `Interfaces/Simables/INISCarControl.h`; `Camera/ICE/ICEManager.hpp` (5.6 KB) and `.cpp` (1.2 KB);

@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::gpu::post::{treatment, treatment_composite};
-use blackbox_gfx::{ColourTreatment, RgbaImage};
+use blackbox_gfx::{ColourLook, ColourTreatment, RgbaImage};
 
 #[test]
 fn treatment_shaders_and_uniform_layout_validate() {
@@ -125,6 +125,57 @@ fn check(backend: wgpu::Backends) {
         "grading also runs with non-HDR luminance targets"
     );
     check_original_coefficients(&gpu, &mut chain);
+    check_look(&gpu, &mut chain);
+}
+
+/// A look set per frame replaces the profile's values in place, its brightness multiplies the graded colour, a pass
+/// rebuild keeps both, and a new profile resets them.
+fn check_look(gpu: &Gpu, chain: &mut PostChain) {
+    let installed = |settings| treatment::Profile {
+        settings,
+        gain: treatment::gain_texture(&gpu.device, &gpu.queue, None),
+        luma_format: HDR_FORMAT,
+    };
+    chain.set_treatment(&gpu.device, Some(installed(profile())));
+    chain.set_effects(&gpu.device, settings(true));
+    let flat = "return vec4<f32>(0.6, 0.4, 0.2, 1.0);";
+    let names = chain.names();
+    let identity = ColourTreatment { desaturation: 1.0, black_intensity: 0.0, colour_intensity: 0.0, ..profile() };
+    let look = |weight, brightness| ColourLook { target: Some(identity), weight, brightness };
+    assert!(chain.set_look(look(1.0, 1.0)));
+    assert!(!chain.set_look(look(1.0, 1.0)), "the same look again changes nothing");
+    assert_eq!(chain.names(), names, "a look builds no pass");
+    let shown = |chain: &mut PostChain, wanted: [f32; 3], what: &str| {
+        let image = gpu.run(chain, (16, 16), flat);
+        let wanted = [byte(wanted[0]), byte(wanted[1]), byte(wanted[2]), 255];
+        assert!(image.iter().all(|&p| near(p, wanted, 2)), "{what}: {:?} vs {wanted:?}", image[0]);
+    };
+    shown(chain, [0.6, 0.4, 0.2], "the identity look at full weight");
+    assert!(chain.set_look(look(1.0, 1.5)));
+    shown(chain, [0.9, 0.6, 0.3], "brightness 1.5");
+    chain.set_effects(&gpu.device, PostSettings { colour_treatment: 0.5, ..Default::default() });
+    shown(chain, [0.9, 0.6, 0.3], "a rebuilt pass keeps the look and the brightness");
+    assert!(chain.set_look(look(0.0, 1.0)));
+    let image = gpu.run(chain, (16, 16), flat);
+    assert!(image.iter().all(|&p| near(p, [132, 92, 58, 255], 2)), "no weight: the loaded profile: {:?}", image[0]);
+    // The parameter replacements change the profile the look blends from, not the target.
+    let replacement = blackbox_gfx::ColourTreatmentOverride {
+        tint: [0.68, 0.62, 0.03],
+        desaturation: 0.8,
+        colour_intensity: 0.75,
+        black_intensity: 0.4,
+    };
+    chain.set_effects(&gpu.device, PostSettings { colour_treatment_override: Some(replacement), ..settings(true) });
+    let image = gpu.run(chain, (16, 16), flat);
+    assert!(image.iter().all(|&p| near(p, [124, 87, 47, 255], 2)), "the replaced profile: {:?}", image[0]);
+    assert!(chain.set_look(look(1.0, 1.0)));
+    shown(chain, [0.6, 0.4, 0.2], "the target as it is, whatever the replacements");
+    let unknown = ColourLook { brightness: f32::NAN, ..look(1.0, 1.0) };
+    assert!(!chain.set_look(unknown), "a brightness that is not a number is taken as 1");
+    chain.set_treatment(&gpu.device, Some(installed(profile())));
+    chain.set_effects(&gpu.device, settings(true));
+    let image = gpu.run(chain, (16, 16), flat);
+    assert!(image.iter().all(|&p| near(p, [111, 82, 65, 255], 2)), "a new profile resets the look: {:?}", image[0]);
 }
 
 /// Measured original PC program outputs, using only synthetic flat textures.

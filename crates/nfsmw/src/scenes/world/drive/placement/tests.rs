@@ -74,11 +74,18 @@ fn installed_player_reset_collision_grace_requires_a_successful_replacement() {
         !drive.sim.as_ref().unwrap().reset_collision_active(),
         "a retry of first placement is still initial placement"
     );
-    drive.respawn_near([0.0; 2], Some(0.0));
+    assert!(!drive.request_reset(), "a reset with nothing on the trail is refused");
+    drive.reset.trail.record(super::reset_trail::Crumb { position: Vec3::ZERO, heading: 0.0 });
+    assert!(drive.request_reset());
     assert!(!drive.spawn(spawn, &empty, &data.surfaces));
     assert!(!drive.sim.as_ref().unwrap().reset_collision_active(), "failed reset cannot grant protection");
     assert!(drive.spawn(spawn, &collision, &data.surfaces));
     assert!(drive.sim.as_ref().unwrap().reset_collision_active(), "successful reset reaches collision admission");
+    assert_eq!(drive.reset.trail.oldest().map(|c| c.position), Some(spawn.position), "the trail holds where it went");
+    drive.respawn_near([0.0; 2], Some(0.0));
+    assert!(drive.spawn(spawn, &collision, &data.surfaces));
+    assert!(!drive.sim.as_ref().unwrap().reset_collision_active(), "another placement (a jump) ends the grace");
+    assert!(drive.reset.trail.oldest().is_none(), "and starts the trail again");
     let exit = Spawn { position: Vec3::new(5.0, -6.0, 0.0), heading: 0.73 };
     drive.respawn_at(exit);
     let request = drive.waiting_for_road().expect("garage exit waits for its exact marker");

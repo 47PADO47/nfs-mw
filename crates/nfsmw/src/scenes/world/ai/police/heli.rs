@@ -57,6 +57,8 @@ pub(super) struct Plan {
     last_known: Option<Vec3>,
     /// The game camera's place at the last step, for its velocity.
     camera_last: Option<Vec3>,
+    /// The lowest heat level of the chase since the helicopter came (its level when it spawned, then any lower one).
+    level: u32,
 }
 
 /// A camera faster than this between two steps has cut to a new view: its velocity is taken as zero.
@@ -143,11 +145,13 @@ impl Police {
     }
 
     /// A pursuit breaker destroyed the helicopter: it is gone at once, and the next one waits the level's time
-    /// (`UpdatePursuits` resets the helicopter timer when the vehicle leaves the pursuit, destroyed or not).
+    /// (`UpdatePursuits` resets the helicopter timer when the vehicle leaves the pursuit, destroyed or not). It leaves
+    /// the chase destroyed, so it counts as a takedown like a cop car (`docs/specs/ai-pursuit-heat.md` section 5.1).
     pub fn helicopter_destroyed(&mut self) {
         if self.heli.take().is_none() {
             return;
         }
+        self.record_wreck(nfsmw_data::pursuit::HELICOPTER);
         self.heli_wait = self.heli_respawn_seconds(self.level().unwrap_or(1));
         self.heli_plan.quadrant = false;
     }
@@ -239,6 +243,14 @@ impl Police {
             heli.tuning.line_of_sight = current.line_of_sight;
             heli.tuning.search_radius = current.search_radius;
             heli.tuning.skid_hit = current.skid_hit;
+            // [ours] Only the testing heat keys lower a running chase's heat: a helicopter then keeps no more fuel than
+            // the lower level's tank, so one that came at heat 10 does not hover for minutes at heat 1. The original's
+            // heat only climbs during a chase, where this changes nothing.
+            if level < self.heli_plan.level {
+                self.heli_plan.level = level;
+                heli.tuning.fuel_time = current.fuel_time;
+                heli.fuel = heli.fuel.min(current.fuel_time);
+            }
         }
         self.heli_plan.previous = Some((heli.body.position, heli.body.orientation));
         heli.camera = self.camera_with_velocity(dt);
@@ -312,6 +324,7 @@ impl Police {
             ),
         };
         self.heli = Some(Helicopter::spawn(position, heading, tuning));
+        self.heli_plan.level = level;
         self.heli_plan.previous = None;
         self.heli_clock = THINK_PERIOD;
         self.heli_plan.forced = false;

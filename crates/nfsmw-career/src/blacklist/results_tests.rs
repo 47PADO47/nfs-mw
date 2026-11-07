@@ -3,7 +3,7 @@ use crate::blacklist::BinDef;
 use crate::milestones::speedtrap::def_for;
 use crate::milestones::{MilestoneDef, MilestoneState, StatType};
 use crate::settings::CareerSettings;
-use crate::stable::Stable;
+use crate::stable::{CarRecord, CareerRecord, Stable};
 
 /// Fifteen bins with no race or challenge requirement and one boss race each (`15.b1` .. `1.b1`).
 fn defs() -> Vec<BinDef> {
@@ -81,6 +81,28 @@ fn second_place_pays_nothing_and_does_not_beat_the_rival() {
     assert_eq!(outcome.cash_paid, 0);
     assert_eq!(career.cash, before);
     assert_eq!(career.stage, 15);
+}
+
+/// A stable of two cars whose records hold `heat`.
+fn heated_stable(career: &CareerSettings, heat: f32) -> Stable {
+    let mut stable = Stable::empty();
+    for (slot, handle) in [(0usize, career.car_handle), (1, 99)] {
+        stable.cars[slot] = CarRecord { handle, flags: 0xF_0002, career_index: slot as u8, ..CarRecord::free() };
+        stable.careers[slot] = CareerRecord { heat, ..CareerRecord::new(slot as u8) };
+    }
+    stable
+}
+
+#[test]
+fn a_race_win_cools_every_car_of_the_stable_and_a_loss_does_not() {
+    let (mut career, mut blacklist, mut milestones, mut traps, _) = start_at(15);
+    let mut stable = heated_stable(&career, 3.0);
+    let lost = race("15.b1", 2, 1500.0);
+    apply_event_result(&mut career, &mut blacklist, &mut milestones, &mut traps, &mut stable, &lost);
+    assert_eq!([stable.careers[0].heat, stable.careers[1].heat], [3.0, 3.0]);
+    let won = race("15.b1", 1, 1500.0);
+    apply_event_result(&mut career, &mut blacklist, &mut milestones, &mut traps, &mut stable, &won);
+    assert_eq!([stable.careers[0].heat, stable.careers[1].heat], [3.0 * 0.94, 3.0 * 0.94]);
 }
 
 #[test]

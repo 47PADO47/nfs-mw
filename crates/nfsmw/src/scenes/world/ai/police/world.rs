@@ -40,7 +40,21 @@ impl super::super::TrafficWorld {
         self.police.set_heli_sheet(sheet);
     }
 
+    /// [`Self::update_police_with`] with the formation's drive test made from `clear`, lifted 1 m (the tests' callers).
+    #[cfg(test)]
     pub fn update_police(&mut self, dt: f32, player: &PlayerView, clear: &dyn Fn(Vec3, Vec3) -> bool) {
+        self.update_police_with(dt, player, clear, &|from, to| clear(from + Vec3::Y, to + Vec3::Y));
+    }
+
+    /// Advances the police one frame. `clear` is the line test of the helicopter's sight; `drivable` is the formation's
+    /// drive test between two body positions (`drive::sight::drivable_cast`).
+    pub fn update_police_with(
+        &mut self,
+        dt: f32,
+        player: &PlayerView,
+        clear: &dyn Fn(Vec3, Vec3) -> bool,
+        drivable: &dyn Fn(Vec3, Vec3) -> bool,
+    ) {
         self.apply_mod_requests();
         self.note_speech_view(player);
         self.cops.tick(dt);
@@ -65,7 +79,7 @@ impl super::super::TrafficWorld {
             hidden_from_heli: self.police.hiding.latch.from_helicopters(),
             in_tunnel: self.in_tunnel(at),
             formation_random: [self.rng.police.next_f32(), self.rng.police.next_f32()],
-            formation_gap: self.formation_gap(at, player.forward, player.velocity, clear),
+            formation_gap: self.formation_gap(at, player.forward, player.velocity, drivable),
             support_random: self.rng.police.next_f32(),
             support_priority_random: self.rng.police.next_f32(),
         };

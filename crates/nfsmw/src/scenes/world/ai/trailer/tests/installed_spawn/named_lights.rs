@@ -85,6 +85,7 @@ fn installed_named_lightbar_collision_reaches_cargo_flares_and_world_siren_witho
             index: &segments,
             rng: &mut rng,
             bodies: &bodies,
+            radii: &[],
             me: 0,
             player: None,
             aims: &[],
