@@ -139,6 +139,33 @@ The bound is the headers (305 MB at four levels in the exports, hence two levels
   `[parts]` table with its `pack`, `role` and `matrix` keys and the `[[slot]]` tables of a car manifest, with `components/` for the
   catalog ([api-content.md](api-content.md#components)).
 
+## Bare tyres: a bike whose catalog is missing, and the choice that did not draw **[verified offscreen]**
+
+Two faults showed as "the rims are missing" in the offscreen renders of the first import (a tyre and a brake disc on each
+wheel, no spokes, hub or alloy):
+
+1. **The stock rims are solids of their own** (`<ID>_KIT00_FRONT_RIM`, `_REAR_RIM`, role `wheel_front` / `wheel_rear`, no
+   `matrix`: they are modelled in the hub's frame and spin with the wheel). The wheel solids no longer hold them, so a bike
+   shows its rims only when the host resolves the `rims` slot's default component `r6:rims.stock`, whose `part` effect shows
+   `rim.front.stock` and `rim.back.stock`. That component lives in the shared catalog file `components/ride6-bikes.toml`. A
+   profile that was assembled by copying `cars/` and `files/` and not `components/` has bikes whose slots name components no
+   catalog defines; the host refused them (`mod car <ID>: its components are not offered`) and published nothing, so **no stock
+   part was drawn**: no rims, discs, exhaust or bar pad. The files of a run belong together: `files/`, `cars/` and `components/` (`job.rs` promotes the
+   three as one).
+   *Fix:* a car whose slots do not fit its catalog is now published with its **own stock parts only**
+   (`Components::stock_only`: no slots, no choices, every part bound to the car's own files drawn as base parts). The warning
+   stays and now names the folder to look at; the bike is complete and offers no choices.
+2. **A choice of the rims or the exhaust did not draw at all.** `custom::apply` looked the picked hash of the Rims, Spoiler
+   and Roof categories up in the car's own model lists (`custom.rims` and so on); a component's hash is in none, so the whole
+   apply failed with `the Rims is unknown` (`view-car --part rims=1` exited with that error, and the garage's preview of a
+   bike rim would have shown nothing). *Fix:* a hash that is a choice of the car's components (`components::is_choice_of`) is
+   skipped by the model lists; `components::parts` draws it.
+
+Verified on the bikes of the user's install: the stock and the first aftermarket rim of the Honda CRF 450R SMT, KTM RC 390,
+KTM 690 SMC R, Ducati Hypermotard 698 and Panigale V4 (front and rear, spinning with the wheel); the commands are below. The
+rims come from the `RIMS` bindings of RIDE 6 as before (277 bikes, 1556 offers); the garage lists them in the Rims category with
+the preview of `custom::apply`.
+
 ## Tests and what is not verified
 
 Authored synthetic data, no game files: the loader (`components_tests.rs`), the binder (`components/tests.rs`: mapping, picks,
