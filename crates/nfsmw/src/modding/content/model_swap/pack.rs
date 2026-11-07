@@ -1,17 +1,19 @@
 //! The models of a trees variant, ready to take the place of the world's solids.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use blackbox_hash::bstring_hash;
 use blackbox_modding::content::{ModelSwapProfile, SwapFit};
+use blackbox_scenery::ScenerySection;
 use blackbox_solid::Solid;
 use blackbox_tpk::Texture;
 use game_install::GameDir;
 use nfsmw_data::world::SectionData;
 
 use super::fit::{Frame, Prepared, fit_prepared};
+use crate::scenes::culling::is_mirrored;
 
 /// What the name of a world-space copy of a solid has between the solid's name and the number of the copy
 /// (`<NAME>_DEINST<n>_<tile>`).
@@ -40,6 +42,18 @@ pub(super) fn world_copy_base(name: &str) -> Option<&str> {
     let at = name.find(WORLD_COPY)?;
     let number = name[at + WORLD_COPY.len()..].chars().next()?;
     number.is_ascii_digit().then(|| &name[..at])
+}
+
+/// The name hashes of the solids that a mirrored instance of the sections draws (their instances carry the mirror flag).
+fn mirrored_solids(sections: &[ScenerySection]) -> HashSet<u32> {
+    let mut hashes = HashSet::new();
+    for section in sections {
+        for instance in section.instances.iter().filter(|instance| is_mirrored(instance.exclude_flags)) {
+            let Some(info) = section.info_of(instance) else { continue };
+            hashes.extend(info.solid_keys.iter().copied());
+        }
+    }
+    hashes
 }
 
 impl Pack {
@@ -109,27 +123,35 @@ impl Pack {
     /// copies of them (`_DEINST` names) by the name of the solid they are a copy of. A solid whose model cannot be fitted keeps
     /// its own look (a warning says why). The textures the models use are not added to the section ([`Pack::textures`]).
     pub fn apply(&self, data: &mut SectionData) {
+        let mut mirrored: Option<HashSet<u32>> = None;
         for solid in &mut data.solids {
-            let Some((entry, frame)) = self.entry_for(solid) else { continue };
+            let Some((entry, world_copy)) = self.entry_for(solid) else { continue };
+            let frame = match world_copy {
+                false => Frame::Local,
+                true => {
+                    let set = mirrored.get_or_insert_with(|| mirrored_solids(&data.scenery));
+                    Frame::World { mirrored: set.contains(&solid.name_hash) }
+                }
+            };
             let Some(replacement) = self.replacement(entry, solid, frame) else { continue };
             *solid = replacement;
         }
     }
 
-    /// The entry that replaces `solid`, and the space the solid is in.
-    fn entry_for(&self, solid: &Solid) -> Option<(&Entry, Frame)> {
+    /// The entry that replaces `solid`, and whether the solid is a world-space copy of the one the entry is listed under.
+    fn entry_for(&self, solid: &Solid) -> Option<(&Entry, bool)> {
         if let Some(entry) = self.entries.get(&solid.name_hash) {
-            return Some((entry, Frame::Local));
+            return Some((entry, false));
         }
         let base = world_copy_base(&solid.name)?;
         let entry = self.entries.get(&bstring_hash(base))?;
-        Some((entry, Frame::World))
+        Some((entry, true))
     }
 
     /// The fitted replacement of `stock`. A local solid is cached by its bounds (the game uses one solid in many places with the
     /// same bounds); a world copy is its own, so it is fitted every time and nothing of it is kept.
     fn replacement(&self, entry: &Entry, stock: &Solid, frame: Frame) -> Option<Solid> {
-        if frame == Frame::World {
+        if frame != Frame::Local {
             return self.fit_now(entry, stock, frame);
         }
         let bits = |v: [f32; 3]| v.map(f32::to_bits);

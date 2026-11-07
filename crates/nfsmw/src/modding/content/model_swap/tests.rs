@@ -338,3 +338,37 @@ fn the_pack_in_effect_rewrites_sections_and_none_leaves_them() {
     rewrite(&mut untouched);
     assert_eq!(untouched.solids[0].texture_hashes, vec![bstring_hash("STOCKTEX")]);
 }
+
+#[test]
+fn a_world_copy_of_a_mirrored_instance_is_wound_the_other_way() {
+    use blackbox_scenery::{SceneryInfo, SceneryInstance, ScenerySection};
+    let copy = world_tree("XT_STOCK_DEINST3_T7", [0.0, 0.0], 20.0);
+    let plain = world_tree("XT_STOCK_DEINST4_T7", [30.0, 0.0], 20.0);
+    let instance = |info_index: i16, exclude_flags: u32| SceneryInstance {
+        bbox_min: [0.0; 3],
+        bbox_max: [0.0; 3],
+        exclude_flags,
+        preculler_index: 0,
+        lighting_context: 0,
+        position: [0.0; 3],
+        rotation: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        info_index,
+    };
+    let info = |name: &str, hash: u32| SceneryInfo {
+        name: name.to_owned(),
+        solid_keys: vec![hash],
+        radius: 1.0,
+        hierarchy_hash: 0,
+    };
+    let scenery = ScenerySection {
+        section_number: 1,
+        infos: vec![info("A", copy.name_hash), info("B", plain.name_hash)],
+        instances: vec![instance(0, 0x0040_0000), instance(1, 0)],
+        override_hooks: Vec::new(),
+    };
+    let mut data = section(vec![copy, plain]);
+    data.scenery = vec![scenery];
+    pack().apply(&mut data);
+    assert_eq!(data.solids[0].indices[..3], [0, 2, 1], "the mirror is baked in, as the game's own copy has it");
+    assert_eq!(data.solids[1].indices[..3], [0, 1, 2], "an unmirrored copy is wound as the model is");
+}

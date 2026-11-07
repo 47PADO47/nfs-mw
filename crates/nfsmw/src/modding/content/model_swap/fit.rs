@@ -32,8 +32,10 @@ const TURN: f32 = 2.399_963;
 pub enum Frame {
     /// Around the solid's own origin; the scenery places it with a matrix.
     Local,
-    /// Where it stands in the world (a baked copy of an instance).
-    World,
+    /// Where it stands in the world (a baked copy of an instance). `mirrored`: the instance it was made of is a mirror image, so the
+    /// copy's triangles are wound the other way and the scenery draws it flipped back (`docs/specs/backface-culling.md`); the
+    /// replacement is wound the same way, or its trunk would show its inside.
+    World { mirrored: bool },
 }
 
 /// Where one copy of the model stands: a scale, a turn about the vertical axis, and where its base point goes.
@@ -84,14 +86,19 @@ pub fn fit_prepared(model: &Prepared, stock: &Solid, how: SwapFit, frame: Frame)
     let bounds = (stock.bounds_min, stock.bounds_max);
     let placements = match frame {
         Frame::Local => placements(how, (model.low, model.high), bounds),
-        Frame::World => world_placements(how, (model.low, model.high), bounds, &footprint(stock)),
+        Frame::World { .. } => world_placements(how, (model.low, model.high), bounds, &footprint(stock)),
     };
+    let mirrored = matches!(frame, Frame::World { mirrored: true });
     let source = &model.source;
     let mut groups = Vec::with_capacity(source.groups.len() * placements.len());
     for at in &placements {
         for group in &source.groups {
             let vertices = group.vertices.iter().map(|vertex| place(vertex, at)).collect();
-            groups.push(GroupSource { vertices, bounds: None, ..group.clone() });
+            let mut placed = GroupSource { vertices, bounds: None, ..group.clone() };
+            if mirrored {
+                placed.indices.chunks_exact_mut(3).for_each(|triangle| triangle.swap(1, 2));
+            }
+            groups.push(placed);
         }
     }
     let mut out = SolidSource::new(stock.name.clone(), groups);
