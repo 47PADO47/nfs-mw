@@ -14,7 +14,7 @@ use anyhow::{Context, Result};
 
 use crate::config::{self, Config};
 use crate::import::{self, Report};
-use crate::stamp;
+use crate::{lazy, stamp};
 
 const STAGING: &str = ".staging";
 /// The folders the game reads, which a promotion replaces together.
@@ -57,14 +57,30 @@ impl Job {
 
 /// What the mod does at load: promote a finished run left by an earlier start, take the settings the host merged from
 /// `mod_dir/config.toml` and the game's `[mods.nfsmw-2012-content]` table (`supplied`; without it, read `config.toml`
-/// alone), and, unless the content on disk is still right, start converting in the background.
+/// alone), and, unless the content on disk is still right, start converting in the background. The conversion writes every
+/// file; [`start_with`] can have it write lazy files.
 pub fn start(mod_dir: &Path, supplied: Option<&config::Supplied>) -> Result<Start> {
+    start_with(mod_dir, supplied, |_| false)
+}
+
+/// [`start`], where `streaming` says, for the settings of this start, whether the conversion writes lazy files instead of the
+/// cars' heavy files (`lazy.rs`). It is asked once, when a 2012 install is set, and its answer is part of the import stamp, so
+/// a run that wrote files is not taken for one that wrote stubs.
+pub fn start_with(
+    mod_dir: &Path,
+    supplied: Option<&config::Supplied>,
+    streaming: impl FnOnce(&Config) -> bool,
+) -> Result<Start> {
     promote(mod_dir)?;
     let config_path = mod_dir.join(config::FILE_NAME);
     let (config, created) = Config::resolve(supplied, &config_path)?;
+    // The soundtrack is a playlist of the install's own files, kept in line with the settings at every start whatever the
+    // conversion does (`soundtrack.rs`).
+    crate::soundtrack::sync(mod_dir, config.source.as_deref(), config.music);
     let Some(source) = config.source.clone() else {
         return Ok(Start::NotConfigured { config: config_path, created });
     };
+    let config = Config { lazy: streaming(&config), ..config };
     let stamp = stamp::of(&config, &source);
     if stamp::is_current(mod_dir, &stamp) {
         return Ok(Start::UpToDate { cars: count_cars(mod_dir), trees: config.trees });
@@ -111,6 +127,16 @@ pub fn promote(mod_dir: &Path) -> Result<bool> {
         return Ok(false);
     }
     stamp::clear(mod_dir);
+    // The recipe of the lazy files belongs to the content it was written with: the old one goes, the new one (if the run was
+    // lazy) takes its place.
+    let recipe = mod_dir.join(lazy::RECIPE_FILE);
+    if recipe.exists() {
+        fs::remove_file(&recipe).with_context(|| format!("removing {}", recipe.display()))?;
+    }
+    let staged_recipe = staging.join(lazy::RECIPE_FILE);
+    if staged_recipe.exists() {
+        fs::rename(&staged_recipe, &recipe).context("moving the recipe of the lazy files into place")?;
+    }
     for part in CONTENT {
         let live = mod_dir.join(part);
         if live.exists() {
@@ -166,6 +192,44 @@ mod tests {
         assert!(dir.join("mod.toml").is_file());
         assert!(!promote(&dir).unwrap(), "nothing is left to promote");
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_lazy_run_brings_its_recipe_and_a_later_run_without_one_takes_it_away() {
+        let dir = temp("recipe");
+        fs::write(dir.join(lazy::RECIPE_FILE), "old recipe").unwrap();
+        staged(&dir, true);
+        fs::write(dir.join(".staging").join(lazy::RECIPE_FILE), "new recipe").unwrap();
+        assert!(promote(&dir).unwrap());
+        assert_eq!(fs::read_to_string(dir.join(lazy::RECIPE_FILE)).unwrap(), "new recipe");
+        staged(&dir, true);
+        assert!(promote(&dir).unwrap());
+        assert!(!dir.join(lazy::RECIPE_FILE).exists(), "content that writes every file has no recipe");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_decision_to_stream_is_asked_with_the_settings_and_changes_what_up_to_date_means() {
+        let dir = temp("streaming");
+        let source = temp("streaming-source");
+        let supplied = config::Supplied {
+            text: format!("source = '{}'\n", source.to_string_lossy().replace('\\', "/")),
+            has_file: false,
+            has_main_section: true,
+        };
+        // Pretend a run for the settings without streaming finished: the stamp is the eager one.
+        let eager = Config::parse(&supplied.text).unwrap();
+        stamp::save(&dir, &stamp::of(&eager, &source)).unwrap();
+        assert!(matches!(start_with(&dir, Some(&supplied), |_| false).unwrap(), Start::UpToDate { .. }));
+        let asked = std::cell::Cell::new(false);
+        let started = start_with(&dir, Some(&supplied), |config| {
+            asked.set(config.source.is_some());
+            true
+        });
+        assert!(asked.get(), "the decision sees the settings, install included");
+        assert!(!matches!(started, Ok(Start::UpToDate { .. })), "stubs are not what the eager run wrote");
+        fs::remove_dir_all(&dir).unwrap();
+        fs::remove_dir_all(&source).unwrap();
     }
 
     #[test]

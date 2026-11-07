@@ -116,3 +116,25 @@ what the graphs play for a gear change, not known to be a "clunk". The turbo ton
 trigger are likewise the game's own rules here, not the 2012 game's (`docs/modding/car-sound.md`).
 
 `WAVES.BNDL` and `METALCAR.BNDL` hold the shared one-shots in the same resource layout; which of them the named graphs play (body hits, scraping, the cars' pops) is in [chameleon-shared-sounds.md](chameleon-shared-sounds.md).
+
+## The soundtrack: `UI/SONGS` **[verified on this install]**
+
+`UI/SONGS/` is 259 MB: 58 `.SPS` streams (codec 5, stereo, 44.1 or 48 kHz, 38 seconds to 6.2 minutes; the file names are decimal ids) and
+`SONGS.BNDL`. 43 of the songs have a title text and are at least a minute long (the licensed soundtrack); the others are front-end
+loops of 38 and 44 seconds and long pieces with no title text. In `SONGS.BNDL`:
+
+| Resource | What it holds |
+|---|---|
+| a `Wave` (type 0x81) per song, a 64-byte main block | `+0x08` u32 offset of the stream's path, a NUL-terminated string `UI\SONGS\<id>.SPS` (at `0x28`); `+0x10` f32 volume; `+0x14` f32 length in **milliseconds** |
+| a `GenesysObject` of 80 bytes per song (62 in the bundle, 58 with a stream) | two imports: itself and the song's `Wave`; its own key (the low half of its id, a plain number such as 1368429) |
+
+The **title and the artist** are not in the object: they are texts of `UI/LANGUAGE/0001.BNDL` whose ids are allocated right after the
+song object's key, title first and artist second (key 1,368,429 has 1,368,430 `Shake The Dust` and 1,368,431 `Asherel`). A text that an
+earlier song already has is not stored again, so the ids between two song keys hold two texts, or only the title, or three (the third is
+the artist of the next song, which then has only its title). **[inferred]** from the table: of the 43 songs 40 get an artist, the pairs
+read right for the ones checked by eye (Shake The Dust, Empathy, Bonkers, Contact, Zoom, Butterflies & Hurricanes), and **a few are wrong**:
+two songs have no artist (a reused text), and the order is reversed for at least one (`Howl` and `Beware Of Darkness`). The captions are a
+nicety of the playlist; the files are right. `mods/nfsmw-2012-content/src/soundtrack.rs` does this.
+
+The streams decode with `ea_audio::sps::to_mp3` (see `EL31` above); the game's custom music player does that in memory
+(`docs/specs/custom-music.md`, section 4), so the songs are played from the install with nothing converted or written.

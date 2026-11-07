@@ -24,10 +24,13 @@ use crate::pipes;
 use crate::source::SourceCar;
 use crate::textures::Palette;
 
-/// The levels of detail the mod writes, as the letters of the solid names.
+/// The levels of detail of the car, as the letters of the solid names.
 pub const LOD_LETTERS: [char; 4] = ['A', 'B', 'C', 'D'];
 /// Which of the car's own levels each letter takes: the finest for the two the player sees, then coarser ones.
 const LOD_SOURCE: [usize; 4] = [0, 0, 1, 2];
+/// The letter whose solid is left out of the file when it is the same mesh as the first letter's: the game takes `<stem>_A` for
+/// `<stem>_B` when the file has no `_B` (`nfsmw_data::car::mods::levels`), which halves the finest meshes on disk.
+const SHARED_LETTER: char = 'B';
 /// Vertices one solid may hold: the writer puts all groups of one effect in a single 16-bit-indexed buffer.
 const MAX_SOLID_VERTICES: usize = 60_000;
 const PAINT_FLAGS: u32 = 0x14180;
@@ -147,7 +150,7 @@ pub fn build(car: &SourceCar, fit: &Fit, folder: &str, options: &Options) -> Res
     })
 }
 
-/// Cut the hinged parts out of the finest body solids (`A` and `B`, which share the finest level) into solids of their
+/// Cut the hinged parts out of the finest body solid (`A`; the game's `B` is its copy, [`SHARED_LETTER`]) into solids of their
 /// own, and return the `[[damage_parts]]` text that tells the game how they swing. Nothing is cut, and the text is empty,
 /// when the car has no hinged part or its finest level does not fit one solid.
 fn cut_hinged(solids: &mut Vec<SolidSource>, car: &SourceCar, fit: &Fit, folder: &str) -> String {
@@ -156,21 +159,15 @@ fn cut_hinged(solids: &mut Vec<SolidSource>, car: &SourceCar, fit: &Fit, folder:
         return String::new();
     }
     let stems: Vec<String> = hinged.parts.iter().map(|p| format!("{folder}_KIT00_{}", hinges::stem(&p.name))).collect();
-    let mut cuts = Vec::new();
-    for letter in ['A', 'B'] {
-        let name = format!("{folder}_KIT00_BODY_{letter}");
-        let Some(at) = solids.iter().position(|solid| solid.name == name) else { return String::new() };
-        let Some(cut) = hinges::split(&solids[at], &stems, letter, &hinged.classes) else {
-            log::warn!("{folder}: the hinged parts do not line up with the body: not cut");
-            return String::new();
-        };
-        cuts.push((at, cut));
-    }
-    let owned: Vec<bool> = (0..stems.len()).map(|n| cuts.iter().all(|(_, (_, parts))| parts[n].is_some())).collect();
-    for (at, (rest, parts)) in cuts {
-        solids[at] = rest;
-        solids.extend(parts.into_iter().zip(&owned).filter(|(_, owned)| **owned).filter_map(|(solid, _)| solid));
-    }
+    let name = format!("{folder}_KIT00_BODY_A");
+    let Some(at) = solids.iter().position(|solid| solid.name == name) else { return String::new() };
+    let Some((rest, parts)) = hinges::split(&solids[at], &stems, 'A', &hinged.classes) else {
+        log::warn!("{folder}: the hinged parts do not line up with the body: not cut");
+        return String::new();
+    };
+    let owned: Vec<bool> = parts.iter().map(Option::is_some).collect();
+    solids[at] = rest;
+    solids.extend(parts.into_iter().flatten());
     let kept = |n: usize| owned[n] || !hinged.parts[n].tracks.is_empty();
     let parts = hinged.parts.iter().enumerate().filter(|(n, _)| kept(*n)).map(|(_, part)| part.clone()).collect();
     let kept_stems: Vec<String> = stems.into_iter().enumerate().filter(|(n, _)| kept(*n)).map(|(_, s)| s).collect();
@@ -210,7 +207,8 @@ struct Parts<'a> {
 }
 
 /// One solid per level of detail letter. Letters that land on the same level of the car share one build (the finest
-/// level serves both `A` and `B`), which is a copy with another name, not another round of normals and buffers.
+/// level serves both `A` and `B`), which is a copy with another name, not another round of normals and buffers; the copy
+/// of the second letter is not written at all ([`SHARED_LETTER`]), so its markers must be the first letter's.
 fn add_solids(
     out: &mut Vec<SolidSource>,
     stem: &str,
@@ -221,7 +219,7 @@ fn add_solids(
     add_levels(out, stem, lods, parts, LOD_LETTERS.len(), look)
 }
 
-/// [`add_solids`] for the first `letters` of the levels only (the poses of the driver have `A` and `B`).
+/// [`add_solids`] for the first `letters` of the levels only (the poses of the driver have `A` and, as `B`, its copy).
 fn add_levels(
     out: &mut Vec<SolidSource>,
     stem: &str,
@@ -234,6 +232,10 @@ fn add_levels(
     for (at, (letter, wanted)) in LOD_LETTERS.iter().zip(LOD_SOURCE).enumerate().take(letters) {
         let Some((level, lod)) = pick_lod(lods, wanted) else { bail!("{stem}: no level of detail fits one solid") };
         let name = format!("{stem}_{letter}");
+        let shared = *letter == SHARED_LETTER && built.iter().any(|(known, _)| *known == level);
+        if shared {
+            continue;
+        }
         let mut solid = match built.iter().find(|(known, _)| *known == level) {
             Some((_, solid)) => SolidSource { name, ..solid.clone() },
             None => {
