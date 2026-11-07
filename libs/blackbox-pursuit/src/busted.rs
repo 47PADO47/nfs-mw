@@ -43,6 +43,9 @@ pub struct BustInput {
     pub slow_speed: f32,
     /// The player is flashing (the post-reset blink). The caller passes `false` until that state exists.
     pub flashing: bool,
+    /// The player cannot be busted now (a bike's rider is off the bike, or has just been put back on it): the timer does not
+    /// fill, whatever the cops and the flash say, and drains as it does out of reach.
+    pub grace: bool,
 }
 
 /// Whether a cop's height difference from the player (metres, either sign) is within the gate. A cop on a bridge above
@@ -85,6 +88,9 @@ impl Busted {
     /// Whether the player is in the bust zone this frame: a cop in sight and within reach, and the player slow (or
     /// flashing, which counts as slow). `cop_distance` is the height-matched distance.
     pub fn in_zone(input: &BustInput, tuning: &BustTuning) -> bool {
+        if input.grace {
+            return false;
+        }
         let reach = if input.flashing { tuning.flashing_reach } else { tuning.reach };
         let skips_gate = input.flashing && !tuning.flashing_speed_gate;
         let slow = skips_gate || input.player_speed < input.slow_speed;
@@ -128,7 +134,7 @@ mod tests {
     };
 
     fn input(cop_distance: f32, seen: bool, speed: f32) -> BustInput {
-        BustInput { cop_distance, seen, player_speed: speed, slow_speed: 2.5, flashing: false }
+        BustInput { cop_distance, seen, player_speed: speed, slow_speed: 2.5, flashing: false, grace: false }
     }
 
     #[test]
@@ -202,6 +208,31 @@ mod tests {
         let mut plain = Busted::default();
         plain.update(0.5, &stock, &TUNING);
         assert_eq!(plain.timer(), 2.0, "stock flashing skips the gate: a fast player fills");
+    }
+
+    #[test]
+    fn a_grace_stops_the_fill_however_close_the_cop_and_slow_the_player() {
+        let mut bust = Busted::default();
+        let graced = BustInput { grace: true, ..input(1.0, true, 0.0) };
+        for _ in 0..40 {
+            assert!(!bust.update(0.5, &graced, &TUNING), "20 s next to a cop, and nothing");
+        }
+        assert_eq!(bust.timer(), 0.0);
+        assert!(!bust.is_busted());
+        let flashing = BustInput { flashing: true, grace: true, ..input(60.0, true, 20.0) };
+        bust.update(10.0, &flashing, &TUNING);
+        assert_eq!(bust.timer(), 0.0, "the grace beats the stock reset penalty (90 m, no speed gate, x4)");
+    }
+
+    #[test]
+    fn a_grace_drains_a_timer_that_was_filling_and_the_fill_resumes_after_it() {
+        let mut bust = Busted::default();
+        bust.update(2.0, &input(10.0, true, 0.0), &TUNING);
+        assert_eq!(bust.timer(), 2.0);
+        bust.update(0.5, &BustInput { grace: true, ..input(10.0, true, 0.0) }, &TUNING);
+        assert_eq!(bust.timer(), 1.0, "drained at 2 per second, like out of reach");
+        bust.update(0.5, &input(10.0, true, 0.0), &TUNING);
+        assert_eq!(bust.timer(), 1.5, "and it fills again once the grace is over");
     }
 
     #[test]

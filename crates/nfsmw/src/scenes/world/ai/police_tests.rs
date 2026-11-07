@@ -374,7 +374,8 @@ fn a_bust_ends_the_chase_busted_and_the_escape_does_not_tick() {
     use blackbox_pursuit::busted::BustInput;
     let mut police = Police::default();
     police.begin(1);
-    let bust = BustInput { cop_distance: 5.0, seen: true, player_speed: 0.0, slow_speed: 5.0, flashing: false };
+    let bust =
+        BustInput { cop_distance: 5.0, seen: true, player_speed: 0.0, slow_speed: 5.0, flashing: false, grace: false };
     let mut busted = false;
     for _ in 0..100 {
         busted |= police.tick_busted(0.1, true, bust);
@@ -392,7 +393,14 @@ fn a_bust_ends_the_chase_busted_and_the_escape_does_not_tick() {
 fn busted_while_flashing(police: &mut Police, distance: f32, speed: f32, seconds: f32) -> bool {
     use blackbox_pursuit::busted::BustInput;
     police.begin(1);
-    let input = BustInput { cop_distance: distance, seen: true, player_speed: speed, slow_speed: 2.5, flashing: true };
+    let input = BustInput {
+        cop_distance: distance,
+        seen: true,
+        player_speed: speed,
+        slow_speed: 2.5,
+        flashing: true,
+        grace: false,
+    };
     (0..(seconds / 0.1) as u32).any(|_| police.tick_busted(0.1, true, input))
 }
 
