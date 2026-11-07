@@ -35,6 +35,9 @@ pub struct Sector {
     pub end: f32,
     pub inside: u8,
     pub outside: u8,
+    /// The sector changes rarely (the red zone's numbers), so the renderer may build its masked picture at full detail; a
+    /// moving arc is built smaller.
+    pub fine: bool,
 }
 
 /// The values a frame reads, in the units the skin expects.

@@ -94,6 +94,7 @@ pub(crate) fn draw(gauge: &Gauge, feed: &Feed, fade: &mut f32, dt: f32, placemen
             end: needle::angle(gauge.min_angle, gauge.max_angle, gauge.value, to, gauge.can_be_negative),
             inside: arc.inside.alpha(),
             outside: arc.outside.alpha(),
+            fine: false,
         };
         drawn.layers.push(Quad { sector: Some(sector), ..plain(&arc.picture, square, tint.faded(factor)) });
     }
@@ -109,6 +110,7 @@ pub(crate) fn draw(gauge: &Gauge, feed: &Feed, fade: &mut f32, dt: f32, placemen
             end: high + zone.max_offset,
             inside: zone.inside.alpha(),
             outside: zone.outside.alpha(),
+            fine: true,
         };
         drawn
             .layers
