@@ -9,10 +9,12 @@ use glam::Vec3;
 
 use super::attach::Inertia;
 use super::foot_out::{self, FootOut};
+use super::hands::Hands;
 use super::lean_pose::LeanPose;
 use super::reverse::Reverse;
 use super::script::{Constant, Flashback, Interpolate, defuzzify, fuzzy_not, fuzzy_sum, ramp};
-use super::style::Walk;
+use super::standstill::{self, Standstill};
+use super::style::{Stand, Walk};
 
 /// A slower step than this (s) does not move the filters: it is a pause, not time.
 const MAX_STEP: f32 = 0.1;
@@ -101,6 +103,8 @@ pub struct RiderSample {
     /// The angle between the bike's path and its heading, degrees, positive when the heading is to the right of the path (the
     /// rear has slid out in a right-hand turn): `VehicleDriftAngleDeg`.
     pub drift_deg: f32,
+    /// The clutch lever, 0 (let go) to 1 (pulled in): the handler pulls it for a gear change, a start and at a standstill.
+    pub clutch: f32,
 }
 
 impl RiderSample {
@@ -169,7 +173,24 @@ pub struct Values {
     /// lean sweep): which of the lean poses is shown (`lean_pose.rs`).
     pub lean_out: f32,
     pub straight: f32,
-    /// How far each foot (left, right) is let off its peg, 0 to 1 (`foot_out.rs`).
+    /// The riding style (the blueprint's `RidingStyle`, 0 balanced, 1 shoulders out, 2 old school): which lean set the graph plays.
+    pub riding_style: f32,
+    /// The standstill (`standstill.rs`): how much of the pose it is, which clip (0 stop, 1 stand, 2 start), which feet (0 both, 1 the
+    /// left, 2 the right) and the seconds into the stop and the start clip.
+    pub stand: f32,
+    pub stand_state: f32,
+    pub stand_leg: f32,
+    pub stop_time: f32,
+    pub start_time: f32,
+    /// The fingers on the levers (`hands.rs`): the clutch and the front brake, and the weights of their layers.
+    pub clutch: f32,
+    pub clutch_alpha: f32,
+    pub brake: f32,
+    pub brake_alpha: f32,
+    /// How far the right wrist is rolled by the throttle, 0 to 1 (`hands.rs`): it moves the right grip's target, not the graph.
+    pub wrist: f32,
+    /// How far each foot (left, right) is let off its peg, 0 to 1: the old-school foot out (`foot_out.rs`), the standstill and the
+    /// reverse walk together.
     pub foot_release: [f32; 2],
 }
 
@@ -252,6 +273,14 @@ pub struct Smoothed {
     lean_pose: LeanPose,
     /// The inside foot off the peg (`foot_out.rs`).
     foot_out: FootOut,
+    /// The feet down at a standstill (`standstill.rs`).
+    standstill: Standstill,
+    /// The fingers on the levers and the wrist on the throttle (`hands.rs`).
+    hands: Hands,
+    /// The bike's type and the player's riding style (0 to 2): the type and the style together say whether the inside foot leaves
+    /// the peg, the style which foot goes down at a standstill.
+    bike_type: Option<u8>,
+    riding_style: u8,
 }
 
 impl Smoothed {
@@ -260,12 +289,25 @@ impl Smoothed {
         self.reverse = Reverse::new(walk);
     }
 
-    /// Tell the rider his bike's type and the riding style of his tree (`BikeType` and `RidingStyle` of the blueprint; `None`:
-    /// unknown): the type sets how fast the lean pose crosses from one clip to the other, the two together whether the inside
-    /// foot leaves the peg in a lean.
-    pub fn set_kind(&mut self, bike_type: Option<u8>, riding_style: Option<u8>) {
+    /// Tell the rider his bike's type (`BikeType` of the blueprint; `None`: unknown) and the numbers of his standstill (`None`: he never
+    /// puts his feet down): the type sets how fast the lean pose crosses from one clip to the other and, with the riding style,
+    /// whether the inside foot leaves the peg in a lean.
+    pub fn set_kind(&mut self, bike_type: Option<u8>, stand: Option<Stand>) {
         self.lean_pose.set_bike_type(bike_type);
-        self.foot_out = FootOut::new(foot_out::applies(bike_type, riding_style));
+        self.bike_type = bike_type;
+        self.standstill = Standstill::new(stand, standstill::leg_of(self.riding_style));
+        self.foot_out.set_enabled(foot_out::applies(bike_type, Some(self.riding_style)));
+    }
+
+    /// The player's riding style (`RidingStyle`: 0 balanced, 1 shoulders out, 2 old school): the lean set the graph plays, the foot
+    /// that goes down at a standstill, and whether the inside foot comes off the peg.
+    pub fn set_riding_style(&mut self, style: u8) {
+        if style == self.riding_style {
+            return;
+        }
+        self.riding_style = style;
+        self.standstill.set_leg(standstill::leg_of(style));
+        self.foot_out.set_enabled(foot_out::applies(self.bike_type, Some(style)));
     }
 
     /// Advance by `dt` seconds with the bike in state `sample`; the script carries the blueprint's own rates.
@@ -293,7 +335,12 @@ impl Smoothed {
         let entry = s.entry_delay.step(ramp(wheelie, ENTRY_RAMP.0, ENTRY_RAMP.1) * ENTRY_SCALE, ENTRY_DELAY, dt);
         let walk = self.reverse.step(sample.signed_speed_kmh(), dt);
         let pose = self.lean_pose.step(sample.bike_lean, sample.steer, speed, dt);
-        let foot_release = self.foot_out.step(sample.bike_lean, dt);
+        let foot_out = self.foot_out.step(sample.bike_lean, dt);
+        let stand = self.standstill.step(sample.signed_speed_kmh(), dt);
+        let fingers = self.hands.step(sample.clutch, sample.front_brake, sample.throttle, dt);
+        // A foot is let off its peg by the old-school style in a lean, by the standstill and by the walk back, whichever lets go.
+        let held = |side: usize| stand.pegs[side] * (1.0 - foot_out[side]) * (1.0 - walk.weight);
+        let foot_release = [1.0 - held(0), 1.0 - held(1)];
         self.values = Values {
             lean,
             speed_kmh: speed,
@@ -313,6 +360,17 @@ impl Smoothed {
             reverse_cycle: walk.cycle,
             lean_out: pose.out,
             straight: pose.straight,
+            riding_style: f32::from(self.riding_style),
+            stand: stand.weight,
+            stand_state: stand.state,
+            stand_leg: stand.leg,
+            stop_time: stand.stop_time,
+            start_time: stand.start_time,
+            clutch: fingers.clutch,
+            clutch_alpha: fingers.clutch_alpha,
+            brake: fingers.brake,
+            brake_alpha: fingers.brake_alpha,
+            wrist: fingers.wrist,
             foot_release,
         };
         // The shift: the rider's displacement from the physics, held to the ranges of the animation's inertia input.
@@ -325,7 +383,7 @@ impl Smoothed {
     }
 
     pub fn values(&self) -> Values {
-        self.values
+        Values { riding_style: f32::from(self.riding_style), ..self.values }
     }
 
     /// The rider's displacement from his rest place in the car's axes (x forward, y left, z up), metres.

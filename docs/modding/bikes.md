@@ -497,4 +497,4 @@ Documented limits (each is a decision of the integration, not of the dynamics, a
 ## Viewing a bike
 
 `nfsmw asset-viewer <ID>` animates the wheels (roll and steering about the steering axis, as a car's wheels do); `nfsmw view-car
-<ID>` shows the bike at rest, as it does a car. The garage lists the bike with the name and brand of its manifest.
+<ID>` shows the bike at rest with its rider ([options for pictures up close](../specs/ride6-rider-hands.md)). The garage lists the bike with its manifest's name and brand.

@@ -68,6 +68,7 @@ pub const RACE_MAP_MODE: &str = "NFSMW_RACE_MAP_MODE";
 pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
 pub const UI_STYLE: &str = "NFSMW_UI_STYLE";
 pub const SPEED_UNITS: &str = "NFSMW_SPEED_UNITS";
+pub const RIDING_STYLE: &str = "NFSMW_RIDING_STYLE";
 pub const LANGUAGE: &str = "NFSMW_LANGUAGE";
 /// The legacy radio switch. Read only when `NFSMW_UI_STYLE` is unset or invalid.
 pub const RADIO_HUD: &str = "NFSMW_RADIO_HUD";
@@ -189,6 +190,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         ui_style: value(&get, UI_STYLE, UiStyle::from_str)
             .or_else(|| value(&get, RADIO_HUD, RadioHudStyle::from_str).map(UiStyle::from)),
         speed_units: value(&get, SPEED_UNITS, SpeedUnits::from_str),
+        riding_style: value(&get, RIDING_STYLE, super::RidingStyle::from_str),
         language: value(&get, LANGUAGE, super::LanguageTag::from_str),
         post_tonemap: value(&get, POST_TONEMAP, PostTonemap::from_str),
         post_bloom: value(&get, POST_BLOOM, PostBloom::from_str),

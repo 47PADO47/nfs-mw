@@ -91,6 +91,7 @@ mod road_reflections;
 pub use road_reflections::{RoadReflectionResolution, RoadReflections};
 #[cfg(test)]
 mod renderer_tests;
+mod riding_style;
 mod smoke_color;
 #[cfg(test)]
 mod smoke_color_tests;
@@ -152,6 +153,7 @@ pub use post::{PostAa, PostBloom, PostTonemap, VisualTreatment, post_effects};
 pub use radio_hud::RadioHudStyle;
 pub use ray_tracing::RayTracingLevel;
 pub use renderer::RendererKind;
+pub use riding_style::RidingStyle;
 pub use smoke_color::{PALETTE as SMOKE_PALETTE, SmokeColor, SmokeColorMode, SmokeTint};
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
@@ -289,6 +291,8 @@ pub struct Settings {
     pub ui_style: UiStyle,
     /// The unit speed is shown in on every HUD look (`speed_units`). Display only.
     pub speed_units: SpeedUnits,
+    /// How the rider of a bike leans into a corner (`riding_style`: balanced, shoulders out or old school).
+    pub riding_style: RidingStyle,
     /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
     pub language: Option<LanguageTag>,
     /// The palette of the token-driven HUD. Applies only when `ui_style` is not Original.
@@ -440,6 +444,7 @@ impl From<Partial> for Settings {
             hud_options: hud::HudSettings::from_layer(p.hud_options),
             ui_style: p.ui_style.unwrap_or_default(),
             speed_units: p.speed_units.unwrap_or_default(),
+            riding_style: p.riding_style.unwrap_or_default(),
             language: p.language,
             ui_theme: p.ui_theme.unwrap_or_default(),
             post_tonemap: p.post_tonemap.unwrap_or_default(),

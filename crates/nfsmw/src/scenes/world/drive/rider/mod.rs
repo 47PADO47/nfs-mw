@@ -14,6 +14,7 @@
 
 mod attach;
 mod contacts;
+mod demo;
 mod fall;
 mod fall_anim;
 mod fall_file;
@@ -23,6 +24,7 @@ mod fit_tests;
 mod foot_out;
 mod gear;
 mod graph_params;
+mod hands;
 mod lean_pose;
 mod params;
 mod parts;
@@ -35,11 +37,13 @@ mod script;
 mod seat;
 #[cfg(test)]
 mod smooth_tests;
+mod standstill;
 mod style;
 mod view;
 mod worn;
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use anyhow::{Context, Result};
 use blackbox_gfx::{DrawRange, Instance, MeshDesc, MeshHandle, RenderBackend, TextureHandle, Vertex};
@@ -50,6 +54,7 @@ use nfsmw_data::car::CarModel;
 use nfsmw_data::car::mods::bike_camera::BikeCamera;
 
 use self::attach::Attach;
+pub use self::demo::parse as parse_state;
 pub use self::fall::FallStep;
 pub use self::graph_params::param_values;
 pub use self::params::RiderSample;
@@ -58,6 +63,18 @@ use self::pose::{Frame, Resolved, Steering};
 use super::CarPose;
 use crate::garage::rider_gear::{self, Choice};
 use crate::scenes::world::keys;
+
+/// The riding style the player picked (`riding_style`, the blueprint's `RidingStyle` 0 to 2): every rider plays its lean set.
+static RIDING_STYLE: AtomicU8 = AtomicU8::new(0);
+
+/// Tell the riders the player's riding style (the host pushes it each frame with the other settings).
+pub fn set_riding_style(style: crate::settings::RidingStyle) {
+    RIDING_STYLE.store(style.blueprint(), Ordering::Relaxed);
+}
+
+fn riding_style() -> u8 {
+    RIDING_STYLE.load(Ordering::Relaxed)
+}
 
 /// The first part number a rider's meshes take in the instance keys of the player's car (the car's own placements come
 /// before it).
@@ -178,7 +195,8 @@ impl RiderRig {
         );
         let mut smoothed = Smoothed::default();
         smoothed.set_walk(selection.walk);
-        smoothed.set_kind(selection.bike_type, selection.riding_style);
+        smoothed.set_kind(selection.bike_type, selection.stand.clone());
+        smoothed.set_riding_style(riding_style());
         let fall = fall::Fall::load(dir, &folder, &pack);
         Ok(Some(Self {
             pack,
@@ -236,8 +254,10 @@ impl RiderRig {
 
     /// Pose the rider with the handlebar at `steer` (rad, positive left), skin it and write the vertices to the renderer.
     fn update(&mut self, renderer: &mut dyn RenderBackend, steer: f32, world: Mat4) {
+        self.smoothed.set_riding_style(riding_style());
         let steering = self.steering.map(|(axis, point)| Steering { axis, point, angle: steer });
-        let targets = pose::rider_targets(&self.attach, &self.frame, steering);
+        let mut targets = pose::rider_targets(&self.attach, &self.frame, steering);
+        pose::roll_wrist(&self.attach, &mut targets, self.smoothed.values().wrist);
         let body = pose::body(&self.frame, self.smoothed.shift(), self.smoothed.rotation());
         let params = param_values(&self.graph.param_names, &self.smoothed.values());
         let skeleton = &self.pack.skeleton;

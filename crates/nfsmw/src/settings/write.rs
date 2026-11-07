@@ -230,17 +230,17 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.hud_layout {
         put("hud_layout", Value::String(v.to_string()));
     }
-    if let Some(v) = changes.ui_style {
-        put("ui_style", Value::String(v.to_string()));
-    }
-    if let Some(v) = changes.language {
-        put("language", Value::String(v.to_string()));
-    }
-    if let Some(v) = changes.speed_units {
-        put("speed_units", Value::String(v.to_string()));
-    }
-    if let Some(v) = changes.ui_theme {
-        put("ui_theme", Value::String(v.to_string()));
+    let named = [
+        ("ui_style", changes.ui_style.map(|v| v.to_string())),
+        ("language", changes.language.map(|v| v.to_string())),
+        ("speed_units", changes.speed_units.map(|v| v.to_string())),
+        ("riding_style", changes.riding_style.map(|v| v.to_string())),
+        ("ui_theme", changes.ui_theme.map(|v| v.to_string())),
+    ];
+    for (key, value) in named {
+        if let Some(v) = value {
+            put(key, Value::String(v));
+        }
     }
     if let Some(v) = changes.post_tonemap {
         put("post_tonemap", Value::String(v.to_string()));
