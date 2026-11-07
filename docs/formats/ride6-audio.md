@@ -160,9 +160,8 @@ All outside the repository, in the scratch folder (`C:\r6` junction):
 | Tool | Use |
 |---|---|
 | `C:\r6\tools\CUE4Parse\R6Tool` (`json <package>`) | the JSON of an audio package |
-| `C:\r6\snd\tools\resolve_bike_audio.py <chassis> <Stock\|Custom> <out.json>` | one bike's resolved audio data: events, banks, media names, effect numbers (merged by the importer's `sound::data`) |
-| `C:\r6\snd\tools\all_bikes_audio.py` | `C:\r6\snd\all-bikes-audio.csv`: the 634 rows with their engine, exhaust, bang, flame, gear and supercharger events |
+| `R6ToolSnd audiomap <folder>` (below) | one `<chassis>__<Stock\|Custom>.json` per row: events, banks, media names, effect numbers (merged by the importer's `sound::data`) |
 | `C:\r6\snd\tools\sdkgrep.py`, `idavt.py` | struct layouts and vtable addresses from the SDK dump (for the executable) |
-| `C:\r6\tools\vgmstream\vgmstream-cli.exe` | `.wem` to WAV; `-s <n>` picks the n-th recording of a REV model |
-| the pak reader (a copy of the CUE4Parse console tool, modes `raw <regex> <folder>` and `audiomap <folder>`) | extracts files of the paks; writes one resolved audio JSON per chassis row; started by `pak-sound` |
+| `C:\r6work\tools\vgmstream\vgmstream-cli.exe` (vgmstream r2168, Windows release) | `.wem` to WAV; `-s <n>` picks the n-th recording of a REV model |
+| the pak reader `tools/ride6-exporter/R6ToolSnd` (our C# console tool on CUE4Parse, modes `raw <regex> <folder>` and `audiomap <folder>`) | extracts files of the paks; writes one resolved audio JSON per chassis row; started by `pak-sound` |
 | `ride6-bike-import sound`, `extract-bnk`, `pak-sound`, `sound-bikes` (`mods/ride6-bikes/src/sound`) | build one bike's sound from recordings; split a bank; extract the banks; build the sound of every bike from the banks |

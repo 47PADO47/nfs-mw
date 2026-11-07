@@ -83,6 +83,8 @@
 !/tools/ride6-exporter/README.md
 !/tools/ride6-exporter/R6ToolParts/*.cs
 !/tools/ride6-exporter/R6ToolParts/*.csproj
+!/tools/ride6-exporter/R6ToolSnd/*.cs
+!/tools/ride6-exporter/R6ToolSnd/*.csproj
 
 # Reviewed, independently licensed controller prompts (no game textures).
 !/assets/input-prompts/kenney-xbox.png
