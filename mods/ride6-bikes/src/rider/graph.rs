@@ -39,8 +39,9 @@ use super::graph_stand;
 /// the pose is the rider with his feet down, `stand_state` which of the stop, standing and start clips (0, 1, 2), `stand_leg`
 /// which feet (0 both, 1 the left, 2 the right) and `stop_time` and `start_time` the seconds into the stop and start clips. The
 /// last four put the fingers on the levers ([`graph_fingers`]): `clutch` and `brake` are the levers (0 let go, 1 pulled in) and
-/// `clutch_alpha` and `brake_alpha` the weights of the finger layers.
-pub const PARAMS: [&str; 28] = [
+/// `clutch_alpha` and `brake_alpha` the weights of the finger layers; `brake_fingers` after them picks the brake clip (0 one finger,
+/// 1 two, 2 four: the player's `brake_fingers` setting) and `clutch_fingers` the clutch clip (0 two fingers, 1 four).
+pub const PARAMS: [&str; 30] = [
     "lean",
     "speed_kmh",
     "tuck",
@@ -69,6 +70,8 @@ pub const PARAMS: [&str; 28] = [
     "clutch_alpha",
     "brake",
     "brake_alpha",
+    "brake_fingers",
+    "clutch_fingers",
 ];
 const LEAN: usize = 0;
 const SPEED: usize = 1;
@@ -88,11 +91,14 @@ const STRAIGHT: usize = 17;
 const RIDING_STYLE: usize = 18;
 const STAND: graph_stand::Params =
     graph_stand::Params { weight: 19, state: 20, leg: 21, stop_time: 22, start_time: 23 };
-const FINGERS: graph_fingers::Params =
-    graph_fingers::Params { clutch: 24, clutch_alpha: 25, brake: 26, brake_alpha: 27 };
-/// `BrakeFingers` of the blueprint: how many fingers pull the brake lever. The blueprint's own default and the `BrakeFingers` of
-/// the `RIDING_STYLE` presets are 2 (the `BRAKE_FINGERS` option of the riding style page offers 1, 2 and 4).
-const BRAKE_FINGERS: u8 = 2;
+const FINGERS: graph_fingers::Params = graph_fingers::Params {
+    clutch: 24,
+    clutch_alpha: 25,
+    brake: 26,
+    brake_alpha: 27,
+    brake_fingers: 28,
+    clutch_fingers: 29,
+};
 
 /// The seconds the lean clips are swept over: the blueprint evaluates the left clip at `RiderLeanLeft_Explicit = 1 - RiderLeaning`
 /// and the right one at `RiderLeanRight_Explicit = RiderLeaning + 1` seconds (`Rider_Lean_Polish`), so the clip's frame 0 is one
@@ -225,7 +231,7 @@ fn assemble(pack: &Pack, set: &ClipSet, riding: Node) -> Result<Graph> {
         delta: Box::new(shake),
         weight: Value::remap(SPEED, NOISE_RAMP, (0.0, NOISE_ALPHA)),
     };
-    let root = graph_fingers::with_fingers(pack, shaken, BRAKE_FINGERS, FINGERS)?;
+    let root = graph_fingers::with_fingers(pack, shaken, FINGERS)?;
     Ok(Graph { param_names: PARAMS.iter().map(|s| (*s).to_owned()).collect(), root })
 }
 
