@@ -5,6 +5,11 @@ outputs. A short projection onto resident collision faces anchors the effect to 
 No new tire physics or slip thresholds are introduced. The visual appearance is procedural
 new design, described in [the spec](specs/tire-effects.md); no original game textures are copied.
 
+A bike is the exception to "the existing outputs": a two-wheeler's tyre always slips a little at speed, so its `smoke` and `skid`
+(and the slips the tyre sound reads) come from the slide of the tyre past the peak of its force curve, not from slip speeds in
+m/s; a bike at speed makes no squeal and no marks until a tyre really skids, and its marks are thin and follow its two contact
+patches ([ride6-bike-skid](specs/ride6-bike-skid.md)).
+
 ## Controls
 
 Both effects default on. Settings resolve independently: CLI, environment, per-user TOML,

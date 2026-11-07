@@ -16,14 +16,14 @@
 
 use blackbox_vehicle::bike::{AbsLevelSpec, Bike, BikeInput, FRONT, REAR, choices};
 use blackbox_vehicle::input::Controls;
-use blackbox_vehicle::math::ramp;
 use blackbox_vehicle::rigid_body::box_inertia;
-use blackbox_vehicle::{Ground, InputState, SKID_RANGE, SMOKE_RANGE, Vehicle, VehicleSpec, WheelState};
+use blackbox_vehicle::{Ground, InputState, Vehicle, VehicleSpec, WheelState};
 use glam::{Mat3, Vec3};
 use nfsmw_data::car::WheelPose;
 use nfsmw_data::car::physics::CarPhysics;
 
 use super::super::rider::RiderSample;
+use super::bike_slide::{Slide, slide_of};
 use super::step::StepStart;
 use super::{CarSim, MAX_VISIBLE_TRAVEL, Telemetry};
 
@@ -266,6 +266,11 @@ impl BikeRide {
         }
     }
 
+    /// The width of the mark library wheel `index` leaves (m).
+    pub(super) fn mark_width(&self, index: usize) -> f32 {
+        super::bike_slide::mark_width(&self.bike, index)
+    }
+
     /// The bike wheel behind library wheel `index` (0 front left, 1 front right, 2 rear left, 3 rear right).
     fn wheel_of(index: usize) -> usize {
         match index {
@@ -284,17 +289,11 @@ impl BikeRide {
             _ => (spec.rear.radius, 0.0),
         };
         let rotation = Mat3::from_quat(self.bike.orientation());
-        // The sideways slide is the slip angle against the speed along the bike, at least 1 m/s (the tyre model's own
-        // regularisation). The slide along the wheel is the tyre's own slip speed, not the slip ratio times that speed: below
-        // 1 m/s the ratio is scaled down, and a rear wheel spinning on the spot in a burnout would show no smoke and no marks.
+        // What slides is the tyre's own slide past the peak of its force curve, not the slip speeds, which grow with the speed
+        // of the bike (`bike_slide.rs`). The sideways slide is the slip angle against the speed along the bike, at least 1 m/s
+        // (the tyre model's own regularisation).
         let along = self.bike.forward_speed().abs().max(1.0);
-        let slip = wheel.slip_speed;
-        let lateral_speed = wheel.slip_angle.tan() * along;
-        let slide_speed = match wheel.on_ground {
-            true => slip.hypot(lateral_speed),
-            false => 0.0,
-        };
-        let skid = ramp(slide_speed, SKID_RANGE.0, SKID_RANGE.1);
+        let Slide { slip, lateral_speed, speed: slide_speed, skid, smoke } = slide_of(wheel, along);
         let position = match wheel.on_ground {
             true => wheel.contact,
             false => self.bike.wheel_pose(which).0 - Vec3::Y * radius,
@@ -317,7 +316,7 @@ impl BikeRide {
             longitudinal_force: wheel.force.dot(rotation.z_axis),
             slide_speed,
             skid,
-            smoke: ramp(slide_speed, SMOKE_RANGE.0, SMOKE_RANGE.1),
+            smoke,
         }
     }
 
