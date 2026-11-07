@@ -35,6 +35,8 @@ blinks: hidden 0.05 s, shown 0.07 s. Only a manual reset brings the pursuit's re
 - **Flipped:** not every wheel on the ground, and the car's up axis more than 60 degrees from world up and from the
   ground's normal, for **more than 4 s** without a break. It uses the same path as a manual reset, but a running grace
   does not refuse it.
+- **Flipped, a bike with its rider off it:** no reset. A fallen bike lies on its side by design while its rider gets up, walks to it and
+  stands it up ([the get-up spec](ride6-rider-getup.md)); the timer does not run until he is back on it **[ours]**.
 - **Off the world:** the car's own surface missing and two or more wheels without a surface, for a human driver. It
   resets at once.
 - There is no stuck, water or road-distance test. Track zones in the map data can reset the car to a set point.

@@ -383,6 +383,7 @@ impl Rider {
                 rig.release(renderer);
             }
             self.loaded_for.clear();
+            self.off_bike = None;
         }
         if matches!(self.state, State::Unloaded) {
             if !bike {

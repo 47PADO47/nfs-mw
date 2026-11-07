@@ -229,7 +229,7 @@ impl Drive {
         // the car is held on a grid; a car on its roof or side for over 4 s is put back whatever the grace.
         self.reset.blink.update(graced, dt);
         let up = (self.current.rotation * Vec3::Z).z;
-        let flipped = self.reset.flip.update(reset_trail::flipped(telemetry.wheels_on_ground, up), dt);
+        let flipped = self.reset.flip.update(reset_trail::flip_runs(telemetry.wheels_on_ground, up, off), dt);
         if input.reset && !graced && !self.gridded && self.request_reset() {
             self.reset.manual += 1;
             self.note_bike_reset();

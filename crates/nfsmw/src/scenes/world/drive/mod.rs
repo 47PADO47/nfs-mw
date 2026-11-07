@@ -348,6 +348,7 @@ impl Drive {
         // A bike's chase camera is made to its size (`viewer/camera/bike.rs`); a car's is the one the camera is built for.
         self.chase.fit =
             self.bike_cameras().map_or_else(Default::default, |rig| crate::viewer::camera::bike::chase_fit(&rig));
+        self.chase.fit.height = self.rider_cam.lifted_height(self.chase.fit.height, self.chase.preferences.height);
         if dt == 0.0 {
             // A screenshot run has no frame time: put the camera where it belongs at once.
             self.chase.snap();

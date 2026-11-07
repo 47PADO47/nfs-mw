@@ -452,3 +452,32 @@ fn a_bike_put_back_by_hand_takes_the_rider_back_at_once_even_in_the_middle_of_th
     fall.stop(&pack.skeleton, Vec3::new(0.0, 0.0, 0.2));
     assert!(!fall.is_down() && fall.active(), "he is on his way back to the bike");
 }
+
+#[test]
+fn the_cameras_follow_the_pelvis_down_and_on_the_way_back_and_nothing_while_he_rides() {
+    use crate::viewer::camera::rider_follow::Phase;
+    let skeleton = skeleton();
+    let riding_fall = Fall::new(Some(file()));
+    assert!(riding_fall.focus(&skeleton, seated()).is_none(), "on the bike there is nothing to follow");
+    let (mut fall, skeleton) = started(FallKind::HighSide);
+    let start = fall.focus(&skeleton, seated()).expect("thrown");
+    assert_eq!(start.0, Phase::Fallen);
+    assert!((start.1.z - 1.2).abs() < 0.3, "at his seat's pelvis at the start: {}", start.1);
+    run(&mut fall, 2.0);
+    let (phase, lying) = fall.focus(&skeleton, seated()).expect("down");
+    assert_eq!(phase, Phase::Fallen);
+    assert!(lying.distance(start.1) > 3.0, "the point goes with the ragdoll over the ground: {lying}");
+    assert!(lying.z < 0.8, "lying he is low: {lying}");
+    // On his way back the point is where he lay at the start of the blend, and ends on the seat's pelvis.
+    let seat = Vec3::new(0.0, 0.0, 0.2);
+    fall.stop(&skeleton, seat);
+    let (phase, first) = fall.focus(&skeleton, seated()).expect("returning");
+    assert_eq!(phase, Phase::Jogging);
+    assert!(first.distance(lying) < 0.5, "starts where he lay: {first} {lying}");
+    fall.step(RETURN_TIME / 2.0, &FlatGround::new(0.0));
+    let (_, middle) = fall.focus(&skeleton, seated()).expect("returning");
+    let sitting = seat + riding(&skeleton)[1].translation;
+    assert!(middle.distance(sitting) < first.distance(sitting), "closer to the seat: {middle}");
+    fall.step(RETURN_TIME, &FlatGround::new(0.0));
+    assert!(fall.focus(&skeleton, seated()).is_none(), "remounted");
+}

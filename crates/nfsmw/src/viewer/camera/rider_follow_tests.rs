@@ -197,3 +197,13 @@ fn a_bad_step_does_nothing() {
     cam.step(Phase::Fallen, Some(Vec3::ZERO), bike(0.0), f32::NAN);
     assert!(!cam.bust_grace() && cam.weight() == 0.0);
 }
+
+#[test]
+fn the_camera_is_lifted_over_the_rider_by_the_weight() {
+    let mut cam = RiderCam::default();
+    assert_eq!(cam.lifted_height(0.5, 2.0), 0.5, "on the bike nothing changes");
+    run(&mut cam, Phase::Fallen, Some(Vec3::Z), bike(0.0), 2.0);
+    let lifted = cam.lifted_height(0.5, 2.0);
+    assert!((lifted * 2.0 - 1.0 - RIDER_CAMERA_LIFT_M).abs() < 1e-5, "{lifted}");
+    assert!(cam.lifted_height(0.5, 0.0).is_finite(), "a preferred height of nothing");
+}

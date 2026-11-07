@@ -18,6 +18,9 @@ pub const TO_BIKE_S: f32 = 0.9;
 /// How far above the rider's pelvis the chase camera looks (m): the middle of his back, so that he is in the middle of the
 /// picture lying and standing.
 pub const RIDER_LOOK_UP_M: f32 = 0.25;
+/// How much higher the chase camera sits over the rider than over the bike (m): a person on the ground is smaller than a bike and
+/// the camera at the bike's height shows him from the side of the road; a little more height looks down on him.
+pub const RIDER_CAMERA_LIFT_M: f32 = 0.6;
 /// The rider's horizontal speed (m/s) under which his heading is held: a slide that has nearly stopped has no direction.
 pub const HEADING_MIN_SPEED: f32 = 1.5;
 /// The distance to the bike (m) under which the jogging rider's heading is held instead of turned at it.
@@ -187,6 +190,12 @@ impl RiderCam {
     pub fn chase_point(&self, bike: Vec3, look_height: f32) -> Vec3 {
         let Some(focus) = self.focus() else { return bike };
         bike.lerp(focus - Vec3::Z * (look_height - RIDER_LOOK_UP_M), self.weight())
+    }
+
+    /// The chase camera's height factor (`Fit::height`, on the player's preferred height `preferred` in metres) raised so that
+    /// the camera is [`RIDER_CAMERA_LIFT_M`] higher as the camera is on the rider.
+    pub fn lifted_height(&self, factor: f32, preferred: f32) -> f32 {
+        factor + self.weight() * RIDER_CAMERA_LIFT_M / preferred.max(0.1)
     }
 
     /// The heading the camera takes, the bike's (`bike`) blended to the rider's.
