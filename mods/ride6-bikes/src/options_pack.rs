@@ -41,8 +41,9 @@ pub fn solid_name(id: &str) -> String {
 
 /// The part ids of the asset `stem` in the shared part table: the asset's own id, or `<stem>_front_<kind>` and `<stem>_back_<kind>`.
 pub fn part_ids(table: &PartTable, stem: &str) -> Vec<String> {
-    let prefix = format!("{stem}_");
-    table.parts.iter().filter(|p| p.id == stem || p.id.starts_with(&prefix)).map(|p| p.id.clone()).collect()
+    let (front, back) = (format!("{stem}_front_"), format!("{stem}_back_"));
+    let owned = |id: &str| id == stem || id.starts_with(&front) || id.starts_with(&back);
+    table.parts.iter().filter(|p| owned(&p.id)).map(|p| p.id.clone()).collect()
 }
 
 /// The longest side of a body texture for each kind of part (`Options::max_texture`: the rims' are half of it and the discs' a
