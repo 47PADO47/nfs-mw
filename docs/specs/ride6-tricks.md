@@ -187,6 +187,8 @@ HUD notice (the game has none for a setting changed by a key; the headlights are
 
 ## Choices that remain (`choices.rs`, `docs/specs/vehicle-two-wheel.md`)
 
+Added since: the bike's mass is 0.85 of the data's in play and a held wheelie is lowered gently (a torque beyond the assist's, `choices::WHEELIE_LOWER_*`), both in [ride6-wheelie-hold.md](ride6-wheelie-hold.md).
+
 The filter function of the target angle (`approach`) was read in round 6 (`0x512cb60`, [ride6-rider-round6.md](ride6-rider-round6.md)
 section 3) and is as written above; the road-surface sets are not applied; the road
 inclination comes from the contact normal of the grounded wheel; the torque ramp is not modelled; the g-force interventions and

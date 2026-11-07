@@ -2,7 +2,7 @@
 //! on its rear wheel, and the g-force the lean limit reads.
 
 use super::lean::{LeanInput, lean_limit};
-use super::{Bike, BikeInput, BikeSpec, choices};
+use super::{Bike, BikeInput, BikeSpec};
 use crate::FIXED_STEP;
 use crate::ground::FlatGround;
 
@@ -35,8 +35,7 @@ fn ride_flicked(start: f32, rise: f32, half: f32, seconds: f32) -> (Option<f32>,
     let (mut up, mut longest) = (0.0_f32, 0.0_f32);
     for step in 0..(seconds / FIXED_STEP) as usize {
         let t = step as f32 * FIXED_STEP;
-        let share = choices::stick_share(bike.forward_speed());
-        let input = BikeInput { throttle: 1.0, steer: flick(t, 0.3, rise, half) * share, ..Default::default() };
+        let input = BikeInput { throttle: 1.0, steer: flick(t, 0.3, rise, half), ..Default::default() };
         bike.step(FIXED_STEP, &input, &ground);
         match bike.wheel(0).on_ground {
             true => up = 0.0,
