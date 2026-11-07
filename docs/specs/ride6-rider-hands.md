@@ -97,3 +97,12 @@ graph's `clutch` and `brake` (the levers, 0 to 1, followed at 2.5 and 3.5 a seco
 The up, in and out wrist poses, the wrist sweep and the clutch compensation, the rear brake lever, the `Idle` clips with the throttle
 (`race_trottle`), the blipper (`race_Add_Blipper`: a downshift throttle blip on bikes with a blipper, `BikeHasBlipper`), and the other
 BrakeFingers numbers (1 and 4: the clips are exported; no option picks them).
+
+## 7. Looking at it
+
+`nfsmw view-car <ID>` shows the bike with its rider standing, his feet on the ground, once his smoothers have settled (five seconds of
+animation). `--zoom N` brings the camera N times closer, `--pitch DEGREES` tilts it, `--focus-height METRES` aims it (about 1 m for the grips),
+`--yaw` turns it; `--rider-state "speed=-5,clutch=1,throttle=1,brake=0.5,lean=0.6,tuck=1"` puts the rider in a state (km/h; a negative speed is a
+bike rolling back); the riding style is `NFSMW_RIDING_STYLE=balanced|shoulders-out|old-school`. Run offscreen with `--screenshot out.png --muted`
+and an isolated profile (`BLACKBOX_PROFILE_DIR`).
+

@@ -497,8 +497,4 @@ Documented limits (each is a decision of the integration, not of the dynamics, a
 ## Viewing a bike
 
 `nfsmw asset-viewer <ID>` animates the wheels (roll and steering about the steering axis, as a car's wheels do); `nfsmw view-car
-<ID>` shows the bike at rest, as it does a car, with its rider (a bike standing: his feet are down). Pictures of a part up close: `--zoom N`
-(the camera N times closer), `--pitch DEGREES`, `--focus-height METRES` (where the camera looks), `--yaw`; the rider's state: `--rider-state
-"speed=-5,clutch=1,throttle=1,brake=0.5,lean=0.6,tuck=1"` (km/h, a negative speed is a bike rolling back; he is brought to the state in
-five seconds of animation before the first picture) and the riding style from the `riding_style` setting (`NFSMW_RIDING_STYLE=old-school`).
-The garage lists the bike with the name and brand of its manifest.
+<ID>` shows the bike at rest with its rider ([options for pictures up close](../specs/ride6-rider-hands.md)). The garage lists the bike with its manifest's name and brand.
