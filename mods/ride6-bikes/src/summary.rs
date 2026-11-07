@@ -10,7 +10,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::build::{Built, Wheel};
+use crate::build::{Built, LiveryChoice, Wheel};
 use crate::exhaust::Pipe;
 
 /// The file name beside `parts.json`.
@@ -47,6 +47,9 @@ pub struct Summary {
     /// The silencers' outlets in the body solid's frame (`exhaust.rs`); older files have none.
     #[serde(default)]
     exhaust: Vec<Pipe>,
+    /// The liveries the bike offers (`build::add_liveries`); older files have none.
+    #[serde(default)]
+    liveries: Vec<LiveryChoice>,
 }
 
 impl Summary {
@@ -58,6 +61,7 @@ impl Summary {
             rear: built.rear.into(),
             triangles: built.triangles,
             exhaust: built.exhaust.clone(),
+            liveries: built.liveries.clone(),
         }
     }
 
@@ -78,6 +82,7 @@ impl Summary {
             triangles: self.triangles,
             front_end: Default::default(),
             exhaust: self.exhaust,
+            liveries: self.liveries,
         }
     }
 
@@ -111,6 +116,7 @@ mod tests {
             triangles: 77,
             front_end: Default::default(),
             exhaust: vec![Pipe { side: Side::Right, at: [-0.75, -0.14, 0.75], dir: [-0.87, 0.0, 0.5] }],
+            liveries: vec![LiveryChoice { name: "Livery 1".to_owned(), texture: "KTM450_SKIN1".to_owned() }],
         };
         let dir = std::env::temp_dir().join(format!("ride6-summary-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -122,6 +128,7 @@ mod tests {
         assert_eq!((back.half, back.front, back.rear, back.triangles), (built.half, built.front, built.rear, 77));
         assert!(back.geometry.is_empty());
         assert_eq!(back.exhaust, built.exhaust);
+        assert_eq!(back.liveries, built.liveries);
     }
 
     #[test]

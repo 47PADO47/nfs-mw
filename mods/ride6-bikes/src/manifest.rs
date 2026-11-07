@@ -10,7 +10,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use crate::bike_table::BikeTable;
-use crate::build::{Built, Wheel};
+use crate::build::{Built, LiveryChoice, Wheel};
 use crate::physics::toml_text::{Toml, quote};
 
 /// The `mod.toml` of the content mod: no library, only `cars/` and `files/`.
@@ -50,6 +50,63 @@ fn wheel_table(t: &mut Toml, side: &str, wheel: &Wheel) {
     t.num("width_m", f64::from(wheel.width));
 }
 
+/// The body paint a bike with liveries lists (it must have one): a neutral grey, which shows only where a livery is transparent
+/// (none is; the pictures are opaque).
+const PAINT_COLOUR: [u8; 3] = [128, 128, 128];
+
+/// The `[customization]` table of a bike with liveries: the shop lists them with its vinyls, and the bike wears the first (the
+/// stock livery) until the player picks another (`docs/modding/car-customization.md#liveries`).
+fn customization(liveries: &[LiveryChoice]) -> String {
+    let [r, g, b] = PAINT_COLOUR;
+    let mut text = String::from("[customization]\ndefault_paint = 0\n");
+    text.push_str(&format!("paints = [{{ name = \"Stock\", color = [{r}, {g}, {b}] }}]\n"));
+    let list: Vec<String> = liveries
+        .iter()
+        .map(|livery| format!("{{ name = {}, texture = {} }}", quote(&livery.name), quote(&livery.texture)))
+        .collect();
+    text.push_str(&format!("liveries = [{}]\ndefault_livery = 0\n", list.join(", ")));
+    text
+}
+
+/// `manifest` without the tables whose header starts with `prefix` (`[customization`) and `tables` after what is left: the way a
+/// table the importer owns is replaced in a manifest that other tools (the sound tables, the camera tables) have added to.
+pub fn replace_tables(manifest: &str, prefix: &str, tables: &str) -> String {
+    let mut kept = String::new();
+    let mut skipping = false;
+    for line in manifest.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('[') {
+            skipping = trimmed.starts_with(prefix);
+        }
+        if skipping {
+            continue;
+        }
+        kept.push_str(line);
+        kept.push('\n');
+    }
+    let mut out = kept.trim_end_matches('\n').to_owned();
+    out.push('\n');
+    if !tables.is_empty() {
+        out.push('\n');
+        out.push_str(tables.trim_end_matches('\n'));
+        out.push('\n');
+    }
+    out
+}
+
+/// Put the liveries of a bike into its manifest `cars/<car>.toml` in `mod_dir` (replacing its `[customization]` table, or taking it
+/// out for a bike with one look), leaving everything else of the file as it is.
+pub fn apply_liveries(mod_dir: &Path, car: &str, liveries: &[LiveryChoice]) -> Result<()> {
+    let manifest = mod_dir.join("cars").join(format!("{}.toml", car.to_ascii_lowercase()));
+    let text = std::fs::read_to_string(&manifest).with_context(|| format!("reading {}", manifest.display()))?;
+    let table = match liveries.len() >= 2 {
+        true => customization(liveries),
+        false => String::new(),
+    };
+    std::fs::write(&manifest, replace_tables(&text, "[customization", &table))
+        .with_context(|| format!("writing {}", manifest.display()))
+}
+
 /// The text of `cars/<id>.toml`.
 pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'_>) -> String {
     let mut text = format!(
@@ -67,6 +124,10 @@ pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'
     text.push_str(&wheels.into_string());
     text.push('\n');
     text.push_str(&tables.bike.text);
+    if built.liveries.len() >= 2 {
+        text.push('\n');
+        text.push_str(&customization(&built.liveries));
+    }
     if let Some(sound) = tables.sound {
         text.push('\n');
         text.push_str(sound);
@@ -150,6 +211,7 @@ mod tests {
             triangles: 0,
             front_end: Default::default(),
             exhaust: Vec::new(),
+            liveries: Vec::new(),
         }
     }
 
@@ -165,5 +227,35 @@ mod tests {
         assert!(!text.contains("face_m") && !text.contains("[stats]"));
         assert!(text.contains("\n[bike]\ndrag = 0.15\n"));
         assert!(text.ends_with("[engine_sound]\nidle_rpm = 2300.0\n"));
+    }
+
+    #[test]
+    fn a_customization_table_is_replaced_and_the_other_tables_are_kept() {
+        let manifest = "[bike]\ndrag = 0.15\n\n[customization]\ndefault_paint = 0\n\n[engine_sound]\nidle_rpm = 1.0\n";
+        let livery = |n: u32| LiveryChoice { name: format!("Livery {n}"), texture: format!("T{n}") };
+        let table = customization(&[livery(1), livery(2)]);
+        let out = replace_tables(manifest, "[customization", &table);
+        let kept = "[bike]\ndrag = 0.15\n\n[engine_sound]\nidle_rpm = 1.0\n";
+        assert!(out.starts_with(&format!("{kept}\n[customization]\n")), "{out}");
+        assert_eq!(out.matches("[customization]").count(), 1);
+        assert!(out.contains("liveries = ["));
+        assert_eq!(replace_tables(&out, "[customization", ""), kept);
+    }
+
+    #[test]
+    fn a_bike_with_liveries_lists_them_and_wears_the_first() {
+        let bike = BikeTable { text: "[bike]\ndrag = 0.15\n".to_owned(), notes: vec![] };
+        let tables = Tables { bike: &bike, sound: None };
+        let livery = |n: u32, texture: &str| LiveryChoice { name: format!("Livery {n}"), texture: texture.to_owned() };
+        let mut two = built();
+        two.liveries = vec![livery(1, "KTM450_SKIN1"), livery(2, "KTM450_LIV2")];
+        let text = car_toml("KTM", "KTM", &two, &tables);
+        assert!(text.contains("\n[customization]\ndefault_paint = 0\n"));
+        let list = "liveries = [{ name = \"Livery 1\", texture = \"KTM450_SKIN1\" }, \
+                    { name = \"Livery 2\", texture = \"KTM450_LIV2\" }]\ndefault_livery = 0\n";
+        assert!(text.contains(list), "{text}");
+        let mut one = built();
+        one.liveries = vec![livery(1, "KTM450_SKIN1")];
+        assert!(!car_toml("KTM", "KTM", &one, &tables).contains("[customization]"), "one look is no choice");
     }
 }

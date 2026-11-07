@@ -96,6 +96,17 @@ pub struct Material {
     pub transmittance_max: Option<f32>,
 }
 
+/// One livery of a bike (`liveries[]` of `parts.json`, absent from older files): the chassis material instances it replaces.
+/// The meshes are the stock ones; a livery is a set of other pictures on the same surfaces.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Livery {
+    /// The number of the `CH_<id>_Livery-NN` row, from 1.
+    pub index: u32,
+    /// Material name in the exported chassis mesh (lower case) to the instance that replaces it in this livery (the file stem
+    /// of the instance, lower case). Only the materials the livery changes are listed.
+    pub materials: HashMap<String, String>,
+}
+
 pub struct PartTable {
     pub vehicle: String,
     /// The physics asset the game's `PHYSICS` table names for the bike (`/PhysicsRide6/.../KTM_450SMR_2022.KTM_450SMR_2022`):
@@ -105,6 +116,8 @@ pub struct PartTable {
     pub materials: HashMap<String, Material>,
     /// Tyre size codes (`120-60-17`) of the `front` and `back` wheel.
     pub tyre_sizes: HashMap<String, String>,
+    /// The liveries of the bike in the order of their rows (the stock one is the first); empty in files that have none.
+    pub liveries: Vec<Livery>,
     /// Bone world positions of the chassis skeleton in the chassis frame (glTF axes, metres).
     pub bones: HashMap<String, [f32; 3]>,
     /// Which bones steer and which slide (`front_end.rs`): the optional `front_end` object of the file (`steer_roots`,
@@ -150,6 +163,20 @@ fn role_of(text: &str) -> Option<Role> {
         "back_wheel" => Some(Role::BackWheel),
         _ => None,
     }
+}
+
+fn read_livery(value: &Value) -> Option<Livery> {
+    let index = u32::try_from(value.get("index")?.as_u64()?).ok()?;
+    let materials = value
+        .get("materials")
+        .and_then(Value::as_object)
+        .map(|map| {
+            map.iter()
+                .filter_map(|(name, path)| Some((name.to_ascii_lowercase(), asset_stem(path.as_str()?))))
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(Livery { index, materials })
 }
 
 fn read_part(value: &Value) -> Result<Part> {
@@ -291,7 +318,13 @@ impl PartTable {
             .map(|map| map.iter().filter_map(|(side, size)| Some((side.clone(), size.as_str()?.to_owned()))).collect())
             .unwrap_or_default();
         let front_end = read_rules(doc.get("front_end"));
-        Ok(Self { vehicle, physics_asset, parts, materials, tyre_sizes, bones, front_end })
+        let mut liveries: Vec<Livery> = doc
+            .get("liveries")
+            .and_then(Value::as_array)
+            .map(|list| list.iter().filter_map(read_livery).collect())
+            .unwrap_or_default();
+        liveries.sort_by_key(|livery| livery.index);
+        Ok(Self { vehicle, physics_asset, parts, materials, tyre_sizes, liveries, bones, front_end })
     }
 
     pub fn read(dir: &Path) -> Result<Self> {
@@ -305,6 +338,42 @@ impl PartTable {
         let instance =
             part.materials.get(&glb_name.to_ascii_lowercase()).cloned().unwrap_or_else(|| asset_stem(glb_name));
         self.materials.get(&instance)
+    }
+
+    /// The livery material of the chassis: the name it has in the exported mesh and its parameters. The first material whose name
+    /// contains `livery` (so `mat_livery_0_..` before `mat_livery_1_..`) that has a base colour picture.
+    pub fn livery_material(&self) -> Option<(String, &Material)> {
+        let chassis = self.chassis().ok()?;
+        let mut names: Vec<&String> = chassis.materials.keys().filter(|name| name.contains("livery")).collect();
+        names.sort();
+        names.into_iter().find_map(|name| {
+            let material = self.materials.get(chassis.materials.get(name)?)?;
+            material.base_color.as_ref()?;
+            Some((name.clone(), material))
+        })
+    }
+
+    /// The livery pictures of the bike: the number of each livery and its livery material (the stock livery's own, for a livery
+    /// that does not replace it), when at least two of them have different base colour pictures; else none (a bike with one
+    /// look has no liveries to offer).
+    pub fn livery_pictures(&self) -> Vec<(u32, Material)> {
+        let Some((name, stock)) = self.livery_material() else { return Vec::new() };
+        let mut out = Vec::new();
+        for livery in &self.liveries {
+            let material =
+                livery.materials.get(&name).and_then(|instance| self.materials.get(instance)).unwrap_or(stock);
+            if material.base_color.is_none() {
+                continue;
+            }
+            out.push((livery.index, material.clone()));
+        }
+        let mut pictures: Vec<&Option<String>> = out.iter().map(|(_, m)| &m.base_color).collect();
+        pictures.sort();
+        pictures.dedup();
+        if pictures.len() < 2 {
+            return Vec::new();
+        }
+        out
     }
 
     /// A bone's position in the chassis frame.
@@ -322,93 +391,5 @@ impl PartTable {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    pub const SAMPLE: &str = r#"{
-      "schema": 1, "vehicle": "TEST_BIKE", "tyre_sizes": {"front": "120-60-17", "back": "160-60-17"},
-      "bones": {"BONE_F_VIS_WHEEL": {"position": [0.7, 0.2, 0.0], "rotation": [0,0,0,1]},
-                "BONE_B_VIS_WHEEL": {"position": [-0.7, 0.2, 0.0], "rotation": [0,0,0,1]}},
-      "parts": [
-        {"id": "chassis", "role": "body", "export": "chassis1", "anchor": {"bone": "BONE_CHASSIS", "translation": [0,0,0], "rotation": [0,0,0,1]},
-         "materials": {"mat_a": "/Game/x/mat_a.0"}},
-        {"id": "front_tyre", "role": "front_wheel", "export": "f_tyre1", "anchor": {"bone": "BONE_F_VIS_WHEEL", "translation": [0.7,0.2,0], "rotation": [0,0,0,1]},
-         "materials": {"mat_t": "/Game/x/Mat_T.0"}}
-      ],
-      "materials": {
-        "mat_a": {"shading_model": "MSM_ClearCoat", "blend_mode": "BLEND_Masked",
-                  "tex": {"BaseColor - Texture": "/Game/x/livery_d.0", "PBR - Texture": "/Game/x/livery_l.0", "Normal - Texture": "/Engine/T_Default_N.0"},
-                  "switch": {"LegacyTexturesFormats - PBR - S_R_M_O": true}},
-        "mat_t": {"blend_mode": "BLEND_Masked", "clip": 0.3333, "tex": {"BaseColorOpacity - Texture": "/Game/x/tyre_d.0"}, "switch": {"BaseColorOpacity - Source": true}}
-      }
-    }"#;
-
-    #[test]
-    fn the_physics_file_is_looked_up_by_the_assets_name_when_the_table_has_one() {
-        let table = PartTable::parse(SAMPLE).unwrap();
-        assert_eq!(table.physics_name(), "TEST_BIKE");
-        let text = SAMPLE.replacen(
-            "\"vehicle\": \"TEST_BIKE\",",
-            "\"vehicle\": \"TEST_BIKE\", \"physics_asset\": \"/PhysicsRide6/Physics/V/KTM/KTM_450SMR_2022.KTM_450SMR_2022\",",
-            1,
-        );
-        assert_eq!(PartTable::parse(&text).unwrap().physics_name(), "KTM_450SMR_2022");
-    }
-
-    #[test]
-    fn a_table_reads_parts_materials_and_bones() {
-        let table = PartTable::parse(SAMPLE).unwrap();
-        assert_eq!(table.vehicle, "TEST_BIKE");
-        assert_eq!(table.parts.len(), 2);
-        assert_eq!(table.parts[1].kind, Kind::Tyre);
-        assert_eq!(table.parts[1].role, Role::FrontWheel);
-        assert_eq!(table.bone("BONE_B_VIS_WHEEL").unwrap(), [-0.7, 0.2, 0.0]);
-        assert!(table.bone("NOPE").is_err());
-        assert_eq!(table.chassis().unwrap().export, "chassis1");
-        assert_eq!(table.tyre_sizes.get("back").map(String::as_str), Some("160-60-17"));
-    }
-
-    #[test]
-    fn a_material_takes_the_textures_its_switches_name_and_ignores_engine_defaults() {
-        let table = PartTable::parse(SAMPLE).unwrap();
-        let a = table.material(&table.parts[0], "mat_a").unwrap();
-        assert_eq!(a.base_color.as_deref(), Some("livery_d"));
-        assert_eq!(a.pbr.as_deref(), Some("livery_l"));
-        assert_eq!(a.normal, None, "the engine's default normal map is no data");
-        assert!(a.pbr_has_occlusion && !a.opacity_in_base);
-        let t = table.material(&table.parts[1], "mat_t").unwrap();
-        assert_eq!(t.base_color.as_deref(), Some("tyre_d"));
-        assert!(t.opacity_in_base);
-        assert_eq!(t.clip, Some(0.3333));
-        assert!(table.material(&table.parts[1], "unknown").is_none());
-    }
-
-    #[test]
-    fn the_steering_rules_are_ride6s_unless_the_file_names_its_own() {
-        let table = PartTable::parse(SAMPLE).unwrap();
-        assert_eq!(table.front_end, Rules::ride6());
-        let own = SAMPLE.replacen("\"schema\": 1,", "\"schema\": 1, \"front_end\": {\"steer_roots\": [\"FORK\"]},", 1);
-        let table = PartTable::parse(&own).unwrap();
-        assert_eq!(
-            table.front_end,
-            Rules { steer_roots: vec!["FORK".to_owned()], slide_roots: Vec::new(), slide_followers: Vec::new() }
-        );
-    }
-
-    #[test]
-    fn schemas_other_than_one_are_refused() {
-        assert!(PartTable::parse(r#"{"schema": 2}"#).is_err());
-        assert!(PartTable::parse("[").is_err());
-    }
-
-    #[test]
-    fn the_anchor_rotates_then_moves() {
-        // A quarter turn about z takes x to y.
-        let half = std::f32::consts::FRAC_1_SQRT_2;
-        let anchor = Anchor { bone: None, translation: [1.0, 0.0, 0.0], rotation: [0.0, 0.0, half, half] };
-        let p = anchor.point([1.0, 0.0, 0.0]);
-        assert!((p[0] - 1.0).abs() < 1e-5 && (p[1] - 1.0).abs() < 1e-5 && p[2].abs() < 1e-5, "{p:?}");
-        let d = anchor.direction([0.0, 1.0, 0.0]);
-        assert!((d[0] + 1.0).abs() < 1e-5 && d[1].abs() < 1e-5, "{d:?}");
-    }
-}
+#[path = "partfile_tests.rs"]
+mod tests;
