@@ -91,6 +91,7 @@ mod tests {
         let group = Group {
             material: 0,
             collide: true,
+            model: 0,
             positions: vec![[0.0, 0.0, 1.0], [20.0, 0.0, 1.0], [20.0, 20.0, 1.0], [0.0, 20.0, 1.0]],
             uvs: vec![[0.0, 0.0]; 4],
             normals: vec![[0, 0, 127]; 4],

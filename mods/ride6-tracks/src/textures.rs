@@ -75,6 +75,12 @@ impl Pictures {
     /// Converts the pictures named by `stems` (lower case file stems) from `dir`, `limit` pixels at most. A picture that is
     /// missing or cannot be read is left out, with the reason in the list that comes back.
     pub fn load(dir: &Path, stems: &[String], limit: u32) -> (Self, Vec<(String, String)>) {
+        let sized: Vec<(String, u32)> = stems.iter().map(|stem| (stem.clone(), limit)).collect();
+        Self::load_sized(dir, &sized)
+    }
+
+    /// [`Pictures::load`] with a limit of its own for each picture.
+    pub fn load_sized(dir: &Path, stems: &[(String, u32)]) -> (Self, Vec<(String, String)>) {
         let workers = std::thread::available_parallelism().map_or(2, |n| n.get().clamp(1, 6));
         let chunk = stems.len().div_ceil(workers).max(1);
         let results: Vec<(String, Result<TextureSource>)> = std::thread::scope(|scope| {
@@ -82,7 +88,7 @@ impl Pictures {
                 .chunks(chunk)
                 .map(|part| {
                     scope.spawn(move || {
-                        part.iter().map(|stem| (stem.clone(), convert(dir, stem, limit))).collect::<Vec<_>>()
+                        part.iter().map(|(stem, limit)| (stem.clone(), convert(dir, stem, *limit))).collect::<Vec<_>>()
                     })
                 })
                 .collect();

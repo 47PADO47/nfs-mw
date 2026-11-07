@@ -18,6 +18,7 @@ pub mod lap;
 pub mod manifest;
 pub mod model;
 mod native;
+pub mod objects;
 pub mod pack;
 pub mod section;
 pub mod stamp;

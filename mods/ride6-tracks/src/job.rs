@@ -15,6 +15,7 @@ use std::thread::{self, JoinHandle};
 
 use anyhow::{Context, Result};
 
+use crate::cells::{Keep, Limits};
 use crate::config::{self, Config};
 use crate::import::{self, Report};
 use crate::stamp;
@@ -94,11 +95,12 @@ pub fn start(mod_dir: &Path, supplied: Option<&config::Supplied>) -> Result<Star
         return Ok(Start::UpToDate { worlds: count_worlds(mod_dir) });
     }
     let live = mod_dir.join(CONTENT[0]).is_dir();
-    let job = spawn(config.max_texture, packs, mod_dir.to_owned(), stamp)?;
+    let keep = Keep { objects: config.objects };
+    let job = spawn((config.max_texture, keep), packs, mod_dir.to_owned(), stamp)?;
     Ok(Start::Started { job, live })
 }
 
-fn spawn(max_texture: u32, packs: Vec<PathBuf>, mod_dir: PathBuf, stamp: String) -> Result<Job> {
+fn spawn(options: (u32, Keep), packs: Vec<PathBuf>, mod_dir: PathBuf, stamp: String) -> Result<Job> {
     let (sender, receiver) = channel();
     let cancel = Arc::new(AtomicBool::new(false));
     let stop = Arc::clone(&cancel);
@@ -108,7 +110,7 @@ fn spawn(max_texture: u32, packs: Vec<PathBuf>, mod_dir: PathBuf, stamp: String)
         .spawn(move || {
             let staging = mod_dir.join(STAGING);
             let _ = fs::remove_dir_all(&staging);
-            let result = build(max_texture, &packs, &staging, &stamp, &stop);
+            let result = build(options, &packs, &staging, &stamp, &stop);
             if result.is_err() {
                 let _ = fs::remove_dir_all(&staging);
             }
@@ -118,11 +120,17 @@ fn spawn(max_texture: u32, packs: Vec<PathBuf>, mod_dir: PathBuf, stamp: String)
     Ok(Job { receiver, cancel, thread: Some(thread) })
 }
 
-fn build(max_texture: u32, packs: &[PathBuf], staging: &Path, stamp: &str, cancel: &AtomicBool) -> Result<Summary> {
+fn build(
+    (max_texture, keep): (u32, Keep),
+    packs: &[PathBuf],
+    staging: &Path,
+    stamp: &str,
+    cancel: &AtomicBool,
+) -> Result<Summary> {
     fs::create_dir_all(staging).with_context(|| format!("creating {}", staging.display()))?;
     let mut summary = Summary::default();
     for pack in packs {
-        match import::import(pack, staging, max_texture, cancel) {
+        match import::import_with(pack, staging, max_texture, &Limits::default(), &keep, cancel) {
             Ok(report) => summary.imported.push(report),
             Err(error) if cancel.load(Ordering::Relaxed) => return Err(error),
             Err(error) => summary.failed.push((pack.display().to_string(), format!("{error:#}"))),

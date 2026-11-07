@@ -7,6 +7,8 @@
 //! source = 'C:/r6work/tracks'
 //! # The longest side of a ground picture, pixels.
 //! max_texture = 512
+//! # The barriers, buildings and props of the track (more than the ground alone: 190 MB for Okayama instead of 110).
+//! objects = true
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -49,6 +51,10 @@ pub const DEFAULT_CONFIG: &str =
 
 # Longest side of a ground picture in pixels (a power of two, 64 to 2048). Smaller is a smaller world on disk.
 max_texture = 512
+
+# The barriers, buildings and props of the track, and the walls they make: a world without them is smaller (Okayama 110 MB
+# instead of 190) and a rider can leave the track anywhere.
+objects = true
 ";
 
 /// The settings of the mod.
@@ -57,11 +63,13 @@ max_texture = 512
 pub struct Config {
     pub source: Option<PathBuf>,
     pub max_texture: u32,
+    /// Keep the barriers, buildings and props of the packs.
+    pub objects: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { source: None, max_texture: 512 }
+        Self { source: None, max_texture: 512, objects: true }
     }
 }
 
@@ -134,6 +142,7 @@ mod tests {
         let config = Config::parse("source = 'C:/r6work/tracks'\nmax_texture = 1024\n").unwrap();
         assert_eq!(config.source.as_deref(), Some(Path::new("C:/r6work/tracks")));
         assert_eq!(config.max_texture, 1024);
+        assert!(Config::parse("objects = false").is_ok_and(|c| !c.objects));
         assert!(Config::parse("sorce = 'x'").is_err());
         assert!(Config::parse("max_texture = 1000").is_err());
         assert!(Config::parse("max_texture = 4096").is_err());

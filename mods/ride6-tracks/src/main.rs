@@ -24,11 +24,18 @@ struct Args {
     /// After the import, cast a ray down at every sample of the lap and count the surfaces and the heights met.
     #[arg(long)]
     check: bool,
+    /// Leave out the barriers, buildings and props.
+    #[arg(long)]
+    no_objects: bool,
 }
 
 fn run(args: &Args) -> Result<()> {
     let started = std::time::Instant::now();
-    let report = ride6_tracks::import::import(&args.pack, &args.mod_dir, args.max_texture, &AtomicBool::new(false))?;
+    let keep = ride6_tracks::cells::Keep { objects: !args.no_objects };
+    let limits = ride6_tracks::cells::Limits::default();
+    let cancel = AtomicBool::new(false);
+    let report =
+        ride6_tracks::import::import_with(&args.pack, &args.mod_dir, args.max_texture, &limits, &keep, &cancel)?;
     println!(
         "world {}: {} cells, {} triangles in {} solids, {} pictures, {:.1} MB of sections in {:.1} s",
         report.world,
@@ -40,6 +47,7 @@ fn run(args: &Args) -> Result<()> {
         started.elapsed().as_secs_f32()
     );
     println!("collision: {} triangles, {} too wide for a strip", report.collision_triangles, report.collision_skipped);
+    println!("objects: {} placed, {} left out", report.objects, report.objects_skipped);
     for (picture, reason) in &report.missing_pictures {
         println!("picture {picture} is drawn flat: {reason}");
     }

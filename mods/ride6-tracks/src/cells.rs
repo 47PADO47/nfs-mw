@@ -78,6 +78,19 @@ pub struct Limits {
     pub min_size: f32,
 }
 
+/// Which parts of a pack an import keeps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Keep {
+    /// The barriers, buildings and props, and the walls they make in the collision.
+    pub objects: bool,
+}
+
+impl Default for Keep {
+    fn default() -> Self {
+        Self { objects: true }
+    }
+}
+
 impl Default for Limits {
     fn default() -> Self {
         Self { max_triangles: 40_000, min_size: 128.0 }
@@ -176,6 +189,20 @@ fn build(pack: &Pack, corner: [f32; 2], triangles: &[TriangleRef], limits: &Limi
     Cell { key, parts: cell.parts.into_iter().map(|b| b.part).collect(), ground: cell.ground }
 }
 
+/// The parts of a model's group, split where its vertices or triangles would not fit a solid.
+pub fn parts_of(group: &crate::pack::Group) -> Vec<Part> {
+    let mut cell = CellBuilder::default();
+    for triangle in group.indices.as_chunks::<3>().0 {
+        let at = open_part(&mut cell, 0, group.material);
+        let builder = &mut cell.parts[at];
+        for &corner in triangle {
+            let index = builder.vertex(group, corner as usize);
+            builder.part.indices.push(index);
+        }
+    }
+    cell.parts.into_iter().map(|b| b.part).collect()
+}
+
 /// The part of `cell` that group `group` is filling, starting a new one when there is none or the open one is full.
 fn open_part(cell: &mut CellBuilder, group: usize, material: usize) -> usize {
     if let Some(&at) = cell.open.get(&group)
@@ -238,6 +265,7 @@ mod tests {
         Group {
             material: 0,
             collide,
+            model: 0,
             positions,
             uvs: vec![[0.0, 0.0]; count],
             normals: vec![[0, 0, 127]; count],
@@ -246,7 +274,16 @@ mod tests {
     }
 
     fn pack(groups: Vec<Group>) -> Pack {
-        Pack { track: "T".into(), materials: vec![material()], groups, lap: Lap::default(), sea: None }
+        Pack {
+            track: "T".into(),
+            materials: vec![material()],
+            groups,
+            lap: Lap::default(),
+            sea: None,
+            models: vec![],
+            object_groups: vec![],
+            instances: vec![],
+        }
     }
 
     #[test]

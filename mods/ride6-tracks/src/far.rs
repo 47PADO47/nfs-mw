@@ -43,7 +43,16 @@ pub fn far_pack(pack: &Pack, grid: f32) -> Pack {
     };
     materials.push(Material { name: "sea".into(), texture: None, color, surface: "dirt".into() });
     groups.push(quad(materials.len() - 1, z - BIAS));
-    Pack { track: pack.track.clone(), materials, groups, lap: Default::default(), sea: None }
+    Pack {
+        track: pack.track.clone(),
+        materials,
+        groups,
+        lap: Default::default(),
+        sea: None,
+        models: Vec::new(),
+        object_groups: Vec::new(),
+        instances: Vec::new(),
+    }
 }
 
 /// A square of `SEA_SIDE` metres at height `z`, facing up.
@@ -52,6 +61,7 @@ fn quad(material: usize, z: f32) -> Group {
     Group {
         material,
         collide: false,
+        model: 0,
         positions: vec![[-h, -h, z], [h, -h, z], [h, h, z], [-h, h, z]],
         uvs: vec![[0.0, 0.0]; 4],
         normals: vec![[0, 0, 127]; 4],
@@ -99,6 +109,7 @@ fn cluster(group: &Group, grid: f32) -> Group {
     Group {
         material: group.material,
         collide: false,
+        model: 0,
         positions: clusters
             .iter()
             .map(|c| [c.position[0] / c.count, c.position[1] / c.count, c.position[2] / c.count - BIAS])
@@ -140,6 +151,7 @@ mod tests {
         Group {
             material: 0,
             collide: true,
+            model: 0,
             positions,
             uvs: vec![[0.5, 0.5]; count],
             normals: vec![[0, 0, 127]; count],
@@ -149,7 +161,16 @@ mod tests {
 
     fn pack(sea: Option<Sea>) -> Pack {
         let material = Material { name: "m".into(), texture: None, color: [1, 2, 3], surface: "grass".into() };
-        Pack { track: "T".into(), materials: vec![material], groups: vec![field(80)], lap: Lap::default(), sea }
+        Pack {
+            track: "T".into(),
+            materials: vec![material],
+            groups: vec![field(80)],
+            lap: Lap::default(),
+            sea,
+            models: vec![],
+            object_groups: vec![],
+            instances: vec![],
+        }
     }
 
     #[test]

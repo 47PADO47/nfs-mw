@@ -17,10 +17,10 @@ class Ground:
     def __init__(self):
         self.groups = []  # (material index, collide, positions, normals, uv, indices)
 
-    def add(self, material, collide, positions, normals, uv, indices):
+    def add(self, material, collide, positions, normals, uv, indices, model=0):
         if len(indices) == 0:
             return
-        self.groups.append((material, collide, positions, normals, uv, indices))
+        self.groups.append((material, collide, positions, normals, uv, indices, model))
 
     def triangles(self):
         return sum(len(g[5]) for g in self.groups) // 3
@@ -28,9 +28,10 @@ class Ground:
     def write(self, path):
         with open(path, "wb") as f:
             f.write(MAGIC + struct.pack("<II", VERSION, len(self.groups)))
-            for material, collide, positions, _normals, _uv, indices in self.groups:
-                f.write(struct.pack("<IIII", material, len(positions), len(indices), 1 if collide else 0))
-            for _material, _collide, positions, normals, uv, indices in self.groups:
+            for material, collide, positions, _normals, _uv, indices, model in self.groups:
+                flags = (1 if collide else 0) | (model << 8)
+                f.write(struct.pack("<IIII", material, len(positions), len(indices), flags))
+            for _material, _collide, positions, normals, uv, indices, _model in self.groups:
                 f.write(positions.astype("<f4").tobytes())
                 f.write(uv.astype("<f4").tobytes())
                 packed = np.zeros((len(normals), 4), dtype=np.int8)

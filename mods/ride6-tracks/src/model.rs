@@ -22,7 +22,7 @@ pub struct PlacedSolid {
     pub centre: [f32; 3],
 }
 
-/// The solid of `part`, named `name`, textured with the texture called `texture`.
+/// The solid of `part`, named `name`, textured with the texture called `texture`, centred on its box and placed there.
 pub fn solid_of(name: &str, part: &Part, texture: &str) -> PlacedSolid {
     let mut low = [f32::INFINITY; 3];
     let mut high = [f32::NEG_INFINITY; 3];
@@ -33,6 +33,15 @@ pub fn solid_of(name: &str, part: &Part, texture: &str) -> PlacedSolid {
         }
     }
     let centre = [0, 1, 2].map(|axis| ((low[axis] + high[axis]) / 2.0).round());
+    PlacedSolid { source: build(name, part, texture, centre), centre }
+}
+
+/// The solid of a part of an object's model: its vertices stay in the model's own space, the placement carries the rest.
+pub fn model_solid(name: &str, part: &Part, texture: &str) -> SolidSource {
+    build(name, part, texture, [0.0; 3])
+}
+
+fn build(name: &str, part: &Part, texture: &str, centre: [f32; 3]) -> SolidSource {
     let vertices: Vec<Vertex> = part
         .positions
         .iter()
@@ -54,7 +63,7 @@ pub fn solid_of(name: &str, part: &Part, texture: &str) -> PlacedSolid {
     group.flags = 0;
     let mut source = SolidSource::new(name, vec![group]);
     source.texture_hashes = vec![bstring_hash(texture)];
-    PlacedSolid { source, centre }
+    source
 }
 
 #[cfg(test)]

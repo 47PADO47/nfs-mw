@@ -39,6 +39,23 @@ pub struct Lap {
     pub spline: Spline,
 }
 
+/// A model of the objects placed on the track (a barrier, a building, a prop).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ModelInfo {
+    pub name: String,
+    /// The model is solid: a wheel or a body meets it (barriers, buildings).
+    pub solid: bool,
+}
+
+/// One placement of a model: where and how it stands, in render space.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Instance {
+    pub model: u32,
+    pub pos: [f32; 3],
+    /// Where the model's x, y and z axes point, scaled (the rows of the scenery format).
+    pub rows: [[f32; 3]; 3],
+}
+
 /// Water beyond the ground: a flat sea at a height, of a colour.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 pub struct Sea {
@@ -50,6 +67,8 @@ pub struct Sea {
 struct Document {
     #[serde(default)]
     sea: Option<Sea>,
+    #[serde(default)]
+    models: Vec<ModelInfo>,
     format: u32,
     track: String,
     materials: Vec<Material>,
@@ -63,6 +82,8 @@ pub struct Group {
     pub material: usize,
     /// The group is ground a wheel can touch (collision).
     pub collide: bool,
+    /// For a group of the objects' models: the model it belongs to. 0 for the ground.
+    pub model: u32,
     /// Render space, metres.
     pub positions: Vec<[f32; 3]>,
     pub uvs: Vec<[f32; 2]>,
@@ -81,6 +102,10 @@ pub struct Pack {
     pub lap: Lap,
     /// The sea of the track, when its levels have water.
     pub sea: Option<Sea>,
+    /// The objects placed on the track: their models (`groups` of `object_groups` name them by `model`) and the placements.
+    pub models: Vec<ModelInfo>,
+    pub object_groups: Vec<Group>,
+    pub instances: Vec<Instance>,
 }
 
 impl Pack {
@@ -99,7 +124,50 @@ pub fn read(dir: &Path) -> Result<Pack> {
     let bytes =
         std::fs::read(dir.join("ground.r6m")).with_context(|| format!("reading {}/ground.r6m", dir.display()))?;
     let groups = read_groups(&bytes, document.materials.len())?;
-    Ok(Pack { track: document.track, materials: document.materials, groups, lap: document.lap, sea: document.sea })
+    let (object_groups, instances) = read_objects(dir, document.materials.len(), document.models.len())?;
+    Ok(Pack {
+        track: document.track,
+        materials: document.materials,
+        groups,
+        lap: document.lap,
+        sea: document.sea,
+        models: document.models,
+        object_groups,
+        instances,
+    })
+}
+
+/// The objects' model groups (`models.r6m`) and their placements (`instances.r6i`); none for a pack without them.
+fn read_objects(dir: &Path, materials: usize, models: usize) -> Result<(Vec<Group>, Vec<Instance>)> {
+    let (groups_path, instances_path) = (dir.join("models.r6m"), dir.join("instances.r6i"));
+    if !groups_path.is_file() || !instances_path.is_file() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let groups = read_groups(&std::fs::read(&groups_path).context("reading models.r6m")?, materials)?;
+    ensure!(groups.iter().all(|g| (g.model as usize) < models), "models.r6m names a model pack.json does not list");
+    let instances = read_instances(&std::fs::read(&instances_path).context("reading instances.r6i")?, models)?;
+    Ok((groups, instances))
+}
+
+/// The placements of the bytes of an `instances.r6i` file: magic, version, count, then a model, a position and nine row values each.
+pub fn read_instances(bytes: &[u8], models: usize) -> Result<Vec<Instance>> {
+    ensure!(bytes.len() >= 12 && &bytes[..4] == b"R6TI", "instances.r6i does not start with R6TI");
+    let word = |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().expect("four bytes"));
+    ensure!(word(4) == 1, "instances.r6i is version {}, this mod reads version 1", word(4));
+    let count = word(8) as usize;
+    const RECORD: usize = 4 + 12 * 4;
+    ensure!(bytes.len() == 12 + count * RECORD, "instances.r6i is {} bytes for {count} placements", bytes.len());
+    let float = |at: usize| f32::from_le_bytes(bytes[at..at + 4].try_into().expect("four bytes"));
+    let mut out = Vec::with_capacity(count);
+    for i in 0..count {
+        let at = 12 + i * RECORD;
+        let model = word(at);
+        ensure!((model as usize) < models, "placement {i} names model {model} of {models}");
+        let pos = [float(at + 4), float(at + 8), float(at + 12)];
+        let rows = [0, 1, 2].map(|r| [0, 1, 2].map(|c| float(at + 16 + (r * 3 + c) * 4)));
+        out.push(Instance { model, pos, rows });
+    }
+    Ok(out)
 }
 
 /// The groups of the bytes of a `ground.r6m` file, each naming one of `materials` materials.
@@ -132,6 +200,7 @@ pub fn read_groups(bytes: &[u8], materials: usize) -> Result<Vec<Group>> {
         groups.push(Group {
             material,
             collide: flags & 1 != 0,
+            model: flags >> 8,
             positions: positions.as_chunks::<3>().0.to_vec(),
             uvs: uvs.as_chunks::<2>().0.to_vec(),
             normals: normal_bytes.as_chunks::<4>().0.iter().map(|n| [n[0] as i8, n[1] as i8, n[2] as i8]).collect(),
@@ -154,9 +223,8 @@ pub fn write_groups(groups: &[Group]) -> Vec<u8> {
     out.extend_from_slice(&VERSION.to_le_bytes());
     out.extend_from_slice(&(groups.len() as u32).to_le_bytes());
     for group in groups {
-        for word in
-            [group.material as u32, group.positions.len() as u32, group.indices.len() as u32, u32::from(group.collide)]
-        {
+        let flags = u32::from(group.collide) | (group.model << 8);
+        for word in [group.material as u32, group.positions.len() as u32, group.indices.len() as u32, flags] {
             out.extend_from_slice(&word.to_le_bytes());
         }
     }
@@ -179,6 +247,7 @@ mod tests {
         Group {
             material,
             collide,
+            model: 0,
             positions: vec![[0.0, 0.0, 1.0], [10.0, 0.0, 1.0], [10.0, 10.0, 1.0], [0.0, 10.0, 1.0]],
             uvs: vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
             normals: vec![[0, 0, 127]; 4],

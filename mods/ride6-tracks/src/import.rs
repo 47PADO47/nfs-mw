@@ -15,6 +15,7 @@ use crate::far;
 use crate::lap::Track;
 use crate::manifest::{self, MAX_CELLS, Place, WORLDS_FOLDER};
 use crate::model::solid_of;
+use crate::objects;
 use crate::pack::{self, Pack};
 use crate::textures::{Pictures, flat_colour};
 
@@ -31,6 +32,9 @@ pub struct Report {
     pub cells: usize,
     pub triangles: usize,
     pub solids: usize,
+    /// Objects placed (barriers, buildings, props), and placements left out for a scale the format cannot hold.
+    pub objects: usize,
+    pub objects_skipped: usize,
     pub pictures: usize,
     /// Triangles that are ground a wheel can touch, and the ones too wide to be collision.
     pub collision_triangles: usize,
@@ -43,7 +47,7 @@ pub struct Report {
 
 /// Imports the pack in `pack_dir` into `out`, stopping early (with an error) when `cancel` is set.
 pub fn import(pack_dir: &Path, out: &Path, max_texture: u32, cancel: &AtomicBool) -> Result<Report> {
-    import_with(pack_dir, out, max_texture, &cells::Limits::default(), cancel)
+    import_with(pack_dir, out, max_texture, &cells::Limits::default(), &cells::Keep::default(), cancel)
 }
 
 /// [`import`] with its own limits on how the ground is cut into cells.
@@ -52,9 +56,14 @@ pub fn import_with(
     out: &Path,
     max_texture: u32,
     limits: &cells::Limits,
+    keep: &cells::Keep,
     cancel: &AtomicBool,
 ) -> Result<Report> {
-    let pack = pack::read(pack_dir).with_context(|| format!("reading the pack {}", pack_dir.display()))?;
+    let mut pack = pack::read(pack_dir).with_context(|| format!("reading the pack {}", pack_dir.display()))?;
+    if !keep.objects {
+        pack.instances.clear();
+        pack.object_groups.clear();
+    }
     let id = manifest::world_id(&pack.track);
     if id.is_empty() {
         bail!("the track name {:?} gives no world id", pack.track);
@@ -63,7 +72,7 @@ pub fn import_with(
     if cells.len() > MAX_CELLS {
         bail!("{} cells are more than the section numbers hold ({MAX_CELLS})", cells.len());
     }
-    let (pictures, missing_pictures) = Pictures::load(&pack_dir.join("tex"), &stems_of(&pack), max_texture);
+    let (pictures, missing_pictures) = Pictures::load_sized(&pack_dir.join("tex"), &sizes_of(&pack, max_texture));
     let files = out.join("files").join("WORLDS").join(id.to_ascii_uppercase());
     let worlds = out.join(WORLDS_FOLDER).join(&id);
     for folder in [&files, &worlds] {
@@ -74,23 +83,26 @@ pub fn import_with(
         cells: cells.len(),
         triangles: pack.triangles(),
         solids: 0,
+        objects: 0,
+        objects_skipped: 0,
         pictures: pictures_count(&pack, &pictures),
         collision_triangles: 0,
         collision_skipped: 0,
         bytes: 0,
         missing_pictures,
     };
+    let near = objects::assign(&pack, &cells);
     for (index, cell) in cells.iter().enumerate() {
         if cancel.load(Ordering::Relaxed) {
             bail!("the import was cancelled");
         }
-        write_cell(&pack, &pictures, &id, index, cell, false, out, &mut report)?;
+        write_cell(&pack, &pictures, &id, index, cell, false, &near[index], out, &mut report)?;
     }
     // The far ground is one more cell, always loaded (`far.rs`).
     let far = far::far_pack(&pack, FAR_GRID_METRES);
     let everything = cells::Limits { max_triangles: usize::MAX, min_size: 128.0 };
     for cell in cells::bin(&far, &everything) {
-        write_cell(&far, &pictures, &id, report.cells, &cell, true, out, &mut report)?;
+        write_cell(&far, &pictures, &id, report.cells, &cell, true, &[], out, &mut report)?;
         report.cells += 1;
     }
     write_world(&pack, &id, out)?;
@@ -104,12 +116,28 @@ fn stems_of(pack: &Pack) -> Vec<String> {
     stems.into_iter().collect()
 }
 
+/// Each picture with the longest side it is stored at: the ground's at `max_texture`, the ones only objects use (grandstands,
+/// barriers, signs: many cells repeat them) at half of it.
+fn sizes_of(pack: &Pack, max_texture: u32) -> Vec<(String, u32)> {
+    let used = |groups: &[crate::pack::Group]| -> BTreeSet<String> {
+        groups.iter().filter_map(|g| pack.materials[g.material].texture.clone()).collect()
+    };
+    let ground = used(&pack.groups);
+    stems_of(pack)
+        .into_iter()
+        .map(|stem| {
+            let limit = if ground.contains(&stem) { max_texture } else { (max_texture / 2).max(64) };
+            (stem, limit)
+        })
+        .collect()
+}
+
 fn pictures_count(pack: &Pack, pictures: &Pictures) -> usize {
     stems_of(pack).iter().filter(|stem| pictures.get(stem).is_some()).count()
 }
 
 /// The texture a material is drawn with: its picture, or a flat colour when it has none or the picture is missing.
-fn texture_for(pack: &Pack, pictures: &Pictures, material: usize) -> TextureSource {
+pub(crate) fn texture_for(pack: &Pack, pictures: &Pictures, material: usize) -> TextureSource {
     let m = &pack.materials[material];
     match m.texture.as_deref().and_then(|stem| pictures.get(stem)) {
         Some(texture) => texture.clone(),
@@ -124,6 +152,7 @@ fn write_cell(
     index: usize,
     cell: &Cell,
     far: bool,
+    instances: &[usize],
     out: &Path,
     report: &mut Report,
 ) -> Result<()> {
@@ -141,21 +170,35 @@ fn write_cell(
         placed.push((solid.source.name.clone(), solid.centre));
         sources.push(solid.source);
     }
-    let ground = soup(&cell.ground, &pack.materials);
+    let mut ground = soup(&cell.ground, &pack.materials);
+    let objects = objects::cell_objects(pack, pictures, instances, &key.to_ascii_uppercase());
+    ground.extend(objects.walls);
+    for texture in objects.textures {
+        if !textures.iter().any(|known| known.name == texture.name) {
+            textures.push(texture);
+        }
+    }
+    report.objects += objects.places.len();
+    report.objects_skipped += objects.skipped;
+    sources.extend(objects.solids);
     let section = crate::section::build(&key.to_ascii_uppercase(), number, &sources, &textures, &ground)?;
     let file = manifest::cell_file(id, index);
     let path = out.join("files").join(&file);
     std::fs::write(&path, &section.bytes).with_context(|| format!("writing {}", path.display()))?;
-    let places: Vec<Place<'_>> = placed
+    let mut places: Vec<Place<'_>> = placed
         .iter()
-        .enumerate()
-        .map(|(at, (model, centre))| Place {
-            model,
-            pos: *centre,
-            collision: at == 0 && !ground.is_empty(),
-            own_coarse: far,
-        })
+        .map(|(model, centre)| Place { model, pos: *centre, collision: false, own_coarse: far, rows: None })
         .collect();
+    places.extend(objects.places.iter().map(|p| Place {
+        model: &p.solid,
+        pos: p.pos,
+        collision: false,
+        own_coarse: false,
+        rows: Some(p.rows),
+    }));
+    if let Some(first) = places.first_mut() {
+        first.collision = !ground.is_empty();
+    }
     let text = manifest::cell_manifest(&file, number, cell.anchor(), &places);
     let manifest_path = out.join(WORLDS_FOLDER).join(id).join(format!("{key}.toml"));
     std::fs::write(&manifest_path, text).with_context(|| format!("writing {}", manifest_path.display()))?;

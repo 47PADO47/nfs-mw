@@ -6,7 +6,7 @@ use std::sync::atomic::AtomicBool;
 
 use blackbox_collision::{CollisionWorld, RayOptions};
 use blackbox_modding::content::{Collision, parse_scenery, parse_world};
-use ride6_tracks::cells::Limits;
+use ride6_tracks::cells::{Keep, Limits};
 use ride6_tracks::import::{import, import_with};
 use ride6_tracks::pack::{Group, write_groups};
 
@@ -33,6 +33,7 @@ fn square(material: usize, x0: f32, y0: f32, side: f32, z: f32) -> Group {
     Group {
         material,
         collide: true,
+        model: 0,
         positions: corners.iter().map(|c| [x0 + c[0] * side, y0 + c[1] * side, z]).collect(),
         uvs: corners.to_vec(),
         normals: vec![[0, 0, 127]; 4],
@@ -63,7 +64,7 @@ fn a_pack_becomes_cells_a_world_manifest_and_ground_that_answers_rays() {
     write_pack(&pack);
     // Two triangles to a cell: the two squares, 1,000 m apart, are two cells.
     let limits = Limits { max_triangles: 2, min_size: 128.0 };
-    let report = import_with(&pack, &out, 64, &limits, &AtomicBool::new(false)).unwrap();
+    let report = import_with(&pack, &out, 64, &limits, &Keep::default(), &AtomicBool::new(false)).unwrap();
     // The two cells and the far ground.
     assert_eq!((report.world.as_str(), report.cells, report.triangles), ("testtrack", 3, 4));
     assert_eq!((report.collision_triangles, report.collision_skipped), (4, 0));
@@ -111,7 +112,7 @@ fn a_missing_picture_is_reported_and_its_material_is_drawn_flat() {
     write_pack(&pack);
     std::fs::remove_file(pack.join("tex/t_grass.png")).unwrap();
     let limits = Limits { max_triangles: 2, min_size: 128.0 };
-    let report = import_with(&pack, &out, 64, &limits, &AtomicBool::new(false)).unwrap();
+    let report = import_with(&pack, &out, 64, &limits, &Keep::default(), &AtomicBool::new(false)).unwrap();
     assert_eq!(report.pictures, 0);
     assert_eq!(report.missing_pictures.len(), 1);
     assert!(out.join("files/WORLDS/TESTTRACK/G001.BUN").is_file());

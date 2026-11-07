@@ -21,6 +21,7 @@ import numpy as np  # noqa: E402
 import level  # noqa: E402
 import meshes  # noqa: E402
 import pack  # noqa: E402
+import props  # noqa: E402
 import trkmat  # noqa: E402
 
 GROUND_SKIP = re.compile(r"_SC$|water|overlay|decal", re.IGNORECASE)
@@ -159,7 +160,9 @@ class Builder:
             normals[:, 2] = 1.0
         coords = meshes.planar_uv(positions, normals, tile_m) if uv == "planar" else uv0
         material = self.material(name, picture, tile_m, uv, surface)
-        self.ground.add(material, item["collide"], positions, normals, coords, local)
+        item.get("sink", self.ground).add(
+            material, item["collide"], positions, normals, coords, local, item.get("model", 0)
+        )
 
 
 def export_spline(assets, track):
@@ -193,6 +196,38 @@ def export_textures(tool, builder, out_dir, size):
             os.remove(os.path.join(out_dir, name))
 
 
+def export_objects(tool, assets, builder, track, out, scratch):
+    """The barriers, buildings and props: `models.r6m` (each distinct mesh once), `instances.r6i`; the models for pack.json."""
+    instances, models = props.collect(assets, track, common.log)
+    if not instances:
+        return []
+    sink = pack.Ground()
+    items = [
+        {
+            "name": m["name"],
+            "mesh": mesh,
+            "materials": mesh_materials(assets, mesh, m["overrides"]),
+            "collide": m["solid"],
+            "model": m["index"],
+            "sink": sink,
+        }
+        for mesh, m in models.items()
+    ]
+    glbs = export_glb(tool, items, os.path.join(scratch, "objects"))
+    for item in items:
+        path = glbs.get(item["name"].lower())
+        if path is None:
+            continue
+        for slot, (_material, attrs, indices) in enumerate(meshes.Glb(path).slots()):
+            builder.add_primitive(item, slot, attrs, indices)
+    os.makedirs(out, exist_ok=True)
+    sink.write(os.path.join(out, "models.r6m"))
+    props.write_instances(os.path.join(out, "instances.r6i"), instances)
+    spline = [] if "spline" not in (export_spline(assets, track) or {}) else export_spline(assets, track)["spline"]["points"]
+    common.log(f"{len(instances)} objects of {len(models)} models, {sink.triangles()} triangles; mean distance to the lap {props.median_distance(instances, spline)}")
+    return [{"name": m["name"], "solid": m["solid"]} for m in sorted(models.values(), key=lambda m: m["index"])]
+
+
 def run(track, out, size):
     started = time.time()
     tool, assets = common.open_assets()
@@ -208,6 +243,7 @@ def run(track, out, size):
             continue
         for slot, (_material, attrs, indices) in enumerate(meshes.Glb(path).slots()):
             builder.add_primitive(item, slot, attrs, indices)
+    object_models = export_objects(tool, assets, builder, track, out, scratch)
     os.makedirs(out, exist_ok=True)
     builder.ground.write(os.path.join(out, "ground.r6m"))
     export_textures(tool, builder, os.path.join(out, "tex"), size)
@@ -220,6 +256,7 @@ def run(track, out, size):
         "triangles": builder.ground.triangles(),
         "materials": builder.materials,
         "sea": sea,
+        "models": object_models,
         "lap": lap,
     }
     pack.write_json(os.path.join(out, "pack.json"), document)
