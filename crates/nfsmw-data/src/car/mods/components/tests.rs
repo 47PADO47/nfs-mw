@@ -8,7 +8,7 @@ use glam::Vec3;
 
 use super::parts::{affine, mounted};
 use super::select::{category_of, choice_hash, performance_of, picks, resolve};
-use super::{Binding, Components, Role, catalog, keys, of, publish, upgraded};
+use super::{Binding, Components, Role, catalog, is_choice, keys, of, publish, upgraded};
 use crate::car::customization::{Category, Selection};
 use crate::car::mods::CarStats;
 use crate::car::physics::{PerformanceCategory, PerformancePackage};
@@ -261,4 +261,15 @@ fn a_mount_moves_the_vertices_normals_tangents_and_boxes_of_a_copy() {
     let same = mounted(&solid(), None, 7);
     assert_eq!(same.vertices, solid().vertices);
     assert_eq!(same.name_hash, 7);
+}
+
+#[test]
+fn a_component_in_a_garage_slot_is_a_priced_choice_and_a_ladder_tier_is_not() {
+    publish("COMPTESTBIKE4", components());
+    assert!(is_choice(choice_hash("COMPTESTBIKE4", "t:exhaust.race")));
+    assert!(
+        !is_choice(choice_hash("COMPTESTBIKE4", "t:engine.1")),
+        "the engine ladder is a performance level, not a part"
+    );
+    assert!(!is_choice(choice_hash("COMPTESTBIKE5", "t:exhaust.race")));
 }

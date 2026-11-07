@@ -98,6 +98,16 @@ pub fn publish(folder: &str, components: Components) {
     *published = Box::leak(all.into_boxed_slice());
 }
 
+/// Whether `hash` stands for a component a car lists in a slot the garage has a category for ([`select::choice_hash`]): like
+/// every choice of a mod car it is priced at the first tier.
+pub fn is_choice(hash: u32) -> bool {
+    let published = *PUBLISHED.read().unwrap_or_else(PoisonError::into_inner);
+    published.iter().any(|(folder, components)| {
+        let slots = components.vehicle.slots.iter().filter(|slot| select::category_of(&slot.id).is_some());
+        slots.flat_map(|slot| &slot.accepts).any(|offer| select::choice_hash(folder, &offer.component) == hash)
+    })
+}
+
 /// The components of the mod car in `folder`. `None` for a stock car and for a mod car that gives none.
 pub fn of(folder: &str) -> Option<&'static Components> {
     let published = *PUBLISHED.read().unwrap_or_else(PoisonError::into_inner);
