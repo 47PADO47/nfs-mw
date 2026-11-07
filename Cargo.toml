@@ -20,6 +20,7 @@ default-members = [
     "libs/blackbox-chunk",
     "libs/blackbox-collision",
     "libs/blackbox-feng",
+    "libs/blackbox-gauge-skin",
     "libs/blackbox-gfx",
     "libs/blackbox-gfx-testkit",
     "libs/blackbox-ginsu",
@@ -104,6 +105,7 @@ blackbox-gfx = { path = "libs/blackbox-gfx" }
 blackbox-gfx-testkit = { path = "libs/blackbox-gfx-testkit" }
 blackbox-ginsu = { path = "libs/blackbox-ginsu" }
 blackbox-gpu-passes = { path = "libs/blackbox-gpu-passes" }
+blackbox-gauge-skin = { path = "libs/blackbox-gauge-skin" }
 blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-i18n = { path = "libs/blackbox-i18n" }
 blackbox-minimap = { path = "libs/blackbox-minimap" }

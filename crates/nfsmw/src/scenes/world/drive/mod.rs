@@ -450,6 +450,7 @@ impl Drive {
             speedbreaker_active: self.breaker.active(),
             has_turbo: t.has_induction,
             boost_psi: t.boost_psi,
+            car_dir: self.car_name.clone(),
             telemetry: sim.hud_telemetry(),
             condition: Some(sim.hud_condition()),
             ..Default::default()
