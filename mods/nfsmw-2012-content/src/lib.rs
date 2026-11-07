@@ -56,6 +56,7 @@ mod plate_designs;
 mod police;
 mod sample;
 mod shared;
+mod sound_store;
 mod sounds;
 mod soundtrack;
 mod source;

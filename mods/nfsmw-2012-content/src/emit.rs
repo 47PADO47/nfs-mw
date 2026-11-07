@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 
 use crate::config::Role;
 use crate::effects::EffectFiles;
+use crate::sound_store::SoundStore;
 use crate::stats::ImportedStats;
 
 /// One imported car, as the mod folder records it.
@@ -48,6 +49,8 @@ pub struct EngineFiles {
 /// The generated folders of a mod folder.
 pub struct ModFolder {
     root: PathBuf,
+    /// The recordings written so far: a recording of several cars is one file (`sound_store.rs`).
+    sounds: SoundStore,
 }
 
 impl ModFolder {
@@ -61,7 +64,7 @@ impl ModFolder {
             }
         }
         std::fs::create_dir_all(root).with_context(|| format!("creating {}", root.display()))?;
-        Ok(Self { root: root.to_owned() })
+        Ok(Self { root: root.to_owned(), sounds: SoundStore::default() })
     }
 
     /// The mod folder.
@@ -86,7 +89,7 @@ impl ModFolder {
         std::fs::write(folder.join("GEOMETRY.BIN"), files.geometry)?;
         std::fs::write(folder.join("TEXTURES.BIN"), files.textures)?;
         std::fs::write(folder.join("BOUNDS.BIN"), files.bounds)?;
-        let engine = files.engine.map(|engine| self.add_engine(&car.id, engine)).transpose()?;
+        let engine = files.engine.map(|engine| self.add_engine(engine)).transpose()?;
         let effects = files.effects.map(|effects| self.add_effects(&car.id, effects)).transpose()?;
         let sound: String = [engine, effects].into_iter().flatten().collect();
         let cars = self.root.join("cars");
@@ -98,18 +101,16 @@ impl ModFolder {
         Ok(())
     }
 
-    /// Write the engine loops of the car `id` under `SOUND/MODENGINE/<ID>/` and return the manifest table that names them.
-    fn add_engine(&self, id: &str, engine: &EngineFiles) -> Result<String> {
-        let folder = self.root.join("files").join("SOUND").join("MODENGINE").join(id);
-        std::fs::create_dir_all(&folder)?;
+    /// Write the engine loops of a car (each once among all cars, [`SoundStore`]) and return the manifest table that names them.
+    fn add_engine(&self, engine: &EngineFiles) -> Result<String> {
         let mut layers = Vec::new();
-        for (at, layer) in engine.layers.iter().enumerate() {
+        for layer in &engine.layers {
             let (extension, fields) = match &layer.curves {
                 None => ("WAV", format!("rpm = {:?}", layer.rpm)),
                 Some(curved) => (if curved.ginsu { "GIN" } else { "WAV" }, curved.fields.clone()),
             };
-            std::fs::write(folder.join(format!("L{at}.{extension}")), &layer.wav)?;
-            layers.push(format!("  {{ file = \"SOUND/MODENGINE/{id}/L{at}.{extension}\", {fields} }},\n"));
+            let path = self.sounds.put(&self.root, extension, &layer.wav)?;
+            layers.push(format!("  {{ file = \"{path}\", {fields} }},\n"));
         }
         Ok(format!(
             "\n[engine_sound]\nidle_rpm = {:?}\nredline_rpm = {:?}\nlayers = [\n{}]\n",
@@ -121,43 +122,37 @@ impl ModFolder {
 }
 
 impl ModFolder {
-    /// Write the shifts, turbo, backfire and pops of the car `id` next to its engine loops and return the `[car_sound]`
-    /// table that names them.
+    /// Write the shifts, turbo, backfire and pops of the car `id` (each once among all cars) and return the `[car_sound]` table
+    /// that names them. The car's ignition is a file of its own, which the mod plays by its path (`ignition.rs`).
     fn add_effects(&self, id: &str, effects: &EffectFiles) -> Result<String> {
-        let folder = self.root.join("files").join("SOUND").join("MODENGINE").join(id);
-        std::fs::create_dir_all(&folder)?;
-        let (table, files) = effects_table(id, effects);
-        for (name, bytes) in files {
-            std::fs::write(folder.join(name), bytes)?;
-        }
+        let table = effects_table(effects, &mut |bytes| self.sounds.put(&self.root, "WAV", bytes))?;
         if let Some(ignition) = &effects.ignition {
+            let folder = self.root.join("files").join("SOUND").join("MODENGINE").join(id);
+            std::fs::create_dir_all(&folder)?;
             std::fs::write(folder.join("IGNITION.WAV"), ignition)?;
         }
         Ok(table)
     }
 }
 
-/// The `[car_sound]` table of the car `id` and the files it names (file name, bytes). Empty lists are left out, and a car
-/// with no effect at all has no table.
-fn effects_table<'a>(id: &str, effects: &'a EffectFiles) -> (String, Vec<(String, &'a [u8])>) {
+/// The `[car_sound]` table of a car with `effects`: each list names the paths `put` gives for its recordings (`put` writes
+/// one and returns its path under `files/`). Empty lists are left out, and a car with no effect at all has no table.
+fn effects_table(effects: &EffectFiles, put: &mut dyn FnMut(&[u8]) -> Result<String>) -> Result<String> {
     let lists = [
-        ("shift", "SHIFT", &effects.shift),
-        ("turbo_whine", "WHINE", &effects.turbo_whine),
-        ("turbo_blowoff", "BLOWOFF", &effects.turbo_blowoff),
-        ("backfire", "BACKFIRE", &effects.backfire),
-        ("pops", "POP", &effects.pops),
+        ("shift", &effects.shift),
+        ("turbo_whine", &effects.turbo_whine),
+        ("turbo_blowoff", &effects.turbo_blowoff),
+        ("backfire", &effects.backfire),
+        ("pops", &effects.pops),
     ];
     let mut table = String::new();
-    let mut files = Vec::new();
-    for (key, stem, wavs) in lists {
+    for (key, wavs) in lists {
         if wavs.is_empty() {
             continue;
         }
         let mut paths = Vec::with_capacity(wavs.len());
-        for (at, wav) in wavs.iter().enumerate() {
-            let name = format!("{stem}{at}.WAV");
-            paths.push(format!("\"SOUND/MODENGINE/{id}/{name}\""));
-            files.push((name, wav.as_slice()));
+        for wav in wavs {
+            paths.push(format!("\"{}\"", put(wav.as_slice())?));
         }
         table.push_str(&format!("{key} = [{}]\n", paths.join(", ")));
     }
@@ -165,9 +160,9 @@ fn effects_table<'a>(id: &str, effects: &'a EffectFiles) -> (String, Vec<(String
         table.push_str("shift_clunk = false\n");
     }
     if table.is_empty() {
-        return (table, files);
+        return Ok(table);
     }
-    (format!("\n[car_sound]\n{table}"), files)
+    Ok(format!("\n[car_sound]\n{table}"))
 }
 
 fn quoted(text: &str) -> String {
@@ -247,44 +242,53 @@ paints = [{ name = \"Red\", color = [200, 0, 0] }]
         assert!(parsed.get("performance").is_none(), "a car has stats, not multipliers of a clone");
     }
 
+    /// The `[car_sound]` table of `effects` with every recording named `SOUND/MODENGINE/<id>/F<n>.WAV` in the order they
+    /// were handed out, and the recordings in that order.
+    fn table_of(id: &str, effects: &EffectFiles) -> (String, Vec<Vec<u8>>) {
+        let mut written: Vec<Vec<u8>> = Vec::new();
+        let table = effects_table(effects, &mut |bytes| {
+            written.push(bytes.to_vec());
+            Ok(format!("SOUND/MODENGINE/{id}/F{}.WAV", written.len() - 1))
+        })
+        .unwrap();
+        (table, written)
+    }
+
     #[test]
     fn the_effects_table_names_every_file_it_writes_and_leaves_out_what_the_car_lacks() {
         let effects = EffectFiles { shift: vec![vec![1], vec![2]], backfire: vec![vec![3]], ..EffectFiles::default() };
-        let (table, files) = effects_table("MYCAR", &effects);
+        let (table, files) = table_of("MYCAR", &effects);
         let parsed: toml::Table = toml::from_str(&table).unwrap();
         let sound = parsed["car_sound"].as_table().unwrap();
         assert_eq!(sound.keys().map(String::as_str).collect::<Vec<_>>(), ["backfire", "shift"]);
         let listed: Vec<&str> = sound["shift"].as_array().unwrap().iter().map(|path| path.as_str().unwrap()).collect();
-        assert_eq!(listed, ["SOUND/MODENGINE/MYCAR/SHIFT0.WAV", "SOUND/MODENGINE/MYCAR/SHIFT1.WAV"]);
-        let names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
-        assert_eq!(names, ["SHIFT0.WAV", "SHIFT1.WAV", "BACKFIRE0.WAV"]);
-        assert_eq!(files[2].1, [3]);
-        assert_eq!(effects_table("MYCAR", &EffectFiles::default()), (String::new(), Vec::new()));
+        assert_eq!(listed, ["SOUND/MODENGINE/MYCAR/F0.WAV", "SOUND/MODENGINE/MYCAR/F1.WAV"]);
+        assert_eq!(files, [vec![1], vec![2], vec![3]]);
+        assert_eq!(table_of("MYCAR", &EffectFiles::default()), (String::new(), Vec::new()));
     }
 
     #[test]
     fn a_car_with_no_gear_change_says_so_and_that_alone_is_a_table() {
         let electric = EffectFiles { no_clunk: true, ..EffectFiles::default() };
-        let (table, files) = effects_table("EVCAR", &electric);
+        let (table, files) = table_of("EVCAR", &electric);
         let parsed: toml::Table = toml::from_str(&table).unwrap();
         assert_eq!(parsed["car_sound"]["shift_clunk"].as_bool(), Some(false));
         assert!(files.is_empty());
         let both = EffectFiles { no_clunk: true, pops: vec![vec![1]], ..EffectFiles::default() };
-        let parsed: toml::Table = toml::from_str(&effects_table("EVCAR", &both).0).unwrap();
+        let parsed: toml::Table = toml::from_str(&table_of("EVCAR", &both).0).unwrap();
         assert_eq!(parsed["car_sound"].as_table().unwrap().len(), 2);
         let normal: toml::Table =
-            toml::from_str(&effects_table("CAR", &EffectFiles { pops: vec![vec![1]], ..Default::default() }).0)
-                .unwrap();
+            toml::from_str(&table_of("CAR", &EffectFiles { pops: vec![vec![1]], ..Default::default() }).0).unwrap();
         assert!(normal["car_sound"].get("shift_clunk").is_none());
     }
 
     #[test]
     fn the_manifest_with_sound_tables_is_valid_toml() {
         let effects = EffectFiles { pops: vec![vec![9]], ..EffectFiles::default() };
-        let (table, _) = effects_table("POR911CARR12", &effects);
+        let (table, _) = table_of("POR911CARR12", &effects);
         let text = car_manifest(&entry(), Some(&table));
         let parsed: toml::Table = toml::from_str(&text).unwrap();
-        assert_eq!(parsed["car_sound"]["pops"][0].as_str(), Some("SOUND/MODENGINE/POR911CARR12/POP0.WAV"));
+        assert_eq!(parsed["car_sound"]["pops"][0].as_str(), Some("SOUND/MODENGINE/POR911CARR12/F0.WAV"));
     }
 
     #[test]
@@ -337,7 +341,10 @@ paints = [{ name = \"Red\", color = [200, 0, 0] }]
         let text = std::fs::read_to_string(dir.join("cars/por911carr12.toml")).unwrap();
         let manifest = blackbox_modding::content::parse_car("por911carr12", &text).unwrap();
         let sound = manifest.car_sound.unwrap();
-        assert_eq!(sound.shift, ["SOUND/MODENGINE/POR911CARR12/SHIFT0.WAV"], "the car's own list is kept");
+        assert_eq!(sound.shift.len(), 1, "the car's own list is kept");
+        assert!(
+            sound.shift[0].starts_with("SOUND/MODENGINE/SHARED/") && dir.join("files").join(&sound.shift[0]).is_file()
+        );
         assert_eq!(sound.shared.impact_big, ["SOUND/MODSHARED/IMPACT/B.WAV"]);
         assert_eq!(sound.shared.scrape, ["SOUND/MODSHARED/SCRAPE/S.WAV"]);
         assert!(folder.append_to_manifest("NOSUCHCAR", table).is_err());
