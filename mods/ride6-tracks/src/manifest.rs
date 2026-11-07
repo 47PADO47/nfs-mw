@@ -37,6 +37,9 @@ pub struct Place<'a> {
     pub pos: [f32; 3],
     /// Whether the placement carries the pack's static collision.
     pub collision: bool,
+    /// Whether the model is also its own low-detail model: the game draws nothing for a placement with an empty low-detail slot
+    /// where the density rule picks it, and the far ground is meant to be seen from far.
+    pub own_coarse: bool,
 }
 
 /// The text of a cell's manifest.
@@ -50,6 +53,9 @@ pub fn cell_manifest(file: &str, section: u32, anchor: [f32; 4], places: &[Place
         let _ = writeln!(text, "\n[[place]]");
         let _ = writeln!(text, "model = \"{}\"", place.model);
         let _ = writeln!(text, "pos = [{:.1}, {:.1}, {:.1}]", place.pos[0], place.pos[1], place.pos[2]);
+        if place.own_coarse {
+            let _ = writeln!(text, "coarse = \"{}\"", place.model);
+        }
         if place.collision {
             let _ = writeln!(text, "collision = \"static\"");
         }
@@ -93,8 +99,8 @@ mod tests {
     #[test]
     fn the_manifests_parse_with_the_game_schemas() {
         let places = [
-            Place { model: "G007_0", pos: [105.0, -20.5, 7.0], collision: true },
-            Place { model: "G007_1", pos: [105.0, -20.5, 7.0], collision: false },
+            Place { model: "G007_0", pos: [105.0, -20.5, 7.0], collision: true, own_coarse: true },
+            Place { model: "G007_1", pos: [105.0, -20.5, 7.0], collision: false, own_coarse: false },
         ];
         let text = cell_manifest("WORLDS/OKAYAMA/G007.BUN", 2707, [105.0, -20.5, 7.0, 220.0], &places);
         let pack = parse_scenery("g007", &text).unwrap();
@@ -102,6 +108,8 @@ mod tests {
         assert_eq!(pack.places.len(), 2);
         assert_eq!(pack.places[0].collision, Collision::Static);
         assert_eq!(pack.places[1].collision, Collision::None);
+        assert_eq!(pack.places[0].coarse.as_deref(), Some("G007_0"));
+        assert_eq!(pack.places[1].coarse, None);
         let world = parse_world("okayama", &world_manifest("Okayama (RIDE 6)", [-228.0, -214.7, 26.1], 95.1)).unwrap();
         assert_eq!(world.name, "Okayama (RIDE 6)");
         assert_eq!(world.start[2], 26.1);

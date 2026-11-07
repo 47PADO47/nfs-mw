@@ -246,7 +246,7 @@ mod tests {
     }
 
     fn pack(groups: Vec<Group>) -> Pack {
-        Pack { track: "T".into(), materials: vec![material()], groups, lap: Lap::default() }
+        Pack { track: "T".into(), materials: vec![material()], groups, lap: Lap::default(), sea: None }
     }
 
     #[test]

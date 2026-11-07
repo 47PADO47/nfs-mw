@@ -39,8 +39,17 @@ pub struct Lap {
     pub spline: Spline,
 }
 
+/// Water beyond the ground: a flat sea at a height, of a colour.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Sea {
+    pub z: f32,
+    pub color: [u8; 3],
+}
+
 #[derive(Debug, Deserialize)]
 struct Document {
+    #[serde(default)]
+    sea: Option<Sea>,
     format: u32,
     track: String,
     materials: Vec<Material>,
@@ -70,6 +79,8 @@ pub struct Pack {
     pub materials: Vec<Material>,
     pub groups: Vec<Group>,
     pub lap: Lap,
+    /// The sea of the track, when its levels have water.
+    pub sea: Option<Sea>,
 }
 
 impl Pack {
@@ -88,7 +99,7 @@ pub fn read(dir: &Path) -> Result<Pack> {
     let bytes =
         std::fs::read(dir.join("ground.r6m")).with_context(|| format!("reading {}/ground.r6m", dir.display()))?;
     let groups = read_groups(&bytes, document.materials.len())?;
-    Ok(Pack { track: document.track, materials: document.materials, groups, lap: document.lap })
+    Ok(Pack { track: document.track, materials: document.materials, groups, lap: document.lap, sea: document.sea })
 }
 
 /// The groups of the bytes of a `ground.r6m` file, each naming one of `materials` materials.

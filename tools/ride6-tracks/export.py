@@ -24,6 +24,7 @@ import pack  # noqa: E402
 import trkmat  # noqa: E402
 
 GROUND_SKIP = re.compile(r"_SC$|water|overlay|decal", re.IGNORECASE)
+GROUND_SKIP_SHADOW = re.compile(r"_SC$", re.IGNORECASE)
 # The far hills are drawn and not driven on; everything else of the ground is collision.
 NO_COLLISION = re.compile(r"far", re.IGNORECASE)
 
@@ -57,6 +58,29 @@ def ground_meshes(assets, track):
             }
         )
     return found
+
+
+def find_sea(assets, tool, track, scratch):
+    """The sea of the track: the median height of its water meshes (render space) and a colour, or None when it has none."""
+    exports = assets.exports(level.level_paths(track)["Terrain"])
+    water = [
+        {"mesh": item["mesh"], "name": common.r6lib.object_name(item["mesh"])}
+        for item in level.static_meshes(exports)
+        if "water" in common.r6lib.object_name(item["mesh"]) and not GROUND_SKIP_SHADOW.search(common.r6lib.object_name(item["mesh"]))
+    ]
+    if not water:
+        return None
+    heights = []
+    glbs = export_glb(tool, water, os.path.join(scratch, "water"))
+    for item in water:
+        path = glbs.get(item["name"].lower())
+        if path is None:
+            continue
+        for _material, attrs, _indices in meshes.Glb(path).slots():
+            heights.append(float(np.median(meshes.to_render(attrs["POSITION"])[:, 2])))
+    if not heights:
+        return None
+    return {"z": float(np.median(heights)), "color": [28, 62, 92]}
 
 
 def export_glb(tool, items, out_dir):
@@ -188,12 +212,14 @@ def run(track, out, size):
     builder.ground.write(os.path.join(out, "ground.r6m"))
     export_textures(tool, builder, os.path.join(out, "tex"), size)
     lap = export_spline(assets, track)
+    sea = find_sea(assets, tool, track, scratch)
     document = {
         "format": 1,
         "track": track,
         "source": "RIDE 6 install, exported by tools/ride6-tracks",
         "triangles": builder.ground.triangles(),
         "materials": builder.materials,
+        "sea": sea,
         "lap": lap,
     }
     pack.write_json(os.path.join(out, "pack.json"), document)

@@ -11,6 +11,7 @@ use blackbox_tpk::TextureSource;
 
 use crate::cells::{self, Cell};
 use crate::collision::soup;
+use crate::far;
 use crate::lap::Track;
 use crate::manifest::{self, MAX_CELLS, Place, WORLDS_FOLDER};
 use crate::model::solid_of;
@@ -19,6 +20,8 @@ use crate::textures::{Pictures, flat_colour};
 
 /// How far ahead of the first slot of the starting grid the start line is, metres.
 const START_LINE_AHEAD: f32 = 25.0;
+/// The side of the squares the far ground's vertices are clustered on, metres.
+const FAR_GRID_METRES: f32 = 10.0;
 
 /// What an import did.
 #[derive(Debug, Clone, PartialEq)]
@@ -81,7 +84,14 @@ pub fn import_with(
         if cancel.load(Ordering::Relaxed) {
             bail!("the import was cancelled");
         }
-        write_cell(&pack, &pictures, &id, index, cell, out, &mut report)?;
+        write_cell(&pack, &pictures, &id, index, cell, false, out, &mut report)?;
+    }
+    // The far ground is one more cell, always loaded (`far.rs`).
+    let far = far::far_pack(&pack, FAR_GRID_METRES);
+    let everything = cells::Limits { max_triangles: usize::MAX, min_size: 128.0 };
+    for cell in cells::bin(&far, &everything) {
+        write_cell(&far, &pictures, &id, report.cells, &cell, true, out, &mut report)?;
+        report.cells += 1;
     }
     write_world(&pack, &id, out)?;
     write_lap(&pack, &id, out)?;
@@ -113,6 +123,7 @@ fn write_cell(
     id: &str,
     index: usize,
     cell: &Cell,
+    far: bool,
     out: &Path,
     report: &mut Report,
 ) -> Result<()> {
@@ -138,7 +149,12 @@ fn write_cell(
     let places: Vec<Place<'_>> = placed
         .iter()
         .enumerate()
-        .map(|(at, (model, centre))| Place { model, pos: *centre, collision: at == 0 && !ground.is_empty() })
+        .map(|(at, (model, centre))| Place {
+            model,
+            pos: *centre,
+            collision: at == 0 && !ground.is_empty(),
+            own_coarse: far,
+        })
         .collect();
     let text = manifest::cell_manifest(&file, number, cell.anchor(), &places);
     let manifest_path = out.join(WORLDS_FOLDER).join(id).join(format!("{key}.toml"));

@@ -11,6 +11,7 @@ pub mod cells;
 pub mod check;
 pub mod collision;
 pub mod config;
+pub mod far;
 pub mod import;
 pub mod job;
 pub mod lap;

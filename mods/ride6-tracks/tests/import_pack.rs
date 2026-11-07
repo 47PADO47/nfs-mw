@@ -64,7 +64,8 @@ fn a_pack_becomes_cells_a_world_manifest_and_ground_that_answers_rays() {
     // Two triangles to a cell: the two squares, 1,000 m apart, are two cells.
     let limits = Limits { max_triangles: 2, min_size: 128.0 };
     let report = import_with(&pack, &out, 64, &limits, &AtomicBool::new(false)).unwrap();
-    assert_eq!((report.world.as_str(), report.cells, report.triangles), ("testtrack", 2, 4));
+    // The two cells and the far ground.
+    assert_eq!((report.world.as_str(), report.cells, report.triangles), ("testtrack", 3, 4));
     assert_eq!((report.collision_triangles, report.collision_skipped), (4, 0));
     assert_eq!(report.pictures, 1);
     assert!(report.missing_pictures.is_empty());
