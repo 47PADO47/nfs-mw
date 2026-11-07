@@ -1,7 +1,7 @@
 //! The components of a mod's cars (ADR 0014, docs/modding/ride6-bike-upgrades.md): the mod's `components/*.toml` catalog files are
 //! read once per mod, and each car that lists slots is checked against them and published for the game.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -56,14 +56,15 @@ fn binding(part: &PartBinding) -> Binding {
         PartRole::WheelFront => Role::WheelFront,
         PartRole::WheelRear => Role::WheelRear,
     };
-    Binding { solid: part.solid.clone(), pack: part.pack.clone(), role, matrix: part.matrix }
+    Binding { solid: part.solid.clone(), pack: part.pack.clone(), role, matrix: part.matrix, base: part.base }
 }
 
 /// Publish the components of the car in `folder`, whose mod is in `owner`. A car whose slots do not fit its mod's catalog is
 /// logged and published with its own stock parts only (no choices): its stock parts are solids of their own, and must still draw.
 pub(super) fn publish(owner: &Path, folder: &str, own: &Manifest) {
     let catalog = catalog_of(owner);
-    let vehicle = VehicleDef { id: folder.to_ascii_lowercase(), parts: BTreeSet::new(), slots: own.slots.clone() };
+    let base = own.parts.iter().filter(|(_, part)| part.base).map(|(id, _)| id.clone());
+    let vehicle = VehicleDef { id: folder.to_ascii_lowercase(), parts: base.collect(), slots: own.slots.clone() };
     let parts: BTreeMap<String, Binding> = own.parts.iter().map(|(id, part)| (id.clone(), binding(part))).collect();
     let Err(errors) = vehicle.check(&catalog) else {
         components::publish(folder, components::Components { vehicle, catalog, parts });

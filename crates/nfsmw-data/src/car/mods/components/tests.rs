@@ -48,7 +48,7 @@ default = "t:engine.stock"
 "#;
 
 fn binding(solid: &str) -> Binding {
-    Binding { solid: solid.to_owned(), pack: None, role: Role::Body, matrix: None }
+    Binding { solid: solid.to_owned(), pack: None, role: Role::Body, matrix: None, base: false }
 }
 
 fn components() -> Components {
@@ -292,4 +292,19 @@ fn a_choice_of_a_car_is_told_from_the_model_lists_by_its_folder() {
     assert!(is_choice_of("comptestbike6", choice_hash("COMPTESTBIKE6", "t:exhaust.race")));
     assert!(!is_choice_of("COMPTESTBIKE6", choice_hash("COMPTESTBIKE6", "t:engine.1")));
     assert!(!is_choice_of("NOCOMPONENTSBIKE", choice_hash("NOCOMPONENTSBIKE", "t:exhaust.race")));
+}
+
+#[test]
+fn a_base_part_has_no_nearest_level_to_stand_in_for_its_own() {
+    use super::parts::levels_to_try;
+    assert_eq!(
+        levels_to_try(true, 2),
+        vec![2],
+        "a coarser level of a body with fewer solids draws nothing of this one"
+    );
+    assert_eq!(
+        levels_to_try(false, 2),
+        vec![2, 1, 0, 3, 4],
+        "an aftermarket part falls back to the nearest level its pack has"
+    );
 }

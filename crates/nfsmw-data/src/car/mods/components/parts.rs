@@ -86,11 +86,17 @@ fn place(dir: &GameDir, folder: &str, wanted: &[(&String, &Binding)], lod: usize
             }
         }
         let Some(&canonical) = found.get(&lod) else {
+            // A base part with no solid at this level is a car whose body has fewer solids there: nothing to draw.
+            if binding.base {
+                continue;
+            }
             log::warn!("{folder}: the part {id} is not drawn: its solid {} is not in its files", binding.solid);
             continue;
         };
         for (level, placements) in lists(model, lod) {
-            let solid = found.get(&level).copied().unwrap_or(canonical);
+            let Some(solid) = found.get(&level).copied().or_else(|| (!binding.base).then_some(canonical)) else {
+                continue;
+            };
             let Some(placement) = mounted_placement(binding.role, solid, corners.as_ref()) else { continue };
             placements.push(placement);
         }
@@ -107,7 +113,7 @@ fn add_solid(
     binding: &Binding,
     level: usize,
 ) -> Option<u32> {
-    let order = (0..=level).rev().chain(level + 1..LEVELS);
+    let order = levels_to_try(binding.base, level);
     for at in order {
         let Some(solid) = pack.get(&bstring_hash(&format!("{}_{}", binding.solid, letter(at)))) else { continue };
         let key = bstring_hash(&format!("{id}@{}", letter(at)));
@@ -115,6 +121,13 @@ fn add_solid(
         return Some(key);
     }
     None
+}
+
+/// The levels of detail whose solid stands in for `level`, in order: the part's own, then the nearest finer, then the nearer coarser ones.
+/// A base part is the solid of its own level or nothing: the finer solids of a body are not drawn in place of a coarser one.
+pub(super) fn levels_to_try(base: bool, level: usize) -> Vec<usize> {
+    let order = (0..=level).rev().chain(level + 1..LEVELS);
+    order.filter(|&at| !base || at == level).collect()
 }
 
 /// Where the game puts a part of `role`: the body's frame is the car's, the others are the corner rig's. `None` for a car without

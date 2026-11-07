@@ -50,6 +50,8 @@ pub struct Binding {
     pub role: Role,
     /// The mount: three rows of a 3 by 4 affine matrix taking the solid's points to the frame of `role`.
     pub matrix: Option<[f32; 12]>,
+    /// A part of the car's base vehicle: drawn at the levels of detail its files have and at no other (no nearest level stands in).
+    pub base: bool,
 }
 
 /// One car's components.

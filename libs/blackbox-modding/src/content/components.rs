@@ -49,6 +49,8 @@ pub(super) struct RawPart {
     role: PartRole,
     #[serde(default)]
     matrix: Option<Vec<f32>>,
+    #[serde(default)]
+    base: bool,
 }
 
 /// Where the solid of one part is and how it sits on the car.
@@ -63,6 +65,9 @@ pub struct PartBinding {
     /// The mount: three rows of a 3 by 4 affine matrix (`p' = M [p, 1]`) taking the solid's points to the frame of `role`.
     /// `None`: the solid is modelled in that frame already.
     pub matrix: Option<[f32; 12]>,
+    /// The car is drawn with this part whatever its slots hold (`VehicleDef::parts`): the extra solids of a body whose mesh does not
+    /// fit one solid. A part of a component (`show`) leaves this `false`.
+    pub base: bool,
 }
 
 /// The slots of a car and the parts it binds.
@@ -114,7 +119,7 @@ fn part(raw: RawPart) -> Result<PartBinding, ContentError> {
             Some(rows)
         }
     };
-    Ok(PartBinding { solid: raw.solid, pack: raw.pack, role: raw.role, matrix })
+    Ok(PartBinding { solid: raw.solid, pack: raw.pack, role: raw.role, matrix, base: raw.base })
 }
 
 /// Check the `[[slot]]` and `[parts]` tables of a car. `None` when the car gives neither. Which components the slots accept,
