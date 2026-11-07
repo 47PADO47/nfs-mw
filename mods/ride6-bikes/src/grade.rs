@@ -14,7 +14,8 @@ pub const DEFAULT_GAIN: f32 = 1.35;
 /// colour (`F0 = 0.08 * specular`, 4 % for the picture's usual 0.5), which is why its black plastics are dark grey and not
 /// black; the car light materials of the bikes (`SHINYPLASTIC`, `DULLPLASTIC`) reflect nothing, so a part of that amount is
 /// baked into the colour. A choice: a quarter, half of what a bright sky would give, because the baked amount is lit by the
-/// car rig as well and, added to a saturated dark colour (the blue of a Yamaha), it also takes saturation away.
+/// car rig as well. It is applied in proportion to how little saturated the texel is (`bake::bake_diffuse`): a veil of one grey on a
+/// saturated paint (the red (184, 0, 26) of the Honda CRF 450 R came out pink) is what made the bikes look washed out.
 pub const DEFAULT_REFLECTED: f32 = 0.25;
 
 /// How much of the occlusion a bare metal is spared (0 to 1): the floor of the occlusion factor of a texel of metallic value `m`

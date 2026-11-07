@@ -20,6 +20,7 @@ pub mod build;
 pub mod camera;
 pub mod cli;
 pub mod config;
+pub mod dash;
 pub mod exhaust;
 pub mod exports;
 pub mod fork;

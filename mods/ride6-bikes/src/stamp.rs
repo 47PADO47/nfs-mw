@@ -8,7 +8,8 @@ use crate::config::Config;
 
 /// Bump when the importer changes what it writes for the same input.
 /// 2: the rider's contact points per car (`RIDER/contacts.json`).
-/// 3: glass blended as its transmittance, metals spared most of the baked occlusion, more stock parts, liveries.
+/// 3: glass blended as its transmittance, metals spared most of the baked occlusion, more stock parts, liveries, the finest level
+/// of detail whose solids fit, colours not veiled by the reflection, the idle panel in the instrument clusters' displays.
 const CONVERSION: u32 = 3;
 /// The name of the stamp file, in the mod's folder.
 pub const FILE: &str = ".import-stamp";

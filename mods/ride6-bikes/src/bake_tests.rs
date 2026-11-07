@@ -71,6 +71,18 @@ fn a_dielectric_reflects_the_environment_and_a_metal_does_not() {
 }
 
 #[test]
+fn a_saturated_colour_is_not_veiled_by_the_reflection() {
+    let grade = Grade { reflected: 0.5, ..Grade::NONE };
+    let plastic = Picture { width: 1, height: 1, rgba: vec![128, 100, 0, 255] };
+    // The red of the Honda CRF 450 R: no green, so a grey veil would turn it pink.
+    let red = bake_diffuse(level(1, 1, [184, 0, 26, 255]), Some(&plastic), true, grade, None);
+    let kept = [184u8, 0, 26].iter().zip(&red.rgba[..3]).all(|(&want, &got)| want.abs_diff(got) <= 1);
+    assert!(kept, "a fully saturated texel keeps its colour: {:?}", &red.rgba[..3]);
+    let grey = bake_diffuse(level(1, 1, [60, 60, 60, 255]), Some(&plastic), true, grade, None);
+    assert!(grey.rgba[0] > 60, "a grey texel takes the whole veil: {}", grey.rgba[0]);
+}
+
+#[test]
 fn the_opacity_is_cut_at_the_clip_value() {
     let mut base = level(2, 1, [10, 20, 30, 0]);
     base.rgba[3] = 200;

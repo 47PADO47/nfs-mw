@@ -11,6 +11,7 @@ use std::rc::Rc;
 use anyhow::Result;
 use blackbox_tpk::{AlphaUsage, Level, PixelFormat, TextureSource, full_mip_count};
 
+use crate::dash;
 use crate::glass;
 use crate::grade::{DEFAULT_AO_FLOOR, DEFAULT_GAIN, DEFAULT_REFLECTED, Grade, lift, metal_floor};
 use crate::partfile::{Kind, Material};
@@ -138,8 +139,13 @@ pub fn bake_diffuse(base: Level, pbr: Option<&Picture>, occlusion: bool, grade: 
                 let factor = floor + (1.0 - floor) * ao;
                 // The reflection of a dielectric: `F0 = 0.08 * specular` of the environment, none for a metal.
                 let reflection = (1.0 - metal) * 0.08 * (f32::from(packed[0]) / 255.0) * reflected;
+                let linear = [0, 1, 2].map(|c| srgb_to_linear(rgba[at + c]));
+                // A veil of one grey on every texel washes a saturated paint out (a red of (184, 0, 26) turned pink), and what
+                // the veil stands for, the reflection of the sky, is white where the paint is white and the paint's own tint
+                // where it is coloured: it is therefore applied in proportion to how little saturated the texel is.
+                let reflection = reflection * (1.0 - saturation(linear));
                 for c in 0..3 {
-                    rgba[at + c] = linear_to_srgb(srgb_to_linear(rgba[at + c]) * factor + reflection);
+                    rgba[at + c] = linear_to_srgb(linear[c] * factor + reflection);
                 }
             }
             for c in 0..3 {
@@ -153,6 +159,16 @@ pub fn bake_diffuse(base: Level, pbr: Option<&Picture>, occlusion: bool, grade: 
         }
     }
     Level { width, height, rgba }
+}
+
+/// The saturation of a linear colour, `(max - min) / max` (0 for black and for greys, 1 for a pure hue).
+fn saturation(linear: [f32; 3]) -> f32 {
+    let max = linear.iter().copied().fold(0.0, f32::max);
+    if max <= 1e-4 {
+        return 0.0;
+    }
+    let min = linear.iter().copied().fold(f32::MAX, f32::min);
+    (max - min) / max
 }
 
 /// The specular colour for the tangent-space shader: the base colour for metal and a grey for the rest, scaled by how
@@ -268,7 +284,12 @@ impl Surfaces {
             _ => format!("{car}_{}", upper(base_stem)),
         };
         let clip = material.cutout();
-        let level = Picture { width: base.width, height: base.height, rgba: base.rgba.clone() }.shrunk(cap);
+        let mut picture = Picture { width: base.width, height: base.height, rgba: base.rgba.clone() };
+        if base_stem.starts_with("gauge") {
+            // The display of an instrument cluster is a black window the game draws its panel into: draw it at idle.
+            dash::fill_screen(&mut picture);
+        }
+        let level = picture.shrunk(cap);
         let level = bake_diffuse(
             level,
             pbr.as_deref(),
