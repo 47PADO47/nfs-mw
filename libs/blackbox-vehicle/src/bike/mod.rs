@@ -168,7 +168,9 @@ pub struct Bike {
 }
 
 impl Bike {
-    pub fn new(spec: BikeSpec) -> Self {
+    pub fn new(mut spec: BikeSpec) -> Self {
+        // The bike is lighter in play than in the data (`choices::BIKE_MASS_SCALE`, the rider's mass is not scaled).
+        spec.chassis.mass *= choices::BIKE_MASS_SCALE;
         let chassis = &spec.chassis;
         let geometry = Geometry::new(chassis, &spec.front, &spec.rear);
         let mass = spec.total_mass();
