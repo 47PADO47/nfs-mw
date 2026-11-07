@@ -86,6 +86,8 @@ contacts and landings per step on a bike.
 
 ## 2. Turning
 
+*Round 13 ([ride6-feel-round13.md](ride6-feel-round13.md)) supersedes sections 2.2 (the left-right difference is gone: the time scale's stick curve is read at its quicker side for both directions), 2.4 (the signed reading) and 2.5 (the speed-sensitive stick: `choices::stick_share` is removed, and the speed curve of the time scale is held at 0.65).*
+
 ### 2.1 What is fixed by the data and cannot be "fixed"
 
 - **The steady radius is the lean limit's**: `v^2 / (g tan(lean))` plus the geometry of the tyre ([ride6-feel-round11.md](ride6-feel-round11.md), section 2:
