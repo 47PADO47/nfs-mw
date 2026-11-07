@@ -36,6 +36,17 @@ background thread from your own RIDE 6 exports, once. The host feature is in [do
 The converted files are the mod's own `files/WORLDS/` and `worlds/` folders (generated and git-ignored). The same converter is
 the `ride6-track-import <pack> <mod folder>` command line.
 
+## Size and time (Okayama, 512-pixel pictures)
+
+Export from the install 5 s (91 MB of pack); conversion 0.6 s, **106 MB** of sections in 57 cells (collision 26 MB, geometry 22 MB,
+pictures 44 MB); 58 MB at 256-pixel pictures. All 39 tracks convert in 0.2 to 10 s and 24 to 522 MB each.
+
+## Lap timing
+
+The mod times the player's laps on the track's spline (`worlds/<id>.lap`, written by the converter): the start line is 25 m ahead of
+the first slot of the starting grid, a lap counts after nine tenths of the lap were covered, and the time and the best lap show as a
+HUD message. Unit-tested; not seen in the game yet.
+
 ## What a world has, and what it lacks
 
 The ground (slices, kerbs, the runnable tarmac, the terrain) with a picture and a collision surface per triangle, the start on the
