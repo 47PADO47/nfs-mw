@@ -243,3 +243,21 @@ Not done, with the reason:
 
 Each one is a key of the mod's config, a row of its README, and, where the player should switch it in the game, a Gameplay option
 (the settings pattern of [api-settings.md](../modding/api-settings.md)) that shows only when the mod provides it.
+
+## 7. Phase 3: the lean import and the lazy files
+
+The user's rule is that anything that integrates with an external game is streamed from the original files, or else converted
+by something very small, fast and small on disk. The car import wrote 750 MB, so this phase worked on that, in the order of
+what the measurements said. The write-up with the measured numbers is [lean-content.md](../modding/lean-content.md).
+
+| Step | Result |
+|---|---|
+| 1. `_B` solids | 232 MB (46 % of the geometry) were copies of `_A`; the host reads a missing `_B` as `_A` (`car/mods/levels.rs`) and the converter stops writing it |
+| 2. Recordings | 1,070 of 1,338 files were copies; written once, named by content (`sound_store.rs`): 123 MB |
+| 3. Driver and poses | **cannot be shared**: the poses reach for each car's own wheel grips (no equal vertex buffer was found); lazy files remove them from the disk instead |
+| 4. Textures | only 6.7 MB of 78 are equal across cars; not worth a host feature |
+| 5. The virtual layer | built as **lazy files**, a smaller design than section 4's: the mod writes a stub for each file and gives the host one function (`bb.content` 1.1 `provide_lazy_files`); the host recognises stubs in `GameDir::read`. No list of paths, no change to the layer index. The 2012 mod uses it for `GEOMETRY.BIN`, `TEXTURES.BIN` and the recordings (`stream_cars`) |
+
+Left: the 11 traffic cars are still files (about 25 MB before step 1), the ignitions and the small shared files are files, and
+the texture swap and the world items of section 3.4 do not exist. The sizes after the change are computed from the earlier
+measurements and the first-use times of a car are not measured: both need a build.

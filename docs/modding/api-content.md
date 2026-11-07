@@ -25,6 +25,7 @@ follow-up; it would live in `libs/blackbox-chunk`).
 | Who provides | `vfs.provider(path: &str) -> Option<Provider { Install or Mod(String) }>` | G | same |
 | Layers | `vfs.layers() -> Vec<LayerInfo { owner, priority, files }>` | G | same |
 | Add layer | `vfs.add_overlay(dir: &str, priority: i32) -> Result<()>` for a folder a mod generates; `Load` only | G | same |
+| Lazy file | a stub in a mod's layer that `GameDir::read` replaces with bytes made by the mod when the file is read ([Lazy files](#lazy-files)); `GameDir::add_lazy_source(owner, source)` | G | `libs/game-install/src/vfs/lazy.rs` |
 | Mod data dir | `ctx.data_dir() -> PathBuf` a writable folder for the mod (`<local data dir>/<app>/mod-data/<id>/`) | G | `modding/runtime.rs` (new), `libs/game-install/src/discover/config.rs` for the base dir |
 
 The console command `vfs <path>` (new, host) prints which layer provides a path; `mods` lists the layers.
@@ -41,7 +42,31 @@ running game); the host rejects an entry whose source game has no reader or layo
 | Registry list | `content.list(kind: Kind) -> Vec<EntryInfo { key, owner }>` (any kind, including the game's own) | G | `modding/content.rs` (new) |
 | Lookup | `content.get(kind, key) -> Option<EntryInfo>` | G | same |
 | Unregister (own) | `content.remove(kind, key)`, valid in `Load` | G | same |
-| Rescan | `ctx.content() -> Option<Content>`, `content.rescan() -> Result<()>` (built, `bb.content` 1.0): the mod's `files/` and `cars/` changed since start-up. The host adds `files/` as a late layer of the install (shared by every copy, `GameDir::add_late_overlay`) and publishes the new cars (`car::mods::publish`); what the game opens afterwards lists them. A layer that exists is not re-indexed; a car already published is not added twice. Main thread only: a worker thread tells the mod's event callback, which calls it | G (interface), MW (cars) | `libs/blackbox-modding/src/{abi/iface,host/table,sdk}/content.rs`, `crates/nfsmw/src/modding/backends/content.rs`, `modding/content/mod.rs` (`rescan`) |
+| Rescan | `ctx.content() -> Option<Content>`, `content.rescan() -> Result<()>` (built, `bb.content` 1.0; 1.1 added [lazy files](#lazy-files)): the mod's `files/` and `cars/` changed since start-up. The host adds `files/` as a late layer of the install (shared by every copy, `GameDir::add_late_overlay`) and publishes the new cars (`car::mods::publish`); what the game opens afterwards lists them. A layer that exists is not re-indexed; a car already published is not added twice. Main thread only: a worker thread tells the mod's event callback, which calls it | G (interface), MW (cars) | `libs/blackbox-modding/src/{abi/iface,host/table,sdk}/content.rs`, `crates/nfsmw/src/modding/backends/content.rs`, `modding/content/mod.rs` (`rescan`) |
+
+### Lazy files
+
+Works now (`bb.content` 1.1). A mod that can make a file on demand (a car converted from another game's files when it is first
+opened) writes a **stub** in its `files/` layer in place of the file and gives the host the function that makes it. The host
+asks that function when the game **reads** the stub, so nothing is written for the file and the mod's folder stays small.
+Why and what it saved: [lean-content.md](lean-content.md).
+
+```
+BBLAZY1                    first line
+example.cars               the owner: the mod's id
+car/FASTCOUPE/GEOMETRY.BIN the key: any one line of text the mod understands
+```
+
+- A stub is text of at most 1,024 bytes; anything else is a plain file. The layer indexes it like any file, so the file exists, lists
+  in its folder, resolves and has the mod as its provider. `GameDir::read` returns the bytes the maker made; `open_file`,
+  `read_range` and `size` see the stub, so only callers that read the whole file see a lazy file as its real contents.
+- ABI (`bb.content` 1.1): `provide_lazy_files(ctx, read, user)`, where `read(user, key, sink, sink_ctx)` calls `sink(sink_ctx, bytes, len)`
+  once with the whole file and returns `BB_OK`, or returns an error status. **`read` is called on any thread**, several at once, outside
+  a mod callback, so it may not call the host's functions and must be thread-safe; a mod keeps what it made (a few recent results) itself.
+  The host never calls it after the mod unloads (a read then is an error). SDK: `Content::provide_lazy_files(impl LazyFiles)`.
+- Register in `Mod::load` or later on the main thread; the host holds the function until the install is known, so a mod may
+  register before any file is read. `Content::supports_lazy_files()` is `false` on a host older than 1.1: write the real files then.
+- A read of a stub with no maker (the mod is not loaded, or did not register) is an `io` error naming the mod and the key.
 
 ### Cars
 
