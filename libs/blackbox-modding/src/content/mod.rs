@@ -39,6 +39,7 @@ mod bike_transmission;
 mod bike_weight_sweep;
 mod bike_wheelie;
 mod car;
+mod components;
 mod cop;
 #[cfg(test)]
 mod cop_tests;
@@ -93,6 +94,10 @@ pub use bike::{
     Tyre as BikeTyre, Wheel as BikeWheel,
 };
 pub use car::{CarManifest, Kind as CarKind, Role, parse as parse_car};
+pub use components::{
+    COMPONENTS_FOLDER, Components, MAX_PARTS as MAX_COMPONENT_PARTS, MAX_SLOTS as MAX_COMPONENT_SLOTS, PartBinding,
+    PartRole, is_component_id, merge_catalog, parse_catalog,
+};
 pub use cop::{CopClass, CopWave, DEFAULT_CHANCE, DEFAULT_COUNT, MAX_CHANCE, MAX_COUNT};
 pub use customization::{Customization, Finish, Livery, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
 pub use damage_parts::{

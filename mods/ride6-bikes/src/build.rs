@@ -16,6 +16,7 @@ use blackbox_solid::{GroupSource, SolidSource, write_geometry_pack};
 use blackbox_tpk::write_tpk;
 
 use crate::bake::{Options, Surfaces};
+use crate::build_pieces::{Mounts, apart_ids, pieces};
 use crate::exhaust::{self, Pipe};
 use crate::exports::Exports;
 use crate::fork::{self, Names};
@@ -78,20 +79,20 @@ impl Built {
 }
 
 /// The wheel of a role: its tyre part and the hub bone the tyre hangs on.
-fn tyre(table: &PartTable, role: Role) -> Result<&Part> {
+pub(crate) fn tyre(table: &PartTable, role: Role) -> Result<&Part> {
     table
         .parts_of(role)
         .find(|p| p.kind == Kind::Tyre)
         .with_context(|| format!("the part table has no tyre for the {role:?} solid"))
 }
 
-fn hub_of(table: &PartTable, tyre: &Part) -> Result<[f32; 3]> {
+pub(crate) fn hub_of(table: &PartTable, tyre: &Part) -> Result<[f32; 3]> {
     let bone = tyre.anchor.bone.as_deref().with_context(|| format!("tyre {} has no hub bone", tyre.id))?;
     table.bone(bone)
 }
 
 /// Lowest and highest height of a tyre's vertices in the chassis frame.
-fn tyre_heights(exports: &Exports, tyre: &Part) -> Result<(f32, f32)> {
+pub(crate) fn tyre_heights(exports: &Exports, tyre: &Part) -> Result<(f32, f32)> {
     let glb = exports.load(&tyre.export, 0)?;
     let heights: Vec<f32> =
         glb.primitives.iter().flat_map(|p| &p.positions).map(|&p| tyre.anchor.point(p)[1]).collect();
@@ -143,11 +144,12 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
     let pipes = exhaust::stock_pipes(&table, &exports, frame)?;
 
     let mut solids = Solids { list: Vec::new(), points: Vec::new(), report: fork::Report::default() };
+    let apart = apart_ids(options.split_parts);
     let hubs = [(Role::FrontWheel, front_hub, "FRONT_TIRE"), (Role::BackWheel, rear_hub, "REAR_TIRE")];
     for (n, (letter, level)) in LEVELS.into_iter().enumerate() {
         let body = format!("{folder}_KIT00_BODY_{letter}");
         let (fork_name, bars_name) = (format!("{folder}_KIT00_FORK_{letter}"), format!("{folder}_KIT00_BARS_{letter}"));
-        let names = Names { body: &body, fork: &fork_name, bars: &bars_name, car: folder };
+        let names = Names { body: &body, fork: &fork_name, bars: &bars_name, car: folder, apart: &apart };
         let mut pair = fork::body_and_fork(&table, &exports, &mut surfaces, names, (frame, front_hub), level)?;
         pair.body.markers = exhaust::markers(&pipes);
         if n == 0 {
@@ -167,8 +169,15 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
         for (n, (letter, _)) in LEVELS.into_iter().enumerate() {
             let name = format!("{folder}_KIT00_{tag}_{letter}");
             let level = n as u32;
-            solids.list.push(wheel_solid(&table, &exports, &mut surfaces, (&name, folder), (role, hub), level)?);
+            let wheel = (name.as_str(), folder);
+            solids.list.push(wheel_solid(&table, &exports, &mut surfaces, wheel, (role, hub), (level, &apart))?);
         }
+    }
+    if options.split_parts != 0 {
+        let at = Mounts { frame, front_hub, rear_hub };
+        let made = pieces(&table, &exports, &mut surfaces, folder, (at, options.split_parts))?;
+        solids.points.extend(made.points);
+        solids.list.extend(made.list);
     }
     let liveries = add_liveries(&mut surfaces, folder, &livery_pictures)?;
     let geometry = write_geometry_pack(&solids.list).context("writing GEOMETRY.BIN")?;
@@ -204,7 +213,7 @@ fn add_liveries(surfaces: &mut Surfaces, folder: &str, pictures: &[(u32, Materia
 }
 
 /// Read the part at `level` (or the finest level below it that was exported) and make its groups.
-fn load_groups(
+pub(crate) fn load_groups(
     ctx: &mut GroupContext<'_>,
     exports: &Exports,
     part: &Part,
@@ -240,12 +249,12 @@ fn wheel_solid(
     surfaces: &mut Surfaces,
     (name, car): (&str, &str),
     (role, hub): (Role, [f32; 3]),
-    level: u32,
+    (level, apart): (u32, &[&str]),
 ) -> Result<SolidSource> {
     let (mut groups, mut points, mut lists) = (Vec::new(), Vec::new(), Lists::default());
     let to_solid = |p: [f32; 3]| wheel_point(p, hub);
     let mut ctx = GroupContext { table, surfaces, car, lists: &mut lists };
-    for part in table.parts_of(role) {
+    for part in table.parts_of(role).filter(|part| !apart.contains(&part.id.as_str())) {
         groups.extend(load_groups(&mut ctx, exports, part, level, &to_solid, &mut points)?);
     }
     finish(name, groups, lists)

@@ -15,7 +15,11 @@ use serde_json::Value;
 
 use crate::bake::Options;
 use crate::naming;
+use crate::options::Catalogue;
+use crate::options_manifest::{Plan, catalog_text};
+use crate::options_pack::{Library, write_all};
 use crate::pipeline::{Request, import_bike};
+use crate::shop::Shop;
 
 /// What to import from where.
 pub struct Input<'a> {
@@ -27,6 +31,9 @@ pub struct Input<'a> {
     /// The `sound` command's output folder, if any.
     pub sound: Option<&'a Path>,
     pub max_texture: u32,
+    /// The exporter's folder of the optional parts (`catalogue.json`, `parts.json`, `glb/`, `tex/`); `None`: the bikes get no
+    /// shop options (`docs/modding/ride6-bike-upgrades.md`).
+    pub bike_parts: Option<&'a Path>,
     /// Bikes imported at the same time (each holds its meshes in memory).
     pub threads: usize,
     /// Set to stop the run before its next bike (the game is closing, and its library is about to be unloaded).
@@ -42,6 +49,20 @@ pub struct Report {
     pub skipped: Vec<Skipped>,
     /// Why the rider was not converted, when it was asked for and failed (the bikes are still imported).
     pub rider_failed: Option<String>,
+    /// What the shop's options came to; `None` when the run had none.
+    pub shop: Option<ShopReport>,
+}
+
+/// The shop's options of a run.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ShopReport {
+    /// Bikes with at least one slot, the components of the catalog file and the part packs written, and their size in bytes.
+    pub bikes: usize,
+    pub components: usize,
+    pub packs: usize,
+    pub bytes: u64,
+    /// Why the catalogue or a pack could not be used: the bikes that list it do not offer it.
+    pub failed: Vec<Skipped>,
 }
 
 /// The stack of an import thread: the converter holds a bike's pictures and meshes in frames of its own, and a thread of the
@@ -94,6 +115,8 @@ pub fn run(input: &Input<'_>, out: &Path) -> Result<Report> {
     let work: Vec<(&Found, &String)> = found.iter().zip(&ids).collect();
     let report = Mutex::new(Report { skipped: unreadable, ..Report::default() });
     let next = AtomicUsize::new(0);
+    let (catalogue, plans) = (read_catalogue(input), Mutex::new(Vec::new()));
+    let shop = catalogue.as_ref().map(|catalogue| Shop { catalogue, plans: &plans });
     thread::scope(|scope| -> Result<()> {
         for _ in 0..input.threads.max(1) {
             let worker = thread::Builder::new().stack_size(STACK_BYTES).spawn_scoped(scope, || {
@@ -103,7 +126,7 @@ pub fn run(input: &Input<'_>, out: &Path) -> Result<Report> {
                     }
                     let at = next.fetch_add(1, Ordering::Relaxed);
                     let Some((bike, car)) = work.get(at) else { return };
-                    let result = import_guarded(bike, car, input, out);
+                    let result = import_guarded(bike, car, (input, shop.as_ref()), out);
                     let mut report = report.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                     match result {
                         Ok(()) => report.imported.push((bike.vehicle.clone(), (*car).clone())),
@@ -119,11 +142,69 @@ pub fn run(input: &Input<'_>, out: &Path) -> Result<Report> {
     let mut report = report.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
     report.imported.sort();
     report.skipped.sort();
+    if let (Some(catalogue), Some(dir)) = (&catalogue, input.bike_parts) {
+        let plans = plans.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
+        report.shop = Some(write_shop(input, (catalogue, dir), &plans, out));
+    }
     Ok(report)
 }
 
+/// The catalogue of the optional parts, when the run has a folder of them that reads; else the reason goes to the log.
+fn read_catalogue(input: &Input<'_>) -> Option<Catalogue> {
+    let dir = input.bike_parts?;
+    match Catalogue::read(dir) {
+        Ok(catalogue) => Some(catalogue),
+        Err(error) => {
+            log::warn!("the bikes get no shop options: {error:#}");
+            None
+        }
+    }
+}
+
+/// The catalog file of the components of `plans` and the packs of the parts they bind, in `out`.
+fn write_shop(input: &Input<'_>, (catalogue, dir): (&Catalogue, &Path), plans: &[Plan], out: &Path) -> ShopReport {
+    let mut report = ShopReport { bikes: plans.len(), ..ShopReport::default() };
+    if plans.is_empty() {
+        return report;
+    }
+    let text = catalog_text(plans.iter());
+    report.components = text.matches("[[component]]").count();
+    let file = out.join("components").join("ride6-bikes.toml");
+    let saved = std::fs::create_dir_all(out.join("components")).and_then(|()| std::fs::write(&file, text));
+    if let Err(error) = saved {
+        report.failed.push(("components".to_owned(), format!("{}: {error}", file.display())));
+        return report;
+    }
+    let mut stems: Vec<String> = plans
+        .iter()
+        .flat_map(|plan| &plan.parts)
+        .filter_map(|part| part.pack.as_deref()?.rsplit('/').next().map(str::to_ascii_lowercase))
+        .collect();
+    stems.sort();
+    stems.dedup();
+    let kinds: Vec<_> =
+        stems.iter().filter_map(|stem| Some((stem.clone(), catalogue.assets.get(stem)?.kind))).collect();
+    let options = Options { max_texture: input.max_texture, ..Options::default() };
+    let written =
+        Library::open(dir).and_then(|library| write_all(&library, out, &kinds, (options, input.threads), input.cancel));
+    match written {
+        Ok(written) => {
+            report.packs = written.packs;
+            report.bytes = written.bytes;
+            report.failed.extend(written.failed);
+        }
+        Err(error) => report.failed.push(("parts".to_owned(), format!("{error:#}"))),
+    }
+    report
+}
+
 /// One bike, with a missing mesh folder and a panic of the converter turned into a reason.
-fn import_guarded(bike: &Found, car: &str, input: &Input<'_>, out: &Path) -> std::result::Result<(), String> {
+fn import_guarded(
+    bike: &Found,
+    car: &str,
+    (input, shop): (&Input<'_>, Option<&Shop<'_>>),
+    out: &Path,
+) -> std::result::Result<(), String> {
     if !bike.dir.join("glb").is_dir() {
         return Err("the exporter's glb folder is missing (the meshes were cleaned away)".to_owned());
     }
@@ -139,6 +220,7 @@ fn import_guarded(bike: &Found, car: &str, input: &Input<'_>, out: &Path) -> std
         sound_dir: input.sound,
         sound_required: false,
         write_mod_toml: false,
+        shop,
     };
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| import_bike(&request)));
     match outcome {
@@ -203,6 +285,7 @@ mod tests {
             tyre_tables: None,
             sound: None,
             max_texture: 256,
+            bike_parts: None,
             threads: 2,
             cancel: &cancel,
         };
@@ -229,6 +312,7 @@ mod tests {
             tyre_tables: None,
             sound: None,
             max_texture: 256,
+            bike_parts: None,
             threads: 1,
             cancel: &cancel,
         };

@@ -78,6 +78,8 @@ impl PhysicsData {
         // A bike is moved by its two-wheel data; the body of its stats only meets the walls and the objects.
         let mut physics = match crate::car::mods::bike::of(folder) {
             Some(spec) => {
+                // A bike's upgrades (the levels of its package) change the numbers of its two-wheel data.
+                let spec = crate::car::mods::components::upgraded(folder, spec, package);
                 let layout = crate::car::mods::wheel_layout::of(folder);
                 let origin_x = crate::car::mods::bike::origin_x(layout.as_ref());
                 super::CarPhysics::from_bike(spec, origin_x, collision.bounds)

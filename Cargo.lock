@@ -1556,6 +1556,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-components"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "toml 0.9.12+spec-1.1.0",
+]
+
+[[package]]
 name = "blackbox-damage"
 version = "0.1.0"
 
@@ -1661,6 +1670,7 @@ dependencies = [
 name = "blackbox-modding"
 version = "0.1.0"
 dependencies = [
+ "blackbox-components",
  "blackbox-vehicle",
  "glam 0.34.1",
  "libloading",
@@ -4235,6 +4245,7 @@ dependencies = [
  "blackbox-carsound",
  "blackbox-chunk",
  "blackbox-collision",
+ "blackbox-components",
  "blackbox-damage",
  "blackbox-driver",
  "blackbox-feng",
@@ -4352,6 +4363,7 @@ dependencies = [
  "blackbox-carparts",
  "blackbox-chunk",
  "blackbox-collision",
+ "blackbox-components",
  "blackbox-damage",
  "blackbox-gfx",
  "blackbox-ginsu",
@@ -5480,6 +5492,7 @@ dependencies = [
  "blackbox-acl",
  "blackbox-attrib",
  "blackbox-collision",
+ "blackbox-components",
  "blackbox-hash",
  "blackbox-modding",
  "blackbox-skeleton",

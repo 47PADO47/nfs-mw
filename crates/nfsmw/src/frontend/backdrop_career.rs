@@ -27,7 +27,7 @@ fn catalog(dir: &GameDir, folder: &str) -> Result<Arc<Model>> {
     let car = tables.car_type_for_folder(folder).context("Selected car type is not installed")?;
     let physics = PhysicsData::load(dir)?;
     let performance = match nfsmw_data::car::mods::stats(folder) {
-        Some(stats) => PerformanceCatalog::from_stats(stats),
+        Some(stats) => nfsmw_data::car::mods::components::catalog::performance(folder, stats),
         None => PerformanceCatalog::read(physics.database(), &car.type_name)?,
     };
     let entry = Car {
