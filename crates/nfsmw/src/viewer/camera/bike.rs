@@ -25,15 +25,15 @@ use super::{Lens, direction};
 /// the rider's eyes, 48 on median) and still leaves the horizon in the upper 30 percent of the frame
 /// (`docs/specs/ride6-bike-cameras.md`, section 5). The data has no larger real number to use for it: the 50 and 60 degrees of
 /// two supermotard bikes are capped (`MAX_HELMET_DOWN_DEG` of the importer) and the others range from 5 to 20.
-pub const HELMET_VIEW_DOWN_DEG: f32 = 10.0;
+pub const HELMET_VIEW_DOWN_DEG: f32 = 16.0;
 
 /// The vertical field of view of the helmet camera at [`REFERENCE_ASPECT`], degrees. A modelling choice that is a player's request
 /// ("more field of view, I should see the bike's display normally"), wider than RIDE 6's own 91.49 degrees horizontal (60
 /// vertical) which cut the handlebar and the instrument panel off at the picture's lower and side edges: from the rider's eyes the
 /// grips of the imported bikes are 33 to 65 degrees to the side (45 on median, 52 at the 90th percentile) and 20 to 60 degrees
 /// down, so the picture must reach about 55 degrees to either side and, with [`HELMET_VIEW_DOWN_DEG`] and the data's 10 degrees
-/// of tilt, 60 degrees down. 80 degrees vertical is 112 horizontal at 16:9. A bike whose data field of view is wider keeps it.
-pub const HELMET_FOV_DEG: f32 = 80.0;
+/// of tilt, 60 degrees down. 88 degrees vertical is 120 horizontal at 16:9 (the user asked for a wider picture that looks lower: 80 and 10 before). A bike whose data field of view is wider keeps it.
+pub const HELMET_FOV_DEG: f32 = 88.0;
 
 /// How many degrees of vertical field of view the helmet camera gains at full speed on top of [`HELMET_FOV_DEG`] (scaled by the
 /// speed curve of the dynamic field of view and by the player's field-of-view intensity). Only ever widens, so the instrument

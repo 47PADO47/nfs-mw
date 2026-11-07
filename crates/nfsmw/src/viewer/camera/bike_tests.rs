@@ -302,7 +302,7 @@ fn the_helmet_camera_looks_down_by_the_data_and_the_players_extra_tilt_and_keeps
     let helmet = rig(1.45).helmet;
     let mount = Mount::helmet(&helmet, false);
     assert!((mount.pitch_deg - (helmet.pitch_deg - HELMET_VIEW_DOWN_DEG)).abs() < 1e-6, "{}", mount.pitch_deg);
-    assert!((4.0..=12.0).contains(&HELMET_VIEW_DOWN_DEG), "a modest tilt: {HELMET_VIEW_DOWN_DEG}");
+    assert!((4.0..=18.0).contains(&HELMET_VIEW_DOWN_DEG), "a modest tilt: {HELMET_VIEW_DOWN_DEG}");
     let shot = lens(Vec3::ZERO, LEVEL, &mount, 16.0 / 9.0);
     let down = -shot.forward.z.asin().to_degrees();
     assert!((down - (-helmet.pitch_deg + HELMET_VIEW_DOWN_DEG)).abs() < 1e-3, "{down}");
