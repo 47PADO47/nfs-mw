@@ -37,6 +37,7 @@ impl Setting {
             Setting::UiStyle => Data::Text(s.ui_style.label()),
             Setting::CustomHudSkin => Data::Text(s.custom_hud_skin.label()),
             Setting::SpeedUnits => Data::Text(s.speed_units.label()),
+            Setting::RidingStyle => Data::Text(s.riding_style.label()),
             Setting::UiTheme => Data::Text(s.ui_theme.label()),
             Setting::ContextMinimap(context) => map_options::data(s.minimap_mode(context)),
             Setting::RenderScale => Data::Text(crate::i18n::fmt::percent(i64::from(s.render_scale.percent()))),

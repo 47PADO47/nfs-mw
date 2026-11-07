@@ -78,6 +78,9 @@ pub struct CarScene {
     stand: CarStand,
     /// The rider of a bike mod car, and how many of `instances` are the car's: his parts are listed after them (`rider.rs`).
     rider: crate::scenes::world::drive::rider::Rider,
+    /// The state the rider is shown in, and whether he has been brought to it yet (`rider.rs`).
+    rider_state: crate::scenes::world::drive::rider::RiderSample,
+    rider_settled: bool,
     car_instances: usize,
 }
 
@@ -111,6 +114,8 @@ impl CarScene {
             placeholder_floor: true,
             stand: CarStand::default(),
             rider: crate::scenes::world::drive::rider::Rider::previewing(),
+            rider_state: Default::default(),
+            rider_settled: false,
             car_instances: 0,
         }
     }
@@ -124,6 +129,27 @@ impl CarScene {
     /// The orbit camera, for a scene that moves it (the menus' camera move).
     pub(crate) fn camera_mut(&mut self) -> &mut OrbitCamera {
         &mut self.camera
+    }
+
+    /// Bring the camera `zoom` times closer (1 leaves it), tilt it to `pitch_degrees` and aim it at `focus_height` metres above the
+    /// floor when given: a way to look at a part up close in a screenshot.
+    pub fn with_view(mut self, zoom: f32, pitch_degrees: Option<f32>, focus_height: Option<f32>) -> Self {
+        if zoom.is_finite() && zoom > 0.0 {
+            self.camera.distance /= zoom;
+        }
+        if let Some(height) = focus_height.filter(|h| h.is_finite()) {
+            self.camera.target.z = height + self.model.floor_height;
+        }
+        if let Some(pitch) = pitch_degrees.filter(|p| p.is_finite()) {
+            self.camera.pitch = pitch.to_radians();
+        }
+        self
+    }
+
+    /// The state the rider of a bike on show is in (`--rider-state`); a bike standing when none is given.
+    pub fn with_rider_state(mut self, state: Option<crate::scenes::world::drive::rider::RiderSample>) -> Self {
+        self.rider_state = state.unwrap_or_default();
+        self
     }
 
     /// Let the console load other cars from `dir`, with the same options.

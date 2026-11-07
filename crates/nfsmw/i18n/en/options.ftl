@@ -59,6 +59,10 @@ options-minimap-fixed = Fixed
 options-minimap-rotating = Rotating
 options-turn-signals = Turn Signals
 options-rider-gear = Rider Gear
+options-riding-style = Riding Style
+options-riding-style-balanced = Balanced
+options-riding-style-shoulders-out = Shoulders Out
+options-riding-style-old-school = Old School
 options-cop-health-bars = Cop Health Bars
 # The kinds of moment the Game Moment Camera plays (the row itself is the game's own label).
 options-game-moment-breakers = Moments: Pursuit Breakers

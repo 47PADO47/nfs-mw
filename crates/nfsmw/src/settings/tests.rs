@@ -76,6 +76,34 @@ fn rider_gear_is_on_by_default_and_comes_from_every_layer() {
 }
 
 #[test]
+fn the_riding_style_is_balanced_by_default_and_comes_from_every_layer() {
+    use super::RidingStyle;
+    assert_eq!(Settings::from(Partial::default()).riding_style, RidingStyle::Balanced);
+    let cli = Partial { riding_style: Some(RidingStyle::OldSchool), ..Partial::default() };
+    let env = env::read(|n| (n == "NFSMW_RIDING_STYLE").then(|| "shoulders-out".to_owned()));
+    let file = file::parse(
+        "riding_style = \"old-school\"
+",
+        "test",
+    );
+    assert_eq!(Settings::from(cli.or(env).or(file)).riding_style, RidingStyle::OldSchool, "the command line wins");
+    assert_eq!(
+        Settings::from(Partial::default().or(env).or(file)).riding_style,
+        RidingStyle::ShouldersOut,
+        "the environment over the file"
+    );
+    assert_eq!(Settings::from(Partial::default().or(file)).riding_style, RidingStyle::OldSchool);
+    assert_eq!(
+        file::parse("riding_style = \"leaning\"", "test").riding_style,
+        None,
+        "a name that is not a style is ignored"
+    );
+    let written =
+        write::merge("", &Partial { riding_style: Some(RidingStyle::ShouldersOut), ..Partial::default() }).unwrap();
+    assert!(written.contains("riding_style = \"shoulders-out\""), "{written}");
+}
+
+#[test]
 fn traffic_lights_are_on_by_default_and_come_from_every_layer() {
     assert!(Settings::from(Partial::default()).traffic_lights);
     const { assert!(DEFAULT_TRAFFIC_LIGHTS) };

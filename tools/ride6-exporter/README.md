@@ -19,6 +19,7 @@ outside the repository (`C:\r6work`).
 | `report.py` | the completeness report (which bike lacks which part, and the reason) |
 | `gear.py`, `gear_colors.py` | the rider gear catalogue (helmets, suits, gloves, boots) with its meshes and pictures, written once into `C:6workider-gear` ([format](../../docs/formats/ride6-rider-gear.md)); needs the tool's `gmesh` and `gtex` modes |
 | `dash.py` (+ `dash_widgets.py`, `dash_paint.py`) | the screen of every bike's instrument cluster at rest: the HUD widgets (`HUD<chassis>`) drawn into `tex/gauge<n>_d_dash.png` ([instrument clusters](../../docs/formats/ride6-materials.md#instrument-clusters)) |
+| `rider_anims.py` | the rider animations the standstill and the hands need (the finger clips, the stand, start and stop clips of every bike type): `skeleton.json`, `bike_skeleton.json`, an `R6RA` file and `acl/`, for `ride6-rider-import --merge` |
 | `physdump.py` | the physics dump `ride6-bike-import --physics` reads (inheritance resolved) |
 
 ## Setup (once)
@@ -79,5 +80,9 @@ mod imports every bike folder in the background. The folder name is the vehicle 
 | `export "<pkg;pkg>" <outdir> Gltf2 All` | every level of detail of each skeletal or static mesh as `.glb` (`<name>.glb`, `<name>_LOD<n>.glb`) |
 | `gmesh <listfile> <outdir>`, `gtex <listfile> <outdir> <max>` | skeletal meshes as `R6RM` and pictures as `R6TX` (block-compressed mips as the game stores them), for `gear.py` |
 | `raw <listfile> <outdir>` | the bytes of each listed file (any extension) |
+| `skeleton <package> <outfile>` | the skeleton of an animation sequence's `USkeleton` as `skeleton.json` (the rider's, [format](../../docs/formats/ride6-rider.md)) |
+| `anims <listfile> <outfile.r6ra>` | each listed animation sequence that Unreal's own codecs store, sampled at every source frame, as one `R6RA` file (a sequence stored with ACL is listed as `ACL` and left out) |
+| `acl <listfile> <outdir>` | each listed ACL animation sequence as `<name>.acl` (the compressed buffer) and `<name>.meta.json`; `ride6-rider-import` decodes them |
+| `bp <listfile> <outdir>` | each listed Blueprint class as pseudo-C++ (`<class>.cpp`) and its functions' bytecode as `<class>.functions.txt` (the rider's animation blueprint; sets `ReadScriptData`) |
 
 Package paths are Unreal object paths (`/Game/assets/...`, `/PhysicsRide6/Physics/...`) or the file paths `list` prints.
