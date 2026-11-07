@@ -27,7 +27,7 @@ mod sink;
 mod tests;
 
 pub use commands::command;
-pub use dispatcher::{Dispatcher, Outcome, Request, Voice};
+pub use dispatcher::{Dispatcher, Dropped, Outcome, Request, Voice};
 pub use glue::SpeechSlot;
 pub use lines::{Files, Lines};
 pub use params::{Param, SpeechParams};

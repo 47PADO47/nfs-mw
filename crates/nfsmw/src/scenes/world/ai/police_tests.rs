@@ -251,19 +251,20 @@ fn a_placed_roadblock_is_not_asked_for_again_in_the_chase() {
 }
 
 #[test]
-fn an_escape_carries_the_heat_into_the_next_chase_at_0_95() {
+fn an_escape_carries_the_whole_heat_into_the_next_chase() {
     let mut police = Police::default();
     police.begin(1);
     police.heat = Some(Heat::new(3.0, 10.0));
-    // Unseen for longer than level 3's timeout (75 s): the chase ends, and the heat it had is kept at 0.95 of it.
+    // Unseen for longer than level 3's timeout (75 s): the chase ends, and the heat it had is kept.
     let mut evaded = false;
     for _ in 0..1000 {
         evaded |= police.update(0.1, true, &view(5.0), sensed(false));
     }
     assert!(evaded, "got away");
+    // The original keeps the live heat; its 0.95 cools the career records only.
     assert!(
-        (2.85..=3.8).contains(&police.carried_heat),
-        "0.95 of the heat at the escape (3 plus a little growth): {}",
+        (3.0..=4.0).contains(&police.carried_heat),
+        "the heat at the escape (3 plus a little growth): {}",
         police.carried_heat
     );
     police.begin(1);

@@ -74,7 +74,8 @@ original says nothing for it either **[install]**; the cop's own "negative backu
 - **Off-road moment:** the id under the car comes from the parameter-map layer "Speech" (the `ParameterAccessor` named "Speech", integer field 1
   of the set at the car's position). The installed track has the layer: 26 sets, ids -1 (the default) and 0 to 27 without 8, 15 and 18
   **[install]**. The table from that id to one of the 24 named places (`MiscSpeech::GetSPAMLocation`, a switch) was not available when this was
-  written, so the layer is read by an installed test and not yet used.
+  written, so the off-road moment does not use the layer yet. Dead air reads only the raw id (any place at all, id 0 or
+  more) to allow a location report (ai-pursuit-speech.md section 6.3).
 
 ## 4. What the port feeds
 

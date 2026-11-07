@@ -51,3 +51,15 @@ This change has no new matched original-PC driving recordings. Physical chase
 results, exact radio timing, road-profile interpolation on changing lane counts,
 and original/remake route-level acceptance remain unverified. Deterministic
 state hashes now include picker/finisher/speech timers and retained membership.
+
+## Starting formation and speech wait (2026-11-07)
+
+Read from the PC `speed.exe` (SHA-256 80774c2e...) by disassembly of the pursuit
+constructor (the block at 0x443171 to 0x4431bd, which sets the formation type to
+7 and calls `InitFormation` 0x440330, whose jump table builds the stagger follow
+formation for type 7) and of the picker in the pursuit update (0x443eda to
+0x443f4e: sound AI singleton state 1 refreshes the setup stamp from the tick
+counter; ticks times 0.00025 compared with 15.0 at 0x890dac). The private
+original-game recordings of 2026-11-05 and 2026-11-06 show the first pull-over
+goal 1.5 to 1.8 s into each chase. No code was copied.
+

@@ -68,6 +68,11 @@ impl WorldScene {
         feed.rain_intensity = rain;
         feed.speech.player.car_type = look.car_type;
         feed.speech.player.car_colour = look.colour;
+        let at = glam::Vec3::from_array(feed.speech.player.position);
+        feed.speech.player.speech_map_id = self
+            .audio_environment
+            .as_ref()
+            .map_or(crate::audio::environment_context::NO_SPEECH_PLACE, |map| map.speech_place(at));
         Some(feed)
     }
 

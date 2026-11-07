@@ -83,8 +83,17 @@ on heat level change (integer part of heat): formation_time = 0
 on roadblock creation (AddRoadBlock): unless the formation is FOLLOW or a finisher is running: formation_time = 0, finisher timer = -1
 ```
 
+A new pursuit is built **in stagger follow**: its constructor sets the active formation to `STAGGER_FOLLOW` (7) and
+builds it, with `formation_time` 0 and no attempt made, so the slots, the herd and the collapse (section 5) work from the
+first tick; only the picker waits **[decomp PC]**. In the original's recordings the first cop takes the pull-over goal
+1.5 to 1.8 s into every chase, before the radio's first setup line is asked for **[runtime]**.
+
 `speech_done` is true when cop speech is disabled or the player is in a pursuit race; otherwise 15 s must have passed
-since the speech controller last reported its "setup" focus. So the formations alternate: an even attempt always picks
+since the speech controller last reported its "setup" focus. **[decomp PC]** The pursuit stamps the game's tick counter
+(4,000 a second) into its setup time on every tick the sound AI's state is 1 (setup), and compares the ticks since then,
+in seconds, with 15. The constructor sets the stamp to the integer `0x41200000` (the bit pattern of 10.0), so until the
+radio first reports its setup the difference is negative and the picker waits as well. The rewrite's gate starts as
+never set up and does the same. So the formations alternate: an even attempt always picks
 *stagger follow* for `StaggerFormationTime` seconds (3 to 10), an odd attempt picks a weighted random aggressive one for
 its `Duration` (40 s on most heat records, 20 to 30 s on a few, 10 to 50 s on race records). [decomp][verified]
 
