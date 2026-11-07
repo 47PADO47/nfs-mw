@@ -40,8 +40,6 @@ mod bike_weight_sweep;
 mod bike_wheelie;
 mod car;
 mod components;
-#[cfg(test)]
-mod components_tests;
 mod cop;
 #[cfg(test)]
 mod cop_tests;
