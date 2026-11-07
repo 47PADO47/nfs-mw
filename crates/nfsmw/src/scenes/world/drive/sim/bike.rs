@@ -392,8 +392,9 @@ pub(super) fn command(input: &InputState, speed: f32) -> BikeInput {
         throttle: unit(input.throttle),
         front_brake: unit(input.brake),
         rear_brake: unit(input.brake).max(unit(input.handbrake)),
-        // The full stick up to `choices::STICK_FULL_UNTIL` m/s, less above (`ride6-feel-round9.md`, section 4).
-        steer: signed_unit(input.steer) * choices::stick_share(speed),
+        // The stick reaches its end at `choices::STEER_REACH` of its travel, and gives the full stick up to
+        // `choices::STICK_FULL_UNTIL` m/s, less above (`ride6-feel-round9.md`, section 4; `ride6-feel-round12.md`, section 2).
+        steer: signed_unit(input.steer / choices::STEER_REACH) * choices::stick_share(speed),
     }
 }
 

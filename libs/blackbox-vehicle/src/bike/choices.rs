@@ -93,6 +93,19 @@ fn share_falling_to(speed: f32, top: f32) -> f32 {
     1.0 + (top - 1.0) * t
 }
 
+/// The share of the stick's travel (after the dead zone, rescaled) at which the bike's stick reads its end. A modelling choice of this
+/// game's input layer, as `REACH` of the weight lever (`crates/nfsmw/src/input/weight_axis.rs`) is: the reference reads the stick as it
+/// is, but a thumb rarely holds a pad stick at exactly 1.0, and the lean target is linear in the stick while the radius goes with
+/// `1 / tan(lean)`, so a stick at 0.85 leans the bike to 0.85 of its limit and widens a fast turn by a third (`ride6-feel-round12.md`,
+/// section 2). A key (1.0) is unchanged; 1.0 here gives the reference's reading back.
+pub const STEER_REACH: f32 = 0.9;
+
+// Unresolved, kept as the data states it: the lean target's time scale is cut by a curve of the *signed* stick
+// (`FRuntimeFloatCurve` over -1 to 1: 0.4 at -1 and 0.5 at +1 for 207 of the 288 bikes, 0.28 and 0.45 for 61, 0.425 and 0.7 for 20),
+// which makes a left turn come in 15 to 35 percent slower than a right one (`ride6-feel-round12.md`, section 3). Whether the binary
+// reads the curve at `|stick|` was not checked (the RIDE 6 executable was not open in the disassembler this round), so the signed
+// reading of `lean::Lean::plan` stands. No constant: a note for the day it is checked.
+
 /// The least lean limit (rad) a wheelie leaves the stick: the reference cuts the lean limit with the wheelie angle down to 1 degree at 40 to
 /// 45 degrees (`WheelieLeanLimitTuning`, data), which keeps a wheelie straight; here the cut stops at this limit. A modelling choice
 /// (`ride6-wheelie-steer.md`, section 3): with the data's cut a full stick at the height the wheelie assist holds (35 degrees) leans the

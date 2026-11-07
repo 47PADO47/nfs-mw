@@ -94,6 +94,15 @@ fn the_pedals_and_the_stick_become_the_riders_levers() {
 }
 
 #[test]
+fn a_pad_stick_reads_its_end_before_the_end_of_its_travel_and_a_key_is_unchanged() {
+    let at = |steer: f32| command(&InputState { steer, ..Default::default() }, 10.0).steer;
+    assert!((at(choices::STEER_REACH) - 1.0).abs() < 1e-6 && (at(-choices::STEER_REACH) + 1.0).abs() < 1e-6);
+    assert_eq!(at(1.0), 1.0);
+    assert!((at(0.45) - 0.5).abs() < 1e-6, "linear below the reach: {}", at(0.45));
+    assert_eq!(at(0.0), 0.0);
+}
+
+#[test]
 fn the_ground_contacts_of_the_double_are_those_of_the_step_and_not_of_the_last_fall() {
     let (mut ride, mut vehicle) = ride_and_double();
     let ground = FlatGround::new(0.0);
