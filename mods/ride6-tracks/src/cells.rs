@@ -7,6 +7,8 @@ use crate::pack::Pack;
 
 /// Most vertices of one part: a solid's vertex buffer holds 65,536 and its indices are 16-bit.
 pub const MAX_PART_VERTICES: usize = 60_000;
+/// Most triangles of one part: a solid's triangle count is 16-bit.
+pub const MAX_PART_TRIANGLES: usize = 60_000;
 
 /// The triangles of one cell and one material, as a mesh of its own: 16-bit indices into its own vertices.
 #[derive(Debug, Clone, PartialEq)]
@@ -67,44 +69,118 @@ struct CellBuilder {
     ground: Vec<GroundTriangle>,
 }
 
-/// The cells of `pack`, `size` metres wide, in column then row order.
-pub fn bin(pack: &Pack, size: f32) -> Vec<Cell> {
-    let mut cells: HashMap<(i32, i32), CellBuilder> = HashMap::new();
-    for (group_index, group) in pack.groups.iter().enumerate() {
-        for triangle in group.indices.chunks_exact(3) {
-            let corners = [triangle[0] as usize, triangle[1] as usize, triangle[2] as usize];
-            let points = corners.map(|c| group.positions[c]);
-            let x = (points[0][0] + points[1][0] + points[2][0]) / 3.0;
-            let y = (points[0][1] + points[1][1] + points[2][1]) / 3.0;
-            let key = ((x / size).floor() as i32, (y / size).floor() as i32);
-            let cell = cells.entry(key).or_default();
-            if group.collide {
-                cell.ground.push(GroundTriangle { points, material: group.material });
-            }
-            let at = open_part(cell, group_index, group.material);
-            let builder = &mut cell.parts[at];
-            for corner in corners {
-                let index = builder.vertex(group, corner);
-                builder.part.indices.push(index);
-            }
-        }
+/// How the ground is cut into cells.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Limits {
+    /// A cell holding more triangles than this is cut in four, unless it is already as small as `min_size`.
+    pub max_triangles: usize,
+    /// The side of the smallest cell, metres.
+    pub min_size: f32,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self { max_triangles: 40_000, min_size: 128.0 }
     }
-    let mut cells: Vec<Cell> = cells
-        .into_iter()
-        .map(|(key, builder)| Cell {
-            key,
-            parts: builder.parts.into_iter().map(|b| b.part).collect(),
-            ground: builder.ground,
-        })
-        .collect();
+}
+
+/// One triangle of the pack: its group and its first index there.
+#[derive(Clone, Copy)]
+struct TriangleRef {
+    group: u32,
+    first: u32,
+}
+
+/// The cells of `pack` in a quadtree over the ground: a square of ground with more than `limits.max_triangles` triangles is cut in
+/// four, so dense ground (the circuit) gets small cells and the far hills a few large ones. A triangle belongs to the cell its
+/// centroid is in. The cells come in the order of their corners (column, then row).
+pub fn bin(pack: &Pack, limits: &Limits) -> Vec<Cell> {
+    let mut refs = Vec::new();
+    for (group, g) in pack.groups.iter().enumerate() {
+        refs.extend((0..g.indices.len() / 3).map(|t| TriangleRef { group: group as u32, first: (t * 3) as u32 }));
+    }
+    if refs.is_empty() {
+        return Vec::new();
+    }
+    let (mut low, mut high) = ([f32::INFINITY; 2], [f32::NEG_INFINITY; 2]);
+    for &triangle in &refs {
+        let [x, y] = centroid(pack, triangle);
+        low = [low[0].min(x), low[1].min(y)];
+        high = [high[0].max(x), high[1].max(y)];
+    }
+    let mut size = limits.min_size;
+    while size < (high[0] - low[0]).max(high[1] - low[1]) + 1.0 {
+        size *= 2.0;
+    }
+    let mut leaves = Vec::new();
+    split(pack, limits, ([low[0], low[1]], size), refs, &mut leaves);
+    let mut cells: Vec<Cell> =
+        leaves.into_iter().map(|(corner, triangles)| build(pack, corner, &triangles, limits)).collect();
     cells.sort_by_key(|cell| cell.key);
     cells
+}
+
+fn centroid(pack: &Pack, triangle: TriangleRef) -> [f32; 2] {
+    let group = &pack.groups[triangle.group as usize];
+    let at = triangle.first as usize;
+    let p = |k: usize| group.positions[group.indices[at + k] as usize];
+    [(p(0)[0] + p(1)[0] + p(2)[0]) / 3.0, (p(0)[1] + p(1)[1] + p(2)[1]) / 3.0]
+}
+
+/// Cuts the square `(corner, size)` holding `triangles` until each piece is small enough; the pieces go to `leaves` with their corners.
+fn split(
+    pack: &Pack,
+    limits: &Limits,
+    (corner, size): ([f32; 2], f32),
+    triangles: Vec<TriangleRef>,
+    leaves: &mut Vec<([f32; 2], Vec<TriangleRef>)>,
+) {
+    if triangles.is_empty() {
+        return;
+    }
+    if triangles.len() <= limits.max_triangles || size <= limits.min_size {
+        leaves.push((corner, triangles));
+        return;
+    }
+    let half = size / 2.0;
+    let mut quarters: [Vec<TriangleRef>; 4] = Default::default();
+    for triangle in triangles {
+        let [x, y] = centroid(pack, triangle);
+        let (east, north) = (x >= corner[0] + half, y >= corner[1] + half);
+        quarters[usize::from(east) + 2 * usize::from(north)].push(triangle);
+    }
+    for (k, quarter) in quarters.into_iter().enumerate() {
+        let origin = [corner[0] + half * (k % 2) as f32, corner[1] + half * (k / 2) as f32];
+        split(pack, limits, (origin, half), quarter, leaves);
+    }
+}
+
+/// The cell of one leaf: its parts, by group, and its ground.
+fn build(pack: &Pack, corner: [f32; 2], triangles: &[TriangleRef], limits: &Limits) -> Cell {
+    let mut cell = CellBuilder::default();
+    for &triangle in triangles {
+        let group = &pack.groups[triangle.group as usize];
+        let at = triangle.first as usize;
+        let corners = [0, 1, 2].map(|k| group.indices[at + k] as usize);
+        if group.collide {
+            cell.ground.push(GroundTriangle { points: corners.map(|c| group.positions[c]), material: group.material });
+        }
+        let part = open_part(&mut cell, triangle.group as usize, group.material);
+        let builder = &mut cell.parts[part];
+        for corner in corners {
+            let index = builder.vertex(group, corner);
+            builder.part.indices.push(index);
+        }
+    }
+    let key = ((corner[0] / limits.min_size).floor() as i32, (corner[1] / limits.min_size).floor() as i32);
+    Cell { key, parts: cell.parts.into_iter().map(|b| b.part).collect(), ground: cell.ground }
 }
 
 /// The part of `cell` that group `group` is filling, starting a new one when there is none or the open one is full.
 fn open_part(cell: &mut CellBuilder, group: usize, material: usize) -> usize {
     if let Some(&at) = cell.open.get(&group)
         && cell.parts[at].part.positions.len() + 3 <= MAX_PART_VERTICES
+        && cell.parts[at].part.indices.len() / 3 < MAX_PART_TRIANGLES
     {
         return at;
     }
@@ -175,7 +251,7 @@ mod tests {
 
     #[test]
     fn triangles_go_to_the_cell_of_their_centroid_and_every_triangle_is_kept() {
-        let cells = bin(&pack(vec![grid(8, true)]), 4.0);
+        let cells = bin(&pack(vec![grid(8, true)]), &Limits { max_triangles: 40, min_size: 4.0 });
         assert_eq!(cells.len(), 4);
         let triangles: usize = cells.iter().map(|c| c.parts.iter().map(|p| p.indices.len() / 3).sum::<usize>()).sum();
         assert_eq!(triangles, 8 * 8 * 2);
@@ -191,7 +267,7 @@ mod tests {
 
     #[test]
     fn a_group_that_is_not_collision_adds_no_ground_and_an_anchor_holds_the_cell() {
-        let cells = bin(&pack(vec![grid(4, false)]), 100.0);
+        let cells = bin(&pack(vec![grid(4, false)]), &Limits::default());
         assert_eq!(cells.len(), 1);
         assert!(cells[0].ground.is_empty());
         let [x, y, z, r] = cells[0].anchor();
@@ -202,7 +278,7 @@ mod tests {
     #[test]
     fn a_part_that_would_overflow_its_vertex_buffer_starts_a_new_one() {
         // 250 by 250 squares is 63,001 vertices in one cell: two parts.
-        let cells = bin(&pack(vec![grid(250, false)]), 1000.0);
+        let cells = bin(&pack(vec![grid(250, false)]), &Limits { max_triangles: 1_000_000, min_size: 1000.0 });
         assert_eq!(cells.len(), 1);
         assert!(cells[0].parts.len() >= 2, "{} parts", cells[0].parts.len());
         assert!(cells[0].parts.iter().all(|p| p.positions.len() <= MAX_PART_VERTICES));

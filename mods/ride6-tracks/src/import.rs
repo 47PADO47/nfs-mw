@@ -20,9 +20,6 @@ use crate::textures::{Pictures, flat_colour};
 /// How far ahead of the first slot of the starting grid the start line is, metres.
 const START_LINE_AHEAD: f32 = 25.0;
 
-/// The side of a cell, metres: sections of this size hold a few thousand ground triangles and 5 to 15 pictures.
-pub const CELL_METRES: f32 = 384.0;
-
 /// What an import did.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Report {
@@ -43,12 +40,23 @@ pub struct Report {
 
 /// Imports the pack in `pack_dir` into `out`, stopping early (with an error) when `cancel` is set.
 pub fn import(pack_dir: &Path, out: &Path, max_texture: u32, cancel: &AtomicBool) -> Result<Report> {
+    import_with(pack_dir, out, max_texture, &cells::Limits::default(), cancel)
+}
+
+/// [`import`] with its own limits on how the ground is cut into cells.
+pub fn import_with(
+    pack_dir: &Path,
+    out: &Path,
+    max_texture: u32,
+    limits: &cells::Limits,
+    cancel: &AtomicBool,
+) -> Result<Report> {
     let pack = pack::read(pack_dir).with_context(|| format!("reading the pack {}", pack_dir.display()))?;
     let id = manifest::world_id(&pack.track);
     if id.is_empty() {
         bail!("the track name {:?} gives no world id", pack.track);
     }
-    let cells = cells::bin(&pack, CELL_METRES);
+    let cells = cells::bin(&pack, limits);
     if cells.len() > MAX_CELLS {
         bail!("{} cells are more than the section numbers hold ({MAX_CELLS})", cells.len());
     }
