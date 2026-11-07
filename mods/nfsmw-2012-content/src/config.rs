@@ -78,6 +78,11 @@ own_engine_sound = true
 # never converts the cars again (mods/nfsmw-2012-content/README.md, \"The soundtrack\").
 music = true
 
+# Pose each car's driver for the steering and the look back (seven steering poses and one reverse pose of the figure, in the car's
+# files: about 3.5 MB a car, half of all the converted geometry). false keeps the driver seated and still, and the car's files
+# about 230 MB smaller over 67 cars (mods/nfsmw-2012-content/README.md, \"The driver's poses\").
+driver_poses = true
+
 # Add the 2012 game's eleven traffic cars (Audi A3, Dodge Ram 1500, GMC Topkick, ...) to the roads, among the game's own
 # traffic. They are cars of their own (ids ending in _TR) that nobody drives. false adds none. The cars, exclude and
 # max_texture_size keys apply to them (the name of each has \"traffic\" in it).
@@ -183,6 +188,8 @@ pub struct Config {
     /// Whether the 2012 game's songs are offered to the custom music player (`soundtrack.rs`). Not part of the conversion's
     /// fingerprint: the songs are streamed from the install, so changing it converts nothing.
     pub music: bool,
+    /// Whether each car's driver is posed for the steering and the look back (`driver_poses.rs`).
+    pub driver_poses: bool,
     /// Whether the 2012 game's traffic cars are added as traffic cars (`traffic.rs`).
     pub traffic: bool,
     /// Whether the 2012 game's trees are converted and offered as a trees variant (`trees.rs`).
@@ -205,6 +212,7 @@ impl Default for Config {
             role: Role::Player,
             own_engine_sound: true,
             music: true,
+            driver_poses: true,
             traffic: true,
             trees: true,
             performance: Performance::default(),
@@ -401,5 +409,11 @@ mod tests {
         assert!(toml::from_str::<Config>("typo = 1").is_err());
         let config: Config = toml::from_str("max_texture_size = 1000").unwrap();
         assert!(config.check().is_err());
+    }
+
+    #[test]
+    fn the_drivers_are_posed_by_default_and_the_setting_turns_the_poses_off() {
+        assert!(Config::default().driver_poses);
+        assert!(!Config::parse("driver_poses = false\n").unwrap().driver_poses);
     }
 }

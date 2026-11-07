@@ -201,7 +201,7 @@ fn import_car(
     placed.seat_hubs(&mut car.vehicle);
     let fit = Fit::own(placed.layout);
     let driver = seat_driver(source, &mut car, &bytes);
-    let driver_poses = crate::driver_poses::bake(source, &bytes);
+    let driver_poses = if config.driver_poses { crate::driver_poses::bake(source, &bytes) } else { Vec::new() };
     // A car with two-colour paint packs offers each as a livery (and takes the texture coordinates of their pictures); any
     // other car offers the pictures of its livery bundles, or its own.
     let pictures = two_colour::apply(source, named.file, &mut car, &named.id).unwrap_or_else(|| {
