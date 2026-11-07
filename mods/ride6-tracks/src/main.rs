@@ -21,6 +21,9 @@ struct Args {
     /// The longest side of a ground picture, pixels.
     #[arg(long, default_value_t = 512)]
     max_texture: u32,
+    /// After the import, cast a ray down at every sample of the lap and count the surfaces and the heights met.
+    #[arg(long)]
+    check: bool,
 }
 
 fn run(args: &Args) -> Result<()> {
@@ -39,6 +42,24 @@ fn run(args: &Args) -> Result<()> {
     println!("collision: {} triangles, {} too wide for a strip", report.collision_triangles, report.collision_skipped);
     for (picture, reason) in &report.missing_pictures {
         println!("picture {picture} is drawn flat: {reason}");
+    }
+    if args.check {
+        check(args)?;
+    }
+    Ok(())
+}
+
+/// The lap against the converted collision (`ride6_tracks::check`).
+fn check(args: &Args) -> Result<()> {
+    let pack = ride6_tracks::pack::read(&args.pack)?;
+    let world = ride6_tracks::check::load_world(&args.mod_dir, &pack)?;
+    let report = ride6_tracks::check::along_the_lap(&world, &pack);
+    println!(
+        "lap: {} samples, {} with no ground, worst height difference {:.2} m, {} more than 1 m off",
+        report.samples, report.missed, report.worst_height, report.off_height
+    );
+    for (surface, count) in &report.surfaces {
+        println!("  {surface}: {count}");
     }
     Ok(())
 }

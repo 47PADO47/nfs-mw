@@ -8,6 +8,7 @@
 //! background and the game offers the world (`docs/specs/second-world.md`).
 
 pub mod cells;
+pub mod check;
 pub mod collision;
 pub mod config;
 pub mod import;

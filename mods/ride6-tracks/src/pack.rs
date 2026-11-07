@@ -20,12 +20,23 @@ pub struct Material {
     pub surface: String,
 }
 
+/// The track spline: the lap as a polyline.
+#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
+#[serde(default)]
+pub struct Spline {
+    pub closed: bool,
+    pub length_m: f32,
+    /// Render space, about every 2 m.
+    pub points: Vec<[f32; 3]>,
+}
+
 /// The starting grid and the lap.
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
 #[serde(default)]
 pub struct Lap {
     /// `[x, y, z, heading degrees]` of each grid slot, render space, in grid order.
     pub grid: Vec<[f32; 4]>,
+    pub spline: Spline,
 }
 
 #[derive(Debug, Deserialize)]
