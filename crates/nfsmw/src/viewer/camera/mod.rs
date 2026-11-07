@@ -8,10 +8,12 @@ mod depth_tests;
 mod dynamic_fov;
 mod fly;
 pub mod head_look;
+mod lens_mix;
 mod orbit;
 pub mod original;
 mod pursuit;
 mod rear_view;
+pub mod rider_follow;
 
 pub use chase::{ChaseCamera, ChaseView, Followed};
 pub use cut::CameraCut;
