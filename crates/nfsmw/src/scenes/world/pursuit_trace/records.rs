@@ -270,5 +270,7 @@ pub(super) fn sample_extras(frame: &PoliceFrame, testing_heat: u8, paused: bool)
         "spike_strips": strips,
         "helicopter": heli,
         "minimap_blips": blips,
+        "radio": crate::audio::radio_trace::recorded_view().map(|v| serde_json::json!({
+            "focus": format!("{:?}", v.focus), "state": format!("{:?}", v.state), "los_count": v.los_count})),
     })
 }

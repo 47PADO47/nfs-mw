@@ -339,7 +339,9 @@ Built (2026-10-20), from this spec and with the decompiled flows read for the de
 says why a request left the speech queue unsaid: expired (with the check that held it at its last look: initial delay,
 dead air, interval, range, dependency, on screen, sight, heat, speed, or its turn not come), said as often as it may be,
 nothing to say for the voice, withdrawn by a recalling event, or cleared. These are diagnostics **[ours]**; they do not
-change what is said. The take (bank and
+change what is said. Each trace sample also carries the machine's focus, pursuit state and count of cops with sight
+(`radio`), the three values the original's sound AI keeps (focus +0x138, state +0x1d4, cops with sight +0x148, read by
+`Observer::MessageBlewPastCop`). The take (bank and
   recording) the speech picks is not part of the event.
 - **What the world gives the machine now:** the cops (id, distance, speed, health, wrecked, sight, ahead, formation slot and offset, model class, road), the helicopter (present, sight, fuel), a standing
   roadblock (with its cars' sight and the spike strips), the player's speed, heading, road speech id and car, the heat, busted meter, cool-down state, formation, finisher and infractions, rain, the backup's

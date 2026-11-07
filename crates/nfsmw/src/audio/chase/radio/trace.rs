@@ -7,7 +7,7 @@
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
-use blackbox_pursuit::speech::{Line, Params, Speaker};
+use blackbox_pursuit::speech::{Focus, Line, Params, PursuitState, Speaker};
 
 use super::params::event_name;
 use crate::audio::speech::{Dropped, Outcome};
@@ -26,12 +26,39 @@ pub fn open_recording(on: bool) {
     if let Ok(mut recording) = RECORDING.lock() {
         *recording = on.then(VecDeque::new);
     }
+    if let Ok(mut kept) = VIEW.lock() {
+        *kept = None;
+    }
 }
 
 /// The line events since the last call, oldest first; none while no trace records.
 pub fn take_recorded() -> Vec<RadioLineEvent> {
     let Ok(mut recording) = RECORDING.lock() else { return Vec::new() };
     recording.as_mut().map(|events| events.drain(..).collect()).unwrap_or_default()
+}
+
+/// The machine's view at its last step, kept for a recording: its focus, its pursuit state and the cops it counts with
+/// sight (the original's sound AI keeps the same three, `ai-pursuit-speech.md`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MachineView {
+    pub focus: Focus,
+    pub state: PursuitState,
+    pub los_count: usize,
+}
+
+static VIEW: Mutex<Option<MachineView>> = Mutex::new(None);
+
+/// Keeps `view` while a recording is open.
+pub fn record_view(view: MachineView) {
+    let open = RECORDING.lock().is_ok_and(|recording| recording.is_some());
+    if let (true, Ok(mut kept)) = (open, VIEW.lock()) {
+        *kept = Some(view);
+    }
+}
+
+/// The machine's view at its last step while a recording is open.
+pub fn recorded_view() -> Option<MachineView> {
+    VIEW.lock().ok().and_then(|kept| *kept)
 }
 
 fn record(event: RadioLineEvent) {
