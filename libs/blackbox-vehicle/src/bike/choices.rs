@@ -69,6 +69,15 @@ pub const COLLISION_LEAN_HELP: (f32, f32) = (2.0, 5.0);
 pub const COLLISION_STABILITY_HELP: (f32, f32) = (0.4, 5.0);
 pub const COLLISION_STABILITY_HELP_FRONTAL: (f32, f32) = (0.2, 1.0);
 
+/// The least speed factor of the target lean's time scale (`LeanTimeScaleSpeedTuning`): the data's curve falls from 1 at 40 km/h to 0.333 at
+/// 330 km/h for 270 of the 288 bikes (the other 18 fall to 0.65 at 200 km/h and stay there), which makes the lean come in 1.3 to 1.7
+/// times slower at 60 to 90 m/s than at 20 m/s (the time to 80 percent of the limit after a full stick, 0.28 / 0.45 stick curve, right:
+/// 1.05 s at 20 m/s, 1.32 at 60, 1.63 at 80; left 1.35, 1.80, 2.31): the players' "the faster, the less steering"
+/// (`ride6-feel-round13.md`, sections 2 and 4). The tyre's roll authority does not fall with speed (its peak coefficient has no speed
+/// term), so the slowing is the rider's pace in the data, and the closed loop was verified only to 50 m/s, where the curve is at 0.68:
+/// the factor stops at 0.65, the value of the 18 bikes above 200 km/h. Below 53 m/s nothing changes. 0 gives the data's curve back.
+pub const TIME_SCALE_SPEED_FLOOR: f32 = 0.65;
+
 /// The share of the stick's travel (after the dead zone, rescaled) at which the bike's stick reads its end. A modelling choice of this
 /// game's input layer, as `REACH` of the weight lever (`crates/nfsmw/src/input/weight_axis.rs`) is: the reference reads the stick as it
 /// is, but a thumb rarely holds a pad stick at exactly 1.0, and the lean target is linear in the stick while the radius goes with

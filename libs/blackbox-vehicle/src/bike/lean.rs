@@ -98,6 +98,13 @@ pub fn lean_limit(steering: &SteeringSpec, input: &LeanInput) -> f32 {
     limit + (pitch_limit.min(limit) - limit) * share.clamp(0.0, 1.0)
 }
 
+/// The speed factor of the target lean's time scale: the data's curve of the speed, held at [`choices::TIME_SCALE_SPEED_FLOOR`] at least
+/// (and never above the curve's own value at a standstill, so a table that starts low is not raised). 1 for an empty table.
+fn speed_scale(table: &[(f32, f32)], speed: f32) -> f32 {
+    let floor = choices::TIME_SCALE_SPEED_FLOOR.min(factor(table, 0.0));
+    factor(table, speed.abs()).max(floor)
+}
+
 impl Lean {
     pub fn new() -> Self {
         Self::default()
@@ -118,7 +125,7 @@ impl Lean {
         let sensitivity = 1.0 + (wanted - input.lean).abs() * spec.time_scale_sensitivity;
         let scale = attenuation
             * spec.time_scale
-            * factor(&spec.time_scale_speed, input.speed.abs())
+            * speed_scale(&spec.time_scale_speed, input.speed)
             * factor_either_side(&spec.time_scale_input, input.stick.clamp(-1.0, 1.0))
             * sensitivity;
         let free = self.target.step(wanted, spec.target_k, spec.target_damping_ratio, input.dt * scale);
