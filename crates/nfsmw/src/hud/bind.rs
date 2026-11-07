@@ -231,8 +231,7 @@ impl HudBinding {
             minimap: map.is_some(),
             laser: s.cop_nearby,
             // The detector's own scripts hide its two layouts and preserve their exit animations.
-            // The radar sits on the minimap's disc: with no map position (a second world) it is hidden with it.
-            radar: map.is_some(),
+            radar: true,
             // The heat meter rings the minimap: with the minimap off it would ring nothing.
             heat: s.vehicle_heat >= 1.0 && map.is_some(),
             mirror: self.mirror_shown,
@@ -252,11 +251,9 @@ impl HudBinding {
         self.infractions.apply(rt, s.pursuit.map(|p| p.infractions));
         // The mirror's frame rests at full alpha, every frame: its own colour track would otherwise leave it at zero.
         let alpha = mirror_fade_alpha(self.mirror_elapsed);
-        for (at, frame) in self.mirror_frames.iter().enumerate().filter_map(|(at, frame)| Some((at, frame.as_ref()?))) {
-            // The radar's backing disc goes with the minimap: a scene with no map position (a second world) shows no disc.
-            let hidden = at == 1 && s.minimap.is_none();
+        for frame in self.mirror_frames.iter().flatten() {
             if !s.speedbreaker_active {
-                rt.set_alpha(*frame, if hidden { 0 } else { alpha });
+                rt.set_alpha(*frame, alpha);
             }
         }
         if let Some((at, minimap)) = map {
