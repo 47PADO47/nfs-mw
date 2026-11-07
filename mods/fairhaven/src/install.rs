@@ -1,5 +1,6 @@
 //! The 2012 install, opened for reading: the bundles every unit may borrow from (shared by id), the zone list, and the shaders.
-//! Opening reads the headers and tables of about fifteen files, a few hundred kilobytes in all; resources are read when asked for.
+//! Opening reads the headers and tables of about 185 files (the shared bundles and every unit), a few megabytes in all;
+//! resources are read when asked for.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -61,6 +62,12 @@ impl Install {
         );
         for path in paths {
             shared.add(open_bundle(&path)?);
+        }
+        // A unit draws pictures and models that another unit holds (the engine keeps every loaded unit's resources in one pool,
+        // so a unit stores only the ones nobody else in its neighbourhood brings): the tables of all the units come last, so
+        // a resource that is nowhere else is found in whichever unit has it. Copies of one id are byte for byte the same.
+        for zone in &zones {
+            shared.add(open_bundle(&world.join(format!("TRK_UNIT{}.BNDL", zone.unit)))?);
         }
         Ok(Self { root: root.to_path_buf(), shared, zones, shaders: Mutex::new(HashMap::new()) })
     }

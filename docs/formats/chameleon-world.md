@@ -11,6 +11,11 @@ scripts `tools/chameleon_*.py` (standard library plus numpy and Pillow for pictu
 Everything below was measured on the 2012 install (v1.4.0.0) unless tagged. Coordinates are the engine's: **x left, y up,
 z forward**, metres (a right-handed system).
 
+**Read by Rust now:** `mods/fairhaven` reads units by byte ranges (`libs/chameleon-bundle`, `Bundle::parse_ranges`) and makes
+each one a section file of the game ([docs/modding/fairhaven.md](../modding/fairhaven.md)): the zone list (`pvs.rs`), the instance
+lists (`instances.rs`), models, renderables and materials (`convert.rs`, `mesh.rs`, `material.rs`), pictures (`textures.rs`) and
+the collision soup (`collision.rs`). All 169 units convert with no error. The Python scripts stay as the proofs they were.
+
 ## What is where
 
 | File (under `HAWAII/` unless said) | Count | Size | Holds |
@@ -144,7 +149,13 @@ records), with these differences for the world:
   vertex descriptor comes from the material's shader, as for cars. Position and the first UV pair (half floats, usage 5 at 12,
   16 or 24) are enough for a diffuse picture; further elements are a second UV (usage `0x106`, a lightmap or detail map) and
   colour or mask bytes (`0x4`, `0x207`, `0x308`, `0x409`, `0x50A`).
-- Strides seen: 24 (`World*` techniques), 28 and 32 (`Plot*`, `DriveableSurface*`, `Fence*`).
+- Strides seen: 24 (`World*` techniques), 28 and 32 (`Plot*`, `DriveableSurface*`, `Fence*`). **No vertex has a normal**: the
+  lighting is in the maps (lightmap, normal map), so a reader that needs normals works them out from the triangles
+  (`mods/fairhaven/src/solid.rs`). The layouts of the common techniques **[verified]** (offset, DXGI format; position is
+  `R32G32B32_FLOAT` at 0 in all): `World*` and `WorldPBR*` stride 24, UV0 half2 at 12, UV1 half2 at 16 (usage 0x106, the
+  lightmap), colour `R8G8B8A8` at 20 (usage 0x207); `PlotPBR*` stride 32, colour at 12 (usage 4), UV0 half2 at 16, UV1 at 20,
+  two `R8G8B8A8` and a half2 after; `DriveableSurface*` stride 32 to 64 with a colour at 12; `Diffuse_1Bit*`, `Fence*` and `Tree*`
+  stride 28 to 32 with bone indices and weights on the skinned ones.
 - **Primitive 5 (strip with 0xFFFF restarts) is used by every mesh looked at**; indices are u16.
 - A mesh's bounding sphere is in the renderable's own space: place it with the instance matrix.
 
@@ -201,6 +212,13 @@ faces form the streets, quays and the roundabout of the district (`tools/chamele
 A **face** is 12 bytes: a u32 flag word, four u8 vertex indices (the fourth is 0xFF for a triangle: 1,201,146 triangles and
 225,442 quads), four more u8 (neighbour or edge data: 0xFF or small numbers **[unconfirmed]**). **A quad's corners are in strip
 order: draw it as 0, 1, 3, 2** (in file order the picture shows bow-ties) **[verified]** on the drawn district.
+
+**Flag word, read off the flat faces of six units [measured]:** bit 0 (`0x1`, with `0x3`) is set on the faces of roads, quays
+and other flat ground (|normal y| of 0.93 to 1.00 for the faces with it, area 27,000 to 81,000 m2 in the units looked at), while
+faces with the low byte `0x00`, `0x20`, `0x40` or `0xC0` are mostly steep (terrain slopes and building walls, mean |normal y|
+0.2 to 0.4) or flat terrain (`0x40`); bits 14 to 23 (10 bits) vary between 1 and 0xDE and look like an index into a surface or
+material table; bits 24 to 31 are `0x0A` or 0. The surface names are hashed in `SURFACELIST.BNDL`, so the map from the index to a
+surface is **not** known: `mods/fairhaven/src/collision.rs` takes bit 0 as asphalt and the rest as grass **[unconfirmed]**.
 
 The **flag word** has 2,674 distinct values over the world (most common 0x0392C000, 0x0B90E001, 0x0472C000, 0x00608001); the low
 bits carry flags (0x8000/0x4000/0x0001 patterns) and the middle bits look like a surface and a material index that the
