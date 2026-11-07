@@ -271,14 +271,14 @@ load, a rev-up and a coast-down sweep, and an idle recording. **[data]** The con
 1. **Pitch of a loop** = `cycles * sample_rate / frames`; **engine speed** = 120 x that, because a four-stroke has one cycle per two
    turns **[choice, checked on data]**: the highest loop of the 293 bikes lies at 0.97 of the physics asset's redline in the median.
 2. **All of the engine model's loops under load** (up to `LOOP_LAYERS` = 20; those above the host's 20000 rpm layer limit are
-   dropped, so two bikes have 16) are layers **[choice]**. The host's `MAX_LAYERS` is 24 since this change (it was 12): the mixer
-   is a list of looping voices, two of which sound at a time, and nothing else limits it. Neighbouring loops are 3 to 12 percent
+   dropped, so two bikes had 16) are layers **[choice]**. The host's `MAX_LAYERS` is 48 (it was 24, and 12 before): the mixer
+   is a list of looping voices, two of which sound at a time per set, and nothing else limits it. Neighbouring loops are 3 to 12 percent
    apart, so the crossfade between two layers is short and a mismatch between two neighbours is heard over a few percent of
    the engine speed, not over a third of the range as with 11 loops spread over the 20 (below).
    When fewer layers are asked for than there are loops, `rev_layers::choose` takes every loop under 40 percent of the redline
    (up to half of the layers) and spreads the rest evenly above, because the low range is where the recordings are sparse.
-3. Each loop is **summed with the exhaust model's loop** of the nearest number of cycles, resampled (as a periodic loop, so it stays
-   seamless) to the engine loop's length **[choice]**, level 1 to 1 as recorded (the busses' gains are in the unparsed node
+3. Each loop is **summed with the exhaust model's loop** of the nearest number of cycles, **retimed** (read as a periodic loop at the
+   speed that puts the engine loop's own number of cycles in its length, the seam faded over 2 ms, section 9.2) **[choice]**, level 1 to 1 as recorded (the busses' gains are in the unparsed node
    parameters). When the cycle numbers differ by more than one in thirteen the exhaust is left out of that layer **[choice]**.
 4. **The idle layer**: the idle recordings of the two models summed (the exhaust's resampled to the engine's length), closed with
    a 40 ms crossfade because it is not a whole number of cycles. Its pitch is measured by autocorrelation **in a band of 0.6 to
@@ -293,7 +293,7 @@ load, a rev-up and a coast-down sweep, and an idle recording. **[data]** The con
    fixed phase, and in opposition they cancel (10 dB on an inline four); but the phase is decided by how each voice's playback rate
    settles when the engine starts, not by the recordings, so no rotation made the measured curve better (1.5 against 1.9 percent
    of the points more than 3 dB under the median) and it was not kept.
-7. **Not used**: the loops off load and the two sweeps (the host's mixer has no crossfade by load for layers mixed by speed); the
+7. **Not used**: the rev-up and coast-down sweeps (section 9.5); the loops off load are used since section 9.3; the
    Vorbis thump of the engine event and the plugin `0x1990002` sounds (an unidentified synthesiser); the plugin's parameter curves
    (`Throttle`, `RPM`, `GEAR`, `GearDown` to its parameters 1, 2, 3 and 5), which drive the synthesiser and have no counterpart in
    the host.
@@ -301,6 +301,9 @@ load, a rev-up and a coast-down sweep, and an idle recording. **[data]** The con
    `backfire` those of the bang event, `pops` those of the exhaust event (the five to twelve crackle clips of its random playlist),
    each normalised to a peak of 0.9 and shared between bikes by media id. The variant is `Custom` (the aftermarket exhaust; the
    one with bangs for most bikes) unless told otherwise **[choice]**.
+
+(Items 1 to 8 describe the set the first version built; the changes of the audit, section 9, are the retimed exhaust of item 3, the loops
+off load, the one-turn models and the host's rate range.)
 
 ### The level from idle to redline
 
@@ -348,3 +351,89 @@ number (`gear_changes`: a peak of -11 dBFS after each of five changes, up and do
 missing crackle file is reported by the log (`nfsmw::audio::car::own_sfx`).
 
 The pipes flame at these pops: one flick of the bike's shift flame, 1.25 times its size, for each pop that plays ([ride6-bike-flames.md](ride6-bike-flames.md)).
+
+## 9. Audit of the converted bikes
+
+A rider reported that the bikes "do not match RIDE 6 at all". The installed mod (288 bikes with sound, 97 engine sets) was analysed
+numerically (`tools/ride6_sound_audit.py`; nothing was listened to), and the layer mix of the host was re-implemented in Python and
+rendered at every rpm. **[data]** = measured on the files, **[choice]** = a decision.
+
+### 9.1 Stale layers: the quiet first two layers (a bug in the copy)
+
+The importer copied a layer into the mod only when no file of its **size** was there. A rebuilt layer has the name and the length of the
+old one (same index, same rpm, same loop) but other samples, so the first two layers of an engine, whose names did not change between the
+first build (recorded levels) and the levelled one, were never replaced. **[data]** 58 of 2033 layers (the idle and the first loop of 44 of 97
+engines) were older than the rest of their engine's files and 3 to 20 dB under the engine's level (37 engines had one more than 6 dB
+under: KTM 450 idle -23 and first loop -31 dB against -17; Ducati 1098 -36 and -32 against -16; Aprilia RSV4 -30 and -31 against -14).
+That is the stretch from idle to about 3000 rpm: rendered with the host's mix, the KTM 450 sounded at -23, -26, -31 and -19 dB at 2300, 2700,
+3100 and 3500 rpm against -15 dB from 4300 up, the Ducati 1098 at -35 dB at the lowest. After levelling those layers (`fix-levels`) the
+same points are -17 dB, and the 2nd to 98th percentile of the level over a sweep goes from -31..-16 to -21..-15 dB (KTM 450) and from
+-35..-14 to -17..-14 dB (Ducati 1098). Fix: `copy_files` compares bytes. The installed data is repaired by `fix-levels`, or by running
+`sound-bikes` again.
+
+### 9.2 The exhaust was at another note than the engine
+
+A layer is the engine loop plus the exhaust loop of the nearest number of cycles. The exhaust was resampled to the engine loop's *length*,
+which keeps the exhaust's own cycle count, so with 17 cycles against 18 the sum held two notes 5.9 percent (98 cents) apart. **[data]**
+Measured as the share of a layer's energy on the harmonics of the engine's cycle (an integer number of Fourier bins, the layers being whole
+cycles): 154 of 1936 layers (7.9 percent, 46 of 97 engines) have under half of it there and most of it on the harmonics of another cycle
+count, up to 128 cents off (median 46, 10th percentile 28; the Suzuki GSX-R 750 1985 has 13 such layers, -128 to -28 cents). The pitch of the layer then jumps
+by that much at its crossfade with the next one (the KTM 450 measured -100 cents at 3300 and 3800 rpm, the Ducati 1098 +119 to +49 cents
+from 2939 to 5161 rpm). Fix: `pitch::retime_periodic` reads the exhaust loop (a periodic loop of `Ce` cycles) so that `Cn` cycles of it,
+the engine loop's, fill the engine loop's length: `Le * Cn / (Ce * Ln)` frames per frame, round and round. After `Ln` frames the read is
+at cycle `Cn mod Ce`, not at the start; the last 96 frames fade into the same signal read from the start (a loop of whole cycles continues
+into itself, so the faded signal meets the start). The timbre of the exhaust moves by `Cn / Ce` (at most 8 percent, `MAX_DETUNE`); its
+harmonics lie on the engine's. Test: `rev_layers_tests` (a sum of 18 and 17 cycles has all its energy in bin 18).
+
+### 9.3 Layers off load and the throttle
+
+A REV model holds loops recorded under load **and** loops recorded off load (formats doc). The converter used only the former, so the
+sound was the same on a closed throttle as on an open one (coasting at 10000 rpm sounded like a pull, 3 dB quieter by the host's level
+model). RIDE 6's REV plugin takes the game parameter `Throttle` (through a curve with a dead zone of 0.10 to 0.15, formats doc) as one of
+its four inputs, and the loops off load exist for that. **[choice]** The host now has two sets of layers, each mixed by engine speed as
+before, crossfaded at equal power by the throttle: `t = clamp((throttle - 0.12) / 0.88)`, set under load `sin(t pi/2)`, set off load
+`cos(t pi/2)`. The converter writes up to 20 loops under load, up to 20 off load and the idle recording once in each set (`load = "off"`,
+`F<nn>_<rpm*10>.WAV`). The plugin's curves are 37 shapes over the models and are not read by the converter; the straight crossfade is a
+simplification. Level: every layer has the loudness of section 8 item 5; the host's level model sets the closed-throttle level 3 dB
+under the open one. Tests: `own_engine/tests.rs` (`the_throttle_crossfades...`, `each_set_is_mixed...`,
+`an_engine_without_layers_off_load...`), `engine_sound_tests.rs`, `rev_layers_tests.rs`.
+
+### 9.4 The pitch across the holes of some models, and the rate range
+
+Some REV models have no loop between the idle recording and 4000 to 6500 rpm (Yamaha R1 2008: idle 1588, first loop 6443; Kawasaki
+Ninja ZX-10R: 1516 and 6465; BMW R 1300 GS: 1048 and 4334). The host played each layer at `rpm / layer rpm` but between 0.55 and 1.8, so
+there the sound stopped following the engine. **[data]** Weighted by gain over idle to redline, 90 of 288 bikes had a stretch where the
+sound was more than 25 cents off the engine speed (up to 369 cents; the R1 measured -391 cents at 4500 rpm). The largest ratio between
+two neighbouring layers is 4.26 (median 2.1). A rate range of 0.4 to 2.4 leaves 8 bikes over 25 cents (worst 54), **0.3 to 3.3** none
+(worst 5 cents); the layer that is pushed far carries little of the sound there (equal-power crossfade). The pitch error of the R1 at
+3100, 4500 and 5200 rpm goes from -146, -392 and -389 cents to +18, +5 and 0. **[choice]** The timbre of a layer played at 0.3 or 3.3
+times is wrong (the body resonances move); a proper fill of the hole is the first item of 9.5.
+
+### 9.5 Not done, and what is not known
+
+- **The rev-up and coast-down sweeps** are recordings from idle to redline, under load and off load. A pitch track of them (their records
+  have `hz` 0) would give loops at the missing speeds of 9.4 with the right timbre; the exporter that read the banks is being rebuilt, so it
+  was not tried. They are also the natural source of the transients REV plays at a blip of the throttle.
+- **The RPM curve of the plugin** (`RPM` to parameter 2: a straight line in 49 models, a knee near (0.6, 0.45) in the others) maps the
+  game's rpm to the synthesiser's own scale. What that scale is (the model's idle to its top loop, or the physics range) is in the 212-byte
+  parameter block that was not interpreted. This game plays every loop at `rpm / loop rpm` with the bike's physics rpm; for the models with a
+  knee RIDE 6 may sound lower than this at mid rpm. The R1's idle is 1588 in the model and 1000 in the physics data: this game plays the
+  idle recording at 0.63 speed at idle, RIDE 6 may play it as recorded.
+- **Two-stroke models.** The loops of the Honda NS 400 R and the Yamaha RD 500 LC come out at 1.82 and 1.75 times the physics redline when
+  one cycle per second is 120 rpm (the other two-stroke models, 11 bikes, are at 0.80 to 1.01 with 120). **[choice]** a model whose top loop is
+  above 1.5 times the redline is read at 60 rpm per cycle per second (their top loops are then at 0.91 and 0.87 of the redline); they
+  played an octave low before (all their layers above the engine's range, the rate clamped).
+- The level of the engine (`engine_volume 90`, the host's level model of `own_engine/level.rs`, target -19 dB re full scale at the nominal
+  engine volume) is not RIDE 6's. The loops of RIDE 6 differ by 20 dB between low and high rpm on purpose (the synthesiser's own gain
+  follows its inputs); section 8 item 5 evens them. Doppler (exponent 0.7), distance and the exhaust and intake mix are not modelled by
+  the host's engine.
+- Whether the result sounds like RIDE 6 was not listened to; the claims above are measurements.
+
+### 9.6 What to run
+
+1. Rebuild the sets: delete `files/SOUND/RIDE6/ENG` of the `sound-bikes` output, run `ride6-bike-import sound-bikes ...` again (the pak
+   reader is needed, [modding/ride6-bikes-sound.md](../modding/ride6-bikes-sound.md)), then the importer with `sound = '<out>'`: the copy
+   replaces the changed files. The ENG folders of the installed mod keep their old files (no manifest names them after the run): delete
+   `files/SOUND/RIDE6/ENG` there before the copy to save 3.5 GB.
+2. Until then, `python tools/ride6_sound_audit.py fix-levels --mod <mod> --out <dir>` and copy `<dir>/files` over the mod's `files`: it
+   levels the stale first two layers (the retimed exhaust and the loops off load need the rebuild).

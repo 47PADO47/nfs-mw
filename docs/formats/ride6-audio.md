@@ -132,6 +132,11 @@ The synthesiser itself is not reproduced; its recordings are (`sound::rev`):
   nominal value; the autocorrelation of the audio confirms the first). A four-stroke engine has one cycle per two turns, so
   **rpm = 120 x cycles per second**. Check on the data: over 293 bikes the top loop is at 0.97 of the physics asset's `MaxRPM`
   in the median (quartiles about 0.90 and 1.03, range 0.71 to 2.05).
+- The two models of the Honda NS 400 R and the Yamaha RD 500 LC have loops at 1.75 to 1.82 times the physics redline when read at 120 per
+  cycle per second (the other two-stroke models: 0.8 to 1.0); read at 60 (a cycle of one turn) their top loops are at 0.91 and 0.87. The
+  importer chooses 60 when the top loop is above 1.5 times the redline (`rev_layers::rpm_per_cycle_hz`).
+- Several models have no loop between the idle recording and 4000 to 6500 rpm (Yamaha R1 2008: idle 1588, first loop 6443); the largest
+  ratio between two neighbouring layers of the 288 converted bikes is 4.26 (spec section 9.4).
 - The KTM 450 engine model has loops from 3174 to 11361 rpm (26.4 to 94.7 Hz); its idle recording is 4.2 s at 17.4 Hz (2088 rpm; the
   physics asset's idle is 2300). The exhaust model has the same layout at nearly the same pitches.
 - Loops under load are much louder at the top of the range than at the bottom (rms 0.011 at the first loop, 0.33 at the last, for

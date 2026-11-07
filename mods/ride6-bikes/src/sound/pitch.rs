@@ -46,6 +46,20 @@ pub fn cycle_frequency(samples: &[f32], sample_rate: u32, low_hz: f32, high_hz: 
     Some(rate / lag)
 }
 
+/// A four-point cubic read of a periodic loop at a fractional `position` (in frames; it wraps round the loop).
+fn cubic_at(samples: &[f32], position: f64) -> f32 {
+    let n = samples.len() as isize;
+    let at = |index: isize| samples[index.rem_euclid(n) as usize];
+    let base = position.floor();
+    let t = (position - base) as f32;
+    let i = base as isize;
+    let (p0, p1, p2, p3) = (at(i - 1), at(i), at(i + 1), at(i + 2));
+    0.5 * ((2.0 * p1)
+        + (p2 - p0) * t
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t
+        + (3.0 * (p1 - p2) + p3 - p0) * t * t * t)
+}
+
 /// Resample a loop to `frames` frames, reading it as periodic (the position wraps), with a four-point cubic. The loop's
 /// speed changes by `samples.len() / frames` and its seam stays seamless.
 pub fn resample_periodic(samples: &[f32], frames: usize) -> Vec<f32> {
@@ -53,18 +67,36 @@ pub fn resample_periodic(samples: &[f32], frames: usize) -> Vec<f32> {
     if n == 0 || frames == 0 {
         return Vec::new();
     }
-    let at = |index: isize| samples[index.rem_euclid(n as isize) as usize];
+    (0..frames).map(|frame| cubic_at(samples, frame as f64 * n as f64 / frames as f64)).collect()
+}
+
+/// Frames over which [`retime_periodic`] closes the seam of its result (2 ms at 48 kHz).
+const SEAM_FRAMES: usize = 96;
+
+/// Read a periodic loop of `cycles_in` whole engine cycles so that `frames` frames hold `cycles_out` cycles of it: the
+/// result's pitch is exactly `cycles_out` over its length, whatever the loop's own pitch was (it is retimed by
+/// `cycles_out / cycles_in` of the loop's own length). The loop is read round and round, so after `frames` frames the read
+/// is at cycle `cycles_out mod cycles_in`, not at the start; the last [`SEAM_FRAMES`] frames fade into the same signal
+/// read from the start, so the result loops without a click. Empty for an empty loop or a zero count.
+pub fn retime_periodic(samples: &[f32], cycles_in: u32, cycles_out: u32, frames: usize) -> Vec<f32> {
+    let n = samples.len();
+    if n == 0 || frames == 0 || cycles_in == 0 || cycles_out == 0 {
+        return Vec::new();
+    }
+    // Loop frames read per output frame, and where the plain read ends.
+    let step = n as f64 * f64::from(cycles_out) / (f64::from(cycles_in) * frames as f64);
+    let total = frames as f64 * step;
+    let seam = SEAM_FRAMES.min(frames / 4);
+    let fade_from = frames - seam;
     (0..frames)
         .map(|frame| {
-            let position = frame as f64 * n as f64 / frames as f64;
-            let base = position.floor();
-            let t = (position - base) as f32;
-            let i = base as isize;
-            let (p0, p1, p2, p3) = (at(i - 1), at(i), at(i + 1), at(i + 2));
-            0.5 * ((2.0 * p1)
-                + (p2 - p0) * t
-                + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t
-                + (3.0 * (p1 - p2) + p3 - p0) * t * t * t)
+            let position = frame as f64 * step;
+            let here = cubic_at(samples, position);
+            if frame < fade_from {
+                return here;
+            }
+            let weight = (frame - fade_from + 1) as f32 / seam as f32;
+            here + (cubic_at(samples, position - total) - here) * weight
         })
         .collect()
 }
@@ -118,5 +150,51 @@ mod tests {
         assert!(worst < 0.01, "worst error {worst}");
         assert!(resample_periodic(&[], 10).is_empty());
         assert!(resample_periodic(&source, 0).is_empty());
+    }
+
+    /// The size of one Fourier bin of `samples` (a cosine of amplitude 1 on a bin is 0.5).
+    fn bin(samples: &[f32], k: usize) -> f32 {
+        let n = samples.len() as f32;
+        let (re, im) = samples.iter().enumerate().fold((0.0_f32, 0.0_f32), |(re, im), (i, x)| {
+            let angle = std::f32::consts::TAU * (k * i) as f32 / n;
+            (re + x * angle.cos(), im - x * angle.sin())
+        });
+        re.hypot(im) / n
+    }
+
+    #[test]
+    fn a_retimed_loop_has_exactly_the_wanted_number_of_cycles_in_its_length() {
+        // 11 cycles in 4800 frames read as 10 cycles in 5000 frames: all of the energy is in bin 10, none in bin 11.
+        let source: Vec<f32> = (0..4800).map(|i| (std::f32::consts::TAU * 11.0 * i as f32 / 4800.0).cos()).collect();
+        let out = retime_periodic(&source, 11, 10, 5000);
+        assert_eq!(out.len(), 5000);
+        assert!((bin(&out, 10) - 0.5).abs() < 0.01, "bin 10: {}", bin(&out, 10));
+        assert!(bin(&out, 11) < 0.01 && bin(&out, 9) < 0.01, "{} {}", bin(&out, 11), bin(&out, 9));
+        // Resampling to the same length keeps the loop's own 11 cycles: the pitch moves with the length, which retiming undoes.
+        let plain = resample_periodic(&source, 5000);
+        assert!(bin(&plain, 11) > 0.45 && bin(&plain, 10) < 0.01);
+    }
+
+    #[test]
+    fn a_retimed_loop_with_other_cycles_in_it_still_closes_its_seam() {
+        // A loop whose cycles differ (the level swells once round the loop): reading it for another number of cycles ends
+        // in another cycle than it starts in. The seam is faded, so the end meets the start.
+        let n = 4800;
+        let source: Vec<f32> = (0..n)
+            .map(|i| {
+                let phase = std::f32::consts::TAU * i as f32 / n as f32;
+                (11.0 * phase).cos() * (1.0 + 0.5 * phase.sin())
+            })
+            .collect();
+        let out = retime_periodic(&source, 11, 7, 3000);
+        let step = out.windows(2).map(|pair| (pair[1] - pair[0]).abs()).fold(0.0_f32, f32::max);
+        let seam = (out[0] - out[out.len() - 1]).abs();
+        assert!(seam <= step * 1.5, "the seam {seam} is no bigger than the largest step {step}");
+        let read_step = n as f64 * 7.0 / (11.0 * 3000.0);
+        let unfaded = (cubic_at(&source, 2999.0 * read_step) - source[0]).abs();
+        assert!(unfaded > seam * 2.0, "without the fade the jump would be {unfaded}");
+        assert!(retime_periodic(&[], 11, 7, 10).is_empty());
+        assert!(retime_periodic(&source, 0, 7, 10).is_empty());
+        assert!(retime_periodic(&source, 11, 7, 0).is_empty());
     }
 }

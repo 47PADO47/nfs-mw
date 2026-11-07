@@ -53,8 +53,10 @@ and exhaust events in the banks, follows them to the REV engine models and build
 ([specs/ride6-engine-sound.md](../specs/ride6-engine-sound.md#8-the-engine-layers-from-the-rev-models)), and builds the
 shift, bang and crackle lists from the gear-up, gear-down, backfire and exhaust events. It writes, in `--out`:
 
-- `files/SOUND/RIDE6/ENG/<engine>-<hash>/L<nn>_<rpm*10>.WAV`: the engine layers, **one folder per engine** (the same banks
-  serve many bikes: 293 bikes use 98 engines); 21 layers each (the idle and the model's 20 loops under load), about 1.5 MB;
+- `files/SOUND/RIDE6/ENG/<engine>-<hash>/L<nn>_<rpm*10>.WAV` (under load) and `F<nn>_<rpm*10>.WAV` (off load, the manifest says
+  `load = "off"`): the engine layers, **one folder per engine** (the same banks serve many bikes: 293 bikes use 98 engines);
+  up to 42 layers each (the model's 20 loops under load, its 19 or 20 loops off load, and the idle once for each set), about
+  3 MB;
 - `files/SOUND/RIDE6/FX/<media id>.WAV`: every effect recording once (the gear-up clunks of the shared bank are decoded once for
   all bikes);
 - `cars/<id>.sound.toml`: the tables of a bike, naming those paths (the paths are ordinary `SOUND/...` paths of the mod's
@@ -67,8 +69,22 @@ Set the mod's `sound` setting to `--out` (`sound = 'C:\r6\sound-work\out'` in `c
 bike's tables to its manifest and copies the files its tables name (`manifest_sound::copy_files`: the per-car folder and the
 shared recordings, each only when the mod folder does not hold a file of that size).
 
-Run it again after a change: an engine folder that exists is reused (delete `files/SOUND/RIDE6/ENG` to rebuild), effect
-recordings that exist are not decoded again.
+Run it again after a change: an engine folder that exists is reused (**delete `files/SOUND/RIDE6/ENG` of `--out` to rebuild**:
+the layer set changed with the exhaust retiming and the loops off load, and a folder of the old set is taken as complete),
+effect recordings that exist are not decoded again. The importer's copy into the mod (`manifest_sound::copy_files`) replaces a
+file whose **bytes** differ; until that was fixed a layer of the same name and length kept its old, unlevelled version in the
+mod (the first two layers of 37 engines were 12 to 20 dB too quiet).
+
+### Checking the result: `tools/ride6_sound_audit.py`
+
+A Python tool (numpy) that reads an installed mod folder and never writes into it:
+`python tools/ride6_sound_audit.py audit --mod <mod folder>` lists, for each engine, the layers whose level is more than 3 dB
+from the engine's, the widest gap between two layers and the top loop over the redline (above 1.5: a model whose cycle is one
+turn); `fix-levels --mod <mod> --out <folder>` writes the stale layers levelled (the quick repair of an installed mod until
+`sound-bikes` is run again: copy `<folder>/files` over the mod's `files`); `sweep --mod <mod> --car <manifest name>` renders the
+game's layer mix at every rpm and prints the level and the pitch error of the sound against `rpm / 120` (`--wav` writes a
+20 s sweep; `--rate-range 0.55,1.8` is the old limits). The method and the numbers are in
+[the spec](../specs/ride6-engine-sound.md#9-audit-of-the-converted-bikes).
 
 ## By hand: decoding recordings of one bike
 
@@ -129,7 +145,7 @@ As a library: `sound::plan::build(&SoundSources, &SoundOptions) -> BikeSound` (f
 What the build does to the recordings (modelling choices, [spec section 7](../specs/ride6-engine-sound.md#7-modelling-choices-not-facts)):
 the loop body of a `smpl` loop is kept, a clip is closed with a 40 ms equal-power crossfade, files of one rpm
 (`en,ex*gain`) are summed, the loudest engine loop peaks at 0.9 and the others keep their relative level, each one-shot
-is normalised to 0.9, everything is written as 16-bit PCM WAV. It refuses: no layer or more than 12, two layers of one
+is normalised to 0.9, everything is written as 16-bit PCM WAV. It refuses: no layer or more than 24, two layers of one
 rpm, an rpm outside 100 to 20000, idle not below redline, more than 16 files in a list, a bad car id.
 
 ## The overrun backfire table and the gear trigger
