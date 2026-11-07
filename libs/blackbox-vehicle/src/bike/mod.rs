@@ -467,3 +467,5 @@ mod tests;
 mod tests_behaviour;
 #[cfg(test)]
 mod tests_tricks;
+#[cfg(test)]
+mod turn_tests;

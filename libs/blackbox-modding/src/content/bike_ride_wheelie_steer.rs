@@ -5,7 +5,7 @@
 //!   at `RIDE6_STICKS` for `RIDE6_SECONDS` while the wheelie goes on. Prints the heading change, the pitch kept, the lean and how
 //!   many bikes fall, against the same stick on the road with the front wheel down.
 
-use blackbox_vehicle::bike::{Bike, BikeInput, BikeSpec, choices};
+use blackbox_vehicle::bike::{Bike, BikeInput, BikeSpec};
 use blackbox_vehicle::{FIXED_STEP, FlatGround};
 
 use super::bike_ride_sweep::{held_throttle, specs};
@@ -38,7 +38,7 @@ fn yaw(bike: &Bike) -> f32 {
 }
 
 /// Ride `spec` from `start` m/s: a wheelie to `pitch` rad (or, with `wheelie` false, the road at the same speed with the throttle that holds
-/// it), then the stick held at `stick` for `seconds`. The stick goes through the share the game gives it by speed.
+/// it), then the stick held at `stick` for `seconds`.
 pub(super) fn ride(
     spec: &BikeSpec,
     start: f32,
@@ -65,8 +65,7 @@ pub(super) fn ride(
         if !began && t > 8.0 {
             return out;
         }
-        let share = choices::stick_share(bike.forward_speed());
-        let steer = if began { stick * share } else { 0.0 };
+        let steer = if began { stick } else { 0.0 };
         let throttle = match wheelie {
             true => 1.0,
             false => held_throttle(start, bike.forward_speed()),

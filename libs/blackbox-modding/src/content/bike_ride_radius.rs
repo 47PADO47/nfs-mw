@@ -1,7 +1,7 @@
 //! The steady turn at a full stick (`docs/specs/ride6-feel-round11.md`, section 2): the radius a bike holds at 20, 30, 40 and 50 m/s
 //! against what the data's lean limit predicts, ridden on the imported bikes of a folder (`RIDE6_CARS=<folder> [RIDE6_FILTER=a,b]`).
 //!
-//! The stick goes through the share the game gives it by speed (`choices::stick_share`), the throttle holds the speed (the same
+//! The stick is the whole of its travel at any speed, the throttle holds the speed (the same
 //! proportional controller as the other sweeps), the radius is the speed over the yaw rate of the last 3 seconds of 12.
 
 use blackbox_vehicle::bike::{Bike, BikeInput, choices};
@@ -21,7 +21,7 @@ pub(super) struct Turn {
     pub(super) lateral_g: f32,
 }
 
-/// Ride `spec` into a turn at `speed` m/s with the stick at `stick` (before the share by speed) for `seconds` and measure the last 3 s.
+/// Ride `spec` into a turn at `speed` m/s with the stick at `stick` for `seconds` and measure the last 3 s.
 pub(super) fn turn(spec: &blackbox_vehicle::bike::BikeSpec, speed: f32, stick: f32, seconds: f32) -> Turn {
     let ground = FlatGround::new(0.0);
     let mut bike = Bike::new(spec.clone());
@@ -33,12 +33,11 @@ pub(super) fn turn(spec: &blackbox_vehicle::bike::BikeSpec, speed: f32, stick: f
     let mut last = 0.0_f32;
     for step in 0..steps {
         let v = bike.body().linear_velocity.length();
-        let share = choices::stick_share(bike.forward_speed());
         // The stick rises to its end in a second, as a hand does; the sweeps of the earlier rounds stepped it.
         let ramped = (step as f32 * FIXED_STEP * 2.0).min(1.0) * stick;
         bike.step(
             FIXED_STEP,
-            &BikeInput { throttle: held_throttle(speed, v), steer: ramped * share, ..Default::default() },
+            &BikeInput { throttle: held_throttle(speed, v), steer: ramped, ..Default::default() },
             &ground,
         );
         if bike.fallen() {
@@ -91,8 +90,7 @@ fn bike_radius() {
         );
         for &speed in &speeds {
             let t = turn(&spec, speed, stick, 12.0);
-            let share = choices::stick_share(speed);
-            let predicted = speed * speed / (G * (base * share).tan());
+            let predicted = speed * speed / (G * base.tan());
             match t.fell {
                 true => line += &format!(" | v{speed:.0}: FELL"),
                 false => {

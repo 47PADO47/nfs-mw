@@ -352,11 +352,6 @@ impl CarSim {
         self.vehicle.body_on_ground()
     }
 
-    /// The dot product of the car's up vector with the world's.
-    pub fn up_dot(&self) -> f32 {
-        self.vehicle.rotation().y_axis.y
-    }
-
     /// Whether the state is usable (no NaN or runaway values). Covers the rotation, the wheels and the engine
     /// too: a NaN there freezes the car while its position still looks fine.
     pub fn is_finite(&self) -> bool {
@@ -494,6 +489,8 @@ mod trailer;
 
 #[cfg(test)]
 mod bike_curb_tests;
+#[cfg(test)]
+mod bike_sound_tests;
 #[cfg(test)]
 mod bike_tests;
 #[cfg(test)]
