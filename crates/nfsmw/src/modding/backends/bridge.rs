@@ -19,7 +19,7 @@ use blackbox_modding::content::{
 };
 use blackbox_modding::host::{HotkeyHandler, OptionsModel};
 use blackbox_ui::ThemeId;
-use game_install::GameDir;
+use game_install::{GameDir, LazySource};
 use nfsmw_data::pursuit::{HeatRow, heat_row, race_heat_row};
 use nfsmw_modding::abi::CopTable;
 
@@ -91,6 +91,8 @@ pub struct Bridge {
     pub(super) store: Box<dyn ValueStore>,
     /// The install, once the layers are in place (see `open.rs`). The cop waves of the install are read through it.
     install: RefCell<Option<GameDir>>,
+    /// The makers of lazy files that mods gave before the install was known: they join it in [`Bridge::set_install`].
+    lazy_pending: RefCell<Vec<(String, Arc<dyn LazySource>)>>,
 }
 
 impl Default for Bridge {
@@ -130,6 +132,7 @@ impl Bridge {
             ui_theme_choice: Cell::new(None),
             store,
             install: RefCell::default(),
+            lazy_pending: RefCell::default(),
         }
     }
 
@@ -142,7 +145,21 @@ impl Bridge {
 
     /// Give the bridge the install, with its layers in place. The cop waves read the install's attributes through it.
     pub fn set_install(&self, dir: GameDir) {
+        for (owner, source) in self.lazy_pending.take() {
+            dir.add_lazy_source(&owner, source);
+        }
         *self.install.borrow_mut() = Some(dir);
+    }
+
+    /// The mod `owner` makes some of its files when they are read (`bb.content`, `provide_lazy_files`): `source` is asked for
+    /// them. A mod loads before the install is known, so the maker waits here until [`Bridge::set_install`]; after that it
+    /// goes straight to the install, whose clones share it.
+    pub(super) fn add_lazy_source(&self, owner: &str, source: Arc<dyn LazySource>) {
+        if let Some(install) = self.install.borrow().as_ref() {
+            install.add_lazy_source(owner, source);
+            return;
+        }
+        self.lazy_pending.borrow_mut().push((owner.to_owned(), source));
     }
 
     /// A copy of the install, with its layers (late ones included: they are shared by every copy). `None` until known.
