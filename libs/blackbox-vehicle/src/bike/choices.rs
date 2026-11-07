@@ -3,6 +3,14 @@
 //! it as open (`docs/specs/vehicle-two-wheel.md`, `docs/specs/vehicle-two-wheel-parameters.md`). When a fact turns up, change
 //! the constant here and nowhere else.
 
+/// The share of the bike's own mass (the rider's is not scaled) the model carries: a modelling choice of this project, applied once in
+/// `Bike::new`, so the 288 imported manifests keep the RIDE 6 values. The reference's bikes are heavy for a game that wants a wheelie on
+/// every throttle: with the data's masses the thrust of a first-gear launch is under what lifts the front wheel and a held wheelie needs
+/// the whole of the assist's torque (`docs/specs/ride6-wheelie-hold.md`). A bike a sixth lighter lifts, holds and drops its front
+/// wheel more readily; the inertias follow, since they are the radii of gyration squared times the total mass. The rest loads, the
+/// centre of gravity and the front share follow from the scaled mass. 1.0 gives the data's masses back.
+pub const BIKE_MASS_SCALE: f32 = 0.85;
+
 /// How fast ABS releases once the wheel recovers (1/s): the `ABSFallRate` constructor default, 10000, which no bike's data
 /// overrides (recovered, `ride6-powertrain-round6.md`, section 5). A release of 1 takes a tenth of a millisecond, so the
 /// release follows its target in effect at once; the constant stays a rate so a slower one can be tested.
@@ -92,6 +100,20 @@ pub const STEER_REACH: f32 = 0.9;
 /// turns the wheelie at about a third of the road's rate, and the lean help, the wheelie assist and the fall tests keep the bike up (the
 /// sweeps of the spec fall on no bike). 0 or less gives the data's cut back.
 pub const WHEELIE_LEAN_FLOOR: f32 = 0.35;
+
+/// How a held wheelie is let down (`pitch_assist::lowering_torque`; `docs/specs/ride6-wheelie-hold.md`, section 3). The reference's assist
+/// asks the body for an angular acceleration of `Acceleration` (10 rad/s^2) but its torque is scaled by the bike's mass times the
+/// pitch term alone (45 kg m^2 for the KTM) against 73 kg m^2 of the whole body, and a wheelie's weight torque is 12 to 17 rad/s^2: so a
+/// throttle that is shut drops the nose at 100 to 125 degrees a second and it lands at 20 or more. A modelling choice: while the assist is
+/// on, the nose may drop at `WHEELIE_LOWER_PER_PITCH` times its height per second, between `WHEELIE_LOWER_TOUCHDOWN_RATE` and
+/// `WHEELIE_LOWER_RATE` (0.7 rad/s, 40 degrees a second from 35 degrees), and a torque that holds back the excess over `WHEELIE_LOWER_RESPONSE`
+/// seconds (0.02), up to `WHEELIE_LOWER_ACCELERATION` rad/s^2 of the whole body (about the weight's torque), is added. A throttle that is blipped
+/// again raises the nose as before.
+pub const WHEELIE_LOWER_RATE: f32 = 0.7;
+pub const WHEELIE_LOWER_PER_PITCH: f32 = 1.2;
+pub const WHEELIE_LOWER_TOUCHDOWN_RATE: f32 = 0.12;
+pub const WHEELIE_LOWER_RESPONSE: f32 = 0.02;
+pub const WHEELIE_LOWER_ACCELERATION: f32 = 25.0;
 
 /// The share of the gap between the yaw rate of a steady turn at the bike's lean and its own that the yaw torque closes in a sub-step
 /// while the front wheel is up and the rear is on the road (`wheelie_steer::apply_wheelie_yaw`): the reference's stability help has a

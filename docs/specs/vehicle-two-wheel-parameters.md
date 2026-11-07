@@ -24,7 +24,7 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 |---|---|---|---|
 | `drag` | `Aerodynamic.DragCoefficient` | none (`F = Cd v^2`, [aero spec](ride6-aero-drag.md)) | fact |
 | `gyro_roll_scale`, `gyro_yaw_scale` | handler `GyroscopicRollMomentumScale`, `...Yaw...`; 0 when `SimulateGyroscopicEffects` is false | unset: 1 | default (lean spec) |
-| `chassis.mass_kg` | `CHASSIS.Mass` | none | fact |
+| `chassis.mass_kg` | `CHASSIS.Mass` | none; `Bike::new` carries `choices::BIKE_MASS_SCALE` (0.85) of it, the rider's mass whole (`ride6-wheelie-hold.md`) | fact / choice |
 | `chassis.rider_mass_kg` | handler `Rider.Mass` (when `SimulateRider`) | none | fact |
 | `chassis.rider_offset_m` | handler `Rider.COMOffset` | cm to m, axes; from the bike's own centre of gravity (the rider sits `CGPosition.z + COMOffset.z` high) | fact; the origin is [I] |
 | `chassis.rider_forward_shift_m`, `..._backward_shift_m` | `Rider.ForwardOffset` (set by no asset: 0), `Rider.BackwardOffset` | cm to m, axes | fact / default (an `FVector` starts at 0) |

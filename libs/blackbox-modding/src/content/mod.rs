@@ -27,6 +27,8 @@ mod bike_ride_real;
 #[cfg(test)]
 mod bike_ride_sweep;
 #[cfg(test)]
+mod bike_ride_wheelie_blip;
+#[cfg(test)]
 mod bike_ride_wheelie_script;
 #[cfg(test)]
 mod bike_ride_wheelie_steer;

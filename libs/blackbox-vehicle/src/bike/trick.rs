@@ -2,7 +2,7 @@
 //! to 5): the throttle and front brake interventions, the auto-rider that moves the rider's weight, the pitch estimate they
 //! share, and the pitch torque that holds the angle. Only a bike has any of it: a four-wheel vehicle has no code path here.
 
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 
 use super::curve::{curve, ramp};
 use super::pitch_assist::{self, FREE_PEDAL, PitchInput, approach};
@@ -314,6 +314,15 @@ impl Bike {
         self.trick.tuck_level
     }
 
+    /// The pitch inertia (kg m^2) of the whole body about the rear contact, the point a wheelie turns on: the body's own plus its mass times
+    /// the squared distance of its centre of gravity from the contact in the plane of the pitch.
+    fn pivot_inertia(&self, rotation: Mat3) -> f32 {
+        let right = rotation * Vec3::X;
+        let arm = self.body.world_cog() - self.wheels[REAR].contact;
+        let in_plane = arm - right * arm.dot(right);
+        self.body.inertia().x + self.body.mass() * in_plane.length_squared()
+    }
+
     /// The pitch torque that holds the angle the rider's weight and pedals ask for, about the bike's right axis.
     pub(super) fn apply_pitch_assist(&mut self, dt: f32, speed: f32) {
         let Some(assist) = &self.spec.wheelie else { return };
@@ -332,6 +341,7 @@ impl Bike {
             rear_on_ground: self.wheels[REAR].on_ground,
             // The pitch inertia of the bike without the rider.
             inertia: self.spec.chassis.mass * self.spec.chassis.tensor_scale.x,
+            body_inertia: self.pivot_inertia(rotation),
             dt,
         };
         let torque = pitch_assist::torque(assist, &request);

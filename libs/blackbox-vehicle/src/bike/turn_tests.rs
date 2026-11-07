@@ -298,7 +298,7 @@ fn a_full_stick_turns_at_the_radius_of_its_lean_and_leans_as_far_at_20_to_80_ms(
 #[test]
 fn a_stick_pulled_to_its_reach_gives_the_whole_lean_limit_and_one_short_of_it_a_little_less() {
     // The reach is the input layer's (`sim/bike.rs::command`): 0.9 of the travel reads as the whole stick. Here the library takes the stick.
-    assert!(choices::STEER_REACH > 0.5 && choices::STEER_REACH <= 1.0);
+    const { assert!(choices::STEER_REACH > 0.5 && choices::STEER_REACH <= 1.0) };
     let ground = FlatGround::new(0.0);
     let lean_at = |stick: f32| {
         let mut bike = Bike::new(with_data_rates());
