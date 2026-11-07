@@ -27,10 +27,17 @@ def load_glb(path):
 def accessor(doc, binary, i):
     a = doc["accessors"][i]
     v = doc["bufferViews"][a["bufferView"]]
-    comp = {5126: "<f4", 5125: "<u4", 5123: "<u2"}[a["componentType"]]
-    n = {"SCALAR": 1, "VEC2": 2, "VEC3": 3}[a["type"]]
-    arr = np.frombuffer(binary, dtype=comp, count=a["count"] * n, offset=v["byteOffset"])
-    return arr.reshape(-1, n) if n > 1 else arr
+    comp = {5126: "<f4", 5125: "<u4", 5123: "<u2", 5121: "u1"}[a["componentType"]]
+    n = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[a["type"]]
+    base = v.get("byteOffset", 0) + a.get("byteOffset", 0)
+    item = np.dtype(comp).itemsize * n
+    stride = v.get("byteStride", item)
+    if stride == item:
+        arr = np.frombuffer(binary, dtype=comp, count=a["count"] * n, offset=base)
+        return arr.reshape(-1, n) if n > 1 else arr
+    raw = np.frombuffer(binary, dtype=np.uint8, count=stride * a["count"], offset=base).reshape(a["count"], stride)
+    arr = np.ascontiguousarray(raw[:, :item]).view(comp).reshape(a["count"], n)
+    return arr if n > 1 else arr.reshape(-1)
 
 
 def mean_colour(doc, binary, mat):
@@ -40,7 +47,7 @@ def mean_colour(doc, binary, mat):
         return (160, 160, 160)
     img = doc["images"][doc["textures"][tex["index"]]["source"]]
     v = doc["bufferViews"][img["bufferView"]]
-    im = Image.open(io.BytesIO(binary[v["byteOffset"]:v["byteOffset"] + v["byteLength"]])).convert("RGB")
+    im = Image.open(io.BytesIO(binary[v.get("byteOffset", 0):v.get("byteOffset", 0) + v["byteLength"]])).convert("RGB")
     return tuple(int(c) for c in np.asarray(im.resize((8, 8))).reshape(-1, 3).mean(0))
 
 
