@@ -170,12 +170,14 @@ fn open_media(path: &Path, shown: &str) -> Result<(Box<dyn MediaSource>, String)
     let extension = path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
     if extension != "sps" {
         let file = File::open(path).map_err(|e| format!("{shown}: {e}"))?;
-        return Ok((Box::new(file), extension));
+        let media: Box<dyn MediaSource> = Box::new(file);
+        return Ok((media, extension));
     }
     let data = std::fs::read(path).map_err(|e| format!("{shown}: {e}"))?;
     let mp3 = ea_audio::sps::to_mp3(&data).map_err(|e| format!("{shown}: {e}"))?;
     let core = mp3.cores.into_iter().next().ok_or_else(|| format!("{shown}: the stream has no audio"))?;
-    Ok((Box::new(Cursor::new(core.bytes)), "mp3".to_owned()))
+    let media: Box<dyn MediaSource> = Box::new(Cursor::new(core.bytes));
+    Ok((media, "mp3".to_owned()))
 }
 
 /// The first audio track: its id, its codec parameters and its length in frames when the container gives one.
