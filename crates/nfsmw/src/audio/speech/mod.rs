@@ -32,7 +32,7 @@ pub use glue::SpeechSlot;
 pub use lines::{Files, Lines};
 pub use params::{Param, SpeechParams};
 pub use plugin::add as add_systems;
-pub use rules::{Actor, Context, Hold};
+pub use rules::{Actor, Context};
 pub use sink::{KiraSink, Sink};
 
 use nfsmw_data::speech::{SpeechEvent, SpeechTune};
