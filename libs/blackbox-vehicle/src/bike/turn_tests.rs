@@ -1,13 +1,14 @@
-//! A numeric harness for turning (`docs/specs/ride6-feel-round12.md`, section 2): how fast the lean comes in after a step of the stick, and
-//! how tight the steady turn is, on the example bike (a 450 cm3 supermoto with the data of the KTM 450 SMR) with the data's input rates.
+//! A numeric harness for turning (`docs/specs/ride6-feel-round12.md`, section 2; `ride6-feel-round13.md`): how fast the lean comes in after a
+//! step of the stick, to the left and to the right and at 20 to 80 m/s, and how tight the steady turn is, on the example bike (a 450 cm3
+//! supermoto with the data of the KTM 450 SMR) with the data's input rates, and over the shapes the 288 bikes' tables take.
 //!
 //! The bounds around the lean-in times come from the controller's own filters, worked out outside the model (the stick filter, the
-//! target filter stepped by `dt x time scale` and the lean spring, with the lean following its target exactly), so the open-loop test
-//! checks the port of the filters and the closed-loop one that the bike does not add much to it. The numbers of the closed-loop tests
+//! target filter stepped by `dt x time scale` and the lean spring, with the lean following its target exactly), so the open-loop tests
+//! check the port of the filters and the closed-loop ones that the bike does not add much to it. The numbers of the closed-loop tests
 //! are wide on purpose: they stand for "about", not for a measurement. These tests were written without running them.
 
 use super::lean::{Lean, LeanInput};
-use super::{Bike, BikeInput, BikeSpec, FRONT, InputRates, choices};
+use super::{Bike, BikeInput, BikeSpec, FRONT, InputRates, SteeringSpec, choices};
 use crate::FIXED_STEP;
 use crate::ground::FlatGround;
 
@@ -24,33 +25,63 @@ fn with_data_rates() -> BikeSpec {
     spec
 }
 
+/// The example bike with the power and gearing of a superbike (its top speed is over 85 m/s; the example's own is 52 m/s, which makes a
+/// ride at 60 or 80 m/s a rev limiter and an engine brake and not a turn): the high-speed turns of the closed-loop tests ride this one.
+fn superbike() -> BikeSpec {
+    let mut spec = with_data_rates();
+    spec.engine.peak_torque *= 3.5;
+    spec.transmission.final_ratio = 4.0;
+    spec
+}
+
+/// What the controller is given at `speed` with the lean at `lean` and rolling at `rate`, on flat ground, a stick of `stick`.
+fn plan_input(stick: f32, speed: f32, lean: f32, rate: f32) -> LeanInput {
+    LeanInput {
+        stick,
+        speed,
+        lean,
+        lean_rate: rate,
+        lateral_grip: GRIP,
+        long_g: 0.0,
+        heading_error: 0.0,
+        pitch_cut: (0.0, 0.0),
+        terrain_slope: 0.0,
+        roll_inertia: 47.8,
+        cg_height: 0.8,
+        front_arm: 1.0,
+        target_cap: f32::MAX,
+        burnout_limit: None,
+        dt: SUBSTEP,
+    }
+}
+
+/// The shapes of the stick's time-scale curve in the data of the 288 bikes, `(at -1, at +1)` (207, 61 and 20 bikes), the same two ways
+/// round, and an even one, which no bike has but a mod's could.
+const STICK_ENDS: [(f32, f32); 6] = [(0.4, 0.5), (0.28, 0.45), (0.425, 0.7), (0.7, 0.425), (0.5, 0.4), (0.6, 0.6)];
+
+/// The speed curves of the time scale in the data: 1 at 40 km/h falling to 0.333 at 330 km/h (270 bikes), and 1 at 10 km/h falling to
+/// 0.65 at 200 km/h (18 bikes).
+fn speed_tables() -> [Vec<(f32, f32)>; 2] {
+    [vec![(11.111, 1.0), (91.667, 0.333)], vec![(2.778, 1.0), (55.556, 0.65)]]
+}
+
+/// The example bike's steering with a stick curve of the given ends (1 at the middle) and a speed curve.
+fn steering_with(ends: (f32, f32), speed_table: &[(f32, f32)]) -> SteeringSpec {
+    let mut steering = BikeSpec::example().steering;
+    steering.lean.time_scale_input = vec![(-1.0, ends.0), (0.0, 1.0), (1.0, ends.1)];
+    steering.lean.time_scale_speed = speed_table.to_vec();
+    steering
+}
+
 /// The seconds a held `stick` takes to bring the lean to each of `angles` (rad) when the lean follows the controller's prescription
 /// exactly (the roll acceleration of the plan integrated as it asks), at `speed` along the bike on flat ground. `None` for an angle not reached
 /// in 5 s.
-fn open_loop_times(speed: f32, stick: f32, angles: &[f32]) -> Vec<Option<f32>> {
-    let steering = BikeSpec::example().steering;
+fn open_loop_times(steering: &SteeringSpec, speed: f32, stick: f32, angles: &[f32]) -> Vec<Option<f32>> {
     let mut lean = Lean::new();
     let (mut angle, mut rate) = (0.0_f32, 0.0_f32);
     let mut times = vec![None; angles.len()];
     for step in 0..(5.0 / SUBSTEP) as usize {
-        let input = LeanInput {
-            stick,
-            speed,
-            lean: angle,
-            lean_rate: rate,
-            lateral_grip: GRIP,
-            long_g: 0.0,
-            heading_error: 0.0,
-            pitch_cut: (0.0, 0.0),
-            terrain_slope: 0.0,
-            roll_inertia: 47.8,
-            cg_height: 0.8,
-            front_arm: 1.0,
-            target_cap: f32::MAX,
-            burnout_limit: None,
-            dt: SUBSTEP,
-        };
-        let plan = lean.plan(&steering, &input);
+        let plan = lean.plan(steering, &plan_input(stick, speed, angle, rate));
         rate += plan.acceleration * SUBSTEP;
         angle += rate * SUBSTEP;
         let now = (step + 1) as f32 * SUBSTEP;
@@ -66,16 +97,17 @@ fn open_loop_times(speed: f32, stick: f32, angles: &[f32]) -> Vec<Option<f32>> {
 #[test]
 fn the_lean_comes_in_over_about_a_second_after_a_step_of_the_stick() {
     let (twenty, forty) = (20.0_f32.to_radians(), 40.0_f32.to_radians());
-    // `(speed, stick, bounds of the time to 20 degrees, bounds of the time to 40 degrees)`, round about the worked-out times (right: 0.46 and
-    // 0.82 s at 20 m/s, left: 0.56 and 1.01 s; at 40 m/s 0.49 and 0.87 s, left 0.60 and 1.10 s).
+    let steering = BikeSpec::example().steering;
+    // `(speed, stick, bounds of the time to 20 degrees, bounds of the time to 40 degrees)`, round about the worked-out times (0.46 and
+    // 0.82 s at 20 m/s, 0.49 and 0.87 s at 40 m/s); a left stick is the same as a right one since round 13.
     let cases = [
         (20.0_f32, 1.0_f32, (0.30, 0.65), (0.60, 1.10)),
-        (20.0, -1.0, (0.40, 0.80), (0.75, 1.35)),
+        (20.0, -1.0, (0.30, 0.65), (0.60, 1.10)),
         (40.0, 1.0, (0.33, 0.70), (0.65, 1.20)),
-        (40.0, -1.0, (0.42, 0.85), (0.80, 1.50)),
+        (40.0, -1.0, (0.33, 0.70), (0.65, 1.20)),
     ];
     for (speed, stick, to_twenty, to_forty) in cases {
-        let times = open_loop_times(speed, stick, &[twenty, forty]);
+        let times = open_loop_times(&steering, speed, stick, &[twenty, forty]);
         let (a, b) = (times[0].expect("20 degrees"), times[1].expect("40 degrees"));
         assert!((to_twenty.0..=to_twenty.1).contains(&a), "{speed} m/s, stick {stick}: 20 degrees in {a} s");
         assert!((to_forty.0..=to_forty.1).contains(&b), "{speed} m/s, stick {stick}: 40 degrees in {b} s");
@@ -83,20 +115,85 @@ fn the_lean_comes_in_over_about_a_second_after_a_step_of_the_stick() {
 }
 
 #[test]
-fn a_left_turn_comes_in_slower_than_a_right_one_because_the_data_says_so() {
-    // The time scale is cut by a curve of the signed stick (0.425 at -1, 0.7 at +1 here): ride6-feel-round12.md, section 3.
-    let forty = 40.0_f32.to_radians();
-    let right = open_loop_times(30.0, 1.0, &[forty])[0].expect("right");
-    let left = open_loop_times(30.0, -1.0, &[forty])[0].expect("left");
-    assert!(left > right * 1.05, "left {left} s, right {right} s");
+fn a_left_stick_asks_for_the_mirror_of_a_right_one_whatever_the_shape_of_the_tables() {
+    for ends in STICK_ENDS {
+        for speed_table in speed_tables() {
+            let steering = steering_with(ends, &speed_table);
+            for speed in [10.0_f32, 40.0, 80.0] {
+                for stick in [0.25_f32, 0.5, 1.0] {
+                    let (mut right, mut left) = (Lean::new(), Lean::new());
+                    for step in 0..240 {
+                        let a = right.plan(&steering, &plan_input(stick, speed, 0.0, 0.0));
+                        let b = left.plan(&steering, &plan_input(-stick, speed, 0.0, 0.0));
+                        let what = format!("ends {ends:?}, {speed} m/s, stick {stick}, step {step}");
+                        assert!((a.target + b.target).abs() < 1e-5, "{what}: target {} {}", a.target, b.target);
+                        assert!((a.limit - b.limit).abs() < 1e-6, "{what}: limit");
+                        let tolerance = 1e-3 * (1.0 + a.acceleration.abs());
+                        assert!((a.acceleration + b.acceleration).abs() < tolerance, "{what}: acceleration");
+                    }
+                }
+            }
+        }
+    }
 }
 
-/// A bike at `speed` m/s on flat ground, ridden with a stick of `stick` and a throttle that holds the speed; the time its lean first
+#[test]
+fn a_left_turn_comes_in_as_fast_as_a_right_one_whatever_the_data_tables() {
+    let wanted = 0.8 * GRIP.atan();
+    for ends in STICK_ENDS {
+        for speed_table in speed_tables() {
+            let steering = steering_with(ends, &speed_table);
+            for speed in [10.0_f32, 20.0, 40.0, 60.0, 80.0] {
+                let right = open_loop_times(&steering, speed, 1.0, &[wanted])[0].expect("right");
+                let left = open_loop_times(&steering, speed, -1.0, &[wanted])[0].expect("left");
+                assert!((left - right).abs() < 1e-3, "ends {ends:?}, {speed} m/s: left {left} s, right {right} s");
+            }
+        }
+    }
+}
+
+#[test]
+fn the_quicker_side_of_the_data_is_never_made_slower() {
+    // The data's 0.28 / 0.45 curve: the right stick's 0.45 is the time scale of both sides, so the left comes in as the right did.
+    let wanted = 0.8 * GRIP.atan();
+    let steering = steering_with((0.28, 0.45), &speed_tables()[0]);
+    let mut right_only = steering.clone();
+    right_only.lean.time_scale_input = vec![(-1.0, 0.45), (0.0, 1.0), (1.0, 0.45)];
+    let left = open_loop_times(&steering, 30.0, -1.0, &[wanted])[0].expect("left");
+    let right = open_loop_times(&right_only, 30.0, 1.0, &[wanted])[0].expect("right");
+    assert!((left - right).abs() < 1e-3, "{left} s against {right} s");
+}
+
+#[test]
+fn the_lean_in_time_grows_little_with_speed_whatever_the_data_tables() {
+    // 80 percent of the lean limit after a full stick: about a second at 20 m/s; the data's speed curve alone would make it 1.6 s (right) to
+    // 2.3 s (left) at 80 m/s; with the floor it is within 30 percent of the time at 20 m/s and under 1.5 s.
+    let wanted = 0.8 * GRIP.atan();
+    for ends in STICK_ENDS {
+        for speed_table in speed_tables() {
+            let steering = steering_with(ends, &speed_table);
+            let time = |speed: f32| open_loop_times(&steering, speed, 1.0, &[wanted])[0].expect("reached");
+            let base = time(20.0);
+            for speed in [40.0_f32, 60.0, 80.0] {
+                let t = time(speed);
+                assert!(t < base * 1.3 && t < 1.5, "ends {ends:?}, {speed} m/s: {t} s against {base} s at 20 m/s");
+            }
+        }
+    }
+}
+
+/// A bike of `spec` at `speed` m/s on flat ground, ridden with a stick of `stick` and a throttle that holds the speed; the time its lean first
 /// reaches each of `angles` (rad), whether it fell, and the radius of the turn over the last two of `seconds` (m, 0 if it does not turn)
 /// with the mean speed (m/s) and the mean lean (rad) it was ridden at there.
-fn ride_turn(speed: f32, stick: f32, seconds: f32, angles: &[f32]) -> (Vec<Option<f32>>, bool, f32, [f32; 2]) {
+fn ride_turn(
+    spec: &BikeSpec,
+    speed: f32,
+    stick: f32,
+    seconds: f32,
+    angles: &[f32],
+) -> (Vec<Option<f32>>, bool, f32, [f32; 2]) {
     let ground = FlatGround::new(0.0);
-    let mut bike = Bike::new(with_data_rates());
+    let mut bike = Bike::new(spec.clone());
     assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, speed));
     let mut times = vec![None; angles.len()];
     let (mut speeds, mut yaw_rates, mut leans, mut taken) = (0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32);
@@ -130,7 +227,8 @@ fn ride_turn(speed: f32, stick: f32, seconds: f32, angles: &[f32]) -> (Vec<Optio
 fn the_bike_leans_in_over_about_a_second_and_a_half_at_most_in_the_game_loop() {
     for speed in [10.0_f32, 20.0, 30.0] {
         for stick in [0.9_f32, -0.9] {
-            let (times, fell, _, _) = ride_turn(speed, stick, 6.0, &[20.0_f32.to_radians(), 40.0_f32.to_radians()]);
+            let (times, fell, _, _) =
+                ride_turn(&with_data_rates(), speed, stick, 6.0, &[20.0_f32.to_radians(), 40.0_f32.to_radians()]);
             assert!(!fell, "{speed} m/s, stick {stick}: fell");
             let (a, b) = (times[0].expect("20 degrees"), times[1].expect("40 degrees"));
             assert!(a < 1.2 && b < 2.2, "{speed} m/s, stick {stick}: 20 degrees in {a} s, 40 degrees in {b} s");
@@ -139,9 +237,30 @@ fn the_bike_leans_in_over_about_a_second_and_a_half_at_most_in_the_game_loop() {
 }
 
 #[test]
+fn a_full_stick_leans_the_bike_in_about_the_same_time_at_20_and_at_80_ms_in_the_game_loop() {
+    let angles = [20.0_f32.to_radians(), 40.0_f32.to_radians()];
+    let at = |speed: f32, stick: f32| {
+        let (times, fell, _, _) = ride_turn(&superbike(), speed, stick, 5.0, &angles);
+        assert!(!fell, "{speed} m/s, stick {stick}: fell");
+        (times[0].expect("20 degrees"), times[1].expect("40 degrees"))
+    };
+    for stick in [1.0_f32, -1.0] {
+        let (base_a, base_b) = at(20.0, stick);
+        for speed in [40.0_f32, 60.0, 80.0] {
+            let (a, b) = at(speed, stick);
+            let what = format!("{speed} m/s, stick {stick}: 20 degrees in {a} s, 40 degrees in {b} s");
+            // The open loop grows by at most 30 percent over this range (above); the bike's own lag is the same at any speed, so the
+            // closed loop has room for 40 percent and a tenth of a second.
+            assert!(a < base_a * 1.4 + 0.1 && b < base_b * 1.4 + 0.1, "{what} (20 m/s: {base_a} s, {base_b} s)");
+            assert!(b < 2.2, "{what}");
+        }
+    }
+}
+
+#[test]
 fn a_held_stick_turns_within_the_radius_of_its_lean_and_a_wide_tyres_geometry() {
     for speed in [10.0_f32, 20.0, 30.0] {
-        let (_, fell, radius, [mean_speed, mean_lean]) = ride_turn(speed, 0.9, 8.0, &[]);
+        let (_, fell, radius, [mean_speed, mean_lean]) = ride_turn(&with_data_rates(), speed, 0.9, 8.0, &[]);
         assert!(!fell, "{speed} m/s: fell");
         // The radius of the lean alone is `v^2 / (g tan(lean))`; the geometry of a wide tyre (the patch moves in with the lean) and the speed
         // a corner costs make the real one wider (round 11: 1.0 to 1.2 g where `tan` of the lean says 1.3).
@@ -154,6 +273,25 @@ fn a_held_stick_turns_within_the_radius_of_its_lean_and_a_wide_tyres_geometry() 
             radius < lean_radius * 1.6,
             "{speed} m/s: radius {radius} m against {lean_radius} m: wider than the lean needs"
         );
+    }
+}
+
+#[test]
+fn a_full_stick_turns_at_the_radius_of_its_lean_and_leans_as_far_at_20_to_80_ms() {
+    let spec = superbike();
+    let mut base_lean = None;
+    for speed in [20.0_f32, 40.0, 60.0, 80.0] {
+        let (_, fell, radius, [mean_speed, mean_lean]) = ride_turn(&spec, speed, 1.0, 8.0, &[]);
+        assert!(!fell, "{speed} m/s: fell");
+        let lean_radius = mean_speed * mean_speed / (9.81 * mean_lean.tan());
+        assert!(
+            radius > lean_radius * 0.7 && radius < lean_radius * 1.6,
+            "{speed} m/s: radius {radius} m against {lean_radius} m of its lean ({mean_lean} rad)"
+        );
+        // The lean a full stick reaches is the limit's, the same at any speed (the limit is `atan` of the tyre's grip, which has no speed
+        // term); allow the cut of the acceleration along the bike (drag at speed) and the geometry.
+        let base = *base_lean.get_or_insert(mean_lean);
+        assert!(mean_lean > 0.7 && mean_lean > base * 0.85, "{speed} m/s: lean {mean_lean} rad (20 m/s: {base} rad)");
     }
 }
 
