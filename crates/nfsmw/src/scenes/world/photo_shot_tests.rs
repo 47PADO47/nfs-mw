@@ -97,8 +97,45 @@ fn a_track_with_no_key_gives_no_camera() {
 #[test]
 fn the_lens_stands_at_the_eye() {
     let car = Mat4::from_translation(Vec3::new(100.0, 50.0, 10.0));
-    let shot = PhotoShot::new(sprint_finish(), car);
+    let mut shot = PhotoShot::new(sprint_finish(), car);
+    shot.advance(CAMERA_DELAY + 3.0);
     let lens = shot.lens(16.0 / 9.0).unwrap();
     let (eye, ..) = shot.at_rest().unwrap();
     assert!((lens.position - eye).length() < 0.05, "{} vs {eye}", lens.position);
+}
+
+#[test]
+fn the_finish_camera_moves_while_the_car_transform_stays_frozen() {
+    let car = Mat4::from_translation(Vec3::new(100.0, 50.0, 10.0));
+    let mut shot = PhotoShot::new(sprint_finish(), car);
+    assert!(!shot.camera_started(), "first-person body visibility remains unchanged before the cut");
+    assert!(shot.lens(16.0 / 9.0).is_none(), "retain the driving camera before the cut");
+    assert!(!shot.advance(CAMERA_DELAY - 0.01));
+    assert!(shot.lens(16.0 / 9.0).is_none());
+    assert!(shot.advance(0.01));
+    assert!(shot.camera_started(), "the finish view now requires the player's body");
+    let initial = shot.lens(16.0 / 9.0).unwrap().position;
+    assert!(!shot.advance(f32::NAN));
+    assert!(!shot.advance(-1.0));
+    assert!(shot.advance(0.2));
+    assert_ne!(shot.lens(16.0 / 9.0).unwrap().position, initial);
+    shot.advance(3.0);
+    let settled = shot.lens(16.0 / 9.0).unwrap().position;
+    assert_ne!(settled, initial);
+    assert_eq!(shot.car, car);
+    assert!(!shot.advance(1.0), "the camera stops requesting dynamic frames when settled");
+}
+
+#[test]
+fn finish_slowdown_advances_before_the_cut_at_different_frame_rates() {
+    for fps in [30, 60, 144, 360] {
+        let mut shot = PhotoShot::new(sprint_finish(), Mat4::IDENTITY);
+        let mut moved = 0.0;
+        while !shot.camera_started() {
+            let dt = (1.0 / fps as f32).min(shot.driving_left());
+            moved += dt * shot.simulation_scale(dt);
+            shot.advance(dt);
+        }
+        assert!((moved - CAMERA_DELAY * 0.5).abs() < 1e-5, "{fps} FPS: {moved}");
+    }
 }

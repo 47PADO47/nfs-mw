@@ -130,7 +130,7 @@ impl IntroEnv {
         Self {
             track: u32::try_from(story.intro_camera_track).unwrap_or(0),
             tutorial: tutorial_of(session.kind, session.options.career).filter(|t| seen_tutorials & t.bit == 0),
-            spawn: session.plan[0].spawn,
+            spawn: session.plan.iter().find(|plan| plan.grid_slot == 0).unwrap_or(&session.plan[0]).spawn,
             nis_shell: story.nis_shell,
         }
     }
@@ -280,6 +280,16 @@ impl WorldScene {
     /// Starts the countdown (or the rolling start) on the engine that stands on the grid.
     pub(super) fn start_countdown(&mut self, session: &mut RaceSession) {
         let rolling = session.origin.race.params.rolling_start;
+        if !rolling {
+            let story = &session.origin.race.story;
+            let scene = story
+                .quick_race_nis
+                .as_deref()
+                .or(story.intro_nis.as_deref())
+                .filter(|s| !s.is_empty())
+                .unwrap_or("GenericStart");
+            self.nis.begin_countdown_audio(scene);
+        }
         let Some(engine) = session.engine.as_mut() else { return };
         let started = match rolling {
             true => engine.start_now(),

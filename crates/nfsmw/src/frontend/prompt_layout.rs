@@ -27,6 +27,9 @@ pub struct Frame {
 
 impl Frame {
     pub fn find(tree: &UiTree, name: &str, footer: Footer, assets: &crate::ui::UiAssets) -> Option<Self> {
+        if let Some(frame) = super::prompts::race::frame(tree, name) {
+            return Some(frame);
+        }
         if footer == Footer::GarageTuningHelp {
             let root = tree.nodes.iter().find(|n| n.name_hash == 0x64bc_dff2)?;
             return Some(Self::new(root, root.world, 140.0, 26.0, false));
@@ -127,8 +130,13 @@ impl Frame {
         Some(Self::new(root, world, bar.size.x.abs() - 12.0, bar.size.y.abs(), false))
     }
 
-    fn new(root: &UiNode, world: Mat4, width: f32, height: f32, centred: bool) -> Self {
+    pub(super) fn new(root: &UiNode, world: Mat4, width: f32, height: f32, centred: bool) -> Self {
         Self { world, width, height, centred, parent: root.index, opacity: root.world_colour[3], visible: root.visible }
+    }
+
+    pub(super) fn faded(mut self, alpha: u8) -> Self {
+        self.opacity = (u16::from(self.opacity) * u16::from(alpha) / 255) as u8;
+        self
     }
 
     pub fn apply(&self, tree: &mut UiTree, first: usize) {

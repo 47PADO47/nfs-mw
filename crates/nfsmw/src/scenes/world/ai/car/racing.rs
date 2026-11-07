@@ -6,6 +6,64 @@ use super::{AiCar, Role};
 use crate::scenes::world::ai::racer::RacerState;
 
 impl AiCar {
+    pub(in crate::scenes::world::ai) fn race_uses_physics(&self) -> bool {
+        !self.stand_in.active
+    }
+
+    /// The elapsed interval only on a tick where this car made a racer decision.
+    pub(in crate::scenes::world::ai) fn racer_decision_interval(&self) -> Option<f32> {
+        (self.has_thought && self.think_elapsed == 0.0 && self.is_racer()).then_some(self.think_delta)
+    }
+
+    #[cfg(test)]
+    pub(in crate::scenes::world::ai) fn race_power_diagnostic(&self) -> String {
+        self.sim.race_power_diagnostic()
+    }
+
+    #[cfg(test)]
+    pub(in crate::scenes::world::ai) fn race_diagnostic(&self) -> String {
+        format!(
+            "position={:?} speed={} target={:?} wanted={} stand_in={:?} segment={} direction={} nav_position={:?} curvature={} dead_end={} path={:?} controls={:?} think_delta={}",
+            self.race_position(),
+            self.race_speed(),
+            self.target,
+            self.speed,
+            self.stand_in,
+            self.nav.segment,
+            self.nav.node_ind,
+            self.nav.position,
+            self.nav.curvature,
+            self.nav.dead_end,
+            self.nav.path,
+            self.controls,
+            self.think_delta
+        )
+    }
+
+    #[cfg(test)]
+    pub(in crate::scenes::world::ai) fn race_terrain_diagnostic(&self, collision: &blackbox_collision::CollisionWorld) {
+        use crate::scenes::world::drive::drivable_ground_below;
+        let ground = |at: Vec3| drivable_ground_below(collision, at.x, at.z, at.y + 20.0, at.y - 60.0);
+        eprintln!(
+            "RACER_TERRAIN car={:?} target={:?} cursor={:?}",
+            ground(self.race_position()),
+            ground(self.target),
+            ground(self.nav.position)
+        );
+        let from = self.race_position();
+        let to = Vec3::new(self.target.x, from.y, self.target.z);
+        let options = blackbox_collision::RayOptions { skip_groups: true, ..Default::default() };
+        let wall = collision.ray_cast_filtered(from.to_array(), to.to_array(), &options, |hit| {
+            hit.kind == blackbox_collision::HitKind::Barrier || hit.normal[1].abs() < 0.65
+        });
+        eprintln!("RACER_WALL {wall:?}");
+        if let Some(trail) = self.nav.trail() {
+            for cookie in trail.cookies() {
+                eprintln!("RACER_COOKIE {cookie:?}");
+            }
+        }
+    }
+
     /// What a HUD shows of this car: the gauges and its place on the map (split screen's second player).
     pub fn hud_state(&self) -> crate::hud::HudState {
         let t = self.sim.telemetry();

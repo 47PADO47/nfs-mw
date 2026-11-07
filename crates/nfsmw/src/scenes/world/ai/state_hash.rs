@@ -8,7 +8,7 @@ impl TrafficWorld {
     pub(in crate::scenes::world) fn hash_into(&self, hash: &mut StateHasher) {
         hash.f32(self.step_delta);
         let rng = &self.rng;
-        for stream in [&rng.nav, &rng.population, &rng.police, &rng.roadblock, &rng.air] {
+        for stream in [&rng.nav, &rng.population, &rng.police, &rng.roadblock, &rng.air, &rng.grid, &rng.catch_up] {
             hash.u64(stream.0);
         }
         hash.u32(self.next_entity);

@@ -292,8 +292,18 @@ impl CarRig {
         draw: super::DrawOptions<'_>,
         out: &mut Vec<Instance>,
     ) {
-        let super::DrawOptions { car, lamps, reverse, nos_lamps, detail, glass, broken_lights, damage, steering } =
-            draw;
+        let super::DrawOptions {
+            car,
+            lamps,
+            reverse,
+            nos_lamps,
+            detail,
+            glass,
+            broken_lights,
+            damage,
+            steering,
+            body_tilt,
+        } = draw;
         let driver_pose = poses::slot_for(steering, reverse, self.driver_poses.0, self.driver_poses.1);
         let damage_slots = damage
             .filter(|_| self.model.driving_lods.damage.enabled)
@@ -312,6 +322,7 @@ impl CarRig {
             | (usize::from(reverse) << 2)
             | (usize::from(nos_lamps) << 3);
         let world = pose.transform() * Mat4::from_scale(Vec3::splat(self.scale));
+        let body = world * Mat4::from_quat(body_tilt);
         let posed: Option<[(Mat4, Mat4); 4]> =
             self.model.corners.as_ref().map(|c| std::array::from_fn(|i| c[i].posed(pose.wheels[i])));
         let variants = self.glass.borrow();
@@ -356,7 +367,8 @@ impl CarRig {
                 }
                 None => local,
             };
-            out.push(Instance::keyed(part.lamps[state], world * local, keys::car_part(car, part.key)));
+            let root = if placement.corner.is_some() { world } else { body };
+            out.push(Instance::keyed(part.lamps[state], root * local, keys::car_part(car, part.key)));
         }
     }
 

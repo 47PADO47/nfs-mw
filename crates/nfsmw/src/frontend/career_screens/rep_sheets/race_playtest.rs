@@ -18,6 +18,38 @@ const KINDS: [(RaceType, u32); 6] = [
     (RaceType::SpeedTrap, 0x66C9_A7B6),
 ];
 
+#[test]
+#[ignore = "needs installed Blacklist race lists"]
+fn installed_blacklist_race_sheet_only_offers_world_events() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let gameplay = nfsmw_data::gameplay::load(&dir).unwrap();
+    let data = crate::career::CareerData::from_parts(gameplay.clone(), &[], None, None);
+    let mut blacklist = Blacklist::new(data.bins.clone(), 16).unwrap();
+    for bin in (1..=15).rev() {
+        blacklist.enter_bin(bin);
+    }
+    for bin in &data.bins {
+        let source = gameplay.bins.iter().find(|source| source.number == i32::from(bin.number)).unwrap();
+        let rows = race_rows(&blacklist, &gameplay.races, None, bin.number);
+        assert_eq!(rows.len(), source.world_races.len(), "bin {} appended rival races", bin.number);
+        for (row, key) in rows.iter().zip(&source.world_races) {
+            let race = gameplay.races.iter().find(|race| race.key == *key).unwrap();
+            assert_eq!(row.event, crate::career::race_event_id(race));
+            assert!(!row.boss && !race.story.boss_race);
+            assert!(!bin.rival_events.contains(&row.event), "rival duel offered as a normal race");
+        }
+        let page = RacePage { bin: bin.number, rows };
+        for at in 0..page.len() {
+            let ask = page.ask(at).expect("entered world event can be selected");
+            assert!(
+                matches!(ask.then, crate::frontend::logic::Command::LaunchEvent { event }
+                if event == bin.races[at]),
+                "confirmation lost the selected event"
+            );
+        }
+    }
+}
+
 fn fixture() -> RacePage {
     let rows = (0..13)
         .map(|at| RaceRow {

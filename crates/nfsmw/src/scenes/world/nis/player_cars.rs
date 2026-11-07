@@ -4,6 +4,12 @@
 use super::{CarMemory, CarSpot, CopWait, NisPlayer, Playing, Target};
 
 impl NisPlayer {
+    pub fn car_motion(&self, target: Target) -> Option<(super::super::car_events::CarMotion, f32)> {
+        let playing = self.play.as_ref()?;
+        let slot = playing.links.as_ref()?.iter().find(|(_, linked)| *linked == target)?.0;
+        Some((playing.motion[slot], playing.run.elapsed()))
+    }
+
     /// Whether a scene plays and its car channels still wait for their real cars (see [`NisPlayer::set_links`]).
     pub fn needs_links(&self) -> bool {
         self.play.as_ref().is_some_and(|playing| playing.links.is_none())

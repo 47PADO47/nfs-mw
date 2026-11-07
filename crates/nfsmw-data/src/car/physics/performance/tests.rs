@@ -3,6 +3,48 @@ use crate::car::{CarTables, physics::PhysicsData};
 use blackbox_attrib::Value;
 
 #[test]
+#[ignore = "requires installed ordinary performance packages; CPU-only launch"]
+fn installed_maximum_race_hardware_keeps_wheel_support_and_drives() {
+    use blackbox_vehicle::{InputState, Vehicle, ground::FlatGround};
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let data = PhysicsData::load(&dir).unwrap();
+    let ground = FlatGround::new(0.0);
+    let mut failures = Vec::new();
+    for name in ["mustanggt", "gti", "rx8", "carreragt"] {
+        let max = PerformanceCatalog::read(data.database(), name).unwrap().maximum();
+        for (label, package) in [("stock", PerformancePackage::default()), ("maximum", max)] {
+            let physics = data.car_with_performance(name, package).unwrap();
+            eprintln!("HARDWARE {name} {label} chassis={:?} bounds={:?}", physics.spec.chassis, physics.bounds);
+            let mut car = Vehicle::new(physics.spec);
+            car.config = blackbox_vehicle::ControlConfig {
+                auto_reverse: false,
+                auto_brake: false,
+                dead_zone: 0.0,
+                ..Default::default()
+            };
+            car.set_simple_chassis(Some(super::super::simple_chassis_config()));
+            assert!(car.place_on_ground(&ground, 0.0, 0.0, 5.0, 0.0));
+            for _ in 0..180 {
+                car.step(blackbox_vehicle::FIXED_STEP, &InputState { brake: 1.0, ..Default::default() }, &ground);
+            }
+            let supported = car.wheels_on_ground();
+            for _ in 0..180 {
+                car.step(blackbox_vehicle::FIXED_STEP, &InputState { throttle: 1.0, ..Default::default() }, &ground);
+            }
+            eprintln!(
+                "HARDWARE_LAUNCH {name} {label} supported={supported} position={:?} speed={}",
+                car.position(),
+                car.forward_speed()
+            );
+            if supported == 0 || car.position().z < 1.0 {
+                failures.push(format!("{name}/{label}"));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "ordinary equipment must retain a supported launch: {failures:?}");
+}
+
+#[test]
 #[ignore = "requires an installed game"]
 fn installed_performance_packages_match_original_records_for_every_playable_car() {
     let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();

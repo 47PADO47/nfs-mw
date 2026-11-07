@@ -26,6 +26,24 @@ mod tests {
     use crate::{FlatGround, InputState, LaunchConfig, VehicleSpec};
     use glam::Quat;
 
+    #[test]
+    fn staging_restrains_an_unconfigured_car_without_granting_a_launch_boost() {
+        let mut car = Vehicle::new(VehicleSpec::example());
+        car.place(Vec3::Y, Quat::IDENTITY);
+        car.body.linear_velocity = Vec3::new(3.0, 0.0, 5.0);
+        car.set_staging(true);
+        assert!(car.staging());
+        let previous = car.position();
+        car.body.begin_frame(crate::FIXED_STEP);
+        car.hold_staged_body(previous);
+        assert_eq!(car.position().x, previous.x);
+        assert_eq!(car.position().z, previous.z);
+        assert!(!car.launch());
+        assert_eq!(car.launch_strength(), 0.0);
+        car.set_staging(false);
+        assert!(!car.staging());
+    }
+
     fn car() -> Vehicle {
         let mut car = Vehicle::new(VehicleSpec::example());
         car.set_launch_config(Some(LaunchConfig {
@@ -68,6 +86,8 @@ mod tests {
         let mut car = car();
         let ground = FlatGround::new(0.0);
         car.place_on_ground(&ground, 4.0, -3.0, 5.0, 0.0);
+        // Placement puts the car at rest; lift it so there is a settling to make.
+        car.place(car.position() + Vec3::Y * 0.05, car.orientation());
         let start = car.position();
         car.set_staging(true);
         for _ in 0..432 {

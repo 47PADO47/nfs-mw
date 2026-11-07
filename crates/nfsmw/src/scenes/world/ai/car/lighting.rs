@@ -94,6 +94,6 @@ impl AiCar {
         out: &mut Vec<EffectVertex>,
     ) {
         let state = LampState { steer: self.controls.steer, turn_signals, time, ..self.lamp_state() };
-        self.rig.lights().signal_glows(self.pose(alpha).transform(), state, camera, forward, out);
+        self.rig.lights().signal_glows(self.render_pose(alpha).transform(), state, camera, forward, out);
     }
 }

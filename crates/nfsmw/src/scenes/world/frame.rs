@@ -43,7 +43,7 @@ impl WorldScene {
         self.extra.freecam
             || self.extra.selected_bookmark.is_some()
             || self.career.garage.is_some()
-            || self.photo_shot.is_some()
+            || self.photo_shot.as_ref().is_some_and(|shot| shot.camera_started())
             || ((render_player(self.view, self.camera_mode, drive.camera_looking_back(self.camera_mode))
                 // A bike is in its own picture in every view: the camera mounted on it looks at the bike or from its rider's eyes.
                 || drive.bike_cameras().is_some())

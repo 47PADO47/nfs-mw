@@ -256,7 +256,8 @@ section 1.1) **[verified]** in the Lua graphs and **[exe]** for the screens (`do
 2. `postrace` after a win: the win photo, `InGamePhotoMaster.fng` (`frontend/photo.rs`): a tilted polaroid whose window
    is transparent, over the frozen world seen from the race's finish camera (a replay camera in the player's car space,
    [race-finish-effects.md](race-finish-effects.md) sections 2 and 3), with the finish line's flares behind the car.
-   One group says WINNER, the cash and the time (`SPRINT_GROUP`: time `m:ss:cc` at the average speed; `RIVAL_GROUP`, used
+   One group says WINNER, the cash and the time (`SPRINT_GROUP`: time `m:ss:cc` at the finishing speed for a sprint;
+   other modes retain their existing speed policy; `RIVAL_GROUP`, used
    for drag races: seconds at the speed at the line; `TOLL_BOOTH_GROUP`: speed, time left, cash and the bonus time)
    **[unconfirmed]** which race kinds take which group. Its buttons are Continue (Enter), Race Stats (key 2) and
    Restart (key 1).

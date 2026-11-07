@@ -73,7 +73,7 @@ impl Frontend {
 
     /// The standings of a race, from the photo's Race Stats button.
     pub(super) fn show_results(&mut self, report: RaceReport, host: &mut Host, env: &mut Env) {
-        let commands = self.screens.open_with(POST_RACE_RESULTS, Box::new(PostRaceLogic::new(report)), true, env);
+        let commands = self.screens.open_with(POST_RACE_RESULTS, Box::new(PostRaceLogic::new(report)), false, env);
         self.apply(commands, host, env);
     }
 
@@ -88,6 +88,11 @@ impl Frontend {
     /// The win photo of a race, from the Back of the results its Race Stats button opened. A report with no photo changes
     /// nothing.
     pub(super) fn show_photo(&mut self, report: RaceReport, host: &mut Host, env: &mut Env) {
+        if self.screens.previous() == Some(PHOTO) {
+            let commands = self.screens.pop(env);
+            self.apply(commands, host, env);
+            return;
+        }
         let Some(photo) = report.photo else { return };
         let logic = super::photo::PhotoLogic::for_race(photo, report);
         let commands = self.screens.open_with(PHOTO, Box::new(logic), true, env);

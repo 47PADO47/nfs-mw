@@ -345,9 +345,62 @@ fn the_audio_request_is_the_playing_scene_until_it_ends() {
     let mut nis = NisPlayer::default();
     assert_eq!(nis.audio_request(), None);
     nis.start(plan("IntroNis05", NisKind::Intro)).unwrap();
-    assert_eq!(nis.audio_request(), Some(&NisAudioRequest { scene: Some("IntroNis05".into()) }));
+    assert_eq!(
+        nis.audio_request(),
+        Some(&NisAudioRequest { scene: Some("IntroNis05".into()), countdown: false, serial: 1 })
+    );
     nis.stop();
     assert_eq!(nis.audio_request(), None);
+}
+
+#[test]
+fn custom_grid_slots_retain_the_primary_intro_engine_cue() {
+    let mut bytes = Vec::new();
+    for slot in 0..16 {
+        bytes.extend_from_slice(&(2 * u32::from(slot == 0)).to_le_bytes());
+        if slot == 0 {
+            for time in [0.0_f32, 1.0] {
+                bytes.extend_from_slice(&time.to_le_bytes());
+                bytes.extend_from_slice(&4200_i32.to_le_bytes());
+                bytes.extend_from_slice(&70_i32.to_le_bytes());
+            }
+        }
+    }
+    for links in [vec![(3, Target::Player)], Vec::new()] {
+        let mut nis = NisPlayer::default();
+        nis.start(plan("IntroNis04", NisKind::Intro)).unwrap();
+        nis.play.as_mut().unwrap().revs = Some(nfsmw_data::sound::NisRevs::parse(&bytes).unwrap());
+        nis.set_links(links);
+        assert_eq!(nis.player_rev(), None, "other scenes must not borrow the primary cue");
+        nis.keep_player_in_place();
+        assert_eq!(nis.player_rev().unwrap().rpm, 4200.0);
+    }
+}
+
+#[test]
+fn completed_and_skipped_race_intros_select_the_countdown_section() {
+    for skipped in [false, true] {
+        let mut nis = NisPlayer::default();
+        nis.start(plan("IntroNis04", NisKind::Intro)).unwrap();
+        nis.keep_player_in_place();
+        let complete = nis.audio_request().cloned().unwrap();
+        if skipped {
+            assert!(nis.skip());
+        } else {
+            nis.advance(3.1);
+        }
+        assert!(!nis.is_playing(), "the camera ends independently of the stream");
+        let request = nis.audio_request().unwrap();
+        assert_eq!(request.scene, complete.scene);
+        assert!(request.countdown, "normal completion also starts the countdown section");
+        nis.begin_countdown_audio("GenericStart");
+        assert_eq!(nis.audio_request().unwrap().scene.as_deref(), Some("IntroNis04"));
+        let first = nis.audio_request().cloned().unwrap();
+        nis.end_countdown_audio();
+        assert!(nis.audio_request().is_none(), "race teardown releases the one-shot request");
+        nis.begin_countdown_audio("IntroNis04");
+        assert_ne!(nis.audio_request(), Some(&first), "a restart must issue a fresh countdown");
+    }
 }
 
 #[test]

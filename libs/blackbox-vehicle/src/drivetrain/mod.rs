@@ -4,6 +4,7 @@
 mod diff;
 mod gearbox;
 mod launch;
+mod output;
 mod powertrain;
 mod shift_light;
 mod spec;

@@ -47,6 +47,16 @@ const POINT_SETTINGS: PointQuerySettings = PointQuerySettings {
 };
 
 impl CarSim {
+    #[cfg(test)]
+    pub(in crate::scenes::world) fn terrain_diagnostic(&self) -> String {
+        format!(
+            "up={:?} body_plane={:?} wheel_planes={:?}",
+            self.vehicle.rotation().y_axis,
+            self.ground_reference.plane(),
+            self.wheel_ground.borrow().clone().map(|cache| cache.plane())
+        )
+    }
+
     /// Refreshes the captured prior-pose terrain query, then integrates the body before shared pairs.
     pub(in crate::scenes::world) fn begin_body(&mut self, start: &StepStart, world: Option<&CollisionWorld>) {
         if !start.delta.is_finite() || start.delta <= 0.0 {

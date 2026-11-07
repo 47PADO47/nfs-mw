@@ -13,6 +13,30 @@ use crate::scenes::world::{road::Spawn, space};
 mod acceleration_tests;
 
 impl CarSim {
+    #[cfg(test)]
+    pub(in crate::scenes::world) fn race_power_diagnostic(&self) -> String {
+        let power = self.vehicle.powertrain();
+        format!(
+            "rpm={} gear={} throttle={} torque={} shifting={} {}",
+            power.rpm(),
+            power.gear(),
+            power.throttle(),
+            power.drive_torque(),
+            power.shifting(),
+            self.terrain_diagnostic()
+        )
+    }
+
+    pub(in crate::scenes::world) fn set_race_catch_up(&mut self, cheat: f32, tire_steering_drag: Option<f32>) {
+        let cheat = cheat.clamp(0.0, 0.5);
+        self.vehicle.set_force_scales(blackbox_vehicle::vehicle::ForceScales {
+            positive_drive_torque: 1.0 + 0.5 * cheat,
+            drag: 1.0 - cheat,
+            downforce: 1.0 + 0.5 * cheat,
+            tire_steering_drag,
+        });
+    }
+
     /// Effective input after script, cinematic and arrest overrides; distinct from engine NOS engagement.
     pub fn nos_input(&self) -> bool {
         self.controls().nos
@@ -119,6 +143,20 @@ impl CarSim {
         let spec = self.vehicle.spec();
         let ride = |axle| spec.chassis.axle(axle, self.vehicle.tunings.ride_height).ride;
         spec.dimension.y + ride(0).max(ride(1))
+    }
+
+    /// Model-origin clearance above the lowest frozen tyre contact, for an animated car on level ground.
+    pub fn nis_ground_lift(&self) -> f32 {
+        let origin = self.model_origin();
+        let inverse = self.vehicle.rotation().transpose();
+        (0..4).map(|wheel| -(inverse * (self.wheel_state(wheel).position - origin)).y).fold(f32::NEG_INFINITY, f32::max)
+    }
+
+    /// Wheelbase, track width and driven wheels in model order, for authored NIS body motion and burnout.
+    pub fn nis_geometry(&self) -> (f32, f32, [bool; 4]) {
+        let spec = self.vehicle.spec();
+        let split = spec.transmission.torque_split;
+        (spec.chassis.wheel_base, spec.chassis.track_width[0], [split != 0.0, split != 0.0, split != 1.0, split != 1.0])
     }
 
     /// Puts the car's body over the road point `road` (physics space), its nose along `forward` (which may climb or

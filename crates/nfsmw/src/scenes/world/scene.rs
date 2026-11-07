@@ -34,7 +34,7 @@ impl Scene for WorldScene {
         self.begin_garage_session(renderer)
     }
     fn begin_tuning(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
-        self.begin_garage_session(renderer)
+        self.begin_pause_tuning(renderer)
     }
     fn tuning_available(&self) -> Option<bool> {
         self.garage_tuning_available()
@@ -96,7 +96,7 @@ impl Scene for WorldScene {
         self.attach_client(client)
     }
     fn runs_while_paused(&self) -> bool {
-        self.is_net_client()
+        self.is_net_client() || self.photo_driving()
     }
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
         self.scene_ui(ctx)
@@ -415,14 +415,7 @@ impl Scene for WorldScene {
         self.start_at_point(point)
     }
     fn start_career_event(&mut self, event: &str) -> bool {
-        let options = super::race::RaceOptions { career: true, ..Default::default() };
-        match self.start_race(event, options) {
-            Ok(_) => true,
-            Err(e) => {
-                log::warn!("career: cannot start event {event}: {e}");
-                false
-            }
-        }
+        self.queue_career_event(event)
     }
     fn add_player_nitrous(&mut self, amount: f32) -> bool {
         self.add_player_nitrous_to(amount)
@@ -478,6 +471,9 @@ impl Scene for WorldScene {
     fn nis_audio(&self) -> Option<&crate::audio::nis::NisAudioRequest> {
         self.nis.audio_request()
     }
+    fn owns_soundtrack(&self) -> bool {
+        self.cutscene_playing() || self.photo_shot.is_some()
+    }
     fn note_nis_audio(&mut self, playing: bool) {
         self.nis.note_voice(playing);
     }
@@ -488,8 +484,9 @@ impl Scene for WorldScene {
         self.traffic.as_mut()?.siren_frame(dt)
     }
     fn note_police_speech(&mut self, phase: Option<blackbox_pursuit::siren::Phase>) {
-        if let Some(traffic) = self.traffic.as_mut() {
-            traffic.note_police_speech(phase);
-        }
+        self.note_police_speech_now(phase);
+    }
+    fn advance_presentation(&mut self, dt: f32) -> bool {
+        self.step_photo_shot(dt)
     }
 }

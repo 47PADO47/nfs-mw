@@ -279,7 +279,15 @@ impl WorldScene {
             return;
         }
         self.begin_hud_feed();
-        self.update_frame(renderer, input, dt);
+        let finishing = self.photo_driving();
+        let world_dt = match self.photo_shot.as_ref().filter(|_| finishing) {
+            Some(shot) => dt.min(shot.driving_left()),
+            None => dt,
+        };
+        self.update_frame(renderer, input, world_dt);
+        if finishing {
+            self.step_photo_shot(dt);
+        }
         self.update_route(dt);
         self.end_hud_feed(dt);
     }

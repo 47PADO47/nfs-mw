@@ -153,6 +153,7 @@ impl IconMenu {
         if !self.icons[i].enabled {
             // The package switched its buttons off for the leave animation that will not come.
             cx.rt.post_to_package(cx.package, ids::INPUT_ENABLE);
+            cx.rt.set_input_enabled(cx.package, true);
             return;
         }
         cx.memory.insert(self.memory_key(cx), i);

@@ -46,6 +46,7 @@ struct Key {
     device: InputDevice,
     fonts: custom_fonts::Active,
     signed_in: bool,
+    covered_photo: bool,
 }
 
 /// The last decorated tree of a screen, and what it was built from.
@@ -93,6 +94,8 @@ impl Screens {
             device,
             fonts: custom_fonts::active(),
             signed_in: CareerHandle::shared().is_loaded(),
+            covered_photo: screen.name.eq_ignore_ascii_case(super::super::ids::screen::PHOTO)
+                && self.stack.last().is_some_and(|top| top.id != screen.id),
         };
         let mut guard = screen.shown.lock();
         if guard.is_current(&key, bindings) {
@@ -105,7 +108,13 @@ impl Screens {
         }
         let tree = Arc::get_mut(&mut cache.tree).expect("a tree nobody else holds");
         self.runtime.tree_into(screen.id, tree);
-        cache.hints = prompts::decorate(tree, &screen.name, key.footer, bindings, device, &self.assets);
+        cache.hints = match key.covered_photo {
+            true => {
+                prompts::race::cover_photo(tree);
+                Vec::new()
+            }
+            false => prompts::decorate(tree, &screen.name, key.footer, bindings, device, &self.assets),
+        };
         cache.key = Some(key);
         match cache.bindings.as_mut() {
             Some(kept) => kept.0.clone_from(&bindings.0),
@@ -188,6 +197,7 @@ mod tests {
             device: InputDevice::Keyboard,
             fonts: custom_fonts::active(),
             signed_in: false,
+            covered_photo: false,
         }
     }
 

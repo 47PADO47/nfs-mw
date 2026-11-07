@@ -92,9 +92,7 @@ fn play_cell_calls(mut audio: NonSendMut<Audio>) {
 }
 
 fn play_menu_sounds(mut audio: NonSendMut<Audio>, time: Res<Time>) {
-    let mut player = std::mem::take(&mut audio.menu);
-    player.service(&mut audio, time.delta_secs());
-    audio.menu = player;
+    audio.update_menu(time.delta_secs());
 }
 
 /// The scene's car plays its engine.
@@ -142,7 +140,7 @@ pub(super) fn drive_car(
     host.scene.note_car_visual_rpm(1, audio.car_visual_rpm(1));
     audio.update_common(host.scene.take_common_sounds(), time.delta_secs());
     // The NIS player asks for the stream of the scene it plays, and hears back whether the stream still plays.
-    audio.update_nis(host.scene.nis_audio().and_then(|request| request.scene.as_deref()));
+    audio.update_nis(host.scene.nis_audio());
     host.scene.note_nis_audio(audio.nis_playing());
     audio.trace.advance(time.delta_secs());
     let traffic = host.scene.take_traffic_sounds();
@@ -193,8 +191,9 @@ pub(super) fn drive_car(
     if !paused && let Some(secs) = audio.take_911_call() {
         host.scene.start_911_call(secs);
     }
-    let songs_free = audio.update_interactive(&music.state(), driving, time.delta_secs());
-    audio.update_radio(driving, host.scene.radio_on_menus(), !songs_free);
+    let scene_soundtrack = host.scene.owns_soundtrack();
+    let songs_free = audio.update_interactive(&music.state(), driving && !scene_soundtrack, time.delta_secs());
+    audio.update_radio(driving, host.scene.radio_on_menus(), !songs_free || scene_soundtrack);
     if let Some(clip) = host.scene.take_clip()
         && let Err(e) = audio.play_music(super::pcm::sound(&clip))
     {

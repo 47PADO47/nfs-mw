@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use blackbox_roads::{Goal, LegPath, RandomSource, Route, SplitMix};
+use blackbox_roads::{ActiveBarrier, Goal, LegPath, RandomSource, Route, SplitMix};
 use nfsmw_data::gameplay::{ShortcutMarker, world_heading};
 
 use crate::scenes::world::ai::TrafficWorld;
@@ -20,11 +20,16 @@ pub(in crate::scenes::world) struct Shortcut {
 }
 
 /// The shortcuts of `markers` on `route`. A marker with no road through it, or one too long, is left out.
-pub(super) fn shortcuts_of(traffic: &TrafficWorld, route: &Route, markers: &[ShortcutMarker]) -> Vec<Shortcut> {
+pub(super) fn shortcuts_of(
+    traffic: &TrafficWorld,
+    route: &Route,
+    markers: &[ShortcutMarker],
+    lines: &[ActiveBarrier],
+) -> Vec<Shortcut> {
     let mut found = Vec::new();
     for marker in markers {
         let via = Goal { position: marker.position, forward: world_heading(marker.heading_deg) };
-        let Some((leg, path)) = traffic.route_through(route, via) else { continue };
+        let Some((leg, path)) = traffic.route_through(route, via, lines) else { continue };
         let (from, to) = (route.legs[leg].from, route.legs[leg].to);
         let legs = route.legs.iter().enumerate().filter(|(_, l)| l.from == from && l.to == to).map(|(i, _)| i);
         found.push(Shortcut { marker: *marker, legs: legs.collect(), path });

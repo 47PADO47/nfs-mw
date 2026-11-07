@@ -116,6 +116,8 @@ const GOOD_SPOT_SECONDS: f64 = 0.5;
 
 pub struct Drive {
     pub car_name: String,
+    /// A forced preset can use a different vehicle's engine/audio on this model.
+    pub(in crate::scenes::world) sound_car: Option<String>,
     pub performance: nfsmw_data::car::physics::PerformancePackage,
     pub tuning: nfsmw_data::car::physics::tuning::TuningSelection,
     tunings: blackbox_vehicle::Tunings,
@@ -165,8 +167,8 @@ pub struct Drive {
     current: CarPose,
     /// The pose a NIS scene gives the car while it plays (`nis_pose.rs`); `None` draws the physics pose.
     nis_pose: Option<CarPose>,
-    /// The pose a multiplayer client draws its own car at: the prediction plus the smoothed correction
-    /// (`predict.rs`); `None` draws the physics pose.
+    nis_body_tilt: glam::Quat,
+    /// Network prediction plus its smoothed correction; `None` draws the physics pose (`predict.rs`).
     net_pose: Option<CarPose>,
     telemetry: Telemetry,
     gauges: gauges::GaugeHistory,
@@ -451,17 +453,6 @@ impl Drive {
             condition: Some(sim.hud_condition()),
             ..Default::default()
         })
-    }
-
-    /// What the car sound needs of the drive; `None` while there is no car yet.
-    pub fn car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        if self.sim.is_none() {
-            self.sound.clear();
-            return None;
-        }
-        let mut state = self.sound.state(&self.car_name, &self.telemetry, self.performance);
-        state.engine = self.engine_audio();
-        Some(state)
     }
 
     pub(super) fn speedbreaker_active(&self) -> bool {

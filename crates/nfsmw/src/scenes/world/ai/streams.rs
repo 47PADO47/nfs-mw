@@ -19,6 +19,10 @@ pub(super) struct Streams {
     pub roadblock: SplitMix,
     /// The police helicopter.
     pub air: SplitMix,
+    /// Custom-race starting slots, independent of traffic and driving decisions.
+    pub grid: SplitMix,
+    /// Race error-history sampling phases, independent of grid and navigation rolls.
+    pub catch_up: SplitMix,
 }
 
 impl Streams {
@@ -30,6 +34,8 @@ impl Streams {
             police: stream(world_seed, 3),
             roadblock: stream(world_seed, 4),
             air: stream(world_seed, 5),
+            grid: stream(world_seed, 6),
+            catch_up: stream(world_seed, 7),
         }
     }
 }
@@ -41,6 +47,22 @@ impl Default for Streams {
 }
 
 impl super::TrafficWorld {
+    pub fn race_catch_up_phases(&mut self, racers: usize) -> Vec<f32> {
+        use blackbox_roads::RandomSource;
+        (0..racers).map(|_| self.rng.catch_up.next_f32()).collect()
+    }
+
+    pub fn race_grid_slot(&mut self, racers: usize, local_seed: Option<u32>) -> usize {
+        use blackbox_roads::RandomSource;
+        if racers < 2 {
+            return 0;
+        }
+        if let Some(seed) = local_seed {
+            self.rng.grid = stream(u64::from(seed), 6);
+        }
+        self.rng.grid.index(racers)
+    }
+
     /// Restarts every stream from `world_seed`: a session's seed (`session_rules.rs`).
     pub fn reseed(&mut self, world_seed: u64) {
         self.rng = Streams::new(world_seed);
@@ -75,6 +97,8 @@ mod tests {
             draws(&mut a.police),
             draws(&mut a.roadblock),
             draws(&mut a.air),
+            draws(&mut a.grid),
+            draws(&mut a.catch_up),
         ];
         for (i, x) in all.iter().enumerate() {
             for y in &all[i + 1..] {
@@ -90,8 +114,10 @@ mod tests {
         let mut quiet = Streams::default();
         for _ in 0..1000 {
             busy.police.next_f32();
+            busy.catch_up.next_f32();
         }
         assert_eq!(draws(&mut busy.nav), draws(&mut quiet.nav));
         assert_eq!(draws(&mut busy.population), draws(&mut quiet.population));
+        assert_eq!(draws(&mut busy.grid), draws(&mut quiet.grid));
     }
 }

@@ -10,17 +10,25 @@ use glam::Vec3;
 use nfsmw_data::pursuit::AiVehicle;
 
 use super::car::Ctx;
-use super::cop::{THINK_PERIOD, THINK_STEPS};
 use super::racer_route::follow_route;
 use super::traffic::CarState;
 use blackbox_roads::Body;
 
-/// Racers think as often as cops do.
-pub const RACER_THINK_STEPS: u32 = THINK_STEPS;
+#[cfg(test)]
+mod installed_tests;
+mod off_path;
+#[cfg(test)]
+mod pace_tests;
+
+/// Racers decide at 30 Hz in the 60 Hz simulation (`ai-simulation-lod.md`, section 4).
+pub const RACER_THINK_STEPS: u32 = 2;
+const THINK_PERIOD: f32 = RACER_THINK_STEPS as f32 / 60.0;
 /// The path to the target is searched again this often, seconds.
 const REPATH_PERIOD: f32 = 1.0;
 /// How hard a racer's stand-in brakes, m/s² (`docs/specs/ai-simulation-lod.md` section 3.2).
 const STAND_IN_BRAKING: f32 = 30.0;
+const CATCH_UP_ACCELERATION: blackbox_driver::Table<4> =
+    blackbox_driver::Table { data: [1.0, 1.33, 1.66, 2.0], min: 0.0, max: 1.0 };
 /// The look-ahead follows the requested speed: 30 m at rest to 100 m at 100 m/s.
 fn look_ahead(speed_limit: f32) -> f32 {
     30.0 + 70.0 * ramp(speed_limit, 0.0, 100.0)
@@ -64,6 +72,8 @@ pub struct RacerState {
     pub glue: f32,
     /// Held on the grid until GO.
     pub held: bool,
+    /// Native drag style excludes the non-drag racer steering-drag rule.
+    pub drag: bool,
     /// Where the racer was told to cruise to after finishing: a speed (m/s).
     cruise: f32,
     /// The road the racer follows through the gates, with the shortcuts it rolled for (`race/shortcuts.rs`); `None`
@@ -118,6 +128,7 @@ impl RacerState {
             base_skill: base_skill.clamp(0.0, 1.0),
             glue: 0.0,
             held: true,
+            drag: false,
             cruise: 25.0,
             route: None,
             leg: None,
@@ -130,6 +141,27 @@ impl RacerState {
     /// (`docs/specs/ai-driver-speed-skill.md` section 8.1).
     pub fn skill(&self) -> f32 {
         (self.base_skill + self.glue).clamp(0.0, 1.0)
+    }
+
+    /// Native race catch-up force budget; humans never receive it.
+    pub fn cheat(&self) -> f32 {
+        if self.id == 0 || self.human.is_some() {
+            return 0.0;
+        }
+        (self.base_skill + self.glue - 1.0).clamp(0.0, 1.0) * 0.5
+    }
+
+    pub fn steering_drag(&self) -> Option<f32> {
+        if self.id == 0 || self.human.is_some() || self.drag {
+            return None;
+        }
+        Some(0.23 + (0.5 - 0.23) * self.cheat())
+    }
+
+    fn action_acceleration(&self, speed: f32, slope_forward_y: f32) -> f32 {
+        let table = self.performance.acceleration_at(speed).min(self.player.acceleration_at(speed));
+        let scale = CATCH_UP_ACCELERATION.lookup(self.cheat());
+        potential_acceleration(table * scale, &self.limits, self.skill(), None, slope_forward_y)
     }
 
     /// Where the racer drives to (physics space). `None` once it has finished.
@@ -162,6 +194,8 @@ impl RacerState {
         nav: &mut RoadNav,
         car: &CarState,
         traffic: impl IntoIterator<Item = Body>,
+        check_off_path: bool,
+        slope_forward_y: f32,
     ) -> RacerThink {
         let (net, index, rng) = (ctx.net, ctx.index, &mut *ctx.rng);
         let Some(goal) = self.goal else {
@@ -191,6 +225,13 @@ impl RacerState {
             nav.enable_trail(net);
             self.repath = 0.0;
         }
+        if check_off_path && let Some(fresh) = off_path::candidate(net, index, nav, &car.body) {
+            *nav = fresh;
+            self.repath_to(net, index, nav, car, goal);
+            self.repath = REPATH_PERIOD;
+            let gap = nav.position.distance(car.body.position);
+            nav.advance_with_lookahead(net, (look - gap).max(0.0), toward, look, rng);
+        }
         let occlusion = nav.trail().and_then(|trail| {
             update_occluded_position(trail, &car.body, nav.position, nav.forward, traffic, false, nav.half_width)
         });
@@ -204,8 +245,7 @@ impl RacerState {
         let skill = self.skill();
         let potential = potential_speed(&self.limits, curvature, skill, None);
         let reference = speed.abs().max(self.governor.speed_limit);
-        let table = self.performance.acceleration_at(reference).min(self.player.acceleration_at(reference));
-        let accel = potential_acceleration(table, &self.limits, skill, None, 0.0);
+        let accel = self.action_acceleration(reference, slope_forward_y);
         let wanted = self.governor.update(speed, potential, accel, skill, self.think_delta);
         RacerThink { target: occlusion.map_or(nav.position, |o| o.position), speed: wanted }
     }
@@ -336,7 +376,40 @@ mod tests {
             RacerState::new(1, performance(80.0, 1.2), AiVehicle::default(), performance(80.0, 1.2), 1.0, 0.8, 0.0);
         state.glue = 0.5;
         assert_eq!(state.skill(), 1.0);
+        assert!((state.cheat() - 0.15).abs() < 1e-6);
+        state.human = Some(Default::default());
+        assert_eq!(state.cheat(), 0.0);
+        state.human = None;
         state.glue = -1.0;
         assert_eq!(state.skill(), 0.0);
+        assert_eq!(state.cheat(), 0.0);
+    }
+
+    #[test]
+    fn catch_up_increases_level_road_acceleration_and_does_not_become_a_grade() {
+        let mut state =
+            RacerState::new(1, performance(80.0, 1.2), AiVehicle::default(), performance(80.0, 1.2), 0.0, 1.0, 0.0);
+        let ordinary = state.action_acceleration(40.0, 0.0);
+        state.glue = 0.75;
+        let boosted = state.action_acceleration(40.0, 0.0);
+        assert!(boosted > ordinary);
+        assert!((boosted / ordinary - 1.37125).abs() < 1e-5);
+        assert!(state.action_acceleration(40.0, 0.1) < boosted, "only the actual road slope subtracts gravity");
+        state.human = Some(Default::default());
+        assert_eq!(state.action_acceleration(40.0, 0.0), ordinary);
+    }
+
+    #[test]
+    fn native_steering_drag_applies_to_non_drag_computer_racers_only() {
+        let mut state =
+            RacerState::new(1, performance(80.0, 1.2), AiVehicle::default(), performance(80.0, 1.2), 0.0, 1.0, 0.0);
+        assert_eq!(state.steering_drag(), Some(0.23));
+        state.glue = 0.75;
+        assert!((state.steering_drag().unwrap() - 0.33125).abs() < 1e-6);
+        state.drag = true;
+        assert_eq!(state.steering_drag(), None);
+        state.drag = false;
+        state.human = Some(Default::default());
+        assert_eq!(state.steering_drag(), None);
     }
 }

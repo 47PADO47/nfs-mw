@@ -5,6 +5,7 @@ use nfsmw_data::car::physics::CarPhysics;
 use crate::scenes::world::drive::CarRig;
 
 /// A car model traffic can use: the rig is shared by every car of the model.
+#[derive(Clone)]
 pub struct TrafficModel {
     pub name: String,
     pub rig: Rc<CarRig>,

@@ -14,12 +14,15 @@ use crate::i18n::{self, fmt::grouped, t};
 use crate::settings::SpeedUnits;
 use crate::viewer::{PhotoKind, PhotoReport, RaceAnswer, RaceReport};
 
-/// The groups, by name hash, and the script that fades a group in (1800 ms; the groups rest hidden).
+/// The groups and their APPEAR script; the separate fade-out ends hidden.
 const SPRINT_GROUP: u32 = 0xE057_94EB;
 const RIVAL_GROUP: u32 = 0x895E_5289;
 const TOLL_BOOTH_GROUP: u32 = 0xC591_84C1;
 const SPEEDTRAP_GROUP: u32 = 0xFBE6_5EB3;
-const FADE_IN: u32 = 0xBCBF_CC87;
+const APPEAR: u32 = 0x5079_C8F8;
+/// The package's SHOW script, used by its footer after INIT_COMPLETE.
+const SHOW: u32 = 0x001C_A7C0;
+const FOOTER: u32 = 0x37AC_A28C;
 /// The package's event handler string (`EVENT HANDLER`) and its entrance script (500 ms: `0xBDFD2DF9` to the parts,
 /// `INIT_COMPLETE`, and the message that switches the buttons on).
 const EVENT_HANDLER: u32 = 0x47FF_4E7C;
@@ -52,6 +55,9 @@ const RESTART: u32 = PAD_BUTTON0 + 5;
 /// The same buttons as pad bits: the second button (key 2) and key 1.
 const STATS_BIT: u32 = pad::BUTTON0 << 4;
 const RESTART_BITS: u32 = (pad::BUTTON0 << 1) | (pad::BUTTON0 << 5);
+/// The native screen's two camera intervals, followed by its 500 ms input entrance.
+const ENTRANCE_AT: f32 = 1.5;
+const INPUT_AT: f32 = ENTRANCE_AT + 0.5;
 
 /// Shows a [`PhotoReport`], with the race's report behind its Race Stats button.
 pub struct PhotoLogic {
@@ -60,6 +66,7 @@ pub struct PhotoLogic {
     /// The group has been faded in: the package's own first script rests it hidden, so the fade starts after the first
     /// frame.
     faded: bool,
+    elapsed: f32,
     /// The picture is swapped for the race's backdrop and shown (the install has the texture).
     picture: bool,
     /// The buttons that already acted in this frame, as pad bits: a press reaches the screen as a pad bit and as the package's
@@ -70,12 +77,12 @@ pub struct PhotoLogic {
 impl PhotoLogic {
     /// The photo of a won race, with the lap table behind Race Stats.
     pub fn for_race(photo: PhotoReport, report: RaceReport) -> Self {
-        Self { photo, report: Some(report), faded: false, picture: false, done: 0 }
+        Self { photo, report: Some(report), faded: false, elapsed: 0.0, picture: false, done: 0 }
     }
 
     /// The photo of a speed trap: Continue only.
     pub fn for_trap(photo: PhotoReport) -> Self {
-        Self { photo, report: None, faded: false, picture: false, done: 0 }
+        Self { photo, report: None, faded: false, elapsed: 0.0, picture: false, done: 0 }
     }
 
     /// Race Stats: the results, over the photo (their Back returns to it). Once per press.
@@ -139,14 +146,17 @@ impl PhotoLogic {
         }
     }
 
-    fn fade_in(&self, cx: &mut Cx) {
-        if let Some(group) = cx.object(self.group()) {
-            cx.rt.run_script(group, FADE_IN);
+    fn appear(&self, cx: &mut Cx) {
+        for hash in [self.group(), PICTURE] {
+            if let Some(object) = cx.object(hash) {
+                cx.rt.set_alpha(object, 255);
+                cx.rt.run_script(object, APPEAR);
+            }
         }
         if self.photo.kind == PhotoKind::SpeedTrap
             && let Some(frame) = cx.object(CAMERA_FRAME)
         {
-            cx.rt.run_script(frame, FADE_IN);
+            cx.rt.run_script(frame, APPEAR);
         }
     }
 
@@ -173,16 +183,12 @@ impl PhotoLogic {
         }
         cx.hide(CAMERA_FRAME, self.photo.kind != PhotoKind::SpeedTrap);
         cx.hide(PICTURE, !self.picture);
-        if let (true, Some(picture)) = (self.picture, cx.object(PICTURE)) {
-            cx.rt.set_alpha(picture, 255);
-        }
-        // The group's own fade does not leave it visible (its colour stays at 0 after the script), so it is held at full
-        // alpha, as the HUD holds its groups; its parts keep their scripts.
-        for hash in [shown, CAMERA_FRAME] {
-            let on = hash == shown || self.photo.kind == PhotoKind::SpeedTrap;
-            if let (true, Some(group)) = (on, cx.object(hash)) {
-                cx.rt.set_alpha(group, 255);
-            }
+        // These zero-length group APPEAR scripts leave their host alpha at zero.
+        // The selected group is a static parent; its children's authored fades still run.
+        if self.faded
+            && let Some(group) = cx.object(shown)
+        {
+            cx.rt.set_alpha(group, 255);
         }
     }
 }
@@ -217,28 +223,45 @@ fn speed_number(mps: f32, units: SpeedUnits) -> String {
 }
 
 impl ScreenLogic for PhotoLogic {
+    fn accepts_input(&self) -> bool {
+        self.elapsed >= INPUT_AT
+    }
+    fn footer(&self) -> super::logic::Footer {
+        super::logic::Footer::RacePhoto { race: self.report.is_some() }
+    }
+
     fn start(&mut self, cx: &mut Cx) {
+        crate::audio::menu::request_photo_transition();
         self.fill(cx);
         self.set_picture(cx);
         self.hold(cx);
     }
 
-    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+    fn tick(&mut self, cx: &mut Cx, dt: f32) {
         self.done = 0;
+        if dt.is_finite() && dt > 0.0 {
+            self.elapsed += dt;
+        }
         self.hold(cx);
-        if !self.faded {
+        if !self.faded && self.elapsed >= ENTRANCE_AT {
             self.faded = true;
             // The package's entrance script, on its event handler: it sends the message the footer and the backing fade in
             // on, the end of the entrance and the one that switches the buttons on.
             if let Some(handler) = cx.object(EVENT_HANDLER) {
                 cx.rt.run_script(handler, ENTRANCE);
             }
-            self.fade_in(cx);
+            self.appear(cx);
+            crate::audio::menu::request_photo_finish();
         }
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match (message, self.report.is_some()) {
+            (crate::frontend::ids::INIT_COMPLETE, _) if self.faded => {
+                if let Some(footer) = cx.object(FOOTER) {
+                    cx.rt.run_script(footer, SHOW);
+                }
+            }
             (PAD_ACCEPT, true) => cx.send(Command::RaceAnswer(RaceAnswer::Exit)),
             (PAD_ACCEPT, false) => cx.send(Command::Resume),
             (STATS, true) => self.show_stats(cx),

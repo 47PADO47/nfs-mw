@@ -14,7 +14,8 @@ use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{WorldScene, space};
 
 impl WorldScene {
-    /// Links the playing scene's car channels to the real cars, once per scene. Channel 1 is the player's car. A civilian
+    /// Links the playing scene's car channels once. Race starts swap the human into the primary channel without changing
+    /// physical slots; other scenes put the player on channel 1. A civilian
     /// channel (`car2`..`car8`) takes the nearest traffic car that no channel has taken yet, never a police car. A cop
     /// channel (`cop1`..`cop8`) takes the nearest free police car, or a police car the scene spawns when none is free; when
     /// it can take neither yet, it waits for the police car model (`retry_nis_cops`). A channel with no car to take stays
@@ -31,15 +32,23 @@ impl WorldScene {
         let mut missing = Vec::new();
         for (slot, spot) in self.nis.car_slots() {
             let kind = cop_cars::slot_kind(slot);
-            let found = match kind {
-                Some(SlotKind::Player) => self.players.lead().map(|_| Target::Player),
-                Some(SlotKind::Civilian) => self
+            let found = match (self.nis.race_start_scene(), kind) {
+                (true, Some(SlotKind::Player | SlotKind::Civilian)) => self.race.as_ref().and_then(|race| {
+                    let grid_slot = actor_grid_slot(race.plan.first()?.grid_slot, slot);
+                    let id = race.plan.iter().position(|plan| plan.grid_slot == grid_slot)?;
+                    if id == 0 {
+                        return self.players.lead().map(|_| Target::Player);
+                    }
+                    self.traffic.as_ref()?.racer_car_index(id).map(Target::Traffic)
+                }),
+                (_, Some(SlotKind::Player)) => self.players.lead().map(|_| Target::Player),
+                (_, Some(SlotKind::Civilian)) => self
                     .traffic
                     .as_ref()
                     .and_then(|traffic| traffic.nearest_car(spot.position, &taken))
                     .map(Target::Traffic),
-                Some(SlotKind::Cop) => self.link_cop(spot, &taken),
-                None => None,
+                (_, Some(SlotKind::Cop)) => self.link_cop(spot, &taken),
+                (_, None) => None,
             };
             let Some(target) = found else {
                 match (kind, self.traffic.is_some()) {
@@ -119,13 +128,22 @@ impl WorldScene {
             (Some(time), Some(memory)) => memory.tick(time),
             _ => 0.0,
         };
-        for (target, spot) in self.nis.car_spots() {
+        let mut spots = self.nis.car_spots();
+        self.stage_extra_intro_cars(&mut spots);
+        for (target, spot) in spots {
             let last = self.nis.car_memory().and_then(|memory| memory.ground(target));
             let ground = self.ground_at(spot.position, last);
             if let (Some(height), Some(memory)) = (ground, self.nis.car_memory()) {
                 memory.set_ground(target, height);
             }
-            let spot = cars::lifted(spot, ground);
+            let clearance = match target {
+                Target::Player => self.players.lead().and_then(|drive| drive.sim()).map(|sim| sim.nis_ground_lift()),
+                Target::Traffic(index) | Target::Spawned(index) => {
+                    self.traffic.as_ref().and_then(|traffic| traffic.nis_ground_lift(index))
+                }
+            }
+            .unwrap_or(0.0);
+            let spot = cars::lifted(spot, ground, clearance);
             self.set_nis_car(target, Some(spot), dt);
         }
     }
@@ -151,10 +169,9 @@ impl WorldScene {
     }
 
     /// Gives the car of `target` the pose `spot`, its wheels rolled with the distance the scene moved it
-    /// (`car_memory.rs`), or clears its override with `None`. In a race's start scene the player's body rocks with the
-    /// rev (`rev_rock.rs`), `dt` scene seconds after the last frame.
+    /// (`car_memory.rs`), or clears its override with `None`, `dt` scene seconds after the last frame.
     fn set_nis_car(&mut self, target: Target, spot: Option<CarSpot>, dt: f32) {
-        let race_start = self.nis.race_start_scene();
+        let motion = self.nis.car_motion(target);
         let mut memory = self.nis.car_memory();
         match target {
             Target::Player => {
@@ -162,12 +179,16 @@ impl WorldScene {
                 let base = drive.pose();
                 let radii = drive.sim().map_or([DEFAULT_RADIUS; 4], |sim| sim.wheel_radii());
                 let pose = spot.map(|spot| {
-                    let spin = rolled_wheels(memory.as_deref_mut(), target, spot, radii, base);
-                    let turn = match (race_start, memory) {
-                        (true, Some(memory)) => memory.rev_rock(dt),
-                        _ => Quat::IDENTITY,
-                    };
-                    posed(CarSpot { rotation: spot.rotation * turn, ..spot }, base, spin)
+                    let mut spin = rolled_wheels(memory.as_deref_mut(), target, spot, radii, base);
+                    if let (Some((motion, time)), Some(sim)) = (motion, drive.sim()) {
+                        let (wheelbase, width, driven) = sim.nis_geometry();
+                        let tilt = motion.rotation(time, wheelbase, width);
+                        if let Some(memory) = memory {
+                            spin = memory.burnout(target, motion.burnout * dt, radii, driven).unwrap_or(spin);
+                        }
+                        drive.set_nis_body_tilt(tilt);
+                    }
+                    posed(spot, base, spin)
                 });
                 match pose {
                     Some(pose) => drive.move_nis_pose(pose, dt),
@@ -179,7 +200,16 @@ impl WorldScene {
                 let radii = traffic.car_wheel_radii(index).unwrap_or([DEFAULT_RADIUS; 4]);
                 let pose = spot.and_then(|spot| {
                     let base = traffic.car_pose(index)?;
-                    Some(posed(spot, base, rolled_wheels(memory, target, spot, radii, base)))
+                    let mut spin = rolled_wheels(memory.as_deref_mut(), target, spot, radii, base);
+                    if let (Some((motion, time)), Some((wheelbase, width, driven))) =
+                        (motion, traffic.nis_geometry(index))
+                    {
+                        if let Some(memory) = memory {
+                            spin = memory.burnout(target, motion.burnout * dt, radii, driven).unwrap_or(spin);
+                        }
+                        traffic.set_nis_body_tilt(index, motion.rotation(time, wheelbase, width));
+                    }
+                    Some(posed(spot, base, spin))
                 });
                 traffic.set_nis_pose(index, pose);
             }
@@ -189,7 +219,7 @@ impl WorldScene {
     /// Places the player's car at `spot`, lifted onto the ground under it, at rest. The drive does it the way a race
     /// places its cars, once the world around it has loaded.
     fn stand_player(&mut self, spot: CarSpot) {
-        let spot = cars::lifted(spot, self.ground_at(spot.position, None));
+        let spot = cars::lifted(spot, self.ground_at(spot.position, None), 0.0);
         let Some(drive) = self.players.lead_mut() else { return };
         drive.place_exactly(Spawn { position: spot.position, heading: heading_of(spot.rotation) }, 0.0);
     }
@@ -198,6 +228,15 @@ impl WorldScene {
     fn ground_at(&mut self, at: Vec3, last: Option<f32>) -> Option<f32> {
         let (collision, _) = self.residency.world_parts();
         first_ground_below(|from, to| space::ground_below(collision, at.x, at.y, from, to), at.z, last)
+    }
+}
+
+/// The primary cinematic channel follows the human, independently of the physical starting order.
+pub(super) fn actor_grid_slot(player: usize, channel: usize) -> usize {
+    match channel {
+        0 => player,
+        slot if slot == player => 0,
+        slot => slot,
     }
 }
 

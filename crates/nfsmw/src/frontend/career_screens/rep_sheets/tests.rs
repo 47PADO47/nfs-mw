@@ -69,13 +69,13 @@ fn the_packages_name_their_sheets() {
 }
 
 #[test]
-fn the_race_rows_are_the_free_races_then_the_boss_races() {
+fn the_race_rows_only_offer_free_races() {
     let mut list = blacklist(15);
     list.enter_bin(14);
     let rows = race_rows(&list, &races(), None, 14);
     let events: Vec<&str> = rows.iter().map(|row| row.event.as_str()).collect();
-    assert_eq!(events, ["14.1.1", "14.2.1", "14.8.1"]);
-    assert_eq!(rows.iter().map(|row| row.boss).collect::<Vec<_>>(), [false, false, true]);
+    assert_eq!(events, ["14.1.1", "14.2.1"]);
+    assert!(rows.iter().all(|row| !row.boss));
     assert_eq!(rows[1].kind, RaceType::Circuit);
     assert_eq!(rows[1].laps, 3);
     assert_eq!(rows[0].cash, 5_000);

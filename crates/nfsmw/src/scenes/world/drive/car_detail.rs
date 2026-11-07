@@ -21,6 +21,8 @@ pub struct DrawOptions<'a> {
     pub damage: Option<&'a [u8; 10]>,
     /// The driver's steering input, -1 (full left) to 1 (full right): the pose a mod car's posed driver is drawn in.
     pub steering: f32,
+    /// Animated body tilt; wheel instances retain their road pose.
+    pub body_tilt: glam::Quat,
 }
 impl Default for DrawOptions<'_> {
     fn default() -> Self {
@@ -34,6 +36,7 @@ impl Default for DrawOptions<'_> {
             broken_lights: 0,
             damage: None,
             steering: 0.0,
+            body_tilt: glam::Quat::IDENTITY,
         }
     }
 }

@@ -27,6 +27,8 @@ mod post_race_tests;
 mod prompt_tests;
 #[path = "quick_play_screen_tests.rs"]
 mod quick_play_screen_tests;
+#[path = "race_presentation_tests.rs"]
+mod race_presentation_tests;
 mod split_screen_tests;
 
 #[test]

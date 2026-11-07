@@ -90,6 +90,7 @@ pub struct AiCar {
     current: CarPose,
     /// The pose a NIS scene gives the car while it plays (`accessors.rs`); `None` draws the physics pose.
     nis_pose: Option<CarPose>,
+    nis_body_tilt: glam::Quat,
     /// Physics steps since the car was placed.
     steps: u32,
     step_delta: f32,
@@ -184,7 +185,7 @@ impl AiCar {
             Role::Cop(cop) => cop.last_diagnostic.as_str(),
             _ => "action=non-cop",
         };
-        format!("{:?} {action}", self.sim.telemetry())
+        format!("{:?} {action} {}", self.sim.telemetry(), self.sim.terrain_diagnostic())
     }
 
     #[cfg(test)]
@@ -210,7 +211,12 @@ impl AiCar {
             sim.configure_traffic();
         }
         sim.collision_role.cop = start.patrol || matches!(role, Role::Cop(_));
-        if !sim.place_traffic_moving(ground, spawn, start.speed) {
+        sim.collision_racer = matches!(role, Role::Racer(_));
+        let placed = match role {
+            Role::Racer(_) => sim.place_moving(ground, spawn, start.speed),
+            _ => sim.place_traffic_moving(ground, spawn, start.speed),
+        };
+        if !placed {
             return None;
         }
         let trailer = match &model.trailer {
@@ -243,6 +249,7 @@ impl AiCar {
             previous: pose,
             current: pose,
             nis_pose: None,
+            nis_body_tilt: glam::Quat::IDENTITY,
             steps: 0,
             step_delta: STEP,
             elapsed: 0.0,
@@ -416,7 +423,17 @@ impl AiCar {
                     }
                     shift(&mut self.sim, Some(gear));
                 }
-                let think = racer.think(ctx, &mut self.nav, &state, traffic::others(ctx.bodies, ctx.me, ctx.player));
+                let think = racer.think(
+                    ctx,
+                    &mut self.nav,
+                    &state,
+                    traffic::others(ctx.bodies, ctx.me, ctx.player),
+                    (self.steps + self.stagger).is_multiple_of(4),
+                    match self.stand_in.active {
+                        true => 0.0,
+                        false => view.forward.y,
+                    },
+                );
                 self.target = think.target;
                 self.speed = think.speed;
             }

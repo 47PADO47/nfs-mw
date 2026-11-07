@@ -32,7 +32,7 @@ impl WorldScene {
         frame_dt: f32,
     ) {
         self.update_race_mods();
-        self.start_queued_race();
+        self.start_queued_race(renderer);
         let Some(mut session) = self.race.take() else { return };
         let keep = match session.stage {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
@@ -76,11 +76,17 @@ impl WorldScene {
     }
 
     /// Starts the race a quick race asked for, as soon as the car exists and no race is running.
-    fn start_queued_race(&mut self) {
+    fn start_queued_race(&mut self, renderer: &mut dyn blackbox_gfx::RenderBackend) {
         if self.race.is_some() || self.players.is_empty() {
             return;
         }
         let Some((query, options)) = self.queued_race.take() else { return };
+        if options.career
+            && let Err(error) = self.prepare_career_car(renderer, &query)
+        {
+            log::warn!("career: cannot prepare car for {query}: {error:#}");
+            return;
+        }
         // The post-race screen's Restart queues its race as a restart.
         let started = match self.queued_again.take() {
             Some(kit) => self.begin_again(kit),
@@ -186,16 +192,8 @@ impl WorldScene {
         }
     }
 
-    /// The catch-up, once a second while the race runs and the player has not finished.
+    /// The catch-up: sampled errors and current progress while the player still races.
     fn race_glue(&mut self, session: &mut RaceSession, dt: f32) {
-        if !session.catch_up {
-            return;
-        }
-        session.glue_clock += dt;
-        if session.glue_clock < 1.0 {
-            return;
-        }
-        session.glue_clock = 0.0;
         let (Some(engine), Some(traffic)) = (session.engine.as_ref(), self.traffic.as_mut()) else { return };
         let racers = engine.racers();
         if engine.phase() != Phase::Racing || racers[0].done() {
@@ -205,10 +203,26 @@ impl WorldScene {
         let player = racers[0].percent;
         let half = session.kind == nfsmw_data::gameplay::RaceType::SpeedTrap;
         for (id, racer) in racers.iter().enumerate().skip(1).filter(|(_, r)| !r.done()) {
-            let error = blackbox_race::CatchUp::error(length, player, racer.percent, 1.0);
-            let skill = session.glue[id].update(error, 1.0);
+            let emulated = traffic.racer_is_emulated(id);
+            if !session.catch_up
+                && !emulated
+                && let Some(state) = traffic.racer_mut(id)
+            {
+                state.glue = 0.0;
+            }
+            let interval = if session.options.career {
+                dt
+            } else {
+                let Some(interval) = traffic.racer_decision_interval(id) else { continue };
+                interval
+            };
+            let error = blackbox_race::CatchUp::error(length, player, racer.percent, session.player_top_speed_rating);
             let Some(state) = traffic.racer_mut(id) else { continue };
-            state.glue = setup::scale_glue(skill, state.base_skill, half);
+            let skill = session.glue[id].update(error, interval, racer.percent, emulated, session.catch_up);
+            state.glue = match emulated {
+                true => skill,
+                false => setup::scale_glue(skill, state.base_skill, half),
+            };
         }
     }
 

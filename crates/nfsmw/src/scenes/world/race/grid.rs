@@ -1,17 +1,29 @@
-//! The grid: where each racer of a race starts, behind the player's place on the start line.
+//! The grid: each racer's physical slot, with the front row on the start line.
 //! Spec: `docs/specs/custom-race.md` section 4 ("A race of sixteen").
 
 use glam::Vec3;
 use nfsmw_data::gameplay::{Placement, world_heading};
 
+/// Changes physical slots without changing racer IDs, car models or names.
+pub(super) fn move_player(plan: &mut [super::RacerPlan], slot: usize) {
+    if slot == 0 || slot >= plan.len() {
+        return;
+    }
+    let front = plan[0].spawn;
+    plan[0].spawn = plan[slot].spawn;
+    plan[slot].spawn = front;
+    plan[0].grid_slot = slot;
+    plan[slot].grid_slot = 0;
+}
+
 /// Metres between two rows of the grid, and between its two columns **[unconfirmed]**.
 const ROW_GAP: f32 = 7.5;
 const COLUMN_GAP: f32 = 3.5;
 /// Most racers in a race, the player included: sixteen **[ours]**; the original's grid is four **[decomp]**. [`grid_slot`]
-/// holds them in eight rows of two behind the player.
+/// holds them in eight rows of two.
 pub const MAX_RACERS: u8 = 16;
 
-/// The grid slot `index` (0 is the player's): two columns, a row behind per two cars.
+/// The grid slot `index` (0 is the front): two columns, a row behind per two cars.
 pub fn grid_slot(start: &Placement, index: usize) -> Placement {
     let forward = world_heading(start.heading_deg);
     let side = Vec3::Y.cross(forward);

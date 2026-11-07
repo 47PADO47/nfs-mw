@@ -81,7 +81,7 @@ pub(super) const FAMILIES: &[Family] = &[
 ];
 
 impl Audio {
-    pub(super) fn start_trace(&self, path: &std::path::Path) -> Result<(), String> {
+    pub(crate) fn start_trace(&self, path: &std::path::Path) -> Result<(), String> {
         self.trace.start(path)?;
         for family in FAMILIES {
             self.trace.record(Record {

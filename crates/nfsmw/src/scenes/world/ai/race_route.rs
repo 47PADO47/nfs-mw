@@ -8,10 +8,13 @@ use std::sync::Arc;
 use blackbox_race::Gate;
 use blackbox_roads::{
     ActiveBarrier, Goal, LegPath, LegSource, PathType, Route, RouteBuilder, SegmentFilter, build_leg, build_route,
-    closest_segment,
+    closest_segment, flags, mark_barrier_crossings,
 };
 
 use super::TrafficWorld;
+
+#[cfg(test)]
+mod shortcut_tests;
 
 impl TrafficWorld {
     /// The route from `start` through `gates` in order (every lap's), with `lines` the race's barrier lines. The road at
@@ -41,7 +44,7 @@ impl TrafficWorld {
 
     /// The road of a shortcut through `via`: the leg of `route` it lies beside (the one it lengthens least), driven
     /// through `via` on the way. `None` when there is no such road or it is more than [`MAX_STRETCH`] times the leg.
-    pub fn route_through(&self, route: &Route, via: Goal) -> Option<(usize, LegPath)> {
+    pub fn route_through(&self, route: &Route, via: Goal, lines: &[ActiveBarrier]) -> Option<(usize, LegPath)> {
         let detour = |leg: &blackbox_roads::Leg| {
             leg.from.position.distance(via.position) + via.position.distance(leg.to.position) - leg.length
         };
@@ -51,11 +54,26 @@ impl TrafficWorld {
             .enumerate()
             .filter(|(_, leg)| !leg.missing())
             .min_by(|(_, a), (_, b)| detour(a).total_cmp(&detour(b)))?;
-        let (net, roads) = (&self.network, &self.index);
-        let first = build_leg(net, roads, leg.from, via, PathType::RaceRoute)?;
-        let second = build_leg(net, roads, via, leg.to, PathType::RaceRoute)?;
+        // Base-route construction clears its temporary flags. Shortcuts need the same race context without
+        // changing the graph used by police, free roam or another route search.
+        let mut net = self.network.clone();
+        let roads = &self.index;
+        let start = route.legs.first()?.from;
+        let exempt: Vec<u16> =
+            closest_segment(&net, roads, start.position, start.forward, 1.0, SegmentFilter::default())
+                .and_then(|located| net.segment(located.segment).road)
+                .into_iter()
+                .collect();
+        mark_barrier_crossings(&mut net, roads, lines, &exempt);
+        // The base leg may have needed its endpoint/open fallback. Preserve its accepted road, not new crossings.
+        let both = flags::CROSSES_BARRIER | flags::CROSSES_DRIVE_THROUGH_BARRIER;
+        for step in &route.steps[leg.steps.clone()] {
+            net.segments[usize::from(step.segment)].flags &= !both;
+        }
+        let first = build_leg(&net, roads, leg.from, via, PathType::RaceRoute)?;
+        let second = build_leg(&net, roads, via, leg.to, PathType::RaceRoute)?;
         let path = first.join(&second);
-        let mut builder = RouteBuilder::new(net);
+        let mut builder = RouteBuilder::new(&net);
         builder.push(leg.from, leg.to, Some(&path));
         (builder.finish().length <= leg.length * MAX_STRETCH).then_some((index, path))
     }

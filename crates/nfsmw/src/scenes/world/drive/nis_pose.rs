@@ -13,6 +13,13 @@ impl Drive {
     /// Sets the pose a NIS scene gives the car, or clears it with `None`: the car then draws its physics pose again.
     pub fn set_nis_pose(&mut self, pose: Option<CarPose>) {
         self.nis_pose = pose;
+        if pose.is_none() {
+            self.nis_body_tilt = glam::Quat::IDENTITY;
+        }
+    }
+
+    pub fn set_nis_body_tilt(&mut self, tilt: glam::Quat) {
+        self.nis_body_tilt = tilt;
     }
 
     /// Sets the pose a NIS scene gives the car this frame, `dt` scene seconds after the last, and lets the cutscene trail

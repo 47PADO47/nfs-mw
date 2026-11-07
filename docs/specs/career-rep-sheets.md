@@ -33,16 +33,18 @@ list keeps its one-entry navigation. Installed-package playtest regressions are 
 
 ## 2. Race events **[exe]** + **[ours]**
 
-Rows are the events of the viewed bin: its free races (`WorldRaces`), then its boss races (`BossRaces`). The original builds
-rows from `FUN_00601060` event keys that `FUN_0051f120` accepts, in one of two modes: the viewed bin only (a flag on the
+Rows are only the free races (`WorldRaces`) of the viewed bin. Boss races
+(`BossRaces`) belong to Challenge Rival and must not be appended to this page.
+The CC0 reference's `UISafehouseRaceSheet::Setup` explicitly enumerates world
+race hashes. The original builds rows in one of two modes: the viewed bin only (a flag on the
 page, set when it is opened from the overview) or every bin from the career's stage up (see the provenance). The rewrite
 has the first mode.
 
 | State | Rule |
 |---|---|
-| Locked | the bin is not entered; or a boss race while the rival is still locked |
-| Open | a free race of an entered bin; a boss race once the rival is unlocked or beaten |
-| Done | the race is in the bin's won list (`races_won` or `rival_races_won`, saved as flag 2 of its race record) |
+| Locked | the bin is not entered |
+| Open | a free race of an entered bin |
+| Done | the race is in the bin's `races_won` list, saved as flag 2 of its race record |
 
 A done race can be run again. The panel shows the race kind and its icon (`Mode_Icon_*`), the track name
 (`TRACKNAME_<event>`), the best time, the cash a win pays (`CashValue`), the route length and, for a circuit or knockout, the

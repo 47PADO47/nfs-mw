@@ -88,8 +88,8 @@ fn report_of(engine: &Race, names: &[&str], kind: RaceType, cash: f32, collision
                 })
                 .collect();
             let me = outcomes.get(i);
-            let time = me.and_then(|o| o.time);
-            let ran = racer.finished_at.or(racer.out_at).unwrap_or_else(|| engine.elapsed());
+            let time = result_time(engine, i, kind);
+            let ran = time.or(racer.out_at).unwrap_or_else(|| engine.elapsed());
             ReportRacer {
                 name: names.get(i).map_or_else(|| crate::i18n::t!("race-racer-fallback", n = i), |n| (*n).to_owned()),
                 place: me.map_or(i as u32 + 1, |o| o.place),
@@ -116,6 +116,27 @@ fn report_of(engine: &Race, names: &[&str], kind: RaceType, cash: f32, collision
     }
 }
 
+/// An unfinished sprint opponent's result timer is projected from current completion, without finishing its car.
+/// Spec: `docs/specs/race-reference-followup.md`.
+fn result_time(engine: &Race, index: usize, kind: RaceType) -> Option<f32> {
+    let racer = engine.racers().get(index)?;
+    if let Some(time) = racer.finished_at {
+        return Some(time);
+    }
+    if kind != RaceType::Sprint || !engine.is_over() || racer.human || racer.out_at.is_some() {
+        return None;
+    }
+    if !engine.racers().iter().any(|racer| racer.human && racer.finished_at.is_some()) {
+        return None;
+    }
+    let percent = racer.percent;
+    if !percent.is_finite() || percent <= 0.0 || percent >= 100.0 {
+        return None;
+    }
+    let time = engine.elapsed() * 100.0 / percent;
+    time.is_finite().then_some(time)
+}
+
 /// The finish time of the racer that won, if one finished first.
 fn winner_time(engine: &Race) -> Option<f32> {
     engine.outcomes().iter().find(|o| o.place == 1 && o.finished).and_then(|o| o.time)
@@ -131,8 +152,8 @@ pub(crate) fn time_behind(time: Option<f32>, winner: Option<f32>) -> Option<f32>
     Some(behind)
 }
 
-/// The win photo: only for a player who finished first. The sprint's speed is the average over the course; a drag
-/// race's is the speed at the line; a tollbooth race shows the time left and the bonus time the checkpoints gave.
+/// The win photo: only for a player who finished first. Sprint and drag show the speed at the line; a tollbooth race
+/// shows the time left and the bonus time the checkpoints gave. Other modes retain their average-speed policy.
 fn photo_of(engine: &Race, kind: RaceType, cash: f32) -> Option<PhotoReport> {
     let me = engine.racers().first()?;
     let outcome = engine.outcomes().first().copied()?;
@@ -141,6 +162,7 @@ fn photo_of(engine: &Race, kind: RaceType, cash: f32) -> Option<PhotoReport> {
     let average = course.lap_length() * course.laps.max(1) as f32 / time.max(0.001);
     let bonus_secs = (1..=me.progress.reached.max(course.checkpoints.len())).map(|n| course.bonus(n)).sum();
     let (kind, speed) = match kind {
+        RaceType::Sprint => (PhotoKind::Sprint, me.speed),
         RaceType::Drag => (PhotoKind::Drag, me.speed),
         RaceType::Tollbooth => (PhotoKind::Tollbooth, average),
         _ => (PhotoKind::Sprint, average),
@@ -163,6 +185,44 @@ mod tests {
     use glam::Vec3;
 
     use super::*;
+
+    #[test]
+    fn a_sprint_projects_unfinished_opponent_times_without_finishing_their_cars() {
+        let course = Course::new(Vec3::ZERO, Vec::new(), Some(gate(1000.0)), 1);
+        let mut race = Race::new(course, RaceConfig::default(), &[(true, Vec3::ZERO), (false, Vec3::ZERO)]);
+        race.start_now();
+        race.tick(100.0);
+        race.move_racer(1, Vec3::new(0.0, 0.0, 800.0));
+        assert_eq!(result_time(&race, 1, RaceType::Sprint), None, "a running race has no projected finish");
+        race.set_speed(0, 95.0);
+        race.move_racer(0, Vec3::new(0.0, 0.0, 1001.0));
+        assert!(race.is_over());
+        let report = report_of(&race, &["PLAYER", "RIVAL"], RaceType::Sprint, 0.0, 0);
+        assert_eq!(report.racers[1].time, Some(125.0));
+        assert_eq!(report.racers[1].time_behind, Some(25.0));
+        assert_eq!(report.racers[1].average_speed, 800.0 / 125.0);
+        assert_eq!(race.racers()[1].finished_at, None, "a report cannot award a physical finish");
+        assert_eq!(result_time(&race, 1, RaceType::Circuit), None, "the observation establishes sprint behavior");
+        assert_eq!(report.photo.unwrap().speed, 95.0, "photo uses finish speed rather than 10 m/s average");
+    }
+
+    #[test]
+    fn a_sprint_does_not_project_zero_progress_or_a_timeout_loss() {
+        let course = Course::new(Vec3::ZERO, Vec::new(), Some(gate(1000.0)), 1);
+        let mut race = Race::new(course.clone(), RaceConfig::default(), &[(true, Vec3::ZERO), (false, Vec3::ZERO)]);
+        race.start_now();
+        race.tick(100.0);
+        race.move_racer(0, Vec3::new(0.0, 0.0, 1001.0));
+        assert_eq!(result_time(&race, 1, RaceType::Sprint), None);
+        let config = RaceConfig { time_limit: 1.0, ..Default::default() };
+        let mut race = Race::new(course, config, &[(true, Vec3::ZERO), (false, Vec3::ZERO)]);
+        race.start_now();
+        race.move_racer(1, Vec3::new(0.0, 0.0, 800.0));
+        race.tick(2.0);
+        assert!(race.is_over());
+        assert_eq!(result_time(&race, 1, RaceType::Sprint), None);
+        assert_eq!(result_time(&race, 0, RaceType::Sprint), None);
+    }
 
     fn gate(z: f32) -> Gate {
         Gate::new(Vec3::new(0.0, 0.0, z), Vec3::Z, Vec3::Y, [2.0, 40.0, 10.0])

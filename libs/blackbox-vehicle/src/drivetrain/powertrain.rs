@@ -79,6 +79,7 @@ pub struct Powertrain {
     pub nos: Nos,
     pub(super) prev_rpm_diff: f32,
     pub(super) drive_torque: f32,
+    pub(super) positive_torque_scale: f32,
     pub(super) engine_braking: bool,
     pub(super) wheel_written: [bool; 4],
     /// The gearbox is held in neutral (`neutral_hold.rs`).
@@ -118,6 +119,7 @@ impl Powertrain {
             nos,
             prev_rpm_diff: 0.0,
             drive_torque: 0.0,
+            positive_torque_scale: 1.0,
             engine_braking: false,
             wheel_written: [false; 4],
             neutral_hold: false,
@@ -421,7 +423,8 @@ impl Powertrain {
             speed: i.speed,
         };
         self.wheel_written = [false; 4];
-        self.drive_torque = clamp_signed(self.torque_loop(&mut ctx), 1.0e6);
+        let torque = self.torque_loop(&mut ctx);
+        self.drive_torque = clamp_signed(self.scale_output(torque), 1.0e6);
         self.smooth_rpm(dt);
         self.refresh_shift_potential();
         self.drive_torque

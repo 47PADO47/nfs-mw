@@ -61,7 +61,7 @@ pub struct RoadNav {
     bound_starts: Option<[Vec3; 2]>,
     /// The look-ahead trail, when the car steers by one.
     trail: Option<Trail>,
-    /// The segments of a path nav, start first.
+    /// The remaining segments of a path nav, current segment first after each accepted edge.
     pub path: Vec<u16>,
     /// Whom the path was found for.
     pub path_type: PathType,

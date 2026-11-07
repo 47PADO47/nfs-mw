@@ -14,24 +14,48 @@ pub const START: u32 = 0xA6A5_6EA1;
 /// An event a NIS scene fires, with the parameters the player reads. Strings are the names the scene's string table holds.
 #[derive(Debug, Clone, PartialEq)]
 pub enum NisEvent {
+    Car {
+        system: u32,
+        event: super::car_events::CarEvent,
+    },
     /// `ECellCall`: a phone call or message, by its id.
     CellCall(u32),
     /// `ENISScreenFlash`: a full-screen flash that fades over `length` seconds.
-    ScreenFlash { length: f32 },
+    ScreenFlash {
+        length: f32,
+    },
     /// `ENISOverlayMessage`: a front-end overlay package and the message it shows.
-    Overlay { package: String, message: String },
+    Overlay {
+        package: String,
+        message: String,
+    },
     /// `ENISCarShake`: a camera shake of `shake` strength, `rate`, `ramp` in and lasting `time` seconds.
-    CarShake { shake: f32, rate: f32, ramp: f32, time: f32 },
+    CarShake {
+        shake: f32,
+        rate: f32,
+        ramp: f32,
+        time: f32,
+    },
     /// `ENISHideCharacter`: a named character model shown or hidden.
-    HideCharacter { name: String, show: bool },
+    HideCharacter {
+        name: String,
+        show: bool,
+    },
     /// `ENISFreeze`: freezes or unfreezes the scene's animation.
     Freeze(bool),
     /// `ENISLights`: the cop lights and the head lights.
-    Lights { cop: bool, head: bool },
+    Lights {
+        cop: bool,
+        head: bool,
+    },
     /// `ENISCopLights`: the cop lights on or off.
     CopLights(bool),
     /// `ENISPlayEffect`: a named effect at a point of the scene, with a magnitude vector.
-    PlayEffect { name: String, position: [f32; 3], magnitude: [f32; 3] },
+    PlayEffect {
+        name: String,
+        position: [f32; 3],
+        magnitude: [f32; 3],
+    },
     /// An event with no handler (its id). The runner logs it once per scene.
     Other(u32),
 }
@@ -98,20 +122,21 @@ impl NisEvents {
         while let Some(emission) = self.player.pop() {
             let Some(list) = package.event_lists.get(&emission.list) else { continue };
             for event in list {
-                self.collect(&package, event, &mut fired);
+                self.collect(&package, event, emission.system, &mut fired);
             }
         }
         fired
     }
 
     /// Decodes one event into `fired`. An event with no handler is logged once; a malformed one is logged and skipped.
-    fn collect(&mut self, package: &Package, event: &Event, fired: &mut Vec<NisEvent>) {
+    fn collect(&mut self, package: &Package, event: &Event, system: u32, fired: &mut Vec<NisEvent>) {
         match decode(package, event) {
             Some(NisEvent::Other(id)) => {
                 if self.unknown.insert(id) {
                     log::debug!("NIS event {id:08X} has no handler; it is ignored");
                 }
             }
+            Some(NisEvent::Car { event, .. }) => fired.push(NisEvent::Car { system, event }),
             Some(decoded) => fired.push(decoded),
             None => log::warn!("NIS event {:08X} is malformed; it is skipped", event.id),
         }
@@ -122,6 +147,15 @@ impl NisEvents {
 pub fn decode(package: &Package, event: &Event) -> Option<NisEvent> {
     let fields = Fields { data: &event.data, package };
     let decoded = match event.id {
+        0xA18E_1896 => NisEvent::Car {
+            system: 0,
+            event: super::car_events::CarEvent::Pitch { dip: fields.number(4)?, length: fields.number(8)? },
+        },
+        0x3081_837D => NisEvent::Car {
+            system: 0,
+            event: super::car_events::CarEvent::Roll { dip: fields.number(4)?, length: fields.number(8)? },
+        },
+        0x6A52_65B2 => NisEvent::Car { system: 0, event: super::car_events::CarEvent::Burnout(fields.number(4)?) },
         ids::CELL_CALL => NisEvent::CellCall(fields.word(4)?),
         ids::SCREEN_FLASH => NisEvent::ScreenFlash { length: fields.number(4)? },
         ids::OVERLAY_MESSAGE => NisEvent::Overlay { package: fields.text(4)?, message: fields.text(8)? },

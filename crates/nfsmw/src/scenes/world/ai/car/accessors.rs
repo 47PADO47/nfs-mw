@@ -96,6 +96,21 @@ impl AiCar {
     /// Sets the pose a NIS scene gives the car, or clears it with `None`.
     pub fn set_nis_pose(&mut self, pose: Option<CarPose>) {
         self.nis_pose = pose;
+        if pose.is_none() {
+            self.nis_body_tilt = glam::Quat::IDENTITY;
+        }
+    }
+
+    pub(in crate::scenes::world::ai) fn nis_ground_lift(&self) -> f32 {
+        self.sim.nis_ground_lift()
+    }
+
+    pub(in crate::scenes::world::ai) fn nis_geometry(&self) -> (f32, f32, [bool; 4]) {
+        self.sim.nis_geometry()
+    }
+
+    pub(in crate::scenes::world::ai) fn set_nis_body_tilt(&mut self, tilt: glam::Quat) {
+        self.nis_body_tilt = tilt;
     }
 
     /// Collision separation belongs to this tick's displayed pose too.

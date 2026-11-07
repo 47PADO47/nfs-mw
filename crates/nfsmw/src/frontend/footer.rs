@@ -21,6 +21,13 @@ pub enum Footer {
     /// Back then Accept: the original category, career and safe house carousels; the custom race's track list and
     /// the mode select of a mode with no tutorial.
     BackAccept,
+    RacePhoto {
+        race: bool,
+    },
+    RaceResults {
+        back: bool,
+        page: u32,
+    },
     /// Back, Accept and `2 View Tutorial`: the mode select on a mode that has a tutorial movie.
     Tutorial,
     /// Back, Accept and `1 Defaults`: the custom race's options.

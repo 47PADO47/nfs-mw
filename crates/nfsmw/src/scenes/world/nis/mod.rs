@@ -12,6 +12,7 @@
 #[cfg(test)]
 mod arrest_scene_tests;
 mod camera;
+mod car_events;
 mod car_memory;
 mod car_world;
 mod cars;
@@ -21,10 +22,10 @@ mod cop_cars;
 mod cop_wait;
 mod events;
 mod handlers;
+mod intro_grid;
 mod kind;
 mod loading;
 mod player;
-mod rev_rock;
 mod skin;
 mod world;
 

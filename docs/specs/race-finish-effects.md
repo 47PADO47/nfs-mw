@@ -82,21 +82,15 @@ Eye and look point are in **car space** (key bytes 4 and 5 are 0), the car being
 beltline, looking back at it; the lens is about 22 to 24 mm, a roll of a few hundredths of a turn. The photo is the camera
 at rest.
 
-**Rewrite.** When the race-over message ends and the report has a photo, `start_photo_shot` takes the track
-(`ReplayCameras::finish_track`: the race's `FinishCamera`, else `DefaultFinish`, `DragFinish` for a drag race) and the
-player's car as it stands, and the world's camera (`gameplay_lens`) is that camera at the end of the track (it does not
-play the cut-in) while the post-race screens are up. The car is drawn whatever camera mode the player drove with. It ends
-with the race (`release_race`). The camera is placed by `photo_shot::place` (car, hybrid and world spaces).
+**Rewrite.** Winning hands the photo to the front end on the next update. The driving view and world continue
+through a 0.75 s slowdown, then simulation freezes and the finish camera plays its cut-in. At 1.5 s the package's appearance scripts start.
+The frame, animated text, footer and shutter follow [presentation follow-up](race-presentation-followup.md).
+The camera uses the human car's transform at the cut and ends with the race.
 
 ## 4. What is not done, or not known
 
-- **The car after the line.** The photo shows the player's car where the world froze, which is where the race-over
-  message ended, 3 s after the line. In the original the flares stand behind the car in the photo, which says the car is
-  near the line then; whether the game takes the car over after the finish and brakes it (as an autopilot would) was not
-  read **[unconfirmed]**. The rewrite leaves the car under the player's hands for those 3 s, so a car that crossed fast
-  is well past the line in the photo. A demo run (`race start <race> demo`) puts the car at the line.
-- **The cut-in.** The camera's first 0.64 s is not played; the photo screen has no animated frame, so only the settled
-  picture is seen.
+- **The car after the line.** The host uses neutral controls and a simulation ramp before freezing at the camera cut.
+  The exact native slowdown curve and post-finish vehicle control remain unverified.
 - **Which side.** The cameras are on either side of the car: `SprintFinish` is at `y = -2.41` (the car's right, with
   the axes of [car-assembly.md](car-assembly.md): +y left), `PHoldFin_15` at `y = +1.76` (its left, which is the
   front-left view of the screenshots of the original). The sign of +y was taken from the car-space convention, not from a

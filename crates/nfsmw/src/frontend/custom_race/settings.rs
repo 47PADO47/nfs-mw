@@ -111,7 +111,7 @@ impl Settings {
         match row {
             Row::Laps if mode == Mode::Knockout => {}
             Row::Laps => self.laps = cycle(self.laps, 1, MAX_LAPS),
-            Row::Opponents => self.opponents = cycle(self.opponents, 1, MAX_OPPONENTS),
+            Row::Opponents => self.opponents = cycle(self.opponents, 0, MAX_OPPONENTS),
             Row::Difficulty => self.difficulty = cycle(self.difficulty, 0, 2),
             Row::Traffic => self.traffic = cycle(self.traffic, 0, 3),
             Row::CatchUp => self.catch_up = !self.catch_up,
@@ -181,7 +181,8 @@ mod tests {
         assert_eq!(s.laps, 1);
         s.opponents = MAX_OPPONENTS;
         s.step(Mode::Circuit, Row::Opponents, true);
-        assert_eq!(s.opponents, 1);
+        assert_eq!(s.opponents, 0);
+        assert_eq!(s.race_options(Mode::Circuit).opponents, Some(0));
         s.step(Mode::Circuit, Row::Opponents, false);
         assert_eq!(s.opponents, MAX_OPPONENTS);
         for _ in 0..3 {

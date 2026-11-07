@@ -34,6 +34,16 @@ allowing another attempt. Confirming changed tuning's discard closes its dialog 
 page's same native leave sequence. Dispatch Cancel only after that page's EXIT_COMPLETE. No gameplay-save
 eligibility or tuning persistence semantics are changed here.
 
+## Pause entry and locked categories
+
+The pause entry opens the tuning page whenever the mode supports tuning. A stock
+car still opens it; its unavailable categories remain disabled by the tuning
+model. Opening the page must not run a garage purchase or replace the driven car
+with the career's selected car. A tuning session snapshots only the driven
+selection. It persists to the native career car only when this is a career
+drive of that owned car. Quick races and forced story cars retain tuning for
+the current drive without creating a My Cars slot or changing another car.
+
 ## Validation
 
 Installed regressions must reproduce double wrapping, PC footer reappearance after Help, and premature clean exit

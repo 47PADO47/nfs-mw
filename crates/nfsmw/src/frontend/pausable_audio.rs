@@ -2,8 +2,23 @@
 use super::Pausable;
 
 impl Pausable {
+    pub(super) fn visible_nis_audio(&self) -> Option<&crate::audio::nis::NisAudioRequest> {
+        if self.concealed() {
+            return None;
+        }
+        self.inner.nis_audio()
+    }
+
+    pub(super) fn paused_note_car_visual_rpm(&mut self, player: usize, fraction: Option<f32>) {
+        let fraction = match self.paused.get() || self.concealed() {
+            true => None,
+            false => fraction,
+        };
+        self.inner.note_car_visual_rpm(player, fraction);
+    }
+
     pub(super) fn paused_car_sound(&mut self) -> Option<crate::audio::CarSoundState> {
-        if self.paused.get() || self.concealed() {
+        if (self.paused.get() && !self.inner.runs_while_paused()) || self.concealed() {
             return None;
         }
         self.inner.car_sound()

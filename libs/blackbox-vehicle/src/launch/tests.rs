@@ -101,8 +101,10 @@ fn speed_cutoff_is_strict_and_reset_preserves_only_configuration() {
     state.configure(None);
     state.set_staging(true);
     state.update(&input(5875.0));
-    assert!(!state.staging());
+    assert!(state.staging(), "physical staging is independent of launch assistance");
     assert!(!state.launch());
+    assert_eq!(state.strength(), 0.0);
+    assert_eq!(state.staging_traction_scale(), 1.0);
 }
 
 #[test]
