@@ -30,6 +30,7 @@ use nfsmw_data::car::physics::PerformanceCategory;
 pub(crate) use build::Inputs;
 pub(crate) use change::{Change, Edit};
 pub(crate) use groups::Group;
+pub(crate) use names::humanize;
 
 /// Where a slot's choice is kept.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

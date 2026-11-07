@@ -3,7 +3,7 @@
 use nfsmw_data::car::physics::PerformanceCategory;
 
 /// A slot id as a label: `brake_discs` is `Brake discs`.
-pub(super) fn humanize(id: &str) -> String {
+pub(crate) fn humanize(id: &str) -> String {
     let words = id.trim_start_matches("perf_").replace(['_', '-'], " ");
     let mut chars = words.chars();
     match chars.next() {
