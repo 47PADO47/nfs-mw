@@ -8,7 +8,7 @@ use glam::Vec3;
 
 use super::parts::{affine, mounted};
 use super::select::{category_of, choice_hash, performance_of, picks, resolve};
-use super::{Binding, Components, Role, catalog, is_choice, keys, of, publish, upgraded};
+use super::{Binding, Components, Role, catalog, is_choice, is_choice_of, keys, of, publish, upgraded};
 use crate::car::customization::{Category, Selection};
 use crate::car::mods::CarStats;
 use crate::car::physics::{PerformanceCategory, PerformancePackage};
@@ -179,6 +179,18 @@ fn a_published_bike_is_upgraded_by_its_package_and_a_stock_package_changes_nothi
 }
 
 #[test]
+fn a_car_whose_slots_do_not_fit_its_catalog_still_draws_its_own_stock_parts() {
+    let mut parts = components().parts;
+    parts
+        .insert("exhaust.race".to_owned(), Binding { pack: Some("PARTS/R6/MUF_001".to_owned()), ..binding("MUF_001") });
+    let stock = Components::stock_only("StockOnlyBike", parts);
+    assert!(stock.vehicle.slots.is_empty() && stock.catalog.get("t:exhaust.stock").is_none());
+    let resolved = resolve("STOCKONLYBIKE", &stock, &Selection::default(), PerformancePackage::default()).unwrap();
+    // The part of the car's own file is drawn, the aftermarket one of a pack is not.
+    assert_eq!(resolved.parts.iter().map(String::as_str).collect::<Vec<_>>(), ["exhaust.stock"]);
+}
+
+#[test]
 fn the_shop_offers_a_bike_the_levels_of_its_ladders_only() {
     super::super::bike::publish("COMPTESTBIKE2", BikeSpec::example());
     publish("COMPTESTBIKE2", components());
@@ -272,4 +284,12 @@ fn a_component_in_a_garage_slot_is_a_priced_choice_and_a_ladder_tier_is_not() {
         "the engine ladder is a performance level, not a part"
     );
     assert!(!is_choice(choice_hash("COMPTESTBIKE5", "t:exhaust.race")));
+}
+
+#[test]
+fn a_choice_of_a_car_is_told_from_the_model_lists_by_its_folder() {
+    publish("COMPTESTBIKE6", components());
+    assert!(is_choice_of("comptestbike6", choice_hash("COMPTESTBIKE6", "t:exhaust.race")));
+    assert!(!is_choice_of("COMPTESTBIKE6", choice_hash("COMPTESTBIKE6", "t:engine.1")));
+    assert!(!is_choice_of("NOCOMPONENTSBIKE", choice_hash("NOCOMPONENTSBIKE", "t:exhaust.race")));
 }

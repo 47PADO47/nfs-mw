@@ -1,4 +1,9 @@
-//! The screen of a bike's instrument cluster, drawn once at the engine's idle.
+//! The screen of a bike's instrument cluster, at rest.
+//!
+//! RIDE 6 draws a cluster with two Unreal widgets (the base colour and the emissive one) into the textures of `mat_gauge`; the
+//! exporter composes both at the state of a bike at rest into `tex/<picture>_dash.png` (`tools/ride6-exporter/dash.py`), and
+//! [`composed`] takes that picture in place of the cluster's static one. A bike with no widget keeps the older fallback below: it
+//! looks for the black window of the static picture and draws a small panel into it.
 //!
 //! RIDE 6 shows the cluster's picture (`gaugeNNN_d`, the base colour of `mat_gauge`) with a black window where the instrument
 //! panel is drawn at run time: the picture holds only the bezel, the warning lamps and, on a bike with a colour display, a black
@@ -13,7 +18,9 @@
 //! well inside the picture and has the proportions of a display. A picture without such a rectangle (the dials of an analogue
 //! cluster, a bezel on a black ground) is left as it is.
 
-use crate::textures::Picture;
+use anyhow::Result;
+
+use crate::textures::{Picture, TexStore};
 
 /// The brightest channel of a texel that still counts as black.
 const BLACK: u8 = 12;
@@ -163,6 +170,12 @@ pub fn draw_idle(picture: &mut Picture, window: Window) {
     let small = (unit / 3).max(1);
     let label_x = x + width - width / 12 - text_width(small, "KM/H");
     text(picture, (label_x, top + 7 * unit + 2 * small), small, GREY, "KM/H");
+}
+
+/// The cluster picture the exporter composed from the bike's widgets (`<stem>_dash.png`), if it wrote one.
+pub fn composed(store: &mut TexStore, stem: &str) -> Result<Option<Picture>> {
+    let Some(picture) = store.picture(&format!("{}_dash", stem.to_ascii_lowercase()))? else { return Ok(None) };
+    Ok(Some(Picture { width: picture.width, height: picture.height, rgba: picture.rgba.clone() }))
 }
 
 /// Draw the idle panel into the display of `picture` when it has one; returns whether it did.

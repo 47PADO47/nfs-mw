@@ -23,7 +23,11 @@ pub const RUBBER: &str = "RUBBER";
 pub const BRAKE_DISC: &str = "BRAKEDISC";
 pub const CHROME: &str = "CHROME";
 pub const POLISHED_METAL: &str = "MAGSILVER";
-pub const ROUGH_METAL: &str = "ALUMINUM";
+/// A bright metal of roughness from [`POLISHED_ROUGHNESS`] (satin and brushed steel and aluminium, most of an engine atlas). It was
+/// `ALUMINUM`, a conductor class that draws the reflection of the environment alone, so every satin metal took the colour of the
+/// sky (the frames and engines of the Honda CRF 450 R and the KTM RC 390 rendered blue-white where RIDE 6 shows neutral silver);
+/// it is now the painted-metal response of [`DARK_METAL`], which keeps the neutral colour of the texture and adds a weak reflection.
+pub const ROUGH_METAL: &str = DARK_METAL;
 /// A metal of middle brightness: the texture under a painted-metal response with a weak reflection.
 pub const DARK_METAL: &str = "MAGGUNMETAL";
 pub const GLOSS: &str = "SHINYPLASTIC";
@@ -33,7 +37,8 @@ pub const MATTE: &str = "DULLPLASTIC";
 pub const METAL_THRESHOLD: f32 = 0.5;
 /// Roughness below which bare metal is chrome, and below which a dielectric is glossy.
 pub const CHROME_ROUGHNESS: f32 = 0.2;
-pub const POLISHED_ROUGHNESS: f32 = 0.4;
+/// Roughness below which a bright bare metal is polished silver (`MAGSILVER`); from it up it is satin ([`ROUGH_METAL`]).
+pub const POLISHED_ROUGHNESS: f32 = 0.3;
 pub const GLOSS_ROUGHNESS: f32 = 0.4;
 /// Linear luminance of the base colour below which a metal reflects too little to be told from a dark paint.
 pub const DARK_METAL_LUMINANCE: f32 = 0.08;
@@ -182,7 +187,8 @@ mod tests {
     #[test]
     fn bright_neutral_metal_steps_from_chrome_to_rough_and_dielectrics_from_gloss_to_matte() {
         assert_eq!(light_material(Kind::Body, steel(0.1)), CHROME);
-        assert_eq!(light_material(Kind::Rim, steel(0.3)), POLISHED_METAL);
+        assert_eq!(light_material(Kind::Rim, steel(0.25)), POLISHED_METAL);
+        assert_eq!(light_material(Kind::Rim, steel(0.45)), ROUGH_METAL);
         assert_eq!(light_material(Kind::Body, steel(0.8)), ROUGH_METAL);
         assert_eq!(light_material(Kind::Body, response(0.0, 0.2, 0.5, 0.0)), GLOSS);
         assert_eq!(light_material(Kind::Body, response(0.2, 0.9, 0.5, 0.0)), MATTE);

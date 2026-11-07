@@ -18,6 +18,7 @@ outside the repository (`C:\r6work`).
 | `export_all.py` | every bike, several at a time, resumable (`status.json` per bike) |
 | `report.py` | the completeness report (which bike lacks which part, and the reason) |
 | `gear.py`, `gear_colors.py` | the rider gear catalogue (helmets, suits, gloves, boots) with its meshes and pictures, written once into `C:6workider-gear` ([format](../../docs/formats/ride6-rider-gear.md)); needs the tool's `gmesh` and `gtex` modes |
+| `dash.py` (+ `dash_widgets.py`, `dash_paint.py`) | the screen of every bike's instrument cluster at rest: the HUD widgets (`HUD<chassis>`) drawn into `tex/gauge<n>_d_dash.png` ([instrument clusters](../../docs/formats/ride6-materials.md#instrument-clusters)) |
 | `physdump.py` | the physics dump `ride6-bike-import --physics` reads (inheritance resolved) |
 
 ## Setup (once)
@@ -45,6 +46,7 @@ folder themselves.
 python -I tools\ride6-exporter\export_all.py --out C:\r6work\bikes [--only <regex>] [--jobs 3] [--force] [--normals]
 python -I tools\ride6-exporter\report.py --out C:\r6work\bikes
 python -I tools\ride6-exporter\physdump.py --out C:\r6work\physdump-all
+python -I tools\ride6-exporter\dash.py --out C:\r6work\bikes [--only <regex>]   (the cluster screens, after export_all; about 15 minutes for all bikes, then import again)
 python -I tools\ride6-exporter\bikeparts.py <vehicle id> C:\r6work\bikes\<vehicle id>      (one bike)
 ```
 

@@ -12,7 +12,9 @@ use crate::config::Config;
 /// 3: glass blended as its transmittance, metals spared most of the baked occlusion, more stock parts, liveries, the finest level
 /// of detail whose solids fit, colours not veiled by the reflection, the idle panel in the instrument clusters' displays.
 /// 5: the rider's gear catalogue (`files/RIDER/GEAR`).
-const CONVERSION: u32 = 5;
+/// 6: the clusters' screens composed from RIDE 6's gauge widgets (`tex/*_dash.png`), the livery paint's occlusion floor, the hue-keeping
+/// lift and satin metal drawn as painted metal.
+const CONVERSION: u32 = 6;
 /// The name of the stamp file, in the mod's folder.
 pub const FILE: &str = ".import-stamp";
 

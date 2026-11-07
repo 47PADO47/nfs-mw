@@ -376,11 +376,11 @@ The 2005 car shader ignores normal maps, has no per-texel gloss, and the stock c
 done, in the order of fidelity:
 
 1. **Baked path (default).** The diffuse picture is the base colour with the occlusion channel applied in linear light with a
-   floor of 0.55, lifted by a gain of 1.35 and given the reflection a dielectric adds (0.25; the three are choices measured in
-   [how bright the baked bikes are](../formats/ride6-materials.md#how-bright-the-baked-bikes-are)); opacity is cut at the material's clip value (brake disc holes, chain links, sprocket teeth) with the
+   floor of 0.55 (0.9 for the livery paint), lifted by a gain of 1.35 with the hue kept and given the reflection a dielectric adds (0.25; these are choices measured in
+   [how bright the baked bikes are](../formats/ride6-materials.md#how-bright-the-baked-bikes-are) and [paint and satin metal](../formats/ride6-materials.md#paint-and-satin-metal)); the instrument cluster's picture is the exporter's composition of RIDE 6's two gauge widgets at rest ([instrument clusters](../formats/ride6-materials.md#instrument-clusters)); opacity is cut at the material's clip value (brake disc holes, chain links, sprocket teeth) with the
    texture marked punch-through and two-sided. Each triangle takes the light material its metallic, roughness and base
-   colour say, read over the interior of the triangle (`CHROME`, `MAGSILVER`, `ALUMINUM` for bright neutral bare metal only;
-   `MAGGUNMETAL` for a darker (occluded) metal; `SHINYPLASTIC` / `DULLPLASTIC` for dark or coloured metal and for every
+   colour say, read over the interior of the triangle (`CHROME` and `MAGSILVER` for polished bright neutral bare metal only;
+   `MAGGUNMETAL` for satin and for a darker (occluded) metal; `SHINYPLASTIC` / `DULLPLASTIC` for dark or coloured metal and for every
    dielectric; `BRAKEDISC`, `RUBBER`), so the shading groups of one material split by surface. A black, gold or anodised
    metal therefore keeps the colour of its texture instead of turning silver ([the table](../formats/ride6-materials.md#what-the-importer-keeps-and-loses)
    has the thresholds, **[choice]**). Textures are DXT1 (opaque) or DXT5 (cut-out) with a full mip chain, written by the

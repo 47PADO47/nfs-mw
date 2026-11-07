@@ -1,7 +1,7 @@
 //! The components of a mod's cars (ADR 0014, docs/modding/ride6-bike-upgrades.md): the mod's `components/*.toml` catalog files are
 //! read once per mod, and each car that lists slots is checked against them and published for the game.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -60,17 +60,23 @@ fn binding(part: &PartBinding) -> Binding {
 }
 
 /// Publish the components of the car in `folder`, whose mod is in `owner`. A car whose slots do not fit its mod's catalog is
-/// logged and left as it is (stock, no components).
+/// logged and published with its own stock parts only (no choices): its stock parts are solids of their own, and must still draw.
 pub(super) fn publish(owner: &Path, folder: &str, own: &Manifest) {
     let catalog = catalog_of(owner);
     let vehicle = VehicleDef { id: folder.to_ascii_lowercase(), parts: BTreeSet::new(), slots: own.slots.clone() };
-    if let Err(errors) = vehicle.check(&catalog) {
-        for error in errors.iter().take(5) {
-            log::warn!("mod car {folder}: {error}");
-        }
-        log::warn!("mod car {folder}: its components are not offered ({} mistakes)", errors.len());
+    let parts: BTreeMap<String, Binding> = own.parts.iter().map(|(id, part)| (id.clone(), binding(part))).collect();
+    let Err(errors) = vehicle.check(&catalog) else {
+        components::publish(folder, components::Components { vehicle, catalog, parts });
         return;
+    };
+    for error in errors.iter().take(5) {
+        log::warn!("mod car {folder}: {error}");
     }
-    let parts = own.parts.iter().map(|(id, part)| (id.clone(), binding(part))).collect();
-    components::publish(folder, components::Components { vehicle, catalog, parts });
+    log::warn!(
+        "mod car {folder}: its components are not offered ({} mistakes; is {} of {} missing?); its stock parts are drawn",
+        errors.len(),
+        COMPONENTS_FOLDER,
+        owner.display()
+    );
+    components::publish(folder, components::Components::stock_only(folder, parts));
 }
