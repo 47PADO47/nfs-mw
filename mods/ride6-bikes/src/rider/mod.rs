@@ -157,7 +157,7 @@ fn write_styles(pack: &blackbox_skeleton::Pack, output: &Path) -> Result<Vec<&'s
 /// Adds the animations of the export in `input` (a folder with `skeleton.json` and `*.r6ra` and/or `acl/`, made by the export tool's
 /// `skeleton`, `anims` and `acl` modes) to the rider already in `output`, and writes every graph again. The clips the pack has
 /// already keep their data. Nothing else of the rider is read again: a rider imported before a clip set grew gets it without the
-/// whole export.
+/// whole export. When the folder also has `bike_skeleton.json` (the reference bike's), `attach.json` is made again with it.
 pub fn merge(input: &Path, output: &Path) -> Result<Summary> {
     let read = |name: &str| fs::read(input.join(name)).with_context(|| format!("reading {name}"));
     let rider_json = raw::parse_skeleton(&read("skeleton.json")?)?;
@@ -181,12 +181,27 @@ pub fn merge(input: &Path, output: &Path) -> Result<Summary> {
         }
     }
     let attach_path = output.join("attach.json");
-    let mut attach: serde_json::Value =
-        serde_json::from_slice(&fs::read(&attach_path).context("reading attach.json")?).context("attach.json")?;
-    if let Some(map) = attach.as_object_mut() {
-        map.insert("wrist_throttle".to_owned(), attach::wrist_throttle());
+    // With the reference bike's skeleton (`bike_skeleton.json`) attach.json is made again, with where the hands hold the grips; without
+    // it the file is kept and only the throttle's wrist is added.
+    let bike_skeleton = input.join("bike_skeleton.json");
+    if bike_skeleton.is_file() {
+        let bike_json = raw::parse_skeleton(&fs::read(&bike_skeleton).context("reading bike_skeleton.json")?)?;
+        let reference = pack
+            .clips
+            .iter()
+            .find(|c| c.name == attach::REFERENCE_CLIP)
+            .with_context(|| format!("the animation {} is not in the rider", attach::REFERENCE_CLIP))?
+            .sample(&pack.skeleton, 0.0, false);
+        let attach = attach::attach_json(&pack.skeleton, &reference, &bike_json)?;
+        fs::write(&attach_path, serde_json::to_vec_pretty(&attach)?)?;
+    } else {
+        let mut attach: serde_json::Value =
+            serde_json::from_slice(&fs::read(&attach_path).context("reading attach.json")?).context("attach.json")?;
+        if let Some(map) = attach.as_object_mut() {
+            map.insert("wrist_throttle".to_owned(), attach::wrist_throttle());
+        }
+        fs::write(&attach_path, serde_json::to_vec_pretty(&attach)?)?;
     }
-    fs::write(&attach_path, serde_json::to_vec_pretty(&attach)?)?;
     let graph = graph::graph_selectable(&pack, &graph_sets::MOTARD)?;
     graph.validate(&pack.clips, &pack.skeleton)?;
     let styles = write_styles(&pack, output)?;

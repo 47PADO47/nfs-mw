@@ -37,11 +37,18 @@ public static class Anim
         return sequence;
     }
 
-    /// <summary>The skeleton of the first sequence of <paramref name="package"/> as <c>skeleton.json</c>.</summary>
+    /// <summary>The skeleton of the first sequence of <paramref name="package"/> (or the package's own skeleton, the bike's
+    /// <c>chassis369_Skeleton</c> for example) as <c>skeleton.json</c>.</summary>
     public static bool Skeleton(DefaultFileProvider provider, string package, string outFile, TextWriter output)
     {
-        var sequence = Sequence(provider, package, output);
-        if (sequence?.Skeleton == null || !sequence.Skeleton.TryLoad<USkeleton>(out var skeleton)) return false;
+        USkeleton? skeleton = null;
+        var file = Provider.Find(provider, package);
+        if (file != null) skeleton = provider.LoadPackage(file).GetExports().OfType<USkeleton>().FirstOrDefault();
+        if (skeleton == null)
+        {
+            var sequence = Sequence(provider, package, output);
+            if (sequence?.Skeleton == null || !sequence.Skeleton.TryLoad<USkeleton>(out skeleton)) return false;
+        }
         var reference = skeleton.ReferenceSkeleton;
         var bones = new List<object>();
         for (var i = 0; i < skeleton.BoneCount; i++)

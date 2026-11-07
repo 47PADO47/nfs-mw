@@ -24,6 +24,10 @@ pub const TARGETS: [(&str, &str, bool); 4] = [
     ("right_foot", "SOCKET_RIGHT_FOOT", false),
 ];
 
+/// The handlebar bone each grip target is held on: the centre of the grip rubber. The sockets above are where RIDE 6's rider puts his
+/// wrist; the bone is where the grip is, and the game puts the hand's grip on it (`tip_anchor`, `anchor`).
+pub const GRIP_BONES: [(&str, &str); 2] = [("left_grip", "BONE_L_GRIP"), ("right_grip", "BONE_R_GRIP")];
+
 /// The limbs the animation blueprint reaches with inverse kinematics: its control rigs `CtrlRig_HandsIK` and
 /// `CtrlRig_FeetCorrection` solve them with a full-body IK; the runtime uses a two-bone solve on the same bones.
 /// `(name, root, mid, tip, pole bone, target role)`.
@@ -144,11 +148,17 @@ pub fn attach_json(rider: &Skeleton, reference: &Pose, bike: &JsonSkeleton) -> R
             true => Transform::IDENTITY,
             false => measured,
         };
-        limbs.push(json!({
+        let mut limb = json!({
             "name": name, "root": root, "mid": mid, "tip": tip, "pole": pole, "target": role,
             "tip_offset": offset.to_array(),
             "tip_frame": contacts::transform_json(&frame),
-        }));
+        });
+        // Where the grip is, in the tip's own frame: the hand of the authored pose holds the reference bike's grip there.
+        if let Some(anchor) = points.anchor(role) {
+            let in_rider = to_rider_space(&seat, anchor);
+            limb["tip_anchor"] = json!(rider_component[tip_index].inverse().transform_point(in_rider).to_array());
+        }
+        limbs.push(limb);
     }
     for bone in TORSO_LEAN.iter().chain(&TORSO_HEAD).chain(&SEAT_BONES).chain(&[INERTIA_BONE]) {
         rider.find(bone).with_context(|| format!("the rider has no bone {bone}"))?;

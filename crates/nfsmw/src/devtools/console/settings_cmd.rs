@@ -13,7 +13,7 @@ use crate::settings::hud;
 use crate::settings::net;
 use crate::settings::{
     CameraMode, HudLayout, MinimapMode, Percent, PostAa, PostBloom, PostTonemap, RadioHudStyle, RenderScale,
-    RendererKind, Settings, SpeedUnits, Transmission, UiStyle, parse_bool,
+    RendererKind, RidingStyle, Settings, SpeedUnits, Transmission, UiStyle, parse_bool,
 };
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -79,6 +79,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
         "ui_style" | "ui-style" | "radio_hud" | "radio-hud" => settings.ui_style.to_string(),
         "speed_units" | "speed-units" => settings.speed_units.to_string(),
+        "riding_style" | "riding-style" => settings.riding_style.to_string(),
         "manual_clutch" => on_off(settings.manual_clutch).to_owned(),
         "h_shifter" => on_off(settings.h_shifter).to_owned(),
         key if hd_content::is_key(key) => hd_content::get(&settings.hd_content, key),
@@ -195,6 +196,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "hud_layout" | "hud-layout" => settings.hud_layout = HudLayout::from_str(value)?,
         "ui_style" | "ui-style" => settings.ui_style = UiStyle::from_str(value)?,
         "speed_units" | "speed-units" => settings.speed_units = SpeedUnits::from_str(value)?,
+        "riding_style" | "riding-style" => settings.riding_style = RidingStyle::from_str(value)?,
         // The legacy alias: ea_trax and custom, mapped onto the same setting.
         "radio_hud" | "radio-hud" => settings.ui_style = UiStyle::from(RadioHudStyle::from_str(value)?),
         "manual_clutch" => settings.manual_clutch = parse_bool(value)?,
@@ -310,6 +312,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "hud_layout" | "hud-layout" => "<pc|classic|xbox360>",
         "ui_style" | "ui-style" => "<original|custom|remastered>",
         "speed_units" | "speed-units" => "<metric|imperial>",
+        "riding_style" | "riding-style" => "<balanced|shoulders-out|old-school>",
         "radio_hud" | "radio-hud" => "<ea_trax|custom> (alias of ui_style)",
         "post_tonemap" => "<off|aces>",
         "post_bloom" => "<off|low|medium|high>",

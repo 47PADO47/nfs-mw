@@ -9,6 +9,10 @@ use crate::garage::rider_gear;
 use crate::scenes::world::drive::CarPose;
 use crate::scenes::world::drive::rider::Rider;
 
+/// The time the rider's animation moves on by in each update of the viewer (s), and the steps that bring him to his state the first time.
+const FRAME: f32 = 1.0 / 60.0;
+const SETTLE_STEPS: usize = 300;
+
 impl CarScene {
     /// Where the bike stands, as the pose the rider is placed from.
     fn rider_pose(&self) -> CarPose {
@@ -27,6 +31,11 @@ impl CarScene {
         }
         let pose = self.rider_pose();
         self.rider.maintain(renderer, &source.dir, &self.model, (&pose, true));
+        // The rider in the state he is shown in (a bike standing, unless `--rider-state` says another): brought to it once, as many
+        // steps as his smoothers need, then his clips play on.
+        let steps = if self.rider_settled { 1 } else { SETTLE_STEPS };
+        self.rider_settled = true;
+        (0..steps).for_each(|_| self.rider.step(Some(self.rider_state), FRAME));
         let mut rider: Vec<Instance> = Vec::new();
         self.rider.instances(&pose, &mut rider);
         self.instances.extend(rider);
@@ -34,6 +43,7 @@ impl CarScene {
 
     /// Frees the rider's meshes and pictures; the next update loads him again.
     pub(super) fn release_rider(&mut self, renderer: &mut dyn RenderBackend) {
+        self.rider_settled = false;
         std::mem::replace(&mut self.rider, Rider::previewing()).release(renderer);
     }
 }

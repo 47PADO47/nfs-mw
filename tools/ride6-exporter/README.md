@@ -18,7 +18,7 @@ outside the repository (`C:\r6work`).
 | `export_all.py` | every bike, several at a time, resumable (`status.json` per bike) |
 | `report.py` | the completeness report (which bike lacks which part, and the reason) |
 | `gear.py`, `gear_colors.py` | the rider gear catalogue (helmets, suits, gloves, boots) with its meshes and pictures, written once into `C:6workider-gear` ([format](../../docs/formats/ride6-rider-gear.md)); needs the tool's `gmesh` and `gtex` modes |
-| `rider_anims.py` | the rider animations the standstill and the hands need (the finger clips, the stand, start and stop clips of every bike type): `skeleton.json`, an `R6RA` file and `acl/`, for `ride6-rider-import --merge` |
+| `rider_anims.py` | the rider animations the standstill and the hands need (the finger clips, the stand, start and stop clips of every bike type): `skeleton.json`, `bike_skeleton.json`, an `R6RA` file and `acl/`, for `ride6-rider-import --merge` |
 | `physdump.py` | the physics dump `ride6-bike-import --physics` reads (inheritance resolved) |
 
 ## Setup (once)

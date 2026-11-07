@@ -140,6 +140,8 @@ pub struct Partial {
     pub ui_style: Option<UiStyle>,
     /// The HUD's speed unit (`speed_units`).
     pub speed_units: Option<SpeedUnits>,
+    /// How the rider of a bike leans into a corner (`riding_style`).
+    pub riding_style: Option<super::RidingStyle>,
     /// The language tag (`language`).
     pub language: Option<super::LanguageTag>,
     /// The palette of the token-driven HUD (`ui_theme`).
@@ -283,6 +285,7 @@ impl Partial {
             hud_options: self.hud_options.or(lower.hud_options),
             ui_style: self.ui_style.or(lower.ui_style),
             speed_units: self.speed_units.or(lower.speed_units),
+            riding_style: self.riding_style.or(lower.riding_style),
             language: self.language.or(lower.language),
             ui_theme: self.ui_theme.or(lower.ui_theme),
             post_tonemap: self.post_tonemap.or(lower.post_tonemap),

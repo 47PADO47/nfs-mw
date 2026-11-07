@@ -213,14 +213,15 @@ fn assemble(pack: &Pack, set: &ClipSet, riding: Node) -> Result<Graph> {
     let stoppie_pose = node(pack, set.stoppie, TimeMode::Fraction(stoppie_time))?;
     let with_stoppie = blend(with_wheelie, stoppie_pose, Value::param(STOPPIE));
     let with_drift = with_standing_and_drift(pack, set, with_stoppie)?;
-    let walking = graph_reverse::with_walk(pack, with_drift, &set.walk, REVERSE)?;
-    let standing = graph_stand::with_stand(pack, set, walking, STAND)?;
+    // The standstill over everything above; the reverse walk over that (a bike that rolls back is standing, and the walk is on top).
+    let standing = graph_stand::with_stand(pack, set, with_drift, STAND)?;
+    let walking = graph_reverse::with_walk(pack, standing, &set.walk, REVERSE)?;
 
     // Additive shake of the body, low and high speed.
     let shake =
         blend(looped(pack, set.shake[0])?, looped(pack, set.shake[1])?, Value::remap(SPEED, NOISE_SWAP, (0.0, 1.0)));
     let shaken = Node::Additive {
-        base: Box::new(standing),
+        base: Box::new(walking),
         delta: Box::new(shake),
         weight: Value::remap(SPEED, NOISE_RAMP, (0.0, NOISE_ALPHA)),
     };

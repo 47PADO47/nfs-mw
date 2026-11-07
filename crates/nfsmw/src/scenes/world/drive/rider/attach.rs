@@ -39,6 +39,11 @@ pub struct Target {
     pub rotation: Option<[f32; 4]>,
     /// Whether it turns with the handlebar (a grip) or stays on the frame (a peg).
     pub steers: bool,
+    /// For a grip: the place of the handlebar bone it is held on (the centre of the grip rubber), in the same frame. The hand holds
+    /// the bike's grip there (`Limb::tip_anchor`), whatever distance the bike's hand socket is from it. Files written before it
+    /// have none and the hand goes to the socket.
+    #[serde(default)]
+    pub anchor: Option<[f32; 3]>,
 }
 
 /// A limb solved with two-bone IK: the three bones, the bone its middle joint bends towards, the target it reaches for
@@ -57,6 +62,10 @@ pub struct Limb {
     /// `tip_offset`.
     #[serde(default)]
     pub tip_frame: Option<Rigid>,
+    /// Where the grip the hand holds is in the tip bone's own frame in the authored pose (rider space metres): the tip goes where
+    /// its grip point is on the target's `anchor`.
+    #[serde(default)]
+    pub tip_anchor: Option<[f32; 3]>,
 }
 
 /// The bones the body leans forward with when the arms cannot reach the grips, and the bones that turn back to keep the head up.
@@ -112,6 +121,10 @@ pub struct Attach {
     /// What rests on the seat (`None`: the rider is not sat on a surface).
     #[serde(default)]
     pub seat: Option<SeatRig>,
+    /// The right wrist at full throttle against the right grip's own frame: a turn about the grip's axis and a move
+    /// (`docs/specs/ride6-rider-hands.md`). `None`: the throttle does not roll the wrist.
+    #[serde(default)]
+    pub wrist_throttle: Option<Rigid>,
     /// The top of this bike's seat along its centre line, `[x, z]` samples in the bike skeleton's frame, x ascending (from the
     /// bike's `contacts.json`; empty: unknown).
     #[serde(default)]

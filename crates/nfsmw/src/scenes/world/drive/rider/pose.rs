@@ -67,6 +67,8 @@ pub struct Limb {
     pub offset: Vec3,
     /// Where the tip sits in the target's own frame (a hand on its grip socket, a foot against its peg socket).
     pub frame: Option<Transform>,
+    /// Where the grip it holds is in the tip bone's own frame: the tip is put where this point is on the target's `anchor`.
+    pub anchor: Option<Vec3>,
     /// Whether the limb's root hangs on the bones the body leans with (an arm does, a leg does not).
     pub on_torso: bool,
     /// Which entry of [`Goals::release`] lets this limb off its target: the rider's legs, left (0) and right (1), found by the
@@ -103,6 +105,7 @@ impl Resolved {
                 target,
                 offset: Vec3::from_array(limb.tip_offset),
                 frame: limb.tip_frame.map(|frame| frame.transform()),
+                anchor: limb.tip_anchor.map(Vec3::from_array),
                 on_torso: torso.as_ref().is_some_and(|t| t.lean.iter().any(|&b| skeleton.is_descendant(chain.root, b))),
                 release: LEG_NAMES.iter().position(|name| *name == limb.name),
             });
@@ -134,6 +137,8 @@ impl Steering {
 pub struct Placed {
     pub position: Vec3,
     pub rotation: Option<Quat>,
+    /// Where the grip bone it is held on is, if the bike's file says.
+    pub anchor: Option<Vec3>,
 }
 
 /// Where each target of `attach` is now, in the rider's component space: the grips turned with the handlebar, the pegs where
@@ -145,10 +150,13 @@ pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>)
         .targets
         .iter()
         .map(|target| {
-            let in_model = Vec3::from_array(target.position) + frame.offset;
-            let moved = match target.steers {
-                true => turn.transform_point3(in_model),
-                false => in_model,
+            let place = |point: Vec3| {
+                let in_model = point + frame.offset;
+                let moved = match target.steers {
+                    true => turn.transform_point3(in_model),
+                    false => in_model,
+                };
+                frame.to_rider.transform_point3(moved)
             };
             let rotation = target.rotation.map(|[x, y, z, w]| {
                 let own = Quat::from_xyzw(x, y, z, w).normalize();
@@ -158,15 +166,44 @@ pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>)
                 };
                 frame.rider_turn * in_model
             });
-            Placed { position: frame.to_rider.transform_point3(moved), rotation }
+            Placed {
+                position: place(Vec3::from_array(target.position)),
+                rotation,
+                anchor: target.anchor.map(|anchor| place(Vec3::from_array(anchor))),
+            }
         })
         .collect()
+}
+
+/// Roll the right wrist by `wrist` (0 to 1, the throttle): the right grip's target turns about its own frame and moves by the file's
+/// offset at full throttle (`Attach::wrist_throttle`), the way the blueprint's `RightGripIKOffsetRotation` and
+/// `RightGripIKOffsetTranslation` move the grip IK target. A target without a turn, or a file without the offset, is left as it is.
+pub fn roll_wrist(attach: &Attach, targets: &mut [Placed], wrist: f32) {
+    let Some(offset) = attach.wrist_throttle else { return };
+    let Some(placed) = attach.target_index("right_grip").and_then(|index| targets.get_mut(index)) else { return };
+    let Some(turn) = placed.rotation else { return };
+    let share = wrist.clamp(0.0, 1.0);
+    let [x, y, z, w] = offset.rotation;
+    let rolled = Quat::from_xyzw(x, y, z, w).normalize();
+    let moved = turn * (Vec3::from_array(offset.translation) * share);
+    placed.position += moved;
+    // The grip point moves with it, and the hand turns about it: the wrist goes round the bar.
+    placed.anchor = placed.anchor.map(|anchor| anchor + moved);
+    placed.rotation = Some(turn * Quat::IDENTITY.slerp(rolled, share));
 }
 
 /// Where the tip of `limb` is to be for its target `placed`, and the turn it takes there (`None`: the arm's own).
 pub fn tip_goal(limb: &Limb, placed: &Placed) -> (Vec3, Option<Quat>) {
     match (limb.frame, placed.rotation) {
-        (Some(frame), Some(turn)) => (placed.position + turn * frame.translation, Some(turn * frame.rotation)),
+        (Some(frame), Some(turn)) => {
+            let rotation = turn * frame.rotation;
+            // A hand holds the bike's grip where the authored pose holds the reference bike's: its grip point on the bone's place.
+            let position = match (limb.anchor, placed.anchor) {
+                (Some(grip), Some(anchor)) => anchor - rotation * grip,
+                _ => placed.position + turn * frame.translation,
+            };
+            (position, Some(rotation))
+        }
         _ => (placed.position + limb.offset, None),
     }
 }

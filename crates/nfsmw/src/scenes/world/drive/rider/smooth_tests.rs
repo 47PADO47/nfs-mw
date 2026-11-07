@@ -58,7 +58,7 @@ fn corner_and_release(corner: f32, straight_after: f32) -> Vec<Frame> {
     let ground = FlatGround::new(0.0);
     assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, 30.0));
     let mut smoothed = Smoothed::default();
-    smoothed.set_kind(Some(0), Some(0));
+    smoothed.set_kind(Some(0), None);
     let mut frames = Vec::new();
     let steps = ((1.0 + corner + straight_after) / FIXED_STEP) as usize;
     for step in 0..steps {

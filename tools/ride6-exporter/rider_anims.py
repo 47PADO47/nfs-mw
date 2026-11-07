@@ -2,7 +2,8 @@ r"""The rider animations the standstill and the hands need, exported next to the
 
     python -I tools\ride6-exporter\rider_anims.py --out C:\r6work\rider-export
 
-writes `skeleton.json`, `standstill.r6ra` (the sequences Unreal's own codecs store) and `acl/` (the ACL ones) with the tool's `skeleton`, `anims` and
+writes `skeleton.json` (the rider's), `bike_skeleton.json` (the reference bike's, the KTM 450 SMR's chassis369: the hands' grip points are measured on it),
+`standstill.r6ra` (the sequences Unreal's own codecs store) and `acl/` (the ACL ones) with the tool's `skeleton`, `anims` and
 `acl` modes. Add them to the rider already imported with
 
     ride6-rider-import C:\r6work\rider-export <mod>\files\RIDER --merge
@@ -20,6 +21,8 @@ import tempfile
 
 TOOL = os.environ.get("R6_TOOL", r"C:\r6work\tools\bin\R6ToolParts.exe")
 ROOT = "ride6/Content/assets/graphics/characters/riders/riderShared/Animations/"
+# The skeleton of the bike the rider's authored pose is made for (`motard_CenterPose_LowSpeed` holds its grips: attach.json).
+REFERENCE_BIKE = "ride6/Content/assets/graphics/vehicles/bikes/chassis/chassis369/skeletons/chassis369_Skeleton.uasset"
 # The sequences by folder: (folder, regular expression of the file names).
 WANTED = [
     ("Race", r"race_(clutch_brake_gear.*|Wrist_X|stand_(both_feet|foot_[LR])|start_(both_feet|foot_[LR])|stop_(both_feet|foot_[LR]))"),
@@ -59,9 +62,10 @@ def main():
     with open(os.path.join(out, "list.txt"), "w", encoding="utf-8") as lines:
         lines.write("\n".join(paths) + "\n")
     skeleton = run("skeleton", paths[0], os.path.join(out, "skeleton.json"))
+    bike = run("skeleton", REFERENCE_BIKE, os.path.join(out, "bike_skeleton.json"))
     anims = run("anims", os.path.join(out, "list.txt"), os.path.join(out, "standstill.r6ra"))
     acl = run("acl", os.path.join(out, "list.txt"), os.path.join(out, "acl"))
-    for line in skeleton + anims + acl:
+    for line in skeleton + bike + anims + acl:
         if not line.startswith("OK") and not line.startswith("ACL") and not line.startswith("NOTACL"):
             print(line)
     print(f"{len(paths)} sequences: {sum(1 for l in anims if l.startswith('OK'))} sampled, "

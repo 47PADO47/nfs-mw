@@ -248,6 +248,7 @@ impl BikeRide {
             weight: self.bike.rider_weight(),
             steer: self.controls.steering,
             drift_deg: self.drift_angle_deg(),
+            clutch: self.bike.clutch_pulled(),
         }
     }
 
