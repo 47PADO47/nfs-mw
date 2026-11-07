@@ -25,6 +25,7 @@ pub mod config;
 pub mod dash;
 pub mod exhaust;
 pub mod exports;
+pub mod fallback;
 pub mod fork;
 pub mod front_end;
 pub mod glass;

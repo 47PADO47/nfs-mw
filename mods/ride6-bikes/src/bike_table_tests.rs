@@ -253,7 +253,7 @@ fn manifest_text(table: &BikeTable) -> String {
         levels: Vec::new(),
         extra_solids: Vec::new(),
     };
-    car_toml("Synth Bike", "Synth", &built, &Tables { bike: table, sound: None })
+    car_toml("Synth Bike", "Synth", &built, &Tables { bike: table, sound: None, fallbacks: &[] })
 }
 
 #[test]
