@@ -27,11 +27,14 @@ struct Args {
     /// Leave out the barriers, buildings and props.
     #[arg(long)]
     no_objects: bool,
+    /// Leave out the racing line.
+    #[arg(long)]
+    no_line: bool,
 }
 
 fn run(args: &Args) -> Result<()> {
     let started = std::time::Instant::now();
-    let keep = ride6_tracks::cells::Keep { objects: !args.no_objects };
+    let keep = ride6_tracks::cells::Keep { objects: !args.no_objects, line: !args.no_line };
     let limits = ride6_tracks::cells::Limits::default();
     let cancel = AtomicBool::new(false);
     let report =

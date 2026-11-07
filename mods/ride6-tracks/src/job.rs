@@ -95,7 +95,7 @@ pub fn start(mod_dir: &Path, supplied: Option<&config::Supplied>) -> Result<Star
         return Ok(Start::UpToDate { worlds: count_worlds(mod_dir) });
     }
     let live = mod_dir.join(CONTENT[0]).is_dir();
-    let keep = Keep { objects: config.objects };
+    let keep = Keep { objects: config.objects, line: config.racing_line };
     let job = spawn((config.max_texture, keep), packs, mod_dir.to_owned(), stamp)?;
     Ok(Start::Started { job, live })
 }

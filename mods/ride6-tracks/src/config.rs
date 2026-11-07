@@ -9,6 +9,8 @@
 //! max_texture = 512
 //! # The barriers, buildings and props of the track (more than the ground alone: 190 MB for Okayama instead of 110).
 //! objects = true
+//! # The racing line as a green ribbon on the ground.
+//! racing_line = true
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -55,6 +57,9 @@ max_texture = 512
 # The barriers, buildings and props of the track, and the walls they make: a world without them is smaller (Okayama 110 MB
 # instead of 190) and a rider can leave the track anywhere.
 objects = true
+
+# The racing line (the track authors' ideal trajectory) as a green ribbon on the ground.
+racing_line = true
 ";
 
 /// The settings of the mod.
@@ -65,11 +70,13 @@ pub struct Config {
     pub max_texture: u32,
     /// Keep the barriers, buildings and props of the packs.
     pub objects: bool,
+    /// Draw the racing line as a ribbon on the ground.
+    pub racing_line: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { source: None, max_texture: 512, objects: true }
+        Self { source: None, max_texture: 512, objects: true, racing_line: true }
     }
 }
 

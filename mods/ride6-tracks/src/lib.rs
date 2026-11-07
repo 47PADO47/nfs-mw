@@ -15,6 +15,7 @@ pub mod far;
 pub mod import;
 pub mod job;
 pub mod lap;
+pub mod line;
 pub mod manifest;
 pub mod model;
 mod native;

@@ -117,6 +117,13 @@ impl Ride6Tracks {
         match lap::Track::from_text(&text) {
             Ok(lap) => {
                 ctx.log(Level::Info, &format!("ride6-tracks: timing laps of {track} ({:.0} m)", lap.length()));
+                if let Some(hud) = ctx.hud() {
+                    let _ = hud.message(
+                        &format!("Lap timing on: {:.0} m, the line is ahead of the grid", lap.length()),
+                        MessageStyle::Info,
+                        6.0,
+                    );
+                }
                 self.lap = Some((track, Timer::new(lap)));
             }
             Err(error) => ctx.log(Level::Warn, &format!("ride6-tracks: the lap of {track} is not read: {error:#}")),

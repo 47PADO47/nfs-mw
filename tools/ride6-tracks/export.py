@@ -176,6 +176,9 @@ def export_spline(assets, track):
         if component is None:
             continue
         out["spline"] = level.sample_spline(component, 2.0)
+        ideal = level.spline_component(exports, "IdealTrajectory_1000cc_1")
+        if ideal is not None:
+            out["line"] = level.sample_spline(ideal, 2.0)
         out["layout"] = layout
         out["grid"] = level.target_points(exports, "StartingGrid")
         return out

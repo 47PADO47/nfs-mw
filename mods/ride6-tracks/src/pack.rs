@@ -37,6 +37,8 @@ pub struct Lap {
     /// `[x, y, z, heading degrees]` of each grid slot, render space, in grid order.
     pub grid: Vec<[f32; 4]>,
     pub spline: Spline,
+    /// The racing line: the track authors' ideal trajectory.
+    pub line: Spline,
 }
 
 /// A model of the objects placed on the track (a barrier, a building, a prop).

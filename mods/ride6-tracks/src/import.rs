@@ -18,6 +18,7 @@ use crate::model::solid_of;
 use crate::objects;
 use crate::pack::{self, Pack};
 use crate::textures::{Pictures, flat_colour};
+use crate::{check, collision, line};
 
 /// How far ahead of the first slot of the starting grid the start line is, metres.
 const START_LINE_AHEAD: f32 = 25.0;
@@ -103,6 +104,18 @@ pub fn import_with(
     let everything = cells::Limits { max_triangles: usize::MAX, min_size: 128.0 };
     for cell in cells::bin(&far, &everything) {
         write_cell(&far, &pictures, &id, report.cells, &cell, true, &[], out, &mut report)?;
+        report.cells += 1;
+    }
+    if keep.line && line::has_line(&pack) {
+        // The ribbon lies on the ground the cells just written have: read it back and ask it for the heights.
+        let ground = check::load_world(out, &pack)?;
+        let heights = |x: f32, y: f32, z: f32| {
+            let [px, py, pz] = collision::to_physics([x, y, z]);
+            let options = blackbox_collision::RayOptions { barriers: false, ..Default::default() };
+            ground.ray_cast([px, py + 3.0, pz], [px, py - 3.0, pz], &options).map(|hit| hit.point[1])
+        };
+        let ribbon = line::ribbon_cell(&pack.lap.line.points, pack.lap.line.closed, heights);
+        write_cell(&line::line_pack(&pack.track), &pictures, &id, report.cells, &ribbon, true, &[], out, &mut report)?;
         report.cells += 1;
     }
     write_world(&pack, &id, out)?;

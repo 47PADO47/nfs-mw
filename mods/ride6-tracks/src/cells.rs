@@ -83,11 +83,13 @@ pub struct Limits {
 pub struct Keep {
     /// The barriers, buildings and props, and the walls they make in the collision.
     pub objects: bool,
+    /// The racing line as a ribbon on the ground.
+    pub line: bool,
 }
 
 impl Default for Keep {
     fn default() -> Self {
-        Self { objects: true }
+        Self { objects: true, line: true }
     }
 }
 
