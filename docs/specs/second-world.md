@@ -110,6 +110,24 @@ MB, Stelvio Park 351 MB, Blue Wave Circuit 184 MB, Nevada 162 MB). The lap check
 on Okayama, 1,854 of 1,863 samples of the lap are asphalt; a few tracks have a lap with large stretches with no ground under it
 (Nurburgring GP: 1,781 of 2,541), which means their racing surface is in another level than the terrain one, not read yet.
 
+## What the RIDE 6 worlds add on top **[built]**
+
+- **Horizon:** one more cell, `far`, always loaded: the whole ground with its vertices clustered on 10 m squares (about 4 % of the
+  triangles), 2 m below the real ground so a loaded near cell always covers it, and a sea at the water's height (or a plain under the
+  lowest ground when the track has no water). Its placements name themselves as their low-detail model: the game's density rule
+  chooses slot 2 for a flat solid beyond 25 m, and an empty slot draws nothing.
+- **Objects:** the barriers, buildings and props are placed in the cell nearest to each (`rotation = [[..], ..]` rows in the pack
+  manifest) with the models they use in the cell's own section, and each **solid** model puts a box of its size into the cell's
+  collision, so a car or a bike meets the wall (`mods/ride6-tracks/src/objects.rs`). The boxes are 12 triangles each, not the meshes:
+  the barriers' meshes would be 1.8 million triangles. Seen: a BMW M3 GTR driven into the pit wall at 32 km/h stops against it.
+- **Racing line:** a 0.7 m ribbon, 4 cm above the collision, along the ideal trajectory, as one more always-loaded cell (`line.rs`);
+  the heights come from the collision just written.
+- **Lap timing:** the mod times laps on `worlds/<id>.lap` and shows the time as a HUD message (`bb.hud`); on a world's first tick it
+  says that timing is on, which is how the message path was seen offscreen. The crossing messages could not be seen offscreen:
+  a scripted run advances the world in one batch, so the mod sees the car only after it has crossed. Unit-tested in `lap.rs`.
+- **Radar disc:** the HUD's backing disc of the radar is hidden while a scene has no map position (a second world); the minimap's
+  tiles were already hidden.
+
 ## What is not built
 
 - A **streamed world source** with no converted files (Fairhaven's units read from the install): this delivery has packs only. The

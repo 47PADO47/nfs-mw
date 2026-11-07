@@ -231,7 +231,8 @@ impl HudBinding {
             minimap: map.is_some(),
             laser: s.cop_nearby,
             // The detector's own scripts hide its two layouts and preserve their exit animations.
-            radar: true,
+            // The radar sits on the minimap's disc: with no map position (a second world) it is hidden with it.
+            radar: map.is_some(),
             // The heat meter rings the minimap: with the minimap off it would ring nothing.
             heat: s.vehicle_heat >= 1.0 && map.is_some(),
             mirror: self.mirror_shown,

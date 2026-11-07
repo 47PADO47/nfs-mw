@@ -18,6 +18,8 @@ the lap. The mod then converts the pack to the game's own section formats, once,
 <pack>/pack.json     the materials, the lap, the counts
 <pack>/ground.r6m    every ground triangle, grouped by material
 <pack>/tex/<name>.png  the pictures, lower-case file stems, at most `--max-texture` pixels (default 1024)
+<pack>/models.r6m    the distinct meshes of the placed objects (barriers, buildings, props), same layout as ground.r6m
+<pack>/instances.r6i every placement of those objects
 ```
 
 ## Space and units **[verified]**
@@ -42,6 +44,26 @@ All little endian.
 Texture coordinates are final: a planar material has `u = x / tile_m`, `v = y / tile_m` already applied, so the loader does not
 need to know about it. Indices are per group.
 
+## Objects: `models.r6m` and `instances.r6i` **[verified on Okayama]**
+
+The track's object levels (`Props_Barriers`, `Pitlane_barriers`, `Buildings`, `Props`) hold static mesh actors and **instanced mesh
+components** (the barriers along the splines: `IgnitionSplineDecorationPlacementComponent`s fill hierarchical instanced meshes with a
+transform per instance). The exporter keeps each distinct mesh once in `models.r6m` (the layout of `ground.r6m`; a group's flags
+carry the model in bits 8 and up) and each placement in `instances.r6i`:
+
+| Offset | Type | Field |
+|---|---|---|
+| 0 | `"R6TI"` | magic |
+| 4 | u32 | version, 1 |
+| 8 | u32 | placement count |
+| 12 + 52 n | u32, 3 x f32, 9 x f32 | the model (index in `pack.json` `models`), the position (render space, metres), the three rows of the rotation and scale (row i is where the model's axis i points, scaled: the scenery format's rows) |
+
+An instance's translation is **in world space** (checked: the first instances lie 25 to 30 m from the lap on average; adding the
+component's relative location makes it 54 m). Unreal's rotator and quaternion are turned into rows with `x, -y, z`; the model's own
+y axis turns round with the handedness, so its row is the negated Unreal axis (`props.py`, `render_rows`). `pack.json` `models[]` is
+`{name, solid}`: barriers, the pit lane's and buildings are solid. Okayama: 9,084 placements of 233 models (8,161 barrier pieces),
+368,000 triangles.
+
 ## `pack.json`
 
 | Key | Meaning |
@@ -52,6 +74,9 @@ need to know about it. Indices are per group.
 | `materials[]` | `name`, `texture` (a stem in `tex/` or null), `color` (rgb, used when there is no texture), `tile_m`, `uv` (`planar` or `uv0`), `surface` |
 | `lap.spline` | `{closed, length_m, points: [[x, y, z]]}` the track spline sampled every 2 m (render space) |
 | `lap.grid` | `[[x, y, z, heading_degrees]]` the starting grid, in grid order (heading 0 is +x, counter-clockwise) |
+| `lap.line` | the same for the racing line, the authors' ideal trajectory `IdealTrajectory_1000cc_1` (3.72 km on Okayama) |
+| `sea` | `{z, color}` of the track's water (the median height of its `*_Water` meshes), when it has any |
+| `models` | `[{name, solid}]` of `models.r6m` |
 | `lap.layout` | the sub-level the lap was read from (`SplinesA` is the full circuit) |
 
 `surface` is one of the game's own `simsurface` names: `asphalt`, `concrete`, `grass`, `dirt`, `sand`, `gravel`, `stone`, `metal`
@@ -74,7 +99,8 @@ need to know about it. Indices are per group.
   picture decides (`T_Grass*`, `T_Forest*` grass; `T_Soil*` dirt; `T_Sand*` sand; `T_Rock*` stone; `T_Tarmac*` asphalt), because the
   physical material of the layered parent is one value for the whole slice.
 - Material overrides of the mesh component replace the mesh's own slots.
-- Not in the pack: water, painted-line overlays, decals, normal and PBR pictures, the grass, props and barriers.
+- Not in the pack: the water meshes themselves (only the sea's height), painted-line overlays, decals, normal and PBR pictures, the
+  grass, the vegetation and the crowd.
 
 ## Measured **[ours]**
 
