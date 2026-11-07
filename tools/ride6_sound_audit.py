@@ -6,7 +6,7 @@ never writes into it. Needs numpy.
 
   audit      --mod <mod folder>                  levels, pitch coverage and exhaust grid of every engine
   fix-levels --mod <mod folder> --out <folder>   write the layers whose level is stale, levelled, under <folder>/files/...
-  sweep      --mod <mod folder> --car <id> [--wav out.wav] [--step 250]
+  sweep      --mod <mod folder> --car <id> [--wav out.wav] [--step 250] [--rate-range 0.3,3.3]
                                                  render the game's layer mix over an rpm sweep and print the pitch error
 """
 
@@ -20,8 +20,9 @@ import wave
 
 import numpy as np
 
-# The playback rate range of the game's mixer (`RATE_RANGE` of crates/nfsmw/src/audio/car/own_engine/mixing.rs).
-RATE_RANGE = (0.4, 2.4)
+# The playback rate range of the game's mixer (`RATE_RANGE` of crates/nfsmw/src/audio/car/own_engine/mixing.rs; the range
+# before the fix was 0.55 to 1.8, `--rate-range 0.55,1.8`).
+RATE_RANGE = [0.3, 3.3]
 OFF_LEVEL_DB = 3.0
 PEAK = 0.9
 
@@ -183,7 +184,9 @@ def main():
     parser.add_argument("--car")
     parser.add_argument("--wav")
     parser.add_argument("--step", type=float, default=250.0)
+    parser.add_argument("--rate-range", default="0.3,3.3", help="lowest,highest playback rate of a layer")
     args = parser.parse_args()
+    RATE_RANGE[:] = [float(x) for x in args.rate_range.split(",")]
     if args.command == "fix-levels" and not args.out:
         parser.error("fix-levels needs --out")
     if args.command == "sweep" and not args.car:
