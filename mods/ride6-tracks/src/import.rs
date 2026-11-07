@@ -157,10 +157,26 @@ fn write_lap(pack: &Pack, id: &str, out: &Path) -> Result<()> {
     std::fs::write(&path, track.to_text()).with_context(|| format!("writing {}", path.display()))
 }
 
-/// The world's manifest: the name, and the start at the first slot of the grid (the middle of the lap's first sample when the
-/// pack has no grid).
+/// Where the player starts: the first slot of the starting grid; with no grid the first sample of the lap, facing along it; with
+/// no lap either, the middle of the first group of asphalt (`[x, y, z, heading degrees]`, render space).
+pub fn start_of(pack: &Pack) -> [f32; 4] {
+    if let Some(slot) = pack.lap.grid.first() {
+        return *slot;
+    }
+    let points = &pack.lap.spline.points;
+    if let [first, second, ..] = points.as_slice() {
+        let heading = (second[1] - first[1]).atan2(second[0] - first[0]).to_degrees();
+        return [first[0], first[1], first[2], heading];
+    }
+    let road = pack.groups.iter().find(|g| pack.materials[g.material].surface == "asphalt" && g.collide);
+    let Some(group) = road.or(pack.groups.first()) else { return [0.0, 0.0, 30.0, 0.0] };
+    let middle = group.positions[group.positions.len() / 2];
+    [middle[0], middle[1], middle[2], 0.0]
+}
+
+/// The world's manifest: the name, and the start (`start_of`).
 fn write_world(pack: &Pack, id: &str, out: &Path) -> Result<()> {
-    let start = pack.lap.grid.first().copied().unwrap_or([0.0, 0.0, 30.0, 0.0]);
+    let start = start_of(pack);
     let name = format!("{} (RIDE 6)", pack.track);
     let text = manifest::world_manifest(&name, [start[0], start[1], start[2]], start[3]);
     let path = out.join(WORLDS_FOLDER).join(format!("{id}.toml"));

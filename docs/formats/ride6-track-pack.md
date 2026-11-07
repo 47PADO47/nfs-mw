@@ -66,6 +66,8 @@ need to know about it. Indices are per group.
   of those meshes is the position in centimetres.
 - The tile length is `10 m / scale` of the layer's `UV - ScaleOffset` (1 when absent): a guess that looks right, not a reading
   of the shader **[unconfirmed]**.
+- The tile projection follows the normal: ground is projected from above (x and y), a steep face from the side, so a cliff is
+  not a smear of the picture's edge.
 - Tarmac and kerb masters draw one picture (`Tarmac - BaseColor - Texture`, `Layer01 - BaseColor - Texture`); kerbs keep their own UV0.
 - Surface: the slot's `PhysMaterial` when the material has one (`PM_T_Tarmac` asphalt, `PM_T_Concrete` concrete, `PM_T_Grass`
   grass, `PM_T_Gravel` gravel, `PM_T_Sand` sand, `PM_T_Kerb` concrete, `PM_T_MetalGrid` metal); for a layered slice the layer's
@@ -74,8 +76,14 @@ need to know about it. Indices are per group.
 - Material overrides of the mesh component replace the mesh's own slots.
 - Not in the pack: water, painted-line overlays, decals, normal and PBR pictures, the grass, props and barriers.
 
-## Measured on Okayama
+## Measured **[ours]**
 
-Export from a warm package cache: 5 s; 658,294 triangles (the 25 ground meshes: twelve near slices, three far slices, seven kerbs,
-the runnable and paddock meshes, the terrain), 56 groups, 17 pictures. `ground.r6m` 18.6 MB, pictures 22 MB (PNG, at most 1024),
-`pack.json` 0.2 MB.
+Okayama, from a warm package cache: the export takes 5 s; 658,294 triangles (the 25 ground meshes: twelve near slices, three far slices,
+seven kerbs, the runnable and paddock meshes, the terrain), 56 groups, 17 pictures. `ground.r6m` 18.6 MB, pictures 22 MB (PNG, at
+most 1024), `pack.json` 0.2 MB.
+
+All **39 tracks export** with the same rules (`tools/ride6-tracks/survey.py`, 3 to 11 s each, 16 to 196 MB of pack): the ground of the
+terrain level, whatever its mesh names. Triangles run from 147,000 (Vallelunga) to 7.56 million (Cappadocia Trails; Stelvio Park has 4.75
+million, Blue Wave Circuit 2.25 million, Nevada 2.04 million: the open maps). **30 have a lap spline and 22 a starting grid**; the others keep
+their splines in levels or under names the exporter does not read yet (no `TrackSpline` in `SplinesA`, `Splines` or `SplinesB`), and the
+importer starts them at the first lap sample, or at the middle of the first asphalt group.
