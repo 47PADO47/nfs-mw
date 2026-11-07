@@ -55,6 +55,7 @@ use self::pose::{Frame, Resolved, Steering};
 pub use self::view::RiderVisibility;
 use super::CarPose;
 use crate::scenes::world::keys;
+use crate::viewer::camera::rider_follow::Phase;
 
 /// The first part number a rider's meshes take in the instance keys of the player's car (the car's own placements come
 /// before it).
@@ -329,6 +330,9 @@ pub struct Rider {
     visibility: RiderVisibility,
     /// Where he looks from straight ahead, turned by the player's look stick (`viewer/camera/head_look.rs`).
     head_look: crate::viewer::camera::head_look::HeadLook,
+    /// Where his pelvis is while he is off the bike, and whether he is down or on his way back: what the cameras follow in a fall
+    /// (`fall.rs`, `viewer/camera/rider_follow.rs`). Set by the physics step.
+    off_bike: Option<(Phase, Vec3)>,
 }
 
 impl Rider {
@@ -354,7 +358,15 @@ impl Rider {
     /// has got up (or there is no rider who falls).
     pub fn fall_step(&mut self, step: FallStep, pose: &CarPose, ground: &dyn blackbox_vehicle::Ground) -> bool {
         let State::Ready(rig) = &mut self.state else { return true };
-        rig.fall_step(step, pose.transform(), ground)
+        let ready = rig.fall_step(step, pose.transform(), ground);
+        self.off_bike = rig.fall.focus(&rig.pack.skeleton, pose.transform() * rig.frame.to_model);
+        ready
+    }
+
+    /// Where the rider is while he is off the bike (his pelvis in the render space, and whether he is down or on his way back);
+    /// `None` while he rides, and for a bike with no rider who falls.
+    pub fn off_bike(&self) -> Option<(Phase, Vec3)> {
+        self.off_bike
     }
 
     /// Once per frame: load the rider the first time a bike is drawn, then pose, skin and upload it for the bike's pose

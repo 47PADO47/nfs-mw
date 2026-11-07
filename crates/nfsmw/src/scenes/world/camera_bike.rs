@@ -9,6 +9,10 @@ use super::{View, WorldScene};
 use crate::settings::CameraMode;
 use crate::viewer::camera::{Lens, bike};
 
+/// The share of the camera on a thrown rider (`Drive::rider_follow`) from which his helmet and visor are drawn again: below it the
+/// camera is nearly at his eyes (coming back, or just leaving) and they stay out of the picture.
+const HELMET_SHOWN_FROM_FOLLOW: f32 = 0.15;
+
 /// Which of a bike's mounted cameras a camera setting asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Shot {
@@ -37,9 +41,11 @@ impl WorldScene {
         Shot::of(self.camera_mode)
     }
 
-    /// Whether the camera is inside the rider's helmet (so his helmet and visor are not drawn).
+    /// Whether the camera is inside the rider's helmet (so his helmet and visor are not drawn): not while the camera is on a thrown
+    /// rider (`rider_follow`, a chase camera that shows him whole) but from the moment it is back at the eyes.
     pub(super) fn bike_helmet_active(&self) -> bool {
-        self.bike_shot() == Some(Shot::Helmet)
+        let followed = self.players.lead().is_some_and(|drive| drive.rider_follow() >= HELMET_SHOWN_FROM_FOLLOW);
+        self.bike_shot() == Some(Shot::Helmet) && !followed
     }
 
     /// What the camera shows of the lead's rider: all of him outside his helmet, all but the helmet and visor from inside it, and
