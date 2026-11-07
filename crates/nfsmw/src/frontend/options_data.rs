@@ -62,6 +62,7 @@ impl Setting {
             Setting::CustomFonts => on_off(s.custom_fonts.enabled),
             Setting::TurnSignals => on_off(s.turn_signals),
             Setting::RiderGear => on_off(s.rider_gear),
+            Setting::Gear(part) => gear::data(part),
             Setting::CopHealthBars => on_off(s.cop_health_bars),
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
             Setting::Discord => on_off(s.discord),
