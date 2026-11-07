@@ -24,7 +24,7 @@ pub struct Volumes {
 
 impl Default for Volumes {
     fn default() -> Self {
-        Self { master: 0.8, music: 0.6, sfx: 0.9, engine: 0.9, hud: crate::settings::hud::DEFAULT_HUD_VOLUME }
+        Self { master: 1.0, music: 0.8, sfx: 1.0, engine: 1.0, hud: crate::settings::hud::DEFAULT_HUD_VOLUME }
     }
 }
 

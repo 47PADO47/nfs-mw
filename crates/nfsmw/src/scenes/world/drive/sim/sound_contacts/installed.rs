@@ -80,7 +80,7 @@ fn installed_npc_vehicle_collisions_reach_authored_audio_without_player_contacts
     let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
     let data = PhysicsData::load(&dir).unwrap();
     let background = render(dir.clone(), vec![]);
-    for name in ["traf4dseda", "copmidsize", "semia", "trailerb"] {
+    for name in ["traf4dseda", "copmidsize", "semia", "trailerb", "carreragt", "cts", "bmwm3gtre46", "gti"] {
         let physics = data.car(name).unwrap();
         let profile = physics.effect_source;
         let mut a = CarSim::new(physics, [0.2; 4]);
@@ -91,6 +91,8 @@ fn installed_npc_vehicle_collisions_reach_authored_audio_without_player_contacts
         let mut b = CarSim::new(partner, [0.2; 4]);
         a.configure_ai();
         b.configure_ai();
+        // A race opponent keeps its racer collision role, as the race spawns it.
+        a.collision_racer = !matches!(name, "traf4dseda" | "copmidsize" | "semia" | "trailerb");
         strike(&mut a, &mut b);
         let mut contacts = a.take_owned_sound_contacts();
         contacts.extend(b.take_owned_sound_contacts());

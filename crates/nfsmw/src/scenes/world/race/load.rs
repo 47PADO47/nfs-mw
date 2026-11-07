@@ -185,10 +185,13 @@ impl WorldScene {
             .traffic
             .as_mut()
             .map_or_else(|| vec![0.0; grid.len()], |traffic| traffic.race_catch_up_phases(grid.len()));
-        session.glue = phases
-            .into_iter()
-            .map(|phase| super::catch_up::Glue::new(session.options.career, difficulty, prep.gains).with_phase(phase))
-            .collect();
+        // The career's adaptive bonus is the profile's stored value; no retail path was found that raises it from zero
+        // (`ai-racers-catchup.md` section 4).
+        let context = match session.options.career {
+            true => super::catch_up::Context::Career { adaptive: 0.0, boss: session.origin.race.story.boss_race },
+            false => super::catch_up::Context::Quick { difficulty },
+        };
+        session.glue = phases.into_iter().map(|phase| super::catch_up::Glue::new(context).with_phase(phase)).collect();
         let lead = match prep.rolling {
             true => 0,
             false => (prep.config.countdown * 60.0).ceil().max(0.0) as u32,

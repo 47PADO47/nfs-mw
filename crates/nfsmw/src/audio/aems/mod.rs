@@ -196,6 +196,11 @@ fn bank_path(name: &str) -> String {
     format!("{}/{name}", ENGINE_DIR.strip_prefix("SOUND/").unwrap_or(ENGINE_DIR))
 }
 
+/// The path of an engine sample-layer bank relative to `SOUND/`, as module loading expects it.
+pub(in crate::audio) fn engine_bank_path(name: &str) -> String {
+    bank_path(name)
+}
+
 impl AemsLayer {
     /// Loads the modules of the car's engine bank and sweetener bank. An error when the engine module is missing;
     /// a car without a sputter just has none.

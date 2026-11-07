@@ -1,7 +1,7 @@
 //! Starting a race: choosing the stored race, planning the grid and the opponents, and asking for the player's car
 //! to stand on the grid. The rest of the start happens in `load.rs` once the world and the models are ready.
 
-use blackbox_race::{CatchUpGains, Course, RaceConfig};
+use blackbox_race::{Course, RaceConfig};
 use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
 
 use super::grid;
@@ -22,7 +22,6 @@ pub(in crate::scenes::world) struct Prepared {
     /// The start speed of a rolling start, m/s.
     pub initial_speed: f32,
     pub catch_up: bool,
-    pub gains: CatchUpGains,
 }
 
 /// The race a query names: the exact collection name, then a unique name ending in `/query`, then a unique career event
@@ -166,7 +165,6 @@ impl WorldScene {
             initial_speed: p.initial_speed.max(0.0),
             // Nothing slows the leader between two people.
             catch_up: options.catch_up.unwrap_or(p.catch_up) && split.is_none(),
-            gains: CatchUpGains::default(),
         };
         let prepared_catch_up = prepared.catch_up;
         let speed = if prepared.rolling { prepared.initial_speed } else { 0.0 };

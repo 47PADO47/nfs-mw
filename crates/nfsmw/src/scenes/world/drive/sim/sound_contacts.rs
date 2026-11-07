@@ -40,4 +40,6 @@ impl CarSim {
 #[cfg(test)]
 mod installed;
 #[cfg(test)]
+mod installed_flat;
+#[cfg(test)]
 mod tests;

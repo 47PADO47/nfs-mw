@@ -1,36 +1,51 @@
-//! Quick-race catch-up tables and sampled history (`docs/specs/ai-racers-catchup.md`).
+//! Quick-race and career catch-up tables and sampled history (`docs/specs/ai-racers-catchup.md`).
 
 use blackbox_driver::{PidError, Table};
-use blackbox_race::{CatchUp, CatchUpGains};
 
 const EASY_SPREAD: Table<5> = Table { data: [1000.0, 900.0, 750.0, 600.0, 800.0], min: 0.0, max: 100.0 };
 const HARD_SPREAD: Table<5> = Table { data: [300.0, 275.0, 250.0, 150.0, 250.0], min: 0.0, max: 100.0 };
 const EASY_SKILL: Table<5> = Table { data: [0.75, 0.75, 0.75, 0.5, 0.25], min: 0.0, max: 100.0 };
 const HARD_SKILL: Table<5> = Table { data: [0.75, 0.75, 0.75, 0.75, 0.25], min: 0.0, max: 100.0 };
 
-enum Controller {
-    Quick { history: PidError, difficulty: f32 },
-    Career(CatchUp),
+/// The race context that picks the Easy-to-Hard factor (section 4 of the spec).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(in crate::scenes::world) enum Context {
+    /// A quick race at difficulty class 0, 1 or 2.
+    Quick { difficulty: usize },
+    /// A career race. `adaptive` is the profile's adaptive bonus (-1..1); `boss` is the race's `BossRace` flag.
+    Career { adaptive: f32, boss: bool },
+}
+
+impl Context {
+    /// The interpolation factor between the Easy (0) and Hard (1) tables.
+    pub fn factor(self) -> f32 {
+        match self {
+            Context::Quick { difficulty } => difficulty.min(2) as f32 * 0.5,
+            Context::Career { adaptive, boss } => {
+                let adaptive = if adaptive.is_finite() { adaptive } else { 0.0 };
+                let factor = ((adaptive + 1.0) * 0.5).clamp(0.0, 1.0);
+                if !boss {
+                    return factor;
+                }
+                factor + (1.0 - factor) * 0.5
+            }
+        }
+    }
 }
 
 pub(in crate::scenes::world) struct Glue {
     clock: f32,
-    controller: Controller,
+    history: PidError,
+    difficulty: f32,
 }
 
 impl Glue {
-    pub fn new(career: bool, difficulty: usize, gains: CatchUpGains) -> Self {
-        let controller = match career {
-            true => Controller::Career(CatchUp::new(gains)),
-            false => {
-                Controller::Quick { history: PidError::new(10, 5, 1.0), difficulty: difficulty.min(2) as f32 * 0.5 }
-            }
-        };
-        Self { clock: 0.0, controller }
+    pub fn new(context: Context) -> Self {
+        Self { clock: 0.0, history: PidError::new(10, 5, 1.0), difficulty: context.factor() }
     }
 
     pub fn with_phase(mut self, phase: f32) -> Self {
-        if matches!(self.controller, Controller::Quick { .. }) && phase.is_finite() {
+        if phase.is_finite() {
             self.clock = phase.clamp(0.0, 1.0 - f32::EPSILON);
         }
         self
@@ -43,26 +58,16 @@ impl Glue {
         if interval.is_some() {
             self.clock -= 1.0;
         }
-        let forced = emulated && matches!(self.controller, Controller::Quick { .. });
-        let output = match &mut self.controller {
-            Controller::Career(controller) => {
-                if interval.is_some() {
-                    controller.update(error, 1.0);
-                }
-                controller.skill()
-            }
-            Controller::Quick { history, difficulty } => {
-                if let Some(interval) = interval {
-                    history.record(error, interval);
-                }
-                let difficulty = match emulated {
-                    true => 1.0,
-                    false => *difficulty,
-                };
-                quick_output(history.error(), history.integral(), history.derivative(), percent, difficulty).1
-            }
+        if let Some(interval) = interval {
+            self.history.record(error, interval);
+        }
+        let difficulty = match emulated {
+            true => 1.0,
+            false => self.difficulty,
         };
-        if !enabled && !forced {
+        let h = &self.history;
+        let output = quick_output(h.error(), h.integral(), h.derivative(), percent, difficulty).1;
+        if !enabled && !emulated {
             return 0.0;
         }
         output
@@ -89,7 +94,7 @@ mod tests {
     use super::*;
 
     fn quick(difficulty: usize) -> Glue {
-        Glue::new(false, difficulty, CatchUpGains::default())
+        Glue::new(Context::Quick { difficulty })
     }
 
     #[test]
@@ -142,15 +147,28 @@ mod tests {
     }
 
     #[test]
-    fn career_retains_its_existing_controller() {
-        let gains = CatchUpGains::default();
-        let mut glue = Glue::new(true, 2, gains);
-        let mut previous = CatchUp::new(gains);
-        for error in [10.0, -10.0, 0.0] {
-            let expected = previous.update(error, 1.0);
-            assert_eq!(glue.update(error, 1.01, 50.0, false, true), expected);
-            assert_eq!(glue.update(error, 0.0, 80.0, false, true), expected);
+    fn career_uses_the_adaptive_factor_and_moves_boss_races_half_way_to_hard() {
+        let career = |adaptive, boss| Context::Career { adaptive, boss }.factor();
+        assert_eq!(career(0.0, false), 0.5, "a neutral profile plays between Easy and Hard");
+        assert_eq!(career(0.0, true), 0.75);
+        assert_eq!(career(-1.0, false), 0.0);
+        assert_eq!(career(-1.0, true), 0.5);
+        assert_eq!(career(1.0, false), 1.0);
+        assert_eq!(career(5.0, true), 1.0);
+        assert_eq!(career(f32::NAN, false), 0.5);
+    }
+
+    #[test]
+    fn career_shares_the_quick_race_history_and_tables() {
+        let mut career = Glue::new(Context::Career { adaptive: 0.0, boss: false });
+        let mut medium = quick(1);
+        for (error, dt, percent) in [(400.0, 1.01, 10.0), (-200.0, 1.0, 40.0), (0.0, 0.3, 80.0), (50.0, 1.0, 95.0)] {
+            assert_eq!(career.update(error, dt, percent, false, true), medium.update(error, dt, percent, false, true));
         }
+        let rival = Glue::new(Context::Career { adaptive: 0.0, boss: true }).update(1000.0, 1.01, 75.0, false, true);
+        let hard = quick(2).update(1000.0, 1.01, 75.0, false, true);
+        let mid = quick(1).update(1000.0, 1.01, 75.0, false, true);
+        assert!(rival > mid && rival < hard, "{mid} < {rival} < {hard}");
     }
 
     #[test]

@@ -246,12 +246,16 @@ impl AiCar {
         })
     }
 
-    /// The driver class of this car (see `DriverClass`): a cop, a patrol car or a roadblock car is a cop, else traffic.
+    /// The driver class of this car (see `DriverClass`): a cop, a patrol car or a roadblock car is a cop, a race
+    /// opponent is a racer, and anything else is traffic.
     pub(in crate::scenes::world::ai) fn driver_class(&self) -> DriverClass {
-        match matches!(self.role, Role::Cop(_)) || self.patrol || self.roadblock {
-            true => DriverClass::Cop,
-            false => DriverClass::Traffic,
+        if matches!(self.role, Role::Cop(_)) || self.patrol || self.roadblock {
+            return DriverClass::Cop;
         }
+        if matches!(self.role, Role::Racer(_)) {
+            return DriverClass::Racer;
+        }
+        DriverClass::Traffic
     }
 
     /// The car as a cop health bar sees it (`docs/specs/cop-health-bars.md` section 13.2). The key is the car's render
@@ -327,15 +331,16 @@ mod tests {
         assert!(!starts_crash(DriverClass::Human, 80.5), "beyond the view gate");
         assert!(starts_crash(DriverClass::Cop, 40.0), "an AI cop's hit starts it too");
         assert!(!starts_crash(DriverClass::Traffic, 10.0), "traffic against traffic does not");
+        assert!(starts_crash(DriverClass::Racer, 40.0), "a race opponent's hit starts it (class 3)");
     }
 
     #[test]
     fn only_traffic_is_left_out_of_the_crash_gate() {
-        let crashes: Vec<bool> = [DriverClass::Human, DriverClass::Cop, DriverClass::Traffic]
+        let crashes: Vec<bool> = [DriverClass::Human, DriverClass::Cop, DriverClass::Traffic, DriverClass::Racer]
             .into_iter()
             .map(|class| starts_crash(class, 0.0))
             .collect();
-        assert_eq!(crashes, [true, true, false]);
+        assert_eq!(crashes, [true, true, false, true]);
     }
 
     #[test]

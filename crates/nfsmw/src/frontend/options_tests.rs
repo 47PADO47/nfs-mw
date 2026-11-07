@@ -21,11 +21,11 @@ fn defaults() -> Settings {
 #[test]
 fn volumes_move_by_ten_and_stop_at_the_ends() {
     let (mut s, mut c) = (defaults(), Partial::default());
-    assert_eq!(s.master_volume, Percent(80));
-    assert!(Setting::MasterVolume.step(&mut s, &mut c, true));
+    assert_eq!(s.master_volume, Percent(100), "the PC default");
+    assert!(!Setting::MasterVolume.step(&mut s, &mut c, true), "100 is the end");
+    assert!(Setting::MasterVolume.step(&mut s, &mut c, false));
     assert_eq!(s.master_volume, Percent(90));
     assert!(Setting::MasterVolume.step(&mut s, &mut c, true));
-    assert!(!Setting::MasterVolume.step(&mut s, &mut c, true), "100 is the end");
     assert_eq!(c.master_volume, Some(Percent(100)));
     for _ in 0..12 {
         Setting::MasterVolume.step(&mut s, &mut c, false);
@@ -73,7 +73,7 @@ fn the_speech_volume_row_is_a_slider_that_records_its_change() {
     let (mut s, mut changes) = (defaults(), Partial::default());
     assert_eq!(Setting::SpeechVolume.control(&s), Control::Slider(s.speech_volume.0));
     Setting::SpeechVolume.step(&mut s, &mut changes, false);
-    assert_eq!(s.speech_volume.0, 80);
+    assert_eq!(s.speech_volume.0, 90);
     assert_eq!(changes, Partial { speech_volume: Some(s.speech_volume), ..Partial::default() });
 }
 #[test]
@@ -199,13 +199,13 @@ fn batch18_music_rows_edit_only_the_selected_context() {
         assert!(rows.iter().any(|row| row.setting == setting), "both independent Audio controls are reachable");
     }
     Setting::MenuMusicVolume.step(&mut settings, &mut changes, false);
-    assert_eq!((settings.menu_music_volume, settings.game_music_volume), (Percent(50), Percent(60)));
+    assert_eq!((settings.menu_music_volume, settings.game_music_volume), (Percent(70), Percent(80)));
     assert_eq!(
         (changes.menu_music_volume, changes.game_music_volume, changes.music_volume),
-        (Some(Percent(50)), None, None)
+        (Some(Percent(70)), None, None)
     );
     Setting::GameMusicVolume.step(&mut settings, &mut changes, true);
-    assert_eq!((settings.menu_music_volume, settings.game_music_volume), (Percent(50), Percent(70)));
+    assert_eq!((settings.menu_music_volume, settings.game_music_volume), (Percent(70), Percent(90)));
 }
 
 #[test]

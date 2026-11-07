@@ -15,6 +15,8 @@ mod ladder;
 mod locks;
 mod milestone_board;
 mod phone;
+#[cfg(test)]
+mod progression_installed_tests;
 mod pursuit;
 mod rap_tally;
 mod regions;

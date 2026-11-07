@@ -70,16 +70,36 @@ Speed-trap races instead scale either sign by 0.5. Emulated rivals keep the raw
 offset. The driver clamps `base + offset` to 0..1 and derives its force cheat
 separately. Do not clamp away a positive offset before deriving that cheat.
 
-## 4. Current limits
+## 4. Career races
 
-Quick races reuse `blackbox_driver::PidError`. Career races retain the older
-`blackbox_race::CatchUp` approximation. Career adaptive difficulty, custom override
-tables and the exact native random sequence still need separate integration.
-Ordinary quick-race error conversion uses the existing normalized garage rating
-of the human's actual performance package. Career retains its previous rating
-fallback until per-stat adaptive matching is integrated.
+A career race uses the same error history, tables, coefficients and driver scaling
+as section 3; only the Easy-to-Hard factor differs **[PC static]**. Online races
+have no catch-up. The career does not read the race's catch-up switch.
 
-## 5. Checks
+```
+factor = clamp((adaptive_bonus + 1) / 2, 0, 1)
+if BossRace: factor = factor + (1 - factor) / 2
+```
+
+The adaptive bonus is the profile's stored value divided by 32767, clamped to
+-1..1, read when race status is created. No retail path raising it was found, and
+the reference's setter stores only 0 or 1; treat it as zero. A neutral profile
+plays the Medium mix, a rival (boss) race 0.75. The same bonus also adjusts the
+career base skill, `SkillLevel / 100`, through up/down tables; at zero it does not.
+
+A race may set `CatchUpOverride` to use its own text skill/spread tables and
+integral/derivative coefficients. Every installed race leaves it off, so its
+authored `CatchUpSkill`/`CatchUpSpread` texts are unused **[verified]**. A boss
+race also reports a normalized output of one to callers other than the skill.
+
+## 5. Current limits
+
+The exact native random sequence still needs separate integration. Error
+conversion in quick races uses the normalized garage rating of the human's actual
+performance package; career keeps a rating of one until the PC rating source for
+career races is confirmed. Override tables are not implemented.
+
+## 6. Checks
 
 Check finite-history expiry, derivative averaging, all difficulty endpoints,
 progress interpolation, both offset signs and late-race amplitude reduction.

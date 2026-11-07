@@ -28,7 +28,7 @@ impl TrafficWorld {
         let cop = car.driver_class() == DriverClass::Cop;
         match (by_player, cop) {
             (true, true) => self.note_player_hit_cop(owner, pair),
-            (true, false) => {
+            (true, false) if car.driver_class() == DriverClass::Traffic => {
                 let crash = Crash {
                     delta_v: pair.total_delta_v(),
                     closing: pair.closing,

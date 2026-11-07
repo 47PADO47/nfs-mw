@@ -154,7 +154,7 @@ fn visual_rpm(fraction: Option<f32>, idle: f32, redline: f32, fallback: f32) -> 
     idle + fraction * (redline - idle)
 }
 
-fn physics_rpm_fraction(display_rpm: f32, idle: f32, redline: f32) -> f32 {
+pub(in crate::scenes::world) fn physics_rpm_fraction(display_rpm: f32, idle: f32, redline: f32) -> f32 {
     let span = redline - idle;
     if span <= 0.0 {
         return 0.0;

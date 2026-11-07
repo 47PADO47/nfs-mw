@@ -89,7 +89,7 @@ fn set_without_a_value_flips_a_switch_and_explains_anything_else() {
     let before = s;
     assert_eq!(set(&mut s, "fps", "").unwrap_err(), "usage: set fps <unlocked|number> (now unlocked)");
     assert_eq!(set(&mut s, "metrics", "").unwrap_err(), "usage: set metrics <off|basic|advanced> (now off)");
-    assert!(set(&mut s, "volume", "").unwrap_err().starts_with("usage: set volume <0-100> (now 80)"));
+    assert!(set(&mut s, "volume", "").unwrap_err().starts_with("usage: set volume <0-100> (now 100)"));
     assert!(set(&mut s, "backend", "").unwrap_err().contains("restart"));
     assert!(set(&mut s, "bass", "").unwrap_err().contains("unknown setting"));
     assert_eq!(s, before);
