@@ -13,6 +13,7 @@ pub mod collision;
 pub mod config;
 pub mod import;
 pub mod job;
+pub mod lap;
 pub mod manifest;
 pub mod model;
 mod native;

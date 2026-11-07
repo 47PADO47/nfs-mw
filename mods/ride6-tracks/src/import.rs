@@ -11,10 +11,14 @@ use blackbox_tpk::TextureSource;
 
 use crate::cells::{self, Cell};
 use crate::collision::soup;
+use crate::lap::Track;
 use crate::manifest::{self, MAX_CELLS, Place, WORLDS_FOLDER};
 use crate::model::solid_of;
 use crate::pack::{self, Pack};
 use crate::textures::{Pictures, flat_colour};
+
+/// How far ahead of the first slot of the starting grid the start line is, metres.
+const START_LINE_AHEAD: f32 = 25.0;
 
 /// The side of a cell, metres: sections of this size hold a few thousand ground triangles and 5 to 15 pictures.
 pub const CELL_METRES: f32 = 384.0;
@@ -72,6 +76,7 @@ pub fn import(pack_dir: &Path, out: &Path, max_texture: u32, cancel: &AtomicBool
         write_cell(&pack, &pictures, &id, index, cell, out, &mut report)?;
     }
     write_world(&pack, &id, out)?;
+    write_lap(&pack, &id, out)?;
     Ok(report)
 }
 
@@ -135,6 +140,21 @@ fn write_cell(
     report.collision_skipped += section.collision.skipped;
     report.bytes += section.bytes.len() as u64;
     Ok(())
+}
+
+/// The lap for the timer (`lap.rs`): the track spline turned to start at the first slot of the grid. Nothing is written for a
+/// pack with no spline.
+fn write_lap(pack: &Pack, id: &str, out: &Path) -> Result<()> {
+    let points: Vec<[f32; 2]> = pack.lap.spline.points.iter().map(|p| [p[0], p[1]]).collect();
+    if points.len() < 8 {
+        return Ok(());
+    }
+    let mut track = Track::new(points)?;
+    if let Some(slot) = pack.lap.grid.first() {
+        track = track.starting_after([slot[0], slot[1]], START_LINE_AHEAD);
+    }
+    let path = out.join(WORLDS_FOLDER).join(format!("{id}.lap"));
+    std::fs::write(&path, track.to_text()).with_context(|| format!("writing {}", path.display()))
 }
 
 /// The world's manifest: the name, and the start at the first slot of the grid (the middle of the lap's first sample when the

@@ -5,10 +5,11 @@
 
 use std::path::PathBuf;
 
-use blackbox_modding::sdk::{Ctx, Event, Level, Mod, ModResult, declare_mod};
+use blackbox_modding::sdk::{Ctx, Event, Level, MessageStyle, Mod, ModResult, declare_mod};
 
 use crate::config::{self, MOD_ID};
 use crate::job::{self, Finished, Job, Start, Summary};
+use crate::lap::{self, Timer};
 
 /// The mod's state: the import in flight, if any.
 pub struct Ride6Tracks {
@@ -17,15 +18,19 @@ pub struct Ride6Tracks {
     /// The folder already held content when the job started: the game has indexed it, so a new run waits for the next start
     /// instead of replacing it under the game.
     live: bool,
+    /// The lap timer of the world being played, with the world's id; none in a world without a lap file (the city).
+    lap: Option<(String, Timer)>,
+    /// Scene ticks seen, to look at the world's name now and then.
+    ticks: u64,
 }
 
 impl Mod for Ride6Tracks {
     fn load(ctx: &mut Ctx) -> ModResult<Self> {
         let Ok(mod_dir) = ctx.mod_dir() else {
             ctx.log(Level::Warn, "ride6-tracks: the host does not say where the mod is");
-            return Ok(Self { mod_dir: PathBuf::new(), job: None, live: false });
+            return Ok(Self { mod_dir: PathBuf::new(), job: None, live: false, lap: None, ticks: 0 });
         };
-        let mut state = Self { mod_dir: mod_dir.clone(), job: None, live: false };
+        let mut state = Self { mod_dir: mod_dir.clone(), job: None, live: false, lap: None, ticks: 0 };
         let supplied = match supplied_config(ctx) {
             Ok(supplied) => supplied,
             Err(error) => {
@@ -55,7 +60,10 @@ impl Mod for Ride6Tracks {
         Ok(state)
     }
 
-    fn event(&mut self, ctx: &mut Ctx, _event: &Event<'_>) {
+    fn event(&mut self, ctx: &mut Ctx, event: &Event<'_>) {
+        if let Event::SceneTick { dt_sim, paused: false, .. } = event {
+            self.time_the_lap(ctx, *dt_sim);
+        }
         let Some(finished) = self.job.as_ref().and_then(Job::poll) else { return };
         self.job = None;
         match finished {
@@ -76,6 +84,45 @@ fn supplied_config(ctx: &Ctx) -> ModResult<Option<config::Supplied>> {
 }
 
 impl Ride6Tracks {
+    /// One scene tick of lap timing: follow the world being played, and time the player's car on its lap.
+    fn time_the_lap(&mut self, ctx: &Ctx, dt: f32) {
+        let (Some(world), Some(vehicles)) = (ctx.world(), ctx.vehicles()) else { return };
+        if self.ticks % 120 == 0 {
+            self.follow_world(ctx, &world);
+        }
+        self.ticks += 1;
+        let Some((_, timer)) = self.lap.as_mut() else { return };
+        let Ok(state) = vehicles.player() else { return };
+        let Some(event) = timer.update(state.position, dt) else { return };
+        let Some(hud) = ctx.hud() else { return };
+        let (text, style) = match event {
+            lap::Event::Started => ("Lap timing started".to_owned(), MessageStyle::Info),
+            lap::Event::Lap { number, seconds, best } => {
+                let suffix = if best { "  best lap" } else { "" };
+                (format!("Lap {number}  {}{suffix}", lap::clock(seconds)), MessageStyle::Big)
+            }
+        };
+        let _ = hud.message(&text, style, 6.0);
+    }
+
+    /// Loads the lap of the world being played when it is not the one timed, `worlds/<id>.lap` of the mod.
+    fn follow_world(&mut self, ctx: &Ctx, world: &blackbox_modding::sdk::World) {
+        let Ok(track) = world.track() else { return };
+        if self.lap.as_ref().is_some_and(|(id, _)| *id == track) {
+            return;
+        }
+        self.lap = None;
+        let path = self.mod_dir.join("worlds").join(format!("{track}.lap"));
+        let Ok(text) = std::fs::read_to_string(&path) else { return };
+        match lap::Track::from_text(&text) {
+            Ok(lap) => {
+                ctx.log(Level::Info, &format!("ride6-tracks: timing laps of {track} ({:.0} m)", lap.length()));
+                self.lap = Some((track, Timer::new(lap)));
+            }
+            Err(error) => ctx.log(Level::Warn, &format!("ride6-tracks: the lap of {track} is not read: {error:#}")),
+        }
+    }
+
     /// A run is over: say what it did, and make its worlds available.
     fn finish(&self, ctx: &Ctx, summary: &Summary) {
         for report in &summary.imported {

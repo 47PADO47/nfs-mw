@@ -17,6 +17,9 @@ supported = ["nfsmw"]
 
 [optional.interfaces]
 "bb.content" = "1.0"
+"bb.hud" = "1.0"
+"bb.vehicles" = "1.0"
+"bb.world" = "1.0"
 
 [library]
 windows = "ride6_tracks.dll"
