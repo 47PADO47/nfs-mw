@@ -10,10 +10,44 @@ use super::history::History;
 pub enum Verdict {
     /// Say it.
     Keep,
-    /// Not yet: ask again next frame.
-    Defer,
+    /// Not yet: ask again next frame. The check that holds it.
+    Defer(Hold),
     /// Never: drop the request.
-    Ditch,
+    Ditch(Gone),
+}
+
+/// The check that makes a request wait.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hold {
+    /// The event's initial delay has not run out.
+    Delay,
+    /// Not enough silence since the last line.
+    DeadAir,
+    /// The event was said too recently.
+    Interval,
+    /// The unit is too far away.
+    Range,
+    /// None of the events it must follow was said just before.
+    Follow,
+    /// The unit is off screen.
+    OnScreen,
+    /// The unit cannot see the player.
+    Sight,
+    /// The heat is outside the event's range.
+    Heat,
+    /// The player's speed is outside the event's range.
+    Speed,
+    /// It passed every check but another line went first or was still being said.
+    Turn,
+}
+
+/// Why a request is dropped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Gone {
+    /// It waited longer than the event's expiry.
+    Expired,
+    /// The event has been said as often as it may be.
+    PlayedOut,
 }
 
 /// The unit that would speak: what the distance and visibility checks look at. A request without one skips them.
@@ -63,38 +97,38 @@ pub struct Asked {
 /// Judge a request of `event`.
 pub fn judge(event: &SpeechEvent, asked: &Asked, env: &Env) -> Verdict {
     if env.now - asked.entry > event.expiry {
-        return Verdict::Ditch;
+        return Verdict::Ditch(Gone::Expired);
     }
     // The original lets an event be said once more than its limit (it compares with `>`).
     if event.max_playback > -1 && env.history.count(event.id) as i64 > i64::from(event.max_playback) {
-        return Verdict::Ditch;
+        return Verdict::Ditch(Gone::PlayedOut);
     }
     if event.dead_air > 0.0 && env.dead_air < event.dead_air {
-        return Verdict::Defer;
+        return Verdict::Defer(Hold::DeadAir);
     }
     let heard = env.history.last_time(event.id);
     if heard.is_some_and(|t| env.now - t < event.interval) {
-        return Verdict::Defer;
+        return Verdict::Defer(Hold::Interval);
     }
     if asked.actor.is_some_and(|a| a.distance > event.culling_range) {
-        return Verdict::Defer;
+        return Verdict::Defer(Hold::Range);
     }
     if !event.dep_follow.is_empty() && !follows(event, env) {
-        return Verdict::Defer;
+        return Verdict::Defer(Hold::Follow);
     }
     if event.on_screen_only && asked.actor.is_some_and(|a| !a.on_screen) {
-        return Verdict::Defer;
+        return Verdict::Defer(Hold::OnScreen);
     }
     if event.require_line_of_sight && asked.actor.is_some_and(|a| !a.line_of_sight) {
-        return Verdict::Defer;
+        return Verdict::Defer(Hold::Sight);
     }
     let ctx = env.context;
     if ctx.heat > event.max_heat || ctx.heat < event.min_heat {
-        return Verdict::Defer;
+        return Verdict::Defer(Hold::Heat);
     }
     let speed = ctx.player_speed.abs();
     if speed < event.min_player_speed || speed > event.max_player_speed {
-        return Verdict::Defer;
+        return Verdict::Defer(Hold::Speed);
     }
     Verdict::Keep
 }

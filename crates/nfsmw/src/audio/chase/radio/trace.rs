@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use blackbox_pursuit::speech::{Line, Params, Speaker};
 
 use super::params::event_name;
-use crate::audio::speech::Outcome;
+use crate::audio::speech::{Dropped, Outcome};
 
 /// The events kept until a reader takes them: the oldest go first.
 pub const CAPACITY: usize = 64;
@@ -50,6 +50,8 @@ pub enum LineStage {
     Asked(Outcome),
     /// The speech finished saying it.
     Said,
+    /// It left the speech queue without being said, and why.
+    Dropped(Dropped),
 }
 
 /// One line of the chase radio.

@@ -335,7 +335,11 @@ Built (2026-10-20), from this spec and with the decompiled flows read for the de
   speech event's name and number, the voice (speaker number) and the parameters. The radio keeps the last 64 until a
   reader takes them: `Audio::take_radio_lines` or the console's `speech lines`. **[ours]** The F5 pursuit trace runs in
   the world, away from the audio, so while it records the radio also keeps a copy (at most 1,024 between two samples)
-  that the trace writes as `radio_line` events (stage, line, event name and number, speaker). The take (bank and
+  that the trace writes as `radio_line` events (stage, line, event name and number, speaker). A third stage, **dropped**,
+says why a request left the speech queue unsaid: expired (with the check that held it at its last look: initial delay,
+dead air, interval, range, dependency, on screen, sight, heat, speed, or its turn not come), said as often as it may be,
+nothing to say for the voice, withdrawn by a recalling event, or cleared. These are diagnostics **[ours]**; they do not
+change what is said. The take (bank and
   recording) the speech picks is not part of the event.
 - **What the world gives the machine now:** the cops (id, distance, speed, health, wrecked, sight, ahead, formation slot and offset, model class, road), the helicopter (present, sight, fuel), a standing
   roadblock (with its cars' sight and the spike strips), the player's speed, heading, road speech id and car, the heat, busted meter, cool-down state, formation, finisher and infractions, rain, the backup's

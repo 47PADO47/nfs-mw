@@ -268,6 +268,10 @@ impl ChaseRadio {
                 }
                 notices.push(Notice::Said { line, speaker, params });
             }
+            for (event, why) in d.take_dropped() {
+                let Some((line, speaker, params)) = self.sent.get(&event).copied() else { continue };
+                self.lines.push(trace::LineStage::Dropped(why), line, event, speaker, params);
+            }
         }
         match (dispatcher.as_deref(), self.ids.as_ref()) {
             (Some(d), Some(ids)) => {

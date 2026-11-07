@@ -3,7 +3,7 @@ use nfsmw_data::speech::SpeechTune;
 use super::{FakeVoice, event};
 use crate::audio::speech::random::Rng;
 use crate::audio::speech::rules::Context;
-use crate::audio::speech::{Dispatcher, Outcome, Request};
+use crate::audio::speech::{Dispatcher, Dropped, Hold, Outcome, Request};
 
 const TICK: f32 = 0.1;
 
@@ -163,6 +163,28 @@ fn a_request_that_waits_too_long_is_dropped() {
     voice.busy = false;
     run(&mut d, &mut voice, 1.0);
     assert_eq!(voice.ids(), [2]);
+}
+
+#[test]
+fn a_dropped_request_says_why_it_left() {
+    let mut d = dispatcher(vec![
+        event(1, |e| e.expiry = 1.0),
+        event(2, |e| (e.expiry, e.dead_air) = (1.0, 60.0)),
+        event(3, |e| e.priority = 90),
+    ]);
+    // A busy voice: request 1 passes its checks and waits its turn; request 2 waits for a minute of silence.
+    let mut voice = FakeVoice { busy: true, mute: vec![3], ..FakeVoice::default() };
+    ask(&mut d, 1);
+    ask(&mut d, 2);
+    run(&mut d, &mut voice, 2.0);
+    let dropped = d.take_dropped();
+    assert!(dropped.contains(&(1, Dropped::Expired(Some(Hold::Turn)))), "{dropped:?}");
+    assert!(dropped.contains(&(2, Dropped::Expired(Some(Hold::DeadAir)))), "{dropped:?}");
+    voice.busy = false;
+    ask(&mut d, 3);
+    run(&mut d, &mut voice, 0.5);
+    assert_eq!(d.take_dropped(), [(3, Dropped::Unplayable)], "nothing to say for it");
+    assert!(d.take_dropped().is_empty(), "taken once");
 }
 
 #[test]

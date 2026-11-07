@@ -11,7 +11,7 @@ use nfsmw_data::speech::{SpeechEvent, SpeechTune};
 use super::history::History;
 use super::params::SpeechParams;
 use super::random::Rng;
-use super::rules::{Actor, Asked, Context, Env, Verdict, judge};
+use super::rules::{Actor, Asked, Context, Env, Gone, Hold, Verdict, judge};
 
 /// Added to the priority of an interrupting event, so it goes before every other.
 pub const INTERRUPT_BONUS: i32 = 100;
@@ -56,6 +56,21 @@ pub enum Outcome {
     Thinned,
 }
 
+/// Why a waiting request left the queue without being said.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dropped {
+    /// It waited past its expiry; the check that held it at the last look (none if it was never looked at).
+    Expired(Option<Hold>),
+    /// Its event had been said as often as it may be.
+    PlayedOut,
+    /// Its turn came but the voice had nothing to say for it (no recording that fits).
+    Unplayable,
+    /// A newer request of an event that recalls it took its place.
+    Withdrawn,
+    /// The queue was cleared or the event recalled.
+    Cleared,
+}
+
 struct Pending {
     event: u32,
     /// Priority with the interrupt bonus.
@@ -68,6 +83,8 @@ struct Pending {
     seq: u64,
     /// Passed every check at the last look: it may be said as soon as it is its turn.
     ready: bool,
+    /// The check that held it at the last look.
+    held: Option<Hold>,
 }
 
 /// The line being said, or that was said last.
@@ -101,7 +118,12 @@ pub struct Dispatcher {
     seq: u64,
     /// Events whose line ended since the last [`Dispatcher::take_finished`], with the request that was said.
     finished: Vec<(u32, Request)>,
+    /// Requests that left the queue unsaid since the last [`Dispatcher::take_dropped`] (at most [`DROPPED_KEPT`]).
+    dropped: Vec<(u32, Dropped)>,
 }
+
+/// The dropped requests kept until a reader takes them; the oldest go first.
+const DROPPED_KEPT: usize = 256;
 
 impl Dispatcher {
     /// A dispatcher for `events` (the template collection with number 0 is not an event).
@@ -129,6 +151,7 @@ impl Dispatcher {
             rng,
             seq: 0,
             finished: Vec::new(),
+            dropped: Vec::new(),
         }
     }
 
@@ -202,8 +225,23 @@ impl Dispatcher {
         std::mem::take(&mut self.finished)
     }
 
+    /// The requests that left the queue unsaid since the last call, oldest first, with why.
+    pub fn take_dropped(&mut self) -> Vec<(u32, Dropped)> {
+        std::mem::take(&mut self.dropped)
+    }
+
+    fn note_dropped(&mut self, event: u32, why: Dropped) {
+        if self.dropped.len() == DROPPED_KEPT {
+            self.dropped.remove(0);
+        }
+        self.dropped.push((event, why));
+    }
+
     /// Withdraws `event` from the queue (the original's recall).
     pub fn recall(&mut self, event: u32) {
+        if self.pending.iter().any(|p| p.event == event) {
+            self.note_dropped(event, Dropped::Cleared);
+        }
         self.pending.retain(|p| p.event != event);
     }
 
@@ -214,7 +252,9 @@ impl Dispatcher {
 
     /// Withdraws every waiting request but keeps what was said.
     pub fn clear_pending(&mut self) {
-        self.pending.clear();
+        for event in self.pending.drain(..).map(|p| p.event).collect::<Vec<_>>() {
+            self.note_dropped(event, Dropped::Cleared);
+        }
     }
 
     /// Forget queued requests and history while retaining an active line (the console's history reset).
@@ -228,6 +268,7 @@ impl Dispatcher {
         self.clear_history_and_pending();
         self.current = None;
         self.finished.clear();
+        self.dropped.clear();
         self.last_sounded = None;
         self.pursuit_secs = 0.0;
     }
@@ -261,6 +302,7 @@ impl Dispatcher {
             return Outcome::Thinned;
         }
         let withdrawn = data.recall.clone();
+        let gone: Vec<u32> = self.pending.iter().map(|p| p.event).filter(|e| withdrawn.contains(e)).collect();
         self.pending.retain(|p| !withdrawn.contains(&p.event));
         let bonus = if data.interrupt { INTERRUPT_BONUS } else { 0 };
         self.seq += 1;
@@ -272,7 +314,11 @@ impl Dispatcher {
             delayed: data.init_delay > 0.0,
             seq: self.seq,
             ready: false,
+            held: None,
         });
+        for event in gone {
+            self.note_dropped(event, Dropped::Withdrawn);
+        }
         Outcome::Queued
     }
 
@@ -289,6 +335,7 @@ impl Dispatcher {
         let waiting = self.pending.remove(index);
         let data = &self.events[&event];
         if !voice.play(data, &waiting.request, cut) {
+            self.note_dropped(event, Dropped::Unplayable);
             return;
         }
         self.current = Some(Current {
@@ -345,7 +392,8 @@ impl Dispatcher {
         for waiting in &mut self.pending {
             let data = &self.events[&waiting.event];
             if waiting.delayed && now - waiting.entry < data.init_delay {
-                verdicts.push(Verdict::Defer);
+                waiting.held = Some(Hold::Delay);
+                verdicts.push(Verdict::Defer(Hold::Delay));
                 continue;
             }
             if waiting.delayed {
@@ -355,10 +403,30 @@ impl Dispatcher {
             let asked = Asked { entry: waiting.entry, actor: waiting.request.actor };
             let verdict = judge(data, &asked, &env);
             waiting.ready = verdict == Verdict::Keep;
+            let held = waiting.held;
+            waiting.held = match verdict {
+                Verdict::Defer(hold) => Some(hold),
+                Verdict::Keep => Some(Hold::Turn),
+                Verdict::Ditch(_) => held,
+            };
             verdicts.push(verdict);
         }
+        let mut gone = Vec::new();
         let mut verdicts = verdicts.into_iter();
-        self.pending.retain(|_| verdicts.next() != Some(Verdict::Ditch));
+        self.pending.retain(|p| match verdicts.next() {
+            Some(Verdict::Ditch(Gone::Expired)) => {
+                gone.push((p.event, Dropped::Expired(p.held)));
+                false
+            }
+            Some(Verdict::Ditch(Gone::PlayedOut)) => {
+                gone.push((p.event, Dropped::PlayedOut));
+                false
+            }
+            _ => true,
+        });
+        for (event, why) in gone {
+            self.note_dropped(event, why);
+        }
     }
 
     /// The ready request that goes first: the highest priority, then the oldest.
