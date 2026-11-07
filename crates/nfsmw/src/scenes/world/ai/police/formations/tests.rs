@@ -26,17 +26,39 @@ fn selecting_the_same_formation_preserves_its_arming_timer() {
 }
 
 #[test]
+fn a_chase_starts_in_stagger_follow() {
+    let mut police = Police::default();
+    assert_eq!(police.last_formation(), None, "no chase, no formation");
+    police.begin(5);
+    assert_eq!(police.last_formation(), Some(Formation::StaggerFollow));
+    assert_eq!(police.formations.attempts(), 0, "the picker has not chosen yet");
+}
+
+#[test]
+fn the_picker_waits_for_the_radio_to_set_up_unless_the_radio_is_off() {
+    let mut police = Police::default();
+    police.begin(5);
+    police.set_speech_enabled(true);
+    police.tick_formations(60.0, 5, [0.0; 2]);
+    assert_eq!(police.formations.attempts(), 0, "a radio that has not set up yet holds the picker");
+    police.set_speech_enabled(false);
+    police.tick_formations(0.1, 5, [0.0; 2]);
+    assert_eq!(police.formations.attempts(), 1, "with the radio off nothing holds it");
+}
+
+#[test]
 fn setup_focus_holds_selection_for_fifteen_seconds_after_it_ends() {
     let mut police = Police::default();
     police.begin(1);
     police.set_speech_enabled(true);
     police.set_speech_setup(true);
     police.tick_formations(20.0, 1, [0.0; 2]);
-    assert_eq!(police.last_formation(), None);
+    assert_eq!(police.formations.attempts(), 0, "no choice while the radio sets up");
     police.set_speech_setup(false);
     police.tick_formations(14.9, 1, [0.0; 2]);
-    assert_eq!(police.last_formation(), None);
+    assert_eq!(police.formations.attempts(), 0);
     police.tick_formations(0.11, 1, [0.0; 2]);
+    assert_eq!(police.formations.attempts(), 1, "the first choice once fifteen seconds have passed");
     assert_eq!(police.last_formation(), Some(Formation::StaggerFollow));
 }
 
