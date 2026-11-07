@@ -77,7 +77,12 @@ pub fn import_bike(request: &Request<'_>) -> Result<Outcome> {
     let tables = Tables { bike: &bike, sound: sound_tables.as_deref() };
     manifest::write_car(request.mod_dir, car, (&name, &manufacturer), &built, &tables)?;
     if let (Some(plan), Some(shop)) = (plan, request.shop) {
-        manifest::append_tables(request.mod_dir, car, &plan.text())?;
+        // The parts of the components are applied through the bike's customization: a bike with one look gets a plain one.
+        let own = match built.liveries.len() >= 2 {
+            true => String::new(),
+            false => manifest::plain_customization(),
+        };
+        manifest::append_tables(request.mod_dir, car, &format!("{own}{}", plan.text()))?;
         shop.keep(plan);
     }
     let mut notes = bike.notes;

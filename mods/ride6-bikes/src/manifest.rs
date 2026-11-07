@@ -68,6 +68,19 @@ fn customization(liveries: &[LiveryChoice]) -> String {
     text
 }
 
+/// The `[customization]` table of a bike with one look: its stock paint and nothing else. The game applies the parts of a bike's
+/// components (`docs/modding/ride6-bike-upgrades.md`) through its customization, so a bike with options but no liveries needs one.
+pub fn plain_customization() -> String {
+    let [r, g, b] = PAINT_COLOUR;
+    format!(
+        "[customization]
+default_paint = 0
+paints = [{{ name = \"Stock\", color = [{r}, {g}, {b}] }}]
+
+"
+    )
+}
+
 /// `manifest` without the tables whose header starts with `prefix` (`[customization`) and `tables` after what is left: the way a
 /// table the importer owns is replaced in a manifest that other tools (the sound tables, the camera tables) have added to.
 pub fn replace_tables(manifest: &str, prefix: &str, tables: &str) -> String {
@@ -248,6 +261,18 @@ mod tests {
         assert_eq!(out.matches("[customization]").count(), 1);
         assert!(out.contains("liveries = ["));
         assert_eq!(replace_tables(&out, "[customization", ""), kept);
+    }
+
+    #[test]
+    fn a_plain_customization_is_one_stock_paint() {
+        let table = plain_customization();
+        assert!(table.starts_with(
+            "[customization]
+default_paint = 0
+"
+        ));
+        assert!(table.contains("paints = [{ name = \"Stock\", color = [128, 128, 128] }]"));
+        assert!(!table.contains("liveries"));
     }
 
     #[test]
