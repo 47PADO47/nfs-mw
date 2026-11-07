@@ -109,6 +109,7 @@ pub(crate) mod test_caps;
 mod tire_tests;
 pub mod traffic_policy;
 pub use traffic_policy::{PopulationPreset, TrafficPolicy, TrafficPreset};
+mod custom_hud_skin;
 #[cfg(test)]
 mod traffic_compat;
 mod traffic_settings;
@@ -141,6 +142,7 @@ pub use blackbox_gfx::{AoMethod, AoQuality, ShadowQuality, TextureFiltering};
 pub use camera_mode::{CameraMode, ViewKey};
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
+pub use custom_hud_skin::CustomHudSkin;
 pub use custom_music::{CustomContext, CustomMode, CustomMusic, Sources as CustomSources};
 pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
@@ -285,6 +287,9 @@ pub struct Settings {
     /// map), or Custom (the rewrite's own modern HUD and menus, `docs/decisions/0013-custom-hud.md`). A slot a look
     /// does not fill falls back to Original. Replaces the old `radio_hud` key (`docs/specs/ui-themes.md` section 11).
     pub ui_style: UiStyle,
+    /// Whether the gauge skin of the CustomHUD plugin replaces the original HUD's gauges when the install has the plugin
+    /// (`custom_hud_skin`, `docs/specs/custom-hud-gauges.md` section 11). Applies only to the Original HUD style.
+    pub custom_hud_skin: CustomHudSkin,
     /// The unit speed is shown in on every HUD look (`speed_units`). Display only.
     pub speed_units: SpeedUnits,
     /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
@@ -436,6 +441,7 @@ impl From<Partial> for Settings {
             hud_layout: p.hud_layout.unwrap_or_default(),
             hud_options: hud::HudSettings::from_layer(p.hud_options),
             ui_style: p.ui_style.unwrap_or_default(),
+            custom_hud_skin: p.custom_hud_skin.unwrap_or_default(),
             speed_units: p.speed_units.unwrap_or_default(),
             language: p.language,
             ui_theme: p.ui_theme.unwrap_or_default(),

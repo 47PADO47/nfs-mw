@@ -230,6 +230,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.ui_style {
         put("ui_style", Value::String(v.to_string()));
     }
+    if let Some(v) = changes.custom_hud_skin {
+        put("custom_hud_skin", Value::String(v.to_string()));
+    }
     if let Some(v) = changes.language {
         put("language", Value::String(v.to_string()));
     }

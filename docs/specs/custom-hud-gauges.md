@@ -196,9 +196,9 @@ breaker bar; gear; units; shift light; tachometer needle; speedometer needle.
   game folder (looked up case-insensitively through the game directory layer). A player who does not have the mod sees
   the stock gauges; a stray ini without the plugin does nothing. Reading goes through the game folder only, never a
   user-global path.
-- **Setting [ours]**: `custom_hud_skin = "auto" | "off"` (default `auto`), in `config.toml`, as a row of the Gameplay options
-  page ("CustomHUD skin") and in the console as `custom_hud_skin`. `off` always draws the stock gauges. The mod's
-  presence is the only other condition, so there is no `on`.
+- **Setting [ours]**: `custom_hud_skin = "auto" | "off"` (default `auto`), in `config.toml` (and the environment variable
+  `NFSMW_CUSTOM_HUD_SKIN`), as a row of the Gameplay options page ("CustomHUD skin"). `off` always draws the stock gauges.
+  The mod's presence is the only other condition, so there is no `on`.
 - **Where it applies [ours]**: only with the **Original** HUD style (`ui_style = "original"`), which is the look the plugin
   replaces. The Custom and Remastered styles draw their own clusters and ignore the skin. A drag race
   (`HUD_Drag.fng`) keeps the stock gauges.

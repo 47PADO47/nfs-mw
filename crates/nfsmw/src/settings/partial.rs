@@ -136,6 +136,8 @@ pub struct Partial {
     pub hud_options: super::hud::HudLayer,
     /// The UI theme (`ui_style`). The legacy `radio_hud` key is mapped onto it by the reader of each layer.
     pub ui_style: Option<UiStyle>,
+    /// Whether the CustomHUD plugin's gauge skin is drawn (`custom_hud_skin`).
+    pub custom_hud_skin: Option<super::CustomHudSkin>,
     /// The HUD's speed unit (`speed_units`).
     pub speed_units: Option<SpeedUnits>,
     /// The language tag (`language`).
@@ -279,6 +281,7 @@ impl Partial {
             hud_layout: self.hud_layout.or(lower.hud_layout),
             hud_options: self.hud_options.or(lower.hud_options),
             ui_style: self.ui_style.or(lower.ui_style),
+            custom_hud_skin: self.custom_hud_skin.or(lower.custom_hud_skin),
             speed_units: self.speed_units.or(lower.speed_units),
             language: self.language.or(lower.language),
             ui_theme: self.ui_theme.or(lower.ui_theme),

@@ -102,6 +102,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
         Category::Gameplay => vec![
             row(Setting::HudLayout, Title::Key("options-hud-layout")),
             row(Setting::UiStyle, Title::Key("options-hud-style")),
+            row(Setting::CustomHudSkin, Title::Key("options-custom-hud-skin")),
             row(Setting::UiTheme, Title::Key("options-hud-theme")),
             row(Setting::SpeedUnits, Title::Key("options-speed-units")),
             row(Setting::ContextMinimap(MinimapContext::FreeRoam), Title::Key("options-free-roam-map-mode")),

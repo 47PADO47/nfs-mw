@@ -35,6 +35,7 @@ impl Setting {
                 HudLayout::Xbox360 => Data::Text("Xbox 360".into()),
             },
             Setting::UiStyle => Data::Text(s.ui_style.label()),
+            Setting::CustomHudSkin => Data::Text(s.custom_hud_skin.label()),
             Setting::SpeedUnits => Data::Text(s.speed_units.label()),
             Setting::UiTheme => Data::Text(s.ui_theme.label()),
             Setting::ContextMinimap(context) => map_options::data(s.minimap_mode(context)),

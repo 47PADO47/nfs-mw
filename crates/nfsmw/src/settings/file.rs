@@ -155,6 +155,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         ui_style: field(&table, origin, "ui_style", |v| UiStyle::from_str(text_of(v)?)).or_else(|| {
             field(&table, origin, "radio_hud", |v| RadioHudStyle::from_str(text_of(v)?).map(UiStyle::from))
         }),
+        custom_hud_skin: field(&table, origin, "custom_hud_skin", |v| super::CustomHudSkin::from_str(text_of(v)?)),
         speed_units: field(&table, origin, "speed_units", |v| SpeedUnits::from_str(text_of(v)?)),
         language: field(&table, origin, "language", |v| super::LanguageTag::from_str(text_of(v)?)),
         post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),
