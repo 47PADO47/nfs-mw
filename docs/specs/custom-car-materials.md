@@ -45,6 +45,20 @@ The global clearcoat option remains the coat enable switch. Its per-material
 strength attenuates the underlying reflected/diffuse energy. Reflection
 brightness scales reflected linear energy independently of angular response.
 
+## Hemispheric floor for converted mod bikes
+
+The 2005 car shader has no ambient term: its light is the sum of three directional lights, so a panel that faces away
+from all three is black. The stock cars were authored for that. A bike converted from RIDE 6 is not: its paint is a
+clean glossy colour that RIDE 6 lights with a sky and ground, and the same black panels read as dark reflection
+patches on its fairings, tank and tail [rewrite]. `GlossyMaterial::ambient_floor` (`libs/blackbox-gfx`, packed into
+`lighting.y` of the material block) raises the light of such a surface to `ambient_floor * (fill 1 + fill 2 + rig
+ambient)` with a `mix(0.6, 1.0, n.z * 0.5 + 0.5)` hemisphere weight (+z is up), as a `max` of the existing light, so a
+surface the fills already light is unchanged and a black rig stays black. Day and night follow the rig: the world's
+fills are its authored ambient, and the night factor is applied after. The game sets it only for bikes
+(`nfsmw_data::car::mods::bike::is_bike`), 0.8, in Custom and in both Original shadings (there it floors the
+per-vertex light of the original arithmetic). It is zero for every other car, so the stock cars and the 2012 cars
+render as before. The Bevy backend ignores it. Evidence and renders: [RIDE 6 materials](formats/ride6-materials.md#panels-that-face-away-from-the-lights).
+
 ## Probe filtering and matte compatibility
 
 Generate two views of the same bounded 64-pixel, seven-level filtered cube:
