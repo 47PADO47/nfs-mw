@@ -123,6 +123,7 @@ fn sound_command(argv: &[String]) -> Option<Result<()>> {
         "cameras" => Some(cli::cameras(rest)),
         "geometry" => Some(cli::geometry(rest)),
         "import-all" => Some(cli::import_all(rest)),
+        "inventory" => Some(ride6_bikes::inventory::run(rest)),
         _ => None,
     }
 }

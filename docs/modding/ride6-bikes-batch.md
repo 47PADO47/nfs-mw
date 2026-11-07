@@ -64,6 +64,24 @@ ride6-bike-import import-all C:\r6work\bikes <mod folder> --physics C:\r6work\ph
     --tyre-tables C:\r6work\physdump-all\resolved\plugin\Physics\Tire [--sound-dir <sound-bikes output>] [--threads 4]
 ```
 
+**The complete import of the 288 bikes** (the command of the reference run, 8 minutes with 4 threads on 8 cores while other builds ran;
+the exporter's output is at `C:\r6work\bikes`, the sound tables at `C:\r6work\sound-out`, the catalogue of the optional parts at
+`C:\r6work\bike-parts`):
+
+```
+ride6-bike-import import-all C:\r6work\bikes <mod folder> --physics C:\r6work\physdump-all ^
+    --tyre-tables C:\r6work\physdump-all\resolved\plugin\Physics\Tire --sound-dir C:\r6work\sound-out ^
+    --bike-parts C:\r6work\bike-parts --threads 4
+```
+
+It writes `cars/` (288 manifests), `components/ride6-bikes.toml` (the catalog: **it must ship with `cars/`**, without it the manifests'
+slots name components nothing defines and the host draws the bikes with their own stock parts only and no choices), `files/CARS/`,
+`files/PARTS/R6/` (the part packs) and `files/SOUND/`. The folder a game reads (`%APPDATA%\nfsmw\config\mods\ride6-bikes`) also
+holds `mod.toml` with its `[library]`, `ride6_bikes.dll` and `files/RIDER/` (the rider, made by the native mod or
+`ride6-rider-import`): replace `cars/`, `components/`, `files/CARS`, `files/PARTS`, `files/SOUND` and keep the rest. With `source`,
+`physics`, `sound` and `bike_parts` in the mod's `config.toml` the native mod does all of it at the next start (the stamp's
+conversion number is 6, so it converts everything once more).
+
 `export_all.py` skips a bike that has a `status.json` (`--force` does it again, `--only <regex>` picks bikes); `import-all` is the
 native mod's batch import (every bike folder of the source, the car ids assigned to the whole set, a bike that cannot be imported
 listed with its reason and the others going on; `mod.toml` written when the folder has none). To rebuild only the meshes,
@@ -151,6 +169,56 @@ size and take the stock look of their tyre family. The 288 imported manifests re
 exceed the schema's 10 (Ducati 888 SP5 and its RM, the two Indian FTR X 100R Carbon: a ratio of 12.2 is in the data) and one
 whose rear leverage curve runs to 2.06 of the travel where the schema takes shares up to 1 (MV Agusta Superveloce 800). Those are
 limits of the bike schema against the data (the physics importer and `bike_check*.rs`), not of the batch.
+
+## Completeness
+
+"Basically all the bikes have no default exhaust or parts" (the report that started this): every stock part of the 293 bikes was
+checked against RIDE 6's data and against the car files with `tools/ride6-exporter/completeness.py` (python 3, the exporter's
+output and an imported mod folder; it also runs `ride6-bike-import` for its `ids` and `inventory` commands, the second of which reads
+the `GEOMETRY.BIN` of every car back, solid by solid):
+
+```
+python -I tools\ride6-exporter\completeness.py --out C:\r6work\bikes --mod <mod folder> --matrix --md completeness.md ^
+    [--only <regex>] [--detail <vehicle id>...] [--infer]      (--infer: car files of an older import)
+```
+
+**What each check found.**
+
+| Check | Result |
+|---|---|
+| Rows of the bindings tables (`RIMS`, `BRAKES_KIT`, `EXMANIFOLD`, `MUFFLER`, `BARPADS`, `HANDGUARDS`, `SIDE_MIRRORS`, `SUMP_GUARD`, `HOMOLOGATION`, `ENDURO_PRESET`, `CHAIN`) against the exported parts | every row a bike has is a part or a stated reason: 0 silent drops in 293 bikes; `CHAIN` has no row |
+| The exported chassis against the game's skeletal mesh (`LODModels` sections) | all four levels the game draws are complete (no section is disabled in any of the 293 meshes); the glTF export drops a few degenerate triangles (4 of 193,186 on the Z900) |
+| The parts' triangles against the solids of the car files, each level | **before: the frame had to fit one solid, so `A` was chassis level 1 or 2 (27 to 54 percent of the triangles of level 0)**; after: `A` is level 0 for all 293 exported bikes (288 imported: the other five are refused for their physics), 0 triangles dropped at any level, level by level, in the 293 bikes |
+| Surfaces drawn grey (no picture reaches them) | 168 surface-and-level pairs before: six bikes' rims, a silencer, a header and the far paint of one bike ([causes and fixes](../formats/ride6-bike-parts.md#what-the-chassis-mesh-holds-and-surfaces-with-no-picture-data)); what is left is 20,000 triangles of level 0 on 11 bikes: glass and placeholders, and the rims of the Monster 1200 S (13,261: their material instance is not in the install), the header of the R1 RM 2008 (4,742, the same) |
+| The options split (the stock exhaust, rims, discs and pad are solids that only a resolved component shows) | a profile copied without `components/` drew none of them (no exhaust, rims, discs); `Components::stock_only` draws them now, and the catalog ships with `cars/` (above) |
+
+**Why the old import looked empty.** The chassis' `mat_mechanics` section holds the frame, the engine, the swingarm, the chain and
+the pedals: 105,000 triangles and 103,000 vertices at level 0 of the 690, 60,067 vertices at level 1. A solid holds 60,000, so that
+section alone did not fit and the importer used level 2 (27,000 triangles), where the trellis frame, the engine's cases and the
+header's shield are a few blobs. On the five bikes checked before the change `A` was level 1 or 2 (Hypermotard 698 at 41 percent of
+level 0, Panigale V4 54, CRF 450R 45, 690 27, RC 390 33). The frame is now as many solids as it needs
+([ride6-bikes.md](ride6-bikes.md#the-cars-files), `chunks.rs`): the 690 has three at `A` (40,000, 58,000 and 14,000 vertices), the R1 five, the Indian FTR six (and its handlebar group two).
+
+**The 8 bikes checked by eye** (`nfsmw view-car <ID> --yaw 90` and `--yaw 35` in an isolated profile with the bikes, `cars/`,
+`components/`, `files/` and the library copied; the screenshots are `C:\r6work\shots-comp\a\<ID>_y90.png` and `_y35.png`): the KTM 690
+SMC R shows its orange trellis frame and the engine in the open centre, the header with its shield, the silencer, chain and sprocket
+and the pedals; the RC 390, CRF 450R SMT, Hypermotard 698, Panigale V4, R1, Hayabusa and Z900 show their frame, engine, swingarm and
+exhaust. Their stock parts, from `--matrix` (`ok` is in the car, `no row` is a part the game has no row for: most road bikes have no
+bar pad or hand guards, `not shipped` a row whose asset the install lacks):
+
+| Bike | Frame solids at A | front_tyre | back_tyre | front_rim | back_rim | front_brake | back_brake | exmanifold | muffler | barpad | handguards | mirrors | homologation |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Ducati_Hypermotard-698-Mono-2024 | 4 | ok | ok | ok | ok | ok | ok | ok | ok | no row | ok | ok | ok |
+| Ducati_Panigale-V4-2018 | 2 | ok | ok | ok | ok | ok | ok | ok | ok | no row | no row | no row | no row |
+| Honda_CRF-450R-SMT-2024 | 2 | ok | ok | ok | ok | ok | ok | ok | ok | ok | ok | no row | no row |
+| KTM_690-SMC-R-2026 | 3 | ok | ok | ok | ok | ok | ok | ok | ok | not shipped | ok | ok | ok |
+| KTM_RC-390-2023 | 4 | ok | ok | ok | ok | ok | ok | ok | ok | no row | no row | ok | ok |
+| Kawasaki_Z900-2021 | 3 | ok | ok | ok | ok | ok | ok | ok | ok | no row | no row | ok | ok |
+| Suzuki_Hayabusa-2021 | 4 | ok | ok | ok | ok | ok | ok | ok | ok | no row | no row | ok | ok |
+| Yamaha_YZF-R1-2020 | 5 | ok | ok | ok | ok | ok | ok | ok | ok | no row | no row | ok | ok |
+
+**Disk and time** (measured, 288 bikes): `files/CARS` 4.0 GB before and 4.9 GB (+22 percent) after (the frame at level 0 instead of 1 or 2: a
+bike takes 4 to 7 MB more, the 690 14.1 MB to 18.1 MB). The timings of the exporter are in [ride6-bikes-disk.md](ride6-bikes-disk.md).
 
 ## The game side
 

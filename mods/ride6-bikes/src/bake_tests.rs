@@ -1,4 +1,5 @@
 use super::*;
+use crate::grade::lift;
 
 fn level(width: u32, height: u32, texel: [u8; 4]) -> Level {
     Level { width, height, rgba: texel.repeat((width * height) as usize) }
@@ -160,4 +161,13 @@ fn the_size_cap_follows_the_part() {
     assert_eq!(size_cap(Kind::Rim, 2048), 1024);
     assert_eq!(size_cap(Kind::Brake, 2048), 512);
     assert_eq!(size_cap(Kind::Brake, 8), 4);
+}
+
+#[test]
+fn a_saturated_paint_is_lifted_without_changing_its_hue() {
+    // The red of the Honda CRF 450 R: lifting each channel alone raised its blue from 26 to 33 (crimson); the hue lift keeps the share.
+    let lifted = bake_diffuse(level(1, 1, [184, 0, 26, 255]), None, false, Grade { gain: 1.35, ..Grade::NONE }, None);
+    let [r, g, b] = [lifted.rgba[0], lifted.rgba[1], lifted.rgba[2]];
+    assert!(r > 184 && g == 0, "{r} {g} {b}");
+    assert!((f32::from(b) / f32::from(r) - 26.0 / 184.0).abs() < 0.01, "{r} {b}");
 }

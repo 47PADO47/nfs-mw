@@ -50,6 +50,8 @@ pub struct Binding {
     pub role: Role,
     /// The mount: three rows of a 3 by 4 affine matrix taking the solid's points to the frame of `role`.
     pub matrix: Option<[f32; 12]>,
+    /// A part of the car's base vehicle: drawn at the levels of detail its files have and at no other (no nearest level stands in).
+    pub base: bool,
 }
 
 /// One car's components.
@@ -64,6 +66,16 @@ pub struct Components {
 }
 
 impl Components {
+    /// The car with its own solids only: no slots and no catalog, so nothing is offered, but every part bound to the car's own
+    /// files (the stock exhaust, rims, discs and pad a bike's importer split out of its body, bars and wheels) is still drawn.
+    /// What a car gets whose slots do not fit its mod's catalog (a catalog file missing from the install): without it the split
+    /// stock parts would vanish and the bike would roll on bare tyres.
+    pub fn stock_only(id: &str, parts: BTreeMap<String, Binding>) -> Self {
+        let own = parts.iter().filter(|(_, binding)| binding.pack.is_none()).map(|(part, _)| part.clone());
+        let vehicle = VehicleDef { id: id.to_ascii_lowercase(), parts: own.collect(), slots: Vec::new() };
+        Self { vehicle, catalog: Arc::new(Catalog::default()), parts }
+    }
+
     /// The highest tier of the components `slot` accepts: the levels of a performance ladder. 0 when the car has no such slot.
     pub fn max_tier(&self, slot: &str) -> u8 {
         let Some(slot) = self.vehicle.slot(slot) else { return 0 };
@@ -106,6 +118,14 @@ pub fn is_choice(hash: u32) -> bool {
         let slots = components.vehicle.slots.iter().filter(|slot| select::category_of(&slot.id).is_some());
         slots.flat_map(|slot| &slot.accepts).any(|offer| select::choice_hash(folder, &offer.component) == hash)
     })
+}
+
+/// Whether `hash` stands for a component the car in `folder` lists in a slot the garage has a category for: a choice of the
+/// car's components, which the car's own model lists (`custom.rims` and the like) do not hold.
+pub fn is_choice_of(folder: &str, hash: u32) -> bool {
+    let Some(components) = of(folder) else { return false };
+    let slots = components.vehicle.slots.iter().filter(|slot| select::category_of(&slot.id).is_some());
+    slots.flat_map(|slot| &slot.accepts).any(|offer| select::choice_hash(folder, &offer.component) == hash)
 }
 
 /// The components of the mod car in `folder`. `None` for a stock car and for a mod car that gives none.

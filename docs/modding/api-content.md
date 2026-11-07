@@ -189,6 +189,10 @@ solid = "MYBIKE_KIT00_RACE"    # the solid without its level-of-detail letter (A
 pack = "PARTS/R6/MUF974_001"   # optional: a folder under files/ with its own GEOMETRY.BIN and TEXTURES.BIN, shared by cars; left out: the car's own files
 role = "body"                  # body | steered (a bike's bars) | steered_slid (its fork) | wheel_front | wheel_rear: the frame the solid is modelled in
 matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0]   # optional: three rows of a 3 by 4 matrix, solid to the frame of `role`
+
+[parts."body.2"]               # a base part: drawn with the car whatever its slots hold (a body whose mesh is more than one solid)
+solid = "MYBIKE_KIT00_BODY2"
+base = true                    # optional, default false; the solid is drawn at the levels of detail its file has it at and no other
 ```
 
 ```toml

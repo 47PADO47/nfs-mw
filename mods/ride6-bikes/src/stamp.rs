@@ -11,7 +11,11 @@ use crate::config::Config;
 /// 4: the shop's options: the stock exhaust, rims, discs and bar pad as solids of their own, `components/`, `PARTS/R6/`.
 /// 3: glass blended as its transmittance, metals spared most of the baked occlusion, more stock parts, liveries, the finest level
 /// of detail whose solids fit, colours not veiled by the reflection, the idle panel in the instrument clusters' displays.
-const CONVERSION: u32 = 4;
+/// 5: the clusters' screens composed from RIDE 6's gauge widgets (`tex/*_dash.png`), the livery paint's occlusion floor, the hue-keeping
+/// lift and satin metal drawn as painted metal.
+/// 6: the finest level of detail for every body (the frame is as many solids as it needs, `BODY2`, ...), the pictures of the old rims,
+/// silencers and headers whose master names them differently, the far levels' paint taken from the chassis' livery.
+const CONVERSION: u32 = 6;
 /// The name of the stamp file, in the mod's folder.
 pub const FILE: &str = ".import-stamp";
 

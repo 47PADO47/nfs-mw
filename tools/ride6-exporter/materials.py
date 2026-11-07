@@ -20,13 +20,16 @@ TEXTURE_PARAMS = (
     "BaseColor",
     "CleanNormal",
     "Pbr",
+    "BaseColor0_Map",
+    "Pbr0_Map",
+    "Normal0_Map",
     "ColorCustomization - Mask - Texture",
 )
 
 
 # The normal maps are 40 of the 125 MB a bike takes in the export folder and are read only by `ride6-bike-import --normal-maps`
 # (off by default): they are exported when the environment variable R6_NORMALS is set (`export_all.py --normals`).
-NORMAL_PARAMS = ("Normal - Texture", "CleanNormal")
+NORMAL_PARAMS = ("Normal - Texture", "CleanNormal", "Normal0_Map")
 
 
 def wanted_params():

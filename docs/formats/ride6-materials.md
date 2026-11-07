@@ -168,7 +168,7 @@ with every index at least one).
 | brake disc part, metallic from 0.5 | `BRAKEDISC` | [choice] |
 | metal with base colour luminance below 0.08, or saturation from 0.30 | as a dielectric (the texture and its gloss; gold stays gold, black anodised stays black) | [choice] |
 | metal with luminance 0.08 to 0.30 | `MAGGUNMETAL` (texture, weak reflection) | [choice] |
-| metal with luminance from 0.30 | `CHROME` below roughness 0.2, `MAGSILVER` below 0.4, else `ALUMINUM` | [choice] |
+| metal with luminance from 0.30 | `CHROME` below roughness 0.2, `MAGSILVER` below 0.3, else `MAGGUNMETAL` (it was `ALUMINUM`, [below](#paint-and-satin-metal)) | [choice] |
 
 The luminance is that of the linear base colour times the occlusion factor the diffuse picture is baked with (`floor + (1 -
 floor) * occlusion`, floor 0.55): the conductor materials cannot be darkened per texel, and RIDE 6 applies its occlusion to
@@ -208,6 +208,27 @@ a texel with no green in it (the red (184, 0, 26) of the Honda CRF 450 R: 0.01 l
 hue none. The metals are spared most of the occlusion as well (`grade::metal_floor`, `METAL_AO_RELIEF` 0.8, a silver can read
 dark grey with the full floor). The options are `--ao-floor`, `--gain` and `--reflected`
 of the importer (`--gain 1 --reflected 0 --ao-floor 0.3` gives the earlier look).
+
+### Paint and satin metal
+
+**Why the paints looked wrong [data, measured].** The base colour pictures of the liveries are clean: the livery atlas
+(`livery<chassis>_<n>_d`) already holds the decals (the HONDA, CRF and 450R of the Honda CRF 450 R, the 390 and the stripes of the
+KTM RC 390) and has **no decal layers** of its own. A search of all 1,349 livery material instances finds no decal, mask or colour
+parameter that composes a picture: `ColorCustomization` (the player's palette colour replaces the texels a mask selects, white
+nearly everywhere; with no choice the picture's own colour stays), `TextureCustomization - Pass1` (a second picture layer, `Enabled = 0`), the
+clear-coat layers (flakes, carbon weave, a `Generic1/2` bottom normal), dirt, rain and pearlescence (intensity 0) all leave the
+stock look as the picture shows it. The paint the player sees is therefore the picture's colour, lit; the wash and the blotches of
+the first bikes were made by the conversion, in two places:
+
+| Cause | Measured | Choice |
+|---|---|---|
+| the baked occlusion on the livery | the livery atlas's occlusion channel is dark between panels and under the tank; at the floor 0.55 it left brown blotches on the orange of the KTM RC 390 and dark patches on the red of the Honda CRF 450 R, where RIDE 6 shows a clean glossy colour (it applies the occlusion to indirect light only) | `PAINT_AO_FLOOR` 0.9 (`grade.rs`) for the materials whose name contains `livery`, the mechanics keep 0.55 |
+| the lift of each channel alone | `x * (1.35 - 0.35 x)` on R, G and B raised the blue of the Honda red (184, 0, 26) to 33 and made it crimson | `grade::lift_colour`: the brightest channel is lifted as before and the others by the same factor, so greys are as before and saturated paints keep their hue |
+| satin metal as a conductor | the bare metal of the Honda CRF 450 R (mechanics, muffler, header: base colour (181, 181, 181), neutral; roughness 0.2 to 0.55, median 0.35 to 0.45) took `ALUMINUM` (conductor, the environment only) for roughness from 0.4 and `MAGSILVER` below, so the frame and engine rendered blue-white (the viewer's sky is the whole colour of a conductor) | roughness from 0.3 is `MAGGUNMETAL` (the texture under a painted-metal response with a weak reflection, neutral silver), `MAGSILVER` stays for 0.2 to 0.3 and `CHROME` below 0.2 |
+
+What the 2005 car shader still cannot show: the clear coat's own reflection (the shader draws the lit paint and the environment
+term of its light material), flakes and the carbon weave, and an ambient term (a panel that faces away from the three lights is
+black, which is most of the dark patches of a glossy panel in `view-car`).
 
 ### Translucent surfaces
 
@@ -286,25 +307,71 @@ is a small change in the car scene's `MaterialLookup` (see [ride6-bikes.md](../m
 
 ### Instrument clusters
 
-**The material [data].** `mat_gauge<chassis>` (287 bikes) is `BLEND_Masked` with `BaseColor - Texture` the cluster picture
-(`gauge371_d`), `BaseColorOpacity - Texture` the engine's white default, `EmissiveColor - Texture` the engine's **black** texture
-(in all 287 materials), and constant specular, roughness and metallic scalars. There is no render target, screen or display
-parameter in any of the 4,393 material instances of the exported bikes (a search for `screen`, `tft`, `dash`, `display`, `clock` and `lcd` in the
-parameter and texture names finds none; 573 names contain `gauge`). The picture is the bezel and the warning lamps in their off
-state; on a bike with a colour display it also has a **black window** (77 of the 245 different pictures are black over more than 2 percent of their area,
-mostly as a black ground around the bezel, and 14 of them have a display window of the kind the importer finds; the KTM RC 390's is about 610 by 365 of 1024 px, between the lamps) where RIDE 6 presumably draws the
-instrument panel at run time (inferred: nothing in the materials draws it). The other pictures are analogue dials (an Aprilia cluster has a
-tachometer dial) and LCD fields that are drawn in the picture itself.
+**The cluster is drawn by two widgets [data].** `mat_gauge<chassis>` (287 bikes) is `BLEND_Masked` with `BaseColor - Texture` the
+cluster picture (`gauge371_d`), `EmissiveColor - Texture` the engine's black texture (in all 287 materials) and constant specular,
+roughness and metallic scalars; it has no screen, render-target or display parameter (a search of the 4,393 material instances for
+`screen`, `tft`, `dash`, `display`, `clock` and `lcd` finds none). The screen is not in the material: it is an Unreal Motion Graphics
+widget rendered into the textures of that material. The vehicle's `assets/data/vehicles/HUD/HUD<chassis>` data asset (`HUD_DataSource`,
+one per chassis, every exported bike has one) names two widget classes, `BaseColorCockpitHUDClass` (the render becomes the base
+colour) and `EmissiveColorCockpitHUDClass` (the render becomes the emissive colour), for example `HUD127` names
+`ui/Widgets/Gauges/gauge_127/gauge_127` and `gauge_127_E`; a `HUD` asset may name another gauge's classes (`HUD005` uses `gauge_008`).
+The static `gauge<chassis>_d` picture is what the game shows where no widget is drawn: it is the base colour widget's background
+(`BkgGauge`) alone, which is why it holds the bezel and a black window and nothing else. 228 gauge configurations and about 205
+different widget classes exist.
 
-**The mapping [choice].** The converter cannot draw a live panel: a car's textures do not change while it is drawn, and no
-per-frame texture feed for a car was found in the host (not investigated further). It fills the window with the panel of an engine at
-rest, once (`dash.rs`): a dark blue ground, the rev bar of 24 segments with the first 3 lit, the gear `N` in green and the speed
-`0` with `KM/H` under it, in a 5 by 7 dot font scaled to the window. The window is **found**, since nothing names it: the
-largest rectangle of texels whose brightest channel is at most 12, at least 4 percent of the picture, between 1 and 3.5 times
-wider than high, and not touching the border of the picture (a black ground around a bezel is not a window), drawn 3 percent
-inside its edges because the corners of a display are rounded. A picture without such a rectangle is left as it is. What stays
-open: live speed, rpm and gear (they need the host to draw the three values into the cluster's texture each frame), the
-night glow of the lamps, and the displays that are dark grey (about 45) rather than black, which the window search does not see.
+**The widget tree [data].** Each class is a `WidgetBlueprintGeneratedClass` whose `WidgetTree` holds only `CanvasPanel` (with
+`CanvasPanelSlot`: offsets, anchors, alignment, z order, auto size), `HorizontalBox` (with `HorizontalBoxSlot`), `Image` and
+`TextBlock` (408 widgets, 4,708 canvas slots, 2,110 images, 1,913 text blocks), on a canvas of 1024 by 1024 in which the first image
+(`BkgGauge`) fills the whole canvas. An `Image` brush is a `Texture2D` (714) or a material instance (1,396) of three UI materials,
+all `MSM_Unlit` and translucent: `M_UI_GaugeWidgetColorMultiplier` (872 of the 998 different instances: colour is `DayTexture` times
+`DayColor` times `DayColorIntensity`, intensities from 0.3 for a needle to 5 for a lamp, 1.5 for a backlight, with night variants
+`NightTexture`, `NightColor`, `NightColorIntensity`), `M_GaugeProgressBars` (101: `BaseTexture` the bar segments, `GradientTexture` a
+sweep that says which segments are lit by the fill fraction `RPMBar_FillPercentage`, threshold textures and colours) and
+`BASE_UI_GaugeOdometerNumber` (22, a scrolling digit strip). Text blocks carry the design-time string (`000` for the speed, `N` for the
+gear, `5:39` for the clock), a font (`Digital-7` for the seven-segment LCDs of 489 blocks, then `Bebas-Neue-Pro-Bold`,
+`F_RobotoCondensed-*`, `Montserrat-Bold-Mono`, `KTM-Cockpit-Bold_Font` and others), a size, a colour and a justification. The class's
+default object holds `GaugeConfiguration` (also a `gauge_<n>_configuration` asset): per needle (`rpmneedle`, `speedneedle`) a
+`NonLinearMapping` from the value to the needle's angle in degrees (for `gauge_127`: 1000 rpm 0 degrees, 6000 rpm 72.5, 15000 rpm
+270; angle 0 is the needle straight down), the rev bar's mapping to a fill fraction, the rpm LED thresholds, the clock format, the
+riding aids order. The run-time values (rpm, speed, gear, riding aid levels, clock) are set by the game's `GameSpecificGauge` code,
+which this importer does not read.
+
+**The mapping [choice].** The car's textures do not change while it is drawn, so the importer shows a bike at rest: ignition on,
+neutral, speed 0, 1,400 rpm. `tools/ride6-exporter/dash.py` (with `dash_widgets.py` for the trees and `dash_paint.py` for the drawing)
+reads the two classes of every bike, draws them at that state into 1024 by 1024 pictures and writes the **sum** (the car shader has no
+emissive input, so the emissive picture is added to the base colour) as `tex/gauge<chassis>_d_dash.png` next to the bike's textures;
+`dash::composed` (the importer) bakes that picture, lifted with the largest gain (`grade::MAX_GAIN` 2.0, a **[choice]**: the screen is emissive in RIDE 6 and the car shader lights it like paint), in place of `gauge<chassis>_d` (a bike with no HUD widget keeps the older
+fallback below). 286 of the 287 exported bikes with a cluster get one (155 different pictures; the Kawasaki Ninja ZX-10RR EM 2021 has no base picture in its gauge material): TFT colour screens (Ducati V4, Aprilia
+RSV4, KTM, Yamaha R1, BMW S 1000 RR), LCD clusters in their pale green with segment digits, analogue dials with the needles at idle.
+The draw follows Unreal's rules:
+
+- Canvas slot: with equal anchors the rectangle is `anchor * parent + (Left, Top)`, size `(Right, Bottom)`, minus alignment times
+  the size; with stretched anchors the offsets are the margins; auto size takes the brush size or the text extent. A horizontal box
+  lays its children in a row, `Fill` slots sharing the rest.
+- Render transform: translation, scale and angle about the pivot (default the middle), for panels as well as images.
+- Image tint: the texture times the material colour times its intensity, in linear light; an over-bright lamp (intensity 5) is
+  divided by its largest channel (it keeps its hue: a green `N` stays green and is not clipped to white).
+- Needles: the angle is the configuration's mapping at the idle value (the design angle is overridden at run time **[inferred]**: the
+  design angle of `rpmneedle1` of `gauge_127_E` is 180, which would point the needle at 15,000 rpm; the dial's 1 is at the bottom).
+- Text: 96/72 pixels per Slate size unit (a median text box height of 1.42 times the size over 1,651 text blocks agrees); the game's
+  fonts are not read, the text is set in the system's Arial or Bahnschrift, and `Digital-7` in seven segments drawn by the script.
+- Hidden: widgets that are `Hidden` or `Collapsed` in the class, and by name **[choice]** the warning lamps (`abs`, `tcs`, `oil`,
+  `fuel`, `limiter`, `warning`, `led_light`, the shift lights `led_rpm`) and the miles units, which a bike at rest with metric units
+  does not show. The bar graph is drawn at the idle fill with the sweep texture as the mask.
+
+Not done: the odometer strips, the riding aid cycling, night colours, the warning lamps, the game's fonts, and **a live panel**. A live
+dash needs the host to write a changing picture into a car texture each frame. The renderer cannot: a car's textures are created once
+(`RenderBackend::create_texture`) and the only way to change what a surface shows is `redirect_texture`, a swap to another texture that
+is already uploaded (the texture animations use it, driven by time: `scenes/car/texture_anim.rs`); `update_ui_texture` exists for UI
+pictures only. A mod would need a new host call (a per-frame RGBA update of one named texture of a car, a versioned mod interface
+entry and the renderer's upload path) and a run-time renderer of the widgets above (the layout, the fonts, the lamps' rules), which is
+not a small feature, so the dash stays a picture of the bike at rest.
+
+**The older fallback [choice].** A bike with no widget classes (15 of the 400 `HUD` assets name none) fills the black window of
+`gauge<chassis>_d` by `dash.rs`: the largest rectangle of texels whose brightest channel is at most 12, at least 4 percent of the
+picture, between 1 and 3.5 times wider than high and not touching the border (a black ground around a bezel is not a window), drawn 3
+percent inside its edges, with the rev bar of 24 segments (3 lit), the gear `N` and the speed `0` with `KM/H` in a 5 by 7 dot font. A
+picture without such a rectangle is left as it is.
 
 ## Open
 

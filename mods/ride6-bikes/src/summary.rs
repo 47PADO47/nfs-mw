@@ -10,7 +10,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::build::{Built, LiveryChoice, Wheel};
+use crate::build::{Built, ExtraSolid, LiveryChoice, Wheel};
 use crate::exhaust::Pipe;
 
 /// The file name beside `parts.json`.
@@ -50,6 +50,12 @@ pub struct Summary {
     /// The liveries the bike offers (`build::add_liveries`); older files have none.
     #[serde(default)]
     liveries: Vec<LiveryChoice>,
+    /// The levels of detail each body letter was built at (`Built::levels`); older files have none.
+    #[serde(default)]
+    levels: Vec<[u32; 2]>,
+    /// The solids of the body after the first (`Built::extra_solids`); older files have none.
+    #[serde(default)]
+    extra_solids: Vec<ExtraSolid>,
 }
 
 impl Summary {
@@ -62,6 +68,8 @@ impl Summary {
             triangles: built.triangles,
             exhaust: built.exhaust.clone(),
             liveries: built.liveries.clone(),
+            levels: built.levels.clone(),
+            extra_solids: built.extra_solids.clone(),
         }
     }
 
@@ -83,6 +91,8 @@ impl Summary {
             front_end: Default::default(),
             exhaust: self.exhaust,
             liveries: self.liveries,
+            levels: self.levels,
+            extra_solids: self.extra_solids,
         }
     }
 
@@ -117,6 +127,12 @@ mod tests {
             front_end: Default::default(),
             exhaust: vec![Pipe { side: Side::Right, at: [-0.75, -0.14, 0.75], dir: [-0.87, 0.0, 0.5] }],
             liveries: vec![LiveryChoice { name: "Livery 1".to_owned(), texture: "KTM450_SKIN1".to_owned() }],
+            levels: vec![[1, 0], [2, 1]],
+            extra_solids: vec![ExtraSolid {
+                id: "base.body.2".to_owned(),
+                solid: "KTM450_KIT00_BODY2".to_owned(),
+                role: "body".to_owned(),
+            }],
         };
         let dir = std::env::temp_dir().join(format!("ride6-summary-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -129,6 +145,8 @@ mod tests {
         assert!(back.geometry.is_empty());
         assert_eq!(back.exhaust, built.exhaust);
         assert_eq!(back.liveries, built.liveries);
+        assert_eq!(back.levels, built.levels);
+        assert_eq!(back.extra_solids, built.extra_solids);
     }
 
     #[test]
