@@ -17,7 +17,7 @@ in the game window.
   with one value, `original` ("Original"): one such option for every kind of effect that has variants (the trees are models of the world, not an effect, with the same option and folder); see
   [effect-variants.md](effect-variants.md) (the mechanism, the profile of each kind and how to add a kind) and
   [nitrous-variants.md](nitrous-variants.md). The game's other gameplay rows (`hud_layout`,
-  `ui_style`, `ui_theme`, `speed_units`, `riding_style`, `minimap`, `language`, `rear_view_mirror`, `turn_signals`, `cop_health_bars`, `rider_gear`) are
+  `ui_style`, `ui_theme`, `speed_units`, `riding_style_road`, `riding_style_motard`, `riding_style_offroad`, `brake_fingers`, `clutch_fingers`, `minimap`, `language`, `rear_view_mirror`, `turn_signals`, `cop_health_bars`, `rider_gear`) are
   declared too, so that a clash of kinds is seen, but their values are the game's own and a mod cannot add to them.
 
 ## `add_option`: exactly what it does

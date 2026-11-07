@@ -14,11 +14,14 @@ filters start at `index_01`, `middle_01`, `ring_01`, `pinky_01`: the fingers, no
 
 | Layer | Clip | Hand | Explicit time | Weight |
 |---|---|---|---|---|
-| Clutch | `race_clutch_brake_gear` | left | `Fingers_Clutch_Explicit`: the clutch lever followed at `FingersClutchExplicitSpeed` (2.5 a second; 10 on a scooter), the fully pulled lever being 0.27 s (0.24 for the woman) of the clip | `Fingers_Clutch_Alpha` = `SmoothFloat_Constant(explicit > 0, 7)` |
+| Clutch | `race_clutch_brake_gear` | left | `Fingers_Clutch_Explicit`: a time in the clip that follows the lever's target (0.27 s at a fully pulled lever, 0.24 for the woman) at `FingersClutchExplicitSpeed`, **2.5 clip seconds a second** (10 on a scooter): a fully pulled lever is reached in 0.11 s | `Fingers_Clutch_Alpha` = `SmoothFloat_Constant(explicit > 0, 7)` |
 | Front brake | `race_clutch_brake_gear_{OneFinger,TwoFingers,FourFingers}` by `BrakeFingers` (1, 2, 4; the blueprint's default and every `RIDING_STYLE` preset: 2) | right | `Fingers_FrontBrake_Explicit` = `Fingers_FrontBrake_Condition * 0.28` with the condition `SmoothFloat_Constant(BikeFrontBrake, 3.5)` | `FrontFingers_Brake_Alpha` = `SmoothFloat_Constant(explicit > 0, 10)` |
 
-The clips are 0.633 s (20 frames) of full poses whose only moving bones are the index and middle fingers of both hands (the four-finger
-clip also the ring and little fingers); each layer takes the hand it is meant for. The call `Hands_FingersOverride(0, 0.28, 1, 0, 0.23, 2, 3)`
+The clips are 0.633 s (20 frames) of full poses whose only moving bones are the fingers of both hands; each layer takes the hand it is meant for. **Which fingers move**
+(measured on the exported clips, angle of each finger bone against its pose at 0 s): in `race_clutch_brake_gear` the left hand's index and middle fingers (peak 80 degrees at
+0.16 s, 32 to 54 degrees at the pulled lever's 0.27 s) and the right hand's index and middle; in the three brake clips the right hand's one (index), two (index and
+middle) or four fingers, and in all three the **same left hand with all four fingers** (index and middle 44 degrees at 0.28 s, ring and little 7 to 18). The blueprint's branch
+filters of the clutch layer name only `index_01_l` and `middle_01_l` (the clutch pulls with two fingers), those of the brake layer all four right-hand fingers [D]. The call `Hands_FingersOverride(0, 0.28, 1, 0, 0.23, 2, 3)`
 gives the windows of the hand-level `Hand_Clutch_Explicit` and `Hand_FrontBrake_Explicit` (0 to 0.28 and 0 to 0.23 s), which are not the
 finger layers' variables and are **not played**. The rear brake lever (a scooter's left hand, `RearFingers_Brake_Alpha`, the same clip) is not played.
 
@@ -26,6 +29,12 @@ finger layers' variables and are **not played**. The rear brake lever (a scooter
 (the launch clutch) and while the bike stands (`libs/blackbox-vehicle/src/bike/powertrain.rs`, `Bike::clutch_pulled`: the clutch's
 engagement turned round). The blueprint's own rule makes the target from `VehicleClutchRemap`, `bIsGoingToChangeGearUp` and the clutch
 type (targets 0.2 to 0.27 s); here the lever itself is the input, a choice. **What pulls the brake:** the front brake input.
+
+**Why the fingers did not show on a gear change** (a user's playtest: "the left hand plays but doesn't use any fingers"). The game followed the lever (0 to 1) at the blueprint's 2.5 a second,
+but the blueprint's 2.5 is in seconds of the clip a second and its lever is 0.27 s of clip: the lever (0 to 1) goes at 2.5 / 0.27 = 9.3 a second, a pull of a tenth of a second.
+A gear change's clutch lasts about that, so the first version closed the fingers 0.25 of the way. Fixed (`hands.rs`); the clip is also played to its 0.27 s (it was 0.28).
+The lever itself (the bike's clutch lever mesh) does not move: it is part of the handlebar solid, steered with the fork (a lever bone, `BONE_L_LEVER`, exists in the
+bike's skeleton and is not animated by this project).
 
 ## 2. The throttle wrist
 
@@ -98,7 +107,8 @@ times the angle of the file's `wrist_throttle` rotation (30 degrees); the file's
 |---|---|
 | The clips, the layer structure, the windows, the rates 2.5, 3.5, 7, 10 and 4, the five offset poses | Data (the blueprint's class defaults and functions) |
 | The lever of the clutch from the bike's own clutch | Choice (the blueprint remaps `VehicleClutchRemap` and the gear change flag) |
-| Two fingers on the brake | Data (the blueprint's default) |
+| The number of brake fingers: 1, 2 or 4, 2 by default | Data (`BRAKE_FINGERS` of the riding style page; 2 the blueprint's default and every preset's) |
+| The number of clutch fingers: 2 or 4, 2 by default | Choice: RIDE 6 has no clutch option and always plays the clutch clip (two fingers); 4 is the left hand of the four-finger clip, which exists (the three brake clips share one left hand with all four fingers); 1 has no clip |
 | The mask: every bone under the hand bone | Choice (the branch filters name the first finger bones; the rest of the finger is under them) |
 | The hand's grip point from the authored pose and the bike's grip bone | Measured (the reference pose is taken to hold the reference bike's grip; the previous agent checked it against the render); the rule is a choice |
 | The wrist's roll: 30 degrees about the grip bone's own axis, toward the rider | Data for the angle; measured for the axis; choice for the direction. The offset's translation is not played (choice, from a playtest) |
@@ -106,8 +116,15 @@ times the angle of the file's `wrist_throttle` rotation (30 degrees); the file's
 ## 6. Not done
 
 The up, in and out wrist poses, the wrist sweep and the clutch compensation, the rear brake lever, the `Idle` clips with the throttle
-(`race_trottle`), the blipper (`race_Add_Blipper`: a downshift throttle blip on bikes with a blipper, `BikeHasBlipper`), and the other
-BrakeFingers numbers (1 and 4: the clips are exported; no option picks them).
+(`race_trottle`), the blipper (`race_Add_Blipper`: a downshift throttle blip on bikes with a blipper, `BikeHasBlipper`), the clutch lever mesh pulled
+with the fingers and a clutch of one finger.
+
+## 6a. The finger settings
+
+`brake_fingers` (1, 2 or 4; default 2) and `clutch_fingers` (2 or 4; default 2): Gameplay options **Brake Fingers** and **Clutch Fingers**, config keys of the same names,
+`NFSMW_BRAKE_FINGERS`, `NFSMW_CLUTCH_FINGERS`, console `set brake_fingers 4`. The graph reads them as the parameters `brake_fingers` (0 one finger, 1 two, 2 four: a `Select`
+over the three brake clips on the right hand) and `clutch_fingers` (0 the clutch clip, 1 the four-finger clip's left hand) (`graph_fingers.rs`); the importer writes
+the `Select`s, so a rig made before this change (`ride6-rider-import`) plays the two-finger clips whatever the settings say until it is imported again.
 
 ## 7. Looking at it
 
