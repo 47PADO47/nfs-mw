@@ -3,8 +3,10 @@
 //! The player's choice of a trees variant (`trees_variant`) names a [`Pack`]: models and textures a mod ships, and which solid
 //! of the game each replaces. [`set_active`] says which pack is in effect; the loader threads of the world's stream call
 //! [`rewrite`] on every section they have parsed (`Streamer::set_rewrite`), and a section's solids that the pack replaces are
-//! swapped for the fitted models before the section is decoded and uploaded. A section that is already resident keeps what it
-//! has: a change of the choice shows in the sections that load after it, and in all of them at the next drive.
+//! swapped for the fitted models before the section is decoded and uploaded. The pack's textures are **not** put into the
+//! sections: the residency uploads them once, into the shared sets, and every section's solids resolve them there
+//! (`scenes/world/residency/trees.rs`). A section that is already resident is streamed again when the pack changes, so a
+//! change of the choice shows in a few seconds.
 
 mod fit;
 mod pack;

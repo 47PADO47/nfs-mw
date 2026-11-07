@@ -9,8 +9,16 @@ use blackbox_solid::{GroupSource, Solid, SolidSource, Vertex, read_solids, write
 use blackbox_tpk::{AlphaUsage, PixelFormat, Texture};
 use nfsmw_data::world::SectionData;
 
-use super::fit::{MAX_SCALE, MIN_SCALE, ROW_MAX_COPIES, ROW_MAX_SCALE, fit, placements};
+use super::fit::{
+    Frame, MAX_SCALE, MIN_SCALE, Prepared, ROW_MAX_COPIES, ROW_MAX_SCALE, fit_prepared, footprint, placements,
+};
+use super::pack::world_copy_base;
 use super::{Pack, TEST_LOCK, active, rewrite, set_active};
+
+/// `model` fitted into the local solid `stock`.
+fn fit(model: &Solid, stock: &Solid, how: SwapFit) -> anyhow::Result<Solid> {
+    fit_prepared(&Prepared::new(model)?, stock, how, Frame::Local)
+}
 
 fn vertex(position: [f32; 3], uv: [f32; 2]) -> Vertex {
     Vertex { position, normal: [0.0, 0.0, 1.0], color_bgra: [128; 4], uv }
@@ -200,7 +208,7 @@ fn pack() -> Pack {
 }
 
 #[test]
-fn a_section_gets_the_models_for_its_solids_and_only_the_textures_they_use() {
+fn a_section_gets_the_models_for_its_solids_and_no_copy_of_the_textures() {
     let pack = pack();
     assert_eq!(pack.swaps(), 1);
     let stock = tree("XT_STOCK", "STOCKTEX", 20.0, 7.0, 0x80);
@@ -212,10 +220,10 @@ fn a_section_gets_the_models_for_its_solids_and_only_the_textures_they_use() {
     assert_eq!(data.solids[0].flags, 0x80);
     assert_eq!(data.solids[1], before, "a solid the pack has no model for is untouched");
     let names: Vec<&str> = data.textures.iter().map(|t| t.name.as_str()).collect();
-    assert_eq!(names, ["STOCKTEX", "MW12_LEAF"], "the unused texture is not added");
+    assert_eq!(names, ["STOCKTEX"], "the textures stay in the pack: the world uploads them once, into the shared sets");
     assert_eq!(data.decoded.len(), data.textures.len());
-    pack.apply(&mut data);
-    assert_eq!(data.textures.len(), 2, "a texture the section has is not added again");
+    let packed: Vec<&str> = pack.textures().iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(packed, ["MW12_LEAF", "UNUSED"]);
 }
 
 #[test]
@@ -223,6 +231,78 @@ fn a_section_with_nothing_to_replace_is_left_alone() {
     let mut data = section(vec![tree("XT_OTHER", "STOCKTEX", 5.0, 2.0, 0)]);
     pack().apply(&mut data);
     assert_eq!(data.textures.len(), 1);
+}
+
+#[test]
+fn the_name_of_a_world_copy_gives_the_solid_it_was_made_of() {
+    assert_eq!(world_copy_base("XT_CEDARM_1B_JG_00_DEINST12_T5"), Some("XT_CEDARM_1B_JG_00"));
+    assert_eq!(world_copy_base("XT_CT_TREELINE1_1B_00_DEINST0_X0"), Some("XT_CT_TREELINE1_1B_00"));
+    assert_eq!(world_copy_base("XT_CEDARM_1B_JG_00"), None);
+    assert_eq!(world_copy_base("XT_X_DEINSTALL"), None, "a digit follows the mark");
+}
+
+/// A world copy of a tree standing at `at`: the tree's vertices moved to there.
+fn world_tree(name: &str, at: [f32; 2], height: f32) -> Solid {
+    let mut source = SolidSource::from_solid(&tree("T", "STOCKTEX", height, 3.0, 0x80)).unwrap();
+    for group in &mut source.groups {
+        for vertex in &mut group.vertices {
+            vertex.position[0] += at[0];
+            vertex.position[1] += at[1];
+            vertex.position[2] += 4.0;
+        }
+    }
+    let mut renamed = SolidSource::new(name, source.groups);
+    renamed.flags = 0x80;
+    renamed.texture_hashes = source.texture_hashes;
+    write(renamed)
+}
+
+#[test]
+fn a_world_copy_is_replaced_where_it_stands_and_keeps_its_own_name() {
+    let pack = pack();
+    let copy = world_tree("XT_STOCK_DEINST3_T7", [500.0, -300.0], 20.0);
+    let mut data = section(vec![copy.clone()]);
+    pack.apply(&mut data);
+    let fitted = &data.solids[0];
+    assert_eq!(fitted.name, "XT_STOCK_DEINST3_T7", "the copy keeps its name: the scenery refers to it by that hash");
+    assert_eq!(fitted.texture_hashes, vec![bstring_hash("MW12_LEAF")]);
+    assert!((lowest(fitted) - lowest(&copy)).abs() < 0.1, "it stands on the floor of the copy");
+    assert!((highest(fitted) - highest(&copy)).abs() < 0.1, "it is as tall as the copy");
+    let (low, high) = (fitted.bounds_min, fitted.bounds_max);
+    assert!(low[0] > 480.0 && high[0] < 520.0, "near the copy's x, not near the origin: {low:?} {high:?}");
+    assert!(low[1] > -320.0 && high[1] < -280.0, "near the copy's y: {low:?} {high:?}");
+    assert!(pack.fitted.lock().unwrap().is_empty(), "nothing of a world copy is kept in the cache");
+}
+
+#[test]
+fn a_row_in_world_space_runs_along_the_way_the_copy_runs() {
+    let model = ([-3.0, -0.2, 0.0], [3.0, 0.2, 10.0]);
+    // A long thin strip on the diagonal: ten metres thick, a hundred long, 45 degrees from the x axis.
+    let corners = [[0.0, 0.0], [70.0, 70.0], [77.0, 63.0], [7.0, -7.0]];
+    let vertices = corners.iter().map(|c| vertex([c[0], c[1], 0.0], [0.0, 0.0]));
+    let top = corners.iter().map(|c| vertex([c[0], c[1], 20.0], [0.0, 0.0]));
+    let mut copy = bounds_box("XT_ROW_DEINST1_T1", [0.0, -7.0, 0.0], [77.0, 70.0, 20.0]);
+    copy.vertices = vertices.chain(top).collect();
+    let plan = footprint(&copy);
+    assert!((plan.angle - std::f32::consts::FRAC_PI_4).abs() < 0.05, "along the diagonal: {}", plan.angle);
+    assert!((plan.length - 99.0).abs() < 3.0, "about 100 metres: {}", plan.length);
+    assert!((plan.centre[0] - 38.5).abs() < 2.0 && (plan.centre[1] - 31.5).abs() < 2.0, "{:?}", plan.centre);
+    let copies = super::fit::world_placements(SwapFit::Row, model, (copy.bounds_min, copy.bounds_max), &plan);
+    assert_eq!(copies.len(), ROW_MAX_COPIES);
+    let (first, last) = (copies[0].offset, copies[ROW_MAX_COPIES - 1].offset);
+    assert!(last[0] > first[0] && last[1] > first[1], "both axes grow along the diagonal: {first:?} {last:?}");
+    assert!(((last[1] - first[1]) / (last[0] - first[0]) - 1.0).abs() < 0.2, "on the diagonal");
+}
+
+#[test]
+fn a_world_single_tree_is_placed_at_the_middle_of_its_footprint() {
+    let copy = world_tree("XT_STOCK_DEINST3_T7", [10.0, 20.0], 20.0);
+    let plan = footprint(&copy);
+    assert!((plan.centre[0] - 10.0).abs() < 0.5 && (plan.centre[1] - 20.0).abs() < 0.5, "{:?}", plan.centre);
+    let bounds = ([-3.0, -0.2, 0.0], [3.0, 0.2, 10.0]);
+    let at = super::fit::world_placements(SwapFit::Height, bounds, (copy.bounds_min, copy.bounds_max), &plan);
+    assert_eq!(at.len(), 1);
+    assert!((at[0].offset[2] - copy.bounds_min[2]).abs() < 1e-3);
 }
 
 #[test]
