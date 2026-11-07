@@ -60,6 +60,8 @@ pub struct Powertrain {
     /// The time the engine has been over the over-limit share (s) and the time since the last change began.
     over_limit_timer: f32,
     since_change: f32,
+    /// How far the clutch is engaged as of the last step, 0 (open) to 1 (locked): what the rider's left hand shows.
+    engagement: f32,
 }
 
 /// What the wheel's solve needs to hand back to the powertrain.
@@ -103,7 +105,13 @@ impl Powertrain {
             brake_timer: 0.0,
             over_limit_timer: 0.0,
             since_change: 0.0,
+            engagement: 1.0,
         }
+    }
+
+    /// The clutch lever as of the last step, 0 (let go, the clutch engaged) to 1 (pulled in): the clutch's engagement turned round.
+    pub fn clutch_pulled(&self) -> f32 {
+        (1.0 - self.engagement).clamp(0.0, 1.0)
     }
 
     /// The gear in use, 1 for first.
@@ -269,6 +277,7 @@ impl Powertrain {
         let throttle = self.traction_control(engine, throttle, input.traction_cut);
         let torque = self.engine_torque(engine, throttle, input);
         let engagement = self.engagement(engine, transmission, input, torque, rad_to_rpm(coupled_speed));
+        self.engagement = engagement;
         let capacity = engagement * transmission.clutch_max_factor * engine.peak_torque;
         let efficiency = transmission.efficiency;
         let full = engagement >= 1.0 - 1e-4;
