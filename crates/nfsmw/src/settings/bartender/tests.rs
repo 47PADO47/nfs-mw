@@ -6,7 +6,7 @@ use blackbox_pursuit::Infraction;
 fn defaults_are_the_vanilla_values() {
     let d = BartenderSettings::default();
     assert_eq!(d.max_cops, 8);
-    assert_eq!(d.evade_heat_adjust, 0.95);
+    assert_eq!(d.evade_heat_adjust, 1.0);
     assert_eq!(d.time_per_level(10), 2000.0);
     assert_eq!(d.time_per_level(1), 600.0);
     assert_eq!(d.bust_speed_mps(1), 9.0 / 3.6);
@@ -30,7 +30,7 @@ fn a_missing_file_is_the_vanilla_tuning() {
 
 #[test]
 fn a_file_of_the_vanilla_values_reads_back_the_defaults() {
-    let mut text = String::from("[Cops]\nMaxCops = 8\n[Heat]\nEvadeAdjust = 0.95\n[Fines]\n");
+    let mut text = String::from("[Cops]\nMaxCops = 8\n[Heat]\nEvadeAdjust = 1\n[Fines]\n");
     let fine_keys = [
         "Speeding",
         "Racing",
