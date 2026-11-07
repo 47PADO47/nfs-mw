@@ -32,6 +32,7 @@ when the module is new.
 | [api-ui.md](api-ui.md) | UI themes (`bb.ui`): named themes, the slot numbers, the draw primitives, the SDK |
 | [api-traffic.md](api-traffic.md) | Traffic cars: `role = "traffic"` and the `[traffic]` table (class, weight, limit, speed, patterns), how the traffic manager picks them, the `traffic` console commands, `bb.traffic` |
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
+| [lean-content.md](lean-content.md) | Streaming and lazy files: how a mod that converts another game's files keeps its disk use and start-up small (`bb.content` 1.1), with the measured sizes of the 2012 import |
 | [car-customization.md](car-customization.md) | What the auto shop does with a mod car (paints, rims, spoilers, vinyls), the `[customization]` table of a car manifest, and the files a mod's own car needs |
 | [bikes.md](bikes.md) | Two-wheeled mod cars: `kind = "bike"` and the `[bike]` table (every number of the two-wheel dynamics in SI units, no defaults, the ranges), the two wheel solids, how a bike is driven (input mapping, no reverse, the fall), what is not done |
 | [drive-script.md](drive-script.md) | `--drive-script` for offscreen runs: the segment syntax, the keys, and `fall=` (throw a bike's rider now: a repeatable crash for the rider's fall and get-up) |

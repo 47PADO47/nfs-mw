@@ -130,10 +130,10 @@ impl Ctx {
     }
 
     /// The content interface (`bb.content`), when the host offers it: how a mod that generates its content on a worker
-    /// thread tells the host that it is ready.
+    /// thread tells the host that it is ready, and how a mod makes some of its files only when the game reads them.
     pub fn content(&self) -> Option<Content> {
         let iface = self.query_interface(IFACE_CONTENT, IFACE_CONTENT_VERSION.0, IFACE_CONTENT_VERSION.1)?;
-        Some(Content::new(ffi::content::read(iface)))
+        Some(Content::new(ffi::content::read(iface), self.keep.clone()))
     }
 
     /// The engine interface (`bb.engine`), when the host offers it: the player's pedals, and the engine's switch.
