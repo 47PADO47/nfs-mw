@@ -57,7 +57,7 @@ pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
         // A mod car's upgrades, bars and package texts come from its own stats (nothing of a stock car's record).
         let own_stats = car_mods::stats(&folder);
         let performance = match own_stats {
-            Some(stats) => PerformanceCatalog::from_stats(stats),
+            Some(stats) => car_mods::components::catalog::performance(&folder, stats),
             None => PerformanceCatalog::read(physics.database(), &car_type.type_name)?,
         };
         let details_name = own_stats.map_or(car_type.type_name.as_str(), |_| folder.as_str());

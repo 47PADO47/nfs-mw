@@ -14,6 +14,7 @@ use crate::manifest_sound;
 use crate::naming;
 use crate::partfile::PartTable;
 use crate::rider::contacts;
+use crate::shop::{Shop, split_mask};
 use crate::summary::Summary;
 
 /// What to import and where it goes.
@@ -37,6 +38,8 @@ pub struct Request<'a> {
     pub sound_required: bool,
     /// Whether to write `mod.toml` when the folder has none (a batch writes it once itself).
     pub write_mod_toml: bool,
+    /// The shop's options ([`crate::shop`]): the bike's slots and parts join its manifest. `None`: a bike without options.
+    pub shop: Option<&'a Shop<'a>>,
 }
 
 /// What an import did, for the log.
@@ -58,7 +61,9 @@ pub fn import_bike(request: &Request<'_>) -> Result<Outcome> {
     let car = request.car;
     let name = request.name.map_or_else(|| naming::display_name(&table.vehicle), str::to_owned);
     let manufacturer = request.manufacturer.map_or_else(|| naming::manufacturer(&table.vehicle), str::to_owned);
-    let built = build(request.bike, car, request.options)?;
+    let plan = request.shop.and_then(|shop| shop.plan(&table, request.bike, car));
+    let options = Options { split_parts: plan.as_ref().map_or(0, split_mask), ..request.options };
+    let built = build(request.bike, car, options)?;
     if let Err(error) = Summary::of(&table.vehicle, &built).write(request.bike) {
         log::warn!("{car}: built.json is not written: {error:#}");
     }
@@ -71,6 +76,15 @@ pub fn import_bike(request: &Request<'_>) -> Result<Outcome> {
     };
     let tables = Tables { bike: &bike, sound: sound_tables.as_deref() };
     manifest::write_car(request.mod_dir, car, (&name, &manufacturer), &built, &tables)?;
+    if let (Some(plan), Some(shop)) = (plan, request.shop) {
+        // The parts of the components are applied through the bike's customization: a bike with one look gets a plain one.
+        let own = match built.liveries.len() >= 2 {
+            true => String::new(),
+            false => manifest::plain_customization(),
+        };
+        manifest::append_tables(request.mod_dir, car, &format!("{own}{}", plan.text()))?;
+        shop.keep(plan);
+    }
     let mut notes = bike.notes;
     let car_dir = request.mod_dir.join("files").join("CARS").join(car.to_ascii_uppercase());
     // The rider's seat, grips and pegs are the bike's own sockets; a bike without them is imported without rider contacts.

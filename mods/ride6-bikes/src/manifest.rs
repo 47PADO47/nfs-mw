@@ -68,6 +68,19 @@ fn customization(liveries: &[LiveryChoice]) -> String {
     text
 }
 
+/// The `[customization]` table of a bike with one look: its stock paint and nothing else. The game applies the parts of a bike's
+/// components (`docs/modding/ride6-bike-upgrades.md`) through its customization, so a bike with options but no liveries needs one.
+pub fn plain_customization() -> String {
+    let [r, g, b] = PAINT_COLOUR;
+    format!(
+        "[customization]
+default_paint = 0
+paints = [{{ name = \"Stock\", color = [{r}, {g}, {b}] }}]
+
+"
+    )
+}
+
 /// `manifest` without the tables whose header starts with `prefix` (`[customization`) and `tables` after what is left: the way a
 /// table the importer owns is replaced in a manifest that other tools (the sound tables, the camera tables) have added to.
 pub fn replace_tables(manifest: &str, prefix: &str, tables: &str) -> String {
@@ -105,6 +118,14 @@ pub fn apply_liveries(mod_dir: &Path, car: &str, liveries: &[LiveryChoice]) -> R
     };
     std::fs::write(&manifest, replace_tables(&text, "[customization", &table))
         .with_context(|| format!("writing {}", manifest.display()))
+}
+
+/// Add `text` (tables the importer writes after the car: the bike's slots and parts) to the end of the manifest `cars/<car>.toml`.
+pub fn append_tables(mod_dir: &Path, car: &str, text: &str) -> Result<()> {
+    let manifest = mod_dir.join("cars").join(format!("{}.toml", car.to_ascii_lowercase()));
+    let current = std::fs::read_to_string(&manifest).with_context(|| format!("reading {}", manifest.display()))?;
+    let joined = format!("{}\n\n{}", current.trim_end_matches('\n'), text.trim_start_matches('\n'));
+    std::fs::write(&manifest, joined).with_context(|| format!("writing {}", manifest.display()))
 }
 
 /// The text of `cars/<id>.toml`.
@@ -240,6 +261,18 @@ mod tests {
         assert_eq!(out.matches("[customization]").count(), 1);
         assert!(out.contains("liveries = ["));
         assert_eq!(replace_tables(&out, "[customization", ""), kept);
+    }
+
+    #[test]
+    fn a_plain_customization_is_one_stock_paint() {
+        let table = plain_customization();
+        assert!(table.starts_with(
+            "[customization]
+default_paint = 0
+"
+        ));
+        assert!(table.contains("paints = [{ name = \"Stock\", color = [128, 128, 128] }]"));
+        assert!(!table.contains("liveries"));
     }
 
     #[test]

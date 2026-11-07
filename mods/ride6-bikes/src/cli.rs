@@ -13,6 +13,7 @@
 //! geometry <source> <mod folder> [--max-texture N] [--threads N] [--only <text>]
 //!                                              build the car files and livery choices of imported bikes again
 //! import-all <source> <mod folder> --physics <dump> [--tyre-tables <dir>] [--sound-dir <dir>] [--max-texture N] [--threads N]
+//!            [--bike-parts <dir>]
 //!                                              import every bike of the exporter's output (what the native mod does)
 //! ```
 
@@ -253,6 +254,9 @@ struct ImportAll {
     /// Bikes imported at the same time (default: half the cores, one to four).
     #[arg(long)]
     threads: Option<usize>,
+    /// The exporter's folder of the optional parts (`upgrades.py`, `option_export.py`): the bikes get shop options.
+    #[arg(long)]
+    bike_parts: Option<PathBuf>,
 }
 
 /// `import-all`: every bike of a source folder, with a report of the ones left out.
@@ -265,6 +269,7 @@ pub fn import_all(args: &[String]) -> Result<()> {
         tyre_tables: args.tyre_tables.as_deref(),
         sound: args.sound_dir.as_deref(),
         max_texture: args.max_texture,
+        bike_parts: args.bike_parts.as_deref(),
         threads: args.threads.unwrap_or_else(batch::default_threads),
         cancel: &cancel,
     };
@@ -273,6 +278,18 @@ pub fn import_all(args: &[String]) -> Result<()> {
     manifest::write_mod_toml(&args.mod_dir)?;
     for (vehicle, reason) in &report.skipped {
         println!("{vehicle}: left out: {reason}");
+    }
+    if let Some(shop) = &report.shop {
+        println!(
+            "shop: {} bikes with options, {} components, {} part packs of {:.1} MB",
+            shop.bikes,
+            shop.components,
+            shop.packs,
+            shop.bytes as f64 / 1e6
+        );
+        for (what, reason) in &shop.failed {
+            println!("{what}: not written: {reason}");
+        }
     }
     println!(
         "{} bikes imported, {} left out, in {:.0} s",

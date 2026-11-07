@@ -34,6 +34,10 @@ pub struct Options {
     pub normal_maps: bool,
     /// Invert the green channel of the normal maps (Unreal's convention against the shader's).
     pub flip_green: bool,
+    /// The stock parts written as solids of their own so that the shop can swap them (`docs/modding/ride6-bike-upgrades.md`): bit
+    /// `n` is `PIECES[n]` of [`crate::build_pieces`] (the exhaust, the bar pad, the rims, the brake discs); 0, none: they are
+    /// part of the body, bars and wheel solids.
+    pub split_parts: u8,
 }
 
 impl Default for Options {
@@ -45,6 +49,7 @@ impl Default for Options {
             reflected: DEFAULT_REFLECTED,
             normal_maps: false,
             flip_green: false,
+            split_parts: 0,
         }
     }
 }

@@ -16,6 +16,9 @@ other halves of a car are on their own pages:
 
 The [2012 cars mod](../../mods/nfsmw-2012-content/README.md) is the worked example, and its settings are on its own page.
 
+*Planned:* the fixed lists below become slots and components of one general model, with per-vehicle options, rules and prices
+([ADR 0014](../decisions/0014-vehicle-components.md)). Every table on this page keeps working.
+
 ## The files of a car
 
 A car is the folder `files/CARS/<ID>/` of a mod plus the manifest `cars/<id>.toml` ([api-content.md](api-content.md#cars)):

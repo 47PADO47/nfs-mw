@@ -8,10 +8,11 @@ use crate::config::Config;
 
 /// Bump when the importer changes what it writes for the same input.
 /// 2: the rider's contact points per car (`RIDER/contacts.json`).
+/// 4: the shop's options: the stock exhaust, rims, discs and bar pad as solids of their own, `components/`, `PARTS/R6/`.
 /// 3: glass blended as its transmittance, metals spared most of the baked occlusion, more stock parts, liveries, the finest level
 /// of detail whose solids fit, colours not veiled by the reflection, the idle panel in the instrument clusters' displays.
-/// 4: the rider's gear catalogue (`files/RIDER/GEAR`).
-const CONVERSION: u32 = 4;
+/// 5: the rider's gear catalogue (`files/RIDER/GEAR`).
+const CONVERSION: u32 = 5;
 /// The name of the stamp file, in the mod's folder.
 pub const FILE: &str = ".import-stamp";
 
@@ -49,6 +50,13 @@ pub fn of(
     inputs.sort();
     parts.extend(inputs);
     parts.join("\n")
+}
+
+/// `stamp` with the shop's inputs: the catalogue and the shared part table of the folder of the optional parts, when there is one.
+pub fn with_parts(stamp: String, parts: Option<&Path>) -> String {
+    let Some(dir) = parts else { return stamp };
+    let files = ["catalogue.json", "parts.json"].map(|name| fingerprint(&dir.join(name), dir.file_name()));
+    format!("{stamp}\n{}", files.join("\n"))
 }
 
 /// The fingerprints of the files one and two levels below `dir`.
@@ -109,6 +117,18 @@ mod tests {
         assert!(!is_current(&dir, "b"));
         clear(&dir);
         assert!(!is_current(&dir, "a"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_optional_parts_change_the_stamp() {
+        let dir = temp("parts");
+        assert_eq!(with_parts("s".to_owned(), None), "s");
+        let without = with_parts("s".to_owned(), Some(&dir));
+        fs::write(dir.join("catalogue.json"), "{}").unwrap();
+        let with = with_parts("s".to_owned(), Some(&dir));
+        assert_ne!(without, with);
+        assert_eq!(with, with_parts("s".to_owned(), Some(&dir)));
         fs::remove_dir_all(&dir).unwrap();
     }
 

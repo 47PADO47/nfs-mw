@@ -17,7 +17,7 @@ pub const LEVELS: [(char, u32); 4] = [('A', 0), ('B', 2), ('C', 3), ('D', 3)];
 pub const COARSEST_CHASSIS_LEVEL: u32 = 3;
 
 /// Where the bike sits in the car's frame: the middle of the wheelbase on the origin, the tyres on the ground.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Frame {
     /// The middle of the wheelbase along the export x axis.
     pub centre: f32,
