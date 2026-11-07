@@ -64,6 +64,8 @@ impl Setting {
             Setting::Discord => on_off(s.discord),
             Setting::DiscordTimePlayed => on_off(s.discord_time_played),
             Setting::DiscordJoin => on_off(s.discord_join),
+            Setting::GameMomentCamera => on_off(s.game_moments.camera),
+            Setting::GameMoment(kind) => on_off(s.game_moments.kind(kind)),
             Setting::SmokeColorMode => Data::Text(s.smoke_color_mode.label().into()),
             Setting::SmokeColor => Data::Text(s.smoke_color.label()),
             Setting::SmokeQuality => match s.smoke_quality {

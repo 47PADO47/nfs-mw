@@ -70,6 +70,7 @@ pub mod net;
 mod partial;
 pub mod physics_rate;
 pub use physics_rate::{DEFAULT_PHYSICS_RATE_HZ, parse_physics_rate};
+pub mod game_moments;
 pub mod pursuit_options;
 pub use pursuit_options::PursuitOptions;
 mod post;
@@ -175,6 +176,7 @@ use crate::devtools::{ShowMetrics, ShowReadout};
 pub struct Settings {
     pub traffic_policy: TrafficPolicy,
     pub pursuit_options: PursuitOptions,
+    pub game_moments: game_moments::GameMoments,
     pub detail: DetailSettings,
     pub appearance: Appearance,
     pub controls: Controls,
@@ -357,6 +359,7 @@ impl From<Partial> for Settings {
         let mut settings = Self {
             traffic_policy: p.traffic_policy.unwrap_or_default().sanitized(),
             pursuit_options: p.pursuit_options.unwrap_or_default().sanitized(),
+            game_moments: p.game_moments.unwrap_or_default(),
             detail: p.detail.unwrap_or_default(),
             appearance: p.appearance.unwrap_or_default(),
             graphics_preset: requested,

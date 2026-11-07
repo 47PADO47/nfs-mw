@@ -48,7 +48,7 @@ pub struct CarSim {
     vehicle: Vehicle,
     /// The two-wheel dynamics of a bike, for which `vehicle` is a body double (`bike.rs`). `None` for a car.
     ride: Option<Box<bike::BikeRide>>,
-    cinematic_controls: Option<blackbox_vehicle::ControlConfig>,
+    cinematic_controls: Option<cinematic::Saved>,
     reset_collision: reset_collision::ResetCollision,
     /// Where the body box's centre is relative to the model's origin, in physics axes.
     pivot: Vec3,
@@ -334,6 +334,17 @@ impl CarSim {
                 flat: self.vehicle.tire_damage.is_blown(i),
             })
         })
+    }
+
+    /// Where a predicted flight starts and how it falls (`docs/specs/game-moment-camera.md` section 2.2): the tyres'
+    /// mean contact point (physics space) and the vertical acceleration at `speed`, the body's gravity less its
+    /// downforce per mass (speed times the aero coefficient times 2000 N, as the original's jump camera reckons it).
+    pub fn flight_start(&self, speed: f32) -> (Vec3, f32) {
+        let up = self.vehicle.rotation() * Vec3::Y;
+        let patch = (0..4).map(|i| self.wheel_state(i)).map(|w| w.position - up * w.radius).sum::<Vec3>() * 0.25;
+        let body = self.vehicle.body();
+        let downforce = speed * self.vehicle.spec().aero.aero_coefficient * 2000.0;
+        (patch, body.spec().gravity - downforce / body.mass().max(1.0))
     }
 
     /// The body rests on the ground itself (a corner touches, or it sleeps supported): with no wheel down, beached.

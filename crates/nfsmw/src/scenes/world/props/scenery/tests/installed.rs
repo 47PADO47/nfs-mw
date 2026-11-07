@@ -275,7 +275,7 @@ fn installed_gas_pump_explosion_reports_a_petrol_blast() {
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn installed_collapsed_gas_station_survives_streaming_without_repeating_its_explosion() {
-    use crate::scenes::world::breaker_icons::{BreakerIcons, HIDE_RADIUS};
+    use crate::scenes::world::breaker_icons::{BreakerIcons, Fired, HIDE_RADIUS};
 
     let Some(install) = installed() else { return };
     let target = install
@@ -288,8 +288,9 @@ fn installed_collapsed_gas_station_survives_streaming_without_repeating_its_expl
     let centre = Vec3::from_array(target.spawner.unwrap().position);
     let (mut world, mut placed) = world(&install, centre);
     let mut icons = BreakerIcons::default();
-    icons.step(0.0, &world, &install.data, &[], &[]);
-    assert!(icons.len() > 0, "the intact installed station has a minimap breaker icon");
+    // An icon marker at the station, as the track places one there (`IconMarker`).
+    icons.place([crate::scenes::world::space::to_render(centre.to_array())]);
+    assert!(icons.len() > 0, "the intact station shows its breaker icon");
     for p in &placed {
         let spec = p.prop.as_ref().unwrap().dynamics.as_ref().unwrap();
         eprintln!(
@@ -318,19 +319,24 @@ fn installed_collapsed_gas_station_survives_streaming_without_repeating_its_expl
         .filter(|site| fired.contains(&site.id))
         .map(|site| site.position)
         .collect();
-    icons.fired(&fired_positions);
+    let stops: Vec<_> = world
+        .breaker_sites(&install.data, glam::Vec2::ZERO)
+        .into_iter()
+        .filter(|site| fired.contains(&site.id))
+        .map(|site| Fired { position: site.position, section: world.section_for(site.id) })
+        .collect();
+    icons.fired(&stops);
     assert!(fired_positions.iter().all(|&at| icons.shown_near(at, HIDE_RADIUS) == 0));
     world.take_blasts();
     world.take_authored_blasts();
     world.remove_tile(0);
     assert_eq!(world.fragment_count(), 0);
     let restored = world.take_restored_sections();
-    icons.step(1.0, &world, &install.data, &[], &restored);
-    assert_eq!(icons.len(), 0, "streaming out removes the resident map icon");
+    icons.step(&[], &restored);
     world.add_tile(0, &mut placed);
     let restored = world.take_restored_sections();
-    icons.step(1.0, &world, &install.data, &[], &restored);
-    assert!(fired_positions.iter().all(|&at| icons.shown_near(at, HIDE_RADIUS) == 0));
+    icons.step(&[], &restored);
+    assert!(fired_positions.iter().all(|&at| icons.shown_near(at, HIDE_RADIUS) == 0), "a reload keeps the icon hidden");
     for site in world.breaker_sites(&install.data, glam::Vec2::ZERO).iter().filter(|site| fired.contains(&site.id)) {
         assert!(site.fired, "a reloaded collapse stays consumed");
         assert!(world.scenery.models[&site.id].hidden);
@@ -348,8 +354,7 @@ fn installed_collapsed_gas_station_survives_streaming_without_repeating_its_expl
     assert!(world.breaker_sites(&install.data, glam::Vec2::ZERO).iter().all(|site| !site.fired));
     let restored = world.take_restored_sections();
     assert_eq!(restored, [0]);
-    // Force the real reset notification path before the ordinary one-second lookup is due.
-    icons.step(0.0, &world, &install.data, &[], &restored);
+    icons.step(&[], &restored);
     let mut blips = Vec::new();
     icons.blips(true, &mut blips);
     assert!(!blips.is_empty(), "the expired section restores its actual minimap output");

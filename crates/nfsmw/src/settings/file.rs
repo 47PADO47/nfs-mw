@@ -49,6 +49,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         frame_generation: field(&table, origin, "frame_generation", |v| text_of(v)?.parse()),
         traffic_policy: table.get("traffic_tuning").and_then(|v| super::TrafficPolicy::read(v, origin)),
         pursuit_options: table.get("pursuit_options").and_then(|v| super::PursuitOptions::read(v, origin)),
+        game_moments: table.get("game_moments").and_then(|v| super::game_moments::GameMoments::read(v, origin)),
         detail: table.get("detail").and_then(|v| super::DetailSettings::read(v, origin)),
         appearance: table.get("appearance").and_then(|v| super::Appearance::read(v, origin)),
         always_rain: None,

@@ -133,3 +133,21 @@ fn installed_moment_scenes_have_markers_and_a_camera_track() {
     }
     assert_eq!(data.markers.get(&bstring_hash("GasStationMoment")).map(Vec::len), Some(9), "nine gas stations");
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_breaker_icons_are_the_icon_markers() {
+    let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = GameDir::open(path).unwrap();
+    let data = load(&dir).unwrap();
+    let icons = data.icon_markers();
+    for (i, icon) in icons.iter().enumerate() {
+        eprintln!("icon {i}: {:.1} {:.1} {:.1}", icon.position.x, icon.position.y, icon.position.z);
+    }
+    assert!(icons.len() >= 20, "the city's breakers have icon markers: {}", icons.len());
+    let gas = data.markers.get(&bstring_hash("GasStationMoment")).unwrap();
+    for station in gas {
+        let near = icons.iter().filter(|icon| icon.position.distance(station.position) < 60.0).count();
+        assert_eq!(near, 1, "one icon at the gas station near {:?}", station.position);
+    }
+}

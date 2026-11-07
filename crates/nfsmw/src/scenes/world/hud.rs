@@ -20,7 +20,7 @@ impl WorldScene {
 
     /// Whether the HUD is drawn this frame: the rule of `hud_state` and `hud_frame`, without building the frame.
     pub(super) fn hud_shown(&self) -> bool {
-        if self.moment.hides_hud() || self.cutscene_playing() {
+        if self.moment.hides_hud() || self.moment_shots.cams.hides_hud() || self.cutscene_playing() {
             return false;
         }
         if self.view == View::Fly {

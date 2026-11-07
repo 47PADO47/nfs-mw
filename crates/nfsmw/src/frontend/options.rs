@@ -56,6 +56,9 @@ pub enum Setting {
     Discord,
     DiscordTimePlayed,
     DiscordJoin,
+    /// The original's Game Moment Camera switch, and one kind of moment (`settings/game_moments.rs`).
+    GameMomentCamera,
+    GameMoment(crate::settings::game_moments::MomentKind),
     Input(InputSetting),
     Hd(hd_options::HdSetting),
     /// A row of the HUD page: a `[custom_hud]` key, or the map's orientation (`hud_options.rs`).
@@ -239,6 +242,8 @@ impl Setting {
             Setting::SmokeColor => s.tire_smoke && s.smoke_color_mode != crate::settings::SmokeColorMode::Off,
             // The time played and the join invite are part of the Discord presence, so they are dimmed while that is off.
             Setting::DiscordTimePlayed | Setting::DiscordJoin => s.discord,
+            // The kinds of game moment are dimmed while the Game Moment Camera is off.
+            Setting::GameMoment(_) => s.game_moments.camera,
             Setting::CustomHud(setting) => setting.enabled(s),
             Setting::RenderScale => matches!(s.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1),
             // The upscalers that sharpen: FSR 1 (its RCAS pass) and FSR 3 (the RCAS of its own pipeline).
@@ -387,6 +392,15 @@ impl Setting {
             Setting::Discord => toggle!(s, changed, discord),
             Setting::DiscordTimePlayed => toggle!(s, changed, discord_time_played),
             Setting::DiscordJoin => toggle!(s, changed, discord_join),
+            Setting::GameMomentCamera => {
+                s.game_moments.camera = !s.game_moments.camera;
+                changed.game_moments = Some(s.game_moments);
+            }
+            Setting::GameMoment(kind) => {
+                let on = s.game_moments.kind_mut(kind);
+                *on = !*on;
+                changed.game_moments = Some(s.game_moments);
+            }
             Setting::TrafficPreset => {
                 let choices = crate::settings::TrafficPreset::ALL;
                 let at = choices.iter().position(|p| *p == s.traffic_preset()).unwrap_or(0);

@@ -26,7 +26,7 @@ impl WorldScene {
                 ..Default::default()
             });
         }
-        if self.moment.hides_hud() {
+        if self.moment.hides_hud() || self.moment_shots.cams.hides_hud() {
             return None;
         }
         let looking_back = self.players.lead().is_some_and(|d| d.camera_looking_back(self.camera_mode));

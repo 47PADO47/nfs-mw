@@ -118,6 +118,7 @@ pub fn partial_of(s: &Settings) -> Partial {
     Partial {
         traffic_policy: None,
         pursuit_options: Some(s.pursuit_options),
+        game_moments: Some(s.game_moments),
         detail: None,
         appearance: Some(s.appearance),
         deadzone_mode: Some(c.deadzone_mode),

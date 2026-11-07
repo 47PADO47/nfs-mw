@@ -107,15 +107,19 @@ does during it, what is not reproduced). The NIS animation codec is not needed f
 
 The loading tip says the breaker objects are marked with icons on the map during a pursuit and that hitting one uses
 it **[text: `TIP_PURSUIT_BREAKERS`, English.bin]**. The HUD package holds the pool `PURSUIT_BREAKER_0..7` (8 objects,
-`Minimap_Icon_Pursuit_Breaker`) **[verified]**. When `EBreakerStopCops` fires, the event also hides every map icon of
-kind 12 within 20 m of the breaker (it clears the icon's shown bit) **[decomp]**; the original's icon records are
-separate gameplay records placed near the structures, whose source table was not located, and kind 12 was not
-identified beyond that.
+`Minimap_Icon_Pursuit_Breaker`) **[verified]**. The icons are the track's own records: when the world loads, the game
+gives every track position marker named `IconMarker` (`TRACKS/L2RA.BUN`, the marker table the moments read) a map icon
+of kind 12, the pursuit breaker kind of the gameplay icons **[decomp]**. The track has 37 of them, one at each breaker
+structure: each of the nine gas stations has exactly one within 60 m **[verified]**. Icons of this kind are shown only
+in a pursuit. When `EBreakerStopCops` fires, the event hides every map icon of kind 12 within 20 m of the breaker (it
+clears the icon's shown bit) **[decomp]**, and a reset of a track section shows that section's icons again **[decomp]**.
 
-The rewrite marks each resident breaker that has not fired, while a chase runs, with the pool's icons (drawn only
-where the minimap view covers them, at most eight), and a fired breaker takes every icon within 20 m of it with it
-(`scenes/world/breaker_icons.rs`). The icon places are the structures' own, not the original's icon records
-**[approximation]**. The full-screen map is a front-end screen outside the chase and shows none.
+The rewrite shows one icon at each `IconMarker` while a chase runs, drawn from the pool where the minimap view covers
+them (at most eight), and a fired breaker hides every icon within 20 m of it until the breaker's streaming section is
+reset (`scenes/world/breaker_icons.rs`). Before this, the rewrite put an icon on every resident breaker model, which
+showed several icons on a structure made of several breaker models. The original spawns a section's icons only while
+the section is loaded; the rewrite keeps them all, which only matters off the minimap **[approximation]**. The
+full-screen map is a front-end screen outside the chase and shows none.
 
 ## `EPursuitBreaker`
 
@@ -125,7 +129,7 @@ link to scenery breakers; the scenery handler for it never receives an event fro
 
 ## Not reproduced
 
-Authored visual effects of the collapse beyond fragments, the original's own map icon records, and the player
+Authored visual effects of the collapse beyond fragments, and the player
 autopilot, traffic stop and camera noise of the moment (see its spec). **No pursuit music, speech or statistic is
 raised by a breaker itself**: the kind of `MBreakerStopCops` is used at four places in `speed.exe`: the event's two
 constructors, its make-callback and one function (`0x41CD10`, not decompiled) that is the cop manager's handler

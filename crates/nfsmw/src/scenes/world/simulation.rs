@@ -6,7 +6,7 @@ use blackbox_pursuit::health_bar::{Frame, Gates};
 use glam::Vec3;
 
 use super::players::LEAD;
-use super::{View, ViewSource, WorldScene, ai, drive::STEP, space};
+use super::{View, ViewSource, WorldScene, ai, breaker_icons, drive::STEP, space};
 use crate::input::ActionState;
 use crate::viewer::camera::PursuitFeed;
 
@@ -90,6 +90,7 @@ impl WorldScene {
             true => {
                 self.tuning.game_speed
                     * self.moment.sim_speed()
+                    * self.moment_shots.cams.sim_speed()
                     * self.photo_shot.as_ref().map_or(1.0, |shot| shot.simulation_scale(real_dt))
             }
             false => 1.0,
@@ -140,6 +141,7 @@ impl WorldScene {
             self.race_tick_with_delta(tick_delta);
         }
         self.step_moment(sim_dt);
+        self.step_moment_cams(real_dt);
         // A loading pause holds the last displayed phase instead of jumping ahead and rewinding.
         let alpha = match batch || dt == 0.0 {
             true => 1.0,
@@ -401,6 +403,26 @@ impl WorldScene {
         self.play_moments(moments);
         let (_, props) = self.residency.world_parts();
         let restored = props.take_restored_sections();
-        self.breaker_icons.step(dt, props, &self.physics, &fired, &restored);
+        let fired = fired
+            .into_iter()
+            .map(|at| breaker_icons::Fired { position: at, section: breaker_section(props, &self.physics, at) });
+        let fired: Vec<_> = fired.collect();
+        if !self.breaker_icons.is_placed() {
+            self.moment.prepare(&self.dir);
+            if let Some(markers) = self.moment.icon_markers() {
+                self.breaker_icons.place(markers);
+            }
+        }
+        self.breaker_icons.step(&fired, &restored);
     }
+}
+
+/// The streaming section of the breaker that fired at `at` (physics space): the resident breaker standing there.
+fn breaker_section(
+    props: &super::props::PropWorld,
+    data: &nfsmw_data::car::physics::PhysicsData,
+    at: Vec3,
+) -> Option<usize> {
+    let site = props.breaker_sites(data, glam::Vec2::new(at.x, at.z)).into_iter().next()?;
+    (site.position.distance(at) <= breaker_icons::HIDE_RADIUS).then(|| props.section_for(site.id)).flatten()
 }

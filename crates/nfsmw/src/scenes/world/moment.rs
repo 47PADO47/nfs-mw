@@ -176,6 +176,11 @@ impl Moment {
         }
     }
 
+    /// The places of the pursuit breakers' map icons (render space), once the install's moment data is read.
+    pub fn icon_markers(&self) -> Option<Vec<Vec3>> {
+        self.data.as_ref().map(|data| data.icon_markers().iter().map(|marker| marker.position).collect())
+    }
+
     #[cfg(test)]
     pub fn is_playing(&self) -> bool {
         self.play.is_some()

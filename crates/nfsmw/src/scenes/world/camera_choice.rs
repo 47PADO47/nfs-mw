@@ -30,6 +30,9 @@ impl WorldScene {
         if let Some(lens) = self.moment.lens(aspect) {
             return lens;
         }
+        if let Some(lens) = self.moment_cams_lens(aspect) {
+            return lens;
+        }
         if let Some(mut lens) = self.nis.lens(aspect) {
             // Authored start cameras sit on a flat scene plane. The streamed road may slope through that plane.
             // Keep the near plane clear without selecting the deck of a bridge overhead.
@@ -79,6 +82,9 @@ impl WorldScene {
     pub(super) fn simulation_lens(&self, aspect: f32) -> Lens {
         let _trace = blackbox_trace::scope("World: simulation lens");
         if let Some(lens) = self.moment.lens(aspect) {
+            return lens;
+        }
+        if let Some(lens) = self.moment_cams_lens(aspect) {
             return lens;
         }
         if let Some(lens) = self.nis.lens(aspect) {

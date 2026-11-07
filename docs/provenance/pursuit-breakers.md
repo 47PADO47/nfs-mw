@@ -37,6 +37,11 @@
   census places the breakers by streaming section. An installed world test streams the city around a gas station,
   hits a pump, sees the roof open its 16 m, 5 s zone and checks that the patrol car inside is wrecked and counted
   while one far away is not. This is a CPU-level check of the chain; it is not a live-play comparison.
+- **Map icons, 2026-11-06:** the icon source is `GManager::RefreshTrackMarkerIcons` (`0x5F19D0`): it frees the kind-12
+  icons and calls a callback (`0x5EBE70`) for every track position marker whose name hash is that of `IconMarker`, which
+  allocates a kind-12 icon at the marker's position (`AllocIcon` `0x5E9EC0`). Kind 12 is `GIcon::kType_PursuitBreaker`
+  in the CC0 reconstruction's `GIcon.h`. Section spawning is `SpawnSectionIcons` (`0x5EDEF0`). An installed test lists
+  the 37 `IconMarker` records and checks one per gas station (`nfsmw-data` `installed_breaker_icons_are_the_icon_markers`).
 - **Limits:** first-contact IMPACT_1 is a trigger adapter; the full PC collision
   stimulus levels and original static-trigger lifecycle are not reproduced.
   Simple-physics requests use the full body solver. No-physics pieces do not

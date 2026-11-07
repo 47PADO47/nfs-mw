@@ -24,6 +24,11 @@ impl Vehicle {
         self.simple_tires = on;
     }
 
+    /// Whether the simple tires were asked for (they apply only on a simple chassis).
+    pub fn simple_tires(&self) -> bool {
+        self.simple_tires
+    }
+
     pub(super) fn simple_tires_on(&self) -> bool {
         self.simple_tires && self.simple_chassis.is_some() && self.rolling_chassis.is_none()
     }

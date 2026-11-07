@@ -32,6 +32,11 @@ impl Vehicle {
         self.simple_max_steering = config.map_or(0.0, |c| c.steering_range[0]);
     }
 
+    /// The simple chassis in use, if any.
+    pub fn simple_chassis(&self) -> Option<SimpleChassisConfig> {
+        self.simple_chassis
+    }
+
     /// The suspension's current maximum range, before a simple chassis applies tire steering scale.
     pub fn maximum_steering_degrees(&self) -> f32 {
         if let Some(config) = self.rolling_chassis {

@@ -30,11 +30,12 @@ scrolling, prompts and save return. Related source settings listed here do not e
   controls or an Original-style equivalent. The [original HUD binding](../crates/nfsmw/src/hud/bind.rs) still binds
   race and leaderboard data; their existence does not establish independent visibility switches. Determine the
   recorded switches' exact effects and persistence before implementing them.
-- [ ] **Gameplay: Game Moment Camera and Car Damage switches.** No matching rows exist in the current
-  [Gameplay category](../crates/nfsmw/src/frontend/options_rows.rs). Pursuit-breaker
-  [moment cameras](../crates/nfsmw/src/scenes/world/moment.rs) and vehicle damage code also exist. Their existence
-  does not supply the recorded on/off controls. Determine the original switch semantics and persistence before
-  wiring them; do not disable the underlying features by assumption.
+- [x] **Gameplay: Game Moment Camera.** The row (`[game_moments] camera`, the original's label) switches every game
+  moment shot, and four rows below it pick the kinds ([game-moment-camera](specs/game-moment-camera.md)).
+- [ ] **Gameplay: Car Damage switch.** No matching row exists in the current
+  [Gameplay category](../crates/nfsmw/src/frontend/options_rows.rs). Vehicle damage code exists; its existence does not
+  supply the recorded on/off control. Determine the original switch semantics and persistence before wiring it; do not
+  disable the underlying feature by assumption.
 - [ ] **Audio: Interactive Music, EA Trax and Audio Mode rows.** The recorded page shows independent switches for
   Interactive Music and EA Trax, plus Audio Mode. The remake has an
   [interactive music conductor](../crates/nfsmw/src/audio/interactive/glue.rs), a

@@ -8,12 +8,15 @@ use crate::frontend::logic::Category;
 use crate::frontend::post_options::PostSetting;
 use crate::frontend::renderer_options::RendererSetting;
 use crate::settings::MinimapContext;
+use crate::settings::game_moments::MomentKind;
 use blackbox_gfx::Capabilities;
 
 /// The original's Rearview Mirror row title (`OPT_GAMEPLAY_REARVIEW`).
 const LABEL_REARVIEW: u32 = 0x85A6_CE05;
 /// The original's Camera row title.
 const LABEL_CAMERA: u32 = 0xF6CC_DC5F;
+/// The original's Game Moment Camera row title.
+const LABEL_GAME_MOMENT_CAMERA: u32 = 0xF26A_5CBF;
 
 /// The rows of a category on a renderer with these capabilities. A row the renderer cannot do (the temporal
 /// upscalers' quality mode) is left out; ray tracing is always listed, dimmed and reading "Unavailable" on a
@@ -105,6 +108,12 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::ContextMinimap(MinimapContext::Race), Title::Key("options-race-map-mode")),
             row(Setting::RearViewMirror, Title::Label(LABEL_REARVIEW)),
             row(Setting::Autosave, Title::Key("options-autosave")),
+            // The original's switch, then the kinds it covers [ours], dimmed while it is off.
+            row(Setting::GameMomentCamera, Title::Label(LABEL_GAME_MOMENT_CAMERA)),
+            moment_row(MomentKind::Breakers),
+            moment_row(MomentKind::Pursuit),
+            moment_row(MomentKind::Jumps),
+            moment_row(MomentKind::Crashes),
             row(Setting::TurnSignals, Title::Key("options-turn-signals")),
             row(Setting::CopHealthBars, Title::Key("options-cop-health-bars")),
             // The same row as the Player page's, so the camera can be switched from the pause menu's gameplay options too.
@@ -143,4 +152,9 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::DiscordJoin, Title::Key("options-discord-join")),
         ],
     }
+}
+
+/// The row of one kind of game moment.
+fn moment_row(kind: MomentKind) -> Row {
+    row(Setting::GameMoment(kind), Title::Key(kind.title_key()))
 }

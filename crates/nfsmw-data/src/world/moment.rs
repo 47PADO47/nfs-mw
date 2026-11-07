@@ -75,6 +75,10 @@ pub const QUEUED_MOMENTS: [(usize, &str); 15] = [
     (18, "torus"),
 ];
 
+/// The marker name of a pursuit breaker's map icon: the game gives every track position marker of this name a breaker
+/// icon (`GManager::RefreshTrackMarkerIcons`, icon type 12). Spec: `docs/specs/pursuit-breakers.md` ("Map icons").
+pub const ICON_MARKER: &str = "IconMarker";
+
 /// One placed marker. The position is in render space (x forward, y left, z up).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Marker {
@@ -128,7 +132,8 @@ impl MomentData {
     }
 
     fn read_markers(&mut self, payload: &[u8]) {
-        let wanted: BTreeMap<u32, &str> = MARKER_NAMES.iter().map(|name| (bstring_hash(name), *name)).collect();
+        let wanted: BTreeMap<u32, &str> =
+            MARKER_NAMES.iter().chain([&ICON_MARKER]).map(|name| (bstring_hash(name), *name)).collect();
         let float = |record: &[u8], at: usize| f32::from_le_bytes(record[at..at + 4].try_into().expect("four bytes"));
         for record in payload.as_chunks::<MARKER_LEN>().0 {
             let name = u32::from_le_bytes(record[8..12].try_into().expect("four bytes"));
@@ -167,6 +172,11 @@ impl MomentData {
             .iter()
             .map(|m| (*m, m.position.distance(position) + turn(m.angle, heading) * ANGLE_BONUS))
             .min_by(|a, b| a.1.total_cmp(&b.1))
+    }
+
+    /// The places of the pursuit breakers' map icons, in file order.
+    pub fn icon_markers(&self) -> &[Marker] {
+        self.markers.get(&bstring_hash(ICON_MARKER)).map_or(&[], Vec::as_slice)
     }
 
     /// Camera track `index` of the scene (`Track 0`, `Track 1`...).

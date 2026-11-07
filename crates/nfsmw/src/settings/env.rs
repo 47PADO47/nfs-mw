@@ -109,6 +109,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         ui_theme: None,
         traffic_policy: None,
         pursuit_options: None,
+        game_moments: None,
         detail: None,
         appearance: None,
         always_rain: None,

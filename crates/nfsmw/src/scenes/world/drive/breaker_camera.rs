@@ -26,6 +26,12 @@ impl super::Drive {
     pub(in crate::scenes::world) fn speedbreaker_zoom(&self) -> f32 {
         self.breaker_camera.factor()
     }
+
+    /// The speedbreaker or its fade still shows on the camera: the original's `gGameBreakerCamera`, which keeps every
+    /// game moment from starting (`docs/specs/game-moment-camera.md` section 2).
+    pub(in crate::scenes::world) fn speedbreaker_camera_on(&self) -> bool {
+        self.breaker_camera.blend > 0.001
+    }
 }
 
 #[cfg(test)]

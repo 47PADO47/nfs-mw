@@ -64,6 +64,7 @@ pub(in crate::scenes::world) fn breakers(scene: &WorldScene) -> Result<String, S
         lines.push(format!("  event: {event}"));
     }
     lines.push(format!("  {}", scene.moment_status()));
+    lines.push(format!("  {}", scene.moment_cams_status()));
     Ok(lines.join("\n"))
 }
 
