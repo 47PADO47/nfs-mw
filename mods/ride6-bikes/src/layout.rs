@@ -6,9 +6,9 @@
 //! the wheelbase on the origin and the lowest tyre point on the ground; a wheel solid has the hub on the origin, its axle
 //! along y, and sits on the plane y = 0 of the car frame.
 
-/// The solid letters and the finest export level of detail of the chassis each body may use. A body takes the finest
-/// level from this number on whose vertices fit one solid (the most the game's solids hold is 60,000; the full-detail
-/// chassis has 135,000, level 1 has 78,000, level 2 44,000), so A and B are level 2 and C and D are level 3. A wheel
+/// The solid letters and the finest export level of detail of the chassis each body may use. A body takes the finest level from this
+/// number on whose three solids (frame, bars, fork: each up to 60,000 vertices) fit, so `A` is level 1 for most bikes (the full
+/// chassis has 135,000 to 175,000 vertices, level 1 69,000, level 2 34,000 to 44,000), `B` level 2 and `C` and `D` level 3. A wheel
 /// solid takes the export level of its letter's position (A is 0, D is 3): its meshes are small.
 pub const LEVELS: [(char, u32); 4] = [('A', 0), ('B', 2), ('C', 3), ('D', 3)];
 

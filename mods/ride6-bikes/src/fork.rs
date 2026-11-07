@@ -109,8 +109,15 @@ fn optional(name: &str, groups: Vec<GroupSource>, lists: Lists) -> Result<Option
     finish(name, groups, lists).map(Some)
 }
 
-/// The body, bars and fork solids at the finest level of the chassis from `first_level` on whose parts fit one solid. Smaller
-/// parts (exhaust, bar pad) are read one level finer than the chassis. `hub` is the front hub in the chassis frame.
+/// The whole-bike vertex count above which a level is not tried: twice the vertices of one solid (the frame, the bars and the fork
+/// are three solids, and the frame carries about four fifths of the vertices). The RC 390's chassis has 174,000 vertices at level 0,
+/// which is never tried, and 69,000 at level 1, which is; the solids themselves say whether a level fits.
+const SPLIT_ESTIMATE_LIMIT: usize = 2 * crate::build::MAX_SOLID_VERTICES;
+
+/// The body, bars and fork solids at the finest level of the chassis from `first_level` on that fits. For each level of the chassis
+/// the small parts (exhaust, bar pad, mirrors) are tried one level finer than the chassis first, then at the chassis' level, then
+/// ever coarser: a few thousand vertices of a silencer are worth less than the finer level of the whole body. `hub` is the front
+/// hub in the chassis frame.
 pub fn body_and_fork(
     table: &PartTable,
     exports: &Exports,
@@ -121,62 +128,83 @@ pub fn body_and_fork(
 ) -> Result<Pair> {
     let chassis = table.chassis()?;
     for level in first_level..=COARSEST_CHASSIS_LEVEL {
-        let part_level = level.saturating_sub(1);
-        let at = |part: &Part| if part.id == chassis.id { level } else { part_level };
-        let mut loaded: Vec<(&Part, Glb)> = Vec::new();
-        for part in table.parts_of(Role::Body) {
-            loaded.push((part, exports.load(&part.export, at(part))?));
-        }
-        let estimate: usize = loaded.iter().map(|(part, glb)| vertex_estimate(glb, table, part)).sum();
-        if estimate > crate::build::MAX_SOLID_VERTICES {
+        let whole = vertex_estimate(&exports.load(&chassis.export, level)?, table, chassis);
+        if whole > SPLIT_ESTIMATE_LIMIT {
             continue;
         }
-        let chassis_glb =
-            &loaded.iter().find(|(part, _)| part.id == chassis.id).context("the chassis is not a body part")?.1;
-        let classes = front_end::classes(&chassis_glb.nodes, &table.front_end);
-        let mut halves: [Half; 3] = Default::default();
-        let to_body = |p: [f32; 3]| frame.body_point(p);
-        let to_hub = |p: [f32; 3]| wheel_point(p, hub);
-        for &(part, ref glb) in &loaded {
-            let joints = front_end::joint_classes(glb, &classes);
-            let side = front_end::side_of(part.anchor.bone.as_deref(), glb, &classes);
-            for class in Class::ALL {
-                let take = match side {
-                    Side::Whole(whole) if whole == class => Take::All,
-                    Side::Whole(_) => continue,
-                    Side::Split => Take::Of(class, &joints),
-                };
-                let to_solid: &dyn Fn([f32; 3]) -> [f32; 3] = match class {
-                    Class::Frame => &to_body,
-                    Class::Bars | Class::Fork => &to_hub,
-                };
-                halves[class.index()].add((table, &mut *surfaces, names.car), (part, glb), to_solid, take)?;
+        for part_level in level.saturating_sub(1)..=COARSEST_CHASSIS_LEVEL {
+            let fitted = fit(table, exports, surfaces, names, (frame, hub), (level, part_level))?;
+            if let Some(pair) = fitted {
+                return Ok(pair);
             }
         }
-        let [body, bars, fork] = halves;
-        let report = Report {
-            body_vertices: body.vertices(),
-            body_triangles: body.triangles(),
-            fork_vertices: fork.vertices(),
-            fork_triangles: fork.triangles(),
-            bars_vertices: bars.vertices(),
-            bars_triangles: bars.triangles(),
-        };
-        let Ok(body_solid) = finish(names.body, body.groups, body.lists) else { continue };
-        let Ok(fork_solid) = optional(names.fork, fork.groups, fork.lists) else { continue };
-        let Ok(bars_solid) = optional(names.bars, bars.groups, bars.lists) else { continue };
-        return Ok(Pair {
-            body: body_solid,
-            fork: fork_solid,
-            bars: bars_solid,
-            body_points: body.points,
-            fork_points: fork.points,
-            bars_points: bars.points,
-            report,
-        });
     }
     anyhow::bail!(
         "{}: no level of detail of the chassis from {first_level} to {COARSEST_CHASSIS_LEVEL} fits one solid",
         names.body
     )
+}
+
+/// The three solids with the chassis at `level` and the other parts at `part_level`, or `None` when one of them does not fit.
+fn fit(
+    table: &PartTable,
+    exports: &Exports,
+    surfaces: &mut Surfaces,
+    names: Names<'_>,
+    (frame, hub): (Frame, [f32; 3]),
+    (level, part_level): (u32, u32),
+) -> Result<Option<Pair>> {
+    let chassis = table.chassis()?;
+    let at = |part: &Part| if part.id == chassis.id { level } else { part_level };
+    let mut loaded: Vec<(&Part, Glb)> = Vec::new();
+    for part in table.parts_of(Role::Body) {
+        loaded.push((part, exports.load(&part.export, at(part))?));
+    }
+    let estimate: usize = loaded.iter().map(|(part, glb)| vertex_estimate(glb, table, part)).sum();
+    if estimate > SPLIT_ESTIMATE_LIMIT {
+        return Ok(None);
+    }
+    let chassis_glb =
+        &loaded.iter().find(|(part, _)| part.id == chassis.id).context("the chassis is not a body part")?.1;
+    let classes = front_end::classes(&chassis_glb.nodes, &table.front_end);
+    let mut halves: [Half; 3] = Default::default();
+    let to_body = |p: [f32; 3]| frame.body_point(p);
+    let to_hub = |p: [f32; 3]| wheel_point(p, hub);
+    for &(part, ref glb) in &loaded {
+        let joints = front_end::joint_classes(glb, &classes);
+        let side = front_end::side_of(part.anchor.bone.as_deref(), glb, &classes);
+        for class in Class::ALL {
+            let take = match side {
+                Side::Whole(whole) if whole == class => Take::All,
+                Side::Whole(_) => continue,
+                Side::Split => Take::Of(class, &joints),
+            };
+            let to_solid: &dyn Fn([f32; 3]) -> [f32; 3] = match class {
+                Class::Frame => &to_body,
+                Class::Bars | Class::Fork => &to_hub,
+            };
+            halves[class.index()].add((table, &mut *surfaces, names.car), (part, glb), to_solid, take)?;
+        }
+    }
+    let [body, bars, fork] = halves;
+    let report = Report {
+        body_vertices: body.vertices(),
+        body_triangles: body.triangles(),
+        fork_vertices: fork.vertices(),
+        fork_triangles: fork.triangles(),
+        bars_vertices: bars.vertices(),
+        bars_triangles: bars.triangles(),
+    };
+    let Ok(body_solid) = finish(names.body, body.groups, body.lists) else { return Ok(None) };
+    let Ok(fork_solid) = optional(names.fork, fork.groups, fork.lists) else { return Ok(None) };
+    let Ok(bars_solid) = optional(names.bars, bars.groups, bars.lists) else { return Ok(None) };
+    Ok(Some(Pair {
+        body: body_solid,
+        fork: fork_solid,
+        bars: bars_solid,
+        body_points: body.points,
+        fork_points: fork.points,
+        bars_points: bars.points,
+        report,
+    }))
 }

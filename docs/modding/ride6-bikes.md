@@ -160,11 +160,16 @@ the manifest in `[wheels]` (radii from the meshes, tyre widths from the size cod
 tyres and body box. Everything else of the `[bike]` table is the bike's physics data, converted
 ([below](#the-physics-dump-import-bike)); the manifest has no `[stats]`.
 
-**Levels of detail.** The chassis levels 0 to 3 are read (level 0: 135,000 vertices, 1: 78,000, 2: 44,000, 3: 26,000). A body
-solid takes the finest level from its letter's minimum on whose parts, with their triangles split by light material, fit
-one solid (60,000 vertices, 65,535 triangles): `A` and `B` come out as level 2, `C` and `D` as level 3; the small parts are
-read one level finer. Levels 4 to 7 of the engine are one composited material and are not used. A wheel solid reads the
-export level of its letter's position (A is 0, D is 3).
+**Levels of detail.** The chassis levels 0 to 3 are read (level 0: 135,000 to 175,000 vertices, 1: 69,000 to 78,000, 2: 34,000 to
+44,000, 3: 18,000 to 26,000). The frame, the bars and the fork are three solids that each hold at most 60,000 vertices and 65,535
+triangles (16-bit indices), so a body solid takes the finest level from its letter's minimum whose three solids fit: `A` starts at
+level 0 (never fits: the frame alone has 148,000 vertices on the RC 390) and normally ends at level 1 (the RC 390's frame has 54,000
+vertices at level 1), `B` starts at level 2 and `C` and `D` at level 3. Before this, the vertex count of the whole bike was compared
+with one solid's limit, which left `A` at level 2 (44,000 vertices, 30,000 triangles) although level 1 fits as three solids. The
+small parts (exhaust, mirrors, bar pad) are tried one level finer than the chassis first and then ever coarser until the solids
+fit: a silencer's few thousand vertices are worth less than the finer body. Levels 4 to 7 of the engine are one composited
+material and are not used. A wheel solid reads the export level of its letter's position (A is 0, D is 3). Textures: the body's are
+at most `max_texture` (2048) on a side, the rims' and tyres' half of that and the discs' a quarter.
 
 ## The steered front end
 
