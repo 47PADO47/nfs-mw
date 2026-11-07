@@ -56,7 +56,9 @@ ambient)` with a `mix(0.6, 1.0, n.z * 0.5 + 0.5)` hemisphere weight (+z is up), 
 surface the fills already light is unchanged and a black rig stays black. Day and night follow the rig: the world's
 fills are its authored ambient, and the night factor is applied after. The game sets it only for bikes
 (`nfsmw_data::car::mods::bike::is_bike`), 1.2, in Custom and in both Original shadings (there it floors the
-per-vertex light of the original arithmetic). It is zero for every other car, so the stock cars and the 2012 cars
+per-vertex light of the original arithmetic; the shadowed original family also keeps 55 percent of the diffuse in
+shadow, `MOD_CAR_SHADOW_FLOOR`, because it gates the whole diffuse light by the shadow and the side of a bike the sun
+does not reach would stay black). It is zero for every other car, so the stock cars and the 2012 cars
 render as before. The Bevy backend ignores it. Evidence and renders: [RIDE 6 materials](formats/ride6-materials.md#panels-that-face-away-from-the-lights).
 
 ## Probe filtering and matte compatibility

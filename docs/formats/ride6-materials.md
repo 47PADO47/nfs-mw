@@ -247,7 +247,7 @@ effect: a clear coat would add a highlight, not light the dark side.
 
 **The fix, in the renderer [choice].** `GlossyMaterial::ambient_floor` ([renderer spec](../specs/custom-car-materials.md#hemispheric-floor-for-converted-mod-bikes))
 raises the light a surface gets to `ambient_floor * (fill 1 + fill 2 + rig ambient) * mix(0.6, 1.0, n.z * 0.5 + 0.5)`, as a
-`max`, in `glossy.wgsl` (the Custom shading, and the per-vertex light of both original shadings). The importer cannot set it
+`max`, in `glossy.wgsl` (the Custom shading, and the per-vertex light of both original shadings; the shadowed original family also keeps 55 percent of the diffuse in shadow for these materials, `MOD_CAR_SHADOW_FLOOR`, because it gates the whole diffuse light by the shadow). The importer cannot set it
 (a bike's files only name light materials of the install, and the 156 of them have no ambient), so the game sets it for every
 material of a bike (`nfsmw_data::car::mods::bike::is_bike`), **1.2**, tuned on the five bikes at yaws 0, 90, 180, 270: 0.8
 still left a dark side on the KTM tank, 1.7 started to flatten the Yamaha's rims. The stock cars and the 2012 cars have the
