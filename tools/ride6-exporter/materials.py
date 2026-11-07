@@ -24,6 +24,17 @@ TEXTURE_PARAMS = (
 )
 
 
+# The normal maps are 40 of the 125 MB a bike takes in the export folder and are read only by `ride6-bike-import --normal-maps`
+# (off by default): they are exported when the environment variable R6_NORMALS is set (`export_all.py --normals`).
+NORMAL_PARAMS = ("Normal - Texture", "CleanNormal")
+
+
+def wanted_params():
+    if os.environ.get("R6_NORMALS"):
+        return TEXTURE_PARAMS
+    return tuple(name for name in TEXTURE_PARAMS if name not in NORMAL_PARAMS)
+
+
 def strip_enum(value):
     """`EBlendMode::BLEND_Masked` is `BLEND_Masked`."""
     if not isinstance(value, str):
@@ -89,7 +100,7 @@ ENGINE_FLAT = ("t_default", "t_white", "t_black", "defaulttexturechecker", "defa
 
 def textures_of(material):
     """The object paths of the textures a resolved material needs exported (not the engine's flat default pictures)."""
-    paths = [material["tex"][name] for name in TEXTURE_PARAMS if name in material["tex"]]
+    paths = [material["tex"][name] for name in wanted_params() if name in material["tex"]]
     return [p for p in paths if not stem(p).startswith(ENGINE_FLAT)]
 
 

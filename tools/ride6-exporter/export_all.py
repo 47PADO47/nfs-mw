@@ -1,6 +1,6 @@
 """Export every RIDE 6 bike (or a selection) with `bikeparts.py`, several at a time, resumable.
 
-    python -I export_all.py [--out C:\r6work\bikes] [--only <regex on the vehicle id>] [--limit N] [--jobs 3] [--force]
+    python -I export_all.py [--out C:\r6work\bikes] [--only <regex on the vehicle id>] [--limit N] [--jobs 3] [--force] [--normals]
 
 Each bike goes to `<out>/<vehicle id>/` (`parts.json`, `glb/`, `tex/`) with a `status.json`; a bike that has one is skipped
 unless `--force`. `report.py` turns the folders into the completeness report.
@@ -64,7 +64,10 @@ def main():
     parser.add_argument("--jobs", type=int, default=3)
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--max-tex", type=int, default=2048)
+    parser.add_argument("--normals", action="store_true", help="also export the normal maps (for ride6-bike-import --normal-maps)")
     args = parser.parse_args()
+    if args.normals:
+        os.environ["R6_NORMALS"] = "1"
     tool = Tool()
     try:
         vehicles = sorted(Tables(Assets(tool)).vehicles())

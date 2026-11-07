@@ -49,7 +49,11 @@ class Source:
             self.tables._by_number = cache
         own = chassis_number(self.tables.asset("Chassis", f"CH_{self.vehicle}_Livery-01") or "")
         others = [v for v in cache.get(own, []) if v != self.vehicle]
-        return sorted(others, key=lambda v: (-common_prefix(v, self.vehicle), v))
+        # The event variants (`-Ride-Fest`, `-RM`, `-EM`) have a chassis of their own but the parts of the bike they are a variant of.
+        base = strip_variant(self.vehicle)
+        twins = [v for v in self.tables.vehicles() if v != self.vehicle and v not in others and strip_variant(v) == base]
+        key = lambda v: (-common_prefix(v, self.vehicle), v)
+        return sorted(others, key=key) + sorted(twins, key=key)
 
     def data_asset(self, part, table, keys):
         """Properties of the data asset of the first of `keys` that has a row; None (and a reason) when there is none.
@@ -69,7 +73,7 @@ class Source:
                     asset = alt != key and self.tables.asset(table, alt)
                     if asset:
                         row = (alt, asset)
-                        self.notes.append(f"{part}: no row of its own, using the row of {other} (same chassis)")
+                        self.notes.append(f"{part}: no row of its own, using the row of {other} (same chassis or the bike this is a variant of)")
                         break
                 if row is not None:
                     break
@@ -102,6 +106,16 @@ class Source:
             }
         )
         return True
+
+
+VARIANT_WORDS = ("Ride-Fest", "RM", "EM")
+
+
+def strip_variant(vehicle):
+    """The vehicle id without its event variant words: `Aprilia_RS-457-Ride-Fest-2024` is `Aprilia_RS-457-2024`."""
+    for word in VARIANT_WORDS:
+        vehicle = vehicle.replace(f"-{word}-", "-")
+    return vehicle
 
 
 def common_prefix(a, b):
