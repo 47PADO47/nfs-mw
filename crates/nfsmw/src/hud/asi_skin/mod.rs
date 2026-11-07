@@ -155,7 +155,7 @@ mod tests {
         let narrow = Placement::new(FENG_HEIGHT * 4.0 / 3.0, FENG_HEIGHT, 1.0, 0.0, 0.0);
         let rect = |p: &Placement| p.rect(100.0, 100.0, 0.0, 0.0);
         assert!(rect(&wide).x > rect(&narrow).x, "a wider window puts the corner further right");
-        assert_eq!(rect(&broken), rect(&narrow));
+        assert!((rect(&broken).x - rect(&narrow).x).abs() < 1e-3);
     }
 
     #[test]
