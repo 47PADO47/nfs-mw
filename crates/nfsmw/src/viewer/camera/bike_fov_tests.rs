@@ -49,7 +49,7 @@ fn assert_all_in_picture(points: &[Vec3], lens: &Lens, label: &str) {
 
 #[test]
 fn the_helmet_camera_is_wider_than_rides_own_and_a_bike_with_a_wider_one_keeps_it() {
-    let reference = Mount::helmet(&helmet(), false);
+    let reference = Mount::helmet(&helmet().helmet, false);
     assert!((reference.fov_y(WIDE) - HELMET_FOV_DEG).abs() < 1e-3, "{}", reference.fov_y(WIDE));
     assert!(reference.fov_y(WIDE) > vertical_fov(91.49284) + 10.0, "RIDE 6's own 60 degrees is the narrow one");
     assert!((70.0..=95.0).contains(&HELMET_FOV_DEG), "a wide cockpit view and not a fisheye: {HELMET_FOV_DEG}");
@@ -62,7 +62,7 @@ fn the_helmet_camera_is_wider_than_rides_own_and_a_bike_with_a_wider_one_keeps_i
 
 #[test]
 fn a_wider_screen_shows_more_at_the_sides_and_a_narrower_one_keeps_the_sides_up_to_a_limit() {
-    let mount = Mount::helmet(&helmet(), false);
+    let mount = Mount::helmet(&helmet().helmet, false);
     let wide_horizontal =
         |aspect: f32| 2.0 * ((mount.fov_y(aspect).to_radians() * 0.5).tan() * aspect).atan().to_degrees();
     assert_eq!(mount.fov_y(21.0 / 9.0), mount.fov_y(WIDE), "the vertical field of view is kept: Hor+");
@@ -82,7 +82,7 @@ fn a_wider_screen_shows_more_at_the_sides_and_a_narrower_one_keeps_the_sides_up_
 
 #[test]
 fn the_grips_and_the_instrument_panel_are_in_the_helmet_picture_at_every_usual_aspect() {
-    let mount = Mount::helmet(&helmet(), false);
+    let mount = Mount::helmet(&helmet().helmet, false);
     for (aspect, label) in [(WIDE, "16:9"), (21.0 / 9.0, "21:9"), (16.0 / 10.0, "16:10"), (4.0 / 3.0, "4:3")] {
         let shot = picture_of(&mount, aspect);
         assert_all_in_picture(&COCKPIT, &shot, label);
@@ -93,11 +93,12 @@ fn the_grips_and_the_instrument_panel_are_in_the_helmet_picture_at_every_usual_a
 #[test]
 fn the_data_cameras_own_field_of_view_cut_the_grips_off_and_the_wider_one_does_not() {
     // RIDE 6's 91.49 degrees (60 vertical) with the data's tilt and the old 8 extra degrees down.
-    let narrow = Mount { fov: 91.49284, min_horizontal_deg: 0.0, pitch_deg: -18.0, ..Mount::helmet(&helmet(), false) };
+    let narrow =
+        Mount { fov: 91.49284, min_horizontal_deg: 0.0, pitch_deg: -18.0, ..Mount::helmet(&helmet().helmet, false) };
     let old = picture_of(&narrow, WIDE);
     let cut = DEEP_COCKPIT.iter().filter(|point| in_picture(&old, **point).is_none_or(|at| at[1].abs() >= 1.0));
     assert_eq!(cut.count(), 2, "the deep cockpit's grips are below the old picture");
-    assert_all_in_picture(&DEEP_COCKPIT, &picture_of(&Mount::helmet(&helmet(), false), WIDE), "now");
+    assert_all_in_picture(&DEEP_COCKPIT, &picture_of(&Mount::helmet(&helmet().helmet, false), WIDE), "now");
 }
 
 #[test]
@@ -114,7 +115,7 @@ fn the_field_of_view_widens_with_speed_from_nothing_to_its_limit_and_never_narro
         assert!(widening >= last, "{speed}");
         last = widening;
     }
-    let rest = Mount::helmet(&helmet(), false);
+    let rest = Mount::helmet(&helmet().helmet, false);
     let fast = rest.with_widening(speed_widening(80.0, 1.0));
     assert!((fast.fov_y(WIDE) - rest.fov_y(WIDE) - HELMET_SPEED_WIDEN_DEG).abs() < 1e-3);
     assert_all_in_picture(&DEEP_COCKPIT, &picture_of(&fast, WIDE), "at speed");
@@ -122,7 +123,7 @@ fn the_field_of_view_widens_with_speed_from_nothing_to_its_limit_and_never_narro
 
 #[test]
 fn the_near_plane_is_the_datas_ten_centimetres_and_the_panel_is_beyond_it() {
-    let mount = Mount::helmet(&helmet(), false);
+    let mount = Mount::helmet(&helmet().helmet, false);
     assert_eq!(mount.near, 0.1);
     let shot = picture_of(&mount, WIDE);
     let Projection::PerspectiveInfiniteReverse { near, .. } = shot.projection else { panic!("a perspective") };
