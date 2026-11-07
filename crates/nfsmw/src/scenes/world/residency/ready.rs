@@ -5,7 +5,11 @@ use super::{Residency, TileState};
 
 impl Residency {
     pub(super) fn wanted_resident(&self) -> bool {
-        self.wanted.iter().all(|i| matches!(self.tiles.get(i), Some(TileState::Resident { .. })))
+        // The map packs the camera is in or near count: a car must not start before the ground of a second world is there.
+        self.wanted
+            .iter()
+            .chain(&self.mod_wanted)
+            .all(|i| matches!(self.tiles.get(i), Some(TileState::Resident { .. })))
     }
 
     /// Keep driving while distant scenery loads. Actual local collision packs must be resident;

@@ -231,6 +231,10 @@ impl Residency {
             self.finish_shared(renderer);
             return;
         }
+        if !self.has_zone && self.zones.is_empty() {
+            // A second world has no zones: its map packs stand in for them, and nothing waits for a zone.
+            self.has_zone = true;
+        }
         if self.zones.update_many(centres) {
             // A change only ever enters a zone: `Zones::update` keeps the current one when the camera leaves it.
             self.has_zone = true;

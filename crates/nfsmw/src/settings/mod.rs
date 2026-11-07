@@ -69,6 +69,7 @@ mod motion_blur_tests;
 pub mod net;
 mod partial;
 pub mod physics_rate;
+pub(crate) mod world_id;
 pub use physics_rate::{DEFAULT_PHYSICS_RATE_HZ, parse_physics_rate};
 pub mod game_moments;
 pub mod pursuit_options;
@@ -166,6 +167,7 @@ pub use upscale::{RenderScale, UpscaleMode};
 pub use upscale_quality::UpscaleQuality;
 pub use wheel::WheelOptions;
 pub use window::{Monitor, Resolution, WindowMode};
+pub use world_id::WorldId;
 pub use write::write as write_file;
 
 use crate::app::pacing::MaxFps;
@@ -289,6 +291,8 @@ pub struct Settings {
     pub speed_units: SpeedUnits,
     /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
     pub language: Option<LanguageTag>,
+    /// The second world to play instead of the city (`world`, `--world`); unset or `rockport` is the city.
+    pub world: Option<WorldId>,
     /// The palette of the token-driven HUD. Applies only when `ui_style` is not Original.
     pub ui_theme: UiTheme,
     /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.
@@ -438,6 +442,7 @@ impl From<Partial> for Settings {
             ui_style: p.ui_style.unwrap_or_default(),
             speed_units: p.speed_units.unwrap_or_default(),
             language: p.language,
+            world: p.world,
             ui_theme: p.ui_theme.unwrap_or_default(),
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),

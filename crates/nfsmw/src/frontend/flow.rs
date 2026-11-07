@@ -195,6 +195,8 @@ pub struct Frontend {
     pub(super) series: flow_series::Series,
     /// The car Quick Play picked for the world to drive (`start_free_roam`).
     quick_car: Option<String>,
+    /// The next start is a plain Free Roam, which plays in the world the `world` setting names (`start_free_roam`).
+    free_roam_world: bool,
     /// Apply the separately saved My Cars setup to this start, leaving Stock choices stock.
     quick_custom: Option<String>,
     /// What the race above runs with: the challenge series, Quick Play and a custom race set it; the world takes it with the race
@@ -266,6 +268,7 @@ impl Frontend {
             quick_race: None,
             series: Default::default(),
             quick_car: None,
+            free_roam_world: false,
             quick_custom: None,
             race_options: None,
             split: None,

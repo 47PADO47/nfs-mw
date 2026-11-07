@@ -17,6 +17,7 @@ impl Frontend {
                 Command::StartFreeRoam => {
                     self.career.end_play();
                     self.origin = QuitTo::Main;
+                    self.free_roam_world = true;
                     self.start_free_roam(LoadingScreen::Plain, host, env);
                 }
                 Command::StartChallenge { race, transmission } => self.start_challenge(race, transmission, host, env),
