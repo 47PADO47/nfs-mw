@@ -81,6 +81,20 @@ paints = [{{ name = \"Stock\", color = [{r}, {g}, {b}] }}]
     )
 }
 
+/// The `[parts."body.<n>"]` tables of the solids of a body after the first: base parts, drawn with the car whatever its components
+/// are (`docs/modding/api-content.md#components`). Empty for a body of one solid.
+pub fn body_parts(extra: &[String]) -> String {
+    let mut text = String::new();
+    for (at, solid) in extra.iter().enumerate() {
+        if at > 0 {
+            text.push('\n');
+        }
+        let (id, solid) = (at + 2, quote(solid));
+        text.push_str(&format!("[parts.\"body.{id}\"]\nsolid = {solid}\nrole = \"body\"\nbase = true\n"));
+    }
+    text
+}
+
 /// `manifest` without the tables whose header starts with `prefix` (`[customization`) and `tables` after what is left: the way a
 /// table the importer owns is replaced in a manifest that other tools (the sound tables, the camera tables) have added to.
 pub fn replace_tables(manifest: &str, prefix: &str, tables: &str) -> String {
@@ -120,6 +134,15 @@ pub fn apply_liveries(mod_dir: &Path, car: &str, liveries: &[LiveryChoice]) -> R
         .with_context(|| format!("writing {}", manifest.display()))
 }
 
+/// Put the body's extra solids into the manifest `cars/<car>.toml` in `mod_dir` (replacing its `[parts."body.<n>"]` tables), leaving
+/// everything else of the file as it is.
+pub fn apply_bodies(mod_dir: &Path, car: &str, extra: &[String]) -> Result<()> {
+    let manifest = mod_dir.join("cars").join(format!("{}.toml", car.to_ascii_lowercase()));
+    let text = std::fs::read_to_string(&manifest).with_context(|| format!("reading {}", manifest.display()))?;
+    std::fs::write(&manifest, replace_tables(&text, "[parts.\"body.", &body_parts(extra)))
+        .with_context(|| format!("writing {}", manifest.display()))
+}
+
 /// Add `text` (tables the importer writes after the car: the bike's slots and parts) to the end of the manifest `cars/<car>.toml`.
 pub fn append_tables(mod_dir: &Path, car: &str, text: &str) -> Result<()> {
     let manifest = mod_dir.join("cars").join(format!("{}.toml", car.to_ascii_lowercase()));
@@ -148,6 +171,10 @@ pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'
     if built.liveries.len() >= 2 {
         text.push('\n');
         text.push_str(&customization(&built.liveries));
+    }
+    if !built.extra_bodies.is_empty() {
+        text.push('\n');
+        text.push_str(&body_parts(&built.extra_bodies));
     }
     if let Some(sound) = tables.sound {
         text.push('\n');
@@ -233,6 +260,8 @@ mod tests {
             front_end: Default::default(),
             exhaust: Vec::new(),
             liveries: Vec::new(),
+            levels: Vec::new(),
+            extra_bodies: Vec::new(),
         }
     }
 

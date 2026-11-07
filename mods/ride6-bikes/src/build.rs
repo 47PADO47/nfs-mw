@@ -70,6 +70,11 @@ pub struct Built {
     pub exhaust: Vec<Pipe>,
     /// The liveries the bike offers, the stock one first; empty for a bike with one look.
     pub liveries: Vec<LiveryChoice>,
+    /// For each body letter `A` to `D`: the level of detail of the chassis and of the other body parts its solids were built at.
+    pub levels: Vec<[u32; 2]>,
+    /// The names, without the level letter, of the solids of the body after the first (`<ID>_KIT00_BODY2`, ...): the frame at
+    /// the finest levels of detail does not fit one solid. The manifest binds each as a base part.
+    pub extra_bodies: Vec<String>,
 }
 
 impl Built {
@@ -114,6 +119,9 @@ struct Solids {
     /// Points of the finest body and fork, in the body solid's frame, for the bounds.
     points: Vec<[f32; 3]>,
     report: fork::Report,
+    levels: Vec<[u32; 2]>,
+    /// The most solids the body has at any level.
+    bodies: usize,
 }
 
 /// Build the car files of `folder` from the part table and exports in `dir`.
@@ -143,15 +151,17 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
     let (front, rear) = (wheel(front_hub, front_heights, "front"), wheel(rear_hub, rear_heights, "back"));
     let pipes = exhaust::stock_pipes(&table, &exports, frame)?;
 
-    let mut solids = Solids { list: Vec::new(), points: Vec::new(), report: fork::Report::default() };
+    let mut solids =
+        Solids { list: Vec::new(), points: Vec::new(), report: fork::Report::default(), levels: Vec::new(), bodies: 1 };
     let apart = apart_ids(options.split_parts);
     let hubs = [(Role::FrontWheel, front_hub, "FRONT_TIRE"), (Role::BackWheel, rear_hub, "REAR_TIRE")];
     for (n, (letter, level)) in LEVELS.into_iter().enumerate() {
-        let body = format!("{folder}_KIT00_BODY_{letter}");
         let (fork_name, bars_name) = (format!("{folder}_KIT00_FORK_{letter}"), format!("{folder}_KIT00_BARS_{letter}"));
-        let names = Names { body: &body, fork: &fork_name, bars: &bars_name, car: folder, apart: &apart };
+        let names = Names { letter, fork: &fork_name, bars: &bars_name, car: folder, apart: &apart };
         let mut pair = fork::body_and_fork(&table, &exports, &mut surfaces, names, (frame, front_hub), level)?;
-        pair.body.markers = exhaust::markers(&pipes);
+        pair.bodies[0].markers = exhaust::markers(&pipes);
+        solids.levels.push(pair.levels);
+        solids.bodies = solids.bodies.max(pair.bodies.len());
         if n == 0 {
             solids.report = pair.report;
             // The fork's and the bars' points are relative to the front hub; the bounds are of the whole bike in the body's
@@ -161,7 +171,7 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
                 pair.fork_points.iter().chain(&pair.bars_points).map(|p| [p[0] + hub[0], p[1] + hub[1], p[2] + hub[2]]);
             solids.points = pair.body_points.iter().copied().chain(moved).collect();
         }
-        solids.list.push(pair.body);
+        solids.list.extend(pair.bodies);
         solids.list.extend(pair.fork);
         solids.list.extend(pair.bars);
     }
@@ -185,7 +195,22 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
     let (bounds, half) = bounds(&solids.points, folder)?;
     let report = solids.report;
     let triangles = report.body_triangles + report.fork_triangles + report.bars_triangles;
-    Ok(Built { geometry, textures, bounds, half, front, rear, triangles, front_end: report, exhaust: pipes, liveries })
+    let levels = solids.levels;
+    let extra_bodies = (2..=solids.bodies).map(|n| format!("{folder}_KIT00_BODY{n}")).collect();
+    Ok(Built {
+        geometry,
+        textures,
+        bounds,
+        half,
+        front,
+        rear,
+        triangles,
+        front_end: report,
+        exhaust: pipes,
+        liveries,
+        levels,
+        extra_bodies,
+    })
 }
 
 /// The livery textures of the car's pack and the choices that name them. The first livery is the stock one: its picture is the
@@ -297,6 +322,8 @@ mod tests {
             front_end: fork::Report::default(),
             exhaust: Vec::new(),
             liveries: Vec::new(),
+            levels: Vec::new(),
+            extra_bodies: Vec::new(),
         };
         assert!((built.wheelbase() - 1.4745).abs() < 1e-4);
     }
