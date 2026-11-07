@@ -153,10 +153,9 @@ pub fn attach_json(rider: &Skeleton, reference: &Pose, bike: &JsonSkeleton) -> R
             "tip_offset": offset.to_array(),
             "tip_frame": contacts::transform_json(&frame),
         });
-        // Where the grip is, in the tip's own frame: the hand of the authored pose holds the reference bike's grip there.
+        // Where the hand is against the grip bone in the authored pose: the reference bike's grip is where the hand holds it.
         if let Some(anchor) = points.anchor(role) {
-            let in_rider = to_rider_space(&seat, anchor);
-            limb["tip_anchor"] = json!(rider_component[tip_index].inverse().transform_point(in_rider).to_array());
+            limb["tip_anchor"] = contacts::transform_json(&tip_frame(&rider_component[tip_index], &seat, &anchor));
         }
         limbs.push(limb);
     }

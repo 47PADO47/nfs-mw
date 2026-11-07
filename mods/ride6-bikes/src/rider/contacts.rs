@@ -62,8 +62,8 @@ pub struct Points {
     pub hubs: (Vec3, Vec3),
     /// `(role, place, steers with the handlebar)` in the order of [`TARGETS`].
     pub targets: Vec<(&'static str, Transform, bool)>,
-    /// `(role, place)` of the handlebar bone each grip is held on ([`GRIP_BONES`]); a bike without the bone has none.
-    pub anchors: Vec<(&'static str, Vec3)>,
+    /// `(role, place and turn)` of the handlebar bone each grip is held on ([`GRIP_BONES`]); a bike without the bone has none.
+    pub anchors: Vec<(&'static str, Transform)>,
 }
 
 impl Points {
@@ -73,8 +73,8 @@ impl Points {
         found.map(|(_, at, _)| *at).with_context(|| format!("no target {role}"))
     }
 
-    /// The place of the grip bone of the target `role`, if the bike has it.
-    pub fn anchor(&self, role: &str) -> Option<Vec3> {
+    /// The place and turn of the grip bone of the target `role`, if the bike has it.
+    pub fn anchor(&self, role: &str) -> Option<Transform> {
         self.anchors.iter().find(|(name, _)| *name == role).map(|(_, at)| *at)
     }
 
@@ -91,7 +91,8 @@ impl Points {
                     "steers": steers,
                 });
                 if let Some(anchor) = self.anchor(role) {
-                    target["anchor"] = json!(anchor.to_array());
+                    target["anchor"] = json!(anchor.translation.to_array());
+                    target["anchor_rotation"] = json!(anchor.rotation.to_array());
                 }
                 target
             })
@@ -122,7 +123,11 @@ pub fn points(bike: &JsonSkeleton) -> Result<Points> {
     for (role, socket, steers) in TARGETS {
         targets.push((role, world(socket)?, steers));
     }
-    let anchors = GRIP_BONES.iter().filter_map(|(role, bone)| Some((*role, hub(bone).ok()?))).collect();
+    let bone_at = |name: &str| -> Result<Transform> {
+        let bone = skeleton.find(name).with_context(|| format!("the bike has no bone {name}"))?;
+        Ok(component[bone])
+    };
+    let anchors = GRIP_BONES.iter().filter_map(|(role, bone)| Some((*role, bone_at(bone).ok()?))).collect();
     Ok(Points { seat: world(SEAT_SOCKET)?, hubs: (hub(HUB_BONES.0)?, hub(HUB_BONES.1)?), targets, anchors })
 }
 

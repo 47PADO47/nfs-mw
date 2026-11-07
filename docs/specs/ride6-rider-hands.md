@@ -56,21 +56,21 @@ bone. The two are not the same distance apart on every bike: the wrist socket si
 RC 390, (-12.2, 7.3, 3.6) on the Panigale V4 S, (-11.1, 5.5, 3.9) on the MT-09 [measured]. The hand goes where the authored pose holds the
 reference bike's grip, which is the same place in the hand on every bike. Putting the wrist at the socket plus the reference bike's
 offset (the previous rule) leaves the hand behind the grip by up to 5.7 cm on the RC 390 and 3.1 cm on the Panigale, the clip-on bikes:
-the glove sat on the tank behind the clip-on. The hand is now held by **the grip bone**:
+the glove sat on the tank behind the clip-on. The hand is now held by **the grip bone**, in place and in turn, the way the authored pose holds the reference bike's:
 
 ```
-tip_anchor (attach.json, per hand)  = the reference bike's grip bone in the hand bone's own frame, in the authored pose
-                                      (the left hand's, in Unreal's axes: (13.6, -1.7, -1.4) cm)
-anchor     (contacts.json, per grip) = this bike's grip bone, in the bike's frame
-hand's turn   = the grip socket's turn composed with the authored pose's (as before)
-hand's place  = anchor - turn * tip_anchor
+tip_anchor (attach.json, per hand)   = the hand bone against the reference bike's grip bone in the authored pose (place and turn)
+anchor, anchor_rotation (contacts.json, per grip) = this bike's grip bone, in the bike's frame
+hand's place and turn = the grip bone's, composed with tip_anchor
 ```
 
-The hand's turn still comes from the bike's own socket (the artists turn the hand 20 degrees more on a sport bike's clip-ons); its place from the bone, so
-the grip is in the hand on every bike. On the reference bike the two rules agree to 0.01 cm (the anchor is measured on it). Measured against the old
-rule: the CRF 1.4 cm, the RC 390 5.7 cm, the Panigale 3.1 cm, the MT-09 1.2 cm. A bike with a `contacts.json` or an `attach.json`
-written before the anchors goes to its socket as before. The wrist's throttle roll (section 2) turns the hand about the grip point: the grip bone
-moves with the roll's offset and the hand turns about it.
+An earlier version of this rule kept the turn of the bike's grip socket and moved only the place to the bone: on the RC 390 the hand then lay
+on top of the grip, the grip's rubber showing under the fist (the socket's turn differs from the bone's by up to 25 degrees of pitch from the
+supermoto's, which the authored pose never saw). With the bone's own frame the hand wraps the grip the way it does on the reference bike on
+every bike: pictures of the RC 390, CRF 450 R SMT, Panigale V4 S and Hayabusa show the fingers around the bar and the bar end past the
+glove. The sockets are still read (older files, `HANDS_ON_SOCKET`), and the throttle's wrist roll is about the socket's axis, which is the
+bar's, seen from the world. Measured against the socket rule's wrist place: the CRF 1.4 cm, the RC 390 5.7 cm, the Panigale 3.1 cm, the
+MT-09 1.2 cm. A bike with a `contacts.json` or an `attach.json` written before the anchors goes to its socket as before.
 
 ## 4. What the game does with it
 

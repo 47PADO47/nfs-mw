@@ -44,6 +44,9 @@ pub struct Target {
     /// have none and the hand goes to the socket.
     #[serde(default)]
     pub anchor: Option<[f32; 3]>,
+    /// The turn of that bone (`x, y, z, w`).
+    #[serde(default)]
+    pub anchor_rotation: Option<[f32; 4]>,
 }
 
 /// A limb solved with two-bone IK: the three bones, the bone its middle joint bends towards, the target it reaches for
@@ -62,10 +65,10 @@ pub struct Limb {
     /// `tip_offset`.
     #[serde(default)]
     pub tip_frame: Option<Rigid>,
-    /// Where the grip the hand holds is in the tip bone's own frame in the authored pose (rider space metres): the tip goes where
-    /// its grip point is on the target's `anchor`.
+    /// Where the tip bone is against the grip bone in the authored pose: the tip is put at the target's `anchor` (place and turn)
+    /// composed with this, so the hand holds the bike's grip as it holds the reference bike's.
     #[serde(default)]
-    pub tip_anchor: Option<[f32; 3]>,
+    pub tip_anchor: Option<Rigid>,
 }
 
 /// The bones the body leans forward with when the arms cannot reach the grips, and the bones that turn back to keep the head up.
