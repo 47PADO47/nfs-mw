@@ -1670,6 +1670,7 @@ dependencies = [
 name = "blackbox-modding"
 version = "0.1.0"
 dependencies = [
+ "blackbox-components",
  "blackbox-vehicle",
  "glam 0.34.1",
  "libloading",
@@ -4361,6 +4362,7 @@ dependencies = [
  "blackbox-carparts",
  "blackbox-chunk",
  "blackbox-collision",
+ "blackbox-components",
  "blackbox-damage",
  "blackbox-gfx",
  "blackbox-ginsu",
