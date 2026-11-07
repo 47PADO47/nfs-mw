@@ -333,8 +333,10 @@ Built (2026-10-20), from this spec and with the decompiled flows read for the de
 - **Line events** (`audio/chase/radio/trace.rs`): each line the machine asks the speech for (with the queue's answer:
   queued, refreshed, unknown, muted or thinned) and each line the speech finishes saying, with the machine's `Line`, the
   speech event's name and number, the voice (speaker number) and the parameters. The radio keeps the last 64 until a
-  reader takes them: `Audio::take_radio_lines` (once a frame, for a pursuit trace recorder) or the console's
-  `speech lines`. A recorder logs them as-is; the take (bank and recording) the speech picks is not part of the event.
+  reader takes them: `Audio::take_radio_lines` or the console's `speech lines`. **[ours]** The F5 pursuit trace runs in
+  the world, away from the audio, so while it records the radio also keeps a copy (at most 1,024 between two samples)
+  that the trace writes as `radio_line` events (stage, line, event name and number, speaker). The take (bank and
+  recording) the speech picks is not part of the event.
 - **What the world gives the machine now:** the cops (id, distance, speed, health, wrecked, sight, ahead, formation slot and offset, model class, road), the helicopter (present, sight, fuel), a standing
   roadblock (with its cars' sight and the spike strips), the player's speed, heading, road speech id and car, the heat, busted meter, cool-down state, formation, finisher and infractions, rain, the backup's
   arrival time, the pedals, the up vector and the direction of the road under the car, and the world's **events** ([ai-pursuit-speech-world.md](ai-pursuit-speech-world.md)): the player against a wall,

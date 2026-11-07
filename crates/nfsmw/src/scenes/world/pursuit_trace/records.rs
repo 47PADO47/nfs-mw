@@ -78,6 +78,10 @@ pub(super) struct CopExtras {
     /// A chase cop's own action this think and its road speed limit (m/s).
     action: Option<&'static str>,
     speed_limit: Option<f32>,
+    reverse_gear: bool,
+    /// A goal's slot (physics x and z) and whether the cop has arrived there.
+    goal_slot_xz: Option<[f32; 2]>,
+    goal_arrived: bool,
 }
 
 /// One cop, in the original's per-cop layout. `ai`, `pursuit_status`, `drivable_to_nav` and `nav` have no remake
@@ -163,8 +167,23 @@ pub(super) fn cop(cop: &CopFrame, member: bool, pursuit: Option<&str>) -> Cop {
             support: cop.support,
             action: cop.action,
             speed_limit: cop.speed_limit,
+            reverse_gear: cop.reverse_gear,
+            goal_slot_xz: cop.goal_slot,
+            goal_arrived: cop.goal_arrived,
         },
     }
+}
+
+/// A chase radio line the speech machine asked for (with the queue's answer) or finished saying: its stage, the
+/// machine's line, the speech event's name and number, and the voice.
+pub(super) fn radio_line(line: &crate::audio::radio_trace::RadioLineEvent) -> Value {
+    serde_json::json!({
+        "stage": format!("{:?}", line.stage),
+        "line": format!("{:?}", line.line),
+        "event": line.event,
+        "event_id": line.event_id,
+        "speaker": line.speaker,
+    })
 }
 
 /// One 20 Hz sample.
@@ -239,6 +258,9 @@ pub(super) fn sample_extras(frame: &PoliceFrame, testing_heat: u8, paused: bool)
         "backup_eta_s": frame.backup_eta,
         "backup_remaining": frame.backup_remaining,
         "support_order": frame.support_order,
+        "formation": frame.formation,
+        "collapsing": frame.collapsing,
+        "finisher": frame.finisher,
         "lockout_s": frame.lockout_secs,
         "traffic_count": frame.traffic_cars,
         "racer_count": frame.racers,
