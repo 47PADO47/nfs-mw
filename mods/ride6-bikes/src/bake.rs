@@ -13,7 +13,9 @@ use blackbox_tpk::{AlphaUsage, Level, PixelFormat, TextureSource, full_mip_count
 
 use crate::dash;
 use crate::glass;
-use crate::grade::{DEFAULT_AO_FLOOR, DEFAULT_GAIN, DEFAULT_REFLECTED, Grade, lift, metal_floor};
+use crate::grade::{
+    DEFAULT_AO_FLOOR, DEFAULT_GAIN, DEFAULT_REFLECTED, Grade, PAINT_AO_FLOOR, lift_colour, metal_floor,
+};
 use crate::partfile::{Kind, Material};
 use crate::textures::{Palette, Picture, TexStore};
 
@@ -131,7 +133,6 @@ pub fn bake_diffuse(base: Level, pbr: Option<&Picture>, occlusion: bool, grade: 
     let Grade { ao_floor, gain, reflected } = grade;
     let Level { width, height, mut rgba } = base;
     let threshold = clip.map(|c| (c * 255.0).round() as u8);
-    let lifted: Vec<u8> = (0..=255).map(|v| lift(v, gain)).collect();
     for y in 0..height {
         for x in 0..width {
             let at = ((y * width + x) * 4) as usize;
@@ -153,9 +154,8 @@ pub fn bake_diffuse(base: Level, pbr: Option<&Picture>, occlusion: bool, grade: 
                     rgba[at + c] = linear_to_srgb(linear[c] * factor + reflection);
                 }
             }
-            for c in 0..3 {
-                rgba[at + c] = lifted[usize::from(rgba[at + c])];
-            }
+            let lifted = lift_colour([rgba[at], rgba[at + 1], rgba[at + 2]], gain);
+            rgba[at..at + 3].copy_from_slice(&lifted);
             rgba[at + 3] = match threshold {
                 Some(t) if rgba[at + 3] >= t => 255,
                 Some(_) => 0,
@@ -226,6 +226,13 @@ impl Surfaces {
         self
     }
 
+    /// How the base colour of `material` is graded: the options, with the occlusion of a livery (paint) at least [`PAINT_AO_FLOOR`].
+    fn grade(&self, material: &Material) -> Grade {
+        let paint = material.name.to_ascii_lowercase().contains("livery");
+        let ao_floor = if paint { self.options.ao_floor.max(PAINT_AO_FLOOR) } else { self.options.ao_floor };
+        Grade { ao_floor, gain: self.options.gain, reflected: self.options.reflected }
+    }
+
     /// The texture of a livery picture: the base colour of `material` graded like a body texture, opaque, one level (the game
     /// reads the first level only), named `name`. Returns false when the material has no picture to bake.
     pub fn add_livery_picture(&mut self, name: &str, material: &Material) -> Result<bool> {
@@ -237,9 +244,7 @@ impl Surfaces {
         };
         let cap = size_cap(Kind::Body, self.options.max_texture);
         let level = Picture { width: base.width, height: base.height, rgba: base.rgba.clone() }.shrunk(cap);
-        let grade =
-            Grade { ao_floor: self.options.ao_floor, gain: self.options.gain, reflected: self.options.reflected };
-        let level = bake_diffuse(level, pbr.as_deref(), material.pbr_has_occlusion, grade, None);
+        let level = bake_diffuse(level, pbr.as_deref(), material.pbr_has_occlusion, self.grade(material), None);
         if !self.palette.contains(name) {
             self.add_level_mips(name, level, PixelFormat::Dxt1, Alpha::Opaque, 1);
         }
@@ -301,13 +306,7 @@ impl Surfaces {
             }
         }
         let level = picture.shrunk(cap);
-        let level = bake_diffuse(
-            level,
-            pbr.as_deref(),
-            material.pbr_has_occlusion,
-            Grade { ao_floor: self.options.ao_floor, gain: self.options.gain, reflected: self.options.reflected },
-            clip,
-        );
+        let level = bake_diffuse(level, pbr.as_deref(), material.pbr_has_occlusion, self.grade(material), clip);
         let cut_out = level.rgba.as_chunks::<4>().0.iter().any(|t| t[3] < 255);
         if !self.palette.contains(&diffuse) {
             let (format, alpha) =
@@ -336,7 +335,7 @@ impl Surfaces {
                 specular = Some(name);
             }
         }
-        let ao_floor = (material.pbr_has_occlusion && pbr.is_some()).then_some(self.options.ao_floor);
+        let ao_floor = (material.pbr_has_occlusion && pbr.is_some()).then_some(self.grade(material).ao_floor);
         Ok(Surface { diffuse, normal, specular, pbr, base: Some(base), ao_floor, glass: None })
     }
 

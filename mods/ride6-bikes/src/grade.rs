@@ -6,6 +6,11 @@
 /// the light a surface receives, averaged over its normals), because RIDE 6 applies its occlusion to the indirect light only
 /// (docs/formats/ride6-materials.md). A choice, derived from the rig.
 pub const DEFAULT_AO_FLOOR: f32 = 0.55;
+/// The occlusion factor of a fully occluded texel of a livery (the painted plastics, tank, fairings and fenders): the paint is a
+/// clear-coated surface that the dark baked occlusion of the livery atlas (concave areas under the tank, between panels) turned into
+/// muddy patches, where RIDE 6 shows a clean glossy colour (the occlusion only dims its indirect light). A choice, made against the
+/// renders of the KTM RC 390 (orange panels with brown blotches) and the Honda CRF 450 R; the mechanics keep [`DEFAULT_AO_FLOOR`].
+pub const PAINT_AO_FLOOR: f32 = 0.9;
 /// The lift of the base colour: the car rigs light a surface with 0.5 to 0.85 of the colour of its texture (the multiplier of
 /// a rig is a fraction in display space), where RIDE 6 shows its lit bodies at about 1.1 times the albedo; 1.35 closes
 /// that gap in the middle tones and keeps white white. A choice, measured (docs/formats/ride6-materials.md).
@@ -61,9 +66,32 @@ pub fn lift(value: u8, gain: f32) -> u8 {
     (x * (gain - (gain - 1.0) * x) * 255.0 + 0.5) as u8
 }
 
+/// An encoded colour lifted by `gain` with its hue kept: the brightest channel is lifted as [`lift`] does and the others by the
+/// same factor, so a saturated paint (the red (184, 0, 26) of the Honda CRF 450 R) gets brighter and not pinker (lifting each
+/// channel alone raised the blue of that red from 26 to 33 and made it crimson). Greys come out as [`lift`] gives them.
+pub fn lift_colour([r, g, b]: [u8; 3], gain: f32) -> [u8; 3] {
+    let top = r.max(g).max(b);
+    if top == 0 {
+        return [0, 0, 0];
+    }
+    let factor = f32::from(lift(top, gain)) / f32::from(top);
+    [r, g, b].map(|c| (f32::from(c) * factor + 0.5).min(255.0) as u8)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_hue_lift_keeps_the_ratio_of_the_channels_and_lifts_greys_like_the_plain_lift() {
+        assert_eq!(lift_colour([0, 0, 0], 1.35), [0, 0, 0]);
+        assert_eq!(lift_colour([100, 100, 100], 1.35), [lift(100, 1.35); 3]);
+        assert_eq!(lift_colour([255, 255, 255], 1.35), [255, 255, 255]);
+        let red = lift_colour([184, 0, 26], 1.35);
+        assert!(red[0] > 184 && red[1] == 0, "{red:?}");
+        let (before, after) = (26.0 / 184.0, f32::from(red[2]) / f32::from(red[0]));
+        assert!((before - after).abs() < 0.01, "the blue share of the red stays: {before} {after}");
+    }
 
     #[test]
     fn a_metal_is_spared_most_of_the_occlusion() {
