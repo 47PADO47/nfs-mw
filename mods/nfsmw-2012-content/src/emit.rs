@@ -149,10 +149,13 @@ impl ModFolder {
     }
 }
 
+/// What writes one recording (its kind, its position, its bytes) and returns the path it has under `files/`.
+type SoundPut<'a> = dyn FnMut(Sound, usize, &[u8]) -> Result<String> + 'a;
+
 /// The `[car_sound]` table of a car with `effects`: each list names the paths `put` gives for its recordings (`put` is told
 /// the kind and the position of a recording, writes it and returns its path under `files/`). Empty lists are left out, and a
 /// car with no effect at all has no table.
-fn effects_table(effects: &EffectFiles, put: &mut dyn FnMut(Sound, usize, &[u8]) -> Result<String>) -> Result<String> {
+fn effects_table(effects: &EffectFiles, put: &mut SoundPut) -> Result<String> {
     let lists = [
         ("shift", Sound::Shift, &effects.shift),
         ("turbo_whine", Sound::Whine, &effects.turbo_whine),
