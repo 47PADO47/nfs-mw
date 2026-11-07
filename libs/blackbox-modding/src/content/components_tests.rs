@@ -40,7 +40,13 @@ fn the_slots_and_the_parts_are_read_in_order() {
     let stock = &found.parts["exhaust.muffler.stock"];
     assert_eq!(
         stock,
-        &PartBinding { solid: "FASTBIKE_KIT00_MUFFLER".into(), pack: None, role: PartRole::Body, matrix: None }
+        &PartBinding {
+            solid: "FASTBIKE_KIT00_MUFFLER".into(),
+            pack: None,
+            role: PartRole::Body,
+            matrix: None,
+            base: false
+        }
     );
     let race = &found.parts["exhaust.muffler.race"];
     assert_eq!(race.pack.as_deref(), Some("PARTS/R6/MUF974_001"));
@@ -101,4 +107,12 @@ effects = [{ kind = "param", key = "bike.engine.peak_torque_nm", op = "mul", val
     assert!(matches!(merge_catalog(&mut catalog, again), Err(ContentError::Parse(_))));
     assert!(parse_catalog("[[component]]\nid = \"Bad Id\"\n").is_err());
     assert!(parse_catalog("[[component]]\nid = \"ok\"\nunknown = 1\n").is_err());
+}
+
+#[test]
+fn a_base_part_is_a_part_the_car_is_drawn_with() {
+    let text = format!("{BIKE}\n[parts.\"body.2\"]\nsolid = \"FASTBIKE_KIT00_BODY2\"\nbase = true\n");
+    let found = tables(&text).unwrap().unwrap();
+    assert!(found.parts["body.2"].base);
+    assert!(!found.parts["exhaust.muffler.stock"].base, "a part is not a base part unless it says so");
 }

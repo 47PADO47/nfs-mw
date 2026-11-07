@@ -95,6 +95,10 @@ markers = [{ name = "RIGHT_EXHAUST", position = [-0.9, -0.12, 0.31], direction =
   it, logs why, and the slot's default is used if it was the default. (The same rule as a rim whose model is missing today.)
 - `role` is the game's: `steered` and `steered_slid` are the fork and the bars of a bike
   ([ride6-bikes.md](../../modding/ride6-bikes.md#the-steered-front-end)).
+- `base = true` (default `false`) makes the part one of the **base vehicle's** (`VehicleDef::parts`): it is drawn whatever the slots
+  hold, and no component shows or hides it by choice. It is for a model that is more than one solid at its finest level of detail
+  (a bike's frame: `BODY`, `BODY2`, ...). A base part is drawn at the levels of detail its file has it at and at no other (the
+  nearest-level fallback of a pack part would draw a finer solid in place of a coarser one).
 
 ## Parameter keys
 

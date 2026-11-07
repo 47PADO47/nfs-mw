@@ -48,6 +48,26 @@ export named like the package, falls back to nothing else, and records a part wh
 reason `no mesh`. This is why the installed Hypermotard 698 (`DUCATI_HYPERMOTARD-6-9A50E0`) had no rims, no exhaust and no hand
 guards: the first export was read.
 
+## What the chassis mesh holds, and surfaces with no picture **[data]**
+
+The skeletal mesh `chassisNNN` has **four levels of detail that are drawn** (LODModels 0 to 3) and four composite ones (4 to 7, one
+material `mat_bike_lods`, no export). No section is disabled in any of the 293 meshes; the export holds every triangle of the
+sections but a few degenerate ones (4 of 193,186 on the Z900) and the importer leaves out the glass decal (`mat_glassdecal`).
+Level 0 has 135,000 to 195,000 vertices: `mat_mechanics` (frame, engine, swingarm, chain guard, pedals: 105,571 triangles on the 690),
+`mat_livery_0` (the paint), `mat_cockpit`, `mat_lights`, `mat_glass`, `mat_gear`, `mat_chain`, `mat_gauge`. **From level 1 on the
+paint is another slot, `mat_livery_1`** (`mat_livery_2` on chassis035), so a level's surfaces are not those of level 0 renamed.
+
+The stock look of a surface is the instance the data asset (or the part's row) names for its slot. Where none reaches a slot the
+converter draws a grey stand-in; 168 surface-and-level pairs of the 293 bikes were such before the fixes below, 20,000 triangles of
+level 0 on 11 bikes after (the completeness script lists them):
+
+| Surface | Cause | Fix |
+|---|---|---|
+| the rims of six older bikes (999R, NR750, ZRX 1200 R, ZZR 1400, GSX-R 600 2005, R6 2002) | the master names its picture `BaseColor0_Map` (and `Pbr0_Map`, `Normal0_Map`), which the exporter did not export | the exporter and the importer read them |
+| a silencer (Panigale V4 S 2025), a header (RC213V), a cockpit | the opacity switch is on and the picture is in `BaseColor - Texture` | either parameter is tried |
+| `mat_livery_1` at levels 1 to 3 of the Brutale 1000 RR, `mat_mechanics_1` and `mat_glass` of the mirrors of three bikes, `mat_bike_lods` of the far rims | the data asset leaves the slot without an instance | the chassis' instance of the same kind, or the part's first picture |
+| `WorldGridMaterial`, `mat_glassDOF*` (glass), `Default_Material`, the rims of the Monster 1200 S (`mat_rim142_001`) and the header of the R1 RM 2008 | an engine placeholder, or a material instance the install does not contain | none: left grey or not drawn |
+
 ## What the exporter takes **[choice, from the rows above]**
 
 | Part | Rule |

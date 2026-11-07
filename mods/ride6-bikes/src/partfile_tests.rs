@@ -117,3 +117,36 @@ fn a_bike_whose_liveries_share_one_picture_offers_none() {
     let none = LIVERIES.replace("\"liveries\"", "\"others\"");
     assert!(PartTable::parse(&none).unwrap().livery_pictures().is_empty());
 }
+
+#[test]
+fn a_picture_is_found_under_whichever_parameter_holds_it() {
+    let text = SAMPLE.replacen(
+        "\"mat_t\": {",
+        "\"mat_old\": {\"tex\": {\"BaseColor0_Map\": \"/Game/x/rim_d.0\", \"Pbr0_Map\": \"/Game/x/rim_l.0\"}},
+    \"mat_swapped\": {\"tex\": {\"BaseColor - Texture\": \"/Game/x/muf_d.0\"}, \"switch\": {\"BaseColorOpacity - Source\": true}},
+    \"mat_t\": {",
+        1,
+    );
+    let table = PartTable::parse(&text).unwrap();
+    let rim = &table.materials["mat_old"];
+    assert_eq!((rim.base_color.as_deref(), rim.pbr.as_deref()), (Some("rim_d"), Some("rim_l")));
+    assert_eq!(table.materials["mat_swapped"].base_color.as_deref(), Some("muf_d"));
+}
+
+#[test]
+fn a_surface_with_no_instance_takes_the_chassis_instance_of_its_kind() {
+    let text = SAMPLE
+        .replacen(
+            "\"materials\": {\"mat_a\": \"/Game/x/mat_a.0\"}",
+            "\"materials\": {\"mat_livery_0_1_001\": \"/Game/x/mat_livery_0_1_001.0\"}",
+            1,
+        )
+        .replacen("\"mat_a\": {\"shading_model\"", "\"mat_livery_0_1_001\": {\"shading_model\"", 1);
+    let table = PartTable::parse(&text).unwrap();
+    let chassis = table.chassis().unwrap();
+    let paint = table.material(chassis, "mat_livery_1").expect("the paint of the far levels");
+    assert_eq!(paint.base_color.as_deref(), Some("livery_d"));
+    assert!(table.material(chassis, "mat_unknown_kind").is_none());
+    let tyre = &table.parts[1];
+    assert_eq!(table.material(tyre, "mat_bike_lods711").and_then(|m| m.base_color.as_deref()), Some("tyre_d"));
+}

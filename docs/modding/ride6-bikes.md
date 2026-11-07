@@ -143,7 +143,7 @@ in `notes`.
 
 The game draws a car as a body and wheels. `GEOMETRY.BIN` holds, at four levels `A` to `D`:
 
-- `<ID>_KIT00_BODY_<L>`: everything on the chassis. Origin: the middle of the wheelbase along x, the lowest tyre point on
+- `<ID>_KIT00_BODY_<L>` (and `_BODY2_<L>`, `_BODY3_<L>` when the frame does not fit one solid): everything on the chassis. Origin: the middle of the wheelbase along x, the lowest tyre point on
   the ground (z = 0), the bike's centre plane on y = 0. Axes: x forward, y left, z up ([car-customization.md](
   car-customization.md#the-files-of-a-car)); the exports are glTF (x forward, y up, z right) and `layout.rs` turns one into
   the other.
@@ -160,14 +160,19 @@ the manifest in `[wheels]` (radii from the meshes, tyre widths from the size cod
 tyres and body box. Everything else of the `[bike]` table is the bike's physics data, converted
 ([below](#the-physics-dump-import-bike)); the manifest has no `[stats]`.
 
-**Levels of detail.** The chassis levels 0 to 3 are read (level 0: 135,000 to 175,000 vertices, 1: 69,000 to 78,000, 2: 34,000 to
-44,000, 3: 18,000 to 26,000). The frame, the bars and the fork are three solids that each hold at most 60,000 vertices and 65,535
-triangles (16-bit indices), so a body solid takes the finest level from its letter's minimum whose three solids fit: `A` starts at
-level 0 (never fits: the frame alone has 148,000 vertices on the RC 390) and normally ends at level 1 (the RC 390's frame has 54,000
-vertices at level 1), `B` starts at level 2 and `C` and `D` at level 3. Before this, the vertex count of the whole bike was compared
-with one solid's limit, which left `A` at level 2 (44,000 vertices, 30,000 triangles) although level 1 fits as three solids. The
-small parts (exhaust, mirrors, bar pad) are tried one level finer than the chassis first and then ever coarser until the solids
-fit: a silencer's few thousand vertices are worth less than the finer body. Levels 4 to 7 of the engine are one composited
+**Levels of detail.** The chassis levels 0 to 3 are read (level 0, the whole mesh the game draws: 135,000 to 195,000 vertices and
+150,000 to 195,000 triangles, 1: 69,000 to 100,000 vertices, 2: 34,000 to 44,000, 3: 18,000 to 26,000). A solid holds at most
+60,000 vertices and 65,535 triangles (16-bit indices), and the frame alone is 100,000 to 150,000 vertices at level 0, so **the frame
+is as many solids as it needs**: `<ID>_KIT00_BODY_<L>` and then `<ID>_KIT00_BODY2_<L>`, `BODY3`, ... ([`chunks.rs`](
+../../mods/ride6-bikes/src/chunks.rs): the shading groups packed in order, a group over the limits cut along its triangle list), and
+the same for the bars (`BARS2`: the Indian FTR's cockpit alone is 63,000 triangles) and the fork. The manifest binds every solid after
+the first as a **base part** (`[parts."base.body.2"]`, role `body`, `steered` or `steered_slid`, `base = true`:
+[api-content.md](api-content.md#components)), which the game draws with the car at the levels of detail the car's file has it at and
+at no other. `A` is level 0 for every bike (up to 10 solids of each kind), `B` starts at level 2 and `C` and `D` at level 3. The small parts (exhaust, mirrors, bar pad) are tried
+one level finer than the chassis first and then ever coarser until the solids fit. Before this the frame had to fit one solid, which
+left `A` at level 1 (33 to 54 percent of the triangles of level 0 on the five bikes checked) or, when the engine's section alone
+had more than 60,000 vertices (the 690's has 60,067), at level 2 (27 percent: the engine and frame reduced to blobs). The
+[completeness report](ride6-bikes-batch.md#completeness) checks it for every bike. Levels 4 to 7 of the engine are one composited
 material and are not used. A wheel solid reads the export level of its letter's position (A is 0, D is 3). Textures: the body's are
 at most `max_texture` (2048) on a side, the rims' and tyres' half of that and the discs' a quarter.
 
