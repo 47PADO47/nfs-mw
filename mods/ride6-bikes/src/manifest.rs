@@ -10,7 +10,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use crate::bike_table::BikeTable;
-use crate::build::{Built, Wheel};
+use crate::build::{Built, LiveryChoice, Wheel};
 use crate::physics::toml_text::{Toml, quote};
 
 /// The `mod.toml` of the content mod: no library, only `cars/` and `files/`.
@@ -50,6 +50,24 @@ fn wheel_table(t: &mut Toml, side: &str, wheel: &Wheel) {
     t.num("width_m", f64::from(wheel.width));
 }
 
+/// The body paint a bike with liveries lists (it must have one): a neutral grey, which shows only where a livery is transparent
+/// (none is; the pictures are opaque).
+const PAINT_COLOUR: [u8; 3] = [128, 128, 128];
+
+/// The `[customization]` table of a bike with liveries: the shop lists them with its vinyls, and the bike wears the first (the
+/// stock livery) until the player picks another (`docs/modding/car-customization.md#liveries`).
+fn customization(liveries: &[LiveryChoice]) -> String {
+    let [r, g, b] = PAINT_COLOUR;
+    let mut text = String::from("[customization]\ndefault_paint = 0\n");
+    text.push_str(&format!("paints = [{{ name = \"Stock\", color = [{r}, {g}, {b}] }}]\n"));
+    let list: Vec<String> = liveries
+        .iter()
+        .map(|livery| format!("{{ name = {}, texture = {} }}", quote(&livery.name), quote(&livery.texture)))
+        .collect();
+    text.push_str(&format!("liveries = [{}]\ndefault_livery = 0\n", list.join(", ")));
+    text
+}
+
 /// The text of `cars/<id>.toml`.
 pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'_>) -> String {
     let mut text = format!(
@@ -67,6 +85,10 @@ pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'
     text.push_str(&wheels.into_string());
     text.push('\n');
     text.push_str(&tables.bike.text);
+    if built.liveries.len() >= 2 {
+        text.push('\n');
+        text.push_str(&customization(&built.liveries));
+    }
     if let Some(sound) = tables.sound {
         text.push('\n');
         text.push_str(sound);
@@ -150,6 +172,7 @@ mod tests {
             triangles: 0,
             front_end: Default::default(),
             exhaust: Vec::new(),
+            liveries: Vec::new(),
         }
     }
 
@@ -165,5 +188,22 @@ mod tests {
         assert!(!text.contains("face_m") && !text.contains("[stats]"));
         assert!(text.contains("\n[bike]\ndrag = 0.15\n"));
         assert!(text.ends_with("[engine_sound]\nidle_rpm = 2300.0\n"));
+    }
+
+    #[test]
+    fn a_bike_with_liveries_lists_them_and_wears_the_first() {
+        let bike = BikeTable { text: "[bike]\ndrag = 0.15\n".to_owned(), notes: vec![] };
+        let tables = Tables { bike: &bike, sound: None };
+        let livery = |n: u32, texture: &str| LiveryChoice { name: format!("Livery {n}"), texture: texture.to_owned() };
+        let mut two = built();
+        two.liveries = vec![livery(1, "KTM450_SKIN1"), livery(2, "KTM450_LIV2")];
+        let text = car_toml("KTM", "KTM", &two, &tables);
+        assert!(text.contains("\n[customization]\ndefault_paint = 0\n"));
+        let list = "liveries = [{ name = \"Livery 1\", texture = \"KTM450_SKIN1\" }, \
+                    { name = \"Livery 2\", texture = \"KTM450_LIV2\" }]\ndefault_livery = 0\n";
+        assert!(text.contains(list), "{text}");
+        let mut one = built();
+        one.liveries = vec![livery(1, "KTM450_SKIN1")];
+        assert!(!car_toml("KTM", "KTM", &one, &tables).contains("[customization]"), "one look is no choice");
     }
 }

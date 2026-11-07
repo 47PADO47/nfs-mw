@@ -17,6 +17,18 @@ pub const DEFAULT_GAIN: f32 = 1.35;
 /// car rig as well and, added to a saturated dark colour (the blue of a Yamaha), it also takes saturation away.
 pub const DEFAULT_REFLECTED: f32 = 0.25;
 
+/// How much of the occlusion a bare metal is spared (0 to 1): the floor of the occlusion factor of a texel of metallic value `m`
+/// is `floor + (1 - floor) * m * METAL_AO_RELIEF`. RIDE 6 applies the occlusion to the light a surface receives indirectly, and a
+/// metal shows mostly the environment it reflects, so the baked occlusion of a silencer or an engine atlas (the stock can of the
+/// Honda CRF 450 R measures 0.27 on average with a metallic value of 0.88) must not turn polished silver into gunmetal. A choice,
+/// made against the garage pictures of RIDE 6 (a silver can and silver frame cases that the full floor made dark grey).
+pub const METAL_AO_RELIEF: f32 = 0.8;
+
+/// The floor of the occlusion factor for a texel of metallic value `metal` (0 to 1) when the plain floor is `ao_floor`.
+pub fn metal_floor(ao_floor: f32, metal: f32) -> f32 {
+    ao_floor + (1.0 - ao_floor) * metal.clamp(0.0, 1.0) * METAL_AO_RELIEF
+}
+
 /// How the base colour is graded on the way into the diffuse picture.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Grade {
@@ -51,6 +63,14 @@ pub fn lift(value: u8, gain: f32) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_metal_is_spared_most_of_the_occlusion() {
+        assert_eq!(metal_floor(0.55, 0.0), 0.55);
+        assert!((metal_floor(0.55, 1.0) - (0.55 + 0.45 * METAL_AO_RELIEF)).abs() < 1e-6);
+        assert!(metal_floor(0.55, 1.0) > 0.9);
+        assert_eq!(metal_floor(1.0, 1.0), 1.0, "no occlusion floor below one is lowered by the relief");
+    }
 
     #[test]
     fn the_lift_multiplies_the_tones_below_white_and_keeps_black_and_white() {

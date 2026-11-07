@@ -14,6 +14,7 @@
 //! given to the bright, neutral metals only; a dark or coloured metal keeps its texture under a material that draws the
 //! texture and adds a gloss.
 
+use crate::grade::metal_floor;
 use crate::partfile::Kind;
 use crate::textures::{Picture, interior_points};
 
@@ -126,7 +127,11 @@ pub fn triangle_response(pictures: Pictures<'_>, ao_floor: Option<f32>, uvs: [[f
     let mut colour = [0.0f32; 3];
     for &uv in &points {
         let texel = base.sample(uv);
-        let factor = ao_floor.map_or(1.0, |floor| floor + (1.0 - floor) * f32::from(pbr.sample(uv)[3]) / 255.0);
+        let packed = pbr.sample(uv);
+        let factor = ao_floor.map_or(1.0, |floor| {
+            let floor = metal_floor(floor, f32::from(packed[2]) / 255.0);
+            floor + (1.0 - floor) * f32::from(packed[3]) / 255.0
+        });
         for (sum, &byte) in colour.iter_mut().zip(&texel[..3]) {
             *sum += crate::bake::srgb_to_linear(byte) * factor / count;
         }
@@ -250,8 +255,12 @@ mod tests {
         let open = flat([128, 20, 255, 255]);
         let shut = flat([128, 20, 255, 0]);
         assert_eq!(classify(Kind::Body, both(&base, &open), Some(0.3), uv), CHROME);
-        // 0.5 * 0.3 = 0.15: between the dark and the bright limit.
-        assert_eq!(classify(Kind::Body, both(&base, &shut), Some(0.3), uv), DARK_METAL);
+        // The floor of a metal is raised by the relief (0.3 + 0.7 * 0.8 = 0.86): 0.5 * 0.86 stays above the bright limit,
+        // so a fully occluded polished metal is still chrome; a texel that is not metal keeps the plain floor.
+        assert_eq!(classify(Kind::Body, both(&base, &shut), Some(0.3), uv), CHROME);
+        let rough = flat([128, 20, 128, 0]);
+        // Half metal: floor 0.3 + 0.7 * 0.5 * 0.8 = 0.58, luminance 0.29, which is a dark metal.
+        assert_eq!(classify(Kind::Body, both(&base, &rough), Some(0.3), uv), DARK_METAL);
         assert_eq!(
             classify(Kind::Body, both(&base, &shut), None, uv),
             CHROME,

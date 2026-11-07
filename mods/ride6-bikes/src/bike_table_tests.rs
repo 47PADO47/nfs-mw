@@ -249,6 +249,7 @@ fn manifest_text(table: &BikeTable) -> String {
         triangles: 0,
         front_end: Default::default(),
         exhaust: Vec::new(),
+        liveries: Vec::new(),
     };
     car_toml("Synth Bike", "Synth", &built, &Tables { bike: table, sound: None })
 }
