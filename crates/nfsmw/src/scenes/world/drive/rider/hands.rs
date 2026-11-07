@@ -1,16 +1,22 @@
 //! The rider's hands on the controls: the fingers pull the clutch and the front brake levers, and the right wrist rolls the throttle
 //! (`docs/specs/ride6-rider-hands.md`).
 //!
-//! The animation blueprint's `Hands_FingersOverride` makes `Fingers_Clutch_Explicit` (the clutch lever followed at
-//! `FingersClutchExplicitSpeed`, 2.5 a second) and `Fingers_FrontBrake_Explicit` (`BikeFrontBrake` followed at 3.5 a second), and
+//! The animation blueprint's `Hands_FingersOverride` makes `Fingers_Clutch_Explicit` (a time in the clutch clip, 0.27 s at a fully pulled
+//! lever, followed at `FingersClutchExplicitSpeed`, 2.5 clip seconds a second) and `Fingers_FrontBrake_Explicit` (`BikeFrontBrake`
+//! followed at 3.5 a second), and
 //! the weights of the finger layers over the riding pose: `Fingers_Clutch_Alpha` and `FrontFingers_Brake_Alpha` are 1 while the
 //! lever is off its stop, followed at 7 and 10 a second. `HandsBehaviours_(Leaning,_UpAndDown)` makes the right wrist's weight
 //! `Hand_R_WristDown` from `VehicleThrottle` and follows the resulting offset at `Hand_R_TransformSpeed`, 4 a second.
 
 use super::script::{Constant, Interpolate};
 
-/// `FingersClutchExplicitSpeed`: the rate at which the clutch fingers follow the lever (a second).
-const CLUTCH_RATE: f32 = 2.5;
+/// `FingersClutchExplicitSpeed`: the rate at which the clutch fingers' time in the clip follows the lever, in clip seconds a second. The
+/// time of a fully pulled lever is 0.27 s, so the lever (0 to 1) is followed at 2.5 / 0.27 = 9.3 a second: a pull of a tenth of a
+/// second, a gear change's, takes the fingers all the way in. (The first version followed the lever at 2.5 a second as if the speed
+/// were in lever units: 0.4 s to close, which a gear change's clutch never lasts, so the fingers hardly moved.)
+const CLUTCH_SPEED: f32 = 2.5;
+const CLUTCH_PULLED_SECONDS: f32 = 0.27;
+const CLUTCH_RATE: f32 = CLUTCH_SPEED / CLUTCH_PULLED_SECONDS;
 /// The rate of the clutch layer's weight (`SmoothFloat_Constant(.., 7)`) and of the brake layer's (`.., 10`).
 const CLUTCH_ALPHA_RATE: f32 = 7.0;
 const BRAKE_ALPHA_RATE: f32 = 10.0;
@@ -78,10 +84,13 @@ mod tests {
     }
 
     #[test]
-    fn the_clutch_fingers_follow_the_lever_at_two_and_a_half_a_second_and_the_layer_comes_in_at_once() {
+    fn the_clutch_fingers_follow_the_lever_at_two_and_a_half_clip_seconds_a_second_and_the_layer_comes_in_at_once() {
         let mut hands = Hands::default();
-        let out = run(&mut hands, [1.0, 0.0, 0.0], 0.2);
+        // The lever's clip time is 0.27 s when pulled: half of it in 0.054 s, all of it in 0.108 s.
+        let out = run(&mut hands, [1.0, 0.0, 0.0], 0.054);
         assert!((out.clutch - 0.5).abs() < 0.02, "{out:?}");
+        let out = run(&mut Hands::default(), [1.0, 0.0, 0.0], 0.12);
+        assert_eq!(out.clutch, 1.0, "a gear change's tenth of a second pulls the lever all the way in");
         assert_eq!(out.clutch_alpha, 1.0, "the layer is up while the lever is off its stop");
         assert_eq!(out.brake_alpha, 0.0);
         let out = run(&mut hands, [1.0, 0.0, 0.0], 1.0);
