@@ -64,6 +64,10 @@ fn apply_choices(
     let mut parts: Vec<(Category, &Part)> = Vec::new();
     for (category, kind, list) in models {
         let Some(hash) = chosen(category) else { continue };
+        // A choice of the car's components (a bike's rims, exhaust) is drawn by `components::parts`, not from the model lists.
+        if crate::car::mods::components::is_choice_of(folder, hash) {
+            continue;
+        }
         let part = pick(folder, kind, list, |p| &p.name, hash)
             .with_context(|| format!("the {} is unknown", category.label()))?;
         parts.push((category, part));
