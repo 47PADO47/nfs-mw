@@ -12,7 +12,7 @@ const WORLD_EFFECT: u32 = 0;
 const GROUND_COLOUR: [u8; 4] = [0x80, 0x80, 0x80, 0xFF];
 /// Whether the triangles are written in the opposite order to the pack's (counter-clockwise from outside): the game draws
 /// the other way round.
-pub const FLIP_WINDING: bool = true;
+pub const FLIP_WINDING: bool = false;
 
 /// A solid made of one part, and where to place it.
 #[derive(Debug, Clone, PartialEq)]

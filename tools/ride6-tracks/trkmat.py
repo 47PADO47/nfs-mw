@@ -122,7 +122,11 @@ def surface_of(info, picture=None):
     """
     flagged = PHYS_SURFACE.get(info["phys"])
     if info["family"] != "terrain":
-        return flagged or surface_of_picture(stem(info["picture"])) if info["picture"] else flagged or "asphalt"
+        if flagged:
+            return flagged
+        if info["picture"]:
+            return surface_of_picture(stem(info["picture"]))
+        return "asphalt"
     layer = surface_of_picture(stem(picture)) if picture else "grass"
     if layer in ("dirt", "grass") and flagged in ("sand", "gravel"):
         return flagged
