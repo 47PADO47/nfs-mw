@@ -238,6 +238,12 @@ When the focus is Lost and the pursuit comes back within 153 s the opening flow 
 
 While the pursuit is Active, a leader exists, the machine is not in the pursuit flow and the channel has been silent: after 60 s of chase dispatch asks "pursuit update" (at most twice, 15 s dead air
 needed) and the leader answers with "pursuit update reply" or a "location report"; when the suspect has been out of contact for 2 s the leader (or helicopter) says "lost visual". **[decomp]**
+A location report needs a place to name: the heading is valid (road speech id 1 to 80 and a direction) **and** the player is
+inside a named place of the track's speech map (the "Speech" layer's integer field 1 at the player, -1 outside every place;
+the sound AI keeps it at +0x1f4); then a coin flip (above 0.5) chooses it over the update reply. The helicopter, when it
+sees the player during a loss of contact, makes the same choice. **[Ghidra, speed.exe `SoundAI::DealWithDeadAir`
+0x0071c930, `IsHeadingValid` 0x00701170, the map read at 0x0071d2ee]** Seven recordings of the running original (about an
+hour of chases) asked for a location report once.
 
 ## 7. Observations: crashes, stunts and the player's driving (`Observer`)
 

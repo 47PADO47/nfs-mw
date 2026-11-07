@@ -94,6 +94,8 @@ pub struct PlayerInfo {
     pub metric: bool,
     /// The speech map id under the car (an off-road place), when there is one.
     pub offroad_id: Option<u8>,
+    /// The raw id of the speech map's set under the car: -1 outside every named place (and on a track without the map).
+    pub speech_map_id: i32,
 }
 
 impl Default for PlayerInfo {
@@ -112,6 +114,7 @@ impl Default for PlayerInfo {
             commentable: true,
             metric: false,
             offroad_id: None,
+            speech_map_id: -1,
         }
     }
 }
