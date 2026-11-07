@@ -28,10 +28,10 @@ impl Part {
     pub fn label(self) -> &'static str {
         match self {
             Self::Body => "Rider Body",
-            Self::Helmet => "Helmet",
-            Self::Suit => "Suit",
-            Self::Gloves => "Gloves",
-            Self::Boots => "Boots",
+            Self::Helmet => "Rider Helmet",
+            Self::Suit => "Rider Suit",
+            Self::Gloves => "Rider Gloves",
+            Self::Boots => "Rider Boots",
         }
     }
 
@@ -178,6 +178,11 @@ impl Catalogue {
     pub fn is_empty(&self) -> bool {
         Part::ALL.into_iter().all(|part| self.entries(part).len() == 1)
     }
+}
+
+/// The position of the item `id` in `entries`; the rider's own gear (the first) for an id the list lacks.
+pub fn position(entries: &[Entry], id: &str) -> usize {
+    entries.iter().position(|entry| entry.id == id).unwrap_or(0)
 }
 
 fn entry((id, name): (&String, &String)) -> Entry {

@@ -12,7 +12,7 @@ mod state;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use catalogue::{Catalogue, Entry, Part};
+pub(crate) use catalogue::{Catalogue, Entry, Part, position};
 pub(crate) use choice::Choice;
 pub(crate) use state::{
     catalogue as loaded, commit, committed, current, enabled, generation, kept, reload, rescan, scan, set_enabled,

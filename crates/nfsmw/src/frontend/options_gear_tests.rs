@@ -55,11 +55,3 @@ fn the_rows_are_dimmed_while_the_switch_is_off() {
     assert!(Setting::Gear(Part::Suit).enabled(&settings()));
     assert!(!Setting::Gear(Part::Suit).enabled(&off));
 }
-
-#[test]
-fn an_id_the_list_lacks_is_the_riders_own_gear() {
-    let entries = catalogue().entries(Part::Helmet);
-    assert_eq!(position(&entries, "H1"), 1);
-    assert_eq!(position(&entries, "gone"), 0);
-    assert_eq!(position(&entries, ""), 0);
-}

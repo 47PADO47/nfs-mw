@@ -7,7 +7,7 @@
 
 use super::steps::cycle;
 use super::{Data, Row, Setting, Title, row};
-use crate::garage::rider_gear::{self, Catalogue, Entry, Part};
+use crate::garage::rider_gear::{self, Catalogue, Entry, Part, position};
 
 /// The title of a part's row.
 fn title(part: Part) -> Title {
@@ -28,11 +28,6 @@ pub(super) fn rows(catalogue: Option<&Catalogue>) -> Vec<Row> {
         .filter(|part| catalogue.entries(*part).len() > 1)
         .map(|part| row(Setting::Gear(part), title(part)))
         .collect()
-}
-
-/// The position of the item `id` in `entries`; the rider's own gear (the first) for an id the list lacks.
-fn position(entries: &[Entry], id: &str) -> usize {
-    entries.iter().position(|entry| entry.id == id).unwrap_or(0)
 }
 
 /// The list of a part and the position of the kept item in it; `None` without a catalogue.

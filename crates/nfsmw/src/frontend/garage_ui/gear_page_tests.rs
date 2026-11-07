@@ -20,8 +20,8 @@ fn the_cursor_starts_on_the_item_worn_or_on_the_riders_own_gear() {
 
 #[test]
 fn the_notice_says_which_item_of_how_many_for_the_part() {
-    assert_eq!(page(Part::Helmet, 3, 0).shown(), "Helmet 1 of 4: Stock");
-    assert_eq!(page(Part::Gloves, 3, 2).shown(), "Gloves 3 of 4: ITEM 2");
+    assert_eq!(page(Part::Helmet, 3, 0).shown(), "Rider Helmet 1 of 4: Stock");
+    assert_eq!(page(Part::Gloves, 3, 2).shown(), "Rider Gloves 3 of 4: ITEM 2");
     assert_eq!(page(Part::Body, 1, 1).shown(), "Rider Body 2 of 2: ITEM 1");
 }
 
