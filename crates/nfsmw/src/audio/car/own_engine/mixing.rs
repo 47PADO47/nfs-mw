@@ -1,11 +1,20 @@
 //! What each layer of a mod car's engine should sound like for the live values of the car: the layers mixed by the engine
-//! speed they were recorded at (equal power, on a log scale) and the layers that play by their own curves.
+//! speed they were recorded at (equal power, on a log scale), two sets of them (under load, off load) when the engine has
+//! recordings off load, and the layers that play by their own curves.
 
 use nfsmw_data::car::mods::{CurveInput, EngineLayer, EngineSound, LayerKind};
 
 /// A layer mixed by engine speed plays no faster or slower than this, so one recording is not asked to cover the whole
-/// range.
-pub(super) const RATE_RANGE: (f32, f32) = (0.55, 1.8);
+/// range. The range is wide because the engine models of some bikes have no loop between the idle and 4000 to 6500 rpm: the
+/// two layers that meet there are 4.3 times apart at most, and where one of them carries little of the sound it is played at
+/// up to 3.3 times or 0.3 times its speed. With the old limits (0.55 to 1.8) 90 of the 288 bikes had a stretch where the
+/// sound (gain weighted) was more than 25 cents off the engine speed, up to 369 cents; with these, none (the table in
+/// docs/specs/ride6-engine-sound.md, section 9).
+pub(super) const RATE_RANGE: (f32, f32) = (0.3, 3.3);
+/// The throttle below which an engine plays only its layers off load; above it the weight of the layers under load rises
+/// to 1 at the full throttle. (The throttle curves of the REV models, which pick these recordings in the original, have a
+/// dead zone of 0.10 to 0.15 at the closed end.)
+pub(super) const OFF_LOAD_DEAD_ZONE: f32 = 0.12;
 /// A layer whose pitch follows an input plays within this range of its own speed.
 const FOLLOW_RANGE: (f32, f32) = (0.25, 4.0);
 
@@ -46,17 +55,38 @@ pub fn mix(sound: &EngineSound, rpm: f32) -> Vec<LayerMix> {
     by_speed(&layers, rpm)
 }
 
+/// The weights of the layers under load and of the layers off load for the throttle `load`, equal power: the layers off
+/// load alone up to [`OFF_LOAD_DEAD_ZONE`], the layers under load alone at the full throttle.
+pub fn load_weights(load: f32) -> (f32, f32) {
+    let t = ((load - OFF_LOAD_DEAD_ZONE) / (1.0 - OFF_LOAD_DEAD_ZONE)).clamp(0.0, 1.0);
+    ((t * std::f32::consts::FRAC_PI_2).sin(), (t * std::f32::consts::FRAC_PI_2).cos())
+}
+
 /// The mix of every layer of `sound` for `inputs`: layers with curves play by them, the others are mixed by the engine
-/// speed among themselves.
+/// speed among those of their own set (under load, off load), and the two sets are crossfaded by the throttle when the
+/// engine has layers off load (an engine without them plays its set whatever the throttle).
 pub fn mix_inputs(sound: &EngineSound, inputs: &EngineInputs) -> Vec<LayerMix> {
-    let plain: Vec<&EngineLayer> = sound.layers.iter().filter(|layer| layer.gain.is_empty()).collect();
-    let mut by_rpm = by_speed(&plain, sound.rpm_at(inputs.rpm)).into_iter();
+    let (off, on): (Vec<&EngineLayer>, Vec<&EngineLayer>) =
+        sound.layers.iter().filter(|layer| layer.gain.is_empty()).partition(|layer| layer.off_load);
+    let rpm = sound.rpm_at(inputs.rpm);
+    let (on_weight, off_weight) = match off.is_empty() {
+        true => (1.0, 0.0),
+        false => load_weights(inputs.load),
+    };
+    let mut on_mix = by_speed(&on, rpm).into_iter();
+    let mut off_mix = by_speed(&off, rpm).into_iter();
+    let silent = LayerMix { gain: 0.0, rate: 1.0, frequency: 0.0 };
+    let weighted = |mix: Option<LayerMix>, weight: f32| {
+        let mix = mix.unwrap_or(silent);
+        LayerMix { gain: mix.gain * weight, ..mix }
+    };
     sound
         .layers
         .iter()
-        .map(|layer| match layer.gain.is_empty() {
-            true => by_rpm.next().unwrap_or(LayerMix { gain: 0.0, rate: 1.0, frequency: 0.0 }),
-            false => by_curves(layer, inputs),
+        .map(|layer| match (layer.gain.is_empty(), layer.off_load) {
+            (false, _) => by_curves(layer, inputs),
+            (true, false) => weighted(on_mix.next(), on_weight),
+            (true, true) => weighted(off_mix.next(), off_weight),
         })
         .collect()
 }
