@@ -77,25 +77,22 @@ fn what_a_contact_does_to_the_double_the_bike_takes() {
 #[test]
 fn the_pedals_and_the_stick_become_the_riders_levers() {
     let input = InputState { throttle: 0.5, brake: 0.3, steer: -2.0, ..Default::default() };
-    let rider = command(&input, 10.0);
+    let rider = command(&input);
     assert_eq!(rider, BikeInput { throttle: 0.5, front_brake: 0.3, rear_brake: 0.3, steer: -1.0 });
-    // The full stick gives the whole of the lean limit at any speed (`choices::STICK_SHARE_AT_TOP`).
-    assert!((command(&input, 40.0).steer + choices::stick_share(40.0)).abs() < 1e-6);
-    assert!((command(&input, 55.0).steer + 1.0).abs() < 1e-6);
     // The handbrake is the rear brake alone.
-    let handbrake = command(&InputState { handbrake: 1.0, ..Default::default() }, 0.0);
+    let handbrake = command(&InputState { handbrake: 1.0, ..Default::default() });
     assert_eq!((handbrake.front_brake, handbrake.rear_brake), (0.0, 1.0));
     // A harder brake pedal than the handbrake wins at the rear.
-    let both = command(&InputState { brake: 0.8, handbrake: 0.5, ..Default::default() }, 0.0);
+    let both = command(&InputState { brake: 0.8, handbrake: 0.5, ..Default::default() });
     assert_eq!((both.front_brake, both.rear_brake), (0.8, 0.8));
     // Shift requests and the clutch are not read, and a number that is not a number is no input.
-    let odd = command(&InputState { throttle: f32::NAN, shift_up: true, clutch: 1.0, ..Default::default() }, 0.0);
+    let odd = command(&InputState { throttle: f32::NAN, shift_up: true, clutch: 1.0, ..Default::default() });
     assert_eq!(odd, BikeInput::default());
 }
 
 #[test]
 fn a_pad_stick_reads_its_end_before_the_end_of_its_travel_and_a_key_is_unchanged() {
-    let at = |steer: f32| command(&InputState { steer, ..Default::default() }, 10.0).steer;
+    let at = |steer: f32| command(&InputState { steer, ..Default::default() }).steer;
     assert!((at(choices::STEER_REACH) - 1.0).abs() < 1e-6 && (at(-choices::STEER_REACH) + 1.0).abs() < 1e-6);
     assert_eq!(at(1.0), 1.0);
     assert!((at(0.45) - 0.5).abs() < 1e-6, "linear below the reach: {}", at(0.45));

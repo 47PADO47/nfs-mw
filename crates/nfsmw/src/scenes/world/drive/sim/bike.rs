@@ -171,7 +171,7 @@ impl BikeRide {
         // On the grid of a race the rider holds the bike with both brakes until the start.
         let rider = match vehicle.staging() {
             true => BikeInput { throttle: 0.0, front_brake: 1.0, rear_brake: 1.0, steer: 0.0 },
-            false => command(input, self.bike.forward_speed()),
+            false => command(input),
         };
         self.bike.set_weight(start.weight);
         self.bike.respond(start.delta, &rider, ground);
@@ -387,14 +387,14 @@ fn signed_unit(value: f32) -> f32 {
 /// What the rider asks of the bike for the game's input: the throttle and the stick as they are; the brake pedal pulls both
 /// brakes and the handbrake only the rear one (the input layer has one brake axis). The gearbox is automatic: the shift
 /// buttons, the gear keys and the clutch are not read.
-pub(super) fn command(input: &InputState, speed: f32) -> BikeInput {
+pub(super) fn command(input: &InputState) -> BikeInput {
     BikeInput {
         throttle: unit(input.throttle),
         front_brake: unit(input.brake),
         rear_brake: unit(input.brake).max(unit(input.handbrake)),
-        // The stick reaches its end at `choices::STEER_REACH` of its travel, and gives the full stick up to
-        // `choices::STICK_FULL_UNTIL` m/s, less above (`ride6-feel-round9.md`, section 4; `ride6-feel-round12.md`, section 2).
-        steer: signed_unit(input.steer / choices::STEER_REACH) * choices::stick_share(speed),
+        // The stick reaches its end at `choices::STEER_REACH` of its travel, and is the whole of it at any speed: nothing here narrows
+        // with speed (`ride6-feel-round12.md`, section 2; `ride6-feel-round13.md`, section 2).
+        steer: signed_unit(input.steer / choices::STEER_REACH),
     }
 }
 
