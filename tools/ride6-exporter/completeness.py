@@ -168,7 +168,7 @@ def analyse(out_dir, vehicle, ids, cars, binds, infer=False):
     parts = table["parts"]
     have = {p["id"] for p in parts}
     lost = {m["part"]: m["reason"] for m in table.get("missing", [])}
-    result = {"vehicle": vehicle, "car": ids.get(vehicle), "problems": [], "parts": {}}
+    result = {"vehicle": vehicle, "car": ids.get(vehicle), "problems": [], "parts": {}, "fallbacks": len(table.get("fallbacks", []))}
     # Rows of the tables against the exported parts: a row without a part, and without a stated reason, is a silent drop.
     lower = vehicle.lower()
     for name, (pid, prefix) in OPTIONAL.items():
@@ -240,8 +240,8 @@ def detail(r):
 
 def summary(results):
     out = [line(["Bike", "Car", "Chassis LOD at A", "Triangles of LOD0 kept at A", "Parts missing", "Dropped triangles",
-                "Grey triangles at LOD0", "Problems"]),
-           line(["---"] * 8)]
+                "Grey triangles at LOD0", "Surfaces on a similar model's material", "Problems"]),
+           line(["---"] * 9)]
     for r in results:
         lv = r["levels"][0] if r["levels"] else None
         tris = r["chassis_tris"]
@@ -250,7 +250,7 @@ def summary(results):
         dropped = sum(want - got for rows in r.get("solids", {}).values() for want, got in rows.values() if got < want)
         grey = sum(t for _, level, _, t, _ in r["grey"] if level == 0)
         out.append(line([r["vehicle"], r["car"], f"LOD{lv[0]}" if lv else "?", kept, ", ".join(gone) or "none", dropped,
-                         grey, len(r["problems"])]))
+                         grey, r["fallbacks"], len(r["problems"])]))
     return out
 
 

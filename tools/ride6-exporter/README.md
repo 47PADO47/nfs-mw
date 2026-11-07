@@ -17,6 +17,7 @@ outside the repository (`C:\r6work`).
 | `bikeparts.py` | one bike: `parts.json`, `glb/` (levels of detail 0 to 3), `tex/` |
 | `export_all.py` | every bike, several at a time, resumable (`status.json` per bike) |
 | `report.py` | the exporter's report (which bike lacks which part, and the reason) |
+| `fallbacks.py` (+ `fallbacks_pick.py`, `fallbacks_names.py`) | a surface no picture reaches wears the material of a similar model (same mesh, same make's nearest model, same shape, the bike's own surface of the kind, another make); writes `fallbacks[]` into `parts.json` and copies the pictures; `export_all.py` runs it after the last bike ([the rule](../../docs/modding/ride6-bikes-batch.md#grey-surfaces-the-fallbacks), tests in `tests/test_ride6_fallbacks.py`) |
 | `completeness.py` (+ `completeness_glb.py`, `completeness_mat.py`) | the completeness report of an **import**: the stock parts RIDE 6 draws for each bike against the solids in the imported car files, the surfaces drawn grey, the levels of detail the bodies were built at ([batch](../../docs/modding/ride6-bikes-batch.md#completeness)) |
 | `dash.py` (+ `dash_widgets.py`, `dash_paint.py`) | the screen of every bike's instrument cluster at rest: the HUD widgets (`HUD<chassis>`) drawn into `tex/gauge<n>_d_dash.png` ([instrument clusters](../../docs/formats/ride6-materials.md#instrument-clusters)) |
 | `physdump.py` | the physics dump `ride6-bike-import --physics` reads (inheritance resolved) |

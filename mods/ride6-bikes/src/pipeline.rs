@@ -74,7 +74,7 @@ pub fn import_bike(request: &Request<'_>) -> Result<Outcome> {
         }
         _ => None,
     };
-    let tables = Tables { bike: &bike, sound: sound_tables.as_deref() };
+    let tables = Tables { bike: &bike, sound: sound_tables.as_deref(), fallbacks: &table.fallbacks };
     manifest::write_car(request.mod_dir, car, (&name, &manufacturer), &built, &tables)?;
     if let (Some(plan), Some(shop)) = (plan, request.shop) {
         // The parts of the components are applied through the bike's customization: a bike with one look gets a plain one.

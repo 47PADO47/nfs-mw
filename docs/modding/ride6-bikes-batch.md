@@ -64,7 +64,7 @@ ride6-bike-import import-all C:\r6work\bikes <mod folder> --physics C:\r6work\ph
     --tyre-tables C:\r6work\physdump-all\resolved\plugin\Physics\Tire [--sound-dir <sound-bikes output>] [--threads 4]
 ```
 
-**The complete import of the 288 bikes** (the command of the reference run, 8 minutes with 4 threads on 8 cores while other builds ran;
+**The complete import of the bikes** (288 in the reference run, 293 since the refused five import; the command of the reference run, 8 minutes with 4 threads on 8 cores while other builds ran;
 the exporter's output is at `C:\r6work\bikes`, the sound tables at `C:\r6work\sound-out`, the catalogue of the optional parts at
 `C:\r6work\bike-parts`):
 
@@ -74,7 +74,7 @@ ride6-bike-import import-all C:\r6work\bikes <mod folder> --physics C:\r6work\ph
     --bike-parts C:\r6work\bike-parts --threads 4
 ```
 
-It writes `cars/` (288 manifests), `components/ride6-bikes.toml` (the catalog: **it must ship with `cars/`**, without it the manifests'
+It writes `cars/` (293 manifests), `components/ride6-bikes.toml` (the catalog: **it must ship with `cars/`**, without it the manifests'
 slots name components nothing defines and the host draws the bikes with their own stock parts only and no choices), `files/CARS/`,
 `files/PARTS/R6/` (the part packs) and `files/SOUND/`. The folder a game reads (`%APPDATA%\nfsmw\config\mods\ride6-bikes`) also
 holds `mod.toml` with its `[library]`, `ride6_bikes.dll` and `files/RIDER/` (the rider, made by the native mod or
@@ -130,7 +130,8 @@ parts from the shop, lamps and damage parts. Engine sound comes from `sound-bike
 The exporter's `export-report.md` (written by `report.py` into the output folder) lists **every** vehicle and what it lacks; the
 importer's `import-all` prints the bikes it left out. The numbers of the reference run:
 
-**319 vehicles: 293 exported, 26 refused by the exporter, 5 refused by the importer, 288 imported.**
+**319 vehicles: 293 exported, 26 refused by the exporter, 0 refused by the importer, 293 imported** (the reference run of the
+first import had 5 refused by the importer and 288 imported; they now import, [Refused bikes](#refused-bikes-the-fields-the-data-leaves-empty)).
 
 **The 26 the exporter refuses** (all for one reason: the `CHASSIS` row names a data asset, `customization_data/bikeNNN_001`, that
 the install does not contain; the chassis mesh `chassisNNN` and the livery materials are not in the install either, so there is
@@ -147,9 +148,10 @@ shipped in this build of the install (a later patch or paid pack, or content cut
 replace it, and the exporter does not guess a mesh from another bike. **Nothing to fix here**; if a later install has the
 packages, `export_all.py --only <id> --force` exports them.
 
-**The 5 the importer refuses:** the three Indian Challenger variants (a tyre section of the bagger's rain tyre has an unset
+**The 5 the first import refused:** the three Indian Challenger variants (a tyre section of the bagger's rain tyre has an unset
 reference, `TireData/Bagger/FrontTyre_Rain`) and the two Italjet Dragster 200 CC (the skeleton data has no rake and trail: a
-scooter-like frame).
+scooter-like frame). Both are fields RIDE 6's own assets leave empty; they are imported with the field taken from the nearest model,
+as a named choice ([below](#refused-bikes-the-fields-the-data-leaves-empty)).
 
 **Parts a bike lacks.** Every one of the 293 exported bikes has front and back tyre, rim and brake disc, header pipes and silencer
 (the two event bikes whose own rows were missing, the Aprilia RS 457 Ride-Fest 2024 and the Triumph Daytona 675 R Ride-Fest 2017, take
@@ -164,11 +166,11 @@ import: [the first export of its data assets is a stub](../formats/ride6-bike-pa
 which the exporter read.
 
 Nothing else is refused: 33 bikes have a brake kit override the importer does not apply; 257 have several tyre models for their
-size and take the stock look of their tyre family. The 288 imported manifests read back with the game's content schema except 5
+size and take the stock look of their tyre family. The 288 first imported manifests read back with the game's content schema except 5
 (`RIDE6_MOD_DIR=. cargo test -p ride6-bikes --test imported_manifests -- --ignored`): four bikes whose converted gear ratios
 exceed the schema's 10 (Ducati 888 SP5 and its RM, the two Indian FTR X 100R Carbon: a ratio of 12.2 is in the data) and one
 whose rear leverage curve runs to 2.06 of the travel where the schema takes shares up to 1 (MV Agusta Superveloce 800). Those are
-limits of the bike schema against the data (the physics importer and `bike_check*.rs`), not of the batch.
+limits of the bike schema against the data (the physics importer and `bike_check*.rs`), not of the batch. The five bikes imported later read back with it too.
 
 ## Completeness
 
@@ -188,8 +190,8 @@ python -I tools\ride6-exporter\completeness.py --out C:\r6work\bikes --mod <mod 
 |---|---|
 | Rows of the bindings tables (`RIMS`, `BRAKES_KIT`, `EXMANIFOLD`, `MUFFLER`, `BARPADS`, `HANDGUARDS`, `SIDE_MIRRORS`, `SUMP_GUARD`, `HOMOLOGATION`, `ENDURO_PRESET`, `CHAIN`) against the exported parts | every row a bike has is a part or a stated reason: 0 silent drops in 293 bikes; `CHAIN` has no row |
 | The exported chassis against the game's skeletal mesh (`LODModels` sections) | all four levels the game draws are complete (no section is disabled in any of the 293 meshes); the glTF export drops a few degenerate triangles (4 of 193,186 on the Z900) |
-| The parts' triangles against the solids of the car files, each level | **before: the frame had to fit one solid, so `A` was chassis level 1 or 2 (27 to 54 percent of the triangles of level 0)**; after: `A` is level 0 for all 293 exported bikes (288 imported: the other five are refused for their physics), 0 triangles dropped at any level, level by level, in the 293 bikes |
-| Surfaces drawn grey (no picture reaches them) | 168 surface-and-level pairs before: six bikes' rims, a silencer, a header and the far paint of one bike ([causes and fixes](../formats/ride6-bike-parts.md#what-the-chassis-mesh-holds-and-surfaces-with-no-picture-data)); what is left is 20,000 triangles of level 0 on 11 bikes: glass and placeholders, and the rims of the Monster 1200 S (13,261: their material instance is not in the install), the header of the R1 RM 2008 (4,742, the same) |
+| The parts' triangles against the solids of the car files, each level | **before: the frame had to fit one solid, so `A` was chassis level 1 or 2 (27 to 54 percent of the triangles of level 0)**; after: `A` is level 0 for all 293 exported bikes (all import), 0 triangles dropped at any level, level by level, in the 293 bikes |
+| Surfaces drawn grey (no picture reaches them) | 168 surface-and-level pairs before: six bikes' rims, a silencer, a header and the far paint of one bike ([causes and fixes](../formats/ride6-bike-parts.md#what-the-chassis-mesh-holds-and-surfaces-with-no-picture-data)); then 20,151 triangles of level 0 on 11 bikes. **Now 0 on all 293 bikes at all four levels**: 18,003 of them (the Monster 1200 S rims, 13,261, and the R1 RM 2008 header, 4,742) were not missing content but two exporter faults, the other 2,148 take the surface of a similar model ([Grey surfaces: the fallbacks](#grey-surfaces-the-fallbacks)) |
 | The options split (the stock exhaust, rims, discs and pad are solids that only a resolved component shows) | a profile copied without `components/` drew none of them (no exhaust, rims, discs); `Components::stock_only` draws them now, and the catalog ships with `cars/` (above) |
 
 **Why the old import looked empty.** The chassis' `mat_mechanics` section holds the frame, the engine, the swingarm, the chain and
@@ -219,6 +221,88 @@ bar pad or hand guards, `not shipped` a row whose asset the install lacks):
 
 **Disk and time** (measured, 288 bikes): `files/CARS` 4.0 GB before and 4.9 GB (+22 percent) after (the frame at level 0 instead of 1 or 2: a
 bike takes 4 to 7 MB more, the 690 14.1 MB to 18.1 MB). The timings of the exporter are in [ride6-bikes-disk.md](ride6-bikes-disk.md).
+
+## Grey surfaces: the fallbacks
+
+A surface the converter cannot give a picture is drawn a flat grey, and 11 bikes still had 20,151 triangles of level 0 of it. The
+cause is not the same for every one, so each was looked at in the data (`tools/ride6-exporter/completeness.py`, then the packages):
+
+| Bike | Grey at LOD0 before | After | Cause | Fix |
+|---|---|---|---|---|
+| Ducati Monster 1200 S 2019 | 13,261 (both rims) | 0 | **an exporter fault, not missing content**: the rim mesh `rim142` has no material in its slots (`SkeletalMaterials[].Material` is null, the glb names the surface after the slot, `mat_rim`) and the data asset `rim142_001` has the instance, `mat_rim142_001`, which is in the install with its pictures; the exporter listed only slots that hold a material | `bikeparts.part_materials`: the data asset's `Material` goes to the part's one picture slot, empty or not; the same for the livery 2 rims |
+| Yamaha YZF R1 RM 2008 | 4,742 (header) | 0 | **an exporter fault**: the slot says `MaterialInstanceConstant'exmanifold627_627_001'` and points at the package `exmanifold627`; the glb names the surface by the quoted name, the exporter keyed it by the package's | the key is the glb's name (`bikeparts.glb_name`) |
+| the other 9 bikes (16 surfaces, 2,148 triangles at LOD0) | 2,148 | 0 | content the install does not ship: the mirrors and the homologation kit of three race bikes have no material at all, the `EM` chassis of two bikes have a lamp and a gauge material without a picture, a header piece and a tinted glass stand on an engine placeholder, and the glass edge of the R1M has no picture | the surface of a similar model, below |
+
+`tools/ride6-exporter/fallbacks.py` (run by `export_all.py` after the last bike, or alone: `python -I fallbacks.py --out <bikes>
+[--donors <other bikes>] [--only <regex>] [--dry-run] [--md table.md]`) lists the surfaces the importer would draw grey (the same
+lookup as `partfile.rs`, through `completeness_mat.grey_surfaces`, at all four levels), chooses a donor for each and writes the choice
+into the bike's folder: the donor's resolved material into `materials{}`, its pictures into `tex/`, the material's name into
+`parts[].materials{}` for the surface, and a record into `fallbacks[]` (part, surface, slot, kind, levels, triangles, reason, rule,
+source bike, source part and surface, material, picture). The importer reads `fallbacks[]` and writes each as a comment line of the
+car's manifest, under its header (`mods/ride6-bikes/src/fallback.rs`), so a manifest says where each picture came from:
+
+```
+# fallback: mirrors mat_glass (74 triangles at LOD0) wears glass305_001_d (mat_glass305_001 of Kawasaki_Ninja-H2-2019) [family]
+```
+
+**The rule** (`fallbacks_pick.choose`, tested with authored data in `tests/test_ride6_fallbacks.py`). The kind of a surface is its
+name without `mat_`, numbers and underscores, with glass edge and glass tint counted as glass and an engine placeholder taking the
+kind of its mesh slot (`fallbacks_names.py`). The first tier with a donor wins, the donor is the nearest bike of the tier, and only a
+surface that a bike really draws with a picture is a donor (never another fallback):
+
+| Tier | Donor |
+|---|---|
+| `asset` | the same mesh (same file stem) on another bike |
+| `family` | the same part of a bike of the same make: the longest start of the model name in common (the variant tokens `RM`, `EM`, `Ride`, `Fest` and the year are not model words), then the nearest year |
+| `shape` | the same part of another make's bike with the same triangles per kind (the same mesh under another chassis number) |
+| `own` | another surface of the bike itself of the same kind, the chassis first; a placeholder of no kind takes the bike's frame (`mat_mechanics`), then its paint |
+| `make` | the same part of the nearest model of another make |
+| `flat` | no similar surface at all: a flat 4 by 4 colour picture of the material's own constant colour, else mid grey (no bike needs it) |
+
+Never the game's unrelated content: every donor is a bike of the install. The 16 choices (all that were needed; the table is
+`fallbacks.py --md`, the triangle column is LOD0 and 0 for a surface only on the far levels):
+
+| Bike | Part | Surface | Triangles at LOD0 | Picture | Source bike | Rule |
+| --- | --- | --- | --- | --- | --- | --- |
+| Aprilia_RS-250-2001 | chassis | Default_Material | 0 | mechanics003_001_d | Aprilia_RS-250-2001 | own |
+| Aprilia_Tuareg-Rally-2024 | chassis | WorldGridMaterial | 6 | mechanic035_001_d | Aprilia_Tuareg-Rally-2024 | own |
+| BMW_M-1000-RR-2021 | homologation | WorldGridMaterial | 440 | glass066_001_d | BMW_M-1000-RR-2023 | family |
+| Ducati_1299-Superleggera-2017 | homologation | mat_glass | 84 | glass129_001_d | Ducati_1299-Panigale-S-2017 | family |
+| Ducati_1299-Superleggera-2017 | mirrors | mat_glass | 74 | glass129_001_d | Ducati_1299-Panigale-S-2017 | family |
+| Ducati_1299-Superleggera-2017 | mirrors | mat_mirror_view | 54 | mirrorview_d | Ducati_1299-Panigale-S-2017 | family |
+| Ducati_999R-2006 | homologation | mat_exmanifold | 60 | exmanifold138_001_d | Ducati_999R-2006 | own |
+| Kawasaki_Ninja-H2R-2019 | homologation | mat_glass | 84 | glass305_001_d | Kawasaki_Ninja-H2-2019 | family |
+| Kawasaki_Ninja-H2R-2019 | mirrors | mat_glass | 74 | glass305_001_d | Kawasaki_Ninja-H2-2019 | family |
+| Kawasaki_Ninja-H2R-2019 | mirrors | mat_mirror_view | 54 | mirrorview_d | Kawasaki_Ninja-H2-2019 | family |
+| Kawasaki_Ninja-ZX-10RR-EM-2021 | chassis | mat_gauge345 | 446 | gauge344_d | Kawasaki_Ninja-ZX-10RR-2021 | family |
+| Suter_500-mmx-2017 | homologation | mat_glass | 84 | glass510_001_d | Suter_500-mmx-2017 | own |
+| Suter_500-mmx-2017 | mirrors | mat_glass | 74 | glass131_001_d | Ducati_Panigale-V4-R-2019 | shape |
+| Suter_500-mmx-2017 | mirrors | mat_mirror_view | 54 | mirrorview_d | Ducati_Panigale-V4-R-2019 | shape |
+| Yamaha_YZF-R1-EM-2008 | chassis | mat_light628 | 440 | lights001_d | Yamaha_YZF-R1-2008 | family |
+| Yamaha_YZF-R1M-2020 | chassis | BASE_glass_edge | 120 | glass662_001_d | Yamaha_YZF-R1M-EM-2020 | family |
+
+Re-exporting a bike (`export_all.py --force --only <id>`) rewrites its `parts.json`, so the fallbacks are chosen again by the same
+rule, and a second run of `fallbacks.py` finds nothing grey and changes nothing. The Monster rims and the R1 RM 2008 header are not in
+the table: they were a fault, not a fallback. The 12 bikes were checked offscreen (`nfsmw view-car <ID> --yaw 90 --muted`), before
+and after: the Monster's rims are the dark rim with its red stripe where they were a flat light grey.
+
+## Refused bikes: the fields the data leaves empty
+
+Five bikes were refused by the importer, for two fields RIDE 6's **own assets leave empty** (checked in the raw packages, not in the
+dump: the resolver did not lose a reference). Where the data does not exist the importer takes the field from the nearest model and
+says so: the log prints a note, and the manifest has a comment line before `[bike]` (`# choice: <field> taken from <source> (<rule>);
+the data leaves it unset`). Code: `mods/ride6-bikes/src/physics/borrow.rs` (the rules, tested with authored data),
+`borrow_files.rs` (the dump's files) and `vehicle.rs`.
+
+| Bikes | What is empty | Taken from |
+|---|---|---|
+| Indian Challenger RR 2022, RR O'Hara 2022, RR RM 2022 | the vehicle's `FrontWheel.TireData` and `RearWheel.TireData` are the Bagger rain tyres (`TireData/Bagger/FrontTyre_Rain`, `BackTyre_Rain`, whatever their name) and their `TireSections`, the three tread strips of the thermal model, are three unset references (`[null, null, null]` in the package; the grip table `Rain_Front` is there, and the Bagger family has no rain strip asset); the thermal table stood on the `ObjectPath` of a null | the strips of the nearest compound **of the same tyre family** that has them (`borrow::nearest_compound`: rain, wet, intermediate, medium, road, soft, hard; the wetter on a tie): `Bagger/FrontTyre_Medium` and `BackTyre_Medium`, whose strips are the Bagger intermediate ones |
+| Italjet Dragster 200 CC 2022 and RM 2022 | `Skeleton.RakeTrailOverride` is an explicitly empty list in the asset (the base class has 24 degrees and 10.2 cm, which an empty list replaces) | the rake and trail of the nearest vehicle of the **same make** (`borrow::nearest_lender`: the longest start of the model name in common, then the nearest year; with none of the make, the nearest wheelbase of any make): the Italjet Dragster 700 Twin 2024, **24 degrees and 9 cm**; the wheelbase stays the 200's own 1.35 m |
+
+Both ride (offscreen, `view-world --drive <ID> --at 985,4430 --drive-script ...`): on the throttle the Dragster reaches 45 km/h and
+the Challenger 106 km/h in a straight line, and both lean and turn with the stick. All 293 exported bikes import (288 before, 5
+added: `ride6-bike-import import-all` says 293 imported, 0 left out), and the five manifests read back with the game's content schema
+(`RIDE6_MOD_DIR=<mod> cargo test -p ride6-bikes --test imported_manifests -- --ignored`).
 
 ## The game side
 

@@ -11,6 +11,7 @@ use std::path::Path;
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
+use crate::fallback::{self, Fallback};
 use crate::front_end::Rules;
 
 /// Where a part's frame sits on the chassis: its rigid transform into the chassis frame (glTF axes, metres).
@@ -123,6 +124,8 @@ pub struct PartTable {
     /// Which bones steer and which slide (`front_end.rs`): the optional `front_end` object of the file (`steer_roots`,
     /// `slide_roots`, `slide_followers`), else RIDE 6's bone names.
     pub front_end: Rules,
+    /// The surfaces that wear another model's material, with where it came from (`fallbacks[]`; the manifest keeps the record).
+    pub fallbacks: Vec<Fallback>,
 }
 
 fn string(v: &Value, key: &str) -> Option<String> {
@@ -340,7 +343,8 @@ impl PartTable {
             .map(|list| list.iter().filter_map(read_livery).collect())
             .unwrap_or_default();
         liveries.sort_by_key(|livery| livery.index);
-        Ok(Self { vehicle, physics_asset, parts, materials, tyre_sizes, liveries, bones, front_end })
+        let fallbacks = fallback::read_all(&doc);
+        Ok(Self { vehicle, physics_asset, parts, materials, tyre_sizes, liveries, bones, front_end, fallbacks })
     }
 
     pub fn read(dir: &Path) -> Result<Self> {

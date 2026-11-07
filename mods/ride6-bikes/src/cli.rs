@@ -102,7 +102,7 @@ pub fn remanifest(args: &[String]) -> Result<()> {
         Some(dir) => Some(manifest_sound::read_tables(dir, &car)?),
         None => None,
     };
-    let tables = Tables { bike: &bike, sound: sound.as_deref() };
+    let tables = Tables { bike: &bike, sound: sound.as_deref(), fallbacks: &table.fallbacks };
     manifest::write_manifest(&args.mod_dir, &car, (&name, &manufacturer), &built, &tables)?;
     for note in &bike.notes {
         println!("{car}: note: {note}");

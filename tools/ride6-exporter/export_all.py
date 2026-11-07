@@ -3,7 +3,8 @@
     python -I export_all.py [--out C:\r6work\bikes] [--only <regex on the vehicle id>] [--limit N] [--jobs 3] [--force] [--normals]
 
 Each bike goes to `<out>/<vehicle id>/` (`parts.json`, `glb/`, `tex/`) with a `status.json`; a bike that has one is skipped
-unless `--force`. `report.py` turns the folders into the completeness report.
+unless `--force`. When all are done `fallbacks.py` gives the surfaces no picture reaches the material of a similar model.
+`report.py` turns the folders into the completeness report.
 """
 
 import argparse
@@ -20,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import r6site  # noqa: F401,E402
 
 import bikeparts  # noqa: E402
+import fallbacks  # noqa: E402
 from bindings import Tables  # noqa: E402
 from r6lib import Assets, Tool  # noqa: E402
 
@@ -81,6 +83,9 @@ def main():
     print(len(vehicles), "vehicles", flush=True)
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = list(pool.map(lambda v: run_one(v, args.out, args.force, args.max_tex), vehicles))
+    # A surface no picture reaches takes the material of a similar model (fallbacks.py); the donors are the bikes of `--out`.
+    rows = fallbacks.run(args.out, only=args.only or None)
+    print(len(rows), "surfaces took the material of a similar model")
     counts = {}
     for _, state in results:
         counts[state] = counts.get(state, 0) + 1

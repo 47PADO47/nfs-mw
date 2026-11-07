@@ -137,7 +137,9 @@ mod tests {
         let big = group(65_000, 130_000);
         let positions: Vec<[f32; 3]> = big
             .indices
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .flat_map(|c| c.iter().map(|&i| big.vertices[usize::from(i)].position).collect::<Vec<_>>())
             .collect();
         let pieces = split_group(big);
