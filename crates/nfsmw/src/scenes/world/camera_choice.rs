@@ -61,20 +61,36 @@ impl WorldScene {
         let Some(drive) = self.players.lead().filter(|_| self.view == View::Chase) else {
             return self.camera.lens(aspect);
         };
-        // A bike's bumper and hood views are the cameras mounted on it (`camera_bike.rs`), not the original ones.
+        // A bike's bumper and hood views are the cameras mounted on it (`camera_bike.rs`), not the original ones. They give way to
+        // the chase camera on the rider while he is thrown, handing over smoothly as the follower's share moves.
         if let Some(lens) = self.bike_lens(drive, aspect, true) {
+            let lens = match drive.rider_followed() {
+                true => lens.mix(&self.outside_lens(drive, aspect, true), drive.rider_follow()),
+                false => lens,
+            };
             return self.nitrous_screen.camera().apply(lens, aspect, false);
         }
-        let lens = drive
-            .original_body(true)
-            .and_then(|body| self.original_camera.lens(body, aspect, true))
-            .unwrap_or_else(|| self.car_lens(drive, drive.camera(), aspect));
+        let lens = self.outside_lens(drive, aspect, true);
         // The nitrous variant's camera (`nitrous_screen.rs`): the field of view and the shake on every camera, the pull-back
         // on the chase camera only. The rules' lens below is not touched: the nudge is for the picture.
         let nudge = self.nitrous_screen.camera();
+        nudge.apply(lens, aspect, crate::viewer::camera::original::index_of(self.camera_mode).is_none())
+    }
+
+    /// The lens of the cameras outside the car (the original views and the custom chase camera, which keeps clear of the world),
+    /// as the bike is drawn when `presented`, else as the physics has it this tick. On a bike it is also the camera on a thrown
+    /// rider, whatever the setting says: the bike's mounted cameras give way to it.
+    fn outside_lens(&self, drive: &Drive, aspect: f32, presented: bool) -> Lens {
+        let lens = drive
+            .original_body(presented)
+            .and_then(|body| self.original_camera.lens(body, aspect, presented))
+            .unwrap_or_else(|| match presented {
+                true => self.car_lens(drive, drive.camera(), aspect),
+                false => self.car_lens(drive, drive.physics_camera(), aspect),
+            });
         match crate::viewer::camera::original::index_of(self.camera_mode) {
-            None => nudge.apply(self.constrain_custom_camera(lens, aspect, true), aspect, true),
-            Some(_) => nudge.apply(lens, aspect, false),
+            None => self.constrain_custom_camera(lens, aspect, presented),
+            Some(_) => lens,
         }
     }
 
@@ -100,16 +116,12 @@ impl WorldScene {
             return self.camera.lens(aspect);
         };
         if let Some(lens) = self.bike_lens(drive, aspect, false) {
-            return lens;
+            return match drive.rider_followed() {
+                true => lens.mix(&self.outside_lens(drive, aspect, false), drive.rider_follow()),
+                false => lens,
+            };
         }
-        let lens = drive
-            .original_body(false)
-            .and_then(|body| self.original_camera.lens(body, aspect, false))
-            .unwrap_or_else(|| self.car_lens(drive, drive.physics_camera(), aspect));
-        match crate::viewer::camera::original::index_of(self.camera_mode) {
-            None => self.constrain_custom_camera(lens, aspect, false),
-            Some(_) => lens,
-        }
+        self.outside_lens(drive, aspect, false)
     }
 
     /// The lead's view as the gameplay rules read it (`session_rules.rs`): this machine's simulation lens in single

@@ -64,6 +64,7 @@ pub use self::view::RiderVisibility;
 use super::CarPose;
 use crate::garage::rider_gear::{self, Choice};
 use crate::scenes::world::keys;
+use crate::viewer::camera::rider_follow::Phase;
 
 /// The riding style the player picked (`riding_style`, the blueprint's `RidingStyle` 0 to 2): every rider plays its lean set.
 static RIDING_STYLE: AtomicU8 = AtomicU8::new(0);
@@ -358,6 +359,9 @@ pub struct Rider {
     previewing: bool,
     /// The state of the gear (`garage/rider_gear`) as of the last frame: he is dressed again only when it moved.
     seen: u64,
+    /// Where his pelvis is while he is off the bike, and whether he is down or on his way back: what the cameras follow in a fall
+    /// (`fall.rs`, `viewer/camera/rider_follow.rs`). Set by the physics step.
+    off_bike: Option<(Phase, Vec3)>,
 }
 
 impl Rider {
@@ -396,7 +400,15 @@ impl Rider {
     /// has got up (or there is no rider who falls).
     pub fn fall_step(&mut self, step: FallStep, pose: &CarPose, ground: &dyn blackbox_vehicle::Ground) -> bool {
         let State::Ready(rig) = &mut self.state else { return true };
-        rig.fall_step(step, pose.transform(), ground)
+        let ready = rig.fall_step(step, pose.transform(), ground);
+        self.off_bike = rig.fall.focus(&rig.pack.skeleton, pose.transform() * rig.frame.to_model);
+        ready
+    }
+
+    /// Where the rider is while he is off the bike (his pelvis in the render space, and whether he is down or on his way back);
+    /// `None` while he rides, and for a bike with no rider who falls.
+    pub fn off_bike(&self) -> Option<(Phase, Vec3)> {
+        self.off_bike
     }
 
     /// Once per frame: load the rider the first time a bike is drawn, then pose, skin and upload it for the bike's pose
@@ -413,6 +425,7 @@ impl Rider {
                 rig.release(renderer);
             }
             self.loaded_for.clear();
+            self.off_bike = None;
         }
         if matches!(self.state, State::Unloaded) {
             if !bike {

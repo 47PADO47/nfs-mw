@@ -244,9 +244,55 @@ do not, and the physics never sees it (`input/head_look_tests.rs`, `viewer/camer
 - A bike without a container (16 of 293) has no `[bike.camera]`, and the game derives its cameras from its wheelbase
   (`BikeCamera::derived`: distances and heights as fractions of the wheelbase [C]). The dump and the containers name 47 bikes with another
   model year; the importer takes the container of the same name nearest in time, which found 31 of them.
-- While the rider is thrown the helmet camera is at the fixed place of the bike lying down; it does not ride the ragdoll.
+- The camera on the thrown rider is a chase camera of this port's, not RIDE 6's (its data has no fall camera): section 8.
 
-## 8. Tests and pictures
+## 8. While the rider is thrown [C]
+
+The player's report: "when crashing with bikes the center of attention should be on the driver, not on the bike; the camera should
+follow the driver". Every camera mode follows the **rider** from the moment the bike lets him go until he has remounted
+(`viewer/camera/rider_follow.rs`, `scenes/world/drive/rider_cam.rs`). RIDE 6's data has no such camera; everything here is a modelling
+choice **[C]**.
+
+- **Who is the subject** (`rider_follow::subject`, from the rider's `Phase`, which the host reads from his fall every physics step):
+  `Riding` (never fell, or remounted) is the bike; `Fallen` (in the air, sliding, lying, getting up: the ragdoll and the get-up clip)
+  and `Jogging` (back on his feet, the return blend of [the get-up spec](ride6-rider-getup.md) from where he stood to the seat) are the
+  rider. A bike with no rider files, or one whose rider cannot fall, has no body to follow: the subject stays the bike.
+- **The point** is his pelvis in the pose drawn (`Fall::focus`: the ragdoll's pose while he is down, the get-up clip included, the
+  blend between where he stood and the seat on the way back). The chase camera looks `RIDER_LOOK_UP_M` = 0.25 m above it.
+- **The blend** (`RiderCam::weight`): the camera's attention moves from the bike to the rider in `TO_RIDER_S` = 0.35 s and back in
+  `TO_BIKE_S` = 0.9 s once he has remounted (a linear ramp, smoothstep applied), on the physics clock. At every weight the followed
+  point is the bike's and the rider's blended, so the camera glides to him instead of cutting. After the remount the rider's point
+  keeps its offset to the (moving) bike, so the ease back has no jump. A placement of the bike (reset by hand, a respawn) cuts the
+  camera to the bike at once and keeps it there until the rider is on it.
+- **The heading** the chase camera sits behind: while he slides, the direction of his horizontal motion (above `HEADING_MIN_SPEED` =
+  1.5 m/s; held when he lies still, starting from the bike's heading), so the camera is behind the slide and sees him ahead; while he
+  jogs, the direction to the bike (held within `FACE_BIKE_MIN_M` = 0.5 m), so the camera sits behind him and sees the bike ahead.
+  The chase camera's own turn rate (4 per second) smooths it.
+- **The cameras:**
+
+| Setting | While the rider is down or jogging |
+|---|---|
+| `chase`, `dynamic-fov` | the custom chase camera at the bike's near distance and height (section 3), on the rider's blended point and heading (`Drive::followed`) |
+| `close`, `far`, `superfar`, `drift`, `pursuit` | the original view on a body moved to the rider: position (raised `ORIGINAL_ANCHOR_RAISE_M` = 0.35 m, the height of a bike's centre of gravity over a lying pelvis), forward, up, velocity, speed and drift blended (`Drive::blend_rider_body`) |
+| `hood` (the helmet camera), `bumper` (the front camera) | **a chase camera on the rider**: the original near-chase view the mode holds on a bike (section 2), whose body is the rider's; the lens is mixed from the mounted one by the same weight (`Lens::mix`: place and field of view linear, the turn on the short arc), so the helmet camera gives way to the chase in `TO_RIDER_S` and returns to the eyes in `TO_BIKE_S`. The camera is never in a thrown rider's head. |
+
+  His helmet and visor are drawn again from the moment the camera has left his eyes (`HELMET_SHOWN_FROM_FOLLOW` = 0.15 of the weight)
+  and hidden again when it is back within that share; the rest of the rider is drawn as before.
+- **Not followed:** a car; the free camera and the cut scenes; the pursuit and moment cameras (they take the car as before).
+
+## 9. After a reset, and the start of a chase [C]
+
+- **Grace from the busted timer** (`docs/specs/fairbusts-reset.md` section 6): a bike's rider cannot be busted while he is off the
+  bike (down, getting up, jogging back: `RiderCam::bust_grace`) nor for `BIKE_RESET_GRACE_S` = 4 s after he remounts or after a reset of
+  the bike by hand (and the flip reset). The timer does not fill, whatever the stock reset penalty says (90 m reach, no speed gate, x4),
+  and drains at its usual rate. The original has no such grace: its 2 s flash after a reset makes busting faster (fairbusts-reset
+  section 1), so the number is this port's.
+- **The chase's start in the helmet camera** (`docs/specs/pursuit-look.md`): the pursuit look's grade change (the cold blue blend), its
+  flash and its radial blur are shown at `HELMET_SHARE` = 0.35 of their strength while the camera is the bike's helmet camera
+  (`scenes/world/pursuit_look.rs`, `Frame::scaled`), so the road stays readable at the start of the chase and when the heat level
+  rises; every other camera, and the arrest look, are unchanged.
+
+## 10. Tests and pictures
 
 - `viewer/camera/bike_tests.rs`: the chase views and the fit scale with the wheelbase; `close` < `far` < `superfar`; heights above the
   ground; the 16:9 to 4:3 field-of-view conversion; attitude from a rotation; the lean follow (5 degrees at most for the helmet, 0.8 for the
@@ -272,3 +318,10 @@ do not, and the physics never sees it (`input/head_look_tests.rs`, `viewer/camer
   year match, the cap, the lean slots read into the lean table (and zeros for a bike with none).
 - Offscreen pictures of every mode on the KTM 450 SMR and the Ducati Panigale V4 R, leaned and straight: `C:\r6\shots\cams\`
   (`nfsmw view-world --drive KTM450 --muted --camera-mode <mode> --drive-script "..." --screenshot ...`).
+- `viewer/camera/rider_follow_tests.rs`: the subject by phase (fallen, jogging, remounted, no body), the ramp to the rider and back
+  and its ends, the chase point's blend and its follow of a moving rider, the heading (slide, held, facing the bike while jogging), the
+  ease back without a jump, the cut at a placement, the grace (down, jogging, after the remount, after a reset). `lens_mix_tests.rs`:
+  the ends, the middle, the roll, the projection. `libs/blackbox-pursuit` (`busted.rs`): a grace stops the fill and drains.
+  `scenes/world/pursuit_look_tests.rs`: the helmet share of the grade, the flash and the blur.
+- The rider-following camera offscreen: `docs/modding/drive-script.md` (`fall=`), three frames (the fall, down, the jog back), in
+  `chase` and `hood`.
