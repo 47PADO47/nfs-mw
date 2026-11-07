@@ -95,3 +95,23 @@ fn too_many_triangles_per_instance_is_refused() {
     let options = SoupOptions { max_triangles: 5000, max_extent: 10.0 };
     assert!(write_soup_pack(&mut out, 1, &[], &options).is_err());
 }
+
+#[test]
+fn a_pack_listed_in_an_empty_grid_is_found_through_it_and_leaves_with_its_section() {
+    let mut triangles = Vec::new();
+    triangles.extend(square(0.0, 0.0, 10.0, 2.0, ASPHALT));
+    triangles.extend(square(100.0, 0.0, 10.0, 2.0, GRASS));
+    let (bytes, _) = written(2700, &triangles, &SoupOptions::default());
+    let mut world = CollisionWorld::new(Some(crate::Grid::empty([-50.0, -50.0], 64.0, 6, 6)));
+    world.insert_into_grid(read_collision_packs(&bytes).unwrap().remove(0));
+    let grid = world.grid().expect("the grid stays");
+    let near = grid.instances_along([2.0, 20.0, 7.0], [2.0, -20.0, 7.0]);
+    assert!(!near.is_empty(), "the cell of the road lists an instance");
+    assert!(near.iter().all(|reference| reference.section() == 2700));
+    let hit = world.ray_cast([2.0, 20.0, 7.0], [2.0, -20.0, 7.0], &RayOptions::default()).expect("the road is hit");
+    assert_eq!(hit.surface_hash, ASPHALT);
+    assert_eq!(world.resident_near([2.0, 0.0, 7.0], 5.0), Some(true));
+    assert!(world.remove_from_grid(2700).is_some());
+    assert!(world.grid().unwrap().instances_along([2.0, 20.0, 7.0], [2.0, -20.0, 7.0]).is_empty());
+    assert!(world.ray_cast([2.0, 20.0, 7.0], [2.0, -20.0, 7.0], &RayOptions::default()).is_none());
+}

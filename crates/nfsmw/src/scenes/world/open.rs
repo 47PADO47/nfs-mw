@@ -163,6 +163,9 @@ impl WorldScene {
             }
         };
         let entry_zones = entry_zones.with_interiors(interiors);
+        // A second world has no collision grid in a file: its packs list themselves in an empty one as they arrive.
+        let world_grid = world.as_ref().map(|_| world_collision_grid(&map_packs));
+        let second_world = world.is_some();
         let dir = dir.clone();
         Ok(WorldLoad(Box::new(move || {
             let mut traffic = road_network.map(ai::TrafficWorld::new);
@@ -212,10 +215,11 @@ impl WorldScene {
                         index.visible,
                         started,
                         globals,
-                        index.collision_grid,
+                        world_grid.or(index.collision_grid),
                         props,
                         map_packs,
                     );
+                    residency.set_dynamic_grid(second_world);
                     residency.set_override_groups(override_groups);
                     residency
                 },
@@ -383,6 +387,29 @@ fn start_streaming(
     let at = at.unwrap_or_else(|| index.centre());
     let started = super::residency::start::begin(stream, &index.sections, &index.visible, at, threads);
     Ok((index, started))
+}
+
+/// The empty collision grid of a second world, laid over the anchors of its map packs (physics space: x is minus render y,
+/// z is render x) with a margin, in cells of 64 m or larger when the world is so wide that 64 m would take more than 60,000.
+fn world_collision_grid(packs: &[crate::modding::content::scenery::MapPack]) -> blackbox_collision::Grid {
+    const MARGIN: f32 = 200.0;
+    const CELLS: f32 = 60_000.0;
+    let mut low = [f32::INFINITY; 2];
+    let mut high = [f32::NEG_INFINITY; 2];
+    for pack in packs {
+        let [x, y] = pack.section.center;
+        let (px, pz, r) = (-y, x, pack.section.radius);
+        low = [low[0].min(px - r), low[1].min(pz - r)];
+        high = [high[0].max(px + r), high[1].max(pz + r)];
+    }
+    if low[0] > high[0] {
+        return blackbox_collision::Grid::empty([0.0, 0.0], 64.0, 1, 1);
+    }
+    let (min, size) =
+        ([low[0] - MARGIN, low[1] - MARGIN], [high[0] - low[0] + 2.0 * MARGIN, high[1] - low[1] + 2.0 * MARGIN]);
+    let edge = 64.0_f32.max((size[0] * size[1] / CELLS).sqrt().ceil());
+    let (cols, rows) = ((size[0] / edge).ceil() as u32 + 1, (size[1] / edge).ceil() as u32 + 1);
+    blackbox_collision::Grid::empty(min, edge, rows, cols)
 }
 
 /// The authored cloud map of the track, or none (with a warning) when it cannot be read. The track file is the one the

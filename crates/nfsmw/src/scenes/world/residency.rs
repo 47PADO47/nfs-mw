@@ -125,6 +125,9 @@ pub struct Residency {
     unwanted_scratch: Vec<usize>,
     /// Scratch for `request_wanted`.
     request_scratch: Vec<usize>,
+    /// The world is a second world: its collision grid starts empty and each map pack's instances are listed in it as the
+    /// pack arrives (`CollisionWorld::insert_into_grid`).
+    dynamic_grid: bool,
     /// Uploads wait for every request and go in tile order (`residency/lockstep.rs`); a session's rule.
     lockstep: bool,
 }
@@ -210,6 +213,7 @@ impl Residency {
             unwanted_scratch: Vec::new(),
             request_scratch: Vec::new(),
             lockstep: false,
+            dynamic_grid: false,
         }
     }
 

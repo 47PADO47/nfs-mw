@@ -19,6 +19,13 @@ impl Residency {
             return false;
         }
         let point = to_physics(glam::Vec3::new(x, y, 0.0));
+        // The grid of a second world lists the packs that are loaded, so it cannot say that one is missing: the packs the
+        // camera is in or near must be in first.
+        if self.dynamic_grid
+            && !self.mod_wanted.iter().all(|i| matches!(self.tiles.get(i), Some(TileState::Resident { .. })))
+        {
+            return false;
+        }
         match self.collision.resident_near(point, margin) {
             Some(true) => true,
             // Every wanted tile is in, yet a collision pack the car's surroundings refer to is not. Nothing loads

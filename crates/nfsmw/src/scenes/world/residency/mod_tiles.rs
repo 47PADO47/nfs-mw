@@ -12,6 +12,12 @@ use crate::modding::content::scenery::assemble;
 pub const MOD_MARGIN: f32 = 150.0;
 
 impl Residency {
+    /// Makes the collision grid the dynamic one of a second world (`Grid::empty` was passed to `adopt`): its map packs' instances
+    /// are listed in it when they arrive.
+    pub fn set_dynamic_grid(&mut self, on: bool) {
+        self.dynamic_grid = on;
+    }
+
     /// Whether the residency index `tile` belongs to a mod's map pack.
     pub(super) fn is_mod(&self, tile: usize) -> bool {
         tile >= self.mod_base
@@ -88,6 +94,9 @@ impl Residency {
 
     /// Insert a pack's collision: the grid knows the install's packs, a mod's pack is tested on every query.
     pub(super) fn insert_collision(&mut self, pack: CollisionPack, tile: usize) {
+        if self.is_mod(tile) && self.dynamic_grid {
+            return self.collision.insert_into_grid(pack);
+        }
         if self.is_mod(tile) {
             return self.collision.insert_ungridded(pack);
         }
@@ -96,6 +105,10 @@ impl Residency {
 
     /// Remove the collision a tile put in, the way it went in.
     pub(super) fn remove_collision(&mut self, section: u32, tile: usize) {
+        if self.is_mod(tile) && self.dynamic_grid {
+            self.collision.remove_from_grid(section);
+            return;
+        }
         if self.is_mod(tile) {
             self.collision.remove_ungridded(section);
             return;
