@@ -109,7 +109,7 @@ fn reencode(
         data: pixels.get(..level_bytes).unwrap_or_default().to_vec(),
     };
     let Some(rgba) = level.to_rgba8() else { bail!("{name}: the pixel format {:?} cannot be read", texture.format) };
-    let has_alpha = !look.cut_out && rgba.chunks_exact(4).any(|pixel| pixel[3] < 255);
+    let has_alpha = !look.cut_out && rgba.as_chunks::<4>().0.iter().any(|pixel| pixel[3] < 255);
     let format = if has_alpha { PixelFormat::Dxt5 } else { PixelFormat::Dxt1 };
     let picture = Level { width, height, rgba };
     let mips = full_mip_count(width, height);

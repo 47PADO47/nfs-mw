@@ -167,3 +167,94 @@ impl Residency {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use blackbox_chunk::ChunkWriter;
+    use blackbox_scenery::build::{Placement, section as build_section};
+    use blackbox_scenery::{layout::MOST_WANTED, write_section};
+    use game_install::{GameDir, LazySource, lazy_stub};
+
+    use super::*;
+    use crate::modding::content::ModDir;
+    use crate::modding::content::scenery::world_packs;
+
+    const OWNER: &str = "pieces";
+
+    /// A source that makes the section file of a piece: one scenery instance, numbered 1 (the game renumbers it).
+    struct Pieces(std::sync::atomic::AtomicUsize);
+
+    impl LazySource for Pieces {
+        fn read(&self, key: &str) -> std::io::Result<Vec<u8>> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if key != "piece/7" {
+                return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "no such piece"));
+            }
+            let placement = Placement {
+                name: "P7".to_owned(),
+                solids: [1, 1, 0, 0],
+                local_min: [-1.0; 3],
+                local_max: [1.0; 3],
+                radius: 2.0,
+                position: [10.0, 20.0, 30.0],
+                rows: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                exclude_flags: 0x60,
+            };
+            let section = build_section(1, &[placement]).unwrap();
+            let mut out = ChunkWriter::new();
+            write_section(&mut out, &section, &MOST_WANTED);
+            Ok(out.finish().unwrap())
+        }
+    }
+
+    #[test]
+    fn a_piece_a_file_places_is_not_read_when_the_world_opens_and_is_made_when_its_streamer_asks() {
+        let root = std::env::temp_dir().join(format!("nfsmw-pieces-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let (install, mod_dir) = (root.join("install"), root.join("mod"));
+        std::fs::create_dir_all(&install).unwrap();
+        std::fs::create_dir_all(mod_dir.join("worlds/w")).unwrap();
+        std::fs::create_dir_all(mod_dir.join("files/WORLDS/W")).unwrap();
+        std::fs::write(
+            mod_dir.join("worlds/w/p7.toml"),
+            "[pack]\nfile = \"WORLDS/W/P7.BUN\"\nsection = 2707\nanchor = [10.0, 20.0, 0.0, 50.0]\nplaced = \"file\"\n",
+        )
+        .unwrap();
+        std::fs::write(mod_dir.join("files/WORLDS/W/P7.BUN"), lazy_stub(OWNER, "piece/7")).unwrap();
+        let mut dir = GameDir::open(&install).unwrap();
+        dir.add_overlay(OWNER, mod_dir.join("files"), 0).unwrap();
+        let source = Arc::new(Pieces(Default::default()));
+        dir.add_lazy_source(OWNER, source.clone());
+
+        let owner = ModDir { id: OWNER.to_owned(), dir: mod_dir, priority: 0 };
+        let packs = world_packs(&dir, &owner, "w", &mut Default::default());
+        assert_eq!(packs.len(), 1, "the piece is a pack");
+        assert!(matches!(packs[0].source, PackSource::Installed { .. }));
+        assert_eq!(source.0.load(std::sync::atomic::Ordering::SeqCst), 0, "nothing is made when the world opens");
+
+        let (streamers, routes, owners) = spawn_streamers(&packs);
+        assert_eq!((streamers.len(), routes.clone(), owners.clone()), (1, vec![(0, 0)], vec![vec![0]]));
+        streamers[0].request(0);
+        let mut loaded = None;
+        for _ in 0..5000 {
+            match streamers[0].poll() {
+                Some(StreamerEvent::Loaded(data)) => {
+                    loaded = Some(data);
+                    break;
+                }
+                Some(StreamerEvent::Failed { error, .. }) => panic!("the piece did not load: {error}"),
+                _ => std::thread::sleep(std::time::Duration::from_millis(1)),
+            }
+        }
+        let mut data = loaded.expect("the piece loaded");
+        assert_eq!(source.0.load(std::sync::atomic::Ordering::SeqCst), 1, "made once, when asked for");
+        assemble(&mut data, &packs[0]).unwrap();
+        assert_eq!(data.scenery.len(), 1);
+        assert_eq!(data.scenery[0].section_number, 2707, "the file's scenery takes the pack's number");
+        assert_eq!(data.scenery[0].instances[0].position, [10.0, 20.0, 30.0]);
+        drop(streamers);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}

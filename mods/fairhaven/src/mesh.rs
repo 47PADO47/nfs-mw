@@ -56,9 +56,12 @@ fn u16_at(bytes: &[u8], at: usize) -> Option<u16> {
     Some(u16::from_le_bytes(bytes.get(at..at + 2)?.try_into().ok()?))
 }
 
+/// The positions and the first texture coordinates of a vertex buffer, one of each per vertex.
+pub type Vertices = (Vec<[f32; 3]>, Vec<[f32; 2]>);
+
 /// The positions and first texture coordinates of the vertices of a buffer with layout `elements`. `None` when the layout has
 /// no float position (the world's meshes all have one) or the buffer is not a whole number of vertices.
-pub fn vertices(bytes: &[u8], elements: &[Element]) -> Option<(Vec<[f32; 3]>, Vec<[f32; 2]>)> {
+pub fn vertices(bytes: &[u8], elements: &[Element]) -> Option<Vertices> {
     let find = |wanted: u8| elements.iter().find(|element| element.usage() == wanted && element.index() == 0);
     let position = find(usage::POSITION).filter(|element| element.format == FLOAT3)?;
     let stride = position.stride as usize;

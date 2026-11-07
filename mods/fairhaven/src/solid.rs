@@ -37,11 +37,12 @@ pub struct BuiltSolid {
 /// The unit normals of the vertices of a part, from its triangles (the sum of the face normals, so a bigger face counts more).
 pub fn normals(positions: &[[f32; 3]], indices: &[u16]) -> Vec<[f32; 3]> {
     let mut sums = vec![[0.0f32; 3]; positions.len()];
-    for triangle in indices.chunks_exact(3) {
-        let [a, b, c] = [0, 1, 2].map(|k| positions[usize::from(triangle[k])]);
+    for &[ia, ib, ic] in indices.as_chunks::<3>().0 {
+        let triangle = [ia, ib, ic];
+        let [a, b, c] = triangle.map(|index| positions[usize::from(index)]);
         let (u, v) = ([0, 1, 2].map(|k| b[k] - a[k]), [0, 1, 2].map(|k| c[k] - a[k]));
         let face = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
-        for &index in triangle {
+        for index in triangle {
             for k in 0..3 {
                 sums[usize::from(index)][k] += face[k];
             }

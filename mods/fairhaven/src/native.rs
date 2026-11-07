@@ -105,7 +105,7 @@ impl Mod for Fairhaven {
         let Event::SceneTick { .. } = event else { return };
         self.ticks += 1;
         let Some(maker) = &self.maker else { return };
-        if self.ticks % REPORT_EVERY != 0 {
+        if !self.ticks.is_multiple_of(REPORT_EVERY) {
             return;
         }
         for report in maker.take_reports() {
