@@ -6,6 +6,33 @@ use blackbox_skeleton::{Skeleton, Transform};
 use glam::{Mat4, Vec3};
 use nfsmw_data::car::mods::bike_camera::Helmet;
 
+/// What the camera shows of the rider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RiderVisibility {
+    /// All of him: the camera is outside the helmet (a chase camera, the camera ahead of the bike).
+    #[default]
+    Whole,
+    /// The camera is in his helmet looking ahead: the meshes the table hides (helmet, visor) are not drawn, his suit, gloves and
+    /// boots are, so his arms are on the handlebar in the picture.
+    FromHelmet,
+    /// The camera is in his helmet looking back over the tail: it is inside his own back and shoulders, so none of him is drawn
+    /// (the bike is).
+    LookingBack,
+}
+
+impl RiderVisibility {
+    /// The visibility for a camera that is `in_helmet` (or not) and `looking_back` (the look-back control).
+    pub fn of(in_helmet: bool, looking_back: bool) -> Self {
+        if !in_helmet {
+            return Self::Whole;
+        }
+        if looking_back {
+            return Self::LookingBack;
+        }
+        Self::FromHelmet
+    }
+}
+
 /// Where the eyes are in the rider's skeleton and what to leave out of the picture.
 #[derive(Debug, Default)]
 pub struct EyeView {
@@ -51,6 +78,15 @@ impl EyeView {
         let (bone, offset) = self.head?;
         let transform = component.get(bone)?;
         Some(transform.translation + offset)
+    }
+
+    /// Whether the rider's drawn part `part` (an index of the parts [`EyeView::new`] was made with) is in the picture.
+    pub fn is_drawn(&self, part: usize, visibility: RiderVisibility) -> bool {
+        match visibility {
+            RiderVisibility::Whole => true,
+            RiderVisibility::FromHelmet => !self.hidden.contains(&part),
+            RiderVisibility::LookingBack => false,
+        }
     }
 
     /// The eye point in the model's frame as of the last pose.
@@ -119,5 +155,27 @@ mod tests {
     fn the_helmet_and_the_visor_are_the_parts_left_out_whatever_the_case_of_their_names() {
         let view = EyeView::new(Some(&helmet(&[], "head")), &skeleton(), &["suit", "helmet", "boots", "VISOR"]);
         assert_eq!(view.hidden, [1, 3]);
+    }
+
+    #[test]
+    fn from_inside_the_helmet_only_the_helmet_and_visor_go_and_looking_back_none_of_the_rider_is_drawn() {
+        let parts = ["suit", "helmet", "boots", "visor", "gloves"];
+        let view = EyeView::new(Some(&helmet(&[], "head")), &skeleton(), &parts);
+        let drawn = |visibility| (0..parts.len()).filter(|&part| view.is_drawn(part, visibility)).collect::<Vec<_>>();
+        assert_eq!(drawn(RiderVisibility::Whole), [0, 1, 2, 3, 4], "outside the helmet all of him");
+        assert_eq!(drawn(RiderVisibility::FromHelmet), [0, 2, 4], "his suit, boots and gloves stay in the picture");
+        assert!(drawn(RiderVisibility::LookingBack).is_empty(), "his back and shoulders are round the camera");
+        let nothing_hidden = EyeView::new(None, &skeleton(), &["suit"]);
+        assert!(nothing_hidden.is_drawn(0, RiderVisibility::FromHelmet), "a bike with no camera table hides nothing");
+        assert!(!nothing_hidden.is_drawn(0, RiderVisibility::LookingBack));
+    }
+
+    #[test]
+    fn the_visibility_follows_the_camera_and_the_look_back_control_only_inside_the_helmet() {
+        assert_eq!(RiderVisibility::of(false, false), RiderVisibility::Whole);
+        assert_eq!(RiderVisibility::of(false, true), RiderVisibility::Whole, "a chase camera looking back sees him");
+        assert_eq!(RiderVisibility::of(true, false), RiderVisibility::FromHelmet);
+        assert_eq!(RiderVisibility::of(true, true), RiderVisibility::LookingBack);
+        assert_eq!(RiderVisibility::default(), RiderVisibility::Whole);
     }
 }

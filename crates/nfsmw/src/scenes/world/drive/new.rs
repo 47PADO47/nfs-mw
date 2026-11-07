@@ -73,6 +73,7 @@ impl Drive {
             breaker_camera: Zoom::default(),
             sound: SoundFeed::default(),
             chase: ChaseCamera::default(),
+            rider_cam: Default::default(),
             pursuit: PursuitCamera::default(),
             queued_hits: Vec::new(),
             cracked: CrackedZones::default(),

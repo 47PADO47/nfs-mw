@@ -52,8 +52,10 @@ pub use self::graph_params::param_values;
 pub use self::params::RiderSample;
 use self::params::Smoothed;
 use self::pose::{Frame, Resolved, Steering};
+pub use self::view::RiderVisibility;
 use super::CarPose;
 use crate::scenes::world::keys;
+use crate::viewer::camera::rider_follow::Phase;
 
 /// The first part number a rider's meshes take in the instance keys of the player's car (the car's own placements come
 /// before it).
@@ -284,14 +286,14 @@ impl RiderRig {
     }
 
     /// The rider's instances for a bike at `world` (the model's frame in the world).
-    fn instances(&self, world: Mat4, first_person: bool, out: &mut Vec<Instance>) {
+    fn instances(&self, world: Mat4, visibility: RiderVisibility, out: &mut Vec<Instance>) {
         let transform = match self.fall.active() {
             true => self.fall.instance(),
             false => world * self.frame.to_model,
         };
         for (n, part) in self.parts.iter().enumerate() {
-            // From inside his helmet the rider's helmet and visor are not in the picture.
-            if first_person && self.view.hidden.contains(&n) {
+            // From inside his helmet his helmet and visor are not in the picture, looking back none of him is.
+            if !self.view.is_drawn(n, visibility) {
                 continue;
             }
             out.push(Instance::keyed(part.handle, transform, keys::car_part(keys::PLAYER_CAR, KEY_BASE + n)));
@@ -323,10 +325,14 @@ pub struct Rider {
     loaded_for: String,
     /// The rider is not drawn: the arrest scene plays the player's bike on its own, and the rider is not part of it.
     hidden: bool,
-    /// The camera is inside his helmet: the helmet and the visor are not drawn (`view.rs`).
-    first_person: bool,
+    /// What the camera shows of him: from inside his helmet the helmet and the visor are not drawn, looking back none of him is
+    /// (`view.rs`).
+    visibility: RiderVisibility,
     /// Where he looks from straight ahead, turned by the player's look stick (`viewer/camera/head_look.rs`).
     head_look: crate::viewer::camera::head_look::HeadLook,
+    /// Where his pelvis is while he is off the bike, and whether he is down or on his way back: what the cameras follow in a fall
+    /// (`fall.rs`, `viewer/camera/rider_follow.rs`). Set by the physics step.
+    off_bike: Option<(Phase, Vec3)>,
 }
 
 impl Rider {
@@ -352,7 +358,15 @@ impl Rider {
     /// has got up (or there is no rider who falls).
     pub fn fall_step(&mut self, step: FallStep, pose: &CarPose, ground: &dyn blackbox_vehicle::Ground) -> bool {
         let State::Ready(rig) = &mut self.state else { return true };
-        rig.fall_step(step, pose.transform(), ground)
+        let ready = rig.fall_step(step, pose.transform(), ground);
+        self.off_bike = rig.fall.focus(&rig.pack.skeleton, pose.transform() * rig.frame.to_model);
+        ready
+    }
+
+    /// Where the rider is while he is off the bike (his pelvis in the render space, and whether he is down or on his way back);
+    /// `None` while he rides, and for a bike with no rider who falls.
+    pub fn off_bike(&self) -> Option<(Phase, Vec3)> {
+        self.off_bike
     }
 
     /// Once per frame: load the rider the first time a bike is drawn, then pose, skin and upload it for the bike's pose
@@ -369,6 +383,7 @@ impl Rider {
                 rig.release(renderer);
             }
             self.loaded_for.clear();
+            self.off_bike = None;
         }
         if matches!(self.state, State::Unloaded) {
             if !bike {
@@ -397,9 +412,9 @@ impl Rider {
         self.hidden = hidden;
     }
 
-    /// Whether the camera is inside the rider's helmet, so his helmet and visor are left out of the picture.
-    pub fn set_first_person(&mut self, on: bool) {
-        self.first_person = on;
+    /// What the camera shows of the rider.
+    pub fn set_visibility(&mut self, visibility: RiderVisibility) {
+        self.visibility = visibility;
     }
 
     /// Where the rider's eyes are in the bike's model frame as of the last frame's pose: `None` with no rider, off the bike, or
@@ -417,7 +432,7 @@ impl Rider {
             return;
         }
         if let State::Ready(rig) = &self.state {
-            rig.instances(pose.transform(), self.first_person, out);
+            rig.instances(pose.transform(), self.visibility, out);
         }
     }
 

@@ -132,6 +132,7 @@ impl Drive {
         self.clear_visual_rpm();
         self.alpha = 0.0;
         self.chase.snap();
+        self.cut_rider_cam();
         // Placement can complete with the garage open, before any driving ticks.
         self.follow(collision, (0.0, 0.0), 0.0);
         self.cut.arm();
