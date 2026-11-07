@@ -21,6 +21,9 @@ const WALL_SURFACE: &str = "concrete";
 /// A box lower than this is not a wall: a cone, a kerb stone (metres).
 const MIN_WALL_HEIGHT: f32 = 0.3;
 
+/// The low and high corners of a box.
+type Aabb = ([f32; 3], [f32; 3]);
+
 /// One placement of a solid in a cell's section: the solid's name, its position and its rows.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Placed {
@@ -71,7 +74,7 @@ fn distance(centre: [f32; 2], pos: [f32; 3]) -> f32 {
 pub fn cell_objects(pack: &Pack, pictures: &Pictures, indices: &[usize], key: &str) -> CellObjects {
     let mut out = CellObjects::default();
     let mut made: HashMap<u32, Vec<String>> = HashMap::new();
-    let mut boxes: HashMap<u32, Option<([f32; 3], [f32; 3])>> = HashMap::new();
+    let mut boxes: HashMap<u32, Option<Aabb>> = HashMap::new();
     for &at in indices {
         let instance = &pack.instances[at];
         if instance.rows.iter().flatten().any(|v| !v.is_finite() || v.abs() > MAX_COMPONENT) {
@@ -114,7 +117,7 @@ fn add_model(pack: &Pack, pictures: &Pictures, model: u32, key: &str, out: &mut 
 }
 
 /// The box that holds all the vertices of a model, `None` for a model with none.
-fn model_bounds(pack: &Pack, model: u32) -> Option<([f32; 3], [f32; 3])> {
+fn model_bounds(pack: &Pack, model: u32) -> Option<Aabb> {
     let mut low = [f32::INFINITY; 3];
     let mut high = [f32::NEG_INFINITY; 3];
     for position in pack.object_groups.iter().filter(|g| g.model == model).flat_map(|g| &g.positions) {

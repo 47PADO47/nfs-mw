@@ -97,13 +97,19 @@ pub fn import_with(
         if cancel.load(Ordering::Relaxed) {
             bail!("the import was cancelled");
         }
-        write_cell(&pack, &pictures, &id, index, cell, false, &near[index], out, &mut report)?;
+        write_cell(
+            Target { pack: &pack, pictures: &pictures, id: &id, out },
+            cell,
+            Piece { index, far: false, instances: &near[index] },
+            &mut report,
+        )?;
     }
     // The far ground is one more cell, always loaded (`far.rs`).
     let far = far::far_pack(&pack, FAR_GRID_METRES);
     let everything = cells::Limits { max_triangles: usize::MAX, min_size: 128.0 };
     for cell in cells::bin(&far, &everything) {
-        write_cell(&far, &pictures, &id, report.cells, &cell, true, &[], out, &mut report)?;
+        let piece = Piece { index: report.cells, far: true, instances: &[] };
+        write_cell(Target { pack: &far, pictures: &pictures, id: &id, out }, &cell, piece, &mut report)?;
         report.cells += 1;
     }
     if keep.line && line::has_line(&pack) {
@@ -115,7 +121,9 @@ pub fn import_with(
             ground.ray_cast([px, py + 3.0, pz], [px, py - 3.0, pz], &options).map(|hit| hit.point[1])
         };
         let ribbon = line::ribbon_cell(&pack.lap.line.points, pack.lap.line.closed, heights);
-        write_cell(&line::line_pack(&pack.track), &pictures, &id, report.cells, &ribbon, true, &[], out, &mut report)?;
+        let line_pack = line::line_pack(&pack.track);
+        let piece = Piece { index: report.cells, far: true, instances: &[] };
+        write_cell(Target { pack: &line_pack, pictures: &pictures, id: &id, out }, &ribbon, piece, &mut report)?;
         report.cells += 1;
     }
     write_world(&pack, &id, out)?;
@@ -158,17 +166,26 @@ pub(crate) fn texture_for(pack: &Pack, pictures: &Pictures, material: usize) -> 
     }
 }
 
-fn write_cell(
-    pack: &Pack,
-    pictures: &Pictures,
-    id: &str,
+/// What writing a cell needs besides the cell: the pack it is of, the pictures, the world's id, the folder written to.
+#[derive(Clone, Copy)]
+struct Target<'a> {
+    pack: &'a Pack,
+    pictures: &'a Pictures,
+    id: &'a str,
+    out: &'a Path,
+}
+
+/// What of a cell is written: its number, whether it is the far ground (or the line), and the placements that belong to it.
+#[derive(Clone, Copy)]
+struct Piece<'a> {
     index: usize,
-    cell: &Cell,
     far: bool,
-    instances: &[usize],
-    out: &Path,
-    report: &mut Report,
-) -> Result<()> {
+    instances: &'a [usize],
+}
+
+fn write_cell(target: Target<'_>, cell: &Cell, piece: Piece<'_>, report: &mut Report) -> Result<()> {
+    let Target { pack, pictures, id, out } = target;
+    let Piece { index, far, instances } = piece;
     let key = manifest::cell_key(index);
     let number = manifest::section_number(index);
     let mut sources = Vec::new();
