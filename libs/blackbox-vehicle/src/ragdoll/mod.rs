@@ -26,9 +26,12 @@
 
 mod body;
 mod contact;
+#[cfg(test)]
+mod guard_tests;
 mod joint;
 #[cfg(test)]
 mod tests;
+mod walls;
 
 pub use body::Segment;
 pub use joint::{Joint, JointLimits};
@@ -46,6 +49,13 @@ const RELAX_TIME: f32 = 0.3;
 /// The speed under which a segment is still (m/s, counting the turn at its radius), and how long all must be still to be at rest.
 const STILL_SPEED: f32 = 0.05;
 const STILL_TIME: f32 = 0.5;
+
+/// The fastest a body is launched in spin (rad/s), the share of its launch speed and the speed beyond it that a segment may reach
+/// later (m/s), sideways and up: a body thrown at 20 m/s may move at 36 at most. A modelling choice; the reference's physics engine caps nothing
+/// but the rider's own fall cannot add speed.
+const MAX_LAUNCH_SPIN: f32 = 40.0;
+const CAP_RATIO: f32 = 1.2;
+const CAP_EXTRA: f32 = 12.0;
 
 /// What a ragdoll is made of.
 #[derive(Clone, Debug, PartialEq)]
@@ -95,6 +105,8 @@ pub struct Ragdoll {
     gravity: f32,
     still: f32,
     contacts: Vec<contact::Contact>,
+    /// The height of the highest ground the body touched in the last sub-step that touched any (`contact.rs`).
+    floor: Option<f32>,
 }
 
 impl Ragdoll {
@@ -102,6 +114,10 @@ impl Ragdoll {
     /// every point of the body, as for a body that was riding) and the angular velocity `spin` about the centre of mass of the
     /// whole (world frame).
     pub fn new(spec: &RagdollSpec, velocity: Vec3, spin: Vec3) -> Self {
+        let velocity = velocity.clamp_length_max(body::MAX_SPEED);
+        let spin = spin.clamp_length_max(MAX_LAUNCH_SPIN);
+        // A body is held to a little more than the speed it was thrown at: a push out of the ground or a joint pulled hard is not a launch.
+        let cap = (velocity.length() * CAP_RATIO + CAP_EXTRA).min(body::MAX_SPEED);
         let mut bodies: Vec<Body> = spec.segments.iter().map(Body::new).collect();
         let mass: f32 = spec.segments.iter().map(|s| s.mass.max(1e-3)).sum();
         let centre = match mass > 0.0 {
@@ -111,6 +127,7 @@ impl Ragdoll {
         for body in &mut bodies {
             body.v = velocity + spin.cross(body.x - centre);
             body.w = spin;
+            body.cap = cap;
         }
         let joints: Vec<Joint> = spec
             .joints
@@ -138,6 +155,7 @@ impl Ragdoll {
             gravity: spec.gravity,
             still: 0.0,
             contacts: Vec::new(),
+            floor: None,
         }
     }
 
@@ -147,13 +165,14 @@ impl Ragdoll {
             return;
         }
         let h = dt / SUBSTEPS as f32;
+        walls::collide(&mut self.bodies, ground, dt, self.friction);
         // The room closes a little each sub-step: a step's worth at once would be a jolt the velocities then carry on.
         let relax = (-h / RELAX_TIME).exp();
         for _ in 0..SUBSTEPS {
             self.slack.iter_mut().for_each(|s| *s *= relax);
             self.bodies.iter_mut().for_each(|b| b.predict(h, self.gravity, self.damping));
             self.solve_joints();
-            contact::resolve(&mut self.bodies, ground, self.friction, &mut self.contacts);
+            contact::resolve(&mut self.bodies, ground, (self.friction, h), &mut self.floor, &mut self.contacts);
             self.solve_joints();
             self.bodies.iter_mut().for_each(|b| b.settle(h));
             contact::friction(&mut self.bodies, &self.contacts, h);
