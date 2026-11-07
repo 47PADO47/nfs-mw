@@ -290,9 +290,15 @@ impl Surfaces {
         };
         let clip = material.cutout();
         let mut picture = Picture { width: base.width, height: base.height, rgba: base.rgba.clone() };
-        if base_stem.starts_with("gauge") {
-            // The display of an instrument cluster is a black window the game draws its panel into: draw it at idle.
-            dash::fill_screen(&mut picture);
+        if material.name.to_ascii_lowercase().starts_with("mat_gauge") {
+            // The screen of an instrument cluster is drawn by widgets at run time: take the exporter's composition of them at rest,
+            // or else draw a small panel into the black window of the static picture.
+            match dash::composed(&mut self.store, base_stem)? {
+                Some(screen) => picture = screen,
+                None => {
+                    dash::fill_screen(&mut picture);
+                }
+            }
         }
         let level = picture.shrunk(cap);
         let level = bake_diffuse(
