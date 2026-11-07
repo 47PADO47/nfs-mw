@@ -58,7 +58,9 @@ struct Material {
     // x = specular power, y = envmap min, z = envmap range, w = envmap power
     params: vec4<f32>,
     surface: vec4<f32>, // roughness, coat scale, reflection intensity, SurfaceKind
-    lighting: vec4<f32>, // x = background actor; authored diffuse response, no local reflection correction
+    // x = background actor; authored diffuse response, no local reflection correction
+    // y = hemispheric ambient floor (converted mod cars), see `hemisphere_floor`
+    lighting: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -83,6 +85,15 @@ fn environment_light(n: vec3<f32>) -> vec3<f32> {
     return max(light, vec3<f32>(0.0));
 }
 @group(3) @binding(0) var<uniform> material: Material;
+
+// A floor for the indirect light of a surface that no light of the rig reaches: the rig's fill colours (the world's
+// ambient light, or the viewer's cool fill) spread over the whole sphere, 40 percent weaker for a normal that faces
+// down than for one that faces up (+z). Applied with `max`, so a panel the fills already light is not brightened and
+// a black rig stays black.
+fn hemisphere_floor(n: vec3<f32>) -> vec3<f32> {
+    let sky = n.z * 0.5 + 0.5;
+    return material.lighting.y * (rig.color[1].xyz + rig.color[2].xyz + rig.ambient.xyz) * mix(0.6, 1.0, sky);
+}
 
 struct VsIn {
     @location(0) position: vec3<f32>,
@@ -163,6 +174,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         indirect += saturate(dot(n, rig.to_light[k].xyz) + 0.1) * rig.color[k].xyz;
     }
     if shadow_data.environment.x > 0.5 { indirect = rig.ambient.xyz + environment_light(n); }
+    if material.lighting.y > 0.0 { indirect = max(indirect, hemisphere_floor(n)); }
     let direct = saturate(dot(n, rig.to_light[0].xyz) + 0.1) * rig.color[0].xyz * visibility;
     let light = direct + indirect * ao;
 
@@ -327,6 +339,8 @@ fn original_vertex(out: ptr<function, VsOut>, v: VsIn, model: mat4x4<f32>) {
     for (var k = 0; k < 3; k++) {
         light += clamp(dot(n, local_from_world * rig.to_light[k].xyz) + 0.1, 0.0, 1.0) * rig.color[k].xyz;
     }
+    // Only converted mod cars set the floor; the stock cars keep the original arithmetic.
+    if material.lighting.y > 0.0 { light = max(light, hemisphere_floor(safe_unit((*out).normal))); }
     let diff = material.diffuse_min + material.diffuse_range * facing;
     let spec_power = clamp(material.params.x, -128.0, 128.0);
     let env_power = clamp(material.params.w, -128.0, 128.0);
