@@ -7,12 +7,11 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, Result, bail};
-use blackbox_modding::content::WORLDS_FOLDER;
 use blackbox_tpk::TextureSource;
 
 use crate::cells::{self, Cell};
 use crate::collision::soup;
-use crate::manifest::{self, MAX_CELLS, Place};
+use crate::manifest::{self, MAX_CELLS, Place, WORLDS_FOLDER};
 use crate::model::solid_of;
 use crate::pack::{self, Pack};
 use crate::textures::{Pictures, flat_colour};

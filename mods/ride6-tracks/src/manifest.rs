@@ -4,6 +4,9 @@
 
 use std::fmt::Write;
 
+/// The folder of the mod that holds the world manifests (`blackbox_modding::content::WORLDS_FOLDER`).
+pub const WORLDS_FOLDER: &str = "worlds";
+
 /// The section number of cell `index`: the free band 2700 and up, 40 numbers (last two digits 0 to 39) in each hundred
 /// (`docs/specs/mod-world-content.md`, 1.3).
 pub fn section_number(index: usize) -> u32 {
