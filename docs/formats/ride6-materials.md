@@ -340,7 +340,7 @@ which this importer does not read.
 neutral, speed 0, 1,400 rpm. `tools/ride6-exporter/dash.py` (with `dash_widgets.py` for the trees and `dash_paint.py` for the drawing)
 reads the two classes of every bike, draws them at that state into 1024 by 1024 pictures and writes the **sum** (the car shader has no
 emissive input, so the emissive picture is added to the base colour) as `tex/gauge<chassis>_d_dash.png` next to the bike's textures;
-`dash::composed` (the importer) bakes that picture in place of `gauge<chassis>_d` (a bike with no HUD widget keeps the older
+`dash::composed` (the importer) bakes that picture, lifted with the largest gain (`grade::MAX_GAIN` 2.0, a **[choice]**: the screen is emissive in RIDE 6 and the car shader lights it like paint), in place of `gauge<chassis>_d` (a bike with no HUD widget keeps the older
 fallback below). 286 of the 287 exported bikes with a cluster get one (155 different pictures; the Kawasaki Ninja ZX-10RR EM 2021 has no base picture in its gauge material): TFT colour screens (Ducati V4, Aprilia
 RSV4, KTM, Yamaha R1, BMW S 1000 RR), LCD clusters in their pale green with segment digits, analogue dials with the needles at idle.
 The draw follows Unreal's rules:

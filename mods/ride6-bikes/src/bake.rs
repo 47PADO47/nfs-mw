@@ -14,7 +14,7 @@ use blackbox_tpk::{AlphaUsage, Level, PixelFormat, TextureSource, full_mip_count
 use crate::dash;
 use crate::glass;
 use crate::grade::{
-    DEFAULT_AO_FLOOR, DEFAULT_GAIN, DEFAULT_REFLECTED, Grade, PAINT_AO_FLOOR, lift_colour, metal_floor,
+    DEFAULT_AO_FLOOR, DEFAULT_GAIN, DEFAULT_REFLECTED, Grade, MAX_GAIN, PAINT_AO_FLOOR, lift_colour, metal_floor,
 };
 use crate::partfile::{Kind, Material};
 use crate::textures::{Palette, Picture, TexStore};
@@ -228,9 +228,13 @@ impl Surfaces {
 
     /// How the base colour of `material` is graded: the options, with the occlusion of a livery (paint) at least [`PAINT_AO_FLOOR`].
     fn grade(&self, material: &Material) -> Grade {
-        let paint = material.name.to_ascii_lowercase().contains("livery");
-        let ao_floor = if paint { self.options.ao_floor.max(PAINT_AO_FLOOR) } else { self.options.ao_floor };
-        Grade { ao_floor, gain: self.options.gain, reflected: self.options.reflected }
+        let name = material.name.to_ascii_lowercase();
+        let ao_floor =
+            if name.contains("livery") { self.options.ao_floor.max(PAINT_AO_FLOOR) } else { self.options.ao_floor };
+        // A cluster's screen is emissive in RIDE 6 and the car shader lights it like paint (about half its brightness): the
+        // strongest lift the grade allows. A choice, made against the RC 390 and Panigale V4 screens in the helmet camera.
+        let gain = if name.starts_with("mat_gauge") { MAX_GAIN } else { self.options.gain };
+        Grade { ao_floor, gain, reflected: self.options.reflected }
     }
 
     /// The texture of a livery picture: the base colour of `material` graded like a body texture, opaque, one level (the game

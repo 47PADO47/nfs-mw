@@ -11,6 +11,8 @@ pub const DEFAULT_AO_FLOOR: f32 = 0.55;
 /// muddy patches, where RIDE 6 shows a clean glossy colour (the occlusion only dims its indirect light). A choice, made against the
 /// renders of the KTM RC 390 (orange panels with brown blotches) and the Honda CRF 450 R; the mechanics keep [`DEFAULT_AO_FLOOR`].
 pub const PAINT_AO_FLOOR: f32 = 0.9;
+/// The largest lift [`lift`] allows.
+pub const MAX_GAIN: f32 = 2.0;
 /// The lift of the base colour: the car rigs light a surface with 0.5 to 0.85 of the colour of its texture (the multiplier of
 /// a rig is a fraction in display space), where RIDE 6 shows its lit bodies at about 1.1 times the albedo; 1.35 closes
 /// that gap in the middle tones and keeps white white. A choice, measured (docs/formats/ride6-materials.md).
@@ -61,7 +63,7 @@ impl Grade {
 /// and middle tones by `gain` and leaves white white (the slope falls to `2 - gain` there), so the lift never clips a bright
 /// texel. The car shader multiplies the encoded texture by its light, so the lift is made in the encoded domain too.
 pub fn lift(value: u8, gain: f32) -> u8 {
-    let gain = gain.clamp(1.0, 2.0);
+    let gain = gain.clamp(1.0, MAX_GAIN);
     let x = f32::from(value) / 255.0;
     (x * (gain - (gain - 1.0) * x) * 255.0 + 0.5) as u8
 }
