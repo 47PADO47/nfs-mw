@@ -228,6 +228,8 @@ fn a_catalogue_becomes_the_runtime_files_and_an_item_without_its_mesh_is_left_ou
 
     let gear: Value = serde_json::from_slice(&fs::read(output.join("gear.json")).unwrap()).unwrap();
     assert_eq!(gear["version"], 1);
+    assert_eq!(gear["stock"]["helmet"], json!(["helmetRacing_default"]));
+    assert_eq!(gear["stock"]["body"], json!(["suit001_male", "SuitRacing_Male_arms"]));
     assert_eq!(gear["bodies"][0]["name"], "Male 1");
     assert_eq!(gear["bodies"][0]["mesh"], "meshes/body.bbsk");
     assert_eq!(gear["helmets"].as_array().unwrap().len(), 1);

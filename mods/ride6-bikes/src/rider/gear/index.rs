@@ -27,6 +27,13 @@ pub struct Written {
     pub textures: HashSet<String>,
 }
 
+/// The meshes of the stock rider (`rider/parts.rs`) that an item of each part takes the place of in the game: his suit and arms, his
+/// helmet and visor, his boots.
+fn stock() -> Value {
+    let parts = &crate::rider::parts::PARTS;
+    json!({ "body": [parts[0].0, parts[1].0], "helmet": [parts[3].0], "visor": [parts[4].0], "boots": [parts[2].0] })
+}
+
 /// A body's name: `Male 1`, `Female 2` (the shape of the suit).
 fn body_name(gender: &str, shape: u32) -> String {
     let mut chars = gender.chars();
@@ -92,7 +99,6 @@ pub fn build(catalogue: &Catalogue, written: &Written) -> (Value, Vec<String>) {
         boots.push(json!({ "id": pair.id, "name": pair.name, "brand": pair.brand, "mesh": mesh_file, "color": color }));
     }
 
-    let index =
-        json!({ "version": 1, "bodies": bodies, "helmets": helmets, "suits": suits, "gloves": gloves, "boots": boots });
+    let index = json!({ "version": 1, "stock": stock(), "bodies": bodies, "helmets": helmets, "suits": suits, "gloves": gloves, "boots": boots });
     (index, left_out)
 }
