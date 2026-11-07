@@ -186,6 +186,11 @@ pub(super) fn is_sound_path(path: &str) -> bool {
     is_path(path, ".wav")
 }
 
+/// A relative path of the install's layout that names a `.BIN` file (a model or texture pack), under the same rules as a sound path.
+pub(super) fn is_pack_path(path: &str) -> bool {
+    is_path(path, ".bin")
+}
+
 /// A relative path of the install's layout that ends in `extension` (lower case, with the dot).
 fn is_path(path: &str, extension: &str) -> bool {
     let safe = path.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'/'));

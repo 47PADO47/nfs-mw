@@ -36,6 +36,17 @@ No decompiled code, no game data and no dump of either is in the repository. The
    (`nfsmw view-car`, offscreen screenshots). A 911, a Gallardo, a Charger, a Veyron, a Corvette ZR1, a Ford GT, an LFA,
    a Cobra 427, the SWAT van, a Venom GT, an F-150 Raptor and a Tesla Roadster all looked right.
 
+## The trees (vegetation)
+
+The trees of the world were found without names: the shader techniques of `SHADERS.BNDL` were listed (the only vegetation techniques are
+`Tree_Translucent_1Bit_Doublesided` and its `InstanceTint` twin), every `HAWAII/` bundle was scanned for materials that import them, and
+the renderables and models that use those materials were followed through the import tables; the textures were decoded to pictures with
+a scratch BC1/BC3 decoder and looked at to tell the species apart. The 2005 side was read with a scratch reader of the chunk format over
+`STREAML2RA.BUN` (name, flags, bounds and shading groups of every solid). The cost of reading the trees (what a conversion has to
+read of the nine bundles) was measured with a Python replay of the import-table walk: the header and table of each bundle, then the
+blocks of the model, its renderables, its materials and the first texture of each, nothing else. No decompiled code was used. Findings:
+[formats/chameleon-vegetation.md](../formats/chameleon-vegetation.md).
+
 ## Known limits
 
 The Genesys objects (gameplay data), damage and crumple data, collision hulls, skeletons, lamp locators and the

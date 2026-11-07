@@ -60,6 +60,7 @@ mod lamp_flares;
 mod manufacturer;
 #[cfg(test)]
 mod manufacturer_tests;
+mod model_swap;
 mod music;
 mod nitrous_effects;
 mod nitrous_fx;
@@ -113,6 +114,10 @@ pub use lamp_flares::{
     MAX_PATTERN as MAX_LIGHT_PATTERN, SirenColour, Sprite as LampSprite,
 };
 pub use manufacturer::{Manufacturer, brand_key, parse as parse_manufacturer};
+pub use model_swap::{
+    Fit as SwapFit, MAX_SWAPS, ModelSwapProfile, Swap, TREES_FOLDER, model_swap_profile_path,
+    parse as parse_model_swap_profile,
+};
 pub use music::{MusicSection, parse as parse_music};
 pub use nitrous_effects::{EffectOn, EffectProfile, MAX_EFFECTS};
 pub use nitrous_fx::{
@@ -135,7 +140,7 @@ pub use tire_smoke::{
     tire_smoke_profile_path,
 };
 pub use traffic::{MAX_INSTANCES as MAX_TRAFFIC_INSTANCES, MAX_WEIGHT as MAX_TRAFFIC_WEIGHT, Traffic, TrafficClass};
-pub use variant::{COLLISION_SPARKS, FORMAT, NITROUS, TIRE_SMOKE, VariantKind, WIND, XENON_SPARKS};
+pub use variant::{COLLISION_SPARKS, FORMAT, NITROUS, TIRE_SMOKE, TREES, VariantKind, WIND, XENON_SPARKS};
 pub use wheels::{Tyre, WheelLayout};
 pub use wind_fx::{
     MAX_LAYERS as MAX_WIND_LAYERS, WIND_FOLDER, WindLayer, WindProfile, parse as parse_wind_profile, wind_profile_path,

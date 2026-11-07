@@ -194,7 +194,8 @@ impl Residency {
                 return;
             }
             let pending = std::mem::take(&mut self.shared_pending);
-            let globals = std::mem::take(&mut self.globals);
+            let mut globals = std::mem::take(&mut self.globals);
+            super::trees::add_textures(&mut globals);
             self.shared_upload = Some(SharedUpload::new(pending, globals, self.texture_discard.unwrap_or(0)));
         }
         let Some(mut upload) = self.shared_upload.take() else { return };

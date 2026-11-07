@@ -14,8 +14,9 @@ use std::sync::Arc;
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
 use blackbox_modding::content::{
-    NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile, parse_nitrous_profile,
-    parse_sparks_profile, parse_tire_smoke_profile, parse_wind_profile, parse_xenon_profile,
+    ModelSwapProfile, NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile,
+    parse_model_swap_profile, parse_nitrous_profile, parse_sparks_profile, parse_tire_smoke_profile,
+    parse_wind_profile, parse_xenon_profile,
 };
 use blackbox_modding::host::{HotkeyHandler, OptionsModel};
 use blackbox_ui::ThemeId;
@@ -31,7 +32,9 @@ use super::menus::MenuRow;
 use super::settings::{self, OptionHandler};
 use super::time::{self, Clock, ClockRequest};
 use super::ui::UiRecord;
-use super::variants::{COLLISION_SPARKS_KIND, CacheCell, NITROUS_KIND, TIRE_SMOKE_KIND, WIND_KIND, XENON_SPARKS_KIND};
+use super::variants::{
+    COLLISION_SPARKS_KIND, CacheCell, NITROUS_KIND, TIRE_SMOKE_KIND, TREES_KIND, WIND_KIND, XENON_SPARKS_KIND,
+};
 use super::world::{self, WorldRequest};
 use crate::devtools::Console;
 use crate::effect_variants::EffectVariants;
@@ -82,6 +85,10 @@ pub struct Bridge {
     pub(super) xenon_sparks_cache: CacheCell<XenonProfile>,
     /// The same for the wind variant (`wind_profile`).
     pub(super) wind_cache: CacheCell<WindProfile>,
+    /// The same for the trees variant (`trees_profile`), and the profile whose models are in effect in the world's loaders
+    /// (`publish_trees`).
+    pub(super) trees_cache: CacheCell<ModelSwapProfile>,
+    pub(super) trees_published: RefCell<Option<Arc<ModelSwapProfile>>>,
     /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
     pub(super) ui_themes: RefCell<Vec<UiRecord>>,
     /// The mod theme the player chose on the Mods page, or `None` for the built-in style (`ui.rs`). The theme sync
@@ -126,6 +133,8 @@ impl Bridge {
             collision_sparks_cache: RefCell::default(),
             xenon_sparks_cache: RefCell::default(),
             wind_cache: RefCell::default(),
+            trees_cache: RefCell::default(),
+            trees_published: RefCell::default(),
             ui_themes: RefCell::default(),
             ui_theme_choice: Cell::new(None),
             store,
@@ -193,6 +202,11 @@ impl Bridge {
         self.variant_profile(&WIND_KIND, &self.wind_cache, parse_wind_profile)
     }
 
+    /// The trees variant the player chose, when it is a mod's: `TREES/<value>/profile.toml`.
+    pub fn trees_profile(&self) -> Option<Arc<ModelSwapProfile>> {
+        self.variant_profile(&TREES_KIND, &self.trees_cache, parse_model_swap_profile)
+    }
+
     /// The profiles of every kind of variant the player chose, for the scene (`EffectVariants`). A new kind adds its field here.
     pub fn effect_variants(&self) -> EffectVariants {
         EffectVariants {
@@ -237,6 +251,7 @@ impl Bridge {
         world::apply(requests, scene);
         scene.set_mod_blips(&map::minimap_blips(self));
         scene.set_effect_variants(&self.effect_variants());
+        self.publish_trees();
         let lines = std::mem::take(&mut *self.queued_lines.borrow_mut());
         console.queue_lines(lines);
     }

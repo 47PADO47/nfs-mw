@@ -78,6 +78,12 @@ own_engine_sound = true
 # max_texture_size keys apply to them (the name of each has \"traffic\" in it).
 traffic = true
 
+# Add the 2012 game's trees as a value of the gameplay setting \"Trees\": the models and textures of its trees (broadleaf, poplar,
+# spruce, autumn and bare trees, bushes) replace those of the 2005 game's tree scenery while the setting says so. false adds
+# neither the trees nor the value. They are converted from your 2012 install into the mod's folder
+# (mods/nfsmw-2012-content/README.md, \"Trees\"); the max_texture_size key applies to their textures.
+trees = true
+
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
 # weight, grip the tyres, brakes the brake torque (0.25 to 4 each, grip 0.25 to 3), nitrous_power the extra torque of
@@ -171,6 +177,8 @@ pub struct Config {
     pub own_engine_sound: bool,
     /// Whether the 2012 game's traffic cars are added as traffic cars (`traffic.rs`).
     pub traffic: bool,
+    /// Whether the 2012 game's trees are converted and offered as a trees variant (`trees.rs`).
+    pub trees: bool,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -189,6 +197,7 @@ impl Default for Config {
             role: Role::Player,
             own_engine_sound: true,
             traffic: true,
+            trees: true,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),
@@ -281,6 +290,17 @@ mod tests {
     fn defaults_want_everything() {
         let config = Config::default();
         assert!(config.wants("POR911CARR12", "Porsche 911 Carrera S 2012"));
+    }
+
+    #[test]
+    fn the_trees_are_on_by_default_and_the_setting_turns_them_off() {
+        assert!(Config::default().trees);
+        assert!(!Config::parse("trees = false\n").unwrap().trees);
+        assert_ne!(
+            crate::stamp::of(&Config::default(), Path::new("definitely/not/here")),
+            crate::stamp::of(&Config { trees: false, ..Config::default() }, Path::new("definitely/not/here")),
+            "a change of the setting converts again"
+        );
     }
 
     #[test]

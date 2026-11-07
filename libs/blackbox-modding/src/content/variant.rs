@@ -42,6 +42,9 @@ pub const XENON_SPARKS: VariantKind = VariantKind { option: "xenon_spark_variant
 /// The wind variants (`wind_fx`): the loops that play with the car's speed.
 pub const WIND: VariantKind = VariantKind { option: "wind_variant", folder: "WIND" };
 
+/// The trees variants (`model_swap`): the world's tree models and their textures replaced by the mod's.
+pub const TREES: VariantKind = VariantKind { option: "trees_variant", folder: "TREES" };
+
 /// Refuse a profile whose `format` is not the one this version reads.
 pub(super) fn check_format(format: u32) -> Result<(), ContentError> {
     if format != FORMAT {
@@ -62,7 +65,7 @@ mod tests {
 
     #[test]
     fn the_kinds_have_distinct_options_and_folders() {
-        let kinds = [NITROUS, TIRE_SMOKE, COLLISION_SPARKS, XENON_SPARKS, WIND];
+        let kinds = [NITROUS, TIRE_SMOKE, COLLISION_SPARKS, XENON_SPARKS, WIND, TREES];
         for (at, kind) in kinds.iter().enumerate() {
             for other in &kinds[at + 1..] {
                 assert_ne!(kind.option, other.option);
@@ -72,6 +75,7 @@ mod tests {
         assert_eq!(COLLISION_SPARKS.profile_path("mw2012"), "SPARKS/MW2012/profile.toml");
         assert_eq!(XENON_SPARKS.profile_path("mw2012"), "XENON/MW2012/profile.toml");
         assert_eq!(WIND.profile_path("mw2012"), "WIND/MW2012/profile.toml");
+        assert_eq!(TREES.profile_path("mw2012"), "TREES/MW2012/profile.toml");
     }
 
     #[test]

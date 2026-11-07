@@ -64,6 +64,7 @@ pub mod stats;
 mod textures;
 mod tire_smoke;
 mod traffic;
+mod trees;
 mod two_colour;
 mod variants;
 mod vehicle_list;
@@ -114,16 +115,16 @@ impl Mod for NfsmwContent {
                     ),
                 );
             }
-            Ok(Start::UpToDate { cars }) => {
+            Ok(Start::UpToDate { cars, trees }) => {
                 add_nitrous_variant(ctx);
-                effect_variants::add_all(ctx);
+                effect_variants::add_all(ctx, trees);
                 drift_nitrous::register(ctx, &mod_dir);
                 engine_stop::register(ctx, &mod_dir);
                 ctx.log(Level::Info, &format!("nfsmw-2012-content: {cars} cars are ready"));
             }
-            Ok(Start::Started { job, live }) => {
+            Ok(Start::Started { job, live, trees }) => {
                 add_nitrous_variant(ctx);
-                effect_variants::add_all(ctx);
+                effect_variants::add_all(ctx, trees);
                 drift_nitrous::register(ctx, &mod_dir);
                 engine_stop::register(ctx, &mod_dir);
                 ctx.log(Level::Info, "nfsmw-2012-content: converting the 2012 cars in the background");

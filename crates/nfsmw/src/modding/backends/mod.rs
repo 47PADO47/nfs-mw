@@ -27,6 +27,7 @@ mod races;
 pub mod settings;
 mod time;
 mod traffic;
+mod trees;
 pub mod ui;
 mod variants;
 mod vehicles;
