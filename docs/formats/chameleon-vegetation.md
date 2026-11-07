@@ -100,8 +100,8 @@ tree, and `0xF0C5A212` miss a material or a texture in every bundle that holds t
 | `BUSH` | `0xFAC87374` | `TRK_UNIT1` | 4 | r 3.4 | round bush |
 
 For each of them the model, its renderables and materials, the vertex descriptors and shaders (`SHADERS.BNDL`) and the textures resolve in a pool of the
-named bundle, `HAWAII/GLOBALRESOURCES.BNDL` and `SHADERS.BNDL` **[verified]**. The converter reads the bundles in that order and
-needs no other.
+named bundle, `HAWAII/GLOBALRESOURCES.BNDL` and `SHADERS.BNDL` **[verified]**. The converter reads the bundles in that order (by ranges,
+[below](#what-the-conversion-costs)) and needs no other.
 
 ## How the 2012 world places them **[not read]**
 
@@ -154,12 +154,40 @@ vertices the same way, because the 2012 vertices have no normals that can be rea
 | Species per solid | the families of `trees/stock.rs`: for example the cedars and the tall conifer, the poplars and the cypresses the columnar tree, the fall trees and the Japanese maple the autumn tree, the dead trees the bare tree, the bushes the round bush, the tree lines and canopies rows of the broadleaf trees, the evergreen lines rows of the small spruce | `trees/stock.rs` |
 
 What is **not** replaced: the panoramas (`PAN_*`), `XT_CT_JUNIPERA_*` (a 135 x 120 m carpet of juniper), `XT_TREECYPRESS_*` and
-`XT_TREEWIDE_*` (whole stands in a few tiles), the grass clumps and patches (`XO_GRASSCLUMPCT_*`, `XT_GRASSPATCH_*`), and every
-`_DEINST` copy (a world-space copy has a name and bounds of its own, so it keeps the game's look).
+`XT_TREEWIDE_*` (whole stands in a few tiles), the grass clumps and patches (`XO_GRASSCLUMPCT_*`, `XT_GRASSPATCH_*`), and the solids
+of the 99 base names that no family lists. A world-space copy (`<NAME>_DEINST<n>_<tile>`, 910 of the 1,004 tree solids) **is** replaced
+when `<NAME>` is: the game finds its swap by the name before `_DEINST`, and fits the model to the copy where it stands (its footprint,
+floor and height), see [effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees). The 84 solids of the shared
+library `X0` are replaced like the tiles' (by name, fitted to their own bounds).
 
 The fit of a model to the solid it replaces (scale to the old height, stand on the old floor, copies along a row) is in
 [effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees); it is done by the game, from the bounds of the solid
 it replaces, so the mod never reads the 2005 install.
+
+## What the conversion costs
+
+The 2012 game's files are never converted whole: the conversion opens the nine bundles the species come from by **ranges**
+(`chameleon_bundle::Bundle::parse_ranges`, a reader the mod supplies; the crate opens no files) and asks only for the table of each and for
+the blocks of the resources a tree is made of (the model, its renderables, materials and the first texture of each material, and
+the texture's pixels). The shaders are the 1.8 MB `SHADERS.BNDL` the car conversion holds anyway.
+
+| What | Figure | |
+|---|---|---|
+| The nine bundles | 350,654,140 bytes (DISTRICT 28 to 51 MB, TRK_UNIT 8 to 37 MB, GLOBALRESOURCES 97 MB) | **[verified]** |
+| Read from them, whole-bundle reading (before) | 350 MB, and as much memory while a bundle is open | **[verified]** |
+| Read from them, by ranges (now) | **2.48 MB**: the tables 0.41 MB, the blocks 2.07 MB (0.7 % of the bundles) | **[verified]** with a Python replay of the same reads (header and table, then the blocks of the model, renderables, materials and textures) |
+| Time to read them | 0.02 s of a Python replay on a warm cache, including the inflating; a cold disk adds the seeks of the small reads | **[verified]** (warm) |
+| Textures the species use (diffuse pictures) | 17, 3.24 MB at the 1,024 pixel limit of `max_texture_size` (2.85 MB at 512, 0.72 MB at 256) | **[verified]** from the headers |
+| Models | the vertex and index data of the species' renderables is 0.60 MB in the 2012 layout (the pack's solids, of the vertices the triangles use, with 36-byte vertices and without the shadow stand-ins, are about as big) | upper bound **[verified]**, the pack **[unconfirmed]** |
+| Written to the mod's `files/TREES/MW2012/` | about 3.5 to 4 MB in three files (`GEOMETRY.BIN`, `TEXTURES.BIN` once, `profile.toml` of 78 swaps, a few KB) | **[unconfirmed]**: the conversion logs the real figure |
+
+Nothing is duplicated: each texture is one entry of `TEXTURES.BIN` (named by the 2012 resource id), one decoded copy in memory
+(the pack's compressed pictures, until the world drops the pack) and one on the GPU (the shared sets), whatever number of tiles
+use it; the sections of the stream carry none ([effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees),
+"Textures once"). The mod writes files at all because the host reads packs through the install's layers; streaming the models in
+memory at the start of a drive would need a host interface for mods that hand over bytes, which is not built, and the cost above is
+what that would save: about 4 MB of disk and a conversion of a fraction of a second at the first start (later starts convert
+nothing: the mod's fingerprint says the files are right).
 
 ## Open questions
 
@@ -169,4 +197,8 @@ it replaces, so the mod never reads the 2005 install.
 - The resources of the blossom tree `0x4DA8A407` and of `0xF0C5A212` are not in the bundle of any unit that holds the model: another
   bundle must hold their material or texture (not searched).
 - The 2005 world's own placement of the replaced solids is unchanged, so a 2012 tree stands where the 2005 tree stood; the crowns are
-  fitted to the old bounds and not to the old silhouette.
+  fitted to the old bounds and not to the old silhouette (decided for the rows: [effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees)).
+- Whether every name of the 99 base names that is a tree (and not a panorama or a stand) is in `trees/stock.rs`: the families were
+  listed from the names of the tree solids that were looked at; a name the list lacks keeps the game's look.
+- The conversion's output size and time on the real install: the figures below are estimates from the headers; the log line `trees variant:
+  read ... KiB of ... KiB ... ms` of a conversion, and the ignored test `the_trees_are_read_by_ranges_and_written_in_a_few_megabytes`, give them.

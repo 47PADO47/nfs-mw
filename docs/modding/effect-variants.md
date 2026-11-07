@@ -122,18 +122,38 @@ fit = "height"                           # "height" (default) or "row"
 - **`fit = "row"`**: for a solid that is a stretch of trees: copies of the model, scaled to the replaced height but no further than one and
   a half times, set along the longer horizontal side of the replaced bounds (at most eight, a crown overlapping its neighbour by a fifth),
   each turned by the golden angle more than the one before, on the middle of the other side.
+- **Rows follow the footprint, not the silhouette (decided).** A row takes the bounds of the solid it replaces, its long side and its floor,
+  and nothing more: the copies are whole 2012 trees at most one and a half times their size, so a row whose old crowns were 46 m high gets
+  trees of 33 m, and one whose old canopy floated (its floor 7.4 m above the origin, with no trunks under it) gets trees whose trunks start
+  at that floor. Fitting the old crown band exactly would stretch a tree to twice its size or leave its foot in the air, and a stretch is seen
+  from afar, where the long line and the height matter. The cap is `ROW_MAX_SCALE` in `model_swap/fit.rs`.
 - **What is swapped.** A section is rewritten right after it is parsed (`Streamer::set_rewrite`), before its textures are decoded: each
-  solid whose name hash a swap lists is replaced, and the textures the replacements use are added to the section when it lacks them (a
-  swap whose model or texture is missing from the packs is left out, with a warning). The shared sets (`X0`: the library of the
-  scenery) are rewritten like the tiles. Solids the profile does not list, and world-space copies (`_DEINST` names), keep the game's look.
-- **When.** The pack is read when the choice, or its profile, changes (`Bridge::publish_trees`, once a frame at most) and takes effect for
-  the sections that load afterwards: a choice made before a drive is in every section, a choice made during a drive shows in the tiles
-  that stream in after it and in all of them at the next drive. A pack that is missing or does not parse leaves the game's trees (a warning
-  says why).
+  solid whose name hash a swap lists is replaced (a swap whose model or texture is missing from the packs is left out, with a warning). The
+  shared sets (`X0`: the library of the scenery, which the scenery places with a matrix) are rewritten like the tiles. Solids the profile does
+  not list keep the game's look.
+- **World-space copies.** The game's scenery has no instance of most of its trees: it holds a copy of the solid for each place, with the
+  instance's matrix baked into its vertices and the name `<NAME>_DEINST<n>_<tile>` (910 of the 1,004 tree solids,
+  [chameleon-vegetation.md](../formats/chameleon-vegetation.md#how-the-2005-game-draws-its-trees-verified)). A swap listed under `<NAME>`
+  therefore reaches every copy of it too: the model stands at the middle of the copy's footprint (the oriented box of its vertices) on the
+  copy's floor, as tall as the copy; a `row` runs along the long side of that box whichever way it points. The copy keeps its name, flags,
+  pivot, polygon count and density; if the instance it was made from is a mirror image (`docs/specs/backface-culling.md`) the replacement is
+  wound the same way. A copy is fitted where it loads (the fit of a solid with a matrix is cached by its bounds, a copy's is not kept).
+- **Textures once.** The textures of the models are **not** copied into the sections that are rewritten. The world uploads them once, into
+  the shared sets (`residency/trees.rs`: they join the global textures that are uploaded before the shared models), and the solids of every
+  tile find them there as they find the shared library's textures. On disk they are in `TEXTURES.BIN` once; in memory the pack holds the
+  compressed pictures once and the GPU one copy of each.
+- **When.** The pack is read when the choice, or its profile, changes (`Bridge::publish_trees`, once a frame at most). A choice made before a
+  drive is in every section. A choice made **during** a drive takes effect at once: the residency notices that the pack in effect is another,
+  uploads its textures into the shared sets and asks the streamer for every resident map tile again; each comes back rewritten with the new
+  models, replaces the tile it was made from (the old tile's GPU resources are released, its collision and props are as they were) and shows
+  within a few seconds, as the zone's tiles load. Not refreshed: the shared library `X0` (84 trees, loaded once for the drive: they follow the
+  choice at the next drive), the map packs of mods, and everything in a multiplayer session (lockstep), where a tile that is uploaded again
+  is not the same moment on every machine. A pack that is missing or does not parse leaves the game's trees (a warning says why).
 
 The 2012 mod's value, **NFS Most Wanted 2012**, is the 2012 game's trees converted from the player's own install: eleven species, four
-levels of detail each, 78 swaps. What the 2012 files hold, the species, and which solids they replace:
-[chameleon-vegetation.md](../formats/chameleon-vegetation.md). The mod's setting `trees = false` leaves them out.
+levels of detail each, 78 swaps (they reach the world-space copies too). What the conversion reads, writes and takes:
+[chameleon-vegetation.md](../formats/chameleon-vegetation.md#what-the-conversion-costs). What the 2012 files hold, the species, and which
+solids they replace: [chameleon-vegetation.md](../formats/chameleon-vegetation.md). The mod's setting `trees = false` leaves them out.
 
 ## The spark kinds
 
