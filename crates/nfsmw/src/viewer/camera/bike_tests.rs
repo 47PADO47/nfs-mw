@@ -84,6 +84,8 @@ fn helmet_mount() -> Mount {
         look_back: false,
         pitch_deg: -10.0,
         fov: 91.5,
+        min_horizontal_deg: 0.0,
+        widen_deg: 0.0,
         near: 0.1,
         pitch_factor: 0.25,
         roll_factor: 0.0,

@@ -4,7 +4,7 @@
 
 use glam::Vec3;
 
-use super::drive::Drive;
+use super::drive::{Drive, RiderVisibility};
 use super::{View, WorldScene};
 use crate::settings::CameraMode;
 use crate::viewer::camera::{Lens, bike};
@@ -42,6 +42,13 @@ impl WorldScene {
         self.bike_shot() == Some(Shot::Helmet)
     }
 
+    /// What the camera shows of the lead's rider: all of him outside his helmet, all but the helmet and visor from inside it, and
+    /// none of him when the helmet camera looks back over the tail (the camera is then inside his own back).
+    pub(super) fn bike_rider_visibility(&self) -> RiderVisibility {
+        let looking_back = self.players.lead().is_some_and(|drive| drive.camera_looking_back(self.camera_mode));
+        RiderVisibility::of(self.bike_helmet_active(), looking_back)
+    }
+
     /// The lens of the mounted camera on `drive`'s bike, when one is in use: as the bike is drawn when `presented`, else as the
     /// physics has it this tick (the rules' view).
     pub(super) fn bike_lens(&self, drive: &Drive, aspect: f32, presented: bool) -> Option<Lens> {
@@ -53,7 +60,11 @@ impl WorldScene {
             Shot::Front => (Vec3::from_array(rig.front.position), bike::Mount::front(&rig.front, looking_back)),
             Shot::Helmet => {
                 let eye = view.eye.unwrap_or(Vec3::from_array(rig.helmet.fixed_position));
-                (eye, bike::Mount::helmet(&rig.helmet, looking_back).with_head(view.head))
+                let widen = match self.extra.camera.speed_zoom {
+                    true => bike::speed_widening(drive.speed(), self.tuning.fov_intensity),
+                    false => 0.0,
+                };
+                (eye, bike::Mount::helmet(&rig.helmet, looking_back).with_head(view.head).with_widening(widen))
             }
         };
         let eye = mount.place(view.origin(), view.rotation, in_model);

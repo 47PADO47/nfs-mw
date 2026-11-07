@@ -52,6 +52,7 @@ pub use self::graph_params::param_values;
 pub use self::params::RiderSample;
 use self::params::Smoothed;
 use self::pose::{Frame, Resolved, Steering};
+pub use self::view::RiderVisibility;
 use super::CarPose;
 use crate::scenes::world::keys;
 
@@ -284,14 +285,14 @@ impl RiderRig {
     }
 
     /// The rider's instances for a bike at `world` (the model's frame in the world).
-    fn instances(&self, world: Mat4, first_person: bool, out: &mut Vec<Instance>) {
+    fn instances(&self, world: Mat4, visibility: RiderVisibility, out: &mut Vec<Instance>) {
         let transform = match self.fall.active() {
             true => self.fall.instance(),
             false => world * self.frame.to_model,
         };
         for (n, part) in self.parts.iter().enumerate() {
-            // From inside his helmet the rider's helmet and visor are not in the picture.
-            if first_person && self.view.hidden.contains(&n) {
+            // From inside his helmet his helmet and visor are not in the picture, looking back none of him is.
+            if !self.view.is_drawn(n, visibility) {
                 continue;
             }
             out.push(Instance::keyed(part.handle, transform, keys::car_part(keys::PLAYER_CAR, KEY_BASE + n)));
@@ -323,8 +324,9 @@ pub struct Rider {
     loaded_for: String,
     /// The rider is not drawn: the arrest scene plays the player's bike on its own, and the rider is not part of it.
     hidden: bool,
-    /// The camera is inside his helmet: the helmet and the visor are not drawn (`view.rs`).
-    first_person: bool,
+    /// What the camera shows of him: from inside his helmet the helmet and the visor are not drawn, looking back none of him is
+    /// (`view.rs`).
+    visibility: RiderVisibility,
     /// Where he looks from straight ahead, turned by the player's look stick (`viewer/camera/head_look.rs`).
     head_look: crate::viewer::camera::head_look::HeadLook,
 }
@@ -397,9 +399,9 @@ impl Rider {
         self.hidden = hidden;
     }
 
-    /// Whether the camera is inside the rider's helmet, so his helmet and visor are left out of the picture.
-    pub fn set_first_person(&mut self, on: bool) {
-        self.first_person = on;
+    /// What the camera shows of the rider.
+    pub fn set_visibility(&mut self, visibility: RiderVisibility) {
+        self.visibility = visibility;
     }
 
     /// Where the rider's eyes are in the bike's model frame as of the last frame's pose: `None` with no rider, off the bike, or
@@ -417,7 +419,7 @@ impl Rider {
             return;
         }
         if let State::Ready(rig) = &self.state {
-            rig.instances(pose.transform(), self.first_person, out);
+            rig.instances(pose.transform(), self.visibility, out);
         }
     }
 
