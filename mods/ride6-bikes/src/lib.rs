@@ -29,6 +29,7 @@ pub mod front_end;
 pub mod glass;
 pub mod glb;
 pub mod grade;
+pub mod inventory;
 pub mod job;
 pub mod layout;
 pub mod manifest;
