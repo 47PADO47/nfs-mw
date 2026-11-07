@@ -109,8 +109,9 @@ impl Streamer {
     }
 
     /// Have the workers run `rewrite` on every section they load from now on, right after it is parsed and before its
-    /// textures are decoded: it may change the section's solids and add textures to it (a mod's replacement models,
-    /// `docs/modding/effect-variants.md`). It runs for every section, so it decides itself whether it has anything to do.
+    /// textures are decoded: it may change the section's solids (a mod's replacement models, `docs/modding/effect-variants.md`;
+    /// their textures are not added here, the residency uploads them once). It runs for every section, so it decides itself
+    /// whether it has anything to do.
     /// Only the first call counts.
     pub fn set_rewrite(&self, rewrite: Box<Prepare>) {
         let _ = self.control.rewrite.set(rewrite);
