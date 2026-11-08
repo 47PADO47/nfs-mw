@@ -55,6 +55,8 @@ mod speedbreaker;
 mod time_scale;
 mod touch;
 mod trace;
+mod under_map;
+mod under_map_check;
 mod visual_tires;
 pub(super) mod walls;
 
@@ -205,6 +207,8 @@ pub struct Drive {
     /// When a strict request first failed to find its ground.
     strict_since: Option<std::time::Instant>,
     fall: FallWatch,
+    /// The bike and its thrown rider under the map (`under_map.rs`): the bike's watch and the rider's.
+    under_map: [under_map::UnderMap; 2],
     /// Simulation seconds since the last road check.
     road_check_elapsed: f64,
     /// Button presses that have not met a physics step yet.

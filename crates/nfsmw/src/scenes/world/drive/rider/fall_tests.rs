@@ -394,6 +394,28 @@ fn the_return_takes_the_time_of_the_way_to_the_bike_and_a_reset_by_hand_does_not
 }
 
 #[test]
+fn a_rider_lost_far_from_the_bike_is_on_the_seat_in_the_next_step_not_walked_to_it() {
+    // He fell under the map or over the edge of the road: the bike is put back on the road 120 m away, and he is on it at once.
+    let ground = FlatGround::new(0.0);
+    let (mut fall, pack) = started_animated(FallKind::LowSide, 0.5);
+    run_until_getting_up(&mut fall, &pack);
+    let State::Down(tumble) = &fall.state else { panic!("not down") };
+    let lost = to_render(tumble.ragdoll.centre());
+    fall.stop(&pack.skeleton, lost + Vec3::new(120.0, 0.0, 0.0));
+    assert!(fall.active(), "stopped, not yet back");
+    fall.step(FIXED_STEP, &ground);
+    assert!(!fall.active(), "back on the bike in one step");
+    // Nearer than the limit he is walked, as he was.
+    let (mut fall, pack) = started_animated(FallKind::LowSide, 0.5);
+    run_until_getting_up(&mut fall, &pack);
+    let State::Down(tumble) = &fall.state else { panic!("not down") };
+    let lying = to_render(tumble.ragdoll.centre());
+    fall.stop(&pack.skeleton, lying + Vec3::new(RETURN_SNAP_M - 5.0, 0.0, 0.0));
+    fall.step(FIXED_STEP, &ground);
+    assert!(fall.active(), "20 m away is a way to walk");
+}
+
+#[test]
 fn the_bike_is_not_stood_up_before_the_get_up_has_played_even_when_it_lies_still_first() {
     // The reported fault: the bike stood up by its own clock (2 s after it lay still) while the rider was still getting up.
     let (mut fall, pack) = started_animated(FallKind::HighSide, 0.5);

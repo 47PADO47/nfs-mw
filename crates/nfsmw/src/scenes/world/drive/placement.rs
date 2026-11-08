@@ -115,6 +115,7 @@ impl Drive {
         // placement starts the trail again: a reset's trail holds the place it went to.
         sim.end_reset_collision_grace();
         self.reset.flip.clear();
+        self.under_map = Default::default();
         match self.reset.pending.take() {
             Some(_) => {
                 sim.begin_reset_collision_grace();
