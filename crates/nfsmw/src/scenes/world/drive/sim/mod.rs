@@ -98,11 +98,6 @@ pub struct CarSim {
     memo: memo::StepMemo,
 }
 
-/// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
-fn to_model_axes(v: Vec3) -> Vec3 {
-    Vec3::new(v.z, -v.x, v.y)
-}
-
 impl CarSim {
     /// `rest_height` is the height of each wheel's centre above the car model's origin when the car
     /// stands still, in the model's wheel order (the static wheel placement).
@@ -467,11 +462,6 @@ impl CarSim {
     }
 }
 
-fn next_sound_identity() -> u64 {
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-    (1 << 63) | NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-}
-
 mod ai;
 mod bike;
 mod camera;
@@ -491,6 +481,8 @@ mod terrain;
 pub(in crate::scenes::world) use step::StepStart;
 pub(in crate::scenes::world) use terrain::Integration;
 mod trailer;
+mod util;
+use util::{next_sound_identity, to_model_axes};
 
 #[cfg(test)]
 mod bike_curb_tests;
@@ -500,5 +492,7 @@ mod bike_skid_tests;
 mod bike_sound_tests;
 #[cfg(test)]
 mod bike_tests;
+#[cfg(test)]
+mod bike_wall_survey_tests;
 #[cfg(test)]
 mod tests;

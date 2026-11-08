@@ -140,8 +140,8 @@ A bike thrown down at 20 m/s slides several metres on its side (test: more than 
 | Pose of the bones with no body | their local transforms from the riding pose, after their parent | physical animation is not modelled |
 
 Not modelled here (the drives and the animations are, in the page above): the earlier version's physical-animation drives and fall animations; the random rotation and the damper offsets of the launch
-velocity (zero in the data); the airbag; the get-up, the walk and the raising of the bike; collision of the rider with the bike, with
-props and with walls (the ragdoll meets the road only); the `FallHighsideEffect` and `FallSteerComponent` of the handler; the
+velocity (zero in the data); the airbag; the get-up, the walk and the raising of the bike; collision of the rider with the bike and with
+props (the ragdoll meets the road and, since round 14, the walls of the world: [ride6-feel-round14.md](ride6-feel-round14.md)); the `FallHighsideEffect` and `FallSteerComponent` of the handler; the
 upside-down, rider-force and collision tests of the chassis page.
 
 ## 4. Verified by tests

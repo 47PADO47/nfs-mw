@@ -188,6 +188,7 @@ impl Drive {
         sim.set_rider_ready(rider_ready);
         // The cameras follow him while he is off the bike, and nobody can bust him then (`rider_cam.rs`).
         super::rider_cam::step(&mut self.rider_cam, &self.rider, off, (&self.previous, &self.current), dt);
+        self.rider_cam.set_floor(super::under_map_check::rider_floor(&self.rider, collision));
         self.gauges.push(gauge);
         self.brake_lamp = match self.engine.is_running() {
             true => sim.lamp_brake(),
@@ -210,7 +211,8 @@ impl Drive {
         self.flames.step(dt, &car);
         self.tail_trails.step(car.to_world, car.nitrous, velocity.length());
         self.sound.after_step(sim, surfaces, &impact, &input, dt, self.gridded);
-        self.chase.impact(sim.camera_acceleration());
+        // The bike's contacts shake the camera while it is on the bike; on the rider they are not what he is looking at.
+        self.chase.impact(sim.camera_acceleration() * (1.0 - self.rider_cam.weight()));
         self.steps += 1;
         if let Some(run) = self.script.as_ref().filter(|_| self.steps.is_multiple_of(60)) {
             trace::log(
@@ -240,6 +242,7 @@ impl Drive {
             log::info!("the car stayed on its roof; putting it back on its path");
         }
         self.check_road(collision, finite, dt);
+        self.check_under_map(collision, finite, dt);
     }
 
     fn check_road(&mut self, collision: &CollisionWorld, finite: bool, dt: f32) {

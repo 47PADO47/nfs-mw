@@ -38,6 +38,17 @@ pub struct GroundHit {
     pub surface: SurfaceGrip,
 }
 
+/// A wall a body met: a barrier or a steep face of the world, for the bodies that are not held up by wheels (a ragdoll).
+#[derive(Clone, Copy, Debug)]
+pub struct WallHit {
+    /// Where the segment met the wall.
+    pub point: Vec3,
+    /// Unit normal, facing the start of the segment.
+    pub normal: Vec3,
+    /// An opaque id of the surface, for [`Ground::world_friction`].
+    pub surface: u32,
+}
+
 /// A persistent ground-plane provider's result, including retained planes after misses.
 #[derive(Clone, Copy, Debug)]
 pub struct WheelPlane {
@@ -69,6 +80,12 @@ pub trait Ground {
     /// World contact friction for a surface tag; independent of tire and body-ground grip.
     fn world_friction(&self, _surface: u32) -> f32 {
         1.0
+    }
+
+    /// The first wall (a barrier or a steep face, never the ground) on the segment from `from` to `to`; `None` when the caller's
+    /// world has no walls to offer. Only bodies that are not held up by wheels ask: a ragdoll stops at a wall as it stops at the road.
+    fn wall(&self, _from: Vec3, _to: Vec3) -> Option<WallHit> {
+        None
     }
 
     /// Casts a ray from `origin` along the unit vector `dir` for at most `max_distance` metres and returns
