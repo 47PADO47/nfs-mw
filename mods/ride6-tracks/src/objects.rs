@@ -1,6 +1,7 @@
-//! The objects placed on the track (barriers, buildings, props) in the cells: each placement goes to the cell whose anchor is
-//! nearest, the cell's section holds the models its placements use, and a solid model also puts a box of its size into the cell's
-//! collision, so a bike or a car meets the wall.
+//! The objects placed on the track (barriers, buildings, props): the placements are grouped by square of ground and each group is a
+//! section of its own with the models its placements use (`groups`, `placed_objects`), while a solid model also puts a box of its
+//! size into the collision of the ground cell nearest to its placement (`assign`, `walls`), so a bike or a car meets the wall and the
+//! wall streams with the ground.
 
 use std::collections::{BTreeMap, HashMap};
 

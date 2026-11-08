@@ -29,6 +29,16 @@ The glTF the exporter's tool writes is `(x, z, y) / 100` of Unreal's centimetres
 ground: the nearest-vertex distance of its 44 keys is 0.75 m on average with this mapping and 49 m or more with any other
 signed permutation. Winding is counter-clockwise seen from outside (glTF's), kept through the turn.
 
+## A piece of ground has its own transform **[verified on Nurburgring GP, Kanto, Cappadocia Trails]**
+
+Most tracks put the ground meshes at the origin with their vertices in world space, but not all do: every ground piece of
+**Nurburgring GP** has the location (7,057, -121, 855) cm, and the open maps (Cappadocia Trails, Nevada, Stelvio Park, Blue Wave
+Circuit) put rocks and cliffs with a location, a rotator and a scale (`RelativeLocation`, `RelativeRotation`, `RelativeScale3D`
+of the mesh component). CUE4Parse's glTF holds the mesh in its **local** space, so an exporter that ignores the component puts the
+piece at the origin: that was why 1,781 of the 2,541 samples of Nurburgring's lap had no ground under them. The exporter now
+moves each piece by the transform of its component (`props.placement_of`, `meshes.place`: the same rows a placed object has, the
+winding turned for a mirrored scale), so the lap of Nurburgring GP has ground under all but 9 samples.
+
 ## `ground.r6m`
 
 All little endian.
@@ -72,8 +82,8 @@ y axis turns round with the handedness, so its row is the negated Unreal axis (`
 | `track` | the track's name in the install (`Okayama`) |
 | `triangles` | total of the groups |
 | `materials[]` | `name`, `texture` (a stem in `tex/` or null), `color` (rgb, used when there is no texture), `tile_m`, `uv` (`planar` or `uv0`), `surface` |
-| `lap.spline` | `{closed, length_m, points: [[x, y, z]]}` the track spline sampled every 2 m (render space) |
-| `lap.grid` | `[[x, y, z, heading_degrees]]` the starting grid, in grid order (heading 0 is +x, counter-clockwise) |
+| `lap.spline` | `{closed, length_m, points: [[x, y, z]]}` the track spline sampled every 2 m (render space); found by `lapfinder.py`, see below |
+| `lap.grid` | `[[x, y, z, heading_degrees]]` the starting grid (`StartingGrid`, else `HeadToHeadStartingGrid`, else `EnduranceStartingGrid`), in grid order (heading 0 is +x, counter-clockwise) |
 | `lap.line` | the same for the racing line, the authors' ideal trajectory `IdealTrajectory_1000cc_1` (3.72 km on Okayama) |
 | `sea` | `{z, color}` of the track's water (the median height of its `*_Water` meshes), when it has any |
 | `models` | `[{name, solid}]` of `models.r6m` |
@@ -81,6 +91,18 @@ y axis turns round with the handedness, so its row is the negated Unreal axis (`
 
 `surface` is one of the game's own `simsurface` names: `asphalt`, `concrete`, `grass`, `dirt`, `sand`, `gravel`, `stone`, `metal`
 ([collision.md](collision.md#surface-types-verified)); the mod turns it into the hash a collision pack stores.
+
+## Where the lap is **[verified on 39 tracks]**
+
+A track keeps its splines in `SplinesA` (the full circuit), `Splines` and `SplinesB` (shorter routes), as `IgnitionSplineComponent`s
+of actors named after what they are. The actor of the track spline is `TrackSpline` on 30 tracks and something else on the other 9:
+`TrackSpline_2` (Imola, Nevada, Red Bull Ring, Road Atlanta, Valencia), `Trackspline` (Vallelunga), `TrackSpline_0/1/3` (Gunma), and
+`IgnitionTrackSpline_0/2/4` (Blue Wave Enduro, Cappadocia Trails). There are often several closed ones in a level (lanes of the
+track, or routes). `lapfinder.py` takes every closed spline longer than 800 m whose actor name starts with `TrackSpline` (any case,
+with or without `Ignition`) and keeps **the one that lies on the track's drivable ground**: the largest share of its samples within
+10 m of asphalt or concrete triangles, else of any ground a wheel can touch that is not grass or rock, else the longest; ties go
+to `SplinesA`. The racing line is the same choice among the `IdealTrajectory_*` splines of that level. The starting grid is read
+from the chosen level first.
 
 ## How the ground materials are read **[ours, measured on Okayama]**
 
@@ -99,6 +121,11 @@ y axis turns round with the handedness, so its row is the negated Unreal axis (`
   picture decides (`T_Grass*`, `T_Forest*` grass; `T_Soil*` dirt; `T_Sand*` sand; `T_Rock*` stone; `T_Tarmac*` asphalt), because the
   physical material of the layered parent is one value for the whole slice.
 - Material overrides of the mesh component replace the mesh's own slots.
+- A picture the install cannot give (the plugin textures `T_White_Color`, the white the razor flags are tinted from, and
+  `T_Default_BC`, the engine's grey default: they live in an engine plugin, not in the packages) is not exported; its material is
+  drawn flat in that colour (`export.PLUGIN_COLOURS`: white and mid grey), and the pack names no picture for it. Only flags use
+  `T_White_Color`; the near white buildings and cliffs seen on some tracks are the brightness of the whole picture set, not a
+  missing picture (see `brightness` in [the mod's README](../../mods/ride6-tracks/README.md)).
 - Not in the pack: the water meshes themselves (only the sea's height), painted-line overlays, decals, normal and PBR pictures, the
   grass, the vegetation and the crowd.
 
@@ -110,6 +137,4 @@ most 1024), `pack.json` 0.2 MB.
 
 All **39 tracks export** with the same rules (`tools/ride6-tracks/survey.py`, 3 to 11 s each, 16 to 196 MB of pack): the ground of the
 terrain level, whatever its mesh names. Triangles run from 147,000 (Vallelunga) to 7.56 million (Cappadocia Trails; Stelvio Park has 4.75
-million, Blue Wave Circuit 2.25 million, Nevada 2.04 million: the open maps). **30 have a lap spline and 22 a starting grid**; the others keep
-their splines in levels or under names the exporter does not read yet (no `TrackSpline` in `SplinesA`, `Splines` or `SplinesB`), and the
-importer starts them at the first lap sample, or at the middle of the first asphalt group.
+million, Blue Wave Circuit 2.25 million, Nevada 2.04 million: the open maps). **All 39 have a lap spline (found by `lapfinder.py`, see above) and 32 a starting grid**; the 7 with no grid start at the first lap sample.
