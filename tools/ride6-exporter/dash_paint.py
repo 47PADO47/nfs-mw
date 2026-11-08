@@ -7,6 +7,7 @@ LCD clusters, in seven segments. Blending is made in encoded (sRGB) colour with 
 
 import math
 import os
+import re
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -320,6 +321,8 @@ class Painter:
         if picture is None:
             return
         x, y, w, h = rect
+        if re.search(r"(led_n$|ledn$|neutral)", node.name.lower()):
+            self.fields.append({"channel": "neutral", "rect": [round(v, 1) for v in rect]})
         box = bar_box(self.bar, rect) if self.bar is not None else None
         if box:
             self.fields.append({"channel": "rpm_bar", "rect": box[0], "segments": box[1]})

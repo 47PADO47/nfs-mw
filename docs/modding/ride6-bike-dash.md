@@ -79,3 +79,5 @@ and the KTM 450's pictures have none that `find_window` accepts, so they keep th
 - The garage and the car viewer (`view-car`) show the baked picture; the feed runs in the world scene for the lead player's bike.
 
 **The rev bar is not drawn** (`rpm_bar` fields are left out by the importer): a cluster's bar or scale is a picture with its own shape (the Panigale's is a numbered arc along the top of the display), and a flat slab hid it. The baked one stays at idle revs; drawing it live needs the bar widget's mask rendered at the current fill.
+
+**The neutral lamp** (a widget named `led_n`/`neutral`, the RC 390's green `N` at the left of the display, lit at rest) is a `neutral` field: an `N` in the lamp's brightest baked colour while the bike stands still, erased to the background in gear, so no `N` stays lit while a gear shows.

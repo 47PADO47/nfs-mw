@@ -15,7 +15,8 @@ fn text_of(channel: Channel, state: &DashState) -> String {
             0 => "N".to_owned(),
             n => n.to_string(),
         },
-        Channel::RpmBar => String::new(),
+        Channel::Neutral if state.gear == 0 => "N".to_owned(),
+        Channel::RpmBar | Channel::Neutral => String::new(),
     }
 }
 

@@ -116,6 +116,22 @@ fn median_colour(level: &Level, [x, y, w, h]: [u32; 4]) -> [u8; 3] {
     })
 }
 
+/// The brightest texel of `level` in `rect`, as it is stored (the lift is applied already, so the caller lifts it with a gain of 1).
+fn brightest(level: &Level, [x, y, w, h]: [u32; 4]) -> [u8; 3] {
+    let mut best = ([0u8; 3], 0u32);
+    for row in y..(y + h).min(level.height) {
+        for column in x..(x + w).min(level.width) {
+            let at = ((row * level.width + column) * 4) as usize;
+            let texel = [level.rgba[at], level.rgba[at + 1], level.rgba[at + 2]];
+            let sum: u32 = texel.iter().map(|&c| u32::from(c)).sum();
+            if sum > best.1 {
+                best = (texel, sum);
+            }
+        }
+    }
+    best.0
+}
+
 /// The fields of the exporter's layout `json` (rectangles in its canvas) for the stored picture `level`: scaled to it, each with its
 /// colour lifted by `gain` and the median colour of the picture under it. A rectangle too small or outside the picture is left out.
 pub fn fields_from(json: &str, level: &Level, gain: f32) -> Vec<Field> {
@@ -136,11 +152,15 @@ pub fn fields_from(json: &str, level: &Level, gain: f32) -> Vec<Field> {
             continue;
         }
         let rect = [x0, y0, x1 - x0, y1 - y0];
-        let colour = raw.colour.unwrap_or([110, 200, 255]);
+        // The neutral lamp has no text colour: its lit colour is the brightest texel of the baked lamp.
+        let colour = match raw.channel.as_str() {
+            "neutral" => brightest(level, rect),
+            _ => raw.colour.unwrap_or([110, 200, 255]),
+        };
         out.push(Field {
             channel: raw.channel,
             rect,
-            color: crate::grade::lift_colour(colour, gain),
+            color: crate::grade::lift_colour(colour, if raw.channel == "neutral" { 1.0 } else { gain }),
             background: median_colour(level, rect),
             align: raw.align.unwrap_or_else(|| "center".to_owned()),
             // A digit of the widget's font is about 0.72 of its size high.

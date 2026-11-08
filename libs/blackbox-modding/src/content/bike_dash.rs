@@ -40,6 +40,8 @@ pub enum Channel {
     Gear,
     /// The revs as a bar that fills from the left.
     RpmBar,
+    /// The neutral lamp: an `N` in neutral, nothing in gear.
+    Neutral,
 }
 
 /// Where a text justifies in its rectangle.

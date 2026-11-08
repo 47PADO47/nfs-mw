@@ -119,3 +119,13 @@ fn a_speed_field_scales_its_digits_to_the_rectangle_and_a_bar_fills_from_the_lef
         "gaps between the lit segments"
     );
 }
+
+#[test]
+fn the_neutral_lamp_shows_an_n_in_neutral_and_is_erased_in_gear() {
+    use nfsmw_data::car::mods::bike_dash::Channel;
+    let lamp = field(Channel::Neutral, [0, 0, 24, 24]);
+    let lit = fields::paint_field(&lamp, &state(0.0, 0, 0.0));
+    let off = fields::paint_field(&lamp, &state(40.0, 2, 5_000.0));
+    assert!(count(&lit, [0, 255, 112]) > 0, "the N is drawn");
+    assert_eq!(count(&off, [20, 30, 40]), 24 * 24, "in gear the lamp is only its background");
+}

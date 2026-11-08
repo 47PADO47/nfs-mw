@@ -22,6 +22,7 @@ pub enum Channel {
     Speed,
     Gear,
     RpmBar,
+    Neutral,
 }
 
 /// Where a text justifies in its rectangle.

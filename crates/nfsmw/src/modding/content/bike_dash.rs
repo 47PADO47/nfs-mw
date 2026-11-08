@@ -22,6 +22,7 @@ pub(super) fn publish(folder: &str, table: &Table) {
                 BikeDashChannel::Speed => Channel::Speed,
                 BikeDashChannel::Gear => Channel::Gear,
                 BikeDashChannel::RpmBar => Channel::RpmBar,
+                BikeDashChannel::Neutral => Channel::Neutral,
             },
             rect: field.rect,
             color: field.color,
