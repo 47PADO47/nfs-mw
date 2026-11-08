@@ -92,6 +92,20 @@ every bike: pictures of the RC 390, CRF 450 R SMT, Panigale V4 S and Hayabusa sh
 glove. The sockets are still read (older files, `HANDS_ON_SOCKET`). Measured against the socket rule's wrist place: the CRF 1.4 cm, the RC 390 5.7 cm, the Panigale 3.1 cm, the
 MT-09 1.2 cm. A bike with a `contacts.json` or an `attach.json` written before the anchors goes to its socket as before.
 
+**Along the grip** (a user's playtest: "hands a bit back from where they should be, so they get cut inside the handlebars"). The grip bone's origin is on the grip's axis at the
+**inboard end** of the rubber (measured on twelve bikes: the vertices skinned to the bone run from 0, 1 cm inboard on a scooter, to 11 to 14 cm outboard of it), and every bike's hand is
+held by it with the same `tip_anchor`, so the posed glove is the same distance from the bone on every bike: its vertices span **4.6 cm inboard to 9.4 cm outboard** of the bone
+(eight bikes: CRF 450 R SMT, RC 390, Panigale V4 S, KTM 690, Challenger, Africa Twin, Dragster 200, S 1000 RR, with the probe of `probe_tests.rs`). The glove therefore overhung
+the rubber's inboard end by 4.6 cm: its cuff was inside the throttle housing, the lever perch and the bar clamp, **7 to 25 mm deep** (the deepest of the glove's vertices into the
+bar, housing and lever vertices' outward surface; 16, 23, 16, 19, 16, 25, 7 and 12 mm in the order above), and left 2 cm of rubber bare outboard. The importer now measures the rubber's span
+along the grip from the chassis mesh (`grip_span` of each grip target in `contacts.json`, `[inboard, outboard]` metres outboard-positive, `rider/grip_span.rs`) and the game
+centres the glove on it: the grip bone's place for the hand is moved along the bone's own y axis (the grip's) outboard by `(inboard + outboard) / 2 - GLOVE_CENTRE_M`, the
+glove's middle measured at **2.4 cm** outboard of the bone (`attach.rs`, one named constant: the glove's own size, the same for every bike). That is 3.0 to 4.5 cm on the eight bikes. Moving the
+glove 3.5 cm outboard brings the deepest overlap to 4 to 8 mm on the same measure (the residue is the wrist cuff against lever perches: the vertex-based measure
+is coarse), and the glove overhangs the outboard end by 0 to 2 cm on the longest bikes. A contacts file without `grip_span` assumes the usual 12 cm rubber. The throttle's roll turns
+about the same axis and is not changed by the slide. Height and the lateral offset were left as they are (the user found the height right; raising the hand 1 cm would take the
+grip overlap to 1 mm but was not asked for). The hand is the same on the clutch side: the left bone's y points outboard, the right's inboard.
+
 ## 4. What the game does with it
 
 `crates/nfsmw/src/scenes/world/drive/rider/hands.rs` makes the signals from the bike's clutch lever, front brake and throttle: the
