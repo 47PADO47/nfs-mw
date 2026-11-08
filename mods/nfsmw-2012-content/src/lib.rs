@@ -60,6 +60,7 @@ mod plate;
 mod plate_designs;
 mod police;
 mod prepare;
+mod road_textures;
 mod sample;
 mod shared;
 mod sound_store;
