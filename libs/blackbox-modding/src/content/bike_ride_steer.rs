@@ -376,8 +376,16 @@ impl Manoeuvre {
 fn bike_steer_sweep() {
     let speeds = list("RIDE6_SPEEDS", &[8.0, 12.0, 16.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]);
     let all = bikes();
-    let manoeuvres =
-        [Manoeuvre::Held(1.0), Manoeuvre::Held(0.8), Manoeuvre::Slalom(1.0), Manoeuvre::Flick, Manoeuvre::Flip];
+    let manoeuvres = [
+        Manoeuvre::Held(1.0),
+        Manoeuvre::Held(0.8),
+        Manoeuvre::Held(0.6),
+        Manoeuvre::Held(0.45),
+        Manoeuvre::Held(0.3),
+        Manoeuvre::Slalom(1.0),
+        Manoeuvre::Flick,
+        Manoeuvre::Flip,
+    ];
     println!("==== falls over {} bikes in 10 s", all.len());
     let mut total = 0;
     let only = std::env::var("RIDE6_ONLY").unwrap_or_default();
