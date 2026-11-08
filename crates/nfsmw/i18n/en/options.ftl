@@ -105,3 +105,7 @@ options-game-music-volume = Game Music Volume
 
 options-autosave = Autosave
 options-autosave-save-failed = Could not save the Autosave setting. Your previous setting is still active.
+
+# The Free Roam world row of the Gameplay options (docs/specs/second-world.md).
+options-world = Free Roam World
+options-world-city = Rockport

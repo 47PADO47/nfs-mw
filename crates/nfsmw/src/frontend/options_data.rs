@@ -28,6 +28,7 @@ impl Setting {
             Setting::Hd(setting) => setting.data(s),
             Setting::CustomHud(setting) => setting.data(s),
             Setting::Language => language::data(),
+            Setting::World => world::data(s),
             Setting::HudLayout => match s.hud_layout {
                 // The platform names are not language.
                 HudLayout::Pc => Data::Text("PC".into()),

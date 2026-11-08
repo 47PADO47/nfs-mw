@@ -1,0 +1,25 @@
+# Fairhaven, the city of NFS: Most Wanted (2012), read from your own install as a second world (mods/fairhaven/README.md).
+# Put the folder of your 2012 install in config.toml (the mod writes a commented one the first time the game starts), restart,
+# and choose Free Roam World: Fairhaven in the gameplay options. Nothing of the city is copied: each streaming unit is made from
+# the install's files when the camera comes near it.
+
+[mod]
+id = "fairhaven"
+name = "Fairhaven (NFS Most Wanted 2012)"
+version = "0.1.0"
+authors = ["nfs-mw contributors"]
+license = "MIT OR Apache-2.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["nfsmw"]
+
+[optional.interfaces]
+"bb.content" = "1.1"
+
+[library]
+windows = "fairhaven.dll"
+linux = "libfairhaven.so"
+macos = "libfairhaven.dylib"

@@ -213,6 +213,19 @@ The `simsurface` class has 47 collections; the ones matched by name include `unk
 `ice`, `snow`, `water`, `hay`, `plastic`, `rooftile`, `softbarrier`. A hash with no collection is looked up as
 `unknown`.
 
+### Writing a pack from a triangle soup **[verified by reading it back]**
+
+[`write_soup_pack`](../../libs/blackbox-collision/src/pack_writer.rs) writes a `0x3B801` chunk for a converter's ground
+(the RIDE 6 tracks, [ride6-track-pack.md](ride6-track-pack.md)). The soup is cut by median splits of the triangle centroids
+into instances of at most 1,200 triangles and 48 m (the broad phase tests the circle that holds an instance's box, so
+small instances keep a ray from visiting far triangles); every instance is a translation (`rowX = (1, 0, 0)`, `rowZ = (0, 0, 1)`,
+flags 0) with its own article; every triangle is its own three-vertex strip (a sphere record of 16 B and 24 B of vertices, so an
+article holds at most 1,631 triangles: the strip area size and the strip offsets are 16-bit). The strip flag
+`STRIP_UP_FACING` is set when the ground query's winding test (`side(a, b, centroid) <= 0` for the three edges, in x and z) takes
+the triangle as it was given. A triangle with a corner more than 250 m from its centroid cannot be packed (16-bit offsets at 1/128 m)
+and is left out and counted. The surface table is the set of `simsurface` hashes of the article's triangles. The tests read the
+bytes back with `CollisionPack::parse` and cast rays on them (`tests/soup_writer.rs`).
+
 ## The collision grid (`0x3B800`) **[decomp + verified]**
 
 The world map tree (`CARP` root with groups `CDat`, `Map `, `RNgp`; the road network is `RNgp`, see

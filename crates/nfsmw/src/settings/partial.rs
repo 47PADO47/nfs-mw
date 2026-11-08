@@ -140,6 +140,8 @@ pub struct Partial {
     pub speed_units: Option<SpeedUnits>,
     /// The language tag (`language`).
     pub language: Option<super::LanguageTag>,
+    /// The second world to play (`world`).
+    pub world: Option<super::world_id::WorldId>,
     /// The palette of the token-driven HUD (`ui_theme`).
     pub ui_theme: Option<UiTheme>,
     pub post_tonemap: Option<PostTonemap>,
@@ -281,6 +283,7 @@ impl Partial {
             ui_style: self.ui_style.or(lower.ui_style),
             speed_units: self.speed_units.or(lower.speed_units),
             language: self.language.or(lower.language),
+            world: self.world.or(lower.world),
             ui_theme: self.ui_theme.or(lower.ui_theme),
             post_tonemap: self.post_tonemap.or(lower.post_tonemap),
             post_bloom: self.post_bloom.or(lower.post_bloom),
