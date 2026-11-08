@@ -88,6 +88,26 @@ impl TextureSource {
         }
     }
 
+    /// The texture as a reader of a pack would give it (no pack is written): every field the source has, the name's hash included.
+    pub fn into_texture(self) -> Texture {
+        Texture {
+            name_hash: self.hash(),
+            name: self.name,
+            width: self.width,
+            height: self.height,
+            mip_levels: self.mip_count,
+            format: self.format,
+            compression_type: self.compression_type,
+            alpha_usage: self.alpha_usage,
+            alpha_sorting: self.alpha_sorting,
+            alpha_blend: self.alpha_blend,
+            flags: self.flags,
+            tilable_uv: self.tilable_uv,
+            data: self.data,
+            palette: self.palette,
+        }
+    }
+
     /// The hash the pack files this texture under.
     pub fn hash(&self) -> u32 {
         self.name_hash.unwrap_or_else(|| bstring_hash(&self.name))

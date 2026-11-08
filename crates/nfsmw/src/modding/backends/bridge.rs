@@ -86,9 +86,9 @@ pub struct Bridge {
     /// The same for the wind variant (`wind_profile`).
     pub(super) wind_cache: CacheCell<WindProfile>,
     /// The same for the trees variant (`trees_profile`), and the profile whose models are in effect in the world's loaders
-    /// (`publish_trees`).
+    /// (`publish_replacements`).
     pub(super) trees_cache: CacheCell<ModelSwapProfile>,
-    pub(super) trees_published: RefCell<Option<Arc<ModelSwapProfile>>>,
+    pub(super) replace: RefCell<super::replace::ReplaceState>,
     /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
     pub(super) ui_themes: RefCell<Vec<UiRecord>>,
     /// The mod theme the player chose on the Mods page, or `None` for the built-in style (`ui.rs`). The theme sync
@@ -136,7 +136,7 @@ impl Bridge {
             xenon_sparks_cache: RefCell::default(),
             wind_cache: RefCell::default(),
             trees_cache: RefCell::default(),
-            trees_published: RefCell::default(),
+            replace: RefCell::default(),
             ui_themes: RefCell::default(),
             ui_theme_choice: Cell::new(None),
             store,
@@ -268,7 +268,7 @@ impl Bridge {
         world::apply(requests, scene);
         scene.set_mod_blips(&map::minimap_blips(self));
         scene.set_effect_variants(&self.effect_variants());
-        self.publish_trees();
+        self.publish_replacements();
         let lines = std::mem::take(&mut *self.queued_lines.borrow_mut());
         console.queue_lines(lines);
     }
