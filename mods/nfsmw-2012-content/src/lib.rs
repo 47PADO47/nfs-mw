@@ -33,6 +33,7 @@ mod effects;
 mod emit;
 mod engine;
 mod engine_stop;
+mod features;
 mod fit;
 #[cfg(test)]
 mod fit_real;
@@ -50,6 +51,7 @@ mod liveries;
 mod logo;
 mod low_detail;
 mod markers;
+mod marks_assets;
 mod names;
 pub mod nitrous;
 mod nitrous_screen;
@@ -60,6 +62,7 @@ mod plate;
 mod plate_designs;
 mod police;
 mod prepare;
+mod rain_assets;
 mod sample;
 mod shared;
 mod sound_store;
@@ -124,17 +127,17 @@ impl Mod for NfsmwContent {
                     ),
                 );
             }
-            Ok(Start::UpToDate { cars, trees }) => {
+            Ok(Start::UpToDate { cars, features }) => {
                 add_nitrous_variant(ctx);
-                effect_variants::add_all(ctx, trees);
+                effect_variants::add_all(ctx, features);
                 drift_nitrous::register(ctx, &mod_dir);
                 engine_stop::register(ctx, &mod_dir);
                 soundtrack::register(ctx, &mod_dir);
                 ctx.log(Level::Info, &format!("nfsmw-2012-content: {cars} cars are ready"));
             }
-            Ok(Start::Started { job, live, trees }) => {
+            Ok(Start::Started { job, live, features }) => {
                 add_nitrous_variant(ctx);
-                effect_variants::add_all(ctx, trees);
+                effect_variants::add_all(ctx, features);
                 drift_nitrous::register(ctx, &mod_dir);
                 engine_stop::register(ctx, &mod_dir);
                 soundtrack::register(ctx, &mod_dir);

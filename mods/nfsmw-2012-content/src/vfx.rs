@@ -91,7 +91,7 @@ fn type_ids(bundle: &Bundle) -> Option<Vec<u64>> {
 }
 
 /// The name of a Genesys type: a string whose offset is at 0x20 of the main block, 8 bytes in.
-fn type_name(main: &[u8]) -> Option<String> {
+pub(crate) fn type_name(main: &[u8]) -> Option<String> {
     let start = word(main, 0x20)? as usize + 8;
     let tail = main.get(start..)?;
     let end = tail.iter().position(|&byte| byte == 0)?;
@@ -173,6 +173,14 @@ fn material_picture(bundle: &Bundle, material: u64) -> Result<Picture> {
     let texture =
         bundle.resource(bundle.find(import.id).ok_or_else(|| anyhow::anyhow!("no texture {:#x}", import.id))?)?;
     let texture = Texture::parse(&texture.blocks[0], &texture.blocks[1])?;
+    decode(&texture)
+}
+
+/// The picture of the texture resource `id` of `bundle`, RGBA8.
+pub fn texture_picture(bundle: &Bundle, id: u64) -> Result<Picture> {
+    let Some(at) = bundle.find(id) else { bail!("no texture {id:#x}") };
+    let resource = bundle.resource(at)?;
+    let texture = Texture::parse(&resource.blocks[0], &resource.blocks[1])?;
     decode(&texture)
 }
 

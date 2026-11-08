@@ -30,11 +30,11 @@ pub struct Job {
 pub enum Start {
     /// No 2012 install is set. `created` says the settings file was missing and has just been written.
     NotConfigured { config: PathBuf, created: bool },
-    /// The content on disk is right for the settings and the installs. `trees` is the setting of the same name.
-    UpToDate { cars: usize, trees: bool },
-    /// A conversion was started; `live` says the folder already holds content the game has indexed. `trees` is the setting of
-    /// the same name.
-    Started { job: Job, live: bool, trees: bool },
+    /// The content on disk is right for the settings and the installs. `features` are the settings that turn effect variants on.
+    UpToDate { cars: usize, features: crate::features::Features },
+    /// A conversion was started; `live` says the folder already holds content the game has indexed. `features` are the settings that
+    /// turn effect variants on.
+    Started { job: Job, live: bool, features: crate::features::Features },
 }
 
 /// What a job did, once it is over.
@@ -83,12 +83,12 @@ pub fn start_with(
     let config = Config { lazy: streaming(&config), ..config };
     let stamp = stamp::of(&config, &source);
     if stamp::is_current(mod_dir, &stamp) {
-        return Ok(Start::UpToDate { cars: count_cars(mod_dir), trees: config.trees });
+        return Ok(Start::UpToDate { cars: count_cars(mod_dir), features: config.features() });
     }
     let live = mod_dir.join(CONTENT[0]).is_dir();
-    let trees = config.trees;
+    let features = config.features();
     let job = spawn(config, source, mod_dir.to_owned(), stamp)?;
-    Ok(Start::Started { job, live, trees })
+    Ok(Start::Started { job, live, features })
 }
 
 fn spawn(config: Config, source: PathBuf, mod_dir: PathBuf, stamp: String) -> Result<Job> {

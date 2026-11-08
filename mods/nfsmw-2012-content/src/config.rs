@@ -101,6 +101,15 @@ traffic = true
 # (mods/nfsmw-2012-content/README.md, \"Trees\"); the max_texture_size key applies to their textures.
 trees = true
 
+# Add the 2012 game's effects as values of the gameplay settings \"Skid marks variant\", \"Rain splash variant\" and
+# \"Wet road variant\", and a replacement set for the lens drops (the kind \"Rain drops\"): the tyre marks, the water splash and
+# the drop shapes are converted from your 2012 install into the mod's folder, a few KiB of it, read by ranges
+# (mods/nfsmw-2012-content/README.md, \"Skid marks and rain\"). false adds neither the files nor the value.
+skid_marks = true
+rain_splash = true
+rain_drops = true
+wet_road = true
+
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
 # weight, grip the tyres, brakes the brake torque (0.25 to 4 each, grip 0.25 to 3), nitrous_power the extra torque of
@@ -207,6 +216,12 @@ pub struct Config {
     pub traffic: bool,
     /// Whether the 2012 game's trees are converted and offered as a trees variant (`trees.rs`).
     pub trees: bool,
+    /// Whether the 2012 game's skid marks, rain splash, lens drops and wet road look are converted and offered (`marks_assets.rs`,
+    /// `rain_assets.rs`).
+    pub skid_marks: bool,
+    pub rain_splash: bool,
+    pub rain_drops: bool,
+    pub wet_road: bool,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -230,6 +245,10 @@ impl Default for Config {
             lazy: false,
             traffic: true,
             trees: true,
+            skid_marks: true,
+            rain_splash: true,
+            rain_drops: true,
+            wet_road: true,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),
@@ -332,6 +351,20 @@ mod tests {
             crate::stamp::of(&Config::default(), Path::new("definitely/not/here")),
             crate::stamp::of(&Config { trees: false, ..Config::default() }, Path::new("definitely/not/here")),
             "a change of the setting converts again"
+        );
+    }
+
+    #[test]
+    fn the_effect_variants_are_on_by_default_and_each_setting_turns_one_off() {
+        let config = Config::default();
+        assert!(config.skid_marks && config.rain_splash && config.rain_drops && config.wet_road);
+        let off = Config::parse("skid_marks = false\nrain_splash = false\nwet_road = false\n").unwrap();
+        assert!(!off.skid_marks && !off.rain_splash && !off.wet_road && off.rain_drops);
+        assert!(!off.features().skid_marks && off.features().trees);
+        let here = Path::new("definitely/not/here");
+        assert_ne!(
+            crate::stamp::of(&config, here),
+            crate::stamp::of(&Config { rain_drops: false, ..config.clone() }, here)
         );
     }
 
