@@ -1,7 +1,7 @@
 # Colour grading with 3D look-up tables
 
-Status: built and unit tested (CPU reference, shader validation, GPU tests against the reference on Vulkan), screenshots and cost
-measured offscreen on the native renderer (section 8). The Bevy renderer does not draw it.
+Status: built; the CPU reference tests, the shader and GPU tests against the reference on Vulkan passed (the gfx, gpu-passes, render, modding, postfx and mod tests), dry screenshots were taken offscreen on the native renderer; the pass cost, the wet pictures and the last small changes
+(section 8) were not run. The Bevy renderer does not draw it.
 
 A scene can hand the renderer a **colour grade**: one or two 3D look-up tables (cubes) and a strength. The renderer looks every
 pixel of the finished frame up in the cube (one filtered 3D texture sample) and moves the colour the strength's share of the way to
@@ -129,8 +129,8 @@ is always added when the mod converts the cubes, and costs nothing until chosen.
   16 and 32; a bent cube equals `ColourGrade::apply` within 2/255 at edge 16, 32 and with strength 0.5; two cubes; the cube cache is bounded) and
   `blackbox-render` `colour_cube_vulkan` (through `PostChain`: the pass joins on the first grade, is the last of the effects after tone mapping,
   and leaves the chain's plan when the grade goes).
-- Screenshots and cost: see [../provenance/colour-grading-2012.md](../provenance/colour-grading-2012.md) for the scene, the commands
-  and the measured pass cost.
+- Screenshots and cost: see [../provenance/colour-grading-2012.md](../provenance/colour-grading-2012.md) for the scene, the commands,
+  the dry pairs and what was not run (the wet pairs, the cost).
 
 **Not checked**: another GPU than the author's, DX12 and GL, an HDR display, the DLSS, FSR 3 and frame generation paths (the pass
 is a plain render-size pass before them), the rear-view mirror's picture, and a game window on screen.
