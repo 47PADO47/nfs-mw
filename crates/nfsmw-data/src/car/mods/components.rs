@@ -84,14 +84,18 @@ impl Components {
     }
 }
 
-/// The bike `spec` of the mod car in `folder` with the upgrade levels of `package` installed: the number modifiers of the
-/// components the levels pick ([`keys`]). A bike without components, or with the package at stock, is `spec` itself.
-pub fn upgraded(folder: &str, spec: Arc<BikeSpec>, package: PerformancePackage) -> Arc<BikeSpec> {
+/// The bike `spec` of the mod car in `folder` with the upgrade levels of `package` and the parts of `parts` installed: the number
+/// modifiers of every component they pick ([`keys`]), whichever slot keeps the pick (a performance ladder, a model category, a
+/// slot only the components know). A bike without components, or with everything at stock, is `spec` itself.
+pub fn upgraded(folder: &str, spec: Arc<BikeSpec>, package: PerformancePackage, parts: &Selection) -> Arc<BikeSpec> {
     let Some(components) = of(folder) else { return spec };
-    if package.levels.iter().all(|level| *level == 0) {
+    let stock = package.levels.iter().all(|level| *level == 0)
+        && parts.parts.iter().all(Option::is_none)
+        && parts.slots.is_empty();
+    if stock {
         return spec;
     }
-    let Some(resolved) = select::resolve(folder, components, &Selection::default(), package) else { return spec };
+    let Some(resolved) = select::resolve(folder, components, parts, package) else { return spec };
     Arc::new(keys::apply(&spec, &resolved.params))
 }
 

@@ -169,13 +169,13 @@ fn a_published_bike_is_upgraded_by_its_package_and_a_stock_package_changes_nothi
     publish("COMPTESTBIKE1", components());
     assert!(of("comptestbike1").is_some() && of("OTHER").is_none());
     let spec = Arc::new(BikeSpec::example());
-    let stock = upgraded("COMPTESTBIKE1", Arc::clone(&spec), PerformancePackage::default());
+    let stock = upgraded("COMPTESTBIKE1", Arc::clone(&spec), PerformancePackage::default(), &Selection::default());
     assert!(Arc::ptr_eq(&stock, &spec));
     let mut package = PerformancePackage::default();
     package.levels[PerformanceCategory::Engine as usize] = 2;
-    let fast = upgraded("COMPTESTBIKE1", Arc::clone(&spec), package);
+    let fast = upgraded("COMPTESTBIKE1", Arc::clone(&spec), package, &Selection::default());
     assert!((fast.engine.peak_torque - spec.engine.peak_torque * 1.1).abs() < 1e-3);
-    assert!(Arc::ptr_eq(&upgraded("NOCOMPONENTS", Arc::clone(&spec), package), &spec));
+    assert!(Arc::ptr_eq(&upgraded("NOCOMPONENTS", Arc::clone(&spec), package, &Selection::default()), &spec));
 }
 
 #[test]

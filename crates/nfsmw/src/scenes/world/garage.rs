@@ -179,8 +179,15 @@ impl WorldScene {
         let tunings = selection.tuning.normalized()?;
         let changed_performance = selection.performance != self.garage.applied.performance;
         let changed_parts = selection.parts != self.garage.applied.parts;
-        let physics = match changed_performance || selection.car != self.last_car {
-            true => Some(self.physics.car_with_performance(&entry.physics_name, selection.performance)?),
+        // A part of a car with components can change a number of its physics (a bike's exhaust or brake discs), so its parts count.
+        let with_components = car_mods::components::of(&entry.folder).is_some();
+        let physics = match changed_performance || selection.car != self.last_car || (with_components && changed_parts)
+        {
+            true => Some(self.physics.car_with_customization(
+                &entry.physics_name,
+                selection.performance,
+                &selection.parts,
+            )?),
             false => None,
         };
         if let Some(physics) = &physics {
