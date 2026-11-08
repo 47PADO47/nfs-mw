@@ -19,6 +19,7 @@ impl WorldScene {
         renderer.set_projected_reflection_scene(None);
         renderer.set_ray_reflection_instances(&[]);
         self.wet_road.instances.clear();
+        self.panorama.release(renderer);
         self.residency.release(renderer);
         self.nis.release_gpu(renderer);
         for player in self.players.take_all() {

@@ -8,7 +8,9 @@
 
 use std::sync::Arc;
 
-use blackbox_modding::content::{NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile};
+use blackbox_modding::content::{
+    NitrousProfile, SkyProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile,
+};
 
 /// The profiles of the variants in effect, one field per kind.
 #[derive(Debug, Clone, Default)]
@@ -23,6 +25,8 @@ pub struct EffectVariants {
     pub xenon_sparks: Option<Arc<XenonProfile>>,
     /// The loops of the wind (`WIND/<value>/profile.toml`), played by the car's sound in place of the game's own wind.
     pub wind: Option<Arc<WindProfile>>,
+    /// The cloud domes and the moon of the sky (`SKY/<value>/profile.toml`), drawn as the clouds of the procedural sky.
+    pub sky: Option<Arc<SkyProfile>>,
 }
 
 #[cfg(test)]

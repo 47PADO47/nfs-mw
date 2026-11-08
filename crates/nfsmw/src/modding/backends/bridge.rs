@@ -14,8 +14,8 @@ use std::sync::Arc;
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
 use blackbox_modding::content::{
-    ModelSwapProfile, NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile,
-    parse_model_swap_profile, parse_nitrous_profile, parse_sparks_profile, parse_tire_smoke_profile,
+    ModelSwapProfile, NitrousProfile, SkyProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile,
+    parse_model_swap_profile, parse_nitrous_profile, parse_sky_profile, parse_sparks_profile, parse_tire_smoke_profile,
     parse_wind_profile, parse_xenon_profile,
 };
 use blackbox_modding::host::{HotkeyHandler, OptionsModel};
@@ -33,7 +33,7 @@ use super::settings::{self, OptionHandler};
 use super::time::{self, Clock, ClockRequest};
 use super::ui::UiRecord;
 use super::variants::{
-    COLLISION_SPARKS_KIND, CacheCell, NITROUS_KIND, TIRE_SMOKE_KIND, TREES_KIND, WIND_KIND, XENON_SPARKS_KIND,
+    COLLISION_SPARKS_KIND, CacheCell, NITROUS_KIND, SKY_KIND, TIRE_SMOKE_KIND, TREES_KIND, WIND_KIND, XENON_SPARKS_KIND,
 };
 use super::world::{self, WorldRequest};
 use crate::devtools::Console;
@@ -85,6 +85,8 @@ pub struct Bridge {
     pub(super) xenon_sparks_cache: CacheCell<XenonProfile>,
     /// The same for the wind variant (`wind_profile`).
     pub(super) wind_cache: CacheCell<WindProfile>,
+    /// The same for the sky variant (`sky_profile`).
+    pub(super) sky_cache: CacheCell<SkyProfile>,
     /// The same for the trees variant (`trees_profile`), and the profile whose models are in effect in the world's loaders
     /// (`publish_replacements`).
     pub(super) trees_cache: CacheCell<ModelSwapProfile>,
@@ -135,6 +137,7 @@ impl Bridge {
             collision_sparks_cache: RefCell::default(),
             xenon_sparks_cache: RefCell::default(),
             wind_cache: RefCell::default(),
+            sky_cache: RefCell::default(),
             trees_cache: RefCell::default(),
             replace: RefCell::default(),
             ui_themes: RefCell::default(),
@@ -219,6 +222,12 @@ impl Bridge {
         self.variant_profile(&WIND_KIND, &self.wind_cache, parse_wind_profile)
     }
 
+    /// The sky variant the player chose, when it is a mod's: `SKY/<value>/profile.toml`. The option is the one the replacement sets
+    /// of kind `sky` create (`replace.rs`).
+    pub fn sky_profile(&self) -> Option<Arc<SkyProfile>> {
+        self.variant_profile(&SKY_KIND, &self.sky_cache, parse_sky_profile)
+    }
+
     /// The trees variant the player chose, when it is a mod's: `TREES/<value>/profile.toml`.
     pub fn trees_profile(&self) -> Option<Arc<ModelSwapProfile>> {
         self.variant_profile(&TREES_KIND, &self.trees_cache, parse_model_swap_profile)
@@ -232,6 +241,7 @@ impl Bridge {
             collision_sparks: self.collision_sparks_profile(),
             xenon_sparks: self.xenon_sparks_profile(),
             wind: self.wind_profile(),
+            sky: self.sky_profile(),
         }
     }
 

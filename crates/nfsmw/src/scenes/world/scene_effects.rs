@@ -43,6 +43,7 @@ impl WorldScene {
         self.scene_set_nitrous_fx(variants.nitrous.clone());
         self.tire_smoke_variant = variants.tire_smoke.clone();
         self.wind_fx = variants.wind.clone();
+        self.panorama_profile = variants.sky.clone();
         if let Some(drive) = self.players.lead_mut() {
             drive.effects.set_variant(variants.tire_smoke.clone());
             drive.vehicle_effects.set_spark_variant(variants.xenon_sparks.clone());

@@ -321,6 +321,8 @@ impl WorldScene {
                 spark_style: crate::settings::SparkStyle::OriginalPc,
                 smoke_quality: crate::settings::SmokeQuality::Standard,
                 tire_smoke_variant: None,
+                panorama: Default::default(),
+                panorama_profile: None,
                 rain,
                 wind,
                 wet_road: Default::default(),
