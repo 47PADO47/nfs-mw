@@ -28,7 +28,13 @@ fn page() -> LanPage {
             message: String::new(),
             entries: rows
                 .into_iter()
-                .map(|(label, value)| MenuEntry { label: label.into(), enabled: true, value, icon: None })
+                .map(|(label, value)| MenuEntry {
+                    label: label.into(),
+                    enabled: true,
+                    value,
+                    icon: None,
+                    flags: crate::ui::theme::EntryFlags::ROW,
+                })
                 .collect(),
             selected: 1,
             first: 0,

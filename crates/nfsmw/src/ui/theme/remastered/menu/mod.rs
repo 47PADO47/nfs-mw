@@ -199,6 +199,13 @@ impl<'a, 'b> Parts<'a, 'b> {
         self.push(text, Rect::new(x, at.1, width, 20.0));
     }
 
+    /// A string centred on `at.0`, and on `at.1` vertically.
+    fn text_centre(&mut self, font: &str, text: &str, colour: &str, scale: f32, at: (f32, f32)) {
+        let flags = justify::H_CENTRE | justify::V_CENTRE;
+        let part = Text::new(font, text).with_colour_key(colour).with_scale(scale).with_justification(flags);
+        self.push(part, Rect::new(at.0, at.1, 400.0, 20.0));
+    }
+
     fn entry(
         &mut self,
         entry: &MenuEntry,
@@ -207,7 +214,8 @@ impl<'a, 'b> Parts<'a, 'b> {
         (left, wide, pictures): (f32, bool, bool),
         nudge: Option<MenuNudge>,
     ) {
-        let colour = match (entry.enabled, selected) {
+        // An entry with accent text (a section title, an action) is in the selected colour, selected or not.
+        let colour = match (entry.enabled, selected || entry.flags.accent_text) {
             (false, _) => keys::MENU_TEXT_DISABLED,
             (true, true) => keys::MENU_TEXT_SELECTED,
             (true, false) => keys::MENU_TEXT,
@@ -216,6 +224,13 @@ impl<'a, 'b> Parts<'a, 'b> {
             let (rect, lean) = place::bar(y, left, wide);
             self.parts.push(Box::new(Slant::at_default_depth(keys::MENU_BAR, rect, lean, &BAR_STOPS, self.cx)));
             self.bolt(left + 17.0, y + 1.5);
+        }
+        // A centred entry (a section title, an action) has its text across the bar's span and no value.
+        if entry.flags.centered {
+            let (rect, _) = place::bar(y, left, wide);
+            let label = entry.label.to_uppercase();
+            let scale = fitted(&label, place::ENTRY_SCALE, rect.w - 2.0 * place::TEXT_LEFT);
+            return self.text_centre(keys::FONT_MENU, &label, colour, scale, (rect.x, y));
         }
         let shift = if pictures { ICON_SIZE + ICON_GAP } else { 0.0 };
         if let (true, Some(icon)) = (pictures, entry.icon) {
