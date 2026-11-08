@@ -77,10 +77,6 @@ pub fn update(
         actions.capture_menu();
     }
     if garage.start_requested && !console.open && !host.scene.paused() && host.scene.garage().is_some() {
-        if let Some(model) = host.scene.garage() {
-            model.options_tab = garage.start_tab;
-            model.preview = garage.start_tab == crate::garage::OptionsTab::Parts;
-        }
         toggle_garage(&mut host, &mut garage, &mut capture, &mut focus);
         garage.start_requested = false;
         actions.consume(Action::Garage);

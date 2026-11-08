@@ -110,40 +110,6 @@ fn enlarging_the_window_displays_more_car_cards() {
     assert!(visible(&ui) > before, "resizing must reveal more cars, not just enlarge a blank window");
 }
 
-#[test]
-fn named_presets_save_reopen_and_load_through_the_real_garage_buttons() {
-    let mut car = Car { folder: "RACER".into(), name: "Racer".into(), paintable: true, ..Default::default() };
-    car.performance.categories =
-        [nfsmw_data::car::physics::performance::CategoryOptions { max_level: 4, ..Default::default() }; 7];
-    let mut ui = fixture(vec![car, Car { folder: "OTHER".into(), ..Default::default() }], "RACER");
-    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
-    let path = std::env::temp_dir().join(format!("nfsmw-f6-{}-{stamp}.toml", std::process::id()));
-    ui.model.preset_picker.path = Some(path.clone());
-    ui.model.preset_picker.name = "Road setup".into();
-    ui.model.draft.color = Some([20, 80, 210]);
-    ui.model.draft.performance.levels = [3; 7];
-    ui.model.draft.tuning.profiles[1] = [1, 2, 3, 4, 5, -1, -2];
-    ui.model.draft.tuning.active = 1;
-    let wanted = ui.model.draft.clone();
-    ui.frame(Vec::new());
-    assert!(ui.click("Save as / manage…").is_none());
-    for _ in 0..20 {
-        ui.frame(Vec::new());
-    }
-    assert!(ui.click("Save as").is_none());
-    assert!(path.is_file());
-    ui.model.select("OTHER".into());
-    ui.model.preset_picker = crate::preset_store::Picker::default();
-    ui.model.preset_picker.path = Some(path.clone());
-    ui.model.preset_picker.name = "Road setup".into();
-    ui.frame(Vec::new());
-    ui.frame(Vec::new());
-    let request = ui.click("Road setup").expect("loading emits a normal garage transaction");
-    assert_eq!(request, wanted);
-    assert_eq!(ui.model.applied.car, "RACER", "the scene owns committing a successful transaction");
-    std::fs::remove_file(path).unwrap();
-}
-
 impl Ui {
     fn frame(&mut self, events: Vec<egui::Event>) -> Option<Selection> {
         self.ctx.begin_pass(egui::RawInput {
@@ -215,22 +181,13 @@ fn pointer_selection_and_paint_apply_immediately_without_repeated_requests() {
     assert_eq!(ui.model.applied.car, "CAR_A");
     assert!(ui.frame(Vec::new()).is_none(), "unchanged frames must not reload a car");
     ui.model.applied = request;
-    assert!(ui.click("Appearance").is_none(), "switching option tabs must not apply a car change");
-    let request = ui.click("Custom paint").unwrap();
-    assert!(ui.model.draft.color.is_some());
-    assert_eq!(request, ui.model.draft);
-    assert_eq!(ui.model.applied.color, None, "the view waits for successful application");
-    assert!(ui.frame(Vec::new()).is_none());
-    assert!(ui.click("CAR_B").is_none(), "clicking the selected car must preserve custom paint");
-    assert!(ui.model.draft.color.is_some());
-    assert_eq!(ui.click("Preset color").unwrap().color, None);
+    assert!(ui.click("CAR_B").is_none(), "clicking the selected car changes nothing");
 }
 
 #[test]
 fn exhaust_widgets_apply_and_reset_without_selecting_a_different_car() {
     let mut ui = fixture(vec![Car { folder: "RACER".into(), name: "Racer".into(), ..Default::default() }], "RACER");
     ui.settings.enhanced_exhaust = true;
-    ui.click("Appearance");
     ui.click("Exhaust");
     for _ in 0..20 {
         ui.frame(Vec::new());

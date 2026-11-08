@@ -9,7 +9,7 @@ use nfsmw_data::car::mods::components::{self, Components, select};
 use nfsmw_data::car::physics::{PerformanceCatalog, PerformanceCategory, PerformancePackage};
 
 use super::names::{LEVEL_ORDER, humanize, level_key};
-use super::{Choice, Paintwork, Slot, Store, Value, VehicleOptions};
+use super::{Choice, Finish, Junkman, Paintwork, Slot, Store, Value, VehicleOptions};
 
 /// The garage's data about the vehicle on show: what the options are read from.
 pub(crate) struct Inputs<'a> {
@@ -72,8 +72,21 @@ impl VehicleOptions {
             missing: missing(bike, &slots),
             slots,
             paintwork: inputs.paintable.then_some(Paintwork { custom: inputs.color, original: inputs.original_color }),
+            finishes: finishes(inputs),
+            levels: inputs.performance.map(|(levels, _)| levels.clone()),
         }
     }
+}
+
+/// The catalogue's quick paint finishes, the one the paint is in marked.
+fn finishes(inputs: &Inputs<'_>) -> Vec<Finish> {
+    let Some(catalog) = inputs.catalog.filter(|_| inputs.paintable) else { return Vec::new() };
+    let held = inputs.parts.parts[Category::Paint as usize];
+    catalog
+        .finishes
+        .iter()
+        .map(|(label, hash)| Finish { label: label.clone(), hash: *hash, active: held == Some(*hash) })
+        .collect()
 }
 
 /// The options of every component slot of the car, with the rules checked against what is installed.
@@ -204,7 +217,16 @@ fn category_slot(
         Some((_, slot, _)) => (slot.id.clone(), humanize(&slot.id), group_of(slot, category_group(category))),
         None => (category.key().to_owned(), category_label(category).to_owned(), category_group(category).to_owned()),
     };
-    Some(Slot { id, label, group, components: component.is_some(), store: Store::Category(category), current, choices })
+    Some(Slot {
+        id,
+        label,
+        group,
+        components: component.is_some(),
+        store: Store::Category(category),
+        current,
+        choices,
+        junkman: None,
+    })
 }
 
 fn group_of(slot: &ComponentSlot, fallback: &str) -> String {
@@ -245,7 +267,17 @@ fn level_slot(
         None => (level_key(category).to_owned(), category.label().to_owned(), "performance".to_owned()),
     };
     let current = usize::from(package.get(category).min(max));
-    Some(Slot { id, label, group, components: component.is_some(), store: Store::Level(category), current, choices })
+    let junkman = Junkman { available: levels.junkman_available(category, package), on: package.has_junkman(category) };
+    Some(Slot {
+        id,
+        label,
+        group,
+        components: component.is_some(),
+        store: Store::Level(category),
+        current,
+        choices,
+        junkman: Some(junkman),
+    })
 }
 
 /// The slot of a component slot the garage has no category for: its choices are the slot's accepted components.
@@ -281,5 +313,6 @@ fn session_slot(parts: &Selection, components: &Components, slot: &ComponentSlot
         store: Store::Session,
         current,
         choices,
+        junkman: None,
     }
 }

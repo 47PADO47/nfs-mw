@@ -2,7 +2,7 @@
 
 use nfsmw_data::car::customization::{Catalog, Category, Selection};
 use nfsmw_data::car::mods::components::{self, select};
-use nfsmw_data::car::physics::PerformancePackage;
+use nfsmw_data::car::physics::{PerformanceCategory, PerformancePackage};
 
 use super::{Choice, Slot, Store, Value, VehicleOptions};
 
@@ -28,6 +28,23 @@ pub(crate) enum Change {
     Group { name: String, on: bool },
     /// The body colour (`None`: the vehicle's own paint).
     Color(Option<[u8; 3]>),
+    /// A quick finish of the paint (the hash the options list): the colour stays, the finish changes.
+    Finish(u32),
+    /// A performance category's Junkman package on or off.
+    Junkman { slot: String, on: bool },
+    /// The performance of the whole vehicle at once.
+    Shortcut(Shortcut),
+}
+
+/// The performance shortcuts of the garage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Shortcut {
+    /// Every category at its original equipment, no Junkman.
+    Stock,
+    /// Every category at its last stage the vehicle has.
+    Maximum,
+    /// The last stages, and every Junkman package the vehicle allows.
+    MaximumJunkman,
 }
 
 impl VehicleOptions {
@@ -44,6 +61,7 @@ impl VehicleOptions {
             let mut scratch = Edit { parts: &mut next.0, color: &mut next.1, performance: &mut next.2 };
             self.edit(catalog, &mut scratch, change)?
         };
+        next.2 = self.without_unavailable_junkman(next.2);
         self.check(catalog, &next.0, next.2)?;
         *edit.parts = next.0;
         *edit.color = next.1;
@@ -67,6 +85,7 @@ impl VehicleOptions {
                     self.put(catalog, edit, slot, 0)?;
                 }
                 *edit.color = None;
+                edit.performance.junkman = 0;
                 Ok(format!("{} is stock again", self.name))
             }
             Change::ResetGroup(name) => {
@@ -80,6 +99,9 @@ impl VehicleOptions {
                 Ok(format!("{name}: stock"))
             }
             Change::Group { name, on } => self.switch_group(catalog, edit, name, *on),
+            Change::Finish(hash) => self.finish(catalog, edit, *hash),
+            Change::Junkman { slot, on } => self.junkman(edit, self.named(slot)?, *on),
+            Change::Shortcut(shortcut) => self.shortcut(edit, *shortcut),
             Change::Color(color) => {
                 if self.paintwork.is_none() {
                     return Err(format!("{} has a fixed livery", self.name));
@@ -91,6 +113,67 @@ impl VehicleOptions {
                 })
             }
         }
+    }
+
+    /// A finish keeps the colour the body has now (its own, or the preset's) and changes how it is drawn.
+    fn finish(&self, catalog: Option<&Catalog>, edit: &mut Edit<'_>, hash: u32) -> Result<String, String> {
+        let finish =
+            self.finishes.iter().find(|finish| finish.hash == hash).ok_or("this vehicle has no such finish")?;
+        let preset = edit.parts.parts[Category::Paint as usize]
+            .and_then(|held| catalog?.colors.get(&held).copied())
+            .or(self.paintwork.and_then(|paint| paint.original));
+        *edit.color = edit.color.or(preset);
+        edit.parts.parts[Category::Paint as usize] = Some(hash);
+        Ok(format!("paint finish: {}", finish.label))
+    }
+
+    fn junkman(&self, edit: &mut Edit<'_>, slot: &Slot, on: bool) -> Result<String, String> {
+        let (Store::Level(category), Some(junkman)) = (slot.store, slot.junkman) else {
+            return Err(format!("{} has no Junkman package", slot.label));
+        };
+        let bit = 1 << category as u8;
+        if !on {
+            edit.performance.junkman &= !bit;
+            return Ok(format!("{}: Junkman off", slot.label));
+        }
+        let allowed = self.levels.as_ref().is_some_and(|levels| levels.junkman_available(category, *edit.performance));
+        if !junkman.available && !allowed {
+            return Err(format!("the Junkman package of {} is not available for this vehicle", slot.label));
+        }
+        edit.performance.junkman |= bit;
+        Ok(format!("{}: Junkman installed", slot.label))
+    }
+
+    fn shortcut(&self, edit: &mut Edit<'_>, shortcut: Shortcut) -> Result<String, String> {
+        let levels = self.levels.as_ref().ok_or("this vehicle has no upgrade catalogue here")?;
+        let mut package = match shortcut {
+            Shortcut::Stock => PerformancePackage::default(),
+            Shortcut::Maximum | Shortcut::MaximumJunkman => levels.maximum(),
+        };
+        if shortcut == Shortcut::MaximumJunkman {
+            for category in PerformanceCategory::ALL {
+                if levels.junkman_available(category, package) {
+                    package.junkman |= 1 << category as u8;
+                }
+            }
+        }
+        *edit.performance = package;
+        Ok(match shortcut {
+            Shortcut::Stock => "performance: original equipment".to_owned(),
+            Shortcut::Maximum => "performance: maximum".to_owned(),
+            Shortcut::MaximumJunkman => "performance: maximum with every Junkman package".to_owned(),
+        })
+    }
+
+    /// A Junkman package whose category no longer allows it (the stage was taken off) goes with it.
+    fn without_unavailable_junkman(&self, mut package: PerformancePackage) -> PerformancePackage {
+        let Some(levels) = &self.levels else { return package };
+        for category in PerformanceCategory::ALL {
+            if package.has_junkman(category) && !levels.junkman_available(category, package) {
+                package.junkman &= !(1 << category as u8);
+            }
+        }
+        package
     }
 
     fn named(&self, word: &str) -> Result<&Slot, String> {

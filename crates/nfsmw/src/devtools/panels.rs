@@ -70,6 +70,31 @@ impl Panel {
     }
 }
 
+/// The pages of the vehicle panel.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum VehiclePage {
+    #[default]
+    Parts,
+    Appearance,
+    Performance,
+    Tuning,
+    Gear,
+}
+
+impl VehiclePage {
+    pub(crate) const ALL: [Self; 5] = [Self::Parts, Self::Appearance, Self::Performance, Self::Tuning, Self::Gear];
+
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Parts => "Parts",
+            Self::Appearance => "Appearance",
+            Self::Performance => "Performance",
+            Self::Tuning => "Tuning",
+            Self::Gear => "Rider gear",
+        }
+    }
+}
+
 /// What asks the panels to change.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Request {
@@ -88,6 +113,8 @@ pub(crate) enum Request {
 pub(crate) struct DevPanels {
     pub menu: bool,
     pub vehicle: bool,
+    /// The page of the vehicle panel on show.
+    pub page: VehiclePage,
     /// The vehicle panel's own state: its message line.
     pub message: Option<String>,
     /// The panel the menu opened: back returns to the menu.

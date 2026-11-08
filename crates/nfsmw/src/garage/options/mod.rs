@@ -28,7 +28,7 @@ use nfsmw_data::car::customization::Category;
 use nfsmw_data::car::physics::PerformanceCategory;
 
 pub(crate) use build::Inputs;
-pub(crate) use change::{Change, Edit};
+pub(crate) use change::{Change, Edit, Shortcut};
 pub(crate) use groups::Group;
 pub(crate) use names::humanize;
 
@@ -73,6 +73,22 @@ pub(crate) struct Choice {
     pub value: Value,
 }
 
+/// The Junkman package of a performance category.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Junkman {
+    /// The vehicle's data has a package for the category and its equipment allows it.
+    pub available: bool,
+    pub on: bool,
+}
+
+/// A quick finish of the body paint: the catalogue's finish tabs (gloss, metallic...).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Finish {
+    pub label: String,
+    pub hash: u32,
+    pub active: bool,
+}
+
 /// A place on the vehicle that takes one choice.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Slot {
@@ -88,6 +104,8 @@ pub(crate) struct Slot {
     pub current: usize,
     /// The choices, the stock one first. The numbers `vehicle set` takes are the positions here.
     pub choices: Vec<Choice>,
+    /// For a performance slot of a vehicle that has the upgrade catalogue: its Junkman package.
+    pub junkman: Option<Junkman>,
 }
 
 impl Slot {
@@ -129,6 +147,10 @@ pub(crate) struct VehicleOptions {
     pub paintwork: Option<Paintwork>,
     /// What the data of this vehicle does not have, and the tools would need (the panel and `vehicle groups` say it).
     pub missing: Vec<String>,
+    /// The quick finishes of the body paint the catalogue offers.
+    pub finishes: Vec<Finish>,
+    /// The vehicle's upgrade catalogue, for the shortcuts and the Junkman rules; `None` where the scene has no physics.
+    pub levels: Option<nfsmw_data::car::physics::PerformanceCatalog>,
 }
 
 impl VehicleOptions {

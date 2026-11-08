@@ -1,4 +1,5 @@
-//! Live camera and paint controls, kept separate from scrolling through cars.
+//! What the F6 garage shows beside the car browser: the way to the vehicle panel (F11), where everything about the current vehicle's
+//! setup is, and the flame styles, which are shared across cars and not part of a vehicle's setup.
 
 use super::Model;
 use crate::settings::Settings;
@@ -15,25 +16,12 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
         ui.weak(subtitle);
     }
     ui.add_space(12.0);
-    ui.horizontal_wrapped(|ui| {
-        ui.selectable_value(&mut model.options_tab, super::OptionsTab::Performance, "Performance");
-        ui.selectable_value(&mut model.options_tab, super::OptionsTab::Tuning, "Tuning");
-        ui.selectable_value(&mut model.options_tab, super::OptionsTab::Appearance, "Appearance");
-        ui.selectable_value(&mut model.options_tab, super::OptionsTab::Parts, "Parts");
-    });
+    if ui.button("Vehicle options: open the vehicle panel (F11)").clicked() {
+        model.vehicle_panel_requested = true;
+    }
+    ui.weak("Parts, appearance, performance, tuning, saved setups and the rider's gear are on the vehicle panel.");
+    ui.add_space(12.0);
     ui.separator();
-    if model.options_tab == super::OptionsTab::Parts {
-        super::parts::show(ui, model);
-        return;
-    }
-    if model.options_tab == super::OptionsTab::Performance {
-        super::performance::show(ui, model);
-        return;
-    }
-    if model.options_tab == super::OptionsTab::Tuning {
-        super::tuning::show(ui, model);
-        return;
-    }
     model.draft.exhaust.set_style(settings.exhaust_style);
     super::exhaust::show(ui, &mut model.draft.exhaust, settings.enhanced_exhaust, &mut model.exhaust_preview);
     let style = model.draft.exhaust.style();
@@ -42,68 +30,4 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
         model.exhaust_style_dirty = true;
     }
     super::backfire::show(ui, model, settings);
-    ui.add_space(12.0);
-    super::appearance::show(ui, model, settings);
-    if settings.car_shading == crate::settings::CarShading::Simple {
-        ui.weak("Paint finishes and tints need material shading.");
-        if ui.button("Use glossy car materials").clicked() {
-            settings.car_shading = crate::settings::CarShading::Glossy;
-        }
-    }
-    ui.heading("Body color");
-    let paintable = model.selected().is_some_and(|car| car.paintable);
-    let original = model.selected().and_then(|car| car.original_color).unwrap_or([190, 35, 35]);
-    ui.add_enabled_ui(paintable, |ui| {
-        ui.horizontal(|ui| {
-            if ui.selectable_label(model.draft.color.is_none(), "Preset color").clicked() {
-                model.draft.color = None;
-            }
-            if ui.selectable_label(model.draft.color.is_some(), "Custom paint").clicked() && model.draft.color.is_none()
-            {
-                model.draft.color = Some(super::appearance::body_color(model).unwrap_or(original));
-            }
-        });
-        ui.add_space(6.0);
-        egui::Grid::new("garage_swatches").num_columns(3).spacing(egui::vec2(5.0, 5.0)).show(ui, |ui| {
-            for (index, (label, rgb)) in [
-                ("Red", [190, 35, 35]),
-                ("Blue", [30, 85, 210]),
-                ("Black", [20, 20, 24]),
-                ("White", [235, 235, 235]),
-                ("Silver", [140, 148, 158]),
-                ("Yellow", [235, 190, 25]),
-            ]
-            .into_iter()
-            .enumerate()
-            {
-                let ink = match index >= 3 {
-                    true => egui::Color32::BLACK,
-                    false => egui::Color32::WHITE,
-                };
-                if ui
-                    .add_sized(
-                        egui::vec2(68.0, 28.0),
-                        egui::Button::new(egui::RichText::new(label).color(ink))
-                            .fill(egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2])),
-                    )
-                    .clicked()
-                {
-                    model.draft.color = Some(rgb);
-                }
-                if index % 3 == 2 {
-                    ui.end_row();
-                }
-            }
-        });
-        if let Some(rgb) = &mut model.draft.color {
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                ui.label("Custom color");
-                ui.color_edit_button_srgb(rgb);
-            });
-        }
-    });
-    if !paintable {
-        ui.weak("This car has a fixed livery.");
-    }
 }

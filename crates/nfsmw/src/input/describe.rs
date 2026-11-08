@@ -29,7 +29,10 @@ const SECTIONS: [(Section, &str); 4] = [
 /// Keys that are not actions (the window and the developer tools handle them, `docs/devtools-vehicle.md`).
 const FIXED_KEYS: [(&str, &str); 8] = [
     ("Alt+Enter", "toggle fullscreen"),
-    ("F11", "developer tools: the vehicle panel (every slot of the vehicle and the rider's gear)"),
+    (
+        "F11",
+        "developer tools: the vehicle panel (parts, appearance, performance, tuning, setups and the rider's gear of the vehicle on show)",
+    ),
     ("Pad left stick click + right stick click", "developer tools: open or close the devtools menu (closes any panel)"),
     ("Devtools panels, Pad D-pad / left stick", "move the focus; left and right change a slider or a stepper"),
     ("Devtools panels, Pad A", "press the focused button"),
@@ -70,7 +73,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         Boost => ("Fly fast", ""),
         Cancel => ("Back out (release mouse, pause, quit)", ""),
         Console => ("Developer console", ""),
-        Garage => ("Garage overlay", ""),
+        Garage => ("Garage overlay (choose the car; its setup is on the F11 vehicle panel)", ""),
         Throttle => ("Accelerate", ""),
         Brake => ("Brake, then reverse (bikes: with the throttle open at a standstill, a burnout)", ""),
         Steer => ("Steer right", "Steer left"),

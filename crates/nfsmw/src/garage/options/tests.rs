@@ -7,6 +7,7 @@ use nfsmw_data::car::mods::components::{self, select};
 use nfsmw_data::car::physics::{PerformanceCatalog, PerformanceCategory, PerformancePackage};
 
 use super::*;
+use nfsmw_data::car::physics::performance::CategoryOptions;
 
 fn part(hash: u32, label: &str) -> Part {
     Part { hash, label: label.to_owned(), language_hash: None, carbon: false }
@@ -387,4 +388,94 @@ fn the_text_lists_numbered_choices_with_the_installed_one_starred() {
     assert!(text.contains("engine (Engine): 0: Original equipment*, 1: Stage 1"), "{text}");
     assert!(text.contains("body colour: the vehicle's own (own #010203)"), "{text}");
     assert!(options.groups_text().contains("parts: spoiler, rims (1 changed, not switchable)"));
+}
+
+/// Every category with two stages and a Junkman package, the engine with four, the nitrous with three and no kit installed.
+fn full_levels() -> PerformanceCatalog {
+    let mut categories =
+        [CategoryOptions { max_level: 2, junkman: true, stock_present: true, ..Default::default() }; 7];
+    categories[PerformanceCategory::Engine as usize].max_level = 4;
+    categories[PerformanceCategory::Nitrous as usize] =
+        CategoryOptions { max_level: 3, junkman: true, stock_present: false, ..Default::default() };
+    PerformanceCatalog { categories }
+}
+
+/// A fresh run of the options over the package, applying one change.
+fn run(levels: &PerformanceCatalog, package: &mut PerformancePackage, change: Change) -> Result<String, String> {
+    let (catalog, mut parts, mut color) = (plain_catalog(), Selection::default(), None);
+    let options =
+        VehicleOptions::build(&Inputs { performance: Some((levels, *package)), ..plain(&catalog, &parts, levels) });
+    options.apply(Some(&catalog), &mut edit(&mut parts, &mut color, package), &change)
+}
+
+#[test]
+fn the_shortcuts_use_the_ladders_the_vehicle_has() {
+    let (levels, mut package) = (full_levels(), PerformancePackage::default());
+    run(&levels, &mut package, Change::Shortcut(Shortcut::Maximum)).unwrap();
+    assert_eq!((package.levels, package.junkman), ([2, 2, 2, 2, 4, 2, 3], 0));
+    run(&levels, &mut package, Change::Shortcut(Shortcut::MaximumJunkman)).unwrap();
+    assert_eq!(package.junkman, 0x7f);
+    run(&levels, &mut package, Change::Shortcut(Shortcut::Stock)).unwrap();
+    assert_eq!(package, PerformancePackage::default());
+    let none = VehicleOptions {
+        levels: None,
+        ..VehicleOptions::build(&plain(&plain_catalog(), &Selection::default(), &levels))
+    };
+    let (mut parts, mut color) = (Selection::default(), None);
+    assert!(
+        none.apply(None, &mut edit(&mut parts, &mut color, &mut package), &Change::Shortcut(Shortcut::Maximum))
+            .is_err()
+    );
+}
+
+#[test]
+fn a_stage_and_its_junkman_package_change_without_touching_the_others() {
+    let (levels, mut package) = (full_levels(), PerformancePackage::default());
+    let engine = |level: &str| Change::Set { slot: "engine".into(), choice: level.into() };
+    run(&levels, &mut package, engine("2")).unwrap();
+    assert_eq!(package.levels, [0, 0, 0, 0, 2, 0, 0]);
+    run(&levels, &mut package, Change::Junkman { slot: "engine".into(), on: true }).unwrap();
+    assert!(package.has_junkman(PerformanceCategory::Engine));
+    run(&levels, &mut package, engine("4")).unwrap();
+    assert_eq!(package.get(PerformanceCategory::Engine), 4);
+    assert!(package.has_junkman(PerformanceCategory::Engine));
+    run(&levels, &mut package, engine("stock")).unwrap();
+    assert!(package.has_junkman(PerformanceCategory::Engine), "a stock engine stays eligible for Junkman");
+    run(&levels, &mut package, Change::Junkman { slot: "engine".into(), on: false }).unwrap();
+    assert_eq!(package, PerformancePackage::default());
+}
+
+#[test]
+fn a_nitrous_junkman_package_needs_a_kit_and_goes_with_it() {
+    let (levels, mut package) = (full_levels(), PerformancePackage::default());
+    let junkman = Change::Junkman { slot: "nitrous".into(), on: true };
+    assert!(run(&levels, &mut package, junkman.clone()).is_err(), "a stock car has no nitrous kit");
+    assert_eq!(package, PerformancePackage::default());
+    run(&levels, &mut package, Change::Set { slot: "nitrous".into(), choice: "1".into() }).unwrap();
+    run(&levels, &mut package, junkman).unwrap();
+    assert!(package.has_junkman(PerformanceCategory::Nitrous));
+    run(&levels, &mut package, Change::Set { slot: "nitrous".into(), choice: "stock".into() }).unwrap();
+    assert_eq!(package, PerformancePackage::default(), "the package is removed with the kit");
+}
+
+#[test]
+fn a_finish_keeps_the_colour_and_changes_how_it_is_drawn() {
+    let mut catalog = plain_catalog();
+    catalog.finishes = vec![("Metallic".to_owned(), 0x1F)];
+    catalog.colors.insert(0x2F, [12, 34, 56]);
+    catalog.choices[Category::Paint as usize] = vec![part(0x2F, "Silver"), part(0x1F, "Metallic")];
+    let (mut parts, levels) = (Selection::default(), levels(0, 0));
+    let options = VehicleOptions::build(&plain(&catalog, &parts, &levels));
+    assert_eq!(options.finishes.len(), 1);
+    let (mut color, mut package) = (None, PerformancePackage::default());
+    let mut finish = |parts: &mut Selection, color: &mut Option<[u8; 3]>| {
+        options.apply(Some(&catalog), &mut edit(parts, color, &mut package), &Change::Finish(0x1F)).unwrap()
+    };
+    parts.parts[Category::Paint as usize] = Some(0x2F);
+    finish(&mut parts, &mut color);
+    assert_eq!((color, parts.parts[Category::Paint as usize]), (Some([12, 34, 56]), Some(0x1F)));
+    color = Some([200, 10, 50]);
+    parts.parts[Category::Paint as usize] = None;
+    finish(&mut parts, &mut color);
+    assert_eq!(color, Some([200, 10, 50]), "a custom colour is kept");
 }
