@@ -19,7 +19,7 @@ fn labels(offered: bool, catalogue: Option<&Catalogue>) -> Vec<String> {
 
 #[test]
 fn a_bike_lists_a_page_for_each_part_that_has_items() {
-    assert_eq!(labels(true, Some(&catalogue())), ["Rider Body", "Helmet", "Gloves"]);
+    assert_eq!(labels(true, Some(&catalogue())), ["Rider Body", "Rider Helmet", "Rider Gloves"]);
 }
 
 #[test]

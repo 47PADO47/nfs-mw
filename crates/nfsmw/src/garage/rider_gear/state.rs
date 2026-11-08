@@ -23,11 +23,13 @@ struct State {
     /// A choice on show in the garage, not kept.
     preview: Option<Choice>,
     catalogue: Option<Arc<Catalogue>>,
+    /// The install the last [`scan`] read, so [`rescan`] can look again without one at hand (the option screens have none).
+    dir: Option<GameDir>,
 }
 
 impl State {
     const fn new() -> Self {
-        Self { persisted: Choice::STOCK, loaded_from: None, preview: None, catalogue: None }
+        Self { persisted: Choice::STOCK, loaded_from: None, preview: None, catalogue: None, dir: None }
     }
 }
 
@@ -63,10 +65,21 @@ pub(crate) fn scan(dir: &GameDir) {
     let mut state = lock();
     let changed = state.catalogue.is_some() != found.is_some();
     state.catalogue = found;
+    state.dir = Some(dir.clone());
     drop(state);
     if changed {
         moved();
     }
+}
+
+/// Looks again at what the Gameplay options list when they open: the catalogue, from the install the last [`scan`] read (a mod
+/// that finished converting after the game started is seen; nothing before the first scan), and the profile's file.
+pub(crate) fn rescan() {
+    let dir = lock().dir.clone();
+    if let Some(dir) = dir {
+        scan(&dir);
+    }
+    reload();
 }
 
 /// The catalogue the last [`scan`] found.
@@ -86,6 +99,11 @@ pub(crate) fn reload() {
     state.loaded_from = path;
     drop(state);
     moved();
+}
+
+/// What the profile kept, whether or not the setting is on: the Gameplay options show it.
+pub(crate) fn kept() -> Choice {
+    lock().persisted.clone()
 }
 
 /// What the profile kept, whatever is on show: the rider of a world wears this. The rider's own gear when the setting is off.
