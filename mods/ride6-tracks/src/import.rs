@@ -24,6 +24,8 @@ use crate::{check, collision, line};
 const START_LINE_AHEAD: f32 = 25.0;
 /// The side of the squares the far ground's vertices are clustered on, metres.
 const FAR_GRID_METRES: f32 = 10.0;
+/// How far beyond the outermost object the objects cell's anchor reaches, metres: a model's own extent.
+const OBJECTS_MARGIN: f32 = 300.0;
 
 /// What an import did.
 #[derive(Debug, Clone, PartialEq)]
@@ -73,7 +75,8 @@ pub fn import_with(
     if cells.len() > MAX_CELLS {
         bail!("{} cells are more than the section numbers hold ({MAX_CELLS})", cells.len());
     }
-    let (pictures, missing_pictures) = Pictures::load_sized(&pack_dir.join("tex"), &sizes_of(&pack, max_texture));
+    let (pictures, missing_pictures) =
+        Pictures::load_sized(&pack_dir.join("tex"), &sizes_of(&pack, max_texture));
     let files = out.join("files").join("WORLDS").join(id.to_ascii_uppercase());
     let worlds = out.join(WORLDS_FOLDER).join(&id);
     for folder in [&files, &worlds] {
@@ -97,18 +100,22 @@ pub fn import_with(
         if cancel.load(Ordering::Relaxed) {
             bail!("the import was cancelled");
         }
-        write_cell(
-            Target { pack: &pack, pictures: &pictures, id: &id, out },
-            cell,
-            Piece { index, far: false, instances: &near[index] },
-            &mut report,
-        )?;
+        let piece = Piece { index, far: false, walled: &near[index], placed: &[], anchor: None };
+        write_cell(Target { pack: &pack, pictures: &pictures, id: &id, out }, cell, piece, &mut report)?;
+    }
+    // The objects are one more cell, always loaded: every model and picture once, however many cells use it.
+    if !pack.instances.is_empty() {
+        let all: Vec<usize> = (0..pack.instances.len()).collect();
+        let anchor = objects::anchor_of(&pack, &all, OBJECTS_MARGIN);
+        let piece = Piece { index: report.cells, far: false, walled: &[], placed: &all, anchor: Some(anchor) };
+        write_cell(Target { pack: &pack, pictures: &pictures, id: &id, out }, &Cell::default(), piece, &mut report)?;
+        report.cells += 1;
     }
     // The far ground is one more cell, always loaded (`far.rs`).
     let far = far::far_pack(&pack, FAR_GRID_METRES);
     let everything = cells::Limits { max_triangles: usize::MAX, min_size: 128.0 };
     for cell in cells::bin(&far, &everything) {
-        let piece = Piece { index: report.cells, far: true, instances: &[] };
+        let piece = Piece { index: report.cells, far: true, walled: &[], placed: &[], anchor: None };
         write_cell(Target { pack: &far, pictures: &pictures, id: &id, out }, &cell, piece, &mut report)?;
         report.cells += 1;
     }
@@ -122,7 +129,7 @@ pub fn import_with(
         };
         let ribbon = line::ribbon_cell(&pack.lap.line.points, pack.lap.line.closed, heights);
         let line_pack = line::line_pack(&pack.track);
-        let piece = Piece { index: report.cells, far: true, instances: &[] };
+        let piece = Piece { index: report.cells, far: true, walled: &[], placed: &[], anchor: None };
         write_cell(Target { pack: &line_pack, pictures: &pictures, id: &id, out }, &ribbon, piece, &mut report)?;
         report.cells += 1;
     }
@@ -175,17 +182,20 @@ struct Target<'a> {
     out: &'a Path,
 }
 
-/// What of a cell is written: its number, whether it is the far ground (or the line), and the placements that belong to it.
+/// What of a cell is written: its number, whether it is the far ground (or the line), the solid placements whose walls go into its
+/// collision, the placements it draws (all of them, in the objects cell) and its anchor when it is not the one its vertices give.
 #[derive(Clone, Copy)]
 struct Piece<'a> {
     index: usize,
     far: bool,
-    instances: &'a [usize],
+    walled: &'a [usize],
+    placed: &'a [usize],
+    anchor: Option<[f32; 4]>,
 }
 
 fn write_cell(target: Target<'_>, cell: &Cell, piece: Piece<'_>, report: &mut Report) -> Result<()> {
     let Target { pack, pictures, id, out } = target;
-    let Piece { index, far, instances } = piece;
+    let Piece { index, far, walled, placed: placements, anchor } = piece;
     let key = manifest::cell_key(index);
     let number = manifest::section_number(index);
     let mut sources = Vec::new();
@@ -201,8 +211,8 @@ fn write_cell(target: Target<'_>, cell: &Cell, piece: Piece<'_>, report: &mut Re
         sources.push(solid.source);
     }
     let mut ground = soup(&cell.ground, &pack.materials);
-    let objects = objects::cell_objects(pack, pictures, instances, &key.to_ascii_uppercase());
-    ground.extend(objects.walls);
+    ground.extend(objects::walls(pack, walled));
+    let objects = objects::placed_objects(pack, pictures, placements, &key.to_ascii_uppercase());
     for texture in objects.textures {
         if !textures.iter().any(|known| known.name == texture.name) {
             textures.push(texture);
@@ -229,7 +239,7 @@ fn write_cell(target: Target<'_>, cell: &Cell, piece: Piece<'_>, report: &mut Re
     if let Some(first) = places.first_mut() {
         first.collision = !ground.is_empty();
     }
-    let text = manifest::cell_manifest(&file, number, cell.anchor(), &places);
+    let text = manifest::cell_manifest(&file, number, anchor.unwrap_or_else(|| cell.anchor()), &places);
     let manifest_path = out.join(WORLDS_FOLDER).join(id).join(format!("{key}.toml"));
     std::fs::write(&manifest_path, text).with_context(|| format!("writing {}", manifest_path.display()))?;
     report.solids += sources.len();

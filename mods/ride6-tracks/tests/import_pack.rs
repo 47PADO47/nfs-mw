@@ -129,3 +129,59 @@ fn a_cancelled_import_stops_with_an_error() {
     let _ = std::fs::remove_dir_all(&pack);
     let _ = std::fs::remove_dir_all(&out);
 }
+
+/// A pack with one solid model (a 2 by 1 by 2 metre block) placed three times, two of them beside the first square and one beside
+/// the second.
+fn write_pack_with_objects(dir: &Path) {
+    write_pack(dir);
+    let json = std::fs::read_to_string(dir.join("pack.json")).unwrap();
+    let json = json.replace("\"lap\"", "\"models\": [{\"name\": \"block\", \"solid\": true}], \"lap\"");
+    std::fs::write(dir.join("pack.json"), json).unwrap();
+    let corners = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [2.0, 1.0, 0.0], [0.0, 1.0, 0.0]];
+    let mut block = square(1, 0.0, 0.0, 1.0, 0.0);
+    block.positions = corners.iter().flat_map(|c| [*c, [c[0], c[1], 2.0]]).collect();
+    block.uvs = vec![[0.0, 0.0]; 8];
+    block.normals = vec![[0, 0, 127]; 8];
+    block.indices = vec![0, 2, 4, 1, 3, 5, 4, 6, 7];
+    block.model = 0;
+    std::fs::write(dir.join("models.r6m"), write_groups(&[block])).unwrap();
+    let mut instances = b"R6TI".to_vec();
+    instances.extend(1u32.to_le_bytes());
+    instances.extend(3u32.to_le_bytes());
+    for pos in [[4.0f32, 4.0, 1.0], [8.0, 4.0, 1.0], [1010.0, 4.0, 2.0]] {
+        instances.extend(0u32.to_le_bytes());
+        for v in pos.iter().copied().chain([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]) {
+            instances.extend(v.to_le_bytes());
+        }
+    }
+    std::fs::write(dir.join("instances.r6i"), instances).unwrap();
+}
+
+#[test]
+fn the_objects_are_one_cell_that_holds_every_model_once_and_the_walls_stay_in_the_ground_cells() {
+    let (pack, out) = (temp("objects-pack"), temp("objects-out"));
+    write_pack_with_objects(&pack);
+    let limits = Limits { max_triangles: 2, min_size: 128.0 };
+    let report = import_with(&pack, &out, 64, &limits, &Keep::default(), &AtomicBool::new(false)).unwrap();
+    // The two ground cells, the objects, the far ground.
+    assert_eq!(report.cells, 4);
+    assert_eq!(report.objects, 3);
+    // The walls (12 triangles a box) are in the ground cells' collision: 4 ground triangles and 3 boxes.
+    assert_eq!(report.collision_triangles, 4 + 3 * 12);
+    let manifest = std::fs::read_to_string(out.join("worlds/testtrack/g002.toml")).unwrap();
+    let objects = parse_scenery("g002", &manifest).unwrap();
+    assert_eq!(objects.places.len(), 3, "one placement for each of the three blocks");
+    assert!(objects.places.iter().all(|place| place.collision == Collision::None));
+    assert!(objects.anchor[3] > 800.0, "the anchor reaches both ends of the track: {:?}", objects.anchor);
+    let bytes = std::fs::read(out.join("files").join(&objects.file)).unwrap();
+    let solids = blackbox_solid::read_solids(&bytes).unwrap();
+    assert_eq!(solids.len(), 1, "the model is in the section once");
+    assert!(blackbox_collision::read_collision_packs(&bytes).unwrap().is_empty());
+    for key in ["g000", "g001"] {
+        let manifest = std::fs::read_to_string(out.join(format!("worlds/testtrack/{key}.toml"))).unwrap();
+        let cell = parse_scenery(key, &manifest).unwrap();
+        assert!(cell.places.iter().all(|place| !place.model.contains("_M")), "{key} places no object");
+    }
+    let _ = std::fs::remove_dir_all(&pack);
+    let _ = std::fs::remove_dir_all(&out);
+}

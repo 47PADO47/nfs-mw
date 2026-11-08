@@ -28,7 +28,7 @@ pub struct GroundTriangle {
 }
 
 /// One cell: its meshes and its collision triangles.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Cell {
     /// The cell's column and row (`floor(x / size)`, `floor(y / size)`).
     pub key: (i32, i32),
