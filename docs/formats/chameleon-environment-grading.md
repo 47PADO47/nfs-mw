@@ -26,8 +26,11 @@ the first by swapping red and blue in the input and the output. Evidence for the
   the cube is a grade and not a channel swap;
 - the `POSTFX` heat cube comes out orange and the cooldown cube blue ([chameleon-nitrous.md](chameleon-nitrous.md)).
 
-The sampling position (entry centres at `(i + 0.5) / 16`, so the first entry is hit at 0 and the last at 1) is the host's choice;
-the executable's sampler was not read **[unconfirmed]**.
+The sampling position (entry centres at `(i + 0.5) / 16`, so the first entry is hit at 0 and the last at 1) is the host's choice. The
+executable's shaders name a `ColourCubeSampler` and a `ColourCubeScalesOffsets` constant (a scale and an offset applied to the
+colour before the lookup, the usual half-texel correction), and registers the resource type as `ColourCubeResourceTypeV2` **[exe]**
+(names only: the shader code, the texture format and the byte order were not read) **[unconfirmed]**. A cube file path
+`UI\COLOURCUBES\` is also in the executable (the front end's cubes, not in the files read here).
 
 ## The environment objects **[verified]**
 
@@ -94,6 +97,6 @@ the pass is the world's, and the nitrous screen is a per-frame fade of the scene
 
 - the executable's choice of timeline, and how it blends the keyframes (by hour, as a straight line, is the host's reading);
 - the use of the wet link (a blend by the weather's wetness is the host's reading);
-- the cubes' sample position and the first-entry order beyond the evidence above (a check in `NFS13.exe`, where the cube is
-  uploaded as a volume texture, would settle the byte order);
+- the byte order beyond the evidence above (a check in `NFS13.exe`, where the cube is uploaded as a volume texture and the
+  `ColourCubeScalesOffsets` shader constant is set, would settle it);
 - the lighting values of the keyframes (sun, fog, sky, clouds), which the host's time of day computes itself.
