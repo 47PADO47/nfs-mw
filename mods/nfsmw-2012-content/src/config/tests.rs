@@ -21,6 +21,10 @@ fn the_signs_are_on_by_default_and_the_setting_turns_them_off() {
         )
         .unwrap()
         .signs
+    );
+}
+
+#[test]
 fn the_bushes_are_on_by_default_and_a_change_converts_again() {
     assert!(Config::default().bushes);
     assert!(
