@@ -10,6 +10,7 @@ mod bike_burnout;
 mod bike_camera;
 mod bike_check;
 mod bike_check_parts;
+mod bike_dash;
 mod bike_help;
 mod bike_lean;
 mod bike_parts;
@@ -95,9 +96,9 @@ mod xenon_variant;
 
 pub use bike::{
     Bike, Brakes as BikeBrakes, Camera as BikeCamera, CameraChase as BikeCameraChase, CameraFront as BikeCameraFront,
-    CameraHelmet as BikeCameraHelmet, Chassis as BikeChassis, Damper as BikeDamper, Engine as BikeEngine, MF_A, MF_B,
-    MF_C, Rider as BikeRider, Steering as BikeSteering, Suspension as BikeSuspension, Transmission as BikeTransmission,
-    Tyre as BikeTyre, Wheel as BikeWheel,
+    CameraHelmet as BikeCameraHelmet, Chassis as BikeChassis, Damper as BikeDamper, Dash as BikeDash,
+    DashColors as BikeDashColors, Engine as BikeEngine, MF_A, MF_B, MF_C, Rider as BikeRider, Steering as BikeSteering,
+    Suspension as BikeSuspension, Transmission as BikeTransmission, Tyre as BikeTyre, Wheel as BikeWheel,
 };
 pub use car::{CarManifest, Kind as CarKind, Role, parse as parse_car};
 pub use components::{

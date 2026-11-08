@@ -17,6 +17,7 @@ use serde::Deserialize;
 
 pub use super::bike_burnout::Burnout;
 pub use super::bike_camera::{Camera, Chase as CameraChase, Front as CameraFront, Helmet as CameraHelmet};
+pub use super::bike_dash::{Colors as DashColors, Dash};
 pub use super::bike_help::AbsLevel;
 pub use super::bike_parts::{Brakes, Damper, Engine, Fall, Steering, Suspension, Transmission, Wheelie};
 pub use super::bike_rider::Rider;
@@ -73,6 +74,9 @@ pub struct Bike {
     /// Where the game's cameras sit on the bike (`[bike.camera]`, `bike_camera.rs`); left out: derived from the wheelbase.
     #[serde(default)]
     pub camera: Camera,
+    /// The live screen of the instrument cluster (`[bike.dash]`, `bike_dash.rs`); left out: the cluster keeps the picture it was baked with.
+    #[serde(default)]
+    pub dash: Option<Dash>,
 }
 
 /// Reverse (`[bike.reverse]`): the rider holds the brake with the bike standing, and after `hold_s` seconds pushes it backwards
