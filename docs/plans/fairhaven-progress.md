@@ -46,7 +46,8 @@ Screenshots of the run are in `C:\r6work\fairhaven\shots\` (`f0_*` first light, 
 
 ## Numbers (author's machine: Ryzen 7 9800X3D, RTX 4070 SUPER, SSD; shared with other builds, so times are upper bounds)
 
-See [modding/fairhaven.md](../modding/fairhaven.md#numbers).
+See [modding/fairhaven.md](../modding/fairhaven.md#numbers): a unit takes 550 ms (median) to make on a loader thread, 40 KB of disk
+in all, frame time p50 1.5 ms on a quiet machine and 3 to 10 ms on a loaded one, 0.9 to 1 GiB resident.
 
 ## Open issues and next steps
 

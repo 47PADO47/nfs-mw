@@ -63,4 +63,21 @@ surface exactly as in the city.
 
 ## Numbers
 
-See [plans/fairhaven-progress.md](../plans/fairhaven-progress.md): unit conversion time and size, memory, frame time.
+Author's machine (Ryzen 7 9800X3D, RTX 4070 SUPER, SSD, release build), measured 2026-11-08. The machine was shared with other
+builds for most of the session, so the times are upper bounds.
+
+| What | Number |
+|---|---|
+| Disk the mod uses | 169 manifests + 169 stubs + the world manifest: about 40 KB. Nothing else is written |
+| Opening the install (the tables of 185 files) | 16 ms warm |
+| One unit made (`fairhaven-unit`, all 169 units, warm cache, 512-pixel pictures) | median 550 ms, 90th percentile 850 ms, slowest 1.36 s; 95 s for all 169; 2.3 GB of section bytes in all (13.8 MB a unit, held in memory only; the last three are kept). First read of a cold file adds the disk: 5 s for unit 161 once |
+| Where the time goes (unit 161) | pictures 220 to 650 ms (inflating the zlib blocks, the rest copies), collision 2 ms, writing the section 40 to 80 ms |
+| Harbour unit 161 | 817 placements, 342 solids, 187,000 triangles, 198 pictures, 21,484 collision triangles, 36.5 MB |
+| Units resident while driving | 4 to 8 (the host loads a unit within 150 m of its circle) |
+| Memory (resident set, drive in the city) | 870 to 980 MiB, peak 1.03 GiB |
+| Frame time, offscreen drive at the harbour, quiet machine | p50 1.5 ms, p95 2.4 ms, p99 7 ms, worst 48 ms (577 fps; 5 hitches before the scene was ready) |
+| The same on the shared machine (three locations) | p50 3 to 10 ms, p95 9 to 48 ms, p99 62 to 90 ms: the unit loads and the other builds, not the drawing |
+
+No range or level-of-detail limit was needed on this machine: the game's own scenery choice (the middle level of each model as the
+coarse one, culling by projected size) keeps the drawn objects at 100 to 530 in the screenshots. A slower machine lowers
+`max_texture` (pictures are the bulk of a unit's memory and time).
