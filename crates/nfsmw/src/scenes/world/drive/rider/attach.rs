@@ -62,6 +62,13 @@ pub const DEFAULT_GRIP_SPAN: [f32; 2] = [0.0, 0.12];
 /// of the rubber's middle and its cuff cut into the throttle housing and the lever perch.
 pub const GLOVE_CENTRE_M: f32 = 0.024;
 
+/// How far the hand is moved forward, along the grip bone's own x axis (across the grip, ahead of the bar), so that the palm and the knuckles sit over the
+/// rubber, metres. The hand is held by the grip bone with the wrist 12.5 cm behind it (`tip_anchor`, the same for every bike); from above the
+/// fist lay behind the grip with the rubber showing in front of its knuckles (a user's playtest: "still not on"). Renders of the CRF 450 R SMT at 0,
+/// 3, 3 and 4.5 cm forward (top, from the bar end): 3 to 4.5 cm puts the rubber under the knuckles with the bar end cap in the middle of the fist.
+/// The same shift for every bike, because the hand's `tip_anchor` is (`docs/specs/ride6-rider-hands.md`, section 3).
+pub const HAND_FORWARD_M: f32 = 0.035;
+
 impl Target {
     /// How far the hand is moved outboard along the grip bone's axis so that the glove is centred on the grip rubber, metres
     /// (negative inboard).

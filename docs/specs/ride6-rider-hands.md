@@ -103,8 +103,16 @@ centres the glove on it: the grip bone's place for the hand is moved along the b
 glove's middle measured at **2.4 cm** outboard of the bone (`attach.rs`, one named constant: the glove's own size, the same for every bike). That is 3.0 to 4.5 cm on the eight bikes. Moving the
 glove 3.5 cm outboard brings the deepest overlap to 4 to 8 mm on the same measure (the residue is the wrist cuff against lever perches: the vertex-based measure
 is coarse), and the glove overhangs the outboard end by 0 to 2 cm on the longest bikes. A contacts file without `grip_span` assumes the usual 12 cm rubber. The throttle's roll turns
-about the same axis and is not changed by the slide. Height and the lateral offset were left as they are (the user found the height right; raising the hand 1 cm would take the
-grip overlap to 1 mm but was not asked for). The hand is the same on the clutch side: the left bone's y points outboard, the right's inboard.
+about the same axis and is not changed by the slide. **Ahead of the grip** (the user's next playtest: "better, but still not on, should be further"). Looked at from above, the glove still lay **behind** the grip: the knuckles at the
+rubber's rear edge, the rubber showing in front of them, because the wrist is held 12.5 cm behind the bone and the fist's middle then lies about 3 cm behind the axis. The
+crude overlap number of the first fix could not see it (it only measured vertices in the bar). Looking at renders instead (CRF 450 R SMT from above and from the bar end, with the
+hand moved 0, 3, 4.5 cm forward and 0.6 cm down or 1 cm up on top of the slide): 3 to 4.5 cm forward lays the knuckles over the rubber and puts the bar end cap in the middle of the fist; height
+changes added nothing. The hand is therefore brought forward by one named constant, `HAND_FORWARD_M` = **3.5 cm** along the grip bone's own x axis (across the grip, so
+along the bar's sweep on clip-ons), on top of the slide along the grip; the same for every bike, because the hand's `tip_anchor` is. Height is not touched. Twelve bikes were looked at
+(top, bar end, levers pulled): CRF 450 R SMT, RC 390, Panigale V4 S, KTM 690, Challenger RR, Africa Twin, Dragster 200, S 1000 RR, 1290 Super Adventure R, 1290 Super Duke R, Hypermotard, KTM 450
+(the supermoto the pose was authored for). The grip span's end: the importer's span is the rubber's vertices only (the bar end cap and the weights are other bones), so the glove's outboard end
+sits at the rubber's end, not at the cap.
+The hand is the same on the clutch side: the left bone's y points outboard, the right's inboard.
 
 ## 4. What the game does with it
 

@@ -397,8 +397,10 @@ fn each_hand_slides_outboard_along_its_own_bones_axis() {
     let (left, right) = (targets[targets.len() - 2], targets[targets.len() - 1]);
     let (bone_left, bone_right) = (left.anchor.unwrap(), right.anchor.unwrap());
     let slide = 0.06 - super::super::attach::GLOVE_CENTRE_M;
-    // The bone's y turned by the same 0.25 rad; the left bone's y points outboard (+y of the car), the right bone's inboard.
-    let y = Quat::from_rotation_z(0.25) * Vec3::Y;
-    assert!((bone_left.0 - Vec3::new(0.3, 0.2, 0.9) - y * slide).length() < 1e-6, "{bone_left:?}");
-    assert!((bone_right.0 - Vec3::new(0.3, 0.2, 0.9) + y * slide).length() < 1e-6, "{bone_right:?}");
+    // The bone's axes turned by the same 0.25 rad; the left bone's y points outboard (+y of the car), the right bone's inboard. Both
+    // hands also come forward by the same distance along the bone's x.
+    let turn = Quat::from_rotation_z(0.25);
+    let (x, y) = (turn * Vec3::X * super::super::attach::HAND_FORWARD_M, turn * Vec3::Y * slide);
+    assert!((bone_left.0 - Vec3::new(0.3, 0.2, 0.9) - y - x).length() < 1e-6, "{bone_left:?}");
+    assert!((bone_right.0 - Vec3::new(0.3, 0.2, 0.9) + y - x).length() < 1e-6, "{bone_right:?}");
 }
