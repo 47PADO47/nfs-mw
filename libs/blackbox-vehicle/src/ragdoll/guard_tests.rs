@@ -165,3 +165,43 @@ fn a_surface_far_above_a_body_is_not_taken_for_its_ground() {
     }
     assert!(body.position(0).y < 0.5, "it is not lifted onto the deck: {}", body.position(0));
 }
+
+#[test]
+fn a_chain_that_is_still_moving_does_not_drag_its_stopped_end_through_a_wall() {
+    // Three segments in a line thrown at a wall at 30 m/s: the head has stopped at it while the trunk and the pelvis behind still move and the
+    // joints pull it on. A stop of the velocity alone let it through.
+    let ground = Walled(FlatGround::new(0.0));
+    let segment = |z: f32| Segment {
+        mass: 20.0,
+        radius: 0.12,
+        half_length: 0.2,
+        position: Vec3::new(0.0, 0.8, z),
+        orientation: Quat::from_rotation_x(FRAC_PI_2),
+    };
+    let link = |parent, child| Joint {
+        parent,
+        child,
+        anchor_parent: Vec3::Y * 0.32,
+        anchor_child: Vec3::NEG_Y * 0.32,
+        frame_parent: Quat::IDENTITY,
+        frame_child: Quat::IDENTITY,
+        limits: JointLimits { swing_z: 3.0, swing_y: 3.0, twist: 3.0 },
+    };
+    let spec = RagdollSpec {
+        segments: vec![segment(7.0), segment(7.64), segment(8.28)],
+        joints: vec![link(0, 1), link(1, 2)],
+        ..RagdollSpec::default()
+    };
+    let mut body = Ragdoll::new(&spec, Vec3::new(0.0, 0.0, 30.0), Vec3::ZERO);
+    let mut furthest = f32::MIN;
+    for _ in 0..240 {
+        body.step(FIXED_STEP, &ground);
+        for i in 0..body.len() {
+            for end in [-0.2_f32, 0.2] {
+                let sphere = body.position(i) + body.orientation(i) * Vec3::Y * end;
+                furthest = furthest.max(sphere.z + 0.12);
+            }
+        }
+    }
+    assert!(furthest <= 10.0 + 0.1, "a sphere reached z = {furthest}");
+}

@@ -223,6 +223,151 @@ fn a_bike_ridden_slowly_into_a_wall_stops_and_stays_up() {
     assert!(out.contacts > 0 && !out.fell, "{out:?}");
 }
 
+/// The edge of a road as the city has it: ground on this side of a wall (a barrier across the road, `degrees` off the bike's heading, 90
+/// head-on) and nothing at all beyond it: no ground, no terrain, the void a body that gets through the wall falls into for ever.
+fn road_end(degrees: f32) -> (CollisionWorld, Kerb) {
+    let kerb = wall(degrees);
+    let near = kerb.slab(0.0, -REACH, 0.0);
+    let (p0, p1) = (kerb.point(0.0, -SPAN, -1.0), kerb.point(0.0, SPAN, 3.0));
+    let length = (p1[0] - p0[0]).hypot(p1[2] - p0[2]);
+    let barrier = Barrier { p0, p1, surface: 0, flags: BARRIER_TWO_SIDED, inv_xz_len: 1.0 / length };
+    let mut collision = CollisionWorld::new(None);
+    collision.insert(CollisionPack {
+        section: 3,
+        instances: vec![Instance {
+            row_x: [1.0, 0.0, 0.0],
+            row_z: [0.0, 0.0, 1.0],
+            half_width: 300.0,
+            half_height: 20.0,
+            half_length: 300.0,
+            translation: [0.0; 3],
+            radius: 450.0,
+            iter_stamp: 0,
+            flags: 0,
+            group: 0,
+            article: 0,
+        }],
+        articles: vec![Article {
+            strips: vec![near],
+            barriers: vec![barrier],
+            surfaces: vec![0],
+            intermediate_object: 0,
+            flags: 0,
+        }],
+        objects: vec![],
+    });
+    (collision, kerb)
+}
+
+/// How far along the wall of `kerb` a physics-space point is from the middle of the road's slab (m).
+fn along_wall(kerb: &Kerb, x: f32, z: f32) -> f32 {
+    let (sin, cos) = kerb.angle.sin_cos();
+    cos * (x - kerb.through.0) - sin * (z - kerb.through.1)
+}
+
+/// How far a physics-space point is past the wall of `kerb`, along its normal (m; negative on the road's side).
+fn past_wall(kerb: &Kerb, x: f32, z: f32) -> f32 {
+    let (sin, cos) = kerb.angle.sin_cos();
+    sin * (x - kerb.through.0) + cos * (z - kerb.through.1)
+}
+
+#[test]
+fn a_bike_that_hits_the_end_of_the_road_at_bike_speed_never_ends_up_under_it() {
+    // Round 14, section 3: "going fast and turning, I hit the wall, the bike wall-rides for a bit, then falls under the map".
+    let surfaces = SurfaceTable::default();
+    for degrees in [90.0_f32, 60.0, 45.0, 30.0, 15.0] {
+        for speed in [40.0_f32, 50.0, 60.0] {
+            let (collision, kerb) = road_end(degrees);
+            let ground = WorldGround { collision: &collision, surfaces: &surfaces };
+            let mut props = PropWorld::default();
+            let mut sim = bike_sim();
+            let start = KERB_AT - 3.0 - speed * 1.2;
+            assert!(sim.place_moving(&ground, Spawn { position: Vec3::new(start, 0.0, 2.0), heading: 0.0 }, speed));
+            let (mut lowest, mut touched) = (f32::MAX, false);
+            for _ in 0..(8.0 * 60.0) as usize {
+                let throttle = ((speed - sim.telemetry().speed_mps) * 0.2 + 0.1).clamp(0.0, 0.5);
+                let input = DriveInput { throttle, ..DriveInput::default() };
+                let impact = sim.step(&input, &ground, Some((&collision, &mut props)));
+                touched |= !impact.contacts.is_empty();
+                let at = sim.ride.as_ref().expect("a bike").bike.position();
+                // Only over the road's slab: a bike that slid off its far end (90 m along the wall) has no road under it.
+                if along_wall(&kerb, at.x, at.z).abs() < SPAN - 5.0 {
+                    lowest = lowest.min(at.y);
+                }
+                assert!(at.is_finite(), "{degrees} deg, {speed} m/s: the bike's state is not a number");
+                assert!(
+                    past_wall(&kerb, at.x, at.z) < 0.5,
+                    "{degrees} deg, {speed} m/s: the bike went through the wall to ({:.1}, {:.1}, {:.1})",
+                    at.x,
+                    at.y,
+                    at.z
+                );
+            }
+            assert!(touched, "{degrees} deg, {speed} m/s met the wall");
+            assert!(lowest > -0.3, "{degrees} deg, {speed} m/s: the bike was {lowest} m under the road");
+        }
+    }
+}
+
+#[test]
+fn a_rider_thrown_at_the_end_of_the_road_at_bike_speed_stays_on_the_road() {
+    use blackbox_vehicle::ragdoll::{Joint, JointLimits, Ragdoll, RagdollSpec, Segment};
+    // Pelvis, trunk and head: three capsules joined end to end, lying along the way he is thrown.
+    let capsule = |at: Vec3| Segment {
+        mass: 20.0,
+        radius: 0.12,
+        half_length: 0.2,
+        position: at,
+        orientation: glam::Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+    };
+    let free = JointLimits { swing_z: 3.0, swing_y: 3.0, twist: 3.0 };
+    let link = |parent, child| Joint {
+        parent,
+        child,
+        anchor_parent: Vec3::Y * 0.32,
+        anchor_child: Vec3::NEG_Y * 0.32,
+        frame_parent: glam::Quat::IDENTITY,
+        frame_child: glam::Quat::IDENTITY,
+        limits: free,
+    };
+    let surfaces = SurfaceTable::default();
+    for degrees in [90.0_f32, 60.0, 30.0] {
+        for speed in [30.0_f32, 50.0, 70.0] {
+            let (collision, kerb) = road_end(degrees);
+            let ground = WorldGround { collision: &collision, surfaces: &surfaces };
+            let from = Vec3::new(0.0, 1.0, KERB_AT - speed * 0.6);
+            let spec = RagdollSpec {
+                segments: vec![capsule(from), capsule(from + Vec3::Z * 0.64), capsule(from + Vec3::Z * 1.28)],
+                joints: vec![link(0, 1), link(1, 2)],
+                friction: 0.66,
+                ..RagdollSpec::default()
+            };
+            let mut body = Ragdoll::new(&spec, Vec3::new(0.0, 0.0, speed), Vec3::ZERO);
+            let mut lowest = f32::MAX;
+            for _ in 0..(8.0 * 60.0) as usize {
+                body.step(blackbox_vehicle::FIXED_STEP, &ground);
+                for i in 0..body.len() {
+                    let at = body.position(i);
+                    lowest = lowest.min(at.y);
+                    assert!(
+                        past_wall(&kerb, at.x, at.z) < 0.2,
+                        "{degrees} deg, {speed} m/s: a body went through the wall to ({:.1}, {:.1}, {:.1})",
+                        at.x,
+                        at.y,
+                        at.z
+                    );
+                }
+            }
+            assert!(lowest > -0.2, "{degrees} deg, {speed} m/s: a body was {lowest} m under the road");
+            let fastest = (0..body.len()).map(|i| body.velocity(i).length()).fold(0.0_f32, f32::max);
+            assert!(
+                body.is_finite() && fastest < 1.0,
+                "{degrees} deg, {speed} m/s: he lies at the wall, not at {fastest} m/s"
+            );
+        }
+    }
+}
+
 /// The installed world's roads ridden into their edges, for the numbers of `ride6-feel-round10.md` (section 4): from 40 places on its
 /// roads, 16 rides each (the stick at +-0.15 and +-0.3 for `HOLD` steps from the 60th, 8 to 28 m/s), counting the falls by how fast
 /// the first wall contact closed in. `RIDE6_BIKE_TOML=<a bike's manifest>` rides an imported bike; `NFSMW_GAME_DIR` names the install.

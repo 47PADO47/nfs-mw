@@ -107,6 +107,8 @@ pub struct Ragdoll {
     contacts: Vec<contact::Contact>,
     /// The height of the highest ground the body touched in the last sub-step that touched any (`contact.rs`).
     floor: Option<f32>,
+    /// The walls the end spheres met (`walls.rs`).
+    planes: walls::Planes,
 }
 
 impl Ragdoll {
@@ -156,6 +158,7 @@ impl Ragdoll {
             still: 0.0,
             contacts: Vec::new(),
             floor: None,
+            planes: Vec::new(),
         }
     }
 
@@ -165,7 +168,7 @@ impl Ragdoll {
             return;
         }
         let h = dt / SUBSTEPS as f32;
-        walls::collide(&mut self.bodies, ground, dt, self.friction);
+        walls::collide(&mut self.bodies, &mut self.planes, ground, dt, self.friction);
         // The room closes a little each sub-step: a step's worth at once would be a jolt the velocities then carry on.
         let relax = (-h / RELAX_TIME).exp();
         for _ in 0..SUBSTEPS {
@@ -173,7 +176,9 @@ impl Ragdoll {
             self.bodies.iter_mut().for_each(|b| b.predict(h, self.gravity, self.damping));
             self.solve_joints();
             contact::resolve(&mut self.bodies, ground, (self.friction, h), &mut self.floor, &mut self.contacts);
+            walls::hold(&mut self.bodies, &self.planes);
             self.solve_joints();
+            walls::hold(&mut self.bodies, &self.planes);
             self.bodies.iter_mut().for_each(|b| b.settle(h));
             contact::friction(&mut self.bodies, &self.contacts, h);
             let rate = 1.0 - (-self.joint_damping * h).exp();
