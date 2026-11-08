@@ -115,6 +115,41 @@ fn a_click_on_a_row_below_the_first_selects_that_row() {
 }
 
 #[test]
+fn a_title_has_the_colour_the_selected_row_title_has() {
+    let Some(mut h) = open(Category::Gameplay, UiStyle::Original) else { return };
+    let first_title = page_rows().iter().position(|row| row.setting == Setting::Heading).unwrap();
+    for _ in 0..first_title {
+        h.press(pad::DOWN);
+        h.wait(0.3);
+    }
+    h.wait(1.0);
+    let tree = h.screens.trees().pop().unwrap();
+    let selected = selected_slots(&h)[0];
+    let name = |n: usize| {
+        let hash = blackbox_feng::fe_hash_upper(&format!("OPTION_NAME_{n}"));
+        tree.nodes.iter().find(|node| node.name_hash == hash).unwrap().clone()
+    };
+    let title = tree.nodes.iter().find(|n| n.visible && n.text.as_deref() == Some("Experimental")).unwrap();
+    let rgb = |colour: [u8; 4]| [colour[0], colour[1], colour[2]];
+    let other = name(if selected == 1 { 2 } else { 1 });
+    assert_eq!(rgb(title.colour), rgb(name(selected).colour), "the colour the selected row's title has");
+    assert_ne!(rgb(title.colour), rgb(other.colour), "and not the colour of an ordinary title");
+}
+
+#[test]
+fn a_title_in_a_slot_that_held_a_dimmed_row_is_not_dimmed() {
+    // Ray Tracing is dimmed on a renderer without it, and the page scrolls so the Experimental title takes its place.
+    let Some(mut h) = open(Category::Video, UiStyle::Original) else { return };
+    h.press(pad::UP);
+    h.wait(1.5);
+    let tree = h.screens.trees().pop().unwrap();
+    let title = tree.nodes.iter().find(|n| n.visible && n.text.as_deref() == Some("Experimental")).expect("it shows");
+    let dimmed = tree.nodes.iter().find(|n| n.visible && n.text.as_deref() == Some("Ray Tracing")).expect("it shows");
+    assert!(dimmed.world_colour[3] < title.world_colour[3], "Ray Tracing is dimmed and the title is not");
+    assert!(title.world_colour[3] >= 250, "the title is at full strength: {}", title.world_colour[3]);
+}
+
+#[test]
 fn a_title_is_centred_across_the_package_rows() {
     let Some(mut h) = open(Category::Gameplay, UiStyle::Original) else { return };
     let first_title = page_rows().iter().position(|row| row.setting == Setting::Heading).unwrap();

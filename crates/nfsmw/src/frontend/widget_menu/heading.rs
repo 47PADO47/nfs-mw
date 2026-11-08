@@ -10,8 +10,9 @@ use blackbox_feng::ObjectRef;
 use super::{Cx, WidgetMenu};
 use crate::frontend::logic::anchor_offset;
 
-/// The colour a highlighted title has in the option package, measured on the Original look. [verified]
-pub(super) const ACCENT: [u8; 3] = [226, 148, 45];
+/// The colour the selected row's title has in the option package (read from its string object, `colour_rgba`, on the installed
+/// `Options.fng`; the other titles are 180, 180, 140). [verified]
+pub(super) const ACCENT: [u8; 3] = [190, 128, 43];
 
 /// Puts a string across a box (parent coordinates) the way its justification says, so that the text is centred in it: the
 /// anchor of a right aligned string is its right edge, of a left aligned one its left edge, of a centred one its middle. The

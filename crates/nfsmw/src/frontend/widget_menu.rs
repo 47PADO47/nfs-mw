@@ -174,12 +174,12 @@ impl WidgetMenu {
             (None, Title::Label(label)) => cx.rt.set_label(r.name, label),
             (None, title @ Title::Key(_)) => cx.rt.set_text(r.name, title.text()),
         }
-        // A section title has no value, arrows or slider.
+        // A section title has no value, arrows or slider, and is never dimmed (the slot may have held a dimmed row).
         if row.setting.is_heading() {
             for o in [r.data, r.left, r.right, r.base, r.fill].into_iter().flatten() {
                 cx.rt.set_hidden(o, true);
             }
-            return;
+            return Self::dim(cx, r, row, true);
         }
         let control = control_of(cx, row.setting);
         let slider = matches!(control, Control::Slider(_));
