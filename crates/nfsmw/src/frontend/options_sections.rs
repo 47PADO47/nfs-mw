@@ -71,7 +71,7 @@ impl Group {
 pub(super) fn group_of(category: Category, setting: Setting) -> Option<Group> {
     match (category, setting) {
         (Category::Gameplay, Setting::TurnSignals | Setting::CopHealthBars) => Some(Group::Experimental),
-        (Category::Gameplay, Setting::RiderGear | Setting::Gear(_) | Setting::Rider(_)) => Some(Group::Ride6),
+        (Category::Gameplay, Setting::RiderGear | Setting::Rider(_)) => Some(Group::Ride6),
         (
             Category::Video,
             Setting::Renderer(RendererSetting::RayTracing)

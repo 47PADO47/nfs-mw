@@ -53,7 +53,7 @@ fn gameplay_groups_the_experimental_rows_and_the_rider_rows_and_keeps_the_rest_u
     assert_eq!(experimental, [Setting::TurnSignals, Setting::CopHealthBars]);
     let ride6 = under(&page, "RIDE 6");
     assert_eq!(ride6[0], Setting::RiderGear);
-    assert!(ride6.iter().all(|setting| matches!(setting, Setting::RiderGear | Setting::Gear(_) | Setting::Rider(_))));
+    assert!(ride6.iter().all(|setting| matches!(setting, Setting::RiderGear | Setting::Rider(_))));
     assert!(ride6.iter().filter(|setting| matches!(setting, Setting::Rider(_))).count() == 5);
     let first_heading = page.iter().position(|row| row.setting.is_heading()).unwrap();
     let default: Vec<Setting> = page[..first_heading].iter().map(|row| row.setting).collect();
