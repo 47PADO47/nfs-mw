@@ -68,9 +68,22 @@ fn distance(centre: [f32; 2], pos: [f32; 3]) -> f32 {
     (centre[0] - pos[0]).hypot(centre[1] - pos[1])
 }
 
+/// The placements of `pack` that the scenery format can hold, in groups: those in the same square of `side` metres go together, in
+/// the order of their squares. Each
+/// group becomes one section that holds the models its placements use once (`import.rs`), so a model used all round the track is in
+/// each group that has one of its placements and nowhere else.
+pub fn groups(pack: &Pack, side: f32) -> Vec<Vec<usize>> {
+    let mut by_square: BTreeMap<(i32, i32), Vec<usize>> = BTreeMap::new();
+    for (at, instance) in pack.instances.iter().enumerate().filter(|(_, instance)| fits(instance)) {
+        let square = ((instance.pos[0] / side).floor() as i32, (instance.pos[1] / side).floor() as i32);
+        by_square.entry(square).or_default().push(at);
+    }
+    by_square.into_values().collect()
+}
+
 /// The solids, textures and placements of the placements `indices` of `pack`, with solids named `<key>_M<model>_<part>`. The
-/// models and their pictures are made once for all the placements: one section holds the whole track's objects (`import.rs`), so
-/// a barrier piece used in every cell is in the world once and not in each cell that uses it.
+/// models and their pictures are made once for all the placements of the group: a barrier piece used again and again in a group is
+/// in its section once, and not in each cell that uses it.
 pub fn placed_objects(pack: &Pack, pictures: &Pictures, indices: &[usize], key: &str) -> CellObjects {
     let mut out = CellObjects::default();
     let mut made: HashMap<u32, Vec<String>> = HashMap::new();
@@ -90,7 +103,7 @@ pub fn placed_objects(pack: &Pack, pictures: &Pictures, indices: &[usize], key: 
 }
 
 /// Whether the scenery format can hold the placement's rows.
-fn fits(instance: &Instance) -> bool {
+pub fn fits(instance: &Instance) -> bool {
     instance.rows.iter().flatten().all(|v| v.is_finite() && v.abs() <= MAX_COMPONENT)
 }
 
@@ -272,6 +285,18 @@ mod tests {
         assert_eq!(x, 255.0);
         assert!(radius > 245.0 + 100.0 - 1e-3, "{radius}");
         assert_eq!(anchor_of(&pack(), &[], 100.0), [0.0, 0.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn placements_in_the_same_square_form_a_group() {
+        let groups = groups(&pack(), 100.0);
+        assert_eq!(
+            groups,
+            vec![vec![0], vec![1]],
+            "the placement at 10 m, then the one at 500 m; the scaled one is in none"
+        );
+        assert_eq!(super::groups(&pack(), 1000.0), vec![vec![0, 1]]);
+        assert!(!fits(&pack().instances[2]));
     }
 
     #[test]

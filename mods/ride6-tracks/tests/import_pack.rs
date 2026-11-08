@@ -163,19 +163,24 @@ fn the_objects_are_one_cell_that_holds_every_model_once_and_the_walls_stay_in_th
     write_pack_with_objects(&pack);
     let limits = Limits { max_triangles: 2, min_size: 128.0 };
     let report = import_with(&pack, &out, 64, &limits, &Keep::default(), &AtomicBool::new(false)).unwrap();
-    // The two ground cells, the objects, the far ground.
-    assert_eq!(report.cells, 4);
+    // The two ground cells, the objects of the two 500 m squares they stand in (two blocks beside the first square, one beside the
+    // second), the far ground.
+    assert_eq!(report.cells, 5);
     assert_eq!(report.objects, 3);
     // The walls (12 triangles a box) are in the ground cells' collision: 4 ground triangles and 3 boxes.
     assert_eq!(report.collision_triangles, 4 + 3 * 12);
     let manifest = std::fs::read_to_string(out.join("worlds/testtrack/g002.toml")).unwrap();
     let objects = parse_scenery("g002", &manifest).unwrap();
-    assert_eq!(objects.places.len(), 3, "one placement for each of the three blocks");
+    assert_eq!(objects.places.len(), 2, "the two blocks beside the first square share a section");
     assert!(objects.places.iter().all(|place| place.collision == Collision::None));
-    assert!(objects.anchor[3] > 800.0, "the anchor reaches both ends of the track: {:?}", objects.anchor);
+    assert!(objects.anchor[3] >= 60.0 && objects.anchor[3] < 200.0, "the anchor holds the group: {:?}", objects.anchor);
+    let far_block =
+        parse_scenery("g003", &std::fs::read_to_string(out.join("worlds/testtrack/g003.toml")).unwrap()).unwrap();
+    assert_eq!(far_block.places.len(), 1, "the block beside the second square is in a section of its own");
+    assert!(far_block.anchor[0] > 1000.0);
     let bytes = std::fs::read(out.join("files").join(&objects.file)).unwrap();
     let solids = blackbox_solid::read_solids(&bytes).unwrap();
-    assert_eq!(solids.len(), 1, "the model is in the section once");
+    assert_eq!(solids.len(), 1, "the model is in the section once, however many blocks use it");
     assert!(blackbox_collision::read_collision_packs(&bytes).unwrap().is_empty());
     for key in ["g000", "g001"] {
         let manifest = std::fs::read_to_string(out.join(format!("worlds/testtrack/{key}.toml"))).unwrap();

@@ -22,6 +22,7 @@ background thread from your own RIDE 6 exports, once. The host feature is in [do
    ```toml
    source = 'C:/r6work/tracks'     # one folder per track: pack.json, ground.r6m, tex/
    max_texture = 512               # the longest side of a ground picture
+   brightness = 80                 # percent of the exported pixels (20 to 150), see below
    ```
 
 4. Start the game again. The mod converts every pack of the folder in the background (under a second for Okayama); when it is
@@ -36,20 +37,41 @@ background thread from your own RIDE 6 exports, once. The host feature is in [do
 The converted files are the mod's own `files/WORLDS/` and `worlds/` folders (generated and git-ignored). The same converter is
 the `ride6-track-import <pack> <mod folder>` command line.
 
-## Size and time (Okayama, 512-pixel pictures)
+## Size and time
 
-Export from the install 5 s (91 MB of pack); conversion 0.6 s, **106 MB** of sections in 57 cells (collision 26 MB, geometry 22 MB,
-pictures 44 MB); 58 MB at 256-pixel pictures. All 39 tracks convert in 0.2 to 10 s and 24 to 522 MB each.
+Okayama, 512-pixel pictures, with the barriers, buildings and props: **147 MB** in 66 cells (180 MB before the objects were grouped;
+106 MB without them): the objects are one section for each 500 m square of track, holding each model and its pictures once for the
+squares' placements, instead of in every ground cell beside a placement. Export from the install 5 to 175 s a track (the objects
+and the pictures are most of it), conversion 3 to 10 s, 25 to 530 MB of sections a track. `objects = false` drops the objects.
+
+## Brightness
+
+The game's world shader multiplies a picture by twice its light, so a picture made for a darker lighting model (RIDE 6's) comes out
+pale: white buildings and rock near white. `brightness` (percent of the exported pixels, 20 to 150, default 80) scales the colour of
+every picture and flat colour when a track is converted (`--brightness` of `ride6-track-import`); change it and restart, the tracks
+convert again.
 
 ## Lap timing
 
 The mod times the player's laps on the track's spline (`worlds/<id>.lap`, written by the converter): the start line is 25 m ahead of
 the first slot of the starting grid, a lap counts after nine tenths of the lap were covered, and the time and the best lap show as a
-HUD message. Unit-tested; not seen in the game yet.
+HUD message ("Lap timing on" when a world opens, "Lap timing started" at the first crossing, "Lap 1  0:08.20  best lap").
+The timer is unit-tested on a circle. To **see the messages without driving a lap**, `RIDE6_TRACKS_LAP_DEMO=<metres per second>`
+runs a virtual car round the lap from 60 m before the line in the player's place (`lap.rs`, `Demo`):
+
+```sh
+RIDE6_TRACKS_LAP_DEMO=450 nfsmw view-world --world okayama --drive BMWM3GTR --muted --wait-for-load --screenshot lap.png --screenshot-delay 9
+```
+
+At 450 m/s a lap of Okayama (3,741 m) takes 8.3 s and the screenshot shows "Lap 1  0:08.20  best lap" (verified offscreen). A scripted
+run of a real car could not be used: the mod ticks only when the world is advanced and a scripted run advances it in a batch, so the
+mod never sees the car on both sides of the line.
 
 ## What a world has, and what it lacks
 
-The ground (slices, kerbs, the runnable tarmac, the terrain) with a picture and a collision surface per triangle, the start on the
-first slot of the starting grid. No barriers, buildings, trees, grass, crowd, sky of its own, lap counting or lap times, and no
-traffic, police or races: see [the pack format](../../docs/formats/ride6-track-pack.md) and
+The ground (slices, kerbs, the runnable tarmac, the terrain, pieces of scenery placed with their own transform) with a picture and a
+collision surface per triangle, barriers, buildings and props with walls for the solid ones, a horizon and a sea, the racing line, lap
+timing, the start on the first slot of the starting grid (or on the first sample of the lap). No minimap in a second world: the
+original HUD's disc, heat ring and flame are hidden (`HudState::second_world`), a drawn map is not built. No vegetation, grass,
+crowd, traffic, police or races: see [the pack format](../../docs/formats/ride6-track-pack.md) and
 [the spec](../../docs/specs/second-world.md#what-is-not-built).

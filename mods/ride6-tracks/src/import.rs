@@ -24,8 +24,11 @@ use crate::{check, collision, line};
 const START_LINE_AHEAD: f32 = 25.0;
 /// The side of the squares the far ground's vertices are clustered on, metres.
 const FAR_GRID_METRES: f32 = 10.0;
-/// How far beyond the outermost object the objects cell's anchor reaches, metres: a model's own extent.
-const OBJECTS_MARGIN: f32 = 300.0;
+/// The side of the squares the objects are grouped in, metres: a group loads while the camera is within its anchor plus 150 m, so
+/// the objects of the squares near the camera are resident and the others are not.
+const OBJECT_SQUARE_METRES: f32 = 500.0;
+/// How far beyond the outermost object of a group its anchor reaches, metres: a model's own extent.
+const OBJECTS_MARGIN: f32 = 60.0;
 
 /// What an import did.
 #[derive(Debug, Clone, PartialEq)]
@@ -103,13 +106,21 @@ pub fn import_with(
         let piece = Piece { index, far: false, walled: &near[index], placed: &[], anchor: None };
         write_cell(Target { pack: &pack, pictures: &pictures, id: &id, out }, cell, piece, &mut report)?;
     }
-    // The objects are one more cell, always loaded: every model and picture once, however many cells use it.
-    if !pack.instances.is_empty() {
-        let all: Vec<usize> = (0..pack.instances.len()).collect();
-        let anchor = objects::anchor_of(&pack, &all, OBJECTS_MARGIN);
-        let piece = Piece { index: report.cells, far: false, walled: &[], placed: &all, anchor: Some(anchor) };
-        write_cell(Target { pack: &pack, pictures: &pictures, id: &id, out }, &Cell::default(), piece, &mut report)?;
-        report.cells += 1;
+    // The objects are cells of their own, one for each square of ground (`OBJECT_SQUARE_METRES`), each holding the models and
+    // pictures its placements use once, however many cells of ground they stand beside.
+    for group in objects::groups(&pack, OBJECT_SQUARE_METRES) {
+        if cancel.load(Ordering::Relaxed) {
+            bail!("the import was cancelled");
+        }
+        let anchor = objects::anchor_of(&pack, &group, OBJECTS_MARGIN);
+        let piece = Piece { index: report.cells, far: false, walled: &[], placed: &group, anchor: Some(anchor) };
+        let written = write_cell(
+            Target { pack: &pack, pictures: &pictures, id: &id, out },
+            &Cell::default(),
+            piece,
+            &mut report,
+        )?;
+        report.cells += usize::from(written);
     }
     // The far ground is one more cell, always loaded (`far.rs`).
     let far = far::far_pack(&pack, FAR_GRID_METRES);
@@ -133,6 +144,8 @@ pub fn import_with(
         write_cell(Target { pack: &line_pack, pictures: &pictures, id: &id, out }, &ribbon, piece, &mut report)?;
         report.cells += 1;
     }
+    // The placements the scenery format cannot hold are in no group.
+    report.objects_skipped = pack.instances.iter().filter(|instance| !objects::fits(instance)).count();
     write_world(&pack, &id, out)?;
     write_lap(&pack, &id, out)?;
     Ok(report)
@@ -193,7 +206,8 @@ struct Piece<'a> {
     anchor: Option<[f32; 4]>,
 }
 
-fn write_cell(target: Target<'_>, cell: &Cell, piece: Piece<'_>, report: &mut Report) -> Result<()> {
+/// Writes one cell. Returns whether it was written: a cell with no solids (objects whose models have no geometry) is not.
+fn write_cell(target: Target<'_>, cell: &Cell, piece: Piece<'_>, report: &mut Report) -> Result<bool> {
     let Target { pack, pictures, id, out } = target;
     let Piece { index, far, walled, placed: placements, anchor } = piece;
     let key = manifest::cell_key(index);
@@ -221,6 +235,9 @@ fn write_cell(target: Target<'_>, cell: &Cell, piece: Piece<'_>, report: &mut Re
     report.objects += objects.places.len();
     report.objects_skipped += objects.skipped;
     sources.extend(objects.solids);
+    if sources.is_empty() {
+        return Ok(false);
+    }
     let section = crate::section::build(&key.to_ascii_uppercase(), number, &sources, &textures, &ground)?;
     let file = manifest::cell_file(id, index);
     let path = out.join("files").join(&file);
@@ -246,7 +263,7 @@ fn write_cell(target: Target<'_>, cell: &Cell, piece: Piece<'_>, report: &mut Re
     report.collision_triangles += section.collision.triangles;
     report.collision_skipped += section.collision.skipped;
     report.bytes += section.bytes.len() as u64;
-    Ok(())
+    Ok(true)
 }
 
 /// The lap for the timer (`lap.rs`): the track spline turned to start at the first slot of the grid. Nothing is written for a
