@@ -78,18 +78,21 @@ pub struct Limits {
     pub min_size: f32,
 }
 
-/// Which parts of a pack an import keeps.
+/// Which parts of a pack an import keeps, and how bright its pictures are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Keep {
     /// The barriers, buildings and props, and the walls they make in the collision.
     pub objects: bool,
     /// The racing line as a ribbon on the ground.
     pub line: bool,
+    /// How bright the pictures are, percent of the pack's pixels (100 leaves them as they are): the world shader multiplies a
+    /// picture by twice its light, so a picture made for a darker lighting model comes out lighter than it was drawn.
+    pub brightness: u32,
 }
 
 impl Default for Keep {
     fn default() -> Self {
-        Self { objects: true, line: true }
+        Self { objects: true, line: true, brightness: 100 }
     }
 }
 

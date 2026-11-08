@@ -17,7 +17,7 @@ use crate::manifest::{self, MAX_CELLS, Place, WORLDS_FOLDER};
 use crate::model::solid_of;
 use crate::objects;
 use crate::pack::{self, Pack};
-use crate::textures::{Pictures, flat_colour};
+use crate::textures::Pictures;
 use crate::{check, collision, line};
 
 /// How far ahead of the first slot of the starting grid the start line is, metres.
@@ -76,7 +76,7 @@ pub fn import_with(
         bail!("{} cells are more than the section numbers hold ({MAX_CELLS})", cells.len());
     }
     let (pictures, missing_pictures) =
-        Pictures::load_sized(&pack_dir.join("tex"), &sizes_of(&pack, max_texture));
+        Pictures::load_sized(&pack_dir.join("tex"), &sizes_of(&pack, max_texture), keep.brightness);
     let files = out.join("files").join("WORLDS").join(id.to_ascii_uppercase());
     let worlds = out.join(WORLDS_FOLDER).join(&id);
     for folder in [&files, &worlds] {
@@ -169,7 +169,7 @@ pub(crate) fn texture_for(pack: &Pack, pictures: &Pictures, material: usize) -> 
     let m = &pack.materials[material];
     match m.texture.as_deref().and_then(|stem| pictures.get(stem)) {
         Some(texture) => texture.clone(),
-        None => flat_colour(m.color),
+        None => pictures.flat(m.color),
     }
 }
 

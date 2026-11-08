@@ -30,11 +30,15 @@ struct Args {
     /// Leave out the racing line.
     #[arg(long)]
     no_line: bool,
+    /// How bright the pictures are, percent of the pack's pixels.
+    #[arg(long, default_value_t = ride6_tracks::config::DEFAULT_BRIGHTNESS)]
+    brightness: u32,
 }
 
 fn run(args: &Args) -> Result<()> {
     let started = std::time::Instant::now();
-    let keep = ride6_tracks::cells::Keep { objects: !args.no_objects, line: !args.no_line };
+    let keep =
+        ride6_tracks::cells::Keep { objects: !args.no_objects, line: !args.no_line, brightness: args.brightness };
     let limits = ride6_tracks::cells::Limits::default();
     let cancel = AtomicBool::new(false);
     let report =

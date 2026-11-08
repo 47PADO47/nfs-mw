@@ -66,9 +66,23 @@ pub fn flat_colour([r, g, b]: [u8; 3]) -> TextureSource {
     TextureSource::new(colour_name([r, g, b]), 4, 4, PixelFormat::Dxt1, 1, block)
 }
 
+/// The picture with each colour channel multiplied by `percent / 100` (the alpha stays).
+pub fn brighten(picture: &mut Picture, percent: u32) {
+    if percent == 100 {
+        return;
+    }
+    for pixel in picture.rgba.as_chunks_mut::<4>().0 {
+        for channel in &mut pixel[..3] {
+            *channel = ((u32::from(*channel) * percent + 50) / 100).min(255) as u8;
+        }
+    }
+}
+
 /// The pictures of a pack's `tex/` folder, converted once each.
 pub struct Pictures {
     textures: HashMap<String, TextureSource>,
+    /// How bright the pictures and the flat colours are, percent.
+    brightness: u32,
 }
 
 impl Pictures {
@@ -76,11 +90,11 @@ impl Pictures {
     /// missing or cannot be read is left out, with the reason in the list that comes back.
     pub fn load(dir: &Path, stems: &[String], limit: u32) -> (Self, Vec<(String, String)>) {
         let sized: Vec<(String, u32)> = stems.iter().map(|stem| (stem.clone(), limit)).collect();
-        Self::load_sized(dir, &sized)
+        Self::load_sized(dir, &sized, 100)
     }
 
-    /// [`Pictures::load`] with a limit of its own for each picture.
-    pub fn load_sized(dir: &Path, stems: &[(String, u32)]) -> (Self, Vec<(String, String)>) {
+    /// [`Pictures::load`] with a limit of its own for each picture, all at `brightness` percent.
+    pub fn load_sized(dir: &Path, stems: &[(String, u32)], brightness: u32) -> (Self, Vec<(String, String)>) {
         let workers = std::thread::available_parallelism().map_or(2, |n| n.get().clamp(1, 6));
         let chunk = stems.len().div_ceil(workers).max(1);
         let results: Vec<(String, Result<TextureSource>)> = std::thread::scope(|scope| {
@@ -88,7 +102,9 @@ impl Pictures {
                 .chunks(chunk)
                 .map(|part| {
                     scope.spawn(move || {
-                        part.iter().map(|(stem, limit)| (stem.clone(), convert(dir, stem, *limit))).collect::<Vec<_>>()
+                        part.iter()
+                            .map(|(stem, limit)| (stem.clone(), convert(dir, stem, *limit, brightness)))
+                            .collect::<Vec<_>>()
                     })
                 })
                 .collect();
@@ -107,7 +123,12 @@ impl Pictures {
                 Err(error) => failed.push((stem, format!("{error:#}"))),
             }
         }
-        (Self { textures }, failed)
+        (Self { textures, brightness }, failed)
+    }
+
+    /// The one-block texture of a flat colour at this set's brightness.
+    pub fn flat(&self, colour: [u8; 3]) -> TextureSource {
+        flat_colour(colour.map(|c| ((u32::from(c) * self.brightness + 50) / 100).min(255) as u8))
     }
 
     /// The texture of a picture stem, if it was converted.
@@ -116,10 +137,11 @@ impl Pictures {
     }
 }
 
-fn convert(dir: &Path, stem: &str, limit: u32) -> Result<TextureSource> {
+fn convert(dir: &Path, stem: &str, limit: u32, brightness: u32) -> Result<TextureSource> {
     let path = dir.join(format!("{stem}.png"));
     let bytes = std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
-    let picture = decode(&bytes).with_context(|| format!("decoding {}", path.display()))?;
+    let mut picture = decode(&bytes).with_context(|| format!("decoding {}", path.display()))?;
+    brighten(&mut picture, brightness);
     texture_of(&game_name(stem), picture, limit)
 }
 
@@ -143,6 +165,17 @@ pub(crate) mod tests {
         assert_eq!((texture.width, texture.height), (16, 8));
         assert_eq!(texture.mip_count, full_mip_count(16, 8));
         assert_eq!(texture.format, PixelFormat::Dxt1);
+    }
+
+    #[test]
+    fn brightness_scales_the_colour_and_not_the_alpha() {
+        let mut picture = Picture { width: 1, height: 1, rgba: vec![200, 100, 50, 77] };
+        brighten(&mut picture, 50);
+        assert_eq!(picture.rgba, vec![100, 50, 25, 77]);
+        brighten(&mut picture, 100);
+        assert_eq!(picture.rgba, vec![100, 50, 25, 77]);
+        let pictures = Pictures { textures: HashMap::new(), brightness: 50 };
+        assert_eq!(pictures.flat([200, 100, 50]).name, colour_name([100, 50, 25]));
     }
 
     #[test]
