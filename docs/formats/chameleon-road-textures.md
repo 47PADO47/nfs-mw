@@ -76,10 +76,13 @@ replacement must therefore be keyed by **hash**, which the replacement API takes
 - **What the 2005 game has no texture for:** road arrows and `ONLY` (nothing in the 2005 data is a ground arrow: `SGN_*ARROW*` are
   freeway signs and traffic signals), and a manhole cover **by that name**: the manholes of the world are the solids `XO_MANHOLE_1B_CK_*`
   (8 instances) textured with `OBJ_STORMGRATE` (a 64 x 128 slotted grate); the one round cover, `OBJ_GASFILLCOVER` (128 x 128), is on the
-  solid `AGASS_GASFILLCOVER01`, which no scenery instance places.
-- **Signs.** `SGN_STOP` (128 x 128, the whole octagon) is on `BXS_STOPSIGNB_1B_00`, `CXS_STOPSIGNA_1B_00` and the sign groups
-  (`XS_SIGNGROUPA_1B_LL_00`). The speed limit faces are 128 x 128 squares (`SGN_SPEEDLIMIT35, 45, 50, 55, 60, 75`); the only speed limit
-  solids that scenery places are world-space copies of `XS_SPEED60NP_1B_00` (3), so 50 and 55 are in no tile.
+  solid `AGASS_GASFILLCOVER01`, of which no scenery instance was found.
+- **Signs.** `SGN_STOP` (128 x 128, the whole octagon) is on 12 solids: the sawhorses (`*XO_SAWHORSE*`), `XS_DONOTENTERGATEB_1A_00` (instances
+  at (3156, 1863), (1807, 346) and others), the sign groups (`XS_SIGNGROUPA_1B_LL_00` and its world-space copies) and the stop sign
+  solids `BXS_STOPSIGNB_1B_00` and `CXS_STOPSIGNA_1B_00`, of which no instance was found. The speed limit faces are 128 x 128 squares (`SGN_SPEEDLIMIT35, 45, 50, 55, 60, 75`); the only speed limit
+  solids that scenery places by name are world-space copies of `XS_SPEED60NP_1B_00` (3); the 55 is on `bAXS_SPEED55_1B_00`, which a sign about
+  60 m from the first intersection of the city shows (seen in the world, its instance was not found by the scan), and the 50 is on
+  `cAXS_SPEED50_1B_00`, of which none was seen.
 
 ## Measuring a 2005 strip
 
