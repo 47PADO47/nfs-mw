@@ -21,7 +21,11 @@ mod active;
 mod catalog;
 mod fit;
 mod load;
+#[cfg(test)]
+mod marker_tests;
 mod place;
+#[cfg(test)]
+mod real_dump_tests;
 #[cfg(test)]
 mod real_tests;
 #[cfg(test)]
