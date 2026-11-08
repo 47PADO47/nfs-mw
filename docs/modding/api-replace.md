@@ -166,4 +166,9 @@ format = "bc1"
 max_size = 1024
 ```
 
+**Models authored in the old solid's frame** (`mods/nfsmw-2012-content/src/signs/`, kinds `road_signs` and `traffic_lights`): when the mod knows the
+box of each solid it replaces it can turn, scale and place its model itself, and say `fit = "exact"`: the host uses the model as it is
+when it lies inside the old box grown by half of `spread - 1` and 5 cm. Such a model may hang below its origin (a signal head), and its
+position markers (authored lights, `docs/specs/environment-prop-lights.md`) are kept, placed like its vertices.
+
 **Add a prop** (parsed; placement by the host is still open, see the spec): `[[add]] model = "BENCH" pos = [x, y, z]` in a set with `[files] geometry`.

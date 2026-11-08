@@ -14,6 +14,8 @@ saved with the other settings (`[mod_values.nfsmw] option_<kind>_variant = "<val
 | Restored sparks (Restored spark style; sparks only, no contrail or streaks) | `xenon_spark_variant` | `XENON/<ID>/` | `blackbox_modding::content::xenon_variant` | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) |
 | Wind (looping recordings played with the car's speed) | `wind_variant` | `WIND/<ID>/` | `blackbox_modding::content::wind_fx` | below |
 | Trees (models and textures of the world's trees, swapped in as sections load; now one kind of the [replacement sets](api-replace.md)) | `trees_variant` | `TREES/<ID>/` or `replace/<set>.toml` | `blackbox_modding::content::model_swap` (old form), `replace` (new) | [below](#profile-format-of-the-trees) |
+| Road signs (the stop, speed limit 45 and 55, do not enter and tow zone signs) | `road_signs_variant` | `replace/signs-<id>.toml` (a replacement set) | [`api-replace.md`](api-replace.md) (no code in the game) | [chameleon-signs.md](../formats/chameleon-signs.md) |
+| Traffic light models (the mast arm and the signal head) | `traffic_lights_variant` | `replace/lights-<id>.toml` (a replacement set) | [`api-replace.md`](api-replace.md) | [chameleon-signs.md](../formats/chameleon-signs.md) |
 
 ## How a variant works
 
