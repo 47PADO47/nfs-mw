@@ -39,11 +39,11 @@ fn installed_blacklist_race_sheet_only_offers_world_events() {
             assert!(!bin.rival_events.contains(&row.event), "rival duel offered as a normal race");
         }
         let page = RacePage { bin: bin.number, rows };
-        for at in 0..page.len() {
+        for (at, expected) in bin.races.iter().enumerate().take(page.len()) {
             let ask = page.ask(at).expect("entered world event can be selected");
             assert!(
                 matches!(ask.then, crate::frontend::logic::Command::LaunchEvent { event }
-                if event == bin.races[at]),
+                if event == *expected),
                 "confirmation lost the selected event"
             );
         }
