@@ -300,6 +300,20 @@ fn a_section_gets_the_models_for_its_solids_and_no_copy_of_the_textures() {
 }
 
 #[test]
+fn two_sets_that_share_a_pack_add_its_textures_once() {
+    let one = |id: &str, solid: &str| {
+        let models = vec![tree("MW12_TREE_L0", "MW12_LEAF", 10.0, 3.0, 0)];
+        let set = Arc::new(from_model_swap(id, &profile(solid, "MW12_TREE_L0")));
+        let added = vec![texture("MW12_LEAF"), texture("UNUSED")];
+        LoadedSet { owner: "mod".into(), order: 0, set, models, added, replaced: Vec::new() }
+    };
+    let both = Active::build(vec![one("trees", "XT_STOCK"), one("bushes", "XT_BUSH")]);
+    assert_eq!(both.swaps(), 2);
+    let names: Vec<&str> = both.textures().iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names, ["MW12_LEAF", "UNUSED"], "the textures of a shared pack exist once in the world");
+}
+
+#[test]
 fn a_section_with_nothing_to_replace_is_left_alone() {
     let mut data = section(vec![tree("XT_OTHER", "STOCKTEX", 5.0, 2.0, 0)]);
     pack().apply(&mut data);

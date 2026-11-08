@@ -1,9 +1,10 @@
 //! The trees of the real 2012 install. Ignored without `MW2012_GAME_DIR` (the 2012 install).
 
-use blackbox_modding::content::parse_model_swap_profile;
+use blackbox_modding::content::{parse_model_swap_profile, parse_replace_set};
 use blackbox_solid::read_solids;
 use blackbox_tpk::read_texture_packs;
 
+use super::manifest;
 use super::*;
 use crate::source::Source;
 
@@ -50,11 +51,20 @@ fn the_pack_reads_back_as_solids_textures_and_a_profile_the_game_accepts() {
         // The tree stands up: it is taller than it is wide, or at least reaches above its base.
         assert!(solid.bounds_max[2] > 1.0, "{}: {:?}", solid.name, solid.bounds_max);
     }
-    let profile = parse_model_swap_profile(&pack.profile).unwrap();
+    let profile = parse_model_swap_profile(&manifest::profile_text(&trees_set(false), &pack.species)).unwrap();
     for swap in &profile.swaps {
         assert!(solids.iter().any(|solid| solid.name == swap.model), "{} has no model {}", swap.solid, swap.model);
     }
-    assert_eq!(profile.swaps.len(), 81, "{} swaps", profile.swaps.len());
+    assert_eq!(profile.swaps.len(), 81, "the trees with their old round bushes: {} swaps", profile.swaps.len());
+    // The two sets of a conversion that has the bushes apart: every model they name is in the pack, and no solid is in both.
+    let trees = parse_replace_set("trees", &manifest::replace_manifest(&trees_set(true), &pack.species)).unwrap();
+    let bushes = parse_replace_set("bushes", &manifest::replace_manifest(&bushes::set(), &pack.species)).unwrap();
+    for entry in trees.models.iter().chain(&bushes.models) {
+        assert!(solids.iter().any(|solid| solid.name == entry.model), "no model {}", entry.model);
+    }
+    let named: Vec<_> = trees.models.iter().flat_map(|entry| entry.targets.iter()).collect();
+    assert!(bushes.models.iter().flat_map(|entry| entry.targets.iter()).all(|target| !named.contains(&target)));
+    println!("the trees set: {} solids, the bushes set: {} solids", named.len(), bushes.model_targets());
 }
 
 #[test]

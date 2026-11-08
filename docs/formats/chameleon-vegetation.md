@@ -80,7 +80,7 @@ The bark maps (`104F49`, `27FFC`, `71314`, `E3770`, ...) are opaque pictures of 
 
 ## The species of the variant
 
-Eleven of the 40 models carry the variant ([`trees/species.rs`](../../mods/nfsmw-2012-content/src/trees/species.rs)). The others are
+Eleven of the 40 models carry the trees variant, and eight more the bushes ([the bushes](#the-bushes); [`trees/species.rs`](../../mods/nfsmw-2012-content/src/trees/species.rs)). The others are
 copies of the same species at other sizes, or models whose resources are not in the bundles around them (`0x4DA8A407`, the blossom
 tree, and `0xF0C5A212` miss a material or a texture in every bundle that holds them), or stands of trees of 80 to 300 m radius
 (`0xEE68B20`, `0x9A045F0A`, `0x944B51E8`, `0xDF534A75`, `0xDCCDD936`) that are whole stands, not trees.
@@ -122,6 +122,81 @@ first level that does not stand (its lowest point at most a tenth of its own top
 For each of them the model, its renderables and materials, the vertex descriptors and shaders (`SHADERS.BNDL`) and the textures resolve in a pool of the
 named bundle, `HAWAII/GLOBALRESOURCES.BNDL` and `SHADERS.BNDL` **[verified]**. The converter reads the bundles in that order (by ranges,
 [below](#what-the-conversion-costs)) and needs no other.
+
+## The bushes
+
+The census of the **models with a `Tree_*` material** (every `HAWAII/` bundle, the shaders of `SHADERS.BNDL`, a scratch Python reader built on
+`tools/chameleon_bundle.py` and `tools/chameleon_export.py`) finds **42 models**, not 40: the 40 of the first census and two more that the
+first one counted as one. 11 are the trees above, 8 are **low growth** (2 to 3.2 m tall, a footprint of 3 to 7 m) and are the bushes of
+the variant, and the rest are other trees (the large round bush `0x228F2FBA`, 7.2 m, and the thin-crowned `0x437640D7` and `0xE343E2A6` are trees
+for the eye), stands of 60 to 350 m, planters (`0xF86CFC31`, `0xFD63F5E8`: a street lamp with a hanging basket, a concrete trough with shrubs) and one
+arena prop. The eight were told apart **by looking at them**: a scratch software renderer (numpy, Pillow: the model's cards with their cut-out
+textures, two views and the levels of detail) drew a contact sheet of every model under 7 m. **[verified]** for the sizes and the pictures,
+the species names are ours.
+
+| Key | Model id | Read from | Levels | Finest level (w x d x h, triangles) | Texture | Picture |
+|---|---|---|---|---|---|---|
+| `BUSH` | `0xFAC87374` | `TRK_UNIT1` | 4 | 6.2 x 4.5 x 3.2, 38 | `27EDF` | dark round bush (already of the first trees) |
+| `SHRUB_GREEN` | `0x697E287C` | `TRK_UNIT33` | 3 | 4.1 x 4.0 x 2.7, 123 | `104F52` | green deciduous shrub, a clump of stems |
+| `HEDGE` | `0xA807609B` | `TRK_UNIT158` | 3 | 6.7 x 2.6 x 2.0 above its origin (its stems root 0.9 m below it), 220 | `104F52` | a hedge of upright leafy stems, 6.7 m of it |
+| `SHRUB_STRIP` | `0x5EE210C0` | `TRK_UNIT33` | 3 | 6.8 x 3.6 x 2.9, 116 | `15AB07` | olive shrub in a strip of two humps |
+| `DRY_SHRUB` | `0x8CA31079` | `TRK_UNIT113` | 3 | 3.6 x 4.3 x 2.3, 84 | `27ECA` | twiggy brown shrub, grass at its foot |
+| `DARK_SHRUB` | `0x345185D4` | `TRK_UNIT115` | 3 | 4.5 x 4.3 x 3.1, 474 | `27ED9` | dark, spiky evergreen shrub |
+| `PALE_SHRUB` | `0x7AC64A1F` | `TRK_UNIT68` | 4 | 3.0 x 3.2 x 3.1, 172 | `27EFA` | thin-stemmed shrub with pale, yellowish leaves |
+| `GRASS_TALL` | `0x8F4BEEBD` | `TRK_UNIT158` | 3 | 3.3 x 7.3 x 2.6, 136 | `15C521` | a strip of tall grass tufts |
+| `GRASS_CLUMP` | `0xCD874A5B` | `TRK_UNIT22` | 3 | 2.1 x 2.6 x 2.3, 8 | `15C521` | ornamental grass: 8 triangles of long blades |
+
+Each is in its bundle with every resource it needs but the shared ones (`GLOBALRESOURCES.BNDL`, `SHADERS.BNDL`): the bundle named is the smallest that
+passes that check, found by the same reader as above **[verified]**. The same rules as for the trees apply (`trees/build.rs`): a level that does not
+stand is dropped. No model has bark. There is a second, near-identical hedge, `0xCCEA1CBC` (4 levels), that is **not** used: it stands in a concrete
+trough (a bark-role mesh of `WorldPBR_*` with the texture `71965`), and in the game the trough came out as tan boards sticking out of the hedge (the first
+screenshots, `hedge1`), so the plain hedge `0xA807609B` replaced it.
+The 2012 game has **no fern, no flowerbed and no reed**: `XT_FERN` keeps the 2005 look.
+
+**The 2005 side** (a report of the solids of `STREAML2RA.BUN` by name, `report_the_solids_of_some_families` in `replace/real_tests.rs`;
+solids, of which world-space copies, the width of the long side of a copy at the median and the 90th percentile, metres):
+
+| Family | Solids (copies) | Width p50 / p90 | Vertices p50 | Effect | Replaced by |
+|---|---|---|---|---|---|
+| `XT_CT_BUSH_1B_JG_00` | 176 (175) | 78 / 153 | 100 | 0 | `SHRUB_GREEN` |
+| `XT_BUSH_FOREST_1A/2A_JG_00` | 125 (122) | 75 / 162 | 176 | 0 | `DARK_SHRUB` |
+| `XT_GC_BUSH_1B_00` | 47 (46) | 47 / 115 | 124 | 0 | `SHRUB_STRIP` |
+| `XT_CT_BUSHMULLB_1B_00`, `XT_BUSHGROUP`, `XT_BUSHMULLD` | 25, 44, 11 | 32 to 69 | 84 to 330 | 0 / 6 | `BUSH` |
+| `XT_BUSHREDA_1B_LL_00`, `XT_BUSHB_1C_AL_00` | 18, 1 | 95 | 144 | 0 | `DARK_SHRUB`, `SHRUB_GREEN` |
+| `XT_BUSHYELLOWFLOWERS` | 19 | 20 to 57 | 56 to 112 | 6 | `PALE_SHRUB` |
+| the hedges: `XT_HEDGE*`, `XT_HEDGEA4M/A8M`, `XT_HEDGEMUL_*`, `XW_HEDGESTADIUM` | 137 | 20 to 77 | 270 to 820 | 0 | `HEDGE` |
+| the grasses: `XT_GRASSA/B/C`, `XT_GRASSPATCH`, `XT_BEACHGRASS`, `XO_GRASSCLUMPCT` | 221 | 35 to 70 | 90 to 180 | 0 / 6 | `GRASS_TALL`, `GRASS_CLUMP` |
+
+Almost all of them are **world-space copies of a stretch** (a patch of undergrowth along a slope, a hedge along a house) with a few hundred vertices
+and a footprint of tens of metres, so the fit of the trees (one copy for each stretch of the old vertices, `fit = "row"`) applies as it is; the fit of
+a hedge row is the hedge model 6.7 m long, repeated along the stretch at the old height. Measured on the real tiles with the pack
+(`report_what_the_trees_do_to_the_installed_world`): of the 58 names (**832 solids, 774 of them world-space copies**: 474 bush, 137 hedge, 221 grass) **no solid keeps
+its own model, and the new footprint is 1.0 to 1.5 times the old** (median 1.01: the 1.5 is the `spread` of the bushes' limits) and 0.8 to 1.4 times as tall
+**[verified]** on the real tiles. What was looked at in the game, and where it differs from the 2005 look: [below](#what-was-looked-at).
+
+### What was looked at
+
+Offscreen screenshots of the real world (`nfsmw view-world --muted --wait-for-load --at x,y --height 2.5 --heading 0 --pitch -8`, the camera 2.5 m above the
+ground, the places are the camera's `--at`; the same place with the Bushes setting Original and then NFS Most Wanted 2012). Where, and what was seen:
+
+| Place (x, y) | 2005 family | Before | After |
+|---|---|---|---|
+| 2166, 1368 (a road median) | `XT_CT_BUSH` | one long clipped dark hedge block | three separate round green shrubs with gaps (a patch is a row of copies, not a block) |
+| 2478, 4077 (under a viaduct) | `XT_BUSH_FOREST_1A` | thin dark twiggy bushes | lush spiky evergreen shrubs (`DARK_SHRUB`), larger and lighter than the old |
+| 1992, 1070 (a roadside bank) | `XT_GC_BUSH` | brown-orange leaf mass | pale leafy `SHRUB_STRIP` clumps at the foot, the autumn trees unchanged |
+| 1236, -55 (planters of a street) | `XT_HEDGE` | flat-topped clipped boxes | rounded leafy clumps, soil showing between them |
+| 1067, 135 (a stadium walk) | `XW_HEDGESTADIUM` | a dark clipped box | a leafy hedge filling the planter |
+| 460, 4206 and 4034, 3356 (a garden bed, a hedge along a lot) | `XT_HEDGEA4M`, `XT_HEDGEA8M` | clipped dark boxes | light green leafy hedges, bright against the dark old ones |
+| 895, 25 (a park) | `XT_BUSHYELLOWFLOWERS` | blobby yellow-green bushes | thin-stemmed shrubs with pale leaves (`PALE_SHRUB`), a clear gain |
+
+Findings: a 2012 bush is **brighter and leafier** than the 2005 ones (the 2012 leaves are lit by the game's tree shader like the trees' ones, with the grey ramp
+of `trees/light.rs`), and a **patch is a few separate shrubs, not a solid block**: the old hedge boxes were continuous, the copies are one for each stretch of the old
+vertices and leave gaps where the old stretch had fewer than three vertices. That is the look of the 2012 game's own hedges, but it is **less dense than the
+old** (open question below). The grasses were fitted (221 solids, no solid kept) but **no place with visible grass was looked at** **[unconfirmed]**.
+
+**Cost:** the pack grows by about 0.7 MB (3.5 MB in all: 0.9 MB of models, 2.5 MB of pictures) **[verified]** (it was 2.8 MB). The frame cost on dense tiles and the vertex totals
+(`report_what_the_trees_do_to_the_installed_world` now prints the old and new vertex and triangle counts of every solid) were **not measured yet** **[unconfirmed]**: the one
+`--bench-seconds` run taken was on a busy machine (p50 6.6 ms, p95 21 ms, with the bushes off).
 
 ## How the 2012 world places them **[not read]**
 
@@ -223,6 +298,8 @@ nothing: the mod's fingerprint says the files are right).
   solids (the terrain is not in a tile's collision), and where it was found the old crowns' floor was at the ground or below it (median
   3 m below). Trying to hang the crown of a replacement on the old floor and let its trunk reach down put the trunks through a wall in a
   screenshot, so a replacement's foot stands on the old floor of its stretch.
+- The bushes' density: a hedge row is a row of separate copies; a per-set overlap (more copies, narrower cells) would close the gaps in planters but is a
+  new field of the replacement API (`copies`, `overlap`), not built. The grasses were not looked at in the game (`XT_GRASS*`, `XT_BEACHGRASS`, `XO_GRASSCLUMPCT`).
 - Whether every name of the 99 base names that is a tree (and not a panorama or a stand) is in `trees/stock.rs`: the families were
   listed from the names of the tree solids that were looked at; a name the list lacks keeps the game's look.
 - The conversion's output size and time on the real install: the figures below are estimates from the headers; the log line `trees variant:
